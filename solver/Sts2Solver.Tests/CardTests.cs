@@ -651,8 +651,12 @@ public class CardTests
         p.Hand.Add(strike);
         Play(c, new Armaments(), null);
         Assert.Equal(5, p.Block);
-        Assert.Equal(1, strike.Upgrades);                    // the hand card got upgraded
-        Assert.Equal(9, strike.Damage);                      // 6 + 3
+        // The hand card is REPLACED by a freshly-cloned upgraded copy (the original instance is left untouched
+        // so sibling search branches that share it aren't corrupted).
+        Assert.Equal(0, strike.Upgrades);                    // original instance unchanged
+        var upgraded = (StrikeIronclad)p.Hand[0];
+        Assert.Equal(1, upgraded.Upgrades);                  // hand now holds the upgraded clone
+        Assert.Equal(9, upgraded.Damage);                    // 6 + 3
     }
 
     [Fact]

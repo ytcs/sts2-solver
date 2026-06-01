@@ -580,4 +580,567 @@ public class SilentCardTests
         // OnPlay sees hand count 1 (Expertise removed before OnPlay), draws 6-1 = 5.
         Assert.Equal(6, p.Hand.Count);
     }
+
+    // ===== Batch 4 =====
+
+    [Fact]
+    public void Abrasive_Gains_1_Dex_And_4_Thorns_And_Reflects()
+    {
+        var (c, p, m) = Fight();
+        Play(c, new Abrasive(), null);
+        Assert.Equal(1, p.GetPowerAmount("Dexterity"));
+        Assert.Equal(4, p.GetPowerAmount("Thorns"));
+        int before = m.CurrentHp;
+        Cmd.Attack(c, m, p, 5, ValueProp.Move, null);     // enemy hits player
+        Assert.Equal(before - 4, m.CurrentHp);            // 4 thorns back
+    }
+
+    [Fact]
+    public void Abrasive_Upgrade_Gains_6_Thorns()
+    {
+        var (c, p, _) = Fight();
+        Play(c, (CardModel)new Abrasive().Upgraded(), null);
+        Assert.Equal(6, p.GetPowerAmount("Thorns"));
+    }
+
+    [Fact]
+    public void Assassinate_Deals_10_Applies_1_Vulnerable_At_Cost_0_And_Exhausts()
+    {
+        var (c, p, m) = Fight();
+        var a = new Assassinate();
+        Assert.Equal(0, a.Cost);
+        Play(c, a, m);
+        Assert.Equal(60 - 10, m.CurrentHp);
+        Assert.Equal(1, m.GetPowerAmount("Vulnerable"));
+        Assert.Contains(a, p.ExhaustPile);
+    }
+
+    [Fact]
+    public void Assassinate_Upgrade_Deals_13_And_2_Vulnerable()
+    {
+        var (c, _, m) = Fight();
+        Play(c, (CardModel)new Assassinate().Upgraded(), m);
+        Assert.Equal(60 - 13, m.CurrentHp);
+        Assert.Equal(2, m.GetPowerAmount("Vulnerable"));
+    }
+
+    [Fact]
+    public void Expose_Removes_Block_And_Artifact_Then_Applies_2_Vulnerable()
+    {
+        var (c, _, m) = Fight();
+        m.GainBlockDirect(10);
+        m.AddPower(new ArtifactPower(), 1);
+        Play(c, new Expose(), m);
+        Assert.Equal(0, m.Block);                          // all block removed
+        Assert.False(m.HasPower("Artifact"));              // artifact removed outright (not consumed by vuln)
+        Assert.Equal(2, m.GetPowerAmount("Vulnerable"));
+    }
+
+    [Fact]
+    public void LeadingStrike_Deals_3_And_Adds_2_Shivs()
+    {
+        var (c, p, m) = Fight();
+        Play(c, new LeadingStrike(), m);
+        Assert.Equal(60 - 3, m.CurrentHp);
+        Assert.Equal(2, p.Hand.Count(card => card is Shiv));
+    }
+
+    [Fact]
+    public void Malaise_Reduces_Strength_By_X_And_Applies_X_Weak()
+    {
+        var (c, _, m) = Fight();
+        m.AddPower(new StrengthPower(), 5);
+        var mal = new Malaise();
+        Assert.True(mal.IsXCost);
+        Play(c, mal, m);                                   // 3 energy → X = 3
+        Assert.Equal(0, c.Player.Energy);
+        Assert.Equal(5 - 3, m.GetPowerAmount("Strength"));
+        Assert.Equal(3, m.GetPowerAmount("Weak"));
+    }
+
+    [Fact]
+    public void Malaise_Upgrade_Adds_One_To_X()
+    {
+        var (c, _, m) = Fight();
+        Play(c, (CardModel)new Malaise().Upgraded(), m);   // X=3, +1 → 4
+        Assert.Equal(-4, m.GetPowerAmount("Strength"));
+        Assert.Equal(4, m.GetPowerAmount("Weak"));
+    }
+
+    [Fact]
+    public void Pounce_Deals_14_And_Next_Skill_Costs_Zero()
+    {
+        var (c, p, m) = Fight();
+        Play(c, new Pounce(), m);
+        Assert.Equal(60 - 14, m.CurrentHp);
+        Assert.Equal(1, p.GetPowerAmount("FreeSkill"));
+        // Next Skill is discounted to 0; a second Skill pays full price again.
+        p.ResetEnergy();
+        int before = p.Energy;
+        Play(c, new Survivor(), null);                     // cost 1 → 0 via FreeSkill
+        Assert.Equal(before, p.Energy);
+        Assert.False(p.HasPower("FreeSkill"));
+    }
+
+    [Fact]
+    public void Ricochet_Hits_Single_Enemy_4_Times_For_3()
+    {
+        var (c, _, m) = Fight(monsterHp: 80);
+        Play(c, new Ricochet(), m);
+        Assert.Equal(80 - 12, m.CurrentHp);                // 3 × 4
+    }
+
+    [Fact]
+    public void Ricochet_Upgrade_Hits_5_Times()
+    {
+        var (c, _, m) = Fight(monsterHp: 80);
+        Play(c, (CardModel)new Ricochet().Upgraded(), m);
+        Assert.Equal(80 - 15, m.CurrentHp);                // 3 × 5
+    }
+
+    [Fact]
+    public void Tactician_Gains_1_Energy()
+    {
+        var (c, p, _) = Fight();
+        Play(c, new Tactician(), null);                    // 3 energy − cost 3 + gain 1 = 1
+        Assert.Equal(1, p.Energy);
+    }
+
+    [Fact]
+    public void Untouchable_Gains_6_Block()
+    {
+        var (c, p, _) = Fight();
+        Play(c, new Untouchable(), null);
+        Assert.Equal(6, p.Block);
+    }
+
+    [Fact]
+    public void StormOfSteel_Converts_Hand_Into_Shivs()
+    {
+        var (c, p, _) = Fight();
+        p.Hand.Add(new StrikeSilent());
+        p.Hand.Add(new DefendSilent());
+        p.Hand.Add(new Deflect());                         // 3 cards in hand besides StormOfSteel
+        Play(c, new StormOfSteel(), null);                 // discards 3, makes 3 Shivs
+        Assert.Equal(3, p.Hand.Count(card => card is Shiv));
+        // The 3 discarded hand cards + StormOfSteel itself (a Skill → discard) = 4 non-Shiv in discard.
+        Assert.Equal(4, p.DiscardPile.Count(card => card is not Shiv));
+    }
+
+    [Fact]
+    public void StormOfSteel_Upgrade_Makes_Upgraded_Shivs()
+    {
+        var (c, p, _) = Fight();
+        p.Hand.Add(new StrikeSilent());
+        Play(c, (CardModel)new StormOfSteel().Upgraded(), null);
+        var shiv = (Shiv)p.Hand.First(card => card is Shiv);
+        Assert.Equal(1, shiv.Upgrades);
+    }
+
+    [Fact]
+    public void CalculatedGamble_With_Rng_Discards_Hand_And_Redraws()
+    {
+        var (c, p, _) = Fight();
+        c.Rng = new Rng(0);
+        for (int i = 0; i < 10; i++) p.DrawPile.Add(new StrikeSilent());
+        p.Hand.Add(new DefendSilent());
+        p.Hand.Add(new Deflect());                         // 2 cards in hand besides the gamble
+        var g = new CalculatedGamble();
+        Play(c, g, null);                                  // discard 2, draw 2
+        Assert.Equal(2, p.Hand.Count);
+        Assert.Contains(g, p.ExhaustPile);
+    }
+
+    [Fact]
+    public void CalculatedGamble_Without_Rng_Is_NoOp_Keeping_Hand()
+    {
+        var (c, p, _) = Fight();                           // Rng null
+        p.Hand.Add(new DefendSilent());
+        p.Hand.Add(new Deflect());
+        Play(c, new CalculatedGamble(), null);
+        Assert.Equal(2, p.Hand.Count);                     // hand intact (no destructive discard in search)
+    }
+
+    // ===== Batch 5 =====
+
+    [Fact]
+    public void Accelerant_Makes_Enemy_Poison_Tick_Twice()
+    {
+        var (c, p, m) = Fight(monsterHp: 60);
+        Play(c, new Accelerant(), null);                   // player Accelerant 1
+        m.AddPower(new PoisonPower(), 5);
+        c.CurrentSide = CombatSide.Enemy;
+        CombatManager.RollInitialMoves(c, new Rng(0));
+        CombatManager.RunEnemyTurn(c);                     // poison ticks min(5, 1+1)=2 times: 5 then 4
+        Assert.Equal(60 - 9, m.CurrentHp);                 // 5 + 4
+        Assert.Equal(3, m.GetPowerAmount("Poison"));       // 5 → 4 → 3
+    }
+
+    [Fact]
+    public void Accuracy_Adds_Damage_To_Shivs_Only()
+    {
+        var (c, _, m) = Fight();
+        Play(c, new Accuracy(), null);                     // Accuracy 4
+        Play(c, new Shiv(), m);
+        Assert.Equal(60 - (4 + 4), m.CurrentHp);           // Shiv 4 + Accuracy 4
+        int after = m.CurrentHp;
+        Play(c, new StrikeSilent(), m);                    // non-Shiv unaffected
+        Assert.Equal(after - 6, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Anticipate_Grants_Temp_Dexterity_Removed_At_Turn_End()
+    {
+        var (c, p, _) = Fight();
+        CombatManager.BeginPlayerTurn(c);
+        Play(c, new Anticipate(), null);
+        Assert.Equal(2, p.GetPowerAmount("Dexterity"));    // +2 dex now
+        Play(c, new DefendSilent(), null);                 // 5 + 2 dex = 7 block
+        Assert.Equal(7, p.Block);
+        CombatManager.EndPlayerTurn(c);
+        Assert.Equal(0, p.GetPowerAmount("Dexterity"));    // temp dex undone (Dexterity allows negative → lingers at 0, HP-neutral)
+        Assert.False(p.HasPower("Anticipate"));
+    }
+
+    [Fact]
+    public void Strangle_Deals_Damage_Per_Card_Played()
+    {
+        var (c, _, m) = Fight(monsterHp: 60);
+        Play(c, new Strangle(), m);                        // 8 damage + Strangle 2 (self does not trigger)
+        Assert.Equal(60 - 8, m.CurrentHp);
+        Assert.Equal(2, m.GetPowerAmount("Strangle"));
+        Play(c, new DefendSilent(), null);                 // a card → 2 unblockable to enemy
+        Assert.Equal(60 - 8 - 2, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Strangle_Removed_At_Enemy_Turn_End()
+    {
+        var (c, _, m) = Fight();
+        Play(c, new Strangle(), m);
+        CombatManager.RollInitialMoves(c, new Rng(0));
+        c.CurrentSide = CombatSide.Enemy;
+        CombatManager.RunEnemyTurn(c);
+        Assert.False(m.HasPower("Strangle"));
+    }
+
+    [Fact]
+    public void InfiniteBlades_Adds_A_Shiv_Each_Turn_Start()
+    {
+        var (c, p, _) = Fight();
+        Play(c, new InfiniteBlades(), null);
+        Assert.Equal(0, p.Hand.Count(card => card is Shiv));   // not the turn it's played
+        CombatManager.BeginPlayerTurn(c);
+        Assert.Equal(1, p.Hand.Count(card => card is Shiv));
+        CombatManager.BeginPlayerTurn(c);
+        Assert.Equal(2, p.Hand.Count(card => card is Shiv));
+    }
+
+    [Fact]
+    public void PhantomBlades_Boosts_First_Shiv_Each_Turn()
+    {
+        var (c, _, m) = Fight(monsterHp: 80);
+        CombatManager.BeginPlayerTurn(c);
+        Play(c, new PhantomBlades(), null);                // +9 to the first Shiv each turn
+        Play(c, new Shiv(), m);                            // 4 + 9 = 13
+        Assert.Equal(80 - 13, m.CurrentHp);
+        int after = m.CurrentHp;
+        Play(c, new Shiv(), m);                            // second Shiv: 4 only
+        Assert.Equal(after - 4, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Outbreak_Hits_All_Enemies_Every_Third_Poison()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
+        var m1 = Monsters.CalcifiedCultist(hp: 80);
+        var m2 = Monsters.CalcifiedCultist(hp: 80);
+        var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
+        combat.Player.MaxEnergy = 10; combat.Player.ResetEnergy();
+        Play(combat, new Outbreak(), null);                // Outbreak 11
+        Play(combat, new DeadlyPoison(), m1);              // poison #1
+        Play(combat, new DeadlyPoison(), m1);              // poison #2
+        Assert.Equal(80, m2.CurrentHp);                    // not yet
+        Play(combat, new DeadlyPoison(), m1);              // poison #3 → 11 to all
+        Assert.Equal(80 - 11, m2.CurrentHp);
+        Assert.Equal(80 - 11, m1.CurrentHp);               // m1 also takes the AoE (poison itself is not HP yet)
+    }
+
+    [Fact]
+    public void SerpentForm_Deals_Damage_On_Each_Card_Played()
+    {
+        var (c, _, m) = Fight(monsterHp: 60);
+        Play(c, new SerpentForm(), null);                  // self does not trigger
+        Assert.Equal(60, m.CurrentHp);
+        Play(c, new DefendSilent(), null);                 // a card → 4 to the enemy
+        Assert.Equal(60 - 4, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Tracking_Doubles_Damage_To_Weak_Enemies()
+    {
+        var (c, _, m) = Fight(monsterHp: 80);
+        Play(c, new Tracking(), null);
+        Play(c, new StrikeSilent(), m);                    // not weak → 6
+        Assert.Equal(80 - 6, m.CurrentHp);
+        int after = m.CurrentHp;
+        m.AddPower(new WeakPower(), 2);
+        Play(c, new StrikeSilent(), m);                    // weak → 6 × 2 = 12
+        Assert.Equal(after - 12, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Shadowmeld_Doubles_Block_This_Turn()
+    {
+        var (c, p, _) = Fight();
+        CombatManager.BeginPlayerTurn(c);
+        Play(c, new Shadowmeld(), null);
+        Play(c, new DefendSilent(), null);                 // 5 × 2 = 10
+        Assert.Equal(10, p.Block);
+        CombatManager.EndPlayerTurn(c);
+        Assert.False(p.HasPower("Shadowmeld"));
+    }
+
+    [Fact]
+    public void Burst_Doubles_The_Next_Skill()
+    {
+        var (c, p, _) = Fight();
+        Play(c, new Burst(), null);
+        Assert.Equal(1, p.GetPowerAmount("Burst"));
+        Play(c, new DefendSilent(), null);                 // played twice → 5 + 5 = 10 block
+        Assert.Equal(10, p.Block);
+        Assert.False(p.HasPower("Burst"));                 // consumed
+        Play(c, new DefendSilent(), null);                 // back to single → +5
+        Assert.Equal(15, p.Block);
+    }
+
+    [Fact]
+    public void FanOfKnives_Adds_4_Shivs()
+    {
+        var (c, p, _) = Fight();
+        c.Player.MaxEnergy = 5; c.Player.ResetEnergy();
+        Play(c, new FanOfKnives(), null);
+        Assert.Equal(4, p.Hand.Count(card => card is Shiv));
+        Assert.True(p.HasPower("FanOfKnives"));
+    }
+
+    [Fact]
+    public void ShadowStep_Discards_Hand_And_Doubles_Damage_Next_Turn()
+    {
+        var (c, p, m) = Fight(monsterHp: 80);
+        p.Hand.Add(new DefendSilent());
+        p.Hand.Add(new Deflect());
+        Play(c, new ShadowStep(), null);                   // discards hand, queues DoubleDamage
+        Assert.Empty(p.Hand);
+        CombatManager.BeginPlayerTurn(c);                  // DoubleDamage applied
+        Assert.Equal(1, p.GetPowerAmount("DoubleDamage"));
+        Play(c, new StrikeSilent(), m);                    // 6 × 2 = 12
+        Assert.Equal(80 - 12, m.CurrentHp);
+    }
+
+    [Fact]
+    public void BladeOfInk_Adds_Inky_Shivs_That_Deal_5_And_Apply_Weak()
+    {
+        var (c, p, m) = Fight(monsterHp: 60);
+        Play(c, new BladeOfInk(), null);
+        var shivs = p.Hand.OfType<Shiv>().ToList();
+        Assert.Equal(2, shivs.Count);
+        Assert.All(shivs, s => Assert.True(s.Inky));
+        Play(c, shivs[0], m);                              // 4 + 1 (Inky) = 5, + 1 Weak
+        Assert.Equal(60 - 5, m.CurrentHp);
+        Assert.Equal(1, m.GetPowerAmount("Weak"));
+    }
+
+    [Fact]
+    public void Flanking_And_Sneaky_Are_Inert_In_Single_Player()
+    {
+        var (c, p, m) = Fight(monsterHp: 60);
+        Play(c, new Flanking(), m);                        // applies the (MP-only) debuff
+        Assert.True(m.HasPower("Flanking"));
+        Play(c, new StrikeSilent(), m);                    // your own attack unaffected → 6
+        Assert.Equal(60 - 6, m.CurrentHp);
+        c.Player.MaxEnergy = 5; c.Player.ResetEnergy();
+        Play(c, new Sneaky(), null);                       // applies, but never grants block in SP
+        Assert.True(p.HasPower("Sneaky"));
+        int blk = p.Block;
+        Play(c, new StrikeSilent(), m);                    // your attack doesn't trigger Sneaky
+        Assert.Equal(blk, p.Block);
+    }
+
+    // ===== Batch 6 =====
+
+    [Fact]
+    public void Finisher_Deals_6_Per_Attack_Played_This_Turn()
+    {
+        var (c, _, m) = Fight(monsterHp: 80);
+        CombatManager.BeginPlayerTurn(c);
+        c.Player.MaxEnergy = 10; c.Player.ResetEnergy();
+        Play(c, new StrikeSilent(), m);                    // attack #1
+        Play(c, new StrikeSilent(), m);                    // attack #2
+        Assert.Equal(2, c.AttacksPlayedThisTurn);
+        int before = m.CurrentHp;
+        Play(c, new Finisher(), m);                        // 6 × 2 = 12 (does not count itself)
+        Assert.Equal(before - 12, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Finisher_Does_Nothing_As_First_Attack()
+    {
+        var (c, _, m) = Fight(monsterHp: 80);
+        CombatManager.BeginPlayerTurn(c);
+        Play(c, new Finisher(), m);                        // 0 attacks before → no damage
+        Assert.Equal(80, m.CurrentHp);
+    }
+
+    [Fact]
+    public void MementoMori_Scales_With_Discards_This_Turn()
+    {
+        var (c, _, m) = Fight(monsterHp: 80);
+        CombatManager.BeginPlayerTurn(c);
+        Play(c, new MementoMori(), m);                     // 0 discards → 9
+        Assert.Equal(80 - 9, m.CurrentHp);
+        // Discard 2 cards via Storm of Steel, then Memento Mori scales.
+        c.Player.Hand.Add(new StrikeSilent());
+        c.Player.Hand.Add(new DefendSilent());
+        Play(c, new StormOfSteel(), null);                 // discards 2 (CardsDiscardedThisTurn = 2)
+        int before = m.CurrentHp;
+        Play(c, new MementoMori(), m);                     // 9 + 4×2 = 17
+        Assert.Equal(before - 17, m.CurrentHp);
+    }
+
+    [Fact]
+    public void PreciseCut_Loses_2_Damage_Per_Card_In_Hand()
+    {
+        var (c, _, m) = Fight(monsterHp: 80);
+        c.Player.Hand.Add(new StrikeSilent());
+        c.Player.Hand.Add(new DefendSilent());             // 2 cards besides Precise Cut
+        Play(c, new PreciseCut(), m);                      // 13 − 2×2 = 9
+        Assert.Equal(80 - 9, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Mirage_Gains_Block_Equal_To_Enemy_Poison()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
+        var m1 = Monsters.CalcifiedCultist(hp: 60);
+        var m2 = Monsters.CalcifiedCultist(hp: 60);
+        var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
+        m1.AddPower(new PoisonPower(), 5);
+        m2.AddPower(new PoisonPower(), 3);
+        Play(combat, new Mirage(), null);
+        Assert.Equal(8, player.Block);                     // 5 + 3
+    }
+
+    [Fact]
+    public void EchoingSlash_Repeats_On_Kill()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
+        var m1 = Monsters.CalcifiedCultist(hp: 10);        // dies to first 10
+        var m2 = Monsters.CalcifiedCultist(hp: 25);        // 10 (sweep1) + 10 (sweep2 after m1 dies) = 20
+        var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
+        Play(combat, new EchoingSlash(), null);
+        Assert.False(m1.IsAlive);
+        Assert.Equal(25 - 20, m2.CurrentHp);               // two sweeps (one triggered by m1's death)
+    }
+
+    [Fact]
+    public void WraithForm_Grants_Intangible_Capping_Damage_To_1()
+    {
+        var (c, p, m) = Fight(monsterHp: 60);
+        Play(c, new WraithForm(), null);
+        Assert.Equal(2, p.GetPowerAmount("Intangible"));
+        Cmd.Attack(c, m, p, 30, ValueProp.Move, null);     // huge hit reduced to 1
+        Assert.Equal(80 - 1, p.CurrentHp);
+    }
+
+    [Fact]
+    public void WraithForm_Intangible_Decrements_At_Enemy_Turn_End()
+    {
+        var (c, p, _) = Fight();
+        Play(c, new WraithForm(), null);
+        Assert.Equal(2, p.GetPowerAmount("Intangible"));
+        CombatManager.RollInitialMoves(c, new Rng(0));
+        c.CurrentSide = CombatSide.Enemy;
+        CombatManager.RunEnemyTurn(c);
+        Assert.Equal(1, p.GetPowerAmount("Intangible"));   // 2 → 1 at enemy turn end
+    }
+
+    [Fact]
+    public void WraithForm_Loses_Dexterity_Each_Turn()
+    {
+        var (c, p, _) = Fight();
+        p.AddPower(new DexterityPower(), 3);
+        Play(c, new WraithForm(), null);
+        CombatManager.BeginPlayerTurn(c);                  // lose 1 Dexterity
+        Assert.Equal(2, p.GetPowerAmount("Dexterity"));
+    }
+
+    // ===== Batch 7 =====
+
+    [Fact]
+    public void TheHunt_Deals_10_And_Exhausts()
+    {
+        var (c, p, m) = Fight();
+        var t = new TheHunt();
+        Play(c, t, m);
+        Assert.Equal(60 - 10, m.CurrentHp);
+        Assert.Contains(t, p.ExhaustPile);
+    }
+
+    [Fact]
+    public void HandTrick_Gains_7_Block()
+    {
+        var (c, p, _) = Fight();
+        Play(c, new HandTrick(), null);
+        Assert.Equal(7, p.Block);
+    }
+
+    [Fact]
+    public void BulletTime_Makes_Cards_Free_And_Stops_Draw()
+    {
+        var (c, p, m) = Fight();
+        CombatManager.BeginPlayerTurn(c);
+        Play(c, new BulletTime(), null);
+        Assert.True(p.HasPower("BulletTime"));
+        Assert.True(p.HasPower("NoDraw"));
+        p.Energy = 0;
+        var pin = new Pinpoint();                          // normally cost 3
+        p.Hand.Add(pin);
+        CombatManager.PlayCard(c, pin, m);                 // plays for free at 0 energy
+        Assert.Equal(0, p.Energy);
+        Assert.Equal(60 - 15, m.CurrentHp);
+        // After the turn ends, Bullet Time is gone.
+        CombatManager.EndPlayerTurn(c);
+        Assert.False(p.HasPower("BulletTime"));
+    }
+
+    [Fact]
+    public void UpMySleeve_Adds_3_Shivs_And_Reduces_Its_Own_Cost()
+    {
+        var (c, p, _) = Fight();
+        var u = new UpMySleeve();
+        Assert.Equal(2, u.Cost);
+        Play(c, u, null);
+        Assert.Equal(3, p.Hand.Count(card => card is Shiv));
+        Assert.Equal(1, u.Cost);                           // cost reduced by 1
+        p.DiscardPile.Clear();
+        Play(c, u, null);
+        Assert.Equal(6, p.Hand.Count(card => card is Shiv));
+        Assert.Equal(0, u.Cost);                           // reduced again, floored at 0
+        p.DiscardPile.Clear();
+        Play(c, u, null);
+        Assert.Equal(0, u.Cost);                           // never goes negative
+    }
+
+    [Fact]
+    public void UpMySleeve_Cost_Survives_Clone()
+    {
+        var (c, p, _) = Fight();
+        var u = new UpMySleeve();
+        Play(c, u, null);                                  // cost → 1
+        var clone = c.Clone();
+        var clonedU = clone.Player.DiscardPile.OfType<UpMySleeve>().First();
+        Assert.Equal(1, clonedU.Cost);                     // Stateful deep-clone preserved the reduction
+        Assert.NotSame(u, clonedU);                        // and it is a distinct instance
+    }
 }

@@ -1160,10 +1160,14 @@ public sealed class Armaments : CardModel
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+        // Upgrade by REPLACING the hand card with a private, freshly-cloned upgraded copy — never mutate the
+        // (shared, non-Stateful) instance in place, or sibling search branches that share it get corrupted
+        // (the draw enumerator then throws "Pile missing card …"). Upgraded+ hits the whole hand; base hits one.
+        var hand = combat.Player.Hand;
         if (Upgrades > 0)
-            foreach (var c in combat.Player.Hand.ToList()) c.Upgraded(1);
-        else
-            combat.Player.Hand.FirstOrDefault()?.Upgraded(1);
+            for (int i = 0; i < hand.Count; i++) hand[i] = hand[i].Clone().Upgraded(1);
+        else if (hand.Count > 0)
+            hand[0] = hand[0].Clone().Upgraded(1);
     }
 }
 /// <summary>Deal 17 damage to ALL enemies — but only if 3+ cards are in your exhaust pile. Upgrade: +6.

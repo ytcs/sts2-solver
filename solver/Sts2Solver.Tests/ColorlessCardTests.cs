@@ -254,8 +254,12 @@ public class ColorlessCardTests
         p.DrawPile.Add(inDraw);
         var apo = new Apotheosis();
         Play(c, apo, null);
-        Assert.Equal(1, inHand.Upgrades);
-        Assert.Equal(1, inDraw.Upgrades);
+        // Cards are REPLACED by freshly-cloned upgraded copies (originals untouched so shared instances in
+        // sibling search branches aren't corrupted).
+        Assert.Equal(0, inHand.Upgrades);                 // originals unchanged
+        Assert.Equal(0, inDraw.Upgrades);
+        Assert.Equal(1, p.Hand[0].Upgrades);              // piles hold the upgraded clones
+        Assert.Equal(1, p.DrawPile[0].Upgrades);
         Assert.Contains(apo, p.ExhaustPile);
     }
 

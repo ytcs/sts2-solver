@@ -35,6 +35,14 @@ public sealed class CombatState
     /// hits 1 + this many times. (Game: count of the player's DamageReceivedEntry with UnblockedDamage > 0.)</summary>
     public int PlayerUnblockedHitsCount;
 
+    /// <summary>Number of Attacks the player has finished playing during the current turn (reset at the
+    /// player's turn start). Finisher hits this many times. (Game: count of this turn's Attack CardPlaysFinished.)</summary>
+    public int AttacksPlayedThisTurn;
+
+    /// <summary>Number of cards the player has discarded mid-turn during the current turn (reset at the
+    /// player's turn start; the end-of-turn hand discard is not counted). Memento Mori scales on this.</summary>
+    public int CardsDiscardedThisTurn;
+
     public IEnumerable<Monster> LivingMonsters => Monsters.Where(m => m.IsAlive);
 
     public IEnumerable<Creature> AllCreatures
@@ -68,6 +76,8 @@ public sealed class CombatState
             CardExhaustedThisTurn = CardExhaustedThisTurn,
             PlayerLostHpThisTurn = PlayerLostHpThisTurn,
             PlayerUnblockedHitsCount = PlayerUnblockedHitsCount,
+            AttacksPlayedThisTurn = AttacksPlayedThisTurn,
+            CardsDiscardedThisTurn = CardsDiscardedThisTurn,
         };
     }
 
@@ -77,6 +87,6 @@ public sealed class CombatState
     public string StateKey()
     {
         var monsters = string.Join(";", Monsters.Select(m => m.StateKey()));
-        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}|{Player.StateKey()}|{monsters}";
+        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}/a{AttacksPlayedThisTurn}/d{CardsDiscardedThisTurn}|{Player.StateKey()}|{monsters}";
     }
 }

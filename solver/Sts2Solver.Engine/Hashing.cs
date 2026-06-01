@@ -38,6 +38,8 @@ public static class HashingExtensions
         h.Add(s.CardExhaustedThisTurn ? 1 : 0);
         h.Add(s.PlayerLostHpThisTurn ? 1 : 0);
         h.Add(s.PlayerUnblockedHitsCount);
+        h.Add(s.AttacksPlayedThisTurn);
+        h.Add(s.CardsDiscardedThisTurn);
         s.Player.Hash(ref h);
         h.Add(s.Monsters.Count);
         foreach (var m in s.Monsters) m.Hash(ref h);

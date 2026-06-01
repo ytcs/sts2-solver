@@ -13,6 +13,28 @@ namespace Sts2Solver.Tests;
 /// </summary>
 public class TrainingFixturesTests
 {
+    /// <summary>Regression: in-pile card upgrades (Armaments / Apotheosis) must REPLACE the upgraded card with
+    /// a private cloned copy, never mutate the shared non-Stateful instance in place. Otherwise sibling search
+    /// branches that share the instance see its identity change and the draw enumerator throws "Pile missing
+    /// card …". This deck (Armaments + Impervious + Envenom) reproduced exactly that before the fix.</summary>
+    [Fact]
+    public void Upgrade_In_Pile_Does_Not_Corrupt_Shared_Instances()
+    {
+        var deck = new[] { "Armaments", "Armaments", "Impervious", "Impervious", "Impervious",
+                           "Impervious", "Impervious", "Envenom", "Envenom" }
+            .Select(Catalog.BuildCard).ToList();
+        var setup = Catalog.SetupCombat(
+            Catalog.BuildPlayer(deck, 45, 45, 3, new[] { "BurningBlood" }), new[] { Monsters.DampCultist(hp: 35) });
+        // Bounded budget: the bug threw InvalidOperationException("Pile missing card …") *early* during draw
+        // enumeration, so a short cap still catches a regression; a clean solve either finishes or (under
+        // parallel load) cancels — both mean no shared-instance corruption. (Tight horizon keeps it cheap.)
+        var solver = new Solver { MaxTurns = 5 };
+        using var cts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromSeconds(15));
+        solver.Ct = cts.Token;
+        try { var v = solver.Solve(setup); Assert.InRange(v.Win, 0.0, 1.0 + 1e-6); }
+        catch (System.OperationCanceledException) { /* didn't corrupt within budget — pass */ }
+    }
+
     [Fact]
     public void Random_Is_Deterministic_In_Seed()
     {

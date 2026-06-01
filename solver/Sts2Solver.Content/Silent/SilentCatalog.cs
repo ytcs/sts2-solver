@@ -53,6 +53,78 @@ public static partial class Catalog
         ["Adrenaline"] = () => new Adrenaline(),
         ["Backflip"] = () => new Backflip(),
         ["Expertise"] = () => new Expertise(),
+        // Batch 4 — remaining primitive-portable cards (attacks/skills/powers, X-cost, Shiv-generation,
+        // Thorns/FreeSkill). Sly is HP-neutral (unmodelled discard trigger).
+        ["Abrasive"] = () => new Abrasive(),
+        ["Assassinate"] = () => new Assassinate(),
+        ["Expose"] = () => new Expose(),
+        ["LeadingStrike"] = () => new LeadingStrike(),
+        ["Malaise"] = () => new Malaise(),
+        ["Pounce"] = () => new Pounce(),
+        ["Reflex"] = () => new Reflex(),
+        ["Ricochet"] = () => new Ricochet(),
+        ["Tactician"] = () => new Tactician(),
+        ["Untouchable"] = () => new Untouchable(),
+        ["StormOfSteel"] = () => new StormOfSteel(),
+        ["CalculatedGamble"] = () => new CalculatedGamble(),
+        // Batch 5 — Silent powers + Shiv-synergy cards (Wave 2). MP-only / Sly / Retain effects are inert
+        // in single-player (documented in SilentCards.cs / SilentPowers.cs).
+        ["Accelerant"] = () => new Accelerant(),
+        ["Accuracy"] = () => new Accuracy(),
+        ["Anticipate"] = () => new Anticipate(),
+        ["Strangle"] = () => new Strangle(),
+        ["InfiniteBlades"] = () => new InfiniteBlades(),
+        ["PhantomBlades"] = () => new PhantomBlades(),
+        ["Outbreak"] = () => new Outbreak(),
+        ["SerpentForm"] = () => new SerpentForm(),
+        ["Tracking"] = () => new Tracking(),
+        ["MasterPlanner"] = () => new MasterPlanner(),
+        ["Shadowmeld"] = () => new Shadowmeld(),
+        ["Burst"] = () => new Burst(),
+        ["FanOfKnives"] = () => new FanOfKnives(),
+        ["WellLaidPlans"] = () => new WellLaidPlans(),
+        ["Sneaky"] = () => new Sneaky(),
+        ["Flanking"] = () => new Flanking(),
+        ["ShadowStep"] = () => new ShadowStep(),
+        ["BladeOfInk"] = () => new BladeOfInk(),
+        // Batch 6 — counter/conditional attacks + Intangible (Wave 3).
+        ["Finisher"] = () => new Finisher(),
+        ["MementoMori"] = () => new MementoMori(),
+        ["PreciseCut"] = () => new PreciseCut(),
+        ["Mirage"] = () => new Mirage(),
+        ["EchoingSlash"] = () => new EchoingSlash(),
+        ["WraithForm"] = () => new WraithForm(),
+        // Batch 7 — remaining feasible cards (Wave 4).
+        ["TheHunt"] = () => new TheHunt(),
+        ["HandTrick"] = () => new HandTrick(),
+        ["BulletTime"] = () => new BulletTime(),
+        ["UpMySleeve"] = () => new UpMySleeve(),
+    };
+
+    // =======================================================================================================
+    // Deferred Silent cards — the 10 of the 88-card SilentCardPool not yet ported, each blocked on an engine
+    // mechanic the search does not model. (78/88 ported.) Listed so coverage is explicit; each needs the
+    // named mechanic before it can be faithful rather than approximate:
+    //
+    //   - Acrobatics      draw N, then DISCARD-FROM-HAND SELECTION (choose 1 to discard)
+    //   - Prepared        draw N, then discard-from-hand SELECTION (choose N)
+    //   - HiddenDaggers   discard-from-hand SELECTION (choose 2) + 2 Shivs
+    //   - ToolsOfTheTrade per-turn extra draw + discard-from-hand SELECTION
+    //   - Nightmare       CHOOSE-A-CARD from hand, then add 3 copies of it next turn (card selection)
+    //   - KnifeTrap       AUTOPLAY all Shivs from the exhaust pile at a target
+    //   - EscapePlan      draw 1; gain Block only if the DRAWN CARD is a Skill (conditional-on-drawn-card)
+    //   - CorrosiveWave   apply Poison to all enemies whenever you DRAW a card this turn (mid-turn-draw trigger)
+    //   - Speedster       deal damage to all enemies whenever you DRAW a card mid-turn (mid-turn-draw trigger)
+    //   - Murder          damage scales with the TOTAL cards drawn this combat (draw-history; chance-node draws)
+    //
+    // The common blockers are (a) hand-discard / card SELECTION (a real decision the search would have to
+    // branch over) and (b) the mid-turn DRAW chance-node, which the exact solver does not expand (see STATUS
+    // "deferred solver-side mid-turn draw chance-node"). Add those and these become straightforward.
+    // =======================================================================================================
+    public static readonly string[] DeferredSilentCards =
+    {
+        "Acrobatics", "Prepared", "HiddenDaggers", "ToolsOfTheTrade", "Nightmare",
+        "KnifeTrap", "EscapePlan", "CorrosiveWave", "Speedster", "Murder",
     };
 
     /// <summary>The Silent starting deck: 5 Strike, 5 Defend, 1 Neutralize, 1 Survivor.

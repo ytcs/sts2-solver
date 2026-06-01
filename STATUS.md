@@ -1,6 +1,8 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-01 (Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88.)_
+_Last updated: 2026-06-01 (Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 78/88 [batches 4–7: +40 cards — Shiv/poison-synergy powers,
+counter/conditional attacks via new per-turn counters, Intangible/WraithForm, BulletTime, the Stateful
+UpMySleeve; + a latent in-pile-upgrade soundness fix for Armaments/Apotheosis; 10 deferred].)_
 
 ## Goal
 
@@ -208,11 +210,27 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   Wind, True Grit, Cinder), generation/movement (Anger, Headbutt, Sword Boomerang, Infernal Blade), and
   per-turn-counter / cost-mod / unblocked-hit-counter cards. Prompt-needing cards (Burning Pact, Brand,
   Headbutt, Armaments) validated via the `ICardSelector` hook + upgrade-level recording.
-- **Silent — 40/88**: batches 1–2 LIVE-VALIDATED ✅ (poison core, block/dex/debuff, Shiv/attack); batch 3
-  unit-tested (Survivor, Backstab, DaggerThrow, Predator, BouncingFlask, Caltrops/Thorns, GrandFinale, Skewer,
-  Adrenaline, Backflip, Expertise + `DrawNextTurnPower`). Deferred (engine-level): hand-discard selection
-  (Acrobatics/CalculatedGamble), draw-conditional (EscapePlan), next-Skill-double (Burst), cost-set-on-hand
-  (BulletTime), Intangible (WraithForm), and the renamed/new STS2 "blade/ink" set (unverifiable LocStrings).
+- **Silent — 78/88**: batches 1–3 LIVE-VALIDATED/unit-tested as before (poison core, block/dex/debuff,
+  Shiv/attack, Survivor/Backstab/DaggerThrow/Predator/BouncingFlask/Caltrops/GrandFinale/Skewer/Adrenaline/
+  Backflip/Expertise). **This round (batches 4–7, +40 cards, unit-tested):** primitive attacks/skills/powers
+  (Abrasive, Assassinate, Expose, LeadingStrike, Malaise [X-cost], Pounce [FreeSkill], Reflex, Ricochet,
+  Tactician, Untouchable, StormOfSteel, CalculatedGamble); the Shiv/poison-synergy power set (Accelerant
+  [Poison already reads it], Accuracy, Anticipate [temp Dex], Strangle, InfiniteBlades, PhantomBlades,
+  Outbreak, SerpentForm, Tracking, Burst, Shadowmeld, FanOfKnives, ShadowStep [+DoubleDamage], BladeOfInk
+  [Inky shivs: +1 dmg/+Weak], and MasterPlanner/WellLaidPlans/Sneaky/Flanking — MP-only / Sly / Retain, inert
+  in single-player); counter/conditional attacks (Finisher, MementoMori, PreciseCut, Mirage, EchoingSlash)
+  on two new per-turn `CombatState` counters (attacks-played / cards-discarded, in the key+hash); WraithForm
+  (new `IntangiblePower` caps HP-loss to 1); and BulletTime (cost-zero-this-turn) + UpMySleeve (a **Stateful**
+  self-cost-reducing card). New powers in `SilentPowers.cs`; `SilentCardTests` 49→~110. **Deferred (10,
+  enumerated in `SilentCatalog.DeferredSilentCards`):** hand-discard SELECTION (Acrobatics, Prepared,
+  HiddenDaggers, ToolsOfTheTrade), card SELECTION (Nightmare), exhaust-autoplay (KnifeTrap),
+  conditional-on-drawn-card (EscapePlan), and the mid-turn-DRAW chance-node trigger (CorrosiveWave, Speedster,
+  Murder) — each blocked on a search mechanic, documented inline.
+- **Soundness fix (this round): in-pile card upgrades** (`Armaments`, `Apotheosis`) now **replace** the
+  upgraded card with a freshly-cloned upgraded copy instead of mutating the shared (non-Stateful) instance in
+  place — the latter corrupted sibling search branches (draw enumerator: "Pile missing card …"). A latent
+  pre-existing bug (the STATUS-claimed fix was never actually in the code) surfaced by the wider random corpus;
+  `CardModel.Upgraded` now also drops its cached `KeyHash`. Gated by `Upgrade_In_Pile_Does_Not_Corrupt_Shared_Instances`.
 - **Colorless — 18 ported (new module)** `Content/Colorless/`: 13 full-effect (FlashOfSteel, DramaticEntrance,
   MindBlast, HandOfGreed, Clash, Finesse, DarkShackles, MasterOfStrategy, ThinkingAhead, Impatience,
   PanicButton, + Powers Panache/TheBomb) and 5 documented HP-neutral subsets (Mayhem, Apotheosis,
@@ -391,7 +409,8 @@ behind a flag; only flip the default if it's clearly a win.)
 5. **VF distillation + recalibration** — after a large training round (now drawing colorless + varied decks),
    distill feature importance to simplify the model without losing accuracy; recalibrate survival (Platt/
    isotonic) IF we keep it; add deck-composition features.
-6. **Content** — Silent 40 → 88; trace-validate the 8 new normal monsters; Act-1 bosses; relic engine hooks;
+6. **Content** — Silent 78 → 88 (the 10 deferred need hand-discard/card SELECTION or the mid-turn-draw
+   chance-node — see `SilentCatalog.DeferredSilentCards`); trace-validate the 8 new normal monsters; Act-1 bosses; relic engine hooks;
    the deferred solver-side mid-turn **draw chance-node** for forward search.
 
 ### History (condensed)
@@ -399,5 +418,5 @@ Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless a
 (UCT\*/DP-UCT, validated to converge); Act-1 elites 12/12; Ironclad 87/87; Ascension/A10; content
 modularization (per-character folders, flat namespace); the `ranwid` advisor + survival-first rollout +
 sound horizon bound; **horizon bound v2** (Weak / multi-enemy / in-search loss prune) + **Phase-C learned
-value function**. In progress: Silent pool (29/88). Detailed per-batch/per-milestone history lives in git and
+value function**. In progress: Silent pool (78/88). Detailed per-batch/per-milestone history lives in git and
 the plan files under `~/.claude/plans/`.

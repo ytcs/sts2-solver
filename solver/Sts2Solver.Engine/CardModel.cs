@@ -67,6 +67,7 @@ public abstract class CardModel
     {
         for (int i = 0; i < levels; i++) { Upgrades++; OnUpgrade(); }
         _key = null;
+        _keyHash = null;   // identity changed — drop the cached hash too (it would otherwise go stale)
         return this;
     }
 
