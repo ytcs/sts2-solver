@@ -9,6 +9,12 @@ public sealed class Player : Creature
     public int Energy;
     public int MaxEnergy = 3;
 
+    /// <summary>The Regent's secondary resource (game: PlayerCombatState.Stars). Gained by many cards and
+    /// spent to play star-cost cards; persists across turns within a combat. 0 for other characters. Gained
+    /// via <see cref="Cmd.GainStars"/> (which fires the AfterStarsGained hooks); spent in
+    /// <see cref="CombatManager.PlayCard"/>.</summary>
+    public int Stars;
+
     public const int MaxHandSize = 10;
     public const int CardsDrawnPerTurn = 5;
 
@@ -35,12 +41,19 @@ public sealed class Player : Creature
     public void ResetEnergy() => Energy = EffectiveMaxEnergy;
     public void LoseEnergy(int amount) => Energy = Math.Max(0, Energy - amount);
 
+    public void SpendStars(int amount) => Stars = Math.Max(0, Stars - amount);
+
+    /// <summary>True if the player can pay this card's star cost (X-star cards are always affordable — they
+    /// spend whatever stars are present). Energy is checked separately by the solver / PlayCard.</summary>
+    public bool CanAffordStars(CardModel card) => card.IsXStarCost || card.StarCost <= Stars;
+
     public override Creature Clone()
     {
         var p = new Player();
         CopyCreatureBaseTo(p);
         p.Energy = Energy;
         p.MaxEnergy = MaxEnergy;
+        p.Stars = Stars;
         // The immutable majority of cards safely share instances across clones (only the list copies); cards
         // with mutable per-combat state (CardModel.Stateful, e.g. Rampage) MUST be deep-cloned, or sibling
         // search branches would share — and corrupt — that state. See CardModel.Stateful.
@@ -68,6 +81,7 @@ public sealed class Player : Creature
         base.Hash(ref h);
         h.Add(Energy);
         h.Add(MaxEnergy);
+        h.Add(Stars);
         HashPile(ref h, Hand, 0x11);
         HashPile(ref h, DrawPile, 0x22);
         HashPile(ref h, DiscardPile, 0x33);
@@ -94,7 +108,9 @@ public sealed class Player : Creature
         string Bag(List<CardModel> pile) =>
             string.Join(",", pile.Select(c => c.StateKey()).OrderBy(s => s, StringComparer.Ordinal));
         var relics = string.Join(",", Relics.Select(r => r.Id).OrderBy(s => s, StringComparer.Ordinal));
-        return $"P({base.StateKey()}|e{Energy}/{MaxEnergy}|H[{Bag(Hand)}]|D[{Bag(DrawPile)}]|X[{Bag(DiscardPile)}]|E[{Bag(ExhaustPile)}]|R[{relics}])";
+        // Stars only contribute to the key when present, so non-Regent decks keep their existing canonical keys.
+        var stars = Stars != 0 ? $"|s{Stars}" : "";
+        return $"P({base.StateKey()}|e{Energy}/{MaxEnergy}{stars}|H[{Bag(Hand)}]|D[{Bag(DrawPile)}]|X[{Bag(DiscardPile)}]|E[{Bag(ExhaustPile)}]|R[{relics}])";
     }
 }
 
@@ -103,4 +119,8 @@ public abstract class RelicModel
 {
     public abstract string Id { get; }
     public virtual void AfterCombatVictory(CombatState combat) { }
+
+    /// <summary>Fires once when combat is set up, before turn 1 (game: AfterRoomEntered for a CombatRoom).
+    /// The Regent's DivineRight grants 3 Stars here.</summary>
+    public virtual void OnCombatStart(CombatState combat) { }
 }

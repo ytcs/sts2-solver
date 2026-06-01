@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-01 (**Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88.)_
+_Last updated: 2026-06-01 (**Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 40/88; **Regent 88/88 ported** (new module: Stars resource + Forge/Sovereign Blade engine + DivineRight, unit-tested).)_
 
 ## Goal
 
@@ -220,6 +220,23 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   Adrenaline, Backflip, Expertise + `DrawNextTurnPower`). Deferred (engine-level): hand-discard selection
   (Acrobatics/CalculatedGamble), draw-conditional (EscapePlan), next-Skill-double (Burst), cost-set-on-hand
   (BulletTime), Intangible (WraithForm), and the renamed/new STS2 "blade/ink" set (unverifiable LocStrings).
+- **Regent — 88/88 ported (new module)** `Content/Regent/` (unit-tested, NOT yet trace-validated): the full
+  decompiled `RegentCardPool`, plus the **Stars** secondary resource and the **Forge → Sovereign Blade** engine.
+  New engine support: `Player.Stars` (clone/hash/key), `CardModel.StarCost`/`IsXStarCost`/`Retain`, star-cost
+  gating in the 3 solver play-enumeration sites + payment in `PlayCard`, `Cmd.GainStars`, power hooks
+  `AfterStarsGained`/`AfterStarsSpent`/`AfterEnergySpent`/`ModifyStarCost`, per-turn counters
+  (`SkillsPlayedThisTurn`/`StarsGainedThisTurn` for Lunar Blast / Radiate), a `RelicModel.OnCombatStart` hook,
+  and `CardRarity.{Event,Ancient,Token}`. The **Sovereign Blade** is a Stateful, Retained Token whose forged
+  damage accumulates over the fight and which reads Parry (block-on-play), Seeking Edge (hits all), Sword Sage
+  (extra replays) and Conqueror (×2 vs the marked enemy). Faithful HP-relevant powers: Genesis/Furnace/Orbit,
+  Child of the Stars / Black Hole (star payback), Energy/Star-Next-Turn, Monologue, Monarch's Gaze, the
+  Crush Under / Dying Star temp-Strength debuffs, NeutronAegis (reuses Plating). Starter relic **DivineRight**
+  (3 Stars at combat start). Documented HP-neutral / inert (depend on unported subsystems): RNG card generation
+  (Begone, Bundle of Joy, Charge, Guards, Quasar, Collision Course/Crash Landing Debris, Arsenal/Pillar/
+  Supermassive generation-scaling), hand-draw-COUNT changes (Tyranny, Pale Blue Dot, Spectrum Shift, Foregone
+  Conclusion, next-turn extra draw), gold (Royalties), Reflect's thorns-on-block, Void Form's cost discount,
+  on-draw card hooks (Kingly Kick/Punch), auto-play-from-pile (Bombardment, I Am Invincible), and the
+  multiplayer-only Largesse/HammerTime. 41 new unit tests.
 - **Colorless — 18 ported (new module)** `Content/Colorless/`: 13 full-effect (FlashOfSteel, DramaticEntrance,
   MindBlast, HandOfGreed, Clash, Finesse, DarkShackles, MasterOfStrategy, ThinkingAhead, Impatience,
   PanicButton, + Powers Panache/TheBomb) and 5 documented HP-neutral subsets (Mayhem, Apotheosis,
@@ -248,7 +265,8 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
 - **xUnit tests all green** (pipeline + per-card Ironclad/Silent/Colorless + monster-port + solver +
   trace-replay + MCTS-convergence + calibration + horizon-bound v2 + loss-pruning oracle-equality +
   learned-VF beats-baseline + clone-isolation/Rampage soundness + randomized-corpus sanity + advisor +
-  card-name matcher). **268 passed, 1 skipped** (the blend α-sweep tool), 0 failed — full unified run.
+  card-name matcher) + per-card Regent (Stars / Forge / Sovereign Blade / star-payback). **318 passed,
+  1 skipped** (the blend α-sweep tool), 0 failed — full unified run.
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,

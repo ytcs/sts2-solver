@@ -4,7 +4,9 @@ public enum CombatSide { Player, Enemy }
 
 public enum CardType { Attack, Skill, Power, Status, Curse }
 
-public enum CardRarity { Basic, Common, Uncommon, Rare, Special, Curse, Status }
+// Event/Ancient/Token rarities are used by Regent's pool (and Event/Ancient pools). No engine code
+// switches on CardRarity, so extending it is safe.
+public enum CardRarity { Basic, Common, Uncommon, Rare, Special, Curse, Status, Event, Ancient, Token }
 
 /// <summary>Who a card can target. v1 covers the subset the slice needs.</summary>
 public enum TargetType { Self, AnyEnemy, AllEnemies, RandomEnemy, None }

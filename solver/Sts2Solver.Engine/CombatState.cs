@@ -35,6 +35,14 @@ public sealed class CombatState
     /// hits 1 + this many times. (Game: count of the player's DamageReceivedEntry with UnblockedDamage > 0.)</summary>
     public int PlayerUnblockedHitsCount;
 
+    /// <summary>Skills the player has played during the current turn (reset at the player's turn start).
+    /// Regent's Lunar Blast hits once per skill played this turn. (Game: CardPlaysFinished this-turn count.)</summary>
+    public int SkillsPlayedThisTurn;
+
+    /// <summary>Stars the player has gained during the current turn (reset at the player's turn start).
+    /// Regent's Radiate hits once per star gained this turn. (Game: StarsModifiedEntry this-turn sum.)</summary>
+    public int StarsGainedThisTurn;
+
     public IEnumerable<Monster> LivingMonsters => Monsters.Where(m => m.IsAlive);
 
     public IEnumerable<Creature> AllCreatures
@@ -68,6 +76,8 @@ public sealed class CombatState
             CardExhaustedThisTurn = CardExhaustedThisTurn,
             PlayerLostHpThisTurn = PlayerLostHpThisTurn,
             PlayerUnblockedHitsCount = PlayerUnblockedHitsCount,
+            SkillsPlayedThisTurn = SkillsPlayedThisTurn,
+            StarsGainedThisTurn = StarsGainedThisTurn,
         };
     }
 
@@ -77,6 +87,8 @@ public sealed class CombatState
     public string StateKey()
     {
         var monsters = string.Join(";", Monsters.Select(m => m.StateKey()));
-        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}|{Player.StateKey()}|{monsters}";
+        // Per-turn Regent counters only contribute when non-zero, so other decks keep their canonical keys.
+        var regent = (SkillsPlayedThisTurn != 0 || StarsGainedThisTurn != 0) ? $"/sk{SkillsPlayedThisTurn}sg{StarsGainedThisTurn}" : "";
+        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}{regent}|{Player.StateKey()}|{monsters}";
     }
 }

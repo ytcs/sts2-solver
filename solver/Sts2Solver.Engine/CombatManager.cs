@@ -20,6 +20,8 @@ public static class CombatManager
         combat.Player.ResetEnergy();
         combat.CardExhaustedThisTurn = false;            // per-turn flag (Evil Eye / Forgotten Ritual)
         combat.PlayerLostHpThisTurn = false;             // per-turn flag (Spite)
+        combat.SkillsPlayedThisTurn = 0;                 // per-turn counter (Regent Lunar Blast)
+        combat.StarsGainedThisTurn = 0;                  // per-turn counter (Regent Radiate)
         // Block is NOT cleared on turn 1, nor while a Barricade-style power keeps it (PreventsBlockClear).
         if (!firstTurn && !PreventsBlockClear(combat.Player)) combat.Player.ClearBlock();
 
@@ -50,6 +52,16 @@ public static class CombatManager
 
         int spend = card.IsXCost ? player.Energy : effCost;   // X-cost cards consume all remaining energy
         player.LoseEnergy(spend);
+        if (spend > 0)
+            foreach (var pw in combat.AllPowers.ToList()) pw.AfterEnergySpent(combat, spend);
+
+        // Star cost (Regent). VoidForm can zero it via ModifyStarCost; X-star cards (Stardust) spend all.
+        int starCost = card.IsXStarCost ? player.Stars : card.StarCost;
+        foreach (var pw in combat.AllPowers.ToList()) starCost = pw.ModifyStarCost(card, starCost);
+        starCost = Math.Max(0, starCost);
+        if (starCost > player.Stars) throw new InvalidOperationException("Not enough stars.");
+        player.SpendStars(starCost);
+
         player.Hand.Remove(card);
 
         // Card-play-count modifiers (One-Two Punch resolves an Attack an extra time). The card is "played"
@@ -63,7 +75,7 @@ public static class CombatManager
         }
         for (int i = 0; i <= bonusPlays; i++)
         {
-            card.OnPlay(combat, new CardPlay { Card = card, Target = target, XValue = spend });
+            card.OnPlay(combat, new CardPlay { Card = card, Target = target, XValue = spend, StarsSpent = starCost });
             if (combat.IsCombatOver) break;   // don't keep swinging at a cleared board / after death
         }
         if (playCountContributors != null)
@@ -74,6 +86,12 @@ public static class CombatManager
         // Mirror Hook.AfterCardPlayed: fires after the card's effect resolves (so the card never
         // boosts its own damage), before the card moves to its result pile.
         foreach (var p in combat.AllPowers.ToList()) p.AfterCardPlayed(combat, card);
+
+        // Stars-spent hooks fire after the play resolves (ChildOfTheStars gains block, BlackHole damages).
+        if (starCost > 0)
+            foreach (var p in combat.AllPowers.ToList()) p.AfterStarsSpent(combat, starCost);
+
+        if (card.Type == CardType.Skill) combat.SkillsPlayedThisTurn++;   // per-turn count (Lunar Blast)
 
         // Result pile, with Corruption-style overrides (a Skill is exhausted instead of discarded).
         var resultPile = card.ResultPile;
@@ -106,7 +124,9 @@ public static class CombatManager
         }
 
         // Standard STS: the hand is discarded at end of turn — except Ethereal cards, which exhaust (and
-        // fire the on-exhaust hook with causedByEthereal=true, e.g. DarkEmbrace's deferred draw).
+        // fire the on-exhaust hook with causedByEthereal=true, e.g. DarkEmbrace's deferred draw), and
+        // Retain cards (Sovereign Blade), which stay in hand into the next turn.
+        var retained = new List<CardModel>();
         foreach (var card in player.Hand)
         {
             if (card.Ethereal)
@@ -115,9 +135,11 @@ public static class CombatManager
                 combat.CardExhaustedThisTurn = true;
                 foreach (var p in combat.AllPowers.ToList()) p.AfterCardExhausted(combat, card, true);
             }
+            else if (card.Retain) retained.Add(card);
             else player.DiscardPile.Add(card);
         }
         player.Hand.Clear();
+        player.Hand.AddRange(retained);
 
         FireAfterSideTurnEnd(combat, CombatSide.Player);
         combat.CurrentSide = CombatSide.Enemy;

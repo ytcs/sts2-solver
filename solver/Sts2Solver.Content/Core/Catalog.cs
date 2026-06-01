@@ -16,6 +16,9 @@ public static partial class Catalog
         ["Burn"] = () => new Burn(),
         ["Dazed"] = () => new Dazed(),
         ["AscendersBane"] = () => new AscendersBane(),
+        // The Regent's Sovereign Blade token: buildable by name (for tests / trace replay), generated in
+        // combat by Forge, never deck-built — so registered here (excluded from CardPool) like status cards.
+        ["SovereignBlade"] = () => new SovereignBlade(),
     };
 
     /// <summary>Every registered card table, in lookup order. Add a character = add one line here.</summary>
@@ -24,6 +27,7 @@ public static partial class Catalog
         yield return CommonCardFactories;
         yield return IroncladCardFactories;
         yield return SilentCardFactories;
+        yield return RegentCardFactories;
         yield return ColorlessCardFactories;
     }
 
@@ -34,6 +38,7 @@ public static partial class Catalog
     public static IReadOnlyList<string> CardPool =>
         _cardPool ??= IroncladCardFactories.Keys
             .Concat(SilentCardFactories.Keys)
+            .Concat(RegentCardFactories.Keys)
             .Concat(ColorlessCardFactories.Keys)
             .ToArray();
     private static string[]? _cardPool;
@@ -89,6 +94,8 @@ public static partial class Catalog
     {
         var list = monsters.ToList();
         for (int i = 0; i < list.Count; i++) list[i].Id = i + 1;
-        return new() { Player = player, Monsters = list, TurnNumber = 0, CurrentSide = CombatSide.Player };
+        var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0, CurrentSide = CombatSide.Player };
+        foreach (var r in player.Relics) r.OnCombatStart(combat);   // e.g. DivineRight grants 3 Stars
+        return combat;
     }
 }

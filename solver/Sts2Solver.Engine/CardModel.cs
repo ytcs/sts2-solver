@@ -11,6 +11,10 @@ public sealed class CardPlay
 
     /// <summary>For X-cost cards (Whirlwind), the energy actually spent — i.e. the X value.</summary>
     public int XValue;
+
+    /// <summary>Stars actually spent on this play (Regent star-cost cards). For X-star cards (Stardust) this
+    /// is all the player's stars; the card reads it to scale its effect (Stardust hits StarsSpent times).</summary>
+    public int StarsSpent;
 }
 
 /// <summary>
@@ -33,6 +37,19 @@ public abstract class CardModel
     /// <summary>X-cost cards (Whirlwind) spend ALL the player's current energy; the spent amount is passed
     /// to OnPlay via <see cref="CardPlay.XValue"/>. Their <see cref="Cost"/> stays 0 for the playability check.</summary>
     public virtual bool IsXCost => false;
+
+    /// <summary>Stars required and consumed to play this card, on top of its energy cost (Regent cards like
+    /// FallingStar = 2★). 0 for everything else. (Game: CardModel.CanonicalStarCost.) The play is gated on
+    /// the player having at least this many Stars, and they are spent on play.</summary>
+    public virtual int StarCost => 0;
+
+    /// <summary>X-star cards (Stardust, RoyalGamble's spend-all forms) consume ALL the player's stars; the
+    /// spent amount is passed to OnPlay via <see cref="CardPlay.StarsSpent"/>. (Game: CardModel.HasStarCostX.)</summary>
+    public virtual bool IsXStarCost => false;
+
+    /// <summary>Retained cards are NOT discarded at end of turn — they stay in hand (game: CardKeyword.Retain).
+    /// The Regent's Sovereign Blade token retains so its forged damage carries across turns.</summary>
+    public virtual bool Retain => false;
 
     public virtual CardResultPile ResultPile => Type == CardType.Power ? CardResultPile.Removed : CardResultPile.Discard;
 
