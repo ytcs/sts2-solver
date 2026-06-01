@@ -268,6 +268,85 @@ if (args.Contains("--perf-probe"))
     return 0;
 }
 
+// --profile: attribute a representative 30-card-vs-elite MCTS solve's wall-clock to per-node state cloning,
+// to decide the next perf lever (clone-elimination via make/undo). Reports the solve time vs the 1–2s target,
+// an isolated ns/clone microbenchmark, the CombatState.Clone count, and clone's estimated share of total.
+// Flags: --trials (top row, default 40000), --size (deck size, default 30), --maxturns (12), --hp (60).
+if (args.Contains("--profile"))
+{
+    int trials = ArgInt("--trials", 40_000);
+    int maxTurns = ArgInt("--maxturns", 12);
+    int size = ArgInt("--size", 30);
+    int hp = ArgInt("--hp", 60);
+
+    string[] variety = {
+        "StrikeIronclad", "DefendIronclad", "Bash", "Inflame", "Uppercut", "PommelStrike",
+        "ShrugItOff", "Anger", "IronWave", "Hemokinesis", "TwinStrike", "Headbutt" };
+    var specs = new List<string>();
+    for (int i = 0; i < size; i++) specs.Add(variety[i % variety.Length]);
+    int distinct = specs.Distinct().Count();
+
+    CombatState MakeSetup()
+    {
+        var player = Catalog.BuildPlayer(specs.Select(Catalog.BuildCard).ToList(), hp, hp, 3, new[] { "BurningBlood" });
+        return Catalog.SetupCombat(player, new[] { Monsters.Byrdonis(hp: 60) });
+    }
+
+    Console.WriteLine($"Profile — {size}-card Ironclad deck ({distinct} distinct) vs Byrdonis(60), APW default, "
+        + $"horizon {maxTurns}.\n  Target: a 1–2 s solve.\n");
+
+    // 1) Isolated ns/clone microbenchmark on a representative setup state (the static counter side-effect
+    //    keeps the JIT from eliding the discarded clone).
+    var probe = MakeSetup();
+    const int warm = 20_000, iters = 300_000;
+    for (int i = 0; i < warm; i++) { _ = probe.Clone(); }
+    var swc = System.Diagnostics.Stopwatch.StartNew();
+    for (int i = 0; i < iters; i++) { _ = probe.Clone(); }
+    swc.Stop();
+    double nsPerClone = swc.Elapsed.TotalMilliseconds * 1_000_000.0 / iters;
+    Console.WriteLine($"  Clone microbench: {nsPerClone:F0} ns/clone ({size}-card deck state).\n");
+
+    // 2) Leaf-cost comparison at a fixed (small) trial count. All three share the APW-default tree + prior;
+    //    they differ ONLY in the leaf seed: greedy rollout (a full playout to terminal — faithful, expensive)
+    //    vs the closed-form CombatHeuristic.Evaluate vs the Phase-C learned VF. If the closed-form leaves are
+    //    dramatically faster, the rollout is the bottleneck (not cloning); if they're ALSO slow, the APW prior's
+    //    per-candidate Score(ApplyPlay) dominates and the clone-free static prior is the lever.
+    int t = ArgInt("--trials", 1_500);
+    Console.WriteLine($"  Bottleneck matrix @ {t:N0} trials (cheap leaf throughout; vary the APW prior + chance):\n");
+    Console.WriteLine($"  {"config",-18} {"ms",9} {"ms/trial",9} {"nodes",9} {"clones",13} {"clone%",7}  value");
+    var leafConfigs = new (string name, Action<MctsOptions> set)[]
+    {
+        // Baseline = current production default (APW prior + greedy rollout + exact-chance ≤4096).
+        ("APW roll ch4096", _ => { }),
+        // Cheap leaf, APW prior ON vs OFF: the time gap = the APW prior's per-candidate Score(ApplyPlay) cost.
+        ("APW heur ch4096", o => o.UseHeuristicLeaf = true),
+        ("UCT heur ch4096", o => { o.UseHeuristicLeaf = true; o.ActionWidening = false; }),
+        // APW prior ON, cheap leaf, but force DPW draw sampling instead of ≤4096-way exact enumeration: the gap
+        // vs "APW heur ch4096" = the chance-node draw-enumeration cost.
+        ("APW heur ch64", o => { o.UseHeuristicLeaf = true; o.ExactChanceThreshold = 64; }),
+    };
+    foreach (var (name, set) in leafConfigs)
+    {
+        var profSetup = MakeSetup();
+        var opt = new MctsOptions { Trials = t, MaxTurns = maxTurns, Seed = 1 };
+        set(opt);
+        long cBefore = CombatState.ClonesCreated;
+        var profSw = System.Diagnostics.Stopwatch.StartNew();
+        var profMcts = new MctsSolver(opt);
+        var profV = profMcts.Solve(profSetup);
+        profSw.Stop();
+        long clones = CombatState.ClonesCreated - cBefore;
+        double cloneMs = clones * nsPerClone / 1_000_000.0;
+        double pct = profSw.ElapsedMilliseconds > 0 ? 100.0 * cloneMs / profSw.ElapsedMilliseconds : 0;
+        Console.WriteLine($"  {name,-18} {profSw.ElapsedMilliseconds,9} "
+            + $"{profSw.ElapsedMilliseconds / (double)t,9:F2} {profMcts.NodesCreated,9:N0} {clones,13:N0} {pct,6:F0}%  "
+            + $"{profV.Win:P0}/{profV.Loss:F1}");
+    }
+    Console.WriteLine($"\n  (APW heur)−(UCT heur) gap = APW-prior cost; (ch4096)−(ch64) gap = chance-enumeration");
+    Console.WriteLine($"  cost. Whichever dominates is the real lever toward the 1–2 s target — not cloning (≈12%).");
+    return 0;
+}
+
 // --calibrate: run exact (ground truth) vs MCTS (rollout-leaf and heuristic-leaf) over the DIVERSE fixture
 // suite (CalibrationFixtures — block / strength / debuff / aggro / power archetypes, not just the starter)
 // and report how closely sampling tracks exact. Used to tune the shared CombatHeuristic against the oracle.

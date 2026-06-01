@@ -79,8 +79,14 @@ public sealed class CombatState
     public bool AllMonstersDead => Monsters.All(m => !m.IsAlive);
     public bool IsCombatOver => PlayerDead || AllMonstersDead;
 
+    /// <summary>Diagnostic counter: total <see cref="Clone"/> calls since process start (or last reset). Used
+    /// by the `--profile` CLI to attribute solve time to per-node cloning. A single non-atomic increment on the
+    /// search hot path — negligible beside the allocation it accompanies, and the search is single-threaded.</summary>
+    public static long ClonesCreated;
+
     public CombatState Clone()
     {
+        ClonesCreated++;
         var monsters = new List<Monster>(Monsters.Count);
         foreach (var m in Monsters) monsters.Add((Monster)m.Clone());
         return new CombatState

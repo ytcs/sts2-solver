@@ -379,25 +379,41 @@ public sealed class MctsSolver
         long drawDistinct = DrawEnumerator.DistinctDrawCount(ch.AfterEnemy, Player.CardsDrawnPerTurn);
         ch.Exact = (long)combos.Count * drawDistinct <= _opt.ExactChanceThreshold;
 
+        // In exact mode, generate the outcomes LAZILY (one per chance-node visit, via SelectOutcome's
+        // MoveNext) instead of materialising all of them up front. A chance node visited V times then only
+        // pays for V outcomes — not all (combos × draws), which for a big deck can be thousands of clones the
+        // node never needs. The outcome SEQUENCE (order, probabilities, keys) is byte-identical to the old
+        // eager fill, so the exact partial-Bellman backup is unchanged — this is a pure efficiency win, not an
+        // accuracy tradeoff. (The `--profile` matrix isolated this eager enumeration as the dominant cost: a
+        // 30-card-vs-elite solve was ~96× slower with it than with chance sampling, while cloning was only ~12%.)
         if (ch.Exact)
-        {
-            ch.Pending = new Queue<PendingOutcome>();
-            foreach (var (pM, combo, comboKey) in combos)
-            {
-                var afterRoll = ch.AfterEnemy.Clone();
-                foreach (var (idx, moveId) in combo) afterRoll.Monsters[idx].Ai.CurrentMoveId = moveId;
-                CombatManager.BeginPlayerTurn(afterRoll);
-                int startLoss = afterRoll.PlayerHpLost - ch.AfterEnemy.PlayerHpLost;
+            ch.PendingEnum = EnumerateExactOutcomes(ch.AfterEnemy, combos).GetEnumerator();
 
-                int drawIdx = 0;
-                foreach (var (pD, drawn) in DrawEnumerator.EnumerateDraw(afterRoll, Player.CardsDrawnPerTurn))
-                    ch.Pending.Enqueue(new PendingOutcome(pM * pD, startLoss, drawn, $"{comboKey}|{drawIdx++}"));
-            }
-        }
         // Seed the value with averaged λ-rollouts from the post-enemy state (so parents can back up through
         // this edge before it is ever descended).
         var seed = SeedValue(ch.AfterEnemy, needAdvance: true, initialRoll: ch.Initial);
         ch.V = new Value(seed.Win, ch.EnemyLoss + seed.Loss);
+    }
+
+    /// <summary>Lazily enumerate the exact joint (move-roll × draw) outcomes of a chance node, in the same
+    /// order the old eager fill produced — so explication order, probabilities and keys are identical. Each
+    /// move-combo clones the post-enemy state once and advances the player turn; the (already lazy)
+    /// <see cref="DrawEnumerator.EnumerateDraw"/> then yields its draws on demand. Suspends between yields, so
+    /// the clone for combo K only happens when the node is visited enough to reach it.</summary>
+    private static IEnumerable<PendingOutcome> EnumerateExactOutcomes(
+        CombatState afterEnemy, List<(double prob, List<(int idx, string moveId)> combo, string key)> combos)
+    {
+        foreach (var (pM, combo, comboKey) in combos)
+        {
+            var afterRoll = afterEnemy.Clone();
+            foreach (var (idx, moveId) in combo) afterRoll.Monsters[idx].Ai.CurrentMoveId = moveId;
+            CombatManager.BeginPlayerTurn(afterRoll);
+            int startLoss = afterRoll.PlayerHpLost - afterEnemy.PlayerHpLost;
+
+            int drawIdx = 0;
+            foreach (var (pD, drawn) in DrawEnumerator.EnumerateDraw(afterRoll, Player.CardsDrawnPerTurn))
+                yield return new PendingOutcome(pM * pD, startLoss, drawn, $"{comboKey}|{drawIdx++}");
+        }
     }
 
     /// <summary>Average <see cref="MctsOptions.RolloutSamples"/> faithful λ-rollouts into one seed value.
@@ -441,7 +457,9 @@ public sealed class MctsSolver
     {
         if (ch.Exact)
         {
-            if (ch.Pending!.Count > 0) return Explicate(ch, ch.Pending.Dequeue());
+            // Pull the next exact outcome on demand; when the lazy generator is exhausted, every outcome has
+            // been explicated → fall through to reselect among them.
+            if (ch.PendingEnum != null && ch.PendingEnum.MoveNext()) return Explicate(ch, ch.PendingEnum.Current);
         }
         else
         {
@@ -703,7 +721,7 @@ public sealed class MctsSolver
         public bool Initial;
         public bool Terminal;
         public bool Exact;
-        public Queue<PendingOutcome>? Pending;   // exact-mode remaining outcomes
+        public IEnumerator<PendingOutcome>? PendingEnum;   // exact-mode outcomes, generated LAZILY on demand
         public readonly List<Outcome> Explicated = new();
         public readonly HashSet<string> SeenKeys = new();
         public double ExplicatedMass;
