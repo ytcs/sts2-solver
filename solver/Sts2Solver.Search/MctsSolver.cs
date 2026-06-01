@@ -39,6 +39,14 @@ public sealed class MctsOptions
     /// directly from learned geometry rather than needing a lucky coordinated rollout.</summary>
     public bool UseLearnedLeaf = false;
 
+    /// <summary>Blended leaf: at a fresh tip, combine the faithful greedy rollout (which UNDER-estimates
+    /// razor-thin survival — the winning line needs coordinated draw+play a greedy policy misses) with the
+    /// learned value (which OVER-estimates it) as a convex mix <c>(1−α)·rollout + α·learned</c>. The exact
+    /// truth sits between the two endpoints, so a calibrated α lands closer than either alone. 0 = pure
+    /// rollout (the trusted default); ignored when <see cref="UseLearnedLeaf"/>/<see cref="UseHeuristicLeaf"/>
+    /// is set (those are closed-form, no rollout). Costs one rollout + one cheap learned eval per tip.</summary>
+    public double LeafBlend = EnvD("STS2_LEAF_BLEND", 0.0);
+
     /// <summary>Each rollout samples its aggression λ uniformly from [Lo, Hi] (0 = all-block, 1 = all-damage),
     /// so leaf seeds average over the block↔race spectrum rather than a single biased greedy line. Lo==Hi
     /// gives a deterministic policy at that λ (set both to 0.5 for the old balanced greedy). Defaults span
@@ -465,6 +473,31 @@ public sealed class MctsSolver
             return new Value(lv.Win, (s.PlayerHpLost - baseline) + lv.Loss);
         }
 
+        // Blended leaf: convex mix of the learned value (over-estimates razor-thin survival) and the faithful
+        // rollout (under-estimates it). At a live tip both estimate value-from-s; terminal tips are exact, so
+        // skip the blend there. The learned eval is read-only (clones internally), so it's safe before the
+        // rollout, which mutates s.
+        if (_opt.LeafBlend > 0)
+        {
+            if (s.AllMonstersDead) return new Value(1, s.PlayerHpLost - baseline);
+            if (s.PlayerDead || s.TurnNumber > _opt.MaxTurns) return new Value(0, s.PlayerHpLost - baseline);
+            double advanceLoss = s.PlayerHpLost - baseline;
+            var learned = LearnedValue.Evaluate(s, _opt.MaxTurns);
+            var rollout = RolloutToTerminal(s, baseline);
+            double a = _opt.LeafBlend;
+            double rolloutFuture = rollout.Loss - advanceLoss;
+            return new Value((1 - a) * rollout.Win + a * learned.Win,
+                             advanceLoss + (1 - a) * rolloutFuture + a * learned.Loss);
+        }
+
+        return RolloutToTerminal(s, baseline);
+    }
+
+    /// <summary>Play the fight out to terminal under the greedy λ-policy, returning (won?, HP lost from
+    /// <paramref name="baseline"/>). Assumes <paramref name="s"/> is a live decision tip (moves rolled, hand
+    /// drawn). Mutates <paramref name="s"/>.</summary>
+    private Value RolloutToTerminal(CombatState s, int baseline)
+    {
         // Sample an aggression λ for this whole playout: the play order interpolates between all-block and
         // all-damage, so a fixed-λ line is one point on that spectrum. Sampling λ per rollout makes the leaf
         // seed average over the spectrum (turtle…aggro) instead of one biased extreme — the key to seeding
