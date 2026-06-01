@@ -62,15 +62,17 @@ public sealed class MctsOptions
     /// [Lo,Hi]). 1 = the classic single-rollout seed (the calibrated default — averaging didn't pay off).</summary>
     public int RolloutSamples = (int)EnvD("STS2_ROLLOUT_SAMPLES", 1);
 
-    /// <summary>Action progressive widening + PUCT. When OFF (default) the solver opens EVERY distinct legal
-    /// play at a decision node and forces one visit each (classic UCT*, identical to before). When ON, it ranks
-    /// the plays by the heuristic policy prior and opens only ⌈<see cref="ApwC"/>·N^<see cref="ApwBeta"/>⌉ of
-    /// them, best-first — bounding the per-decision branching that drives tree growth with card variety (the
+    /// <summary>Action progressive widening + PUCT. When ON (the DEFAULT since the partial-survival sweep) it
+    /// ranks the plays by the heuristic policy prior and opens only ⌈<see cref="ApwC"/>·N^<see cref="ApwBeta"/>⌉
+    /// of them, best-first — bounding the per-decision branching that drives tree growth with card variety (the
     /// super-linear cost the perf-probe isolates). EndTurn (the oracle's safe baseline) is always opened, and
     /// every candidate eventually opens as N→∞, so it stays asymptotically consistent. Selection switches from
     /// UCB to PUCT (prior·c·√N/(1+visits)); the just-opened child's rollout seed serves as its first-play value,
-    /// so no separate FPU term is needed. Gated against the exact oracle before becoming the default.</summary>
-    public bool ActionWidening = EnvB("STS2_APW", false);
+    /// so no separate FPU term is needed. When OFF (set STS2_APW=0) the solver opens EVERY distinct legal play
+    /// and force-visits each (classic UCT*). Flipped to default-ON after the `--apw-sweep` data: a clear cost
+    /// win (−25% nodes / −27% ms over 45 random partial-survival fixtures) at survival-neutral accuracy and a
+    /// small +0.28 HP E[loss] regression — a tradeoff the user accepted for late-game usability.</summary>
+    public bool ActionWidening = EnvB("STS2_APW", true);
 
     /// <summary>Action-widening schedule: opened plays = ⌈ApwC·N^ApwBeta⌉ (clamped to [1, #plays]). β∈(0,1).</summary>
     public double ApwC = EnvD("STS2_APW_C", 2.0);
