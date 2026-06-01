@@ -16,6 +16,25 @@ public static partial class Catalog
         ["Burn"] = () => new Burn(),
         ["Dazed"] = () => new Dazed(),
         ["AscendersBane"] = () => new AscendersBane(),
+        // Curses (Core/Curses.cs) — buildable by name for a real run deck, excluded from the deck-buildable
+        // CardPool (never deliberately added), like the status cards above.
+        ["BadLuck"] = () => new BadLuck(),
+        ["Decay"] = () => new Decay(),
+        ["Regret"] = () => new Regret(),
+        ["Doubt"] = () => new Doubt(),
+        ["Shame"] = () => new Shame(),
+        ["Clumsy"] = () => new Clumsy(),
+        ["CurseOfTheBell"] = () => new CurseOfTheBell(),
+        ["Folly"] = () => new Folly(),
+        ["Greed"] = () => new Greed(),
+        ["Injury"] = () => new Injury(),
+        ["PoorSleep"] = () => new PoorSleep(),
+        ["Writhe"] = () => new Writhe(),
+        ["Guilty"] = () => new Guilty(),
+        ["Debt"] = () => new Debt(),
+        ["Normality"] = () => new Normality(),
+        ["SporeMind"] = () => new SporeMind(),
+        ["Enthralled"] = () => new Enthralled(),
     };
 
     /// <summary>Every registered card table, in lookup order. Add a character = add one line here.</summary>
@@ -25,6 +44,7 @@ public static partial class Catalog
         yield return IroncladCardFactories;
         yield return SilentCardFactories;
         yield return ColorlessCardFactories;
+        yield return SpecialCardFactories;
     }
 
     /// <summary>The deck-buildable card pool: every registered character + colorless card (Ironclad + Silent
@@ -35,6 +55,7 @@ public static partial class Catalog
         _cardPool ??= IroncladCardFactories.Keys
             .Concat(SilentCardFactories.Keys)
             .Concat(ColorlessCardFactories.Keys)
+            .Concat(SpecialCardFactories.Keys)
             .ToArray();
     private static string[]? _cardPool;
 

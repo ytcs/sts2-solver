@@ -20,7 +20,9 @@ public sealed class VulnerablePower : PowerModel
 
     public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
     {
-        if (side == Owner.Side) { Amount--; this.NormalizeOrRemove(Owner); }   // a debuff ticks down at its OWNER's turn end
+        if (side != Owner.Side) return;                                        // a debuff ticks down at its OWNER's turn end
+        if (SkipNextTick) { SkipNextTick = false; return; }                    // skip the end-tick on the turn it was applied
+        Amount--; this.NormalizeOrRemove(Owner);
     }
 }
 /// <summary>Outgoing damage ×0.75. Ticks down at the owner's turn end. (MegaCrit WeakPower)</summary>
@@ -38,7 +40,9 @@ public sealed class WeakPower : PowerModel
 
     public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
     {
-        if (side == Owner.Side) { Amount--; this.NormalizeOrRemove(Owner); }   // a debuff ticks down at its OWNER's turn end
+        if (side != Owner.Side) return;                                        // a debuff ticks down at its OWNER's turn end
+        if (SkipNextTick) { SkipNextTick = false; return; }                    // skip the end-tick on the turn it was applied
+        Amount--; this.NormalizeOrRemove(Owner);
     }
 }
 /// <summary>Block gained ×0.75. Ticks down at the owner's turn end. (MegaCrit FrailPower)</summary>
@@ -56,7 +60,9 @@ public sealed class FrailPower : PowerModel
 
     public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
     {
-        if (side == Owner.Side) { Amount--; this.NormalizeOrRemove(Owner); }   // a debuff ticks down at its OWNER's turn end
+        if (side != Owner.Side) return;                                        // a debuff ticks down at its OWNER's turn end
+        if (SkipNextTick) { SkipNextTick = false; return; }                    // skip the end-tick on the turn it was applied
+        Amount--; this.NormalizeOrRemove(Owner);
     }
 }
 /// <summary>Adds flat damage equal to Amount on powered attacks dealt by the owner. (MegaCrit StrengthPower)</summary>

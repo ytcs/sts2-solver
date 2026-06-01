@@ -4,7 +4,7 @@ public enum CombatSide { Player, Enemy }
 
 public enum CardType { Attack, Skill, Power, Status, Curse }
 
-public enum CardRarity { Basic, Common, Uncommon, Rare, Special, Curse, Status }
+public enum CardRarity { Basic, Common, Uncommon, Rare, Special, Curse, Status, Event, Ancient }
 
 /// <summary>Who a card can target. v1 covers the subset the slice needs.</summary>
 public enum TargetType { Self, AnyEnemy, AllEnemies, RandomEnemy, None }
