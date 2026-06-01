@@ -27,12 +27,15 @@ public static partial class Catalog
         yield return ColorlessCardFactories;
     }
 
-    /// <summary>The deck-buildable card pool: every registered character card (Ironclad + Silent), excluding
-    /// the shared status/curse cards (Burn, Dazed, Infection, AscendersBane) which are never deliberately
-    /// added to a deck. Used by <see cref="TrainingFixtures"/> to draw randomised decks for the Phase-C
-    /// value-function training corpus.</summary>
+    /// <summary>The deck-buildable card pool: every registered character + colorless card (Ironclad + Silent
+    /// + Colorless), excluding the shared status/curse cards (Burn, Dazed, Infection, AscendersBane) which are
+    /// never deliberately added to a deck. Used by <see cref="TrainingFixtures"/> to draw randomised decks for
+    /// the Phase-C VF training corpus, and by the advisor's card-name auto-complete/auto-correct.</summary>
     public static IReadOnlyList<string> CardPool =>
-        _cardPool ??= IroncladCardFactories.Keys.Concat(SilentCardFactories.Keys).ToArray();
+        _cardPool ??= IroncladCardFactories.Keys
+            .Concat(SilentCardFactories.Keys)
+            .Concat(ColorlessCardFactories.Keys)
+            .ToArray();
     private static string[]? _cardPool;
 
     /// <summary>Parse a card spec like "Bash" or "Bash+1" (the +N suffix is upgrade level).</summary>
