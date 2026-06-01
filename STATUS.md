@@ -477,6 +477,24 @@ upgrade-aliasing clone bug.)
    isotonic) IF we keep it; add deck-composition features.
 6. **Content** — Silent 40 → 88; trace-validate the 8 new normal monsters; Act-1 bosses; relic engine hooks;
    the deferred solver-side mid-turn **draw chance-node** for forward search.
+7. **⚠ SOUNDNESS — intra-card SELECTION as real decision nodes.** The action space is flat: `LegalPlays`
+   enumerates only `(card, target-monster)` pairs (`CombatHeuristic.cs:166`), and there is NO search-side
+   card-chooser. Every *in-card* selection is therefore collapsed to a fixed policy under an "HP-neutral"
+   justification — e.g. Headbutt topdecks the most-recently-discarded card (`IroncladCards.cs:688`); Armaments
+   upgrades an arbitrary hand card; the exhaust-a-card cluster (Second Wind, Sever Soul, Burning Pact, Fiend
+   Fire) exhausts arbitrarily; Silent's discard-selection (Acrobatics, CalculatedGamble) is currently deferred
+   for the same reason. **This is only approximately HP-neutral**: the chosen card changes the future draw pile
+   / hand → future plays → future HP over the horizon (the Armaments note already concedes "HP-neutral *unless
+   that card is later played*"). So the exact `Solver` is ground truth only w.r.t. the MDP *as modeled* — for
+   decks containing these cards the selection is pinned to a heuristic, not branched as a player decision, so
+   the oracle is a (close) approximation of true optimal play, not literal ground truth. The current validated
+   fixtures dodge this because the affected cards are absent or genuinely neutral in context. **This bites the
+   Silent pool hardest** (discard/exhaust/tutor effects are pervasive) and is the real reason several Silent
+   cards are deferred. _Fix:_ promote these to genuine decision nodes — but each fans out to `|pile|`/`|hand|`
+   children, i.e. it lands squarely on the card-VARIETY branching cost the APW+PUCT widening is built to
+   contain, so it should be done *on top of* that machinery (and behind a flag, oracle-gated, measuring the
+   accuracy-vs-cost tradeoff per card). Inventory first: which currently-modeled cards collapse a
+   *non-*HP-neutral selection.
 
 ### History (condensed)
 Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless autonomy; MCTS solver
