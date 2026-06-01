@@ -272,9 +272,16 @@ public sealed class Mayhem : CardModel
 
 /// <summary>Upgrade ALL of your cards for the rest of combat. Exhaust. Innate. Cost 2. (MegaCrit Apotheosis)
 /// — upgrading a card is HP-neutral until that card is later played, and the resulting plays are recorded
-/// individually with their upgraded values, so this is modelled as a best-effort in-place upgrade of every
-/// card currently in the player's piles. It exhausts itself; Innate only affects the opening hand and is not
-/// modelled.</summary>
+/// individually with their upgraded values, so this is modelled as upgrading every card currently in the
+/// player's piles. It exhausts itself; Innate only affects the opening hand and is not modelled.
+///
+/// SOUNDNESS: this MUST NOT mutate a card instance in place. The immutable majority of cards are SHARED
+/// across cloned search states (Player.Clone only deep-clones <see cref="CardModel.Stateful"/> cards), so
+/// bumping a shared card's <see cref="CardModel.Upgrades"/> would change its <see cref="CardModel.StateKey"/>
+/// in every sibling branch — corrupting the draw enumerator's pile bookkeeping (it crashed with
+/// "Pile missing card …"). Instead we REPLACE each upgradable card with a freshly cloned, upgraded instance
+/// that this state alone owns, leaving the shared original untouched. (Same isolation guarantee Rampage gets
+/// from Stateful, achieved here by not aliasing the mutation onto a shared instance.)</summary>
 public sealed class Apotheosis : CardModel
 {
     public override string Name => "Apotheosis";
@@ -286,8 +293,16 @@ public sealed class Apotheosis : CardModel
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         var p = combat.Player;
-        foreach (var c in p.Hand.Concat(p.DrawPile).Concat(p.DiscardPile))
-            if (c.Upgrades == 0) c.Upgraded(1);
+        UpgradePile(p.Hand);
+        UpgradePile(p.DrawPile);
+        UpgradePile(p.DiscardPile);
+    }
+
+    private static void UpgradePile(List<CardModel> pile)
+    {
+        for (int i = 0; i < pile.Count; i++)
+            if (pile[i].Upgrades == 0)
+                pile[i] = pile[i].Clone().Upgraded(1);   // own a private upgraded copy; never mutate a shared instance
     }
 }
 

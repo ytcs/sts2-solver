@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-01 (Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88.)_
+_Last updated: 2026-06-01 (**Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88.)_
 
 ## Goal
 
@@ -72,6 +72,13 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   crashed the draw enumerator). Surfaced by the randomized training decks; gated by `TrainingFixturesTests`
   (clone-isolation + Rampage-solves). `Rampage` is currently the only stateful card; the flag makes the rule
   explicit so future ports can't reintroduce the bug.
+  - **Sibling-mutation via card upgrades (same bug class, second mechanism):** a card whose effect upgrades
+    *other* cards in the piles (`Apotheosis` — all piles; `Armaments` — hand) must NOT bump a shared card's
+    `Upgrades` in place, since that changes the shared instance's `StateKey` in every sibling branch (the draw
+    enumerator then crashes with `Pile missing card …`, e.g. an Impatience or `Armaments+1` deck). Both now
+    **replace** each upgradable card with a private, freshly-cloned upgraded copy the playing state alone owns.
+    Gated by `TrainingFixturesTests` (`Upgrade_Effects_Do_Not_Mutate_Shared_Card_Instances`,
+    `Apotheosis_Impatience_Deck_Solves_Exactly`, `Corpus_Upgrade_Card_Fixtures_Solve_Without_Crashing`).
 
 ### Exact solver (Sts2Solver.Search/Solver.cs)
 - Lexicographic expectimax: value `(P_win, E[HP loss])`, memoized on a 128-bit structural hash.
@@ -320,9 +327,17 @@ Card-validation loop: port + unit-test → `STS2_DECK` headless run vs a simple 
 
 ## Key design decisions
 
-- **Objective:** survival-first, then min expected HP loss (lexicographic). **Under review** — survival is the
-  noisy component; we may collapse to a single HP-loss scalar (death = full HP loss already encodes survival).
-  See Roadmap "drop survival probability".
+- **Objective:** survival-first, then min expected HP loss (lexicographic). **RESOLVED — keep it** (was "under
+  review"). The single-scalar alternative (minimise E[HP loss], death = full remaining HP) was implemented and
+  measured exactly against the oracle (`ScalarSolver`/`ObjectiveExperiment`, `sts2solve --objective[-random|-penalty]`).
+  Finding: that scalar (≡ "maximise expected final HP") is **theoretically lexicographic only in the death-penalty
+  → ∞ limit**; with the proposed death = full-HP charge it **sacrifices survival for trivial HP savings** — up to
+  **−55.6% survival to save ~1 HP** on a real partial-survival fixture, and it diverged on 6/8 partial-survival
+  random fixtures (the regime advice cares about). A finite extra death penalty recovers lex decisions but only
+  at a large, problem-dependent magnitude (>5×maxHP, sometimes far more), and buys **no exact-search speedup**
+  (identical state counts — the tree is the same, only the per-node backup is marginally cheaper). So survival
+  noise is an *estimation* problem (handled by the advisor's `SurvivalBand` + VF calibration), **not** an
+  objective problem; mutilating the objective is the wrong fix. See Roadmap "drop survival probability — RESOLVED".
 - **Exact solve is a small-deck tool, not the engine.** It stays the ground-truth ORACLE for gating, but real
   decks (40+ cards) are intractable exactly — the MCTS+learned-VF path carries late-game, so algorithmic
   efficiency + VF calibration are where accuracy now comes from (not deeper exact search). Validation must
@@ -373,21 +388,38 @@ band-aid). Candidate directions from stochastic-control / planning literature to
      load (shallow search or near-greedy on the VF) once it's well-calibrated, instead of deep sampling.
    - **Action abstraction** — dedupe symmetric plays (identical cards, target symmetry) more aggressively.
 
-### ⭐ OPEN QUESTION — drop survival probability, optimize HP-loss only?
-Survival prob is the noisy, hard-to-calibrate component (MCTS under-/over-shoots razor-thin fights; PhrogParasite
-shows 0% with the starter); HP loss tracks the oracle tightly. **Seriously evaluate collapsing to a single
-scalar objective: minimize E[HP loss] where death costs your full remaining HP.** Death is already the maximal
-loss, so a scalar HP-loss objective *implicitly* encodes survival pressure — likely capturing most of the
-decision quality while removing the lexicographic machinery (single-component UCB/backups, one VF head, no
-death-cliff tuning). Measure the **complexity + runtime payoff** and the decision-quality delta vs the current
-lexicographic objective on the calibration suite. (This revisits Key-design #1 — keep it as an experiment
-behind a flag; only flip the default if it's clearly a win.)
+### ✅ RESOLVED — drop survival probability? NO. (Decided by exact-oracle experiment, not intuition.)
+The question: collapse to a single scalar (minimise E[HP loss], death = full remaining HP), since HP loss tracks
+the oracle tightly while survival is noisy. **Implemented and measured** (`Sts2Solver.Search/ScalarObjective.cs`:
+`ScalarSolver` with a tunable extra death penalty `P`, + `ObjectiveExperiment` cross-evaluator; CLI
+`--objective` (curated), `--objective-random` (broad random corpus), `--objective-penalty` (P-sweep);
+gated by `ObjectiveExperimentTests`). Key theory: the per-leaf HP-loss accounting is IDENTICAL between the two
+objectives (death is bar-clipped, so any doomed line's forward loss already sums to full current HP — the
+`LossCertificate` fact); they differ ONLY in the policy each selects. The scalar with death = full-HP is exactly
+"maximise expected final HP", and **lexicographic is its death-penalty→∞ limit** (a constrained-MDP / big-M
+penalty — `Huge_Death_Penalty_Recovers_Lexicographic_Survival` confirms P=∞ reproduces lex survival & loss
+exactly).
+**Data (exact, noise-free):**
+   - Curated suite (6 fixtures, 5 at 100% survival): regret 0, sacrifice 0 — but only the *trivial* regime.
+   - Random partial-survival fixtures (0<win<1, the regime advice lives in): the scalar **sacrifices survival**
+     in 6/8 — up to **−55.6%** (rand63: 98.4%→42.9% to save 0.98 HP), one fixture to literal 0% survival. The
+     death = full-HP penalty is too weak to dominate in high-HP-loss near-death fights, so it gambles wins for
+     marginal HP.
+   - A finite extra death penalty `P` recovers lex decisions, but the needed magnitude is large and
+     problem-dependent (≥5×maxHP, and one fixture only closes at P→∞). No small uniform P is safe.
+   - **No runtime payoff:** exact state counts are identical (e.g. 487,459/487,459) — same tree, only a slightly
+     cheaper scalar backup. The complexity the scalar would remove (one VF head, single-component UCB) lives in
+     the *estimator*, not the search.
+**Conclusion:** keep lexicographic. Survival noise is an estimation problem — address it with the advisor's
+`SurvivalBand` and VF survival recalibration (Platt/isotonic), NOT by changing the objective. (Side benefit: the
+random objective sweep surfaced & fixed a real oracle-unsoundness — the Apotheosis/Armaments shared-instance
+upgrade-aliasing clone bug.)
 
 ### Other near-term
 4. **Calibration expansion** — cover all 12 elites + a high variety of decks (random-draw generator), with
    exact ground truth where tractable and MCTS self-consistency / anytime-convergence where (as decks grow)
-   exact can't reach. This is the measuring stick for both the perf and objective experiments, and gates making
-   the **leaf-blend (α≈0.25) the default**.
+   exact can't reach. This is the measuring stick for the perf work, and gates making the **leaf-blend
+   (α≈0.25) the default**. (The objective experiment is resolved — see above.)
 5. **VF distillation + recalibration** — after a large training round (now drawing colorless + varied decks),
    distill feature importance to simplify the model without losing accuracy; recalibrate survival (Platt/
    isotonic) IF we keep it; add deck-composition features.

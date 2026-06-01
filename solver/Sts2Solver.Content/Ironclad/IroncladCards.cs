@@ -1148,7 +1148,13 @@ public sealed class Stoke : CardModel
 }
 /// <summary>Gain 5 Block. Upgrade a card in your hand for the rest of combat (all cards if upgraded).
 /// (MegaCrit Armaments) — the upgrade-target pops an in-game prompt, so this is unit-tested via the block +
-/// an arbitrary upgrade; the upgrade itself is HP-neutral unless that card is later played.</summary>
+/// an arbitrary upgrade; the upgrade itself is HP-neutral unless that card is later played.
+///
+/// SOUNDNESS: like Apotheosis, this MUST NOT mutate a card instance in place — the immutable majority of
+/// cards are SHARED across cloned search states (Player.Clone only deep-clones <see cref="CardModel.Stateful"/>
+/// cards), so bumping a shared card's Upgrades would change its StateKey in every sibling branch and corrupt
+/// the draw enumerator's pile bookkeeping. We REPLACE the chosen hand card(s) with a freshly cloned, upgraded
+/// instance this state alone owns, leaving the shared original untouched.</summary>
 public sealed class Armaments : CardModel
 {
     public override string Name => "Armaments";
@@ -1160,10 +1166,19 @@ public sealed class Armaments : CardModel
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+        var hand = combat.Player.Hand;
         if (Upgrades > 0)
-            foreach (var c in combat.Player.Hand.ToList()) c.Upgraded(1);
+        {
+            for (int i = 0; i < hand.Count; i++)
+                if (hand[i].Upgrades == 0)
+                    hand[i] = hand[i].Clone().Upgraded(1);   // private upgraded copy; never mutate a shared instance
+        }
         else
-            combat.Player.Hand.FirstOrDefault()?.Upgraded(1);
+        {
+            // Upgrade one arbitrary unupgraded hand card (the in-game choice is HP-neutral for replay).
+            for (int i = 0; i < hand.Count; i++)
+                if (hand[i].Upgrades == 0) { hand[i] = hand[i].Clone().Upgraded(1); break; }
+        }
     }
 }
 /// <summary>Deal 17 damage to ALL enemies — but only if 3+ cards are in your exhaust pile. Upgrade: +6.

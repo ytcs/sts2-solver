@@ -45,6 +45,168 @@ if (args.Contains("--horizon"))
     return 0;
 }
 
+// --objective: the survival-vs-scalar objective experiment. For each calibration fixture, solve under BOTH
+// the lexicographic objective (survival-first, the oracle) and the single-scalar objective (minimise E[HP loss],
+// death = full remaining HP), then cross-evaluate each policy under the other metric. Decisive, noise-free data
+// on the open question "drop survival probability?": ScalarRegret (HP the survival-first policy wastes) and
+// SurvivalSacrifice (wins the loss-minimising policy throws away). Flags: --exact-budget S (default 90).
+if (args.Contains("--objective"))
+{
+    double budget = ArgInt("--exact-budget", 90);
+    Console.WriteLine("Objective experiment — lexicographic (survival-first) vs single scalar (min E[HP loss], "
+        + "death = full HP), exact oracle.\n");
+    Console.WriteLine($"  {"fixture",-28} {"lex win/loss",-16} {"scalarOpt",9} {"lexPolScal",10} "
+        + $"{"regret",7} {"scalPolWin",10} {"sacrifice",9}  {"states L/S",-18} {"ms L/S"}");
+    Console.WriteLine("  " + new string('-', 124));
+
+    double sumRegret = 0, sumSacrifice = 0, maxRegret = 0, maxSacrifice = 0;
+    foreach (var f in CalibrationFixtures.All)
+    {
+        ObjectiveRow r;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(budget * 3));
+            r = ObjectiveExperiment.Run(f.Name, f.Setup(), f.MaxTurns);
+        }
+        catch (OperationCanceledException) { Console.WriteLine($"  {f.Name,-28} (exceeded budget — skipped)"); continue; }
+
+        Console.WriteLine(
+            $"  {r.Fixture,-28} {r.WinLex,6:P1}/{r.LossLex,6:F1}   {r.ScalarOpt,9:F2} {r.ScalarOfLexPolicy,10:F2} "
+            + $"{r.ScalarRegret,7:F2} {r.WinOfScalarPolicy,10:P1} {r.SurvivalSacrifice,9:P1}  "
+            + $"{r.StatesLex,8:N0}/{r.StatesScalar,-8:N0} {r.MsLex}/{r.MsScalar}");
+        sumRegret += r.ScalarRegret; sumSacrifice += r.SurvivalSacrifice;
+        maxRegret = Math.Max(maxRegret, r.ScalarRegret); maxSacrifice = Math.Max(maxSacrifice, r.SurvivalSacrifice);
+    }
+    Console.WriteLine("  " + new string('-', 124));
+    Console.WriteLine($"  Σ scalar-regret {sumRegret:F2} HP (max {maxRegret:F2})  |  "
+        + $"Σ survival-sacrifice {sumSacrifice:P1} (max {maxSacrifice:P1})");
+    Console.WriteLine("\n  regret≈0 ⇒ survival-first policy is already loss-optimal (scalar changes no HP outcomes);");
+    Console.WriteLine("  sacrifice≈0 ⇒ dropping survival is SAFE (loss-min policy keeps the same wins).");
+    return 0;
+}
+
+// --objective-random N: the objective experiment over a broad RANDOM draw of fixtures (decks of varying size /
+// composition from the whole card pool × random monster × HP). The decisive test: the lex vs scalar objectives
+// can only diverge in the PARTIAL-SURVIVAL regime (0 < win < 1), so we report the regret/sacrifice distribution
+// conditioned on that band. Flags: --count N (default 200), --seed, --maxturns, --budget S (per-fixture, default 8).
+if (args.Contains("--objective-random"))
+{
+    int count = ArgInt("--count", 200);
+    int seed = ArgInt("--seed", 20260601);
+    int maxTurns = ArgInt("--maxturns", 14);
+    double budget = ArgInt("--budget", 8);
+    Console.WriteLine($"Objective experiment — RANDOM corpus ({count} draws, seed {seed}, {budget:F0}s/fixture). "
+        + "Divergence is only possible at partial survival (0<win<1).\n");
+
+    int solved = 0, timedOut = 0, partial = 0, diverged = 0, engineFail = 0;
+    double sumRegret = 0, sumSacrifice = 0, maxRegret = 0, maxSacrifice = 0;
+    string worstRegretFx = "-", worstSacrificeFx = "-";
+    foreach (var f in TrainingFixtures.Random(count, seed, maxTurns))
+    {
+        ObjectiveRow r;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(budget));
+            r = ObjectiveExperiment.Run(f.Name, f.Setup(), f.MaxTurns, cts.Token);
+        }
+        catch (OperationCanceledException) { timedOut++; continue; }
+        catch (InvalidOperationException ex)   // engine can't model this deck soundly (e.g. clone/StateKey bug)
+        {
+            engineFail++;
+            if (engineFail <= 5) Console.WriteLine($"  ENGINE-FAIL {f.Name,-34} {ex.Message}");
+            continue;
+        }
+        solved++;
+
+        bool isPartial = r.WinLex > 1e-6 && r.WinLex < 1 - 1e-6;
+        if (!isPartial) continue;
+        partial++;
+        sumRegret += r.ScalarRegret; sumSacrifice += r.SurvivalSacrifice;
+        if (r.ScalarRegret > maxRegret) { maxRegret = r.ScalarRegret; worstRegretFx = f.Name; }
+        if (r.SurvivalSacrifice > maxSacrifice) { maxSacrifice = r.SurvivalSacrifice; worstSacrificeFx = f.Name; }
+        // A meaningful divergence: the scalar policy gives up >1% survival, OR the survival-first policy wastes >0.5 HP.
+        if (r.SurvivalSacrifice > 0.01 || r.ScalarRegret > 0.5)
+        {
+            diverged++;
+            Console.WriteLine($"  DIVERGE {f.Name,-34} lexWin {r.WinLex,6:P1} loss {r.LossLex,6:F1} | "
+                + $"scalarOpt {r.ScalarOpt,6:F2} regret {r.ScalarRegret,6:F2} | scalPolWin {r.WinOfScalarPolicy,6:P1} "
+                + $"sacrifice {r.SurvivalSacrifice,6:P1}");
+        }
+    }
+    Console.WriteLine("\n  " + new string('-', 80));
+    Console.WriteLine($"  solved {solved}/{count} ({timedOut} timed out @ {budget:F0}s, {engineFail} engine-fail), "
+        + $"partial-survival (0<win<1): {partial}");
+    if (partial > 0)
+    {
+        Console.WriteLine($"  divergences (sacrifice>1% or regret>0.5HP): {diverged}/{partial}");
+        Console.WriteLine($"  mean scalar-regret {sumRegret / partial:F3} HP (max {maxRegret:F2} @ {worstRegretFx})");
+        Console.WriteLine($"  mean survival-sacrifice {sumSacrifice / partial:P2} (max {maxSacrifice:P1} @ {worstSacrificeFx})");
+    }
+    return 0;
+}
+
+// --objective-penalty: on PARTIAL-SURVIVAL fixtures (where the objectives can diverge), sweep the scalar
+// objective's death penalty P (charged on top of the lost bar) as multiples of max HP, and measure how the
+// scalar-P policy's survival recovers toward the lexicographic optimum — and at what extra-HP-loss cost. P=0 is
+// the pure "maximise expected final HP" scalar; a huge P must reproduce lexicographic survival (validation).
+// This is the constrained-MDP penalty / big-M view of survival-first. Flags: --count, --seed, --budget, --want K.
+if (args.Contains("--objective-penalty"))
+{
+    int count = ArgInt("--count", 400);
+    int seed = ArgInt("--seed", 4242);
+    int maxTurns = ArgInt("--maxturns", 14);
+    double budget = ArgInt("--budget", 10);
+    int want = ArgInt("--want", 10);                 // stop after this many partial-survival fixtures
+    double[] mults = { 0.0, 0.5, 1.0, 2.0, 5.0, 1e6 };
+
+    Console.WriteLine($"Objective death-penalty sweep on partial-survival fixtures (seed {seed}, {budget:F0}s/solve). "
+        + "P as ×maxHP; P=0 ⇒ max-E[final HP]; P→∞ ⇒ lexicographic.\n");
+
+    int found = 0, examined = 0;
+    foreach (var f in TrainingFixtures.Random(count, seed, maxTurns))
+    {
+        if (found >= want) break;
+        examined++;
+        int maxHp = f.Setup().Player.MaxHp;
+
+        // Lex baseline first; only fixtures with 0<win<1 can show divergence.
+        Value vLex; int lexStates;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(budget));
+            var lex0 = new Solver { MaxTurns = f.MaxTurns, Ct = cts.Token };
+            vLex = lex0.Solve(f.Setup());
+            lexStates = lex0.StatesEvaluated;
+        }
+        catch (OperationCanceledException) { continue; }
+        catch (InvalidOperationException) { continue; }
+        if (vLex.Win <= 1e-6 || vLex.Win >= 1 - 1e-6) continue;
+        found++;
+
+        Console.WriteLine($"  {f.Name}   (maxHP {maxHp}, {lexStates:N0} states)");
+        Console.WriteLine($"    lexicographic:  survive {vLex.Win,6:P1}   E[HP loss] {vLex.Loss,6:F2}");
+        foreach (double mult in mults)
+        {
+            double P = mult * maxHp;
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(budget));
+                var scal = new ScalarSolver { MaxTurns = f.MaxTurns, DeathPenalty = P, Ct = cts.Token };
+                scal.Solve(f.Setup());
+                scal.Ct = CancellationToken.None;
+                var pv = ObjectiveExperiment.EvaluatePolicy(f.Setup(), f.MaxTurns, scal.BestAction);
+                string tag = mult >= 1e5 ? "P=∞ " : $"P={mult:0.0}×";
+                Console.WriteLine($"    scalar {tag,-6} survive {pv.Win,6:P1}   E[HP loss] {pv.LexLoss,6:F2}   "
+                    + $"Δsurv {pv.Win - vLex.Win,+6:P1}   Δloss {pv.LexLoss - vLex.Loss,+6:F2}");
+            }
+            catch (OperationCanceledException) { Console.WriteLine($"    scalar P={mult:0.0}× (timeout)"); }
+        }
+        Console.WriteLine();
+    }
+    Console.WriteLine($"  examined {examined} draws, {found} partial-survival fixtures swept.");
+    return 0;
+}
+
 // --calibrate: run exact (ground truth) vs MCTS (rollout-leaf and heuristic-leaf) over the DIVERSE fixture
 // suite (CalibrationFixtures — block / strength / debuff / aggro / power archetypes, not just the starter)
 // and report how closely sampling tracks exact. Used to tune the shared CombatHeuristic against the oracle.

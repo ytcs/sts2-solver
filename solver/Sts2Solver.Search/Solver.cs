@@ -140,7 +140,9 @@ public sealed class Solver
         }
     }
 
-    private static CombatState ApplyPlay(CombatState s, PlayerAction action)
+    /// <summary>Apply a play to a clone of <paramref name="s"/>. Internal so the scalar-objective experiment
+    /// (<see cref="ScalarSolver"/>) drives the SAME transition as the oracle — keeping the comparison exact.</summary>
+    internal static CombatState ApplyPlay(CombatState s, PlayerAction action)
     {
         var c = s.Clone();
         var card = c.Player.Hand.First(h => h.StateKey() == action.CardKey);
@@ -177,14 +179,14 @@ public sealed class Solver
         return new Value(win, enemyLoss + leafLoss);
     }
 
-    private static void BeginPlayerTurnInPlace(CombatState s) => CombatManager.BeginPlayerTurn(s);
+    internal static void BeginPlayerTurnInPlace(CombatState s) => CombatManager.BeginPlayerTurn(s);
 
     // ---------- Chance: monster move rolls (joint over living monsters) ----------
 
     private IEnumerable<(double prob, CombatState state)> EnumerateInitialMoveRolls(CombatState setup)
         => EnumerateMoveRolls(setup, initial: true);
 
-    private IEnumerable<(double prob, CombatState state)> EnumerateNextMoveRolls(CombatState s)
+    internal IEnumerable<(double prob, CombatState state)> EnumerateNextMoveRolls(CombatState s)
         => EnumerateMoveRolls(s, initial: false);
 
     private IEnumerable<(double prob, CombatState state)> EnumerateMoveRolls(CombatState s, bool initial)

@@ -647,10 +647,12 @@ public class CardTests
     public void Armaments_Gains_5_Block_And_Upgrades_A_Hand_Card()
     {
         var (c, p, _) = Fight();
-        var strike = new StrikeIronclad();
-        p.Hand.Add(strike);
+        p.Hand.Add(new StrikeIronclad());
         Play(c, new Armaments(), null);
         Assert.Equal(5, p.Block);
+        // Armaments swaps in a private upgraded copy (it must NOT mutate the shared instance in place — see
+        // the soundness note on Armaments.OnPlay), so inspect the card now in hand.
+        var strike = (StrikeIronclad)p.Hand.First(h => h is StrikeIronclad);
         Assert.Equal(1, strike.Upgrades);                    // the hand card got upgraded
         Assert.Equal(9, strike.Damage);                      // 6 + 3
     }

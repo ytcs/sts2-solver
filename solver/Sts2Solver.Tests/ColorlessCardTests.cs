@@ -248,14 +248,14 @@ public class ColorlessCardTests
     public void Apotheosis_Upgrades_Cards_In_Piles_And_Exhausts()
     {
         var (c, p, _) = Fight();
-        var inHand = new FlashOfSteel();
-        var inDraw = new Clash();
-        p.Hand.Add(inHand);
-        p.DrawPile.Add(inDraw);
+        p.Hand.Add(new FlashOfSteel());
+        p.DrawPile.Add(new Clash());
         var apo = new Apotheosis();
         Play(c, apo, null);
-        Assert.Equal(1, inHand.Upgrades);
-        Assert.Equal(1, inDraw.Upgrades);
+        // Apotheosis swaps in private upgraded copies (it must NOT mutate the shared instances in place — see
+        // the soundness note on Apotheosis.OnPlay), so inspect the cards now in the piles.
+        Assert.Equal(1, p.Hand.First(h => h is FlashOfSteel).Upgrades);
+        Assert.Equal(1, p.DrawPile.First(h => h is Clash).Upgrades);
         Assert.Contains(apo, p.ExhaustPile);
     }
 

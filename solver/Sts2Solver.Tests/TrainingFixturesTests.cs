@@ -99,6 +99,85 @@ public class TrainingFixturesTests
         Assert.InRange(v.Loss, 0.0, 60.0);
     }
 
+    /// <summary>Clone isolation for self-MUTATING-of-OTHER-cards effects. Apotheosis upgrades every card in
+    /// the player's piles; Armaments upgrades a card in hand. Those targets are the immutable-majority cards
+    /// that <c>Player.Clone</c> SHARES across sibling search states, so the effect must not mutate a shared
+    /// instance in place (it must swap in a private upgraded copy) — otherwise it changes the shared card's
+    /// StateKey in every branch and the draw enumerator crashes with "Pile missing card …".</summary>
+    [Fact]
+    public void Upgrade_Effects_Do_Not_Mutate_Shared_Card_Instances()
+    {
+        // Apotheosis: a sibling clone's draw-pile cards keep their pre-upgrade identity after the original plays it.
+        var apoDeck = new System.Collections.Generic.List<CardModel>
+            { new Apotheosis(), new StrikeIronclad(), new DefendIronclad() };
+        var sa = Catalog.SetupCombat(Catalog.BuildPlayer(apoDeck, 60, 60), new[] { Monsters.CalcifiedCultist() });
+        var cloneA = sa.Clone();
+        var strikeShared = sa.Player.DrawPile.First(c => c is StrikeIronclad);
+        var strikeClone = cloneA.Player.DrawPile.First(c => c is StrikeIronclad);
+        Assert.Same(strikeShared, strikeClone);                          // immutable card → shared instance
+        string beforeA = strikeClone.StateKey();
+        var apo = sa.Player.DrawPile.First(c => c is Apotheosis);
+        apo.OnPlay(sa, new CardPlay { Card = apo });
+        Assert.Equal(beforeA, strikeClone.StateKey());                   // clone's view untouched
+        Assert.Equal(beforeA, strikeShared.StateKey());                  // shared original untouched (swapped, not mutated)
+        Assert.Contains(sa.Player.DrawPile, c => c is StrikeIronclad && c.Upgrades == 1); // this state DID upgrade (a private copy)
+
+        // Armaments+: same guarantee for a card in hand.
+        var armDeck = new System.Collections.Generic.List<CardModel> { new Armaments().Upgraded(1), new StrikeIronclad() };
+        var sb = Catalog.SetupCombat(Catalog.BuildPlayer(armDeck, 60, 60), new[] { Monsters.CalcifiedCultist() });
+        // Move both the Armaments (the card we play) and a Strike (the upgrade target) into the hand.
+        sb.Player.Hand.Add(sb.Player.DrawPile.First(c => c is Armaments));
+        sb.Player.Hand.Add(sb.Player.DrawPile.First(c => c is StrikeIronclad));
+        var cloneB = sb.Clone();
+        var sbStrike = sb.Player.Hand.First(c => c is StrikeIronclad);
+        var cbStrike = cloneB.Player.Hand.First(c => c is StrikeIronclad);
+        Assert.Same(sbStrike, cbStrike);
+        string beforeB = cbStrike.StateKey();
+        var arm = sb.Player.Hand.First(c => c is Armaments);
+        arm.OnPlay(sb, new CardPlay { Card = arm });
+        Assert.Equal(beforeB, cbStrike.StateKey());                      // clone untouched
+        Assert.Equal(beforeB, sbStrike.StateKey());                      // shared original untouched
+    }
+
+    /// <summary>An Impatience deck that also contains Apotheosis (the card-upgrade effect whose shared-instance
+    /// mutation corrupted the draw enumerator's pile bookkeeping → "Pile missing card 'Impatience'") now solves
+    /// exactly without crashing. Gates the soundness fix end-to-end through the exact oracle.</summary>
+    [Fact]
+    public void Apotheosis_Impatience_Deck_Solves_Exactly()
+    {
+        var deck = new System.Collections.Generic.List<CardModel>
+        {
+            new Apotheosis(), new Impatience(), new Impatience(),
+            new StrikeIronclad(), new DefendIronclad(), new DefendIronclad(),
+        };
+        var setup = Catalog.SetupCombat(
+            Catalog.BuildPlayer(deck, 60, 60, 3, new[] { "BurningBlood" }), new[] { Monsters.CalcifiedCultist() });
+        var v = new Solver { MaxTurns = 10 }.Solve(setup);
+        Assert.InRange(v.Win, 0.0, 1.0 + 1e-6);
+        Assert.InRange(v.Loss, 0.0, 60.0 + 1e-6);
+    }
+
+    /// <summary>The full default training corpus (seed 20260601) is exactly solvable on every Apotheosis- or
+    /// Armaments-bearing fixture — the cards whose in-place card-upgrade used to corrupt sibling search states.
+    /// Budgeted so it terminates; a timeout is acceptable (the partial memo is still valid), a crash is not.</summary>
+    [Fact]
+    public void Corpus_Upgrade_Card_Fixtures_Solve_Without_Crashing()
+    {
+        int matched = 0;
+        foreach (var f in TrainingFixtures.Random(count: 250, seed: 20260601, maxTurns: 8))
+        {
+            var deck = f.Setup().Player.DrawPile;
+            if (!deck.Any(c => c is Apotheosis || c is Armaments)) continue;
+            matched++;
+            var solver = new Solver { MaxTurns = f.MaxTurns };
+            using var cts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromSeconds(6));
+            solver.Ct = cts.Token;
+            try { var v = solver.Solve(f.Setup()); Assert.InRange(v.Win, 0.0, 1.0 + 1e-6); }
+            catch (System.OperationCanceledException) { /* timeout is fine */ }
+        }
+        Assert.True(matched > 0, "expected the corpus to contain Apotheosis/Armaments fixtures");
+    }
+
     /// <summary>A randomised fixture is exactly solvable to a valid lexicographic value within a small budget
     /// (the trainer relies on this — a partial memo from a timeout is still valid, but the common case must
     /// terminate). Uses a tight horizon and a generous wall-clock cap.</summary>
