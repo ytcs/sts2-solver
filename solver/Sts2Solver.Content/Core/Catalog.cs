@@ -24,6 +24,7 @@ public static partial class Catalog
         yield return CommonCardFactories;
         yield return IroncladCardFactories;
         yield return SilentCardFactories;
+        yield return ColorlessCardFactories;
     }
 
     /// <summary>The deck-buildable card pool: every registered character card (Ironclad + Silent), excluding
