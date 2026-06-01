@@ -489,3 +489,206 @@ public sealed class PiercingWail : CardModel
             Cmd.ApplyPower(combat, m, new PiercingWailPower(), StrengthLoss, combat.Player);
     }
 }
+
+// ===========================================================================
+// Batch 3 — remaining Silent cards: primitive attacks/skills, X-cost, thorns,
+// and a draw-next-turn power. Cards needing card-selection-from-hand,
+// double-play, cost-set-on-hand, or conditional-on-drawn-card mechanics are
+// SKIPPED (see the manifest) because no faithful primitive exists yet.
+// ===========================================================================
+
+/// <summary>Gain 8 Block. (Discard a card — not modelled: hand-discard selection isn't supported, so this
+/// is the HP-neutral block-only effect, mirroring the deferred Survivor note above.) Upgrade: +3 Block.
+/// (MegaCrit Survivor — Silent starter)</summary>
+public sealed class Survivor : CardModel
+{
+    public override string Name => "Survivor";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Basic;
+    public override TargetType Target => TargetType.Self;
+    public int Block => 8 + 3 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+}
+
+/// <summary>Deal 11 damage. Exhaust. Cost 0. Upgrade: +4. (Innate not modelled — affects only the opening
+/// hand.) (MegaCrit Backstab)</summary>
+public sealed class Backstab : CardModel
+{
+    public override string Name => "Backstab";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public int Damage => 11 + 4 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+}
+
+/// <summary>Deal 9 damage, draw 1 card, then discard 1 card. Upgrade: +3 damage. (MegaCrit Dagger Throw)
+/// The draw is a single draw call (no-op without an ambient Rng — the validator replays the recorded hand);
+/// the "discard 1 card" half needs hand-discard selection (unported), so it is omitted. The damage — the
+/// only HP-affecting part — is what is validated.</summary>
+public sealed class DaggerThrow : CardModel
+{
+    public override string Name => "DaggerThrow";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Common;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public int Damage => 9 + 3 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+        Cmd.Draw(combat, 1);
+    }
+}
+
+/// <summary>Deal 15 damage. Draw 2 additional cards next turn. Upgrade: +3 damage. (MegaCrit Predator)
+/// The bonus draw is modelled via <see cref="DrawNextTurnPower"/>, which draws at the next player turn start
+/// (real only with an ambient Rng; HP-neutral either way).</summary>
+public sealed class Predator : CardModel
+{
+    public override string Name => "Predator";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Common;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public int Damage => 15 + 3 * Upgrades;
+    public int BonusDraw => 2;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+        Cmd.ApplyPower(combat, combat.Player, new DrawNextTurnPower(), BonusDraw, combat.Player);
+    }
+}
+
+/// <summary>Apply 3 Poison to a random enemy 3 times. Upgrade: +1 Poison per hit. (MegaCrit Bouncing Flask)
+/// Each bounce picks a living enemy at random via the ambient Rng (deterministic single-target when only one
+/// enemy lives — the validated case, like Sword Boomerang).</summary>
+public sealed class BouncingFlask : CardModel
+{
+    public override string Name => "BouncingFlask";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.RandomEnemy;
+    public int Poison => 3 + Upgrades;
+    public int Bounces => 3;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        for (int i = 0; i < Bounces; i++)
+        {
+            var living = combat.LivingMonsters.ToList();
+            if (living.Count == 0) break;
+            var t = combat.Rng != null ? living[combat.Rng.NextInt(living.Count)] : living[0];
+            Cmd.ApplyPower(combat, t, new PoisonPower(), Poison, combat.Player);
+        }
+    }
+}
+
+/// <summary>Power: whenever you take attack damage, deal 3 damage back to the attacker (Thorns).
+/// Upgrade: +2. (MegaCrit Caltrops)</summary>
+public sealed class Caltrops : CardModel
+{
+    public override string Name => "Caltrops";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Power;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Thorns => 3 + 2 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.ApplyPower(combat, combat.Player, new CaltropsPower(), Thorns, combat.Player);
+}
+
+/// <summary>If your draw pile is empty, deal 60 damage to ALL enemies. Exhaust. Cost 0. Upgrade: +20.
+/// (MegaCrit Grand Finale)</summary>
+public sealed class GrandFinale : CardModel
+{
+    public override string Name => "GrandFinale";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.AllEnemies;
+    public int Damage => 60 + 20 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        if (combat.Player.DrawPile.Count != 0) return;
+        foreach (var m in combat.LivingMonsters.ToList())
+            Cmd.Attack(combat, combat.Player, m, Damage, ValueProp.Move, this);
+    }
+}
+
+/// <summary>X-cost: deal 8 damage to the target X times, where X is all your remaining energy. Upgrade:
+/// +2 damage per hit. (MegaCrit Skewer)</summary>
+public sealed class Skewer : CardModel
+{
+    public override string Name => "Skewer";
+    public override int BaseCost => 0;
+    public override bool IsXCost => true;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public int Damage => 8 + 2 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.AttackMulti(combat, combat.Player, play.Target!, Damage, play.XValue, ValueProp.Move, this);
+}
+
+/// <summary>Gain 1 Energy. Draw 2 cards. Exhaust. Cost 0. Upgrade: +1 Energy. (MegaCrit Adrenaline) The draw
+/// is a single draw call (no-op without an ambient Rng — the validator replays the recorded hand); the
+/// energy gain is a real primitive. HP-neutral.</summary>
+public sealed class Adrenaline : CardModel
+{
+    public override string Name => "Adrenaline";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public int Energy => 1 + Upgrades;
+    public int Cards => 2;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.GainEnergy(combat, Energy);
+        Cmd.Draw(combat, Cards);
+    }
+}
+
+/// <summary>Gain 5 Block. Draw 2 cards. Upgrade: +3 Block, +1 card. (MegaCrit Backflip) The draw is a
+/// single draw call (no-op without an ambient Rng — the validator replays the recorded hand); the block is
+/// the HP-affecting part that is validated.</summary>
+public sealed class Backflip : CardModel
+{
+    public override string Name => "Backflip";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Common;
+    public override TargetType Target => TargetType.Self;
+    public int Block => 5 + 3 * Upgrades;
+    public int Cards => 2 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+        Cmd.Draw(combat, Cards);
+    }
+}
+
+/// <summary>Draw cards until you have 6 cards in hand. Upgrade: until 7. (MegaCrit Expertise) HP-neutral
+/// pure card-flow: a single bounded draw call (no-op without an ambient Rng — the validator replays the
+/// recorded hand).</summary>
+public sealed class Expertise : CardModel
+{
+    public override string Name => "Expertise";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int HandTarget => 6 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        int need = HandTarget - combat.Player.Hand.Count;
+        if (need > 0) Cmd.Draw(combat, need);
+    }
+}

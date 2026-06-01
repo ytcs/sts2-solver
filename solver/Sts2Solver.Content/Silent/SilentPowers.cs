@@ -105,3 +105,32 @@ public sealed class PiercingWailPower : TemporaryStrengthPower
     public override string Id => "PiercingWail";
     protected override int Sign => -1;
 }
+/// <summary>Caltrops: whenever the owner is hit by a powered attack, deal <c>Amount</c> damage back to the
+/// dealer (unpowered — no Strength/Vulnerable — but blockable). Permanent (does not decay), unlike Flame
+/// Barrier. (MegaCrit CaltropsPower — Thorns.)</summary>
+public sealed class CaltropsPower : PowerModel
+{
+    public override string Id => "Caltrops";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterDamageReceived(CombatState combat, Creature target, int unblockedDamage, Creature? dealer, ValueProp props)
+    {
+        if (target == Owner && dealer != null && dealer.IsAlive && props.IsPoweredAttack())
+            Cmd.Attack(combat, Owner, dealer, Amount, ValueProp.Unpowered, null);
+    }
+}
+/// <summary>At the start of the owner's next turn (after the normal draw), draw <c>Amount</c> extra cards,
+/// then the power is removed. Real only with an ambient Rng (otherwise a no-op; the validator replays the
+/// recorded hand). HP-neutral. (MegaCrit Predator's "draw 2 additional cards next turn".)</summary>
+public sealed class DrawNextTurnPower : PowerModel
+{
+    public override string Id => "DrawNextTurn";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterSideTurnStart(CombatState combat, CombatSide side)
+    {
+        if (side != Owner.Side) return;
+        Cmd.Draw(combat, Amount);
+        Owner.RemovePower(Id);
+    }
+}
