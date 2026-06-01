@@ -241,8 +241,7 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
 - **xUnit tests all green** (pipeline + per-card Ironclad/Silent/Colorless + monster-port + solver +
   trace-replay + MCTS-convergence + calibration + horizon-bound v2 + loss-pruning oracle-equality +
   learned-VF beats-baseline + clone-isolation/Rampage soundness + randomized-corpus sanity + advisor +
-  card-name matcher). Last confirmed full run **254 green**; +14 since (advisor + matcher) → full re-run after
-  the latest merge in progress. Run `dotnet test` to confirm.
+  card-name matcher). **268 passed, 1 skipped** (the blend α-sweep tool), 0 failed — full unified run.
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
