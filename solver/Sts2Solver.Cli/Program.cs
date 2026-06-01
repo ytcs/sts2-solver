@@ -207,6 +207,67 @@ if (args.Contains("--objective-penalty"))
     return 0;
 }
 
+// --perf-probe: measure MCTS cost (wall-clock + search-tree size NodesCreated) along the TWO scaling axes that
+// matter for late-game usability, at fixed trials vs a fixed elite. Series A scales raw DECK SIZE at low card
+// VARIETY (3 distinct types); series B scales distinct-card VARIETY at fixed size. Theory: because SelectEdge
+// expands EVERY legal play once (no action progressive widening), per-decision branching ~ distinct legal plays,
+// so B should blow up far faster than A — confirming action-PW/PUCT (not raw size) is the right lever.
+if (args.Contains("--perf-probe"))
+{
+    int trials = ArgInt("--trials", 20_000);
+    int maxTurns = ArgInt("--maxturns", 12);
+    int hp = ArgInt("--hp", 60);
+
+    string[] variety = {  // distinct-effect Ironclad cards, added one at a time for series B
+        "StrikeIronclad", "DefendIronclad", "Bash", "Inflame", "Uppercut", "PommelStrike",
+        "ShrugItOff", "Anger", "IronWave", "Hemokinesis", "TwinStrike", "Headbutt" };
+
+    List<Sts2Solver.Engine.CardModel>? TryBuild(IEnumerable<string> specs)
+    {
+        try { return specs.Select(Catalog.BuildCard).ToList(); } catch (ArgumentException) { return null; }
+    }
+    (long ms, int nodes, double win, double loss) RunOne(List<Sts2Solver.Engine.CardModel> deck)
+    {
+        var player = Catalog.BuildPlayer(deck, hp, hp, 3, new[] { "BurningBlood" });
+        var setup = Catalog.SetupCombat(player, new[] { Monsters.Byrdonis(hp: 60) });
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var mcts = new MctsSolver(new MctsOptions { Trials = trials, MaxTurns = maxTurns, Seed = 1 });
+        var v = mcts.Solve(setup);
+        return (sw.ElapsedMilliseconds, mcts.NodesCreated, v.Win, v.Loss);
+    }
+
+    Console.WriteLine($"MCTS cost probe vs Byrdonis(60), {trials:N0} trials, horizon {maxTurns}, player {hp} HP.\n");
+
+    Console.WriteLine("  A) scale DECK SIZE at low variety (Strike/Defend/Bash):");
+    Console.WriteLine($"     {"size",4} {"distinct",8} {"nodes",12} {"ms",7}  {"ms/1k-trial",11}  value");
+    foreach (int size in new[] { 10, 20, 30, 40, 50 })
+    {
+        var specs = new List<string>();
+        for (int i = 0; i < size; i++) specs.Add(i % 3 == 2 ? "Bash" : (i % 3 == 0 ? "StrikeIronclad" : "DefendIronclad"));
+        var deck = TryBuild(specs)!;
+        int distinct = specs.Distinct().Count();
+        var (ms, nodes, win, loss) = RunOne(deck);
+        Console.WriteLine($"     {size,4} {distinct,8} {nodes,12:N0} {ms,7} {ms * 1000.0 / trials,11:F2}  {win:P0}/{loss:F1}");
+    }
+
+    Console.WriteLine("\n  B) scale distinct-card VARIETY at fixed size 12:");
+    Console.WriteLine($"     {"size",4} {"distinct",8} {"nodes",12} {"ms",7}  {"ms/1k-trial",11}  value");
+    foreach (int k in new[] { 3, 5, 7, 9, 11 })
+    {
+        var chosen = variety.Take(k).ToList();
+        var specs = new List<string>();
+        for (int i = 0; i < 12; i++) specs.Add(chosen[i % chosen.Count]);
+        var deck = TryBuild(specs);
+        if (deck == null) { Console.WriteLine($"     (k={k}: a card name failed to build — skipped)"); continue; }
+        int distinct = specs.Distinct().Count();
+        var (ms, nodes, win, loss) = RunOne(deck);
+        Console.WriteLine($"     {12,4} {distinct,8} {nodes,12:N0} {ms,7} {ms * 1000.0 / trials,11:F2}  {win:P0}/{loss:F1}");
+    }
+    Console.WriteLine("\n  If B's nodes/ms climb steeply with distinct while A stays ~flat, action-branching (not deck");
+    Console.WriteLine("  size) is the bottleneck → PUCT + action progressive widening is the right algorithmic fix.");
+    return 0;
+}
+
 // --calibrate: run exact (ground truth) vs MCTS (rollout-leaf and heuristic-leaf) over the DIVERSE fixture
 // suite (CalibrationFixtures — block / strength / debuff / aggro / power archetypes, not just the starter)
 // and report how closely sampling tracks exact. Used to tune the shared CombatHeuristic against the oracle.
