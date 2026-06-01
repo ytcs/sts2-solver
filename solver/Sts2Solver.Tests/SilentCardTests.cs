@@ -395,4 +395,189 @@ public class SilentCardTests
         Assert.Equal(5, m1.GetPowerAmount("Strength"));       // restored at enemy turn end
         Assert.False(m1.HasPower("PiercingWail"));
     }
+
+    // ===== Batch 3 =====
+
+    [Fact]
+    public void Survivor_Gains_8_Block()
+    {
+        var (c, p, _) = Fight();
+        Play(c, new Survivor(), null);
+        Assert.Equal(8, p.Block);
+    }
+
+    [Fact]
+    public void Survivor_Upgrade_Gains_11_Block()
+    {
+        var (c, p, _) = Fight();
+        Play(c, (CardModel)new Survivor().Upgraded(), null);
+        Assert.Equal(11, p.Block);
+    }
+
+    [Fact]
+    public void Backstab_Deals_11_At_Cost_0_And_Exhausts()
+    {
+        var (c, p, m) = Fight();
+        var b = new Backstab();
+        Assert.Equal(0, b.Cost);
+        Play(c, b, m);
+        Assert.Equal(60 - 11, m.CurrentHp);
+        Assert.Contains(b, p.ExhaustPile);
+        Assert.DoesNotContain(b, p.DiscardPile);
+    }
+
+    [Fact]
+    public void Backstab_Upgrade_Deals_15()
+    {
+        var (c, _, m) = Fight();
+        Play(c, (CardModel)new Backstab().Upgraded(), m);
+        Assert.Equal(60 - 15, m.CurrentHp);
+    }
+
+    [Fact]
+    public void DaggerThrow_Deals_9()
+    {
+        var (c, _, m) = Fight();
+        Play(c, new DaggerThrow(), m);
+        Assert.Equal(60 - 9, m.CurrentHp);
+    }
+
+    [Fact]
+    public void DaggerThrow_Upgrade_Deals_12()
+    {
+        var (c, _, m) = Fight();
+        Play(c, (CardModel)new DaggerThrow().Upgraded(), m);
+        Assert.Equal(60 - 12, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Predator_Deals_15_And_Queues_Bonus_Draw()
+    {
+        var (c, _, m) = Fight();
+        Play(c, new Predator(), m);
+        Assert.Equal(60 - 15, m.CurrentHp);
+        Assert.Equal(2, c.Player.GetPowerAmount("DrawNextTurn"));
+    }
+
+    [Fact]
+    public void Predator_Bonus_Draw_Power_Consumed_At_Next_Turn_Start()
+    {
+        var (c, p, m) = Fight();
+        CombatManager.BeginPlayerTurn(c);
+        Play(c, new Predator(), m);
+        Assert.Equal(2, p.GetPowerAmount("DrawNextTurn"));
+        CombatManager.EndPlayerTurn(c);
+        CombatManager.RunEnemyTurn(c);
+        CombatManager.BeginPlayerTurn(c);                 // next turn start: power fires + removed
+        Assert.False(p.HasPower("DrawNextTurn"));
+    }
+
+    [Fact]
+    public void BouncingFlask_Applies_3_Poison_Three_Times_To_Single_Enemy()
+    {
+        var (c, _, m) = Fight();
+        Play(c, new BouncingFlask(), m);
+        Assert.Equal(9, m.GetPowerAmount("Poison"));      // 3 bounces × 3 poison, single enemy
+    }
+
+    [Fact]
+    public void BouncingFlask_Upgrade_Applies_4_Per_Bounce()
+    {
+        var (c, _, m) = Fight();
+        Play(c, (CardModel)new BouncingFlask().Upgraded(), m);
+        Assert.Equal(12, m.GetPowerAmount("Poison"));     // 3 bounces × 4 poison
+    }
+
+    [Fact]
+    public void Caltrops_Deals_3_Back_When_Player_Is_Attacked()
+    {
+        var (c, p, m) = Fight();
+        Play(c, new Caltrops(), null);
+        Assert.Equal(3, p.GetPowerAmount("Caltrops"));
+        int before = m.CurrentHp;
+        Cmd.Attack(c, m, p, 5, ValueProp.Move, null);     // enemy hits player
+        Assert.Equal(before - 3, m.CurrentHp);            // 3 thorns back
+    }
+
+    [Fact]
+    public void Caltrops_Upgrade_Deals_5_Back()
+    {
+        var (c, p, m) = Fight();
+        Play(c, (CardModel)new Caltrops().Upgraded(), null);
+        Assert.Equal(5, p.GetPowerAmount("Caltrops"));
+        int before = m.CurrentHp;
+        Cmd.Attack(c, m, p, 5, ValueProp.Move, null);
+        Assert.Equal(before - 5, m.CurrentHp);
+    }
+
+    [Fact]
+    public void GrandFinale_Deals_60_To_All_Only_When_Draw_Pile_Empty()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
+        var m1 = Monsters.CalcifiedCultist(hp: 80);
+        var m2 = Monsters.CalcifiedCultist(hp: 80);
+        var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
+        // Non-empty draw pile → no effect.
+        player.DrawPile.Add(new StrikeSilent());
+        Play(combat, new GrandFinale(), null);
+        Assert.Equal(80, m1.CurrentHp);
+        // Empty draw pile → 60 to all.
+        player.DrawPile.Clear();
+        Play(combat, new GrandFinale(), null);
+        Assert.Equal(80 - 60, m1.CurrentHp);
+        Assert.Equal(80 - 60, m2.CurrentHp);
+    }
+
+    [Fact]
+    public void Skewer_Deals_8_Per_Energy()
+    {
+        var (c, _, m) = Fight(monsterHp: 80);
+        var s = new Skewer();
+        Assert.True(s.IsXCost);
+        Play(c, s, m);                                    // 3 energy → X = 3
+        Assert.Equal(0, c.Player.Energy);
+        Assert.Equal(80 - 24, m.CurrentHp);               // 8 × 3
+    }
+
+    [Fact]
+    public void Adrenaline_Gains_Energy_And_Exhausts()
+    {
+        var (c, p, _) = Fight();
+        var a = new Adrenaline();
+        Assert.Equal(0, a.Cost);
+        Play(c, a, null);
+        Assert.Contains(a, p.ExhaustPile);
+        // Energy started at MaxEnergy then +1 from Adrenaline.
+        Assert.Equal(p.EffectiveMaxEnergy + 1, p.Energy);
+    }
+
+    [Fact]
+    public void Backflip_Gains_5_Block()
+    {
+        var (c, p, _) = Fight();
+        Play(c, new Backflip(), null);
+        Assert.Equal(5, p.Block);
+    }
+
+    [Fact]
+    public void Backflip_Upgrade_Gains_8_Block()
+    {
+        var (c, p, _) = Fight();
+        Play(c, (CardModel)new Backflip().Upgraded(), null);
+        Assert.Equal(8, p.Block);
+    }
+
+    [Fact]
+    public void Expertise_Draws_Up_To_Six_Cards()
+    {
+        var (c, p, _) = Fight();
+        // With an ambient Rng and a stocked draw pile, Expertise tops the hand up to 6.
+        c.Rng = new Rng(0);
+        for (int i = 0; i < 10; i++) p.DrawPile.Add(new StrikeSilent());
+        p.Hand.Add(new DefendSilent());                   // 1 card before play
+        var e = new Expertise();
+        Play(c, e, null);                                 // played from hand → still 1 in hand at OnPlay
+        // OnPlay sees hand count 1 (Expertise removed before OnPlay), draws 6-1 = 5.
+        Assert.Equal(6, p.Hand.Count);
+    }
 }
