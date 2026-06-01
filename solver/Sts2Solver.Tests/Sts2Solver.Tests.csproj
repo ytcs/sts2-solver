@@ -14,5 +14,6 @@
     <ProjectReference Include="../Sts2Solver.Engine/Sts2Solver.Engine.csproj" />
     <ProjectReference Include="../Sts2Solver.Content/Sts2Solver.Content.csproj" />
     <ProjectReference Include="../Sts2Solver.Search/Sts2Solver.Search.csproj" />
+    <ProjectReference Include="../Sts2Solver.Ranwid/Sts2Solver.Ranwid.csproj" />
   </ItemGroup>
 </Project>

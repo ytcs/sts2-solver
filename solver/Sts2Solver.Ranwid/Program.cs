@@ -9,6 +9,7 @@ using Sts2Solver.Ranwid;
 //   ranwid                         watch the newest ongoing unmodded run, refresh on save change
 //   ranwid --once                  evaluate once and exit
 //   ranwid --save <current_run.save>   read a specific save file (offline)
+//   --advise                       also rank single-card removals by bottleneck-elite survival (slower)
 //   --player <net_id>  pick a multiplayer slot
 //   --budget-seconds <s>  exact-search cap before MCTS fallback (default 8; raise for exact precision)
 //   --rollouts <n>  playouts for the distribution (default 2000)   --trials <n>  MCTS fallback trials (default 40000)
@@ -19,6 +20,7 @@ int? ArgInt(string flag) => int.TryParse(ArgVal(flag), out var v) ? v : null;
 double? ArgDouble(string flag) => double.TryParse(ArgVal(flag), out var v) ? v : null;
 
 bool once = args.Contains("--once");
+bool advise = args.Contains("--advise");
 string? saveArg = ArgVal("--save");
 int? playerNetId = ArgInt("--player");
 var opts = new EvalOptions
@@ -77,12 +79,15 @@ int EvaluateAndPrint(string path, int? netId, EvalOptions evalOpts)
         return 0;
     }
 
-    // Build the deck (cards are immutable, so one list is safely reused across encounters).
+    // Build the deck (cards are immutable, so one list is safely reused across encounters). Also collect the
+    // ported card specs (name+upgrade strings) for the advice engine, which rebuilds decks per variant.
     var cards = new List<CardModel>();
+    var deckSpecs = new List<string>();
     foreach (var e in run.Deck)
     {
         if (e.HasEnchant) warnings.Add($"enchantment on {GameIds.ClassName(e.Id)} ignored (not modelled)");
-        try { cards.Add(Catalog.BuildCard(GameIds.CardSpec(e.Id, e.Upgrade))); }
+        var spec = GameIds.CardSpec(e.Id, e.Upgrade);
+        try { cards.Add(Catalog.BuildCard(spec)); deckSpecs.Add(spec); }
         catch (ArgumentException) { warnings.Add($"card {GameIds.ClassName(e.Id)} skipped (not ported)"); }
     }
 
@@ -119,6 +124,28 @@ int EvaluateAndPrint(string path, int? netId, EvalOptions evalOpts)
     }
 
     Reporting.Print(run, path, results, warnings, deckSummary);
+
+    if (advise)
+    {
+        var encounters = new List<Advisor.Encounter>();
+        foreach (var eid in run.EliteEncounterIds)
+        {
+            var cls = GameIds.EncounterClassName(eid);
+            if (!Catalog.IsKnownEliteEncounter(cls)) continue;
+            string disp = cls.EndsWith("Elite", StringComparison.Ordinal) ? cls[..^5] : cls;
+            int asc = run.Ascension;
+            encounters.Add(new Advisor.Encounter(disp, () => Catalog.BuildEliteEncounter(cls, asc)));
+        }
+        if (encounters.Count == 0 || deckSpecs.Count <= 1)
+            Console.WriteLine("\n(advice needs ≥1 ported elite and ≥2 ported deck cards — skipped.)");
+        else
+        {
+            Console.WriteLine($"\nComputing card-removal advice over {encounters.Count} elite(s)…");
+            var advice = Advisor.RemovalAdvice(deckSpecs, encounters,
+                run.PlayerHp, run.PlayerMaxHp, run.MaxEnergy, relicNames, evalOpts);
+            Console.WriteLine(Advisor.Format(advice));
+        }
+    }
     return 0;
 }
 
