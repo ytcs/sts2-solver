@@ -89,16 +89,30 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
 - **Lexicographic value + Lexicographic-UCB** (HP loss normalized by maxHP; no scalarization). DAG-aware.
 - **Hybrid** (`HybridExactBelow`): provably-small subtrees defer to the memoized exact oracle.
 
-### Live-run advisor (`ranwid`) + MCTS quality work — built + calibrated
-- **`Sts2Solver.Ranwid`** (assembly `ranwid`): reads the player's live **UNMODDED** run and, per Act elite,
-  reports survival probability + HP-loss distribution (mean / net-of-heal / p50 / max). Ironclad only;
-  design left open for card-pick/removal advice + bosses.
+### Live-run advisor (`ranwid`) — interactive companion + advice engine
+- **`Sts2Solver.Ranwid`** (assembly `ranwid`): runs as a **persistent live companion** (default), not a
+  one-shot. Loads the ongoing run, prints the deck + per-elite survival/HP-loss stats + the best card to
+  remove, then an **interactive prompt** (`Companion`): type the cards a reward screen offers to get a
+  **take-vs-skip** verdict against the Act's elites; commands `cuts`/`deck`/`help`/`quit`. A background watcher
+  refreshes against the save when you change screens (no restart). `--once` = the old non-interactive one-shot.
+  - **Ergonomics:** `CardNameMatcher` resolves typed names separator/case-insensitively with typo tolerance
+    (`bludgon`→Bludgeon, `iron wave`→IronWave; prefix→Levenshtein), preserving `+N`; `LineEditor` gives Tab
+    auto-complete (plain `ReadLine` fallback when piped). Gated by `CardNameMatcherTests`.
+  - **Advice engine** (`Advisor`): `RemovalAdvice` (best card to cut) and `PickAdvice` (take-each-offered vs
+    **skip**) rank by a lexicographic `DeckScore` over the Act's elites — primary = WORST (bottleneck) survival,
+    secondary = total E[HP loss]. Built entirely on `EncounterEvaluator` (auto exact-or-MCTS) so it scales to
+    large run decks where exact is infeasible. **HP-loss-leaning metric:** survival diffs within a `SurvivalBand`
+    (0.05) are treated as tied → HP loss decides (survival is still noisy; lower the band toward 0 once
+    survival is well-calibrated). Gated by `AdvisorTests` (mechanics + guaranteed-direction checks).
   - No mod needed — the game writes plain-JSON `current_run.save`. `SaveLocator` finds the newest unmodded
-    `current*run*.save` (excludes `modded/`), `RunSaveReader` parses deck (`+N` upgrades), relics, HP/energy,
-    ascension, and `elite_encounter_ids`. `GameIds` maps `CARD/ENCOUNTER/RELIC.*` (snake→Pascal) to Catalog.
-  - Limitations (flagged in output): multiplayer approximated as single-player; only Burning Blood modelled;
-    enchantments + un-ported cards skipped. Run: watch mode, or `--once --save <file>`
-    (`--player --budget-seconds --rollouts --trials --seed`).
+    `current*run*.save` (excludes `modded/`; pass `--save` for a modded profile), `RunSaveReader` parses deck
+    (`+N` upgrades), relics, HP/energy, ascension, `elite_encounter_ids`. `GameIds` maps `CARD/ENCOUNTER/RELIC.*`.
+  - **Reward options are NOT in the save** (only RNG counters; the game regenerates the 3 offered cards from
+    RNG on screen-open) — so the user types them (auto-corrected). Confirmed by inspecting a real reward-screen
+    save. Limitations (flagged): MP≈single-player; only Burning Blood modelled; enchantments/un-ported skipped.
+  - **Validated on a real modded save** (Ironclad starter, Act-1 Byrdonis/PhrogParasite/BygoneEffigy): correctly
+    advised *take Bludgeon* (bottleneck survival 0%→41.4%). **Open concern — performance:** ~20–30s per elite at
+    40k trials; advice over 3 elites + options + cuts is minutes. See Roadmap (algorithmic, not engineering).
 - **`EncounterEvaluator`** (the library interface — all combat math lives here): auto-engine = exact under a
   wall-clock budget (default 8s) else MCTS; returns `CombatStats` (survival, mean/net HP loss,
   min/p10/p50/p90/max, engine, work, ms). **`PolicyRollout`** turns the policy into the HP-loss distribution
@@ -114,6 +128,11 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   - **Ruled out** (don't re-try): per-rollout λ-sampling and K-sample-averaged leaf seeds — no accuracy gain,
     7–15× slower (one seed/leaf makes random-λ pure variance; thin wins need coordinated draw+play). The
     static race-model leaf (`Evaluate`, behind `UseHeuristicLeaf`) is the baseline the Phase-C learned VF beats.
+  - **Blended leaf** (`MctsOptions.LeafBlend`, option, not yet default): convex mix `(1−α)·rollout + α·learned`
+    at a fresh tip. The rollout UNDER-estimates razor-thin survival, the learned VF OVER-estimates it; truth is
+    between. Oracle-measured on block/Byrdonis (exact 22.1%): rollout 18%, learned 38%, **α=0.25 → 24%**
+    (survival MAE 0.0075→0.0027). Held as an option pending the wider calibration suite (the current suite has
+    only ONE non-trivial fixture). α-sweep lives as a skipped manual tool (`CalibrationHarness.RunMctsBlend`).
 - **`ObservedWin` floor:** `MctsSolver` tracks whether any winning line was seen; `EncounterEvaluator` floors
   a backed-up **0.0%** to 0.5% when a win was observed — eliminating the one dangerous output (a false 0% that
   would make a player skip a beatable elite). HP-loss is always reported as computed.
@@ -189,10 +208,16 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   Wind, True Grit, Cinder), generation/movement (Anger, Headbutt, Sword Boomerang, Infernal Blade), and
   per-turn-counter / cost-mod / unblocked-hit-counter cards. Prompt-needing cards (Burning Pact, Brand,
   Headbutt, Armaments) validated via the `ICardSelector` hook + upgrade-level recording.
-- **Silent — 29/88; batches 1–2 LIVE-VALIDATED ✅**: poison core, block/dex/debuff, Shiv/attack, conditional
-  pair. `PoisonPower` (now in `Core/CommonPowers.cs`) + 6 Silent-only powers. Deferred (engine-level):
-  discard selection, calculated-multiplier attacks, Echoing Slash kill-chain, Expose block-strip, ambiguous
-  Flanking/Strangle. (Mid-combat draw + energy/X-cost already built from the Ironclad effort, reusable.)
+- **Silent — 40/88**: batches 1–2 LIVE-VALIDATED ✅ (poison core, block/dex/debuff, Shiv/attack); batch 3
+  unit-tested (Survivor, Backstab, DaggerThrow, Predator, BouncingFlask, Caltrops/Thorns, GrandFinale, Skewer,
+  Adrenaline, Backflip, Expertise + `DrawNextTurnPower`). Deferred (engine-level): hand-discard selection
+  (Acrobatics/CalculatedGamble), draw-conditional (EscapePlan), next-Skill-double (Burst), cost-set-on-hand
+  (BulletTime), Intangible (WraithForm), and the renamed/new STS2 "blade/ink" set (unverifiable LocStrings).
+- **Colorless — 18 ported (new module)** `Content/Colorless/`: 13 full-effect (FlashOfSteel, DramaticEntrance,
+  MindBlast, HandOfGreed, Clash, Finesse, DarkShackles, MasterOfStrategy, ThinkingAhead, Impatience,
+  PanicButton, + Powers Panache/TheBomb) and 5 documented HP-neutral subsets (Mayhem, Apotheosis,
+  Metamorphosis, Enlightenment, Purity). New powers DarkShackles/`NoBlock` + the **Stateful** `Panache`/`TheBomb`
+  (counter in `StateKey`/`HashValue`/`Clone`). Unit-tested. (`Expertise` is Silent, not Colorless.)
 - **Monsters / Act-1 elites — 12/12 ported + validated ✅:** Byrdonis, BygoneEffigy, PhrogParasite (+4
   Wrigglers on death), TerrorEel (Shriek→Terror), SoulNexus (RandomBranch), MechaKnight (Artifact),
   Entomancer (Personal Hive / Dazed flood), SkulkingColony (HardenedShell cap), InfestedPrism (Vital Spark),
@@ -200,14 +225,24 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   un-modelled, HP-neutral on traces). Plus normal-tier Cultists / Corpse Slug. **Powers:** the keyword set +
   Ritual/Ravenous/Territorial/Slow/Infested/Vigor/Shriek/Artifact/PersonalHive/HardenedShell/VitalSpark/
   Tainted/Skittish, and inert markers (Hex/Dampen/Reattach).
-- **Relic:** BurningBlood (heal 6 on victory) — the only modelled relic.
+- **Monsters / Act-1 normal encounters — +8 monsters, +9 encounters (unit-tested only, NOT trace-validated):**
+  SnappingJaxfruit, Flyconid, CubexConstruct, FuzzyWurmCrawler, ShrinkerBeetle, Mawler, Nibbit, Inklet, with
+  encounter builders (NibbitsNormal, InkletsNormal, OvergrowthCrawlers, …). New powers `ShrinkPower` (×0.7
+  powered-attack) + `SlipperyPower` (Intangible-like HP-loss-to-1 cap). New **normal-encounter API**
+  (`BuildEncounter`/`IsKnownNormalEncounter`) alongside the elite API. Deferred: VineShambler (cost-raise hook),
+  Slime monsters (Slimed status card), Fogmog (illusion summons), RubyRaiders (5-type random), Act-1 bosses.
+- **Relic:** BurningBlood (heal 6 on victory) — the only modelled relic (the relic hook system has only
+  `AfterCombatVictory`; combat-relevant relics need new engine hooks — see Roadmap).
 - **Ascension:** combat-relevant levels are `ToughEnemies` (+HP, ≥A8) and `DeadlyEnemies` (+damage, ≥A9);
   all monsters scale via `Asc.Tough/Deadly` with exact decompiled constants. `BuildMonster(name, asc=10)`
   defaults A10. A5 `AscendersBane` curse modelled (Unplayable+Ethereal).
 
 ### Validation status
-- **160 xUnit tests, all green** (pipeline + per-card + solver + trace-replay + MCTS-convergence +
-  calibration + horizon-bound v2 + loss-pruning oracle-equality + learned-VF beats-baseline).
+- **xUnit tests all green** (pipeline + per-card Ironclad/Silent/Colorless + monster-port + solver +
+  trace-replay + MCTS-convergence + calibration + horizon-bound v2 + loss-pruning oracle-equality +
+  learned-VF beats-baseline + clone-isolation/Rampage soundness + randomized-corpus sanity + advisor +
+  card-name matcher). Last confirmed full run **254 green**; +14 since (advisor + matcher) → full re-run after
+  the latest merge in progress. Run `dotnet test` to confirm.
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
@@ -243,9 +278,11 @@ dotnet run -c Release --project solver/Sts2Solver.Cli -- --horizon
 # to /tmp/vf-weights.txt (paste into LearnedValue.Weights). Flags: --budget-seconds --epochs --maxturns --sample-rate
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --train-vf --budget-seconds 6 --epochs 4000 --maxturns 14
 
-# Live-run advisor
-dotnet run -c Release --project solver/Sts2Solver.Ranwid            # watch the newest unmodded run
-dotnet run -c Release --project solver/Sts2Solver.Ranwid -- --once --save <current_run.save>
+# Live-run advisor — interactive companion (default): deck+elite stats, best cut, then a prompt where you
+# type a reward screen's offered cards (Tab completes, typos auto-correct) for a take-vs-skip verdict.
+dotnet run -c Release --project solver/Sts2Solver.Ranwid                       # watch newest unmodded run
+dotnet run -c Release --project solver/Sts2Solver.Ranwid -- --save <current_run.save>   # e.g. a modded profile
+dotnet run -c Release --project solver/Sts2Solver.Ranwid -- --once --rewards Bludgeon,Inflame,Whirlwind  # scriptable one-shot
 
 # Validate the engine against all recorded traces
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --validate
@@ -284,8 +321,17 @@ Card-validation loop: port + unit-test → `STS2_DECK` headless run vs a simple 
 
 ## Key design decisions
 
-- **Objective:** survival-first, then min expected HP loss (lexicographic).
+- **Objective:** survival-first, then min expected HP loss (lexicographic). **Under review** — survival is the
+  noisy component; we may collapse to a single HP-loss scalar (death = full HP loss already encodes survival).
+  See Roadmap "drop survival probability".
+- **Exact solve is a small-deck tool, not the engine.** It stays the ground-truth ORACLE for gating, but real
+  decks (40+ cards) are intractable exactly — the MCTS+learned-VF path carries late-game, so algorithmic
+  efficiency + VF calibration are where accuracy now comes from (not deeper exact search). Validation must
+  therefore lean on trace outcomes + deck-variety + self-consistency, not only exact-equality.
 - **Engine in C#** to mirror decompiled source 1:1 (lowest fidelity risk).
+- **Card clone isolation:** `CardModel.Stateful` cards (mutable per-combat state, e.g. Rampage) are deep-cloned
+  per search state; the immutable majority are shared. Forgetting `Stateful` on a future self-mutating card
+  re-introduces a silent oracle-unsoundness — gate new such cards.
 - **Validate, don't trust:** every ported card/power/monster is confirmed by diffing a real game trace;
   every MCTS / heuristic / horizon change is gated against the exact oracle.
 - Monsters are **stochastic-but-known, not adversarial** ⇒ MDP/expectimax, not minimax.
@@ -307,11 +353,47 @@ Card-validation loop: port + unit-test → `STS2_DECK` headless run vs a simple 
    oracle-gated. _Follow-ups:_ tighten the multi-enemy saving bound (shared-budget kill scheduling rather
    than per-enemy dedicated budget); extend the loss prune past the single-deterministic-enemy / no-growth /
    heal-free deck class; an admissible *win* certificate (prune provably-won subtrees too).
-3. **Advisor depth** — card-pick / card-removal advice by benchmarking deck variants vs the Act's elites
-   (and eventually bosses); more relics beyond Burning Blood.
-4. **Content** — continue the Silent pool (29 → 88) on the proven validation loop; normal Act-1 encounters
-   and Act-1 bosses (new `HeadlessBatch` keys); the deferred solver-side mid-turn **draw chance-node** for
-   forward search.
+3. ✅ **Advice engine + live companion** — DONE. `ranwid` is an interactive companion (`Companion`): deck +
+   per-elite stats, best card to remove (`Advisor.RemovalAdvice`), and reward take-vs-skip (`PickAdvice`) over
+   the Act's elites; ergonomic card entry (`CardNameMatcher` auto-correct + `LineEditor` Tab complete); HP-loss-
+   leaning metric (`SurvivalBand`). Validated on a real save. _Follow-ups:_ more relics (needs engine hooks);
+   Act-1 bosses; potions.
+
+### ⭐ TOP PRIORITY — performance is the gate to late-game usability
+The advisor calls `EncounterEvaluator` per deck-variant per elite; at ~20–30s/elite (40k trials) even the
+9-card STARTER is too slow, and real decks reach **40+ cards** (hands of 10 with many distinct cards → huge
+per-decision branching). **Pursue an ALGORITHMIC fix, not an engineering one** (caching/parallelism are a
+band-aid). Candidate directions from stochastic-control / planning literature to evaluate against the oracle:
+   - **Action-dimension progressive widening + heuristic priors (PUCT).** Today decision nodes expand EVERY
+     legal play (`SelectEdge` gives unvisited edges +∞ → must visit all once); only chance nodes use DPW. Bias
+     selection by a policy prior (from `CombatHeuristic`/the VF) and widen actions progressively → focuses
+     trials on good plays, the dominant branching cost for big hands. Add First-Play-Urgency too.
+   - **Sparse sampling / forward-search sparse sampling (Kearns–Mansour–Ng)** — bounded-width sampling with a
+     value-function bootstrap; sample complexity ~independent of state-space size. Pairs with the learned VF.
+   - **Fitted value iteration / ADP with the learned VF as the approximator** — let the VF carry more of the
+     load (shallow search or near-greedy on the VF) once it's well-calibrated, instead of deep sampling.
+   - **Action abstraction** — dedupe symmetric plays (identical cards, target symmetry) more aggressively.
+
+### ⭐ OPEN QUESTION — drop survival probability, optimize HP-loss only?
+Survival prob is the noisy, hard-to-calibrate component (MCTS under-/over-shoots razor-thin fights; PhrogParasite
+shows 0% with the starter); HP loss tracks the oracle tightly. **Seriously evaluate collapsing to a single
+scalar objective: minimize E[HP loss] where death costs your full remaining HP.** Death is already the maximal
+loss, so a scalar HP-loss objective *implicitly* encodes survival pressure — likely capturing most of the
+decision quality while removing the lexicographic machinery (single-component UCB/backups, one VF head, no
+death-cliff tuning). Measure the **complexity + runtime payoff** and the decision-quality delta vs the current
+lexicographic objective on the calibration suite. (This revisits Key-design #1 — keep it as an experiment
+behind a flag; only flip the default if it's clearly a win.)
+
+### Other near-term
+4. **Calibration expansion** — cover all 12 elites + a high variety of decks (random-draw generator), with
+   exact ground truth where tractable and MCTS self-consistency / anytime-convergence where (as decks grow)
+   exact can't reach. This is the measuring stick for both the perf and objective experiments, and gates making
+   the **leaf-blend (α≈0.25) the default**.
+5. **VF distillation + recalibration** — after a large training round (now drawing colorless + varied decks),
+   distill feature importance to simplify the model without losing accuracy; recalibrate survival (Platt/
+   isotonic) IF we keep it; add deck-composition features.
+6. **Content** — Silent 40 → 88; trace-validate the 8 new normal monsters; Act-1 bosses; relic engine hooks;
+   the deferred solver-side mid-turn **draw chance-node** for forward search.
 
 ### History (condensed)
 Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless autonomy; MCTS solver
