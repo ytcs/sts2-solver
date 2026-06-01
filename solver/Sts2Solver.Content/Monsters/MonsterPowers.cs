@@ -279,6 +279,60 @@ public sealed class ShriekPower : PowerModel
         Owner.RemovePower(Id);                                      // one-time trigger
     }
 }
+/// <summary>ShrinkerBeetle's Shrink: applied to the PLAYER, it reduces the damage of the player's powered
+/// attacks by 30% (multiplicative ×0.7) for as long as it is owned. ShrinkerBeetle applies it with
+/// Amount -1, which the game treats as "infinite" — it never ticks down and lasts the whole combat (so the
+/// owner here is the player and it persists). A positive Amount would be a countdown that decrements at the
+/// owner's turn end; ShrinkerBeetle never uses that, so we model the -1 (whole-combat) case and keep the
+/// countdown path faithful. The 30% reduction is the game constant ShrinkPower.damageDecrease.
+/// (MegaCrit ShrinkPower.) UNIT-TESTED ONLY — not trace-validated.</summary>
+public sealed class ShrinkPower : PowerModel
+{
+    public override string Id => "Shrink";
+    public override PowerType Type => PowerType.Debuff;
+    public override bool AllowNegative => true;   // ShrinkerBeetle applies -1 = infinite
+
+    private bool IsInfinite => Amount < 0;
+
+    public override decimal ModifyDamageMultiplicative(Creature? target, decimal amount, ValueProp props, Creature? dealer, CardModel? cardSource)
+    {
+        if (dealer != Owner) return 1m;            // only the shrunk creature's own attacks are weakened
+        if (!props.IsPoweredAttack()) return 1m;
+        return 0.7m;                                // (100 - 30) / 100
+    }
+
+    public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
+    {
+        if (IsInfinite) return;                     // -1 = never expires
+        if (side != Owner.Side) return;             // count down on the owner's own turn end
+        Amount--;
+        this.NormalizeOrRemove(Owner);
+    }
+}
+/// <summary>Slippery: an Intangible-like damage cap. While the owner has Slippery, each instance of HP loss
+/// it would take is capped to 1, and the counter (Amount) decrements by 1 each time the owner takes ≥1
+/// unblocked damage; at 0 the power is gone. Inklets start combat with Slippery 1 (their first incoming hit
+/// is reduced to 1 HP, then it wears off). Modelled via the engine's ModifyHpLost cap + AfterDamageReceived
+/// decrement; the counter rides on the base power Amount, so base StateKey/HashValue already serialise it
+/// (no extra mutable field). (MegaCrit SlipperyPower.) UNIT-TESTED ONLY — not trace-validated.</summary>
+public sealed class SlipperyPower : PowerModel
+{
+    public override string Id => "Slippery";
+    public override PowerType Type => PowerType.Buff;
+
+    public override int ModifyHpLost(Creature target, int hpLost, ValueProp props, Creature? dealer)
+    {
+        if (target != Owner || Amount <= 0 || hpLost < 1) return hpLost;
+        return 1;   // game: ModifyHpLostAfterOsty caps to 1
+    }
+
+    public override void AfterDamageReceived(CombatState combat, Creature target, int unblockedDamage, Creature? dealer, ValueProp props)
+    {
+        if (target != Owner || Amount <= 0 || unblockedDamage < 1) return;
+        Amount--;                       // consumed one "dodge"
+        this.NormalizeOrRemove(Owner);
+    }
+}
 public sealed class RitualPower : PowerModel
 {
     public override string Id => "Ritual";

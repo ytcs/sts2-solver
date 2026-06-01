@@ -30,8 +30,48 @@ public static partial class Catalog
         },
     };
 
+    /// <summary>Act-1 (Overgrowth) NORMAL / WEAK encounter compositions. Same shape as the elite table,
+    /// keyed by the game's encounter class name. UNIT-TESTED ONLY — these monsters are not yet
+    /// trace-validated. Slime-bearing encounters (SlimesNormal/Weak, SlitheringStranglerNormal,
+    /// FlyconidNormal) are intentionally absent: they require a Slimed status card that lives outside this
+    /// task's editable scope. VineShamblerNormal and RubyRaidersNormal are likewise absent (see Monsters).</summary>
+    private static readonly Dictionary<string, Func<int, IEnumerable<Monster>>> NormalEncounterFactories =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SnappingJaxfruitNormal"]   = a => new[] { Monsters.SnappingJaxfruit(ascension: a), Monsters.Flyconid(ascension: a) },
+        ["CubexConstructNormal"]     = a => new[] { Monsters.CubexConstruct(ascension: a) },
+        ["FuzzyWurmCrawlerWeak"]     = a => new[] { Monsters.FuzzyWurmCrawler(ascension: a) },
+        ["ShrinkerBeetleWeak"]       = a => new[] { Monsters.ShrinkerBeetle(ascension: a) },
+        ["OvergrowthCrawlers"]       = a => new[] { Monsters.ShrinkerBeetle(ascension: a), Monsters.FuzzyWurmCrawler(ascension: a) },
+        ["MawlerNormal"]             = a => new[] { Monsters.Mawler(ascension: a) },
+        ["NibbitsWeak"]              = a => new[] { Monsters.Nibbit(slot: "alone", ascension: a) },
+        ["NibbitsNormal"]            = a => Monsters.Nibbits(ascension: a),
+        ["InkletsNormal"]            = a => Monsters.Inklets(ascension: a),
+    };
+
     /// <summary>True if <paramref name="name"/> (an encounter class name) is a known elite composition.</summary>
     public static bool IsKnownEliteEncounter(string name) => EliteEncounterFactories.ContainsKey(name);
+
+    /// <summary>True if <paramref name="name"/> is a known normal/weak encounter composition.</summary>
+    public static bool IsKnownNormalEncounter(string name) => NormalEncounterFactories.ContainsKey(name);
+
+    /// <summary>True if <paramref name="name"/> is any known encounter (elite or normal/weak).</summary>
+    public static bool IsKnownEncounter(string name) =>
+        EliteEncounterFactories.ContainsKey(name) || NormalEncounterFactories.ContainsKey(name);
+
+    /// <summary>The normal/weak encounter class names this catalog can build.</summary>
+    public static IReadOnlyCollection<string> KnownNormalEncounters => NormalEncounterFactories.Keys;
+
+    /// <summary>Build the monster list for any known encounter (elite or normal/weak), scaled to
+    /// <paramref name="ascension"/>. Throws for an unknown encounter.</summary>
+    public static List<Monster> BuildEncounter(string name, int ascension = 10)
+    {
+        if (EliteEncounterFactories.TryGetValue(name, out var ef)) return ef(ascension).ToList();
+        if (NormalEncounterFactories.TryGetValue(name, out var nf)) return nf(ascension).ToList();
+        throw new ArgumentException(
+            $"Unknown encounter '{name}'. Known elites: {string.Join(", ", EliteEncounterFactories.Keys)}. " +
+            $"Known normals: {string.Join(", ", NormalEncounterFactories.Keys)}");
+    }
 
     /// <summary>The elite encounter class names this catalog can build.</summary>
     public static IReadOnlyCollection<string> KnownEliteEncounters => EliteEncounterFactories.Keys;

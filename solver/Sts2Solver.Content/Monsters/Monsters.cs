@@ -642,6 +642,305 @@ public static class Monsters
         yield return DecimillipedeSegment("DecimillipedeSegmentBack", starterIdx: 2);
     }
 
+    // ----- Act-1 (Overgrowth) NORMAL / WEAK monsters. Stats from the decompiled game source. -----
+    // UNIT-TESTED ONLY (move stats/intents/HP scaling) — no game traces exist for these yet, so they are
+    // not trace-validated. Mechanics use only existing engine primitives + Common/MonsterPowers.
+
+    /// <summary>
+    /// SnappingJaxfruit (Act 1 Overgrowth normal, MegaCrit): HP 31–33 (Tough 34–36); factory defaults to the
+    /// max roll (33 / 36 Tough), matching the project convention — trace replay injects the actual roll. One
+    /// move forever — Energy Orb: 3 damage (4 Deadly) then self +2 Strength, so its hit ramps each turn.
+    /// </summary>
+    public static Monster SnappingJaxfruit(int hp = -1, int ascension = 0)
+    {
+        if (hp < 0) hp = Asc.Tough(ascension, 36, 33);
+        int orbDamage = Asc.Deadly(ascension, 4, 3), orbStrength = 2;
+        var monster = new Monster { Name = "SnappingJaxfruit", MaxHp = hp, CurrentHp = hp };
+
+        var orb = new MoveState("ENERGY_ORB_MOVE",
+            (combat, self) =>
+            {
+                Cmd.Attack(combat, self, combat.Player, orbDamage, ValueProp.Move, null);
+                Cmd.ApplyPower(combat, self, new StrengthPower(), orbStrength, self);
+            },
+            intentDamage: orbDamage);
+        orb.FollowUp = orb;   // self-loop
+
+        monster.Ai = new MonsterMoveStateMachine(new MonsterState[] { orb }, orb.Id);
+        return monster;
+    }
+
+    /// <summary>
+    /// Flyconid (Act 1 Overgrowth normal, MegaCrit): HP 47–49 (Tough 51–53), factory defaults to max roll
+    /// (49 / 53 Tough). Opens randomly (no repeat):
+    /// Frail Spores (8 + apply 2 Frail, weight 2) / Smash (11, weight 1). Then loops a random no-repeat
+    /// branch: Vulnerable Spores (apply 2 Vulnerable, weight 3) / Frail Spores (8 + 2 Frail, weight 2) /
+    /// Smash (11, weight 1). Deadly: Spores 9, Smash 12.
+    /// </summary>
+    public static Monster Flyconid(int hp = -1, int ascension = 0)
+    {
+        if (hp < 0) hp = Asc.Tough(ascension, 53, 49);
+        int sporeDamage = Asc.Deadly(ascension, 9, 8), smashDamage = Asc.Deadly(ascension, 12, 11);
+        int vulnerable = 2, frail = 2;
+        var monster = new Monster { Name = "Flyconid", MaxHp = hp, CurrentHp = hp };
+
+        var vulnSpores = new MoveState("VULNERABLE_SPORES_MOVE",
+            (combat, self) => Cmd.ApplyPower(combat, combat.Player, new VulnerablePower(), vulnerable, self),
+            intentDamage: null);
+        var frailSpores = new MoveState("FRAIL_SPORES_MOVE",
+            (combat, self) =>
+            {
+                Cmd.Attack(combat, self, combat.Player, sporeDamage, ValueProp.Move, null);
+                Cmd.ApplyPower(combat, combat.Player, new FrailPower(), frail, self);
+            },
+            intentDamage: sporeDamage);
+        var smash = new MoveState("SMASH_MOVE",
+            (combat, self) => Cmd.Attack(combat, self, combat.Player, smashDamage, ValueProp.Move, null),
+            intentDamage: smashDamage);
+
+        var rand = new RandomBranchState("RAND")
+            .Add(vulnSpores.Id, 3f, MoveRepeatType.CannotRepeat)
+            .Add(frailSpores.Id, 2f, MoveRepeatType.CannotRepeat)
+            .Add(smash.Id, 1f, MoveRepeatType.CannotRepeat);
+        var initial = new RandomBranchState("INITIAL")
+            .Add(frailSpores.Id, 2f, MoveRepeatType.CannotRepeat)
+            .Add(smash.Id, 1f, MoveRepeatType.CannotRepeat);
+        vulnSpores.FollowUp = rand;
+        frailSpores.FollowUp = rand;
+        smash.FollowUp = rand;
+
+        monster.Ai = new MonsterMoveStateMachine(
+            new MonsterState[] { vulnSpores, frailSpores, smash, rand, initial }, initial.Id);
+        return monster;
+    }
+
+    /// <summary>
+    /// CubexConstruct (Act 1 Overgrowth normal, MegaCrit): HP 65 (Tough 70). Starts with 13 block and
+    /// Artifact(1) (AfterAddedToRoom). Chain: Charge Up (+2 Strength) → Repeater Blast (7 + self +2 Str) →
+    /// Repeater Blast (7 + self +2 Str) → Expel (5×2) → back to the first Repeater Blast. Deadly: Blast 8,
+    /// Expel 6. (Blast ramps as Strength accrues.)
+    /// </summary>
+    public static Monster CubexConstruct(int hp = -1, int ascension = 0)
+    {
+        if (hp < 0) hp = Asc.Tough(ascension, 70, 65);
+        int blastDamage = Asc.Deadly(ascension, 8, 7), expelDamage = Asc.Deadly(ascension, 6, 5);
+        int chargeStrength = 2, blastStrength = 2, startBlock = 13, artifact = 1;
+        var monster = new Monster { Name = "CubexConstruct", MaxHp = hp, CurrentHp = hp };
+
+        var chargeUp = new MoveState("CHARGE_UP_MOVE",
+            (combat, self) => Cmd.ApplyPower(combat, self, new StrengthPower(), chargeStrength, self),
+            intentDamage: null);
+        Action<CombatState, Monster> blastFn = (combat, self) =>
+        {
+            Cmd.Attack(combat, self, combat.Player, blastDamage, ValueProp.Move, null);
+            Cmd.ApplyPower(combat, self, new StrengthPower(), blastStrength, self);
+        };
+        var blast1 = new MoveState("REPEATER_BLAST_MOVE", blastFn, intentDamage: blastDamage);
+        var blast2 = new MoveState("REPEATER_BLAST_MOVE_2", blastFn, intentDamage: blastDamage);
+        var expel = new MoveState("EXPEL_MOVE",
+            (combat, self) => Cmd.AttackMulti(combat, self, combat.Player, expelDamage, 2, ValueProp.Move, null),
+            intentDamage: expelDamage, intentHits: 2);
+
+        chargeUp.FollowUp = blast1;
+        blast1.FollowUp = blast2;
+        blast2.FollowUp = expel;
+        expel.FollowUp = blast1;   // loop
+
+        monster.Ai = new MonsterMoveStateMachine(
+            new MonsterState[] { chargeUp, blast1, blast2, expel }, chargeUp.Id);
+        monster.AddPower(new ArtifactPower(), artifact);   // applied at combat start
+        monster.Block = startBlock;                        // 13 block gained AfterAddedToRoom
+        return monster;
+    }
+
+    /// <summary>
+    /// FuzzyWurmCrawler (Act 1 Overgrowth weak, MegaCrit): HP 55–57 (Tough 58–59), factory defaults to max
+    /// roll (57 / 59 Tough). Cycle: Acid Goop (4) → Inhale (+7 Strength) → Acid Goop (4) → … i.e. a
+    /// Goop/Inhale/Goop 3-cycle, so its Goop ramps hard. Deadly: Acid Goop 6.
+    /// </summary>
+    public static Monster FuzzyWurmCrawler(int hp = -1, int ascension = 0)
+    {
+        if (hp < 0) hp = Asc.Tough(ascension, 59, 57);
+        int goopDamage = Asc.Deadly(ascension, 6, 4), inhaleStrength = 7;
+        var monster = new Monster { Name = "FuzzyWurmCrawler", MaxHp = hp, CurrentHp = hp };
+
+        Action<CombatState, Monster> goopFn = (combat, self) =>
+            Cmd.Attack(combat, self, combat.Player, goopDamage, ValueProp.Move, null);
+        var firstGoop = new MoveState("FIRST_ACID_GOOP", goopFn, intentDamage: goopDamage);
+        var goop = new MoveState("ACID_GOOP", goopFn, intentDamage: goopDamage);
+        var inhale = new MoveState("INHALE",
+            (combat, self) => Cmd.ApplyPower(combat, self, new StrengthPower(), inhaleStrength, self),
+            intentDamage: null);
+
+        firstGoop.FollowUp = inhale;
+        inhale.FollowUp = goop;
+        goop.FollowUp = firstGoop;
+
+        monster.Ai = new MonsterMoveStateMachine(new MonsterState[] { firstGoop, goop, inhale }, firstGoop.Id);
+        return monster;
+    }
+
+    /// <summary>
+    /// ShrinkerBeetle (Act 1 Overgrowth weak, MegaCrit): HP 38–40 (Tough 40–42), factory defaults to max
+    /// roll (40 / 42 Tough). Opens on Shrink (apply Shrink to the player: its powered attacks deal ×0.7 for
+    /// the rest of combat), then loops Chomp (7) → Stomp (13) → Chomp → … Deadly: Chomp 8, Stomp 14.
+    /// </summary>
+    public static Monster ShrinkerBeetle(int hp = -1, int ascension = 0)
+    {
+        if (hp < 0) hp = Asc.Tough(ascension, 42, 40);
+        int chompDamage = Asc.Deadly(ascension, 8, 7), stompDamage = Asc.Deadly(ascension, 14, 13);
+        var monster = new Monster { Name = "ShrinkerBeetle", MaxHp = hp, CurrentHp = hp };
+
+        var shrink = new MoveState("SHRINKER_MOVE",
+            (combat, self) => Cmd.ApplyPower(combat, combat.Player, new ShrinkPower(), -1, self),
+            intentDamage: null);
+        var chomp = new MoveState("CHOMP_MOVE",
+            (combat, self) => Cmd.Attack(combat, self, combat.Player, chompDamage, ValueProp.Move, null),
+            intentDamage: chompDamage);
+        var stomp = new MoveState("STOMP_MOVE",
+            (combat, self) => Cmd.Attack(combat, self, combat.Player, stompDamage, ValueProp.Move, null),
+            intentDamage: stompDamage);
+
+        shrink.FollowUp = chomp;
+        chomp.FollowUp = stomp;
+        stomp.FollowUp = chomp;   // loop (Shrink only at start)
+
+        monster.Ai = new MonsterMoveStateMachine(new MonsterState[] { shrink, chomp, stomp }, shrink.Id);
+        return monster;
+    }
+
+    /// <summary>
+    /// Mawler (Act 1 Overgrowth normal, MegaCrit): HP 72 (Tough 76). Opens on Claw (4×2), then a random
+    /// no-repeat branch (equal weight): Rip and Tear (14) / Roar (apply 3 Vulnerable, only once per fight) /
+    /// Claw (4×2). Deadly: Rip and Tear 16, Claw 5.
+    /// </summary>
+    public static Monster Mawler(int hp = -1, int ascension = 0)
+    {
+        if (hp < 0) hp = Asc.Tough(ascension, 76, 72);
+        int ripDamage = Asc.Deadly(ascension, 16, 14), clawDamage = Asc.Deadly(ascension, 5, 4), vulnerable = 3;
+        var monster = new Monster { Name = "Mawler", MaxHp = hp, CurrentHp = hp };
+
+        var rip = new MoveState("RIP_AND_TEAR_MOVE",
+            (combat, self) => Cmd.Attack(combat, self, combat.Player, ripDamage, ValueProp.Move, null),
+            intentDamage: ripDamage);
+        var roar = new MoveState("ROAR_MOVE",
+            (combat, self) => Cmd.ApplyPower(combat, combat.Player, new VulnerablePower(), vulnerable, self),
+            intentDamage: null);
+        var claw = new MoveState("CLAW_MOVE",
+            (combat, self) => Cmd.AttackMulti(combat, self, combat.Player, clawDamage, 2, ValueProp.Move, null),
+            intentDamage: clawDamage, intentHits: 2);
+
+        var rand = new RandomBranchState("RAND")
+            .Add(rip.Id, 1f, MoveRepeatType.CannotRepeat)
+            .Add(roar.Id, 1f, MoveRepeatType.UseOnlyOnce)
+            .Add(claw.Id, 1f, MoveRepeatType.CannotRepeat);
+        rip.FollowUp = rand; roar.FollowUp = rand; claw.FollowUp = rand;
+
+        monster.Ai = new MonsterMoveStateMachine(new MonsterState[] { rip, roar, claw, rand }, claw.Id);
+        return monster;
+    }
+
+    /// <summary>
+    /// Nibbit (Act 1 Overgrowth normal/weak, MegaCrit): HP 42–46 (Tough 44–48), factory defaults to max roll
+    /// (46 / 48 Tough). Deterministic 3-cycle:
+    /// Butt (12) → Slice (6 + gain 5 block) → Hiss (+2 Strength) → Butt → … The starting move depends on
+    /// position (matching the game's conditional opener): alone → Butt; encounter front → Slice; encounter
+    /// back → Hiss. Deadly: Butt 13, Slice 7, Hiss +3 Str. Tough: Slice block 6.
+    /// </summary>
+    public static Monster Nibbit(int hp = -1, string slot = "alone", int ascension = 0)
+    {
+        if (hp < 0) hp = Asc.Tough(ascension, 48, 46);
+        int buttDamage = Asc.Deadly(ascension, 13, 12), sliceDamage = Asc.Deadly(ascension, 7, 6);
+        int sliceBlock = Asc.Tough(ascension, 6, 5), hissStrength = Asc.Deadly(ascension, 3, 2);
+        var monster = new Monster { Name = "Nibbit", MaxHp = hp, CurrentHp = hp, Variant = slot };
+
+        var butt = new MoveState("BUTT_MOVE",
+            (combat, self) => Cmd.Attack(combat, self, combat.Player, buttDamage, ValueProp.Move, null),
+            intentDamage: buttDamage);
+        var slice = new MoveState("SLICE_MOVE",
+            (combat, self) =>
+            {
+                Cmd.Attack(combat, self, combat.Player, sliceDamage, ValueProp.Move, null);
+                Cmd.GainBlock(combat, self, sliceBlock, ValueProp.Move, null);
+            },
+            intentDamage: sliceDamage);
+        var hiss = new MoveState("HISS_MOVE",
+            (combat, self) => Cmd.ApplyPower(combat, self, new StrengthPower(), hissStrength, self),
+            intentDamage: null);
+
+        butt.FollowUp = slice;
+        slice.FollowUp = hiss;
+        hiss.FollowUp = butt;
+
+        var initial = slot switch
+        {
+            "front" => slice.Id,
+            "back" => hiss.Id,
+            _ => butt.Id,     // "alone"
+        };
+        monster.Ai = new MonsterMoveStateMachine(new MonsterState[] { butt, slice, hiss }, initial);
+        return monster;
+    }
+
+    /// <summary>
+    /// Inklet (Act 1 Overgrowth normal, MegaCrit): HP 11–17 (Tough 12–18). Starts with Slippery(1) (its
+    /// first incoming hit is capped to 1 HP, then it wears off). Side Inklets open on a random branch
+    /// (no repeat): Jab (3, weight 2) / Whirlwind (2×3, weight 1); the middle Inklet opens on Whirlwind.
+    /// After Jab → random (no repeat): Piercing Gaze (10) / Whirlwind (2×3); Whirlwind and Piercing Gaze
+    /// both go back to Jab. Deadly: Jab 4, Whirlwind 3, Piercing Gaze 11.
+    /// </summary>
+    public static Monster Inklet(int hp = -1, bool middle = false, int ascension = 0)
+    {
+        if (hp < 0) hp = Asc.Tough(ascension, 18, 17);   // max roll (range 11–17 / Tough 12–18); replay injects actual
+        int jabDamage = Asc.Deadly(ascension, 4, 3), whirlwindDamage = Asc.Deadly(ascension, 3, 2);
+        int gazeDamage = Asc.Deadly(ascension, 11, 10), slippery = 1;
+        var monster = new Monster { Name = "Inklet", MaxHp = hp, CurrentHp = hp, Variant = middle ? "M" : "S" };
+
+        var jab = new MoveState("JAB_MOVE",
+            (combat, self) => Cmd.Attack(combat, self, combat.Player, jabDamage, ValueProp.Move, null),
+            intentDamage: jabDamage);
+        var whirlwind = new MoveState("WHIRLWIND_MOVE",
+            (combat, self) => Cmd.AttackMulti(combat, self, combat.Player, whirlwindDamage, 3, ValueProp.Move, null),
+            intentDamage: whirlwindDamage, intentHits: 3);
+        var gaze = new MoveState("PIERCING_GAZE_MOVE",
+            (combat, self) => Cmd.Attack(combat, self, combat.Player, gazeDamage, ValueProp.Move, null),
+            intentDamage: gazeDamage);
+
+        // After Jab: random no-repeat between Piercing Gaze and Whirlwind.
+        var afterJab = new RandomBranchState("RAND")
+            .Add(gaze.Id, 1f, MoveRepeatType.CannotRepeat)
+            .Add(whirlwind.Id, 1f, MoveRepeatType.CannotRepeat);
+        jab.FollowUp = afterJab;
+        whirlwind.FollowUp = jab;
+        gaze.FollowUp = jab;
+
+        // Side Inklets' opener: random no-repeat Jab(2) / Whirlwind(1). Middle opens straight on Whirlwind.
+        var initialRand = new RandomBranchState("INIT_RAND")
+            .Add(jab.Id, 2f, MoveRepeatType.CannotRepeat)
+            .Add(whirlwind.Id, 1f, MoveRepeatType.CannotRepeat);
+
+        var states = new MonsterState[] { jab, whirlwind, gaze, afterJab, initialRand };
+        var initial = middle ? whirlwind.Id : initialRand.Id;
+        monster.Ai = new MonsterMoveStateMachine(states, initial);
+        monster.AddPower(new SlipperyPower(), slippery);   // applied at combat start
+        return monster;
+    }
+
+    /// <summary>The two Nibbits of NibbitsNormal: front (opens Slice) + back (opens Hiss).</summary>
+    public static IEnumerable<Monster> Nibbits(int ascension = 0)
+    {
+        yield return Nibbit(slot: "front", ascension: ascension);
+        yield return Nibbit(slot: "back", ascension: ascension);
+    }
+
+    /// <summary>The three Inklets of InkletsNormal: side, middle, side.</summary>
+    public static IEnumerable<Monster> Inklets(int ascension = 0)
+    {
+        yield return Inklet(middle: false, ascension: ascension);
+        yield return Inklet(middle: true, ascension: ascension);
+        yield return Inklet(middle: false, ascension: ascension);
+    }
+
     /// <summary>Inject n Infection status cards into the player's discard pile (Infect / Wriggle).</summary>
     private static void AddStatusToDiscard(CombatState combat, int n)
     {

@@ -43,5 +43,15 @@ public static partial class Catalog
         ["DecimillipedeSegmentFront"] = asc => Monsters.DecimillipedeSegment("DecimillipedeSegmentFront", 0, ascension: asc),
         ["DecimillipedeSegmentMiddle"] = asc => Monsters.DecimillipedeSegment("DecimillipedeSegmentMiddle", 1, ascension: asc),
         ["DecimillipedeSegmentBack"] = asc => Monsters.DecimillipedeSegment("DecimillipedeSegmentBack", 2, ascension: asc),
+
+        // Act-1 (Overgrowth) normal/weak monsters (unit-tested only; not trace-validated).
+        ["SnappingJaxfruit"] = asc => Monsters.SnappingJaxfruit(ascension: asc),
+        ["Flyconid"] = asc => Monsters.Flyconid(ascension: asc),
+        ["CubexConstruct"] = asc => Monsters.CubexConstruct(ascension: asc),
+        ["FuzzyWurmCrawler"] = asc => Monsters.FuzzyWurmCrawler(ascension: asc),
+        ["ShrinkerBeetle"] = asc => Monsters.ShrinkerBeetle(ascension: asc),
+        ["Mawler"] = asc => Monsters.Mawler(ascension: asc),
+        ["Nibbit"] = asc => Monsters.Nibbit(ascension: asc),
+        ["Inklet"] = asc => Monsters.Inklet(ascension: asc),
     };
 }
