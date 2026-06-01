@@ -193,22 +193,7 @@ public sealed class Impatience : CardModel
     }
 }
 
-/// <summary>Draw cards until you have 6 in your hand. Cost 1. Upgrade: until 7. (Draw is real only under an
-/// ambient Rng; modelled as a draw-to-target-count.) (MegaCrit Expertise)</summary>
-public sealed class Expertise : CardModel
-{
-    public override string Name => "Expertise";
-    public override int BaseCost => 1;
-    public override CardType Type => CardType.Skill;
-    public override CardRarity Rarity => CardRarity.Uncommon;
-    public override TargetType Target => TargetType.Self;
-    public int TargetHandSize => 6 + Upgrades;
-    public override void OnPlay(CombatState combat, CardPlay play)
-    {
-        int deficit = TargetHandSize - combat.Player.Hand.Count;
-        if (deficit > 0) Cmd.Draw(combat, deficit);
-    }
-}
+// (Expertise is a Silent card — defined in Silent/SilentCards.cs, not here.)
 
 /// <summary>Gain 30 Block. You cannot gain Block for the next 2 turns. Exhaust. Cost 0. Upgrade: +10 Block.
 /// (The "cannot gain Block" aftermath is modelled by NoBlockPower.) (MegaCrit PanicButton)</summary>

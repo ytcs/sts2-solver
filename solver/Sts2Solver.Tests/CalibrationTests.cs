@@ -34,7 +34,10 @@ public class CalibrationTests
     public void MctsRoll_Tracks_Exact(string name)
     {
         var f = CalibrationFixtures.All.First(x => x.Name == name);
-        var exact = CalibrationHarness.RunExactBudgeted(f.Setup(), f.MaxTurns, budgetSeconds: 60);
+        // Budget is generous: these fixtures solve exactly in seconds — the cap only guards against a fixture
+        // growing too big. It's a WALL-CLOCK budget, so under heavy parallel-test CPU contention a too-tight
+        // cap produces false null timeouts; 240s leaves ample headroom while still catching a genuinely-grown fixture.
+        var exact = CalibrationHarness.RunExactBudgeted(f.Setup(), f.MaxTurns, budgetSeconds: 240);
         Assert.NotNull(exact); // fixtures are tuned to be exact-solvable; if this trips, the fixture grew too big
         var roll = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, trials: 40_000, heuristicLeaf: false, seed: 1);
 

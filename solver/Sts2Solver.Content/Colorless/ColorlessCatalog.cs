@@ -24,7 +24,6 @@ public static partial class Catalog
         ["MasterOfStrategy"] = () => new MasterOfStrategy(),
         ["ThinkingAhead"] = () => new ThinkingAhead(),
         ["Impatience"] = () => new Impatience(),
-        ["Expertise"] = () => new Expertise(),
         ["PanicButton"] = () => new PanicButton(),
         // Powers.
         ["Panache"] = () => new Panache(),

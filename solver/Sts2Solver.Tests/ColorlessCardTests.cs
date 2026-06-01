@@ -168,16 +168,6 @@ public class ColorlessCardTests
     }
 
     [Fact]
-    public void Expertise_Costs_1()
-    {
-        var (c, p, _) = Fight();
-        var e = new Expertise();
-        Assert.Equal(1, e.Cost);
-        Play(c, e, null);                              // no Rng → no actual draw, but plays cleanly
-        Assert.Empty(p.Hand);
-    }
-
-    [Fact]
     public void PanicButton_Gains_30_Block_And_Blocks_Block_For_2_Turns()
     {
         var (c, p, _) = Fight();
