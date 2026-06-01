@@ -57,13 +57,16 @@ public static class HeadlessBatch
 
             try { SaveManager.Instance.PrefsSave.FastMode = FastModeType.Instant; } catch { }
 
-            // ---- Start a controlled Ironclad run (mirrors NSceneBootstrapper.StartNewRun) ----
+            // ---- Start a controlled run (mirrors NSceneBootstrapper.StartNewRun) ----
+            // Character defaults to Ironclad; STS2_CHARACTER selects another (e.g. Necrobinder, whose
+            // starter deck + Bound Phylactery + Osty-on-combat-start all come for free from CreateForNewRun).
             var unlock = SaveManager.Instance.GenerateUnlockStateFromProgress();
-            var ironclad = ModelDb.Character<Ironclad>();
+            var character = ResolveCharacter(Environment.GetEnvironmentVariable("STS2_CHARACTER"));
+            MainFile.Logger.Info($"HeadlessBatch: character = {character.GetType().Name}", 0);
             // Ensure a per-character stats entry exists (a fresh save profile may lack one, which the
             // Player constructor would otherwise KeyNotFound on).
-            SaveManager.Instance.Progress.GetOrCreateCharacterStats(ironclad.Id);
-            var player = Player.CreateForNewRun(ironclad, unlock, 1uL);
+            SaveManager.Instance.Progress.GetOrCreateCharacterStats(character.Id);
+            var player = Player.CreateForNewRun(character, unlock, 1uL);
             MaybeInjectCustomDeck(player);
             var acts = ActModel.GetDefaultList().Select(a => a.ToMutable()).ToList();
             var seed = Environment.GetEnvironmentVariable("STS2_SEED") is { Length: > 0 } s ? s : SeedHelper.GetRandomSeed();
@@ -121,6 +124,21 @@ public static class HeadlessBatch
     {
         try { return ModelDb.Character<Ironclad>() != null; }
         catch { return false; }
+    }
+
+    /// <summary>Resolve the run character from STS2_CHARACTER (class name, case-insensitive). Defaults to
+    /// Ironclad. Selecting Necrobinder gives its 66-HP starter deck + Bound Phylactery + Osty automatically.</summary>
+    private static CharacterModel ResolveCharacter(string? key)
+    {
+        var k = (key ?? "").Replace("_", "").ToLowerInvariant();
+        return k switch
+        {
+            "necrobinder" => ModelDb.Character<Necrobinder>(),
+            "silent"      => ModelDb.Character<Silent>(),
+            "regent"      => ModelDb.Character<Regent>(),
+            "defect"      => ModelDb.Character<Defect>(),
+            _             => ModelDb.Character<Ironclad>(),
+        };
     }
 
     private static async Task KillRequestedEnemies()

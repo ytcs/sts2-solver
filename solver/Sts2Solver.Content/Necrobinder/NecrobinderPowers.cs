@@ -57,11 +57,11 @@ public sealed class DieForYouPower : PowerModel
     public override string Id => "DieForYou";
     public override PowerType Type => PowerType.Buff;
 
-    public override Creature ModifyDamageTarget(Creature target, ValueProp props, Creature? dealer)
+    public override Creature ModifyUnblockedDamageTarget(Creature target, int unblocked, ValueProp props, Creature? dealer)
     {
         if (Owner.CurrentHp <= 0) return target;          // a dead Osty cannot tank
         if (!props.IsPoweredAttack()) return target;
-        return target is Player ? Owner : target;         // pull the player's incoming hit onto Osty
+        return target is Player ? Owner : target;         // pull the player's post-block hit onto Osty
     }
 }
 

@@ -43,10 +43,12 @@ public abstract class PowerModel
     /// caps the owner's total HP loss per turn here. (Mirrors the game's ModifyHpLostBeforeOsty.)</summary>
     public virtual int ModifyHpLost(Creature target, int hpLost, ValueProp props, Creature? dealer) => hpLost;
 
-    /// <summary>Redirects an attack to a different creature before block/HP are applied. DieForYouPower
-    /// (on Osty) sends powered attacks aimed at its owner-player onto Osty instead. Return the (possibly
-    /// new) target. (Mirrors the game's PowerModel.ModifyUnblockedDamageTarget.)</summary>
-    public virtual Creature ModifyDamageTarget(Creature target, ValueProp props, Creature? dealer) => target;
+    /// <summary>Redirects the UNBLOCKED remainder of an attack (after the original target's block has been
+    /// absorbed) onto a different creature, which takes it as direct HP loss. DieForYouPower (on Osty) sends
+    /// the post-block portion of powered attacks aimed at its owner-player onto Osty instead — so the player's
+    /// block still soaks the hit and only the leftover reaches Osty. Return the (possibly new) HP-loss target.
+    /// (Mirrors the game's PowerModel.ModifyUnblockedDamageTarget, called after DamageBlockInternal.)</summary>
+    public virtual Creature ModifyUnblockedDamageTarget(Creature target, int unblocked, ValueProp props, Creature? dealer) => target;
 
     // ---- Block modification hooks (run during BlockPipeline) ----
 

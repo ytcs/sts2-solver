@@ -137,7 +137,7 @@ public static class CombatOracle
         {
             if (c == null) continue;
             var player = Member<object>(c, "Player");
-            if (player == null) continue;
+            if (player == null) continue;   // skip pet allies (Osty) — captured separately below
             var pcs = Member<object>(player, "PlayerCombatState");
             return new Dictionary<string, object?>
             {
@@ -152,6 +152,34 @@ public static class CombatOracle
                 ["drawPile"] = PileCards(pcs, "DrawPile"),
                 ["discardPile"] = PileCards(pcs, "DiscardPile"),
                 ["exhaustPile"] = PileCards(pcs, "ExhaustPile"),
+                // Necrobinder's Osty (and any other player-side pet): the ally creature that is NOT the
+                // player but is a Monster-backed creature (PetOwner set). Null when no pet is summoned.
+                ["osty"] = SnapshotPet(state),
+            };
+        }
+        return null;
+    }
+
+    /// <summary>Snapshot the player-side pet creature (Necrobinder's Osty): an ally whose backing model is a
+    /// <c>Monster</c> rather than a <c>Player</c>. Returns null when no pet is alive/present so non-Necrobinder
+    /// traces simply omit it.</summary>
+    private static Dictionary<string, object?>? SnapshotPet(CombatState state)
+    {
+        var creatures = Member<System.Collections.IEnumerable>(state, "Allies");
+        if (creatures == null) return null;
+        foreach (var c in creatures)
+        {
+            if (c == null) continue;
+            if (Member<object>(c, "Player") != null) continue;     // the human player, not a pet
+            if (Member<object>(c, "Monster") == null) continue;    // not a monster-backed pet
+            return new Dictionary<string, object?>
+            {
+                ["name"] = Member<string>(c, "Name"),
+                ["hp"] = Member<int>(c, "CurrentHp"),
+                ["maxHp"] = Member<int>(c, "MaxHp"),
+                ["block"] = Member<int>(c, "Block"),
+                ["alive"] = Member<bool>(c, "IsAlive"),
+                ["powers"] = Powers(c),
             };
         }
         return null;

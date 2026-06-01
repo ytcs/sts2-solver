@@ -48,7 +48,7 @@ mods/DataDumper/                Godot C# mod (loads into the real game)
                                 HeadlessBatch (STS2_BATCH: autonomous headless run+fight+record+quit)
 data/
   game_data/*.json              dumped metadata (cards/monsters/encounters/powers/...)
-  combat_traces/*.jsonl         66 recorded ground-truth traces (all passing): A0 Ironclad + Silent + A10
+  combat_traces/*.jsonl         70 recorded ground-truth traces (all passing): A0 Ironclad + Silent + Necrobinder + A10
 docs/mcts-solver-design.md      SOTA literature review + chosen sampling/MCTS design
 ~/.claude/plans/                cozy-splashing-kernighan.md (approved design + recovered specs);
                                 mossy-swimming-allen.md (MCTS-quality plan + session logs)
@@ -235,13 +235,15 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   PanicButton, + Powers Panache/TheBomb) and 5 documented HP-neutral subsets (Mayhem, Apotheosis,
   Metamorphosis, Enlightenment, Purity). New powers DarkShackles/`NoBlock` + the **Stateful** `Panache`/`TheBomb`
   (counter in `StateKey`/`HashValue`/`Clone`). Unit-tested. (`Expertise` is Silent, not Colorless.)
-- **Necrobinder — 88/88 ported (new module, unit-tested; NOT yet trace-validated)** `Content/Necrobinder/`:
+- **Necrobinder — 88/88 ported (new module, unit-tested + trace-validated ✅)** `Content/Necrobinder/`:
   the full pool from decompiled `NecrobinderCardPool` + the two tokens (Soul, Sweeping Gaze). 66 HP starter
   (4 Strike / 4 Defend / Bodyguard / Unleash) with the **Bound Phylactery** relic. Core new subsystem is
   **Osty**, a player-side pet (`Player.Osty`, an `Osty : Creature` surfaced through `CombatState.AllCreatures`):
-  Summon grows MaxHp+heals an alive Osty or (re)creates a dead one at full HP; **DieForYouPower** redirects
-  powered enemy attacks off the player onto Osty (new `PowerModel.ModifyDamageTarget` hook in the damage
-  pipeline); **NecroMasteryPower** reflects Osty's HP loss to all enemies; OstyAttack cards (Poke/Unleash/
+  Summon grows MaxHp+heals an alive Osty or (re)creates a dead one at full HP; **DieForYouPower** redirects the
+  *post-block* remainder of powered enemy attacks off the player onto Osty, and overkill past Osty's HP spills
+  back onto the player (new `PowerModel.ModifyUnblockedDamageTarget` hook + overkill splash in the damage
+  pipeline — both confirmed against three live game traces); **NecroMasteryPower** reflects Osty's HP loss to
+  all enemies; OstyAttack cards (Poke/Unleash/
   Protector/Squeeze/BoneShards/…) deal damage *as Osty* (Calcify = Osty-Strength) and fizzle while it is
   missing. **Doom** (`DoomPower`) is a counter-debuff that executes a creature whose HP ≤ its Doom at its
   side's turn-end (End of Days kills immediately; Neurosurge self-dooms; Reaper Form/BlightStrike/Countdown/
@@ -249,12 +251,15 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   (target-side Vulnerable/Weak transforms), Sleight of Flesh / Shroud (on-debuff / on-Doom triggers),
   Spirit of Ash / Danse Macabre (`BeforeCardPlayed` block), Veilpiercer / Borrowed Time (cost ±),
   Energy/Summon-next-turn, Intangible (Eidolon), Friendship/Demesne (+max energy). New engine hooks:
-  `ModifyDamageTarget`, `BeforeCardPlayed`, vulnerable/weak transforms, `Cmd.Kill`, `RelicModel.OnCombatStart`/
-  `OnPlayerTurnStart`, `CardModel.EffectiveCost`/`Retain`/`IsOstyAttack`, and per-turn/-combat counters
-  (Osty-attacks, ethereal-played, attacks-played, Doom-applied). Documented-inert (HP-neutral, unmodelled
-  subsystems): mid-combat card **generation** (Soul/SweepingGaze/Call of the Void/Sentry Mode), pile
-  **selection/transform** (Cleanse/Dredge/Graveblast/Sculpting Strike/Snap/Seance/Transfigure), draw **count**
-  (Demesne/Pagestorm/Death March's draw-scaling), and post-combat rewards (Forbidden Grimoire). 51 unit tests.
+  `ModifyUnblockedDamageTarget` (post-block redirect + overkill splash), `BeforeCardPlayed`, vulnerable/weak
+  transforms, `Cmd.Kill`, `RelicModel.OnCombatStart`/`OnPlayerTurnStart`, `CardModel.EffectiveCost`/`Retain`/
+  `IsOstyAttack`, and per-turn/-combat counters (Osty-attacks, ethereal-played, attacks-played, Doom-applied).
+  Documented-inert (HP-neutral, unmodelled subsystems): mid-combat card **generation** (Soul/SweepingGaze/Call
+  of the Void/Sentry Mode), pile **selection/transform** (Cleanse/Dredge/Graveblast/Sculpting Strike/Snap/
+  Seance/Transfigure), draw **count** (Demesne/Pagestorm/Death March's draw-scaling), and post-combat rewards
+  (Forbidden Grimoire). **51 unit tests + 3 live trace validations** (starter-deck/Osty 234✓, Doom—BlightStrike/
+  NoEscape/EndOfDays 80✓, Calcify/Osty-attacks—Poke/HighFive 124✓). Trace validation also fixed a pre-existing
+  **Corpse Slug** bug: the Ravenous devour now stuns the survivor (it gained Strength but kept attacking).
 - **Monsters / Act-1 elites — 12/12 ported + validated ✅:** Byrdonis, BygoneEffigy, PhrogParasite (+4
   Wrigglers on death), TerrorEel (Shriek→Terror), SoulNexus (RandomBranch), MechaKnight (Artifact),
   Entomancer (Personal Hive / Dazed flood), SkulkingColony (HardenedShell cap), InfestedPrism (Vital Spark),
@@ -279,16 +284,19 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   trace-replay + MCTS-convergence + calibration + horizon-bound v2 + loss-pruning oracle-equality +
   learned-VF beats-baseline + clone-isolation/Rampage soundness + randomized-corpus sanity + advisor +
   card-name matcher). **332 passed, 1 skipped** (the blend α-sweep tool), 0 failed — full unified run.
-- **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
+- **70 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
-  InfestedPrism Vital Spark, PhantasmalGardeners ×4, Knights ×3, Decimillipede segments).
+  InfestedPrism Vital Spark, PhantasmalGardeners ×4, Knights ×3, Decimillipede segments) **+ 3 Necrobinder
+  fights** (starter-deck Osty/DieForYou/overkill, Doom Blight/NoEscape/EndOfDays, Calcify Poke/HighFive).
 
 ### Tooling — fully autonomous data collection ✅
 - `DataDumper` mod records every combat to `data/combat_traces/`; `autopilot` console cmd plays hands-free
   (real plays, energy-gated, answers selection prompts via the model-layer `ICardSelector` hook).
-- **Headless batch**: one command boots the game with no display, starts an Ironclad run, enters an
-  encounter, auto-plays, records, quits — no human in the loop. **Custom-deck harness** (`STS2_DECK`)
+- **Headless batch**: one command boots the game with no display, starts a run (Ironclad by default;
+  `STS2_CHARACTER=Necrobinder`/`Silent`/`Regent`/`Defect` selects another, with that character's real starter
+  deck + relic — so Necrobinder's Bound Phylactery summons Osty), enters an encounter, auto-plays, records,
+  quits — no human in the loop. The recorder also captures the Osty pet's HP/block/powers. **Custom-deck harness** (`STS2_DECK`)
   replaces the run deck after `CreateForNewRun` so any ported cards reach a real fight for validation.
 
 ---
@@ -332,6 +340,7 @@ cd "$GAME" && STS2_BATCH=BYRDONIS_ELITE STS2_TRACE_DIR="$HOME/Projects/sts2-solv
   ./SlayTheSpire2 --headless
 #   STS2_BATCH: CULTISTS_NORMAL, CORPSE_SLUGS_*, BYRDONIS_ELITE, BYGONE_EFFIGY_ELITE, PHROG_PARASITE_ELITE, …
 #   optional: STS2_BATCH_KILL=1 · STS2_SEED=… · STS2_ASCENSION (default 10) · STS2_DECK="StrikeIronclad:3,…"
+#             STS2_CHARACTER=Necrobinder (default Ironclad) — runs as that character w/ its starter deck+relic
 ```
 
 Card-validation loop: port + unit-test → `STS2_DECK` headless run vs a simple encounter → `--validate` green
