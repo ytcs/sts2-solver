@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-01 (Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88.)_
+_Last updated: 2026-06-01 (**Content: Event + Ancient + curse cards ported** — new `Content/Special/` module (24 Event/Ancient cards, deck-buildable) + `Content/Core/Curses.cs` (18 curses); new powers `IntangiblePower`/`EnergyNextTurnPower`/`ToricToughnessPower`/`WraithFormPower`/`FeedingFrenzyPower` + inert meta markers; engine `CardRarity.Event/Ancient`, `Creature.LoseMaxHp`, and a base-power `SkipNextTick` (the game's SkipNextDurationTick, so Doubt/Shame's self-debuff weakens the NEXT turn). 4 cards deferred (orbs/Osty/variable TinkerTime). **314 passed, 1 skipped**. Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88.)_
 
 ## Goal
 
@@ -231,6 +231,26 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   powered-attack) + `SlipperyPower` (Intangible-like HP-loss-to-1 cap). New **normal-encounter API**
   (`BuildEncounter`/`IsKnownNormalEncounter`) alongside the elite API. Deferred: VineShambler (cost-raise hook),
   Slime monsters (Slimed status card), Fogmog (illusion summons), RubyRaiders (5-type random), Act-1 bosses.
+- **Event/Ancient special pool — 24 ported (new module `Content/Special/`):** 14 Event + 10 Ancient cards
+  registered in `SpecialCardFactories` (deck-buildable, in `CardPool`). Full-effect: ByrdSwoop, Exterminate,
+  Peck, Squash, RipAndTear (random-target approximated), Entrench (double block), Stack (block=discard count),
+  Outmaneuver/Relax (`EnergyNextTurnPower`), FeedingFrenzy (`FeedingFrenzyPower`: one-turn temp Strength),
+  Rebound (+inert `ReboundPower`), ToricToughness (`ToricToughnessPower`: re-grants the stored block 2 turns),
+  MeteorShower (AoE dmg+Weak+Vuln), Maul (Rampage-style self-escalation, Stateful), NeowsFury, Whistle
+  (dmg only — stun deferred), BrightestFlame (`Creature.LoseMaxHp`), Apparition/WraithForm (new
+  `IntangiblePower` HP-loss-to-1 cap + `WraithFormPower` dex drain). Inert markers (no combat-HP effect):
+  HelloWorld/Distraction/DualWield (RNG/selection card-gen), ForbiddenGrimoire/TheSealedThrone (meta
+  reward/Stars). **Deferred — need an unported subsystem:** MadScience (variable TinkerTime card),
+  BiasedCognition/Quadcast (Defect orbs/Focus), Protector (Osty pet). Gated by `SpecialAndCurseCardTests`.
+- **Curses — 18 ported (`Content/Core/Curses.cs`):** registered in `CommonCardFactories` (buildable by name,
+  excluded from the deck-buildable `CardPool`, like status cards). Combat-acting via `OnTurnEndInHand`:
+  BadLuck (13 unblockable self-dmg), Decay (2 blockable), Regret (dmg = hand size), Doubt/Shame (self
+  Weak/Frail that survive the apply-turn tick via the new base-power `SkipNextTick`, mirroring the game's
+  `SkipNextDurationTick`). Pure draw-dilution (Unplayable, no effect): Clumsy/Folly (Ethereal), CurseOfTheBell,
+  Greed, Injury, PoorSleep, Writhe, Guilty, Debt, Normality. Playable no-ops: SporeMind (cost-1 exhaust),
+  Enthralled (cost-2). **Documented-deferred restrictions:** Enthralled's hand-lockout and Normality's
+  3-cards/turn cap need a move-legality hook the search lacks, so they degrade to dilution (harm under-stated).
+  (AscendersBane stays in Core/StatusCards.cs.) Engine: added `CardRarity.Event/Ancient` + `Creature.LoseMaxHp`.
 - **Relic:** BurningBlood (heal 6 on victory) — the only modelled relic (the relic hook system has only
   `AfterCombatVictory`; combat-relevant relics need new engine hooks — see Roadmap).
 - **Ascension:** combat-relevant levels are `ToughEnemies` (+HP, ≥A8) and `DeadlyEnemies` (+damage, ≥A9);
@@ -241,7 +261,8 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
 - **xUnit tests all green** (pipeline + per-card Ironclad/Silent/Colorless + monster-port + solver +
   trace-replay + MCTS-convergence + calibration + horizon-bound v2 + loss-pruning oracle-equality +
   learned-VF beats-baseline + clone-isolation/Rampage soundness + randomized-corpus sanity + advisor +
-  card-name matcher). **268 passed, 1 skipped** (the blend α-sweep tool), 0 failed — full unified run.
+  card-name matcher + Event/Ancient/curse ports). **314 passed, 1 skipped** (the blend α-sweep tool), 0
+  failed — full unified run.
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,

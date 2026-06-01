@@ -31,6 +31,12 @@ public abstract class PowerModel
     /// <summary>Set by the engine when the power is attached to a creature.</summary>
     public Creature Owner { get; set; } = null!;
 
+    /// <summary>When true, the NEXT owner-turn-end duration tick is skipped (then this clears). Mirrors the
+    /// game's <c>SkipNextDurationTick</c>: a debuff freshly applied at the end of a turn (Doubt's Weak,
+    /// Shame's Frail) must not be consumed by that same turn's end tick, so it survives to affect the
+    /// following turn. Honoured by the ticking debuffs (Weak/Vulnerable/Frail) in <see cref="AfterSideTurnEnd"/>.</summary>
+    public bool SkipNextTick;
+
     // ---- Damage modification hooks (run during DamagePipeline) ----
 
     /// <summary>Flat damage added. Strength adds its Amount here (dealer side, powered attacks).</summary>
@@ -137,9 +143,10 @@ public abstract class PowerModel
         return copy;
     }
 
-    /// <summary>Contribution to the canonical state key.</summary>
-    public virtual string StateKey() => $"{Id}={Amount}";
+    /// <summary>Contribution to the canonical state key. The pending-skip flag is folded in only when set,
+    /// so it never perturbs the common (skip-free) case.</summary>
+    public virtual string StateKey() => SkipNextTick ? $"{Id}={Amount}!" : $"{Id}={Amount}";
 
     /// <summary>Allocation-free contribution to the structural hash (id + amount + any extra state).</summary>
-    public virtual long HashValue() => ((long)Id.GetHashCode() << 24) ^ (uint)Amount;
+    public virtual long HashValue() => (((long)Id.GetHashCode() << 24) ^ (uint)Amount) ^ (SkipNextTick ? 0x5bd1e9955bd1e995L : 0L);
 }

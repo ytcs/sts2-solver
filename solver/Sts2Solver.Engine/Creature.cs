@@ -72,6 +72,15 @@ public abstract class Creature
         CurrentHp += amount;
     }
 
+    /// <summary>Lose max HP (Brightest Flame). Lowers MaxHp and clamps CurrentHp down to the new cap
+    /// (the game's LoseMaxHp). Floors MaxHp at 1.</summary>
+    public void LoseMaxHp(int amount)
+    {
+        if (amount <= 0) return;
+        MaxHp = Math.Max(1, MaxHp - amount);
+        CurrentHp = Math.Min(CurrentHp, MaxHp);
+    }
+
     protected void CopyCreatureBaseTo(Creature dst)
     {
         dst.Name = Name;
