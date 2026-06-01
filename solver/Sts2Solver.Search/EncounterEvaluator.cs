@@ -1,0 +1,133 @@
+using System.Diagnostics;
+using Sts2Solver.Engine;
+
+namespace Sts2Solver.Search;
+
+/// <summary>Which solver produced the headline value.</summary>
+public enum EvalEngine { Exact, Mcts }
+
+/// <summary>Tunables for <see cref="EncounterEvaluator.Evaluate"/>.</summary>
+public sealed class EvalOptions
+{
+    /// <summary>Turn horizon (a fight not won by here counts as a loss).</summary>
+    public int MaxTurns { get; init; } = 30;
+
+    /// <summary>Wall-clock cap for the exact search before falling back to sampling/MCTS. Kept small:
+    /// calibration shows the faithful-rollout MCTS tracks exact within a few % while being 10–50× faster,
+    /// so exact is worth only a brief attempt (it solves trivial fights, elites fall through quickly).</summary>
+    public double BudgetSeconds { get; init; } = 8.0;
+
+    /// <summary>Faithful playouts used to estimate the HP-loss distribution (exact path only).</summary>
+    public int Rollouts { get; init; } = 2000;
+
+    /// <summary>Trial budget for the MCTS fallback (kept modest so the fallback stays responsive).</summary>
+    public int MctsTrials { get; init; } = 40_000;
+
+    /// <summary>Base seed for both MCTS and the rollout sampler (reproducible).</summary>
+    public int Seed { get; init; } = 1;
+}
+
+/// <summary>
+/// The result of evaluating a deck against one encounter. <see cref="Survival"/> / <see cref="MeanLoss"/>
+/// always come from the chosen engine's value. The HP-loss distribution
+/// (<see cref="MinLoss"/>…<see cref="P90Loss"/>) is only populated when the *exact* optimal policy was
+/// found (<see cref="HasDistribution"/>) — a heuristic policy can't faithfully reproduce optimal play, so
+/// on the MCTS fallback we report survival + mean only rather than a misleading spread.
+/// </summary>
+public sealed record CombatStats(
+    EvalEngine Engine,
+    double Survival,
+    double MeanLoss,
+    double NetMeanLoss,
+    bool HasDistribution,
+    int MinLoss, int MaxLoss, int P10Loss, int P50Loss, int P90Loss,
+    int Rollouts,
+    long ElapsedMs,
+    long Work);
+
+/// <summary>
+/// Single entry point for "how does this deck fare against this encounter?". Owns the auto-engine choice
+/// (exact expectimax under a wall-clock budget, falling back to MCTS) and — on the exact path — the
+/// policy-rollout sampling that turns the optimal policy into a full HP-loss distribution. Userland builds
+/// the <see cref="CombatState"/> and calls this; all combat math lives here.
+/// </summary>
+public static class EncounterEvaluator
+{
+    /// <summary>The "winnable but very risky" survival floor used when MCTS backs up 0.0% yet the search
+    /// observed a win (see <see cref="MctsSolver.ObservedWin"/>) — small enough to read as "don't count on
+    /// it", nonzero so the fight isn't dismissed as impossible.</summary>
+    private const double SurvivalFloor = 0.005;
+
+    public static CombatStats Evaluate(CombatState setup, EvalOptions? options = null)
+    {
+        var opt = options ?? new EvalOptions();
+        var sw = Stopwatch.StartNew();
+
+        // Tighten the search horizon to a sound upper bound where one can be proven (ramping single-enemy
+        // fights the deck can't out-block) — this only ever *reduces* MaxTurns below opt.MaxTurns, never
+        // cutting a winning line, so it's safe for every fight (it bails to opt.MaxTurns otherwise). A
+        // shorter horizon shrinks the exact tree (more fights solved within budget) and focuses MCTS.
+        int maxTurns = HorizonBound.Compute(setup, opt.MaxTurns);
+
+        // Admissible per-node loss certificate (provably-lost decision nodes resolve to their exact value
+        // without expansion). Shared by the exact and MCTS paths; null when the fight doesn't qualify.
+        var lossProof = LossCertificate.TryBuild(setup, maxTurns);
+
+        var solver = new Solver { MaxTurns = maxTurns, LossProof = lossProof };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(opt.BudgetSeconds));
+        solver.Ct = cts.Token;
+        try
+        {
+            var value = solver.Solve(setup);
+            solver.Ct = CancellationToken.None;   // clear the budget so rollouts run uninterrupted
+            // Exact optimal policy in hand → sample the true HP-loss distribution under it.
+            var dist = PolicyRollout.Sample(setup, new ExactMemoPolicy(solver), opt.Rollouts, maxTurns, opt.Seed);
+            sw.Stop();
+            return new CombatStats(
+                Engine: EvalEngine.Exact,
+                Survival: value.Win,
+                MeanLoss: value.Loss,
+                NetMeanLoss: dist.NetMeanLoss,
+                HasDistribution: true,
+                MinLoss: dist.MinLoss, MaxLoss: dist.MaxLoss,
+                P10Loss: dist.P10Loss, P50Loss: dist.P50Loss, P90Loss: dist.P90Loss,
+                Rollouts: dist.Samples,
+                ElapsedMs: sw.ElapsedMilliseconds,
+                Work: solver.StatesEvaluated);
+        }
+        catch (OperationCanceledException)
+        {
+            // Exact search blew the budget — fall back to MCTS for survival + mean. We deliberately do NOT
+            // produce a rollout distribution here: MCTS's rollout policy is heuristic (greedy), which can't
+            // reproduce optimal play, so its loss spread would mislead. Headline value only.
+            var mcts = new MctsSolver(new MctsOptions
+            {
+                Trials = opt.MctsTrials,
+                MaxTurns = maxTurns,
+                Seed = opt.Seed,
+            }) { LossProof = lossProof };
+            var value = mcts.Solve(setup);
+            // Never report a misleading hard 0% on a fight the search proved winnable (a win was observed but
+            // didn't accrue enough probability mass to register): floor it to a small "winnable-but-risky"
+            // value. This is the one survival output that matters for play decisions — it stops a player
+            // wrongly skipping a beatable elite. HP-loss (the deck-strength proxy) is reported as computed.
+            double survival = value.Win;
+            if (survival <= 0 && mcts.ObservedWin) survival = SurvivalFloor;
+            // The shared intent-aware HeuristicPolicy is now good enough to characterise the loss spread,
+            // so we restore the distribution on the MCTS path (headline survival/mean still from MCTS).
+            var dist = PolicyRollout.Sample(setup, new HeuristicPolicy(), opt.Rollouts, maxTurns, opt.Seed);
+            sw.Stop();
+            return new CombatStats(
+                Engine: EvalEngine.Mcts,
+                Survival: survival,
+                MeanLoss: value.Loss,
+                NetMeanLoss: dist.NetMeanLoss,
+                HasDistribution: true,
+                MinLoss: dist.MinLoss, MaxLoss: dist.MaxLoss,
+                P10Loss: dist.P10Loss, P50Loss: dist.P50Loss, P90Loss: dist.P90Loss,
+                Rollouts: dist.Samples,
+                ElapsedMs: sw.ElapsedMilliseconds,
+                Work: mcts.TrialsRun);
+        }
+    }
+}

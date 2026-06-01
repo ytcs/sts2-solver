@@ -1,0 +1,4 @@
+MultiAttackMoveMonster
+OneHpMonster
+SingleAttackMoveMonster
+TenHpMonster

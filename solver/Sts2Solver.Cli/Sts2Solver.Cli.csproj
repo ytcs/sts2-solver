@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Sts2Solver.Cli</RootNamespace>
+    <AssemblyName>sts2solve</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sts2Solver.Engine/Sts2Solver.Engine.csproj" />
+    <ProjectReference Include="../Sts2Solver.Content/Sts2Solver.Content.csproj" />
+    <ProjectReference Include="../Sts2Solver.Search/Sts2Solver.Search.csproj" />
+  </ItemGroup>
+</Project>

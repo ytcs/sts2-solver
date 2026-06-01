@@ -1,0 +1,145 @@
+namespace Sts2Solver.Engine;
+
+/// <summary>
+/// Base for all powers (buffs/debuffs/statuses). Mirrors MegaCrit.Sts2.Core.Models.PowerModel:
+/// stacks are tracked as an integer Amount, and behaviour is expressed through overridable hooks
+/// that fire at well-defined points in the combat pipeline (Appendix A of the plan).
+///
+/// Hooks default to no-ops / identity so a concrete power only overrides what it touches.
+/// </summary>
+public abstract class PowerModel
+{
+    /// <summary>Stable identifier used for state hashing and lookup (e.g. "Vulnerable").</summary>
+    public abstract string Id { get; }
+
+    public abstract PowerType Type { get; }
+
+    /// <summary>If false, Amount is clamped at 0 and the power is removed when it would go below.</summary>
+    public virtual bool AllowNegative => false;
+
+    /// <summary>Additive bonus to the player's max energy while owned (Pyre). Summed over the player's
+    /// powers when energy resets at turn start. (Game: PowerModel.ModifyMaxEnergy.)</summary>
+    public virtual int ModifyMaxEnergy(Creature player) => 0;
+
+    /// <summary>Additive bonus to the Vulnerable damage multiplier when the OWNER (an attacker) deals a
+    /// powered attack to a Vulnerable target. Cruelty adds Amount/100. Summed by VulnerablePower over the
+    /// dealer's powers. (Game: PowerModel.ModifyVulnerableMultiplier.)</summary>
+    public virtual decimal VulnerableMultiplierBonus() => 0m;
+
+    public int Amount { get; set; }
+
+    /// <summary>Set by the engine when the power is attached to a creature.</summary>
+    public Creature Owner { get; set; } = null!;
+
+    // ---- Damage modification hooks (run during DamagePipeline) ----
+
+    /// <summary>Flat damage added. Strength adds its Amount here (dealer side, powered attacks).</summary>
+    public virtual decimal ModifyDamageAdditive(Creature? target, decimal amount, ValueProp props, Creature? dealer, CardModel? cardSource) => 0m;
+
+    /// <summary>Multiplier applied to damage. Vulnerable ×1.5 (target side), Weak ×0.75 (dealer side).</summary>
+    public virtual decimal ModifyDamageMultiplicative(Creature? target, decimal amount, ValueProp props, Creature? dealer, CardModel? cardSource) => 1m;
+
+    /// <summary>Modifies the final HP loss (post-block) before it is applied to the target. HardenedShell
+    /// caps the owner's total HP loss per turn here. (Mirrors the game's ModifyHpLostBeforeOsty.)</summary>
+    public virtual int ModifyHpLost(Creature target, int hpLost, ValueProp props, Creature? dealer) => hpLost;
+
+    // ---- Block modification hooks (run during BlockPipeline) ----
+
+    /// <summary>Flat block added. Dexterity adds its Amount here.</summary>
+    public virtual decimal ModifyBlockAdditive(Creature target, decimal block, ValueProp props, CardModel? cardSource) => 0m;
+
+    /// <summary>Multiplier applied to block. Frail ×0.75.</summary>
+    public virtual decimal ModifyBlockMultiplicative(Creature target, decimal block, ValueProp props, CardModel? cardSource) => 1m;
+
+    // ---- Turn lifecycle hooks ----
+
+    /// <summary>Fires when this power is applied/stacked onto its owner (Ritual uses it to skip the
+    /// turn-end it was applied on).</summary>
+    public virtual void AfterApplied(CombatState combat, Creature? applier) { }
+
+    /// <summary>Fires (on every power in combat) after any power is applied to any creature, with the
+    /// applied power, its amount, and the applier. Vicious draws cards when the owner applies Vulnerable.
+    /// (Game: PowerModel.AfterPowerAmountChanged.)</summary>
+    public virtual void AfterPowerApplied(CombatState combat, Creature target, PowerModel power, int amount, Creature? applier) { }
+
+    /// <summary>Offered each incoming debuff being applied to this power's owner, before it lands. Return
+    /// true to negate it (and consume a charge). ArtifactPower uses this. (Mirrors the game's
+    /// TryModifyPowerAmountReceived / Artifact.)</summary>
+    public virtual bool TryAbsorbDebuff(CombatState combat, PowerModel incoming) => false;
+
+    /// <summary>Fires (on every power in combat) after the player resolves a card's effect, before it
+    /// moves to its result pile. SlowPower increments its counter here. Mirrors the game's
+    /// Hook.AfterCardPlayed, which runs after OnPlay — so a card never boosts its own damage.</summary>
+    public virtual void AfterCardPlayed(CombatState combat, CardModel card) { }
+
+    /// <summary>Fires (on every power in combat) when a creature dies. Ravenous uses it to devour a
+    /// dead ally — granting its owner Strength.</summary>
+    public virtual void AfterCreatureDeath(CombatState combat, Creature dead) { }
+
+    /// <summary>Fires (on every power in combat) after a creature is hit, with the unblocked amount
+    /// (0 if fully blocked), the dealer (null for non-attack sources like poison) and the value props.
+    /// Shriek uses it (on unblocked damage) to stun+Terror at an HP threshold; PersonalHive uses it
+    /// (on any powered attack received) to add Dazed to the attacker's pile. (Game: AfterDamageReceived.)</summary>
+    public virtual void AfterDamageReceived(CombatState combat, Creature target, int unblockedDamage, Creature? dealer, ValueProp props) { }
+
+    /// <summary>Fires (on every power in combat) after a dealer resolves a single attack. VigorPower
+    /// uses it to consume itself once its bonus has been spent on a powered attack (mirrors the game's
+    /// PowerModel.AfterAttack). Note: a multi-hit attack fires this per hit.</summary>
+    public virtual void AfterAttackDealt(CombatState combat, Creature dealer, ValueProp props) { }
+
+    /// <summary>Fires (on every power in combat) after a creature gains block, with the amount actually
+    /// gained (post-modifiers). Juggernaut uses it to deal damage to an enemy whenever its owner blocks.
+    /// (Game: PowerModel.AfterBlockGained.)</summary>
+    public virtual void AfterBlockGained(CombatState combat, Creature creature, int amount, ValueProp props, CardModel? cardSource) { }
+
+    /// <summary>Fires (on every power in combat) when a player card is moved to the exhaust pile, with
+    /// whether the exhaust was an Ethereal card expiring at turn end. FeelNoPain gains block here;
+    /// DarkEmbrace draws on a non-Ethereal exhaust. (Game: PowerModel.AfterCardExhausted.)</summary>
+    public virtual void AfterCardExhausted(CombatState combat, CardModel card, bool causedByEthereal) { }
+
+    /// <summary>Modifies a card's energy cost at play time (Free Attack zeroes the next Attack; Corruption
+    /// zeroes Skills). Return the (possibly lower) cost. A power that lowers it gets AfterModifyingCardCost.
+    /// (Game: PowerModel.TryModifyEnergyCostInCombatLate.)</summary>
+    public virtual int ModifyCardCost(CardModel card, int cost) => cost;
+
+    /// <summary>Fires after a card whose cost this power lowered is played — Free Attack consumes a charge
+    /// here. (Game: the Free Attack consume side of BeforeCardPlayed.)</summary>
+    public virtual void AfterModifyingCardCost(CombatState combat, CardModel card) { }
+
+    /// <summary>If true for the played card, it is exhausted instead of discarded (Corruption exhausts
+    /// Skills). (Game: PowerModel.ModifyCardPlayResultPileTypeAndPosition.)</summary>
+    public virtual bool OverrideResultPileToExhaust(CardModel card) => false;
+
+    /// <summary>Additional times the card's effect should resolve beyond the first (One-Two Punch adds 1
+    /// for the owner's Attacks). (Game: PowerModel.ModifyCardPlayCount.)</summary>
+    public virtual int ModifyCardPlayCount(CardModel card) => 0;
+
+    /// <summary>Fires after a card's play count was increased by this power, for each such power. One-Two
+    /// Punch consumes a charge here. (Game: PowerModel.AfterModifyingCardPlayCount.)</summary>
+    public virtual void AfterModifyingCardPlayCount(CombatState combat, CardModel card) { }
+
+    /// <summary>If any power on a creature returns true, that creature's block is NOT cleared at the start
+    /// of its turn (Barricade). (Game: PowerModel.ShouldClearBlock, inverted.)</summary>
+    public virtual bool PreventsBlockClear => false;
+
+    /// <summary>Fires after a side's turn begins, for creatures on that side. Poison ticks here.</summary>
+    public virtual void AfterSideTurnStart(CombatState combat, CombatSide side) { }
+
+    /// <summary>Fires after a side's turn ends. Most debuffs tick down here (on the enemy turn end);
+    /// Ritual grants Strength here.</summary>
+    public virtual void AfterSideTurnEnd(CombatState combat, CombatSide side) { }
+
+    /// <summary>Deep copy for state cloning. Concrete powers with extra fields override and call CopyBaseTo.</summary>
+    public virtual PowerModel Clone()
+    {
+        var copy = (PowerModel)MemberwiseClone();
+        // Owner is re-linked by the cloning Creature, so leave the reference; the cloner fixes it.
+        return copy;
+    }
+
+    /// <summary>Contribution to the canonical state key.</summary>
+    public virtual string StateKey() => $"{Id}={Amount}";
+
+    /// <summary>Allocation-free contribution to the structural hash (id + amount + any extra state).</summary>
+    public virtual long HashValue() => ((long)Id.GetHashCode() << 24) ^ (uint)Amount;
+}
