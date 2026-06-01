@@ -65,6 +65,13 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   telegraphed intents, tolerant of injected no-op moves ("STUNNED").
 - Multi-hit attacks, multi-monster combat, mid-combat **summoning** (two-phase fights), relic post-combat
   hook, **status cards** (`Unplayable` + `OnTurnEndInHand`, e.g. Infection's 3 self-damage).
+- **Clone isolation for self-mutating cards (soundness):** `Player.Clone` shares the immutable card-instance
+  majority across search clones (cheap) but **deep-clones any `CardModel.Stateful` card** (one whose identity
+  changes mid-fight, e.g. `Rampage`'s escalating damage), and `KeyHash` is not cached for those. Without this
+  the exact search tree shared one mutable instance, so a play in one branch corrupted siblings' value (and
+  crashed the draw enumerator). Surfaced by the randomized training decks; gated by `TrainingFixturesTests`
+  (clone-isolation + Rampage-solves). `Rampage` is currently the only stateful card; the flag makes the rule
+  explicit so future ports can't reintroduce the bug.
 
 ### Exact solver (Sts2Solver.Search/Solver.cs)
 - Lexicographic expectimax: value `(P_win, E[HP loss])`, memoized on a 128-bit structural hash.
@@ -134,8 +141,13 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   the static `Evaluate`'s own survival/loss as features, so the model learns a *correction* on top of the
   baseline rather than relearning it). Weights are embedded literals (deterministic, allocation-light); it is
   the MCTS tip evaluator under `MctsOptions.UseLearnedLeaf` (opt-in; the faithful rollout stays the default).
-- **Trained** offline by `sts2solve --train-vf`: harvests **425k** exact-solver-labelled decision states
-  (via a new `Solver.OnSolved` hook) over the broad `TrainingFixtures` grid, fits both heads by batch GD + L2.
+- **Trained** offline by `sts2solve --train-vf`: harvests exact-solver-labelled decision states (via a new
+  `Solver.OnSolved` hook) over the `TrainingFixtures` corpus, fits both heads by batch GD + L2. The corpus is
+  now **the curated archetype grid PLUS a randomized draw** (`TrainingFixtures.Random`): decks of varying size
+  (5–11) and composition sampled from the whole deck-buildable `Catalog.CardPool`, each paired with a random
+  monster + HP. Built from a small number of distinct card types per deck (keeps each exact solve tractable)
+  with a guaranteed attack (keeps the full survival spectrum), deterministic in seed, every fixture rebuilding
+  fresh card instances. So the regression sees a far wider variety of deck types than the archetypes alone.
 - **Result — beats the static baseline** (the documented Phase-C goal): held-out survival prediction MAE
   **0.023 (learned) vs 0.046 (static `Evaluate`)** — error halved, on HP combos outside the training grid and
   on the out-of-sample TerrorEel. Gated by `LearnedValueTests`. As an MCTS leaf it trades the rollout's
