@@ -43,6 +43,15 @@ public sealed class CombatState
     /// player's turn start; the end-of-turn hand discard is not counted). Memento Mori scales on this.</summary>
     public int CardsDiscardedThisTurn;
 
+    /// <summary>Total cards the player has drawn this combat (turn-start hand draws + mid-turn draws). Murder
+    /// scales on this. Only tracked + hashed when <see cref="TracksCardsDrawn"/> is set (a deck contains a
+    /// card that reads it), so the common case isn't fragmented by an ever-growing counter.</summary>
+    public int CardsDrawnThisCombat;
+
+    /// <summary>Set at combat setup when the deck contains a card whose value depends on cumulative cards
+    /// drawn (Murder). Gates <see cref="CardsDrawnThisCombat"/> tracking + hashing.</summary>
+    public bool TracksCardsDrawn;
+
     public IEnumerable<Monster> LivingMonsters => Monsters.Where(m => m.IsAlive);
 
     public IEnumerable<Creature> AllCreatures
@@ -78,6 +87,8 @@ public sealed class CombatState
             PlayerUnblockedHitsCount = PlayerUnblockedHitsCount,
             AttacksPlayedThisTurn = AttacksPlayedThisTurn,
             CardsDiscardedThisTurn = CardsDiscardedThisTurn,
+            CardsDrawnThisCombat = CardsDrawnThisCombat,
+            TracksCardsDrawn = TracksCardsDrawn,
         };
     }
 
@@ -87,6 +98,7 @@ public sealed class CombatState
     public string StateKey()
     {
         var monsters = string.Join(";", Monsters.Select(m => m.StateKey()));
-        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}/a{AttacksPlayedThisTurn}/d{CardsDiscardedThisTurn}|{Player.StateKey()}|{monsters}";
+        var drawn = TracksCardsDrawn ? $"/w{CardsDrawnThisCombat}" : "";
+        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}/a{AttacksPlayedThisTurn}/d{CardsDiscardedThisTurn}{drawn}|{Player.StateKey()}|{monsters}";
     }
 }

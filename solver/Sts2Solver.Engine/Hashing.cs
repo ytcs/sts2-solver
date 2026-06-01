@@ -40,6 +40,7 @@ public static class HashingExtensions
         h.Add(s.PlayerUnblockedHitsCount);
         h.Add(s.AttacksPlayedThisTurn);
         h.Add(s.CardsDiscardedThisTurn);
+        if (s.TracksCardsDrawn) h.Add(s.CardsDrawnThisCombat);   // only when a card (Murder) reads it
         s.Player.Hash(ref h);
         h.Add(s.Monsters.Count);
         foreach (var m in s.Monsters) m.Hash(ref h);

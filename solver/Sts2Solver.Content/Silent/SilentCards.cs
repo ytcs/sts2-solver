@@ -289,6 +289,23 @@ internal static class SilentCardHelpers
         combat.CardsDiscardedThisTurn += hand.Count;   // mid-turn discards (Memento Mori scales on this)
         return hand.Count;
     }
+
+    /// <summary>Discard up to <paramref name="count"/> cards from the front of hand to the discard pile. The
+    /// game lets the player CHOOSE which to discard; we use a fixed default (player choice not modelled),
+    /// matching the engine's other selection cards (Armaments / Burning Pact / Headbutt). Returns the count.</summary>
+    public static int DiscardDefault(CombatState combat, int count)
+    {
+        var hand = combat.Player.Hand;
+        int n = Math.Min(count, hand.Count);
+        for (int i = 0; i < n; i++)
+        {
+            var card = hand[0];
+            hand.RemoveAt(0);
+            combat.Player.DiscardPile.Add(card);
+        }
+        combat.CardsDiscardedThisTurn += n;   // feeds Memento Mori
+        return n;
+    }
 }
 
 /// <summary>Gain 6 Block. Add 1 Shiv to your hand. Upgrade: +1 Shiv. (MegaCrit Cloak and Dagger)</summary>
@@ -1412,4 +1429,187 @@ public sealed class UpMySleeve : CardModel
     // Stateful: the escalating cost is part of the card's identity for hashing/memoisation.
     public override string StateKey()
         => $"UpMySleeve{(Upgrades > 0 ? $"+{Upgrades}" : "")}/r{_costReduction}";
+}
+
+// ===========================================================================
+// Batch 8 — the formerly-deferred cards, now ported to the project's
+// "real with a driver / degrade in pure search" bar. Card SELECTION uses a
+// deterministic default (matching Armaments / Burning Pact / Headbutt); draws
+// are no-ops without an ambient Rng; the mid-turn-draw triggers are inert in
+// pure search. Faithful with a concrete driver / the trace validator.
+// ===========================================================================
+
+/// <summary>Play every Shiv in your exhaust pile at the target (deal each Shiv's damage). Cost 2. Upgrade:
+/// the exhaust Shivs are upgraded first. (MegaCrit Knife Trap) Fully deterministic — no draw, no selection.
+/// Shiv-damage modifiers (Accuracy, Phantom Blades, Strength, Vulnerable) apply via the Shiv card source.</summary>
+public sealed class KnifeTrap : CardModel
+{
+    public override string Name => "KnifeTrap";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        var exhaust = combat.Player.ExhaustPile;
+        for (int i = 0; i < exhaust.Count; i++)
+        {
+            if (exhaust[i] is not Shiv s) continue;
+            // Upgrade by REPLACING with a cloned copy — never mutate the shared instance in place.
+            if (Upgrades > 0) { s = (Shiv)s.Clone().Upgraded(1); exhaust[i] = s; }
+            if (!play.Target!.IsAlive) break;
+            Cmd.Attack(combat, combat.Player, play.Target!, s.Damage, ValueProp.Move, s);
+        }
+    }
+}
+
+/// <summary>Choose a card in your hand; at the start of your next turn, add 3 copies of it to your hand.
+/// Cost 3. Exhaust. Upgrade: cost 2. (MegaCrit Nightmare) The chosen card is a default (player choice not
+/// modelled); the 3 copies are real card generation via <see cref="NightmarePower"/>.</summary>
+public sealed class Nightmare : CardModel
+{
+    public override string Name => "Nightmare";
+    public override int BaseCost => 3;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public override int Cost => Math.Max(0, BaseCost - Upgrades);
+    public int Copies => 3;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        var chosen = combat.Player.Hand.FirstOrDefault();   // default selection
+        if (chosen == null) return;
+        Cmd.ApplyPower(combat, combat.Player, new NightmarePower { Selected = chosen.Clone() }, Copies, combat.Player);
+    }
+}
+
+/// <summary>Draw 3 cards, then discard 1 (a default — player choice not modelled). Cost 1. Upgrade: draw 4.
+/// (MegaCrit Acrobatics) HP-neutral card filtering; real only with an ambient Rng.</summary>
+public sealed class Acrobatics : CardModel
+{
+    public override string Name => "Acrobatics";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Cards => 3 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        int drew = Cmd.Draw(combat, Cards);
+        if (drew > 0) SilentCardHelpers.DiscardDefault(combat, 1);
+    }
+}
+
+/// <summary>Draw 1 card, then discard 1 (a default). Cost 0. Upgrade: draw 2 / discard 2. (MegaCrit Prepared)
+/// HP-neutral card filtering; real only with an ambient Rng.</summary>
+public sealed class Prepared : CardModel
+{
+    public override string Name => "Prepared";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Common;
+    public override TargetType Target => TargetType.Self;
+    public int Cards => 1 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        int drew = Cmd.Draw(combat, Cards);
+        if (drew > 0) SilentCardHelpers.DiscardDefault(combat, Cards);
+    }
+}
+
+/// <summary>Discard 2 cards (a default — player choice not modelled), then add 2 Shivs to your hand. Cost 0.
+/// Upgrade: the Shivs are upgraded. (MegaCrit Hidden Daggers) The discard (the card's cost) is deterministic
+/// and modelled in search; the Shivs are the benefit.</summary>
+public sealed class HiddenDaggers : CardModel
+{
+    public override string Name => "HiddenDaggers";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Shivs => 2;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        SilentCardHelpers.DiscardDefault(combat, 2);
+        SilentCardHelpers.AddShivsToHand(combat, Shivs, Upgrades > 0 ? 1 : 0);
+    }
+}
+
+/// <summary>Power: at the start of each of your turns, draw 1 extra card and discard 1 (a default). Cost 1.
+/// Upgrade: cost 0. (MegaCrit Tools of the Trade) HP-neutral card filtering via
+/// <see cref="ToolsOfTheTradePower"/>.</summary>
+public sealed class ToolsOfTheTrade : CardModel
+{
+    public override string Name => "ToolsOfTheTrade";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Power;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public override int Cost => Math.Max(0, BaseCost - Upgrades);
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.ApplyPower(combat, combat.Player, new ToolsOfTheTradePower(), 1, combat.Player);
+}
+
+/// <summary>Draw 1 card; if it is a Skill, gain 3 Block. Cost 0. Upgrade: +2 Block. (MegaCrit Escape Plan)
+/// The drawn card is a chance node — real only with an ambient Rng; in pure search the draw is a no-op, so no
+/// Block is gained (a safe under-estimate).</summary>
+public sealed class EscapePlan : CardModel
+{
+    public override string Name => "EscapePlan";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Block => 3 + 2 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        int drew = Cmd.Draw(combat, 1);
+        if (drew > 0 && combat.Player.Hand[^1].Type == CardType.Skill)
+            Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+    }
+}
+
+/// <summary>Power: whenever you draw a card this turn, apply 2 Poison to ALL enemies (removed at end of turn).
+/// Cost 1. Upgrade: +1 Poison. (MegaCrit Corrosive Wave) Real only on mid-turn draws with an ambient Rng;
+/// inert in pure search.</summary>
+public sealed class CorrosiveWave : CardModel
+{
+    public override string Name => "CorrosiveWave";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public int Poison => 2 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.ApplyPower(combat, combat.Player, new CorrosiveWavePower(), Poison, combat.Player);
+}
+
+/// <summary>Power: whenever you draw a card mid-turn, deal 2 damage to ALL enemies. Cost 2. Upgrade: Innate
+/// (not modelled). (MegaCrit Speedster) Real only with an ambient Rng; inert in pure search.</summary>
+public sealed class Speedster : CardModel
+{
+    public override string Name => "Speedster";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Power;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Damage => 2;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.ApplyPower(combat, combat.Player, new SpeedsterPower(), Damage, combat.Player);
+}
+
+/// <summary>Deal (1 + the total number of cards you've drawn this combat) damage. Cost 3. Upgrade: cost 2.
+/// (MegaCrit Murder) The draw count is tracked only for decks containing Murder (gated on
+/// <see cref="CombatState.TracksCardsDrawn"/>), so it scales in exact search too.</summary>
+public sealed class Murder : CardModel
+{
+    public override string Name => "Murder";
+    public override int BaseCost => 3;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public override int Cost => Math.Max(0, BaseCost - Upgrades);
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.Attack(combat, combat.Player, play.Target!, 1 + combat.CardsDrawnThisCombat, ValueProp.Move, this);
 }

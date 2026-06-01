@@ -563,3 +563,93 @@ public sealed class BulletTimePower : PowerModel
         if (side == Owner.Side) Owner.RemovePower(Id);
     }
 }
+
+// ===========================================================================
+// Batch 8 powers — the formerly-deferred set, now ported to the project's
+// "real with a driver / degrade in pure search" bar (matching the existing
+// draw cards): Nightmare (deferred card copies), Tools of the Trade (turn-start
+// draw filter), and the mid-turn-draw triggers Corrosive Wave / Speedster.
+// ===========================================================================
+
+/// <summary>Nightmare: at the start of your next turn, add <c>Amount</c> copies of the chosen card to your
+/// hand, then remove this power. The chosen card is captured at play time (a default — player choice not
+/// modelled). (MegaCrit NightmarePower.)</summary>
+public sealed class NightmarePower : PowerModel
+{
+    public override string Id => "Nightmare";
+    public override PowerType Type => PowerType.Buff;
+
+    /// <summary>The card to triplicate next turn (a private clone captured when Nightmare was played).</summary>
+    public CardModel? Selected;
+
+    public override void AfterSideTurnStart(CombatState combat, CombatSide side)
+    {
+        if (side != Owner.Side || Selected == null) return;
+        var p = combat.Player;
+        for (int i = 0; i < Amount; i++)
+            (p.Hand.Count < Player.MaxHandSize ? p.Hand : p.DiscardPile).Add(Selected.Clone());
+        Owner.RemovePower(Id);
+    }
+
+    public override PowerModel Clone()
+    {
+        var c = (NightmarePower)base.Clone();
+        c.Selected = Selected?.Clone();
+        return c;
+    }
+
+    public override string StateKey() => $"Nightmare={Amount}:{Selected?.StateKey() ?? "-"}";
+    public override long HashValue() => base.HashValue() ^ ((long)(Selected?.StateKey().GetHashCode() ?? 7) * 0x9E3779B1L);
+}
+
+/// <summary>Tools of the Trade: at the start of each of your turns, draw <c>Amount</c> extra card(s) and
+/// discard <c>Amount</c> (a default — player choice not modelled). HP-neutral card filtering; the draw is
+/// real only with an ambient Rng (otherwise a no-op). (MegaCrit ToolsOfTheTradePower.)</summary>
+public sealed class ToolsOfTheTradePower : PowerModel
+{
+    public override string Id => "ToolsOfTheTrade";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterSideTurnStart(CombatState combat, CombatSide side)
+    {
+        if (side != Owner.Side) return;
+        int drew = Cmd.Draw(combat, Amount);                 // no-op without an Rng
+        if (drew > 0) SilentCardHelpers.DiscardDefault(combat, Amount);
+    }
+}
+
+/// <summary>Corrosive Wave: whenever you draw a card (this turn), apply <c>Amount</c> Poison to ALL enemies;
+/// removed at the end of your turn. Real only on mid-turn draws with an ambient Rng (inert in pure search).
+/// (MegaCrit CorrosiveWavePower.)</summary>
+public sealed class CorrosiveWavePower : PowerModel
+{
+    public override string Id => "CorrosiveWave";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterCardDrawn(CombatState combat, CardModel card, bool fromHandDraw)
+    {
+        foreach (var m in combat.LivingMonsters.ToList())
+            Cmd.ApplyPower(combat, m, new PoisonPower(), Amount, Owner);
+    }
+
+    public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
+    {
+        if (side == Owner.Side) Owner.RemovePower(Id);
+    }
+}
+
+/// <summary>Speedster: whenever you draw a card mid-turn (not the turn-start hand draw), deal <c>Amount</c>
+/// damage to ALL enemies. Permanent. Real only with an ambient Rng (inert in pure search). (MegaCrit
+/// SpeedsterPower.)</summary>
+public sealed class SpeedsterPower : PowerModel
+{
+    public override string Id => "Speedster";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterCardDrawn(CombatState combat, CardModel card, bool fromHandDraw)
+    {
+        if (fromHandDraw) return;
+        foreach (var m in combat.LivingMonsters.ToList())
+            Cmd.Attack(combat, Owner, m, Amount, ValueProp.Unpowered, null);
+    }
+}

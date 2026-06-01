@@ -99,33 +99,36 @@ public static partial class Catalog
         ["HandTrick"] = () => new HandTrick(),
         ["BulletTime"] = () => new BulletTime(),
         ["UpMySleeve"] = () => new UpMySleeve(),
+        // Batch 8 — the formerly-deferred cards: deterministic-default selection (Acrobatics, Prepared,
+        // HiddenDaggers, ToolsOfTheTrade, Nightmare), deterministic exhaust-replay (KnifeTrap),
+        // conditional-on-drawn-card (EscapePlan), and mid-turn-draw triggers (CorrosiveWave, Speedster, Murder).
+        ["KnifeTrap"] = () => new KnifeTrap(),
+        ["Nightmare"] = () => new Nightmare(),
+        ["Acrobatics"] = () => new Acrobatics(),
+        ["Prepared"] = () => new Prepared(),
+        ["HiddenDaggers"] = () => new HiddenDaggers(),
+        ["ToolsOfTheTrade"] = () => new ToolsOfTheTrade(),
+        ["EscapePlan"] = () => new EscapePlan(),
+        ["CorrosiveWave"] = () => new CorrosiveWave(),
+        ["Speedster"] = () => new Speedster(),
+        ["Murder"] = () => new Murder(),
     };
 
     // =======================================================================================================
-    // Deferred Silent cards — the 10 of the 88-card SilentCardPool not yet ported, each blocked on an engine
-    // mechanic the search does not model. (78/88 ported.) Listed so coverage is explicit; each needs the
-    // named mechanic before it can be faithful rather than approximate:
+    // All 88 cards of the SilentCardPool are now ported. The cards that need mechanics the exact solver does
+    // not fully model (hand-discard / card SELECTION, and mid-turn-DRAW effects) follow the project's
+    // established bar — faithful with a concrete driver / the trace validator, and degrading sensibly in pure
+    // search (selection uses a deterministic default à la Armaments / Burning Pact; draws are no-ops without
+    // an ambient Rng). The mechanic each leans on, for reference:
     //
-    //   - Acrobatics      draw N, then DISCARD-FROM-HAND SELECTION (choose 1 to discard)
-    //   - Prepared        draw N, then discard-from-hand SELECTION (choose N)
-    //   - HiddenDaggers   discard-from-hand SELECTION (choose 2) + 2 Shivs
-    //   - ToolsOfTheTrade per-turn extra draw + discard-from-hand SELECTION
-    //   - Nightmare       CHOOSE-A-CARD from hand, then add 3 copies of it next turn (card selection)
-    //   - KnifeTrap       AUTOPLAY all Shivs from the exhaust pile at a target
-    //   - EscapePlan      draw 1; gain Block only if the DRAWN CARD is a Skill (conditional-on-drawn-card)
-    //   - CorrosiveWave   apply Poison to all enemies whenever you DRAW a card this turn (mid-turn-draw trigger)
-    //   - Speedster       deal damage to all enemies whenever you DRAW a card mid-turn (mid-turn-draw trigger)
-    //   - Murder          damage scales with the TOTAL cards drawn this combat (draw-history; chance-node draws)
-    //
-    // The common blockers are (a) hand-discard / card SELECTION (a real decision the search would have to
-    // branch over) and (b) the mid-turn DRAW chance-node, which the exact solver does not expand (see STATUS
-    // "deferred solver-side mid-turn draw chance-node"). Add those and these become straightforward.
+    //   - Acrobatics / Prepared / HiddenDaggers / ToolsOfTheTrade / Nightmare : default card SELECTION
+    //   - KnifeTrap                                                           : deterministic exhaust replay (exact)
+    //   - EscapePlan                                                          : conditional on the drawn card
+    //   - CorrosiveWave / Speedster                                           : mid-turn-draw triggers
+    //   - Murder                                                              : scales on cards drawn this combat
+    //                                                                           (tracked via TracksCardsDrawn)
     // =======================================================================================================
-    public static readonly string[] DeferredSilentCards =
-    {
-        "Acrobatics", "Prepared", "HiddenDaggers", "ToolsOfTheTrade", "Nightmare",
-        "KnifeTrap", "EscapePlan", "CorrosiveWave", "Speedster", "Murder",
-    };
+    public static readonly string[] DeferredSilentCards = System.Array.Empty<string>();
 
     /// <summary>The Silent starting deck: 5 Strike, 5 Defend, 1 Neutralize, 1 Survivor.
     /// (Survivor's discard half is not modelled — see SilentCards.cs — so it contributes its block only;

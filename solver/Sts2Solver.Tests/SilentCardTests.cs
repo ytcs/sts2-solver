@@ -1143,4 +1143,155 @@ public class SilentCardTests
         Assert.Equal(1, clonedU.Cost);                     // Stateful deep-clone preserved the reduction
         Assert.NotSame(u, clonedU);                        // and it is a distinct instance
     }
+
+    // ===== Batch 8 (formerly deferred) =====
+
+    [Fact]
+    public void KnifeTrap_Plays_Every_Shiv_From_Exhaust()
+    {
+        var (c, p, m) = Fight(monsterHp: 80);
+        p.ExhaustPile.Add(new Shiv());
+        p.ExhaustPile.Add(new Shiv());
+        p.ExhaustPile.Add(new DefendSilent());             // non-Shiv ignored
+        Play(c, new KnifeTrap(), m);
+        Assert.Equal(80 - 8, m.CurrentHp);                 // 4 + 4
+        Assert.Equal(2, p.ExhaustPile.Count(card => card is Shiv));   // shivs stay in exhaust
+    }
+
+    [Fact]
+    public void KnifeTrap_Upgrade_Upgrades_The_Exhaust_Shivs()
+    {
+        var (c, p, m) = Fight(monsterHp: 80);
+        p.ExhaustPile.Add(new Shiv());
+        Play(c, (CardModel)new KnifeTrap().Upgraded(), m); // shiv upgraded → 6
+        Assert.Equal(80 - 6, m.CurrentHp);
+        Assert.Equal(1, p.ExhaustPile.OfType<Shiv>().First().Upgrades);
+    }
+
+    [Fact]
+    public void Nightmare_Adds_3_Copies_Of_The_Chosen_Card_Next_Turn()
+    {
+        var (c, p, _) = Fight();
+        p.Hand.Add(new StrikeSilent());                    // default selection = first in hand
+        var n = new Nightmare();
+        Play(c, n, null);
+        Assert.Contains(n, p.ExhaustPile);
+        Assert.True(p.HasPower("Nightmare"));
+        p.Hand.Clear();
+        CombatManager.BeginPlayerTurn(c);                  // next turn: 3 copies added
+        Assert.Equal(3, p.Hand.Count(card => card is StrikeSilent));
+        Assert.False(p.HasPower("Nightmare"));
+    }
+
+    [Fact]
+    public void Acrobatics_Draws_3_And_Discards_1()
+    {
+        var (c, p, _) = Fight();
+        c.Rng = new Rng(0);
+        for (int i = 0; i < 10; i++) p.DrawPile.Add(new StrikeSilent());
+        p.Hand.Add(new DefendSilent());
+        Play(c, new Acrobatics(), null);                   // hand 1 → draw 3 = 4 → discard 1 = 3
+        Assert.Equal(3, p.Hand.Count);
+    }
+
+    [Fact]
+    public void Acrobatics_Without_Rng_Is_NoOp()
+    {
+        var (c, p, _) = Fight();                           // Rng null
+        p.Hand.Add(new DefendSilent());
+        Play(c, new Acrobatics(), null);
+        Assert.Single(p.Hand);                             // no draw → no discard
+    }
+
+    [Fact]
+    public void HiddenDaggers_Discards_2_And_Adds_2_Shivs()
+    {
+        var (c, p, _) = Fight();
+        p.Hand.Add(new StrikeSilent());
+        p.Hand.Add(new DefendSilent());
+        Play(c, new HiddenDaggers(), null);
+        Assert.Equal(2, p.Hand.Count(card => card is Shiv));
+        Assert.Equal(0, p.Hand.Count(card => card is not Shiv));   // both originals discarded
+    }
+
+    [Fact]
+    public void ToolsOfTheTrade_Draws_And_Discards_Each_Turn_Start()
+    {
+        var (c, p, _) = Fight();
+        c.Rng = new Rng(0);
+        for (int i = 0; i < 10; i++) p.DrawPile.Add(new StrikeSilent());
+        Play(c, new ToolsOfTheTrade(), null);
+        Assert.True(p.HasPower("ToolsOfTheTrade"));
+        CombatManager.BeginPlayerTurn(c);                  // draw 1 + discard 1 (net draw pile −1)
+        Assert.Equal(9, p.DrawPile.Count);
+    }
+
+    [Fact]
+    public void EscapePlan_Gains_Block_Only_If_Drawn_Card_Is_A_Skill()
+    {
+        var (c, p, _) = Fight();
+        c.Rng = new Rng(0);
+        p.DrawPile.Add(new DefendSilent());                // top is a Skill
+        Play(c, new EscapePlan(), null);
+        Assert.Equal(3, p.Block);
+        // Drawing an Attack gives no block.
+        var (c2, p2, _) = Fight();
+        c2.Rng = new Rng(0);
+        p2.DrawPile.Add(new StrikeSilent());               // top is an Attack
+        Play(c2, new EscapePlan(), null);
+        Assert.Equal(0, p2.Block);
+    }
+
+    [Fact]
+    public void CorrosiveWave_Poisons_All_Enemies_On_Each_Draw()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
+        var m1 = Monsters.CalcifiedCultist(hp: 40);
+        var m2 = Monsters.CalcifiedCultist(hp: 40);
+        var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
+        combat.Rng = new Rng(0);
+        for (int i = 0; i < 5; i++) player.DrawPile.Add(new StrikeSilent());
+        Play(combat, new CorrosiveWave(), null);
+        Cmd.Draw(combat, 2);                               // 2 draws → 2×2 poison each
+        Assert.Equal(4, m1.GetPowerAmount("Poison"));
+        Assert.Equal(4, m2.GetPowerAmount("Poison"));
+    }
+
+    [Fact]
+    public void Speedster_Damages_All_Enemies_On_Mid_Turn_Draw()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
+        var m1 = Monsters.CalcifiedCultist(hp: 40);
+        var m2 = Monsters.CalcifiedCultist(hp: 40);
+        var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
+        combat.Rng = new Rng(0);
+        for (int i = 0; i < 5; i++) player.DrawPile.Add(new StrikeSilent());
+        combat.Player.MaxEnergy = 5; combat.Player.ResetEnergy();
+        Play(combat, new Speedster(), null);
+        Cmd.Draw(combat, 1);                               // 1 mid-turn draw → 2 to each enemy
+        Assert.Equal(40 - 2, m1.CurrentHp);
+        Assert.Equal(40 - 2, m2.CurrentHp);
+    }
+
+    [Fact]
+    public void Murder_Deals_1_Plus_Cards_Drawn_This_Combat()
+    {
+        var (c, _, m) = Fight(monsterHp: 60);
+        c.TracksCardsDrawn = true;
+        c.CardsDrawnThisCombat = 7;
+        Play(c, new Murder(), m);                          // 1 + 7 = 8
+        Assert.Equal(60 - 8, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Murder_Deck_Tracks_Cards_Drawn()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel> { new Murder() }, 80, 80);
+        var combat = Catalog.SetupCombat(player, new[] { Monsters.CalcifiedCultist(hp: 60) });
+        Assert.True(combat.TracksCardsDrawn);              // setup detected Murder in the deck
+        combat.Rng = new Rng(0);
+        for (int i = 0; i < 5; i++) player.DrawPile.Add(new DefendSilent());
+        Cmd.Draw(combat, 3);
+        Assert.Equal(3, combat.CardsDrawnThisCombat);      // the counter accumulates draws
+    }
 }
