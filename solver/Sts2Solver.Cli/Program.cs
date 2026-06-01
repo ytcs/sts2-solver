@@ -332,6 +332,83 @@ if (args.Contains("--calibrate"))
     return 0;
 }
 
+// --apw-sweep: the broader partial-survival validation sweep behind the "flip ActionWidening to default-ON?"
+// decision. Over many RANDOM small fixtures, compare the MCTS advisor with ActionWidening ON (APW + PUCT)
+// vs OFF (classic UCT*) against the exact oracle, isolating the PARTIAL-survival regime (0 < P_win < 1) where
+// the two diverge most. Both runs share the production rollout leaf, seed, trial budget and horizon — only
+// ActionWidening differs — so the aggregate is an apples-to-apples accuracy/cost comparison. Flags:
+// --count (random candidates, default 150), --trials (default 30000), --seed (default 20260601),
+// --maxturns (default 12), --exact-budget S (per-fixture exact cap, default 8s).
+if (args.Contains("--apw-sweep"))
+{
+    int count = ArgInt("--count", 150);
+    int trials = ArgInt("--trials", 30_000);
+    int seed = ArgInt("--seed", 20260601);
+    int maxTurns = ArgInt("--maxturns", 12);
+    double exactBudget = ArgInt("--exact-budget", 8);
+
+    Console.WriteLine($"APW sweep — ActionWidening ON (APW+PUCT) vs OFF (UCT*) vs exact, partial-survival only\n"
+        + $"  {count} candidates, {trials:N0} trials, seed {seed}, maxTurns {maxTurns}, "
+        + $"exact budget {exactBudget:F0}s/fixture\n");
+    Console.WriteLine($"  {"fixture",-26} {"exact",-12} {"UCT* off: surv Δs   Δl  kN   ms",-32} {"APW on: surv Δs   Δl  kN   ms",-30}");
+    Console.WriteLine("  " + new string('-', 104));
+
+    string Short(string s, int n) => s.Length <= n ? s : s.Substring(0, n);
+    (double Win, double Loss, int Nodes, long Ms) Run(Func<CombatState> setup, bool widen)
+    {
+        var solver = new MctsSolver(new MctsOptions { Trials = trials, MaxTurns = maxTurns, Seed = 1, ActionWidening = widen });
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var v = solver.Solve(setup());
+        sw.Stop();
+        return (v.Win, v.Loss, solver.NodesCreated, sw.ElapsedMilliseconds);
+    }
+
+    double sumOffS = 0, sumOffL = 0, sumOnS = 0, sumOnL = 0;
+    long sumOffNodes = 0, sumOnNodes = 0, sumOffMs = 0, sumOnMs = 0;
+    int partial = 0, onBetter = 0, offBetter = 0, tied = 0, skippedExact = 0, candidates = 0;
+
+    foreach (var f in TrainingFixtures.Random(count, seed, maxTurns))
+    {
+        candidates++;
+        var exact = CalibrationHarness.RunExactBudgeted(f.Setup(), f.MaxTurns, exactBudget);
+        if (exact == null) { skippedExact++; continue; }
+        if (exact.Survival <= 1e-6 || exact.Survival >= 1 - 1e-6) continue;   // partial-survival regime only
+
+        partial++;
+        var off = Run(f.Setup, widen: false);
+        var on = Run(f.Setup, widen: true);
+
+        double dOffS = Math.Abs(off.Win - exact.Survival), dOnS = Math.Abs(on.Win - exact.Survival);
+        double dOffL = Math.Abs(off.Loss - exact.Loss), dOnL = Math.Abs(on.Loss - exact.Loss);
+
+        sumOffS += dOffS; sumOffL += dOffL; sumOnS += dOnS; sumOnL += dOnL;
+        sumOffNodes += off.Nodes; sumOnNodes += on.Nodes; sumOffMs += off.Ms; sumOnMs += on.Ms;
+
+        const double tol = 0.005;   // survival ties within 0.5%
+        if (dOnS < dOffS - tol) onBetter++;
+        else if (dOffS < dOnS - tol) offBetter++;
+        else tied++;
+
+        Console.WriteLine($"  {Short(f.Name, 26),-26} {exact.Survival,4:P0} {exact.Loss,5:F1}  "
+            + $"{off.Win,4:P0} {dOffS,4:P0} {dOffL,4:F1} {off.Nodes / 1000.0,4:F0} {off.Ms,5}  "
+            + $"{on.Win,4:P0} {dOnS,4:P0} {dOnL,4:F1} {on.Nodes / 1000.0,4:F0} {on.Ms,5}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"  candidates {candidates}, exact-skipped(>budget) {skippedExact}, partial-survival graded {partial}");
+    if (partial > 0)
+    {
+        Console.WriteLine($"  Mean abs error over {partial} partial-survival fixture(s):");
+        Console.WriteLine($"    UCT* (off): Δsurv {sumOffS / partial:P2}  Δloss {sumOffL / partial:F2}  "
+            + $"avg {sumOffNodes / (double)partial / 1000.0:F0}k nodes  {sumOffMs / (double)partial:F0} ms");
+        Console.WriteLine($"    APW  (on) : Δsurv {sumOnS / partial:P2}  Δloss {sumOnL / partial:F2}  "
+            + $"avg {sumOnNodes / (double)partial / 1000.0:F0}k nodes  {sumOnMs / (double)partial:F0} ms");
+        Console.WriteLine($"    survival accuracy: APW closer on {onBetter}, UCT* closer on {offBetter}, "
+            + $"tied on {tied} (±0.5%)");
+    }
+    return 0;
+}
+
 // --train-vf: harvest exact-solver labels over the broad TrainingFixtures grid and fit the Phase-C learned
 // value function (LearnedValue). Prints a train-set report (learned vs static-baseline win MAE) and the
 // fitted weights as a C# block to paste into LearnedValue.Weights, and writes them to /tmp/vf-weights.txt.
