@@ -1,6 +1,12 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-01 (**Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88.)_
+_Last updated: 2026-06-01 (**MCTS perf — action progressive widening + lexicographic PUCT** (opt-in
+`ActionWidening`, default OFF; `a198ea4`): the `--perf-probe` (`3eddc34`) isolated card VARIETY (not deck size)
+as the super-linear search cost, and PUCT+widening is a **strict Pareto win vs the exact oracle** — variety-axis
+nodes −40% / ms −24% at k=7 AND *more accurate* (`mcts-roll` mean Δsurv 0.9%→0.0%, Δloss 0.07→0.01; the razor-thin
+22.1%-survival fight went from under-estimated 16.6% to exact 22.1%). 4 new `Apw_Converges_*` oracle gates; suite
+281✅/1 skip. Default stays OFF pending a broader partial-survival sweep + a clone-free prior. Earlier:
+**Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88.)_
 
 ## Goal
 
@@ -95,6 +101,9 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   else **Double Progressive Widening** with exact sampled-hand probabilities.
 - **Lexicographic value + Lexicographic-UCB** (HP loss normalized by maxHP; no scalarization). DAG-aware.
 - **Hybrid** (`HybridExactBelow`): provably-small subtrees defer to the memoized exact oracle.
+- **Action progressive widening + lexicographic PUCT** (opt-in `ActionWidening`, default OFF): ranks plays by a
+  softmax heuristic policy prior, opens only ⌈C·N^β⌉ best-first, selects by PUCT. Measured a strict Pareto win
+  vs the oracle (faster *and* more accurate; see Roadmap TOP PRIORITY). Gated by `MctsTests.Apw_Converges_*`.
 
 ### Live-run advisor (`ranwid`) — interactive companion + advice engine
 - **`Sts2Solver.Ranwid`** (assembly `ranwid`): runs as a **persistent live companion** (default), not a
@@ -378,10 +387,21 @@ The advisor calls `EncounterEvaluator` per deck-variant per elite; at ~20–30s/
 9-card STARTER is too slow, and real decks reach **40+ cards** (hands of 10 with many distinct cards → huge
 per-decision branching). **Pursue an ALGORITHMIC fix, not an engineering one** (caching/parallelism are a
 band-aid). Candidate directions from stochastic-control / planning literature to evaluate against the oracle:
-   - **Action-dimension progressive widening + heuristic priors (PUCT).** Today decision nodes expand EVERY
-     legal play (`SelectEdge` gives unvisited edges +∞ → must visit all once); only chance nodes use DPW. Bias
-     selection by a policy prior (from `CombatHeuristic`/the VF) and widen actions progressively → focuses
-     trials on good plays, the dominant branching cost for big hands. Add First-Play-Urgency too.
+   - ✅ **Action-dimension progressive widening + heuristic priors (PUCT) — IMPLEMENTED & VALIDATED** (opt-in
+     `MctsOptions.ActionWidening`, default OFF; `a198ea4`). The perf-probe (`--perf-probe`, `3eddc34`) first
+     isolated the cost: holding trials/elite fixed and scaling each axis, deck **size** is ~linear in node count
+     (per-node clone/draw cost) but card **variety** is super-linear (nodes 38k→86k, ms/1k 442→1726 over 3→9
+     distinct) — because classic UCT* opens EVERY legal play and force-visits each (`SelectEdge` +∞), and each
+     opened child pays a full rollout seed. The fix: rank plays by a softmax policy prior over the resulting
+     `CombatHeuristic.Score` (EndTurn ranked on the same scale, always opened), open only ⌈C·N^β⌉ best-first
+     (asymptotically all open → consistent), and select by lexicographic **PUCT** (the just-opened child's seed
+     is its first-play value, so no separate FPU term). **Measured a strict Pareto win vs the exact oracle**
+     (20k trials): variety-axis nodes −40% / ms −24% at k=7; AND *more accurate* — `mcts-roll` mean error
+     Δsurv 0.9%→**0.0%**, Δloss 0.07→**0.01**; the razor-thin `block/Defends-vs-Byrdonis` fight (22.1% exact
+     survival) went from UNDER-estimated 16.6% to **exact 22.1%** (uniform UCB under-samples the coordinated
+     survival line; PUCT concentrates the budget on it). Gated by 4 new `MctsTests` (`Apw_Converges_*`). _Next:_
+     a broader partial-survival sweep before flipping the default; a clone-free static prior to also cut the
+     residual ranking cost (one `Score(ApplyPlay)` per distinct play still scales with variety).
    - **Sparse sampling / forward-search sparse sampling (Kearns–Mansour–Ng)** — bounded-width sampling with a
      value-function bootstrap; sample complexity ~independent of state-space size. Pairs with the learned VF.
    - **Fitted value iteration / ADP with the learned VF as the approximator** — let the VF carry more of the
