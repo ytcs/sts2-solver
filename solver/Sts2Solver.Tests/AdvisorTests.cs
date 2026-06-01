@@ -75,4 +75,31 @@ public class AdvisorTests
         _out.WriteLine($"top removal: {items[0].Card} (Δsurv {items[0].SurvivalDelta:+0.0%;-0.0%}, Δloss {items[0].LossDelta:+0.0;-0.0})");
         Assert.Equal("Burn", items[0].Card);
     }
+
+    [Fact]
+    public void PickAdvice_Includes_Skip_And_Ranks_Best_First()
+    {
+        var deck = Specs((4, "StrikeIronclad"), (3, "DefendIronclad"));
+        var (_, ranked) = Advisor.PickAdvice(deck, new[] { "StrikeIronclad", "Burn" }, OneCultist(30),
+            38, 38, 3, System.Array.Empty<string>(), Exact);
+
+        Assert.Equal(3, ranked.Count);                                  // 2 candidates + skip
+        Assert.Contains(ranked, p => p.IsSkip);
+        for (int i = 1; i < ranked.Count; i++)
+            Assert.False(ranked[i].Score.BetterThan(ranked[i - 1].Score), "pick advice is not sorted best-first");
+    }
+
+    [Fact]
+    public void PickAdvice_Recommends_Skip_Over_A_Harmful_Card()
+    {
+        var deck = Specs((4, "StrikeIronclad"), (3, "DefendIronclad"));
+        // The only offered card is a Burn (strictly harmful) — taking it can't beat skipping.
+        var (skip, ranked) = Advisor.PickAdvice(deck, new[] { "Burn" }, OneCultist(30),
+            38, 38, 3, System.Array.Empty<string>(), Exact);
+        var burn = ranked.First(p => !p.IsSkip);
+        _out.WriteLine($"skip: surv {skip.MinSurvival:P1} loss {skip.TotalMeanLoss:F2}; "
+            + $"take Burn: surv {burn.Score.MinSurvival:P1} loss {burn.Score.TotalMeanLoss:F2}");
+        Assert.True(ranked[0].IsSkip, "advisor took a strictly-harmful Burn instead of skipping");
+        Assert.False(burn.Score.BetterThan(skip), "taking a Burn scored better than skipping it");
+    }
 }

@@ -22,17 +22,25 @@ public static class Advisor
     /// mutated during combat, so each evaluation must rebuild them).</summary>
     public readonly record struct Encounter(string Name, Func<List<Monster>> Build);
 
-    /// <summary>Lexicographic deck score across the Act's encounters: maximise <see cref="MinSurvival"/>
-    /// (the bottleneck fight), then minimise <see cref="TotalMeanLoss"/>.</summary>
+    /// <summary>How much bottleneck-survival difference counts as "real" rather than sampling noise. While the
+    /// MCTS survival estimate is still noisy (it under/over-shoots razor-thin fights), two decks whose worst
+    /// survival is within this band are treated as TIED on survival and decided by expected HP loss — i.e. we
+    /// lean on the better-calibrated HP-loss signal. Lower this toward 0 once survival is well-calibrated to
+    /// recover strict survival-first ordering. Temporary tuning knob (see project notes).</summary>
+    public const double SurvivalBand = 0.05;
+
+    /// <summary>Deck score across the Act's encounters: maximise <see cref="MinSurvival"/> (the bottleneck
+    /// fight) — but only when it differs by more than <see cref="SurvivalBand"/> (survival is noisy) — then
+    /// minimise <see cref="TotalMeanLoss"/>.</summary>
     public readonly record struct DeckScore(double MinSurvival, double TotalMeanLoss)
     {
-        /// <summary>True if this score is lexicographically better than <paramref name="other"/>.</summary>
+        /// <summary>True if this score is better than <paramref name="other"/>: clearly-higher survival wins;
+        /// within the survival noise band, lower expected HP loss wins.</summary>
         public bool BetterThan(DeckScore other)
         {
-            const double eps = 1e-6;
-            if (MinSurvival > other.MinSurvival + eps) return true;
-            if (MinSurvival < other.MinSurvival - eps) return false;
-            return TotalMeanLoss < other.TotalMeanLoss - eps;
+            if (MinSurvival > other.MinSurvival + SurvivalBand) return true;
+            if (MinSurvival < other.MinSurvival - SurvivalBand) return false;
+            return TotalMeanLoss < other.TotalMeanLoss - 1e-6;        // survival tied (noisy) → HP loss decides
         }
     }
 
@@ -91,6 +99,48 @@ public static class Advisor
         // Best first: by the lexicographic score of the resulting deck.
         items.Sort((a, b) => a.After.BetterThan(b.After) ? -1 : b.After.BetterThan(a.After) ? 1 : 0);
         return (baseline, items);
+    }
+
+    /// <summary>One card-reward option's verdict: the resulting deck's score (taking it), or the
+    /// skip-and-keep-the-deck score when <see cref="IsSkip"/>.</summary>
+    public readonly record struct PickItem(string Card, bool IsSkip, DeckScore Score);
+
+    /// <summary>Card-reward advice: score the deck WITH each offered card added, and the deck AS-IS (= skip),
+    /// then rank by the lexicographic <see cref="DeckScore"/>. Skipping is a first-class option — it wins when
+    /// no offered card beats the current deck against the Act's elites. Returns the skip score and the ranked
+    /// options (best first; the head is the recommended pick).</summary>
+    public static (DeckScore skip, List<PickItem> ranked) PickAdvice(
+        IReadOnlyList<string> deckSpecs, IReadOnlyList<string> candidates, IReadOnlyList<Encounter> encounters,
+        int playerHp, int playerMaxHp, int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
+    {
+        var skip = ScoreDeck(deckSpecs, encounters, playerHp, playerMaxHp, maxEnergy, relics, opts);
+        var ranked = new List<PickItem> { new("(skip)", true, skip) };
+        foreach (var cand in candidates)
+        {
+            var withCard = new List<string>(deckSpecs) { cand };
+            ranked.Add(new PickItem(cand, false,
+                ScoreDeck(withCard, encounters, playerHp, playerMaxHp, maxEnergy, relics, opts)));
+        }
+        ranked.Sort((a, b) => a.Score.BetterThan(b.Score) ? -1 : b.Score.BetterThan(a.Score) ? 1 : 0);
+        return (skip, ranked);
+    }
+
+    /// <summary>Human-readable card-pick block: the recommendation plus every option's deck score.</summary>
+    public static string FormatPick((DeckScore skip, List<PickItem> ranked) advice)
+    {
+        var (_, ranked) = advice;
+        var sb = new System.Text.StringBuilder();
+        var best = ranked[0];
+        sb.AppendLine(best.IsSkip
+            ? "Card reward → SKIP (no offered card improves the deck against the Act's elites):"
+            : $"Card reward → take {best.Card} (best deck vs the Act's elites):");
+        foreach (var p in ranked)
+        {
+            var tag = p == ranked[0] ? " ◀ pick" : "";
+            sb.AppendLine($"  {(p.IsSkip ? "skip" : p.Card),-22} bottleneck {p.Score.MinSurvival,6:P1}, "
+                + $"E[HP loss] {p.Score.TotalMeanLoss,5:F1}{tag}");
+        }
+        return sb.ToString();
     }
 
     /// <summary>Human-readable advice block for the report. Shows the bottleneck-survival baseline and the

@@ -9,7 +9,9 @@ using Sts2Solver.Ranwid;
 //   ranwid                         watch the newest ongoing unmodded run, refresh on save change
 //   ranwid --once                  evaluate once and exit
 //   ranwid --save <current_run.save>   read a specific save file (offline)
-//   --advise                       also rank single-card removals by bottleneck-elite survival (slower)
+//   Advice is ON by default: current-deck stats + best card to remove (vs the Act's elites).
+//   --rewards A,B,C                also advise which offered card to take (or skip) — Catalog card names.
+//   --no-advice                    skip the (slower) removal/pick advice; just print the deck + elite stats.
 //   --player <net_id>  pick a multiplayer slot
 //   --budget-seconds <s>  exact-search cap before MCTS fallback (default 8; raise for exact precision)
 //   --rollouts <n>  playouts for the distribution (default 2000)   --trials <n>  MCTS fallback trials (default 40000)
@@ -20,7 +22,8 @@ int? ArgInt(string flag) => int.TryParse(ArgVal(flag), out var v) ? v : null;
 double? ArgDouble(string flag) => double.TryParse(ArgVal(flag), out var v) ? v : null;
 
 bool once = args.Contains("--once");
-bool advise = args.Contains("--advise");
+bool noAdvice = args.Contains("--no-advice");
+string? rewardsArg = ArgVal("--rewards");
 string? saveArg = ArgVal("--save");
 int? playerNetId = ArgInt("--player");
 var opts = new EvalOptions
@@ -125,7 +128,7 @@ int EvaluateAndPrint(string path, int? netId, EvalOptions evalOpts)
 
     Reporting.Print(run, path, results, warnings, deckSummary);
 
-    if (advise)
+    if (!noAdvice)
     {
         var encounters = new List<Advisor.Encounter>();
         foreach (var eid in run.EliteEncounterIds)
@@ -136,17 +139,44 @@ int EvaluateAndPrint(string path, int? netId, EvalOptions evalOpts)
             int asc = run.Ascension;
             encounters.Add(new Advisor.Encounter(disp, () => Catalog.BuildEliteEncounter(cls, asc)));
         }
-        if (encounters.Count == 0 || deckSpecs.Count <= 1)
-            Console.WriteLine("\n(advice needs ≥1 ported elite and ≥2 ported deck cards — skipped.)");
+        if (encounters.Count == 0 || deckSpecs.Count == 0)
+            Console.WriteLine("\n(advice needs ≥1 ported elite and a ported deck — skipped; pass --no-advice to silence.)");
         else
         {
-            Console.WriteLine($"\nComputing card-removal advice over {encounters.Count} elite(s)…");
-            var advice = Advisor.RemovalAdvice(deckSpecs, encounters,
-                run.PlayerHp, run.PlayerMaxHp, run.MaxEnergy, relicNames, evalOpts);
-            Console.WriteLine(Advisor.Format(advice));
+            // Card-reward pick advice (when reward options are supplied via --rewards).
+            var rewardSpecs = ParseRewards(rewardsArg, warnings);
+            if (rewardSpecs.Count > 0)
+            {
+                Console.WriteLine($"\nEvaluating {rewardSpecs.Count} reward option(s) vs {encounters.Count} elite(s)…");
+                var pick = Advisor.PickAdvice(deckSpecs, rewardSpecs, encounters,
+                    run.PlayerHp, run.PlayerMaxHp, run.MaxEnergy, relicNames, evalOpts);
+                Console.WriteLine(Advisor.FormatPick(pick));
+                foreach (var w in warnings.Where(w => w.StartsWith("reward "))) Console.WriteLine($"  ({w})");
+            }
+            // Best card to remove next (always shown when the deck has room to cut).
+            if (deckSpecs.Count > 1)
+            {
+                Console.WriteLine($"Computing best card to remove over {encounters.Count} elite(s)…");
+                var removal = Advisor.RemovalAdvice(deckSpecs, encounters,
+                    run.PlayerHp, run.PlayerMaxHp, run.MaxEnergy, relicNames, evalOpts);
+                Console.WriteLine(Advisor.Format(removal));
+            }
         }
     }
     return 0;
+}
+
+// Parse a --rewards "A,B,C" list into valid Catalog card specs (warns on unknown names).
+static List<string> ParseRewards(string? arg, List<string> warnings)
+{
+    var specs = new List<string>();
+    if (string.IsNullOrWhiteSpace(arg)) return specs;
+    foreach (var raw in arg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        try { Catalog.BuildCard(raw); specs.Add(raw); }
+        catch (ArgumentException) { warnings.Add($"reward option '{raw}' is not a known/ported card — ignored"); }
+    }
+    return specs;
 }
 
 static string DeckSummary(IReadOnlyList<CardEntry> deck) =>
