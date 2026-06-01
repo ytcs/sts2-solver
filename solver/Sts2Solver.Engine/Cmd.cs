@@ -125,6 +125,17 @@ public static class Cmd
         if (amount > 0 && !combat.Player.HasPower("NoEnergyGain")) combat.Player.Energy += amount;
     }
 
+    /// <summary>Grant the player <paramref name="amount"/> stars (Regent: Venerate, Glow, DivineRight, …),
+    /// then fire the AfterStarsGained hooks (BlackHole damages all enemies on a star gain). Stars persist
+    /// across turns within the combat.</summary>
+    public static void GainStars(CombatState combat, int amount)
+    {
+        if (amount <= 0) return;
+        combat.Player.Stars += amount;
+        if (combat.CurrentSide == CombatSide.Player) combat.StarsGainedThisTurn += amount;   // Radiate
+        foreach (var p in combat.AllPowers.ToList()) p.AfterStarsGained(combat, amount);
+    }
+
     /// <summary>Draw <paramref name="n"/> cards for the player mid-turn (Shrug It Off, Pommel Strike, …).
     /// Real only when an ambient <see cref="CombatState.Rng"/> is set; otherwise a no-op (the trace
     /// validator replays the recorded hand + constructs mid-turn-drawn cards as they are played). A NoDraw

@@ -8,21 +8,7 @@ namespace Sts2Solver.Content;
 // Core/CommonPowers.cs; this file holds the ones unique to the special cards.
 // ===========================================================================
 
-/// <summary>At the start of the owner's next turn (after energy resets) gain <c>Amount</c> energy, then the
-/// power is removed. Mirrors the game's EnergyNextTurnPower (AfterEnergyReset). Granted by Outmaneuver and
-/// Relax. (MegaCrit EnergyNextTurnPower.)</summary>
-public sealed class EnergyNextTurnPower : PowerModel
-{
-    public override string Id => "EnergyNextTurn";
-    public override PowerType Type => PowerType.Buff;
-
-    public override void AfterSideTurnStart(CombatState combat, CombatSide side)
-    {
-        if (side != Owner.Side) return;          // fires after BeginPlayerTurn's energy reset → adds on top
-        Cmd.GainEnergy(combat, Amount);
-        Owner.RemovePower(Id);
-    }
-}
+// EnergyNextTurnPower is cross-character (Event cards + Regent), so it now lives in Core/CommonPowers.cs.
 
 /// <summary>Intangible: every instance of HP loss the owner would take is capped to 1 while owned; the
 /// counter decrements by 1 at the end of each enemy turn, and at 0 the power is gone. Modelled via the
@@ -124,10 +110,5 @@ public sealed class ForbiddenGrimoirePower : PowerModel
     public override PowerType Type => PowerType.Buff;
 }
 
-/// <summary>The Sealed Throne: gain Stars whenever you play a card — Stars are a meta currency with no
-/// combat-HP effect, so modelled as an inert marker. (MegaCrit TheSealedThronePower.)</summary>
-public sealed class TheSealedThronePower : PowerModel
-{
-    public override string Id => "TheSealedThrone";
-    public override PowerType Type => PowerType.Buff;
-}
+// TheSealedThrone (Ancient) is a Regent Stars card; its card + power live in Content/Regent/ (Regent models
+// the Stars resource, so its TheSealedThronePower actually gains Stars rather than being an inert marker).

@@ -51,7 +51,7 @@ public class SpecialAndCurseCardTests
     [Fact]
     public void Catalog_Builds_Special_And_Curse_Cards()
     {
-        Assert.IsType<MeteorShower>(Catalog.BuildCard("MeteorShower"));
+        Assert.IsType<NeowsFury>(Catalog.BuildCard("NeowsFury"));
         Assert.IsType<Maul>(Catalog.BuildCard("Maul"));
         Assert.IsType<ByrdSwoop>(Catalog.BuildCard("ByrdSwoop"));
         Assert.IsType<WraithForm>(Catalog.BuildCard("WraithForm"));
@@ -64,7 +64,7 @@ public class SpecialAndCurseCardTests
     [Fact]
     public void Special_Cards_Are_In_CardPool_But_Curses_Are_Not()
     {
-        Assert.Contains("MeteorShower", Catalog.CardPool);
+        Assert.Contains("NeowsFury", Catalog.CardPool);
         Assert.Contains("Squash", Catalog.CardPool);
         Assert.DoesNotContain("BadLuck", Catalog.CardPool);
         Assert.DoesNotContain("Clumsy", Catalog.CardPool);
@@ -198,7 +198,6 @@ public class SpecialAndCurseCardTests
 
     [Theory]
     [InlineData("HelloWorld")]
-    [InlineData("TheSealedThrone")]
     [InlineData("ForbiddenGrimoire")]
     public void Inert_Power_Cards_Apply_Their_Marker(string name)
     {
@@ -221,27 +220,9 @@ public class SpecialAndCurseCardTests
 
     // ======================================================================
     // ANCIENT cards
+    // (MeteorShower + TheSealedThrone are Stars-powered Ancient cards owned by the Regent module; their
+    //  behaviour is covered in RegentCardTests, which sets up the Stars resource their StarCost requires.)
     // ======================================================================
-
-    [Fact]
-    public void MeteorShower_Hits_All_For_14_With_Weak_And_Vulnerable()
-    {
-        var (c, _, m1, m2) = Fight2(40);
-        Play(c, new MeteorShower(), null);
-        Assert.Equal(40 - 14, m1.CurrentHp);
-        Assert.Equal(40 - 14, m2.CurrentHp);
-        Assert.Equal(2, m1.GetPowerAmount("Weak"));
-        Assert.Equal(2, m1.GetPowerAmount("Vulnerable"));
-        Assert.Equal(2, m2.GetPowerAmount("Vulnerable"));
-    }
-
-    [Fact]
-    public void MeteorShower_Upgraded_Deals_21()
-    {
-        var (c, _, m) = Fight();
-        Play(c, (CardModel)new MeteorShower().Upgraded(1), null);
-        Assert.Equal(60 - 21, m.CurrentHp);
-    }
 
     [Fact]
     public void Maul_Deals_5_Twice_And_Escalates_By_1_Per_Play()

@@ -167,3 +167,20 @@ public sealed class PoisonPower : PowerModel
         }
     }
 }
+
+/// <summary>At the start of the owner's next turn (after energy resets) gain <c>Amount</c> energy, then the
+/// power is removed. Mirrors the game's EnergyNextTurnPower (AfterEnergyReset). Cross-character: granted by
+/// the Event cards Outmaneuver/Relax and the Regent's Hegemony/RefineBlade/Convergence, so it lives in Core.
+/// (MegaCrit EnergyNextTurnPower.)</summary>
+public sealed class EnergyNextTurnPower : PowerModel
+{
+    public override string Id => "EnergyNextTurn";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterSideTurnStart(CombatState combat, CombatSide side)
+    {
+        if (side != Owner.Side) return;          // fires after BeginPlayerTurn's energy reset → adds on top
+        Cmd.GainEnergy(combat, Amount);
+        Owner.RemovePower(Id);
+    }
+}

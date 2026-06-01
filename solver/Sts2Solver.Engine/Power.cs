@@ -116,6 +116,22 @@ public abstract class PowerModel
     /// Skills). (Game: PowerModel.ModifyCardPlayResultPileTypeAndPosition.)</summary>
     public virtual bool OverrideResultPileToExhaust(CardModel card) => false;
 
+    /// <summary>Modifies a card's STAR cost at play time (VoidForm zeroes it for the first N cards). Return
+    /// the (possibly lower) cost. (Game: PowerModel.TryModifyStarCost.)</summary>
+    public virtual int ModifyStarCost(CardModel card, int cost) => cost;
+
+    /// <summary>Fires (on every power in combat) after the player gains stars (BlackHole deals damage to all
+    /// enemies). The amount is the stars gained. (Game: Hook.AfterStarsGained.)</summary>
+    public virtual void AfterStarsGained(CombatState combat, int amount) { }
+
+    /// <summary>Fires (on every power in combat) after the player spends stars on a card play (ChildOfTheStars
+    /// gains block, BlackHole deals damage). The amount is the stars spent. (Game: Hook.AfterStarsSpent.)</summary>
+    public virtual void AfterStarsSpent(CombatState combat, int amount) { }
+
+    /// <summary>Fires (on every power in combat) after the player spends energy on a card play, with the
+    /// amount spent. Orbit grants energy for every 4 cumulative energy spent. (Game: Hook.AfterEnergySpent.)</summary>
+    public virtual void AfterEnergySpent(CombatState combat, int amount) { }
+
     /// <summary>Additional times the card's effect should resolve beyond the first (One-Two Punch adds 1
     /// for the owner's Attacks). (Game: PowerModel.ModifyCardPlayCount.)</summary>
     public virtual int ModifyCardPlayCount(CardModel card) => 0;

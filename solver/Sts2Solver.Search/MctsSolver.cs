@@ -534,6 +534,7 @@ public sealed class MctsSolver
         {
             if (card.Unplayable) continue;
             if (card.Cost > s.Player.Energy) continue;
+            if (!s.Player.CanAffordStars(card)) continue;   // Regent star cost gates the play
             var ck = card.StateKey();
             if (card.NeedsTarget)
             {

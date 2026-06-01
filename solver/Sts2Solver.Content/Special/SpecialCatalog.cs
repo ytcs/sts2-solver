@@ -29,8 +29,8 @@ public static partial class Catalog
         ["ToricToughness"] = () => new ToricToughness(),
         ["Distraction"] = () => new Distraction(),
         ["DualWield"] = () => new DualWield(),
-        // Ancient cards.
-        ["MeteorShower"] = () => new MeteorShower(),
+        // Ancient cards. (MeteorShower + TheSealedThrone are Regent Stars cards — registered in
+        // Regent/RegentCatalog.cs where their StarCost is modelled, not duplicated here.)
         ["Maul"] = () => new Maul(),
         ["NeowsFury"] = () => new NeowsFury(),
         ["Whistle"] = () => new Whistle(),
@@ -39,6 +39,5 @@ public static partial class Catalog
         ["Apparition"] = () => new Apparition(),
         ["WraithForm"] = () => new WraithForm(),
         ["ForbiddenGrimoire"] = () => new ForbiddenGrimoire(),
-        ["TheSealedThrone"] = () => new TheSealedThrone(),
     };
 }

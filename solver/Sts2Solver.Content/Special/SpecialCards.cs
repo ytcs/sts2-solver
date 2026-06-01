@@ -251,30 +251,8 @@ public sealed class DualWield : CardModel
 // ANCIENT cards
 // ==========================================================================
 
-/// <summary>Deal 14 damage to ALL enemies. Apply 2 Weak and 2 Vulnerable to ALL enemies. Cost 0. Upgrade:
-/// +7 damage. (MegaCrit MeteorShower — the Star cost is a meta resource, ignored; only the 0 energy cost
-/// gates play.)</summary>
-public sealed class MeteorShower : CardModel
-{
-    public override string Name => "MeteorShower";
-    public override int BaseCost => 0;
-    public override CardType Type => CardType.Attack;
-    public override CardRarity Rarity => CardRarity.Ancient;
-    public override TargetType Target => TargetType.AllEnemies;
-    public int Damage => 14 + 7 * Upgrades;
-    public int Weak => 2;
-    public int Vulnerable => 2;
-    public override void OnPlay(CombatState combat, CardPlay play)
-    {
-        foreach (var m in combat.LivingMonsters.ToList())
-            Cmd.Attack(combat, combat.Player, m, Damage, ValueProp.Move, this);
-        foreach (var m in combat.LivingMonsters.ToList())
-        {
-            Cmd.ApplyPower(combat, m, new WeakPower(), Weak, combat.Player);
-            Cmd.ApplyPower(combat, m, new VulnerablePower(), Vulnerable, combat.Player);
-        }
-    }
-}
+// MeteorShower (Ancient) is a Regent Stars card; it lives in Content/Regent/RegentCards.cs (where its StarCost
+// is modelled). Removed from the special pool to keep a single canonical definition.
 
 /// <summary>Deal 5 damage twice. Each time this card is played, its damage rises by 1 for the rest of combat.
 /// Cost 1. Upgrade: +1 damage, +1 increase. (MegaCrit Maul) — the game buffs EVERY Maul on a play; we buff
@@ -424,19 +402,8 @@ public sealed class ForbiddenGrimoire : CardModel
         => Cmd.ApplyPower(combat, combat.Player, new ForbiddenGrimoirePower(), 1, combat.Player);
 }
 
-/// <summary>Power: whenever you play a card, gain a Star. Cost 1. Upgrade: costs 0. (MegaCrit TheSealedThrone
-/// — Stars are a meta currency with no combat-HP effect, modelled via the inert TheSealedThronePower.)
-/// </summary>
-public sealed class TheSealedThrone : CardModel
-{
-    public override string Name => "TheSealedThrone";
-    public override int BaseCost => Upgrades > 0 ? 0 : 1;
-    public override CardType Type => CardType.Power;
-    public override CardRarity Rarity => CardRarity.Ancient;
-    public override TargetType Target => TargetType.Self;
-    public override void OnPlay(CombatState combat, CardPlay play)
-        => Cmd.ApplyPower(combat, combat.Player, new TheSealedThronePower(), 1, combat.Player);
-}
+// TheSealedThrone (Ancient) is a Regent Stars card; it lives in Content/Regent/RegentCards.cs (where its
+// StarCost and Stars-on-play are modelled). Removed from the special pool to keep one canonical definition.
 
 // ==========================================================================
 // DEFERRED — need an unported SUBSYSTEM (not just an HP-neutral half):
