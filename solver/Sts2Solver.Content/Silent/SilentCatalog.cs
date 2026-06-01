@@ -53,7 +53,82 @@ public static partial class Catalog
         ["Adrenaline"] = () => new Adrenaline(),
         ["Backflip"] = () => new Backflip(),
         ["Expertise"] = () => new Expertise(),
+        // Batch 4 — remaining primitive-portable cards (attacks/skills/powers, X-cost, Shiv-generation,
+        // Thorns/FreeSkill). Sly is HP-neutral (unmodelled discard trigger).
+        ["Abrasive"] = () => new Abrasive(),
+        ["Assassinate"] = () => new Assassinate(),
+        ["Expose"] = () => new Expose(),
+        ["LeadingStrike"] = () => new LeadingStrike(),
+        ["Malaise"] = () => new Malaise(),
+        ["Pounce"] = () => new Pounce(),
+        ["Reflex"] = () => new Reflex(),
+        ["Ricochet"] = () => new Ricochet(),
+        ["Tactician"] = () => new Tactician(),
+        ["Untouchable"] = () => new Untouchable(),
+        ["StormOfSteel"] = () => new StormOfSteel(),
+        ["CalculatedGamble"] = () => new CalculatedGamble(),
+        // Batch 5 — Silent powers + Shiv-synergy cards (Wave 2). MP-only / Sly / Retain effects are inert
+        // in single-player (documented in SilentCards.cs / SilentPowers.cs).
+        ["Accelerant"] = () => new Accelerant(),
+        ["Accuracy"] = () => new Accuracy(),
+        ["Anticipate"] = () => new Anticipate(),
+        ["Strangle"] = () => new Strangle(),
+        ["InfiniteBlades"] = () => new InfiniteBlades(),
+        ["PhantomBlades"] = () => new PhantomBlades(),
+        ["Outbreak"] = () => new Outbreak(),
+        ["SerpentForm"] = () => new SerpentForm(),
+        ["Tracking"] = () => new Tracking(),
+        ["MasterPlanner"] = () => new MasterPlanner(),
+        ["Shadowmeld"] = () => new Shadowmeld(),
+        ["Burst"] = () => new Burst(),
+        ["FanOfKnives"] = () => new FanOfKnives(),
+        ["WellLaidPlans"] = () => new WellLaidPlans(),
+        ["Sneaky"] = () => new Sneaky(),
+        ["Flanking"] = () => new Flanking(),
+        ["ShadowStep"] = () => new ShadowStep(),
+        ["BladeOfInk"] = () => new BladeOfInk(),
+        // Batch 6 — counter/conditional attacks + Intangible (Wave 3).
+        ["Finisher"] = () => new Finisher(),
+        ["MementoMori"] = () => new MementoMori(),
+        ["PreciseCut"] = () => new PreciseCut(),
+        ["Mirage"] = () => new Mirage(),
+        ["EchoingSlash"] = () => new EchoingSlash(),
+        ["WraithForm"] = () => new WraithForm(),
+        // Batch 7 — remaining feasible cards (Wave 4).
+        ["TheHunt"] = () => new TheHunt(),
+        ["HandTrick"] = () => new HandTrick(),
+        ["BulletTime"] = () => new BulletTime(),
+        ["UpMySleeve"] = () => new UpMySleeve(),
+        // Batch 8 — the formerly-deferred cards: deterministic-default selection (Acrobatics, Prepared,
+        // HiddenDaggers, ToolsOfTheTrade, Nightmare), deterministic exhaust-replay (KnifeTrap),
+        // conditional-on-drawn-card (EscapePlan), and mid-turn-draw triggers (CorrosiveWave, Speedster, Murder).
+        ["KnifeTrap"] = () => new KnifeTrap(),
+        ["Nightmare"] = () => new Nightmare(),
+        ["Acrobatics"] = () => new Acrobatics(),
+        ["Prepared"] = () => new Prepared(),
+        ["HiddenDaggers"] = () => new HiddenDaggers(),
+        ["ToolsOfTheTrade"] = () => new ToolsOfTheTrade(),
+        ["EscapePlan"] = () => new EscapePlan(),
+        ["CorrosiveWave"] = () => new CorrosiveWave(),
+        ["Speedster"] = () => new Speedster(),
+        ["Murder"] = () => new Murder(),
     };
+
+    // =======================================================================================================
+    // All 88 cards of the SilentCardPool are now ported. The cards that need mechanics the exact solver does
+    // not fully model (hand-discard / card SELECTION, and mid-turn-DRAW effects) follow the project's
+    // established bar — faithful with a concrete driver / the trace validator, and degrading sensibly in pure
+    // search (selection uses a deterministic default à la Armaments / Burning Pact; draws are no-ops without
+    // an ambient Rng). The mechanic each leans on, for reference:
+    //
+    //   - Acrobatics / Prepared / HiddenDaggers / ToolsOfTheTrade / Nightmare : default card SELECTION
+    //   - KnifeTrap                                                           : deterministic exhaust replay (exact)
+    //   - EscapePlan                                                          : conditional on the drawn card
+    //   - CorrosiveWave / Speedster                                           : mid-turn-draw triggers
+    //   - Murder                                                              : scales on cards drawn this combat
+    //                                                                           (tracked via TracksCardsDrawn)
+    // =======================================================================================================
+    public static readonly string[] DeferredSilentCards = System.Array.Empty<string>();
 
     /// <summary>The Silent starting deck: 5 Strike, 5 Defend, 1 Neutralize, 1 Survivor.
     /// (Survivor's discard half is not modelled — see SilentCards.cs — so it contributes its block only;

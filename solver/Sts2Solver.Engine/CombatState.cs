@@ -43,6 +43,23 @@ public sealed class CombatState
     /// Regent's Radiate hits once per star gained this turn. (Game: StarsModifiedEntry this-turn sum.)</summary>
     public int StarsGainedThisTurn;
 
+    /// <summary>Number of Attacks the player has finished playing during the current turn (reset at the
+    /// player's turn start). Finisher hits this many times. (Game: count of this turn's Attack CardPlaysFinished.)</summary>
+    public int AttacksPlayedThisTurn;
+
+    /// <summary>Number of cards the player has discarded mid-turn during the current turn (reset at the
+    /// player's turn start; the end-of-turn hand discard is not counted). Memento Mori scales on this.</summary>
+    public int CardsDiscardedThisTurn;
+
+    /// <summary>Total cards the player has drawn this combat (turn-start hand draws + mid-turn draws). Murder
+    /// scales on this. Only tracked + hashed when <see cref="TracksCardsDrawn"/> is set (a deck contains a
+    /// card that reads it), so the common case isn't fragmented by an ever-growing counter.</summary>
+    public int CardsDrawnThisCombat;
+
+    /// <summary>Set at combat setup when the deck contains a card whose value depends on cumulative cards
+    /// drawn (Murder). Gates <see cref="CardsDrawnThisCombat"/> tracking + hashing.</summary>
+    public bool TracksCardsDrawn;
+
     public IEnumerable<Monster> LivingMonsters => Monsters.Where(m => m.IsAlive);
 
     public IEnumerable<Creature> AllCreatures
@@ -78,6 +95,10 @@ public sealed class CombatState
             PlayerUnblockedHitsCount = PlayerUnblockedHitsCount,
             SkillsPlayedThisTurn = SkillsPlayedThisTurn,
             StarsGainedThisTurn = StarsGainedThisTurn,
+            AttacksPlayedThisTurn = AttacksPlayedThisTurn,
+            CardsDiscardedThisTurn = CardsDiscardedThisTurn,
+            CardsDrawnThisCombat = CardsDrawnThisCombat,
+            TracksCardsDrawn = TracksCardsDrawn,
         };
     }
 
@@ -87,8 +108,10 @@ public sealed class CombatState
     public string StateKey()
     {
         var monsters = string.Join(";", Monsters.Select(m => m.StateKey()));
-        // Per-turn Regent counters only contribute when non-zero, so other decks keep their canonical keys.
+        // Per-turn counters only contribute when non-zero, so decks that don't use them keep canonical keys.
         var regent = (SkillsPlayedThisTurn != 0 || StarsGainedThisTurn != 0) ? $"/sk{SkillsPlayedThisTurn}sg{StarsGainedThisTurn}" : "";
-        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}{regent}|{Player.StateKey()}|{monsters}";
+        var silent = (AttacksPlayedThisTurn != 0 || CardsDiscardedThisTurn != 0) ? $"/a{AttacksPlayedThisTurn}d{CardsDiscardedThisTurn}" : "";
+        var drawn = TracksCardsDrawn ? $"/w{CardsDrawnThisCombat}" : "";
+        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}{regent}{silent}{drawn}|{Player.StateKey()}|{monsters}";
     }
 }

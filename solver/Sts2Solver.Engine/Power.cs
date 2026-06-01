@@ -144,6 +144,13 @@ public abstract class PowerModel
     /// of its turn (Barricade). (Game: PowerModel.ShouldClearBlock, inverted.)</summary>
     public virtual bool PreventsBlockClear => false;
 
+    /// <summary>Fires (on every power in combat) for each card the player draws MID-TURN (via
+    /// <see cref="Cmd.Draw"/>), with whether it came from the turn-start hand draw (always false here — the
+    /// exact solver models the hand draw as a chance node, not through this hook). CorrosiveWave applies
+    /// Poison on every draw; Speedster deals damage on each non-hand draw. Real only with an ambient Rng
+    /// (otherwise mid-turn draws are no-ops); inert in pure search. (Game: PowerModel.AfterCardDrawn.)</summary>
+    public virtual void AfterCardDrawn(CombatState combat, CardModel card, bool fromHandDraw) { }
+
     /// <summary>Fires after a side's turn begins, for creatures on that side. Poison ticks here.</summary>
     public virtual void AfterSideTurnStart(CombatState combat, CombatSide side) { }
 

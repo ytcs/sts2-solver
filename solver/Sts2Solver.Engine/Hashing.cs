@@ -38,6 +38,13 @@ public static class HashingExtensions
         h.Add(s.CardExhaustedThisTurn ? 1 : 0);
         h.Add(s.PlayerLostHpThisTurn ? 1 : 0);
         h.Add(s.PlayerUnblockedHitsCount);
+        h.Add(s.SkillsPlayedThisTurn);    // Regent Lunar Blast — must live in the MEMO key, not just StateKey,
+        h.Add(s.StarsGainedThisTurn);     // or two states differing only in these collide → stale memoised value.
+        h.Add(s.AttacksPlayedThisTurn);
+        h.Add(s.CardsDiscardedThisTurn);
+        if (s.TracksCardsDrawn) h.Add(s.CardsDrawnThisCombat);   // only when a card (Murder) reads it
+        // (Skills/Stars/Attacks/Discarded are added unconditionally, not gated on non-zero: conditional
+        //  untagged adds would let e.g. Skills=0,Stars=3 collide with Skills=3,Stars=0 — position must stay fixed.)
         s.Player.Hash(ref h);
         h.Add(s.Monsters.Count);
         foreach (var m in s.Monsters) m.Hash(ref h);

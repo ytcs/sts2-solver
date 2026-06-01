@@ -184,3 +184,23 @@ public sealed class EnergyNextTurnPower : PowerModel
         Owner.RemovePower(Id);
     }
 }
+
+/// <summary>Intangible: every instance of HP loss the owner would take is capped to 1 while owned; the
+/// counter decrements by 1 at the end of each enemy turn, and at 0 the power is gone. Modelled via the
+/// engine's ModifyHpLost cap (same mechanism as SlipperyPower), with the counter on the base Amount so the
+/// base StateKey/HashValue already serialise it. Cross-character: granted by the Event-pool Apparition and
+/// the Silent's Wraith Form, so it lives in Core. (MegaCrit IntangiblePower — the net effect of its
+/// ModifyDamageCap/ModifyHpLost-to-1.)</summary>
+public sealed class IntangiblePower : PowerModel
+{
+    public override string Id => "Intangible";
+    public override PowerType Type => PowerType.Buff;
+
+    public override int ModifyHpLost(Creature target, int hpLost, ValueProp props, Creature? dealer)
+        => target == Owner && Amount > 0 && hpLost >= 1 ? 1 : hpLost;
+
+    public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
+    {
+        if (side == CombatSide.Enemy) { Amount--; this.NormalizeOrRemove(Owner); }   // game: decrement on enemy turn end
+    }
+}

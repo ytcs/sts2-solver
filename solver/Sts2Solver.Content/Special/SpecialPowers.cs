@@ -9,39 +9,9 @@ namespace Sts2Solver.Content;
 // ===========================================================================
 
 // EnergyNextTurnPower is cross-character (Event cards + Regent), so it now lives in Core/CommonPowers.cs.
-
-/// <summary>Intangible: every instance of HP loss the owner would take is capped to 1 while owned; the
-/// counter decrements by 1 at the end of each enemy turn, and at 0 the power is gone. Modelled via the
-/// engine's ModifyHpLost cap (same mechanism as SlipperyPower), with the counter on the base Amount so the
-/// base StateKey/HashValue already serialise it. Granted by Apparition and Wraith Form. (MegaCrit
-/// IntangiblePower — the net effect of its ModifyDamageCap/ModifyHpLost-to-1.)</summary>
-public sealed class IntangiblePower : PowerModel
-{
-    public override string Id => "Intangible";
-    public override PowerType Type => PowerType.Buff;
-
-    public override int ModifyHpLost(Creature target, int hpLost, ValueProp props, Creature? dealer)
-        => target == Owner && Amount > 0 && hpLost >= 1 ? 1 : hpLost;
-
-    public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
-    {
-        if (side == CombatSide.Enemy) { Amount--; this.NormalizeOrRemove(Owner); }   // game: decrement on enemy turn end
-    }
-}
-
-/// <summary>Wraith Form aftermath: at the start of each of the owner's turns, lose <c>Amount</c> Dexterity
-/// (a growing block penalty — the cost of staying Intangible). The counter persists (it does not tick
-/// itself). (MegaCrit WraithFormPower.)</summary>
-public sealed class WraithFormPower : PowerModel
-{
-    public override string Id => "WraithForm";
-    public override PowerType Type => PowerType.Debuff;
-
-    public override void AfterSideTurnStart(CombatState combat, CombatSide side)
-    {
-        if (side == Owner.Side) Cmd.ApplyPower(combat, Owner, new DexterityPower(), -Amount, Owner);
-    }
-}
+// IntangiblePower is cross-character too (Apparition here + the Silent's Wraith Form), so it also lives in
+// Core/CommonPowers.cs. WraithFormPower (the Dexterity-loss aftermath) is Silent-only and lives in
+// Silent/SilentPowers.cs alongside the Wraith Form card.
 
 /// <summary>Feeding Frenzy: gain <c>Amount</c> Strength for the rest of this turn (then it is undone at the
 /// owner's turn end). A one-turn self-buff — a TemporaryStrengthPower with positive sign, exactly as the game

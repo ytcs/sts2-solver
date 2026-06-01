@@ -1166,12 +1166,16 @@ public sealed class Armaments : CardModel
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+        // Upgrade by REPLACING each chosen hand card with a private, freshly-cloned upgraded copy — never
+        // mutate the (shared, non-Stateful) instance in place, or sibling search branches that share it get
+        // corrupted (the draw enumerator then throws "Pile missing card …"). Already-upgraded cards are skipped
+        // so an upgraded Armaments can't double-upgrade. Upgraded+ hits the whole hand; base hits one.
         var hand = combat.Player.Hand;
         if (Upgrades > 0)
         {
             for (int i = 0; i < hand.Count; i++)
                 if (hand[i].Upgrades == 0)
-                    hand[i] = hand[i].Clone().Upgraded(1);   // private upgraded copy; never mutate a shared instance
+                    hand[i] = hand[i].Clone().Upgraded(1);
         }
         else
         {

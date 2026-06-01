@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-01 (**Regent character ported (88 cards)** — new `Content/Regent/` module: Stars resource + Forge/Sovereign Blade engine + DivineRight, unit-tested (`RegentCardTests`). **Content: Event + Ancient + curse cards ported** — new `Content/Special/` module (24 Event/Ancient cards, deck-buildable) + `Content/Core/Curses.cs` (18 curses); new powers `IntangiblePower`/`EnergyNextTurnPower`/`ToricToughnessPower`/`WraithFormPower`/`FeedingFrenzyPower` + inert meta markers; engine `CardRarity.Event/Ancient`, `Creature.LoseMaxHp`, and a base-power `SkipNextTick` (the game's SkipNextDurationTick, so Doubt/Shame's self-debuff weakens the NEXT turn). 4 cards deferred (orbs/Osty/variable TinkerTime). **MCTS perf — action progressive widening + lexicographic PUCT** (opt-in `ActionWidening`, default OFF; `a198ea4`): the `--perf-probe` (`3eddc34`) isolated card VARIETY (not deck size) as the super-linear search cost, and PUCT+widening is a **strict Pareto win vs the exact oracle** — variety-axis nodes −40% / ms −24% at k=7 AND *more accurate* (`mcts-roll` mean Δsurv 0.9%→0.0%, Δloss 0.07→0.01; the razor-thin 22.1%-survival fight went from under-estimated 16.6% to exact 22.1%). 4 new `Apw_Converges_*` oracle gates. Default stays OFF pending a broader partial-survival sweep + a clone-free prior. Earlier: **Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88; Regent 88/88.)_
+_Last updated: 2026-06-01 (**Silent pool COMPLETE — 88/88** [batches 4–8: +50 cards — Shiv/poison-synergy powers, counter/conditional attacks via new per-turn counters (`AttacksPlayedThisTurn`/`CardsDiscardedThisTurn`), Intangible/WraithForm, BulletTime, the Stateful UpMySleeve, and the formerly-deferred selection/draw set (KnifeTrap, Nightmare, Acrobatics, Prepared, HiddenDaggers, ToolsOfTheTrade, EscapePlan, CorrosiveWave, Speedster, Murder) via a new `AfterCardDrawn` hook + gated `CardsDrawnThisCombat` counter; **+ a latent soundness fix the Silent agent found independently of the objective-sweep one: stale `_keyHash` after `Upgraded()` + in-pile upgrade aliasing for Armaments/Apotheosis**]. **Regent character ported (88 cards)** — new `Content/Regent/` module: Stars resource + Forge/Sovereign Blade engine + DivineRight, unit-tested (`RegentCardTests`). **Content: Event + Ancient + curse cards ported** — new `Content/Special/` module (24 Event/Ancient cards, deck-buildable) + `Content/Core/Curses.cs` (18 curses); new powers `IntangiblePower`/`EnergyNextTurnPower`/`ToricToughnessPower`/`WraithFormPower`/`FeedingFrenzyPower` + inert meta markers; engine `CardRarity.Event/Ancient`, `Creature.LoseMaxHp`, and a base-power `SkipNextTick` (the game's SkipNextDurationTick, so Doubt/Shame's self-debuff weakens the NEXT turn). 4 cards deferred (orbs/Osty/variable TinkerTime). **MCTS perf — action progressive widening + lexicographic PUCT** (opt-in `ActionWidening`, default OFF; `a198ea4`): the `--perf-probe` (`3eddc34`) isolated card VARIETY (not deck size) as the super-linear search cost, and PUCT+widening is a **strict Pareto win vs the exact oracle** — variety-axis nodes −40% / ms −24% at k=7 AND *more accurate* (`mcts-roll` mean Δsurv 0.9%→0.0%, Δloss 0.07→0.01; the razor-thin 22.1%-survival fight went from under-estimated 16.6% to exact 22.1%). 4 new `Apw_Converges_*` oracle gates. Default stays OFF pending a broader partial-survival sweep + a clone-free prior. Earlier: **Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 88/88 ✅; Regent 88/88.)_
 
 ## Goal
 
@@ -218,11 +218,6 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   Wind, True Grit, Cinder), generation/movement (Anger, Headbutt, Sword Boomerang, Infernal Blade), and
   per-turn-counter / cost-mod / unblocked-hit-counter cards. Prompt-needing cards (Burning Pact, Brand,
   Headbutt, Armaments) validated via the `ICardSelector` hook + upgrade-level recording.
-- **Silent — 40/88**: batches 1–2 LIVE-VALIDATED ✅ (poison core, block/dex/debuff, Shiv/attack); batch 3
-  unit-tested (Survivor, Backstab, DaggerThrow, Predator, BouncingFlask, Caltrops/Thorns, GrandFinale, Skewer,
-  Adrenaline, Backflip, Expertise + `DrawNextTurnPower`). Deferred (engine-level): hand-discard selection
-  (Acrobatics/CalculatedGamble), draw-conditional (EscapePlan), next-Skill-double (Burst), cost-set-on-hand
-  (BulletTime), Intangible (WraithForm), and the renamed/new STS2 "blade/ink" set (unverifiable LocStrings).
 - **Regent — 88/88 ported (new module)** `Content/Regent/` (unit-tested, NOT yet trace-validated): the full
   decompiled `RegentCardPool`, plus the **Stars** secondary resource and the **Forge → Sovereign Blade** engine.
   New engine support: `Player.Stars` (clone/hash/key), `CardModel.StarCost`/`IsXStarCost`/`Retain`, star-cost
@@ -240,6 +235,36 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   Conclusion, next-turn extra draw), gold (Royalties), Reflect's thorns-on-block, Void Form's cost discount,
   on-draw card hooks (Kingly Kick/Punch), auto-play-from-pile (Bombardment, I Am Invincible), and the
   multiplayer-only Largesse/HammerTime. 41 new unit tests.
+- **Silent — 88/88 ✅ (full pool)**: batches 1–3 LIVE-VALIDATED/unit-tested as before (poison core,
+  block/dex/debuff, Shiv/attack, Survivor/Backstab/DaggerThrow/Predator/BouncingFlask/Caltrops/GrandFinale/
+  Skewer/Adrenaline/Backflip/Expertise). **This round (batches 4–8, +50 cards, unit-tested):**
+  primitive attacks/skills/powers (Abrasive, Assassinate, Expose, LeadingStrike, Malaise [X-cost], Pounce
+  [FreeSkill], Reflex, Ricochet, Tactician, Untouchable, StormOfSteel, CalculatedGamble); the
+  Shiv/poison-synergy power set (Accelerant [Poison already reads it], Accuracy, Anticipate [temp Dex],
+  Strangle, InfiniteBlades, PhantomBlades, Outbreak, SerpentForm, Tracking, Burst, Shadowmeld, FanOfKnives,
+  ShadowStep [+DoubleDamage], BladeOfInk [Inky shivs: +1 dmg/+Weak], and MasterPlanner/WellLaidPlans/Sneaky/
+  Flanking — MP-only / Sly / Retain, inert in single-player); counter/conditional attacks (Finisher,
+  MementoMori, PreciseCut, Mirage, EchoingSlash) on new per-turn `CombatState` counters (attacks-played /
+  cards-discarded, in the key+hash); WraithForm (new `IntangiblePower` caps HP-loss to 1); BulletTime
+  (cost-zero-this-turn) + UpMySleeve (a **Stateful** self-cost-reducing card); and the **formerly-deferred
+  set, now ported to the project's "real-with-a-driver / degrade-in-pure-search" bar** (batch 8): KnifeTrap
+  (deterministic exhaust replay — exact), Nightmare (`NightmarePower` adds 3 copies of a default-chosen card
+  next turn), Acrobatics/Prepared/HiddenDaggers/ToolsOfTheTrade (default card SELECTION à la Armaments/Burning
+  Pact), EscapePlan (conditional on the drawn card), CorrosiveWave/Speedster (new **AfterCardDrawn** mid-turn-
+  draw hook), and Murder (scales on cumulative cards drawn — a gated `TracksCardsDrawn`/`CardsDrawnThisCombat`
+  counter so only Murder decks pay the state-key cost). New powers in `SilentPowers.cs`; `SilentCardTests`
+  49→110. (Selection/draw effects use deterministic defaults / no-op without an ambient Rng, matching the
+  existing Ironclad prompt/draw cards.)
+- **Soundness fix (this round): in-pile card upgrades** (`Armaments`, `Apotheosis`) now **replace** the
+  upgraded card with a freshly-cloned upgraded copy instead of mutating the shared (non-Stateful) instance in
+  place — the latter corrupted sibling search branches (draw enumerator: "Pile missing card …"). A latent
+  pre-existing bug (the STATUS-claimed fix was never actually in the code) surfaced by the wider random corpus;
+  `CardModel.Upgraded` now also drops its cached `KeyHash`. Gated by `Upgrade_In_Pile_Does_Not_Corrupt_Shared_Instances`.
+- **Soundness fix (merge-time): Regent counters missing from the memo key.** The per-turn counters
+  `SkillsPlayedThisTurn`/`StarsGainedThisTurn` (added by the Regent port) were in `StateKey()` but NOT in
+  `HashKey()` — the sole 128-bit FNV memo key, no string fallback. Two states differing only in those collided
+  → a stale memoised exact-oracle value for Lunar Blast / Radiate decks. Added them to `HashKey` (unconditional,
+  so field position is fixed). Latent because Lunar Blast/Radiate are tested via direct plays, not memoised search.
 - **Colorless — 18 ported (new module)** `Content/Colorless/`: 13 full-effect (FlashOfSteel, DramaticEntrance,
   MindBlast, HandOfGreed, Clash, Finesse, DarkShackles, MasterOfStrategy, ThinkingAhead, Impatience,
   PanicButton, + Powers Panache/TheBomb) and 5 documented HP-neutral subsets (Mayhem, Apotheosis,
@@ -289,7 +314,8 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   trace-replay + MCTS-convergence + calibration + horizon-bound v2 + loss-pruning oracle-equality +
   learned-VF beats-baseline + clone-isolation/Rampage soundness + randomized-corpus sanity + advisor +
   card-name matcher + Event/Ancient/curse ports + per-card Regent (Stars / Forge / Sovereign Blade /
-  star-payback)). **368 passed, 1 skipped** (the blend α-sweep tool), 0 failed — full unified run.
+  star-payback) + per-card Silent 88/88 (incl. the batch-4–8 powers, per-turn counters, AfterCardDrawn hook,
+  and the in-pile-upgrade soundness gate)). **428 passed, 1 skipped** (the blend α-sweep tool), 0 failed.
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
@@ -475,7 +501,8 @@ upgrade-aliasing clone bug.)
 5. **VF distillation + recalibration** — after a large training round (now drawing colorless + varied decks),
    distill feature importance to simplify the model without losing accuracy; recalibrate survival (Platt/
    isotonic) IF we keep it; add deck-composition features.
-6. **Content** — Silent 40 → 88; trace-validate the 8 new normal monsters; Act-1 bosses; relic engine hooks;
+6. **Content** — Silent 88/88 ✅ done; trace-validate the Silent batch-4–8 ports + the 8 new normal monsters
+   against the real game (currently unit-tested only); Act-1 bosses; relic engine hooks;
    the deferred solver-side mid-turn **draw chance-node** for forward search.
 7. **⚠ SOUNDNESS — intra-card SELECTION as real decision nodes.** The action space is flat: `LegalPlays`
    enumerates only `(card, target-monster)` pairs (`CombatHeuristic.cs:166`), and there is NO search-side
@@ -501,5 +528,5 @@ Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless a
 (UCT\*/DP-UCT, validated to converge); Act-1 elites 12/12; Ironclad 87/87; Ascension/A10; content
 modularization (per-character folders, flat namespace); the `ranwid` advisor + survival-first rollout +
 sound horizon bound; **horizon bound v2** (Weak / multi-enemy / in-search loss prune) + **Phase-C learned
-value function**. In progress: Silent pool (29/88). Detailed per-batch/per-milestone history lives in git and
+value function**. Silent pool **88/88 complete** (this round). Detailed per-batch/per-milestone history lives in git and
 the plan files under `~/.claude/plans/`.

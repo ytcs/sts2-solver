@@ -115,7 +115,12 @@ public static partial class Catalog
     {
         var list = monsters.ToList();
         for (int i = 0; i < list.Count; i++) list[i].Id = i + 1;
-        var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0, CurrentSide = CombatSide.Player };
+        // Murder's damage scales with cumulative cards drawn this combat — only then do we track + hash that
+        // ever-growing counter (it would otherwise needlessly fragment every other deck's state space).
+        bool tracksDrawn = player.DrawPile.Concat(player.Hand).Concat(player.DiscardPile)
+            .Any(c => c.Name == "Murder");
+        var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0,
+                                       CurrentSide = CombatSide.Player, TracksCardsDrawn = tracksDrawn };
         foreach (var r in player.Relics) r.OnCombatStart(combat);   // e.g. DivineRight grants 3 Stars
         return combat;
     }

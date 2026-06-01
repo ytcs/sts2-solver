@@ -370,23 +370,9 @@ public sealed class Apparition : CardModel
         => Cmd.ApplyPower(combat, combat.Player, new IntangiblePower(), Intangible, combat.Player);
 }
 
-/// <summary>Power: gain 2 Intangible. At the start of each turn, lose 1 Dexterity. Cost 3. Upgrade: +1
-/// Intangible. (MegaCrit WraithForm)</summary>
-public sealed class WraithForm : CardModel
-{
-    public override string Name => "WraithForm";
-    public override int BaseCost => 3;
-    public override CardType Type => CardType.Power;
-    public override CardRarity Rarity => CardRarity.Ancient;
-    public override TargetType Target => TargetType.Self;
-    public int Intangible => 2 + Upgrades;
-    public int DexLossPerTurn => 1;
-    public override void OnPlay(CombatState combat, CardPlay play)
-    {
-        Cmd.ApplyPower(combat, combat.Player, new IntangiblePower(), Intangible, combat.Player);
-        Cmd.ApplyPower(combat, combat.Player, new WraithFormPower(), DexLossPerTurn, combat.Player);
-    }
-}
+// WraithForm is a Silent power card; its card + the Silent-only WraithFormPower live in Content/Silent/
+// (the Silent agent ported it from the canonical SilentCardPool). Removed from the special pool to keep a
+// single canonical definition. (Apparition above stays here and grants the shared Core IntangiblePower.)
 
 /// <summary>Power: after combat, gain extra card-removal rewards. Eternal. Cost 2. Upgrade: costs 1.
 /// (MegaCrit ForbiddenGrimoire — the reward is a meta effect with no in-combat consequence, modelled via the

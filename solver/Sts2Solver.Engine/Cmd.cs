@@ -146,7 +146,15 @@ public static class Cmd
         if (combat.Player.HasPower("NoDraw")) return 0;
         int before = combat.Player.Hand.Count;
         CombatManager.DrawCards(combat, n, combat.Rng);
-        return combat.Player.Hand.Count - before;
+        int drawn = combat.Player.Hand.Count - before;
+        if (combat.TracksCardsDrawn) combat.CardsDrawnThisCombat += drawn;   // Murder scales on this
+        // Per-card-drawn hooks (CorrosiveWave applies Poison, Speedster deals damage). Mid-turn draws only.
+        for (int i = before; i < combat.Player.Hand.Count; i++)
+        {
+            var card = combat.Player.Hand[i];
+            foreach (var pw in combat.AllPowers.ToList()) pw.AfterCardDrawn(combat, card, false);
+        }
+        return drawn;
     }
 
     /// <summary>Summon a monster into combat (e.g. InfestedPower spawning Wrigglers on death). The new

@@ -18,6 +18,7 @@ public static class DrawEnumerator
 
         int draw = p.DrawPile.Count;
         int disc = p.DiscardPile.Count;
+        int handBefore = p.Hand.Count;   // for the Murder draw-counter (only when TracksCardsDrawn)
 
         if (n <= 0)
         {
@@ -32,6 +33,7 @@ public static class DrawEnumerator
             {
                 var c = baseState.Clone();
                 MovePileToHand(c.Player.DrawPile, c.Player.Hand, taken);
+                CountDrawn(c, handBefore);
                 yield return (prob, c);
             }
             yield break;
@@ -44,6 +46,7 @@ public static class DrawEnumerator
             var c = baseState.Clone();
             MoveAll(c.Player.DrawPile, c.Player.Hand);
             if (r >= disc && disc > 0) MoveAll(c.Player.DiscardPile, c.Player.Hand);
+            CountDrawn(c, handBefore);
             yield return (1.0, c);
             yield break;
         }
@@ -55,8 +58,16 @@ public static class DrawEnumerator
             MoveAll(c.Player.DrawPile, c.Player.Hand);          // whole draw pile drawn
             MoveAll(c.Player.DiscardPile, c.Player.DrawPile);   // reshuffle discard -> draw
             MovePileToHand(c.Player.DrawPile, c.Player.Hand, taken);
+            CountDrawn(c, handBefore);
             yield return (prob, c);
         }
+    }
+
+    /// <summary>Accumulate the cards-drawn-this-combat counter for the (Murder-bearing) state, by the number
+    /// of cards this draw moved into hand. No-op unless the combat tracks it.</summary>
+    private static void CountDrawn(CombatState c, int handBefore)
+    {
+        if (c.TracksCardsDrawn) c.CardsDrawnThisCombat += c.Player.Hand.Count - handBefore;
     }
 
     /// <summary>

@@ -292,6 +292,9 @@ public sealed class Apotheosis : CardModel
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
+        // Upgrade every not-yet-upgraded card in every pile by REPLACING it with a private, freshly-cloned
+        // upgraded copy — never mutate the (shared, non-Stateful) instances in place, or sibling search
+        // branches that share them get corrupted (the draw enumerator then throws "Pile missing card …").
         var p = combat.Player;
         UpgradePile(p.Hand);
         UpgradePile(p.DrawPile);

@@ -22,6 +22,8 @@ public static class CombatManager
         combat.PlayerLostHpThisTurn = false;             // per-turn flag (Spite)
         combat.SkillsPlayedThisTurn = 0;                 // per-turn counter (Regent Lunar Blast)
         combat.StarsGainedThisTurn = 0;                  // per-turn counter (Regent Radiate)
+        combat.AttacksPlayedThisTurn = 0;                // per-turn counter (Finisher)
+        combat.CardsDiscardedThisTurn = 0;               // per-turn counter (Memento Mori)
         // Block is NOT cleared on turn 1, nor while a Barricade-style power keeps it (PreventsBlockClear).
         if (!firstTurn && !PreventsBlockClear(combat.Player)) combat.Player.ClearBlock();
 
@@ -78,6 +80,9 @@ public static class CombatManager
             card.OnPlay(combat, new CardPlay { Card = card, Target = target, XValue = spend, StarsSpent = starCost });
             if (combat.IsCombatOver) break;   // don't keep swinging at a cleared board / after death
         }
+        // Count finished Attacks this turn (Finisher reads this; it's incremented after its own OnPlay so it
+        // never counts itself). A card played multiple times (bonus plays) still counts as one finished play.
+        if (card.Type == CardType.Attack) combat.AttacksPlayedThisTurn++;
         if (playCountContributors != null)
             foreach (var pw in playCountContributors) pw.AfterModifyingCardPlayCount(combat, card);
         if (costContributors != null)

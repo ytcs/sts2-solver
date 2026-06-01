@@ -248,14 +248,18 @@ public class ColorlessCardTests
     public void Apotheosis_Upgrades_Cards_In_Piles_And_Exhausts()
     {
         var (c, p, _) = Fight();
-        p.Hand.Add(new FlashOfSteel());
-        p.DrawPile.Add(new Clash());
+        var inHand = new FlashOfSteel();
+        var inDraw = new Clash();
+        p.Hand.Add(inHand);
+        p.DrawPile.Add(inDraw);
         var apo = new Apotheosis();
         Play(c, apo, null);
-        // Apotheosis swaps in private upgraded copies (it must NOT mutate the shared instances in place — see
-        // the soundness note on Apotheosis.OnPlay), so inspect the cards now in the piles.
-        Assert.Equal(1, p.Hand.First(h => h is FlashOfSteel).Upgrades);
-        Assert.Equal(1, p.DrawPile.First(h => h is Clash).Upgrades);
+        // Cards are REPLACED by freshly-cloned upgraded copies (originals untouched so shared instances in
+        // sibling search branches aren't corrupted — see the soundness note on Apotheosis.OnPlay).
+        Assert.Equal(0, inHand.Upgrades);                 // originals unchanged
+        Assert.Equal(0, inDraw.Upgrades);
+        Assert.Equal(1, p.Hand[0].Upgrades);              // piles hold the upgraded clones
+        Assert.Equal(1, p.DrawPile[0].Upgrades);
         Assert.Contains(apo, p.ExhaustPile);
     }
 

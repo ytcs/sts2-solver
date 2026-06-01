@@ -37,7 +37,7 @@ public static partial class Catalog
         ["BrightestFlame"] = () => new BrightestFlame(),
         ["Relax"] = () => new Relax(),
         ["Apparition"] = () => new Apparition(),
-        ["WraithForm"] = () => new WraithForm(),
+        // WraithForm is a Silent power card — registered in Silent/SilentCatalog.cs, not duplicated here.
         ["ForbiddenGrimoire"] = () => new ForbiddenGrimoire(),
     };
 }
