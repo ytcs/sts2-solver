@@ -62,8 +62,31 @@ public sealed class MctsOptions
     /// [Lo,Hi]). 1 = the classic single-rollout seed (the calibrated default — averaging didn't pay off).</summary>
     public int RolloutSamples = (int)EnvD("STS2_ROLLOUT_SAMPLES", 1);
 
+    /// <summary>Action progressive widening + PUCT. When OFF (default) the solver opens EVERY distinct legal
+    /// play at a decision node and forces one visit each (classic UCT*, identical to before). When ON, it ranks
+    /// the plays by the heuristic policy prior and opens only ⌈<see cref="ApwC"/>·N^<see cref="ApwBeta"/>⌉ of
+    /// them, best-first — bounding the per-decision branching that drives tree growth with card variety (the
+    /// super-linear cost the perf-probe isolates). EndTurn (the oracle's safe baseline) is always opened, and
+    /// every candidate eventually opens as N→∞, so it stays asymptotically consistent. Selection switches from
+    /// UCB to PUCT (prior·c·√N/(1+visits)); the just-opened child's rollout seed serves as its first-play value,
+    /// so no separate FPU term is needed. Gated against the exact oracle before becoming the default.</summary>
+    public bool ActionWidening = EnvB("STS2_APW", false);
+
+    /// <summary>Action-widening schedule: opened plays = ⌈ApwC·N^ApwBeta⌉ (clamped to [1, #plays]). β∈(0,1).</summary>
+    public double ApwC = EnvD("STS2_APW_C", 2.0);
+    public double ApwBeta = EnvD("STS2_APW_BETA", 0.5);
+
+    /// <summary>PUCT exploration constant (used only when <see cref="ActionWidening"/> is on). Larger ⇒ trust
+    /// the measured child values less and the policy prior / exploration more before committing.</summary>
+    public double PuctC = EnvD("STS2_PUCT_C", 1.5);
+
     private static double EnvD(string k, double dflt) =>
         double.TryParse(Environment.GetEnvironmentVariable(k), out var v) ? v : dflt;
+    private static bool EnvB(string k, bool dflt)
+    {
+        var s = Environment.GetEnvironmentVariable(k);
+        return s == null ? dflt : (s == "1" || s.Equals("true", StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 /// <summary>
@@ -178,12 +201,71 @@ public sealed class MctsSolver
     {
         d.Expanded = true;
         d.Edges = new List<Edge>();
+        if (_opt.ActionWidening) { ExpandWidening(d); return; }
+
         foreach (var action in LegalPlays(d.State))
         {
             var child = GetOrCreateDecision(ApplyPlay(d.State, action));
             d.Edges.Add(new Edge { Action = action, PlayChild = child });
         }
         d.Edges.Add(new Edge { Action = PlayerAction.EndTurn, IsEndTurn = true, Chance = BuildEndTurnChance(d.State) });
+    }
+
+    /// <summary>Action-widening expand: always open EndTurn (the safe baseline), then rank the card plays by a
+    /// cheap heuristic policy prior (lower resulting <see cref="CombatHeuristic.Score"/> = better play) and open
+    /// only the best-first prefix sized by the widening schedule. Ranking costs one Score per distinct play
+    /// (clone-only, no rollout / no node); the expensive per-child rollout seed is paid only for OPENED plays,
+    /// which is what bounds the variety blow-up.</summary>
+    private void ExpandWidening(DecisionNode d)
+    {
+        var plays = LegalPlays(d.State).ToList();
+        int n = plays.Count;
+
+        // Pseudo-score of ending the turn now = the do-nothing position score (Score already prices in the
+        // telegraphed incoming hit), so EndTurn ranks on the same scale as the plays.
+        double baseScore = CombatHeuristic.Score(d.State);
+        var scores = new double[n];
+        for (int i = 0; i < n; i++) scores[i] = CombatHeuristic.Score(ApplyPlay(d.State, plays[i]));
+
+        double mn = baseScore, mx = baseScore;
+        for (int i = 0; i < n; i++) { if (scores[i] < mn) mn = scores[i]; if (scores[i] > mx) mx = scores[i]; }
+        double tau = mx - mn > 1e-9 ? (mx - mn) / 2.0 : 1.0;          // scale-free softmax temperature
+        double W(double sc) => Math.Exp(-(sc - mn) / tau);            // unnormalised prior (lower score ⇒ larger)
+
+        double norm = W(baseScore);
+        for (int i = 0; i < n; i++) norm += W(scores[i]);
+
+        d.Edges.Add(new Edge { Action = PlayerAction.EndTurn, IsEndTurn = true,
+            Chance = BuildEndTurnChance(d.State), Prior = W(baseScore) / norm });
+
+        var order = Enumerable.Range(0, n).OrderBy(i => scores[i]).ToArray();   // best (lowest score) first
+        d.Candidates = order.Select(i => plays[i]).ToList();
+        d.CandidatePriors = order.Select(i => W(scores[i]) / norm).ToArray();
+        d.Opened = 0;
+        if (n > 0) WidenTo(d, TargetOpen(d));   // nothing to widen when EndTurn is the only action
+    }
+
+    /// <summary>How many card plays should be open at this node now: ⌈ApwC·N^ApwBeta⌉, clamped to [1, #plays]
+    /// (0 when there are no plays — only EndTurn).</summary>
+    private int TargetOpen(DecisionNode d)
+    {
+        int count = d.Candidates!.Count;
+        if (count == 0) return 0;
+        int target = (int)Math.Ceiling(_opt.ApwC * Math.Pow(Math.Max(1, d.N), _opt.ApwBeta));
+        return Math.Clamp(target, 1, count);
+    }
+
+    /// <summary>Open card-play edges (best-first) until <paramref name="target"/> are open. Each newly opened
+    /// edge materialises its child (and the child's rollout seed) once.</summary>
+    private void WidenTo(DecisionNode d, int target)
+    {
+        while (d.Opened < target && d.Opened < d.Candidates!.Count)
+        {
+            var action = d.Candidates[d.Opened];
+            var child = GetOrCreateDecision(ApplyPlay(d.State, action));
+            d.Edges.Add(new Edge { Action = action, PlayChild = child, Prior = d.CandidatePriors![d.Opened] });
+            d.Opened++;
+        }
     }
 
     private Value VisitDecision(DecisionNode d)
@@ -205,9 +287,16 @@ public sealed class MctsSolver
         return d.V;
     }
 
-    /// <summary>Lexicographic-UCB edge selection (HP loss normalised by maxHP).</summary>
+    /// <summary>Lexicographic-UCB edge selection (HP loss normalised by maxHP), or lexicographic-PUCT with
+    /// action widening when <see cref="MctsOptions.ActionWidening"/> is on.</summary>
     private Edge SelectEdge(DecisionNode d)
     {
+        if (_opt.ActionWidening)
+        {
+            if (d.Candidates!.Count > 0) WidenTo(d, TargetOpen(d));   // open more plays as the node matures
+            return SelectPuct(d);
+        }
+
         double maxHp = Math.Max(1, d.State.Player.MaxHp);
         double logN = Math.Log(Math.Max(2, d.N));
 
@@ -223,6 +312,31 @@ public sealed class MctsSolver
                 prim = e.Q.Win + bonus;                       // maximise win prob
                 sec = (1.0 - e.Q.Loss / maxHp) + bonus;       // then minimise HP loss
             }
+            if (best == null || prim > bestPrim + Eps ||
+                (Math.Abs(prim - bestPrim) <= Eps && sec > bestSec))
+            {
+                best = e; bestPrim = prim; bestSec = sec;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>Lexicographic PUCT over the OPENED edges: each edge already carries a real value (its child's
+    /// rollout seed, or the chance node's seed for EndTurn), so the just-opened child's seed is its first-play
+    /// value — no separate FPU term. The exploration term is the standard PUCT prior bonus prior·c·√N/(1+visits),
+    /// added to both lexicographic components so the comparison structure matches the UCB path.</summary>
+    private Edge SelectPuct(DecisionNode d)
+    {
+        double maxHp = Math.Max(1, d.State.Player.MaxHp);
+        double sqrtN = Math.Sqrt(Math.Max(1, d.N));
+
+        Edge best = null!;
+        double bestPrim = double.NegativeInfinity, bestSec = double.NegativeInfinity;
+        foreach (var e in d.Edges)
+        {
+            double u = _opt.PuctC * e.Prior * sqrtN / (1 + e.Visits);
+            double prim = e.Q.Win + u;                       // maximise win prob
+            double sec = (1.0 - e.Q.Loss / maxHp) + u;       // then minimise HP loss
             if (best == null || prim > bestPrim + Eps ||
                 (Math.Abs(prim - bestPrim) <= Eps && sec > bestSec))
             {
@@ -560,6 +674,12 @@ public sealed class MctsSolver
         public List<Edge> Edges = null!;
         public Value V;
         public int N;
+
+        // Action-widening state (null when ActionWidening is off): card plays ranked best-first by the policy
+        // prior, the matching normalised priors, and how many of them are currently opened as edges.
+        public List<PlayerAction>? Candidates;
+        public double[]? CandidatePriors;
+        public int Opened;
     }
 
     private sealed class Edge
@@ -569,6 +689,7 @@ public sealed class MctsSolver
         public DecisionNode? PlayChild;
         public ChanceNode? Chance;
         public int Visits;
+        public double Prior;   // policy prior for this action (action-widening / PUCT only)
         public Value Q => IsEndTurn ? Chance!.V : PlayChild!.V;   // plays cost no HP in scope
     }
 
