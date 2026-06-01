@@ -30,6 +30,11 @@ public abstract class CardModel
 
     public virtual int Cost => BaseCost;
 
+    /// <summary>Combat-dependent cost (Necrobinder Banshee's Cry drops 2 per Ethereal played; Flatten is
+    /// free after an Osty attack). Defaults to the static <see cref="Cost"/>. The solver's playability
+    /// check and <see cref="CombatManager.PlayCard"/> both consult this.</summary>
+    public virtual int EffectiveCost(CombatState combat) => Cost;
+
     /// <summary>X-cost cards (Whirlwind) spend ALL the player's current energy; the spent amount is passed
     /// to OnPlay via <see cref="CardPlay.XValue"/>. Their <see cref="Cost"/> stays 0 for the playability check.</summary>
     public virtual bool IsXCost => false;
@@ -42,6 +47,10 @@ public abstract class CardModel
     /// Perfected Strike counts these across the deck. (Game: CardTag.Strike.)</summary>
     public virtual bool IsStrike => false;
 
+    /// <summary>True for cards carrying the game's OstyAttack tag (the Necrobinder's Osty-powered attacks).
+    /// Squeeze counts these across the deck; the cards fizzle while Osty is missing. (Game: CardTag.OstyAttack.)</summary>
+    public virtual bool IsOstyAttack => false;
+
     /// <summary>Cards that cannot be played from hand (e.g. Status/Curse like Infection). The solver
     /// skips them and <see cref="CombatManager.PlayCard"/> rejects them.</summary>
     public virtual bool Unplayable => false;
@@ -52,6 +61,11 @@ public abstract class CardModel
     /// <summary>Ethereal cards still in hand at end of the player's turn are exhausted, not discarded
     /// (e.g. Dazed from Entomancer's Personal Hive).</summary>
     public virtual bool Ethereal => false;
+
+    /// <summary>Cards with Retain are NOT discarded at end of the player's turn — they stay in hand
+    /// (Necrobinder Eradicate/Reap/Sow/Spur/…). Some cards gain Retain dynamically; those override the
+    /// mutable backing flag. (Game: CardKeyword.Retain.)</summary>
+    public virtual bool Retain => false;
 
     /// <summary>The card's effect. Concrete cards call into <see cref="Cmd"/>.</summary>
     public abstract void OnPlay(CombatState combat, CardPlay play);

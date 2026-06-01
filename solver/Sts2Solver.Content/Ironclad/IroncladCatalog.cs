@@ -101,6 +101,7 @@ public static partial class Catalog
     private static readonly Dictionary<string, Func<RelicModel>> RelicFactories = new(StringComparer.OrdinalIgnoreCase)
     {
         ["BurningBlood"] = () => new BurningBlood(),
+        ["BoundPhylactery"] = () => new BoundPhylactery(),   // Necrobinder starter relic
     };
 
     /// <summary>The Ironclad starting deck: 5 Strike, 4 Defend, 1 Bash.</summary>

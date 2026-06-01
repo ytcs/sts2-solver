@@ -122,7 +122,7 @@ public sealed class Solver
         foreach (var card in s.Player.Hand)
         {
             if (card.Unplayable) continue;
-            if (card.Cost > s.Player.Energy) continue;
+            if (!card.IsXCost && card.EffectiveCost(s) > s.Player.Energy) continue;
             var ck = card.StateKey();
             if (card.NeedsTarget)
             {

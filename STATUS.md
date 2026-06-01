@@ -6,7 +6,7 @@ as the super-linear search cost, and PUCT+widening is a **strict Pareto win vs t
 nodes −40% / ms −24% at k=7 AND *more accurate* (`mcts-roll` mean Δsurv 0.9%→0.0%, Δloss 0.07→0.01; the razor-thin
 22.1%-survival fight went from under-estimated 16.6% to exact 22.1%). 4 new `Apw_Converges_*` oracle gates; suite
 281✅/1 skip. Default stays OFF pending a broader partial-survival sweep + a clone-free prior. Earlier:
-**Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88.)_
+**Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 29/88; Necrobinder 88/88 — new Osty-pet + Doom subsystem, unit-tested.)_
 
 ## Goal
 
@@ -26,6 +26,7 @@ solver/                         C#/.NET 9 solution
                  TrainingFixtures.cs (broad HP-swept grid for learned-VF label harvesting)
     Ironclad/    IroncladCards.cs · IroncladPowers.cs · IroncladRelics.cs · IroncladCatalog.cs
     Silent/      SilentCards.cs · SilentPowers.cs · SilentCatalog.cs
+    Necrobinder/ NecrobinderCards.cs · NecrobinderPowers.cs · NecrobinderCatalog.cs (Osty pet + Doom)
     Monsters/    Monsters.cs · MonsterPowers.cs · MonsterCatalog.cs · EncounterCatalog.cs
     Validation/  TraceValidator.cs
                  (adding a character = a <Char>/ folder + one yield in Core CardTables())
@@ -234,6 +235,26 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   PanicButton, + Powers Panache/TheBomb) and 5 documented HP-neutral subsets (Mayhem, Apotheosis,
   Metamorphosis, Enlightenment, Purity). New powers DarkShackles/`NoBlock` + the **Stateful** `Panache`/`TheBomb`
   (counter in `StateKey`/`HashValue`/`Clone`). Unit-tested. (`Expertise` is Silent, not Colorless.)
+- **Necrobinder — 88/88 ported (new module, unit-tested; NOT yet trace-validated)** `Content/Necrobinder/`:
+  the full pool from decompiled `NecrobinderCardPool` + the two tokens (Soul, Sweeping Gaze). 66 HP starter
+  (4 Strike / 4 Defend / Bodyguard / Unleash) with the **Bound Phylactery** relic. Core new subsystem is
+  **Osty**, a player-side pet (`Player.Osty`, an `Osty : Creature` surfaced through `CombatState.AllCreatures`):
+  Summon grows MaxHp+heals an alive Osty or (re)creates a dead one at full HP; **DieForYouPower** redirects
+  powered enemy attacks off the player onto Osty (new `PowerModel.ModifyDamageTarget` hook in the damage
+  pipeline); **NecroMasteryPower** reflects Osty's HP loss to all enemies; OstyAttack cards (Poke/Unleash/
+  Protector/Squeeze/BoneShards/…) deal damage *as Osty* (Calcify = Osty-Strength) and fizzle while it is
+  missing. **Doom** (`DoomPower`) is a counter-debuff that executes a creature whose HP ≤ its Doom at its
+  side's turn-end (End of Days kills immediately; Neurosurge self-dooms; Reaper Form/BlightStrike/Countdown/
+  No Escape feed it). ~30 powers incl. Lethality (first-attack ×), Hang (doubling multiplier), Debilitate
+  (target-side Vulnerable/Weak transforms), Sleight of Flesh / Shroud (on-debuff / on-Doom triggers),
+  Spirit of Ash / Danse Macabre (`BeforeCardPlayed` block), Veilpiercer / Borrowed Time (cost ±),
+  Energy/Summon-next-turn, Intangible (Eidolon), Friendship/Demesne (+max energy). New engine hooks:
+  `ModifyDamageTarget`, `BeforeCardPlayed`, vulnerable/weak transforms, `Cmd.Kill`, `RelicModel.OnCombatStart`/
+  `OnPlayerTurnStart`, `CardModel.EffectiveCost`/`Retain`/`IsOstyAttack`, and per-turn/-combat counters
+  (Osty-attacks, ethereal-played, attacks-played, Doom-applied). Documented-inert (HP-neutral, unmodelled
+  subsystems): mid-combat card **generation** (Soul/SweepingGaze/Call of the Void/Sentry Mode), pile
+  **selection/transform** (Cleanse/Dredge/Graveblast/Sculpting Strike/Snap/Seance/Transfigure), draw **count**
+  (Demesne/Pagestorm/Death March's draw-scaling), and post-combat rewards (Forbidden Grimoire). 51 unit tests.
 - **Monsters / Act-1 elites — 12/12 ported + validated ✅:** Byrdonis, BygoneEffigy, PhrogParasite (+4
   Wrigglers on death), TerrorEel (Shriek→Terror), SoulNexus (RandomBranch), MechaKnight (Artifact),
   Entomancer (Personal Hive / Dazed flood), SkulkingColony (HardenedShell cap), InfestedPrism (Vital Spark),
@@ -254,10 +275,10 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   defaults A10. A5 `AscendersBane` curse modelled (Unplayable+Ethereal).
 
 ### Validation status
-- **xUnit tests all green** (pipeline + per-card Ironclad/Silent/Colorless + monster-port + solver +
+- **xUnit tests all green** (pipeline + per-card Ironclad/Silent/Colorless/Necrobinder + monster-port + solver +
   trace-replay + MCTS-convergence + calibration + horizon-bound v2 + loss-pruning oracle-equality +
   learned-VF beats-baseline + clone-isolation/Rampage soundness + randomized-corpus sanity + advisor +
-  card-name matcher). **268 passed, 1 skipped** (the blend α-sweep tool), 0 failed — full unified run.
+  card-name matcher). **332 passed, 1 skipped** (the blend α-sweep tool), 0 failed — full unified run.
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,

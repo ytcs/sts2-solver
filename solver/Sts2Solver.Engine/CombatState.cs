@@ -35,13 +35,33 @@ public sealed class CombatState
     /// hits 1 + this many times. (Game: count of the player's DamageReceivedEntry with UnblockedDamage > 0.)</summary>
     public int PlayerUnblockedHitsCount;
 
+    /// <summary>Attack cards the player has played this turn (Necrobinder Lethality boosts the first one).
+    /// Reset at the player's turn start, incremented after each Attack resolves.</summary>
+    public int AttacksPlayedThisTurn;
+
+    /// <summary>Ethereal cards the player has played this combat (Necrobinder Pull from Below hits 1 per
+    /// such play; Banshee's Cry's cost drops). Never reset.</summary>
+    public int EtherealPlayedThisCombat;
+
+    /// <summary>Osty attacks resolved this turn (Necrobinder Flatten costs 0 after one; Rattle hits 1 +
+    /// this many). Reset at the player's turn start.</summary>
+    public int OstyAttacksThisTurn;
+
+    /// <summary>True once the player has applied Doom this turn (Necrobinder Death's Door triples its
+    /// block). Reset at the player's turn start.</summary>
+    public bool DoomAppliedThisTurn;
+
     public IEnumerable<Monster> LivingMonsters => Monsters.Where(m => m.IsAlive);
+
+    /// <summary>Living enemies a player/Osty attack can target (the monster list, minus the dead).</summary>
+    public IEnumerable<Creature> HittableEnemies => Monsters.Where(m => m.IsAlive);
 
     public IEnumerable<Creature> AllCreatures
     {
         get
         {
             yield return Player;
+            if (Player.Osty != null) yield return Player.Osty;   // player-side pet; its powers join the pipeline
             foreach (var m in Monsters) yield return m;
         }
     }
@@ -68,6 +88,10 @@ public sealed class CombatState
             CardExhaustedThisTurn = CardExhaustedThisTurn,
             PlayerLostHpThisTurn = PlayerLostHpThisTurn,
             PlayerUnblockedHitsCount = PlayerUnblockedHitsCount,
+            AttacksPlayedThisTurn = AttacksPlayedThisTurn,
+            EtherealPlayedThisCombat = EtherealPlayedThisCombat,
+            OstyAttacksThisTurn = OstyAttacksThisTurn,
+            DoomAppliedThisTurn = DoomAppliedThisTurn,
         };
     }
 
@@ -77,6 +101,11 @@ public sealed class CombatState
     public string StateKey()
     {
         var monsters = string.Join(";", Monsters.Select(m => m.StateKey()));
-        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}|{Player.StateKey()}|{monsters}";
+        // Necrobinder-only counters: appended only when non-zero so every other character's key is unchanged.
+        var necro = (AttacksPlayedThisTurn != 0 ? $"/a{AttacksPlayedThisTurn}" : "")
+                  + (EtherealPlayedThisCombat != 0 ? $"/et{EtherealPlayedThisCombat}" : "")
+                  + (OstyAttacksThisTurn != 0 ? $"/oa{OstyAttacksThisTurn}" : "")
+                  + (DoomAppliedThisTurn ? "/da" : "");
+        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}{necro}|{Player.StateKey()}|{monsters}";
     }
 }

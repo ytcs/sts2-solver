@@ -20,8 +20,15 @@ public static class CombatManager
         combat.Player.ResetEnergy();
         combat.CardExhaustedThisTurn = false;            // per-turn flag (Evil Eye / Forgotten Ritual)
         combat.PlayerLostHpThisTurn = false;             // per-turn flag (Spite)
+        combat.AttacksPlayedThisTurn = 0;                // per-turn counter (Necrobinder Lethality)
+        combat.OstyAttacksThisTurn = 0;                  // per-turn counter (Necrobinder Flatten/Rattle)
+        combat.DoomAppliedThisTurn = false;              // per-turn flag (Necrobinder Death's Door)
         // Block is NOT cleared on turn 1, nor while a Barricade-style power keeps it (PreventsBlockClear).
         if (!firstTurn && !PreventsBlockClear(combat.Player)) combat.Player.ClearBlock();
+
+        // Relic turn-start effects (Bound Phylactery re-summons Osty after turn 1). Fired after energy
+        // reset, before start-of-turn powers, mirroring the game's AfterEnergyResetLate ordering.
+        foreach (var r in combat.Player.Relics) r.OnPlayerTurnStart(combat);
 
         FireAfterSideTurnStart(combat, CombatSide.Player);
     }
@@ -38,12 +45,13 @@ public static class CombatManager
 
         // Cost modifiers (Free Attack zeroes the next Attack; Corruption zeroes Skills). A power that
         // lowers the cost is a "contributor" and gets AfterModifyingCardCost (Free Attack consumes there).
-        int effCost = card.Cost;
+        int effCost = card.EffectiveCost(combat);
         List<PowerModel>? costContributors = null;
         foreach (var pw in combat.AllPowers.ToList())
         {
             int nc = pw.ModifyCardCost(card, effCost);
-            if (nc < effCost) { (costContributors ??= new()).Add(pw); effCost = nc; }
+            if (nc < effCost) (costContributors ??= new()).Add(pw);   // only reducers get AfterModifyingCardCost
+            effCost = nc;                                             // but increases (Borrowed Time) still apply
         }
         effCost = Math.Max(0, effCost);
         if (!card.IsXCost && effCost > player.Energy) throw new InvalidOperationException("Not enough energy.");
@@ -61,6 +69,10 @@ public static class CombatManager
             int b = pw.ModifyCardPlayCount(card);
             if (b > 0) { bonusPlays += b; (playCountContributors ??= new()).Add(pw); }
         }
+        // Before-play hook (Danse Macabre / Spirit of Ash block, Veilpiercer charge). Runs before OnPlay so
+        // a Power card never triggers the power it is in the middle of applying.
+        foreach (var pw in combat.AllPowers.ToList()) pw.BeforeCardPlayed(combat, card);
+
         for (int i = 0; i <= bonusPlays; i++)
         {
             card.OnPlay(combat, new CardPlay { Card = card, Target = target, XValue = spend });
@@ -70,6 +82,11 @@ public static class CombatManager
             foreach (var pw in playCountContributors) pw.AfterModifyingCardPlayCount(combat, card);
         if (costContributors != null)
             foreach (var pw in costContributors) pw.AfterModifyingCardCost(combat, card);
+
+        // Per-turn/combat play counters (Necrobinder Lethality / Pull from Below). Incremented after the
+        // effect resolves so the card never counts itself.
+        if (card.Type == CardType.Attack) combat.AttacksPlayedThisTurn++;
+        if (card.Ethereal) combat.EtherealPlayedThisCombat++;
 
         // Mirror Hook.AfterCardPlayed: fires after the card's effect resolves (so the card never
         // boosts its own damage), before the card moves to its result pile.
@@ -106,7 +123,9 @@ public static class CombatManager
         }
 
         // Standard STS: the hand is discarded at end of turn — except Ethereal cards, which exhaust (and
-        // fire the on-exhaust hook with causedByEthereal=true, e.g. DarkEmbrace's deferred draw).
+        // fire the on-exhaust hook with causedByEthereal=true, e.g. DarkEmbrace's deferred draw), and
+        // Retain cards, which stay in hand.
+        var retained = new List<CardModel>();
         foreach (var card in player.Hand)
         {
             if (card.Ethereal)
@@ -115,9 +134,11 @@ public static class CombatManager
                 combat.CardExhaustedThisTurn = true;
                 foreach (var p in combat.AllPowers.ToList()) p.AfterCardExhausted(combat, card, true);
             }
+            else if (card.Retain) retained.Add(card);
             else player.DiscardPile.Add(card);
         }
         player.Hand.Clear();
+        player.Hand.AddRange(retained);
 
         FireAfterSideTurnEnd(combat, CombatSide.Player);
         combat.CurrentSide = CombatSide.Enemy;

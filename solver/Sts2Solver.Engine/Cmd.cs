@@ -28,7 +28,14 @@ public static class Cmd
         // STS convention: floor once after all modifiers, clamp to ≥0.
         int modified = (int)Math.Floor(Math.Max(0m, amount));
 
-        int lost = ApplyDamage(combat, target, modified, props, dealer);
+        // Target redirection (Osty's DieForYou pulls powered attacks off the player). Modifiers above were
+        // computed against the original target — matching the game, which redirects only the final hit.
+        Creature actualTarget = target;
+        foreach (var c in combat.AllCreatures)
+            foreach (var p in c.Powers)
+                actualTarget = p.ModifyDamageTarget(actualTarget, props, dealer);
+
+        int lost = ApplyDamage(combat, actualTarget, modified, props, dealer);
 
         // Attack-completion hook (Vigor consumes its bonus here, once spent on a powered attack).
         foreach (var p in combat.AllPowers.ToList()) p.AfterAttackDealt(combat, dealer, props);
@@ -48,6 +55,10 @@ public static class Cmd
     /// <summary>Apply already-modified damage through block to a target's HP. Returns HP lost.</summary>
     public static int ApplyDamage(CombatState combat, Creature target, int modified, ValueProp props, Creature? dealer = null)
     {
+        // Intangible clamps any single damage instance to 1 (before block). Guarded on the power so it is
+        // inert for characters that never gain it. (Game: IntangiblePower.)
+        if (modified > 1 && target.HasPower("Intangible")) modified = 1;
+
         int blocked = 0;
         if (!props.HasFlag(ValueProp.Unblockable))
         {
@@ -88,6 +99,15 @@ public static class Cmd
     /// <summary>Direct, unblockable, unpowered HP loss (e.g. Poison ticks).</summary>
     public static int LoseHp(CombatState combat, Creature target, int amount)
         => ApplyDamage(combat, target, amount, ValueProp.Unblockable | ValueProp.Unpowered);
+
+    /// <summary>Instantly remove a creature's remaining HP (Doom execute; Bone Shards / Sacrifice consuming
+    /// Osty). Routed through ApplyDamage so death + damage-received hooks fire — notably NecroMastery, which
+    /// reflects the HP Osty loses when it is sacrificed. Returns HP removed.</summary>
+    public static int Kill(CombatState combat, Creature target)
+    {
+        if (!target.IsAlive) return 0;
+        return ApplyDamage(combat, target, target.CurrentHp, ValueProp.Unblockable | ValueProp.Unpowered);
+    }
 
     /// <summary>Gain block, applying block modifiers (Dexterity additive, Frail ×0.75).</summary>
     public static void GainBlock(CombatState combat, Creature target, int baseBlock, ValueProp props, CardModel? cardSource)
@@ -159,6 +179,10 @@ public static class Cmd
             foreach (var existing in target.Powers.ToList())
                 if (existing.TryAbsorbDebuff(combat, power))
                     return;   // negated (e.g. by Artifact)
+
+        // Track player-applied Doom for the turn (Necrobinder Death's Door). String-keyed so the engine
+        // need not know the Content power type; inert for every non-Doom power.
+        if (amount > 0 && power.Id == "Doom" && applier == combat.Player) combat.DoomAppliedThisTurn = true;
 
         target.AddPower(power, amount);
         // AfterApplied fires on the live power instance (the one now attached).

@@ -16,6 +16,9 @@ public static partial class Catalog
         ["Burn"] = () => new Burn(),
         ["Dazed"] = () => new Dazed(),
         ["AscendersBane"] = () => new AscendersBane(),
+        // Necrobinder tokens: buildable (so traces/tests can construct them) but excluded from the deck pool.
+        ["Soul"] = () => new Soul(),
+        ["SweepingGaze"] = () => new SweepingGaze(),
     };
 
     /// <summary>Every registered card table, in lookup order. Add a character = add one line here.</summary>
@@ -25,6 +28,7 @@ public static partial class Catalog
         yield return IroncladCardFactories;
         yield return SilentCardFactories;
         yield return ColorlessCardFactories;
+        yield return NecrobinderCardFactories;
     }
 
     /// <summary>The deck-buildable card pool: every registered character + colorless card (Ironclad + Silent
@@ -35,6 +39,7 @@ public static partial class Catalog
         _cardPool ??= IroncladCardFactories.Keys
             .Concat(SilentCardFactories.Keys)
             .Concat(ColorlessCardFactories.Keys)
+            .Concat(NecrobinderCardFactories.Keys)
             .ToArray();
     private static string[]? _cardPool;
 
@@ -89,6 +94,8 @@ public static partial class Catalog
     {
         var list = monsters.ToList();
         for (int i = 0; i < list.Count; i++) list[i].Id = i + 1;
-        return new() { Player = player, Monsters = list, TurnNumber = 0, CurrentSide = CombatSide.Player };
+        var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0, CurrentSide = CombatSide.Player };
+        foreach (var r in player.Relics) r.OnCombatStart(combat);   // Bound Phylactery summons Osty here
+        return combat;
     }
 }

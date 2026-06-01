@@ -4,10 +4,11 @@ public enum CombatSide { Player, Enemy }
 
 public enum CardType { Attack, Skill, Power, Status, Curse }
 
-public enum CardRarity { Basic, Common, Uncommon, Rare, Special, Curse, Status }
+public enum CardRarity { Basic, Common, Uncommon, Rare, Special, Curse, Status, Token, Ancient }
 
-/// <summary>Who a card can target. v1 covers the subset the slice needs.</summary>
-public enum TargetType { Self, AnyEnemy, AllEnemies, RandomEnemy, None }
+/// <summary>Who a card can target. v1 covers the subset the slice needs. <c>AllAllies</c> is only
+/// reached by multiplayer-only cards (inert here — single-player has just the one ally, Osty).</summary>
+public enum TargetType { Self, AnyEnemy, AllEnemies, RandomEnemy, AllAllies, None }
 
 public enum PowerType { Buff, Debuff }
 
