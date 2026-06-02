@@ -1,5 +1,7 @@
+using System.Linq;
 using Sts2Solver.Content;
 using Sts2Solver.Engine;
+using Sts2Solver.Search;
 using Xunit;
 
 namespace Sts2Solver.Tests;
@@ -544,6 +546,41 @@ public class CardTests
         Play(c, new Headbutt(), m);
         Assert.Equal(60 - 9, m.CurrentHp);
         Assert.IsType<StrikeIronclad>(p.DrawPile[0]);           // the discarded Strike is now on top of draw
+    }
+
+    // ----- In-card CHOICE promoted to a search decision (Headbutt topdeck target) -----
+
+    [Fact]
+    public void Headbutt_Choice_Enumerates_One_Play_Per_Distinct_Discard_Card()
+    {
+        var (c, p, _) = Fight();
+        p.Hand.Add(new Headbutt());
+        p.DiscardPile.Add(new Bash());
+        p.DiscardPile.Add(new StrikeIronclad());
+        p.DiscardPile.Add(new StrikeIronclad());   // a duplicate Strike collapses by StateKey (action abstraction)
+        p.MaxEnergy = 3; p.ResetEnergy();
+
+        Assert.Equal(2, new Headbutt().Choices(c).Count());      // {Bash, StrikeIronclad}, not 3
+
+        var plays = new Solver().LegalPlays(c).Where(a => a.CardKey == "Headbutt").ToList();
+        Assert.Equal(2, plays.Count);                            // one decision per distinct topdeck choice
+        Assert.Contains(plays, a => a.ChoiceKey == "Bash");
+        Assert.Contains(plays, a => a.ChoiceKey == "StrikeIronclad");
+    }
+
+    [Fact]
+    public void Headbutt_Topdecks_The_Chosen_Discard_Card_Overriding_The_Default()
+    {
+        foreach (var pick in new[] { "Bash", "StrikeIronclad" })
+        {
+            var (c, p, m) = Fight();
+            p.DiscardPile.Add(new Bash());
+            p.DiscardPile.Add(new StrikeIronclad());             // the default (null choice) would topdeck this last card
+            p.Hand.Add(new Headbutt());
+            p.MaxEnergy = 3; p.ResetEnergy();
+            CombatManager.PlayCard(c, p.Hand.First(h => h is Headbutt), m, pick);
+            Assert.Equal(pick, p.DrawPile[0].StateKey());        // the CHOSEN card is topdecked
+        }
     }
 
     [Fact]

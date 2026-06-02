@@ -17,8 +17,10 @@ public readonly record struct Value(double Win, double Loss)
     public override string ToString() => $"win={Win:P2}, E[HP loss]={Loss:F2}";
 }
 
-/// <summary>An action available at a player decision node.</summary>
-public readonly record struct PlayerAction(string Label, string? CardKey, int TargetMonsterIndex)
+/// <summary>An action available at a player decision node. <see cref="ChoiceKey"/> is set (to an option's
+/// <see cref="CardModel.StateKey"/>) only for cards that require an in-play choice (Headbutt, Armaments, …);
+/// it is null for the common case and is what distinguishes the per-choice plays the search branches on.</summary>
+public readonly record struct PlayerAction(string Label, string? CardKey, int TargetMonsterIndex, string? ChoiceKey = null)
 {
     public static readonly PlayerAction EndTurn = new("End turn", null, -1);
 }
@@ -125,19 +127,28 @@ public sealed class Solver
             if (!card.IsXCost && card.EffectiveCost(s) > s.Player.Energy) continue;   // EffectiveCost: in-combat cost reductions
             if (!s.Player.CanAffordStars(card)) continue;   // Regent star cost gates the play
             var ck = card.StateKey();
+            var choices = card.Choices(s).Distinct().ToList();   // empty for the common no-choice card
             if (card.NeedsTarget)
             {
                 for (int i = 0; i < s.Monsters.Count; i++)
                 {
                     if (!s.Monsters[i].IsAlive) continue;
-                    var sig = $"{ck}@{i}";
-                    if (seen.Add(sig)) yield return new PlayerAction($"Play {ck} -> M{i}", ck, i);
+                    if (choices.Count == 0)
+                    {
+                        if (seen.Add($"{ck}@{i}")) yield return new PlayerAction($"Play {ck} -> M{i}", ck, i);
+                    }
+                    else foreach (var choice in choices)
+                        if (seen.Add($"{ck}@{i}#{choice}"))
+                            yield return new PlayerAction($"Play {ck} -> M{i} [{choice}]", ck, i, choice);
                 }
             }
-            else
+            else if (choices.Count == 0)
             {
                 if (seen.Add(ck)) yield return new PlayerAction($"Play {ck}", ck, -1);
             }
+            else foreach (var choice in choices)
+                if (seen.Add($"{ck}#{choice}"))
+                    yield return new PlayerAction($"Play {ck} [{choice}]", ck, -1, choice);
         }
     }
 
@@ -148,7 +159,7 @@ public sealed class Solver
         var c = s.Clone();
         var card = c.Player.Hand.First(h => h.StateKey() == action.CardKey);
         Creature? target = action.TargetMonsterIndex >= 0 ? c.Monsters[action.TargetMonsterIndex] : null;
-        CombatManager.PlayCard(c, card, target);
+        CombatManager.PlayCard(c, card, target, action.ChoiceKey);
         return c;
     }
 

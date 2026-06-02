@@ -37,8 +37,9 @@ public static class CombatManager
     }
 
     /// <summary>Play a card from hand at an optional target. Validates cost/target, spends energy,
-    /// runs the effect, and moves the card to its result pile.</summary>
-    public static void PlayCard(CombatState combat, CardModel card, Creature? target)
+    /// runs the effect, and moves the card to its result pile. <paramref name="choiceKey"/> carries an in-play
+    /// choice (an option's <see cref="CardModel.StateKey"/>) for cards that require one; null = no/ default choice.</summary>
+    public static void PlayCard(CombatState combat, CardModel card, Creature? target, string? choiceKey = null)
     {
         var player = combat.Player;
         if (!player.Hand.Contains(card)) throw new InvalidOperationException("Card not in hand.");
@@ -88,7 +89,7 @@ public static class CombatManager
 
         for (int i = 0; i <= bonusPlays; i++)
         {
-            card.OnPlay(combat, new CardPlay { Card = card, Target = target, XValue = spend, StarsSpent = starCost });
+            card.OnPlay(combat, new CardPlay { Card = card, Target = target, XValue = spend, StarsSpent = starCost, ChoiceKey = choiceKey });
             if (combat.IsCombatOver) break;   // don't keep swinging at a cleared board / after death
         }
         // Per-turn/combat play counters, incremented after the effect resolves so a card never counts itself.

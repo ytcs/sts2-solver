@@ -538,16 +538,28 @@ public sealed class MctsSolver
             if (!card.IsXCost && card.EffectiveCost(s) > s.Player.Energy) continue;   // EffectiveCost: in-combat cost reductions
             if (!s.Player.CanAffordStars(card)) continue;   // Regent star cost gates the play
             var ck = card.StateKey();
+            var choices = card.Choices(s).Distinct().ToList();   // empty for the common no-choice card
             if (card.NeedsTarget)
             {
                 for (int i = 0; i < s.Monsters.Count; i++)
                 {
                     if (!s.Monsters[i].IsAlive) continue;
-                    var sig = $"{ck}@{i}";
-                    if (seen.Add(sig)) yield return new PlayerAction($"Play {ck} -> M{i}", ck, i);
+                    if (choices.Count == 0)
+                    {
+                        if (seen.Add($"{ck}@{i}")) yield return new PlayerAction($"Play {ck} -> M{i}", ck, i);
+                    }
+                    else foreach (var choice in choices)
+                        if (seen.Add($"{ck}@{i}#{choice}"))
+                            yield return new PlayerAction($"Play {ck} -> M{i} [{choice}]", ck, i, choice);
                 }
             }
-            else if (seen.Add(ck)) yield return new PlayerAction($"Play {ck}", ck, -1);
+            else if (choices.Count == 0)
+            {
+                if (seen.Add(ck)) yield return new PlayerAction($"Play {ck}", ck, -1);
+            }
+            else foreach (var choice in choices)
+                if (seen.Add($"{ck}#{choice}"))
+                    yield return new PlayerAction($"Play {ck} [{choice}]", ck, -1, choice);
         }
     }
 
@@ -556,7 +568,7 @@ public sealed class MctsSolver
         var c = s.Clone();
         var card = c.Player.Hand.First(h => h.StateKey() == action.CardKey);
         Creature? target = action.TargetMonsterIndex >= 0 ? c.Monsters[action.TargetMonsterIndex] : null;
-        CombatManager.PlayCard(c, card, target);
+        CombatManager.PlayCard(c, card, target, action.ChoiceKey);
         return c;
     }
 

@@ -15,6 +15,13 @@ public sealed class CardPlay
     /// <summary>Stars actually spent on this play (Regent star-cost cards). For X-star cards (Stardust) this
     /// is all the player's stars; the card reads it to scale its effect (Stardust hits StarsSpent times).</summary>
     public int StarsSpent;
+
+    /// <summary>For cards that require an in-play CHOICE (Headbutt's topdeck target, Armaments' upgrade target,
+    /// an exhaust/discard selection, …): the <see cref="CardModel.StateKey"/> of the chosen option. The search
+    /// enumerates these via <see cref="CardModel.Choices"/> and promotes each to its own decision; trace replay
+    /// passes the recorded choice. Null = no choice was made (the card has none, or a caller left it to the
+    /// card's default).</summary>
+    public string? ChoiceKey;
 }
 
 /// <summary>
@@ -81,8 +88,16 @@ public abstract class CardModel
     /// (e.g. Dazed from Entomancer's Personal Hive).</summary>
     public virtual bool Ethereal => false;
 
-    /// <summary>The card's effect. Concrete cards call into <see cref="Cmd"/>.</summary>
+    /// <summary>The card's effect. Concrete cards call into <see cref="Cmd"/>. A card that requires an in-play
+    /// choice reads <see cref="CardPlay.ChoiceKey"/> (and should apply a sensible default when it is null, for
+    /// trace replay / callers that don't choose).</summary>
     public abstract void OnPlay(CombatState combat, CardPlay play);
+
+    /// <summary>The DISTINCT options a player must choose among when playing this card (each an option's
+    /// <see cref="StateKey"/>) — e.g. the distinct discard-pile cards Headbutt could topdeck. The search
+    /// promotes each to its own decision; symmetric options collapse because identical cards share a StateKey.
+    /// Empty (the default) means the card has no choice and is enumerated/played exactly as before.</summary>
+    public virtual IEnumerable<string> Choices(CombatState combat) => System.Array.Empty<string>();
 
     /// <summary>Fires for each copy still in hand at end of the player's turn (before the hand is
     /// discarded). Infection deals 3 to the player here.</summary>

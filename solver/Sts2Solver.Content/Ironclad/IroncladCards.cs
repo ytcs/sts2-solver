@@ -683,8 +683,8 @@ public sealed class Anger : CardModel
     }
 }
 /// <summary>Deal 9 damage. Put a card from your discard pile on top of your draw pile. Upgrade: +3 damage.
-/// NOTE: the chosen card isn't recorded and the move is HP-neutral, so for replay we move the most-recently
-/// discarded card (a deterministic best-effort); validation checks only the damage. (MegaCrit Headbutt)</summary>
+/// The topdeck target is a real player CHOICE (promoted to a search decision via <see cref="Choices"/>); with
+/// no choice supplied (trace replay) it defaults to the most-recently discarded card. (MegaCrit Headbutt)</summary>
 public sealed class Headbutt : CardModel
 {
     public override string Name => "Headbutt";
@@ -693,16 +693,24 @@ public sealed class Headbutt : CardModel
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AnyEnemy;
     public int Damage => 9 + 3 * Upgrades;
+
+    /// <summary>Which discard-pile card to topdeck — one option per DISTINCT discard card (identical cards
+    /// collapse by StateKey, so e.g. four Strikes are one choice).</summary>
+    public override IEnumerable<string> Choices(CombatState combat)
+        => combat.Player.DiscardPile.Select(c => c.StateKey()).Distinct();
+
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
         var discard = combat.Player.DiscardPile;
-        if (discard.Count > 0)
-        {
-            var card = discard[^1];
-            discard.RemoveAt(discard.Count - 1);
-            combat.Player.DrawPile.Insert(0, card);
-        }
+        if (discard.Count == 0) return;
+        // Topdeck the chosen discard card (last index matching the choice key); default to the most recent.
+        int idx = play.ChoiceKey == null ? discard.Count - 1
+                                         : discard.FindLastIndex(c => c.StateKey() == play.ChoiceKey);
+        if (idx < 0) idx = discard.Count - 1;
+        var card = discard[idx];
+        discard.RemoveAt(idx);
+        combat.Player.DrawPile.Insert(0, card);
     }
 }
 /// <summary>Deal 3 damage to a random enemy 3 times. Upgrade: +1 hit. Each hit re-targets a living enemy;
