@@ -467,13 +467,30 @@ The advisor solves a deck vs an elite per variant; the lever was **algorithmic**
      faster, byte-identical oracle values.
    - Advisor trial budget set to ~2 000: survival is exact, E[HP loss] ~3 HP pessimistic (accepted).
 
-Remaining levers, roughly in order:
-   - **Variance reduction on E[HP loss]** so the secondary objective converges inside the 1–2 s budget (control
-     variates / better rollout) — NOT a cheaper leaf (calibration showed closed-form/blended leaves are biased).
-   - **Clone-free static APW prior** to cut the residual per-candidate `Score(ApplyPlay)`.
-   - **Sparse sampling / fitted VI** (Kearns–Mansour–Ng) with the learned VF as the bootstrap, for depth.
-   - **Action abstraction** — dedupe symmetric plays (identical cards, target symmetry) more aggressively.
-   - **Intra-card selection as real decision nodes** (see the soundness item below).
+**The hunt for a further 10× was run as experiments — and the two obvious levers were empirically REFUTED**
+(probes `--parallel`, `--truncate`; 30-card Ironclad vs Byrdonis @ 4 000 trials; survival is 100 % so E[HP loss]
+is the quality signal; full-rollout reference = 20.4):
+   - ❌ **Root parallelization** (K independent trees, mean-combined). Speed-mode (matched total trials, split K
+     ways) caps at **~2.7× (K=7) and *regresses* at K=14** — the workload is memory/GC-bound (~250 k clones/solve),
+     so cores contend, not scale — AND quality degrades (loss +1.6 @ K=4 … +4.6 @ K=14: splitting trials pushes
+     each tree below the convergence knee; the max-backup bias survives averaging). Quality-mode (K trees @ full
+     trials) confirms 4 000 trials is already converged (no improvement at 7–14× the trials). **Not the lever.**
+   - ❌ **Truncated rollout + VF bootstrap** (Kearns–Mansour–Ng). At accuracy-preserving depth (d=3) it gives
+     only ~1.2× — because the leaf tips are late-game, so **the average rollout is already ~1–2 turns** (nothing
+     to truncate); the 72 % rollout cost is *volume of short rollouts*, not length. Worse, the VF bootstrap costs
+     ≈ a turn-sim, so learned d=1/d=2 are *slower* than the full rollout. Only pure VF (d=0) is fast and there
+     quality collapses (heuristic 80.7 % survival; learned 98.1 %/24.6). **Not the lever.**
+   - **Root cause (measured):** *every* play evaluation — the rollout policy, both VFs' `SimulateTurnOutput`, the
+     APW prior — pays a full `clone + PlayCard + Score`. That single primitive is the 72 %. A clean 10× at fixed
+     accuracy is **not available**; it would require a ~10×-cheaper, necessarily *less faithful* play evaluator.
+   - **Remaining real lever (accuracy tradeoff, ≤3–4 HP budget):** a cheaper rollout policy — top-k candidate
+     pruning by a clone-free prior, or a learned action-value that scores a play without applying it. Realistic
+     2–4×, with the HP cost measured against the oracle. Parallelism could then be a *secondary* multiplier once
+     allocation is cut. (The `--parallel`/`--truncate` probes that produced the numbers above were reverted as
+     refuted scaffolding — zero fat; reconstruct from this note + git history if the cheaper-policy work resumes.)
+   - ✅ **Choice fan-out kept out of the rollout** (this session): the greedy leaf no longer enumerates/scores
+     in-card choice variants it then ignored — ~20 % faster on a 1-choice deck, value byte-identical; scales with
+     per-card choice count on Silent.
 
 ### ✅ Settled — keep the lexicographic objective (don't collapse survival into one HP scalar)
 An exact-oracle experiment (apparatus since removed; conclusion recorded here) compared the alternative
