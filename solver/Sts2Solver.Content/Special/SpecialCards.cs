@@ -317,6 +317,7 @@ public sealed class Whistle : CardModel
 public sealed class BrightestFlame : CardModel
 {
     public override string Name => "BrightestFlame";
+    public override bool LoopRiskDraw => true;   // cost 0 + draws + returns to discard ⇒ replayable in-turn
     public override int BaseCost => 0;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Ancient;

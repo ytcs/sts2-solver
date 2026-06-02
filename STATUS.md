@@ -99,8 +99,11 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   search stack. `PlaysThisTurn` is capped **unconditionally** at `MaxPlaysPerTurn` (40, far above any real
   line ⇒ value-preserving — a hard safety net against any such card, flagged or not). Decks holding a
   `CardModel.LoopRiskDraw` card additionally set `CombatState.BoundsPlays`, which **hashes** the counter so the
-  cap memoises soundly; cost-≥1 draws are energy-bounded, so the common deck is never flagged/fragmented. Such
-  cantrip decks have a large exact state space (exact may time out → MCTS carries them, as designed).
+  cap memoises soundly; cost-≥1 draws are energy-bounded, so the common deck is never flagged/fragmented. The
+  flagged set (audited across all characters — cost-0, returns-to-discard, draws): EscapePlan, Prepared,
+  FlashOfSteel, Finesse, Impatience, BrightestFlame. (Power-type draws like Neurosurge use the Removed pile ⇒
+  can't be replayed ⇒ not flagged; exhaust / NoDraw-self-limiting draws are likewise safe.) Such cantrip decks
+  have a large exact state space (exact may time out → MCTS carries them, as designed).
 - **Clone isolation for self-mutating cards (soundness):** `Player.Clone` shares the immutable card-instance
   majority across search clones (cheap) but **deep-clones any `CardModel.Stateful` card** (one whose identity
   changes mid-fight, e.g. `Rampage`'s escalating damage), and `KeyHash` is not cached for those. Without this
@@ -357,7 +360,7 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   and the in-pile-upgrade soundness gate) + mid-turn-draw chance nodes + post-draw resolution (`MidTurnDrawTests`:
   deterministic lethal-draw solve, no-draw control, draw-makes-fight-winnable + exact↔faithful-MC bound,
   EscapePlan conditional, Acrobatics optimal-discard, discard-choice MCTS convergence, cost-0 cantrip
-  cap)). **490 passed, 0 skipped, 0 failed.**
+  cap, loop-risk-card flag audit)). **498 passed, 0 skipped, 0 failed.**
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,

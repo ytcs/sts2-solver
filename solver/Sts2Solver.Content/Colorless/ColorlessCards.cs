@@ -21,6 +21,7 @@ namespace Sts2Solver.Content;
 public sealed class FlashOfSteel : CardModel
 {
     public override string Name => "FlashOfSteel";
+    public override bool LoopRiskDraw => true;   // cost 0 + draws + returns to discard ⇒ replayable in-turn
     public override int BaseCost => 0;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
@@ -103,6 +104,7 @@ public sealed class Clash : CardModel
 public sealed class Finesse : CardModel
 {
     public override string Name => "Finesse";
+    public override bool LoopRiskDraw => true;   // cost 0 + draws + returns to discard ⇒ replayable in-turn
     public override int BaseCost => 0;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Common;
@@ -181,6 +183,7 @@ public sealed class ThinkingAhead : CardModel
 public sealed class Impatience : CardModel
 {
     public override string Name => "Impatience";
+    public override bool LoopRiskDraw => true;   // cost 0 + conditional draw + returns to discard ⇒ replayable
     public override int BaseCost => 0;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Common;

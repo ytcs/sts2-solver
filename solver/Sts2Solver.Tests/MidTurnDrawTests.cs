@@ -146,6 +146,23 @@ public class MidTurnDrawTests
         Assert.InRange(mcts.Win, 0.0, 1.0);   // terminates with a sane value (the cap prevents the stack blow-up)
     }
 
+    /// <summary>Audit gate: every cost-0 replayable (returns-to-discard) draw card is flagged
+    /// <c>LoopRiskDraw</c> so its deck hashes the per-turn play counter and the cap memoises soundly. A Power
+    /// that draws (Neurosurge — Removed pile, can't be replayed) and a starter deck are NOT loop-risk.</summary>
+    [Theory]
+    [InlineData("EscapePlan", true)]
+    [InlineData("Prepared", true)]
+    [InlineData("FlashOfSteel", true)]
+    [InlineData("Finesse", true)]
+    [InlineData("Impatience", true)]
+    [InlineData("BrightestFlame", true)]
+    [InlineData("Neurosurge", false)]   // Power ⇒ Removed pile ⇒ not replayable
+    [InlineData("StrikeIronclad", false)]
+    public void Loop_Risk_Draw_Cards_Are_Flagged(string cardName, bool expectFlagged)
+    {
+        Assert.Equal(expectFlagged, Catalog.BuildCard(cardName).LoopRiskDraw);
+    }
+
     /// <summary>Cross-validation that the mid-turn draw node makes a fight WINNABLE that is provably unwinnable
     /// without the draw, and that the exact value is sound (no card-duplication / probability blow-up). The
     /// Defends fixture's 2 Strikes (12 dmg) can never chew through Byrdonis' 58 HP on their own — winning needs
