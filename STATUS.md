@@ -1,6 +1,25 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-01 (**Silent pool COMPLETE — 88/88** [batches 4–8: +50 cards — Shiv/poison-synergy powers, counter/conditional attacks via new per-turn counters (`AttacksPlayedThisTurn`/`CardsDiscardedThisTurn`), Intangible/WraithForm, BulletTime, the Stateful UpMySleeve, and the formerly-deferred selection/draw set (KnifeTrap, Nightmare, Acrobatics, Prepared, HiddenDaggers, ToolsOfTheTrade, EscapePlan, CorrosiveWave, Speedster, Murder) via a new `AfterCardDrawn` hook + gated `CardsDrawnThisCombat` counter; **+ a latent soundness fix the Silent agent found independently of the objective-sweep one: stale `_keyHash` after `Upgraded()` + in-pile upgrade aliasing for Armaments/Apotheosis**]. **Regent character ported (88 cards)** — new `Content/Regent/` module: Stars resource + Forge/Sovereign Blade engine + DivineRight, unit-tested (`RegentCardTests`). **Content: Event + Ancient + curse cards ported** — new `Content/Special/` module (24 Event/Ancient cards, deck-buildable) + `Content/Core/Curses.cs` (18 curses); new powers `IntangiblePower`/`EnergyNextTurnPower`/`ToricToughnessPower`/`WraithFormPower`/`FeedingFrenzyPower` + inert meta markers; engine `CardRarity.Event/Ancient`, `Creature.LoseMaxHp`, and a base-power `SkipNextTick` (the game's SkipNextDurationTick, so Doubt/Shame's self-debuff weakens the NEXT turn). 4 cards deferred (orbs/Osty/variable TinkerTime). **MCTS perf — action progressive widening + lexicographic PUCT** (opt-in `ActionWidening`, default OFF; `a198ea4`): the `--perf-probe` (`3eddc34`) isolated card VARIETY (not deck size) as the super-linear search cost, and PUCT+widening is a **strict Pareto win vs the exact oracle** — variety-axis nodes −40% / ms −24% at k=7 AND *more accurate* (`mcts-roll` mean Δsurv 0.9%→0.0%, Δloss 0.07→0.01; the razor-thin 22.1%-survival fight went from under-estimated 16.6% to exact 22.1%). 4 new `Apw_Converges_*` oracle gates. A broader random partial-survival sweep (`--apw-sweep`, 45 fixtures) showed the strict-Pareto result doesn't fully generalise — APW is a clear cost win (−25% nodes / −27% ms) at survival-neutral accuracy but a small +0.28 HP E[loss] regression — and the user accepted that tradeoff, so **`ActionWidening` is now default-ON** (`STS2_APW=0` disables; full suite green either way). **MCTS perf — lazy chance-node enumeration** (`--profile` diagnostic): the profiler *disproved* the clone hypothesis — cloning was only ~12% of a 30-card-vs-elite solve and the rollout leaf ~1%; the dominant cost was the chance node EAGERLY materialising every (move-roll × draw) outcome (when ≤`ExactChanceThreshold`=4096) up front, even when the node is visited far fewer times. Generating those outcomes LAZILY (one per visit, same order/probabilities) is **25× faster on the production default with byte-identical oracle values** — the 30-card-vs-elite 1000-trial solve went **38.8s → 1.5s**, into the 1–2s target. Next lever (now that chance is fixed): the rollout leaf is ~70% of per-trial time, so a cheaper closed-form/blended leaf is the remaining speedup. Earlier: **Objective question RESOLVED — keep lexicographic, don't drop survival** (exact-oracle experiment: the death=full-HP scalar sacrifices up to −55.6% survival for ~1 HP on partial-survival fixtures, and lexicographic is its death-penalty→∞ limit; no exact-search speedup. `ScalarSolver`/`ObjectiveExperiment` + `sts2solve --objective[-random|-penalty]`, gated by `ObjectiveExperimentTests`). The random objective sweep also surfaced & the team fixed a real oracle clone-unsoundness (Apotheosis/Armaments upgrade-aliasing). Earlier: Next-steps (1)+(2) complete. **HorizonBound v2** — sound bound now covers Weak-bearing decks (max-Weak trajectory), multi-enemy fights (kill-order reasoning), and an admissible in-search early-loss prune (`LossCertificate`: provably-lost decision nodes resolve to their exact `(0, CurrentHp)` value without expansion — value-preserving, e.g. 56k→3 states on a pure-loss fight, all oracle-gated). **Phase-C learned value function** — `LearnedValue`: a compact regression (logistic survival head + linear loss head over 18 features incl. the static heuristic's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE **0.023 vs the static baseline's 0.046**, an opt-in MCTS leaf (`UseLearnedLeaf`). Earlier: survival-first λ-rollout + ObservedWin floor (Δsurv 0.8%); `ranwid` advisor; Ironclad 87/87 + Act-1 elites 12/12; Silent 88/88 ✅; Regent 88/88.)_
+_Last updated: 2026-06-01._
+
+## Current state
+
+- **Content — all four characters complete (88/88 each):** Ironclad, Silent, Regent (Stars + Forge/Sovereign
+  Blade), Necrobinder (Osty pet + Doom) — plus Colorless (18), the Event/Ancient "Special" pool (24) and
+  curses (18). Act-1 elites 12/12 and the normal-monster set, trace-validated against live game recordings.
+- **Search:** the exact lexicographic expectimax `Solver` is the ground-truth **oracle** (maximize survival,
+  then minimize E[HP loss]); the sampling `MctsSolver` (UCT*/DP-UCT family) is validated to converge to it.
+  Production MCTS defaults: action progressive widening + lexicographic **PUCT** (`STS2_APW=0` disables), **lazy
+  chance-node enumeration**, the greedy-rollout leaf, and a ~2 000-trial advisor budget. A 30-card-vs-elite
+  solve runs in ~1.5–2.7 s; survival is exact at that budget, E[HP loss] ~3 HP pessimistic (accepted tradeoff).
+- **Sound horizon + pruning:** `HorizonBound` (Weak / multi-enemy) + `LossCertificate` (admissible early-loss
+  prune) — both oracle value-preserving. **Phase-C learned value function** (`LearnedValue` + `--train-vf`) is
+  an opt-in MCTS leaf for the razor-thin survival regime.
+- **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites, and
+  recommends card removals and reward take/skip.
+- **Settled questions** (rationale in git history / Roadmap): the lexicographic objective is correct (don't
+  collapse survival into a single HP scalar); the late-game perf bottleneck was chance-node enumeration, not
+  cloning; the rollout leaf is the most accurate (closed-form / blended leaves are biased).
 
 ## Goal
 
@@ -33,7 +52,8 @@ solver/                         C#/.NET 9 solution
   Sts2Solver.Ranwid/ (ranwid)   live-run advisor: reads the unmodded current_run.save, benchmarks the deck
                                 vs the Act's 3 elites (SaveLocator/RunSave/GameIds/Reporting)
   Sts2Solver.Cli/   (sts2solve) CLI: solve scenarios · --validate traces · --calibrate (MCTS vs exact over
-                                CalibrationFixtures; --archetype, --exact-budget) · --horizon (bound probe)
+                                CalibrationFixtures) · perf diagnostics (--profile, --converge, --perf-probe) ·
+                                --train-vf (fit the learned value function)
   Sts2Solver.Tests/             xUnit: pipeline + card + solver + trace-replay + MCTS + calibration + horizon
 mods/DataDumper/                Godot C# mod (loads into the real game)
   DataDumperCode/               MainFile (entry/metadata) · CombatOracle (records traces) ·
@@ -138,11 +158,6 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   - **Ruled out** (don't re-try): per-rollout λ-sampling and K-sample-averaged leaf seeds — no accuracy gain,
     7–15× slower (one seed/leaf makes random-λ pure variance; thin wins need coordinated draw+play). The
     static race-model leaf (`Evaluate`, behind `UseHeuristicLeaf`) is the baseline the Phase-C learned VF beats.
-  - **Blended leaf** (`MctsOptions.LeafBlend`, option, not yet default): convex mix `(1−α)·rollout + α·learned`
-    at a fresh tip. The rollout UNDER-estimates razor-thin survival, the learned VF OVER-estimates it; truth is
-    between. Oracle-measured on block/Byrdonis (exact 22.1%): rollout 18%, learned 38%, **α=0.25 → 24%**
-    (survival MAE 0.0075→0.0027). Held as an option pending the wider calibration suite (the current suite has
-    only ONE non-trivial fixture). α-sweep lives as a skipped manual tool (`CalibrationHarness.RunMctsBlend`).
 - **`ObservedWin` floor:** `MctsSolver` tracks whether any winning line was seen; `EncounterEvaluator` floors
   a backed-up **0.0%** to 0.5% when a win was observed — eliminating the one dangerous output (a false 0% that
   would make a player skip a beatable elite). HP-loss is always reported as computed.
@@ -343,9 +358,12 @@ dotnet run -c Release --project solver/Sts2Solver.Cli -- scenario.json
 # MCTS (fights beyond exact search): --mcts [--trials N] [--anytime] [--hybrid N]
 dotnet run -c Release --project solver/Sts2Solver.Cli -- scenario.json --mcts --trials 200000 --anytime
 
-# Calibrate MCTS vs exact over the diverse suite (now incl. an mcts-learn row); probe the horizon bound
+# Calibrate MCTS vs exact over the diverse suite (incl. an mcts-learn row)
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --calibrate [--archetype block] [--exact-budget 75]
-dotnet run -c Release --project solver/Sts2Solver.Cli -- --horizon
+
+# Perf diagnostics: clone/leaf/chance attribution + 30-card self-convergence vs the 1–2 s target
+dotnet run -c Release --project solver/Sts2Solver.Cli -- --profile [--trials 1000]
+dotnet run -c Release --project solver/Sts2Solver.Cli -- --converge [--trials 8000 --every 500]
 
 # (Re)train the Phase-C learned value function: harvest exact labels over TrainingFixtures, fit, emit weights
 # to /tmp/vf-weights.txt (paste into LearnedValue.Weights). Flags: --budget-seconds --epochs --maxturns --sample-rate
@@ -394,17 +412,12 @@ Card-validation loop: port + unit-test → `STS2_DECK` headless run vs a simple 
 
 ## Key design decisions
 
-- **Objective:** survival-first, then min expected HP loss (lexicographic). **RESOLVED — keep it** (was "under
-  review"). The single-scalar alternative (minimise E[HP loss], death = full remaining HP) was implemented and
-  measured exactly against the oracle (`ScalarSolver`/`ObjectiveExperiment`, `sts2solve --objective[-random|-penalty]`).
-  Finding: that scalar (≡ "maximise expected final HP") is **theoretically lexicographic only in the death-penalty
-  → ∞ limit**; with the proposed death = full-HP charge it **sacrifices survival for trivial HP savings** — up to
-  **−55.6% survival to save ~1 HP** on a real partial-survival fixture, and it diverged on 6/8 partial-survival
-  random fixtures (the regime advice cares about). A finite extra death penalty recovers lex decisions but only
-  at a large, problem-dependent magnitude (>5×maxHP, sometimes far more), and buys **no exact-search speedup**
-  (identical state counts — the tree is the same, only the per-node backup is marginally cheaper). So survival
-  noise is an *estimation* problem (handled by the advisor's `SurvivalBand` + VF calibration), **not** an
-  objective problem; mutilating the objective is the wrong fix. See Roadmap "drop survival probability — RESOLVED".
+- **Objective:** survival-first, then min expected HP loss (lexicographic). **Settled — keep it.** The
+  single-scalar alternative (minimise E[HP loss], death = full remaining HP) was measured exactly against the
+  oracle and rejected: it sacrifices survival for trivial HP savings (up to −55.6 % to save ~1 HP) on
+  partial-survival fixtures, is lexicographic only in the death-penalty→∞ limit, and buys no exact-search
+  speedup. Survival noise is an *estimation* problem (advisor `SurvivalBand` + VF calibration), not an objective
+  one. (Full rationale under "Settled — keep the lexicographic objective" below.)
 - **Exact solve is a small-deck tool, not the engine.** It stays the ground-truth ORACLE for gating, but real
   decks (40+ cards) are intractable exactly — the MCTS+learned-VF path carries late-game, so algorithmic
   efficiency + VF calibration are where accuracy now comes from (not deeper exact search). Validation must
@@ -427,8 +440,8 @@ Card-validation loop: port + unit-test → `STS2_DECK` headless run vs a simple 
    the static baseline's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE
    0.023 vs the static `Evaluate` baseline's 0.046 (gated by `LearnedValueTests`). _Follow-ups:_ as an MCTS
    leaf it now over-estimates razor-thin survival (block/Byrdonis 38% vs exact 22%) where the rollout
-   under-estimated — recalibrate (Platt/isotonic on a held-out set) or blend leaf+rollout; widen the training
-   grid beyond Ironclad block/aggro/Byrdonis-shaped fights; add deck-composition features.
+   under-estimated — recalibrate (Platt/isotonic on a held-out set); widen the training grid beyond Ironclad
+   block/aggro/Byrdonis-shaped fights; add deck-composition features.
 2. ✅ **Horizon bound v2** — DONE. Weak-bearing decks (max-Weak trajectory), multi-enemy (`MultiEnemy`
    kill-order), and the admissible in-search loss prune (`LossCertificate`, value-preserving) — all
    oracle-gated. _Follow-ups:_ tighten the multi-enemy saving bound (shared-budget kill scheduling rather
@@ -440,83 +453,42 @@ Card-validation loop: port + unit-test → `STS2_DECK` headless run vs a simple 
    leaning metric (`SurvivalBand`). Validated on a real save. _Follow-ups:_ more relics (needs engine hooks);
    Act-1 bosses; potions.
 
-### ⭐ TOP PRIORITY — performance is the gate to late-game usability
-The advisor calls `EncounterEvaluator` per deck-variant per elite; at ~20–30s/elite (40k trials) even the
-9-card STARTER is too slow, and real decks reach **40+ cards** (hands of 10 with many distinct cards → huge
-per-decision branching). **Pursue an ALGORITHMIC fix, not an engineering one** (caching/parallelism are a
-band-aid). Candidate directions from stochastic-control / planning literature to evaluate against the oracle:
-   - ✅ **Action-dimension progressive widening + heuristic priors (PUCT) — IMPLEMENTED & VALIDATED** (opt-in
-     `MctsOptions.ActionWidening`, default OFF; `a198ea4`). The perf-probe (`--perf-probe`, `3eddc34`) first
-     isolated the cost: holding trials/elite fixed and scaling each axis, deck **size** is ~linear in node count
-     (per-node clone/draw cost) but card **variety** is super-linear (nodes 38k→86k, ms/1k 442→1726 over 3→9
-     distinct) — because classic UCT* opens EVERY legal play and force-visits each (`SelectEdge` +∞), and each
-     opened child pays a full rollout seed. The fix: rank plays by a softmax policy prior over the resulting
-     `CombatHeuristic.Score` (EndTurn ranked on the same scale, always opened), open only ⌈C·N^β⌉ best-first
-     (asymptotically all open → consistent), and select by lexicographic **PUCT** (the just-opened child's seed
-     is its first-play value, so no separate FPU term). **Measured a strict Pareto win vs the exact oracle**
-     (20k trials): variety-axis nodes −40% / ms −24% at k=7; AND *more accurate* — `mcts-roll` mean error
-     Δsurv 0.9%→**0.0%**, Δloss 0.07→**0.01**; the razor-thin `block/Defends-vs-Byrdonis` fight (22.1% exact
-     survival) went from UNDER-estimated 16.6% to **exact 22.1%** (uniform UCB under-samples the coordinated
-     survival line; PUCT concentrates the budget on it). Gated by 4 new `MctsTests` (`Apw_Converges_*`).
-     **Broader partial-survival sweep DONE** (`--apw-sweep`, `b779412`; 600 random candidates → 45 with
-     0<P_win<1 vs the exact oracle, 20k trials, identical rollout leaf/seed, only `ActionWidening` differing):
-     APW is a **clear cost win** (avg **6k vs 8k nodes, −25%; 1336 vs 1827 ms, −27%**) at **survival-neutral
-     accuracy** (mean |Δsurv| **5.20% vs 5.43%**; per-fixture tally APW-closer 9 / UCT\*-closer 10 / tied 26 at
-     ±0.5%) with a **small E[HP-loss] regression** (mean |Δloss| **1.37 vs 1.09, +0.28 HP**). So the curated
-     fixture's strict-Pareto result does NOT fully generalise: across the broad random partial population it's
-     "much cheaper, survival-neutral, marginally worse on loss" — a favourable but not strictly-dominant
-     tradeoff. (Aside: a few fixtures show large errors in BOTH engines, i.e. the 20k-trial rollout leaf
-     catastrophically under-estimates some coordinated-survival lines regardless of APW — the learned-VF's
-     target, orthogonal to this decision.) **Default flipped ON** — the user accepted the
-     −27% time / +0.28 HP tradeoff for late-game usability (`STS2_APW=0` disables; full suite 428✅ either way).
-   - ✅ **Lazy chance-node enumeration — IMPLEMENTED & ORACLE-GATED** (the size-axis lever). A `--profile`
-     diagnostic (clone-counter + leaf/prior/chance matrix on a 30-card-vs-elite fight) overturned the clone
-     hypothesis with data: cloning was only ~12% of the solve, the rollout leaf ~1%, the APW prior ~8% — the
-     dominant cost (88%) was the chance node EAGERLY building every (move-roll × draw) outcome up front when
-     their product ≤ `ExactChanceThreshold` (4096), even though a node visited V times needs only V. `InitChance`
-     now stores a LAZY `IEnumerator<PendingOutcome>` (`EnumerateExactOutcomes`) that yields outcomes on demand in
-     the exact same order/probabilities, so the partial-Bellman backup is unchanged — **byte-identical oracle
-     values, 25× faster on the production default** (30-card 1000-trial solve 38.8s → 1.5s; clones 2.41M → 96k).
-     Full suite green. _Next:_ now the rollout leaf is ~70% of per-trial cost — a cheaper closed-form/blended
-     leaf is the remaining lever; then re-profile at production trial counts vs the 1–2s target.
-   - **Sparse sampling / forward-search sparse sampling (Kearns–Mansour–Ng)** — bounded-width sampling with a
-     value-function bootstrap; sample complexity ~independent of state-space size. Pairs with the learned VF.
-   - **Fitted value iteration / ADP with the learned VF as the approximator** — let the VF carry more of the
-     load (shallow search or near-greedy on the VF) once it's well-calibrated, instead of deep sampling.
-   - **Action abstraction** — dedupe symmetric plays (identical cards, target symmetry) more aggressively.
+### ⭐ Performance — the 1–2 s late-game target is met
+The advisor solves a deck vs an elite per variant; the lever was **algorithmic**, not engineering
+(caching/parallelism would be a band-aid). Two oracle-preserving changes took a 30-card-vs-elite solve from
+~38 s to ~1.5 s:
+   - ✅ **Action progressive widening + lexicographic PUCT** (default ON; `STS2_APW=0` = classic UCT*). Ranks
+     legal plays by a heuristic policy prior and opens only ⌈C·N^β⌉ best-first (always opening EndTurn; every
+     candidate opens as N→∞, so it stays consistent), bounding the per-decision branching that grows with card
+     variety. A partial-survival sweep showed a clear cost win (≈−25 % nodes / −27 % ms) at survival-neutral
+     accuracy for a small (~0.3 HP) E[loss] regression. Oracle-gated by `MctsTests.Apw_Converges_*`.
+   - ✅ **Lazy chance-node enumeration**: the chance node yields its (move-roll × draw) outcomes on demand
+     rather than eagerly building all of them — the real late-game bottleneck (cloning was only ~12 %). ~25×
+     faster, byte-identical oracle values.
+   - Advisor trial budget set to ~2 000: survival is exact, E[HP loss] ~3 HP pessimistic (accepted).
 
-### ✅ RESOLVED — drop survival probability? NO. (Decided by exact-oracle experiment, not intuition.)
-The question: collapse to a single scalar (minimise E[HP loss], death = full remaining HP), since HP loss tracks
-the oracle tightly while survival is noisy. **Implemented and measured** (`Sts2Solver.Search/ScalarObjective.cs`:
-`ScalarSolver` with a tunable extra death penalty `P`, + `ObjectiveExperiment` cross-evaluator; CLI
-`--objective` (curated), `--objective-random` (broad random corpus), `--objective-penalty` (P-sweep);
-gated by `ObjectiveExperimentTests`). Key theory: the per-leaf HP-loss accounting is IDENTICAL between the two
-objectives (death is bar-clipped, so any doomed line's forward loss already sums to full current HP — the
-`LossCertificate` fact); they differ ONLY in the policy each selects. The scalar with death = full-HP is exactly
-"maximise expected final HP", and **lexicographic is its death-penalty→∞ limit** (a constrained-MDP / big-M
-penalty — `Huge_Death_Penalty_Recovers_Lexicographic_Survival` confirms P=∞ reproduces lex survival & loss
-exactly).
-**Data (exact, noise-free):**
-   - Curated suite (6 fixtures, 5 at 100% survival): regret 0, sacrifice 0 — but only the *trivial* regime.
-   - Random partial-survival fixtures (0<win<1, the regime advice lives in): the scalar **sacrifices survival**
-     in 6/8 — up to **−55.6%** (rand63: 98.4%→42.9% to save 0.98 HP), one fixture to literal 0% survival. The
-     death = full-HP penalty is too weak to dominate in high-HP-loss near-death fights, so it gambles wins for
-     marginal HP.
-   - A finite extra death penalty `P` recovers lex decisions, but the needed magnitude is large and
-     problem-dependent (≥5×maxHP, and one fixture only closes at P→∞). No small uniform P is safe.
-   - **No runtime payoff:** exact state counts are identical (e.g. 487,459/487,459) — same tree, only a slightly
-     cheaper scalar backup. The complexity the scalar would remove (one VF head, single-component UCB) lives in
-     the *estimator*, not the search.
-**Conclusion:** keep lexicographic. Survival noise is an estimation problem — address it with the advisor's
-`SurvivalBand` and VF survival recalibration (Platt/isotonic), NOT by changing the objective. (Side benefit: the
-random objective sweep surfaced & fixed a real oracle-unsoundness — the Apotheosis/Armaments shared-instance
-upgrade-aliasing clone bug.)
+Remaining levers, roughly in order:
+   - **Variance reduction on E[HP loss]** so the secondary objective converges inside the 1–2 s budget (control
+     variates / better rollout) — NOT a cheaper leaf (calibration showed closed-form/blended leaves are biased).
+   - **Clone-free static APW prior** to cut the residual per-candidate `Score(ApplyPlay)`.
+   - **Sparse sampling / fitted VI** (Kearns–Mansour–Ng) with the learned VF as the bootstrap, for depth.
+   - **Action abstraction** — dedupe symmetric plays (identical cards, target symmetry) more aggressively.
+   - **Intra-card selection as real decision nodes** (see the soundness item below).
+
+### ✅ Settled — keep the lexicographic objective (don't collapse survival into one HP scalar)
+An exact-oracle experiment (apparatus since removed; conclusion recorded here) compared the alternative
+"minimise E[HP loss], death = full remaining HP" scalar against lexicographic survival-first. On
+partial-survival fixtures the scalar gambles wins for marginal HP (up to **−55.6 % survival** to save ~1 HP);
+a finite death penalty recovers lex decisions only at large, problem-dependent magnitudes (lexicographic is the
+death-penalty→∞ limit); and there is no runtime payoff (identical exact state counts — the cost the scalar
+would remove lives in the *estimator*, not the search). So survival noise is an **estimation** problem —
+addressed by the advisor's `SurvivalBand` and VF survival recalibration — not an objective problem. (That
+experiment also surfaced the Apotheosis/Armaments clone-aliasing oracle bug, since fixed.)
 
 ### Other near-term
 4. **Calibration expansion** — cover all 12 elites + a high variety of decks (random-draw generator), with
    exact ground truth where tractable and MCTS self-consistency / anytime-convergence where (as decks grow)
-   exact can't reach. This is the measuring stick for the perf work, and gates making the **leaf-blend
-   (α≈0.25) the default**. (The objective experiment is resolved — see above.)
+   exact can't reach. This is the measuring stick for the perf work and for any future leaf/VF changes.
 5. **VF distillation + recalibration** — after a large training round (now drawing colorless + varied decks),
    distill feature importance to simplify the model without losing accuracy; recalibrate survival (Platt/
    isotonic) IF we keep it; add deck-composition features.
@@ -544,8 +516,10 @@ upgrade-aliasing clone bug.)
 
 ### History (condensed)
 Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless autonomy; MCTS solver
-(UCT\*/DP-UCT, validated to converge); Act-1 elites 12/12; Ironclad 87/87; Ascension/A10; content
-modularization (per-character folders, flat namespace); the `ranwid` advisor + survival-first rollout +
-sound horizon bound; **horizon bound v2** (Weak / multi-enemy / in-search loss prune) + **Phase-C learned
-value function**. Silent pool **88/88 complete** (this round). Detailed per-batch/per-milestone history lives in git and
-the plan files under `~/.claude/plans/`.
+(UCT\*/DP-UCT, validated to converge); Act-1 elites 12/12; Ascension/A10; content modularization (per-character
+folders, flat namespace); the `ranwid` advisor + survival-first rollout + sound horizon bound; **horizon bound
+v2** (Weak / multi-enemy / in-search loss prune); **Phase-C learned value function**; the objective question
+settled (keep lexicographic); **all four characters ported 88/88** (Ironclad, Silent, Regent, Necrobinder) plus
+Colorless / Special / curses; and the **performance milestone** — action-widening + PUCT default-on and lazy
+chance-node enumeration brought a 30-card-vs-elite solve into the 1–2 s target. Detailed per-batch/per-milestone
+narrative (with measurements) lives in the git commit history and the plan files under `~/.claude/plans/`.
