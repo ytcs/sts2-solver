@@ -34,6 +34,11 @@ public abstract class CardModel
 
     public virtual int Cost => BaseCost;
 
+    /// <summary>Combat-dependent cost (Necrobinder Banshee's Cry drops 2 per Ethereal played; Flatten is
+    /// free after an Osty attack). Defaults to the static <see cref="Cost"/>. The solver's playability
+    /// check and <see cref="CombatManager.PlayCard"/> both consult this.</summary>
+    public virtual int EffectiveCost(CombatState combat) => Cost;
+
     /// <summary>X-cost cards (Whirlwind) spend ALL the player's current energy; the spent amount is passed
     /// to OnPlay via <see cref="CardPlay.XValue"/>. Their <see cref="Cost"/> stays 0 for the playability check.</summary>
     public virtual bool IsXCost => false;
@@ -47,8 +52,10 @@ public abstract class CardModel
     /// spent amount is passed to OnPlay via <see cref="CardPlay.StarsSpent"/>. (Game: CardModel.HasStarCostX.)</summary>
     public virtual bool IsXStarCost => false;
 
-    /// <summary>Retained cards are NOT discarded at end of turn — they stay in hand (game: CardKeyword.Retain).
-    /// The Regent's Sovereign Blade token retains so its forged damage carries across turns.</summary>
+    /// <summary>Retained cards are NOT discarded at end of the player's turn — they stay in hand (game:
+    /// CardKeyword.Retain). The Regent's Sovereign Blade token retains so its forged damage carries across
+    /// turns; the Necrobinder's Eradicate/Reap/Sow/Spur/… retain too. Some cards gain Retain dynamically and
+    /// override this with a mutable backing flag.</summary>
     public virtual bool Retain => false;
 
     public virtual CardResultPile ResultPile => Type == CardType.Power ? CardResultPile.Removed : CardResultPile.Discard;
@@ -58,6 +65,10 @@ public abstract class CardModel
     /// <summary>True for cards carrying the game's Strike tag (Strike, Pommel Strike, Twin Strike, …).
     /// Perfected Strike counts these across the deck. (Game: CardTag.Strike.)</summary>
     public virtual bool IsStrike => false;
+
+    /// <summary>True for cards carrying the game's OstyAttack tag (the Necrobinder's Osty-powered attacks).
+    /// Squeeze counts these across the deck; the cards fizzle while Osty is missing. (Game: CardTag.OstyAttack.)</summary>
+    public virtual bool IsOstyAttack => false;
 
     /// <summary>Cards that cannot be played from hand (e.g. Status/Curse like Infection). The solver
     /// skips them and <see cref="CombatManager.PlayCard"/> rejects them.</summary>

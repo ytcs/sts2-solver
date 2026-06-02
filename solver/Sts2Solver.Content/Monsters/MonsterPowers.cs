@@ -4,8 +4,11 @@ namespace Sts2Solver.Content;
 
 /// <summary>At the owner's turn end, grant the owner Strength equal to Amount. Skips the turn-end it was
 /// applied on when applied by an enemy. (MegaCrit RitualPower)</summary>
-/// <summary>When an ally dies, the owner devours it and gains Strength equal to Amount. (The in-game
-/// one-turn stun is reflected by the observed/injected move during replay.) (MegaCrit RavenousPower)</summary>
+/// <summary>When an ally dies, the owner devours it: gains Strength equal to Amount and is stunned for one
+/// turn (skips its next move). The stun must be applied actively — when the player kills the ally mid-turn,
+/// the devour fires AFTER the turn-start telegraph snapshot, so the owner's already-committed attack would
+/// otherwise still resolve. Overriding the committed move to a no-op "STUNNED" matches the game (the
+/// validator re-syncs the real follow-up move from the next turn-start snapshot). (MegaCrit RavenousPower)</summary>
 public sealed class RavenousPower : PowerModel
 {
     public override string Id => "Ravenous";
@@ -14,7 +17,10 @@ public sealed class RavenousPower : PowerModel
     public override void AfterCreatureDeath(CombatState combat, Creature dead)
     {
         if (dead != Owner && dead.Side == Owner.Side && Owner.IsAlive)
+        {
             Cmd.ApplyPower(combat, Owner, new StrengthPower(), Amount, Owner);
+            if (Owner is Monster m) m.Ai.CurrentMoveId = "STUNNED";   // devouring stuns the owner this turn
+        }
     }
 }
 /// <summary>At the owner's turn end, grant the owner Strength equal to Amount (no skip, unlike Ritual).

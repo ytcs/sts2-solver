@@ -22,10 +22,16 @@ public static class CombatManager
         combat.PlayerLostHpThisTurn = false;             // per-turn flag (Spite)
         combat.SkillsPlayedThisTurn = 0;                 // per-turn counter (Regent Lunar Blast)
         combat.StarsGainedThisTurn = 0;                  // per-turn counter (Regent Radiate)
-        combat.AttacksPlayedThisTurn = 0;                // per-turn counter (Finisher)
+        combat.AttacksPlayedThisTurn = 0;                // per-turn counter (Finisher / Necrobinder Lethality)
         combat.CardsDiscardedThisTurn = 0;               // per-turn counter (Memento Mori)
+        combat.OstyAttacksThisTurn = 0;                  // per-turn counter (Necrobinder Flatten/Rattle)
+        combat.DoomAppliedThisTurn = false;              // per-turn flag (Necrobinder Death's Door)
         // Block is NOT cleared on turn 1, nor while a Barricade-style power keeps it (PreventsBlockClear).
         if (!firstTurn && !PreventsBlockClear(combat.Player)) combat.Player.ClearBlock();
+
+        // Relic turn-start effects (Bound Phylactery re-summons Osty after turn 1). Fired after energy
+        // reset, before start-of-turn powers, mirroring the game's AfterEnergyResetLate ordering.
+        foreach (var r in combat.Player.Relics) r.OnPlayerTurnStart(combat);
 
         FireAfterSideTurnStart(combat, CombatSide.Player);
     }
@@ -42,12 +48,13 @@ public static class CombatManager
 
         // Cost modifiers (Free Attack zeroes the next Attack; Corruption zeroes Skills). A power that
         // lowers the cost is a "contributor" and gets AfterModifyingCardCost (Free Attack consumes there).
-        int effCost = card.Cost;
+        int effCost = card.EffectiveCost(combat);
         List<PowerModel>? costContributors = null;
         foreach (var pw in combat.AllPowers.ToList())
         {
             int nc = pw.ModifyCardCost(card, effCost);
-            if (nc < effCost) { (costContributors ??= new()).Add(pw); effCost = nc; }
+            if (nc < effCost) (costContributors ??= new()).Add(pw);   // only reducers get AfterModifyingCardCost
+            effCost = nc;                                             // but increases (Borrowed Time) still apply
         }
         effCost = Math.Max(0, effCost);
         if (!card.IsXCost && effCost > player.Energy) throw new InvalidOperationException("Not enough energy.");
@@ -75,14 +82,21 @@ public static class CombatManager
             int b = pw.ModifyCardPlayCount(card);
             if (b > 0) { bonusPlays += b; (playCountContributors ??= new()).Add(pw); }
         }
+        // Before-play hook (Danse Macabre / Spirit of Ash block, Veilpiercer charge). Runs before OnPlay so
+        // a Power card never triggers the power it is in the middle of applying.
+        foreach (var pw in combat.AllPowers.ToList()) pw.BeforeCardPlayed(combat, card);
+
         for (int i = 0; i <= bonusPlays; i++)
         {
             card.OnPlay(combat, new CardPlay { Card = card, Target = target, XValue = spend, StarsSpent = starCost });
             if (combat.IsCombatOver) break;   // don't keep swinging at a cleared board / after death
         }
-        // Count finished Attacks this turn (Finisher reads this; it's incremented after its own OnPlay so it
-        // never counts itself). A card played multiple times (bonus plays) still counts as one finished play.
+        // Per-turn/combat play counters, incremented after the effect resolves so a card never counts itself.
+        // AttacksPlayedThisTurn is read by Finisher (Silent) and Lethality (Necrobinder); a card played
+        // multiple times (bonus plays) still counts as one finished play. EtherealPlayedThisCombat feeds the
+        // Necrobinder's Pull from Below / Banshee's Cry.
         if (card.Type == CardType.Attack) combat.AttacksPlayedThisTurn++;
+        if (card.Ethereal) combat.EtherealPlayedThisCombat++;
         if (playCountContributors != null)
             foreach (var pw in playCountContributors) pw.AfterModifyingCardPlayCount(combat, card);
         if (costContributors != null)
@@ -130,7 +144,7 @@ public static class CombatManager
 
         // Standard STS: the hand is discarded at end of turn — except Ethereal cards, which exhaust (and
         // fire the on-exhaust hook with causedByEthereal=true, e.g. DarkEmbrace's deferred draw), and
-        // Retain cards (Sovereign Blade), which stay in hand into the next turn.
+        // Retain cards (e.g. Sovereign Blade), which stay in hand into the next turn.
         var retained = new List<CardModel>();
         foreach (var card in player.Hand)
         {

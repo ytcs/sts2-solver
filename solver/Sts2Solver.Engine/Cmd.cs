@@ -28,6 +28,9 @@ public static class Cmd
         // STS convention: floor once after all modifiers, clamp to ≥0.
         int modified = (int)Math.Floor(Math.Max(0m, amount));
 
+        // Block is absorbed by the original target; any UNBLOCKED remainder may be redirected inside
+        // ApplyDamage (Osty's DieForYou pulls the post-block hit off the player). Modifiers above were
+        // computed against the original target — matching the game, which redirects only the final hit.
         int lost = ApplyDamage(combat, target, modified, props, dealer);
 
         // Attack-completion hook (Vigor consumes its bonus here, once spent on a powered attack).
@@ -48,6 +51,10 @@ public static class Cmd
     /// <summary>Apply already-modified damage through block to a target's HP. Returns HP lost.</summary>
     public static int ApplyDamage(CombatState combat, Creature target, int modified, ValueProp props, Creature? dealer = null)
     {
+        // Intangible clamps any single damage instance to 1 (before block). Guarded on the power so it is
+        // inert for characters that never gain it. (Game: IntangiblePower.)
+        if (modified > 1 && target.HasPower("Intangible")) modified = 1;
+
         int blocked = 0;
         if (!props.HasFlag(ValueProp.Unblockable))
         {
@@ -56,38 +63,67 @@ public static class Cmd
         }
         int unblocked = modified - blocked;
 
+        // Redirect the UNBLOCKED remainder to a different creature as direct HP loss (Osty's DieForYou pulls
+        // the post-block hit off the player — the player's block already soaked its share above). Block was
+        // taken from the original target; the redirected creature's own block does NOT apply, matching the
+        // game's LoseHpInternal on the unblocked-damage target. (Game: Hook.ModifyUnblockedDamageTarget.)
+        Creature hpTarget = target;
+        if (unblocked > 0)
+            foreach (var c in combat.AllCreatures)
+                foreach (var p in c.Powers)
+                    hpTarget = p.ModifyUnblockedDamageTarget(hpTarget, unblocked, props, dealer);
+
         // HP-loss modifiers (HardenedShell caps the target's total loss per turn).
         foreach (var c in combat.AllCreatures)
             foreach (var p in c.Powers)
-                unblocked = p.ModifyHpLost(target, unblocked, props, dealer);
+                unblocked = p.ModifyHpLost(hpTarget, unblocked, props, dealer);
         unblocked = Math.Max(0, unblocked);
 
+        int redirectOverkill = 0;
         if (unblocked > 0)
         {
-            int before = target.CurrentHp;
-            target.LoseHpInternal(unblocked);
-            int actualLost = before - target.CurrentHp;
-            if (target.IsPlayer)
+            int before = hpTarget.CurrentHp;
+            hpTarget.LoseHpInternal(unblocked);
+            int actualLost = before - hpTarget.CurrentHp;
+            if (hpTarget.IsPlayer)
             {
                 combat.PlayerHpLost += actualLost;
                 combat.PlayerUnblockedHitsCount++;   // Tear Asunder hits 1 + this
                 // "Lost HP this turn" (Spite) = unblocked self-damage on the player's own turn.
                 if (combat.CurrentSide == CombatSide.Player) combat.PlayerLostHpThisTurn = true;
             }
-            if (before > 0 && target.CurrentHp == 0)
+            if (before > 0 && hpTarget.CurrentHp == 0)
                 foreach (var p in combat.AllPowers.ToList())
-                    p.AfterCreatureDeath(combat, target);
+                    p.AfterCreatureDeath(combat, hpTarget);
+            // Damage redirected onto another creature (Osty) that exceeds its HP spills the OVERKILL back
+            // onto the original target (the player). Block was already absorbed above. (Game: CreatureCmd
+            // applies unblockedDamageResult.OverkillDamage to originalTarget when it != the redirect target.)
+            if (hpTarget != target) redirectOverkill = unblocked - before;
         }
         // Damage-received hook fires even on a fully-blocked attack (PersonalHive reacts to the hit;
-        // Shriek guards internally on unblocked>0).
+        // Shriek guards internally on unblocked>0). NecroMastery reflects the HP Osty loses here.
         foreach (var p in combat.AllPowers.ToList())
-            p.AfterDamageReceived(combat, target, unblocked, dealer, props);
+            p.AfterDamageReceived(combat, hpTarget, unblocked, dealer, props);
+
+        // Apply the redirect overkill to the player as direct HP loss (already past block; the dead Osty
+        // can no longer redirect, so this resolves on the player). Fires its own death/received hooks.
+        if (redirectOverkill > 0)
+            ApplyDamage(combat, target, redirectOverkill, ValueProp.Unblockable | ValueProp.Unpowered, dealer);
         return unblocked;
     }
 
     /// <summary>Direct, unblockable, unpowered HP loss (e.g. Poison ticks).</summary>
     public static int LoseHp(CombatState combat, Creature target, int amount)
         => ApplyDamage(combat, target, amount, ValueProp.Unblockable | ValueProp.Unpowered);
+
+    /// <summary>Instantly remove a creature's remaining HP (Doom execute; Bone Shards / Sacrifice consuming
+    /// Osty). Routed through ApplyDamage so death + damage-received hooks fire — notably NecroMastery, which
+    /// reflects the HP Osty loses when it is sacrificed. Returns HP removed.</summary>
+    public static int Kill(CombatState combat, Creature target)
+    {
+        if (!target.IsAlive) return 0;
+        return ApplyDamage(combat, target, target.CurrentHp, ValueProp.Unblockable | ValueProp.Unpowered);
+    }
 
     /// <summary>Gain block, applying block modifiers (Dexterity additive, Frail ×0.75).</summary>
     public static void GainBlock(CombatState combat, Creature target, int baseBlock, ValueProp props, CardModel? cardSource)
@@ -178,6 +214,10 @@ public static class Cmd
             foreach (var existing in target.Powers.ToList())
                 if (existing.TryAbsorbDebuff(combat, power))
                     return;   // negated (e.g. by Artifact)
+
+        // Track player-applied Doom for the turn (Necrobinder Death's Door). String-keyed so the engine
+        // need not know the Content power type; inert for every non-Doom power.
+        if (amount > 0 && power.Id == "Doom" && applier == combat.Player) combat.DoomAppliedThisTurn = true;
 
         target.AddPower(power, amount);
         // AfterApplied fires on the live power instance (the one now attached).

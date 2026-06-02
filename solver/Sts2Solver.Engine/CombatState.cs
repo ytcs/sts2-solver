@@ -43,8 +43,9 @@ public sealed class CombatState
     /// Regent's Radiate hits once per star gained this turn. (Game: StarsModifiedEntry this-turn sum.)</summary>
     public int StarsGainedThisTurn;
 
-    /// <summary>Number of Attacks the player has finished playing during the current turn (reset at the
-    /// player's turn start). Finisher hits this many times. (Game: count of this turn's Attack CardPlaysFinished.)</summary>
+    /// <summary>Number of Attacks the player has finished playing during the current turn (reset at the player's
+    /// turn start). Finisher hits this many times; Necrobinder Lethality boosts the first. (Game: count of this
+    /// turn's Attack CardPlaysFinished.)</summary>
     public int AttacksPlayedThisTurn;
 
     /// <summary>Number of cards the player has discarded mid-turn during the current turn (reset at the
@@ -60,13 +61,29 @@ public sealed class CombatState
     /// drawn (Murder). Gates <see cref="CardsDrawnThisCombat"/> tracking + hashing.</summary>
     public bool TracksCardsDrawn;
 
+    /// <summary>Ethereal cards the player has played this combat (Necrobinder Pull from Below hits 1 per such
+    /// play; Banshee's Cry's cost drops). Never reset.</summary>
+    public int EtherealPlayedThisCombat;
+
+    /// <summary>Osty attacks resolved this turn (Necrobinder Flatten costs 0 after one; Rattle hits 1 +
+    /// this many). Reset at the player's turn start.</summary>
+    public int OstyAttacksThisTurn;
+
+    /// <summary>True once the player has applied Doom this turn (Necrobinder Death's Door triples its
+    /// block). Reset at the player's turn start.</summary>
+    public bool DoomAppliedThisTurn;
+
     public IEnumerable<Monster> LivingMonsters => Monsters.Where(m => m.IsAlive);
+
+    /// <summary>Living enemies a player/Osty attack can target (the monster list, minus the dead).</summary>
+    public IEnumerable<Creature> HittableEnemies => Monsters.Where(m => m.IsAlive);
 
     public IEnumerable<Creature> AllCreatures
     {
         get
         {
             yield return Player;
+            if (Player.Osty != null) yield return Player.Osty;   // player-side pet; its powers join the pipeline
             foreach (var m in Monsters) yield return m;
         }
     }
@@ -105,6 +122,9 @@ public sealed class CombatState
             CardsDiscardedThisTurn = CardsDiscardedThisTurn,
             CardsDrawnThisCombat = CardsDrawnThisCombat,
             TracksCardsDrawn = TracksCardsDrawn,
+            EtherealPlayedThisCombat = EtherealPlayedThisCombat,
+            OstyAttacksThisTurn = OstyAttacksThisTurn,
+            DoomAppliedThisTurn = DoomAppliedThisTurn,
         };
     }
 
@@ -114,10 +134,15 @@ public sealed class CombatState
     public string StateKey()
     {
         var monsters = string.Join(";", Monsters.Select(m => m.StateKey()));
-        // Per-turn counters only contribute when non-zero, so decks that don't use them keep canonical keys.
+        // Per-turn / per-combat counters contribute only when non-zero, so decks that don't use them keep
+        // canonical keys. AttacksPlayedThisTurn is shared (Finisher + Necrobinder) so it appears once, in the
+        // `silent` group; the `necro` group adds only the Necrobinder-specific Ethereal/Osty/Doom counters.
         var regent = (SkillsPlayedThisTurn != 0 || StarsGainedThisTurn != 0) ? $"/sk{SkillsPlayedThisTurn}sg{StarsGainedThisTurn}" : "";
         var silent = (AttacksPlayedThisTurn != 0 || CardsDiscardedThisTurn != 0) ? $"/a{AttacksPlayedThisTurn}d{CardsDiscardedThisTurn}" : "";
+        var necro = (EtherealPlayedThisCombat != 0 ? $"/et{EtherealPlayedThisCombat}" : "")
+                  + (OstyAttacksThisTurn != 0 ? $"/oa{OstyAttacksThisTurn}" : "")
+                  + (DoomAppliedThisTurn ? "/da" : "");
         var drawn = TracksCardsDrawn ? $"/w{CardsDrawnThisCombat}" : "";
-        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}{regent}{silent}{drawn}|{Player.StateKey()}|{monsters}";
+        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}{regent}{silent}{necro}{drawn}|{Player.StateKey()}|{monsters}";
     }
 }

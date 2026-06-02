@@ -4,12 +4,13 @@ public enum CombatSide { Player, Enemy }
 
 public enum CardType { Attack, Skill, Power, Status, Curse }
 
-// Event/Ancient/Token rarities are used by Regent's pool (and Event/Ancient pools). No engine code
-// switches on CardRarity, so extending it is safe.
+// Event/Ancient/Token rarities span the Regent (Event/Ancient/Token) and Necrobinder (Token) pools. No
+// engine code switches on CardRarity, so extending it is safe.
 public enum CardRarity { Basic, Common, Uncommon, Rare, Special, Curse, Status, Event, Ancient, Token }
 
-/// <summary>Who a card can target. v1 covers the subset the slice needs.</summary>
-public enum TargetType { Self, AnyEnemy, AllEnemies, RandomEnemy, None }
+/// <summary>Who a card can target. v1 covers the subset the slice needs. <c>AllAllies</c> is only
+/// reached by multiplayer-only cards (inert here — single-player has just the one ally, Osty).</summary>
+public enum TargetType { Self, AnyEnemy, AllEnemies, RandomEnemy, AllAllies, None }
 
 public enum PowerType { Buff, Debuff }
 

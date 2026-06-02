@@ -38,6 +38,9 @@ public static partial class Catalog
         // The Regent's Sovereign Blade token: buildable by name (for tests / trace replay), generated in
         // combat by Forge, never deck-built — so registered here (excluded from CardPool) like status cards.
         ["SovereignBlade"] = () => new SovereignBlade(),
+        // Necrobinder tokens: buildable (so traces/tests can construct them) but excluded from the deck pool.
+        ["Soul"] = () => new Soul(),
+        ["SweepingGaze"] = () => new SweepingGaze(),
     };
 
     /// <summary>Every registered card table, in lookup order. Add a character = add one line here.</summary>
@@ -49,6 +52,7 @@ public static partial class Catalog
         yield return RegentCardFactories;
         yield return ColorlessCardFactories;
         yield return SpecialCardFactories;
+        yield return NecrobinderCardFactories;
     }
 
     /// <summary>The deck-buildable card pool: every registered character + colorless card (Ironclad + Silent
@@ -61,6 +65,7 @@ public static partial class Catalog
             .Concat(RegentCardFactories.Keys)
             .Concat(ColorlessCardFactories.Keys)
             .Concat(SpecialCardFactories.Keys)
+            .Concat(NecrobinderCardFactories.Keys)
             .ToArray();
     private static string[]? _cardPool;
 
@@ -121,7 +126,7 @@ public static partial class Catalog
             .Any(c => c.Name == "Murder");
         var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0,
                                        CurrentSide = CombatSide.Player, TracksCardsDrawn = tracksDrawn };
-        foreach (var r in player.Relics) r.OnCombatStart(combat);   // e.g. DivineRight grants 3 Stars
+        foreach (var r in player.Relics) r.OnCombatStart(combat);   // e.g. DivineRight grants Stars, Bound Phylactery summons Osty
         return combat;
     }
 }

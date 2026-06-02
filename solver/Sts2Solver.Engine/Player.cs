@@ -25,6 +25,13 @@ public sealed class Player : Creature
 
     public readonly List<RelicModel> Relics = new();
 
+    /// <summary>The Necrobinder's pet (null for every other character). Surfaced through
+    /// <see cref="CombatState.AllCreatures"/> so its powers join the damage pipeline; see <see cref="Osty"/>.</summary>
+    public Osty? Osty;
+
+    public bool IsOstyAlive => Osty is { CurrentHp: > 0 };
+    public bool IsOstyMissing => !IsOstyAlive;
+
     public Player() { Side = CombatSide.Player; }
 
     /// <summary>Max energy including power bonuses (Pyre). Each turn's reset uses this.</summary>
@@ -62,6 +69,7 @@ public sealed class Player : Creature
         CopyPile(DiscardPile, p.DiscardPile);
         CopyPile(ExhaustPile, p.ExhaustPile);
         p.Relics.AddRange(Relics);   // relics are immutable definitions
+        p.Osty = Osty != null ? (Osty)Osty.Clone() : null;
         return p;
     }
 
@@ -90,6 +98,7 @@ public sealed class Player : Creature
         Span<long> relics = stackalloc long[Relics.Count];
         for (int i = 0; i < Relics.Count; i++) relics[i] = Relics[i].Id.GetHashCode();
         h.AddSorted(relics);
+        if (Osty != null) { h.Add(0x5057); Osty.Hash(ref h); }
     }
 
     private static void HashPile(ref StateHasher h, List<CardModel> pile, long tag)
@@ -108,9 +117,11 @@ public sealed class Player : Creature
         string Bag(List<CardModel> pile) =>
             string.Join(",", pile.Select(c => c.StateKey()).OrderBy(s => s, StringComparer.Ordinal));
         var relics = string.Join(",", Relics.Select(r => r.Id).OrderBy(s => s, StringComparer.Ordinal));
-        // Stars only contribute to the key when present, so non-Regent decks keep their existing canonical keys.
+        // Stars (Regent) and Osty (Necrobinder) contribute to the key only when present, so decks without them
+        // keep their existing canonical keys.
         var stars = Stars != 0 ? $"|s{Stars}" : "";
-        return $"P({base.StateKey()}|e{Energy}/{MaxEnergy}{stars}|H[{Bag(Hand)}]|D[{Bag(DrawPile)}]|X[{Bag(DiscardPile)}]|E[{Bag(ExhaustPile)}]|R[{relics}])";
+        var osty = Osty != null ? $"|{Osty.StateKey()}" : "";
+        return $"P({base.StateKey()}|e{Energy}/{MaxEnergy}{stars}|H[{Bag(Hand)}]|D[{Bag(DrawPile)}]|X[{Bag(DiscardPile)}]|E[{Bag(ExhaustPile)}]|R[{relics}]{osty})";
     }
 }
 
@@ -121,6 +132,10 @@ public abstract class RelicModel
     public virtual void AfterCombatVictory(CombatState combat) { }
 
     /// <summary>Fires once when combat is set up, before turn 1 (game: AfterRoomEntered for a CombatRoom).
-    /// The Regent's DivineRight grants 3 Stars here.</summary>
+    /// The Regent's DivineRight grants Stars here; the Necrobinder's Bound Phylactery summons Osty.</summary>
     public virtual void OnCombatStart(CombatState combat) { }
+
+    /// <summary>Fires at the start of each player turn after energy resets (Bound Phylactery re-summons
+    /// Osty each turn after the first).</summary>
+    public virtual void OnPlayerTurnStart(CombatState combat) { }
 }

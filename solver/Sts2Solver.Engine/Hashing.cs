@@ -42,6 +42,9 @@ public static class HashingExtensions
         h.Add(s.StarsGainedThisTurn);     // or two states differing only in these collide → stale memoised value.
         h.Add(s.AttacksPlayedThisTurn);
         h.Add(s.CardsDiscardedThisTurn);
+        h.Add(s.EtherealPlayedThisCombat);   // Necrobinder Pull from Below / Banshee's Cry — memo key, not just
+        h.Add(s.OstyAttacksThisTurn);        // StateKey, or states differing only in these collide → stale value.
+        h.Add(s.DoomAppliedThisTurn ? 1 : 0);
         if (s.TracksCardsDrawn) h.Add(s.CardsDrawnThisCombat);   // only when a card (Murder) reads it
         // (Skills/Stars/Attacks/Discarded are added unconditionally, not gated on non-zero: conditional
         //  untagged adds would let e.g. Skills=0,Stars=3 collide with Skills=3,Stars=0 — position must stay fixed.)

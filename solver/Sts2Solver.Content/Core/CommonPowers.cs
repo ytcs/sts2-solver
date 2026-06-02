@@ -15,6 +15,7 @@ public sealed class VulnerablePower : PowerModel
         decimal mult = 1.5m;
         if (dealer != null)                                // Cruelty (on the attacker) lifts the multiplier
             foreach (var p in dealer.Powers) mult += p.VulnerableMultiplierBonus();
+        foreach (var p in Owner.Powers) mult = p.TransformVulnerableMultiplier(mult);   // Debilitate (target side)
         return mult;
     }
 
@@ -35,7 +36,9 @@ public sealed class WeakPower : PowerModel
     {
         if (dealer != Owner) return 1m;
         if (!props.IsPoweredAttack()) return 1m;
-        return 0.75m;
+        decimal mult = 0.75m;
+        foreach (var p in Owner.Powers) mult = p.TransformWeakMultiplier(mult);   // Debilitate (dealer side)
+        return mult;
     }
 
     public override void AfterSideTurnEnd(CombatState combat, CombatSide side)

@@ -49,6 +49,13 @@ public abstract class PowerModel
     /// caps the owner's total HP loss per turn here. (Mirrors the game's ModifyHpLostBeforeOsty.)</summary>
     public virtual int ModifyHpLost(Creature target, int hpLost, ValueProp props, Creature? dealer) => hpLost;
 
+    /// <summary>Redirects the UNBLOCKED remainder of an attack (after the original target's block has been
+    /// absorbed) onto a different creature, which takes it as direct HP loss. DieForYouPower (on Osty) sends
+    /// the post-block portion of powered attacks aimed at its owner-player onto Osty instead — so the player's
+    /// block still soaks the hit and only the leftover reaches Osty. Return the (possibly new) HP-loss target.
+    /// (Mirrors the game's PowerModel.ModifyUnblockedDamageTarget, called after DamageBlockInternal.)</summary>
+    public virtual Creature ModifyUnblockedDamageTarget(Creature target, int unblocked, ValueProp props, Creature? dealer) => target;
+
     // ---- Block modification hooks (run during BlockPipeline) ----
 
     /// <summary>Flat block added. Dexterity adds its Amount here.</summary>
@@ -73,10 +80,23 @@ public abstract class PowerModel
     /// TryModifyPowerAmountReceived / Artifact.)</summary>
     public virtual bool TryAbsorbDebuff(CombatState combat, PowerModel incoming) => false;
 
+    /// <summary>Fires (on every power in combat) just BEFORE a card's effect resolves (after cost is paid).
+    /// Danse Macabre / Spirit of Ash gain block here; Veilpiercer consumes a charge. Because it runs before
+    /// OnPlay, a Power card does not trigger the very power it is applying. (Game: Hook.BeforeCardPlayed.)</summary>
+    public virtual void BeforeCardPlayed(CombatState combat, CardModel card) { }
+
     /// <summary>Fires (on every power in combat) after the player resolves a card's effect, before it
     /// moves to its result pile. SlowPower increments its counter here. Mirrors the game's
     /// Hook.AfterCardPlayed, which runs after OnPlay — so a card never boosts its own damage.</summary>
     public virtual void AfterCardPlayed(CombatState combat, CardModel card) { }
+
+    /// <summary>Transforms the Vulnerable damage multiplier when this power's OWNER is the target being
+    /// hit (Debilitate strengthens it). Consulted by VulnerablePower over the target's own powers.</summary>
+    public virtual decimal TransformVulnerableMultiplier(decimal mult) => mult;
+
+    /// <summary>Transforms the Weak damage multiplier when this power's OWNER is the weakened dealer
+    /// (Debilitate strengthens it). Consulted by WeakPower over the dealer's own powers.</summary>
+    public virtual decimal TransformWeakMultiplier(decimal mult) => mult;
 
     /// <summary>Fires (on every power in combat) when a creature dies. Ravenous uses it to devour a
     /// dead ally — granting its owner Strength.</summary>

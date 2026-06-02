@@ -57,9 +57,14 @@ public static class TraceValidator
         // ----- Reconstruct the initial combat -----
         var pSetup = setup.GetProperty("player");
         int playerHp = Int(pSetup, "hp"), playerMaxHp = Int(pSetup, "maxHp");
-        var deck = pSetup.GetProperty("drawPile").EnumerateArray().Select(c => Catalog.BuildCard(c.GetString()!)).ToList();
+        var deckNames = pSetup.GetProperty("drawPile").EnumerateArray().Select(c => c.GetString()!).ToList();
+        var deck = deckNames.Select(Catalog.BuildCard).ToList();
+        // Pick the starter relic from the character implied by the deck: Necrobinder runs start with Bound
+        // Phylactery (which summons Osty on combat start — essential for the Osty checks), everything else
+        // with Burning Blood (the only relic the older Ironclad/Silent traces were recorded under).
+        var starterRelic = IsNecrobinderDeck(deckNames) ? "BoundPhylactery" : "BurningBlood";
         var player = Catalog.BuildPlayer(deck, playerHp, playerMaxHp, Int(pSetup, "maxEnergy") is var me && me > 0 ? me : 3,
-            relics: new[] { "BurningBlood" });
+            relics: new[] { starterRelic });
 
         // Ascension level the trace was recorded at (absent on pre-A10 traces → 0). Drives monster
         // HP/damage scaling so the engine reproduces the same numbers the game dealt.
@@ -230,6 +235,7 @@ public static class TraceValidator
     {
         var pj = snap.GetProperty("player");
         Check(r, $"{label}: player HP", Int(pj, "hp"), combat.Player.CurrentHp);
+        CompareOsty(r, combat, pj, label);
 
         // Align the engine's living monsters with the snapshot's by name-sequence (robust to a non-trailing
         // monster the game removed but the engine still has alive — see AlignMonsters).
@@ -245,6 +251,43 @@ public static class TraceValidator
             Check(r, $"{label}: {m.Name}[{i}] block", Int(mj, "block"), m.Block);
             ComparePowers(r, $"{label}: {m.Name}[{i}]", mj.GetProperty("powers"), m);
         }
+    }
+
+    /// <summary>Compare Necrobinder's Osty pet. The recorder writes an "osty" field on the player snapshot:
+    /// an object while a pet is alive, null/absent when it's missing (dead or never summoned). The engine
+    /// keeps the pet on <c>Player.Osty</c> with HP ≤ 0 when missing — so a missing Osty on both sides agrees,
+    /// and a one-sided presence is a fidelity bug.</summary>
+    private static void CompareOsty(Report r, CombatState combat, JsonElement playerJson, string label)
+    {
+        bool gameHasOsty = playerJson.TryGetProperty("osty", out var oj) && oj.ValueKind == JsonValueKind.Object;
+        var engineOsty = combat.Player.IsOstyAlive ? combat.Player.Osty : null;
+
+        if (!gameHasOsty)
+        {
+            if (engineOsty != null)
+                r.Fail($"{label}: Osty — engine has it alive (HP {engineOsty.CurrentHp}), game reports none");
+            return;
+        }
+        if (engineOsty == null)
+        {
+            r.Fail($"{label}: Osty — game reports it alive (HP {Int(oj, "hp")}), engine has none");
+            return;
+        }
+        Check(r, $"{label}: Osty HP", Int(oj, "hp"), engineOsty.CurrentHp);
+        Check(r, $"{label}: Osty maxHp", Int(oj, "maxHp"), engineOsty.MaxHp);
+        Check(r, $"{label}: Osty block", Int(oj, "block"), engineOsty.Block);
+        ComparePowers(r, $"{label}: Osty", oj.GetProperty("powers"), engineOsty);
+    }
+
+    /// <summary>True if the recorded starting deck is a Necrobinder deck (any card registered in the
+    /// Necrobinder card table) — used to pick the Bound Phylactery starter relic so Osty is summoned.</summary>
+    private static bool IsNecrobinderDeck(IEnumerable<string> deckNames) =>
+        deckNames.Any(n => Catalog.NecrobinderCardFactories.ContainsKey(StripUpgrade(n)));
+
+    private static string StripUpgrade(string spec)
+    {
+        int plus = spec.IndexOf('+');
+        return plus >= 0 ? spec[..plus] : spec;
     }
 
     private static void ComparePowers(Report r, string label, JsonElement powersJson, Creature creature)
