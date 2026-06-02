@@ -137,9 +137,11 @@ public abstract class CardModel
     public virtual int PostDrawDiscardCount => 0;
 
     /// <summary>The deterministic / conditional post-draw effect, run on the post-draw hand once the deferred
-    /// draw has resolved (EscapePlan: +Block iff the just-drawn card is a Skill). Only consulted when
-    /// <see cref="PostDrawDiscardCount"/> is 0. Default no-op.</summary>
-    public virtual void OnPostDraw(CombatState combat) { }
+    /// draw has resolved (EscapePlan: +Block iff the just-drawn card is a Skill). <paramref name="drawn"/> is how
+    /// many cards the draw ACTUALLY produced — 0 when both piles were empty, so a card that reads the drawn card
+    /// (the hand's last) must guard on <c>drawn &gt; 0</c> (the game's drawn-card is null there). Only consulted
+    /// when <see cref="PostDrawDiscardCount"/> is 0. Default no-op.</summary>
+    public virtual void OnPostDraw(CombatState combat, int drawn) { }
 
     /// <summary>Apply one upgrade level's stat changes. Called <see cref="Upgrades"/> times during construction helpers.</summary>
     protected virtual void OnUpgrade() { }

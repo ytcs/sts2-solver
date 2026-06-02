@@ -186,9 +186,8 @@ public static class Cmd
         if (combat.Player.HasPower("NoDraw")) return 0;
         if (combat.Rng == null) { combat.PendingDraw += n; return 0; }   // search: defer to a draw chance node
         int before = combat.Player.Hand.Count;
-        CombatManager.DrawCards(combat, n, combat.Rng);
+        CombatManager.DrawCards(combat, n, combat.Rng);   // increments CardsDrawnThisCombat (Murder) itself
         int drawn = combat.Player.Hand.Count - before;
-        if (combat.TracksCardsDrawn) combat.CardsDrawnThisCombat += drawn;   // Murder scales on this
         // Per-card-drawn hooks (CorrosiveWave applies Poison, Speedster deals damage). Mid-turn draws only.
         for (int i = before; i < combat.Player.Hand.Count; i++)
         {
@@ -206,6 +205,7 @@ public static class Cmd
         if (n <= 0 || combat.Player.HasPower("NoDraw")) return;   // no draw ⇒ no post-draw step
         combat.PendingDraw += n;
         combat.PendingDrawCard = card;
+        combat.PendingDrawHandBefore = combat.Player.Hand.Count;   // so ApplyPostDraw knows how many actually drew
     }
 
     /// <summary>Register a forced discard-of-CHOICE for SEARCH mode (callers guard <c>combat.Rng == null</c>),

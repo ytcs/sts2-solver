@@ -88,6 +88,14 @@ public sealed class CombatState
     /// memoised decision state, so NOT hashed. Null for plain terminal draws (ShrugItOff).</summary>
     public CardModel? PendingDrawCard;
 
+    /// <summary>The player's hand count captured the moment a post-draw card deferred its draw
+    /// (<see cref="Cmd.DeferDrawThenResolve"/>), so <see cref="CombatManager.ApplyPostDraw"/> can tell how many
+    /// cards the draw ACTUALLY produced (hand minus this). EscapePlan grants block only if its draw drew a card
+    /// (the game checks the DRAWN card, which is null when both piles are empty — without this guard the
+    /// no-draw outcome would optimistically read a pre-existing <c>Hand[^1]</c> Skill). Transient like
+    /// <see cref="PendingDraw"/> — set at defer, consumed in ApplyPostDraw before any decision state, NOT hashed.</summary>
+    public int PendingDrawHandBefore;
+
     /// <summary>Cards the player must still DISCARD of their choice this turn (Acrobatics 1, Prepared N) — a
     /// genuine post-draw decision: unlike <see cref="PendingDraw"/> this IS a property of a memoised decision
     /// state (the player picks which to drop), so it is hashed. The solver resolves it one card at a time as a
@@ -164,6 +172,7 @@ public sealed class CombatState
             DoomAppliedThisTurn = DoomAppliedThisTurn,
             PendingDraw = PendingDraw,
             PendingDrawCard = PendingDrawCard,   // immutable card instance — shared by reference is safe
+            PendingDrawHandBefore = PendingDrawHandBefore,
             PendingDiscard = PendingDiscard,
             PlaysThisTurn = PlaysThisTurn,
             BoundsPlays = BoundsPlays,

@@ -305,6 +305,30 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   counter so only Murder decks pay the state-key cost). New powers in `SilentPowers.cs`; `SilentCardTests`
   49→110. (Selection/draw effects use deterministic defaults / no-op without an ambient Rng, matching the
   existing Ironclad prompt/draw cards.)
+- **Behavioral-fidelity audit of the Silent batch-4–8 ports (unit-tested-only set) vs the decompiled `OnPlay`**
+  (this round, 3 parallel agents over attacks/skills, the Shiv/poison powers, and the deferred/complex set —
+  comparing cost/type/target/magnitudes/per-upgrade deltas/effect-ordering, not just selection soundness). Two
+  real findings, both fixed:
+  - **🟠 Murder undercounted cards drawn** — its damage is `1 + (cards drawn this combat)`, and the game logs a
+    `CardDrawnEntry` for the turn-start hand draw too (`fromHandDraw`; Murder's multiplier has no filter). Our
+    counter only incremented on *effect*-draws (`Cmd.Draw`), so the rollout / MCTS leaf / trace-replay paths
+    (which draw the opening hand via `CombatManager.DrawCards`, not `Cmd.Draw`) under-counted by the opening 5 —
+    while the **exact oracle already counted** them (its `DrawEnumerator` does), so exact and MCTS DISAGREED on a
+    Murder deck. Moved the `CardsDrawnThisCombat` increment into `CombatManager.DrawCards` (the single
+    concrete-Rng draw primitive; removed the now-duplicate bump in `Cmd.Draw`) so every path counts identically.
+    Gated by `Murder_Counts_The_Turn_Start_Hand_Draw`.
+  - **🔴-direction (optimistic) EscapePlan empty-draw hole** — it grants Block iff the *drawn* card is a Skill,
+    but we read `Hand[^1]`; when both piles are empty the draw produces nothing (game's drawn card = null) yet a
+    pre-existing last-hand Skill would optimistically grant Block. Reachable in **exact search** (the draw
+    enumerator yields a no-draw outcome). Now threads the ACTUAL drawn count to `OnPostDraw(combat, drawn)`
+    (computed in `ApplyPostDraw` as `Hand.Count − PendingDrawHandBefore`, a transient captured at defer); block
+    fires only when `drawn > 0`. Gated by `EscapePlan_Grants_No_Block_When_The_Draw_Is_Empty` +
+    `ApplyPostDraw_EscapePlan_Block_Requires_An_Actual_Draw`.
+  - Everything else verified clean (numbers/upgrades/ordering); the BulletTime-frees-an-X-cost-card worry is a
+    no-op (the engine's X-cost spend ignores the cost modifier — `spend = IsXCost ? Energy : effCost`); the
+    Strangle/SerpentForm re-stack edge is ⚠️ pessimistic (sound); HiddenDaggers stays `DiscardDefault(2)`
+    (decompiled order is discard-THEN-create-shivs, so a post-play `PendingDiscard` MAX would let search discard
+    a freshly-made Shiv — optimistically unsound; the fixed default is correct).
 - **Soundness fix (this round): in-pile card upgrades** (`Armaments`, `Apotheosis`) now **replace** the
   upgraded card with a freshly-cloned upgraded copy instead of mutating the shared (non-Stateful) instance in
   place — the latter corrupted sibling search branches (draw enumerator: "Pile missing card …"). A latent
@@ -369,7 +393,8 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   deterministic lethal-draw solve, no-draw control, draw-makes-fight-winnable + exact↔faithful-MC bound,
   EscapePlan conditional, Acrobatics optimal-discard, discard-choice MCTS convergence, cost-0 cantrip
   cap, loop-risk-card flag audit, Survivor/DaggerThrow forced-discard-feeds-the-counter + no-draw-discard MCTS
-  convergence + Rng-path discard mechanics)). **503 passed, 0 skipped, 0 failed.**
+  convergence + Rng-path discard mechanics + Murder-counts-the-turn-start-hand-draw + EscapePlan-no-block-on-an-
+  empty-draw both Rng-path and via ApplyPostDraw)). **506 passed, 0 skipped, 0 failed.**
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
@@ -602,8 +627,10 @@ experiment also surfaced the Apotheosis/Armaments clone-aliasing oracle bug, sin
 5. **VF distillation + recalibration** — after a large training round (now drawing colorless + varied decks),
    distill feature importance to simplify the model without losing accuracy; recalibrate survival (Platt/
    isotonic) IF we keep it; add deck-composition features.
-6. **Content** — Silent 88/88 ✅ done; trace-validate the Silent batch-4–8 ports + the 8 new normal monsters
-   against the real game (currently unit-tested only); Act-1 bosses; relic engine hooks;
+6. **Content** — Silent 88/88 ✅ done; the batch-4–8 ports now also passed a **game-free behavioral-fidelity
+   audit** (decompile-diffed numbers/ordering/soundness — fixed Murder's turn-start-draw undercount and
+   EscapePlan's empty-draw block hole), so the remaining step is **live** trace-validation of those ports + the
+   8 new normal monsters against the real game (still only unit-tested); Act-1 bosses; relic engine hooks;
    the deferred solver-side mid-turn **draw chance-node** for forward search.
 7. **Intra-card SELECTION as real decision nodes — DONE for single-choice cards; two sound boundaries remain.**
    The machinery is in place and oracle-gated: `CardModel.Choices(state)` declares a card's distinct options

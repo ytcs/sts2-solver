@@ -1588,12 +1588,15 @@ public sealed class EscapePlan : CardModel
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         if (combat.Rng == null) { Cmd.DeferDrawThenResolve(combat, 1, this); return; }   // search: defer + post-draw
-        Cmd.Draw(combat, 1);
-        OnPostDraw(combat);
+        int drew = Cmd.Draw(combat, 1);
+        OnPostDraw(combat, drew);
     }
-    public override void OnPostDraw(CombatState combat)
+    // Block iff the card actually DRAWN is a Skill. The drawn card is the hand's last when drawn > 0; when both
+    // piles are empty the draw produces nothing (drawn == 0) — the game's drawn card is null ⇒ no block. Guarding
+    // on drawn > 0 (vs reading a pre-existing Hand[^1]) keeps this from optimistically granting block in search.
+    public override void OnPostDraw(CombatState combat, int drawn)
     {
-        if (combat.Player.Hand.Count > 0 && combat.Player.Hand[^1].Type == CardType.Skill)
+        if (drawn > 0 && combat.Player.Hand[^1].Type == CardType.Skill)
             Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
     }
 }

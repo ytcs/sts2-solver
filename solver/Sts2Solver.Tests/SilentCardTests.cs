@@ -1318,4 +1318,64 @@ public class SilentCardTests
         Cmd.Draw(combat, 3);
         Assert.Equal(3, combat.CardsDrawnThisCombat);      // the counter accumulates draws
     }
+
+    /// <summary>Murder counts EVERY card drawn this combat, including the turn-start hand draw — the game logs a
+    /// CardDrawnEntry for fromHandDraw draws too and Murder's multiplier doesn't filter them. The count now lives
+    /// in <see cref="CombatManager.DrawCards"/> (the one concrete-Rng draw primitive), so the rollout / MCTS leaf
+    /// / trace-replay paths (which draw the opening hand via DrawCards, not Cmd.Draw) stop undercounting Murder
+    /// by the opening 5 — matching the exact oracle, whose DrawEnumerator already counted turn-start draws.</summary>
+    [Fact]
+    public void Murder_Counts_The_Turn_Start_Hand_Draw()
+    {
+        var (c, p, _) = Fight();
+        c.TracksCardsDrawn = true;
+        for (int i = 0; i < 5; i++) p.DrawPile.Add(new DefendSilent());
+        CombatManager.DrawCards(c, 5, new Rng(0));         // a turn-start-style hand draw (NOT via Cmd.Draw)
+        Assert.Equal(5, c.CardsDrawnThisCombat);
+
+        // Control: a non-Murder deck (TracksCardsDrawn false) pays nothing and keeps the counter out of its key.
+        var (c2, p2, _) = Fight();
+        for (int i = 0; i < 5; i++) p2.DrawPile.Add(new DefendSilent());
+        CombatManager.DrawCards(c2, 5, new Rng(0));
+        Assert.Equal(0, c2.CardsDrawnThisCombat);
+    }
+
+    /// <summary>EscapePlan grants Block only if its draw ACTUALLY produced a card (the game checks the drawn
+    /// card, which is null when both piles are empty). With draw + discard empty the play draws nothing, so no
+    /// Block — even though a pre-existing Skill sits at the end of hand. Guards the optimistic direction: reading
+    /// a stale <c>Hand[^1]</c> would hand the search free Block the real game never gives.</summary>
+    [Fact]
+    public void EscapePlan_Grants_No_Block_When_The_Draw_Is_Empty()
+    {
+        var (c, p, _) = Fight();
+        c.Rng = new Rng(0);
+        p.Hand.Add(new DefendSilent());                    // a Skill at hand end, but draw+discard are EMPTY
+        Play(c, new EscapePlan(), null);
+        Assert.Equal(0, p.Block);                          // nothing drawn ⇒ no conditional Block
+    }
+
+    /// <summary>The SEARCH path's post-draw resolution computes "how many actually drew" as
+    /// <c>Hand.Count − PendingDrawHandBefore</c> (captured at defer). This gates that computation directly via
+    /// <see cref="CombatManager.ApplyPostDraw"/>: a no-draw outcome grants EscapePlan no Block; an actual draw of
+    /// a Skill grants it. (Mirrors the empty-pile no-draw the exact draw enumerator yields when both piles run
+    /// dry mid-turn.)</summary>
+    [Fact]
+    public void ApplyPostDraw_EscapePlan_Block_Requires_An_Actual_Draw()
+    {
+        // No card drawn (hand unchanged since defer): no Block, despite a Skill at hand end.
+        var (c, p, _) = Fight();
+        p.Hand.Add(new DefendSilent());
+        c.PendingDrawCard = new EscapePlan();
+        c.PendingDrawHandBefore = p.Hand.Count;            // hand did not grow ⇒ drawn == 0
+        CombatManager.ApplyPostDraw(c);
+        Assert.Equal(0, p.Block);
+
+        // A card WAS drawn (hand grew past the captured count) and it's a Skill ⇒ Block fires.
+        var (c2, p2, _) = Fight();
+        c2.PendingDrawHandBefore = p2.Hand.Count;          // captured BEFORE the draw
+        p2.Hand.Add(new DefendSilent());                   // simulate drawing a Skill
+        c2.PendingDrawCard = new EscapePlan();
+        CombatManager.ApplyPostDraw(c2);
+        Assert.Equal(3, p2.Block);
+    }
 }

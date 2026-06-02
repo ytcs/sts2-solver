@@ -215,6 +215,7 @@ public static class CombatManager
     public static void DrawCards(CombatState combat, int n, Rng rng)
     {
         var p = combat.Player;
+        int before = p.Hand.Count;
         for (int i = 0; i < n; i++)
         {
             if (p.Hand.Count >= Player.MaxHandSize) break;
@@ -229,6 +230,12 @@ public static class CombatManager
             p.DrawPile.RemoveAt(0);
             p.Hand.Add(card);
         }
+        // Murder scales on EVERY card drawn this combat, INCLUDING the turn-start hand draw (the game logs a
+        // CardDrawnEntry for fromHandDraw draws too, and Murder's multiplier doesn't filter on it). Counting it
+        // here — the single concrete-Rng draw primitive — keeps rollouts / MCTS leaf / trace-replay consistent
+        // with the exact oracle, whose DrawEnumerator already counts turn-start draws. Gated on TracksCardsDrawn
+        // (only a Murder deck) so non-Murder decks pay nothing and the counter stays out of their state key.
+        if (combat.TracksCardsDrawn) combat.CardsDrawnThisCombat += p.Hand.Count - before;
     }
 
     public static void RollInitialMoves(CombatState combat, Rng rng)
@@ -259,7 +266,7 @@ public static class CombatManager
         combat.PendingDrawCard = null;
         if (card == null) return;
         if (card.PostDrawDiscardCount > 0) combat.PendingDiscard += card.PostDrawDiscardCount;
-        else card.OnPostDraw(combat);
+        else card.OnPostDraw(combat, combat.Player.Hand.Count - combat.PendingDrawHandBefore);   // actual cards drawn
     }
 
     /// <summary>Award post-combat relic effects (e.g. Burning Blood heals 6) on victory.</summary>
