@@ -94,6 +94,14 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   gains Block iff the drawn card is a Skill) or a discard-of-choice (`PostDrawDiscardCount` → `PendingDiscard`,
   a hashed decision resolved as a player MAX one card at a time). Promoted EscapePlan/Acrobatics/Prepared
   (Next steps #2).
+- **Forced discard-of-choice (no draw):** a card that forces a discard with no preceding draw (Survivor: "gain
+  Block, discard 1") sets `PendingDiscard` directly at play time (`Cmd.DeferDiscardOfChoice`), resolved as the
+  same player MAX. Modelling the forced discard (vs omitting it) is the SOUND direction — omitting a *forced*
+  discard would leave the player an extra in-turn card the real game removes (optimistic in non-discard-synergy
+  decks). Promoted Survivor (no-draw) and DaggerThrow (post-draw) — both surfaced by the selection audit (Next
+  steps #3) as the only places a forced discard was dropped rather than defaulted/maxed. The discard feeds
+  `CardsDiscardedThisTurn` (Memento Mori), so it has a real within-turn HP effect — gated decisively in
+  `MidTurnDrawTests` (a MementoMori-lethal-only-with-the-discard solve) + MCTS-converges + Rng-path mechanics.
 - **Per-turn play cap (loop termination):** a cost-0 replayable draw cantrip (EscapePlan/Prepared — free play
   that draws and recirculates via reshuffle) could otherwise build an unbounded per-turn play chain and blow the
   search stack. `PlaysThisTurn` is capped **unconditionally** at `MaxPlaysPerTurn` (40, far above any real
@@ -360,7 +368,8 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   and the in-pile-upgrade soundness gate) + mid-turn-draw chance nodes + post-draw resolution (`MidTurnDrawTests`:
   deterministic lethal-draw solve, no-draw control, draw-makes-fight-winnable + exact↔faithful-MC bound,
   EscapePlan conditional, Acrobatics optimal-discard, discard-choice MCTS convergence, cost-0 cantrip
-  cap, loop-risk-card flag audit)). **498 passed, 0 skipped, 0 failed.**
+  cap, loop-risk-card flag audit, Survivor/DaggerThrow forced-discard-feeds-the-counter + no-draw-discard MCTS
+  convergence + Rng-path discard mechanics)). **503 passed, 0 skipped, 0 failed.**
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
@@ -500,10 +509,23 @@ blocking).
    exhaust-of-choice MAX wired at PLAY time (the machinery now exists — `PendingDiscard` + the discard decision
    layer — so this is mostly reuse). STATUS still rates their HP value low (discards return; Purity is HP-neutral
    without on-exhaust powers).
-3. **All-cards selection audit** — for every selection card, confirm random-vs-choice from the **decompiled
-   OnPlay** (`ilspycmd` vs the Steam `sts2.dll`; never `cards.json` — LocString refs only) and promote the
-   genuine player choices; keep random picks as non-decision defaults (a faithful random-pick chance node is a
-   sub-item of #1's machinery). The draw-then-select half (Acrobatics / Prepared / EscapePlan) is now done (#2).
+3. ✅ **All-cards selection audit** — DONE (2026-06-02). Cross-referenced every selection / card-gen / discard /
+   exhaust / draw-then-act card across ALL modules (Ironclad, Silent, Colorless, Special, Regent, Necrobinder)
+   against the **decompiled OnPlay** (`CardSelectCmd.From{Hand,CombatPile}` = player choice; `Rng.CombatCardSelection`
+   / `Rng.CombatCardGeneration` = random). **Headline result: ZERO optimistically-unsound findings** — no card
+   anywhere models a *random* pick as a player *choice* (the dangerous direction that would let the search
+   cherry-pick an RNG outcome). Every promoted `Choices` decision node maps to a real player select; every RNG
+   generation (Metamorphosis/Distraction/HelloWorld/Mayhem; BundleOfJoy/Quasar/ManifestAuthority; InfernalBlade/
+   Stoke; the auto-play cards) is correctly left inert or collapsed to a deterministic default; the two
+   random-vs-choice trap cards are handled (True Grit: random base / choice upgraded; Cinder: random all levels).
+   The audit's one actionable finding: **Survivor + DaggerThrow** were *omitting* a forced "discard 1 of choice"
+   entirely (a pre-machinery gap) — the only optimistic edge case (an extra in-turn card the game removes). Both
+   now promoted to the discard-of-choice MAX (see "Forced discard-of-choice" above). The remaining genuine
+   player choices left as fixed defaults (HiddenDaggers, Purity, ThinkingAhead, Tools of the Trade, DualWield,
+   NeowsFury, and the Regent/Necrobinder put-back/transform cards) are all ⚠️ *under-modeled-but-SOUND*
+   (pessimistic — a fixed default can only under-credit the player) and documented per-card; promoting them is
+   optional accuracy work, not a soundness fix. (A faithful random-pick chance node remains a sub-item of #1's
+   machinery for the random-gen cards, if/when their generated cards matter.)
 4. **THEN performance** — revisit only after correctness. The remaining lever is a cheaper rollout policy
    (≤3–4 HP accuracy budget); parallelism/truncation are refuted (see Performance).
 

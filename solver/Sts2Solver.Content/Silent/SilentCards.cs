@@ -538,9 +538,11 @@ public sealed class PiercingWail : CardModel
 // SKIPPED (see the manifest) because no faithful primitive exists yet.
 // ===========================================================================
 
-/// <summary>Gain 8 Block. (Discard a card — not modelled: hand-discard selection isn't supported, so this
-/// is the HP-neutral block-only effect, mirroring the deferred Survivor note above.) Upgrade: +3 Block.
-/// (MegaCrit Survivor — Silent starter)</summary>
+/// <summary>Gain 8 Block, then discard 1 card of your choice. Upgrade: +3 Block. (MegaCrit Survivor — Silent
+/// starter) The forced discard is a player MAX over the hand: in search it's a <see cref="PendingDiscard"/>
+/// decision layer (no draw, so no chance node); with an ambient Rng it discards a heuristic default. Modelling
+/// the discard (vs omitting it) is sound — omitting a forced discard would leave the player an extra in-turn
+/// card the real game removes.</summary>
 public sealed class Survivor : CardModel
 {
     public override string Name => "Survivor";
@@ -550,7 +552,11 @@ public sealed class Survivor : CardModel
     public override TargetType Target => TargetType.Self;
     public int Block => 8 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
-        => Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+    {
+        Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+        if (combat.Rng == null) Cmd.DeferDiscardOfChoice(combat, 1);   // search: discard-choice player MAX
+        else SilentCardHelpers.DiscardDefault(combat, 1);
+    }
 }
 
 /// <summary>Deal 11 damage. Exhaust. Cost 0. Upgrade: +4. (Innate not modelled — affects only the opening
@@ -568,10 +574,10 @@ public sealed class Backstab : CardModel
         => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
 }
 
-/// <summary>Deal 9 damage, draw 1 card, then discard 1 card. Upgrade: +3 damage. (MegaCrit Dagger Throw)
-/// The draw is a single draw call (no-op without an ambient Rng — the validator replays the recorded hand);
-/// the "discard 1 card" half needs hand-discard selection (unported), so it is omitted. The damage — the
-/// only HP-affecting part — is what is validated.</summary>
+/// <summary>Deal 9 damage, draw 1 card, then discard 1 card of your choice. Upgrade: +3 damage. (MegaCrit
+/// Dagger Throw) In search the draw is a chance node and the discard a post-draw player MAX over the resulting
+/// hand (<see cref="PostDrawDiscardCount"/> — you may discard the just-drawn card, as in-game); with an ambient
+/// Rng it draws then discards a heuristic default. Modelling the forced discard (vs omitting it) is sound.</summary>
 public sealed class DaggerThrow : CardModel
 {
     public override string Name => "DaggerThrow";
@@ -580,10 +586,14 @@ public sealed class DaggerThrow : CardModel
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AnyEnemy;
     public int Damage => 9 + 3 * Upgrades;
+    public override bool HasPostDraw => true;
+    public override int PostDrawDiscardCount => 1;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
-        Cmd.Draw(combat, 1);
+        if (combat.Rng == null) { Cmd.DeferDrawThenResolve(combat, 1, this); return; }   // search: defer draw + discard-choice
+        int drew = Cmd.Draw(combat, 1);
+        if (drew > 0) SilentCardHelpers.DiscardDefault(combat, 1);
     }
 }
 

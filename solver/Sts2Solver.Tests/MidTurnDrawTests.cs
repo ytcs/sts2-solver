@@ -163,6 +163,73 @@ public class MidTurnDrawTests
         Assert.Equal(expectFlagged, Catalog.BuildCard(cardName).LoopRiskDraw);
     }
 
+    /// <summary>Forced discard-of-choice with NO draw (Survivor: gain Block, then discard 1 of choice) is
+    /// modelled in search and feeds <c>CardsDiscardedThisTurn</c>. Decisive + within-turn: MementoMori deals
+    /// 9 + 4×(cards discarded this turn), the slug has 13 HP — unkillable at 0 discards (9), lethal at 1 (13).
+    /// The ONLY discard source is Survivor's forced discard, so the exact (1.0, 0) proves (a) the discard fires
+    /// in search and increments the counter, and (b) the player MAXes the choice — discards the filler Defend,
+    /// keeping MementoMori, and orders Survivor before MementoMori. Under the old omit-the-discard behaviour the
+    /// counter stays 0, MementoMori deals 9, the slug survives, and HP is lost.</summary>
+    [Fact]
+    public void Survivor_Forced_Discard_Feeds_The_Discard_Counter_And_Is_A_Player_Max()
+    {
+        var p = new Player { MaxHp = 40, CurrentHp = 40, Energy = 3, MaxEnergy = 3 };
+        p.Hand.Add(Catalog.BuildCard("Survivor"));        // cost 1: gain Block, discard 1 of choice
+        p.Hand.Add(Catalog.BuildCard("MementoMori"));     // cost 1: 9 + 4×discards this turn
+        p.Hand.Add(Catalog.BuildCard("DefendIronclad"));  // the filler the player should discard
+        var slug = Monsters.CorpseSlug(hp: 13);           // 9 < 13 ≤ 13 ⇒ lethal only with the +1 discard
+        slug.Ai.CurrentMoveId = slug.Ai.InitialStateId;
+        var combat = new CombatState { Player = p, Monsters = { slug }, TurnNumber = 1 };
+
+        var v = new Solver { MaxTurns = 10 }.SolvePlayerTurn(combat);
+        _out.WriteLine($"value = {v}");
+        Assert.Equal(1.0, v.Win, 6);   // Survivor's forced discard bumps MementoMori to lethal
+        Assert.Equal(0.0, v.Loss, 6);  // slug dies before acting
+    }
+
+    /// <summary>Forced discard-of-choice AFTER a draw (DaggerThrow: 9 damage, draw 1, then discard 1 of choice)
+    /// resolves on the post-draw hand and feeds the discard counter. Decisive: slug 22 HP; DaggerThrow (9) +
+    /// MementoMori (9 + 4×discards). With the discard modelled the counter is 1 ⇒ MementoMori 13 ⇒ 9+13 = 22 =
+    /// lethal; with the discard omitted the counter is 0 ⇒ MementoMori 9 ⇒ 18 ⇒ slug survives. The lone draw-pile
+    /// card is a filler the player discards (keeping MementoMori); the exact (1.0, 0) proves the post-draw
+    /// discard fires and is chosen soundly.</summary>
+    [Fact]
+    public void DaggerThrow_Post_Draw_Discard_Feeds_The_Discard_Counter()
+    {
+        var p = new Player { MaxHp = 40, CurrentHp = 40, Energy = 3, MaxEnergy = 3 };
+        p.Hand.Add(Catalog.BuildCard("DaggerThrow"));     // cost 1: 9 dmg, draw 1, discard 1 of choice
+        p.Hand.Add(Catalog.BuildCard("MementoMori"));     // cost 1: 9 + 4×discards this turn
+        p.DrawPile.Add(Catalog.BuildCard("DefendIronclad")); // the only draw ⇒ deterministic; discarded by choice
+        var slug = Monsters.CorpseSlug(hp: 22);
+        slug.Ai.CurrentMoveId = slug.Ai.InitialStateId;
+        var combat = new CombatState { Player = p, Monsters = { slug }, TurnNumber = 1 };
+
+        var v = new Solver { MaxTurns = 10 }.SolvePlayerTurn(combat);
+        _out.WriteLine($"value = {v}");
+        Assert.Equal(1.0, v.Win, 6);   // DaggerThrow's post-draw discard makes MementoMori lethal
+        Assert.Equal(0.0, v.Loss, 6);
+    }
+
+    /// <summary>The no-draw forced-discard MAX (Survivor) must converge MCTS→exact, like the post-draw discard
+    /// (Acrobatics) already does. A Survivor deck routes a <c>PendingDiscard</c> decision layer at PLAY time (no
+    /// draw chance node); MCTS must track exact on survival AND HP loss.</summary>
+    [Fact]
+    public void Mcts_Converges_On_No_Draw_Discard_Deck()
+    {
+        CombatState Build() => Catalog.SetupCombat(
+            Catalog.BuildPlayer(new List<CardModel> {
+                Catalog.BuildCard("Survivor"), Catalog.BuildCard("StrikeIronclad"),
+                Catalog.BuildCard("StrikeIronclad"), Catalog.BuildCard("DefendIronclad"),
+                Catalog.BuildCard("DefendIronclad") }, 22, 22, 3, new[] { "BurningBlood" }),
+            new[] { Monsters.CorpseSlug(hp: 24) });
+        const int mt = 8;
+        var exact = new Solver { MaxTurns = mt }.Solve(Build());
+        var mcts = new MctsSolver(new MctsOptions { Trials = 30_000, Seed = 1, MaxTurns = mt, ActionWidening = true }).Solve(Build());
+        _out.WriteLine($"exact {exact}  |  mcts {mcts}");
+        Assert.True(Math.Abs(mcts.Win - exact.Win) <= 0.05, $"survival exact {exact.Win:P2} vs mcts {mcts.Win:P2}");
+        Assert.True(Math.Abs(mcts.Loss - exact.Loss) <= 2.5, $"loss exact {exact.Loss:F1} vs mcts {mcts.Loss:F1}");
+    }
+
     /// <summary>Cross-validation that the mid-turn draw node makes a fight WINNABLE that is provably unwinnable
     /// without the draw, and that the exact value is sound (no card-duplication / probability blow-up). The
     /// Defends fixture's 2 Strikes (12 dmg) can never chew through Byrdonis' 58 HP on their own — winning needs

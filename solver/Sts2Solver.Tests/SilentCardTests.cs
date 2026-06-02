@@ -415,6 +415,18 @@ public class SilentCardTests
     }
 
     [Fact]
+    public void Survivor_Discards_A_Card_With_An_Ambient_Rng()
+    {
+        var (c, p, _) = Fight();
+        c.Rng = new Rng(0);
+        p.Hand.Add(new StrikeSilent());                    // a card available to discard
+        Play(c, new Survivor(), null);                     // gain 8 Block, then discard 1
+        Assert.Equal(8, p.Block);
+        Assert.Empty(p.Hand);                              // the Strike was discarded (Survivor left hand on play)
+        Assert.Contains(p.DiscardPile, x => x is StrikeSilent);
+    }
+
+    [Fact]
     public void Backstab_Deals_11_At_Cost_0_And_Exhausts()
     {
         var (c, p, m) = Fight();
@@ -448,6 +460,18 @@ public class SilentCardTests
         var (c, _, m) = Fight();
         Play(c, (CardModel)new DaggerThrow().Upgraded(), m);
         Assert.Equal(60 - 12, m.CurrentHp);
+    }
+
+    [Fact]
+    public void DaggerThrow_Draws_Then_Discards_With_An_Ambient_Rng()
+    {
+        var (c, p, m) = Fight();
+        c.Rng = new Rng(0);
+        p.DrawPile.Add(new DefendSilent());                // the card to be drawn
+        Play(c, new DaggerThrow(), m);                     // 9 dmg, draw 1, discard 1
+        Assert.Equal(60 - 9, m.CurrentHp);                 // damage still lands
+        Assert.Empty(p.Hand);                              // drew 1 then discarded 1 ⇒ net hand 0
+        Assert.Contains(p.DiscardPile, x => x is DefendSilent);   // the drawn card cycled to discard
     }
 
     [Fact]

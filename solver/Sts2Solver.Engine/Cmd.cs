@@ -208,6 +208,18 @@ public static class Cmd
         combat.PendingDrawCard = card;
     }
 
+    /// <summary>Register a forced discard-of-CHOICE for SEARCH mode (callers guard <c>combat.Rng == null</c>),
+    /// with NO preceding draw (e.g. Survivor's "discard 1 card"). It resolves as a player MAX over the hand one
+    /// card at a time (<see cref="CombatState.PendingDiscard"/> + the solver's discard decision layer), exactly
+    /// like the post-draw discard but without the draw chance node. With a concrete Rng the caller discards a
+    /// heuristic default instead. Modelling the forced discard (vs omitting it) is the SOUND direction: omitting
+    /// it leaves the player an extra in-turn card the real game removes (optimistic in non-discard-synergy decks).</summary>
+    public static void DeferDiscardOfChoice(CombatState combat, int n)
+    {
+        if (n <= 0) return;
+        combat.PendingDiscard += n;
+    }
+
     /// <summary>Discard a specific hand card to the discard pile (a mid-turn discard), bumping the discard
     /// counter (Memento Mori). No on-discard hook is modelled (Sly auto-play is unported — omitting it
     /// under-states the player, the safe direction).</summary>
