@@ -173,13 +173,18 @@ public static class Cmd
     }
 
     /// <summary>Draw <paramref name="n"/> cards for the player mid-turn (Shrug It Off, Pommel Strike, …).
-    /// Real only when an ambient <see cref="CombatState.Rng"/> is set; otherwise a no-op (the trace
-    /// validator replays the recorded hand + constructs mid-turn-drawn cards as they are played). A NoDraw
-    /// marker (Battle Trance) suppresses the draw. Returns the number actually drawn.</summary>
+    /// Resolves eagerly when an ambient <see cref="CombatState.Rng"/> is set (rollouts / unit tests). In
+    /// SEARCH mode (Rng null) the request is DEFERRED onto <see cref="CombatState.PendingDraw"/>: the solver
+    /// resolves it as an explicit draw chance node immediately after the play, so the drawn hand becomes real
+    /// in search. (During trace replay — also Rng null — the validator replays the recorded hand and never
+    /// reads PendingDraw, so deferral is inert there, exactly as the old no-op was.) A NoDraw marker (Battle
+    /// Trance) suppresses the draw. Returns the number drawn EAGERLY (0 when deferred — a deferred draw's cards
+    /// are not yet in hand, so any in-effect logic reading the result stays inert, the safe under-estimate).</summary>
     public static int Draw(CombatState combat, int n)
     {
-        if (n <= 0 || combat.Rng == null) return 0;
+        if (n <= 0) return 0;
         if (combat.Player.HasPower("NoDraw")) return 0;
+        if (combat.Rng == null) { combat.PendingDraw += n; return 0; }   // search: defer to a draw chance node
         int before = combat.Player.Hand.Count;
         CombatManager.DrawCards(combat, n, combat.Rng);
         int drawn = combat.Player.Hand.Count - before;

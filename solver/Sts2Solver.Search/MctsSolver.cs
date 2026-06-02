@@ -191,8 +191,8 @@ public sealed class MctsSolver
 
         foreach (var action in LegalPlays(d.State))
         {
-            var child = GetOrCreateDecision(ApplyPlay(d.State, action));
-            d.Edges.Add(new Edge { Action = action, PlayChild = child });
+            var (dec, draw) = PlayTarget(ApplyPlay(d.State, action));
+            d.Edges.Add(new Edge { Action = action, PlayChild = dec, DrawChild = draw });
         }
         d.Edges.Add(new Edge { Action = PlayerAction.EndTurn, IsEndTurn = true, Chance = BuildEndTurnChance(d.State) });
     }
@@ -248,8 +248,8 @@ public sealed class MctsSolver
         while (d.Opened < target && d.Opened < d.Candidates!.Count)
         {
             var action = d.Candidates[d.Opened];
-            var child = GetOrCreateDecision(ApplyPlay(d.State, action));
-            d.Edges.Add(new Edge { Action = action, PlayChild = child, Prior = d.CandidatePriors![d.Opened] });
+            var (dec, draw) = PlayTarget(ApplyPlay(d.State, action));
+            d.Edges.Add(new Edge { Action = action, PlayChild = dec, DrawChild = draw, Prior = d.CandidatePriors![d.Opened] });
             d.Opened++;
         }
     }
@@ -263,6 +263,7 @@ public sealed class MctsSolver
         var e = SelectEdge(d);
         e.Visits++;
         if (e.IsEndTurn) VisitChance(e.Chance!);
+        else if (e.DrawChild != null) VisitDraw(e.DrawChild);
         else VisitDecision(e.PlayChild!);
 
         // Partial Bellman / Bellman recomputation from children: lexicographic max over edges.
@@ -390,6 +391,7 @@ public sealed class MctsSolver
             var afterRoll = afterEnemy.Clone();
             foreach (var (idx, moveId) in combo) afterRoll.Monsters[idx].Ai.CurrentMoveId = moveId;
             CombatManager.BeginPlayerTurn(afterRoll);
+            afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
             int startLoss = afterRoll.PlayerHpLost - afterEnemy.PlayerHpLost;
 
             int drawIdx = 0;
@@ -495,10 +497,123 @@ public sealed class MctsSolver
         var afterRoll = ch.AfterEnemy.Clone();
         foreach (var (idx, moveId) in combo) afterRoll.Monsters[idx].Ai.CurrentMoveId = moveId;
         CombatManager.BeginPlayerTurn(afterRoll);
+        afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
         int startLoss = afterRoll.PlayerHpLost - ch.AfterEnemy.PlayerHpLost;
 
         var (pD, drawn, drawKey) = DrawEnumerator.SampleDraw(afterRoll, Player.CardsDrawnPerTurn, _rng);
         return new PendingOutcome(pM * pD, startLoss, drawn, $"{string.Join(",", keyParts)}|{drawKey}");
+    }
+
+    // ---------- Mid-turn draw chance nodes ----------
+
+    /// <summary>Wire a card play's edge target: a normal decision node, or — when the play deferred a mid-turn
+    /// draw (<see cref="CombatState.PendingDraw"/> &gt; 0) and combat isn't already decided — a draw chance node
+    /// that resolves the drawn hand and continues the same turn.</summary>
+    private (DecisionNode? dec, DrawNode? draw) PlayTarget(CombatState postPlay)
+    {
+        if (postPlay.PendingDraw > 0 && !postPlay.IsCombatOver) return (null, BuildDrawNode(postPlay));
+        return (GetOrCreateDecision(postPlay), null);
+    }
+
+    private DrawNode BuildDrawNode(CombatState postPlay)
+    {
+        var baseState = postPlay.Clone();
+        int n = baseState.PendingDraw;
+        baseState.PendingDraw = 0;   // drained: drawn children are clean decision states (counter not in the key)
+        var dn = new DrawNode { Base = baseState, DrawCount = n };
+        InitDrawNode(dn);
+        return dn;
+    }
+
+    /// <summary>Decide exact-vs-DPW over the draw distribution, prime the lazy exact queue, and seed the value
+    /// with one faithful rollout that resolves the pending draw concretely.</summary>
+    private void InitDrawNode(DrawNode dn)
+    {
+        dn.Exact = DrawEnumerator.DistinctDrawCount(dn.Base, dn.DrawCount) <= _opt.ExactChanceThreshold;
+        if (dn.Exact)
+            dn.PendingEnum = EnumerateExactDraws(dn.Base, dn.DrawCount).GetEnumerator();
+        dn.V = SeedDrawValue(dn.Base, dn.DrawCount);
+    }
+
+    /// <summary>Lazily enumerate the exact draw outcomes (probability, resulting state) of the pending draw.</summary>
+    private static IEnumerable<PendingOutcome> EnumerateExactDraws(CombatState baseState, int n)
+    {
+        int i = 0;
+        foreach (var (pD, drawn) in DrawEnumerator.EnumerateDraw(baseState, n))
+            yield return new PendingOutcome(pD, 0, drawn, $"d{i++}");
+    }
+
+    /// <summary>Seed value: draw the pending cards with the RNG, then roll out the rest of the fight. One
+    /// sampled draw line (the node refines toward the true expectation as outcomes are explicated).</summary>
+    private Value SeedDrawValue(CombatState baseState, int n)
+    {
+        var s = baseState.Clone();
+        s.Rng = _rng;
+        CombatManager.DrawCards(s, n, _rng);
+        var v = Playout(s, needAdvance: false, initialRoll: false);
+        Note(v);
+        return v;
+    }
+
+    private void VisitDraw(DrawNode dn)
+    {
+        dn.N++;
+        var o = SelectDrawOutcome(dn);
+        o.Visits++;
+        VisitDecision(o.Child);
+
+        // Partial Bellman over explicated draw outcomes, weighted by true probability. No enemy/start loss:
+        // drawing is free, so the node's value is exactly the drawn children's lexicographic expectation.
+        double pk = dn.ExplicatedMass;
+        double win = 0, loss = 0;
+        foreach (var oc in dn.Explicated)
+        {
+            win += oc.Prob * oc.Child.V.Win;
+            loss += oc.Prob * oc.Child.V.Loss;
+        }
+        dn.V = new Value(win / pk, loss / pk);
+    }
+
+    private Outcome SelectDrawOutcome(DrawNode dn)
+    {
+        if (dn.Exact)
+        {
+            if (dn.PendingEnum != null && dn.PendingEnum.MoveNext()) return ExplicateDraw(dn, dn.PendingEnum.Current);
+        }
+        else
+        {
+            int allowed = (int)Math.Ceiling(_opt.DpwC * Math.Pow(dn.N, _opt.DpwBeta));
+            if (dn.Explicated.Count < allowed)
+            {
+                var po = SampleDrawOutcome(dn);
+                if (!dn.SeenKeys.Contains(po.Key)) return ExplicateDraw(dn, po);
+            }
+        }
+
+        Outcome best = dn.Explicated[0];
+        double bestScore = best.Prob / (1 + best.Visits);
+        for (int i = 1; i < dn.Explicated.Count; i++)
+        {
+            double sc = dn.Explicated[i].Prob / (1 + dn.Explicated[i].Visits);
+            if (sc > bestScore) { best = dn.Explicated[i]; bestScore = sc; }
+        }
+        return best;
+    }
+
+    private Outcome ExplicateDraw(DrawNode dn, PendingOutcome po)
+    {
+        var child = GetOrCreateDecision(po.State);
+        var o = new Outcome { Prob = po.Prob, StartLoss = 0, Child = child, Key = po.Key };
+        dn.Explicated.Add(o);
+        dn.SeenKeys.Add(po.Key);
+        dn.ExplicatedMass += po.Prob;
+        return o;
+    }
+
+    private PendingOutcome SampleDrawOutcome(DrawNode dn)
+    {
+        var (pD, drawn, key) = DrawEnumerator.SampleDraw(dn.Base, dn.DrawCount, _rng);
+        return new PendingOutcome(pD, 0, drawn, key);
     }
 
     // ---------- Move-roll enumeration (mirrors the exact solver) ----------
@@ -588,6 +703,7 @@ public sealed class MctsSolver
     private Value Playout(CombatState s, bool needAdvance, bool initialRoll)
     {
         int baseline = s.PlayerHpLost;
+        s.Rng = _rng;   // a rollout is a concrete driver: mid-turn draws (Shrug It Off, …) resolve for real
 
         if (needAdvance)   // s is a post-enemy (or setup) state: advance to the next decision point first
         {
@@ -692,10 +808,11 @@ public sealed class MctsSolver
         public PlayerAction Action;
         public bool IsEndTurn;
         public DecisionNode? PlayChild;
+        public DrawNode? DrawChild;   // set instead of PlayChild when the play deferred a mid-turn draw
         public ChanceNode? Chance;
         public int Visits;
         public double Prior;   // policy prior for this action (action-widening / PUCT only)
-        public Value Q => IsEndTurn ? Chance!.V : PlayChild!.V;   // plays cost no HP in scope
+        public Value Q => IsEndTurn ? Chance!.V : (DrawChild != null ? DrawChild.V : PlayChild!.V);   // plays cost no HP in scope
     }
 
     private sealed class ChanceNode
@@ -720,6 +837,23 @@ public sealed class MctsSolver
         public DecisionNode Child = null!;
         public string Key = "";
         public int Visits;
+    }
+
+    /// <summary>A MID-TURN draw chance node: a play deferred a draw (<see cref="CombatState.PendingDraw"/>),
+    /// so the drawn hand is resolved here as a chance node over the exact draw distribution, continuing the
+    /// SAME player turn. Unlike <see cref="ChanceNode"/> there is no enemy turn and no HP-loss term — drawing
+    /// is free — so the backup is a plain probability-weighted average of the drawn decision children.</summary>
+    private sealed class DrawNode
+    {
+        public CombatState Base = null!;   // post-play state, PendingDraw drained to DrawCount
+        public int DrawCount;
+        public bool Exact;
+        public IEnumerator<PendingOutcome>? PendingEnum;   // exact-mode draw outcomes, generated lazily
+        public readonly List<Outcome> Explicated = new();
+        public readonly HashSet<string> SeenKeys = new();
+        public double ExplicatedMass;
+        public Value V;
+        public int N;
     }
 
     private readonly record struct PendingOutcome(double Prob, int StartLoss, CombatState State, string Key);

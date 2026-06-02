@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-01._
+_Last updated: 2026-06-02._
 
 ## Current state
 
@@ -85,6 +85,10 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   telegraphed intents, tolerant of injected no-op moves ("STUNNED").
 - Multi-hit attacks, multi-monster combat, mid-combat **summoning** (two-phase fights), relic post-combat
   hook, **status cards** (`Unplayable` + `OnTurnEndInHand`, e.g. Infection's 3 self-damage).
+- **Mid-turn card draw** (Shrug It Off, Pommel Strike, Battle Trance, every Silent draw/cycle effect): real
+  with a concrete `Rng` (rollouts / trace replay), and in SEARCH mode deferred onto `CombatState.PendingDraw`
+  so the solver resolves it as an explicit draw chance node continuing the same turn — the drawn hand and any
+  play on it become real in the exact tree and in MCTS (see Search; Next steps #1).
 - **Clone isolation for self-mutating cards (soundness):** `Player.Clone` shares the immutable card-instance
   majority across search clones (cheap) but **deep-clones any `CardModel.Stateful` card** (one whose identity
   changes mid-fight, e.g. `Rampage`'s escalating damage), and `KeyHash` is not cached for those. Without this
@@ -112,7 +116,11 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
 - **Partial Bellman backups:** each explicated chance outcome weighted by its *true* probability,
   normalized by explicated mass `P^k` (→1) — composes correctly over the transposition DAG.
 - **Chance nodes:** enemy-move rolls enumerated exactly; card draws exact below a distinct-count threshold,
-  else **Double Progressive Widening** with exact sampled-hand probabilities.
+  else **Double Progressive Widening** with exact sampled-hand probabilities. **Mid-turn draws** (Shrug It Off,
+  Pommel Strike, every Silent draw/cycle effect) open a dedicated `DrawNode` chance node — a play that defers a
+  draw (`PendingDraw`) routes its edge through it, resolving the drawn hand (same exact/DPW split, no enemy turn
+  / no HP-loss term) and continuing the same player turn; rollout leaves draw for real (`s.Rng`). Converges
+  byte-identically to the exact oracle.
 - **Lexicographic value + Lexicographic-UCB** (HP loss normalized by maxHP; no scalarization). DAG-aware.
 - **Hybrid** (`HybridExactBelow`): provably-small subtrees defer to the memoized exact oracle.
 - **Action progressive widening + lexicographic PUCT** (opt-in `ActionWidening`, default OFF): ranks plays by a
@@ -170,13 +178,15 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   | starter/Cultist | 100% / 0.9 | 100% / 0.9 |
   | power/Inflame-vs-DampCultist | 100% / 0.1 | 100% / 0.1 |
   | debuff/Uppercut-vs-Byrdonis | 100% / 17.3 | 100% / 17.3 |
-  | block/Defends-vs-Byrdonis | 22.1% / 39.3 | **17.6%** / 39.5 (was 10.3% pre-fix) |
+  | block/Defends-vs-Byrdonis | 92.6% / 35.8 | 92.6% / 35.8 |
   | aggro/Draw-vs-CorpseSlug | 100% / 0.0 | 100% / 0.0 |
   | engine/DemonForm-vs-Effigy | 100% / 18.1 | 100% / 18.1 |
 
-  Mean abs error (default rollout leaf) is **Δsurv 0.8% / Δloss 0.03** at 40k trials. **Known residual:**
-  razor-thin fights are still *under*-estimated by the greedy rollout (block/Byrdonis 17.6% vs exact 22.1%) —
-  acceptable (HP-loss tight, no false 0%); the tree itself is correct (→ exact 22.1% at ~500k trials).
+  Mean abs error (default rollout leaf) is **Δsurv 0.8% / Δloss 0.03** at 40k trials; every row above now
+  tracks at Δ 0.0%. (block/Defends jumped 22.1% → **92.6%** once ShrugItOff's mid-turn draw became real in
+  search — the extra draw cycles the 2 Strikes fast enough to actually kill Byrdonis; the deck is unwinnable
+  without it. Exact and MCTS agree byte-identically there; the only gap left is the documented draw-ORDER
+  approximation vs a real shuffle — see Next steps #1.)
 
 ### Phase-C learned value function (`LearnedValue` + `VfTrainer`) — built, beats the baseline
 - **What it is:** a compact, self-contained regression that predicts the lexicographic leaf value
@@ -330,7 +340,9 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   learned-VF beats-baseline + clone-isolation/Rampage soundness + randomized-corpus sanity + advisor +
   card-name matcher + Event/Ancient/curse ports + per-card Regent (Stars / Forge / Sovereign Blade /
   star-payback) + per-card Silent 88/88 (incl. the batch-4–8 powers, per-turn counters, AfterCardDrawn hook,
-  and the in-pile-upgrade soundness gate)). **428 passed, 1 skipped** (the blend α-sweep tool), 0 failed.
+  and the in-pile-upgrade soundness gate) + mid-turn-draw chance nodes (`MidTurnDrawTests`: deterministic
+  lethal-draw solve, no-draw control, draw-makes-fight-winnable + exact↔faithful-MC bound)). **486 passed,
+  0 skipped, 0 failed.**
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
@@ -440,11 +452,24 @@ Card-validation loop: port + unit-test → `STS2_DECK` headless run vs a simple 
 The goal is to accurately reproduce **every** card's behavior; perf is explicitly deferred until then (a clean
 10× was proven unavailable this session — see Performance — and we're already at the 1–2 s target, so it's not
 blocking).
-1. **Mid-turn draws as chance nodes** — TOP priority; a *core Silent mechanic*. Today `Cmd.Draw` is inert in
-   search (`combat.Rng == null` in Solver + MCTS tree → returns 0), so draw-then-act cards are approximate and
-   their downstream selections can't be modeled (Acrobatics, Prepared, ThinkingAhead, and every Silent
-   draw/cycle effect). Make a mid-turn draw open a chance node over draw outcomes (like the end-of-turn /
-   opening draw already do), so the drawn hand — and any choice made on it — becomes real in search.
+1. ✅ **Mid-turn draws as chance nodes** — DONE (2026-06-02). `Cmd.Draw` in search mode (`combat.Rng == null`)
+   now **defers** onto `CombatState.PendingDraw` instead of returning 0; the solver resolves it as an explicit
+   draw chance node immediately after the play (`Solver.ContinuePlay` + MCTS `DrawNode`), continuing the SAME
+   turn so the drawn hand — and any play made on it — is real in search. Both engines reuse the existing
+   `DrawEnumerator` (exact hypergeometric below a distinct-count threshold, else DPW), PendingDraw is drained at
+   every turn boundary so decision states stay clean (never in the memo key), and the MCTS rollout now sets
+   `s.Rng` so its leaf playouts draw for real. Cross-validated three ways: a deterministic hand-checkable solve
+   (ShrugItOff draws the lethal Strike → exact (1.0, 0)), **MCTS converges byte-identically to the new exact
+   oracle** (block/Defends 92.59% / 35.78 on both), and the calibration suite tracks at Δ 0.0%. _Gated by
+   `MidTurnDrawTests` + the existing oracle/convergence/calibration gates._ **Known residual (documented, not a
+   bug):** the solver models each draw as an independent hypergeometric over the pile multiset, while the real
+   engine preserves draw-pile ORDER across turns — so on a deck-cycling-dependent fight the exact value is a
+   slight *pessimistic* lower bound (block/Defends exact 92.6% vs real-shuffle faithful-MC ~97.1%). Tightening
+   it would mean tracking draw-pile order in the state key (breaks the multiset memo canonicalisation) — out of
+   scope by design. _Follow-ups now UNBLOCKED:_ #2 (multi-select choice) and the draw-then-select half of #3
+   (Acrobatics / Prepared / ThinkingAhead) — the post-draw hand the choice ranges over now exists in search.
+   Draw-then-act cards (Acrobatics discard, EscapePlan conditional) still take the safe under-estimate (the draw
+   resolves but the in-effect follow-up reading the drawn card stays inert) until promoted to choice nodes.
 2. **Multi-select choice cards** — after the choice-node machinery: HiddenDaggers (discard 2 of choice) and
    Purity (exhaust 0..N of choice) are genuine player choices (decompile-confirmed `FromHandForDiscard` /
    `FromHand` min0/maxN) but need a *subset* ChoiceKey (pair / powerset); bound the fan-out.
@@ -556,11 +581,12 @@ experiment also surfaced the Apotheosis/Armaments clone-aliasing oracle bug, sin
      hand — a pair / powerset choice set. Value is low/conditional (discards return; Purity is HP-neutral
      without on-exhaust powers like Feel No Pain / Dark Embrace) and the per-variant APW-prior cost is real, so
      with no perf buffer (see Performance — a clean 10× is proven unavailable) the branching isn't justified.
-   - **Draw-then-select — CANNOT be promoted as-is:** Acrobatics, Prepared, ThinkingAhead choose from the
-     *post-draw* hand, but **mid-turn `Cmd.Draw` is inert in search** (`combat.Rng == null` in both Solver and
-     the MCTS tree → draws return 0). The choice set literally does not exist in search. The real fix is to
-     model mid-turn draws as **chance nodes** first (a separate, larger architectural item); only then does the
-     downstream discard/put-back become a meaningful decision node.
+   - **Draw-then-select — now UNBLOCKED (not yet promoted):** Acrobatics, Prepared, ThinkingAhead choose from
+     the *post-draw* hand. As of 2026-06-02 mid-turn `Cmd.Draw` is **no longer inert** — it opens a draw chance
+     node (Next steps #1), so the post-draw hand exists in search. The remaining work is to turn each card's
+     downstream discard/put-back into a multi-select choice node (item #2's machinery). Until then these cards
+     resolve the draw faithfully but take the safe under-estimate on the follow-up (the in-effect logic reading
+     the drawn card sees `drew==0`, so e.g. Acrobatics draws but skips its discard, EscapePlan gains no Block).
 
 ### History (condensed)
 Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless autonomy; MCTS solver
@@ -568,6 +594,8 @@ Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless a
 folders, flat namespace); the `ranwid` advisor + survival-first rollout + sound horizon bound; **horizon bound
 v2** (Weak / multi-enemy / in-search loss prune); **Phase-C learned value function**; the objective question
 settled (keep lexicographic); **all four characters ported 88/88** (Ironclad, Silent, Regent, Necrobinder) plus
-Colorless / Special / curses; and the **performance milestone** — action-widening + PUCT default-on and lazy
-chance-node enumeration brought a 30-card-vs-elite solve into the 1–2 s target. Detailed per-batch/per-milestone
-narrative (with measurements) lives in the git commit history and the plan files under `~/.claude/plans/`.
+Colorless / Special / curses; the **performance milestone** — action-widening + PUCT default-on and lazy
+chance-node enumeration brought a 30-card-vs-elite solve into the 1–2 s target; and **mid-turn draws as chance
+nodes** (exact `ContinuePlay` + MCTS `DrawNode`, converging byte-identically) — making a core Silent mechanic
+real in search and unblocking draw-then-select promotion. Detailed per-batch/per-milestone narrative (with
+measurements) lives in the git commit history and the plan files under `~/.claude/plans/`.

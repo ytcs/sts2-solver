@@ -73,6 +73,14 @@ public sealed class CombatState
     /// block). Reset at the player's turn start.</summary>
     public bool DoomAppliedThisTurn;
 
+    /// <summary>Cards a mid-turn effect has requested to draw while in SEARCH mode (<see cref="Rng"/> null):
+    /// <see cref="Cmd.Draw"/> accumulates the requested count here instead of drawing, and the solver resolves
+    /// it as an explicit draw chance node immediately after the play (the drawn hand — and any choice on it —
+    /// then becomes real in search). Always 0 at a memoised decision state (the solver drains it before
+    /// recursing and at every turn boundary), so it is deliberately excluded from <see cref="StateKey"/> /
+    /// HashKey. With a concrete <see cref="Rng"/> (rollouts, trace replay) it stays 0 — draws resolve eagerly.</summary>
+    public int PendingDraw;
+
     public IEnumerable<Monster> LivingMonsters => Monsters.Where(m => m.IsAlive);
 
     /// <summary>Living enemies a player/Osty attack can target (the monster list, minus the dead).</summary>
@@ -125,6 +133,7 @@ public sealed class CombatState
             EtherealPlayedThisCombat = EtherealPlayedThisCombat,
             OstyAttacksThisTurn = OstyAttacksThisTurn,
             DoomAppliedThisTurn = DoomAppliedThisTurn,
+            PendingDraw = PendingDraw,
         };
     }
 

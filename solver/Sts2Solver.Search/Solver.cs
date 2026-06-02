@@ -72,6 +72,7 @@ public sealed class Solver
         foreach (var (probM, afterRoll) in EnumerateInitialMoveRolls(setup))
         {
             BeginPlayerTurnInPlace(afterRoll);
+            afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
             foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, openingDraw))
                 yield return (probM * probD, afterDraw);
         }
@@ -108,13 +109,34 @@ public sealed class Solver
         foreach (var action in LegalPlays(s))
         {
             var c = ApplyPlay(s, action);
-            var v = SolvePlayerTurn(c);   // playing a card costs the player no HP in scope
+            var v = ContinuePlay(c);   // playing a card costs the player no HP in scope
             if (v.BetterThan(best)) best = v;
         }
 
         _memo[key] = best;
         OnSolved?.Invoke(s, best);
         return best;
+    }
+
+    /// <summary>Continue the player's turn after a play has resolved. If the play deferred a mid-turn draw
+    /// (<see cref="CombatState.PendingDraw"/> &gt; 0), open an explicit draw chance node — averaging the same
+    /// turn's value over the exact draw distribution (drawing costs no HP, so no loss term is added here) —
+    /// before recursing. Otherwise recurse directly. Each draw outcome is itself a clean decision state
+    /// (PendingDraw drained), so the memo key never needs the counter.</summary>
+    private Value ContinuePlay(CombatState c)
+    {
+        if (c.PendingDraw <= 0 || c.IsCombatOver) return SolvePlayerTurn(c);
+
+        int n = c.PendingDraw;
+        c.PendingDraw = 0;   // drained before the (cloning) enumerator, so each drawn child starts clean
+        double win = 0, loss = 0;
+        foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(c, n))
+        {
+            var v = SolvePlayerTurn(afterDraw);
+            win += probD * v.Win;
+            loss += probD * v.Loss;
+        }
+        return new Value(win, loss);
     }
 
     /// <summary>Distinct (card, target) plays available at a decision node, deduplicated by card key.</summary>
@@ -179,6 +201,7 @@ public sealed class Solver
         foreach (var (probM, afterRoll) in EnumerateNextMoveRolls(afterEnemy))
         {
             BeginPlayerTurnInPlace(afterRoll);
+            afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
             int startLoss = afterRoll.PlayerHpLost - afterEnemy.PlayerHpLost; // start-of-turn (e.g. poison)
             foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, Player.CardsDrawnPerTurn))
             {
@@ -255,7 +278,7 @@ public sealed class Solver
         foreach (var action in LegalPlays(s))
         {
             var child = ApplyPlay(s, action);
-            var v = SolvePlayerTurn(child);
+            var v = ContinuePlay(child);
             if (v.BetterThan(bestValue)) { bestValue = v; bestAction = action; }
         }
         return bestAction;   // null ⇒ end the turn is optimal
