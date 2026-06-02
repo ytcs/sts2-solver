@@ -57,39 +57,93 @@ public class MidTurnDrawTests
         Assert.True(v.Loss > 0.0, "no draw card ⇒ cannot kill turn 1 ⇒ the slug acts and HP is lost");
     }
 
-    /// <summary>Soundness: a draw-then-DISCARD card (Acrobatics draws 3 / discards 1, Prepared draws N /
-    /// discards N) must NOT over-draw in pure search. The discard chooses from the post-draw hand, which the
-    /// search can't model yet, so modelling only the draw would leave the discarded card in hand — a net
-    /// over-draw that optimistically inflates the player's options. These cards therefore stay inert without an
-    /// ambient Rng (hand unchanged), and draw+discard only with one. (Terminal-draw cards like ShrugItOff do
-    /// participate — see the tests above.)</summary>
-    [Theory]
-    [InlineData("Acrobatics")]
-    [InlineData("Prepared")]
-    public void Draw_Then_Discard_Cards_Do_Not_Over_Draw_In_Search(string cardName)
+    /// <summary>Post-draw CONDITIONAL (EscapePlan: draw 1, +Block iff it is a Skill). Decisive: with a Skill in
+    /// the draw pile the conditional Block fires (run as a post-draw step per draw outcome) and strictly reduces
+    /// HP lost; with an Attack drawn instead it does not. Same board both times, so the only difference is the
+    /// conditional — proving it resolves on the post-draw hand in search (it was inert before).</summary>
+    [Fact]
+    public void EscapePlan_Conditional_Block_Fires_On_A_Skill_Draw_In_Search()
     {
-        CombatState Build()
+        Value Solve(string drawCard)
         {
-            var p = new Player { MaxHp = 30, CurrentHp = 30, Energy = 3, MaxEnergy = 3 };
-            p.Hand.Add(Catalog.BuildCard(cardName));
-            for (int i = 0; i < 6; i++) p.DrawPile.Add(Catalog.BuildCard("StrikeIronclad"));
-            return new CombatState { Player = p, Monsters = { Monsters.CorpseSlug(hp: 30) }, TurnNumber = 1 };
+            var p = new Player { MaxHp = 40, CurrentHp = 40, Energy = 3, MaxEnergy = 3 };
+            p.Hand.Add(Catalog.BuildCard("EscapePlan"));    // cost 0: draw 1, +3 Block if a Skill
+            p.DrawPile.Add(Catalog.BuildCard(drawCard));
+            var slug = Monsters.CorpseSlug(hp: 60);          // survives the turn ⇒ its Whip Slap lands
+            slug.Ai.CurrentMoveId = slug.Ai.InitialStateId;
+            var combat = new CombatState { Player = p, Monsters = { slug }, TurnNumber = 1 };
+            return new Solver { MaxTurns = 1 }.SolvePlayerTurn(combat);
         }
 
-        // Search mode (Rng null): playing the card draws nothing and discards nothing — net hand size is just
-        // the played card leaving hand (1 → 0), never inflated by an un-discarded draw.
-        var s = Build();
-        var card = s.Player.Hand[0];
-        CombatManager.PlayCard(s, card, null);
-        Assert.Equal(0, s.Player.Hand.Count);   // inert: no net over-draw
-        Assert.Equal(0, s.PendingDraw);         // and nothing deferred to a chance node
+        var skill = Solve("DefendIronclad");   // a Skill ⇒ EscapePlan grants Block ⇒ less HP lost
+        var attack = Solve("StrikeIronclad");  // an Attack ⇒ no EscapePlan Block
+        _out.WriteLine($"skill-draw {skill}  |  attack-draw {attack}");
+        Assert.True(skill.Loss < attack.Loss,
+            $"EscapePlan's conditional Block should cut HP loss on a Skill draw ({skill.Loss} vs {attack.Loss})");
+    }
 
-        // With a concrete Rng the card is faithful: it really draws (the draw pile shrinks) then discards
-        // (net hand = draw − discard, which is 0 for Prepared and +2 for Acrobatics).
-        var s2 = Build();
-        s2.Rng = new Rng(0);
-        CombatManager.PlayCard(s2, s2.Player.Hand[0], null);
-        Assert.True(s2.Player.DrawPile.Count < 6, "with an Rng the draw is real (draw pile shrank)");
+    /// <summary>Post-draw DISCARD-of-choice (Acrobatics: draw 3, discard 1 of choice) is a real player MAX, not
+    /// a fixed default. The drawn hand holds the lethal Bludgeon plus two filler Defends; keeping Bludgeon (by
+    /// discarding a Defend) wins on the spot, while a wrong discard of Bludgeon would forfeit the kill. The
+    /// exact (1.0, 0) proves the search discards optimally — and that the net draw is sound (draw 3 − discard 1
+    /// = +2, no over-draw).</summary>
+    [Fact]
+    public void Acrobatics_Discards_Optimally_Keeping_The_Lethal_Card()
+    {
+        var p = new Player { MaxHp = 30, CurrentHp = 30, Energy = 3, MaxEnergy = 3 };
+        p.Hand.Add(Catalog.BuildCard("Acrobatics"));        // cost 1: draw 3, discard 1 of choice
+        p.DrawPile.Add(Catalog.BuildCard("Bludgeon"));      // cost 1: 32 damage — exactly lethal
+        p.DrawPile.Add(Catalog.BuildCard("DefendIronclad"));
+        p.DrawPile.Add(Catalog.BuildCard("DefendIronclad"));
+        var slug = Monsters.CorpseSlug(hp: 32);
+        slug.Ai.CurrentMoveId = slug.Ai.InitialStateId;
+        var combat = new CombatState { Player = p, Monsters = { slug }, TurnNumber = 1 };
+
+        var v = new Solver { MaxTurns = 10 }.SolvePlayerTurn(combat);
+        _out.WriteLine($"value = {v}");
+        Assert.Equal(1.0, v.Win, 6);   // kept + played Bludgeon this turn
+        Assert.Equal(0.0, v.Loss, 6);  // slug dies before acting
+    }
+
+    /// <summary>The MCTS post-draw machinery (deterministic EscapePlan block applied to draw outcomes;
+    /// discard-of-choice as a player-MAX decision layer) must converge to the exact oracle. Uses an Acrobatics
+    /// (draw 3 / discard 1 of choice) deck — Acrobatics is cost-1 (energy-bounded, exact-tractable) so the
+    /// discard-choice MAX is exercised in both engines; MCTS within tight tolerance of exact on survival AND
+    /// HP loss.</summary>
+    [Fact]
+    public void Mcts_Converges_On_Discard_Choice_Deck()
+    {
+        CombatState Build() => Catalog.SetupCombat(
+            Catalog.BuildPlayer(new List<CardModel> {
+                Catalog.BuildCard("Acrobatics"), Catalog.BuildCard("StrikeIronclad"),
+                Catalog.BuildCard("StrikeIronclad"), Catalog.BuildCard("DefendIronclad"),
+                Catalog.BuildCard("DefendIronclad") }, 22, 22, 3, new[] { "BurningBlood" }),
+            new[] { Monsters.CorpseSlug(hp: 24) });
+        const int mt = 8;
+        var exact = new Solver { MaxTurns = mt }.Solve(Build());
+        var mcts = new MctsSolver(new MctsOptions { Trials = 30_000, Seed = 1, MaxTurns = mt, ActionWidening = true }).Solve(Build());
+        _out.WriteLine($"exact {exact}  |  mcts {mcts}");
+        Assert.True(Math.Abs(mcts.Win - exact.Win) <= 0.05, $"survival exact {exact.Win:P2} vs mcts {mcts.Win:P2}");
+        Assert.True(Math.Abs(mcts.Loss - exact.Loss) <= 2.5, $"loss exact {exact.Loss:F1} vs mcts {mcts.Loss:F1}");
+    }
+
+    /// <summary>Termination guard: a deck with a cost-0 replayable draw cantrip (EscapePlan — free play that
+    /// draws and recirculates via reshuffle) could otherwise build an unbounded per-turn play chain and blow the
+    /// search stack. The deck is flagged <c>BoundsPlays</c> at setup, capping plays per turn so both engines stay
+    /// finite. MCTS (sampling) must return a sane value without overflowing or hanging.</summary>
+    [Fact]
+    public void Cost0_Draw_Cantrip_Deck_Stays_Bounded()
+    {
+        CombatState Build() => Catalog.SetupCombat(
+            Catalog.BuildPlayer(new List<CardModel> {
+                Catalog.BuildCard("EscapePlan"), Catalog.BuildCard("EscapePlan"),
+                Catalog.BuildCard("StrikeIronclad"), Catalog.BuildCard("StrikeIronclad"),
+                Catalog.BuildCard("DefendIronclad"), Catalog.BuildCard("DefendIronclad") }, 30, 30, 3, new[] { "BurningBlood" }),
+            new[] { Monsters.CorpseSlug(hp: 22) });
+        Assert.True(Build().BoundsPlays, "a cost-0 replayable draw cantrip should flag the deck loop-risk");
+        var mcts = new MctsSolver(new MctsOptions { Trials = 20_000, Seed = 1, MaxTurns = 8 }).Solve(Build());
+        _out.WriteLine($"mcts {mcts}");
+        Assert.InRange(mcts.Win, 0.0, 1.0);   // terminates with a sane value (the cap prevents the stack blow-up)
     }
 
     /// <summary>Cross-validation that the mid-turn draw node makes a fight WINNABLE that is provably unwinnable

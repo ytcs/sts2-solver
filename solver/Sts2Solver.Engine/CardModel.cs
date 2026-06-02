@@ -119,6 +119,28 @@ public abstract class CardModel
     /// discarded). Infection deals 3 to the player here.</summary>
     public virtual void OnTurnEndInHand(CombatState combat) { }
 
+    /// <summary>True for a cost-0 draw card that returns to a pile and so can be REPLAYED (EscapePlan,
+    /// Prepared) — playing it is free and draws, and reshuffle recirculates it, so the search could otherwise
+    /// build an unbounded play chain in one turn. Decks holding one set <see cref="CombatState.BoundsPlays"/>
+    /// at setup, capping plays per turn (cost-≥1 draw cards are energy-bounded, so they never set this).</summary>
+    public virtual bool LoopRiskDraw => false;
+
+    /// <summary>True for a card that DRAWS and then acts on the resulting hand (EscapePlan, Acrobatics,
+    /// Prepared). In search the draw is deferred (a chance node); this card registers via
+    /// <see cref="Cmd.DeferDrawThenResolve"/> so the solver runs its post-draw step after the draw resolves.
+    /// The common card returns false and resolves entirely in <see cref="OnPlay"/>.</summary>
+    public virtual bool HasPostDraw => false;
+
+    /// <summary>For a post-draw DISCARD-of-choice card: how many cards the player then discards of their choice
+    /// from the post-draw hand (Acrobatics 1, Prepared = cards drawn). 0 ⇒ the post-draw step is the
+    /// deterministic/conditional <see cref="OnPostDraw"/> instead (EscapePlan).</summary>
+    public virtual int PostDrawDiscardCount => 0;
+
+    /// <summary>The deterministic / conditional post-draw effect, run on the post-draw hand once the deferred
+    /// draw has resolved (EscapePlan: +Block iff the just-drawn card is a Skill). Only consulted when
+    /// <see cref="PostDrawDiscardCount"/> is 0. Default no-op.</summary>
+    public virtual void OnPostDraw(CombatState combat) { }
+
     /// <summary>Apply one upgrade level's stat changes. Called <see cref="Upgrades"/> times during construction helpers.</summary>
     protected virtual void OnUpgrade() { }
 

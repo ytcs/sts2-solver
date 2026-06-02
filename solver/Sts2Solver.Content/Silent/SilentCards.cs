@@ -1486,12 +1486,9 @@ public sealed class Nightmare : CardModel
     }
 }
 
-/// <summary>Draw 3 cards, then discard 1 (a default — player choice not modelled). Cost 1. Upgrade: draw 4.
-/// (MegaCrit Acrobatics) HP-neutral card filtering. Stays INERT in pure search (Rng null): the draw is now a
-/// chance node, but the follow-up discard chooses from the post-draw hand — modelling the draw alone would
-/// LEAVE the discarded card in hand (a net over-draw, optimistically unsound). So like CalculatedGamble it is a
-/// no-op without an Rng (safe under-estimate) until the post-draw discard is promoted to a choice node
-/// (Next steps #2); with a real Rng (rollout / replay) it draws then discards faithfully.</summary>
+/// <summary>Draw 3 cards, then discard 1 of your choice. Cost 1. Upgrade: draw 4. (MegaCrit Acrobatics) In
+/// search the draw is a chance node and the discard a post-draw player MAX over the drawn hand
+/// (<see cref="PostDrawDiscardCount"/>); with an ambient Rng it draws then discards a heuristic default.</summary>
 public sealed class Acrobatics : CardModel
 {
     public override string Name => "Acrobatics";
@@ -1500,17 +1497,19 @@ public sealed class Acrobatics : CardModel
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public int Cards => 3 + Upgrades;
+    public override bool HasPostDraw => true;
+    public override int PostDrawDiscardCount => 1;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
-        if (combat.Rng == null) return;   // draw+discard is a post-draw choice; inert in search is the safe model
+        if (combat.Rng == null) { Cmd.DeferDrawThenResolve(combat, Cards, this); return; }   // search: defer + discard-choice
         int drew = Cmd.Draw(combat, Cards);
         if (drew > 0) SilentCardHelpers.DiscardDefault(combat, 1);
     }
 }
 
-/// <summary>Draw 1 card, then discard 1 (a default). Cost 0. Upgrade: draw 2 / discard 2. (MegaCrit Prepared)
-/// HP-neutral card filtering. Inert in pure search (Rng null) for the same reason as Acrobatics — the unmodelled
-/// discard would otherwise leave a net over-draw; with a real Rng it draws then discards faithfully.</summary>
+/// <summary>Draw 1 card, then discard 1 of your choice. Cost 0. Upgrade: draw 2 / discard 2. (MegaCrit Prepared)
+/// In search the draw is a chance node and the discard a post-draw player MAX; with an ambient Rng it draws
+/// then discards a heuristic default.</summary>
 public sealed class Prepared : CardModel
 {
     public override string Name => "Prepared";
@@ -1519,9 +1518,12 @@ public sealed class Prepared : CardModel
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.Self;
     public int Cards => 1 + Upgrades;
+    public override bool HasPostDraw => true;
+    public override int PostDrawDiscardCount => Cards;
+    public override bool LoopRiskDraw => true;   // cost 0 + draws + returns to discard ⇒ replayable
     public override void OnPlay(CombatState combat, CardPlay play)
     {
-        if (combat.Rng == null) return;   // see Acrobatics: post-draw discard ⇒ inert in search (safe)
+        if (combat.Rng == null) { Cmd.DeferDrawThenResolve(combat, Cards, this); return; }   // search: defer + discard-choice
         int drew = Cmd.Draw(combat, Cards);
         if (drew > 0) SilentCardHelpers.DiscardDefault(combat, Cards);
     }
@@ -1561,8 +1563,8 @@ public sealed class ToolsOfTheTrade : CardModel
 }
 
 /// <summary>Draw 1 card; if it is a Skill, gain 3 Block. Cost 0. Upgrade: +2 Block. (MegaCrit Escape Plan)
-/// The drawn card is a chance node — real only with an ambient Rng; in pure search the draw is a no-op, so no
-/// Block is gained (a safe under-estimate).</summary>
+/// The drawn card is a chance node: in search the draw is deferred and the conditional Block is applied
+/// per-outcome as a post-draw step (<see cref="OnPostDraw"/>); with an ambient Rng it draws+resolves eagerly.</summary>
 public sealed class EscapePlan : CardModel
 {
     public override string Name => "EscapePlan";
@@ -1571,10 +1573,17 @@ public sealed class EscapePlan : CardModel
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public int Block => 3 + 2 * Upgrades;
+    public override bool HasPostDraw => true;
+    public override bool LoopRiskDraw => true;   // cost 0 + draws + returns to discard ⇒ replayable
     public override void OnPlay(CombatState combat, CardPlay play)
     {
-        int drew = Cmd.Draw(combat, 1);
-        if (drew > 0 && combat.Player.Hand[^1].Type == CardType.Skill)
+        if (combat.Rng == null) { Cmd.DeferDrawThenResolve(combat, 1, this); return; }   // search: defer + post-draw
+        Cmd.Draw(combat, 1);
+        OnPostDraw(combat);
+    }
+    public override void OnPostDraw(CombatState combat)
+    {
+        if (combat.Player.Hand.Count > 0 && combat.Player.Hand[^1].Type == CardType.Skill)
             Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
     }
 }

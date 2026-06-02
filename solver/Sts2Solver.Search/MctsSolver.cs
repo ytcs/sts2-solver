@@ -187,6 +187,7 @@ public sealed class MctsSolver
     {
         d.Expanded = true;
         d.Edges = new List<Edge>();
+        if (d.State.PendingDiscard > 0) { ExpandDiscard(d); return; }   // post-draw discard-of-choice (a MAX)
         if (_opt.ActionWidening) { ExpandWidening(d); return; }
 
         foreach (var action in LegalPlays(d.State))
@@ -195,6 +196,33 @@ public sealed class MctsSolver
             d.Edges.Add(new Edge { Action = action, PlayChild = dec, DrawChild = draw });
         }
         d.Edges.Add(new Edge { Action = PlayerAction.EndTurn, IsEndTurn = true, Chance = BuildEndTurnChance(d.State) });
+    }
+
+    /// <summary>Post-draw discard-of-choice expand: the player MAXes over which distinct hand card to drop (one
+    /// per step until <see cref="CombatState.PendingDiscard"/> is exhausted), with no EndTurn / no plays until
+    /// the discard is resolved. Few options, so open them all with a uniform prior (so PUCT explores them).</summary>
+    private void ExpandDiscard(DecisionNode d)
+    {
+        var hand = d.State.Player.Hand;
+        if (hand.Count == 0)   // nothing to discard: clear the obligation and continue
+        {
+            var cleared = d.State.Clone();
+            cleared.PendingDiscard = 0;
+            d.Edges.Add(new Edge { Action = new PlayerAction("Discard done", null, -1), PlayChild = GetOrCreateDecision(cleared), Prior = 1.0 });
+            return;
+        }
+        var seen = new HashSet<string>();
+        foreach (var card in hand)
+        {
+            var key = card.StateKey();
+            if (!seen.Add(key)) continue;   // symmetric discards collapse
+            var c = d.State.Clone();
+            Cmd.DiscardFromHand(c, c.Player.Hand.First(h => h.StateKey() == key));
+            c.PendingDiscard--;
+            d.Edges.Add(new Edge { Action = new PlayerAction($"Discard {key}", null, -1), PlayChild = GetOrCreateDecision(c) });
+        }
+        double uniform = 1.0 / d.Edges.Count;
+        foreach (var e in d.Edges) e.Prior = uniform;
     }
 
     /// <summary>Action-widening expand: always open EndTurn (the safe baseline), then rank the card plays by a
@@ -280,8 +308,8 @@ public sealed class MctsSolver
     {
         if (_opt.ActionWidening)
         {
-            if (d.Candidates!.Count > 0) WidenTo(d, TargetOpen(d));   // open more plays as the node matures
-            return SelectPuct(d);
+            if (d.Candidates is { Count: > 0 }) WidenTo(d, TargetOpen(d));   // open more plays as the node matures
+            return SelectPuct(d);                                           // (Candidates is null for discard nodes)
         }
 
         double maxHp = Math.Max(1, d.State.Player.MaxHp);
@@ -543,13 +571,21 @@ public sealed class MctsSolver
             yield return new PendingOutcome(pD, 0, drawn, $"d{i++}");
     }
 
-    /// <summary>Seed value: draw the pending cards with the RNG, then roll out the rest of the fight. One
-    /// sampled draw line (the node refines toward the true expectation as outcomes are explicated).</summary>
+    /// <summary>Seed value: draw the pending cards with the RNG, resolve the post-draw step (EscapePlan block /
+    /// a heuristic-default discard), then roll out the rest of the fight. One sampled line (the node refines
+    /// toward the true expectation, and the discard toward the player's MAX, as outcomes are explicated).</summary>
     private Value SeedDrawValue(CombatState baseState, int n)
     {
         var s = baseState.Clone();
         s.Rng = _rng;
         CombatManager.DrawCards(s, n, _rng);
+        CombatManager.ApplyPostDraw(s);   // EscapePlan block, or set PendingDiscard
+        while (s.PendingDiscard > 0 && s.Player.Hand.Count > 0)   // resolve the seed's discard with a default
+        {
+            Cmd.DiscardFromHand(s, s.Player.Hand[0]);
+            s.PendingDiscard--;
+        }
+        s.PendingDiscard = 0;
         var v = Playout(s, needAdvance: false, initialRoll: false);
         Note(v);
         return v;
@@ -602,6 +638,7 @@ public sealed class MctsSolver
 
     private Outcome ExplicateDraw(DrawNode dn, PendingOutcome po)
     {
+        CombatManager.ApplyPostDraw(po.State);   // EscapePlan block (applied here) / set PendingDiscard (a decision)
         var child = GetOrCreateDecision(po.State);
         var o = new Outcome { Prob = po.Prob, StartLoss = 0, Child = child, Key = po.Key };
         dn.Explicated.Add(o);
@@ -651,6 +688,9 @@ public sealed class MctsSolver
     // (e.g. Silent) from multiplying rollout cost by the per-card choice fan-out.
     private static IEnumerable<PlayerAction> LegalPlays(CombatState s, bool expandChoices = true)
     {
+        // Same unconditional per-turn play cap as the exact solver — keeps the tree finite and the rollout from
+        // spinning on a cost-0 cantrip, and keeps MCTS converging to the (identically capped) oracle.
+        if (s.PlaysThisTurn >= CombatState.MaxPlaysPerTurn) yield break;
         var seen = new HashSet<string>();
         foreach (var card in s.Player.Hand)
         {
@@ -704,6 +744,11 @@ public sealed class MctsSolver
     {
         int baseline = s.PlayerHpLost;
         s.Rng = _rng;   // a rollout is a concrete driver: mid-turn draws (Shrug It Off, …) resolve for real
+
+        // Resolve any pending post-draw discard-of-choice with a heuristic default before rolling out (the
+        // greedy policy doesn't model it; the tree's discard decision node refines toward the player's MAX).
+        while (s.PendingDiscard > 0 && s.Player.Hand.Count > 0) { Cmd.DiscardFromHand(s, s.Player.Hand[0]); s.PendingDiscard--; }
+        s.PendingDiscard = 0;
 
         if (needAdvance)   // s is a post-enemy (or setup) state: advance to the next decision point first
         {

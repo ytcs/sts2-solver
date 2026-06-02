@@ -89,6 +89,18 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   with a concrete `Rng` (rollouts / trace replay), and in SEARCH mode deferred onto `CombatState.PendingDraw`
   so the solver resolves it as an explicit draw chance node continuing the same turn — the drawn hand and any
   play on it become real in the exact tree and in MCTS (see Search; Next steps #1).
+- **Post-draw resolution** (draw-then-act cards): after a deferred draw resolves, `CombatManager.ApplyPostDraw`
+  runs the card's post-draw step per outcome — a deterministic/conditional `CardModel.OnPostDraw` (EscapePlan
+  gains Block iff the drawn card is a Skill) or a discard-of-choice (`PostDrawDiscardCount` → `PendingDiscard`,
+  a hashed decision resolved as a player MAX one card at a time). Promoted EscapePlan/Acrobatics/Prepared
+  (Next steps #2).
+- **Per-turn play cap (loop termination):** a cost-0 replayable draw cantrip (EscapePlan/Prepared — free play
+  that draws and recirculates via reshuffle) could otherwise build an unbounded per-turn play chain and blow the
+  search stack. `PlaysThisTurn` is capped **unconditionally** at `MaxPlaysPerTurn` (40, far above any real
+  line ⇒ value-preserving — a hard safety net against any such card, flagged or not). Decks holding a
+  `CardModel.LoopRiskDraw` card additionally set `CombatState.BoundsPlays`, which **hashes** the counter so the
+  cap memoises soundly; cost-≥1 draws are energy-bounded, so the common deck is never flagged/fragmented. Such
+  cantrip decks have a large exact state space (exact may time out → MCTS carries them, as designed).
 - **Clone isolation for self-mutating cards (soundness):** `Player.Clone` shares the immutable card-instance
   majority across search clones (cheap) but **deep-clones any `CardModel.Stateful` card** (one whose identity
   changes mid-fight, e.g. `Rampage`'s escalating damage), and `KeyHash` is not cached for those. Without this
@@ -120,7 +132,9 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   Pommel Strike, every Silent draw/cycle effect) open a dedicated `DrawNode` chance node — a play that defers a
   draw (`PendingDraw`) routes its edge through it, resolving the drawn hand (same exact/DPW split, no enemy turn
   / no HP-loss term) and continuing the same player turn; rollout leaves draw for real (`s.Rng`). Converges
-  byte-identically to the exact oracle.
+  byte-identically to the exact oracle. **Post-draw steps** (EscapePlan Block / Acrobatics-Prepared
+  discard-of-choice) resolve on each draw outcome — the discard-of-choice as a `PendingDiscard` decision layer
+  (player MAX, gated to converge to the exact inline MAX).
 - **Lexicographic value + Lexicographic-UCB** (HP loss normalized by maxHP; no scalarization). DAG-aware.
 - **Hybrid** (`HybridExactBelow`): provably-small subtrees defer to the memoized exact oracle.
 - **Action progressive widening + lexicographic PUCT** (opt-in `ActionWidening`, default OFF): ranks plays by a
@@ -340,9 +354,10 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   learned-VF beats-baseline + clone-isolation/Rampage soundness + randomized-corpus sanity + advisor +
   card-name matcher + Event/Ancient/curse ports + per-card Regent (Stars / Forge / Sovereign Blade /
   star-payback) + per-card Silent 88/88 (incl. the batch-4–8 powers, per-turn counters, AfterCardDrawn hook,
-  and the in-pile-upgrade soundness gate) + mid-turn-draw chance nodes (`MidTurnDrawTests`: deterministic
-  lethal-draw solve, no-draw control, draw-makes-fight-winnable + exact↔faithful-MC bound)). **486 passed,
-  0 skipped, 0 failed.**
+  and the in-pile-upgrade soundness gate) + mid-turn-draw chance nodes + post-draw resolution (`MidTurnDrawTests`:
+  deterministic lethal-draw solve, no-draw control, draw-makes-fight-winnable + exact↔faithful-MC bound,
+  EscapePlan conditional, Acrobatics optimal-discard, discard-choice MCTS convergence, cost-0 cantrip
+  cap)). **490 passed, 0 skipped, 0 failed.**
 - **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
@@ -468,18 +483,24 @@ blocking).
    it would mean tracking draw-pile order in the state key (breaks the multiset memo canonicalisation) — out of
    scope by design. _Follow-ups now UNBLOCKED:_ #2 (multi-select choice) and the draw-then-select half of #3
    (Acrobatics / Prepared / ThinkingAhead) — the post-draw hand the choice ranges over now exists in search.
-   Draw-then-act cards take the safe under-estimate until promoted: EscapePlan/ThinkingAhead resolve the draw
-   (the conditional block / put-back stays inert / arbitrary — faithful net count, no over-draw), while
-   draw-then-DISCARD cards (Acrobatics, Prepared) stay fully inert in search — modelling only their draw would
-   leave the to-be-discarded card in hand (a net over-draw, optimistically unsound), so like CalculatedGamble
-   they no-op without an Rng and draw+discard only with one (gated by `MidTurnDrawTests`).
-2. **Multi-select choice cards** — after the choice-node machinery: HiddenDaggers (discard 2 of choice) and
-   Purity (exhaust 0..N of choice) are genuine player choices (decompile-confirmed `FromHandForDiscard` /
-   `FromHand` min0/maxN) but need a *subset* ChoiceKey (pair / powerset); bound the fan-out.
+   Draw-then-act cards are now PROMOTED via the post-draw resolution machinery (2026-06-02, see #2): the draw
+   resolves as a chance node and the card's post-draw step runs on each drawn outcome — EscapePlan's conditional
+   Block (deterministic per-outcome), Acrobatics/Prepared's discard-of-choice (a player MAX over the post-draw
+   hand). ThinkingAhead's put-back stays HP-neutral/arbitrary (the multiset draw model ignores order).
+2. ◐ **Post-draw + multi-select choice machinery** — POST-DRAW DONE (2026-06-02), in-hand multi-select still
+   open. The post-draw step now resolves on the drawn hand: a deterministic/conditional effect
+   (`CardModel.OnPostDraw`, e.g. EscapePlan's Block) applied per draw outcome, or a discard-of-choice
+   (`PostDrawDiscardCount`) resolved as a **player MAX** one card at a time (`PendingDiscard`, a hashed decision
+   state; exact MAXes inline, MCTS as a discard decision layer — both gated to converge). Promoted EscapePlan,
+   Acrobatics, Prepared. _Still open:_ the IN-HAND multi-select cards HiddenDaggers (discard 2 of choice) and
+   Purity (exhaust 0..N) — they choose a subset of the CURRENT hand (no draw), so they need the same discard/
+   exhaust-of-choice MAX wired at PLAY time (the machinery now exists — `PendingDiscard` + the discard decision
+   layer — so this is mostly reuse). STATUS still rates their HP value low (discards return; Purity is HP-neutral
+   without on-exhaust powers).
 3. **All-cards selection audit** — for every selection card, confirm random-vs-choice from the **decompiled
    OnPlay** (`ilspycmd` vs the Steam `sts2.dll`; never `cards.json` — LocString refs only) and promote the
    genuine player choices; keep random picks as non-decision defaults (a faithful random-pick chance node is a
-   sub-item of #1's machinery).
+   sub-item of #1's machinery). The draw-then-select half (Acrobatics / Prepared / EscapePlan) is now done (#2).
 4. **THEN performance** — revisit only after correctness. The remaining lever is a cheaper rollout policy
    (≤3–4 HP accuracy budget); parallelism/truncation are refuted (see Performance).
 
@@ -584,14 +605,14 @@ experiment also surfaced the Apotheosis/Armaments clone-aliasing oracle bug, sin
      hand — a pair / powerset choice set. Value is low/conditional (discards return; Purity is HP-neutral
      without on-exhaust powers like Feel No Pain / Dark Embrace) and the per-variant APW-prior cost is real, so
      with no perf buffer (see Performance — a clean 10× is proven unavailable) the branching isn't justified.
-   - **Draw-then-select — now UNBLOCKED (not yet promoted):** Acrobatics, Prepared, ThinkingAhead choose from
-     the *post-draw* hand. As of 2026-06-02 mid-turn `Cmd.Draw` is **no longer inert** — it opens a draw chance
-     node (Next steps #1), so the post-draw hand exists in search. The remaining work is to turn each card's
-     downstream discard/put-back into a multi-select choice node (item #2's machinery). Until then: EscapePlan
-     and ThinkingAhead resolve the draw and take the safe under-estimate on the follow-up (no Block / arbitrary
-     put-back); the draw-then-DISCARD cards (Acrobatics, Prepared) stay fully inert in search, because
-     modelling only the draw would leave the to-be-discarded card in hand — a net over-draw — so they no-op
-     without an Rng (CalculatedGamble's pattern) and draw+discard only with one.
+   - **Draw-then-select — now PROMOTED (2026-06-02):** Acrobatics, Prepared, EscapePlan act on the *post-draw*
+     hand. Mid-turn `Cmd.Draw` opens a draw chance node (#1), and the card's POST-draw step then runs per draw
+     outcome via the new machinery (#2): `CardModel.OnPostDraw` for a deterministic/conditional effect
+     (EscapePlan's +Block iff the drawn card is a Skill), or `PostDrawDiscardCount` for a discard-of-choice
+     resolved as a player MAX (`CombatState.PendingDiscard`, hashed; exact MAXes inline, MCTS as a discard
+     decision layer). A card registers via `Cmd.DeferDrawThenResolve`; `CombatManager.ApplyPostDraw` dispatches.
+     With a concrete Rng (rollouts/replay) the cards draw then discard a heuristic default. ThinkingAhead's
+     put-back is left HP-neutral/arbitrary (the multiset draw model ignores draw-pile order anyway).
 
 ### History (condensed)
 Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless autonomy; MCTS solver
@@ -600,7 +621,8 @@ folders, flat namespace); the `ranwid` advisor + survival-first rollout + sound 
 v2** (Weak / multi-enemy / in-search loss prune); **Phase-C learned value function**; the objective question
 settled (keep lexicographic); **all four characters ported 88/88** (Ironclad, Silent, Regent, Necrobinder) plus
 Colorless / Special / curses; the **performance milestone** — action-widening + PUCT default-on and lazy
-chance-node enumeration brought a 30-card-vs-elite solve into the 1–2 s target; and **mid-turn draws as chance
+chance-node enumeration brought a 30-card-vs-elite solve into the 1–2 s target; **mid-turn draws as chance
 nodes** (exact `ContinuePlay` + MCTS `DrawNode`, converging byte-identically) — making a core Silent mechanic
-real in search and unblocking draw-then-select promotion. Detailed per-batch/per-milestone narrative (with
-measurements) lives in the git commit history and the plan files under `~/.claude/plans/`.
+real in search; and **post-draw resolution** (conditional `OnPostDraw` + discard-of-choice player MAX) promoting
+the draw-then-select cards (EscapePlan / Acrobatics / Prepared). Detailed per-batch/per-milestone narrative
+(with measurements) lives in the git commit history and the plan files under `~/.claude/plans/`.

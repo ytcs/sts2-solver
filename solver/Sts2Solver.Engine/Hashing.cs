@@ -45,6 +45,8 @@ public static class HashingExtensions
         h.Add(s.EtherealPlayedThisCombat);   // Necrobinder Pull from Below / Banshee's Cry — memo key, not just
         h.Add(s.OstyAttacksThisTurn);        // StateKey, or states differing only in these collide → stale value.
         h.Add(s.DoomAppliedThisTurn ? 1 : 0);
+        h.Add(s.PendingDiscard);   // post-draw discard-of-choice in flight (Acrobatics / Prepared)
+        if (s.BoundsPlays) h.Add(s.PlaysThisTurn);               // only when a cost-0 cantrip risks a play loop
         if (s.TracksCardsDrawn) h.Add(s.CardsDrawnThisCombat);   // only when a card (Murder) reads it
         // (Skills/Stars/Attacks/Discarded are added unconditionally, not gated on non-zero: conditional
         //  untagged adds would let e.g. Skills=0,Stars=3 collide with Skills=3,Stars=0 — position must stay fixed.)

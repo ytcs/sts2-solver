@@ -18,6 +18,7 @@ public static class CombatManager
         combat.TurnNumber++;
 
         combat.Player.ResetEnergy();
+        combat.PlaysThisTurn = 0;                         // per-turn play counter (cap loop-risk cantrip decks)
         combat.CardExhaustedThisTurn = false;            // per-turn flag (Evil Eye / Forgotten Ritual)
         combat.PlayerLostHpThisTurn = false;             // per-turn flag (Spite)
         combat.SkillsPlayedThisTurn = 0;                 // per-turn counter (Regent Lunar Blast)
@@ -97,6 +98,7 @@ public static class CombatManager
         // multiple times (bonus plays) still counts as one finished play. EtherealPlayedThisCombat feeds the
         // Necrobinder's Pull from Below / Banshee's Cry.
         if (card.Type == CardType.Attack) combat.AttacksPlayedThisTurn++;
+        combat.PlaysThisTurn++;   // per-turn play count (bounds cost-0 cantrip loops on BoundsPlays decks)
         if (card.Ethereal) combat.EtherealPlayedThisCombat++;
         if (playCountContributors != null)
             foreach (var pw in playCountContributors) pw.AfterModifyingCardPlayCount(combat, card);
@@ -246,6 +248,19 @@ public static class CombatManager
 
     private static string PickMove(List<(double prob, string moveId)> dist, Rng rng)
         => rng.PickWeighted(dist.Select(d => (d.prob, d.moveId)).ToList());
+
+    /// <summary>Run a deferred draw's POST-draw step on the just-drawn hand. Called by the solver on each draw
+    /// outcome (after <see cref="Cmd.DeferDrawThenResolve"/> registered it). A discard-of-choice card sets
+    /// <see cref="CombatState.PendingDiscard"/> (resolved later as a player MAX); a conditional card
+    /// (EscapePlan) applies <see cref="CardModel.OnPostDraw"/> immediately. Clears the pending-card marker.</summary>
+    public static void ApplyPostDraw(CombatState combat)
+    {
+        var card = combat.PendingDrawCard;
+        combat.PendingDrawCard = null;
+        if (card == null) return;
+        if (card.PostDrawDiscardCount > 0) combat.PendingDiscard += card.PostDrawDiscardCount;
+        else card.OnPostDraw(combat);
+    }
 
     /// <summary>Award post-combat relic effects (e.g. Burning Blood heals 6) on victory.</summary>
     public static void OnVictory(CombatState combat)

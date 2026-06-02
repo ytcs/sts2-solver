@@ -93,6 +93,15 @@ public sealed class Solver
         if ((StatesEvaluated & 0x3FFF) == 0) Ct.ThrowIfCancellationRequested();
         StatesEvaluated++;
 
+        // Post-draw discard-of-choice (Acrobatics / Prepared): the player picks which card(s) to drop before
+        // normal play resumes — a MAX over the distinct hand cards. Memoised like any decision state.
+        if (s.PendingDiscard > 0)
+        {
+            var dv = DiscardChoiceValue(s);
+            _memo[key] = dv;
+            return dv;
+        }
+
         // Admissible early-loss prune: a provably-lost node has exact value (0, forward loss = current HP),
         // so we can skip expanding its subtree entirely without changing the computed value.
         if (LossProof != null && LossProof.IsProvablyLost(s))
@@ -132,6 +141,7 @@ public sealed class Solver
         double win = 0, loss = 0;
         foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(c, n))
         {
+            CombatManager.ApplyPostDraw(afterDraw);   // EscapePlan block / set PendingDiscard (no-op for plain draws)
             var v = SolvePlayerTurn(afterDraw);
             win += probD * v.Win;
             loss += probD * v.Loss;
@@ -139,9 +149,43 @@ public sealed class Solver
         return new Value(win, loss);
     }
 
+    /// <summary>Resolve a post-draw discard-of-choice (s.PendingDiscard &gt; 0): the player MAXes over which
+    /// distinct hand card to drop (identical cards collapse by StateKey), one card per step, until the count is
+    /// exhausted or the hand empties — then normal play resumes. Drawing/discarding cost no HP, so this is a
+    /// pure lexicographic MAX over the resulting decision states.</summary>
+    private Value DiscardChoiceValue(CombatState s)
+    {
+        var hand = s.Player.Hand;
+        if (hand.Count == 0)   // nothing left to discard: clear the obligation and resume normal play
+        {
+            var cleared = s.Clone();
+            cleared.PendingDiscard = 0;
+            return SolvePlayerTurn(cleared);
+        }
+
+        Value best = default;
+        bool any = false;
+        var seen = new HashSet<string>();
+        foreach (var card in hand)
+        {
+            var key = card.StateKey();
+            if (!seen.Add(key)) continue;   // symmetric discards collapse
+            var c = s.Clone();
+            Cmd.DiscardFromHand(c, c.Player.Hand.First(h => h.StateKey() == key));
+            c.PendingDiscard--;
+            var v = SolvePlayerTurn(c);
+            if (!any || v.BetterThan(best)) { best = v; any = true; }
+        }
+        return best;
+    }
+
     /// <summary>Distinct (card, target) plays available at a decision node, deduplicated by card key.</summary>
     public IEnumerable<PlayerAction> LegalPlays(CombatState s)
     {
+        // Cap plays per turn (unconditional safety net): a cost-0 replayable draw cantrip could otherwise build
+        // an unbounded play chain and blow the stack. The cap sits far above any real line, so it never changes
+        // the optimal value; flagged loop-risk decks additionally HASH PlaysThisTurn so the cap memoises soundly.
+        if (s.PlaysThisTurn >= CombatState.MaxPlaysPerTurn) yield break;
         var seen = new HashSet<string>();
         foreach (var card in s.Player.Hand)
         {

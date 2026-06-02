@@ -198,6 +198,26 @@ public static class Cmd
         return drawn;
     }
 
+    /// <summary>Register a deferred draw-THEN-act for SEARCH mode (callers guard <c>combat.Rng == null</c>):
+    /// the draw resolves as a chance node and the card's post-draw step (<see cref="CardModel.OnPostDraw"/> or a
+    /// discard-of-choice) runs afterward (see <see cref="CombatManager.ApplyPostDraw"/>). Honours NoDraw.</summary>
+    public static void DeferDrawThenResolve(CombatState combat, int n, CardModel card)
+    {
+        if (n <= 0 || combat.Player.HasPower("NoDraw")) return;   // no draw ⇒ no post-draw step
+        combat.PendingDraw += n;
+        combat.PendingDrawCard = card;
+    }
+
+    /// <summary>Discard a specific hand card to the discard pile (a mid-turn discard), bumping the discard
+    /// counter (Memento Mori). No on-discard hook is modelled (Sly auto-play is unported — omitting it
+    /// under-states the player, the safe direction).</summary>
+    public static void DiscardFromHand(CombatState combat, CardModel card)
+    {
+        if (!combat.Player.Hand.Remove(card)) return;
+        combat.Player.DiscardPile.Add(card);
+        combat.CardsDiscardedThisTurn++;
+    }
+
     /// <summary>Summon a monster into combat (e.g. InfestedPower spawning Wrigglers on death). The new
     /// monster is appended to the enemy side, assigned the next encounter id, and telegraphs the move its
     /// AI starts on (a spawned Wriggler starts on its no-op SPAWNED stun). Its rolled HP is whatever the

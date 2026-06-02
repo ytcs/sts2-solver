@@ -81,6 +81,35 @@ public sealed class CombatState
     /// HashKey. With a concrete <see cref="Rng"/> (rollouts, trace replay) it stays 0 — draws resolve eagerly.</summary>
     public int PendingDraw;
 
+    /// <summary>The card whose deferred draw is pending, when it also has a POST-draw step (EscapePlan's
+    /// conditional block, Acrobatics/Prepared's discard-of-choice). After the draw chance node resolves the
+    /// solver runs the step (<see cref="CombatManager.ApplyPostDraw"/>) on the drawn hand. Transient like
+    /// <see cref="PendingDraw"/> — carried by reference (the immutable card instance) but drained before any
+    /// memoised decision state, so NOT hashed. Null for plain terminal draws (ShrugItOff).</summary>
+    public CardModel? PendingDrawCard;
+
+    /// <summary>Cards the player must still DISCARD of their choice this turn (Acrobatics 1, Prepared N) — a
+    /// genuine post-draw decision: unlike <see cref="PendingDraw"/> this IS a property of a memoised decision
+    /// state (the player picks which to drop), so it is hashed. The solver resolves it one card at a time as a
+    /// MAX over the distinct hand cards before normal play resumes.</summary>
+    public int PendingDiscard;
+
+    /// <summary>Cards played during the current player turn (reset at turn start, bumped in
+    /// <see cref="CombatManager.PlayCard"/>). Only TRACKED + hashed when <see cref="BoundsPlays"/> is set; it
+    /// then caps plays per turn (<see cref="MaxPlaysPerTurn"/>) so a cost-0 replayable draw cantrip (EscapePlan,
+    /// Prepared — free play + draw, recirculated by reshuffle) can't build an unbounded play chain that blows
+    /// the search stack. The cap sits far above any real line, so it is value-preserving.</summary>
+    public int PlaysThisTurn;
+
+    /// <summary>Set at setup when the deck holds a card that could loop the per-turn play chain (a cost-0
+    /// replayable draw card — <see cref="CardModel.LoopRiskDraw"/>). Gates <see cref="PlaysThisTurn"/>
+    /// tracking + hashing + the cap, so the common deck's state space is never fragmented by a play counter.</summary>
+    public bool BoundsPlays;
+
+    /// <summary>Per-turn play cap applied only to <see cref="BoundsPlays"/> decks. Generous — above any real
+    /// turn's play count — so it bounds only pathological cantrip loops, never an optimal line.</summary>
+    public const int MaxPlaysPerTurn = 40;
+
     public IEnumerable<Monster> LivingMonsters => Monsters.Where(m => m.IsAlive);
 
     /// <summary>Living enemies a player/Osty attack can target (the monster list, minus the dead).</summary>
@@ -134,6 +163,10 @@ public sealed class CombatState
             OstyAttacksThisTurn = OstyAttacksThisTurn,
             DoomAppliedThisTurn = DoomAppliedThisTurn,
             PendingDraw = PendingDraw,
+            PendingDrawCard = PendingDrawCard,   // immutable card instance — shared by reference is safe
+            PendingDiscard = PendingDiscard,
+            PlaysThisTurn = PlaysThisTurn,
+            BoundsPlays = BoundsPlays,
         };
     }
 
@@ -152,6 +185,9 @@ public sealed class CombatState
                   + (OstyAttacksThisTurn != 0 ? $"/oa{OstyAttacksThisTurn}" : "")
                   + (DoomAppliedThisTurn ? "/da" : "");
         var drawn = TracksCardsDrawn ? $"/w{CardsDrawnThisCombat}" : "";
-        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}{regent}{silent}{necro}{drawn}|{Player.StateKey()}|{monsters}";
+        var disc = PendingDiscard != 0 ? $"/pd{PendingDiscard}" : "";   // post-draw discard-of-choice in flight
+        var plays = BoundsPlays ? $"/np{PlaysThisTurn}" : "";           // per-turn play count (loop-risk decks only)
+        disc += plays;
+        return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}{regent}{silent}{necro}{drawn}{disc}|{Player.StateKey()}|{monsters}";
     }
 }
