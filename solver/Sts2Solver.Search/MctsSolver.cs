@@ -39,39 +39,23 @@ public sealed class MctsOptions
     /// directly from learned geometry rather than needing a lucky coordinated rollout.</summary>
     public bool UseLearnedLeaf = false;
 
-    /// <summary>Blended leaf: at a fresh tip, combine the faithful greedy rollout (which UNDER-estimates
-    /// razor-thin survival — the winning line needs coordinated draw+play a greedy policy misses) with the
-    /// learned value (which OVER-estimates it) as a convex mix <c>(1−α)·rollout + α·learned</c>. The exact
-    /// truth sits between the two endpoints, so a calibrated α lands closer than either alone. 0 = pure
-    /// rollout (the trusted default); ignored when <see cref="UseLearnedLeaf"/>/<see cref="UseHeuristicLeaf"/>
-    /// is set (those are closed-form, no rollout). Costs one rollout + one cheap learned eval per tip.</summary>
-    public double LeafBlend = EnvD("STS2_LEAF_BLEND", 0.0);
-
     /// <summary>Each rollout samples its aggression λ uniformly from [Lo, Hi] (0 = all-block, 1 = all-damage),
-    /// so leaf seeds average over the block↔race spectrum rather than a single biased greedy line. Lo==Hi
-    /// gives a deterministic policy at that λ (set both to 0.5 for the old balanced greedy). Defaults span
-    /// the full spectrum.</summary>
-    // Default to a deterministic *balanced* rollout (λ=0.5): calibration showed it tracks exact far better
-    // than the old race-leaning score, while λ-spread + multi-sample averaging added cost without accuracy
-    // (the rare winning lines in razor-thin fights need coordinated draw+play a static rollout misses at any
-    // λ — that residual is the learned-value-function's job). Knobs kept for experiments / the VF phase.
+    /// so a leaf seed can average over the block↔race spectrum. Lo==Hi gives a deterministic policy at that λ;
+    /// the default 0.5/0.5 is a deterministic balanced rollout (the calibrated choice). Knobs for experiments.</summary>
     public double RolloutLambdaLo = EnvD("STS2_LAMBDA_LO", 0.5);
     public double RolloutLambdaHi = EnvD("STS2_LAMBDA_HI", 0.5);
 
     /// <summary>Number of playouts averaged into each new leaf's seed value (each samples its own λ from
-    /// [Lo,Hi]). 1 = the classic single-rollout seed (the calibrated default — averaging didn't pay off).</summary>
+    /// [Lo,Hi]). 1 = a single-rollout seed (the calibrated default).</summary>
     public int RolloutSamples = (int)EnvD("STS2_ROLLOUT_SAMPLES", 1);
 
-    /// <summary>Action progressive widening + PUCT. When ON (the DEFAULT since the partial-survival sweep) it
-    /// ranks the plays by the heuristic policy prior and opens only ⌈<see cref="ApwC"/>·N^<see cref="ApwBeta"/>⌉
-    /// of them, best-first — bounding the per-decision branching that drives tree growth with card variety (the
-    /// super-linear cost the perf-probe isolates). EndTurn (the oracle's safe baseline) is always opened, and
-    /// every candidate eventually opens as N→∞, so it stays asymptotically consistent. Selection switches from
-    /// UCB to PUCT (prior·c·√N/(1+visits)); the just-opened child's rollout seed serves as its first-play value,
-    /// so no separate FPU term is needed. When OFF (set STS2_APW=0) the solver opens EVERY distinct legal play
-    /// and force-visits each (classic UCT*). Flipped to default-ON after the `--apw-sweep` data: a clear cost
-    /// win (−25% nodes / −27% ms over 45 random partial-survival fixtures) at survival-neutral accuracy and a
-    /// small +0.28 HP E[loss] regression — a tradeoff the user accepted for late-game usability.</summary>
+    /// <summary>Action progressive widening + PUCT (the production default; set STS2_APW=0 for classic UCT*).
+    /// Ranks the legal plays by the heuristic policy prior and opens only ⌈<see cref="ApwC"/>·N^<see cref="ApwBeta"/>⌉
+    /// of them, best-first — bounding the per-decision branching that grows with card variety. EndTurn (the
+    /// oracle's safe baseline) is always opened, and every candidate eventually opens as N→∞, so it stays
+    /// asymptotically consistent. Selection switches from UCB to PUCT (prior·c·√N/(1+visits)); the just-opened
+    /// child's rollout seed is its first-play value, so no separate FPU term. Classic UCT* (OFF) instead opens
+    /// EVERY distinct legal play and force-visits each.</summary>
     public bool ActionWidening = EnvB("STS2_APW", true);
 
     /// <summary>Action-widening schedule: opened plays = ⌈ApwC·N^ApwBeta⌉ (clamped to [1, #plays]). β∈(0,1).</summary>
@@ -380,12 +364,10 @@ public sealed class MctsSolver
         ch.Exact = (long)combos.Count * drawDistinct <= _opt.ExactChanceThreshold;
 
         // In exact mode, generate the outcomes LAZILY (one per chance-node visit, via SelectOutcome's
-        // MoveNext) instead of materialising all of them up front. A chance node visited V times then only
-        // pays for V outcomes — not all (combos × draws), which for a big deck can be thousands of clones the
-        // node never needs. The outcome SEQUENCE (order, probabilities, keys) is byte-identical to the old
-        // eager fill, so the exact partial-Bellman backup is unchanged — this is a pure efficiency win, not an
-        // accuracy tradeoff. (The `--profile` matrix isolated this eager enumeration as the dominant cost: a
-        // 30-card-vs-elite solve was ~96× slower with it than with chance sampling, while cloning was only ~12%.)
+        // MoveNext) instead of materialising all of them up front. A chance node visited V times then pays for
+        // only V outcomes — not all (combos × draws), which for a big deck is thousands of clones the node
+        // never needs. The outcome SEQUENCE (order, probabilities, keys) matches eager enumeration, so the
+        // exact partial-Bellman backup is unchanged — a pure efficiency win, not an accuracy tradeoff.
         if (ch.Exact)
             ch.PendingEnum = EnumerateExactOutcomes(ch.AfterEnemy, combos).GetEnumerator();
 
@@ -606,23 +588,6 @@ public sealed class MctsSolver
             var lv = _opt.UseLearnedLeaf ? LearnedValue.Evaluate(s, _opt.MaxTurns)
                                          : CombatHeuristic.Evaluate(s, _opt.MaxTurns);
             return new Value(lv.Win, (s.PlayerHpLost - baseline) + lv.Loss);
-        }
-
-        // Blended leaf: convex mix of the learned value (over-estimates razor-thin survival) and the faithful
-        // rollout (under-estimates it). At a live tip both estimate value-from-s; terminal tips are exact, so
-        // skip the blend there. The learned eval is read-only (clones internally), so it's safe before the
-        // rollout, which mutates s.
-        if (_opt.LeafBlend > 0)
-        {
-            if (s.AllMonstersDead) return new Value(1, s.PlayerHpLost - baseline);
-            if (s.PlayerDead || s.TurnNumber > _opt.MaxTurns) return new Value(0, s.PlayerHpLost - baseline);
-            double advanceLoss = s.PlayerHpLost - baseline;
-            var learned = LearnedValue.Evaluate(s, _opt.MaxTurns);
-            var rollout = RolloutToTerminal(s, baseline);
-            double a = _opt.LeafBlend;
-            double rolloutFuture = rollout.Loss - advanceLoss;
-            return new Value((1 - a) * rollout.Win + a * learned.Win,
-                             advanceLoss + (1 - a) * rolloutFuture + a * learned.Loss);
         }
 
         return RolloutToTerminal(s, baseline);

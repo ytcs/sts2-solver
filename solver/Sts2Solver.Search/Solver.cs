@@ -141,8 +141,8 @@ public sealed class Solver
         }
     }
 
-    /// <summary>Apply a play to a clone of <paramref name="s"/>. Internal so the scalar-objective experiment
-    /// (<see cref="ScalarSolver"/>) drives the SAME transition as the oracle — keeping the comparison exact.</summary>
+    /// <summary>Apply a play to a clone of <paramref name="s"/>. Internal so the sampling solver and other
+    /// callers drive the SAME transition as the exact oracle.</summary>
     internal static CombatState ApplyPlay(CombatState s, PlayerAction action)
     {
         var c = s.Clone();

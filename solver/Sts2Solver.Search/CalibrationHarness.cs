@@ -57,22 +57,6 @@ public static class CalibrationHarness
         return new EngineResult(label ?? (heuristicLeaf ? "mcts-heur" : "mcts-roll"), v.Win, v.Loss, mcts.TrialsRun, sw.ElapsedMilliseconds);
     }
 
-    /// <summary>MCTS value using a BLENDED leaf: convex mix of the faithful rollout and the learned value
-    /// (<see cref="MctsOptions.LeafBlend"/>). <paramref name="blend"/>=0 is pure rollout, 1 is pure learned.</summary>
-    public static EngineResult RunMctsBlend(CombatState setup, int maxTurns, int trials, double blend, int seed, string? label = null)
-    {
-        var sw = Stopwatch.StartNew();
-        var mcts = new MctsSolver(new MctsOptions
-        {
-            Trials = trials,
-            MaxTurns = maxTurns,
-            Seed = seed,
-            LeafBlend = blend,
-        });
-        var v = mcts.Solve(setup);
-        return new EngineResult(label ?? $"mcts-blend{blend:0.00}", v.Win, v.Loss, mcts.TrialsRun, sw.ElapsedMilliseconds);
-    }
-
     /// <summary>MCTS value using the Phase-C learned value function as the leaf (<see cref="LearnedValue"/>).
     /// Compared against the static-heuristic leaf (<see cref="RunMcts"/> with <c>heuristicLeaf:true</c>) — the
     /// baseline it is meant to beat — and against the exact oracle.</summary>
