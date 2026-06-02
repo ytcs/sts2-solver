@@ -268,6 +268,34 @@ if (args.Contains("--perf-probe"))
     return 0;
 }
 
+// --converge: 30-card-vs-elite self-convergence. No exact ground truth exists at 30 cards, so watch the root
+// value SETTLE as trials grow (anytime), with cumulative wall-clock, to find the smallest budget that's
+// advice-quality and confirm it lands in the 1–2 s target. Pair with --calibrate (which shows the rollout leaf
+// is essentially exact by ~2–5k trials on solvable decks) to choose the production trial budget.
+if (args.Contains("--converge"))
+{
+    int cvMax = ArgInt("--trials", 8_000);
+    int cvEvery = ArgInt("--every", 500);
+    int cvTurns = ArgInt("--maxturns", 12);
+    int cvSize = ArgInt("--size", 30);
+    int cvHp = ArgInt("--hp", 60);
+    string[] cvVariety = { "StrikeIronclad", "DefendIronclad", "Bash", "Inflame", "Uppercut", "PommelStrike",
+        "ShrugItOff", "Anger", "IronWave", "Hemokinesis", "TwinStrike", "Headbutt" };
+    var cvSpecs = new List<string>();
+    for (int i = 0; i < cvSize; i++) cvSpecs.Add(cvVariety[i % cvVariety.Length]);
+    var cvPlayer = Catalog.BuildPlayer(cvSpecs.Select(Catalog.BuildCard).ToList(), cvHp, cvHp, 3, new[] { "BurningBlood" });
+    var cvSetup = Catalog.SetupCombat(cvPlayer, new[] { Monsters.Byrdonis(hp: 60) });
+
+    Console.WriteLine($"Converge — {cvSize}-card deck ({cvSpecs.Distinct().Count()} distinct) vs Byrdonis(60), "
+        + $"APW+rollout default, horizon {cvTurns}. Watching the root value settle.\n");
+    Console.WriteLine($"  {"trials",8} {"win",8} {"E[loss]",8} {"cum-s",7}");
+    var cvMcts = new MctsSolver(new MctsOptions { Trials = cvMax, MaxTurns = cvTurns, Seed = 1 });
+    var cvSw = System.Diagnostics.Stopwatch.StartNew();
+    foreach (var (tr, val) in cvMcts.SolveAnytime(cvSetup, cvEvery))
+        Console.WriteLine($"  {tr,8:N0} {val.Win,8:P1} {val.Loss,8:F1} {cvSw.Elapsed.TotalSeconds,7:F2}");
+    return 0;
+}
+
 // --profile: attribute a representative 30-card-vs-elite MCTS solve's wall-clock to per-node state cloning,
 // to decide the next perf lever (clone-elimination via make/undo). Reports the solve time vs the 1–2s target,
 // an isolated ns/clone microbenchmark, the CombatState.Clone count, and clone's estimated share of total.
