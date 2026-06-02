@@ -583,6 +583,47 @@ public class CardTests
         }
     }
 
+    // ----- In-card CHOICE promoted to a search decision (Armaments upgrade target) -----
+
+    [Fact]
+    public void Armaments_Choice_Enumerates_One_Play_Per_Distinct_Unupgraded_Hand_Card()
+    {
+        var (c, p, _) = Fight();
+        p.Hand.Clear();
+        p.Hand.Add(new Armaments());
+        p.Hand.Add(new Bash());
+        p.Hand.Add(new StrikeIronclad());
+        p.Hand.Add(new StrikeIronclad());          // duplicate Strike collapses by StateKey (action abstraction)
+        p.MaxEnergy = 3; p.ResetEnergy();
+
+        var arm = p.Hand.First(h => h is Armaments);
+        Assert.Equal(2, arm.Choices(c).Count());   // {Bash, StrikeIronclad} — Armaments excludes ITSELF by reference
+
+        var plays = new Solver().LegalPlays(c).Where(a => a.CardKey == "Armaments").ToList();
+        Assert.Equal(2, plays.Count);              // one decision per distinct upgrade target
+        Assert.Contains(plays, a => a.ChoiceKey == "Bash");
+        Assert.Contains(plays, a => a.ChoiceKey == "StrikeIronclad");
+    }
+
+    [Fact]
+    public void Armaments_Upgrades_The_Chosen_Hand_Card_Overriding_The_Default()
+    {
+        foreach (var pick in new[] { "Bash", "StrikeIronclad" })
+        {
+            var (c, p, _) = Fight();
+            p.Hand.Clear();
+            p.Hand.Add(new Armaments());
+            p.Hand.Add(new Bash());                // the default (null choice) would upgrade this first card
+            p.Hand.Add(new StrikeIronclad());
+            p.MaxEnergy = 3; p.ResetEnergy();
+
+            CombatManager.PlayCard(c, p.Hand.First(h => h is Armaments), null, pick);
+
+            Assert.Equal(1, p.Hand.Count(h => h.Upgrades == 1));            // exactly one card upgraded
+            Assert.Equal($"{pick}+1", p.Hand.First(h => h.Upgrades == 1).StateKey());   // the CHOSEN one
+        }
+    }
+
     [Fact]
     public void SwordBoomerang_Hits_3_Times_For_3_On_A_Single_Enemy()
     {

@@ -1171,6 +1171,14 @@ public sealed class Armaments : CardModel
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.Self;
     public int Block => 5;
+    // Base Armaments upgrades ONE chosen hand card — a real decision node (which card to upgrade changes future
+    // value). Upgraded Armaments upgrades the whole hand (no choice). Choices excludes `this` by reference: the
+    // played card is removed from hand BEFORE OnPlay (CombatManager.PlayCard), so it can never be its own target.
+    public override IEnumerable<string> Choices(CombatState combat)
+        => Upgrades > 0
+            ? System.Array.Empty<string>()
+            : combat.Player.Hand.Where(c => !ReferenceEquals(c, this) && c.Upgrades == 0)
+                                .Select(c => c.StateKey()).Distinct();
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
@@ -1187,9 +1195,13 @@ public sealed class Armaments : CardModel
         }
         else
         {
-            // Upgrade one arbitrary unupgraded hand card (the in-game choice is HP-neutral for replay).
-            for (int i = 0; i < hand.Count; i++)
-                if (hand[i].Upgrades == 0) { hand[i] = hand[i].Clone().Upgraded(1); break; }
+            // Upgrade the chosen unupgraded hand card (ChoiceKey == its StateKey); fall back to the first
+            // unupgraded card when no choice was recorded (trace replay) or the choice is no longer present.
+            int idx = play.ChoiceKey == null
+                ? hand.FindIndex(c => c.Upgrades == 0)
+                : hand.FindIndex(c => c.Upgrades == 0 && c.StateKey() == play.ChoiceKey);
+            if (idx < 0) idx = hand.FindIndex(c => c.Upgrades == 0);
+            if (idx >= 0) hand[idx] = hand[idx].Clone().Upgraded(1);
         }
     }
 }

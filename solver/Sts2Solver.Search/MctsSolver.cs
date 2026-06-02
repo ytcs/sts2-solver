@@ -529,7 +529,12 @@ public sealed class MctsSolver
 
     // ---------- Legal plays (mirrors the exact solver) ----------
 
-    private static IEnumerable<PlayerAction> LegalPlays(CombatState s)
+    // expandChoices=false collapses every in-card decision to its single DEFAULT action (ChoiceKey null). The
+    // SEARCH TREE always expands choices (each is a real decision node); the approximate greedy ROLLOUT does
+    // NOT — scoring N choice variants per card per step (each a full ApplyPlay clone) is wasted compute in a
+    // noisy leaf estimator, and the rollout already replayed the default anyway. This keeps a choice-heavy deck
+    // (e.g. Silent) from multiplying rollout cost by the per-card choice fan-out.
+    private static IEnumerable<PlayerAction> LegalPlays(CombatState s, bool expandChoices = true)
     {
         var seen = new HashSet<string>();
         foreach (var card in s.Player.Hand)
@@ -538,7 +543,7 @@ public sealed class MctsSolver
             if (!card.IsXCost && card.EffectiveCost(s) > s.Player.Energy) continue;   // EffectiveCost: in-combat cost reductions
             if (!s.Player.CanAffordStars(card)) continue;   // Regent star cost gates the play
             var ck = card.StateKey();
-            var choices = card.Choices(s).Distinct().ToList();   // empty for the common no-choice card
+            var choices = expandChoices ? card.Choices(s).Distinct().ToList() : EmptyChoices;   // empty for the common no-choice card
             if (card.NeedsTarget)
             {
                 for (int i = 0; i < s.Monsters.Count; i++)
@@ -562,6 +567,8 @@ public sealed class MctsSolver
                     yield return new PlayerAction($"Play {ck} [{choice}]", ck, -1, choice);
         }
     }
+
+    private static readonly List<string> EmptyChoices = new();
 
     private static CombatState ApplyPlay(CombatState s, PlayerAction action)
     {
@@ -645,7 +652,7 @@ public sealed class MctsSolver
             double current = CombatHeuristic.Score(s, aggression);
             PlayerAction? bestAction = null;
             double bestScore = current;
-            foreach (var action in LegalPlays(s))
+            foreach (var action in LegalPlays(s, expandChoices: false))
             {
                 double sc = CombatHeuristic.Score(ApplyPlay(s, action), aggression);
                 if (sc < bestScore - 1e-9) { bestScore = sc; bestAction = action; }
