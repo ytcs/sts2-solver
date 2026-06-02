@@ -20,8 +20,10 @@ public sealed class EvalOptions
     /// <summary>Faithful playouts used to estimate the HP-loss distribution (exact path only).</summary>
     public int Rollouts { get; init; } = 2000;
 
-    /// <summary>Trial budget for the MCTS fallback (kept modest so the fallback stays responsive).</summary>
-    public int MctsTrials { get; init; } = 40_000;
+    /// <summary>Trial budget for the MCTS fallback. Calibrated to ~2k: the rollout leaf reaches exact survival
+    /// by ~2k trials, and E[HP loss] settles to within ~3 HP (mildly pessimistic — acceptable for advice). This
+    /// keeps a 30-card-vs-elite solve to a couple of seconds; raise it for tighter absolute E[loss].</summary>
+    public int MctsTrials { get; init; } = 2_000;
 
     /// <summary>Base seed for both MCTS and the rollout sampler (reproducible).</summary>
     public int Seed { get; init; } = 1;

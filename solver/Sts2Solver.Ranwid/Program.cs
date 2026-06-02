@@ -12,7 +12,7 @@ using Sts2Solver.Ranwid;
 //   --no-advice                    skip the (slower) removal/pick advice; just the deck + elite stats
 //   --player <net_id>              pick a multiplayer slot
 //   --budget-seconds <s>           exact-search cap before MCTS fallback (default 8; raise for precision)
-//   --rollouts <n> (2000)  --trials <n> (40000)  --seed <n>
+//   --rollouts <n> (2000)  --trials <n> (2000)  --seed <n>
 
 string? ArgVal(string flag) { int i = Array.IndexOf(args, flag); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
 int? ArgInt(string flag) => int.TryParse(ArgVal(flag), out var v) ? v : null;
@@ -27,7 +27,7 @@ var opts = new EvalOptions
 {
     BudgetSeconds = ArgDouble("--budget-seconds") ?? 8.0,
     Rollouts = ArgInt("--rollouts") ?? 2000,
-    MctsTrials = ArgInt("--trials") ?? 40_000,
+    MctsTrials = ArgInt("--trials") ?? 2_000,
     Seed = ArgInt("--seed") ?? 1,
 };
 
