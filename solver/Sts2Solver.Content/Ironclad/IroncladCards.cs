@@ -936,10 +936,16 @@ public sealed class TrueGrit : CardModel
     public override TargetType Target => TargetType.Self;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public int Block => 7 + 2 * Upgrades;
+    // Base True Grit exhausts a RANDOM card (no player choice — modelling it as a decision would let the search
+    // cherry-pick, which is optimistically unsound). The UPGRADE converts random→chosen, so only then is it a
+    // decision node. (Random exhaust is currently approximated by the deterministic ChosenHandCard default;
+    // a faithful chance-node model is a separate item.)
+    public override IEnumerable<string> Choices(CombatState combat)
+        => Upgrades > 0 ? HandChoices(combat) : System.Array.Empty<string>();
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
-        var card = combat.Player.Hand.FirstOrDefault();
+        var card = ChosenHandCard(combat, play.ChoiceKey);
         if (card != null) Cmd.ExhaustFromHand(combat, card);
     }
 }
@@ -954,10 +960,13 @@ public sealed class Cinder : CardModel
     public override TargetType Target => TargetType.AnyEnemy;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public int Damage => 18 + 6 * Upgrades;
+    // Cinder exhausts a RANDOM card at ALL levels (decompiled: Rng.CombatCardSelection.NextItem, no IsUpgraded
+    // branch). So it is NEVER a decision node — modelling a random exhaust as a choice would be optimistically
+    // unsound. Approximated by the deterministic ChosenHandCard default (a faithful chance node is a later item).
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
-        var card = combat.Player.Hand.FirstOrDefault();
+        var card = ChosenHandCard(combat, play.ChoiceKey);
         if (card != null) Cmd.ExhaustFromHand(combat, card);
     }
 }
@@ -971,9 +980,10 @@ public sealed class BurningPact : CardModel
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public int Cards => 2 + Upgrades;
+    public override IEnumerable<string> Choices(CombatState combat) => HandChoices(combat);
     public override void OnPlay(CombatState combat, CardPlay play)
     {
-        var card = combat.Player.Hand.FirstOrDefault();
+        var card = ChosenHandCard(combat, play.ChoiceKey);
         if (card != null) Cmd.ExhaustFromHand(combat, card);
         Cmd.Draw(combat, Cards);
     }
@@ -989,10 +999,12 @@ public sealed class Brand : CardModel
     public override TargetType Target => TargetType.Self;
     public int SelfLoss => 1;
     public int Strength => 1 + Upgrades;
+    // Brand exhausts a CHOSEN card at all levels (decompiled: CardSelectCmd.FromHand) — a real decision node.
+    public override IEnumerable<string> Choices(CombatState combat) => HandChoices(combat);
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.LoseHp(combat, combat.Player, SelfLoss);
-        var card = combat.Player.Hand.FirstOrDefault();
+        var card = ChosenHandCard(combat, play.ChoiceKey);
         if (card != null) Cmd.ExhaustFromHand(combat, card);
         Cmd.ApplyPower(combat, combat.Player, new StrengthPower(), Strength, combat.Player);
     }

@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+
 namespace Sts2Solver.Engine;
 
 /// <summary>Where a card goes after being played.</summary>
@@ -98,6 +101,19 @@ public abstract class CardModel
     /// promotes each to its own decision; symmetric options collapse because identical cards share a StateKey.
     /// Empty (the default) means the card has no choice and is enumerated/played exactly as before.</summary>
     public virtual IEnumerable<string> Choices(CombatState combat) => System.Array.Empty<string>();
+
+    /// <summary>Distinct StateKeys of the player's hand cards EXCLUDING this played instance — the card is
+    /// removed from hand before OnPlay (CombatManager.PlayCard), so it can never be its own pick. The common
+    /// <see cref="Choices"/> body for a "choose a card from hand" effect (exhaust/discard selection).</summary>
+    protected IEnumerable<string> HandChoices(CombatState combat) =>
+        combat.Player.Hand.Where(c => !ReferenceEquals(c, this)).Select(c => c.StateKey()).Distinct();
+
+    /// <summary>Resolve a hand-card choice at OnPlay time: the hand card whose StateKey == <paramref name="choiceKey"/>,
+    /// else the first hand card (the trace-replay / no-choice default). Null only when the hand is empty.</summary>
+    protected static CardModel? ChosenHandCard(CombatState combat, string? choiceKey) =>
+        choiceKey == null ? combat.Player.Hand.FirstOrDefault()
+                          : combat.Player.Hand.FirstOrDefault(c => c.StateKey() == choiceKey)
+                            ?? combat.Player.Hand.FirstOrDefault();
 
     /// <summary>Fires for each copy still in hand at end of the player's turn (before the hand is
     /// discarded). Infection deals 3 to the player here.</summary>

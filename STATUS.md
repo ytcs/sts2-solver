@@ -436,6 +436,25 @@ Card-validation loop: port + unit-test → `STS2_DECK` headless run vs a simple 
 
 ## Next steps
 
+### ▶ Current priority order (set 2026-06-01): CORRECTNESS first, performance later
+The goal is to accurately reproduce **every** card's behavior; perf is explicitly deferred until then (a clean
+10× was proven unavailable this session — see Performance — and we're already at the 1–2 s target, so it's not
+blocking).
+1. **Mid-turn draws as chance nodes** — TOP priority; a *core Silent mechanic*. Today `Cmd.Draw` is inert in
+   search (`combat.Rng == null` in Solver + MCTS tree → returns 0), so draw-then-act cards are approximate and
+   their downstream selections can't be modeled (Acrobatics, Prepared, ThinkingAhead, and every Silent
+   draw/cycle effect). Make a mid-turn draw open a chance node over draw outcomes (like the end-of-turn /
+   opening draw already do), so the drawn hand — and any choice made on it — becomes real in search.
+2. **Multi-select choice cards** — after the choice-node machinery: HiddenDaggers (discard 2 of choice) and
+   Purity (exhaust 0..N of choice) are genuine player choices (decompile-confirmed `FromHandForDiscard` /
+   `FromHand` min0/maxN) but need a *subset* ChoiceKey (pair / powerset); bound the fan-out.
+3. **All-cards selection audit** — for every selection card, confirm random-vs-choice from the **decompiled
+   OnPlay** (`ilspycmd` vs the Steam `sts2.dll`; never `cards.json` — LocString refs only) and promote the
+   genuine player choices; keep random picks as non-decision defaults (a faithful random-pick chance node is a
+   sub-item of #1's machinery).
+4. **THEN performance** — revisit only after correctness. The remaining lever is a cheaper rollout policy
+   (≤3–4 HP accuracy budget); parallelism/truncation are refuted (see Performance).
+
 1. ✅ **Learned value function (Phase C)** — DONE. `LearnedValue` (logistic+linear heads, 18 features incl.
    the static baseline's own estimate) fit to 425k exact labels via `--train-vf`; held-out survival MAE
    0.023 vs the static `Evaluate` baseline's 0.046 (gated by `LearnedValueTests`). _Follow-ups:_ as an MCTS
@@ -512,24 +531,36 @@ experiment also surfaced the Apotheosis/Armaments clone-aliasing oracle bug, sin
 6. **Content** — Silent 88/88 ✅ done; trace-validate the Silent batch-4–8 ports + the 8 new normal monsters
    against the real game (currently unit-tested only); Act-1 bosses; relic engine hooks;
    the deferred solver-side mid-turn **draw chance-node** for forward search.
-7. **⚠ SOUNDNESS — intra-card SELECTION as real decision nodes.** The action space is flat: `LegalPlays`
-   enumerates only `(card, target-monster)` pairs (`CombatHeuristic.cs:166`), and there is NO search-side
-   card-chooser. Every *in-card* selection is therefore collapsed to a fixed policy under an "HP-neutral"
-   justification — e.g. Headbutt topdecks the most-recently-discarded card (`IroncladCards.cs:688`); Armaments
-   upgrades an arbitrary hand card; the exhaust-a-card cluster (Second Wind, Sever Soul, Burning Pact, Fiend
-   Fire) exhausts arbitrarily; Silent's discard-selection (Acrobatics, CalculatedGamble) is currently deferred
-   for the same reason. **This is only approximately HP-neutral**: the chosen card changes the future draw pile
-   / hand → future plays → future HP over the horizon (the Armaments note already concedes "HP-neutral *unless
-   that card is later played*"). So the exact `Solver` is ground truth only w.r.t. the MDP *as modeled* — for
-   decks containing these cards the selection is pinned to a heuristic, not branched as a player decision, so
-   the oracle is a (close) approximation of true optimal play, not literal ground truth. The current validated
-   fixtures dodge this because the affected cards are absent or genuinely neutral in context. **This bites the
-   Silent pool hardest** (discard/exhaust/tutor effects are pervasive) and is the real reason several Silent
-   cards are deferred. _Fix:_ promote these to genuine decision nodes — but each fans out to `|pile|`/`|hand|`
-   children, i.e. it lands squarely on the card-VARIETY branching cost the APW+PUCT widening is built to
-   contain, so it should be done *on top of* that machinery (and behind a flag, oracle-gated, measuring the
-   accuracy-vs-cost tradeoff per card). Inventory first: which currently-modeled cards collapse a
-   *non-*HP-neutral selection.
+7. **Intra-card SELECTION as real decision nodes — DONE for single-choice cards; two sound boundaries remain.**
+   The machinery is in place and oracle-gated: `CardModel.Choices(state)` declares a card's distinct options
+   (each an option's `StateKey`); `PlayerAction`/`CardPlay` carry a `ChoiceKey`; all three `LegalPlays`
+   (Solver/MCTS/heuristic) emit one action per `(card, target, choice)`, with symmetric options collapsing for
+   free (identical cards share a StateKey) and a null-choice default for trace replay. The rollout leaf is
+   deliberately **choice-free** (a noisy estimator shouldn't pay for fan-out it ignores). Shared helpers
+   `CardModel.HandChoices` / `ChosenHandCard` (exclude the played card by reference — it leaves hand before
+   OnPlay). Each promotion was **verified against the decompiled game OnPlay** (`ilspycmd` vs the Steam
+   `sts2.dll`; `CardSelectCmd.FromHand/FromCombatPile` = player choice, `Rng.CombatCardSelection.NextItem` =
+   random). **Promoted (player-choice, decompile-confirmed):** Headbutt (topdeck), Armaments (upgrade target,
+   base only — upgraded upgrades the whole hand), Burning Pact + Brand (exhaust target, all levels), True Grit
+   (exhaust target, **upgraded only** — base is random), Nightmare (copy target). Each changes the oracle value
+   *only* for decks that contain it (legitimately more correct); decks without are byte-identical.
+
+   **Random selections are deliberately NOT decision nodes (soundness):** Cinder (random at all levels) and base
+   True Grit exhaust a *random* card (`Rng.CombatCardSelection.NextItem`). Modelling a random pick as a player
+   choice would let the search cherry-pick it — optimistically unsound. They keep the deterministic default
+   (a faithful chance-node model of the random pick is a separate later item). Verify random-vs-choice from the
+   decompiled OnPlay before promoting any future selection card — never from `cards.json` (LocString refs only).
+
+   Two categories are deliberately **not** promoted, for sound reasons (not laziness):
+   - **Multi-select (combinatorial):** HiddenDaggers (discard 2), Purity (exhaust up to N) choose a *subset* of
+     hand — a pair / powerset choice set. Value is low/conditional (discards return; Purity is HP-neutral
+     without on-exhaust powers like Feel No Pain / Dark Embrace) and the per-variant APW-prior cost is real, so
+     with no perf buffer (see Performance — a clean 10× is proven unavailable) the branching isn't justified.
+   - **Draw-then-select — CANNOT be promoted as-is:** Acrobatics, Prepared, ThinkingAhead choose from the
+     *post-draw* hand, but **mid-turn `Cmd.Draw` is inert in search** (`combat.Rng == null` in both Solver and
+     the MCTS tree → draws return 0). The choice set literally does not exist in search. The real fix is to
+     model mid-turn draws as **chance nodes** first (a separate, larger architectural item); only then does the
+     downstream discard/put-back become a meaningful decision node.
 
 ### History (condensed)
 Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless autonomy; MCTS solver

@@ -1476,9 +1476,11 @@ public sealed class Nightmare : CardModel
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public override int Cost => Math.Max(0, BaseCost - Upgrades);
     public int Copies => 3;
+    // Which hand card to copy is a real decision node (copy a Strike vs a power vs a Shiv changes next turn).
+    public override IEnumerable<string> Choices(CombatState combat) => HandChoices(combat);
     public override void OnPlay(CombatState combat, CardPlay play)
     {
-        var chosen = combat.Player.Hand.FirstOrDefault();   // default selection
+        var chosen = ChosenHandCard(combat, play.ChoiceKey);
         if (chosen == null) return;
         Cmd.ApplyPower(combat, combat.Player, new NightmarePower { Selected = chosen.Clone() }, Copies, combat.Player);
     }

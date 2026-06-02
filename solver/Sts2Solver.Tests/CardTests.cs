@@ -624,6 +624,115 @@ public class CardTests
         }
     }
 
+    // ----- In-card CHOICE promoted to a search decision (exhaust-from-hand cluster + Nightmare copy) -----
+
+    [Fact]
+    public void TrueGrit_Unupgraded_Exhausts_Random_So_It_Is_NOT_A_Decision_Node()
+    {
+        // SOUNDNESS: base True Grit exhausts a RANDOM card. Modelling it as a player choice would let the
+        // search cherry-pick the exhaust target (optimistically unsound). It must expose NO choices.
+        var (c, p, _) = Fight();
+        p.Hand.Clear();
+        p.Hand.Add(new TrueGrit());
+        p.Hand.Add(new StrikeIronclad());
+        p.Hand.Add(new Bash());
+        p.MaxEnergy = 3; p.ResetEnergy();
+
+        Assert.Empty(p.Hand.First(h => h is TrueGrit).Choices(c));
+        Assert.Single(new Solver().LegalPlays(c).Where(a => a.CardKey == "TrueGrit"));   // one play, no choice fan-out
+    }
+
+    [Fact]
+    public void TrueGrit_Upgraded_Choice_Enumerates_Distinct_Hand_Cards_Excluding_Itself()
+    {
+        // The UPGRADE converts random→chosen, so only upgraded True Grit is a decision node.
+        var (c, p, _) = Fight();
+        p.Hand.Clear();
+        p.Hand.Add((CardModel)new TrueGrit().Upgraded());
+        p.Hand.Add(new StrikeIronclad());
+        p.Hand.Add(new StrikeIronclad());      // duplicate collapses by StateKey
+        p.Hand.Add(new Bash());
+        p.MaxEnergy = 3; p.ResetEnergy();
+
+        var tg = p.Hand.First(h => h is TrueGrit);
+        Assert.Equal(2, tg.Choices(c).Count());   // {StrikeIronclad, Bash} — excludes TrueGrit ITSELF by reference
+
+        var plays = new Solver().LegalPlays(c).Where(a => a.CardKey == "TrueGrit+1").ToList();
+        Assert.Equal(2, plays.Count);             // one decision per distinct exhaust target
+        Assert.Contains(plays, a => a.ChoiceKey == "Bash");
+        Assert.Contains(plays, a => a.ChoiceKey == "StrikeIronclad");
+    }
+
+    [Fact]
+    public void TrueGrit_Upgraded_Exhausts_The_Chosen_Hand_Card_Overriding_The_Default()
+    {
+        foreach (var pick in new[] { "Bash", "StrikeIronclad" })
+        {
+            var (c, p, _) = Fight();
+            p.Hand.Clear();
+            p.Hand.Add((CardModel)new TrueGrit().Upgraded());
+            p.Hand.Add(new StrikeIronclad());     // the default (first) exhaust target
+            p.Hand.Add(new Bash());
+            p.MaxEnergy = 3; p.ResetEnergy();
+
+            CombatManager.PlayCard(c, p.Hand.First(h => h is TrueGrit), null, pick);
+
+            Assert.Contains(p.ExhaustPile, card => card.StateKey() == pick);   // the CHOSEN card was exhausted
+            Assert.DoesNotContain(p.Hand, card => card.StateKey() == pick);    // and is gone from hand
+        }
+    }
+
+    [Fact]
+    public void Nightmare_Copies_The_Chosen_Hand_Card_Overriding_The_Default()
+    {
+        foreach (var pick in new[] { "Bash", "StrikeIronclad" })
+        {
+            var (c, p, _) = Fight();
+            p.Hand.Clear();
+            p.Hand.Add(new Nightmare());
+            p.Hand.Add(new StrikeIronclad());     // the default (first) copy target
+            p.Hand.Add(new Bash());
+            p.MaxEnergy = 3; p.ResetEnergy();
+
+            CombatManager.PlayCard(c, p.Hand.First(h => h is Nightmare), null, pick);
+
+            var power = (NightmarePower)p.GetPower("Nightmare")!;
+            Assert.Equal(pick, power.Selected!.StateKey());   // the CHOSEN card is the one triplicated next turn
+        }
+    }
+
+    [Fact]
+    public void Cinder_Exhausts_Random_At_All_Levels_So_It_Is_NOT_A_Decision_Node()
+    {
+        // SOUNDNESS (decompiled: Rng.CombatCardSelection.NextItem, no IsUpgraded branch): Cinder's exhaust is
+        // RANDOM even when upgraded — never a player choice.
+        var (c, p, m) = Fight();
+        p.Hand.Clear();
+        p.Hand.Add((CardModel)new Cinder().Upgraded());   // even upgraded
+        p.Hand.Add(new StrikeIronclad());
+        p.Hand.Add(new Bash());
+        p.MaxEnergy = 3; p.ResetEnergy();
+        Assert.Empty(p.Hand.First(h => h is Cinder).Choices(c));
+        Assert.Single(new Solver().LegalPlays(c).Where(a => a.CardKey == "Cinder+1" && a.TargetMonsterIndex == 0));
+    }
+
+    [Fact]
+    public void Brand_Exhausts_A_Chosen_Hand_Card_So_It_IS_A_Decision_Node()
+    {
+        // Decompiled: CardSelectCmd.FromHand at all levels — a real player choice.
+        var (c, p, _) = Fight();
+        p.Hand.Clear();
+        p.Hand.Add(new Brand());
+        p.Hand.Add(new StrikeIronclad());
+        p.Hand.Add(new Bash());
+        p.MaxEnergy = 3; p.ResetEnergy();
+        Assert.Equal(2, p.Hand.First(h => h is Brand).Choices(c).Count());   // {StrikeIronclad, Bash}
+
+        CombatManager.PlayCard(c, p.Hand.First(h => h is Brand), null, "Bash");
+        Assert.Contains(p.ExhaustPile, card => card.StateKey() == "Bash");
+        Assert.DoesNotContain(p.Hand, card => card.StateKey() == "Bash");
+    }
+
     [Fact]
     public void SwordBoomerang_Hits_3_Times_For_3_On_A_Single_Enemy()
     {
