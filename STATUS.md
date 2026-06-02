@@ -468,8 +468,11 @@ blocking).
    it would mean tracking draw-pile order in the state key (breaks the multiset memo canonicalisation) — out of
    scope by design. _Follow-ups now UNBLOCKED:_ #2 (multi-select choice) and the draw-then-select half of #3
    (Acrobatics / Prepared / ThinkingAhead) — the post-draw hand the choice ranges over now exists in search.
-   Draw-then-act cards (Acrobatics discard, EscapePlan conditional) still take the safe under-estimate (the draw
-   resolves but the in-effect follow-up reading the drawn card stays inert) until promoted to choice nodes.
+   Draw-then-act cards take the safe under-estimate until promoted: EscapePlan/ThinkingAhead resolve the draw
+   (the conditional block / put-back stays inert / arbitrary — faithful net count, no over-draw), while
+   draw-then-DISCARD cards (Acrobatics, Prepared) stay fully inert in search — modelling only their draw would
+   leave the to-be-discarded card in hand (a net over-draw, optimistically unsound), so like CalculatedGamble
+   they no-op without an Rng and draw+discard only with one (gated by `MidTurnDrawTests`).
 2. **Multi-select choice cards** — after the choice-node machinery: HiddenDaggers (discard 2 of choice) and
    Purity (exhaust 0..N of choice) are genuine player choices (decompile-confirmed `FromHandForDiscard` /
    `FromHand` min0/maxN) but need a *subset* ChoiceKey (pair / powerset); bound the fan-out.
@@ -584,9 +587,11 @@ experiment also surfaced the Apotheosis/Armaments clone-aliasing oracle bug, sin
    - **Draw-then-select — now UNBLOCKED (not yet promoted):** Acrobatics, Prepared, ThinkingAhead choose from
      the *post-draw* hand. As of 2026-06-02 mid-turn `Cmd.Draw` is **no longer inert** — it opens a draw chance
      node (Next steps #1), so the post-draw hand exists in search. The remaining work is to turn each card's
-     downstream discard/put-back into a multi-select choice node (item #2's machinery). Until then these cards
-     resolve the draw faithfully but take the safe under-estimate on the follow-up (the in-effect logic reading
-     the drawn card sees `drew==0`, so e.g. Acrobatics draws but skips its discard, EscapePlan gains no Block).
+     downstream discard/put-back into a multi-select choice node (item #2's machinery). Until then: EscapePlan
+     and ThinkingAhead resolve the draw and take the safe under-estimate on the follow-up (no Block / arbitrary
+     put-back); the draw-then-DISCARD cards (Acrobatics, Prepared) stay fully inert in search, because
+     modelling only the draw would leave the to-be-discarded card in hand — a net over-draw — so they no-op
+     without an Rng (CalculatedGamble's pattern) and draw+discard only with one.
 
 ### History (condensed)
 Milestones complete: engine + exact solver + CLI + oracle/autopilot + headless autonomy; MCTS solver

@@ -57,6 +57,41 @@ public class MidTurnDrawTests
         Assert.True(v.Loss > 0.0, "no draw card ⇒ cannot kill turn 1 ⇒ the slug acts and HP is lost");
     }
 
+    /// <summary>Soundness: a draw-then-DISCARD card (Acrobatics draws 3 / discards 1, Prepared draws N /
+    /// discards N) must NOT over-draw in pure search. The discard chooses from the post-draw hand, which the
+    /// search can't model yet, so modelling only the draw would leave the discarded card in hand — a net
+    /// over-draw that optimistically inflates the player's options. These cards therefore stay inert without an
+    /// ambient Rng (hand unchanged), and draw+discard only with one. (Terminal-draw cards like ShrugItOff do
+    /// participate — see the tests above.)</summary>
+    [Theory]
+    [InlineData("Acrobatics")]
+    [InlineData("Prepared")]
+    public void Draw_Then_Discard_Cards_Do_Not_Over_Draw_In_Search(string cardName)
+    {
+        CombatState Build()
+        {
+            var p = new Player { MaxHp = 30, CurrentHp = 30, Energy = 3, MaxEnergy = 3 };
+            p.Hand.Add(Catalog.BuildCard(cardName));
+            for (int i = 0; i < 6; i++) p.DrawPile.Add(Catalog.BuildCard("StrikeIronclad"));
+            return new CombatState { Player = p, Monsters = { Monsters.CorpseSlug(hp: 30) }, TurnNumber = 1 };
+        }
+
+        // Search mode (Rng null): playing the card draws nothing and discards nothing — net hand size is just
+        // the played card leaving hand (1 → 0), never inflated by an un-discarded draw.
+        var s = Build();
+        var card = s.Player.Hand[0];
+        CombatManager.PlayCard(s, card, null);
+        Assert.Equal(0, s.Player.Hand.Count);   // inert: no net over-draw
+        Assert.Equal(0, s.PendingDraw);         // and nothing deferred to a chance node
+
+        // With a concrete Rng the card is faithful: it really draws (the draw pile shrinks) then discards
+        // (net hand = draw − discard, which is 0 for Prepared and +2 for Acrobatics).
+        var s2 = Build();
+        s2.Rng = new Rng(0);
+        CombatManager.PlayCard(s2, s2.Player.Hand[0], null);
+        Assert.True(s2.Player.DrawPile.Count < 6, "with an Rng the draw is real (draw pile shrank)");
+    }
+
     /// <summary>Cross-validation that the mid-turn draw node makes a fight WINNABLE that is provably unwinnable
     /// without the draw, and that the exact value is sound (no card-duplication / probability blow-up). The
     /// Defends fixture's 2 Strikes (12 dmg) can never chew through Byrdonis' 58 HP on their own — winning needs
