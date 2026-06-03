@@ -83,7 +83,10 @@ public sealed class TheBombPower : PowerModel
         _turns--;
         if (_turns > 0) return;
         foreach (var m in combat.LivingMonsters.ToList())
-            Cmd.Attack(combat, Owner, m, Amount, ValueProp.Move, null);
+            // Unpowered (game: DamageVar 40, ValueProp.Unpowered) — the explosion is NOT scaled by the player's
+            // Strength, and (since both Strength and Vulnerable gate on IsPoweredAttack) NOT amplified by
+            // Vulnerable either. ValueProp.Move here would over-credit a Strength-stacking deck's AoE (optimistic).
+            Cmd.Attack(combat, Owner, m, Amount, ValueProp.Unpowered, null);
         Owner.RemovePower(Id);
     }
 

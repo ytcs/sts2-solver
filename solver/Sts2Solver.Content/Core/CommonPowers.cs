@@ -19,9 +19,16 @@ public sealed class VulnerablePower : PowerModel
         return mult;
     }
 
+    // Game (StS2 VulnerablePower): Vulnerable ticks down at the END OF THE ENEMY TURN — always, regardless of
+    // owner — and a debuff freshly applied to the player skips one tick (PowerCmd.SkipNextDurationTick, mirrored
+    // in Cmd.ApplyPower). So a monster-applied Vuln(1) survives the apply-turn and amplifies the player's NEXT
+    // enemy turn's attacks. Ticking at the OWNER's turn end (as Weak/Frail do) would expire player-owned Vuln at
+    // the player's own turn end — before any enemy attack — silently dropping the ×1.5 the game still applies
+    // (an OPTIMISTIC under-count of incoming damage). For enemy-owned Vuln this is identical to the old behaviour
+    // (the enemy turn end IS the owner's turn end), so only player-owned Vulnerable changes.
     public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
     {
-        if (side != Owner.Side) return;                                        // a debuff ticks down at its OWNER's turn end
+        if (side != CombatSide.Enemy) return;                                  // ticks down at the enemy turn end
         if (SkipNextTick) { SkipNextTick = false; return; }                    // skip the end-tick on the turn it was applied
         Amount--; this.NormalizeOrRemove(Owner);
     }

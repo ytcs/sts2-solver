@@ -589,10 +589,10 @@ public class RegentCardTests
     public void TheSealedThrone_Gains_A_Star_Per_Card_Played()
     {
         var (c, p, m) = Fight(stars: 3);
-        Play(c, new TheSealedThrone(), null);   // 3★ → power attached; its own play triggers AfterCardPlayed
+        Play(c, new TheSealedThrone(), null);   // spends 3★; the game fires on BeforeCardPlayed, so the throne
         Assert.True(p.HasPower("TheSealedThrone"));
-        Assert.Equal(1, p.Stars);               // spent 3, +1 from playing this card
-        Play(c, new StrikeRegent(), m);         // each subsequent card play gains another star
-        Assert.Equal(2, p.Stars);
+        Assert.Equal(0, p.Stars);               // card itself does NOT gain a star (power didn't exist yet)
+        Play(c, new StrikeRegent(), m);         // each SUBSEQUENT card play gains a star
+        Assert.Equal(1, p.Stars);
     }
 }

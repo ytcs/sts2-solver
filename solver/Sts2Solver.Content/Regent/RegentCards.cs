@@ -1279,8 +1279,13 @@ public sealed class Tyranny : CardModel
         => Cmd.ApplyPower(combat, combat.Player, new TyrannyPower(), 1, combat.Player);
 }
 
-/// <summary>Ethereal. Power: the next 2 cards each turn cost 0 (cost discount deferred — inert here); ends
-/// your turn. Upgrade: loses Ethereal. (MegaCrit VoidForm)</summary>
+/// <summary>Ethereal. Power: the next 2 cards each turn cost 0 (cost discount deferred — inert here); the game
+/// ALSO ends your turn on play (PlayerCmd.EndTurn). Both are left inert, and that pair is SOUND, not optimistic:
+/// the cost-0 benefit is the only reason to play VoidForm, and with it inert the card is pure waste (spend 3
+/// energy for a do-nothing power), so the survival/HP-maximising search never voluntarily plays it — meaning the
+/// un-modelled end-turn can never grant the player extra plays it shouldn't have. (Replay only follows recorded
+/// actions, so traces are unaffected either way.) Net: we under-value a strong card — the pessimistic direction.
+/// Upgrade: loses Ethereal. (MegaCrit VoidForm)</summary>
 public sealed class VoidForm : CardModel
 {
     public override string Name => "VoidForm";

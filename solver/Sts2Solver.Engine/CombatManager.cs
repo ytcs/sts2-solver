@@ -51,6 +51,18 @@ public static class CombatManager
     /// <summary>Play a card from hand at an optional target. Validates cost/target, spends energy,
     /// runs the effect, and moves the card to its result pile. <paramref name="choiceKey"/> carries an in-play
     /// choice (an option's <see cref="CardModel.StateKey"/>) for cards that require one; null = no/ default choice.</summary>
+    /// <summary>The card's fully-resolved energy cost: <see cref="CardModel.EffectiveCost"/> plus every active
+    /// power's <see cref="PowerModel.ModifyCardCost"/> (Free Attack / Corruption reducers, Borrowed Time
+    /// increases), clamped to ≥0 — the value <see cref="PlayCard"/> spends and the game's
+    /// <c>EnergyCost.GetResolved()</c>. Side-effect free (the reducer-consume side effects fire later via
+    /// AfterModifyingCardCost), so powers that gate on resolved cost (Danse Macabre) can call it from a hook.</summary>
+    public static int ResolveCardCost(CombatState combat, CardModel card)
+    {
+        int c = card.EffectiveCost(combat);
+        foreach (var pw in combat.AllPowers.ToList()) c = pw.ModifyCardCost(card, c);
+        return System.Math.Max(0, c);
+    }
+
     public static void PlayCard(CombatState combat, CardModel card, Creature? target, string? choiceKey = null)
     {
         var player = combat.Player;

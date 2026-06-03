@@ -325,6 +325,16 @@ public static class Cmd
         target.AddPower(power, amount);
         // AfterApplied fires on the live power instance (the one now attached).
         target.GetPower(power.Id)?.AfterApplied(combat, applier);
+        // Mirror the game's PowerCmd.SkipNextDurationTick: a debuff applied to the PLAYER skips its upcoming
+        // duration tick so it survives into the next turn. Of the duration-ticking debuffs only Vulnerable ticks
+        // on the ENEMY turn end (Weak/Frail tick at the player's OWN turn end, between which the player acts, so
+        // they need no central skip — Doubt/Shame self-skip their turn-end application). Without this, monster-
+        // applied Vulnerable would tick away at the apply-turn's enemy-turn-end and never amplify an enemy attack.
+        if (amount > 0 && target.Side == CombatSide.Player && power.Id == "Vulnerable")
+        {
+            var v = target.GetPower("Vulnerable");
+            if (v != null) v.SkipNextTick = true;
+        }
         // Broadcast to every power (Vicious draws when the owner applies Vulnerable).
         foreach (var p in combat.AllPowers.ToList()) p.AfterPowerApplied(combat, target, power, amount, applier);
     }

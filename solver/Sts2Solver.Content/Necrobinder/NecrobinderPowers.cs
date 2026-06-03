@@ -295,7 +295,10 @@ public sealed class EnfeeblingTouchPower : TemporaryStrengthPower
 
 // ─────────────────────────── Block / energy / cost ───────────────────────────
 
-/// <summary>On the player. Before playing a card costing ≥2, gain Amount block. (Game: DanseMacabrePower.)</summary>
+/// <summary>On the player. Before playing a card costing ≥2, gain Amount block. (Game: DanseMacabrePower gates on
+/// <c>EnergyCost.GetResolved() >= 2</c> — the RESOLVED cost, after Free Attack / Corruption / Banshee's Cry
+/// reducers. Gating on the static <c>card.Cost</c> would grant block for a card whose printed cost is ≥2 but
+/// whose resolved cost a reducer dropped below 2 — extra block the game does not give, an OPTIMISTIC gap.)</summary>
 public sealed class DanseMacabrePower : PowerModel
 {
     public override string Id => "DanseMacabre";
@@ -303,7 +306,7 @@ public sealed class DanseMacabrePower : PowerModel
 
     public override void BeforeCardPlayed(CombatState combat, CardModel card)
     {
-        if (card.Cost >= 2) Cmd.GainBlock(combat, Owner, Amount, ValueProp.Unpowered, null);
+        if (CombatManager.ResolveCardCost(combat, card) >= 2) Cmd.GainBlock(combat, Owner, Amount, ValueProp.Unpowered, null);
     }
 }
 
@@ -319,15 +322,23 @@ public sealed class SpiritOfAshPower : PowerModel
     }
 }
 
-/// <summary>On an enemy. The next card you play this turn applies Amount Doom to it; removed at the
-/// player's turn end. (Game: OblivionPower — applies on every card played while active.)</summary>
+/// <summary>On an enemy. Each card you play this turn applies Amount Doom to it; removed at the player's turn
+/// end. (Game: OblivionPower registers cards in BeforeCardPlayed and applies the Doom in AfterCardPlayed — so the
+/// card whose OnPlay APPLIED Oblivion is never registered (the power didn't exist at its BeforeCardPlayed) and
+/// grants no Doom for itself. We must skip that applying card too, else we'd apply one extra Doom on the play
+/// turn — and since Doom executes the enemy, that OVER-credits the player.)</summary>
 public sealed class OblivionPower : PowerModel
 {
     public override string Id => "Oblivion";
     public override PowerType Type => PowerType.Debuff;
 
+    private bool _skipApplyingCard;
+
+    public override void AfterApplied(CombatState combat, Creature? applier) => _skipApplyingCard = true;
+
     public override void AfterCardPlayed(CombatState combat, CardModel card)
     {
+        if (_skipApplyingCard) { _skipApplyingCard = false; return; }   // the Oblivion card itself
         Cmd.ApplyPower(combat, Owner, new DoomPower(), Amount, Owner);
     }
 
@@ -335,6 +346,16 @@ public sealed class OblivionPower : PowerModel
     {
         if (side == CombatSide.Player) Owner.RemovePower(Id);
     }
+
+    public override PowerModel Clone()
+    {
+        var c = (OblivionPower)base.Clone();
+        c._skipApplyingCard = _skipApplyingCard;
+        return c;
+    }
+
+    public override string StateKey() => $"{Id}={Amount}{(_skipApplyingCard ? "*" : "")}";
+    public override long HashValue() => base.HashValue() ^ (_skipApplyingCard ? 0x165667b1L : 0L);
 }
 
 /// <summary>On the player. +Amount max energy each turn. (Game: FriendshipPower / DemesnePower energy half.)</summary>

@@ -249,6 +249,30 @@ public class PipelineTests
     }
 
     [Fact]
+    public void PlayerOwned_Vulnerable_Survives_Apply_Turn_And_Amplifies_Next_Enemy_Attack()
+    {
+        // Regression for an OPTIMISTIC gap: a monster-applied Vulnerable on the PLAYER must tick at the ENEMY
+        // turn end (not the player's own turn end) and skip the apply-turn tick — exactly the game's
+        // VulnerablePower (enemy-turn-end tick) + PowerCmd.SkipNextDurationTick. Previously it ticked at the
+        // player's turn end and expired before any enemy attack landed, silently dropping the x1.5.
+        var (combat, m) = Fight();
+        combat.CurrentSide = CombatSide.Enemy;
+        Cmd.ApplyPower(combat, combat.Player, new VulnerablePower(), 1, m);     // monster applies Vuln(1)
+        var v = combat.Player.GetPower("Vulnerable")!;
+        Assert.True(v.SkipNextTick);                                            // mirrors PowerCmd.SkipNextDurationTick
+
+        v.AfterSideTurnEnd(combat, CombatSide.Enemy);                           // apply (enemy) turn ends: tick skipped
+        Assert.Equal(1, combat.Player.GetPowerAmount("Vulnerable"));
+        v.AfterSideTurnEnd(combat, CombatSide.Player);                          // player's own turn end: does NOT tick
+        Assert.Equal(1, combat.Player.GetPowerAmount("Vulnerable"));
+
+        Cmd.Attack(combat, m, combat.Player, 10, ValueProp.Move, null);         // next enemy attack: 10 x1.5 = 15
+        Assert.Equal(80 - 15, combat.Player.CurrentHp);
+        v.AfterSideTurnEnd(combat, CombatSide.Enemy);                           // wears off at this enemy turn end
+        Assert.Equal(0, combat.Player.GetPowerAmount("Vulnerable"));
+    }
+
+    [Fact]
     public void CorpseSlug_Moves_Deal_Expected_Damage_And_Frail()
     {
         var player = Catalog.BuildPlayer(new List<CardModel>(), currentHp: 80, maxHp: 80);

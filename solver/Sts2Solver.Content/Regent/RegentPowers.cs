@@ -263,16 +263,34 @@ public sealed class MonologuePower : PowerModel
 }
 
 /// <summary>The Sealed Throne (Ancient): whenever the owner plays a card, gain <c>Amount</c> stars. (MegaCrit
-/// TheSealedThronePower — the game fires before the play; firing after is equivalent for HP purposes.)</summary>
+/// TheSealedThronePower fires on BeforeCardPlayed; the Power card that applies the power ran its own
+/// BeforeCardPlayed before the power existed, so it does NOT grant a star for itself. We fire on AfterCardPlayed
+/// (equivalent for HP since stars are spent later), but must skip the applying card or we'd over-grant one star
+/// on the play turn — an OPTIMISTIC over-count for star-payback decks.)</summary>
 public sealed class TheSealedThronePower : PowerModel
 {
     public override string Id => "TheSealedThrone";
     public override PowerType Type => PowerType.Buff;
 
+    private bool _skipApplyingCard;
+
+    public override void AfterApplied(CombatState combat, Creature? applier) => _skipApplyingCard = true;
+
     public override void AfterCardPlayed(CombatState combat, CardModel card)
     {
+        if (_skipApplyingCard) { _skipApplyingCard = false; return; }   // the Sealed Throne card itself
         Cmd.GainStars(combat, Amount);
     }
+
+    public override PowerModel Clone()
+    {
+        var c = (TheSealedThronePower)base.Clone();
+        c._skipApplyingCard = _skipApplyingCard;
+        return c;
+    }
+
+    public override string StateKey() => $"{Id}={Amount}{(_skipApplyingCard ? "*" : "")}";
+    public override long HashValue() => base.HashValue() ^ (_skipApplyingCard ? 0x27d4eb2fL : 0L);
 }
 
 // ---- Documented-inert markers (effects depend on unported subsystems) ----
