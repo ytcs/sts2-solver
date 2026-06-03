@@ -139,7 +139,8 @@ public sealed class Thunderclap : CardModel
         }
     }
 }
-/// <summary>Deal 12 damage to ALL enemies. Upgrade: +2. (MegaCrit Stomp)</summary>
+/// <summary>Deal 12 damage to ALL enemies. Upgrade: +3. (MegaCrit Stomp — Damage.UpgradeValueBy(3).
+/// The card's per-Attack cost reduction is cost-only and unmodelled — HP-neutral.)</summary>
 public sealed class Stomp : CardModel
 {
     public override string Name => "Stomp";
@@ -147,7 +148,7 @@ public sealed class Stomp : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AllEnemies;
-    public int Damage => 12 + 2 * Upgrades;
+    public int Damage => 12 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         foreach (var m in combat.LivingMonsters.ToList())

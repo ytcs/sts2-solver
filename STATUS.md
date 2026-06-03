@@ -1,8 +1,9 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-02. Recent: the two Regent fidelity gaps from the audit resolved — CrescentSpear
-verified correct as-is; BeatIntoShape's history-based Forge modelled exactly via a gated per-target
-powered-hits counter. Earlier: Sly/Innate/Retain keywords 1:1; HiddenDaggers promotion; Murder live-validation._
+_Last updated: 2026-06-02. Recent: a scaling/conditional-card audit (all 37 ported WithMultiplier/history cards
+vs the decompile) — found NO optimistic over-crediting anywhere; CrescentSpear verified correct; BeatIntoShape's
+history-based Forge modelled exactly (gated per-target powered-hits counter); Stomp upgrade fixed 12+2U→12+3U.
+Earlier: Sly/Innate/Retain keywords 1:1; HiddenDaggers promotion; Murder live-validation._
 
 ## Goal
 
@@ -30,7 +31,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 523 passing, 0 skipped/failed. Traces: 73 recorded game traces, all PASS.**
+- **Tests: 524 passing, 0 skipped/failed. Traces: 73 recorded game traces, all PASS.**
 
 ---
 
@@ -190,31 +191,32 @@ first within a tier)** — so to make a specific high-cost / discard-triggered c
 
 ## Current priority & next steps
 
-**Priority: CORRECTNESS — 1:1-model the mechanics of every ported card.** A full per-module fidelity audit
-(Silent/Colorless/Ironclad/Special/Curses/Regent/Necrobinder vs the decompile) found the catalog largely
-fidelity-correct: **Necrobinder is clean; Ironclad/Special are clean** (sampled damage/upgrade/power numbers all
-match). Sly/Innate/Retain are now modelled. **The two Regent gaps it flagged are now resolved** (CrescentSpear
-verified correct as-is; BeatIntoShape's history-based Forge modelled exactly — see 1–2 below). The remaining
-items are lower-value and listed after.
+**Priority: CORRECTNESS — 1:1-model the mechanics of every ported card.** The per-module fidelity audit plus a
+follow-up **scaling/conditional-card audit** (all 37 ported cards that use a `WithMultiplier`/history-based
+damage or block term, cross-checked formula-by-formula vs the decompile) found the catalog fidelity-correct.
+**Crucially, no OPTIMISTIC (over-crediting / dangerous) gap exists** anywhere in the scaling set — every
+remaining mismatch is PESSIMISTIC (under-credit, sound). Resolved this pass:
 
-1. **Regent `CrescentSpear` — star-count filter. VERIFIED CORRECT (no change).** Game scales on
-   `AllCards.Count(c => c.CanonicalStarCost >= 0 || c.HasStarCostX)`. Base `CanonicalStarCost` defaults to −1
-   and **no card has `CanonicalStarCost == 0`** (confirmed via decompile sweep), so `>= 0` ≡ our `StarCost > 0`.
-   `AllCards` includes the in-play PlayPile card ⇒ our `+1` for the card being played is exact. Left as-is.
-2. **Regent `BeatIntoShape` — history-based Forge. DONE.** Decompile: Forge = `CalcBase + CalcExtra×count −
-   thisCard'sHits×CalcExtra` = `CalcBase + CalcExtra×priorHits` with `CalcBase == CalcExtra == 5 (+2/upg)`,
-   where priorHits = powered (Move, non-Unpowered) hits the player dealt **this target this turn before this
-   card**. (STATUS previously called this "optimistic/over-forge"; it was the *opposite* — our fixed `5+2·U`
-   was the priorHits=0 floor, i.e. **pessimistic** under-forge, since Forge builds the beneficial Sovereign
-   Blade.) Now modelled exactly via a gated per-creature counter `Creature.PlayerPoweredHitsThisTurn`
-   (incremented in `Cmd.Attack` on player powered Move hits, reset at player-turn start, hashed/keyed only when
-   the deck holds BeatIntoShape — `CombatState.TracksPoweredHits` / `CardModel.TracksTargetPoweredHits`,
-   mirroring the Murder `TracksCardsDrawn` gate). `RegentForge.Forge(5+2·U × (1+priorHits))`.
-3. **Single-turn Sly grant** (HandTrick selects a Skill, MasterPlannerPower grants Sly to played Skills) — still
-   inert. Needs a mutable per-card single-turn-Sly flag (makes granted cards Stateful). Moderate; low frequency.
-4. **`Purity` variable-count exhaust-of-choice** (0..N) — Retain now set, but the exhaust selection is a fixed
+- **CrescentSpear — verified correct, no change.** `AllCards.Count(c => CanonicalStarCost >= 0 || HasStarCostX)`:
+  base default −1 and no card has `CanonicalStarCost == 0`, so `>= 0` ≡ our `StarCost > 0`; `AllCards` includes
+  the in-play PlayPile card ⇒ our `+1` is exact.
+- **BeatIntoShape — history-based Forge modelled exactly.** Forge = `CalcBase + CalcExtra×priorHits`
+  (`CalcBase==CalcExtra==5, +2/upg`), priorHits = powered Move hits the player dealt this target this turn
+  before this card. (Was the priorHits=0 floor — a *pessimistic* under-forge of the beneficial Sovereign Blade,
+  not the "over-forge" STATUS once claimed.) Gated per-creature counter `Creature.PlayerPoweredHitsThisTurn`
+  (`CombatState.TracksPoweredHits` / `CardModel.TracksTargetPoweredHits`, mirroring the Murder gate).
+- **Stomp — upgrade number fixed** `12 + 2·U → 12 + 3·U` (decompile `Damage.UpgradeValueBy(3)`); upgraded Stomp
+  now deals 15 to all enemies. Same wrong-number class as commit d2bb41e.
+
+Remaining (all lower-value; #1–2 inert-but-sound, #3 needs the game you're playing):
+
+1. **Single-turn Sly grant** (HandTrick selects a Skill, MasterPlannerPower grants Sly to played Skills) — still
+   inert (pessimistic: under-credits a beneficial free auto-play). A full fix is high-cost (mutable per-card Sly
+   flag ⇒ Stateful; HandTrick's selection is a player CHOICE node; benefit only materialises via a mid-turn
+   discard) and a careless partial fix risks the forbidden optimistic direction. Deferred deliberately. Low freq.
+2. **`Purity` variable-count exhaust-of-choice** (0..N) — Retain now set, but the exhaust selection is a fixed
    default; HP-neutral without on-exhaust powers (Feel No Pain / Dark Embrace). Low value.
-5. **Live-validate the new mechanics** via headless single-enemy runs: a Sly-discard fight (e.g. CalculatedGamble
+3. **Live-validate the new mechanics** via headless single-enemy runs: a Sly-discard fight (e.g. CalculatedGamble
    + Untouchable/FlickFlack), an Innate deck, a Retain deck. Murder is already live-validated (trace #73). The
    random-target (SerpentForm/Ricochet/RipAndTear) and hand-size (PreciseCut) cards need single-enemy encounters.
 
@@ -225,6 +227,13 @@ TankPower), move-legality curses (Normality 3-cards/turn, Enthralled hand-lockou
 understate harm), Whistle stun (needs a monster skip-move hook), Rupture end-of-turn self-damage edge, MadScience
 TinkerTime, true-RNG card-selection for Cinder / base True Grit (kept deterministic-default — promoting would be
 optimistically unsound). Random card-selection is deliberately NEVER a search decision node.
+
+**Audit-confirmed PESSIMISTIC (sound) gaps left as-is** (under-credit the player; fixing is low-value or
+high-risk): **DeathMarch** draw-scaling (`+(4+2U) × mid-turn cards drawn this turn`) is 0 in search — modelling
+it means threading a mid-turn-only draw counter through all four convergence-critical draw paths (concrete
+`DrawCards`, exact `EnumerateDraw`, MCTS, rollout/replay); deferred behind the exact↔MCTS convergence guard.
+Also: **Fetch** card-draw, **MakeItSo** return-to-hand recursion, **Pinpoint**/**Stomp** per-card cost reduction
+(cost-only ⇒ HP-neutral), **Squeeze** omits the transient PlayPile from its OstyAttack count (exotic, ≤1 under).
 
 **Longer-horizon roadmap (unchanged, behind correctness):** calibration expansion (all 12 elites + random-deck
 generator); VF distillation + survival recalibration (Platt/isotonic) + deck-composition features; more relics
@@ -244,4 +253,5 @@ prune); Phase-C learned value function; the lexicographic-objective question set
 **Murder live-validation** (turn-start-draw reconstruction in the validator, trace #73); **Sly/Innate/Retain
 keyword mechanics 1:1** + a full per-module catalog fidelity audit (Predator/FlashOfSteel upgrade-number fixes);
 **the audit's two Regent gaps closed** (CrescentSpear verified correct; BeatIntoShape history-based Forge via a
-gated per-target powered-hits counter).
+gated per-target powered-hits counter); **a 37-card scaling/conditional audit** (no optimistic over-crediting;
+Stomp upgrade number fixed).

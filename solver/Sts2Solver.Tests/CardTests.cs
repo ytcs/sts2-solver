@@ -133,6 +133,18 @@ public class CardTests
     }
 
     [Fact]
+    public void Stomp_Upgraded_Hits_All_Enemies_For_15()   // game: Damage.UpgradeValueBy(3) → 12+3
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
+        var m1 = Monsters.CalcifiedCultist(hp: 40);
+        var m2 = Monsters.CalcifiedCultist(hp: 40);
+        var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
+        Play(combat, (Stomp)new Stomp().Upgraded(1), null);
+        Assert.Equal(40 - 15, m1.CurrentHp);
+        Assert.Equal(40 - 15, m2.CurrentHp);
+    }
+
+    [Fact]
     public void Break_Deals_20_And_Applies_5_Vulnerable()
     {
         var (c, _, m) = Fight();
