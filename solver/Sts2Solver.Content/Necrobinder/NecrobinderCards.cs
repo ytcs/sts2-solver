@@ -32,6 +32,7 @@ public sealed class DefendNecrobinder : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Basic;
     public override TargetType Target => TargetType.Self;
+    public override bool IsDefend => true;   // Defend tag (Fasten boost)
     public int Block => 5 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);

@@ -83,6 +83,12 @@ public sealed class CombatState
     public int EnergySpentThisTurn;
     public bool TracksEnergySpent;
 
+    /// <summary>Cards finished playing this combat (Colorless GoldAxe deals this much damage). A per-combat
+    /// counter incremented after each card's effect resolves, so a card never counts itself. Only tracked +
+    /// hashed when <see cref="TracksCardsPlayed"/> is set (a deck holds GoldAxe).</summary>
+    public int CardsPlayedThisCombat;
+    public bool TracksCardsPlayed;
+
     /// <summary>Osty attacks resolved this turn (Necrobinder Flatten costs 0 after one; Rattle hits 1 +
     /// this many). Reset at the player's turn start.</summary>
     public int OstyAttacksThisTurn;
@@ -200,6 +206,8 @@ public sealed class CombatState
             TracksLightningChanneled = TracksLightningChanneled,
             EnergySpentThisTurn = EnergySpentThisTurn,
             TracksEnergySpent = TracksEnergySpent,
+            CardsPlayedThisCombat = CardsPlayedThisCombat,
+            TracksCardsPlayed = TracksCardsPlayed,
             OstyAttacksThisTurn = OstyAttacksThisTurn,
             DoomAppliedThisTurn = DoomAppliedThisTurn,
             PendingDraw = PendingDraw,
@@ -229,6 +237,7 @@ public sealed class CombatState
         var drawn = TracksCardsDrawn ? $"/w{CardsDrawnThisCombat}" : "";
         if (TracksLightningChanneled) drawn += $"/lc{LightningsChanneledThisCombat}";   // Voltaic
         if (TracksEnergySpent) drawn += $"/es{EnergySpentThisTurn}";                     // HelixDrill
+        if (TracksCardsPlayed) drawn += $"/cp{CardsPlayedThisCombat}";                   // GoldAxe
         // Per-target powered hits this turn (BeatIntoShape) — only when a deck reads it, listed in monster order.
         if (TracksPoweredHits) drawn += "/ph" + string.Join(".", Monsters.Select(m => m.PlayerPoweredHitsThisTurn));
         var disc = PendingDiscard != 0 ? $"/pd{PendingDiscard}{(PendingDiscardCard != null ? "+" + PendingDiscardCard.StateKey() : "")}" : "";   // discard-of-choice in flight (+continuation card, e.g. HiddenDaggers)

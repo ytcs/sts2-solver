@@ -19,6 +19,23 @@ public static partial class Catalog
         ["Slimed"] = () => new Slimed(),
         ["Void"] = () => new Void(),
         ["Fuel"] = () => new Fuel(),
+        // Remaining Status pool cards.
+        ["Beckon"] = () => new Beckon(),
+        ["Debris"] = () => new Debris(),
+        ["FranticEscape"] = () => new FranticEscape(),
+        ["Soot"] = () => new Soot(),
+        ["Toxic"] = () => new Toxic(),
+        ["Wither"] = () => new Wither(),
+        ["Disintegration"] = () => new Disintegration(),
+        ["MindRot"] = () => new MindRot(),
+        ["Sloth"] = () => new Sloth(),
+        ["WasteAway"] = () => new WasteAway(),
+        // Token pool cards (minion summons + GiantRock + Luminesce).
+        ["GiantRock"] = () => new GiantRock(),
+        ["Luminesce"] = () => new Luminesce(),
+        ["MinionDiveBomb"] = () => new MinionDiveBomb(),
+        ["MinionSacrifice"] = () => new MinionSacrifice(),
+        ["MinionStrike"] = () => new MinionStrike(),
         ["AscendersBane"] = () => new AscendersBane(),
         // Curses (Core/Curses.cs) — buildable by name for a real run deck, excluded from the deck-buildable
         // CardPool (never deliberately added), like the status cards above.
@@ -140,10 +157,13 @@ public static partial class Catalog
         // counters tracked + hashed only when a deck that reads them is present.
         bool tracksLightning = allCards.Any(c => c.TracksLightningChanneledThisCombat);
         bool tracksEnergySpent = allCards.Any(c => c.TracksEnergySpentThisTurn);
+        // Colorless GoldAxe scales on cards played this combat — gated counter, tracked only when present.
+        bool tracksCardsPlayed = allCards.Any(c => c.TracksCardsPlayedThisCombat);
         var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0,
                                        CurrentSide = CombatSide.Player, TracksCardsDrawn = tracksDrawn,
                                        BoundsPlays = boundsPlays, TracksPoweredHits = tracksPoweredHits,
-                                       TracksLightningChanneled = tracksLightning, TracksEnergySpent = tracksEnergySpent };
+                                       TracksLightningChanneled = tracksLightning, TracksEnergySpent = tracksEnergySpent,
+                                       TracksCardsPlayed = tracksCardsPlayed };
         foreach (var r in player.Relics) r.OnCombatStart(combat);   // e.g. DivineRight grants Stars, Bound Phylactery summons Osty
         return combat;
     }

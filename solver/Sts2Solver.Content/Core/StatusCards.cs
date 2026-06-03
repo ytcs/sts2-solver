@@ -121,6 +121,235 @@ public sealed class Fuel : CardModel
     }
 }
 
+// ===========================================================================
+// Additional Status cards (the 6 remaining StatusCardPool entries). Same idiom
+// as Infection/Burn: Unplayable dilution, or a playable "dead card" you can pay
+// to discard, plus end-of-turn in-hand self-damage where the spec has it.
+// ===========================================================================
+
+/// <summary>Status card: cost 1, playable (plays for no effect — spending energy to discard it dodges the
+/// in-hand hit). At end of the player's turn, every copy held in hand deals 6 UNBLOCKABLE damage to the player
+/// (unpowered). (MegaCrit Beckon — the damage ignores block, so it is dealt with ValueProp.Unblockable.)</summary>
+public sealed class Beckon : CardModel
+{
+    public override string Name => "Beckon";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.None;
+    public override bool HasTurnEndInHandEffect => true;
+    public int Damage => 6;
+    public override void OnPlay(CombatState combat, CardPlay play) { }   // playable, no effect
+    public override void OnTurnEndInHand(CombatState combat)
+        => Cmd.Attack(combat, combat.Player, combat.Player, Damage,
+                      ValueProp.Unblockable | ValueProp.Unpowered | ValueProp.Move, this);
+}
+
+/// <summary>Status card: cost 1, Exhaust, playable for no effect (a dead card you can pay 1 to remove from
+/// hand). No in-hand effect — pure dilution otherwise. (MegaCrit Debris)</summary>
+public sealed class Debris : CardModel
+{
+    public override string Name => "Debris";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.None;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+
+/// <summary>Status card: cost 1, playable for no combat-relevant effect. (MegaCrit FranticEscape — generated
+/// only by the Sandpit boss; its effect feeds that boss's SandpitPower and bumps its own cost, both HP-neutral
+/// in any fight we model, so it is inert. Documented pessimistic-sound.)</summary>
+public sealed class FranticEscape : CardModel
+{
+    public override string Name => "FranticEscape";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.Self;
+    public override void OnPlay(CombatState combat, CardPlay play) { }   // Sandpit-only / cost growth: HP-neutral
+}
+
+/// <summary>Status card: Unplayable. No effect while held — pure draw dilution. (MegaCrit Soot)</summary>
+public sealed class Soot : CardModel
+{
+    public override string Name => "Soot";
+    public override int BaseCost => -1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.None;
+    public override bool Unplayable => true;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+
+/// <summary>Status card: cost 1, Exhaust, playable for no effect (pay 1 to dodge the in-hand hit). At end of
+/// the player's turn, every copy held in hand deals 5 damage to the player — unpowered but blockable. (MegaCrit
+/// Toxic)</summary>
+public sealed class Toxic : CardModel
+{
+    public override string Name => "Toxic";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.None;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public override bool HasTurnEndInHandEffect => true;
+    public int Damage => 5;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+    public override void OnTurnEndInHand(CombatState combat)
+        => Cmd.Attack(combat, combat.Player, combat.Player, Damage, ValueProp.Unpowered | ValueProp.Move, this);
+}
+
+/// <summary>Status card: Unplayable. At end of the player's turn, every copy held in hand deals 3 damage to
+/// the player — unpowered but blockable (same as Burn). (MegaCrit Wither — the FakeUpgrade display level is
+/// cosmetic and not modelled.)</summary>
+public sealed class Wither : CardModel
+{
+    public override string Name => "Wither";
+    public override int BaseCost => -1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.None;
+    public override bool Unplayable => true;
+    public override bool HasTurnEndInHandEffect => true;
+    public int Damage => 3;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+    public override void OnTurnEndInHand(CombatState combat)
+        => Cmd.Attack(combat, combat.Player, combat.Player, Damage, ValueProp.Unpowered | ValueProp.Move, this);
+}
+
+// ---- KnowledgeDemon "choice" status cards: Unplayable dilution. Their power (applied via the boss's
+// OnChosen event, not by playing/holding the card) is out of scope — KnowledgeDemon is not modelled, and the
+// card itself is only ever inert dilution in hand. (MegaCrit Disintegration / MindRot / Sloth / WasteAway.) ----
+
+/// <summary>Status card (KnowledgeDemon): Unplayable dilution. (MegaCrit Disintegration.)</summary>
+public sealed class Disintegration : CardModel
+{
+    public override string Name => "Disintegration";
+    public override int BaseCost => -1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.None;
+    public override bool Unplayable => true;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+
+/// <summary>Status card (KnowledgeDemon): Unplayable dilution. (MegaCrit MindRot.)</summary>
+public sealed class MindRot : CardModel
+{
+    public override string Name => "MindRot";
+    public override int BaseCost => -1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.None;
+    public override bool Unplayable => true;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+
+/// <summary>Status card (KnowledgeDemon): Unplayable dilution. (MegaCrit Sloth.)</summary>
+public sealed class Sloth : CardModel
+{
+    public override string Name => "Sloth";
+    public override int BaseCost => -1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.None;
+    public override bool Unplayable => true;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+
+/// <summary>Status card (KnowledgeDemon): Unplayable dilution. (MegaCrit WasteAway.)</summary>
+public sealed class WasteAway : CardModel
+{
+    public override string Name => "WasteAway";
+    public override int BaseCost => -1;
+    public override CardType Type => CardType.Status;
+    public override CardRarity Rarity => CardRarity.Status;
+    public override TargetType Target => TargetType.None;
+    public override bool Unplayable => true;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+
+// ===========================================================================
+// Token cards (minion-summon tokens + GiantRock + Luminesce). Playable cards
+// created mid-combat by summon/relic effects; modelled 1:1 by their numbers.
+// ===========================================================================
+
+/// <summary>Token: deal 16 damage. Cost 1. Upgrade: +4 damage. (MegaCrit GiantRock.)</summary>
+public sealed class GiantRock : CardModel
+{
+    public override string Name => "GiantRock";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Token;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public int Damage => 16 + 4 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+}
+
+/// <summary>Token: gain 2 energy. Exhaust. Retain. Cost 0. Upgrade: +1 energy. (MegaCrit Luminesce.)</summary>
+public sealed class Luminesce : CardModel
+{
+    public override string Name => "Luminesce";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Token;
+    public override TargetType Target => TargetType.Self;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public override bool Retain => true;
+    public int Energy => 2 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play) => Cmd.GainEnergy(combat, Energy);
+}
+
+/// <summary>Token: deal 13 damage. Exhaust. Cost 0. Upgrade: +3 damage. (MegaCrit MinionDiveBomb.)</summary>
+public sealed class MinionDiveBomb : CardModel
+{
+    public override string Name => "MinionDiveBomb";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Token;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public int Damage => 13 + 3 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+}
+
+/// <summary>Token: gain 8 Block. Exhaust. Cost 0. Upgrade: +3 Block. (MegaCrit MinionSacrifice.)</summary>
+public sealed class MinionSacrifice : CardModel
+{
+    public override string Name => "MinionSacrifice";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Token;
+    public override TargetType Target => TargetType.Self;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public int Block => 8 + 3 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+}
+
+/// <summary>Token: deal 6 damage, draw 1 card. Exhaust. Cost 0. Upgrade: +3 damage. (MegaCrit MinionStrike —
+/// Strike-tagged.)</summary>
+public sealed class MinionStrike : CardModel
+{
+    public override string Name => "MinionStrike";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Token;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public override bool IsStrike => true;
+    public int Damage => 6 + 3 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+        Cmd.Draw(combat, 1);
+    }
+}
+
 /// <summary>Curse: Unplayable + Ethereal (exhausts at end of turn if still in hand) + Eternal (can't be
 /// removed from the deck between combats). The starting curse added to every deck at Ascension 5+
 /// (AscendersBane), so it appears in the opening hand/draw of every A10 run. No combat effect — pure draw

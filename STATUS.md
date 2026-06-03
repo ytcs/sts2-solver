@@ -16,10 +16,12 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
 
 ## Current state
 
-- **Content — five characters complete (88/88 each):** Ironclad, Silent, Regent (Stars + Forge/Sovereign
-  Blade), Necrobinder (Osty pet + Doom), **Defect (orbs + Focus)** — plus Colorless (18), the Event/Ancient
-  "Special" pool (24), curses (18). Act-1 elites 12/12 + the normal-monster set, trace-validated against
-  live recordings.
+- **Content — every combat-relevant non-multiplayer card ported (552/556).** Five characters complete
+  (88/88 each): Ironclad, Silent, Regent (Stars + Forge/Sovereign Blade), Necrobinder (Osty pet + Doom),
+  **Defect (orbs + Focus)** — plus the **full Colorless pool (53/53)**, the **complete Status (12) + Token (14)
+  pools**, the Event/Ancient "Special" pool, and curses (18). The only 4 unported in-scope cards are 3 Quest/map
+  items (ByrdonisEgg/LanternKey/SpoilsMap — not combat cards) and MadScience (documented out-of-scope RNG
+  card-gen). Act-1 elites 12/12 + the normal-monster set, trace-validated against live recordings.
 - **Defect — COMPLETE (88/88).** The full **orb subsystem** is built and gated (engine `Orbs.cs`): all five
   orb types (Lightning damage / Frost block / Dark accumulate→evoke-weakest / Plasma turn-start energy / Glass
   all-enemy decay), the FIFO slot queue (channel + overflow-evokes-oldest, evoke front/back, slots), **Focus**,
@@ -51,7 +53,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 612 passing, 0 skipped/failed. Traces: 74 recorded game traces, all PASS** — including a live
+- **Tests: 658 passing, 0 skipped/failed. Traces: 74 recorded game traces, all PASS** — including a live
   headless Defect-vs-Byrdonis run (#74) that exercises the orb subsystem end-to-end (CrackedCore's starting
   orb, Zap channel, Dualcast evoke, ColdSnap Frost channel+block, BallLightning, and the Lightning/Frost
   turn-end passives), matching the game's HP/block/Strength across 4 turns 35/35. (The orb random-target

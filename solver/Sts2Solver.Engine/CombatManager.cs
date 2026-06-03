@@ -113,6 +113,7 @@ public static class CombatManager
         if (card.Type == CardType.Attack) combat.AttacksPlayedThisTurn++;
         combat.PlaysThisTurn++;   // per-turn play count (bounds cost-0 cantrip loops on BoundsPlays decks)
         if (card.Ethereal) combat.EtherealPlayedThisCombat++;
+        if (combat.TracksCardsPlayed) combat.CardsPlayedThisCombat++;   // GoldAxe scaling (every finished play)
         if (playCountContributors != null)
             foreach (var pw in playCountContributors) pw.AfterModifyingCardPlayCount(combat, card);
         if (costContributors != null)

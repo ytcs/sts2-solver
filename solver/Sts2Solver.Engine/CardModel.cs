@@ -80,6 +80,10 @@ public abstract class CardModel
     /// Squeeze counts these across the deck; the cards fizzle while Osty is missing. (Game: CardTag.OstyAttack.)</summary>
     public virtual bool IsOstyAttack => false;
 
+    /// <summary>True for cards carrying the game's Defend tag (the five basic Defends + UltimateDefend).
+    /// Fasten adds extra block to powered block gained by a Defend-tagged card. (Game: CardTag.Defend.)</summary>
+    public virtual bool IsDefend => false;
+
     /// <summary>True for cards with the game's Sly keyword (CardKeyword.Sly). A Sly card DISCARDED mid-turn
     /// (an explicit discard via <see cref="Cmd.DiscardFromHand"/> / a discard-of-choice / a discard-your-hand
     /// card — NOT the end-of-turn flush, which the game bypasses) is AUTO-PLAYED for free right after the
@@ -153,6 +157,11 @@ public abstract class CardModel
     /// <summary>True for a card whose value depends on energy spent this turn (Defect HelixDrill). Decks holding
     /// one set <see cref="CombatState.TracksEnergySpent"/> at setup.</summary>
     public virtual bool TracksEnergySpentThisTurn => false;
+
+    /// <summary>True for a card whose value scales on the number of cards finished playing this combat (Colorless
+    /// GoldAxe). Decks holding one set <see cref="CombatState.TracksCardsPlayed"/> at setup, enabling the gated
+    /// <see cref="CombatState.CardsPlayedThisCombat"/> counter (otherwise it would fragment every deck's state).</summary>
+    public virtual bool TracksCardsPlayedThisCombat => false;
 
     /// <summary>True for a card that DRAWS and then acts on the resulting hand (EscapePlan, Acrobatics,
     /// Prepared). In search the draw is deferred (a chance node); this card registers via
