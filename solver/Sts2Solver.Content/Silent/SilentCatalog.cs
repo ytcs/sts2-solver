@@ -99,8 +99,9 @@ public static partial class Catalog
         ["HandTrick"] = () => new HandTrick(),
         ["BulletTime"] = () => new BulletTime(),
         ["UpMySleeve"] = () => new UpMySleeve(),
-        // Batch 8 — the formerly-deferred cards: deterministic-default selection (Acrobatics, Prepared,
-        // HiddenDaggers, ToolsOfTheTrade, Nightmare), deterministic exhaust-replay (KnifeTrap),
+        // Batch 8 — the formerly-deferred cards: real player-MAX discard-of-choice (Acrobatics, Prepared,
+        // HiddenDaggers — the last via a discard continuation that adds its Shivs after the discards resolve),
+        // deterministic-default selection (ToolsOfTheTrade, Nightmare), deterministic exhaust-replay (KnifeTrap),
         // conditional-on-drawn-card (EscapePlan), and mid-turn-draw triggers (CorrosiveWave, Speedster, Murder).
         ["KnifeTrap"] = () => new KnifeTrap(),
         ["Nightmare"] = () => new Nightmare(),
@@ -121,7 +122,8 @@ public static partial class Catalog
     // search (selection uses a deterministic default à la Armaments / Burning Pact; draws are no-ops without
     // an ambient Rng). The mechanic each leans on, for reference:
     //
-    //   - Acrobatics / Prepared / HiddenDaggers / ToolsOfTheTrade / Nightmare : default card SELECTION
+    //   - Acrobatics / Prepared / HiddenDaggers                              : real player-MAX discard-of-choice
+    //   - ToolsOfTheTrade / Nightmare                                        : default card SELECTION
     //   - KnifeTrap                                                           : deterministic exhaust replay (exact)
     //   - EscapePlan                                                          : conditional on the drawn card
     //   - CorrosiveWave / Speedster                                           : mid-turn-draw triggers

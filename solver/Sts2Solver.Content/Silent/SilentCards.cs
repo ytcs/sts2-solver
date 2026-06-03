@@ -1539,9 +1539,10 @@ public sealed class Prepared : CardModel
     }
 }
 
-/// <summary>Discard 2 cards (a default — player choice not modelled), then add 2 Shivs to your hand. Cost 0.
-/// Upgrade: the Shivs are upgraded. (MegaCrit Hidden Daggers) The discard (the card's cost) is deterministic
-/// and modelled in search; the Shivs are the benefit.</summary>
+/// <summary>Discard 2 cards of your choice, then add 2 Shivs to your hand. Cost 0. Upgrade: the Shivs are
+/// upgraded. (MegaCrit Hidden Daggers) The discard is a REAL player MAX in search (a discard-of-choice resolved
+/// before the Shivs are created, matching the game's order — so the Shivs are never discardable); the Shivs are
+/// added as the discard's continuation (<see cref="OnPostDiscard"/>). A concrete Rng discards a default eagerly.</summary>
 public sealed class HiddenDaggers : CardModel
 {
     public override string Name => "HiddenDaggers";
