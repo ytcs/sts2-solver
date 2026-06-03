@@ -268,4 +268,51 @@ public class MidTurnDrawTests
         // independent-hypergeometric approximation, not a node defect — bound it to catch a real blow-up.
         Assert.InRange(mc.Survival - exact.Win, -0.01, 0.08);
     }
+
+    /// <summary>In-hand multi-select promotion (HiddenDaggers: discard 2 of choice, THEN add 2 Shivs). The
+    /// game discards FIRST then creates the Shivs, so the Shivs are never in the discard pool — modelling the
+    /// discard as a real player MAX over the PRE-Shiv hand (with the Shiv creation as the discard's continuation)
+    /// is sound, not optimistic. Decisive: after playing HiddenDaggers (cost 0) the hand is Strike + 2 Defends;
+    /// the slug has 10 HP. The only lethal line is discard BOTH Defends (keeping Strike), let the 2 Shivs spawn,
+    /// then Strike (6) + one Shiv (4) = 10 — so the exact (1.0, 0) proves BOTH that the discard is MAXed (a wrong
+    /// discard of Strike caps damage at 2×Shiv = 8 &lt; 10) AND that the Shiv continuation fires (without it Strike
+    /// alone is 6 &lt; 10). Energy 1 affords Strike(1) + Shivs(0).</summary>
+    [Fact]
+    public void HiddenDaggers_Discards_Optimally_Then_Adds_Shivs_In_Search()
+    {
+        var p = new Player { MaxHp = 30, CurrentHp = 30, Energy = 1, MaxEnergy = 1 };
+        p.Hand.Add(Catalog.BuildCard("HiddenDaggers"));   // cost 0: discard 2 of choice, then add 2 Shivs (4 dmg each)
+        p.Hand.Add(Catalog.BuildCard("StrikeSilent"));    // 6 dmg — the card that MUST be kept
+        p.Hand.Add(Catalog.BuildCard("DefendSilent"));
+        p.Hand.Add(Catalog.BuildCard("DefendSilent"));
+        var slug = Monsters.CorpseSlug(hp: 10);
+        slug.Ai.CurrentMoveId = slug.Ai.InitialStateId;
+        var combat = new CombatState { Player = p, Monsters = { slug }, TurnNumber = 1 };
+
+        var v = new Solver { MaxTurns = 10 }.SolvePlayerTurn(combat);
+        _out.WriteLine($"value = {v}");
+        Assert.Equal(1.0, v.Win, 6);   // discarded the 2 Defends, kept Strike, Shivs spawned ⇒ Strike+Shiv = 10 lethal
+        Assert.Equal(0.0, v.Loss, 6);
+    }
+
+    /// <summary>The HiddenDaggers discard-of-choice continuation (a play-time discard-then-act, no preceding
+    /// draw) must converge MCTS→exact like the post-draw/no-draw discards already do. A HiddenDaggers deck routes
+    /// a <c>PendingDiscard</c> decision layer whose drain fires the Shiv-creation continuation; MCTS must track
+    /// exact on survival AND HP loss.</summary>
+    [Fact]
+    public void Mcts_Converges_On_HiddenDaggers_Deck()
+    {
+        CombatState Build() => Catalog.SetupCombat(
+            Catalog.BuildPlayer(new List<CardModel> {
+                Catalog.BuildCard("HiddenDaggers"), Catalog.BuildCard("StrikeSilent"),
+                Catalog.BuildCard("StrikeSilent"), Catalog.BuildCard("DefendSilent"),
+                Catalog.BuildCard("DefendSilent") }, 22, 22, 3),
+            new[] { Monsters.CorpseSlug(hp: 24) });
+        const int mt = 8;
+        var exact = new Solver { MaxTurns = mt }.Solve(Build());
+        var mcts = new MctsSolver(new MctsOptions { Trials = 30_000, Seed = 1, MaxTurns = mt, ActionWidening = true }).Solve(Build());
+        _out.WriteLine($"exact {exact}  |  mcts {mcts}");
+        Assert.True(Math.Abs(mcts.Win - exact.Win) <= 0.05, $"survival exact {exact.Win:P2} vs mcts {mcts.Win:P2}");
+        Assert.True(Math.Abs(mcts.Loss - exact.Loss) <= 2.5, $"loss exact {exact.Loss:F1} vs mcts {mcts.Loss:F1}");
+    }
 }

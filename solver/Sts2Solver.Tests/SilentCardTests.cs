@@ -1231,11 +1231,13 @@ public class SilentCardTests
     public void HiddenDaggers_Discards_2_And_Adds_2_Shivs()
     {
         var (c, p, _) = Fight();
+        c.Rng = new Rng(0);                 // concrete driver ⇒ the eager (default-discard) path
         p.Hand.Add(new StrikeSilent());
         p.Hand.Add(new DefendSilent());
         Play(c, new HiddenDaggers(), null);
         Assert.Equal(2, p.Hand.Count(card => card is Shiv));
         Assert.Equal(0, p.Hand.Count(card => card is not Shiv));   // both originals discarded
+        Assert.Equal(2, c.CardsDiscardedThisTurn);                 // the 2 discards feed the discard counter
     }
 
     [Fact]

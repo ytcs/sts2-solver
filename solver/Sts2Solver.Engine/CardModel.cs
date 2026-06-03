@@ -143,6 +143,12 @@ public abstract class CardModel
     /// when <see cref="PostDrawDiscardCount"/> is 0. Default no-op.</summary>
     public virtual void OnPostDraw(CombatState combat, int drawn) { }
 
+    /// <summary>The step a discard-of-choice card runs AFTER its discards fully resolve (HiddenDaggers adds its
+    /// Shivs here — the game discards first, then creates the Shivs, so they're never discardable). Registered
+    /// via <see cref="Cmd.DeferDiscardThenResolve"/>; dispatched by <see cref="CombatManager.ApplyPostDiscard"/>
+    /// once <see cref="CombatState.PendingDiscard"/> drains to 0 (or the hand empties early). Default no-op.</summary>
+    public virtual void OnPostDiscard(CombatState combat) { }
+
     /// <summary>Apply one upgrade level's stat changes. Called <see cref="Upgrades"/> times during construction helpers.</summary>
     protected virtual void OnUpgrade() { }
 

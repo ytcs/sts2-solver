@@ -220,6 +220,20 @@ public static class Cmd
         combat.PendingDiscard += n;
     }
 
+    /// <summary>Register a forced discard-of-CHOICE for SEARCH mode (callers guard <c>combat.Rng == null</c>)
+    /// that is FOLLOWED BY a continuation (HiddenDaggers: discard 2 of choice, then add 2 Shivs). The discards
+    /// resolve as a player MAX (one card at a time); once the count drains (or the hand empties) the solver runs
+    /// <paramref name="card"/>'s <see cref="CardModel.OnPostDiscard"/> (<see cref="CombatManager.ApplyPostDiscard"/>),
+    /// matching the game's discard-THEN-act order — so the continuation's products are never in the discard pool.
+    /// If <paramref name="n"/> is ≤0 (or no hand) the continuation runs immediately. With a concrete Rng the caller
+    /// discards a heuristic default and runs the continuation eagerly instead.</summary>
+    public static void DeferDiscardThenResolve(CombatState combat, int n, CardModel card)
+    {
+        if (n <= 0) { card.OnPostDiscard(combat); return; }
+        combat.PendingDiscard += n;
+        combat.PendingDiscardCard = card;
+    }
+
     /// <summary>Discard a specific hand card to the discard pile (a mid-turn discard), bumping the discard
     /// counter (Memento Mori). No on-discard hook is modelled (Sly auto-play is unported — omitting it
     /// under-states the player, the safe direction).</summary>

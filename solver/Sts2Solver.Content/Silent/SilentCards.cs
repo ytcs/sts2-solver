@@ -1550,11 +1550,19 @@ public sealed class HiddenDaggers : CardModel
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public int Shivs => 2;
+    // Game order (decompiled): discard 2 of choice FIRST, then create the Shivs — so the Shivs are never in the
+    // discard pool. In SEARCH that discard is a real player MAX over the hand (DeferDiscardThenResolve), and the
+    // Shiv creation runs as the discard's CONTINUATION (OnPostDiscard) once both discards resolve — sound because
+    // the choice set is the pre-Shiv hand exactly as the game offers. With a concrete Rng both resolve eagerly
+    // (heuristic default discard), matching the engine's other selection cards.
     public override void OnPlay(CombatState combat, CardPlay play)
     {
+        if (combat.Rng == null) { Cmd.DeferDiscardThenResolve(combat, 2, this); return; }
         SilentCardHelpers.DiscardDefault(combat, 2);
-        SilentCardHelpers.AddShivsToHand(combat, Shivs, Upgrades > 0 ? 1 : 0);
+        OnPostDiscard(combat);
     }
+    public override void OnPostDiscard(CombatState combat)
+        => SilentCardHelpers.AddShivsToHand(combat, Shivs, Upgrades > 0 ? 1 : 0);
 }
 
 /// <summary>Power: at the start of each of your turns, draw 1 extra card and discard 1 (a default). Cost 1.

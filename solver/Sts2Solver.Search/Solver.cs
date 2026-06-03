@@ -156,10 +156,11 @@ public sealed class Solver
     private Value DiscardChoiceValue(CombatState s)
     {
         var hand = s.Player.Hand;
-        if (hand.Count == 0)   // nothing left to discard: clear the obligation and resume normal play
+        if (hand.Count == 0)   // nothing left to discard: clear the obligation, run any continuation, resume play
         {
             var cleared = s.Clone();
             cleared.PendingDiscard = 0;
+            CombatManager.ApplyPostDiscard(cleared);   // HiddenDaggers adds its Shivs here (no-op for Acrobatics/Prepared)
             return SolvePlayerTurn(cleared);
         }
 
@@ -173,6 +174,7 @@ public sealed class Solver
             var c = s.Clone();
             Cmd.DiscardFromHand(c, c.Player.Hand.First(h => h.StateKey() == key));
             c.PendingDiscard--;
+            if (c.PendingDiscard == 0) CombatManager.ApplyPostDiscard(c);   // last discard resolved → run the continuation
             var v = SolvePlayerTurn(c);
             if (!any || v.BetterThan(best)) { best = v; any = true; }
         }

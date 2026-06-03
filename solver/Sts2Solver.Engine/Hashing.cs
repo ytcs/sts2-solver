@@ -46,6 +46,8 @@ public static class HashingExtensions
         h.Add(s.OstyAttacksThisTurn);        // StateKey, or states differing only in these collide → stale value.
         h.Add(s.DoomAppliedThisTurn ? 1 : 0);
         h.Add(s.PendingDiscard);   // post-draw discard-of-choice in flight (Acrobatics / Prepared)
+        h.Add(s.PendingDiscardCard?.KeyHash ?? 0);   // its continuation (HiddenDaggers' shiv creation), or 0 — keeps an
+                                                     // in-flight HiddenDaggers discard distinct from a continuation-less one
         if (s.BoundsPlays) h.Add(s.PlaysThisTurn);               // only when a cost-0 cantrip risks a play loop
         if (s.TracksCardsDrawn) h.Add(s.CardsDrawnThisCombat);   // only when a card (Murder) reads it
         // (Skills/Stars/Attacks/Discarded are added unconditionally, not gated on non-zero: conditional

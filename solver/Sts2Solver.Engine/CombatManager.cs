@@ -269,6 +269,17 @@ public static class CombatManager
         else card.OnPostDraw(combat, combat.Player.Hand.Count - combat.PendingDrawHandBefore);   // actual cards drawn
     }
 
+    /// <summary>Run a discard-of-choice card's CONTINUATION once its discards have fully resolved (HiddenDaggers
+    /// adds its Shivs here). Called by the solver/MCTS the moment <see cref="CombatState.PendingDiscard"/> drains
+    /// to 0 (or the hand empties early), and by the concrete-Rng default-discard path. No-op when no continuation
+    /// card is registered (the common Acrobatics/Prepared discard). Clears the marker.</summary>
+    public static void ApplyPostDiscard(CombatState combat)
+    {
+        var card = combat.PendingDiscardCard;
+        combat.PendingDiscardCard = null;
+        card?.OnPostDiscard(combat);
+    }
+
     /// <summary>Award post-combat relic effects (e.g. Burning Blood heals 6) on victory.</summary>
     public static void OnVictory(CombatState combat)
     {

@@ -102,6 +102,15 @@ public sealed class CombatState
     /// MAX over the distinct hand cards before normal play resumes.</summary>
     public int PendingDiscard;
 
+    /// <summary>The card whose discard-of-choice is in flight when it ALSO has a step that must run AFTER the
+    /// discards resolve (HiddenDaggers: discard 2 of choice, THEN add 2 Shivs — the game's order, so the Shivs
+    /// are never in the discard pool). Once <see cref="PendingDiscard"/> drains to 0 (or the hand empties), the
+    /// solver runs <see cref="CardModel.OnPostDiscard"/> (<see cref="CombatManager.ApplyPostDiscard"/>) and clears
+    /// this. Hashed alongside PendingDiscard when set, so an in-flight HiddenDaggers discard can't collide with a
+    /// continuation-less Acrobatics/Prepared discard of an otherwise-identical state. Null for the common
+    /// no-continuation discard. With a concrete <see cref="Rng"/> the card resolves eagerly (this stays null).</summary>
+    public CardModel? PendingDiscardCard;
+
     /// <summary>Cards played during the current player turn (reset at turn start, bumped in
     /// <see cref="CombatManager.PlayCard"/>). Only TRACKED + hashed when <see cref="BoundsPlays"/> is set; it
     /// then caps plays per turn (<see cref="MaxPlaysPerTurn"/>) so a cost-0 replayable draw cantrip (EscapePlan,
@@ -174,6 +183,7 @@ public sealed class CombatState
             PendingDrawCard = PendingDrawCard,   // immutable card instance — shared by reference is safe
             PendingDrawHandBefore = PendingDrawHandBefore,
             PendingDiscard = PendingDiscard,
+            PendingDiscardCard = PendingDiscardCard,   // immutable card instance — shared by reference is safe
             PlaysThisTurn = PlaysThisTurn,
             BoundsPlays = BoundsPlays,
         };
@@ -194,7 +204,7 @@ public sealed class CombatState
                   + (OstyAttacksThisTurn != 0 ? $"/oa{OstyAttacksThisTurn}" : "")
                   + (DoomAppliedThisTurn ? "/da" : "");
         var drawn = TracksCardsDrawn ? $"/w{CardsDrawnThisCombat}" : "";
-        var disc = PendingDiscard != 0 ? $"/pd{PendingDiscard}" : "";   // post-draw discard-of-choice in flight
+        var disc = PendingDiscard != 0 ? $"/pd{PendingDiscard}{(PendingDiscardCard != null ? "+" + PendingDiscardCard.StateKey() : "")}" : "";   // discard-of-choice in flight (+continuation card, e.g. HiddenDaggers)
         var plays = BoundsPlays ? $"/np{PlaysThisTurn}" : "";           // per-turn play count (loop-risk decks only)
         disc += plays;
         return $"T{TurnNumber}/{CurrentSide}{(CardExhaustedThisTurn ? "x" : "")}{(PlayerLostHpThisTurn ? "h" : "")}/u{PlayerUnblockedHitsCount}{regent}{silent}{necro}{drawn}{disc}|{Player.StateKey()}|{monsters}";

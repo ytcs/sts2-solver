@@ -204,10 +204,11 @@ public sealed class MctsSolver
     private void ExpandDiscard(DecisionNode d)
     {
         var hand = d.State.Player.Hand;
-        if (hand.Count == 0)   // nothing to discard: clear the obligation and continue
+        if (hand.Count == 0)   // nothing to discard: clear the obligation, run any continuation, continue
         {
             var cleared = d.State.Clone();
             cleared.PendingDiscard = 0;
+            CombatManager.ApplyPostDiscard(cleared);   // HiddenDaggers adds its Shivs here (no-op for Acrobatics/Prepared)
             d.Edges.Add(new Edge { Action = new PlayerAction("Discard done", null, -1), PlayChild = GetOrCreateDecision(cleared), Prior = 1.0 });
             return;
         }
@@ -219,6 +220,7 @@ public sealed class MctsSolver
             var c = d.State.Clone();
             Cmd.DiscardFromHand(c, c.Player.Hand.First(h => h.StateKey() == key));
             c.PendingDiscard--;
+            if (c.PendingDiscard == 0) CombatManager.ApplyPostDiscard(c);   // last discard resolved → run the continuation
             d.Edges.Add(new Edge { Action = new PlayerAction($"Discard {key}", null, -1), PlayChild = GetOrCreateDecision(c) });
         }
         double uniform = 1.0 / d.Edges.Count;
@@ -586,6 +588,7 @@ public sealed class MctsSolver
             s.PendingDiscard--;
         }
         s.PendingDiscard = 0;
+        CombatManager.ApplyPostDiscard(s);   // run any discard continuation (HiddenDaggers Shivs)
         var v = Playout(s, needAdvance: false, initialRoll: false);
         Note(v);
         return v;
@@ -749,6 +752,7 @@ public sealed class MctsSolver
         // greedy policy doesn't model it; the tree's discard decision node refines toward the player's MAX).
         while (s.PendingDiscard > 0 && s.Player.Hand.Count > 0) { Cmd.DiscardFromHand(s, s.Player.Hand[0]); s.PendingDiscard--; }
         s.PendingDiscard = 0;
+        CombatManager.ApplyPostDiscard(s);   // run any discard continuation (HiddenDaggers Shivs) before rolling out
 
         if (needAdvance)   // s is a post-enemy (or setup) state: advance to the next decision point first
         {
