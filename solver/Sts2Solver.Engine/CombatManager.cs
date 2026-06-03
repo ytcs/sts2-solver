@@ -40,6 +40,10 @@ public static class CombatManager
         foreach (var r in combat.Player.Relics) r.OnPlayerTurnStart(combat);
 
         FireAfterSideTurnStart(combat, CombatSide.Player);
+
+        // Plasma orbs add energy at the player's turn start (after the energy reset above). Every other orb's
+        // passive fires at turn END (see EndPlayerTurn). Gated on the player having orbs → inert for non-Defect.
+        OrbOps.TriggerPassives(combat, turnStart: true);
     }
 
     /// <summary>Play a card from hand at an optional target. Validates cost/target, spends energy,
@@ -141,6 +145,11 @@ public static class CombatManager
     public static void EndPlayerTurn(CombatState combat)
     {
         var player = combat.Player;
+
+        // Orb turn-END passives (Lightning damage / Frost block / Dark accumulate / Glass damage) fire before
+        // the hand is discarded and the side switches. Plasma fires at turn START, not here. Inert for non-Defect.
+        // (These touch enemies / player block / energy only — they never kill the player.)
+        OrbOps.TriggerPassives(combat, turnStart: false);
 
         // Cards with an end-of-turn-in-hand effect (e.g. Infection's 3 self-damage) trigger before the
         // hand is discarded. Snapshot the hand: the effect doesn't add/remove hand cards in scope.

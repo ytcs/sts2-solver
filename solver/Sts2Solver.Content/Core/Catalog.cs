@@ -53,6 +53,7 @@ public static partial class Catalog
         yield return ColorlessCardFactories;
         yield return SpecialCardFactories;
         yield return NecrobinderCardFactories;
+        yield return DefectCardFactories;
     }
 
     /// <summary>The deck-buildable card pool: every registered character + colorless card (Ironclad + Silent
@@ -66,6 +67,7 @@ public static partial class Catalog
             .Concat(ColorlessCardFactories.Keys)
             .Concat(SpecialCardFactories.Keys)
             .Concat(NecrobinderCardFactories.Keys)
+            .Concat(DefectCardFactories.Keys)
             .ToArray();
     private static string[]? _cardPool;
 

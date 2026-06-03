@@ -32,6 +32,12 @@ public sealed class Player : Creature
     public bool IsOstyAlive => Osty is { CurrentHp: > 0 };
     public bool IsOstyMissing => !IsOstyAlive;
 
+    /// <summary>The Defect's orb queue (FIFO: front = oldest) and its slot capacity (game BaseOrbSlotCount = 3,
+    /// set by the CrackedCore starter relic at combat start). Empty / 0 for every non-Defect player, so they
+    /// contribute nothing to clone / hash / StateKey. See <see cref="OrbModel"/> / <see cref="OrbOps"/>.</summary>
+    public readonly List<OrbModel> Orbs = new();
+    public int OrbSlots;
+
     public Player() { Side = CombatSide.Player; }
 
     /// <summary>Max energy including power bonuses (Pyre). Each turn's reset uses this.</summary>
@@ -70,6 +76,10 @@ public sealed class Player : Creature
         CopyPile(ExhaustPile, p.ExhaustPile);
         p.Relics.AddRange(Relics);   // relics are immutable definitions
         p.Osty = Osty != null ? (Osty)Osty.Clone() : null;
+        // Orb queue is ORDERED (evoke order matters). Stateful orbs (Dark/Glass) carry mutable accumulators
+        // and MUST be deep-cloned per branch; immutable orbs (Lightning/Frost/Plasma) can be shared by ref.
+        p.OrbSlots = OrbSlots;
+        foreach (var orb in Orbs) p.Orbs.Add(orb.Stateful ? orb.Clone() : orb);
         return p;
     }
 
@@ -99,6 +109,15 @@ public sealed class Player : Creature
         for (int i = 0; i < Relics.Count; i++) relics[i] = Relics[i].Id.GetHashCode();
         h.AddSorted(relics);
         if (Osty != null) { h.Add(0x5057); Osty.Hash(ref h); }
+        // Orbs: ORDER-sensitive (evoke FIFO) and slot count both matter; contribute only when the player has
+        // orb capacity (Defect), so other characters keep canonical keys.
+        if (OrbSlots > 0)
+        {
+            h.Add(0x0B5);
+            h.Add(OrbSlots);
+            h.Add(Orbs.Count);
+            foreach (var orb in Orbs) orb.Hash(ref h);   // ordered — NOT sorted
+        }
     }
 
     private static void HashPile(ref StateHasher h, List<CardModel> pile, long tag)
@@ -121,7 +140,9 @@ public sealed class Player : Creature
         // keep their existing canonical keys.
         var stars = Stars != 0 ? $"|s{Stars}" : "";
         var osty = Osty != null ? $"|{Osty.StateKey()}" : "";
-        return $"P({base.StateKey()}|e{Energy}/{MaxEnergy}{stars}|H[{Bag(Hand)}]|D[{Bag(DrawPile)}]|X[{Bag(DiscardPile)}]|E[{Bag(ExhaustPile)}]|R[{relics}]{osty})";
+        // Orbs are ORDER-sensitive (evoke FIFO), so keep them as a list, not a sorted bag; present only for Defect.
+        var orbs = OrbSlots > 0 ? $"|O{OrbSlots}[{string.Join(",", Orbs.Select(o => o.StateKey()))}]" : "";
+        return $"P({base.StateKey()}|e{Energy}/{MaxEnergy}{stars}|H[{Bag(Hand)}]|D[{Bag(DrawPile)}]|X[{Bag(DiscardPile)}]|E[{Bag(ExhaustPile)}]|R[{relics}]{osty}{orbs})";
     }
 }
 

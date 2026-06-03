@@ -16,9 +16,21 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
 
 ## Current state
 
-- **Content — all four characters complete (88/88 each):** Ironclad, Silent, Regent (Stars + Forge/Sovereign
+- **Content — four characters complete (88/88 each):** Ironclad, Silent, Regent (Stars + Forge/Sovereign
   Blade), Necrobinder (Osty pet + Doom) — plus Colorless (18), the Event/Ancient "Special" pool (24), curses
   (18). Act-1 elites 12/12 + the normal-monster set, trace-validated against live recordings.
+- **Defect — IN PROGRESS.** The full **orb subsystem** is built and gated (engine `Orbs.cs`): all five orb
+  types (Lightning damage / Frost block / Dark accumulate→evoke-weakest / Plasma turn-start energy / Glass
+  all-enemy decay), the FIFO slot queue (channel + overflow-evokes-oldest, evoke front/back, slots), **Focus**,
+  and turn-boundary passive triggers. **28/88 cards ported** + the CrackedCore starter relic. Batch 1
+  (starters + a spread across every orb type): Zap, Dualcast, BallLightning, Coolheaded, ColdSnap, BeamCell,
+  Barrage, Chill, Glacier, Capacitor, Darkness, Defragment. Batch 2 (pure orb/damage/block/draw/energy — no
+  new power/mechanism): BootSequence, Leap, Glasswork, ShadowShield, ChargeBattery, Skim, Supercritical, Fusion,
+  Rainbow, Refract, IceLance, MeteorStrike, SweepingBeam, Null. Lightning's random target uses the standard
+  first-enemy search default (sound). Remaining 60 cards split into (A) ~10 more simple, (B) ~22 needing a new
+  PowerModel (Thunder/Hailstorm/Storm/Loop/Coolant/Smokestack/Buffer/Iteration/EchoForm/CreativeAi/…), and
+  (C) ~18 needing new mechanism (cost-X Tempest/MultiCast, RNG Chaos/WhiteNoise, exhaust/energy-spent scaling,
+  Shatter double-evoke, discard-retrieval Hologram, …) — the next batches.
 - **Card keywords modelled 1:1:** Exhaust, Ethereal, Unplayable, **Innate** (guaranteed opening hand), **Retain**
   (kept across turns), **Sly** (auto-play on mid-turn discard) — see "Engine" below.
 - **Search:** the exact lexicographic expectimax `Solver` is the ground-truth **oracle**; the sampling
@@ -31,7 +43,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 524 passing, 0 skipped/failed. Traces: 73 recorded game traces, all PASS.**
+- **Tests: 558 passing, 0 skipped/failed. Traces: 73 recorded game traces, all PASS.**
 
 ---
 
@@ -40,11 +52,12 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
 ```
 solver/                         C#/.NET 9 solution
   Sts2Solver.Engine/            faithful combat engine (no Godot/UI): CombatManager, CombatState, Cmd,
-                                CardModel, Hashing (128-bit FNV memo key), powers pipeline
+                                CardModel, Hashing (128-bit FNV memo key), powers pipeline, Orbs.cs (Defect
+                                orb subsystem — gated, FIFO queue + Focus + turn-boundary passives)
   Sts2Solver.Content/           ported content, flat namespace, folders for nav:
     Core/        Catalog.cs (BuildCard/SetupCombat) · CommonPowers.cs · StatusCards.cs · Curses.cs ·
                  CalibrationFixtures.cs · TrainingFixtures.cs
-    Ironclad/ Silent/ Regent/ Necrobinder/ Colorless/ Special/   <Char>Cards.cs · <Char>Powers.cs · <Char>Catalog.cs
+    Ironclad/ Silent/ Regent/ Necrobinder/ Defect/ Colorless/ Special/   <Char>Cards.cs · <Char>Powers.cs · <Char>Catalog.cs
     Monsters/    Monsters.cs · MonsterPowers.cs · MonsterCatalog.cs · EncounterCatalog.cs
     Validation/  TraceValidator.cs        (adding a character = a folder + one yield in Core CardTables())
   Sts2Solver.Search/            Solver.cs (exact) · MctsSolver.cs · DrawEnumerator.cs · EncounterEvaluator.cs
@@ -221,7 +234,7 @@ Remaining (all lower-value; #1–2 inert-but-sound, #3 needs the game you're pla
    random-target (SerpentForm/Ricochet/RipAndTear) and hand-size (PreciseCut) cards need single-enemy encounters.
 
 **Documented out-of-scope (need a new subsystem — left inert/approximated, all sound):** gold (HandOfGreed,
-Royalties), Defect orbs/Focus (BiasedCognition, Quadcast), full-pool RNG card-generation (Metamorphosis,
+Royalties), full-pool RNG card-generation (Metamorphosis,
 Distraction, DualWield, Begone, Quasar, Supermassive's scaling, …), multiplayer-only (Sneaky/Flanking/Largesse/
 TankPower), move-legality curses (Normality 3-cards/turn, Enthralled hand-lockout — degrade to dilution,
 understate harm), Whistle stun (needs a monster skip-move hook), Rupture end-of-turn self-damage edge, MadScience

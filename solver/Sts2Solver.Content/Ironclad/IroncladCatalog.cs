@@ -103,6 +103,7 @@ public static partial class Catalog
         ["BurningBlood"] = () => new BurningBlood(),
         ["DivineRight"] = () => new DivineRight(),           // Regent starter (defined in Regent/RegentCatalog.cs)
         ["BoundPhylactery"] = () => new BoundPhylactery(),   // Necrobinder starter (defined in Necrobinder/)
+        ["CrackedCore"] = () => new CrackedCore(),           // Defect starter (defined in Defect/DefectCatalog.cs)
     };
 
     /// <summary>The Ironclad starting deck: 5 Strike, 4 Defend, 1 Bash.</summary>
