@@ -188,6 +188,14 @@ public sealed class MctsSolver
         d.Expanded = true;
         d.Edges = new List<Edge>();
         if (d.State.PendingDiscard > 0) { ExpandDiscard(d); return; }   // post-draw discard-of-choice (a MAX)
+        if (d.State.PlayerTurnEndForced)   // VoidForm ended the turn on play: the only action is to end it
+        {
+            d.Edges.Add(new Edge { Action = PlayerAction.EndTurn, IsEndTurn = true, Chance = BuildEndTurnChance(d.State), Prior = 1.0 });
+            d.Candidates = new List<PlayerAction>();          // empty (non-null) ⇒ the re-widen guard skips this node
+            d.CandidatePriors = System.Array.Empty<double>();
+            d.Opened = 0;
+            return;
+        }
         if (_opt.ActionWidening) { ExpandWidening(d); return; }
 
         foreach (var action in LegalPlays(d.State))
@@ -701,7 +709,7 @@ public sealed class MctsSolver
         foreach (var card in s.Player.Hand)
         {
             if (!s.CardPlayAllowed(card)) continue;   // Unplayable + Enthralled hand-lockout
-            if (!card.IsXCost && card.EffectiveCost(s) > s.Player.Energy) continue;   // EffectiveCost: in-combat cost reductions
+            if (!card.IsXCost && CombatManager.ResolveCardCost(s, card) > s.Player.Energy) continue;   // resolved cost = EffectiveCost + power ModifyCardCost (VoidForm/Free Attack/Corruption discounts, Borrowed Time increase) — matches PlayCard's spend
             if (!s.Player.CanAffordStars(card)) continue;   // Regent star cost gates the play
             var ck = card.StateKey();
             var choices = expandChoices ? card.Choices(s).Distinct().ToList() : EmptyChoices;   // empty for the common no-choice card
@@ -830,6 +838,7 @@ public sealed class MctsSolver
             Creature? target = bestAction.Value.TargetMonsterIndex >= 0
                 ? s.Monsters[bestAction.Value.TargetMonsterIndex] : null;
             CombatManager.PlayCard(s, card, target);
+            if (s.PlayerTurnEndForced) return;   // VoidForm ended the turn on play
         }
     }
 

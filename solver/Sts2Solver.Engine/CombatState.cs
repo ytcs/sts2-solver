@@ -165,6 +165,12 @@ public sealed class CombatState
     /// tracking + hashing + the cap, so the common deck's state space is never fragmented by a play counter.</summary>
     public bool BoundsPlays;
 
+    /// <summary>Set when a card whose play ENDS the turn (VoidForm) resolves; the player gets no further plays
+    /// this turn. The search routes a forced-end state straight to the end-turn transition (exact: ContinuePlay;
+    /// MCTS: a decision node that opens only the EndTurn edge), and <see cref="CombatManager.EndPlayerTurn"/>
+    /// clears it. Gate-hashed (only when true) so a forced-end decision state never collides with a normal one.</summary>
+    public bool PlayerTurnEndForced;
+
     /// <summary>Per-turn play cap applied only to <see cref="BoundsPlays"/> decks. Generous — above any real
     /// turn's play count — so it bounds only pathological cantrip loops, never an optimal line.</summary>
     public const int MaxPlaysPerTurn = 40;
@@ -257,6 +263,7 @@ public sealed class CombatState
             PendingDiscardCard = PendingDiscardCard,   // immutable card instance — shared by reference is safe
             PlaysThisTurn = PlaysThisTurn,
             BoundsPlays = BoundsPlays,
+            PlayerTurnEndForced = PlayerTurnEndForced,
         };
     }
 

@@ -170,7 +170,7 @@ public static class CombatHeuristic
         foreach (var card in s.Player.Hand)
         {
             if (!s.CardPlayAllowed(card)) continue;   // Unplayable + Enthralled hand-lockout
-            if (!card.IsXCost && card.EffectiveCost(s) > s.Player.Energy) continue;   // EffectiveCost: in-combat cost reductions
+            if (!card.IsXCost && CombatManager.ResolveCardCost(s, card) > s.Player.Energy) continue;   // resolved cost = EffectiveCost + power ModifyCardCost (VoidForm/Free Attack/Corruption discounts, Borrowed Time increase) — matches PlayCard's spend
             if (!s.Player.CanAffordStars(card)) continue;   // Regent star cost gates the play
             var ck = card.StateKey();
             var choices = card.Choices(s).Distinct().ToList();   // empty for the common no-choice card

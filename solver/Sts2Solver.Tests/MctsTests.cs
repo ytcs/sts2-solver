@@ -46,6 +46,22 @@ public class MctsTests
     public void Converges_On_Weak_Cultist() => AssertConverges(IroncladVsCultist(monsterHp: 30), "Ironclad vs CalcifiedCultist(30)");
 
     [Fact]
+    public void Converges_On_Regent_VoidForm()
+    {
+        // VoidForm ENDS the turn on play and makes the first 2 cards each turn cost 0 — exercises both the
+        // forced-end turn-flow and the resolved-cost affordability gate through the exact solver AND MCTS.
+        var deck = new List<CardModel>
+        {
+            new VoidForm(),
+            new StrikeRegent(), new StrikeRegent(), new StrikeRegent(),
+            new DefendRegent(), new DefendRegent(),
+        };
+        var player = Catalog.BuildPlayer(deck, currentHp: 80, maxHp: 80);
+        var setup = Catalog.SetupCombat(player, new[] { Monsters.CalcifiedCultist(hp: 30) });
+        AssertConverges(setup, "Regent VoidForm vs CalcifiedCultist(30)", trials: 120_000, winTol: 0.03, lossTol: 2.0, actionWidening: true);
+    }
+
+    [Fact]
     public void Converges_On_Byrdonis()
     {
         var player = Catalog.BuildPlayer(Catalog.IroncladStarterDeck(), 80, 80, relics: new[] { "BurningBlood" });

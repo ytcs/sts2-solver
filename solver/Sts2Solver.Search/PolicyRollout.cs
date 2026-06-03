@@ -65,6 +65,7 @@ public static class PolicyRollout
                 Creature? target = a.TargetMonsterIndex >= 0 && a.TargetMonsterIndex < combat.Monsters.Count
                     ? combat.Monsters[a.TargetMonsterIndex] : null;
                 CombatManager.PlayCard(combat, card, target);
+                if (combat.PlayerTurnEndForced) break;   // VoidForm ended the turn on play
             }
             if (combat.IsCombatOver) break;
 

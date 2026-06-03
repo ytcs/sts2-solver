@@ -163,6 +163,7 @@ public static class CombatManager
     public static void EndPlayerTurn(CombatState combat)
     {
         var player = combat.Player;
+        combat.PlayerTurnEndForced = false;   // consumed: a VoidForm-forced end is now being carried out
 
         // Orb turn-END passives (Lightning damage / Frost block / Dark accumulate / Glass damage) fire before
         // the hand is discarded and the side switches. Plasma fires at turn START, not here. Inert for non-Defect.

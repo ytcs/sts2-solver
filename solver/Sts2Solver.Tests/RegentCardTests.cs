@@ -595,4 +595,38 @@ public class RegentCardTests
         Play(c, new StrikeRegent(), m);         // each SUBSEQUENT card play gains a star
         Assert.Equal(1, p.Stars);
     }
+
+    [Fact]
+    public void VoidForm_First_Two_Plays_Each_Turn_Cost_Zero_Then_Reset()
+    {
+        var (c, p, m) = Fight();
+        p.AddPower(new VoidFormPower(), 2);
+        // Counter 0,1 -> the first two plays resolve to cost 0; counter 2 -> full price again.
+        Assert.Equal(0, CombatManager.ResolveCardCost(c, new StrikeRegent()));   // 1st play would be free
+        p.Energy = 3;
+        var s1 = new StrikeRegent(); p.Hand.Add(s1);
+        CombatManager.PlayCard(c, s1, m);
+        Assert.Equal(3, p.Energy);                                              // free: no energy spent
+        Assert.Equal(0, CombatManager.ResolveCardCost(c, new StrikeRegent()));   // 2nd play still free (counter 1)
+        var s2 = new StrikeRegent(); p.Hand.Add(s2);
+        CombatManager.PlayCard(c, s2, m);
+        Assert.Equal(3, p.Energy);
+        Assert.Equal(1, CombatManager.ResolveCardCost(c, new StrikeRegent()));   // 3rd play: full price (counter 2)
+        // Counter resets at the start of the player's turn.
+        CombatManager.BeginPlayerTurn(c);
+        Assert.Equal(0, CombatManager.ResolveCardCost(c, new StrikeRegent()));
+    }
+
+    [Fact]
+    public void VoidForm_Play_Ends_The_Turn()
+    {
+        var (c, p, m) = Fight();
+        var vf = new VoidForm();
+        p.Hand.Add(vf); p.Energy = Math.Max(p.Energy, vf.Cost);
+        CombatManager.PlayCard(c, vf, null);
+        Assert.True(p.HasPower("VoidForm"));
+        Assert.True(c.PlayerTurnEndForced);     // playing VoidForm forces the turn to end (no further plays)
+        CombatManager.EndPlayerTurn(c);
+        Assert.False(c.PlayerTurnEndForced);    // consumed by the end-of-turn transition
+    }
 }

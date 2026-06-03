@@ -54,6 +54,7 @@ public static class HashingExtensions
         if (s.TracksLightningChanneled) h.Add(s.LightningsChanneledThisCombat);   // only when a deck holds Voltaic
         if (s.TracksEnergySpent) h.Add(s.EnergySpentThisTurn);                    // only when a deck holds HelixDrill
         if (s.TracksCardsPlayed) h.Add(s.CardsPlayedThisCombat);                  // only when a deck holds GoldAxe
+        if (s.PlayerTurnEndForced) h.Add(0x6f1a3b9dL);   // VoidForm forced the turn end — never collide a forced-end state with a normal one
         // (Skills/Stars/Attacks/Discarded are added unconditionally, not gated on non-zero: conditional
         //  untagged adds would let e.g. Skills=0,Stars=3 collide with Skills=3,Stars=0 — position must stay fixed.)
         s.Player.Hash(ref h);

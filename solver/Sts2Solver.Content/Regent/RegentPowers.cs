@@ -374,12 +374,38 @@ public sealed class RetainHandPower : PowerModel
     public override PowerType Type => PowerType.Buff;
 }
 
-/// <summary>Void Form: the next <c>Amount</c> cards each turn cost 0 energy and 0 stars. Integrating a cost
-/// discount with the solver's fast playability gate is deferred, so the discount is not applied (the power
-/// is an inert marker — conservative: it never grants free plays the gate doesn't know about). (MegaCrit
-/// VoidFormPower.)</summary>
+/// <summary>Void Form: the first <c>Amount</c> cards you play EACH turn cost 0 energy and 0 stars (the count
+/// resets at the start of your turn). Modelled 1:1 from the game's VoidFormPower: the cost is zeroed for the
+/// first <c>Amount</c> plays (TryModifyEnergyCostInCombatLate / TryModifyStarCost), a per-turn counter
+/// increments after each finished play (AfterCardPlayed) and resets at turn start (BeforeSideTurnStart). The
+/// counter lives on the power so it is cloned + hashed automatically — it changes affordability mid-turn, so it
+/// is part of the decision state. (MegaCrit VoidFormPower.)</summary>
 public sealed class VoidFormPower : PowerModel
 {
     public override string Id => "VoidForm";
     public override PowerType Type => PowerType.Buff;
+
+    private int _playedThisTurn;
+
+    private bool DiscountActive => _playedThisTurn < Amount;
+
+    public override int ModifyCardCost(CardModel card, int cost) => DiscountActive ? 0 : cost;
+    public override int ModifyStarCost(CardModel card, int cost) => DiscountActive ? 0 : cost;
+
+    public override void AfterCardPlayed(CombatState combat, CardModel card) => _playedThisTurn++;
+
+    public override void AfterSideTurnStart(CombatState combat, CombatSide side)
+    {
+        if (side == CombatSide.Player) _playedThisTurn = 0;
+    }
+
+    public override PowerModel Clone()
+    {
+        var c = (VoidFormPower)base.Clone();
+        c._playedThisTurn = _playedThisTurn;
+        return c;
+    }
+
+    public override string StateKey() => $"{Id}={Amount}/{_playedThisTurn}";
+    public override long HashValue() => base.HashValue() ^ ((long)_playedThisTurn * 0x9E3779B1L);
 }

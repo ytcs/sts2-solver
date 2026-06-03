@@ -1279,13 +1279,12 @@ public sealed class Tyranny : CardModel
         => Cmd.ApplyPower(combat, combat.Player, new TyrannyPower(), 1, combat.Player);
 }
 
-/// <summary>Ethereal. Power: the next 2 cards each turn cost 0 (cost discount deferred — inert here); the game
-/// ALSO ends your turn on play (PlayerCmd.EndTurn). Both are left inert, and that pair is SOUND, not optimistic:
-/// the cost-0 benefit is the only reason to play VoidForm, and with it inert the card is pure waste (spend 3
-/// energy for a do-nothing power), so the survival/HP-maximising search never voluntarily plays it — meaning the
-/// un-modelled end-turn can never grant the player extra plays it shouldn't have. (Replay only follows recorded
-/// actions, so traces are unaffected either way.) Net: we under-value a strong card — the pessimistic direction.
-/// Upgrade: loses Ethereal. (MegaCrit VoidForm)</summary>
+/// <summary>Ethereal. Power: the first 2 cards you play each turn cost 0, AND playing it ENDS your turn
+/// (PlayerCmd.EndTurn, canBackOut:false). Both modelled 1:1: <see cref="VoidFormPower"/> applies the per-turn
+/// cost discount, and we set <see cref="CombatState.PlayerTurnEndForced"/> so the search ends the turn after
+/// this play (exact: ContinuePlay routes to the end-turn transition; MCTS: the resulting decision node opens
+/// only the EndTurn edge). Modelling the free-cards benefit WITHOUT the end-turn would be optimistic, so the two
+/// are inseparable. Upgrade: loses Ethereal. (MegaCrit VoidForm)</summary>
 public sealed class VoidForm : CardModel
 {
     public override string Name => "VoidForm";
@@ -1295,7 +1294,10 @@ public sealed class VoidForm : CardModel
     public override TargetType Target => TargetType.Self;
     public override bool Ethereal => Upgrades == 0;
     public override void OnPlay(CombatState combat, CardPlay play)
-        => Cmd.ApplyPower(combat, combat.Player, new VoidFormPower(), 2, combat.Player);
+    {
+        Cmd.ApplyPower(combat, combat.Player, new VoidFormPower(), 2, combat.Player);
+        combat.PlayerTurnEndForced = true;   // VoidForm ends your turn on play
+    }
 }
 
 /// <summary>Cost 0. Exhaust. Draw 1, gain 1 star, gain 1 energy, Forge 5. Upgrade: Innate (guaranteed in the opening hand).
