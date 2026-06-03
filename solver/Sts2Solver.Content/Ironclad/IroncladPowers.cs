@@ -170,12 +170,22 @@ public sealed class HellraiserPower : PowerModel
     public override string Id => "Hellraiser";
     public override PowerType Type => PowerType.Buff;
 }
-/// <summary>Tank (multiplayer-only): grants allies Guarded and reduces their damage taken. Unreachable in
-/// single-player and inert here (no allies). Ported for catalog completeness. (MegaCrit TankPower.)</summary>
+/// <summary>Tank (multiplayer-only): grants allies Guarded (redirecting their incoming attacks to you) AND
+/// makes YOU take DOUBLE damage from attacks. The ally-Guarded half is dropped in single player (no allies),
+/// but the self-downside — ×2 incoming powered-attack damage — is real and modelled. Keeping the downside is
+/// sound: it can only under-credit the player, never over-credit (an inert Tank would let the search play it
+/// for free). (MegaCrit TankPower, ModifyDamageMultiplicative ×2 on owner.)</summary>
 public sealed class TankPower : PowerModel
 {
     public override string Id => "Tank";
     public override PowerType Type => PowerType.Buff;
+
+    public override decimal ModifyDamageMultiplicative(Creature? target, decimal amount, ValueProp props, Creature? dealer, CardModel? cardSource)
+    {
+        if (target != Owner) return 1m;
+        if (!props.IsPoweredAttack()) return 1m;
+        return 2m;
+    }
 }
 /// <summary>Expect a Fight's marker: while owned, the player cannot gain energy (Cmd.GainEnergy is a
 /// no-op). Removed at the owner's turn end. (MegaCrit NoEnergyGainPower.)</summary>

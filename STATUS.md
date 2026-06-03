@@ -16,12 +16,15 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
 
 ## Current state
 
-- **Content — every combat-relevant non-multiplayer card ported (552/556).** Five characters complete
+- **Content — every card ported (573/577), including all 21 multiplayer-only cards.** Five characters complete
   (88/88 each): Ironclad, Silent, Regent (Stars + Forge/Sovereign Blade), Necrobinder (Osty pet + Doom),
   **Defect (orbs + Focus)** — plus the **full Colorless pool (53/53)**, the **complete Status (12) + Token (14)
-  pools**, the Event/Ancient "Special" pool, and curses (18). The only 4 unported in-scope cards are 3 Quest/map
-  items (ByrdonisEgg/LanternKey/SpoilsMap — not combat cards) and MadScience (documented out-of-scope RNG
-  card-gen). Act-1 elites 12/12 + the normal-monster set, trace-validated against live recordings.
+  pools**, the Event/Ancient "Special" pool, and curses (18). The **21 multiplayer-only cards** are modelled as
+  their single-player projection (effects on other players dropped; "all allies / any ally" resolves to you;
+  self/enemy payloads kept) — see the Colorless block in `ColorlessCards.cs` and their home-pool files. The
+  only 4 unported in-scope cards are 3 Quest/map items (ByrdonisEgg/LanternKey/SpoilsMap — not combat cards)
+  and MadScience (documented out-of-scope RNG card-gen). Act-1 elites 12/12 + the normal-monster set,
+  trace-validated against live recordings.
 - **Defect — COMPLETE (88/88).** The full **orb subsystem** is built and gated (engine `Orbs.cs`): all five
   orb types (Lightning damage / Frost block / Dark accumulate→evoke-weakest / Plasma turn-start energy / Glass
   all-enemy decay), the FIFO slot queue (channel + overflow-evokes-oldest, evoke front/back, slots), **Focus**,
@@ -53,7 +56,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 665 passing, 0 skipped/failed. Traces: 76 recorded game traces, all PASS** — including a live
+- **Tests: 684 passing, 0 skipped/failed. Traces: 76 recorded game traces, all PASS** — including a live
   headless Defect-vs-Byrdonis run (#74) that exercises the orb subsystem end-to-end (CrackedCore's starting
   orb, Zap channel, Dualcast evoke, ColdSnap Frost channel+block, BallLightning, and the Lightning/Frost
   turn-end passives), matching the game's HP/block/Strength across 4 turns 35/35. (The orb random-target
@@ -276,10 +279,16 @@ fixed-default move-to-hand. Affected (deliberately inert): Discovery, JackOfAllT
 Catastrophe/BeatDown auto-play, Calamity/Entropy/CreativeAi/WhiteNoise/Chaos/Metamorphosis/Distraction/DualWield/
 Begone/Quasar/Supermassive. Random card-selection is deliberately NEVER a search decision node.
 
-**Documented out-of-scope (need a new subsystem — left inert/approximated, all sound):** multiplayer-only
-(Sneaky/Flanking/Largesse/TankPower), Rupture end-of-turn self-damage edge, MadScience TinkerTime, true-RNG
-card-selection for Cinder / base True Grit (kept deterministic-default — promoting would be optimistically
-unsound).
+**Multiplayer-only cards (all 21 ported as single-player projections, sound):** the ally-facing payloads are
+dropped (no other players exist), so the powers that only buff/strike *via* other players are inert markers
+(BeaconOfHope/Flanking/Knockdown/Sneaky/HammerTime/TagTeam); the self/enemy slices are kept verbatim. The one
+self-downside — **Tank** (you take ×2 attack damage) — IS modelled, because an inert Tank would let the search
+play it for free (an over-credit). Largesse's random card-gen stays inert (RNG selection is never a search
+node), and Coordinate (temp Strength on the only ally — you) is a real buff.
+
+**Documented out-of-scope (need a new subsystem — left inert/approximated, all sound):** Rupture end-of-turn
+self-damage edge, MadScience TinkerTime, true-RNG card-selection for Cinder / base True Grit (kept
+deterministic-default — promoting would be optimistically unsound).
 
 **Audit-confirmed PESSIMISTIC (sound) gaps left as-is** (under-credit the player; fixing is low-value or
 high-risk): **DeathMarch** draw-scaling (`+(4+2U) × mid-turn cards drawn this turn`) is 0 in search — modelling

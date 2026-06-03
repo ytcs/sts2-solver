@@ -1342,7 +1342,7 @@ public sealed class DemonicShield : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public override CardResultPile ResultPile => Upgrades > 0 ? CardResultPile.Discard : CardResultPile.Exhaust;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.LoseHp(combat, combat.Player, 1);

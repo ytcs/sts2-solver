@@ -1016,3 +1016,186 @@ public sealed class Stratagem : CardModel
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new StratagemPower(), 1, combat.Player);
 }
+
+// --------------------------------------------------------------------------
+// Multiplayer-only Colorless cards (modelled as their single-player projection)
+//
+// Each carries CardMultiplayerConstraint.MultiplayerOnly in the game, so it can
+// never appear in a single-player run; we port them for catalog completeness,
+// modelling only the slice of each effect that lands on the local player —
+// exactly as the game resolves it with "you" as the sole participant:
+//   * effects on "another player"         -> dropped (no-op)
+//   * effects on "all allies/players"     -> apply only your share
+//   * a target of AnyAlly (one ally: you) -> resolves to Self
+//   * effects on enemies / self           -> kept verbatim
+// Dropping a multiplayer benefit under-credits the player, the safe direction.
+// (The other 10 multiplayer cards live in their home-pool files: DemonicShield /
+// Tank in Ironclad, EnergySurge / Ignition in Defect, Flanking / Sneaky in
+// Silent, HammerTime / Largesse in Regent, GlimpseBeyond / LegionOfBone in
+// Necrobinder.)
+// --------------------------------------------------------------------------
+
+/// <summary>Apply Beacon of Hope (split future Block gains with allies). Inert in single player — no allies
+/// to share with. Cost 1 Power. Upgrade: Innate. (MegaCrit BeaconOfHope, MultiplayerOnly.)</summary>
+public sealed class BeaconOfHope : CardModel
+{
+    public override string Name => "BeaconOfHope";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Power;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public override bool Innate => Upgrades > 0;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.ApplyPower(combat, combat.Player, new BeaconOfHopePower(), 1, combat.Player);
+}
+
+/// <summary>Give an ally 2 energy. The only ally is you, so gain 2 energy. Cost 0. Upgrade: +1 (→3).
+/// (MegaCrit BelieveInYou, MultiplayerOnly, TargetType.AnyAlly → Self.)</summary>
+public sealed class BelieveInYou : CardModel
+{
+    public override string Name => "BelieveInYou";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Energy => 2 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play) => Cmd.GainEnergy(combat, Energy);
+}
+
+/// <summary>Give an ally 5 temporary Strength (until that ally's turn ends). Targets you in single player.
+/// Cost 1. Upgrade: +3 (→8). (MegaCrit Coordinate, MultiplayerOnly, TargetType.AnyAlly → Self.)</summary>
+public sealed class Coordinate : CardModel
+{
+    public override string Name => "Coordinate";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Strength => 5 + 3 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.ApplyPower(combat, combat.Player, new CoordinatePower(), Strength, combat.Player);
+}
+
+/// <summary>Deal 5 damage, +5 for each time an ALLY other than you struck the target this turn. With no other
+/// allies the bonus is always 0 — flat 5 damage, and the +2-damage upgrade (which scales only that per-ally
+/// bonus) has no single-player effect. Cost 1. (MegaCrit GangUp, MultiplayerOnly.)</summary>
+public sealed class GangUp : CardModel
+{
+    public override string Name => "GangUp";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public int Damage => 5;   // base 5 + bonus * (allies who hit) = 5 + n*0 in single player
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+}
+
+/// <summary>Each ally draws 2 cards. You draw 2. Exhaust. Cost 1. Upgrade: +1 (→3). (MegaCrit HuddleUp,
+/// MultiplayerOnly, TargetType.AllAllies → self share.)</summary>
+public sealed class HuddleUp : CardModel
+{
+    public override string Name => "HuddleUp";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public int Cards => 2 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play) => Cmd.Draw(combat, Cards);
+}
+
+/// <summary>Gain 9 Block; give an ally Covered (redirect their next incoming attack to you). With only
+/// yourself to target, the redirect is a self-redirect (no-op), so the modelled effect is the unconditional
+/// 9 Block. Cost 1. Upgrade: +4 Block (→13). (MegaCrit Intercept, MultiplayerOnly; CoveredPower dropped.)
+/// </summary>
+public sealed class Intercept : CardModel
+{
+    public override string Name => "Intercept";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Block => 9 + 4 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+}
+
+/// <summary>Deal 10 damage and apply Knockdown (allies' attacks deal double to the target — inert in single
+/// player), so the modelled effect is 10 damage. Cost 3 Attack. Upgrade: +4 damage (→14). (MegaCrit
+/// Knockdown, MultiplayerOnly.)</summary>
+public sealed class Knockdown : CardModel
+{
+    public override string Name => "Knockdown";
+    public override int BaseCost => 3;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public int Damage => 10 + 4 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+        if (play.Target!.IsAlive) Cmd.ApplyPower(combat, play.Target!, new KnockdownPower(), 2 + Upgrades, combat.Player);
+    }
+}
+
+/// <summary>An ally gains 11 Block. Targets you in single player. Cost 1. Upgrade: +5 (→16). (MegaCrit Lift,
+/// MultiplayerOnly, TargetType.AnyAlly → Self.)</summary>
+public sealed class Lift : CardModel
+{
+    public override string Name => "Lift";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Block => 11 + 5 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+}
+
+/// <summary>Gain Block equal to the target ally's current Block. The only ally is you, so this doubles your
+/// current Block. Exhaust (removed on upgrade). Cost 1 Rare. (MegaCrit Mimic, MultiplayerOnly,
+/// TargetType.AnyAlly → Self.)</summary>
+public sealed class Mimic : CardModel
+{
+    public override string Name => "Mimic";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public override CardResultPile ResultPile => Upgrades > 0 ? CardResultPile.Discard : CardResultPile.Exhaust;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.GainBlock(combat, combat.Player, combat.Player.Block, ValueProp.Move, this);
+}
+
+/// <summary>Each ally gains 12 Block. You gain 12. Cost 2 Rare. Upgrade: +5 (→17). (MegaCrit Rally,
+/// MultiplayerOnly, TargetType.AllAllies → self share.)</summary>
+public sealed class Rally : CardModel
+{
+    public override string Name => "Rally";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public int Block => 12 + 5 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+}
+
+/// <summary>Deal 11 damage and apply Tag Team (allies' attacks hit the target an extra time — inert in single
+/// player), so the modelled effect is 11 damage. Cost 2 Attack. Upgrade: +4 damage (→15). (MegaCrit TagTeam,
+/// MultiplayerOnly.)</summary>
+public sealed class TagTeam : CardModel
+{
+    public override string Name => "TagTeam";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public int Damage => 11 + 4 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+        if (play.Target!.IsAlive) Cmd.ApplyPower(combat, play.Target!, new TagTeamPower(), 1, combat.Player);
+    }
+}

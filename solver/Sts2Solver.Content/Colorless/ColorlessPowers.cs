@@ -247,3 +247,46 @@ public sealed class StratagemPower : PowerModel
     public override string Id => "Stratagem";
     public override PowerType Type => PowerType.Buff;
 }
+
+// --------------------------------------------------------------------------
+// Powers granted by the multiplayer-only Colorless cards. In single player the
+// purely ally-facing ones never fire (no other players exist) — they are still
+// applied so the 1:1 structure is preserved, but carry no hook. Coordinate's
+// power is the exception: its target is the only ally (you), so it is a real
+// one-turn Strength buff.
+// --------------------------------------------------------------------------
+
+/// <summary>Beacon of Hope: whenever you gain Block, give half of it to your other allies (Unpowered). No
+/// other allies exist in single player, so it never fires — inert. (MegaCrit BeaconOfHopePower.)</summary>
+public sealed class BeaconOfHopePower : PowerModel
+{
+    public override string Id => "BeaconOfHope";
+    public override PowerType Type => PowerType.Buff;
+}
+
+/// <summary>Coordinate: grants +Amount temporary Strength until the owner's turn ends. Its target is the only
+/// ally — yourself — so it is a real one-turn self Strength buff, exactly the shared TemporaryStrengthPower
+/// mechanic. (MegaCrit CoordinatePower : TemporaryStrengthPower.)</summary>
+public sealed class CoordinatePower : TemporaryStrengthPower
+{
+    public override string Id => "Coordinate";
+    protected override int Sign => 1;
+}
+
+/// <summary>Knockdown: the marked enemy takes double damage from attacks dealt by your allies OTHER than you,
+/// until your turn ends. Every attack's dealer is you in single player, so the multiplier never applies —
+/// inert. (MegaCrit KnockdownPower, ModifyDamageMultiplicative gated on dealer != applier.)</summary>
+public sealed class KnockdownPower : PowerModel
+{
+    public override string Id => "Knockdown";
+    public override PowerType Type => PowerType.Debuff;
+}
+
+/// <summary>Tag Team: the marked enemy is struck an extra time by attacks played by your allies OTHER than
+/// you. Your own attacks are excluded, so it never fires in single player — inert. (MegaCrit TagTeamPower,
+/// ModifyCardPlayCount gated on a foreign card owner.)</summary>
+public sealed class TagTeamPower : PowerModel
+{
+    public override string Id => "TagTeam";
+    public override PowerType Type => PowerType.Debuff;
+}

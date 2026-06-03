@@ -1055,7 +1055,9 @@ public sealed class Transfigure : CardModel
     public override void OnPlay(CombatState combat, CardPlay play) { /* replay-count mechanic — inert */ }
 }
 
-/// <summary>Multiplayer-only: gift allies Souls (inert in single-player). Exhaust. (Glimpse Beyond)</summary>
+/// <summary>Multiplayer-only: each ally shuffles 3 Soul cards into their draw pile. In single player that ally
+/// is just you, so add 3 Souls to your draw pile. Exhaust. Upgrade: +1 (→4). (MegaCrit GlimpseBeyond,
+/// TargetType.AllAllies → self share.)</summary>
 public sealed class GlimpseBeyond : CardModel
 {
     public override string Name => "GlimpseBeyond";
@@ -1064,7 +1066,11 @@ public sealed class GlimpseBeyond : CardModel
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AllAllies;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
-    public override void OnPlay(CombatState combat, CardPlay play) { /* multiplayer-only — inert */ }
+    public int Cards => 3 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        for (int i = 0; i < Cards; i++) combat.Player.DrawPile.Add(new Soul());
+    }
 }
 
 /// <summary>Multiplayer-only: summon 6 for every ally. In single-player, summons 6 for you. Exhaust.

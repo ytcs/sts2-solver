@@ -79,5 +79,18 @@ public static partial class Catalog
         ["Prowess"] = () => new Prowess(),
         ["RollingBoulder"] = () => new RollingBoulder(),
         ["Stratagem"] = () => new Stratagem(),
+
+        // ---- Multiplayer-only Colorless cards (single-player projection; see ColorlessCards.cs). ----
+        ["BeaconOfHope"] = () => new BeaconOfHope(),
+        ["BelieveInYou"] = () => new BelieveInYou(),
+        ["Coordinate"] = () => new Coordinate(),
+        ["GangUp"] = () => new GangUp(),
+        ["HuddleUp"] = () => new HuddleUp(),
+        ["Intercept"] = () => new Intercept(),
+        ["Knockdown"] = () => new Knockdown(),
+        ["Lift"] = () => new Lift(),
+        ["Mimic"] = () => new Mimic(),
+        ["Rally"] = () => new Rally(),
+        ["TagTeam"] = () => new TagTeam(),
     };
 }
