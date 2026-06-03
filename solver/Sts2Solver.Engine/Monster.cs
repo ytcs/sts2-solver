@@ -21,6 +21,12 @@ public sealed class Monster : Creature
 
     public Monster() { Side = CombatSide.Enemy; }
 
+    /// <summary>True when the monster's currently telegraphed move is an attack (its <see cref="MoveState"/>
+    /// carries IntentDamage). Read by Defect GoForTheEyes to conditionally apply Weak. Safe before the first
+    /// move is rolled (returns false).</summary>
+    public bool IntendsToAttack
+        => Ai != null && Ai.States.TryGetValue(Ai.CurrentMoveId, out var s) && s is MoveState m && m.IntentDamage.HasValue;
+
     /// <summary>Execute the currently telegraphed move and record it in the move log. A move id that
     /// isn't a known MoveState (e.g. an injected "STUNNED") is treated as a no-op turn.</summary>
     public void PerformCurrentMove(CombatState combat)

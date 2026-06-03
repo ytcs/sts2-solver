@@ -171,6 +171,17 @@ public abstract class PowerModel
     /// (otherwise mid-turn draws are no-ops); inert in pure search. (Game: PowerModel.AfterCardDrawn.)</summary>
     public virtual void AfterCardDrawn(CombatState combat, CardModel card, bool fromHandDraw) { }
 
+    /// <summary>Fires (on every power in combat) after an orb's evoke effect resolves, with the evoked orb.
+    /// ThunderPower deals damage to all enemies whenever the player evokes a Lightning orb. Fired by
+    /// <see cref="OrbOps"/> after every evoke (front/back/overflow). (Game: PowerModel.AfterOrbEvoked.)</summary>
+    public virtual void AfterOrbEvoked(CombatState combat, OrbModel orb) { }
+
+    /// <summary>Fires (on every power in combat) after the player generates a card into a pile mid-combat
+    /// (status cards from BoostAway/FightThrough/GunkUp/Overclock/Turbo; random orbs). SmokestackPower deals
+    /// damage and TrashToTreasurePower channels an orb when a Status card is generated. Routed through
+    /// <see cref="Cmd.GenerateStatusCard"/>. (Game: PowerModel.AfterCardGeneratedForCombat.)</summary>
+    public virtual void AfterCardGenerated(CombatState combat, CardModel card) { }
+
     /// <summary>Fires after a side's turn begins, for creatures on that side. Poison ticks here.</summary>
     public virtual void AfterSideTurnStart(CombatState combat, CombatSide side) { }
 

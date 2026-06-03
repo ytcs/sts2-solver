@@ -146,6 +146,14 @@ public abstract class CardModel
     /// at setup, enabling the per-creature <see cref="Creature.PlayerPoweredHitsThisTurn"/> counter.</summary>
     public virtual bool TracksTargetPoweredHits => false;
 
+    /// <summary>True for a card whose value depends on cumulative Lightning orbs channeled this combat (Defect
+    /// Voltaic). Decks holding one set <see cref="CombatState.TracksLightningChanneled"/> at setup.</summary>
+    public virtual bool TracksLightningChanneledThisCombat => false;
+
+    /// <summary>True for a card whose value depends on energy spent this turn (Defect HelixDrill). Decks holding
+    /// one set <see cref="CombatState.TracksEnergySpent"/> at setup.</summary>
+    public virtual bool TracksEnergySpentThisTurn => false;
+
     /// <summary>True for a card that DRAWS and then acts on the resulting hand (EscapePlan, Acrobatics,
     /// Prepared). In search the draw is deferred (a chance node); this card registers via
     /// <see cref="Cmd.DeferDrawThenResolve"/> so the solver runs its post-draw step after the draw resolves.

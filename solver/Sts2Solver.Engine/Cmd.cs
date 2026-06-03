@@ -265,6 +265,16 @@ public static class Cmd
         combat.Monsters.Add(monster);
     }
 
+    /// <summary>Generate a card into a player pile mid-combat and fire the AfterCardGenerated hook on every
+    /// power (SmokestackPower deals damage, TrashToTreasurePower channels an orb when a Status card is made).
+    /// Used by the Defect status-adding cards (BoostAway/FightThrough/GunkUp/Overclock/Turbo). Inert hook for
+    /// decks without a generation-reactive power.</summary>
+    public static void GenerateStatusCard(CombatState combat, CardModel card, List<CardModel> pile)
+    {
+        pile.Add(card);
+        foreach (var p in combat.AllPowers.ToList()) p.AfterCardGenerated(combat, card);
+    }
+
     /// <summary>Apply (stack) a power on a target, then fire its AfterApplied hook. A debuff offered to a
     /// target carrying Artifact may be negated (consuming an Artifact charge) before it lands.</summary>
     public static void ApplyPower(CombatState combat, Creature target, PowerModel power, int amount, Creature? applier = null)

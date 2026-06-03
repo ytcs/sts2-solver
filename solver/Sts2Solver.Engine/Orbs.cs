@@ -164,6 +164,9 @@ public static class OrbOps
     {
         var p = combat.Player;
         if (p.OrbSlots <= 0) return;                  // no slots → channel is a no-op (Defect has 3)
+        // Cumulative Lightning-channel tally (Voltaic) — counted on every channel attempt, gated so only a
+        // Voltaic deck tracks/hashes it. Counted even if the orb later overflows (the game logs the channel).
+        if (combat.TracksLightningChanneled && orb is LightningOrb) combat.LightningsChanneledThisCombat++;
         if (p.Orbs.Count >= p.OrbSlots) EvokeFront(combat);
         if (p.Orbs.Count < p.OrbSlots) p.Orbs.Add(orb);
     }
@@ -177,6 +180,7 @@ public static class OrbOps
         var orb = p.Orbs[0];
         if (dequeue) p.Orbs.RemoveAt(0);
         orb.Evoke(combat);
+        FireEvoked(combat, orb);
     }
 
     /// <summary>Evoke the newest (back) orb. (Game OrbCmd.EvokeLast.)</summary>
@@ -188,6 +192,14 @@ public static class OrbOps
         var orb = p.Orbs[last];
         if (dequeue) p.Orbs.RemoveAt(last);
         orb.Evoke(combat);
+        FireEvoked(combat, orb);
+    }
+
+    /// <summary>Broadcast an orb evoke to every power (ThunderPower reacts to Lightning evokes). Inert when
+    /// no power overrides <see cref="OrbModel.AfterOrbEvoked"/> — i.e. for every non-Thunder deck.</summary>
+    private static void FireEvoked(CombatState combat, OrbModel orb)
+    {
+        foreach (var pw in combat.AllPowers.ToList()) pw.AfterOrbEvoked(combat, orb);
     }
 
     /// <summary>Evoke every orb currently in the queue, front to back (Reboot / Multi-evoke effects).</summary>

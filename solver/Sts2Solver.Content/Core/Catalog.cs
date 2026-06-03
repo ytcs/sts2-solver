@@ -15,6 +15,10 @@ public static partial class Catalog
         ["Infection"] = () => new Infection(),
         ["Burn"] = () => new Burn(),
         ["Dazed"] = () => new Dazed(),
+        ["Wound"] = () => new Wound(),
+        ["Slimed"] = () => new Slimed(),
+        ["Void"] = () => new Void(),
+        ["Fuel"] = () => new Fuel(),
         ["AscendersBane"] = () => new AscendersBane(),
         // Curses (Core/Curses.cs) — buildable by name for a real run deck, excluded from the deck-buildable
         // CardPool (never deliberately added), like the status cards above.
@@ -132,9 +136,14 @@ public static partial class Catalog
         // BeatIntoShape's forge scales on the target's prior powered hits this turn — only then track that
         // per-creature counter (it would otherwise fragment every other deck's state space).
         bool tracksPoweredHits = allCards.Any(c => c.TracksTargetPoweredHits);
+        // Defect Voltaic (lightnings channeled this combat) / HelixDrill (energy spent this turn) — gated
+        // counters tracked + hashed only when a deck that reads them is present.
+        bool tracksLightning = allCards.Any(c => c.TracksLightningChanneledThisCombat);
+        bool tracksEnergySpent = allCards.Any(c => c.TracksEnergySpentThisTurn);
         var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0,
                                        CurrentSide = CombatSide.Player, TracksCardsDrawn = tracksDrawn,
-                                       BoundsPlays = boundsPlays, TracksPoweredHits = tracksPoweredHits };
+                                       BoundsPlays = boundsPlays, TracksPoweredHits = tracksPoweredHits,
+                                       TracksLightningChanneled = tracksLightning, TracksEnergySpent = tracksEnergySpent };
         foreach (var r in player.Relics) r.OnCombatStart(combat);   // e.g. DivineRight grants Stars, Bound Phylactery summons Osty
         return combat;
     }

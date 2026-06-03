@@ -26,6 +26,7 @@ public static class CombatManager
         combat.AttacksPlayedThisTurn = 0;                // per-turn counter (Finisher / Necrobinder Lethality)
         combat.CardsDiscardedThisTurn = 0;               // per-turn counter (Memento Mori)
         combat.OstyAttacksThisTurn = 0;                  // per-turn counter (Necrobinder Flatten/Rattle)
+        combat.EnergySpentThisTurn = 0;                  // per-turn counter (Defect HelixDrill)
         combat.DoomAppliedThisTurn = false;              // per-turn flag (Necrobinder Death's Door)
         if (combat.TracksPoweredHits)                    // per-target counter (Regent BeatIntoShape)
         {
@@ -73,7 +74,10 @@ public static class CombatManager
         int spend = card.IsXCost ? player.Energy : effCost;   // X-cost cards consume all remaining energy
         player.LoseEnergy(spend);
         if (spend > 0)
+        {
+            if (combat.TracksEnergySpent) combat.EnergySpentThisTurn += spend;   // Defect HelixDrill scaling
             foreach (var pw in combat.AllPowers.ToList()) pw.AfterEnergySpent(combat, spend);
+        }
 
         // Star cost (Regent). VoidForm can zero it via ModifyStarCost; X-star cards (Stardust) spend all.
         int starCost = card.IsXStarCost ? player.Stars : card.StarCost;

@@ -16,21 +16,29 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
 
 ## Current state
 
-- **Content — four characters complete (88/88 each):** Ironclad, Silent, Regent (Stars + Forge/Sovereign
-  Blade), Necrobinder (Osty pet + Doom) — plus Colorless (18), the Event/Ancient "Special" pool (24), curses
-  (18). Act-1 elites 12/12 + the normal-monster set, trace-validated against live recordings.
-- **Defect — IN PROGRESS.** The full **orb subsystem** is built and gated (engine `Orbs.cs`): all five orb
-  types (Lightning damage / Frost block / Dark accumulate→evoke-weakest / Plasma turn-start energy / Glass
+- **Content — five characters complete (88/88 each):** Ironclad, Silent, Regent (Stars + Forge/Sovereign
+  Blade), Necrobinder (Osty pet + Doom), **Defect (orbs + Focus)** — plus Colorless (18), the Event/Ancient
+  "Special" pool (24), curses (18). Act-1 elites 12/12 + the normal-monster set, trace-validated against
+  live recordings.
+- **Defect — COMPLETE (88/88).** The full **orb subsystem** is built and gated (engine `Orbs.cs`): all five
+  orb types (Lightning damage / Frost block / Dark accumulate→evoke-weakest / Plasma turn-start energy / Glass
   all-enemy decay), the FIFO slot queue (channel + overflow-evokes-oldest, evoke front/back, slots), **Focus**,
-  and turn-boundary passive triggers. **28/88 cards ported** + the CrackedCore starter relic. Batch 1
-  (starters + a spread across every orb type): Zap, Dualcast, BallLightning, Coolheaded, ColdSnap, BeamCell,
-  Barrage, Chill, Glacier, Capacitor, Darkness, Defragment. Batch 2 (pure orb/damage/block/draw/energy — no
-  new power/mechanism): BootSequence, Leap, Glasswork, ShadowShield, ChargeBattery, Skim, Supercritical, Fusion,
-  Rainbow, Refract, IceLance, MeteorStrike, SweepingBeam, Null. Lightning's random target uses the standard
-  first-enemy search default (sound). Remaining 60 cards split into (A) ~10 more simple, (B) ~22 needing a new
-  PowerModel (Thunder/Hailstorm/Storm/Loop/Coolant/Smokestack/Buffer/Iteration/EchoForm/CreativeAi/…), and
-  (C) ~18 needing new mechanism (cost-X Tempest/MultiCast, RNG Chaos/WhiteNoise, exhaust/energy-spent scaling,
-  Shatter double-evoke, discard-retrieval Hologram, …) — the next batches.
+  turn-boundary passive triggers, the **AfterOrbEvoked** hook (Thunder) and the **AfterCardGenerated** hook
+  (status-card generation → Smokestack/TrashToTreasure) + the CrackedCore starter relic. All 88 cards ported
+  1:1, plus the status/token cards they make (Wound/Slimed/Void/Fuel). Orb-reactive powers modelled:
+  Thunder/Hailstorm/Storm/Subroutine/Coolant/Smokestack/Loop/Spinner/LightningRod/BiasedCognition/
+  ConsumingShadow/Buffer/Iteration + temporary-Focus (Hotfix/FocusedStrike/Synchronize), FreePower (Synthesis),
+  SignalBoost/EchoForm replay. Two new **gated combat counters** (mirroring Murder/BeatIntoShape): Voltaic
+  (Lightnings channeled this combat) and HelixDrill (energy spent this turn). X-cost orb cards (MultiCast/
+  Tempest), Stateful cost-mutators (AdaptiveStrike free copy, MomentumStrike, Modded, Claw scaling), and
+  `Monster.IntendsToAttack` (GoForTheEyes).
+  - **Documented PESSIMISTIC-sound gaps (under-credit, never optimistic):** MachineLearning (+1 turn draw —
+    threading the count through the convergence-critical draw paths is the deferred DeathMarch class),
+    Feral (free-replay return-to-hand), CreativeAi/WhiteNoise/Chaos (RNG card/orb generation — never a search
+    decision), Uproar's auto-play, TrashToTreasure's random orb, RocketPunch's status-gen cost-reduction,
+    GeneticAlgorithm's cross-combat scaling, Scrape's draw-then-selective-discard (modelled only under a
+    concrete Rng; skipped in pure search), Hologram/Scavenge choices (fixed defaults). The **one acknowledged
+    mildly-optimistic** spot is Void's on-draw −1 energy (≤1 energy, Turbo-only) — noted in StatusCards.cs.
 - **Card keywords modelled 1:1:** Exhaust, Ethereal, Unplayable, **Innate** (guaranteed opening hand), **Retain**
   (kept across turns), **Sly** (auto-play on mid-turn discard) — see "Engine" below.
 - **Search:** the exact lexicographic expectimax `Solver` is the ground-truth **oracle**; the sampling
@@ -43,7 +51,9 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 558 passing, 0 skipped/failed. Traces: 73 recorded game traces, all PASS.**
+- **Tests: 612 passing, 0 skipped/failed. Traces: 73 recorded game traces, all PASS.** (Defect cards are
+  unit- and exact-solver-validated against the decompile; live headless trace-validation of a Defect run is
+  the remaining nice-to-have.)
 
 ---
 

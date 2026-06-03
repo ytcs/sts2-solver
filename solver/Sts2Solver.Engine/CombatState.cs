@@ -71,6 +71,18 @@ public sealed class CombatState
     /// play; Banshee's Cry's cost drops). Never reset.</summary>
     public int EtherealPlayedThisCombat;
 
+    /// <summary>Lightning orbs channeled this combat (Defect Voltaic channels this many). Cumulative, never
+    /// reset. Only tracked + hashed when <see cref="TracksLightningChanneled"/> is set (a deck holds Voltaic),
+    /// so the common case isn't fragmented by an ever-growing counter.</summary>
+    public int LightningsChanneledThisCombat;
+    public bool TracksLightningChanneled;
+
+    /// <summary>Energy the player has spent this turn (Defect HelixDrill hits this many times). Reset at the
+    /// player's turn start. Only tracked + hashed when <see cref="TracksEnergySpent"/> is set (a deck holds
+    /// HelixDrill).</summary>
+    public int EnergySpentThisTurn;
+    public bool TracksEnergySpent;
+
     /// <summary>Osty attacks resolved this turn (Necrobinder Flatten costs 0 after one; Rattle hits 1 +
     /// this many). Reset at the player's turn start.</summary>
     public int OstyAttacksThisTurn;
@@ -184,6 +196,10 @@ public sealed class CombatState
             TracksCardsDrawn = TracksCardsDrawn,
             TracksPoweredHits = TracksPoweredHits,
             EtherealPlayedThisCombat = EtherealPlayedThisCombat,
+            LightningsChanneledThisCombat = LightningsChanneledThisCombat,
+            TracksLightningChanneled = TracksLightningChanneled,
+            EnergySpentThisTurn = EnergySpentThisTurn,
+            TracksEnergySpent = TracksEnergySpent,
             OstyAttacksThisTurn = OstyAttacksThisTurn,
             DoomAppliedThisTurn = DoomAppliedThisTurn,
             PendingDraw = PendingDraw,
@@ -211,6 +227,8 @@ public sealed class CombatState
                   + (OstyAttacksThisTurn != 0 ? $"/oa{OstyAttacksThisTurn}" : "")
                   + (DoomAppliedThisTurn ? "/da" : "");
         var drawn = TracksCardsDrawn ? $"/w{CardsDrawnThisCombat}" : "";
+        if (TracksLightningChanneled) drawn += $"/lc{LightningsChanneledThisCombat}";   // Voltaic
+        if (TracksEnergySpent) drawn += $"/es{EnergySpentThisTurn}";                     // HelixDrill
         // Per-target powered hits this turn (BeatIntoShape) — only when a deck reads it, listed in monster order.
         if (TracksPoweredHits) drawn += "/ph" + string.Join(".", Monsters.Select(m => m.PlayerPoweredHitsThisTurn));
         var disc = PendingDiscard != 0 ? $"/pd{PendingDiscard}{(PendingDiscardCard != null ? "+" + PendingDiscardCard.StateKey() : "")}" : "";   // discard-of-choice in flight (+continuation card, e.g. HiddenDaggers)
