@@ -26,7 +26,7 @@ public sealed class FlashOfSteel : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Damage => 5 + 2 * Upgrades;
+    public int Damage => 5 + 3 * Upgrades;   // decompile: Damage.UpgradeValueBy(3)
     public int Cards => 1;
     public override void OnPlay(CombatState combat, CardPlay play)
     {

@@ -61,11 +61,11 @@ public class ColorlessCardTests
     }
 
     [Fact]
-    public void FlashOfSteel_Upgraded_Deals_7()
+    public void FlashOfSteel_Upgraded_Deals_8()
     {
         var (c, _, m) = Fight();
         Play(c, (CardModel)new FlashOfSteel().Upgraded(1), m);
-        Assert.Equal(60 - 7, m.CurrentHp);
+        Assert.Equal(60 - 8, m.CurrentHp);   // 5 + 3 (decompile: UpgradeValueBy(3))
     }
 
     [Fact]

@@ -617,7 +617,7 @@ public sealed class Predator : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Damage => 15 + 3 * Upgrades;
+    public int Damage => 15 + 5 * Upgrades;   // decompile: Damage.UpgradeValueBy(5)
     public int BonusDraw => 2;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
