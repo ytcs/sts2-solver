@@ -53,11 +53,15 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 665 passing, 0 skipped/failed. Traces: 74 recorded game traces, all PASS** — including a live
+- **Tests: 665 passing, 0 skipped/failed. Traces: 76 recorded game traces, all PASS** — including a live
   headless Defect-vs-Byrdonis run (#74) that exercises the orb subsystem end-to-end (CrackedCore's starting
   orb, Zap channel, Dualcast evoke, ColdSnap Frost channel+block, BallLightning, and the Lightning/Frost
   turn-end passives), matching the game's HP/block/Strength across 4 turns 35/35. (The orb random-target
-  default is exact for single-enemy, an approximation for multi-enemy — by design.)
+  default is exact for single-enemy, an approximation for multi-enemy — by design.) **Two new Colorless
+  validations (#75–76):** a Whistle-stun deck where the game (like our engine) shows Byrdonis taking zero
+  attacks across the fight — live-confirming the new bounded stun AND that Territorial Strength still ramps
+  during a stunned turn (25/25); and a Prowess/EternalArmor/Shockwave power deck confirming the new powers'
+  Weak/Vulnerable, Plating block, and Strength/Dexterity against the real game across 4 turns (43/43).
 
 ---
 
