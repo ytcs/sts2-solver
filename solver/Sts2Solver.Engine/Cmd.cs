@@ -35,6 +35,13 @@ public static class Cmd
 
         // Attack-completion hook (Vigor consumes its bonus here, once spent on a powered attack).
         foreach (var p in combat.AllPowers.ToList()) p.AfterAttackDealt(combat, dealer, props);
+
+        // Track powered (Move, non-Unpowered) hits the player lands on each creature this turn — the game
+        // records a DamageReceivedEntry per hit (even fully-blocked ones), which BeatIntoShape's forge counts.
+        // Gated so only BeatIntoShape decks pay the memo cost. (Game: ValuePropExtensions.IsPoweredAttack.)
+        if (combat.TracksPoweredHits && dealer == combat.Player
+            && props.HasFlag(ValueProp.Move) && !props.HasFlag(ValueProp.Unpowered))
+            target.PlayerPoweredHitsThisTurn++;
         return lost;
     }
 

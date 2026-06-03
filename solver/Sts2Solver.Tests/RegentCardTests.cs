@@ -193,6 +193,57 @@ public class RegentCardTests
         Assert.Equal(53 - 17, m.CurrentHp);
     }
 
+    /// <summary>A fresh BeatIntoShape (no prior powered hits on the target this turn) forges its base 5
+    /// (= CalcBase), building a 10+5 blade, and its own hit then registers on the target's per-turn counter.</summary>
+    [Fact]
+    public void BeatIntoShape_With_No_Prior_Hits_Forges_Base()
+    {
+        // The deck must contain BeatIntoShape for the engine to track per-target powered hits.
+        var player = Catalog.BuildPlayer(new List<CardModel> { new BeatIntoShape() }, currentHp: 80, maxHp: 80);
+        var m = Monsters.CalcifiedCultist(hp: 200);
+        var combat = Catalog.SetupCombat(player, new[] { m });
+        player.ResetEnergy();
+        Assert.True(combat.TracksPoweredHits);
+
+        Play(combat, new BeatIntoShape(), m);
+        Assert.Equal(10 + 5, player.Hand.OfType<SovereignBlade>().Single().Damage);   // priorHits=0 → Forge 5
+        Assert.Equal(1, m.PlayerPoweredHitsThisTurn);                                 // its own hit counted
+    }
+
+    /// <summary>BeatIntoShape forges 5 × (1 + prior powered hits the player dealt the target this turn).
+    /// Two StrikeRegents first ⇒ Forge 5 × 3 = 15 ⇒ a 10+15 blade.</summary>
+    [Fact]
+    public void BeatIntoShape_Forge_Scales_With_Prior_Powered_Hits()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel> { new BeatIntoShape() }, currentHp: 80, maxHp: 80);
+        var m = Monsters.CalcifiedCultist(hp: 200);
+        var combat = Catalog.SetupCombat(player, new[] { m });
+        player.ResetEnergy();
+
+        Play(combat, new StrikeRegent(), m);
+        Play(combat, new StrikeRegent(), m);
+        Assert.Equal(2, m.PlayerPoweredHitsThisTurn);
+
+        Play(combat, new BeatIntoShape(), m);   // priorHits=2 → Forge 5 × 3 = 15
+        Assert.Equal(10 + 15, player.Hand.OfType<SovereignBlade>().Single().Damage);
+    }
+
+    /// <summary>The per-target powered-hit counter is per-turn: it resets at the next player-turn start, so a
+    /// BeatIntoShape played on a fresh turn (despite hits on a prior turn) forges only its base.</summary>
+    [Fact]
+    public void BeatIntoShape_PoweredHit_Counter_Resets_Each_Turn()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel> { new BeatIntoShape() }, currentHp: 80, maxHp: 80);
+        var m = Monsters.CalcifiedCultist(hp: 200);
+        var combat = Catalog.SetupCombat(player, new[] { m });
+        player.ResetEnergy();
+
+        Play(combat, new StrikeRegent(), m);
+        Assert.Equal(1, m.PlayerPoweredHitsThisTurn);
+        CombatManager.BeginPlayerTurn(combat);
+        Assert.Equal(0, m.PlayerPoweredHitsThisTurn);
+    }
+
     [Fact]
     public void SovereignBlade_Is_Retained_At_Turn_End()
     {

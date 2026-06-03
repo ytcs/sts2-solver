@@ -27,6 +27,11 @@ public static class CombatManager
         combat.CardsDiscardedThisTurn = 0;               // per-turn counter (Memento Mori)
         combat.OstyAttacksThisTurn = 0;                  // per-turn counter (Necrobinder Flatten/Rattle)
         combat.DoomAppliedThisTurn = false;              // per-turn flag (Necrobinder Death's Door)
+        if (combat.TracksPoweredHits)                    // per-target counter (Regent BeatIntoShape)
+        {
+            foreach (var m in combat.Monsters) m.PlayerPoweredHitsThisTurn = 0;
+            combat.Player.PlayerPoweredHitsThisTurn = 0;
+        }
         // Block is NOT cleared on turn 1, nor while a Barricade-style power keeps it (PreventsBlockClear).
         if (!firstTurn && !PreventsBlockClear(combat.Player)) combat.Player.ClearBlock();
 

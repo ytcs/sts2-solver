@@ -141,6 +141,11 @@ public abstract class CardModel
     /// at setup, capping plays per turn (cost-≥1 draw cards are energy-bounded, so they never set this).</summary>
     public virtual bool LoopRiskDraw => false;
 
+    /// <summary>True for a card whose value depends on how many powered hits the player has already dealt the
+    /// target THIS turn (Regent BeatIntoShape). Decks holding one set <see cref="CombatState.TracksPoweredHits"/>
+    /// at setup, enabling the per-creature <see cref="Creature.PlayerPoweredHitsThisTurn"/> counter.</summary>
+    public virtual bool TracksTargetPoweredHits => false;
+
     /// <summary>True for a card that DRAWS and then acts on the resulting hand (EscapePlan, Acrobatics,
     /// Prepared). In search the draw is deferred (a chance node); this card registers via
     /// <see cref="Cmd.DeferDrawThenResolve"/> so the solver runs its post-draw step after the draw resolves.

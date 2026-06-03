@@ -127,9 +127,12 @@ public static partial class Catalog
         // A cost-0 replayable draw cantrip (EscapePlan / Prepared) could loop the per-turn play chain in search;
         // such decks cap plays per turn (and hash the counter). Cost-≥1 draws are energy-bounded ⇒ no cap.
         bool boundsPlays = allCards.Any(c => c.LoopRiskDraw);
+        // BeatIntoShape's forge scales on the target's prior powered hits this turn — only then track that
+        // per-creature counter (it would otherwise fragment every other deck's state space).
+        bool tracksPoweredHits = allCards.Any(c => c.TracksTargetPoweredHits);
         var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0,
                                        CurrentSide = CombatSide.Player, TracksCardsDrawn = tracksDrawn,
-                                       BoundsPlays = boundsPlays };
+                                       BoundsPlays = boundsPlays, TracksPoweredHits = tracksPoweredHits };
         foreach (var r in player.Relics) r.OnCombatStart(combat);   // e.g. DivineRight grants Stars, Bound Phylactery summons Osty
         return combat;
     }

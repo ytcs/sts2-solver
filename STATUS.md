@@ -1,7 +1,8 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-02. Recent: Sly/Innate/Retain keywords modelled 1:1; HiddenDaggers promotion;
-Murder live-validation; a full per-module catalog fidelity audit (two number fixes; gaps recorded below)._
+_Last updated: 2026-06-02. Recent: the two Regent fidelity gaps from the audit resolved — CrescentSpear
+verified correct as-is; BeatIntoShape's history-based Forge modelled exactly via a gated per-target
+powered-hits counter. Earlier: Sly/Innate/Retain keywords 1:1; HiddenDaggers promotion; Murder live-validation._
 
 ## Goal
 
@@ -29,7 +30,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 520 passing, 0 skipped/failed. Traces: 73 recorded game traces, all PASS.**
+- **Tests: 523 passing, 0 skipped/failed. Traces: 73 recorded game traces, all PASS.**
 
 ---
 
@@ -100,7 +101,8 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   In-pile upgrades (Armaments/Apotheosis) **replace** rather than mutate shared instances. Per-turn play cap
   (`MaxPlaysPerTurn`) bounds cost-0 cantrip loops; loop-risk decks additionally hash the play counter.
 - **Memo key** is a 128-bit FNV hash over all state-relevant fields incl. the per-turn/per-combat counters
-  (Skills/Stars/Attacks/Discarded/Drawn[gated]/Ethereal/Osty/Doom, PendingDiscard + its continuation card).
+  (Skills/Stars/Attacks/Discarded/Drawn[gated]/Ethereal/Osty/Doom, per-target PoweredHitsThisTurn[gated:
+  BeatIntoShape], PendingDiscard + its continuation card).
 
 ### Search / MCTS / advisor / VF — all gated against the oracle
 - Exact: lexicographic value `(P_win, E[HP loss])`, exact chance nodes (move-roll + multivariate-hypergeometric
@@ -191,16 +193,23 @@ first within a tier)** — so to make a specific high-cost / discard-triggered c
 **Priority: CORRECTNESS — 1:1-model the mechanics of every ported card.** A full per-module fidelity audit
 (Silent/Colorless/Ironclad/Special/Curses/Regent/Necrobinder vs the decompile) found the catalog largely
 fidelity-correct: **Necrobinder is clean; Ironclad/Special are clean** (sampled damage/upgrade/power numbers all
-match). Sly/Innate/Retain are now modelled. The remaining genuine HP-relevant gaps are small and listed first.
+match). Sly/Innate/Retain are now modelled. **The two Regent gaps it flagged are now resolved** (CrescentSpear
+verified correct as-is; BeatIntoShape's history-based Forge modelled exactly — see 1–2 below). The remaining
+items are lower-value and listed after.
 
-1. **Regent `CrescentSpear` — star-count filter.** Game: damage scales on `AllCards.Count(c => c.CanonicalStarCost
-   >= 0 || c.HasStarCostX)`; ours counts `StarCost > 0 || IsXStarCost`. **First verify the base
-   `CanonicalStarCost` default** (likely −1 for non-star cards ⇒ `>= 0` means "has a star cost", which our
-   `> 0` matches unless a 0★ card exists) before changing — don't blind-fix. Pessimistic if wrong (under-damage).
-2. **Regent `BeatIntoShape` — history-based Forge.** Game forges `(powered hits on target this turn by player) −
-   (this attack's hit count)`; ours forges a fixed `5 + 2·U`. **Optimistic/dangerous** (we over-forge on the
-   first hit). Needs a per-creature "powered hits received this turn" counter (the engine has the hooks; add a
-   small tracked counter like the existing per-turn counters). Highest-value remaining fix.
+1. **Regent `CrescentSpear` — star-count filter. VERIFIED CORRECT (no change).** Game scales on
+   `AllCards.Count(c => c.CanonicalStarCost >= 0 || c.HasStarCostX)`. Base `CanonicalStarCost` defaults to −1
+   and **no card has `CanonicalStarCost == 0`** (confirmed via decompile sweep), so `>= 0` ≡ our `StarCost > 0`.
+   `AllCards` includes the in-play PlayPile card ⇒ our `+1` for the card being played is exact. Left as-is.
+2. **Regent `BeatIntoShape` — history-based Forge. DONE.** Decompile: Forge = `CalcBase + CalcExtra×count −
+   thisCard'sHits×CalcExtra` = `CalcBase + CalcExtra×priorHits` with `CalcBase == CalcExtra == 5 (+2/upg)`,
+   where priorHits = powered (Move, non-Unpowered) hits the player dealt **this target this turn before this
+   card**. (STATUS previously called this "optimistic/over-forge"; it was the *opposite* — our fixed `5+2·U`
+   was the priorHits=0 floor, i.e. **pessimistic** under-forge, since Forge builds the beneficial Sovereign
+   Blade.) Now modelled exactly via a gated per-creature counter `Creature.PlayerPoweredHitsThisTurn`
+   (incremented in `Cmd.Attack` on player powered Move hits, reset at player-turn start, hashed/keyed only when
+   the deck holds BeatIntoShape — `CombatState.TracksPoweredHits` / `CardModel.TracksTargetPoweredHits`,
+   mirroring the Murder `TracksCardsDrawn` gate). `RegentForge.Forge(5+2·U × (1+priorHits))`.
 3. **Single-turn Sly grant** (HandTrick selects a Skill, MasterPlannerPower grants Sly to played Skills) — still
    inert. Needs a mutable per-card single-turn-Sly flag (makes granted cards Stateful). Moderate; low frequency.
 4. **`Purity` variable-count exhaust-of-choice** (0..N) — Retain now set, but the exhaust selection is a fixed
@@ -233,4 +242,6 @@ prune); Phase-C learned value function; the lexicographic-objective question set
 88/88** + Colorless/Special/curses; the performance milestone (action-widening + PUCT, lazy chance nodes → 1–2 s);
 **mid-turn draws as chance nodes** + **post-draw resolution**; **HiddenDaggers discard-continuation promotion**;
 **Murder live-validation** (turn-start-draw reconstruction in the validator, trace #73); **Sly/Innate/Retain
-keyword mechanics 1:1** + a full per-module catalog fidelity audit (Predator/FlashOfSteel upgrade-number fixes).
+keyword mechanics 1:1** + a full per-module catalog fidelity audit (Predator/FlashOfSteel upgrade-number fixes);
+**the audit's two Regent gaps closed** (CrescentSpear verified correct; BeatIntoShape history-based Forge via a
+gated per-target powered-hits counter).

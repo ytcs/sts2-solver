@@ -61,6 +61,12 @@ public sealed class CombatState
     /// drawn (Murder). Gates <see cref="CardsDrawnThisCombat"/> tracking + hashing.</summary>
     public bool TracksCardsDrawn;
 
+    /// <summary>Set at combat setup when the deck contains a card whose value depends on a target's powered
+    /// hits this turn (Regent BeatIntoShape). Gates per-creature
+    /// <see cref="Creature.PlayerPoweredHitsThisTurn"/> tracking + hashing, so other decks aren't fragmented
+    /// by a counter that changes on every hit within a turn.</summary>
+    public bool TracksPoweredHits;
+
     /// <summary>Ethereal cards the player has played this combat (Necrobinder Pull from Below hits 1 per such
     /// play; Banshee's Cry's cost drops). Never reset.</summary>
     public int EtherealPlayedThisCombat;
@@ -176,6 +182,7 @@ public sealed class CombatState
             CardsDiscardedThisTurn = CardsDiscardedThisTurn,
             CardsDrawnThisCombat = CardsDrawnThisCombat,
             TracksCardsDrawn = TracksCardsDrawn,
+            TracksPoweredHits = TracksPoweredHits,
             EtherealPlayedThisCombat = EtherealPlayedThisCombat,
             OstyAttacksThisTurn = OstyAttacksThisTurn,
             DoomAppliedThisTurn = DoomAppliedThisTurn,
@@ -204,6 +211,8 @@ public sealed class CombatState
                   + (OstyAttacksThisTurn != 0 ? $"/oa{OstyAttacksThisTurn}" : "")
                   + (DoomAppliedThisTurn ? "/da" : "");
         var drawn = TracksCardsDrawn ? $"/w{CardsDrawnThisCombat}" : "";
+        // Per-target powered hits this turn (BeatIntoShape) — only when a deck reads it, listed in monster order.
+        if (TracksPoweredHits) drawn += "/ph" + string.Join(".", Monsters.Select(m => m.PlayerPoweredHitsThisTurn));
         var disc = PendingDiscard != 0 ? $"/pd{PendingDiscard}{(PendingDiscardCard != null ? "+" + PendingDiscardCard.StateKey() : "")}" : "";   // discard-of-choice in flight (+continuation card, e.g. HiddenDaggers)
         var plays = BoundsPlays ? $"/np{PlaysThisTurn}" : "";           // per-turn play count (loop-risk decks only)
         disc += plays;

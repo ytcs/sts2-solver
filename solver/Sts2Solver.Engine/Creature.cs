@@ -13,6 +13,12 @@ public abstract class Creature
     public int Block;
     public CombatSide Side;
 
+    /// <summary>Powered (Move, non-Unpowered) attack hits this creature has received from the player during
+    /// the current player turn (reset at player-turn start). Regent's BeatIntoShape forges based on the
+    /// target's prior such hits. Only tracked + hashed when a deck reads it
+    /// (<see cref="CombatState.TracksPoweredHits"/>), so the common case isn't fragmented.</summary>
+    public int PlayerPoweredHitsThisTurn;
+
     public readonly List<PowerModel> Powers = new();
 
     public bool IsAlive => CurrentHp > 0;
@@ -88,6 +94,7 @@ public abstract class Creature
         dst.MaxHp = MaxHp;
         dst.Block = Block;
         dst.Side = Side;
+        dst.PlayerPoweredHitsThisTurn = PlayerPoweredHitsThisTurn;
         dst.Powers.Clear();
         foreach (var p in Powers)
         {

@@ -99,9 +99,11 @@ public sealed class AstralPulse : CardModel
     }
 }
 
-/// <summary>Deal 5 damage, then Forge 5. (Game: Forge scales with powered hits on the target this turn,
-/// minus this card's hits — not tracked here, so Forge is the base value.) Upgrade: +2 damage, +2 Forge.
-/// (MegaCrit BeatIntoShape)</summary>
+/// <summary>Deal 5 damage, then Forge 5 × (1 + powered hits the player had already dealt this target this
+/// turn). Upgrade: +2 damage, +2 Forge-per-hit. (Game BeatIntoShape: Forge = CalcBase + CalcExtra × hits −
+/// thisCard'sHits × CalcExtra = CalcBase + CalcExtra × priorHits, with CalcBase = CalcExtra = 5 (+2/upgrade),
+/// where "hits" are powered Move attacks the player dealt this creature this turn. The per-target counter is
+/// the engine's <see cref="Creature.PlayerPoweredHitsThisTurn"/>, read BEFORE this card's own hit lands.)</summary>
 public sealed class BeatIntoShape : CardModel
 {
     public override string Name => "BeatIntoShape";
@@ -109,12 +111,15 @@ public sealed class BeatIntoShape : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AnyEnemy;
+    public override bool TracksTargetPoweredHits => true;
     public int Damage => 5 + 2 * Upgrades;
-    public int Forge => 5 + 2 * Upgrades;
+    public int ForgePerHit => 5 + 2 * Upgrades;   // CalcBase == CalcExtra
     public override void OnPlay(CombatState combat, CardPlay play)
     {
-        Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
-        RegentForge.Forge(combat, Forge);
+        var target = play.Target!;
+        int priorHits = target.PlayerPoweredHitsThisTurn;   // read before this card's hit increments it
+        Cmd.Attack(combat, combat.Player, target, Damage, ValueProp.Move, this);
+        RegentForge.Forge(combat, ForgePerHit * (1 + priorHits));
     }
 }
 

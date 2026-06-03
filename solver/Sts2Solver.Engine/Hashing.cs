@@ -55,6 +55,9 @@ public static class HashingExtensions
         s.Player.Hash(ref h);
         h.Add(s.Monsters.Count);
         foreach (var m in s.Monsters) m.Hash(ref h);
+        // Per-target powered hits this turn (BeatIntoShape's forge scaling) — gated so it doesn't fragment
+        // every other deck's state space with a counter that changes on each hit within a turn.
+        if (s.TracksPoweredHits) foreach (var m in s.Monsters) h.Add(m.PlayerPoweredHitsThisTurn);
         return h.Result;
     }
 }
