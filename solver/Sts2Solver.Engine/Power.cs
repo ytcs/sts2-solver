@@ -21,6 +21,10 @@ public abstract class PowerModel
     /// powers when energy resets at turn start. (Game: PowerModel.ModifyMaxEnergy.)</summary>
     public virtual int ModifyMaxEnergy(Creature player) => 0;
 
+    /// <summary>Modifies the player's turn-start hand-draw count (MachineLearning adds Amount). Chained over the
+    /// player's powers in <see cref="CombatManager.TurnStartDrawCount"/>. (Game: PowerModel.ModifyHandDraw.)</summary>
+    public virtual int ModifyHandDraw(Creature player, int count) => count;
+
     /// <summary>Additive bonus to the Vulnerable damage multiplier when the OWNER (an attacker) deals a
     /// powered attack to a Vulnerable target. Cruelty adds Amount/100. Summed by VulnerablePower over the
     /// dealer's powers. (Game: PowerModel.ModifyVulnerableMultiplier.)</summary>

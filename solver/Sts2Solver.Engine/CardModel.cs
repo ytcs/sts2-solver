@@ -175,6 +175,22 @@ public abstract class CardModel
     /// <see cref="CombatState.CardsPlayedThisCombat"/> counter (otherwise it would fragment every deck's state).</summary>
     public virtual bool TracksCardsPlayedThisCombat => false;
 
+    /// <summary>True for a card whose damage/effect scales on the number of cards drawn MID-TURN (by effects, not
+    /// the turn-start hand draw) this turn (Necrobinder DeathMarch). Decks holding one set
+    /// <see cref="CombatState.TracksMidTurnDraws"/> at setup, enabling the gated
+    /// <see cref="CombatState.CardsDrawnMidTurn"/> counter (otherwise it would fragment every deck's state).</summary>
+    public virtual bool TracksMidTurnDrawScaling => false;
+
+    /// <summary>True for a card with an ON-DRAW side effect — fired the moment it enters the hand from a draw
+    /// (turn-start OR mid-turn). Void loses the player 1 energy on draw. Gated so non-Void draws skip the dispatch.</summary>
+    public virtual bool HasOnDraw => false;
+
+    /// <summary>The on-draw side effect (Void: lose 1 energy). Fired by every draw path — concrete
+    /// <see cref="CombatManager.DrawCards"/> and the search/MCTS <see cref="Cmd"/>-deferred chance nodes — so it is
+    /// modelled identically in rollouts, replay, exact search and MCTS. Only consulted when <see cref="HasOnDraw"/>.
+    /// Must be deterministic + side-effect-only (no RNG, no card-gen) so chance-node clones stay sound.</summary>
+    public virtual void OnDraw(CombatState combat) { }
+
     /// <summary>True for a card that DRAWS and then acts on the resulting hand (EscapePlan, Acrobatics,
     /// Prepared). In search the draw is deferred (a chance node); this card registers via
     /// <see cref="Cmd.DeferDrawThenResolve"/> so the solver runs its post-draw step after the draw resolves.

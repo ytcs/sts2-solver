@@ -51,7 +51,7 @@ public static class PolicyRollout
 
         CombatManager.RollInitialMoves(combat, rng);
         CombatManager.BeginPlayerTurn(combat);
-        CombatManager.DrawCards(combat, CombatManager.OpeningDrawAfterInnate(combat, Player.CardsDrawnPerTurn), rng);   // Innate → guaranteed turn-1
+        CombatManager.DrawCards(combat, CombatManager.OpeningDrawAfterInnate(combat, CombatManager.TurnStartDrawCount(combat)), rng, fromHandDraw: true);   // Innate + MachineLearning
 
         while (!combat.IsCombatOver)
         {
@@ -75,7 +75,7 @@ public static class PolicyRollout
 
             CombatManager.RollNextMoves(combat, rng);
             CombatManager.BeginPlayerTurn(combat);
-            CombatManager.DrawCards(combat, CombatManager.OpeningDrawAfterInnate(combat, Player.CardsDrawnPerTurn), rng);   // no-op past turn 1
+            CombatManager.DrawCards(combat, CombatManager.OpeningDrawAfterInnate(combat, CombatManager.TurnStartDrawCount(combat)), rng, fromHandDraw: true);   // MachineLearning +draw; Innate no-op past turn 1
             if (combat.TurnNumber > maxTurns) break;   // failed to win within the horizon ⇒ loss
         }
 

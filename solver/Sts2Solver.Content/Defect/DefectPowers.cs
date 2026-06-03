@@ -311,14 +311,16 @@ public sealed class EchoFormPower : PowerModel
 // ---- Inert-but-sound markers (port the power so it is represented + hashed; the active effect is a
 // documented PESSIMISTIC gap — under-credits the player, never optimistic). ----
 
-/// <summary>MachineLearning: +Amount cards drawn each turn-start. INERT (sound under-credit): modelling the
-/// bonus means threading a draw-count delta through all turn-start draw paths (exact + MCTS chance-node fan +
-/// rollout), the same convergence-critical work deferred for DeathMarch. The power is applied + hashed but the
-/// extra draw is not modelled. (Game MachineLearningPower, hook ModifyHandDraw.)</summary>
+/// <summary>MachineLearning: +Amount cards drawn each turn-start. MODELLED via <see cref="ModifyHandDraw"/>,
+/// chained over the player's powers in <see cref="CombatManager.TurnStartDrawCount"/> and applied at every
+/// turn-start draw site (exact opening + per-turn, MCTS chance-node fan, rollout, replay). The power is already
+/// in the state key, so the larger hand is just a deterministic function of it — no new gating needed.
+/// (Game MachineLearningPower, hook ModifyHandDraw.)</summary>
 public sealed class MachineLearningPower : PowerModel
 {
     public override string Id => "MachineLearning";
     public override PowerType Type => PowerType.Buff;
+    public override int ModifyHandDraw(Creature player, int count) => count + Amount;
 }
 
 /// <summary>TrashToTreasure: channel Amount RANDOM orbs whenever the player generates a Status card. INERT

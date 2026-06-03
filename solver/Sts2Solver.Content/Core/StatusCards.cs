@@ -87,10 +87,10 @@ public sealed class Slimed : CardModel
     public override void OnPlay(CombatState combat, CardPlay play) => Cmd.Draw(combat, 1);
 }
 
-/// <summary>Status card: Unplayable + Ethereal. When drawn, lose 1 energy (the on-draw energy loss is a
-/// documented unmodelled minor effect — it only arises from the Defect's Turbo, and modelling it would need a
-/// per-card draw hook on the deferred-draw path; omitting it is the only mildly-optimistic gap in the Defect
-/// port, of magnitude ≤1 energy). Models the dilution + end-of-turn exhaust faithfully. (MegaCrit Void)</summary>
+/// <summary>Status card: Unplayable + Ethereal. When drawn, lose 1 energy (only arises from the Defect's Turbo).
+/// The on-draw energy loss IS modelled — via the per-card <see cref="CardModel.OnDraw"/> hook fired on every draw
+/// path (concrete draw, exact/MCTS chance nodes) — so search pays the energy faithfully (no longer the
+/// optimistic gap it once was). Plus the dilution + end-of-turn exhaust. (MegaCrit Void)</summary>
 public sealed class Void : CardModel
 {
     public override string Name => "Void";
@@ -100,6 +100,8 @@ public sealed class Void : CardModel
     public override TargetType Target => TargetType.None;
     public override bool Unplayable => true;
     public override bool Ethereal => true;
+    public override bool HasOnDraw => true;
+    public override void OnDraw(CombatState combat) => combat.Player.LoseEnergy(1);   // Turbo's Void: −1 energy on draw
     public override void OnPlay(CombatState combat, CardPlay play) { }
 }
 

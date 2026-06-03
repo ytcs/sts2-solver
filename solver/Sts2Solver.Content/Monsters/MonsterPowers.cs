@@ -87,33 +87,62 @@ public sealed class InfestedPower : PowerModel
             Cmd.Summon(combat, Monsters.Wriggler(stunned: true, biteFirst: i % 2 == 0));
     }
 }
-/// <summary>Decimillipede segments carry Reattach(25): a segment brought to 0 HP does not die while any
-/// other segment lives — it goes dormant, then reattaches (heals to 25) on its next turn; only when all
-/// other segments are already dead does a lethal blow end the fight. NOTE: the revival itself is NOT yet
-/// modelled (it needs engine support for "downed" creatures + a segment-aware win check); this is a
-/// marker so the segment's Reattach amount validates and a fight that never downs a segment passes.
-/// (MegaCrit ReattachPower — a known modelling TODO for the solver.)</summary>
+/// <summary>Decimillipede segments carry Reattach(25): a segment brought to 0 HP does NOT die while another
+/// segment lives — it goes DOWNED, then reattaches; only a blow that downs the LAST segment ends the fight.
+/// MODELLED 1:1 from the decompile's move machine (DEAD_MOVE → REATTACH_MOVE): on downing, the engine strips the
+/// segment's non-Reattach powers (standard death cleanup; ReattachPower survives owner death — matches the trace
+/// showing a 0-HP segment keeping only ReattachPower) and sets <see cref="Monster.ReattachIn"/>=2; the segment
+/// sits at 0 HP (untargetable, doesn't act) for one enemy turn (DEAD_MOVE), then on the next reattaches — healing
+/// to 25 if another segment is still alive (<see cref="CombatManager.RunEnemyTurn"/>). This closes an OPTIMISTIC
+/// gap: an inert Reattach let the search clear the board one segment at a time across turns. (An earlier cut
+/// revived at end-of-enemy-turn, one turn too early, and the oracle trace rejected it — the 2-turn DEAD→REATTACH
+/// delay is what the trace and decompile require.) (MegaCrit ReattachPower.)</summary>
 public sealed class ReattachPower : PowerModel
 {
     public override string Id => "Reattach";
     public override PowerType Type => PowerType.Buff;
 }
-/// <summary>SpectralKnight's Hex: in-game it makes all the player's cards Ethereal (exhaust when held).
-/// That deck-thinning is fully captured by the recorded hands during trace replay, and the effect is HP-
-/// neutral, so we model Hex as an inert player-side marker debuff. NOTE: the solver does not yet make the
-/// player's cards Ethereal under Hex (a known modelling gap for forward search). (MegaCrit HexPower.)</summary>
+/// <summary>SpectralKnight's Hex: makes all the player's cards Ethereal (decompile HexPower applies the Hexed
+/// affliction, which adds the Ethereal keyword to every player card). MODELLED in forward search:
+/// <see cref="CombatManager.EndPlayerTurn"/> exhausts the WHOLE hand while the player has Hex — faithful, and the
+/// sound direction (thins the deck, never inflates it, so search can't over-credit by retaining a card the game
+/// would exhaust). During trace replay the recorded hands already reflect the thinning. (MegaCrit HexPower.)</summary>
 public sealed class HexPower : PowerModel
 {
     public override string Id => "Hex";
     public override PowerType Type => PowerType.Debuff;
 }
-/// <summary>MagiKnight's Dampen: in-game it downgrades the player's upgraded cards (restored on the
-/// caster's death). HP-neutral, not checked by the validator, and a no-op on an unupgraded starter deck,
-/// so we model it as an inert marker. NOTE: card downgrading is not modelled for the solver. (Dampen.)</summary>
+/// <summary>MagiKnight's Dampen: in-game it fully downgrades every upgraded player card while the caster lives
+/// (restored on its death; decompile DampenPower.AfterApplied → CardCmd.Downgrade). MODELLED (was an OPTIMISTIC
+/// gap — an inert Dampen let an UPGRADED deck keep damage/block the real game strips). When applied we downgrade
+/// every upgraded player card across all piles to its base (replacing the instance — never mutating a shared one,
+/// matching Armaments). We deliberately do NOT restore on the caster's death: that over-states the harm (cards
+/// stay base for the rest of the fight) — the SOUND/pessimistic direction, never optimistic. Idempotent (a second
+/// application finds nothing upgraded left). (MegaCrit DampenPower.)</summary>
 public sealed class DampenPower : PowerModel
 {
     public override string Id => "Dampen";
     public override PowerType Type => PowerType.Debuff;
+
+    public override void AfterApplied(CombatState combat, Creature? applier)
+    {
+        if (Owner != combat.Player) return;   // Dampen is a player debuff; nothing to do otherwise
+        DowngradePile(combat.Player.Hand);
+        DowngradePile(combat.Player.DrawPile);
+        DowngradePile(combat.Player.DiscardPile);
+        DowngradePile(combat.Player.ExhaustPile);
+    }
+
+    private static void DowngradePile(System.Collections.Generic.List<CardModel> pile)
+    {
+        for (int i = 0; i < pile.Count; i++)
+        {
+            if (pile[i].Upgrades <= 0) continue;
+            // Rebuild a fresh base (Upgrades 0) instance by name — a clean downgrade with no stale cached key.
+            try { pile[i] = Catalog.BuildCard(pile[i].Name); }
+            catch (System.ArgumentException) { /* name not buildable (shouldn't happen) — leave as-is */ }
+        }
+    }
 }
 /// <summary>The first time the owner takes unblocked damage from a player attack each turn, it gains
 /// Amount block (reactively, after that hit). The once-per-turn latch resets at the player's turn end.

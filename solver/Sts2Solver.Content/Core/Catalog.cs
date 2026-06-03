@@ -147,6 +147,8 @@ public static partial class Catalog
         // ever-growing counter (it would otherwise needlessly fragment every other deck's state space).
         var allCards = player.DrawPile.Concat(player.Hand).Concat(player.DiscardPile).ToList();
         bool tracksDrawn = allCards.Any(c => c.Name == "Murder");
+        // DeathMarch scales on cards drawn mid-turn (by effects) this turn — gated counter, tracked only when present.
+        bool tracksMidTurnDraws = allCards.Any(c => c.TracksMidTurnDrawScaling);
         // A cost-0 replayable draw cantrip (EscapePlan / Prepared) could loop the per-turn play chain in search;
         // such decks cap plays per turn (and hash the counter). Cost-≥1 draws are energy-bounded ⇒ no cap.
         // Also bound (and hash) plays when the deck holds a card that caps plays-per-turn while in hand
@@ -164,6 +166,7 @@ public static partial class Catalog
         bool tracksCardsPlayed = allCards.Any(c => c.TracksCardsPlayedThisCombat);
         var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0,
                                        CurrentSide = CombatSide.Player, TracksCardsDrawn = tracksDrawn,
+                                       TracksMidTurnDraws = tracksMidTurnDraws,
                                        BoundsPlays = boundsPlays, TracksPoweredHits = tracksPoweredHits,
                                        TracksLightningChanneled = tracksLightning, TracksEnergySpent = tracksEnergySpent,
                                        TracksCardsPlayed = tracksCardsPlayed };

@@ -73,8 +73,8 @@ public sealed class Solver
         {
             BeginPlayerTurnInPlace(afterRoll);
             afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
-            int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, openingDraw);   // Innate cards → guaranteed in hand
-            foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, draw))
+            int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, CombatManager.TurnStartDrawCount(afterRoll, openingDraw));   // Innate → in hand; MachineLearning → +draw
+            foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, draw, fromHandDraw: true))
                 yield return (probM * probD, afterDraw);
         }
     }
@@ -140,7 +140,7 @@ public sealed class Solver
         int n = c.PendingDraw;
         c.PendingDraw = 0;   // drained before the (cloning) enumerator, so each drawn child starts clean
         double win = 0, loss = 0;
-        foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(c, n))
+        foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(c, n, fromHandDraw: false))   // mid-turn draw (DeathMarch counts it)
         {
             CombatManager.ApplyPostDraw(afterDraw);   // EscapePlan block / set PendingDiscard (no-op for plain draws)
             var v = SolvePlayerTurn(afterDraw);
@@ -250,8 +250,8 @@ public sealed class Solver
             BeginPlayerTurnInPlace(afterRoll);
             afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
             int startLoss = afterRoll.PlayerHpLost - afterEnemy.PlayerHpLost; // start-of-turn (e.g. poison)
-            int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, Player.CardsDrawnPerTurn);   // no-op past turn 1
-            foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, draw))
+            int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, CombatManager.TurnStartDrawCount(afterRoll));   // MachineLearning → +draw; Innate no-op past turn 1
+            foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, draw, fromHandDraw: true))
             {
                 var v = SolvePlayerTurn(afterDraw);
                 double w = probM * probD;

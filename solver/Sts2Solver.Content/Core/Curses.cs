@@ -14,11 +14,12 @@ namespace Sts2Solver.Content;
 //     like Dazed: an Unplayable card that just clogs the hand/draw.
 //   * A few act when held at end of turn (BadLuck/Decay/Regret self-damage,
 //     Doubt/Shame self-debuff) — modelled via OnTurnEndInHand, like Infection.
-//   * Two impose a play-restriction the search's move generator does not model
-//     (Enthralled's hand lockout, Normality's 3-cards-per-turn cap). Their
-//     restriction is documented-deferred; they degrade to inert dilution, which
-//     UNDER-states their harm (flagged inline) — porting the restriction needs
-//     a move-legality hook in the search, out of scope here.
+//   * Two impose a play-restriction (Enthralled's hand lockout, Normality's
+//     3-cards-per-turn cap). Both are now MODELLED 1:1 by every search move
+//     generator (exact Solver, MCTS, rollout/heuristic) via
+//     CombatState.EffectivePlayCap() (Normality → PlayCapWhileInHand 3) and
+//     CardPlayAllowed() (Enthralled → LocksHandWhileInHand), so their HARM is
+//     exact — the search can no longer over-credit by ignoring the restriction.
 // Deck-level keywords that don't change combat HP (Eternal, Innate, Retain) are
 // not modelled, matching the existing convention (Innate only seeds the opening
 // hand; Retain only changes card flow).

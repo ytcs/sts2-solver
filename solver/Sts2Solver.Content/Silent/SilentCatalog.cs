@@ -134,8 +134,8 @@ public static partial class Catalog
     public static readonly string[] DeferredSilentCards = System.Array.Empty<string>();
 
     /// <summary>The Silent starting deck: 5 Strike, 5 Defend, 1 Neutralize, 1 Survivor.
-    /// (Survivor's discard half is not modelled — see SilentCards.cs — so it contributes its block only;
-    /// the deck composition is faithful.)</summary>
+    /// (Survivor's forced discard-of-choice IS modelled — a PendingDiscard player-MAX in search, a heuristic
+    /// default under an ambient Rng — see SilentCards.cs; the deck composition is faithful.)</summary>
     public static List<CardModel> SilentStarterDeck()
     {
         var deck = new List<CardModel>();

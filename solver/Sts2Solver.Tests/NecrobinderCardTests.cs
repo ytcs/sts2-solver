@@ -592,4 +592,67 @@ public class NecrobinderCardTests
         Play(c, new CaptureSpirit(), m);                  // deals 3 unblockable
         Assert.Equal(60 - 3, m.CurrentHp);
     }
+
+    // ---- DeathMarch: damage scales with cards drawn MID-TURN (not the turn-start hand draw) ----
+
+    [Fact]
+    public void DeathMarch_Base_Deals_8_With_No_MidTurn_Draws()
+    {
+        var (c, _, m) = Fight(monsterHp: 60);
+        c.TracksMidTurnDraws = true;                      // (set explicitly; setup would set it for a DeathMarch deck)
+        Play(c, new DeathMarch(), m);                     // 8 + 4×0
+        Assert.Equal(60 - 8, m.CurrentHp);
+    }
+
+    [Fact]
+    public void DeathMarch_Scales_With_MidTurn_Draws()
+    {
+        var (c, p, m) = Fight(monsterHp: 60);
+        c.TracksMidTurnDraws = true;
+        c.Rng = new Rng(0);                               // ambient Rng ⇒ mid-turn draws resolve eagerly
+        for (int i = 0; i < 4; i++) p.DrawPile.Add(new DefendNecrobinder());
+        Cmd.Draw(c, 3);                                   // 3 mid-turn (effect) draws this turn
+        Assert.Equal(3, c.CardsDrawnMidTurn);
+        Play(c, new DeathMarch(), m);                     // 8 + 4×3 = 20
+        Assert.Equal(60 - 20, m.CurrentHp);
+    }
+
+    [Fact]
+    public void DeathMarch_Upgraded_Scales_By_6_Per_Draw()
+    {
+        var (c, p, m) = Fight(monsterHp: 80);
+        c.TracksMidTurnDraws = true;
+        c.Rng = new Rng(0);
+        for (int i = 0; i < 3; i++) p.DrawPile.Add(new DefendNecrobinder());
+        Cmd.Draw(c, 2);                                   // 2 mid-turn draws
+        var dm = (DeathMarch)new DeathMarch().Upgraded();  // base 9, extra 6
+        Play(c, dm, m);                                   // 9 + 6×2 = 21
+        Assert.Equal(80 - 21, m.CurrentHp);
+    }
+
+    /// <summary>Only MID-TURN (effect) draws count — the turn-start hand draw (fromHandDraw) does NOT, mirroring
+    /// the game's CardDrawnEntry !FromHandDraw filter. A turn-start draw via DrawCards leaves the counter at 0.</summary>
+    [Fact]
+    public void DeathMarch_Ignores_The_Turn_Start_Hand_Draw()
+    {
+        var (c, p, _) = Fight();
+        c.TracksMidTurnDraws = true;
+        for (int i = 0; i < 5; i++) p.DrawPile.Add(new DefendNecrobinder());
+        CombatManager.DrawCards(c, 5, new Rng(0), fromHandDraw: true);   // the turn-start hand draw
+        Assert.Equal(0, c.CardsDrawnMidTurn);
+    }
+
+    [Fact]
+    public void DeathMarch_Deck_Tracks_MidTurn_Draws_And_Resets_Each_Turn()
+    {
+        var player = Catalog.BuildPlayer(new List<CardModel> { new DeathMarch() }, 80, 80);
+        var combat = Catalog.SetupCombat(player, new[] { Monsters.CalcifiedCultist(hp: 60) });
+        Assert.True(combat.TracksMidTurnDraws);           // setup detected DeathMarch in the deck
+        combat.Rng = new Rng(0);
+        for (int i = 0; i < 4; i++) player.DrawPile.Add(new DefendNecrobinder());
+        Cmd.Draw(combat, 2);
+        Assert.Equal(2, combat.CardsDrawnMidTurn);
+        CombatManager.BeginPlayerTurn(combat);            // turn boundary clears the per-turn counter
+        Assert.Equal(0, combat.CardsDrawnMidTurn);
+    }
 }

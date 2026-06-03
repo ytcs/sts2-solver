@@ -9,8 +9,10 @@ namespace Sts2Solver.Search;
 /// </summary>
 public static class DrawEnumerator
 {
-    /// <summary>Yield (probability, resulting state) for drawing up to n cards from <paramref name="baseState"/>.</summary>
-    public static IEnumerable<(double prob, CombatState state)> EnumerateDraw(CombatState baseState, int n)
+    /// <summary>Yield (probability, resulting state) for drawing up to n cards from <paramref name="baseState"/>.
+    /// <paramref name="fromHandDraw"/> distinguishes the turn-start hand draw (true) from a mid-turn effect draw
+    /// (false) for the gated draw counters / on-draw hooks (see <see cref="CombatManager.OnCardsDrawn"/>).</summary>
+    public static IEnumerable<(double prob, CombatState state)> EnumerateDraw(CombatState baseState, int n, bool fromHandDraw = false)
     {
         var p = baseState.Player;
         int handSpace = Player.MaxHandSize - p.Hand.Count;
@@ -33,7 +35,7 @@ public static class DrawEnumerator
             {
                 var c = baseState.Clone();
                 MovePileToHand(c.Player.DrawPile, c.Player.Hand, taken);
-                CountDrawn(c, handBefore);
+                CountDrawn(c, handBefore, fromHandDraw);
                 yield return (prob, c);
             }
             yield break;
@@ -46,7 +48,7 @@ public static class DrawEnumerator
             var c = baseState.Clone();
             MoveAll(c.Player.DrawPile, c.Player.Hand);
             if (r >= disc && disc > 0) MoveAll(c.Player.DiscardPile, c.Player.Hand);
-            CountDrawn(c, handBefore);
+            CountDrawn(c, handBefore, fromHandDraw);
             yield return (1.0, c);
             yield break;
         }
@@ -58,17 +60,16 @@ public static class DrawEnumerator
             MoveAll(c.Player.DrawPile, c.Player.Hand);          // whole draw pile drawn
             MoveAll(c.Player.DiscardPile, c.Player.DrawPile);   // reshuffle discard -> draw
             MovePileToHand(c.Player.DrawPile, c.Player.Hand, taken);
-            CountDrawn(c, handBefore);
+            CountDrawn(c, handBefore, fromHandDraw);
             yield return (prob, c);
         }
     }
 
-    /// <summary>Accumulate the cards-drawn-this-combat counter for the (Murder-bearing) state, by the number
-    /// of cards this draw moved into hand. No-op unless the combat tracks it.</summary>
-    private static void CountDrawn(CombatState c, int handBefore)
-    {
-        if (c.TracksCardsDrawn) c.CardsDrawnThisCombat += c.Player.Hand.Count - handBefore;
-    }
+    /// <summary>Run the shared per-draw bookkeeping for an enumerated draw outcome — the gated draw counters
+    /// (Murder/DeathMarch) and per-card on-draw effects (Void) — identically to the concrete draw path, so exact
+    /// search matches rollout/replay/MCTS. <paramref name="fromHandDraw"/> distinguishes the turn-start hand draw.</summary>
+    private static void CountDrawn(CombatState c, int handBefore, bool fromHandDraw)
+        => CombatManager.OnCardsDrawn(c, handBefore, fromHandDraw);
 
     /// <summary>
     /// Cheap combinatorial count of the number of *distinct* hands (draw-multisets) that drawing n cards
@@ -117,11 +118,12 @@ public static class DrawEnumerator
     /// true multivariate-hypergeometric mass of the drawn multiset (closed form, reshuffle-aware), so DPW
     /// chance nodes can weight sampled children by their real probabilities (Partial Bellman backups).
     /// </summary>
-    public static (double prob, CombatState state, string takenKey) SampleDraw(CombatState baseState, int n, Rng rng)
+    public static (double prob, CombatState state, string takenKey) SampleDraw(CombatState baseState, int n, Rng rng, bool fromHandDraw = false)
     {
         var p = baseState.Player;
         int handSpace = Player.MaxHandSize - p.Hand.Count;
         n = Math.Min(n, handSpace);
+        int handBefore = p.Hand.Count;
 
         int draw = p.DrawPile.Count;
         int disc = p.DiscardPile.Count;
@@ -134,6 +136,7 @@ public static class DrawEnumerator
             var (prob, taken) = SampleSubmultiset(counts, n, rng);
             var c = baseState.Clone();
             MovePileToHand(c.Player.DrawPile, c.Player.Hand, taken);
+            CountDrawn(c, handBefore, fromHandDraw);
             return (prob, c, "D:" + Canon(taken));
         }
 
@@ -143,6 +146,7 @@ public static class DrawEnumerator
             var c = baseState.Clone();
             MoveAll(c.Player.DrawPile, c.Player.Hand);
             if (r >= disc && disc > 0) MoveAll(c.Player.DiscardPile, c.Player.Hand);
+            CountDrawn(c, handBefore, fromHandDraw);
             return (1.0, c, "ALL");
         }
 
@@ -152,6 +156,7 @@ public static class DrawEnumerator
         MoveAll(s.Player.DrawPile, s.Player.Hand);          // whole draw pile drawn
         MoveAll(s.Player.DiscardPile, s.Player.DrawPile);   // reshuffle discard -> draw
         MovePileToHand(s.Player.DrawPile, s.Player.Hand, taken2);
+        CountDrawn(s, handBefore, fromHandDraw);
         return (prob2, s, "ALL+" + Canon(taken2));
     }
 

@@ -181,8 +181,11 @@ public sealed class Debilitate : CardModel
     }
 }
 
-/// <summary>Deal 8 + (4 × cards drawn by effects this turn). Upgrade: base +1, extra +2. The draw-scaling
-/// term is 0 in search (mid-combat draw is a chance node, not modelled deterministically). (Death March)</summary>
+/// <summary>Deal (8+U) + (4+2U) × cards drawn MID-TURN (by effects, not the turn-start hand draw) this turn.
+/// Upgrade: base +1, extra +2. The mid-turn draw count is the gated <see cref="CombatState.CardsDrawnMidTurn"/>
+/// counter (set via <see cref="TracksMidTurnDrawScaling"/>), threaded through every draw path — eager,
+/// exact-search chance node, MCTS — so it scales identically in rollouts, replay and exact↔MCTS search.
+/// (Game DeathMarch: CalculatedDamage = CalculationBase(8,+1) + ExtraDamage(4,+2) × non-FromHandDraw draws.)</summary>
 public sealed class DeathMarch : CardModel
 {
     public override string Name => "DeathMarch";
@@ -190,9 +193,11 @@ public sealed class DeathMarch : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AnyEnemy;
+    public override bool TracksMidTurnDrawScaling => true;
     public int Base => 8 + Upgrades;
+    public int Extra => 4 + 2 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
-        => Cmd.Attack(combat, combat.Player, play.Target!, Base, ValueProp.Move, this);
+        => Cmd.Attack(combat, combat.Player, play.Target!, Base + Extra * combat.CardsDrawnMidTurn, ValueProp.Move, this);
 }
 
 /// <summary>Deal 11, X times (X = energy spent). Retain. Upgrade: +3. (Eradicate)</summary>

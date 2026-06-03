@@ -96,6 +96,7 @@ public static class TraceValidator
             }
         }
         var combat = Catalog.SetupCombat(player, monsters);
+        combat.ReplayMode = true;   // mid-turn draws are no-ops in replay, but draw-scaling counters still advance
 
         // ----- Replay turn by turn -----
         // The recorder snapshots each player turn AFTER its start-of-turn hooks fire (so a card like

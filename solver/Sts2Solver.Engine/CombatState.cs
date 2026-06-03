@@ -19,6 +19,14 @@ public sealed class CombatState
     /// as an explicit chance node) nor included in the state key (transient driver state).</summary>
     public Rng? Rng;
 
+    /// <summary>Set ONLY by the trace validator (never in search). With no ambient <see cref="Rng"/>, a mid-turn
+    /// draw is a no-op (the validator supplies hands from the trace), so a draw-scaling counter like DeathMarch's
+    /// <see cref="CardsDrawnMidTurn"/> would never advance during replay and a scaling card would under-shoot the
+    /// recorded damage. In replay mode <see cref="Cmd.Draw"/> instead bumps that counter by the requested draw —
+    /// the count the game actually drew in a normal (non-pile-starved) fight — so the scaling validates. Default
+    /// false ⇒ search (Rng null but ReplayMode false) keeps deferring draws to chance nodes, exactly as before.</summary>
+    public bool ReplayMode;
+
     /// <summary>Total HP the player has lost across this combat (incremental cost for the solver).</summary>
     public int PlayerHpLost;
 
@@ -60,6 +68,16 @@ public sealed class CombatState
     /// <summary>Set at combat setup when the deck contains a card whose value depends on cumulative cards
     /// drawn (Murder). Gates <see cref="CardsDrawnThisCombat"/> tracking + hashing.</summary>
     public bool TracksCardsDrawn;
+
+    /// <summary>Cards drawn MID-TURN this turn (by effects — NOT the turn-start hand draw). DeathMarch's bonus
+    /// damage = (4+2U) × this. Reset at the player's turn start. Only tracked + hashed when
+    /// <see cref="TracksMidTurnDraws"/> is set (a deck holds DeathMarch), so other decks aren't fragmented by a
+    /// counter that changes on every mid-turn draw. Mirrors the game's CardDrawnEntry count with !FromHandDraw.</summary>
+    public int CardsDrawnMidTurn;
+
+    /// <summary>Set at combat setup when the deck holds a card scaling on mid-turn draws (DeathMarch). Gates
+    /// <see cref="CardsDrawnMidTurn"/> tracking + hashing.</summary>
+    public bool TracksMidTurnDraws;
 
     /// <summary>Set at combat setup when the deck contains a card whose value depends on a target's powered
     /// hits this turn (Regent BeatIntoShape). Gates per-creature
@@ -220,6 +238,8 @@ public sealed class CombatState
             CardsDiscardedThisTurn = CardsDiscardedThisTurn,
             CardsDrawnThisCombat = CardsDrawnThisCombat,
             TracksCardsDrawn = TracksCardsDrawn,
+            CardsDrawnMidTurn = CardsDrawnMidTurn,
+            TracksMidTurnDraws = TracksMidTurnDraws,
             TracksPoweredHits = TracksPoweredHits,
             EtherealPlayedThisCombat = EtherealPlayedThisCombat,
             LightningsChanneledThisCombat = LightningsChanneledThisCombat,
@@ -255,6 +275,7 @@ public sealed class CombatState
                   + (OstyAttacksThisTurn != 0 ? $"/oa{OstyAttacksThisTurn}" : "")
                   + (DoomAppliedThisTurn ? "/da" : "");
         var drawn = TracksCardsDrawn ? $"/w{CardsDrawnThisCombat}" : "";
+        if (TracksMidTurnDraws) drawn += $"/md{CardsDrawnMidTurn}";                      // DeathMarch
         if (TracksLightningChanneled) drawn += $"/lc{LightningsChanneledThisCombat}";   // Voltaic
         if (TracksEnergySpent) drawn += $"/es{EnergySpentThisTurn}";                     // HelixDrill
         if (TracksCardsPlayed) drawn += $"/cp{CardsPlayedThisCombat}";                   // GoldAxe

@@ -1010,4 +1010,61 @@ public class DefectCardTests
         Assert.Equal(1, deck.Count(c => c is Dualcast));
         Assert.Equal(10, deck.Count);
     }
+
+    // ---- Void: −1 energy when drawn (Turbo's downside), via the per-card OnDraw hook ----
+
+    [Fact]
+    public void Void_Loses_1_Energy_On_MidTurn_Draw()
+    {
+        var (c, p, _) = Fight();
+        c.Rng = new Rng(0);
+        p.MaxEnergy = 3; p.ResetEnergy();                 // energy 3
+        p.DrawPile.Add(new Sts2Solver.Content.Void());
+        Cmd.Draw(c, 1);                                   // drawing Void costs 1 energy
+        Assert.Equal(2, p.Energy);
+        Assert.Contains(p.Hand, h => h is Sts2Solver.Content.Void);   // and it sits (Unplayable) in hand
+    }
+
+    [Fact]
+    public void Void_Energy_Loss_Floors_At_Zero()
+    {
+        var (c, p, _) = Fight();
+        c.Rng = new Rng(0);
+        p.MaxEnergy = 3; p.Energy = 0;
+        p.DrawPile.Add(new Sts2Solver.Content.Void());
+        Cmd.Draw(c, 1);
+        Assert.Equal(0, p.Energy);                        // never negative
+    }
+
+    [Fact]
+    public void Void_Loses_Energy_On_Turn_Start_Hand_Draw_Too()
+    {
+        var (c, p, _) = Fight();
+        p.MaxEnergy = 3; p.ResetEnergy();
+        p.DrawPile.Add(new Sts2Solver.Content.Void());
+        p.DrawPile.Add(new StrikeDefect());
+        CombatManager.DrawCards(c, 2, new Rng(0), fromHandDraw: true);   // opening-hand-style draw
+        Assert.Equal(2, p.Energy);                        // the drawn Void still costs 1 energy
+    }
+
+    // ---- MachineLearning: +1 card on the turn-start hand draw (ModifyHandDraw) ----
+
+    [Fact]
+    public void MachineLearning_Adds_To_TurnStart_Draw_Count()
+    {
+        var (c, p, _) = Fight();
+        Assert.Equal(Player.CardsDrawnPerTurn, CombatManager.TurnStartDrawCount(c));   // baseline 5
+        Cmd.ApplyPower(c, p, new MachineLearningPower(), 1, p);
+        Assert.Equal(Player.CardsDrawnPerTurn + 1, CombatManager.TurnStartDrawCount(c));
+        Cmd.ApplyPower(c, p, new MachineLearningPower(), 1, p);                         // stacks
+        Assert.Equal(Player.CardsDrawnPerTurn + 2, CombatManager.TurnStartDrawCount(c));
+    }
+
+    [Fact]
+    public void MachineLearning_Upgraded_Is_Innate()
+    {
+        Assert.False(new MachineLearning().Innate);
+        var ml = (MachineLearning)new MachineLearning().Upgraded();
+        Assert.True(ml.Innate);
+    }
 }

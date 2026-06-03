@@ -100,8 +100,24 @@ public static class Cmd
                 if (combat.CurrentSide == CombatSide.Player) combat.PlayerLostHpThisTurn = true;
             }
             if (before > 0 && hpTarget.CurrentHp == 0)
-                foreach (var p in combat.AllPowers.ToList())
-                    p.AfterCreatureDeath(combat, hpTarget);
+            {
+                // Decimillipede: a Reattach segment brought to 0 while ANOTHER segment still lives is DOWNED, not
+                // killed (game ReattachPower.AfterDeath → DeadState). It stays at 0 (untargetable), has its
+                // non-Reattach powers stripped (standard death cleanup; ReattachPower survives owner death), and is
+                // scheduled to reattach (heal to 25) two enemy turns later (DEAD_MOVE then REATTACH_MOVE). On-kill
+                // hooks are SUPPRESSED for a non-fatal downing so the player can't farm them per re-downing
+                // (optimistic). Only when the LAST segment falls (no other alive) is the blow fatal → fires normally.
+                if (hpTarget is Monster seg && seg.HasPower("Reattach")
+                    && combat.Monsters.Any(m => m != seg && m.HasPower("Reattach") && m.IsAlive))
+                {
+                    seg.Powers.RemoveAll(p => p.Id != "Reattach");
+                    seg.ReattachIn = 2;
+                }
+                else
+                {
+                    foreach (var p in combat.AllPowers.ToList()) p.AfterCreatureDeath(combat, hpTarget);
+                }
+            }
             // Damage redirected onto another creature (Osty) that exceeds its HP spills the OVERKILL back
             // onto the original target (the player). Block was already absorbed above. (Game: CreatureCmd
             // applies unblockedDamageResult.OverkillDamage to originalTarget when it != the redirect target.)
@@ -191,11 +207,21 @@ public static class Cmd
     {
         if (n <= 0) return 0;
         if (combat.Player.HasPower("NoDraw")) return 0;
-        if (combat.Rng == null) { combat.PendingDraw += n; return 0; }   // search: defer to a draw chance node
+        if (combat.Rng == null)
+        {
+            // Replay (validator): draws are no-ops (hands come from the trace), but a draw-scaling counter must
+            // still advance or a scaling card under-shoots the recorded damage. Credit the requested draw — what
+            // the game drew in a normal fight. Search (ReplayMode false) instead defers to a draw chance node.
+            if (combat.ReplayMode && combat.TracksMidTurnDraws) combat.CardsDrawnMidTurn += n;
+            combat.PendingDraw += n;
+            return 0;
+        }
         int before = combat.Player.Hand.Count;
-        CombatManager.DrawCards(combat, n, combat.Rng);   // increments CardsDrawnThisCombat (Murder) itself
+        // Mid-turn draw (fromHandDraw: false): DrawCards runs the shared OnCardsDrawn bookkeeping — the draw
+        // counters (Murder/DeathMarch) and per-card on-draw effects (Void −1 energy).
+        CombatManager.DrawCards(combat, n, combat.Rng, fromHandDraw: false);
         int drawn = combat.Player.Hand.Count - before;
-        // Per-card-drawn hooks (CorrosiveWave applies Poison, Speedster deals damage). Mid-turn draws only.
+        // Per-card-drawn POWER hooks (CorrosiveWave applies Poison, Speedster deals damage). Mid-turn draws only.
         for (int i = before; i < combat.Player.Hand.Count; i++)
         {
             var card = combat.Player.Hand[i];

@@ -426,8 +426,8 @@ public sealed class MctsSolver
             int startLoss = afterRoll.PlayerHpLost - afterEnemy.PlayerHpLost;
 
             int drawIdx = 0;
-            int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, Player.CardsDrawnPerTurn);   // Innate → guaranteed turn-1
-            foreach (var (pD, drawn) in DrawEnumerator.EnumerateDraw(afterRoll, draw))
+            int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, CombatManager.TurnStartDrawCount(afterRoll));   // Innate + MachineLearning
+            foreach (var (pD, drawn) in DrawEnumerator.EnumerateDraw(afterRoll, draw, fromHandDraw: true))
                 yield return new PendingOutcome(pM * pD, startLoss, drawn, $"{comboKey}|{drawIdx++}");
         }
     }
@@ -532,8 +532,8 @@ public sealed class MctsSolver
         afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
         int startLoss = afterRoll.PlayerHpLost - ch.AfterEnemy.PlayerHpLost;
 
-        int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, Player.CardsDrawnPerTurn);   // Innate → guaranteed turn-1
-        var (pD, drawn, drawKey) = DrawEnumerator.SampleDraw(afterRoll, draw, _rng);
+        int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, CombatManager.TurnStartDrawCount(afterRoll));   // Innate + MachineLearning
+        var (pD, drawn, drawKey) = DrawEnumerator.SampleDraw(afterRoll, draw, _rng, fromHandDraw: true);
         return new PendingOutcome(pM * pD, startLoss, drawn, $"{string.Join(",", keyParts)}|{drawKey}");
     }
 
@@ -764,7 +764,7 @@ public sealed class MctsSolver
             if (initialRoll) CombatManager.RollInitialMoves(s, _rng);
             else CombatManager.RollNextMoves(s, _rng);
             CombatManager.BeginPlayerTurn(s);
-            CombatManager.DrawCards(s, CombatManager.OpeningDrawAfterInnate(s, Player.CardsDrawnPerTurn), _rng);
+            CombatManager.DrawCards(s, CombatManager.OpeningDrawAfterInnate(s, CombatManager.TurnStartDrawCount(s)), _rng, fromHandDraw: true);
         }
 
         // UCT*: bootstrap the tip from a closed-form leaf value instead of rolling out to terminal.
@@ -807,7 +807,7 @@ public sealed class MctsSolver
 
             CombatManager.RollNextMoves(s, _rng);
             CombatManager.BeginPlayerTurn(s);
-            CombatManager.DrawCards(s, CombatManager.OpeningDrawAfterInnate(s, Player.CardsDrawnPerTurn), _rng);   // no-op past turn 1
+            CombatManager.DrawCards(s, CombatManager.OpeningDrawAfterInnate(s, CombatManager.TurnStartDrawCount(s)), _rng, fromHandDraw: true);   // MachineLearning +draw; Innate no-op past turn 1
         }
     }
 

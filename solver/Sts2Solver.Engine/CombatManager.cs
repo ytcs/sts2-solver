@@ -27,6 +27,7 @@ public static class CombatManager
         combat.CardsDiscardedThisTurn = 0;               // per-turn counter (Memento Mori)
         combat.OstyAttacksThisTurn = 0;                  // per-turn counter (Necrobinder Flatten/Rattle)
         combat.EnergySpentThisTurn = 0;                  // per-turn counter (Defect HelixDrill)
+        combat.CardsDrawnMidTurn = 0;                    // per-turn counter (Necrobinder DeathMarch)
         combat.DoomAppliedThisTurn = false;              // per-turn flag (Necrobinder Death's Door)
         if (combat.TracksPoweredHits)                    // per-target counter (Regent BeatIntoShape)
         {
@@ -167,10 +168,15 @@ public static class CombatManager
         // Standard STS: the hand is discarded at end of turn — except Ethereal cards, which exhaust (and
         // fire the on-exhaust hook with causedByEthereal=true, e.g. DarkEmbrace's deferred draw), and
         // Retain cards (e.g. Sovereign Blade), which stay in hand into the next turn.
+        // Hex (SpectralKnight): while held it makes EVERY player card Ethereal (decompile HexPower/Hexed adds the
+        // Ethereal keyword to all cards), so under Hex the whole hand exhausts. Modelling it is both faithful and
+        // the SOUND direction — it thins the deck, never inflates it, so forward search can't over-credit by
+        // retaining a card the real game would have exhausted. Gated on the (rare) power → inert for every other fight.
+        bool hexed = player.HasPower("Hex");
         var retained = new List<CardModel>();
         foreach (var card in player.Hand)
         {
-            if (card.Ethereal)
+            if (card.Ethereal || hexed)
             {
                 player.ExhaustPile.Add(card);
                 combat.CardExhaustedThisTurn = true;
@@ -206,6 +212,21 @@ public static class CombatManager
         }
 
         FireAfterSideTurnEnd(combat, CombatSide.Enemy);
+
+        // Decimillipede reattach: a downed segment skips this enemy turn (DEAD_MOVE; it's at 0 HP so the loop
+        // above already passed it over), counting down; on the second enemy turn it reattaches (REATTACH_MOVE →
+        // heal to its Reattach amount) — but only if ANOTHER segment is still alive (else it stays downed and the
+        // all-segments-at-0 board is a clear). Deterministic ⇒ modelled identically in exact/MCTS/rollout. Inert
+        // (ReattachIn==0) for every non-Decimillipede fight.
+        if (!combat.PlayerDead)
+            foreach (var m in combat.Monsters)
+            {
+                if (m.ReattachIn <= 0) continue;
+                m.ReattachIn--;
+                if (m.ReattachIn == 0 && combat.Monsters.Any(o => o != m && o.HasPower("Reattach") && o.IsAlive))
+                    m.Heal(m.GetPowerAmount("Reattach"));
+            }
+
         combat.CurrentSide = CombatSide.Player;
     }
 
@@ -230,9 +251,11 @@ public static class CombatManager
 
     public static void ShuffleDrawPile(CombatState combat, Rng rng) => rng.Shuffle(combat.Player.DrawPile);
 
-    /// <summary>Draw n cards, reshuffling the discard pile into the draw pile when it empties.
-    /// Stops at max hand size.</summary>
-    public static void DrawCards(CombatState combat, int n, Rng rng)
+    /// <summary>Draw n cards, reshuffling the discard pile into the draw pile when it empties. Stops at max hand
+    /// size. <paramref name="fromHandDraw"/> marks the turn-start hand draw (vs a mid-turn effect draw) — it feeds
+    /// the gated draw counters and the per-card on-draw hooks via <see cref="OnCardsDrawn"/> exactly as the search
+    /// chance-node draw paths do, so every path stays consistent.</summary>
+    public static void DrawCards(CombatState combat, int n, Rng rng, bool fromHandDraw = false)
     {
         var p = combat.Player;
         int before = p.Hand.Count;
@@ -250,12 +273,40 @@ public static class CombatManager
             p.DrawPile.RemoveAt(0);
             p.Hand.Add(card);
         }
-        // Murder scales on EVERY card drawn this combat, INCLUDING the turn-start hand draw (the game logs a
-        // CardDrawnEntry for fromHandDraw draws too, and Murder's multiplier doesn't filter on it). Counting it
-        // here — the single concrete-Rng draw primitive — keeps rollouts / MCTS leaf / trace-replay consistent
-        // with the exact oracle, whose DrawEnumerator already counts turn-start draws. Gated on TracksCardsDrawn
-        // (only a Murder deck) so non-Murder decks pay nothing and the counter stays out of their state key.
-        if (combat.TracksCardsDrawn) combat.CardsDrawnThisCombat += p.Hand.Count - before;
+        OnCardsDrawn(combat, before, fromHandDraw);
+    }
+
+    /// <summary>Apply the per-draw bookkeeping that EVERY draw path shares — concrete <see cref="DrawCards"/> and
+    /// the search/MCTS chance-node enumerators — to the cards now occupying hand slots <c>[handBefore, Count)</c>.
+    /// <list type="bullet">
+    /// <item>Murder's <see cref="CombatState.CardsDrawnThisCombat"/> counts EVERY draw (incl. the turn-start hand
+    /// draw — the game logs a CardDrawnEntry for those too and Murder doesn't filter on FromHandDraw).</item>
+    /// <item>DeathMarch's <see cref="CombatState.CardsDrawnMidTurn"/> counts only MID-TURN (non-hand) draws.</item>
+    /// <item>Per-card <see cref="CardModel.OnDraw"/> on-draw effects (Void: −1 energy) fire on ANY draw.</item>
+    /// </list>
+    /// Each is gated (a flag or <see cref="CardModel.HasOnDraw"/>) so the common draw pays nothing. Note the
+    /// power-level <see cref="PowerModel.AfterCardDrawn"/> hook is NOT fired here — it stays in <see cref="Cmd.Draw"/>
+    /// (mid-turn only), preserving its existing semantics.</summary>
+    public static void OnCardsDrawn(CombatState combat, int handBefore, bool fromHandDraw)
+    {
+        var p = combat.Player;
+        int drawnNow = p.Hand.Count - handBefore;
+        if (drawnNow <= 0) return;
+        if (combat.TracksCardsDrawn) combat.CardsDrawnThisCombat += drawnNow;
+        if (!fromHandDraw && combat.TracksMidTurnDraws) combat.CardsDrawnMidTurn += drawnNow;
+        for (int i = handBefore; i < p.Hand.Count; i++)
+            if (p.Hand[i].HasOnDraw) p.Hand[i].OnDraw(combat);
+    }
+
+    /// <summary>The player's turn-start hand-draw count: <paramref name="baseCount"/> (default 5) plus any
+    /// power-granted bonus (MachineLearning's <see cref="PowerModel.ModifyHandDraw"/>, chained over the player's
+    /// powers). Used at every turn-start draw site so the bonus is modelled identically in exact search, MCTS and
+    /// rollout. Never negative.</summary>
+    public static int TurnStartDrawCount(CombatState combat, int baseCount = Player.CardsDrawnPerTurn)
+    {
+        int count = baseCount;
+        foreach (var pw in combat.Player.Powers) count = pw.ModifyHandDraw(combat.Player, count);
+        return Math.Max(0, count);
     }
 
     /// <summary>Apply the Innate keyword to the opening (turn-1) hand draw and return the number of cards the
@@ -274,8 +325,9 @@ public static class CombatManager
         var p = combat.Player;
         var innate = p.DrawPile.Where(c => c.Innate).Take(Player.MaxHandSize).ToList();
         if (innate.Count == 0) return baseCount;
+        int handBefore = p.Hand.Count;
         foreach (var c in innate) { p.DrawPile.Remove(c); p.Hand.Add(c); }
-        if (combat.TracksCardsDrawn) combat.CardsDrawnThisCombat += innate.Count;   // innate cards are drawn too
+        OnCardsDrawn(combat, handBefore, fromHandDraw: true);   // innate cards are a turn-start hand draw (counters + on-draw)
         int handDraw = Math.Min(Math.Max(baseCount, innate.Count), Player.MaxHandSize);
         return Math.Max(0, handDraw - innate.Count);
     }

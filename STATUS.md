@@ -1,9 +1,15 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-02. Recent: a scaling/conditional-card audit (all 37 ported WithMultiplier/history cards
-vs the decompile) — found NO optimistic over-crediting anywhere; CrescentSpear verified correct; BeatIntoShape's
-history-based Forge modelled exactly (gated per-target powered-hits counter); Stomp upgrade fixed 12+2U→12+3U.
-Earlier: Sly/Innate/Retain keywords 1:1; HiddenDaggers promotion; Murder live-validation._
+_Last updated: 2026-06-03. Recent: an OPTIMISTIC-gap sweep that closed EVERY over-crediting spot —
+**Void** −1-energy-on-draw (new per-card `OnDraw` hook on all draw paths), **Hex** (all player cards Ethereal →
+whole hand exhausts under Hex), **Dampen** (MagiKnight downgrades the player's upgraded cards), and **Reattach**
+(Decimillipede segment revival — a downed segment strips its non-Reattach powers, skips one enemy turn, then
+reattaches to 25; the board only clears when all segments are down together). Reattach took two cuts: the first
+revived one turn too early and the oracle trace rejected it; the decompile's DEAD_MOVE→REATTACH_MOVE machine gave
+the exact 2-turn delay, now trace-validated. Also MODELLED the previously-deferred draw-scaling:
+**DeathMarch** `(8+U)+(4+2U)×mid-turn-draws` (new gated `CardsDrawnMidTurn` counter threaded through all four
+draw paths) and **MachineLearning** +1 turn-start draw (`ModifyHandDraw`/`TurnStartDrawCount`). Earlier: a 37-card
+scaling/conditional audit; Sly/Innate/Retain keywords 1:1; HiddenDaggers promotion; Murder live-validation._
 
 ## Goal
 
@@ -37,13 +43,15 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   (Lightnings channeled this combat) and HelixDrill (energy spent this turn). X-cost orb cards (MultiCast/
   Tempest), Stateful cost-mutators (AdaptiveStrike free copy, MomentumStrike, Modded, Claw scaling), and
   `Monster.IntendsToAttack` (GoForTheEyes).
-  - **Documented PESSIMISTIC-sound gaps (under-credit, never optimistic):** MachineLearning (+1 turn draw —
-    threading the count through the convergence-critical draw paths is the deferred DeathMarch class),
-    Feral (free-replay return-to-hand), CreativeAi/WhiteNoise/Chaos (RNG card/orb generation — never a search
-    decision), Uproar's auto-play, TrashToTreasure's random orb, RocketPunch's status-gen cost-reduction,
-    GeneticAlgorithm's cross-combat scaling, Scrape's draw-then-selective-discard (modelled only under a
-    concrete Rng; skipped in pure search), Hologram/Scavenge choices (fixed defaults). The **one acknowledged
-    mildly-optimistic** spot is Void's on-draw −1 energy (≤1 energy, Turbo-only) — noted in StatusCards.cs.
+  - **MachineLearning's +1 turn-start draw is now MODELLED** (`ModifyHandDraw` hook → `CombatManager.TurnStartDrawCount`,
+    wired at every turn-start draw site); upgraded MachineLearning is Innate. **Void's on-draw −1 energy is now
+    MODELLED** (per-card `OnDraw`/`HasOnDraw` hook fired on every draw path) — the formerly-acknowledged lone
+    optimistic gap is closed; there are now **zero known optimistic gaps in the catalog**.
+  - **Documented PESSIMISTIC-sound gaps (under-credit, never optimistic):** Feral (free-replay return-to-hand),
+    CreativeAi/WhiteNoise/Chaos (RNG card/orb generation — never a search decision), Uproar's auto-play,
+    TrashToTreasure's random orb, RocketPunch's status-gen cost-reduction, GeneticAlgorithm's cross-combat
+    scaling, Scrape's draw-then-selective-discard (modelled only under a concrete Rng; skipped in pure search),
+    Hologram/Scavenge choices (fixed defaults).
 - **Card keywords modelled 1:1:** Exhaust, Ethereal, Unplayable, **Innate** (guaranteed opening hand), **Retain**
   (kept across turns), **Sly** (auto-play on mid-turn discard) — see "Engine" below.
 - **Search:** the exact lexicographic expectimax `Solver` is the ground-truth **oracle**; the sampling
@@ -56,7 +64,10 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 684 passing, 0 skipped/failed. Traces: 76 recorded game traces, all PASS** — including a live
+- **Tests: 698 passing, 0 skipped/failed. Traces: 78 recorded game traces, all PASS** — including **a live
+  Necrobinder DeathMarch run (#77)** that oracle-confirms the new draw-scaling: 7 Parse draws feed 4 DeathMarch
+  plays across turns 3–5 vs Byrdonis, matching the game's HP/Strength/Osty-DieForYou 85/85 (this validates both
+  the `CardsDrawnMidTurn` scaling AND the `ReplayMode` mid-turn-draw reconstruction). Plus a live
   headless Defect-vs-Byrdonis run (#74) that exercises the orb subsystem end-to-end (CrackedCore's starting
   orb, Zap channel, Dualcast evoke, ColdSnap Frost channel+block, BallLightning, and the Lightning/Frost
   turn-end passives), matching the game's HP/block/Strength across 4 turns 35/35. (The orb random-target
@@ -89,7 +100,7 @@ solver/                         C#/.NET 9 solution
   Sts2Solver.Tests/             xUnit: pipeline + per-card + solver + trace-replay + MCTS + calibration + horizon
 mods/DataDumper/DataDumperCode/ Godot C# mod: MainFile · CombatOracle (records traces) · AutoPilot (`autopilot`
                                 console cmd) · HeadlessBatch (STS2_BATCH: headless run+fight+record+quit)
-data/  game_data/*.json (dumped metadata) · combat_traces/*.jsonl (73 ground-truth traces)
+data/  game_data/*.json (dumped metadata) · combat_traces/*.jsonl (78 ground-truth traces)
 docs/mcts-solver-design.md      SOTA literature review + chosen sampling/MCTS design
 ```
 
@@ -264,6 +275,21 @@ so `PlaysThisTurn` memoises soundly. **Whistle's stun** is modelled via a bounde
 disabled — gated hash/StateKey, so un-stunned monsters are byte-identical to before), so the player correctly
 avoids one enemy action and the model can't over-credit.
 
+**Monster-side OPTIMISTIC gaps — ALL CLOSED (gated → byte-identical for every other fight).** A sweep of the
+inert-marker monster powers found three over-crediting spots, all now modelled + trace-validated:
+- **Hex (SpectralKnight).** Makes all player cards Ethereal (a deck-thinning HARM). Was inert ⇒ forward search
+  kept cards the real game exhausts. Now `EndPlayerTurn` exhausts the whole hand under Hex — faithful + sound.
+- **Dampen (MagiKnight).** Downgrades the player's upgraded cards. Was inert ⇒ an UPGRADED deck kept stripped
+  damage/block. Now `DampenPower.AfterApplied` downgrades every upgraded player card to base across all piles
+  (no restore on caster death — the sound/pessimistic over-statement, never optimistic).
+- **Reattach (Decimillipede).** Segment revival was inert ⇒ the search could clear the board one segment at a
+  time across turns, over-crediting WIN PROBABILITY. Now ported 1:1 from the decompile's move machine: on downing
+  (0 HP, another segment alive) the segment strips its non-Reattach powers (death cleanup) and sets
+  `Monster.ReattachIn=2`; it sits at 0 (untargetable, doesn't act) for one enemy turn (DEAD_MOVE), then reattaches
+  to 25 on the next (REATTACH_MOVE) if a segment still lives — all in `RunEnemyTurn`, deterministic so convergence
+  holds. The board clears only when all segments are down together. The first cut revived one turn early and trace
+  `combat-20260530-203121` rejected it; the 2-turn DEAD→REATTACH delay now validates that trace (76/76).
+
 **Gold — verified HP-neutral, intentionally inert (NOT a missing subsystem).** Audited every combat-relevant
 gold reader: `RoyaltiesPower` only fires `AfterCombatEnd` (post-combat reward), and HandOfGreed / the gold
 relics have NO in-combat HP/block/damage feedback. So leaving gold unmodelled is not merely sound but
@@ -290,11 +316,16 @@ node), and Coordinate (temp Strength on the only ally — you) is a real buff.
 self-damage edge, MadScience TinkerTime, true-RNG card-selection for Cinder / base True Grit (kept
 deterministic-default — promoting would be optimistically unsound).
 
-**Audit-confirmed PESSIMISTIC (sound) gaps left as-is** (under-credit the player; fixing is low-value or
-high-risk): **DeathMarch** draw-scaling (`+(4+2U) × mid-turn cards drawn this turn`) is 0 in search — modelling
-it means threading a mid-turn-only draw counter through all four convergence-critical draw paths (concrete
-`DrawCards`, exact `EnumerateDraw`, MCTS, rollout/replay); deferred behind the exact↔MCTS convergence guard.
-Also: **Fetch** card-draw, **MakeItSo** return-to-hand recursion, **Pinpoint**/**Stomp** per-card cost reduction
+**DeathMarch draw-scaling — NOW MODELLED.** `(8+U)+(4+2U) × mid-turn cards drawn this turn` via a new gated
+`CombatState.CardsDrawnMidTurn` counter (set by `CardModel.TracksMidTurnDrawScaling`), threaded through all four
+draw paths with a `fromHandDraw` flag so only mid-turn effect-draws count (the game's `!FromHandDraw` filter):
+concrete `DrawCards`, exact `EnumerateDraw`, MCTS `SampleDraw`/exact, and rollout. During trace replay the count
+is reconstructed via `CombatState.ReplayMode` (draws are no-ops there, so `Cmd.Draw` credits the requested count).
+The full suite confirms exact↔MCTS convergence is preserved. (This also fixed a latent bug: the MCTS DPW
+`SampleDraw` path never applied the Murder counter — now consistent with the exact oracle.)
+
+**Audit-confirmed PESSIMISTIC (sound) gaps left as-is** (under-credit the player; fixing is low-value):
+**Fetch** card-draw, **MakeItSo** return-to-hand recursion, **Pinpoint**/**Stomp** per-card cost reduction
 (cost-only ⇒ HP-neutral), **Squeeze** omits the transient PlayPile from its OstyAttack count (exotic, ≤1 under).
 
 **Longer-horizon roadmap (unchanged, behind correctness):** calibration expansion (all 12 elites + random-deck

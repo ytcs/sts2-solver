@@ -595,8 +595,9 @@ public static class Monsters
     /// <summary>
     /// A Decimillipede segment (Act 1 elite, MegaCrit): HP 40–46 (segments take distinct even HPs). Three
     /// of them form the elite. Each cycles Writhe (5×2) → Constrict (8 + 1 Weak to player) → Bulk (6 +
-    /// self Strength 2) → … staggered by starter index. Each carries Reattach(25) — see ReattachPower
-    /// (revival not yet modelled). Deadly: Writhe 6, Constrict 9, Bulk 7.
+    /// self Strength 2) → … staggered by starter index. Each carries Reattach(25) — a downed segment skips one
+    /// enemy turn then reattaches (heals to 25) unless all segments are downed together (see ReattachPower; modelled).
+    /// Deadly: Writhe 6, Constrict 9, Bulk 7.
     /// </summary>
     public static Monster DecimillipedeSegment(string name = "DecimillipedeSegment", int starterIdx = 0,
         int hp = -1, int ascension = 0)

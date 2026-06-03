@@ -50,6 +50,7 @@ public static class HashingExtensions
                                                      // in-flight HiddenDaggers discard distinct from a continuation-less one
         if (s.BoundsPlays) h.Add(s.PlaysThisTurn);               // only when a cost-0 cantrip risks a play loop
         if (s.TracksCardsDrawn) h.Add(s.CardsDrawnThisCombat);   // only when a card (Murder) reads it
+        if (s.TracksMidTurnDraws) h.Add(s.CardsDrawnMidTurn);    // only when a deck holds DeathMarch
         if (s.TracksLightningChanneled) h.Add(s.LightningsChanneledThisCombat);   // only when a deck holds Voltaic
         if (s.TracksEnergySpent) h.Add(s.EnergySpentThisTurn);                    // only when a deck holds HelixDrill
         if (s.TracksCardsPlayed) h.Add(s.CardsPlayedThisCombat);                  // only when a deck holds GoldAxe

@@ -410,4 +410,123 @@ public class MonsterPortTests
             Assert.True(m.MaxHp > 0);
         }
     }
+
+    // ---- Decimillipede Reattach: a downed segment skips one enemy turn, then reattaches to 25 ----
+
+    /// <summary>A segment downed (0 HP) while another lives is DOWNED, not killed: untargetable, non-Reattach
+    /// powers stripped, board NOT cleared. It skips one enemy turn (DEAD_MOVE), then reattaches to 25 on the
+    /// next (REATTACH_MOVE) — so a piecemeal kill across turns can't clear the board (closes the optimistic gap).</summary>
+    [Fact]
+    public void Reattach_Downed_Segment_Skips_A_Turn_Then_Reattaches_To_25()
+    {
+        var a = Monsters.DecimillipedeSegment("DecimillipedeSegment", starterIdx: 0, hp: 46);
+        var b = Monsters.DecimillipedeSegment("DecimillipedeSegment", starterIdx: 1, hp: 46);
+        var combat = Combat(a, b);
+        CombatManager.BeginPlayerTurn(combat);
+        a.AddPower(new StrengthPower(), 2);                // a gained Strength from a Bulk move
+
+        Cmd.Attack(combat, combat.Player, a, 100, ValueProp.Move, null);   // down segment A
+        Assert.Equal(0, a.CurrentHp);
+        Assert.False(combat.AllMonstersDead);              // B alive ⇒ not a clear
+        Assert.Equal(2, a.ReattachIn);                     // scheduled to reattach
+        Assert.False(a.HasPower("Strength"));              // non-Reattach powers stripped on downing
+        Assert.True(a.HasPower("Reattach"));               // Reattach survives
+        Assert.DoesNotContain(a, combat.HittableEnemies);  // untargetable while downed
+
+        CombatManager.EndPlayerTurn(combat);
+        CombatManager.RunEnemyTurn(combat);                // enemy turn 1: DEAD_MOVE (skip)
+        Assert.Equal(0, a.CurrentHp);
+        Assert.Equal(1, a.ReattachIn);
+
+        CombatManager.BeginPlayerTurn(combat);
+        CombatManager.EndPlayerTurn(combat);
+        CombatManager.RunEnemyTurn(combat);                // enemy turn 2: REATTACH_MOVE (heal to 25)
+        Assert.Equal(25, a.CurrentHp);
+        Assert.Equal(0, a.ReattachIn);
+    }
+
+    /// <summary>Downing EVERY segment within one player turn IS a clear — the blow that downs the last one (no
+    /// other segment alive) is a real death, so the board is dead, on-kill fires, and no revival happens.</summary>
+    [Fact]
+    public void Reattach_All_Segments_Downed_Together_Clears_The_Board()
+    {
+        var a = Monsters.DecimillipedeSegment("DecimillipedeSegment", starterIdx: 0, hp: 46);
+        var b = Monsters.DecimillipedeSegment("DecimillipedeSegment", starterIdx: 1, hp: 46);
+        var combat = Combat(a, b);
+        CombatManager.BeginPlayerTurn(combat);
+
+        Cmd.Attack(combat, combat.Player, a, 100, ValueProp.Move, null);   // down A (B alive → downed)
+        Assert.Equal(2, a.ReattachIn);
+        Cmd.Attack(combat, combat.Player, b, 100, ValueProp.Move, null);   // down B (no other alive → real death)
+        Assert.Equal(0, b.ReattachIn);                     // not downed — really dead
+        Assert.True(combat.AllMonstersDead);               // board cleared — a win
+
+        CombatManager.EndPlayerTurn(combat);
+        CombatManager.RunEnemyTurn(combat);
+        Assert.Equal(0, a.CurrentHp);                      // fight over — no revival
+        Assert.Equal(0, b.CurrentHp);
+    }
+
+    // ---- SpectralKnight Hex: while held, all player cards are Ethereal (exhaust at end of turn) ----
+
+    [Fact]
+    public void Hex_Exhausts_The_Whole_Hand_At_Turn_End()
+    {
+        var m = Monsters.SnappingJaxfruit();
+        var combat = Combat(m);
+        CombatManager.BeginPlayerTurn(combat);
+        combat.Player.AddPower(new HexPower(), 1);
+        combat.Player.Hand.Add(new StrikeIronclad());
+        combat.Player.Hand.Add(new DefendIronclad());      // normally discarded; under Hex it exhausts
+
+        CombatManager.EndPlayerTurn(combat);
+        Assert.Empty(combat.Player.Hand);
+        Assert.Empty(combat.Player.DiscardPile);           // nothing discarded
+        Assert.Equal(2, combat.Player.ExhaustPile.Count);  // both exhausted (made Ethereal by Hex)
+    }
+
+    [Fact]
+    public void Without_Hex_The_Hand_Is_Discarded_Normally()
+    {
+        var m = Monsters.SnappingJaxfruit();
+        var combat = Combat(m);
+        CombatManager.BeginPlayerTurn(combat);
+        combat.Player.Hand.Add(new StrikeIronclad());
+        combat.Player.Hand.Add(new DefendIronclad());
+
+        CombatManager.EndPlayerTurn(combat);
+        Assert.Equal(2, combat.Player.DiscardPile.Count);  // control: discarded, not exhausted
+        Assert.Empty(combat.Player.ExhaustPile);
+    }
+
+    // ---- MagiKnight Dampen: downgrades the player's upgraded cards (was an optimistic gap for upgraded decks) ----
+
+    [Fact]
+    public void Dampen_Downgrades_All_Upgraded_Player_Cards()
+    {
+        var m = Monsters.MagiKnight();
+        var combat = Combat(m);
+        combat.Player.Hand.Add(new Bash().Upgraded(1));            // 10 dmg upgraded (8 base)
+        combat.Player.DrawPile.Add(new StrikeIronclad().Upgraded(1));
+        combat.Player.DiscardPile.Add(new DefendIronclad());      // already base — must be left untouched
+
+        Cmd.ApplyPower(combat, combat.Player, new DampenPower(), 1, m);
+
+        Assert.Equal(0, combat.Player.Hand[0].Upgrades);          // upgraded Bash → base
+        Assert.Equal(0, combat.Player.DrawPile[0].Upgrades);      // upgraded Strike → base
+        Assert.Equal(0, combat.Player.DiscardPile[0].Upgrades);   // base Defend unchanged
+        Assert.IsType<Bash>(combat.Player.Hand[0]);               // identity preserved (still a Bash)
+    }
+
+    [Fact]
+    public void Dampen_Is_Idempotent_And_HarmlessToUnupgradedDecks()
+    {
+        var m = Monsters.MagiKnight();
+        var combat = Combat(m);
+        combat.Player.Hand.Add(new StrikeIronclad());             // unupgraded deck
+        Cmd.ApplyPower(combat, combat.Player, new DampenPower(), 1, m);
+        Assert.Equal(0, combat.Player.Hand[0].Upgrades);          // no-op, no crash
+        Cmd.ApplyPower(combat, combat.Player, new DampenPower(), 1, m);   // re-apply: still fine
+        Assert.Equal(0, combat.Player.Hand[0].Upgrades);
+    }
 }
