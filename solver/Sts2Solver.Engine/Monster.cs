@@ -19,6 +19,12 @@ public sealed class Monster : Creature
     /// observed HP in on the monster's first compared snapshot, then clears it. Never hashed.</summary>
     public bool NeedsSpawnHpSync;
 
+    /// <summary>Turns this monster's move is skipped (Whistle stun = 1). Each enemy turn a stunned monster
+    /// takes no action and the counter decrements; its telegraphed move is simply DELAYED to its next turn
+    /// (the AI transition lives inside the move's Perform, which is skipped, so CurrentMoveId is preserved).
+    /// Bounded to the stun count — never a permanent disable — so it can't over-credit the player.</summary>
+    public int StunnedTurns;
+
     public Monster() { Side = CombatSide.Enemy; }
 
     /// <summary>True when the monster's currently telegraphed move is an attack (its <see cref="MoveState"/>
@@ -45,6 +51,7 @@ public sealed class Monster : Creature
         m.Id = Id;
         m.Variant = Variant;
         m.NeedsSpawnHpSync = NeedsSpawnHpSync;
+        m.StunnedTurns = StunnedTurns;
         return m;
     }
 
@@ -56,11 +63,13 @@ public sealed class Monster : Creature
         h.Add(Ai.CurrentMoveId.GetHashCode());
         h.Add(Ai.MoveLog.Count);
         foreach (var id in Ai.MoveLog) h.Add(id.GetHashCode());   // ordered
+        if (StunnedTurns > 0) h.Add(StunnedTurns * 0x9E3779B1);   // gated: 0 for every un-stunned monster
     }
 
     public override string StateKey()
     {
         var v = Variant.Length > 0 ? $":{Variant}" : "";
-        return $"M({base.StateKey()}{v}|{Ai.StateKey()})";
+        var stun = StunnedTurns > 0 ? $"!{StunnedTurns}" : "";   // appended only when stunned (no fragmentation otherwise)
+        return $"M({base.StateKey()}{v}{stun}|{Ai.StateKey()})";
     }
 }

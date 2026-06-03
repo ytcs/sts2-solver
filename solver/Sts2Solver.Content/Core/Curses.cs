@@ -204,12 +204,14 @@ public sealed class Debt : DilutionCurse
     public override string Name => "Debt";
 }
 
-/// <summary>Curse: Unplayable. You cannot play more than 3 cards per turn. The per-turn play cap is a
-/// move-legality restriction the search does not model, so this degrades to inert dilution (its harm is
-/// UNDER-stated). (MegaCrit Normality)</summary>
+/// <summary>Curse: Unplayable. While held in hand you cannot play more than 3 cards per turn. Modelled as a
+/// real per-turn play cap (<see cref="CardModel.PlayCapWhileInHand"/>) enforced by every search move generator
+/// via <see cref="CombatState.EffectivePlayCap"/> — its harm is now exact, not under-stated. (MegaCrit
+/// Normality)</summary>
 public sealed class Normality : DilutionCurse
 {
     public override string Name => "Normality";
+    public override int PlayCapWhileInHand => 3;
 }
 
 // --------------------------------------------------------------------------
@@ -229,9 +231,10 @@ public sealed class SporeMind : CardModel
     public override void OnPlay(CombatState combat, CardPlay play) { }   // exhausts itself; no effect
 }
 
-/// <summary>Curse: cost 2, Eternal. While in your hand you cannot play your other cards (only Enthralled,
-/// which discards it and lifts the lockout). The hand-lockout is a move-legality restriction the search does
-/// not model, so this degrades to a playable cost-2 no-op (its harm is UNDER-stated). (MegaCrit Enthralled)</summary>
+/// <summary>Curse: cost 2, Eternal. While in your hand you cannot play your other cards — only Enthralled
+/// itself, which discards it and lifts the lockout for the turn. Modelled as a real hand-lockout
+/// (<see cref="CardModel.LocksHandWhileInHand"/>) enforced by every search move generator via
+/// <see cref="CombatState.CardPlayAllowed"/> — its harm is now exact, not under-stated. (MegaCrit Enthralled)</summary>
 public sealed class Enthralled : CardModel
 {
     public override string Name => "Enthralled";
@@ -239,5 +242,6 @@ public sealed class Enthralled : CardModel
     public override CardType Type => CardType.Curse;
     public override CardRarity Rarity => CardRarity.Curse;
     public override TargetType Target => TargetType.None;
-    public override void OnPlay(CombatState combat, CardPlay play) { }   // lockout unmodelled; playing just discards it
+    public override bool LocksHandWhileInHand => true;
+    public override void OnPlay(CombatState combat, CardPlay play) { }   // playing it just discards it, lifting the lock
 }

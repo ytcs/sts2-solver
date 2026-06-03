@@ -696,11 +696,11 @@ public sealed class MctsSolver
     {
         // Same unconditional per-turn play cap as the exact solver — keeps the tree finite and the rollout from
         // spinning on a cost-0 cantrip, and keeps MCTS converging to the (identically capped) oracle.
-        if (s.PlaysThisTurn >= CombatState.MaxPlaysPerTurn) yield break;
+        if (s.PlaysThisTurn >= s.EffectivePlayCap()) yield break;   // tightened by Normality (≤3) while in hand
         var seen = new HashSet<string>();
         foreach (var card in s.Player.Hand)
         {
-            if (card.Unplayable) continue;
+            if (!s.CardPlayAllowed(card)) continue;   // Unplayable + Enthralled hand-lockout
             if (!card.IsXCost && card.EffectiveCost(s) > s.Player.Energy) continue;   // EffectiveCost: in-combat cost reductions
             if (!s.Player.CanAffordStars(card)) continue;   // Regent star cost gates the play
             var ck = card.StateKey();

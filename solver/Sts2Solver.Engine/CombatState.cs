@@ -151,6 +151,26 @@ public sealed class CombatState
     /// turn's play count — so it bounds only pathological cantrip loops, never an optimal line.</summary>
     public const int MaxPlaysPerTurn = 40;
 
+    /// <summary>The effective per-turn play cap: the <see cref="MaxPlaysPerTurn"/> backstop tightened by any
+    /// card in hand that caps plays while held (Normality → 3). The min over the current hand, so it tracks
+    /// Normality entering/leaving the hand. Soundness: a play cap is HARM, so the search must honour it.</summary>
+    public int EffectivePlayCap()
+    {
+        int cap = MaxPlaysPerTurn;
+        foreach (var c in Player.Hand)
+            if (c.PlayCapWhileInHand < cap) cap = c.PlayCapWhileInHand;
+        return cap;
+    }
+
+    /// <summary>True while a hand-lock card (Enthralled) is held: only lock cards may be played until it is
+    /// played and leaves the hand. Pure function of the hand, which is already part of the state key.</summary>
+    public bool HandPlayLocked => Player.Hand.Any(c => c.LocksHandWhileInHand);
+
+    /// <summary>Whether <paramref name="card"/> may be played from hand right now — honouring Unplayable and the
+    /// Enthralled hand-lockout. (The per-turn count cap is enforced separately via <see cref="EffectivePlayCap"/>.)</summary>
+    public bool CardPlayAllowed(CardModel card)
+        => !card.Unplayable && (!HandPlayLocked || card.LocksHandWhileInHand);
+
     public IEnumerable<Monster> LivingMonsters => Monsters.Where(m => m.IsAlive);
 
     /// <summary>Living enemies a player/Osty attack can target (the monster list, minus the dead).</summary>

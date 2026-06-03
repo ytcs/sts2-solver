@@ -149,7 +149,10 @@ public static partial class Catalog
         bool tracksDrawn = allCards.Any(c => c.Name == "Murder");
         // A cost-0 replayable draw cantrip (EscapePlan / Prepared) could loop the per-turn play chain in search;
         // such decks cap plays per turn (and hash the counter). Cost-≥1 draws are energy-bounded ⇒ no cap.
-        bool boundsPlays = allCards.Any(c => c.LoopRiskDraw);
+        // Also bound (and hash) plays when the deck holds a card that caps plays-per-turn while in hand
+        // (Normality ≤3) — the cap depends on PlaysThisTurn, which must then memoise soundly.
+        bool boundsPlays = allCards.Any(c => c.LoopRiskDraw)
+                        || allCards.Any(c => c.PlayCapWhileInHand < CombatState.MaxPlaysPerTurn);
         // BeatIntoShape's forge scales on the target's prior powered hits this turn — only then track that
         // per-creature counter (it would otherwise fragment every other deck's state space).
         bool tracksPoweredHits = allCards.Any(c => c.TracksTargetPoweredHits);

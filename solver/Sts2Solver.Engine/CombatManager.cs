@@ -200,6 +200,7 @@ public static class CombatManager
         foreach (var m in combat.Monsters)
         {
             if (!m.IsAlive) continue;
+            if (m.StunnedTurns > 0) { m.StunnedTurns--; continue; }   // Whistle stun: skip this move (delayed to next turn)
             m.PerformCurrentMove(combat);
             if (combat.PlayerDead) break;
         }

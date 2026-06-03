@@ -296,9 +296,9 @@ public sealed class NeowsFury : CardModel
 }
 
 /// <summary>Deal 33 damage. Stun the target (it skips its next turn). Exhaust. Cost 3. Upgrade: +11 damage.
-/// (MegaCrit Whistle) — the stun is a monster-AI interaction the search's move generator does not model, so
-/// only the damage is ported (its harm is UNDER-stated; flagged). Porting the stun needs a generic
-/// skip-next-move hook in the monster AI, out of scope here.</summary>
+/// (MegaCrit Whistle) — the stun is modelled via the engine's bounded one-turn stun (Cmd.Stun): the target's
+/// telegraphed move is DELAYED a turn (never permanently disabled), so the player correctly avoids one enemy
+/// action and the model can't over-credit.</summary>
 public sealed class Whistle : CardModel
 {
     public override string Name => "Whistle";
@@ -309,7 +309,10 @@ public sealed class Whistle : CardModel
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public int Damage => 33 + 11 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
-        => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);   // stun deferred
+    {
+        Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+        if (play.Target is Monster m) Cmd.Stun(combat, m);
+    }
 }
 
 /// <summary>Gain 2 energy. Draw 2 cards. Lose 1 Max HP. Cost 0. Upgrade: +1 energy, +1 card. (MegaCrit

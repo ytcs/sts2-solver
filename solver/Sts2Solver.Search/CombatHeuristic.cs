@@ -165,10 +165,11 @@ public static class CombatHeuristic
     /// <summary>Distinct (card, target) plays at a decision node, deduplicated by card key.</summary>
     public static IEnumerable<PlayerAction> LegalPlays(CombatState s)
     {
+        if (s.PlaysThisTurn >= s.EffectivePlayCap()) yield break;   // backstop + Normality (≤3) while in hand
         var seen = new HashSet<string>();
         foreach (var card in s.Player.Hand)
         {
-            if (card.Unplayable) continue;
+            if (!s.CardPlayAllowed(card)) continue;   // Unplayable + Enthralled hand-lockout
             if (!card.IsXCost && card.EffectiveCost(s) > s.Player.Energy) continue;   // EffectiveCost: in-combat cost reductions
             if (!s.Player.CanAffordStars(card)) continue;   // Regent star cost gates the play
             var ck = card.StateKey();

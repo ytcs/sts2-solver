@@ -256,6 +256,14 @@ public static class Cmd
     /// monster is appended to the enemy side, assigned the next encounter id, and telegraphs the move its
     /// AI starts on (a spawned Wriggler starts on its no-op SPAWNED stun). Its rolled HP is whatever the
     /// caller set; the trace validator overrides it with the observed roll via <see cref="Monster.NeedsSpawnHpSync"/>.</summary>
+    /// <summary>Stun a monster: skip its next <paramref name="turns"/> move(s). Whistle stuns for 1. The
+    /// telegraphed move is delayed (the AI transition is inside the skipped Perform), never permanently
+    /// disabled — bounded, so it cannot over-credit the player. No-op if the monster is already dead.</summary>
+    public static void Stun(CombatState combat, Monster monster, int turns = 1)
+    {
+        if (monster.IsAlive) monster.StunnedTurns = Math.Max(monster.StunnedTurns, turns);
+    }
+
     public static void Summon(CombatState combat, Monster monster)
     {
         monster.Side = CombatSide.Enemy;

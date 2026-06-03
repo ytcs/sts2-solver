@@ -188,11 +188,11 @@ public sealed class Solver
         // Cap plays per turn (unconditional safety net): a cost-0 replayable draw cantrip could otherwise build
         // an unbounded play chain and blow the stack. The cap sits far above any real line, so it never changes
         // the optimal value; flagged loop-risk decks additionally HASH PlaysThisTurn so the cap memoises soundly.
-        if (s.PlaysThisTurn >= CombatState.MaxPlaysPerTurn) yield break;
+        if (s.PlaysThisTurn >= s.EffectivePlayCap()) yield break;   // tightened by Normality (≤3) while in hand
         var seen = new HashSet<string>();
         foreach (var card in s.Player.Hand)
         {
-            if (card.Unplayable) continue;
+            if (!s.CardPlayAllowed(card)) continue;   // Unplayable + Enthralled hand-lockout
             if (!card.IsXCost && card.EffectiveCost(s) > s.Player.Energy) continue;   // EffectiveCost: in-combat cost reductions
             if (!s.Player.CanAffordStars(card)) continue;   // Regent star cost gates the play
             var ck = card.StateKey();

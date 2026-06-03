@@ -96,6 +96,18 @@ public abstract class CardModel
     /// skips them and <see cref="CombatManager.PlayCard"/> rejects them.</summary>
     public virtual bool Unplayable => false;
 
+    /// <summary>While this card is in hand, the player may play at most this many cards per turn (Normality = 3).
+    /// <c>int.MaxValue</c> = no cap; the effective cap is the min over all in-hand cards. Enforced by the search
+    /// move generators via <see cref="CombatState.EffectivePlayCap"/>. SOUNDNESS: a play cap is HARM — ignoring
+    /// it would let the search play more cards than the game allows (over-credit). (Game: Normality.ShouldPlay.)</summary>
+    public virtual int PlayCapWhileInHand => int.MaxValue;
+
+    /// <summary>While this card is in hand, the player may ONLY play cards that are themselves locks: Enthralled
+    /// locks the entire hand until it is played (which discards it and lifts the lock for the turn). Enforced by
+    /// the move generators via <see cref="CombatState.CardPlayAllowed"/>. SOUNDNESS: a lockout is HARM — ignoring
+    /// it would over-credit the player's options. (Game: Enthralled.ShouldPlay.)</summary>
+    public virtual bool LocksHandWhileInHand => false;
+
     /// <summary>True if this card does something when held in hand at end of the player's turn.</summary>
     public virtual bool HasTurnEndInHandEffect => false;
 

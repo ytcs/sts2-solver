@@ -53,7 +53,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 658 passing, 0 skipped/failed. Traces: 74 recorded game traces, all PASS** — including a live
+- **Tests: 665 passing, 0 skipped/failed. Traces: 74 recorded game traces, all PASS** — including a live
   headless Defect-vs-Byrdonis run (#74) that exercises the orb subsystem end-to-end (CrackedCore's starting
   orb, Zap channel, Dualcast evoke, ColdSnap Frost channel+block, BallLightning, and the Lightning/Frost
   turn-end passives), matching the game's HP/block/Strength across 4 turns 35/35. (The orb random-target
@@ -247,13 +247,35 @@ Remaining (all lower-value; #1–2 inert-but-sound, #3 needs the game you're pla
    + Untouchable/FlickFlack), an Innate deck, a Retain deck. Murder is already live-validated (trace #73). The
    random-target (SerpentForm/Ricochet/RipAndTear) and hand-size (PreciseCut) cards need single-enemy encounters.
 
-**Documented out-of-scope (need a new subsystem — left inert/approximated, all sound):** gold (HandOfGreed,
-Royalties), full-pool RNG card-generation (Metamorphosis,
-Distraction, DualWield, Begone, Quasar, Supermassive's scaling, …), multiplayer-only (Sneaky/Flanking/Largesse/
-TankPower), move-legality curses (Normality 3-cards/turn, Enthralled hand-lockout — degrade to dilution,
-understate harm), Whistle stun (needs a monster skip-move hook), Rupture end-of-turn self-damage edge, MadScience
-TinkerTime, true-RNG card-selection for Cinder / base True Grit (kept deterministic-default — promoting would be
-optimistically unsound). Random card-selection is deliberately NEVER a search decision node.
+**Move-legality + stun — NOW MODELLED (closed the two soundness gaps).** `Normality` (≤3 plays/turn while in
+hand) and `Enthralled` (hand-lockout: only Enthralled is playable until played) were the only spots where an
+unmodelled HARM could OVER-credit the search. Both are now enforced 1:1 by every move generator (the exact
+Solver, MCTS, and the rollout/heuristic) via `CombatState.EffectivePlayCap()` (a per-turn play cap tightened by
+in-hand cards) and `CardPlayAllowed()` (Unplayable + lockout). A deck holding a play-cap card sets `BoundsPlays`
+so `PlaysThisTurn` memoises soundly. **Whistle's stun** is modelled via a bounded one-turn monster stun
+(`Cmd.Stun` + `Monster.StunnedTurns`): the target's telegraphed move is DELAYED a turn (never permanently
+disabled — gated hash/StateKey, so un-stunned monsters are byte-identical to before), so the player correctly
+avoids one enemy action and the model can't over-credit.
+
+**Gold — verified HP-neutral, intentionally inert (NOT a missing subsystem).** Audited every combat-relevant
+gold reader: `RoyaltiesPower` only fires `AfterCombatEnd` (post-combat reward), and HandOfGreed / the gold
+relics have NO in-combat HP/block/damage feedback. So leaving gold unmodelled is not merely sound but
+**HP-exact** for the survival/E[HP-loss] objective — building gold state would add memo-key surface for zero
+objective impact. Documented, not built.
+
+**Full-pool RNG card-generation — inert-in-search IS the sound model (not a deferrable bug).** Letting the
+search SEE generated cards as a benefit is exactly the optimistic-unsound direction the doctrine forbids (it
+would cherry-pick favourable generations); a faithful chance-node over the 50+-card pool would also explode the
+state space. For replay/validation the generated cards' own plays are recorded individually, so inert is
+trace-compatible. The tractable selection cards (SecretWeapon/SecretTechnique/SeekerStrike/Wish) use a sound
+fixed-default move-to-hand. Affected (deliberately inert): Discovery, JackOfAllTrades, Splash, Jackpot's gen,
+Catastrophe/BeatDown auto-play, Calamity/Entropy/CreativeAi/WhiteNoise/Chaos/Metamorphosis/Distraction/DualWield/
+Begone/Quasar/Supermassive. Random card-selection is deliberately NEVER a search decision node.
+
+**Documented out-of-scope (need a new subsystem — left inert/approximated, all sound):** multiplayer-only
+(Sneaky/Flanking/Largesse/TankPower), Rupture end-of-turn self-damage edge, MadScience TinkerTime, true-RNG
+card-selection for Cinder / base True Grit (kept deterministic-default — promoting would be optimistically
+unsound).
 
 **Audit-confirmed PESSIMISTIC (sound) gaps left as-is** (under-credit the player; fixing is low-value or
 high-risk): **DeathMarch** draw-scaling (`+(4+2U) × mid-turn cards drawn this turn`) is 0 in search — modelling
