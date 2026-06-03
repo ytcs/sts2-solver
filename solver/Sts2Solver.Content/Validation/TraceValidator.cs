@@ -59,12 +59,21 @@ public static class TraceValidator
         int playerHp = Int(pSetup, "hp"), playerMaxHp = Int(pSetup, "maxHp");
         var deckNames = pSetup.GetProperty("drawPile").EnumerateArray().Select(c => c.GetString()!).ToList();
         var deck = deckNames.Select(Catalog.BuildCard).ToList();
-        // Pick the starter relic from the character implied by the deck: Necrobinder runs start with Bound
-        // Phylactery (which summons Osty on combat start — essential for the Osty checks), everything else
-        // with Burning Blood (the only relic the older Ironclad/Silent traces were recorded under).
-        var starterRelic = IsNecrobinderDeck(deckNames) ? "BoundPhylactery" : "BurningBlood";
+        // Pick the starter relic from the RECORDED character (relics aren't in the trace, and only combat-start /
+        // victory-heal relics affect validation; we replay the recorded hand, so draw-effect relics are moot):
+        //   Ironclad — Burning Blood (heals 6 on victory);
+        //   The Silent — Ring of the Snake (NO victory heal → a Silent victory must NOT gain 6; modelling it as
+        //     Burning Blood mis-healed the won snapshot by +6 — left unmodelled, so no relic);
+        //   Regent — Divine Right (3 Stars at combat start);
+        //   Necrobinder — Bound Phylactery (summons Osty on combat start — essential for the Osty checks).
+        var charName = (Str(pSetup, "name") ?? "").ToLowerInvariant();
+        string? starterRelic =
+            charName.Contains("silent")                                  ? null :
+            charName.Contains("necrobinder") || IsNecrobinderDeck(deckNames) ? "BoundPhylactery" :
+            charName.Contains("regent")                                  ? "DivineRight" :
+                                                                           "BurningBlood";
         var player = Catalog.BuildPlayer(deck, playerHp, playerMaxHp, Int(pSetup, "maxEnergy") is var me && me > 0 ? me : 3,
-            relics: new[] { starterRelic });
+            relics: starterRelic == null ? null : new[] { starterRelic });
 
         // Ascension level the trace was recorded at (absent on pre-A10 traces → 0). Drives monster
         // HP/damage scaling so the engine reproduces the same numbers the game dealt.

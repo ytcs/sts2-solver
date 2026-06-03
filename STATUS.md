@@ -61,7 +61,7 @@ mods/DataDumper/                Godot C# mod (loads into the real game)
                                 HeadlessBatch (STS2_BATCH: autonomous headless run+fight+record+quit)
 data/
   game_data/*.json              dumped metadata (cards/monsters/encounters/powers/...)
-  combat_traces/*.jsonl         66 recorded ground-truth traces (all passing): A0 Ironclad + Silent + A10
+  combat_traces/*.jsonl         72 recorded ground-truth traces (all passing): A0 Ironclad + Silent + A10
 docs/mcts-solver-design.md      SOTA literature review + chosen sampling/MCTS design
 ~/.claude/plans/                cozy-splashing-kernighan.md (approved design + recovered specs);
                                 mossy-swimming-allen.md (MCTS-quality plan + session logs)
@@ -395,10 +395,26 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   cap, loop-risk-card flag audit, Survivor/DaggerThrow forced-discard-feeds-the-counter + no-draw-discard MCTS
   convergence + Rng-path discard mechanics + Murder-counts-the-turn-start-hand-draw + EscapePlan-no-block-on-an-
   empty-draw both Rng-path and via ApplyPostDraw)). **506 passed, 0 skipped, 0 failed.**
-- **66 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
+- **72 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
   InfestedPrism Vital Spark, PhantasmalGardeners ×4, Knights ×3, Decimillipede segments).
+- **First LIVE (real-game) Silent-character traces — batch-4 ports validated** (this round, 2 headless runs as
+  the actual Silent character, not the earlier Ironclad-with-Silent-cards proxy): byte-exact over multi-turn
+  Cultist fights for **Assassinate, Expose, Finisher, Abrasive, LeadingStrike** (62/62) and **Malaise (X-cost),
+  Untouchable, CalculatedGamble, Reflex, StormOfSteel + its Shivs** (97/97). Surfaced + fixed a
+  **validation-harness bug**: the replay hardcoded Burning Blood (heal-6-on-victory) for every non-Necrobinder
+  deck, but the Silent's Ring of the Snake has NO victory heal — so a Silent victory mis-healed the won snapshot
+  by +6. Now the starter relic is chosen from the RECORDED character name (`player.name`): Ironclad→BurningBlood,
+  The Silent→none, Regent→DivineRight, Necrobinder→BoundPhylactery. (Existing 70 traces are all "The Ironclad"/
+  "The Necrobinder" ⇒ byte-identical; only new Silent-character traces change.)
+  - **Replay-determinism limits confirmed (methodology, NOT card bugs):** random-target effects in MULTI-enemy
+    fights can't be replayed (the trace doesn't carry the per-hit target RNG) — SerpentForm in a 2-cultist fight
+    diverged exactly as its random hits scattered (RipAndTear is the same documented "approximated" class); and
+    hand-size-dependent damage (PreciseCut = `13 − 2·handCount`) combined with a mid-turn draw (Reflex) is
+    sensitive to the replay's draw-pile reconstruction. Both card implementations match the decompiled `OnPlay`
+    (audited + re-checked); clean live validation just needs single-enemy fights / decks without those two card
+    classes. The other batch-4 cards above validate cleanly even in the 2-enemy Cultist fight.
 
 ### Tooling — fully autonomous data collection ✅
 - `DataDumper` mod records every combat to `data/combat_traces/`; `autopilot` console cmd plays hands-free
@@ -627,11 +643,15 @@ experiment also surfaced the Apotheosis/Armaments clone-aliasing oracle bug, sin
 5. **VF distillation + recalibration** — after a large training round (now drawing colorless + varied decks),
    distill feature importance to simplify the model without losing accuracy; recalibrate survival (Platt/
    isotonic) IF we keep it; add deck-composition features.
-6. **Content** — Silent 88/88 ✅ done; the batch-4–8 ports now also passed a **game-free behavioral-fidelity
-   audit** (decompile-diffed numbers/ordering/soundness — fixed Murder's turn-start-draw undercount and
-   EscapePlan's empty-draw block hole), so the remaining step is **live** trace-validation of those ports + the
-   8 new normal monsters against the real game (still only unit-tested); Act-1 bosses; relic engine hooks;
-   the deferred solver-side mid-turn **draw chance-node** for forward search.
+6. **Content** — Silent 88/88 ✅ done; the batch-4–8 ports passed a **game-free behavioral-fidelity audit**
+   (decompile-diffed numbers/ordering/soundness — fixed Murder's turn-start-draw undercount and EscapePlan's
+   empty-draw block hole), and the first **LIVE Silent-character traces** now validate 10 batch-4 cards
+   (Assassinate/Expose/Finisher/Abrasive/LeadingStrike + Malaise/Untouchable/CalculatedGamble/Reflex/StormOfSteel)
+   byte-exact (+ fixed the Silent-victory-heal harness bug). _Remaining:_ live-validate the rest of batch-4–8 —
+   the powers (the autopilot does play them, e.g. Accuracy/SerpentForm) and the random-target / hand-size cards
+   need **single-enemy** fights (SerpentForm/PreciseCut can't be deterministically replayed in multi-enemy) — plus
+   the 8 new normal monsters; Act-1 bosses; relic engine hooks; the deferred solver-side mid-turn **draw
+   chance-node** for forward search.
 7. **Intra-card SELECTION as real decision nodes — DONE for single-choice cards; two sound boundaries remain.**
    The machinery is in place and oracle-gated: `CardModel.Choices(state)` declares a card's distinct options
    (each an option's `StateKey`); `PlayerAction`/`CardPlay` carry a `ChoiceKey`; all three `LegalPlays`
