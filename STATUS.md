@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-02._
+_Last updated: 2026-06-02 (HiddenDaggers in-hand discard-of-choice promotion + Murder live-validation)._
 
 ## Current state
 
@@ -394,8 +394,10 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   EscapePlan conditional, Acrobatics optimal-discard, discard-choice MCTS convergence, cost-0 cantrip
   cap, loop-risk-card flag audit, Survivor/DaggerThrow forced-discard-feeds-the-counter + no-draw-discard MCTS
   convergence + Rng-path discard mechanics + Murder-counts-the-turn-start-hand-draw + EscapePlan-no-block-on-an-
-  empty-draw both Rng-path and via ApplyPostDraw)). **506 passed, 0 skipped, 0 failed.**
-- **72 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
+  empty-draw both Rng-path and via ApplyPostDraw + **HiddenDaggers discard-2-of-choice-THEN-add-Shivs** as a real
+  player MAX with the Shiv-creation as the discard's continuation, decisive exact solve + MCTS convergence +
+  the **Murder live-validator reconstruction** synthetic-trace gate). **509 passed, 0 skipped, 0 failed.**
+- **73 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,
   InfestedPrism Vital Spark, PhantasmalGardeners ×4, Knights ×3, Decimillipede segments).
@@ -415,6 +417,20 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
     sensitive to the replay's draw-pile reconstruction. Both card implementations match the decompiled `OnPlay`
     (audited + re-checked); clean live validation just needs single-enemy fights / decks without those two card
     classes. The other batch-4 cards above validate cleanly even in the 2-enemy Cultist fight.
+- **Murder LIVE-validated (validator fix this round): the replay now counts the turn-start hand draw.** Murder's
+  damage is `1 + cumulative cards drawn this combat`, and the game logs a CardDrawnEntry for the turn-start hand
+  draw too — but replay sets the hand directly (`OverrideHand` bypasses `DrawCards`), so `CardsDrawnThisCombat`
+  stayed 0 during replay and a Murder deck couldn't be validated. New `TraceValidator.SeedTurnStartDraw` seeds the
+  counter from each recorded turn-start hand (mid-turn effect-draws still flow through `Cmd.Draw → DrawCards` and
+  accumulate on top), so a Murder played any turn reads the correct cumulative total. A real headless Silent run
+  (`Murder:3,StrikeSilent:5` vs Corpse Slugs, A0, all-attack deck so the autopilot's Skills-before-Attacks order
+  lets the cost-3 Murder fire) produced a 5-turn WIN with Murder played every turn — damage scaled **8 → 13 → 18
+  → 23 → 28** (opening hand was **7**, so turn 1 = 1+7 = 8; +5 each turn after) and the engine reproduced every
+  slug-HP delta **byte-exact (56/56)**. The seed reads the ACTUAL recorded hand length (not an assumed 5), which
+  is why the 7-card opening matched. Gated game-free by `Validator_Counts_Turn_Start_Draw_For_Murder` (a synthetic
+  one-turn trace where a missing seed would make Murder deal 1 and forfeit the recorded victory). Only runs for
+  `TracksCardsDrawn` decks ⇒ every other trace is byte-identical. (Faithful for non-retain decks; a Retain card
+  carried across turns isn't redrawn and would be over-counted — Murder validation decks carry none.)
 
 ### Tooling — fully autonomous data collection ✅
 - `DataDumper` mod records every combat to `data/combat_traces/`; `autopilot` console cmd plays hands-free
@@ -540,16 +556,22 @@ blocking).
    resolves as a chance node and the card's post-draw step runs on each drawn outcome — EscapePlan's conditional
    Block (deterministic per-outcome), Acrobatics/Prepared's discard-of-choice (a player MAX over the post-draw
    hand). ThinkingAhead's put-back stays HP-neutral/arbitrary (the multiset draw model ignores order).
-2. ◐ **Post-draw + multi-select choice machinery** — POST-DRAW DONE (2026-06-02), in-hand multi-select still
-   open. The post-draw step now resolves on the drawn hand: a deterministic/conditional effect
-   (`CardModel.OnPostDraw`, e.g. EscapePlan's Block) applied per draw outcome, or a discard-of-choice
-   (`PostDrawDiscardCount`) resolved as a **player MAX** one card at a time (`PendingDiscard`, a hashed decision
-   state; exact MAXes inline, MCTS as a discard decision layer — both gated to converge). Promoted EscapePlan,
-   Acrobatics, Prepared. _Still open:_ the IN-HAND multi-select cards HiddenDaggers (discard 2 of choice) and
-   Purity (exhaust 0..N) — they choose a subset of the CURRENT hand (no draw), so they need the same discard/
-   exhaust-of-choice MAX wired at PLAY time (the machinery now exists — `PendingDiscard` + the discard decision
-   layer — so this is mostly reuse). STATUS still rates their HP value low (discards return; Purity is HP-neutral
-   without on-exhaust powers).
+2. ◐ **Post-draw + multi-select choice machinery** — POST-DRAW + the FIXED-COUNT in-hand discard-of-choice DONE
+   (2026-06-02), one variable-count exhaust case left. The post-draw step resolves on the drawn hand: a
+   deterministic/conditional effect (`CardModel.OnPostDraw`, e.g. EscapePlan's Block) applied per draw outcome, or
+   a discard-of-choice (`PostDrawDiscardCount`) resolved as a **player MAX** one card at a time (`PendingDiscard`,
+   a hashed decision state; exact MAXes inline, MCTS as a discard decision layer — both gated to converge).
+   Promoted EscapePlan, Acrobatics, Prepared. **HiddenDaggers (discard 2 of choice, THEN add 2 Shivs) now PROMOTED
+   too** via a discard-of-choice CONTINUATION: `Cmd.DeferDiscardThenResolve` registers a `PendingDiscardCard`, the
+   discards resolve as the same player MAX, and once the count drains `CombatManager.ApplyPostDiscard` fires the
+   card's `OnPostDiscard` (the Shiv creation) — matching the game's discard-THEN-create order, so the Shivs are
+   never in the discard pool (SOUND; the prior worry was an after-the-Shivs discard, which this avoids by
+   construction). `PendingDiscardCard` is hashed/keyed alongside `PendingDiscard` so an in-flight HiddenDaggers
+   discard can't collide with a continuation-less Acrobatics one. Gated by a decisive exact solve (discard the 2
+   fillers, keep the lethal Strike, Shivs spawn → exact (1,0)) + MCTS convergence + the eager Rng-path mechanics
+   test. _Still open:_ **Purity** (exhaust 0..N of choice, a VARIABLE-count subset) needs an exhaust-of-choice MAX
+   with an optional-stop, distinct from the fixed-count discard machinery — and it is HP-neutral without on-exhaust
+   powers (Feel No Pain / Dark Embrace), so it stays a documented low-value deferral.
 3. ✅ **All-cards selection audit** — DONE (2026-06-02). Cross-referenced every selection / card-gen / discard /
    exhaust / draw-then-act card across ALL modules (Ironclad, Silent, Colorless, Special, Regent, Necrobinder)
    against the **decompiled OnPlay** (`CardSelectCmd.From{Hand,CombatPile}` = player choice; `Rng.CombatCardSelection`
@@ -645,13 +667,14 @@ experiment also surfaced the Apotheosis/Armaments clone-aliasing oracle bug, sin
    isotonic) IF we keep it; add deck-composition features.
 6. **Content** — Silent 88/88 ✅ done; the batch-4–8 ports passed a **game-free behavioral-fidelity audit**
    (decompile-diffed numbers/ordering/soundness — fixed Murder's turn-start-draw undercount and EscapePlan's
-   empty-draw block hole), and the first **LIVE Silent-character traces** now validate 10 batch-4 cards
+   empty-draw block hole), the first **LIVE Silent-character traces** validate 10 batch-4 cards
    (Assassinate/Expose/Finisher/Abrasive/LeadingStrike + Malaise/Untouchable/CalculatedGamble/Reflex/StormOfSteel)
-   byte-exact (+ fixed the Silent-victory-heal harness bug). _Remaining:_ live-validate the rest of batch-4–8 —
-   the powers (the autopilot does play them, e.g. Accuracy/SerpentForm) and the random-target / hand-size cards
-   need **single-enemy** fights (SerpentForm/PreciseCut can't be deterministically replayed in multi-enemy) — plus
-   the 8 new normal monsters; Act-1 bosses; relic engine hooks; the deferred solver-side mid-turn **draw
-   chance-node** for forward search.
+   byte-exact (+ fixed the Silent-victory-heal harness bug), and **Murder is now LIVE-validated** (validator
+   `SeedTurnStartDraw` fix + a real 5-turn Corpse-Slugs win where Murder scaled 8→13→18→23→28 byte-exact, 56/56).
+   _Remaining:_ live-validate the rest of batch-4–8 — the powers (the autopilot does play them, e.g.
+   Accuracy/SerpentForm) and the random-target / hand-size cards need **single-enemy** fights
+   (SerpentForm/PreciseCut can't be deterministically replayed in multi-enemy) — plus the 8 new normal monsters;
+   Act-1 bosses; relic engine hooks; the deferred solver-side mid-turn **draw chance-node** for forward search.
 7. **Intra-card SELECTION as real decision nodes — DONE for single-choice cards; two sound boundaries remain.**
    The machinery is in place and oracle-gated: `CardModel.Choices(state)` declares a card's distinct options
    (each an option's `StateKey`); `PlayerAction`/`CardPlay` carry a `ChoiceKey`; all three `LegalPlays`
@@ -672,11 +695,13 @@ experiment also surfaced the Apotheosis/Armaments clone-aliasing oracle bug, sin
    (a faithful chance-node model of the random pick is a separate later item). Verify random-vs-choice from the
    decompiled OnPlay before promoting any future selection card — never from `cards.json` (LocString refs only).
 
-   Two categories are deliberately **not** promoted, for sound reasons (not laziness):
-   - **Multi-select (combinatorial):** HiddenDaggers (discard 2), Purity (exhaust up to N) choose a *subset* of
-     hand — a pair / powerset choice set. Value is low/conditional (discards return; Purity is HP-neutral
-     without on-exhaust powers like Feel No Pain / Dark Embrace) and the per-variant APW-prior cost is real, so
-     with no perf buffer (see Performance — a clean 10× is proven unavailable) the branching isn't justified.
+   One category is deliberately **not** promoted, for sound reasons (not laziness):
+   - **Variable-count multi-select:** Purity (exhaust *up to* N — a powerset choice with an optional stop) chooses
+     a *subset* of hand. Value is low/conditional (Purity is HP-neutral without on-exhaust powers like Feel No
+     Pain / Dark Embrace) and an optional-stop exhaust-of-choice MAX is distinct machinery from the fixed-count
+     discard; with no perf buffer (see Performance — a clean 10× is proven unavailable) the branching isn't
+     justified. (HiddenDaggers — discard EXACTLY 2 of choice — IS now promoted: a fixed-count subset factors into
+     two sequential single-card discard MAXes, so no powerset blow-up; see #2 / the discard-of-choice continuation.)
    - **Draw-then-select — now PROMOTED (2026-06-02):** Acrobatics, Prepared, EscapePlan act on the *post-draw*
      hand. Mid-turn `Cmd.Draw` opens a draw chance node (#1), and the card's POST-draw step then runs per draw
      outcome via the new machinery (#2): `CardModel.OnPostDraw` for a deterministic/conditional effect

@@ -108,6 +108,7 @@ public static class TraceValidator
             int turn = Int(pts, "turn");
 
             OverrideHand(combat, pts.GetProperty("player").GetProperty("hand"));
+            SeedTurnStartDraw(combat, pts);
             SyncMonsters(combat, pts.GetProperty("monsters"));
 
             // Verify the state we're entering matches the trace (catches drift from a prior turn).
@@ -166,6 +167,27 @@ public static class TraceValidator
             try { p.Hand.Add(Catalog.BuildCard(name)); }
             catch (ArgumentException) { }
         }
+    }
+
+    /// <summary>
+    /// Reconstruct <see cref="CombatState.CardsDrawnThisCombat"/> for the cards that read it (Murder scales its
+    /// damage on <c>1 + cumulative cards drawn this combat</c>; the game logs a CardDrawnEntry for the turn-start
+    /// hand draw too — <c>fromHandDraw</c>). Replay sets the hand directly (<see cref="OverrideHand"/> bypasses
+    /// <see cref="CombatManager.DrawCards"/>), so the turn-start draws would otherwise never be counted; seed them
+    /// here from the recorded turn-start hand. Mid-turn effect draws (Reflex, …) DON'T need seeding — during
+    /// replay they flow through <c>Cmd.Draw → CombatManager.DrawCards</c>, which increments the same counter — so
+    /// a Murder played later in the turn reads the correct cumulative total.
+    ///
+    /// Only runs for decks that track the counter (a Murder deck, via <see cref="CombatState.TracksCardsDrawn"/>),
+    /// so every other trace is byte-identical. Faithful for non-retain decks — the recorded turn-start hand is
+    /// then all freshly drawn (everything else was discarded at end of turn), so its size IS the draw count.
+    /// (A Retain card carried across turns isn't redrawn and would be over-counted; Murder validation decks carry
+    /// none. The recorded array length is used — what the game actually drew — so an unported card still counts.)
+    /// </summary>
+    private static void SeedTurnStartDraw(CombatState combat, JsonElement pts)
+    {
+        if (!combat.TracksCardsDrawn) return;
+        combat.CardsDrawnThisCombat += pts.GetProperty("player").GetProperty("hand").GetArrayLength();
     }
 
     /// <summary>
