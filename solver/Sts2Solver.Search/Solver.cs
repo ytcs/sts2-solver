@@ -73,7 +73,8 @@ public sealed class Solver
         {
             BeginPlayerTurnInPlace(afterRoll);
             afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
-            foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, openingDraw))
+            int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, openingDraw);   // Innate cards → guaranteed in hand
+            foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, draw))
                 yield return (probM * probD, afterDraw);
         }
     }
@@ -172,10 +173,10 @@ public sealed class Solver
             var key = card.StateKey();
             if (!seen.Add(key)) continue;   // symmetric discards collapse
             var c = s.Clone();
-            Cmd.DiscardFromHand(c, c.Player.Hand.First(h => h.StateKey() == key));
+            Cmd.DiscardFromHand(c, c.Player.Hand.First(h => h.StateKey() == key));   // may trigger a Sly auto-play
             c.PendingDiscard--;
             if (c.PendingDiscard == 0) CombatManager.ApplyPostDiscard(c);   // last discard resolved → run the continuation
-            var v = SolvePlayerTurn(c);
+            var v = ContinuePlay(c);   // ContinuePlay (not SolvePlayerTurn) so a Sly Reflex's deferred draw resolves as a chance node
             if (!any || v.BetterThan(best)) { best = v; any = true; }
         }
         return best;
@@ -249,7 +250,8 @@ public sealed class Solver
             BeginPlayerTurnInPlace(afterRoll);
             afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
             int startLoss = afterRoll.PlayerHpLost - afterEnemy.PlayerHpLost; // start-of-turn (e.g. poison)
-            foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, Player.CardsDrawnPerTurn))
+            int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, Player.CardsDrawnPerTurn);   // no-op past turn 1
+            foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(afterRoll, draw))
             {
                 var v = SolvePlayerTurn(afterDraw);
                 double w = probM * probD;

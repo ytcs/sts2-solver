@@ -54,7 +54,8 @@ public static partial class Catalog
         ["Backflip"] = () => new Backflip(),
         ["Expertise"] = () => new Expertise(),
         // Batch 4 — remaining primitive-portable cards (attacks/skills/powers, X-cost, Shiv-generation,
-        // Thorns/FreeSkill). Sly is HP-neutral (unmodelled discard trigger).
+        // Thorns/FreeSkill). Sly cards (Abrasive/FlickFlack/Haze/Reflex/Ricochet/Sneaky/Tactician/Untouchable)
+        // now auto-play for free when discarded mid-turn (CombatManager.TriggerSlyOnDiscard).
         ["Abrasive"] = () => new Abrasive(),
         ["Assassinate"] = () => new Assassinate(),
         ["Expose"] = () => new Expose(),

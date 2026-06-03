@@ -1038,10 +1038,11 @@ public sealed class RoyalGamble : CardModel
 // ---- Power cards ----
 
 /// <summary>Power: gain 1 Strength each time a card is generated into combat (generation inert). Upgrade:
-/// Innate (not modelled). (MegaCrit Arsenal)</summary>
+/// Innate (guaranteed in the opening hand). (MegaCrit Arsenal)</summary>
 public sealed class Arsenal : CardModel
 {
     public override string Name => "Arsenal";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;
@@ -1259,10 +1260,11 @@ public sealed class TheSealedThrone : CardModel
 }
 
 /// <summary>Power: each turn draw more cards and exhaust cards (draw-count/forced-exhaust not modelled).
-/// Upgrade: Innate (not modelled). (MegaCrit Tyranny)</summary>
+/// Upgrade: Innate (guaranteed in the opening hand). (MegaCrit Tyranny)</summary>
 public sealed class Tyranny : CardModel
 {
     public override string Name => "Tyranny";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;
@@ -1285,11 +1287,12 @@ public sealed class VoidForm : CardModel
         => Cmd.ApplyPower(combat, combat.Player, new VoidFormPower(), 2, combat.Player);
 }
 
-/// <summary>Cost 0. Exhaust. Draw 1, gain 1 star, gain 1 energy, Forge 5. Upgrade: Innate (not modelled).
+/// <summary>Cost 0. Exhaust. Draw 1, gain 1 star, gain 1 energy, Forge 5. Upgrade: Innate (guaranteed in the opening hand).
 /// (MegaCrit BigBang)</summary>
 public sealed class BigBang : CardModel
 {
     public override string Name => "BigBang";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 0;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Rare;

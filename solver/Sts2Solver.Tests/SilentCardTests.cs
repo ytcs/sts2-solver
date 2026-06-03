@@ -245,6 +245,84 @@ public class SilentCardTests
     }
 
     [Fact]
+    public void Retain_Keeps_The_Card_In_Hand_Across_The_Turn()
+    {
+        var (c, p, _) = Fight();
+        var snakebite = new Snakebite();                  // canonical Retain
+        var strike = new StrikeSilent();                  // no Retain
+        p.Hand.Add(snakebite);
+        p.Hand.Add(strike);
+        CombatManager.EndPlayerTurn(c);
+        Assert.Contains(snakebite, p.Hand);               // Retain ⇒ stays in hand
+        Assert.DoesNotContain(snakebite, p.DiscardPile);
+        Assert.DoesNotContain(strike, p.Hand);            // no Retain ⇒ discarded
+        Assert.Contains(strike, p.DiscardPile);
+    }
+
+    [Fact]
+    public void CalculatedGamble_Retains_Only_When_Upgraded()
+    {
+        Assert.False(new CalculatedGamble().Retain);                       // base: no Retain
+        Assert.True(((CardModel)new CalculatedGamble().Upgraded()).Retain); // upgrade grants Retain
+    }
+
+    [Fact]
+    public void Sly_Untouchable_Auto_Plays_Block_When_Discarded()
+    {
+        var (c, p, _) = Fight();
+        var u = new Untouchable();                  // Sly: gain 6 block
+        p.Hand.Add(u);
+        Cmd.DiscardFromHand(c, u);
+        Assert.Equal(6, p.Block);                   // auto-played on discard
+        Assert.Contains(u, p.DiscardPile);
+    }
+
+    [Fact]
+    public void Sly_FlickFlack_Auto_Plays_AoE_Damage_When_Discarded()
+    {
+        var (c, _, m) = Fight();
+        var f = new FlickFlack();                   // Sly: 6 to all enemies
+        c.Player.Hand.Add(f);
+        int before = m.CurrentHp;
+        Cmd.DiscardFromHand(c, f);
+        Assert.Equal(before - 6, m.CurrentHp);
+    }
+
+    [Fact]
+    public void Sly_Tactician_Auto_Plays_Energy_When_Discarded()
+    {
+        var (c, p, _) = Fight();
+        p.ResetEnergy();
+        int e = p.Energy;
+        var t = new Tactician();                    // Sly: gain 1 energy
+        p.Hand.Add(t);
+        Cmd.DiscardFromHand(c, t);
+        Assert.Equal(e + 1, p.Energy);
+    }
+
+    [Fact]
+    public void Sly_Reflex_Auto_Plays_Draw_When_Discarded_With_Rng()
+    {
+        var (c, p, _) = Fight();
+        c.Rng = new Rng(0);
+        for (int i = 0; i < 5; i++) p.DrawPile.Add(new StrikeSilent());
+        var r = new Reflex();                       // Sly: draw 2
+        p.Hand.Add(r);
+        int handBefore = p.Hand.Count;              // includes Reflex
+        Cmd.DiscardFromHand(c, r);                  // Reflex leaves hand → discard → auto-play draws 2
+        Assert.Equal(handBefore - 1 + 2, p.Hand.Count);
+    }
+
+    [Fact]
+    public void End_Of_Turn_Flush_Does_Not_Trigger_Sly()
+    {
+        var (c, p, _) = Fight();
+        p.Hand.Add(new Untouchable());              // Sly, but the end-of-turn flush bypasses CardCmd.Discard
+        CombatManager.EndPlayerTurn(c);
+        Assert.Equal(0, p.Block);                   // Sly must NOT auto-play at end of turn (game flushes via CardPileCmd.Add)
+    }
+
+    [Fact]
     public void BubbleBubble_Adds_9_Poison_Only_If_Already_Poisoned()
     {
         var (c, _, m) = Fight();

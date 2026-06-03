@@ -205,6 +205,7 @@ public sealed class Footwork : CardModel
 public sealed class Haze : CardModel
 {
     public override string Name => "Haze";
+    public override bool IsSly => true;   // Sly: auto-plays for free when discarded mid-turn
     public override int BaseCost => 3;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
@@ -279,31 +280,36 @@ internal static class SilentCardHelpers
     }
 
     /// <summary>Discard every card currently in the player's hand (moving it to the discard pile) and return
-    /// the count discarded. Used by hand-dumping cards (Storm of Steel, Calculated Gamble). The Sly
-    /// auto-play-on-discard trigger is not modelled — see the note in SilentCards.cs.</summary>
+    /// the count discarded. Used by hand-dumping cards (Storm of Steel, Calculated Gamble). Any Sly card among
+    /// the discarded hand auto-plays for free after the discard (<see cref="CombatManager.TriggerSlyOnDiscard"/>).</summary>
     public static int DiscardWholeHand(CombatState combat)
     {
         var hand = combat.Player.Hand.ToList();
         combat.Player.Hand.Clear();
         combat.Player.DiscardPile.AddRange(hand);
         combat.CardsDiscardedThisTurn += hand.Count;   // mid-turn discards (Memento Mori scales on this)
+        CombatManager.TriggerSlyOnDiscard(combat, hand);   // Sly cards auto-play after the discard completes
         return hand.Count;
     }
 
     /// <summary>Discard up to <paramref name="count"/> cards from the front of hand to the discard pile. The
     /// game lets the player CHOOSE which to discard; we use a fixed default (player choice not modelled),
-    /// matching the engine's other selection cards (Armaments / Burning Pact / Headbutt). Returns the count.</summary>
+    /// matching the engine's other selection cards (Armaments / Burning Pact / Headbutt). Returns the count.
+    /// Any Sly card discarded auto-plays for free afterward (<see cref="CombatManager.TriggerSlyOnDiscard"/>).</summary>
     public static int DiscardDefault(CombatState combat, int count)
     {
         var hand = combat.Player.Hand;
         int n = Math.Min(count, hand.Count);
+        var discarded = new List<CardModel>(n);
         for (int i = 0; i < n; i++)
         {
             var card = hand[0];
             hand.RemoveAt(0);
             combat.Player.DiscardPile.Add(card);
+            discarded.Add(card);
         }
         combat.CardsDiscardedThisTurn += n;   // feeds Memento Mori
+        CombatManager.TriggerSlyOnDiscard(combat, discarded);   // Sly cards auto-play after the discard completes
         return n;
     }
 }
@@ -356,6 +362,7 @@ public sealed class Pinpoint : CardModel
 public sealed class FlickFlack : CardModel
 {
     public override string Name => "FlickFlack";
+    public override bool IsSly => true;   // Sly: auto-plays for free when discarded mid-turn
     public override int BaseCost => 1;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Common;
@@ -385,8 +392,7 @@ public sealed class Scare : CardModel
     }
 }
 
-/// <summary>Apply 7 Poison. Upgrade: +3. (Retain is not modelled — HP-neutral; the recorder's hands cover
-/// it during validation.) (MegaCrit Snakebite)</summary>
+/// <summary>Apply 7 Poison. Retain. Upgrade: +3. (MegaCrit Snakebite)</summary>
 public sealed class Snakebite : CardModel
 {
     public override string Name => "Snakebite";
@@ -394,6 +400,7 @@ public sealed class Snakebite : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AnyEnemy;
+    public override bool Retain => true;   // not discarded at end of turn — carries into the next turn
     public int Poison => 7 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
@@ -418,11 +425,12 @@ public sealed class BubbleBubble : CardModel
     }
 }
 
-/// <summary>Deal 11 damage. Apply 3 Weak. Cost 0. Upgrade: +6 damage, +2 Weak. (Innate not modelled —
-/// affects only the opening hand.) (MegaCrit Suppress)</summary>
+/// <summary>Deal 11 damage. Apply 3 Weak. Cost 0. Innate. Upgrade: +6 damage, +2 Weak. (Innate: guaranteed
+/// in the opening hand.) (MegaCrit Suppress)</summary>
 public sealed class Suppress : CardModel
 {
     public override string Name => "Suppress";
+    public override bool Innate => true;   // guaranteed in the opening hand
     public override int BaseCost => 0;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;       // "Ancient" in-game; cosmetic for combat
@@ -472,11 +480,12 @@ public sealed class Blur : CardModel
     }
 }
 
-/// <summary>Power: whenever you play a card, gain 1 Block. Upgrade: becomes Innate (not modelled — opening
-/// hand only). (MegaCrit Afterimage)</summary>
+/// <summary>Power: whenever you play a card, gain 1 Block. Upgrade: becomes Innate (guaranteed in the
+/// opening hand). (MegaCrit Afterimage)</summary>
 public sealed class Afterimage : CardModel
 {
     public override string Name => "Afterimage";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;
@@ -559,11 +568,12 @@ public sealed class Survivor : CardModel
     }
 }
 
-/// <summary>Deal 11 damage. Exhaust. Cost 0. Upgrade: +4. (Innate not modelled — affects only the opening
+/// <summary>Deal 11 damage. Exhaust. Cost 0. Innate. Upgrade: +4. (Innate: guaranteed in the opening
 /// hand.) (MegaCrit Backstab)</summary>
 public sealed class Backstab : CardModel
 {
     public override string Name => "Backstab";
+    public override bool Innate => true;   // guaranteed in the opening hand
     public override int BaseCost => 0;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
@@ -752,11 +762,12 @@ public sealed class Expertise : CardModel
 // hand-discard-selection that would trigger it, matching the existing deferrals.
 // ===========================================================================
 
-/// <summary>Power: gain 1 Dexterity and 4 Thorns. Upgrade: +2 Thorns. (Sly — not modelled.)
+/// <summary>Power: gain 1 Dexterity and 4 Thorns. Upgrade: +2 Thorns. (Sly: auto-plays its power for free when discarded.)
 /// (MegaCrit Abrasive)</summary>
 public sealed class Abrasive : CardModel
 {
     public override string Name => "Abrasive";
+    public override bool IsSly => true;   // Sly: auto-plays for free when discarded mid-turn
     public override int BaseCost => 3;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;
@@ -775,6 +786,7 @@ public sealed class Abrasive : CardModel
 public sealed class Assassinate : CardModel
 {
     public override string Name => "Assassinate";
+    public override bool Innate => true;   // guaranteed in the opening hand
     public override int BaseCost => 0;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
@@ -866,11 +878,12 @@ public sealed class Pounce : CardModel
     }
 }
 
-/// <summary>Draw 2 cards. Cost 3. (Sly — not modelled.) Upgrade: draw 3. (MegaCrit Reflex) The draw is a
+/// <summary>Draw 2 cards. Cost 3. (Sly: auto-plays for free when discarded mid-turn.) Upgrade: draw 3. (MegaCrit Reflex) The draw is a
 /// single draw call (no-op without an ambient Rng — the validator replays the recorded hand). HP-neutral.</summary>
 public sealed class Reflex : CardModel
 {
     public override string Name => "Reflex";
+    public override bool IsSly => true;   // Sly: auto-plays (draw 2) for free when discarded mid-turn
     public override int BaseCost => 3;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
@@ -879,12 +892,13 @@ public sealed class Reflex : CardModel
     public override void OnPlay(CombatState combat, CardPlay play) => Cmd.Draw(combat, Cards);
 }
 
-/// <summary>Deal 3 damage to a random enemy 4 times. (Sly — not modelled.) Upgrade: 5 hits. (MegaCrit
+/// <summary>Deal 3 damage to a random enemy 4 times. (Sly: auto-plays for free when discarded mid-turn.) Upgrade: 5 hits. (MegaCrit
 /// Ricochet) Each hit re-rolls a living target via the ambient Rng (deterministic single-target when only
 /// one enemy lives — the validated case, like Bouncing Flask / Sword Boomerang).</summary>
 public sealed class Ricochet : CardModel
 {
     public override string Name => "Ricochet";
+    public override bool IsSly => true;   // Sly: auto-plays for free when discarded mid-turn
     public override int BaseCost => 2;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Common;
@@ -903,10 +917,11 @@ public sealed class Ricochet : CardModel
     }
 }
 
-/// <summary>Gain 1 Energy. Cost 3. (Sly — not modelled.) Upgrade: +1 Energy. (MegaCrit Tactician)</summary>
+/// <summary>Gain 1 Energy. Cost 3. (Sly: auto-plays for free when discarded mid-turn.) Upgrade: +1 Energy. (MegaCrit Tactician)</summary>
 public sealed class Tactician : CardModel
 {
     public override string Name => "Tactician";
+    public override bool IsSly => true;   // Sly: auto-plays (gain energy) for free when discarded mid-turn
     public override int BaseCost => 3;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
@@ -915,10 +930,11 @@ public sealed class Tactician : CardModel
     public override void OnPlay(CombatState combat, CardPlay play) => Cmd.GainEnergy(combat, Energy);
 }
 
-/// <summary>Gain 6 Block. Cost 2. (Sly — not modelled.) Upgrade: +3 Block. (MegaCrit Untouchable)</summary>
+/// <summary>Gain 6 Block. Cost 2. (Sly: auto-plays for free when discarded mid-turn.) Upgrade: +3 Block. (MegaCrit Untouchable)</summary>
 public sealed class Untouchable : CardModel
 {
     public override string Name => "Untouchable";
+    public override bool IsSly => true;   // Sly: auto-plays (gain block) for free when discarded mid-turn
     public override int BaseCost => 2;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Common;
@@ -930,7 +946,7 @@ public sealed class Untouchable : CardModel
 
 /// <summary>Discard your hand, then add that many Shivs to your hand. Upgrade: the Shivs are upgraded.
 /// (MegaCrit Storm of Steel) Card generation is deterministic (no chance node); the discarded hand goes
-/// to the discard pile. The Sly auto-play-on-discard trigger is not modelled.</summary>
+/// to the discard pile. Sly cards in the discarded hand auto-play for free.</summary>
 public sealed class StormOfSteel : CardModel
 {
     public override string Name => "StormOfSteel";
@@ -957,6 +973,7 @@ public sealed class CalculatedGamble : CardModel
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public override bool Retain => Upgrades > 0;   // Upgrade: Retain (kept in hand if unplayed)
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         if (combat.Rng == null) return;   // search/replay: redraw is an unmodelled chance node — leave hand intact
@@ -1029,11 +1046,12 @@ public sealed class Strangle : CardModel
     }
 }
 
-/// <summary>Power: at the start of each turn, add 1 Shiv to your hand. Upgrade: Innate (not modelled).
+/// <summary>Power: at the start of each turn, add 1 Shiv to your hand. Upgrade: Innate (guaranteed in the opening hand).
 /// (MegaCrit Infinite Blades)</summary>
 public sealed class InfiniteBlades : CardModel
 {
     public override string Name => "InfiniteBlades";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Uncommon;
@@ -1176,10 +1194,11 @@ public sealed class WellLaidPlans : CardModel
 }
 
 /// <summary>Power: whenever an ally plays an Attack, gain 1 Block (multiplayer-only — inert in single-player).
-/// (Sly — not modelled.) Cost 2. Upgrade: +1. (MegaCrit Sneaky)</summary>
+/// (Sly: auto-plays for free when discarded mid-turn.) Cost 2. Upgrade: +1. (MegaCrit Sneaky)</summary>
 public sealed class Sneaky : CardModel
 {
     public override string Name => "Sneaky";
+    public override bool IsSly => true;   // Sly: auto-plays for free when discarded (SneakyPower is MP-only ⇒ inert)
     public override int BaseCost => 2;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;
@@ -1630,6 +1649,7 @@ public sealed class CorrosiveWave : CardModel
 public sealed class Speedster : CardModel
 {
     public override string Name => "Speedster";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 2;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Uncommon;

@@ -1302,6 +1302,7 @@ public sealed class BorrowedTime : CardModel
 public sealed class CallOfTheVoid : CardModel
 {
     public override string Name => "CallOfTheVoid";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;

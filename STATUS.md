@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-02 (HiddenDaggers in-hand discard-of-choice promotion + Murder live-validation)._
+_Last updated: 2026-06-02 (Sly / Innate / Retain keyword mechanics modelled 1:1; HiddenDaggers promotion; Murder live-validation)._
 
 ## Current state
 
@@ -94,6 +94,29 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   gains Block iff the drawn card is a Skill) or a discard-of-choice (`PostDrawDiscardCount` → `PendingDiscard`,
   a hashed decision resolved as a player MAX one card at a time). Promoted EscapePlan/Acrobatics/Prepared
   (Next steps #2).
+- **Card keywords — Sly / Innate / Retain (1:1 with the game):**
+  - **Retain** (`CardModel.Retain`, already honoured in `EndPlayerTurn`): a Retain card is kept in hand at end of
+    turn instead of discarded. Filled the gaps — Snakebite + Purity + PoorSleep (canonical), CalculatedGamble
+    (on-upgrade) — the Necrobinder/Regent Retain cards were already modelled.
+  - **Innate** (`CardModel.Innate`): guaranteed in the turn-1 opening hand. The solver DOES draw the opening hand
+    as a chance node, so `CombatManager.OpeningDrawAfterInnate` pulls Innate cards straight into the hand and
+    returns the residual random-draw count (game: move to top, draw `max(5, innateCount)`); wired at EVERY
+    opening-draw site (exact `OpeningStates`, MCTS `EnumerateExactOutcomes`/`SampleDraw`/playout, rollout) behind
+    a `TurnNumber == 1` guard so it is a no-op on later turns and for innate-free decks (⇒ byte-identical for
+    everyone else). Set on all 18 ported Innate cards (canonical: Assassinate/Backstab/Suppress/MindBlast/
+    DramaticEntrance/Apotheosis/Folly/Writhe; on-upgrade: Afterimage/InfiniteBlades/Speedster/Juggling/Aggression/
+    Arsenal/BigBang/Tyranny/CallOfTheVoid/HelloWorld). Irrelevant to trace replay (recorded hands already reflect it).
+  - **Sly** (`CardModel.IsSly`): a Sly card DISCARDED mid-turn auto-plays for free right after the discard
+    (`CombatManager.TriggerSlyOnDiscard`), matching the game's `CardCmd.Discard` — and NOT the end-of-turn flush,
+    which the game (and our `EndPlayerTurn`) routes through a direct pile-add that bypasses the trigger. Wired into
+    the explicit discard primitives (`Cmd.DiscardFromHand` + the Silent discard helpers). The 8 Silent Sly cards
+    are all Self / AllEnemies / RandomEnemy, so the auto-play is the card's own `OnPlay` with no target — and the
+    random-target (Ricochet) / deferred-draw (Reflex) cases degrade exactly as a normal play does (first-enemy
+    default + draw chance node in search, real with a concrete Rng). The discard-of-choice MAX routes its
+    continuation through `ContinuePlay` / a MCTS `DrawNode` so a Sly Reflex's deferred draw resolves as a chance
+    node rather than dangling into a memoised state. _Residual (documented, sound/pessimistic):_ the auto-play
+    doesn't re-fire AfterCardPlayed hooks or the per-turn play counters, and the single-turn Sly granted by
+    HandTrick / MasterPlanner is still inert.
 - **Forced discard-of-choice (no draw):** a card that forces a discard with no preceding draw (Survivor: "gain
   Block, discard 1") sets `PendingDiscard` directly at play time (`Cmd.DeferDiscardOfChoice`), resolved as the
   same player MAX. Modelling the forced discard (vs omitting it) is the SOUND direction — omitting a *forced*
@@ -396,7 +419,10 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   convergence + Rng-path discard mechanics + Murder-counts-the-turn-start-hand-draw + EscapePlan-no-block-on-an-
   empty-draw both Rng-path and via ApplyPostDraw + **HiddenDaggers discard-2-of-choice-THEN-add-Shivs** as a real
   player MAX with the Shiv-creation as the discard's continuation, decisive exact solve + MCTS convergence +
-  the **Murder live-validator reconstruction** synthetic-trace gate). **509 passed, 0 skipped, 0 failed.**
+  the **Murder live-validator reconstruction** synthetic-trace gate + the **Sly / Innate / Retain keyword
+  mechanics** — Sly auto-play-on-discard [`SlyTests` decisive exact + MCTS-converges + eager mechanics +
+  end-of-turn-flush-does-NOT-trigger], Innate guaranteed-opening-hand [`InnateTests` opening-draw helper +
+  decisive always-in-hand solve], Retain kept-across-turns). **520 passed, 0 skipped, 0 failed.**
 - **73 recorded game traces — all PASS, 0 skips, 0 fails** (manual + console-autopilot + headless), incl.
   multi-turn elite fights for every Act-1 elite (Byrdonis ramp, Effigy Slow+Wake, PhrogParasite death-burst,
   TerrorEel Shriek→Terror, SoulNexus randoms, MechaKnight Artifact+Burn, Entomancer Hive, SkulkingColony cap,

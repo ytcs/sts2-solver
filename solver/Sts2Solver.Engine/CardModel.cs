@@ -80,6 +80,14 @@ public abstract class CardModel
     /// Squeeze counts these across the deck; the cards fizzle while Osty is missing. (Game: CardTag.OstyAttack.)</summary>
     public virtual bool IsOstyAttack => false;
 
+    /// <summary>True for cards with the game's Sly keyword (CardKeyword.Sly). A Sly card DISCARDED mid-turn
+    /// (an explicit discard via <see cref="Cmd.DiscardFromHand"/> / a discard-of-choice / a discard-your-hand
+    /// card — NOT the end-of-turn flush, which the game bypasses) is AUTO-PLAYED for free right after the
+    /// discard (<see cref="CombatManager.TriggerSlyOnDiscard"/>). The Silent Sly cards are all Self / AllEnemies
+    /// / RandomEnemy, so the auto-play is just the card's own <see cref="OnPlay"/> with no target. (Single-turn
+    /// Sly granted by HandTrick / MasterPlanner is not yet modelled — see those cards.)</summary>
+    public virtual bool IsSly => false;
+
     /// <summary>Cards that cannot be played from hand (e.g. Status/Curse like Infection). The solver
     /// skips them and <see cref="CombatManager.PlayCard"/> rejects them.</summary>
     public virtual bool Unplayable => false;
@@ -90,6 +98,14 @@ public abstract class CardModel
     /// <summary>Ethereal cards still in hand at end of the player's turn are exhausted, not discarded
     /// (e.g. Dazed from Entomancer's Personal Hive).</summary>
     public virtual bool Ethereal => false;
+
+    /// <summary>Innate cards are guaranteed in the opening (turn 1) hand: the game moves them to the top of the
+    /// draw pile at combat start and draws <c>max(5, innateCount)</c> (game: <c>CardKeyword.Innate</c>). The
+    /// solver models this in <see cref="CombatManager.OpeningDrawAfterInnate"/> — innate cards are pulled into
+    /// the hand and the random opening draw fills the rest. Some cards gain Innate on upgrade (override
+    /// <c>=> Upgrades &gt; 0</c>). Only affects the opening hand, so it is irrelevant to trace replay (the recorded
+    /// hand already reflects it).</summary>
+    public virtual bool Innate => false;
 
     /// <summary>The card's effect. Concrete cards call into <see cref="Cmd"/>. A card that requires an in-play
     /// choice reads <see cref="CardPlay.ChoiceKey"/> (and should apply a sensible default when it is null, for

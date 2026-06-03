@@ -242,6 +242,7 @@ public static class Cmd
         if (!combat.Player.Hand.Remove(card)) return;
         combat.Player.DiscardPile.Add(card);
         combat.CardsDiscardedThisTurn++;
+        if (card.IsSly) CombatManager.TriggerSlyOnDiscard(combat, new[] { card });   // Sly: auto-play on discard
     }
 
     /// <summary>Summon a monster into combat (e.g. InfestedPower spawning Wrigglers on death). The new

@@ -238,6 +238,28 @@ public static class CombatManager
         if (combat.TracksCardsDrawn) combat.CardsDrawnThisCombat += p.Hand.Count - before;
     }
 
+    /// <summary>Apply the Innate keyword to the opening (turn-1) hand draw and return the number of cards the
+    /// random draw should still produce. The game, on turn 1 only, moves Innate cards to the top of the draw pile
+    /// and draws <c>max(5, innateCount)</c> (capped at the hand size) — guaranteeing every Innate card in the
+    /// opening hand. Here we pull the Innate cards straight into the hand (they count as drawn — a CardDrawnEntry,
+    /// so they feed the Murder counter) and return the residual random-draw count for the caller's draw routine
+    /// (exact <c>DrawEnumerator</c> or concrete <c>DrawCards</c>) to deal from the remaining pile.
+    ///
+    /// A no-op on every turn but the first (<c>TurnNumber != 1</c>) and for innate-free piles, so it can be wired
+    /// at every turn-start draw site uniformly — the turn-1 guard confines it to the opening. Must be called AFTER
+    /// <see cref="BeginPlayerTurn"/> (which sets TurnNumber to 1) and BEFORE the random draw.</summary>
+    public static int OpeningDrawAfterInnate(CombatState combat, int baseCount)
+    {
+        if (combat.TurnNumber != 1) return baseCount;   // Innate seeds ONLY the opening hand
+        var p = combat.Player;
+        var innate = p.DrawPile.Where(c => c.Innate).Take(Player.MaxHandSize).ToList();
+        if (innate.Count == 0) return baseCount;
+        foreach (var c in innate) { p.DrawPile.Remove(c); p.Hand.Add(c); }
+        if (combat.TracksCardsDrawn) combat.CardsDrawnThisCombat += innate.Count;   // innate cards are drawn too
+        int handDraw = Math.Min(Math.Max(baseCount, innate.Count), Player.MaxHandSize);
+        return Math.Max(0, handDraw - innate.Count);
+    }
+
     public static void RollInitialMoves(CombatState combat, Rng rng)
     {
         foreach (var m in combat.Monsters)
@@ -278,6 +300,30 @@ public static class CombatManager
         var card = combat.PendingDiscardCard;
         combat.PendingDiscardCard = null;
         card?.OnPostDiscard(combat);
+    }
+
+    /// <summary>Auto-play every Sly card among <paramref name="discarded"/>, in discard order — the game does
+    /// this right after a mid-turn discard (CardCmd.Discard collects IsSlyThisTurn cards, discards them, then
+    /// AutoPlays each for free). Wired into the explicit mid-turn discard primitives (<see cref="Cmd.DiscardFromHand"/>
+    /// and the Silent discard helpers); the end-of-turn hand flush deliberately does NOT call it (the game flushes
+    /// via CardPileCmd.Add, which bypasses the Sly trigger). The Silent Sly cards are all Self / AllEnemies /
+    /// RandomEnemy, so a null-target <see cref="CardModel.OnPlay"/> is faithful — RandomEnemy / draw effects
+    /// degrade exactly as a normal play does (random target with a concrete Rng, first-enemy default + deferred
+    /// draw in pure search). The card is already in the discard pile; a Power auto-played from there is removed and
+    /// an Exhaust card exhausts (result-pile rules). Residual (documented, sound): the auto-play does not re-fire
+    /// the AfterCardPlayed power hooks or bump the per-turn play counters, so Afterimage-style "on card played"
+    /// reactions and Finisher's attack count under-credit a Sly auto-play — the pessimistic direction.</summary>
+    public static void TriggerSlyOnDiscard(CombatState combat, IReadOnlyList<CardModel> discarded)
+    {
+        for (int i = 0; i < discarded.Count; i++)
+        {
+            var card = discarded[i];
+            if (!card.IsSly || combat.IsCombatOver) continue;
+            card.OnPlay(combat, new CardPlay { Card = card });   // free auto-play, no target (Self/AllEnemies/RandomEnemy)
+            if (card.ResultPile == CardResultPile.Removed) combat.Player.DiscardPile.Remove(card);
+            else if (card.ResultPile == CardResultPile.Exhaust && combat.Player.DiscardPile.Remove(card))
+            { combat.Player.ExhaustPile.Add(card); combat.CardExhaustedThisTurn = true; }
+        }
     }
 
     /// <summary>Award post-combat relic effects (e.g. Burning Blood heals 6) on victory.</summary>

@@ -40,6 +40,7 @@ public sealed class FlashOfSteel : CardModel
 public sealed class DramaticEntrance : CardModel
 {
     public override string Name => "DramaticEntrance";
+    public override bool Innate => true;   // guaranteed in the opening hand
     public override int BaseCost => 0;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
@@ -58,6 +59,7 @@ public sealed class DramaticEntrance : CardModel
 public sealed class MindBlast : CardModel
 {
     public override string Name => "MindBlast";
+    public override bool Innate => true;   // guaranteed in the opening hand
     public override int BaseCost => Upgrades > 0 ? 0 : 1;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
@@ -288,6 +290,7 @@ public sealed class Mayhem : CardModel
 public sealed class Apotheosis : CardModel
 {
     public override string Name => "Apotheosis";
+    public override bool Innate => true;   // guaranteed in the opening hand
     public override int BaseCost => 2;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Rare;
@@ -354,6 +357,7 @@ public sealed class Purity : CardModel
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public override bool Retain => true;   // Retain + Exhaust: kept in hand across turns until played, then exhausts
     public int MaxExhaust => 3 + 2 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {

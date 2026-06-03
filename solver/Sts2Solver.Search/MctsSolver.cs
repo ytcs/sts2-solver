@@ -218,10 +218,11 @@ public sealed class MctsSolver
             var key = card.StateKey();
             if (!seen.Add(key)) continue;   // symmetric discards collapse
             var c = d.State.Clone();
-            Cmd.DiscardFromHand(c, c.Player.Hand.First(h => h.StateKey() == key));
+            Cmd.DiscardFromHand(c, c.Player.Hand.First(h => h.StateKey() == key));   // may trigger a Sly auto-play
             c.PendingDiscard--;
             if (c.PendingDiscard == 0) CombatManager.ApplyPostDiscard(c);   // last discard resolved → run the continuation
-            d.Edges.Add(new Edge { Action = new PlayerAction($"Discard {key}", null, -1), PlayChild = GetOrCreateDecision(c) });
+            var (dec, draw) = PlayTarget(c);   // route through a DrawNode if a Sly Reflex's auto-play deferred a draw
+            d.Edges.Add(new Edge { Action = new PlayerAction($"Discard {key}", null, -1), PlayChild = dec, DrawChild = draw });
         }
         double uniform = 1.0 / d.Edges.Count;
         foreach (var e in d.Edges) e.Prior = uniform;
@@ -425,7 +426,8 @@ public sealed class MctsSolver
             int startLoss = afterRoll.PlayerHpLost - afterEnemy.PlayerHpLost;
 
             int drawIdx = 0;
-            foreach (var (pD, drawn) in DrawEnumerator.EnumerateDraw(afterRoll, Player.CardsDrawnPerTurn))
+            int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, Player.CardsDrawnPerTurn);   // Innate → guaranteed turn-1
+            foreach (var (pD, drawn) in DrawEnumerator.EnumerateDraw(afterRoll, draw))
                 yield return new PendingOutcome(pM * pD, startLoss, drawn, $"{comboKey}|{drawIdx++}");
         }
     }
@@ -530,7 +532,8 @@ public sealed class MctsSolver
         afterRoll.PendingDraw = 0;   // discard any turn-start power draw (inert at the boundary, as before)
         int startLoss = afterRoll.PlayerHpLost - ch.AfterEnemy.PlayerHpLost;
 
-        var (pD, drawn, drawKey) = DrawEnumerator.SampleDraw(afterRoll, Player.CardsDrawnPerTurn, _rng);
+        int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, Player.CardsDrawnPerTurn);   // Innate → guaranteed turn-1
+        var (pD, drawn, drawKey) = DrawEnumerator.SampleDraw(afterRoll, draw, _rng);
         return new PendingOutcome(pM * pD, startLoss, drawn, $"{string.Join(",", keyParts)}|{drawKey}");
     }
 
@@ -761,7 +764,7 @@ public sealed class MctsSolver
             if (initialRoll) CombatManager.RollInitialMoves(s, _rng);
             else CombatManager.RollNextMoves(s, _rng);
             CombatManager.BeginPlayerTurn(s);
-            CombatManager.DrawCards(s, Player.CardsDrawnPerTurn, _rng);
+            CombatManager.DrawCards(s, CombatManager.OpeningDrawAfterInnate(s, Player.CardsDrawnPerTurn), _rng);
         }
 
         // UCT*: bootstrap the tip from a closed-form leaf value instead of rolling out to terminal.
@@ -804,7 +807,7 @@ public sealed class MctsSolver
 
             CombatManager.RollNextMoves(s, _rng);
             CombatManager.BeginPlayerTurn(s);
-            CombatManager.DrawCards(s, Player.CardsDrawnPerTurn, _rng);
+            CombatManager.DrawCards(s, CombatManager.OpeningDrawAfterInnate(s, Player.CardsDrawnPerTurn), _rng);   // no-op past turn 1
         }
     }
 

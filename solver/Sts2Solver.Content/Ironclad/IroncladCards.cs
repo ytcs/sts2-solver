@@ -878,6 +878,7 @@ public sealed class Unmovable : CardModel
 public sealed class Juggling : CardModel
 {
     public override string Name => "Juggling";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Uncommon;
@@ -1259,6 +1260,7 @@ public sealed class Thrash : CardModel
 public sealed class Aggression : CardModel
 {
     public override string Name => "Aggression";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;

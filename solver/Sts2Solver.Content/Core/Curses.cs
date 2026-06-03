@@ -154,11 +154,12 @@ public sealed class CurseOfTheBell : DilutionCurse
 }
 
 /// <summary>Curse: Unplayable + Ethereal + Innate + Eternal. No combat effect — pure dilution (Ethereal so
-/// it exhausts at end of turn; Innate only seeds the opening hand, not modelled). (MegaCrit Folly)</summary>
+/// it exhausts at end of turn; Innate guarantees it clogs the opening hand). (MegaCrit Folly)</summary>
 public sealed class Folly : DilutionCurse
 {
     public override string Name => "Folly";
     public override bool Ethereal => true;
+    public override bool Innate => true;   // canonical Innate: guaranteed in the opening hand
 }
 
 /// <summary>Curse: Unplayable + Eternal. No combat effect — pure dilution. (MegaCrit Greed)</summary>
@@ -173,18 +174,20 @@ public sealed class Injury : DilutionCurse
     public override string Name => "Injury";
 }
 
-/// <summary>Curse: Unplayable + Retain. No combat effect — pure dilution (Retain only changes card flow,
-/// not modelled). (MegaCrit PoorSleep)</summary>
+/// <summary>Curse: Unplayable + Retain. No combat effect — pure dilution; Retain keeps it clogging the hand
+/// rather than cycling through discard. (MegaCrit PoorSleep)</summary>
 public sealed class PoorSleep : DilutionCurse
 {
     public override string Name => "PoorSleep";
+    public override bool Retain => true;   // canonical Retain: stays in hand rather than being discarded+redrawn
 }
 
-/// <summary>Curse: Unplayable + Innate. No combat effect — pure dilution (Innate only seeds the opening
-/// hand, not modelled). (MegaCrit Writhe)</summary>
+/// <summary>Curse: Unplayable + Innate. No combat effect — pure dilution; Innate guarantees it clogs the
+/// opening hand. (MegaCrit Writhe)</summary>
 public sealed class Writhe : DilutionCurse
 {
     public override string Name => "Writhe";
+    public override bool Innate => true;   // canonical Innate: guaranteed in the opening hand
 }
 
 /// <summary>Curse: Unplayable. Removes itself from the deck after 5 combats — a meta (between-combats)

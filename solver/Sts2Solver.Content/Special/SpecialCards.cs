@@ -187,6 +187,7 @@ public sealed class Rebound : CardModel
 public sealed class HelloWorld : CardModel
 {
     public override string Name => "HelloWorld";
+    public override bool Innate => Upgrades > 0;   // Upgrade: Innate (guaranteed in the opening hand)
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Event;
