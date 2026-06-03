@@ -66,9 +66,11 @@ public static class TraceValidator
         //     Burning Blood mis-healed the won snapshot by +6 — left unmodelled, so no relic);
         //   Regent — Divine Right (3 Stars at combat start);
         //   Necrobinder — Bound Phylactery (summons Osty on combat start — essential for the Osty checks).
+        //   Defect — Cracked Core (3 orb slots + a Lightning orb at combat start — essential for orb checks).
         var charName = (Str(pSetup, "name") ?? "").ToLowerInvariant();
         string? starterRelic =
             charName.Contains("silent")                                  ? null :
+            charName.Contains("defect")                                  ? "CrackedCore" :
             charName.Contains("necrobinder") || IsNecrobinderDeck(deckNames) ? "BoundPhylactery" :
             charName.Contains("regent")                                  ? "DivineRight" :
                                                                            "BurningBlood";

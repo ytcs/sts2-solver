@@ -51,9 +51,11 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 612 passing, 0 skipped/failed. Traces: 73 recorded game traces, all PASS.** (Defect cards are
-  unit- and exact-solver-validated against the decompile; live headless trace-validation of a Defect run is
-  the remaining nice-to-have.)
+- **Tests: 612 passing, 0 skipped/failed. Traces: 74 recorded game traces, all PASS** — including a live
+  headless Defect-vs-Byrdonis run (#74) that exercises the orb subsystem end-to-end (CrackedCore's starting
+  orb, Zap channel, Dualcast evoke, ColdSnap Frost channel+block, BallLightning, and the Lightning/Frost
+  turn-end passives), matching the game's HP/block/Strength across 4 turns 35/35. (The orb random-target
+  default is exact for single-enemy, an approximation for multi-enemy — by design.)
 
 ---
 
