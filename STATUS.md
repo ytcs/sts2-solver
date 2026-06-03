@@ -288,7 +288,19 @@ inert-marker monster powers found three over-crediting spots, all now modelled +
   `Monster.ReattachIn=2`; it sits at 0 (untargetable, doesn't act) for one enemy turn (DEAD_MOVE), then reattaches
   to 25 on the next (REATTACH_MOVE) if a segment still lives — all in `RunEnemyTurn`, deterministic so convergence
   holds. The board clears only when all segments are down together. The first cut revived one turn early and trace
-  `combat-20260530-203121` rejected it; the 2-turn DEAD→REATTACH delay now validates that trace (76/76).
+  `combat-20260530-203121` rejected it; the 2-turn DEAD→REATTACH delay now validates that trace (76/76). A
+  later long-fight capture (Ironclad, 6 turns, both reattach directions) **oracle-confirms the heal-to-25 itself**
+  (every `REATTACH_MOVE` restores exactly 25 and the power persists — our engine matches those checks).
+
+**Decimillipede middle-segment auto-bury — newly characterized, deliberately UNMODELLED (sound/pessimistic).**
+That same long-fight trace surfaced a separate, previously-unknown mechanic: the MIDDLE segment is downed
+(→ `DEAD_MOVE`) by the end of enemy turn 1 with **no player damage**, then reattach-heals to 25 and rejoins,
+cycling. Proven scripted (a zero-damage defensive-deck control run still buries it) and not a recorder artifact
+(trace #78 records a clean no-bury fight at 82/82). The game's bury **helps the player** (a segment stops
+attacking, returns at only 25 HP); our engine keeps it alive-and-attacking, so the model is **strictly
+pessimistic** (engine player HP ≤ game's in every check). The exact trigger isn't recoverable from the
+name-obfuscated decompile, so modeling it would be speculative and risk the forbidden OPTIMISTIC direction —
+left documented with the failing trace in `data/combat_traces_unresolved/` (see its README) for future work.
 
 **Gold — verified HP-neutral, intentionally inert (NOT a missing subsystem).** Audited every combat-relevant
 gold reader: `RoyaltiesPower` only fires `AfterCombatEnd` (post-combat reward), and HandOfGreed / the gold
