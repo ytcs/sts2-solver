@@ -273,6 +273,26 @@ public class PipelineTests
     }
 
     [Fact]
+    public void PlayerOwned_Weak_Skips_Apply_Turn_And_Ticks_At_Enemy_Turn_End()
+    {
+        // Engine default (not a per-card patch): ANY debuff applied to the PLAYER gets SkipNextTick, and
+        // Weak/Frail/Vulnerable all tick at the ENEMY turn end. So a player-self-applied Weak survives the turn
+        // it lands and weakens the NEXT turn — matching WeakPower + PowerCmd.SkipNextDurationTick. (Previously the
+        // engine ticked Weak at the player's own turn end with no central skip, so a self-applied Weak expired
+        // immediately — an optimistic over-credit masked only by Doubt/Shame's manual skip.)
+        var (combat, m) = Fight();
+        Cmd.ApplyPower(combat, combat.Player, new WeakPower(), 1, combat.Player);   // player applies Weak to self
+        var w = combat.Player.GetPower("Weak")!;
+        Assert.True(w.SkipNextTick);
+        w.AfterSideTurnEnd(combat, CombatSide.Player);   // player's own turn end: does NOT tick (ticks at enemy side)
+        Assert.Equal(1, combat.Player.GetPowerAmount("Weak"));
+        w.AfterSideTurnEnd(combat, CombatSide.Enemy);    // apply-turn enemy end: skip consumed, no tick
+        Assert.Equal(1, combat.Player.GetPowerAmount("Weak"));
+        w.AfterSideTurnEnd(combat, CombatSide.Enemy);    // next enemy turn end: finally ticks down
+        Assert.Equal(0, combat.Player.GetPowerAmount("Weak"));
+    }
+
+    [Fact]
     public void CorpseSlug_Moves_Deal_Expected_Damage_And_Frail()
     {
         var player = Catalog.BuildPlayer(new List<CardModel>(), currentHp: 80, maxHp: 80);

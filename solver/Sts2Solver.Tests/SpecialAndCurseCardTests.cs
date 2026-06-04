@@ -362,11 +362,13 @@ public class SpecialAndCurseCardTests
     public void Doubt_Weakens_Next_Turn_Attacks_Then_Wears_Off()
     {
         var (c, p, m) = Fight(100);
-        EndTurnHolding(c, new Doubt());          // gain Weak 1 (skips this turn-end tick)
-        CombatManager.RunEnemyTurn(c);           // enemy turn: player Weak does not tick (owner = player)
-        CombatManager.BeginPlayerTurn(c);        // player's next turn: still Weak
+        EndTurnHolding(c, new Doubt());          // gain Weak 1 (Cmd.ApplyPower sets SkipNextTick for player debuffs)
+        CombatManager.RunEnemyTurn(c);           // enemy turn end: the skip is consumed, Weak persists
+        CombatManager.BeginPlayerTurn(c);        // player's next turn: still Weak (weakens these attacks)
         Assert.Equal(1, p.GetPowerAmount("Weak"));
-        CombatManager.EndPlayerTurn(c);          // now it ticks down
+        CombatManager.EndPlayerTurn(c);          // player turn end does NOT tick Weak — it ticks at the ENEMY turn end
+        Assert.Equal(1, p.GetPowerAmount("Weak"));
+        p.GetPower("Weak")!.AfterSideTurnEnd(c, CombatSide.Enemy);   // the enemy turn end finally ticks it down
         Assert.Equal(0, p.GetPowerAmount("Weak"));
     }
 

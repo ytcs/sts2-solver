@@ -96,11 +96,9 @@ public sealed class Doubt : CardModel
     public int Weak => 1;
     public override void OnPlay(CombatState combat, CardPlay play) { }   // never played
     public override void OnTurnEndInHand(CombatState combat)
-    {
-        bool had = combat.Player.HasPower("Weak");
-        Cmd.ApplyPower(combat, combat.Player, new WeakPower(), Weak, combat.Player);
-        if (!had && combat.Player.GetPower("Weak") is { } w) w.SkipNextTick = true;
-    }
+        // Cmd.ApplyPower sets SkipNextTick for any debuff applied to the player, so the Weak survives this
+        // turn-end (it ticks at the enemy turn end) and weakens the next turn — no manual skip needed.
+        => Cmd.ApplyPower(combat, combat.Player, new WeakPower(), Weak, combat.Player);
 }
 
 /// <summary>Curse: Unplayable. While in hand at end of your turn, gain 1 Frail. (MegaCrit Shame) — the Frail
@@ -117,11 +115,9 @@ public sealed class Shame : CardModel
     public int Frail => 1;
     public override void OnPlay(CombatState combat, CardPlay play) { }   // never played
     public override void OnTurnEndInHand(CombatState combat)
-    {
-        bool had = combat.Player.HasPower("Frail");
-        Cmd.ApplyPower(combat, combat.Player, new FrailPower(), Frail, combat.Player);
-        if (!had && combat.Player.GetPower("Frail") is { } f) f.SkipNextTick = true;
-    }
+        // Cmd.ApplyPower sets SkipNextTick for any debuff applied to the player, so the Frail survives this
+        // turn-end (it ticks at the enemy turn end) and reduces the next turn's block — no manual skip needed.
+        => Cmd.ApplyPower(combat, combat.Player, new FrailPower(), Frail, combat.Player);
 }
 
 // --------------------------------------------------------------------------

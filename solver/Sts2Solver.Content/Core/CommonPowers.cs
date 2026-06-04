@@ -33,7 +33,8 @@ public sealed class VulnerablePower : PowerModel
         Amount--; this.NormalizeOrRemove(Owner);
     }
 }
-/// <summary>Outgoing damage ×0.75. Ticks down at the owner's turn end. (MegaCrit WeakPower)</summary>
+/// <summary>Outgoing damage ×0.75. Ticks down at the ENEMY turn end (game: WeakPower); a debuff applied to the
+/// player skips one tick (Cmd.ApplyPower), so a player-side Weak survives the apply turn and weakens the next.</summary>
 public sealed class WeakPower : PowerModel
 {
     public override string Id => "Weak";
@@ -50,12 +51,13 @@ public sealed class WeakPower : PowerModel
 
     public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
     {
-        if (side != Owner.Side) return;                                        // a debuff ticks down at its OWNER's turn end
+        if (side != CombatSide.Enemy) return;                                  // game: Weak/Frail/Vulnerable all tick at the enemy turn end
         if (SkipNextTick) { SkipNextTick = false; return; }                    // skip the end-tick on the turn it was applied
         Amount--; this.NormalizeOrRemove(Owner);
     }
 }
-/// <summary>Block gained ×0.75. Ticks down at the owner's turn end. (MegaCrit FrailPower)</summary>
+/// <summary>Block gained ×0.75. Ticks down at the ENEMY turn end (game: FrailPower); a debuff applied to the
+/// player skips one tick (Cmd.ApplyPower), so a player-side Frail survives the apply turn and weakens the next.</summary>
 public sealed class FrailPower : PowerModel
 {
     public override string Id => "Frail";
@@ -70,7 +72,7 @@ public sealed class FrailPower : PowerModel
 
     public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
     {
-        if (side != Owner.Side) return;                                        // a debuff ticks down at its OWNER's turn end
+        if (side != CombatSide.Enemy) return;                                  // game: Weak/Frail/Vulnerable all tick at the enemy turn end
         if (SkipNextTick) { SkipNextTick = false; return; }                    // skip the end-tick on the turn it was applied
         Amount--; this.NormalizeOrRemove(Owner);
     }
