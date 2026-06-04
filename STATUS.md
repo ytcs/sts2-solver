@@ -27,7 +27,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in Phase-C `LearnedValue` MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 707 passing, 0 skipped/failed. Traces: 78 recorded game traces, all PASS.**
+- **Tests: 707 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -52,7 +52,7 @@ solver/                         C#/.NET 9 solution (NO .sln — build/test via S
   Sts2Solver.Tests/             xUnit: pipeline + per-card + solver + trace-replay + MCTS + calibration + horizon
 mods/DataDumper/DataDumperCode/ Godot C# mod: MainFile · CombatOracle (records traces) · AutoPilot (`autopilot`
                                 console cmd) · HeadlessBatch (STS2_BATCH: headless run+fight+record+quit)
-data/  game_data/*.json (dumped metadata) · combat_traces/*.jsonl (78 ground-truth traces) ·
+data/  game_data/*.json (dumped metadata) · combat_traces/*.jsonl (80 ground-truth traces) ·
        combat_traces_unresolved/ (documented sound/pessimistic mechanics not modelled, with failing traces)
 docs/mcts-solver-design.md      SOTA literature review + chosen sampling/MCTS design
 ```
@@ -222,11 +222,20 @@ All verified to never over-credit. Fixing is low-value; documented so they aren'
 Ordered by priority. Correctness work (the spine) is complete — the catalog + engine have **zero known optimistic
 gaps**, so what follows is feature/quality expansion, all behind the standing correctness bar.
 
-1. **Live-validate the still-unverified mechanics** via headless single-enemy runs (cheap, high-confidence):
-   - A Sly-discard fight (e.g. CalculatedGamble + Untouchable/FlickFlack).
-   - An Innate deck and a Retain deck.
-   - The random-target (SerpentForm/Ricochet/RipAndTear/FlakCannon) and hand-size (PreciseCut) cards.
-   - A VoidForm fight (confirm the first-2-cards-free + forced-end-turn against the oracle).
+1. **Live-validate the still-unverified mechanics** via headless single-enemy runs (cheap, high-confidence).
+   NOTE: replay OVERRIDES the hand each turn, so it validates damage/HP CONSEQUENCES, not card-FLOW — a mechanic
+   is only live-checkable if it changes enemy/player HP.
+   - **VoidForm — DONE (trace #79).** Forced-end-on-play (turn 2 = VoidForm only despite a full hand + 3 energy)
+     + first-2-cards-free (4 cards / nominal-cost-5 on 3 energy each turn); replay passes only because the engine
+     charged the reduced costs and let all 4 land.
+   - **Sly auto-play — DONE (trace #80).** StormOfSteel (NOT Rng-gated, unlike CalculatedGamble) discards a hand
+     of FlickFlacks → 7 Sly auto-plays across turns 1/2/5; the game logs them `isAutoPlay` (replay skips them), so
+     the matching Byrdonis HP proves the engine reproduces them via `TriggerSlyOnDiscard`.
+   - Random-target (SerpentForm/Ricochet/RipAndTear/FlakCannon): only distinguishable on MULTI-enemy boards,
+     which is exactly where the model is a documented first-enemy approximation ⇒ a clean pass/fail isn't
+     expected; low value. Hand-size (PreciseCut) still worth a single-enemy run.
+   - Innate / Retain are card-FLOW (opening-hand / cross-turn retention); replay overrides the hand, so it can't
+     independently check them — covered by unit tests instead, not a live trace.
 2. **Calibration expansion:** all 12 Act-1 elites + a random-deck generator feeding `--calibrate`, to widen the
    exact↔MCTS convergence evidence beyond the current archetype fixtures.
 3. **Search-soundness audit (optional, different class):** the horizon bound, loss-prune, and MCTS widening have
