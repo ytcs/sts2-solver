@@ -242,6 +242,10 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 
 ### Recently completed (this session — paused here)
 
+- **Deck strength index** (`Advisor.DeckStrength`): a 0–100 headline scalar, HP-independent — evaluate each Act
+  elite from a FIXED 100 HP, average the expected HP loss (death = 100, capped), report `100 − avg`. 100 = takes
+  no damage from any elite, 0 = certain death. Shown as a color-coded bar atop the dashboard; uses the full
+  trial budget (un-pessimistic). Parallel over elites.
 - **Advice speedup ≈ 30× (Tier 1):** a full removal-advice run on a 30-card deck vs 3 Act-1 elites went from
   ~576 s (sequential, exact-attempt + 2k trials + 2k rollouts) to **~19 s**. Levers: (a) ranwid is MCTS-only
   (no exact attempt); (b) advice evals skip the rollout-distribution pass (`ScoreDeck` reads only survival +

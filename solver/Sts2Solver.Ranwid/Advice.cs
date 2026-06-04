@@ -82,6 +82,28 @@ public static class Advisor
         return new DeckScore(minSurvival, totalLoss);
     }
 
+    /// <summary>Deck strength index 0–100, independent of current run HP. Evaluates each Act elite from a FIXED
+    /// 100 HP, averages the expected HP loss (death = the full 100 HP lost, capped), and reports
+    /// <c>100 − average</c>. So 100 = takes zero damage from every elite, 0 = certain death to one. Uses the
+    /// caller's FULL trial budget (it's a displayed headline, kept un-pessimistic) but skips the rollout
+    /// distribution (only the mean is read). Parallel over the (independent) elites. Returns NaN when there's no
+    /// elite or no deck to score.</summary>
+    public static double DeckStrength(
+        IReadOnlyList<string> deckSpecs, IReadOnlyList<Encounter> encounters,
+        int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
+    {
+        if (encounters.Count == 0 || deckSpecs.Count == 0) return double.NaN;
+        var fast = opts with { Rollouts = 1 };   // only the mean loss is read, not the distribution
+        double avgLoss = encounters.AsParallel().Select(enc =>
+        {
+            var deck = deckSpecs.Select(Catalog.BuildCard).ToList();
+            var player = Catalog.BuildPlayer(deck, 100, 100, maxEnergy, relics);
+            var stats = EncounterEvaluator.Evaluate(Catalog.SetupCombat(player, enc.Build()), fast);
+            return Math.Clamp(stats.MeanLoss, 0, 100);   // death = full 100 lost; cap any overkill
+        }).Average();
+        return Math.Clamp(100 - avgLoss, 0, 100);
+    }
+
     /// <summary>Rank single-card removals by how much each improves the lexicographic <see cref="DeckScore"/>.
     /// Returns the baseline score and one <see cref="AdviceItem"/> per DISTINCT removable card (a deck with one
     /// copy of N distinct cards yields N items), sorted best-improvement first. A removal that drops the deck

@@ -176,6 +176,7 @@ public sealed class Companion
     }
 
     private List<EliteResult> _elites = new();
+    private double _strength = double.NaN;
 
     /// <summary>Load the save at <paramref name="path"/>, evaluate the elites (with a spinner), and paint the
     /// dashboard. Returns the loaded context (null if unreadable/unsupported) and the resolved path.</summary>
@@ -198,12 +199,16 @@ public sealed class Companion
     /// the [d] refresh key).</summary>
     private void ReEvaluate(Context ctx)
     {
-        Dashboard.Render(ctx, _elites, evaluating: true);
-        Spectre.Console.AnsiConsole.Status().Start("evaluating…", _ => { _elites = EvaluateElites(ctx, _opts); });
+        Dashboard.Render(ctx, _elites, _strength, evaluating: true);
+        Spectre.Console.AnsiConsole.Status().Start("evaluating…", _ =>
+        {
+            _elites = EvaluateElites(ctx, _opts);
+            _strength = Advisor.DeckStrength(ctx.DeckSpecs, ctx.Encounters, ctx.Run.MaxEnergy, ctx.RelicNames, _opts);
+        });
         RenderCurrent(ctx);
     }
 
-    private void RenderCurrent(Context ctx) => Dashboard.Render(ctx, _elites, evaluating: false);
+    private void RenderCurrent(Context ctx) => Dashboard.Render(ctx, _elites, _strength, evaluating: false);
 
     /// <summary>[r] best cards to remove — the slow per-card sweep, run only on demand.</summary>
     private void ShowRemovals(Context ctx)

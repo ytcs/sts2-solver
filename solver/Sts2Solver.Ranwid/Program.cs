@@ -68,6 +68,8 @@ if (args.Contains("--advice-bench"))
     Console.WriteLine($"  implied serial  : {seqEstMs / 1000.0:F1} s  ⇒ ~{seqEstMs / Math.Max(1, sw2.ElapsedMilliseconds):F1}x speedup");
     Console.WriteLine($"  bottleneck survival {baseline.MinSurvival:P0}; top cut: "
         + (items.FirstOrDefault(i => i.IsImprovement) is { } it ? it.Card : "(none improves)"));
+    var strength = Advisor.DeckStrength(deck, elites, 3, new[] { "BurningBlood" }, opts);
+    Console.WriteLine($"  deck strength   : {strength:F0}/100 (from 100 HP)");
     return 0;
 }
 
@@ -77,7 +79,8 @@ if (once)
     if (path == null) { Console.Error.WriteLine("ranwid: no ongoing unmodded run found (start a run, or pass --save <file> / --save-dir <folder>)."); return 1; }
     var ctx = Companion.Load(path, playerNetId);
     if (ctx == null) return 0;                       // non-Ironclad / unreadable (message already printed)
-    Dashboard.Render(ctx, Companion.EvaluateElites(ctx, opts), evaluating: false);
+    var strength = Advisor.DeckStrength(ctx.DeckSpecs, ctx.Encounters, ctx.Run.MaxEnergy, ctx.RelicNames, opts);
+    Dashboard.Render(ctx, Companion.EvaluateElites(ctx, opts), strength, evaluating: false);
     var tokens = (rewardsArg ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     if (tokens.Length > 0)
     {

@@ -11,12 +11,14 @@ namespace Sts2Solver.Ranwid;
 /// </summary>
 public static class Dashboard
 {
-    /// <summary>Repaint the whole dashboard from the loaded run + the latest elite results.</summary>
-    public static void Render(Companion.Context c, IReadOnlyList<EliteResult> elites, bool evaluating)
+    /// <summary>Repaint the whole dashboard from the loaded run + the latest elite results. <paramref
+    /// name="strength"/> is the 0–100 deck-strength index (NaN until computed / when there's nothing to score).</summary>
+    public static void Render(Companion.Context c, IReadOnlyList<EliteResult> elites, double strength, bool evaluating)
     {
         AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[bold deepskyblue1]ranwid[/]").LeftJustified());
 
+        RenderStrength(strength);
         RenderHeader(c);
         AnsiConsole.WriteLine();
         AnsiConsole.Write(DeckPanel(c));
@@ -31,6 +33,20 @@ public static class Dashboard
             "  [grey]([/][white]r[/][grey]) removals   ([/][white]c[/][grey]) check a reward card   "
             + "([/][white]d[/][grey]) refresh   ([/][white]q[/][grey]) quit"
             + "          auto-refreshes when your run changes[/]"));
+        AnsiConsole.WriteLine();
+    }
+
+    /// <summary>The headline deck-strength index (0–100): how well this deck handles the Act's elites from full
+    /// HP, independent of the run's current HP. 100 = takes no damage from any elite; 0 = certain death.</summary>
+    private static void RenderStrength(double strength)
+    {
+        if (double.IsNaN(strength)) return;
+        int s = (int)Math.Round(strength);
+        string color = s >= 75 ? "green" : s >= 50 ? "yellow" : s >= 25 ? "darkorange" : "red";
+        int filled = (int)Math.Round(s / 100.0 * 20);
+        string bar = new string('█', filled) + new string('─', 20 - filled);
+        AnsiConsole.Write(new Markup($"  [grey]Deck strength[/]  [{color}]{s,3}[/][grey]/100[/]  [{color}]{bar}[/]"));
+        AnsiConsole.WriteLine();
         AnsiConsole.WriteLine();
     }
 
@@ -211,6 +227,6 @@ public static class Dashboard
             new("TerrorEel", "TerrorEel", new CombatStats(EvalEngine.Mcts, 0.21, 28, 27, true, 6, 45, 14, 27, 41, 2000, 0, 0), null),
             new("Gremlins", "2× Gremlin Nob + Mad Gremlin", new CombatStats(EvalEngine.Mcts, 0.88, 18, 13, true, 2, 33, 6, 16, 28, 2000, 0, 0), null),
         };
-        Render(ctx, elites, evaluating: false);
+        Render(ctx, elites, strength: 64, evaluating: false);
     }
 }
