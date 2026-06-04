@@ -22,12 +22,16 @@ public static class Advisor
     /// mutated during combat, so each evaluation must rebuild them).</summary>
     public readonly record struct Encounter(string Name, Func<List<Monster>> Build);
 
-    /// <summary>How much bottleneck-survival difference counts as "real" rather than sampling noise. While the
-    /// MCTS survival estimate is still noisy (it under/over-shoots razor-thin fights), two decks whose worst
-    /// survival is within this band are treated as TIED on survival and decided by expected HP loss — i.e. we
-    /// lean on the better-calibrated HP-loss signal. Lower this toward 0 once survival is well-calibrated to
-    /// recover strict survival-first ordering. Temporary tuning knob (see project notes).</summary>
-    public const double SurvivalBand = 0.05;
+    /// <summary>How much bottleneck-survival difference counts as "real" rather than estimator slop: two decks
+    /// whose worst survival is within this band are treated as TIED on survival and decided by expected HP loss.
+    /// Tightened 0.05 → 0.03 on bridge-instrument evidence (`--bridge`): the MCTS survival estimate has ~0%
+    /// SEED noise (DP-UCT backs up TRUE probabilities), so the only slop is a directional convergence BIAS
+    /// (≈7% absolute at the <see cref="AdviceTrials"/>=800 ranking budget on a hard fight). But this band guards
+    /// the RELATIVE comparison of near-identical decks (a deck vs that deck minus one card), whose biases are
+    /// strongly correlated and largely cancel — so the DIFFERENTIAL bias the band must cover is far smaller than
+    /// the absolute. 0.03 recovers survival-first ranking precision the old 0.05 threw away, while leaving margin
+    /// for that differential bias. Raise the ranking budget (smaller absolute bias) to justify going lower still.</summary>
+    public const double SurvivalBand = 0.03;
 
     /// <summary>MCTS trial budget for removal/pick RANKING (vs the full budget the dashboard uses for the
     /// displayed survival/HP-loss). Ranking is relative, so the small extra convergence bias at this budget

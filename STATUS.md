@@ -242,6 +242,11 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 
 ### Recently completed (this session — paused here)
 
+- **Tightened `Advisor.SurvivalBand` 0.05 → 0.03** on bridge evidence: survival has ~0% seed noise, so the band
+  only needs to cover the directional convergence BIAS — and because it guards RELATIVE comparisons of
+  near-identical decks (deck vs deck-minus-a-card), whose biases largely cancel, the differential bias is far
+  below the ~7% absolute bias at the 800-trial ranking budget. 0.03 recovers survival-first ranking precision
+  0.05 discarded, with margin. (Going lower needs a higher ranking budget = smaller absolute bias.)
 - **Deck strength index** (`Advisor.DeckStrength`): a 0–100 headline scalar, HP-independent — evaluate each Act
   elite from a FIXED 100 HP, average the expected HP loss (death = 100, capped), report `100 − avg`. 100 = takes
   no damage from any elite, 0 = certain death. Shown as a color-coded bar atop the dashboard; uses the full
@@ -296,13 +301,11 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 1. **Accuracy — model a run's ACTUAL relics** (narrowly): the diagnosed pessimism cause. ranwid counts only
    Burning Blood, so a relic-leaning deck reads weaker than it plays. Model the combat-start relics a run holds
    (revisiting the relic descope for combat-start relics ONLY — not the 300-relic catalog).
-2. **Accuracy — tighten `Advisor.SurvivalBand`** from 0.05 toward the observed bias (~0.02 — the bridge shows
-   ~0% seed noise, ~2% convergence bias), recovering survival-first deck ranking now discarded to the HP-loss
-   tiebreak; re-validate ordering, cite the bridge evidence in the doc comment.
-3. **Perf lever (deeper):** cheaper rollout policy — top-k clone-free prior / learned action-value, ≤3–4 HP
-   accuracy budget (measured against `--bridge`).
-4. **VF / advisor quality:** VF distillation + survival recalibration (Platt/isotonic) + deck-composition features.
-5. **Small leftover (low value):** a PreciseCut (hand-size) single-enemy live run.
+2. **Perf lever (deeper — the durable 2nd speedup):** advice parallelism caps ~4× (GC/memory-bandwidth bound),
+   so the next big multiple needs CUTTING PER-SOLVE ALLOCATION — a clone-free rollout / APW prior (score a play
+   without cloning the state) or make/undo instead of `CombatState.Clone`. ≤3–4 HP accuracy budget vs `--bridge`.
+3. **VF / advisor quality:** VF distillation + survival recalibration (Platt/isotonic) + deck-composition features.
+4. **Small leftover (low value):** a PreciseCut (hand-size) single-enemy live run.
 
 ---
 
