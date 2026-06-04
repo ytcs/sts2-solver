@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Sts2Solver.Ranwid</RootNamespace>
     <AssemblyName>ranwid</AssemblyName>
+    <!-- Advice fans hundreds of independent, allocation-heavy MCTS solves across cores; Server GC's per-core
+         heaps + parallel collection roughly doubles that parallel throughput vs Workstation GC (measured). -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Sts2Solver.Engine/Sts2Solver.Engine.csproj" />

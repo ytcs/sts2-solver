@@ -6,8 +6,9 @@ namespace Sts2Solver.Search;
 /// <summary>Which solver produced the headline value.</summary>
 public enum EvalEngine { Exact, Mcts }
 
-/// <summary>Tunables for <see cref="EncounterEvaluator.Evaluate"/>.</summary>
-public sealed class EvalOptions
+/// <summary>Tunables for <see cref="EncounterEvaluator.Evaluate"/>. A record so callers can derive a variant
+/// with <c>opts with { Rollouts = 1 }</c> (the advice path skips the rollout distribution it never reads).</summary>
+public sealed record EvalOptions
 {
     /// <summary>Turn horizon (a fight not won by here counts as a loss).</summary>
     public int MaxTurns { get; init; } = 30;

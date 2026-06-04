@@ -29,6 +29,12 @@ public static class Advisor
     /// recover strict survival-first ordering. Temporary tuning knob (see project notes).</summary>
     public const double SurvivalBand = 0.05;
 
+    /// <summary>MCTS trial budget for removal/pick RANKING (vs the full budget the dashboard uses for the
+    /// displayed survival/HP-loss). Ranking is relative, so the small extra convergence bias at this budget
+    /// cancels — measured: the top cut + bottleneck are identical at 500/800/2000 trials, while the advice runs
+    /// ~3x faster. Displayed headline numbers keep the caller's full budget to stay as un-pessimistic as possible.</summary>
+    public const int AdviceTrials = 800;
+
     /// <summary>Deck score across the Act's encounters: maximise <see cref="MinSurvival"/> (the bottleneck
     /// fight) — but only when it differs by more than <see cref="SurvivalBand"/> (survival is noisy) — then
     /// minimise <see cref="TotalMeanLoss"/>.</summary>
@@ -52,11 +58,16 @@ public static class Advisor
             SurvivalDelta > 1e-6 || (Math.Abs(SurvivalDelta) <= 1e-6 && LossDelta > 1e-6);
     }
 
-    /// <summary>Build the player, fight each encounter, and aggregate the per-encounter stats lexicographically.</summary>
+    /// <summary>Build the player, fight each encounter, and aggregate the per-encounter stats lexicographically.
+    /// Advice only reads survival + mean (both from MCTS), so the rollout-distribution pass is skipped
+    /// (<c>Rollouts = 1</c>) — it's only for the single-deck dashboard. Sequential over encounters: callers
+    /// (<see cref="RemovalAdvice"/>/<see cref="PickAdvice"/>) parallelise the OUTER candidate loop instead, which
+    /// saturates cores without nested over-subscription.</summary>
     public static DeckScore ScoreDeck(
         IReadOnlyList<string> deckSpecs, IReadOnlyList<Encounter> encounters,
         int playerHp, int playerMaxHp, int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
     {
+        var fast = opts with { Rollouts = 1 };   // advice never reads the HP-loss distribution
         double minSurvival = 1.0, totalLoss = 0.0;
         foreach (var enc in encounters)
         {
@@ -64,7 +75,7 @@ public static class Advisor
             var deck = deckSpecs.Select(Catalog.BuildCard).ToList();
             var player = Catalog.BuildPlayer(deck, playerHp, playerMaxHp, maxEnergy, relics);
             var setup = Catalog.SetupCombat(player, enc.Build());
-            var stats = EncounterEvaluator.Evaluate(setup, opts);
+            var stats = EncounterEvaluator.Evaluate(setup, fast);
             minSurvival = Math.Min(minSurvival, stats.Survival);
             totalLoss += stats.MeanLoss;
         }
@@ -79,22 +90,24 @@ public static class Advisor
         IReadOnlyList<string> deckSpecs, IReadOnlyList<Encounter> encounters,
         int playerHp, int playerMaxHp, int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
     {
-        var baseline = ScoreDeck(deckSpecs, encounters, playerHp, playerMaxHp, maxEnergy, relics, opts);
-        var items = new List<AdviceItem>();
-        if (deckSpecs.Count <= 1) return (baseline, items);
+        var advOpts = opts with { MctsTrials = AdviceTrials };   // ranking-budget (relative; bias cancels)
+        var baseline = ScoreDeck(deckSpecs, encounters, playerHp, playerMaxHp, maxEnergy, relics, advOpts);
+        if (deckSpecs.Count <= 1) return (baseline, new List<AdviceItem>());
 
-        foreach (var spec in deckSpecs.Distinct())
+        // Each candidate removal is an independent solve → evaluate them across cores. Deterministic: every
+        // eval is independently seeded and the candidate set is sorted afterwards, so scheduling can't reorder
+        // the result.
+        var items = deckSpecs.Distinct().AsParallel().Select(spec =>
         {
-            // Remove exactly one copy of this spec.
             var reduced = new List<string>(deckSpecs);
-            reduced.Remove(spec);
-            var after = ScoreDeck(reduced, encounters, playerHp, playerMaxHp, maxEnergy, relics, opts);
-            items.Add(new AdviceItem(
+            reduced.Remove(spec);   // remove exactly one copy
+            var after = ScoreDeck(reduced, encounters, playerHp, playerMaxHp, maxEnergy, relics, advOpts);
+            return new AdviceItem(
                 Card: spec,
                 After: after,
                 SurvivalDelta: after.MinSurvival - baseline.MinSurvival,
-                LossDelta: baseline.TotalMeanLoss - after.TotalMeanLoss));   // positive = less loss after removal
-        }
+                LossDelta: baseline.TotalMeanLoss - after.TotalMeanLoss);   // positive = less loss after removal
+        }).ToList();
 
         // Best first: by the lexicographic score of the resulting deck.
         items.Sort((a, b) => a.After.BetterThan(b.After) ? -1 : b.After.BetterThan(a.After) ? 1 : 0);
@@ -113,14 +126,16 @@ public static class Advisor
         IReadOnlyList<string> deckSpecs, IReadOnlyList<string> candidates, IReadOnlyList<Encounter> encounters,
         int playerHp, int playerMaxHp, int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
     {
-        var skip = ScoreDeck(deckSpecs, encounters, playerHp, playerMaxHp, maxEnergy, relics, opts);
-        var ranked = new List<PickItem> { new("(skip)", true, skip) };
-        foreach (var cand in candidates)
+        var advOpts = opts with { MctsTrials = AdviceTrials };   // ranking-budget (relative; bias cancels)
+        var skip = ScoreDeck(deckSpecs, encounters, playerHp, playerMaxHp, maxEnergy, relics, advOpts);
+        // Score each candidate (and the skip option) across cores — independent, seeded solves; sorted after.
+        var ranked = candidates.AsParallel().Select(cand =>
         {
             var withCard = new List<string>(deckSpecs) { cand };
-            ranked.Add(new PickItem(cand, false,
-                ScoreDeck(withCard, encounters, playerHp, playerMaxHp, maxEnergy, relics, opts)));
-        }
+            return new PickItem(cand, false,
+                ScoreDeck(withCard, encounters, playerHp, playerMaxHp, maxEnergy, relics, advOpts));
+        }).ToList();
+        ranked.Add(new PickItem("(skip)", true, skip));
         ranked.Sort((a, b) => a.Score.BetterThan(b.Score) ? -1 : b.Score.BetterThan(a.Score) ? 1 : 0);
         return (skip, ranked);
     }

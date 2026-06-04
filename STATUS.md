@@ -242,6 +242,18 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 
 ### Recently completed (this session — paused here)
 
+- **Advice speedup ≈ 30× (Tier 1):** a full removal-advice run on a 30-card deck vs 3 Act-1 elites went from
+  ~576 s (sequential, exact-attempt + 2k trials + 2k rollouts) to **~19 s**. Levers: (a) ranwid is MCTS-only
+  (no exact attempt); (b) advice evals skip the rollout-distribution pass (`ScoreDeck` reads only survival +
+  MCTS mean); (c) the candidate × elite grid is evaluated across cores (`RemovalAdvice`/`PickAdvice` PLINQ;
+  `Companion.EvaluateElites` `AsOrdered`) — deterministic (per-eval seeded, sorted after); (d) **Server GC**
+  (csproj) ~doubles parallel throughput vs the workstation-GC single-heap wall (the documented ~2.7× cap —
+  measured 2.0× → 4.3× here); (e) a separate ranking trial budget `Advisor.AdviceTrials = 800` (top cut +
+  bottleneck identical at 500/800/2000, ~3× faster) while DISPLAYED numbers keep the full budget to stay
+  un-pessimistic. New `ranwid --advice-bench` measures it end-to-end. Note: parallelism alone caps ~4× (GC /
+  memory-bandwidth bound) — the durable further lever is cutting allocation (clone-free rollout/make-undo).
+- **Ranwid robustness:** save reads fail SILENTLY when a run ends (the game clears `current_run.save`); the last
+  good dashboard persists for post-game analysis (`Load(quiet)` + watcher keeps last deck).
 - **Speed: exact-attempt tractability gate** (`EncounterEvaluator.ExactMaxDrawPile`, default 14 + `EncounterEvaluatorTests`):
   exact is skipped outright for decks bigger than the gate (it can't finish them anyway), so a real advice eval
   no longer burns the ~8 s exact budget before falling to MCTS. Measured: a 26-card eval dropped from ~13 s to

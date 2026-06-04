@@ -33,18 +33,20 @@ public sealed class Companion
         List<Advisor.Encounter> Encounters, List<(string name, string comp)> EliteInfo,
         List<string> Warnings, string DeckSummary);
 
-    /// <summary>Parse a save and resolve the deck/relics/elite encounters the advisor needs. Returns null
-    /// (with a console message) for non-Ironclad or unreadable runs.</summary>
-    public static Context? Load(string path, int? netId)
+    /// <summary>Parse a save and resolve the deck/relics/elite encounters the advisor needs. Returns null for
+    /// non-Ironclad or unreadable runs. <paramref name="quiet"/> suppresses the failure messages — the live
+    /// watcher uses it, because a run ending (the game clears/deletes the save) would otherwise spam errors;
+    /// the caller keeps the last good dashboard instead.</summary>
+    public static Context? Load(string path, int? netId, bool quiet = false)
     {
         RunState run;
         try { run = RunSaveReader.Parse(path, netId); }
-        catch (Exception ex) { Console.Error.WriteLine($"ranwid: could not parse '{path}': {ex.Message}"); return null; }
+        catch (Exception ex) { if (!quiet) Console.Error.WriteLine($"ranwid: could not parse '{path}': {ex.Message}"); return null; }
 
         var warnings = new List<string>();
         if (!GameIds.IsIroncladCharacter(run.Character))
         {
-            Console.WriteLine($"ranwid: only Ironclad is supported for now (run is {GameIds.CharacterName(run.Character)}).");
+            if (!quiet) Console.WriteLine($"ranwid: only Ironclad is supported for now (run is {GameIds.CharacterName(run.Character)}).");
             return null;
         }
 
@@ -93,16 +95,17 @@ public sealed class Companion
     /// live dashboard). Pure compute — no output.</summary>
     public static List<EliteResult> EvaluateElites(Context c, EvalOptions opts)
     {
-        var results = new List<EliteResult>();
-        foreach (var (enc, info) in c.Encounters.Zip(c.EliteInfo))
+        // The Act's elites are independent solves → run them across cores (AsOrdered keeps the table order
+        // stable). Each eval builds its own deck/monsters and MCTS tree, so there's no shared mutable state.
+        return c.Encounters.Zip(c.EliteInfo).AsParallel().AsOrdered().Select(pair =>
         {
-            if (c.DeckSpecs.Count == 0) { results.Add(new EliteResult(info.name, info.comp, null, "no playable deck cards")); continue; }
+            var (enc, info) = pair;
+            if (c.DeckSpecs.Count == 0) return new EliteResult(info.name, info.comp, null, "no playable deck cards");
             var deck = c.DeckSpecs.Select(Catalog.BuildCard).ToList();
             var player = Catalog.BuildPlayer(deck, c.Run.PlayerHp, c.Run.PlayerMaxHp, c.Run.MaxEnergy, c.RelicNames);
             var stats = EncounterEvaluator.Evaluate(Catalog.SetupCombat(player, enc.Build()), opts);
-            results.Add(new EliteResult(info.name, info.comp, stats, null));
-        }
-        return results;
+            return new EliteResult(info.name, info.comp, stats, null);
+        }).ToList();
     }
 
     /// <summary>Resolve reward tokens (auto-correct), then compute take-vs-skip advice — or null if no card
@@ -140,11 +143,20 @@ public sealed class Companion
         while (true)
         {
             // A newer save was written (you advanced a screen / played a card) → reload + re-evaluate + repaint.
+            // When the RUN ENDS the game clears/deletes current_run.save: FindNewest returns null, or the file is
+            // momentarily unreadable. In that case keep the LAST good dashboard on screen (so post-game analysis
+            // still works) and stay silent — never blank the screen or spam errors.
             if (_dirty)
             {
                 _dirty = false;
-                var newPath = _fixedPath ?? SaveSource.FindNewest(_saveDir) ?? path;
-                ctx = Reload(newPath, out path);
+                var newPath = _fixedPath ?? SaveSource.FindNewest(_saveDir);
+                if (newPath != null && Key(newPath) != _loadedKey)
+                {
+                    _loadedKey = Key(newPath);
+                    var refreshed = Load(newPath, _netId, quiet: true);
+                    if (refreshed != null) { ctx = refreshed; path = newPath; ReEvaluate(ctx); }
+                    // refreshed == null → unreadable/unsupported right now: keep the last dashboard, silently.
+                }
             }
 
             // No keyboard (redirected/piped input) → still auto-refresh, just no commands.
@@ -171,10 +183,10 @@ public sealed class Companion
     {
         resolvedPath = path;
         _loadedKey = Key(path);
-        var ctx = Load(path, _netId);
+        var ctx = Load(path, _netId, quiet: true);
         if (ctx == null)
         {
-            Spectre.Console.AnsiConsole.MarkupLine("[red]ranwid: this run can't be read (unsupported character or unreadable save).[/]");
+            Spectre.Console.AnsiConsole.MarkupLine("[grey]ranwid: waiting for a readable Ironclad run… (start or load one)[/]");
             _elites = new();
             return null;
         }

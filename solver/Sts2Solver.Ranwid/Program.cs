@@ -35,6 +35,42 @@ var opts = new EvalOptions
 
 if (args.Contains("--preview")) { Dashboard.RenderPreview(); return 0; }
 
+// --advice-bench: time a full removal-advice run on a synthetic 30-card deck vs the Act-1 elites, to measure
+// the parallel speedup end-to-end (the cost the player actually waits on). Reports the implied sequential time
+// (one eval × the grid size) vs the measured parallel time.
+if (args.Contains("--advice-bench"))
+{
+    var deck = new List<string>();
+    string[] variety = { "StrikeIronclad","DefendIronclad","Bash","Inflame","DemonForm","Uppercut","TwinStrike",
+        "Whirlwind","ShrugItOff","PommelStrike","IronWave","Headbutt","Hemokinesis","Armaments","Thunderclap" };
+    for (int i = 0; i < 30; i++) deck.Add(variety[i % variety.Length]);
+    int distinct = deck.Distinct().Count();
+    int asc = ArgInt("--ascension") ?? 0;
+    var elites = new[] { "TerrorEelElite", "ByrdonisElite", "MechaKnightElite" }
+        .Select(n => new Advisor.Encounter(n, () => Sts2Solver.Content.Catalog.BuildEliteEncounter(n, asc))).ToList();
+    var rankOpts = opts with { MctsTrials = Advisor.AdviceTrials };   // the production ranking budget
+
+    Console.WriteLine($"advice-bench: {deck.Count}-card deck ({distinct} distinct) vs {elites.Count} Act-1 elites "
+        + $"⇒ {(1 + distinct) * elites.Count} evals @ {Advisor.AdviceTrials} trials, {Environment.ProcessorCount} cores.");
+    // One ScoreDeck (sequential over #elites) → per-eval baseline at the production ranking budget.
+    var sw1 = System.Diagnostics.Stopwatch.StartNew();
+    var baseScore = Advisor.ScoreDeck(deck, elites, 70, 80, 3, new[] { "BurningBlood" }, rankOpts);
+    sw1.Stop();
+    double perEvalMs = sw1.ElapsedMilliseconds / (double)elites.Count;
+
+    var sw2 = System.Diagnostics.Stopwatch.StartNew();
+    var (baseline, items) = Advisor.RemovalAdvice(deck, elites, 70, 80, 3, new[] { "BurningBlood" }, opts);
+    sw2.Stop();
+
+    double seqEstMs = (1 + distinct) * elites.Count * perEvalMs;
+    Console.WriteLine($"  per-eval        : {perEvalMs:F0} ms");
+    Console.WriteLine($"  removal advice  : {sw2.ElapsedMilliseconds / 1000.0:F1} s (parallel)");
+    Console.WriteLine($"  implied serial  : {seqEstMs / 1000.0:F1} s  ⇒ ~{seqEstMs / Math.Max(1, sw2.ElapsedMilliseconds):F1}x speedup");
+    Console.WriteLine($"  bottleneck survival {baseline.MinSurvival:P0}; top cut: "
+        + (items.FirstOrDefault(i => i.IsImprovement) is { } it ? it.Card : "(none improves)"));
+    return 0;
+}
+
 if (once)
 {
     var path = saveArg ?? SaveSource.FindNewest(saveDirArg);
