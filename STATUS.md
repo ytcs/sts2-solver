@@ -27,7 +27,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in Phase-C `LearnedValue` MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 716 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Tests: 721 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -248,9 +248,17 @@ gaps**, so what follows is feature/quality expansion, all behind the standing co
      within Δsurv 0.0% / Δloss ≤1.4 — the strongest anti-overfit evidence short of a full sweep. Six seeded decks
      are gated in the suite.
    Remaining (lower value): a larger off-suite random/elite sweep for manual heuristic tuning via the CLI flags.
-3. **Search-soundness audit (optional, different class):** the horizon bound, loss-prune, and MCTS widening have
-   their own correctness proofs + test suites (`HorizonBoundTests`, `LossPruningTests`). Audit only if we want
-   defense-in-depth on the algorithmic layer (not content fidelity).
+3. **Search-soundness audit — DONE.** Verified the three value-preserving approximations against their code and
+   broadened their oracle-equality coverage past the original all-Byrdonis fixtures:
+   - **Horizon bound + loss certificate** (`HorizonBound`/`LossCertificate`): bounds are conservative in the safe
+     direction (incoming lower-bounded by the idle forced-min / permanent-Weak trajectory; block + damage
+     upper-bounded with cushions; disqualifying decks/enemies — powers, power-grants, Strength/Vuln growth,
+     healing, summons, branching AI — bail). New `DiverseAiSoundnessTests` stress both invariants across distinct
+     AI shapes: TerrorEel (stun) and MechaKnight (windup) fire and stay exact (`exact@bound == exact@big`,
+     `plain == pruned`); SoulNexus's stochastic life-drain AI correctly triggers the SOUND BAIL; CorpseSlug /
+     PhrogParasite are sound. **No unsoundness found.**
+   - **MCTS action-widening + PUCT**: gated by `MctsTests.Apw_Converges_*` (converges to the exact oracle within
+     tolerance on Cultist / Weak-Cultist / Byrdonis-elite). Sound.
 4. **VF / advisor quality:** VF distillation + survival recalibration (Platt/isotonic) + deck-composition
    features; tighten `ranwid`'s `SurvivalBand`.
 5. **Scope expansion (needs new subsystems):** more relics (combat-relevant relic hooks), Act-1 bosses, potions.
