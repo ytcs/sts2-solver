@@ -219,51 +219,33 @@ All verified to never over-credit. Fixing is low-value; documented so they aren'
 
 ## Roadmap & next to-dos
 
-Ordered by priority. Correctness work (the spine) is complete — the catalog + engine have **zero known optimistic
-gaps**, so what follows is feature/quality expansion, all behind the standing correctness bar.
+Correctness work (the spine) is complete — the catalog + engine have **zero known optimistic gaps**, the search's
+value-preserving approximations are audited, and the freshest models are live-validated. What remains is
+feature/quality expansion, all behind the standing correctness bar.
 
-1. **Live-validate the still-unverified mechanics** via headless single-enemy runs (cheap, high-confidence).
-   NOTE: replay OVERRIDES the hand each turn, so it validates damage/HP CONSEQUENCES, not card-FLOW — a mechanic
-   is only live-checkable if it changes enemy/player HP.
-   - **VoidForm — DONE (trace #79).** Forced-end-on-play (turn 2 = VoidForm only despite a full hand + 3 energy)
-     + first-2-cards-free (4 cards / nominal-cost-5 on 3 energy each turn); replay passes only because the engine
-     charged the reduced costs and let all 4 land.
-   - **Sly auto-play — DONE (trace #80).** StormOfSteel (NOT Rng-gated, unlike CalculatedGamble) discards a hand
-     of FlickFlacks → 7 Sly auto-plays across turns 1/2/5; the game logs them `isAutoPlay` (replay skips them), so
-     the matching Byrdonis HP proves the engine reproduces them via `TriggerSlyOnDiscard`.
-   - Random-target (SerpentForm/Ricochet/RipAndTear/FlakCannon): only distinguishable on MULTI-enemy boards,
-     which is exactly where the model is a documented first-enemy approximation ⇒ a clean pass/fail isn't
-     expected; low value. Hand-size (PreciseCut) still worth a single-enemy run.
-   - Innate / Retain are card-FLOW (opening-hand / cross-turn retention); replay overrides the hand, so it can't
-     independently check them — covered by unit tests instead, not a live trace.
-2. **Calibration expansion — DONE (core).** Widened the exact↔MCTS convergence evidence beyond the six tuned
-   archetype fixtures, gated in `CalibrationTests` (now 16 cases, all green):
-   - **Elite sweep** (`CalibrationFixtures.EliteSweep`, `--calibrate --elites`): three NEW single-monster elite
-     ground-truth labels with distinct AI — TerrorEel (stun), SoulNexus (life-drain, a non-trivial 91.7%
-     survival label), MechaKnight (windup-burst). All exact-solvable in ≤3s; mcts-roll/heur/learn track exact at
-     Δ0.0%. PhrogParasite (poison counter) and the six MULTI-monster elites stay exact-intractable → trace-covered.
-   - **Random-deck generator** (`CalibrationFixtures.RandomDecks(count, seed)`, `--calibrate --random N --seed S`):
-     deterministic decks from a chance-node-free "calibration-safe" pool vs a round-robin low-HP monster, sized so
-     exact still labels each. The heuristic was never tuned on these, yet across the graded sweep it matched exact
-     within Δsurv 0.0% / Δloss ≤1.4 — the strongest anti-overfit evidence short of a full sweep. Six seeded decks
-     are gated in the suite.
-   Remaining (lower value): a larger off-suite random/elite sweep for manual heuristic tuning via the CLI flags.
-3. **Search-soundness audit — DONE.** Verified the three value-preserving approximations against their code and
-   broadened their oracle-equality coverage past the original all-Byrdonis fixtures:
-   - **Horizon bound + loss certificate** (`HorizonBound`/`LossCertificate`): bounds are conservative in the safe
-     direction (incoming lower-bounded by the idle forced-min / permanent-Weak trajectory; block + damage
-     upper-bounded with cushions; disqualifying decks/enemies — powers, power-grants, Strength/Vuln growth,
-     healing, summons, branching AI — bail). New `DiverseAiSoundnessTests` stress both invariants across distinct
-     AI shapes: TerrorEel (stun) and MechaKnight (windup) fire and stay exact (`exact@bound == exact@big`,
-     `plain == pruned`); SoulNexus's stochastic life-drain AI correctly triggers the SOUND BAIL; CorpseSlug /
-     PhrogParasite are sound. **No unsoundness found.**
-   - **MCTS action-widening + PUCT**: gated by `MctsTests.Apw_Converges_*` (converges to the exact oracle within
-     tolerance on Cultist / Weak-Cultist / Byrdonis-elite). Sound.
-4. **VF / advisor quality:** VF distillation + survival recalibration (Platt/isotonic) + deck-composition
+### Recently completed (this session — paused here)
+
+- **Live-validated the two freshest 1:1 models** against the oracle (replay validates damage/HP CONSEQUENCES,
+  not card-FLOW — only HP-affecting mechanics are live-checkable this way):
+  - **VoidForm** (trace #79): forced-end-on-play + first-2-cards-free, confirmed via the energy/play log.
+  - **Sly auto-play** (trace #80): StormOfSteel (not Rng-gated) discards FlickFlacks → 7 Sly auto-plays the game
+    logs `isAutoPlay` and replay skips, so matching enemy HP proves `TriggerSlyOnDiscard` reproduces them.
+- **Calibration expansion** (`CalibrationTests` 7→16): the elite-AI sweep (`--calibrate --elites`: TerrorEel /
+  SoulNexus@91.7% / MechaKnight, exact-graded Δ0.0%) + the seeded random-deck generator (`--calibrate --random N
+  --seed S`: novel decks the heuristic was never tuned on, matched exact within Δsurv 0.0% / Δloss ≤1.4).
+- **Search-soundness audit** (`DiverseAiSoundnessTests`): the horizon bound + loss certificate stay exact across
+  diverse AI (stun / windup fire and match `exact@bound==exact@big` + `plain==pruned`; stochastic life-drain
+  correctly SOUND-BAILS) — no unsoundness found; MCTS widening gated by `MctsTests.Apw_Converges_*`.
+
+### Next to-dos (forward, ordered)
+
+1. **VF / advisor quality:** VF distillation + survival recalibration (Platt/isotonic) + deck-composition
    features; tighten `ranwid`'s `SurvivalBand`.
-5. **Scope expansion (needs new subsystems):** more relics (combat-relevant relic hooks), Act-1 bosses, potions.
-6. **Perf lever (deferred behind correctness):** cheaper rollout policy — top-k clone-free prior / learned
+2. **Scope expansion (needs new subsystems):** more relics (combat-relevant relic hooks), Act-1 bosses, potions.
+3. **Perf lever (deferred behind correctness):** cheaper rollout policy — top-k clone-free prior / learned
    action-value, ≤3–4 HP accuracy budget.
+4. **Small leftovers (low value):** a PreciseCut (hand-size) single-enemy live run; a larger off-suite
+   random/elite calibration sweep via the CLI flags for manual heuristic tuning.
 
 ---
 
@@ -278,4 +260,7 @@ lazy chance nodes → 1–2 s); mid-turn draws as chance nodes + post-draw resol
 mechanics 1:1; the Defect orb subsystem; move-legality (Normality/Enthralled) + Whistle stun + Decimillipede
 Reattach; a 37-card scaling/conditional audit; **a comprehensive optimistic-gap sweep** (every content + engine
 module diffed vs the decompile — debuff tick-timing, The Bomb, Sealed Throne/Oblivion, Danse Macabre, FlakCannon,
-DyingStar/SevenStars star-gates closed; VoidForm modelled 1:1; Decimillipede auto-bury characterized).
+DyingStar/SevenStars star-gates closed; VoidForm modelled 1:1; Decimillipede auto-bury characterized);
+**VoidForm + Sly live-validated** (traces #79–80); **calibration expansion** (elite-AI sweep + seeded
+random-deck convergence gate); **a search-soundness audit** (diverse-AI horizon/loss oracle-equality, no
+unsoundness found).
