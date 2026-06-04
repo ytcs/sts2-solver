@@ -29,7 +29,6 @@ public static class CombatHeuristic
     private static readonly double WStrength = Env("STS2_WSTRENGTH", 60.0);  // per point of player Strength (×living enemies)
     private static readonly double WVuln = Env("STS2_WVULN", 25.0);          // per stack of Vulnerable on enemies
     private static readonly double WOverblock = Env("STS2_WOVERBLOCK", 2.0); // mild discipline against wasting block
-    private const double SurvivalSlope = 1.25;                               // logistic slope per turn of race margin (leaf)
 
     // ---------- Faithful damage prediction (mirrors Cmd.Attack: additive → multiplicative → floor) ----------
 
@@ -110,55 +109,6 @@ public static class CombatHeuristic
     /// Default fraction 0 ⇒ buffer disabled (death-cliff only); raise to make the policy keep reserve.</summary>
     private static int SafetyBuffer(CombatState s, int incoming) =>
         Math.Min((int)(BufferFrac * incoming), s.Player.MaxHp);
-
-    // ---------- Static leaf value (optional, UseHeuristicLeaf) ----------
-
-    /// <summary>A cheap static estimate of <c>(survival, expected HP loss)</c> from the current decision
-    /// state: race turns-to-kill vs turns-to-die, seeded by one simulated heuristic player turn for the
-    /// player's per-turn output and block. Used as the MCTS leaf value when full rollouts are too slow.</summary>
-    public static Value Evaluate(CombatState s, int maxTurns)
-    {
-        if (s.AllMonstersDead) return new Value(1, 0);
-        if (s.PlayerDead) return new Value(0, 0);
-
-        int enemyHp = EnemyHpTotal(s);
-
-        // Gauge the player's per-turn damage + standing block by simulating one heuristic turn on a clone.
-        var (dmgPerTurn, blockPerTurn) = SimulateTurnOutput(s);
-
-        int incoming = IncomingDamage(s);
-        int netPerTurn = Math.Max(0, incoming - blockPerTurn);
-
-        double turnsToKill = dmgPerTurn <= 0 ? maxTurns + 1 : Math.Ceiling((double)enemyHp / dmgPerTurn);
-        double turnsToDie = netPerTurn <= 0 ? maxTurns + 1 : (double)s.Player.CurrentHp / netPerTurn;
-
-        // Survival: smooth logistic on the race margin (turns-to-die minus turns-to-kill).
-        double survival = turnsToKill > maxTurns ? 0.0 : 1.0 / (1.0 + Math.Exp(-SurvivalSlope * (turnsToDie - turnsToKill)));
-        double loss = Math.Min(s.Player.CurrentHp, netPerTurn * Math.Min(turnsToKill, maxTurns));
-        return new Value(survival, loss);
-    }
-
-    /// <summary>Gauge the player's per-turn output from a decision state by simulating one greedy
-    /// (balanced-λ) heuristic turn on a clone: returns the damage dealt to enemies and the standing block
-    /// left at turn end. Shared by the static leaf <see cref="Evaluate"/> and the learned value function's
-    /// feature extractor so both read the same per-turn gauge.</summary>
-    public static (int dmgPerTurn, int blockPerTurn) SimulateTurnOutput(CombatState s)
-    {
-        var sim = s.Clone();
-        int enemyBefore = EnemyHpTotal(sim);
-        var policy = new HeuristicPolicy();
-        for (int g = 0; g < 60 && !sim.IsCombatOver; g++)
-        {
-            var action = policy.NextAction(sim);
-            if (action is not { CardKey: not null } a) break;
-            var card = sim.Player.Hand.FirstOrDefault(h => h.StateKey() == a.CardKey);
-            if (card == null) break;
-            Creature? target = a.TargetMonsterIndex >= 0 && a.TargetMonsterIndex < sim.Monsters.Count
-                ? sim.Monsters[a.TargetMonsterIndex] : null;
-            CombatManager.PlayCard(sim, card, target);
-        }
-        return (Math.Max(0, enemyBefore - EnemyHpTotal(sim)), sim.Player.Block);
-    }
 
     // ---------- Shared play enumeration (kept in step with the solvers' LegalPlays/ApplyPlay) ----------
 

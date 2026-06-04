@@ -31,8 +31,7 @@ public class BridgeInstrumentTests
         var f = CalibrationFixtures.BridgeRung(6);
         var exact = CalibrationHarness.RunExactBudgeted(f.Setup(), f.MaxTurns, budgetSeconds: 120);
         Assert.NotNull(exact);   // S06 is a short race — exact must solve it (the anchor); if not, it grew
-        var ss = CalibrationHarness.RunMctsSeeds(() => f.Setup(), f.MaxTurns, trials: 2_000,
-            heuristicLeaf: false, FourSeeds);
+        var ss = CalibrationHarness.RunMctsSeeds(() => f.Setup(), f.MaxTurns, trials: 2_000, FourSeeds);
 
         _out.WriteLine($"{f.Name}: exact {exact!.Survival:P1}/{exact.Loss:F1}  "
             + $"m@2k {ss.SurvMean:P1}±{ss.SurvStd:P2}/{ss.LossMean:F1}");
@@ -61,8 +60,7 @@ public class BridgeInstrumentTests
     public void Bridge_Survival_Is_Seed_Stable(string label, Func<CalibrationFixtures.Fixture> build)
     {
         var f = build();
-        var ss = CalibrationHarness.RunMctsSeeds(() => f.Setup(), f.MaxTurns, trials: 2_000,
-            heuristicLeaf: false, FourSeeds);
+        var ss = CalibrationHarness.RunMctsSeeds(() => f.Setup(), f.MaxTurns, trials: 2_000, FourSeeds);
         _out.WriteLine($"{label} ({f.Name}): survival {ss.SurvMean:P1} ± {ss.SurvStd:P2} "
             + $"[{ss.SurvMin:P1}…{ss.SurvMax:P1}] over {ss.Seeds} seeds");
 

@@ -28,17 +28,6 @@ public sealed class MctsOptions
     /// small (subtree ≈ enemy HP × turns-left below this). 0 disables the hybrid.</summary>
     public int HybridExactBelow = 0;
 
-    /// <summary>Use the static <see cref="CombatHeuristic.Evaluate"/> race model at a new tip instead of a
-    /// full greedy rollout to terminal (UCT*'s shortened trial, docs/mcts-solver-design.md §5). Cheaper per
-    /// trial ⇒ more trials in a fixed budget, at the cost of a less faithful (closed-form) leaf value.</summary>
-    public bool UseHeuristicLeaf = false;
-
-    /// <summary>Use the trained <see cref="LearnedValue"/> regression at a new tip instead of a full rollout
-    /// or the static race model — the Phase-C learned leaf. Takes precedence over <see cref="UseHeuristicLeaf"/>.
-    /// Aimed at the razor-thin survival regime a greedy rollout under-estimates: the model predicts survival
-    /// directly from learned geometry rather than needing a lucky coordinated rollout.</summary>
-    public bool UseLearnedLeaf = false;
-
     /// <summary>Each rollout samples its aggression λ uniformly from [Lo, Hi] (0 = all-block, 1 = all-damage),
     /// so a leaf seed can average over the block↔race spectrum. Lo==Hi gives a deterministic policy at that λ;
     /// the default 0.5/0.5 is a deterministic balanced rollout (the calibrated choice). Knobs for experiments.</summary>
@@ -773,16 +762,6 @@ public sealed class MctsSolver
             else CombatManager.RollNextMoves(s, _rng);
             CombatManager.BeginPlayerTurn(s);
             CombatManager.DrawCards(s, CombatManager.OpeningDrawAfterInnate(s, CombatManager.TurnStartDrawCount(s)), _rng, fromHandDraw: true);
-        }
-
-        // UCT*: bootstrap the tip from a closed-form leaf value instead of rolling out to terminal.
-        if (_opt.UseLearnedLeaf || _opt.UseHeuristicLeaf)
-        {
-            if (s.AllMonstersDead) return new Value(1, s.PlayerHpLost - baseline);
-            if (s.PlayerDead || s.TurnNumber > _opt.MaxTurns) return new Value(0, s.PlayerHpLost - baseline);
-            var lv = _opt.UseLearnedLeaf ? LearnedValue.Evaluate(s, _opt.MaxTurns)
-                                         : CombatHeuristic.Evaluate(s, _opt.MaxTurns);
-            return new Value(lv.Win, (s.PlayerHpLost - baseline) + lv.Loss);
         }
 
         return RolloutToTerminal(s, baseline);

@@ -160,8 +160,8 @@ if (args.Contains("--bridge"))
     foreach (var f in fixtures)
     {
         var ex = CalibrationHarness.RunExactBudgeted(f.Setup(), f.MaxTurns, exactBudget);
-        var proxy = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, proxyTrials, heuristicLeaf: false, seed: 1);
-        var ss = CalibrationHarness.RunMctsSeeds(() => f.Setup(), f.MaxTurns, adviceTrials, heuristicLeaf: false, seeds);
+        var proxy = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, proxyTrials, seed: 1);
+        var ss = CalibrationHarness.RunMctsSeeds(() => f.Setup(), f.MaxTurns, adviceTrials, seeds);
 
         // The real advice cost: EncounterEvaluator at the advice budget (8s exact attempt → MCTS → rollouts).
         var stats = EncounterEvaluator.Evaluate(f.Setup(), new EvalOptions
@@ -235,24 +235,18 @@ if (args.Contains("--profile"))
     double nsPerClone = swc.Elapsed.TotalMilliseconds * 1_000_000.0 / iters;
     Console.WriteLine($"  Clone microbench: {nsPerClone:F0} ns/clone ({size}-card deck state).\n");
 
-    // 2) Leaf-cost comparison at a fixed (small) trial count. All three share the APW-default tree + prior;
-    //    they differ ONLY in the leaf seed: greedy rollout (a full playout to terminal — faithful, expensive)
-    //    vs the closed-form CombatHeuristic.Evaluate vs the Phase-C learned VF. If the closed-form leaves are
-    //    dramatically faster, the rollout is the bottleneck (not cloning); if they're ALSO slow, the APW prior's
-    //    per-candidate Score(ApplyPlay) dominates and the clone-free static prior is the lever.
+    // 2) Cost attribution at a fixed (small) trial count, all on the faithful greedy-rollout leaf (the only
+    //    leaf). Vary the APW prior on/off and the chance-enumeration threshold to attribute time:
+    //    (APW)−(UCT) gap = the APW prior's per-candidate Score(ApplyPlay) cost; (ch4096)−(ch64) gap = the
+    //    chance-node draw-enumeration cost. Whatever's left is the rollout playout itself.
     int t = ArgInt("--trials", 1_500);
-    Console.WriteLine($"  Bottleneck matrix @ {t:N0} trials (cheap leaf throughout; vary the APW prior + chance):\n");
+    Console.WriteLine($"  Cost matrix @ {t:N0} trials (faithful rollout leaf; vary the APW prior + chance):\n");
     Console.WriteLine($"  {"config",-18} {"ms",9} {"ms/trial",9} {"nodes",9} {"clones",13} {"clone%",7}  value");
     var leafConfigs = new (string name, Action<MctsOptions> set)[]
     {
-        // Baseline = current production default (APW prior + greedy rollout + exact-chance ≤4096).
-        ("APW roll ch4096", _ => { }),
-        // Cheap leaf, APW prior ON vs OFF: the time gap = the APW prior's per-candidate Score(ApplyPlay) cost.
-        ("APW heur ch4096", o => o.UseHeuristicLeaf = true),
-        ("UCT heur ch4096", o => { o.UseHeuristicLeaf = true; o.ActionWidening = false; }),
-        // APW prior ON, cheap leaf, but force DPW draw sampling instead of ≤4096-way exact enumeration: the gap
-        // vs "APW heur ch4096" = the chance-node draw-enumeration cost.
-        ("APW heur ch64", o => { o.UseHeuristicLeaf = true; o.ExactChanceThreshold = 64; }),
+        ("APW roll ch4096", _ => { }),                                  // production default
+        ("UCT roll ch4096", o => o.ActionWidening = false),             // APW off → APW-prior cost
+        ("APW roll ch64",   o => o.ExactChanceThreshold = 64),          // DPW sampling → chance-enum cost
     };
     foreach (var (name, set) in leafConfigs)
     {
@@ -271,8 +265,8 @@ if (args.Contains("--profile"))
             + $"{profSw.ElapsedMilliseconds / (double)t,9:F2} {profMcts.NodesCreated,9:N0} {clones,13:N0} {pct,6:F0}%  "
             + $"{profV.Win:P0}/{profV.Loss:F1}");
     }
-    Console.WriteLine($"\n  (APW heur)−(UCT heur) gap = APW-prior cost; (ch4096)−(ch64) gap = chance-enumeration");
-    Console.WriteLine($"  cost. Whichever dominates is the real lever toward the 1–2 s target — not cloning (≈12%).");
+    Console.WriteLine($"\n  (APW roll)−(UCT roll) gap = APW-prior cost; (ch4096)−(ch64) gap = chance-enumeration");
+    Console.WriteLine($"  cost; the remainder is the rollout playout itself (the dominant term — ~72%).");
     return 0;
 }
 
@@ -302,14 +296,12 @@ if (args.Contains("--calibrate"))
     Console.WriteLine($"  {"fixture",-28} {"engine",-10} {"survive",8} {"loss",7} {"Δsurv",7} {"Δloss",7} {"work",12} {"time",7}");
     Console.WriteLine("  " + new string('-', 96));
 
-    double sumDSurvRoll = 0, sumDLossRoll = 0, sumDSurvHeur = 0, sumDLossHeur = 0, sumDSurvLearn = 0, sumDLossLearn = 0;
+    double sumDSurvRoll = 0, sumDLossRoll = 0;
     int graded = 0;
     foreach (var f in fixtures)
     {
         var exact = CalibrationHarness.RunExactBudgeted(f.Setup(), f.MaxTurns, exactBudget);
-        var roll = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, trials, heuristicLeaf: false, seed: 1);
-        var heur = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, trials, heuristicLeaf: true, seed: 1);
-        var learn = CalibrationHarness.RunMctsLearned(f.Setup(), f.MaxTurns, trials, seed: 1);
+        var roll = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, trials, seed: 1);
 
         void Row(string name, EngineResult r, bool isExact)
         {
@@ -322,18 +314,12 @@ if (args.Contains("--calibrate"))
         if (exact != null) Row(f.Name, exact, true);
         else Console.WriteLine($"  {f.Name,-28} {"exact",-10} {"(exact > budget — no ground truth)",-44}");
         Row(f.Name, roll, false);
-        Row(f.Name, heur, false);
-        Row(f.Name, learn, false);
 
         if (exact != null)
         {
             graded++;
             sumDSurvRoll += Math.Abs(roll.Survival - exact.Survival);
             sumDLossRoll += Math.Abs(roll.Loss - exact.Loss);
-            sumDSurvHeur += Math.Abs(heur.Survival - exact.Survival);
-            sumDLossHeur += Math.Abs(heur.Loss - exact.Loss);
-            sumDSurvLearn += Math.Abs(learn.Survival - exact.Survival);
-            sumDLossLearn += Math.Abs(learn.Loss - exact.Loss);
         }
         Console.WriteLine();
     }
@@ -341,40 +327,8 @@ if (args.Contains("--calibrate"))
     if (graded > 0)
     {
         Console.WriteLine($"  Mean abs error over {graded} graded fixture(s):");
-        Console.WriteLine($"    mcts-roll  : Δsurv {sumDSurvRoll / graded:P1}   Δloss {sumDLossRoll / graded:F2}");
-        Console.WriteLine($"    mcts-heur  : Δsurv {sumDSurvHeur / graded:P1}   Δloss {sumDLossHeur / graded:F2}   (static-leaf baseline)");
-        Console.WriteLine($"    mcts-learn : Δsurv {sumDSurvLearn / graded:P1}   Δloss {sumDLossLearn / graded:F2}   (Phase-C learned leaf)");
+        Console.WriteLine($"    mcts : Δsurv {sumDSurvRoll / graded:P1}   Δloss {sumDLossRoll / graded:F2}   (faithful rollout leaf)");
     }
-    return 0;
-}
-
-// --train-vf: harvest exact-solver labels over the broad TrainingFixtures grid and fit the Phase-C learned
-// value function (LearnedValue). Prints a train-set report (learned vs static-baseline win MAE) and the
-// fitted weights as a C# block to paste into LearnedValue.Weights, and writes them to /tmp/vf-weights.txt.
-// Flags: --budget-seconds S (per-fixture exact cap), --epochs N, --sample-rate R, --maxturns T.
-if (args.Contains("--train-vf"))
-{
-    double budget = ArgInt("--budget-seconds", 10);
-    int epochs = ArgInt("--epochs", 4000);
-    int maxTurns = ArgInt("--maxturns", 16);
-    string? sr = args.SkipWhile(a => a != "--sample-rate").Skip(1).FirstOrDefault();
-    double sampleRate = double.TryParse(sr, out var srv) ? srv : 0.12;
-
-    var fixtures = TrainingFixtures.All(maxTurns)
-        .Select(f => (f.Setup(), f.MaxTurns)).ToList();
-    Console.WriteLine($"Training VF: {fixtures.Count} fixtures, budget {budget:F0}s/fixture, "
-        + $"sampleRate {sampleRate}, epochs {epochs}\nCollecting exact-solve labels…");
-
-    var examples = VfTrainer.Collect(fixtures, budget, sampleRate, seed: 12345);
-    Console.WriteLine($"Collected {examples.Count:N0} labelled decision states. Fitting…");
-
-    var model = VfTrainer.Fit(examples, epochs);
-    Console.WriteLine(VfTrainer.Report(model, examples));
-
-    string code = VfTrainer.Emit(model);
-    File.WriteAllText("/tmp/vf-weights.txt", code);
-    Console.WriteLine("\n--- LearnedValue.Weights (written to /tmp/vf-weights.txt) ---\n");
-    Console.WriteLine(code);
     return 0;
 }
 

@@ -66,7 +66,7 @@ public class CalibrationTests
         // cap produces false null timeouts; 240s leaves ample headroom while still catching a genuinely-grown fixture.
         var exact = CalibrationHarness.RunExactBudgeted(f.Setup(), f.MaxTurns, budgetSeconds: 240);
         Assert.NotNull(exact); // fixtures are tuned to be exact-solvable; if this trips, the fixture grew too big
-        var roll = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, trials: 40_000, heuristicLeaf: false, seed: 1);
+        var roll = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, trials: 40_000, seed: 1);
 
         double dSurv = roll.Survival - exact!.Survival;   // signed: negative = underestimate
         _out.WriteLine($"{f.Name}");

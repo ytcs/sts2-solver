@@ -23,8 +23,9 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   PESSIMISTIC (under-credits the player) and therefore sound — see "Known pessimistic gaps" below.
 - **Search:** the exact lexicographic expectimax `Solver` is the ground-truth oracle; the sampling `MctsSolver`
   (UCT*/DP-UCT, action progressive widening + lexicographic PUCT) is gated to converge to it byte-for-byte. A
-  30-card-vs-elite solve runs ~1.5–2.7 s. Sound `HorizonBound` + `LossCertificate` pruning (value-preserving);
-  opt-in Phase-C `LearnedValue` MCTS leaf for the razor-thin survival regime.
+  30-card-vs-elite solve runs ~1.5–2.7 s. Sound `HorizonBound` + `LossCertificate` pruning (value-preserving).
+  The MCTS leaf is the **faithful greedy rollout** (the only leaf — the static-heuristic and learned-VF leaves
+  were removed: both badly mis-estimated big decks, ~18 HP off the rollout, and weren't in the production path).
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
 - **Tests: 725 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
@@ -46,9 +47,9 @@ solver/                         C#/.NET 9 solution (NO .sln — build/test via S
     Validation/  TraceValidator.cs        (adding a character = a folder + one yield in Core CardTables())
   Sts2Solver.Search/            Solver.cs (exact) · MctsSolver.cs · DrawEnumerator.cs · EncounterEvaluator.cs
                                 (auto exact-or-MCTS) · PolicyRollout.cs · CombatHeuristic.cs · CalibrationHarness.cs
-                                · HorizonBound/DeckProfile/MultiEnemy/LossCertificate · LearnedValue/VfTrainer
+                                · HorizonBound/DeckProfile/MultiEnemy/LossCertificate
   Sts2Solver.Ranwid/ (ranwid)   live-run advisor (SaveLocator/RunSave/GameIds/Reporting/Advisor/Companion)
-  Sts2Solver.Cli/   (sts2solve) solve · --validate · --calibrate · --profile/--converge · --train-vf
+  Sts2Solver.Cli/   (sts2solve) solve · --validate · --calibrate · --bridge · --profile/--converge
   Sts2Solver.Tests/             xUnit: pipeline + per-card + solver + trace-replay + MCTS + calibration + horizon
 mods/DataDumper/DataDumperCode/ Godot C# mod: MainFile · CombatOracle (records traces) · AutoPilot (`autopilot`
                                 console cmd) · HeadlessBatch (STS2_BATCH: headless run+fight+record+quit)
@@ -108,9 +109,9 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
 - MCTS: UCT* (DP-UCT + limited trial length), partial Bellman backups over the transposition DAG, lexicographic
   UCB, hybrid exact-below-threshold, action progressive widening + PUCT, `ObservedWin` floor. Converges
   byte-identically; calibration MAE ~Δsurv 0.8% / Δloss 0.03 at 40k trials.
-- `EncounterEvaluator` (auto exact-or-MCTS) + `PolicyRollout` (HP-loss distribution). `CombatHeuristic`:
-  survival-first λ-interpolated rollout/leaf score. `LearnedValue`: logistic+linear heads over 18 features,
-  held-out survival MAE 0.023 vs static 0.046.
+- `EncounterEvaluator` (auto exact-or-MCTS, with a deck-size tractability gate) + `PolicyRollout` (HP-loss
+  distribution). `CombatHeuristic`: survival-first λ-interpolated rollout policy (the MCTS rollout leaf + the
+  distribution sampler share this one definition of "reasonable play").
 - `ranwid`: live **Spectre.Console dashboard** — always shows the current deck + per-elite survival/HP-loss,
   auto-refreshes on save change (FileSystemWatcher + poll fallback). Removal advice is off by default (slow) and
   on the `[r]` key; `[c]` checks a reward card (auto-correct entry). No engine/algorithm text in the UI; a
@@ -128,7 +129,6 @@ dotnet run -c Release --project solver/Sts2Solver.Cli -- scenario.json [--mcts -
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --calibrate [--archetype block]
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --bridge    # advice-regime accuracy(noise/bias)+latency instrument
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --validate [trace.jsonl]   # one file or all
-dotnet run -c Release --project solver/Sts2Solver.Cli -- --train-vf --budget-seconds 6 --epochs 4000
 dotnet run -c Release --project solver/Sts2Solver.Ranwid                            # live companion
 cd mods/DataDumper && dotnet build -c Debug                     # rebuild + deploy the mod
 
@@ -242,6 +242,12 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 
 ### Recently completed (this session — paused here)
 
+- **Removed the cheap-leaf family** (static-heuristic leaf `CombatHeuristic.Evaluate` + Phase-C `LearnedValue`
+  + `VfTrainer` + `--train-vf` + the `mcts-heur`/`mcts-learn` plumbing): the profile showed the static leaf read
+  82%/38 vs the faithful rollout's 100%/19.5 (~18 HP off) on a big deck, and neither cheap leaf was in the
+  production path. The **faithful greedy rollout is now the only MCTS leaf.** `TrainingFixtures` + its clone/upgrade
+  soundness regression tests are kept (standalone deck generator). `--profile` reworked to attribute cost over
+  the rollout leaf (confirmed: **rollout playout ≈ 72%** of the solve — the real speed lever, not allocation).
 - **Tightened `Advisor.SurvivalBand` 0.05 → 0.03** on bridge evidence: survival has ~0% seed noise, so the band
   only needs to cover the directional convergence BIAS — and because it guards RELATIVE comparisons of
   near-identical decks (deck vs deck-minus-a-card), whose biases largely cancel, the differential bias is far

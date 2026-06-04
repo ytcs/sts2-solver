@@ -52,19 +52,13 @@ public static class CalibrationHarness
         }
     }
 
-    /// <summary>MCTS value under a chosen leaf mode (greedy rollout vs static heuristic leaf).</summary>
-    public static EngineResult RunMcts(CombatState setup, int maxTurns, int trials, bool heuristicLeaf, int seed, string? label = null)
+    /// <summary>MCTS value (faithful greedy-rollout leaf — the only leaf).</summary>
+    public static EngineResult RunMcts(CombatState setup, int maxTurns, int trials, int seed, string? label = null)
     {
         var sw = Stopwatch.StartNew();
-        var mcts = new MctsSolver(new MctsOptions
-        {
-            Trials = trials,
-            MaxTurns = maxTurns,
-            Seed = seed,
-            UseHeuristicLeaf = heuristicLeaf,
-        });
+        var mcts = new MctsSolver(new MctsOptions { Trials = trials, MaxTurns = maxTurns, Seed = seed });
         var v = mcts.Solve(setup);
-        return new EngineResult(label ?? (heuristicLeaf ? "mcts-heur" : "mcts-roll"), v.Win, v.Loss, mcts.TrialsRun, sw.ElapsedMilliseconds);
+        return new EngineResult(label ?? "mcts", v.Win, v.Loss, mcts.TrialsRun, sw.ElapsedMilliseconds);
     }
 
     /// <summary>Run MCTS at a fixed trial budget across several seeds and summarise the spread. Each seed gets
@@ -72,7 +66,7 @@ public static class CalibrationHarness
     /// estimator's noise floor at <paramref name="trials"/> — used by the bridge instrument to size the
     /// advisor's survival band and to check the per-seed estimate is stable enough to rank decks.</summary>
     public static SeedStats RunMctsSeeds(
-        Func<CombatState> build, int maxTurns, int trials, bool heuristicLeaf,
+        Func<CombatState> build, int maxTurns, int trials,
         IReadOnlyList<int> seeds, string? label = null)
     {
         if (seeds.Count == 0) throw new ArgumentException("Need at least one seed.", nameof(seeds));
@@ -81,13 +75,13 @@ public static class CalibrationHarness
         long msSum = 0;
         for (int i = 0; i < seeds.Count; i++)
         {
-            var r = RunMcts(build(), maxTurns, trials, heuristicLeaf, seeds[i]);
+            var r = RunMcts(build(), maxTurns, trials, seeds[i]);
             surv[i] = r.Survival;
             loss[i] = r.Loss;
             msSum += r.Ms;
         }
         return new SeedStats(
-            Label: label ?? (heuristicLeaf ? "mcts-heur" : "mcts-roll"),
+            Label: label ?? "mcts",
             Seeds: seeds.Count,
             SurvMean: surv.Average(), SurvStd: Std(surv), SurvMin: surv.Min(), SurvMax: surv.Max(),
             LossMean: loss.Average(), LossStd: Std(loss),
@@ -104,20 +98,4 @@ public static class CalibrationHarness
         return Math.Sqrt(ss / (xs.Count - 1));
     }
 
-    /// <summary>MCTS value using the Phase-C learned value function as the leaf (<see cref="LearnedValue"/>).
-    /// Compared against the static-heuristic leaf (<see cref="RunMcts"/> with <c>heuristicLeaf:true</c>) — the
-    /// baseline it is meant to beat — and against the exact oracle.</summary>
-    public static EngineResult RunMctsLearned(CombatState setup, int maxTurns, int trials, int seed, string? label = null)
-    {
-        var sw = Stopwatch.StartNew();
-        var mcts = new MctsSolver(new MctsOptions
-        {
-            Trials = trials,
-            MaxTurns = maxTurns,
-            Seed = seed,
-            UseLearnedLeaf = true,
-        });
-        var v = mcts.Solve(setup);
-        return new EngineResult(label ?? "mcts-learn", v.Win, v.Loss, mcts.TrialsRun, sw.ElapsedMilliseconds);
-    }
 }

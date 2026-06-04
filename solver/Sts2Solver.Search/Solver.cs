@@ -41,8 +41,7 @@ public sealed class Solver
     public LossCertificate? LossProof { get; set; }
 
     /// <summary>Optional hook fired once per distinct decision state when its exact forward value is
-    /// finalised — used to harvest (state, value) training pairs for the learned value function
-    /// (see <see cref="VfTrainer"/>). Null in normal solving.</summary>
+    /// finalised — a generic way to harvest (state, value) pairs from an exact solve. Null in normal solving.</summary>
     public Action<CombatState, Value>? OnSolved { get; set; }
 
     private readonly Dictionary<(ulong, ulong), Value> _memo = new();
