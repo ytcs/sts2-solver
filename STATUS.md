@@ -1,15 +1,21 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-03. Recent: an OPTIMISTIC-gap sweep that closed EVERY over-crediting spot —
-**Void** −1-energy-on-draw (new per-card `OnDraw` hook on all draw paths), **Hex** (all player cards Ethereal →
-whole hand exhausts under Hex), **Dampen** (MagiKnight downgrades the player's upgraded cards), and **Reattach**
-(Decimillipede segment revival — a downed segment strips its non-Reattach powers, skips one enemy turn, then
-reattaches to 25; the board only clears when all segments are down together). Reattach took two cuts: the first
-revived one turn too early and the oracle trace rejected it; the decompile's DEAD_MOVE→REATTACH_MOVE machine gave
-the exact 2-turn delay, now trace-validated. Also MODELLED the previously-deferred draw-scaling:
-**DeathMarch** `(8+U)+(4+2U)×mid-turn-draws` (new gated `CardsDrawnMidTurn` counter threaded through all four
-draw paths) and **MachineLearning** +1 turn-start draw (`ModifyHandDraw`/`TurnStartDrawCount`). Earlier: a 37-card
-scaling/conditional audit; Sly/Innate/Retain keywords 1:1; HiddenDaggers promotion; Murder live-validation._
+_Last updated: 2026-06-03. Recent: a COMPREHENSIVE optimistic-gap sweep — every content + engine module diffed
+against the decompile (monsters, all 5 character card pools + powers, orbs, colorless/special/status/curses,
+multiplayer cards, scaling cards, inert markers, the damage/turn engine, and relics). Closed the over-crediting
+spots found: **Vulnerable** ticked at the player's turn end and expired before the enemy could attack (now ticks
+at the enemy turn end with a player-debuff SkipNextTick, mirroring the game) — and the same universal rule was
+extended to **Weak/Frail** (engine default was optimistic, masked only by Doubt/Shame's manual skip); **The Bomb**
+explosion was Strength/Vuln-scaled (game: Unpowered); **Sealed Throne** & **Oblivion** self-triggered on their own
+play (game fires BeforeCardPlayed → excludes the applying card); **Danse Macabre** gated on static not resolved
+cost; **FlakCannon** let the search pick the best target (game: RandomEnemy); **DyingStar (3★)** & **SevenStars
+(7★)** were missing their star-cost gate. **VoidForm now modelled 1:1** — the first-2-cards-cost-0 discount
+(per-turn counter) + end-turn-on-play (gate-hashed `PlayerTurnEndForced`, honoured in exact/MCTS/rollout) — which
+required making the affordability gate resolved-cost-aware (`CombatManager.ResolveCardCost`), incidentally fixing
+Free Attack / Corruption / Borrowed Time visibility in the search. **Reattach heal-to-25 oracle-confirmed** via a
+long Decimillipede trace, which also surfaced the **middle-segment auto-bury** (documented as a sound pessimistic
+gap — see `data/combat_traces_unresolved/`). 707 tests, 78 traces. Prior session: Void/Hex/Dampen/Reattach +
+DeathMarch/MachineLearning draw-scaling; a 37-card scaling audit; Sly/Innate/Retain 1:1._
 
 ## Goal
 
@@ -64,7 +70,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 698 passing, 0 skipped/failed. Traces: 78 recorded game traces, all PASS** — including **a live
+- **Tests: 707 passing, 0 skipped/failed. Traces: 78 recorded game traces, all PASS** — including **a live
   Necrobinder DeathMarch run (#77)** that oracle-confirms the new draw-scaling: 7 Parse draws feed 4 DeathMarch
   plays across turns 3–5 vs Byrdonis, matching the game's HP/Strength/Osty-DieForYou 85/85 (this validates both
   the `CardsDrawnMidTurn` scaling AND the `ReplayMode` mid-turn-draw reconstruction). Plus a live
