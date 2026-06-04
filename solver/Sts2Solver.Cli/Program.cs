@@ -233,7 +233,24 @@ if (args.Contains("--profile"))
     for (int i = 0; i < iters; i++) { _ = probe.Clone(); }
     swc.Stop();
     double nsPerClone = swc.Elapsed.TotalMilliseconds * 1_000_000.0 / iters;
-    Console.WriteLine($"  Clone microbench: {nsPerClone:F0} ns/clone ({size}-card deck state).\n");
+    Console.WriteLine($"  Clone microbench: {nsPerClone:F0} ns/clone ({size}-card deck state).");
+
+    // 1b) decimal-vs-double microbench of the damage-pipeline arithmetic (Strength add → Vulnerable ×1.5 →
+    //     Weak ×0.75 → floor). Bounds the CEILING of a decimal→double conversion: the per-Attack arithmetic
+    //     saving × Attack calls per solve. (Faithfulness aside: 0.7m/0.1m multipliers aren't binary-exact, so a
+    //     real conversion would need scaled-int — this only sizes the prize.)
+    const int aiters = 20_000_000;
+    decimal dsink = 0m; double fsink = 0;
+    for (int i = 0; i < 1_000_000; i++) { decimal a = 6 + (i & 7); a += 3m; a *= 1.5m; a *= 0.75m; dsink += Math.Floor(a); }   // warm
+    var swd = System.Diagnostics.Stopwatch.StartNew();
+    for (int i = 0; i < aiters; i++) { decimal a = 6 + (i & 7); a += 3m; a *= 1.5m; a *= 0.75m; dsink += Math.Floor(a); }
+    swd.Stop();
+    var swf = System.Diagnostics.Stopwatch.StartNew();
+    for (int i = 0; i < aiters; i++) { double a = 6 + (i & 7); a += 3; a *= 1.5; a *= 0.75; fsink += Math.Floor(a); }
+    swf.Stop();
+    double nsDec = swd.Elapsed.TotalMilliseconds * 1e6 / aiters, nsDbl = swf.Elapsed.TotalMilliseconds * 1e6 / aiters;
+    Console.WriteLine($"  Damage-arith microbench: decimal {nsDec:F1} ns/op vs double {nsDbl:F1} ns/op "
+        + $"(save ~{nsDec - nsDbl:F1} ns/Attack) [sink {dsink + (decimal)fsink:F0}]\n");
 
     // 2) Cost attribution at a fixed (small) trial count, all on the faithful greedy-rollout leaf (the only
     //    leaf). Vary the APW prior on/off and the chance-enumeration threshold to attribute time:

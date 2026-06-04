@@ -242,6 +242,14 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 
 ### Recently completed (this session — paused here)
 
+- **Explored the next speedup beyond ~30× — parked (no clean win).** `--profile` shows the rollout playout is the
+  dominant cost; three probes, all negative: (A) `decimal`→`double` damage pipeline — ~2–5% ceiling (arithmetic
+  is a tiny slice; `decimal` is 29× slower/op but rarely hit) AND faithfulness-blocked (`0.7m`/`0.1m` aren't
+  binary-exact); (B) rollout candidate-pruning — ~20% faster but −19%+ survival error on large fights (blinds the
+  greedy policy); (C) distilled cheap leaf — this is exactly the just-removed `LearnedValue` (a simple model
+  reads 82%/38 vs the rollout's 100%/19.5 on big decks; matching it needs a much stronger model + carries
+  systematic-bias risk). Kept a decimal-vs-double microbench in `--profile`; reverted B's knob. Decision:
+  **stop at ~19s** (the ~30× already unblocks the advice features).
 - **Removed the cheap-leaf family** (static-heuristic leaf `CombatHeuristic.Evaluate` + Phase-C `LearnedValue`
   + `VfTrainer` + `--train-vf` + the `mcts-heur`/`mcts-learn` plumbing): the profile showed the static leaf read
   82%/38 vs the faithful rollout's 100%/19.5 (~18 HP off) on a big deck, and neither cheap leaf was in the
@@ -307,11 +315,11 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 1. **Accuracy — model a run's ACTUAL relics** (narrowly): the diagnosed pessimism cause. ranwid counts only
    Burning Blood, so a relic-leaning deck reads weaker than it plays. Model the combat-start relics a run holds
    (revisiting the relic descope for combat-start relics ONLY — not the 300-relic catalog).
-2. **Perf lever (deeper — the durable 2nd speedup):** advice parallelism caps ~4× (GC/memory-bandwidth bound),
-   so the next big multiple needs CUTTING PER-SOLVE ALLOCATION — a clone-free rollout / APW prior (score a play
-   without cloning the state) or make/undo instead of `CombatState.Clone`. ≤3–4 HP accuracy budget vs `--bridge`.
-3. **VF / advisor quality:** VF distillation + survival recalibration (Platt/isotonic) + deck-composition features.
-4. **Small leftover (low value):** a PreciseCut (hand-size) single-enemy live run.
+2. **Perf (parked — explored, no clean win):** advice is ~19s (~30× this session). The next multiple was probed
+   three ways (decimal pipeline / rollout pruning / distilled leaf) — all negative or high-risk (see Recently
+   completed). Only revisit with a real ML effort (a strong distilled leaf, GBM/NN, validated to track the
+   rollout) or a native engine rewrite — both large. Not worth it unless advice latency becomes a hard blocker.
+3. **Small leftover (low value):** a PreciseCut (hand-size) single-enemy live run.
 
 ---
 
