@@ -454,9 +454,24 @@ public class RegentCardTests
     public void SevenStars_Hits_All_Seven_Times()
     {
         var (c, p, a, b) = Fight2(hp: 100);
+        p.Stars = 7;                       // SevenStars is gated behind 7★
         Play(c, new SevenStars(), null);
         Assert.Equal(100 - 49, a.CurrentHp);
         Assert.Equal(100 - 49, b.CurrentHp);
+        Assert.Equal(0, p.Stars);          // all 7 spent
+    }
+
+    [Fact]
+    public void DyingStar_And_SevenStars_Are_Gated_Behind_Their_Star_Cost()
+    {
+        Assert.Equal(3, new DyingStar().StarCost);
+        Assert.Equal(7, new SevenStars().StarCost);
+        var (c, p, _) = Fight();                          // 0 stars: the search must NOT offer these (CanAffordStars gate)
+        Assert.False(p.CanAffordStars(new DyingStar()));
+        Assert.False(p.CanAffordStars(new SevenStars()));
+        p.Stars = 7;
+        Assert.True(p.CanAffordStars(new DyingStar()));
+        Assert.True(p.CanAffordStars(new SevenStars()));
     }
 
     [Fact]

@@ -1314,7 +1314,10 @@ public sealed class FlakCannon : CardModel
     public override int BaseCost => 2;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
-    public override TargetType Target => TargetType.AnyEnemy;
+    // Game: TargetType.RandomEnemy, each hit TargetingRandomOpponents. Modelled (like RipAndTear/Ricochet) as
+    // the first living enemy per hit — NOT AnyEnemy, which would let the search pick the best target to
+    // concentrate the multi-hit burst (an over-credit in multi-enemy fights). Identical for single-enemy.
+    public override TargetType Target => TargetType.RandomEnemy;
     public int Damage => 8 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
@@ -1322,7 +1325,12 @@ public sealed class FlakCannon : CardModel
         var statuses = p.Hand.Concat(p.DrawPile).Concat(p.DiscardPile).Where(c => c.Type == CardType.Status).ToList();
         int hits = statuses.Count;
         foreach (var s in statuses) DefectFx.ExhaustCard(combat, s);
-        if (hits > 0) Cmd.AttackMulti(combat, combat.Player, play.Target!, Damage, hits, ValueProp.Move, this);
+        for (int i = 0; i < hits; i++)
+        {
+            var target = combat.LivingMonsters.FirstOrDefault();   // re-evaluated per hit: overkill spills to the next enemy
+            if (target == null) break;
+            Cmd.Attack(combat, combat.Player, target, Damage, ValueProp.Move, this);
+        }
     }
 }
 

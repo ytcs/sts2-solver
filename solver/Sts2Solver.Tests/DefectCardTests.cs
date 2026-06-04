@@ -1067,4 +1067,17 @@ public class DefectCardTests
         var ml = (MachineLearning)new MachineLearning().Upgraded();
         Assert.True(ml.Innate);
     }
+
+    [Fact]
+    public void FlakCannon_Is_RandomEnemy_And_Concentrates_On_The_First_Enemy()
+    {
+        var fc = new FlakCannon();
+        Assert.Equal(TargetType.RandomEnemy, fc.Target);   // game: RandomEnemy, not AnyEnemy
+        Assert.False(fc.NeedsTarget);                      // so the search cannot pick the best target
+        var (c, p, a, b) = Fight2(hp: 60);
+        p.Hand.Add(new Dazed()); p.Hand.Add(new Dazed());  // 2 Status cards => 2 hits of 8
+        Play(c, fc, null);
+        Assert.Equal(60 - 16, a.CurrentHp);                // both hits land on the first living enemy
+        Assert.Equal(60, b.CurrentHp);                     // the other enemy is untouched (no best-target choice)
+    }
 }

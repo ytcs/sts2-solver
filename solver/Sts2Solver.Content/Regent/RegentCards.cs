@@ -265,6 +265,7 @@ public sealed class DyingStar : CardModel
 {
     public override string Name => "DyingStar";
     public override int BaseCost => 1;
+    public override int StarCost => 3;   // game: CanonicalStarCost 3 — gates the 9-AoE + 9-Strength-strip
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AllEnemies;
@@ -491,6 +492,7 @@ public sealed class SevenStars : CardModel
     public override string Name => "SevenStars";
     public override int BaseCost => 2;
     public override int Cost => Math.Max(0, BaseCost - Upgrades);
+    public override int StarCost => 7;   // game: CanonicalStarCost 7 — gates the 7x7-to-all AoE
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AllEnemies;
