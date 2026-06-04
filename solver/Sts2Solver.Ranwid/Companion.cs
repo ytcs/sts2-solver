@@ -44,9 +44,10 @@ public sealed class Companion
         catch (Exception ex) { if (!quiet) Console.Error.WriteLine($"ranwid: could not parse '{path}': {ex.Message}"); return null; }
 
         var warnings = new List<string>();
-        if (!GameIds.IsIroncladCharacter(run.Character))
+        if (!GameIds.IsSupportedCharacter(run.Character))
         {
-            if (!quiet) Console.WriteLine($"ranwid: only Ironclad is supported for now (run is {GameIds.CharacterName(run.Character)}).");
+            if (!quiet) Console.WriteLine($"ranwid: unsupported character {GameIds.CharacterName(run.Character)} "
+                + "(supported: Ironclad, Silent, Regent, Necrobinder, Defect).");
             return null;
         }
 
@@ -64,7 +65,7 @@ public sealed class Companion
         {
             var name = GameIds.ModelledRelicName(rid);
             if (name != null) relicNames.Add(name);
-            else warnings.Add($"relic {GameIds.ClassName(rid)} ignored (only Burning Blood is modelled)");
+            else warnings.Add($"relic {GameIds.ClassName(rid)} ignored (not modelled)");
         }
 
         var encounters = new List<Advisor.Encounter>();
@@ -110,7 +111,7 @@ public sealed class Companion
 
     /// <summary>Resolve reward tokens (auto-correct), then compute take-vs-skip advice — or null if no card
     /// resolves / there are no elites. Shared by the one-shot path and the live "check a reward" command.</summary>
-    public static (Advisor.DeckScore skip, List<Advisor.PickItem> ranked)? PickFromTokens(
+    public static (double skip, List<Advisor.PickItem> ranked)? PickFromTokens(
         Context c, IEnumerable<string> tokens, EvalOptions opts)
     {
         if (c.Encounters.Count == 0) return null;
@@ -122,7 +123,7 @@ public sealed class Companion
         }
         if (cards.Count == 0) return null;
         return Advisor.PickAdvice(c.DeckSpecs, cards, c.Encounters,
-            c.Run.PlayerHp, c.Run.PlayerMaxHp, c.Run.MaxEnergy, c.RelicNames, opts);
+            c.Run.MaxEnergy, c.RelicNames, opts);
     }
 
     // ── Live loop (Spectre dashboard) ─────────────────────────────────────────────
@@ -169,7 +170,7 @@ public sealed class Companion
             {
                 case ConsoleKey.R: ShowRemovals(ctx); RenderCurrent(ctx); break;
                 case ConsoleKey.C: ShowRewardCheck(ctx); RenderCurrent(ctx); break;
-                case ConsoleKey.D or ConsoleKey.F5: ReEvaluate(ctx); break;
+                case ConsoleKey.D or ConsoleKey.F5: ReEvaluate(ctx, force: true); break;
             }
         }
         return 0;
@@ -187,23 +188,42 @@ public sealed class Companion
         var ctx = Load(path, _netId, quiet: true);
         if (ctx == null)
         {
-            Spectre.Console.AnsiConsole.MarkupLine("[grey]ranwid: waiting for a readable Ironclad run… (start or load one)[/]");
-            _elites = new();
+            Spectre.Console.AnsiConsole.MarkupLine("[grey]ranwid: waiting for a readable run… (start or load one)[/]");
+            _elites = new(); _eliteKey = _strengthKey = null;
             return null;
         }
         ReEvaluate(ctx);
         return ctx;
     }
 
-    /// <summary>Re-evaluate the elites for the current deck and repaint (used on load, on save-change, and on
-    /// the [d] refresh key).</summary>
-    private void ReEvaluate(Context ctx)
+    private string? _eliteKey, _strengthKey;
+
+    /// <summary>Recompute only what's gone stale, and repaint only if something changed — so a save write that
+    /// doesn't affect the numbers (gold, map move, an HP tick) doesn't burn a full ~6-eval refresh. The per-elite
+    /// rows depend on deck + relics + CURRENT HP + energy + ascension + the elite set; the deck-strength index is
+    /// HP-INDEPENDENT (fixed 100 HP), so an HP-only change recomputes the rows but reuses the cached strength.
+    /// <paramref name="force"/> = the manual [d] refresh (recompute regardless).</summary>
+    private void ReEvaluate(Context ctx, bool force = false)
     {
+        string deckKey = string.Join(",", ctx.DeckSpecs.OrderBy(s => s, StringComparer.Ordinal))
+            + "|R" + string.Join(",", ctx.RelicNames.OrderBy(s => s, StringComparer.Ordinal))
+            + "|E" + ctx.Run.MaxEnergy + "|A" + ctx.Run.Ascension
+            + "|" + string.Join(",", ctx.EliteInfo.Select(i => i.name));
+        string eliteKey = deckKey + "|HP" + ctx.Run.PlayerHp + "/" + ctx.Run.PlayerMaxHp;
+
+        bool elitesStale = force || eliteKey != _eliteKey;
+        bool strengthStale = force || deckKey != _strengthKey;
+        if (!elitesStale && !strengthStale) return;   // nothing the eval depends on changed → no recompute, no repaint
+
         Dashboard.Render(ctx, _elites, _strength, evaluating: true);
         Spectre.Console.AnsiConsole.Status().Start("evaluating…", _ =>
         {
-            _elites = EvaluateElites(ctx, _opts);
-            _strength = Advisor.DeckStrength(ctx.DeckSpecs, ctx.Encounters, ctx.Run.MaxEnergy, ctx.RelicNames, _opts);
+            if (elitesStale) { _elites = EvaluateElites(ctx, _opts); _eliteKey = eliteKey; }
+            if (strengthStale)
+            {
+                _strength = Advisor.DeckStrength(ctx.DeckSpecs, ctx.Encounters, ctx.Run.MaxEnergy, ctx.RelicNames, _opts);
+                _strengthKey = deckKey;
+            }
         });
         RenderCurrent(ctx);
     }
@@ -220,10 +240,10 @@ public sealed class Companion
         }
         else
         {
-            (Advisor.DeckScore, List<Advisor.AdviceItem>) advice = default;
+            (double, List<Advisor.AdviceItem>) advice = default;
             Spectre.Console.AnsiConsole.Status().Start("finding the best cards to remove…",
-                _ => advice = Advisor.RemovalAdvice(ctx.DeckSpecs, ctx.Encounters, ctx.Run.PlayerHp,
-                    ctx.Run.PlayerMaxHp, ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
+                _ => advice = Advisor.RemovalAdvice(ctx.DeckSpecs, ctx.Encounters,
+                    ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
             Dashboard.RenderRemovals(advice);
         }
         WaitForKey();
@@ -247,10 +267,10 @@ public sealed class Companion
         }
         if (cards.Count == 0) { WaitForKey(); return; }
 
-        (Advisor.DeckScore, List<Advisor.PickItem>) advice = default;
+        (double, List<Advisor.PickItem>) advice = default;
         Spectre.Console.AnsiConsole.Status().Start("checking the reward…",
-            _ => advice = Advisor.PickAdvice(ctx.DeckSpecs, cards, ctx.Encounters, ctx.Run.PlayerHp,
-                ctx.Run.PlayerMaxHp, ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
+            _ => advice = Advisor.PickAdvice(ctx.DeckSpecs, cards, ctx.Encounters,
+                ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
         Dashboard.RenderPick(advice);
         WaitForKey();
     }

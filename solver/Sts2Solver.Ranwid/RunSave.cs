@@ -89,7 +89,7 @@ public static class RunSaveReader
 
         PlayerDto player =
             (preferNetId is int nid ? players.FirstOrDefault(p => p.NetId == nid) : null)
-            ?? players.FirstOrDefault(p => GameIds.IsIroncladCharacter(p.CharacterId))
+            ?? players.FirstOrDefault(p => GameIds.IsSupportedCharacter(p.CharacterId))
             ?? players[0];
 
         int actIdx = Math.Clamp(dto.CurrentActIndex, 0, (dto.Acts?.Count ?? 1) - 1);

@@ -114,6 +114,10 @@ public static partial class Catalog
         RelicFactories.TryGetValue(name, out var f) ? f()
             : throw new ArgumentException($"Unknown relic '{name}'.");
 
+    /// <summary>True if <paramref name="name"/> is a relic the engine models (i.e. <see cref="BuildRelic"/>
+    /// can build it). Used by the advisor to map a run's relics to modelled ones and ignore the rest.</summary>
+    public static bool IsModelledRelic(string name) => RelicFactories.ContainsKey(name);
+
     /// <summary>Build a monster scaled to <paramref name="ascension"/> (HP via ToughEnemies, damage via
     /// DeadlyEnemies). Defaults to A10 — the solver targets max-ascension play; the trace validator passes
     /// each trace's recorded ascension so A0 traces stay A0.</summary>

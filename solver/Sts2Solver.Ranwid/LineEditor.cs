@@ -70,6 +70,9 @@ public static class LineEditor
 
     private static void Redraw(string prompt, System.Text.StringBuilder buf)
     {
+        // Clear the current line first (CR to column 0 + erase-whole-line) so the rewritten prompt+input
+        // replaces what's there instead of being appended to it (which produced "cards> Xcards> XY…" garble).
+        Console.Write("\r\u001b[2K");
         Console.Write(prompt);
         Console.Write(buf.ToString());
     }

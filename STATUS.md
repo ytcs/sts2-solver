@@ -112,11 +112,12 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
 - `EncounterEvaluator` (auto exact-or-MCTS, with a deck-size tractability gate) + `PolicyRollout` (HP-loss
   distribution). `CombatHeuristic`: survival-first λ-interpolated rollout policy (the MCTS rollout leaf + the
   distribution sampler share this one definition of "reasonable play").
-- `ranwid`: live **Spectre.Console dashboard** — always shows the current deck + per-elite survival/HP-loss,
+- `ranwid`: live **Spectre.Console dashboard** for a run of **any of the 5 characters** (not just Ironclad) —
+  headlines the **deck-strength index** (0–100), always shows the current deck + per-elite survival/HP-loss,
   auto-refreshes on save change (FileSystemWatcher + poll fallback). Removal advice is off by default (slow) and
-  on the `[r]` key; `[c]` checks a reward card (auto-correct entry). No engine/algorithm text in the UI; a
-  prominent "Ignored" panel surfaces unmodelled relics / unported cards so a number is never silently a
-  relic-less lower bound. `ranwid --preview` shows the layout with sample data. Validated on a real save.
+  on the `[r]` key; `[c]` checks a reward card (auto-correct entry). **Removal + reward advice both rank by deck
+  strength** (consistent with the headline). No engine/algorithm text in the UI; a prominent "Ignored" panel
+  surfaces unmodelled relics / unported cards. `ranwid --preview` shows the layout with sample data.
 
 ---
 
@@ -242,6 +243,20 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 
 ### Recently completed (this session — paused here)
 
+- **`ranwid` now supports all 5 characters** (was Ironclad-only — an artificial gate; the engine ports all
+  88/88×5). Removed the gate (`GameIds.IsSupportedCharacter`), made relic mapping generic
+  (`Catalog.IsModelledRelic` — picks up each character's combat-start starter relic that wires up Stars / Osty /
+  orbs), card parsing was already generic. `RanwidMultiCharacterTests` (19) gate the mappings + an end-to-end
+  solve per character.
+- **Removal + reward advice now rank by the deck-strength index** (was bottleneck-survival + total-loss at
+  current HP) — consistent with the dashboard headline, and HP-independent so advice is stable across a run.
+  Removed the now-dead `DeckScore`/`SurvivalBand`/`ScoreDeck`. Advice still uses the 800-trial ranking budget +
+  the parallel candidate grid.
+- **Fixed the tab-complete UI bug**: `LineEditor.Redraw` now clears the line (CR + erase) before rewriting, so
+  completions no longer garble into `cards> Xcards> XY…`.
+- **Dashboard refresh is now input-cached**: a save write that doesn't change the numbers (gold / map move /
+  an HP tick) no longer burns a ~6-eval refresh. The per-elite rows recompute only on deck/relic/HP/energy/asc
+  change; the HP-independent deck strength recomputes only on deck/relic/energy change. `[d]` forces a refresh.
 - **Explored the next speedup beyond ~30× — parked (no clean win).** `--profile` shows the rollout playout is the
   dominant cost; three probes, all negative: (A) `decimal`→`double` damage pipeline — ~2–5% ceiling (arithmetic
   is a tiny slice; `decimal` is 29× slower/op but rarely hit) AND faithfulness-blocked (`0.7m`/`0.1m` aren't

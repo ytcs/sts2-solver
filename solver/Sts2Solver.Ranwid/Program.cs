@@ -52,24 +52,22 @@ if (args.Contains("--advice-bench"))
 
     Console.WriteLine($"advice-bench: {deck.Count}-card deck ({distinct} distinct) vs {elites.Count} Act-1 elites "
         + $"⇒ {(1 + distinct) * elites.Count} evals @ {Advisor.AdviceTrials} trials, {Environment.ProcessorCount} cores.");
-    // One ScoreDeck (sequential over #elites) → per-eval baseline at the production ranking budget.
+    // One deck-strength eval (sequential over #elites via the parallel public entry) → per-eval baseline.
     var sw1 = System.Diagnostics.Stopwatch.StartNew();
-    var baseScore = Advisor.ScoreDeck(deck, elites, 70, 80, 3, new[] { "BurningBlood" }, rankOpts);
+    double baseStrength = Advisor.DeckStrength(deck, elites, 3, new[] { "BurningBlood" }, rankOpts);
     sw1.Stop();
     double perEvalMs = sw1.ElapsedMilliseconds / (double)elites.Count;
 
     var sw2 = System.Diagnostics.Stopwatch.StartNew();
-    var (baseline, items) = Advisor.RemovalAdvice(deck, elites, 70, 80, 3, new[] { "BurningBlood" }, opts);
+    var (baseline, items) = Advisor.RemovalAdvice(deck, elites, 3, new[] { "BurningBlood" }, opts);
     sw2.Stop();
 
     double seqEstMs = (1 + distinct) * elites.Count * perEvalMs;
     Console.WriteLine($"  per-eval        : {perEvalMs:F0} ms");
     Console.WriteLine($"  removal advice  : {sw2.ElapsedMilliseconds / 1000.0:F1} s (parallel)");
     Console.WriteLine($"  implied serial  : {seqEstMs / 1000.0:F1} s  ⇒ ~{seqEstMs / Math.Max(1, sw2.ElapsedMilliseconds):F1}x speedup");
-    Console.WriteLine($"  bottleneck survival {baseline.MinSurvival:P0}; top cut: "
-        + (items.FirstOrDefault(i => i.IsImprovement) is { } it ? it.Card : "(none improves)"));
-    var strength = Advisor.DeckStrength(deck, elites, 3, new[] { "BurningBlood" }, opts);
-    Console.WriteLine($"  deck strength   : {strength:F0}/100 (from 100 HP)");
+    Console.WriteLine($"  deck strength   : {baseline:F0}/100; top cut: "
+        + (items.FirstOrDefault(i => i.IsImprovement) is { } it ? $"{it.Card} (→{it.Strength:F0})" : "(none improves)"));
     return 0;
 }
 

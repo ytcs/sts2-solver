@@ -134,19 +134,18 @@ public static class Dashboard
 
     // ── Removal / reward command screens (also free of engine detail) ──────────────────────────
 
-    public static void RenderRemovals((Advisor.DeckScore baseline, List<Advisor.AdviceItem> items) advice)
+    public static void RenderRemovals((double baseline, List<Advisor.AdviceItem> items) advice)
     {
         var (baseline, items) = advice;
         var table = new Table { Border = TableBorder.SimpleHeavy, Expand = true };
         table.AddColumn("[grey]Remove[/]");
-        table.AddColumn(new TableColumn("[grey]Worst-elite survive[/]").Centered());
-        table.AddColumn(new TableColumn("[grey]Total HP loss[/]").Centered());
+        table.AddColumn(new TableColumn("[grey]Deck strength[/]").Centered());
+        table.AddColumn(new TableColumn("[grey]Δ[/]").Centered());
 
-        table.AddRow(new Markup("[bold]keep as-is[/]"), new Markup(SurviveMarkup(baseline.MinSurvival)),
-            new Markup($"{baseline.TotalMeanLoss:F0}"));
+        table.AddRow(new Markup("[bold]keep as-is[/]"), new Markup(StrengthMarkup(baseline)), new Markup("[grey]—[/]"));
         foreach (var i in items.Where(i => i.IsImprovement).Take(8))
-            table.AddRow(new Markup($"[green]{Esc(i.Card)}[/]"), new Markup(SurviveMarkup(i.After.MinSurvival)),
-                new Markup($"{i.After.TotalMeanLoss:F0}"));
+            table.AddRow(new Markup($"[green]{Esc(i.Card)}[/]"), new Markup(StrengthMarkup(i.Strength)),
+                new Markup($"[green]+{i.Delta:F0}[/]"));
 
         AnsiConsole.Write(new Panel(table)
         {
@@ -154,25 +153,31 @@ public static class Dashboard
             Border = BoxBorder.Rounded, Expand = true,
         });
         if (!items.Any(i => i.IsImprovement))
-            AnsiConsole.Write(new Markup("  [grey]no single removal improves the deck against these elites.[/]\n"));
+            AnsiConsole.Write(new Markup("  [grey]no single removal raises the deck's strength against these elites.[/]\n"));
     }
 
-    public static void RenderPick((Advisor.DeckScore skip, List<Advisor.PickItem> ranked) advice)
+    public static void RenderPick((double skip, List<Advisor.PickItem> ranked) advice)
     {
         var (_, ranked) = advice;
         var table = new Table { Border = TableBorder.SimpleHeavy, Expand = true };
         table.AddColumn("[grey]Option[/]");
-        table.AddColumn(new TableColumn("[grey]Worst-elite survive[/]").Centered());
-        table.AddColumn(new TableColumn("[grey]Total HP loss[/]").Centered());
+        table.AddColumn(new TableColumn("[grey]Deck strength[/]").Centered());
         for (int i = 0; i < ranked.Count; i++)
         {
             var p = ranked[i];
             string label = p.IsSkip ? "skip (keep deck)" : p.Card;
             string deco = i == 0 ? $"[bold green]{Esc(label)}  ◀ pick[/]" : Esc(label);
-            table.AddRow(new Markup(deco), new Markup(SurviveMarkup(p.Score.MinSurvival)),
-                new Markup($"{p.Score.TotalMeanLoss:F0}"));
+            table.AddRow(new Markup(deco), new Markup(StrengthMarkup(p.Strength)));
         }
         AnsiConsole.Write(new Panel(table) { Header = new PanelHeader(" Reward "), Border = BoxBorder.Rounded, Expand = true });
+    }
+
+    private static string StrengthMarkup(double s)
+    {
+        if (double.IsNaN(s)) return "[grey]—[/]";
+        int v = (int)Math.Round(s);
+        string color = v >= 75 ? "green" : v >= 50 ? "yellow" : v >= 25 ? "darkorange" : "red";
+        return $"[{color}]{v}[/][grey]/100[/]";
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────────────────────

@@ -35,13 +35,25 @@ public static class GameIds
     /// (e.g. <c>ENCOUNTER.SKULKING_COLONY_ELITE</c> → <c>SkulkingColonyElite</c>).</summary>
     public static string EncounterClassName(string encounterId) => ClassName(encounterId);
 
-    public static bool IsIroncladCharacter(string characterId) =>
-        string.Equals(characterId, "CHARACTER.IRONCLAD", StringComparison.OrdinalIgnoreCase);
+    /// <summary>The five characters the solver fully models (88/88 cards each). The advisor supports a run of
+    /// any of them; the starter relic that wires up each one's mechanics (Stars / Osty / orbs) is recognised by
+    /// <see cref="ModelledRelicName"/>.</summary>
+    public static bool IsSupportedCharacter(string characterId)
+    {
+        var c = characterId.ToLowerInvariant();
+        return c.Contains("ironclad") || c.Contains("silent") || c.Contains("regent")
+            || c.Contains("necrobinder") || c.Contains("defect");
+    }
 
     public static string CharacterName(string characterId) => ClassName(characterId);
 
-    /// <summary>The solver relic name if the relic is modelled, else <c>null</c>. Per project scope only
-    /// the Ironclad starter relic (Burning Blood) is modelled; everything else is ignored.</summary>
-    public static string? ModelledRelicName(string relicId) =>
-        string.Equals(relicId, "RELIC.BURNING_BLOOD", StringComparison.OrdinalIgnoreCase) ? "BurningBlood" : null;
+    /// <summary>The solver relic name if the relic is modelled (currently the five characters' combat-start
+    /// starter relics — Burning Blood / Divine Right / Bound Phylactery / Cracked Core; the Silent's Ring of the
+    /// Snake has no modelled effect and maps to null), else <c>null</c> (ignored). Generic: any relic the engine
+    /// gains a model for is picked up automatically.</summary>
+    public static string? ModelledRelicName(string relicId)
+    {
+        var name = ClassName(relicId);
+        return Sts2Solver.Content.Catalog.IsModelledRelic(name) ? name : null;
+    }
 }
