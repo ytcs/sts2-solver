@@ -199,7 +199,15 @@ if (args.Contains("--calibrate"))
     double exactBudget = ArgInt("--exact-budget", 90);
     string? onlyArch = args.SkipWhile(a => a != "--archetype").Skip(1).FirstOrDefault();
 
-    var fixtures = CalibrationFixtures.All
+    // Fixture source: default = the six tuned archetypes; --elites appends the single-monster elite sweep;
+    // --random N draws N deterministic random decks from the safe pool (--seed S, default 12345).
+    int randomN = ArgInt("--random", 0);
+    int seed = ArgInt("--seed", 12345);
+    IEnumerable<CalibrationFixtures.Fixture> source =
+        randomN > 0 ? CalibrationFixtures.RandomDecks(randomN, seed)
+        : args.Contains("--elites") ? CalibrationFixtures.All.Concat(CalibrationFixtures.EliteSweep)
+        : CalibrationFixtures.All;
+    var fixtures = source
         .Where(f => onlyArch == null || f.Archetype == onlyArch).ToList();
 
     Console.WriteLine($"Calibration — exact (ground truth) vs heuristic-guided MCTS, {trials:N0} trials, "

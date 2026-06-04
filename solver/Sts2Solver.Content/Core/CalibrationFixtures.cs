@@ -88,4 +88,108 @@ public static class CalibrationFixtures
             () => Monsters.BygoneEffigy(hp: 70),
             "DemonForm", "4xStrikeIronclad", "1xDefendIronclad"),
     };
+
+    // -----------------------------------------------------------------------
+    // Elite-monster sweep: NEW ground-truth labels spanning the SINGLE-monster
+    // Act-1 elites the base suite doesn't reach, each with a distinct AI shape
+    // (stun / life-drain / windup-burst). HP is cut well below the real elite so
+    // the exact oracle still solves in seconds — the point is monster-mechanic
+    // diversity for the heuristic, not the real HP race. Every fixture here is
+    // exact-tractable (so the convergence test can gate them).
+    //
+    // NOT included: PhrogParasite (its INFECT poison counter is hashed, so any
+    // fight long enough to be non-trivial explodes the exact tree past minutes —
+    // it has no ground-truth label and is dropped). The MULTI-monster elites
+    // (Knights, Decimillipede, SkulkingColony, InfestedPrisms, Entomancer,
+    // Gardeners) are likewise exact-intractable and are covered by recorded
+    // TRACES instead, not calibration. Surfaced via `--calibrate --elites`.
+    // -----------------------------------------------------------------------
+    public static IReadOnlyList<Fixture> EliteSweep { get; } = new[]
+    {
+        // TerrorEel — CRASH/THRASH with a self-stun window; tests timing around a telegraphed big hit.
+        Make("elite/TerrorEel", "elite", hp: 48, energy: 3, maxTurns: 10,
+            () => Monsters.TerrorEel(hp: 34),
+            "Bash", "6xStrikeIronclad", "2xDefendIronclad"),
+
+        // SoulNexus — DRAIN_LIFE heals it, so the policy must out-damage the heal (no stalling). The one
+        // already-comfortable exact solve; kept at a meatier HP for a non-trivial label (~92% survival).
+        Make("elite/SoulNexus", "elite", hp: 50, energy: 3, maxTurns: 13,
+            () => Monsters.SoulNexus(hp: 48),
+            "Bash", "6xStrikeIronclad", "2xDefendIronclad"),
+
+        // MechaKnight — WINDUP then a heavy FLAMETHROWER; the block-discipline elite. The rollout leaf badly
+        // mismodelled this (read ~1% survival at higher HP) — a short exact-solvable race adjudicates it.
+        Make("elite/MechaKnight", "elite", hp: 46, energy: 3, maxTurns: 8,
+            () => Monsters.MechaKnight(hp: 28),
+            "Bash", "7xStrikeIronclad", "1xDefendIronclad"),
+    };
+
+    // -----------------------------------------------------------------------
+    // Random-deck generator: the strongest anti-overfit lever. The heuristic
+    // was hand-tuned on the six archetype fixtures above, so a deck drawn at
+    // random from the curated "calibration-safe" pool is one it has never seen.
+    // Deterministic in `seed` (same seed ⇒ same fixtures) so a test over these
+    // is reproducible.
+    //
+    // TRACTABILITY is the binding constraint: exact expectimax must still solve
+    // each fight in seconds to give a ground-truth label. The pool is therefore
+    // restricted to cards with NO chance node and NO fight-prolonging state —
+    // i.e. NO draw (each draw is a hypergeometric chance node that compounds),
+    // NO deck-growth (Anger), NO energy ramp (Bloodletting), NO multi-turn power
+    // (Demon Form). Combined with low monster HP + a short horizon, a random
+    // draw from this pool resolves in ~2–4 turns ⇒ a small, exact-solvable tree.
+    // (An earlier draft with draw/power cards at 55 HP / 12 turns blew the exact
+    // budget on every deck — the calibration is worthless without a ground-truth
+    // label, so the pool buys tractability at the cost of some card variety.)
+    // -----------------------------------------------------------------------
+    private static readonly string[] SafeAttacks =
+        { "StrikeIronclad", "Bash", "Uppercut", "IronWave", "TwinStrike", "Thunderclap",
+          "Headbutt", "PerfectedStrike", "BodySlam", "Hemokinesis", "SwordBoomerang" };
+    private static readonly string[] SafeSkills = { "DefendIronclad", "FlameBarrier" };
+
+    // CorpseSlug is deliberately ABSENT: its Frail + Strength ramp drags fights out enough that exact blows
+    // past tens of seconds even at low HP (it has a tuned home in the aggro/Draw-vs-CorpseSlug base fixture).
+    // The four kept here all solve exactly in ≤11s across the generator's HP range ⇒ reliably gradable.
+    private static readonly (string Name, Func<int, Monster> Make)[] SafeMonsters =
+    {
+        ("CalcifiedCultist", hp => Monsters.CalcifiedCultist(hp)),
+        ("DampCultist",      hp => Monsters.DampCultist(hp)),
+        ("Byrdonis",         hp => Monsters.Byrdonis(hp)),
+        ("BygoneEffigy",     hp => Monsters.BygoneEffigy(hp)),
+    };
+
+    /// <summary>Generate <paramref name="count"/> deterministic (seeded) random calibration fixtures. Each is a
+    /// small deck — guaranteed ≥5 attacks + ≥1 block so it's neither unwinnable nor degenerate — drawn from the
+    /// chance-node-free <see cref="SafeAttacks"/>/<see cref="SafeSkills"/> pool, paired with a random low-HP safe
+    /// monster on a short horizon so the exact oracle still labels it. Same <paramref name="seed"/> ⇒ identical
+    /// fixtures, so a convergence test over these is reproducible. Used by `--calibrate --random N --seed S` and
+    /// the random-deck convergence test.</summary>
+    public static IReadOnlyList<Fixture> RandomDecks(int count, int seed)
+    {
+        var rng = new Random(seed);
+        var list = new List<Fixture>(count);
+        for (int i = 0; i < count; i++)
+        {
+            var specs = new List<string>();
+            int nAttacks = 5 + rng.Next(0, 2);   // 5–6
+            int nSkills  = 1 + rng.Next(0, 2);   // 1–2
+            for (int a = 0; a < nAttacks; a++) specs.Add(SafeAttacks[rng.Next(SafeAttacks.Length)]);
+            for (int s = 0; s < nSkills;  s++) specs.Add(SafeSkills[rng.Next(SafeSkills.Length)]);
+            var deck = specs.ToArray();   // captured by value in the closure below
+
+            // Round-robin the monster (offset by seed) so a batch of N≥5 covers all five — random selection
+            // clumps for many seeds (one seed put 7/10 on DampCultist), which would starve monster diversity.
+            var (mname, make) = SafeMonsters[(i + seed % SafeMonsters.Length) % SafeMonsters.Length];
+            int mhpCapt = 24 + rng.Next(0, 9);    // 24–32 (short race ⇒ exact solves in seconds)
+            int phpCapt = 40 + rng.Next(0, 11);   // 40–50
+            var monster = make;                    // capture
+
+            list.Add(new Fixture($"rand{i:00}/{mname}", "random",
+                () => Catalog.SetupCombat(
+                    Catalog.BuildPlayer(Deck(deck), phpCapt, phpCapt, 3, new[] { "BurningBlood" }),
+                    new[] { monster(mhpCapt) }),
+                9));
+        }
+        return list;
+    }
 }

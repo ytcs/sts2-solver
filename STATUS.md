@@ -27,7 +27,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in Phase-C `LearnedValue` MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 707 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Tests: 716 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -236,8 +236,18 @@ gaps**, so what follows is feature/quality expansion, all behind the standing co
      expected; low value. Hand-size (PreciseCut) still worth a single-enemy run.
    - Innate / Retain are card-FLOW (opening-hand / cross-turn retention); replay overrides the hand, so it can't
      independently check them — covered by unit tests instead, not a live trace.
-2. **Calibration expansion:** all 12 Act-1 elites + a random-deck generator feeding `--calibrate`, to widen the
-   exact↔MCTS convergence evidence beyond the current archetype fixtures.
+2. **Calibration expansion — DONE (core).** Widened the exact↔MCTS convergence evidence beyond the six tuned
+   archetype fixtures, gated in `CalibrationTests` (now 16 cases, all green):
+   - **Elite sweep** (`CalibrationFixtures.EliteSweep`, `--calibrate --elites`): three NEW single-monster elite
+     ground-truth labels with distinct AI — TerrorEel (stun), SoulNexus (life-drain, a non-trivial 91.7%
+     survival label), MechaKnight (windup-burst). All exact-solvable in ≤3s; mcts-roll/heur/learn track exact at
+     Δ0.0%. PhrogParasite (poison counter) and the six MULTI-monster elites stay exact-intractable → trace-covered.
+   - **Random-deck generator** (`CalibrationFixtures.RandomDecks(count, seed)`, `--calibrate --random N --seed S`):
+     deterministic decks from a chance-node-free "calibration-safe" pool vs a round-robin low-HP monster, sized so
+     exact still labels each. The heuristic was never tuned on these, yet across the graded sweep it matched exact
+     within Δsurv 0.0% / Δloss ≤1.4 — the strongest anti-overfit evidence short of a full sweep. Six seeded decks
+     are gated in the suite.
+   Remaining (lower value): a larger off-suite random/elite sweep for manual heuristic tuning via the CLI flags.
 3. **Search-soundness audit (optional, different class):** the horizon bound, loss-prune, and MCTS widening have
    their own correctness proofs + test suites (`HorizonBoundTests`, `LossPruningTests`). Audit only if we want
    defense-in-depth on the algorithmic layer (not content fidelity).
