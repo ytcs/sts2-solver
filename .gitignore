@@ -2,3 +2,6 @@ bin/
 obj/
 *.user
 .vs/
+# Published self-contained ranwid binary copied to the repo root for local use / shipping (~72 MB).
+/ranwid
+/ranwid.exe

@@ -17,12 +17,13 @@ public sealed class Companion
     private readonly int? _netId;
     private readonly EvalOptions _opts;
     private readonly string? _fixedPath;          // when started with --save, watch this exact file
+    private readonly string? _saveDir;            // when started with --save-dir, scan this root
     private volatile bool _dirty;
     private string? _loadedKey;                   // path|mtime of the currently-loaded save
 
-    public Companion(string? fixedPath, int? netId, EvalOptions opts)
+    public Companion(string? fixedPath, string? saveDir, int? netId, EvalOptions opts)
     {
-        _fixedPath = fixedPath; _netId = netId; _opts = opts;
+        _fixedPath = fixedPath; _saveDir = saveDir; _netId = netId; _opts = opts;
     }
 
     // ── Loaded run context ─────────────────────────────────────────────────────
@@ -88,8 +89,9 @@ public sealed class Companion
 
     // ── Reporting ───────────────────────────────────────────────────────────────
 
-    /// <summary>Print the per-elite stats for the current deck (the "all stats for the current deck" view).</summary>
-    public static void ReportDeck(Context c, EvalOptions opts)
+    /// <summary>Evaluate the current deck against each Act elite (the data behind both the text report and the
+    /// live dashboard). Pure compute — no output.</summary>
+    public static List<EliteResult> EvaluateElites(Context c, EvalOptions opts)
     {
         var results = new List<EliteResult>();
         foreach (var (enc, info) in c.Encounters.Zip(c.EliteInfo))
@@ -100,107 +102,179 @@ public sealed class Companion
             var stats = EncounterEvaluator.Evaluate(Catalog.SetupCombat(player, enc.Build()), opts);
             results.Add(new EliteResult(info.name, info.comp, stats, null));
         }
-        Reporting.Print(c.Run, c.Path, results, c.Warnings, c.DeckSummary);
+        return results;
     }
 
-    /// <summary>Print the best single-card removals for the current deck (the "best card to remove next" view).</summary>
-    public static void ReportCuts(Context c, EvalOptions opts)
+    /// <summary>Resolve reward tokens (auto-correct), then compute take-vs-skip advice — or null if no card
+    /// resolves / there are no elites. Shared by the one-shot path and the live "check a reward" command.</summary>
+    public static (Advisor.DeckScore skip, List<Advisor.PickItem> ranked)? PickFromTokens(
+        Context c, IEnumerable<string> tokens, EvalOptions opts)
     {
-        if (c.Encounters.Count == 0 || c.DeckSpecs.Count <= 1)
-        {
-            Console.WriteLine("(removal advice needs ≥1 ported elite and ≥2 ported deck cards.)");
-            return;
-        }
-        Console.WriteLine($"Evaluating removals over {c.Encounters.Count} elite(s)…");
-        Console.WriteLine(Advisor.Format(Advisor.RemovalAdvice(
-            c.DeckSpecs, c.Encounters, c.Run.PlayerHp, c.Run.PlayerMaxHp, c.Run.MaxEnergy, c.RelicNames, opts)));
-    }
-
-    /// <summary>Resolve a list of typed reward tokens (auto-correct) then print take-vs-skip advice.</summary>
-    public static void ReportPick(Context c, IEnumerable<string> tokens, EvalOptions opts)
-    {
-        if (c.Encounters.Count == 0) { Console.WriteLine("(pick advice needs ≥1 ported elite.)"); return; }
+        if (c.Encounters.Count == 0) return null;
         var cards = new List<string>();
         foreach (var tok in tokens)
         {
             var m = CardNameMatcher.Resolve(tok);
-            if (m.Canonical == null)
-            {
-                Console.WriteLine($"  '{tok}' — unknown card. Did you mean: {string.Join(", ", m.Suggestions)}?");
-                continue;
-            }
-            if (m.Corrected) Console.WriteLine($"  interpreting '{tok}' as {m.Canonical}");
-            cards.Add(m.Canonical);
+            if (m.Canonical != null) cards.Add(m.Canonical);
         }
-        if (cards.Count == 0) { Console.WriteLine("(no resolvable reward cards.)"); return; }
-        Console.WriteLine($"Evaluating {cards.Count} reward option(s) vs {c.Encounters.Count} elite(s)…");
-        Console.WriteLine(Advisor.FormatPick(Advisor.PickAdvice(
-            c.DeckSpecs, cards, c.Encounters, c.Run.PlayerHp, c.Run.PlayerMaxHp, c.Run.MaxEnergy, c.RelicNames, opts)));
+        if (cards.Count == 0) return null;
+        return Advisor.PickAdvice(c.DeckSpecs, cards, c.Encounters,
+            c.Run.PlayerHp, c.Run.PlayerMaxHp, c.Run.MaxEnergy, c.RelicNames, opts);
     }
 
-    // ── Live loop ────────────────────────────────────────────────────────────────
+    // ── Live loop (Spectre dashboard) ─────────────────────────────────────────────
+    //
+    // The default screen is the always-on deck + per-elite dashboard. It repaints automatically whenever the
+    // save changes (a FileSystemWatcher sets _dirty). Removal advice is OFF by default (it re-evaluates the
+    // whole deck per card — too slow to run unprompted) and lives behind the [r] key. Keys: r removals,
+    // c check-a-reward, d refresh, q quit.
 
     public int Run()
     {
-        var path = _fixedPath ?? SaveLocator.FindNewest();
-        if (path == null) { Console.Error.WriteLine("ranwid: no ongoing unmodded run found (start a run, or pass --save <file>)."); return 1; }
+        var path = _fixedPath ?? SaveSource.ResolveSaveFileInteractive(_saveDir);
+        if (path == null) { Console.Error.WriteLine("ranwid: no ongoing unmodded run found (start a run, or pass --save <file> / --save-dir <folder>)."); return 1; }
 
-        var ctx = LoadAndReport(path);
-        StartWatcher();
+        var ctx = Reload(path, out path);
+        StartWatcher(path);
 
-        Console.WriteLine("\nLive companion ready. Type reward cards to vet (e.g. `Bludgeon Inflame Whirlwind`), "
-            + "or: cuts · deck · help · quit.  (Tab completes, typos auto-correct.)");
         while (true)
         {
-            // Refresh against a newer save before prompting (you advanced a screen).
+            // A newer save was written (you advanced a screen / played a card) → reload + re-evaluate + repaint.
             if (_dirty)
             {
                 _dirty = false;
-                var newPath = _fixedPath ?? SaveLocator.FindNewest() ?? path;
-                Console.WriteLine($"\n[run updated]");
-                var refreshed = LoadAndReport(newPath);
-                if (refreshed != null) { ctx = refreshed; path = newPath; }
+                var newPath = _fixedPath ?? SaveSource.FindNewest(_saveDir) ?? path;
+                ctx = Reload(newPath, out path);
             }
 
-            string? line = LineEditor.ReadLine("\nranwid> ", CompleteToken);
-            if (line == null) { Console.WriteLine(); break; }     // EOF / Ctrl-D
-            line = line.Trim();
-            if (line.Length == 0) continue;
+            // No keyboard (redirected/piped input) → still auto-refresh, just no commands.
+            if (Console.IsInputRedirected || !Console.KeyAvailable) { Thread.Sleep(50); continue; }
+            var key = Console.ReadKey(intercept: true).Key;
 
-            var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var cmd = parts[0].ToLowerInvariant();
-            var rest = parts.Skip(1).ToArray();
-
-            if (cmd is "quit" or "exit" or "q") break;
-            else if (cmd is "help" or "?") PrintHelp();
-            else if (cmd is "deck" or "stats") { if (ctx != null) ReportDeck(ctx, _opts); }
-            else if (cmd is "cuts" or "remove" or "cut") { if (ctx != null) ReportCuts(ctx, _opts); }
-            else if (cmd is "pick" or "reward" or "rewards") { if (ctx != null) ReportPick(ctx, rest, _opts); }
-            else if (ctx != null) ReportPick(ctx, parts, _opts);   // bare card list = pick advice
+            if (key is ConsoleKey.Q or ConsoleKey.Escape) break;
+            if (ctx == null) continue;
+            switch (key)
+            {
+                case ConsoleKey.R: ShowRemovals(ctx); RenderCurrent(ctx); break;
+                case ConsoleKey.C: ShowRewardCheck(ctx); RenderCurrent(ctx); break;
+                case ConsoleKey.D or ConsoleKey.F5: ReEvaluate(ctx); break;
+            }
         }
         return 0;
     }
 
-    private Context? LoadAndReport(string path)
+    private List<EliteResult> _elites = new();
+
+    /// <summary>Load the save at <paramref name="path"/>, evaluate the elites (with a spinner), and paint the
+    /// dashboard. Returns the loaded context (null if unreadable/unsupported) and the resolved path.</summary>
+    private Context? Reload(string path, out string resolvedPath)
     {
+        resolvedPath = path;
         _loadedKey = Key(path);
         var ctx = Load(path, _netId);
-        if (ctx == null) return null;
-        ReportDeck(ctx, _opts);
-        ReportCuts(ctx, _opts);
+        if (ctx == null)
+        {
+            Spectre.Console.AnsiConsole.MarkupLine("[red]ranwid: this run can't be read (unsupported character or unreadable save).[/]");
+            _elites = new();
+            return null;
+        }
+        ReEvaluate(ctx);
         return ctx;
     }
 
-    private void StartWatcher()
+    /// <summary>Re-evaluate the elites for the current deck and repaint (used on load, on save-change, and on
+    /// the [d] refresh key).</summary>
+    private void ReEvaluate(Context ctx)
     {
+        Dashboard.Render(ctx, _elites, evaluating: true);
+        Spectre.Console.AnsiConsole.Status().Start("evaluating…", _ => { _elites = EvaluateElites(ctx, _opts); });
+        RenderCurrent(ctx);
+    }
+
+    private void RenderCurrent(Context ctx) => Dashboard.Render(ctx, _elites, evaluating: false);
+
+    /// <summary>[r] best cards to remove — the slow per-card sweep, run only on demand.</summary>
+    private void ShowRemovals(Context ctx)
+    {
+        Spectre.Console.AnsiConsole.Clear();
+        if (ctx.Encounters.Count == 0 || ctx.DeckSpecs.Count <= 1)
+        {
+            Spectre.Console.AnsiConsole.MarkupLine("[grey]Removal advice needs at least one elite and two cards.[/]");
+        }
+        else
+        {
+            (Advisor.DeckScore, List<Advisor.AdviceItem>) advice = default;
+            Spectre.Console.AnsiConsole.Status().Start("finding the best cards to remove…",
+                _ => advice = Advisor.RemovalAdvice(ctx.DeckSpecs, ctx.Encounters, ctx.Run.PlayerHp,
+                    ctx.Run.PlayerMaxHp, ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
+            Dashboard.RenderRemovals(advice);
+        }
+        WaitForKey();
+    }
+
+    /// <summary>[c] vet one or more reward cards (take-vs-skip). Types auto-complete + auto-correct.</summary>
+    private void ShowRewardCheck(Context ctx)
+    {
+        Spectre.Console.AnsiConsole.Clear();
+        if (ctx.Encounters.Count == 0) { Spectre.Console.AnsiConsole.MarkupLine("[grey]No elites to compare against.[/]"); WaitForKey(); return; }
+        Spectre.Console.AnsiConsole.MarkupLine("[grey]Type the reward card(s), space-separated (Tab completes). Blank to cancel.[/]");
+        var line = LineEditor.ReadLine("cards> ", CompleteToken)?.Trim();
+        if (string.IsNullOrEmpty(line)) return;
+
+        var cards = new List<string>();
+        foreach (var tok in line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var m = CardNameMatcher.Resolve(tok);
+            if (m.Canonical != null) cards.Add(m.Canonical);
+            else Spectre.Console.AnsiConsole.MarkupLine($"[grey]  '{Spectre.Console.Markup.Escape(tok)}' — not a known card.[/]");
+        }
+        if (cards.Count == 0) { WaitForKey(); return; }
+
+        (Advisor.DeckScore, List<Advisor.PickItem>) advice = default;
+        Spectre.Console.AnsiConsole.Status().Start("checking the reward…",
+            _ => advice = Advisor.PickAdvice(ctx.DeckSpecs, cards, ctx.Encounters, ctx.Run.PlayerHp,
+                ctx.Run.PlayerMaxHp, ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
+        Dashboard.RenderPick(advice);
+        WaitForKey();
+    }
+
+    private static void WaitForKey()
+    {
+        Spectre.Console.AnsiConsole.Markup("\n  [grey]press any key…[/]");
+        Console.ReadKey(intercept: true);
+    }
+
+    /// <summary>Auto-refresh on save change: a FileSystemWatcher on the save's directory (primary) plus a slow
+    /// poll fallback (some filesystems don't surface change events reliably). Both just flip <c>_dirty</c>; the
+    /// main loop debounces by comparing the path|mtime key.</summary>
+    private void StartWatcher(string path)
+    {
+        try
+        {
+            var dir = _saveDir ?? Path.GetDirectoryName(path);
+            if (dir != null && Directory.Exists(dir))
+            {
+                var fsw = new FileSystemWatcher(dir, "*.save")
+                {
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime,
+                    IncludeSubdirectories = _saveDir != null,   // --save-dir scans recursively, so watch deep
+                    EnableRaisingEvents = true,
+                };
+                void Touch(object? _, FileSystemEventArgs __) => _dirty = true;
+                fsw.Changed += Touch; fsw.Created += Touch; fsw.Renamed += (_, __) => _dirty = true;
+                _watcher = fsw;   // keep alive for the process lifetime
+            }
+        }
+        catch { /* watcher unavailable → rely on the poll fallback below */ }
+
         var t = new Thread(() =>
         {
             while (true)
             {
-                Thread.Sleep(1500);
+                Thread.Sleep(2000);
                 try
                 {
-                    var p = _fixedPath ?? SaveLocator.FindNewest();
+                    var p = _fixedPath ?? SaveSource.FindNewest(_saveDir);
                     if (p != null && Key(p) != _loadedKey) _dirty = true;
                 }
                 catch { /* transient FS errors: ignore, retry next tick */ }
@@ -209,21 +283,12 @@ public sealed class Companion
         t.Start();
     }
 
+    private FileSystemWatcher? _watcher;
+
     private static string Key(string path)
     {
         try { return $"{path}|{File.GetLastWriteTimeUtc(path).Ticks}"; } catch { return path; }
     }
 
     private static IReadOnlyList<string> CompleteToken(string token) => CardNameMatcher.Complete(token);
-
-    private static void PrintHelp()
-    {
-        Console.WriteLine(
-            "  <card> [<card> …]   vet reward options (take-vs-skip) vs the Act's elites; typos auto-correct\n" +
-            "  pick <cards…>       same, explicit\n" +
-            "  cuts                best card to remove from the current deck\n" +
-            "  deck | stats        per-elite stats for the current deck\n" +
-            "  help | quit         this help / exit\n" +
-            "  (Tab auto-completes card names; the run auto-refreshes when you change screens.)");
-    }
 }

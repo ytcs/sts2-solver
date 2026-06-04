@@ -27,6 +27,15 @@ public sealed class EvalOptions
 
     /// <summary>Base seed for both MCTS and the rollout sampler (reproducible).</summary>
     public int Seed { get; init; } = 1;
+
+    /// <summary>Exact expectimax is only tractable for small decks / short races; a real (advice-regime) deck
+    /// can't be solved within any sane budget, so ATTEMPTING exact on it just burns the whole
+    /// <see cref="BudgetSeconds"/> before falling to MCTS — pure waste when the advisor runs hundreds of
+    /// evaluations. So skip exact outright when the starting draw pile exceeds this (the result is the MCTS one
+    /// we'd have reached anyway, minus the wasted budget). The default sits well above the exact-tractable
+    /// calibration fixtures (≤ ~10 cards) and well below real run decks (25+). Set to <c>int.MaxValue</c> to
+    /// always attempt exact (then <see cref="BudgetSeconds"/> alone bounds it).</summary>
+    public int ExactMaxDrawPile { get; init; } = 14;
 }
 
 /// <summary>
@@ -75,33 +84,41 @@ public static class EncounterEvaluator
         // without expansion). Shared by the exact and MCTS paths; null when the fight doesn't qualify.
         var lossProof = LossCertificate.TryBuild(setup, maxTurns);
 
-        var solver = new Solver { MaxTurns = maxTurns, LossProof = lossProof };
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(opt.BudgetSeconds));
-        solver.Ct = cts.Token;
-        try
+        // Tractability gate: only attempt exact when the deck is small enough that it can plausibly finish
+        // within the budget. On a real advice-regime deck exact never finishes, so attempting it just burns
+        // BudgetSeconds before falling to MCTS — skip straight to MCTS (same result, no wasted budget).
+        bool tryExact = opt.BudgetSeconds > 0 && setup.Player.DrawPile.Count <= opt.ExactMaxDrawPile;
+        if (tryExact)
         {
-            var value = solver.Solve(setup);
-            solver.Ct = CancellationToken.None;   // clear the budget so rollouts run uninterrupted
-            // Exact optimal policy in hand → sample the true HP-loss distribution under it.
-            var dist = PolicyRollout.Sample(setup, new ExactMemoPolicy(solver), opt.Rollouts, maxTurns, opt.Seed);
-            sw.Stop();
-            return new CombatStats(
-                Engine: EvalEngine.Exact,
-                Survival: value.Win,
-                MeanLoss: value.Loss,
-                NetMeanLoss: dist.NetMeanLoss,
-                HasDistribution: true,
-                MinLoss: dist.MinLoss, MaxLoss: dist.MaxLoss,
-                P10Loss: dist.P10Loss, P50Loss: dist.P50Loss, P90Loss: dist.P90Loss,
-                Rollouts: dist.Samples,
-                ElapsedMs: sw.ElapsedMilliseconds,
-                Work: solver.StatesEvaluated);
+            var solver = new Solver { MaxTurns = maxTurns, LossProof = lossProof };
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(opt.BudgetSeconds));
+            solver.Ct = cts.Token;
+            try
+            {
+                var value = solver.Solve(setup);
+                solver.Ct = CancellationToken.None;   // clear the budget so rollouts run uninterrupted
+                // Exact optimal policy in hand → sample the true HP-loss distribution under it.
+                var dist = PolicyRollout.Sample(setup, new ExactMemoPolicy(solver), opt.Rollouts, maxTurns, opt.Seed);
+                sw.Stop();
+                return new CombatStats(
+                    Engine: EvalEngine.Exact,
+                    Survival: value.Win,
+                    MeanLoss: value.Loss,
+                    NetMeanLoss: dist.NetMeanLoss,
+                    HasDistribution: true,
+                    MinLoss: dist.MinLoss, MaxLoss: dist.MaxLoss,
+                    P10Loss: dist.P10Loss, P50Loss: dist.P50Loss, P90Loss: dist.P90Loss,
+                    Rollouts: dist.Samples,
+                    ElapsedMs: sw.ElapsedMilliseconds,
+                    Work: solver.StatesEvaluated);
+            }
+            catch (OperationCanceledException) { /* exact blew the budget → fall through to MCTS */ }
         }
-        catch (OperationCanceledException)
+
+        // MCTS path: either the deck was gated out of exact, or exact timed out. We DO produce a rollout
+        // distribution here (the shared intent-aware HeuristicPolicy characterises the loss spread well enough);
+        // headline survival/mean still come from MCTS.
         {
-            // Exact search blew the budget — fall back to MCTS for survival + mean. We deliberately do NOT
-            // produce a rollout distribution here: MCTS's rollout policy is heuristic (greedy), which can't
-            // reproduce optimal play, so its loss spread would mislead. Headline value only.
             var mcts = new MctsSolver(new MctsOptions
             {
                 Trials = opt.MctsTrials,
@@ -115,8 +132,6 @@ public static class EncounterEvaluator
             // wrongly skipping a beatable elite. HP-loss (the deck-strength proxy) is reported as computed.
             double survival = value.Win;
             if (survival <= 0 && mcts.ObservedWin) survival = SurvivalFloor;
-            // The shared intent-aware HeuristicPolicy is now good enough to characterise the loss spread,
-            // so we restore the distribution on the MCTS path (headline survival/mean still from MCTS).
             var dist = PolicyRollout.Sample(setup, new HeuristicPolicy(), opt.Rollouts, maxTurns, opt.Seed);
             sw.Stop();
             return new CombatStats(

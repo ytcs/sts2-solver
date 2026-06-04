@@ -6,6 +6,16 @@ namespace Sts2Solver.Search;
 /// <summary>One engine's verdict on a fixture: survival, expected HP loss, work done, wall-clock.</summary>
 public sealed record EngineResult(string Label, double Survival, double Loss, long Work, long Ms);
 
+/// <summary>An estimator's spread over repeated runs at a fixed trial budget: the mean and sample stddev of
+/// survival and expected HP loss across <see cref="Seeds"/> seeds, plus the survival min/max and the mean
+/// per-solve wall-clock. The survival stddev is the *noise floor* of the estimate at this budget — the
+/// empirical basis for the advisor's <c>SurvivalBand</c> (two decks closer than the noise floor can't be
+/// ranked on survival; HP loss must decide).</summary>
+public sealed record SeedStats(
+    string Label, int Seeds,
+    double SurvMean, double SurvStd, double SurvMin, double SurvMax,
+    double LossMean, double LossStd, double MsMean);
+
 /// <summary>
 /// Calibration utilities: run a fixture through the exact oracle (ground truth) and through MCTS variants,
 /// so we can measure how closely heuristic-guided sampling tracks exact. The caller (CLI / tests) supplies
@@ -55,6 +65,43 @@ public static class CalibrationHarness
         });
         var v = mcts.Solve(setup);
         return new EngineResult(label ?? (heuristicLeaf ? "mcts-heur" : "mcts-roll"), v.Win, v.Loss, mcts.TrialsRun, sw.ElapsedMilliseconds);
+    }
+
+    /// <summary>Run MCTS at a fixed trial budget across several seeds and summarise the spread. Each seed gets
+    /// a FRESH setup from <paramref name="build"/> (combat states are mutated by search). Exposes the
+    /// estimator's noise floor at <paramref name="trials"/> — used by the bridge instrument to size the
+    /// advisor's survival band and to check the per-seed estimate is stable enough to rank decks.</summary>
+    public static SeedStats RunMctsSeeds(
+        Func<CombatState> build, int maxTurns, int trials, bool heuristicLeaf,
+        IReadOnlyList<int> seeds, string? label = null)
+    {
+        if (seeds.Count == 0) throw new ArgumentException("Need at least one seed.", nameof(seeds));
+        var surv = new double[seeds.Count];
+        var loss = new double[seeds.Count];
+        long msSum = 0;
+        for (int i = 0; i < seeds.Count; i++)
+        {
+            var r = RunMcts(build(), maxTurns, trials, heuristicLeaf, seeds[i]);
+            surv[i] = r.Survival;
+            loss[i] = r.Loss;
+            msSum += r.Ms;
+        }
+        return new SeedStats(
+            Label: label ?? (heuristicLeaf ? "mcts-heur" : "mcts-roll"),
+            Seeds: seeds.Count,
+            SurvMean: surv.Average(), SurvStd: Std(surv), SurvMin: surv.Min(), SurvMax: surv.Max(),
+            LossMean: loss.Average(), LossStd: Std(loss),
+            MsMean: (double)msSum / seeds.Count);
+    }
+
+    /// <summary>Sample (n−1) stddev; 0 for a single sample.</summary>
+    private static double Std(IReadOnlyList<double> xs)
+    {
+        if (xs.Count < 2) return 0;
+        double mean = xs.Average();
+        double ss = 0;
+        foreach (var x in xs) ss += (x - mean) * (x - mean);
+        return Math.Sqrt(ss / (xs.Count - 1));
     }
 
     /// <summary>MCTS value using the Phase-C learned value function as the leaf (<see cref="LearnedValue"/>).

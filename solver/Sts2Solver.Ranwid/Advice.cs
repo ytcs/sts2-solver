@@ -124,42 +124,4 @@ public static class Advisor
         ranked.Sort((a, b) => a.Score.BetterThan(b.Score) ? -1 : b.Score.BetterThan(a.Score) ? 1 : 0);
         return (skip, ranked);
     }
-
-    /// <summary>Human-readable card-pick block: the recommendation plus every option's deck score.</summary>
-    public static string FormatPick((DeckScore skip, List<PickItem> ranked) advice)
-    {
-        var (_, ranked) = advice;
-        var sb = new System.Text.StringBuilder();
-        var best = ranked[0];
-        sb.AppendLine(best.IsSkip
-            ? "Card reward → SKIP (no offered card improves the deck against the Act's elites):"
-            : $"Card reward → take {best.Card} (best deck vs the Act's elites):");
-        foreach (var p in ranked)
-        {
-            var tag = p == ranked[0] ? " ◀ pick" : "";
-            sb.AppendLine($"  {(p.IsSkip ? "skip" : p.Card),-22} bottleneck {p.Score.MinSurvival,6:P1}, "
-                + $"E[HP loss] {p.Score.TotalMeanLoss,5:F1}{tag}");
-        }
-        return sb.ToString();
-    }
-
-    /// <summary>Human-readable advice block for the report. Shows the bottleneck-survival baseline and the
-    /// top improving removals (or a note that no single removal helps).</summary>
-    public static string Format((DeckScore baseline, List<AdviceItem> items) advice, int top = 3)
-    {
-        var (baseline, items) = advice;
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"Card-removal advice (bottleneck survival {baseline.MinSurvival:P1}, "
-            + $"total E[HP loss] {baseline.TotalMeanLoss:F1} across the Act's elites):");
-        var improving = items.Where(i => i.IsImprovement).Take(top).ToList();
-        if (improving.Count == 0)
-        {
-            sb.AppendLine("  no single card removal improves the bottleneck — the deck is already lean for these fights.");
-            return sb.ToString();
-        }
-        foreach (var i in improving)
-            sb.AppendLine($"  remove {i.Card,-22} → bottleneck {i.After.MinSurvival:P1} "
-                + $"({i.SurvivalDelta:+0.0%;-0.0%} surv, {i.LossDelta:+0.0;-0.0} HP loss)");
-        return sb.ToString();
-    }
 }

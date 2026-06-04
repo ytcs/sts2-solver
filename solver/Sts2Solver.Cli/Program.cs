@@ -110,6 +110,93 @@ if (args.Contains("--converge"))
     return 0;
 }
 
+// --bridge: the accuracy+latency instrument for the regime Ranwid actually runs in. Walks a deck-size LADDER
+// (CalibrationFixtures.Bridge) straddling the exact-tractability boundary and, per rung, reports:
+//   • truth     — exact value if it finishes within --exact-budget, else an MCTS@--proxy-trials proxy ("40k").
+//   • m@2k       — MCTS at the ADVICE trial budget (--trials), as mean±stddev of survival & loss over --seeds
+//                  seeds. The survival stddev is the NOISE FLOOR — the empirical basis for Advisor.SurvivalBand.
+//   • Δ vs truth — bias of the 2k advice estimate against the best available truth.
+//   • eval-ms    — wall-clock of EncounterEvaluator.Evaluate (the REAL per-evaluation advice cost, incl. the
+//                  doomed exact attempt) vs raw m@2k ms. Advice runs this 100s of times, so eval-ms IS the
+//                  number; the gap eval−m2k is the speed prize a tractability gate would reclaim.
+// Flags: --trials (2000) --proxy-trials (20000) --seeds (6) --exact-budget S (30) --maxturns (12) --sizes a,b,c
+if (args.Contains("--bridge"))
+{
+    int adviceTrials = ArgInt("--trials", 2_000);
+    int proxyTrials = ArgInt("--proxy-trials", 20_000);
+    int nSeeds = ArgInt("--seeds", 6);
+    double exactBudget = ArgInt("--exact-budget", 30);
+    // Only override the size-derived (short-race-at-small-sizes) horizon when --maxturns is given explicitly,
+    // so the small rungs stay exact-anchorable by default.
+    int? brTurns = args.Contains("--maxturns") ? ArgInt("--maxturns", 12) : null;
+    string? sizesArg = args.SkipWhile(a => a != "--sizes").Skip(1).FirstOrDefault();
+    int[] sizes = sizesArg != null
+        ? sizesArg.Split(',').Select(s => int.Parse(s.Trim())).ToArray()
+        : CalibrationFixtures.BridgeSizes;
+    var fixtures = sizes.Select(s => CalibrationFixtures.BridgeRung(s, brTurns)).ToList();
+    // The size ladder is winnable by construction (its job is self-consistency + speed as size→real regime), so
+    // its seed-noise is ~0 and uninformative for SurvivalBand. Append the already-tested CONTESTED fixtures —
+    // the ~92% block fight and the windup-burst MechaKnight — whose survival is genuinely uncertain; THEIR seed
+    // stddev is the noise floor that matters. They're exact-tractable, so they also carry a true Δ-vs-exact.
+    if (!args.Contains("--no-contested"))
+        fixtures.AddRange(new[]
+        {
+            CalibrationFixtures.All.First(f => f.Archetype == "block"),
+            CalibrationFixtures.EliteSweep.First(f => f.Name.Contains("MechaKnight")),
+            CalibrationFixtures.BridgeContestedLarge(),   // large + contested: the noise floor where it's worst
+        });
+    var seeds = Enumerable.Range(1, nSeeds).ToArray();
+
+    Console.WriteLine($"Bridge instrument — advice budget {adviceTrials:N0} trials over {nSeeds} seeds, "
+        + $"proxy-truth {proxyTrials:N0} trials, exact budget {exactBudget:F0}s/rung, "
+        + $"horizon {(brTurns.HasValue ? brTurns.Value.ToString() : "size-derived")}.");
+    Console.WriteLine("  truth = exact if it finishes, else MCTS proxy. eval-ms = real EncounterEvaluator cost "
+        + "(incl. doomed exact attempt).\n");
+    Console.WriteLine($"  {"rung",-20} {"truth",-14} {"m@2k surv",13} {"m@2k loss",13} {"Δsurv",6} {"Δloss",6} "
+        + $"{"eval-ms",8} {"m2k-ms",7} {"exact",7}");
+    Console.WriteLine("  " + new string('-', 110));
+
+    double maxSurvStd = 0, maxSurvBias = 0; double evalMsSum = 0, m2kMsSum = 0; int rungs = 0;
+    foreach (var f in fixtures)
+    {
+        var ex = CalibrationHarness.RunExactBudgeted(f.Setup(), f.MaxTurns, exactBudget);
+        var proxy = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, proxyTrials, heuristicLeaf: false, seed: 1);
+        var ss = CalibrationHarness.RunMctsSeeds(() => f.Setup(), f.MaxTurns, adviceTrials, heuristicLeaf: false, seeds);
+
+        // The real advice cost: EncounterEvaluator at the advice budget (8s exact attempt → MCTS → rollouts).
+        var stats = EncounterEvaluator.Evaluate(f.Setup(), new EvalOptions
+        {
+            MaxTurns = f.MaxTurns, MctsTrials = adviceTrials, Seed = 1,
+        });
+
+        double truthSurv = ex?.Survival ?? proxy.Survival;
+        double truthLoss = ex?.Loss ?? proxy.Loss;
+        string truthSrc = ex != null ? "exact" : $"~{proxyTrials / 1000}k";
+        double dSurv = ss.SurvMean - truthSurv;
+        double dLoss = ss.LossMean - truthLoss;
+
+        Console.WriteLine($"  {f.Name,-20} {truthSurv,7:P1}/{truthLoss,4:F0}({truthSrc,-5}) "
+            + $"{ss.SurvMean,6:P1}±{ss.SurvStd,5:P1} {ss.LossMean,6:F1}±{ss.LossStd,5:F1} "
+            + $"{dSurv,+6:P1} {dLoss,+6:F1} {stats.ElapsedMs,8:N0} {ss.MsMean,7:F0} "
+            + $"{(ex != null ? $"{ex.Ms,5:N0}ms" : "  DNF")}");
+
+        maxSurvStd = Math.Max(maxSurvStd, ss.SurvStd);
+        maxSurvBias = Math.Max(maxSurvBias, Math.Abs(dSurv));
+        evalMsSum += stats.ElapsedMs; m2kMsSum += ss.MsMean; rungs++;
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"  SurvivalBand evidence (current band 5.0%):");
+    Console.WriteLine($"    • noise (max seed stddev @ {adviceTrials:N0} trials): {maxSurvStd:P2}  "
+        + "— survival is essentially seed-stable (DP-UCT backs up TRUE probabilities).");
+    Console.WriteLine($"    • bias  (max |m@{adviceTrials / 1000}k − best-truth|):    {maxSurvBias:P2}  "
+        + "— the convergence gap vs more trials (pessimistic direction); the band need only cover THIS.");
+    Console.WriteLine($"  Mean advice cost: {evalMsSum / rungs:N0} ms/eval (EncounterEvaluator) vs "
+        + $"{m2kMsSum / rungs:N0} ms (raw m@2k) ⇒ ~{(evalMsSum - m2kMsSum) / rungs:N0} ms/eval reclaimable "
+        + "by skipping the doomed exact attempt.");
+    return 0;
+}
+
 // --profile: attribute a representative 30-card-vs-elite MCTS solve's wall-clock to per-node state cloning,
 // to decide the next perf lever (clone-elimination via make/undo). Reports the solve time vs the 1–2s target,
 // an isolated ns/clone microbenchmark, the CombatState.Clone count, and clone's estimated share of total.

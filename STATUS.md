@@ -27,7 +27,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   opt-in Phase-C `LearnedValue` MCTS leaf for the razor-thin survival regime.
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 721 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Tests: 725 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -111,8 +111,11 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
 - `EncounterEvaluator` (auto exact-or-MCTS) + `PolicyRollout` (HP-loss distribution). `CombatHeuristic`:
   survival-first λ-interpolated rollout/leaf score. `LearnedValue`: logistic+linear heads over 18 features,
   held-out survival MAE 0.023 vs static 0.046.
-- `ranwid`: interactive companion (deck + per-elite stats, best cut, reward take/skip) with auto-correct card
-  entry + Tab-complete; HP-loss-leaning `SurvivalBand` metric. Validated on a real save.
+- `ranwid`: live **Spectre.Console dashboard** — always shows the current deck + per-elite survival/HP-loss,
+  auto-refreshes on save change (FileSystemWatcher + poll fallback). Removal advice is off by default (slow) and
+  on the `[r]` key; `[c]` checks a reward card (auto-correct entry). No engine/algorithm text in the UI; a
+  prominent "Ignored" panel surfaces unmodelled relics / unported cards so a number is never silently a
+  relic-less lower bound. `ranwid --preview` shows the layout with sample data. Validated on a real save.
 
 ---
 
@@ -123,6 +126,7 @@ cd solver/Sts2Solver.Tests && dotnet test -c Release            # build + full s
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --demo --lines
 dotnet run -c Release --project solver/Sts2Solver.Cli -- scenario.json [--mcts --trials N --anytime]
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --calibrate [--archetype block]
+dotnet run -c Release --project solver/Sts2Solver.Cli -- --bridge    # advice-regime accuracy(noise/bias)+latency instrument
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --validate [trace.jsonl]   # one file or all
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --train-vf --budget-seconds 6 --epochs 4000
 dotnet run -c Release --project solver/Sts2Solver.Ranwid                            # live companion
@@ -223,29 +227,66 @@ Correctness work (the spine) is complete — the catalog + engine have **zero kn
 value-preserving approximations are audited, and the freshest models are live-validated. What remains is
 feature/quality expansion, all behind the standing correctness bar.
 
+### Focus & scope (decided this session)
+
+The user-facing product is **`ranwid`**, and its two pain points are **output accuracy** and **speed** — so the
+priority is the advice engine's accuracy + per-evaluation latency (old to-dos 1 + 3). **Descoped (not worth the
+complexity):** non-starter relics and potions. Combat-start starter relics already work; the 300+ relic catalog,
+Act-1 bosses, and potions are shelved.
+
+**Shippable executables** (for testers): `ranwid` is published self-contained single-file —
+`solver/Sts2Solver.Ranwid/bin/Release/net9.0/{win-x64,linux-x64}/publish/ranwid[.exe]`, and the Linux build is
+copied to the repo top as `./ranwid`. Windows save-dir auto-detection (`SaveLocator`) probes the **confirmed**
+path `%APPDATA%\SlayTheSpire2\steam\<id>\…` (mirror of the Linux layout) first, with profile/Steam-registry
+fallbacks and a validated manual folder prompt that persists the choice. See `Sts2Solver.Ranwid/SHIPPING-WINDOWS.md`.
+
 ### Recently completed (this session — paused here)
 
+- **Speed: exact-attempt tractability gate** (`EncounterEvaluator.ExactMaxDrawPile`, default 14 + `EncounterEvaluatorTests`):
+  exact is skipped outright for decks bigger than the gate (it can't finish them anyway), so a real advice eval
+  no longer burns the ~8 s exact budget before falling to MCTS. Measured: a 26-card eval dropped from ~13 s to
+  ~3.5 s (3–4× on the 100s-of-evals advice path); small fixtures (≤14) still take the exact path. Zero accuracy
+  change (big decks fell to MCTS regardless).
+- **`ranwid` TUI rework** (Spectre.Console): the live companion is now an always-on dashboard (deck + per-elite
+  survival/HP-loss) that auto-refreshes on save change via a FileSystemWatcher (+ poll fallback). Removal advice
+  moved off the default path (too slow — it re-evals per card) onto the `[r]` key; `[c]` checks a reward card.
+  **No engine/algorithm detail in the UI** (per request); a prominent "Ignored" panel lists unmodelled relics /
+  unported cards. `--once` and `--preview` render the same dashboard.
+- **Pessimism diagnosis** (user saw ~21% vs TerrorEel on a strong deck): NOT an engine bug — survival is
+  dominated by **current HP** (a strong 30-card deck wins 100% at 70 HP but **20%** at 30 HP vs TerrorEel's
+  150 HP / 99-Vulnerable; reproduced the ~21% by HP alone). The real residual pessimism is **unmodelled relics**
+  (ranwid counts only Burning Blood) — the strongest argument for narrowly modelling a run's *actual* relics
+  (revisiting the relic descope for combat-start relics only).
+- **Bridge-regime instrument** (`--bridge` + `BridgeInstrumentTests`, 4 tests) — measures advice accuracy AND
+  per-eval latency in the regime `ranwid` actually runs (the old `--calibrate` suite only covers the tiny
+  exact-tractable decks). A deck-size ladder straddling the exact boundary (`CalibrationFixtures.BridgeRung`,
+  exact-anchored at the S06 rung), plus a large CONTESTED probe (`BridgeContestedLarge`) and the existing
+  contested fixtures. New harness: `CalibrationHarness.RunMctsSeeds`/`SeedStats` (per-seed survival/loss spread).
+  **Two findings that set the next two to-dos:**
+  - **Accuracy:** the 2k-trial advice survival estimate has **~0% seed variance** (DP-UCT backs up TRUE
+    probabilities) even on a large 80%-survival fight; the only spread is a small **pessimistic convergence
+    bias** (~1.5% vs an 8k proxy). ⇒ `Advisor.SurvivalBand=0.05` is ~2–3× larger than needed.
+  - **Speed:** **~4–9 s of every `EncounterEvaluator.Evaluate` is a doomed exact attempt** (it can't finish a
+    30-card deck, then falls to MCTS anyway). Advice runs 100s of these. `EncounterEvaluator` already supports
+    `BudgetSeconds=0` to skip exact — a tractability gate reclaims that time at zero accuracy cost.
 - **Live-validated the two freshest 1:1 models** against the oracle (replay validates damage/HP CONSEQUENCES,
-  not card-FLOW — only HP-affecting mechanics are live-checkable this way):
-  - **VoidForm** (trace #79): forced-end-on-play + first-2-cards-free, confirmed via the energy/play log.
-  - **Sly auto-play** (trace #80): StormOfSteel (not Rng-gated) discards FlickFlacks → 7 Sly auto-plays the game
-    logs `isAutoPlay` and replay skips, so matching enemy HP proves `TriggerSlyOnDiscard` reproduces them.
-- **Calibration expansion** (`CalibrationTests` 7→16): the elite-AI sweep (`--calibrate --elites`: TerrorEel /
-  SoulNexus@91.7% / MechaKnight, exact-graded Δ0.0%) + the seeded random-deck generator (`--calibrate --random N
-  --seed S`: novel decks the heuristic was never tuned on, matched exact within Δsurv 0.0% / Δloss ≤1.4).
-- **Search-soundness audit** (`DiverseAiSoundnessTests`): the horizon bound + loss certificate stay exact across
-  diverse AI (stun / windup fire and match `exact@bound==exact@big` + `plain==pruned`; stochastic life-drain
-  correctly SOUND-BAILS) — no unsoundness found; MCTS widening gated by `MctsTests.Apw_Converges_*`.
+  not card-FLOW): **VoidForm** (trace #79, forced-end + first-2-free) and **Sly auto-play** (trace #80,
+  `TriggerSlyOnDiscard`).
+- **Calibration + soundness** (earlier): elite-AI sweep + seeded random-deck convergence gate; `DiverseAiSoundnessTests`
+  horizon/loss oracle-equality across diverse AI (no unsoundness found).
 
-### Next to-dos (forward, ordered)
+### Next to-dos (forward, ordered — Ranwid accuracy + speed)
 
-1. **VF / advisor quality:** VF distillation + survival recalibration (Platt/isotonic) + deck-composition
-   features; tighten `ranwid`'s `SurvivalBand`.
-2. **Scope expansion (needs new subsystems):** more relics (combat-relevant relic hooks), Act-1 bosses, potions.
-3. **Perf lever (deferred behind correctness):** cheaper rollout policy — top-k clone-free prior / learned
-   action-value, ≤3–4 HP accuracy budget.
-4. **Small leftovers (low value):** a PreciseCut (hand-size) single-enemy live run; a larger off-suite
-   random/elite calibration sweep via the CLI flags for manual heuristic tuning.
+1. **Accuracy — model a run's ACTUAL relics** (narrowly): the diagnosed pessimism cause. ranwid counts only
+   Burning Blood, so a relic-leaning deck reads weaker than it plays. Model the combat-start relics a run holds
+   (revisiting the relic descope for combat-start relics ONLY — not the 300-relic catalog).
+2. **Accuracy — tighten `Advisor.SurvivalBand`** from 0.05 toward the observed bias (~0.02 — the bridge shows
+   ~0% seed noise, ~2% convergence bias), recovering survival-first deck ranking now discarded to the HP-loss
+   tiebreak; re-validate ordering, cite the bridge evidence in the doc comment.
+3. **Perf lever (deeper):** cheaper rollout policy — top-k clone-free prior / learned action-value, ≤3–4 HP
+   accuracy budget (measured against `--bridge`).
+4. **VF / advisor quality:** VF distillation + survival recalibration (Platt/isotonic) + deck-composition features.
+5. **Small leftover (low value):** a PreciseCut (hand-size) single-enemy live run.
 
 ---
 

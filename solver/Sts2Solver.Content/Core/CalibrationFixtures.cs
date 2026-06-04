@@ -192,4 +192,67 @@ public static class CalibrationFixtures
         }
         return list;
     }
+
+    // -----------------------------------------------------------------------
+    // Bridge ladder: one archetype scaled up in DECK SIZE (and monster HP) in
+    // rungs that straddle the exact-tractability boundary, so the instrument can
+    // see (a) where exact stops giving a ground-truth label and (b) how the
+    // 2k-trial advice estimate behaves — bias vs the best available truth and
+    // its seed-to-seed noise — as the deck approaches the real Ranwid regime
+    // (30–40 cards), where NO exact label exists.
+    //
+    // The pool is the chance-node-free SafeAttacks/SafeSkills set (no draw / no
+    // power / no deck-growth), composed round-robin into a realistic ~70/30
+    // attack/block mix. That keeps the SMALL rungs exact-solvable; the LARGE
+    // rungs exceed exact and fall back to an MCTS@40k proxy-truth. Same
+    // composition at every size ⇒ the only variable across rungs is scale, so a
+    // change in the 2k-vs-truth gap is attributable to size, not archetype.
+    // Surfaced via `--bridge`.
+    // -----------------------------------------------------------------------
+    private static readonly string[] BridgePool =
+        { "StrikeIronclad", "DefendIronclad", "Bash", "Uppercut", "IronWave", "DefendIronclad",
+          "TwinStrike", "Thunderclap", "StrikeIronclad", "Headbutt" };
+
+    /// <summary>The default rung sizes (deck card counts) of the bridge ladder.</summary>
+    public static readonly int[] BridgeSizes = { 8, 11, 14, 18, 24, 30 };
+
+    /// <summary>A bridge fixture at one deck size: <paramref name="size"/> cards drawn round-robin from the
+    /// chance-node-free <see cref="BridgePool"/>, vs Byrdonis. The RACE LENGTH (monster HP × horizon) — not the
+    /// deck size — is what governs exact tractability, so the ladder deliberately scales the race UP with the
+    /// deck: the small rungs are short, low-HP races that exact can still label (the ground-truth ANCHOR), the
+    /// large rungs reach the real elite HP band + horizon (MCTS-only — the Ranwid regime). An explicit
+    /// <paramref name="maxTurns"/> overrides the size-derived horizon.</summary>
+    public static Fixture BridgeRung(int size, int? maxTurns = null)
+    {
+        var specs = new string[size];
+        for (int i = 0; i < size; i++) specs[i] = BridgePool[i % BridgePool.Length];
+        int monsterHp = (int)(3.0 * size);                 // 6→18 (exact-anchorable) … 30→90 (real elite band)
+        int turns = maxTurns ?? Math.Clamp(5 + size / 5, 6, 12);   // 6→6 (short race, exact) … 30→11
+        int playerHp = 50 + size;                          // 8→58 … 30→80
+        return new Fixture($"bridge/S{size:00}/Byrdonis", "bridge",
+            () => Catalog.SetupCombat(
+                Catalog.BuildPlayer(Deck(specs), playerHp, playerHp, 3, new[] { "BurningBlood" }),
+                new[] { Monsters.Byrdonis(hp: monsterHp) }),
+            turns);
+    }
+
+    /// <summary>The full bridge ladder at the default rung sizes.</summary>
+    public static IReadOnlyList<Fixture> Bridge { get; } =
+        BridgeSizes.Select(s => BridgeRung(s)).ToList();
+
+    /// <summary>A LARGE, genuinely CONTESTED fight: a big chance-node-rich deck (so it's the real Ranwid regime,
+    /// not exact-tractable) vs a hard-hitting elite at LOW player HP, tuned so survival lands in the uncertain
+    /// band rather than a decided 0%/100%. No exact label exists here — the point is to measure the MCTS
+    /// estimate's SEED-TO-SEED VARIANCE (which needs no ground truth) where it should be worst, so the advisor's
+    /// SurvivalBand can be sized against the real noise floor rather than a winnable-fight one.</summary>
+    public static Fixture BridgeContestedLarge(int size = 26, int playerHp = 30, int monsterHp = 74, int maxTurns = 14)
+    {
+        var specs = new string[size];
+        for (int i = 0; i < size; i++) specs[i] = BridgePool[i % BridgePool.Length];
+        return new Fixture($"bridge/contested-L{size}/Byrdonis", "bridge",
+            () => Catalog.SetupCombat(
+                Catalog.BuildPlayer(Deck(specs), playerHp, playerHp, 3, new[] { "BurningBlood" }),
+                new[] { Monsters.Byrdonis(hp: monsterHp) }),
+            maxTurns);
+    }
 }
