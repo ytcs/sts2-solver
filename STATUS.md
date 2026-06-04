@@ -254,6 +254,10 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
   the parallel candidate grid.
 - **Fixed the tab-complete UI bug**: `LineEditor.Redraw` now clears the line (CR + erase) before rewriting, so
   completions no longer garble into `cards> Xcards> XY…`.
+- **Removal advice shows every cut, best-first** (was: only strictly-improving removals, which hid basic
+  Strike/Defend since cutting them rarely *raises* single-combat strength). Now ranks all removable cards by
+  resulting deck strength with a signed Δ (green improve / red harm) — so you can pick the least-harmful cut at
+  a removal site even when nothing strictly improves.
 - **Dashboard refresh is now input-cached**: a save write that doesn't change the numbers (gold / map move /
   an HP tick) no longer burns a ~6-eval refresh. The per-elite rows recompute only on deck/relic/HP/energy/asc
   change; the HP-independent deck strength recomputes only on deck/relic/energy change. `[d]` forces a refresh.

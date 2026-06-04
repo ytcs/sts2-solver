@@ -143,17 +143,25 @@ public static class Dashboard
         table.AddColumn(new TableColumn("[grey]Δ[/]").Centered());
 
         table.AddRow(new Markup("[bold]keep as-is[/]"), new Markup(StrengthMarkup(baseline)), new Markup("[grey]—[/]"));
-        foreach (var i in items.Where(i => i.IsImprovement).Take(8))
-            table.AddRow(new Markup($"[green]{Esc(i.Card)}[/]"), new Markup(StrengthMarkup(i.Strength)),
-                new Markup($"[green]+{i.Delta:F0}[/]"));
+        // Show EVERY removable card, best-first (items are pre-sorted by resulting strength) — not just the ones
+        // that strictly improve the deck. Cutting a basic Strike/Defend rarely raises strength in a single-combat
+        // metric, but you still want to see which cut hurts LEAST (e.g. at a removal site you must cut something).
+        bool anyImproves = items.Count > 0 && items[0].IsImprovement;
+        foreach (var i in items.Take(14))
+        {
+            string deltaMk = i.Delta > 0.5 ? $"[green]+{i.Delta:F0}[/]"
+                : i.Delta < -0.5 ? $"[red]{i.Delta:F0}[/]" : "[grey]0[/]";
+            string nameMk = i.IsImprovement ? $"[green]{Esc(i.Card)}[/]" : Esc(i.Card);
+            table.AddRow(new Markup(nameMk), new Markup(StrengthMarkup(i.Strength)), new Markup(deltaMk));
+        }
 
         AnsiConsole.Write(new Panel(table)
         {
-            Header = new PanelHeader(items.Any(i => i.IsImprovement) ? " Best cards to remove " : " Removals "),
+            Header = new PanelHeader(anyImproves ? " Removals — best cuts first " : " Removals — least-harmful first "),
             Border = BoxBorder.Rounded, Expand = true,
         });
-        if (!items.Any(i => i.IsImprovement))
-            AnsiConsole.Write(new Markup("  [grey]no single removal raises the deck's strength against these elites.[/]\n"));
+        if (!anyImproves)
+            AnsiConsole.Write(new Markup("  [grey]no single removal raises the deck's strength — the rows above are the least-harmful cuts.[/]\n"));
     }
 
     public static void RenderPick((double skip, List<Advisor.PickItem> ranked) advice)
