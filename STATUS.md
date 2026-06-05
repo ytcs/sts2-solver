@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-04._
+_Last updated: 2026-06-05._
 
 ## Goal
 
@@ -240,12 +240,15 @@ Correctness work (the spine) is complete — the catalog + engine have **zero kn
 value-preserving approximations are audited, and the freshest models are live-validated. What remains is
 feature/quality expansion, all behind the standing correctness bar.
 
-### Focus & scope (decided this session)
+### Focus & scope
 
-The user-facing product is **`ranwid`**, and its two pain points are **output accuracy** and **speed** — so the
-priority is the advice engine's accuracy + per-evaluation latency (old to-dos 1 + 3). **Descoped (not worth the
-complexity):** non-starter relics and potions. Combat-start starter relics already work; the 300+ relic catalog,
-Act-1 bosses, and potions are shelved.
+The user-facing product is **`ranwid`**, and its two pain points are **output accuracy** and **speed**. Accuracy
+took the big step this round: **81 combat relics ported + live in the advisor**, the **8 bosses' optimistic gaps
+closed and folded into deck strength**, and **PreciseCut live-validated** (which also required fixing the headless
+harness for the 2026-06 game patch). **Still descoped (not worth the complexity):** potions, the long tail of
+cosmetic/economy/map/reward/rest relics, RNG-card/orb-generation relics (optimistic direction — see to-do 1), and
+the multi-monster boss *ports* (TheKin/KaiserCrab/Queen). Speed was researched (to-do 3): one safe micro-opt
+shipped; the durable lever (make/undo rollout) is documented but deferred behind the correctness bar.
 
 **Shippable executables** (for testers): `ranwid` is published self-contained single-file (~73 MB) for both
 RIDs and copied to the repo top as `./ranwid` (Linux ELF) and `./ranwid.exe` (Windows PE) — both gitignored, both
