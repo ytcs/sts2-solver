@@ -2,7 +2,7 @@ using Sts2Solver.Engine;
 
 namespace Sts2Solver.Content;
 
-public static class Monsters
+public static partial class Monsters
 {
     /// <summary>
     /// CalcifiedCultist (MegaCrit): HP 38–41. Deterministic AI — Incantation (gain 2 Ritual) then
