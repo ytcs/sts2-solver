@@ -33,6 +33,9 @@ public static partial class Catalog
         ["WaterfallGiantBoss"]       = a => new[] { Monsters.WaterfallGiant(ascension: a) },
         ["SoulFyshBoss"]             = a => new[] { Monsters.SoulFysh(ascension: a) },
         ["LagavulinMatriarchBoss"]   = a => new[] { Monsters.LagavulinMatriarch(ascension: a) },
+        // Act-2 (Overgrowth) BOSSES (single-monster).
+        ["CeremonialBeastBoss"]      = a => new[] { Monsters.CeremonialBeast(ascension: a) },
+        ["VantomBoss"]               = a => new[] { Monsters.Vantom(ascension: a) },
     };
 
     /// <summary>Act-1 (Overgrowth) NORMAL / WEAK encounter compositions. Same shape as the elite table,

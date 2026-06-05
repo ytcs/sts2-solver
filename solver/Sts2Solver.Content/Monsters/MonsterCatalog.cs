@@ -49,6 +49,11 @@ public static partial class Catalog
         ["SoulFysh"] = asc => Monsters.SoulFysh(ascension: asc),
         ["LagavulinMatriarch"] = asc => Monsters.LagavulinMatriarch(ascension: asc),
 
+        // Act-2 (Overgrowth) BOSSES. (CeremonialBeast's Ringing play-restriction is inert pending an engine hook;
+        // its damage is exact — must be resolved before bosses enter the deck-strength pool.)
+        ["CeremonialBeast"] = asc => Monsters.CeremonialBeast(ascension: asc),
+        ["Vantom"] = asc => Monsters.Vantom(ascension: asc),
+
         // Act-1 (Overgrowth) normal/weak monsters (unit-tested only; not trace-validated).
         ["SnappingJaxfruit"] = asc => Monsters.SnappingJaxfruit(ascension: asc),
         ["Flyconid"] = asc => Monsters.Flyconid(ascension: asc),
