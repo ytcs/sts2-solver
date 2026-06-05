@@ -76,6 +76,31 @@ public static partial class Catalog
     /// <summary>The elite encounter class names this catalog can build.</summary>
     public static IReadOnlyCollection<string> KnownEliteEncounters => EliteEncounterFactories.Keys;
 
+    /// <summary>Each Act's full elite pool (from the decompiled act definitions). Keyed on the act's THEME so a
+    /// run's actual elites identify the act without assuming an index order. Every elite here is ported, and the
+    /// pools deliberately span single-target → big multi-enemy (Gardeners ×5, Decimillipede, Knights ×6) so a
+    /// deck-strength evaluation over the WHOLE pool values AoE fairly — not just whatever subset a run drew.</summary>
+    private static readonly string[][] ActElitePools =
+    {
+        new[] { "TerrorEelElite", "SkulkingColonyElite", "PhantasmalGardenersElite" },   // Underdocks
+        new[] { "ByrdonisElite", "BygoneEffigyElite", "PhrogParasiteElite" },            // Overgrowth
+        new[] { "DecimillipedeElite", "EntomancerElite", "InfestedPrismsElite" },        // Hive
+        new[] { "KnightsElite", "MechaKnightElite", "SoulNexusElite" },                  // Glory
+    };
+
+    /// <summary>A representative, AoE-balanced elite set for deck-strength evaluation: given a run's actual
+    /// elites, return its Act's FULL elite pool (so a single-target-heavy run still gets evaluated against the
+    /// Act's multi-enemy elites). Falls back to whatever of <paramref name="runElites"/> is buildable when the
+    /// Act can't be identified.</summary>
+    public static IReadOnlyList<string> RepresentativeElites(IEnumerable<string> runElites)
+    {
+        var run = runElites.ToList();
+        foreach (var pool in ActElitePools)
+            if (run.Any(e => pool.Contains(e, StringComparer.Ordinal)))
+                return pool;
+        return run.Where(IsKnownEliteEncounter).ToList();
+    }
+
     /// <summary>Build the monster list for an elite encounter (by class name), scaled to
     /// <paramref name="ascension"/>. Throws for an unknown encounter (caller may probe with
     /// <see cref="IsKnownEliteEncounter"/> first).</summary>

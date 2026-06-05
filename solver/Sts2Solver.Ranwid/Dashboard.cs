@@ -232,6 +232,7 @@ public static class Dashboard
             RelicNames: new List<string> { "BurningBlood" },
             Encounters: new List<Advisor.Encounter>(),
             EliteInfo: new List<(string, string)>(),
+            StrengthPool: new List<Advisor.Encounter>(),
             Warnings: new List<string> { "relic Vajra ignored (only Burning Blood is modelled)" },
             DeckSummary: "4x Strike, 3x Defend, Bash, Inflame, DemonForm★, Uppercut, Whirlwind");
 

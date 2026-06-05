@@ -31,7 +31,7 @@ public sealed class Companion
     public sealed record Context(
         RunState Run, string Path, List<string> DeckSpecs, List<string> RelicNames,
         List<Advisor.Encounter> Encounters, List<(string name, string comp)> EliteInfo,
-        List<string> Warnings, string DeckSummary);
+        List<Advisor.Encounter> StrengthPool, List<string> Warnings, string DeckSummary);
 
     /// <summary>Parse a save and resolve the deck/relics/elite encounters the advisor needs. Returns null for
     /// non-Ironclad or unreadable runs. <paramref name="quiet"/> suppresses the failure messages — the live
@@ -68,26 +68,39 @@ public sealed class Companion
             else warnings.Add($"relic {GameIds.ClassName(rid)} ignored (not modelled)");
         }
 
+        int asc = run.Ascension;
+        Advisor.Encounter MakeEnc(string cls)
+        {
+            string disp = cls.EndsWith("Elite", StringComparison.Ordinal) ? cls[..^5] : cls;
+            return new Advisor.Encounter(disp, () => Catalog.BuildEliteEncounter(cls, asc));
+        }
+
+        // The dashboard's per-elite rows show the run's ACTUAL elites (at current HP — "can I take this fight").
         var encounters = new List<Advisor.Encounter>();
         var eliteInfo = new List<(string, string)>();
+        var runEliteClasses = new List<string>();
         foreach (var eid in run.EliteEncounterIds)
         {
             var cls = GameIds.EncounterClassName(eid);
             if (!Catalog.IsKnownEliteEncounter(cls)) continue;
-            string disp = cls.EndsWith("Elite", StringComparison.Ordinal) ? cls[..^5] : cls;
-            int asc = run.Ascension;
-            encounters.Add(new Advisor.Encounter(disp, () => Catalog.BuildEliteEncounter(cls, asc)));
+            runEliteClasses.Add(cls);
+            encounters.Add(MakeEnc(cls));
             string comp = string.Join(" + ", Catalog.BuildEliteEncounter(cls, asc)
                 .GroupBy(m => m.Name).Select(g => g.Count() > 1 ? $"{g.Count()}× {g.Key}" : g.Key));
-            eliteInfo.Add((disp, comp));
+            eliteInfo.Add((MakeEnc(cls).Name, comp));
         }
+
+        // Deck strength + advice evaluate over the Act's FULL elite pool (representative + AoE-balanced), so a
+        // single-target-heavy run still values multi-enemy cards (Whirlwind). Falls back to the run's elites.
+        var poolClasses = Catalog.RepresentativeElites(runEliteClasses);
+        var strengthPool = (poolClasses.Count > 0 ? poolClasses : runEliteClasses).Select(MakeEnc).ToList();
 
         string deckSummary = run.Deck.Count == 0 ? "(empty)" : string.Join(", ", run.Deck
             .GroupBy(e => GameIds.CardSpec(e.Id, e.Upgrade))
             .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => $"{g.Count()}x {g.Key}"));
 
-        return new Context(run, path, deckSpecs, relicNames, encounters, eliteInfo, warnings, deckSummary);
+        return new Context(run, path, deckSpecs, relicNames, encounters, eliteInfo, strengthPool, warnings, deckSummary);
     }
 
     // ── Reporting ───────────────────────────────────────────────────────────────
@@ -114,7 +127,7 @@ public sealed class Companion
     public static (double skip, List<Advisor.PickItem> ranked)? PickFromTokens(
         Context c, IEnumerable<string> tokens, EvalOptions opts)
     {
-        if (c.Encounters.Count == 0) return null;
+        if (c.StrengthPool.Count == 0) return null;
         var cards = new List<string>();
         foreach (var tok in tokens)
         {
@@ -122,7 +135,7 @@ public sealed class Companion
             if (m.Canonical != null) cards.Add(m.Canonical);
         }
         if (cards.Count == 0) return null;
-        return Advisor.PickAdvice(c.DeckSpecs, cards, c.Encounters,
+        return Advisor.PickAdvice(c.DeckSpecs, cards, c.StrengthPool,
             c.Run.MaxEnergy, c.RelicNames, opts);
     }
 
@@ -221,7 +234,7 @@ public sealed class Companion
             if (elitesStale) { _elites = EvaluateElites(ctx, _opts); _eliteKey = eliteKey; }
             if (strengthStale)
             {
-                _strength = Advisor.DeckStrength(ctx.DeckSpecs, ctx.Encounters, ctx.Run.MaxEnergy, ctx.RelicNames, _opts);
+                _strength = Advisor.DeckStrength(ctx.DeckSpecs, ctx.StrengthPool, ctx.Run.MaxEnergy, ctx.RelicNames, _opts);
                 _strengthKey = deckKey;
             }
         });
@@ -234,7 +247,7 @@ public sealed class Companion
     private void ShowRemovals(Context ctx)
     {
         Spectre.Console.AnsiConsole.Clear();
-        if (ctx.Encounters.Count == 0 || ctx.DeckSpecs.Count <= 1)
+        if (ctx.StrengthPool.Count == 0 || ctx.DeckSpecs.Count <= 1)
         {
             Spectre.Console.AnsiConsole.MarkupLine("[grey]Removal advice needs at least one elite and two cards.[/]");
         }
@@ -242,7 +255,7 @@ public sealed class Companion
         {
             (double, List<Advisor.AdviceItem>) advice = default;
             Spectre.Console.AnsiConsole.Status().Start("finding the best cards to remove…",
-                _ => advice = Advisor.RemovalAdvice(ctx.DeckSpecs, ctx.Encounters,
+                _ => advice = Advisor.RemovalAdvice(ctx.DeckSpecs, ctx.StrengthPool,
                     ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
             Dashboard.RenderRemovals(advice);
         }
@@ -253,7 +266,7 @@ public sealed class Companion
     private void ShowRewardCheck(Context ctx)
     {
         Spectre.Console.AnsiConsole.Clear();
-        if (ctx.Encounters.Count == 0) { Spectre.Console.AnsiConsole.MarkupLine("[grey]No elites to compare against.[/]"); WaitForKey(); return; }
+        if (ctx.StrengthPool.Count == 0) { Spectre.Console.AnsiConsole.MarkupLine("[grey]No elites to compare against.[/]"); WaitForKey(); return; }
         Spectre.Console.AnsiConsole.MarkupLine("[grey]Type the reward card(s), space-separated (Tab completes). Blank to cancel.[/]");
         var line = LineEditor.ReadLine("cards> ", CompleteToken)?.Trim();
         if (string.IsNullOrEmpty(line)) return;
@@ -269,7 +282,7 @@ public sealed class Companion
 
         (double, List<Advisor.PickItem>) advice = default;
         Spectre.Console.AnsiConsole.Status().Start("checking the reward…",
-            _ => advice = Advisor.PickAdvice(ctx.DeckSpecs, cards, ctx.Encounters,
+            _ => advice = Advisor.PickAdvice(ctx.DeckSpecs, cards, ctx.StrengthPool,
                 ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
         Dashboard.RenderPick(advice);
         WaitForKey();

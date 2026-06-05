@@ -42,7 +42,7 @@ if (args.Contains("--advice-bench"))
 {
     var deck = new List<string>();
     string[] variety = { "StrikeIronclad","DefendIronclad","Bash","Inflame","DemonForm","Uppercut","TwinStrike",
-        "Whirlwind","ShrugItOff","PommelStrike","IronWave","Headbutt","Hemokinesis","Armaments","Thunderclap" };
+        "Whirlwind","ShrugItOff","PommelStrike","IronWave","Headbutt","Hemokinesis","Armaments","Exterminate" };
     for (int i = 0; i < 30; i++) deck.Add(variety[i % variety.Length]);
     int distinct = deck.Distinct().Count();
     int asc = ArgInt("--ascension") ?? 0;
@@ -66,8 +66,10 @@ if (args.Contains("--advice-bench"))
     Console.WriteLine($"  per-eval        : {perEvalMs:F0} ms");
     Console.WriteLine($"  removal advice  : {sw2.ElapsedMilliseconds / 1000.0:F1} s (parallel)");
     Console.WriteLine($"  implied serial  : {seqEstMs / 1000.0:F1} s  ⇒ ~{seqEstMs / Math.Max(1, sw2.ElapsedMilliseconds):F1}x speedup");
-    Console.WriteLine($"  deck strength   : {baseline:F0}/100; top cut: "
-        + (items.FirstOrDefault(i => i.IsImprovement) is { } it ? $"{it.Card} (→{it.Strength:F0})" : "(none improves)"));
+    Console.WriteLine($"  deck strength   : {baseline:F0}/100");
+    Console.WriteLine("  removal ranking (best cut first):");
+    foreach (var it in items)
+        Console.WriteLine($"    {it.Card,-18} → {it.Strength,5:F1}/100  (Δ {it.Delta,+5:F1})");
     return 0;
 }
 
@@ -77,7 +79,7 @@ if (once)
     if (path == null) { Console.Error.WriteLine("ranwid: no ongoing unmodded run found (start a run, or pass --save <file> / --save-dir <folder>)."); return 1; }
     var ctx = Companion.Load(path, playerNetId);
     if (ctx == null) return 0;                       // non-Ironclad / unreadable (message already printed)
-    var strength = Advisor.DeckStrength(ctx.DeckSpecs, ctx.Encounters, ctx.Run.MaxEnergy, ctx.RelicNames, opts);
+    var strength = Advisor.DeckStrength(ctx.DeckSpecs, ctx.StrengthPool, ctx.Run.MaxEnergy, ctx.RelicNames, opts);
     Dashboard.Render(ctx, Companion.EvaluateElites(ctx, opts), strength, evaluating: false);
     var tokens = (rewardsArg ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     if (tokens.Length > 0)

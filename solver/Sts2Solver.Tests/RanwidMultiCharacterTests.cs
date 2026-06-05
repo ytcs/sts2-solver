@@ -44,6 +44,41 @@ public class RanwidMultiCharacterTests
     [InlineData("RELIC.SOME_UNMODELLED_RELIC")]
     public void Unmodelled_Relics_Map_To_Null(string relicId) => Assert.Null(GameIds.ModelledRelicName(relicId));
 
+    [Theory]
+    // A run's elite → its Act's FULL pool (all buildable), so a single-target-heavy run is still evaluated
+    // against the Act's other elites.
+    [InlineData("TerrorEelElite", "PhantasmalGardenersElite")]   // Underdocks pool incl. the 5-monster Gardeners
+    [InlineData("MechaKnightElite", "KnightsElite")]             // Glory pool incl. the 6-monster Knights
+    [InlineData("ByrdonisElite", "PhrogParasiteElite")]         // Overgrowth pool
+    [InlineData("EntomancerElite", "DecimillipedeElite")]       // Hive pool incl. multi-segment Decimillipede
+    public void RepresentativeElites_Expands_To_Act_Pool(string runElite, string mustInclude)
+    {
+        var pool = Catalog.RepresentativeElites(new[] { runElite });
+        Assert.Contains(runElite, pool);
+        Assert.Contains(mustInclude, pool);
+        foreach (var e in pool) Assert.True(Catalog.IsKnownEliteEncounter(e), $"{e} not buildable");
+    }
+
+    [Theory]
+    // The Acts whose elite pool already spans a big multi-enemy fight (so deck strength values AoE without
+    // porting). Act-2 (Overgrowth) is deliberately absent — its elites are single-target in our port; its AoE
+    // representation comes from its boss/normals, ported separately.
+    [InlineData("TerrorEelElite")]      // Underdocks → Gardeners ×5
+    [InlineData("EntomancerElite")]     // Hive → Decimillipede (multi-segment)
+    [InlineData("MechaKnightElite")]    // Glory → Knights ×6
+    public void Representative_Pool_Includes_A_MultiEnemy_Fight(string runElite)
+    {
+        var pool = Catalog.RepresentativeElites(new[] { runElite });
+        Assert.Contains(pool, e => Catalog.BuildEliteEncounter(e, 0).Count >= 2);
+    }
+
+    [Fact]
+    public void RepresentativeElites_Falls_Back_To_Run_Elites_When_Act_Unknown()
+    {
+        var pool = Catalog.RepresentativeElites(new[] { "TotallyUnknownElite" });
+        Assert.Empty(pool);   // nothing buildable → empty (caller falls back to the run's elites)
+    }
+
     [Fact]
     public void CardSpec_Is_Generic_Across_Characters()
     {
