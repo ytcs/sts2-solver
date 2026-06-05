@@ -10,7 +10,7 @@ A single file: **`ranwid.exe`**. No installer, no .NET install needed — everyt
 
 ## How to run
 
-1. Start (or continue) an Ironclad run in Slay the Spire 2. (Only Ironclad is supported right now.)
+1. Start (or continue) a run in Slay the Spire 2 (Ironclad, Silent, Regent, Necrobinder, or Defect — all five).
 2. **Double-click `ranwid.exe`.** A console window opens.
 3. ranwid finds your save automatically, prints your deck and per-elite stats, and drops into a prompt:
    ```
@@ -71,6 +71,25 @@ from the address bar and paste it at the `Save folder>` prompt.
 - Environment variable: set `RANWID_SAVE_DIR` to the folder.
 
 Run `ranwid.exe --once` for a one-shot report (no interactive prompt).
+
+## Custom deck mode (no save — for multiplayer guests / deck-building)
+
+In **multiplayer, only the host's game writes a run-save** — if a friend is hosting, your own machine has no
+`current_run.save` to read. For that case (and for planning decks generally), use the save-less sandbox:
+
+```
+ranwid.exe --custom              # starts from the Ironclad starter deck
+ranwid.exe --custom Silent       # …or any of: Ironclad, Silent, Regent, Necrobinder, Defect
+```
+
+You get the same dashboard (deck strength + per-elite numbers), and a prompt to edit the deck by hand so it
+mirrors your real run:
+
+- `+<card>` or `add <card> [xN]` — add a card (Tab completes, typos auto-correct). A bare card name also adds.
+- `-<card>` or `rm <card>` — remove one copy.
+- `act <1-4 | name>` — choose which Act's elites to grade against (Underdocks, Overgrowth, Hive, Glory).
+- `char <name>` — switch character (resets to its starter deck). `hp <n>`, `asc <n>` — set HP / ascension.
+- `r` — best cards to remove. `c <card…>` — take-vs-skip a reward. `reset` — back to the starter. `help`, `q`.
 
 ## Please report
 

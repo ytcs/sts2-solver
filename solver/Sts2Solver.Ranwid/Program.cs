@@ -8,6 +8,7 @@ using Sts2Solver.Ranwid;
 //   ranwid                         live dashboard (default): watch the run, auto-refresh on save change
 //   ranwid --once                  render the dashboard once and exit (non-interactive)
 //   ranwid --preview               show the dashboard with sample data (no run needed)
+//   ranwid --custom [character]    save-less deck sandbox: start from a starter deck, add/remove cards by hand
 //   ranwid --save <current_run.save>   watch/read a specific save file (e.g. a modded profile)
 //   ranwid --save-dir <folder>         search this folder for the save (overrides auto-detect; RANWID_SAVE_DIR env also works)
 //   --rewards A,B,C                (with --once) check these reward options
@@ -34,6 +35,15 @@ var opts = new EvalOptions
 };
 
 if (args.Contains("--preview")) { Dashboard.RenderPreview(); return 0; }
+
+// --custom [character]: a save-less deck sandbox — start from a character's starter deck and add/remove cards
+// by hand (the way a multiplayer GUEST, whose run isn't saved locally, can still get deck-strength advice).
+if (args.Contains("--custom"))
+{
+    var who = ArgVal("--custom");
+    if (who != null && who.StartsWith("--")) who = null;   // next token was another flag, not a character
+    return new Companion(null, null, null, opts).RunCustom(who);
+}
 
 // --advice-bench: time a full removal-advice run on a synthetic 30-card deck vs the Act-1 elites, to measure
 // the parallel speedup end-to-end (the cost the player actually waits on). Reports the implied sequential time

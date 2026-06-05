@@ -68,6 +68,25 @@ public sealed class Companion
             else warnings.Add($"relic {GameIds.ClassName(rid)} ignored (not modelled)");
         }
 
+        // The dashboard's per-elite rows show the run's ACTUAL elites (at current HP — "can I take this fight").
+        var runEliteClasses = run.EliteEncounterIds
+            .Select(GameIds.EncounterClassName)
+            .Where(Catalog.IsKnownEliteEncounter)
+            .ToList();
+
+        string deckSummary = SummarizeSpecs(run.Deck.Select(e => GameIds.CardSpec(e.Id, e.Upgrade)));
+        return BuildContext(run, path, deckSpecs, relicNames, runEliteClasses, warnings, deckSummary);
+    }
+
+    /// <summary>Assemble a <see cref="Context"/> from already-resolved deck specs / relic names / elite classes.
+    /// The dashboard's per-elite rows are <paramref name="runEliteClasses"/> (the run's actual elites — or, in
+    /// custom mode, the whole act pool); deck strength + advice evaluate over the Act's FULL representative pool
+    /// (<see cref="Catalog.RepresentativeElites"/>), so a single-target-heavy deck still values AoE. Shared by the
+    /// save-file loader and the custom-deck mode.</summary>
+    public static Context BuildContext(
+        RunState run, string path, List<string> deckSpecs, List<string> relicNames,
+        IReadOnlyList<string> runEliteClasses, List<string> warnings, string deckSummary)
+    {
         int asc = run.Ascension;
         Advisor.Encounter MakeEnc(string cls)
         {
@@ -75,32 +94,32 @@ public sealed class Companion
             return new Advisor.Encounter(disp, () => Catalog.BuildEliteEncounter(cls, asc));
         }
 
-        // The dashboard's per-elite rows show the run's ACTUAL elites (at current HP — "can I take this fight").
         var encounters = new List<Advisor.Encounter>();
         var eliteInfo = new List<(string, string)>();
-        var runEliteClasses = new List<string>();
-        foreach (var eid in run.EliteEncounterIds)
+        foreach (var cls in runEliteClasses)
         {
-            var cls = GameIds.EncounterClassName(eid);
             if (!Catalog.IsKnownEliteEncounter(cls)) continue;
-            runEliteClasses.Add(cls);
             encounters.Add(MakeEnc(cls));
             string comp = string.Join(" + ", Catalog.BuildEliteEncounter(cls, asc)
                 .GroupBy(m => m.Name).Select(g => g.Count() > 1 ? $"{g.Count()}× {g.Key}" : g.Key));
             eliteInfo.Add((MakeEnc(cls).Name, comp));
         }
 
-        // Deck strength + advice evaluate over the Act's FULL elite pool (representative + AoE-balanced), so a
-        // single-target-heavy run still values multi-enemy cards (Whirlwind). Falls back to the run's elites.
         var poolClasses = Catalog.RepresentativeElites(runEliteClasses);
-        var strengthPool = (poolClasses.Count > 0 ? poolClasses : runEliteClasses).Select(MakeEnc).ToList();
-
-        string deckSummary = run.Deck.Count == 0 ? "(empty)" : string.Join(", ", run.Deck
-            .GroupBy(e => GameIds.CardSpec(e.Id, e.Upgrade))
-            .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g => $"{g.Count()}x {g.Key}"));
+        var strengthPool = (poolClasses.Count > 0 ? poolClasses : runEliteClasses)
+            .Where(Catalog.IsKnownEliteEncounter).Select(MakeEnc).ToList();
 
         return new Context(run, path, deckSpecs, relicNames, encounters, eliteInfo, strengthPool, warnings, deckSummary);
+    }
+
+    /// <summary>"4x StrikeIronclad, 1x Bash" — group a spec list by spec, most-frequent first. "(empty)" when none.</summary>
+    public static string SummarizeSpecs(IEnumerable<string> specs)
+    {
+        var list = specs.ToList();
+        return list.Count == 0 ? "(empty)" : string.Join(", ", list
+            .GroupBy(s => s)
+            .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => $"{g.Count()}x {g.Key}"));
     }
 
     // ── Reporting ───────────────────────────────────────────────────────────────
@@ -189,8 +208,230 @@ public sealed class Companion
         return 0;
     }
 
+    // ── Custom deck mode (no save file) ──────────────────────────────────────────
+    //
+    // `ranwid --custom [character]` — start from a character's STARTER deck + relic + HP and edit it by hand:
+    // add/remove cards, switch the act you're evaluating against, and watch the deck-strength index + per-elite
+    // numbers update. For multiplayer GUESTS (whose run isn't saved locally) this is the way to mirror a run; it's
+    // also a deck-building sandbox. Reuses the same Context / Dashboard / Advisor machinery as the live mode.
+
+    private const string CustomFooter =
+        "  [grey]([/][white]+card[/][grey]) add   ([/][white]-card[/][grey]) remove   "
+        + "([/][white]act[/][grey] N) act   ([/][white]r[/][grey]) cuts   ([/][white]c[/][grey]) reward   "
+        + "([/][white]help[/][grey]) more   ([/][white]q[/][grey]) quit[/]";
+
+    /// <summary>Run the interactive custom-deck session for <paramref name="initialChar"/> (default Ironclad).</summary>
+    public int RunCustom(string? initialChar)
+    {
+        _footer = CustomFooter;
+        var profile = (initialChar != null ? Catalog.FindCharacter(initialChar) : null) ?? Catalog.CharacterProfiles[0];
+        int actIndex = 0;                 // which Act's elite pool to score against (0-based; [act] to change)
+        int asc = 0;
+        int hp = profile.StartingHp;
+        var deck = profile.StarterDeckSpecs();
+
+        Context Build() => BuildCustom(profile, actIndex, asc, hp, deck);
+        var ctx = Build();
+        ReEvaluate(ctx, force: true);
+
+        while (true)
+        {
+            var line = LineEditor.ReadLine("deck> ", CompleteToken)?.Trim();
+            if (line == null) return 0;                               // EOF (piped/closed input)
+            if (line.Length == 0) { ReEvaluate(ctx, force: true); continue; }
+
+            // +card / -card shorthand (no space needed).
+            string verb, arg;
+            if (line[0] is '+' or '-') { verb = line[0] == '+' ? "add" : "rm"; arg = line[1..].Trim(); }
+            else { var sp = line.IndexOf(' '); verb = (sp < 0 ? line : line[..sp]).ToLowerInvariant(); arg = sp < 0 ? "" : line[(sp + 1)..].Trim(); }
+
+            switch (verb)
+            {
+                case "q" or "quit" or "exit": return 0;
+                case "help" or "?": ShowCustomHelp(); RenderCurrent(ctx); break;
+                case "deck" or "list": ShowDeckList(deck); RenderCurrent(ctx); break;
+
+                case "add":
+                    if (CustomAdd(deck, arg)) { ctx = Build(); ReEvaluate(ctx, force: true); }
+                    else RenderCurrent(ctx);
+                    break;
+                case "rm" or "remove" or "del" or "delete":
+                    if (CustomRemove(deck, arg)) { ctx = Build(); ReEvaluate(ctx, force: true); }
+                    else RenderCurrent(ctx);
+                    break;
+
+                case "act":
+                    if (TryParseAct(arg, out int ai)) { actIndex = ai; ctx = Build(); ReEvaluate(ctx, force: true); }
+                    else RenderCurrent(ctx);
+                    break;
+                case "char" or "character":
+                    if (Catalog.FindCharacter(arg) is { } np)
+                    { profile = np; deck = profile.StarterDeckSpecs(); hp = profile.StartingHp; ctx = Build(); ReEvaluate(ctx, force: true); }
+                    else { Note($"unknown character '{arg}' (try: {string.Join(", ", Catalog.CharacterProfiles.Select(p => p.Key))})"); RenderCurrent(ctx); }
+                    break;
+                case "hp":
+                    if (int.TryParse(arg, out int h) && h > 0) { hp = h; ctx = Build(); ReEvaluate(ctx, force: true); }
+                    else RenderCurrent(ctx);
+                    break;
+                case "asc" or "ascension":
+                    if (int.TryParse(arg, out int a) && a >= 0) { asc = a; ctx = Build(); ReEvaluate(ctx, force: true); }
+                    else RenderCurrent(ctx);
+                    break;
+                case "reset":
+                    deck = profile.StarterDeckSpecs(); hp = profile.StartingHp; ctx = Build(); ReEvaluate(ctx, force: true);
+                    break;
+
+                case "r" or "cuts" or "advise" or "removals": ShowRemovals(ctx); RenderCurrent(ctx); break;
+                case "c" or "check" or "reward":
+                    if (arg.Length > 0) { ShowRewardCheckFor(ctx, arg); } else ShowRewardCheck(ctx);
+                    RenderCurrent(ctx);
+                    break;
+                case "d" or "refresh": ReEvaluate(ctx, force: true); break;
+
+                default:
+                    // Bare card name with no verb → treat as add (the common case while drafting).
+                    if (CustomAdd(deck, line)) { ctx = Build(); ReEvaluate(ctx, force: true); }
+                    else RenderCurrent(ctx);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>Build a custom Context: a synthesized RunState (display only) + the chosen act's elite pool as
+    /// both the dashboard rows and the strength pool.</summary>
+    private static Context BuildCustom(CharacterProfile profile, int actIndex, int asc, int hp, List<string> deck)
+    {
+        var theme = Catalog.ActThemes[Math.Clamp(actIndex, 0, Catalog.ActThemes.Count - 1)];
+        var relicNames = profile.StarterRelic is { } r && Catalog.IsModelledRelic(r) ? new List<string> { r } : new List<string>();
+        // RunState here is for DISPLAY + the shared eval params only — Deck/RelicIds carry just enough for the header
+        // (card count, "relics: …"); the real deck/relics/pool are passed to BuildContext explicitly.
+        var displayDeck = deck.Select(SpecToEntry).ToList();
+        var run = new RunState(
+            Ascension: asc, ActIndex: actIndex, ActId: $"ACT.{theme.ToUpperInvariant()}",
+            Character: profile.CharacterId, PlayerHp: hp, PlayerMaxHp: profile.StartingHp, MaxEnergy: profile.MaxEnergy,
+            Deck: displayDeck, RelicIds: relicNames, EliteEncounterIds: Array.Empty<string>(),
+            BossId: null, PlayerCount: 1, PlayerNetId: 0);
+
+        var warnings = new List<string>();
+        return BuildContext(run, "(custom deck)", deck.ToList(), relicNames,
+            Catalog.ActElitePool(actIndex), warnings, SummarizeSpecs(deck));
+    }
+
+    private static CardEntry SpecToEntry(string spec)
+    {
+        int plus = spec.IndexOf('+');
+        return plus < 0 ? new CardEntry(spec, 0, false)
+                        : new CardEntry(spec[..plus], int.TryParse(spec[(plus + 1)..], out var u) ? u : 0, false);
+    }
+
+    /// <summary>Resolve "card [xN] | card N" → add N copies (default 1). Returns true if the deck changed.</summary>
+    private bool CustomAdd(List<string> deck, string arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg)) { Note("usage: add <card> [xN]"); return false; }
+        // Trailing count: "Strike x3" or "Strike 3".
+        int count = 1;
+        var toks = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (toks.Length >= 2)
+        {
+            var last = toks[^1].TrimStart('x', 'X');
+            if (int.TryParse(last, out int n) && n > 0) { count = Math.Min(n, 100); arg = string.Join(' ', toks[..^1]); }
+        }
+        var m = CardNameMatcher.Resolve(arg);
+        if (m.Canonical == null) { Note(m.Suggestions.Count > 0 ? $"'{arg}'? did you mean: {string.Join(", ", m.Suggestions)}" : $"unknown card '{arg}'"); return false; }
+        try { Catalog.BuildCard(m.Canonical); } catch (ArgumentException) { Note($"'{m.Canonical}' isn't a buildable card"); return false; }
+        for (int i = 0; i < count; i++) deck.Add(m.Canonical);
+        return true;
+    }
+
+    /// <summary>Resolve a card and remove ONE matching copy (exact spec, else base-name). Returns true if changed.</summary>
+    private bool CustomRemove(List<string> deck, string arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg)) { Note("usage: rm <card>"); return false; }
+        var m = CardNameMatcher.Resolve(arg);
+        var target = m.Canonical;
+        if (target == null) { Note(m.Suggestions.Count > 0 ? $"'{arg}'? did you mean: {string.Join(", ", m.Suggestions)}" : $"unknown card '{arg}'"); return false; }
+        int idx = deck.FindIndex(s => string.Equals(s, target, StringComparison.OrdinalIgnoreCase));
+        if (idx < 0)
+        {
+            // Fall back to base-name (ignore upgrade) so "rm bash" removes "Bash+1".
+            string baseName = target.Split('+')[0];
+            idx = deck.FindIndex(s => string.Equals(s.Split('+')[0], baseName, StringComparison.OrdinalIgnoreCase));
+        }
+        if (idx < 0) { Note($"'{target}' isn't in the deck"); return false; }
+        deck.RemoveAt(idx);
+        return true;
+    }
+
+    private static bool TryParseAct(string arg, out int actIndex)
+    {
+        actIndex = 0;
+        if (string.IsNullOrWhiteSpace(arg)) return false;
+        if (int.TryParse(arg, out int n) && n >= 1 && n <= Catalog.ActThemes.Count) { actIndex = n - 1; return true; }
+        for (int i = 0; i < Catalog.ActThemes.Count; i++)
+            if (Catalog.ActThemes[i].StartsWith(arg, StringComparison.OrdinalIgnoreCase)) { actIndex = i; return true; }
+        return false;
+    }
+
+    /// <summary>One-shot reward check for cards given inline (e.g. "c Whirlwind Inflame").</summary>
+    private void ShowRewardCheckFor(Context ctx, string arg)
+    {
+        Spectre.Console.AnsiConsole.Clear();
+        var cards = new List<string>();
+        foreach (var tok in arg.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var m = CardNameMatcher.Resolve(tok);
+            if (m.Canonical != null) cards.Add(m.Canonical);
+        }
+        if (cards.Count == 0 || ctx.StrengthPool.Count == 0) { Note("nothing to check"); return; }
+        (double, List<Advisor.PickItem>) advice = default;
+        Spectre.Console.AnsiConsole.Status().Start("checking the reward…",
+            _ => advice = Advisor.PickAdvice(ctx.DeckSpecs, cards, ctx.StrengthPool, ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
+        Dashboard.RenderPick(advice);
+        WaitForKey();
+    }
+
+    private static void ShowDeckList(List<string> deck)
+    {
+        Spectre.Console.AnsiConsole.Clear();
+        Spectre.Console.AnsiConsole.MarkupLine($"[grey]Deck ({deck.Count} cards):[/] {Spectre.Console.Markup.Escape(SummarizeSpecs(deck))}");
+        WaitForKey();
+    }
+
+    private static void ShowCustomHelp()
+    {
+        Spectre.Console.AnsiConsole.Clear();
+        var lines = new[]
+        {
+            "[bold]Custom deck mode[/] — build a deck by hand and watch its strength.",
+            "",
+            "  [white]+<card>[/] / [white]add <card> [[xN]][/]   add a card (Tab completes, typos auto-correct)",
+            "  [white]-<card>[/] / [white]rm <card>[/]          remove one copy",
+            "  [white]<card>[/]                       (bare name) add a card",
+            "  [white]deck[/]                         list the current deck",
+            "  [white]act <1-4 | name>[/]             choose which Act's elites to score against",
+            "  [white]char <name>[/]                  switch character (resets to its starter deck)",
+            "  [white]hp <n>[/]   [white]asc <n>[/]            set HP / ascension",
+            "  [white]reset[/]                        back to the starter deck",
+            "  [white]r[/]                            best cards to remove (cuts)",
+            "  [white]c <card…>[/]                    check reward card(s) take-vs-skip",
+            "  [white]q[/]                            quit",
+            "",
+            $"[grey]characters: {string.Join(", ", Catalog.CharacterProfiles.Select(p => p.Key))}[/]",
+            $"[grey]acts: {string.Join(", ", Catalog.ActThemes.Select((t, i) => $"{i + 1}={t}"))}[/]",
+        };
+        foreach (var l in lines) Spectre.Console.AnsiConsole.MarkupLine(l);
+        WaitForKey();
+    }
+
+    private static void Note(string msg)
+    {
+        Spectre.Console.AnsiConsole.MarkupLine($"  [yellow]{Spectre.Console.Markup.Escape(msg)}[/]");
+        Thread.Sleep(900);
+    }
+
     private List<EliteResult> _elites = new();
     private double _strength = double.NaN;
+    private string? _footer;     // null = the default live-watch footer; set by custom mode to its own command hint.
 
     /// <summary>Load the save at <paramref name="path"/>, evaluate the elites (with a spinner), and paint the
     /// dashboard. Returns the loaded context (null if unreadable/unsupported) and the resolved path.</summary>
@@ -228,7 +469,7 @@ public sealed class Companion
         bool strengthStale = force || deckKey != _strengthKey;
         if (!elitesStale && !strengthStale) return;   // nothing the eval depends on changed → no recompute, no repaint
 
-        Dashboard.Render(ctx, _elites, _strength, evaluating: true);
+        Dashboard.Render(ctx, _elites, _strength, evaluating: true, _footer);
         Spectre.Console.AnsiConsole.Status().Start("evaluating…", _ =>
         {
             if (elitesStale) { _elites = EvaluateElites(ctx, _opts); _eliteKey = eliteKey; }
@@ -241,7 +482,7 @@ public sealed class Companion
         RenderCurrent(ctx);
     }
 
-    private void RenderCurrent(Context ctx) => Dashboard.Render(ctx, _elites, _strength, evaluating: false);
+    private void RenderCurrent(Context ctx) => Dashboard.Render(ctx, _elites, _strength, evaluating: false, _footer);
 
     /// <summary>[r] best cards to remove — the slow per-card sweep, run only on demand.</summary>
     private void ShowRemovals(Context ctx)
@@ -291,6 +532,7 @@ public sealed class Companion
     private static void WaitForKey()
     {
         Spectre.Console.AnsiConsole.Markup("\n  [grey]press any key…[/]");
+        if (Console.IsInputRedirected) { Console.ReadLine(); return; }   // piped input: no key events
         Console.ReadKey(intercept: true);
     }
 

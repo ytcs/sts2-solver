@@ -101,6 +101,14 @@ public static partial class Catalog
         new[] { "KnightsElite", "MechaKnightElite", "SoulNexusElite" },                  // Glory
     };
 
+    /// <summary>The act themes, index-aligned with <see cref="ActElitePools"/> (a run draws three of these four).</summary>
+    public static IReadOnlyList<string> ActThemes { get; } = new[] { "Underdocks", "Overgrowth", "Hive", "Glory" };
+
+    /// <summary>The full elite pool (class names) for a given act, by 0-based index into <see cref="ActThemes"/>;
+    /// clamped to range. Used by the custom-deck mode to evaluate a hand-built deck against a chosen act.</summary>
+    public static IReadOnlyList<string> ActElitePool(int actIndex) =>
+        ActElitePools[Math.Clamp(actIndex, 0, ActElitePools.Length - 1)];
+
     /// <summary>A representative, AoE-balanced elite set for deck-strength evaluation: given a run's actual
     /// elites, return its Act's FULL elite pool (so a single-target-heavy run still gets evaluated against the
     /// Act's multi-enemy elites). Falls back to whatever of <paramref name="runElites"/> is buildable when the

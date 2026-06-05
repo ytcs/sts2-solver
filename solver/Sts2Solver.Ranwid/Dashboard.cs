@@ -13,7 +13,8 @@ public static class Dashboard
 {
     /// <summary>Repaint the whole dashboard from the loaded run + the latest elite results. <paramref
     /// name="strength"/> is the 0–100 deck-strength index (NaN until computed / when there's nothing to score).</summary>
-    public static void Render(Companion.Context c, IReadOnlyList<EliteResult> elites, double strength, bool evaluating)
+    public static void Render(Companion.Context c, IReadOnlyList<EliteResult> elites, double strength,
+        bool evaluating, string? footer = null)
     {
         AnsiConsole.Clear();
         AnsiConsole.Write(new Rule("[bold deepskyblue1]ranwid[/]").LeftJustified());
@@ -29,7 +30,7 @@ public static class Dashboard
         if (ignored != null) { AnsiConsole.WriteLine(); AnsiConsole.Write(ignored); }
 
         AnsiConsole.WriteLine();
-        AnsiConsole.Write(new Markup(
+        AnsiConsole.Write(new Markup(footer ??
             "  [grey]([/][white]r[/][grey]) removals   ([/][white]c[/][grey]) check a reward card   "
             + "([/][white]d[/][grey]) refresh   ([/][white]q[/][grey]) quit"
             + "          auto-refreshes when your run changes[/]"));
