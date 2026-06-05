@@ -435,30 +435,34 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Next to-dos (forward, ordered)
 
-1. **Combat relics (batch port) — IN PROGRESS (batches 1–5 done: 81 relics).** The user's headline ask: deck strength falls
-   off in later acts because relics (a big late-game contributor) aren't modelled, so a relic-leaning deck reads
-   weaker than it plays. **The ranwid side is DONE** (the relic path was already generic — it feeds a run's actual
-   relics into `BuildPlayer` and just needs the engine to model them). **Batch 1 (21 relics) is ported** (see
-   Recently completed). Of 298 game relics, **180 are combat-affecting**; remaining batches (~159), roughly by
-   mechanism + the engine support each needs:
-   - **2a. Event-counter attack relics** — DONE in batch 4 (Kunai/Shuriken/OrnamentalFan/LetterOpener/Nunchaku/
-     TuningFork/IronClub/Permafrost/RainbowRing). Left: **PenNib** (every-10th-attack ×2 — needs a "double the
-     next attack" marker, intricate) and the counters folded into the deferred list below (GalacticDust/MiniRegent/
-     Metronome stars/orb counters, JossPaper exhaust counter, ToughBandages discard counter, etc.).
-   - **2b. HP-loss reducers** — Tungsten Rod + The Boot DONE (batch 2, via `ModifyHpLost`); Beating Remnant left
-     (stateful per-turn cap → needs a hashed counter).
-   - **2c. Block-on-condition / turn-end** — Orichalcum (block if 0 at end of turn), Captain's Wheel (turn-3 block),
-     Horn Cleat, Sparkling Rouge: need an `AfterBlockCleared` / `BeforeSideTurnEnd` relic (or relic-power) hook —
-     the one genuinely new firing site.
-   - **2d. On-play / on-exhaust / on-discard** — Letter Opener, Shuriken-likes, Charon's Ashes, Tingsha, Tough
-     Bandages, Forgotten Soul: reuse the existing `AfterCardPlayed`/`AfterCardExhausted` power hooks.
-   - **2e. Power/draw/cost modifiers** — Spiked Gauntlets + Pael's Blood DONE (batch 2, via `ModifyMaxEnergy`/
-     `ModifyCardCost`/`ModifyHandDraw`). Left: Snecko Skull (`ModifyPowerAmountGiven` hook missing), Bag of
-     Preparation / Ring of the Snake / Ring of the Drake / Bread (turn-1/turn-N conditioned — the power hooks
-     don't get the turn; add a turn-aware relic hook or a `Creature.CombatState` back-ref), Philosopher's Stone
-     (enemy Strength incl. summons — needs a summon hook to stay sound), Pocketwatch (stateful per-turn play count).
-   - **Out of scope (unchanged):** RNG card/orb-generation relics (Orange Dough, Crossbow — optimistic direction),
-     and the cosmetic/economy/map/reward/rest/potion catalog (~118 relics).
+1. **Combat relics (batch port) — CORE COMPLETE (batches 1–5 done: 81 relics). Long tail deferred/out-of-scope
+   below.** The user's headline ask: deck strength falls off in later acts because relics aren't modelled. **The
+   ranwid side was already generic** (feeds a run's actual relics into `BuildPlayer`); the work was the engine
+   port. **All common combat-relic mechanics are now modelled** (combat-start stat/block/power grants, turn-numbered
+   + every-N-turns energy/block/damage/draw, on-play/on-exhaust/end-of-turn triggers, every-Nth-play counters,
+   damage/stars/play-count reactors, passive damage/energy/draw/HP-loss/cost modifiers). Infrastructure added:
+   stateless relic event hooks (`EventRelic` + `HasEventRelics` perf gate), the `RelicPlayCounterPower` hashed-
+   counter base, and several hidden relic powers. Of 298 game relics, 180 are combat-affecting; the remaining ~95
+   split into:
+   - **Deferred-portable (sound, but each needs a specific new engine hook — low frequency, diminishing value):**
+     **LizardTail** (first-death → survive at 50% — highest value; needs a death-prevention hook in the HP-loss
+     path, the riskiest core change, do carefully); **RedSkull** (Str while HP≤50% — needs an HP-threshold toggle);
+     **ToughBandages** (discard → block — needs an `AfterCardDiscarded` hook); **IceCream** (energy carries between
+     turns — needs an energy-reset change); **PenNib** (×2 every 10th attack — "double next attack" marker);
+     **RuinedHelmet** (first Str gain ×2 — needs `ModifyPowerAmountReceived`); **ChemicalX** (X-cost +2 — needs
+     X-cost cards modelled); **VitruvianMinion** (Minion ×2 — needs a Minion card tag); **PhilosophersStone**
+     (enemy Str incl. summons — needs a summon hook); **BrilliantScarf/DiamondDiadem** (per-turn play-count gates);
+     **ArtOfWar/Pocketwatch** (cross-turn memory); Defect-orb ones (**Metronome/GoldPlatedCables/InfusedCore/
+     SymbioticVirus** — orb-channel counters); **SturdyClamp/VelvetChoker** (block-retention / play-cap);
+     **LunarPastry/GalacticDust** already done; **HandDrill** (block-break detection); **BoneFlute/BookRepairKnife**
+     (Necrobinder pet/Doom hooks).
+   - **Out of scope by doctrine (NOT soundly portable):** RNG card/orb GENERATION (Crossbow, OrangeDough, Toolbox,
+     BigHat, ChoicesParadox, NinjaScroll, FuneraryMask, RadiantPearl, JeweledMask, VexingPuzzlebox, MusicBox,
+     MummifiedHand, ForgottenSoul, Kusarigama, ParryingShield, PowerCell, FencingManual, WhisperingEarring — letting
+     search SEE generated cards is the forbidden optimistic direction); **Confused/cost-randomising** (SneckoEye,
+     FakeSneckoEye); **unmodelled-power** (SelfFormingClay, MysticLighter's enchantments); and the cosmetic/economy/
+     map/reward/rest/potion catalog + post-combat-only heals (MeatOnTheBone, Pantograph, BeltBuckle, …) — HP-neutral
+     for a single-combat evaluation. These are "cleared": correctly left unmodelled (ranwid lists them as Ignored).
 2. **Finish the boss pool + close the 2 flagged optimistic gaps, then wire bosses into deck strength.** Remaining
    ports: TestSubject + the multi-monster bosses (TheKin / KaiserCrab / Queen) + hard multi-enemy normals. Before
    ANY boss enters the deck-strength `StrengthPool`, close (a) CeremonialBeast **Ringing** — each card playable
