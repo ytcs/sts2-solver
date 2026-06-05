@@ -185,6 +185,7 @@ public static class Cmd
         combat.Player.ExhaustPile.Add(card);
         combat.CardExhaustedThisTurn = true;
         foreach (var p in combat.AllPowers.ToList()) p.AfterCardExhausted(combat, card, false);
+        foreach (var r in combat.Player.Relics) r.AfterCardExhausted(combat, card, false);
     }
 
     /// <summary>Grant the player <paramref name="amount"/> energy mid-turn (Bloodletting, Offering). The
@@ -323,6 +324,11 @@ public static class Cmd
     /// target carrying Artifact may be negated (consuming an Artifact charge) before it lands.</summary>
     public static void ApplyPower(CombatState combat, Creature target, PowerModel power, int amount, Creature? applier = null)
     {
+        // Relic amount-given modifiers (Snecko Skull boosts the Poison the player applies). Applied first so
+        // the boosted amount flows through absorb / SkipNextTick / the broadcast below. Gated → inert unless an
+        // event-relic is present.
+        if (combat.HasEventRelics) foreach (var r in combat.Player.Relics) amount = r.ModifyPowerAmountGiven(power, applier, amount);
+
         if (amount != 0 && power.Type == PowerType.Debuff)
             foreach (var existing in target.Powers.ToList())
                 if (existing.TryAbsorbDebuff(combat, power))

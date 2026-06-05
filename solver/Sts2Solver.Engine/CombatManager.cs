@@ -113,6 +113,7 @@ public static class CombatManager
         // Before-play hook (Danse Macabre / Spirit of Ash block, Veilpiercer charge). Runs before OnPlay so
         // a Power card never triggers the power it is in the middle of applying.
         foreach (var pw in combat.AllPowers.ToList()) pw.BeforeCardPlayed(combat, card);
+        if (combat.HasEventRelics) foreach (var r in combat.Player.Relics) r.BeforeCardPlayed(combat, card);
 
         for (int i = 0; i <= bonusPlays; i++)
         {
@@ -135,6 +136,7 @@ public static class CombatManager
         // Mirror Hook.AfterCardPlayed: fires after the card's effect resolves (so the card never
         // boosts its own damage), before the card moves to its result pile.
         foreach (var p in combat.AllPowers.ToList()) p.AfterCardPlayed(combat, card);
+        if (combat.HasEventRelics) foreach (var r in combat.Player.Relics) r.AfterCardPlayed(combat, card);
 
         // Stars-spent hooks fire after the play resolves (ChildOfTheStars gains block, BlackHole damages).
         if (starCost > 0)
@@ -154,6 +156,7 @@ public static class CombatManager
                 player.ExhaustPile.Add(card);
                 combat.CardExhaustedThisTurn = true;
                 foreach (var p in combat.AllPowers.ToList()) p.AfterCardExhausted(combat, card, false);
+                if (combat.HasEventRelics) foreach (var r in combat.Player.Relics) r.AfterCardExhausted(combat, card, false);
                 break;
             case CardResultPile.Removed: break; // vanishes (e.g. Power cards)
         }
@@ -164,6 +167,10 @@ public static class CombatManager
     {
         var player = combat.Player;
         combat.PlayerTurnEndForced = false;   // consumed: a VoidForm-forced end is now being carried out
+
+        // Relic before-turn-end effects fire while the hand is still intact (Cloak Clasp / Screaming Flagon
+        // read hand size before the discard below).
+        if (combat.HasEventRelics) foreach (var r in player.Relics) r.BeforeSideTurnEnd(combat);
 
         // Orb turn-END passives (Lightning damage / Frost block / Dark accumulate / Glass damage) fire before
         // the hand is discarded and the side switches. Plasma fires at turn START, not here. Inert for non-Defect.
@@ -194,6 +201,7 @@ public static class CombatManager
                 player.ExhaustPile.Add(card);
                 combat.CardExhaustedThisTurn = true;
                 foreach (var p in combat.AllPowers.ToList()) p.AfterCardExhausted(combat, card, true);
+                if (combat.HasEventRelics) foreach (var r in combat.Player.Relics) r.AfterCardExhausted(combat, card, true);
             }
             else if (card.Retain) retained.Add(card);
             else player.DiscardPile.Add(card);
@@ -258,6 +266,7 @@ public static class CombatManager
     private static void FireAfterSideTurnEnd(CombatState combat, CombatSide side)
     {
         foreach (var p in combat.AllPowers.ToList()) p.AfterSideTurnEnd(combat, side);
+        if (combat.HasEventRelics) foreach (var r in combat.Player.Relics) r.AfterSideTurnEnd(combat, side);
     }
 
     // ---- Stochastic steps (concrete / RNG-driven; the solver enumerates these instead) ----
@@ -319,6 +328,7 @@ public static class CombatManager
     {
         int count = baseCount;
         foreach (var pw in combat.Player.Powers) count = pw.ModifyHandDraw(combat.Player, count);
+        if (combat.HasEventRelics) foreach (var r in combat.Player.Relics) count = r.ModifyHandDraw(combat, count);
         return Math.Max(0, count);
     }
 

@@ -159,4 +159,54 @@ public abstract class RelicModel
     /// <summary>Fires at the start of each player turn after energy resets (Bound Phylactery re-summons
     /// Osty each turn after the first).</summary>
     public virtual void OnPlayerTurnStart(CombatState combat) { }
+
+    /// <summary>True when this relic overrides any per-card/per-turn combat-event hook below. Lets
+    /// <see cref="CombatState.HasEventRelics"/> skip the relic event-hook loops entirely for a deck with no such
+    /// relic (the common case), so the hot path pays zero overhead. Event relics extend <see cref="EventRelic"/>
+    /// (which sets this true); relics that only use OnCombatStart/OnPlayerTurnStart leave it false.</summary>
+    public virtual bool HasCombatEventHooks => false;
+
+    // ---- Stateless combat-event hooks (fired alongside the power hooks). A relic is a SHARED, immutable
+    // definition (Player.Clone shares the same Relics instances), so only STATELESS handlers may live here —
+    // they read combat state and act, but hold no per-combat mutable field, so they need no clone/hash. Relics
+    // that must accumulate per-turn/per-combat counters install a hidden relic POWER instead (cloned + hashed). ----
+
+    /// <summary>Fires just before a card's effect resolves, after its cost is paid (Intimidating Helmet blocks
+    /// on a cost≥2 play, Ivory Tile gains energy on a cost≥3 play). (Game: Hook.BeforeCardPlayed.)</summary>
+    public virtual void BeforeCardPlayed(CombatState combat, CardModel card) { }
+
+    /// <summary>Fires after a card's effect resolves (Daughter of the Wind blocks on an Attack, Lost Wisp
+    /// damages on a Power, Game Piece draws on a Power). (Game: Hook.AfterCardPlayed.)</summary>
+    public virtual void AfterCardPlayed(CombatState combat, CardModel card) { }
+
+    /// <summary>Fires when a player card is exhausted (Charon's Ashes damages all enemies). (Game:
+    /// Hook.AfterCardExhausted.)</summary>
+    public virtual void AfterCardExhausted(CombatState combat, CardModel card, bool causedByEthereal) { }
+
+    /// <summary>Fires at the start of the player's end-of-turn, BEFORE the hand is discarded/exhausted (Cloak
+    /// Clasp blocks by hand size, Screaming Flagon detonates if the hand is empty — both must read the hand
+    /// before it is cleared). (Game: Hook.BeforeSideTurnEnd.)</summary>
+    public virtual void BeforeSideTurnEnd(CombatState combat) { }
+
+    /// <summary>Fires after a side's turn ends, AFTER the hand discard (Orichalcum blocks if at 0, Stone Calendar
+    /// detonates on turn 7, Lunar Pastry grants a Star). Fires for BOTH sides — relics gate on the side. (Game:
+    /// AfterSideTurnEnd.)</summary>
+    public virtual void AfterSideTurnEnd(CombatState combat, CombatSide side) { }
+
+    /// <summary>Modifies the player's turn-start hand-draw count, with combat available so the bonus can be
+    /// turn-conditioned (Bag of Preparation / Ring of the Snake +2 on turn 1; Ring of the Drake on turns ≤3;
+    /// Big Mushroom −2 on turn 1). Chained after the power ModifyHandDraw. (Game: relic ModifyHandDraw.)</summary>
+    public virtual int ModifyHandDraw(CombatState combat, int count) => count;
+
+    /// <summary>Adjusts the amount of a power being applied (Snecko Skull +1 to Poison the player applies).
+    /// <paramref name="applier"/> is the creature granting the power. (Game: relic ModifyPowerAmountGiven.)</summary>
+    public virtual int ModifyPowerAmountGiven(PowerModel power, Creature? applier, int amount) => amount;
+}
+
+/// <summary>Base for relics that use the per-card/per-turn combat-event hooks (anything beyond OnCombatStart /
+/// OnPlayerTurnStart). Flags <see cref="RelicModel.HasCombatEventHooks"/> so the engine activates the relic
+/// event-hook loops for a combat that contains one — and skips them (zero overhead) otherwise.</summary>
+public abstract class EventRelic : RelicModel
+{
+    public sealed override bool HasCombatEventHooks => true;
 }

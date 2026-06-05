@@ -174,6 +174,7 @@ public static partial class Catalog
                                        BoundsPlays = boundsPlays, TracksPoweredHits = tracksPoweredHits,
                                        TracksLightningChanneled = tracksLightning, TracksEnergySpent = tracksEnergySpent,
                                        TracksCardsPlayed = tracksCardsPlayed };
+        combat.HasEventRelics = player.Relics.Any(r => r.HasCombatEventHooks);   // perf gate for the relic event-hook loops
         foreach (var r in player.Relics) r.OnCombatStart(combat);   // e.g. DivineRight grants Stars, Bound Phylactery summons Osty
         return combat;
     }

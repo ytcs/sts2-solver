@@ -165,6 +165,13 @@ public sealed class CombatState
     /// tracking + hashing + the cap, so the common deck's state space is never fragmented by a play counter.</summary>
     public bool BoundsPlays;
 
+    /// <summary>True when the player carries a relic that overrides a per-card/per-turn combat-event hook
+    /// (<see cref="RelicModel.HasCombatEventHooks"/>). Gates the relic event-hook loops in the hot path
+    /// (card-played / exhausted / power-applied / turn-end / draw-count) so a deck with no such relic — the
+    /// overwhelming common case — pays ZERO per-node overhead, keeping exact-solve speed (and its wall-clock
+    /// budgets) unchanged. Pure performance gate; never affects results. Not hashed (it is constant per combat).</summary>
+    public bool HasEventRelics;
+
     /// <summary>Set when a card whose play ENDS the turn (VoidForm) resolves; the player gets no further plays
     /// this turn. The search routes a forced-end state straight to the end-turn transition (exact: ContinuePlay;
     /// MCTS: a decision node that opens only the EndTurn edge), and <see cref="CombatManager.EndPlayerTurn"/>
@@ -263,6 +270,7 @@ public sealed class CombatState
             PendingDiscardCard = PendingDiscardCard,   // immutable card instance — shared by reference is safe
             PlaysThisTurn = PlaysThisTurn,
             BoundsPlays = BoundsPlays,
+            HasEventRelics = HasEventRelics,
             PlayerTurnEndForced = PlayerTurnEndForced,
         };
     }

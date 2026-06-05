@@ -29,13 +29,13 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   were removed: both badly mis-estimated big decks, ~18 HP off the rollout, and weren't in the production path).
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Combat relics — batches 1+2 (26) ported + live in ranwid.** The combat-affecting relic pool is now modelled
-  (was: only the 5 starter relics). 180/298 game relics are combat-affecting; batches 1–2 cover the highest-value
-  sound subset (combat-start stat/block/power grants, turn-numbered energy, passive damage/energy/draw modifiers,
-  HP-loss reducers). ranwid already feeds a run's ACTUAL relics through `BuildPlayer` (the wiring was generic) —
-  registering a relic makes the advisor pick it up automatically, so deck strength now reflects these relics
-  instead of "ignoring" them.
-- **Tests: 987 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Combat relics — batches 1–4 (70) ported + live in ranwid.** The combat-affecting relic pool is now modelled
+  (was: only the 5 starter relics). 180/298 game relics are combat-affecting; batches 1–4 cover the highest-value
+  sound subset (combat-start stat/block/power grants, turn-numbered energy/block/damage, on-play/on-exhaust/
+  end-of-turn triggers, passive damage/energy/draw/HP-loss modifiers, and stateful every-Nth-play counters).
+  ranwid already feeds a run's ACTUAL relics through `BuildPlayer` (the wiring was generic) — registering a relic
+  makes the advisor pick it up automatically, so deck strength now reflects these relics instead of "ignoring" them.
+- **Tests: 1075 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -255,6 +255,30 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Recently completed (this session — paused here)
 
+- **Combat relics — batch 4 (9 relics): stateful every-Nth-play / once-per-combat counters.** Modelled via hidden
+  hashed-counter relic POWERS (a relic is shared/immutable and can't hold a counter; a power is cloned + hashed,
+  and present only when the relic is). `RelicPlayCounterPower` base counts qualifying plays and fires every Nth
+  (counter subtracted, not modulo-grown, so it stays bounded in [0, N) ⇒ stable hash): Kunai (3 attacks/turn →
+  Dex), Shuriken (3 attacks/turn → Str), OrnamentalFan (3 attacks/turn → 4 block), LetterOpener (3 skills/turn →
+  5 AoE), Nunchaku (10 attacks → energy), TuningFork (10 skills → 7 block), IronClub (4 cards → draw 1). Per-turn
+  counters reset at the owner's turn start; per-combat ones persist. Plus once-per-combat flag relics Permafrost
+  (first Power → 7 block) and RainbowRing (all-3-types-in-a-turn → Str+Dex). All counters/flags fold into
+  StateKey + HashValue. `RelicTests4` (20); full suite 1075.
+- **Combat relics — batch 3 (35 relics) + stateless relic event-hook infrastructure.** Added stateless relic
+  event hooks to `RelicModel` (`BeforeCardPlayed`/`AfterCardPlayed`/`AfterCardExhausted`/`BeforeSideTurnEnd`/
+  `AfterSideTurnEnd`/`ModifyHandDraw(combat)`/`ModifyPowerAmountGiven`), fired alongside the power hooks. A relic
+  is SHARED + immutable (Player.Clone shares instances), so only STATELESS handlers live here — they need no
+  clone/hash; stateful (counter) relics will install hidden powers instead (batch 4). Ported: combat-start
+  (FakeAnchor, TwistedFunnel, energy relics BloodSoakedRose/PrismaticGem/Sozu, Fiddle), turn-numbered
+  (FakeBloodVial, DivineDestiny, Bread, PaelsFlesh, CaptainsWheel, HornCleat, SparklingRouge, MercuryHourglass,
+  MrStruggles, RoyalPoison, RunicCapacitor), turn-1 draw (BagOfPreparation, RingOfTheSnake, RingOfTheDrake,
+  BigMushroom −2), end-of-turn (Orichalcum, FakeOrichalcum, CloakClasp, RippleBasin, ScreamingFlagon,
+  StoneCalendar, LunarPastry), on-play (IntimidatingHelmet, IvoryTile, DaughterOfTheWind, LostWisp, GamePiece),
+  on-exhaust (CharonsAshes), power-amount (SneckoSkull). **Perf gate (important):** the event-hook loops fire in
+  hot paths (per card play / power apply), so they're gated on `CombatState.HasEventRelics` — true only when a
+  relic that overrides an event hook is present (event relics extend the `EventRelic` base). A deck with no such
+  relic (the common case, incl. the calibration fixtures' BurningBlood) pays ZERO per-node overhead, so exact-
+  solve speed and its wall-clock budgets are unchanged. `RelicTests3` (68); full suite 1055.
 - **Combat relics — batch 2 (5 relics): HP-loss reducers + passive modifiers, all via existing power hooks.**
   TungstenRod (lose 1 less HP from every source — `ModifyHpLost`, the hook Intangible uses), TheBoot (your
   unblocked 1–4 hits to enemies become 5 — same `ModifyHpLost`, which also fires for damage dealt to enemies),
@@ -399,15 +423,16 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Next to-dos (forward, ordered)
 
-1. **Combat relics (batch port) — IN PROGRESS (batches 1–2 done: 26 relics).** The user's headline ask: deck strength falls
+1. **Combat relics (batch port) — IN PROGRESS (batches 1–4 done: 70 relics).** The user's headline ask: deck strength falls
    off in later acts because relics (a big late-game contributor) aren't modelled, so a relic-leaning deck reads
    weaker than it plays. **The ranwid side is DONE** (the relic path was already generic — it feeds a run's actual
    relics into `BuildPlayer` and just needs the engine to model them). **Batch 1 (21 relics) is ported** (see
    Recently completed). Of 298 game relics, **180 are combat-affecting**; remaining batches (~159), roughly by
    mechanism + the engine support each needs:
-   - **2a. Event-counter attack relics** — Kunai/Shuriken/Nunchaku/PenNib/Ornamental Fan etc. (every-N-attacks →
-     Dex/Str/energy/block/double). A per-turn or per-combat attack counter on a hidden relic power via the existing
-     `AfterCardPlayed` hook (gate + hash the counter, like the existing Skills/Attacks counters).
+   - **2a. Event-counter attack relics** — DONE in batch 4 (Kunai/Shuriken/OrnamentalFan/LetterOpener/Nunchaku/
+     TuningFork/IronClub/Permafrost/RainbowRing). Left: **PenNib** (every-10th-attack ×2 — needs a "double the
+     next attack" marker, intricate) and the counters folded into the deferred list below (GalacticDust/MiniRegent/
+     Metronome stars/orb counters, JossPaper exhaust counter, ToughBandages discard counter, etc.).
    - **2b. HP-loss reducers** — Tungsten Rod + The Boot DONE (batch 2, via `ModifyHpLost`); Beating Remnant left
      (stateful per-turn cap → needs a hashed counter).
    - **2c. Block-on-condition / turn-end** — Orichalcum (block if 0 at end of turn), Captain's Wheel (turn-3 block),

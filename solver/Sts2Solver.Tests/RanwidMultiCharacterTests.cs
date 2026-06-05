@@ -40,7 +40,7 @@ public class RanwidMultiCharacterTests
         => Assert.Equal(expected, GameIds.ModelledRelicName(relicId));
 
     [Theory]
-    [InlineData("RELIC.RING_OF_THE_SNAKE")]   // Silent starter — no modelled in-combat effect
+    [InlineData("RELIC.CROSSBOW")]            // combat relic deliberately OUT: RNG free-attack generation (optimistic)
     [InlineData("RELIC.SOME_UNMODELLED_RELIC")]
     public void Unmodelled_Relics_Map_To_Null(string relicId) => Assert.Null(GameIds.ModelledRelicName(relicId));
 
