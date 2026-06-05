@@ -29,7 +29,12 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   were removed: both badly mis-estimated big decks, ~18 HP off the rollout, and weren't in the production path).
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 936 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Combat relics — batch 1 (21) ported + live in ranwid.** The combat-affecting relic pool is now modelled
+  (was: only the 5 starter relics). 180/298 game relics are combat-affecting; batch 1 covers the highest-value
+  sound subset (combat-start stat/block/power grants, turn-numbered energy, passive damage/energy modifiers).
+  ranwid already feeds a run's ACTUAL relics through `BuildPlayer` (the wiring was generic) — registering a relic
+  makes the advisor pick it up automatically, so deck strength now reflects these relics instead of "ignoring" them.
+- **Tests: 977 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -249,6 +254,25 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Recently completed (this session — paused here)
 
+- **Combat relics — batch 1 (21 relics) + the relic-modelling foundation.** Diagnosed that the to-do is almost
+  entirely a CONTENT port: ranwid's relic path was already generic (`Companion.Load` maps `run.RelicIds` →
+  `GameIds.ModelledRelicName` → `Catalog.IsModelledRelic`, feeds the survivors into `BuildPlayer`; warns on the
+  rest), so registering a relic under its game class name makes the advisor model it with ZERO ranwid changes.
+  **Architecture (no new engine pipeline):** the game implements most relics by applying powers, so each relic
+  either (a) applies an existing power at combat start via `Cmd` (Vajra→Strength, BronzeScales→Thorns, Anchor→
+  Block, Akabeko→Vigor, DataDisk→Focus, Gorget→Plating, BagOfMarbles/RedMask→enemy debuffs, BloodVial→Heal), or
+  (b) installs a tiny hidden "relic power" carrying a passive modifier (`RelicMaxEnergyPower` for Ectoplasm;
+  `RelicStrikeDamagePower` for StrikeDummy/FakeStrikeDummy; `RelicUpgradedDamagePower` for MiniatureCannon) —
+  reusing the already-cloned + hashed power pipeline, so it is sound for search/memoisation for free and inert
+  for any deck without the relic. Turn-numbered/recurring relics (Sai 7-block/turn, Brimstone +2 self/+1-enemy
+  Str/turn, Lantern/VeryHotCocoa/Candelabra/Chandelier energy on turn 1/1/2/3, FestivePopper 9-AoE turn 1) use
+  the existing `OnPlayerTurnStart` relic hook (fires after the turn-start energy reset + block clear).
+  **Soundness:** all 21 are deterministic ⇒ exact for the objective (no RNG card/orb gen); enemy-side downsides
+  (Brimstone's enemy Strength) ARE modelled so a relic can't read as a free upside. New: `Relics/CombatRelics.cs`,
+  `Relics/RelicPowers.cs`, `Core/RelicCatalog.cs` (central `RelicFactories`, moved out of `IroncladCatalog`),
+  `RelicTests.cs` (41). Full suite 977.
+
+
 - **`ranwid --custom [character]` — save-less deck sandbox.** Diagnosed why ranwid couldn't see the user's
   multiplayer run: a multiplayer **GUEST** never gets a local `current_run.save` (only the HOST's game writes one),
   so there is nothing on disk for the watcher to read (confirmed: the guest's profile only updates
@@ -360,10 +384,27 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Next to-dos (forward, ordered)
 
-1. **Combat relics (batch port)** — the user's headline ask: deck strength falls off in later acts because relics
-   (a big late-game contributor) aren't modelled, so a relic-leaning deck reads weaker than it plays. Port the
-   combat-affecting relics (combat-start + in-combat HP/block/damage hooks; NOT the full 300 cosmetic/economy
-   catalog), and model a run's ACTUAL relics in ranwid (currently only each character's starter relic is counted).
+1. **Combat relics (batch port) — IN PROGRESS (batch 1 of N done).** The user's headline ask: deck strength falls
+   off in later acts because relics (a big late-game contributor) aren't modelled, so a relic-leaning deck reads
+   weaker than it plays. **The ranwid side is DONE** (the relic path was already generic — it feeds a run's actual
+   relics into `BuildPlayer` and just needs the engine to model them). **Batch 1 (21 relics) is ported** (see
+   Recently completed). Of 298 game relics, **180 are combat-affecting**; remaining batches (~159), roughly by
+   mechanism + the engine support each needs:
+   - **2a. Event-counter attack relics** — Kunai/Shuriken/Nunchaku/PenNib/Ornamental Fan etc. (every-N-attacks →
+     Dex/Str/energy/block/double). A per-turn or per-combat attack counter on a hidden relic power via the existing
+     `AfterCardPlayed` hook (gate + hash the counter, like the existing Skills/Attacks counters).
+   - **2b. HP-loss reducers** — Tungsten Rod / The Boot / Beating Remnant (route through the existing `ModifyHpLost`
+     power hook — Intangible already uses it).
+   - **2c. Block-on-condition / turn-end** — Orichalcum (block if 0 at end of turn), Captain's Wheel (turn-3 block),
+     Horn Cleat, Sparkling Rouge: need an `AfterBlockCleared` / `BeforeSideTurnEnd` relic (or relic-power) hook —
+     the one genuinely new firing site.
+   - **2d. On-play / on-exhaust / on-discard** — Letter Opener, Shuriken-likes, Charon's Ashes, Tingsha, Tough
+     Bandages, Forgotten Soul: reuse the existing `AfterCardPlayed`/`AfterCardExhausted` power hooks.
+   - **2e. Power/draw/cost modifiers** — Snecko Skull, Bag of Preparation, Ring of the Snake/Drake, Bread, Spiked
+     Gauntlets, Philosopher's Stone, Pocketwatch: passive relic powers via `ModifyPowerAmountGiven`/`ModifyHandDraw`/
+     `ModifyCardCost` (some need turn-1 conditioning — give the relic-power a turn flag it sets in `AfterSideTurnStart`).
+   - **Out of scope (unchanged):** RNG card/orb-generation relics (Orange Dough, Crossbow — optimistic direction),
+     and the cosmetic/economy/map/reward/rest/potion catalog (~118 relics).
 2. **Finish the boss pool + close the 2 flagged optimistic gaps, then wire bosses into deck strength.** Remaining
    ports: TestSubject + the multi-monster bosses (TheKin / KaiserCrab / Queen) + hard multi-enemy normals. Before
    ANY boss enters the deck-strength `StrengthPool`, close (a) CeremonialBeast **Ringing** — each card playable

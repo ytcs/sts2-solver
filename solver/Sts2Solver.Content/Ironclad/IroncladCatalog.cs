@@ -98,13 +98,8 @@ public static partial class Catalog
         ["TearAsunder"] = () => new TearAsunder(),
     };
 
-    private static readonly Dictionary<string, Func<RelicModel>> RelicFactories = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["BurningBlood"] = () => new BurningBlood(),
-        ["DivineRight"] = () => new DivineRight(),           // Regent starter (defined in Regent/RegentCatalog.cs)
-        ["BoundPhylactery"] = () => new BoundPhylactery(),   // Necrobinder starter (defined in Necrobinder/)
-        ["CrackedCore"] = () => new CrackedCore(),           // Defect starter (defined in Defect/DefectCatalog.cs)
-    };
+    // The relic registry lives centrally in Core/RelicCatalog.cs (Catalog.RelicFactories), so the combat
+    // relic pool can grow without editing this character file.
 
     /// <summary>The Ironclad starting deck: 5 Strike, 4 Defend, 1 Bash.</summary>
     public static List<CardModel> IroncladStarterDeck()
