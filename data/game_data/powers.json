@@ -845,19 +845,6 @@
     "amount": "0"
   },
   {
-    "className": "EbbPower",
-    "fullName": "MegaCrit.Sts2.Core.Models.Powers.EbbPower",
-    "namespace": "MegaCrit.Sts2.Core.Models.Powers",
-    "title": "LocString table powers entry EBB_POWER.title",
-    "description": "LocString table powers entry EBB_POWER.description",
-    "stackType": "Counter",
-    "powerType": "Debuff",
-    "instanceType": "None",
-    "allowNegative": "False",
-    "isVisible": "True",
-    "amount": "0"
-  },
-  {
     "className": "EchoFormPower",
     "fullName": "MegaCrit.Sts2.Core.Models.Powers.EchoFormPower",
     "namespace": "MegaCrit.Sts2.Core.Models.Powers",

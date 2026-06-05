@@ -1965,11 +1965,6 @@
     "ns": "MegaCrit.Sts2.Core.Models.Powers"
   },
   {
-    "typeName": "MegaCrit.Sts2.Core.Models.Powers.EbbPower",
-    "baseName": "MegaCrit.Sts2.Core.Models.PowerModel",
-    "ns": "MegaCrit.Sts2.Core.Models.Powers"
-  },
-  {
     "typeName": "MegaCrit.Sts2.Core.Models.Powers.EchoFormPower",
     "baseName": "MegaCrit.Sts2.Core.Models.PowerModel",
     "ns": "MegaCrit.Sts2.Core.Models.Powers"
@@ -3345,6 +3340,11 @@
     "ns": "MegaCrit.Sts2.Core.Models.Potions"
   },
   {
+    "typeName": "MegaCrit.Sts2.Core.Models.Potions.Mocks.MockDiscardAndAddShivsPotion",
+    "baseName": "MegaCrit.Sts2.Core.Models.PotionModel",
+    "ns": "MegaCrit.Sts2.Core.Models.Potions.Mocks"
+  },
+  {
     "typeName": "MegaCrit.Sts2.Core.Models.PotionPools.DefectPotionPool",
     "baseName": "MegaCrit.Sts2.Core.Models.PotionPoolModel",
     "ns": "MegaCrit.Sts2.Core.Models.PotionPools"
@@ -3361,6 +3361,11 @@
   },
   {
     "typeName": "MegaCrit.Sts2.Core.Models.PotionPools.IroncladPotionPool",
+    "baseName": "MegaCrit.Sts2.Core.Models.PotionPoolModel",
+    "ns": "MegaCrit.Sts2.Core.Models.PotionPools"
+  },
+  {
+    "typeName": "MegaCrit.Sts2.Core.Models.PotionPools.MockPotionPool",
     "baseName": "MegaCrit.Sts2.Core.Models.PotionPoolModel",
     "ns": "MegaCrit.Sts2.Core.Models.PotionPools"
   },

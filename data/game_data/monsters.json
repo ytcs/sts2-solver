@@ -21,7 +21,7 @@
             "power": null
           },
           {
-            "type": "DebuffIntent",
+            "type": "DefendIntent",
             "damage": null,
             "times": null,
             "block": null,
@@ -57,13 +57,6 @@
           },
           {
             "type": "BuffIntent",
-            "damage": null,
-            "times": null,
-            "block": null,
-            "power": null
-          },
-          {
-            "type": "DefendIntent",
             "damage": null,
             "times": null,
             "block": null,

@@ -9837,7 +9837,7 @@
       {
         "key": null,
         "value": null,
-        "baseValue": "5"
+        "baseValue": "6"
       }
     ],
     "multiplayerConstraint": "None"
@@ -11487,7 +11487,7 @@
     "title": null,
     "type": "Power",
     "rarity": "Rare",
-    "energyCost": "3",
+    "energyCost": "2",
     "hasEnergyCostX": "False",
     "starCost": "-1",
     "baseReplayCount": "0",
@@ -14193,7 +14193,7 @@
       {
         "key": null,
         "value": null,
-        "baseValue": "16"
+        "baseValue": "15"
       }
     ],
     "multiplayerConstraint": "None"
@@ -14761,7 +14761,23 @@
     "canBeGeneratedInCombat": "True",
     "pool": null,
     "description": "LocString table cards entry SACRIFICE.description",
-    "dynamicVars": [],
+    "dynamicVars": [
+      {
+        "key": null,
+        "value": null,
+        "baseValue": "0"
+      },
+      {
+        "key": null,
+        "value": null,
+        "baseValue": "1"
+      },
+      {
+        "key": null,
+        "value": null,
+        "baseValue": "0"
+      }
+    ],
     "multiplayerConstraint": "None"
   },
   {
@@ -15770,7 +15786,7 @@
       {
         "key": null,
         "value": null,
-        "baseValue": "2"
+        "baseValue": "3"
       }
     ],
     "multiplayerConstraint": "None"
@@ -18171,7 +18187,7 @@
       {
         "key": null,
         "value": null,
-        "baseValue": "3"
+        "baseValue": "4"
       }
     ],
     "multiplayerConstraint": "None"

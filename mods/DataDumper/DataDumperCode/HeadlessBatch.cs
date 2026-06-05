@@ -78,7 +78,7 @@ public static class HeadlessBatch
             var runState = RunState.CreateForNewRun(
                 new List<Player> { player }, acts, new List<ModifierModel>(), GameMode.Standard, ascension, seed);
 
-            RunManager.Instance.SetUpNewSinglePlayer(runState, shouldSave: false);
+            RunManager.Instance.SetUpNewSingleplayer(runState, shouldSave: false);   // renamed in the 2026-06 game patch (was SetUpNewSinglePlayer)
             await PreloadManager.LoadRunAssets(new List<CharacterModel> { player.Character });
             RunManager.Instance.Launch();
             NGame.Instance!.RootSceneContainer.SetCurrentScene(NRun.Create(runState));
