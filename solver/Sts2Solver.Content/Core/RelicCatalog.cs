@@ -43,5 +43,12 @@ public static partial class Catalog
         ["StrikeDummy"]      = () => new StrikeDummy(),
         ["FakeStrikeDummy"]  = () => new FakeStrikeDummy(),
         ["MiniatureCannon"]  = () => new MiniatureCannon(),
+
+        // --- Combat pool, batch 2 (HP-loss reducers + passive modifiers) ---
+        ["TungstenRod"]      = () => new TungstenRod(),
+        ["TheBoot"]          = () => new TheBoot(),
+        ["SpikedGauntlets"]  = () => new SpikedGauntlets(),
+        ["PaelsBlood"]       = () => new PaelsBlood(),
+        ["BlessedAntler"]    = () => new BlessedAntler(),
     };
 }

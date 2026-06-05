@@ -185,3 +185,52 @@ public sealed class MiniatureCannon : RelicModel
     public override string Id => "MiniatureCannon";
     public override void OnCombatStart(CombatState combat) => Cmd.ApplyPower(combat, combat.Player, new RelicUpgradedDamagePower(), 3, combat.Player);
 }
+
+// ---- Batch 2: HP-loss reducers + passive modifiers (existing power hooks) ----
+
+/// <summary>Tungsten Rod: whenever you would lose HP, lose 1 less. (MegaCrit TungstenRod.)</summary>
+public sealed class TungstenRod : RelicModel
+{
+    public override string Id => "TungstenRod";
+    public override void OnCombatStart(CombatState combat) => Cmd.ApplyPower(combat, combat.Player, new RelicHpLossReductionPower(), 1, combat.Player);
+}
+
+/// <summary>The Boot: when you would deal 4 or less unblocked attack damage to an enemy, deal 5 instead.
+/// (MegaCrit TheBoot.)</summary>
+public sealed class TheBoot : RelicModel
+{
+    public override string Id => "TheBoot";
+    public override void OnCombatStart(CombatState combat) => Cmd.ApplyPower(combat, combat.Player, new RelicMinDamagePower(), 5, combat.Player);
+}
+
+/// <summary>Spiked Gauntlets: gain 1 additional energy each turn, but Power cards cost 1 more. Both the upside
+/// (max energy) and the downside (Power surcharge) are modelled. (MegaCrit SpikedGauntlets.)</summary>
+public sealed class SpikedGauntlets : RelicModel
+{
+    public override string Id => "SpikedGauntlets";
+    public override void OnCombatStart(CombatState combat)
+    {
+        Cmd.ApplyPower(combat, combat.Player, new RelicMaxEnergyPower(), 1, combat.Player);
+        Cmd.ApplyPower(combat, combat.Player, new RelicPowerCostSurchargePower(), 1, combat.Player);
+    }
+}
+
+/// <summary>Pael's Blood: draw 1 additional card at the start of each turn. (MegaCrit PaelsBlood.)</summary>
+public sealed class PaelsBlood : RelicModel
+{
+    public override string Id => "PaelsBlood";
+    public override void OnCombatStart(CombatState combat) => Cmd.ApplyPower(combat, combat.Player, new RelicDrawPower(), 1, combat.Player);
+}
+
+/// <summary>Blessed Antler: gain 1 additional energy each turn, but start each combat with 3 Dazed shuffled
+/// into your draw pile. The Dazed dilution (a downside) is modelled so the +1 energy isn't free. (MegaCrit
+/// BlessedAntler.)</summary>
+public sealed class BlessedAntler : RelicModel
+{
+    public override string Id => "BlessedAntler";
+    public override void OnCombatStart(CombatState combat)
+    {
+        Cmd.ApplyPower(combat, combat.Player, new RelicMaxEnergyPower(), 1, combat.Player);
+        for (int i = 0; i < 3; i++) combat.Player.DrawPile.Add(new Dazed());
+    }
+}

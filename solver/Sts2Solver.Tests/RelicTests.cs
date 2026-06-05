@@ -146,6 +146,52 @@ public class RelicTests
         Assert.Equal(80 - 9 - 6, m.CurrentHp);
     }
 
+    // ---- Batch 2: HP-loss reducers + passive modifiers ----
+
+    [Fact]
+    public void TungstenRod_Reduces_HP_Loss_By_1()
+    {
+        var (combat, m) = Fight("TungstenRod");
+        Cmd.Attack(combat, m, combat.Player, 6, ValueProp.Move, null);   // 6 - 1
+        Assert.Equal(75, combat.Player.CurrentHp);
+    }
+
+    [Fact]
+    public void TheBoot_Raises_Small_Hits_To_5()
+    {
+        var (combat, m) = Fight("TheBoot");
+        Cmd.Attack(combat, combat.Player, m, 3, ValueProp.Move, null);   // 3 -> 5
+        Assert.Equal(75, m.CurrentHp);
+        Cmd.Attack(combat, combat.Player, m, 6, ValueProp.Move, null);   // 6 stays 6
+        Assert.Equal(69, m.CurrentHp);
+    }
+
+    [Fact]
+    public void SpikedGauntlets_Adds_Energy_And_Surcharges_Power_Cards()
+    {
+        var (combat, _) = Fight("SpikedGauntlets");
+        CombatManager.BeginPlayerTurn(combat);
+        Assert.Equal(4, combat.Player.Energy);                           // +1 max energy
+        var baseline = Catalog.SetupCombat(Catalog.BuildPlayer(new List<CardModel>(), 80, 80),
+                                           new[] { Monsters.CalcifiedCultist(40) });
+        var inflame = new Inflame();                                     // a Power card
+        Assert.Equal(CombatManager.ResolveCardCost(baseline, inflame) + 1,
+                     CombatManager.ResolveCardCost(combat, inflame));    // Power costs +1
+    }
+
+    [Fact]
+    public void PaelsBlood_Draws_One_Extra_Each_Turn()
+        => Assert.Equal(6, CombatManager.TurnStartDrawCount(Fight("PaelsBlood").combat));
+
+    [Fact]
+    public void BlessedAntler_Adds_Energy_And_3_Dazed()
+    {
+        var (combat, _) = Fight("BlessedAntler");
+        Assert.Equal(3, combat.Player.DrawPile.Count(c => c.Name == "Dazed"));
+        CombatManager.BeginPlayerTurn(combat);
+        Assert.Equal(4, combat.Player.Energy);
+    }
+
     // ---- Registration / advisor pickup ----
 
     [Theory]
@@ -154,7 +200,8 @@ public class RelicTests
     [InlineData("RedMask")] [InlineData("BloodVial")] [InlineData("Sai")] [InlineData("Brimstone")]
     [InlineData("Lantern")] [InlineData("VeryHotCocoa")] [InlineData("Candelabra")] [InlineData("Chandelier")]
     [InlineData("FestivePopper")] [InlineData("Ectoplasm")] [InlineData("StrikeDummy")] [InlineData("FakeStrikeDummy")]
-    [InlineData("MiniatureCannon")]
+    [InlineData("MiniatureCannon")] [InlineData("TungstenRod")] [InlineData("TheBoot")] [InlineData("SpikedGauntlets")]
+    [InlineData("PaelsBlood")] [InlineData("BlessedAntler")]
     public void Relic_Is_Registered_And_Buildable(string relic)
     {
         Assert.True(Catalog.IsModelledRelic(relic));

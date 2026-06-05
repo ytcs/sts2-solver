@@ -29,12 +29,13 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   were removed: both badly mis-estimated big decks, ~18 HP off the rollout, and weren't in the production path).
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Combat relics — batch 1 (21) ported + live in ranwid.** The combat-affecting relic pool is now modelled
-  (was: only the 5 starter relics). 180/298 game relics are combat-affecting; batch 1 covers the highest-value
-  sound subset (combat-start stat/block/power grants, turn-numbered energy, passive damage/energy modifiers).
-  ranwid already feeds a run's ACTUAL relics through `BuildPlayer` (the wiring was generic) — registering a relic
-  makes the advisor pick it up automatically, so deck strength now reflects these relics instead of "ignoring" them.
-- **Tests: 977 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Combat relics — batches 1+2 (26) ported + live in ranwid.** The combat-affecting relic pool is now modelled
+  (was: only the 5 starter relics). 180/298 game relics are combat-affecting; batches 1–2 cover the highest-value
+  sound subset (combat-start stat/block/power grants, turn-numbered energy, passive damage/energy/draw modifiers,
+  HP-loss reducers). ranwid already feeds a run's ACTUAL relics through `BuildPlayer` (the wiring was generic) —
+  registering a relic makes the advisor pick it up automatically, so deck strength now reflects these relics
+  instead of "ignoring" them.
+- **Tests: 987 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -254,6 +255,20 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Recently completed (this session — paused here)
 
+- **Combat relics — batch 2 (5 relics): HP-loss reducers + passive modifiers, all via existing power hooks.**
+  TungstenRod (lose 1 less HP from every source — `ModifyHpLost`, the hook Intangible uses), TheBoot (your
+  unblocked 1–4 hits to enemies become 5 — same `ModifyHpLost`, which also fires for damage dealt to enemies),
+  SpikedGauntlets (+1 energy AND Power cards cost +1 — both modelled: `ModifyMaxEnergy` + `ModifyCardCost`, the
+  latter visible to affordability in search), PaelsBlood (+1 draw every turn — `ModifyHandDraw`, like
+  MachineLearning), BlessedAntler (+1 energy AND 3 Dazed shuffled into the draw pile — the dilution downside is
+  modelled so the energy isn't free). New relic powers: `RelicHpLossReductionPower`, `RelicMinDamagePower`,
+  `RelicPowerCostSurchargePower`, `RelicDrawPower`. RelicTests now 51; full suite 987.
+  **Deferred (need engine support, not yet built):** (a) turn-conditioned passives — Bread, BagOfPreparation,
+  RingOfTheSnake/Drake (the `ModifyMaxEnergy`/`ModifyHandDraw` power hooks don't receive the turn number, and
+  `Creature` has no `CombatState` back-ref) → need a turn-aware relic hook; (b) PhilosophersStone (all enemies
+  gain Strength incl. mid-combat SUMMONS — modelling only the initial enemies would UNDER-credit summoned enemies
+  = optimistic/unsound, so it waits for a summon hook); (c) SneckoSkull (`ModifyPowerAmountGiven` hook missing);
+  (d) BeatingRemnant (stateful per-turn HP-loss cap — needs a hashed counter).
 - **Combat relics — batch 1 (21 relics) + the relic-modelling foundation.** Diagnosed that the to-do is almost
   entirely a CONTENT port: ranwid's relic path was already generic (`Companion.Load` maps `run.RelicIds` →
   `GameIds.ModelledRelicName` → `Catalog.IsModelledRelic`, feeds the survivors into `BuildPlayer`; warns on the
@@ -384,7 +399,7 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Next to-dos (forward, ordered)
 
-1. **Combat relics (batch port) — IN PROGRESS (batch 1 of N done).** The user's headline ask: deck strength falls
+1. **Combat relics (batch port) — IN PROGRESS (batches 1–2 done: 26 relics).** The user's headline ask: deck strength falls
    off in later acts because relics (a big late-game contributor) aren't modelled, so a relic-leaning deck reads
    weaker than it plays. **The ranwid side is DONE** (the relic path was already generic — it feeds a run's actual
    relics into `BuildPlayer` and just needs the engine to model them). **Batch 1 (21 relics) is ported** (see
@@ -393,16 +408,18 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
    - **2a. Event-counter attack relics** — Kunai/Shuriken/Nunchaku/PenNib/Ornamental Fan etc. (every-N-attacks →
      Dex/Str/energy/block/double). A per-turn or per-combat attack counter on a hidden relic power via the existing
      `AfterCardPlayed` hook (gate + hash the counter, like the existing Skills/Attacks counters).
-   - **2b. HP-loss reducers** — Tungsten Rod / The Boot / Beating Remnant (route through the existing `ModifyHpLost`
-     power hook — Intangible already uses it).
+   - **2b. HP-loss reducers** — Tungsten Rod + The Boot DONE (batch 2, via `ModifyHpLost`); Beating Remnant left
+     (stateful per-turn cap → needs a hashed counter).
    - **2c. Block-on-condition / turn-end** — Orichalcum (block if 0 at end of turn), Captain's Wheel (turn-3 block),
      Horn Cleat, Sparkling Rouge: need an `AfterBlockCleared` / `BeforeSideTurnEnd` relic (or relic-power) hook —
      the one genuinely new firing site.
    - **2d. On-play / on-exhaust / on-discard** — Letter Opener, Shuriken-likes, Charon's Ashes, Tingsha, Tough
      Bandages, Forgotten Soul: reuse the existing `AfterCardPlayed`/`AfterCardExhausted` power hooks.
-   - **2e. Power/draw/cost modifiers** — Snecko Skull, Bag of Preparation, Ring of the Snake/Drake, Bread, Spiked
-     Gauntlets, Philosopher's Stone, Pocketwatch: passive relic powers via `ModifyPowerAmountGiven`/`ModifyHandDraw`/
-     `ModifyCardCost` (some need turn-1 conditioning — give the relic-power a turn flag it sets in `AfterSideTurnStart`).
+   - **2e. Power/draw/cost modifiers** — Spiked Gauntlets + Pael's Blood DONE (batch 2, via `ModifyMaxEnergy`/
+     `ModifyCardCost`/`ModifyHandDraw`). Left: Snecko Skull (`ModifyPowerAmountGiven` hook missing), Bag of
+     Preparation / Ring of the Snake / Ring of the Drake / Bread (turn-1/turn-N conditioned — the power hooks
+     don't get the turn; add a turn-aware relic hook or a `Creature.CombatState` back-ref), Philosopher's Stone
+     (enemy Strength incl. summons — needs a summon hook to stay sound), Pocketwatch (stateful per-turn play count).
    - **Out of scope (unchanged):** RNG card/orb-generation relics (Orange Dough, Crossbow — optimistic direction),
      and the cosmetic/economy/map/reward/rest/potion catalog (~118 relics).
 2. **Finish the boss pool + close the 2 flagged optimistic gaps, then wire bosses into deck strength.** Remaining
