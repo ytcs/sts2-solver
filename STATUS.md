@@ -29,13 +29,14 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   were removed: both badly mis-estimated big decks, ~18 HP off the rollout, and weren't in the production path).
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Combat relics — batches 1–4 (70) ported + live in ranwid.** The combat-affecting relic pool is now modelled
-  (was: only the 5 starter relics). 180/298 game relics are combat-affecting; batches 1–4 cover the highest-value
-  sound subset (combat-start stat/block/power grants, turn-numbered energy/block/damage, on-play/on-exhaust/
-  end-of-turn triggers, passive damage/energy/draw/HP-loss modifiers, and stateful every-Nth-play counters).
-  ranwid already feeds a run's ACTUAL relics through `BuildPlayer` (the wiring was generic) — registering a relic
-  makes the advisor pick it up automatically, so deck strength now reflects these relics instead of "ignoring" them.
-- **Tests: 1075 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Combat relics — batches 1–5 (81) ported + live in ranwid.** The combat-affecting relic pool is now modelled
+  (was: only the 5 starter relics). 180/298 game relics are combat-affecting; batches 1–5 cover the highest-value
+  sound subset (combat-start stat/block/power grants, turn-numbered + every-N-turns energy/block/damage/draw,
+  on-play/on-exhaust/end-of-turn triggers, stateful every-Nth-play and damage/stars/play-count reactors, passive
+  damage/energy/draw/HP-loss modifiers). ranwid already feeds a run's ACTUAL relics through `BuildPlayer` (the
+  wiring was generic) — registering a relic makes the advisor pick it up automatically, so deck strength now
+  reflects these relics instead of "ignoring" them.
+- **Tests: 1097 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -255,6 +256,17 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Recently completed (this session — paused here)
 
+- **Combat relics — batch 5 (11 relics): every-N-turns relics + damage/stars/play-count reactors.** Two patterns,
+  both needing NO new engine hooks. (a) "Every N turns" relics need no state at all — they read `combat.TurnNumber`
+  directly (the game's per-turn counter fires on turns N, 2N, … ≡ `TurnNumber % N == 0`): HappyFlower (energy/3),
+  FakeHappyFlower (energy/5), Pendulum (draw+1 /3), PollinousCore (draw+2 /4). (b) Reactors install a hidden
+  hashed-state power on the existing power hooks: CentennialPuzzle (first unblocked hit → draw 3, `AfterDamage
+  Received` flag), DemonTongue (first unblocked hit/turn → heal it, per-turn flag), GalacticDust (per 10 Stars
+  spent → 10 block, `AfterStarsSpent` counter), MiniRegent (first Stars spent/turn → Str, per-turn flag),
+  BeatingRemnant (cap HP loss at 20/turn — `ModifyHpLost` cap + `AfterDamageReceived` accumulator), Vambrace
+  (first block card/combat → ×2 block, `ModifyBlockMultiplicative` + flag set in `AfterBlockGained`), ThrowingAxe
+  (first card/combat played twice — `ModifyCardPlayCount` + flag in `AfterModifyingCardPlayCount`). `RelicTests5`
+  (22); full suite 1097.
 - **Combat relics — batch 4 (9 relics): stateful every-Nth-play / once-per-combat counters.** Modelled via hidden
   hashed-counter relic POWERS (a relic is shared/immutable and can't hold a counter; a power is cloned + hashed,
   and present only when the relic is). `RelicPlayCounterPower` base counts qualifying plays and fires every Nth
@@ -423,7 +435,7 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Next to-dos (forward, ordered)
 
-1. **Combat relics (batch port) — IN PROGRESS (batches 1–4 done: 70 relics).** The user's headline ask: deck strength falls
+1. **Combat relics (batch port) — IN PROGRESS (batches 1–5 done: 81 relics).** The user's headline ask: deck strength falls
    off in later acts because relics (a big late-game contributor) aren't modelled, so a relic-leaning deck reads
    weaker than it plays. **The ranwid side is DONE** (the relic path was already generic — it feeds a run's actual
    relics into `BuildPlayer` and just needs the engine to model them). **Batch 1 (21 relics) is ported** (see

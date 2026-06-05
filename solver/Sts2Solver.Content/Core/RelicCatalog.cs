@@ -98,5 +98,18 @@ public static partial class Catalog
         ["IronClub"]           = () => new IronClub(),
         ["Permafrost"]         = () => new Permafrost(),
         ["RainbowRing"]        = () => new RainbowRing(),
+
+        // --- Combat pool, batch 5 (every-N-turns + damage/stars/play-count reactors) ---
+        ["HappyFlower"]        = () => new HappyFlower(),
+        ["FakeHappyFlower"]    = () => new FakeHappyFlower(),
+        ["Pendulum"]           = () => new Pendulum(),
+        ["PollinousCore"]      = () => new PollinousCore(),
+        ["CentennialPuzzle"]   = () => new CentennialPuzzle(),
+        ["DemonTongue"]        = () => new DemonTongue(),
+        ["GalacticDust"]       = () => new GalacticDust(),
+        ["MiniRegent"]         = () => new MiniRegent(),
+        ["BeatingRemnant"]     = () => new BeatingRemnant(),
+        ["Vambrace"]           = () => new Vambrace(),
+        ["ThrowingAxe"]        = () => new ThrowingAxe(),
     };
 }
