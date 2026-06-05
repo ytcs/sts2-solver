@@ -90,7 +90,9 @@ public sealed class Companion
         int asc = run.Ascension;
         Advisor.Encounter MakeEnc(string cls)
         {
-            string disp = cls.EndsWith("Elite", StringComparison.Ordinal) ? cls[..^5] : cls;
+            string disp = cls.EndsWith("Elite", StringComparison.Ordinal) ? cls[..^5]
+                        : cls.EndsWith("Boss", StringComparison.Ordinal) ? cls[..^4]
+                        : cls;
             return new Advisor.Encounter(disp, () => Catalog.BuildEliteEncounter(cls, asc));
         }
 
@@ -109,7 +111,26 @@ public sealed class Companion
         var strengthPool = (poolClasses.Count > 0 ? poolClasses : runEliteClasses)
             .Where(Catalog.IsKnownEliteEncounter).Select(MakeEnc).ToList();
 
+        // Fold the run's act BOSS into the strength pool so the index reflects boss-readiness, not just elites.
+        // One boss keeps the extra (slower, tankier) eval bounded — it becomes the long pole of the parallel pool.
+        var bossCls = BossEncounterForRun(run);
+        if (bossCls != null) strengthPool.Add(MakeEnc(bossCls));
+
         return new Context(run, path, deckSpecs, relicNames, encounters, eliteInfo, strengthPool, warnings, deckSummary);
+    }
+
+    /// <summary>The boss-encounter class name to fold into the strength pool for a run: the run's ACTUAL boss
+    /// (mapped from the save's <c>BossId</c> via <c>&lt;Name&gt;Boss</c>) when it is a known/ported boss, else the
+    /// run's act's first boss. Null only if the act has no ported boss. (All four acts' bosses are ported.)</summary>
+    private static string? BossEncounterForRun(RunState run)
+    {
+        if (!string.IsNullOrWhiteSpace(run.BossId))
+        {
+            var name = GameIds.ClassName(run.BossId) + "Boss";
+            if (Catalog.IsKnownEliteEncounter(name)) return name;
+        }
+        var pool = Catalog.ActBossPool(run.ActIndex);
+        return pool.Count > 0 ? pool[0] : null;
     }
 
     /// <summary>"4x StrikeIronclad, 1x Bash" — group a spec list by spec, most-frequent first. "(empty)" when none.</summary>

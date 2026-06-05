@@ -19,7 +19,8 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   (18), and all 21 multiplayer-only cards (modelled as their single-player projection). Out of scope: 3 Quest/map
   items (ByrdonisEgg/LanternKey/SpoilsMap) + MadScience (RNG card-gen). Monsters: Act-1 elites 12/12 + the
   normal-monster set (all trace-validated) + 8 ported bosses (WaterfallGiant/SoulFysh/LagavulinMatriarch/
-  CeremonialBeast/Vantom/KnowledgeDemon/TheInsatiable/Aeonglass, unit-tested; not yet in the deck-strength pool).
+  CeremonialBeast/Vantom/KnowledgeDemon/TheInsatiable/Aeonglass, unit-tested; the 2 optimistic gaps (Ringing,
+  FranticEscape) are closed and the run's act boss is now folded into the deck-strength pool).
 - **Zero known OPTIMISTIC (over-crediting) gaps** in the catalog or engine. Every remaining modelling shortfall is
   PESSIMISTIC (under-credits the player) and therefore sound — see "Known pessimistic gaps" below.
 - **Search:** the exact lexicographic expectimax `Solver` is the ground-truth oracle; the sampling `MctsSolver`
@@ -36,7 +37,8 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   damage/energy/draw/HP-loss modifiers). ranwid already feeds a run's ACTUAL relics through `BuildPlayer` (the
   wiring was generic) — registering a relic makes the advisor pick it up automatically, so deck strength now
   reflects these relics instead of "ignoring" them.
-- **Tests: 1097 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Tests: 1108 passing, 0 skipped/failed. Traces: 81 recorded game traces (incl. the PreciseCut hand-size
+  live-validation vs TerrorEel), all PASS.**
 
 ---
 
@@ -256,6 +258,15 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
 
 ### Recently completed (this session — paused here)
 
+- **Bosses + PreciseCut + perf (this session).** Closed the 2 boss optimistic gaps (CeremonialBeast Ringing → a
+  per-turn play cap via `PowerModel.PlayCapThisTurn`/`EffectivePlayCap`; TheInsatiable FranticEscape → a Stateful
+  per-instance cost-ramp on the boss-only card) and wired the run's act boss into the deck-strength `StrengthPool`
+  (`Catalog.ActBossPool` + `Companion.BossEncounterForRun`). Fixed the headless harness for the 2026-06 game patch
+  (the `RunManager.SetUpNewSinglePlayer`→`SetUpNewSingleplayer` rename broke the DataDumper mod; rebuilt against the
+  patched DLL) and live-validated **PreciseCut** end-to-end (6-turn Silent-vs-TerrorEel trace, `--validate` 43/43 —
+  the hand-size damage is exact across 10 plays). Perf: researched 3 angles in parallel (learned leaf → park;
+  make/undo rollout → the durable ~1.5–2× lever, deferred; result-preserving micro-opts → ~15%); shipped the
+  zero-risk `Score` LINQ-inline. See to-dos 2–4 above for detail.
 - **Combat relics — batch 5 (11 relics): every-N-turns relics + damage/stars/play-count reactors.** Two patterns,
   both needing NO new engine hooks. (a) "Every N turns" relics need no state at all — they read `combat.TurnNumber`
   directly (the game's per-turn counter fires on turns N, 2N, … ≡ `TurnNumber % N == 0`): HappyFlower (energy/3),
@@ -463,17 +474,32 @@ purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`
      FakeSneckoEye); **unmodelled-power** (SelfFormingClay, MysticLighter's enchantments); and the cosmetic/economy/
      map/reward/rest/potion catalog + post-combat-only heals (MeatOnTheBone, Pantograph, BeltBuckle, …) — HP-neutral
      for a single-combat evaluation. These are "cleared": correctly left unmodelled (ranwid lists them as Ignored).
-2. **Finish the boss pool + close the 2 flagged optimistic gaps, then wire bosses into deck strength.** Remaining
-   ports: TestSubject + the multi-monster bosses (TheKin / KaiserCrab / Queen) + hard multi-enemy normals. Before
-   ANY boss enters the deck-strength `StrengthPool`, close (a) CeremonialBeast **Ringing** — each card playable
-   once/turn (needs a small engine play-restriction hook; task #11) and (b) TheInsatiable **FranticEscape +1/play
-   cost-ramp** (needs a per-card combat-cost-growth primitive). Then add the run's boss + a hard multi-enemy fight
-   to the pool so the index reflects more than elites.
-3. **Perf (parked — explored, no clean win):** advice is ~19s (~30× earlier). The next multiple was probed three
-   ways (decimal pipeline / rollout pruning / distilled leaf) — all negative or high-risk. Only revisit with a real
-   ML effort (a strong distilled leaf validated to track the rollout) or a native rewrite. Not worth it unless
-   advice latency becomes a hard blocker.
-4. **Small leftover (low value):** a PreciseCut (hand-size) single-enemy live run.
+2. **Boss pool — the 2 gaps CLOSED + the 8 ported bosses WIRED into deck strength.** Done this session: (a)
+   CeremonialBeast **Ringing** is modelled as a per-turn play cap of 1 (`PowerModel.PlayCapThisTurn` → mined into
+   `CombatState.EffectivePlayCap`; applying it sets `BoundsPlays`); (b) TheInsatiable **FranticEscape cost-ramp**
+   is modelled on the (boss-only) card itself (Stateful per-instance cost counter) so the Sandpit escape grows
+   prohibitively expensive. Both close optimistic over-credits. The run's act boss is now folded into the
+   `StrengthPool` (`Catalog.ActBossPool` + `Companion.BossEncounterForRun`, mapped from the save's `BossId` or the
+   act fallback) so the index reflects boss-readiness. **Perf note:** the boss is the long pole of the parallel
+   strength eval (tankier/longer fight) — one boss keeps it bounded; revisit if the dashboard feels slow.
+   **Still to port (not blocking):** TestSubject + the multi-monster bosses (TheKin / KaiserCrab / Queen) + hard
+   multi-enemy normals — large faithful AI ports, deferred.
+3. **Perf (explored via parallel research — verdict + one safe win shipped).** Three angles researched: (i)
+   **distilled value leaf → park permanently** (the removed LearnedValue failed because it was linear over
+   one-turn-sim features trained on small decks; a viable leaf needs GBM/MLP + ~CPU-weeks of big-deck exact labels
+   + conservative clipping + an optimistic-bias audit — poor ROI vs a 19s budget); (ii) **clone-free rollout
+   (make/undo) → the durable ~1.5–2× lever** (rollout-only undo-log is safe — rollouts are throwaway, no memo
+   aliasing — but ~300 lines + heavy Play↔Undo tests; deferred until latency is a hard blocker); (iii)
+   **result-preserving micro-opts → ~10–16%** (cache IncomingDamage / kill `AllPowers.ToList()` allocs / gate
+   empty-choice LINQ). **Shipped** the zero-risk subset: inlined the rollout `Score`'s 3 LINQ monster passes into
+   one loop. The IncomingDamage cache + AllPowers-alloc + make/undo are documented as deferred (result-changing
+   risk needs dedicated validation, not the byte-identical-by-construction guarantee the Score inline has).
+4. **PreciseCut live run — DONE (and the headless harness fixed for the 2026-06 game patch).** The patch renamed
+   `RunManager.SetUpNewSinglePlayer`→`SetUpNewSingleplayer`, breaking the DataDumper mod (hung at the main menu);
+   fixed the mod + rebuilt against the patched DLL. Recorded a 6-turn Silent (PreciseCut+Strike+Defend) vs TerrorEel
+   trace; `--validate` PASS 43/43 — TerrorEel's HP trajectory (107→71→41→11→dead) is the exact cumulative damage
+   over 10 PreciseCut plays at varying hand sizes, confirming the hand-size mechanic (and that the patch left
+   TerrorEel/PreciseCut/Silent unchanged). Promoted as `silent_precise_cut_terror_eel.jsonl` (trace #81).
 
 ---
 

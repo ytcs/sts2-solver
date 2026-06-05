@@ -93,11 +93,19 @@ public static class CombatHeuristic
         if (hpAfter <= 0) survival += LethalPenalty + (-hpAfter) * WLoss;        // monotone: more overkill = worse
         else survival += WDanger * Math.Max(0, SafetyBuffer(s, incoming) - hpAfter);
 
-        // Race end of the spectrum: enemy HP down, sped by our offensive setup.
-        int nLiving = s.Monsters.Count(m => m.IsAlive);
-        double enemyHp = s.Monsters.Where(m => m.IsAlive).Sum(m => m.CurrentHp);
+        // Race end of the spectrum: enemy HP down, sped by our offensive setup. One pass over the living
+        // monsters (was three LINQ passes — identical result, no per-call enumerator allocations; Score is a
+        // rollout hot path).
+        int nLiving = 0;
+        double enemyHp = 0, enemyVuln = 0;
+        foreach (var m in s.Monsters)
+        {
+            if (!m.IsAlive) continue;
+            nLiving++;
+            enemyHp += m.CurrentHp;
+            enemyVuln += m.GetPowerAmount("Vulnerable");
+        }
         double playerStr = p.GetPowerAmount("Strength");
-        double enemyVuln = s.Monsters.Where(m => m.IsAlive).Sum(m => m.GetPowerAmount("Vulnerable"));
         double race = enemyHp * WEnemyHp - playerStr * WStrength * nLiving - enemyVuln * WVuln;
 
         double a = Math.Clamp(aggression, 0.0, 1.0);

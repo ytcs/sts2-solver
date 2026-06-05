@@ -121,4 +121,28 @@ public class RanwidCustomDeckTests
             Assert.InRange(s, 0, 100);
         }
     }
+
+    // ---- Boss is folded into the deck-strength pool (the two optimistic gaps are closed) ----
+
+    [Theory]
+    [InlineData(0, "WaterfallGiantBoss")]
+    [InlineData(1, "CeremonialBeastBoss")]
+    [InlineData(2, "KnowledgeDemonBoss")]
+    [InlineData(3, "AeonglassBoss")]
+    public void ActBossPool_Returns_Buildable_Bosses(int actIndex, string mustInclude)
+    {
+        Assert.Contains(mustInclude, Catalog.ActBossPool(actIndex));
+        Assert.All(Catalog.ActBossPool(actIndex), b => Assert.True(Catalog.IsKnownEliteEncounter(b)));
+    }
+
+    [Theory]
+    [InlineData(0, "WaterfallGiant")]   // Underdocks
+    [InlineData(1, "CeremonialBeast")]  // Overgrowth
+    [InlineData(2, "KnowledgeDemon")]   // Hive
+    [InlineData(3, "Aeonglass")]        // Glory
+    public void StrengthPool_Includes_The_Acts_Boss(int actIndex, string bossDisplayName)
+    {
+        var ctx = Custom("Silent", actIndex, Catalog.CharacterProfiles[1].StarterDeckSpecs());
+        Assert.Contains(ctx.StrengthPool, e => e.Name == bossDisplayName);
+    }
 }

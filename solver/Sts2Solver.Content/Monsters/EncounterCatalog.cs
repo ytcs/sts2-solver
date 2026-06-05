@@ -104,6 +104,22 @@ public static partial class Catalog
     /// <summary>The act themes, index-aligned with <see cref="ActElitePools"/> (a run draws three of these four).</summary>
     public static IReadOnlyList<string> ActThemes { get; } = new[] { "Underdocks", "Overgrowth", "Hive", "Glory" };
 
+    /// <summary>Each Act's boss encounter names (single-monster), theme-aligned with <see cref="ActThemes"/>. All
+    /// are ported and sound for deck-strength (the CeremonialBeast Ringing + TheInsatiable FranticEscape optimistic
+    /// gaps are closed). Used to fold the run's act boss into the strength pool so the index reflects boss-readiness,
+    /// not just elites.</summary>
+    private static readonly string[][] ActBossPools =
+    {
+        new[] { "WaterfallGiantBoss", "SoulFyshBoss", "LagavulinMatriarchBoss" },   // Underdocks
+        new[] { "CeremonialBeastBoss", "VantomBoss" },                              // Overgrowth
+        new[] { "KnowledgeDemonBoss", "TheInsatiableBoss" },                        // Hive
+        new[] { "AeonglassBoss" },                                                  // Glory
+    };
+
+    /// <summary>The boss encounter names for a given act (0-based index into <see cref="ActThemes"/>; clamped).</summary>
+    public static IReadOnlyList<string> ActBossPool(int actIndex) =>
+        ActBossPools[Math.Clamp(actIndex, 0, ActBossPools.Length - 1)];
+
     /// <summary>The full elite pool (class names) for a given act, by 0-based index into <see cref="ActThemes"/>;
     /// clamped to range. Used by the custom-deck mode to evaluate a hand-built deck against a chosen act.</summary>
     public static IReadOnlyList<string> ActElitePool(int actIndex) =>
