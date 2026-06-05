@@ -54,6 +54,14 @@ public static partial class Catalog
         ["CeremonialBeast"] = asc => Monsters.CeremonialBeast(ascension: asc),
         ["Vantom"] = asc => Monsters.Vantom(ascension: asc),
 
+        // Act-3 (Hive) BOSSES. (TheInsatiable's Sandpit death-timer is modelled; the FranticEscape +1/play
+        // cost-ramp is inert pending a per-card combat-cost-growth primitive — a small optimistic gap, flagged.)
+        ["KnowledgeDemon"] = asc => Monsters.KnowledgeDemon(ascension: asc),
+        ["TheInsatiable"] = asc => Monsters.TheInsatiable(ascension: asc),
+
+        // Act-4 (Glory) BOSSES.
+        ["Aeonglass"] = asc => Monsters.Aeonglass(ascension: asc),
+
         // Act-1 (Overgrowth) normal/weak monsters (unit-tested only; not trace-validated).
         ["SnappingJaxfruit"] = asc => Monsters.SnappingJaxfruit(ascension: asc),
         ["Flyconid"] = asc => Monsters.Flyconid(ascension: asc),

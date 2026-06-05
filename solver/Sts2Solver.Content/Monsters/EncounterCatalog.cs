@@ -36,6 +36,11 @@ public static partial class Catalog
         // Act-2 (Overgrowth) BOSSES (single-monster).
         ["CeremonialBeastBoss"]      = a => new[] { Monsters.CeremonialBeast(ascension: a) },
         ["VantomBoss"]               = a => new[] { Monsters.Vantom(ascension: a) },
+        // Act-3 (Hive) BOSSES (single-monster).
+        ["KnowledgeDemonBoss"]       = a => new[] { Monsters.KnowledgeDemon(ascension: a) },
+        ["TheInsatiableBoss"]        = a => new[] { Monsters.TheInsatiable(ascension: a) },
+        // Act-4 (Glory) BOSSES (single-monster).
+        ["AeonglassBoss"]            = a => new[] { Monsters.Aeonglass(ascension: a) },
     };
 
     /// <summary>Act-1 (Overgrowth) NORMAL / WEAK encounter compositions. Same shape as the elite table,
