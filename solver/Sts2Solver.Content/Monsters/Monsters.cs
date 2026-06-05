@@ -643,6 +643,121 @@ public static class Monsters
         yield return DecimillipedeSegment("DecimillipedeSegmentBack", starterIdx: 2);
     }
 
+    /// <summary>
+    /// WaterfallGiant (Act-1 Underdocks BOSS, MegaCrit): HP 240 (250 on Ascension ToughEnemies); MinInitialHp ==
+    /// MaxInitialHp, so the HP is fixed, not a roll. Opens on Pressurize (a pure self-buff: gains SteamEruption,
+    /// no player effect), then loops a 5-move chain forever:
+    /// Stomp (15, +1 Weak to the player) → Ram (10) → Siphon (heals itself 10×players = 10 in single-player; no
+    /// player effect) → Pressure Gun (20, then permanently +5 — so it ramps each cycle) → Pressure Up (13) →
+    /// (back to) Stomp → … On Ascension DeadlyEnemies: Stomp 16, Ram 11, Pressure Up 14, Pressure Gun base 23
+    /// (Siphon heal 15 on Ascension ToughEnemies). Pressure Gun's +5 ramp is per-USE (CurrentPressureGunDamage),
+    /// so the second Pressure Gun hits 25/28, the third 30/33, etc. — modelled by mutating the move's IntentDamage
+    /// and the closure-captured counter each time it resolves (mirrors the BygoneEffigy/Cubex ramp style).
+    ///
+    /// STEAM ERUPTION (death-phase) — MODELLED FAITHFULLY. The boss accumulates a SteamEruptionPower counter as it
+    /// acts (decompile: Pressurize +PressurizeAmount = 15, or 20 on DeadlyEnemies; EVERY other move — Stomp, Ram,
+    /// Siphon, Pressure Gun, Pressure Up — +3). When brought to 0 HP it does NOT die (engine death-phase via
+    /// <see cref="Monster.DeathPhaseEntryMove"/> + <see cref="Monster.InDeathPhase"/>): its AI jumps to ABOUT_TO_BLOW,
+    /// a one-turn no-damage self-stun telegraph (game AboutToBlowMove: snapshot the counter, StunIntent,
+    /// MustPerformOnceBeforeTransitioning), then on the NEXT enemy turn EXPLODE deals damage equal to the captured
+    /// counter (a guaranteed retaliation; game ExplodeMove → DeathBlowIntent(SteamEruptionDamage)) and clears
+    /// InDeathPhase so the boss truly dies. This is the SOUND direction for a deck-strength advisor: the explosion is
+    /// a large, guaranteed hit, so modelling it faithfully (vs the prior pass's omission) ensures the boss is never
+    /// UNDER-credited. The counter is captured at ABOUT_TO_BLOW and read at EXPLODE; we snapshot it into a one-shot
+    /// EXPLODE-amount slot so further (no-op) hits on the 0-HP boss can't perturb the pending blow.
+    /// </summary>
+    public static Monster WaterfallGiant(int hp = -1, int ascension = 0)
+    {
+        if (hp < 0) hp = Asc.Tough(ascension, 250, 240);   // MinInitialHp == MaxInitialHp (fixed, no roll)
+        int stompDamage = Asc.Deadly(ascension, 16, 15), ramDamage = Asc.Deadly(ascension, 11, 10);
+        int pressureUpDamage = Asc.Deadly(ascension, 14, 13), pressureGunDamage = Asc.Deadly(ascension, 23, 20);
+        int pressureGunIncrease = 5, siphonHeal = Asc.Tough(ascension, 15, 10), stompWeak = 1;
+        int pressurizeAmount = Asc.Deadly(ascension, 20, 15);   // SteamEruption gained by Pressurize
+        const int eruptionPerMove = 3;                          // every OTHER move accumulates +3 SteamEruption
+        var monster = new Monster { Name = "WaterfallGiant", MaxHp = hp, CurrentHp = hp };
+
+        var pressurize = new MoveState("PRESSURIZE_MOVE",
+            (combat, self) => Cmd.ApplyPower(combat, self, new SteamEruptionPower(), pressurizeAmount, self),
+            intentDamage: null);
+        var stomp = new MoveState("STOMP_MOVE",
+            (combat, self) =>
+            {
+                Cmd.Attack(combat, self, combat.Player, stompDamage, ValueProp.Move, null);
+                Cmd.ApplyPower(combat, combat.Player, new WeakPower(), stompWeak, self);
+                Cmd.ApplyPower(combat, self, new SteamEruptionPower(), eruptionPerMove, self);
+            },
+            intentDamage: stompDamage);
+        var ram = new MoveState("RAM_MOVE",
+            (combat, self) =>
+            {
+                Cmd.Attack(combat, self, combat.Player, ramDamage, ValueProp.Move, null);
+                Cmd.ApplyPower(combat, self, new SteamEruptionPower(), eruptionPerMove, self);
+            },
+            intentDamage: ramDamage);
+        var siphon = new MoveState("SIPHON_MOVE",
+            (combat, self) =>
+            {
+                self.Heal(siphonHeal);   // SiphonHeal × players.Count == ×1 in single-player
+                Cmd.ApplyPower(combat, self, new SteamEruptionPower(), eruptionPerMove, self);
+            },
+            intentDamage: null);
+
+        // Pressure Gun ramps +5 per USE (the game's CurrentPressureGunDamage). The ramp is PER-CREATURE state, so it
+        // must clone + hash with the monster — NOT a shared-closure counter (MoveState definitions are shared by
+        // reference across every cloned search branch; mutating one would leak ramp between unrelated nodes). We ride
+        // the ramp on a per-creature counter power (PressureGunPower): the move reads it for this hit's bonus, then
+        // increments it — exactly the Entomancer/PersonalHive read-a-power-amount pattern. IntentDamage stays the
+        // BASE telegraph (the displayed intent is informational; the resolved hit uses the live ramped value).
+        var pressureGun = new MoveState("PRESSURE_GUN_MOVE",
+            (combat, self) =>
+            {
+                int hit = pressureGunDamage + pressureGunIncrease * self.GetPowerAmount("PressureGun");
+                Cmd.Attack(combat, self, combat.Player, hit, ValueProp.Move, null);
+                Cmd.ApplyPower(combat, self, new PressureGunPower(), 1, self);   // +1 use ⇒ next Pressure Gun +5
+                Cmd.ApplyPower(combat, self, new SteamEruptionPower(), eruptionPerMove, self);
+            },
+            intentDamage: pressureGunDamage);
+        var pressureUp = new MoveState("PRESSURE_UP_MOVE",
+            (combat, self) =>
+            {
+                Cmd.Attack(combat, self, combat.Player, pressureUpDamage, ValueProp.Move, null);
+                Cmd.ApplyPower(combat, self, new SteamEruptionPower(), eruptionPerMove, self);
+            },
+            intentDamage: pressureUpDamage);
+
+        // Death phase (Steam Eruption). When brought to 0 HP the boss survives (engine InDeathPhase) and its AI is
+        // forced to ABOUT_TO_BLOW: a one-turn no-damage self-stun telegraph (intentDamage null — it flags the impending
+        // hit but deals nothing this turn), MustPerformOnceBeforeTransitioning in the game. Its FollowUp is EXPLODE,
+        // which deals damage equal to the accumulated SteamEruption counter to the player, then clears InDeathPhase so
+        // the boss truly dies. EXPLODE self-loops (game ExplodeMove.FollowUpState = itself) — once InDeathPhase is
+        // cleared the monster is dead, so it never runs again.
+        var aboutToBlow = new MoveState("ABOUT_TO_BLOW_MOVE",
+            (combat, self) => { /* windup: self-stun, no damage; the SteamEruption counter stands captured */ },
+            intentDamage: null);
+        var explode = new MoveState("EXPLODE_MOVE",
+            (combat, self) =>
+            {
+                Cmd.Attack(combat, self, combat.Player, self.GetPowerAmount("SteamEruption"), ValueProp.Move, null);
+                self.InDeathPhase = false;   // the blow has landed ⇒ the boss truly dies now (IsAlive → false)
+            },
+            intentDamage: null);
+
+        pressurize.FollowUp = stomp;
+        stomp.FollowUp = ram;
+        ram.FollowUp = siphon;
+        siphon.FollowUp = pressureGun;
+        pressureGun.FollowUp = pressureUp;
+        pressureUp.FollowUp = stomp;          // loop back to Stomp (not Pressurize — that fires only once, at start)
+        aboutToBlow.FollowUp = explode;
+        explode.FollowUp = explode;           // self-loop (game); inert once InDeathPhase clears (monster is dead)
+
+        monster.Ai = new MonsterMoveStateMachine(
+            new MonsterState[] { pressurize, stomp, ram, siphon, pressureGun, pressureUp, aboutToBlow, explode },
+            pressurize.Id);
+        monster.DeathPhaseEntryMove = aboutToBlow.Id;   // 0 HP ⇒ jump to ABOUT_TO_BLOW instead of dying
+        return monster;
+    }
+
     // ----- Act-1 (Overgrowth) NORMAL / WEAK monsters. Stats from the decompiled game source. -----
     // UNIT-TESTED ONLY (move stats/intents/HP scaling) — no game traces exist for these yet, so they are
     // not trace-validated. Mechanics use only existing engine primitives + Common/MonsterPowers.

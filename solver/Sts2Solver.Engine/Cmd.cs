@@ -113,6 +113,16 @@ public static class Cmd
                     seg.Powers.RemoveAll(p => p.Id != "Reattach");
                     seg.ReattachIn = 2;
                 }
+                else if (hpTarget is Monster boss && boss.DeathPhaseEntryMove != null && !boss.InDeathPhase)
+                {
+                    // Death-phase (explode/transform on death, e.g. WaterfallGiant's Steam Eruption): the monster
+                    // does NOT die at 0 HP — it survives (IsAlive via InDeathPhase; further hits are no-ops) to run
+                    // its telegraphed final-blow sequence from DeathPhaseEntryMove, then truly dies once the blow
+                    // resolves (the blow's MoveState clears InDeathPhase). On-death hooks fire only when it really
+                    // dies, so they can't be farmed during the phase.
+                    boss.InDeathPhase = true;
+                    boss.Ai.CurrentMoveId = boss.DeathPhaseEntryMove;
+                }
                 else
                 {
                     foreach (var p in combat.AllPowers.ToList()) p.AfterCreatureDeath(combat, hpTarget);

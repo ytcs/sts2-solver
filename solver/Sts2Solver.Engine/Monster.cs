@@ -34,6 +34,21 @@ public sealed class Monster : Creature
     /// 0 for every non-Decimillipede monster, so it never enters their hash/state key.</summary>
     public int ReattachIn;
 
+    /// <summary>The AI move a "death-phase" monster jumps to when brought to 0 HP INSTEAD of dying — a survive-
+    /// at-0 → telegraph → final-blow → die sequence (e.g. WaterfallGiant's Steam Eruption). null = no death
+    /// phase (the monster dies normally). Set once at construction; identity only, never hashed.</summary>
+    public string? DeathPhaseEntryMove;
+
+    /// <summary>True while the monster is in its death phase: it was reduced to 0 HP but survives (untargetable,
+    /// further damage ignored) to run its final-blow sequence, then truly dies. Keeps it <see cref="IsAlive"/>
+    /// so combat doesn't end before the blow lands. Gated: false for every non-death-phase monster.</summary>
+    public bool InDeathPhase;
+
+    /// <summary>A death-phase monster stays alive at 0 HP until its final blow resolves; it is then untargetable
+    /// (the player can't hit a 0-HP monster — its damage is a no-op) but still acts, so the explosion is
+    /// guaranteed. Otherwise the standard <c>CurrentHp &gt; 0</c>.</summary>
+    public override bool IsAlive => CurrentHp > 0 || InDeathPhase;
+
     public Monster() { Side = CombatSide.Enemy; }
 
     /// <summary>True when the monster's currently telegraphed move is an attack (its <see cref="MoveState"/>
@@ -62,6 +77,8 @@ public sealed class Monster : Creature
         m.NeedsSpawnHpSync = NeedsSpawnHpSync;
         m.StunnedTurns = StunnedTurns;
         m.ReattachIn = ReattachIn;
+        m.DeathPhaseEntryMove = DeathPhaseEntryMove;
+        m.InDeathPhase = InDeathPhase;
         return m;
     }
 
@@ -75,6 +92,7 @@ public sealed class Monster : Creature
         foreach (var id in Ai.MoveLog) h.Add(id.GetHashCode());   // ordered
         if (StunnedTurns > 0) h.Add(StunnedTurns * 0x9E3779B1);   // gated: 0 for every un-stunned monster
         if (ReattachIn > 0) h.Add(ReattachIn * 0x85EBCA77);       // gated: 0 for every non-downed monster
+        if (InDeathPhase) h.Add(0x27D4EB2F);                      // gated: false for every non-death-phase monster
     }
 
     public override string StateKey()
@@ -82,6 +100,7 @@ public sealed class Monster : Creature
         var v = Variant.Length > 0 ? $":{Variant}" : "";
         var stun = StunnedTurns > 0 ? $"!{StunnedTurns}" : "";   // appended only when stunned (no fragmentation otherwise)
         var down = ReattachIn > 0 ? $"~{ReattachIn}" : "";       // appended only while downed (Decimillipede)
-        return $"M({base.StateKey()}{v}{stun}{down}|{Ai.StateKey()})";
+        var boom = InDeathPhase ? "*" : "";                      // appended only during a death phase (explode-on-death)
+        return $"M({base.StateKey()}{v}{stun}{down}{boom}|{Ai.StateKey()})";
     }
 }

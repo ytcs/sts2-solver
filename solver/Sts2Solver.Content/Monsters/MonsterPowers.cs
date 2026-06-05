@@ -368,6 +368,30 @@ public sealed class SlipperyPower : PowerModel
         this.NormalizeOrRemove(Owner);
     }
 }
+/// <summary>WaterfallGiant's Pressure Gun ramp counter: a per-creature tally of how many times Pressure Gun has
+/// fired. Each Pressure Gun resolves for <c>BasePressureGunDamage + 5×Amount</c> (the game's
+/// CurrentPressureGunDamage, which permanently grows +5 per use), then increments this. Inert as a hook — it has no
+/// passive effect; the move reads <c>GetPowerAmount("PressureGun")</c> directly. Stored as a power so the ramp clones
+/// and hashes with the monster (base StateKey/HashValue serialise the Amount), keeping every search branch sound.
+/// (MegaCrit WaterfallGiant.CurrentPressureGunDamage / PressureGunIncrease.)</summary>
+public sealed class PressureGunPower : PowerModel
+{
+    public override string Id => "PressureGun";
+    public override PowerType Type => PowerType.Buff;
+}
+/// <summary>WaterfallGiant's Steam Eruption accumulator: a per-creature counter that grows as the boss takes its
+/// turns (Pressurize +PressurizeAmount = 15, or 20 on DeadlyEnemies; every other move +3), capturing the size of
+/// its guaranteed death-phase explosion. When the boss is brought to 0 HP it does NOT die (death-phase, see
+/// <see cref="Monster.DeathPhaseEntryMove"/>): it telegraphs ABOUT_TO_BLOW for one turn, then EXPLODES for damage
+/// equal to this counter before truly dying. Inert as a hook — it has no passive effect; the EXPLODE move reads
+/// <c>GetPowerAmount("SteamEruption")</c> directly. Stored as a power so the counter clones and hashes with the
+/// monster (base StateKey/HashValue serialise the Amount), keeping every search branch sound. (MegaCrit
+/// WaterfallGiant.SteamEruptionPower / SteamEruptionDamage.)</summary>
+public sealed class SteamEruptionPower : PowerModel
+{
+    public override string Id => "SteamEruption";
+    public override PowerType Type => PowerType.Buff;
+}
 public sealed class RitualPower : PowerModel
 {
     public override string Id => "Ritual";

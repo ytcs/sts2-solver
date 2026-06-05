@@ -28,7 +28,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   were removed: both badly mis-estimated big decks, ~18 HP off the rollout, and weren't in the production path).
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 725 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Tests: 770 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -243,6 +243,14 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 
 ### Recently completed (this session — paused here)
 
+- **Bosses (started) + reusable engine death-phase support.** Added a survive-at-0 → telegraph → final-blow →
+  die primitive (`Monster.DeathPhaseEntryMove`/`InDeathPhase`, virtual `Creature.IsAlive`, `Cmd.ApplyDamage`
+  hand-off — mirrors Decimillipede Reattach) for explode/transform-on-death bosses. First boss: **WaterfallGiant**
+  (Act-1), Steam Eruption modelled FAITHFULLY (Pressurize +15/+20, +3/move counter, EXPLODE = accumulated).
+  **Soundness correction (via a pilot):** for a MONSTER, under-crediting (omitting damage) is the OPTIMISTIC/
+  UNSAFE direction — the rule is now "never under-credit a monster; over-estimate threat when uncertain." The
+  remaining 11 bosses + hard multi-enemy normals are being orchestrated under this rule; combat relics
+  batch-ported separately. (`BossTests`; full suite 770.)
 - **`ranwid` now supports all 5 characters** (was Ironclad-only — an artificial gate; the engine ports all
   88/88×5). Removed the gate (`GameIds.IsSupportedCharacter`), made relic mapping generic
   (`Catalog.IsModelledRelic` — picks up each character's combat-start starter relic that wires up Stars / Osty /

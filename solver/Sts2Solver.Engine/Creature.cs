@@ -21,7 +21,7 @@ public abstract class Creature
 
     public readonly List<PowerModel> Powers = new();
 
-    public bool IsAlive => CurrentHp > 0;
+    public virtual bool IsAlive => CurrentHp > 0;
     public bool IsPlayer => Side == CombatSide.Player;
     public bool IsEnemy => Side == CombatSide.Enemy;
 

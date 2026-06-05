@@ -28,6 +28,9 @@ public static partial class Catalog
             Monsters.DecimillipedeSegment("DecimillipedeSegmentMiddle", 1, ascension: a),
             Monsters.DecimillipedeSegment("DecimillipedeSegmentBack", 2, ascension: a),
         },
+
+        // Act-1 (Underdocks) BOSS — single big body. (Steam-Eruption death explosion omitted; see Monsters.WaterfallGiant.)
+        ["WaterfallGiantBoss"]       = a => new[] { Monsters.WaterfallGiant(ascension: a) },
     };
 
     /// <summary>Act-1 (Overgrowth) NORMAL / WEAK encounter compositions. Same shape as the elite table,

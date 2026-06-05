@@ -44,6 +44,9 @@ public static partial class Catalog
         ["DecimillipedeSegmentMiddle"] = asc => Monsters.DecimillipedeSegment("DecimillipedeSegmentMiddle", 1, ascension: asc),
         ["DecimillipedeSegmentBack"] = asc => Monsters.DecimillipedeSegment("DecimillipedeSegmentBack", 2, ascension: asc),
 
+        // Act-1 (Underdocks) BOSS.
+        ["WaterfallGiant"] = asc => Monsters.WaterfallGiant(ascension: asc),
+
         // Act-1 (Overgrowth) normal/weak monsters (unit-tested only; not trace-validated).
         ["SnappingJaxfruit"] = asc => Monsters.SnappingJaxfruit(ascension: asc),
         ["Flyconid"] = asc => Monsters.Flyconid(ascension: asc),
