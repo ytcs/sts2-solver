@@ -160,17 +160,25 @@ public sealed class Debris : CardModel
     public override void OnPlay(CombatState combat, CardPlay play) { }
 }
 
-/// <summary>Status card: cost 1, playable for no combat-relevant effect. (MegaCrit FranticEscape — generated
-/// only by the Sandpit boss; its effect feeds that boss's SandpitPower and bumps its own cost, both HP-neutral
-/// in any fight we model, so it is inert. Documented pessimistic-sound.)</summary>
+/// <summary>Status card generated only by TheInsatiable's Sandpit (CanBeGeneratedInCombat=false in the game).
+/// Playing it pushes the Sandpit death-timer +1 (wired by <c>InsatiableSandpitPower</c>, which watches for the
+/// play) AND ramps THIS instance's energy cost by 1 for the rest of the combat (game: EnergyCost.AddThisCombat(1)).
+/// The cost-ramp is MODELLED here (Stateful, per-instance counter): without it the player could replay the escape
+/// at cost 1 forever and survive the Sandpit indefinitely — an OPTIMISTIC over-credit. With it, the escape grows
+/// prohibitively expensive (each of the boss's 6 copies ramps independently), so the timer eventually wins — the
+/// sound, faithful dynamic. Only TheInsatiable fights ever hold this card. (MegaCrit FranticEscape.)</summary>
 public sealed class FranticEscape : CardModel
 {
+    private int _costGrowth;                  // +1 per play of THIS instance this combat (game: EnergyCost.AddThisCombat)
     public override string Name => "FranticEscape";
     public override int BaseCost => 1;
     public override CardType Type => CardType.Status;
     public override CardRarity Rarity => CardRarity.Status;
     public override TargetType Target => TargetType.Self;
-    public override void OnPlay(CombatState combat, CardPlay play) { }   // Sandpit-only / cost growth: HP-neutral
+    public override bool Stateful => true;     // the per-instance cost ramps, so each search state needs its own copy
+    public override int EffectiveCost(CombatState combat) => BaseCost + _costGrowth;
+    public override void OnPlay(CombatState combat, CardPlay play) => _costGrowth++;   // Sandpit +1 is on the boss power
+    public override string StateKey() => _costGrowth > 0 ? $"FranticEscape/{_costGrowth}" : "FranticEscape";
 }
 
 /// <summary>Status card: Unplayable. No effect while held — pure draw dilution. (MegaCrit Soot)</summary>

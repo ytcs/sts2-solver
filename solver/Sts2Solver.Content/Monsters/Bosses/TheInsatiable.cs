@@ -61,15 +61,13 @@ public static partial class Monsters
     ///       ModifyAmount(+1). So a player that draws and plays its escape cards survives the timer, just like the
     ///       real fight.
     ///
-    /// FLAGGED player-side gap (does NOT under-credit the boss — disclosed for completeness, pessimistic-safe):
-    ///   • FranticEscape's COST GROWTH (+1 per play) is NOT modelled. The shared engine FranticEscape card is inert
-    ///     and outside the files I may edit, so each escape play costs only its base 1 energy here, whereas the game
-    ///     ramps it (1, 2, 3, …). Omitting the ramp makes escaping CHEAPER than reality — i.e. the model lets the
-    ///     player keep the timer alive more easily than the game does. That is the one direction that *under*-states
-    ///     the boss's pressure, so it is FLAGGED here rather than silently dropped. The lethal core (the kill, the
-    ///     decrement cadence, and the +1-per-escape interaction) is exact; only the escalating escape COST is
-    ///     unmodelled. To close it fully the engine would need either (i) a per-card combat-cost-growth primitive
-    ///     wired into the shared FranticEscape card, or (ii) license to specialise that card for this boss.
+    /// FranticEscape COST RAMP — now MODELLED (gap CLOSED). Each FranticEscape play ramps THIS instance's energy
+    ///   cost by 1 for the rest of the combat (game: EnergyCost.AddThisCombat(1)). FranticEscape is generated ONLY
+    ///   by this boss (CanBeGeneratedInCombat=false), so it is effectively boss-specific; it is now a Stateful card
+    ///   with a per-instance cost counter (see Core/StatusCards.cs), folded into its StateKey/hash. Without the ramp
+    ///   the player could replay the escape at cost 1 forever and survive the Sandpit indefinitely — an OPTIMISTIC
+    ///   over-credit; with it, escaping grows prohibitively expensive (each of the 6 copies ramps independently), so
+    ///   the timer eventually wins — the faithful dynamic. The boss now reads as strong as it is.
     ///
     /// No death-phase / survive-at-0 / summon / transform on the BOSS itself: TheInsatiable dies normally at 0 HP
     /// (decompile AfterDeath only twiddles a music parameter; there is no DeathPhaseEntryMove analogue). The
@@ -140,11 +138,10 @@ public static partial class Monsters
 ///     full-HP removal — so a deck that lets the timer drain loses the run. This is the fight-defining threat and
 ///     is reproduced exactly so the boss is never UNDER-credited.
 ///   • ESCAPE: each FranticEscape the player PLAYS pushes the counter +1 (game FranticEscape.OnPlay → Sandpit
-///     ModifyAmount(+1)). The boss seeds 6 FranticEscape cards (3 draw, 3 discard) for exactly this. The shared
-///     FranticEscape card is inert and may not be edited, so the +1 is wired here via <see cref="AfterCardPlayed"/>
-///     (fires on every card the player plays; we react to FranticEscape) — faithful to the game's interaction.
-///     (NOT modelled: FranticEscape's own +1-per-play COST RAMP — see the FLAG on <see cref="Monsters"/>; that gap
-///     makes escaping cheaper than reality, the only player-favouring direction, hence flagged not omitted.)
+///     ModifyAmount(+1)). The boss seeds 6 FranticEscape cards (3 draw, 3 discard) for exactly this. The +1 is wired
+///     here via <see cref="AfterCardPlayed"/> (fires on every card the player plays; we react to FranticEscape).
+///     FranticEscape's own +1-per-play COST RAMP is now modelled on the (boss-only) card itself (Core/StatusCards.cs),
+///     so escaping grows prohibitively expensive — the prior optimistic gap is CLOSED.
 /// Buff-typed in the game (PowerType.Buff) so it is not Artifact-absorbed when applied to the player.
 /// </summary>
 public sealed class InsatiableSandpitPower : PowerModel

@@ -156,6 +156,23 @@ public class CeremonialBeastTests
         Assert.False(combat.Player.HasPower(CeremonialBeastRingingPower.PowerId));
     }
 
+    [Fact]
+    public void Ringing_Caps_Player_To_One_Play_That_Turn()
+    {
+        var m = Monsters.CeremonialBeast();
+        var combat = Combat(m);
+        RunMove(combat, m, "BEAST_CRY_MOVE");                  // applies Ringing during the enemy turn
+        Assert.Equal(1, combat.EffectivePlayCap());            // ≤ 1 card while Ringing is held
+        Assert.True(combat.BoundsPlays);                       // play counter is now hashed (cap depends on it)
+        CombatManager.BeginPlayerTurn(combat);                 // the player's Ringing turn
+        Assert.Equal(1, combat.EffectivePlayCap());
+        combat.PlaysThisTurn = 1;                              // after one play the cap is reached
+        Assert.True(combat.PlaysThisTurn >= combat.EffectivePlayCap());   // move generators yield-break here
+        CombatManager.EndPlayerTurn(combat);                   // Ringing self-removes
+        Assert.False(combat.Player.HasPower(CeremonialBeastRingingPower.PowerId));
+        Assert.Equal(CombatState.MaxPlaysPerTurn, combat.EffectivePlayCap());   // cap back to the backstop
+    }
+
     // ---- Phase-2 STOMP / CRUSH damage + CRUSH Strength ramp ----
     [Fact]
     public void Stomp_Hits_For_15()

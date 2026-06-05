@@ -190,6 +190,13 @@ public sealed class CombatState
         int cap = MaxPlaysPerTurn;
         foreach (var c in Player.Hand)
             if (c.PlayCapWhileInHand < cap) cap = c.PlayCapWhileInHand;
+        // Power-side caps (CeremonialBeast Ringing → 1). Only the rare capping power tightens it; every other
+        // power returns int.MaxValue, so this is inert for the common case.
+        foreach (var p in Player.Powers)
+        {
+            int pc = p.PlayCapThisTurn();
+            if (pc < cap) cap = pc;
+        }
         return cap;
     }
 

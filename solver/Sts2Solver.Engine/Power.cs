@@ -164,6 +164,13 @@ public abstract class PowerModel
     /// Punch consumes a charge here. (Game: PowerModel.AfterModifyingCardPlayCount.)</summary>
     public virtual void AfterModifyingCardPlayCount(CombatState combat, CardModel card) { }
 
+    /// <summary>A per-turn cap on the number of cards the OWNER may play while this power is held — the engine
+    /// mins it into <see cref="CombatState.EffectivePlayCap"/> alongside the card-side caps. CeremonialBeast's
+    /// Ringing returns 1 (the boss's BEAST_CRY restricts the player to one card that turn). Default = no cap.
+    /// SOUNDNESS: a play cap is HARM to the player, so honouring it CLOSES an optimistic gap. (Game: the player
+    /// side of RingingPower.ShouldPlay, which blocks any further Ringing-afflicted card once one has been played.)</summary>
+    public virtual int PlayCapThisTurn() => int.MaxValue;
+
     /// <summary>If any power on a creature returns true, that creature's block is NOT cleared at the start
     /// of its turn (Barricade). (Game: PowerModel.ShouldClearBlock, inverted.)</summary>
     public virtual bool PreventsBlockClear => false;

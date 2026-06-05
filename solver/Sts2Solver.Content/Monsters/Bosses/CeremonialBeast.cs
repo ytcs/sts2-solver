@@ -50,20 +50,16 @@ public static partial class Monsters
     ///   PlowAmount = 160/150 (threshold), PlowDamage = 20/18, PlowStrength = 2 (fixed);
     ///   StompDamage = 17/15; CrushDamage = 19/17; CrushStrength = 4/3. HP 262/252 (ToughEnemies).
     ///
-    /// RINGING SOUNDNESS NOTE (mechanic NEEDING NEW ENGINE SUPPORT — flagged, NOT omitted). BEAST_CRY's only
-    /// combat effect is to apply Ringing to the player's whole deck: a per-card "playable at most once this turn"
-    /// restriction that the game enforces through RingingPower.ShouldPlay (and re-afflicts cards drawn/generated
-    /// mid-turn). The solver engine has NO card-affliction / per-card play-restriction system: the only play caps
-    /// it honours are CARD-side (CardModel.PlayCapWhileInHand → Normality, LocksHandWhileInHand → Enthralled),
-    /// read by CombatState.EffectivePlayCap() / CardPlayAllowed() — there is no MONSTER-power → player-card
-    /// play-restriction hook, and no notion of "this specific card was already played this turn." Ringing makes
-    /// the fight HARDER for the player (fewer effective plays the turn after each BEAST_CRY), so OMITTING it would
-    /// UNDER-credit the boss (tell the player the fight is EASIER than reality) — a soundness violation. It cannot
-    /// be modelled with existing primitives, so per the soundness rule it is FLAGGED here for new engine support
-    /// rather than silently dropped. BEAST_CRY is reproduced structurally (it spends the beast's turn dealing no
-    /// damage, and applies a marker RingingPower so the intent/telegraph and turn cadence are exact); the
-    /// play-restriction harm of that marker is INERT until the engine grows a per-card once-per-turn restriction
-    /// hook. The DAMAGE side of the boss (the threatening part) is fully and exactly modelled.
+    /// RINGING (now MODELLED). BEAST_CRY's only combat effect is to apply Ringing to the player's whole deck: the
+    /// game's RingingPower.ShouldPlay blocks any further afflicted card once the player has started a card play this
+    /// turn — i.e. the player may play AT MOST ONE card that turn. This is exactly a per-turn play cap of 1, so it
+    /// is modelled through the engine's existing play-cap machinery: CeremonialBeastRingingPower.PlayCapThisTurn()
+    /// returns 1, which CombatState.EffectivePlayCap() mins into every move generator (exact + MCTS + rollout);
+    /// applying it sets BoundsPlays so the per-turn play counter is hashed. Ringing makes the fight HARDER (fewer
+    /// plays), so modelling it CLOSES the previously-flagged optimistic gap — the boss now reads as strong as it is.
+    /// (The decompile's per-CARD affliction is finer-grained than a single cap, but since EVERY player card gets the
+    /// affliction and the restriction triggers off "any card already played this turn", the net effect is exactly a
+    /// 1-card cap — equivalent for the objective.) The DAMAGE side of the boss is fully and exactly modelled.
     ///
     /// No death-phase / survive-at-0 mechanic: the beast dies normally at 0 HP (decompile has no DeathPhaseEntry
     /// analogue — the only death hook is a die-animation/SFX branch). The phase break is the on-hit PlowPower,
@@ -175,20 +171,27 @@ public sealed class CeremonialBeastPlowPower : PowerModel
 }
 
 /// <summary>
-/// CeremonialBeast's RINGING marker (decompile RingingPower, applied to the PLAYER by BEAST_CRY). In the game this
-/// afflicts EVERY player card with Ringing for one turn — each card may be played at most ONCE that turn — and is
-/// removed at the player's own turn end. The solver engine has NO per-card play-restriction / card-affliction
-/// system (only CARD-side caps Normality/Enthralled are honoured; there is no monster-power → player-play hook),
-/// so the play-restriction HARM is currently INERT — see the RINGING SOUNDNESS NOTE on <see cref="Monsters"/>.
-/// This is a FLAGGED gap needing new engine support, NOT a silent omission: the marker is applied (so the
-/// telegraph/turn cadence and any future restriction hook are wired) and it self-removes at the player's turn end
-/// exactly like the game. It is Debuff-typed; with no negative effect modelled it neither helps nor harms today.
+/// CeremonialBeast's RINGING (decompile RingingPower, applied to the PLAYER by BEAST_CRY). In the game it afflicts
+/// EVERY player card with Ringing for one turn; RingingPower.ShouldPlay then blocks any further afflicted card
+/// once the player has STARTED a card play this turn — so the player may play AT MOST ONE card that turn — and the
+/// power self-removes at the player's own turn end. MODELLED via the engine's per-turn play cap: while held the
+/// power returns <see cref="PlayCapThisTurn"/> = 1, which <see cref="CombatState.EffectivePlayCap"/> mins into the
+/// move generators (exact + MCTS + rollout). SOUNDNESS: the cap is HARM (fewer plays for the player), so modelling
+/// it CLOSES the previously-flagged optimistic gap — the boss now reads as strong as it is. Applying it sets
+/// <see cref="CombatState.BoundsPlays"/> so the per-turn play counter is hashed from then on (the cap depends on it).
 /// </summary>
 public sealed class CeremonialBeastRingingPower : PowerModel
 {
     public const string PowerId = "CeremonialBeastRinging";
     public override string Id => PowerId;
     public override PowerType Type => PowerType.Debuff;
+
+    public override int PlayCapThisTurn() => 1;   // ≤1 card the turn this is held (Game: RingingPower.ShouldPlay)
+
+    // The cap reads PlaysThisTurn, which must then be hashed; gate it on (so a "played my 1 card" state never
+    // memo-collides with a "haven't played yet" state). Set once on apply; persists for the rest of combat
+    // (harmless slight over-hashing after the power is gone).
+    public override void AfterApplied(CombatState combat, Creature? applier) => combat.BoundsPlays = true;
 
     // Game: RingingPower.AfterSideTurnEnd removes it when the owner's (player's) side turn ends.
     public override void AfterSideTurnEnd(CombatState combat, CombatSide side)

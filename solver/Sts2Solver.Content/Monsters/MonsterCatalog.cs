@@ -49,13 +49,13 @@ public static partial class Catalog
         ["SoulFysh"] = asc => Monsters.SoulFysh(ascension: asc),
         ["LagavulinMatriarch"] = asc => Monsters.LagavulinMatriarch(ascension: asc),
 
-        // Act-2 (Overgrowth) BOSSES. (CeremonialBeast's Ringing play-restriction is inert pending an engine hook;
-        // its damage is exact — must be resolved before bosses enter the deck-strength pool.)
+        // Act-2 (Overgrowth) BOSSES. (CeremonialBeast's Ringing play-restriction is now MODELLED — a per-turn
+        // play cap of 1 via PowerModel.PlayCapThisTurn / EffectivePlayCap — so it is sound for the strength pool.)
         ["CeremonialBeast"] = asc => Monsters.CeremonialBeast(ascension: asc),
         ["Vantom"] = asc => Monsters.Vantom(ascension: asc),
 
-        // Act-3 (Hive) BOSSES. (TheInsatiable's Sandpit death-timer is modelled; the FranticEscape +1/play
-        // cost-ramp is inert pending a per-card combat-cost-growth primitive — a small optimistic gap, flagged.)
+        // Act-3 (Hive) BOSSES. (TheInsatiable's Sandpit death-timer is modelled, INCLUDING FranticEscape's +1/play
+        // cost-ramp — the escape now grows prohibitively expensive, closing the prior optimistic over-credit.)
         ["KnowledgeDemon"] = asc => Monsters.KnowledgeDemon(ascension: asc),
         ["TheInsatiable"] = asc => Monsters.TheInsatiable(ascension: asc),
 

@@ -217,6 +217,36 @@ public class TheInsatiableTests
         Assert.Equal(1, combat.Player.GetPowerAmount("InsatiableSandpit"));
     }
 
+    // ---- FranticEscape COST RAMP (closes the previously-flagged optimistic gap) ----
+    [Fact]
+    public void Insatiable_FranticEscape_Cost_Ramps_Per_Play()
+    {
+        var combat = Combat(Monsters.TheInsatiable());
+        Cmd.ApplyPower(combat, combat.Player, new InsatiableSandpitPower(), 9, combat.Monsters[0]);
+        var escape = new FranticEscape();
+        Assert.True(escape.Stateful);
+        Assert.Equal(1, escape.EffectiveCost(combat));                       // first play costs 1
+        combat.Player.Hand.Add(escape);
+        combat.Player.Energy = 9;
+        CombatManager.PlayCard(combat, escape, null);                        // play 1 → cost ramps to 2
+        Assert.Equal(2, escape.EffectiveCost(combat));
+        Assert.Equal(2, CombatManager.ResolveCardCost(combat, escape));      // the ramp gates affordability
+        combat.Player.Hand.Add(escape);                                      // status card cycles back; replay it
+        CombatManager.PlayCard(combat, escape, null);                        // play 2 → cost ramps to 3
+        Assert.Equal(3, escape.EffectiveCost(combat));
+    }
+
+    [Fact]
+    public void FranticEscape_Cost_Ramp_Survives_Clone_And_Hashes()
+    {
+        var combat = Combat(Monsters.TheInsatiable());
+        var escape = new FranticEscape();
+        escape.OnPlay(combat, new CardPlay { Card = escape });               // ramp once
+        Assert.Equal("FranticEscape/1", escape.StateKey());                  // counter folded into the hash key
+        var clone = (CardModel)escape.Clone();
+        Assert.Equal("FranticEscape/1", clone.StateKey());                   // deep-cloned (Stateful) → counter survives
+    }
+
     // ---- Deadly (>=9) ascension scaling ---------------------------------------------------------
 
     [Fact]
