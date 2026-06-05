@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-03._
+_Last updated: 2026-06-04._
 
 ## Goal
 
@@ -18,7 +18,8 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   plus the full Colorless pool (53/53), Status (12) + Token (14) pools, the Event/Ancient "Special" pool, curses
   (18), and all 21 multiplayer-only cards (modelled as their single-player projection). Out of scope: 3 Quest/map
   items (ByrdonisEgg/LanternKey/SpoilsMap) + MadScience (RNG card-gen). Monsters: Act-1 elites 12/12 + the
-  normal-monster set, all trace-validated.
+  normal-monster set (all trace-validated) + 8 ported bosses (WaterfallGiant/SoulFysh/LagavulinMatriarch/
+  CeremonialBeast/Vantom/KnowledgeDemon/TheInsatiable/Aeonglass, unit-tested; not yet in the deck-strength pool).
 - **Zero known OPTIMISTIC (over-crediting) gaps** in the catalog or engine. Every remaining modelling shortfall is
   PESSIMISTIC (under-credits the player) and therefore sound — see "Known pessimistic gaps" below.
 - **Search:** the exact lexicographic expectimax `Solver` is the ground-truth oracle; the sampling `MctsSolver`
@@ -28,7 +29,7 @@ harness. The decompile is the **spec**; the real game is the **oracle** (see "Wh
   were removed: both badly mis-estimated big decks, ~18 HP off the rollout, and weren't in the production path).
 - **Advisor:** `ranwid` live companion — reads the unmodded save, benchmarks the deck vs the Act's elites,
   recommends card removals + reward take/skip.
-- **Tests: 770 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
+- **Tests: 936 passing, 0 skipped/failed. Traces: 80 recorded game traces, all PASS.**
 
 ---
 
@@ -118,6 +119,8 @@ DLL: `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_
   on the `[r]` key; `[c]` checks a reward card (auto-correct entry). **Removal + reward advice both rank by deck
   strength** (consistent with the headline). No engine/algorithm text in the UI; a prominent "Ignored" panel
   surfaces unmodelled relics / unported cards. `ranwid --preview` shows the layout with sample data.
+  **`ranwid --custom [character]`** is a save-less deck sandbox (start from a starter deck, add/remove cards by
+  hand) — the way a multiplayer GUEST, whose run is never saved locally, still gets deck-strength advice.
 
 ---
 
@@ -235,22 +238,40 @@ priority is the advice engine's accuracy + per-evaluation latency (old to-dos 1 
 complexity):** non-starter relics and potions. Combat-start starter relics already work; the 300+ relic catalog,
 Act-1 bosses, and potions are shelved.
 
-**Shippable executables** (for testers): `ranwid` is published self-contained single-file —
-`solver/Sts2Solver.Ranwid/bin/Release/net9.0/{win-x64,linux-x64}/publish/ranwid[.exe]`, and the Linux build is
-copied to the repo top as `./ranwid`. Windows save-dir auto-detection (`SaveLocator`) probes the **confirmed**
+**Shippable executables** (for testers): `ranwid` is published self-contained single-file (~73 MB) for both
+RIDs and copied to the repo top as `./ranwid` (Linux ELF) and `./ranwid.exe` (Windows PE) — both gitignored, both
+include `--custom`. Rebuild: `dotnet publish Sts2Solver.Ranwid -c Release -r {linux-x64|win-x64} --self-contained
+true -p:PublishSingleFile=true` (run the two RIDs SEQUENTIALLY — parallel publishes race on the shared Content
+intermediate and fail `GenerateDepsFile`). Windows save-dir auto-detection (`SaveLocator`) probes the **confirmed**
 path `%APPDATA%\SlayTheSpire2\steam\<id>\…` (mirror of the Linux layout) first, with profile/Steam-registry
-fallbacks and a validated manual folder prompt that persists the choice. See `Sts2Solver.Ranwid/SHIPPING-WINDOWS.md`.
+fallbacks and a validated manual folder prompt that persists the choice; modded-profile saves are excluded on
+purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`. See `Sts2Solver.Ranwid/SHIPPING-WINDOWS.md`.
 
 ### Recently completed (this session — paused here)
 
-- **Bosses (started) + reusable engine death-phase support.** Added a survive-at-0 → telegraph → final-blow →
+- **`ranwid --custom [character]` — save-less deck sandbox.** Diagnosed why ranwid couldn't see the user's
+  multiplayer run: a multiplayer **GUEST** never gets a local `current_run.save` (only the HOST's game writes one),
+  so there is nothing on disk for the watcher to read (confirmed: the guest's profile only updates
+  `progress.save` meta-stats + a binary `replays/latest.mcr`). (A first attempt — including modded-profile saves —
+  was the wrong fix and was reverted; the modded exclusion stays.) The real fix is a save-less mode: start from any
+  character's starter deck + relic + HP and edit it by hand (`+card`/`add` with Tab-complete + typo auto-correct,
+  `-card`/`rm`, `act <1-4>` to choose the elite pool, `char`/`hp`/`asc`/`reset`, plus `r` cuts / `c` reward check),
+  with the same deck-strength dashboard updating live. Content gains a `CharacterProfile` accessor (starter specs /
+  relic / HP / energy for all five) + `Catalog.ActThemes`/`ActElitePool`; `Companion.Load` refactored into
+  `Load` + a shared `BuildContext`. `RanwidCustomDeckTests` (15). Both executables rebuilt with `--custom`.
+- **Bosses — 8 ported + reusable engine death-phase support.** Added a survive-at-0 → telegraph → final-blow →
   die primitive (`Monster.DeathPhaseEntryMove`/`InDeathPhase`, virtual `Creature.IsAlive`, `Cmd.ApplyDamage`
-  hand-off — mirrors Decimillipede Reattach) for explode/transform-on-death bosses. First boss: **WaterfallGiant**
-  (Act-1), Steam Eruption modelled FAITHFULLY (Pressurize +15/+20, +3/move counter, EXPLODE = accumulated).
-  **Soundness correction (via a pilot):** for a MONSTER, under-crediting (omitting damage) is the OPTIMISTIC/
-  UNSAFE direction — the rule is now "never under-credit a monster; over-estimate threat when uncertain." The
-  remaining 11 bosses + hard multi-enemy normals are being orchestrated under this rule; combat relics
-  batch-ported separately. (`BossTests`; full suite 770.)
+  hand-off — mirrors Decimillipede Reattach) for explode/transform-on-death bosses, first used by **WaterfallGiant**
+  (Steam Eruption modelled FAITHFULLY: Pressurize +15/+20, +3/move counter, EXPLODE = accumulated). **Soundness
+  correction (via a pilot):** for a MONSTER, under-crediting (omitting damage) is the OPTIMISTIC/UNSAFE direction —
+  the rule is now "never under-credit a monster; over-estimate threat when uncertain." Ported under this rule
+  (own-file powers, conflict-free parallel orchestration): WaterfallGiant, SoulFysh, LagavulinMatriarch (Act-1),
+  CeremonialBeast, Vantom (Act-2), KnowledgeDemon, TheInsatiable (Act-3 Hive), Aeonglass (Act-4 Glory).
+  **Two flagged optimistic gaps to close before bosses enter the deck-strength pool:** CeremonialBeast's Ringing
+  (each card once/turn — needs an engine play-restriction hook, task #11) and TheInsatiable's FranticEscape
+  +1/play cost-ramp (shared card out of scope — needs a per-card combat-cost-growth primitive). Still to port:
+  TestSubject + the multi-monster bosses (TheKin / KaiserCrab / Queen) + hard multi-enemy normals; combat relics
+  batch-ported separately. (`BossTests` + per-boss tests; full suite 936.)
 - **`ranwid` now supports all 5 characters** (was Ironclad-only — an artificial gate; the engine ports all
   88/88×5). Removed the gate (`GameIds.IsSupportedCharacter`), made relic mapping generic
   (`Catalog.IsModelledRelic` — picks up each character's combat-start starter relic that wires up Stars / Osty /
@@ -337,16 +358,23 @@ fallbacks and a validated manual folder prompt that persists the choice. See `St
 - **Calibration + soundness** (earlier): elite-AI sweep + seeded random-deck convergence gate; `DiverseAiSoundnessTests`
   horizon/loss oracle-equality across diverse AI (no unsoundness found).
 
-### Next to-dos (forward, ordered — Ranwid accuracy + speed)
+### Next to-dos (forward, ordered)
 
-1. **Accuracy — model a run's ACTUAL relics** (narrowly): the diagnosed pessimism cause. ranwid counts only
-   Burning Blood, so a relic-leaning deck reads weaker than it plays. Model the combat-start relics a run holds
-   (revisiting the relic descope for combat-start relics ONLY — not the 300-relic catalog).
-2. **Perf (parked — explored, no clean win):** advice is ~19s (~30× this session). The next multiple was probed
-   three ways (decimal pipeline / rollout pruning / distilled leaf) — all negative or high-risk (see Recently
-   completed). Only revisit with a real ML effort (a strong distilled leaf, GBM/NN, validated to track the
-   rollout) or a native engine rewrite — both large. Not worth it unless advice latency becomes a hard blocker.
-3. **Small leftover (low value):** a PreciseCut (hand-size) single-enemy live run.
+1. **Combat relics (batch port)** — the user's headline ask: deck strength falls off in later acts because relics
+   (a big late-game contributor) aren't modelled, so a relic-leaning deck reads weaker than it plays. Port the
+   combat-affecting relics (combat-start + in-combat HP/block/damage hooks; NOT the full 300 cosmetic/economy
+   catalog), and model a run's ACTUAL relics in ranwid (currently only each character's starter relic is counted).
+2. **Finish the boss pool + close the 2 flagged optimistic gaps, then wire bosses into deck strength.** Remaining
+   ports: TestSubject + the multi-monster bosses (TheKin / KaiserCrab / Queen) + hard multi-enemy normals. Before
+   ANY boss enters the deck-strength `StrengthPool`, close (a) CeremonialBeast **Ringing** — each card playable
+   once/turn (needs a small engine play-restriction hook; task #11) and (b) TheInsatiable **FranticEscape +1/play
+   cost-ramp** (needs a per-card combat-cost-growth primitive). Then add the run's boss + a hard multi-enemy fight
+   to the pool so the index reflects more than elites.
+3. **Perf (parked — explored, no clean win):** advice is ~19s (~30× earlier). The next multiple was probed three
+   ways (decimal pipeline / rollout pruning / distilled leaf) — all negative or high-risk. Only revisit with a real
+   ML effort (a strong distilled leaf validated to track the rollout) or a native rewrite. Not worth it unless
+   advice latency becomes a hard blocker.
+4. **Small leftover (low value):** a PreciseCut (hand-size) single-enemy live run.
 
 ---
 
