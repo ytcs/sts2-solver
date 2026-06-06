@@ -72,6 +72,22 @@ public class AdvisorTests
     }
 
     [Fact]
+    public void UpgradeAdvice_Ranks_Best_First_And_Skips_Unupgradeable()
+    {
+        // A Burn (Status) and an already-upgraded Bash+1 are NOT upgrade candidates; the basic cards are.
+        var deck = Specs((5, "StrikeIronclad"), (3, "DefendIronclad"), (1, "Bash+1")).Append("Burn").ToList();
+        var (baseline, items) = Advisor.UpgradeAdvice(deck, OneByrdonis(55), 3, System.Array.Empty<string>(), Exact);
+
+        Assert.DoesNotContain(items, i => i.Card == "Burn");          // Status — nothing to upgrade
+        Assert.DoesNotContain(items, i => i.Card == "Bash+1");        // already upgraded — nothing more to advise
+        Assert.Contains(items, i => i.Card == "StrikeIronclad" && i.Upgraded == "StrikeIronclad+1");
+        for (int i = 1; i < items.Count; i++)                         // sorted by resulting strength, best-first
+            Assert.True(items[i - 1].Strength >= items[i].Strength - 1e-9, "upgrade advice is not sorted best-first");
+        Assert.True(items[0].Strength >= baseline - 1e-6, "the top upgrade was weaker than the deck as-is");
+        _out.WriteLine($"baseline {baseline:F1}; top upgrade {items[0].Upgraded} → {items[0].Strength:F1} (Δ{items[0].Delta:+0.0;-0.0})");
+    }
+
+    [Fact]
     public void PickAdvice_Includes_Skip_And_Ranks_Best_First()
     {
         var deck = Specs((5, "StrikeIronclad"), (3, "DefendIronclad"));

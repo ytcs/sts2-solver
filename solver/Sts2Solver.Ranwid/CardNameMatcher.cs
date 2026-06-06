@@ -41,10 +41,16 @@ public static class CardNameMatcher
     {
         if (string.IsNullOrWhiteSpace(input)) return new Match(null, false, System.Array.Empty<string>());
 
-        // Preserve an explicit upgrade suffix (+N) and resolve only the base name.
+        // Preserve an explicit upgrade suffix (+N) and resolve only the base name. A BARE trailing "+" (no
+        // number) is the quick way to mark a reward as upgraded — "Anger+" → Anger+1, "Anger++" → Anger+2.
         string suffix = "";
         int plus = input.IndexOf('+');
-        if (plus >= 0) { suffix = input[plus..].Trim(); input = input[..plus]; }
+        if (plus >= 0)
+        {
+            suffix = input[plus..].Trim();
+            input = input[..plus];
+            if (suffix.Length > 0 && suffix.All(c => c == '+')) suffix = "+" + suffix.Length;
+        }
 
         string n = Normalize(input);
         if (n.Length == 0) return new Match(null, false, System.Array.Empty<string>());

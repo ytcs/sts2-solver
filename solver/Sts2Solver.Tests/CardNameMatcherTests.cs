@@ -49,6 +49,16 @@ public class CardNameMatcherTests
     }
 
     [Fact]
+    public void Bare_Plus_Marks_A_Single_Upgrade()
+    {
+        var m = CardNameMatcher.Resolve("Anger+");           // quick "this reward is upgraded" shorthand
+        Assert.Equal("Anger+1", m.Canonical);
+        Assert.Equal("Anger+2", CardNameMatcher.Resolve("Anger++").Canonical);
+        // and it still resolves through auto-correct on the base name:
+        Assert.Equal("Bludgeon+1", CardNameMatcher.Resolve("bludgon+").Canonical);
+    }
+
+    [Fact]
     public void Ambiguous_Prefix_Returns_Suggestions_Not_A_Guess()
     {
         var m = CardNameMatcher.Resolve("Strike");         // StrikeIronclad, StrikeSilent, …
