@@ -63,6 +63,7 @@ public static class HashingExtensions
         // Per-target powered hits this turn (BeatIntoShape's forge scaling) — gated so it doesn't fragment
         // every other deck's state space with a counter that changes on each hit within a turn.
         if (s.TracksPoweredHits) foreach (var m in s.Monsters) h.Add(m.PlayerPoweredHitsThisTurn);
+        if (s.TracksFacing) h.Add(s.KaiserFrontId);   // KaiserCrab "surrounded" facing (drives the back-attack ×1.5)
         return h.Result;
     }
 }

@@ -71,6 +71,10 @@ public static class CombatManager
         if (card.NeedsTarget && (target == null || !target.IsAlive))
             throw new InvalidOperationException("Card requires a living target.");
 
+        // KaiserCrab "surrounded": the player turns to face whichever arm they target (game: SurroundedPower
+        // BeforeCardPlayed). The arm they're NOT facing then back-attacks for ×1.5 (see KaiserBackAttackPower).
+        if (combat.TracksFacing && target is Monster facedArm) combat.KaiserFrontId = facedArm.Id;
+
         // Cost modifiers (Free Attack zeroes the next Attack; Corruption zeroes Skills). A power that
         // lowers the cost is a "contributor" and gets AfterModifyingCardCost (Free Attack consumes there).
         int effCost = card.EffectiveCost(combat);
@@ -110,6 +114,7 @@ public static class CombatManager
             int b = pw.ModifyCardPlayCount(card);
             if (b > 0) { bonusPlays += b; (playCountContributors ??= new()).Add(pw); }
         }
+        bonusPlays += card.Enchant?.ExtraPlayCount ?? 0;   // replay enchants (Spiral always; Glam first play/combat)
         // Before-play hook (Danse Macabre / Spirit of Ash block, Veilpiercer charge). Runs before OnPlay so
         // a Power card never triggers the power it is in the middle of applying.
         foreach (var pw in combat.AllPowers.ToList()) pw.BeforeCardPlayed(combat, card);
@@ -117,7 +122,9 @@ public static class CombatManager
 
         for (int i = 0; i <= bonusPlays; i++)
         {
-            card.OnPlay(combat, new CardPlay { Card = card, Target = target, XValue = spend, StarsSpent = starCost, ChoiceKey = choiceKey });
+            var play = new CardPlay { Card = card, Target = target, XValue = spend, StarsSpent = starCost, ChoiceKey = choiceKey };
+            card.OnPlay(combat, play);
+            card.Enchant?.OnPlay(combat, play, card);   // enchant rider, after the card's own effect (Inky's Weak, Adroit's block, …)
             if (combat.IsCombatOver) break;   // don't keep swinging at a cleared board / after death
         }
         // Per-turn/combat play counters, incremented after the effect resolves so a card never counts itself.
@@ -137,6 +144,7 @@ public static class CombatManager
         // boosts its own damage), before the card moves to its result pile.
         foreach (var p in combat.AllPowers.ToList()) p.AfterCardPlayed(combat, card);
         if (combat.HasEventRelics) foreach (var r in combat.Player.Relics) r.AfterCardPlayed(combat, card);
+        card.Enchant?.AfterPlayed(combat, card);   // one-shot disable (Vigorous/Glam) / per-play ramp (Momentum)
 
         // Stars-spent hooks fire after the play resolves (ChildOfTheStars gains block, BlackHole damages).
         if (starCost > 0)
@@ -146,6 +154,8 @@ public static class CombatManager
 
         // Result pile, with Corruption-style overrides (a Skill is exhausted instead of discarded).
         var resultPile = card.ResultPile;
+        if (card.Enchant?.RemovesExhaust == true && resultPile == CardResultPile.Exhaust)
+            resultPile = CardResultPile.Discard;   // SoulsPower strips the card's Exhaust
         if (resultPile == CardResultPile.Discard)
             foreach (var pw in combat.AllPowers.ToList())
                 if (pw.OverrideResultPileToExhaust(card)) { resultPile = CardResultPile.Exhaust; break; }

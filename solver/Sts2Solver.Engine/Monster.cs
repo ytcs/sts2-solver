@@ -49,6 +49,13 @@ public sealed class Monster : Creature
     /// guaranteed. Otherwise the standard <c>CurrentHp &gt; 0</c>.</summary>
     public override bool IsAlive => CurrentHp > 0 || InDeathPhase;
 
+    /// <summary>Times this monster has revived (TestSubject's 3-form Adaptable). Drives the phase-branch in its
+    /// AI and the form it heals to. Gated: 0 for every non-reviving monster, so it never enters their hash/key.</summary>
+    public int Respawns;
+
+    /// <summary>A per-monster AI ramp counter (TestSubject's Multi-Claw gains a hit each use). Gated: 0 otherwise.</summary>
+    public int ExtraHits;
+
     public Monster() { Side = CombatSide.Enemy; }
 
     /// <summary>True when the monster's currently telegraphed move is an attack (its <see cref="MoveState"/>
@@ -79,6 +86,8 @@ public sealed class Monster : Creature
         m.ReattachIn = ReattachIn;
         m.DeathPhaseEntryMove = DeathPhaseEntryMove;
         m.InDeathPhase = InDeathPhase;
+        m.Respawns = Respawns;
+        m.ExtraHits = ExtraHits;
         return m;
     }
 
@@ -93,6 +102,8 @@ public sealed class Monster : Creature
         if (StunnedTurns > 0) h.Add(StunnedTurns * 0x9E3779B1);   // gated: 0 for every un-stunned monster
         if (ReattachIn > 0) h.Add(ReattachIn * 0x85EBCA77);       // gated: 0 for every non-downed monster
         if (InDeathPhase) h.Add(0x27D4EB2F);                      // gated: false for every non-death-phase monster
+        if (Respawns > 0) h.Add(Respawns * 0x165667B1);           // gated: 0 for every non-reviving monster
+        if (ExtraHits > 0) h.Add(ExtraHits * 0x27220A95);         // gated: 0 for every non-ramping monster
     }
 
     public override string StateKey()
@@ -101,6 +112,8 @@ public sealed class Monster : Creature
         var stun = StunnedTurns > 0 ? $"!{StunnedTurns}" : "";   // appended only when stunned (no fragmentation otherwise)
         var down = ReattachIn > 0 ? $"~{ReattachIn}" : "";       // appended only while downed (Decimillipede)
         var boom = InDeathPhase ? "*" : "";                      // appended only during a death phase (explode-on-death)
-        return $"M({base.StateKey()}{v}{stun}{down}{boom}|{Ai.StateKey()})";
+        var rev = Respawns > 0 ? $"r{Respawns}" : "";            // appended only after a revive (TestSubject)
+        var xh = ExtraHits > 0 ? $"+{ExtraHits}h" : "";          // appended only while the Multi-Claw ramp is active
+        return $"M({base.StateKey()}{v}{stun}{down}{boom}{rev}{xh}|{Ai.StateKey()})";
     }
 }

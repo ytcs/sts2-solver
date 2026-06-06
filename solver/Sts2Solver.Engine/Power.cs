@@ -106,6 +106,12 @@ public abstract class PowerModel
     /// dead ally — granting its owner Strength.</summary>
     public virtual void AfterCreatureDeath(CombatState combat, Creature dead) { }
 
+    /// <summary>Last chance for a power to PREVENT its owner's death when it is brought to 0 HP: return true to
+    /// veto the death and handle a revive in place (TestSubject's Adaptable heals it to its next form). When any
+    /// power vetoes, the standard on-death cleanup / <see cref="AfterCreatureDeath"/> hooks are skipped — the
+    /// monster survives. Called only for the dying monster's own powers.</summary>
+    public virtual bool VetoLethalDamage(CombatState combat, Monster owner) => false;
+
     /// <summary>Fires (on every power in combat) after a creature is hit, with the unblocked amount
     /// (0 if fully blocked), the dealer (null for non-attack sources like poison) and the value props.
     /// Shriek uses it (on unblocked damage) to stun+Terror at an HP threshold; PersonalHive uses it

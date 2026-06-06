@@ -95,6 +95,20 @@ public static partial class Catalog
     /// <summary>Parse a card spec like "Bash" or "Bash+1" (the +N suffix is upgrade level).</summary>
     public static CardModel BuildCard(string spec)
     {
+        // Optional enchant suffix "@<Name>:<Amount>" (or "@<Name>"), e.g. "StrikeIronclad+1@Sharp:3". Stripped
+        // before the upgrade "+N" so the base-card lookup is unaffected.
+        string? enchName = null;
+        int enchAmount = 0;
+        int at = spec.IndexOf('@');
+        if (at >= 0)
+        {
+            var ench = spec[(at + 1)..];
+            spec = spec[..at];
+            int colon = ench.IndexOf(':');
+            if (colon >= 0) { enchName = ench[..colon]; enchAmount = int.Parse(ench[(colon + 1)..]); }
+            else enchName = ench;
+        }
+
         int upgrades = 0;
         var name = spec;
         int plus = spec.IndexOf('+');
@@ -105,10 +119,18 @@ public static partial class Catalog
         }
         foreach (var table in CardTables())
             if (table.TryGetValue(name, out var f))
-                return f().Upgraded(upgrades);
+            {
+                var card = f().Upgraded(upgrades);
+                if (enchName != null && EnchantmentCatalog.IsModelled(enchName))
+                    card.Enchant = EnchantmentCatalog.Build(enchName, enchAmount);
+                return card;
+            }
         var known = string.Join(", ", CardTables().SelectMany(t => t.Keys));
         throw new ArgumentException($"Unknown card '{name}'. Known: {known}");
     }
+
+    /// <summary>True if the named game enchantment (e.g. "Sharp") has a modelled combat effect.</summary>
+    public static bool IsModelledEnchant(string enchantName) => EnchantmentCatalog.IsModelled(enchantName);
 
     public static RelicModel BuildRelic(string name) =>
         RelicFactories.TryGetValue(name, out var f) ? f()
@@ -168,12 +190,14 @@ public static partial class Catalog
         bool tracksEnergySpent = allCards.Any(c => c.TracksEnergySpentThisTurn);
         // Colorless GoldAxe scales on cards played this combat — gated counter, tracked only when present.
         bool tracksCardsPlayed = allCards.Any(c => c.TracksCardsPlayedThisCombat);
+        // KaiserCrab "surrounded" facing — tracked + hashed only when an arm carrying the back-attack power is present.
+        bool tracksFacing = list.Any(m => m.HasPower("KaiserBackAttack"));
         var combat = new CombatState { Player = player, Monsters = list, TurnNumber = 0,
                                        CurrentSide = CombatSide.Player, TracksCardsDrawn = tracksDrawn,
                                        TracksMidTurnDraws = tracksMidTurnDraws,
                                        BoundsPlays = boundsPlays, TracksPoweredHits = tracksPoweredHits,
                                        TracksLightningChanneled = tracksLightning, TracksEnergySpent = tracksEnergySpent,
-                                       TracksCardsPlayed = tracksCardsPlayed };
+                                       TracksCardsPlayed = tracksCardsPlayed, TracksFacing = tracksFacing };
         combat.HasEventRelics = player.Relics.Any(r => r.HasCombatEventHooks);   // perf gate for the relic event-hook loops
         foreach (var r in player.Relics) r.OnCombatStart(combat);   // e.g. DivineRight grants Stars, Bound Phylactery summons Osty
         return combat;

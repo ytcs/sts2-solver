@@ -85,6 +85,15 @@ public sealed class CombatState
     /// by a counter that changes on every hit within a turn.</summary>
     public bool TracksPoweredHits;
 
+    /// <summary>Set at combat setup when a monster carries the KaiserCrab back-attack power. Gates the
+    /// <see cref="KaiserFrontId"/> facing tracker + its hashing (so no other fight is fragmented).</summary>
+    public bool TracksFacing;
+
+    /// <summary>KaiserCrab "surrounded" facing: the <see cref="Creature.Id"/> of the arm the player currently
+    /// faces (the last arm they targeted). 0 = none yet (initial facing — the LEFT arm is behind). The arm the
+    /// player is NOT facing back-attacks for ×1.5; only meaningful while <see cref="TracksFacing"/>.</summary>
+    public int KaiserFrontId;
+
     /// <summary>Ethereal cards the player has played this combat (Necrobinder Pull from Below hits 1 per such
     /// play; Banshee's Cry's cost drops). Never reset.</summary>
     public int EtherealPlayedThisCombat;
@@ -261,6 +270,8 @@ public sealed class CombatState
             CardsDrawnMidTurn = CardsDrawnMidTurn,
             TracksMidTurnDraws = TracksMidTurnDraws,
             TracksPoweredHits = TracksPoweredHits,
+            TracksFacing = TracksFacing,
+            KaiserFrontId = KaiserFrontId,
             EtherealPlayedThisCombat = EtherealPlayedThisCombat,
             LightningsChanneledThisCombat = LightningsChanneledThisCombat,
             TracksLightningChanneled = TracksLightningChanneled,
@@ -303,6 +314,7 @@ public sealed class CombatState
         if (TracksCardsPlayed) drawn += $"/cp{CardsPlayedThisCombat}";                   // GoldAxe
         // Per-target powered hits this turn (BeatIntoShape) — only when a deck reads it, listed in monster order.
         if (TracksPoweredHits) drawn += "/ph" + string.Join(".", Monsters.Select(m => m.PlayerPoweredHitsThisTurn));
+        if (TracksFacing) drawn += $"/kf{KaiserFrontId}";                                // KaiserCrab facing
         var disc = PendingDiscard != 0 ? $"/pd{PendingDiscard}{(PendingDiscardCard != null ? "+" + PendingDiscardCard.StateKey() : "")}" : "";   // discard-of-choice in flight (+continuation card, e.g. HiddenDaggers)
         var plays = BoundsPlays ? $"/np{PlaysThisTurn}" : "";           // per-turn play count (loop-risk decks only)
         disc += plays;

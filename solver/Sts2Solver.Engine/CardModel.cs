@@ -42,12 +42,21 @@ public abstract class CardModel
 
     public int Upgrades { get; set; }
 
+    /// <summary>An optional run-supplied enchantment modifying this card (game: <c>CardModel.Enchantment</c>).
+    /// Null for the unenchanted majority. Consulted by <see cref="Cmd"/> (damage/block riders),
+    /// <see cref="CombatManager.PlayCard"/> (on-play rider, bonus plays, exhaust removal), and the
+    /// keyword/cost/identity members below. See <see cref="CardEnchantment"/>.</summary>
+    public CardEnchantment? Enchant;
+
     public virtual int Cost => BaseCost;
 
     /// <summary>Combat-dependent cost (Necrobinder Banshee's Cry drops 2 per Ethereal played; Flatten is
-    /// free after an Osty attack). Defaults to the static <see cref="Cost"/>. The solver's playability
-    /// check and <see cref="CombatManager.PlayCard"/> both consult this.</summary>
-    public virtual int EffectiveCost(CombatState combat) => Cost;
+    /// free after an Osty attack). Defaults to the static <see cref="Cost"/>, adjusted by an enchant
+    /// (TezcatarasEmber → 0). The solver's playability check and <see cref="CombatManager.PlayCard"/> both
+    /// consult this. (Cards that OVERRIDE this for their own combat-cost logic don't compose with cost
+    /// enchants — none of the enchantable basics do.)</summary>
+    public virtual int EffectiveCost(CombatState combat)
+        => Enchant is { } e ? (e.SetsCostZero ? 0 : System.Math.Max(0, Cost + e.CostDelta(combat, this))) : Cost;
 
     /// <summary>X-cost cards (Whirlwind) spend ALL the player's current energy; the spent amount is passed
     /// to OnPlay via <see cref="CardPlay.XValue"/>. Their <see cref="Cost"/> stays 0 for the playability check.</summary>
@@ -66,7 +75,7 @@ public abstract class CardModel
     /// CardKeyword.Retain). The Regent's Sovereign Blade token retains so its forged damage carries across
     /// turns; the Necrobinder's Eradicate/Reap/Sow/Spur/… retain too. Some cards gain Retain dynamically and
     /// override this with a mutable backing flag.</summary>
-    public virtual bool Retain => false;
+    public virtual bool Retain => Enchant?.AddsRetain ?? false;
 
     public virtual CardResultPile ResultPile => Type == CardType.Power ? CardResultPile.Removed : CardResultPile.Discard;
 
@@ -121,7 +130,7 @@ public abstract class CardModel
     /// the hand and the random opening draw fills the rest. Some cards gain Innate on upgrade (override
     /// <c>=> Upgrades &gt; 0</c>). Only affects the opening hand, so it is irrelevant to trace replay (the recorded
     /// hand already reflects it).</summary>
-    public virtual bool Innate => false;
+    public virtual bool Innate => Enchant?.AddsInnate ?? false;
 
     /// <summary>The card's effect. Concrete cards call into <see cref="Cmd"/>. A card that requires an in-play
     /// choice reads <see cref="CardPlay.ChoiceKey"/> (and should apply a sensible default when it is null, for
@@ -226,19 +235,32 @@ public abstract class CardModel
         return this;
     }
 
-    public virtual CardModel Clone() => (CardModel)MemberwiseClone();   // copies cached _key (Upgrades unchanged)
+    public virtual CardModel Clone()
+    {
+        var c = (CardModel)MemberwiseClone();   // copies cached _key (Upgrades unchanged)
+        // A Stateful enchant carries mutable per-combat state (one-shot flag / ramp) — deep-copy it so sibling
+        // search branches never share it. A stateless enchant is immutable and safe to share.
+        if (Enchant is { Stateful: true }) c.Enchant = Enchant.Clone();
+        return c;
+    }
 
     /// <summary>True for cards that carry MUTABLE per-combat state — e.g. <c>Rampage</c>, whose damage
     /// escalates with each play — so their identity (<see cref="StateKey"/>) changes as the fight progresses.
     /// Such cards MUST be deep-cloned when a <see cref="CombatState"/> is cloned (see <c>Player.Clone</c>), or
     /// sibling search branches would share one instance and corrupt each other's value; and their
     /// <see cref="KeyHash"/> must not be cached. The immutable majority safely share instances across clones.</summary>
-    public virtual bool Stateful => false;
+    public virtual bool Stateful => Enchant?.Stateful ?? false;
 
     // Card identity is immutable in combat for all but Stateful cards, so cache the key + its hash; Stateful
     // cards (whose StateKey overrides recompute from mutable fields) must NOT cache the hash.
     private string? _key;
     private int? _keyHash;
-    public virtual string StateKey() => _key ??= (Upgrades > 0 ? $"{Name}+{Upgrades}" : Name);
+    public virtual string StateKey()
+    {
+        // An enchant is part of the card's identity (the same base card enchanted plays differently). A Stateful
+        // enchant's key changes mid-combat, so never cache when one is present.
+        if (Enchant is { } e) return (Upgrades > 0 ? $"{Name}+{Upgrades}" : Name) + "@" + e.Key();
+        return _key ??= (Upgrades > 0 ? $"{Name}+{Upgrades}" : Name);
+    }
     public int KeyHash => Stateful ? StateKey().GetHashCode() : (_keyHash ??= StateKey().GetHashCode());
 }

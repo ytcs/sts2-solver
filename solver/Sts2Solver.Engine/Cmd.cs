@@ -20,10 +20,18 @@ public static class Cmd
             foreach (var p in c.Powers)
                 amount += p.ModifyDamageAdditive(target, amount, props, dealer, cardSource);
 
+        // Enchantment damage rider on the source card's own powered attack (Sharp/Inky/Vigorous/Momentum/…).
+        if (cardSource?.Enchant is { } enchA && props.IsPoweredAttack())
+            amount += enchA.DamageAdditive(props);
+
         // Multiplicative modifiers (Vulnerable ×1.5 on target, Weak ×0.75 on dealer).
         foreach (var c in combat.AllCreatures)
             foreach (var p in c.Powers)
                 amount *= p.ModifyDamageMultiplicative(target, amount, props, dealer, cardSource);
+
+        // Enchantment multiplier (Corrupted ×1.5, Instinct ×2 — powered attacks only), after additives.
+        if (cardSource?.Enchant is { } enchM && props.IsPoweredAttack())
+            amount *= (decimal)enchM.DamageMultiplier(props);
 
         // STS convention: floor once after all modifiers, clamp to ≥0.
         int modified = (int)Math.Floor(Math.Max(0m, amount));
@@ -125,7 +133,14 @@ public static class Cmd
                 }
                 else
                 {
-                    foreach (var p in combat.AllPowers.ToList()) p.AfterCreatureDeath(combat, hpTarget);
+                    // A power may veto the owner's death and revive it in place (TestSubject's Adaptable heals to
+                    // its next form). When vetoed, the standard on-death hooks are suppressed — it never died.
+                    bool revived = false;
+                    if (hpTarget is Monster rv)
+                        foreach (var p in rv.Powers.ToList())
+                            if (p.VetoLethalDamage(combat, rv)) { revived = true; break; }
+                    if (!revived)
+                        foreach (var p in combat.AllPowers.ToList()) p.AfterCreatureDeath(combat, hpTarget);
                 }
             }
             // Damage redirected onto another creature (Osty) that exceeds its HP spills the OVERKILL back
@@ -165,6 +180,9 @@ public static class Cmd
         foreach (var c in combat.AllCreatures)
             foreach (var p in c.Powers)
                 block += p.ModifyBlockAdditive(target, block, props, cardSource);
+        // Enchantment block rider on the source card's own powered block (Nimble).
+        if (cardSource?.Enchant is { } enchB && props.IsPoweredBlock())
+            block += enchB.BlockAdditive();
         foreach (var c in combat.AllCreatures)
             foreach (var p in c.Powers)
                 block *= p.ModifyBlockMultiplicative(target, block, props, cardSource);
