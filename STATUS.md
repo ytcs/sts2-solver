@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-05._
+_Last updated: 2026-06-06._
 
 ## Goal
 
@@ -259,9 +259,53 @@ path `%APPDATA%\SlayTheSpire2\steam\<id>\…` (mirror of the Linux layout) first
 fallbacks and a validated manual folder prompt that persists the choice; modded-profile saves are excluded on
 purpose. Multiplayer **guests** have no local run-save — use `ranwid --custom`. See `Sts2Solver.Ranwid/SHIPPING-WINDOWS.md`.
 
-### Recently completed (this session — paused here)
+### Recently completed (2026-06 — bosses, enchantments, MCTS-only output, v0.107 sync)
 
-- **Bosses + PreciseCut + perf (this session).** Closed the 2 boss optimistic gaps (CeremonialBeast Ringing → a
+- **All 12 bosses now modelled — the 4 remaining ported (TheKin, KaiserCrab, TestSubject, Queen).** Verified
+  against decompiled `sts2.dll v0.107.0` via `ilspycmd` (run with `DOTNET_ROLL_FORWARD=LatestMajor`). Each came
+  with a small gated engine subsystem + literal-value tests:
+  - **TheKin** (Act 1, multi-monster): KinPriest + 2 KinFollowers, deterministic cycles. (`TheKinTests` 15.)
+  - **KaiserCrab** (Act 2): Crusher + Rocket. The "Surrounded" facing back-attack (×1.5 from the arm you're NOT
+    facing) via a gated `CombatState.KaiserFrontId` tracker (set in `PlayCard`; the arm power is
+    `KaiserBackAttackPower`) + `CrabRagePower` (survivor +6 Str / +99 Block when one arm dies, via
+    `AfterCreatureDeath`). (`KaiserCrabTests` 15.)
+  - **TestSubject** (Act 3): a 3-form revive boss via a generic `PowerModel.VetoLethalDamage` death-veto +
+    `Monster.Respawns`/`ExtraHits` fields; powers `AdaptablePower` (revive to next form), `EnragePower`,
+    `PainfulStabsPower` (Wound on a connecting hit, per-turn), `NemesisPower` (Intangible every other turn via
+    self-toggled `ModifyHpLost`). (`TestSubjectTests` 11.)
+  - **Queen** (Act 3): Queen + TorchHeadAmalgam; conditional move branch on Amalgam death
+    (`QueenAmalgamWatchPower` + `RandomBranchState` 1/0 weights); `YOU_ARE_MINE` 99 Frail/Weak/Vulnerable.
+    **ChainsOfBinding is a documented pessimistic gap:** faithful binding hooks every draw (incl. the turn-start
+    hand, modelled as chance nodes), so it's modelled SOUNDLY as drawing 3 fewer cards/turn via `ModifyHandDraw`
+    (`QueenChainsPower`). (`QueenTests` 11.)
+  - Boss-pool placement is fallback-only (real runs resolve by `boss_id`); all 4 registered in `EncounterCatalog`.
+- **Card enchantments (15 ported) + a generic `CardEnchantment` system.** New base `CardEnchantment` (Engine)
+  with damage add/mult, block, keyword (Retain/Innate/Exhaust-removal), cost, on-play rider, bonus-play, and
+  one-shot/ramp state; folded into `CardModel.StateKey`/`Stateful`/`Clone` and consulted by `Cmd.Attack`/
+  `GainBlock` + `CombatManager.PlayCard`. Threaded through the build spec (`Name+U@Sharp:3`), `RunSave` (parses
+  `{id, amount}`), and `Companion` (warns on unmodelled). Ported from the v0.107.0 decompile: Sharp, Inky,
+  Instinct, Corrupted, TezcatarasEmber, Nimble, Adroit, Steady, RoyallyApproved, SoulsPower, Sown, Vigorous,
+  Momentum, Spiral, Glam. Warned-as-unmodelled: Slither/Goopy/PerfectFit/Clone + Swift/Imbued/SlumberingEssence
+  (need draw / auto-play / per-turn-held-cost machinery). (`EnchantmentTests` 17.)
+- **Ranwid output: MCTS-only, Expected HP Loss.** Dropped the rollout HP-loss distribution (Best/Worst columns,
+  `HeuristicPolicy`, `EvalOptions.Rollouts`, the `CombatStats` spread fields). The dashboard's "Avg" was the
+  search value while Best/Worst came from a separate heuristic-policy rollout — two estimators with no ordering
+  guarantee (hence "Best < Avg"). Now one number from MCTS, so the anomaly is structurally impossible.
+- **Boss-mapping fixes (two bugs).** (a) `GameIds.ClassName("ENCOUNTER.AEONGLASS_BOSS")` already yields
+  `AeonglassBoss`; the code appended `+ "Boss"` → `AeonglassBossBoss`, so the actual-boss path ALWAYS failed and
+  fell back. (b) The fallback used `run.ActIndex` against the theme-aligned pool and silently substituted a wrong
+  boss. Now: resolve `boss_id` directly; ported boss → shown/scored; known-but-unported → "Boss: X — not
+  modelled" (never substituted). (`BossId_*` tests.)
+- **Aeonglass synced to v0.107.0 + HP convention.** Decompile confirmed EBB is now attack + `EbbBlock => 33`
+  (the −3 Str/−3 Dex drain was REMOVED) and Increasing Intensity no longer blocks. Fixed PhrogParasite (61→64)
+  and PhantasmalGardener (28→31) to the max-roll convention.
+- **DataDumper extended:** `scalars` (numeric members) on `monsters.json` + a new `enchantments.json` (type set +
+  LocStrings + magnitudes). Builds against the patched game DLLs.
+- Full suite **1183 tests green**; `ranwid`/`ranwid.exe` republished.
+
+### Earlier this session (paused here)
+
+- **Bosses + PreciseCut + perf (earlier session).** Closed the 2 boss optimistic gaps (CeremonialBeast Ringing → a
   per-turn play cap via `PowerModel.PlayCapThisTurn`/`EffectivePlayCap`; TheInsatiable FranticEscape → a Stateful
   per-instance cost-ramp on the boss-only card) and wired the run's act boss into the deck-strength `StrengthPool`
   (`Catalog.ActBossPool` + `Companion.BossEncounterForRun`). Fixed the headless harness for the 2026-06 game patch
