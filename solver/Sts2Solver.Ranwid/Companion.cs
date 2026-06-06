@@ -31,7 +31,8 @@ public sealed class Companion
     public sealed record Context(
         RunState Run, string Path, List<string> DeckSpecs, List<string> RelicNames,
         List<Advisor.Encounter> Encounters, List<(string name, string comp)> EliteInfo,
-        List<Advisor.Encounter> StrengthPool, List<string> Warnings, string DeckSummary);
+        List<Advisor.Encounter> StrengthPool, List<string> Warnings, string DeckSummary,
+        Advisor.Encounter? Boss = null, string BossComp = "", string? UnmodelledBoss = null);
 
     /// <summary>Parse a save and resolve the deck/relics/elite encounters the advisor needs. Returns null for
     /// non-Ironclad or unreadable runs. <paramref name="quiet"/> suppresses the failure messages — the live
@@ -54,8 +55,15 @@ public sealed class Companion
         var deckSpecs = new List<string>();
         foreach (var e in run.Deck)
         {
-            if (e.HasEnchant) warnings.Add($"enchantment on {GameIds.ClassName(e.Id)} ignored (not modelled)");
             var spec = GameIds.CardSpec(e.Id, e.Upgrade);
+            // Fold a modelled enchantment into the build spec ("Name+U@Sharp:3"); warn on an unmodelled one so
+            // the player knows that card is scored as if plain.
+            if (e.EnchantId != null)
+            {
+                var ench = GameIds.ClassName(e.EnchantId);
+                if (Catalog.IsModelledEnchant(ench)) spec += $"@{ench}:{e.EnchantAmount}";
+                else warnings.Add($"enchantment {ench} on {GameIds.ClassName(e.Id)} ignored (not modelled)");
+            }
             try { Catalog.BuildCard(spec); deckSpecs.Add(spec); }
             catch (ArgumentException) { warnings.Add($"card {GameIds.ClassName(e.Id)} skipped (not ported)"); }
         }
@@ -113,21 +121,48 @@ public sealed class Companion
 
         // Fold the run's act BOSS into the strength pool so the index reflects boss-readiness, not just elites.
         // One boss keeps the extra (slower, tankier) eval bounded — it becomes the long pole of the parallel pool.
-        var bossCls = BossEncounterForRun(run);
-        if (bossCls != null) strengthPool.Add(MakeEnc(bossCls));
+        // Keep it separately too (Boss/BossComp) so the dashboard can headline it as a row above the elites.
+        Advisor.Encounter? boss = null;
+        string bossComp = "";
+        var bossCls = BossEncounterForRun(run, out string? unmodelledBoss);
+        if (bossCls != null)
+        {
+            var bEnc = MakeEnc(bossCls);
+            strengthPool.Add(bEnc);
+            boss = bEnc;
+            string comp = string.Join(" + ", Catalog.BuildEliteEncounter(bossCls, asc)
+                .GroupBy(m => m.Name).Select(g => g.Count() > 1 ? $"{g.Count()}× {g.Key}" : g.Key));
+            bossComp = comp == bEnc.Name ? "" : comp;   // hide a single-monster comp that just repeats the name
+        }
+        else if (unmodelledBoss != null)
+        {
+            // The run's ACTUAL boss is known but not yet ported (TheKin/Queen/KaiserCrab/TestSubject). Surface it
+            // honestly as a "not modelled" row and keep it OUT of deck strength — never substitute a different boss.
+            warnings.Add($"act boss {unmodelledBoss} not modelled (excluded from deck strength)");
+        }
 
-        return new Context(run, path, deckSpecs, relicNames, encounters, eliteInfo, strengthPool, warnings, deckSummary);
+        return new Context(run, path, deckSpecs, relicNames, encounters, eliteInfo, strengthPool,
+            warnings, deckSummary, boss, bossComp, unmodelledBoss);
     }
 
-    /// <summary>The boss-encounter class name to fold into the strength pool for a run: the run's ACTUAL boss
-    /// (mapped from the save's <c>BossId</c> via <c>&lt;Name&gt;Boss</c>) when it is a known/ported boss, else the
-    /// run's act's first boss. Null only if the act has no ported boss. (All four acts' bosses are ported.)</summary>
-    private static string? BossEncounterForRun(RunState run)
+    /// <summary>Resolve the run's act BOSS. Returns the ported boss encounter class name (folded into deck
+    /// strength + headlined) when the run's ACTUAL boss is modelled; otherwise sets <paramref name="unmodelled"/>
+    /// to the boss's display name when the run has a known-but-unported boss (TheKin/Queen/KaiserCrab/TestSubject)
+    /// so it can be shown as a "not modelled" row rather than silently swapped for a different boss. Only when the
+    /// save carries NO boss id does it fall back to the act's first pool boss (e.g. custom mode, where ActIndex is
+    /// a theme index). The save's boss id already encodes the encounter, e.g.
+    /// <c>ENCOUNTER.AEONGLASS_BOSS → AeonglassBoss</c> (matching the catalog key directly — do NOT re-append
+    /// "Boss", which produced the never-matching "AeonglassBossBoss" and forced the wrong-boss fallback).</summary>
+    private static string? BossEncounterForRun(RunState run, out string? unmodelled)
     {
+        unmodelled = null;
         if (!string.IsNullOrWhiteSpace(run.BossId))
         {
-            var name = GameIds.ClassName(run.BossId) + "Boss";
+            var name = GameIds.EncounterClassName(run.BossId);
+            if (!name.EndsWith("Boss", StringComparison.Ordinal)) name += "Boss";   // tolerate an id without _BOSS
             if (Catalog.IsKnownEliteEncounter(name)) return name;
+            unmodelled = name[..^4];   // strip the "Boss" suffix for display (e.g. "TheKin")
+            return null;
         }
         var pool = Catalog.ActBossPool(run.ActIndex);
         return pool.Count > 0 ? pool[0] : null;
@@ -149,17 +184,25 @@ public sealed class Companion
     /// live dashboard). Pure compute — no output.</summary>
     public static List<EliteResult> EvaluateElites(Context c, EvalOptions opts)
     {
-        // The Act's elites are independent solves → run them across cores (AsOrdered keeps the table order
-        // stable). Each eval builds its own deck/monsters and MCTS tree, so there's no shared mutable state.
-        return c.Encounters.Zip(c.EliteInfo).AsParallel().AsOrdered().Select(pair =>
+        EliteResult EvalEnc(string label, string comp, Advisor.Encounter enc)
         {
-            var (enc, info) = pair;
-            if (c.DeckSpecs.Count == 0) return new EliteResult(info.name, info.comp, null, "no playable deck cards");
+            if (c.DeckSpecs.Count == 0) return new EliteResult(label, comp, null, "no playable deck cards");
             var deck = c.DeckSpecs.Select(Catalog.BuildCard).ToList();
             var player = Catalog.BuildPlayer(deck, c.Run.PlayerHp, c.Run.PlayerMaxHp, c.Run.MaxEnergy, c.RelicNames);
             var stats = EncounterEvaluator.Evaluate(Catalog.SetupCombat(player, enc.Build()), opts);
-            return new EliteResult(info.name, info.comp, stats, null);
-        }).ToList();
+            return new EliteResult(label, comp, stats, null);
+        }
+
+        // The Act's elites are independent solves → run them across cores (AsOrdered keeps the table order
+        // stable). Each eval builds its own deck/monsters and MCTS tree, so there's no shared mutable state.
+        var rows = c.Encounters.Zip(c.EliteInfo).AsParallel().AsOrdered()
+            .Select(pair => EvalEnc(pair.Second.name, pair.Second.comp, pair.First)).ToList();
+
+        // The act boss headlines the table as the first row ("Boss: <name>"), at the run's actual HP like the
+        // elites — boss-readiness at a glance. Evaluated after the parallel elites (one extra, tankier fight).
+        if (c.Boss is { } boss) rows.Insert(0, EvalEnc($"Boss: {boss.Name}", c.BossComp, boss));
+        else if (c.UnmodelledBoss is { } ub) rows.Insert(0, new EliteResult($"Boss: {ub}", "", null, "not modelled"));
+        return rows;
     }
 
     /// <summary>Resolve reward tokens (auto-correct), then compute take-vs-skip advice — or null if no card
@@ -222,6 +265,7 @@ public sealed class Companion
             switch (key)
             {
                 case ConsoleKey.R: ShowRemovals(ctx); RenderCurrent(ctx); break;
+                case ConsoleKey.U: ShowUpgrades(ctx); RenderCurrent(ctx); break;
                 case ConsoleKey.C: ShowRewardCheck(ctx); RenderCurrent(ctx); break;
                 case ConsoleKey.D or ConsoleKey.F5: ReEvaluate(ctx, force: true); break;
             }
@@ -238,7 +282,7 @@ public sealed class Companion
 
     private const string CustomFooter =
         "  [grey]([/][white]+card[/][grey]) add   ([/][white]-card[/][grey]) remove   "
-        + "([/][white]act[/][grey] N) act   ([/][white]r[/][grey]) cuts   ([/][white]c[/][grey]) reward   "
+        + "([/][white]act[/][grey] N) act   ([/][white]r[/][grey]) cuts   ([/][white]u[/][grey]) upgrades   ([/][white]c[/][grey]) reward   "
         + "([/][white]help[/][grey]) more   ([/][white]q[/][grey]) quit[/]";
 
     /// <summary>Run the interactive custom-deck session for <paramref name="initialChar"/> (default Ironclad).</summary>
@@ -303,6 +347,7 @@ public sealed class Companion
                     break;
 
                 case "r" or "cuts" or "advise" or "removals": ShowRemovals(ctx); RenderCurrent(ctx); break;
+                case "u" or "upgrade" or "upgrades": ShowUpgrades(ctx); RenderCurrent(ctx); break;
                 case "c" or "check" or "reward":
                     if (arg.Length > 0) { ShowRewardCheckFor(ctx, arg); } else ShowRewardCheck(ctx);
                     RenderCurrent(ctx);
@@ -341,8 +386,8 @@ public sealed class Companion
     private static CardEntry SpecToEntry(string spec)
     {
         int plus = spec.IndexOf('+');
-        return plus < 0 ? new CardEntry(spec, 0, false)
-                        : new CardEntry(spec[..plus], int.TryParse(spec[(plus + 1)..], out var u) ? u : 0, false);
+        return plus < 0 ? new CardEntry(spec, 0, null, 0)
+                        : new CardEntry(spec[..plus], int.TryParse(spec[(plus + 1)..], out var u) ? u : 0, null, 0);
     }
 
     /// <summary>Resolve "card [xN] | card N" → add N copies (default 1). Returns true if the deck changed.</summary>
@@ -520,6 +565,25 @@ public sealed class Companion
                 _ => advice = Advisor.RemovalAdvice(ctx.DeckSpecs, ctx.StrengthPool,
                     ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
             Dashboard.RenderRemovals(advice);
+        }
+        WaitForKey();
+    }
+
+    /// <summary>[u] best cards to upgrade — the slow per-card sweep, run only on demand.</summary>
+    private void ShowUpgrades(Context ctx)
+    {
+        Spectre.Console.AnsiConsole.Clear();
+        if (ctx.StrengthPool.Count == 0 || ctx.DeckSpecs.Count == 0)
+        {
+            Spectre.Console.AnsiConsole.MarkupLine("[grey]Upgrade advice needs at least one elite and one card.[/]");
+        }
+        else
+        {
+            (double, List<Advisor.UpgradeItem>) advice = default;
+            Spectre.Console.AnsiConsole.Status().Start("finding the best cards to upgrade…",
+                _ => advice = Advisor.UpgradeAdvice(ctx.DeckSpecs, ctx.StrengthPool,
+                    ctx.Run.MaxEnergy, ctx.RelicNames, _opts));
+            Dashboard.RenderUpgrades(advice);
         }
         WaitForKey();
     }

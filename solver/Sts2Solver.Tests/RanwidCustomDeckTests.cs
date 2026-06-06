@@ -17,7 +17,7 @@ public class RanwidCustomDeckTests
 {
     private static readonly EvalOptions Fast = new()
     {
-        BudgetSeconds = 0.0, Rollouts = 2000, MctsTrials = 400, Seed = 1,
+        BudgetSeconds = 0.0, MctsTrials = 400, Seed = 1,
     };
 
     [Fact]
@@ -81,10 +81,45 @@ public class RanwidCustomDeckTests
         var relics = p.StarterRelic is { } r && Catalog.IsModelledRelic(r) ? new List<string> { r } : new List<string>();
         var run = new RunState(0, actIndex, $"ACT.{Catalog.ActThemes[actIndex]}", p.CharacterId,
             p.StartingHp, p.StartingHp, p.MaxEnergy,
-            deck.Select(s => new CardEntry(s.Split('+')[0], 0, false)).ToList(),
+            deck.Select(s => new CardEntry(s.Split('+')[0], 0, null, 0)).ToList(),
             relics, System.Array.Empty<string>(), null, 1, 0);
         return Companion.BuildContext(run, "(custom)", deck.ToList(), relics,
             Catalog.ActElitePool(actIndex), new List<string>(), Companion.SummarizeSpecs(deck));
+    }
+
+    /// <summary>Build a Context for a run carrying a specific save <c>boss_id</c> (the field that drives the
+    /// dashboard's boss headline), to exercise <c>BossEncounterForRun</c>.</summary>
+    private static Companion.Context WithBoss(string? bossId)
+    {
+        var p = Catalog.FindCharacter("Ironclad")!;
+        var deck = p.StarterDeckSpecs();
+        var run = new RunState(0, 0, "ACT.OVERGROWTH", p.CharacterId, p.StartingHp, p.StartingHp, p.MaxEnergy,
+            deck.Select(s => new CardEntry(s.Split('+')[0], 0, null, 0)).ToList(),
+            System.Array.Empty<string>(), System.Array.Empty<string>(), bossId, 1, 0);
+        return Companion.BuildContext(run, "(boss-test)", deck.ToList(), new List<string>(),
+            System.Array.Empty<string>(), new List<string>(), Companion.SummarizeSpecs(deck));
+    }
+
+    [Fact]
+    public void BossId_For_Ported_Boss_Resolves_To_That_Boss()
+    {
+        // ENCOUNTER.AEONGLASS_BOSS → AeonglassBoss (the catalog key directly). Regression: the old code appended
+        // "Boss" a second time → "AeonglassBossBoss", which never matched and forced a wrong-boss fallback.
+        var ctx = WithBoss("ENCOUNTER.AEONGLASS_BOSS");
+        Assert.NotNull(ctx.Boss);
+        Assert.Equal("Aeonglass", ctx.Boss!.Value.Name);
+        Assert.Null(ctx.UnmodelledBoss);
+    }
+
+    [Fact]
+    public void BossId_For_Unported_Boss_Is_Surfaced_Not_Substituted()
+    {
+        // A known-but-unported boss must be shown as "not modelled", NOT silently swapped for some other act
+        // boss. (Synthetic id so this stays valid as the real bosses get ported.)
+        var ctx = WithBoss("ENCOUNTER.NONEXISTENT_BOSS");
+        Assert.Null(ctx.Boss);
+        Assert.Equal("Nonexistent", ctx.UnmodelledBoss);
+        Assert.Contains(ctx.Warnings, w => w.Contains("Nonexistent") && w.Contains("not modelled"));
     }
 
     [Fact]
