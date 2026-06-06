@@ -109,7 +109,7 @@ public class RanwidMultiCharacterTests
         var setup = Catalog.SetupCombat(player, new[] { Monsters.Byrdonis(hp: 45) });
         var stats = EncounterEvaluator.Evaluate(setup, new EvalOptions
         {
-            MaxTurns = 12, BudgetSeconds = 0.0 /* MCTS-only, like ranwid */, MctsTrials = 600, Rollouts = 1,
+            MaxTurns = 12, BudgetSeconds = 0.0 /* MCTS-only, like ranwid */, MctsTrials = 600,
         });
         _out.WriteLine($"{label}: survival {stats.Survival:P1}, E[loss] {stats.MeanLoss:F1}");
         Assert.InRange(stats.Survival, 0.0, 1.0);

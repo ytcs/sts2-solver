@@ -93,7 +93,6 @@ public class CalibrationTests
             MaxTurns = f.MaxTurns,
             BudgetSeconds = 0.0,   // force the MCTS fallback path (skip exact)
             MctsTrials = 40_000,
-            Rollouts = 200,
         });
         _out.WriteLine($"{f.Name}: engine={stats.Engine}, survival {stats.Survival:P2}");
         Assert.True(stats.Survival > 0,

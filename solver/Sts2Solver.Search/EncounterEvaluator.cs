@@ -7,7 +7,7 @@ namespace Sts2Solver.Search;
 public enum EvalEngine { Exact, Mcts }
 
 /// <summary>Tunables for <see cref="EncounterEvaluator.Evaluate"/>. A record so callers can derive a variant
-/// with <c>opts with { Rollouts = 1 }</c> (the advice path skips the rollout distribution it never reads).</summary>
+/// with <c>opts with { MctsTrials = … }</c> for a faster (lower-fidelity) advice-regime evaluation.</summary>
 public sealed record EvalOptions
 {
     /// <summary>Turn horizon (a fight not won by here counts as a loss).</summary>
@@ -17,9 +17,6 @@ public sealed record EvalOptions
     /// calibration shows the faithful-rollout MCTS tracks exact within a few % while being 10–50× faster,
     /// so exact is worth only a brief attempt (it solves trivial fights, elites fall through quickly).</summary>
     public double BudgetSeconds { get; init; } = 8.0;
-
-    /// <summary>Faithful playouts used to estimate the HP-loss distribution (exact path only).</summary>
-    public int Rollouts { get; init; } = 2000;
 
     /// <summary>Trial budget for the MCTS fallback. Calibrated to ~2k: the rollout leaf reaches exact survival
     /// by ~2k trials, and E[HP loss] settles to within ~3 HP (mildly pessimistic — acceptable for advice). This
@@ -40,20 +37,14 @@ public sealed record EvalOptions
 }
 
 /// <summary>
-/// The result of evaluating a deck against one encounter. <see cref="Survival"/> / <see cref="MeanLoss"/>
-/// always come from the chosen engine's value. The HP-loss distribution
-/// (<see cref="MinLoss"/>…<see cref="P90Loss"/>) is only populated when the *exact* optimal policy was
-/// found (<see cref="HasDistribution"/>) — a heuristic policy can't faithfully reproduce optimal play, so
-/// on the MCTS fallback we report survival + mean only rather than a misleading spread.
+/// The result of evaluating a deck against one encounter: the chosen engine's headline value —
+/// <see cref="Survival"/> (win probability) and <see cref="MeanLoss"/> (expected HP loss). The search engine
+/// produces an expectation, not a distribution, so that is all we report (and all the dashboard shows).
 /// </summary>
 public sealed record CombatStats(
     EvalEngine Engine,
     double Survival,
     double MeanLoss,
-    double NetMeanLoss,
-    bool HasDistribution,
-    int MinLoss, int MaxLoss, int P10Loss, int P50Loss, int P90Loss,
-    int Rollouts,
     long ElapsedMs,
     long Work);
 
@@ -97,28 +88,19 @@ public static class EncounterEvaluator
             try
             {
                 var value = solver.Solve(setup);
-                solver.Ct = CancellationToken.None;   // clear the budget so rollouts run uninterrupted
-                // Exact optimal policy in hand → sample the true HP-loss distribution under it.
-                var dist = PolicyRollout.Sample(setup, new ExactMemoPolicy(solver), opt.Rollouts, maxTurns, opt.Seed);
                 sw.Stop();
                 return new CombatStats(
                     Engine: EvalEngine.Exact,
                     Survival: value.Win,
                     MeanLoss: value.Loss,
-                    NetMeanLoss: dist.NetMeanLoss,
-                    HasDistribution: true,
-                    MinLoss: dist.MinLoss, MaxLoss: dist.MaxLoss,
-                    P10Loss: dist.P10Loss, P50Loss: dist.P50Loss, P90Loss: dist.P90Loss,
-                    Rollouts: dist.Samples,
                     ElapsedMs: sw.ElapsedMilliseconds,
                     Work: solver.StatesEvaluated);
             }
             catch (OperationCanceledException) { /* exact blew the budget → fall through to MCTS */ }
         }
 
-        // MCTS path: either the deck was gated out of exact, or exact timed out. We DO produce a rollout
-        // distribution here (the shared intent-aware HeuristicPolicy characterises the loss spread well enough);
-        // headline survival/mean still come from MCTS.
+        // MCTS path: either the deck was gated out of exact, or exact timed out. Survival + expected HP loss
+        // come from the MCTS value backup.
         {
             var mcts = new MctsSolver(new MctsOptions
             {
@@ -133,17 +115,11 @@ public static class EncounterEvaluator
             // wrongly skipping a beatable elite. HP-loss (the deck-strength proxy) is reported as computed.
             double survival = value.Win;
             if (survival <= 0 && mcts.ObservedWin) survival = SurvivalFloor;
-            var dist = PolicyRollout.Sample(setup, new HeuristicPolicy(), opt.Rollouts, maxTurns, opt.Seed);
             sw.Stop();
             return new CombatStats(
                 Engine: EvalEngine.Mcts,
                 Survival: survival,
                 MeanLoss: value.Loss,
-                NetMeanLoss: dist.NetMeanLoss,
-                HasDistribution: true,
-                MinLoss: dist.MinLoss, MaxLoss: dist.MaxLoss,
-                P10Loss: dist.P10Loss, P50Loss: dist.P50Loss, P90Loss: dist.P90Loss,
-                Rollouts: dist.Samples,
                 ElapsedMs: sw.ElapsedMilliseconds,
                 Work: mcts.TrialsRun);
         }

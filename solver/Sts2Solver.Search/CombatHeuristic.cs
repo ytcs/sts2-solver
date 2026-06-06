@@ -166,27 +166,3 @@ public static class CombatHeuristic
         return c;
     }
 }
-
-/// <summary>Greedy policy on <see cref="CombatHeuristic.Score"/> at a fixed aggression λ: repeatedly play
-/// the card that most improves the position; end the turn when no play strictly improves it. λ interpolates
-/// the play between all-block (0) and all-damage (1); sampling λ per rollout spreads leaf seeds across the
-/// block↔race spectrum. Shared by MCTS rollouts and the distribution sampler so both reflect one definition
-/// of "reasonable play".</summary>
-public sealed class HeuristicPolicy : IPlayoutPolicy
-{
-    private readonly double _aggression;
-    public HeuristicPolicy(double aggression = 0.5) => _aggression = aggression;
-
-    public PlayerAction? NextAction(CombatState s)
-    {
-        double current = CombatHeuristic.Score(s, _aggression);
-        PlayerAction? best = null;
-        double bestScore = current;
-        foreach (var action in CombatHeuristic.LegalPlays(s))
-        {
-            double sc = CombatHeuristic.Score(CombatHeuristic.ApplyPlay(s, action), _aggression);
-            if (sc < bestScore - 1e-9) { bestScore = sc; best = action; }
-        }
-        return best;   // null ⇒ end the turn (nothing improves the position)
-    }
-}

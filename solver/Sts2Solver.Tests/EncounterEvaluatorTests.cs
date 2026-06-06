@@ -38,7 +38,6 @@ public class EncounterEvaluatorTests
             MaxTurns = 14,
             BudgetSeconds = 30,   // if exact were attempted it would burn all 30s before falling to MCTS
             MctsTrials = 400,
-            Rollouts = 60,
         });
         sw.Stop();
         _out.WriteLine($"large deck: engine={stats.Engine}, {sw.ElapsedMilliseconds} ms (budget 30s)");
@@ -55,7 +54,7 @@ public class EncounterEvaluatorTests
         var f = CalibrationFixtures.BridgeRung(6);   // 6-card short race — exact solves in a few seconds
         var stats = EncounterEvaluator.Evaluate(f.Setup(), new EvalOptions
         {
-            MaxTurns = f.MaxTurns, BudgetSeconds = 60, Rollouts = 100,
+            MaxTurns = f.MaxTurns, BudgetSeconds = 60,
         });
         _out.WriteLine($"small deck: engine={stats.Engine}, survival {stats.Survival:P1}");
         Assert.Equal(EvalEngine.Exact, stats.Engine);

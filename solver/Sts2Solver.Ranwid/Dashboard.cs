@@ -31,7 +31,7 @@ public static class Dashboard
 
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Markup(footer ??
-            "  [grey]([/][white]r[/][grey]) removals   ([/][white]c[/][grey]) check a reward card   "
+            "  [grey]([/][white]r[/][grey]) removals   ([/][white]u[/][grey]) upgrades   ([/][white]c[/][grey]) check a reward card   "
             + "([/][white]d[/][grey]) refresh   ([/][white]q[/][grey]) quit"
             + "          auto-refreshes when your run changes[/]"));
         AnsiConsole.WriteLine();
@@ -87,11 +87,10 @@ public static class Dashboard
         var table = new Table { Border = TableBorder.SimpleHeavy, Expand = true };
         table.AddColumn("[grey]Elite[/]");
         table.AddColumn(new TableColumn("[grey]Survive[/]").Centered());
-        table.AddColumn(new TableColumn("[grey]Avg HP loss[/]").Centered());
-        table.AddColumn(new TableColumn("[grey]Worst[/]").Centered());
+        table.AddColumn(new TableColumn("[grey]Exp. HP loss[/]").Centered());
 
         if (elites.Count == 0)
-            table.AddRow("[grey](no elites to evaluate for this Act)[/]", "", "", "");
+            table.AddRow("[grey](no elites to evaluate for this Act)[/]", "", "");
 
         foreach (var r in elites)
         {
@@ -102,13 +101,14 @@ public static class Dashboard
             string name = $"[bold]{Esc(r.Elite)}[/]" + (showComp ? $"\n[grey]{Esc(r.Composition)}[/]" : "");
             if (r.Stats is { } s)
             {
-                string worst = s.HasDistribution ? s.MaxLoss.ToString() : "—";
+                // The search engine reports an expectation (E[HP loss]), not a distribution — show that.
                 table.AddRow(new Markup(name), new Markup(SurviveMarkup(s.Survival)),
-                    new Markup($"{s.MeanLoss:F0}"), new Markup(worst));
+                    new Markup($"{s.MeanLoss:F0}"));
             }
             else
             {
-                table.AddRow(new Markup(name), new Markup($"[grey]{Esc(r.Skipped ?? "—")}[/]"), new Markup("—"), new Markup("—"));
+                table.AddRow(new Markup(name), new Markup($"[grey]{Esc(r.Skipped ?? "—")}[/]"),
+                    new Markup("—"));
             }
         }
 
@@ -165,6 +165,37 @@ public static class Dashboard
             AnsiConsole.Write(new Markup("  [grey]no single removal raises the deck's strength — the rows above are the least-harmful cuts.[/]\n"));
     }
 
+    public static void RenderUpgrades((double baseline, List<Advisor.UpgradeItem> items) advice)
+    {
+        var (baseline, items) = advice;
+        var table = new Table { Border = TableBorder.SimpleHeavy, Expand = true };
+        table.AddColumn("[grey]Upgrade[/]");
+        table.AddColumn(new TableColumn("[grey]Deck strength[/]").Centered());
+        table.AddColumn(new TableColumn("[grey]Δ[/]").Centered());
+
+        table.AddRow(new Markup("[bold]keep as-is[/]"), new Markup(StrengthMarkup(baseline)), new Markup("[grey]—[/]"));
+        // Show EVERY upgradeable card, best-first (items are pre-sorted by resulting strength). Most upgrades help,
+        // but the Δ tells you WHICH single upgrade buys the most strength when you can only sharpen one card.
+        bool anyImproves = items.Count > 0 && items[0].IsImprovement;
+        foreach (var i in items.Take(14))
+        {
+            string deltaMk = i.Delta > 0.5 ? $"[green]+{i.Delta:F0}[/]"
+                : i.Delta < -0.5 ? $"[red]{i.Delta:F0}[/]" : "[grey]0[/]";
+            string nameMk = i.IsImprovement ? $"[green]{Esc(i.Upgraded)}[/]" : Esc(i.Upgraded);
+            table.AddRow(new Markup(nameMk), new Markup(StrengthMarkup(i.Strength)), new Markup(deltaMk));
+        }
+
+        AnsiConsole.Write(new Panel(table)
+        {
+            Header = new PanelHeader(anyImproves ? " Upgrades — best first " : " Upgrades — ranked "),
+            Border = BoxBorder.Rounded, Expand = true,
+        });
+        if (items.Count == 0)
+            AnsiConsole.Write(new Markup("  [grey]no upgradeable cards in the deck (all are upgraded, or are Statuses/Curses).[/]\n"));
+        else if (!anyImproves)
+            AnsiConsole.Write(new Markup("  [grey]no single upgrade raises the deck's strength against this pool — the rows above are the best of a wash.[/]\n"));
+    }
+
     public static void RenderPick((double skip, List<Advisor.PickItem> ranked) advice)
     {
         var (_, ranked) = advice;
@@ -216,7 +247,7 @@ public static class Dashboard
     public static void RenderPreview()
     {
         var deck = new List<CardEntry>();
-        void Add(string id, int n, int up = 0) { for (int i = 0; i < n; i++) deck.Add(new CardEntry(id, up, false)); }
+        void Add(string id, int n, int up = 0) { for (int i = 0; i < n; i++) deck.Add(new CardEntry(id, up, null, 0)); }
         Add("CARD.STRIKE_IRONCLAD", 4); Add("CARD.DEFEND_IRONCLAD", 3); Add("CARD.BASH", 1);
         Add("CARD.INFLAME", 1); Add("CARD.DEMON_FORM", 1, 1); Add("CARD.UPPERCUT", 1); Add("CARD.WHIRLWIND", 1);
 
@@ -239,8 +270,8 @@ public static class Dashboard
 
         var elites = new List<EliteResult>
         {
-            new("TerrorEel", "TerrorEel", new CombatStats(EvalEngine.Mcts, 0.21, 28, 27, true, 6, 45, 14, 27, 41, 2000, 0, 0), null),
-            new("Gremlins", "2× Gremlin Nob + Mad Gremlin", new CombatStats(EvalEngine.Mcts, 0.88, 18, 13, true, 2, 33, 6, 16, 28, 2000, 0, 0), null),
+            new("TerrorEel", "TerrorEel", new CombatStats(EvalEngine.Mcts, 0.21, 28, 0, 0), null),
+            new("Gremlins", "2× Gremlin Nob + Mad Gremlin", new CombatStats(EvalEngine.Mcts, 0.88, 18, 0, 0), null),
         };
         Render(ctx, elites, strength: 64, evaluating: false);
     }

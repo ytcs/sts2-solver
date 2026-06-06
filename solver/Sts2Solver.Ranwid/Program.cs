@@ -13,7 +13,7 @@ using Sts2Solver.Ranwid;
 //   ranwid --save-dir <folder>         search this folder for the save (overrides auto-detect; RANWID_SAVE_DIR env also works)
 //   --rewards A,B,C                (with --once) check these reward options
 //   --player <net_id>              pick a multiplayer slot
-//   --rollouts <n> (2000)  --trials <n> (2000)  --seed <n>
+//   --trials <n> (2000)  --seed <n>
 
 string? ArgVal(string flag) { int i = Array.IndexOf(args, flag); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
 int? ArgInt(string flag) => int.TryParse(ArgVal(flag), out var v) ? v : null;
@@ -27,9 +27,8 @@ var opts = new EvalOptions
 {
     // ranwid is MCTS-only: exact expectimax can't solve real run decks in time, and attempting it just adds
     // latency. BudgetSeconds = 0 skips the exact attempt entirely (exact remains a dev/calibration tool — the
-    // CLI, --bridge, and tests still use it on small decks). MCTS gives survival + mean + HP-loss distribution.
+    // CLI, --bridge, and tests still use it on small decks). MCTS gives survival + expected HP loss.
     BudgetSeconds = 0.0,
-    Rollouts = ArgInt("--rollouts") ?? 2000,
     MctsTrials = ArgInt("--trials") ?? 2_000,
     Seed = ArgInt("--seed") ?? 1,
 };

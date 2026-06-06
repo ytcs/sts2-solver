@@ -28,8 +28,7 @@ public static class Advisor
 
     // ── Deck strength (the metric) ───────────────────────────────────────────────
 
-    /// <summary>The clamped expected HP loss (death = 100) a deck takes from ONE elite, fought from 100 HP.
-    /// Only the mean is read, so the rollout-distribution pass is skipped (Rollouts = 1).</summary>
+    /// <summary>The clamped expected HP loss (death = 100) a deck takes from ONE elite, fought from 100 HP.</summary>
     private static double EliteLoss(IReadOnlyList<string> deckSpecs, Encounter enc,
         int maxEnergy, IReadOnlyList<string> relics, EvalOptions fast)
     {
@@ -47,8 +46,7 @@ public static class Advisor
         int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
     {
         if (encounters.Count == 0 || deckSpecs.Count == 0) return double.NaN;
-        var fast = opts with { Rollouts = 1 };
-        double avgLoss = encounters.AsParallel().Select(e => EliteLoss(deckSpecs, e, maxEnergy, relics, fast)).Average();
+        double avgLoss = encounters.AsParallel().Select(e => EliteLoss(deckSpecs, e, maxEnergy, relics, opts)).Average();
         return Math.Clamp(100 - avgLoss, 0, 100);
     }
 
@@ -78,7 +76,7 @@ public static class Advisor
         IReadOnlyList<string> deckSpecs, IReadOnlyList<Encounter> encounters,
         int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
     {
-        var advOpts = (opts with { MctsTrials = AdviceTrials }) with { Rollouts = 1 };
+        var advOpts = opts with { MctsTrials = AdviceTrials };
         double baseline = DeckStrength(deckSpecs, encounters, maxEnergy, relics, advOpts);
         if (deckSpecs.Count <= 1 || double.IsNaN(baseline)) return (baseline, new List<AdviceItem>());
 
@@ -89,6 +87,50 @@ public static class Advisor
             reduced.Remove(spec);   // remove exactly one copy
             double after = DeckStrengthSeq(reduced, encounters, maxEnergy, relics, advOpts);
             return new AdviceItem(spec, after, after - baseline);
+        }).ToList();
+
+        items.Sort((a, b) => b.Strength.CompareTo(a.Strength));   // strongest resulting deck first
+        return (baseline, items);
+    }
+
+    // ── Upgrade advice ─────────────────────────────────────────────────────────────
+
+    /// <summary>One single-card upgrade's verdict: upgrading ONE copy of <see cref="Card"/> to
+    /// <see cref="Upgraded"/> yields a deck of <see cref="Strength"/>, a <see cref="Delta"/> vs the deck as-is
+    /// (upgrades are nearly always a gain, but the framework reports the rare wash/negative too).</summary>
+    public readonly record struct UpgradeItem(string Card, string Upgraded, double Strength, double Delta)
+    {
+        public bool IsImprovement => Delta > 1e-6;
+    }
+
+    /// <summary>An un-upgraded Attack/Skill/Power has an upgrade to advise; already-upgraded copies, Statuses and
+    /// Curses don't (multi-level cards like Searing Blow are advised one level at a time — only the first here).</summary>
+    private static bool IsUpgradeable(string spec)
+    {
+        if (spec.Contains('+')) return false;   // already upgraded — nothing more to advise
+        try { return Catalog.BuildCard(spec).Type is not (CardType.Status or CardType.Curse); }
+        catch (ArgumentException) { return false; }   // unbuildable spec — skip
+    }
+
+    /// <summary>Rank single-card upgrades by the resulting deck's strength. Returns the baseline (current-deck)
+    /// strength and one item per DISTINCT upgradeable card (an un-upgraded Attack/Skill/Power), best-first.
+    /// Already-upgraded copies, Statuses and Curses are skipped (nothing to upgrade).</summary>
+    public static (double baseline, List<UpgradeItem> items) UpgradeAdvice(
+        IReadOnlyList<string> deckSpecs, IReadOnlyList<Encounter> encounters,
+        int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
+    {
+        var advOpts = opts with { MctsTrials = AdviceTrials };
+        double baseline = DeckStrength(deckSpecs, encounters, maxEnergy, relics, advOpts);
+        if (deckSpecs.Count == 0 || double.IsNaN(baseline)) return (baseline, new List<UpgradeItem>());
+
+        // Each candidate upgrade is an independent solve → across cores. Deterministic (seeded; sorted after).
+        var items = deckSpecs.Distinct().Where(IsUpgradeable).AsParallel().Select(spec =>
+        {
+            var up = spec + "+1";
+            var swapped = new List<string>(deckSpecs);
+            swapped[swapped.IndexOf(spec)] = up;   // upgrade exactly one copy
+            double after = DeckStrengthSeq(swapped, encounters, maxEnergy, relics, advOpts);
+            return new UpgradeItem(spec, up, after, after - baseline);
         }).ToList();
 
         items.Sort((a, b) => b.Strength.CompareTo(a.Strength));   // strongest resulting deck first
@@ -108,7 +150,7 @@ public static class Advisor
         IReadOnlyList<string> deckSpecs, IReadOnlyList<string> candidates, IReadOnlyList<Encounter> encounters,
         int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
     {
-        var advOpts = (opts with { MctsTrials = AdviceTrials }) with { Rollouts = 1 };
+        var advOpts = opts with { MctsTrials = AdviceTrials };
         double skip = DeckStrength(deckSpecs, encounters, maxEnergy, relics, advOpts);
         var ranked = candidates.AsParallel().Select(cand =>
         {
