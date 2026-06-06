@@ -41,6 +41,11 @@ public static partial class Catalog
         ["TheInsatiableBoss"]        = a => new[] { Monsters.TheInsatiable(ascension: a) },
         // Act-4 (Glory) BOSSES (single-monster).
         ["AeonglassBoss"]            = a => new[] { Monsters.Aeonglass(ascension: a) },
+        ["TestSubjectBoss"]          = a => new[] { Monsters.TestSubject(ascension: a) },   // 3-form revive (Act 3)
+        // Multi-monster BOSSES.
+        ["TheKinBoss"]               = a => Monsters.TheKin(ascension: a),       // 2× KinFollower + KinPriest (Act 1)
+        ["KaiserCrabBoss"]           = a => Monsters.KaiserCrab(ascension: a),   // Crusher + Rocket (Act 2)
+        ["QueenBoss"]                = a => Monsters.QueenEncounter(ascension: a), // TorchHeadAmalgam + Queen (Act 3)
     };
 
     /// <summary>Act-1 (Overgrowth) NORMAL / WEAK encounter compositions. Same shape as the elite table,
@@ -111,9 +116,9 @@ public static partial class Catalog
     private static readonly string[][] ActBossPools =
     {
         new[] { "WaterfallGiantBoss", "SoulFyshBoss", "LagavulinMatriarchBoss" },   // Underdocks
-        new[] { "CeremonialBeastBoss", "VantomBoss" },                              // Overgrowth
-        new[] { "KnowledgeDemonBoss", "TheInsatiableBoss" },                        // Hive
-        new[] { "AeonglassBoss" },                                                  // Glory
+        new[] { "CeremonialBeastBoss", "VantomBoss", "TheKinBoss" },                // Overgrowth
+        new[] { "KnowledgeDemonBoss", "TheInsatiableBoss", "KaiserCrabBoss" },       // Hive
+        new[] { "AeonglassBoss", "TestSubjectBoss", "QueenBoss" },                   // Glory
     };
 
     /// <summary>The boss encounter names for a given act (0-based index into <see cref="ActThemes"/>; clamped).</summary>

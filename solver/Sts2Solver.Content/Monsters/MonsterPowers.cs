@@ -421,3 +421,210 @@ public sealed class RitualPower : PowerModel
     public override string StateKey() => $"{Id}={Amount}{(_skipNextTrigger ? "*" : "")}";
     public override long HashValue() => base.HashValue() ^ (_skipNextTrigger ? 0x5BD1E995L : 0L);
 }
+
+/// <summary>When a teammate (the other KaiserCrab arm) dies, the owner RAGES: gains 6 Strength and 99 Block,
+/// then removes itself (fires once). Killing one arm enrages the survivor — HARM to the player, so modelled for
+/// soundness. The amounts are the game's fixed CanonicalVars (Strength 6, Block 99). (MegaCrit CrabRagePower.)</summary>
+public sealed class CrabRagePower : PowerModel
+{
+    public override string Id => "CrabRage";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterCreatureDeath(CombatState combat, Creature dead)
+    {
+        if (dead == Owner || dead.Side != Owner.Side || !Owner.IsAlive) return;
+        Cmd.ApplyPower(combat, Owner, new StrengthPower(), 6, Owner);
+        Cmd.GainBlock(combat, Owner, 99, ValueProp.Unpowered, null);
+        Owner.RemovePower(Id);
+    }
+}
+
+/// <summary>KaiserCrab "surrounded" back attack. Each arm carries this (Crusher = left, Rocket = right). The arm
+/// the player is NOT facing deals ×1.5 with its attacks (game: SurroundedPower + BackAttackLeft/RightPower). The
+/// player faces whichever arm they last targeted — tracked as <see cref="CombatState.KaiserFrontId"/>, set in
+/// <see cref="CombatManager.PlayCard"/>; the initial facing (id 0) leaves the LEFT arm behind. "Behind" is
+/// recomputed at the player's turn end (a hook that has the combat state) and cached for the per-hit
+/// <see cref="ModifyDamageMultiplicative"/>, which has none. Once only ONE arm remains the player faces it, so no
+/// back attack (and CrabRage has already fired). The cache is derived purely from the hashed
+/// <see cref="CombatState.KaiserFrontId"/> + which arms are alive, so it need not be hashed itself.</summary>
+public sealed class KaiserBackAttackPower : PowerModel
+{
+    public bool IsLeft;          // Crusher = left, Rocket = right
+    private bool _behind;
+
+    public override string Id => "KaiserBackAttack";
+    public override PowerType Type => PowerType.Buff;
+
+    public override decimal ModifyDamageMultiplicative(Creature? target, decimal amount, ValueProp props, Creature? dealer, CardModel? cardSource)
+        => (dealer == Owner && target != null && target.IsPlayer && _behind) ? 1.5m : 1m;
+
+    public override void AfterApplied(CombatState combat, Creature? applier) => Recompute(combat);
+
+    public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
+    {
+        if (side == CombatSide.Player) Recompute(combat);   // finalise facing before the arms attack
+    }
+
+    private void Recompute(CombatState combat)
+    {
+        int living = 0;
+        foreach (var m in combat.Monsters) if (m.IsAlive && m.HasPower(Id)) living++;
+        if (living < 2) { _behind = false; return; }   // lone survivor is faced — no back attack
+        _behind = combat.KaiserFrontId == 0 ? IsLeft : (Owner is Monster mo && mo.Id != combat.KaiserFrontId);
+    }
+
+    public override PowerModel Clone()
+    {
+        var c = (KaiserBackAttackPower)base.Clone();
+        c.IsLeft = IsLeft;
+        c._behind = _behind;
+        return c;
+    }
+
+    public override string StateKey() => $"{Id}{(IsLeft ? "L" : "R")}";
+    public override long HashValue() => base.HashValue() ^ (IsLeft ? 0x1F83D9ABL : 0x428A2F98L);
+}
+
+/// <summary>TestSubject's revive (the boss's 3 forms). While owned, the boss does NOT die at 0 HP — it heals to
+/// its next form and switches its AI to the RESPAWN move (which branches to that phase's move set). 1st revive →
+/// Second-form HP + PainfulStabs; 2nd revive → Third-form HP + Nemesis, and it drops Adaptable + PainfulStabs so
+/// the 3rd death is real. (MegaCrit AdaptablePower.)</summary>
+public sealed class AdaptablePower : PowerModel
+{
+    public int SecondFormHp, ThirdFormHp;
+    public override string Id => "Adaptable";
+    public override PowerType Type => PowerType.Buff;
+
+    public override bool VetoLethalDamage(CombatState combat, Monster owner)
+    {
+        owner.Respawns++;
+        if (owner.Respawns == 1)
+        {
+            owner.MaxHp = SecondFormHp; owner.CurrentHp = SecondFormHp;
+            Cmd.ApplyPower(combat, owner, new PainfulStabsPower(), 1, owner);
+        }
+        else
+        {
+            owner.MaxHp = ThirdFormHp; owner.CurrentHp = ThirdFormHp;
+            Cmd.ApplyPower(combat, owner, new NemesisPower(), 1, owner);
+            owner.RemovePower("PainfulStabs");
+            owner.RemovePower(Id);   // no more revives — the next death is fatal
+        }
+        owner.Ai.CurrentMoveId = "RESPAWN_MOVE";   // run the revive move, then branch to the phase move set
+        return true;
+    }
+
+    public override PowerModel Clone()
+    {
+        var c = (AdaptablePower)base.Clone();
+        c.SecondFormHp = SecondFormHp; c.ThirdFormHp = ThirdFormHp;
+        return c;
+    }
+}
+
+/// <summary>When the player plays a Skill, the owner gains Amount Strength. (MegaCrit EnragePower — TestSubject.)</summary>
+public sealed class EnragePower : PowerModel
+{
+    public override string Id => "Enrage";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterCardPlayed(CombatState combat, CardModel card)
+    {
+        if (card.Type == CardType.Skill) Cmd.ApplyPower(combat, Owner, new StrengthPower(), Amount, Owner);
+    }
+}
+
+/// <summary>When the owner lands a powered attack dealing unblocked damage to the player, add 1 Wound to the
+/// player's discard — at most once per enemy turn (the per-hit hook fires for every hit of a multi-hit attack, so
+/// a per-turn flag keeps it to the game's once-per-attack while TestSubject attacks once a turn in this phase).
+/// (MegaCrit PainfulStabsPower.)</summary>
+public sealed class PainfulStabsPower : PowerModel
+{
+    private bool _woundedThisTurn;
+    public override string Id => "PainfulStabs";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterDamageReceived(CombatState combat, Creature target, int unblockedDamage, Creature? dealer, ValueProp props)
+    {
+        if (_woundedThisTurn || dealer != Owner || !target.IsPlayer || unblockedDamage <= 0 || !props.IsPoweredAttack()) return;
+        _woundedThisTurn = true;
+        Cmd.GenerateStatusCard(combat, new Wound(), combat.Player.DiscardPile);
+    }
+
+    public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
+    {
+        if (side == Owner.Side) _woundedThisTurn = false;   // reset for the next enemy turn
+    }
+
+    public override PowerModel Clone()
+    {
+        var c = (PainfulStabsPower)base.Clone();
+        c._woundedThisTurn = _woundedThisTurn;
+        return c;
+    }
+    public override string StateKey() => $"{Id}={Amount}{(_woundedThisTurn ? "*" : "")}";
+    public override long HashValue() => base.HashValue() ^ (_woundedThisTurn ? 0x2545F491L : 0L);
+}
+
+/// <summary>At the owner's turn end, toggles "intangible": on alternating turns every hit the owner takes is
+/// capped to 1 (caps HP loss like IntangiblePower, but self-toggled so it never collides with Intangible's own
+/// per-turn decrement). (MegaCrit NemesisPower — TestSubject's third form.)</summary>
+public sealed class NemesisPower : PowerModel
+{
+    private bool _on;
+    public override string Id => "Nemesis";
+    public override PowerType Type => PowerType.Buff;
+
+    public override int ModifyHpLost(Creature target, int hpLost, ValueProp props, Creature? dealer)
+        => (_on && target == Owner && hpLost >= 1) ? 1 : hpLost;
+
+    public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
+    {
+        if (side == Owner.Side) _on = !_on;   // toggle each of the owner's turn ends (intangible every other turn)
+    }
+
+    public override PowerModel Clone()
+    {
+        var c = (NemesisPower)base.Clone();
+        c._on = _on;
+        return c;
+    }
+    public override string StateKey() => $"{Id}={Amount}{(_on ? "I" : "")}";
+    public override long HashValue() => base.HashValue() ^ (_on ? 0x61C88647L : 0L);
+}
+
+/// <summary>Queen's Puppet Strings (game ChainsOfBindingPower, applied to the player at amount 3). In the game it
+/// Binds N of the cards the player DRAWS each turn (Bound ⇒ unplayable that turn). Faithful binding hooks every
+/// draw — including the turn-start hand, which the search models as chance nodes — so it cannot be reproduced
+/// exactly without reworking the draw system (the same reason the affliction subsystem is descoped). Modelled
+/// SOUNDLY (never optimistic) as drawing N FEWER cards each turn via the existing <see cref="ModifyHandDraw"/>
+/// hook (which every draw path honours): a Bound card is unplayable that turn, and drawing one fewer is at least
+/// as harmful, since the game's bound cards still recycle. A documented pessimistic approximation.</summary>
+public sealed class QueenChainsPower : PowerModel
+{
+    public override string Id => "QueenChains";
+    public override PowerType Type => PowerType.Debuff;
+    public override int ModifyHandDraw(Creature player, int count) => System.Math.Max(0, count - Amount);
+}
+
+/// <summary>Rides on the Queen to notice when her TorchHeadAmalgam ally dies, flipping her move machine from the
+/// Burn Bright (buff-the-Amalgam) branch to the Off-With-Your-Head attack branch (game: Queen.AfterDeath sets
+/// HasAmalgamDied). The flag is read by the Queen's conditional move branch.</summary>
+public sealed class QueenAmalgamWatchPower : PowerModel
+{
+    public bool AmalgamDead;
+    public override string Id => "QueenAmalgamWatch";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterCreatureDeath(CombatState combat, Creature dead)
+    {
+        if (dead != Owner && dead.Side == Owner.Side && dead is Monster m && m.Name == "TorchHeadAmalgam")
+            AmalgamDead = true;
+    }
+
+    public static bool Died(Monster queen) => (queen.GetPower("QueenAmalgamWatch") as QueenAmalgamWatchPower)?.AmalgamDead == true;
+
+    public override PowerModel Clone() { var c = (QueenAmalgamWatchPower)base.Clone(); c.AmalgamDead = AmalgamDead; return c; }
+    public override string StateKey() => AmalgamDead ? "QAW!" : "QAW";
+    public override long HashValue() => base.HashValue() ^ (AmalgamDead ? 0x71374491L : 0L);
+}
