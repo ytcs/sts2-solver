@@ -26,14 +26,16 @@ public static partial class Monsters
     ///
     ///   EBB → EYE_LASERS → INCREASING_INTENSITY → (back to) EBB → …
     ///
-    /// Moves (decompile, DeadlyEnemies on the left where applicable):
-    ///  - EBB              : single attack EbbDamage = 32 / 26, then apply <c>EbbPower 3</c> to the PLAYER.
-    ///                       EbbPower (decompile) is a TEMPORARY stat-drain: on apply it gives the player
-    ///                       −3 Strength AND −3 Dexterity; at the player's OWN turn end it RESTORES +3 Strength
-    ///                       and +3 Dexterity and removes itself. So the player attacks/blocks at −3 Str / −3 Dex
-    ///                       for exactly the one turn after Ebb (weaker attacks AND weaker block) — real HARM, so
-    ///                       it is reproduced exactly (omitting it would tell the player the fight is EASIER than
-    ///                       reality). SingleAttackIntent + DebuffIntent.
+    /// PATCH NOTE (v0.107.0, 2026-06-04 — decompile-confirmed): EBB and INCREASING_INTENSITY were reworked. EBB is
+    /// now <c>SingleAttackIntent(EbbDamage) + DefendIntent</c>: <c>EbbMove</c> attacks then <c>GainBlock(EbbBlock)</c>
+    /// — the old −3 Str/−3 Dex EbbPower drain was REMOVED entirely (no EbbPower class remains in the game). The
+    /// Block moved off INCREASING_INTENSITY (now <c>StatusIntent(WitherAmount) + BuffIntent</c>, no Defend — its
+    /// move no longer gains Block) onto EBB at <c>EbbBlock => 33</c>. Verified against
+    /// <c>sts2.dll v0.107.0 (commit 23d60b98)</c> via ilspycmd.
+    ///
+    /// Moves (DeadlyEnemies on the left where applicable):
+    ///  - EBB              : single attack EbbDamage = 32 / 26, then gain Block (EbbBlock = 33, relocated here by
+    ///                       the 2026-06 patch — see PATCH NOTE). SingleAttackIntent + DefendIntent.
     ///  - EYE_LASERS       : multi-attack EyeLasersDamage = 12 / 11, 2 hits (EyeLasersRepeat = 2; block soaks per
     ///                       hit). MultiAttackIntent.
     ///  - INCREASING_INTENSITY (decompile IncreasingIntensityMove — the soundness-critical ramp). In one move it:
@@ -43,8 +45,8 @@ public static partial class Monsters
     ///          decompile AfterCardGeneratedForCombat FakeUpgrades each new Wither WitherUpgradeCount times);
     ///      (3) adds WitherAmount = 2 / 1 fresh Wither status cards to the player's DISCARD pile (at the new level);
     ///      (4) gains StrengthPower IncreasingIntensityTotalStrength = IncreasingIntensityBaseStrength (4 / 3) +
-    ///          AdditionalStrength to ITSELF, then increments AdditionalStrength;
-    ///      (5) gains IncreasingIntensityBlock = 33 Block.
+    ///          AdditionalStrength to ITSELF, then increments AdditionalStrength.
+    ///      (Pre-patch it also gained 33 Block here; the 2026-06 patch moved that Block onto EBB — see PATCH NOTE.)
     ///      Because AdditionalStrength and WitherUpgradeCount both start at 0 and both increment exactly once per
     ///      Increasing Intensity, they are always equal to the number of COMPLETED Increasing Intensities. So the
     ///      k-th Increasing Intensity grants Strength = base + (k−1) (a TRIANGULAR ramp: total after N uses =
@@ -67,23 +69,27 @@ public static partial class Monsters
     {
         if (hp < 0) hp = Asc.Tough(ascension, 535, 512);          // MinInitialHp == MaxInitialHp (fixed, no roll)
         int ebbDamage = Asc.Deadly(ascension, 32, 26);
-        int ebbDrain = 3;                                         // EbbPower amount: −3 Str / −3 Dex (then restored)
+        const int ebbBlock = 33;                                  // EbbBlock => 33 gained on EBB (v0.107.0 decompile; relocated here from Increasing Intensity by the 2026-06 patch)
         int eyeLasersDamage = Asc.Deadly(ascension, 12, 11);
         const int eyeLasersHits = 2;                             // EyeLasersRepeat (not Deadly-scaled)
         int intensityBaseStrength = Asc.Deadly(ascension, 4, 3); // IncreasingIntensityBaseStrength
         int witherAmount = Asc.Deadly(ascension, 2, 1);          // Withers added per Increasing Intensity
-        const int intensityBlock = 33;                           // IncreasingIntensityBlock (fixed)
         const int witheringPresence = 6;                         // CardsLeft start (every 6 player cards → 1 Wither)
         const int artifact = 3;                                   // self Artifact at combat start
 
         var monster = new Monster { Name = "Aeonglass", MaxHp = hp, CurrentHp = hp };
 
-        // EBB: single attack (picks up the boss's live Strength), then apply the −3 Str / −3 Dex temporary drain.
+        // EBB: single attack (picks up the boss's live Strength) + gain Block. The 2026-06 patch reworked this
+        // move from SingleAttack+Debuff (the old −3 Str/−3 Dex drain) to SingleAttack+Defend — the dump now shows
+        // EBB_MOVE = SingleAttackIntent + DefendIntent (monsters.json), with the Block relocated here from
+        // Increasing Intensity. The block AMOUNT is null in the dump (all numeric move fields are nulled), so the
+        // relocated 33 is carried over from where it used to live — total boss block per cycle is unchanged, which
+        // keeps the estimate sound; confirm the exact value once a numeric move re-dump is available.
         var ebb = new MoveState("EBB_MOVE",
             (combat, self) =>
             {
                 Cmd.Attack(combat, self, combat.Player, ebbDamage, ValueProp.Move, null);
-                Cmd.ApplyPower(combat, combat.Player, new AeonglassEbbPower(), ebbDrain, self);
+                Cmd.GainBlock(combat, self, ebbBlock, ValueProp.Move, null);
             },
             intentDamage: ebbDamage);
 
@@ -118,8 +124,8 @@ public static partial class Monsters
                 // (4) Self-Strength = base + AdditionalStrength(prior). After this, AdditionalStrength == newLevel.
                 Cmd.ApplyPower(combat, self, new StrengthPower(), intensityBaseStrength + prior, self);
 
-                // (5) Gain Block.
-                Cmd.GainBlock(combat, self, intensityBlock, ValueProp.Move, null);
+                // (NB) The 2026-06 patch moved this move's Block onto EBB: the dump now shows
+                // INCREASING_INTENSITY_MOVE = StatusIntent + BuffIntent only (no DefendIntent), so no block here.
             },
             intentDamage: null);
 
@@ -203,38 +209,8 @@ public sealed class AeonglassIntensityPower : PowerModel
     public override PowerType Type => PowerType.Buff;
 }
 
-/// <summary>
-/// Aeonglass's EBB drain (decompile EbbPower, applied to the PLAYER at amount 3). On apply it gives the player
-/// −Amount Strength AND −Amount Dexterity (weaker attacks AND weaker block); at the player's OWN turn end it
-/// RESTORES +Amount Strength and +Amount Dexterity and removes itself. So the player operates at −3 Str / −3 Dex
-/// for exactly the one turn after Ebb. This is real HARM to the player, reproduced exactly so the boss is never
-/// UNDER-credited. StrengthPower/DexterityPower are Buff-typed even at negative amount (so the player's Artifact,
-/// if any, does not absorb the drain) — matching the decompile. Debuff-typed marker (the drain itself is carried
-/// by the Str/Dex powers); applied to the player on the ENEMY turn, so the restore fires at the next PLAYER turn
-/// end (the player is the owner, never a participant in the enemy turn end) — exactly the game's
-/// participants.Contains(Owner) guard.
-/// </summary>
-public sealed class AeonglassEbbPower : PowerModel
-{
-    public const string PowerId = "AeonglassEbb";
-    public override string Id => PowerId;
-    public override PowerType Type => PowerType.Debuff;
-
-    public override void AfterApplied(CombatState combat, Creature? applier)
-    {
-        // −Amount Strength and −Amount Dexterity to the player (the owner). Buff-typed, so no Artifact absorb.
-        Cmd.ApplyPower(combat, Owner, new StrengthPower(), -Amount, applier);
-        Cmd.ApplyPower(combat, Owner, new DexterityPower(), -Amount, applier);
-    }
-
-    public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
-    {
-        if (side != Owner.Side) return;   // restores at the player's (owner's) own turn end
-        Cmd.ApplyPower(combat, Owner, new StrengthPower(), Amount, Owner);
-        Cmd.ApplyPower(combat, Owner, new DexterityPower(), Amount, Owner);
-        Owner.RemovePower(Id);
-    }
-}
+// (AeonglassEbbPower removed: the 2026-06 patch dropped EBB's −3 Str/−3 Dex drain — EBB now attacks + blocks.
+//  See the PATCH NOTE in the Aeonglass factory docstring. Restore from version control if the drain returns.)
 
 /// <summary>
 /// Aeonglass's Withering Presence (decompile WitheringPresencePower — game applies it to the PLAYER at amount 6).

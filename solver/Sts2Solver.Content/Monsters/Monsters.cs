@@ -117,7 +117,7 @@ public static partial class Monsters
     /// </summary>
     public static Monster PhrogParasite(int hp = -1, int ascension = 0)
     {
-        if (hp < 0) hp = Asc.Tough(ascension, 68, 61);
+        if (hp < 0) hp = Asc.Tough(ascension, 68, 64);   // base = max roll of 61–64 (max-roll convention, cf. Byrdonis/Decimillipede)
         int lashDamage = Asc.Deadly(ascension, 5, 4), lashHits = 4, infectCards = 3, infested = 4;
         var monster = new Monster { Name = "PhrogParasite", MaxHp = hp, CurrentHp = hp };
 
@@ -433,7 +433,7 @@ public static partial class Monsters
     /// </summary>
     public static Monster PhantasmalGardener(int hp = -1, string slot = "second", int ascension = 0)
     {
-        if (hp < 0) hp = Asc.Tough(ascension, 32, 28);
+        if (hp < 0) hp = Asc.Tough(ascension, 32, 31);   // base = max roll of 26–31 (max-roll convention; game rolls each gardener distinctly)
         int biteDamage = 5, lashDamage = 7, flailDamage = 1, flailHits = 3;
         int enlargeStrength = Asc.Deadly(ascension, 3, 2), skittish = Asc.Tough(ascension, 7, 6);
         var monster = new Monster { Name = "PhantasmalGardener", MaxHp = hp, CurrentHp = hp, Variant = slot };

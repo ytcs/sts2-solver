@@ -8,11 +8,12 @@ namespace Sts2Solver.Tests;
 /// <summary>
 /// Unit tests for the Act-4 Glory BOSS Aeonglass. Assert HP scaling (Tough), the combat-start powers (self
 /// Artifact 3, Withering-Presence counter 6), the deterministic AI move chain/intents, per-move damage/effects
-/// (Deadly): Ebb's attack + the −3 Str / −3 Dex temporary drain (and its restore at the player's turn end),
-/// Eye Lasers' 2-hit attack, and the soundness-critical Increasing Intensity ramp — the fake-upgrade of every
-/// in-play Wither (+3 each), the WitherAmount fresh Withers, the triangular self-Strength gain, and the 33 Block.
-/// Plus the Withering-Presence "every 6 cards played → 1 Wither to hand (at the current level)" mechanic, and the
-/// Wither turn-end-in-hand chip damage (base 3 + 3·level). Straight from the decompiled game source.
+/// (Deadly): Ebb's attack + the 33 Block it gains (the 2026-06 patch replaced the old −3 Str/−3 Dex drain with
+/// this Block, relocated from Increasing Intensity), Eye Lasers' 2-hit attack, and the soundness-critical
+/// Increasing Intensity ramp — the fake-upgrade of every in-play Wither (+3 each), the WitherAmount fresh
+/// Withers, and the triangular self-Strength gain (no Block — moved to Ebb). Plus the Withering-Presence "every 6
+/// cards played → 1 Wither to hand (at the current level)" mechanic, and the Wither turn-end-in-hand chip damage
+/// (base 3 + 3·level).
 /// </summary>
 public class AeonglassTests
 {
@@ -87,43 +88,26 @@ public class AeonglassTests
         Assert.Null(Move(m, "INCREASING_INTENSITY_MOVE").IntentDamage);   // no attack telegraph
     }
 
-    // ---- EBB: attack + temporary −3 Str / −3 Dex drain on the player ----------------------------
+    // ---- EBB: attack + 33 Block (2026-06 patch — drain removed, Block moved here) ----------------
 
     [Fact]
-    public void Aeonglass_Ebb_Deals_26_And_Drains_Player_Str_And_Dex()
+    public void Aeonglass_Ebb_Deals_26_And_Gains_33_Block()
     {
         var m = Monsters.Aeonglass();
         var combat = Combat(m);
         Assert.Equal(26, RunMove(combat, m, "EBB_MOVE"));
-        Assert.Equal(-3, combat.Player.GetPowerAmount("Strength"));
-        Assert.Equal(-3, combat.Player.GetPowerAmount("Dexterity"));
+        Assert.Equal(33, m.Block);                                   // EbbBlock (relocated from Increasing Intensity)
     }
 
     [Fact]
-    public void Aeonglass_Ebb_Drain_Weakens_Player_Attacks_And_Block()
-    {
-        var m = Monsters.Aeonglass();
-        var combat = Combat(m);
-        RunMove(combat, m, "EBB_MOVE");   // player now at −3 Str / −3 Dex
-        // A 6-damage powered attack lands for 3 (−3 Str); a 5-block powered Defend grants 2 (−3 Dex).
-        int dealt = Cmd.Attack(combat, combat.Player, m, 6, ValueProp.Move, null);
-        Assert.Equal(3, dealt);
-        Cmd.GainBlock(combat, combat.Player, 5, ValueProp.Move, null);
-        Assert.Equal(2, combat.Player.Block);
-    }
-
-    [Fact]
-    public void Aeonglass_Ebb_Drain_Restores_At_Player_Turn_End()
+    public void Aeonglass_Ebb_Does_Not_Drain_Player_Str_Or_Dex()
     {
         var m = Monsters.Aeonglass();
         var combat = Combat(m);
         RunMove(combat, m, "EBB_MOVE");
-        Assert.Equal(-3, combat.Player.GetPowerAmount("Strength"));
-
-        CombatManager.EndPlayerTurn(combat);   // fires AfterSideTurnEnd(Player) -> restore + self-remove
+        // The old EbbPower drain is gone post-patch: the player's stats are untouched.
         Assert.Equal(0, combat.Player.GetPowerAmount("Strength"));
         Assert.Equal(0, combat.Player.GetPowerAmount("Dexterity"));
-        Assert.False(combat.Player.HasPower(AeonglassEbbPower.PowerId));
     }
 
     [Fact]
@@ -157,7 +141,7 @@ public class AeonglassTests
     // ---- INCREASING_INTENSITY: the ramp --------------------------------------------------------
 
     [Fact]
-    public void Aeonglass_IncreasingIntensity_First_Use_Spawns_1_Wither_Strength3_Block33()
+    public void Aeonglass_IncreasingIntensity_First_Use_Spawns_1_Wither_Strength3_NoBlock()
     {
         var m = Monsters.Aeonglass();   // base: WitherAmount 1, base Strength 3
         var combat = Combat(m);
@@ -170,7 +154,7 @@ public class AeonglassTests
         Assert.Equal(6, w.Damage);
 
         Assert.Equal(3, m.GetPowerAmount("Strength"));     // base 3 + AdditionalStrength 0
-        Assert.Equal(33, m.Block);                          // IncreasingIntensityBlock
+        Assert.Equal(0, m.Block);                           // 2026-06 patch moved the Block to EBB
         Assert.Equal(1, m.GetPowerAmount(AeonglassIntensityPower.PowerId));   // completed-II count
     }
 
