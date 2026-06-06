@@ -40,16 +40,25 @@ internal sealed class CardDto
 {
     public string Id { get; set; } = "";
     public int CurrentUpgradeLevel { get; set; }
-    public JsonElement Enchantment { get; set; }   // present only when enchanted
+    public JsonElement Enchantment { get; set; }   // present only when enchanted: { "id": "ENCHANTMENT.X", "amount": N }
 
-    public bool HasEnchant => Enchantment.ValueKind == JsonValueKind.Object;
+    private bool HasEnchant => Enchantment.ValueKind == JsonValueKind.Object;
+
+    /// <summary>The enchantment's game id (e.g. "ENCHANTMENT.SHARP"), or null when the card is unenchanted.</summary>
+    public string? EnchantId => HasEnchant
+        && Enchantment.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String
+        ? id.GetString() : null;
+
+    /// <summary>The enchantment's scalable amount (game: SerializableEnchantment.amount); 0 when absent.</summary>
+    public int EnchantAmount => HasEnchant
+        && Enchantment.TryGetProperty("amount", out var a) && a.TryGetInt32(out var v) ? v : 0;
 }
 
 internal sealed class RelicDto { public string Id { get; set; } = ""; }
 
 // ---------- Domain model the rest of the program consumes ----------
 
-public sealed record CardEntry(string Id, int Upgrade, bool HasEnchant);
+public sealed record CardEntry(string Id, int Upgrade, string? EnchantId, int EnchantAmount);
 
 public sealed record RunState(
     int Ascension,
@@ -99,7 +108,7 @@ public static class RunSaveReader
             .Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
 
         var deck = (player.Deck ?? new List<CardDto>())
-            .Select(c => new CardEntry(c.Id, c.CurrentUpgradeLevel, c.HasEnchant))
+            .Select(c => new CardEntry(c.Id, c.CurrentUpgradeLevel, c.EnchantId, c.EnchantAmount))
             .ToList();
         var relics = (player.Relics ?? new List<RelicDto>()).Select(r => r.Id).ToList();
 
