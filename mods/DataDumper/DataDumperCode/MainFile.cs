@@ -157,6 +157,29 @@ public partial class MainFile : Node
         var powers = powerTypes.Select(type => InstantiateDump(type, DumpPower)).ToList();
         WriteJson("powers.json", powers);
 
+        // ── Enchantments ───────────────────────────────────────────────────
+        // The card-modifier (buff) system. The dump captures the type set + LocStrings + scalar magnitudes; the
+        // OnEnchant()/CanEnchant() method BODIES are not reflectable, so effects still need cross-referencing,
+        // but the magnitudes (the part the solver port needs) come through as scalars.
+        Logger.Info("Dumping enchantments...", 0);
+        var enchBaseType = allTypes.FirstOrDefault(t => t.Name == "EnchantmentModel");
+        if (enchBaseType != null)
+        {
+            var enchTypes = allTypes.Where(t =>
+                t.IsClass && !t.IsAbstract &&
+                enchBaseType.IsAssignableFrom(t) &&
+                t.Namespace != null &&
+                !t.Namespace.Contains(".Mocks") &&
+                !t.Name.Contains("Deprecated")).ToList();
+            Logger.Info($"  {enchTypes.Count} EnchantmentModel types", 0);
+            var enchantments = enchTypes.Select(type => InstantiateDump(type, DumpEnchantment)).ToList();
+            WriteJson("enchantments.json", enchantments);
+        }
+        else
+        {
+            Logger.Info("  EnchantmentModel base type not found — skipping enchantments.json", 0);
+        }
+
         // ── AbstractModel subtype hierarchy ────────────────────────────────
         Logger.Info("Dumping type hierarchy...", 0);
         var hierarchy = allTypes
@@ -243,6 +266,22 @@ public partial class MainFile : Node
             ["maxHp"]      = PropStr(obj, "MaxInitialHp"),
             ["shouldShowInCompendium"] = PropStr(obj, "ShouldShowInCompendium"),
             ["moves"]      = DumpMonsterMoveStates(obj),
+            // Numeric source of truth for move amounts (the intent telegraphs null out damage/block/times/power).
+            ["scalars"]    = DumpScalarMembers(obj, type),
+        };
+    }
+
+    private static Dictionary<string, object?> DumpEnchantment(object obj, Type type)
+    {
+        return new Dictionary<string, object?>
+        {
+            ["className"]   = type.Name,
+            ["fullName"]    = type.FullName,
+            ["namespace"]   = type.Namespace,
+            ["title"]       = PropStr(obj, "Title") ?? PropStr(obj, "Name"),
+            ["description"] = PropStr(obj, "Description"),
+            // OnEnchant magnitudes / defaults live as scalar members on the concrete enchantment subclass.
+            ["scalars"]     = DumpScalarMembers(obj, type),
         };
     }
 
@@ -315,6 +354,53 @@ public partial class MainFile : Node
             return result;
         }
         catch { return null; }
+    }
+
+    // Type names that are framework/base layers we never want member noise from. Any member DECLARED on one of
+    // these (or on a Godot type) is skipped; everything declared on a game-specific subclass is kept.
+    private static readonly HashSet<string> MemberBaseCutoff = new()
+    {
+        "AbstractModel", "MonsterModel", "CardModel", "PowerModel", "EncounterModel", "EnchantmentModel",
+        "AfflictionModel", "RelicModel", "Node", "GodotObject", "Object", "RefCounted", "Resource",
+    };
+
+    private static bool IsDumpableScalar(Type t)
+    {
+        t = Nullable.GetUnderlyingType(t) ?? t;
+        return t.IsEnum || t == typeof(bool)
+            || t == typeof(int) || t == typeof(uint) || t == typeof(long) || t == typeof(ulong)
+            || t == typeof(short) || t == typeof(ushort) || t == typeof(byte) || t == typeof(sbyte)
+            || t == typeof(decimal) || t == typeof(float) || t == typeof(double);
+    }
+
+    /// <summary>Reflect every numeric / bool / enum field and property DECLARED on the concrete model subclass
+    /// (not on the framework base layers) and return them as a flat map. This is the source of truth for move
+    /// AMOUNTS — damage / block / hit-count / power magnitudes — which the intent telegraphs leave null (the
+    /// numbers live on the instance, e.g. Aeonglass.EbbDamage / IncreasingIntensityBlock, and on enchantments
+    /// the OnEnchant magnitude fields). Each member is read defensively: getters that throw without a live combat
+    /// context are skipped rather than aborting the whole dump.</summary>
+    private static Dictionary<string, object?> DumpScalarMembers(object obj, Type type)
+    {
+        var result = new Dictionary<string, object?>();
+        bool Keep(MemberInfo m) =>
+            m.DeclaringType != null
+            && !MemberBaseCutoff.Contains(m.DeclaringType.Name)
+            && m.DeclaringType.Namespace?.StartsWith("Godot") != true
+            && !m.Name.Contains('<');   // skip compiler-generated backing fields
+
+        foreach (var f in type.GetFields(ALL))
+        {
+            if (!Keep(f) || !IsDumpableScalar(f.FieldType)) continue;
+            try { result[f.Name] = f.GetValue(obj)?.ToString(); } catch { /* skip */ }
+        }
+        foreach (var p in type.GetProperties(ALL))
+        {
+            if (!Keep(p) || p.GetIndexParameters().Length != 0 || !p.CanRead || !IsDumpableScalar(p.PropertyType))
+                continue;
+            if (result.ContainsKey(p.Name)) continue;   // a field of the same name already captured it
+            try { result[p.Name] = p.GetValue(obj)?.ToString(); } catch { /* getter needs combat context — skip */ }
+        }
+        return result;
     }
 
     private static object? DumpMonsterMoveStates(object monster)
