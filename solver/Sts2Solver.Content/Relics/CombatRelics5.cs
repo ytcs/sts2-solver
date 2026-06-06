@@ -87,3 +87,10 @@ public sealed class ThrowingAxe : RelicModel
     public override string Id => "ThrowingAxe";
     public override void OnCombatStart(CombatState combat) => Cmd.ApplyPower(combat, combat.Player, new ThrowingAxePower(), 1, combat.Player);
 }
+
+/// <summary>Ruined Helmet: the first time you gain Strength in a combat, that gain is doubled. (MegaCrit RuinedHelmet.)</summary>
+public sealed class RuinedHelmet : RelicModel
+{
+    public override string Id => "RuinedHelmet";
+    public override void OnCombatStart(CombatState combat) => Cmd.ApplyPower(combat, combat.Player, new RuinedHelmetPower(), 1, combat.Player);
+}

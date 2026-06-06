@@ -118,6 +118,26 @@ public class RelicTests5
     }
 
     [Fact]
+    public void RuinedHelmet_Doubles_First_Strength_Gain_Only()
+    {
+        var (combat, _) = Fight("RuinedHelmet");
+        Cmd.ApplyPower(combat, combat.Player, new StrengthPower(), 2, combat.Player);  // first gain → doubled to 4
+        Assert.Equal(4, combat.Player.GetPowerAmount("Strength"));
+        Cmd.ApplyPower(combat, combat.Player, new StrengthPower(), 3, combat.Player);  // later gain → normal +3
+        Assert.Equal(7, combat.Player.GetPowerAmount("Strength"));
+    }
+
+    [Fact]
+    public void RuinedHelmet_Ignores_A_Strength_Loss_Before_The_First_Gain()
+    {
+        var (combat, _) = Fight("RuinedHelmet");
+        Cmd.ApplyPower(combat, combat.Player, new StrengthPower(), -1, combat.Player); // a Str DROP must not arm it
+        Assert.Equal(-1, combat.Player.GetPowerAmount("Strength"));
+        Cmd.ApplyPower(combat, combat.Player, new StrengthPower(), 2, combat.Player);  // first real gain → +2 doubled
+        Assert.Equal(3, combat.Player.GetPowerAmount("Strength"));                      // -1 + 2 + 2
+    }
+
+    [Fact]
     public void GalacticDust_Power_Blocks_10_Per_10_Stars()
     {
         var (combat, _) = Fight("GalacticDust");
@@ -149,7 +169,7 @@ public class RelicTests5
     [Theory]
     [InlineData("HappyFlower")] [InlineData("FakeHappyFlower")] [InlineData("Pendulum")] [InlineData("PollinousCore")]
     [InlineData("CentennialPuzzle")] [InlineData("DemonTongue")] [InlineData("GalacticDust")] [InlineData("MiniRegent")]
-    [InlineData("BeatingRemnant")] [InlineData("Vambrace")] [InlineData("ThrowingAxe")]
+    [InlineData("BeatingRemnant")] [InlineData("Vambrace")] [InlineData("ThrowingAxe")] [InlineData("RuinedHelmet")]
     public void Relic_Is_Registered_And_Buildable(string relic)
     {
         Assert.True(Catalog.IsModelledRelic(relic));

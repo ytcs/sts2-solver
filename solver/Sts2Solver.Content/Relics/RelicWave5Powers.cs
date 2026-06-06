@@ -127,6 +127,28 @@ public sealed class VambracePower : PowerModel
     public override long HashValue() => base.HashValue() ^ (_used ? 0x2545F4914F6CDD1DL : 0L);
 }
 
+/// <summary>Ruined Helmet: the FIRST time you gain Strength in a combat, gain that much again (the gain is
+/// doubled). Watches the post-apply broadcast for a positive Strength application to the owner, then adds an
+/// equal Strength once and disarms. The re-apply is guarded by <c>_used</c> (set before it) so it can't recurse,
+/// and the broadcast iterates a snapshot — re-entrancy-safe. (MegaCrit RuinedHelmet.)</summary>
+public sealed class RuinedHelmetPower : PowerModel
+{
+    private bool _used;
+    public override string Id => "RelicRuinedHelmet";
+    public override PowerType Type => PowerType.Buff;
+
+    public override void AfterPowerApplied(CombatState combat, Creature target, PowerModel power, int amount, Creature? applier)
+    {
+        if (_used || target != Owner || power.Id != "Strength" || amount <= 0) return;
+        _used = true;                                                  // disarm BEFORE re-applying (no recursion)
+        Cmd.ApplyPower(combat, Owner, new StrengthPower(), amount, Owner);   // double the first gain
+    }
+
+    public override PowerModel Clone() { var c = (RuinedHelmetPower)base.Clone(); c._used = _used; return c; }
+    public override string StateKey() => _used ? "RelicRuinedHelmet!" : "RelicRuinedHelmet";
+    public override long HashValue() => base.HashValue() ^ (_used ? 0x3C6EF372FE94F82BL : 0L);
+}
+
 /// <summary>Throwing Axe: the FIRST card you play each combat is played an extra time. (MegaCrit ThrowingAxe.)</summary>
 public sealed class ThrowingAxePower : PowerModel
 {

@@ -111,5 +111,6 @@ public static partial class Catalog
         ["BeatingRemnant"]     = () => new BeatingRemnant(),
         ["Vambrace"]           = () => new Vambrace(),
         ["ThrowingAxe"]        = () => new ThrowingAxe(),
+        ["RuinedHelmet"]       = () => new RuinedHelmet(),
     };
 }
