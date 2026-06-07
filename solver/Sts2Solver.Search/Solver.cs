@@ -332,6 +332,28 @@ public sealed class Solver
         return bestAction;   // null ⇒ end the turn is optimal
     }
 
+    /// <summary>The exact lexicographic value of a player decision state (forward Win, E[HP loss]). After a full
+    /// <see cref="Solve"/> this is served from the memo; otherwise it solves the subtree. Used by the calibration
+    /// harness to score a heuristic policy's choice against the optimum.</summary>
+    public Value StateValue(CombatState s) => SolvePlayerTurn(s);
+
+    /// <summary>The exact value of letting the GREEDY λ-rollout policy take the player's entire turn at
+    /// <paramref name="s"/> and then continuing EXACTLY (enemy turn + optimal play thereafter). Comparing this to
+    /// <see cref="StateValue"/> at the same state yields the leaf policy's single-turn REGRET vs the oracle —
+    /// the heuristic-quality signal the per-character redesign drives to zero. The greedy turn is deterministic
+    /// only on draw-free decks (a mid-turn draw is a chance node the greedy policy doesn't branch on), so the
+    /// calibration fixtures that use this are draw-free — the same constraint that keeps them exact-tractable.</summary>
+    public Value GreedyTurnValue(CombatState s, double aggression)
+    {
+        var cur = s.Clone();
+        MctsSolver.GreedyPlayTurn(cur, aggression);
+        int playLoss = cur.PlayerHpLost - s.PlayerHpLost;   // HP the greedy turn spent on its own plays (self-damage etc.)
+        if (cur.PlayerDead) return new Value(0, playLoss);
+        if (cur.AllMonstersDead) return new Value(1, playLoss);
+        var rest = EndTurnTransition(cur);                   // enemy turn + exact continuation, forward loss from cur
+        return new Value(rest.Win, playLoss + rest.Loss);
+    }
+
     /// <summary>
     /// Greedily extract the optimal play sequence for the player's current turn from a decision state
     /// (the cards to play, in order, until ending the turn). Values are taken from the solved memo.

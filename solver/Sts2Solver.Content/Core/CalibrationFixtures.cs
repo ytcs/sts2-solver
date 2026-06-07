@@ -89,6 +89,53 @@ public static class CalibrationFixtures
             "DemonForm", "4xStrikeIronclad", "1xDefendIronclad"),
     };
 
+    /// <summary>Build a fixture for an ARBITRARY character: explicit relic(s), energy and deck, so the
+    /// per-character suite can exercise each class's defining mechanic (Osty / poison / orbs / stars) rather
+    /// than only the Ironclad starter. Kept draw-free and small so the exact oracle still labels it and the
+    /// greedy-turn regret measurement is deterministic.</summary>
+    private static Fixture MakeChar(string name, string archetype, int hp, int energy, int maxTurns,
+        string[] relics, Func<Monster> monster, params string[] deck) =>
+        new(name, archetype,
+            () => Catalog.SetupCombat(
+                Catalog.BuildPlayer(Deck(deck), hp, hp, energy, relics),
+                new[] { monster() }),
+            maxTurns);
+
+    // -----------------------------------------------------------------------
+    // Per-character fixtures: each exercises a class's DEFINING mechanic in a
+    // fight small enough for the exact oracle to label, so the greedy-leaf
+    // policy-regret instrument (CalibrationHarness.MeasurePolicyRegret) can see
+    // where the heuristic mis-plays that mechanic. The exact solver plays the
+    // real engine (mechanic-optimal by construction); any regret here is the
+    // LEAF HEURISTIC's, which is exactly what the per-character redesign targets.
+    // Draw-free decks only (deterministic greedy turn + exact-tractable).
+    // Surfaced via `--calibrate --percharacter` / `--regret`.
+    // -----------------------------------------------------------------------
+    public static IReadOnlyList<Fixture> PerCharacter { get; } = new[]
+    {
+        // NECROBINDER — Osty is a per-turn damage sponge (DieForYou) AND the Unleash damage multiplier, but the
+        // leaf Score can't see it, so growing Osty (Bodyguard) reads as a dead play. Byrdonis' Swoop (heavy
+        // telegraphed hit) makes keeping Osty alive/large the survival lever the oracle uses and greedy misses.
+        MakeChar("necro/Osty-vs-Byrdonis", "necrobinder", hp: 44, energy: 3, maxTurns: 10,
+            new[] { "BoundPhylactery" }, () => Monsters.Byrdonis(hp: 40),
+            "4xStrikeNecrobinder", "3xDefendNecrobinder", "Bodyguard", "Unleash"),
+
+        // NECROBINDER — an Unleash-heavy race: most damage routes through Osty (Unleash = 6 + Osty HP), so the
+        // optimal line grows Osty FIRST (Bodyguard) to make every Unleash hit harder and end the fight sooner.
+        // A leaf that can't see Osty HP under-values the grow-first line → larger HP-loss regret than the
+        // single-Unleash starter. Byrdonis is the tanky hitter that makes the extra Unleash damage pay.
+        MakeChar("necro/Unleash-race-vs-Byrdonis", "necrobinder", hp: 48, energy: 3, maxTurns: 10,
+            new[] { "BoundPhylactery" }, () => Monsters.Byrdonis(hp: 46),
+            "2xUnleash", "Bodyguard", "2xStrikeNecrobinder", "2xDefendNecrobinder"),
+
+        // IRONCLAD SANITY — the heuristic was tuned on Ironclad, so its regret here should already be ~0. Acts as
+        // the control: a redesign that helps Necrobinder must not move this off zero. (Mirrors the starter fixture
+        // but built through the same MakeChar path so the suites are comparable.)
+        MakeChar("iron/Starter-vs-Cultist", "ironclad", hp: 50, energy: 3, maxTurns: 12,
+            new[] { "BurningBlood" }, () => Monsters.CalcifiedCultist(),
+            "5xStrikeIronclad", "4xDefendIronclad", "Bash"),
+    };
+
     // -----------------------------------------------------------------------
     // Elite-monster sweep: NEW ground-truth labels spanning the SINGLE-monster
     // Act-1 elites the base suite doesn't reach, each with a distinct AI shape

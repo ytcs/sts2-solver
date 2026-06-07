@@ -16,6 +16,15 @@ public sealed record SeedStats(
     double SurvMean, double SurvStd, double SurvMin, double SurvMax,
     double LossMean, double LossStd, double MsMean);
 
+/// <summary>The greedy leaf policy's single-turn REGRET vs the exact oracle, averaged (probability-weighted)
+/// over the fixture's opening decision states. <see cref="WinRegret"/> = optimal win-prob − greedy win-prob
+/// (≥0; the dominant term — a positive value means the heuristic's turn loses winnable lines). <see cref="LossRegret"/>
+/// = greedy E[HP loss] − optimal E[HP loss] (≥0; the tie-breaker, meaningful when win-regret is ~0). Both are 0
+/// iff the greedy turn plays as well as the oracle. This is the heuristic-quality signal the per-character
+/// redesign drives down; it isolates the LEAF policy (the exact side plays the real engine, so any gap is the
+/// heuristic's, not the search's).</summary>
+public sealed record PolicyRegret(string Label, double WinRegret, double LossRegret, double OptWin, double GreedyWin, double OptLoss, double GreedyLoss);
+
 /// <summary>
 /// Calibration utilities: run a fixture through the exact oracle (ground truth) and through MCTS variants,
 /// so we can measure how closely heuristic-guided sampling tracks exact. The caller (CLI / tests) supplies
@@ -23,6 +32,37 @@ public sealed record SeedStats(
 /// </summary>
 public static class CalibrationHarness
 {
+    /// <summary>Measure the greedy leaf policy's single-turn regret vs the exact oracle on a fixture (see
+    /// <see cref="PolicyRegret"/>). Solves the fixture exactly under a wall-clock budget (returns <c>null</c> on
+    /// timeout — the fixture is too big to label), then at each opening decision state compares the exact
+    /// optimal value to the value of letting the greedy λ-policy take that whole turn. Draw-free fixtures only
+    /// (the greedy turn must be deterministic). <paramref name="aggression"/> is the rollout λ (default 0.5,
+    /// matching the production leaf).</summary>
+    public static PolicyRegret? MeasurePolicyRegret(
+        CombatState setup, int maxTurns, double budgetSeconds, double aggression = 0.5)
+    {
+        var solver = new Solver { MaxTurns = maxTurns };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(budgetSeconds));
+        solver.Ct = cts.Token;
+        try { solver.Solve(setup); }                       // populate the memo (ground truth)
+        catch (OperationCanceledException) { return null; }
+        solver.Ct = CancellationToken.None;                // memo populated → allow on-demand extension w/o cancel
+
+        double wReg = 0, lReg = 0, oWin = 0, gWin = 0, oLoss = 0, gLoss = 0, pSum = 0;
+        foreach (var (prob, s) in solver.OpeningStates(setup, Player.CardsDrawnPerTurn))
+        {
+            var opt = solver.StateValue(s);                // exact optimal from this opening state
+            var greedy = solver.GreedyTurnValue(s, aggression);   // greedy takes the turn, exact continues
+            wReg += prob * Math.Max(0, opt.Win - greedy.Win);
+            lReg += prob * Math.Max(0, greedy.Loss - opt.Loss);
+            oWin += prob * opt.Win;  gWin += prob * greedy.Win;
+            oLoss += prob * opt.Loss; gLoss += prob * greedy.Loss;
+            pSum += prob;
+        }
+        if (pSum <= 0) return null;
+        return new PolicyRegret("regret", wReg / pSum, lReg / pSum, oWin / pSum, gWin / pSum, oLoss / pSum, gLoss / pSum);
+    }
+
     /// <summary>Exact expectimax — the ground-truth value. May be slow; only use on fixtures small enough.</summary>
     public static EngineResult RunExact(CombatState setup, int maxTurns)
     {

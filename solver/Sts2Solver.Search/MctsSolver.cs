@@ -798,28 +798,41 @@ public sealed class MctsSolver
         }
     }
 
+    /// <summary>The single play the greedy λ-policy would make at <paramref name="s"/>: the legal play whose
+    /// resulting position score is LOWEST and strictly below the current score, or <c>null</c> to end the turn
+    /// (no play strictly improves the position). This is the leaf policy's per-decision choice — exposed so the
+    /// calibration harness can measure it against the exact oracle (policy-agreement / regret).</summary>
+    public static PlayerAction? GreedyBestPlay(CombatState s, double aggression)
+    {
+        double bestScore = CombatHeuristic.Score(s, aggression);
+        PlayerAction? bestAction = null;
+        foreach (var action in LegalPlays(s, expandChoices: false))
+        {
+            double sc = CombatHeuristic.Score(ApplyPlay(s, action), aggression);
+            if (sc < bestScore - 1e-9) { bestScore = sc; bestAction = action; }
+        }
+        return bestAction;
+    }
+
     /// <summary>Greedily play cards that reduce the position score at aggression λ (lower = better), ending
-    /// the turn when no play strictly improves it.</summary>
+    /// the turn when no play strictly improves it. Public wrapper <see cref="GreedyPlayTurn"/> exposes this
+    /// for calibration (the faithful leaf policy, one turn, in place).</summary>
     private static void PlayTurn(CombatState s, double aggression)
     {
         for (int guard = 0; guard < 30; guard++)
         {
-            double current = CombatHeuristic.Score(s, aggression);
-            PlayerAction? bestAction = null;
-            double bestScore = current;
-            foreach (var action in LegalPlays(s, expandChoices: false))
-            {
-                double sc = CombatHeuristic.Score(ApplyPlay(s, action), aggression);
-                if (sc < bestScore - 1e-9) { bestScore = sc; bestAction = action; }
-            }
-            if (bestAction == null) return;   // no play strictly improves the position
-            var card = s.Player.Hand.First(h => h.StateKey() == bestAction.Value.CardKey);
-            Creature? target = bestAction.Value.TargetMonsterIndex >= 0
-                ? s.Monsters[bestAction.Value.TargetMonsterIndex] : null;
+            if (GreedyBestPlay(s, aggression) is not { } bestAction) return;   // no play strictly improves it
+            var card = s.Player.Hand.First(h => h.StateKey() == bestAction.CardKey);
+            Creature? target = bestAction.TargetMonsterIndex >= 0
+                ? s.Monsters[bestAction.TargetMonsterIndex] : null;
             CombatManager.PlayCard(s, card, target);
             if (s.PlayerTurnEndForced) return;   // VoidForm ended the turn on play
         }
     }
+
+    /// <summary>Run the greedy λ-rollout policy for ONE player turn in place — the exact leaf policy the
+    /// rollout uses. Exposed for the calibration harness's policy-regret measurement; not used in normal solving.</summary>
+    public static void GreedyPlayTurn(CombatState s, double aggression) => PlayTurn(s, aggression);
 
     private const double Eps = 1e-9;
 

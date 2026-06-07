@@ -301,8 +301,10 @@ if (args.Contains("--calibrate"))
     // --random N draws N deterministic random decks from the safe pool (--seed S, default 12345).
     int randomN = ArgInt("--random", 0);
     int seed = ArgInt("--seed", 12345);
+    bool regret = args.Contains("--regret");   // also measure greedy-leaf policy regret vs the oracle (per fixture)
     IEnumerable<CalibrationFixtures.Fixture> source =
         randomN > 0 ? CalibrationFixtures.RandomDecks(randomN, seed)
+        : args.Contains("--percharacter") ? CalibrationFixtures.PerCharacter   // per-class mechanic fixtures (Osty/poison/orbs/…)
         : args.Contains("--elites") ? CalibrationFixtures.All.Concat(CalibrationFixtures.EliteSweep)
         : CalibrationFixtures.All;
     var fixtures = source
@@ -331,6 +333,16 @@ if (args.Contains("--calibrate"))
         if (exact != null) Row(f.Name, exact, true);
         else Console.WriteLine($"  {f.Name,-28} {"exact",-10} {"(exact > budget — no ground truth)",-44}");
         Row(f.Name, roll, false);
+
+        // Policy regret (greedy leaf vs oracle): how much the heuristic's OWN turn loses vs optimal. Isolates the
+        // leaf policy (exact plays the real engine) — the per-character heuristic-quality signal the redesign drives down.
+        if (regret)
+        {
+            var pr = CalibrationHarness.MeasurePolicyRegret(f.Setup(), f.MaxTurns, exactBudget);
+            Console.WriteLine(pr == null
+                ? $"  {f.Name,-28} {"regret",-10} (exact > budget — no oracle)"
+                : $"  {f.Name,-28} {"regret",-10} {"",8} {"",7} {pr.WinRegret,7:P1} {pr.LossRegret,7:F2}   (greedy win {pr.GreedyWin:P0} loss {pr.GreedyLoss:F1} vs opt loss {pr.OptLoss:F1})");
+        }
 
         if (exact != null)
         {
