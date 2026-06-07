@@ -671,7 +671,11 @@ public sealed class RanwidApp
         {
             if (_state.Elites.Count == 0) items.Add("(no elites to evaluate for this Act)");
             else foreach (var row in _state.Elites) items.Add(EliteListLine(row));
-            _elitesFrame.Title = AnyBusy() ? " Elites — evaluating… " : " Elites ";
+            // Reflect ONLY the elite rows here. RenderElites is re-invoked when an elite finishes, but not when the
+            // strength index or boss finishes (those re-render their own panels) — so folding their busy-state into
+            // this title would leave it stuck on "evaluating…" whenever one of them completed last. The strength
+            // bar shows its own "(updating…)"; the boss panel shows its own "evaluating…".
+            _elitesFrame.Title = _state.Elites.Any(e => e.Busy) ? " Elites — evaluating… " : " Elites ";
         }
 
         int sel = _elitesList.SelectedItem ?? 0;
@@ -730,7 +734,6 @@ public sealed class RanwidApp
         _footer.SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
     }
 
-    private bool AnyBusy() => _state.StrengthBusy || _state.BossBusy || _state.Elites.Any(e => e.Busy);
 
     private static string EliteListLine(TuiState.RowState row)
     {
