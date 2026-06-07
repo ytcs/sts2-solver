@@ -31,7 +31,9 @@ internal sealed class TuiState
     // Advice overlay (removal / upgrade): replaces the elites region while the deck/strength panels stay put.
     public enum Mode { Dashboard, Advice }
     public Mode View = Mode.Dashboard;
-    public string AdviceTitle = "";
+    public bool AdviceRemoval;          // true = removals, false = upgrades
+    public int AdviceN = 1;             // how many cards to remove/upgrade at once (1–3, +/- steps it)
+    public bool AdviceExhaustive = true;
     public bool AdviceBusy;
     public Advisor.DualStrength AdviceBaseline;
     public List<Advisor.AdviceRow> AdviceRows = new();

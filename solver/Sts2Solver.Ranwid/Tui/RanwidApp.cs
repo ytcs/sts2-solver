@@ -134,7 +134,10 @@ public sealed class RanwidApp
 
         if (_state.View == TuiState.Mode.Advice)
         {
-            if (key == Key.Esc) { CloseAdvice(); key.Handled = true; }
+            if (key == Key.Esc) { CloseAdvice(); key.Handled = true; return; }
+            int ch = key.AsRune.Value;
+            if (ch is '+' or '=') { _state.AdviceN++; RunAdvice(); key.Handled = true; }
+            else if (ch is '-' or '_') { _state.AdviceN--; RunAdvice(); key.Handled = true; }
             return;   // while the advice overlay is open, other dashboard keys are inert
         }
 
@@ -269,30 +272,52 @@ public sealed class RanwidApp
 
     // ── Advice overlay (removal / upgrade) ───────────────────────────────────────────
 
-    /// <summary>Open the advice overlay for single-card removals (or upgrades), scoring each candidate against both
-    /// this act and the next on a background task; rows stream in when ready. The deck/strength panels stay put.</summary>
+    /// <summary>Open the advice overlay for removals (or upgrades). The deck/strength panels stay put; +/- steps
+    /// how many cards (1–3) to act on at once and re-evaluates.</summary>
     private void ShowAdvice(bool removal)
     {
         if (_state.Ctx is not { } c) return;
-        if (c.DeckSpecs.Count <= (removal ? 1 : 0)) return;
+        var moves = removal ? Advisor.RemovalMoves(c.DeckSpecs) : Advisor.UpgradeMoves(c.DeckSpecs);
+        if (moves.Count == 0) return;
 
         _state.View = TuiState.Mode.Advice;
-        _state.AdviceTitle = removal ? "Removals — best cut first" : "Upgrades — best first";
-        _state.AdviceBusy = true; _state.AdviceRows = new();
+        _state.AdviceRemoval = removal;
+        _state.AdviceN = 1;
         _elitesFrame.Visible = false; _adviceFrame.Visible = true;
-        RenderAdvice(); RenderFooter();
         _adviceList.SetFocus();
+        RunAdvice();
+    }
+
+    /// <summary>(Re)compute the advice for the current kind + N on a background task. Caps N to what the deck and
+    /// move-set allow (removals must leave ≥1 card).</summary>
+    private void RunAdvice()
+    {
+        if (_state.Ctx is not { } c) return;
+        var moves = _state.AdviceRemoval ? Advisor.RemovalMoves(c.DeckSpecs) : Advisor.UpgradeMoves(c.DeckSpecs);
+        int maxN = _state.AdviceRemoval
+            ? Math.Min(Math.Min(3, moves.Count), Math.Max(1, c.DeckSpecs.Count - 1))
+            : Math.Min(3, moves.Count);
+        _state.AdviceN = Math.Clamp(_state.AdviceN, 1, Math.Max(1, maxN));
+        int n = _state.AdviceN;
+
+        _state.AdviceBusy = true; _state.AdviceRows = new();
+        RenderAdvice(); RenderFooter();
 
         int agen = ++_adviceGen;
         var deck = c.DeckSpecs;
         var curPool = CuratedPool(c);
         var (nextElites, nextBosses) = NextActPools(c);
-        var cands = removal ? RemovalCandidates(deck) : UpgradeCandidates(deck);
         int energy = c.Run.MaxEnergy; var relics = c.RelicNames;
         Task.Run(() =>
         {
-            var (baseline, rows) = Advisor.RankCandidates(deck, cands, curPool, nextElites, nextBosses, energy, relics, _opts);
-            PostAdvice(agen, () => { _state.AdviceBaseline = baseline; _state.AdviceRows = rows; _state.AdviceBusy = false; RenderAdvice(); });
+            var (baseline, rows, exhaustive) =
+                Advisor.RankMoveSets(deck, moves, n, curPool, nextElites, nextBosses, energy, relics, _opts);
+            PostAdvice(agen, () =>
+            {
+                _state.AdviceBaseline = baseline; _state.AdviceRows = rows;
+                _state.AdviceExhaustive = exhaustive; _state.AdviceBusy = false;
+                RenderAdvice();
+            });
         });
     }
 
@@ -312,21 +337,6 @@ public sealed class RanwidApp
         a();
         _win.SetNeedsDraw();
     });
-
-    private static List<Advisor.AdviceCandidate> RemovalCandidates(IReadOnlyList<string> deck) =>
-        deck.Distinct().Select(spec =>
-        {
-            var reduced = new List<string>(deck); reduced.Remove(spec);
-            return new Advisor.AdviceCandidate(spec, "remove", reduced);
-        }).ToList();
-
-    private static List<Advisor.AdviceCandidate> UpgradeCandidates(IReadOnlyList<string> deck) =>
-        deck.Distinct().Where(Advisor.IsUpgradeable).Select(spec =>
-        {
-            var up = spec + "+1";
-            var swapped = new List<string>(deck); swapped[swapped.IndexOf(spec)] = up;
-            return new Advisor.AdviceCandidate(up, "upgrade", swapped);
-        }).ToList();
 
     /// <summary>Re-evaluate only the current-act deck-strength index over the curated pool (included elites + boss),
     /// on a background task. Its own generation guard means a newer load or toggle supersedes an in-flight run.</summary>
@@ -484,7 +494,13 @@ public sealed class RanwidApp
 
     private void RenderAdvice()
     {
-        _adviceFrame.Title = $" {_state.AdviceTitle}{(_state.AdviceBusy ? " — computing…" : "")} ";
+        string kind = _state.AdviceRemoval ? "Removals" : "Upgrades";
+        string what = _state.AdviceN == 1 ? (_state.AdviceRemoval ? "best cut" : "best upgrade")
+                                          : $"best {_state.AdviceN} cards";
+        string heur = !_state.AdviceBusy && !_state.AdviceExhaustive ? " · heuristic shortlist" : "";
+        string busy = _state.AdviceBusy ? " · computing…" : "";
+        _adviceFrame.Title = $" {kind} — {what}{heur}{busy} ";
+
         var items = new ObservableCollection<string>();
         if (_state.AdviceBusy)
             items.Add("  evaluating each candidate against this act and the next…");
@@ -508,7 +524,7 @@ public sealed class RanwidApp
     private void RenderFooter()
     {
         _footer.Text = _state.View == TuiState.Mode.Advice
-            ? "  ↑↓ scroll   (esc) back to dashboard   (q) quit"
+            ? "  ↑↓ scroll   (+/–) how many cards (1–3)   (esc) back   (q) quit"
             : "  ↑↓ select   (space) include/exclude elite   (r) removals   (u) upgrades   (d) refresh   (q) quit";
         _footer.SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
     }
