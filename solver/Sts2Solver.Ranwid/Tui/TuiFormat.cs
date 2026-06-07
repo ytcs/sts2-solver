@@ -1,3 +1,4 @@
+using Sts2Solver.Engine;
 using Terminal.Gui.Drawing;
 using Attribute = Terminal.Gui.Drawing.Attribute;
 
@@ -34,6 +35,18 @@ internal static class TuiFormat
     /// <summary>Tier colour for a 0–1 survival probability (same bands as <see cref="Dashboard"/>).</summary>
     public static Color SurviveColor(double p) =>
         p >= 0.80 ? Green : p >= 0.50 ? Yellow : p >= 0.25 ? Orange : Red;
+
+    /// <summary>Skim colour per card type for the deck panel (Attack red · Skill blue · Power green · Status grey
+    /// · Curse orange).</summary>
+    public static Color CardTypeColor(CardType t) => t switch
+    {
+        CardType.Attack => Red,
+        CardType.Skill  => Accent,
+        CardType.Power  => Green,
+        CardType.Status => Grey,
+        CardType.Curse  => Orange,
+        _               => Fg,
+    };
 
     public static Color HpColor(int hp, int max)
     {

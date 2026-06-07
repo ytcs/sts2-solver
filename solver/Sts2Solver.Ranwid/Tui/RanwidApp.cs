@@ -31,7 +31,7 @@ public sealed class RanwidApp
     private Window _win = null!;
     private Label _strengthLabel = null!, _headerLabel = null!, _relicsLabel = null!;
     private FrameView _deckFrame = null!;
-    private Label _deckLabel = null!;
+    private Label[] _deckLines = null!;        // one per card type (Attack/Skill/Power/Status/Curse)
     private FrameView _bossFrame = null!;
     private Label _bossLabel = null!;
     private FrameView _elitesFrame = null!;
@@ -41,6 +41,10 @@ public sealed class RanwidApp
     // Each StartEval bumps the generation; background results whose generation is stale are discarded on arrival,
     // since the in-flight MCTS solves cannot themselves be cancelled mid-trial.
     private int _gen;
+
+    // Strength is recomputed independently of a full load (toggling an elite's include/exclude re-runs only it),
+    // so it has its own generation guard. A load bumps both (via StartEval → RecomputeStrength).
+    private int _strengthGen;
 
     // Save watcher → flips _dirty; the UI-thread timer picks it up.
     private volatile bool _dirty;
@@ -85,9 +89,13 @@ public sealed class RanwidApp
         _relicsLabel   = new Label { X = 1, Y = 2, Width = Dim.Fill(1), Height = 1 };
         top.Add(_strengthLabel, _headerLabel, _relicsLabel);
 
-        _deckFrame = new FrameView { Title = " Deck ", X = 0, Y = Pos.Bottom(top), Width = Dim.Fill(), Height = 5 };
-        _deckLabel = new Label { X = 0, Y = 0, Width = Dim.Fill(), Height = Dim.Fill() };
-        _deckFrame.Add(_deckLabel);
+        _deckFrame = new FrameView { Title = " Deck ", X = 0, Y = Pos.Bottom(top), Width = Dim.Fill(), Height = 7 };
+        _deckLines = new Label[5];
+        for (int i = 0; i < _deckLines.Length; i++)
+        {
+            _deckLines[i] = new Label { X = 1, Y = i, Width = Dim.Fill(1), Height = 1 };
+            _deckFrame.Add(_deckLines[i]);
+        }
 
         _bossFrame = new FrameView { Title = " Boss ", X = 0, Y = Pos.Bottom(_deckFrame), Width = Dim.Fill(), Height = 3 };
         _bossLabel = new Label { X = 1, Y = 0, Width = Dim.Fill(1), Height = 1 };
@@ -102,12 +110,28 @@ public sealed class RanwidApp
 
         _win.Add(top, _deckFrame, _bossFrame, _elitesFrame, _footer);
         _win.KeyDown += OnKey;
+        _elitesList.KeyDown += OnElitesKey;
     }
 
     private void OnKey(object? sender, Key key)
     {
         if (key == Key.Q || key == Key.Esc) { Application.RequestStop(); return; }
         if (key == Key.D) { _dirty = false; LoadAndEval(force: true); }
+    }
+
+    /// <summary>Space toggles whether the selected elite counts toward the current-act deck strength, then
+    /// re-evaluates only the strength index (non-blocking).</summary>
+    private void OnElitesKey(object? sender, Key key)
+    {
+        if (key != Key.Space || _state.Ctx is not { } c) return;
+        if (_elitesList.SelectedItem is int i && i >= 0 && i < _state.Elites.Count)
+        {
+            _state.Elites[i].Included = !_state.Elites[i].Included;
+            RenderElites();
+            RecomputeStrength(c);
+            _win.SetNeedsDraw();
+            key.Handled = true;
+        }
     }
 
     // ── Load + evaluate ─────────────────────────────────────────────────────────────
@@ -149,24 +173,9 @@ public sealed class RanwidApp
     {
         int gen = ++_gen;
 
-        _state.Strength = double.NaN; _state.StrengthBusy = true;
-        Task.Run(() =>
-        {
-            var s = Advisor.DeckStrength(ctx.DeckSpecs, ctx.StrengthPool, ctx.Run.MaxEnergy, ctx.RelicNames, _opts);
-            Post(gen, () => { _state.Strength = s; _state.StrengthBusy = false; RenderTop(); });
-        });
-
-        var bossSpec = Companion.BossRowSpec(ctx);
-        _state.Boss = null; _state.BossBusy = bossSpec != null;
-        if (bossSpec is { } bs)
-            Task.Run(() =>
-            {
-                var r = Companion.EvaluateRow(ctx, bs, _opts);
-                Post(gen, () => { _state.Boss = r; _state.BossBusy = false; RenderBoss(); });
-            });
-
+        // Elites first, so the strength pool can read each row's Included flag (all included on a fresh load).
         var specs = Companion.EliteRowSpecs(ctx);
-        _state.Elites = specs.Select(s => new TuiState.RowState(s.Label, s.Comp) { Busy = true }).ToList();
+        _state.Elites = specs.Select(s => new TuiState.RowState(s.Label, s.Comp) { Busy = true, Enc = s.Enc }).ToList();
         for (int i = 0; i < specs.Count; i++)
         {
             int idx = i; var spec = specs[i];
@@ -177,13 +186,62 @@ public sealed class RanwidApp
             });
         }
 
+        var bossSpec = Companion.BossRowSpec(ctx);
+        _state.Boss = null; _state.BossBusy = bossSpec != null;
+        if (bossSpec is { } bs)
+            Task.Run(() =>
+            {
+                var r = Companion.EvaluateRow(ctx, bs, _opts);
+                Post(gen, () => { _state.Boss = r; _state.BossBusy = false; RenderBoss(); });
+            });
+
+        // Current-act strength = average over the included elites + the known boss (#5/#7). Recomputed live on
+        // toggle. This curates against "the fights I'll actually face", unlike the Spectre path's representative pool.
+        RecomputeStrength(ctx);
         RenderAll();
     }
 
-    /// <summary>Run <paramref name="a"/> on the UI thread, but only if it belongs to the current generation.</summary>
+    /// <summary>Re-evaluate only the current-act deck-strength index over the curated pool (included elites + boss),
+    /// on a background task. Its own generation guard means a newer load or toggle supersedes an in-flight run.</summary>
+    private void RecomputeStrength(Companion.Context ctx)
+    {
+        int sgen = ++_strengthGen;
+        var pool = CuratedPool(ctx);
+        if (pool.Count == 0) { _state.Strength = double.NaN; _state.StrengthBusy = false; RenderTop(); return; }
+
+        _state.StrengthBusy = true;
+        var deckSpecs = ctx.DeckSpecs; int energy = ctx.Run.MaxEnergy; var relics = ctx.RelicNames;
+        Task.Run(() =>
+        {
+            var s = Advisor.DeckStrength(deckSpecs, pool, energy, relics, _opts);
+            PostStrength(sgen, () => { _state.Strength = s; _state.StrengthBusy = false; RenderTop(); });
+        });
+        RenderTop();
+    }
+
+    /// <summary>The encounters the current-act strength averages over: each included elite, plus the run's known
+    /// boss (always counted, per #5). An unported boss (no <see cref="Companion.Context.Boss"/>) is excluded.</summary>
+    private List<Advisor.Encounter> CuratedPool(Companion.Context ctx)
+    {
+        var pool = new List<Advisor.Encounter>();
+        foreach (var row in _state.Elites)
+            if (row.Included && row.Enc is { } e) pool.Add(e);
+        if (ctx.Boss is { } boss) pool.Add(boss);
+        return pool;
+    }
+
+    /// <summary>Run <paramref name="a"/> on the UI thread, but only if it belongs to the current load generation.</summary>
     private void Post(int gen, Action a) => Application.Invoke(() =>
     {
         if (gen != _gen) return;
+        a();
+        _win.SetNeedsDraw();
+    });
+
+    /// <summary>As <see cref="Post"/>, but guarded by the strength generation (toggles supersede each other).</summary>
+    private void PostStrength(int sgen, Action a) => Application.Invoke(() =>
+    {
+        if (sgen != _strengthGen) return;
         a();
         _win.SetNeedsDraw();
     });
@@ -216,8 +274,11 @@ public sealed class RanwidApp
         }
 
         var run = c.Run;
-        _strengthLabel.Text = "Deck strength  " + TuiFormat.StrengthBar(_state.Strength)
-            + (_state.StrengthBusy ? "  (updating…)" : "");
+        if (!_state.StrengthBusy && double.IsNaN(_state.Strength))
+            _strengthLabel.Text = "Deck strength  n/a  (no elites selected — press space on a row to include one)";
+        else
+            _strengthLabel.Text = "Deck strength  " + TuiFormat.StrengthBar(_state.Strength)
+                + (_state.StrengthBusy ? "  (updating…)" : "");
         _strengthLabel.SetScheme(TuiFormat.SchemeOf(TuiFormat.StrengthColor(_state.Strength)));
 
         _headerLabel.Text = $"{GameIds.CharacterName(run.Character)}  ·  A{run.Ascension}  ·  Act {run.ActIndex + 1}"
@@ -234,10 +295,23 @@ public sealed class RanwidApp
 
     private void RenderDeck()
     {
-        _deckLabel.SetScheme(TuiFormat.Base);
-        if (_state.Ctx is not { } c) { _deckLabel.Text = ""; return; }
-        string summary = c.DeckSummary == "(empty)" ? "(no cards)" : c.DeckSummary;
-        _deckLabel.Text = WrapToLines(summary, WrapWidth(), maxLines: 3);
+        foreach (var l in _deckLines) l.Text = "";
+        if (_state.Ctx is not { } c) return;
+        if (c.DeckSpecs.Count == 0)
+        {
+            _deckLines[0].Text = "(no cards)";
+            _deckLines[0].SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
+            return;
+        }
+
+        var lines = DeckView.Lines(c.DeckSpecs);
+        int w = WrapWidth();
+        for (int i = 0; i < _deckLines.Length && i < lines.Count; i++)
+        {
+            var (type, text) = lines[i];
+            _deckLines[i].Text = Clip(text, w);
+            _deckLines[i].SetScheme(TuiFormat.SchemeOf(TuiFormat.CardTypeColor(type)));
+        }
     }
 
     private void RenderBoss()
@@ -273,8 +347,8 @@ public sealed class RanwidApp
 
     private void RenderFooter()
     {
-        _footer.Text = "  (d) refresh   (q) quit        ·  auto-refreshes when your run changes"
-            + "        [r/u/c advice — coming]";
+        _footer.Text = "  ↑↓ select   (space) include/exclude elite   (d) refresh   (q) quit"
+            + "        ·  auto-refreshes on run change        [r/u/c advice — coming]";
         _footer.SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
     }
 
@@ -282,13 +356,15 @@ public sealed class RanwidApp
 
     private static string EliteListLine(TuiState.RowState row)
     {
+        string box = row.Included ? "[x] " : "[ ] ";
         string name = row.Comp.Length > 0 && !string.Equals(row.Comp, row.Label, StringComparison.OrdinalIgnoreCase)
             ? $"{row.Label} ({row.Comp})" : row.Label;
         if (name.Length > 40) name = name[..39] + "…";
-        if (row.Busy || row.Result == null) return $"  {name,-42}  …";
+        if (row.Busy || row.Result == null) return $"  {box}{name,-42}  …";
         var r = row.Result;
-        if (r.Stats is { } s) return $"  {name,-42}  survive {TuiFormat.Pct(s.Survival),4}   E[HP loss] {s.MeanLoss,3:F0}";
-        return $"  {name,-42}  {r.Skipped ?? "—"}";
+        string excl = row.Included ? "" : "  (excluded)";
+        if (r.Stats is { } s) return $"  {box}{name,-42}  survive {TuiFormat.Pct(s.Survival),4}   E[HP loss] {s.MeanLoss,3:F0}{excl}";
+        return $"  {box}{name,-42}  {r.Skipped ?? "—"}";
     }
 
     // ── Watcher ──────────────────────────────────────────────────────────────────────
@@ -363,4 +439,7 @@ public sealed class RanwidApp
     }
 
     private static string Trim(string s, int n) => s.Length <= n ? s : s[..Math.Max(0, n)];
+
+    /// <summary>Clip a single line to <paramref name="width"/>, appending an ellipsis when truncated.</summary>
+    private static string Clip(string s, int width) => s.Length <= width ? s : Trim(s, Math.Max(1, width - 1)) + "…";
 }

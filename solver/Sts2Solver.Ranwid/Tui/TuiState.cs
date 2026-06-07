@@ -29,5 +29,9 @@ internal sealed class TuiState
         public string Comp;
         public EliteResult? Result;   // null while Busy / not yet started
         public bool Busy;
+
+        // Stage 2: include/exclude this elite from the current-act deck-strength average (default: included).
+        public bool Included = true;
+        public Advisor.Encounter? Enc;   // the encounter this row scores (null = unported boss row)
     }
 }
