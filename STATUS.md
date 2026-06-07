@@ -1,6 +1,6 @@
 # STS2 Solver — Project Status
 
-_Last updated: 2026-06-06._
+_Last updated: 2026-06-07._
 
 ## Goal
 
@@ -10,6 +10,50 @@ Combat is stochastic (monster-move RNG, draw order), so the answer is an expecta
 is a faithful re-implementation of the game's combat engine (ported 1:1 from decompiled C#), driven by
 expectimax + MCTS search, and **differentially validated against the real game** via a recorder mod + a headless
 harness. The decompile is the **spec**; the real game is the **oracle** (see "Why reimplement" below).
+
+## Ranwid TUI migration (`--tui`) — IN PROGRESS, resume here next session
+
+Migrating the Ranwid live companion from the Spectre immediate-mode screen to a **Terminal.Gui v2** front-end
+(`ranwid --tui`). All 9 requested UX items + the save dialog are **implemented and committed** (10 checkpoints,
+`55c2695`→`0dadc11`); the backend is unit-tested and the **full suite is 1185/1185 green on net10**. The
+interactive UI is **compile/init-verified only** — it has NOT been driven in a real terminal yet.
+
+**Done (committed):**
+1. Non-blocking spine — persistent panels, per-elite + strength evaluate on background tasks and stream in
+   (`Application.Invoke`, generation-guarded); UI stays navigable while solving.
+2. Navigable elites with `[x]/[ ]` include/exclude toggles (space) that recompute current-act strength live.
+3. Type-grouped, coloured deck panel (skimmable) via `DeckView`.
+4. `this act` / `next act` strength bars — next-act = `Advisor.DeckStrengthNextAct` (avg over next act's elite
+   pool + ONE averaged-boss term; current act keeps only the known boss).
+5. Boss in its own panel above the elites.
+6. `r`/`u`/`c` advice overlay (removal/upgrade/reward) showing this-act + next-act strength **and deltas**;
+   persistent deck/strength panels stay put (consistent layout).
+7. `+/-` stepper for 1–3 cards (`Advisor.RankMoveSets`: exhaustive within a cap, else beam search, flagged
+   "heuristic"); reward-check (`c`) takes typed offered cards (CardNameMatcher auto-correct).
+8. Save-not-found panel: retry / enter folder / quit.
+
+**NEXT SESSION — resume checklist:**
+- [ ] **Verify `ranwid --tui` in a real terminal** (can't be done headless): focus/arrows, space-toggle fires
+      ONCE (self-rendered checkbox, but watch for a ListView default Space binding double-firing), `+/-` stepper,
+      reward/path-field Enter submit, colour legibility on the user's terminal.
+- [ ] **Flip the default** to `--tui` + add a `--classic` Spectre escape hatch (≈5-line change in `Program.cs`) —
+      held back until the above is verified (shipping testers an unverified default is hard to reverse).
+- [ ] **`--custom` sandbox parity** in the TUI (still Spectre-only).
+- [ ] Migrate off the deprecated static `Application.*` API once the instance API exposes a clean `Shutdown`
+      (currently suppressed with `#pragma warning disable CS0618` + a note in `RanwidApp`).
+
+**Decisions to revisit:** the TUI's *current-act* strength averages over the run's **curated actual elites +
+known boss** (so the toggle is meaningful), a deliberate shift from the Spectre path's representative-elite pool —
+confirm this is the intended basis.
+
+**Toolchain note:** `Sts2Solver.Ranwid` + `Sts2Solver.Tests` are **net10** (Terminal.Gui v2 is net10-only);
+everything else stays net9. Requires `dotnet-sdk-10.0` installed alongside net9. Code lives in
+`solver/Sts2Solver.Ranwid/Tui/` (`RanwidApp`, `TuiState`, `TuiFormat`, `DeckView`); backend additions are in
+`Advice.cs` (`DeckStrengthNextAct`, `RankCandidates`, `RankMoveSets`, `CardMove`) and `Companion.cs`
+(`EvaluateRow`/`EliteRowSpecs`/`BossRowSpec`/`EncountersForClasses`). New tests in `AdvisorTests.cs`.
+
+**Separately open:** Windows code-signing (metadata + no-compression already landed in the csproj; actual signing
+via Azure Artifact Signing / `dotnet sign` not started).
 
 ## Current state (summary)
 
