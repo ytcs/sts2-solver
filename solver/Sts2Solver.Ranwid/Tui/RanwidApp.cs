@@ -102,14 +102,17 @@ public sealed class RanwidApp
         _win = new Window { Title = " ranwid — live Slay the Spire 2 advisor " };
         _win.SetScheme(TuiFormat.Base);
 
-        var top = new FrameView { Title = " Run ", X = 0, Y = 0, Width = Dim.Fill(), Height = 6 };
+        // The Run/Deck/Boss panels are display-only — make them non-focusable so Tab and the initial auto-focus
+        // skip straight to the elites list (the only thing the arrow keys act on). Their child Labels are already
+        // non-focusable, so this just stops the FrameView itself from becoming a tab stop.
+        var top = new FrameView { Title = " Run ", X = 0, Y = 0, Width = Dim.Fill(), Height = 6, CanFocus = false };
         _strengthLabel     = new Label { X = 1, Y = 0, Width = Dim.Fill(1), Height = 1 };
         _nextStrengthLabel = new Label { X = 1, Y = 1, Width = Dim.Fill(1), Height = 1 };
         _headerLabel       = new Label { X = 1, Y = 2, Width = Dim.Fill(1), Height = 1 };
         _relicsLabel       = new Label { X = 1, Y = 3, Width = Dim.Fill(1), Height = 1 };
         top.Add(_strengthLabel, _nextStrengthLabel, _headerLabel, _relicsLabel);
 
-        _deckFrame = new FrameView { Title = " Deck ", X = 0, Y = Pos.Bottom(top), Width = Dim.Fill(), Height = 7 };
+        _deckFrame = new FrameView { Title = " Deck ", X = 0, Y = Pos.Bottom(top), Width = Dim.Fill(), Height = 7, CanFocus = false };
         _deckLines = new Label[5];
         for (int i = 0; i < _deckLines.Length; i++)
         {
@@ -117,7 +120,7 @@ public sealed class RanwidApp
             _deckFrame.Add(_deckLines[i]);
         }
 
-        _bossFrame = new FrameView { Title = " Boss ", X = 0, Y = Pos.Bottom(_deckFrame), Width = Dim.Fill(), Height = 3 };
+        _bossFrame = new FrameView { Title = " Boss ", X = 0, Y = Pos.Bottom(_deckFrame), Width = Dim.Fill(), Height = 3, CanFocus = false };
         _bossLabel = new Label { X = 1, Y = 0, Width = Dim.Fill(1), Height = 1 };
         _bossFrame.Add(_bossLabel);
 
@@ -144,6 +147,8 @@ public sealed class RanwidApp
         // up to the window, so per-view KeyDown never sees them. Application.KeyDown fires first, so we can claim
         // the keys we act on (and mark them Handled to stop the navigator from also eating them).
         Application.KeyDown += OnGlobalKey;
+
+        _elitesList.SetFocus();   // land on the elites list so ↑↓ work immediately (the display panels can't focus)
     }
 
     /// <summary>App-level key handler (subscribed to <see cref="Application.KeyDown"/>, which fires before the
