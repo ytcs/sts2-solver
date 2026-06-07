@@ -37,7 +37,10 @@ public sealed class RanwidApp
     private Label _bossLabel = null!;
     private FrameView _elitesFrame = null!;
     private ListView _elitesList = null!;
+    private FrameView _adviceFrame = null!;   // overlays the elites region while showing removal/upgrade advice
+    private ListView _adviceList = null!;
     private Label _footer = null!;
+    private int _adviceGen;
 
     // Each StartEval bumps the generation; background results whose generation is stale are discarded on arrival,
     // since the in-flight MCTS solves cannot themselves be cancelled mid-trial.
@@ -112,17 +115,33 @@ public sealed class RanwidApp
         _elitesList.SetScheme(TuiFormat.Base);
         _elitesFrame.Add(_elitesList);
 
+        // Advice overlay — same geometry as the elites frame, shown in its place (deck/strength panels persist).
+        _adviceFrame = new FrameView { Title = " Advice ", X = 0, Y = Pos.Bottom(_bossFrame), Width = Dim.Fill(), Height = Dim.Fill(1), Visible = false };
+        _adviceList = new ListView { X = 0, Y = 0, Width = Dim.Fill(), Height = Dim.Fill() };
+        _adviceList.SetScheme(TuiFormat.Base);
+        _adviceFrame.Add(_adviceList);
+
         _footer = new Label { X = 0, Y = Pos.AnchorEnd(1), Width = Dim.Fill(), Height = 1 };
 
-        _win.Add(top, _deckFrame, _bossFrame, _elitesFrame, _footer);
+        _win.Add(top, _deckFrame, _bossFrame, _elitesFrame, _adviceFrame, _footer);
         _win.KeyDown += OnKey;
         _elitesList.KeyDown += OnElitesKey;
     }
 
     private void OnKey(object? sender, Key key)
     {
-        if (key == Key.Q || key == Key.Esc) { Application.RequestStop(); return; }
-        if (key == Key.D) { _dirty = false; LoadAndEval(force: true); }
+        if (key == Key.Q) { Application.RequestStop(); return; }
+
+        if (_state.View == TuiState.Mode.Advice)
+        {
+            if (key == Key.Esc) { CloseAdvice(); key.Handled = true; }
+            return;   // while the advice overlay is open, other dashboard keys are inert
+        }
+
+        if (key == Key.Esc) { Application.RequestStop(); return; }
+        if (key == Key.D) { _dirty = false; LoadAndEval(force: true); return; }
+        if (key == Key.R) { ShowAdvice(removal: true); key.Handled = true; return; }
+        if (key == Key.U) { ShowAdvice(removal: false); key.Handled = true; return; }
     }
 
     /// <summary>Space toggles whether the selected elite counts toward the current-act deck strength, then
@@ -223,9 +242,7 @@ public sealed class RanwidApp
         }
 
         _state.HasNextAct = true; _state.NextStrengthBusy = true;
-        int asc = ctx.Run.Ascension;
-        var elites = Companion.EncountersForClasses(Catalog.ActElitePool(nextAct), asc);
-        var bosses = Companion.EncountersForClasses(Catalog.ActBossPool(nextAct), asc);
+        var (elites, bosses) = NextActPools(ctx);
         var deckSpecs = ctx.DeckSpecs; int energy = ctx.Run.MaxEnergy; var relics = ctx.RelicNames;
         Task.Run(() =>
         {
@@ -240,6 +257,76 @@ public sealed class RanwidApp
         a();
         _win.SetNeedsDraw();
     });
+
+    /// <summary>The next act's elite pool and boss pool as benchmark encounters; both empty on the final act.</summary>
+    private (List<Advisor.Encounter> Elites, List<Advisor.Encounter> Bosses) NextActPools(Companion.Context ctx)
+    {
+        int nextAct = ctx.Run.ActIndex + 1, asc = ctx.Run.Ascension;
+        if (nextAct >= Catalog.ActThemes.Count) return (new(), new());
+        return (Companion.EncountersForClasses(Catalog.ActElitePool(nextAct), asc),
+                Companion.EncountersForClasses(Catalog.ActBossPool(nextAct), asc));
+    }
+
+    // ── Advice overlay (removal / upgrade) ───────────────────────────────────────────
+
+    /// <summary>Open the advice overlay for single-card removals (or upgrades), scoring each candidate against both
+    /// this act and the next on a background task; rows stream in when ready. The deck/strength panels stay put.</summary>
+    private void ShowAdvice(bool removal)
+    {
+        if (_state.Ctx is not { } c) return;
+        if (c.DeckSpecs.Count <= (removal ? 1 : 0)) return;
+
+        _state.View = TuiState.Mode.Advice;
+        _state.AdviceTitle = removal ? "Removals — best cut first" : "Upgrades — best first";
+        _state.AdviceBusy = true; _state.AdviceRows = new();
+        _elitesFrame.Visible = false; _adviceFrame.Visible = true;
+        RenderAdvice(); RenderFooter();
+        _adviceList.SetFocus();
+
+        int agen = ++_adviceGen;
+        var deck = c.DeckSpecs;
+        var curPool = CuratedPool(c);
+        var (nextElites, nextBosses) = NextActPools(c);
+        var cands = removal ? RemovalCandidates(deck) : UpgradeCandidates(deck);
+        int energy = c.Run.MaxEnergy; var relics = c.RelicNames;
+        Task.Run(() =>
+        {
+            var (baseline, rows) = Advisor.RankCandidates(deck, cands, curPool, nextElites, nextBosses, energy, relics, _opts);
+            PostAdvice(agen, () => { _state.AdviceBaseline = baseline; _state.AdviceRows = rows; _state.AdviceBusy = false; RenderAdvice(); });
+        });
+    }
+
+    private void CloseAdvice()
+    {
+        _adviceGen++;   // discard any in-flight advice result
+        _state.View = TuiState.Mode.Dashboard;
+        _adviceFrame.Visible = false; _elitesFrame.Visible = true;
+        _elitesList.SetFocus();
+        RenderFooter();
+        _win.SetNeedsDraw();
+    }
+
+    private void PostAdvice(int agen, Action a) => Application.Invoke(() =>
+    {
+        if (agen != _adviceGen || _state.View != TuiState.Mode.Advice) return;
+        a();
+        _win.SetNeedsDraw();
+    });
+
+    private static List<Advisor.AdviceCandidate> RemovalCandidates(IReadOnlyList<string> deck) =>
+        deck.Distinct().Select(spec =>
+        {
+            var reduced = new List<string>(deck); reduced.Remove(spec);
+            return new Advisor.AdviceCandidate(spec, "remove", reduced);
+        }).ToList();
+
+    private static List<Advisor.AdviceCandidate> UpgradeCandidates(IReadOnlyList<string> deck) =>
+        deck.Distinct().Where(Advisor.IsUpgradeable).Select(spec =>
+        {
+            var up = spec + "+1";
+            var swapped = new List<string>(deck); swapped[swapped.IndexOf(spec)] = up;
+            return new Advisor.AdviceCandidate(up, "upgrade", swapped);
+        }).ToList();
 
     /// <summary>Re-evaluate only the current-act deck-strength index over the curated pool (included elites + boss),
     /// on a background task. Its own generation guard means a newer load or toggle supersedes an in-flight run.</summary>
@@ -395,10 +482,34 @@ public sealed class RanwidApp
         _elitesFrame.Title = AnyBusy() ? " Elites — evaluating… " : " Elites ";
     }
 
+    private void RenderAdvice()
+    {
+        _adviceFrame.Title = $" {_state.AdviceTitle}{(_state.AdviceBusy ? " — computing…" : "")} ";
+        var items = new ObservableCollection<string>();
+        if (_state.AdviceBusy)
+            items.Add("  evaluating each candidate against this act and the next…");
+        else
+        {
+            items.Add(AdviceLine("keep as-is", _state.AdviceBaseline, default, isBaseline: true));
+            foreach (var r in _state.AdviceRows) items.Add(AdviceLine(r.Label, r.Result, r.Delta, isBaseline: false));
+        }
+        _adviceList.SetSource(items);
+        if (items.Count > 0) _adviceList.SelectedItem = 0;
+    }
+
+    private static string AdviceLine(string label, Advisor.DualStrength res, Advisor.DualStrength delta, bool isBaseline)
+    {
+        static string S(double v) => double.IsNaN(v) ? "—" : ((int)Math.Round(v)).ToString();
+        string D(double d) => isBaseline || double.IsNaN(d) ? "" : d > 0.5 ? $" (+{d:F0})" : d < -0.5 ? $" ({d:F0})" : " (0)";
+        if (label.Length > 24) label = label[..23] + "…";
+        return $"  {label,-24}  this {S(res.Cur),3}{D(delta.Cur),-6}   next {S(res.Next),3}{D(delta.Next)}";
+    }
+
     private void RenderFooter()
     {
-        _footer.Text = "  ↑↓ select   (space) include/exclude elite   (d) refresh   (q) quit"
-            + "        ·  auto-refreshes on run change        [r/u/c advice — coming]";
+        _footer.Text = _state.View == TuiState.Mode.Advice
+            ? "  ↑↓ scroll   (esc) back to dashboard   (q) quit"
+            : "  ↑↓ select   (space) include/exclude elite   (r) removals   (u) upgrades   (d) refresh   (q) quit";
         _footer.SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
     }
 

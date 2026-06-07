@@ -28,6 +28,14 @@ internal sealed class TuiState
     // The act elites, in table order.
     public List<RowState> Elites = new();
 
+    // Advice overlay (removal / upgrade): replaces the elites region while the deck/strength panels stay put.
+    public enum Mode { Dashboard, Advice }
+    public Mode View = Mode.Dashboard;
+    public string AdviceTitle = "";
+    public bool AdviceBusy;
+    public Advisor.DualStrength AdviceBaseline;
+    public List<Advisor.AdviceRow> AdviceRows = new();
+
     public sealed class RowState
     {
         public RowState(string label, string comp) { Label = label; Comp = comp; }

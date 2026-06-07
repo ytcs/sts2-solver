@@ -93,6 +93,49 @@ public static class Advisor
         return n == 0 ? double.NaN : Math.Clamp(100 - sum / n, 0, 100);
     }
 
+    // ── Dual-strength candidate ranking (this act + next act, with deltas) ─────────
+
+    /// <summary>A deck strength measured against both the current act (<see cref="Cur"/>) and the projected next
+    /// act (<see cref="Next"/>). Either may be NaN when its pool is empty.</summary>
+    public readonly record struct DualStrength(double Cur, double Next);
+
+    /// <summary>A candidate deck to score (a removal / upgrade / reward-take result), with a display label.</summary>
+    public sealed record AdviceCandidate(string Label, string Detail, IReadOnlyList<string> Deck);
+
+    /// <summary>A ranked advice row: the resulting deck's dual strength and the dual delta vs the as-is deck.</summary>
+    public readonly record struct AdviceRow(string Label, string Detail, DualStrength Result, DualStrength Delta);
+
+    /// <summary>Score every candidate deck against BOTH the current-act curated pool and the next-act projection,
+    /// returning the as-is baseline plus one row per candidate (best current-act strength first; next-act breaks
+    /// ties). Each candidate is an independent solve across cores; per-candidate strength runs sequentially so the
+    /// two levels of parallelism don't over-subscribe. Used by the TUI advice screens (#8).</summary>
+    public static (DualStrength baseline, List<AdviceRow> rows) RankCandidates(
+        IReadOnlyList<string> baselineDeck, IReadOnlyList<AdviceCandidate> candidates,
+        IReadOnlyList<Encounter> curPool, IReadOnlyList<Encounter> nextElites, IReadOnlyList<Encounter> nextBosses,
+        int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
+    {
+        var advOpts = opts with { MctsTrials = AdviceTrials };
+        DualStrength Eval(IReadOnlyList<string> deck) => new(
+            curPool.Count == 0 ? double.NaN : DeckStrengthSeq(deck, curPool, maxEnergy, relics, advOpts),
+            DeckStrengthNextActSeq(deck, nextElites, nextBosses, maxEnergy, relics, advOpts));
+
+        var baseline = Eval(baselineDeck);
+        var rows = candidates.AsParallel().Select(c =>
+        {
+            var r = Eval(c.Deck);
+            return new AdviceRow(c.Label, c.Detail, r, new DualStrength(r.Cur - baseline.Cur, r.Next - baseline.Next));
+        }).ToList();
+
+        // Best current-act strength first; next-act breaks ties. NaN (empty pool) sinks to the bottom.
+        double Key(double v) => double.IsNaN(v) ? double.NegativeInfinity : v;
+        rows.Sort((a, b) =>
+        {
+            int cmp = Key(b.Result.Cur).CompareTo(Key(a.Result.Cur));
+            return cmp != 0 ? cmp : Key(b.Result.Next).CompareTo(Key(a.Result.Next));
+        });
+        return (baseline, rows);
+    }
+
     // ── Removal advice ───────────────────────────────────────────────────────────
 
     /// <summary>One single-card removal's verdict: the resulting deck's <see cref="Strength"/> and the
@@ -137,7 +180,7 @@ public static class Advisor
 
     /// <summary>An un-upgraded Attack/Skill/Power has an upgrade to advise; already-upgraded copies, Statuses and
     /// Curses don't (multi-level cards like Searing Blow are advised one level at a time — only the first here).</summary>
-    private static bool IsUpgradeable(string spec)
+    public static bool IsUpgradeable(string spec)
     {
         if (spec.Contains('+')) return false;   // already upgraded — nothing more to advise
         try { return Catalog.BuildCard(spec).Type is not (CardType.Status or CardType.Curse); }
