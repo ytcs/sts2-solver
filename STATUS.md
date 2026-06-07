@@ -60,6 +60,52 @@ everything else stays net9. Requires `dotnet-sdk-10.0` installed alongside net9.
 **Separately open:** Windows code-signing (metadata + no-compression already landed in the csproj; actual signing
 via Azure Artifact Signing / `dotnet sign` not started).
 
+## CURRENT FOCUS — MCTS skill: benchmark, then improve (2026-06)
+
+The active track is **MCTS algorithm quality** (leaf heuristics + search), benchmarked rigorously before tuning.
+Two roadmap docs anchor it:
+
+- **`docs/per-character-heuristic-research.md`** — the per-character combat-heuristic research program (priors from
+  pro play, the unified-features-+-conditioned-weights architecture decision, key questions).
+- **`docs/mcts-skill-benchmark.md`** — THE current roadmap. A policy-agnostic skill benchmark + an improvement
+  program built on it. **Start here.**
+
+### Roadmap (docs/mcts-skill-benchmark.md)
+**Skill = suboptimality of the search's decisions & values vs infinite-time exact**, measured against a spectrum of
+truth and decomposed into leaf / tree / budget. Metric suite **M1** decision-regret vs exact · **M2** value bias vs
+exact · **M3** sample-efficiency / convergence (+ seed/exploration-invariance = structural-bias detector) · **M4**
+committed-policy true value + self-ladder (oracle-free) · **M5** optimality **bracket** = determinization-hindsight
+upper bound + admissible `LossCertificate` lower bound (the absolute certificate where exact can't reach) · **M6**
+leaf-isolation (attributes leaf vs tree). Stages: **A** build the suite (`sts2solve --skill`, gates) → **B**
+diagnose into a ranked cause-attributed deficit list → **C** improve leaf/tree/priors, each A/B'd on the suite with
+the exact-anchored gates as guardrails. New builds: trajectory-state sampler (A1), convergence profiler (A2),
+**determinization-hindsight solver (A4/M5)**. Reuse map is in the doc's §7.
+
+### Research arc that led here (committed; instrumentation kept, no shipped heuristic change)
+Triggered by "removal advice undervalues Necrobinder's Osty cards (Bodyguard/Unleash)." Findings:
+- **Phase 0** (`docs/phase0-baseline.md`) — built the **policy-regret instrument** (`CalibrationHarness.MeasurePolicyRegret`,
+  `Solver.StateValue`/`GreedyTurnValue`, `MctsSolver.GreedyBestPlay`/`GreedyPlayTurn`/`GreedyTurnPlan`), per-character
+  exact fixtures (`CalibrationFixtures.PerCharacter`), oracle-free probes, CLI `--calibrate --percharacter --regret`
+  + `--plans`. Baseline: MCTS *value* tracks exact (Δloss ≤ 0.1); leaf *policy* mis-plays Necrobinder (regret
+  0.6–1.7) while the Ironclad control is 0.00.
+- **Phase 1 — hypothesis REFUTED for short/starter fights.** Engine fact corrected (Osty's DieForYou absorbs only up
+  to its HP; the overkill spills to the player — `Cmd.ApplyDamage`). On the STARTER deck the exact oracle never grows
+  Osty, so "cut Bodyguard" is **correct**, not a bug. The Osty value-term made play worse. No heuristic change shipped.
+- **Phase 1b — but CONFIRMED for long/built fights.** A real-HP-loss policy benchmark (`sts2solve --osty-bench`,
+  `GreedyHeuristicPolicy`, `CalibrationFixtures.PerCharacterLong`) shows the Osty-blind **leaf** plays long built-deck
+  fights terribly (built-vs-Effigy 96→17 HP with an Osty value term). **But the MCTS tree already compensates at
+  shipped budgets (800–2000 trials)** — no Osty-aware leaf variant cleanly beats blind there (the value term
+  miscalibrates action-widening priors). The Osty-aware leaf ships **gated OFF** (`STS2_OSTY_AWARE`, default 0 →
+  byte-identical Score; verified no-op) as substrate for the Phase-C / skill work.
+
+Net: the leaf is genuinely deficient on long built fights, but the tree masks it at current budgets — which is
+exactly why the next step is a rigorous **skill benchmark** (does more budget / a better leaf actually change the
+decisions?) rather than more speculative heuristic tweaks.
+
+**Commits:** `0fe2200` research roadmap · `f6f6349` Phase 0 · `b2932f4` Phase 1 · `415373e` Phase 1b · `67c5908`
+skill-benchmark roadmap. **Tooling knobs (env, default-off / no-op):** `STS2_OSTY_AWARE`, `STS2_W_OSTYHP`,
+`STS2_OSTYHP_CAP`, `STS2_REGRET_AGGRO`.
+
 ## Current state (summary)
 
 - **Content — every in-scope card ported (573/577).** Five characters complete (88/88 each): Ironclad, Silent,
