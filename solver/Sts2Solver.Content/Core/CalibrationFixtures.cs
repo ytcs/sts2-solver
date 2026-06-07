@@ -137,6 +137,39 @@ public static class CalibrationFixtures
     };
 
     // -----------------------------------------------------------------------
+    // LONG / HARD fixtures (NO exact label — deliberately beyond the oracle).
+    // The regime where a character's scaling mechanic is supposed to matter:
+    // tanky, Strength-ramping enemies fought over many turns, so Osty has time
+    // to grow (Bound Phylactery +1/turn + summons) and Osty-HP attacks (Unleash
+    // 6+OstyHp, Protector 6+Osty maxHp) scale. Paired decks — the STARTER vs a
+    // BUILT deck that can actually leverage Osty (extra summons + Osty attacks) —
+    // so a policy benchmark can ask "does growing Osty lower HP loss here?" where
+    // the exact solver can't. Benchmarked by HP loss, not a ground-truth label.
+    // Surfaced via `sts2solve --osty-bench`.
+    // -----------------------------------------------------------------------
+    private static readonly string[] NecroBuiltDeck =
+        { "3xBodyguard", "Reanimate", "3xUnleash", "Protector",
+          "3xStrikeNecrobinder", "3xDefendNecrobinder" };
+
+    public static IReadOnlyList<Fixture> PerCharacterLong { get; } = new[]
+    {
+        // Byrdonis at FULL HP: Territorial ramps its Strength every turn ⇒ a long grind that punishes a slow clock
+        // and rewards sustained damage mitigation — exactly where Osty's per-turn wall should earn its keep.
+        MakeChar("necroLong/starter-vs-Byrdonis90", "necrobinder", hp: 100, energy: 3, maxTurns: 40,
+            new[] { "BoundPhylactery" }, () => Monsters.Byrdonis(hp: 90),
+            "4xStrikeNecrobinder", "4xDefendNecrobinder", "Bodyguard", "Unleash"),
+        MakeChar("necroLong/built-vs-Byrdonis90", "necrobinder", hp: 100, energy: 3, maxTurns: 40,
+            new[] { "BoundPhylactery" }, () => Monsters.Byrdonis(hp: 90), NecroBuiltDeck),
+
+        // BygoneEffigy: tanky (127 HP), sleeps then ramps Strength — a long fight that tests sustained Osty value.
+        MakeChar("necroLong/starter-vs-Effigy127", "necrobinder", hp: 120, energy: 3, maxTurns: 45,
+            new[] { "BoundPhylactery" }, () => Monsters.BygoneEffigy(hp: 127),
+            "4xStrikeNecrobinder", "4xDefendNecrobinder", "Bodyguard", "Unleash"),
+        MakeChar("necroLong/built-vs-Effigy127", "necrobinder", hp: 120, energy: 3, maxTurns: 45,
+            new[] { "BoundPhylactery" }, () => Monsters.BygoneEffigy(hp: 127), NecroBuiltDeck),
+    };
+
+    // -----------------------------------------------------------------------
     // Elite-monster sweep: NEW ground-truth labels spanning the SINGLE-monster
     // Act-1 elites the base suite doesn't reach, each with a distinct AI shape
     // (stun / life-drain / windup-burst). HP is cut well below the real elite so

@@ -81,4 +81,53 @@ tooling that produced the finding (`sts2solve --plans`; `STS2_REGRET_AGGRO`; `Mc
   / stars), where the defining mechanic may matter *within* exact-tractable fights (unlike Osty's 1-HP start).
 - Open question for a later phase: validating built-deck / long-fight Osty value needs a non-oracle signal
   (self-play, or larger exact budgets on mid-size decks) — this is the §10 "no oracle where the mechanic matters"
-  gap made concrete.
+  gap made concrete. **Addressed next ↓.**
+
+## Phase 1b — long-fight policy benchmark (the regime the oracle can't reach)
+
+The Phase-1 refutation was scoped to *short* fights and the *starter* deck. To test the actual hypothesis —
+"never growing Osty is non-optimal for long fights" — we benchmark **leaf policies by real HP loss** (no oracle)
+on `CalibrationFixtures.PerCharacterLong`: a STARTER and a BUILT (3×Bodyguard, Reanimate=Summon20, 3×Unleash,
+Protector, …) Necrobinder deck vs **Byrdonis@90** and **BygoneEffigy@127** (tanky, Strength-ramping, ~40-turn
+grinds). Osty-awareness is a research toggle (`STS2_OSTY_AWARE`, default **off** = shipped behaviour). Tooling:
+`sts2solve --osty-bench` + `GreedyHeuristicPolicy` over `PolicyRollout.Sample`.
+
+**Pure greedy LEAF, mean HP loss (400 playouts):**
+
+| fixture | blind (shipped) | intercept | +value(40) |
+|---|---|---|---|
+| built-vs-Effigy127 | 96.3 | 112.2 | **16.8** |
+| built-vs-Byrdonis90 | 81.5 | **52.2** | 54.5 |
+| starter-vs-Byrdonis90 | **89.9** | 92.6 | 105.7 |
+| starter-vs-Effigy127 | **121.6** | 124.7 | 136.0 |
+
+→ **The hypothesis is confirmed at the leaf level.** On the BUILT deck the Osty-blind leaf plays terribly
+(loses 2–6× the HP); valuing Osty HP cuts built-vs-Effigy loss from 96 → 17. On the STARTER deck Osty-awareness
+*hurts* (it can't leverage the growth) — consistent with the Phase-1 finding. So "never grow Osty" is genuinely
+wrong **for built decks in long fights**, exactly as suspected.
+
+**But the shipped product is MCTS, not the bare leaf — and the tree already compensates.** MCTS HP loss:
+
+| fixture | blind@800 | value(40)@800 | blind@2000 | value@2000 |
+|---|---|---|---|---|
+| built-vs-Effigy127 | 53.6 | 52.4 | 47.9 | 48.7 |
+| built-vs-Byrdonis90 | 63.8 | 68.0 | 61.8 | 63.6 |
+
+→ The blind *MCTS* loses 54 on built-vs-Effigy where the blind *leaf* loses 96 — the **tree search explores and
+grows Osty even with a blind leaf**. And the value term, which plays better standalone, **miscalibrates the
+action-widening priors** (over-ranks summons) and nets neutral-to-*worse* under search; interception-only is
+likewise mixed (helps Byrdonis, hurts Effigy). **No Osty-aware leaf variant cleanly beats the blind leaf at the
+shipped trial budgets.**
+
+### Resolution
+
+Both earlier conclusions were partial; the full picture:
+- **Leaf-level:** the heuristic IS Osty-deficient on long built fights (the user's intuition is right).
+- **Product-level:** the MCTS tree already recovers Osty's value at 800–2000 trials, so the dashboard/advice is
+  not badly broken there — and a naive Osty-aware leaf perturbs the search without a consistent win.
+- A real product gain would need a **conditioned, search-calibrated** Osty term (helps the prior on Osty decks
+  without misranking) — Phase-3 work whose payoff is bounded by how much the tree already does. Not an easy win.
+
+The Osty-aware leaf ships **gated off** (`STS2_OSTY_AWARE`, default 0 → byte-identical to the shipped Score); it
+plus `--osty-bench` and the `PerCharacterLong` fixtures are kept as the reusable substrate for that Phase-3
+investigation and for the same question on the other classes.

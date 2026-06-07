@@ -26,6 +26,17 @@ public sealed class ExactMemoPolicy : IPlayoutPolicy
 // The MCTS-path distribution policy is the shared CombatHeuristic.HeuristicPolicy (intent-aware,
 // survive-then-race), defined in CombatHeuristic.cs so MCTS rollouts and this sampler stay in lock-step.
 
+/// <summary>The greedy λ-leaf policy itself, as a playout policy — the same per-decision choice the MCTS rollout
+/// makes (<see cref="MctsSolver.GreedyBestPlay"/>), at a fixed aggression. Lets the HP-loss sampler benchmark the
+/// LEAF policy directly (no tree), so two leaf variants — e.g. Osty-aware vs the shipped default — can be
+/// compared by the HP they actually lose on fights the exact oracle can't reach.</summary>
+public sealed class GreedyHeuristicPolicy : IPlayoutPolicy
+{
+    private readonly double _aggression;
+    public GreedyHeuristicPolicy(double aggression = 0.5) => _aggression = aggression;
+    public PlayerAction? NextAction(CombatState s) => MctsSolver.GreedyBestPlay(s, _aggression);
+}
+
 /// <summary>Summary of an outcome distribution over many playouts of a fixed policy. Loss percentiles are
 /// over *raw* forward HP loss (matching the solver's <see cref="Value.Loss"/> semantics);
 /// <see cref="NetMeanLoss"/> is the mean net of post-combat healing (e.g. Burning Blood) on winning runs.</summary>

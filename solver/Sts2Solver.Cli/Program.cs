@@ -287,6 +287,27 @@ if (args.Contains("--profile"))
     return 0;
 }
 
+// --osty-bench: benchmark the LEAF policy by real HP loss on long/hard fights the exact oracle can't reach
+// (CalibrationFixtures.PerCharacterLong). Run it twice — env STS2_OSTY_AWARE=0 vs =1 (and STS2_W_OSTYHP=…) — and
+// diff: a lower HP loss / higher survival with Osty-awareness ON is direct evidence growing Osty matters here.
+if (args.Contains("--osty-bench"))
+{
+    int samples = ArgInt("--samples", 400);
+    int mctsTrials = ArgInt("--trials", 2000);
+    string aware = Environment.GetEnvironmentVariable("STS2_OSTY_AWARE") ?? "0";
+    string w = Environment.GetEnvironmentVariable("STS2_W_OSTYHP") ?? "0";
+    Console.WriteLine($"osty-bench  OSTY_AWARE={aware} W_OSTYHP={w}  ({samples} greedy playouts + MCTS@{mctsTrials})");
+    var policy = new Sts2Solver.Search.GreedyHeuristicPolicy(0.5);
+    foreach (var f in CalibrationFixtures.PerCharacterLong)
+    {
+        var g = Sts2Solver.Search.PolicyRollout.Sample(f.Setup(), policy, samples, f.MaxTurns, baseSeed: 1);
+        var m = CalibrationHarness.RunMcts(f.Setup(), f.MaxTurns, mctsTrials, seed: 1);
+        Console.WriteLine($"  {f.Name,-30} greedy surv {g.Survival,5:P0} loss {g.MeanLoss,6:F1} (P50 {g.P50Loss,3}, P90 {g.P90Loss,3})"
+            + $"  |  mcts surv {m.Survival,5:P0} loss {m.Loss,6:F1}");
+    }
+    return 0;
+}
+
 // --plans (diagnostic): for each per-character fixture, print the exact-optimal opening-turn line vs the greedy
 // leaf policy's line, so a heuristic mis-play is visible card-by-card (why the regret is what it is).
 if (args.Contains("--plans"))

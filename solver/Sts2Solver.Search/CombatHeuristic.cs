@@ -30,6 +30,15 @@ public static class CombatHeuristic
     private static readonly double WVuln = Env("STS2_WVULN", 25.0);          // per stack of Vulnerable on enemies
     private static readonly double WOverblock = Env("STS2_WOVERBLOCK", 2.0); // mild discipline against wasting block
 
+    // ── Necrobinder / Osty awareness — RESEARCH TOGGLE, default OFF (no behaviour change to the shipped leaf).
+    //    Enabled by STS2_OSTY_AWARE=1 for the long-fight policy benchmark (the regime the exact oracle can't
+    //    reach). When on: survival models Osty's DieForYou interception (absorb up to Osty HP, overkill spills),
+    //    and an optional value term (STS2_W_OSTYHP>0) credits stored Osty HP. Gated on an alive Osty ⇒ no-op for
+    //    every non-Necrobinder state even when the toggle is on.
+    private static readonly bool OstyAware = Env("STS2_OSTY_AWARE", 0.0) != 0.0;
+    private static readonly double WOstyHp = Env("STS2_W_OSTYHP", 0.0);       // per point of Osty CurrentHp (0 = off)
+    private static readonly double OstyHpCap = Env("STS2_OSTYHP_CAP", 20.0);  // diminishing returns above this much Osty HP
+
     // ---------- Faithful damage prediction (mirrors Cmd.Attack: additive → multiplicative → floor) ----------
 
     /// <summary>The post-modifier damage a single hit of <paramref name="baseDamage"/> would deal
@@ -62,6 +71,36 @@ public static class CombatHeuristic
 
     public static int EnemyHpTotal(CombatState s) => s.Monsters.Where(m => m.IsAlive).Sum(m => m.CurrentHp + m.Block);
 
+    /// <summary>The HP the player will actually LOSE to this turn's telegraphed hits, modelling the player's own
+    /// block AND Osty's <c>DieForYou</c> interception instance by instance, faithful to <see cref="Cmd.ApplyDamage"/>:
+    /// per hit, the player's block soaks first, then an alive Osty absorbs up to its CURRENT HP and the OVERKILL
+    /// (beyond Osty's HP) spills back onto the player. So a 1-HP Osty stops only one HP of a big hit — which is why
+    /// growing Osty genuinely reduces damage taken, and why block is still needed when Osty is small.
+    /// <paramref name="leftoverBlock"/> = block left unused (over-block). Only meaningful when Osty is alive.</summary>
+    public static int IncomingToPlayer(CombatState s, out int leftoverBlock)
+    {
+        int block = s.Player.Block;
+        int ostyHp = s.Player.IsOstyAlive ? s.Player.Osty!.CurrentHp : 0;
+        int playerLoss = 0;
+        foreach (var m in s.Monsters)
+        {
+            if (!m.IsAlive) continue;
+            if (!(m.Ai.States.TryGetValue(m.Ai.CurrentMoveId, out var st) && st is MoveState mv && mv.IntentDamage is int dmg)) continue;
+            int per = PredictHit(s, m, s.Player, dmg, ValueProp.Move);
+            for (int h = 0; h < mv.IntentHits; h++)
+            {
+                int blocked = Math.Min(block, per); block -= blocked;
+                int unblocked = per - blocked;
+                if (unblocked <= 0) continue;
+                int absorbed = Math.Min(unblocked, ostyHp);   // Osty eats up to its HP; the overkill spills to the player
+                ostyHp -= absorbed;
+                playerLoss += unblocked - absorbed;
+            }
+        }
+        leftoverBlock = block;
+        return playerLoss;
+    }
+
     // ---------- Policy score ----------
 
     /// <summary>Default interpolation point for the static (non-rollout) uses of the score.</summary>
@@ -84,8 +123,11 @@ public static class CombatHeuristic
     {
         var p = s.Player;
         int incoming = IncomingDamage(s);
-        int unblocked = Math.Max(0, incoming - p.Block);
-        int overblock = Math.Max(0, p.Block - incoming);
+        // Survival: Osty-aware (interception, gated behind the research toggle + an alive Osty) or the shipped
+        // default (all telegraphed damage hits the player). Identical when the toggle is off or there's no Osty.
+        int unblocked, overblock;
+        if (OstyAware && p.IsOstyAlive) unblocked = IncomingToPlayer(s, out overblock);
+        else { unblocked = Math.Max(0, incoming - p.Block); overblock = Math.Max(0, p.Block - incoming); }
         int hpAfter = p.CurrentHp - unblocked;
 
         // Survival end of the spectrum: every HP lost to the telegraphed hit is bad; dying is a cliff.
@@ -108,8 +150,13 @@ public static class CombatHeuristic
         double playerStr = p.GetPowerAmount("Strength");
         double race = enemyHp * WEnemyHp - playerStr * WStrength * nLiving - enemyVuln * WVuln;
 
+        // Osty stored value (research toggle + alive Osty): CurrentHp is both a recurring shield (DieForYou) and
+        // the Unleash damage multiplier, so growing it improves the position. Capped; λ-independent; ≪ LethalPenalty.
+        double ostyValue = (OstyAware && WOstyHp > 0 && p.IsOstyAlive)
+            ? WOstyHp * Math.Min(p.Osty!.CurrentHp, OstyHpCap) : 0.0;
+
         double a = Math.Clamp(aggression, 0.0, 1.0);
-        return a * race + (1.0 - a) * survival + overblock * WOverblock;
+        return a * race + (1.0 - a) * survival + overblock * WOverblock - ostyValue;
     }
 
     /// <summary>HP reserve we'd like to keep after this turn's hit, so the *next* telegraphed hit isn't
