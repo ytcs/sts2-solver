@@ -48,7 +48,7 @@ if (args.Contains("--custom"))
 {
     var who = ArgVal("--custom");
     if (who != null && who.StartsWith("--")) who = null;   // next token was another flag, not a character
-    return new Companion(null, null, null, opts).RunCustom(who);
+    return new Sts2Solver.Ranwid.Tui.RanwidApp(opts, who).Run();
 }
 
 // --advice-bench: time a full removal-advice run on a synthetic 30-card deck vs the Act-1 elites, to measure

@@ -395,8 +395,8 @@ public sealed class Companion
     }
 
     /// <summary>Build a custom Context: a synthesized RunState (display only) + the chosen act's elite pool as
-    /// both the dashboard rows and the strength pool.</summary>
-    private static Context BuildCustom(CharacterProfile profile, int actIndex, int asc, int hp, List<string> deck)
+    /// both the dashboard rows and the strength pool. Public so the TUI's custom-deck sandbox reuses it verbatim.</summary>
+    public static Context BuildCustom(CharacterProfile profile, int actIndex, int asc, int hp, List<string> deck)
     {
         var theme = Catalog.ActThemes[Math.Clamp(actIndex, 0, Catalog.ActThemes.Count - 1)];
         var relicNames = profile.StarterRelic is { } r && Catalog.IsModelledRelic(r) ? new List<string> { r } : new List<string>();
@@ -421,10 +421,20 @@ public sealed class Companion
                         : new CardEntry(spec[..plus], int.TryParse(spec[(plus + 1)..], out var u) ? u : 0, null, 0);
     }
 
-    /// <summary>Resolve "card [xN] | card N" → add N copies (default 1). Returns true if the deck changed.</summary>
+    /// <summary>Resolve "card [xN] | card N" → add N copies (default 1). Returns true if the deck changed; the
+    /// Spectre prompt Notes the failure message.</summary>
     private bool CustomAdd(List<string> deck, string arg)
     {
-        if (string.IsNullOrWhiteSpace(arg)) { Note("usage: add <card> [xN]"); return false; }
+        var (ok, msg) = TryCustomAdd(deck, arg);
+        if (!ok) Note(msg);
+        return ok;
+    }
+
+    /// <summary>Pure (Spectre-free) deck-add: resolve "card [xN] | card N", add N copies, and return a status
+    /// message. Shared by the Spectre prompt and the TUI custom-deck sandbox.</summary>
+    public static (bool ok, string msg) TryCustomAdd(List<string> deck, string arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg)) return (false, "usage: add <card> [xN]");
         // Trailing count: "Strike x3" or "Strike 3".
         int count = 1;
         var toks = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -434,32 +444,41 @@ public sealed class Companion
             if (int.TryParse(last, out int n) && n > 0) { count = Math.Min(n, 100); arg = string.Join(' ', toks[..^1]); }
         }
         var m = CardNameMatcher.Resolve(arg);
-        if (m.Canonical == null) { Note(m.Suggestions.Count > 0 ? $"'{arg}'? did you mean: {string.Join(", ", m.Suggestions)}" : $"unknown card '{arg}'"); return false; }
-        try { Catalog.BuildCard(m.Canonical); } catch (ArgumentException) { Note($"'{m.Canonical}' isn't a buildable card"); return false; }
+        if (m.Canonical == null) return (false, m.Suggestions.Count > 0 ? $"'{arg}'? did you mean: {string.Join(", ", m.Suggestions)}" : $"unknown card '{arg}'");
+        try { Catalog.BuildCard(m.Canonical); } catch (ArgumentException) { return (false, $"'{m.Canonical}' isn't a buildable card"); }
         for (int i = 0; i < count; i++) deck.Add(m.Canonical);
-        return true;
+        return (true, count > 1 ? $"added {count}× {m.Canonical}" : $"added {m.Canonical}");
     }
 
     /// <summary>Resolve a card and remove ONE matching copy (exact spec, else base-name). Returns true if changed.</summary>
     private bool CustomRemove(List<string> deck, string arg)
     {
-        if (string.IsNullOrWhiteSpace(arg)) { Note("usage: rm <card>"); return false; }
+        var (ok, msg) = TryCustomRemove(deck, arg);
+        if (!ok) Note(msg);
+        return ok;
+    }
+
+    /// <summary>Pure (Spectre-free) deck-remove: drop ONE matching copy (exact spec, else base-name so "rm bash"
+    /// removes "Bash+1") and return a status message. Shared by the Spectre prompt and the TUI sandbox.</summary>
+    public static (bool ok, string msg) TryCustomRemove(List<string> deck, string arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg)) return (false, "usage: rm <card>");
         var m = CardNameMatcher.Resolve(arg);
         var target = m.Canonical;
-        if (target == null) { Note(m.Suggestions.Count > 0 ? $"'{arg}'? did you mean: {string.Join(", ", m.Suggestions)}" : $"unknown card '{arg}'"); return false; }
+        if (target == null) return (false, m.Suggestions.Count > 0 ? $"'{arg}'? did you mean: {string.Join(", ", m.Suggestions)}" : $"unknown card '{arg}'");
         int idx = deck.FindIndex(s => string.Equals(s, target, StringComparison.OrdinalIgnoreCase));
         if (idx < 0)
         {
-            // Fall back to base-name (ignore upgrade) so "rm bash" removes "Bash+1".
             string baseName = target.Split('+')[0];
             idx = deck.FindIndex(s => string.Equals(s.Split('+')[0], baseName, StringComparison.OrdinalIgnoreCase));
         }
-        if (idx < 0) { Note($"'{target}' isn't in the deck"); return false; }
+        if (idx < 0) return (false, $"'{target}' isn't in the deck");
         deck.RemoveAt(idx);
-        return true;
+        return (true, $"removed {target}");
     }
 
-    private static bool TryParseAct(string arg, out int actIndex)
+    /// <summary>Resolve an act argument ("2" or a theme-name prefix) to a 0-based act index. Public for the TUI.</summary>
+    public static bool TryParseAct(string arg, out int actIndex)
     {
         actIndex = 0;
         if (string.IsNullOrWhiteSpace(arg)) return false;

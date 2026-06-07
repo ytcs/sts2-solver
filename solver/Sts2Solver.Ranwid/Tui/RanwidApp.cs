@@ -28,6 +28,14 @@ public sealed class RanwidApp
     private readonly EvalOptions _opts;
     private readonly TuiState _state = new();
 
+    // Custom-deck sandbox (ranwid --custom): no save file — the deck is built/edited by hand and the Context is
+    // rebuilt on every edit. _custom selects this mode; the fields below are the editable inputs.
+    private readonly bool _custom;
+    private readonly string? _initialChar;
+    private CharacterProfile _cProfile = null!;
+    private int _cAct, _cAsc, _cHp;
+    private List<string> _cDeck = new();
+
     // Views (created in BuildViews).
     private Window _win = null!;
     private Label _strengthLabel = null!, _nextStrengthLabel = null!, _headerLabel = null!, _relicsLabel = null!;
@@ -38,6 +46,7 @@ public sealed class RanwidApp
     private FrameView _elitesFrame = null!;
     private ListView _elitesList = null!;
     private TextField _pathField = null!;     // manual save-folder entry (save-not-found panel)
+    private TextField _editField = null!;     // custom-deck command entry (+card / act N / …)
     private FrameView _adviceFrame = null!;   // overlays the elites region while showing removal/upgrade/reward advice
     private ListView _adviceList = null!;
     private TextField _rewardField = null!;   // reward-card entry (visible only in reward-entry mode)
@@ -67,6 +76,14 @@ public sealed class RanwidApp
         _fixedPath = fixedPath; _saveDir = saveDir; _netId = netId; _opts = opts;
     }
 
+    /// <summary>Custom-deck sandbox (<c>ranwid --custom [character]</c>): no save file. Starts from a character's
+    /// starter deck and edits it by hand (press <c>e</c>). For multiplayer guests (whose run isn't saved locally)
+    /// and for deck-building. Reuses the whole dashboard/advice machinery; only the source of the deck differs.</summary>
+    public RanwidApp(EvalOptions opts, string? initialChar)
+    {
+        _opts = opts; _custom = true; _initialChar = initialChar;
+    }
+
     public int Run()
     {
         // The dashboard fans many single-threaded MCTS solves (each elite, the boss, and the current- and next-act
@@ -80,8 +97,16 @@ public sealed class RanwidApp
         try
         {
             BuildViews();
-            StartWatcher();
-            LoadAndEval(initial: true);
+            if (_custom)
+            {
+                InitCustom();
+                RebuildCustom();
+            }
+            else
+            {
+                StartWatcher();
+                LoadAndEval(initial: true);
+            }
             Application.AddTimeout(TimeSpan.FromMilliseconds(300), () => { Tick(); return true; });
             Application.Run(_win);
         }
@@ -99,7 +124,7 @@ public sealed class RanwidApp
 
     private void BuildViews()
     {
-        _win = new Window { Title = " ranwid — live Slay the Spire 2 advisor " };
+        _win = new Window { Title = _custom ? " ranwid — custom deck sandbox " : " ranwid — live Slay the Spire 2 advisor " };
         _win.SetScheme(TuiFormat.Base);
 
         // The Run/Deck/Boss panels are display-only — make them non-focusable so Tab and the initial auto-focus
@@ -127,9 +152,11 @@ public sealed class RanwidApp
         _elitesFrame = new FrameView { Title = " Elites ", X = 0, Y = Pos.Bottom(_bossFrame), Width = Dim.Fill(), Height = Dim.Fill(1) };
         _pathField = new TextField { X = 1, Y = 0, Width = Dim.Fill(2), Height = 1, Visible = false };
         _pathField.KeyDown += OnPathKey;
+        _editField = new TextField { X = 1, Y = 0, Width = Dim.Fill(2), Height = 1, Visible = false };
+        _editField.KeyDown += OnEditKey;
         _elitesList = new ListView { X = 0, Y = 0, Width = Dim.Fill(), Height = Dim.Fill() };
         _elitesList.SetScheme(TuiFormat.Base);
-        _elitesFrame.Add(_pathField, _elitesList);
+        _elitesFrame.Add(_pathField, _editField, _elitesList);
 
         // Advice overlay — same geometry as the elites frame, shown in its place (deck/strength panels persist).
         _adviceFrame = new FrameView { Title = " Advice ", X = 0, Y = Pos.Bottom(_bossFrame), Width = Dim.Fill(), Height = Dim.Fill(1), Visible = false };
@@ -157,7 +184,7 @@ public sealed class RanwidApp
     /// every keystroke. Letters are matched on the rune (case-insensitive), so it's robust to key-casing.</summary>
     private void OnGlobalKey(object? sender, Key key)
     {
-        if (_state.PathEntry || _state.RewardEntry) return;   // the focused TextField owns keys while typing
+        if (_state.PathEntry || _state.RewardEntry || _state.DeckEntry) return;   // a focused TextField owns keys while typing
 
         int rune = key.AsRune.Value;
         char c = rune is > 0 and < 128 ? char.ToLowerInvariant((char)rune) : '\0';
@@ -184,7 +211,11 @@ public sealed class RanwidApp
 
         switch (c)
         {
-            case 'd': _dirty = false; LoadAndEval(force: true); key.Handled = true; break;
+            case 'd':   // refresh: re-evaluate (re-read the save, or rebuild the custom deck)
+                if (_custom) RebuildCustom(); else { _dirty = false; LoadAndEval(force: true); }
+                key.Handled = true; break;
+            case 'e':   // custom-deck sandbox only: open the deck editor
+                if (_custom) { StartDeckEntry(); key.Handled = true; } break;
             case 'r': ShowAdvice(TuiState.Kind.Removal); key.Handled = true; break;
             case 'u': ShowAdvice(TuiState.Kind.Upgrade); key.Handled = true; break;
             case 'c': ShowAdvice(TuiState.Kind.Reward); key.Handled = true; break;
@@ -363,6 +394,98 @@ public sealed class RanwidApp
         if (nextAct >= Catalog.ActThemes.Count) return (new(), new());
         return (Companion.EncountersForClasses(Catalog.ActElitePool(nextAct), asc),
                 Companion.EncountersForClasses(Catalog.ActBossPool(nextAct), asc));
+    }
+
+    // ── Custom-deck sandbox (no save file) ───────────────────────────────────────────
+
+    /// <summary>Seed the custom session: the chosen character's starter deck, HP and energy, scoring against Act 1.</summary>
+    private void InitCustom()
+    {
+        _cProfile = (_initialChar != null ? Catalog.FindCharacter(_initialChar) : null) ?? Catalog.CharacterProfiles[0];
+        _cAct = 0; _cAsc = 0; _cHp = _cProfile.StartingHp;
+        _cDeck = _cProfile.StarterDeckSpecs();
+    }
+
+    /// <summary>Rebuild the Context from the current custom inputs (profile/act/asc/hp/deck) and re-evaluate. Called
+    /// once at startup and after every edit. There is no save file, so no watcher / dirty-key bookkeeping.</summary>
+    private void RebuildCustom()
+    {
+        var ctx = Companion.BuildCustom(_cProfile, _cAct, _cAsc, _cHp, _cDeck);
+        _state.Ctx = ctx; _state.Status = null;
+        StartEval(ctx);
+    }
+
+    /// <summary>Open the deck-editor command line. Stays open across commands (each Enter applies one and clears the
+    /// field) so you can build a deck in a flow; Esc returns to the dashboard. The deck/strength panels update live.</summary>
+    private void StartDeckEntry()
+    {
+        _state.DeckEntry = true;
+        _editField.Text = ""; _editField.Visible = true; _elitesList.Visible = false;
+        _elitesFrame.Title = " Edit deck — +card  -card  act N  char X  hp N  asc N  reset ";
+        _editField.SetFocus();
+        RenderFooter();
+        _win.SetNeedsDraw();
+    }
+
+    private void OnEditKey(object? sender, Key key)
+    {
+        if (key == Key.Enter) { ApplyEditCommand(); key.Handled = true; }
+        else if (key == Key.Esc) { EndDeckEntry(); key.Handled = true; }
+    }
+
+    /// <summary>Parse and apply one deck-editor command (same grammar as the old prompt: <c>+card</c>/<c>-card</c>,
+    /// <c>act N</c>, <c>char X</c>, <c>hp N</c>, <c>asc N</c>, <c>reset</c>; a bare card name adds). Rebuilds + re-evals
+    /// on a real change, then clears the field and shows the result in the frame title, ready for the next command.</summary>
+    private void ApplyEditCommand()
+    {
+        var line = (_editField.Text ?? "").Trim();
+        _editField.Text = "";
+        if (line.Length == 0) { _win.SetNeedsDraw(); return; }
+
+        // "+card" / "-card" shorthand (no space); otherwise the first word is the verb.
+        string verb, arg;
+        if (line[0] is '+' or '-') { verb = line[0] == '+' ? "add" : "rm"; arg = line[1..].Trim(); }
+        else { var sp = line.IndexOf(' '); verb = (sp < 0 ? line : line[..sp]).ToLowerInvariant(); arg = sp < 0 ? "" : line[(sp + 1)..].Trim(); }
+
+        string msg; bool changed = false;
+        switch (verb)
+        {
+            case "add": (changed, msg) = Companion.TryCustomAdd(_cDeck, arg); break;
+            case "rm" or "remove" or "del" or "delete": (changed, msg) = Companion.TryCustomRemove(_cDeck, arg); break;
+            case "act":
+                if (Companion.TryParseAct(arg, out int ai)) { _cAct = ai; changed = true; msg = $"act {ai + 1} ({Catalog.ActThemes[ai]})"; }
+                else msg = "usage: act <1-4 | name>"; break;
+            case "char" or "character":
+                if (Catalog.FindCharacter(arg) is { } np)
+                { _cProfile = np; _cDeck = np.StarterDeckSpecs(); _cHp = np.StartingHp; changed = true; msg = $"character {np.Key} (starter deck)"; }
+                else msg = $"unknown character '{arg}' (try: {string.Join(", ", Catalog.CharacterProfiles.Select(p => p.Key))})"; break;
+            case "hp":
+                if (int.TryParse(arg, out int h) && h > 0) { _cHp = h; changed = true; msg = $"hp {h}"; }
+                else msg = "usage: hp <n>"; break;
+            case "asc" or "ascension":
+                if (int.TryParse(arg, out int a) && a >= 0) { _cAsc = a; changed = true; msg = $"ascension {a}"; }
+                else msg = "usage: asc <n>"; break;
+            case "reset":
+                _cDeck = _cProfile.StarterDeckSpecs(); _cHp = _cProfile.StartingHp; changed = true; msg = "reset to starter deck"; break;
+            case "q" or "quit" or "exit": Application.RequestStop(); return;
+            default: (changed, msg) = Companion.TryCustomAdd(_cDeck, line); break;   // bare name → add
+        }
+
+        if (changed) RebuildCustom();
+        // RebuildCustom → RenderElites repaints the (hidden) list but leaves the title alone in DeckEntry mode, so
+        // set the command feedback here, after the rebuild, where it survives.
+        _elitesFrame.Title = $" Edit deck · {msg} ";
+        _win.SetNeedsDraw();
+    }
+
+    private void EndDeckEntry()
+    {
+        _state.DeckEntry = false;
+        _editField.Visible = false; _elitesList.Visible = true;
+        _elitesFrame.Title = " Elites ";
+        RenderElites(); RenderFooter();
+        _elitesList.SetFocus();
+        _win.SetNeedsDraw();
     }
 
     // ── Advice overlay (removal / upgrade) ───────────────────────────────────────────
@@ -699,8 +822,10 @@ public sealed class RanwidApp
             // Reflect ONLY the elite rows here. RenderElites is re-invoked when an elite finishes, but not when the
             // strength index or boss finishes (those re-render their own panels) — so folding their busy-state into
             // this title would leave it stuck on "evaluating…" whenever one of them completed last. The strength
-            // bar shows its own "(updating…)"; the boss panel shows its own "evaluating…".
-            _elitesFrame.Title = _state.Elites.Any(e => e.Busy) ? " Elites — evaluating… " : " Elites ";
+            // bar shows its own "(updating…)"; the boss panel shows its own "evaluating…". While the deck editor is
+            // open the frame title is the command prompt/feedback, so don't overwrite it here.
+            if (!_state.DeckEntry)
+                _elitesFrame.Title = _state.Elites.Any(e => e.Busy) ? " Elites — evaluating… " : " Elites ";
         }
 
         int sel = _elitesList.SelectedItem ?? 0;
@@ -764,11 +889,14 @@ public sealed class RanwidApp
     private void RenderFooter()
     {
         string next = _state.ShowNextAct ? "on" : "off";
+        // The custom sandbox has no save to refresh; it exposes the deck editor on (e) instead of (d) refresh.
+        string refreshOrEdit = _custom ? "(e) edit deck" : "(d) refresh";
         _footer.Text =
             _state.PathEntry ? "  type a folder/file path   (enter) use it   (esc) cancel"
+            : _state.DeckEntry ? "  +card  -card  act N  char X  hp N  asc N  reset   (enter) apply   (esc) done"
             : _state.Ctx == null ? "  (r) retry   (m) enter save folder   (q) quit"
             : _state.View == TuiState.Mode.Advice ? $"  ↑↓ scroll   (+/–) cards (1–3)   (n) next-act: {next}   (esc) back   (q) quit"
-            : $"  ↑↓ select   (space) in/excl elite   (r)emovals  (u)pgrades  (c) reward   (n) next-act: {next}   (d) refresh   (q) quit";
+            : $"  ↑↓ select   (space) in/excl elite   (r)emovals  (u)pgrades  (c) reward   (n) next-act: {next}   {refreshOrEdit}   (q) quit";
         _footer.SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
     }
 
