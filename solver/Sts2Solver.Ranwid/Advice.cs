@@ -136,6 +136,108 @@ public static class Advisor
         return (baseline, rows);
     }
 
+    // ── Multi-card advice (choose up to N cards to remove / upgrade / take) ────────
+
+    /// <summary>One reversible deck edit: removing a card, or upgrading one. <see cref="Apply"/> returns a new deck
+    /// with the edit applied; composing several edits (over DISTINCT keys) builds an N-card move.</summary>
+    public sealed record CardMove(string Key, string Label, Func<IReadOnlyList<string>, List<string>> Apply);
+
+    /// <summary>Removal moves: one per distinct card, each removing a single copy.</summary>
+    public static List<CardMove> RemovalMoves(IReadOnlyList<string> deck) =>
+        deck.Distinct().Select(spec => new CardMove(spec, spec,
+            d => { var r = d.ToList(); r.Remove(spec); return r; })).ToList();
+
+    /// <summary>Upgrade moves: one per distinct upgradeable (un-upgraded Attack/Skill/Power) card.</summary>
+    public static List<CardMove> UpgradeMoves(IReadOnlyList<string> deck) =>
+        deck.Distinct().Where(IsUpgradeable).Select(spec => new CardMove(spec, spec + "+1",
+            d => { var r = d.ToList(); int i = r.IndexOf(spec); if (i >= 0) r[i] = spec + "+1"; return r; })).ToList();
+
+    /// <summary>Rank the best SET of <paramref name="n"/> moves (cards to remove/upgrade) by the resulting deck's
+    /// dual strength. Exhaustive when the number of n-combinations is within <paramref name="cap"/>; otherwise a
+    /// bounded beam search (width <paramref name="beam"/>, guided by current-act strength) — the returned
+    /// <c>exhaustive</c> flag is false then, so the UI can flag the result as a heuristic shortlist rather than
+    /// claim optimality. Best current-act strength first.</summary>
+    public static (DualStrength baseline, List<AdviceRow> rows, bool exhaustive) RankMoveSets(
+        IReadOnlyList<string> deck, IReadOnlyList<CardMove> moves, int n,
+        IReadOnlyList<Encounter> curPool, IReadOnlyList<Encounter> nextElites, IReadOnlyList<Encounter> nextBosses,
+        int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts, int cap = 150, int beam = 6)
+    {
+        n = Math.Clamp(n, 1, Math.Max(1, moves.Count));
+        var advOpts = opts with { MctsTrials = AdviceTrials };
+        List<string> Apply(int[] idxs) { List<string> d = deck.ToList(); foreach (var i in idxs) d = moves[i].Apply(d); return d; }
+
+        bool exhaustive = Binom(moves.Count, n) <= cap;
+        var sets = exhaustive
+            ? Combinations(moves.Count, n).ToList()
+            : BeamMoveSets(deck, moves, n, beam, curPool, maxEnergy, relics, advOpts);
+
+        var cands = sets.Select(s => new AdviceCandidate(
+            string.Join(" + ", s.Select(i => moves[i].Label)), "", Apply(s))).ToList();
+        var (baseline, rows) = RankCandidates(deck, cands, curPool, nextElites, nextBosses, maxEnergy, relics, opts);
+        return (baseline, rows, exhaustive);
+    }
+
+    /// <summary>Greedy beam over move sets, scored by current-act strength: keep the top <paramref name="beam"/>
+    /// partial sets at each of the n steps, expanding by one not-yet-chosen move. Bounds cost to ~beam·|moves|·n.</summary>
+    private static List<int[]> BeamMoveSets(
+        IReadOnlyList<string> deck, IReadOnlyList<CardMove> moves, int n, int beam,
+        IReadOnlyList<Encounter> curPool, int maxEnergy, IReadOnlyList<string> relics, EvalOptions advOpts)
+    {
+        double Score(int[] idxs)
+        {
+            List<string> d = deck.ToList();
+            foreach (var i in idxs) d = moves[i].Apply(d);
+            return d.Count == 0 || curPool.Count == 0 ? double.NegativeInfinity
+                : DeckStrengthSeq(d, curPool, maxEnergy, relics, advOpts);
+        }
+
+        var kept = Enumerable.Range(0, moves.Count).Select(i => new[] { i })
+            .AsParallel().Select(s => (s, sc: Score(s)))
+            .OrderByDescending(x => x.sc).Take(beam).Select(x => x.s).ToList();
+
+        for (int step = 2; step <= n; step++)
+        {
+            var seen = new HashSet<string>();
+            var expanded = new List<int[]>();
+            foreach (var s in kept)
+                for (int i = 0; i < moves.Count; i++)
+                {
+                    if (System.Array.IndexOf(s, i) >= 0) continue;
+                    var ns = s.Append(i).OrderBy(x => x).ToArray();
+                    if (seen.Add(string.Join(",", ns))) expanded.Add(ns);
+                }
+            if (expanded.Count == 0) break;
+            kept = expanded.AsParallel().Select(s => (s, sc: Score(s)))
+                .OrderByDescending(x => x.sc).Take(beam).Select(x => x.s).ToList();
+        }
+        return kept;
+    }
+
+    private static long Binom(int n, int k)
+    {
+        if (k < 0 || k > n) return 0;
+        k = Math.Min(k, n - k);
+        long r = 1;
+        for (int i = 0; i < k; i++) r = r * (n - i) / (i + 1);
+        return r;
+    }
+
+    /// <summary>All k-index combinations of [0, n), in lexicographic order.</summary>
+    private static IEnumerable<int[]> Combinations(int n, int k)
+    {
+        if (k <= 0 || k > n) yield break;
+        var idx = Enumerable.Range(0, k).ToArray();
+        while (true)
+        {
+            yield return (int[])idx.Clone();
+            int p = k - 1;
+            while (p >= 0 && idx[p] == n - k + p) p--;
+            if (p < 0) yield break;
+            idx[p]++;
+            for (int j = p + 1; j < k; j++) idx[j] = idx[j - 1] + 1;
+        }
+    }
+
     // ── Removal advice ───────────────────────────────────────────────────────────
 
     /// <summary>One single-card removal's verdict: the resulting deck's <see cref="Strength"/> and the

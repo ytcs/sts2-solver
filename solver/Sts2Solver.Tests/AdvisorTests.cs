@@ -73,6 +73,31 @@ public class AdvisorTests
     }
 
     [Fact]
+    public void RankMoveSets_Removal_Sizes_And_Finds_The_Harmful_Card()
+    {
+        var deck = Specs((5, "StrikeIronclad"), (3, "DefendIronclad")).Append("Burn").ToList();
+        var empty = System.Array.Empty<string>();
+        var moves = Advisor.RemovalMoves(deck);
+        var none = new List<Advisor.Encounter>();
+
+        // N=1: exhaustive, and the best single cut is the strictly-harmful Burn.
+        var (_, rows1, ex1) = Advisor.RankMoveSets(deck, moves, 1, OneByrdonis(55), none, none, 3, empty, Exact);
+        Assert.True(ex1);
+        Assert.Equal(moves.Count, rows1.Count);
+        Assert.Equal("Burn", rows1[0].Label);
+
+        // N=2: every row is a distinct 2-card set; small enough to stay exhaustive.
+        var (_, rows2, ex2) = Advisor.RankMoveSets(deck, moves, 2, OneByrdonis(55), none, none, 3, empty, Exact);
+        Assert.True(ex2);
+        Assert.All(rows2, r => Assert.Contains(" + ", r.Label));
+        Assert.Equal(Distinct2Count(moves.Count), rows2.Count);
+        // The best 2-cut includes Burn (it's the only strictly-dead card).
+        Assert.Contains("Burn", rows2[0].Label);
+    }
+
+    private static int Distinct2Count(int n) => n * (n - 1) / 2;
+
+    [Fact]
     public void Removing_A_Harmful_Card_Is_Never_Worse()
     {
         var clean = Specs((5, "StrikeIronclad"), (3, "DefendIronclad"));
