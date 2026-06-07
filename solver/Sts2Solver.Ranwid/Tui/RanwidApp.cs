@@ -37,6 +37,7 @@ public sealed class RanwidApp
     private Label _bossLabel = null!;
     private FrameView _elitesFrame = null!;
     private ListView _elitesList = null!;
+    private TextField _pathField = null!;     // manual save-folder entry (save-not-found panel)
     private FrameView _adviceFrame = null!;   // overlays the elites region while showing removal/upgrade/reward advice
     private ListView _adviceList = null!;
     private TextField _rewardField = null!;   // reward-card entry (visible only in reward-entry mode)
@@ -59,6 +60,7 @@ public sealed class RanwidApp
     private volatile bool _dirty;
     private string? _loadedKey;
     private FileSystemWatcher? _watcher;
+    private string? _overrideDir;   // a save folder typed at the save-not-found panel (takes precedence)
 
     public RanwidApp(string? fixedPath, string? saveDir, int? netId, EvalOptions opts)
     {
@@ -112,9 +114,11 @@ public sealed class RanwidApp
         _bossFrame.Add(_bossLabel);
 
         _elitesFrame = new FrameView { Title = " Elites ", X = 0, Y = Pos.Bottom(_bossFrame), Width = Dim.Fill(), Height = Dim.Fill(1) };
+        _pathField = new TextField { X = 1, Y = 0, Width = Dim.Fill(2), Height = 1, Visible = false };
+        _pathField.KeyDown += OnPathKey;
         _elitesList = new ListView { X = 0, Y = 0, Width = Dim.Fill(), Height = Dim.Fill() };
         _elitesList.SetScheme(TuiFormat.Base);
-        _elitesFrame.Add(_elitesList);
+        _elitesFrame.Add(_pathField, _elitesList);
 
         // Advice overlay — same geometry as the elites frame, shown in its place (deck/strength panels persist).
         _adviceFrame = new FrameView { Title = " Advice ", X = 0, Y = Pos.Bottom(_bossFrame), Width = Dim.Fill(), Height = Dim.Fill(1), Visible = false };
@@ -145,6 +149,16 @@ public sealed class RanwidApp
         }
 
         if (key == Key.Esc) { Application.RequestStop(); return; }
+
+        // Save-not-found panel: retry scan / enter a path manually (no run loaded, so the advice keys are inert).
+        if (_state.Ctx == null)
+        {
+            if (_state.PathEntry) return;   // the path field owns keys
+            if (key == Key.R || key == Key.D) { _dirty = false; LoadAndEval(force: true); key.Handled = true; }
+            else if (key == Key.M) { StartPathEntry(); key.Handled = true; }
+            return;
+        }
+
         if (key == Key.D) { _dirty = false; LoadAndEval(force: true); return; }
         if (key == Key.R) { ShowAdvice(TuiState.Kind.Removal); key.Handled = true; return; }
         if (key == Key.U) { ShowAdvice(TuiState.Kind.Upgrade); key.Handled = true; return; }
@@ -203,11 +217,12 @@ public sealed class RanwidApp
     /// momentarily unreadable, keeps the last good dashboard rather than blanking.</summary>
     private void LoadAndEval(bool initial = false, bool force = false)
     {
-        var path = _fixedPath ?? SaveSource.FindNewest(_saveDir);
+        var path = _fixedPath ?? SaveSource.FindNewest(_overrideDir ?? _saveDir);
         if (path == null)
         {
             _state.Ctx = null;
-            _state.Status = "waiting for a readable run… (start a run, or pass --save / --save-dir)";
+            if (_overrideDir == null)
+                _state.Status = "no ongoing run found";
             _loadedKey = null;
             RenderAll();
             return;
@@ -446,6 +461,54 @@ public sealed class RanwidApp
         if (_dirty) { _dirty = false; LoadAndEval(); }
     }
 
+    // ── Save-not-found: manual folder entry ──────────────────────────────────────────
+
+    private void StartPathEntry()
+    {
+        _state.PathEntry = true;
+        _pathField.Text = ""; _pathField.Visible = true; _elitesList.Visible = false;
+        _elitesFrame.Title = " Save folder — paste the SlayTheSpire2 folder (or a current_run.save), then Enter ";
+        _pathField.SetFocus();
+        RenderFooter();
+        _win.SetNeedsDraw();
+    }
+
+    private void OnPathKey(object? sender, Key key)
+    {
+        if (key == Key.Enter) { SubmitPath(); key.Handled = true; }
+        else if (key == Key.Esc) { CancelPathEntry(); key.Handled = true; }
+    }
+
+    private void CancelPathEntry()
+    {
+        _state.PathEntry = false;
+        _pathField.Visible = false; _elitesList.Visible = true;
+        _elitesFrame.Title = " Elites ";
+        RenderElites(); RenderFooter();
+        _elitesList.SetFocus();
+        _win.SetNeedsDraw();
+    }
+
+    private void SubmitPath()
+    {
+        var typed = (_pathField.Text ?? "").Trim().Trim('"');
+        _state.PathEntry = false;
+        _pathField.Visible = false; _elitesList.Visible = true;
+        _elitesFrame.Title = " Elites ";
+        _elitesList.SetFocus();
+
+        if (typed.Length == 0) { RenderElites(); _win.SetNeedsDraw(); return; }
+        // A file → search its folder; a folder → search it; otherwise hand it to FindNewest as-is.
+        _overrideDir = Directory.Exists(typed) ? typed
+            : File.Exists(typed) ? Path.GetDirectoryName(typed)
+            : typed;
+        LoadAndEval(force: true);
+        if (_state.Ctx == null)
+            _state.Status = $"no current_run.save found under: {typed}";
+        RenderAll();
+        _win.SetNeedsDraw();
+    }
+
     // ── Rendering (UI thread only) ───────────────────────────────────────────────────
 
     private void RenderAll()
@@ -540,14 +603,28 @@ public sealed class RanwidApp
     private void RenderElites()
     {
         var items = new ObservableCollection<string>();
-        if (_state.Ctx == null) { /* leave empty */ }
-        else if (_state.Elites.Count == 0) items.Add("(no elites to evaluate for this Act)");
-        else foreach (var row in _state.Elites) items.Add(EliteListLine(row));
+        if (_state.Ctx == null)
+        {
+            _elitesFrame.Title = " No run found ";
+            items.Add("");
+            items.Add("  No ongoing Slay the Spire 2 run was found.");
+            if (_state.Status != null && _state.Status.StartsWith("no current_run.save"))
+                items.Add($"  {_state.Status}");
+            items.Add("");
+            items.Add("  (r) retry — scan again for a save");
+            items.Add("  (m) enter the save folder path manually");
+            items.Add("  (q) quit");
+        }
+        else
+        {
+            if (_state.Elites.Count == 0) items.Add("(no elites to evaluate for this Act)");
+            else foreach (var row in _state.Elites) items.Add(EliteListLine(row));
+            _elitesFrame.Title = AnyBusy() ? " Elites — evaluating… " : " Elites ";
+        }
 
         int sel = _elitesList.SelectedItem ?? 0;
         _elitesList.SetSource(items);
         if (items.Count > 0) _elitesList.SelectedItem = Math.Clamp(sel, 0, items.Count - 1);
-        _elitesFrame.Title = AnyBusy() ? " Elites — evaluating… " : " Elites ";
     }
 
     private void RenderAdvice()
@@ -593,8 +670,10 @@ public sealed class RanwidApp
 
     private void RenderFooter()
     {
-        _footer.Text = _state.View == TuiState.Mode.Advice
-            ? "  ↑↓ scroll   (+/–) how many cards (1–3)   (esc) back   (q) quit"
+        _footer.Text =
+            _state.PathEntry ? "  type a folder/file path   (enter) use it   (esc) cancel"
+            : _state.Ctx == null ? "  (r) retry   (m) enter save folder   (q) quit"
+            : _state.View == TuiState.Mode.Advice ? "  ↑↓ scroll   (+/–) how many cards (1–3)   (esc) back   (q) quit"
             : "  ↑↓ select   (space) in/exclude elite   (r) removals   (u) upgrades   (c) reward   (d) refresh   (q) quit";
         _footer.SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
     }
@@ -642,7 +721,7 @@ public sealed class RanwidApp
             while (true)
             {
                 Thread.Sleep(2000);
-                try { var p = _fixedPath ?? SaveSource.FindNewest(_saveDir); if (p != null && SaveKey(p) != _loadedKey) _dirty = true; }
+                try { var p = _fixedPath ?? SaveSource.FindNewest(_overrideDir ?? _saveDir); if (p != null && SaveKey(p) != _loadedKey) _dirty = true; }
                 catch { /* transient FS errors */ }
             }
         }) { IsBackground = true, Name = "ranwid-tui-watch" };

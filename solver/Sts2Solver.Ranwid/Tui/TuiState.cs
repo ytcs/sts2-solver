@@ -10,6 +10,7 @@ internal sealed class TuiState
 {
     public Companion.Context? Ctx;
     public string? Status = "waiting for a readable run… (start or load one)";
+    public bool PathEntry;   // the save-not-found panel is taking a manually-typed save folder
 
     // Current-act deck-strength index (0–100, HP-independent). NaN until first computed.
     public double Strength = double.NaN;
