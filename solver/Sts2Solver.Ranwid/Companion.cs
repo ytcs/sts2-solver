@@ -180,28 +180,44 @@ public sealed class Companion
 
     // ── Reporting ───────────────────────────────────────────────────────────────
 
+    /// <summary>One evaluable dashboard row: an encounter to solve, or (null <see cref="Enc"/>) a row that is
+    /// skipped unevaluated with a <see cref="Skipped"/> reason (e.g. an unported boss).</summary>
+    public readonly record struct RowSpec(string Label, string Comp, Advisor.Encounter? Enc, string? Skipped);
+
+    /// <summary>The run's actual elites as rows, in stable table order (no boss).</summary>
+    public static List<RowSpec> EliteRowSpecs(Context c) =>
+        c.Encounters.Zip(c.EliteInfo).Select(p => new RowSpec(p.Second.name, p.Second.comp, p.First, null)).ToList();
+
+    /// <summary>The act-boss row (its own panel in the TUI), or null when the run has no boss. A known-but-unported
+    /// boss becomes a skipped "not modelled" row — never substituted for a different boss.</summary>
+    public static RowSpec? BossRowSpec(Context c) =>
+        c.Boss is { } b ? new RowSpec($"Boss: {b.Name}", c.BossComp, b, null)
+        : c.UnmodelledBoss is { } ub ? new RowSpec($"Boss: {ub}", "", null, "not modelled")
+        : null;
+
+    /// <summary>Evaluate a single row (one encounter). The streaming entry point the TUI calls per row so numbers
+    /// fill in as each finishes; a null-encounter row returns its skipped reason unevaluated. Pure compute.</summary>
+    public static EliteResult EvaluateRow(Context c, RowSpec row, EvalOptions opts)
+    {
+        if (row.Enc == null) return new EliteResult(row.Label, row.Comp, null, row.Skipped ?? "—");
+        if (c.DeckSpecs.Count == 0) return new EliteResult(row.Label, row.Comp, null, "no playable deck cards");
+        var deck = c.DeckSpecs.Select(Catalog.BuildCard).ToList();
+        var player = Catalog.BuildPlayer(deck, c.Run.PlayerHp, c.Run.PlayerMaxHp, c.Run.MaxEnergy, c.RelicNames);
+        var stats = EncounterEvaluator.Evaluate(Catalog.SetupCombat(player, row.Enc.Value.Build()), opts);
+        return new EliteResult(row.Label, row.Comp, stats, null);
+    }
+
     /// <summary>Evaluate the current deck against each Act elite (the data behind both the text report and the
-    /// live dashboard). Pure compute — no output.</summary>
+    /// live dashboard). Pure compute — no output. The boss headlines as the first row, at the run's actual HP.</summary>
     public static List<EliteResult> EvaluateElites(Context c, EvalOptions opts)
     {
-        EliteResult EvalEnc(string label, string comp, Advisor.Encounter enc)
-        {
-            if (c.DeckSpecs.Count == 0) return new EliteResult(label, comp, null, "no playable deck cards");
-            var deck = c.DeckSpecs.Select(Catalog.BuildCard).ToList();
-            var player = Catalog.BuildPlayer(deck, c.Run.PlayerHp, c.Run.PlayerMaxHp, c.Run.MaxEnergy, c.RelicNames);
-            var stats = EncounterEvaluator.Evaluate(Catalog.SetupCombat(player, enc.Build()), opts);
-            return new EliteResult(label, comp, stats, null);
-        }
-
         // The Act's elites are independent solves → run them across cores (AsOrdered keeps the table order
         // stable). Each eval builds its own deck/monsters and MCTS tree, so there's no shared mutable state.
-        var rows = c.Encounters.Zip(c.EliteInfo).AsParallel().AsOrdered()
-            .Select(pair => EvalEnc(pair.Second.name, pair.Second.comp, pair.First)).ToList();
+        var rows = EliteRowSpecs(c).AsParallel().AsOrdered().Select(s => EvaluateRow(c, s, opts)).ToList();
 
-        // The act boss headlines the table as the first row ("Boss: <name>"), at the run's actual HP like the
-        // elites — boss-readiness at a glance. Evaluated after the parallel elites (one extra, tankier fight).
-        if (c.Boss is { } boss) rows.Insert(0, EvalEnc($"Boss: {boss.Name}", c.BossComp, boss));
-        else if (c.UnmodelledBoss is { } ub) rows.Insert(0, new EliteResult($"Boss: {ub}", "", null, "not modelled"));
+        // The act boss headlines the table as the first row ("Boss: <name>"), evaluated after the parallel
+        // elites (one extra, tankier fight).
+        if (BossRowSpec(c) is { } bs) rows.Insert(0, EvaluateRow(c, bs, opts));
         return rows;
     }
 

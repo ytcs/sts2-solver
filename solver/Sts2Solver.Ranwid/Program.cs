@@ -35,6 +35,11 @@ var opts = new EvalOptions
 
 if (args.Contains("--preview")) { Dashboard.RenderPreview(); return 0; }
 
+// --tui: the Terminal.Gui front-end — a persistent, non-blocking dashboard (numbers stream in as the solver
+// runs; navigable while computing). The Spectre live companion remains the default until the TUI reaches parity.
+if (args.Contains("--tui"))
+    return new Sts2Solver.Ranwid.Tui.RanwidApp(saveArg, saveDirArg, playerNetId, opts).Run();
+
 // --custom [character]: a save-less deck sandbox — start from a character's starter deck and add/remove cards
 // by hand (the way a multiplayer GUEST, whose run isn't saved locally, can still get deck-strength advice).
 if (args.Contains("--custom"))
