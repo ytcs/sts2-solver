@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <!-- net10: this suite references the Ranwid exe, which is net10 (Terminal.Gui v2). A net10 test host runs
+         the net9 Engine/Content/Search assemblies unchanged (backward compatible), so results are unaffected. -->
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>

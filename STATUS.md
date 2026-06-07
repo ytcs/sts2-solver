@@ -250,6 +250,13 @@ cosmetic/economy/map/reward/rest relics, RNG-card/orb-generation relics (optimis
 the multi-monster boss *ports* (TheKin/KaiserCrab/Queen). Speed was researched (to-do 3): one safe micro-opt
 shipped; the durable lever (make/undo rollout) is documented but deferred behind the correctness bar.
 
+**Toolchain (split TFM):** `Sts2Solver.Ranwid` and `Sts2Solver.Tests` target **net10.0** (Ranwid's TUI uses
+Terminal.Gui v2, which is net10-only; Tests reference the Ranwid exe so they follow). Engine/Content/Search/Cli
+stay **net9.0** — a net10 app references them unchanged (backward compatible), and identical IL means test
+behaviour is unaffected. Requires the **net10 SDK** installed alongside net9 (`dotnet-sdk-10.0`). The exe carries
+populated Win32 version metadata (`<Version>`/`<Company>`/… in the csproj) and publishes WITHOUT single-file
+compression — both reduce antivirus false positives on the self-contained binary.
+
 **Shippable executables** (for testers): `ranwid` is published self-contained single-file (~73 MB) for both
 RIDs and copied to the repo top as `./ranwid` (Linux ELF) and `./ranwid.exe` (Windows PE) — both gitignored, both
 include `--custom`. Rebuild: `dotnet publish Sts2Solver.Ranwid -c Release -r {linux-x64|win-x64} --self-contained
