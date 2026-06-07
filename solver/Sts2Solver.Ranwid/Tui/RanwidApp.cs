@@ -69,6 +69,13 @@ public sealed class RanwidApp
 
     public int Run()
     {
+        // The dashboard fans many single-threaded MCTS solves (each elite, the boss, and the current- and next-act
+        // strength projections) onto the thread pool at once. The pool injects new threads only ~1–2/sec, which
+        // would dribble the elite rows in over tens of seconds (looking "stuck"); raise the floor so the first wave
+        // all starts immediately. Single-threaded MCTS just time-slices when oversubscribed — no deadlock risk.
+        ThreadPool.GetMinThreads(out int wmin, out int iomin);
+        ThreadPool.SetMinThreads(Math.Max(wmin, Environment.ProcessorCount * 2 + 4), iomin);
+
         Application.Init();
         try
         {
@@ -80,6 +87,7 @@ public sealed class RanwidApp
         }
         finally
         {
+            Application.KeyDown -= OnGlobalKey;
             if (_watcher != null) { _watcher.EnableRaisingEvents = false; _watcher.Dispose(); }
             _win?.Dispose();
             Application.Shutdown();
@@ -131,38 +139,57 @@ public sealed class RanwidApp
         _footer = new Label { X = 0, Y = Pos.AnchorEnd(1), Width = Dim.Fill(), Height = 1 };
 
         _win.Add(top, _deckFrame, _bossFrame, _elitesFrame, _adviceFrame, _footer);
-        _win.KeyDown += OnKey;
-        _elitesList.KeyDown += OnElitesKey;
+        // Route hotkeys through the GLOBAL key event, not _win/_elitesList KeyDown. A focused ListView's
+        // KeystrokeNavigator (type-ahead "jump to item") consumes letter keys (r/u/c/d/q) before they can bubble
+        // up to the window, so per-view KeyDown never sees them. Application.KeyDown fires first, so we can claim
+        // the keys we act on (and mark them Handled to stop the navigator from also eating them).
+        Application.KeyDown += OnGlobalKey;
     }
 
-    private void OnKey(object? sender, Key key)
+    /// <summary>App-level key handler (subscribed to <see cref="Application.KeyDown"/>, which fires before the
+    /// focused view). Only the keys it acts on are marked Handled; everything else (↑↓ etc.) falls through so the
+    /// lists still scroll. While a text field is up (path / reward entry) it bows out entirely so the field owns
+    /// every keystroke. Letters are matched on the rune (case-insensitive), so it's robust to key-casing.</summary>
+    private void OnGlobalKey(object? sender, Key key)
     {
-        if (key == Key.Q) { Application.RequestStop(); return; }
+        if (_state.PathEntry || _state.RewardEntry) return;   // the focused TextField owns keys while typing
+
+        int rune = key.AsRune.Value;
+        char c = rune is > 0 and < 128 ? char.ToLowerInvariant((char)rune) : '\0';
 
         if (_state.View == TuiState.Mode.Advice)
         {
-            if (key == Key.Esc) { CloseAdvice(); key.Handled = true; return; }
-            int ch = key.AsRune.Value;
-            if (ch is '+' or '=') { _state.AdviceN++; RunAdvice(); key.Handled = true; }
-            else if (ch is '-' or '_') { _state.AdviceN--; RunAdvice(); key.Handled = true; }
-            return;   // while the advice overlay is open, other dashboard keys are inert
+            if (key == Key.Esc) { CloseAdvice(); key.Handled = true; }
+            else if (c is '+' or '=') { _state.AdviceN++; RunAdvice(); key.Handled = true; }
+            else if (c is '-' or '_') { _state.AdviceN--; RunAdvice(); key.Handled = true; }
+            else if (c == 'q') { Application.RequestStop(); key.Handled = true; }
+            return;   // ↑↓ etc. fall through to the advice list
         }
 
-        if (key == Key.Esc) { Application.RequestStop(); return; }
+        if (c == 'q' || key == Key.Esc) { Application.RequestStop(); key.Handled = true; return; }
 
-        // Save-not-found panel: retry scan / enter a path manually (no run loaded, so the advice keys are inert).
-        if (_state.Ctx == null)
+        // Save-not-found screen: retry scan / type a folder manually (advice keys are inert with no run loaded).
+        if (_state.Ctx is not { } ctx)
         {
-            if (_state.PathEntry) return;   // the path field owns keys
-            if (key == Key.R || key == Key.D) { _dirty = false; LoadAndEval(force: true); key.Handled = true; }
-            else if (key == Key.M) { StartPathEntry(); key.Handled = true; }
+            if (c is 'r' or 'd') { _dirty = false; LoadAndEval(force: true); key.Handled = true; }
+            else if (c == 'm') { StartPathEntry(); key.Handled = true; }
             return;
         }
 
-        if (key == Key.D) { _dirty = false; LoadAndEval(force: true); return; }
-        if (key == Key.R) { ShowAdvice(TuiState.Kind.Removal); key.Handled = true; return; }
-        if (key == Key.U) { ShowAdvice(TuiState.Kind.Upgrade); key.Handled = true; return; }
-        if (key == Key.C) { ShowAdvice(TuiState.Kind.Reward); key.Handled = true; return; }
+        switch (c)
+        {
+            case 'd': _dirty = false; LoadAndEval(force: true); key.Handled = true; break;
+            case 'r': ShowAdvice(TuiState.Kind.Removal); key.Handled = true; break;
+            case 'u': ShowAdvice(TuiState.Kind.Upgrade); key.Handled = true; break;
+            case 'c': ShowAdvice(TuiState.Kind.Reward); key.Handled = true; break;
+            case ' ':   // toggle the selected elite in/out of the current-act strength, then re-evaluate it
+                if (_elitesList.SelectedItem is int i && i >= 0 && i < _state.Elites.Count)
+                {
+                    _state.Elites[i].Included = !_state.Elites[i].Included;
+                    RenderElites(); RecomputeStrength(ctx); _win.SetNeedsDraw(); key.Handled = true;
+                }
+                break;
+        }
     }
 
     /// <summary>Reward-entry field: Enter resolves the typed cards and runs the take-vs-skip advice; Esc cancels.</summary>
@@ -193,21 +220,6 @@ public sealed class RanwidApp
         }
         _state.AdviceN = Math.Min(_state.AdviceN, offered.Count);
         RunAdvice();
-    }
-
-    /// <summary>Space toggles whether the selected elite counts toward the current-act deck strength, then
-    /// re-evaluates only the strength index (non-blocking).</summary>
-    private void OnElitesKey(object? sender, Key key)
-    {
-        if (key != Key.Space || _state.Ctx is not { } c) return;
-        if (_elitesList.SelectedItem is int i && i >= 0 && i < _state.Elites.Count)
-        {
-            _state.Elites[i].Included = !_state.Elites[i].Included;
-            RenderElites();
-            RecomputeStrength(c);
-            _win.SetNeedsDraw();
-            key.Handled = true;
-        }
     }
 
     // ── Load + evaluate ─────────────────────────────────────────────────────────────
@@ -258,8 +270,15 @@ public sealed class RanwidApp
             int idx = i; var spec = specs[i];
             Task.Run(() =>
             {
-                var r = Companion.EvaluateRow(ctx, spec, _opts);
-                Post(gen, () => { _state.Elites[idx].Result = r; _state.Elites[idx].Busy = false; RenderElites(); });
+                try
+                {
+                    var r = Companion.EvaluateRow(ctx, spec, _opts);
+                    Post(gen, () => { _state.Elites[idx].Result = r; _state.Elites[idx].Busy = false; RenderElites(); });
+                }
+                catch  // a faulted fire-and-forget task would otherwise leave the row stuck on "…" forever
+                {
+                    Post(gen, () => { _state.Elites[idx].Result = new EliteResult(spec.Label, spec.Comp, null, "eval failed"); _state.Elites[idx].Busy = false; RenderElites(); });
+                }
             });
         }
 
@@ -268,8 +287,15 @@ public sealed class RanwidApp
         if (bossSpec is { } bs)
             Task.Run(() =>
             {
-                var r = Companion.EvaluateRow(ctx, bs, _opts);
-                Post(gen, () => { _state.Boss = r; _state.BossBusy = false; RenderBoss(); });
+                try
+                {
+                    var r = Companion.EvaluateRow(ctx, bs, _opts);
+                    Post(gen, () => { _state.Boss = r; _state.BossBusy = false; RenderBoss(); });
+                }
+                catch
+                {
+                    Post(gen, () => { _state.Boss = new EliteResult(bs.Label, bs.Comp, null, "eval failed"); _state.BossBusy = false; RenderBoss(); });
+                }
             });
 
         // Current-act strength = average over the included elites + the known boss (#5/#7). Recomputed live on
@@ -298,8 +324,15 @@ public sealed class RanwidApp
         var deckSpecs = ctx.DeckSpecs; int energy = ctx.Run.MaxEnergy; var relics = ctx.RelicNames;
         Task.Run(() =>
         {
-            var s = Advisor.DeckStrengthNextAct(deckSpecs, elites, bosses, energy, relics, _opts);
-            PostNext(ngen, () => { _state.NextStrength = s; _state.NextStrengthBusy = false; RenderTop(); });
+            try
+            {
+                var s = Advisor.DeckStrengthNextAct(deckSpecs, elites, bosses, energy, relics, _opts);
+                PostNext(ngen, () => { _state.NextStrength = s; _state.NextStrengthBusy = false; RenderTop(); });
+            }
+            catch
+            {
+                PostNext(ngen, () => { _state.NextStrength = double.NaN; _state.NextStrengthBusy = false; RenderTop(); });
+            }
         });
     }
 
@@ -381,14 +414,26 @@ public sealed class RanwidApp
         int energy = c.Run.MaxEnergy; var relics = c.RelicNames;
         Task.Run(() =>
         {
-            var (baseline, rows, exhaustive) =
-                Advisor.RankMoveSets(deck, moves, n, curPool, nextElites, nextBosses, energy, relics, _opts);
-            PostAdvice(agen, () =>
+            try
             {
-                _state.AdviceBaseline = baseline; _state.AdviceRows = rows;
-                _state.AdviceExhaustive = exhaustive; _state.AdviceBusy = false;
-                RenderAdvice();
-            });
+                var (baseline, rows, exhaustive) =
+                    Advisor.RankMoveSets(deck, moves, n, curPool, nextElites, nextBosses, energy, relics, _opts);
+                PostAdvice(agen, () =>
+                {
+                    _state.AdviceBaseline = baseline; _state.AdviceRows = rows;
+                    _state.AdviceExhaustive = exhaustive; _state.AdviceBusy = false;
+                    RenderAdvice();
+                });
+            }
+            catch
+            {
+                PostAdvice(agen, () =>
+                {
+                    _state.AdviceRows = new(); _state.AdviceBusy = false;
+                    _adviceFrame.Title = " Advice — evaluation failed (esc to go back) ";
+                    RenderAdvice();
+                });
+            }
         });
     }
 
@@ -423,8 +468,15 @@ public sealed class RanwidApp
         var deckSpecs = ctx.DeckSpecs; int energy = ctx.Run.MaxEnergy; var relics = ctx.RelicNames;
         Task.Run(() =>
         {
-            var s = Advisor.DeckStrength(deckSpecs, pool, energy, relics, _opts);
-            PostStrength(sgen, () => { _state.Strength = s; _state.StrengthBusy = false; RenderTop(); });
+            try
+            {
+                var s = Advisor.DeckStrength(deckSpecs, pool, energy, relics, _opts);
+                PostStrength(sgen, () => { _state.Strength = s; _state.StrengthBusy = false; RenderTop(); });
+            }
+            catch
+            {
+                PostStrength(sgen, () => { _state.Strength = double.NaN; _state.StrengthBusy = false; RenderTop(); });
+            }
         });
         RenderTop();
     }
