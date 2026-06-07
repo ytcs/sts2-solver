@@ -5,9 +5,9 @@ using Attribute = Terminal.Gui.Drawing.Attribute;
 namespace Sts2Solver.Ranwid.Tui;
 
 /// <summary>
-/// Shared palette + text/colour helpers for the Terminal.Gui dashboard. The colour thresholds mirror the
-/// Spectre <see cref="Dashboard"/> exactly (strength: ≥75 green / ≥50 yellow / ≥25 orange / else red; survival
-/// uses the same bands) so the two front-ends read identically. A single dark base scheme (white-on-black) keeps
+/// Shared palette + text/colour helpers for the Terminal.Gui dashboard. The colour thresholds (strength: ≥75
+/// green / ≥50 yellow / ≥25 orange / else red; survival uses the same bands) carry over from the original
+/// Spectre dashboard so the grading reads identically. A single dark base scheme (white-on-black) keeps
 /// per-label foreground colours legible regardless of the user's terminal theme.
 /// </summary>
 internal static class TuiFormat
@@ -32,7 +32,7 @@ internal static class TuiFormat
     public static Color StrengthColor(double s) =>
         double.IsNaN(s) ? Grey : s >= 75 ? Green : s >= 50 ? Yellow : s >= 25 ? Orange : Red;
 
-    /// <summary>Tier colour for a 0–1 survival probability (same bands as <see cref="Dashboard"/>).</summary>
+    /// <summary>Tier colour for a 0–1 survival probability (same bands the strength grading uses).</summary>
     public static Color SurviveColor(double p) =>
         p >= 0.80 ? Green : p >= 0.50 ? Yellow : p >= 0.25 ? Orange : Red;
 
@@ -54,7 +54,7 @@ internal static class TuiFormat
         return r >= 0.66 ? Green : r >= 0.33 ? Yellow : Red;
     }
 
-    /// <summary>"64/100  ███████──────" — the 20-cell strength bar from <see cref="Dashboard.RenderStrength"/>.</summary>
+    /// <summary>"64/100  ███████──────" — the 20-cell strength bar shown in the Run panel's strength line.</summary>
     public static string StrengthBar(double strength)
     {
         if (double.IsNaN(strength)) return "  …/100  " + new string('─', 20);

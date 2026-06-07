@@ -33,7 +33,6 @@
     <ProjectReference Include="../Sts2Solver.Search/Sts2Solver.Search.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Spectre.Console" Version="0.55.2" />
     <PackageReference Include="Terminal.Gui" Version="2.4.4" />
   </ItemGroup>
 </Project>

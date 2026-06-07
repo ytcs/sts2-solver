@@ -15,8 +15,8 @@ namespace Sts2Solver.Ranwid.Tui;
 
 /// <summary>
 /// The Terminal.Gui front-end for ranwid (<c>ranwid --tui</c>). A persistent, always-on dashboard: deck-strength
-/// bar, run header, deck, the act boss (its own panel), and the per-elite survival / HP-loss list. Unlike the
-/// Spectre screen it is <b>non-blocking</b> — each elite (and the strength index) is evaluated on a background
+/// bar, run header, deck, the act boss (its own panel), and the per-elite survival / HP-loss list. It is
+/// <b>non-blocking</b> — each elite (and the strength index) is evaluated on a background
 /// task and its number streams into the view as it finishes (<c>Application.Invoke</c> marshals the result back
 /// to the UI thread), so you can navigate while the solver runs. A save-file watcher reloads + re-evaluates when
 /// the run changes. Reuses the whole <see cref="Companion"/> / <see cref="Advisor"/> compute layer unchanged.
@@ -342,7 +342,7 @@ public sealed class RanwidApp
             });
 
         // Current-act strength = average over the included elites + the known boss (#5/#7). Recomputed live on
-        // toggle. This curates against "the fights I'll actually face", unlike the Spectre path's representative pool.
+        // toggle. This curates against "the fights I'll actually face", rather than a fixed representative pool.
         RecomputeStrength(ctx);
         if (_state.ShowNextAct) StartNextStrength(ctx);   // off by default — the next-act projection is the costly half
         else { _nextGen++; _state.NextStrength = double.NaN; _state.NextStrengthBusy = false; }

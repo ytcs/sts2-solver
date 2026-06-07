@@ -11,12 +11,15 @@ is a faithful re-implementation of the game's combat engine (ported 1:1 from dec
 expectimax + MCTS search, and **differentially validated against the real game** via a recorder mod + a headless
 harness. The decompile is the **spec**; the real game is the **oracle** (see "Why reimplement" below).
 
-## Ranwid TUI migration (`--tui`) — IN PROGRESS, resume here next session
+## Ranwid TUI migration — DONE (Terminal.Gui v2 is now the default; Spectre purged)
 
-Migrating the Ranwid live companion from the Spectre immediate-mode screen to a **Terminal.Gui v2** front-end
-(`ranwid --tui`). All 9 requested UX items + the save dialog are **implemented and committed** (10 checkpoints,
-`55c2695`→`0dadc11`); the backend is unit-tested and the **full suite is 1185/1185 green on net10**. The
-interactive UI is **compile/init-verified only** — it has NOT been driven in a real terminal yet.
+The Ranwid live companion has been **fully migrated** from the Spectre immediate-mode screen to a **Terminal.Gui
+v2** front-end, and the Terminal.Gui dashboard is now the **default** `ranwid` interface. The old Spectre prompt,
+`Dashboard.cs`, `LineEditor.cs`, `--once`/`--preview`, and the `Spectre.Console` package have all been **deleted**.
+The `--custom` save-less sandbox was **ported into the TUI** (press `e` for the deck editor) before the purge, so
+no functionality was lost. `Companion.cs` is now a pure static data/compute layer behind the UI. The user has
+driven the TUI in a real terminal across several rounds of fixes (focus, hotkeys, elite-eval threading, titles,
+per-card advice lines, next-act toggle).
 
 **Done (committed):**
 1. Non-blocking spine — persistent panels, per-elite + strength evaluate on background tasks and stream in
@@ -32,19 +35,21 @@ interactive UI is **compile/init-verified only** — it has NOT been driven in a
    "heuristic"); reward-check (`c`) takes typed offered cards (CardNameMatcher auto-correct).
 8. Save-not-found panel: retry / enter folder / quit.
 
-**NEXT SESSION — resume checklist:**
-- [ ] **Verify `ranwid --tui` in a real terminal** (can't be done headless): focus/arrows, space-toggle fires
-      ONCE (self-rendered checkbox, but watch for a ListView default Space binding double-firing), `+/-` stepper,
-      reward/path-field Enter submit, colour legibility on the user's terminal.
-- [ ] **Flip the default** to `--tui` + add a `--classic` Spectre escape hatch (≈5-line change in `Program.cs`) —
-      held back until the above is verified (shipping testers an unverified default is hard to reverse).
-- [ ] **`--custom` sandbox parity** in the TUI (still Spectre-only).
+**Done (cutover, commits `144edfa` = custom port, + the purge commit):**
+- Default flipped to the Terminal.Gui dashboard; `--tui` is now a harmless accepted alias.
+- `--custom` runs on the TUI (deck editor on `e`: `+card`/`-card`/`act N`/`char X`/`hp N`/`asc N`/`reset`, live
+  re-eval; `r`/`u`/`c` advice as in a real run).
+- Spectre fully removed: `Dashboard.cs`, `LineEditor.cs`, `Companion.Run`/`RunCustom` + all Spectre helpers,
+  `PickFromTokens`, `--once`, `--preview`, and the `Spectre.Console` package reference. Build is 0 warnings.
+
+**Still open (smaller, optional):**
 - [ ] Migrate off the deprecated static `Application.*` API once the instance API exposes a clean `Shutdown`
       (currently suppressed with `#pragma warning disable CS0618` + a note in `RanwidApp`).
+- [ ] Windows code-signing (separate track — see below).
 
-**Decisions to revisit:** the TUI's *current-act* strength averages over the run's **curated actual elites +
-known boss** (so the toggle is meaningful), a deliberate shift from the Spectre path's representative-elite pool —
-confirm this is the intended basis.
+**Decisions settled:** the TUI's *current-act* strength averages over the run's **curated actual elites + known
+boss** (so the include/exclude toggle is meaningful) — this is the intended basis. The next-act projection is
+**off by default** (it roughly doubles eval cost) and toggled with `n`.
 
 **Toolchain note:** `Sts2Solver.Ranwid` + `Sts2Solver.Tests` are **net10** (Terminal.Gui v2 is net10-only);
 everything else stays net9. Requires `dotnet-sdk-10.0` installed alongside net9. Code lives in
