@@ -287,6 +287,39 @@ if (args.Contains("--profile"))
     return 0;
 }
 
+// --plans (diagnostic): for each per-character fixture, print the exact-optimal opening-turn line vs the greedy
+// leaf policy's line, so a heuristic mis-play is visible card-by-card (why the regret is what it is).
+if (args.Contains("--plans"))
+{
+    foreach (var f in CalibrationFixtures.PerCharacter)
+    {
+        var ps = f.Setup();
+        var exa = new Sts2Solver.Search.Solver { MaxTurns = f.MaxTurns };
+        using (var cts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromSeconds(150)))
+        {
+            exa.Ct = cts.Token;
+            try { exa.Solve(ps); } catch (System.OperationCanceledException) { Console.WriteLine($"{f.Name}: exact timeout"); continue; }
+        }
+        exa.Ct = System.Threading.CancellationToken.None;
+        Console.WriteLine($"{f.Name}");
+        foreach (var (prob, s0) in exa.OpeningStates(ps, Sts2Solver.Engine.Player.CardsDrawnPerTurn)
+                     .OrderByDescending(x => x.prob).Take(8))
+        {
+            var opt = exa.StateValue(s0);
+            var gv = exa.GreedyTurnValue(s0, 0.5);
+            double reg = System.Math.Max(0, gv.Loss - opt.Loss);
+            string flag = reg > 0.3 ? "  <== REGRET" : "";
+            Console.WriteLine($"  p={prob:F3} hand: {string.Join(",", s0.Player.Hand.Select(h => h.Name.Replace("Necrobinder", "")))}"
+                + (s0.Player.IsOstyAlive ? $" Osty{s0.Player.Osty!.CurrentHp}" : "")
+                + $"  | opt loss {opt.Loss:F1}  greedy loss {gv.Loss:F1}{flag}");
+            Console.WriteLine($"      exact : {string.Join(" · ", exa.BestTurnPlan(s0))}");
+            Console.WriteLine($"      greedy: {string.Join(" · ", Sts2Solver.Search.MctsSolver.GreedyTurnPlan(s0, 0.5))}");
+        }
+        Console.WriteLine();
+    }
+    return 0;
+}
+
 // --calibrate: run exact (ground truth) vs MCTS (rollout-leaf and heuristic-leaf) over the DIVERSE fixture
 // suite (CalibrationFixtures — block / strength / debuff / aggro / power archetypes, not just the starter)
 // and report how closely sampling tracks exact. Used to tune the shared CombatHeuristic against the oracle.

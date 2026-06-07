@@ -53,15 +53,11 @@ public class PerCharacterProbes
             $"cutting Unleash should weaken the deck, but strength went {full:F2} → {without:F2}");
     }
 
-    /// <summary>PHASE-1 TARGET (currently RED): Bodyguard (Summon +5 Osty HP) is a premier Osty scaler — growing
-    /// Osty raises every future Unleash AND every future DieForYou block — yet the Osty-blind leaf treats it as a
-    /// dead play, so cutting it currently RAISES measured strength (the originating bug). After the Phase-1 Osty
-    /// enrichment, cutting Bodyguard must no longer look like an improvement. Un-skip when Phase 1 lands.</summary>
-    [Fact(Skip = "Phase 1 target: Osty-blind leaf ranks Bodyguard as an improving cut; un-skip after Osty enrichment")]
-    public void Necrobinder_CuttingBodyguard_DoesNotImprove_Deck()
-    {
-        var (full, without) = NecrobinderStarterStrength("Bodyguard");
-        Assert.True(without <= full + 0.5,
-            $"cutting Bodyguard should not improve the deck, but strength went {full:F2} → {without:F2} (Osty-blind leaf)");
-    }
+    // NOTE — the "Bodyguard cut is a bug" hypothesis was REFUTED in Phase 1 (see docs/phase0-baseline.md
+    // "Phase 1 finding"). The exact oracle agrees with the advice: in the STARTER deck vs Act-1 elites, growing
+    // Osty via Bodyguard does NOT reduce HP loss — Osty starts at 1 HP, absorbs only up to its HP (the overkill
+    // spills to the player), and dies/resets each turn, so Bodyguard's scaling can't pay off without the
+    // protect-and-grow engine a built deck has. Ranking Bodyguard as the weakest starter card is CORRECT, so
+    // there is no probe to assert here. Osty-scaling value is a built-deck / long-fight phenomenon the exact
+    // oracle can't reach (a Phase-2+ open question), not a leaf-heuristic bug.
 }

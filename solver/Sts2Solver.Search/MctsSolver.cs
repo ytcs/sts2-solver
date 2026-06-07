@@ -834,6 +834,23 @@ public sealed class MctsSolver
     /// rollout uses. Exposed for the calibration harness's policy-regret measurement; not used in normal solving.</summary>
     public static void GreedyPlayTurn(CombatState s, double aggression) => PlayTurn(s, aggression);
 
+    /// <summary>The card-play labels the greedy λ-policy would make this turn (for calibration/debugging),
+    /// mirroring <see cref="Solver.BestTurnPlan"/> so a greedy line can be diffed against the oracle's. Does not
+    /// mutate <paramref name="s"/>.</summary>
+    public static List<string> GreedyTurnPlan(CombatState s, double aggression)
+    {
+        var plan = new List<string>();
+        var cur = s.Clone();
+        for (int guard = 0; guard < 30 && !cur.IsCombatOver; guard++)
+        {
+            if (GreedyBestPlay(cur, aggression) is not { } a) { plan.Add("End turn"); break; }
+            plan.Add(a.Label);
+            cur = ApplyPlay(cur, a);
+            if (cur.PlayerTurnEndForced) { plan.Add("End turn"); break; }
+        }
+        return plan;
+    }
+
     private const double Eps = 1e-9;
 
     // ---------- Node types ----------

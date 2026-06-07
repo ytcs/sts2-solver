@@ -41,6 +41,9 @@ public static class CalibrationHarness
     public static PolicyRegret? MeasurePolicyRegret(
         CombatState setup, int maxTurns, double budgetSeconds, double aggression = 0.5)
     {
+        // Tuning override: lets a sweep vary the greedy aggression the regret is measured at without a rebuild
+        // (e.g. testing a defensive lean for Necrobinder). Default keeps the production λ=0.5 leaf.
+        if (double.TryParse(Environment.GetEnvironmentVariable("STS2_REGRET_AGGRO"), out var ag)) aggression = ag;
         var solver = new Solver { MaxTurns = maxTurns };
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(budgetSeconds));
         solver.Ct = cts.Token;
