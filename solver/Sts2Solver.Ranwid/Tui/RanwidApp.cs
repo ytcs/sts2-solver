@@ -162,6 +162,7 @@ public sealed class RanwidApp
             if (key == Key.Esc) { CloseAdvice(); key.Handled = true; }
             else if (c is '+' or '=') { _state.AdviceN++; RunAdvice(); key.Handled = true; }
             else if (c is '-' or '_') { _state.AdviceN--; RunAdvice(); key.Handled = true; }
+            else if (c == 'n') { _state.ShowNextAct = !_state.ShowNextAct; RenderFooter(); RunAdvice(); key.Handled = true; }
             else if (c == 'q') { Application.RequestStop(); key.Handled = true; }
             return;   // ↑↓ etc. fall through to the advice list
         }
@@ -182,6 +183,12 @@ public sealed class RanwidApp
             case 'r': ShowAdvice(TuiState.Kind.Removal); key.Handled = true; break;
             case 'u': ShowAdvice(TuiState.Kind.Upgrade); key.Handled = true; break;
             case 'c': ShowAdvice(TuiState.Kind.Reward); key.Handled = true; break;
+            case 'n':   // toggle the next-act projection (off by default — it's the costly half of every eval)
+                _state.ShowNextAct = !_state.ShowNextAct;
+                if (_state.ShowNextAct) StartNextStrength(ctx);
+                else { _nextGen++; _state.NextStrengthBusy = false; _state.NextStrength = double.NaN; }
+                RenderTop(); RenderFooter(); _win.SetNeedsDraw(); key.Handled = true;
+                break;
             case ' ':   // toggle the selected elite in/out of the current-act strength, then re-evaluate it
                 if (_elitesList.SelectedItem is int i && i >= 0 && i < _state.Elites.Count)
                 {
@@ -301,7 +308,8 @@ public sealed class RanwidApp
         // Current-act strength = average over the included elites + the known boss (#5/#7). Recomputed live on
         // toggle. This curates against "the fights I'll actually face", unlike the Spectre path's representative pool.
         RecomputeStrength(ctx);
-        StartNextStrength(ctx);
+        if (_state.ShowNextAct) StartNextStrength(ctx);   // off by default — the next-act projection is the costly half
+        else { _nextGen++; _state.NextStrength = double.NaN; _state.NextStrengthBusy = false; }
         RenderAll();
     }
 
@@ -410,7 +418,11 @@ public sealed class RanwidApp
         int agen = ++_adviceGen;
         var deck = c.DeckSpecs;
         var curPool = CuratedPool(c);
-        var (nextElites, nextBosses) = NextActPools(c);
+        // Next-act columns only when toggled on: empty pools make DeckStrengthNextActSeq short-circuit to NaN, so
+        // no next-act solve runs per candidate (the costly half of advice ranking).
+        var (nextElites, nextBosses) = _state.ShowNextAct
+            ? NextActPools(c)
+            : (new List<Advisor.Encounter>(), new List<Advisor.Encounter>());
         int energy = c.Run.MaxEnergy; var relics = c.RelicNames;
         Task.Run(() =>
         {
@@ -591,15 +603,23 @@ public sealed class RanwidApp
                 + (_state.StrengthBusy ? "  (updating…)" : "");
         _strengthLabel.SetScheme(TuiFormat.SchemeOf(TuiFormat.StrengthColor(_state.Strength)));
 
-        if (!_state.HasNextAct)
-            _nextStrengthLabel.Text = "Strength · next act   —  (final act)";
-        else if (!_state.NextStrengthBusy && double.IsNaN(_state.NextStrength))
-            _nextStrengthLabel.Text = "Strength · next act   n/a";
+        if (!_state.ShowNextAct)
+        {
+            _nextStrengthLabel.Text = "Strength · next act   off — press (n) to project (slower)";
+            _nextStrengthLabel.SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
+        }
         else
-            _nextStrengthLabel.Text = "Strength · next act   " + TuiFormat.StrengthBar(_state.NextStrength)
-                + (_state.NextStrengthBusy ? "  (updating…)" : "");
-        _nextStrengthLabel.SetScheme(TuiFormat.SchemeOf(
-            _state.HasNextAct ? TuiFormat.StrengthColor(_state.NextStrength) : TuiFormat.Grey));
+        {
+            if (!_state.HasNextAct)
+                _nextStrengthLabel.Text = "Strength · next act   —  (final act)";
+            else if (!_state.NextStrengthBusy && double.IsNaN(_state.NextStrength))
+                _nextStrengthLabel.Text = "Strength · next act   n/a";
+            else
+                _nextStrengthLabel.Text = "Strength · next act   " + TuiFormat.StrengthBar(_state.NextStrength)
+                    + (_state.NextStrengthBusy ? "  (updating…)" : "");
+            _nextStrengthLabel.SetScheme(TuiFormat.SchemeOf(
+                _state.HasNextAct ? TuiFormat.StrengthColor(_state.NextStrength) : TuiFormat.Grey));
+        }
 
         _headerLabel.Text = $"{GameIds.CharacterName(run.Character)}  ·  A{run.Ascension}  ·  Act {run.ActIndex + 1}"
             + $"  ·  {run.PlayerHp}/{run.PlayerMaxHp} HP  ·  {run.MaxEnergy} energy"
@@ -704,33 +724,46 @@ public sealed class RanwidApp
         string busy = _state.AdviceBusy ? " · computing…" : "";
         _adviceFrame.Title = $" {kind} — {what}{heur}{busy} ";
 
+        bool showNext = _state.ShowNextAct;
         var items = new ObservableCollection<string>();
         if (_state.AdviceBusy)
-            items.Add("  evaluating each candidate against this act and the next…");
+            items.Add(showNext ? "  evaluating each candidate against this act and the next…"
+                               : "  evaluating each candidate against this act…");
         else
         {
-            items.Add(AdviceLine("keep as-is", _state.AdviceBaseline, default, isBaseline: true));
-            foreach (var r in _state.AdviceRows) items.Add(AdviceLine(r.Label, r.Result, r.Delta, isBaseline: false));
+            foreach (var s in AdviceLines("keep as-is", _state.AdviceBaseline, default, isBaseline: true, showNext)) items.Add(s);
+            foreach (var r in _state.AdviceRows)
+                foreach (var s in AdviceLines(r.Label, r.Result, r.Delta, isBaseline: false, showNext)) items.Add(s);
         }
         _adviceList.SetSource(items);
         if (items.Count > 0) _adviceList.SelectedItem = 0;
     }
 
-    private static string AdviceLine(string label, Advisor.DualStrength res, Advisor.DualStrength delta, bool isBaseline)
+    /// <summary>Render one advice candidate as one OR MORE display lines: the first card carries the strength
+    /// columns, and each additional card of a multi-card move goes on its own "+ card" line so long names aren't
+    /// truncated together. The next-act column is dropped entirely when the projection is toggled off.</summary>
+    private static IEnumerable<string> AdviceLines(
+        string label, Advisor.DualStrength res, Advisor.DualStrength delta, bool isBaseline, bool showNext)
     {
         static string S(double v) => double.IsNaN(v) ? "—" : ((int)Math.Round(v)).ToString();
         string D(double d) => isBaseline || double.IsNaN(d) ? "" : d > 0.5 ? $" (+{d:F0})" : d < -0.5 ? $" ({d:F0})" : " (0)";
-        if (label.Length > 24) label = label[..23] + "…";
-        return $"  {label,-24}  this {S(res.Cur),3}{D(delta.Cur),-6}   next {S(res.Next),3}{D(delta.Next)}";
+        var cards = label.Split(" + ");
+        string stats = showNext
+            ? $"this {S(res.Cur),3}{D(delta.Cur),-6}  next {S(res.Next),3}{D(delta.Next)}"
+            : $"this {S(res.Cur),3}{D(delta.Cur)}";
+        yield return $"  {Clip(cards[0], 26),-26}  {stats}";
+        for (int i = 1; i < cards.Length; i++)
+            yield return $"      + {cards[i]}";
     }
 
     private void RenderFooter()
     {
+        string next = _state.ShowNextAct ? "on" : "off";
         _footer.Text =
             _state.PathEntry ? "  type a folder/file path   (enter) use it   (esc) cancel"
             : _state.Ctx == null ? "  (r) retry   (m) enter save folder   (q) quit"
-            : _state.View == TuiState.Mode.Advice ? "  ↑↓ scroll   (+/–) how many cards (1–3)   (esc) back   (q) quit"
-            : "  ↑↓ select   (space) in/exclude elite   (r) removals   (u) upgrades   (c) reward   (d) refresh   (q) quit";
+            : _state.View == TuiState.Mode.Advice ? $"  ↑↓ scroll   (+/–) cards (1–3)   (n) next-act: {next}   (esc) back   (q) quit"
+            : $"  ↑↓ select   (space) in/excl elite   (r)emovals  (u)pgrades  (c) reward   (n) next-act: {next}   (d) refresh   (q) quit";
         _footer.SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
     }
 

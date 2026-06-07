@@ -7,7 +7,7 @@ using Sts2Solver.Ranwid;
 //
 //   ranwid                         live dashboard (default, Spectre): watch the run, auto-refresh on save change
 //   ranwid --tui                   the Terminal.Gui dashboard: non-blocking, navigable, persistent panels,
-//                                   include/exclude elites, next-act strength, removal/upgrade/reward advice
+//                                   include/exclude elites, optional next-act projection (n), removal/upgrade/reward advice
 //   ranwid --once                  render the dashboard once and exit (non-interactive)
 //   ranwid --preview               show the dashboard with sample data (no run needed)
 //   ranwid --custom [character]    save-less deck sandbox: start from a starter deck, add/remove cards by hand

@@ -17,7 +17,10 @@ internal sealed class TuiState
     public bool StrengthBusy;
 
     // Next-act deck strength (averaged over that act's elite pool + its possible bosses). HasNextAct is false on
-    // the final act (no act after this one).
+    // the final act (no act after this one). The next-act projection roughly doubles the eval cost (a whole extra
+    // elite pool + every boss, on the dashboard bar AND per advice candidate), so it is OFF by default — toggled
+    // with 'n' only at genuine "should I plan ahead?" junctures. When off, no next-act solve runs at all.
+    public bool ShowNextAct;
     public double NextStrength = double.NaN;
     public bool NextStrengthBusy;
     public bool HasNextAct = true;
