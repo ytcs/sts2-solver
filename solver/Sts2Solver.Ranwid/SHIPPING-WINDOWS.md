@@ -72,6 +72,20 @@ from the address bar and paste it at the `Save folder>` prompt.
 
 Run `ranwid.exe --once` for a one-shot report (no interactive prompt).
 
+## New full-screen dashboard (experimental): `--tui`
+
+`ranwid.exe --tui` opens a full-screen, navigable dashboard instead of the prompt. It updates live as the solver
+runs (numbers fill in without freezing), keeps the deck and deck-strength panels on screen at all times, and shows
+a second strength bar projecting your deck onto the **next act**. Keys:
+
+- `↑↓` move · `space` include/exclude an elite from the current-act strength
+- `r` best card(s) to remove · `u` best to upgrade · `c` check a reward card — each shows this-act **and** next-act
+  strength with deltas, and `+`/`-` steps how many cards (1–3, e.g. for a multi-card event reward)
+- `d` refresh · `q` quit
+
+It is **experimental** — if anything looks wrong, fall back to the normal `ranwid.exe` (the default prompt is
+unchanged). Please report any glitches.
+
 ## Custom deck mode (no save — for multiplayer guests / deck-building)
 
 In **multiplayer, only the host's game writes a run-save** — if a friend is hosting, your own machine has no

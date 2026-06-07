@@ -142,7 +142,8 @@ dotnet run -c Release --project solver/Sts2Solver.Cli -- scenario.json [--mcts -
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --calibrate [--archetype block]
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --bridge    # advice-regime accuracy(noise/bias)+latency instrument
 dotnet run -c Release --project solver/Sts2Solver.Cli -- --validate [trace.jsonl]   # one file or all
-dotnet run -c Release --project solver/Sts2Solver.Ranwid                            # live companion
+dotnet run -c Release --project solver/Sts2Solver.Ranwid                            # live companion (Spectre)
+dotnet run -c Release --project solver/Sts2Solver.Ranwid -- --tui                   # Terminal.Gui dashboard (net10)
 cd mods/DataDumper && dotnet build -c Debug                     # rebuild + deploy the mod
 
 # Headless trace collection (game CLOSED, Steam running, real HOME):
@@ -249,6 +250,16 @@ harness for the 2026-06 game patch). **Still descoped (not worth the complexity)
 cosmetic/economy/map/reward/rest relics, RNG-card/orb-generation relics (optimistic direction — see to-do 1), and
 the multi-monster boss *ports* (TheKin/KaiserCrab/Queen). Speed was researched (to-do 3): one safe micro-opt
 shipped; the durable lever (make/undo rollout) is documented but deferred behind the correctness bar.
+
+**TUI (`--tui`, Terminal.Gui v2):** an alternate, non-blocking front-end in `Sts2Solver.Ranwid/Tui/`
+(`RanwidApp` + `TuiState`/`TuiFormat`/`DeckView`). Persistent panels (deck-strength `this act`/`next act`
+bars, type-grouped deck, boss, elites); each elite + the strength index evaluate on background tasks and
+stream in (`Application.Invoke`, generation-guarded) so the UI stays navigable. Elites toggle in/out of the
+current-act strength (space); `r`/`u`/`c` open a removal/upgrade/reward advice overlay showing this-act + next-act
+strength and deltas, with a `+/-` stepper for 1–3 cards (`Advisor.RankMoveSets`, exhaustive within a cap else a
+beam search). Save-not-found offers retry / manual-path / quit. Reuses the whole `Companion`/`Advisor` compute
+layer; the Spectre companion remains the **default** until the TUI is verified in a real terminal and the default
+is flipped (with a `--classic` escape hatch). Backend additions are unit-tested; the interactive UI is not.
 
 **Toolchain (split TFM):** `Sts2Solver.Ranwid` and `Sts2Solver.Tests` target **net10.0** (Ranwid's TUI uses
 Terminal.Gui v2, which is net10-only; Tests reference the Ranwid exe so they follow). Engine/Content/Search/Cli

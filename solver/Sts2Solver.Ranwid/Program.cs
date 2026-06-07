@@ -5,7 +5,9 @@ using Sts2Solver.Ranwid;
 // live dashboard of the current deck and how it fares against the Act's elites, auto-refreshing whenever the
 // run changes. Keys: (r) best cards to remove · (c) check a reward card · (d) refresh · (q) quit.
 //
-//   ranwid                         live dashboard (default): watch the run, auto-refresh on save change
+//   ranwid                         live dashboard (default, Spectre): watch the run, auto-refresh on save change
+//   ranwid --tui                   the Terminal.Gui dashboard: non-blocking, navigable, persistent panels,
+//                                   include/exclude elites, next-act strength, removal/upgrade/reward advice
 //   ranwid --once                  render the dashboard once and exit (non-interactive)
 //   ranwid --preview               show the dashboard with sample data (no run needed)
 //   ranwid --custom [character]    save-less deck sandbox: start from a starter deck, add/remove cards by hand
