@@ -28,11 +28,14 @@ internal sealed class TuiState
     // The act elites, in table order.
     public List<RowState> Elites = new();
 
-    // Advice overlay (removal / upgrade): replaces the elites region while the deck/strength panels stay put.
+    // Advice overlay (removal / upgrade / reward): replaces the elites region while the deck/strength panels stay put.
     public enum Mode { Dashboard, Advice }
+    public enum Kind { Removal, Upgrade, Reward }
     public Mode View = Mode.Dashboard;
-    public bool AdviceRemoval;          // true = removals, false = upgrades
-    public int AdviceN = 1;             // how many cards to remove/upgrade at once (1–3, +/- steps it)
+    public Kind AdviceKind = Kind.Removal;
+    public bool RewardEntry;            // reward mode is awaiting the offered-card text input
+    public List<string> Offered = new();
+    public int AdviceN = 1;             // how many cards to act on at once (1–3, +/- steps it)
     public bool AdviceExhaustive = true;
     public bool AdviceBusy;
     public Advisor.DualStrength AdviceBaseline;

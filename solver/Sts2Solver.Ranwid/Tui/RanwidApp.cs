@@ -37,8 +37,9 @@ public sealed class RanwidApp
     private Label _bossLabel = null!;
     private FrameView _elitesFrame = null!;
     private ListView _elitesList = null!;
-    private FrameView _adviceFrame = null!;   // overlays the elites region while showing removal/upgrade advice
+    private FrameView _adviceFrame = null!;   // overlays the elites region while showing removal/upgrade/reward advice
     private ListView _adviceList = null!;
+    private TextField _rewardField = null!;   // reward-card entry (visible only in reward-entry mode)
     private Label _footer = null!;
     private int _adviceGen;
 
@@ -117,9 +118,11 @@ public sealed class RanwidApp
 
         // Advice overlay — same geometry as the elites frame, shown in its place (deck/strength panels persist).
         _adviceFrame = new FrameView { Title = " Advice ", X = 0, Y = Pos.Bottom(_bossFrame), Width = Dim.Fill(), Height = Dim.Fill(1), Visible = false };
+        _rewardField = new TextField { X = 1, Y = 0, Width = Dim.Fill(2), Height = 1, Visible = false };
+        _rewardField.KeyDown += OnRewardKey;
         _adviceList = new ListView { X = 0, Y = 0, Width = Dim.Fill(), Height = Dim.Fill() };
         _adviceList.SetScheme(TuiFormat.Base);
-        _adviceFrame.Add(_adviceList);
+        _adviceFrame.Add(_rewardField, _adviceList);
 
         _footer = new Label { X = 0, Y = Pos.AnchorEnd(1), Width = Dim.Fill(), Height = 1 };
 
@@ -143,8 +146,39 @@ public sealed class RanwidApp
 
         if (key == Key.Esc) { Application.RequestStop(); return; }
         if (key == Key.D) { _dirty = false; LoadAndEval(force: true); return; }
-        if (key == Key.R) { ShowAdvice(removal: true); key.Handled = true; return; }
-        if (key == Key.U) { ShowAdvice(removal: false); key.Handled = true; return; }
+        if (key == Key.R) { ShowAdvice(TuiState.Kind.Removal); key.Handled = true; return; }
+        if (key == Key.U) { ShowAdvice(TuiState.Kind.Upgrade); key.Handled = true; return; }
+        if (key == Key.C) { ShowAdvice(TuiState.Kind.Reward); key.Handled = true; return; }
+    }
+
+    /// <summary>Reward-entry field: Enter resolves the typed cards and runs the take-vs-skip advice; Esc cancels.</summary>
+    private void OnRewardKey(object? sender, Key key)
+    {
+        if (key == Key.Enter) { SubmitReward(); key.Handled = true; }
+        else if (key == Key.Esc) { CloseAdvice(); key.Handled = true; }
+    }
+
+    private void SubmitReward()
+    {
+        var offered = new List<string>();
+        foreach (var tok in (_rewardField.Text ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var m = CardNameMatcher.Resolve(tok);
+            if (m.Canonical != null) offered.Add(m.Canonical);
+        }
+        _state.Offered = offered;
+        _state.RewardEntry = false;
+        _rewardField.Visible = false; _adviceList.Visible = true;
+        _adviceList.SetFocus();
+        if (offered.Count == 0)
+        {
+            _adviceFrame.Title = " Reward — no known cards recognized (esc to go back) ";
+            _adviceList.SetSource(new ObservableCollection<string> { "  Nothing recognized. Press esc, then 'c' to try again." });
+            _win.SetNeedsDraw();
+            return;
+        }
+        _state.AdviceN = Math.Min(_state.AdviceN, offered.Count);
+        RunAdvice();
     }
 
     /// <summary>Space toggles whether the selected elite counts toward the current-act deck strength, then
@@ -272,29 +306,51 @@ public sealed class RanwidApp
 
     // ── Advice overlay (removal / upgrade) ───────────────────────────────────────────
 
-    /// <summary>Open the advice overlay for removals (or upgrades). The deck/strength panels stay put; +/- steps
-    /// how many cards (1–3) to act on at once and re-evaluates.</summary>
-    private void ShowAdvice(bool removal)
+    /// <summary>Open the advice overlay for the given kind. Removal/upgrade compute immediately; reward first
+    /// prompts for the offered card(s). The deck/strength panels stay put; +/- steps how many cards (1–3).</summary>
+    private void ShowAdvice(TuiState.Kind kind)
     {
         if (_state.Ctx is not { } c) return;
-        var moves = removal ? Advisor.RemovalMoves(c.DeckSpecs) : Advisor.UpgradeMoves(c.DeckSpecs);
-        if (moves.Count == 0) return;
 
         _state.View = TuiState.Mode.Advice;
-        _state.AdviceRemoval = removal;
+        _state.AdviceKind = kind;
         _state.AdviceN = 1;
         _elitesFrame.Visible = false; _adviceFrame.Visible = true;
+
+        if (kind == TuiState.Kind.Reward)
+        {
+            _state.RewardEntry = true; _state.Offered = new();
+            _rewardField.Text = ""; _rewardField.Visible = true; _adviceList.Visible = false;
+            _adviceFrame.Title = " Reward — type the offered card(s), space-separated, then Enter ";
+            _rewardField.SetFocus();
+            RenderFooter();
+            _win.SetNeedsDraw();
+            return;
+        }
+
+        if (Moves(c).Count == 0) { CloseAdvice(); return; }   // nothing to remove/upgrade
         _adviceList.SetFocus();
         RunAdvice();
     }
+
+    /// <summary>The move-set for the current advice kind.</summary>
+    private List<Advisor.CardMove> Moves(Companion.Context c) => _state.AdviceKind switch
+    {
+        TuiState.Kind.Removal => Advisor.RemovalMoves(c.DeckSpecs),
+        TuiState.Kind.Upgrade => Advisor.UpgradeMoves(c.DeckSpecs),
+        TuiState.Kind.Reward => _state.Offered
+            .Select(card => new Advisor.CardMove(card, card, d => { var r = d.ToList(); r.Add(card); return r; })).ToList(),
+        _ => new(),
+    };
 
     /// <summary>(Re)compute the advice for the current kind + N on a background task. Caps N to what the deck and
     /// move-set allow (removals must leave ≥1 card).</summary>
     private void RunAdvice()
     {
         if (_state.Ctx is not { } c) return;
-        var moves = _state.AdviceRemoval ? Advisor.RemovalMoves(c.DeckSpecs) : Advisor.UpgradeMoves(c.DeckSpecs);
-        int maxN = _state.AdviceRemoval
+        var moves = Moves(c);
+        if (moves.Count == 0) return;
+        int maxN = _state.AdviceKind == TuiState.Kind.Removal
             ? Math.Min(Math.Min(3, moves.Count), Math.Max(1, c.DeckSpecs.Count - 1))
             : Math.Min(3, moves.Count);
         _state.AdviceN = Math.Clamp(_state.AdviceN, 1, Math.Max(1, maxN));
@@ -325,6 +381,8 @@ public sealed class RanwidApp
     {
         _adviceGen++;   // discard any in-flight advice result
         _state.View = TuiState.Mode.Dashboard;
+        _state.RewardEntry = false;
+        _rewardField.Visible = false; _adviceList.Visible = true;
         _adviceFrame.Visible = false; _elitesFrame.Visible = true;
         _elitesList.SetFocus();
         RenderFooter();
@@ -494,9 +552,21 @@ public sealed class RanwidApp
 
     private void RenderAdvice()
     {
-        string kind = _state.AdviceRemoval ? "Removals" : "Upgrades";
-        string what = _state.AdviceN == 1 ? (_state.AdviceRemoval ? "best cut" : "best upgrade")
-                                          : $"best {_state.AdviceN} cards";
+        string kind = _state.AdviceKind switch
+        {
+            TuiState.Kind.Removal => "Removals",
+            TuiState.Kind.Upgrade => "Upgrades",
+            TuiState.Kind.Reward => "Reward — take",
+            _ => "Advice",
+        };
+        string one = _state.AdviceKind switch
+        {
+            TuiState.Kind.Removal => "best cut",
+            TuiState.Kind.Upgrade => "best upgrade",
+            TuiState.Kind.Reward => "best card",
+            _ => "best",
+        };
+        string what = _state.AdviceN == 1 ? one : $"best {_state.AdviceN} cards";
         string heur = !_state.AdviceBusy && !_state.AdviceExhaustive ? " · heuristic shortlist" : "";
         string busy = _state.AdviceBusy ? " · computing…" : "";
         _adviceFrame.Title = $" {kind} — {what}{heur}{busy} ";
@@ -525,7 +595,7 @@ public sealed class RanwidApp
     {
         _footer.Text = _state.View == TuiState.Mode.Advice
             ? "  ↑↓ scroll   (+/–) how many cards (1–3)   (esc) back   (q) quit"
-            : "  ↑↓ select   (space) include/exclude elite   (r) removals   (u) upgrades   (d) refresh   (q) quit";
+            : "  ↑↓ select   (space) in/exclude elite   (r) removals   (u) upgrades   (c) reward   (d) refresh   (q) quit";
         _footer.SetScheme(TuiFormat.SchemeOf(TuiFormat.Grey));
     }
 
