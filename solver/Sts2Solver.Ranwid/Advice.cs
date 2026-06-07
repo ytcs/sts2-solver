@@ -61,6 +61,38 @@ public static class Advisor
         return Math.Clamp(100 - sum / encounters.Count, 0, 100);
     }
 
+    /// <summary>Deck-strength index for the NEXT act, whose boss is unknown. Averages the deck's HP loss over the
+    /// next act's elites plus a SINGLE boss term — the mean loss across ALL that act's possible bosses — so the
+    /// boss counts once (matching the current act's single known-boss slot) but is averaged because we don't yet
+    /// know which boss the run will face. NaN if there's nothing to score. Pure compute; parallel over encounters.</summary>
+    public static double DeckStrengthNextAct(
+        IReadOnlyList<string> deckSpecs, IReadOnlyList<Encounter> elites, IReadOnlyList<Encounter> bosses,
+        int maxEnergy, IReadOnlyList<string> relics, EvalOptions opts)
+    {
+        if (deckSpecs.Count == 0 || (elites.Count == 0 && bosses.Count == 0)) return double.NaN;
+        var terms = elites.AsParallel().Select(e => EliteLoss(deckSpecs, e, maxEnergy, relics, opts)).ToList();
+        if (bosses.Count > 0)
+            terms.Add(bosses.AsParallel().Select(b => EliteLoss(deckSpecs, b, maxEnergy, relics, opts)).Average());
+        return terms.Count == 0 ? double.NaN : Math.Clamp(100 - terms.Average(), 0, 100);
+    }
+
+    /// <summary>Sequential next-act strength (boss = one averaged term), for use INSIDE a parallel candidate loop —
+    /// the loop supplies the parallelism, so nesting AsParallel here would over-subscribe.</summary>
+    public static double DeckStrengthNextActSeq(
+        IReadOnlyList<string> deckSpecs, IReadOnlyList<Encounter> elites, IReadOnlyList<Encounter> bosses,
+        int maxEnergy, IReadOnlyList<string> relics, EvalOptions fast)
+    {
+        if (deckSpecs.Count == 0 || (elites.Count == 0 && bosses.Count == 0)) return double.NaN;
+        double sum = 0; int n = 0;
+        foreach (var e in elites) { sum += EliteLoss(deckSpecs, e, maxEnergy, relics, fast); n++; }
+        if (bosses.Count > 0)
+        {
+            double bsum = 0; foreach (var b in bosses) bsum += EliteLoss(deckSpecs, b, maxEnergy, relics, fast);
+            sum += bsum / bosses.Count; n++;
+        }
+        return n == 0 ? double.NaN : Math.Clamp(100 - sum / n, 0, 100);
+    }
+
     // ── Removal advice ───────────────────────────────────────────────────────────
 
     /// <summary>One single-card removal's verdict: the resulting deck's <see cref="Strength"/> and the

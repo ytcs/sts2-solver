@@ -168,6 +168,21 @@ public sealed class Companion
         return pool.Count > 0 ? pool[0] : null;
     }
 
+    /// <summary>Build benchmark <see cref="Advisor.Encounter"/>s from an act-pool of encounter class names (elites
+    /// or bosses), keeping only the modelled ones. Shared by the next-act deck-strength projection, which scores
+    /// against a whole upcoming-act pool. Display name strips the Elite/Boss suffix (matching <c>BuildContext</c>).</summary>
+    public static List<Advisor.Encounter> EncountersForClasses(IEnumerable<string> classes, int ascension)
+    {
+        Advisor.Encounter Make(string cls)
+        {
+            string disp = cls.EndsWith("Elite", StringComparison.Ordinal) ? cls[..^5]
+                        : cls.EndsWith("Boss", StringComparison.Ordinal) ? cls[..^4]
+                        : cls;
+            return new Advisor.Encounter(disp, () => Catalog.BuildEliteEncounter(cls, ascension));
+        }
+        return classes.Where(Catalog.IsKnownEliteEncounter).Select(Make).ToList();
+    }
+
     /// <summary>"4x StrikeIronclad, 1x Bash" — group a spec list by spec, most-frequent first. "(empty)" when none.</summary>
     public static string SummarizeSpecs(IEnumerable<string> specs)
     {

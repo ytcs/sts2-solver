@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Sts2Solver.Content;
 using Sts2Solver.Search;
 using Terminal.Gui.App;
 using Terminal.Gui.Input;
@@ -29,7 +30,7 @@ public sealed class RanwidApp
 
     // Views (created in BuildViews).
     private Window _win = null!;
-    private Label _strengthLabel = null!, _headerLabel = null!, _relicsLabel = null!;
+    private Label _strengthLabel = null!, _nextStrengthLabel = null!, _headerLabel = null!, _relicsLabel = null!;
     private FrameView _deckFrame = null!;
     private Label[] _deckLines = null!;        // one per card type (Attack/Skill/Power/Status/Curse)
     private FrameView _bossFrame = null!;
@@ -45,6 +46,10 @@ public sealed class RanwidApp
     // Strength is recomputed independently of a full load (toggling an elite's include/exclude re-runs only it),
     // so it has its own generation guard. A load bumps both (via StartEval → RecomputeStrength).
     private int _strengthGen;
+
+    // Next-act strength depends only on deck + act (not on toggles), so it is computed once per load under its own
+    // generation guard.
+    private int _nextGen;
 
     // Save watcher → flips _dirty; the UI-thread timer picks it up.
     private volatile bool _dirty;
@@ -83,11 +88,12 @@ public sealed class RanwidApp
         _win = new Window { Title = " ranwid — live Slay the Spire 2 advisor " };
         _win.SetScheme(TuiFormat.Base);
 
-        var top = new FrameView { Title = " Run ", X = 0, Y = 0, Width = Dim.Fill(), Height = 5 };
-        _strengthLabel = new Label { X = 1, Y = 0, Width = Dim.Fill(1), Height = 1 };
-        _headerLabel   = new Label { X = 1, Y = 1, Width = Dim.Fill(1), Height = 1 };
-        _relicsLabel   = new Label { X = 1, Y = 2, Width = Dim.Fill(1), Height = 1 };
-        top.Add(_strengthLabel, _headerLabel, _relicsLabel);
+        var top = new FrameView { Title = " Run ", X = 0, Y = 0, Width = Dim.Fill(), Height = 6 };
+        _strengthLabel     = new Label { X = 1, Y = 0, Width = Dim.Fill(1), Height = 1 };
+        _nextStrengthLabel = new Label { X = 1, Y = 1, Width = Dim.Fill(1), Height = 1 };
+        _headerLabel       = new Label { X = 1, Y = 2, Width = Dim.Fill(1), Height = 1 };
+        _relicsLabel       = new Label { X = 1, Y = 3, Width = Dim.Fill(1), Height = 1 };
+        top.Add(_strengthLabel, _nextStrengthLabel, _headerLabel, _relicsLabel);
 
         _deckFrame = new FrameView { Title = " Deck ", X = 0, Y = Pos.Bottom(top), Width = Dim.Fill(), Height = 7 };
         _deckLines = new Label[5];
@@ -198,8 +204,42 @@ public sealed class RanwidApp
         // Current-act strength = average over the included elites + the known boss (#5/#7). Recomputed live on
         // toggle. This curates against "the fights I'll actually face", unlike the Spectre path's representative pool.
         RecomputeStrength(ctx);
+        StartNextStrength(ctx);
         RenderAll();
     }
+
+    /// <summary>Project deck strength onto the NEXT act: averaged over that act's whole elite pool plus a single
+    /// averaged-boss term (we don't yet know which boss). Independent of the elite toggles, so it runs once per
+    /// load. NaN / hidden on the final act.</summary>
+    private void StartNextStrength(Companion.Context ctx)
+    {
+        int ngen = ++_nextGen;
+        int nextAct = ctx.Run.ActIndex + 1;
+        if (nextAct >= Catalog.ActThemes.Count)
+        {
+            _state.HasNextAct = false; _state.NextStrength = double.NaN; _state.NextStrengthBusy = false;
+            RenderTop();
+            return;
+        }
+
+        _state.HasNextAct = true; _state.NextStrengthBusy = true;
+        int asc = ctx.Run.Ascension;
+        var elites = Companion.EncountersForClasses(Catalog.ActElitePool(nextAct), asc);
+        var bosses = Companion.EncountersForClasses(Catalog.ActBossPool(nextAct), asc);
+        var deckSpecs = ctx.DeckSpecs; int energy = ctx.Run.MaxEnergy; var relics = ctx.RelicNames;
+        Task.Run(() =>
+        {
+            var s = Advisor.DeckStrengthNextAct(deckSpecs, elites, bosses, energy, relics, _opts);
+            PostNext(ngen, () => { _state.NextStrength = s; _state.NextStrengthBusy = false; RenderTop(); });
+        });
+    }
+
+    private void PostNext(int ngen, Action a) => Application.Invoke(() =>
+    {
+        if (ngen != _nextGen) return;
+        a();
+        _win.SetNeedsDraw();
+    });
 
     /// <summary>Re-evaluate only the current-act deck-strength index over the curated pool (included elites + boss),
     /// on a background task. Its own generation guard means a newer load or toggle supersedes an in-flight run.</summary>
@@ -275,11 +315,21 @@ public sealed class RanwidApp
 
         var run = c.Run;
         if (!_state.StrengthBusy && double.IsNaN(_state.Strength))
-            _strengthLabel.Text = "Deck strength  n/a  (no elites selected — press space on a row to include one)";
+            _strengthLabel.Text = "Strength · this act   n/a  (no elites selected — space a row to include one)";
         else
-            _strengthLabel.Text = "Deck strength  " + TuiFormat.StrengthBar(_state.Strength)
+            _strengthLabel.Text = "Strength · this act   " + TuiFormat.StrengthBar(_state.Strength)
                 + (_state.StrengthBusy ? "  (updating…)" : "");
         _strengthLabel.SetScheme(TuiFormat.SchemeOf(TuiFormat.StrengthColor(_state.Strength)));
+
+        if (!_state.HasNextAct)
+            _nextStrengthLabel.Text = "Strength · next act   —  (final act)";
+        else if (!_state.NextStrengthBusy && double.IsNaN(_state.NextStrength))
+            _nextStrengthLabel.Text = "Strength · next act   n/a";
+        else
+            _nextStrengthLabel.Text = "Strength · next act   " + TuiFormat.StrengthBar(_state.NextStrength)
+                + (_state.NextStrengthBusy ? "  (updating…)" : "");
+        _nextStrengthLabel.SetScheme(TuiFormat.SchemeOf(
+            _state.HasNextAct ? TuiFormat.StrengthColor(_state.NextStrength) : TuiFormat.Grey));
 
         _headerLabel.Text = $"{GameIds.CharacterName(run.Character)}  ·  A{run.Ascension}  ·  Act {run.ActIndex + 1}"
             + $"  ·  {run.PlayerHp}/{run.PlayerMaxHp} HP  ·  {run.MaxEnergy} energy"

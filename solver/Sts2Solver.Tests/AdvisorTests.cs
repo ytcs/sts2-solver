@@ -45,6 +45,33 @@ public class AdvisorTests
         Assert.Equal(a, b, 6);   // deterministic (same seed)
     }
 
+    private static Advisor.Encounter Byrd(string name, int hp) =>
+        new(name, () => new List<Monster> { Monsters.Byrdonis(hp) });
+
+    [Fact]
+    public void DeckStrengthNextAct_Averages_The_Boss_As_A_Single_Term()
+    {
+        var deck = Specs((5, "StrikeIronclad"), (3, "DefendIronclad"));
+        var empty = System.Array.Empty<string>();
+        var e55 = Byrd("b55", 55);
+        var b20 = Byrd("b20", 20);
+        var b90 = Byrd("b90", 90);
+
+        // Per-encounter clamped HP loss, recovered from the single-encounter strength (strength = 100 − loss).
+        double L(Advisor.Encounter e) => 100 - Advisor.DeckStrength(deck, new List<Advisor.Encounter> { e }, 3, empty, Exact);
+
+        // Next-act = average over [elite] + ONE averaged-boss term, NOT a flat pool of all bosses.
+        double expected = System.Math.Clamp(100 - (L(e55) + (L(b20) + L(b90)) / 2) / 2, 0, 100);
+        double next = Advisor.DeckStrengthNextAct(
+            deck, new List<Advisor.Encounter> { e55 }, new List<Advisor.Encounter> { b20, b90 }, 3, empty, Exact);
+        _out.WriteLine($"next-act {next:F2}; expected {expected:F2}");
+        Assert.Equal(expected, next, 6);
+
+        // It must differ from a flat 3-encounter pool (which would weight the two bosses 2/3 instead of 1/2).
+        double flat = Advisor.DeckStrength(deck, new List<Advisor.Encounter> { e55, b20, b90 }, 3, empty, Exact);
+        Assert.NotEqual(flat, next, 3);
+    }
+
     [Fact]
     public void Removing_A_Harmful_Card_Is_Never_Worse()
     {

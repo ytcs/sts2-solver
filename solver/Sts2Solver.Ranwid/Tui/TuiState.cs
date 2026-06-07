@@ -11,9 +11,15 @@ internal sealed class TuiState
     public Companion.Context? Ctx;
     public string? Status = "waiting for a readable run… (start or load one)";
 
-    // Deck-strength index (0–100, HP-independent). NaN until first computed.
+    // Current-act deck-strength index (0–100, HP-independent). NaN until first computed.
     public double Strength = double.NaN;
     public bool StrengthBusy;
+
+    // Next-act deck strength (averaged over that act's elite pool + its possible bosses). HasNextAct is false on
+    // the final act (no act after this one).
+    public double NextStrength = double.NaN;
+    public bool NextStrengthBusy;
+    public bool HasNextAct = true;
 
     // The act boss (its own panel). Null when the run has no boss row at all.
     public EliteResult? Boss;
