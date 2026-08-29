@@ -17,6 +17,10 @@ public abstract class PowerModel
     /// <summary>If false, Amount is clamped at 0 and the power is removed when it would go below.</summary>
     public virtual bool AllowNegative => false;
 
+    /// <summary>If true, the owner's hand is NOT discarded at end of their turn (Well-Laid Plans, Runic
+    /// Pyramid). Ethereal cards are also kept — the game skips the entire flush. (Game: AbstractModel.ShouldFlush.)</summary>
+    public virtual bool PreventsHandFlush => false;
+
     /// <summary>Additive bonus to the player's max energy while owned (Pyre). Summed over the player's
     /// powers when energy resets at turn start. (Game: PowerModel.ModifyMaxEnergy.)</summary>
     public virtual int ModifyMaxEnergy(Creature player) => 0;

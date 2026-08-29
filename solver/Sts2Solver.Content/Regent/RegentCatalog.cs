@@ -105,6 +105,9 @@ public static partial class Catalog
         ["Guards"] = () => new Guards(),
         ["HammerTime"] = () => new HammerTime(),
         ["Largesse"] = () => new Largesse(),
+        ["Plot"] = () => new Plot(),
+        ["Constellation"] = () => new Constellation(),
+        ["Tutor"] = () => new Tutor(),
         ["Quasar"] = () => new Quasar(),
     };
 

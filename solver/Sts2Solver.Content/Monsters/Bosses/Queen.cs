@@ -17,17 +17,19 @@ public static partial class Monsters
 
     /// <summary>
     /// Torch Head Amalgam (the Queen's ally). HP 199 (211 Tough), fixed. Combat start: MinionPower (no combat-stat
-    /// effect — modelled inert). Move chain (decompile FollowUpState): TACKLE → TACKLE → BEAM → WEAK_TACKLE →
-    /// WEAK_TACKLE → BEAM (loops on the BEAM → WeakTackle → WeakTackle cycle after the opening two tackles).
-    ///  - TACKLE      : single attack 18 / 19. SingleAttackIntent.
-    ///  - BEAM        : 3-hit attack 8 × 3 (_soulBeamRepeat = 3). MultiAttackIntent.
-    ///  - WEAK_TACKLE : single attack 14 / 15. SingleAttackIntent.
+    /// effect — modelled inert). Move chain (decompile FollowUpState): STRONG_TACKLE → TACKLE → BEAM → WEAK_TACKLE →
+    /// WEAK_TACKLE → BEAM (loops on the BEAM → WeakTackle → WeakTackle cycle after the opening Strong+Tackle).
+    ///  - STRONG_TACKLE : single attack 26 / 32 (v0.109.0 turn-1 opener).
+    ///  - TACKLE        : single attack 18 / 22. SingleAttackIntent.
+    ///  - BEAM          : 3-hit attack 8 × 3 (_soulBeamRepeat = 3). MultiAttackIntent.
+    ///  - WEAK_TACKLE   : single attack 14 / 16. SingleAttackIntent.
     /// </summary>
     public static Monster TorchHeadAmalgam(int hp = -1, int ascension = 0)
     {
         if (hp < 0) hp = Asc.Tough(ascension, 211, 199);   // MinInitialHp == MaxInitialHp (fixed)
-        int tackleDamage = Asc.Deadly(ascension, 19, 18);
-        int weakTackleDamage = Asc.Deadly(ascension, 15, 14);
+        int strongTackleDamage = Asc.Deadly(ascension, 32, 26);
+        int tackleDamage = Asc.Deadly(ascension, 22, 18);
+        int weakTackleDamage = Asc.Deadly(ascension, 16, 14);
         int beamDamage = 8;                                 // SoulBeamDamage (not Deadly-scaled)
         const int beamHits = 3;                             // _soulBeamRepeat
         var monster = new Monster { Name = "TorchHeadAmalgam", MaxHp = hp, CurrentHp = hp };
@@ -36,7 +38,7 @@ public static partial class Monsters
             (combat, self) => Cmd.Attack(combat, self, combat.Player, dmg, ValueProp.Move, null),
             intentDamage: dmg);
 
-        var tackle1 = Tackle("TACKLE_MOVE", tackleDamage);
+        var tackle1 = Tackle("STRONG_TACKLE_MOVE", strongTackleDamage);
         var tackle2 = Tackle("TACKLE_2_MOVE", tackleDamage);
         var beam = new MoveState("BEAM_MOVE",
             (combat, self) => Cmd.AttackMulti(combat, self, combat.Player, beamDamage, beamHits, ValueProp.Move, null),

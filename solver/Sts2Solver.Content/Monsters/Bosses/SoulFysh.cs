@@ -15,7 +15,7 @@ public static partial class Monsters
     /// Moves (decompile):
     ///  - BECKON  : no damage. Generates 2 Beckon status cards into the PLAYER's deck — one into the draw pile and
     ///              one into the discard pile (BeckonMoveAmount = 2). StatusIntent(2).
-    ///  - DE_GAS  : attack DeGasDamage = 16 (17 on Ascension DeadlyEnemies). SingleAttackIntent.
+    ///  - DE_GAS  : attack DeGasDamage = 16 (18 on Ascension DeadlyEnemies). SingleAttackIntent.
     ///  - GAZE    : attack GazeDamage = 7 (8 on DeadlyEnemies) AND generates 1 Beckon into the player's discard pile
     ///              (GazeMoveAmount = 1). SingleAttackIntent + StatusIntent(1).
     ///  - FADE    : pure self-buff — gains 2 Intangible (every instance of HP loss it would take is capped to 1 until
@@ -36,7 +36,7 @@ public static partial class Monsters
     public static Monster SoulFysh(int hp = -1, int ascension = 0)
     {
         if (hp < 0) hp = Asc.Tough(ascension, 221, 211);   // MinInitialHp == MaxInitialHp (fixed, no roll)
-        int deGasDamage = Asc.Deadly(ascension, 17, 16);
+        int deGasDamage = Asc.Deadly(ascension, 18, 16);
         int gazeDamage = Asc.Deadly(ascension, 8, 7);
         int screamDamage = Asc.Deadly(ascension, 15, 13);
         int screamVulnerable = 3;   // ScreamMoveAmount (not Deadly-scaled)

@@ -49,11 +49,11 @@ public class EnchantmentTests
     }
 
     [Fact]
-    public void Inky_Adds_1_Damage_And_Applies_1_Weak()
+    public void Inky_Applies_1_Weak_Without_Extra_Damage()
     {
         var (c, _, m) = Fight();
         Play(c, Catalog.BuildCard("StrikeIronclad@Inky"), m);
-        Assert.Equal(200 - (6 + 1), m.CurrentHp);
+        Assert.Equal(200 - 6, m.CurrentHp);   // v0.111.0: Inky no longer adds +1 damage
         Assert.Equal(1, m.GetPowerAmount("Weak"));
     }
 

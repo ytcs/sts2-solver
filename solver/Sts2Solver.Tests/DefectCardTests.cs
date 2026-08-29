@@ -342,7 +342,7 @@ public class DefectCardTests
     {
         var (c, p, m) = Fight();
         Play(c, new Refract(), m);
-        Assert.Equal(60 - 18, m.CurrentHp);
+        Assert.Equal(60 - 20, m.CurrentHp);
         Assert.Equal(2, p.Orbs.OfType<GlassOrb>().Count());
     }
 
@@ -384,7 +384,7 @@ public class DefectCardTests
         var (c, p, m) = Fight();
         Play(c, new Null(), m);
         Assert.Equal(60 - 10, m.CurrentHp);
-        Assert.Equal(2, m.GetPowerAmount("Weak"));
+        Assert.Equal(1, m.GetPowerAmount("Weak"));
         Assert.Single(p.Orbs.OfType<DarkOrb>());
     }
 
@@ -521,9 +521,9 @@ public class DefectCardTests
     {
         var (c, p, _) = Fight();
         Play(c, new BiasedCognition());
-        Assert.Equal(4, p.GetPowerAmount("Focus"));
+        Assert.Equal(5, p.GetPowerAmount("Focus"));
         CombatManager.BeginPlayerTurn(c);         // -1 Focus
-        Assert.Equal(3, p.GetPowerAmount("Focus"));
+        Assert.Equal(4, p.GetPowerAmount("Focus"));
     }
 
     [Fact]
@@ -577,7 +577,7 @@ public class DefectCardTests
         OrbOps.Channel(c, new LightningOrb());
         OrbOps.Channel(c, new FrostOrb());        // 2 distinct
         Play(c, new Synchronize());
-        Assert.Equal(2 * 2, p.GetPowerAmount("Focus"));
+        Assert.Equal(1 * 2, p.GetPowerAmount("Focus"));   // v0.111.0: 1 × distinct
     }
 
     [Fact]
@@ -701,9 +701,9 @@ public class DefectCardTests
         var (c, p, a, b) = Fight2(hp: 60);
         Cmd.ApplyPower(c, p, new FocusPower(), 5, p);
         Play(c, new Hyperbeam());
-        Assert.Equal(60 - 28, a.CurrentHp);
-        Assert.Equal(60 - 28, b.CurrentHp);
-        Assert.Equal(2, p.GetPowerAmount("Focus"));      // 5 - 3
+        Assert.Equal(60 - 24, a.CurrentHp);
+        Assert.Equal(60 - 24, b.CurrentHp);
+        Assert.Equal(2, p.GetPowerAmount("Focus"));      // 5 - 3 (temp; restored at turn end)
     }
 
     [Fact]
@@ -815,7 +815,7 @@ public class DefectCardTests
         var (c, p, m) = Fight();
         var card = new MomentumStrike();
         Play(c, card, m);
-        Assert.Equal(60 - 10, m.CurrentHp);
+        Assert.Equal(60 - 11, m.CurrentHp);
         Assert.Equal(0, card.Cost);
     }
 
@@ -950,7 +950,7 @@ public class DefectCardTests
     }
 
     [Fact]
-    public void Fuel_Gains_Energy_And_Draws()
+    public void Fuel_Gains_Energy_And_Does_Not_Draw()
     {
         var (c, p, _) = Fight();
         c.Rng = new Rng(0);
@@ -958,7 +958,7 @@ public class DefectCardTests
         int before = p.Energy;
         Play(c, new Fuel());
         Assert.Equal(before + 1, p.Energy);
-        Assert.Single(p.Hand.OfType<StrikeDefect>());
+        Assert.Empty(p.Hand.OfType<StrikeDefect>());   // v0.108.0: Fuel no longer draws
     }
 
     [Fact]

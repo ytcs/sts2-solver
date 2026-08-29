@@ -33,12 +33,15 @@ public class MultiplayerCardTests
     {
         foreach (var name in new[]
         {
-            // Colorless (11)
+            // Colorless (12)
             "BeaconOfHope","BelieveInYou","Coordinate","GangUp","HuddleUp","Intercept","Knockdown","Lift",
-            "Mimic","Rally","TagTeam",
-            // Other pools (10)
+            "Mimic","Rally","TagTeam","TheBall",
+            // Other pools (v0.108–v0.111 MP additions)
             "DemonicShield","Tank","EnergySurge","Ignition","Flanking","Sneaky","HammerTime","Largesse",
             "GlimpseBeyond","LegionOfBone",
+            "Midnight","Blaze","Outrage","BladeSymphony","Concoct","Fade",
+            "Plot","Constellation","Tutor","Underworld","Soulbound","Cacophony",
+            "Hibernate","OneForAll","ImitationLearning",
         })
             Assert.NotNull(Catalog.BuildCard(name));
     }
@@ -198,14 +201,14 @@ public class MultiplayerCardTests
     // ---------------- Ironclad Tank: the self-downside is modelled ----------------
 
     [Fact]
-    public void Tank_Makes_You_Take_Double_Attack_Damage()
+    public void Tank_Makes_You_Take_Fifty_Percent_More_Attack_Damage()
     {
         var (c, p, _) = Fight();
         Play(c, new Tank(), null);
         Assert.NotNull(p.GetPower("Tank"));
-        // A 10-damage powered attack against the tank now lands for 20.
-        Cmd.Attack(c, c.Monsters[0], p, 10, ValueProp.None, null);
-        Assert.Equal(60, p.CurrentHp);                 // 80 - 10*2
+        // A 10-damage powered attack against the tank now lands for 15 (v0.108.0: +50%, was double).
+        Cmd.Attack(c, c.Monsters[0], p, 10, ValueProp.Move, null);
+        Assert.Equal(65, p.CurrentHp);                 // 80 - 10*1.5
     }
 
     [Fact]

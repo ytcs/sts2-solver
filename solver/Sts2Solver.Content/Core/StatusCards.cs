@@ -105,8 +105,8 @@ public sealed class Void : CardModel
     public override void OnPlay(CombatState combat, CardPlay play) { }
 }
 
-/// <summary>Token card: cost 0, Exhaust, gain 1 energy + draw 1 when played. The Defect's Compact transforms
-/// in-hand Status cards into Fuel. Upgrade: draw 2. (MegaCrit Fuel)</summary>
+/// <summary>Token card: cost 0, Exhaust, gain 1 energy. The Defect's Compact transforms in-hand Status
+/// cards into Fuel. Upgrade: +1 energy (no longer draws — v0.108.0). (MegaCrit Fuel)</summary>
 public sealed class Fuel : CardModel
 {
     public override string Name => "Fuel";
@@ -115,12 +115,9 @@ public sealed class Fuel : CardModel
     public override CardRarity Rarity => CardRarity.Token;
     public override TargetType Target => TargetType.Self;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
-    public int Cards => 1 + Upgrades;
+    public int Energy => 1 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
-    {
-        Cmd.GainEnergy(combat, 1);
-        Cmd.Draw(combat, Cards);
-    }
+        => Cmd.GainEnergy(combat, Energy);
 }
 
 // ===========================================================================
@@ -294,7 +291,7 @@ public sealed class GiantRock : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Token;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Damage => 16 + 4 * Upgrades;
+    public int Damage => 20 + 4 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
 }

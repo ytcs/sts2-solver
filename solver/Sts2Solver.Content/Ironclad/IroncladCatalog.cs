@@ -94,6 +94,9 @@ public static partial class Catalog
         ["Cascade"] = () => new Cascade(),
         ["DemonicShield"] = () => new DemonicShield(),
         ["Tank"] = () => new Tank(),
+        ["Midnight"] = () => new Midnight(),
+        ["Blaze"] = () => new Blaze(),
+        ["Outrage"] = () => new Outrage(),
         ["FightMe"] = () => new FightMe(),
         ["TearAsunder"] = () => new TearAsunder(),
     };

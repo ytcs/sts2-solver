@@ -39,12 +39,12 @@ public class QueenTests
     public void Amalgam_Chain_Loops_On_Beam()
     {
         var m = Monsters.TorchHeadAmalgam();
-        Assert.Equal("TACKLE_MOVE", m.Ai.EnumerateInitial(m).Single().moveId);
+        Assert.Equal("STRONG_TACKLE_MOVE", m.Ai.EnumerateInitial(m).Single().moveId);
         Assert.Equal("BEAM_MOVE", Move(m, "TACKLE_2_MOVE").FollowUp!.Id);
         Assert.Equal("TACKLE_3_MOVE", Move(m, "BEAM_MOVE").FollowUp!.Id);
         Assert.Equal("BEAM_MOVE", Move(m, "TACKLE_4_MOVE").FollowUp!.Id);   // loop back to BEAM
         var c = Combat(m);
-        Assert.Equal(18, RunMove(c, m, "TACKLE_MOVE"));
+        Assert.Equal(26, RunMove(c, m, "STRONG_TACKLE_MOVE"));
         Assert.Equal(24, RunMove(c, m, "BEAM_MOVE"));    // 8 × 3
         Assert.Equal(14, RunMove(c, m, "TACKLE_3_MOVE")); // weak tackle
     }

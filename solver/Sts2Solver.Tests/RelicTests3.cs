@@ -45,11 +45,11 @@ public class RelicTests3
     }
 
     [Fact]
-    public void DivineDestiny_Grants_6_Stars_Turn_1()
+    public void DivineDestiny_Grants_7_Stars_Turn_1()
     {
         var (combat, _) = Fight("DivineDestiny");
         CombatManager.BeginPlayerTurn(combat);
-        Assert.Equal(6, combat.Player.Stars);
+        Assert.Equal(7, combat.Player.Stars);
     }
 
     [Fact]

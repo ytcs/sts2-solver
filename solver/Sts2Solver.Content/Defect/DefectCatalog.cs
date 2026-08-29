@@ -98,6 +98,9 @@ public static partial class Catalog
         ["Uproar"] = () => new Uproar(),
         ["Chaos"] = () => new Chaos(),
         ["WhiteNoise"] = () => new WhiteNoise(),
+        ["Hibernate"] = () => new Hibernate(),
+        ["OneForAll"] = () => new OneForAll(),
+        ["ImitationLearning"] = () => new ImitationLearning(),
     };
 
     /// <summary>The Defect starting deck: 4 Strike, 4 Defend, 1 Zap, 1 Dualcast. Starts at 75 HP with the

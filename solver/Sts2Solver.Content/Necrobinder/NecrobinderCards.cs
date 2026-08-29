@@ -294,7 +294,7 @@ public sealed class Reave : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Damage => 9 + 2 * Upgrades;
+    public int Damage => 10 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
 }
@@ -338,7 +338,7 @@ public sealed class SoulStorm : CardModel
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AnyEnemy;
     public int Base => 9;
-    public int Extra => 2 + Upgrades;
+    public int Extra => 4 + 2 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         int souls = combat.Player.ExhaustPile.Count(c => c.Name == "Soul");
@@ -358,7 +358,7 @@ public sealed class TheScythe : CardModel
     public override bool Stateful => true;
 
     private int _bonus;
-    public int Increase => 3 + Upgrades;
+    public int Increase => 5 + 2 * Upgrades;
     public int Damage => 13 + _bonus;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
@@ -377,7 +377,6 @@ public sealed class TimesUp : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AnyEnemy;
-    public override CardResultPile ResultPile => Upgrades > 0 ? CardResultPile.Discard : CardResultPile.Exhaust;
     public override bool Retain => Upgrades > 0;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.Attack(combat, combat.Player, play.Target!, play.Target!.GetPowerAmount("Doom"), ValueProp.Move, this);
@@ -731,7 +730,7 @@ public sealed class Sacrifice : CardModel
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         if (combat.Player.IsOstyMissing) return;
-        int block = combat.Player.Osty!.MaxHp * 2;
+        int block = combat.Player.Osty!.MaxHp * 3;
         Cmd.Kill(combat, combat.Player.Osty!);
         Cmd.GainBlock(combat, combat.Player, block, ValueProp.Move, this);
     }
@@ -977,8 +976,8 @@ public sealed class SharedFate : CardModel
     }
 }
 
-/// <summary>Exhaust your whole hand; if you exhausted 9+ cards, gain 1 Intangible. Exhaust. Upgrade: cost
-/// 2→1. (Eidolon)</summary>
+/// <summary>Play ALL Ethereal (playable) cards in your Exhaust Pile. Exhaust. Upgrade: cost 2→1.
+/// (Eidolon — reworked v0.109.0.)</summary>
 public sealed class Eidolon : CardModel
 {
     public override string Name => "Eidolon";
@@ -990,9 +989,14 @@ public sealed class Eidolon : CardModel
     public override int Cost => Math.Max(0, 2 - Upgrades);
     public override void OnPlay(CombatState combat, CardPlay play)
     {
-        int n = 0;
-        foreach (var c in combat.Player.Hand.ToList()) { Cmd.ExhaustFromHand(combat, c); n++; }
-        if (n >= 9) Cmd.ApplyPower(combat, combat.Player, new IntangiblePower(), 1, combat.Player);
+        var ethereals = combat.Player.ExhaustPile.Where(c => c.Ethereal && !c.Unplayable).ToList();
+        foreach (var c in ethereals)
+        {
+            if (combat.IsCombatOver) break;
+            Creature? target = c.NeedsTarget ? combat.LivingMonsters.FirstOrDefault() : null;
+            if (c.NeedsTarget && target == null) continue;
+            c.OnPlay(combat, new CardPlay { Card = c, Target = target });
+        }
     }
 }
 
@@ -1087,7 +1091,6 @@ public sealed class LegionOfBone : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AllAllies;
-    public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public int Summon => 6 + 2 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play) => NecroOsty.Summon(combat, Summon);
 }
@@ -1185,7 +1188,7 @@ public sealed class Haunt : CardModel
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public int Amount => 6 + 2 * Upgrades;
+    public int Amount => 7 + 2 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new HauntPower(), Amount, combat.Player);
 }
@@ -1261,7 +1264,7 @@ public sealed class Shroud : CardModel
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public int Amount => 2 + Upgrades;
+    public int Amount => 3 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new ShroudPower(), Amount, combat.Player);
 }
@@ -1401,4 +1404,44 @@ public sealed class SweepingGaze : CardModel
         var target = play.Target ?? combat.LivingMonsters.FirstOrDefault();
         if (target != null) NecroOsty.OstyHit(combat, target, Damage, this);
     }
+}
+
+/// <summary>Whenever other players deal attack damage this turn, apply that much Doom. Exhaust.
+/// Inert in single-player (no other players). Cost 2. Upgrade: lose Exhaust. (MegaCrit Underworld.)</summary>
+public sealed class Underworld : CardModel
+{
+    public override string Name => "Underworld";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public override CardResultPile ResultPile => Upgrades > 0 ? CardResultPile.Discard : CardResultPile.Exhaust;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+
+/// <summary>Choose an ally; whenever you create a Soul, add a Soul to their draw pile. Inert in SP.
+/// Cost 1. Upgrade: Innate. (MegaCrit Soulbound.)</summary>
+public sealed class Soulbound : CardModel
+{
+    public override string Name => "Soulbound";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Power;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public override bool Innate => Upgrades > 0;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+
+/// <summary>Every 33 cards drawn, deal 66 to the first enemy. Cost 2. Upgrade: +33 damage.
+/// (MegaCrit Cacophony — SP counts our draws only.)</summary>
+public sealed class Cacophony : CardModel
+{
+    public override string Name => "Cacophony";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Power;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public int Damage => 66 + 33 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.ApplyPower(combat, combat.Player, new CacophonyPower(), Damage, combat.Player);
 }

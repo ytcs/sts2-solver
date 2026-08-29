@@ -184,7 +184,7 @@ public sealed class TankPower : PowerModel
     {
         if (target != Owner) return 1m;
         if (!props.IsPoweredAttack()) return 1m;
-        return 2m;
+        return 1.5m;   // v0.108.0: take 50% additional (was double)
     }
 }
 /// <summary>Expect a Fight's marker: while owned, the player cannot gain energy (Cmd.GainEnergy is a

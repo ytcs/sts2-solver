@@ -385,8 +385,8 @@ public sealed class PhantomBladesPower : PowerModel
     public override long HashValue() => base.HashValue() ^ (_shivPlayedThisTurn ? 0x27D4EB2FL : 0L);
 }
 
-/// <summary>Tracking: the owner's card attacks against Weak enemies deal ×<c>Amount</c> damage (powered
-/// attacks only). (MegaCrit TrackingPower.)</summary>
+/// <summary>Tracking: the owner's card attacks against Weak enemies deal ×(1 + Amount/100) damage (powered
+/// attacks only). v0.108.0: Amount is 50 → ×1.5 (was ×2). (MegaCrit TrackingPower.)</summary>
 public sealed class TrackingPower : PowerModel
 {
     public override string Id => "Tracking";
@@ -396,7 +396,7 @@ public sealed class TrackingPower : PowerModel
     {
         if (dealer != Owner || !props.IsPoweredAttack() || cardSource == null) return 1m;
         if (target == null || !target.HasPower("Weak")) return 1m;
-        return Amount;
+        return 1m + Amount / 100m;
     }
 }
 
@@ -488,12 +488,13 @@ public sealed class MasterPlannerPower : PowerModel
     public override PowerType Type => PowerType.Buff;
 }
 
-/// <summary>Well-Laid Plans: at end of turn, Retain up to <c>Amount</c> chosen cards. Retain is HP-neutral
-/// card-flow we don't model, so this is an inert marker. (MegaCrit WellLaidPlansPower — single-player.)</summary>
+/// <summary>Well-Laid Plans (v0.109+): the owner's hand is not discarded at end of turn.
+/// (MegaCrit WellLaidPlansPower.ShouldFlush → false for the owner.)</summary>
 public sealed class WellLaidPlansPower : PowerModel
 {
     public override string Id => "WellLaidPlans";
     public override PowerType Type => PowerType.Buff;
+    public override bool PreventsHandFlush => true;
 }
 
 /// <summary>Sneaky: whenever an ALLY plays an Attack, gain <c>Amount</c> Block. Requires another player, so

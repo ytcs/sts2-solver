@@ -494,11 +494,11 @@ public sealed class Omnislice : CardModel
 public sealed class Rend : CardModel
 {
     public override string Name => "Rend";
-    public override int BaseCost => 2;
+    public override int BaseCost => 1;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int CalcBase => 15 + 3 * Upgrades;
+    public int CalcBase => 10 + 2 * Upgrades;
     public int Extra => 5 + 3 * Upgrades;
     public static int PermanentDebuffs(Creature c)
         => c.Powers.Count(p => p.Type == PowerType.Debuff && p is not TemporaryStrengthPower);
@@ -513,7 +513,7 @@ public sealed class Salvo : CardModel
     public override string Name => "Salvo";
     public override int BaseCost => 1;
     public override CardType Type => CardType.Attack;
-    public override CardRarity Rarity => CardRarity.Rare;
+    public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AnyEnemy;
     public int Damage => 12 + 4 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
@@ -827,7 +827,7 @@ public sealed class Splash : CardModel
     public override string Name => "Splash";
     public override int BaseCost => 1;
     public override CardType Type => CardType.Skill;
-    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.Self;
     public override void OnPlay(CombatState combat, CardPlay play) { }   // RNG card-generation is inert
 }
@@ -1036,11 +1036,11 @@ public sealed class Stratagem : CardModel
 // --------------------------------------------------------------------------
 
 /// <summary>Apply Beacon of Hope (split future Block gains with allies). Inert in single player — no allies
-/// to share with. Cost 1 Power. Upgrade: Innate. (MegaCrit BeaconOfHope, MultiplayerOnly.)</summary>
+/// to share with. Cost 2 Power. Upgrade: Innate. (MegaCrit BeaconOfHope, MultiplayerOnly.)</summary>
 public sealed class BeaconOfHope : CardModel
 {
     public override string Name => "BeaconOfHope";
-    public override int BaseCost => 1;
+    public override int BaseCost => 2;
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.Self;
@@ -1198,4 +1198,26 @@ public sealed class TagTeam : CardModel
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
         if (play.Target!.IsAlive) Cmd.ApplyPower(combat, play.Target!, new TagTeamPower(), 1, combat.Player);
     }
+}
+
+/// <summary>Deal 10 damage. Increase this card's damage by 10 this combat. Cost 1. Upgrade: +5 increase.
+/// (MegaCrit TheBall — SP keeps the scaled card; cannot hand it to an ally.)</summary>
+public sealed class TheBall : CardModel
+{
+    public override string Name => "TheBall";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public override bool Stateful => true;
+    private int _bonus;
+    public int Damage => 10 + _bonus;
+    public int Increase => 10 + 5 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+        _bonus += Increase;
+    }
+    public override CardModel Clone() { var c = (TheBall)base.Clone(); c._bonus = _bonus; return c; }
+    public override string StateKey() => _bonus > 0 ? $"TheBall#{_bonus}{(Upgrades > 0 ? $"+{Upgrades}" : "")}" : base.StateKey();
 }

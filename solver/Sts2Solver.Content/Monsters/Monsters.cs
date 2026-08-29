@@ -260,13 +260,14 @@ public static partial class Monsters
     /// <summary>
     /// MechaKnight (Act 1 elite, MegaCrit): HP 300 (320 on Ascension ToughEnemies). Starts with
     /// Artifact(3) (negates the player's first 3 debuffs). Opens on Charge (25), then loops
-    /// Flamethrower (adds 4 Burn to the player's hand) → Windup (gain 15 block, +5 Strength) →
+    /// Flamethrower (8/12 damage + 4 Burn into the player's hand) → Windup (gain 15 block, +5 Strength) →
     /// Heavy Cleave (35) → Flamethrower → … On Ascension DeadlyEnemies: Charge 30, Heavy Cleave 40.
     /// </summary>
     public static Monster MechaKnight(int hp = -1, int ascension = 0)
     {
         if (hp < 0) hp = Asc.Tough(ascension, 320, 300);
         int chargeDamage = Asc.Deadly(ascension, 30, 25), heavyCleaveDamage = Asc.Deadly(ascension, 40, 35);
+        int flamethrowerDamage = Asc.Deadly(ascension, 12, 8);
         int windupBlock = 15, windupStrength = 5, burnCount = 4, artifact = 3;
         var monster = new Monster { Name = "MechaKnight", MaxHp = hp, CurrentHp = hp };
 
@@ -274,8 +275,12 @@ public static partial class Monsters
             (combat, self) => Cmd.Attack(combat, self, combat.Player, chargeDamage, ValueProp.Move, null),
             intentDamage: chargeDamage);
         var flamethrower = new MoveState("FLAMETHROWER_MOVE",
-            (combat, self) => { for (int i = 0; i < burnCount; i++) combat.Player.Hand.Add(new Burn()); },
-            intentDamage: null);
+            (combat, self) =>
+            {
+                Cmd.Attack(combat, self, combat.Player, flamethrowerDamage, ValueProp.Move, null);
+                for (int i = 0; i < burnCount; i++) combat.Player.Hand.Add(new Burn());
+            },
+            intentDamage: flamethrowerDamage);
         var windup = new MoveState("WINDUP_MOVE",
             (combat, self) =>
             {
@@ -299,7 +304,7 @@ public static partial class Monsters
     }
 
     /// <summary>
-    /// Entomancer (Act 1 elite, MegaCrit): HP 145 (155 on Ascension ToughEnemies). Starts with Personal
+    /// Entomancer (Act 1 elite, MegaCrit): HP 145 (165 on Ascension ToughEnemies). Starts with Personal
     /// Hive(1): whenever the player lands a powered attack, it shuffles that many Dazed into the player's
     /// draw pile. Opens on Bees (3×7), then loops Spear (18) → Pheromone Spit → Bees → … Pheromone Spit
     /// grows the hive (+1 Hive, +1 Strength) until Hive 3, thereafter +2 Strength. Deadly: Bees 3×8,
@@ -307,7 +312,7 @@ public static partial class Monsters
     /// </summary>
     public static Monster Entomancer(int hp = -1, int ascension = 0)
     {
-        if (hp < 0) hp = Asc.Tough(ascension, 155, 145);
+        if (hp < 0) hp = Asc.Tough(ascension, 165, 145);
         int beesDamage = 3, beesHits = Asc.Deadly(ascension, 8, 7), spearDamage = Asc.Deadly(ascension, 20, 18);
         var monster = new Monster { Name = "Entomancer", MaxHp = hp, CurrentHp = hp };
 

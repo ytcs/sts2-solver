@@ -4,7 +4,7 @@ using Sts2Solver.Engine;
 
 namespace Sts2Solver.Content;
 
-// Concrete card enchantments, ported from sts2.dll v0.107.0 (MegaCrit.Sts2.Core.Models.Enchantments).
+// Concrete card enchantments, ported from sts2.dll v0.111.0 (MegaCrit.Sts2.Core.Models.Enchantments).
 // Each mirrors one game enchantment's combat effect via the CardEnchantment hooks. The powered-attack /
 // powered-block guards live in Cmd (it only calls DamageAdditive/Multiplier/BlockAdditive for powered actions),
 // so these just return their magnitude. Eligibility (CanEnchant) is the game's; we don't re-check it — the save
@@ -21,14 +21,18 @@ public sealed class SharpEnchant : CardEnchantment
     public override int DamageAdditive(ValueProp props) => Amount;
 }
 
-/// <summary>Inky (any): +1 damage and apply 1 Weak on play (fixed; the game does not scale these).</summary>
+/// <summary>Inky (any): apply 1 Weak on play. v0.111.0 removed the +1 damage rider (still applies Weak).</summary>
 public sealed class InkyEnchant : CardEnchantment
 {
     public override string Id => "Inky";
-    public override int DamageAdditive(ValueProp props) => 1;
     public override void OnPlay(CombatState combat, CardPlay play, CardModel card)
     {
-        if (play.Target is { IsAlive: true } t)
+        if (card.Target == TargetType.AllEnemies)
+        {
+            foreach (var m in combat.LivingMonsters.ToList())
+                Cmd.ApplyPower(combat, m, new WeakPower(), 1, combat.Player);
+        }
+        else if (play.Target is { IsAlive: true } t)
             Cmd.ApplyPower(combat, t, new WeakPower(), 1, combat.Player);
     }
 }

@@ -92,5 +92,6 @@ public static partial class Catalog
         ["Mimic"] = () => new Mimic(),
         ["Rally"] = () => new Rally(),
         ["TagTeam"] = () => new TagTeam(),
+        ["TheBall"] = () => new TheBall(),
     };
 }

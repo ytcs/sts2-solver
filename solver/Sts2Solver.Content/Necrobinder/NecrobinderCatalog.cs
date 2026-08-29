@@ -97,6 +97,9 @@ public static partial class Catalog
         ["Undeath"] = () => new Undeath(),
         ["Veilpiercer"] = () => new Veilpiercer(),
         ["Wisp"] = () => new Wisp(),
+        ["Underworld"] = () => new Underworld(),
+        ["Soulbound"] = () => new Soulbound(),
+        ["Cacophony"] = () => new Cacophony(),
     };
 
     /// <summary>The Necrobinder starting deck: 4 Strike, 4 Defend, 1 Bodyguard, 1 Unleash. Starts at 66 HP

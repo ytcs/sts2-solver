@@ -109,15 +109,15 @@ public class CardTests
     }
 
     [Fact]
-    public void HowlFromBeyond_Hits_All_For_16()
+    public void HowlFromBeyond_Hits_All_For_18()
     {
         var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
         var m1 = Monsters.CalcifiedCultist(hp: 40);
         var m2 = Monsters.CalcifiedCultist(hp: 40);
         var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
         Play(combat, new HowlFromBeyond(), null);
-        Assert.Equal(40 - 16, m1.CurrentHp);
-        Assert.Equal(40 - 16, m2.CurrentHp);
+        Assert.Equal(40 - 18, m1.CurrentHp);
+        Assert.Equal(40 - 18, m2.CurrentHp);
     }
 
     [Fact]
@@ -168,11 +168,11 @@ public class CardTests
     }
 
     [Fact]
-    public void Taunt_Gains_7_Block_And_Applies_1_Vulnerable()
+    public void Taunt_Gains_6_Block_And_Applies_1_Vulnerable()
     {
         var (c, p, m) = Fight();
         Play(c, new Taunt(), m);
-        Assert.Equal(7, p.Block);
+        Assert.Equal(6, p.Block);
         Assert.Equal(1, m.GetPowerAmount("Vulnerable"));
     }
 
@@ -188,15 +188,15 @@ public class CardTests
     }
 
     [Fact]
-    public void DemonForm_Grants_2_Strength_At_Each_Turn_Start_Stacking()
+    public void DemonForm_Grants_3_Strength_At_Each_Turn_Start_Stacking()
     {
         var (c, p, _) = Fight();
         Play(c, new DemonForm(), null);
         Assert.Equal(0, p.GetPowerAmount("Strength"));   // not applied the turn it is played
         CombatManager.BeginPlayerTurn(c);
-        Assert.Equal(2, p.GetPowerAmount("Strength"));   // +2 at next turn start
+        Assert.Equal(3, p.GetPowerAmount("Strength"));   // +3 at next turn start (v0.109.0)
         CombatManager.BeginPlayerTurn(c);
-        Assert.Equal(4, p.GetPowerAmount("Strength"));   // stacks: +2 again
+        Assert.Equal(6, p.GetPowerAmount("Strength"));   // stacks: +3 again
     }
 
     [Fact]
@@ -261,10 +261,10 @@ public class CardTests
         var (c, p, m) = Fight();
         Play(c, new SetupStrike(), m);
         Assert.Equal(60 - 7, m.CurrentHp);              // own hit not boosted (Strength applied after)
-        Assert.Equal(2, p.GetPowerAmount("Strength"));  // +2 temporary Strength
-        Assert.Equal(2, p.GetPowerAmount("SetupStrike"));
-        Play(c, new StrikeIronclad(), m);               // 6 + 2 Strength = 8
-        Assert.Equal(60 - 7 - 8, m.CurrentHp);
+        Assert.Equal(3, p.GetPowerAmount("Strength"));  // +3 temporary Strength (v0.108.0)
+        Assert.Equal(3, p.GetPowerAmount("SetupStrike"));
+        Play(c, new StrikeIronclad(), m);               // 6 + 3 Strength = 9
+        Assert.Equal(60 - 7 - 9, m.CurrentHp);
         CombatManager.EndPlayerTurn(c);                 // undone at the player's turn end
         Assert.Equal(0, p.GetPowerAmount("Strength"));
         Assert.False(p.HasPower("SetupStrike"));
@@ -276,7 +276,7 @@ public class CardTests
         var (c, p, m) = Fight();
         m.AddPower(new StrengthPower(), 4);             // enemy baseline Strength 4
         Play(c, new Mangle(), m);
-        Assert.Equal(60 - 15, m.CurrentHp);            // 15 damage
+        Assert.Equal(60 - 20, m.CurrentHp);            // 20 damage (v0.110.0)
         Assert.Equal(4 - 10, m.GetPowerAmount("Strength"));  // -10 temporary => -6
         Assert.Equal(10, m.GetPowerAmount("Mangle"));  // marker present during the enemy turn
         // Drive the enemy turn: Incantation applies Ritual 2 (skips its first tick); Mangle restores +10.
@@ -309,16 +309,16 @@ public class CardTests
     }
 
     [Fact]
-    public void Colossus_Gains_5_Block_And_Halves_Vulnerable_Enemy_Attacks()
+    public void Colossus_Gains_4_Block_And_Halves_Vulnerable_Enemy_Attacks()
     {
         var (c, p, m) = Fight();
         Play(c, new Colossus(), null);
-        Assert.Equal(5, p.Block);
+        Assert.Equal(4, p.Block);
         Assert.Equal(1, p.GetPowerAmount("Colossus"));
         m.AddPower(new VulnerablePower(), 1);        // the attacker is itself Vulnerable
-        // 20 base × 0.5 (Colossus) = 10, minus the 5 block = 5 HP lost.
+        // 20 base × 0.5 (Colossus) = 10, minus the 4 block = 6 HP lost.
         Cmd.Attack(c, m, p, 20, ValueProp.Move, null);
-        Assert.Equal(80 - 5, p.CurrentHp);
+        Assert.Equal(80 - 6, p.CurrentHp);
     }
 
     [Fact]
@@ -776,7 +776,7 @@ public class CardTests
     }
 
     [Fact]
-    public void PactsEnd_Deals_17_To_All_Only_With_3_Exhausted()
+    public void PactsEnd_Deals_18_To_All_Only_With_3_Exhausted()
     {
         var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
         var m1 = Monsters.CalcifiedCultist(hp: 40);
@@ -785,9 +785,9 @@ public class CardTests
         Play(combat, new PactsEnd(), null);                  // 0 exhausted -> no damage
         Assert.Equal(40, m1.CurrentHp);
         for (int i = 0; i < 3; i++) player.ExhaustPile.Add(new StrikeIronclad());
-        Play(combat, new PactsEnd(), null);                  // 3 exhausted -> 17 to all
-        Assert.Equal(40 - 17, m1.CurrentHp);
-        Assert.Equal(40 - 17, m2.CurrentHp);
+        Play(combat, new PactsEnd(), null);                  // 3 exhausted -> 18 to all
+        Assert.Equal(40 - 18, m1.CurrentHp);
+        Assert.Equal(40 - 18, m2.CurrentHp);
     }
 
     [Fact]
@@ -888,12 +888,12 @@ public class CardTests
     {
         var (c, _, m) = Fight(monsterHp: 100);
         var r = new Rampage();
-        Play(c, r, m);                                       // 9
-        Assert.Equal(100 - 9, m.CurrentHp);
-        Play(c, r, m);                                       // 9 + 5 = 14
-        Assert.Equal(100 - 9 - 14, m.CurrentHp);
-        Play(c, r, m);                                       // 14 + 5 = 19
-        Assert.Equal(100 - 9 - 14 - 19, m.CurrentHp);
+        Play(c, r, m);                                       // 10
+        Assert.Equal(100 - 10, m.CurrentHp);
+        Play(c, r, m);                                       // 10 + 5 = 15
+        Assert.Equal(100 - 10 - 15, m.CurrentHp);
+        Play(c, r, m);                                       // 15 + 5 = 20
+        Assert.Equal(100 - 10 - 15 - 20, m.CurrentHp);
     }
 
     [Fact]
@@ -908,19 +908,18 @@ public class CardTests
     }
 
     [Fact]
-    public void ExpectAFight_Gains_Energy_Per_Attack_In_Hand_And_Blocks_Further_Gain()
+    public void ExpectAFight_Gains_Block_Scaled_On_Strength()
     {
         var (c, p, _) = Fight();
-        p.ResetEnergy();                                     // 3
-        p.Hand.Add(new StrikeIronclad());                    // 2 attacks in hand
-        p.Hand.Add(new StrikeIronclad());
-        p.Hand.Add(new DefendIronclad());                    // a non-attack (doesn't count)
-        var eaf = new ExpectAFight(); p.Hand.Add(eaf);
-        CombatManager.PlayCard(c, eaf, null);                // costs 2, gains 2 (two Strikes)
-        Assert.Equal(3 - 2 + 2, p.Energy);                   // 3
-        Assert.True(p.HasPower("NoEnergyGain"));
-        Cmd.GainEnergy(c, 5);                                // suppressed
-        Assert.Equal(3, p.Energy);
+        p.MaxEnergy = 3; p.ResetEnergy();
+        Play(c, new ExpectAFight(), null);                   // cost 3, 15 block, 0 str
+        Assert.Equal(15, p.Block);
+
+        var (c2, p2, _) = Fight();
+        p2.MaxEnergy = 3; p2.ResetEnergy();
+        Cmd.ApplyPower(c2, p2, new StrengthPower(), 2, p2);
+        Play(c2, new ExpectAFight(), null);                  // 15 + 5×2 = 25
+        Assert.Equal(25, p2.Block);
     }
 
     [Fact]
@@ -1059,12 +1058,12 @@ public class CardTests
     {
         var (c, p, _) = Fight();
         CombatManager.BeginPlayerTurn(c);                    // turn 1
-        Play(c, new CrimsonMantle(), null);                  // SelfDamage 0 -> 1, block amount 8
-        Play(c, new CrimsonMantle(), null);                  // SelfDamage 1 -> 2, block amount 8+8 = 16
+        Play(c, new CrimsonMantle(), null);                  // SelfDamage 0 -> 1, block amount 7
+        Play(c, new CrimsonMantle(), null);                  // SelfDamage 1 -> 2, block amount 7+7 = 14
         Assert.Equal(0, p.Block);                            // nothing happens the turn it's played
-        CombatManager.BeginPlayerTurn(c);                    // turn 2 start: lose 2 HP, gain 16 block
+        CombatManager.BeginPlayerTurn(c);                    // turn 2 start: lose 2 HP, gain 14 block
         Assert.Equal(80 - 2, p.CurrentHp);
-        Assert.Equal(16, p.Block);
+        Assert.Equal(14, p.Block);
     }
 
     [Fact]
@@ -1134,22 +1133,13 @@ public class CardTests
     }
 
     [Fact]
-    public void ForgottenRitual_Refunds_3_Energy_Only_After_An_Exhaust()
+    public void ForgottenRitual_Always_Gains_3_Energy()
     {
-        // No prior exhaust -> no refund (just pays its 1 cost).
         var (c1, p1, _) = Fight();
         p1.ResetEnergy();                                     // 3
         var fr1 = new ForgottenRitual(); p1.Hand.Add(fr1);
-        CombatManager.PlayCard(c1, fr1, null);
-        Assert.Equal(2, p1.Energy);                           // 3 - 1
-        Assert.Contains(fr1, p1.ExhaustPile);                // it exhausts itself
-
-        // A card exhausted earlier this turn -> +3 energy refund.
-        var (c2, p2, _) = Fight();
-        c2.CardExhaustedThisTurn = true;
-        p2.ResetEnergy();                                     // 3
-        var fr2 = new ForgottenRitual(); p2.Hand.Add(fr2);
-        CombatManager.PlayCard(c2, fr2, null);
-        Assert.Equal(3 - 1 + 3, p2.Energy);                  // 5
+        CombatManager.PlayCard(c1, fr1, null);                // cost 1, +3 energy (v0.111.0: no exhaust gate)
+        Assert.Equal(5, p1.Energy);
+        Assert.Contains(fr1, p1.ExhaustPile);
     }
 }

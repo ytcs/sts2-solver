@@ -34,7 +34,7 @@ public static partial class Monsters
     /// <c>sts2.dll v0.107.0 (commit 23d60b98)</c> via ilspycmd.
     ///
     /// Moves (DeadlyEnemies on the left where applicable):
-    ///  - EBB              : single attack EbbDamage = 32 / 26, then gain Block (EbbBlock = 33, relocated here by
+    ///  - EBB              : single attack EbbDamage = 26 / 22, then gain Block (EbbBlock = 33, relocated here by
     ///                       the 2026-06 patch — see PATCH NOTE). SingleAttackIntent + DefendIntent.
     ///  - EYE_LASERS       : multi-attack EyeLasersDamage = 12 / 11, 2 hits (EyeLasersRepeat = 2; block soaks per
     ///                       hit). MultiAttackIntent.
@@ -68,7 +68,7 @@ public static partial class Monsters
     public static Monster Aeonglass(int hp = -1, int ascension = 0)
     {
         if (hp < 0) hp = Asc.Tough(ascension, 535, 512);          // MinInitialHp == MaxInitialHp (fixed, no roll)
-        int ebbDamage = Asc.Deadly(ascension, 32, 26);
+        int ebbDamage = Asc.Deadly(ascension, 26, 22);
         const int ebbBlock = 33;                                  // EbbBlock => 33 gained on EBB (v0.107.0 decompile; relocated here from Increasing Intensity by the 2026-06 patch)
         int eyeLasersDamage = Asc.Deadly(ascension, 12, 11);
         const int eyeLasersHits = 2;                             // EyeLasersRepeat (not Deadly-scaled)

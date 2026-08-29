@@ -202,20 +202,24 @@ public sealed class Footwork : CardModel
         => Cmd.ApplyPower(combat, combat.Player, new DexterityPower(), Dexterity, combat.Player);
 }
 
-/// <summary>Apply 4 Poison to ALL enemies. Upgrade: +2. (MegaCrit Haze)</summary>
+/// <summary>Apply 4 Poison and 1 Weak to ALL enemies. Cost 2. Upgrade: +2 Poison, +1 Weak.
+/// (MegaCrit Haze — reworked v0.110.0; no longer Sly.)</summary>
 public sealed class Haze : CardModel
 {
     public override string Name => "Haze";
-    public override bool IsSly => true;   // Sly: auto-plays for free when discarded mid-turn
-    public override int BaseCost => 3;
+    public override int BaseCost => 2;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AllEnemies;
     public int Poison => 4 + 2 * Upgrades;
+    public int Weak => 1 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         foreach (var m in combat.LivingMonsters.ToList())
+        {
             Cmd.ApplyPower(combat, m, new PoisonPower(), Poison, combat.Player);
+            Cmd.ApplyPower(combat, m, new WeakPower(), Weak, combat.Player);
+        }
     }
 }
 
@@ -252,9 +256,9 @@ public sealed class Shiv : CardModel
     public override CardRarity Rarity => CardRarity.Special;     // "Token" in-game; cosmetic for combat
     public override TargetType Target => TargetType.AnyEnemy;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
-    /// <summary>Inky enchantment (from Blade of Ink): the Shiv deals +1 damage and applies 1 Weak on play.</summary>
+    /// <summary>Inky enchantment (from Blade of Ink): applies 1 Weak on play. v0.111.0: no extra damage.</summary>
     public bool Inky;
-    public int Damage => 4 + 2 * Upgrades + (Inky ? 1 : 0);
+    public int Damage => 4 + 2 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
@@ -368,7 +372,7 @@ public sealed class FlickFlack : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AllEnemies;
-    public int Damage => 6 + 2 * Upgrades;
+    public int Damage => 7 + 2 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         foreach (var m in combat.LivingMonsters.ToList())
@@ -376,21 +380,18 @@ public sealed class FlickFlack : CardModel
     }
 }
 
-/// <summary>Apply 1 Weak to ALL enemies. Exhaust. Upgrade: no longer Exhausts. Cost 0. (MegaCrit Scare)</summary>
-public sealed class Scare : CardModel
+/// <summary>Next turn, gain 1 Energy. Cost 0. Upgrade: +1 Energy. (MegaCrit Sidestep — renamed from Scare
+/// in v0.110.0.)</summary>
+public sealed class Sidestep : CardModel
 {
-    public override string Name => "Scare";
+    public override string Name => "Sidestep";
     public override int BaseCost => 0;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
-    public override TargetType Target => TargetType.AllEnemies;
-    public override CardResultPile ResultPile => Upgrades > 0 ? CardResultPile.Discard : CardResultPile.Exhaust;
-    public int Weak => 1;
+    public override TargetType Target => TargetType.Self;
+    public int Energy => 1 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
-    {
-        foreach (var m in combat.LivingMonsters.ToList())
-            Cmd.ApplyPower(combat, m, new WeakPower(), Weak, combat.Player);
-    }
+        => Cmd.ApplyPower(combat, combat.Player, new EnergyNextTurnPower(), Energy, combat.Player);
 }
 
 /// <summary>Apply 7 Poison. Retain. Upgrade: +3. (MegaCrit Snakebite)</summary>
@@ -737,9 +738,8 @@ public sealed class Backflip : CardModel
     }
 }
 
-/// <summary>Draw cards until you have 6 cards in hand. Upgrade: until 7. (MegaCrit Expertise) HP-neutral
-/// pure card-flow: a single bounded draw call (no-op without an ambient Rng — the validator replays the
-/// recorded hand).</summary>
+/// <summary>Draw 2 cards. They gain Retain this turn. Upgrade: draw 3. (MegaCrit Expertise — reworked
+/// v0.109.0.)</summary>
 public sealed class Expertise : CardModel
 {
     public override string Name => "Expertise";
@@ -747,11 +747,20 @@ public sealed class Expertise : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public int HandTarget => 6 + Upgrades;
+    public override bool HasPostDraw => true;
+    public int Cards => 2 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
-        int need = HandTarget - combat.Player.Hand.Count;
-        if (need > 0) Cmd.Draw(combat, need);
+        if (combat.Rng == null) { Cmd.DeferDrawThenResolve(combat, Cards, this); return; }
+        int drawn = Cmd.Draw(combat, Cards);
+        RetainLastDrawn(combat, drawn);
+    }
+    public override void OnPostDraw(CombatState combat, int drawn) => RetainLastDrawn(combat, drawn);
+    private static void RetainLastDrawn(CombatState combat, int drawn)
+    {
+        var hand = combat.Player.Hand;
+        int n = Math.Min(drawn, hand.Count);
+        for (int i = 0; i < n; i++) hand[hand.Count - 1 - i].SingleTurnRetain = true;
     }
 }
 
@@ -995,7 +1004,7 @@ public sealed class Accelerant : CardModel
     public override string Name => "Accelerant";
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
-    public override CardRarity Rarity => CardRarity.Rare;
+    public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public int Amount => 1 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
@@ -1023,7 +1032,7 @@ public sealed class Anticipate : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.Self;
-    public int Dexterity => 2 + Upgrades;
+    public int Dexterity => 2 + 2 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new AnticipatePower(), Dexterity, combat.Player);
 }
@@ -1075,18 +1084,23 @@ public sealed class PhantomBlades : CardModel
         => Cmd.ApplyPower(combat, combat.Player, new PhantomBladesPower(), Amount, combat.Player);
 }
 
-/// <summary>Power: every 3rd Poison you apply, deal 11 damage to ALL enemies. Upgrade: +4. (MegaCrit
-/// Outbreak)</summary>
+/// <summary>Apply 9 Poison to ALL enemies, then trigger Poison immediately. Cost 3 Rare Skill.
+/// Upgrade: +3 Poison. (MegaCrit Outbreak — reworked v0.110.0 from a Power.)</summary>
 public sealed class Outbreak : CardModel
 {
     public override string Name => "Outbreak";
-    public override int BaseCost => 1;
-    public override CardType Type => CardType.Power;
-    public override CardRarity Rarity => CardRarity.Uncommon;
-    public override TargetType Target => TargetType.Self;
-    public int Amount => 11 + 4 * Upgrades;
+    public override int BaseCost => 3;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.AllEnemies;
+    public int Poison => 9 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
-        => Cmd.ApplyPower(combat, combat.Player, new OutbreakPower(), Amount, combat.Player);
+    {
+        foreach (var m in combat.LivingMonsters.ToList())
+            Cmd.ApplyPower(combat, m, new PoisonPower(), Poison, combat.Player);
+        foreach (var m in combat.LivingMonsters.ToList())
+            if (m.GetPower("Poison") is PoisonPower p) p.Trigger(combat);
+    }
 }
 
 /// <summary>Power: whenever you play a card, deal 4 damage to a random enemy. Upgrade: +2. (MegaCrit
@@ -1103,8 +1117,8 @@ public sealed class SerpentForm : CardModel
         => Cmd.ApplyPower(combat, combat.Player, new SerpentFormPower(), Amount, combat.Player);
 }
 
-/// <summary>Power: your card attacks deal double damage to Weak enemies. Applying it again adds +1 to the
-/// multiplier (×2, then ×3, …). Cost 2. Upgrade: cost 1. (MegaCrit Tracking)</summary>
+/// <summary>Power: Weak enemies take 50% more damage from your Attacks. Cost 2. Upgrade: cost 1.
+/// (MegaCrit Tracking — v0.108.0 nerf from double damage.)</summary>
 public sealed class Tracking : CardModel
 {
     public override string Name => "Tracking";
@@ -1114,11 +1128,7 @@ public sealed class Tracking : CardModel
     public override TargetType Target => TargetType.Self;
     public override int Cost => Math.Max(0, BaseCost - Upgrades);   // upgrade: cost 1
     public override void OnPlay(CombatState combat, CardPlay play)
-    {
-        // First cast grants 2; each subsequent cast grants only +1 (so the multiplier climbs 2 → 3 → …).
-        int amount = combat.Player.HasPower("Tracking") ? 1 : 2;
-        Cmd.ApplyPower(combat, combat.Player, new TrackingPower(), amount, combat.Player);
-    }
+        => Cmd.ApplyPower(combat, combat.Player, new TrackingPower(), 50, combat.Player);
 }
 
 /// <summary>Power: whenever you play a Skill, it gains Sly (HP-neutral — not modelled). Cost 2. Upgrade:
@@ -1180,18 +1190,18 @@ public sealed class FanOfKnives : CardModel
     }
 }
 
-/// <summary>Power: at end of turn, Retain up to 1 chosen card. Upgrade: +1. (MegaCrit Well-Laid Plans)
-/// Retain is HP-neutral card-flow we don't model, so this applies an inert marker power.</summary>
+/// <summary>Power: at the end of your turn, you no longer discard your Hand. Cost 2. Upgrade: cost 1.
+/// (MegaCrit Well-Laid Plans — reworked v0.109.0, cost 2(1) as of v0.110.0.)</summary>
 public sealed class WellLaidPlans : CardModel
 {
     public override string Name => "WellLaidPlans";
-    public override int BaseCost => 1;
+    public override int BaseCost => 2;
+    public override int Cost => Math.Max(0, BaseCost - Upgrades);
     public override CardType Type => CardType.Power;
-    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.Self;
-    public int Amount => 1 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
-        => Cmd.ApplyPower(combat, combat.Player, new WellLaidPlansPower(), Amount, combat.Player);
+        => Cmd.ApplyPower(combat, combat.Player, new WellLaidPlansPower(), 1, combat.Player);
 }
 
 /// <summary>Power: whenever an ally plays an Attack, gain 1 Block (multiplayer-only — inert in single-player).
@@ -1216,7 +1226,7 @@ public sealed class Flanking : CardModel
     public override string Name => "Flanking";
     public override int BaseCost => 2;
     public override CardType Type => CardType.Skill;
-    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AnyEnemy;
     public override int Cost => Math.Max(0, BaseCost - Upgrades);
     public override void OnPlay(CombatState combat, CardPlay play)
@@ -1224,6 +1234,42 @@ public sealed class Flanking : CardModel
         if (play.Target!.IsAlive)
             Cmd.ApplyPower(combat, play.Target!, new FlankingPower(), 2, combat.Player);
     }
+}
+
+/// <summary>Add 2 Shivs to your hand (SP: "all players" → you). Cost 2. Upgrade: cost 1. (MegaCrit BladeSymphony.)</summary>
+public sealed class BladeSymphony : CardModel
+{
+    public override string Name => "BladeSymphony";
+    public override int BaseCost => 2;
+    public override int Cost => Math.Max(0, BaseCost - Upgrades);
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => SilentCardHelpers.AddShivsToHand(combat, 2);
+}
+
+/// <summary>Another player's Attacks apply 3 Poison this turn. Inert in single-player. Cost 0. (MegaCrit Concoct.)</summary>
+public sealed class Concoct : CardModel
+{
+    public override string Name => "Concoct";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+
+/// <summary>Another player gains 6 Dexterity this turn. Inert in single-player. Cost 0. Retain. (MegaCrit Fade.)</summary>
+public sealed class Fade : CardModel
+{
+    public override string Name => "Fade";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public override bool Retain => true;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
 }
 
 /// <summary>Discard your hand. At the start of your next turn, your attacks deal double damage. Cost 1.
@@ -1319,8 +1365,8 @@ public sealed class PreciseCut : CardModel
         => Cmd.Attack(combat, combat.Player, play.Target!, Base - 2 * combat.Player.Hand.Count, ValueProp.Move, this);
 }
 
-/// <summary>Gain Block equal to the total Poison on all enemies. Cost 1. Exhaust. Upgrade: cost 0. (MegaCrit
-/// Mirage)</summary>
+/// <summary>Gain Block equal to the total Poison on all enemies. Cost 1. Exhaust. Upgrade: loses Exhaust.
+/// (MegaCrit Mirage — v0.111.0: exhausts unupgraded; no longer drops cost.)</summary>
 public sealed class Mirage : CardModel
 {
     public override string Name => "Mirage";
@@ -1328,8 +1374,7 @@ public sealed class Mirage : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public override CardResultPile ResultPile => CardResultPile.Exhaust;
-    public override int Cost => Math.Max(0, BaseCost - Upgrades);
+    public override CardResultPile ResultPile => Upgrades > 0 ? CardResultPile.Discard : CardResultPile.Exhaust;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         int block = combat.LivingMonsters.Sum(m => m.GetPowerAmount("Poison"));
@@ -1344,7 +1389,7 @@ public sealed class EchoingSlash : CardModel
     public override string Name => "EchoingSlash";
     public override int BaseCost => 1;
     public override CardType Type => CardType.Attack;
-    public override CardRarity Rarity => CardRarity.Rare;
+    public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AllEnemies;
     public int Damage => 10 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)

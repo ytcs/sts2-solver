@@ -108,9 +108,9 @@ public class StatusTokenCardTests
     // ---------------- Token cards ----------------
 
     [Theory]
-    [InlineData(0, 16)]
-    [InlineData(1, 20)]
-    public void GiantRock_Deals_16_Plus_Upgrade(int upg, int dmg)
+    [InlineData(0, 20)]
+    [InlineData(1, 24)]
+    public void GiantRock_Deals_20_Plus_Upgrade(int upg, int dmg)
     {
         var (c, _, m) = Fight();
         Play(c, (CardModel)new GiantRock().Upgraded(upg), m);

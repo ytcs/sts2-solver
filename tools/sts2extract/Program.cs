@@ -243,7 +243,7 @@ Console.WriteLine($"Written: {outputPath} ({sb.Length / 1024}KB)");
 Console.WriteLine("\nGenerating focused summary...");
 var summary = new Dictionary<string, object>
 {
-    ["gameVersion"]  = "v0.106.1",
+    ["gameVersion"]  = "v0.111.0",
     ["extracted"]    = DateTime.UtcNow.ToString("O"),
     ["allTypeCount"] = allTypes.Length,
     ["namespaces"]   = allTypes.Select(t => t.Namespace).Distinct().OrderBy(x => x).ToArray(),

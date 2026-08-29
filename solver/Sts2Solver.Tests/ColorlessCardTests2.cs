@@ -127,18 +127,18 @@ public class ColorlessCardTests2
         var (c, _, m) = Fight(monsterHp: 99);
         m.AddPower(new WeakPower(), 2);
         m.AddPower(new VulnerablePower(), 1);   // 2 distinct permanent debuffs
-        // base 15 + 5*2 = 25, then Vulnerable ×1.5 applies to the whole attack → 37 (floor).
+        // base 10 + 5*2 = 20, then Vulnerable ×1.5 applies to the whole attack → 30 (floor).
         var before = m.CurrentHp;
         Play(c, new Rend(), m);
-        Assert.Equal(before - (int)System.Math.Floor((15 + 5 * 2) * 1.5), m.CurrentHp);
+        Assert.Equal(before - (int)System.Math.Floor((10 + 5 * 2) * 1.5), m.CurrentHp);
     }
 
     [Fact]
-    public void Rend_With_No_Debuffs_Deals_Base_15()
+    public void Rend_With_No_Debuffs_Deals_Base_10()
     {
         var (c, _, m) = Fight(monsterHp: 60);
         Play(c, new Rend(), m);
-        Assert.Equal(60 - 15, m.CurrentHp);
+        Assert.Equal(60 - 10, m.CurrentHp);
     }
 
     [Fact]

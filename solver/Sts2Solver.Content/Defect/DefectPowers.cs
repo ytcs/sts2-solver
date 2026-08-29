@@ -18,6 +18,18 @@ public sealed class FocusPower : PowerModel
     public override bool AllowNegative => true;
 }
 
+/// <summary>One for All: the owner's 0-cost Attacks deal +Amount extra. (MegaCrit OneForAllPower.)</summary>
+public sealed class OneForAllPower : PowerModel
+{
+    public override string Id => "OneForAll";
+    public override PowerType Type => PowerType.Buff;
+    public override decimal ModifyDamageAdditive(Creature? target, decimal amount, ValueProp props, Creature? dealer, CardModel? cardSource)
+    {
+        if (dealer != Owner || cardSource == null || !props.IsPoweredAttack()) return 0m;
+        return cardSource.Cost == 0 ? Amount : 0m;
+    }
+}
+
 // ===========================================================================
 // Batch 3 — orb-reactive / turn-boundary powers. Each is verified 1:1 vs the
 // decompile (hook + numbers). Gated naturally: a power only acts when present.
@@ -243,7 +255,8 @@ public sealed class IterationPower : PowerModel
 public sealed class TemporaryFocusPower : PowerModel
 {
     public override string Id => "TempFocus";
-    public override PowerType Type => PowerType.Buff;
+    public override PowerType Type => Amount >= 0 ? PowerType.Buff : PowerType.Debuff;
+    public override bool AllowNegative => true;   // Hyperbeam's "lose 3 Focus this turn" is a negative stack
     public override void AfterSideTurnEnd(CombatState combat, CombatSide side)
     {
         if (side != Owner.Side) return;

@@ -267,7 +267,7 @@ public sealed class Maul : CardModel
     public override CardRarity Rarity => CardRarity.Ancient;
     public override TargetType Target => TargetType.AnyEnemy;
     public int Base => 5 + Upgrades;
-    public int Increase => 1 + Upgrades;
+    public int Increase => 2 + Upgrades;
     public int Hits => 2;
     private int _extra;
     public override bool Stateful => true;   // _extra escalates per play, so each search state needs its own instance
@@ -302,7 +302,7 @@ public sealed class NeowsFury : CardModel
 public sealed class Whistle : CardModel
 {
     public override string Name => "Whistle";
-    public override int BaseCost => 3;
+    public override int BaseCost => 2;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Ancient;
     public override TargetType Target => TargetType.AnyEnemy;
@@ -328,7 +328,7 @@ public sealed class BrightestFlame : CardModel
     public override TargetType Target => TargetType.Self;
     public int Energy => 2 + Upgrades;
     public int Cards => 2 + Upgrades;
-    public int MaxHpLoss => 1;
+    public int MaxHpLoss => 2;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.GainEnergy(combat, Energy);
@@ -348,7 +348,7 @@ public sealed class Relax : CardModel
     public override CardRarity Rarity => CardRarity.Ancient;
     public override TargetType Target => TargetType.Self;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
-    public int Block => 15 + 2 * Upgrades;
+    public int Block => 16 + 2 * Upgrades;
     public int Cards => 2 + Upgrades;
     public int Energy => 2 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)

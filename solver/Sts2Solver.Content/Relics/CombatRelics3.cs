@@ -79,11 +79,11 @@ public sealed class FakeBloodVial : RelicModel
     public override void OnPlayerTurnStart(CombatState combat) { if (combat.TurnNumber == 1) combat.Player.Heal(1); }
 }
 
-/// <summary>Divine Destiny: gain 6 Stars on the first turn. (MegaCrit DivineDestiny.)</summary>
+/// <summary>Divine Destiny: gain 7 Stars on the first turn. (MegaCrit DivineDestiny.)</summary>
 public sealed class DivineDestiny : RelicModel
 {
     public override string Id => "DivineDestiny";
-    public override void OnPlayerTurnStart(CombatState combat) { if (combat.TurnNumber == 1) Cmd.GainStars(combat, 6); }
+    public override void OnPlayerTurnStart(CombatState combat) { if (combat.TurnNumber == 1) Cmd.GainStars(combat, 7); }
 }
 
 /// <summary>Bread: lose 2 energy on turn 1; gain 1 extra energy every turn after. (MegaCrit Bread.)</summary>

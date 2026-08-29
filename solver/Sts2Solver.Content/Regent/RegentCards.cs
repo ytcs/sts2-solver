@@ -161,7 +161,7 @@ public sealed class CollisionCourse : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Damage => 11 + 4 * Upgrades;
+    public int Damage => 10 + 4 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
 }
@@ -235,7 +235,7 @@ public sealed class CrushUnder : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AllEnemies;
-    public int Damage => 7 + Upgrades;
+    public int Damage => 8 + Upgrades;
     public int StrLoss => 1 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
@@ -254,7 +254,7 @@ public sealed class Devastate : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Damage => 30 + 10 * Upgrades;
+    public int Damage => 35 + 10 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
 }
@@ -473,7 +473,7 @@ public sealed class Resonance : CardModel
 {
     public override string Name => "Resonance";
     public override int BaseCost => 1;
-    public override int StarCost => 3;
+    public override int StarCost => 2;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AllEnemies;
@@ -597,7 +597,7 @@ public sealed class GuidingStar : CardModel
 {
     public override string Name => "GuidingStar";
     public override int BaseCost => 1;
-    public override int StarCost => 2;
+    public override int StarCost => 1;
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AnyEnemy;
@@ -606,7 +606,7 @@ public sealed class GuidingStar : CardModel
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
-        Cmd.Draw(combat, Cards);
+        Cmd.ApplyPower(combat, combat.Player, new DrawCardsNextTurnPower(), Cards, combat.Player);
     }
 }
 
@@ -838,7 +838,7 @@ public sealed class Alignment : CardModel
 {
     public override string Name => "Alignment";
     public override int BaseCost => 0;
-    public override int StarCost => 3;
+    public override int StarCost => 2;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
@@ -921,7 +921,7 @@ public sealed class Terraforming : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public int Vigor => 6 + 2 * Upgrades;
+    public int Vigor => 7 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new VigorPower(), Vigor, combat.Player);
 }
@@ -950,7 +950,7 @@ public sealed class RefineBlade : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.Self;
-    public int Forge => 9 + 4 * Upgrades;
+    public int Forge => 8 + 4 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         RegentForge.Forge(combat, Forge);
@@ -966,7 +966,7 @@ public sealed class SpoilsOfBattle : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.Self;
-    public int Forge => 5 + 3 * Upgrades;
+    public int Forge => 6 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         RegentForge.Forge(combat, Forge);
@@ -1206,7 +1206,7 @@ public sealed class PillarOfCreation : CardModel
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public int Amount => 3 + Upgrades;
+    public int Amount => 2 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new PillarOfCreationPower(), Amount, combat.Player);
 }
@@ -1421,4 +1421,48 @@ public sealed class HammerTime : CardModel
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.Self;
     public override void OnPlay(CombatState combat, CardPlay play) { /* multiplayer-only — inert */ }
+}
+
+/// <summary>Next turn, draw 2. Cost 1. Upgrade: draw 3. (MegaCrit Plot — SP: you are "all players".)</summary>
+public sealed class Plot : CardModel
+{
+    public override string Name => "Plot";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Cards => 2 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.ApplyPower(combat, combat.Player, new DrawCardsNextTurnPower(), Cards, combat.Player);
+}
+
+/// <summary>Draw 1, gain 1 Energy, gain 9 Block. Cost 0. Upgrade: +3 Block. (MegaCrit Constellation —
+/// SP: you are the "other player".)</summary>
+public sealed class Constellation : CardModel
+{
+    public override string Name => "Constellation";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Block => 9 + 3 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.Draw(combat, 1);
+        Cmd.GainEnergy(combat, 1);
+        Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
+    }
+}
+
+/// <summary>Another player chooses a card from their draw pile. Inert in single-player. Cost 1.
+/// Upgrade: cost 0. (MegaCrit Tutor.)</summary>
+public sealed class Tutor : CardModel
+{
+    public override string Name => "Tutor";
+    public override int BaseCost => 1;
+    public override int Cost => Math.Max(0, BaseCost - Upgrades);
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
 }

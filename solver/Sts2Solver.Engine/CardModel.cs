@@ -71,11 +71,16 @@ public abstract class CardModel
     /// spent amount is passed to OnPlay via <see cref="CardPlay.StarsSpent"/>. (Game: CardModel.HasStarCostX.)</summary>
     public virtual bool IsXStarCost => false;
 
+    /// <summary>Set by Expertise (and similar) so a just-drawn card is kept through THIS turn's hand flush,
+    /// then cleared. Game: <c>CardModel.GiveSingleTurnRetain</c> / <c>HasSingleTurnRetain</c>, wiped in
+    /// <c>EndOfTurnCleanup</c> after the flush.</summary>
+    public bool SingleTurnRetain;
+
     /// <summary>Retained cards are NOT discarded at end of the player's turn — they stay in hand (game:
-    /// CardKeyword.Retain). The Regent's Sovereign Blade token retains so its forged damage carries across
-    /// turns; the Necrobinder's Eradicate/Reap/Sow/Spur/… retain too. Some cards gain Retain dynamically and
-    /// override this with a mutable backing flag.</summary>
-    public virtual bool Retain => Enchant?.AddsRetain ?? false;
+    /// CardKeyword.Retain, plus single-turn retain from Expertise). The Regent's Sovereign Blade token retains
+    /// so its forged damage carries across turns; the Necrobinder's Eradicate/Reap/Sow/Spur/… retain too.
+    /// Subclasses that always retain override this; single-turn retain still applies to the default.</summary>
+    public virtual bool Retain => (Enchant?.AddsRetain ?? false) || SingleTurnRetain;
 
     public virtual CardResultPile ResultPile => Type == CardType.Power ? CardResultPile.Removed : CardResultPile.Discard;
 
@@ -249,7 +254,7 @@ public abstract class CardModel
     /// Such cards MUST be deep-cloned when a <see cref="CombatState"/> is cloned (see <c>Player.Clone</c>), or
     /// sibling search branches would share one instance and corrupt each other's value; and their
     /// <see cref="KeyHash"/> must not be cached. The immutable majority safely share instances across clones.</summary>
-    public virtual bool Stateful => Enchant?.Stateful ?? false;
+    public virtual bool Stateful => (Enchant?.Stateful ?? false) || SingleTurnRetain;
 
     // Card identity is immutable in combat for all but Stateful cards, so cache the key + its hash; Stateful
     // cards (whose StateKey overrides recompute from mutable fields) must NOT cache the hash.
@@ -259,7 +264,9 @@ public abstract class CardModel
     {
         // An enchant is part of the card's identity (the same base card enchanted plays differently). A Stateful
         // enchant's key changes mid-combat, so never cache when one is present.
-        if (Enchant is { } e) return (Upgrades > 0 ? $"{Name}+{Upgrades}" : Name) + "@" + e.Key();
+        var retain = SingleTurnRetain ? "/r" : "";
+        if (Enchant is { } e) return (Upgrades > 0 ? $"{Name}+{Upgrades}" : Name) + "@" + e.Key() + retain;
+        if (SingleTurnRetain) return (Upgrades > 0 ? $"{Name}+{Upgrades}" : Name) + retain;
         return _key ??= (Upgrades > 0 ? $"{Name}+{Upgrades}" : Name);
     }
     public int KeyHash => Stateful ? StateKey().GetHashCode() : (_keyHash ??= StateKey().GetHashCode());

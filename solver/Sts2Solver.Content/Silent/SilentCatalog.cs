@@ -31,7 +31,8 @@ public static partial class Catalog
         ["BladeDance"] = () => new BladeDance(),
         ["Pinpoint"] = () => new Pinpoint(),
         ["FlickFlack"] = () => new FlickFlack(),
-        ["Scare"] = () => new Scare(),
+        ["Sidestep"] = () => new Sidestep(),
+        ["Scare"] = () => new Sidestep(),   // v0.110.0 rename; keep alias for old tests/saves
         ["Snakebite"] = () => new Snakebite(),
         ["BubbleBubble"] = () => new BubbleBubble(),
         ["Suppress"] = () => new Suppress(),
@@ -86,6 +87,9 @@ public static partial class Catalog
         ["WellLaidPlans"] = () => new WellLaidPlans(),
         ["Sneaky"] = () => new Sneaky(),
         ["Flanking"] = () => new Flanking(),
+        ["BladeSymphony"] = () => new BladeSymphony(),
+        ["Concoct"] = () => new Concoct(),
+        ["Fade"] = () => new Fade(),
         ["ShadowStep"] = () => new ShadowStep(),
         ["BladeOfInk"] = () => new BladeOfInk(),
         // Batch 6 — counter/conditional attacks + Intangible (Wave 3).

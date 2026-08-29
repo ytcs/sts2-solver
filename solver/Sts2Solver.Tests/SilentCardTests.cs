@@ -146,6 +146,8 @@ public class SilentCardTests
         Play(combat, new Haze(), null);
         Assert.Equal(4, m1.GetPowerAmount("Poison"));
         Assert.Equal(4, m2.GetPowerAmount("Poison"));
+        Assert.Equal(1, m1.GetPowerAmount("Weak"));
+        Assert.Equal(1, m2.GetPowerAmount("Weak"));
     }
 
     [Fact]
@@ -218,22 +220,19 @@ public class SilentCardTests
         var m2 = Monsters.CalcifiedCultist(hp: 40);
         var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
         Play(combat, new FlickFlack(), null);
-        Assert.Equal(40 - 6, m1.CurrentHp);
-        Assert.Equal(40 - 6, m2.CurrentHp);
+        Assert.Equal(40 - 7, m1.CurrentHp);
+        Assert.Equal(40 - 7, m2.CurrentHp);
     }
 
     [Fact]
-    public void Scare_Applies_1_Weak_All_And_Exhausts_Unupgraded()
+    public void Sidestep_Grants_Energy_Next_Turn()
     {
-        var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
-        var m1 = Monsters.CalcifiedCultist(hp: 40);
-        var m2 = Monsters.CalcifiedCultist(hp: 40);
-        var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
-        var s = new Scare();
-        Play(combat, s, null);
-        Assert.Equal(1, m1.GetPowerAmount("Weak"));
-        Assert.Equal(1, m2.GetPowerAmount("Weak"));
-        Assert.Contains(s, player.ExhaustPile);
+        var (c, p, _) = Fight();
+        Play(c, new Sidestep(), null);
+        Assert.Equal(1, p.GetPowerAmount("EnergyNextTurn"));
+        CombatManager.BeginPlayerTurn(c);                    // energy reset then +1
+        Assert.Equal(p.MaxEnergy + 1, p.Energy);
+        Assert.False(p.HasPower("EnergyNextTurn"));
     }
 
     [Fact]
@@ -281,11 +280,11 @@ public class SilentCardTests
     public void Sly_FlickFlack_Auto_Plays_AoE_Damage_When_Discarded()
     {
         var (c, _, m) = Fight();
-        var f = new FlickFlack();                   // Sly: 6 to all enemies
+        var f = new FlickFlack();                   // Sly: 7 to all enemies
         c.Player.Hand.Add(f);
         int before = m.CurrentHp;
         Cmd.DiscardFromHand(c, f);
-        Assert.Equal(before - 6, m.CurrentHp);
+        Assert.Equal(before - 7, m.CurrentHp);
     }
 
     [Fact]
@@ -670,17 +669,15 @@ public class SilentCardTests
     }
 
     [Fact]
-    public void Expertise_Draws_Up_To_Six_Cards()
+    public void Expertise_Draws_Two_With_Single_Turn_Retain()
     {
         var (c, p, _) = Fight();
-        // With an ambient Rng and a stocked draw pile, Expertise tops the hand up to 6.
         c.Rng = new Rng(0);
         for (int i = 0; i < 10; i++) p.DrawPile.Add(new StrikeSilent());
         p.Hand.Add(new DefendSilent());                   // 1 card before play
-        var e = new Expertise();
-        Play(c, e, null);                                 // played from hand → still 1 in hand at OnPlay
-        // OnPlay sees hand count 1 (Expertise removed before OnPlay), draws 6-1 = 5.
-        Assert.Equal(6, p.Hand.Count);
+        Play(c, new Expertise(), null);                   // draws 2; they retain this turn
+        Assert.Equal(3, p.Hand.Count);                    // defend + 2 drawn
+        Assert.Equal(2, p.Hand.Count(card => card.SingleTurnRetain));
     }
 
     // ===== Batch 4 =====
@@ -952,20 +949,18 @@ public class SilentCardTests
     }
 
     [Fact]
-    public void Outbreak_Hits_All_Enemies_Every_Third_Poison()
+    public void Outbreak_Applies_Poison_Then_Triggers_Immediately()
     {
         var player = Catalog.BuildPlayer(new List<CardModel>(), 80, 80);
         var m1 = Monsters.CalcifiedCultist(hp: 80);
         var m2 = Monsters.CalcifiedCultist(hp: 80);
         var combat = Catalog.SetupCombat(player, new[] { m1, m2 });
         combat.Player.MaxEnergy = 10; combat.Player.ResetEnergy();
-        Play(combat, new Outbreak(), null);                // Outbreak 11
-        Play(combat, new DeadlyPoison(), m1);              // poison #1
-        Play(combat, new DeadlyPoison(), m1);              // poison #2
-        Assert.Equal(80, m2.CurrentHp);                    // not yet
-        Play(combat, new DeadlyPoison(), m1);              // poison #3 → 11 to all
-        Assert.Equal(80 - 11, m2.CurrentHp);
-        Assert.Equal(80 - 11, m1.CurrentHp);               // m1 also takes the AoE (poison itself is not HP yet)
+        Play(combat, new Outbreak(), null);                // 9 poison, then tick (deal 9, leave 8)
+        Assert.Equal(80 - 9, m1.CurrentHp);
+        Assert.Equal(80 - 9, m2.CurrentHp);
+        Assert.Equal(8, m1.GetPowerAmount("Poison"));
+        Assert.Equal(8, m2.GetPowerAmount("Poison"));
     }
 
     [Fact]
@@ -987,8 +982,8 @@ public class SilentCardTests
         Assert.Equal(80 - 6, m.CurrentHp);
         int after = m.CurrentHp;
         m.AddPower(new WeakPower(), 2);
-        Play(c, new StrikeSilent(), m);                    // weak → 6 × 2 = 12
-        Assert.Equal(after - 12, m.CurrentHp);
+        Play(c, new StrikeSilent(), m);                    // weak → 6 × 1.5 = 9 (v0.108.0)
+        Assert.Equal(after - 9, m.CurrentHp);
     }
 
     [Fact]
@@ -1048,8 +1043,8 @@ public class SilentCardTests
         var shivs = p.Hand.OfType<Shiv>().ToList();
         Assert.Equal(2, shivs.Count);
         Assert.All(shivs, s => Assert.True(s.Inky));
-        Play(c, shivs[0], m);                              // 4 + 1 (Inky) = 5, + 1 Weak
-        Assert.Equal(60 - 5, m.CurrentHp);
+        Play(c, shivs[0], m);                              // 4 (Inky no longer adds damage), + 1 Weak
+        Assert.Equal(60 - 4, m.CurrentHp);
         Assert.Equal(1, m.GetPowerAmount("Weak"));
     }
 

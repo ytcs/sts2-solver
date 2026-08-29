@@ -82,7 +82,7 @@ public class AeonglassTests
     public void Aeonglass_Intents_Match_Spec()
     {
         var m = Monsters.Aeonglass();
-        Assert.Equal(26, Move(m, "EBB_MOVE").IntentDamage);
+        Assert.Equal(22, Move(m, "EBB_MOVE").IntentDamage);
         Assert.Equal(11, Move(m, "EYE_LASERS_MOVE").IntentDamage);
         Assert.Equal(2, Move(m, "EYE_LASERS_MOVE").IntentHits);
         Assert.Null(Move(m, "INCREASING_INTENSITY_MOVE").IntentDamage);   // no attack telegraph
@@ -91,11 +91,11 @@ public class AeonglassTests
     // ---- EBB: attack + 33 Block (2026-06 patch — drain removed, Block moved here) ----------------
 
     [Fact]
-    public void Aeonglass_Ebb_Deals_26_And_Gains_33_Block()
+    public void Aeonglass_Ebb_Deals_22_And_Gains_33_Block()
     {
         var m = Monsters.Aeonglass();
         var combat = Combat(m);
-        Assert.Equal(26, RunMove(combat, m, "EBB_MOVE"));
+        Assert.Equal(22, RunMove(combat, m, "EBB_MOVE"));
         Assert.Equal(33, m.Block);                                   // EbbBlock (relocated from Increasing Intensity)
     }
 
@@ -116,7 +116,7 @@ public class AeonglassTests
         var m = Monsters.Aeonglass();
         var combat = Combat(m);
         Cmd.ApplyPower(combat, m, new StrengthPower(), 4, m);   // simulate one Increasing-Intensity buff
-        Assert.Equal(30, RunMove(combat, m, "EBB_MOVE"));        // 26 + 4
+        Assert.Equal(26, RunMove(combat, m, "EBB_MOVE"));        // 22 + 4
     }
 
     // ---- EYE_LASERS: 2-hit multi-attack --------------------------------------------------------

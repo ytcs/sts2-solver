@@ -1,7 +1,7 @@
 {
-  "gameVersion": "v0.106.1",
-  "extracted": "2026-05-29T20:25:23.2914438Z",
-  "allTypeCount": 9359,
+  "gameVersion": "v0.111.0",
+  "extracted": "2026-08-28T18:33:15.7999153Z",
+  "allTypeCount": 9759,
   "namespaces": [
     null,
     "GodotPlugins.Game",
@@ -100,6 +100,7 @@
     "MegaCrit.Sts2.Core.Models.Orbs.Mock",
     "MegaCrit.Sts2.Core.Models.PotionPools",
     "MegaCrit.Sts2.Core.Models.Potions",
+    "MegaCrit.Sts2.Core.Models.Potions.Mocks",
     "MegaCrit.Sts2.Core.Models.Powers",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks",
     "MegaCrit.Sts2.Core.Models.RelicPools",
@@ -185,6 +186,7 @@
     "MegaCrit.Sts2.Core.Nodes.Vfx.Cards",
     "MegaCrit.Sts2.Core.Nodes.Vfx.Events",
     "MegaCrit.Sts2.Core.Nodes.Vfx.Examples",
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Forms",
     "MegaCrit.Sts2.Core.Nodes.Vfx.Ui",
     "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities",
     "MegaCrit.Sts2.Core.Odds",
@@ -249,6 +251,7 @@
     "MegaCrit.Sts2.Core.Entities.Cards.CardKeyword",
     "MegaCrit.Sts2.Core.Entities.Cards.CardKeywordExtensions",
     "MegaCrit.Sts2.Core.Entities.Cards.CardKeywordOrder",
+    "MegaCrit.Sts2.Core.Entities.Cards.CardLocation",
     "MegaCrit.Sts2.Core.Entities.Cards.CardMultiplayerConstraint",
     "MegaCrit.Sts2.Core.Entities.Cards.CardPile",
     "MegaCrit.Sts2.Core.Entities.Cards.CardPileAddResult",
@@ -287,6 +290,7 @@
     "MegaCrit.Sts2.Core.Models.CardPools.CurseCardPool",
     "MegaCrit.Sts2.Core.Models.CardPools.DefectCardPool",
     "MegaCrit.Sts2.Core.Models.CardPools.DeprecatedCardPool",
+    "MegaCrit.Sts2.Core.Models.CardPools.DeprivedCardPool",
     "MegaCrit.Sts2.Core.Models.CardPools.EventCardPool",
     "MegaCrit.Sts2.Core.Models.CardPools.IroncladCardPool",
     "MegaCrit.Sts2.Core.Models.CardPools.MockCardPool",
@@ -305,10 +309,12 @@
     "MegaCrit.Sts2.Core.Models.Cards.Mocks.MockSkillCard",
     "MegaCrit.Sts2.Core.Models.Cards.Mocks.MockSkillCard+CardCreation",
     "MegaCrit.Sts2.Core.Models.Cards.Mocks.MockStatusCard",
+    "MegaCrit.Sts2.Core.Models.Cards.Mocks.MockTurnEndInHandRecorderCard",
     "MegaCrit.Sts2.Core.Models.Modifiers.CharacterCards",
     "MegaCrit.Sts2.Core.Models.Powers.DrawCardsNextTurnPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockCloneCardsOnPlayPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockFreeCardsPower",
+    "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockRecordCardChangedPilesPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockRemoveDrawnCardsFromCombatPower",
     "MegaCrit.Sts2.Core.Models.Relics.MembershipCard",
     "MegaCrit.Sts2.Core.Models.Relics.VakuuCardSelector",
@@ -355,7 +361,11 @@
     "MegaCrit.Sts2.Core.Nodes.Screens.Shops.NMerchantCard",
     "MegaCrit.Sts2.Core.Nodes.Screens.Shops.NMerchantCardRemoval",
     "MegaCrit.Sts2.Core.Nodes.Screens.Timeline.NEpochCard",
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Cards.NCardExhaustQuickVfx",
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Cards.NCardExhaustVfx",
     "MegaCrit.Sts2.Core.Nodes.Vfx.Cards.NCardRareGlow",
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Cards.NCardRemoveVfx",
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Cards.NCardTransformShineVfx",
     "MegaCrit.Sts2.Core.Nodes.Vfx.Cards.NCardUncommonGlow",
     "MegaCrit.Sts2.Core.Nodes.Vfx.NCardEnchantVfx",
     "MegaCrit.Sts2.Core.Nodes.Vfx.NCardFlyPowerVfx",
@@ -503,6 +513,7 @@
     "MegaCrit.Sts2.Core.Models.Powers.AdaptablePower",
     "MegaCrit.Sts2.Core.Models.Powers.AfterimagePower",
     "MegaCrit.Sts2.Core.Models.Powers.AggressionPower",
+    "MegaCrit.Sts2.Core.Models.Powers.AmbergrisPower",
     "MegaCrit.Sts2.Core.Models.Powers.AnticipatePower",
     "MegaCrit.Sts2.Core.Models.Powers.ArsenalPower",
     "MegaCrit.Sts2.Core.Models.Powers.ArtifactPower",
@@ -521,6 +532,7 @@
     "MegaCrit.Sts2.Core.Models.Powers.BufferPower",
     "MegaCrit.Sts2.Core.Models.Powers.BurrowedPower",
     "MegaCrit.Sts2.Core.Models.Powers.BurstPower",
+    "MegaCrit.Sts2.Core.Models.Powers.CacophonyPower",
     "MegaCrit.Sts2.Core.Models.Powers.CalamityPower",
     "MegaCrit.Sts2.Core.Models.Powers.CalcifyPower",
     "MegaCrit.Sts2.Core.Models.Powers.CallOfTheVoidPower",
@@ -528,6 +540,7 @@
     "MegaCrit.Sts2.Core.Models.Powers.ChildOfTheStarsPower",
     "MegaCrit.Sts2.Core.Models.Powers.ClarityPower",
     "MegaCrit.Sts2.Core.Models.Powers.ColossusPower",
+    "MegaCrit.Sts2.Core.Models.Powers.ConcoctPower",
     "MegaCrit.Sts2.Core.Models.Powers.ConfusedPower",
     "MegaCrit.Sts2.Core.Models.Powers.ConquerorPower",
     "MegaCrit.Sts2.Core.Models.Powers.ConstrictPower",
@@ -555,7 +568,6 @@
     "MegaCrit.Sts2.Core.Models.Powers.DemonFormPower",
     "MegaCrit.Sts2.Core.Models.Powers.DevourLifePower",
     "MegaCrit.Sts2.Core.Models.Powers.DexterityPower",
-    "MegaCrit.Sts2.Core.Models.Powers.DiamondDiademPower",
     "MegaCrit.Sts2.Core.Models.Powers.DieForYouPower",
     "MegaCrit.Sts2.Core.Models.Powers.DisintegrationPower",
     "MegaCrit.Sts2.Core.Models.Powers.DoomPower",
@@ -563,7 +575,6 @@
     "MegaCrit.Sts2.Core.Models.Powers.DrawCardsNextTurnPower",
     "MegaCrit.Sts2.Core.Models.Powers.DuplicationPower",
     "MegaCrit.Sts2.Core.Models.Powers.DyingStarPower",
-    "MegaCrit.Sts2.Core.Models.Powers.EbbPower",
     "MegaCrit.Sts2.Core.Models.Powers.EchoFormPower",
     "MegaCrit.Sts2.Core.Models.Powers.EnergyNextTurnPower",
     "MegaCrit.Sts2.Core.Models.Powers.EnfeeblingTouchPower",
@@ -571,6 +582,7 @@
     "MegaCrit.Sts2.Core.Models.Powers.EntropyPower",
     "MegaCrit.Sts2.Core.Models.Powers.EnvenomPower",
     "MegaCrit.Sts2.Core.Models.Powers.EscapeArtistPower",
+    "MegaCrit.Sts2.Core.Models.Powers.FadePower",
     "MegaCrit.Sts2.Core.Models.Powers.FanOfKnivesPower",
     "MegaCrit.Sts2.Core.Models.Powers.FastenPower",
     "MegaCrit.Sts2.Core.Models.Powers.FeedingFrenzyPower",
@@ -607,10 +619,13 @@
     "MegaCrit.Sts2.Core.Models.Powers.HelloWorldPower",
     "MegaCrit.Sts2.Core.Models.Powers.HellraiserPower",
     "MegaCrit.Sts2.Core.Models.Powers.HexPower",
+    "MegaCrit.Sts2.Core.Models.Powers.HibernatePower",
     "MegaCrit.Sts2.Core.Models.Powers.HighVoltagePower",
     "MegaCrit.Sts2.Core.Models.Powers.HotfixPower",
+    "MegaCrit.Sts2.Core.Models.Powers.HyperbeamFocusDownPower",
     "MegaCrit.Sts2.Core.Models.Powers.IllusionPower",
     "MegaCrit.Sts2.Core.Models.Powers.ImbalancedPower",
+    "MegaCrit.Sts2.Core.Models.Powers.ImitationLearningPower",
     "MegaCrit.Sts2.Core.Models.Powers.ImprovementPower",
     "MegaCrit.Sts2.Core.Models.Powers.InfernoPower",
     "MegaCrit.Sts2.Core.Models.Powers.InfestedPower",
@@ -637,11 +652,13 @@
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockExtraTurnPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockFreeCardsPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockGainBlockOnAttackPower",
+    "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockGatedTurnStartPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockInvincibleOnDeathPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockModifyEnergyCostPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockModifyStarCostPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockPhaseObserverPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockPreventDeathPower",
+    "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockRecordCardChangedPilesPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockRemoveDrawnCardsFromCombatPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockResetCombatOnShufflePower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockRevivePower",
@@ -661,9 +678,9 @@
     "MegaCrit.Sts2.Core.Models.Powers.NostalgiaPower",
     "MegaCrit.Sts2.Core.Models.Powers.NoxiousFumesPower",
     "MegaCrit.Sts2.Core.Models.Powers.OblivionPower",
+    "MegaCrit.Sts2.Core.Models.Powers.OneForAllPower",
     "MegaCrit.Sts2.Core.Models.Powers.OneTwoPunchPower",
     "MegaCrit.Sts2.Core.Models.Powers.OrbitPower",
-    "MegaCrit.Sts2.Core.Models.Powers.OutbreakPower",
     "MegaCrit.Sts2.Core.Models.Powers.PagestormPower",
     "MegaCrit.Sts2.Core.Models.Powers.PainfulStabsPower",
     "MegaCrit.Sts2.Core.Models.Powers.PaleBlueDotPower",
@@ -721,6 +738,7 @@
     "MegaCrit.Sts2.Core.Models.Powers.SmokestackPower",
     "MegaCrit.Sts2.Core.Models.Powers.SneakyPower",
     "MegaCrit.Sts2.Core.Models.Powers.SoarPower",
+    "MegaCrit.Sts2.Core.Models.Powers.SoulboundPower",
     "MegaCrit.Sts2.Core.Models.Powers.SpectrumShiftPower",
     "MegaCrit.Sts2.Core.Models.Powers.SpeedPotionPower",
     "MegaCrit.Sts2.Core.Models.Powers.SpeedsterPower",
@@ -763,6 +781,7 @@
     "MegaCrit.Sts2.Core.Models.Powers.TrackingPower",
     "MegaCrit.Sts2.Core.Models.Powers.TrashToTreasurePower",
     "MegaCrit.Sts2.Core.Models.Powers.TyrannyPower",
+    "MegaCrit.Sts2.Core.Models.Powers.UnderworldPower",
     "MegaCrit.Sts2.Core.Models.Powers.UnmovablePower",
     "MegaCrit.Sts2.Core.Models.Powers.VeilpiercerPower",
     "MegaCrit.Sts2.Core.Models.Powers.ViciousPower",
@@ -777,32 +796,36 @@
     "MegaCrit.Sts2.Core.Models.Powers.WraithFormPower",
     "MegaCrit.Sts2.Core.Models.Relics.PowerCell",
     "MegaCrit.Sts2.Core.MonsterMoves.Intents.StatusIntent",
+    "MegaCrit.Sts2.Core.Multiplayer.Connection.HandshakeStatus",
     "MegaCrit.Sts2.Core.Multiplayer.Quality.HeartbeatStatus",
     "MegaCrit.Sts2.Core.Multiplayer.Transport.ENet.ENetHandshakeStatus",
     "MegaCrit.Sts2.Core.Nodes.Combat.NPower",
     "MegaCrit.Sts2.Core.Nodes.Combat.NPowerContainer",
     "MegaCrit.Sts2.Core.Nodes.Ftue.NPowerCardFtue",
     "MegaCrit.Sts2.Core.Nodes.Vfx.NCardFlyPowerVfx",
-    "MegaCrit.Sts2.Core.Nodes.Vfx.NPowerAppliedBuffVfx",
-    "MegaCrit.Sts2.Core.Nodes.Vfx.NPowerAppliedDebuffVfx",
     "MegaCrit.Sts2.Core.Nodes.Vfx.NPowerAppliedVfx",
     "MegaCrit.Sts2.Core.Nodes.Vfx.NPowerFlashVfx",
     "MegaCrit.Sts2.Core.Nodes.Vfx.NPowerRemovedVfx",
     "MegaCrit.Sts2.Core.Nodes.Vfx.NPowerUpVfx",
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Ui.NPowerAppliedBuffVfx",
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Ui.NPowerAppliedDebuffVfx",
     "MegaCrit.Sts2.Core.Saves.ReadSaveStatus",
     "MegaCrit.Sts2.Core.Saves.ReadSaveStatusExtensions"
   ],
   "combatTypeNames": [
     "MegaCrit.Sts2.Core.AutoSlay.Handlers.Rooms.CombatRoomHandler",
+    "MegaCrit.Sts2.Core.Combat.CombatId",
     "MegaCrit.Sts2.Core.Combat.CombatManager",
     "MegaCrit.Sts2.Core.Combat.CombatSide",
     "MegaCrit.Sts2.Core.Combat.CombatSideExtensions",
     "MegaCrit.Sts2.Core.Combat.CombatState",
     "MegaCrit.Sts2.Core.Combat.CombatStateTracker",
+    "MegaCrit.Sts2.Core.Combat.CombatTurnState",
     "MegaCrit.Sts2.Core.Combat.History.CombatHistory",
     "MegaCrit.Sts2.Core.Combat.History.CombatHistoryEntry",
     "MegaCrit.Sts2.Core.Combat.ICombatState",
     "MegaCrit.Sts2.Core.Combat.NullCombatState",
+    "MegaCrit.Sts2.Core.Combat.StuckCombatException",
     "MegaCrit.Sts2.Core.Debug.NCombatVfxSpawner",
     "MegaCrit.Sts2.Core.Entities.Multiplayer.ActionSynchronizerCombatState",
     "MegaCrit.Sts2.Core.Entities.Multiplayer.NetCombatCard",
@@ -816,6 +839,8 @@
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockRemoveDrawnCardsFromCombatPower",
     "MegaCrit.Sts2.Core.Models.Powers.Mocks.MockResetCombatOnShufflePower",
     "MegaCrit.Sts2.Core.Multiplayer.CombatStateSynchronizer",
+    "MegaCrit.Sts2.Core.Multiplayer.Game.EventCombatSynchronizer",
+    "MegaCrit.Sts2.Core.Multiplayer.Game.EventCombatSynchronizer+EventCombatState",
     "MegaCrit.Sts2.Core.Multiplayer.Replay.CombatReplay",
     "MegaCrit.Sts2.Core.Multiplayer.Replay.CombatReplayEvent",
     "MegaCrit.Sts2.Core.Multiplayer.Replay.CombatReplayEventType",
@@ -856,6 +881,9 @@
     "MegaCrit.Sts2.Core.Models.BestiaryMonsterMove",
     "MegaCrit.Sts2.Core.Models.EncounterModel",
     "MegaCrit.Sts2.Core.Models.Encounters.BattlewornDummyEventEncounter",
+    "MegaCrit.Sts2.Core.Models.Encounters.BattlewornDummyEventV1Encounter",
+    "MegaCrit.Sts2.Core.Models.Encounters.BattlewornDummyEventV2Encounter",
+    "MegaCrit.Sts2.Core.Models.Encounters.BattlewornDummyEventV3Encounter",
     "MegaCrit.Sts2.Core.Models.Encounters.DenseVegetationEventEncounter",
     "MegaCrit.Sts2.Core.Models.Encounters.DeprecatedEncounter",
     "MegaCrit.Sts2.Core.Models.Encounters.FakeMerchantEventEncounter",
@@ -1003,10 +1031,19 @@
     "MegaCrit.Sts2.Core.Models.Orbs.GlassOrb",
     "MegaCrit.Sts2.Core.Models.Orbs.LightningOrb",
     "MegaCrit.Sts2.Core.Models.Orbs.Mock.MockCombatCleanupOrb",
+    "MegaCrit.Sts2.Core.Models.Orbs.Mock.MockTurnEndSuspendOrb",
     "MegaCrit.Sts2.Core.Models.Orbs.PlasmaOrb",
     "MegaCrit.Sts2.Core.Models.Powers.OrbitPower",
+    "MegaCrit.Sts2.Core.Nodes.Debug.NOrbVfxTester",
+    "MegaCrit.Sts2.Core.Nodes.Debug.NOrbVfxTester+OrbVfxTestModelType",
+    "MegaCrit.Sts2.Core.Nodes.Orbs.NDarkOrbVfx",
+    "MegaCrit.Sts2.Core.Nodes.Orbs.NFrostOrbVfx",
+    "MegaCrit.Sts2.Core.Nodes.Orbs.NGlassOrbVfx",
+    "MegaCrit.Sts2.Core.Nodes.Orbs.NLightningOrbVfx",
     "MegaCrit.Sts2.Core.Nodes.Orbs.NOrb",
-    "MegaCrit.Sts2.Core.Nodes.Orbs.NOrbManager"
+    "MegaCrit.Sts2.Core.Nodes.Orbs.NOrbManager",
+    "MegaCrit.Sts2.Core.Nodes.Orbs.NOrbVfx",
+    "MegaCrit.Sts2.Core.Nodes.Orbs.NPlasmaOrbVfx"
   ],
   "enumTypes": {
     "MegaCrit.Sts2.Core.ValueProps.ValueProp": [
@@ -1108,7 +1145,8 @@
       "NoCardPoolModifications",
       "NoCardModelModifications",
       "ForceRarityOddsChange",
-      "IsCardReward"
+      "IsCardReward",
+      "IsFromCombat"
     ],
     "MegaCrit.Sts2.Core.Runs.CardCreationSource": [
       "None",
@@ -1157,10 +1195,10 @@
     ],
     "MegaCrit.Sts2.Core.Platform.PlatformBranch": [
       "None",
-      "DevTest",
-      "PrivateBeta",
+      "Production",
       "PublicBeta",
-      "Production"
+      "PrivateBeta",
+      "DevTest"
     ],
     "MegaCrit.Sts2.Core.Platform.PlatformType": [
       "None",
@@ -1198,116 +1236,6 @@
       "NoRelaySessions",
       "RendezvousTimeout",
       "RelayReceivedUnexpectedNoConnectionPacket"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.VfxColor": [
-      "Red",
-      "Green",
-      "Blue",
-      "Purple",
-      "Black",
-      "White",
-      "Cyan",
-      "Gold",
-      "Orange",
-      "Swamp",
-      "DarkGray"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.VfxDuration": [
-      "None",
-      "VeryShort",
-      "Short",
-      "Standard",
-      "Long",
-      "VeryLong",
-      "Custom",
-      "Forever"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.VfxPosition": [
-      "None",
-      "Left",
-      "Center",
-      "Right"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.DialogueSide": [
-      "None",
-      "Left",
-      "Right"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.DialogueStyle": [
-      "None",
-      "Thought",
-      "Speech"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.RumbleStyle": [
-      "None",
-      "Rumble",
-      "Drunk"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.ShakeDuration": [
-      "None",
-      "Short",
-      "Normal",
-      "Long",
-      "Forever"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.ShakeStrength": [
-      "None",
-      "VeryWeak",
-      "Weak",
-      "Medium",
-      "Strong",
-      "TooMuch"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Screens.CapstoneSubmenuType": [
-      "None",
-      "Settings",
-      "Compendium",
-      "Feedback",
-      "PauseMenu"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Screens.Timeline.EpochSlotState": [
-      "None",
-      "Complete",
-      "Obtained",
-      "NotObtained"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.GameOverType": [
-      "None",
-      "AbandonedRun",
-      "EventDeath",
-      "CombatDeath",
-      "FalseVictory",
-      "TrueVictory"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Screens.Map.DrawingMode": [
-      "None",
-      "Drawing",
-      "Erasing"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.SortingOrders": [
-      "RarityAscending",
-      "CostAscending",
-      "TypeAscending",
-      "AlphabetAscending",
-      "RarityDescending",
-      "CostDescending",
-      "TypeDescending",
-      "AlphabetDescending",
-      "Ascending",
-      "Descending"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.CommonUi.CardPreviewStyle": [
-      "None",
-      "HorizontalLayout",
-      "MessyLayout",
-      "EventLayout",
-      "GridLayout"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Combat.TargetMode": [
-      "None",
-      "ReleaseMouseToTarget",
-      "ClickMouseToTarget",
-      "Controller"
     ],
     "MegaCrit.Sts2.Core.Multiplayer.Transport.NetTransferMode": [
       "None",
@@ -1360,6 +1288,13 @@
       "ContinueLine",
       "EndLine"
     ],
+    "MegaCrit.Sts2.Core.Multiplayer.Connection.HandshakeStatus": [
+      "None",
+      "InvalidHandshake",
+      "VersionMismatch",
+      "ModMismatch",
+      "Success"
+    ],
     "MegaCrit.Sts2.Core.MonsterMoves.MoveRepeatType": [
       "CanRepeatForever",
       "CanRepeatXTimes",
@@ -1394,7 +1329,13 @@
       "Loaded",
       "Failed",
       "Disabled",
+      "DisabledDuplicate",
       "AddedAtRuntime"
+    ],
+    "MegaCrit.Sts2.Core.Modding.ModManagerState": [
+      "None",
+      "Initialized",
+      "Skipped"
     ],
     "MegaCrit.Sts2.Core.Modding.ModSource": [
       "None",
@@ -1644,6 +1585,7 @@
     ],
     "MegaCrit.Sts2.Core.Entities.Multiplayer.ActionSynchronizerCombatState": [
       "NotInCombat",
+      "PreCombatSetup",
       "PlayPhase",
       "EndTurnPhaseOne",
       "NotPlayPhase"
@@ -1654,7 +1596,8 @@
       "NotInSaveGame",
       "RunInProgress",
       "VersionMismatch",
-      "ModMismatch"
+      "ModMismatch",
+      "HandshakeTimeout"
     ],
     "MegaCrit.Sts2.Core.Entities.Multiplayer.GameActionType": [
       "None",
@@ -1679,6 +1622,8 @@
       "StateDivergence",
       "HandshakeTimeout",
       "ModMismatch",
+      "InvalidHandshake",
+      "LobbyJoinTimeout",
       "NoInternet",
       "Timeout",
       "InternalError",
@@ -1763,7 +1708,8 @@
       "Scrolls",
       "Seapunk",
       "Slugs",
-      "Exoskeletons"
+      "Exoskeletons",
+      "Jaxfruit"
     ],
     "MegaCrit.Sts2.Core.Entities.Enchantments.EnchantmentStatus": [
       "Normal",
@@ -1863,6 +1809,12 @@
       "Local",
       "Global"
     ],
+    "MegaCrit.Sts2.Core.Entities.Cards.KeywordSources": [
+      "All",
+      "None",
+      "Local",
+      "Global"
+    ],
     "MegaCrit.Sts2.Core.Entities.Cards.LocalCostModifierExpiration": [
       "EndOfCombat",
       "EndOfTurn",
@@ -1951,6 +1903,11 @@
       "Playstation",
       "NintendoSwitch"
     ],
+    "MegaCrit.Sts2.Core.ControllerInput.InputType": [
+      "MouseAndKeyboard",
+      "KeyboardOnlyMode",
+      "Controller"
+    ],
     "MegaCrit.Sts2.Core.Combat.CombatSide": [
       "None",
       "Player",
@@ -2006,70 +1963,115 @@
       "AllCardsUpgraded",
       "Play20CardsSingleTurn"
     ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.NSmokePuffVfx+SmokePuffColor": [
+    "MegaCrit.Sts2.Core.Nodes.Vfx.VfxColor": [
+      "Red",
       "Green",
-      "Purple"
+      "Blue",
+      "Purple",
+      "Black",
+      "White",
+      "Cyan",
+      "Gold",
+      "Orange",
+      "Swamp",
+      "DarkGray"
     ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.Backgrounds.NKaiserCrabBossBackground+RightArmState": [
-      "Default",
-      "Charging",
-      "Resting"
+    "MegaCrit.Sts2.Core.Nodes.Vfx.VfxDuration": [
+      "None",
+      "VeryShort",
+      "Short",
+      "Standard",
+      "Long",
+      "VeryLong",
+      "Custom",
+      "Forever"
     ],
-    "MegaCrit.Sts2.Core.Nodes.Vfx.Backgrounds.NKaiserCrabBossBackground+ArmSide": [
+    "MegaCrit.Sts2.Core.Nodes.Vfx.VfxPosition": [
+      "None",
+      "Left",
+      "Center",
+      "Right"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.DialogueSide": [
+      "None",
       "Left",
       "Right"
     ],
-    "MegaCrit.Sts2.Core.Nodes.Screens.TreasureRoomRelic.NHandImage+State": [
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.DialogueStyle": [
       "None",
-      "Frozen",
-      "GrabbingRelic"
+      "Thought",
+      "Speech"
     ],
-    "MegaCrit.Sts2.Core.Nodes.Screens.FeedbackScreen.NSendFeedbackFlower+State": [
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.RumbleStyle": [
       "None",
-      "Nodding",
-      "Anticipation",
-      "NoddingFast"
+      "Rumble",
+      "Drunk"
     ],
-    "MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NCharacterSelectButton+State": [
-      "NotSelected",
-      "SelectedLocally",
-      "SelectedRemotely"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Relics.NRelic+IconSize": [
-      "Small",
-      "Large"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Combat.NEndTurnButton+State": [
-      "Enabled",
-      "Disabled",
-      "Hidden"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Combat.NPingButton+State": [
-      "Enabled",
-      "Disabled",
-      "Hidden"
-    ],
-    "MegaCrit.Sts2.Core.Nodes.Combat.NPlayerHand+Mode": [
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.ShakeDuration": [
       "None",
-      "Play",
-      "SimpleSelect",
-      "UpgradeSelect"
+      "Short",
+      "Normal",
+      "Long",
+      "Forever"
     ],
-    "MegaCrit.Sts2.Core.Nodes.Audio.NRunMusicController+MusicProgressTrack": [
-      "Init",
-      "Enemy",
-      "Merchant",
-      "Rest",
-      "Unknown",
-      "Treasure",
-      "Elite",
-      "CombatEnd",
-      "Elite2",
-      "MerchantEnd"
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Utilities.ShakeStrength": [
+      "None",
+      "VeryWeak",
+      "Weak",
+      "Medium",
+      "Strong",
+      "TooMuch"
     ],
-    "MegaCrit.Sts2.Core.Nodes.Audio.NRunMusicController+CampfireState": [
-      "On",
-      "Off"
+    "MegaCrit.Sts2.Core.Nodes.Screens.CapstoneSubmenuType": [
+      "None",
+      "Settings",
+      "Compendium",
+      "Feedback",
+      "PauseMenu"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Screens.Timeline.EpochSlotState": [
+      "None",
+      "Complete",
+      "Obtained",
+      "NotObtained"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Screens.RunHistoryScreen.GameOverType": [
+      "None",
+      "AbandonedRun",
+      "EventDeath",
+      "CombatDeath",
+      "FalseVictory",
+      "TrueVictory"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Screens.Map.DrawingMode": [
+      "None",
+      "Drawing",
+      "Erasing"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.SortingOrders": [
+      "RarityAscending",
+      "CostAscending",
+      "TypeAscending",
+      "AlphabetAscending",
+      "RarityDescending",
+      "CostDescending",
+      "TypeDescending",
+      "AlphabetDescending",
+      "Ascending",
+      "Descending"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.CommonUi.CardPreviewStyle": [
+      "None",
+      "HorizontalLayout",
+      "MessyLayout",
+      "EventLayout",
+      "GridLayout"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Combat.TargetMode": [
+      "None",
+      "ReleaseMouseToTarget",
+      "ClickMouseToTarget",
+      "Controller"
     ],
     "MegaCrit.Sts2.Core.Multiplayer.Game.RewardsSetSynchronizer+RewardSetCompleteState": [
       "None",
@@ -2095,12 +2097,6 @@
       "Expertise",
       "Curious",
       "Improvement"
-    ],
-    "MegaCrit.Sts2.Core.Models.Encounters.BattlewornDummyEventEncounter+DummySetting": [
-      "None",
-      "Setting1",
-      "Setting2",
-      "Setting3"
     ],
     "MegaCrit.Sts2.Core.Models.Encounters.SlitheringStranglerNormal+SecondaryEnemyType": [
       "SnappingJaxfruit",
@@ -2167,6 +2163,78 @@
       "None",
       "Card",
       "Monster"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Vfx.NSmokePuffVfx+SmokePuffColor": [
+      "Green",
+      "Purple"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Backgrounds.NKaiserCrabBossBackground+RightArmState": [
+      "Default",
+      "Charging",
+      "Resting"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Vfx.Backgrounds.NKaiserCrabBossBackground+ArmSide": [
+      "Left",
+      "Right"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Screens.TreasureRoomRelic.NHandImage+State": [
+      "None",
+      "Frozen",
+      "GrabbingRelic"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Screens.FeedbackScreen.NSendFeedbackFlower+State": [
+      "None",
+      "Nodding",
+      "Anticipation",
+      "NoddingFast"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NCharacterSelectButton+State": [
+      "NotSelected",
+      "SelectedLocally",
+      "SelectedRemotely"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Relics.NRelic+IconSize": [
+      "Small",
+      "Large"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Debug.NOrbVfxTester+OrbVfxTestModelType": [
+      "Lightning",
+      "Dark",
+      "Frost",
+      "Glass",
+      "Plasma"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Combat.NEndTurnButton+State": [
+      "Enabled",
+      "Disabled",
+      "Hidden"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Combat.NPingButton+State": [
+      "Enabled",
+      "Disabled",
+      "Hidden"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Combat.NPlayerHand+Mode": [
+      "None",
+      "Play",
+      "SimpleSelect",
+      "UpgradeSelect"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Audio.NRunMusicController+MusicProgressTrack": [
+      "Init",
+      "Enemy",
+      "Merchant",
+      "Rest",
+      "Unknown",
+      "Treasure",
+      "Elite",
+      "CombatEnd",
+      "Elite2",
+      "MerchantEnd"
+    ],
+    "MegaCrit.Sts2.Core.Nodes.Audio.NRunMusicController+CampfireState": [
+      "On",
+      "Off"
     ],
     "MegaCrit.Sts2.addons.mega_text.MegaLabelHelper+BbcodeParsingState": [
       "NotInTag",

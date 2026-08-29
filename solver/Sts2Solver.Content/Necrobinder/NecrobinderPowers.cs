@@ -145,6 +145,31 @@ public sealed class NeurosurgePower : PowerModel
     }
 }
 
+/// <summary>Cacophony: every 33 cards drawn, deal Amount unpowered to the first living enemy.
+/// (MegaCrit CacophonyPower.)</summary>
+public sealed class CacophonyPower : PowerModel
+{
+    public override string Id => "Cacophony";
+    public override PowerType Type => PowerType.Buff;
+    private int _drawn;
+    public override void AfterCardDrawn(CombatState combat, CardModel card, bool fromHandDraw)
+    {
+        _drawn++;
+        if (_drawn < 33) return;
+        _drawn -= 33;
+        var t = combat.LivingMonsters.FirstOrDefault();
+        if (t != null) Cmd.Attack(combat, Owner, t, Amount, ValueProp.Unpowered, null);
+    }
+    public override PowerModel Clone()
+    {
+        var c = (CacophonyPower)base.Clone();
+        c._drawn = _drawn;
+        return c;
+    }
+    public override string StateKey() => $"{Id}={Amount}/{_drawn}";
+    public override long HashValue() => base.HashValue() ^ ((long)_drawn * 0x100000001B3L);
+}
+
 /// <summary>On the player. After a powered attack from the player or Osty deals damage, apply Doom equal
 /// to that damage × Amount to the target. (Game: ReaperFormPower.)</summary>
 public sealed class ReaperFormPower : PowerModel

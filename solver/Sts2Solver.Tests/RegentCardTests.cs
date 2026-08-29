@@ -178,9 +178,9 @@ public class RegentCardTests
     {
         var (c, p, m) = Fight();
         Play(c, new WroughtInWar(), m);      // Forge 7 → blade 17
-        Play(c, new RefineBlade(), null);    // Forge 9 → blade 26
+        Play(c, new RefineBlade(), null);    // Forge 8 → blade 25
         var blade = p.Hand.OfType<SovereignBlade>().Single();
-        Assert.Equal(10 + 7 + 9, blade.Damage);
+        Assert.Equal(10 + 7 + 8, blade.Damage);
     }
 
     [Fact]
@@ -396,7 +396,7 @@ public class RegentCardTests
     {
         var (c, p, m) = Fight();
         Play(c, new CrushUnder(), m);
-        Assert.Equal(60 - 7, m.CurrentHp);
+        Assert.Equal(60 - 8, m.CurrentHp);
         Assert.Equal(-1, m.GetPowerAmount("Strength"));   // temporary -1 Strength applied
         CombatManager.EndPlayerTurn(c);
         CombatManager.RunEnemyTurn(c);

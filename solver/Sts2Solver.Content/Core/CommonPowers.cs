@@ -169,6 +169,12 @@ public sealed class PoisonPower : PowerModel
     public override void AfterSideTurnStart(CombatState combat, CombatSide side)
     {
         if (side != Owner.Side) return;
+        Trigger(combat);
+    }
+
+    /// <summary>Force a poison tick now (Outbreak). Same body as the turn-start trigger.</summary>
+    public void Trigger(CombatState combat)
+    {
         int iterations = TriggerCount(combat);
         for (int i = 0; i < iterations; i++)
         {

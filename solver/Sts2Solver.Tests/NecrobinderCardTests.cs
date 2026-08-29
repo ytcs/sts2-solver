@@ -265,12 +265,12 @@ public class NecrobinderCardTests
     }
 
     [Fact]
-    public void Sacrifice_Blocks_Twice_Osty_MaxHp_And_Kills_It()
+    public void Sacrifice_Blocks_Triple_Osty_MaxHp_And_Kills_It()
     {
         var (c, p, _) = Fight();
         GiveOsty(c, 7);
         Play(c, new Sacrifice(), null);
-        Assert.Equal(14, p.Block);
+        Assert.Equal(21, p.Block);
         Assert.True(p.IsOstyMissing);
     }
 
@@ -363,9 +363,9 @@ public class NecrobinderCardTests
     public void Shroud_Gains_Block_When_Doom_Applied()
     {
         var (c, p, m) = Fight();
-        Play(c, new Shroud(), null);                    // 2 block per Doom application
+        Play(c, new Shroud(), null);                    // 3 block per Doom application
         Play(c, new Scourge(), m);                      // applies Doom
-        Assert.Equal(2, p.Block);
+        Assert.Equal(3, p.Block);
     }
 
     [Fact]
@@ -419,7 +419,7 @@ public class NecrobinderCardTests
         var scythe = new TheScythe();
         Play(c, scythe, m);                              // 13
         Assert.Equal(99 - 13, m.CurrentHp);
-        Assert.Equal(16, scythe.Damage);                 // 13 + 3
+        Assert.Equal(18, scythe.Damage);                 // 13 + 5 (v0.110.0)
     }
 
     [Fact]
@@ -428,8 +428,8 @@ public class NecrobinderCardTests
         var (c, p, m) = Fight(monsterHp: 99);
         p.ExhaustPile.Add(new Soul());
         p.ExhaustPile.Add(new Soul());                   // 2 souls
-        Play(c, new SoulStorm(), m);                     // 9 + 2*2 = 13
-        Assert.Equal(99 - 13, m.CurrentHp);
+        Play(c, new SoulStorm(), m);                     // 9 + 4*2 = 17 (v0.108.0)
+        Assert.Equal(99 - 17, m.CurrentHp);
     }
 
     [Fact]
@@ -491,13 +491,13 @@ public class NecrobinderCardTests
     }
 
     [Fact]
-    public void Eidolon_Gains_Intangible_When_Exhausting_9_Plus()
+    public void Eidolon_AutoPlays_Ethereal_Cards_From_Exhaust()
     {
-        var (c, p, _) = Fight();
-        for (int i = 0; i < 9; i++) p.Hand.Add(new DefendNecrobinder());
+        var (c, p, m) = Fight(monsterHp: 99);
+        p.ExhaustPile.Add(new SculptingStrike());         // ethereal attack 9
         Play(c, new Eidolon(), null, energy: 2);
-        Assert.Equal(1, p.GetPowerAmount("Intangible"));
-        Assert.Equal(10, p.ExhaustPile.Count);            // 9 hand cards + Eidolon itself
+        Assert.Equal(99 - 9, m.CurrentHp);
+        Assert.Contains(p.ExhaustPile, x => x is Eidolon);
     }
 
     [Fact]

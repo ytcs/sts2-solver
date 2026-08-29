@@ -231,8 +231,8 @@ public class SpecialAndCurseCardTests
         var maul = new Maul();
         Play(c, maul, m);
         Assert.Equal(100 - 10, m.CurrentHp);    // 5 x 2
-        Play(c, maul, m);                        // same instance, now 6 x 2
-        Assert.Equal(100 - 10 - 12, m.CurrentHp);
+        Play(c, maul, m);                        // same instance, now 7 x 2 (v0.110.0 +2 scale)
+        Assert.Equal(100 - 10 - 14, m.CurrentHp);
     }
 
     [Fact]
@@ -254,22 +254,22 @@ public class SpecialAndCurseCardTests
     }
 
     [Fact]
-    public void BrightestFlame_Loses_1_Max_Hp_And_Gains_Energy()
+    public void BrightestFlame_Loses_2_Max_Hp_And_Gains_Energy()
     {
         var (c, p, _) = Fight();
         int e0 = p.Energy;
         Play(c, new BrightestFlame(), null);
-        Assert.Equal(79, p.MaxHp);
-        Assert.Equal(79, p.CurrentHp);
+        Assert.Equal(78, p.MaxHp);
+        Assert.Equal(78, p.CurrentHp);
         Assert.Equal(e0 + 2, p.Energy);
     }
 
     [Fact]
-    public void Relax_Gains_15_Block_And_2_Energy_Next_Turn()
+    public void Relax_Gains_16_Block_And_2_Energy_Next_Turn()
     {
         var (c, p, _) = Fight();
         Play(c, new Relax(), null);
-        Assert.Equal(15, p.Block);
+        Assert.Equal(16, p.Block);
         CombatManager.EndPlayerTurn(c);
         CombatManager.BeginPlayerTurn(c);
         Assert.Equal(p.MaxEnergy + 2, p.Energy);

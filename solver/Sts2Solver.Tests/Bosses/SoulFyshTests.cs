@@ -172,10 +172,10 @@ public class SoulFyshTests
     {
         var m = Monsters.SoulFysh(ascension: 9);
         var combat = Combat(m);
-        Assert.Equal(17, Move(m, "DE_GAS_MOVE").IntentDamage);
+        Assert.Equal(18, Move(m, "DE_GAS_MOVE").IntentDamage);
         Assert.Equal(8, Move(m, "GAZE_MOVE").IntentDamage);
         Assert.Equal(15, Move(m, "SCREAM_MOVE").IntentDamage);
-        Assert.Equal(17, RunMove(combat, m, "DE_GAS_MOVE"));
+        Assert.Equal(18, RunMove(combat, m, "DE_GAS_MOVE"));
         Assert.Equal(8, RunMove(combat, m, "GAZE_MOVE"));
         Assert.Equal(15, RunMove(combat, m, "SCREAM_MOVE"));
         Assert.Equal(3, combat.Player.GetPowerAmount("Vulnerable"));   // Scream's Vulnerable is not Deadly-scaled

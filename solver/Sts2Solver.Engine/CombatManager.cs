@@ -197,24 +197,29 @@ public static class CombatManager
 
         // Standard STS: the hand is discarded at end of turn — except Ethereal cards, which exhaust (and
         // fire the on-exhaust hook with causedByEthereal=true, e.g. DarkEmbrace's deferred draw), and
-        // Retain cards (e.g. Sovereign Blade), which stay in hand into the next turn.
+        // Retain cards (e.g. Sovereign Blade / Expertise's single-turn retain), which stay in hand into the next turn.
+        // Well-Laid Plans (v0.110+): ShouldFlush=false keeps the WHOLE hand, including Ethereal.
         // Hex (SpectralKnight): while held it makes EVERY player card Ethereal (decompile HexPower/Hexed adds the
         // Ethereal keyword to all cards), so under Hex the whole hand exhausts. Modelling it is both faithful and
         // the SOUND direction — it thins the deck, never inflates it, so forward search can't over-credit by
         // retaining a card the real game would have exhausted. Gated on the (rare) power → inert for every other fight.
+        bool flushHand = true;
+        foreach (var pw in player.Powers)
+            if (pw.PreventsHandFlush) { flushHand = false; break; }
         bool hexed = player.HasPower("Hex");
         var retained = new List<CardModel>();
         foreach (var card in player.Hand)
         {
-            if (card.Ethereal || hexed)
+            if (flushHand && (card.Ethereal || hexed))
             {
                 player.ExhaustPile.Add(card);
                 combat.CardExhaustedThisTurn = true;
                 foreach (var p in combat.AllPowers.ToList()) p.AfterCardExhausted(combat, card, true);
                 if (combat.HasEventRelics) foreach (var r in combat.Player.Relics) r.AfterCardExhausted(combat, card, true);
             }
-            else if (card.Retain) retained.Add(card);
+            else if (!flushHand || card.Retain) retained.Add(card);
             else player.DiscardPile.Add(card);
+            card.SingleTurnRetain = false;   // game EndOfTurnCleanup: survives THIS flush, then clears
         }
         player.Hand.Clear();
         player.Hand.AddRange(retained);

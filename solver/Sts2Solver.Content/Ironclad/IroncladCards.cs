@@ -185,7 +185,8 @@ public sealed class HowlFromBeyond : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AllEnemies;
-    public int Damage => 16 + 4 * Upgrades;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public int Damage => 18 + 6 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         foreach (var m in combat.LivingMonsters.ToList())
@@ -227,15 +228,16 @@ public sealed class Breakthrough : CardModel
             Cmd.Attack(combat, combat.Player, m, Damage, ValueProp.Move, this);
     }
 }
-/// <summary>Gain 7 Block. Apply 1 Vulnerable. Upgrade: +1 Block, +1 Vulnerable. (MegaCrit Taunt)</summary>
+/// <summary>Gain 6 Block. Apply 1 Vulnerable. Upgrade: +1 Block, +1 Vulnerable. Common as of v0.109.0.
+/// (MegaCrit Taunt)</summary>
 public sealed class Taunt : CardModel
 {
     public override string Name => "Taunt";
     public override int BaseCost => 1;
     public override CardType Type => CardType.Skill;
-    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AnyEnemy;   // Skill that targets an enemy (applies Vuln)
-    public int Block => 7 + Upgrades;
+    public int Block => 6 + Upgrades;
     public int Vulnerable => 1 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
@@ -333,7 +335,7 @@ public sealed class Mangle : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Damage => 15 + 5 * Upgrades;
+    public int Damage => 20 + 6 * Upgrades;
     public int StrengthLoss => 10 + 5 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
@@ -354,7 +356,7 @@ public sealed class SetupStrike : CardModel
     public override TargetType Target => TargetType.AnyEnemy;
     public override bool IsStrike => true;
     public int Damage => 7 + 2 * Upgrades;
-    public int Strength => 2 + Upgrades;
+    public int Strength => 3 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
@@ -381,7 +383,7 @@ public sealed class DemonForm : CardModel
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.Self;
-    public int Strength => 2 + Upgrades;
+    public int Strength => 3 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new DemonFormPower(), Strength, combat.Player);
 }
@@ -423,7 +425,7 @@ public sealed class Colossus : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public int Block => 5 + 3 * Upgrades;
+    public int Block => 4 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.GainBlock(combat, combat.Player, Block, ValueProp.Move, this);
@@ -450,7 +452,7 @@ public sealed class Dominate : CardModel
     public override string Name => "Dominate";
     public override int BaseCost => 1;
     public override CardType Type => CardType.Skill;
-    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AnyEnemy;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public int Vulnerable => 1 + Upgrades;
@@ -621,7 +623,7 @@ public sealed class Bloodletting : CardModel
     public override string Name => "Bloodletting";
     public override int BaseCost => 0;
     public override CardType Type => CardType.Skill;
-    public override CardRarity Rarity => CardRarity.Common;
+    public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public int SelfLoss => 3;
     public int Energy => 2 + Upgrades;
@@ -777,9 +779,7 @@ public sealed class ForgottenRitual : CardModel
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public int Energy => 3 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
-    {
-        if (combat.CardExhaustedThisTurn) Cmd.GainEnergy(combat, Energy);
-    }
+        => Cmd.GainEnergy(combat, Energy);
 }
 /// <summary>This turn, your next Attack is played twice. Upgrade: +1 (next two Attacks). (MegaCrit One-Two Punch)</summary>
 public sealed class OneTwoPunch : CardModel
@@ -844,7 +844,7 @@ public sealed class Cruelty : CardModel
     public override string Name => "Cruelty";
     public override int BaseCost => 1;
     public override CardType Type => CardType.Power;
-    public override CardRarity Rarity => CardRarity.Rare;
+    public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public int Amount => 25 + 25 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
@@ -859,7 +859,7 @@ public sealed class CrimsonMantle : CardModel
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.Self;
-    public int Block => 8 + 2 * Upgrades;
+    public int Block => 7 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new CrimsonMantlePower(), Block, combat.Player);
 }
@@ -1029,20 +1029,21 @@ public sealed class Pillage : CardModel
         Cmd.Draw(combat, 1);
     }
 }
-/// <summary>Gain Energy equal to the number of Attack cards in your hand. You cannot gain energy again
-/// this turn. Upgrade: costs 1. (MegaCrit Expect a Fight)</summary>
+/// <summary>Gain 15 Block, plus 5 per Strength. Cost 3. Upgrade: +1 Block, +3 per Strength.
+/// (MegaCrit Expect a Fight — reworked v0.111.0.)</summary>
 public sealed class ExpectAFight : CardModel
 {
     public override string Name => "ExpectAFight";
-    public override int BaseCost => 2 - (Upgrades > 0 ? 1 : 0);
+    public override int BaseCost => 3;
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
+    public int Block => 15 + Upgrades;
+    public int PerStrength => 5 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
-        int attacks = combat.Player.Hand.Count(c => c.Type == CardType.Attack);
-        Cmd.GainEnergy(combat, attacks);
-        Cmd.ApplyPower(combat, combat.Player, new NoEnergyGainPower(), 1, combat.Player);
+        int str = Math.Max(0, combat.Player.GetPowerAmount("Strength"));
+        Cmd.GainBlock(combat, combat.Player, Block + PerStrength * str, ValueProp.Move, this);
     }
 }
 /// <summary>Power: whenever you apply Vulnerable, draw 1 card. Upgrade: +1 card. (MegaCrit Vicious)</summary>
@@ -1130,8 +1131,8 @@ public sealed class Rampage : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Base => 9;
-    public int Increase => 5 + 4 * Upgrades;
+    public int Base => 10;
+    public int Increase => 5 + 5 * Upgrades;
     private int _extra;
     public override bool Stateful => true;   // _extra escalates per play, so each search state needs its own instance
     public override void OnPlay(CombatState combat, CardPlay play)
@@ -1229,7 +1230,7 @@ public sealed class PactsEnd : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AllEnemies;
-    public int Damage => 17 + 6 * Upgrades;
+    public int Damage => 18 + 6 * Upgrades;
     public int Threshold => 3;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
@@ -1360,6 +1361,47 @@ public sealed class Tank : CardModel
     public override TargetType Target => TargetType.Self;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new TankPower(), 1, combat.Player);
+}
+/// <summary>Deal 60 damage. Costs 1 less per card Exhausted this combat (exhaust-pile size). Cost 12.
+/// Upgrade: +12 damage. (MegaCrit Midnight, MultiplayerOnly — SP uses our exhaust pile.)</summary>
+public sealed class Midnight : CardModel
+{
+    public override string Name => "Midnight";
+    public override int BaseCost => 12;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public override int EffectiveCost(CombatState combat)
+        => Math.Max(0, BaseCost - combat.Player.ExhaustPile.Count);
+    public int Damage => 60 + 12 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+}
+/// <summary>Give another player 5 Strength. Inert in single-player. Cost 2. Upgrade: +2. (MegaCrit Blaze.)</summary>
+public sealed class Blaze : CardModel
+{
+    public override string Name => "Blaze";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
+}
+/// <summary>Deal 9 damage. Add a copy of this to your discard. Cost 0. Upgrade: +4. (MegaCrit Outrage —
+/// SP: copy goes to your discard, the "everyone" projection.)</summary>
+public sealed class Outrage : CardModel
+{
+    public override string Name => "Outrage";
+    public override int BaseCost => 0;
+    public override CardType Type => CardType.Attack;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.AnyEnemy;
+    public int Damage => 9 + 4 * Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
+        combat.Player.DiscardPile.Add(new Outrage { Upgrades = Upgrades });
+    }
 }
 /// <summary>Deal 5 damage twice. Gain 3 Strength. The enemy gains 1 Strength too. Upgrade: +1 damage,
 /// +1 Strength. (MegaCrit Fight Me!)</summary>

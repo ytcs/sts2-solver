@@ -386,7 +386,7 @@ public sealed class Refract : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Damage => 9 + 3 * Upgrades;
+    public int Damage => 10 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.AttackMulti(combat, combat.Player, play.Target!, Damage, 2, ValueProp.Move, this);
@@ -455,7 +455,7 @@ public sealed class Null : CardModel
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AnyEnemy;
     public int Damage => 10 + 3 * Upgrades;
-    public int Weak => 2 + Upgrades;
+    public int Weak => 1 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
@@ -478,7 +478,7 @@ public sealed class Thunder : CardModel
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public int Damage => 6 + 2 * Upgrades;
+    public int Damage => 8 + 3 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new ThunderPower(), Damage, combat.Player);
 }
@@ -602,7 +602,7 @@ public sealed class BiasedCognition : CardModel
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Ancient;
     public override TargetType Target => TargetType.Self;
-    public int Focus => 4 + Upgrades;
+    public int Focus => 5 + Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.ApplyPower(combat, combat.Player, new FocusPower(), Focus, combat.Player);
@@ -684,8 +684,8 @@ public sealed class FocusedStrike : CardModel
     }
 }
 
-/// <summary>Gain (2 × distinct orb types) Focus until end of turn. Exhaust. Cost 1. Upgrade: no longer
-/// Exhausts. (Synchronize)</summary>
+/// <summary>Gain (1 × distinct orb types) Focus until end of turn. Upgrade: 2 × distinct. No longer Exhausts
+/// (v0.110.0). (Synchronize)</summary>
 public sealed class Synchronize : CardModel
 {
     public override string Name => "Synchronize";
@@ -693,11 +693,10 @@ public sealed class Synchronize : CardModel
     public override CardType Type => CardType.Skill;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
-    public override CardResultPile ResultPile => Upgrades > 0 ? CardResultPile.Discard : CardResultPile.Exhaust;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         int distinct = combat.Player.Orbs.Select(o => o.Name).Distinct().Count();
-        TemporaryFocusPower.Grant(combat, 2 * distinct);
+        TemporaryFocusPower.Grant(combat, (1 + Upgrades) * distinct);
     }
 }
 
@@ -768,7 +767,7 @@ public sealed class TrashToTreasure : CardModel
     public override CardType Type => CardType.Power;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.Self;
-    public override bool Innate => Upgrades > 0;
+    public override int Cost => Math.Max(0, BaseCost - Upgrades);
     public override void OnPlay(CombatState combat, CardPlay play)
         => Cmd.ApplyPower(combat, combat.Player, new TrashToTreasurePower(), 1, combat.Player);
 }
@@ -929,7 +928,8 @@ public sealed class GoForTheEyes : CardModel
     }
 }
 
-/// <summary>Deal 28 damage to ALL enemies. Lose 3 Focus. Cost 2. Upgrade: +8 damage. (Hyperbeam)</summary>
+/// <summary>Deal 24 damage to ALL enemies. Lose 3 Focus this turn. Cost 2. Upgrade: +6 damage.
+/// (Hyperbeam — v0.111.0 temp-focus rework.)</summary>
 public sealed class Hyperbeam : CardModel
 {
     public override string Name => "Hyperbeam";
@@ -937,12 +937,12 @@ public sealed class Hyperbeam : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AllEnemies;
-    public int Damage => 28 + 8 * Upgrades;
+    public int Damage => 24 + 6 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         foreach (var m in combat.LivingMonsters.ToList())
             Cmd.Attack(combat, combat.Player, m, Damage, ValueProp.Move, this);
-        Cmd.ApplyPower(combat, combat.Player, new FocusPower(), -3, combat.Player);
+        TemporaryFocusPower.Grant(combat, -3);
     }
 }
 
@@ -954,7 +954,7 @@ public sealed class Sunder : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.AnyEnemy;
-    public int Damage => 24 + 8 * Upgrades;
+    public int Damage => 26 + 8 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
@@ -1016,7 +1016,7 @@ public sealed class Ignition : CardModel
     public override string Name => "Ignition";
     public override int BaseCost => 1;
     public override CardType Type => CardType.Skill;
-    public override CardRarity Rarity => CardRarity.Rare;
+    public override CardRarity Rarity => CardRarity.Uncommon;
     public override TargetType Target => TargetType.Self;
     public override CardResultPile ResultPile => Upgrades > 0 ? CardResultPile.Discard : CardResultPile.Exhaust;
     public override void OnPlay(CombatState combat, CardPlay play) => OrbOps.Channel(combat, new PlasmaOrb());
@@ -1221,7 +1221,7 @@ public sealed class MomentumStrike : CardModel
     public override CardRarity Rarity => CardRarity.Common;
     public override TargetType Target => TargetType.AnyEnemy;
     public override bool IsStrike => true;
-    public int Damage => 10 + 3 * Upgrades;
+    public int Damage => 11 + 4 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
         Cmd.Attack(combat, combat.Player, play.Target!, Damage, ValueProp.Move, this);
@@ -1400,6 +1400,7 @@ public sealed class Shatter : CardModel
     public override CardType Type => CardType.Attack;
     public override CardRarity Rarity => CardRarity.Rare;
     public override TargetType Target => TargetType.AllEnemies;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public int Damage => 7 + 4 * Upgrades;
     public override void OnPlay(CombatState combat, CardPlay play)
     {
@@ -1506,4 +1507,45 @@ public sealed class WhiteNoise : CardModel
     public override TargetType Target => TargetType.Self;
     public override CardResultPile ResultPile => CardResultPile.Exhaust;
     public override void OnPlay(CombatState combat, CardPlay play) { /* inert: random power-gen (sound) */ }
+}
+
+/// <summary>Channel 2 Frost. Cost 2. Upgrade: 3 Frost. (MegaCrit Hibernate — SP: frost block is already yours.)</summary>
+public sealed class Hibernate : CardModel
+{
+    public override string Name => "Hibernate";
+    public override int BaseCost => 2;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Uncommon;
+    public override TargetType Target => TargetType.Self;
+    public int Frost => 2 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+    {
+        for (int i = 0; i < Frost; i++) OrbOps.Channel(combat, new FrostOrb());
+    }
+}
+
+/// <summary>Your 0-cost Attacks deal +3 damage. Cost 1. Upgrade: +1. (MegaCrit OneForAll — SP: you are "everyone".)</summary>
+public sealed class OneForAll : CardModel
+{
+    public override string Name => "OneForAll";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Power;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public int Amount => 3 + Upgrades;
+    public override void OnPlay(CombatState combat, CardPlay play)
+        => Cmd.ApplyPower(combat, combat.Player, new OneForAllPower(), Amount, combat.Player);
+}
+
+/// <summary>The next 2 times another player plays a Power, you play a copy. Inert in SP. Cost 1. Exhaust.
+/// Upgrade: 3 copies. (MegaCrit ImitationLearning.)</summary>
+public sealed class ImitationLearning : CardModel
+{
+    public override string Name => "ImitationLearning";
+    public override int BaseCost => 1;
+    public override CardType Type => CardType.Skill;
+    public override CardRarity Rarity => CardRarity.Rare;
+    public override TargetType Target => TargetType.Self;
+    public override CardResultPile ResultPile => CardResultPile.Exhaust;
+    public override void OnPlay(CombatState combat, CardPlay play) { }
 }
