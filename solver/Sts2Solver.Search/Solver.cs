@@ -14,6 +14,11 @@ public readonly record struct Value(double Win, double Loss)
     public bool BetterThan(Value other) =>
         Win > other.Win + Eps || (Math.Abs(Win - other.Win) <= Eps && Loss < other.Loss - Eps);
 
+    /// <summary>Forward value after adding HP lost on the transition into this state (self-damage,
+    /// thorns, a start-of-turn tick already applied on the child, …). No-op when <paramref name="extra"/>
+    /// is 0.</summary>
+    public Value AddLoss(int extra) => extra <= 0 ? this : new Value(Win, Loss + extra);
+
     public override string ToString() => $"win={Win:P2}, E[HP loss]={Loss:F2}";
 }
 
@@ -83,8 +88,10 @@ public sealed class Solver
     public Value SolvePlayerTurn(CombatState s)
     {
         if (s.AllMonstersDead) return new Value(1, 0);
-        if (s.PlayerDead) return new Value(0, 0);
-        if (s.TurnNumber > MaxTurns) return new Value(0, 0); // failed to win within the horizon
+        // Already dead: CurrentHp is 0, so this is (0, 0) — the HP that killed them was counted by the parent.
+        // Horizon miss: failed to win in time, remaining HP is charged as lost (same convention as a death /
+        // LossCertificate, so a timeout is not an optimistic 0-loss).
+        if (s.PlayerDead || s.TurnNumber > MaxTurns) return new Value(0, s.Player.CurrentHp);
 
         var key = s.HashKey();
         if (_memo.TryGetValue(key, out var cached)) return cached;
@@ -117,8 +124,7 @@ public sealed class Solver
         // Play any distinct playable card at any valid target.
         foreach (var action in LegalPlays(s))
         {
-            var c = ApplyPlay(s, action);
-            var v = ContinuePlay(c);   // playing a card costs the player no HP in scope
+            var v = PlayValue(s, action);
             if (v.BetterThan(best)) best = v;
         }
 
@@ -127,11 +133,21 @@ public sealed class Solver
         return best;
     }
 
+    /// <summary>Lexicographic value of playing <paramref name="action"/> at <paramref name="s"/>, including
+    /// any HP the play itself costs (Bloodletting, thorns, …). That HP is not in the child's forward value
+    /// (Value is additional-from-here, and PlayerHpLost is not in the memo key).</summary>
+    private Value PlayValue(CombatState s, PlayerAction action)
+    {
+        var c = ApplyPlay(s, action);
+        return ContinuePlay(c).AddLoss(HpLostSince(s, c));
+    }
+
     /// <summary>Continue the player's turn after a play has resolved. If the play deferred a mid-turn draw
     /// (<see cref="CombatState.PendingDraw"/> &gt; 0), open an explicit draw chance node — averaging the same
-    /// turn's value over the exact draw distribution (drawing costs no HP, so no loss term is added here) —
-    /// before recursing. Otherwise recurse directly. Each draw outcome is itself a clean decision state
-    /// (PendingDraw drained), so the memo key never needs the counter.</summary>
+    /// turn's value over the exact draw distribution — before recursing. Otherwise recurse directly. Each draw
+    /// outcome is itself a clean decision state (PendingDraw drained), so the memo key never needs the
+    /// counter. HP lost on the draw itself (rare; most draws are free) is added here; HP lost on the play that
+    /// deferred the draw is added by <see cref="PlayValue"/>.</summary>
     private Value ContinuePlay(CombatState c)
     {
         if (c.PlayerTurnEndForced) return EndTurnTransition(c);   // VoidForm ended the turn — no more plays this turn
@@ -143,12 +159,17 @@ public sealed class Solver
         foreach (var (probD, afterDraw) in DrawEnumerator.EnumerateDraw(c, n, fromHandDraw: false))   // mid-turn draw (DeathMarch counts it)
         {
             CombatManager.ApplyPostDraw(afterDraw);   // EscapePlan block / set PendingDiscard (no-op for plain draws)
-            var v = SolvePlayerTurn(afterDraw);
+            var v = SolvePlayerTurn(afterDraw).AddLoss(HpLostSince(c, afterDraw));
             win += probD * v.Win;
             loss += probD * v.Loss;
         }
         return new Value(win, loss);
     }
+
+    /// <summary>HP the player actually lost between <paramref name="from"/> and <paramref name="to"/>
+    /// (clamped — PlayerHpLost only increases).</summary>
+    internal static int HpLostSince(CombatState from, CombatState to) =>
+        Math.Max(0, to.PlayerHpLost - from.PlayerHpLost);
 
     /// <summary>Resolve a post-draw discard-of-choice (s.PendingDiscard &gt; 0): the player MAXes over which
     /// distinct hand card to drop (identical cards collapse by StateKey), one card per step, until the count is
@@ -176,7 +197,9 @@ public sealed class Solver
             Cmd.DiscardFromHand(c, c.Player.Hand.First(h => h.StateKey() == key));   // may trigger a Sly auto-play
             c.PendingDiscard--;
             if (c.PendingDiscard == 0) CombatManager.ApplyPostDiscard(c);   // last discard resolved → run the continuation
-            var v = ContinuePlay(c);   // ContinuePlay (not SolvePlayerTurn) so a Sly Reflex's deferred draw resolves as a chance node
+            // ContinuePlay (not SolvePlayerTurn) so a Sly Reflex's deferred draw resolves as a chance node.
+            // Sly auto-play (or a discard continuation) can cost HP; add it here, same as PlayValue.
+            var v = ContinuePlay(c).AddLoss(HpLostSince(s, c));
             if (!any || v.BetterThan(best)) { best = v; any = true; }
         }
         return best;
@@ -256,7 +279,7 @@ public sealed class Solver
                 var v = SolvePlayerTurn(afterDraw);
                 double w = probM * probD;
                 win += w * v.Win;
-                leafLoss += w * (startLoss + v.Loss);
+                leafLoss += w * (startLoss + HpLostSince(afterRoll, afterDraw) + v.Loss);
             }
         }
         return new Value(win, enemyLoss + leafLoss);
@@ -325,8 +348,7 @@ public sealed class Solver
         PlayerAction? bestAction = null;
         foreach (var action in LegalPlays(s))
         {
-            var child = ApplyPlay(s, action);
-            var v = ContinuePlay(child);
+            var v = PlayValue(s, action);
             if (v.BetterThan(bestValue)) { bestValue = v; bestAction = action; }
         }
         return bestAction;   // null ⇒ end the turn is optimal

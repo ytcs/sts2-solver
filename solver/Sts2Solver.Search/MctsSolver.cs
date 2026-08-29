@@ -145,8 +145,12 @@ public sealed class MctsSolver
         var d = new DecisionNode { State = state, Key = key };
         NodesCreated++;
         if (state.AllMonstersDead) { d.Terminal = true; d.V = new Value(1, 0); }
-        else if (state.PlayerDead) { d.Terminal = true; d.V = new Value(0, 0); }
-        else if (state.TurnNumber > _opt.MaxTurns) { d.Terminal = true; d.V = new Value(0, 0); }
+        else if (state.PlayerDead || state.TurnNumber > _opt.MaxTurns)
+        {
+            // Dead: CurrentHp is 0 (the killing HP was counted by the parent). Horizon miss: remaining HP
+            // is charged as lost — same convention as LossCertificate / the exact solver.
+            d.Terminal = true; d.V = new Value(0, state.Player.CurrentHp);
+        }
         else if (LossProof != null && LossProof.IsProvablyLost(state))
         {
             d.Terminal = true; d.V = new Value(0, state.Player.CurrentHp);   // exact value of a doomed subtree
@@ -188,10 +192,7 @@ public sealed class MctsSolver
         if (_opt.ActionWidening) { ExpandWidening(d); return; }
 
         foreach (var action in LegalPlays(d.State))
-        {
-            var (dec, draw) = PlayTarget(ApplyPlay(d.State, action));
-            d.Edges.Add(new Edge { Action = action, PlayChild = dec, DrawChild = draw });
-        }
+            d.Edges.Add(MakePlayEdge(d.State, action));
         d.Edges.Add(new Edge { Action = PlayerAction.EndTurn, IsEndTurn = true, Chance = BuildEndTurnChance(d.State) });
     }
 
@@ -206,7 +207,9 @@ public sealed class MctsSolver
             var cleared = d.State.Clone();
             cleared.PendingDiscard = 0;
             CombatManager.ApplyPostDiscard(cleared);   // HiddenDaggers adds its Shivs here (no-op for Acrobatics/Prepared)
-            d.Edges.Add(new Edge { Action = new PlayerAction("Discard done", null, -1), PlayChild = GetOrCreateDecision(cleared), Prior = 1.0 });
+            d.Edges.Add(new Edge { Action = new PlayerAction("Discard done", null, -1),
+                PlayChild = GetOrCreateDecision(cleared), Prior = 1.0,
+                PlayLoss = Solver.HpLostSince(d.State, cleared) });
             return;
         }
         var seen = new HashSet<string>();
@@ -219,7 +222,8 @@ public sealed class MctsSolver
             c.PendingDiscard--;
             if (c.PendingDiscard == 0) CombatManager.ApplyPostDiscard(c);   // last discard resolved → run the continuation
             var (dec, draw) = PlayTarget(c);   // route through a DrawNode if a Sly Reflex's auto-play deferred a draw
-            d.Edges.Add(new Edge { Action = new PlayerAction($"Discard {key}", null, -1), PlayChild = dec, DrawChild = draw });
+            d.Edges.Add(new Edge { Action = new PlayerAction($"Discard {key}", null, -1),
+                PlayChild = dec, DrawChild = draw, PlayLoss = Solver.HpLostSince(d.State, c) });
         }
         double uniform = 1.0 / d.Edges.Count;
         foreach (var e in d.Edges) e.Prior = uniform;
@@ -276,8 +280,7 @@ public sealed class MctsSolver
         while (d.Opened < target && d.Opened < d.Candidates!.Count)
         {
             var action = d.Candidates[d.Opened];
-            var (dec, draw) = PlayTarget(ApplyPlay(d.State, action));
-            d.Edges.Add(new Edge { Action = action, PlayChild = dec, DrawChild = draw, Prior = d.CandidatePriors![d.Opened] });
+            d.Edges.Add(MakePlayEdge(d.State, action, d.CandidatePriors![d.Opened]));
             d.Opened++;
         }
     }
@@ -425,7 +428,7 @@ public sealed class MctsSolver
             int drawIdx = 0;
             int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, CombatManager.TurnStartDrawCount(afterRoll));   // Innate + MachineLearning
             foreach (var (pD, drawn) in DrawEnumerator.EnumerateDraw(afterRoll, draw, fromHandDraw: true))
-                yield return new PendingOutcome(pM * pD, startLoss, drawn, $"{comboKey}|{drawIdx++}");
+                yield return new PendingOutcome(pM * pD, startLoss + Solver.HpLostSince(afterRoll, drawn), drawn, $"{comboKey}|{drawIdx++}");
         }
     }
 
@@ -531,10 +534,20 @@ public sealed class MctsSolver
 
         int draw = CombatManager.OpeningDrawAfterInnate(afterRoll, CombatManager.TurnStartDrawCount(afterRoll));   // Innate + MachineLearning
         var (pD, drawn, drawKey) = DrawEnumerator.SampleDraw(afterRoll, draw, _rng, fromHandDraw: true);
-        return new PendingOutcome(pM * pD, startLoss, drawn, $"{string.Join(",", keyParts)}|{drawKey}");
+        return new PendingOutcome(pM * pD, startLoss + Solver.HpLostSince(afterRoll, drawn), drawn, $"{string.Join(",", keyParts)}|{drawKey}");
     }
 
     // ---------- Mid-turn draw chance nodes ----------
+
+    /// <summary>A play (or discard) edge: child is the post-play decision / mid-turn draw node, and
+    /// <see cref="Edge.PlayLoss"/> is HP the play itself cost — not in the child's forward value.</summary>
+    private Edge MakePlayEdge(CombatState parent, PlayerAction action, double prior = 0)
+    {
+        var post = ApplyPlay(parent, action);
+        var (dec, draw) = PlayTarget(post);
+        return new Edge { Action = action, PlayChild = dec, DrawChild = draw, Prior = prior,
+            PlayLoss = Solver.HpLostSince(parent, post) };
+    }
 
     /// <summary>Wire a card play's edge target: a normal decision node, or — when the play deferred a mid-turn
     /// draw (<see cref="CombatState.PendingDraw"/> &gt; 0) and combat isn't already decided — a draw chance node
@@ -643,7 +656,7 @@ public sealed class MctsSolver
     {
         CombatManager.ApplyPostDraw(po.State);   // EscapePlan block (applied here) / set PendingDiscard (a decision)
         var child = GetOrCreateDecision(po.State);
-        var o = new Outcome { Prob = po.Prob, StartLoss = 0, Child = child, Key = po.Key };
+        var o = new Outcome { Prob = po.Prob, StartLoss = Solver.HpLostSince(dn.Base, po.State), Child = child, Key = po.Key };
         dn.Explicated.Add(o);
         dn.SeenKeys.Add(po.Key);
         dn.ExplicatedMass += po.Prob;
@@ -783,7 +796,10 @@ public sealed class MctsSolver
         {
             if (s.AllMonstersDead) return new Value(1, s.PlayerHpLost - baseline);
             if (s.PlayerDead) return new Value(0, s.PlayerHpLost - baseline);
-            if (s.TurnNumber > _opt.MaxTurns) return new Value(0, s.PlayerHpLost - baseline);
+            // Horizon miss: HP lost during the rollout plus remaining HP (charged as a loss, matching
+            // the exact solver / LossCertificate). Without heals this equals HP at the leaf.
+            if (s.TurnNumber > _opt.MaxTurns)
+                return new Value(0, (s.PlayerHpLost - baseline) + s.Player.CurrentHp);
 
             PlayTurn(s, aggression);
 
@@ -882,7 +898,17 @@ public sealed class MctsSolver
         public ChanceNode? Chance;
         public int Visits;
         public double Prior;   // policy prior for this action (action-widening / PUCT only)
-        public Value Q => IsEndTurn ? Chance!.V : (DrawChild != null ? DrawChild.V : PlayChild!.V);   // plays cost no HP in scope
+        /// <summary>HP lost resolving this play / discard (Bloodletting, thorns, Sly auto-play, …).
+        /// EndTurn uses 0 — enemy/start-of-turn loss lives on the chance node.</summary>
+        public int PlayLoss;
+        public Value Q
+        {
+            get
+            {
+                var v = IsEndTurn ? Chance!.V : (DrawChild != null ? DrawChild.V : PlayChild!.V);
+                return v.AddLoss(PlayLoss);
+            }
+        }
     }
 
     private sealed class ChanceNode
@@ -911,8 +937,9 @@ public sealed class MctsSolver
 
     /// <summary>A MID-TURN draw chance node: a play deferred a draw (<see cref="CombatState.PendingDraw"/>),
     /// so the drawn hand is resolved here as a chance node over the exact draw distribution, continuing the
-    /// SAME player turn. Unlike <see cref="ChanceNode"/> there is no enemy turn and no HP-loss term — drawing
-    /// is free — so the backup is a plain probability-weighted average of the drawn decision children.</summary>
+    /// SAME player turn. Unlike <see cref="ChanceNode"/> there is no enemy turn; HP lost on the draw itself
+    /// (if any) is <see cref="Outcome.StartLoss"/>. The play that deferred the draw is counted on the parent
+    /// edge's <see cref="Edge.PlayLoss"/>.</summary>
     private sealed class DrawNode
     {
         public CombatState Base = null!;   // post-play state, PendingDraw drained to DrawCount

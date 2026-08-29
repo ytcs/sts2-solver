@@ -10,10 +10,10 @@ namespace Sts2Solver.Search;
 ///
 /// Why returning a concrete value here is exact (not just a survival floor): if the player is guaranteed
 /// dead by enemy turn <c>Kdie ≤ MaxTurns</c>, then EVERY descendant line ends in death within the horizon
-/// (none is horizon-truncated to (0,0)), and — with no mid-combat healing — the forward HP lost on a death
-/// is exactly the player's current HP (HP runs from its current value to 0). So the subtree's lexicographic
-/// value is exactly <c>(win=0, loss=CurrentHp)</c>, independent of how the doomed player plays. The exact
-/// solver would compute the same; this just skips the work. Gated by oracle-equality tests.
+/// or is horizon-truncated charging remaining HP — and — with no mid-combat healing — the forward HP lost
+/// on either is exactly the player's current HP (HP runs from its current value to 0). So the subtree's
+/// lexicographic value is exactly <c>(win=0, loss=CurrentHp)</c>, independent of how the doomed player plays.
+/// The exact solver would compute the same; this just skips the work. Gated by oracle-equality tests.
 ///
 /// Soundness rests on three sound bounds for a SINGLE, DETERMINISTIC, non-summoning enemy facing a deck with
 /// no Power cards, no player-power gains, no damage growth (Strength/Vulnerable), and no healing:

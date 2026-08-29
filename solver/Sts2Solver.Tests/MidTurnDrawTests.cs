@@ -57,29 +57,35 @@ public class MidTurnDrawTests
         Assert.True(v.Loss > 0.0, "no draw card ⇒ cannot kill turn 1 ⇒ the slug acts and HP is lost");
     }
 
-    /// <summary>Post-draw CONDITIONAL (EscapePlan: draw 1, +Block iff it is a Skill). Decisive: with a Skill in
-    /// the draw pile the conditional Block fires (run as a post-draw step per draw outcome) and strictly reduces
-    /// HP lost; with an Attack drawn instead it does not. Same board both times, so the only difference is the
-    /// conditional — proving it resolves on the post-draw hand in search (it was inert before).</summary>
+    /// <summary>Post-draw CONDITIONAL (EscapePlan: draw 1, +Block iff it is a Skill). Same board both times —
+    /// the only difference is the drawn card — proving the conditional resolves on the post-draw hand in search
+    /// (it was inert before). We assert the Block itself rather than E[HP loss]: a 1-turn horizon miss now
+    /// charges remaining HP, so a doomed timeout costs full HP either way.</summary>
     [Fact]
     public void EscapePlan_Conditional_Block_Fires_On_A_Skill_Draw_In_Search()
     {
-        Value Solve(string drawCard)
+        CombatState AfterDraw(string drawCard)
         {
             var p = new Player { MaxHp = 40, CurrentHp = 40, Energy = 3, MaxEnergy = 3 };
-            p.Hand.Add(Catalog.BuildCard("EscapePlan"));    // cost 0: draw 1, +3 Block if a Skill
+            var plan = Catalog.BuildCard("EscapePlan");     // cost 0: draw 1, +3 Block if a Skill
+            p.Hand.Add(plan);
             p.DrawPile.Add(Catalog.BuildCard(drawCard));
-            var slug = Monsters.CorpseSlug(hp: 60);          // survives the turn ⇒ its Whip Slap lands
+            var slug = Monsters.CorpseSlug(hp: 60);
             slug.Ai.CurrentMoveId = slug.Ai.InitialStateId;
             var combat = new CombatState { Player = p, Monsters = { slug }, TurnNumber = 1 };
-            return new Solver { MaxTurns = 1 }.SolvePlayerTurn(combat);
+            CombatManager.PlayCard(combat, plan, null);     // search mode: draw deferred onto PendingDraw
+            int n = combat.PendingDraw;
+            combat.PendingDraw = 0;
+            var drawn = DrawEnumerator.EnumerateDraw(combat, n, fromHandDraw: false).Single().state;
+            CombatManager.ApplyPostDraw(drawn);
+            return drawn;
         }
 
-        var skill = Solve("DefendIronclad");   // a Skill ⇒ EscapePlan grants Block ⇒ less HP lost
-        var attack = Solve("StrikeIronclad");  // an Attack ⇒ no EscapePlan Block
-        _out.WriteLine($"skill-draw {skill}  |  attack-draw {attack}");
-        Assert.True(skill.Loss < attack.Loss,
-            $"EscapePlan's conditional Block should cut HP loss on a Skill draw ({skill.Loss} vs {attack.Loss})");
+        var skill = AfterDraw("DefendIronclad");
+        var attack = AfterDraw("StrikeIronclad");
+        _out.WriteLine($"skill-draw block={skill.Player.Block}  |  attack-draw block={attack.Player.Block}");
+        Assert.Equal(3, skill.Player.Block);    // Skill draw ⇒ EscapePlan's +3 Block
+        Assert.Equal(0, attack.Player.Block);   // Attack draw ⇒ no Block
     }
 
     /// <summary>Post-draw DISCARD-of-choice (Acrobatics: draw 3, discard 1 of choice) is a real player MAX, not
