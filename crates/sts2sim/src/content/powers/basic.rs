@@ -38,12 +38,20 @@ listener!(DexterityPower {
 });
 
 listener!(VulnerablePower {
-    fn modify_damage_multiplicative(&self, _cx: &Combat, me: Me, q: &DmgQ) -> Dec {
+    fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.target != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        // TODO(fidelity): dealer's PaperPhrog relic / Cruelty power and target's Debilitate adjust the multiplier.
-        Dec::frac(15, 1)
+        let mut mult = Dec::frac(15, 1);
+        // The dealer's Cruelty power adds Amount/100 (CrueltyPower.ModifyVulnerableMultiplier; target != owner here).
+        if q.dealer != NO && q.dealer != q.target {
+            let cruelty = cx.power_amount(q.dealer, crate::ids::power::CRUELTY_POWER);
+            if cruelty != 0 {
+                mult += Dec::frac(cruelty as i64, 2);
+            }
+        }
+        // TODO(fidelity): dealer's PaperPhrog relic (+PetOwner's Cruelty) and target's Debilitate also adjust the multiplier.
+        mult
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Enemy {

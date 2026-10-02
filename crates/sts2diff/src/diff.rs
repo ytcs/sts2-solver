@@ -116,18 +116,22 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;
-                let seq = cx.decision_seq;
-                for p in picks_of(ch) {
+                let picks = picks_of(ch);
+                for p in picks.iter().copied() {
                     if !cx.step(Action::Pick { idx: p }) {
                         println!("step {i}: pick {p} rejected");
                         return Ok(Verdict::Mismatch);
                     }
-                    if cx.stage != Stage::AwaitChoice || cx.decision_seq != seq {
-                        break; // finished (a chained decision raised by the resumed effect belongs to the next `choices` entry)
+                    if cx.stage != Stage::AwaitChoice {
+                        break;
                     }
                 }
-                if cx.stage == Stage::AwaitChoice && cx.decision_seq == seq && !cx.step(Action::Confirm) {
-                    println!("step {i}: decision still pending after the oracle's picks; decision={:?}", cx.decision.as_ref().map(|d| (d.min, d.max, d.cands.len(), d.selected.len(), d.confirm_required, d.purpose)));
+                // After the oracle's picks the decision is either finished (possibly followed by a NEW decision raised by a
+                // nested effect: nothing selected yet), or waiting for the explicit confirm / skip.
+                let fresh_decision = !picks.is_empty() && cx.decision.as_ref().map_or(false, |d| d.selected.is_empty());
+                if cx.stage == Stage::AwaitChoice && !fresh_decision && !cx.step(Action::Confirm) {
+                    let d = cx.decision.as_ref();
+                    println!("step {i}: decision still pending after the oracle's picks (oracle decision #{ci} {}; simulator: {})", ch, d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?} selected {:?}", sts2sim::ids::card::NAMES.get(d.purpose as usize).copied().unwrap_or("?"), d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), d.selected.as_slice())));
                     return Ok(Verdict::Mismatch);
                 }
             }

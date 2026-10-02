@@ -297,7 +297,15 @@ impl Combat {
         if self.is_over_or_ending() || count <= 0 {
             return 0;
         }
-        // Hook.ShouldDraw (NoDraw) — no content yet.
+        // Hook.ShouldDraw (NoDraw): AND over listeners, once per Draw call.
+        if self.hooks_enabled() && self.listen.has(hookbit::should_draw) {
+            let snap = self.snapshot(Mask::bit(hookbit::should_draw));
+            for e in snap.iter() {
+                if self.still_live(&e.me) && !content::listener(&e.me).should_draw(self, e.me, from_hand_draw) {
+                    return 0;
+                }
+            }
+        }
         let mut room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         if room == 0 {
             return 0;
@@ -320,6 +328,7 @@ impl Combat {
             }
             self.move_card(card, PileType::Hand, CardPilePosition::Bottom);
             drawn += 1;
+            self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
             self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         }
@@ -332,6 +341,7 @@ impl Combat {
             return;
         }
         self.move_card(c, PileType::Exhaust, CardPilePosition::Bottom);
+        self.hist.cards_exhausted_this_turn += 1; // History.CardExhausted
         self.dispatch_g(hookbit::after_card_exhausted, |cx, me, l| l.after_card_exhausted(cx, me, c, caused_by_ethereal));
     }
 }

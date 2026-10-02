@@ -274,103 +274,18 @@ impl Combat {
         }
     }
 
-    // ---- auto-play -------------------------------------------------------------------------------------------------
+    // ---- auto-play from hooks -------------------------------------------------------------------------------------
 
-    /// `CardCmd.MoveToResultPileWithoutPlaying`: Add(Play) first, then dupe -> remove, Exhaust -> exhaust, else discard.
-    pub fn move_to_result_pile_without_playing(&mut self, c: CardIdx) {
+    /// `CardPileCmd.AutoPlayFromDrawPile(1, Top, false)` run from a HOOK (no enclosing card play): pulls the top card into
+    /// the Play pile and auto-plays it (`Combat::auto_play`; a decision it raises is flagged as unfaithful there).
+    pub fn auto_play_top_from_hook(&mut self) {
+        self.shuffle_if_necessary();
+        let Some(c) = self.player.draw.first() else { return };
         self.move_card(c, PileType::Play, CardPilePosition::Bottom);
-        let flags = self.cards[c as usize].flags;
-        if flags & cflag::IS_DUPE != 0 {
-            self.remove_card_from_combat(c);
-        } else if flags & cflag::EXHAUST_ON_NEXT_PLAY != 0 || self.card_keywords(c) & kw::EXHAUST != 0 {
-            self.cards[c as usize].flags &= !cflag::EXHAUST_ON_NEXT_PLAY;
-            self.exhaust_card(c, false);
-        } else {
-            self.move_card(c, PileType::Discard, CardPilePosition::Bottom);
-        }
-    }
-
-    /// `CardCmd.AutoPlay(card, target)` (spec 03 §5.2), synchronous. A card whose effect needs a decision cannot be
-    /// auto-played from inside another effect: that is flagged as unimplemented content instead of corrupting state.
-    pub fn regent_auto_play(&mut self, c: CardIdx, target: Cid) {
-        if self.is_over_or_ending() || self.cr(PLAYER).is_dead() {
+        if self.cr(PLAYER).is_dead() {
             return;
         }
-        let d = self.card_def(c);
-        if self.card_keywords(c) & kw::UNPLAYABLE != 0 {
-            self.move_to_result_pile_without_playing(c);
-            return;
-        }
-        // Hook.ShouldPlay(card, AutoPlayType.Default)
-        if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_play));
-            for e in snap.iter() {
-                if self.still_live(&e.me) && !content::listener(&e.me).should_play(self, e.me, c) {
-                    self.move_to_result_pile_without_playing(c);
-                    return;
-                }
-            }
-        }
-        let mut target = target;
-        match self.card_target_type(c) {
-            TargetType::AnyEnemy => {
-                if target == NO {
-                    let hit = self.hittable_enemies();
-                    if hit.is_empty() {
-                        self.move_to_result_pile_without_playing(c);
-                        return;
-                    }
-                    let i = self.rng.combat_targets.next_int_range(0, hit.len() as i32) as usize;
-                    target = hit[i];
-                }
-            }
-            TargetType::AnyAlly => {
-                self.move_to_result_pile_without_playing(c);
-                return;
-            }
-            _ => {}
-        }
-        if d.x_cost {
-            self.cards[c as usize].x_value = self.player.energy as i16;
-            self.cards[c as usize].flags |= cflag::X_CAPTURED;
-        }
-        if d.star_cost == STAR_COST_X {
-            self.cards[c as usize].x_value = self.player.stars as i16;
-            self.cards[c as usize].flags |= cflag::X_CAPTURED;
-        }
-        let play = CardPlay { card: c, target, is_auto: true, play_index: 0, play_count: 1, result_pile: PileType::Discard, energy_spent: 0, stars_spent: 0 };
-        // Run the whole play now, keeping any outer in-flight play intact.
-        let outer = self.play_ctx.take();
-        self.begin_play(play);
-        if self.stage == Stage::AwaitChoice {
-            // The auto-played card asked for a decision; not supported inside another effect.
-            self.flag_missing(Kind::Card, self.cards[c as usize].id);
-            self.decision = None;
-            self.stage = Stage::AwaitAction;
-            self.play_ctx = None;
-        }
-        self.play_ctx = outer;
-    }
-
-    /// `CardPileCmd.AutoPlayFromDrawPile(count, position = Top, forceExhaust = false)`.
-    pub fn regent_auto_play_from_draw_top(&mut self, count: usize, force_exhaust: bool) {
-        let mut cards: crate::util::ArrayVec<CardIdx, 8> = crate::util::ArrayVec::new();
-        for _ in 0..count.min(8) {
-            self.shuffle_if_necessary();
-            let Some(c) = self.player.draw.first() else { break };
-            cards.push(c);
-            self.move_card(c, PileType::Play, CardPilePosition::Bottom);
-        }
-        for &c in cards.iter() {
-            if self.cr(PLAYER).is_dead() {
-                break;
-            }
-            if force_exhaust {
-                self.cards[c as usize].flags |= cflag::EXHAUST_ON_NEXT_PLAY;
-            } else {
-                self.cards[c as usize].flags &= !cflag::EXHAUST_ON_NEXT_PLAY;
-            }
-            self.regent_auto_play(c, NO);
-        }
+        self.cards[c as usize].flags &= !cflag::EXHAUST_ON_NEXT_PLAY;
+        self.auto_play(c);
     }
 }

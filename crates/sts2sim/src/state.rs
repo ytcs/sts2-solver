@@ -327,6 +327,10 @@ pub struct PlayCtx {
     pub result: PileType,
     /// Position inside `result` (Shining Strike puts the card on top of the draw pile).
     pub result_pos: CardPilePosition,
+    /// Cards pulled by `AutoPlayFromDrawPile` that this card's effect still has to auto-play (in order).
+    pub queue: ArrayVec<CardIdx, 16>,
+    /// `ExhaustOnNextPlay` value assigned to each queued card right before its auto-play.
+    pub queue_exhaust: bool,
 }
 
 /// Counters the game's combat history exposes to gameplay code (cards played this turn etc.).
@@ -339,6 +343,8 @@ pub struct History {
     pub stars_gained_this_turn: i16,
     /// `DamageReceivedEntry` count this turn per receiver, dealer = player, powered attack (Beat Into Shape).
     pub player_hits_on: [u8; MAX_CREATURES],
+    /// `CardExhaustedEntry`s of the current round/side.
+    pub cards_exhausted_this_turn: i16,
 }
 
 #[derive(Clone, Copy)]
@@ -384,11 +390,13 @@ pub struct Combat {
     pub hook_ctx: Option<(crate::hooks::Me, u8)>,
     /// Turn-start continuation after a decision raised inside a turn-start hook (see `turn.rs`): 0 none.
     pub turn_cont: u8,
-    /// Number of decisions raised so far (lets a replay harness tell a finished decision from a chained one).
-    pub decision_seq: u32,
 
     /// In-flight card play (suspended while a decision is pending).
     pub play_ctx: Option<PlayCtx>,
+    /// Outer card plays suspended while a nested auto-play waits for a decision (innermost last).
+    pub play_stack: ArrayVec<PlayCtx, 4>,
+    /// `run_play` never pops below this stack depth (it belongs to callers further out).
+    pub play_base: u8,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,

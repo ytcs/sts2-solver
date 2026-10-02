@@ -198,7 +198,7 @@ listener!(IAmInvincible {
     // At the end of the turn, if this card is on top of the draw pile it plays itself.
     fn after_auto_post_play_phase_entered(&self, cx: &mut Combat, me: Me) {
         if cx.player.draw.first() == Some(me.idx as CardIdx) {
-            cx.regent_auto_play_from_draw_top(1, false);
+            cx.auto_play_top_from_hook();
         }
     }
 });
@@ -434,17 +434,23 @@ listener!(Guards {
     }
 });
 
-// Draw, choose a playable Skill in hand and auto-play it Repeat times.
+// Draw, choose a playable Skill in hand and auto-play it Repeat times. The chosen card is kept in `counter[0]` (+1) so the
+// repeat loop can resume after a nested decision; phase 10 + k = "k plays done".
 fn decisions_filter(cx: &Combat, c: CardIdx) -> bool {
     cx.card_def(c).ctype == CardType::Skill && cx.card_keywords(c) & kw::UNPLAYABLE == 0
 }
-fn decisions_play(cx: &mut Combat, p: &CardPlay, sel: Option<CardIdx>) {
-    if let Some(c) = sel {
-        let n = cx.card_var(p.card, VarKind::Repeat);
-        for _ in 0..n {
-            cx.regent_auto_play(c, NO);
+fn decisions_loop(cx: &mut Combat, p: &CardPlay, from: u8) -> Flow {
+    let sel = cx.cards[p.card as usize].counter[0];
+    if sel <= 0 {
+        return Flow::Done;
+    }
+    let n = cx.card_var(p.card, VarKind::Repeat);
+    for k in from as i32..n {
+        if cx.auto_play((sel - 1) as CardIdx) {
+            return Flow::Suspend(10 + (k + 1) as u8);
         }
     }
+    Flow::Done
 }
 listener!(DecisionsDecisions {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
@@ -454,17 +460,17 @@ listener!(DecisionsDecisions {
                 cx.draw_cards(n, false);
                 match cx.ask_hand(ids::card::DECISIONS_DECISIONS, 1, 1, decisions_filter) {
                     Ask::Resolved(cards) => {
-                        decisions_play(cx, p, cards.first());
-                        Flow::Done
+                        cx.cards[p.card as usize].counter[0] = cards.first().map_or(0, |c| c as i16 + 1);
+                        decisions_loop(cx, p, 0)
                     }
                     Ask::Pending => Flow::Suspend(1),
                 }
             }
-            _ => {
-                let sel = cx.choice.cards.first();
-                decisions_play(cx, p, sel);
-                Flow::Done
+            1 => {
+                cx.cards[p.card as usize].counter[0] = cx.choice.cards.first().map_or(0, |c| c as i16 + 1);
+                decisions_loop(cx, p, 0)
             }
+            k => decisions_loop(cx, p, k - 10),
         }
     }
 });

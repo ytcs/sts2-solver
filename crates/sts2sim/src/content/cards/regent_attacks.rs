@@ -203,7 +203,7 @@ listener!(Bombardment {
     fn after_auto_pre_play_phase_entered_early(&self, cx: &mut Combat, me: Me) {
         let c = me.idx as CardIdx;
         if cx.card_pile_type(c) == PileType::Exhaust {
-            cx.regent_auto_play(c, NO);
+            cx.auto_play(c);
         }
     }
 });
@@ -282,8 +282,7 @@ listener!(Stardust {
 listener!(HeavenlyDrill {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = dmg(cx, p.card);
-        // TODO(ChemicalX): Hook.ModifyXValue is not modelled yet.
-        let mut n = cx.cards[p.card as usize].x_value as i32;
+        let mut n = cx.resolve_energy_x(p.card);
         if n >= cx.card_var(p.card, VarKind::Energy) {
             n *= 2;
         }

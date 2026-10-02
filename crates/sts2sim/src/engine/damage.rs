@@ -3,6 +3,7 @@
 use super::creature::DamageResult;
 use crate::content;
 use crate::dec::Dec;
+use crate::defs::VarKind;
 use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
@@ -28,16 +29,23 @@ pub struct Attack {
     pub hits: i32,
     pub props: ValueProp,
     pub targeting: Targeting,
+    /// `CalculatedDamageVar` multiplier (`WithMultiplier`), evaluated per hit as `CalcBase + ExtraDamage * f(card, singleTarget)`;
+    /// the target is `NO` when the hit has several targets. When set, `damage` is ignored.
+    pub calc_mult: Option<fn(&Combat, CardIdx, Cid) -> i32>,
 }
 
 impl Attack {
     /// Monster move attack: `DamageCmd.Attack(n).FromMonster(m)` targeting the player(s).
     pub fn from_monster(dealer: Cid, damage: i32) -> Attack {
-        Attack { dealer, card: NO, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting: Targeting::AllOpponents }
+        Attack { dealer, card: NO, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting: Targeting::AllOpponents, calc_mult: None }
     }
     /// Card attack: `DamageCmd.Attack(n).FromCard(card, play).Targeting(t)`.
     pub fn from_card(dealer: Cid, card: CardIdx, damage: i32, targeting: Targeting) -> Attack {
-        Attack { dealer, card, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting }
+        Attack { dealer, card, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting, calc_mult: None }
+    }
+    /// Card attack with a `CalculatedDamageVar` (Ashen Strike, Body Slam, Bully, Perfected Strike, ...).
+    pub fn from_card_calc(dealer: Cid, card: CardIdx, targeting: Targeting, mult: fn(&Combat, CardIdx, Cid) -> i32) -> Attack {
+        Attack { dealer, card, damage: Dec::ZERO, hits: 1, props: ValueProp::MOVE, targeting, calc_mult: Some(mult) }
     }
     pub fn hits(mut self, n: i32) -> Attack {
         self.hits = n;
@@ -254,7 +262,16 @@ impl Combat {
             } else {
                 valid
             };
-            let r = self.damage(hit.as_slice(), a.damage, a.props, a.dealer, a.card);
+            let amount = match a.calc_mult {
+                None => a.damage,
+                Some(f) => {
+                    // `Calculate(singleTarget)`: base + extra * multiplier (0 when combat is not in progress).
+                    let single = if hit.len() == 1 { hit[0] } else { NO };
+                    let m = if self.in_progress { f(self, a.card, single) } else { 0 };
+                    Dec::int(self.card_var(a.card, VarKind::CalcBase) as i64 + self.card_var(a.card, VarKind::ExtraDamage) as i64 * m as i64)
+                }
+            };
+            let r = self.damage(hit.as_slice(), amount, a.props, a.dealer, a.card);
             for x in r.iter() {
                 all.push(*x);
             }
