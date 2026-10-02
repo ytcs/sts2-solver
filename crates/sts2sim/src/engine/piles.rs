@@ -95,7 +95,7 @@ impl Combat {
                 if kind == VarKind::Damage {
                     x += card.dmg_bonus / 10_000; // Rampage / Thrash growth
                 }
-                return x;
+                return x + self.card_var_extra(c, kind);
             }
         }
         0

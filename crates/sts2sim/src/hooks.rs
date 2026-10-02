@@ -277,6 +277,21 @@ pub trait Listener: Sync {
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
 
+    // ---- orbs (appended by the Defect port) -------------------------------------------------------------------
+    /// `ModifyOrbValue` (threaded decimal, guarded iterator). `orb` is the orb whose value is being computed.
+    fn modify_orb_value(&self, cx: &Combat, me: Me, orb: &Orb, value: Dec) -> Dec {
+        value
+    }
+    /// `ModifyOrbPassiveTriggerCounts` (threaded int; listeners that changed the count are the "modifiers").
+    fn modify_orb_passive_trigger_counts(&self, cx: &Combat, me: Me, orb: &Orb, count: i32) -> i32 {
+        count
+    }
+    fn after_modifying_orb_passive_trigger_count(&self, cx: &mut Combat, me: Me, orb: &Orb) {}
+    /// `AfterOrbChanneled` (the orb is already in the queue).
+    fn after_orb_channeled(&self, cx: &mut Combat, me: Me, orb: &Orb) {}
+    /// `AfterOrbEvoked`; `targets` are what the orb's `Evoke` returned (may include creatures that died since).
+    fn after_orb_evoked(&self, cx: &mut Combat, me: Me, orb: &Orb, targets: &[Cid]) {}
+
     // ---- engine-core additions (new hooks are appended here; spec 02 §2 / Appendix A) ------------------------------
     // Dispatch class in brackets: G = guarded iterator (silent once combat is ending), C = unguarded, R = run-level
     // iterator (== unguarded here: deck copies never listen in combat).
@@ -332,15 +347,12 @@ pub trait Listener: Sync {
     /// [G] stars: `AfterStarsGained` / `AfterStarsSpent`.
     fn after_stars_gained(&self, cx: &mut Combat, me: Me, amount: i32) {}
     fn after_stars_spent(&self, cx: &mut Combat, me: Me, amount: i32) {}
-    /// [G] Regent / Necrobinder / Defect command hooks (declared for the character subsystems; the engine core does
+    /// [G] Regent / Necrobinder command hooks (declared for the character subsystems; the engine core does
     /// not dispatch them yet): `AfterForge`, `AfterSummon`, `AfterOstyRevived`, `AfterOrbChanneled`, `AfterOrbEvoked`,
     /// `AfterModifyingOrbPassiveTriggerCount`.
     fn after_forge(&self, cx: &mut Combat, me: Me, amount: Dec) {}
     fn after_summon(&self, cx: &mut Combat, me: Me, amount: Dec) {}
     fn after_osty_revived(&self, cx: &mut Combat, me: Me, osty: Cid) {}
-    fn after_orb_channeled(&self, cx: &mut Combat, me: Me, orb: u16) {}
-    fn after_orb_evoked(&self, cx: &mut Combat, me: Me, orb: u16) {}
-    fn after_modifying_orb_passive_trigger_count(&self, cx: &mut Combat, me: Me, orb: u16) {}
 
     // value hooks
     /// [G] `ModifyAttackHitCount` (threaded int). No shipped model overrides it.
@@ -410,12 +422,6 @@ pub trait Listener: Sync {
     /// [G] `ModifySummonAmount` / `ModifyOrbValue` / `ModifyOrbPassiveTriggerCounts` (threaded).
     fn modify_summon_amount(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
-    }
-    fn modify_orb_value(&self, cx: &Combat, me: Me, orb: u16, value: Dec) -> Dec {
-        value
-    }
-    fn modify_orb_passive_trigger_counts(&self, cx: &Combat, me: Me, orb: u16, count: i32) -> i32 {
-        count
     }
 
     // predicates
@@ -652,6 +658,11 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        modify_orb_value,
+        modify_orb_passive_trigger_counts,
+        after_modifying_orb_passive_trigger_count,
+        after_orb_channeled,
+        after_orb_evoked,
         // ---- engine-core additions ----
         before_block_gained,
         after_modifying_block_amount,
@@ -684,9 +695,6 @@ pub mod hookbit {
         after_forge,
         after_summon,
         after_osty_revived,
-        after_orb_channeled,
-        after_orb_evoked,
-        after_modifying_orb_passive_trigger_count,
         modify_attack_hit_count,
         modify_card_play_count,
         modify_card_play_result_location,
@@ -698,8 +706,6 @@ pub mod hookbit {
         modify_x_value,
         try_modify_star_cost,
         modify_summon_amount,
-        modify_orb_value,
-        modify_orb_passive_trigger_counts,
         should_afflict,
         should_allow_targeting,
         should_die,

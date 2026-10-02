@@ -184,6 +184,18 @@ pub fn snapshot(cx: &Combat) -> Value {
     );
     o.insert("enemies".into(), Value::Array(cx.enemies.iter().map(|&e| enemy(cx, e)).collect()));
     if !over {
+        // Orbs: `{id, passive, evoke}` front first (numbers as integers: orb values are whole numbers).
+        o.insert(
+            "orbs".into(),
+            Value::Array(
+                cx.player
+                    .orbs
+                    .iter()
+                    .map(|b| json!({"id": ids::orb::NAMES[b.kind as usize], "passive": cx.orb_passive_val(b).trunc(), "evoke": cx.orb_evoke_val(b).trunc()}))
+                    .collect(),
+            ),
+        );
+        o.insert("orb_capacity".into(), json!(cx.player.orb_slots));
         o.insert("hand".into(), pile(cx, &cx.player.hand, true));
         o.insert("draw".into(), pile(cx, &cx.player.draw, false));
         o.insert("discard".into(), pile(cx, &cx.player.discard, false));

@@ -127,7 +127,9 @@ impl Combat {
             relics: ArrayVec::new(),
             potions: [None; MAX_POTIONS],
             potion_slots: sc.potion_slots,
-            orb_slots: sc.orb_slots,
+            orbs: ArrayVec::new(),
+            orb_slots: sc.orb_slots, // PlayerCombatState.ResetCombatState: OrbQueue.AddCapacity(BaseOrbSlotCount)
+            next_orb_uid: 1,
             effect_depth: 0,
         };
         let mut cx = Combat {

@@ -34,6 +34,11 @@ const DECISION_F: usize = 8 + OBS_MAX_CANDS * (CARD_F + 1);
 /// Osty block (appended at the END of the vector): present, alive, hp, max_hp, powers (id+1, amount) x `OBS_POWERS`,
 /// then per hand slot the damage preview of an Osty attack card (what the card text shows), 0 otherwise.
 pub const OSTY_F: usize = 4 + OBS_POWERS * 2 + MAX_HAND;
+/// Per-orb features: (kind + 1, passive value, evoke value).
+pub const ORB_F: usize = 3;
+/// Orb block (appended at the end of the vector): `MAX_ORBS` orb entries front first (the slot count is the
+/// `orb_slots` field of the player block), then the number of Lightning orbs channeled this combat (Voltaic's text).
+pub const ORBS_F: usize = MAX_ORBS * ORB_F + 1;
 /// Total length of the flat observation vector.
 pub const OBS_SIZE: usize = GLOBAL_F
     + PLAYER_F
@@ -45,7 +50,8 @@ pub const OBS_SIZE: usize = GLOBAL_F
     + OBS_MAX_ENEMIES * ENEMY_F
     + DECISION_F
     + REGENT_F
-    + OSTY_F;
+    + OSTY_F
+    + ORBS_F;
 
 struct W<'a> {
     out: &'a mut [f32],
@@ -329,6 +335,18 @@ impl Combat {
                 _ => w.f(0.0),
             }
         }
+        // ---- Defect: orbs (appended; visible to the player: each orb with its current passive / evoke value) ----
+        for k in 0..MAX_ORBS {
+            match self.player.orbs.get(k) {
+                Some(o) => {
+                    w.n(o.kind as i32 + 1);
+                    w.n(self.orb_passive_val(&o).trunc());
+                    w.n(self.orb_evoke_val(&o).trunc());
+                }
+                None => w.zeros(ORB_F),
+            }
+        }
+        w.n(self.hist_log.lightning_channeled as i32);
         debug_assert_eq!(w.i, OBS_SIZE);
         OBS_SIZE
     }

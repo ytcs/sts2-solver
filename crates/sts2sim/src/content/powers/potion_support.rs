@@ -199,5 +199,3 @@ listener!(GigantificationPower {
     }
 });
 
-// FocusPower: scales orb values; orbs are not in the engine yet, so there is nothing to hook.
-listener!(FocusPower {});

@@ -111,7 +111,7 @@ summons, stun / forced moves, nested auto-play + Sly + dupes + transform, replay
 enchantments (23) + affliction framework, extra turns, play history, end-turn requests, scenario extras (see the cheat sheet in
 `docs/porting-guide.md`). Added by the content slices: stars / star costs / Forge (Regent), Osty summon / revive / redirect (Necrobinder),
 turn-start and turn-end hook decisions (Tools of the Trade, Stampede), mid-combat monster lifecycle (Overgrowth).
-Still open: orbs (Defect), a decision raised by an auto-play started from a *turn-start hook* that is not the first listener of its
+Orbs (Defect) are done (`engine/orbs.rs`). Still open: a decision raised by an auto-play started from a *turn-start hook* that is not the first listener of its
 pass (Mayhem / Imbued: listeners after the suspended one are skipped), deck-copy (run-level) listeners, encounter-local slot tables,
 `GainsBlock` as a card property (approximated by "has a Block var"), non-integer named card vars (Tank 1.5 / 0.5), `CalculatedVar`
 cards that need a calculated-var table (cards compute them by hand). Fidelity TODOs are marked `TODO(fidelity)` in code.

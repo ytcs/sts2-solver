@@ -49,6 +49,7 @@ Layout (sections in vector order; sizes are constants in `observe.rs`, `OBS_SIZE
 | 8 | pending decision (header + candidates, `CARD_F + selected` each) | `DECISION_F` |
 | 9 | **Regent** (appended): current star cost of each hand card and of each decision candidate | `REGENT_F` |
 | 10 | **Necrobinder** (appended): Osty present / alive / HP / max HP / powers, then the Osty-damage preview of each hand card | `OSTY_F` |
+| 11 | **Defect** (appended): `MAX_ORBS` orbs `(kind+1, passive, evoke)` front first (empty = zeros; the slot count is `orb_slots` in the player block), then the number of Lightning orbs channeled this combat (Voltaic's text) | `ORBS_F` |
 
 `CARD_F` = 12 per card: `id+1, upgrade, energy cost (-1 = X), playable, keyword bitset, enchantment id, damage preview,
 block preview, counter[0], counter[1], enchantment amount, affliction id`.
