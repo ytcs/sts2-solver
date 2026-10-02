@@ -93,6 +93,12 @@ impl Combat {
         (0..n_slots).find(|&s| !self.enemies.iter().any(|&e| self.cr(e).slot == s)).unwrap_or(NO)
     }
 
+    /// `Encounter.Slots.LastOrDefault(s => Enemies.All(c => c.SlotName != s))`: the LAST slot index in `0..n_slots` not
+    /// occupied by a current enemy (`NO` if all are taken). Ovicopter eggs, TwoTailedRat backup.
+    pub fn last_free_slot(&self, n_slots: u8) -> u8 {
+        (0..n_slots).rev().find(|&s| !self.enemies.iter().any(|&e| self.cr(e).slot == s)).unwrap_or(NO)
+    }
+
     /// `CombatState.SortEnemiesBySlotName` — stable (insertion sort, <= 16 elements); unknown slot sorts first.
     pub fn sort_enemies_by_slot(&mut self) {
         let n = self.enemies.len();
