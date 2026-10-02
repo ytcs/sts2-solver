@@ -64,7 +64,7 @@ def main():
         path = os.path.join(tmp, "_".join(pr) + ".json")
         json.dump(s, open(path, "w"))
         r = subprocess.run([sys.executable, os.path.join(ROOT, "tools/diff_sweep.py"), path, "--n", str(a.n), "--jobs", str(a.jobs),
-                            "--keep", os.path.join(tmp, "out"), "--tag", "_".join(p[:4] for p in pr) + "_"],
+                            "--keep", os.path.join(tmp, "out"), "--tag", "_".join(p[:6] + p[-3:] for p in pr) + "_"],
                            capture_output=True, text=True, env=env)
         return pr, r.returncode, r.stdout.strip().splitlines()
 
