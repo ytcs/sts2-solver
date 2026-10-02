@@ -399,6 +399,9 @@ pub struct Combat {
     /// Union of the hook masks of every model that has ever been present in this combat (conservative: never
     /// cleared). A hook whose bit is clear has no listener, so dispatching it is a single bit test.
     pub listen: Mask,
+    /// The part of `listen` contributed by card instances / their enchantments / afflictions: a snapshot skips the pile
+    /// scan entirely when none of them listens to the queried hooks.
+    pub listen_cards: Mask,
 
     pub player: PlayerState,
     pub cards: [Card; MAX_CARDS],

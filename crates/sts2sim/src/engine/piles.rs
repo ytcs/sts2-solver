@@ -30,6 +30,7 @@ impl Combat {
         }
         let d = content::card_def(id);
         self.listen |= content::card_mask(id);
+        self.listen_cards |= content::card_mask(id);
         let idx = self.n_cards as CardIdx;
         self.n_cards += 1;
         self.cards[idx as usize] = Card {
@@ -270,7 +271,7 @@ impl Combat {
     /// `Hook.AfterCardChangedPiles`: two full passes (`AfterCardChangedPiles`, then `...Late`) over the run-level iterator.
     #[inline]
     pub fn fire_card_changed_piles(&mut self, c: CardIdx, old: PileType) {
-        if !self.listen.intersects(Mask::bit(hookbit::after_card_changed_piles) | Mask::bit(hookbit::after_card_changed_piles_late)) {
+        if !self.listen.has(hookbit::after_card_changed_piles) && !self.listen.has(hookbit::after_card_changed_piles_late) {
             return;
         }
         self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));

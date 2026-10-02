@@ -145,6 +145,7 @@ impl Combat {
         copy.deck_idx = NO;
         self.cards[idx as usize] = copy;
         self.listen |= crate::content::card_mask(copy.id);
+        self.listen_cards |= crate::content::card_mask(copy.id);
         Some(idx)
     }
 

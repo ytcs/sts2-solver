@@ -59,6 +59,7 @@ impl Combat {
     /// `EnchantInternal` + `ModifyCard` without the `CanEnchant` check (what loading a saved card does).
     pub fn enchant_unchecked(&mut self, card: CardIdx, id: u16, amount: i32) {
         self.listen |= content::enchantment_mask(id);
+        self.listen_cards |= content::enchantment_mask(id);
         {
             let c = &mut self.cards[card as usize];
             c.enchant = (id + 1) as u8;
@@ -102,6 +103,7 @@ impl Combat {
             return false;
         }
         self.listen |= content::affliction_mask(id);
+        self.listen_cards |= content::affliction_mask(id);
         let probe = Me { kind: Kind::Affliction, owner: PLAYER, idx: card as u16, id, amount };
         if !content::listener(&probe).can_afflict(self, probe, card) {
             return false;

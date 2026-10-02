@@ -51,6 +51,9 @@ impl Combat {
                         }
                     }
                 }
+                if !self.listen_cards.intersects(m) {
+                    continue;
+                }
                 for pile in [&pl.hand, &pl.draw, &pl.discard, &pl.exhaust, &pl.play] {
                     for &c in pile.iter() {
                         let card = &self.cards[c as usize];

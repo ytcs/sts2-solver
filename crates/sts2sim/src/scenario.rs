@@ -142,6 +142,7 @@ impl Combat {
             enemies: ArrayVec::new(),
             next_power_uid: 1,
             listen: Mask::EMPTY,
+            listen_cards: Mask::EMPTY,
             player: player_state,
             cards: [Card::default(); MAX_CARDS],
             n_cards: 0,
