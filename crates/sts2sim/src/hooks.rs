@@ -269,6 +269,28 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- Necrobinder / pets (appended; see engine/pets.rs) ---------------------------------------------------------
+    /// `ModifyUnblockedDamageTarget` (threaded; unguarded dispatch). DieForYou: Osty absorbs the owner's hits.
+    fn modify_unblocked_damage_target(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
+        target
+    }
+    /// `PowerModel.ShouldPowerBeRemovedAfterOwnerDeath` (false = the power survives its owner's death).
+    fn should_power_be_removed_after_owner_death(&self) -> bool {
+        true
+    }
+    /// `AfterEnergyResetLate`.
+    fn after_energy_reset_late(&self, cx: &mut Combat, me: Me) {}
+    /// `AfterCardPlayedLate`.
+    fn after_card_played_late(&self, cx: &mut Combat, me: Me, play: &CardPlay) {}
+    /// `AfterPowerAmountChanged(power, amount, applier, cardSource)` with the full argument list (`target` = power owner).
+    fn after_power_amount_changed_ex(&self, cx: &mut Combat, me: Me, power_id: u16, amount: i32, target: Cid, applier: Cid, card: CardIdx) {}
+    /// `AfterOstyRevived(osty)`.
+    fn after_osty_revived(&self, cx: &mut Combat, me: Me, osty: Cid) {}
+    /// `AfterSummon(summoner, amount)`.
+    fn after_summon(&self, cx: &mut Combat, me: Me, amount: i32) {}
+    /// `AfterDiedToDoom(creatures)`.
+    fn after_died_to_doom(&self, cx: &mut Combat, me: Me, creatures: &[Cid]) {}
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,6 +383,14 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        modify_unblocked_damage_target,
+        should_power_be_removed_after_owner_death,
+        after_energy_reset_late,
+        after_card_played_late,
+        after_power_amount_changed_ex,
+        after_osty_revived,
+        after_summon,
+        after_died_to_doom,
     );
 }
 

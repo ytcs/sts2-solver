@@ -6,6 +6,7 @@ mod creature;
 mod damage;
 mod dispatch;
 mod monster;
+mod pets;
 mod piles;
 mod potions;
 mod play;

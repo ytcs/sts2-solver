@@ -20,6 +20,14 @@ pub struct DamageResult {
     pub fully_blocked: bool,
 }
 
+impl DamageResult {
+    /// `DamageResult.TotalDamage` = `BlockedDamage + UnblockedDamage` (overkill excluded).
+    #[inline]
+    pub fn total(&self) -> i32 {
+        self.blocked + self.unblocked
+    }
+}
+
 impl Combat {
     pub fn alloc_creature(&mut self) -> Option<Cid> {
         // Slot 0 is the player; recycle freed slots.
@@ -118,6 +126,11 @@ impl Combat {
         }
         let cur = Dec::int(self.cr(c).hp as i64);
         self.set_current_hp_internal(c, cur + amount);
+        // `Hook.AfterCurrentHpChanged(creature, amount)` fires for any positive heal request while attached.
+        if amount > Dec::ZERO && self.cr(c).in_combat {
+            let d = amount.trunc();
+            self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, d));
+        }
     }
 
     // ---- death -----------------------------------------------------------------------------------------------
@@ -140,6 +153,8 @@ impl Combat {
         let hp = self.cr(c).hp;
         if hp > 0 {
             self.lose_hp_internal(c, Dec::int(hp as i64));
+            // `Hook.AfterCurrentHpChanged(creature, -hp)` (NecroMastery listens to Osty losing HP this way).
+            self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, -hp));
         }
         // BeforeDeath(c) — no content yet. ShouldDie preventers (Fairy in a Bottle, Lizard Tail) — none yet.
         self.on_died(c);
@@ -153,17 +168,31 @@ impl Combat {
         if remove && self.enemies.contains(c) {
             self.remove_creature(c);
         }
-        // RemoveAllPowersAfterDeath: strip powers (AfterRemoved callbacks, no amount hooks).
+        // RemoveAllPowersAfterDeath: strip powers (AfterRemoved callbacks, no amount hooks), except powers that
+        // survive their owner's death (`ShouldPowerBeRemovedAfterOwnerDeath() == false`: DieForYou on Osty, ...).
         let mut removed = [Power::default(); MAX_POWERS];
-        let n = self.cr(c).powers.len();
-        removed[..n].copy_from_slice(self.cr(c).powers.as_slice());
-        self.cr_mut(c).powers.clear();
+        let mut kept: crate::util::ArrayVec<Power, MAX_POWERS> = crate::util::ArrayVec::new();
+        let mut n = 0;
+        for p in self.cr(c).powers.iter() {
+            if content::power_listener(p.id).should_power_be_removed_after_owner_death() {
+                removed[n] = *p;
+                n += 1;
+            } else {
+                kept.push(*p);
+            }
+        }
+        self.cr_mut(c).powers = kept;
         for p in &removed[..n] {
             let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
             content::listener(&me).after_removed(self, me, c);
         }
         if c == PLAYER {
-            self.creatures[PLAYER as usize].block = self.creatures[PLAYER as usize].block;
+            // Player death: `if (player.IsOstyAlive) Kill(player.Osty)`.
+            if let Some(o) = self.osty() {
+                if self.cr(o).is_alive() {
+                    self.kill(&[o]);
+                }
+            }
         }
     }
 

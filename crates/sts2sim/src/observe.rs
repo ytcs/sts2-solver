@@ -28,6 +28,9 @@ const PLAYER_F: usize = 8 + OBS_POWERS * 2;
 const RELIC_F: usize = MAX_RELICS * 2;
 const POTION_F: usize = MAX_POTIONS * 2;
 const DECISION_F: usize = 8 + OBS_MAX_CANDS * (CARD_F + 1);
+/// Osty block (appended at the END of the vector): present, alive, hp, max_hp, powers (id+1, amount) x `OBS_POWERS`,
+/// then per hand slot the damage preview of an Osty attack card (what the card text shows), 0 otherwise.
+pub const OSTY_F: usize = 4 + OBS_POWERS * 2 + MAX_HAND;
 /// Total length of the flat observation vector.
 pub const OBS_SIZE: usize = GLOBAL_F
     + PLAYER_F
@@ -37,7 +40,8 @@ pub const OBS_SIZE: usize = GLOBAL_F
     + OBS_MAX_PILE * 2 * 3 // draw multiset, discard, exhaust: (id+1, upgrade) per slot
     + 3 // pile sizes
     + OBS_MAX_ENEMIES * ENEMY_F
-    + DECISION_F;
+    + DECISION_F
+    + OSTY_F;
 
 struct W<'a> {
     out: &'a mut [f32],
@@ -263,6 +267,36 @@ impl Combat {
                 }
             }
             None => w.zeros(DECISION_F),
+        }
+        // ---- Osty (visible to the player: portrait, HP bar, powers; block is the owner's) ----
+        match self.osty() {
+            Some(o) => {
+                let cr = self.cr(o);
+                w.n(1);
+                w.n(cr.is_alive() as i32);
+                w.n(cr.hp);
+                w.n(cr.max_hp);
+                for j in 0..OBS_POWERS {
+                    match cr.powers.get(j) {
+                        Some(p) => {
+                            w.n(p.id as i32 + 1);
+                            w.n(p.amount);
+                        }
+                        None => w.zeros(2),
+                    }
+                }
+            }
+            None => w.zeros(4 + OBS_POWERS * 2),
+        }
+        for k in 0..MAX_HAND {
+            match self.player.hand.get(k) {
+                Some(c) if self.card_def(c).vars.iter().any(|v| v.kind == VarKind::OstyDamage) && self.osty().is_some() => {
+                    let o = self.osty().unwrap();
+                    let base = Dec::int(self.card_var(c, VarKind::OstyDamage) as i64);
+                    w.n(self.modify_damage(NO, o, base, ValueProp::MOVE, c).0.trunc());
+                }
+                _ => w.f(0.0),
+            }
         }
         debug_assert_eq!(w.i, OBS_SIZE);
         OBS_SIZE

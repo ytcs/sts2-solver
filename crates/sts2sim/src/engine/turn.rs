@@ -157,6 +157,7 @@ impl Combat {
             self.player.energy += self.max_energy();
         }
         self.dispatch_g(hookbit::after_energy_reset, |cx, me, l| l.after_energy_reset(cx, me));
+        self.dispatch_g(hookbit::after_energy_reset_late, |cx, me, l| l.after_energy_reset_late(cx, me));
         self.dispatch_g(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me));
         // ModifyHandDraw (threaded decimal)
         let mut draw = Dec::int(BASE_HAND_DRAW as i64);

@@ -171,6 +171,7 @@ impl Combat {
                     if self.in_progress {
                         let p = ctx.play;
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
+                        self.dispatch_u(hookbit::after_card_played_late, |cx, me, l| l.after_card_played_late(cx, me, &p));
                     }
                     ctx.play.play_index += 1;
                     if ctx.play.play_index < ctx.count {

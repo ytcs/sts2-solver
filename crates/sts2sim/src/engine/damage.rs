@@ -143,6 +143,21 @@ impl Combat {
         }
     }
 
+    /// `Hook.ModifyUnblockedDamageTarget` — threaded over every listener, dispatched unguarded (it runs while combat is ending).
+    fn modify_unblocked_damage_target(&self, original: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
+        let mut t = original;
+        if !self.listen.has(hookbit::modify_unblocked_damage_target) {
+            return t;
+        }
+        let snap = self.snapshot(Mask::bit(hookbit::modify_unblocked_damage_target));
+        for e in snap.iter() {
+            if self.still_live(&e.me) {
+                t = content::listener(&e.me).modify_unblocked_damage_target(self, e.me, t, amount, props, dealer);
+            }
+        }
+        t
+    }
+
     /// `CreatureCmd.Damage` (spec 02 §3.3).
     pub fn damage(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx) -> Results {
         let mut results = Results::new();
@@ -165,16 +180,31 @@ impl Combat {
             let blocked = self.damage_block_internal(block_owner, modified, props);
             let (unblocked, mods) = self.modify_hp_lost(t, (modified - blocked).max(Dec::ZERO), props, dealer, card, false);
             self.after_modifying_hp_lost(&mods, false);
-            // (ModifyUnblockedDamageTarget — Osty's DieForYou redirect — not implemented yet.)
-            let hp_target = t;
+            // `Hook.ModifyUnblockedDamageTarget` (unguarded): DieForYou redirects the owner's HP loss to Osty.
+            let hp_target = self.modify_unblocked_damage_target(t, unblocked, props, dealer);
             let (unblocked, mods) = self.modify_hp_lost(hp_target, unblocked, props, dealer, card, true);
             self.after_modifying_hp_lost(&mods, true);
             let mut res = self.lose_hp_internal(hp_target, unblocked);
-            let block_left = self.cr(block_owner).block;
-            res.block_broken = block_left <= 0 && blocked > Dec::ZERO;
-            res.fully_blocked = !props.unblockable() && (blocked > Dec::ZERO || block_left > 0) && unblocked.trunc() == 0;
-            res.blocked = blocked.trunc();
+            // These read `originalTarget.Block` (not the block owner's), exactly like the game.
+            let block_left = self.cr(t).block;
+            let was_block_broken = block_left <= 0 && blocked > Dec::ZERO;
+            let was_fully_blocked = !props.unblockable() && (blocked > Dec::ZERO || block_left > 0) && unblocked.trunc() == 0;
+            if hp_target == t {
+                res.blocked = blocked.trunc();
+                res.block_broken = was_block_broken;
+                res.fully_blocked = was_fully_blocked;
+            }
             results.push(res);
+            if hp_target != t {
+                // Redirected (Osty took the hit): the overkill goes back to the original target through the AfterOsty passes.
+                let (orig_dmg, mods) = self.modify_hp_lost(t, Dec::int(res.overkill as i64), props, dealer, card, true);
+                self.after_modifying_hp_lost(&mods, true);
+                let mut r2 = if orig_dmg > Dec::ZERO { self.lose_hp_internal(t, orig_dmg) } else { DamageResult { receiver: t, ..Default::default() } };
+                r2.blocked = blocked.trunc();
+                r2.block_broken = was_block_broken;
+                r2.fully_blocked = was_fully_blocked;
+                results.push(r2);
+            }
         }
 
         // ---- post-hooks run after ALL targets resolved ----
