@@ -55,6 +55,8 @@ pub mod cflag {
     /// Card left the combat for good (`HasBeenRemovedFromState`).
     pub const REMOVED: u16 = 1 << 4;
     pub const X_CAPTURED: u16 = 1 << 5;
+    /// TEMP-DEP (Ironclad teammates define this): created by `CardModel.CreateClone`.
+    pub const IS_CLONE: u16 = 1 << 6;
 }
 
 /// One card instance in the combat arena.

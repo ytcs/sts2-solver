@@ -124,6 +124,7 @@ impl Combat {
         copy.pile = PileType::None as u8;
         copy.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::REMOVED);
         copy.deck_idx = NO;
+        copy.flags |= cflag::IS_CLONE; // TEMP-DEP
         self.cards[idx as usize] = copy;
         self.listen |= crate::content::card_mask(copy.id);
         Some(idx)

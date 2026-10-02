@@ -25,3 +25,26 @@ impl Combat {
         self.apply_power(inner, me.owner, crate::dec::Dec::int((-sign * amount) as i64), me.owner, NO);
     }
 }
+
+// TEMP-DEP: the Ironclad teammates' versions of these helpers.
+impl Combat {
+    pub fn add_cost_modifier(&mut self, c: CardIdx, amount: i32, expire: u8) {
+        if amount == 0 {
+            return;
+        }
+        let card = &mut self.cards[c as usize];
+        if let Some(last) = card.mods.as_mut_slice().last_mut() {
+            if last.relative && !last.reduce_only && last.expire == expire && (last.amount as i32 + amount).abs() < 100 {
+                last.amount = (last.amount as i32 + amount) as i8;
+                return;
+            }
+        }
+        card.mods.push(CostMod { amount: amount.clamp(-100, 100) as i8, relative: true, reduce_only: false, expire });
+    }
+    pub fn resolve_energy_x(&self, c: CardIdx) -> i32 {
+        self.cards[c as usize].x_value as i32
+    }
+    pub fn should_death_trigger_fatal(&self, _c: Cid) -> bool {
+        true
+    }
+}
