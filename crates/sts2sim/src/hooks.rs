@@ -354,6 +354,12 @@ pub trait Listener: Sync {
     fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, is_auto: bool, energy_value: i32, loc: CardLocation) -> CardLocation {
         loc
     }
+    /// `CalculatedDamageVar.Calculate(target)` of a card (`None` = the card has no calculated damage). Called directly
+    /// on the card's listener (not a snapshot hook): cards whose damage is a `CalculatedDamageVar` should implement it so
+    /// effects that read it generically (Thrash) agree with the card's own attack.
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        None
+    }
     /// [C] `TryModifyKeywordsInCombat`: returns the new keyword set (threaded).
     fn try_modify_keywords_in_combat(&self, cx: &Combat, me: Me, card: CardIdx, keywords: u8) -> u8 {
         keywords
@@ -707,6 +713,7 @@ pub mod hookbit {
         affliction_is_stackable,
         should_play_kind,
         get_result_location_for_card_play,
+        calculated_damage,
     );
     // The mask has 256 bits.
     const _: () = assert!(get_result_location_for_card_play < 256);

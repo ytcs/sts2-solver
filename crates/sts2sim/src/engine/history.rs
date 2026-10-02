@@ -75,11 +75,13 @@ pub struct HistLog {
     /// Completed plays of Ethereal cards (`CardPlayFinishedEntry.WasEthereal`) — `CardPlayFinished` is counter-only (no ring
     /// entry) to keep the ring for the entries that need per-turn filtering.
     pub ethereal_finished: u16,
+    /// Whole-combat count of `DamageReceivedEntry`s with `Receiver == player && UnblockedDamage > 0` (Tear Asunder).
+    pub player_hits_taken: u16,
 }
 
 impl Default for HistLog {
     fn default() -> Self {
-        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT], ethereal_finished: 0 }
+        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT], ethereal_finished: 0, player_hits_taken: 0 }
     }
 }
 

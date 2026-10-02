@@ -19,16 +19,6 @@ listener!(Whistle {
     }
 });
 
-// Whirlwind: X-cost AoE attack, X hits (`ResolveEnergyXValue` through `ModifyXValue`).
-listener!(Whirlwind {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let dmg = cx.card_var(p.card, VarKind::Damage);
-        let n = cx.x_value(p.card);
-        cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::AllOpponents).hits(n));
-        Flow::Done
-    }
-});
-
 // Survivor: block, then discard a card from hand (`CardCmd.Discard`: Sly cards auto-play afterwards).
 listener!(Survivor {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {

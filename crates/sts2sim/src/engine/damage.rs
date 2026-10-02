@@ -269,6 +269,9 @@ impl Combat {
         if self.in_progress && !self.is_ending() {
             let flags = r.fully_blocked as u8 | (r.block_broken as u8) << 1 | (r.killed as u8) << 2;
             self.hist_push(HKind::DamageReceived, r.receiver, dealer, 0, card, r.unblocked, flags, props.0, 0);
+            if r.receiver == PLAYER && r.unblocked > 0 {
+                self.hist_log.player_hits_taken = self.hist_log.player_hits_taken.saturating_add(1);
+            }
         }
     }
 

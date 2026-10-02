@@ -25,34 +25,6 @@ listener!(ClarityPower {
     }
 });
 
-// PlatingPower: block at the end of the owner's turn, decremented at its next turn start.
-listener!(PlatingPower {
-    fn before_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
-        if side != Side::Player || me.owner == PLAYER || cx.round > 1 {
-            return;
-        }
-        let a = cx.power_amount(me.owner, me.id);
-        cx.gain_block(me.owner, Dec::int(a as i64), ValueProp::UNPOWERED, NO);
-    }
-    fn before_side_turn_end_early(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side == side {
-            let a = cx.power_amount(me.owner, me.id);
-            cx.gain_block(me.owner, Dec::int(a as i64), ValueProp::UNPOWERED, NO);
-        }
-    }
-    fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side != side {
-            return;
-        }
-        let is_player = me.owner == PLAYER;
-        if (is_player && cx.player.turn_number == 1) || (!is_player && cx.round == 1) {
-            return;
-        }
-        // Enemies lose `Decrement` (= player count = 1 in single player) via ModifyAmount; players Decrement: same.
-        cx.decrement_power(me.owner, me.idx);
-    }
-});
-
 // IntangiblePower: every HP loss is capped at 1; decrements after the enemy turn.
 listener!(IntangiblePower {
     fn modify_hp_lost_after_osty(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, _props: ValueProp, _dealer: Cid, _card: CardIdx) -> Dec {

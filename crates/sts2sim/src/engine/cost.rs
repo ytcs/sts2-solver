@@ -14,6 +14,16 @@ impl Combat {
         if !m.relative && !m.reduce_only && m.expire == 0 {
             card.mods.clear();
         }
+        // Adjacent relative, non-reduce-only modifiers with the same expiry commute: merge them (keeps Stampede-style
+        // "-1 per attack" stacks inside the 4 slots).
+        if m.relative && !m.reduce_only {
+            if let Some(last) = card.mods.as_mut_slice().last_mut() {
+                if last.relative && !last.reduce_only && last.expire == m.expire && (last.amount as i32 + m.amount as i32).abs() < 100 {
+                    last.amount += m.amount;
+                    return;
+                }
+            }
+        }
         if card.mods.len() >= 4 {
             // Full: drop the oldest modifier that an absolute later one dominates, else the oldest (never expected).
             card.mods.remove(0);

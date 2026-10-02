@@ -151,6 +151,7 @@ impl Combat {
             potion_ctx: None,
             decision: None,
             choice: Choice::default(),
+            end_turn_resume: None,
             missing: None,
             player_hooks_active: true,
             escaped: 0,
