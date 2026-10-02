@@ -109,6 +109,11 @@ behaviour only matters insofar as the same code path computes both; never valida
   (Cascade -> Havoc). `RunResult::Suspended` from any helper = return `Flow::Suspend(next)`.
 * **Turn flow suspensions**: a hook that raises a decision sets `cx.hook_ctx = Some((me, phase))` and implements `resume_hook`;
   `turn_cont` resumes a suspended turn start; `end_turn_resume` a suspended `AfterAutoPostPlayPhaseEntered` pass.
+* **Decisions raised by a monster move** (Knowledge Demon's Curse of Knowledge): the move calls `ask_options`, and on `Ask::Pending`
+  sets `cx.hook_ctx = Some((cx.monster_me(me), phase)); cx.stage = Stage::AwaitChoice;` and returns; `perform_move` then skips its
+  bookkeeping, `enemy_turn_from` saves the `Enemies` snapshot in `enemy_cont`, and after the pick the monster listener's `resume_hook`
+  finishes the move, `finish_move` runs, and the enemy turn continues at the next enemy. The oracle trace records the prompt in the
+  `end_turn` record's `choices` (the screen is skippable: `min = 0`).
 * **Observation vector**: append-only sections (see the layout table in `docs/env-api.md`); update the table when adding one.
 * `tools/gen_defs.py` turns typed vars with an explicit name (`CardsVar("Shivs", 3)`, `EnergyVar("ExtraCost", 1)`,
   `BlockVar("BlockNextTurn", 5)`, `PowerVar<WeakPower>("SappingWeak", 2)`) into `Named` vars: read them with `card_named_var(card,
