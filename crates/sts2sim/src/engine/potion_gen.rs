@@ -162,11 +162,12 @@ impl Combat {
 
     // ---- small commands --------------------------------------------------------------------------------------------
 
-    /// `CardModel.SetToFreeThisCombat` (energy part): cost 0 for the rest of the combat.
+    /// `CardModel.SetToFreeThisCombat`: energy cost 0 for the rest of the combat, and `SetStarCostThisCombat(0)`.
     pub fn set_to_free_this_combat(&mut self, c: CardIdx) {
         if self.card_def(c).cost >= 0 {
             self.cards[c as usize].mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: 0 });
         }
+        self.set_star_cost_this_combat(c, 0);
     }
 
     /// `CardPileCmd.Add(IEnumerable<CardModel>, PileType, position)`: every card is moved first (hand-full redirect

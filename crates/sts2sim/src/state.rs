@@ -494,6 +494,10 @@ pub struct Combat {
     pub decision_seq: u32,
     /// `DeckVersion` write-backs of enchantment amounts (Goopy): increments per deck index (outputs of the combat).
     pub deck_enchant_inc: [u8; 80],
+    /// Upgrade level of each run-deck card (`DeckVersion.CurrentUpgradeLevel`; index = deck index) and the deck size. Combat copies
+    /// upgrade independently; only deck-level upgrades (Improvement power at combat end) change these.
+    pub deck_upgrade: [u8; 80],
+    pub deck_len: u8,
     /// Identity of the card play iteration in flight (`CardPlay` object): bumped before each `BeforeCardPlayed`.
     pub play_serial: u16,
     /// Run inputs combat reads (spec 05 §2.1): the player's gold and the act index (0-based).

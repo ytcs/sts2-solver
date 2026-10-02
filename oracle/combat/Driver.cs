@@ -22,8 +22,12 @@ public sealed class ChoiceSelector : ICardSelector
     public JsonArray Prompts = new();
     public List<ActionSpec> RecordedChoices = new();
 
+    /// <summary>Set by a Harmony prefix around `FromChooseACardScreen(canSkip: false)`: the prompt must pick exactly one card.</summary>
+    public static bool ChooseACardMustPick;
+
     public Task<IEnumerable<CardModel>> GetSelectedCards(IEnumerable<CardModel> options, int minSelect, int maxSelect)
     {
+        if (ChooseACardMustPick && minSelect == 0 && maxSelect == 1) minSelect = 1;
         var opts = options.ToList();
         int n = opts.Count;
         int hi = Math.Min(maxSelect, n);

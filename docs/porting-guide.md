@@ -115,3 +115,11 @@ behaviour only matters insofar as the same code path computes both; never valida
   var_name::SHIVS)`; never hard-code their values.
 * Templates: `oracle/templates/<slice>_*.json` (made with `tools/mk_scenario.py`); a representative subset per card family / encounter
   group must be `ok` before a merge. After changing `oracle/combat/Dump.cs` rebuild the oracle (`cd oracle/combat && dotnet build -c Release`).
+* **Event content** (`monsters/event_only.rs`, `monsters/mysterious_knight.rs`, `encounters/events.rs`, `cards/event_pool.rs`, `cards/mad_science.rs`): the
+  events only choose the encounter, so no scenario field is needed (the oracle's `encounter` id is enough). `BattlewornDummyTimeLimitPower`
+  makes the dummy `escape`. **Per-instance card type**: Mad Science's type/target come from its saved props (`Card::counter` = `[rider, type]`,
+  sorted JSON keys); `Combat::card_def(c)` returns the instance's variant, so always query `cx.card_def(c)` (never `content::card_def(card.id)`)
+  for `ctype` / `target`. **Deck-level upgrades** (Improvement power at combat end) live in `Combat::deck_upgrade`.
+* **`FromChooseACardScreen(canSkip: false)`**: the game's selector contract hands (0,1) regardless; the oracle patches `canSkip` in
+  (`P_ChooseACardSkip`) so the recorded `min` is 1 and Rust's `ask_options(.., can_skip = false)` agrees. **`VisualCardPool`**: Event cards that
+  override it (Stack, Outmaneuver, Clash, ...) are NOT colorless for `c.VisualCardPool.IsColorless` filters (Heirloom Hammer).

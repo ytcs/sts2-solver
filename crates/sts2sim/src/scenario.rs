@@ -164,6 +164,8 @@ impl Combat {
             hist_log: Default::default(),
             decision_seq: 0,
             deck_enchant_inc: [0; 80],
+            deck_upgrade: [0; 80],
+            deck_len: 0,
             play_serial: 0,
             gold: ex.gold,
             act: ex.act,
@@ -192,7 +194,11 @@ impl Combat {
         let mut erng = crate::rng::Rng::named((sc.run_seed as i64).wrapping_add(sc.total_floor as i64) as u64, crate::ids::encounter::NAMES[sc.encounter as usize]);
         let spawns = content::encounter_spawns(sc.encounter, &mut erng, sc.ascension).unwrap();
         for sp in spawns.iter() {
-            let c = cx.add_enemy(sp.monster, sp.slot).expect("too many enemies");
+            // (an unported monster is flagged in `Combat::missing` by `add_enemy` and skipped, so the fight reports UNIMPLEMENTED)
+            let Some(c) = cx.add_enemy(sp.monster, sp.slot) else {
+                assert!(cx.missing.is_some(), "too many enemies");
+                continue;
+            };
             cx.creatures[c as usize].monster.vars[0] = sp.vars[0];
             cx.creatures[c as usize].monster.vars[1] = sp.vars[1];
         }
@@ -202,6 +208,10 @@ impl Combat {
             let c = cx.new_card_ex(d.id, d.upgrade, x.enchant, x.enchant_amount).expect("card arena");
             cx.cards[c as usize].counter = x.props;
             cx.cards[c as usize].deck_idx = i as u8;
+            if i < 80 {
+                cx.deck_upgrade[i] = d.upgrade;
+                cx.deck_len = (i + 1) as u8;
+            }
             cx.cards[c as usize].pile = PileType::Draw as u8;
             cx.player.draw.push(c);
         }

@@ -78,7 +78,7 @@ pub static FAKE_MERCHANT_MONSTER_DEF: MonsterDef = MonsterDef {
                 Branch::new(0).cannot_repeat(),
                 Branch::new(1).cannot_repeat(),
                 Branch::new(2).cannot_repeat(),
-                Branch::new(3).cannot_repeat().weight(3.0),
+                Branch::new(3).cooldown(3).cannot_repeat(),
             ],
         ),
         rand("RAND_ATTACK_MOVE", &[Branch::new(0).cannot_repeat(), Branch::new(1).cannot_repeat(), Branch::new(2).cannot_repeat()]),
