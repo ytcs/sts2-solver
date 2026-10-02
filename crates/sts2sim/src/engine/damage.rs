@@ -143,6 +143,14 @@ impl Combat {
         }
     }
 
+    /// `History.DamageReceived` (only while the combat is live and not ending): per-result tallies the cards query.
+    fn record_damage_received(&mut self, res: &DamageResult) {
+        if res.receiver == PLAYER && res.unblocked > 0 && self.in_progress && !self.is_ending() {
+            self.hist.player_lost_hp_this_turn = true;
+            self.hist.player_hits_taken = self.hist.player_hits_taken.saturating_add(1);
+        }
+    }
+
     /// `Hook.ModifyUnblockedDamageTarget` — threaded over every listener, dispatched unguarded (it runs while combat is ending).
     fn modify_unblocked_damage_target(&self, original: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
         let mut t = original;
@@ -194,6 +202,7 @@ impl Combat {
                 res.block_broken = was_block_broken;
                 res.fully_blocked = was_fully_blocked;
             }
+            self.record_damage_received(&res);
             results.push(res);
             if hp_target != t {
                 // Redirected (Osty took the hit): the overkill goes back to the original target through the AfterOsty passes.
@@ -203,6 +212,7 @@ impl Combat {
                 r2.blocked = blocked.trunc();
                 r2.block_broken = was_block_broken;
                 r2.fully_blocked = was_fully_blocked;
+                self.record_damage_received(&r2);
                 results.push(r2);
             }
         }
@@ -222,6 +232,7 @@ impl Combat {
             self.dispatch_u(hookbit::after_damage_given, |cx, me, l| l.after_damage_given(cx, me, dealer, t, r.unblocked, props));
             if !r.killed || !self.cr(t).is_dead() {
                 self.dispatch_u(hookbit::after_damage_received, |cx, me, l| l.after_damage_received(cx, me, t, r.unblocked, props, dealer));
+                self.dispatch_u(hookbit::after_damage_received_src, |cx, me, l| l.after_damage_received_src(cx, me, t, r.unblocked, props, dealer, card));
             } else {
                 killed.push(t);
             }

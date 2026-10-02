@@ -56,6 +56,28 @@ impl Combat {
         out
     }
 
+    /// `CardFactory.GetForCombat` (`rng.NextItem` per card, with replacement) over the generatable cards of `pool`.
+    pub fn get_for_combat(&mut self, pool: &[u16], count: usize) -> ArrayVec<CardIdx, 16> {
+        let mut list: ArrayVec<u16, 128> = ArrayVec::new();
+        for &id in pool {
+            let d = crate::content::card_def(id);
+            if !d.multiplayer_only && d.can_be_generated_in_combat && !matches!(d.rarity, CardRarity::Basic | CardRarity::Ancient | CardRarity::Event) {
+                list.push(id);
+            }
+        }
+        let mut out = ArrayVec::new();
+        if list.is_empty() {
+            return out;
+        }
+        for _ in 0..count {
+            let i = self.rng.combat_card_generation.next_int_range(0, list.len() as i32) as usize;
+            if let Some(c) = self.new_card(list[i], 0) {
+                out.push(c);
+            }
+        }
+        out
+    }
+
     /// `CardModel.SetToFreeThisTurn` (energy part): cost 0 until played or end of turn.
     pub fn set_to_free_this_turn(&mut self, c: CardIdx) {
         let canonical = self.card_def(c).cost;
@@ -122,6 +144,7 @@ impl Combat {
         let mut copy = self.cards[c as usize];
         copy.pile = PileType::None as u8;
         copy.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::REMOVED);
+        copy.flags |= cflag::IS_CLONE;
         copy.deck_idx = NO;
         self.cards[idx as usize] = copy;
         self.listen |= crate::content::card_mask(copy.id);
@@ -142,6 +165,92 @@ impl Combat {
     pub fn discard_card(&mut self, c: CardIdx) {
         self.move_card(c, PileType::Discard, CardPilePosition::Bottom);
         self.dispatch_g(hookbit::after_card_discarded, |cx, me, l| l.after_card_discarded(cx, me, c));
+    }
+
+    // ---- ironclad_b1 helpers ----------------------------------------------------------------------------------
+
+    /// Value of the card's named dynamic var (`DynamicVar(\"Name\", v)`), `name` = `gen_cards::var_name::*`.
+    pub fn card_named_var(&self, c: CardIdx, name: u16) -> i32 {
+        let card = &self.cards[c as usize];
+        for v in crate::content::card_def(card.id).vars {
+            if v.kind == crate::defs::VarKind::Named && v.arg == name {
+                return v.base as i32 + v.up as i32 * card.upgrade as i32;
+            }
+        }
+        0
+    }
+
+    /// Exact (decimal) value of the card's Damage var including permanent growth (`dmg_bonus`).
+    pub fn card_damage_dec(&self, c: CardIdx) -> Dec {
+        let card = &self.cards[c as usize];
+        let mut v = Dec::int(0);
+        for d in crate::content::card_def(card.id).vars {
+            if d.kind == crate::defs::VarKind::Damage {
+                v = Dec::int(d.base as i64 + d.up as i64 * card.upgrade as i64);
+            }
+        }
+        v + Dec::frac(card.dmg_bonus as i64, 4)
+    }
+
+    /// Adds `amount` (decimal) to the card's Damage var permanently (`DynamicVars.Damage.BaseValue += amount`).
+    pub fn add_card_damage(&mut self, c: CardIdx, amount: Dec) {
+        let milli = (amount * Dec::int(10_000)).trunc();
+        let card = &mut self.cards[c as usize];
+        card.dmg_bonus = card.dmg_bonus.saturating_add(milli);
+    }
+
+    /// `CardEnergyCost.AddThisTurn / AddThisCombat / ...(amount)`: a relative local cost modifier. Adjacent
+    /// relative, non-reduce-only modifiers with the same expiry are merged (they commute), keeping the 3-slot list small.
+    pub fn add_cost_modifier(&mut self, c: CardIdx, amount: i32, expire: u8) {
+        if amount == 0 {
+            return;
+        }
+        let card = &mut self.cards[c as usize];
+        if let Some(last) = card.mods.as_mut_slice().last_mut() {
+            if last.relative && !last.reduce_only && last.expire == expire && (last.amount as i32 + amount).abs() < 100 {
+                last.amount = (last.amount as i32 + amount) as i8;
+                return;
+            }
+        }
+        card.mods.push(CostMod { amount: amount.clamp(-100, 100) as i8, relative: true, reduce_only: false, expire });
+    }
+
+    /// `CardModel.ResolveEnergyXValue` (`Hook.ModifyXValue` — ChemicalX — not implemented yet).
+    pub fn resolve_energy_x(&self, c: CardIdx) -> i32 {
+        self.cards[c as usize].x_value as i32
+    }
+
+    /// `CardPileCmd.Draw(ctx, player)` for a single card: the drawn card, or `None` (empty piles / full hand / ending).
+    pub fn draw_one(&mut self) -> Option<CardIdx> {
+        let before = self.player.hand.len();
+        if self.draw_cards(1, false) == 0 {
+            return None;
+        }
+        if self.player.hand.len() > before { self.player.hand.last() } else { None }
+    }
+
+    /// `CardCmd.Transform(original, replacement)`: `replacement` (a fresh arena card in no pile) takes the original's
+    /// place in its pile; the original leaves combat.
+    pub fn transform_card(&mut self, original: CardIdx, replacement: CardIdx) {
+        if self.is_ending() {
+            return;
+        }
+        let pile = self.card_pile_type(original);
+        if pile == PileType::None {
+            return;
+        }
+        let idx = self.pile(pile).position(original).unwrap_or(0);
+        self.pile_mut(pile).remove_value(original);
+        {
+            let o = &mut self.cards[original as usize];
+            o.pile = PileType::None as u8;
+            o.flags |= cflag::REMOVED;
+        }
+        self.pile_mut(pile).insert(idx, replacement);
+        self.cards[replacement as usize].pile = pile as u8;
+        // History.CardGenerated; Hook.AfterCardEnteredCombat; Hook.AfterCardChangedPiles(replacement, pile)
+        self.dispatch_g(hookbit::after_card_entered_combat, |cx, me, l| l.after_card_entered_combat(cx, me, replacement));
+        self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, replacement, pile));
     }
 
     // ---- decisions ---------------------------------------------------------------------------------------------

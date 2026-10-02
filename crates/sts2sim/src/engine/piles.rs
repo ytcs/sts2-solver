@@ -75,7 +75,11 @@ impl Combat {
         let card = &self.cards[c as usize];
         for v in content::card_def(card.id).vars {
             if v.kind == kind && v.kind != VarKind::Power {
-                return v.base as i32 + v.up as i32 * card.upgrade as i32;
+                let mut x = v.base as i32 + v.up as i32 * card.upgrade as i32;
+                if kind == VarKind::Damage {
+                    x += card.dmg_bonus / 10_000; // Rampage / Thrash growth
+                }
+                return x;
             }
         }
         0
@@ -332,6 +336,7 @@ impl Combat {
             return;
         }
         self.move_card(c, PileType::Exhaust, CardPilePosition::Bottom);
+        self.hist.cards_exhausted = self.hist.cards_exhausted.saturating_add(1); // History.CardExhausted
         self.dispatch_g(hookbit::after_card_exhausted, |cx, me, l| l.after_card_exhausted(cx, me, c, caused_by_ethereal));
     }
 }
