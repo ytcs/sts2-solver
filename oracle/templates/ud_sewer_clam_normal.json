@@ -1,0 +1,48 @@
+{
+ "name": "ironclad_sewer_clam_normal",
+ "ascension": 10,
+ "encounter": "SEWER_CLAM_NORMAL",
+ "character": "IRONCLAD",
+ "hp": 80,
+ "max_hp": 80,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "ANGER",
+  "ARMAMENTS",
+  "TRUE_GRIT",
+  "HEADBUTT",
+  "THUNDERCLAP",
+  "SWORD_BOOMERANG",
+  "CINDER",
+  "BLOODLETTING",
+  "INFLAME",
+  "TWIN_STRIKE",
+  "IRON_WAVE",
+  "SHRUG_IT_OFF",
+  "POMMEL_STRIKE",
+  "BURNING_PACT",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": [
+  "FIRE_POTION",
+  "BLOCK_POTION"
+ ]
+}

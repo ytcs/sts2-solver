@@ -97,6 +97,16 @@ pub struct Card {
 }
 pub type PileTypeBits = u8;
 
+/// One orb in the `OrbQueue`. `kind` is an `ids::orb::*` id.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct Orb {
+    pub kind: u16,
+    /// Unique per combat (object identity).
+    pub uid: u16,
+    /// Dark: accumulated `_evokeVal` (starts at 6); Glass: base `_passiveVal` (starts at 4); 0 otherwise.
+    pub val: i32,
+}
+
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Relic {
     pub id: u16,
@@ -300,7 +310,12 @@ pub struct PlayerState {
     pub relics: ArrayVec<Relic, MAX_RELICS>,
     pub potions: [Option<Potion>; MAX_POTIONS],
     pub potion_slots: u8,
+    /// `OrbQueue.Capacity`: the number of orb slots (starts at `Player.BaseOrbSlotCount`; cards / potions / relics change it).
+    /// `PlayerCombatState.OrbQueue`: orbs front (next to evoke) first, and the slot capacity.
+    pub orbs: ArrayVec<Orb, MAX_ORBS>,
     pub orb_slots: u8,
+    /// Next `Orb::uid` (orbs are objects in the game; tests such as `orb == Orbs[0]` and `Remove(orb)` are by reference).
+    pub next_orb_uid: u16,
     /// `BeginCardOrPotionEffect` depth.
     pub effect_depth: u8,
 }
@@ -465,12 +480,16 @@ pub struct Combat {
     /// A hook that raised a decision, resumed through `Listener::resume_hook` once the choice is in `choice`.
     pub hook_ctx: Option<(crate::hooks::Me, u8)>,
     /// A turn-start hand draw interrupted by a decision raised in `AfterShuffle` (Stratagem): (cards still to draw,
-    /// from_hand_draw). `turn_cont == 3` resumes it.
+    /// from_hand_draw). `turn_cont == 4` resumes it.
     pub draw_resume: Option<(i32, bool)>,
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
-    /// Where a turn start suspended by a hook decision resumes (0 = not suspended).
+    /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
+    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
     pub turn_cont: u8,
+    /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
+    /// its index in the pass: the pass continues after it once the decision is resolved.
+    pub susp_after: Option<(u32, crate::hooks::Me, u8)>,
     /// The `AfterAutoPostPlayPhaseEntered` listener that suspended (auto-played card raised a decision) while the
     /// player's turn was ending; the turn end resumes from it once the decision is made.
     pub end_turn_resume: Option<crate::hooks::Me>,
@@ -490,6 +509,9 @@ pub struct Combat {
     /// source and the full `DamageResult` of the result being dispatched.
     pub dmg_card: CardIdx,
     pub dmg_result: crate::engine::DamageResult,
+    /// `AttackCommand.Results` (first 16 per-hit results) of the attack whose `after_attack` hooks are being dispatched
+    /// (only filled when some listener has `after_attack`): Suck, Skittish.
+    pub attack_results: ArrayVec<crate::engine::DamageResult, 16>,
     /// Auto-play queues still waiting to be drained (one per in-progress `AutoPlayFromDrawPile` / Sly discard call; they
     /// nest like the C# locals: a card auto-played from a queue may itself start another one).
     pub autoplay_stack: ArrayVec<AutoQueue, 4>,
@@ -507,4 +529,83 @@ pub struct Combat {
     /// `PlayerCmd.EndTurn` was requested (Void Form ...): the end-turn signal is consumed when the effect / turn start
     /// that raised it returns.
     pub end_turn_requested: bool,
+    /// Room kind of the encounter (0 monster, 1 elite, 2 boss), for relics gated on `CurrentRoom.RoomType`.
+    pub room_type: u8,
+    /// Bit i set when deck card i (scenario deck order) is upgradable (FishingRod / WarHammer item counts).
+    pub deck_upgradable: u128,
+    /// `cardSource` of the power application being dispatched (`BeforePowerAmountChanged` has no card parameter).
+    pub cur_power_card: CardIdx,
+    /// An automated card selector is active (Whispering Earring pushes `VakuuCardSelector`): card-selection screens
+    /// resolve to the first `max` candidates instead of raising a decision.
+    pub auto_select: bool,
+}
+
+// ---- relic persistent state description (see `Listener::meta_*` and content/relics) ------------------------------------
+
+/// Which field of [`Relic`] stores a relic property.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Slot {
+    Counter,
+    Aux,
+    /// Bit `n` of `Relic::flags` (booleans).
+    Flag(u8),
+}
+
+/// A `[SavedProperty]` of the real relic class: how the oracle names it (C# property name), where the Rust relic keeps it,
+/// and whether the game omits it when it has the type default (`SerializationCondition.SaveIfNotTypeDefault`).
+#[derive(Clone, Copy, Debug)]
+pub struct PropDef {
+    pub name: &'static str,
+    pub slot: Slot,
+    pub boolean: bool,
+    pub skip_default: bool,
+    /// Non-empty: a property the relic always saves with this fixed JSON value (empty arrays, ...); no state slot.
+    pub lit: &'static str,
+}
+
+impl PropDef {
+    pub const fn int(name: &'static str, slot: Slot) -> PropDef {
+        PropDef { name, slot, boolean: false, skip_default: false, lit: "" }
+    }
+    pub const fn flag(name: &'static str, bit: u8) -> PropDef {
+        PropDef { name, slot: Slot::Flag(bit), boolean: true, skip_default: false, lit: "" }
+    }
+    /// A saved property with a fixed JSON literal value (not stored in the relic).
+    pub const fn constant(name: &'static str, lit: &'static str) -> PropDef {
+        PropDef { name, slot: Slot::Counter, boolean: false, skip_default: false, lit }
+    }
+    pub const fn skip_default(mut self) -> PropDef {
+        self.skip_default = true;
+        self
+    }
+}
+
+impl Relic {
+    #[inline(always)]
+    pub fn flag(&self, bit: u8) -> bool {
+        self.flags & (1 << bit) != 0
+    }
+    #[inline(always)]
+    pub fn set_flag(&mut self, bit: u8, v: bool) {
+        if v {
+            self.flags |= 1 << bit;
+        } else {
+            self.flags &= !(1 << bit);
+        }
+    }
+    /// Reads a property through its slot (bools as 0/1).
+    pub fn get(&self, s: Slot) -> i32 {
+        match s {
+            Slot::Counter => self.counter,
+            Slot::Aux => self.aux,
+            Slot::Flag(b) => self.flag(b) as i32,
+        }
+    }
+    pub fn set(&mut self, s: Slot, v: i32) {
+        match s {
+            Slot::Counter => self.counter = v,
+            Slot::Aux => self.aux = v,
+            Slot::Flag(b) => self.set_flag(b, v != 0),
+        }
+    }
 }

@@ -20,15 +20,21 @@ fn amount(cx: &Combat, me: &Me) -> i32 {
     cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount)
 }
 
-// VigorPower (player + monster flavour, spec 02 §6.6): +Amount damage to the next powered card attack, consumed after it.
-// `aux` = 0 (no attack claimed yet) or (card index + 1) | (amount when the attack started << 16).
+// VigorPower (player + monster flavour, spec 02 §6.6): +Amount damage to the next powered attack, consumed after it.
+// `aux` = 0 (no attack claimed yet) or claim | (amount when the attack started << 16), where claim = card index + 1 for a
+// card attack and 0x8000 for a monster attack (`ModelSource == null`; oracle-verified: TerrorEel's Vigor IS consumed by
+// its next attack). `commandToModify` is never cleared in C#; here the claim of a monster attack matches any later
+// attack of the owner without a card (only differs if Vigor survives its consumption, which never happens for the Eel).
+fn claim_of(card: CardIdx) -> i32 {
+    if card == NO { 0x8000 } else { card as i32 + 1 }
+}
 listener!(VigorPower {
     fn before_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
-        if attack.dealer != me.owner || !attack.props.is_powered() || aux(cx, &me) != 0 || attack.card == NO {
+        if attack.dealer != me.owner || !attack.props.is_powered() || aux(cx, &me) != 0 {
             return;
         }
         let a = amount(cx, &me);
-        set_aux(cx, &me, (attack.card as i32 + 1) | (a << 16));
+        set_aux(cx, &me, claim_of(attack.card) | (a << 16));
     }
     fn modify_damage_additive(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.dealer != me.owner || !q.props.is_powered() {
@@ -42,7 +48,7 @@ listener!(VigorPower {
     }
     fn after_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
         let x = aux(cx, &me);
-        if x != 0 && attack.card != NO && (attack.card as i32 + 1) == (x & 0xFFFF) {
+        if x != 0 && attack.dealer == me.owner && claim_of(attack.card) == (x & 0xFFFF) {
             cx.modify_power_amount(me.owner, me.idx, Dec::int(-((x >> 16) as i64)), NO, NO);
         }
     }

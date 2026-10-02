@@ -108,16 +108,9 @@ impl Combat {
         content::listener(&Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 }).is_playable(self, c)
     }
 
-    /// Manual play of the hand card at `hand_pos` (`PlayCardAction.ExecuteAction`). Returns false if illegal.
-    pub fn play_card(&mut self, hand_pos: usize, target: Cid) -> bool {
-        if self.stage != Stage::AwaitAction || self.player.phase != Phase::Play {
-            return false;
-        }
-        let Some(c) = self.player.hand.get(hand_pos) else { return false };
-        if !self.can_play(c) || !self.is_valid_target(c, target) {
-            return false;
-        }
-        // ---- SpendResources: card is still in hand ----
+    /// `CardModel.SpendResources`: captures X, spends the energy and stars (`AfterEnergySpent` / `AfterStarsSpent`).
+    /// Returns `(energy, stars)` spent. The card is not moved.
+    pub fn spend_resources(&mut self, c: CardIdx) -> (i32, i32) {
         let d = self.card_def(c);
         let energy_to_spend = if d.x_cost { self.player.energy } else { self.card_cost(c, true).max(0) };
         let stars_to_spend = self.card_star_cost(c).max(0);
@@ -139,6 +132,20 @@ impl Combat {
             self.lose_stars(stars_to_spend);
             self.dispatch_g(hookbit::after_stars_spent, |cx, me, l| l.after_stars_spent(cx, me, stars_to_spend));
         }
+        (energy_to_spend, stars_to_spend)
+    }
+
+    /// Manual play of the hand card at `hand_pos` (`PlayCardAction.ExecuteAction`). Returns false if illegal.
+    pub fn play_card(&mut self, hand_pos: usize, target: Cid) -> bool {
+        if self.stage != Stage::AwaitAction || self.player.phase != Phase::Play {
+            return false;
+        }
+        let Some(c) = self.player.hand.get(hand_pos) else { return false };
+        if !self.can_play(c) || !self.is_valid_target(c, target) {
+            return false;
+        }
+        // ---- SpendResources: card is still in hand ----
+        let (energy_to_spend, stars_to_spend) = self.spend_resources(c);
         let play = CardPlay {
             card: c,
             target,

@@ -22,7 +22,7 @@ fn base() -> Combat {
         orb_slots: 0,
         potion_slots: 3,
         deck,
-        relics: vec![RelicInit { id: ids::relic::BOUND_PHYLACTERY, counter: 0 }],
+        relics: vec![RelicInit { id: ids::relic::BOUND_PHYLACTERY, counter: 0, ..Default::default() }],
         potions: vec![],
         rng: RngSet::from_run_seed(7),
     })
@@ -176,13 +176,13 @@ fn bone_shards_kills_osty_and_necro_mastery_hurts_enemies_for_its_lost_hp() {
 }
 
 #[test]
-fn observation_exposes_osty_at_the_end_of_the_vector() {
+fn observation_exposes_osty_in_its_appended_section() {
     let mut cx = base();
     cx.summon(5); // Osty 6/6
     set_hand(&mut cx, &[(ids::card::POKE, 0)]);
     let mut v = vec![0f32; observe::OBS_SIZE];
     cx.observe(&mut v);
-    let osty = &v[observe::OBS_SIZE - observe::OSTY_F..];
+    let osty = &v[observe::OBS_SIZE - observe::ORBS_F - observe::OSTY_F..observe::OBS_SIZE - observe::ORBS_F]; // the orb section follows
     assert_eq!(&osty[..4], &[1.0, 1.0, 6.0, 6.0]); // present, alive, hp, max hp
     let preview = osty[4 + 2 * observe::OBS_POWERS]; // first hand slot: Poke = 6 damage from Osty
     assert_eq!(preview, 6.0);

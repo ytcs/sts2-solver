@@ -28,6 +28,9 @@ behaviour only matters insofar as the same code path computes both; never valida
   `Flow::Suspend(phase)` after raising a decision with `cx.ask_hand/ask_pile/ask_options`). Read vars with
   `cx.card_var(card, VarKind::X)` / `cx.card_power_var(card, power_id)`.
 * Powers: stats in `gen_powers.rs`. Implement only the hooks the C# overrides. Use `cx.tick_down_power`, `cx.decrement_power`, ...
+* Relics: `listener!(ClassName { ... })` in `content/relics/*.rs`; persistent state lives in `Relic{counter,flags,aux}` and is
+  described by `meta_props/meta_display/meta_initial`; constants come from `gen_relics` (`tools/gen_relics.py`); validate with
+  `tools/relic_sweep.py`. Full conventions (state mapping, suspendable hooks, helpers): `docs/relics.md`.
 * Monsters: `pub static <SLUG>_DEF: MonsterDef` (state machine; see `content/monsters/nibbit.rs`) + optional `listener!(Class {})`.
   Encounters: `pub fn spawn_<slug_lower>(rng, ascension) -> Spawns` (see `content/encounters/basic.rs`).
 * Anything you do not port is flagged at runtime (`Combat::missing`) and reported by the sweep as `UNIMPLEMENTED ...`.

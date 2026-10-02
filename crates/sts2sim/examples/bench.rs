@@ -15,7 +15,7 @@ fn scenario(seed: u64) -> Scenario {
         total_floor: 1,
         character: 0,
         ascension: 0, encounter: ids::encounter::NIBBITS_WEAK, max_hp: 80, hp: 80, max_energy: 3, orb_slots: 0,
-        potion_slots: 3, deck, relics: vec![RelicInit { id: ids::relic::BURNING_BLOOD, counter: 0 }],
+        potion_slots: 3, deck, relics: vec![RelicInit { id: ids::relic::BURNING_BLOOD, ..Default::default() }],
         potions: vec![], rng: RngSet::from_run_seed(seed),
     }
 }

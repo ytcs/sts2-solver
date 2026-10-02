@@ -1,0 +1,60 @@
+{
+ "name": "defect_nibbits_normal",
+ "ascension": 10,
+ "encounter": "NIBBITS_NORMAL",
+ "character": "DEFECT",
+ "hp": 75,
+ "max_hp": 75,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "ZAP",
+  "DUALCAST",
+  "SCAVENGE",
+  {
+   "id": "GLASSWORK",
+   "upgrade": 1
+  },
+  {
+   "id": "SPINNER",
+   "upgrade": 1
+  },
+  {
+   "id": "ITERATION",
+   "upgrade": 1
+  },
+  "CONSUMING_SHADOW",
+  {
+   "id": "MACHINE_LEARNING",
+   "upgrade": 1
+  },
+  "ALL_FOR_ONE",
+  "LOOP",
+  "SCRAPE",
+  "GO_FOR_THE_EYES",
+  {
+   "id": "REFRACT",
+   "upgrade": 1
+  },
+  "FOCUSED_STRIKE",
+  "ADAPTIVE_STRIKE",
+  "THUNDER",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "CRACKED_CORE"
+ ],
+ "potions": []
+}

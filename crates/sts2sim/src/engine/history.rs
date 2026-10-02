@@ -79,11 +79,13 @@ pub struct HistLog {
     pub player_hits_taken: u16,
     /// Whole-combat count of `CardGeneratedEntry`s whose creator is the player (Supermassive).
     pub generated_by_player: u16,
+    /// Whole-combat count of Lightning orbs channeled (`OrbChanneledEntry` with `Orb is LightningOrb`, Voltaic).
+    pub lightning_channeled: u16,
 }
 
 impl Default for HistLog {
     fn default() -> Self {
-        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT], ethereal_finished: 0, player_hits_taken: 0, generated_by_player: 0 }
+        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT], ethereal_finished: 0, player_hits_taken: 0, generated_by_player: 0, lightning_channeled: 0 }
     }
 }
 
@@ -165,6 +167,8 @@ impl Combat {
 
     pub(crate) fn hist_card_play_started(&mut self, p: &CardPlay) {
         let id = self.cards[p.card as usize].id;
-        self.hist_push(HKind::CardPlayStarted, PLAYER, p.target, id, p.card, 0, p.is_auto as u8, 0, p.energy_spent.max(0) as u8);
+        // `aux` = `Resources.EnergyValue` (not the energy spent: an auto-play spends 0 but has the card's cost as its value);
+        // `flags & 2` = `IsFirstInSeries` (the first iteration of a replayed card).
+        self.hist_push(HKind::CardPlayStarted, PLAYER, p.target, id, p.card, 0, p.is_auto as u8 | (((p.play_index == 0) as u8) << 1), 0, p.energy_value.clamp(0, 255) as u8);
     }
 }

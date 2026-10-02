@@ -1,0 +1,45 @@
+{
+ "name": "defect_nibbits_weak",
+ "ascension": 10,
+ "encounter": "NIBBITS_WEAK",
+ "character": "DEFECT",
+ "hp": 75,
+ "max_hp": 75,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "ZAP",
+  "DUALCAST",
+  "SPINNER",
+  "SPINNER",
+  "GLASSWORK",
+  "GLASSWORK",
+  "REFRACT",
+  "REFRACT",
+  "HAILSTORM",
+  "HAILSTORM",
+  "COOLANT",
+  "COOLANT",
+  {
+   "id": "SPINNER",
+   "upgrade": 1
+  },
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "CRACKED_CORE"
+ ],
+ "potions": []
+}

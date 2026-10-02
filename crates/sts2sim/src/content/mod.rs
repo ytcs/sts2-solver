@@ -7,6 +7,7 @@
 pub mod gen_cards;
 pub mod gen_pools;
 pub mod gen_potions;
+pub mod gen_relics;
 pub mod gen_powers;
 
 use crate::defs::*;

@@ -25,6 +25,15 @@ impl Combat {
     /// `CombatState.CreateCreature` + `AddCreature` for an enemy: one `niche` draw for HP, unique among enemies already
     /// added (spec 04 §1.13); then `SetUpForCombat` (state machine built, `SpawnedThisTurn = true`).
     pub fn add_enemy(&mut self, monster_id: u16, slot: u8) -> Option<Cid> {
+        let cid = self.create_enemy(monster_id, slot)?;
+        self.attach_enemy(cid);
+        Some(cid)
+    }
+
+    /// `CombatState.CreateCreature` (enemy): allocates the creature and draws its HP (one `niche` draw, unique among the
+    /// enemies already attached) but does NOT add it to the enemy list yet (`attach_enemy` = `AddCreature`). Needed by
+    /// SurprisePower: the Fat Gremlin is created (HP draw #1, invisible to Sneaky's draw), then Sneaky is added, then Fat.
+    pub fn create_enemy(&mut self, monster_id: u16, slot: u8) -> Option<Cid> {
         let cid = self.alloc_slot()?;
         if !content::monster_implemented(monster_id) {
             self.flag_missing(Kind::Monster, monster_id);
@@ -55,6 +64,13 @@ impl Combat {
         cr.slot = slot;
         cr.monster = ms;
         self.creatures[cid as usize] = cr;
+        Some(cid)
+    }
+
+    /// `CombatState.AddCreature` + `CombatManager.AddCreature` for a created enemy (`SetUpForCombat`, slot sort).
+    pub fn attach_enemy(&mut self, cid: Cid) {
+        let def = content::monster_def(self.cr(cid).monster.id);
+        let slot = self.cr(cid).slot;
         self.enemies.push(cid);
         // SetUpForCombat: if the initial node is a Move it is logged immediately.
         if matches!(def.nodes[def.initial as usize], MonsterNode::Move { .. }) {
@@ -63,7 +79,6 @@ impl Combat {
         if slot != NO {
             self.sort_enemies_by_slot();
         }
-        Some(cid)
     }
 
     /// `CreatureCmd.Add(monster, state, Enemy, slot)` — mid-combat summon (spec 01 §13.5):
@@ -73,10 +88,18 @@ impl Combat {
     /// player turn rolls its first move immediately and acts in the following enemy turn.
     /// `vars` are the monster's private integers, set before its spawn hook / first roll run.
     pub fn summon_enemy(&mut self, monster_id: u16, slot: u8, vars: [i32; 2]) -> Option<Cid> {
-        let c = self.add_enemy(monster_id, slot)?;
+        let c = self.create_enemy(monster_id, slot)?;
         self.creatures[c as usize].monster.vars[0] = vars[0];
         self.creatures[c as usize].monster.vars[1] = vars[1];
-        let def = content::monster_def(monster_id);
+        self.attach_enemy(c);
+        self.after_enemy_added(c);
+        Some(c)
+    }
+
+    /// `CreatureCmd.Add(creature)` after `AddCreature`: `AfterAddedToRoom`, `RollMove` on the player's turn,
+    /// `Hook.AfterCreatureAddedToCombat`.
+    pub fn after_enemy_added(&mut self, c: Cid) {
+        let def = content::monster_def(self.cr(c).monster.id);
         if let Some(f) = def.on_spawn {
             f(self, c);
         }
@@ -84,7 +107,6 @@ impl Combat {
             self.roll_move(c);
         }
         self.dispatch_u(hookbit::after_creature_added_to_combat, |cx, me, l| l.after_creature_added_to_combat(cx, me, c));
-        Some(c)
     }
 
     /// `EncounterModel.GetNextSlot`: the first slot index in `0..n_slots` not occupied by a current enemy (`NO` if all

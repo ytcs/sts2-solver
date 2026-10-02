@@ -13,10 +13,14 @@ pub struct DeckCard {
     pub upgrade: u8,
 }
 
-#[derive(Clone, Copy, Debug)]
+/// A relic at combat entry with its persistent state (`Relic::{counter, flags, aux}`; which property lives in which slot is
+/// the relic's own `Listener::meta_props`). `RelicInit { id, ..Default::default() }` = a fresh instance.
+#[derive(Clone, Copy, Debug, Default)]
 pub struct RelicInit {
     pub id: u16,
     pub counter: i32,
+    pub flags: u8,
+    pub aux: i32,
 }
 
 /// Everything that can differ between combats.
@@ -123,7 +127,9 @@ impl Combat {
             relics: ArrayVec::new(),
             potions: [None; MAX_POTIONS],
             potion_slots: sc.potion_slots,
-            orb_slots: sc.orb_slots,
+            orbs: ArrayVec::new(),
+            orb_slots: sc.orb_slots, // PlayerCombatState.ResetCombatState: OrbQueue.AddCapacity(BaseOrbSlotCount)
+            next_orb_uid: 1,
             effect_depth: 0,
         };
         let mut cx = Combat {
@@ -156,12 +162,14 @@ impl Combat {
             draw_resume: None,
             drawing_hand: false,
             turn_cont: 0,
+            susp_after: None,
             missing: None,
             player_hooks_active: true,
             escaped: 0,
             extra_turn: false,
             dmg_card: NO,
             dmg_result: Default::default(),
+            attack_results: ArrayVec::new(),
             autoplay_stack: ArrayVec::new(),
             hist_log: Default::default(),
             decision_seq: 0,
@@ -170,6 +178,12 @@ impl Combat {
             gold: ex.gold,
             act: ex.act,
             end_turn_requested: false,
+            room_type: room_type_of(sc.encounter),
+            cur_power_card: NO,
+            auto_select: false,
+            deck_upgradable: sc.deck.iter().enumerate().take(128).fold(0u128, |m, (i, d)| {
+                if d.upgrade < content::card_def(d.id).max_upgrade { m | (1u128 << i) } else { m }
+            }),
         };
         // Player creature (CombatId 0).
         cx.creatures[PLAYER as usize] = Creature {
@@ -183,7 +197,7 @@ impl Combat {
         };
         cx.allies.push(PLAYER);
         for r in &sc.relics {
-            cx.player.relics.push(Relic { id: r.id, counter: r.counter, ..Default::default() });
+            cx.player.relics.push(Relic { id: r.id, counter: r.counter, flags: r.flags, aux: r.aux });
             cx.listen |= content::relic_mask(r.id);
         }
         for (i, p) in sc.potions.iter().enumerate().take(MAX_POTIONS) {
@@ -210,5 +224,17 @@ impl Combat {
         cx.initial_shuffle();
         cx.start_combat();
         cx
+    }
+}
+
+/// 0 monster, 1 elite, 2 boss: the encounter classes' `RoomType` (event encounters default to Monster) follows the id suffix.
+fn room_type_of(encounter: u16) -> u8 {
+    let n = crate::ids::encounter::NAMES[encounter as usize];
+    if n.ends_with("_ELITE") {
+        1
+    } else if n.ends_with("_BOSS") {
+        2
+    } else {
+        0
     }
 }

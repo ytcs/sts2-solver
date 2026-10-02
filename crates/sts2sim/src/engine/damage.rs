@@ -348,6 +348,12 @@ impl Combat {
             i += 1;
         }
         self.hist_push(HKind::CreatureAttacked, a.dealer, NO, 0, a.card, all.len() as i32, 0, a.props.0, 0);
+        if self.listen.has(hookbit::after_attack) {
+            self.attack_results.clear();
+            for x in all.iter().take(16) {
+                self.attack_results.push(*x);
+            }
+        }
         self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
         all
     }

@@ -1,0 +1,57 @@
+{
+ "name": "defect_slimes_normal",
+ "ascension": 10,
+ "encounter": "SLIMES_NORMAL",
+ "character": "DEFECT",
+ "hp": 75,
+ "max_hp": 75,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "ZAP",
+  "DUALCAST",
+  {
+   "id": "REBOOT",
+   "upgrade": 1
+  },
+  "SUPERCRITICAL",
+  "ROCKET_PUNCH",
+  "WHITE_NOISE",
+  "SKIM",
+  {
+   "id": "TEMPEST",
+   "upgrade": 1
+  },
+  "DOUBLE_ENERGY",
+  "DEFRAGMENT",
+  "THUNDER",
+  "SCAVENGE",
+  "SYNTHESIS",
+  {
+   "id": "CHARGE_BATTERY",
+   "upgrade": 1
+  },
+  {
+   "id": "TRASH_TO_TREASURE",
+   "upgrade": 1
+  },
+  "HELIX_DRILL",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "CRACKED_CORE"
+ ],
+ "potions": []
+}

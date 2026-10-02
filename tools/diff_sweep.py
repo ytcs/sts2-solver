@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 ORACLE = os.path.join(ROOT, "oracle/combat/oracle.sh")
-DIFF = os.path.join(ROOT, "target/debug/sts2diff")
+DIFF = os.environ.get("STS2DIFF") or os.path.join(ROOT, "target/debug/sts2diff")
 
 
 def run_one(args):

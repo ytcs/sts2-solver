@@ -130,7 +130,10 @@ impl Combat {
     fn finish_player_turn_start(&mut self) {
         self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
         self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
-        // (orb start-of-turn passives: not implemented yet)
+        // OrbQueue.AfterTurnStart (Plasma), after the whole Hook.AfterSideTurnStart (incl. the Late pass).
+        if self.cr(PLAYER).is_alive() {
+            self.orbs_after_turn_start();
+        }
         if self.cr(PLAYER).is_dead() {
             // StartTurn step 10b: a dead player is marked ready to end the turn, which (single player) immediately runs
             // phase one of the turn end; its `CheckWinCondition` then processes the pending loss (phase ends as `End`).
@@ -154,36 +157,14 @@ impl Combat {
     }
 
     /// Continues a turn start that was suspended by a decision raised inside a turn-start hook (`turn_cont`: 1 = in
-    /// `BeforeHandDraw`, 2 = in `AfterPlayerTurnStart`; the listeners after the suspended one are not re-run).
+    /// `BeforeHandDraw`, 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = in the opening hand draw, interrupted by an `AfterShuffle` decision); the suspended pass continues with the
+    /// listeners after the one that raised the decision (`dispatch_resumable`).
     pub(crate) fn resume_turn_start(&mut self, cont: u8) {
-        match cont {
-            1 => {
-                if self.setup_player_turn(1) {
-                    return;
-                }
-                self.finish_player_turn_start();
+        if (1..=4).contains(&cont) {
+            if self.setup_player_turn(cont) {
+                return;
             }
-            2 => {
-                self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
-                self.finish_player_turn_start();
-            }
-            3 => {
-                // The hand draw was interrupted by a decision raised in `AfterShuffle`: draw the rest, then go on.
-                if let Some((n, from_hand)) = self.draw_resume.take() {
-                    self.drawing_hand = true;
-                    self.draw_cards(n, from_hand);
-                    self.drawing_hand = false;
-                    if self.stage == Stage::AwaitChoice {
-                        self.turn_cont = 3;
-                        return;
-                    }
-                }
-                if self.after_hand_draw_hooks() {
-                    return;
-                }
-                self.finish_player_turn_start();
-            }
-            _ => {}
+            self.finish_player_turn_start();
         }
     }
 
@@ -213,7 +194,7 @@ impl Combat {
         true
     }
 
-    /// `SetupPlayerTurn` (spec 01 §6.2).
+    /// `SetupPlayerTurn` (spec 01 §6.2). `from` = 0 at the start, else the `turn_cont` step being resumed.
     /// Returns true if it suspended on a decision raised by a hook (`turn_cont` says where to resume).
     fn setup_player_turn(&mut self, from: u8) -> bool {
         if from == 0 {
@@ -224,13 +205,42 @@ impl Combat {
             }
             self.dispatch_g(hookbit::after_energy_reset, |cx, me, l| l.after_energy_reset(cx, me));
             self.dispatch_g(hookbit::after_energy_reset_late, |cx, me, l| l.after_energy_reset_late(cx, me));
-            self.dispatch_g(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me));
-            self.dispatch_g(hookbit::before_hand_draw_late, |cx, me, l| l.before_hand_draw_late(cx, me));
-            if self.stage == Stage::AwaitChoice {
-                self.turn_cont = 1;
-                return true;
-            }
         }
+        if from <= 1 && self.dispatch_resumable(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me)) {
+            self.turn_cont = 1;
+            return true;
+        }
+        if from <= 2 && self.dispatch_resumable(hookbit::before_hand_draw_late, |cx, me, l| l.before_hand_draw_late(cx, me)) {
+            self.turn_cont = 2;
+            return true;
+        }
+        if from == 4 {
+            // The hand draw was interrupted by a decision raised in `AfterShuffle` (Stratagem): draw the rest.
+            if let Some((n, from_hand)) = self.draw_resume.take() {
+                self.drawing_hand = true;
+                self.draw_cards(n, from_hand);
+                self.drawing_hand = false;
+                if self.stage == Stage::AwaitChoice {
+                    self.turn_cont = 4;
+                    return true;
+                }
+            }
+            self.dispatch_g(hookbit::after_player_turn_start_early, |cx, me, l| l.after_player_turn_start_early(cx, me));
+        } else if from <= 2 && self.draw_opening_hand() {
+            self.turn_cont = 4;
+            return true;
+        }
+        if from <= 4 && self.dispatch_resumable(hookbit::after_player_turn_start, |cx, me, l| l.after_player_turn_start(cx, me)) {
+            self.turn_cont = 3;
+            return true;
+        }
+        self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
+        false
+    }
+
+    /// The hand draw of `SetupPlayerTurn` (`ModifyHandDraw`, Innate / Imbued ordering on turn 1, the draw) and `AfterPlayerTurnStartEarly`.
+    /// Returns true if the draw was interrupted by an `AfterShuffle` decision (`draw_resume` set; `turn_cont` 4 resumes it).
+    fn draw_opening_hand(&mut self) -> bool {
         // Hook.ModifyHandDraw: pass 1 ModifyHandDraw, pass 2 ModifyHandDrawLate (threaded decimals); a listener is a
         // "modifier" iff the (int) value changed; only modifiers get AfterModifyingHandDraw.
         let mut draw = Dec::int(BASE_HAND_DRAW as i64);
@@ -289,22 +299,10 @@ impl Combat {
         self.drawing_hand = true;
         self.draw_cards(hand_draw, true);
         self.drawing_hand = false;
-        if self.stage == Stage::AwaitChoice {
-            self.turn_cont = 3; // an AfterShuffle listener (Stratagem) suspended the draw
+        if self.stage == Stage::AwaitChoice && self.draw_resume.is_some() {
             return true;
         }
-        self.after_hand_draw_hooks()
-    }
-
-    /// `AfterPlayerTurnStart` passes (early, normal, late). Returns true if suspended on a decision (`turn_cont` = 2).
-    fn after_hand_draw_hooks(&mut self) -> bool {
         self.dispatch_g(hookbit::after_player_turn_start_early, |cx, me, l| l.after_player_turn_start_early(cx, me));
-        self.dispatch_g(hookbit::after_player_turn_start, |cx, me, l| l.after_player_turn_start(cx, me));
-        if self.stage == Stage::AwaitChoice {
-            self.turn_cont = 2;
-            return true;
-        }
-        self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
         false
     }
 
@@ -412,7 +410,7 @@ impl Combat {
 
     /// `DoTurnEnd`: ethereal cards exhaust (hand order), turn-end-in-hand cards resolve.
     fn do_turn_end(&mut self) {
-        // (orb BeforeTurnEnd: not implemented yet)
+        self.orbs_before_turn_end();
         if !self.in_progress || self.is_ending() {
             return;
         }

@@ -18,6 +18,26 @@ fn id_of(v: &Value) -> &str {
     v.as_str().or_else(|| v["id"].as_str()).unwrap_or("")
 }
 
+/// A relic at combat entry: the class' field initialisers (`meta_initial`), then the scenario `props` (the relic's
+/// `[SavedProperty]` values, injected by the oracle through `SavedProperties.Fill`) mapped onto `Relic` slots.
+fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
+    let l = sts2sim::content::relic_listener(id);
+    let (counter, flags, aux) = l.meta_initial();
+    let mut st = sts2sim::state::Relic { id, counter, flags, aux };
+    if let Some(obj) = props.as_object() {
+        let defs = l.meta_props();
+        for (k, v) in obj {
+            let d = defs.iter().find(|d| d.name == k).ok_or_else(|| format!("relic {} has no modelled saved property {k}", ids::relic::NAMES[id as usize]))?;
+            if !d.lit.is_empty() {
+                continue; // fixed value, nothing to inject
+            }
+            let n = v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).ok_or_else(|| format!("relic prop {k}: expected int/bool"))?;
+            st.set(d.slot, n as i32);
+        }
+    }
+    Ok(RelicInit { id, counter: st.counter, flags: st.flags, aux: st.aux })
+}
+
 pub fn scenario(v: &Value) -> Result<Scenario, String> {
     scenario_ex(v).map(|(s, _)| s)
 }
@@ -57,7 +77,7 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
     }
     let mut deck = vec![];
     let mut extras = ScenarioExtras::default();
-    extras.gold = v["gold"].as_i64().unwrap_or(99) as i32; // the oracle starts a run with 99 gold
+    extras.gold = v["gold"].as_i64().unwrap_or(99) as i32;
     extras.act = v["act"].as_u64().unwrap_or(0) as u8;
     for c in v["deck"].as_array().ok_or("scenario needs an explicit deck")? {
         let mut x = DeckExtra::default();
@@ -76,13 +96,7 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
     }
     let mut relics = vec![];
     for r in v["relics"].as_array().unwrap_or(&vec![]) {
-        // `props` = the relic's [SavedProperty] values; by convention the first int / bool becomes `RelicInit::counter`
-        // (Lizard Tail's `WasUsed`, a charge counter ...). Relic owners refine this per relic.
-        let counter = r["props"]
-            .as_object()
-            .and_then(|o| o.values().find_map(|v| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64))))
-            .unwrap_or(0) as i32;
-        relics.push(RelicInit { id: find(&ids::relic::NAMES, id_of(r), "relic")?, counter });
+        relics.push(relic_init(find(&ids::relic::NAMES, id_of(r), "relic")?, &r["props"])?);
     }
     let mut potions = vec![];
     for p in v["potions"].as_array().unwrap_or(&vec![]) {

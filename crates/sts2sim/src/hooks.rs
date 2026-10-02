@@ -277,6 +277,21 @@ pub trait Listener: Sync {
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
 
+    // ---- orbs (appended by the Defect port) -------------------------------------------------------------------
+    /// `ModifyOrbValue` (threaded decimal, guarded iterator). `orb` is the orb whose value is being computed.
+    fn modify_orb_value(&self, cx: &Combat, me: Me, orb: &Orb, value: Dec) -> Dec {
+        value
+    }
+    /// `ModifyOrbPassiveTriggerCounts` (threaded int; listeners that changed the count are the "modifiers").
+    fn modify_orb_passive_trigger_counts(&self, cx: &Combat, me: Me, orb: &Orb, count: i32) -> i32 {
+        count
+    }
+    fn after_modifying_orb_passive_trigger_count(&self, cx: &mut Combat, me: Me, orb: &Orb) {}
+    /// `AfterOrbChanneled` (the orb is already in the queue).
+    fn after_orb_channeled(&self, cx: &mut Combat, me: Me, orb: &Orb) {}
+    /// `AfterOrbEvoked`; `targets` are what the orb's `Evoke` returned (may include creatures that died since).
+    fn after_orb_evoked(&self, cx: &mut Combat, me: Me, orb: &Orb, targets: &[Cid]) {}
+
     // ---- engine-core additions (new hooks are appended here; spec 02 §2 / Appendix A) ------------------------------
     // Dispatch class in brackets: G = guarded iterator (silent once combat is ending), C = unguarded, R = run-level
     // iterator (== unguarded here: deck copies never listen in combat).
@@ -332,15 +347,12 @@ pub trait Listener: Sync {
     /// [G] stars: `AfterStarsGained` / `AfterStarsSpent`.
     fn after_stars_gained(&self, cx: &mut Combat, me: Me, amount: i32) {}
     fn after_stars_spent(&self, cx: &mut Combat, me: Me, amount: i32) {}
-    /// [G] Regent / Necrobinder / Defect command hooks (declared for the character subsystems; the engine core does
+    /// [G] Regent / Necrobinder command hooks (declared for the character subsystems; the engine core does
     /// not dispatch them yet): `AfterForge`, `AfterSummon`, `AfterOstyRevived`, `AfterOrbChanneled`, `AfterOrbEvoked`,
     /// `AfterModifyingOrbPassiveTriggerCount`.
     fn after_forge(&self, cx: &mut Combat, me: Me, amount: Dec) {}
     fn after_summon(&self, cx: &mut Combat, me: Me, amount: Dec) {}
     fn after_osty_revived(&self, cx: &mut Combat, me: Me, osty: Cid) {}
-    fn after_orb_channeled(&self, cx: &mut Combat, me: Me, orb: u16) {}
-    fn after_orb_evoked(&self, cx: &mut Combat, me: Me, orb: u16) {}
-    fn after_modifying_orb_passive_trigger_count(&self, cx: &mut Combat, me: Me, orb: u16) {}
 
     // value hooks
     /// [G] `ModifyAttackHitCount` (threaded int). No shipped model overrides it.
@@ -361,6 +373,23 @@ pub trait Listener: Sync {
     /// effects that read it generically (Thrash) agree with the card's own attack.
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         None
+    }
+    /// [R] `ModifyGoldGained` (threaded, run-level) -- Ectoplasm (`PlayerCmd.GainGold`).
+    fn modify_gold_gained(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
+        amount
+    }
+    // ---- relic state metadata (static dispatch by relic id; NOT hooks, no mask bit that is ever dispatched) ----
+    /// The relic's `[SavedProperty]` list: how the oracle dumps / injects its persistent state (`Relic::{counter,aux,flags}`).
+    fn meta_props(&self) -> &'static [PropDef] {
+        &[]
+    }
+    /// `ShowCounter ? DisplayAmount : none` evaluated in the current combat state (the oracle dumps it as `counter`).
+    fn meta_display(&self, cx: &Combat, r: &Relic) -> Option<i32> {
+        None
+    }
+    /// Fresh relic instance state (C# field initialisers that are not zero / false), applied before injecting props.
+    fn meta_initial(&self) -> (i32, u8, i32) {
+        (0, 0, 0)
     }
     /// Resumes a hook that raised a decision (`Combat::hook_ctx = Some((me, phase))`) once the choice is in `cx.choice`.
     fn resume_hook(&self, cx: &mut Combat, me: Me, phase: u8) {}
@@ -393,12 +422,6 @@ pub trait Listener: Sync {
     /// [G] `ModifySummonAmount` / `ModifyOrbValue` / `ModifyOrbPassiveTriggerCounts` (threaded).
     fn modify_summon_amount(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
-    }
-    fn modify_orb_value(&self, cx: &Combat, me: Me, orb: u16, value: Dec) -> Dec {
-        value
-    }
-    fn modify_orb_passive_trigger_counts(&self, cx: &Combat, me: Me, orb: u16, count: i32) -> i32 {
-        count
     }
 
     // predicates
@@ -553,7 +576,7 @@ pub trait HasMask {
 /// Bit index of every hook (must list every `Listener` method that content may override).
 #[allow(non_upper_case_globals)]
 pub mod hookbit {
-    macro_rules! bits { ($($n:ident),* $(,)?) => { bits!(@ 0u32; $($n),*); }; (@ $i:expr; $h:ident $(, $t:ident)*) => { pub const $h: u32 = $i; bits!(@ $i + 1; $($t),*); }; (@ $i:expr;) => {}; }
+    macro_rules! bits { ($($n:ident),* $(,)?) => { bits!(@ 0u32; $($n),*); }; (@ $i:expr; $h:ident $(, $t:ident)*) => { pub const $h: u32 = $i; bits!(@ $i + 1; $($t),*); }; (@ $i:expr;) => { pub const COUNT: u32 = $i; }; }
     bits!(
         modify_damage_additive,
         modify_damage_multiplicative,
@@ -635,6 +658,11 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        modify_orb_value,
+        modify_orb_passive_trigger_counts,
+        after_modifying_orb_passive_trigger_count,
+        after_orb_channeled,
+        after_orb_evoked,
         // ---- engine-core additions ----
         before_block_gained,
         after_modifying_block_amount,
@@ -667,9 +695,6 @@ pub mod hookbit {
         after_forge,
         after_summon,
         after_osty_revived,
-        after_orb_channeled,
-        after_orb_evoked,
-        after_modifying_orb_passive_trigger_count,
         modify_attack_hit_count,
         modify_card_play_count,
         modify_card_play_result_location,
@@ -681,8 +706,6 @@ pub mod hookbit {
         modify_x_value,
         try_modify_star_cost,
         modify_summon_amount,
-        modify_orb_value,
-        modify_orb_passive_trigger_counts,
         should_afflict,
         should_allow_targeting,
         should_die,
@@ -720,7 +743,14 @@ pub mod hookbit {
         get_result_location_for_card_play,
         calculated_damage,
         resume_hook,
+        modify_gold_gained,
     );
+    // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
+    // They sit at the very top of the 256-bit mask; real hooks must stay below them.
+    const _: () = assert!(COUNT <= 253, "too many hooks: the `meta_*` pseudo bits start at 253");
+    pub const meta_initial: u32 = 253;
+    pub const meta_display: u32 = 254;
+    pub const meta_props: u32 = 255;
     // The mask has 256 bits.
     const _: () = assert!(get_result_location_for_card_play < 256);
 }
@@ -743,4 +773,13 @@ macro_rules! listener {
             $( fn $f ( $($args)* ) $(-> $ret)? $body )*
         }
     };
+}
+
+/// `fn meta_props(&self) -> &'static [PropDef] { relic_props![PropDef::int("TurnsSeen", Slot::Counter)] }`
+#[macro_export]
+macro_rules! relic_props {
+    ($($e:expr),* $(,)?) => {{
+        const P: &[$crate::state::PropDef] = &[$($e),*];
+        P
+    }};
 }

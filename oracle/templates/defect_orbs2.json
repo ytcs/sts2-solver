@@ -1,0 +1,71 @@
+{
+ "name": "defect_nibbits_weak",
+ "ascension": 10,
+ "encounter": "NIBBITS_WEAK",
+ "character": "DEFECT",
+ "hp": 75,
+ "max_hp": 75,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "STRIKE_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "DEFEND_DEFECT",
+  "ZAP",
+  "DUALCAST",
+  "MULTI_CAST",
+  {
+   "id": "MULTI_CAST",
+   "upgrade": 1
+  },
+  "NULL",
+  "QUADCAST",
+  "RAINBOW",
+  "REFRACT",
+  "SHADOW_SHIELD",
+  "SHATTER",
+  "SYNCHRONIZE",
+  "TEMPEST",
+  {
+   "id": "TEMPEST",
+   "upgrade": 1
+  },
+  "TESLA_COIL",
+  {
+   "id": "TESLA_COIL",
+   "upgrade": 1
+  },
+  "VOLTAIC",
+  "CONSUMING_SHADOW",
+  "SPINNER",
+  {
+   "id": "SPINNER",
+   "upgrade": 1
+  },
+  "METEOR_STRIKE",
+  "MODDED",
+  {
+   "id": "DARKNESS",
+   "upgrade": 1
+  },
+  {
+   "id": "CHAOS",
+   "upgrade": 1
+  },
+  "HIBERNATE",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "CRACKED_CORE"
+ ],
+ "potions": []
+}
