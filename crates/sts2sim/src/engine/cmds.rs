@@ -65,13 +65,6 @@ impl Combat {
         }
     }
 
-    /// `PlayerCmd.GainEnergy` (`ModifyEnergyGain` hook not implemented yet).
-    pub fn gain_energy(&mut self, n: i32) {
-        if n > 0 {
-            self.player.energy += n;
-        }
-    }
-
     /// `CombatState.HittableEnemies`: alive, attached, and `ShouldAllowHitting`.
     pub fn hittable_enemies(&self) -> ArrayVec<Cid, MAX_CREATURES> {
         let mut o = ArrayVec::new();

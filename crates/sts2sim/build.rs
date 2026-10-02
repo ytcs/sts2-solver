@@ -70,7 +70,7 @@ fn main() {
     let mut mon_defs: Vec<(String, String)> = vec![];
     let mut mon_listeners: Vec<(String, String)> = vec![];
     let mut enc: Vec<(String, String)> = vec![];
-    for cat in ["cards", "powers", "relics", "potions", "monsters", "encounters"] {
+    for cat in ["cards", "powers", "relics", "potions", "monsters", "encounters", "enchantments", "afflictions"] {
         let dir = content.join(cat);
         writeln!(out, "pub mod {cat} {{").unwrap();
         let mut items = vec![];
@@ -123,6 +123,8 @@ fn main() {
         "powers" => "power",
         "relics" => "relic",
         "potions" => "potion",
+        "enchantments" => "enchantment",
+        "afflictions" => "affliction",
         _ => "",
     };
     for (cat, items) in &cat_items {

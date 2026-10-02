@@ -67,8 +67,14 @@ pub struct Card {
     /// Local keyword delta vs canonical (`AddKeyword` / `RemoveKeyword`).
     pub kw_add: u8,
     pub kw_remove: u8,
+    /// Enchantment id + 1 (0 = none).
     pub enchant: u8,
     pub enchant_amount: i16,
+    /// `EnchantmentModel.Status`: 0 = Normal, 1 = Disabled.
+    pub enchant_status: u8,
+    /// Enchantment-private state (Glam used / Momentum extra damage ...).
+    pub enchant_aux: i16,
+    /// Affliction id + 1 (0 = none).
     pub affliction: u8,
     pub affliction_amount: i16,
     pub base_replay: u8,
@@ -80,6 +86,8 @@ pub struct Card {
     pub counter: [i16; 2],
     /// Deck index this combat card was cloned from (`DeckVersion`), `NO` if none.
     pub deck_idx: u8,
+    /// The card this dupe / clone was created from (`DupeOf`), `NO` if none.
+    pub dupe_of: u8,
 }
 pub type PileTypeBits = u8;
 
@@ -119,6 +127,10 @@ pub struct MonsterState {
     pub performed: [u8; 4],
     pub stun_follow_up: u8,
     pub stunned: bool,
+    /// The synthetic `STUNNED` state has been performed (`_performedAtLeastOnce`).
+    pub stun_performed: bool,
+    /// Side effect of the stunned turn (`CreatureCmd.Stun(creature, stunMove, ..)`).
+    pub stun_move: Option<crate::defs::MoveFn>,
     /// Monster-private integers (IsFront, counters, ...), meaning defined by the monster implementation.
     pub vars: [i32; 6],
 }
@@ -139,6 +151,8 @@ impl Default for MonsterState {
             performed: [NO; 4],
             stun_follow_up: NO,
             stunned: false,
+            stun_performed: false,
+            stun_move: None,
             vars: [0; 6],
         }
     }
@@ -322,7 +336,8 @@ pub struct PlayCtx {
     pub play: crate::hooks::CardPlay,
     pub step: PlayStep,
     pub count: u8,
-    pub result: PileType,
+    /// `resultLocation` of `OnPlayWrapper` (`PileType::None` = removed from combat).
+    pub result: CardLocation,
 }
 
 /// Counters the game's combat history exposes to gameplay code (cards played this turn etc.).
@@ -360,12 +375,34 @@ pub struct Combat {
     pub n_cards: u16,
     pub hist: History,
 
-    /// In-flight card play (suspended while a decision is pending).
-    pub play_ctx: Option<PlayCtx>,
+    /// In-flight card plays, innermost last (an auto-play started from inside `on_play` pushes a nested play);
+    /// suspended while a decision is pending.
+    pub play_stack: ArrayVec<PlayCtx, 4>,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
+
+    // ---- engine-core additions ----
+    /// `Player.IsActiveForHooks`: false from the end of the player's death sequence (`DeactivateHooks`) until revived.
+    /// Relics / potions / orbs / cards and the player's powers stop listening while false.
+    pub player_hooks_active: bool,
+    /// Enemies that escaped (`CombatState.EscapedCreatures`).
+    pub escaped: u8,
+    /// `PlayersTakingExtraTurn` is non-empty (single player).
+    pub extra_turn: bool,
+    /// Side channel for the post-damage hooks whose C# signature has more parameters than the Rust hook: the card
+    /// source and the full `DamageResult` of the result being dispatched.
+    pub dmg_card: CardIdx,
+    pub dmg_result: crate::engine::DamageResult,
+    /// Cards of an `AutoPlayFromDrawPile` call still waiting to be auto-played (front = next), and whether they are
+    /// forced to exhaust.
+    pub autoplay_queue: ArrayVec<CardIdx, 10>,
+    pub autoplay_force_exhaust: bool,
+    /// Sly cards of a `DiscardAndDraw` still waiting to be auto-played.
+    pub sly_queue: ArrayVec<CardIdx, 10>,
+    /// Combat history log (`engine/history.rs`).
+    pub hist_log: crate::engine::HistLog,
 }

@@ -1,3 +1,4 @@
+#![recursion_limit = "512"]
 //! Slay the Spire 2 combat simulator core.
 //!
 //! Design goals, in priority order: bit-exact fidelity with the game's combat rules, then raw

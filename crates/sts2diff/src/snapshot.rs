@@ -59,7 +59,6 @@ fn rng(r: &sts2sim::rng::Rng) -> Value {
 fn enemy(cx: &Combat, e: Cid) -> Value {
     let cr = cx.cr(e);
     let ms = &cr.monster;
-    let def = sts2sim::content::monster_def(ms.id);
     let mut m = Map::new();
     m.insert("id".into(), json!(ids::monster::NAMES[ms.id as usize]));
     m.insert("hp".into(), json!(cr.hp));
@@ -68,7 +67,7 @@ fn enemy(cx: &Combat, e: Cid) -> Value {
     m.insert("alive".into(), json!(cr.is_alive()));
     m.insert("powers".into(), powers(cx, e));
     if ms.next_move != NO {
-        if let MonsterNode::Move { id, intents, .. } = &def.nodes[ms.next_move as usize] {
+        if let Some((id, intents)) = cx.move_view(e) {
             m.insert("next_move".into(), json!(id));
             let mut list = vec![];
             for it in intents.iter() {

@@ -82,6 +82,7 @@ impl Combat {
                 let (pid, tgt) = (ctx.potion, ctx.target);
                 if !self.cr(PLAYER).is_dead() {
                     self.dispatch_u(hookbit::after_potion_used, |cx, me, lst| lst.after_potion_used(cx, me, pid, tgt));
+                    self.check_for_empty_hand();
                 }
             }
         }

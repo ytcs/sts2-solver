@@ -14,6 +14,8 @@ impl Combat {
 
     /// `StartCombatInternal` (spec 01 §4). Leaves the combat awaiting the first player action (or over).
     pub(crate) fn start_combat(&mut self) {
+        // Hook.AfterRoomEntered (run-level iterator, before the enemies' AfterAddedToRoom / initial RollMove).
+        self.dispatch_u(hookbit::after_room_entered, |cx, me, l| l.after_room_entered(cx, me));
         // AfterAddedToRoom + first RollMove, per enemy in list order, interleaved (spec 04 §1.7).
         let order: crate::util::ArrayVec<Cid, MAX_CREATURES> = {
             let mut o = crate::util::ArrayVec::new();
@@ -44,6 +46,10 @@ impl Combat {
 
     fn before_turn_start(&mut self, side: Side) {
         let list: crate::util::ArrayVec<Cid, MAX_CREATURES> = self.creatures_on(side);
+        self.before_turn_start_for(&list);
+    }
+
+    fn before_turn_start_for(&mut self, list: &crate::util::ArrayVec<Cid, MAX_CREATURES>) {
         for &c in list.iter() {
             for p in self.cr_mut(c).powers.as_mut_slice() {
                 p.amount_on_turn_start = p.amount;
@@ -85,14 +91,24 @@ impl Combat {
     /// `StartTurn(Player)` (spec 01 §6.1).
     pub(crate) fn start_player_turn(&mut self) {
         self.player.phase = Phase::None;
-        let list = self.creatures_on(Side::Player);
-        self.before_turn_start(Side::Player);
+        let extra = self.extra_turn;
+        // Extra turn: only the extra-turn players (the player creature) start the turn; pets do not.
+        let list = if extra {
+            let mut l = crate::util::ArrayVec::new();
+            l.push(PLAYER);
+            l
+        } else {
+            self.creatures_on(Side::Player)
+        };
+        self.before_turn_start_for(&list);
         self.dispatch_g(hookbit::before_side_turn_start, |cx, me, l| l.before_side_turn_start(cx, me, Side::Player));
         self.player.phase = Phase::Start;
-        // PrepareForNextTurn: enemies roll intents before the player draws.
-        let enemies = self.creatures_on(Side::Enemy);
-        for &e in enemies.iter() {
-            self.roll_move(e);
+        // PrepareForNextTurn: enemies roll intents before the player draws (not on extra turns).
+        if !extra {
+            let enemies = self.creatures_on(Side::Enemy);
+            for &e in enemies.iter() {
+                self.prepare_for_next_turn(e);
+            }
         }
         for &c in list.iter() {
             // Creature.AfterTurnStart: block clear, skipped on the player's first turn.
@@ -116,7 +132,9 @@ impl Combat {
         // RunAutoPrePlayPhase
         self.player.phase = Phase::AutoPrePlay;
         self.check_for_empty_hand();
+        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered_early, |cx, me, l| l.after_auto_pre_play_phase_entered_early(cx, me));
         self.dispatch_g(hookbit::after_auto_pre_play_phase_entered, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me));
+        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered_late, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me));
         self.player.phase = Phase::Play;
         if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
             self.stage = Stage::AwaitAction;
@@ -157,24 +175,53 @@ impl Combat {
             self.player.energy += self.max_energy();
         }
         self.dispatch_g(hookbit::after_energy_reset, |cx, me, l| l.after_energy_reset(cx, me));
+        self.dispatch_g(hookbit::after_energy_reset_late, |cx, me, l| l.after_energy_reset_late(cx, me));
         self.dispatch_g(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me));
-        // ModifyHandDraw (threaded decimal)
+        self.dispatch_g(hookbit::before_hand_draw_late, |cx, me, l| l.before_hand_draw_late(cx, me));
+        // Hook.ModifyHandDraw: pass 1 ModifyHandDraw, pass 2 ModifyHandDrawLate (threaded decimals); a listener is a
+        // "modifier" iff the (int) value changed; only modifiers get AfterModifyingHandDraw.
         let mut draw = Dec::int(BASE_HAND_DRAW as i64);
+        let mut mods = super::Mods::new();
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_hand_draw));
-            for e in snap.iter() {
-                if self.still_live(&e.me) {
-                    draw = content::listener(&e.me).modify_hand_draw(self, e.me, draw);
+            for bit in [hookbit::modify_hand_draw, hookbit::modify_hand_draw_late] {
+                if !self.listen.has(bit) {
+                    continue;
+                }
+                let snap = self.snapshot(Mask::bit(bit));
+                for e in snap.iter() {
+                    if self.still_live(&e.me) {
+                        let l = content::listener(&e.me);
+                        let nv = if bit == hookbit::modify_hand_draw { l.modify_hand_draw(self, e.me, draw) } else { l.modify_hand_draw_late(self, e.me, draw) };
+                        if draw.trunc() != nv.trunc() {
+                            mods.push(e.me);
+                        }
+                        draw = nv;
+                    }
                 }
             }
         }
+        self.dispatch_modifiers(true, hookbit::after_modifying_hand_draw, &mods, |cx, me, l| l.after_modifying_hand_draw(cx, me));
         let mut hand_draw = draw.trunc();
         if self.player.turn_number == 1 {
-            // Imbued-style bottom cards first (no content yet), then Innate cards to the top one by one.
+            // Cards whose enchantment starts at the bottom (Imbued) move to the bottom first (pile order), then Innate
+            // cards (excluding those) move to the top one by one => their on-top order is the REVERSE of pile order.
+            let mut bottom: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
+            for &c in self.player.draw.iter() {
+                if self.cards[c as usize].enchant != 0 {
+                    let me = self.enchantment_me(c);
+                    if content::listener(&me).should_start_at_bottom_of_draw_pile(self, me) {
+                        bottom.push(c);
+                    }
+                }
+            }
+            for &c in bottom.iter() {
+                self.player.draw.remove_value(c);
+                self.player.draw.push(c);
+            }
             let innate: crate::util::ArrayVec<CardIdx, MAX_CARDS> = {
                 let mut v = crate::util::ArrayVec::new();
                 for &c in self.player.draw.iter() {
-                    if self.card_keywords(c) & kw::INNATE != 0 {
+                    if self.card_keywords(c) & kw::INNATE != 0 && !bottom.contains(c) {
                         v.push(c);
                     }
                 }
@@ -187,7 +234,9 @@ impl Combat {
             hand_draw = hand_draw.max(innate.len() as i32).min(MAX_HAND as i32);
         }
         self.draw_cards(hand_draw, true);
+        self.dispatch_g(hookbit::after_player_turn_start_early, |cx, me, l| l.after_player_turn_start_early(cx, me));
         self.dispatch_g(hookbit::after_player_turn_start, |cx, me, l| l.after_player_turn_start(cx, me));
+        self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
     }
 
     /// `CheckForEmptyHand` -> `Hook.AfterHandEmptied`.
@@ -226,8 +275,14 @@ impl Combat {
         self.flush_player_hand();
         self.dispatch_g(hookbit::after_side_turn_end, |cx, me, l| l.after_side_turn_end(cx, me, Side::Player));
         self.dispatch_g(hookbit::after_side_turn_end_late, |cx, me, l| l.after_side_turn_end_late(cx, me, Side::Player));
-        // SwitchFromPlayerToEnemySide (extra turns: not implemented yet)
-        self.switch_sides();
+        // SwitchFromPlayerToEnemySide (spec 01 §9.2): PlayersTakingExtraTurn is recomputed at every player turn end.
+        self.extra_turn = self.any_true_g(hookbit::should_take_extra_turn, |cx, me, l| l.should_take_extra_turn(cx, me));
+        let extra = self.extra_turn;
+        self.flip_sides();
+        if extra {
+            self.dispatch_g(hookbit::after_taking_extra_turn, |cx, me, l| l.after_taking_extra_turn(cx, me));
+        }
+        self.continue_after_switch();
     }
 
     /// `DoTurnEnd`: ethereal cards exhaust (hand order), turn-end-in-hand cards resolve.
@@ -242,7 +297,7 @@ impl Combat {
         for &c in hand.iter() {
             if self.card_def(c).turn_end_in_hand {
                 turn_end.push(c);
-            } else if self.card_keywords(c) & kw::ETHEREAL != 0 {
+            } else if self.card_keywords(c) & kw::ETHEREAL != 0 && self.first_veto_g(hookbit::should_ethereal_trigger, |cx, me, l| l.should_ethereal_trigger(cx, me, c)).is_none() {
                 ethereal.push(c);
             }
         }
@@ -276,7 +331,7 @@ impl Combat {
         let hand = self.player.hand;
         let mut flushed: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
         for &c in hand.iter() {
-            let retain = !flush || self.card_keywords(c) & kw::RETAIN != 0 || self.cards[c as usize].flags & cflag::SINGLE_TURN_RETAIN != 0;
+            let retain = !flush || self.should_retain_this_turn(c);
             if !retain {
                 flushed.push(c);
             }
@@ -310,13 +365,17 @@ impl Combat {
 
     // ---- sides ---------------------------------------------------------------------------------------------------------
 
-    /// `SwitchSides` (single player, no extra turns).
-    fn switch_sides(&mut self) {
-        if self.side == Side::Player {
+    /// `SwitchSides` state change (spec 01 §9.1): Player && !extra -> Enemy; otherwise (Enemy -> Player, or an extra
+    /// player turn) -> Player with the player's turn number incremented and, unless it is an extra turn, the round.
+    fn flip_sides(&mut self) {
+        let extra = self.extra_turn;
+        if self.side == Side::Player && !extra {
             self.side = Side::Enemy;
         } else {
             self.side = Side::Player;
-            self.round += 1;
+            if !extra {
+                self.round += 1;
+            }
             self.player.turn_number += 1;
         }
         // Creature.OnSideSwitch: monsters lose SpawnedThisTurn.
@@ -327,11 +386,21 @@ impl Combat {
         }
         // player-turn bookkeeping that is per-turn
         self.hist = History::default();
+    }
+
+    /// What the turn loop does after a side switch: the enemy turn, or the next player turn.
+    fn continue_after_switch(&mut self) {
         if self.side == Side::Enemy {
             self.run_enemy_turn();
         } else if self.in_progress {
             self.start_player_turn();
         }
+    }
+
+    /// `SwitchSides` + the turn loop continuing (enemy -> player).
+    fn switch_sides(&mut self) {
+        self.flip_sides();
+        self.continue_after_switch();
     }
 
     /// `StartTurn(Enemy)` + `ExecuteEnemyTurn` + `EndEnemyTurn` (spec 01 §10).
@@ -372,6 +441,9 @@ impl Combat {
         self.dispatch_g(hookbit::after_side_turn_end, |cx, me, l| l.after_side_turn_end(cx, me, Side::Enemy));
         self.dispatch_g(hookbit::after_side_turn_end_late, |cx, me, l| l.after_side_turn_end_late(cx, me, Side::Enemy));
         if self.check_win_condition() {
+            // Quirk (spec 01 §10.3): `IsCombatEnding` is false once the combat is no longer in progress, so the side
+            // switch (round / turn counters) still happens after a win or loss detected right here.
+            self.flip_sides();
             return;
         }
         self.switch_sides();
@@ -469,16 +541,20 @@ impl Combat {
 
     /// Continues whichever effect raised the decision that just finished.
     pub(crate) fn resume_after_decision(&mut self) {
-        if self.play_ctx.is_some() {
-            self.run_play();
-        } else if self.potion_ctx.is_some() {
+        if !self.play_stack.is_empty() {
+            self.run_play_stack();
+            if self.stage == Stage::AwaitChoice {
+                return;
+            }
+        }
+        if self.potion_ctx.is_some() {
             self.run_potion();
         }
     }
 
-    /// `ActionExecutor`: win/loss check after every executed game action, then empty-hand check.
+    /// `ActionExecutor`: win/loss check after every executed game action (the hand-empty check already ran at the end
+    /// of the card play / potion use).
     fn after_action(&mut self) {
-        self.check_for_empty_hand();
         self.check_win_condition();
     }
 }

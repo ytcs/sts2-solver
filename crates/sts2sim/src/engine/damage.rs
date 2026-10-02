@@ -62,7 +62,14 @@ impl Combat {
         let snap = self.snapshot(m);
         let mut mods = Mods::new();
         let mut v = amount;
-        // (card enchantment: EnchantDamageAdditive / Multiplicative — not implemented yet)
+        // card.Enchantment.EnchantDamageAdditive then ...Multiplicative (before every listener pass; each enchantment
+        // checks the damage props itself).
+        if card != NO && self.cards[card as usize].enchant != 0 {
+            let me = self.enchantment_me(card);
+            let l = content::listener(&me);
+            v += l.enchant_damage_additive(self, me, v, props);
+            v *= l.enchant_damage_multiplicative(self, me, v, props);
+        }
         for e in snap.iter() {
             if e.mask.has(hookbit::modify_damage_additive) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
@@ -143,6 +150,21 @@ impl Combat {
         }
     }
 
+    /// `Hook.ModifyUnblockedDamageTarget` (unguarded, threaded): DieForYou redirects the HP loss to Osty.
+    fn modify_unblocked_damage_target(&self, target: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
+        if !self.listen.has(hookbit::modify_unblocked_damage_target) {
+            return target;
+        }
+        let snap = self.snapshot(Mask::bit(hookbit::modify_unblocked_damage_target));
+        let mut t = target;
+        for e in snap.iter() {
+            if self.still_live(&e.me) {
+                t = content::listener(&e.me).modify_unblocked_damage_target(self, e.me, t, amount, props, dealer);
+            }
+        }
+        t
+    }
+
     /// `CreatureCmd.Damage` (spec 02 §3.3).
     pub fn damage(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx) -> Results {
         let mut results = Results::new();
@@ -159,22 +181,37 @@ impl Combat {
                     content::listener(me).after_modifying_damage_amount(self, *me, card);
                 }
             }
+            self.dmg_card = card;
             self.dispatch_u(hookbit::before_damage_received, |cx, me, l| l.before_damage_received(cx, me, t, modified, props, dealer));
             // Pet quirk: damage to Osty is absorbed by its owner's block.
             let block_owner = if self.cr(t).is_pet && self.cr(t).owner != NO { self.cr(t).owner } else { t };
             let blocked = self.damage_block_internal(block_owner, modified, props);
             let (unblocked, mods) = self.modify_hp_lost(t, (modified - blocked).max(Dec::ZERO), props, dealer, card, false);
             self.after_modifying_hp_lost(&mods, false);
-            // (ModifyUnblockedDamageTarget — Osty's DieForYou redirect — not implemented yet.)
-            let hp_target = t;
+            let hp_target = self.modify_unblocked_damage_target(t, unblocked, props, dealer);
             let (unblocked, mods) = self.modify_hp_lost(hp_target, unblocked, props, dealer, card, true);
             self.after_modifying_hp_lost(&mods, true);
             let mut res = self.lose_hp_internal(hp_target, unblocked);
-            let block_left = self.cr(block_owner).block;
-            res.block_broken = block_left <= 0 && blocked > Dec::ZERO;
-            res.fully_blocked = !props.unblockable() && (blocked > Dec::ZERO || block_left > 0) && unblocked.trunc() == 0;
-            res.blocked = blocked.trunc();
-            results.push(res);
+            let block_left = self.cr(t).block;
+            let was_block_broken = block_left <= 0 && blocked > Dec::ZERO;
+            let was_fully_blocked = !props.unblockable() && (blocked > Dec::ZERO || block_left > 0) && unblocked.trunc() == 0;
+            if hp_target == t {
+                res.blocked = blocked.trunc();
+                res.block_broken = was_block_broken;
+                res.fully_blocked = was_fully_blocked;
+                results.push(res);
+            } else {
+                // Redirected (Osty took the hit): the overkill is re-run through ModifyHpLost(AfterOsty) against the
+                // original target.
+                results.push(res);
+                let (over, mods) = self.modify_hp_lost(t, Dec::int(res.overkill as i64), props, dealer, card, true);
+                self.after_modifying_hp_lost(&mods, true);
+                let mut r2 = if over > Dec::ZERO { self.lose_hp_internal(t, over) } else { DamageResult { receiver: t, ..Default::default() } };
+                r2.blocked = blocked.trunc();
+                r2.block_broken = was_block_broken;
+                r2.fully_blocked = was_fully_blocked;
+                results.push(r2);
+            }
         }
 
         // ---- post-hooks run after ALL targets resolved ----
@@ -182,6 +219,8 @@ impl Combat {
         for i in 0..results.len() {
             let r = results[i];
             let t = r.receiver;
+            self.dmg_card = card;
+            self.dmg_result = r;
             if r.block_broken {
                 self.dispatch_u(hookbit::after_block_broken, |cx, me, l| l.after_block_broken(cx, me, t, dealer));
             }
@@ -189,9 +228,16 @@ impl Combat {
                 let d = -r.unblocked;
                 self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, t, d));
             }
+            self.dmg_card = card;
+            self.dmg_result = r;
             self.dispatch_u(hookbit::after_damage_given, |cx, me, l| l.after_damage_given(cx, me, dealer, t, r.unblocked, props));
             if !r.killed || !self.cr(t).is_dead() {
+                self.dmg_card = card;
+                self.dmg_result = r;
                 self.dispatch_u(hookbit::after_damage_received, |cx, me, l| l.after_damage_received(cx, me, t, r.unblocked, props, dealer));
+                self.dmg_card = card;
+                self.dmg_result = r;
+                self.dispatch_u(hookbit::after_damage_received_late, |cx, me, l| l.after_damage_received_late(cx, me, t, r.unblocked, props, dealer));
             } else {
                 killed.push(t);
             }
@@ -205,6 +251,20 @@ impl Combat {
         results
     }
 
+    /// `Hook.ModifyAttackHitCount` (guarded, threaded int).
+    fn modify_attack_hit_count(&self, a: &Attack) -> i32 {
+        let mut hits = a.hits;
+        if self.listen.has(hookbit::modify_attack_hit_count) && self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_attack_hit_count));
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    hits = content::listener(&e.me).modify_attack_hit_count(self, e.me, a, hits);
+                }
+            }
+        }
+        hits
+    }
+
     /// `AttackCommand.Execute` (spec 02 §3.1).
     pub fn execute_attack(&mut self, a: &Attack) -> Results {
         let mut all = Results::new();
@@ -212,7 +272,7 @@ impl Combat {
             return all;
         }
         self.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, a));
-        let hits = a.hits; // ModifyAttackHitCount: no content overrides it.
+        let hits = self.modify_attack_hit_count(a);
         let dealer_side = self.cr(a.dealer).side;
         let mut i = 0;
         while i < hits {

@@ -193,7 +193,7 @@ impl Combat {
             w.n(cr.max_hp);
             w.n(cr.block);
             w.n(cr.is_alive() as i32);
-            w.n(ms.stunned as i32);
+            w.n(self.is_stunned(e) as i32);
             for j in 0..OBS_POWERS {
                 match cr.powers.get(j) {
                     Some(p) => {
@@ -204,10 +204,9 @@ impl Combat {
                 }
             }
             // current intent(s)
-            let def = content::monster_def(ms.id);
             let mut n_int = 0;
             if ms.next_move != NO {
-                if let MonsterNode::Move { intents, .. } = &def.nodes[ms.next_move as usize] {
+                if let Some((_, intents)) = self.move_view(e) {
                     for it in intents.iter().take(OBS_INTENTS) {
                         let (kind, dmg, hits) = match it {
                             Intent::Attack { damage, hits } => (1, self.intent_damage(e, damage(self, e)), hits(self, e)),

@@ -118,11 +118,20 @@ impl Combat {
             cards: [Card::default(); MAX_CARDS],
             n_cards: 0,
             hist: History::default(),
-            play_ctx: None,
+            play_stack: ArrayVec::new(),
             potion_ctx: None,
             decision: None,
             choice: Choice::default(),
             missing: None,
+            player_hooks_active: true,
+            escaped: 0,
+            extra_turn: false,
+            dmg_card: NO,
+            dmg_result: Default::default(),
+            autoplay_queue: ArrayVec::new(),
+            autoplay_force_exhaust: false,
+            sly_queue: ArrayVec::new(),
+            hist_log: Default::default(),
         };
         // Player creature (CombatId 0).
         cx.creatures[PLAYER as usize] = Creature {
