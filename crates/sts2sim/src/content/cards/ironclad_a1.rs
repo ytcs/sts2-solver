@@ -196,7 +196,7 @@ listener!(DrumOfBattle {
         if card as u16 != me.idx {
             return;
         }
-        let count = cx.generate_play_count(card);
+        let count = cx.generate_play_count(card, NO);
         let e = cx.card_var(card, VarKind::Energy);
         for _ in 0..count {
             cx.gain_energy(e);

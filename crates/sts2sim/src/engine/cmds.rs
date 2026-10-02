@@ -88,7 +88,7 @@ impl Combat {
 
     /// `PlayerCmd.GainEnergy` (`ModifyEnergyGain` hook not implemented yet).
     pub fn gain_energy(&mut self, n: i32) {
-        if n > 0 {
+        if n > 0 && !self.is_ending() {
             self.player.energy += n;
         }
     }
