@@ -2,7 +2,7 @@
 
 use super::defect_util::*;
 use crate::defs::VarKind;
-use crate::engine::{Attack, Targeting};
+use crate::engine::{Attack, HKind, RunResult, Targeting};
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -14,8 +14,8 @@ listener!(AdaptiveStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
         if let Some(c) = cx.clone_card(p.card) {
-            cx.cost_set_this_combat(c, 0);
-            cx.add_generated_card_by(c, PileType::Discard, CardPilePosition::Bottom, PLAYER);
+            cx.set_cost_this_combat(c, 0, false);
+            cx.add_generated_card(c, PileType::Discard, CardPilePosition::Bottom);
         }
         Flow::Done
     }
@@ -76,7 +76,10 @@ listener!(FocusedStrike {
 listener!(Ftl {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
-        if (cx.hist.plays_finished as i32) < cx.card_var(p.card, VarKind::Named) {
+        // `CardPlaysFinished` this turn = plays started this turn minus the ones still resolving (the play stack: this card
+        // and any auto-play parents; their `CardPlayFinishedEntry` is only written after `OnPlay`).
+        let finished = cx.plays_this_turn(|_| true) as i32 - cx.play_stack.len() as i32;
+        if finished < cx.card_var(p.card, VarKind::Named) {
             let n = cx.card_var(p.card, VarKind::Cards);
             cx.draw_cards(n, false);
         }
@@ -109,7 +112,7 @@ listener!(GunkUp {
 // Hits = CalculationBase (0) + CalculationExtra (1) x energy spent this turn (not counting this card's own cost).
 listener!(HelixDrill {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let mut spent = cx.hist.energy_spent as i32;
+        let mut spent: i32 = cx.hist_log.iter().filter(|e| e.kind == HKind::EnergySpent && cx.hist_this_turn(e)).map(|e| e.val as i32).sum();
         if cx.card_pile_type(p.card) == PileType::Play {
             spent -= cx.card_cost(p.card, true);
         }
@@ -133,7 +136,7 @@ listener!(Hyperbeam {
 listener!(MomentumStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
-        cx.cost_set_this_combat(p.card, 0);
+        cx.set_cost_this_combat(p.card, 0, false);
         Flow::Done
     }
 });
@@ -146,11 +149,11 @@ listener!(RocketPunch {
         cx.draw_cards(n, false);
         Flow::Done
     }
-    fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {
-        if cx.card_creator != PLAYER || cx.card_def(card).ctype != CardType::Status {
+    fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx, added_by_player: bool) {
+        if !added_by_player || cx.card_def(card).ctype != CardType::Status {
             return;
         }
-        cx.cost_add_until_played(me.idx as CardIdx, -1);
+        cx.add_cost_until_played(me.idx as CardIdx, -1, false);
     }
 });
 
@@ -206,27 +209,19 @@ listener!(Synthesis {
     }
 });
 
-/// `list.StableShuffle(Rng.Shuffle).FirstOrDefault()`: sort by (id, upgrade) with the game's introsort, Fisher-Yates
-/// with the `shuffle` stream, take the first.
+/// `list.StableShuffle(Rng.Shuffle).FirstOrDefault()`.
 fn stable_shuffle_first(cx: &mut Combat, mut list: crate::util::ArrayVec<CardIdx, MAX_CARDS>) -> Option<CardIdx> {
-    {
-        let cards = &cx.cards;
-        crate::sort::intro_sort(list.as_mut_slice(), |a, b| {
-            let (ca, cb) = (&cards[*a as usize], &cards[*b as usize]);
-            if ca.id != cb.id {
-                return if ca.id < cb.id { -1 } else { 1 };
-            }
-            (ca.upgrade as i32 - cb.upgrade as i32).signum()
-        });
-    }
-    cx.rng.shuffle.shuffle(list.as_mut_slice());
+    cx.stable_shuffle_cards(list.as_mut_slice(), RngStream::Shuffle);
     list.first()
 }
 
 // Two hits, then auto-play a random Attack from the draw pile (playable ones first; an unplayable Attack only if no
-// playable one exists, in which case it just goes to its result pile).
+// playable one exists, in which case it just goes to its result pile). Phase 1 = the nested play finished after a decision.
 listener!(Uproar {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        if phase != 0 {
+            return Flow::Done;
+        }
         attack_hits(cx, p, 2);
         let mut playable: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
         for &c in cx.player.draw.iter() {
@@ -245,7 +240,9 @@ listener!(Uproar {
             pick = stable_shuffle_first(cx, any);
         }
         if let Some(c) = pick {
-            cx.defect_auto_play(c);
+            if cx.auto_play(c, NO, AutoPlayType::Default, false) == RunResult::Suspended {
+                return Flow::Suspend(1);
+            }
         }
         Flow::Done
     }

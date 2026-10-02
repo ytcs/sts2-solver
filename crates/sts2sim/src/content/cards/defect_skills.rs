@@ -37,56 +37,21 @@ listener!(ChargeBattery {
     }
 });
 
-/// `CardCmd.Transform(list, null)` for cards in the HAND (`Compact`): originals leave the hand (list indices are read
-/// one at a time while earlier originals are already removed), then the replacements are inserted at those indices in
-/// ascending index order; each replacement enters combat (`AfterCardEnteredCombat`, `AfterCardChangedPiles(Hand)`).
-fn transform_hand_cards(cx: &mut Combat, pairs: &[(CardIdx, CardIdx)]) {
-    if cx.is_ending() || pairs.is_empty() {
-        return;
-    }
-    let mut work: crate::util::ArrayVec<(usize, CardIdx), 16> = crate::util::ArrayVec::new();
-    for &(orig, repl) in pairs {
-        let idx = cx.player.hand.position(orig).unwrap_or(0);
-        cx.player.hand.remove_value(orig);
-        cx.cards[orig as usize].pile = PileType::None as u8;
-        work.push((idx, repl));
-    }
-    // List.Sort on (pile type, index): the hand is the only pile, so ascending index (stable enough: indices differ or
-    // equal keys keep the creation order for the same index, which the game's introsort also leaves in place for 2-3 items).
-    let sl = work.as_mut_slice();
-    for i in 1..sl.len() {
-        let x = sl[i];
-        let mut j = i;
-        while j > 0 && sl[j - 1].0 > x.0 {
-            sl[j] = sl[j - 1];
-            j -= 1;
-        }
-        sl[j] = x;
-    }
-    for &(idx, repl) in work.iter() {
-        let idx = idx.min(cx.player.hand.len());
-        cx.player.hand.insert(idx, repl);
-        cx.cards[repl as usize].pile = PileType::Hand as u8;
-        cx.dispatch_g(hookbit::after_card_entered_combat, |cx, me, l| l.after_card_entered_combat(cx, me, repl));
-        cx.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, repl, PileType::Hand));
-    }
-}
-
 // Block, then every Status card in hand becomes a Fuel (upgraded if this card is).
 listener!(Compact {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
         let up = cx.cards[p.card as usize].upgrade;
         let hand = cx.player.hand;
-        let mut pairs: crate::util::ArrayVec<(CardIdx, CardIdx), 16> = crate::util::ArrayVec::new();
+        let mut originals: crate::util::ArrayVec<CardIdx, 16> = crate::util::ArrayVec::new();
+        let mut repl: crate::util::ArrayVec<Option<(u16, u8)>, 16> = crate::util::ArrayVec::new();
         for &c in hand.iter() {
             if cx.card_def(c).ctype == CardType::Status {
-                if let Some(f) = cx.new_card(ids::card::FUEL, up) {
-                    pairs.push((c, f));
-                }
+                originals.push(c);
+                repl.push(Some((ids::card::FUEL, up)));
             }
         }
-        transform_hand_cards(cx, pairs.as_slice());
+        cx.transform_cards(originals.as_slice(), repl.as_slice());
         Flow::Done
     }
 });
@@ -267,7 +232,7 @@ listener!(WhiteNoise {
         let cards = cx.get_distinct_for_combat(pool, 1, |dd| dd.ctype == CardType::Power);
         if let Some(c) = cards.first() {
             cx.set_to_free_this_turn(c);
-            cx.add_generated_card_by(c, PileType::Hand, CardPilePosition::Bottom, PLAYER);
+            cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
         }
         Flow::Done
     }

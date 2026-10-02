@@ -1,6 +1,7 @@
 //! Defect relics.
 
 use crate::dec::Dec;
+use crate::engine::HKind;
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -80,7 +81,8 @@ listener!(Metronome {
 // previous turn (player or enemy side), trigger every orb's passive (counted through the trigger-count hooks).
 listener!(EmotionChip {
     fn after_player_turn_start(&self, cx: &mut Combat, _me: Me) {
-        if cx.player.damaged_turn != cx.player.turn_number - 1 {
+        // LostHpInPreviousTurn: a `DamageReceivedEntry` on the player that was not fully blocked (flags & 1) last player turn.
+        if !cx.hist_any_last_player_turn(HKind::DamageReceived, |e| e.actor == PLAYER && e.flags & 1 == 0) {
             return;
         }
         let orbs = cx.player.orbs;

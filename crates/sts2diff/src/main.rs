@@ -6,7 +6,7 @@
 //! The comparison walks the Rust snapshot (`snapshot::snapshot`) and requires every field it contains to equal the
 //! oracle's, so fields the simulator does not model yet are simply absent from the comparison.
 
-use sts2diff::{diff, load_jsonl};
+use sts2diff::diff;
 
 use std::process::ExitCode;
 

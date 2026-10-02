@@ -214,7 +214,7 @@ fn feral_ignores_auto_played_attacks_that_have_an_energy_cost() {
     assert_eq!(cx.card_pile_type(strike), PileType::Discard);
     let aux = cx.cr(PLAYER).power(ids::power::FERAL_POWER).unwrap().aux;
     assert_eq!(aux, 0, "the auto-played 1-cost Strike did not use Feral");
-    assert_eq!(cx.hist.zero_cost_attacks_started, 0);
+    assert_eq!(cx.hist_count_this_turn(sts2sim::engine::HKind::CardPlayStarted, |e| e.aux == 0 && e.id == ids::card::STRIKE_DEFECT), 0);
 }
 
 #[test]

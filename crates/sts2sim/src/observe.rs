@@ -20,19 +20,25 @@ pub const OBS_POWERS: usize = 16;
 pub const OBS_INTENTS: usize = 3;
 
 /// Per-card features (`CARD_F` floats).
-pub const CARD_F: usize = 10;
+pub const CARD_F: usize = 12;
 /// Per-enemy features (`ENEMY_F` floats).
 pub const ENEMY_F: usize = 8 + OBS_POWERS * 2 + OBS_INTENTS * 3 + 4;
 const GLOBAL_F: usize = 10;
 const PLAYER_F: usize = 8 + OBS_POWERS * 2;
 const RELIC_F: usize = MAX_RELICS * 2;
 const POTION_F: usize = MAX_POTIONS * 2;
+/// Regent block (appended at the END of the vector): current star cost of each hand card (-1 = none, X = all stars is
+/// reported as -2) and of each decision candidate. Stars themselves are in the player block.
+const REGENT_F: usize = MAX_HAND + OBS_MAX_CANDS;
 const DECISION_F: usize = 8 + OBS_MAX_CANDS * (CARD_F + 1);
+/// Osty block (appended at the END of the vector): present, alive, hp, max_hp, powers (id+1, amount) x `OBS_POWERS`,
+/// then per hand slot the damage preview of an Osty attack card (what the card text shows), 0 otherwise.
+pub const OSTY_F: usize = 4 + OBS_POWERS * 2 + MAX_HAND;
 /// Per-orb features: (kind + 1, passive value, evoke value).
 pub const ORB_F: usize = 3;
 /// Orb block (appended at the end of the vector): `MAX_ORBS` orb entries front first (the slot count is the
 /// `orb_slots` field of the player block), then the number of Lightning orbs channeled this combat (Voltaic's text).
-const ORBS_F: usize = MAX_ORBS * ORB_F + 1;
+pub const ORBS_F: usize = MAX_ORBS * ORB_F + 1;
 /// Total length of the flat observation vector.
 pub const OBS_SIZE: usize = GLOBAL_F
     + PLAYER_F
@@ -43,6 +49,8 @@ pub const OBS_SIZE: usize = GLOBAL_F
     + 3 // pile sizes
     + OBS_MAX_ENEMIES * ENEMY_F
     + DECISION_F
+    + REGENT_F
+    + OSTY_F
     + ORBS_F;
 
 struct W<'a> {
@@ -72,12 +80,23 @@ impl Combat {
         self.modify_damage(PLAYER, monster, Dec::int(base as i64), ValueProp::MOVE, NO).0.trunc().max(0)
     }
 
+    /// Star cost as shown on the card: -1 none, -2 X (all stars), else the current cost with modifiers.
+    fn obs_star_cost(&self, c: CardIdx) -> i32 {
+        if self.card_has_star_cost_x(c) {
+            -2
+        } else if self.card_current_star_cost(c) < 0 {
+            -1
+        } else {
+            self.card_star_cost(c)
+        }
+    }
+
     fn write_card(&self, w: &mut W, c: CardIdx) {
         let card = &self.cards[c as usize];
         let d = content::card_def(card.id);
         let playable = (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32;
         let dmg = if d.vars.iter().any(|v| v.kind == VarKind::Damage) {
-            self.modify_damage(NO, PLAYER, Dec::int(self.card_var(c, VarKind::Damage) as i64), ValueProp::MOVE, c).0.trunc()
+            self.modify_damage(NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), ValueProp::MOVE, c).0.trunc()
         } else {
             0
         };
@@ -96,6 +115,8 @@ impl Combat {
         w.n(blk);
         w.n(card.counter[0] as i32);
         w.n(card.counter[1] as i32);
+        w.n(card.enchant_amount as i32);
+        w.n(card.affliction as i32);
     }
 
     fn write_pile_list(&self, w: &mut W, pile: &[CardIdx], sorted_multiset: bool) {
@@ -199,7 +220,7 @@ impl Combat {
             w.n(cr.max_hp);
             w.n(cr.block);
             w.n(cr.is_alive() as i32);
-            w.n(ms.stunned as i32);
+            w.n(self.is_stunned(e) as i32);
             for j in 0..OBS_POWERS {
                 match cr.powers.get(j) {
                     Some(p) => {
@@ -210,10 +231,9 @@ impl Combat {
                 }
             }
             // current intent(s)
-            let def = content::monster_def(ms.id);
             let mut n_int = 0;
             if ms.next_move != NO {
-                if let MonsterNode::Move { intents, .. } = &def.nodes[ms.next_move as usize] {
+                if let Some((_, intents)) = self.move_view(e) {
                     for it in intents.iter().take(OBS_INTENTS) {
                         let (kind, dmg, hits) = match it {
                             Intent::Attack { damage, hits } => (1, self.intent_damage(e, damage(self, e)), hits(self, e)),
@@ -270,7 +290,50 @@ impl Combat {
             }
             None => w.zeros(DECISION_F),
         }
-        // ---- orbs (visible to the player: slot count, each orb and its current passive / evoke values) ----
+        // ---- Regent: star costs (appended) ----
+        for k in 0..MAX_HAND {
+            match self.player.hand.get(k) {
+                Some(c) => w.n(self.obs_star_cost(c)),
+                None => w.f(0.0),
+            }
+        }
+        for k in 0..OBS_MAX_CANDS {
+            match self.decision.as_ref().and_then(|d| d.cands.get(k)) {
+                Some(c) => w.n(self.obs_star_cost(c)),
+                None => w.f(0.0),
+            }
+        }
+        // ---- Osty (visible to the player: portrait, HP bar, powers; block is the owner's) ----
+        match self.osty() {
+            Some(o) => {
+                let cr = self.cr(o);
+                w.n(1);
+                w.n(cr.is_alive() as i32);
+                w.n(cr.hp);
+                w.n(cr.max_hp);
+                for j in 0..OBS_POWERS {
+                    match cr.powers.get(j) {
+                        Some(p) => {
+                            w.n(p.id as i32 + 1);
+                            w.n(p.amount);
+                        }
+                        None => w.zeros(2),
+                    }
+                }
+            }
+            None => w.zeros(4 + OBS_POWERS * 2),
+        }
+        for k in 0..MAX_HAND {
+            match self.player.hand.get(k) {
+                Some(c) if self.card_def(c).vars.iter().any(|v| v.kind == VarKind::OstyDamage) && self.osty().is_some() => {
+                    let o = self.osty().unwrap();
+                    let base = Dec::int(self.card_var(c, VarKind::OstyDamage) as i64);
+                    w.n(self.modify_damage(NO, o, base, ValueProp::MOVE, c).0.trunc());
+                }
+                _ => w.f(0.0),
+            }
+        }
+        // ---- Defect: orbs (appended; visible to the player: each orb with its current passive / evoke value) ----
         for k in 0..MAX_ORBS {
             match self.player.orbs.get(k) {
                 Some(o) => {
@@ -281,7 +344,7 @@ impl Combat {
                 None => w.zeros(ORB_F),
             }
         }
-        w.n(self.player.lightning_channeled as i32);
+        w.n(self.hist_log.lightning_channeled as i32);
         debug_assert_eq!(w.i, OBS_SIZE);
         OBS_SIZE
     }

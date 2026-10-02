@@ -144,6 +144,12 @@ def main():
                     var_names.setdefault(am.group(1), len(var_names))
                     vars_.append(("Named", var_names[am.group(1)], num(am.group(2)), 0, 0, am.group(1)))
                 elif name == "PowerVar":
+                    nm = re.match(r'\s*"(\w+)"\s*,\s*([-\d.]+)m?', args)
+                    if nm:
+                        # `new PowerVar<WeakPower>("SappingWeak", 2m)`: read as `DynamicVars["SappingWeak"]` -> Named var.
+                        var_names.setdefault(nm.group(1), len(var_names))
+                        vars_.append(("Named", var_names[nm.group(1)], num(nm.group(2)), 0, 0, nm.group(1)))
+                        continue
                     am = re.match(r"\s*([-\d.]+)m?", args)
                     pc = targ
                     if not am:
@@ -154,6 +160,14 @@ def main():
                         continue
                     vars_.append(("Power", snake(pc), num(am.group(1)), 0, 0, None))
                 elif name in VAR_KIND:
+                    nm = re.match(r'\s*"(\w+)"\s*,\s*([-\d.]+)m?', args)
+                    if nm:
+                        # Typed var with an explicit name (`new CardsVar("Shivs", 3)`, `new EnergyVar("ExtraCost", 1)`,
+                        # `new BlockVar("BlockNextTurn", 5m, ..)`): the game reads it as `DynamicVars["Shivs"]`, never through the typed
+                        # property (`DynamicVars.Cards`), so it is a Named var (props, if any, are irrelevant to the lookup).
+                        var_names.setdefault(nm.group(1), len(var_names))
+                        vars_.append(("Named", var_names[nm.group(1)], num(nm.group(2)), 0, 0, nm.group(1)))
+                        continue
                     am = re.match(r"\s*([-\d.]+)m?", args)
                     base_v = num(am.group(1)) if am else 0
                     props = parse_props(args)

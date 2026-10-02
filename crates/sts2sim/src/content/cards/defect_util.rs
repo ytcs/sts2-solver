@@ -11,9 +11,9 @@ pub fn d(v: i32) -> Dec {
     Dec::int(v as i64)
 }
 
-/// `ResolveEnergyXValue()` (no `ModifyXValue` listener exists yet).
+/// `ResolveEnergyXValue()`.
 pub fn x_value(cx: &Combat, c: CardIdx) -> i32 {
-    cx.cards[c as usize].x_value as i32
+    cx.x_value(c)
 }
 
 /// `DamageCmd.Attack(Damage).FromCard(this, play).Targeting(target)`.

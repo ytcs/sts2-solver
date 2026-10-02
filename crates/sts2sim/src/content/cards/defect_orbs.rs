@@ -173,7 +173,7 @@ listener!(Modded {
         cx.add_orb_slots(slots);
         let n = cx.card_var(p.card, VarKind::Cards);
         cx.draw_cards(n, false);
-        cx.cost_add_this_combat(p.card, 1);
+        cx.add_cost_this_combat(p.card, 1, false);
         Flow::Done
     }
 });
@@ -297,7 +297,7 @@ listener!(TeslaCoil {
 // Channel as many Lightning as were channeled this combat (`OrbChanneledEntry` history).
 listener!(Voltaic {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.player.lightning_channeled as i32;
+        let n = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.hist_log.lightning_channeled as i32;
         channel_n(cx, ids::orb::LIGHTNING_ORB, n);
         Flow::Done
     }

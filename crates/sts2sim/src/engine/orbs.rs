@@ -6,6 +6,7 @@
 
 use crate::content;
 use crate::dec::Dec;
+use crate::engine::HKind;
 use crate::hooks::*;
 use crate::ids;
 use crate::state::*;
@@ -148,8 +149,9 @@ impl Combat {
             return;
         }
         self.player.orbs.push(orb);
+        self.hist_push(HKind::OrbChanneled, PLAYER, NO, orb.kind, NO, 0, 0, 0, 0); // CombatHistory.OrbChanneled
         if orb.kind == ids::orb::LIGHTNING_ORB {
-            self.player.lightning_channeled += 1; // CombatHistory.OrbChanneled
+            self.hist_log.lightning_channeled = self.hist_log.lightning_channeled.saturating_add(1);
         }
         self.dispatch_g(hookbit::after_orb_channeled, |cx, me, l| l.after_orb_channeled(cx, me, &orb));
     }
@@ -357,20 +359,10 @@ impl Combat {
         self.player.orbs.len() as i32
     }
 
-    /// `CardPileCmd.AddGeneratedCardToCombat(card, pile, creator)` with an explicit creator (`PLAYER` for cards the
-    /// player's own effects make, so Smokestack / Trash to Treasure / Rocket Punch react; `NO` for monsters).
-    pub fn add_generated_card_by(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition, creator: Cid) -> bool {
-        let prev = self.card_creator;
-        self.card_creator = creator;
-        let ok = self.add_generated_card(c, pile, pos);
-        self.card_creator = prev;
-        ok
-    }
-
-    /// `combatState.CreateCard<T>(owner)` + `AddGeneratedCardToCombat(card, pile, Owner)`.
+    /// `combatState.CreateCard<T>(owner)` + `CardPileCmd.AddGeneratedCardToCombat(card, pile, Owner)`.
     pub fn create_card_for_player(&mut self, id: u16, upgrade: u8, pile: PileType, pos: CardPilePosition) -> Option<CardIdx> {
         let c = self.new_card(id, upgrade)?;
-        self.add_generated_card_by(c, pile, pos, PLAYER);
+        self.add_generated_card(c, pile, pos);
         Some(c)
     }
 
@@ -385,49 +377,6 @@ impl Combat {
         v
     }
 
-    /// `CardEnergyCost.SetThisCombat(cost)`.
-    pub fn cost_set_this_combat(&mut self, c: CardIdx, cost: i8) {
-        if cost != 0 || self.card_def(c).cost >= 0 {
-            // An absolute, non-reduce-only, combat-long modifier overrides every earlier modifier for good, so earlier ones
-            // are dropped (keeps the fixed-capacity list from overflowing on clone chains such as Adaptive Strike's).
-            let mods = &mut self.cards[c as usize].mods;
-            mods.clear();
-            mods.push(CostMod { amount: cost, relative: false, reduce_only: false, expire: 0 });
-        }
-    }
-
-    /// `CardEnergyCost.AddThisCombat(amount)` (consecutive combat-long relative modifiers fold into one: the cost chain
-    /// is plain addition, and the fixed-capacity modifier list must not overflow).
-    pub fn cost_add_this_combat(&mut self, c: CardIdx, amount: i8) {
-        if amount == 0 {
-            return;
-        }
-        let card = &mut self.cards[c as usize];
-        if let Some(last) = card.mods.as_mut_slice().last_mut() {
-            if last.relative && !last.reduce_only && last.expire == 0 {
-                last.amount = last.amount.saturating_add(amount);
-                return;
-            }
-        }
-        card.mods.push(CostMod { amount, relative: true, reduce_only: false, expire: 0 });
-    }
-
-    /// `CardEnergyCost.AddUntilPlayed(amount)`.
-    pub fn cost_add_until_played(&mut self, c: CardIdx, amount: i8) {
-        if amount == 0 {
-            return;
-        }
-        // Adjacent identical relative modifiers fold (plain addition) so repeated effects cannot overflow the fixed list.
-        let card = &mut self.cards[c as usize];
-        if let Some(last) = card.mods.as_mut_slice().last_mut() {
-            if last.relative && !last.reduce_only && last.expire == EXPIRE_WHEN_PLAYED {
-                last.amount = last.amount.saturating_add(amount);
-                return;
-            }
-        }
-        card.mods.push(CostMod { amount, relative: true, reduce_only: false, expire: EXPIRE_WHEN_PLAYED });
-    }
-
     /// `Monster.IntendsToAttack`: the monster's pending move has an attack intent.
     pub fn intends_to_attack(&self, e: Cid) -> bool {
         use crate::defs::{Intent, MonsterNode};
@@ -438,70 +387,6 @@ impl Combat {
         match &crate::content::monster_def(ms.id).nodes[ms.next_move as usize] {
             MonsterNode::Move { intents, .. } => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
             _ => false,
-        }
-    }
-
-    /// `CardCmd.AutoPlay(card, null)` (default type) for a card that is NOT in hand (Uproar picks one from the draw
-    /// pile). Self-contained so the Defect port builds on its own; once the engine-core `auto_play` is merged this is
-    /// redundant (see the porting notes). A nested call saves and restores the outer in-flight play.
-    pub fn defect_auto_play(&mut self, c: CardIdx) {
-        if self.is_over_or_ending() || self.cr(PLAYER).is_dead() {
-            return;
-        }
-        if self.card_keywords(c) & kw::UNPLAYABLE != 0 {
-            self.defect_move_to_result_pile_without_playing(c);
-            return;
-        }
-        if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_play));
-            for e in snap.iter() {
-                if self.still_live(&e.me) && !crate::content::listener(&e.me).should_play(self, e.me, c) {
-                    self.defect_move_to_result_pile_without_playing(c);
-                    return;
-                }
-            }
-        }
-        let mut target = NO;
-        if self.card_def(c).target == TargetType::AnyEnemy {
-            let hittable = self.hittable_enemies();
-            if hittable.is_empty() {
-                self.defect_move_to_result_pile_without_playing(c);
-                return;
-            }
-            target = hittable[self.rng.combat_targets.next_int_range(0, hittable.len() as i32) as usize];
-        }
-        if self.card_def(c).x_cost {
-            self.cards[c as usize].x_value = self.player.energy as i16; // takes all the energy value but does not spend it
-            self.cards[c as usize].flags |= cflag::X_CAPTURED;
-        }
-        let play = CardPlay {
-            card: c,
-            target,
-            is_auto: true,
-            play_index: 0,
-            play_count: 1,
-            result_pile: PileType::Discard,
-            energy_spent: 0,
-            stars_spent: 0,
-        };
-        let outer = self.play_ctx.take();
-        self.begin_play(play);
-        if self.play_ctx.is_none() {
-            self.play_ctx = outer;
-        }
-    }
-
-    /// `CardCmd.MoveToResultPileWithoutPlaying`: via the Play pile to the exhaust / discard pile (dupes vanish).
-    fn defect_move_to_result_pile_without_playing(&mut self, c: CardIdx) {
-        self.move_card(c, PileType::Play, CardPilePosition::Bottom);
-        let flags = self.cards[c as usize].flags;
-        if flags & cflag::IS_DUPE != 0 {
-            self.remove_card_from_combat(c);
-        } else if flags & cflag::EXHAUST_ON_NEXT_PLAY != 0 || self.card_keywords(c) & kw::EXHAUST != 0 {
-            self.cards[c as usize].flags &= !cflag::EXHAUST_ON_NEXT_PLAY;
-            self.exhaust_card(c, false);
-        } else {
-            self.move_card(c, PileType::Discard, CardPilePosition::Bottom);
         }
     }
 
