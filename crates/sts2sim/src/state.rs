@@ -84,6 +84,8 @@ pub struct Card {
     pub cost_base: i8,
     pub x_value: i16,
     pub mods: crate::engine::CostMods,
+    /// Temporary star costs (`_temporaryStarCosts`); the LAST entry wins. `amount` = cost, `expire` as for `mods`.
+    pub star_mods: ArrayVec<CostMod, 2>,
     /// Per-card persistent counters (Rampage damage, Regret, ...), meaning defined by the card.
     pub counter: [i16; 2],
     /// Permanent bonus to the card's Damage var in units of 1/10000 (Rampage, Thrash: `DynamicVars.Damage.BaseValue += x`).

@@ -18,10 +18,12 @@ pub enum RunResult {
 }
 
 impl Combat {
-    /// `CardModel.TargetType` (Silent slice): Shiv targets all enemies while its owner has Fan of Knives.
+    /// `CardModel.TargetType` with dynamic overrides: Shiv hits all enemies under Fan of Knives, Sovereign Blade under Seeking Edge.
     pub fn card_target_type(&self, c: CardIdx) -> TargetType {
         let d = self.card_def(c);
         if d.id == crate::ids::card::SHIV && self.has_power(PLAYER, crate::ids::power::FAN_OF_KNIVES_POWER) {
+            TargetType::AllEnemies
+        } else if d.id == crate::ids::card::SOVEREIGN_BLADE && self.has_power(PLAYER, crate::ids::power::SEEKING_EDGE_POWER) {
             TargetType::AllEnemies
         } else {
             d.target
@@ -123,6 +125,11 @@ impl Combat {
             self.cards[c as usize].x_value = energy_to_spend as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
+        if self.card_has_star_cost_x(c) {
+            // star X: `LastStarsSpent` = all stars (ResolveStarXValue)
+            self.cards[c as usize].x_value = stars_to_spend as i16;
+            self.cards[c as usize].flags |= cflag::X_CAPTURED;
+        }
         if energy_to_spend > 0 {
             self.hist_push(HKind::EnergySpent, PLAYER, NO, self.cards[c as usize].id, c, energy_to_spend, 0, 0, 0);
             self.lose_energy(energy_to_spend);
@@ -149,20 +156,18 @@ impl Combat {
 
     /// `CardModel.GetResultLocationForCardPlay` (base rule; cards may override via the listener).
     fn default_result_location(&mut self, c: CardIdx) -> CardLocation {
-        let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
-        if let Some(l) = content::listener(&me).get_result_location_for_card_play(self, me, c) {
-            return l;
-        }
         let kws = self.card_keywords(c);
         let flags = self.cards[c as usize].flags;
-        if flags & cflag::IS_DUPE != 0 || self.card_def(c).ctype == CardType::Power {
+        let base = if flags & cflag::IS_DUPE != 0 || self.card_def(c).ctype == CardType::Power {
             CardLocation::new(PileType::None, CardPilePosition::Bottom)
         } else if flags & cflag::EXHAUST_ON_NEXT_PLAY != 0 || kws & kw::EXHAUST != 0 {
             self.cards[c as usize].flags &= !cflag::EXHAUST_ON_NEXT_PLAY;
             CardLocation::new(PileType::Exhaust, CardPilePosition::Bottom)
         } else {
             CardLocation::new(PileType::Discard, CardPilePosition::Bottom)
-        }
+        };
+        let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
+        content::listener(&me).get_result_location_for_card_play(self, me, c, base)
     }
 
     /// `Hook.ModifyCardPlayResultLocation` (guarded, threaded) + `AfterModifyingCardPlayResultLocation`.
@@ -383,6 +388,7 @@ impl Combat {
         }
         card.mods = kept;
         card.flags &= !cflag::X_CAPTURED;
+        self.clear_star_mods(c, EXPIRE_WHEN_PLAYED);
         RunResult::Finished
     }
 }

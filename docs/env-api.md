@@ -35,6 +35,10 @@ rarity/id like the pile screen), discard and exhaust in pile order, every enemy'
 (type, per-hit damage computed with the same modifiers the UI uses, hit count) and its last four performed moves
 (the pattern history a player has seen), per-turn play counters, and any pending decision with its candidates.
 
+Regent block (appended at the very END of the vector, `REGENT_F` floats): the current star cost of each hand card (`-1` none,
+`-2` X = all stars, otherwise the cost with temporary / `Hook.ModifyStarCost` modifiers) and of each decision candidate. The player's
+stars are in the player block; a Sovereign Blade's / Kingly Punch's grown damage is already in the per-card damage preview.
+
 Hidden (never in the observation): draw-pile order, all RNG stream states, monster-internal AI state beyond the
 displayed intent. `observe::hidden_state_does_not_leak` perturbs these and asserts the vector is unchanged.
 

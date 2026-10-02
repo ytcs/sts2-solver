@@ -99,6 +99,7 @@ impl Combat {
             let card = &mut self.cards[c as usize];
             card.mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED });
         }
+        self.set_star_cost_this_turn(c, 0);
     }
 
     /// `PlayerCmd.GainGold` (the `ModifyGoldGained` hook is run-level and not modelled): adds `n >= 0` gold.
@@ -175,11 +176,12 @@ impl Combat {
 
     /// `CardPileCmd.AddGeneratedCardToCombat`: a brand-new card enters `pile` (hand-full redirect applies).
     pub fn add_generated_card(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition) -> bool {
-        let cid = self.cards[c as usize].id;
-        self.hist_push(crate::engine::HKind::CardGenerated, PLAYER, NO, cid, c, 0, 0, 0, 0);
+        // CardGeneratedEntry(creator): everything generated during the player's side is player-created.
+        let by_player = self.side == Side::Player;
+        self.hist_card_generated(c, by_player);
         let ok = self.move_card(c, pile, pos);
         if ok {
-            self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, c));
+            self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, c, by_player));
         }
         ok
     }
@@ -253,7 +255,10 @@ impl Combat {
                 cands.push(c);
             }
         }
-        if pile == PileType::Draw {
+        // A forced selection (`!RequireManualConfirmation && |L| <= min`) returns the pile's own order; only the screen
+        // shown to the player sorts the draw pile.
+        let forced = min == max && cands.len() <= min as usize;
+        if pile == PileType::Draw && !forced {
             let cards = &self.cards;
             let key = |c: &CardIdx| {
                 let id = cards[*c as usize].id;

@@ -19,33 +19,6 @@ listener!(Whistle {
     }
 });
 
-// Begone: choose a card in hand; it is transformed into Minion Strike (upgraded iff Begone is).
-listener!(Begone {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        let up = cx.cards[p.card as usize].upgrade;
-        let go = |cx: &mut Combat, c: CardIdx| {
-            cx.transform_cards(&[c], &[Some((ids::card::MINION_STRIKE, up))]);
-        };
-        match phase {
-            0 => match cx.ask_hand(ids::card::BEGONE, 1, 1, |_, _| true) {
-                Ask::Resolved(cards) => {
-                    if let Some(c) = cards.first() {
-                        go(cx, c);
-                    }
-                    Flow::Done
-                }
-                Ask::Pending => Flow::Suspend(1),
-            },
-            _ => {
-                if let Some(c) = cx.choice.cards.first() {
-                    go(cx, c);
-                }
-                Flow::Done
-            }
-        }
-    }
-});
-
 // Minion Strike (token): damage, draw.
 listener!(MinionStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -74,15 +47,5 @@ listener!(Normality {
             return true;
         }
         cx.plays_this_turn(|_| true) < 3
-    }
-});
-
-// Void Form (power, Ethereal): applies Void Form and ends the turn (`PlayerCmd.EndTurn`, consumed when the play returns).
-listener!(VoidForm {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.card_power_var(p.card, ids::power::VOID_FORM_POWER);
-        cx.apply_power(ids::power::VOID_FORM_POWER, PLAYER, Dec::int(n as i64), PLAYER, p.card);
-        cx.request_end_turn();
-        Flow::Done
     }
 });

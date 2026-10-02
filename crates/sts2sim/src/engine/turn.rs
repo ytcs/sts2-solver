@@ -449,6 +449,8 @@ impl Combat {
                 continue;
             }
             card.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::SINGLE_TURN_RETAIN | cflag::SINGLE_TURN_SLY);
+            self.clear_star_mods(i as CardIdx, EXPIRE_END_OF_TURN);
+            let card = &mut self.cards[i];
             if !card.mods.is_empty() {
                 let mut kept: crate::engine::CostMods = crate::util::ArrayVec::new();
                 for m in card.mods.iter() {

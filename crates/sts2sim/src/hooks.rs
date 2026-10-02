@@ -236,7 +236,9 @@ pub trait Listener: Sync {
     fn after_card_discarded(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
     fn before_potion_used(&self, cx: &mut Combat, me: Me, potion: u16, target: Cid) {}
     fn after_potion_used(&self, cx: &mut Combat, me: Me, potion: u16, target: Cid) {}
-    fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
+    /// `AfterCardGeneratedForCombat(card, creator)`: `added_by_player` = `creator != null` (everything generated during
+    /// the player's side; monster status cards are generated on the enemy side with no creator).
+    fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx, added_by_player: bool) {}
     fn after_card_entered_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
     fn after_card_changed_piles(&self, cx: &mut Combat, me: Me, card: CardIdx, old: PileType) {}
     fn after_shuffle(&self, cx: &mut Combat, me: Me) {}
@@ -524,9 +526,10 @@ pub trait Listener: Sync {
     fn should_play_kind(&self, cx: &Combat, me: Me, card: CardIdx, kind: AutoPlayType) -> bool {
         true
     }
-    /// `CardModel.GetResultLocationForCardPlay` override (ParticleWall, ShiningStrike, TheBall): `None` = the base rule.
-    fn get_result_location_for_card_play(&self, cx: &mut Combat, me: Me, card: CardIdx) -> Option<CardLocation> {
-        None
+    /// `CardModel.GetResultLocationForCardPlay` override (ParticleWall, ShiningStrike, TheBall): receives the result of
+    /// the base rule (`base.GetResultLocationForCardPlay()`) and returns the final location.
+    fn get_result_location_for_card_play(&self, cx: &Combat, me: Me, card: CardIdx, base: CardLocation) -> CardLocation {
+        base
     }
 }
 

@@ -69,6 +69,11 @@ impl Combat {
             self.cards[c as usize].x_value = self.player.energy as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
+        if self.card_has_star_cost_x(c) {
+            // LastStarsSpent = all current stars (not spent)
+            self.cards[c as usize].x_value = self.player.stars as i16;
+            self.cards[c as usize].flags |= cflag::X_CAPTURED;
+        }
         if self.card_pile_type(c) == PileType::None {
             self.move_card(c, PileType::Play, CardPilePosition::Bottom);
         }
@@ -304,14 +309,14 @@ impl Combat {
             let at = (idx as usize).min(self.pile(pt).len());
             self.pile_mut(pt).insert(at, n);
             self.cards[n as usize].pile = pt as u8;
-            self.hist_push(HKind::CardGenerated, PLAYER, NO, rid, n, 0, 0, 0, 0);
+            self.hist_card_generated(n, true);
             self.dispatch_g(hookbit::after_card_entered_combat, |cx, me, l| l.after_card_entered_combat(cx, me, n));
             // transform passes the replacement's own pile type as `oldPile`
             self.fire_card_changed_piles(n, pt);
             out.push(n);
         }
         for &n in out.iter() {
-            self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, n));
+            self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, n, true));
         }
         for &(_, _, o, _, _) in work2.iter() {
             self.cards[o as usize].pile = PileType::None as u8;

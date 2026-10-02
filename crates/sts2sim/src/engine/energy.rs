@@ -127,11 +127,49 @@ impl Combat {
         }
     }
 
-    /// `CardModel.GetStarCostWithModifiers()` (no X-star cards yet): canonical + upgrades, through `Hook.ModifyStarCost`
-    /// (guarded, threaded; skipped for negative costs). -1 = the card has no star cost.
+    // ---- star costs (`CardModel.*StarCost*`) -------------------------------------------------------------------------
+
+    /// `CanonicalStarCost` marker for `HasStarCostX` cards (see `tools/gen_defs.py`).
+    pub const STAR_COST_X: i8 = -2;
+
+    #[inline]
+    pub fn card_has_star_cost_x(&self, c: CardIdx) -> bool {
+        self.card_def(c).star_cost == Self::STAR_COST_X
+    }
+
+    /// `CardModel.BaseStarCost` (-1 = none; star-X cards have canonical cost -1): canonical + upgrade delta.
+    #[inline]
+    pub fn card_base_star_cost(&self, c: CardIdx) -> i32 {
+        let d = self.card_def(c);
+        if d.star_cost < 0 {
+            -1
+        } else {
+            (d.star_cost as i32 + d.up_star_cost as i32 * self.cards[c as usize].upgrade as i32).max(0)
+        }
+    }
+
+    /// `CardModel.CurrentStarCost`: the last temporary star cost, except that a temporary 0 never gives a card
+    /// without a star cost one.
+    pub fn card_current_star_cost(&self, c: CardIdx) -> i32 {
+        let base = self.card_base_star_cost(c);
+        match self.cards[c as usize].star_mods.last() {
+            Some(m) => {
+                if m.amount == 0 && base < 0 {
+                    base
+                } else {
+                    m.amount as i32
+                }
+            }
+            None => base,
+        }
+    }
+
+    /// `CardModel.GetStarCostWithModifiers()`: X cards cost all current stars; otherwise the current cost through
+    /// `Hook.ModifyStarCost` (guarded, threaded; skipped for negative costs) while in a combat pile. -1 = no star cost.
     #[inline(always)]
     pub fn card_star_cost(&self, c: CardIdx) -> i32 {
-        if self.card_def(c).star_cost < 0 {
+        let d = self.card_def(c);
+        if d.star_cost < 0 && d.star_cost != Self::STAR_COST_X && self.cards[c as usize].star_mods.is_empty() {
             return -1;
         }
         self.card_star_cost_slow(c)
@@ -139,9 +177,11 @@ impl Combat {
 
     #[inline(never)]
     fn card_star_cost_slow(&self, c: CardIdx) -> i32 {
-        let d = self.card_def(c);
-        let base = (d.star_cost as i32 + d.up_star_cost as i32 * self.cards[c as usize].upgrade as i32).max(0);
-        if !self.card_in_combat_pile(c) || !self.listen.has(hookbit::try_modify_star_cost) || !self.hooks_enabled() {
+        if self.card_has_star_cost_x(c) {
+            return self.player.stars;
+        }
+        let base = self.card_current_star_cost(c);
+        if base < 0 || !self.card_in_combat_pile(c) || !self.listen.has(hookbit::try_modify_star_cost) || !self.hooks_enabled() {
             return base;
         }
         let mut v = Dec::int(base as i64);
@@ -154,6 +194,56 @@ impl Combat {
             }
         }
         v.trunc()
+    }
+
+    fn add_temp_star_cost(&mut self, c: CardIdx, cost: i32, expire: u8) {
+        let m = CostMod { amount: cost as i8, relative: false, reduce_only: false, expire };
+        let mods = &mut self.cards[c as usize].star_mods;
+        if mods.len() >= 2 {
+            mods.remove(0);
+        }
+        mods.push(m);
+    }
+
+    /// `CardModel.SetStarCostUntilPlayed`.
+    pub fn set_star_cost_until_played(&mut self, c: CardIdx, cost: i32) {
+        self.add_temp_star_cost(c, cost, EXPIRE_WHEN_PLAYED);
+    }
+    /// `CardModel.SetStarCostThisTurn` (cleared at end of turn and when played).
+    pub fn set_star_cost_this_turn(&mut self, c: CardIdx, cost: i32) {
+        self.add_temp_star_cost(c, cost, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED);
+    }
+    /// `CardModel.SetStarCostThisCombat`.
+    pub fn set_star_cost_this_combat(&mut self, c: CardIdx, cost: i32) {
+        self.add_temp_star_cost(c, cost, 0);
+    }
+
+    /// Drops temporary star costs flagged `flag` (`EXPIRE_END_OF_TURN` / `EXPIRE_WHEN_PLAYED`).
+    pub(crate) fn clear_star_mods(&mut self, c: CardIdx, flag: u8) {
+        let card = &mut self.cards[c as usize];
+        if card.star_mods.is_empty() {
+            return;
+        }
+        let mut kept: crate::util::ArrayVec<CostMod, 2> = crate::util::ArrayVec::new();
+        for m in card.star_mods.iter() {
+            if m.expire & flag == 0 {
+                kept.push(*m);
+            }
+        }
+        card.star_mods = kept;
+    }
+
+    /// `CardModel.ResolveStarXValue`: the captured star X (all stars at play time).
+    pub fn resolve_star_x_value(&self, c: CardIdx) -> i32 {
+        if !self.card_has_star_cost_x(c) {
+            return 0;
+        }
+        self.cards[c as usize].x_value as i32
+    }
+
+    /// Sum of the positive `StarsModifiedEntry` amounts of this turn (Radiate).
+    pub fn stars_gained_this_turn(&self) -> i32 {
+        self.hist_log.iter().filter(|e| e.kind == HKind::StarsModified && self.hist_this_turn(e) && e.val > 0).map(|e| e.val as i32).sum()
     }
 
     // ---- X cost -----------------------------------------------------------------------------------------------------

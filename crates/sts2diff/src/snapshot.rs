@@ -58,6 +58,14 @@ fn card(cx: &Combat, c: CardIdx, with_cost: bool) -> Value {
         if k.enchant != 0 {
             m.insert("enchantment".into(), json!({"id": ids::enchantment::NAMES[(k.enchant - 1) as usize], "amount": k.enchant_amount}));
         }
+        if cx.card_has_star_cost_x(c) {
+            m.insert("star_cost".into(), json!(-1));
+        } else if cx.card_current_star_cost(c) >= 0 {
+            m.insert("star_cost".into(), json!(cx.card_star_cost(c)));
+        }
+        if k.id == ids::card::SOVEREIGN_BLADE || k.id == ids::card::KINGLY_PUNCH {
+            m.insert("base_damage".into(), json!(cx.card_base_damage(c)));
+        }
     }
     Value::Object(m)
 }

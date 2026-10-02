@@ -77,11 +77,13 @@ pub struct HistLog {
     pub ethereal_finished: u16,
     /// Whole-combat count of `DamageReceivedEntry`s with `Receiver == player && UnblockedDamage > 0` (Tear Asunder).
     pub player_hits_taken: u16,
+    /// Whole-combat count of `CardGeneratedEntry`s whose creator is the player (Supermassive).
+    pub generated_by_player: u16,
 }
 
 impl Default for HistLog {
     fn default() -> Self {
-        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT], ethereal_finished: 0, player_hits_taken: 0 }
+        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT], ethereal_finished: 0, player_hits_taken: 0, generated_by_player: 0 }
     }
 }
 
@@ -150,6 +152,15 @@ impl Combat {
     /// Cards played this turn (`CardPlayStartedEntry`s of this turn), optionally only those with `f`.
     pub fn plays_this_turn(&self, f: impl Fn(&HistEntry) -> bool) -> usize {
         self.hist_count_this_turn(HKind::CardPlayStarted, f)
+    }
+
+    /// `CardGeneratedEntry` (`flags & 1` = the creator is the player).
+    pub(crate) fn hist_card_generated(&mut self, c: CardIdx, by_player: bool) {
+        let id = self.cards[c as usize].id;
+        if by_player && self.in_progress {
+            self.hist_log.generated_by_player = self.hist_log.generated_by_player.saturating_add(1);
+        }
+        self.hist_push(HKind::CardGenerated, PLAYER, NO, id, c, 0, by_player as u8, 0, 0);
     }
 
     pub(crate) fn hist_card_play_started(&mut self, p: &CardPlay) {
