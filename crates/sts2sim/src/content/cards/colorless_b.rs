@@ -3,7 +3,7 @@
 
 use crate::dec::Dec;
 use crate::defs::VarKind;
-use crate::engine::Stream;
+use crate::engine::RunResult;
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -33,7 +33,7 @@ fn beat_down_run(cx: &mut Combat, p: &CardPlay, start: usize) -> Flow {
         let item = slots[i] - 1;
         // The game picks the target itself (`NextItem(HittableEnemies)`, one `CombatTargets` draw) and then calls
         // `AutoPlay(item, target)`; `auto_play` makes the identical single draw for an AnyEnemy card.
-        if cx.auto_play(item) {
+        if cx.auto_play(item, NO, AutoPlayType::Default, false) == RunResult::Suspended {
             return Flow::Suspend((i + 1) as u8);
         }
     }
@@ -49,7 +49,7 @@ listener!(BeatDown {
                     list.push(c);
                 }
             }
-            cx.stable_shuffle_cards(Stream::Shuffle, list.as_mut_slice());
+            cx.stable_shuffle_cards(list.as_mut_slice(), RngStream::Shuffle);
             let n = cx.card_var(p.card, VarKind::Cards) as usize;
             let mut packed = [0u8; 4];
             for (i, &c) in list.iter().take(n.min(4)).enumerate() {
@@ -75,18 +75,18 @@ listener!(Catastrophe {
                     playable.push(c);
                 }
             }
-            cx.stable_shuffle_cards(Stream::Shuffle, playable.as_mut_slice());
+            cx.stable_shuffle_cards(playable.as_mut_slice(), RngStream::Shuffle);
             let mut chosen = playable.first();
             if chosen.is_none() {
                 let mut all: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
                 for &c in cx.player.draw.iter() {
                     all.push(c);
                 }
-                cx.stable_shuffle_cards(Stream::Shuffle, all.as_mut_slice());
+                cx.stable_shuffle_cards(all.as_mut_slice(), RngStream::Shuffle);
                 chosen = all.first();
             }
             if let Some(c) = chosen {
-                if cx.auto_play(c) {
+                if cx.auto_play(c, NO, AutoPlayType::Default, false) == RunResult::Suspended {
                     return Flow::Suspend((i + 1) as u8);
                 }
             }

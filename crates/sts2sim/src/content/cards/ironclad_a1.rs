@@ -2,7 +2,7 @@
 
 use crate::dec::Dec;
 use crate::defs::VarKind;
-use crate::engine::{Ask, Attack, Targeting};
+use crate::engine::{Ask, Attack, HKind, RunResult, Targeting};
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -207,7 +207,7 @@ listener!(DrumOfBattle {
 // Block twice if a card was exhausted this turn.
 listener!(EvilEye {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let times = if cx.hist.cards_exhausted_this_turn > 0 { 2 } else { 1 };
+        let times = if cx.hist_count_this_turn(HKind::CardExhausted, |_| true) > 0 { 2 } else { 1 };
         for _ in 0..times {
             block(cx, p.card);
         }
@@ -327,12 +327,12 @@ listener!(Dismantle {
 // Gain max HP when the attack kills (unless the target does not trigger Fatal).
 listener!(Feed {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let fatal = cx.should_death_trigger_fatal(p.target);
+        let fatal = cx.all_powers_trigger_fatal(p.target);
         let dmg = cx.card_var(p.card, VarKind::Damage);
         let res = cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         if fatal && res.iter().any(|r| r.killed) {
             let n = cx.card_var(p.card, VarKind::MaxHp);
-            cx.gain_max_hp(PLAYER, n);
+            cx.gain_max_hp(PLAYER, Dec::int(n as i64));
         }
         Flow::Done
     }
@@ -377,26 +377,26 @@ listener!(Hemokinesis {
 // Auto-play the top card of the draw pile, exhausting it. Phase 1 = resume after a nested decision.
 listener!(Havoc {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
-        match phase {
-            0 => cx.auto_play_from_draw_pile(1, CardPilePosition::Top, true, 1),
-            _ => cx.continue_auto_play(1),
+        if phase == 0 && cx.auto_play_from_draw_pile(1, CardPilePosition::Top, true) == RunResult::Suspended {
+            return Flow::Suspend(1);
         }
+        Flow::Done
     }
 });
 
 // X (+1 if upgraded) cards from the top of the draw pile are auto-played (without forced exhaust).
 listener!(Cascade {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        match phase {
-            0 => {
-                let mut n = cx.resolve_energy_x(p.card);
-                if cx.cards[p.card as usize].upgrade > 0 {
-                    n += 1;
-                }
-                cx.auto_play_from_draw_pile(n, CardPilePosition::Top, false, 1)
+        if phase == 0 {
+            let mut n = cx.x_value(p.card);
+            if cx.cards[p.card as usize].upgrade > 0 {
+                n += 1;
             }
-            _ => cx.continue_auto_play(1),
+            if cx.auto_play_from_draw_pile(n, CardPilePosition::Top, false) == RunResult::Suspended {
+                return Flow::Suspend(1);
+            }
         }
+        Flow::Done
     }
 });
 
@@ -410,7 +410,7 @@ listener!(HowlFromBeyond {
     fn after_auto_post_play_phase_entered(&self, cx: &mut Combat, me: Me) {
         let c = me.idx as CardIdx;
         if cx.card_pile_type(c) == PileType::Exhaust {
-            cx.auto_play(c);
+            let _ = cx.auto_play(c, NO, AutoPlayType::Default, false);
         }
     }
 });

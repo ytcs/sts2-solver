@@ -4,7 +4,7 @@
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::{CardDef, VarKind};
-use crate::engine::{Ask, Attack, Stream, Targeting};
+use crate::engine::{Ask, Attack, HKind, Targeting};
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -50,7 +50,7 @@ listener!(Anointed {
             }
         }
         // `TakeRandom(count, CombatCardSelection)` = UnstableShuffle, then Take.
-        cx.unstable_shuffle_cards(Stream::CardSelection, rares.as_mut_slice());
+        cx.unstable_shuffle_cards(rares.as_mut_slice(), RngStream::CombatCardSelection);
         let n = room.max(0) as usize;
         let picked: crate::util::ArrayVec<CardIdx, MAX_CARDS> = {
             let mut v = crate::util::ArrayVec::new();
@@ -89,24 +89,23 @@ listener!(BelieveInYou {
     }
 });
 
-// Bolas returns to the hand at the start of the next turn if it was played this one. `counter[0]` = the player turn
-// number of the last finished play (`History.CardPlaysFinished` entry; 0 = never).
+// Bolas returns to the hand at the start of the next turn if it was played last player turn
+// (`CardPlaysFinished.Any(e => e.HappenedLastPlayerTurn && e.CardPlay.Card == this)`; the canonical history logs the
+// play start, which only differs for a play that never finished).
+fn return_if_played_last_turn(cx: &mut Combat, me: Me) {
+    let c = me.idx as CardIdx;
+    if cx.hist_any_last_player_turn(HKind::CardPlayStarted, |e| e.card == c) && cx.card_pile_type(c) != PileType::Hand {
+        cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
+    }
+}
+
 listener!(Bolas {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
         Flow::Done
     }
-    fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        if play.card as u16 == me.idx {
-            cx.cards[play.card as usize].counter[0] = cx.player.turn_number as i16;
-        }
-    }
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
-        let c = me.idx as CardIdx;
-        let last = cx.cards[c as usize].counter[0] as i32;
-        if last != 0 && last == cx.player.turn_number - 1 && cx.card_pile_type(c) != PileType::Hand {
-            cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
-        }
+        return_if_played_last_turn(cx, me);
     }
 });
 
@@ -129,7 +128,7 @@ listener!(Coordinate {
 
 listener!(DarkShackles {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.named_var(p.card, var_name::STRENGTH_LOSS);
+        let n = cx.card_named_var(p.card, var_name::STRENGTH_LOSS);
         cx.apply_power(ids::power::DARK_SHACKLES_POWER, p.target, Dec::int(n as i64), PLAYER, p.card);
         Flow::Done
     }
@@ -146,7 +145,7 @@ listener!(DramaticEntrance {
 listener!(Equilibrium {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
-        let n = cx.named_var(p.card, var_name::EQUILIBRIUM);
+        let n = cx.card_named_var(p.card, var_name::EQUILIBRIUM);
         apply_self(cx, ids::power::RETAIN_HAND_POWER, n, p);
         Flow::Done
     }
@@ -162,7 +161,7 @@ listener!(EternalArmor {
 
 listener!(Fasten {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.named_var(p.card, var_name::EXTRA_BLOCK);
+        let n = cx.card_named_var(p.card, var_name::EXTRA_BLOCK);
         apply_self(cx, ids::power::FASTEN_POWER, n, p);
         Flow::Done
     }
@@ -223,7 +222,7 @@ listener!(GangUp {
 fn calc_gold_axe(cx: &Combat, card: CardIdx, _target: Cid) -> Dec {
     let base = cx.card_var(card, VarKind::CalcBase) as i64;
     let extra = cx.card_var(card, VarKind::ExtraDamage) as i64;
-    let mult = if cx.in_progress { cx.hist.cards_finished_total as i64 } else { 0 };
+    let mult = if cx.in_progress { cx.hist_total(HKind::CardPlayFinished) as i64 } else { 0 };
     Dec::int(base + extra * mult)
 }
 
@@ -240,10 +239,10 @@ listener!(GoldAxe {
 // Gold when the attack kills (unless a Minion/Reattach-style power says the death is not "fatal").
 listener!(HandOfGreed {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let fatal_ok = cx.should_death_trigger_fatal(p.target);
+        let fatal_ok = cx.all_powers_trigger_fatal(p.target);
         let results = single(cx, p);
         if fatal_ok && results.iter().any(|r| r.killed) {
-            let g = cx.named_var(p.card, var_name::GOLD);
+            let g = cx.card_named_var(p.card, var_name::GOLD);
             cx.gain_gold(g);
         }
         Flow::Done
@@ -274,7 +273,7 @@ listener!(HiddenGem {
         }
         let i = cx.rng.combat_card_selection.next_int_range(0, items.len() as i32) as usize;
         let c = items[i];
-        let r = cx.named_var(p.card, var_name::REPLAY);
+        let r = cx.card_named_var(p.card, var_name::REPLAY);
         let card = &mut cx.cards[c as usize];
         card.base_replay = card.base_replay.saturating_add(r as u8);
         Flow::Done
@@ -431,7 +430,7 @@ listener!(Omnislice {
 
 listener!(Panache {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.named_var(p.card, var_name::PANACHE_DAMAGE);
+        let n = cx.card_named_var(p.card, var_name::PANACHE_DAMAGE);
         apply_self(cx, ids::power::PANACHE_POWER, n, p);
         Flow::Done
     }
@@ -440,7 +439,7 @@ listener!(Panache {
 listener!(PanicButton {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
-        let n = cx.named_var(p.card, var_name::TURNS);
+        let n = cx.card_named_var(p.card, var_name::TURNS);
         apply_self(cx, ids::power::NO_BLOCK_POWER, n, p);
         Flow::Done
     }
@@ -662,7 +661,7 @@ listener!(SeekerStrike {
                 for &c in cx.player.draw.iter() {
                     list.push(c);
                 }
-                cx.stable_shuffle_cards(Stream::CardSelection, list.as_mut_slice());
+                cx.stable_shuffle_cards(list.as_mut_slice(), RngStream::CombatCardSelection);
                 let mut options: crate::util::ArrayVec<CardIdx, 16> = crate::util::ArrayVec::new();
                 for &c in list.iter().take(n) {
                     options.push(c);
@@ -690,7 +689,7 @@ listener!(SeekerStrike {
 // Weak then Vulnerable on each hittable enemy, enemy by enemy.
 listener!(Shockwave {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.named_var(p.card, var_name::POWER);
+        let n = cx.card_named_var(p.card, var_name::POWER);
         let enemies = cx.hittable_enemies();
         for &e in enemies.iter() {
             cx.apply_power(ids::power::WEAK_POWER, e, Dec::int(n as i64), PLAYER, p.card);
@@ -759,7 +758,7 @@ listener!(TheBall {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage) + cx.cards[p.card as usize].counter[0] as i32;
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
-        let inc = cx.named_var(p.card, var_name::INCREASE);
+        let inc = cx.card_named_var(p.card, var_name::INCREASE);
         cx.cards[p.card as usize].counter[0] += inc as i16;
         Flow::Done
     }
@@ -767,8 +766,8 @@ listener!(TheBall {
 
 listener!(TheBomb {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let turns = cx.named_var(p.card, var_name::TURNS);
-        let dmg = cx.named_var(p.card, var_name::BOMB_DAMAGE);
+        let turns = cx.card_named_var(p.card, var_name::TURNS);
+        let dmg = cx.card_named_var(p.card, var_name::BOMB_DAMAGE);
         if let Some(uid) = apply_self(cx, ids::power::THE_BOMB_POWER, turns, p) {
             // `SetDamage`: the instance's damage lives in `aux` (Amount counts the turns left).
             if let Some(i) = cx.power_idx(PLAYER, uid) {
@@ -819,17 +818,8 @@ listener!(ThrummingHatchet {
         single(cx, p);
         Flow::Done
     }
-    fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        if play.card as u16 == me.idx {
-            cx.cards[play.card as usize].counter[0] = cx.player.turn_number as i16;
-        }
-    }
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
-        let c = me.idx as CardIdx;
-        let last = cx.cards[c as usize].counter[0] as i32;
-        if last != 0 && last == cx.player.turn_number - 1 && cx.card_pile_type(c) != PileType::Hand {
-            cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
-        }
+        return_if_played_last_turn(cx, me);
     }
 });
 
@@ -850,7 +840,7 @@ listener!(UltimateStrike {
 // X-cost: hits `X` times at random enemies.
 listener!(Volley {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let x = cx.resolve_energy_x(p.card);
+        let x = cx.x_value(p.card);
         let a = atk(cx, p, Targeting::Random).hits(x);
         cx.execute_attack(&a);
         Flow::Done

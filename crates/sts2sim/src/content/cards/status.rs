@@ -41,7 +41,7 @@ listener!(FranticEscape {
                 cx.modify_power_amount(e, pw.uid, Dec::int(1), e, p.card);
             }
         }
-        cx.add_energy_cost_this_combat(p.card, 1);
+        cx.add_cost_this_combat(p.card, 1, false);
         Flow::Done
     }
 });

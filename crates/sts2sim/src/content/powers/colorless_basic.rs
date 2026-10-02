@@ -49,41 +49,6 @@ listener!(FastenPower {
 });
 
 // ---- VigorPower: the next powered attack deals +Amount, then the stacks present when it started are consumed ------
-// `aux` mirrors `Data.commandToModify` (low 16 bits: Amount when the attack started; high bits: source card + 1);
-// like the C# it is never cleared, so a stale value only matters if Vigor survives its first attack.
-fn vigor_card(aux: i32) -> CardIdx {
-    ((aux >> 16) - 1) as CardIdx
-}
-listener!(VigorPower {
-    fn before_attack(&self, cx: &mut Combat, me: Me, a: &crate::engine::Attack) {
-        if a.dealer != me.owner || !a.props.is_powered() || a.card == NO {
-            return;
-        }
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let p = &mut cx.cr_mut(me.owner).powers[i];
-        if p.aux != 0 {
-            return;
-        }
-        p.aux = ((a.card as i32 + 1) << 16) | (p.amount & 0xFFFF);
-    }
-    fn modify_damage_additive(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
-        if me.owner != q.dealer || !q.props.is_powered() {
-            return Dec::ZERO;
-        }
-        let Some(p) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx) else { return Dec::ZERO };
-        if p.aux != 0 && q.card != NO && q.card != vigor_card(p.aux) {
-            return Dec::ZERO;
-        }
-        Dec::int(p.amount as i64)
-    }
-    fn after_attack(&self, cx: &mut Combat, me: Me, a: &crate::engine::Attack) {
-        let Some(p) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).copied() else { return };
-        if p.aux != 0 && a.dealer == me.owner && a.card == vigor_card(p.aux) {
-            cx.modify_power_amount(me.owner, me.idx, Dec::int(-((p.aux & 0xFFFF) as i64)), NO, NO);
-        }
-    }
-});
-
 // ---- PrepTimePower: Vigor at the start of each of the owner's turns ----------------------------------------------
 listener!(PrepTimePower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
@@ -284,15 +249,15 @@ listener!(CalamityPower {
 // ---- NostalgiaPower: the first `Amount` Attacks/Skills played each turn go back on top of the draw pile ---------------
 // (`History.CardPlaysStarted` this turn, Attack/Skill only; the card being played is not logged yet at this point).
 listener!(NostalgiaPower {
-    fn modify_card_play_result_location_ex(&self, cx: &Combat, me: Me, card: CardIdx, _is_auto: bool, pile: PileType, pos: CardPilePosition) -> (PileType, CardPilePosition) {
-        if me.owner != PLAYER || !matches!(cx.card_def(card).ctype, CardType::Attack | CardType::Skill) || pile != PileType::Discard {
-            return (pile, pos);
+    fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, _is_auto: bool, _energy_value: i32, loc: CardLocation) -> CardLocation {
+        if me.owner != PLAYER || !matches!(cx.card_def(card).ctype, CardType::Attack | CardType::Skill) || loc.pile != PileType::Discard {
+            return loc;
         }
-        let started = (cx.hist.attacks_played_this_turn + cx.hist.skills_played_this_turn) as i32;
+        let started = cx.plays_this_turn(|e| matches!(crate::content::card_def(e.id).ctype, CardType::Attack | CardType::Skill)) as i32;
         if started >= cx.power_amount(me.owner, me.id) {
-            return (pile, pos);
+            return loc;
         }
-        (PileType::Draw, CardPilePosition::Top)
+        CardLocation::new(PileType::Draw, CardPilePosition::Top)
     }
 });
 
@@ -301,36 +266,67 @@ listener!(MayhemPower {
     fn after_auto_pre_play_phase_entered(&self, cx: &mut Combat, me: Me) {
         if me.owner == PLAYER {
             let a = cx.power_amount(me.owner, me.id);
-            cx.auto_play_from_draw_pile_hook(a, CardPilePosition::Top, false);
+            cx.auto_play_from_draw_pile(a, CardPilePosition::Top, false);
         }
     }
 });
 
 // ---- EntropyPower: at the start of the turn transform `Amount` chosen hand cards into random cards ----------------
-// The choice is raised from inside the hook: see `Combat::hook_decision` (the step is rolled back and replayed).
+// The choice is raised inside the `AfterPlayerTurnStart` hook (`hook_ctx` + `resume_hook`, like Tools of the Trade).
+fn entropy_transform(cx: &mut Combat, cards: &[CardIdx]) {
+    // One `CardCmd.TransformToRandom` per card, in click order (each draws from `CombatCardSelection`).
+    for &c in cards {
+        cx.transform_cards(&[c], &[None]);
+    }
+}
 listener!(EntropyPower {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
         if me.owner != PLAYER {
             return;
         }
         let n = cx.power_amount(me.owner, me.id).clamp(0, 16) as u8;
-        let ask = cx.ask_hand(ids::card::ENTROPY, n, n, |_, _| true);
-        let crate::engine::Ask::Resolved(cards) = cx.hook_decision(ask, Kind::Power, ids::power::ENTROPY_POWER) else { return };
-        for &c in cards.iter() {
-            cx.transform_to_random(c, crate::engine::Stream::CardSelection);
+        match cx.ask_hand(ids::card::ENTROPY, n, n, |_, _| true) {
+            crate::engine::Ask::Resolved(cards) => entropy_transform(cx, cards.as_slice()),
+            crate::engine::Ask::Pending => {
+                cx.hook_ctx = Some((me, 1));
+                cx.stage = Stage::AwaitChoice;
+            }
         }
+    }
+    fn resume_hook(&self, cx: &mut Combat, _me: Me, _phase: u8) {
+        let cards = cx.choice.cards;
+        entropy_transform(cx, cards.as_slice());
     }
 });
 
 // ---- StratagemPower: after a reshuffle choose `Amount` cards of the draw pile to put into the hand ---------------------
+// A decision is only resumable during the turn-start hand draw (`draw_resume` / `turn_cont` 3); during other draws it is
+// flagged as not ported (the draw loop of a card effect cannot pause).
 listener!(StratagemPower {
     fn after_shuffle(&self, cx: &mut Combat, me: Me) {
         if me.owner != PLAYER {
             return;
         }
         let n = cx.power_amount(me.owner, me.id).clamp(0, 16) as u8;
-        let ask = cx.ask_pile(ids::card::STRATAGEM, PileType::Draw, n, n, |_, _| true);
-        let crate::engine::Ask::Resolved(cards) = cx.hook_decision(ask, Kind::Power, ids::power::STRATAGEM_POWER) else { return };
+        match cx.ask_pile(ids::card::STRATAGEM, PileType::Draw, n, n, |_, _| true) {
+            crate::engine::Ask::Resolved(cards) => {
+                for &c in cards.iter() {
+                    cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
+                }
+            }
+            crate::engine::Ask::Pending => {
+                if cx.drawing_hand {
+                    cx.hook_ctx = Some((me, 1));
+                    cx.stage = Stage::AwaitChoice;
+                } else {
+                    cx.decision = None;
+                    cx.flag_missing(Kind::Power, me.id);
+                }
+            }
+        }
+    }
+    fn resume_hook(&self, cx: &mut Combat, _me: Me, _phase: u8) {
+        let cards = cx.choice.cards;
         for &c in cards.iter() {
             cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
         }

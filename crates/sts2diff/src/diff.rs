@@ -89,10 +89,10 @@ fn missing_name(cx: &Combat) -> Option<String> {
 
 pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: bool) -> Result<Verdict, String> {
     let sv: Value = serde_json::from_str(&std::fs::read_to_string(scenario_path).map_err(|e| format!("{scenario_path}: {e}"))?).map_err(|e| e.to_string())?;
-    let sc = convert::scenario(&sv)?;
+    let (sc, extras) = convert::scenario_ex(&sv)?;
     sc.validate().map_err(|e| format!("not implemented in the simulator: {e:?}"))?;
     let trace = load_jsonl(trace_path)?;
-    let mut cx = Combat::new(&sc);
+    let mut cx = Combat::new_with(&sc, &extras);
     let mut reported = 0;
     let mut ok = true;
     let lenient = std::env::var("STS2DIFF_LENIENT").is_ok();
@@ -118,22 +118,19 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;
-                let picks = picks_of(ch);
-                for p in picks.iter().copied() {
+                let seq = cx.decision_seq;
+                for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
                         println!("step {i}: pick {p} rejected");
                         return Ok(Verdict::Mismatch);
                     }
-                    if cx.stage != Stage::AwaitChoice {
+                    // finished (or replaced by the NEXT decision of the same effect)
+                    if cx.stage != Stage::AwaitChoice || cx.decision_seq != seq {
                         break;
                     }
                 }
-                // After the oracle's picks the decision is either finished (possibly followed by a NEW decision raised by a
-                // nested effect: nothing selected yet), or waiting for the explicit confirm / skip.
-                let fresh_decision = !picks.is_empty() && cx.decision.as_ref().map_or(false, |d| d.selected.is_empty());
-                if cx.stage == Stage::AwaitChoice && !fresh_decision && !cx.step(Action::Confirm) {
-                    let d = cx.decision.as_ref();
-                    println!("step {i}: decision still pending after the oracle's picks (oracle decision #{ci} {}; simulator: {})", ch, d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?} selected {:?}", sts2sim::ids::card::NAMES.get(d.purpose as usize).copied().unwrap_or("?"), d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), d.selected.as_slice())));
+                if cx.stage == Stage::AwaitChoice && cx.decision_seq == seq && !cx.step(Action::Confirm) {
+                    println!("step {i}: decision still pending after the oracle's picks");
                     return Ok(Verdict::Mismatch);
                 }
             }

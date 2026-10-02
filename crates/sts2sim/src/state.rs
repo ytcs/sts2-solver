@@ -55,6 +55,8 @@ pub mod cflag {
     /// Card left the combat for good (`HasBeenRemovedFromState`).
     pub const REMOVED: u16 = 1 << 4;
     pub const X_CAPTURED: u16 = 1 << 5;
+    /// Created by `CardModel.CreateClone` (`IsClone`): see `Combat::clone_card`.
+    pub const IS_CLONE: u16 = 1 << 6;
 }
 
 /// One card instance in the combat arena.
@@ -67,19 +69,31 @@ pub struct Card {
     /// Local keyword delta vs canonical (`AddKeyword` / `RemoveKeyword`).
     pub kw_add: u8,
     pub kw_remove: u8,
+    /// Enchantment id + 1 (0 = none).
     pub enchant: u8,
     pub enchant_amount: i16,
+    /// `EnchantmentModel.Status`: 0 = Normal, 1 = Disabled.
+    pub enchant_status: u8,
+    /// Enchantment-private state (Glam used / Momentum extra damage ...).
+    pub enchant_aux: i16,
+    /// Affliction id + 1 (0 = none).
     pub affliction: u8,
     pub affliction_amount: i16,
     pub base_replay: u8,
     /// Base energy cost after upgrades (`CardEnergyCost._base`); -1 = no cost.
     pub cost_base: i8,
     pub x_value: i16,
-    pub mods: ArrayVec<CostMod, 3>,
+    pub mods: crate::engine::CostMods,
+    /// Temporary star costs (`_temporaryStarCosts`); the LAST entry wins. `amount` = cost, `expire` as for `mods`.
+    pub star_mods: ArrayVec<CostMod, 2>,
     /// Per-card persistent counters (Rampage damage, Regret, ...), meaning defined by the card.
     pub counter: [i16; 2],
+    /// Permanent bonus to the card's Damage var in units of 1/10000 (Rampage, Thrash: `DynamicVars.Damage.BaseValue += x`).
+    pub dmg_bonus: i32,
     /// Deck index this combat card was cloned from (`DeckVersion`), `NO` if none.
     pub deck_idx: u8,
+    /// The card this dupe / clone was created from (`DupeOf`), `NO` if none.
+    pub dupe_of: u8,
 }
 pub type PileTypeBits = u8;
 
@@ -119,6 +133,10 @@ pub struct MonsterState {
     pub performed: [u8; 4],
     pub stun_follow_up: u8,
     pub stunned: bool,
+    /// The synthetic `STUNNED` state has been performed (`_performedAtLeastOnce`).
+    pub stun_performed: bool,
+    /// Side effect of the stunned turn (`CreatureCmd.Stun(creature, stunMove, ..)`).
+    pub stun_move: Option<crate::defs::MoveFn>,
     /// Monster-private integers (IsFront, counters, ...), meaning defined by the monster implementation.
     pub vars: [i32; 6],
 }
@@ -139,6 +157,8 @@ impl Default for MonsterState {
             performed: [NO; 4],
             stun_follow_up: NO,
             stunned: false,
+            stun_performed: false,
+            stun_move: None,
             vars: [0; 6],
         }
     }
@@ -232,6 +252,36 @@ impl RngSet {
     }
 }
 
+/// The nine run-level streams combat consumes (names as `RunRngType`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RngStream {
+    Shuffle,
+    CombatCardGeneration,
+    CombatPotionGeneration,
+    CombatCardSelection,
+    CombatEnergyCosts,
+    CombatTargets,
+    MonsterAi,
+    Niche,
+    CombatOrbs,
+}
+
+impl Combat {
+    pub fn rng_stream_mut(&mut self, s: RngStream) -> &mut Rng {
+        match s {
+            RngStream::Shuffle => &mut self.rng.shuffle,
+            RngStream::CombatCardGeneration => &mut self.rng.combat_card_generation,
+            RngStream::CombatPotionGeneration => &mut self.rng.combat_potion_generation,
+            RngStream::CombatCardSelection => &mut self.rng.combat_card_selection,
+            RngStream::CombatEnergyCosts => &mut self.rng.combat_energy_costs,
+            RngStream::CombatTargets => &mut self.rng.combat_targets,
+            RngStream::MonsterAi => &mut self.rng.monster_ai,
+            RngStream::Niche => &mut self.rng.niche,
+            RngStream::CombatOrbs => &mut self.rng.combat_orbs,
+        }
+    }
+}
+
 /// Player-side combat state (`PlayerCombatState` + the run-level bits combat reads).
 #[derive(Clone, Copy)]
 pub struct PlayerState {
@@ -310,6 +360,19 @@ pub enum PlayStep {
 }
 
 /// In-flight potion use (suspended while a decision is pending).
+/// Cards of one `AutoPlayFromDrawPile` / `DiscardAndDraw` call still waiting to be auto-played (front = next).
+#[derive(Clone, Copy)]
+pub struct AutoQueue {
+    pub cards: ArrayVec<CardIdx, 10>,
+    /// `AutoPlayFromDrawPile(forceExhaust)`.
+    pub force_exhaust: bool,
+    /// `AutoPlayType.SlyDiscard` queue (else `Default`).
+    pub sly: bool,
+    /// Index in `play_stack` of the card play whose effect started the call (-1: none). The queue continues when the
+    /// play above it finishes.
+    pub owner: i8,
+}
+
 #[derive(Clone, Copy)]
 pub struct PotionCtx {
     pub potion: u16,
@@ -322,13 +385,8 @@ pub struct PlayCtx {
     pub play: crate::hooks::CardPlay,
     pub step: PlayStep,
     pub count: u8,
-    pub result: PileType,
-    /// Cards pulled by `AutoPlayFromDrawPile` that this card's effect still has to auto-play (in order).
-    pub queue: ArrayVec<CardIdx, 16>,
-    /// `ExhaustOnNextPlay` value assigned to each queued card right before its auto-play.
-    pub queue_exhaust: bool,
-    /// Position in the result pile (`CardLocation.position`; Nostalgia puts cards on top of the draw pile).
-    pub result_pos: CardPilePosition,
+    /// `resultLocation` of `OnPlayWrapper` (`PileType::None` = removed from combat).
+    pub result: CardLocation,
 }
 
 /// Counters the game's combat history exposes to gameplay code (cards played this turn etc.).
@@ -339,8 +397,33 @@ pub struct History {
     pub skills_played_this_turn: i16,
     /// `CardExhaustedEntry`s of the current round/side.
     pub cards_exhausted_this_turn: i16,
-    /// `CardPlayFinishedEntry` count over the whole combat (Gold Axe); survives `switch_sides`.
-    pub cards_finished_total: i32,
+    /// `CardPlayFinishedEntry`s of Attack cards this turn.
+    pub attacks_finished_this_turn: i16,
+    /// `CardPlayFinishedEntry`s of Skill cards / Shiv-tagged cards this turn (Silent: Finesse-likes).
+    pub skills_finished_this_turn: i16,
+    pub shivs_finished_this_turn: i16,
+    /// Bitset over card arena indices: cards with a `CardPlayFinishedEntry` this turn (Necrobinder).
+    pub finished_cards: [u64; 3],
+    /// Per-play scratch used by Serpent Form / Strangle: the power amount when `BeforeCardPlayed` ran for a card.
+    pub play_amounts: ArrayVec<PlayAmount, 16>,
+}
+
+impl History {
+    /// Whether card `c` has a `CardPlayFinishedEntry` this turn.
+    pub fn finished(&self, c: CardIdx) -> bool {
+        self.finished_cards[(c / 64) as usize] >> (c % 64) & 1 != 0
+    }
+    pub fn set_finished(&mut self, c: CardIdx) {
+        self.finished_cards[(c / 64) as usize] |= 1u64 << (c % 64);
+    }
+}
+
+/// `Dictionary<CardModel, int> amountsForPlayedCards` entry of a power instance (keyed by power uid + card).
+#[derive(Clone, Copy, Default, Debug)]
+pub struct PlayAmount {
+    pub uid: u16,
+    pub card: CardIdx,
+    pub amount: i32,
 }
 
 #[derive(Clone, Copy)]
@@ -364,56 +447,64 @@ pub struct Combat {
     /// Union of the hook masks of every model that has ever been present in this combat (conservative: never
     /// cleared). A hook whose bit is clear has no listener, so dispatching it is a single bit test.
     pub listen: Mask,
+    /// The part of `listen` contributed by card instances / their enchantments / afflictions: a snapshot skips the pile
+    /// scan entirely when none of them listens to the queried hooks.
+    pub listen_cards: Mask,
 
     pub player: PlayerState,
     pub cards: [Card; MAX_CARDS],
     pub n_cards: u16,
     pub hist: History,
 
-    /// In-flight card play (suspended while a decision is pending).
-    pub play_ctx: Option<PlayCtx>,
-    /// Outer card plays suspended while a nested auto-play waits for a decision (innermost last).
+    /// In-flight card plays, innermost last (an auto-play started from inside `on_play` pushes a nested play);
+    /// suspended while a decision is pending.
     pub play_stack: ArrayVec<PlayCtx, 4>,
-    /// `run_play` never pops below this stack depth (it belongs to callers further out).
-    pub play_base: u8,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
+    /// A hook that raised a decision, resumed through `Listener::resume_hook` once the choice is in `choice`.
+    pub hook_ctx: Option<(crate::hooks::Me, u8)>,
+    /// A turn-start hand draw interrupted by a decision raised in `AfterShuffle` (Stratagem): (cards still to draw,
+    /// from_hand_draw). `turn_cont == 3` resumes it.
+    pub draw_resume: Option<(i32, bool)>,
+    /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
+    pub drawing_hand: bool,
+    /// Where a turn start suspended by a hook decision resumes (0 = not suspended).
+    pub turn_cont: u8,
+    /// The `AfterAutoPostPlayPhaseEntered` listener that suspended (auto-played card raised a decision) while the
+    /// player's turn was ending; the turn end resumes from it once the decision is made.
+    pub end_turn_resume: Option<crate::hooks::Me>,
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
-    /// `Player.Gold` (scenarios start with the character default, 99; the oracle dumps it).
+
+    // ---- engine-core additions ----
+    /// `Player.IsActiveForHooks`: false from the end of the player's death sequence (`DeactivateHooks`) until revived.
+    /// Relics / potions / orbs / cards and the player's powers stop listening while false.
+    pub player_hooks_active: bool,
+    /// Enemies that escaped (`CombatState.EscapedCreatures`).
+    pub escaped: u8,
+    /// `PlayersTakingExtraTurn` is non-empty (single player).
+    pub extra_turn: bool,
+    /// Side channel for the post-damage hooks whose C# signature has more parameters than the Rust hook: the card
+    /// source and the full `DamageResult` of the result being dispatched.
+    pub dmg_card: CardIdx,
+    pub dmg_result: crate::engine::DamageResult,
+    /// Auto-play queues still waiting to be drained (one per in-progress `AutoPlayFromDrawPile` / Sly discard call; they
+    /// nest like the C# locals: a card auto-played from a queue may itself start another one).
+    pub autoplay_stack: ArrayVec<AutoQueue, 4>,
+    /// Combat history log (`engine/history.rs`).
+    pub hist_log: crate::engine::HistLog,
+    /// Number of decisions raised so far (lets a driver tell "the same decision" from "the next one").
+    pub decision_seq: u32,
+    /// `DeckVersion` write-backs of enchantment amounts (Goopy): increments per deck index (outputs of the combat).
+    pub deck_enchant_inc: [u8; 80],
+    /// Identity of the card play iteration in flight (`CardPlay` object): bumped before each `BeforeCardPlayed`.
+    pub play_serial: u16,
+    /// Run inputs combat reads (spec 05 §2.1): the player's gold and the act index (0-based).
     pub gold: i32,
-    /// Extension state of `engine/ext.rs` (hook-raised decisions, hook-driven auto-play queue).
-    pub ext: ExtState,
-}
-
-/// A step that was rolled back because a hook asked for a decision (see `engine/ext.rs`).
-#[derive(Clone, Copy)]
-pub struct UnwoundStep {
-    /// The agent action whose execution raised the decision (re-executed once the decision is answered).
-    pub action: crate::engine::Action,
-    /// The decision / stage that were pending when that action started (restored before the re-execution).
-    pub orig_decision: Option<Decision>,
-    pub orig_stage: Stage,
-}
-
-/// Extension state of the engine. One struct so the `Combat` literal gains a single field.
-#[derive(Clone, Copy, Default)]
-pub struct ExtState {
-    /// Cards waiting to be auto-played by a hook-driven `AutoPlayFromDrawPile` (Mayhem): (card, force exhaust).
-    pub autoplay_queue: ArrayVec<(CardIdx, bool), 8>,
-    /// A hook (not a card effect) is auto-playing: a nested card suspending on a decision is resumable.
-    pub hook_autoplay: bool,
-    /// True while `ShouldPlay` is evaluated for an auto-play (`AutoPlayType != None`).
-    pub should_play_auto: bool,
-    /// The combat contains content that can raise a decision from a hook, so `step` snapshots the state (see ext.rs).
-    pub unwind_enabled: bool,
-    /// A hook asked for a decision that has no recorded answer: the current step must be rolled back.
-    pub unwind: bool,
-    pub unwind_decision: Option<Decision>,
-    /// Answers recorded for hook-raised decisions of the step being re-executed.
-    pub replay_answers: ArrayVec<ArrayVec<CardIdx, 16>, 4>,
-    pub replay_pos: u8,
-    pub unwound: Option<UnwoundStep>,
+    pub act: u8,
+    /// `PlayerCmd.EndTurn` was requested (Void Form ...): the end-turn signal is consumed when the effect / turn start
+    /// that raised it returns.
+    pub end_turn_requested: bool,
 }

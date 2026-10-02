@@ -162,7 +162,7 @@ fn nested_cascades_finish_inner_first() {
     assert!(cx.step(Action::Pick { idx: 0 }));
     assert_eq!(cx.stage, Stage::AwaitAction);
     assert!(cx.player.play.is_empty());
-    assert!(cx.play_stack.is_empty() && cx.play_ctx.is_none());
+    assert!(cx.play_stack.is_empty());
     assert_eq!(ids_of(&cx, PileType::Exhaust), vec![ids::card::ARMAMENTS, ids::card::CASCADE, ids::card::CASCADE]);
     let ups: Vec<u8> = cx.pile(PileType::Exhaust).iter().map(|&c| cx.cards[c as usize].upgrade).collect();
     assert_eq!(ups, vec![0, 1, 0]);

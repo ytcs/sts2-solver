@@ -70,7 +70,7 @@ fn main() {
     let mut mon_defs: Vec<(String, String)> = vec![];
     let mut mon_listeners: Vec<(String, String)> = vec![];
     let mut enc: Vec<(String, String)> = vec![];
-    for cat in ["cards", "powers", "relics", "potions", "monsters", "encounters"] {
+    for cat in ["cards", "powers", "relics", "potions", "monsters", "encounters", "enchantments", "afflictions"] {
         let dir = content.join(cat);
         writeln!(out, "pub mod {cat} {{").unwrap();
         let mut items = vec![];
@@ -113,6 +113,24 @@ fn main() {
             }
         }
     };
+    // Representative entities kept in `engine_core*` files yield to a real port of the same class (instead of a build error).
+    let cat_items: Vec<(String, Vec<(String, String)>)> = cat_items
+        .into_iter()
+        .map(|(cat, items)| {
+            let kept: Vec<(String, String)> = items
+                .iter()
+                .filter(|(id, p)| {
+                    let shadowed = p.contains("engine_core") && items.iter().any(|(id2, p2)| id2 == id && !p2.contains("engine_core"));
+                    if shadowed {
+                        println!("cargo:warning=engine_core representative {p} is shadowed by a real port of the same {cat}; dropped");
+                    }
+                    !shadowed
+                })
+                .cloned()
+                .collect();
+            (cat, kept)
+        })
+        .collect();
     for (cat, items) in &cat_items {
         dup(items, cat);
     }
@@ -123,6 +141,8 @@ fn main() {
         "powers" => "power",
         "relics" => "relic",
         "potions" => "potion",
+        "enchantments" => "enchantment",
+        "afflictions" => "affliction",
         _ => "",
     };
     for (cat, items) in &cat_items {

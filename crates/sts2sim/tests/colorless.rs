@@ -135,7 +135,7 @@ fn frantic_escape_cost_grows_without_overflowing_the_modifier_list() {
         cx.player.energy = 10;
         cx.cards[c as usize].pile = PileType::Hand as u8;
         assert_eq!(cx.card_cost(c, true), n);
-        cx.add_energy_cost_this_combat(c, 1);
+        cx.add_cost_this_combat(c, 1, false);
     }
 }
 
@@ -149,15 +149,11 @@ fn prolong_and_block_next_turn() {
 }
 
 #[test]
-fn entropy_raises_a_hook_decision_and_replays_the_step() {
+fn entropy_raises_a_turn_start_hook_decision() {
     let mut cx = base_with(&[ids::card::ULTIMATE_DEFEND; 10]);
     cx.apply_power(ids::power::ENTROPY_POWER, PLAYER, Dec::int(1), PLAYER, NO);
-    assert!(cx.ext.unwind_enabled == false);
-    let e = cx.new_card(ids::card::ENTROPY, 0).unwrap(); // announces hook-decision content
-    let _ = e;
-    assert!(cx.ext.unwind_enabled);
     assert!(cx.step(Action::EndTurn));
-    // The decision is exposed after the rollback: choose 1 of the 5 cards of the new hand.
+    // The decision is raised in the real turn-start state: choose 1 of the 5 cards of the new hand.
     assert_eq!(cx.stage, Stage::AwaitChoice);
     let d = cx.decision.expect("decision pending");
     assert_eq!((d.min, d.max, d.cands.len()), (1, 1, 5));
@@ -184,10 +180,10 @@ fn nested_auto_play_resumes_through_a_decision() {
     cx.player.energy = 3;
     assert!(cx.step(Action::PlayCard { hand_pos: 0, target: NO }));
     assert_eq!(cx.stage, Stage::AwaitChoice, "the auto-played Headbutt asks for a discard card");
-    assert!(cx.play_ctx.is_some() && !cx.play_stack.is_empty(), "Catastrophe is parked beneath Headbutt");
+    assert!(cx.play_stack.len() >= 2, "Catastrophe is parked beneath Headbutt");
     assert!(cx.step(Action::Pick { idx: 0 }));
     assert_eq!(cx.stage, Stage::AwaitAction);
-    assert!(cx.play_ctx.is_none() && cx.play_stack.is_empty());
+    assert!(cx.play_stack.is_empty());
     // Catastrophe finished its second iteration (empty draw pile: nothing to play) and sits in the discard pile.
     assert!(cx.player.discard.iter().any(|&c| cx.cards[c as usize].id == ids::card::CATASTROPHE));
 }

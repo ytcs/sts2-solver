@@ -55,10 +55,9 @@ listener!(Doubt {
 });
 
 // While in hand, no other card can be played manually (auto-plays and other Enthralleds are exempt).
-// (`AutoPlayType != None` is `ext.should_play_auto`, set by `auto_play`.)
 listener!(Enthralled {
-    fn should_play(&self, cx: &Combat, me: Me, card: CardIdx) -> bool {
-        if !in_hand(cx, me.idx as CardIdx) || cx.ext.should_play_auto {
+    fn should_play_kind(&self, cx: &Combat, me: Me, card: CardIdx, kind: AutoPlayType) -> bool {
+        if !in_hand(cx, me.idx as CardIdx) || kind != AutoPlayType::None {
             return true;
         }
         cx.cards[card as usize].id == ids::card::ENTHRALLED
@@ -77,7 +76,7 @@ listener!(Normality {
         if !in_hand(cx, me.idx as CardIdx) {
             return true;
         }
-        cx.hist.cards_played_this_turn < 3
+        cx.plays_this_turn(|_| true) < 3
     }
 });
 
@@ -101,7 +100,7 @@ listener!(Regret {
 listener!(Shame {
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {
         let already = cx.has_power(PLAYER, ids::power::FRAIL_POWER);
-        let n = cx.named_var(card, crate::content::gen_cards::var_name::FRAIL);
+        let n = cx.card_named_var(card, crate::content::gen_cards::var_name::FRAIL);
         if let Some(uid) = cx.apply_power(ids::power::FRAIL_POWER, PLAYER, Dec::int(n as i64), NO, card) {
             if !already {
                 if let Some(i) = cx.power_idx(PLAYER, uid) {
