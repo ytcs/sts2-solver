@@ -111,14 +111,14 @@ pub fn snapshot(cx: &Combat) -> Value {
     o.insert("combat_in_progress".into(), json!(cx.in_progress));
     o.insert("combat_over".into(), json!(over));
     o.insert("player".into(), json!({"hp": me.hp, "max_hp": me.max_hp, "block": me.block, "alive": me.is_alive(), "powers": powers(cx, PLAYER)}));
-    // Pets (Osty): `Player.PlayerCombatState.Pets`; cleared by `PlayerCombatState.AfterCombatEnd`.
+    // Pets (Osty): `Player.PlayerCombatState.Pets`; cleared by `PlayerCombatState.AfterCombatEnd` (victory only; a defeat keeps the dead Osty).
     o.insert(
         "pets".into(),
         Value::Array(
             cx.allies
                 .iter()
                 .skip(1)
-                .filter(|&&c| cx.cr(c).is_pet && !over)
+                .filter(|&&c| cx.cr(c).is_pet && cx.outcome != Outcome::Victory)
                 .map(|&c| {
                     let cr = cx.cr(c);
                     json!({"id": ids::monster::NAMES[cr.monster.id as usize], "hp": cr.hp, "max_hp": cr.max_hp, "block": cr.block,
