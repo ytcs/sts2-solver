@@ -30,8 +30,9 @@ const POTION_F: usize = MAX_POTIONS * 2;
 const DECISION_F: usize = 8 + OBS_MAX_CANDS * (CARD_F + 1);
 /// Per-orb features: (kind + 1, passive value, evoke value).
 pub const ORB_F: usize = 3;
-/// Orb block (appended at the end of the vector): capacity, then `MAX_ORBS` orb slots front first.
-const ORBS_F: usize = 1 + MAX_ORBS * ORB_F;
+/// Orb block (appended at the end of the vector): `MAX_ORBS` orb entries front first (the slot count is the
+/// `orb_slots` field of the player block).
+const ORBS_F: usize = MAX_ORBS * ORB_F;
 /// Total length of the flat observation vector.
 pub const OBS_SIZE: usize = GLOBAL_F
     + PLAYER_F
@@ -270,7 +271,6 @@ impl Combat {
             None => w.zeros(DECISION_F),
         }
         // ---- orbs (visible to the player: slot count, each orb and its current passive / evoke values) ----
-        w.n(self.player.orb_capacity as i32);
         for k in 0..MAX_ORBS {
             match self.player.orbs.get(k) {
                 Some(o) => {

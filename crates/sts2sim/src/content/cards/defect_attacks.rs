@@ -54,7 +54,7 @@ listener!(Claw {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
         let inc = cx.card_var(p.card, VarKind::Named);
-        for c in cx.all_combat_cards().iter() {
+        for c in cx.combat_cards_in_pile_order().iter() {
             if cx.cards[*c as usize].id == ids::card::CLAW {
                 cx.cards[*c as usize].counter[0] += inc as i16;
             }
@@ -206,12 +206,57 @@ listener!(Synthesis {
     }
 });
 
+/// `list.StableShuffle(Rng.Shuffle).FirstOrDefault()`: sort by (id, upgrade) with the game's introsort, Fisher-Yates
+/// with the `shuffle` stream, take the first.
+fn stable_shuffle_first(cx: &mut Combat, mut list: crate::util::ArrayVec<CardIdx, MAX_CARDS>) -> Option<CardIdx> {
+    {
+        let cards = &cx.cards;
+        crate::sort::intro_sort(list.as_mut_slice(), |a, b| {
+            let (ca, cb) = (&cards[*a as usize], &cards[*b as usize]);
+            if ca.id != cb.id {
+                return if ca.id < cb.id { -1 } else { 1 };
+            }
+            (ca.upgrade as i32 - cb.upgrade as i32).signum()
+        });
+    }
+    cx.rng.shuffle.shuffle(list.as_mut_slice());
+    list.first()
+}
+
+// Two hits, then auto-play a random Attack from the draw pile (playable ones first; an unplayable Attack only if no
+// playable one exists, in which case it just goes to its result pile).
+listener!(Uproar {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        attack_hits(cx, p, 2);
+        let mut playable: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
+        for &c in cx.player.draw.iter() {
+            if cx.card_def(c).ctype == CardType::Attack && cx.card_keywords(c) & kw::UNPLAYABLE == 0 {
+                playable.push(c);
+            }
+        }
+        let mut pick = stable_shuffle_first(cx, playable);
+        if pick.is_none() {
+            let mut any: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
+            for &c in cx.player.draw.iter() {
+                if cx.card_def(c).ctype == CardType::Attack {
+                    any.push(c);
+                }
+            }
+            pick = stable_shuffle_first(cx, any);
+        }
+        if let Some(c) = pick {
+            cx.defect_auto_play(c);
+        }
+        Flow::Done
+    }
+});
+
 // Exhaust every Status card in the combat piles (not already exhausted), then hit a random enemy once per status
 // (the count is taken before exhausting).
 listener!(FlakCannon {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut statuses: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
-        for &c in cx.all_combat_cards().iter() {
+        for &c in cx.combat_cards_in_pile_order().iter() {
             if cx.card_def(c).ctype == CardType::Status && cx.card_pile_type(c) != PileType::Exhaust {
                 statuses.push(c);
             }

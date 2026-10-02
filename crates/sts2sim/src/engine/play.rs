@@ -94,14 +94,18 @@ impl Combat {
     }
 
     /// `CardModel.OnPlayWrapper` steps 1-8 (spec 03 §5.1); then runs the replay loop.
-    fn begin_play(&mut self, mut play: CardPlay) {
+    pub(crate) fn begin_play(&mut self, mut play: CardPlay) {
         let c = play.card;
-        // 2. move to the Play pile (AddDuringManualCardPlay)
-        self.player.hand.remove_value(c);
-        self.player.play.push(c);
-        self.cards[c as usize].pile = PileType::Play as u8;
-        let old = PileType::Hand;
-        self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+        // 2. move to the Play pile (AddDuringManualCardPlay; auto-play: a full `CardPileCmd.Add(card, Play, Bottom)`)
+        if play.is_auto {
+            self.move_card(c, PileType::Play, CardPilePosition::Bottom);
+        } else {
+            self.player.hand.remove_value(c);
+            self.player.play.push(c);
+            self.cards[c as usize].pile = PileType::Play as u8;
+            let old = PileType::Hand;
+            self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+        }
         // 4. result location (consumes ExhaustOnNextPlay)
         let kws = self.card_keywords(c);
         let flags = self.cards[c as usize].flags;

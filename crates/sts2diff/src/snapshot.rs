@@ -125,7 +125,7 @@ pub fn snapshot(cx: &Combat) -> Value {
                     .collect(),
             ),
         );
-        o.insert("orb_capacity".into(), json!(cx.player.orb_capacity));
+        o.insert("orb_capacity".into(), json!(cx.player.orb_slots));
         o.insert("hand".into(), pile(cx, &cx.player.hand, true));
         o.insert("draw".into(), pile(cx, &cx.player.draw, false));
         o.insert("discard".into(), pile(cx, &cx.player.discard, false));

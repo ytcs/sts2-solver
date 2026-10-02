@@ -47,7 +47,7 @@ fn kinds(cx: &Combat) -> Vec<u16> {
 fn cracked_core_channels_one_lightning_on_turn_one_only() {
     let mut cx = Combat::new(&scenario(1, true));
     assert_eq!(kinds(&cx), vec![ids::orb::LIGHTNING_ORB]);
-    assert_eq!(cx.player.orb_capacity, 3);
+    assert_eq!(cx.player.orb_slots, 3);
     // turn 2: no new orb (the first Lightning's passive hit the enemy at the end of turn 1)
     assert!(cx.step(Action::EndTurn));
     assert_eq!(cx.player.turn_number, 2);
@@ -77,23 +77,23 @@ fn removing_slots_drops_orbs_from_the_back_silently() {
     }
     let (hp, block, energy) = (enemy_hp(&cx), cx.cr(PLAYER).block, cx.player.energy);
     cx.remove_orb_slots(1);
-    assert_eq!(cx.player.orb_capacity, 2);
+    assert_eq!(cx.player.orb_slots, 2);
     assert_eq!(kinds(&cx), vec![ids::orb::LIGHTNING_ORB, ids::orb::FROST_ORB]);
     assert_eq!((enemy_hp(&cx), cx.cr(PLAYER).block, cx.player.energy), (hp, block, energy), "dropped orbs are not evoked");
     cx.remove_orb_slots(5);
-    assert_eq!(cx.player.orb_capacity, 0);
+    assert_eq!(cx.player.orb_slots, 0);
     assert!(cx.player.orbs.is_empty());
     // A Defect with no slots loses the channeled orb (no lazy slot for characters with BaseOrbSlotCount > 0).
     cx.channel_orb(ids::orb::LIGHTNING_ORB);
     assert!(cx.player.orbs.is_empty());
-    assert_eq!(cx.player.orb_capacity, 0);
+    assert_eq!(cx.player.orb_slots, 0);
 }
 
 #[test]
 fn add_slots_caps_at_ten() {
     let mut cx = Combat::new(&scenario(4, false));
     cx.add_orb_slots(20);
-    assert_eq!(cx.player.orb_capacity, 10);
+    assert_eq!(cx.player.orb_slots, 10);
 }
 
 #[test]
@@ -163,10 +163,9 @@ fn observation_exposes_orbs_and_slots() {
     let cx = Combat::new(&scenario(9, true));
     let mut v = vec![0f32; OBS_SIZE];
     cx.observe(&mut v);
-    let tail = &v[OBS_SIZE - (1 + 10 * 3)..];
-    assert_eq!(tail[0], 3.0); // capacity
-    assert_eq!(&tail[1..4], &[ids::orb::LIGHTNING_ORB as f32 + 1.0, 3.0, 8.0]); // kind+1, passive, evoke
-    assert_eq!(&tail[4..7], &[0.0, 0.0, 0.0]); // empty slot
+    let tail = &v[OBS_SIZE - 10 * 3..];
+    assert_eq!(&tail[0..3], &[ids::orb::LIGHTNING_ORB as f32 + 1.0, 3.0, 8.0]); // kind+1, passive, evoke
+    assert_eq!(&tail[3..6], &[0.0, 0.0, 0.0]); // empty slot
 }
 
 #[test]
@@ -175,5 +174,5 @@ fn player_death_clears_the_queue() {
     assert_eq!(cx.player.orbs.len(), 1);
     cx.kill(&[PLAYER]);
     assert!(cx.player.orbs.is_empty());
-    assert_eq!(cx.player.orb_capacity, 0);
+    assert_eq!(cx.player.orb_slots, 0);
 }

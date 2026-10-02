@@ -260,15 +260,17 @@ pub struct PlayerState {
     pub relics: ArrayVec<Relic, MAX_RELICS>,
     pub potions: [Option<Potion>; MAX_POTIONS],
     pub potion_slots: u8,
-    /// `Player.BaseOrbSlotCount` (scenario value; the queue capacity at combat start).
-    pub orb_slots: u8,
+    /// `OrbQueue.Capacity`: the number of orb slots (starts at `Player.BaseOrbSlotCount`; cards / potions / relics change it).
     /// `PlayerCombatState.OrbQueue`: orbs front (next to evoke) first, and the slot capacity.
     pub orbs: ArrayVec<Orb, MAX_ORBS>,
-    pub orb_capacity: u8,
+    pub orb_slots: u8,
     /// Next `Orb::uid` (orbs are objects in the game; tests such as `orb == Orbs[0]` and `Remove(orb)` are by reference).
     pub next_orb_uid: u16,
     /// Orbs ever channeled this combat per `OrbChanneledEntry` filter: Lightning count (Voltaic).
     pub lightning_channeled: i16,
+    /// `PlayerCombatState.TurnNumber` of the last turn in which the player received a damage result that was not fully
+    /// blocked (`DamageReceivedEntry`, Emotion Chip's `LostHpInPreviousTurn`); -1 = never.
+    pub damaged_turn: i32,
     /// `BeginCardOrPotionEffect` depth.
     pub effect_depth: u8,
 }

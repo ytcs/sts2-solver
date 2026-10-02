@@ -101,8 +101,8 @@ impl Combat {
         if self.is_over_or_ending() {
             return;
         }
-        let n = n.min(MAX_ORB_SLOTS - self.player.orb_capacity as i32);
-        self.player.orb_capacity = (self.player.orb_capacity as i32 + n).max(0) as u8;
+        let n = n.min(MAX_ORB_SLOTS - self.player.orb_slots as i32);
+        self.player.orb_slots = (self.player.orb_slots as i32 + n).max(0) as u8;
     }
 
     /// `OrbCmd.RemoveSlots`: slots go from the back; orbs beyond the capacity are dropped silently (no evoke, no hook).
@@ -110,9 +110,9 @@ impl Combat {
         if self.is_over_or_ending() {
             return;
         }
-        let n = n.min(self.player.orb_capacity as i32);
-        let cap = (self.player.orb_capacity as i32 - n).max(0);
-        self.player.orb_capacity = cap as u8;
+        let n = n.min(self.player.orb_slots as i32);
+        let cap = (self.player.orb_slots as i32 - n).max(0);
+        self.player.orb_slots = cap as u8;
         while self.player.orbs.len() as i32 > cap {
             let last = self.player.orbs.len() - 1;
             self.player.orbs.remove(last);
@@ -137,14 +137,14 @@ impl Combat {
         if self.is_over_or_ending() {
             return;
         }
-        if self.character_base_orb_slots() == 0 && self.player.orb_capacity == 0 {
+        if self.character_base_orb_slots() == 0 && self.player.orb_slots == 0 {
             self.add_orb_slots(1);
         }
-        if self.player.orbs.len() >= self.player.orb_capacity as usize {
+        if self.player.orbs.len() >= self.player.orb_slots as usize {
             self.evoke_next(true);
         }
         // OrbQueue.TryEnqueue: false iff capacity == 0 (the orb is lost); "full" can only happen through re-entrancy.
-        if self.player.orb_capacity == 0 || self.player.orbs.len() >= self.player.orb_capacity as usize {
+        if self.player.orb_slots == 0 || self.player.orbs.len() >= self.player.orb_slots as usize {
             return;
         }
         self.player.orbs.push(orb);
@@ -265,10 +265,10 @@ impl Combat {
         let mut count = 1;
         let mut mods: ArrayVec<Me, 24> = ArrayVec::new();
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_orb_passive_trigger_count));
+            let snap = self.snapshot(Mask::bit(hookbit::modify_orb_passive_trigger_counts));
             for e in snap.iter() {
                 if self.still_live(&e.me) {
-                    let n = content::listener(&e.me).modify_orb_passive_trigger_count(self, e.me, &orb, count);
+                    let n = content::listener(&e.me).modify_orb_passive_trigger_counts(self, e.me, &orb, count);
                     if n != count {
                         mods.push(e.me);
                     }
@@ -375,7 +375,7 @@ impl Combat {
     }
 
     /// Cards in the combat piles in `PlayerCombatState.AllCards` order (hand, draw, discard, exhaust, play).
-    pub fn all_combat_cards(&self) -> ArrayVec<CardIdx, MAX_CARDS> {
+    pub fn combat_cards_in_pile_order(&self) -> ArrayVec<CardIdx, MAX_CARDS> {
         let mut v = ArrayVec::new();
         for pile in [&self.player.hand, &self.player.draw, &self.player.discard, &self.player.exhaust, &self.player.play] {
             for &c in pile.iter() {
@@ -438,6 +438,70 @@ impl Combat {
         match &crate::content::monster_def(ms.id).nodes[ms.next_move as usize] {
             MonsterNode::Move { intents, .. } => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
             _ => false,
+        }
+    }
+
+    /// `CardCmd.AutoPlay(card, null)` (default type) for a card that is NOT in hand (Uproar picks one from the draw
+    /// pile). Self-contained so the Defect port builds on its own; once the engine-core `auto_play` is merged this is
+    /// redundant (see the porting notes). A nested call saves and restores the outer in-flight play.
+    pub fn defect_auto_play(&mut self, c: CardIdx) {
+        if self.is_over_or_ending() || self.cr(PLAYER).is_dead() {
+            return;
+        }
+        if self.card_keywords(c) & kw::UNPLAYABLE != 0 {
+            self.defect_move_to_result_pile_without_playing(c);
+            return;
+        }
+        if self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::should_play));
+            for e in snap.iter() {
+                if self.still_live(&e.me) && !crate::content::listener(&e.me).should_play(self, e.me, c) {
+                    self.defect_move_to_result_pile_without_playing(c);
+                    return;
+                }
+            }
+        }
+        let mut target = NO;
+        if self.card_def(c).target == TargetType::AnyEnemy {
+            let hittable = self.hittable_enemies();
+            if hittable.is_empty() {
+                self.defect_move_to_result_pile_without_playing(c);
+                return;
+            }
+            target = hittable[self.rng.combat_targets.next_int_range(0, hittable.len() as i32) as usize];
+        }
+        if self.card_def(c).x_cost {
+            self.cards[c as usize].x_value = self.player.energy as i16; // takes all the energy value but does not spend it
+            self.cards[c as usize].flags |= cflag::X_CAPTURED;
+        }
+        let play = CardPlay {
+            card: c,
+            target,
+            is_auto: true,
+            play_index: 0,
+            play_count: 1,
+            result_pile: PileType::Discard,
+            energy_spent: 0,
+            stars_spent: 0,
+        };
+        let outer = self.play_ctx.take();
+        self.begin_play(play);
+        if self.play_ctx.is_none() {
+            self.play_ctx = outer;
+        }
+    }
+
+    /// `CardCmd.MoveToResultPileWithoutPlaying`: via the Play pile to the exhaust / discard pile (dupes vanish).
+    fn defect_move_to_result_pile_without_playing(&mut self, c: CardIdx) {
+        self.move_card(c, PileType::Play, CardPilePosition::Bottom);
+        let flags = self.cards[c as usize].flags;
+        if flags & cflag::IS_DUPE != 0 {
+            self.remove_card_from_combat(c);
+        } else if flags & cflag::EXHAUST_ON_NEXT_PLAY != 0 || self.card_keywords(c) & kw::EXHAUST != 0 {
+            self.cards[c as usize].flags &= !cflag::EXHAUST_ON_NEXT_PLAY;
+            self.exhaust_card(c, false);
+        } else {
+            self.move_card(c, PileType::Discard, CardPilePosition::Bottom);
         }
     }
 

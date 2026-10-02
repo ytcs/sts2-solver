@@ -405,11 +405,3 @@ listener!(FeralPower {
 
 // Multiplayer-only (Imitation Learning is an ally-targeted card): never applied in single player.
 listener!(ImitationLearningPower {});
-
-listener!(EnergyNextTurnPower {
-    fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
-        let a = cx.power_amount(me.owner, me.id);
-        cx.gain_energy(a);
-        cx.remove_power(me.owner, me.idx);
-    }
-});

@@ -182,6 +182,9 @@ impl Combat {
         for i in 0..results.len() {
             let r = results[i];
             let t = r.receiver;
+            if t == PLAYER && !r.fully_blocked && self.in_progress && !self.is_ending() {
+                self.player.damaged_turn = self.player.turn_number; // History.DamageReceived (Emotion Chip: `!WasFullyBlocked`)
+            }
             if r.block_broken {
                 self.dispatch_u(hookbit::after_block_broken, |cx, me, l| l.after_block_broken(cx, me, t, dealer));
             }
