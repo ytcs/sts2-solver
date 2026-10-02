@@ -1,0 +1,11 @@
+[package]
+name = "sts2sim"
+description = "Bit-exact, allocation-free Slay the Spire 2 combat simulator (RL environment core)"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+serde_json = "1"

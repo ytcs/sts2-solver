@@ -1,9 +1,7 @@
+decomp/
+target/
+__pycache__/
+*.so
+.venv/
 bin/
 obj/
-*.user
-.vs/
-# Published self-contained ranwid binary copied to the repo root for local use / shipping (~72 MB).
-/ranwid
-/ranwid.exe
-# dotnet publish output (two self-contained single-file RIDs, ~290 MB).
-/publish/
