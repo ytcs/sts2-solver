@@ -8,7 +8,7 @@
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::content::gen_cards::var_name;
-use crate::engine::{Ask, Attack, Targeting};
+use crate::engine::{Attack, Targeting};
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -478,7 +478,3 @@ listener!(Whirlwind {
         Flow::Done
     }
 });
-
-// `Ask` is re-exported for symmetry with other card files; no choices in this batch.
-#[allow(dead_code)]
-fn _unused(_: Ask) {}

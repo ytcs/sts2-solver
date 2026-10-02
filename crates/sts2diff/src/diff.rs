@@ -116,7 +116,8 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;
-                for p in picks_of(ch) {
+                let picks = picks_of(ch);
+                for p in picks.iter().copied() {
                     if !cx.step(Action::Pick { idx: p }) {
                         println!("step {i}: pick {p} rejected");
                         return Ok(Verdict::Mismatch);
@@ -125,7 +126,10 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                         break;
                     }
                 }
-                if cx.stage == Stage::AwaitChoice && !cx.step(Action::Confirm) {
+                // A fresh decision (nothing selected yet) after the picks is a CHAINED decision of the same action
+                // (e.g. two auto-played Headbutts): the next oracle choice answers it.
+                let chained = !picks.is_empty() && cx.decision.as_ref().map_or(false, |d| d.selected.is_empty());
+                if cx.stage == Stage::AwaitChoice && !chained && !cx.step(Action::Confirm) {
                     println!("step {i}: decision still pending after the oracle's picks");
                     return Ok(Verdict::Mismatch);
                 }
