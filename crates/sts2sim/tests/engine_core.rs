@@ -52,17 +52,17 @@ fn set_hand(cx: &mut Combat, cards: &[(u16, u8)]) -> Vec<u8> {
 
 #[test]
 fn fairy_in_a_bottle_beats_lizard_tail_and_heals_30_percent() {
-    let mut cx = Combat::new(&scenario(vec![RelicInit { id: ids::relic::LIZARD_TAIL, counter: 0 }], vec![ids::potion::FAIRY_IN_A_BOTTLE], 70, 1));
+    let mut cx = Combat::new(&scenario(vec![RelicInit { id: ids::relic::LIZARD_TAIL, counter: 0, ..Default::default() }], vec![ids::potion::FAIRY_IN_A_BOTTLE], 70, 1));
     cx.kill(&[PLAYER]);
     // ShouldDie (pass 1, Fairy) is consulted before ShouldDieLate (pass 2, Lizard Tail): Fairy fires, Lizard is untouched
     assert_eq!(cx.cr(PLAYER).hp, 21); // max(70 * 0.3, 1) = 21
     assert!(cx.player.potions[0].is_none());
-    assert_eq!(cx.player.relics[0].counter, 0);
+    assert!(!cx.player.relics[0].flag(0)); // WasUsed
     assert!(!cx.pending_loss);
     // second death: Lizard Tail (50% of 70 = 35)
     cx.kill(&[PLAYER]);
     assert_eq!(cx.cr(PLAYER).hp, 35);
-    assert_eq!(cx.player.relics[0].counter, 1);
+    assert!(cx.player.relics[0].flag(0));
     // third death is real
     cx.kill(&[PLAYER]);
     assert_eq!(cx.cr(PLAYER).hp, 0);
@@ -81,7 +81,7 @@ fn forced_kill_bypasses_preventers() {
 #[test]
 fn dead_player_no_longer_listens() {
     // after DeactivateHooks the player's relics / cards are no longer listeners (snapshot is empty for their hooks)
-    let mut cx = Combat::new(&scenario(vec![RelicInit { id: ids::relic::LIZARD_TAIL, counter: 0 }], vec![], 70, 1));
+    let mut cx = Combat::new(&scenario(vec![RelicInit { id: ids::relic::LIZARD_TAIL, counter: 0, ..Default::default() }], vec![], 70, 1));
     cx.kill(&[PLAYER]);
     cx.kill(&[PLAYER]);
     assert!(!cx.player_hooks_active);
@@ -245,7 +245,7 @@ fn duplicator_plays_the_next_card_twice_then_expires() {
 
 #[test]
 fn chemical_x_adds_two_to_whirlwind() {
-    let mut cx = Combat::new(&scenario(vec![RelicInit { id: ids::relic::CHEMICAL_X, counter: 0 }], vec![], 80, 3));
+    let mut cx = Combat::new(&scenario(vec![RelicInit { id: ids::relic::CHEMICAL_X, counter: 0, ..Default::default() }], vec![], 80, 3));
     let e = cx.enemies[0];
     set_hand(&mut cx, &[(ids::card::WHIRLWIND, 0)]);
     let hp = cx.cr(e).hp;

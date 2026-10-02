@@ -110,11 +110,16 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 println!("step {i}: simulator rejected {act:?}");
                 return Ok(Verdict::Mismatch);
             }
+        }
+        // Prompts raised while executing the action (record 0: while the combat was set up / the first turn started, e.g.
+        // by relics such as Toolbox or Gambling Chip).
+        {
             let choices: Vec<&Value> = rec["choices"].as_array().map(|a| a.iter().collect()).unwrap_or_default();
             let mut ci = 0;
             while cx.stage == Stage::AwaitChoice {
                 let Some(ch) = choices.get(ci) else {
-                    println!("step {i}: simulator raised a decision but the oracle made no choice");
+                    let d = cx.decision.as_ref();
+                    println!("step {i}: simulator raised a decision but the oracle made no choice (simulator: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?}", d.purpose, d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>())));
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;

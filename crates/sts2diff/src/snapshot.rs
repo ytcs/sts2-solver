@@ -124,6 +124,33 @@ fn enemy(cx: &Combat, e: Cid) -> Value {
     Value::Object(m)
 }
 
+/// `{id, props?, counter?}` like the oracle's `Dump.cs`: `props` = the `[SavedProperty]` values, `counter` = `DisplayAmount` when
+/// the relic shows a counter.
+fn relic(cx: &Combat, r: &Relic) -> Value {
+    let l = sts2sim::content::relic_listener(r.id);
+    let mut m = Map::new();
+    m.insert("id".into(), json!(ids::relic::NAMES[r.id as usize]));
+    let mut props = Map::new();
+    for d in l.meta_props() {
+        if !d.lit.is_empty() {
+            props.insert(d.name.into(), serde_json::from_str(d.lit).expect("bad PropDef literal"));
+            continue;
+        }
+        let v = r.get(d.slot);
+        if d.skip_default && v == 0 {
+            continue;
+        }
+        props.insert(d.name.into(), if d.boolean { json!(v != 0) } else { json!(v) });
+    }
+    if !props.is_empty() {
+        m.insert("props".into(), Value::Object(props));
+    }
+    if let Some(c) = l.meta_display(cx, r) {
+        m.insert("counter".into(), json!(c));
+    }
+    Value::Object(m)
+}
+
 pub fn snapshot(cx: &Combat) -> Value {
     let me = cx.cr(PLAYER);
     let over = cx.stage == Stage::Over;
@@ -133,6 +160,8 @@ pub fn snapshot(cx: &Combat) -> Value {
     o.insert("turn".into(), json!(cx.player.turn_number));
     o.insert("phase".into(), json!(phase(cx.player.phase)));
     o.insert("energy".into(), json!(cx.player.energy));
+    o.insert("max_energy".into(), json!(cx.max_energy()));
+    o.insert("stars".into(), json!(cx.player.stars));
     o.insert("gold".into(), json!(cx.gold));
     o.insert("combat_in_progress".into(), json!(cx.in_progress));
     o.insert("combat_over".into(), json!(over));
@@ -160,10 +189,7 @@ pub fn snapshot(cx: &Combat) -> Value {
         o.insert("discard".into(), pile(cx, &cx.player.discard, false));
         o.insert("exhaust".into(), pile(cx, &cx.player.exhaust, false));
     }
-    o.insert(
-        "relics".into(),
-        Value::Array(cx.player.relics.iter().map(|r| json!({"id": ids::relic::NAMES[r.id as usize]})).collect()),
-    );
+    o.insert("relics".into(), Value::Array(cx.player.relics.iter().map(|r| relic(cx, r)).collect()));
     o.insert(
         "potions".into(),
         Value::Array(cx.player.potions.iter().flatten().map(|p| json!({"id": ids::potion::NAMES[p.id as usize]})).collect()),

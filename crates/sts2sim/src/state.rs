@@ -464,8 +464,12 @@ pub struct Combat {
     pub choice: Choice,
     /// A hook that raised a decision, resumed through `Listener::resume_hook` once the choice is in `choice`.
     pub hook_ctx: Option<(crate::hooks::Me, u8)>,
-    /// Where a turn start suspended by a hook decision resumes (0 = not suspended).
+    /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
+    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`.
     pub turn_cont: u8,
+    /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
+    /// its index in the pass: the pass continues after it once the decision is resolved.
+    pub susp_after: Option<(u32, crate::hooks::Me, u8)>,
     /// The `AfterAutoPostPlayPhaseEntered` listener that suspended (auto-played card raised a decision) while the
     /// player's turn was ending; the turn end resumes from it once the decision is made.
     pub end_turn_resume: Option<crate::hooks::Me>,
@@ -505,4 +509,83 @@ pub struct Combat {
     /// `PlayerCmd.EndTurn` was requested (Void Form ...): the end-turn signal is consumed when the effect / turn start
     /// that raised it returns.
     pub end_turn_requested: bool,
+    /// Room kind of the encounter (0 monster, 1 elite, 2 boss), for relics gated on `CurrentRoom.RoomType`.
+    pub room_type: u8,
+    /// Bit i set when deck card i (scenario deck order) is upgradable (FishingRod / WarHammer item counts).
+    pub deck_upgradable: u128,
+    /// `cardSource` of the power application being dispatched (`BeforePowerAmountChanged` has no card parameter).
+    pub cur_power_card: CardIdx,
+    /// An automated card selector is active (Whispering Earring pushes `VakuuCardSelector`): card-selection screens
+    /// resolve to the first `max` candidates instead of raising a decision.
+    pub auto_select: bool,
+}
+
+// ---- relic persistent state description (see `Listener::meta_*` and content/relics) ------------------------------------
+
+/// Which field of [`Relic`] stores a relic property.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Slot {
+    Counter,
+    Aux,
+    /// Bit `n` of `Relic::flags` (booleans).
+    Flag(u8),
+}
+
+/// A `[SavedProperty]` of the real relic class: how the oracle names it (C# property name), where the Rust relic keeps it,
+/// and whether the game omits it when it has the type default (`SerializationCondition.SaveIfNotTypeDefault`).
+#[derive(Clone, Copy, Debug)]
+pub struct PropDef {
+    pub name: &'static str,
+    pub slot: Slot,
+    pub boolean: bool,
+    pub skip_default: bool,
+    /// Non-empty: a property the relic always saves with this fixed JSON value (empty arrays, ...); no state slot.
+    pub lit: &'static str,
+}
+
+impl PropDef {
+    pub const fn int(name: &'static str, slot: Slot) -> PropDef {
+        PropDef { name, slot, boolean: false, skip_default: false, lit: "" }
+    }
+    pub const fn flag(name: &'static str, bit: u8) -> PropDef {
+        PropDef { name, slot: Slot::Flag(bit), boolean: true, skip_default: false, lit: "" }
+    }
+    /// A saved property with a fixed JSON literal value (not stored in the relic).
+    pub const fn constant(name: &'static str, lit: &'static str) -> PropDef {
+        PropDef { name, slot: Slot::Counter, boolean: false, skip_default: false, lit }
+    }
+    pub const fn skip_default(mut self) -> PropDef {
+        self.skip_default = true;
+        self
+    }
+}
+
+impl Relic {
+    #[inline(always)]
+    pub fn flag(&self, bit: u8) -> bool {
+        self.flags & (1 << bit) != 0
+    }
+    #[inline(always)]
+    pub fn set_flag(&mut self, bit: u8, v: bool) {
+        if v {
+            self.flags |= 1 << bit;
+        } else {
+            self.flags &= !(1 << bit);
+        }
+    }
+    /// Reads a property through its slot (bools as 0/1).
+    pub fn get(&self, s: Slot) -> i32 {
+        match s {
+            Slot::Counter => self.counter,
+            Slot::Aux => self.aux,
+            Slot::Flag(b) => self.flag(b) as i32,
+        }
+    }
+    pub fn set(&mut self, s: Slot, v: i32) {
+        match s {
+            Slot::Counter => self.counter = v,
+            Slot::Aux => self.aux = v,
+            Slot::Flag(b) => self.set_flag(b, v != 0),
+        }
+    }
 }

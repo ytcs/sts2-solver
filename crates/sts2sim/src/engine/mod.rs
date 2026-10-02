@@ -21,6 +21,7 @@ mod potions;
 mod play;
 mod powers;
 mod regent;
+mod relic_cmds;
 mod turn;
 
 pub use creature::DamageResult;

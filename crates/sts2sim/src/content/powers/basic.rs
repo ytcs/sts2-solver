@@ -43,6 +43,10 @@ listener!(VulnerablePower {
             return Dec::ONE;
         }
         let mut mult = Dec::frac(15, 1);
+        // The dealer's Paper Phrog: +0.25 (only when the target is not the relic owner).
+        if q.dealer == PLAYER && q.target != PLAYER && cx.has_relic(crate::ids::relic::PAPER_PHROG) {
+            mult += Dec::frac(25, 2);
+        }
         // The dealer's Cruelty power (or its pet owner's, for Osty) adds Amount/100 (`CrueltyPower.ModifyVulnerableMultiplier`;
         // a Cruelty owner never boosts damage against itself).
         if q.dealer != NO {
@@ -55,7 +59,6 @@ listener!(VulnerablePower {
                 mult += Dec::frac(cruelty as i64, 2);
             }
         }
-        // TODO(fidelity): the dealer's PaperPhrog relic also adjusts the multiplier (before Cruelty).
         // `DebilitatePower.ModifyVulnerableMultiplier`: `amount + (amount - 1)` on the target's own Debilitate.
         if cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
             mult = mult + (mult - Dec::ONE);
@@ -70,14 +73,17 @@ listener!(VulnerablePower {
 });
 
 listener!(WeakPower {
-    fn modify_damage_multiplicative(&self, _cx: &Combat, me: Me, q: &DmgQ) -> Dec {
+    fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.dealer != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        // TODO(fidelity): target's PaperKrane relic adjusts the multiplier.
         let mut num = Dec::frac(75, 2);
+        // The target's Paper Krane: -0.15 when the relic owner is the one being hit.
+        if q.target == PLAYER && cx.has_relic(crate::ids::relic::PAPER_KRANE) {
+            num -= Dec::frac(15, 2);
+        }
         // DebilitatePower.ModifyWeakMultiplier: `amount - (1 - amount)` on the dealer's own Debilitate.
-        if _cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
+        if cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
             num = num - (Dec::ONE - num);
         }
         num

@@ -22,7 +22,7 @@ fn base() -> Combat {
         orb_slots: 0,
         potion_slots: 3,
         deck,
-        relics: vec![RelicInit { id: ids::relic::BOUND_PHYLACTERY, counter: 0 }],
+        relics: vec![RelicInit { id: ids::relic::BOUND_PHYLACTERY, counter: 0, ..Default::default() }],
         potions: vec![],
         rng: RngSet::from_run_seed(7),
     })

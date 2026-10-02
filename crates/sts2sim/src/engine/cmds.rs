@@ -101,10 +101,20 @@ impl Combat {
         self.set_star_cost_this_turn(c, 0);
     }
 
-    /// `PlayerCmd.GainGold` (the `ModifyGoldGained` hook is run-level and not modelled): adds `n >= 0` gold.
+    /// `PlayerCmd.GainGold`: `Hook.ModifyGoldGained` (threaded over the run-level listeners), then `Gold += (int)amount`
+    /// when positive.
     pub fn gain_gold(&mut self, n: i32) {
-        if n > 0 {
-            self.gold = self.gold.saturating_add(n);
+        let mut v = Dec::int(n as i64);
+        if self.listen.has(hookbit::modify_gold_gained) {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_gold_gained));
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    v = crate::content::listener(&e.me).modify_gold_gained(self, e.me, v);
+                }
+            }
+        }
+        if v > Dec::ZERO {
+            self.gold = self.gold.saturating_add(v.trunc());
         }
     }
 
@@ -288,8 +298,21 @@ impl Combat {
         if self.is_over_or_ending() || cands.is_empty() {
             return Ask::Resolved(ArrayVec::new());
         }
+        if self.auto_select {
+            return Ask::Resolved(self.auto_selected(&cands, 1));
+        }
         self.begin_decision(DecisionSource::Options, purpose, if can_skip { 0 } else { 1 }, 1, cands, false, can_skip);
         Ask::Pending
+    }
+
+    /// `VakuuCardSelector.GetSelectedCards`: `options.Take(maxSelect)` (the selector Whispering Earring pushes while it
+    /// auto-plays the hand; `Combat::auto_select`).
+    fn auto_selected(&self, cands: &ArrayVec<CardIdx, 64>, max: usize) -> ArrayVec<CardIdx, 16> {
+        let mut v = ArrayVec::new();
+        for &c in cands.iter().take(max).take(16) {
+            v.push(c);
+        }
+        v
     }
 
     /// Shared decision entry for `FromHand`/`FromCombatPile`: `RequireManualConfirmation = (min != max)`;
@@ -305,6 +328,9 @@ impl Combat {
                 all.push(c);
             }
             return Ask::Resolved(all);
+        }
+        if self.auto_select {
+            return Ask::Resolved(self.auto_selected(&cands, max as usize));
         }
         self.begin_decision(source, purpose, min, max, cands, manual, can_skip);
         Ask::Pending

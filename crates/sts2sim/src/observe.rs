@@ -171,7 +171,8 @@ impl Combat {
             match self.player.relics.get(k) {
                 Some(r) => {
                     w.n(r.id as i32 + 1);
-                    w.n(r.counter);
+                    // The counter a player can see on the relic (`ShowCounter ? DisplayAmount`), not the raw state slot.
+                    w.n(crate::content::relic_listener(r.id).meta_display(self, &r).unwrap_or(0));
                 }
                 None => w.zeros(2),
             }

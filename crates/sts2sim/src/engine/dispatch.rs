@@ -136,6 +136,41 @@ impl Combat {
         self.dispatch_u(bit, &mut f);
     }
 
+    /// Guarded notification pass whose listeners may raise a decision (`Stage::AwaitChoice`, `hook_ctx` set): the pass stops
+    /// right after such a listener and returns true; after the decision the same call continues with the listeners that
+    /// follow it (`susp_after`). Used for the turn-start hooks (`BeforeHandDraw`, `AfterPlayerTurnStart`).
+    pub fn dispatch_resumable(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
+        let resume = match self.susp_after {
+            Some((b, m, pos)) if b == bit => {
+                self.susp_after = None;
+                Some((m, pos as usize))
+            }
+            _ => None,
+        };
+        if !self.listen.has(bit) || !self.hooks_enabled() {
+            return false;
+        }
+        let snap = self.snapshot(Mask::bit(bit));
+        let mut start = 0;
+        if let Some((last, pos)) = resume {
+            // The suspended listener may have removed itself (a power): then the next one now sits at its old index.
+            start = match snap.iter().position(|e| e.me.kind == last.kind && e.me.idx == last.idx && e.me.owner == last.owner && e.me.id == last.id) {
+                Some(p) => p + 1,
+                None => pos.min(snap.len()),
+            };
+        }
+        for (i, e) in snap.iter().enumerate().skip(start) {
+            if self.still_live(&e.me) {
+                f(self, e.me, content::listener(&e.me));
+                if self.stage == Stage::AwaitChoice {
+                    self.susp_after = Some((bit, e.me, i as u8));
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Notification pass over the unguarded iterator (hooks that are part of the kill/death sequence).
     #[inline]
     pub fn dispatch_u(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {

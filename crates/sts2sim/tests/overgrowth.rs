@@ -25,7 +25,7 @@ fn scenario(enc: u16, seed: u64, hp: i32) -> Scenario {
         orb_slots: 0,
         potion_slots: 2,
         deck,
-        relics: vec![RelicInit { id: ids::relic::BURNING_BLOOD, counter: 0 }],
+        relics: vec![RelicInit { id: ids::relic::BURNING_BLOOD, counter: 0, ..Default::default() }],
         potions: vec![],
         rng: RngSet::from_run_seed(seed),
     }

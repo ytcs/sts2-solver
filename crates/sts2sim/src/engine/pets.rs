@@ -42,22 +42,27 @@ impl Combat {
         }
     }
 
-    /// `PlayerCmd.AddPet<Osty>`: creates the pet creature (HP 1/1, no `niche` draw: only enemies roll HP) on the player side.
-    fn add_osty_creature(&mut self) -> Option<Cid> {
+    /// `PlayerCmd.AddPet<T>`: creates the pet creature on the player side (no `niche` draw: only enemies roll HP).
+    pub fn add_pet(&mut self, monster: u16, hp: i32) -> Option<Cid> {
         let cid = (1..MAX_CREATURES as u8).find(|&i| !self.cr(i).in_combat)?;
-        self.listen |= content::monster_mask(ids::monster::OSTY);
+        self.listen |= content::monster_mask(monster);
         let mut cr = Creature::default();
         cr.active = true;
         cr.in_combat = true;
         cr.side = Side::Player;
         cr.is_pet = true;
         cr.owner = PLAYER;
-        cr.hp = 1;
-        cr.max_hp = 1;
-        cr.monster = MonsterState { id: ids::monster::OSTY, ..Default::default() };
+        cr.hp = hp;
+        cr.max_hp = hp;
+        cr.monster = MonsterState { id: monster, ..Default::default() };
         self.creatures[cid as usize] = cr;
         self.allies.push(cid);
         Some(cid)
+    }
+
+    /// `PlayerCmd.AddPet<Osty>`: HP 1/1 (set by the following `Summon`).
+    fn add_osty_creature(&mut self) -> Option<Cid> {
+        self.add_pet(ids::monster::OSTY, 1)
     }
 
     /// `OstyCmd.Summon` (spec 05 §6.2): `Hook.ModifySummonAmount` (threaded), then summon / grow Osty.

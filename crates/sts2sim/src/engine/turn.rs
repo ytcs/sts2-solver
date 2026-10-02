@@ -154,20 +154,14 @@ impl Combat {
     }
 
     /// Continues a turn start that was suspended by a decision raised inside a turn-start hook (`turn_cont`: 1 = in
-    /// `BeforeHandDraw`, 2 = in `AfterPlayerTurnStart`; the listeners after the suspended one are not re-run).
+    /// `BeforeHandDraw`, 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`); the suspended pass continues with the
+    /// listeners after the one that raised the decision (`dispatch_resumable`).
     pub(crate) fn resume_turn_start(&mut self, cont: u8) {
-        match cont {
-            1 => {
-                if self.setup_player_turn(1) {
-                    return;
-                }
-                self.finish_player_turn_start();
+        if (1..=3).contains(&cont) {
+            if self.setup_player_turn(cont) {
+                return;
             }
-            2 => {
-                self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
-                self.finish_player_turn_start();
-            }
-            _ => {}
+            self.finish_player_turn_start();
         }
     }
 
@@ -197,7 +191,7 @@ impl Combat {
         true
     }
 
-    /// `SetupPlayerTurn` (spec 01 §6.2).
+    /// `SetupPlayerTurn` (spec 01 §6.2). `from` = 0 at the start, else the `turn_cont` step being resumed.
     /// Returns true if it suspended on a decision raised by a hook (`turn_cont` says where to resume).
     fn setup_player_turn(&mut self, from: u8) -> bool {
         if from == 0 {
@@ -208,13 +202,28 @@ impl Combat {
             }
             self.dispatch_g(hookbit::after_energy_reset, |cx, me, l| l.after_energy_reset(cx, me));
             self.dispatch_g(hookbit::after_energy_reset_late, |cx, me, l| l.after_energy_reset_late(cx, me));
-            self.dispatch_g(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me));
-            self.dispatch_g(hookbit::before_hand_draw_late, |cx, me, l| l.before_hand_draw_late(cx, me));
-            if self.stage == Stage::AwaitChoice {
-                self.turn_cont = 1;
-                return true;
-            }
         }
+        if from <= 1 && self.dispatch_resumable(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me)) {
+            self.turn_cont = 1;
+            return true;
+        }
+        if from <= 2 && self.dispatch_resumable(hookbit::before_hand_draw_late, |cx, me, l| l.before_hand_draw_late(cx, me)) {
+            self.turn_cont = 2;
+            return true;
+        }
+        if from <= 2 {
+            self.draw_opening_hand();
+        }
+        if from <= 3 && self.dispatch_resumable(hookbit::after_player_turn_start, |cx, me, l| l.after_player_turn_start(cx, me)) {
+            self.turn_cont = 3;
+            return true;
+        }
+        self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
+        false
+    }
+
+    /// The hand draw of `SetupPlayerTurn` (`ModifyHandDraw`, Innate / Imbued ordering on turn 1, the draw) and `AfterPlayerTurnStartEarly`.
+    fn draw_opening_hand(&mut self) {
         // Hook.ModifyHandDraw: pass 1 ModifyHandDraw, pass 2 ModifyHandDrawLate (threaded decimals); a listener is a
         // "modifier" iff the (int) value changed; only modifiers get AfterModifyingHandDraw.
         let mut draw = Dec::int(BASE_HAND_DRAW as i64);
@@ -272,13 +281,6 @@ impl Combat {
         }
         self.draw_cards(hand_draw, true);
         self.dispatch_g(hookbit::after_player_turn_start_early, |cx, me, l| l.after_player_turn_start_early(cx, me));
-        self.dispatch_g(hookbit::after_player_turn_start, |cx, me, l| l.after_player_turn_start(cx, me));
-        if self.stage == Stage::AwaitChoice {
-            self.turn_cont = 2;
-            return true;
-        }
-        self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
-        false
     }
 
     /// `PlayerCmd.EndTurn(player)`: marks the player ready to end the turn. The signal is consumed when the effect (or the
