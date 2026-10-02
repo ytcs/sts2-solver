@@ -20,6 +20,9 @@ GROUPS = {
     "ethereal2": "ENFEEBLING_TOUCH SCULPTING_STRIKE PAGESTORM SPIRIT_OF_ASH CALL_OF_THE_VOID DEMESNE SENTRY_MODE",
     "misc1": "BORROWED_TIME BURY DEATH_MARCH DELAY DRAIN_POWER DREDGE GRAVEBLAST HANG",
     "misc2": "MELANCHOLY MISERY PUTREFY REAP SOW SHARED_FATE TRANSFIGURE UNDEATH",
+    "combo1": "SHROUD SLEIGHT_OF_FLESH COUNTDOWN REAPER_FORM CALCIFY NECRO_MASTERY LETHALITY DEBILITATE OBLIVION DEVOUR_LIFE HAUNT POKE DIRGE",
+    "combo2": "DEMESNE FRIENDSHIP SPIRIT_OF_ASH PAGESTORM VEILPIERCER DANSE_MACABRE CALL_OF_THE_VOID SENTRY_MODE NEUROSURGE DEFILE PARSE FEAR",
+    "combo3": "SACRIFICE BONE_SHARDS SQUEEZE PROTECTOR RATTLE FLATTEN FETCH SIC_EM SPUR CLEANSE SEANCE SOUL_STORM REAVE",
     "misc3": "THE_SCYTHE ERADICATE WISP FRIENDSHIP DANSE_MACABRE FORBIDDEN_GRIMOIRE DEFEND_NECROBINDER STRIKE_NECROBINDER",
 }
 
@@ -38,6 +41,7 @@ def main():
     ap.add_argument("--encounter", default="NIBBITS_WEAK")
     ap.add_argument("--extra", default="", help="extra deck spec appended (e.g. CARD:2)")
     ap.add_argument("--tag", default="s")
+    ap.add_argument("--energy", type=int, default=0, help="override max energy (and 3x hp) to reach deeper combinations")
     a = ap.parse_args()
     names = list(GROUPS) if a.groups == ["all"] else a.groups
     worst = 0
@@ -55,7 +59,11 @@ def main():
         if out.returncode != 0:
             print(g, "mk_scenario failed", out.stderr)
             continue
-        open(tpl, "w").write(out.stdout)
+        tj = json.loads(out.stdout)
+        if a.energy:
+            tj["max_energy"] = a.energy
+            tj["hp"] = tj["max_hp"] = 200
+        open(tpl, "w").write(json.dumps(tj, indent=1))
         keep = f"/tmp/sts2sweep_{g}{'_up' if a.upgrade else ''}{'_mx' if a.mixed else ''}"
         r = subprocess.run([sys.executable, os.path.join(ROOT, "tools/diff_sweep.py"), tpl, "--n", str(a.n), "--jobs", str(a.jobs),
                             "--keep", keep, "--tag", a.tag], capture_output=True, text=True)

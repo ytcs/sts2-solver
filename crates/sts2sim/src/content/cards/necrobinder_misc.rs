@@ -127,15 +127,16 @@ listener!(Hang {
 listener!(Misery {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         // debuffAmounts: (power id, amount, applier) of every debuff the target has now (insertion order).
-        let mut list: crate::util::ArrayVec<(u16, i32, Cid), MAX_POWERS> = crate::util::ArrayVec::new();
+        // (the 4th field is the clone's `AmountOnTurnStart`: `ClonePreservingMutability` copies it)
+        let mut list: crate::util::ArrayVec<(u16, i32, Cid, i32), MAX_POWERS> = crate::util::ArrayVec::new();
         for pw in cx.cr(p.target).powers.iter() {
             if Combat::power_type_for_amount(pw.id, pw.amount) == PowerType::Debuff {
-                list.push((pw.id, pw.amount, pw.applier));
+                list.push((pw.id, pw.amount, pw.applier, pw.amount_on_turn_start));
             }
         }
         // A temporary power adds its amount to the matching internally-applied power's entry (they cancel out).
         let snapshot = list;
-        for &(id, amt, _) in snapshot.iter() {
+        for &(id, amt, _, _) in snapshot.iter() {
             if let Some(inner) = crate::engine::temporary_inner_power(id) {
                 if let Some(e) = list.as_mut_slice().iter_mut().find(|e| e.0 == inner) {
                     e.1 += amt;
@@ -148,9 +149,16 @@ listener!(Misery {
             if e == p.target {
                 continue;
             }
-            for &(id, amt, applier) in list.iter() {
+            for &(id, amt, applier, aots) in list.iter() {
                 if amt != 0 {
-                    cx.apply_power(id, e, Dec::int(amt as i64), applier, p.card);
+                    let existed = cx.has_power(e, id);
+                    if let Some(uid) = cx.apply_power(id, e, Dec::int(amt as i64), applier, p.card) {
+                        if !existed {
+                            if let Some(i) = cx.power_idx(e, uid) {
+                                cx.cr_mut(e).powers[i].amount_on_turn_start = aots;
+                            }
+                        }
+                    }
                 }
             }
         }
