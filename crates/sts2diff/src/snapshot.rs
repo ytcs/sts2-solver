@@ -137,6 +137,7 @@ pub fn snapshot(cx: &Combat) -> Value {
     o.insert("energy".into(), json!(cx.player.energy));
     o.insert("max_energy".into(), json!(cx.max_energy()));
     o.insert("stars".into(), json!(cx.player.stars));
+    o.insert("gold".into(), json!(cx.gold));
     o.insert("combat_in_progress".into(), json!(cx.in_progress));
     o.insert("combat_over".into(), json!(over));
     o.insert("player".into(), json!({"hp": me.hp, "max_hp": me.max_hp, "block": me.block, "alive": me.is_alive(), "powers": powers(cx, PLAYER)}));

@@ -36,7 +36,7 @@ impl Combat {
                 return false;
             }
         }
-        if d.star_cost > 0 && d.star_cost as i32 > self.player.stars {
+        if d.star_cost >= 0 && self.card_star_cost(c).max(0) > self.player.stars {
             return false;
         }
         if d.target == TargetType::AnyAlly {
@@ -64,9 +64,28 @@ impl Combat {
             return false;
         }
         // ---- SpendResources: card is still in hand ----
+        let (energy_to_spend, stars_to_spend) = self.spend_resources(c);
+        let play = CardPlay {
+            card: c,
+            target,
+            is_auto: false,
+            play_index: 0,
+            play_count: 1,
+            result_pile: PileType::Discard,
+            energy_spent: energy_to_spend,
+            stars_spent: stars_to_spend,
+            energy_value: energy_to_spend,
+        };
+        self.begin_play(play);
+        true
+    }
+
+    /// `CardModel.SpendResources`: captures X, spends the energy and stars (`AfterEnergySpent` / `AfterStarsSpent`).
+    /// Returns `(energy, stars)` spent. The card is not moved.
+    pub fn spend_resources(&mut self, c: CardIdx) -> (i32, i32) {
         let d = self.card_def(c);
         let energy_to_spend = if d.x_cost { self.player.energy } else { self.card_cost(c, true).max(0) };
-        let stars_to_spend = if d.star_cost > 0 { d.star_cost as i32 } else { 0 };
+        let stars_to_spend = if d.star_cost >= 0 { self.card_star_cost(c).max(0) } else { 0 };
         if d.x_cost {
             self.cards[c as usize].x_value = energy_to_spend as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
@@ -79,29 +98,90 @@ impl Combat {
             self.player.stars = (self.player.stars - stars_to_spend).max(0);
             self.dispatch_g(hookbit::after_stars_spent, |cx, me, l| l.after_stars_spent(cx, me, stars_to_spend));
         }
+        (energy_to_spend, stars_to_spend)
+    }
+
+    /// `CardCmd.AutoPlay` (spec 03 §5.2): plays `c` from wherever it is without paying for it. X cards capture the whole
+    /// energy value but do not spend it (unless `skip_x_capture`). If the card's effect suspends for a decision, the play
+    /// stays in flight (`play_ctx`, stage `AwaitChoice`) and finishes via `resume_after_decision`.
+    pub fn auto_play_card(&mut self, c: CardIdx, target: Cid, skip_x_capture: bool) {
+        if self.is_over_or_ending() || self.cr(PLAYER).is_dead() {
+            return;
+        }
+        if self.card_keywords(c) & kw::UNPLAYABLE != 0 {
+            self.move_to_result_pile_without_playing(c);
+            return;
+        }
+        if self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::should_play));
+            for e in snap.iter() {
+                if self.still_live(&e.me) && !content::listener(&e.me).should_play(self, e.me, c) {
+                    self.move_to_result_pile_without_playing(c);
+                    return;
+                }
+            }
+        }
+        let d = self.card_def(c);
+        let mut target = target;
+        if d.target == TargetType::AnyEnemy && target == NO {
+            let h = self.hittable_enemies();
+            if !h.is_empty() {
+                let k = self.rng.combat_targets.next_int_range(0, h.len() as i32) as usize;
+                target = h[k];
+            }
+        }
+        if (d.target == TargetType::AnyEnemy && target == NO) || d.target == TargetType::AnyAlly {
+            self.move_to_result_pile_without_playing(c);
+            return;
+        }
+        if d.x_cost && !skip_x_capture {
+            self.cards[c as usize].x_value = self.player.energy as i16;
+            self.cards[c as usize].flags |= cflag::X_CAPTURED;
+        }
+        let energy_value = if d.x_cost { self.player.energy } else { self.card_cost(c, true).max(0) };
         let play = CardPlay {
             card: c,
             target,
-            is_auto: false,
+            is_auto: true,
             play_index: 0,
             play_count: 1,
             result_pile: PileType::Discard,
-            energy_spent: energy_to_spend,
-            stars_spent: stars_to_spend,
+            energy_spent: 0,
+            stars_spent: 0,
+            energy_value,
         };
         self.begin_play(play);
-        true
+    }
+
+    /// `CardCmd.MoveToResultPileWithoutPlaying`: to the Play pile first, then dupe -> removed, Exhaust -> exhausted, else
+    /// the discard pile.
+    pub fn move_to_result_pile_without_playing(&mut self, c: CardIdx) {
+        self.move_card(c, PileType::Play, CardPilePosition::Bottom);
+        let flags = self.cards[c as usize].flags;
+        if flags & cflag::IS_DUPE != 0 {
+            self.remove_card_from_combat(c);
+        } else if flags & cflag::EXHAUST_ON_NEXT_PLAY != 0 || self.card_keywords(c) & kw::EXHAUST != 0 {
+            self.cards[c as usize].flags &= !cflag::EXHAUST_ON_NEXT_PLAY;
+            self.exhaust_card(c, false);
+        } else {
+            self.move_card(c, PileType::Discard, CardPilePosition::Bottom);
+        }
     }
 
     /// `CardModel.OnPlayWrapper` steps 1-8 (spec 03 §5.1); then runs the replay loop.
     fn begin_play(&mut self, mut play: CardPlay) {
         let c = play.card;
-        // 2. move to the Play pile (AddDuringManualCardPlay)
-        self.player.hand.remove_value(c);
-        self.player.play.push(c);
-        self.cards[c as usize].pile = PileType::Play as u8;
-        let old = PileType::Hand;
-        self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+        // 2. move to the Play pile: manual plays use AddDuringManualCardPlay (the card is in the hand); auto-plays use a full
+        // `CardPileCmd.Add(card, Play, Bottom)` from wherever the card is.
+        let old = self.card_pile_type(c);
+        if play.is_auto && old != PileType::Play {
+            self.move_card(c, PileType::Play, CardPilePosition::Bottom);
+        } else if old != PileType::Play {
+            self.pile_mut(old).remove_value(c);
+            self.player.play.push(c);
+            self.cards[c as usize].pile = PileType::Play as u8;
+            self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+        }
         // 4. result location (consumes ExhaustOnNextPlay)
         let kws = self.card_keywords(c);
         let flags = self.cards[c as usize].flags;
@@ -232,5 +312,9 @@ impl Combat {
         }
         card.mods = kept;
         card.flags &= !cflag::X_CAPTURED;
+        // CheckForEmptyHand(owner) closes `OnPlayWrapper`; manual plays get it from `after_action`.
+        if ctx.play.is_auto {
+            self.check_for_empty_hand();
+        }
     }
 }

@@ -357,7 +357,13 @@ listener!(PaelsWing {
     }
 });
 
+// flag 0 = `HasItemBeenBought` (saved): +Gold on entering the room until something is bought in a shop.
 listener!(MawBank {
+    fn after_room_entered(&self, cx: &mut Combat, me: Me) {
+        if !cx.rel(me).flag(0) {
+            cx.gain_gold(g::maw_bank::GOLD);
+        }
+    }
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::flag("HasItemBeenBought", 0)]
     }

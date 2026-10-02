@@ -107,6 +107,9 @@ pub struct CardPlay {
     pub result_pile: PileType,
     pub energy_spent: i32,
     pub stars_spent: i32,
+    /// `Resources.EnergyValue`: the energy cost of the play (== `energy_spent` for manual plays; for auto-plays the
+    /// cost the card would have had, while `energy_spent` is 0).
+    pub energy_value: i32,
 }
 
 /// Result of resumable effect code (`on_play`): finished, or suspended waiting for a decision.
@@ -315,6 +318,13 @@ pub trait Listener: Sync {
     fn should_procure_potion(&self, cx: &Combat, me: Me, potion: u16) -> bool {
         true
     }
+    /// Continuation of a hook that suspended (`Combat::suspend_hook`): called after its decision / the card play it started
+    /// finished. `phase` is whatever the hook stored.
+    fn hook_resume(&self, cx: &mut Combat, me: Me, phase: u8) {}
+    /// `ModifyGoldGained` (threaded, run-level) — Ectoplasm.
+    fn modify_gold_gained(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
+        amount
+    }
 
     // ---- relic state metadata (static dispatch by relic id; NOT hooks, no mask bit) ------------------------
     /// The relic's `[SavedProperty]` list: how the oracle dumps / injects its persistent state (`Relic::{counter,aux,flags}`).
@@ -442,8 +452,10 @@ pub mod hookbit {
         after_potion_discarded,
         after_potion_procured,
         should_procure_potion,
+        modify_gold_gained,
     );
     // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
+    pub const hook_resume: u32 = 188;
     pub const meta_props: u32 = 191;
     pub const meta_display: u32 = 190;
     pub const meta_initial: u32 = 189;

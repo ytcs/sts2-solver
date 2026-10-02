@@ -445,7 +445,7 @@ listener!(DaughterOfTheWind {
 
 listener!(IntimidatingHelmet {
     fn before_card_played(&self, cx: &mut Combat, _me: Me, play: &CardPlay) {
-        if play.energy_spent >= g::intimidating_helmet::ENERGY {
+        if play.energy_value >= g::intimidating_helmet::ENERGY {
             relic_block(cx, g::intimidating_helmet::BLOCK);
         }
     }
@@ -453,7 +453,7 @@ listener!(IntimidatingHelmet {
 
 listener!(IvoryTile {
     fn after_card_played(&self, cx: &mut Combat, _me: Me, play: &CardPlay) {
-        if play.energy_spent >= g::ivory_tile::ENERGY_THRESHOLD {
+        if play.energy_value >= g::ivory_tile::ENERGY_THRESHOLD {
             cx.gain_energy(g::ivory_tile::ENERGY);
         }
     }
@@ -637,7 +637,7 @@ listener!(MummifiedHand {
                 list.push(c);
             }
         }
-        let mut pick = |cx: &mut Combat, src: &[CardIdx], only_costing: bool| -> Option<CardIdx> {
+        let pick = |cx: &mut Combat, src: &[CardIdx], only_costing: bool| -> Option<CardIdx> {
             let mut f: crate::util::ArrayVec<CardIdx, MAX_HAND> = crate::util::ArrayVec::new();
             for &c in src {
                 if !only_costing || cx.costs_energy_or_stars(c) {

@@ -17,7 +17,6 @@ fn self_power(cx: &mut Combat, id: u16, n: i32) {
 /// `CardPileCmd.AddGeneratedCardsToCombat(cards, pile, owner[, position])` for freshly created cards, in order.
 fn add_generated(cx: &mut Combat, cards: &[CardIdx], pile: PileType, pos: CardPilePosition) {
     for &c in cards {
-        cx.gen_by_player = true;
         cx.add_generated_card(c, pile, pos);
     }
 }
@@ -261,7 +260,7 @@ listener!(GhostSeed {
     }
 });
 
-// The first Boss-room combat start heals; leftover potions: see runlevel.rs.
+// Adds a Potion-Shaped Rock after the other combat-start effects.
 listener!(PetrifiedToad {
     fn before_combat_start_late(&self, cx: &mut Combat, _me: Me) {
         cx.procure_potion(ids::potion::POTION_SHAPED_ROCK);

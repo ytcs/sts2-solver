@@ -379,6 +379,29 @@ pub struct Combat {
     /// Bit i set when deck card i (scenario deck order) is upgradable: `Deck.Cards.Where(IsUpgradable)` as read by the
     /// post-combat deck relics (FishingRod / WarHammer), which only need to draw from the right-sized item list.
     pub deck_upgradable: u128,
+    /// `Player.Gold` (scenarios start with the character default, 99).
+    pub gold: i32,
+    /// `cardSource` of the power application being dispatched (`BeforePowerAmountChanged` has no card parameter here).
+    pub cur_power_card: CardIdx,
+    /// A hook that raised a decision (or started a card play that may suspend) and wants `hook_resume` called when it is
+    /// done. A suspendable dispatch stops after the listener that set it.
+    pub pending_hook: Option<PendingHook>,
+    /// Where the interrupted player-turn start resumes (see `Combat::run_turn_start`).
+    pub turn_cont: Option<TurnCont>,
+}
+
+/// See `Combat::suspend_hook`.
+#[derive(Clone, Copy, Debug)]
+pub struct PendingHook {
+    pub me: crate::hooks::Me,
+    pub phase: u8,
+}
+
+/// Resume point of an interrupted player-turn start: the step and how many listeners of its dispatch already ran.
+#[derive(Clone, Copy, Debug)]
+pub struct TurnCont {
+    pub step: u8,
+    pub done: u8,
 }
 
 // ---- relic persistent state description (see `Listener::meta_*` and content/relics) ------------------------------------

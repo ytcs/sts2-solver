@@ -108,27 +108,28 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 println!("step {i}: simulator rejected {act:?}");
                 return Ok(Verdict::Mismatch);
             }
-            let choices: Vec<&Value> = rec["choices"].as_array().map(|a| a.iter().collect()).unwrap_or_default();
-            let mut ci = 0;
-            while cx.stage == Stage::AwaitChoice {
-                let Some(ch) = choices.get(ci) else {
-                    println!("step {i}: simulator raised a decision but the oracle made no choice");
-                    return Ok(Verdict::Mismatch);
-                };
-                ci += 1;
-                for p in picks_of(ch) {
-                    if !cx.step(Action::Pick { idx: p }) {
-                        println!("step {i}: pick {p} rejected");
-                        return Ok(Verdict::Mismatch);
-                    }
-                    if cx.stage != Stage::AwaitChoice {
-                        break;
-                    }
-                }
-                if cx.stage == Stage::AwaitChoice && !cx.step(Action::Confirm) {
-                    println!("step {i}: decision still pending after the oracle's picks");
+        }
+        // Prompts raised while executing the action (record 0: while the combat was set up / the first turn started).
+        let choices: Vec<&Value> = rec["choices"].as_array().map(|a| a.iter().collect()).unwrap_or_default();
+        let mut ci = 0;
+        while cx.stage == Stage::AwaitChoice {
+            let Some(ch) = choices.get(ci) else {
+                println!("step {i}: simulator raised a decision but the oracle made no choice");
+                return Ok(Verdict::Mismatch);
+            };
+            ci += 1;
+            for p in picks_of(ch) {
+                if !cx.step(Action::Pick { idx: p }) {
+                    println!("step {i}: pick {p} rejected");
                     return Ok(Verdict::Mismatch);
                 }
+                if cx.stage != Stage::AwaitChoice {
+                    break;
+                }
+            }
+            if cx.stage == Stage::AwaitChoice && !cx.step(Action::Confirm) {
+                println!("step {i}: decision still pending after the oracle's picks");
+                return Ok(Verdict::Mismatch);
             }
         }
         if let Some(m) = missing_name(&cx) {

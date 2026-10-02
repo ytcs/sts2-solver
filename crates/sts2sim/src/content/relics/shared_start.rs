@@ -385,6 +385,33 @@ listener!(Ectoplasm {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount + Dec::int(g::ectoplasm::ENERGY as i64)
     }
+    // No gold from any source.
+    fn modify_gold_gained(&self, _cx: &Combat, _me: Me, _amount: Dec) -> Dec {
+        Dec::ZERO
+    }
+});
+
+listener!(SealOfGold {
+    fn after_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
+        if side == Side::Player && cx.gold >= g::seal_of_gold::GOLD {
+            cx.gain_energy(g::seal_of_gold::ENERGY);
+            cx.lose_gold(g::seal_of_gold::GOLD);
+        }
+    }
+});
+
+listener!(ParryingShield {
+    fn after_side_turn_end(&self, cx: &mut Combat, _me: Me, side: Side) {
+        if side == Side::Player && cx.cr(PLAYER).block >= g::parrying_shield::BLOCK {
+            cx.damage_random_hittable_enemy(g::parrying_shield::DAMAGE, UNPOWERED);
+        }
+    }
+});
+
+listener!(ForgottenSoul {
+    fn after_card_exhausted(&self, cx: &mut Combat, _me: Me, _card: CardIdx, _by_ethereal: bool) {
+        cx.damage_random_hittable_enemy(g::forgotten_soul::DAMAGE, UNPOWERED);
+    }
 });
 listener!(PrismaticGem {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
@@ -402,11 +429,6 @@ listener!(Sozu {
 listener!(BloodSoakedRose {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount + Dec::int(g::blood_soaked_rose::ENERGY as i64)
-    }
-});
-listener!(WhisperingEarring {
-    fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
-        amount + Dec::int(g::whispering_earring::ENERGY as i64)
     }
 });
 

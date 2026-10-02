@@ -46,6 +46,26 @@ impl Combat {
         self.dispatch_g(hookbit::after_stars_gained, |cx, me, l| l.after_stars_gained(cx, me, n));
     }
 
+    /// `PlayerCmd.GainGold`: `Hook.ModifyGoldGained` (threaded over the run-level listeners), then `Gold += (int)amount`
+    /// when positive.
+    pub fn gain_gold(&mut self, amount: i32) {
+        let mut v = Dec::int(amount as i64);
+        let snap = self.snapshot(Mask::bit(hookbit::modify_gold_gained));
+        for e in snap.iter() {
+            if self.still_live(&e.me) {
+                v = content::listener(&e.me).modify_gold_gained(self, e.me, v);
+            }
+        }
+        if v > Dec::ZERO {
+            self.gold += v.trunc();
+        }
+    }
+
+    /// `PlayerCmd.LoseGold`: floors at 0.
+    pub fn lose_gold(&mut self, amount: i32) {
+        self.gold = (self.gold - amount).max(0);
+    }
+
     /// `CardModel.GetStarCostWithModifiers` for a non-X star cost: canonical + upgrades, through `TryModifyStarCost`
     /// (single pass, skipped when the cost is < 0 or the card is outside the combat piles). `-1` = no star cost.
     pub fn card_star_cost(&self, c: CardIdx) -> i32 {

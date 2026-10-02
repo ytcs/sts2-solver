@@ -133,6 +133,9 @@ impl Combat {
         // History.CardGenerated — not tracked yet.
         let ok = self.move_card(c, pile, pos);
         if ok {
+            // `creator`: the player for cards generated on the player's turn (cards, relics, potions); monster moves that add
+            // status cards run during the enemy turn and pass no creator.
+            self.gen_by_player = self.side == Side::Player;
             self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, c));
         }
         ok

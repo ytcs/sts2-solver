@@ -87,43 +87,137 @@ impl Combat {
 
     /// `StartTurn(Player)` (spec 01 §6.1).
     pub(crate) fn start_player_turn(&mut self) {
-        self.player.phase = Phase::None;
-        let list = self.creatures_on(Side::Player);
-        self.before_turn_start(Side::Player);
-        self.dispatch_g(hookbit::before_side_turn_start, |cx, me, l| l.before_side_turn_start(cx, me, Side::Player));
-        self.player.phase = Phase::Start;
-        // PrepareForNextTurn: enemies roll intents before the player draws.
-        let enemies = self.creatures_on(Side::Enemy);
-        for &e in enemies.iter() {
-            self.roll_move(e);
+        self.turn_cont = None;
+        self.run_turn_start(0, 0);
+    }
+
+    /// Dispatch of one hook over the (guarded) listener snapshot that stops right after a listener suspended
+    /// (`Combat::pending_hook`), recording where to resume. `skip` = listeners already run before a resume (the guard
+    /// is evaluated once, when the dispatch starts). Returns false when it suspended.
+    pub(crate) fn dispatch_susp(&mut self, step: u8, bit: u32, skip: usize, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
+        if !self.listen.has(bit) || (skip == 0 && !self.hooks_enabled()) {
+            return true;
         }
-        for &c in list.iter() {
-            // Creature.AfterTurnStart: block clear, skipped on the player's first turn.
-            let skip = c == PLAYER && self.player.turn_number == 1;
-            if !skip {
-                self.clear_block(c);
+        let snap = self.snapshot(Mask::bit(bit));
+        for (i, e) in snap.iter().enumerate().skip(skip) {
+            if self.still_live(&e.me) {
+                f(self, e.me, content::listener(&e.me));
+            }
+            if self.pending_hook.is_some() {
+                self.turn_cont = Some(TurnCont { step, done: (i + 1).min(255) as u8 });
+                return false;
             }
         }
-        for &c in list.iter() {
-            self.dispatch_g(hookbit::after_block_cleared, |cx, me, l| l.after_block_cleared(cx, me, c));
+        true
+    }
+
+    /// A hook that raised a decision parks itself here: `hook_resume(me, phase)` runs once the decision is answered
+    /// (`cx.choice` holds the picks). The caller returns right after.
+    pub fn suspend_hook_for_decision(&mut self, me: Me, phase: u8) {
+        self.pending_hook = Some(PendingHook { me, phase });
+        self.stage = Stage::AwaitChoice;
+    }
+
+    /// Steps of the player-turn start. 0 begin (block clear), 1 energy reset, 2 `BeforeHandDraw`*, 3 hand draw,
+    /// 4 `AfterPlayerTurnStart`*, 5 `AfterSideTurnStart`, 6/7 `AfterAutoPrePlayPhaseEntered` (+Late)*, 8 enter the play
+    /// phase. Steps marked `*` can be suspended by a hook that needs a decision (resumed via `continue_turn_start`).
+    pub(crate) fn run_turn_start(&mut self, mut step: u8, mut skip: usize) {
+        loop {
+            match step {
+                0 => {
+                    self.player.phase = Phase::None;
+                    let list = self.creatures_on(Side::Player);
+                    self.before_turn_start(Side::Player);
+                    self.dispatch_g(hookbit::before_side_turn_start, |cx, me, l| l.before_side_turn_start(cx, me, Side::Player));
+                    self.player.phase = Phase::Start;
+                    // PrepareForNextTurn: enemies roll intents before the player draws.
+                    let enemies = self.creatures_on(Side::Enemy);
+                    for &e in enemies.iter() {
+                        self.roll_move(e);
+                    }
+                    for &c in list.iter() {
+                        // Creature.AfterTurnStart: block clear, skipped on the player's first turn.
+                        let skip_clear = c == PLAYER && self.player.turn_number == 1;
+                        if !skip_clear {
+                            self.clear_block(c);
+                        }
+                    }
+                    for &c in list.iter() {
+                        self.dispatch_g(hookbit::after_block_cleared, |cx, me, l| l.after_block_cleared(cx, me, c));
+                    }
+                    step = if self.cr(PLAYER).is_alive() { 1 } else { 5 };
+                }
+                1 => {
+                    // SetupPlayerTurn (spec 01 §6.2): energy reset
+                    if self.should_player_reset_energy() {
+                        self.player.energy = self.max_energy();
+                    } else {
+                        self.player.energy += self.max_energy();
+                    }
+                    self.dispatch_g(hookbit::after_energy_reset, |cx, me, l| l.after_energy_reset(cx, me));
+                    self.dispatch_g(hookbit::after_energy_reset_late, |cx, me, l| l.after_energy_reset_late(cx, me));
+                    step = 2;
+                }
+                2 => {
+                    if !self.dispatch_susp(2, hookbit::before_hand_draw, skip, |cx, me, l| l.before_hand_draw(cx, me)) {
+                        return;
+                    }
+                    skip = 0;
+                    step = 3;
+                }
+                3 => {
+                    self.setup_hand_draw();
+                    step = 4;
+                }
+                4 => {
+                    if !self.dispatch_susp(4, hookbit::after_player_turn_start, skip, |cx, me, l| l.after_player_turn_start(cx, me)) {
+                        return;
+                    }
+                    skip = 0;
+                    self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
+                    step = 5;
+                }
+                5 => {
+                    self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
+                    self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
+                    // (orb start-of-turn passives: not implemented yet)
+                    if self.cr(PLAYER).is_dead() {
+                        return;
+                    }
+                    // RunAutoPrePlayPhase
+                    self.player.phase = Phase::AutoPrePlay;
+                    self.check_for_empty_hand();
+                    step = 6;
+                }
+                6 => {
+                    if !self.dispatch_susp(6, hookbit::after_auto_pre_play_phase_entered, skip, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me)) {
+                        return;
+                    }
+                    skip = 0;
+                    step = 7;
+                }
+                7 => {
+                    if !self.dispatch_susp(7, hookbit::after_auto_pre_play_phase_entered_late, skip, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me)) {
+                        return;
+                    }
+                    skip = 0;
+                    step = 8;
+                }
+                _ => {
+                    self.player.phase = Phase::Play;
+                    if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
+                        self.stage = Stage::AwaitAction;
+                    }
+                    return;
+                }
+            }
         }
-        if self.cr(PLAYER).is_alive() {
-            self.setup_player_turn();
-        }
-        self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
-        self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
-        // (orb start-of-turn passives: not implemented yet)
-        if self.cr(PLAYER).is_dead() {
-            return;
-        }
-        // RunAutoPrePlayPhase
-        self.player.phase = Phase::AutoPrePlay;
-        self.check_for_empty_hand();
-        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me));
-        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered_late, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me));
-        self.player.phase = Phase::Play;
-        if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
-            self.stage = Stage::AwaitAction;
+    }
+
+    /// Continues an interrupted player-turn start after the hook that suspended it has finished.
+    pub(crate) fn continue_turn_start(&mut self) {
+        if let Some(c) = self.turn_cont.take() {
+            self.run_turn_start(c.step, c.done as usize);
         }
     }
 
@@ -153,16 +247,8 @@ impl Combat {
         true
     }
 
-    /// `SetupPlayerTurn` (spec 01 §6.2).
-    fn setup_player_turn(&mut self) {
-        if self.should_player_reset_energy() {
-            self.player.energy = self.max_energy();
-        } else {
-            self.player.energy += self.max_energy();
-        }
-        self.dispatch_g(hookbit::after_energy_reset, |cx, me, l| l.after_energy_reset(cx, me));
-        self.dispatch_g(hookbit::after_energy_reset_late, |cx, me, l| l.after_energy_reset_late(cx, me));
-        self.dispatch_g(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me));
+    /// `SetupPlayerTurn` after `BeforeHandDraw`: `ModifyHandDraw`, innate cards, the draw (spec 01 §6.2).
+    fn setup_hand_draw(&mut self) {
         // ModifyHandDraw (threaded decimal); models whose `(int)` result changed get AfterModifyingHandDraw.
         let mut draw = Dec::int(BASE_HAND_DRAW as i64);
         let mut draw_mods = super::damage::Mods::new();
@@ -204,8 +290,6 @@ impl Combat {
             hand_draw = hand_draw.max(innate.len() as i32).min(MAX_HAND as i32);
         }
         self.draw_cards(hand_draw, true);
-        self.dispatch_g(hookbit::after_player_turn_start, |cx, me, l| l.after_player_turn_start(cx, me));
-        self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
     }
 
     /// `CheckForEmptyHand` -> `Hook.AfterHandEmptied`.
@@ -491,6 +575,16 @@ impl Combat {
             self.run_play();
         } else if self.potion_ctx.is_some() {
             self.run_potion();
+        }
+        // A hook that was waiting for this decision / for the card play it started continues, then so does the
+        // interrupted turn start.
+        if self.stage != Stage::AwaitChoice {
+            if let Some(ph) = self.pending_hook.take() {
+                content::listener(&ph.me).hook_resume(self, ph.me, ph.phase);
+            }
+        }
+        if self.stage != Stage::AwaitChoice && self.pending_hook.is_none() && self.turn_cont.is_some() {
+            self.continue_turn_start();
         }
     }
 
