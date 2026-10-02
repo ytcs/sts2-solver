@@ -256,6 +256,16 @@ impl Combat {
         }
     }
 
+    /// `CardModel.CreateDupe`: a clone flagged `IsDupe` (removed from combat after its play) without the Exhaust keyword.
+    pub fn create_dupe(&mut self, c: CardIdx) -> Option<CardIdx> {
+        let d = self.clone_card(c)?;
+        let card = &mut self.cards[d as usize];
+        card.flags |= cflag::IS_DUPE;
+        card.kw_remove |= kw::EXHAUST;
+        card.kw_add &= !kw::EXHAUST;
+        Some(d)
+    }
+
     /// `CardCmd.ApplyKeyword(card, kw)`: local keyword added (no-op if the card already has it).
     pub fn apply_keyword(&mut self, c: CardIdx, k: u8) {
         let card = &mut self.cards[c as usize];

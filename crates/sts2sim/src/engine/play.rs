@@ -176,7 +176,7 @@ impl Combat {
         let old = self.card_pile_type(c);
         if play.is_auto && old != PileType::Play {
             self.move_card(c, PileType::Play, CardPilePosition::Bottom);
-        } else if old != PileType::Play {
+        } else if old != PileType::Play && old != PileType::None {
             self.pile_mut(old).remove_value(c);
             self.player.play.push(c);
             self.cards[c as usize].pile = PileType::Play as u8;

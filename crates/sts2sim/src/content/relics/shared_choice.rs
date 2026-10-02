@@ -183,8 +183,7 @@ listener!(HistoryCourse {
             return;
         }
         let src = (cx.rel(me).aux - 1) as CardIdx;
-        if let Some(c) = cx.clone_card(src) {
-            cx.cards[c as usize].flags |= cflag::IS_DUPE;
+        if let Some(c) = cx.create_dupe(src) {
             cx.pending_hook = Some(PendingHook { me, phase: 0 });
             cx.auto_play_card(c, NO, false);
             if cx.stage != Stage::AwaitChoice {
