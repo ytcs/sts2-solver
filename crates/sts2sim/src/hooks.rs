@@ -281,6 +281,21 @@ pub trait Listener: Sync {
         None
     }
     fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
+    /// `AfterPowerAmountChanged(power, amount, applier, cardSource)` with the full argument set (the plain
+    /// `after_power_amount_changed` only knows the power id). Dispatched right after it.
+    fn after_power_amount_changed_full(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {}
+}
+
+/// The arguments of `AfterPowerAmountChanged`: `power` is identified by (`target`, `uid`).
+#[derive(Clone, Copy, Debug)]
+pub struct PowerChange {
+    pub power_id: u16,
+    pub target: Cid,
+    pub uid: u16,
+    /// The change (delta), not the new total.
+    pub amount: i32,
+    pub applier: Cid,
+    pub card: CardIdx,
 }
 
 /// Statically derived hook mask of a listener type.
@@ -376,6 +391,7 @@ pub mod hookbit {
         should_draw,
         modify_card_play_count,
         after_modifying_card_play_count,
+        after_power_amount_changed_full,
     );
 }
 

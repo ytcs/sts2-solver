@@ -11,6 +11,7 @@ mod potions;
 mod play;
 mod powers;
 mod turn;
+mod zz_temp_dep;
 
 pub use creature::DamageResult;
 pub use damage::{Attack, Mods, Results, Targeting};

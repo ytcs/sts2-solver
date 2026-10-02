@@ -234,6 +234,15 @@ impl Combat {
                         self.hist.attacks_finished_this_turn += 1;
                     }
                     if self.in_progress {
+                        match self.card_def(c).ctype {
+                            CardType::Skill => self.hist.skills_finished_this_turn += 1,
+                            _ => {}
+                        }
+                        if self.card_def(c).tags & tag::SHIV != 0 {
+                            self.hist.shivs_finished_this_turn += 1;
+                        }
+                    }
+                    if self.in_progress {
                         let p = ctx.play;
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
                     }

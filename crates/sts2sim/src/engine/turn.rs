@@ -326,7 +326,7 @@ impl Combat {
             }
         }
         // player-turn bookkeeping that is per-turn
-        self.hist = History::default();
+        self.hist = History { drawn_combat: self.hist.drawn_combat, ..History::default() };
         if self.side == Side::Enemy {
             self.run_enemy_turn();
         } else if self.in_progress {

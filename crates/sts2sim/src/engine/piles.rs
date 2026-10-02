@@ -340,6 +340,7 @@ impl Combat {
             }
             self.move_card(card, PileType::Hand, CardPilePosition::Bottom);
             out.push(card);
+            self.hist.drawn_combat += 1; // History.CardDrawn
             self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         }

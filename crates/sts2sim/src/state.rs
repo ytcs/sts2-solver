@@ -333,6 +333,24 @@ pub struct History {
     pub skills_played_this_turn: i16,
     /// `CardPlayFinished` entries this turn for Attack cards (Finisher). Recorded after `OnPlay`, before `AfterCardPlayed`.
     pub attacks_finished_this_turn: i16,
+    // ---- additions (Silent B): `CardPlayFinishedEntry` / `CardDiscardedEntry` / `CardDrawnEntry` counters ----------
+    /// Finished card plays this turn (`CombatManager.History.CardPlaysFinished`, logged after `OnPlay`).
+    pub skills_finished_this_turn: i16,
+    pub shivs_finished_this_turn: i16,
+    /// `CardDiscardedEntry` this turn (only `CardCmd.Discard*`; the end-of-turn flush does not log).
+    pub discarded_this_turn: i16,
+    /// `CardDrawnEntry` over the WHOLE combat (survives the per-turn reset).
+    pub drawn_combat: i32,
+    /// Per-play scratch used by Serpent Form / Strangle: the power amount when `BeforeCardPlayed` ran for a card.
+    pub play_amounts: ArrayVec<PlayAmount, 16>,
+}
+
+/// `Dictionary<CardModel, int> amountsForPlayedCards` entry of a power instance (keyed by power uid + card).
+#[derive(Clone, Copy, Default, Debug)]
+pub struct PlayAmount {
+    pub uid: u16,
+    pub card: CardIdx,
+    pub amount: i32,
 }
 
 #[derive(Clone, Copy)]
