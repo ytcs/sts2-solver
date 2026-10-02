@@ -269,6 +269,22 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- appended hooks (ironclad_a1) ------------------------------------------------------------------
+    /// `ShouldDraw(player, fromHandDraw)` — AND over guarded listeners, checked once per `Draw` call.
+    fn should_draw(&self, cx: &Combat, me: Me, from_hand_draw: bool) -> bool {
+        true
+    }
+    /// `AfterCardDrawnEarly` — runs for every listener before the `AfterCardDrawn` pass (Hellraiser).
+    fn after_card_drawn_early(&self, cx: &mut Combat, me: Me, card: CardIdx, from_hand_draw: bool) {}
+    /// `ModifyCardPlayResultLocation` (threaded over the pile type; position stays Bottom) — Corruption.
+    fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, is_auto: bool, pile: PileType) -> PileType {
+        pile
+    }
+    /// `PowerModel.ShouldOwnerDeathTriggerFatal` — AND over the dying creature's powers (Minion, Reattach).
+    fn should_owner_death_trigger_fatal(&self, cx: &Combat, me: Me) -> bool {
+        true
+    }
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,6 +377,10 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        should_draw,
+        after_card_drawn_early,
+        modify_card_play_result_location,
+        should_owner_death_trigger_fatal,
     );
 }
 

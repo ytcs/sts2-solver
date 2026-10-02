@@ -113,15 +113,34 @@ impl Combat {
         } else {
             PileType::Discard
         };
-        // 5. Hook.ModifyCardPlayResultLocation — no content yet.
+        // 5. Hook.ModifyCardPlayResultLocation (guarded, threaded; the pile is the only part modelled).
+        let result = self.modify_card_play_result_location(c, play.is_auto, result);
         // 6. play count: (replay + 1), Hook.ModifyCardPlayCount — no content yet.
-        let count = self.cards[c as usize].base_replay.saturating_add(1);
+        let count = self.generate_play_count(c);
         play.result_pile = result;
         play.play_count = count;
         // 7-8
         self.player.effect_depth += 1;
         self.play_ctx = Some(PlayCtx { play, step: PlayStep::Before, count, result });
         self.run_play();
+    }
+
+    /// `Hook.ModifyCardPlayResultLocation`.
+    fn modify_card_play_result_location(&self, c: CardIdx, is_auto: bool, mut pile: PileType) -> PileType {
+        if self.hooks_enabled() && self.listen.has(hookbit::modify_card_play_result_location) {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_result_location));
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    pile = content::listener(&e.me).modify_card_play_result_location(self, e.me, c, is_auto, pile);
+                }
+            }
+        }
+        pile
+    }
+
+    /// `CardModel.GeneratePlayCount`: `BaseReplayCount + 1`, then `Hook.ModifyCardPlayCount` (no content yet).
+    pub fn generate_play_count(&self, c: CardIdx) -> u8 {
+        self.cards[c as usize].base_replay.saturating_add(1)
     }
 
     /// Advances the in-flight card play until it finishes or needs a decision.

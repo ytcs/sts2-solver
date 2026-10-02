@@ -331,6 +331,8 @@ pub struct History {
     pub cards_played_this_turn: i16,
     pub attacks_played_this_turn: i16,
     pub skills_played_this_turn: i16,
+    /// `CardExhaustedEntry`s of the current round/side.
+    pub cards_exhausted_this_turn: i16,
 }
 
 #[derive(Clone, Copy)]
