@@ -346,6 +346,11 @@ impl Combat {
                     let depth = self.play_stack.len();
                     match content::listener(&me).on_play(self, &p, phase) {
                         Flow::Done => {
+                            if self.play_stack.len() > depth {
+                                // A hook (not this card's own effect) auto-played a card that is now waiting for a decision,
+                                // but this effect cannot pause mid-way (e.g. inside `draw_cards`): not faithful, so flag it.
+                                self.flag_missing(Kind::Card, self.cards[c as usize].id);
+                            }
                             // (re-read: the effect may have changed the ctx, e.g. its auto-play queue)
                             if let Some(mut ctx) = self.play_ctx {
                                 ctx.step = PlayStep::After;
