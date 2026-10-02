@@ -28,6 +28,10 @@ const PLAYER_F: usize = 8 + OBS_POWERS * 2;
 const RELIC_F: usize = MAX_RELICS * 2;
 const POTION_F: usize = MAX_POTIONS * 2;
 const DECISION_F: usize = 8 + OBS_MAX_CANDS * (CARD_F + 1);
+/// Per-orb features: (kind + 1, passive value, evoke value).
+pub const ORB_F: usize = 3;
+/// Orb block (appended at the end of the vector): capacity, then `MAX_ORBS` orb slots front first.
+const ORBS_F: usize = 1 + MAX_ORBS * ORB_F;
 /// Total length of the flat observation vector.
 pub const OBS_SIZE: usize = GLOBAL_F
     + PLAYER_F
@@ -37,7 +41,8 @@ pub const OBS_SIZE: usize = GLOBAL_F
     + OBS_MAX_PILE * 2 * 3 // draw multiset, discard, exhaust: (id+1, upgrade) per slot
     + 3 // pile sizes
     + OBS_MAX_ENEMIES * ENEMY_F
-    + DECISION_F;
+    + DECISION_F
+    + ORBS_F;
 
 struct W<'a> {
     out: &'a mut [f32],
@@ -263,6 +268,18 @@ impl Combat {
                 }
             }
             None => w.zeros(DECISION_F),
+        }
+        // ---- orbs (visible to the player: slot count, each orb and its current passive / evoke values) ----
+        w.n(self.player.orb_capacity as i32);
+        for k in 0..MAX_ORBS {
+            match self.player.orbs.get(k) {
+                Some(o) => {
+                    w.n(o.kind as i32 + 1);
+                    w.n(self.orb_passive_val(&o).trunc());
+                    w.n(self.orb_evoke_val(&o).trunc());
+                }
+                None => w.zeros(ORB_F),
+            }
         }
         debug_assert_eq!(w.i, OBS_SIZE);
         OBS_SIZE

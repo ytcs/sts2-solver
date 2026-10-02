@@ -109,7 +109,10 @@ impl Combat {
         }
         self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
         self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
-        // (orb start-of-turn passives: not implemented yet)
+        // OrbQueue.AfterTurnStart (Plasma), after the whole Hook.AfterSideTurnStart (incl. the Late pass).
+        if self.cr(PLAYER).is_alive() {
+            self.orbs_after_turn_start();
+        }
         if self.cr(PLAYER).is_dead() {
             return;
         }
@@ -232,7 +235,7 @@ impl Combat {
 
     /// `DoTurnEnd`: ethereal cards exhaust (hand order), turn-end-in-hand cards resolve.
     fn do_turn_end(&mut self) {
-        // (orb BeforeTurnEnd: not implemented yet)
+        self.orbs_before_turn_end();
         if !self.in_progress || self.is_ending() {
             return;
         }

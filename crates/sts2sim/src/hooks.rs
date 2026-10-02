@@ -269,6 +269,21 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- orbs (appended by the Defect port) -------------------------------------------------------------------
+    /// `ModifyOrbValue` (threaded decimal, guarded iterator). `orb` is the orb whose value is being computed.
+    fn modify_orb_value(&self, cx: &Combat, me: Me, orb: &Orb, value: Dec) -> Dec {
+        value
+    }
+    /// `ModifyOrbPassiveTriggerCounts` (threaded int; listeners that changed the count are the "modifiers").
+    fn modify_orb_passive_trigger_count(&self, cx: &Combat, me: Me, orb: &Orb, count: i32) -> i32 {
+        count
+    }
+    fn after_modifying_orb_passive_trigger_count(&self, cx: &mut Combat, me: Me, orb: &Orb) {}
+    /// `AfterOrbChanneled` (the orb is already in the queue).
+    fn after_orb_channeled(&self, cx: &mut Combat, me: Me, orb: &Orb) {}
+    /// `AfterOrbEvoked`; `targets` are what the orb's `Evoke` returned (may include creatures that died since).
+    fn after_orb_evoked(&self, cx: &mut Combat, me: Me, orb: &Orb, targets: &[Cid]) {}
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,6 +376,11 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        modify_orb_value,
+        modify_orb_passive_trigger_count,
+        after_modifying_orb_passive_trigger_count,
+        after_orb_channeled,
+        after_orb_evoked,
     );
 }
 

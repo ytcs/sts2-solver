@@ -83,6 +83,16 @@ pub struct Card {
 }
 pub type PileTypeBits = u8;
 
+/// One orb in the `OrbQueue`. `kind` is an `ids::orb::*` id.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct Orb {
+    pub kind: u16,
+    /// Unique per combat (object identity).
+    pub uid: u16,
+    /// Dark: accumulated `_evokeVal` (starts at 6); Glass: base `_passiveVal` (starts at 4); 0 otherwise.
+    pub val: i32,
+}
+
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Relic {
     pub id: u16,
@@ -250,7 +260,15 @@ pub struct PlayerState {
     pub relics: ArrayVec<Relic, MAX_RELICS>,
     pub potions: [Option<Potion>; MAX_POTIONS],
     pub potion_slots: u8,
+    /// `Player.BaseOrbSlotCount` (scenario value; the queue capacity at combat start).
     pub orb_slots: u8,
+    /// `PlayerCombatState.OrbQueue`: orbs front (next to evoke) first, and the slot capacity.
+    pub orbs: ArrayVec<Orb, MAX_ORBS>,
+    pub orb_capacity: u8,
+    /// Next `Orb::uid` (orbs are objects in the game; tests such as `orb == Orbs[0]` and `Remove(orb)` are by reference).
+    pub next_orb_uid: u16,
+    /// Orbs ever channeled this combat per `OrbChanneledEntry` filter: Lightning count (Voltaic).
+    pub lightning_channeled: i16,
     /// `BeginCardOrPotionEffect` depth.
     pub effect_depth: u8,
 }

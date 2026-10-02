@@ -164,6 +164,9 @@ impl Combat {
         }
         if c == PLAYER {
             self.creatures[PLAYER as usize].block = self.creatures[PLAYER as usize].block;
+            // CreatureCmd.Kill (player branch): OrbQueue.Clear() — orbs gone and capacity zeroed.
+            self.player.orbs.clear();
+            self.player.orb_capacity = 0;
         }
     }
 

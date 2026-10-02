@@ -65,9 +65,9 @@ impl Combat {
         }
     }
 
-    /// `PlayerCmd.GainEnergy` (`ModifyEnergyGain` hook not implemented yet).
+    /// `PlayerCmd.GainEnergy` (`ModifyEnergyGain` hook not implemented yet). No-op once the combat is ending.
     pub fn gain_energy(&mut self, n: i32) {
-        if n > 0 {
+        if n > 0 && !self.is_ending() {
             self.player.energy += n;
         }
     }
