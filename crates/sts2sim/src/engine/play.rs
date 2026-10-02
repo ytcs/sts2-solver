@@ -156,7 +156,7 @@ impl Combat {
     }
 
     /// `Hook.ModifyCardPlayResultLocation` (guarded, threaded) + `AfterModifyingCardPlayResultLocation`.
-    fn modify_result_location(&mut self, c: CardIdx, is_auto: bool, energy_spent: i32, mut loc: CardLocation) -> CardLocation {
+    fn modify_result_location(&mut self, c: CardIdx, is_auto: bool, energy_value: i32, mut loc: CardLocation) -> CardLocation {
         if !self.listen.has(hookbit::modify_card_play_result_location) || !self.hooks_enabled() {
             return loc;
         }
@@ -164,7 +164,7 @@ impl Combat {
         let mut mods = super::Mods::new();
         for e in snap.iter() {
             if self.still_live(&e.me) {
-                let n = content::listener(&e.me).modify_card_play_result_location(self, e.me, c, is_auto, energy_spent, loc);
+                let n = content::listener(&e.me).modify_card_play_result_location(self, e.me, c, is_auto, energy_value, loc);
                 if n != loc {
                     mods.push(e.me);
                 }
@@ -221,7 +221,7 @@ impl Combat {
         }
         // 4-5. result location
         let loc = self.default_result_location(c);
-        let loc = self.modify_result_location(c, play.is_auto, play.energy_spent, loc);
+        let loc = self.modify_result_location(c, play.is_auto, play.energy_value, loc);
         // 6. play count
         let count = self.generate_play_count(c, play.target);
         // 7. owner dead

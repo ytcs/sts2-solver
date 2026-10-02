@@ -10,25 +10,25 @@ use crate::state::*;
 use crate::types::*;
 
 
-/// Hook-presence bitset (192 hooks max).
+/// Hook-presence bitset (256 hooks max).
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct Mask(pub [u64; 3]);
+pub struct Mask(pub [u64; 4]);
 
 impl Mask {
-    pub const EMPTY: Mask = Mask([0; 3]);
+    pub const EMPTY: Mask = Mask([0; 4]);
     #[inline(always)]
     pub const fn bit(n: u32) -> Mask {
-        let mut m = [0u64; 3];
+        let mut m = [0u64; 4];
         m[(n / 64) as usize] = 1u64 << (n % 64);
         Mask(m)
     }
     #[inline(always)]
     pub const fn or(self, o: Mask) -> Mask {
-        Mask([self.0[0] | o.0[0], self.0[1] | o.0[1], self.0[2] | o.0[2]])
+        Mask([self.0[0] | o.0[0], self.0[1] | o.0[1], self.0[2] | o.0[2], self.0[3] | o.0[3]])
     }
     #[inline(always)]
     pub const fn intersects(self, o: Mask) -> bool {
-        (self.0[0] & o.0[0]) | (self.0[1] & o.0[1]) | (self.0[2] & o.0[2]) != 0
+        (self.0[0] & o.0[0]) | (self.0[1] & o.0[1]) | (self.0[2] & o.0[2]) | (self.0[3] & o.0[3]) != 0
     }
     #[inline(always)]
     pub const fn has(self, n: u32) -> bool {
@@ -348,8 +348,9 @@ pub trait Listener: Sync {
     fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
         count
     }
-    /// [G] `ModifyCardPlayResultLocation` (threaded; recorded when changed).
-    fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, is_auto: bool, energy_spent: i32, loc: CardLocation) -> CardLocation {
+    /// [G] `ModifyCardPlayResultLocation` (threaded; recorded when changed). `energy_value` = `ResourceInfo.EnergyValue`
+    /// (the play's cost / captured X, also for auto-plays that spend nothing; FeralPower tests `energy_value > 0`).
+    fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, is_auto: bool, energy_value: i32, loc: CardLocation) -> CardLocation {
         loc
     }
     /// [C] `TryModifyKeywordsInCombat`: returns the new keyword set (threaded).
@@ -694,8 +695,8 @@ pub mod hookbit {
         should_play_kind,
         get_result_location_for_card_play,
     );
-    // The mask has 192 bits.
-    const _: () = assert!(get_result_location_for_card_play < 192);
+    // The mask has 256 bits.
+    const _: () = assert!(get_result_location_for_card_play < 256);
 }
 
 /// Declares a listener: a unit struct implementing `Listener` for just the listed hooks and deriving its mask.
