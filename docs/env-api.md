@@ -35,6 +35,12 @@ rarity/id like the pile screen), discard and exhaust in pile order, every enemy'
 (type, per-hit damage computed with the same modifiers the UI uses, hit count) and its last four performed moves
 (the pattern history a player has seen), per-turn play counters, and any pending decision with its candidates.
 
+Necrobinder: Osty is a visible ally. The END of the observation vector (`observe::OSTY_F` floats) holds Osty's
+present / alive flags, HP / max HP and powers, followed by the damage preview of each hand card with an Osty-damage
+variable (what the card text shows: Osty's own damage modifiers, not the player's Strength / Weak). The block that
+absorbs damage aimed at Osty is the player's (see the player block above). The diff snapshot exposes the same data
+as the oracle's `pets` array.
+
 Hidden (never in the observation): draw-pile order, all RNG stream states, monster-internal AI state beyond the
 displayed intent. `observe::hidden_state_does_not_leak` perturbs these and asserts the vector is unchanged.
 
