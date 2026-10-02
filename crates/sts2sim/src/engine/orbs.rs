@@ -349,3 +349,82 @@ impl Combat {
         }
     }
 }
+
+// ---- small helpers shared by the Defect cards -----------------------------------------------------------------------
+impl Combat {
+    #[inline]
+    pub fn orb_count(&self) -> i32 {
+        self.player.orbs.len() as i32
+    }
+
+    /// `CardPileCmd.AddGeneratedCardToCombat(card, pile, creator)` with an explicit creator (`PLAYER` for cards the
+    /// player's own effects make, so Smokestack / Trash to Treasure / Rocket Punch react; `NO` for monsters).
+    pub fn add_generated_card_by(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition, creator: Cid) -> bool {
+        let prev = self.card_creator;
+        self.card_creator = creator;
+        let ok = self.add_generated_card(c, pile, pos);
+        self.card_creator = prev;
+        ok
+    }
+
+    /// `combatState.CreateCard<T>(owner)` + `AddGeneratedCardToCombat(card, pile, Owner)`.
+    pub fn create_card_for_player(&mut self, id: u16, upgrade: u8, pile: PileType, pos: CardPilePosition) -> Option<CardIdx> {
+        let c = self.new_card(id, upgrade)?;
+        self.add_generated_card_by(c, pile, pos, PLAYER);
+        Some(c)
+    }
+
+    /// Cards in the combat piles in `PlayerCombatState.AllCards` order (hand, draw, discard, exhaust, play).
+    pub fn all_combat_cards(&self) -> ArrayVec<CardIdx, MAX_CARDS> {
+        let mut v = ArrayVec::new();
+        for pile in [&self.player.hand, &self.player.draw, &self.player.discard, &self.player.exhaust, &self.player.play] {
+            for &c in pile.iter() {
+                v.push(c);
+            }
+        }
+        v
+    }
+
+    /// `CardEnergyCost.SetThisCombat(cost)`.
+    pub fn cost_set_this_combat(&mut self, c: CardIdx, cost: i8) {
+        if cost != 0 || self.card_def(c).cost >= 0 {
+            self.cards[c as usize].mods.push(CostMod { amount: cost, relative: false, reduce_only: false, expire: 0 });
+        }
+    }
+
+    /// `CardEnergyCost.AddThisCombat(amount)` (consecutive combat-long relative modifiers fold into one: the cost chain
+    /// is plain addition, and the fixed-capacity modifier list must not overflow).
+    pub fn cost_add_this_combat(&mut self, c: CardIdx, amount: i8) {
+        if amount == 0 {
+            return;
+        }
+        let card = &mut self.cards[c as usize];
+        if let Some(last) = card.mods.as_mut_slice().last_mut() {
+            if last.relative && !last.reduce_only && last.expire == 0 {
+                last.amount = last.amount.saturating_add(amount);
+                return;
+            }
+        }
+        card.mods.push(CostMod { amount, relative: true, reduce_only: false, expire: 0 });
+    }
+
+    /// `CardEnergyCost.AddUntilPlayed(amount)`.
+    pub fn cost_add_until_played(&mut self, c: CardIdx, amount: i8) {
+        if amount != 0 {
+            self.cards[c as usize].mods.push(CostMod { amount, relative: true, reduce_only: false, expire: EXPIRE_WHEN_PLAYED });
+        }
+    }
+
+    /// `Monster.IntendsToAttack`: the monster's pending move has an attack intent.
+    pub fn intends_to_attack(&self, e: Cid) -> bool {
+        use crate::defs::{Intent, MonsterNode};
+        let ms = &self.cr(e).monster;
+        if ms.next_move == NO {
+            return false;
+        }
+        match &crate::content::monster_def(ms.id).nodes[ms.next_move as usize] {
+            MonsterNode::Move { intents, .. } => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
+            _ => false,
+        }
+    }
+}

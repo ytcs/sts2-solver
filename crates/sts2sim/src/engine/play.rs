@@ -72,6 +72,7 @@ impl Combat {
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
         if energy_to_spend > 0 {
+            self.hist.energy_spent = self.hist.energy_spent.saturating_add(energy_to_spend as i16); // History.EnergySpent
             self.player.energy -= energy_to_spend;
         }
         self.dispatch_g(hookbit::after_energy_spent, |cx, me, l| l.after_energy_spent(cx, me, c, energy_to_spend));
@@ -137,7 +138,10 @@ impl Combat {
                     }
                     let p = ctx.play;
                     self.dispatch_g(hookbit::before_card_played, |cx, me, l| l.before_card_played(cx, me, &p));
-                    self.hist.cards_played_this_turn += 1;
+                    self.hist.cards_played_this_turn += 1; // History.CardPlayStarted
+                    if p.play_index == 0 {
+                        self.hist.first_plays_started += 1;
+                    }
                     match self.card_def(c).ctype {
                         CardType::Attack => self.hist.attacks_played_this_turn += 1,
                         CardType::Skill => self.hist.skills_played_this_turn += 1,
@@ -168,6 +172,7 @@ impl Combat {
                         return;
                     }
                     // Enchantment.OnPlay / Affliction.OnPlay — no content yet.
+                    self.hist.plays_finished += 1; // History.CardPlayFinished
                     if self.in_progress {
                         let p = ctx.play;
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));

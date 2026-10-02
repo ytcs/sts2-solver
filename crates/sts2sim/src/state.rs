@@ -349,6 +349,14 @@ pub struct History {
     pub cards_played_this_turn: i16,
     pub attacks_played_this_turn: i16,
     pub skills_played_this_turn: i16,
+    /// `CardDrawnEntry`s of Status cards this turn (Iteration).
+    pub status_cards_drawn: i16,
+    /// `CardPlayFinishedEntry`s this turn (FTL): one per play iteration, recorded after `OnPlay` and before `AfterCardPlayed`.
+    pub plays_finished: i16,
+    /// Sum of `EnergySpentEntry.Amount` this turn (Helix Drill).
+    pub energy_spent: i16,
+    /// `CardPlayStartedEntry`s with `IsFirstInSeries` this turn (Echo Form).
+    pub first_plays_started: i16,
 }
 
 #[derive(Clone, Copy)]
@@ -386,4 +394,8 @@ pub struct Combat {
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
+    /// `creator` of the card currently being generated (`AfterCardGeneratedForCombat(card, creator)`): `PLAYER` for
+    /// player-made cards (set by `add_generated_card_by`), `NO` otherwise / for monsters. Only meaningful while the
+    /// `after_card_generated_for_combat` hook runs.
+    pub card_creator: Cid,
 }

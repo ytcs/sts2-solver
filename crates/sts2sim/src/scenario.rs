@@ -127,6 +127,7 @@ impl Combat {
             decision: None,
             choice: Choice::default(),
             missing: None,
+            card_creator: NO,
         };
         // Player creature (CombatId 0).
         cx.creatures[PLAYER as usize] = Creature {
