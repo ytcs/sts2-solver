@@ -29,7 +29,7 @@ pub enum HKind {
     CardGenerated,
     /// `CardPlay` started: `id` = card id, `aux` = energy value of the play (`Resources.EnergyValue`), `flags & 1` = auto.
     CardPlayStarted,
-    /// `flags & 1` = the played card was Ethereal (`WasEthereal`).
+    /// Counter-only (see `HistLog::ethereal_finished`).
     CardPlayFinished,
     CreatureAttacked,
     /// `actor` = receiver, `other` = dealer, `val` = unblocked damage, `flags & 1` = `WasFullyBlocked`,
@@ -72,11 +72,14 @@ pub struct HistLog {
     pub n: u32,
     /// Whole-combat counters per kind.
     pub total: [u16; HKIND_COUNT],
+    /// Completed plays of Ethereal cards (`CardPlayFinishedEntry.WasEthereal`) — `CardPlayFinished` is counter-only (no ring
+    /// entry) to keep the ring for the entries that need per-turn filtering.
+    pub ethereal_finished: u16,
 }
 
 impl Default for HistLog {
     fn default() -> Self {
-        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT] }
+        HistLog { entries: [HistEntry::default(); HIST_CAP], n: 0, total: [0; HKIND_COUNT], ethereal_finished: 0 }
     }
 }
 

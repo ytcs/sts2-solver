@@ -172,7 +172,9 @@ impl Combat {
             }
             let (modified, mods) = self.modify_damage(t, dealer, amount, props, card);
             self.dispatch_modifiers(false, hookbit::after_modifying_damage_amount, &mods, |cx, me, l| l.after_modifying_damage_amount(cx, me, card));
-            self.dmg_card = card;
+            if self.listen.has(hookbit::before_damage_received) {
+                self.dmg_card = card;
+            }
             self.dispatch_u(hookbit::before_damage_received, |cx, me, l| l.before_damage_received(cx, me, t, modified, props, dealer));
             // Pet quirk: damage to Osty is absorbed by its owner's block.
             let block_owner = if self.cr(t).is_pet && self.cr(t).owner != NO { self.cr(t).owner } else { t };
@@ -210,25 +212,33 @@ impl Combat {
         for i in 0..results.len() {
             let r = results[i];
             let t = r.receiver;
-            self.dmg_card = card;
-            self.dmg_result = r;
-            if r.block_broken {
+            // (the side channel `dmg_card` / `dmg_result` is rewritten before each dispatch: a nested damage call made by a
+            // hook would overwrite it)
+            if r.block_broken && self.listen.has(hookbit::after_block_broken) {
+                self.dmg_card = card;
+                self.dmg_result = r;
                 self.dispatch_u(hookbit::after_block_broken, |cx, me, l| l.after_block_broken(cx, me, t, dealer));
             }
-            if r.unblocked > 0 {
+            if r.unblocked > 0 && self.listen.has(hookbit::after_current_hp_changed) {
                 let d = -r.unblocked;
                 self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, t, d));
             }
-            self.dmg_card = card;
-            self.dmg_result = r;
-            self.dispatch_u(hookbit::after_damage_given, |cx, me, l| l.after_damage_given(cx, me, dealer, t, r.unblocked, props));
+            if self.listen.has(hookbit::after_damage_given) {
+                self.dmg_card = card;
+                self.dmg_result = r;
+                self.dispatch_u(hookbit::after_damage_given, |cx, me, l| l.after_damage_given(cx, me, dealer, t, r.unblocked, props));
+            }
             if !r.killed || !self.cr(t).is_dead() {
-                self.dmg_card = card;
-                self.dmg_result = r;
-                self.dispatch_u(hookbit::after_damage_received, |cx, me, l| l.after_damage_received(cx, me, t, r.unblocked, props, dealer));
-                self.dmg_card = card;
-                self.dmg_result = r;
-                self.dispatch_u(hookbit::after_damage_received_late, |cx, me, l| l.after_damage_received_late(cx, me, t, r.unblocked, props, dealer));
+                if self.listen.has(hookbit::after_damage_received) {
+                    self.dmg_card = card;
+                    self.dmg_result = r;
+                    self.dispatch_u(hookbit::after_damage_received, |cx, me, l| l.after_damage_received(cx, me, t, r.unblocked, props, dealer));
+                }
+                if self.listen.has(hookbit::after_damage_received_late) {
+                    self.dmg_card = card;
+                    self.dmg_result = r;
+                    self.dispatch_u(hookbit::after_damage_received_late, |cx, me, l| l.after_damage_received_late(cx, me, t, r.unblocked, props, dealer));
+                }
             } else {
                 killed.push(t);
             }

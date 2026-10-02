@@ -97,6 +97,7 @@ impl Scenario {
 
 impl Combat {
     /// Builds the combat and runs it up to the first player decision (spec 01 §3-4).
+    #[inline(always)]
     pub fn new(sc: &Scenario) -> Combat {
         Self::new_with(sc, &ScenarioExtras::default())
     }

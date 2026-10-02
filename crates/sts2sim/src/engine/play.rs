@@ -36,8 +36,17 @@ impl Combat {
     }
 
     /// `Hook.ShouldPlay` (guarded, AND): the first vetoing model is the preventer.
+    #[inline]
     pub fn should_play_preventer(&self, c: CardIdx, kind: AutoPlayType) -> Option<Me> {
-        if !self.listen.intersects(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind)) || !self.hooks_enabled() {
+        if !self.listen.intersects(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind)) {
+            return None;
+        }
+        self.should_play_preventer_slow(c, kind)
+    }
+
+    #[inline(never)]
+    fn should_play_preventer_slow(&self, c: CardIdx, kind: AutoPlayType) -> Option<Me> {
+        if !self.hooks_enabled() {
             return None;
         }
         let snap = self.snapshot(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind));
@@ -304,7 +313,10 @@ impl Combat {
                         }
                     }
                     let ethereal = (self.card_keywords(c) & kw::ETHEREAL != 0) as u8;
-                    self.hist_push(HKind::CardPlayFinished, PLAYER, p.target, self.cards[c as usize].id, c, 0, ethereal, 0, 0);
+                    self.hist_log.total[HKind::CardPlayFinished as usize] += 1;
+                    if ethereal != 0 {
+                        self.hist_log.ethereal_finished += 1;
+                    }
                     if self.in_progress {
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
                         self.dispatch_u(hookbit::after_card_played_late, |cx, me, l| l.after_card_played_late(cx, me, &p));

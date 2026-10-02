@@ -116,10 +116,18 @@ impl Combat {
 
     /// `CardModel.Keywords`: the local keyword set plus the global keywords of `Hook.ModifyKeywordsInCombat`
     /// (unguarded; only for cards in a combat pile; HexPower adds Ethereal).
-    #[inline]
+    #[inline(always)]
     pub fn card_keywords(&self, c: CardIdx) -> u8 {
         let local = self.card_keywords_local(c);
-        if !self.listen.has(hookbit::try_modify_keywords_in_combat) || !self.card_in_combat_pile(c) {
+        if !self.listen.has(hookbit::try_modify_keywords_in_combat) {
+            return local;
+        }
+        self.card_keywords_global(c, local)
+    }
+
+    #[inline(never)]
+    fn card_keywords_global(&self, c: CardIdx, local: u8) -> u8 {
+        if !self.card_in_combat_pile(c) {
             return local;
         }
         let snap = self.snapshot(Mask::bit(hookbit::try_modify_keywords_in_combat));
@@ -260,7 +268,11 @@ impl Combat {
     }
 
     /// `Hook.AfterCardChangedPiles`: two full passes (`AfterCardChangedPiles`, then `...Late`) over the run-level iterator.
+    #[inline]
     pub fn fire_card_changed_piles(&mut self, c: CardIdx, old: PileType) {
+        if !self.listen.intersects(Mask::bit(hookbit::after_card_changed_piles) | Mask::bit(hookbit::after_card_changed_piles_late)) {
+            return;
+        }
         self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
         self.dispatch_u(hookbit::after_card_changed_piles_late, |cx, me, l| l.after_card_changed_piles_late(cx, me, c, old));
     }

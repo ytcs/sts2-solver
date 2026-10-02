@@ -129,11 +129,17 @@ impl Combat {
 
     /// `CardModel.GetStarCostWithModifiers()` (no X-star cards yet): canonical + upgrades, through `Hook.ModifyStarCost`
     /// (guarded, threaded; skipped for negative costs). -1 = the card has no star cost.
+    #[inline(always)]
     pub fn card_star_cost(&self, c: CardIdx) -> i32 {
-        let d = self.card_def(c);
-        if d.star_cost < 0 {
+        if self.card_def(c).star_cost < 0 {
             return -1;
         }
+        self.card_star_cost_slow(c)
+    }
+
+    #[inline(never)]
+    fn card_star_cost_slow(&self, c: CardIdx) -> i32 {
+        let d = self.card_def(c);
         let base = (d.star_cost as i32 + d.up_star_cost as i32 * self.cards[c as usize].upgrade as i32).max(0);
         if !self.card_in_combat_pile(c) || !self.listen.has(hookbit::try_modify_star_cost) || !self.hooks_enabled() {
             return base;
