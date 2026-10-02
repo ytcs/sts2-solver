@@ -364,7 +364,7 @@ pub static WATERFALL_GIANT_DEF: MonsterDef = MonsterDef {
             5
         ),
         mv!("PRESSURE_UP_MOVE", giant::pressure_up_move, [atk!(giant::pressure_up), Intent::Buff], 1),
-        mv!("EXPLODE_MOVE", giant::explode, [Intent::DeathBlow], 6),
+        mv!("EXPLODE_MOVE", giant::explode, [Intent::DeathBlowAttack { damage: |cx, c| cx.cr(c).monster.vars[1] }], 6),
         MonsterNode::Move { id: "ABOUT_TO_BLOW_MOVE", perform: giant::about_to_blow, intents: &[Intent::Stun], follow_up: 6, must_perform_once: true },
     ],
 };

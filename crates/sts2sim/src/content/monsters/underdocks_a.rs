@@ -664,7 +664,7 @@ pub static GAS_BOMB_DEF: MonsterDef = MonsterDef {
             hits(cx, me, gas_bomb::explode(cx), 1);
             cx.kill(&[me]);
         },
-        [Intent::DeathBlow],
+        [Intent::DeathBlowAttack { damage: |cx, _| gas_bomb::explode(cx) }],
         NO
     )],
 };

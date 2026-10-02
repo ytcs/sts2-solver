@@ -229,6 +229,7 @@ impl Combat {
                             Intent::StatusCard => (12, 0, 0),
                             Intent::CardDebuff => (13, 0, 0),
                             Intent::DeathBlow => (14, 0, 0),
+                            Intent::DeathBlowAttack { damage } => (14, self.intent_damage(e, damage(self, e)), 1),
                         };
                         w.n(kind);
                         w.n(dmg);

@@ -233,6 +233,8 @@ pub enum Intent {
     StatusCard,
     CardDebuff,
     DeathBlow,
+    /// `DeathBlowIntent(Func<decimal>)`: a single attack (the attacker dies afterwards); reports like `DeathBlow` plus damage.
+    DeathBlowAttack { damage: fn(&Combat, u8) -> i32 },
 }
 
 /// Performs a monster move: `fn(cx, monster_creature)`.

@@ -24,7 +24,7 @@ fn amount(cx: &Combat, me: &Me) -> i32 {
 
 // ArtifactPower: blocks visible debuffs, one charge per blocked application (spec 02 §6.3).
 listener!(ArtifactPower {
-    fn try_modify_power_amount_received(&self, cx: &Combat, me: Me, power_id: u16, target: Cid, amt: Dec, _applier: Cid) -> Option<Dec> {
+    fn try_modify_power_amount_received(&self, _cx: &Combat, me: Me, power_id: u16, target: Cid, amt: Dec, _applier: Cid) -> Option<Dec> {
         if target != me.owner {
             return None;
         }

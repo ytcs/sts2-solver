@@ -94,6 +94,10 @@ fn enemy(cx: &Combat, e: Cid) -> Value {
                     Intent::StatusCard => json!({"type": "StatusCard"}),
                     Intent::CardDebuff => json!({"type": "CardDebuff"}),
                     Intent::DeathBlow => json!({"type": "DeathBlow"}),
+                    Intent::DeathBlowAttack { damage } => {
+                        let d = cx.intent_damage(e, damage(cx, e));
+                        json!({"type": "DeathBlow", "damage": d, "hits": 1, "total_damage": d})
+                    }
                 });
             }
             m.insert("intents".into(), Value::Array(list));
