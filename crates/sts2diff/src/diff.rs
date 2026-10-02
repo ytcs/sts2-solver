@@ -89,13 +89,14 @@ fn missing_name(cx: &Combat) -> Option<String> {
 
 pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: bool) -> Result<Verdict, String> {
     let sv: Value = serde_json::from_str(&std::fs::read_to_string(scenario_path).map_err(|e| format!("{scenario_path}: {e}"))?).map_err(|e| e.to_string())?;
-    let sc = convert::scenario(&sv)?;
+    let (sc, extras) = convert::scenario_ex(&sv)?;
     sc.validate().map_err(|e| format!("not implemented in the simulator: {e:?}"))?;
     let trace = load_jsonl(trace_path)?;
-    let mut cx = Combat::new(&sc);
-    cx.player.gold = sv["gold"].as_i64().unwrap_or(99) as i32;
+    let mut cx = Combat::new_with(&sc, &extras);
     let mut reported = 0;
     let mut ok = true;
+    let lenient = std::env::var("STS2DIFF_LENIENT").is_ok();
+    let mut first_missing: Option<(usize, String)> = None;
     let mut buf = ActionBuf::new();
     for (i, rec) in trace.iter().enumerate() {
         if i > 0 {
@@ -117,28 +118,45 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;
+                let seq = cx.decision_seq;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
                         println!("step {i}: pick {p} rejected");
                         return Ok(Verdict::Mismatch);
                     }
-                    if cx.stage != Stage::AwaitChoice {
+                    // finished (or replaced by the NEXT decision of the same effect)
+                    if cx.stage != Stage::AwaitChoice || cx.decision_seq != seq {
                         break;
                     }
                 }
-                if cx.stage == Stage::AwaitChoice && !cx.step(Action::Confirm) {
+                if cx.stage == Stage::AwaitChoice && cx.decision_seq == seq && !cx.step(Action::Confirm) {
                     println!("step {i}: decision still pending after the oracle's picks");
                     return Ok(Verdict::Mismatch);
                 }
             }
         }
         if let Some(m) = missing_name(&cx) {
-            println!("UNIMPLEMENTED {m} (step {i})");
-            return Ok(Verdict::Unimplemented);
+            // STS2DIFF_LENIENT=1: unported *cards* (e.g. offered by a card-generating potion) do not stop the replay;
+            // every step up to and including the one that generated them is still compared, and a divergence on a
+            // later step is reported as UNIMPLEMENTED (the unported card's own effect) instead of a mismatch.
+            if lenient && m.starts_with("card ") {
+                if first_missing.is_none() {
+                    first_missing = Some((i, m));
+                }
+            } else {
+                println!("UNIMPLEMENTED {m} (step {i})");
+                return Ok(Verdict::Unimplemented);
+            }
         }
         let mut diffs = vec![];
         compare("", &snapshot(&cx), rec, &mut diffs);
         if !diffs.is_empty() {
+            if let Some((j, m)) = &first_missing {
+                if i > *j {
+                    println!("UNIMPLEMENTED {m} (step {j}; state diverged at step {i}: {})", diffs.first().map(|s| s.as_str()).unwrap_or(""));
+                    return Ok(Verdict::Unimplemented);
+                }
+            }
             ok = false;
             if !quiet {
                 println!("step {i} (action {}): {} difference(s)", rec["action"], diffs.len());

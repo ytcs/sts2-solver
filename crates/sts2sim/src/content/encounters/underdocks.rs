@@ -7,16 +7,6 @@ use crate::ids;
 use crate::rng::Rng;
 use crate::types::NO;
 
-/// Number of entries of the encounter's `Slots` list (0 = none); used by `Combat::free_slot` (`GetNextSlot`).
-pub fn slot_count(enc: u16) -> u8 {
-    match enc {
-        ids::encounter::LIVING_FOG_NORMAL => 6,       // bomb1..bomb5, livingFog
-        ids::encounter::TWO_TAILED_RATS_NORMAL => 5,  // first..fifth
-        ids::encounter::PHANTASMAL_GARDENERS_ELITE => 4, // first..fourth
-        _ => 0,
-    }
-}
-
 fn one(monster: u16) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster, slot: NO, vars: [0, 0] });

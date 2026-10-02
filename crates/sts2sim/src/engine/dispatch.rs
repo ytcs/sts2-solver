@@ -13,7 +13,7 @@ pub struct Entry {
     pub mask: Mask,
 }
 
-pub type Snapshot = ArrayVec<Entry, 96>;
+pub type Snapshot = ArrayVec<Entry, 128>;
 
 impl Combat {
     /// `L_combat` restricted to listeners whose hook mask intersects `m`, in the game's order (spec 02 §1.1).
@@ -35,7 +35,7 @@ impl Combat {
                 if mask.intersects(m) {
                     s.push(Entry { me: Me { kind: Kind::Monster, owner: ci, idx: 0, id: cr.monster.id, amount: 0 }, mask });
                 }
-            } else if cr.is_alive() {
+            } else if self.player_hooks_active {
                 let pl = &self.player;
                 for (i, r) in pl.relics.iter().enumerate() {
                     let mask = content::relic_mask(r.id);
@@ -51,12 +51,30 @@ impl Combat {
                         }
                     }
                 }
+                if !self.listen_cards.intersects(m) {
+                    continue;
+                }
                 for pile in [&pl.hand, &pl.draw, &pl.discard, &pl.exhaust, &pl.play] {
                     for &c in pile.iter() {
                         let card = &self.cards[c as usize];
                         let mask = content::card_mask(card.id);
                         if mask.intersects(m) {
                             s.push(Entry { me: Me { kind: Kind::Card, owner: ci, idx: c as u16, id: card.id, amount: 0 }, mask });
+                        }
+                        // card.Affliction (BEFORE the enchantment), then card.Enchantment (spec 02 §1.1)
+                        if card.affliction != 0 {
+                            let aid = (card.affliction - 1) as u16;
+                            let mask = content::affliction_mask(aid);
+                            if mask.intersects(m) {
+                                s.push(Entry { me: Me { kind: Kind::Affliction, owner: ci, idx: c as u16, id: aid, amount: card.affliction_amount as i32 }, mask });
+                            }
+                        }
+                        if card.enchant != 0 {
+                            let eid = (card.enchant - 1) as u16;
+                            let mask = content::enchantment_mask(eid);
+                            if mask.intersects(m) {
+                                s.push(Entry { me: Me { kind: Kind::Enchantment, owner: ci, idx: c as u16, id: eid, amount: card.enchant_amount as i32 }, mask });
+                            }
                         }
                     }
                 }
@@ -69,10 +87,15 @@ impl Combat {
     #[inline]
     pub fn still_live(&self, me: &Me) -> bool {
         match me.kind {
-            Kind::Power | Kind::Monster => self.creatures[me.owner as usize].in_combat,
-            Kind::Relic | Kind::Potion | Kind::Orb => self.creatures[PLAYER as usize].is_alive(),
+            // PowerModel: owner in a combat and (owner not a player or the player is active); MonsterModel: attached.
+            Kind::Power => {
+                let o = &self.creatures[me.owner as usize];
+                o.in_combat && (!o.is_player || self.player_hooks_active)
+            }
+            Kind::Monster => self.creatures[me.owner as usize].in_combat,
+            Kind::Relic | Kind::Potion | Kind::Orb => self.player_hooks_active,
             Kind::Card | Kind::Enchantment | Kind::Affliction => {
-                self.creatures[PLAYER as usize].is_alive() && self.cards[me.idx as usize].flags & cflag::REMOVED == 0
+                self.player_hooks_active && self.cards[me.idx as usize].flags & cflag::REMOVED == 0
             }
         }
     }
@@ -132,23 +155,68 @@ impl Combat {
         cr.side == Side::Enemy && !cr.powers.iter().any(|p| content::power_def(p.id).secondary_enemy)
     }
 
-    /// OR over `ShouldStopCombatFromEnding` (Adaptable, Infested, SteamEruption, Stock, Surprise).
+    /// OR over `ShouldStopCombatFromEnding` (Adaptable, Infested, SteamEruption, Stock, Surprise); unguarded.
     pub fn should_stop_combat_from_ending(&self) -> bool {
-        let bit = hookbit::should_stop_combat_from_ending;
+        if !self.listen.has(hookbit::should_stop_combat_from_ending) {
+            return false;
+        }
+        self.any_true(hookbit::should_stop_combat_from_ending, |cx, me, l| l.should_stop_combat_from_ending(cx, me))
+    }
+
+    /// OR over a predicate hook on the unguarded iterator (`ShouldTakeExtraTurn` etc. use `any_true_g`).
+    pub fn any_true(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
         if !self.listen.has(bit) {
             return false;
         }
         let snap = self.snapshot(Mask::bit(bit));
-        snap.iter().any(|e| self.still_live(&e.me) && content::listener(&e.me).should_stop_combat_from_ending(self, e.me))
+        for e in snap.iter() {
+            if self.still_live(&e.me) && f(self, e.me, content::listener(&e.me)) {
+                return true;
+            }
+        }
+        false
     }
 
-    /// `Hook.ShouldCreatureBeRemovedFromCombatAfterDeath` — AND over (unguarded) listeners.
-    pub fn should_creature_be_removed_after_death(&self, c: Cid) -> bool {
-        let bit = hookbit::should_creature_be_removed_after_death;
+    /// OR over a predicate hook on the guarded iterator.
+    pub fn any_true_g(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
+        self.hooks_enabled() && self.any_true(bit, f)
+    }
+
+    /// AND over a predicate hook (unguarded): the first model answering `false` — the "preventer" — is returned.
+    pub fn first_veto(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
         if !self.listen.has(bit) {
-            return true;
+            return None;
         }
         let snap = self.snapshot(Mask::bit(bit));
-        snap.iter().all(|e| !self.still_live(&e.me) || content::listener(&e.me).should_creature_be_removed_after_death(self, e.me, c))
+        for e in snap.iter() {
+            if self.still_live(&e.me) && !f(self, e.me, content::listener(&e.me)) {
+                return Some(e.me);
+            }
+        }
+        None
+    }
+
+    /// AND over a predicate hook on the guarded iterator (every dispatch is a no-op, i.e. `None`, once combat is ending).
+    pub fn first_veto_g(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
+        if !self.hooks_enabled() {
+            return None;
+        }
+        self.first_veto(bit, f)
+    }
+
+    /// `participants.Contains(creature)` of the side-turn hooks: on the player side only the player creature (pets are not
+    /// participants of the turn-end hooks), on the enemy side every enemy.
+    pub fn is_turn_participant(&self, side: Side, c: Cid) -> bool {
+        match side {
+            Side::Player => c == PLAYER,
+            Side::Enemy => self.enemies.contains(c),
+        }
+    }
+
+    /// Calls `f` on `me`'s listener if it is still a listener (`Hook.After*(…, modifier)` for a single model).
+    pub fn notify_one(&mut self, me: Me, f: impl FnOnce(&mut Combat, Me, &'static dyn Listener)) {
+        if self.still_live(&me) {
+            f(self, me, content::listener(&me));
+        }
     }
 }

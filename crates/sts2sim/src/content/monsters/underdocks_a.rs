@@ -11,6 +11,16 @@ use crate::types::*;
 
 // ---- shared helpers ------------------------------------------------------------------------------------------------
 
+/// `Encounter.GetNextSlot` (`last == false`: first free slot) / `Slots.LastOrDefault(free)` (`last == true`) over the
+/// encounter's `n` slots; `NO` if none is free. (Only TwoTailedRatsNormal (5 slots) and LivingFogNormal (6) summon.)
+pub fn free_slot(cx: &Combat, n: u8, last: bool) -> u8 {
+    if last {
+        (0..n).rev().find(|&s| !cx.enemies.iter().any(|&e| cx.cr(e).slot == s)).unwrap_or(NO)
+    } else {
+        cx.next_free_slot(n)
+    }
+}
+
 #[inline]
 fn deadly(cx: &Combat, asc9: i32, base: i32) -> i32 {
     asc::val(asc::DEADLY_ENEMIES, cx.ascension, asc9, base)
@@ -387,6 +397,7 @@ pub static CORPSE_SLUG_DEF: MonsterDef = MonsterDef {
 mod two_tailed_rat {
     use super::*;
     pub const CALL_FOR_BACKUP: u8 = 4;
+    pub const SLOTS: u8 = 5;
     pub fn scratch(cx: &Combat) -> i32 {
         deadly(cx, 9, 8)
     }
@@ -399,7 +410,7 @@ mod two_tailed_rat {
         if 2 - ms.vars[2] > 0 || ms.vars[3] >= 3 {
             return false;
         }
-        if cx.free_slot(false) == NO {
+        if free_slot(cx, SLOTS, false) == NO {
             return false;
         }
         !cx.enemies.iter().any(|&e| e != me && cx.cr(e).monster.next_move == CALL_FOR_BACKUP)
@@ -414,9 +425,9 @@ mod two_tailed_rat {
         cx.cr_mut(me).monster.vars[2] += 1;
     }
     pub fn call_for_backup(cx: &mut Combat, me: Cid) {
-        let slot = cx.free_slot(true);
+        let slot = free_slot(cx, SLOTS, true);
         if slot != NO {
-            cx.spawn_enemy_live(ids::monster::TWO_TAILED_RAT, slot, [-1, 0]);
+            cx.summon_enemy(ids::monster::TWO_TAILED_RAT, slot, [-1, 0]);
         }
         let mut max = 0;
         for &e in cx.enemies.iter() {
@@ -519,12 +530,12 @@ mod gremlin_merc {
             v
         };
         for &uid in uids.iter() {
-            if cx.cr(PLAYER).is_dead() || cx.player.gold <= 0 {
+            if cx.cr(PLAYER).is_dead() || cx.gold <= 0 {
                 continue;
             }
             if let Some(i) = cx.power_idx(me, uid) {
-                let a = cx.cr(me).powers[i].amount.min(cx.player.gold);
-                cx.player.gold -= a;
+                let a = cx.cr(me).powers[i].amount.min(cx.gold);
+                cx.gold -= a;
                 cx.cr_mut(me).powers[i].aux += a;
             }
         }
@@ -630,9 +641,9 @@ pub static LIVING_FOG_DEF: MonsterDef = MonsterDef {
             "BLOAT_MOVE",
             |cx, me| {
                 // BloatAmount = 1 GasBomb into the first free slot, then the attack
-                let slot = cx.free_slot(false);
+                let slot = free_slot(cx, 6, false); // slots bomb1..bomb5, livingFog
                 if slot != NO {
-                    cx.spawn_enemy_live(ids::monster::GAS_BOMB, slot, [0, 0]);
+                    cx.summon_enemy(ids::monster::GAS_BOMB, slot, [0, 0]);
                 }
                 hits(cx, me, living_fog::bloat(cx), 1);
             },

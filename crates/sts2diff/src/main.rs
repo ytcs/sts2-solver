@@ -6,11 +6,8 @@
 //! The comparison walks the Rust snapshot (`snapshot::snapshot`) and requires every field it contains to equal the
 //! oracle's, so fields the simulator does not model yet are simply absent from the comparison.
 
-mod convert;
-mod diff;
-mod snapshot;
+use sts2diff::diff;
 
-use serde_json::Value;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -56,7 +53,3 @@ fn main() -> ExitCode {
     }
 }
 
-pub fn load_jsonl(path: &str) -> Result<Vec<Value>, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
-    text.lines().filter(|l| !l.trim().is_empty()).map(|l| serde_json::from_str(l).map_err(|e| format!("{path}: {e}"))).collect()
-}

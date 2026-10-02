@@ -80,6 +80,14 @@ impl<T: Copy, const N: usize> ArrayVec<T, N> {
         self.len -= 1;
         v
     }
+    /// `List<T>.RemoveAt(Count - 1)`.
+    pub fn pop(&mut self) -> Option<T> {
+        if self.len == 0 {
+            return None;
+        }
+        self.len -= 1;
+        Some(unsafe { self.items[self.len as usize].assume_init() })
+    }
     #[inline(always)]
     pub fn clear(&mut self) {
         self.len = 0;

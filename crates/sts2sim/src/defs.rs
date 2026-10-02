@@ -373,3 +373,7 @@ impl PotionDef {
         self
     }
 }
+
+/// `MonsterNode::Move::follow_up` value meaning "the successor stored at runtime in `MonsterState::stun_follow_up`"
+/// (`MoveState.FollowUpStateId` of the dynamically created STUNNED / REVIVE_MOVE states, see engine/lifecycle.rs).
+pub const FOLLOW_STORED: u8 = 0xFD;

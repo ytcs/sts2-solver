@@ -137,8 +137,9 @@ pub static SKULKING_COLONY_DEF: MonsterDef = MonsterDef {
 
 // ---- TerrorEel (elite) ---------------------------------------------------------------------------------------------------
 
-mod eel {
+pub mod eel {
     use super::*;
+    pub const TERROR: u8 = 2;
     pub fn crash(cx: &Combat) -> i32 {
         deadly(cx, 18, 16)
     }
@@ -173,8 +174,9 @@ pub static TERROR_EEL_DEF: MonsterDef = MonsterDef {
 
 // ---- LagavulinMatriarch (boss) -------------------------------------------------------------------------------------------
 
-mod matriarch {
+pub mod matriarch {
     use super::*;
+    pub const SLASH: u8 = 2;
     pub fn slash(cx: &Combat) -> i32 {
         deadly(cx, 21, 19)
     }
@@ -284,8 +286,9 @@ pub static SOUL_FYSH_DEF: MonsterDef = MonsterDef {
 
 // ---- WaterfallGiant (boss) -----------------------------------------------------------------------------------------------
 
-mod giant {
+pub mod giant {
     use super::*;
+    pub const ABOUT_TO_BLOW: u8 = 7;
     pub fn stomp(cx: &Combat) -> i32 {
         deadly(cx, 16, 15)
     }

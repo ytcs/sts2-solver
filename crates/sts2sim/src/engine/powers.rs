@@ -14,6 +14,22 @@ impl Combat {
         self.cr(c).powers.iter().position(|p| p.uid == uid)
     }
 
+    /// Mutable access to a live power instance by uid (private `aux` state).
+    pub fn power_mut(&mut self, c: Cid, uid: u16) -> Option<&mut Power> {
+        self.cr_mut(c).powers.as_mut_slice().iter_mut().find(|p| p.uid == uid)
+    }
+
+    /// The private state word of power instance `uid` (`PowerModel.InternalData`).
+    pub fn power_aux(&self, c: Cid, uid: u16) -> i32 {
+        self.power_idx(c, uid).map_or(0, |i| self.cr(c).powers[i].aux)
+    }
+
+    pub fn set_power_aux(&mut self, c: Cid, uid: u16, v: i32) {
+        if let Some(i) = self.power_idx(c, uid) {
+            self.cr_mut(c).powers[i].aux = v;
+        }
+    }
+
     /// Current amount of the creature's power `id` (0 if absent).
     #[inline]
     pub fn power_amount(&self, c: Cid, id: u16) -> i32 {
@@ -112,26 +128,18 @@ impl Combat {
             let mut attached = false;
             if !v.is_zero() {
                 let amt = v.trunc().clamp(-MAX_POWER_AMOUNT, MAX_POWER_AMOUNT);
-                // `AmountOnTurnStart` starts at 0 and is only set by `BeforeTurnStart` (a power applied mid-turn reads 0).
-                let p = Power { id, uid, amount: amt, amount_on_turn_start: 0, aux: 0, applier, skip_next_tick: false, aux2: 0 };
+                let p = Power { id, uid, amount: amt, amount_on_turn_start: 0, aux: content::power_listener(id).initial_power_aux(), applier, skip_next_tick: false };
                 self.cr_mut(target).powers.push(p);
                 attached = true;
+                self.hist_push(crate::engine::HKind::PowerReceived, target, applier, id, NO, v.trunc(), 0, 0, 0);
             }
             if attached && self.cr(target).side == Side::Player && d.ptype == PowerType::Debuff {
                 if let Some(i) = self.power_idx(target, uid) {
                     self.cr_mut(target).powers[i].skip_next_tick = true;
                 }
             }
-            for m in given_mods.iter() {
-                if self.still_live(m) {
-                    content::listener(m).after_modifying_power_amount_given(self, *m, id);
-                }
-            }
-            for m in recv_mods.iter() {
-                if self.still_live(m) {
-                    content::listener(m).after_modifying_power_amount_received(self, *m, id);
-                }
-            }
+            self.dispatch_modifiers(true, hookbit::after_modifying_power_amount_given, &given_mods, |cx, m, l| l.after_modifying_power_amount_given(cx, m, id));
+            self.dispatch_modifiers(true, hookbit::after_modifying_power_amount_received, &recv_mods, |cx, m, l| l.after_modifying_power_amount_received(cx, m, id));
             if !v.is_zero() {
                 let amt = self.power_idx(target, uid).map_or(v.trunc(), |i| self.cr(target).powers[i].amount);
                 let me = Me { kind: Kind::Power, owner: target, idx: uid, id, amount: amt };
@@ -139,7 +147,8 @@ impl Combat {
                     content::listener(&me).after_applied(self, me);
                 }
                 let vi = v.trunc();
-                self.dispatch_g(hookbit::after_power_amount_changed, |cx, m, l| l.after_power_amount_changed(cx, m, id, vi));
+                let ch = PowerChange { power_id: id, target, uid, amount: vi, applier, card };
+                self.dispatch_g(hookbit::after_power_amount_changed, |cx, m, l| l.after_power_amount_changed(cx, m, &ch));
             }
             return if attached { Some(uid) } else { None };
         }
@@ -211,22 +220,16 @@ impl Combat {
         let (v2, recv_mods) = self.modify_power_amount_received(id, c, v, applier);
         v = v2;
         let Some(i) = self.power_idx(c, uid) else { return 0 };
+        self.hist_push(crate::engine::HKind::PowerReceived, c, applier, id, NO, v.trunc(), 0, 0, 0);
         let new_amount = (self.cr(c).powers[i].amount as i64 + v.trunc() as i64)
             .clamp(-(MAX_POWER_AMOUNT as i64), MAX_POWER_AMOUNT as i64) as i32;
         self.cr_mut(c).powers[i].amount = new_amount;
-        for m in given_mods.iter() {
-            if self.still_live(m) {
-                content::listener(m).after_modifying_power_amount_given(self, *m, id);
-            }
-        }
-        for m in recv_mods.iter() {
-            if self.still_live(m) {
-                content::listener(m).after_modifying_power_amount_received(self, *m, id);
-            }
-        }
+        self.dispatch_modifiers(true, hookbit::after_modifying_power_amount_given, &given_mods, |cx, m, l| l.after_modifying_power_amount_given(cx, m, id));
+        self.dispatch_modifiers(true, hookbit::after_modifying_power_amount_received, &recv_mods, |cx, m, l| l.after_modifying_power_amount_received(cx, m, id));
         let vi = v.trunc();
         if vi != 0 {
-            self.dispatch_g(hookbit::after_power_amount_changed, |cx, m, l| l.after_power_amount_changed(cx, m, id, vi));
+            let ch = PowerChange { power_id: id, target: c, uid, amount: vi, applier, card };
+            self.dispatch_g(hookbit::after_power_amount_changed, |cx, m, l| l.after_power_amount_changed(cx, m, &ch));
         }
         if let Some(i) = self.power_idx(c, uid) {
             let d = content::power_def(id);
