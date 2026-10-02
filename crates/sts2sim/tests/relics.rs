@@ -131,6 +131,51 @@ fn gambling_chip_with_an_empty_selection_just_continues() {
     assert!(cx.player.discard.is_empty());
 }
 
+fn play_first(cx: &mut Combat, id: u16) -> bool {
+    let e = cx.enemies[0];
+    let hand = cx.player.hand;
+    let Some(pos) = hand.iter().position(|&c| cx.cards[c as usize].id == id) else { return false };
+    let c = hand[pos];
+    let target = if cx.card_def(c).target == TargetType::AnyEnemy { e } else { NO };
+    cx.step(Action::PlayCard { hand_pos: pos as u8, target })
+}
+
+#[test]
+fn pen_nib_doubles_the_tenth_attack() {
+    let mut r = relic(ids::relic::PEN_NIB);
+    r.counter = 9; // AttacksPlayed % 10 == 9: the next attack is the 10th
+    let mut cx = with_relics(vec![r], 80);
+    let e = cx.enemies[0];
+    let hp = cx.cr(e).hp;
+    assert!(play_first(&mut cx, ids::card::STRIKE_IRONCLAD));
+    assert_eq!(hp - cx.cr(e).hp, 12, "6 doubled");
+    assert_eq!(cx.player.relics[0].counter, 0);
+    assert_eq!(cx.player.relics[0].aux, 0, "AttackToDouble cleared after the card was played");
+    let hp = cx.cr(e).hp;
+    assert!(play_first(&mut cx, ids::card::STRIKE_IRONCLAD));
+    assert_eq!(hp - cx.cr(e).hp, 6);
+}
+
+#[test]
+fn throwing_axe_replays_only_the_first_card() {
+    let mut cx = with_relics(vec![relic(ids::relic::THROWING_AXE)], 80);
+    let e = cx.enemies[0];
+    let hp = cx.cr(e).hp;
+    assert!(play_first(&mut cx, ids::card::STRIKE_IRONCLAD));
+    assert_eq!(hp - cx.cr(e).hp, 12, "played twice");
+    let hp = cx.cr(e).hp;
+    assert!(play_first(&mut cx, ids::card::STRIKE_IRONCLAD));
+    assert_eq!(hp - cx.cr(e).hp, 6);
+}
+
+#[test]
+fn sturdy_clamp_keeps_up_to_ten_block() {
+    let mut cx = with_relics(vec![relic(ids::relic::STURDY_CLAMP)], 80);
+    cx.cr_mut(PLAYER).block = 25;
+    assert!(cx.step(Action::EndTurn));
+    assert_eq!(cx.cr(PLAYER).block, 10);
+}
+
 #[test]
 fn combat_state_stays_small() {
     // design.md: `Clone` of a fight is a memcpy of ~14 KB; relic state / hook plumbing must not blow it up.

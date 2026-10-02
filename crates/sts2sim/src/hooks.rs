@@ -363,7 +363,7 @@ pub trait HasMask {
 /// Bit index of every hook (must list every `Listener` method that content may override).
 #[allow(non_upper_case_globals)]
 pub mod hookbit {
-    macro_rules! bits { ($($n:ident),* $(,)?) => { bits!(@ 0u32; $($n),*); }; (@ $i:expr; $h:ident $(, $t:ident)*) => { pub const $h: u32 = $i; bits!(@ $i + 1; $($t),*); }; (@ $i:expr;) => {}; }
+    macro_rules! bits { ($($n:ident),* $(,)?) => { bits!(@ 0u32; $($n),*); }; (@ $i:expr; $h:ident $(, $t:ident)*) => { pub const $h: u32 = $i; bits!(@ $i + 1; $($t),*); }; (@ $i:expr;) => { pub const COUNT: u32 = $i; }; }
     bits!(
         modify_damage_additive,
         modify_damage_multiplicative,
@@ -473,6 +473,8 @@ pub mod hookbit {
         after_died_to_doom,
     );
     // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
+    // The static-metadata pseudo bits sit at the very top of the 192-bit mask: real hooks must stay below them.
+    const _: () = assert!(COUNT <= 188, "too many hooks: the `meta_*` / `hook_resume` pseudo bits start at 188");
     pub const hook_resume: u32 = 188;
     pub const meta_props: u32 = 191;
     pub const meta_display: u32 = 190;

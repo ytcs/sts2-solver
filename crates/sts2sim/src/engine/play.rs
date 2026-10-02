@@ -156,9 +156,9 @@ impl Combat {
         true
     }
 
-    /// `CardModel.ResolveEnergyXValue` (`Hook.ModifyXValue` has no content yet): the captured X.
+    /// `CardModel.ResolveEnergyXValue`: the captured X through `Hook.ModifyXValue` (Chemical X).
     pub fn resolve_energy_x(&self, c: CardIdx) -> i32 {
-        self.cards[c as usize].x_value as i32
+        self.resolve_x_value(c)
     }
 
     /// `CardModel.MoveToResultPileWithoutPlaying` after `CardPileCmd.Add(card, Play)` (spec 03 §5.2).
