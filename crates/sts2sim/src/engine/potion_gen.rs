@@ -199,13 +199,15 @@ impl Combat {
     pub fn try_prevent_death(&mut self, c: Cid) -> bool {
         for _ in 0..10 {
             let Some(pre) = self.find_death_preventer(c) else { return false };
-            self.with_player_hooks(|cx| {
-                // `Hook.AfterPreventingDeath`: only if the preventer is still a listener.
+            // `Hook.AfterPreventingDeath`: only if the preventer is still a listener. (The listener body itself runs with
+            // the real HP: Fairy's heal starts from 0.)
+            let still = self.with_player_hooks(|cx| {
                 let snap = cx.snapshot(Mask::bit(hookbit::after_preventing_death).or(Mask::bit(hookbit::should_die)));
-                if snap.iter().any(|e| e.me.kind == pre.kind && e.me.idx == pre.idx && e.me.id == pre.id) {
-                    content::listener(&pre).after_preventing_death(cx, pre, c);
-                }
+                snap.iter().any(|e| e.me.kind == pre.kind && e.me.idx == pre.idx && e.me.id == pre.id)
             });
+            if still {
+                content::listener(&pre).after_preventing_death(self, pre, c);
+            }
             if self.cr(c).hp > 0 {
                 return true;
             }

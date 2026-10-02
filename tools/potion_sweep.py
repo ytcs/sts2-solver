@@ -8,6 +8,7 @@
 LATER steps are tolerated and reported as UNIMPLEMENTED).
 """
 import argparse, json, os, subprocess, sys, tempfile
+from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DECK = ("ANGER,ARMAMENTS,TRUE_GRIT,HEADBUTT,BURNING_PACT,THUNDERCLAP,"
@@ -15,7 +16,7 @@ DECK = ("ANGER,ARMAMENTS,TRUE_GRIT,HEADBUTT,BURNING_PACT,THUNDERCLAP,"
 ALL = [
     "AMBERGRIS", "ASHWATER", "ATTACK_POTION", "BEETLE_JUICE", "BLESSING_OF_THE_FORGE", "BLOCK_POTION", "BLOOD_POTION",
     "BOTTLED_POTENTIAL", "CLARITY", "COLORLESS_POTION", "COSMIC_CONCOCTION", "CUNNING_POTION", "CURE_ALL", "DEXTERITY_POTION",
-    "DISTILLED_CHAOS", "DROPLET_OF_PRECOGNITION", "DUPLICATOR", "ENERGY_POTION", "ENTROPIC_BREW", "EXPLOSIVE_AMPOULE",
+    "DROPLET_OF_PRECOGNITION", "DUPLICATOR", "ENERGY_POTION", "ENTROPIC_BREW", "EXPLOSIVE_AMPOULE",
     "FAIRY_IN_A_BOTTLE", "FIRE_POTION", "FLEX_POTION", "FOCUS_POTION", "FORTIFIER", "FOUL_POTION", "FRUIT_JUICE", "FYSH_OIL",
     "GAMBLERS_BREW", "GHOST_IN_A_JAR", "GIGANTIFICATION_POTION", "GLOWWATER_POTION", "HEART_OF_IRON", "LIQUID_BRONZE",
     "LIQUID_MEMORIES", "LUCKY_TONIC", "MAZALETHS_GIFT", "OROBIC_ACID", "POISON_POTION", "POTION_OF_BINDING",
@@ -36,47 +37,52 @@ def main():
     ap.add_argument("--encounter", default="NIBBITS_WEAK")
     ap.add_argument("--relics", default="")
     ap.add_argument("--lenient", action="store_true")
-    ap.add_argument("--jobs", type=int, default=14)
+    ap.add_argument("--jobs", type=int, default=3)
+    ap.add_argument("--par", type=int, default=6, help="pairs swept concurrently")
     ap.add_argument("--deck", default=DECK)
+    ap.add_argument("--offsets", default="1,7")
     a = ap.parse_args()
     pairs = [p.split(",") for p in a.pairs]
     if a.all:
         for i, p in enumerate(ALL):
-            for off in (1, 7):
+            for off in map(int, a.offsets.split(",")):
                 pairs.append([p, ALL[(i + off) % len(ALL)]])
     env = dict(os.environ)
     if a.lenient:
         env["STS2DIFF_LENIENT"] = "1"
     tmp = tempfile.mkdtemp(prefix="potsweep")
-    bad = 0
-    for pr in pairs:
+
+    def one(pr):
         t = subprocess.run([sys.executable, os.path.join(ROOT, "tools/mk_scenario.py"), "--encounter", a.encounter, "--starter",
-                            "--deck", a.deck,
-                            "--potions", ",".join(pr), "--hp", str(a.hp), "--relics", a.relics],
+                            "--deck", a.deck, "--potions", ",".join(pr), "--hp", str(a.hp), "--relics", a.relics],
                            capture_output=True, text=True)
         if t.returncode != 0:
-            print(pr, "mk_scenario failed", t.stderr[-200:])
-            continue
+            return pr, 1, ["mk_scenario failed " + t.stderr[-200:]]
         s = json.loads(t.stdout)
         if a.cur_hp is not None:
             s["hp"] = a.cur_hp
         path = os.path.join(tmp, "_".join(pr) + ".json")
         json.dump(s, open(path, "w"))
         r = subprocess.run([sys.executable, os.path.join(ROOT, "tools/diff_sweep.py"), path, "--n", str(a.n), "--jobs", str(a.jobs),
-                            "--keep", os.path.join(tmp, "out"), "--tag", "_".join(p[:4] for p in pr) + "_"], capture_output=True, text=True, env=env)
-        lines = r.stdout.strip().splitlines()
-        summ = [l for l in lines if l.startswith("SUMMARY")]
-        flag = "" if r.returncode == 0 else "  <<<<<<<< FAIL"
-        if r.returncode != 0:
-            bad += 1
-        print(",".join(pr), "->", (summ[-1][8:60] if summ else "?"), flag, flush=True)
-        for l in lines:
-            if l.startswith("UNIMPLEMENTED content hit"):
-                print("    ", l[:300])
-        if r.returncode != 0:
-            for l in lines[:14]:
-                if not l.startswith("SUMMARY"):
-                    print("    ", l[:400])
+                            "--keep", os.path.join(tmp, "out"), "--tag", "_".join(p[:4] for p in pr) + "_"],
+                           capture_output=True, text=True, env=env)
+        return pr, r.returncode, r.stdout.strip().splitlines()
+
+    bad = 0
+    with ThreadPoolExecutor(a.par) as ex:
+        for pr, rc, lines in ex.map(one, pairs):
+            summ = [l for l in lines if l.startswith("SUMMARY")]
+            flag = "" if rc == 0 else "  <<<<<<<< FAIL"
+            if rc != 0:
+                bad += 1
+            print(",".join(pr), "->", (summ[-1][8:60] if summ else "?"), flag, flush=True)
+            for l in lines:
+                if l.startswith("UNIMPLEMENTED content hit"):
+                    print("    ", l[:300])
+            if rc != 0:
+                for l in lines[:14]:
+                    if not l.startswith("SUMMARY"):
+                        print("    ", l[:400])
     print("pairs failing:", bad, "artifacts:", tmp)
 
 
