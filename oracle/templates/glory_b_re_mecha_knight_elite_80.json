@@ -1,0 +1,58 @@
+{
+ "name": "regent_mecha_knight_elite",
+ "ascension": 10,
+ "encounter": "MECHA_KNIGHT_ELITE",
+ "character": "REGENT",
+ "hp": 80,
+ "max_hp": 80,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 2,
+ "deck": [
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "FALLING_STAR",
+  "VENERATE",
+  "COMET",
+  "GAMMA_BLAST",
+  {
+   "id": "METEOR_SHOWER",
+   "upgrade": 1
+  },
+  "DEVASTATE",
+  "ASTRAL_PULSE",
+  "CELESTIAL_MIGHT",
+  "SEVEN_STARS",
+  {
+   "id": "GUIDING_STAR",
+   "upgrade": 1
+  },
+  "SOLAR_STRIKE",
+  "SHINING_STRIKE",
+  "KNOCKOUT_BLOW",
+  "HEGEMONY",
+  "THE_SMITH",
+  "BLACK_HOLE",
+  "CHILD_OF_THE_STARS",
+  "FURNACE",
+  "MONARCHS_GAZE",
+  {
+   "id": "PARRY",
+   "upgrade": 1
+  },
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "DIVINE_RIGHT"
+ ],
+ "potions": []
+}

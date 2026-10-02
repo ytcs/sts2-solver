@@ -1,0 +1,60 @@
+{
+ "name": "ironclad_test_subject_boss",
+ "ascension": 10,
+ "encounter": "TEST_SUBJECT_BOSS",
+ "character": "IRONCLAD",
+ "hp": 500,
+ "max_hp": 500,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 2,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "MANGLE",
+  "MOLTEN_FIST",
+  {
+   "id": "ONE_TWO_PUNCH",
+   "upgrade": 1
+  },
+  "OUTRAGE",
+  "PERFECTED_STRIKE",
+  "RAMPAGE",
+  "SPITE",
+  "STOMP",
+  "TEAR_ASUNDER",
+  {
+   "id": "THRASH",
+   "upgrade": 1
+  },
+  "UPPERCUT",
+  "WHIRLWIND",
+  "INFERNO",
+  "TANK",
+  "UNMOVABLE",
+  "VICIOUS",
+  "STAMPEDE",
+  "HAVOC",
+  "CASCADE",
+  "BATTLE_TRANCE",
+  "FEED",
+  "FIEND_FIRE",
+  "BREAKTHROUGH",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": []
+}

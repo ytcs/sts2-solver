@@ -1,0 +1,61 @@
+{
+ "name": "necrobinder_soul_nexus_elite",
+ "ascension": 10,
+ "encounter": "SOUL_NEXUS_ELITE",
+ "character": "NECROBINDER",
+ "hp": 500,
+ "max_hp": 500,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 2,
+ "deck": [
+  "STRIKE_NECROBINDER",
+  "STRIKE_NECROBINDER",
+  "STRIKE_NECROBINDER",
+  "STRIKE_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "BODYGUARD",
+  "UNLEASH",
+  "SHROUD",
+  {
+   "id": "SLEIGHT_OF_FLESH",
+   "upgrade": 1
+  },
+  "COUNTDOWN",
+  "REAPER_FORM",
+  "CALCIFY",
+  "NECRO_MASTERY",
+  "LETHALITY",
+  "DEBILITATE",
+  "OBLIVION",
+  {
+   "id": "DEVOUR_LIFE",
+   "upgrade": 1
+  },
+  "HAUNT",
+  "POKE",
+  "DIRGE",
+  "SACRIFICE",
+  "BONE_SHARDS",
+  "SQUEEZE",
+  {
+   "id": "PROTECTOR",
+   "upgrade": 1
+  },
+  "RATTLE",
+  "FLATTEN",
+  "SEANCE",
+  "SOUL_STORM",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BOUND_PHYLACTERY"
+ ],
+ "potions": []
+}
