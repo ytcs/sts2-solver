@@ -386,7 +386,7 @@ fn curse_of_knowledge(cx: &mut Combat, me: Cid) {
         let a = cx.new_card(ids::card::DISINTEGRATION, 0);
         let b = cx.new_card(CURSE_PARTNERS[counter], 0);
         if let (Some(a), Some(b)) = (a, b) {
-            match cx.ask_options(ids::monster::KNOWLEDGE_DEMON, &[a, b], false) {
+            match cx.ask_options(ids::monster::KNOWLEDGE_DEMON, &[a, b], true) {
                 Ask::Pending => {
                     cx.hook_ctx = Some((cx.monster_me(me), 1));
                     cx.stage = Stage::AwaitChoice;
