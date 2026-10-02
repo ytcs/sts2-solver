@@ -42,13 +42,20 @@ listener!(VulnerablePower {
         if q.target != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        let mut num = Dec::frac(15, 1);
+        let mut mult = Dec::frac(15, 1);
         // The dealer's Paper Phrog: +0.25 (only when the target is not the relic owner).
         if q.dealer == PLAYER && q.target != PLAYER && cx.has_relic(crate::ids::relic::PAPER_PHROG) {
-            num += Dec::frac(25, 2);
+            mult += Dec::frac(25, 2);
         }
-        // TODO(fidelity): dealer's Cruelty power and target's Debilitate adjust the multiplier.
-        num
+        // The dealer's Cruelty power adds Amount/100 (CrueltyPower.ModifyVulnerableMultiplier; target != owner here).
+        if q.dealer != NO && q.dealer != q.target {
+            let cruelty = cx.power_amount(q.dealer, crate::ids::power::CRUELTY_POWER);
+            if cruelty != 0 {
+                mult += Dec::frac(cruelty as i64, 2);
+            }
+        }
+        // TODO(fidelity): PetOwner's Cruelty and target's Debilitate also adjust the multiplier.
+        mult
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Enemy {

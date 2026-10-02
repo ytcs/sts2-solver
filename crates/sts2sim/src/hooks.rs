@@ -280,10 +280,7 @@ pub trait Listener: Sync {
     fn after_player_turn_start_late(&self, cx: &mut Combat, me: Me) {}
     fn after_energy_reset_late(&self, cx: &mut Combat, me: Me) {}
     fn after_auto_pre_play_phase_entered_late(&self, cx: &mut Combat, me: Me) {}
-    /// `ShouldDraw` — AND, first vetoing listener is told via `after_preventing_draw`.
-    fn should_draw(&self, cx: &Combat, me: Me, from_hand_draw: bool) -> bool {
-        true
-    }
+    /// `AfterPreventingDraw` — told to the first listener whose `should_draw` vetoed the draw.
     fn after_preventing_draw(&self, cx: &mut Combat, me: Me) {}
     fn after_modifying_hand_draw(&self, cx: &mut Combat, me: Me) {}
     /// `ModifyXValue` (threaded int).
@@ -338,6 +335,21 @@ pub trait Listener: Sync {
     /// Fresh relic instance state (C# field initialisers that are not zero / false), applied before injecting props.
     fn meta_initial(&self) -> (i32, u8, i32) {
         (0, 0, 0)
+    }
+    // ---- appended hooks (ironclad_a1) ------------------------------------------------------------------
+    /// `ShouldDraw(player, fromHandDraw)` — AND over guarded listeners, checked once per `Draw` call.
+    fn should_draw(&self, cx: &Combat, me: Me, from_hand_draw: bool) -> bool {
+        true
+    }
+    /// `AfterCardDrawnEarly` — runs for every listener before the `AfterCardDrawn` pass (Hellraiser).
+    fn after_card_drawn_early(&self, cx: &mut Combat, me: Me, card: CardIdx, from_hand_draw: bool) {}
+    /// `ModifyCardPlayResultLocation` (threaded over the pile type; position stays Bottom) — Corruption.
+    fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, is_auto: bool, pile: PileType) -> PileType {
+        pile
+    }
+    /// `PowerModel.ShouldOwnerDeathTriggerFatal` — AND over the dying creature's powers (Minion, Reattach).
+    fn should_owner_death_trigger_fatal(&self, cx: &Combat, me: Me) -> bool {
+        true
     }
 }
 
@@ -435,7 +447,6 @@ pub mod hookbit {
         after_player_turn_start_late,
         after_energy_reset_late,
         after_auto_pre_play_phase_entered_late,
-        should_draw,
         after_preventing_draw,
         after_modifying_hand_draw,
         modify_x_value,
@@ -453,6 +464,10 @@ pub mod hookbit {
         after_potion_procured,
         should_procure_potion,
         modify_gold_gained,
+        should_draw,
+        after_card_drawn_early,
+        modify_card_play_result_location,
+        should_owner_death_trigger_fatal,
     );
     // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
     pub const hook_resume: u32 = 188;

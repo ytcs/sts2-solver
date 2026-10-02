@@ -26,6 +26,17 @@ fn main() -> ExitCode {
                 }
             }
         }
+        // Debug aid: the simulator's snapshot right after `Combat::new` (a decision pending at setup is listed).
+        Some("show") if args.len() >= 3 => {
+            let sv: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&args[2]).unwrap()).unwrap();
+            let sc = sts2diff::convert::scenario(&sv).unwrap();
+            let cx = sts2sim::Combat::new(&sc);
+            println!("{}", serde_json::to_string(&sts2diff::snapshot::snapshot(&cx)).unwrap());
+            if let Some(d) = cx.decision.as_ref() {
+                println!("PENDING DECISION: purpose {} min {} max {} cands {:?}", d.purpose, d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>());
+            }
+            ExitCode::SUCCESS
+        }
         Some("dir") if args.len() >= 3 => {
             let (mut ok, mut bad) = (0, 0);
             let mut entries: Vec<_> = std::fs::read_dir(&args[2]).unwrap().filter_map(|e| e.ok()).map(|e| e.path()).collect();

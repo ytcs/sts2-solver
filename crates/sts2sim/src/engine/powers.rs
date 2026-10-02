@@ -14,6 +14,11 @@ impl Combat {
         self.cr(c).powers.iter().position(|p| p.uid == uid)
     }
 
+    /// Mutable access to a live power instance by uid (private `aux` state).
+    pub fn power_mut(&mut self, c: Cid, uid: u16) -> Option<&mut Power> {
+        self.cr_mut(c).powers.as_mut_slice().iter_mut().find(|p| p.uid == uid)
+    }
+
     /// Current amount of the creature's power `id` (0 if absent).
     #[inline]
     pub fn power_amount(&self, c: Cid, id: u16) -> i32 {
@@ -98,7 +103,6 @@ impl Combat {
         }
         // Not yet attached: a stand-in `Me` for the not-yet-existing power.
         let me = Me { kind: Kind::Power, owner: target, idx: uid, id, amount: 0 };
-        self.cur_power_card = card;
         self.dispatch_g(hookbit::before_power_amount_changed, |cx, m, l| l.before_power_amount_changed(cx, m, id, amount, target, applier));
         let (mut v, given_mods) = if applier != NO && self.cr(applier).in_combat {
             self.modify_power_amount_given(id, applier, amount, target, card)
@@ -113,8 +117,7 @@ impl Combat {
             let mut attached = false;
             if !v.is_zero() {
                 let amt = v.trunc().clamp(-MAX_POWER_AMOUNT, MAX_POWER_AMOUNT);
-                // `_amountOnTurnStart` is 0 until the next `BeforeTurnStart` snapshot (a power applied mid-turn reads 0).
-                let p = Power { id, uid, amount: amt, amount_on_turn_start: 0, aux: 0, applier, skip_next_tick: false };
+                let p = Power { id, uid, amount: amt, amount_on_turn_start: 0 /* set by the next turn start (PowerModel._amountOnTurnStart default) */, aux: 0, applier, skip_next_tick: false };
                 self.cr_mut(target).powers.push(p);
                 attached = true;
             }
@@ -203,7 +206,6 @@ impl Combat {
         }
         let Some(i) = self.power_idx(c, uid) else { return 0 };
         let id = self.cr(c).powers[i].id;
-        self.cur_power_card = card;
         self.dispatch_g(hookbit::before_power_amount_changed, |cx, m, l| l.before_power_amount_changed(cx, m, id, offset, c, applier));
         let (mut v, given_mods) = if applier != NO && self.cr(applier).in_combat {
             self.modify_power_amount_given(id, applier, offset, c, card)

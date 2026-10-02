@@ -332,6 +332,7 @@ impl Combat {
             }
             self.move_card(card, PileType::Hand, CardPilePosition::Bottom);
             drawn += 1;
+            self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
             self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         }
@@ -344,6 +345,7 @@ impl Combat {
             return;
         }
         self.move_card(c, PileType::Exhaust, CardPilePosition::Bottom);
+        self.hist.cards_exhausted_this_turn += 1; // History.CardExhausted
         self.dispatch_g(hookbit::after_card_exhausted, |cx, me, l| l.after_card_exhausted(cx, me, c, caused_by_ethereal));
     }
 }

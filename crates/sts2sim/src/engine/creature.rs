@@ -152,16 +152,6 @@ impl Combat {
         }
     }
 
-    /// `CreatureCmd.GainMaxHp`: `SetMaxHp(max + amount)` then `Heal(change)`.
-    pub fn gain_max_hp(&mut self, c: Cid, amount: Dec) {
-        let old = self.cr(c).max_hp;
-        let nm = (Dec::int(old as i64) + amount).max(Dec::ZERO).trunc().min(MAX_STAT);
-        let cr = self.cr_mut(c);
-        cr.max_hp = nm;
-        cr.hp = cr.hp.min(nm);
-        self.heal(c, Dec::int((nm - old) as i64));
-    }
-
     /// `CreatureCmd.SetCurrentHp`: clamps to max HP, fires `AfterCurrentHpChanged(new - old)` if it changed, then kills
     /// the creature if it reached 0.
     pub fn set_current_hp(&mut self, c: Cid, amount: Dec) {

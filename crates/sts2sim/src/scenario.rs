@@ -123,6 +123,8 @@ impl Combat {
             n_cards: 0,
             hist: History::default(),
             play_ctx: None,
+            play_stack: Default::default(),
+            play_base: 0,
             potion_ctx: None,
             decision: None,
             choice: Choice::default(),
@@ -133,6 +135,7 @@ impl Combat {
             gold: 99,
             cur_power_card: NO,
             pending_hook: None,
+            auto_select: false,
             turn_cont: None,
             deck_upgradable: sc.deck.iter().enumerate().take(128).fold(0u128, |m, (i, d)| {
                 if d.upgrade < content::card_def(d.id).max_upgrade { m | (1u128 << i) } else { m }

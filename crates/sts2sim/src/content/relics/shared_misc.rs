@@ -201,7 +201,7 @@ listener!(FakeVenerableTeaSet {
 // +`MaxHp` max HP (and current HP) after every combat.
 listener!(ChosenCheese {
     fn after_combat_end(&self, cx: &mut Combat, _me: Me) {
-        cx.gain_max_hp(PLAYER, Dec::int(g::chosen_cheese::MAX_HP as i64));
+        cx.gain_max_hp(PLAYER, g::chosen_cheese::MAX_HP);
     }
 });
 

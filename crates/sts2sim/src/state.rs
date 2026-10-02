@@ -323,6 +323,10 @@ pub struct PlayCtx {
     pub step: PlayStep,
     pub count: u8,
     pub result: PileType,
+    /// Cards pulled by `AutoPlayFromDrawPile` that this card's effect still has to auto-play (in order).
+    pub queue: ArrayVec<CardIdx, 16>,
+    /// `ExhaustOnNextPlay` value assigned to each queued card right before its auto-play.
+    pub queue_exhaust: bool,
 }
 
 /// Counters the game's combat history exposes to gameplay code (cards played this turn etc.).
@@ -331,6 +335,8 @@ pub struct History {
     pub cards_played_this_turn: i16,
     pub attacks_played_this_turn: i16,
     pub skills_played_this_turn: i16,
+    /// `CardExhaustedEntry`s of the current round/side.
+    pub cards_exhausted_this_turn: i16,
 }
 
 #[derive(Clone, Copy)]
@@ -362,6 +368,10 @@ pub struct Combat {
 
     /// In-flight card play (suspended while a decision is pending).
     pub play_ctx: Option<PlayCtx>,
+    /// Outer card plays suspended while a nested auto-play waits for a decision (innermost last).
+    pub play_stack: ArrayVec<PlayCtx, 4>,
+    /// `run_play` never pops below this stack depth (it belongs to callers further out).
+    pub play_base: u8,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
@@ -386,6 +396,9 @@ pub struct Combat {
     /// A hook that raised a decision (or started a card play that may suspend) and wants `hook_resume` called when it is
     /// done. A suspendable dispatch stops after the listener that set it.
     pub pending_hook: Option<PendingHook>,
+    /// An automated card selector is active (`CardSelectCmd.PushSelector(VakuuCardSelector)` during Whispering Earring's
+    /// auto-play): card-selection screens resolve to the first `max` candidates instead of raising a decision.
+    pub auto_select: bool,
     /// Where the interrupted player-turn start resumes (see `Combat::run_turn_start`).
     pub turn_cont: Option<TurnCont>,
 }

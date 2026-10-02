@@ -1,0 +1,59 @@
+{
+ "name": "ironclad_nibbits_weak",
+ "ascension": 10,
+ "encounter": "NIBBITS_WEAK",
+ "character": "IRONCLAD",
+ "hp": 80,
+ "max_hp": 80,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "HELLRAISER",
+  {
+   "id": "HELLRAISER",
+   "upgrade": 1
+  },
+  "ASHEN_STRIKE",
+  {
+   "id": "ASHEN_STRIKE",
+   "upgrade": 1
+  },
+  "POMMEL_STRIKE",
+  {
+   "id": "POMMEL_STRIKE",
+   "upgrade": 1
+  },
+  "TWIN_STRIKE",
+  "BATTLE_TRANCE",
+  "DRUM_OF_BATTLE",
+  "BURNING_PACT",
+  "SHRUG_IT_OFF",
+  "DARK_EMBRACE",
+  "FEEL_NO_PAIN",
+  "CORRUPTION",
+  "BARRICADE",
+  "HAVOC",
+  "CASCADE",
+  "FIEND_FIRE",
+  "AGGRESSION",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": []
+}

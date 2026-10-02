@@ -123,42 +123,36 @@ listener!(ChoicesParadox {
 
 const EARRING_MAX_CARDS: i32 = 13;
 
-/// The `AfterAutoPrePlayPhaseEnteredLate` loop: `played` cards done so far. A card that suspends (decision) leaves the
-/// loop parked in `pending_hook` with `phase = played`; `hook_resume` continues with the next card.
-fn earring_loop(cx: &mut Combat, me: Me, mut played: i32) {
-    if cx.turn_number() > 1 {
-        return;
-    }
-    while played < EARRING_MAX_CARDS {
-        if cx.is_over_or_ending() || cx.player.turn_number != 1 {
-            break;
-        }
-        let hand = cx.player.hand;
-        let Some(card) = hand.iter().copied().find(|&c| cx.can_play(c)) else { break };
-        let target = match cx.card_def(card).target {
-            TargetType::AnyEnemy => cx.hittable_enemies().first().unwrap_or(NO),
-            TargetType::AnyPlayer => PLAYER,
-            _ => NO,
-        };
-        cx.spend_resources(card);
-        cx.pending_hook = Some(PendingHook { me, phase: played as u8 });
-        cx.auto_play_card(card, target, true);
-        if cx.stage == Stage::AwaitChoice {
-            return;
-        }
-        cx.pending_hook = None;
-        played += 1;
-    }
-}
 listener!(WhisperingEarring {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount + Dec::int(g::whispering_earring::ENERGY as i64)
     }
-    fn after_auto_pre_play_phase_entered_late(&self, cx: &mut Combat, me: Me) {
-        earring_loop(cx, me, 0);
-    }
-    fn hook_resume(&self, cx: &mut Combat, me: Me, phase: u8) {
-        earring_loop(cx, me, phase as i32 + 1);
+    // Plays the first playable card of the hand (resources spent like a manual play, then `AutoPlay`) until nothing is
+    // playable. The relic pushes `VakuuCardSelector` while it does so: card-selection screens resolve to the first
+    // candidates (`Combat::auto_select`), so no decision is ever raised.
+    fn after_auto_pre_play_phase_entered_late(&self, cx: &mut Combat, _me: Me) {
+        if cx.turn_number() > 1 {
+            return;
+        }
+        let was = cx.auto_select;
+        cx.auto_select = true;
+        let mut played = 0;
+        while played < EARRING_MAX_CARDS {
+            if cx.is_over_or_ending() || cx.player.turn_number != 1 {
+                break;
+            }
+            let hand = cx.player.hand;
+            let Some(card) = hand.iter().copied().find(|&c| cx.can_play(c)) else { break };
+            let target = match cx.card_def(card).target {
+                TargetType::AnyEnemy => cx.hittable_enemies().first().unwrap_or(NO),
+                TargetType::AnyPlayer => PLAYER,
+                _ => NO,
+            };
+            cx.spend_resources(card);
+            cx.auto_play_ex(card, target, true);
+            played += 1;
+        }
+        cx.auto_select = was;
     }
 });
 
@@ -185,7 +179,7 @@ listener!(HistoryCourse {
         let src = (cx.rel(me).aux - 1) as CardIdx;
         if let Some(c) = cx.create_dupe(src) {
             cx.pending_hook = Some(PendingHook { me, phase: 0 });
-            cx.auto_play_card(c, NO, false);
+            cx.auto_play_ex(c, NO, false);
             if cx.stage != Stage::AwaitChoice {
                 cx.pending_hook = None;
             }

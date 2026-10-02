@@ -56,6 +56,27 @@ impl Combat {
         out
     }
 
+    /// `CreatureCmd.GainMaxHp`: `SetMaxHp(max + amount)` (hp clamped to the new max), then `Heal(delta)`.
+    pub fn gain_max_hp(&mut self, c: Cid, amount: i32) {
+        let cr = self.cr_mut(c);
+        let old = cr.max_hp;
+        cr.max_hp = (cr.max_hp + amount).clamp(0, 999_999_999);
+        cr.hp = cr.hp.min(cr.max_hp);
+        let delta = cr.max_hp - old;
+        self.heal(c, Dec::int(delta as i64));
+    }
+
+    /// `creature.Powers.All(p => p.ShouldOwnerDeathTriggerFatal())` (Feed, Hand of Greed, The Hunt).
+    pub fn should_death_trigger_fatal(&self, c: Cid) -> bool {
+        for p in self.cr(c).powers.iter() {
+            let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
+            if !crate::content::listener(&me).should_owner_death_trigger_fatal(self, me) {
+                return false;
+            }
+        }
+        true
+    }
+
     /// `CardModel.SetToFreeThisTurn` (energy part): cost 0 until played or end of turn.
     pub fn set_to_free_this_turn(&mut self, c: CardIdx) {
         let canonical = self.card_def(c).cost;
@@ -200,8 +221,21 @@ impl Combat {
         if self.is_over_or_ending() || cands.is_empty() {
             return Ask::Resolved(ArrayVec::new());
         }
+        if self.auto_select {
+            return Ask::Resolved(self.auto_selected(&cands, 1));
+        }
         self.begin_decision(DecisionSource::Options, purpose, if can_skip { 0 } else { 1 }, 1, cands, false, can_skip);
         Ask::Pending
+    }
+
+    /// `VakuuCardSelector.GetSelectedCards`: `options.Take(maxSelect)` (the selector Whispering Earring pushes while it
+    /// auto-plays the hand; `Combat::auto_select`).
+    fn auto_selected(&self, cands: &ArrayVec<CardIdx, 64>, max: usize) -> ArrayVec<CardIdx, 16> {
+        let mut v = ArrayVec::new();
+        for &c in cands.iter().take(max).take(16) {
+            v.push(c);
+        }
+        v
     }
 
     /// Shared decision entry for `FromHand`/`FromCombatPile`: `RequireManualConfirmation = (min != max)`;
@@ -217,6 +251,9 @@ impl Combat {
                 all.push(c);
             }
             return Ask::Resolved(all);
+        }
+        if self.auto_select {
+            return Ask::Resolved(self.auto_selected(&cands, max as usize));
         }
         self.begin_decision(source, purpose, min, max, cands, manual, can_skip);
         Ask::Pending
