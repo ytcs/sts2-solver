@@ -373,9 +373,9 @@ impl Combat {
         self.end_of_turn_cleanup();
         self.dispatch_g(hookbit::after_side_turn_end, |cx, me, l| l.after_side_turn_end(cx, me, Side::Enemy));
         self.dispatch_g(hookbit::after_side_turn_end_late, |cx, me, l| l.after_side_turn_end_late(cx, me, Side::Enemy));
-        if self.check_win_condition() {
-            return;
-        }
+        // `EndEnemyTurn`: CheckWinCondition, then `if (!IsCombatEnding) SwitchSides` — `IsCombatEnding` is false once the
+        // combat is OVER, so a win at the end of the enemy turn (Doom's BeforeSideTurnEnd kill) still flips the round/side.
+        self.check_win_condition();
         self.switch_sides();
     }
 
