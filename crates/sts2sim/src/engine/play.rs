@@ -8,7 +8,7 @@ use crate::types::*;
 impl Combat {
     /// `CardModel.IsValidTarget`.
     pub fn is_valid_target(&self, c: CardIdx, t: Cid) -> bool {
-        let tt = self.card_def(c).target;
+        let tt = self.card_target_type(c);
         if t == NO {
             return tt != TargetType::AnyEnemy && tt != TargetType::AnyAlly;
         }
@@ -36,10 +36,11 @@ impl Combat {
                 return false;
             }
         }
-        if d.star_cost > 0 && d.star_cost as i32 > self.player.stars {
+        // HasEnoughResourcesFor (stars): X-star cards always pass (their cost is all current stars).
+        if self.card_star_cost(c).max(0) > self.player.stars {
             return false;
         }
-        if d.target == TargetType::AnyAlly {
+        if self.card_target_type(c) == TargetType::AnyAlly {
             return false; // single-player: NoLivingAllies
         }
         // Hook.ShouldPlay (AND), then the card's own IsPlayable.
@@ -66,7 +67,12 @@ impl Combat {
         // ---- SpendResources: card is still in hand ----
         let d = self.card_def(c);
         let energy_to_spend = if d.x_cost { self.player.energy } else { self.card_cost(c, true).max(0) };
-        let stars_to_spend = if d.star_cost > 0 { d.star_cost as i32 } else { 0 };
+        let stars_to_spend = self.card_star_cost(c).max(0);
+        if d.star_cost == super::regent::STAR_COST_X {
+            // star X: `LastStarsSpent` = all stars (ResolveStarXValue)
+            self.cards[c as usize].x_value = stars_to_spend as i16;
+            self.cards[c as usize].flags |= cflag::X_CAPTURED;
+        }
         if d.x_cost {
             self.cards[c as usize].x_value = energy_to_spend as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
@@ -76,7 +82,9 @@ impl Combat {
         }
         self.dispatch_g(hookbit::after_energy_spent, |cx, me, l| l.after_energy_spent(cx, me, c, energy_to_spend));
         if stars_to_spend > 0 {
-            self.player.stars -= stars_to_spend;
+            // PlayerCombatState.LoseStars (no combat-ending guard) + Hook.AfterStarsSpent
+            self.set_stars_internal((self.player.stars - stars_to_spend).max(0));
+            self.dispatch_g(hookbit::after_stars_spent, |cx, me, l| l.after_stars_spent(cx, me, stars_to_spend));
         }
         let play = CardPlay {
             card: c,
@@ -93,14 +101,20 @@ impl Combat {
     }
 
     /// `CardModel.OnPlayWrapper` steps 1-8 (spec 03 §5.1); then runs the replay loop.
-    fn begin_play(&mut self, mut play: CardPlay) {
+    pub(crate) fn begin_play(&mut self, mut play: CardPlay) {
         let c = play.card;
-        // 2. move to the Play pile (AddDuringManualCardPlay)
-        self.player.hand.remove_value(c);
-        self.player.play.push(c);
-        self.cards[c as usize].pile = PileType::Play as u8;
-        let old = PileType::Hand;
-        self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+        // 2. move to the Play pile: manual = AddDuringManualCardPlay (from Hand); auto = CardPileCmd.Add(Play, Bottom)
+        if play.is_auto {
+            if self.card_pile_type(c) != PileType::Play && !self.move_card(c, PileType::Play, CardPilePosition::Bottom) {
+                return; // combat ended / card gone (step 3)
+            }
+        } else {
+            self.player.hand.remove_value(c);
+            self.player.play.push(c);
+            self.cards[c as usize].pile = PileType::Play as u8;
+            let old = PileType::Hand;
+            self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+        }
         // 4. result location (consumes ExhaustOnNextPlay)
         let kws = self.card_keywords(c);
         let flags = self.cards[c as usize].flags;
@@ -113,6 +127,9 @@ impl Combat {
         } else {
             PileType::Discard
         };
+        // 4b. `GetResultLocationForCardPlay` override of the card itself (Particle Wall, Shining Strike).
+        let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
+        let (result, rpos) = content::listener(&me).result_location(self, c, result, CardPilePosition::Bottom);
         // 5. Hook.ModifyCardPlayResultLocation — no content yet.
         // 6. play count: (replay + 1), Hook.ModifyCardPlayCount — no content yet.
         let count = self.cards[c as usize].base_replay.saturating_add(1);
@@ -120,7 +137,7 @@ impl Combat {
         play.play_count = count;
         // 7-8
         self.player.effect_depth += 1;
-        self.play_ctx = Some(PlayCtx { play, step: PlayStep::Before, count, result });
+        self.play_ctx = Some(PlayCtx { play, step: PlayStep::Before, count, result, result_pos: rpos });
         self.run_play();
     }
 
@@ -171,6 +188,7 @@ impl Combat {
                     if self.in_progress {
                         let p = ctx.play;
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
+                        self.dispatch_u(hookbit::after_card_played_late, |cx, me, l| l.after_card_played_late(cx, me, &p));
                     }
                     ctx.play.play_index += 1;
                     if ctx.play.play_index < ctx.count {
@@ -195,7 +213,7 @@ impl Combat {
                 PileType::None => self.remove_card_from_combat(c),
                 PileType::Exhaust => self.exhaust_card(c, false),
                 p => {
-                    self.move_card(c, p, CardPilePosition::Bottom);
+                    self.move_card(c, p, ctx.result_pos);
                 }
             }
         }
@@ -209,5 +227,6 @@ impl Combat {
         }
         card.mods = kept;
         card.flags &= !cflag::X_CAPTURED;
+        self.clear_star_mods(c, EXPIRE_WHEN_PLAYED);
     }
 }

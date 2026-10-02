@@ -43,6 +43,14 @@ fn card(cx: &Combat, c: CardIdx, with_cost: bool) -> Value {
     m.insert("upgrade".into(), json!(k.upgrade));
     if with_cost {
         m.insert("cost".into(), json!(cx.card_cost(c, true).max(0)));
+        if cx.card_has_star_cost_x(c) {
+            m.insert("star_cost".into(), json!(-1));
+        } else if cx.card_current_star_cost(c) >= 0 {
+            m.insert("star_cost".into(), json!(cx.card_star_cost(c)));
+        }
+        if k.id == ids::card::SOVEREIGN_BLADE || k.id == ids::card::KINGLY_PUNCH {
+            m.insert("base_damage".into(), json!(cx.card_base_damage(c)));
+        }
     }
     Value::Object(m)
 }
@@ -108,6 +116,7 @@ pub fn snapshot(cx: &Combat) -> Value {
     o.insert("turn".into(), json!(cx.player.turn_number));
     o.insert("phase".into(), json!(phase(cx.player.phase)));
     o.insert("energy".into(), json!(cx.player.energy));
+    o.insert("stars".into(), json!(cx.player.stars));
     o.insert("combat_in_progress".into(), json!(cx.in_progress));
     o.insert("combat_over".into(), json!(over));
     o.insert("player".into(), json!({"hp": me.hp, "max_hp": me.max_hp, "block": me.block, "alive": me.is_alive(), "powers": powers(cx, PLAYER)}));

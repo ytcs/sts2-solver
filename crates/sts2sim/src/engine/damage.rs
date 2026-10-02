@@ -174,6 +174,12 @@ impl Combat {
             res.block_broken = block_left <= 0 && blocked > Dec::ZERO;
             res.fully_blocked = !props.unblockable() && (blocked > Dec::ZERO || block_left > 0) && unblocked.trunc() == 0;
             res.blocked = blocked.trunc();
+            // History.DamageReceived (only while the combat is running): per-receiver count of the player's powered
+            // attack hits this turn (Beat Into Shape).
+            if dealer == PLAYER && props.is_powered() && self.in_progress && !self.is_ending() {
+                let h = &mut self.hist.player_hits_on[hp_target as usize];
+                *h = h.saturating_add(1);
+            }
             results.push(res);
         }
 
@@ -190,6 +196,7 @@ impl Combat {
                 self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, t, d));
             }
             self.dispatch_u(hookbit::after_damage_given, |cx, me, l| l.after_damage_given(cx, me, dealer, t, r.unblocked, props));
+            self.dmg_blocked = r.blocked;
             if !r.killed || !self.cr(t).is_dead() {
                 self.dispatch_u(hookbit::after_damage_received, |cx, me, l| l.after_damage_received(cx, me, t, r.unblocked, props, dealer));
             } else {

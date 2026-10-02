@@ -76,6 +76,8 @@ pub struct Card {
     pub cost_base: i8,
     pub x_value: i16,
     pub mods: ArrayVec<CostMod, 3>,
+    /// Temporary star costs (`_temporaryStarCosts`); the LAST entry wins. `amount` = cost, `expire` as for `mods`.
+    pub star_mods: ArrayVec<CostMod, 2>,
     /// Per-card persistent counters (Rampage damage, Regret, ...), meaning defined by the card.
     pub counter: [i16; 2],
     /// Deck index this combat card was cloned from (`DeckVersion`), `NO` if none.
@@ -323,6 +325,8 @@ pub struct PlayCtx {
     pub step: PlayStep,
     pub count: u8,
     pub result: PileType,
+    /// Position inside `result` (Shining Strike puts the card on top of the draw pile).
+    pub result_pos: CardPilePosition,
 }
 
 /// Counters the game's combat history exposes to gameplay code (cards played this turn etc.).
@@ -331,6 +335,10 @@ pub struct History {
     pub cards_played_this_turn: i16,
     pub attacks_played_this_turn: i16,
     pub skills_played_this_turn: i16,
+    /// Sum of positive `StarsModifiedEntry` amounts this turn (Radiate).
+    pub stars_gained_this_turn: i16,
+    /// `DamageReceivedEntry` count this turn per receiver, dealer = player, powered attack (Beat Into Shape).
+    pub player_hits_on: [u8; MAX_CREATURES],
 }
 
 #[derive(Clone, Copy)]
@@ -359,6 +367,23 @@ pub struct Combat {
     pub cards: [Card; MAX_CARDS],
     pub n_cards: u16,
     pub hist: History,
+    /// `CardGeneratedEntry` count with the player as creator over the whole combat (Supermassive).
+    pub cards_generated_by_player: u16,
+    /// True while the hooks of a player-created generated card run (`Player? creator != null`; Arsenal, Pillar of Creation).
+    pub gen_creator_player: bool,
+    /// `PlayerCmd.EndTurn` was requested by an effect (Void Form): the turn ends when the running action finishes.
+    pub end_turn_requested: bool,
+    /// Identity of the power whose amount just changed while `after_power_amount_changed` runs (owner, uid, applier):
+    /// the C# hook receives the `PowerModel`, ours only its id (`power == this` = same owner and uid).
+    pub pc_target: Cid,
+    pub pc_uid: u16,
+    pub pc_applier: Cid,
+    /// `DamageResult.BlockedDamage` of the result whose `after_damage_received` hook is running (Reflect).
+    pub dmg_blocked: i32,
+    /// A hook that raised a decision (Foregone Conclusion, Tyranny): `(listener, phase)` to resume afterwards.
+    pub hook_ctx: Option<(crate::hooks::Me, u8)>,
+    /// Turn-start continuation after a decision raised inside a turn-start hook (see `turn.rs`): 0 none.
+    pub turn_cont: u8,
 
     /// In-flight card play (suspended while a decision is pending).
     pub play_ctx: Option<PlayCtx>,

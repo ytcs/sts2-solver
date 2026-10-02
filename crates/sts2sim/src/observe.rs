@@ -27,6 +27,9 @@ const GLOBAL_F: usize = 10;
 const PLAYER_F: usize = 8 + OBS_POWERS * 2;
 const RELIC_F: usize = MAX_RELICS * 2;
 const POTION_F: usize = MAX_POTIONS * 2;
+/// Regent block (appended at the END of the vector): current star cost of each hand card (-1 = none, X = all stars is
+/// reported as -2) and of each decision candidate. Stars themselves are in the player block.
+const REGENT_F: usize = MAX_HAND + OBS_MAX_CANDS;
 const DECISION_F: usize = 8 + OBS_MAX_CANDS * (CARD_F + 1);
 /// Total length of the flat observation vector.
 pub const OBS_SIZE: usize = GLOBAL_F
@@ -37,7 +40,8 @@ pub const OBS_SIZE: usize = GLOBAL_F
     + OBS_MAX_PILE * 2 * 3 // draw multiset, discard, exhaust: (id+1, upgrade) per slot
     + 3 // pile sizes
     + OBS_MAX_ENEMIES * ENEMY_F
-    + DECISION_F;
+    + DECISION_F
+    + REGENT_F;
 
 struct W<'a> {
     out: &'a mut [f32],
@@ -66,12 +70,23 @@ impl Combat {
         self.modify_damage(PLAYER, monster, Dec::int(base as i64), ValueProp::MOVE, NO).0.trunc().max(0)
     }
 
+    /// Star cost as shown on the card: -1 none, -2 X (all stars), else the current cost with modifiers.
+    fn obs_star_cost(&self, c: CardIdx) -> i32 {
+        if self.card_has_star_cost_x(c) {
+            -2
+        } else if self.card_current_star_cost(c) < 0 {
+            -1
+        } else {
+            self.card_star_cost(c)
+        }
+    }
+
     fn write_card(&self, w: &mut W, c: CardIdx) {
         let card = &self.cards[c as usize];
         let d = content::card_def(card.id);
         let playable = (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32;
         let dmg = if d.vars.iter().any(|v| v.kind == VarKind::Damage) {
-            self.modify_damage(NO, PLAYER, Dec::int(self.card_var(c, VarKind::Damage) as i64), ValueProp::MOVE, c).0.trunc()
+            self.modify_damage(NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), ValueProp::MOVE, c).0.trunc()
         } else {
             0
         };
@@ -263,6 +278,19 @@ impl Combat {
                 }
             }
             None => w.zeros(DECISION_F),
+        }
+        // ---- Regent: star costs (appended) ----
+        for k in 0..MAX_HAND {
+            match self.player.hand.get(k) {
+                Some(c) => w.n(self.obs_star_cost(c)),
+                None => w.f(0.0),
+            }
+        }
+        for k in 0..OBS_MAX_CANDS {
+            match self.decision.as_ref().and_then(|d| d.cands.get(k)) {
+                Some(c) => w.n(self.obs_star_cost(c)),
+                None => w.f(0.0),
+            }
         }
         debug_assert_eq!(w.i, OBS_SIZE);
         OBS_SIZE

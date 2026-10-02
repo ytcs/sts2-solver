@@ -269,6 +269,30 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- Regent: stars / Forge (appended; see engine/regent.rs) -----------------------------------------------
+    /// `Hook.AfterStarsGained` (guarded pass). `amount` = stars gained.
+    fn after_stars_gained(&self, cx: &mut Combat, me: Me, amount: i32) {}
+    /// `Hook.AfterStarsSpent` (guarded pass), only when `amount > 0`.
+    fn after_stars_spent(&self, cx: &mut Combat, me: Me, amount: i32) {}
+    /// `Hook.AfterForge` (guarded pass).
+    fn after_forge(&self, cx: &mut Combat, me: Me, amount: i32) {}
+    /// `Hook.ModifyStarCost` (threaded; `TryModifyStarCost`). `None` = unchanged.
+    fn try_modify_star_cost(&self, cx: &Combat, me: Me, card: CardIdx, cost: Dec) -> Option<Dec> {
+        None
+    }
+    /// `Hook.AfterRoomEntered` for a combat room (run-level listeners: relics). Runs before `before_combat_start`.
+    fn after_room_entered(&self, cx: &mut Combat, me: Me) {}
+    /// `AfterCardPlayedLate` (second pass of `Hook.AfterCardPlayed`, unguarded).
+    fn after_card_played_late(&self, cx: &mut Combat, me: Me, play: &CardPlay) {}
+    /// `AfterAutoPrePlayPhaseEnteredEarly` (guarded pass before `after_auto_pre_play_phase_entered`).
+    fn after_auto_pre_play_phase_entered_early(&self, cx: &mut Combat, me: Me) {}
+    /// Resumes a hook that raised a decision (`Combat::hook_ctx = Some((me, phase))`) once the choice is in `cx.choice`.
+    fn resume_hook(&self, cx: &mut Combat, me: Me, phase: u8) {}
+    /// `CardModel.GetResultLocationForCardPlay` override: maps the base result location (pile, position) of a play.
+    fn result_location(&self, cx: &Combat, card: CardIdx, pile: PileType, pos: CardPilePosition) -> (PileType, CardPilePosition) {
+        (pile, pos)
+    }
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,6 +385,15 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        after_stars_gained,
+        after_stars_spent,
+        after_forge,
+        try_modify_star_cost,
+        after_room_entered,
+        after_card_played_late,
+        after_auto_pre_play_phase_entered_early,
+        result_location,
+        resume_hook,
     );
 }
 

@@ -63,6 +63,7 @@ impl Combat {
             let card = &mut self.cards[c as usize];
             card.mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED });
         }
+        self.set_star_cost_this_turn(c, 0);
     }
 
     /// `PlayerCmd.GainEnergy` (`ModifyEnergyGain` hook not implemented yet).
@@ -131,9 +132,17 @@ impl Combat {
     /// `CardPileCmd.AddGeneratedCardToCombat`: a brand-new card enters `pile` (hand-full redirect applies).
     pub fn add_generated_card(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition) -> bool {
         // History.CardGenerated — not tracked yet.
+        // CardGeneratedEntry(creator): everything generated during the player's side is player-created (monster
+        // status cards are generated on the enemy side with `creator = null`).
+        let by_player = self.side == Side::Player;
+        if by_player && self.in_progress {
+            self.cards_generated_by_player = self.cards_generated_by_player.saturating_add(1);
+        }
         let ok = self.move_card(c, pile, pos);
         if ok {
+            self.gen_creator_player = by_player;
             self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, c));
+            self.gen_creator_player = false;
         }
         ok
     }
