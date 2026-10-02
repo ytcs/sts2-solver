@@ -2,7 +2,7 @@
 //! Bodies follow the decompiled `Models/Powers/*.cs`.
 
 use crate::dec::Dec;
-use crate::engine::{Ask, Attack};
+use crate::engine::Ask;
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -291,37 +291,6 @@ listener!(TyrannyPower {
     }
 });
 
-// DrawCardsNextTurnPower: +Amount cards on the next turn's draw (only if it existed when that turn started).
-listener!(DrawCardsNextTurnPower {
-    fn modify_hand_draw(&self, cx: &Combat, me: Me, count: Dec) -> Dec {
-        match cx.power_idx(me.owner, me.idx) {
-            Some(i) => {
-                let p = &cx.cr(me.owner).powers[i];
-                if p.amount_on_turn_start == 0 { count } else { count + Dec::int(p.amount as i64) }
-            }
-            None => count,
-        }
-    }
-    fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side == side {
-            if let Some(i) = cx.power_idx(me.owner, me.idx) {
-                if cx.cr(me.owner).powers[i].amount_on_turn_start != 0 {
-                    cx.remove_power(me.owner, me.idx);
-                }
-            }
-        }
-    }
-});
-
-// EnergyNextTurnPower: Amount energy after the next energy reset, then removed.
-listener!(EnergyNextTurnPower {
-    fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
-        let a = amount(cx, &me);
-        cx.gain_energy(a);
-        cx.remove_power(me.owner, me.idx);
-    }
-});
-
 // MonarchsGazePower: the owner's powered attacks make the target lose Strength until its turn ends.
 listener!(MonarchsGazePower {
     fn after_damage_given(&self, cx: &mut Combat, me: Me, dealer: Cid, target: Cid, _unblocked: i32, props: ValueProp) {
@@ -445,30 +414,3 @@ listener!(VoidFormPower {
     }
 });
 
-// VigorPower (player + monster flavour, spec 02 §6.6): +Amount damage to the next powered card attack, consumed after it.
-// `aux` = 0 (no attack claimed yet) or (card index + 1) | (amount when the attack started << 16).
-listener!(VigorPower {
-    fn before_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
-        if attack.dealer != me.owner || !attack.props.is_powered() || aux(cx, &me) != 0 || attack.card == NO {
-            return;
-        }
-        let a = amount(cx, &me);
-        set_aux(cx, &me, (attack.card as i32 + 1) | (a << 16));
-    }
-    fn modify_damage_additive(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
-        if q.dealer != me.owner || !q.props.is_powered() {
-            return Dec::ZERO;
-        }
-        let x = aux(cx, &me);
-        if x != 0 && q.card != NO && (q.card as i32 + 1) != (x & 0xFFFF) {
-            return Dec::ZERO;
-        }
-        Dec::int(amount(cx, &me) as i64)
-    }
-    fn after_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
-        let x = aux(cx, &me);
-        if x != 0 && attack.card != NO && (attack.card as i32 + 1) == (x & 0xFFFF) {
-            cx.modify_power_amount(me.owner, me.idx, Dec::int(-((x >> 16) as i64)), NO, NO);
-        }
-    }
-});
