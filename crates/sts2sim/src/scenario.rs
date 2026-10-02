@@ -132,6 +132,7 @@ impl Combat {
             autoplay_force_exhaust: false,
             sly_queue: ArrayVec::new(),
             hist_log: Default::default(),
+            decision_seq: 0,
         };
         // Player creature (CombatId 0).
         cx.creatures[PLAYER as usize] = Creature {

@@ -201,6 +201,15 @@ impl Combat {
         self.first_veto(bit, f)
     }
 
+    /// `participants.Contains(creature)` of the side-turn hooks: on the player side only the player creature (pets are not
+    /// participants of the turn-end hooks), on the enemy side every enemy.
+    pub fn is_turn_participant(&self, side: Side, c: Cid) -> bool {
+        match side {
+            Side::Player => c == PLAYER,
+            Side::Enemy => self.enemies.contains(c),
+        }
+    }
+
     /// Calls `f` on `me`'s listener if it is still a listener (`Hook.After*(…, modifier)` for a single model).
     pub fn notify_one(&mut self, me: Me, f: impl FnOnce(&mut Combat, Me, &'static dyn Listener)) {
         if self.still_live(&me) {

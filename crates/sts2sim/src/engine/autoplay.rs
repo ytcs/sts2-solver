@@ -238,27 +238,27 @@ impl Combat {
     /// `CardCmd.Transform` in combat for a set of cards: each original is replaced by `replacement` (or a random
     /// option via the `combat_card_selection` stream when `None`: exactly one `NextItem` draw), at the SAME index of
     /// the SAME pile. The replacement is a fresh, un-upgraded card. Returns the replacements.
-    pub fn transform_cards(&mut self, originals: &[CardIdx], replacements: &[Option<u16>]) -> ArrayVec<CardIdx, 10> {
+    pub fn transform_cards(&mut self, originals: &[CardIdx], replacements: &[Option<(u16, u8)>]) -> ArrayVec<CardIdx, 10> {
         let mut out: ArrayVec<CardIdx, 10> = ArrayVec::new();
         if self.is_ending() || originals.is_empty() {
             return out;
         }
         // (pile type, index in pile, original, replacement id)
-        let mut work: ArrayVec<(u8, u8, CardIdx, u16), 10> = ArrayVec::new();
+        let mut work: ArrayVec<(u8, u8, CardIdx, u16, u8), 10> = ArrayVec::new();
         for (i, &o) in originals.iter().enumerate().take(10) {
             let pile = self.card_pile_type(o);
             let idx = self.pile(pile).iter().position(|&x| x == o).unwrap_or(0);
-            let rid = match replacements.get(i).copied().flatten() {
+            let (rid, rup) = match replacements.get(i).copied().flatten() {
                 Some(r) => r,
                 None => {
                     let opts = self.transform_options(o);
                     assert!(!opts.is_empty(), "All transformation options provided are invalid!");
-                    opts[self.rng.combat_card_selection.next_int_range(0, opts.len() as i32) as usize]
+                    (opts[self.rng.combat_card_selection.next_int_range(0, opts.len() as i32) as usize], 0)
                 }
             };
             // originals are all removed from their piles first
             self.pile_mut(pile).remove_value(o);
-            work.push((pile as u8, idx as u8, o, rid));
+            work.push((pile as u8, idx as u8, o, rid, rup));
         }
         // sort by (pile type, original index) ascending so re-inserts keep relative order (insertion sort: stable)
         let sl = work.as_mut_slice();
@@ -272,8 +272,8 @@ impl Combat {
             sl[j] = x;
         }
         let work2 = work;
-        for &(pile, idx, _o, rid) in work2.iter() {
-            let Some(n) = self.new_card(rid, 0) else { continue };
+        for &(pile, idx, _o, rid, rup) in work2.iter() {
+            let Some(n) = self.new_card(rid, rup) else { continue };
             let pt = match pile {
                 1 => PileType::Draw,
                 2 => PileType::Hand,
@@ -293,7 +293,7 @@ impl Combat {
         for &n in out.iter() {
             self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, n));
         }
-        for &(_, _, o, _) in work2.iter() {
+        for &(_, _, o, _, _) in work2.iter() {
             self.cards[o as usize].pile = PileType::None as u8;
             self.cards[o as usize].flags |= cflag::REMOVED;
         }

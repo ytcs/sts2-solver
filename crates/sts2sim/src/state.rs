@@ -405,4 +405,6 @@ pub struct Combat {
     pub sly_queue: ArrayVec<CardIdx, 10>,
     /// Combat history log (`engine/history.rs`).
     pub hist_log: crate::engine::HistLog,
+    /// Number of decisions raised so far (lets a driver tell "the same decision" from "the next one").
+    pub decision_seq: u32,
 }

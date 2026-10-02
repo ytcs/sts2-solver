@@ -116,16 +116,18 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;
+                let seq = cx.decision_seq;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
                         println!("step {i}: pick {p} rejected");
                         return Ok(Verdict::Mismatch);
                     }
-                    if cx.stage != Stage::AwaitChoice {
+                    // finished (or replaced by the NEXT decision of the same effect)
+                    if cx.stage != Stage::AwaitChoice || cx.decision_seq != seq {
                         break;
                     }
                 }
-                if cx.stage == Stage::AwaitChoice && !cx.step(Action::Confirm) {
+                if cx.stage == Stage::AwaitChoice && cx.decision_seq == seq && !cx.step(Action::Confirm) {
                     println!("step {i}: decision still pending after the oracle's picks");
                     return Ok(Verdict::Mismatch);
                 }
