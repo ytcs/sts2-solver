@@ -14,6 +14,7 @@ All 300 relic classes are registered except the ones listed under "Not ported" b
 | `shared_damage.rs` | damage / block / power-amount modifiers (StrikeDummy ... UnsettlingLamp, Vambrace) |
 | `shared_misc.rs` | stars, combat-end counters, gold, saved-state-only relics |
 | `shared_choice.rs` | relics that raise decisions or auto-play cards (GamblingChip, ToastyMittens, Toolbox, ChoicesParadox, WhisperingEarring, HistoryCourse) |
+| `pets_forge.rs` | pets / Forge / extra-turn relics (BoneFlute, Byrdpip, FencingManual, PaelsEye, PaelsLegion) |
 | `runlevel.rs` | generated: hook-less registrations of relics whose hooks are run-level only (rewards, shops, rest, map, pick-up) |
 
 ## Relic state (`Relic { counter: i32, flags: u8, aux: i32 }`)
@@ -31,34 +32,38 @@ documented above each listener. The Listener has three **static metadata** metho
 `RelicInit { id, counter, flags, aux }` carries a relic's state into `Combat::new`; `Combat::rel(me)` / `rel_mut(me)` access it
 from a hook (`me.idx` is the relic's index).
 
-## Hooks added for relics (append-only in `hooks.rs`, dispatch sites in `engine/`)
+## Hooks and engine behaviour for relics
 
-`after_room_entered` (run-level, fires once at combat setup before `RollMove` / `BeforeCombatStart`), `*_late` variants of
-`AfterPlayerTurnStart` / `AfterEnergyReset` / `AfterAutoPrePlayPhaseEntered`, `should_draw` + `after_preventing_draw`,
-`after_modifying_hand_draw`, `modify_x_value` (cards read X through `Combat::resolve_x_value`), `modify_card_play_count`
-(+`after_modifying_card_play_count`), `should_die` / `should_die_late` + `after_preventing_death` (kill sequence in
-`engine/creature.rs`), `after_creature_added_to_combat` (`Combat::notify_creature_added` for summons),
-`after_modifying_block_amount`, `after_stars_spent/gained`, `try_modify_star_cost`, `after_potion_discarded/procured`,
-`should_procure_potion`, `modify_gold_gained`, `hook_resume`.
-
-Engine behaviour that relics needed and that was missing: `heal` / `kill` / `set_current_hp` fire `AfterCurrentHpChanged`;
-`gain_max_hp`; `Player.IsActiveForHooks` (`Combat::player_active`: relics keep listening while the dying player runs the
-ShouldDie / AfterDeath sequence); a power's `amount_on_turn_start` starts at 0; `gain_energy` is a no-op while the combat is
-ending; gold (`Combat::gold`, default 99, dumped); room type of the encounter (`Combat::room_type`: 0 monster / 1 elite / 2 boss
-from the id suffix); `spend_resources`, `auto_play_ex` (`CardCmd.AutoPlay` with an explicit target / `skipXCapture`), `procure_potion`, `lose_block`, star cost with hooks
-(`card_star_cost`), `set_cost_this_combat` / `add_cost_until_played`.
+The engine-core hook set is canonical (`hooks.rs`; single-variant signatures, one `listener!` per class). Relics use
+`after_room_entered`, the `*_late` turn-start variants, `should_draw` / `after_preventing_draw`, `modify_x_value` (cards read X through
+`Combat::x_value`), `modify_card_play_count`, `should_die` / `should_die_late` + `after_preventing_death`,
+`after_creature_added_to_combat`, `after_modifying_block_amount`, `after_stars_spent/gained`, `try_modify_star_cost`, potion
+procure / discard hooks, `after_died_to_doom` (`Combat::all_powers_trigger_fatal` answers `ShouldOwnerDeathTriggerFatal`),
+`after_attack`, `should_take_extra_turn` / `after_taking_extra_turn`, `before_side_turn_end_early`, and the one relic-specific
+addition `modify_gold_gained` (run-level; `Combat::gain_gold` threads it, Ectoplasm / BowlerHat). Gold is `Combat::gold` (oracle default
+99; `sts2diff` injects the scenario's `gold`). `Combat::room_type` (0 monster / 1 elite / 2 boss from the encounter id suffix),
+`Combat::deck_upgradable` (FishingRod / WarHammer item counts), `cur_power_card` (`cardSource` of the power application being
+dispatched) and `auto_select` are relic-driven state fields. `spend_resources` is the shared `SpendResources` step of `play_card`.
+Helpers in `engine/relic_cmds.rs` (`rel` / `rel_mut`, `has_relic`, `damage_hittable_enemies`, `damage_random_hittable_enemy`, ...) only
+cover what the canonical command set lacks.
 
 ## Hooks that need a decision (`shared_choice.rs`)
 
-A hook cannot return `Flow::Suspend`. A relic hook that needs a decision calls `cx.ask_hand/ask_options(...)`; on `Ask::Pending` it
-calls `cx.suspend_hook_for_decision(me, phase)` and returns. The player-turn start is a resumable state machine
-(`Combat::run_turn_start`, steps `0..=8`; `BeforeHandDraw`, `AfterPlayerTurnStart`, `AfterAutoPrePlayPhaseEntered(+Late)` use
-`dispatch_susp`): it stops after the suspending listener and `resume_after_decision` calls `Listener::hook_resume(me, phase)`
-(the picks are in `cx.choice`), then continues the turn start. A hook that auto-plays a card (`auto_play_ex`) sets
-`cx.pending_hook` first and clears it when the play finished synchronously (HistoryCourse). Whispering Earring pushes the game's
-`VakuuCardSelector` while it auto-plays: `Combat::auto_select` makes every card-selection screen resolve to the first `max`
-candidates, so it never suspends. `sts2diff` answers prompts
-raised during setup (record 0) from the oracle's recorded `choices`.
+One suspension mechanism, shared with the engine-core powers: a hook that needs a decision calls `cx.ask_hand/ask_options(...)`; on
+`Ask::Pending` it sets `cx.hook_ctx = Some((me, phase))` and `cx.stage = Stage::AwaitChoice`. The turn start (`setup_player_turn` /
+`turn_cont`) stops after the suspending listener; `resume_after_decision` calls `Listener::resume_hook(me, phase)` (the picks are in
+`cx.choice`) and then `resume_turn_start`. GamblingChip, ToastyMittens, Toolbox and ChoicesParadox work this way. A hook that auto-plays a
+card (HistoryCourse) calls `cx.auto_play(card, target, AutoPlayType::Default, false)` and relies on the auto-play stack. Whispering Earring pushes
+the game's `VakuuCardSelector` while it auto-plays: `Combat::auto_select` makes every card-selection screen resolve to the first `max`
+candidates, so it never suspends. `sts2diff` answers prompts raised during setup (record 0) from the oracle's recorded `choices`.
+
+## Pets, Forge and extra turns (`pets_forge.rs`, `monsters/relic_pets.rs`)
+
+BoneFlute (Osty attacks give block), Byrdpip / PaelsLegion (`Combat::add_pet` creates the 9999-HP do-nothing pet at `BeforeCombatStart`;
+PaelsLegion identifies its `AffectedCardPlay` by `(card, play_index)` on the play stack), FencingManual (`Combat::forge`), PaelsEye
+(`should_take_extra_turn`, `before_side_turn_end_early` exhausts the hand, history query for "a card was played this turn").
+BoundPhylactery / PhylacteryUnbound live in `necrobinder.rs`, DivineRight / RingOfTheSnake / LizardTail / ChemicalX / UnceasingTop in the shared
+files above (the engine-core / starter representatives were removed in favour of these, which carry the saved-state metadata).
 
 ## Validation
 
@@ -68,9 +73,6 @@ to their thresholds. `tools/gen_relics.py` regenerates the constants.
 
 ## Not ported (left unregistered so scenarios flag them)
 
-Need engine systems that do not exist yet: orbs (CrackedCore, InfusedCore, GoldPlatedCables, RunicCapacitor, SymbioticVirus,
-EmotionChip, Metronome), pets / Osty (BoundPhylactery, PhylacteryUnbound, BoneFlute, Byrdpip, PaelsLegion), Forge
-(FencingManual), extra turns (PaelsEye).
-Known limits of ported relics: BookRepairKnife needs `DoomPower` to call `Combat::notify_died_to_doom(&killed)`; PaperPhrog / PaperKrane are behaviour of `VulnerablePower` / `WeakPower` (they check for the relic);
-cards that read an X value must use `Combat::resolve_x_value` for ChemicalX; monster code that adds status cards through
-`add_generated_card` is treated as "not created by the player" only during the enemy turn (Regalite).
+Orb relics (CrackedCore, InfusedCore, GoldPlatedCables, RunicCapacitor, SymbioticVirus, EmotionChip, Metronome) wait for the Defect orbs
+engine. Known limits of ported relics: PaperPhrog / PaperKrane are behaviour of `VulnerablePower` / `WeakPower` (they check for the relic);
+monster code that adds status cards through `add_generated_card` is treated as "not created by the player" only during the enemy turn (Regalite).

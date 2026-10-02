@@ -77,7 +77,7 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
     }
     let mut deck = vec![];
     let mut extras = ScenarioExtras::default();
-    extras.gold = v["gold"].as_i64().unwrap_or(0) as i32;
+    extras.gold = v["gold"].as_i64().unwrap_or(99) as i32; // the oracle player starts with 99 gold unless the scenario says otherwise
     extras.act = v["act"].as_u64().unwrap_or(0) as u8;
     for c in v["deck"].as_array().ok_or("scenario needs an explicit deck")? {
         let mut x = DeckExtra::default();

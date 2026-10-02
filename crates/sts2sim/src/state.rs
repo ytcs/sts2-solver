@@ -464,8 +464,12 @@ pub struct Combat {
     pub choice: Choice,
     /// A hook that raised a decision, resumed through `Listener::resume_hook` once the choice is in `choice`.
     pub hook_ctx: Option<(crate::hooks::Me, u8)>,
-    /// Where a turn start suspended by a hook decision resumes (0 = not suspended).
+    /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
+    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`.
     pub turn_cont: u8,
+    /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
+    /// its index in the pass: the pass continues after it once the decision is resolved.
+    pub susp_after: Option<(u32, crate::hooks::Me, u8)>,
     /// The `AfterAutoPostPlayPhaseEntered` listener that suspended (auto-played card raised a decision) while the
     /// player's turn was ending; the turn end resumes from it once the decision is made.
     pub end_turn_resume: Option<crate::hooks::Me>,
