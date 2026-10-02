@@ -91,6 +91,29 @@ impl Combat {
         self.dispatch_u(hookbit::after_creature_added_to_combat, |cx, me, l| l.after_creature_added_to_combat(cx, me, c));
     }
 
+    /// `CreatureCmd.LoseBlock(c, amount, remover)`: lowers block (floor 0); `AfterBlockBroken` when it reaches 0.
+    pub fn lose_block(&mut self, c: Cid, amount: i32) {
+        if self.is_over_or_ending() || self.cr(c).is_dead() || amount <= 0 {
+            return;
+        }
+        let before = self.cr(c).block;
+        self.cr_mut(c).block = (before - amount).max(0);
+        if before > 0 && self.cr(c).block <= 0 {
+            self.dispatch_u(hookbit::after_block_broken, |cx, me, l| l.after_block_broken(cx, me, c, NO));
+        }
+    }
+
+    /// `dealer == Owner.Creature || dealer == Owner.Osty`.
+    pub fn is_owner_or_osty(&self, dealer: Cid) -> bool {
+        if dealer == PLAYER {
+            return true;
+        }
+        dealer != NO && {
+            let d = self.cr(dealer);
+            d.is_pet && d.owner == PLAYER && d.monster.id == crate::ids::monster::OSTY
+        }
+    }
+
     /// Alive enemies in list order (`GetOpponentsOf(player)` filtered by `IsAlive`).
     pub fn alive_enemies(&self) -> ArrayVec<Cid, MAX_CREATURES> {
         let mut o = ArrayVec::new();
@@ -156,6 +179,57 @@ impl Combat {
     }
 
     // ---- cards -------------------------------------------------------------------------------------------------------
+
+    /// `CardModel.CostsEnergyOrStars(includeGlobalModifiers: true)`.
+    pub fn costs_energy_or_stars(&self, c: CardIdx) -> bool {
+        let d = self.card_def(c);
+        if !d.x_cost && self.card_cost(c, true) > 0 {
+            return true;
+        }
+        self.card_star_cost(c) > 0
+    }
+
+    /// `List.StableShuffle(rng.CombatCardSelection)`: sort by (id, upgrade) like `CardModel.CompareTo`, then an
+    /// `UnstableShuffle` (n-1 draws). Returns the shuffled list.
+    pub fn stable_shuffle_selection(&mut self, list: &mut [CardIdx]) {
+        let cards = &self.cards;
+        crate::sort::intro_sort(list, |a, b| {
+            let (ca, cb) = (&cards[*a as usize], &cards[*b as usize]);
+            if ca.id != cb.id {
+                return if ca.id < cb.id { -1 } else { 1 };
+            }
+            (ca.upgrade as i32 - cb.upgrade as i32).signum()
+        });
+        self.rng.combat_card_selection.shuffle(list);
+    }
+
+    /// `Rng.CombatCardSelection.NextItem(items)`: one draw when non-empty, none otherwise.
+    pub fn select_item(&mut self, items: &[CardIdx]) -> Option<CardIdx> {
+        if items.is_empty() {
+            return None;
+        }
+        let i = self.rng.combat_card_selection.next_int_range(0, items.len() as i32) as usize;
+        Some(items[i])
+    }
+
+    /// `EnergyCost.SetThisCombat(cost)`: an absolute cost modifier that lasts the whole combat. It overrides every earlier
+    /// modifier, so those are dropped (keeps the modifier list within its fixed capacity).
+    pub fn set_cost_this_combat(&mut self, c: CardIdx, cost: i32) {
+        let canonical = self.card_def(c).cost;
+        if cost == 0 && canonical < 0 {
+            return;
+        }
+        let card = &mut self.cards[c as usize];
+        card.mods.clear();
+        card.mods.push(CostMod { amount: cost as i8, relative: false, reduce_only: false, expire: 0 });
+    }
+
+    /// `EnergyCost.AddUntilPlayed(amount)`: relative modifier until the card is played.
+    pub fn add_cost_until_played(&mut self, c: CardIdx, amount: i32) {
+        if amount != 0 {
+            self.cards[c as usize].mods.push(CostMod { amount: amount as i8, relative: true, reduce_only: false, expire: EXPIRE_WHEN_PLAYED });
+        }
+    }
 
     /// `CardCmd.ApplyKeyword(card, kw)`: local keyword added (no-op if the card already has it).
     pub fn apply_keyword(&mut self, c: CardIdx, k: u8) {

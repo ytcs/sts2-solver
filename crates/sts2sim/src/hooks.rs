@@ -468,3 +468,12 @@ macro_rules! listener {
         }
     };
 }
+
+/// `fn meta_props(&self) -> &'static [PropDef] { relic_props![PropDef::int("TurnsSeen", Slot::Counter)] }`
+#[macro_export]
+macro_rules! relic_props {
+    ($($e:expr),* $(,)?) => {{
+        const P: &[$crate::state::PropDef] = &[$($e),*];
+        P
+    }};
+}

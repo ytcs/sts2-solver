@@ -107,6 +107,10 @@ fn relic(cx: &Combat, r: &Relic) -> Value {
     m.insert("id".into(), json!(ids::relic::NAMES[r.id as usize]));
     let mut props = Map::new();
     for d in l.meta_props() {
+        if !d.lit.is_empty() {
+            props.insert(d.name.into(), serde_json::from_str(d.lit).expect("bad PropDef literal"));
+            continue;
+        }
         let v = r.get(d.slot);
         if d.skip_default && v == 0 {
             continue;

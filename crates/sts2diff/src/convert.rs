@@ -28,6 +28,9 @@ fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
         let defs = l.meta_props();
         for (k, v) in obj {
             let d = defs.iter().find(|d| d.name == k).ok_or_else(|| format!("relic {} has no modelled saved property {k}", ids::relic::NAMES[id as usize]))?;
+            if !d.lit.is_empty() {
+                continue; // fixed value, nothing to inject
+            }
             let n = v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).ok_or_else(|| format!("relic prop {k}: expected int/bool"))?;
             st.set(d.slot, n as i32);
         }

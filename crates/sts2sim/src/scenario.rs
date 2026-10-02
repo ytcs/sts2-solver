@@ -130,6 +130,9 @@ impl Combat {
             player_active: true,
             gen_by_player: true,
             room_type: room_type_of(sc.encounter),
+            deck_upgradable: sc.deck.iter().enumerate().take(128).fold(0u128, |m, (i, d)| {
+                if d.upgrade < content::card_def(d.id).max_upgrade { m | (1u128 << i) } else { m }
+            }),
         };
         // Player creature (CombatId 0).
         cx.creatures[PLAYER as usize] = Creature {

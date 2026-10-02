@@ -112,7 +112,8 @@ impl Combat {
             let mut attached = false;
             if !v.is_zero() {
                 let amt = v.trunc().clamp(-MAX_POWER_AMOUNT, MAX_POWER_AMOUNT);
-                let p = Power { id, uid, amount: amt, amount_on_turn_start: amt, aux: 0, applier, skip_next_tick: false };
+                // `_amountOnTurnStart` is 0 until the next `BeforeTurnStart` snapshot (a power applied mid-turn reads 0).
+                let p = Power { id, uid, amount: amt, amount_on_turn_start: 0, aux: 0, applier, skip_next_tick: false };
                 self.cr_mut(target).powers.push(p);
                 attached = true;
             }

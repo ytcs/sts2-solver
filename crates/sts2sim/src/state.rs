@@ -376,6 +376,9 @@ pub struct Combat {
     pub gen_by_player: bool,
     /// Room kind of the encounter (0 monster, 1 elite, 2 boss), for relics gated on `CurrentRoom.RoomType`.
     pub room_type: u8,
+    /// Bit i set when deck card i (scenario deck order) is upgradable: `Deck.Cards.Where(IsUpgradable)` as read by the
+    /// post-combat deck relics (FishingRod / WarHammer), which only need to draw from the right-sized item list.
+    pub deck_upgradable: u128,
 }
 
 // ---- relic persistent state description (see `Listener::meta_*` and content/relics) ------------------------------------
@@ -397,14 +400,20 @@ pub struct PropDef {
     pub slot: Slot,
     pub boolean: bool,
     pub skip_default: bool,
+    /// Non-empty: a property the relic always saves with this fixed JSON value (empty arrays, ...); no state slot.
+    pub lit: &'static str,
 }
 
 impl PropDef {
     pub const fn int(name: &'static str, slot: Slot) -> PropDef {
-        PropDef { name, slot, boolean: false, skip_default: false }
+        PropDef { name, slot, boolean: false, skip_default: false, lit: "" }
     }
     pub const fn flag(name: &'static str, bit: u8) -> PropDef {
-        PropDef { name, slot: Slot::Flag(bit), boolean: true, skip_default: false }
+        PropDef { name, slot: Slot::Flag(bit), boolean: true, skip_default: false, lit: "" }
+    }
+    /// A saved property with a fixed JSON literal value (not stored in the relic).
+    pub const fn constant(name: &'static str, lit: &'static str) -> PropDef {
+        PropDef { name, slot: Slot::Counter, boolean: false, skip_default: false, lit }
     }
     pub const fn skip_default(mut self) -> PropDef {
         self.skip_default = true;
