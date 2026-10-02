@@ -103,6 +103,7 @@ impl Combat {
         }
         // Not yet attached: a stand-in `Me` for the not-yet-existing power.
         let me = Me { kind: Kind::Power, owner: target, idx: uid, id, amount: 0 };
+        self.cur_power_card = card;
         self.dispatch_g(hookbit::before_power_amount_changed, |cx, m, l| l.before_power_amount_changed(cx, m, id, amount, target, applier));
         let (mut v, given_mods) = if applier != NO && self.cr(applier).in_combat {
             self.modify_power_amount_given(id, applier, amount, target, card)
@@ -206,6 +207,7 @@ impl Combat {
         }
         let Some(i) = self.power_idx(c, uid) else { return 0 };
         let id = self.cr(c).powers[i].id;
+        self.cur_power_card = card;
         self.dispatch_g(hookbit::before_power_amount_changed, |cx, m, l| l.before_power_amount_changed(cx, m, id, offset, c, applier));
         let (mut v, given_mods) = if applier != NO && self.cr(applier).in_combat {
             self.modify_power_amount_given(id, applier, offset, c, card)
