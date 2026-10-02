@@ -130,3 +130,10 @@ fn gambling_chip_with_an_empty_selection_just_continues() {
     assert_eq!(cx.player.hand.len(), 5);
     assert!(cx.player.discard.is_empty());
 }
+
+#[test]
+fn combat_state_stays_small() {
+    // design.md: `Clone` of a fight is a memcpy of ~14 KB; relic state / hook plumbing must not blow it up.
+    let n = std::mem::size_of::<Combat>();
+    assert!(n < 24 * 1024, "size_of::<Combat>() = {n}");
+}
