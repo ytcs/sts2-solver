@@ -88,23 +88,29 @@ impl Combat {
     /// `StartTurn(Player)` (spec 01 §6.1).
     pub(crate) fn start_player_turn(&mut self) {
         self.turn_cont = None;
-        self.run_turn_start(0, 0);
+        self.run_turn_start(0, 0, None);
     }
 
     /// Dispatch of one hook over the (guarded) listener snapshot that stops right after a listener suspended
     /// (`Combat::pending_hook`), recording where to resume. `skip` = listeners already run before a resume (the guard
     /// is evaluated once, when the dispatch starts). Returns false when it suspended.
-    pub(crate) fn dispatch_susp(&mut self, step: u8, bit: u32, skip: usize, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
+    pub(crate) fn dispatch_susp(&mut self, step: u8, bit: u32, skip: usize, last: Option<Me>, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
         if !self.listen.has(bit) || (skip == 0 && !self.hooks_enabled()) {
             return true;
         }
         let snap = self.snapshot(Mask::bit(bit));
+        let mut skip = skip;
+        if let Some(l) = last {
+            if let Some(p) = snap.iter().position(|e| e.me.kind == l.kind && e.me.idx == l.idx && e.me.owner == l.owner && e.me.id == l.id) {
+                skip = p + 1;
+            }
+        }
         for (i, e) in snap.iter().enumerate().skip(skip) {
             if self.still_live(&e.me) {
                 f(self, e.me, content::listener(&e.me));
             }
-            if self.pending_hook.is_some() {
-                self.turn_cont = Some(TurnCont { step, done: (i + 1).min(255) as u8 });
+            if let Some(ph) = self.pending_hook {
+                self.turn_cont = Some(TurnCont { step, done: (i + 1).min(255) as u8, last: ph.me });
                 return false;
             }
         }
@@ -121,7 +127,7 @@ impl Combat {
     /// Steps of the player-turn start. 0 begin (block clear), 1 energy reset, 2 `BeforeHandDraw`*, 3 hand draw,
     /// 4 `AfterPlayerTurnStart`*, 5 `AfterSideTurnStart`, 6/7 `AfterAutoPrePlayPhaseEntered` (+Late)*, 8 enter the play
     /// phase. Steps marked `*` can be suspended by a hook that needs a decision (resumed via `continue_turn_start`).
-    pub(crate) fn run_turn_start(&mut self, mut step: u8, mut skip: usize) {
+    pub(crate) fn run_turn_start(&mut self, mut step: u8, mut skip: usize, mut last: Option<Me>) {
         loop {
             match step {
                 0 => {
@@ -159,10 +165,11 @@ impl Combat {
                     step = 2;
                 }
                 2 => {
-                    if !self.dispatch_susp(2, hookbit::before_hand_draw, skip, |cx, me, l| l.before_hand_draw(cx, me)) {
+                    if !self.dispatch_susp(2, hookbit::before_hand_draw, skip, last, |cx, me, l| l.before_hand_draw(cx, me)) {
                         return;
                     }
                     skip = 0;
+                    last = None;
                     step = 3;
                 }
                 3 => {
@@ -170,10 +177,11 @@ impl Combat {
                     step = 4;
                 }
                 4 => {
-                    if !self.dispatch_susp(4, hookbit::after_player_turn_start, skip, |cx, me, l| l.after_player_turn_start(cx, me)) {
+                    if !self.dispatch_susp(4, hookbit::after_player_turn_start, skip, last, |cx, me, l| l.after_player_turn_start(cx, me)) {
                         return;
                     }
                     skip = 0;
+                    last = None;
                     self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
                     step = 5;
                 }
@@ -196,17 +204,19 @@ impl Combat {
                     step = 6;
                 }
                 6 => {
-                    if !self.dispatch_susp(6, hookbit::after_auto_pre_play_phase_entered, skip, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me)) {
+                    if !self.dispatch_susp(6, hookbit::after_auto_pre_play_phase_entered, skip, last, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me)) {
                         return;
                     }
                     skip = 0;
+                    last = None;
                     step = 7;
                 }
                 7 => {
-                    if !self.dispatch_susp(7, hookbit::after_auto_pre_play_phase_entered_late, skip, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me)) {
+                    if !self.dispatch_susp(7, hookbit::after_auto_pre_play_phase_entered_late, skip, last, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me)) {
                         return;
                     }
                     skip = 0;
+                    last = None;
                     step = 8;
                 }
                 _ => {
@@ -223,7 +233,7 @@ impl Combat {
     /// Continues an interrupted player-turn start after the hook that suspended it has finished.
     pub(crate) fn continue_turn_start(&mut self) {
         if let Some(c) = self.turn_cont.take() {
-            self.run_turn_start(c.step, c.done as usize);
+            self.run_turn_start(c.step, c.done as usize, Some(c.last));
         }
     }
 

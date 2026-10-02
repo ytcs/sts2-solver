@@ -415,6 +415,9 @@ pub struct PendingHook {
 pub struct TurnCont {
     pub step: u8,
     pub done: u8,
+    /// The listener that suspended (the resumed dispatch continues right after it, found by identity when the listener
+    /// list changed meanwhile; `done` is the fallback index).
+    pub last: crate::hooks::Me,
 }
 
 // ---- relic persistent state description (see `Listener::meta_*` and content/relics) ------------------------------------
