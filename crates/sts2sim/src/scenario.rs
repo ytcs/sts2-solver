@@ -152,6 +152,8 @@ impl Combat {
             decision: None,
             choice: Choice::default(),
             end_turn_resume: None,
+            hook_ctx: None,
+            turn_cont: 0,
             missing: None,
             player_hooks_active: true,
             escaped: 0,

@@ -397,6 +397,19 @@ pub struct History {
     pub cards_exhausted_this_turn: i16,
     /// `CardPlayFinishedEntry`s of Attack cards this turn.
     pub attacks_finished_this_turn: i16,
+    /// `CardPlayFinishedEntry`s of Skill cards / Shiv-tagged cards this turn (Silent: Finesse-likes).
+    pub skills_finished_this_turn: i16,
+    pub shivs_finished_this_turn: i16,
+    /// Per-play scratch used by Serpent Form / Strangle: the power amount when `BeforeCardPlayed` ran for a card.
+    pub play_amounts: ArrayVec<PlayAmount, 16>,
+}
+
+/// `Dictionary<CardModel, int> amountsForPlayedCards` entry of a power instance (keyed by power uid + card).
+#[derive(Clone, Copy, Default, Debug)]
+pub struct PlayAmount {
+    pub uid: u16,
+    pub card: CardIdx,
+    pub amount: i32,
 }
 
 #[derive(Clone, Copy)]
@@ -435,6 +448,10 @@ pub struct Combat {
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
+    /// A hook that raised a decision, resumed through `Listener::resume_hook` once the choice is in `choice`.
+    pub hook_ctx: Option<(crate::hooks::Me, u8)>,
+    /// Where a turn start suspended by a hook decision resumes (0 = not suspended).
+    pub turn_cont: u8,
     /// The `AfterAutoPostPlayPhaseEntered` listener that suspended (auto-played card raised a decision) while the
     /// player's turn was ending; the turn end resumes from it once the decision is made.
     pub end_turn_resume: Option<crate::hooks::Me>,

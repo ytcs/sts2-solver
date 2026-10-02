@@ -360,6 +360,8 @@ pub trait Listener: Sync {
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         None
     }
+    /// Resumes a hook that raised a decision (`Combat::hook_ctx = Some((me, phase))`) once the choice is in `cx.choice`.
+    fn resume_hook(&self, cx: &mut Combat, me: Me, phase: u8) {}
     /// [C] `TryModifyKeywordsInCombat`: returns the new keyword set (threaded).
     fn try_modify_keywords_in_combat(&self, cx: &Combat, me: Me, card: CardIdx, keywords: u8) -> u8 {
         keywords
@@ -714,6 +716,7 @@ pub mod hookbit {
         should_play_kind,
         get_result_location_for_card_play,
         calculated_damage,
+        resume_hook,
     );
     // The mask has 256 bits.
     const _: () = assert!(get_result_location_for_card_play < 256);
