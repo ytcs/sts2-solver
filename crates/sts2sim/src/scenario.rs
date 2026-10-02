@@ -127,6 +127,7 @@ impl Combat {
             dmg_blocked: 0,
             hook_ctx: None,
             turn_cont: 0,
+            decision_seq: 0,
             play_ctx: None,
             potion_ctx: None,
             decision: None,

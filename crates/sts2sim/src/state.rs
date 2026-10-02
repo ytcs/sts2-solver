@@ -384,6 +384,8 @@ pub struct Combat {
     pub hook_ctx: Option<(crate::hooks::Me, u8)>,
     /// Turn-start continuation after a decision raised inside a turn-start hook (see `turn.rs`): 0 none.
     pub turn_cont: u8,
+    /// Number of decisions raised so far (lets a replay harness tell a finished decision from a chained one).
+    pub decision_seq: u32,
 
     /// In-flight card play (suspended while a decision is pending).
     pub play_ctx: Option<PlayCtx>,
