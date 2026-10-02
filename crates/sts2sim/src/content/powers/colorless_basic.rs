@@ -139,6 +139,9 @@ listener!(PanachePower {
     }
 });
 
+/// `RollingBoulderPower.CanonicalVars = DamageVar(5m, Unpowered)` (the per-turn increase; not upgraded).
+const ROLLING_BOULDER_INCREMENT: i32 = 5;
+
 // ---- RollingBoulderPower (instanced): damages all enemies at the start of each turn, then grows by 5 ---------------
 listener!(RollingBoulderPower {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
@@ -149,7 +152,7 @@ listener!(RollingBoulderPower {
         let enemies = cx.hittable_enemies();
         cx.damage(enemies.as_slice(), Dec::int(amount as i64), ValueProp::UNPOWERED, me.owner, NO);
         // `SetAmount(Amount + DynamicVars.Damage.IntValue)`: no hooks.
-        cx.set_power_amount(me.owner, me.idx, amount + 5);
+        cx.set_power_amount(me.owner, me.idx, amount + ROLLING_BOULDER_INCREMENT);
     }
 });
 
