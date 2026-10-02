@@ -84,13 +84,7 @@ impl Combat {
         self.dispatch_g(hookbit::before_block_gained, |cx, me, l| l.before_block_gained(cx, me, c, amount, props, card));
         let (v, mods) = self.modify_block_ex(c, amount, props, card);
         let v = v.max(Dec::ZERO);
-        if self.hooks_enabled() {
-            for me in mods.iter() {
-                if self.still_live(me) {
-                    content::listener(me).after_modifying_block_amount(self, *me, v, card);
-                }
-            }
-        }
+        self.dispatch_modifiers(true, hookbit::after_modifying_block_amount, &mods, |cx, me, l| l.after_modifying_block_amount(cx, me, v, card));
         if v > Dec::ZERO {
             self.gain_block_internal(c, v);
         }

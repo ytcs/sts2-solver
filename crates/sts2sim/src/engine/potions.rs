@@ -1,7 +1,8 @@
-//! Potion use (`UsePotionAction` / `PotionModel.OnUseWrapper`).
+//! Potion use (`UsePotionAction` / `PotionModel.OnUseWrapper`), discard and procure (`PotionCmd`).
 
 use crate::content;
 use crate::defs::*;
+use crate::engine::HKind;
 use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
@@ -26,15 +27,31 @@ impl Combat {
         0
     }
 
-    /// `PlayerCmd` discard: the potion leaves the slot (no effect).
+    /// `PotionCmd.Discard`: the potion leaves the slot (no effect), then `Hook.AfterPotionDiscarded`.
     pub fn discard_potion(&mut self, slot: usize) -> bool {
         if self.player.phase != Phase::Play || slot >= MAX_POTIONS || self.player.potions[slot].is_none() {
             return false;
         }
         let id = self.player.potions[slot].unwrap().id;
         self.player.potions[slot] = None;
-        let _ = id;
+        self.dispatch_u(hookbit::after_potion_discarded, |cx, me, l| l.after_potion_discarded(cx, me, id));
         true
+    }
+
+    /// `PotionCmd.TryToProcure`: `ShouldProcurePotion` (AND) veto, first free slot, `AfterPotionProcured`.
+    /// Returns the slot of the new potion.
+    pub fn try_to_procure_potion(&mut self, potion: u16) -> Option<usize> {
+        if self.first_veto(hookbit::should_procure_potion, |cx, me, l| l.should_procure_potion(cx, me, potion)).is_some() {
+            return None;
+        }
+        let slot = (0..self.player.potion_slots as usize).find(|&i| self.player.potions[i].is_none())?;
+        if !content::potion_implemented(potion) {
+            self.flag_missing(Kind::Potion, potion);
+        }
+        self.listen |= content::potion_mask(potion);
+        self.player.potions[slot] = Some(Potion { id: potion });
+        self.dispatch_u(hookbit::after_potion_procured, |cx, me, l| l.after_potion_procured(cx, me, potion));
+        Some(slot)
     }
 
     /// Manual use of the potion in `slot`.
@@ -67,6 +84,25 @@ impl Combat {
         true
     }
 
+    /// `PotionModel.OnUseWrapper` run to completion without ever suspending (potions triggered by hooks, e.g. Fairy in
+    /// a Bottle from `AfterPreventingDeath`): the potion leaves its slot first, then BeforePotionUsed, OnUse,
+    /// AfterPotionUsed. Does not touch the in-flight potion context.
+    pub fn use_potion_now(&mut self, slot: usize, target: Cid) {
+        let Some(p) = self.player.potions[slot] else { return };
+        self.player.potions[slot] = None;
+        let pid = p.id;
+        self.dispatch_u(hookbit::before_potion_used, |cx, me, l| l.before_potion_used(cx, me, pid, target));
+        self.player.effect_depth += 1;
+        let r = content::potion_listener(pid).on_use_potion(self, pid, target, 0);
+        debug_assert!(r == Flow::Done, "a hook-triggered potion must not ask for a decision");
+        self.player.effect_depth = self.player.effect_depth.saturating_sub(1);
+        if !self.cr(PLAYER).is_dead() {
+            self.hist_push(HKind::PotionUsed, PLAYER, target, pid, NO, 0, 0, 0, 0);
+            self.dispatch_u(hookbit::after_potion_used, |cx, me, l| l.after_potion_used(cx, me, pid, target));
+            self.check_for_empty_hand();
+        }
+    }
+
     /// Runs / resumes the in-flight potion effect.
     pub fn run_potion(&mut self) {
         let Some(ctx) = self.potion_ctx else { return };
@@ -81,6 +117,7 @@ impl Combat {
                 self.player.effect_depth = self.player.effect_depth.saturating_sub(1);
                 let (pid, tgt) = (ctx.potion, ctx.target);
                 if !self.cr(PLAYER).is_dead() {
+                    self.hist_push(HKind::PotionUsed, PLAYER, tgt, pid, NO, 0, 0, 0, 0);
                     self.dispatch_u(hookbit::after_potion_used, |cx, me, lst| lst.after_potion_used(cx, me, pid, tgt));
                     self.check_for_empty_hand();
                 }

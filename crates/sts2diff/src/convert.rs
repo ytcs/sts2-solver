@@ -56,7 +56,13 @@ pub fn scenario(v: &Value) -> Result<Scenario, String> {
     }
     let mut relics = vec![];
     for r in v["relics"].as_array().unwrap_or(&vec![]) {
-        relics.push(RelicInit { id: find(&ids::relic::NAMES, id_of(r), "relic")?, counter: 0 });
+        // `props` = the relic's [SavedProperty] values; by convention the first int / bool becomes `RelicInit::counter`
+        // (Lizard Tail's `WasUsed`, a charge counter ...). Relic owners refine this per relic.
+        let counter = r["props"]
+            .as_object()
+            .and_then(|o| o.values().find_map(|v| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64))))
+            .unwrap_or(0) as i32;
+        relics.push(RelicInit { id: find(&ids::relic::NAMES, id_of(r), "relic")?, counter });
     }
     let mut potions = vec![];
     for p in v["potions"].as_array().unwrap_or(&vec![]) {

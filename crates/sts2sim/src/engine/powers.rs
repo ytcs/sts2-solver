@@ -121,16 +121,8 @@ impl Combat {
                     self.cr_mut(target).powers[i].skip_next_tick = true;
                 }
             }
-            for m in given_mods.iter() {
-                if self.still_live(m) {
-                    content::listener(m).after_modifying_power_amount_given(self, *m, id);
-                }
-            }
-            for m in recv_mods.iter() {
-                if self.still_live(m) {
-                    content::listener(m).after_modifying_power_amount_received(self, *m, id);
-                }
-            }
+            self.dispatch_modifiers(true, hookbit::after_modifying_power_amount_given, &given_mods, |cx, m, l| l.after_modifying_power_amount_given(cx, m, id));
+            self.dispatch_modifiers(true, hookbit::after_modifying_power_amount_received, &recv_mods, |cx, m, l| l.after_modifying_power_amount_received(cx, m, id));
             if !v.is_zero() {
                 let amt = self.power_idx(target, uid).map_or(v.trunc(), |i| self.cr(target).powers[i].amount);
                 let me = Me { kind: Kind::Power, owner: target, idx: uid, id, amount: amt };
@@ -213,16 +205,8 @@ impl Combat {
         let new_amount = (self.cr(c).powers[i].amount as i64 + v.trunc() as i64)
             .clamp(-(MAX_POWER_AMOUNT as i64), MAX_POWER_AMOUNT as i64) as i32;
         self.cr_mut(c).powers[i].amount = new_amount;
-        for m in given_mods.iter() {
-            if self.still_live(m) {
-                content::listener(m).after_modifying_power_amount_given(self, *m, id);
-            }
-        }
-        for m in recv_mods.iter() {
-            if self.still_live(m) {
-                content::listener(m).after_modifying_power_amount_received(self, *m, id);
-            }
-        }
+        self.dispatch_modifiers(true, hookbit::after_modifying_power_amount_given, &given_mods, |cx, m, l| l.after_modifying_power_amount_given(cx, m, id));
+        self.dispatch_modifiers(true, hookbit::after_modifying_power_amount_received, &recv_mods, |cx, m, l| l.after_modifying_power_amount_received(cx, m, id));
         let vi = v.trunc();
         if vi != 0 {
             self.dispatch_g(hookbit::after_power_amount_changed, |cx, m, l| l.after_power_amount_changed(cx, m, id, vi));

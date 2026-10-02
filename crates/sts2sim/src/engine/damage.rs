@@ -138,15 +138,10 @@ impl Combat {
     }
 
     fn after_modifying_hp_lost(&mut self, mods: &Mods, after_osty: bool) {
-        for me in mods.iter() {
-            if self.still_live(me) {
-                let l = content::listener(me);
-                if after_osty {
-                    l.after_modifying_hp_lost_after_osty(self, *me);
-                } else {
-                    l.after_modifying_hp_lost_before_osty(self, *me);
-                }
-            }
+        if after_osty {
+            self.dispatch_modifiers(false, hookbit::after_modifying_hp_lost_after_osty, mods, |cx, me, l| l.after_modifying_hp_lost_after_osty(cx, me));
+        } else {
+            self.dispatch_modifiers(false, hookbit::after_modifying_hp_lost_before_osty, mods, |cx, me, l| l.after_modifying_hp_lost_before_osty(cx, me));
         }
     }
 
@@ -176,11 +171,7 @@ impl Combat {
                 continue;
             }
             let (modified, mods) = self.modify_damage(t, dealer, amount, props, card);
-            for me in mods.iter() {
-                if self.still_live(me) {
-                    content::listener(me).after_modifying_damage_amount(self, *me, card);
-                }
-            }
+            self.dispatch_modifiers(false, hookbit::after_modifying_damage_amount, &mods, |cx, me, l| l.after_modifying_damage_amount(cx, me, card));
             self.dmg_card = card;
             self.dispatch_u(hookbit::before_damage_received, |cx, me, l| l.before_damage_received(cx, me, t, modified, props, dealer));
             // Pet quirk: damage to Osty is absorbed by its owner's block.
