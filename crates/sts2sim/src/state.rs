@@ -396,4 +396,8 @@ pub struct Combat {
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
+    /// TEMP-DEP (Regent teammate): a hook that raised a decision, resumed through `Listener::resume_hook`.
+    pub hook_ctx: Option<(crate::hooks::Me, u8)>,
+    /// TEMP-DEP: where a turn start suspended by a hook decision resumes (0 = not suspended).
+    pub turn_cont: u8,
 }

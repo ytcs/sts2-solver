@@ -126,6 +126,8 @@ impl Combat {
             decision: None,
             choice: Choice::default(),
             missing: None,
+            hook_ctx: None,
+            turn_cont: 0,
         };
         // Player creature (CombatId 0).
         cx.creatures[PLAYER as usize] = Creature {

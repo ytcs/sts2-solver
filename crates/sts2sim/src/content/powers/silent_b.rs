@@ -2,6 +2,7 @@
 //! power classes. Poison/Accuracy/Thorns/Envenom/... live in `silent_a.rs`, Intangible in the potion/underdocks files.
 
 use crate::dec::Dec;
+use crate::engine::Ask;
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -16,11 +17,6 @@ fn owner_on(cx: &Combat, me: Me, side: Side) -> bool {
 /// `dealer == Owner || Owner.Pets.Contains(dealer)`.
 fn is_owner_or_pet(cx: &Combat, me: Me, dealer: Cid) -> bool {
     dealer != NO && (dealer == me.owner || (cx.cr(dealer).is_pet && cx.cr(dealer).owner == me.owner))
-}
-
-/// Value of this power instance's current `AmountOnTurnStart` (0 if the power is gone).
-fn amount_on_turn_start(cx: &Combat, me: Me) -> i32 {
-    cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].amount_on_turn_start)
 }
 
 fn add_keyword(cx: &mut Combat, c: CardIdx, k: u8) {
@@ -68,25 +64,31 @@ listener!(PhantomBladesPower {
 
 // ---- Draw / energy ----------------------------------------------------------------------------------------------------
 
-// Draw `Amount` extra cards at the start of the next turn (only if it was already present when this turn began).
-listener!(DrawCardsNextTurnPower {
-    fn modify_hand_draw(&self, cx: &Combat, me: Me, count: Dec) -> Dec {
-        if amount_on_turn_start(cx, me) == 0 {
-            return count;
-        }
-        count + Dec::int(cx.power_amount(me.owner, me.id) as i64)
-    }
-    fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
-        if owner_on(cx, me, side) && amount_on_turn_start(cx, me) != 0 {
-            cx.remove_power(me.owner, me.idx);
-        }
-    }
-});
-
-// Draw `Amount` more cards each turn, then discard `Amount` cards from the hand (a choice, see `ToolsOfTheTrade` card/hook).
+// Draw `Amount` more cards each turn, then discard `Amount` cards from the hand (a choice raised inside the
+// `AfterPlayerTurnStart` hook, resumed through `resume_hook`).
 listener!(ToolsOfTheTradePower {
     fn modify_hand_draw(&self, cx: &Combat, me: Me, count: Dec) -> Dec {
         count + Dec::int(cx.power_amount(me.owner, me.id) as i64)
+    }
+    fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
+        let a = cx.power_amount(me.owner, me.id).clamp(0, 255) as u8;
+        match cx.ask_hand(ids::card::TOOLS_OF_THE_TRADE, a, a, |_, _| true) {
+            Ask::Resolved(cards) => {
+                if !cards.is_empty() {
+                    cx.discard_cards(cards.as_slice(), 0);
+                }
+            }
+            Ask::Pending => {
+                cx.hook_ctx = Some((me, 1));
+                cx.stage = Stage::AwaitChoice;
+            }
+        }
+    }
+    fn resume_hook(&self, cx: &mut Combat, _me: Me, _phase: u8) {
+        let cards = cx.choice.cards;
+        if !cards.is_empty() {
+            cx.discard_cards(cards.as_slice(), 0);
+        }
     }
 });
 
@@ -281,7 +283,7 @@ listener!(WraithFormPower {
     }
 });
 
-// Well-Laid Plans: the hand is not discarded for flushing... (`ShouldFlush` false for the owner; `Retain` handled by the engine).
+// Well-Laid Plans: `ShouldFlush` is false for the owner, so the hand is never flushed at end of turn.
 listener!(WellLaidPlansPower {
     fn should_flush(&self, _cx: &Combat, _me: Me) -> bool {
         false

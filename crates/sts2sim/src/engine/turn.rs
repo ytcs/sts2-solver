@@ -104,9 +104,14 @@ impl Combat {
         for &c in list.iter() {
             self.dispatch_g(hookbit::after_block_cleared, |cx, me, l| l.after_block_cleared(cx, me, c));
         }
-        if self.cr(PLAYER).is_alive() {
-            self.setup_player_turn();
+        if self.cr(PLAYER).is_alive() && self.setup_player_turn(0) {
+            return; // suspended on a decision raised by a turn-start hook; `resume_turn_start` continues
         }
+        self.finish_player_turn_start();
+    }
+
+    /// Rest of `StartTurn(Player)` after `SetupPlayerTurn` (spec 01 §6.1).
+    fn finish_player_turn_start(&mut self) {
         self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
         self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
         // (orb start-of-turn passives: not implemented yet)
@@ -120,6 +125,20 @@ impl Combat {
         self.player.phase = Phase::Play;
         if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
             self.stage = Stage::AwaitAction;
+        }
+    }
+
+    /// Continues a turn start that was suspended by a decision raised inside a turn-start hook.
+    pub(crate) fn resume_turn_start(&mut self, cont: u8) {
+        match cont {
+            1 => {
+                if self.setup_player_turn(1) {
+                    return;
+                }
+                self.finish_player_turn_start();
+            }
+            2 => self.finish_player_turn_start(),
+            _ => {}
         }
     }
 
@@ -150,14 +169,21 @@ impl Combat {
     }
 
     /// `SetupPlayerTurn` (spec 01 §6.2).
-    fn setup_player_turn(&mut self) {
-        if self.should_player_reset_energy() {
-            self.player.energy = self.max_energy();
-        } else {
-            self.player.energy += self.max_energy();
+    /// Returns true if it suspended on a decision raised by a hook (`turn_cont` says where to resume).
+    fn setup_player_turn(&mut self, from: u8) -> bool {
+        if from == 0 {
+            if self.should_player_reset_energy() {
+                self.player.energy = self.max_energy();
+            } else {
+                self.player.energy += self.max_energy();
+            }
+            self.dispatch_g(hookbit::after_energy_reset, |cx, me, l| l.after_energy_reset(cx, me));
+            self.dispatch_g(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me));
+            if self.stage == Stage::AwaitChoice {
+                self.turn_cont = 1;
+                return true;
+            }
         }
-        self.dispatch_g(hookbit::after_energy_reset, |cx, me, l| l.after_energy_reset(cx, me));
-        self.dispatch_g(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me));
         // ModifyHandDraw (threaded decimal)
         let mut draw = Dec::int(BASE_HAND_DRAW as i64);
         if self.hooks_enabled() {
@@ -188,6 +214,11 @@ impl Combat {
         }
         self.draw_cards(hand_draw, true);
         self.dispatch_g(hookbit::after_player_turn_start, |cx, me, l| l.after_player_turn_start(cx, me));
+        if self.stage == Stage::AwaitChoice {
+            self.turn_cont = 2;
+            return true;
+        }
+        false
     }
 
     /// `CheckForEmptyHand` -> `Hook.AfterHandEmptied`.
@@ -469,6 +500,17 @@ impl Combat {
 
     /// Continues whichever effect raised the decision that just finished.
     pub(crate) fn resume_after_decision(&mut self) {
+        if let Some((me, phase)) = self.hook_ctx.take() {
+            content::listener(&me).resume_hook(self, me, phase);
+        }
+        if self.turn_cont != 0 {
+            if self.stage != Stage::AwaitChoice {
+                let t = self.turn_cont;
+                self.turn_cont = 0;
+                self.resume_turn_start(t);
+            }
+            return;
+        }
         loop {
             if self.play_ctx.is_some() {
                 self.run_play();

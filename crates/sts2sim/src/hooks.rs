@@ -284,6 +284,8 @@ pub trait Listener: Sync {
     /// `AfterPowerAmountChanged(power, amount, applier, cardSource)` with the full argument set (the plain
     /// `after_power_amount_changed` only knows the power id). Dispatched right after it.
     fn after_power_amount_changed_full(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {}
+    /// Resumes a hook that raised a decision (`Combat::hook_ctx = Some((me, phase))`) once the choice is in `cx.choice`.
+    fn resume_hook(&self, cx: &mut Combat, me: Me, phase: u8) {}
 }
 
 /// The arguments of `AfterPowerAmountChanged`: `power` is identified by (`target`, `uid`).
@@ -392,6 +394,7 @@ pub mod hookbit {
         modify_card_play_count,
         after_modifying_card_play_count,
         after_power_amount_changed_full,
+        resume_hook,
     );
 }
 
