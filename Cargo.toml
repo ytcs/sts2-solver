@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/sts2sim", "crates/sts2diff"]
+members = ["crates/sts2sim", "crates/sts2diff", "crates/sts2env", "crates/sts2py"]
 
 [workspace.package]
 edition = "2021"

@@ -1,0 +1,10 @@
+[package]
+name = "sts2env"
+description = "Batched, auto-resetting RL environment over the STS2 combat simulator"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+sts2sim = { path = "../sts2sim" }
+rayon = "1"

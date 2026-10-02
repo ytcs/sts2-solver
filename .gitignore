@@ -5,3 +5,6 @@ __pycache__/
 .venv/
 bin/
 obj/
+.venv/
+*.egg-info/
+.claude/worktrees/

@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "sts2"
+version = "0.1.0"
+description = "Slay the Spire 2 combat simulator RL environment"
+requires-python = ">=3.9"
+dependencies = ["numpy"]
+
+[tool.maturin]
+module-name = "sts2._sts2"
+python-source = "python"

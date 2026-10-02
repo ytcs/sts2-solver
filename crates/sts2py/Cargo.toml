@@ -1,0 +1,18 @@
+[package]
+name = "sts2py"
+description = "Python bindings (PyO3) for the STS2 batched combat environment"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+name = "_sts2"
+crate-type = ["cdylib"]
+
+[dependencies]
+sts2sim = { path = "../sts2sim" }
+sts2env = { path = "../sts2env" }
+sts2diff = { path = "../sts2diff" }
+serde_json = "1"
+pyo3 = { version = "0.27", features = ["extension-module", "abi3-py39"] }
+numpy = "0.27"
