@@ -13,26 +13,6 @@ fn owner_side(cx: &Combat, me: Me, side: Side) -> bool {
     cx.cr(me.owner).side == side
 }
 
-// ---- ArtifactPower ----------------------------------------------------------------------------------------------
-listener!(ArtifactPower {
-    fn try_modify_power_amount_received(&self, _cx: &Combat, me: Me, power_id: u16, target: Cid, amount: Dec, _applier: Cid) -> Option<Dec> {
-        if target != me.owner {
-            return None;
-        }
-        // canonicalPower.GetTypeForAmount(amount) != Debuff -> unchanged; hidden powers are not blocked.
-        if Combat::power_type_for_amount(power_id, amount.trunc()) != PowerType::Debuff {
-            return None;
-        }
-        if !crate::content::power_def(power_id).visible {
-            return None;
-        }
-        Some(Dec::ZERO)
-    }
-    fn after_modifying_power_amount_received(&self, cx: &mut Combat, me: Me, _power_id: u16) {
-        cx.decrement_power(me.owner, me.idx);
-    }
-});
-
 // ---- SlipperyPower ----------------------------------------------------------------------------------------------
 listener!(SlipperyPower {
     fn modify_hp_lost_after_osty(&self, _cx: &Combat, me: Me, target: Cid, amount: Dec, _props: ValueProp, _dealer: Cid, _card: CardIdx) -> Dec {
@@ -44,29 +24,6 @@ listener!(SlipperyPower {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
         if target == me.owner && unblocked >= 1 {
             cx.decrement_power(me.owner, me.idx);
-        }
-    }
-});
-
-// ---- ShrinkPower (player debuff; Amount < 0 = infinite) ---------------------------------------------------------
-listener!(ShrinkPower {
-    fn modify_damage_multiplicative(&self, _cx: &Combat, me: Me, q: &DmgQ) -> Dec {
-        if me.owner != q.dealer || !q.props.is_powered() {
-            return Dec::ONE;
-        }
-        Dec::frac(7, 1) // (100 - 30) / 100
-    }
-    fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        let amount = cx.power_amount(me.owner, me.id);
-        if amount >= 0 && owner_side(cx, me, side) {
-            cx.decrement_power(me.owner, me.idx);
-        }
-    }
-    fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid) {
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            if cx.cr(me.owner).powers[i].applier == creature {
-                cx.remove_power(me.owner, me.idx);
-            }
         }
     }
 });
@@ -256,13 +213,6 @@ pub fn is_temporary_strength(id: u16) -> bool {
             | ids::power::SETUP_STRIKE_POWER
     )
 }
-
-// ---- MinionPower ------------------------------------------------------------------------------------------------
-listener!(MinionPower {
-    fn should_power_be_removed_after_owner_death(&self, _cx: &Combat, _me: Me) -> bool {
-        false
-    }
-});
 
 // ---- IllusionPower (Eye With Teeth, Parafright): dies -> REVIVE_MOVE -> back at full HP ----------------------------------
 // Power.aux = `isReviving`.
