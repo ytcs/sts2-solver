@@ -193,6 +193,33 @@ impl Combat {
         self.detach_creature(c);
     }
 
+    /// `Hook.AfterDiedToDoom(creatures)` (unguarded): called by the Doom power after its `Kill`.
+    pub fn after_died_to_doom(&mut self, creatures: &[Cid]) {
+        if !self.listen.has(hookbit::after_died_to_doom) {
+            return;
+        }
+        let snap = self.snapshot(Mask::bit(hookbit::after_died_to_doom));
+        for e in snap.iter() {
+            if self.still_live(&e.me) {
+                content::listener(&e.me).after_died_to_doom(self, e.me, creatures);
+            }
+        }
+    }
+
+    /// Whether every power of `c` answers `ShouldOwnerDeathTriggerFatal() == true` (Feed / Hand of Greed / The Hunt ask
+    /// this about the creature they killed; Minion and Reattach answer false).
+    pub fn all_powers_trigger_fatal(&self, c: Cid) -> bool {
+        self.cr(c).powers.iter().all(|p| {
+            let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
+            content::listener(&me).should_owner_death_trigger_fatal(self, me)
+        })
+    }
+
+    /// `Hook.ShouldAllowTargeting` (guarded AND). UI-only in the game (no shipped model overrides it).
+    pub fn should_allow_targeting(&self, c: Cid) -> bool {
+        self.first_veto_g(hookbit::should_allow_targeting, |cx, me, l| l.should_allow_targeting(cx, me, c)).is_none()
+    }
+
     /// `CreatureCmd.Escape`: the creature leaves the combat without dying (powers stripped silently).
     pub fn escape(&mut self, c: Cid) {
         if self.cr(c).is_dead() || !self.cr(c).in_combat || !self.in_progress {

@@ -57,6 +57,10 @@ pub struct DeckExtra {
 #[derive(Clone, Debug, Default)]
 pub struct ScenarioExtras {
     pub deck: Vec<DeckExtra>,
+    /// `Player.Gold` (read / changed by Debt, Thievery, Royalties ...).
+    pub gold: i32,
+    /// `RunState.CurrentActIndex`.
+    pub act: u8,
 }
 
 #[derive(Debug)]
@@ -159,6 +163,8 @@ impl Combat {
             decision_seq: 0,
             deck_enchant_inc: [0; 80],
             play_serial: 0,
+            gold: ex.gold,
+            act: ex.act,
             end_turn_requested: false,
         };
         // Player creature (CombatId 0).

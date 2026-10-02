@@ -20,7 +20,7 @@ pub const OBS_POWERS: usize = 16;
 pub const OBS_INTENTS: usize = 3;
 
 /// Per-card features (`CARD_F` floats).
-pub const CARD_F: usize = 10;
+pub const CARD_F: usize = 12;
 /// Per-enemy features (`ENEMY_F` floats).
 pub const ENEMY_F: usize = 8 + OBS_POWERS * 2 + OBS_INTENTS * 3 + 4;
 const GLOBAL_F: usize = 10;
@@ -90,6 +90,8 @@ impl Combat {
         w.n(blk);
         w.n(card.counter[0] as i32);
         w.n(card.counter[1] as i32);
+        w.n(card.enchant_amount as i32);
+        w.n(card.affliction as i32);
     }
 
     fn write_pile_list(&self, w: &mut W, pile: &[CardIdx], sorted_multiset: bool) {

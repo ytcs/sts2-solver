@@ -441,6 +441,9 @@ pub struct Combat {
     pub deck_enchant_inc: [u8; 80],
     /// Identity of the card play iteration in flight (`CardPlay` object): bumped before each `BeforeCardPlayed`.
     pub play_serial: u16,
+    /// Run inputs combat reads (spec 05 §2.1): the player's gold and the act index (0-based).
+    pub gold: i32,
+    pub act: u8,
     /// `PlayerCmd.EndTurn` was requested (Void Form ...): the end-turn signal is consumed when the effect / turn start
     /// that raised it returns.
     pub end_turn_requested: bool,

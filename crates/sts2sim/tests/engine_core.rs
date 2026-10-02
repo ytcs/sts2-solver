@@ -293,7 +293,7 @@ fn transform_keeps_the_pile_index() {
 fn enchanted(id: u16, ench: u16, amount: i16) -> Combat {
     let mut sc = scenario(vec![], vec![], 80, 5);
     sc.deck[0] = DeckCard { id, upgrade: 0 };
-    let ex = ScenarioExtras { deck: vec![DeckExtra { enchant: ench as u8 + 1, enchant_amount: amount, props: [0; 2] }] };
+    let ex = ScenarioExtras { deck: vec![DeckExtra { enchant: ench as u8 + 1, enchant_amount: amount, props: [0; 2] }], ..Default::default() };
     Combat::new_with(&sc, &ex)
 }
 

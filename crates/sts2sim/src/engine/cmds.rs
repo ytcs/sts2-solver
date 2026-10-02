@@ -78,6 +78,20 @@ impl Combat {
         }
     }
 
+    /// `PlayerCmd.GainGold` (the `ModifyGoldGained` hook is run-level and not modelled): adds `n >= 0` gold.
+    pub fn gain_gold(&mut self, n: i32) {
+        if n > 0 {
+            self.gold = self.gold.saturating_add(n);
+        }
+    }
+
+    /// Loses up to `n` gold; returns the amount actually lost (Debt, Thievery: `min(n, gold)`).
+    pub fn lose_gold(&mut self, n: i32) -> i32 {
+        let l = n.clamp(0, self.gold);
+        self.gold -= l;
+        l
+    }
+
     /// `CombatState.HittableEnemies`: alive, attached, and `ShouldAllowHitting`.
     pub fn hittable_enemies(&self) -> ArrayVec<Cid, MAX_CREATURES> {
         let mut o = ArrayVec::new();
