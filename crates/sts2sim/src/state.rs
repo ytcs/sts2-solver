@@ -368,4 +368,76 @@ pub struct Combat {
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
+    /// `Player.IsActiveForHooks`: true from combat start until `DeactivateHooks()` (after the player's death sequence).
+    /// The player's relics / potions / cards / powers only receive hooks while this is set.
+    pub player_active: bool,
+    /// Whether the card being added by `add_generated_card` was created by the player (`creator != null`, read by
+    /// Regalite via `AfterCardGeneratedForCombat`). Monster-applied status cards must clear it around the call.
+    pub gen_by_player: bool,
+    /// Room kind of the encounter (0 monster, 1 elite, 2 boss), for relics gated on `CurrentRoom.RoomType`.
+    pub room_type: u8,
+}
+
+// ---- relic persistent state description (see `Listener::meta_*` and content/relics) ------------------------------------
+
+/// Which field of [`Relic`] stores a relic property.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Slot {
+    Counter,
+    Aux,
+    /// Bit `n` of `Relic::flags` (booleans).
+    Flag(u8),
+}
+
+/// A `[SavedProperty]` of the real relic class: how the oracle names it (C# property name), where the Rust relic keeps it,
+/// and whether the game omits it when it has the type default (`SerializationCondition.SaveIfNotTypeDefault`).
+#[derive(Clone, Copy, Debug)]
+pub struct PropDef {
+    pub name: &'static str,
+    pub slot: Slot,
+    pub boolean: bool,
+    pub skip_default: bool,
+}
+
+impl PropDef {
+    pub const fn int(name: &'static str, slot: Slot) -> PropDef {
+        PropDef { name, slot, boolean: false, skip_default: false }
+    }
+    pub const fn flag(name: &'static str, bit: u8) -> PropDef {
+        PropDef { name, slot: Slot::Flag(bit), boolean: true, skip_default: false }
+    }
+    pub const fn skip_default(mut self) -> PropDef {
+        self.skip_default = true;
+        self
+    }
+}
+
+impl Relic {
+    #[inline(always)]
+    pub fn flag(&self, bit: u8) -> bool {
+        self.flags & (1 << bit) != 0
+    }
+    #[inline(always)]
+    pub fn set_flag(&mut self, bit: u8, v: bool) {
+        if v {
+            self.flags |= 1 << bit;
+        } else {
+            self.flags &= !(1 << bit);
+        }
+    }
+    /// Reads a property through its slot (bools as 0/1).
+    pub fn get(&self, s: Slot) -> i32 {
+        match s {
+            Slot::Counter => self.counter,
+            Slot::Aux => self.aux,
+            Slot::Flag(b) => self.flag(b) as i32,
+        }
+    }
+    pub fn set(&mut self, s: Slot, v: i32) {
+        match s {
+            Slot::Counter => self.counter = v,
+            Slot::Aux => self.aux = v,
+            Slot::Flag(b) => self.set_flag(b, v != 0),
+        }
+    }
 }

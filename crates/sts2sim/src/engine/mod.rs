@@ -10,6 +10,7 @@ mod piles;
 mod potions;
 mod play;
 mod powers;
+mod relic_cmds;
 mod turn;
 
 pub use creature::DamageResult;

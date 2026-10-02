@@ -76,7 +76,8 @@ impl Combat {
         }
         self.dispatch_g(hookbit::after_energy_spent, |cx, me, l| l.after_energy_spent(cx, me, c, energy_to_spend));
         if stars_to_spend > 0 {
-            self.player.stars -= stars_to_spend;
+            self.player.stars = (self.player.stars - stars_to_spend).max(0);
+            self.dispatch_g(hookbit::after_stars_spent, |cx, me, l| l.after_stars_spent(cx, me, stars_to_spend));
         }
         let play = CardPlay {
             card: c,
@@ -114,8 +115,30 @@ impl Combat {
             PileType::Discard
         };
         // 5. Hook.ModifyCardPlayResultLocation — no content yet.
-        // 6. play count: (replay + 1), Hook.ModifyCardPlayCount — no content yet.
-        let count = self.cards[c as usize].base_replay.saturating_add(1);
+        // 6. play count: (replay + 1), threaded through Hook.ModifyCardPlayCount (guarded); the models that changed it
+        // are then told via AfterModifyingCardPlayCount.
+        let mut count_i = self.cards[c as usize].base_replay.saturating_add(1) as i32;
+        if self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
+            let mut mods: super::damage::Mods = super::damage::Mods::new();
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    let n = content::listener(&e.me).modify_card_play_count(self, e.me, c, play.target, count_i);
+                    if n != count_i {
+                        mods.push(e.me);
+                    }
+                    count_i = n;
+                }
+            }
+            if !mods.is_empty() {
+                self.dispatch_g(hookbit::after_modifying_card_play_count, |cx, me, l| {
+                    if mods.iter().any(|m| m.kind == me.kind && m.idx == me.idx && m.owner == me.owner) {
+                        l.after_modifying_card_play_count(cx, me, c);
+                    }
+                });
+            }
+        }
+        let count = count_i.clamp(0, 255) as u8;
         play.result_pile = result;
         play.play_count = count;
         // 7-8

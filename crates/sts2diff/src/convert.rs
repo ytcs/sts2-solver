@@ -18,6 +18,23 @@ fn id_of(v: &Value) -> &str {
     v.as_str().or_else(|| v["id"].as_str()).unwrap_or("")
 }
 
+/// A relic at combat entry: the class' field initialisers (`meta_initial`), then the scenario `props` (the relic's
+/// `[SavedProperty]` values, injected by the oracle through `SavedProperties.Fill`) mapped onto `Relic` slots.
+fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
+    let l = sts2sim::content::relic_listener(id);
+    let (counter, flags, aux) = l.meta_initial();
+    let mut st = sts2sim::state::Relic { id, counter, flags, aux };
+    if let Some(obj) = props.as_object() {
+        let defs = l.meta_props();
+        for (k, v) in obj {
+            let d = defs.iter().find(|d| d.name == k).ok_or_else(|| format!("relic {} has no modelled saved property {k}", ids::relic::NAMES[id as usize]))?;
+            let n = v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).ok_or_else(|| format!("relic prop {k}: expected int/bool"))?;
+            st.set(d.slot, n as i32);
+        }
+    }
+    Ok(RelicInit { id, counter: st.counter, flags: st.flags, aux: st.aux })
+}
+
 pub fn scenario(v: &Value) -> Result<Scenario, String> {
     let character = match v["character"].as_str().unwrap_or("IRONCLAD") {
         "IRONCLAD" => 0,
@@ -56,7 +73,7 @@ pub fn scenario(v: &Value) -> Result<Scenario, String> {
     }
     let mut relics = vec![];
     for r in v["relics"].as_array().unwrap_or(&vec![]) {
-        relics.push(RelicInit { id: find(&ids::relic::NAMES, id_of(r), "relic")?, counter: 0 });
+        relics.push(relic_init(find(&ids::relic::NAMES, id_of(r), "relic")?, &r["props"])?);
     }
     let mut potions = vec![];
     for p in v["potions"].as_array().unwrap_or(&vec![]) {

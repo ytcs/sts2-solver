@@ -269,6 +269,66 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- relic-driven additions (appended; see content/relics) ---------------------------------------------
+    /// `Hook.AfterRoomEntered` (run-level iterator, no combat-ending guard): fires once at combat setup, before the
+    /// enemies' first `RollMove` and before `BeforeCombatStart`. Only relics/potions override it.
+    fn after_room_entered(&self, cx: &mut Combat, me: Me) {}
+    fn after_player_turn_start_late(&self, cx: &mut Combat, me: Me) {}
+    fn after_energy_reset_late(&self, cx: &mut Combat, me: Me) {}
+    fn after_auto_pre_play_phase_entered_late(&self, cx: &mut Combat, me: Me) {}
+    /// `ShouldDraw` — AND, first vetoing listener is told via `after_preventing_draw`.
+    fn should_draw(&self, cx: &Combat, me: Me, from_hand_draw: bool) -> bool {
+        true
+    }
+    fn after_preventing_draw(&self, cx: &mut Combat, me: Me) {}
+    fn after_modifying_hand_draw(&self, cx: &mut Combat, me: Me) {}
+    /// `ModifyXValue` (threaded int).
+    fn modify_x_value(&self, cx: &Combat, me: Me, card: CardIdx, value: i32) -> i32 {
+        value
+    }
+    /// `ModifyCardPlayCount` (threaded int) / `AfterModifyingCardPlayCount` (only for the modifiers).
+    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
+        count
+    }
+    fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
+    /// `ShouldDie` / `ShouldDieLate` — AND over the run-level iterator; the first vetoer gets `after_preventing_death`.
+    fn should_die(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
+        true
+    }
+    fn should_die_late(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
+        true
+    }
+    fn after_preventing_death(&self, cx: &mut Combat, me: Me, creature: Cid) {}
+    /// `Hook.AfterCreatureAddedToCombat` (unguarded): mid-combat spawns (`Combat::notify_creature_added`).
+    fn after_creature_added_to_combat(&self, cx: &mut Combat, me: Me, creature: Cid) {}
+    /// `AfterModifyingBlockAmount` — only for models that changed the block amount (`card` = source card or `NO`).
+    fn after_modifying_block_amount(&self, cx: &mut Combat, me: Me, amount: Dec, card: CardIdx) {}
+    fn after_stars_spent(&self, cx: &mut Combat, me: Me, amount: i32) {}
+    fn after_stars_gained(&self, cx: &mut Combat, me: Me, amount: i32) {}
+    fn try_modify_star_cost(&self, cx: &Combat, me: Me, card: CardIdx, cost: Dec) -> Option<Dec> {
+        None
+    }
+    fn after_potion_discarded(&self, cx: &mut Combat, me: Me, potion: u16) {}
+    fn after_potion_procured(&self, cx: &mut Combat, me: Me, potion: u16) {}
+    /// `ShouldProcurePotion` — AND (Sozu).
+    fn should_procure_potion(&self, cx: &Combat, me: Me, potion: u16) -> bool {
+        true
+    }
+
+    // ---- relic state metadata (static dispatch by relic id; NOT hooks, no mask bit) ------------------------
+    /// The relic's `[SavedProperty]` list: how the oracle dumps / injects its persistent state (`Relic::{counter,aux,flags}`).
+    fn meta_props(&self) -> &'static [PropDef] {
+        &[]
+    }
+    /// `ShowCounter ? DisplayAmount : none` evaluated in the current combat state (the oracle dumps it as `counter`).
+    fn meta_display(&self, cx: &Combat, r: &Relic) -> Option<i32> {
+        None
+    }
+    /// Fresh relic instance state (C# field initialisers that are not zero / false), applied before injecting props.
+    fn meta_initial(&self) -> (i32, u8, i32) {
+        (0, 0, 0)
+    }
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,7 +421,32 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        after_room_entered,
+        after_player_turn_start_late,
+        after_energy_reset_late,
+        after_auto_pre_play_phase_entered_late,
+        should_draw,
+        after_preventing_draw,
+        after_modifying_hand_draw,
+        modify_x_value,
+        modify_card_play_count,
+        after_modifying_card_play_count,
+        should_die,
+        should_die_late,
+        after_preventing_death,
+        after_creature_added_to_combat,
+        after_modifying_block_amount,
+        after_stars_spent,
+        after_stars_gained,
+        try_modify_star_cost,
+        after_potion_discarded,
+        after_potion_procured,
+        should_procure_potion,
     );
+    // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
+    pub const meta_props: u32 = 191;
+    pub const meta_display: u32 = 190;
+    pub const meta_initial: u32 = 189;
 }
 
 /// Declares a listener: a unit struct implementing `Listener` for just the listed hooks and deriving its mask.

@@ -35,7 +35,7 @@ impl Combat {
                 if mask.intersects(m) {
                     s.push(Entry { me: Me { kind: Kind::Monster, owner: ci, idx: 0, id: cr.monster.id, amount: 0 }, mask });
                 }
-            } else if cr.is_alive() {
+            } else if self.player_active {
                 let pl = &self.player;
                 for (i, r) in pl.relics.iter().enumerate() {
                     let mask = content::relic_mask(r.id);
@@ -69,10 +69,11 @@ impl Combat {
     #[inline]
     pub fn still_live(&self, me: &Me) -> bool {
         match me.kind {
-            Kind::Power | Kind::Monster => self.creatures[me.owner as usize].in_combat,
-            Kind::Relic | Kind::Potion | Kind::Orb => self.creatures[PLAYER as usize].is_alive(),
+            Kind::Monster => self.creatures[me.owner as usize].in_combat,
+            Kind::Power => self.creatures[me.owner as usize].in_combat && (me.owner != PLAYER || self.player_active),
+            Kind::Relic | Kind::Potion | Kind::Orb => self.player_active,
             Kind::Card | Kind::Enchantment | Kind::Affliction => {
-                self.creatures[PLAYER as usize].is_alive() && self.cards[me.idx as usize].flags & cflag::REMOVED == 0
+                self.player_active && self.cards[me.idx as usize].flags & cflag::REMOVED == 0
             }
         }
     }

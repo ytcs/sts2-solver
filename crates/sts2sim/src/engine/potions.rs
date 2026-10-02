@@ -33,7 +33,8 @@ impl Combat {
         }
         let id = self.player.potions[slot].unwrap().id;
         self.player.potions[slot] = None;
-        let _ = id;
+        // PotionCmd.Discard -> Hook.AfterPotionDiscarded (run-level, unguarded).
+        self.dispatch_u(hookbit::after_potion_discarded, |cx, me, l| l.after_potion_discarded(cx, me, id));
         true
     }
 

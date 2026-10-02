@@ -14,6 +14,9 @@ impl Combat {
 
     /// `StartCombatInternal` (spec 01 §4). Leaves the combat awaiting the first player action (or over).
     pub(crate) fn start_combat(&mut self) {
+        // Hook.AfterRoomEntered (run-level, unguarded): relics such as Vajra/Gorget/DivineRight act here, before the
+        // enemies' first RollMove and before BeforeCombatStart (spec 01 §3.5).
+        self.dispatch_u(hookbit::after_room_entered, |cx, me, l| l.after_room_entered(cx, me));
         // AfterAddedToRoom + first RollMove, per enemy in list order, interleaved (spec 04 §1.7).
         let order: crate::util::ArrayVec<Cid, MAX_CREATURES> = {
             let mut o = crate::util::ArrayVec::new();
@@ -117,6 +120,7 @@ impl Combat {
         self.player.phase = Phase::AutoPrePlay;
         self.check_for_empty_hand();
         self.dispatch_g(hookbit::after_auto_pre_play_phase_entered, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me));
+        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered_late, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me));
         self.player.phase = Phase::Play;
         if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
             self.stage = Stage::AwaitAction;
@@ -157,16 +161,29 @@ impl Combat {
             self.player.energy += self.max_energy();
         }
         self.dispatch_g(hookbit::after_energy_reset, |cx, me, l| l.after_energy_reset(cx, me));
+        self.dispatch_g(hookbit::after_energy_reset_late, |cx, me, l| l.after_energy_reset_late(cx, me));
         self.dispatch_g(hookbit::before_hand_draw, |cx, me, l| l.before_hand_draw(cx, me));
-        // ModifyHandDraw (threaded decimal)
+        // ModifyHandDraw (threaded decimal); models whose `(int)` result changed get AfterModifyingHandDraw.
         let mut draw = Dec::int(BASE_HAND_DRAW as i64);
+        let mut draw_mods = super::damage::Mods::new();
         if self.hooks_enabled() {
             let snap = self.snapshot(Mask::bit(hookbit::modify_hand_draw));
             for e in snap.iter() {
                 if self.still_live(&e.me) {
-                    draw = content::listener(&e.me).modify_hand_draw(self, e.me, draw);
+                    let nd = content::listener(&e.me).modify_hand_draw(self, e.me, draw);
+                    if nd.trunc() != draw.trunc() {
+                        draw_mods.push(e.me);
+                    }
+                    draw = nd;
                 }
             }
+        }
+        if !draw_mods.is_empty() {
+            self.dispatch_g(hookbit::after_modifying_hand_draw, |cx, me, l| {
+                if draw_mods.iter().any(|m| m.kind == me.kind && m.idx == me.idx && m.owner == me.owner) {
+                    l.after_modifying_hand_draw(cx, me);
+                }
+            });
         }
         let mut hand_draw = draw.trunc();
         if self.player.turn_number == 1 {
@@ -188,6 +205,7 @@ impl Combat {
         }
         self.draw_cards(hand_draw, true);
         self.dispatch_g(hookbit::after_player_turn_start, |cx, me, l| l.after_player_turn_start(cx, me));
+        self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
     }
 
     /// `CheckForEmptyHand` -> `Hook.AfterHandEmptied`.

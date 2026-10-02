@@ -297,7 +297,19 @@ impl Combat {
         if self.is_over_or_ending() || count <= 0 {
             return 0;
         }
-        // Hook.ShouldDraw (NoDraw) — no content yet.
+        // Hook.ShouldDraw (AND, guarded): the first vetoing listener is notified via AfterPreventingDraw.
+        if self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::should_draw));
+            for e in snap.iter() {
+                if self.still_live(&e.me) && !content::listener(&e.me).should_draw(self, e.me, from_hand_draw) {
+                    let m = e.me;
+                    if self.hooks_enabled() && self.still_live(&m) {
+                        content::listener(&m).after_preventing_draw(self, m);
+                    }
+                    return 0;
+                }
+            }
+        }
         let mut room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         if room == 0 {
             return 0;

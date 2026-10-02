@@ -82,8 +82,16 @@ impl Combat {
             return Dec::ZERO;
         }
         // BeforeBlockGained (raw amount) — no content yet.
-        let v = self.modify_block(c, amount, props, card).max(Dec::ZERO);
-        // AfterModifyingBlockAmount(mods) — no content yet.
+        let (v, mods) = self.modify_block_mods(c, amount, props, card);
+        let v = v.max(Dec::ZERO);
+        // AfterModifyingBlockAmount: only the models that changed the amount (guarded pass over the live listeners).
+        if !mods.is_empty() {
+            self.dispatch_g(hookbit::after_modifying_block_amount, |cx, me, l| {
+                if mods.iter().any(|m| m.kind == me.kind && m.idx == me.idx && m.owner == me.owner) {
+                    l.after_modifying_block_amount(cx, me, v, card);
+                }
+            });
+        }
         if v > Dec::ZERO {
             self.gain_block_internal(c, v);
         }
@@ -93,22 +101,37 @@ impl Combat {
 
     /// `Hook.ModifyBlock` (spec 02 §4.1): additive pass, multiplicative pass, floor at 0. No rounding.
     pub fn modify_block(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
+        self.modify_block_mods(target, amount, props, card).0
+    }
+
+    /// `Hook.ModifyBlock` with the `modifiers` list (non-zero adders, non-1 multipliers) that gates
+    /// `AfterModifyingBlockAmount`.
+    pub fn modify_block_mods(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, super::damage::Mods) {
         let m = (Mask::bit(hookbit::modify_block_additive)) | (Mask::bit(hookbit::modify_block_multiplicative));
         let snap = self.snapshot(m);
+        let mut mods = super::damage::Mods::new();
         let mut v = amount;
         for e in snap.iter() {
             if e.mask.has(hookbit::modify_block_additive) && self.still_live(&e.me) {
                 let q = BlockQ { target, card, props, amount: v };
-                v += content::listener(&e.me).modify_block_additive(self, e.me, &q);
+                let d = content::listener(&e.me).modify_block_additive(self, e.me, &q);
+                v += d;
+                if !d.is_zero() {
+                    mods.push(e.me);
+                }
             }
         }
         for e in snap.iter() {
             if e.mask.has(hookbit::modify_block_multiplicative) && self.still_live(&e.me) {
                 let q = BlockQ { target, card, props, amount: v };
-                v *= content::listener(&e.me).modify_block_multiplicative(self, e.me, &q);
+                let f = content::listener(&e.me).modify_block_multiplicative(self, e.me, &q);
+                v *= f;
+                if f != Dec::ONE {
+                    mods.push(e.me);
+                }
             }
         }
-        v.max(Dec::ZERO)
+        (v.max(Dec::ZERO), mods)
     }
 
     /// `CreatureCmd.Heal` (single-player, combat): `(int)min(hp + amount, max)`; heals revive a dead player.
@@ -116,8 +139,41 @@ impl Combat {
         if !self.cr(c).is_player && self.is_ending() {
             return;
         }
+        let was_dead = self.cr(c).is_dead();
         let cur = Dec::int(self.cr(c).hp as i64);
         self.set_current_hp_internal(c, cur + amount);
+        if was_dead && self.cr(c).is_alive() && c == PLAYER {
+            self.player_active = true; // Player.ActivateHooks
+        }
+        // AfterCurrentHpChanged(raw requested amount) when amount > 0 (unguarded run-level dispatch).
+        if amount > Dec::ZERO && self.cr(c).in_combat {
+            let d = amount.trunc();
+            self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, d));
+        }
+    }
+
+    /// `CreatureCmd.GainMaxHp`: `SetMaxHp(max + amount)` then `Heal(change)`.
+    pub fn gain_max_hp(&mut self, c: Cid, amount: Dec) {
+        let old = self.cr(c).max_hp;
+        let nm = (Dec::int(old as i64) + amount).max(Dec::ZERO).trunc().min(MAX_STAT);
+        let cr = self.cr_mut(c);
+        cr.max_hp = nm;
+        cr.hp = cr.hp.min(nm);
+        self.heal(c, Dec::int((nm - old) as i64));
+    }
+
+    /// `CreatureCmd.SetCurrentHp`: clamps to max HP, fires `AfterCurrentHpChanged(new - old)` if it changed, then kills
+    /// the creature if it reached 0.
+    pub fn set_current_hp(&mut self, c: Cid, amount: Dec) {
+        let before = self.cr(c).hp;
+        self.set_current_hp_internal(c, amount);
+        if amount != Dec::int(before as i64) {
+            let d = (amount - Dec::int(before as i64)).trunc();
+            self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, d));
+        }
+        if self.cr(c).is_dead() {
+            self.kill(&[c]);
+        }
     }
 
     // ---- death -----------------------------------------------------------------------------------------------
@@ -134,15 +190,50 @@ impl Combat {
 
     /// `KillWithoutCheckingWinCondition` (spec 02 §5.3), single-player path.
     fn kill_without_check(&mut self, c: Cid) {
+        self.kill_wc(c, 0);
+    }
+
+    fn kill_wc(&mut self, c: Cid, recursion: u32) {
         if !self.cr(c).in_combat && c != PLAYER {
             return;
         }
         let hp = self.cr(c).hp;
         if hp > 0 {
             self.lose_hp_internal(c, Dec::int(hp as i64));
+            let d = -hp;
+            self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, d));
         }
-        // BeforeDeath(c) — no content yet. ShouldDie preventers (Fairy in a Bottle, Lizard Tail) — none yet.
-        self.on_died(c);
+        // BeforeDeath(c) — no content yet.
+        // Hook.ShouldDie: AND over the run-level iterator (every ShouldDie, then every ShouldDieLate); the first vetoer
+        // is the "preventer".
+        let mut preventer: Option<Me> = None;
+        'outer: for bit in [hookbit::should_die, hookbit::should_die_late] {
+            let snap = self.snapshot(Mask::bit(bit));
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    let l = content::listener(&e.me);
+                    let ok = if bit == hookbit::should_die { l.should_die(self, e.me, c) } else { l.should_die_late(self, e.me, c) };
+                    if !ok {
+                        preventer = Some(e.me);
+                        break 'outer;
+                    }
+                }
+            }
+        }
+        match preventer {
+            None => self.on_died(c),
+            Some(m) => {
+                assert!(recursion < 10, "combat is ending, but something keeps preventing the last creature from dying");
+                // AfterDeath(c, wasRemovalPrevented = true), then AfterPreventingDeath on the preventer.
+                self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c));
+                if self.still_live(&m) {
+                    content::listener(&m).after_preventing_death(self, m, c);
+                }
+                if self.cr(c).is_dead() {
+                    self.kill_wc(c, recursion + 1);
+                }
+            }
+        }
     }
 
     fn on_died(&mut self, c: Cid) {
@@ -163,7 +254,7 @@ impl Combat {
             content::listener(&me).after_removed(self, me, c);
         }
         if c == PLAYER {
-            self.creatures[PLAYER as usize].block = self.creatures[PLAYER as usize].block;
+            self.player_active = false; // Player.DeactivateHooks (after the death sequence)
         }
     }
 
