@@ -223,7 +223,8 @@ impl Combat {
     /// `EnergyCost.SetThisCombat(cost)`: an absolute cost modifier that lasts the whole combat. It overrides every earlier
     /// modifier, so those are dropped (keeps the modifier list within its fixed capacity).
     pub fn set_cost_this_combat(&mut self, c: CardIdx, cost: i32) {
-        let canonical = self.card_def(c).cost;
+        let d = self.card_def(c);
+        let canonical = if d.x_cost { 0 } else { d.cost }; // CardEnergyCost.Canonical
         if cost == 0 && canonical < 0 {
             return;
         }

@@ -64,7 +64,9 @@ listener!(ReptileTrinketPower {
 // Every drawn card with a cost gets a random cost 0..=3 for the rest of the combat (`Rng.CombatEnergyCosts.NextInt(4)`).
 listener!(ConfusedPower {
     fn after_card_drawn(&self, cx: &mut Combat, _me: Me, card: CardIdx, _from_hand_draw: bool) {
-        if cx.card_def(card).cost < 0 {
+        // `EnergyCost.Canonical < 0`: curses / statuses (an X-cost card's canonical cost is 0).
+        let d = cx.card_def(card);
+        if !d.x_cost && d.cost < 0 {
             return;
         }
         let cost = cx.rng.combat_energy_costs.next_int(4);
