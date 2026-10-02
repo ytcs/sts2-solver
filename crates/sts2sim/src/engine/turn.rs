@@ -138,6 +138,8 @@ impl Combat {
         self.player.phase = Phase::Play;
         if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
             self.stage = Stage::AwaitAction;
+            // An end-turn requested by the turn-start effects (Void Form ...) is held until `StartTurn` returns.
+            self.consume_end_turn_request();
         }
     }
 
@@ -237,6 +239,21 @@ impl Combat {
         self.dispatch_g(hookbit::after_player_turn_start_early, |cx, me, l| l.after_player_turn_start_early(cx, me));
         self.dispatch_g(hookbit::after_player_turn_start, |cx, me, l| l.after_player_turn_start(cx, me));
         self.dispatch_g(hookbit::after_player_turn_start_late, |cx, me, l| l.after_player_turn_start_late(cx, me));
+    }
+
+    /// `PlayerCmd.EndTurn(player)`: marks the player ready to end the turn. The signal is consumed when the effect (or the
+    /// turn start) that raised it has returned (spec 01 §6.3, §7). Ignored once the turn is already ending.
+    pub fn request_end_turn(&mut self) {
+        if self.side == Side::Player && matches!(self.player.phase, Phase::Start | Phase::AutoPrePlay | Phase::Play) && self.cr(PLAYER).is_alive() {
+            self.end_turn_requested = true;
+        }
+    }
+
+    fn consume_end_turn_request(&mut self) {
+        if self.end_turn_requested && self.in_progress && self.stage == Stage::AwaitAction && self.player.phase == Phase::Play {
+            self.end_turn_requested = false;
+            self.end_player_turn();
+        }
     }
 
     /// `CheckForEmptyHand` -> `Hook.AfterHandEmptied`.
@@ -470,6 +487,7 @@ impl Combat {
     /// `EndCombatInternal` (spec 01 §13.3).
     fn end_combat_victory(&mut self) {
         self.in_progress = false;
+        self.extra_turn = false;
         self.player.phase = Phase::None;
         self.dispatch_u(hookbit::after_combat_end, |cx, me, l| l.after_combat_end(cx, me));
         // Player.AfterCombatEnd: powers (no hooks), combat piles, block.
@@ -482,6 +500,7 @@ impl Combat {
         self.player.play.clear();
         self.dispatch_u(hookbit::after_combat_victory_early, |cx, me, l| l.after_combat_victory_early(cx, me));
         self.dispatch_u(hookbit::after_combat_victory, |cx, me, l| l.after_combat_victory(cx, me));
+        self.hist_log = Default::default(); // History.Clear()
         self.outcome = Outcome::Victory;
         self.stage = Stage::Over;
     }
@@ -556,5 +575,6 @@ impl Combat {
     /// of the card play / potion use).
     fn after_action(&mut self) {
         self.check_win_condition();
+        self.consume_end_turn_request();
     }
 }

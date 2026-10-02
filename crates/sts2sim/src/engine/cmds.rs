@@ -56,6 +56,19 @@ impl Combat {
         out
     }
 
+    /// `ListExtensions.UnstableShuffle(list, rng)` over cards with the given stream (Fisher-Yates, `n - 1` draws).
+    pub fn unstable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
+        self.rng_stream_mut(stream).shuffle(list);
+    }
+
+    /// `ListExtensions.StableShuffle(list, rng)`: sorts with `CardModel.CompareTo` (.NET introsort: ties are permuted),
+    /// then `UnstableShuffle`.
+    pub fn stable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
+        let cards = &self.cards;
+        crate::sort::intro_sort(list, |a, b| Combat::card_cmp(cards, a, b));
+        self.rng_stream_mut(stream).shuffle(list);
+    }
+
     /// `CardModel.SetToFreeThisTurn` (energy part): cost 0 until played or end of turn.
     pub fn set_to_free_this_turn(&mut self, c: CardIdx) {
         let canonical = self.card_def(c).cost;
@@ -123,7 +136,8 @@ impl Combat {
 
     /// `CardPileCmd.AddGeneratedCardToCombat`: a brand-new card enters `pile` (hand-full redirect applies).
     pub fn add_generated_card(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition) -> bool {
-        // History.CardGenerated — not tracked yet.
+        let cid = self.cards[c as usize].id;
+        self.hist_push(crate::engine::HKind::CardGenerated, PLAYER, NO, cid, c, 0, 0, 0, 0);
         let ok = self.move_card(c, pile, pos);
         if ok {
             self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, c));

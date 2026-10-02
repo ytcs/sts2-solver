@@ -87,6 +87,8 @@ impl Combat {
         self.dispatch_modifiers(true, hookbit::after_modifying_block_amount, &mods, |cx, me, l| l.after_modifying_block_amount(cx, me, v, card));
         if v > Dec::ZERO {
             self.gain_block_internal(c, v);
+            // History.BlockGained (`id` = identity of the card play it came from, for "another play" queries)
+            self.hist_push(crate::engine::HKind::BlockGained, c, NO, self.play_serial, card, v.trunc(), (card != NO) as u8, props.0, 0);
         }
         self.dispatch_g(hookbit::after_block_gained, |cx, me, l| l.after_block_gained(cx, me, c, v));
         v
@@ -130,6 +132,19 @@ impl Combat {
             }
         }
         (v.max(Dec::ZERO), mods)
+    }
+
+    /// `CreatureCmd.LoseBlock(target, amount, remover)`: no-op when combat is over / ending, the target is dead or
+    /// `amount <= 0`; `Block = max(Block - amount, 0)` (truncated); `AfterBlockBroken` if the block reached 0.
+    pub fn lose_block(&mut self, c: Cid, amount: Dec, remover: Cid) {
+        if self.is_over_or_ending() || self.cr(c).is_dead() || amount <= Dec::ZERO {
+            return;
+        }
+        let before = self.cr(c).block;
+        self.cr_mut(c).block = (Dec::int(before as i64) - amount).max(Dec::ZERO).trunc();
+        if before > 0 && self.cr(c).block <= 0 {
+            self.dispatch_u(hookbit::after_block_broken, |cx, me, l| l.after_block_broken(cx, me, c, remover));
+        }
     }
 
     /// `CreatureCmd.Heal(creature, amount)`: no-op for non-players once combat is ending; `(int)min(hp + amount, max)`;

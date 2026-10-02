@@ -158,6 +158,8 @@ impl Combat {
             hist_log: Default::default(),
             decision_seq: 0,
             deck_enchant_inc: [0; 80],
+            play_serial: 0,
+            end_turn_requested: false,
         };
         // Player creature (CombatId 0).
         cx.creatures[PLAYER as usize] = Creature {

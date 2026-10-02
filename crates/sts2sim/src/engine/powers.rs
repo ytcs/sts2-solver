@@ -14,6 +14,17 @@ impl Combat {
         self.cr(c).powers.iter().position(|p| p.uid == uid)
     }
 
+    /// The private state word of power instance `uid` (`PowerModel.InternalData`).
+    pub fn power_aux(&self, c: Cid, uid: u16) -> i32 {
+        self.power_idx(c, uid).map_or(0, |i| self.cr(c).powers[i].aux)
+    }
+
+    pub fn set_power_aux(&mut self, c: Cid, uid: u16, v: i32) {
+        if let Some(i) = self.power_idx(c, uid) {
+            self.cr_mut(c).powers[i].aux = v;
+        }
+    }
+
     /// Current amount of the creature's power `id` (0 if absent).
     #[inline]
     pub fn power_amount(&self, c: Cid, id: u16) -> i32 {
@@ -112,9 +123,10 @@ impl Combat {
             let mut attached = false;
             if !v.is_zero() {
                 let amt = v.trunc().clamp(-MAX_POWER_AMOUNT, MAX_POWER_AMOUNT);
-                let p = Power { id, uid, amount: amt, amount_on_turn_start: 0, aux: 0, applier, skip_next_tick: false };
+                let p = Power { id, uid, amount: amt, amount_on_turn_start: 0, aux: content::power_listener(id).initial_power_aux(), applier, skip_next_tick: false };
                 self.cr_mut(target).powers.push(p);
                 attached = true;
+                self.hist_push(crate::engine::HKind::PowerReceived, target, applier, id, NO, v.trunc(), 0, 0, 0);
             }
             if attached && self.cr(target).side == Side::Player && d.ptype == PowerType::Debuff {
                 if let Some(i) = self.power_idx(target, uid) {
@@ -202,6 +214,7 @@ impl Combat {
         let (v2, recv_mods) = self.modify_power_amount_received(id, c, v, applier);
         v = v2;
         let Some(i) = self.power_idx(c, uid) else { return 0 };
+        self.hist_push(crate::engine::HKind::PowerReceived, c, applier, id, NO, v.trunc(), 0, 0, 0);
         let new_amount = (self.cr(c).powers[i].amount as i64 + v.trunc() as i64)
             .clamp(-(MAX_POWER_AMOUNT as i64), MAX_POWER_AMOUNT as i64) as i32;
         self.cr_mut(c).powers[i].amount = new_amount;

@@ -364,6 +364,7 @@ impl Combat {
             ms.performed[3] = nm;
             ms.performed_first = true;
         }
+        self.hist_push(crate::engine::HKind::MonsterPerformedMove, c, NO, nm as u16, NO, 0, 0, 0, 0);
         self.creatures[c as usize].monster.is_performing = false;
         if self.cr(c).is_dead() && self.cr(c).in_combat && self.should_creature_be_removed_after_death(c) {
             self.detach_creature(c);

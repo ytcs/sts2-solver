@@ -246,6 +246,36 @@ impl RngSet {
     }
 }
 
+/// The nine run-level streams combat consumes (names as `RunRngType`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RngStream {
+    Shuffle,
+    CombatCardGeneration,
+    CombatPotionGeneration,
+    CombatCardSelection,
+    CombatEnergyCosts,
+    CombatTargets,
+    MonsterAi,
+    Niche,
+    CombatOrbs,
+}
+
+impl Combat {
+    pub fn rng_stream_mut(&mut self, s: RngStream) -> &mut Rng {
+        match s {
+            RngStream::Shuffle => &mut self.rng.shuffle,
+            RngStream::CombatCardGeneration => &mut self.rng.combat_card_generation,
+            RngStream::CombatPotionGeneration => &mut self.rng.combat_potion_generation,
+            RngStream::CombatCardSelection => &mut self.rng.combat_card_selection,
+            RngStream::CombatEnergyCosts => &mut self.rng.combat_energy_costs,
+            RngStream::CombatTargets => &mut self.rng.combat_targets,
+            RngStream::MonsterAi => &mut self.rng.monster_ai,
+            RngStream::Niche => &mut self.rng.niche,
+            RngStream::CombatOrbs => &mut self.rng.combat_orbs,
+        }
+    }
+}
+
 /// Player-side combat state (`PlayerCombatState` + the run-level bits combat reads).
 #[derive(Clone, Copy)]
 pub struct PlayerState {
@@ -409,4 +439,9 @@ pub struct Combat {
     pub decision_seq: u32,
     /// `DeckVersion` write-backs of enchantment amounts (Goopy): increments per deck index (outputs of the combat).
     pub deck_enchant_inc: [u8; 80],
+    /// Identity of the card play iteration in flight (`CardPlay` object): bumped before each `BeforeCardPlayed`.
+    pub play_serial: u16,
+    /// `PlayerCmd.EndTurn` was requested (Void Form ...): the end-turn signal is consumed when the effect / turn start
+    /// that raised it returns.
+    pub end_turn_requested: bool,
 }

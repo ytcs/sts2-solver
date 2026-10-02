@@ -2,6 +2,7 @@
 
 use super::creature::DamageResult;
 use crate::content;
+use crate::engine::HKind;
 use crate::dec::Dec;
 use crate::hooks::*;
 use crate::state::*;
@@ -193,10 +194,12 @@ impl Combat {
                 res.block_broken = was_block_broken;
                 res.fully_blocked = was_fully_blocked;
                 results.push(res);
+                self.hist_damage_received(res, dealer, card, props);
             } else {
                 // Redirected (Osty took the hit): the overkill is re-run through ModifyHpLost(AfterOsty) against the
                 // original target.
                 results.push(res);
+                self.hist_damage_received(res, dealer, card, props);
                 let (over, mods) = self.modify_hp_lost(t, Dec::int(res.overkill as i64), props, dealer, card, true);
                 self.after_modifying_hp_lost(&mods, true);
                 let mut r2 = if over > Dec::ZERO { self.lose_hp_internal(t, over) } else { DamageResult { receiver: t, ..Default::default() } };
@@ -204,6 +207,7 @@ impl Combat {
                 r2.block_broken = was_block_broken;
                 r2.fully_blocked = was_fully_blocked;
                 results.push(r2);
+                self.hist_damage_received(r2, dealer, card, props);
             }
         }
 
@@ -250,6 +254,14 @@ impl Combat {
             self.kill(&v[..n]);
         }
         results
+    }
+
+    /// `History.DamageReceived` — only while the combat is live (in progress and not ending).
+    fn hist_damage_received(&mut self, r: DamageResult, dealer: Cid, card: CardIdx, props: ValueProp) {
+        if self.in_progress && !self.is_ending() {
+            let flags = r.fully_blocked as u8 | (r.block_broken as u8) << 1 | (r.killed as u8) << 2;
+            self.hist_push(HKind::DamageReceived, r.receiver, dealer, 0, card, r.unblocked, flags, props.0, 0);
+        }
     }
 
     /// `Hook.ModifyAttackHitCount` (guarded, threaded int).
@@ -314,6 +326,7 @@ impl Combat {
             }
             i += 1;
         }
+        self.hist_push(HKind::CreatureAttacked, a.dealer, NO, 0, a.card, all.len() as i32, 0, a.props.0, 0);
         self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
         all
     }

@@ -283,16 +283,19 @@ impl Combat {
         if old != PileType::None {
             self.pile_mut(old).remove_value(c);
         }
-        let card = &mut self.cards[c as usize];
-        card.pile = PileType::None as u8;
-        card.flags |= cflag::REMOVED;
+        self.cards[c as usize].pile = PileType::None as u8;
+        // Hook.AfterCardChangedPiles(card, oldPile, newPile = None) — before `RemoveFromState`
+        if old != PileType::None {
+            self.fire_card_changed_piles(c, old);
+        }
+        self.cards[c as usize].flags |= cflag::REMOVED;
     }
 
     // ---- shuffle / draw -----------------------------------------------------------------------------------------
 
     /// Total order the game sorts cards by: ModelId ordinal (== our dense id) then upgrade level.
     #[inline]
-    fn card_cmp(cards: &[Card; MAX_CARDS], a: &CardIdx, b: &CardIdx) -> i32 {
+    pub(crate) fn card_cmp(cards: &[Card; MAX_CARDS], a: &CardIdx, b: &CardIdx) -> i32 {
         let (ca, cb) = (&cards[*a as usize], &cards[*b as usize]);
         if ca.id != cb.id {
             return if ca.id < cb.id { -1 } else { 1 };

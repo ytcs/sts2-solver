@@ -492,6 +492,10 @@ pub trait Listener: Sync {
         cx.base_can_enchant(card, self.can_enchant_card_type(cx.card_def(card).ctype))
     }
     /// `AfflictionModel.CanAfflictCardType` / `CanAfflictUnplayableCards` / `IsStackable` / `CanAfflict(card)`.
+    /// `PowerModel.InitInternalData()` as the initial value of `Power::aux` (per-instance private state; default 0).
+    fn initial_power_aux(&self) -> i32 {
+        0
+    }
     fn can_afflict_card_type(&self, card_type: CardType) -> bool {
         true
     }
@@ -683,6 +687,7 @@ pub mod hookbit {
         can_afflict,
         can_enchant_card_type,
         can_enchant,
+        initial_power_aux,
         can_afflict_card_type,
         can_afflict_unplayable_cards,
         affliction_is_stackable,
