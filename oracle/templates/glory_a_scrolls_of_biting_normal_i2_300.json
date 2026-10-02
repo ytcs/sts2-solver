@@ -1,0 +1,51 @@
+{
+ "name": "glory_scrolls_of_biting_normal_i2_300",
+ "ascension": 10,
+ "encounter": "SCROLLS_OF_BITING_NORMAL",
+ "character": "IRONCLAD",
+ "hp": 300,
+ "max_hp": 300,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "MANGLE",
+  "MOLTEN_FIST",
+  {
+   "id": "ONE_TWO_PUNCH",
+   "upgrade": 1
+  },
+  "OUTRAGE",
+  "PACTS_END",
+  "PERFECTED_STRIKE",
+  "PILLAGE",
+  "RAMPAGE",
+  "SPITE",
+  "STOMP",
+  "TEAR_ASUNDER",
+  {
+   "id": "THRASH",
+   "upgrade": 1
+  },
+  "UPPERCUT",
+  "WHIRLWIND",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": []
+}

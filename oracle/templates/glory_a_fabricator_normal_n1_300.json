@@ -1,0 +1,40 @@
+{
+ "name": "glory_fabricator_normal_n1_300",
+ "ascension": 10,
+ "encounter": "FABRICATOR_NORMAL",
+ "character": "NECROBINDER",
+ "hp": 300,
+ "max_hp": 300,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_NECROBINDER",
+  "STRIKE_NECROBINDER",
+  "STRIKE_NECROBINDER",
+  "STRIKE_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "BODYGUARD",
+  "UNLEASH",
+  "AFTERLIFE",
+  "AFTERLIFE",
+  "CLEANSE",
+  "SPUR",
+  "SIC_EM",
+  "POKE",
+  "BONE_SHARDS",
+  "SACRIFICE",
+  "NECRO_MASTERY",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "PHYLACTERY_UNBOUND"
+ ],
+ "potions": []
+}

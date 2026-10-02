@@ -1,0 +1,90 @@
+{
+ "name": "glory_turret_operator_weak_i1_80",
+ "ascension": 10,
+ "encounter": "TURRET_OPERATOR_WEAK",
+ "character": "IRONCLAD",
+ "hp": 80,
+ "max_hp": 80,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "BARRICADE",
+  "FEEL_NO_PAIN",
+  "DARK_EMBRACE",
+  "DEMON_FORM",
+  "COLOSSUS",
+  "CRUELTY",
+  "CRIMSON_MANTLE",
+  "FLAME_BARRIER",
+  "CORRUPTION",
+  "AGGRESSION",
+  "BATTLE_TRANCE",
+  "DOMINATE",
+  "BURNING_PACT",
+  "TRUE_GRIT",
+  {
+   "id": "BARRICADE",
+   "upgrade": 1
+  },
+  {
+   "id": "FEEL_NO_PAIN",
+   "upgrade": 1
+  },
+  {
+   "id": "DARK_EMBRACE",
+   "upgrade": 1
+  },
+  {
+   "id": "DEMON_FORM",
+   "upgrade": 1
+  },
+  {
+   "id": "COLOSSUS",
+   "upgrade": 1
+  },
+  {
+   "id": "CRUELTY",
+   "upgrade": 1
+  },
+  {
+   "id": "CRIMSON_MANTLE",
+   "upgrade": 1
+  },
+  {
+   "id": "FLAME_BARRIER",
+   "upgrade": 1
+  },
+  {
+   "id": "CORRUPTION",
+   "upgrade": 1
+  },
+  {
+   "id": "AGGRESSION",
+   "upgrade": 1
+  },
+  "SHRUG_IT_OFF",
+  "IMPERVIOUS",
+  "DRUM_OF_BATTLE",
+  "FIEND_FIRE",
+  "EVIL_EYE",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": []
+}

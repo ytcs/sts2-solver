@@ -1,0 +1,48 @@
+{
+ "name": "glory_owl_magistrate_normal_s1_300",
+ "ascension": 10,
+ "encounter": "OWL_MAGISTRATE_NORMAL",
+ "character": "SILENT",
+ "hp": 300,
+ "max_hp": 300,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_SILENT",
+  "STRIKE_SILENT",
+  "STRIKE_SILENT",
+  "STRIKE_SILENT",
+  "STRIKE_SILENT",
+  "DEFEND_SILENT",
+  "DEFEND_SILENT",
+  "DEFEND_SILENT",
+  "DEFEND_SILENT",
+  "DEFEND_SILENT",
+  "NEUTRALIZE",
+  "SURVIVOR",
+  "SLICE",
+  "PINPOINT",
+  "POUNCE",
+  "PREDATOR",
+  "POISONED_STAB",
+  "SUCKER_PUNCH",
+  "SUPPRESS",
+  "STRANGLE",
+  {
+   "id": "SKEWER",
+   "upgrade": 1
+  },
+  "RICOCHET",
+  "PRECISE_CUT",
+  "MEMENTO_MORI",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "RING_OF_THE_SNAKE"
+ ],
+ "potions": []
+}

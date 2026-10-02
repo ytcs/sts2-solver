@@ -192,7 +192,7 @@ impl Combat {
         let mut erng = crate::rng::Rng::named((sc.run_seed as i64).wrapping_add(sc.total_floor as i64) as u64, crate::ids::encounter::NAMES[sc.encounter as usize]);
         let spawns = content::encounter_spawns(sc.encounter, &mut erng, sc.ascension).unwrap();
         for sp in spawns.iter() {
-            let c = cx.add_enemy(sp.monster, sp.slot).expect("too many enemies");
+            let c = cx.add_enemy_v(sp.monster, sp.slot, sp.vars).expect("too many enemies");
             cx.creatures[c as usize].monster.vars[0] = sp.vars[0];
             cx.creatures[c as usize].monster.vars[1] = sp.vars[1];
         }

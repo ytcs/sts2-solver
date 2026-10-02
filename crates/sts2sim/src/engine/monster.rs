@@ -25,13 +25,22 @@ impl Combat {
     /// `CombatState.CreateCreature` + `AddCreature` for an enemy: one `niche` draw for HP, unique among enemies already
     /// added (spec 04 §1.13); then `SetUpForCombat` (state machine built, `SpawnedThisTurn = true`).
     pub fn add_enemy(&mut self, monster_id: u16, slot: u8) -> Option<Cid> {
+        self.add_enemy_v(monster_id, slot, [0, 0])
+    }
+
+    /// `add_enemy` with the monster's private integers (`vars`) already set when its HP range is computed (Axebot's
+    /// `MinInitialHp` depends on its respawn count, which is a monster field in the C# model).
+    pub fn add_enemy_v(&mut self, monster_id: u16, slot: u8, vars: [i32; 2]) -> Option<Cid> {
         let cid = self.alloc_slot()?;
         if !content::monster_implemented(monster_id) {
             self.flag_missing(Kind::Monster, monster_id);
             return None;
         }
         let def = content::monster_def(monster_id);
-        let (lo, hi) = (def.hp)(self.ascension);
+        let (mut lo, mut hi) = (def.hp)(self.ascension);
+        let bonus = content::monster_hp_bonus(monster_id, vars);
+        lo += bonus;
+        hi += bonus;
         // set = {lo..=hi} minus the MaxHp of every enemy already in the list
         let mut cands: crate::util::ArrayVec<i32, 64> = crate::util::ArrayVec::new();
         for hp in lo..=hi {
@@ -45,7 +54,9 @@ impl Combat {
             cands[self.rng.niche.next_int_range(0, cands.len() as i32) as usize]
         };
         self.listen |= content::monster_mask(monster_id);
-        let ms = MonsterState { id: monster_id, cur_state: def.initial, spawned_this_turn: true, ..Default::default() };
+        let mut ms = MonsterState { id: monster_id, cur_state: def.initial, spawned_this_turn: true, ..Default::default() };
+        ms.vars[0] = vars[0];
+        ms.vars[1] = vars[1];
         let mut cr = Creature::default();
         cr.active = true;
         cr.in_combat = true;
@@ -73,9 +84,7 @@ impl Combat {
     /// player turn rolls its first move immediately and acts in the following enemy turn.
     /// `vars` are the monster's private integers, set before its spawn hook / first roll run.
     pub fn summon_enemy(&mut self, monster_id: u16, slot: u8, vars: [i32; 2]) -> Option<Cid> {
-        let c = self.add_enemy(monster_id, slot)?;
-        self.creatures[c as usize].monster.vars[0] = vars[0];
-        self.creatures[c as usize].monster.vars[1] = vars[1];
+        let c = self.add_enemy_v(monster_id, slot, vars)?;
         let def = content::monster_def(monster_id);
         if let Some(f) = def.on_spawn {
             f(self, c);
