@@ -466,6 +466,9 @@ pub struct Combat {
     pub hook_ctx: Option<(crate::hooks::Me, u8)>,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended).
     pub turn_cont: u8,
+    /// An enemy turn suspended inside a monster move that raised a decision (Knowledge Demon's Curse of Knowledge):
+    /// the `Enemies` snapshot taken at the start of the turn and the index of the suspended mover.
+    pub enemy_cont: Option<(ArrayVec<Cid, MAX_CREATURES>, u8, u8)>,
     /// The `AfterAutoPostPlayPhaseEntered` listener that suspended (auto-played card raised a decision) while the
     /// player's turn was ending; the turn end resumes from it once the decision is made.
     pub end_turn_resume: Option<crate::hooks::Me>,

@@ -154,6 +154,7 @@ impl Combat {
             end_turn_resume: None,
             hook_ctx: None,
             turn_cont: 0,
+            enemy_cont: None,
             missing: None,
             player_hooks_active: true,
             escaped: 0,

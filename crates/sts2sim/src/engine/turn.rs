@@ -522,12 +522,23 @@ impl Combat {
         }
         // ExecuteEnemyTurn: snapshot of Enemies at turn start.
         let snapshot = self.creatures_on(Side::Enemy);
-        for &e in snapshot.iter() {
+        self.enemy_turn_from(snapshot, 0);
+    }
+
+    /// The `ExecuteEnemyTurn` loop from snapshot index `from`, then `EndEnemyTurn`. A monster move that raises a decision
+    /// (Knowledge Demon) suspends the turn: the snapshot and index are kept in `enemy_cont` and `resume_after_decision`
+    /// finishes the move and re-enters this loop at the next index.
+    fn enemy_turn_from(&mut self, snapshot: crate::util::ArrayVec<Cid, MAX_CREATURES>, from: usize) {
+        for i in from..snapshot.len() {
+            let e = snapshot[i];
             if !self.enemies.contains(e) {
                 continue;
             }
             if !self.cr(e).monster.spawned_this_turn {
-                self.perform_move(e);
+                if let Some(nm) = self.perform_move(e) {
+                    self.enemy_cont = Some((snapshot, i as u8, nm));
+                    return;
+                }
             }
             if self.check_win_condition() {
                 return;
@@ -547,6 +558,16 @@ impl Combat {
             return;
         }
         self.switch_sides();
+    }
+
+    /// Continues an enemy turn that was suspended inside a monster move (after the hook resumed the move's effect).
+    fn resume_enemy_turn(&mut self) {
+        let Some((snapshot, i, nm)) = self.enemy_cont.take() else { return };
+        self.finish_move(snapshot[i as usize], nm);
+        if self.check_win_condition() {
+            return;
+        }
+        self.enemy_turn_from(snapshot, i as usize + 1);
     }
 
     // ---- win / loss -------------------------------------------------------------------------------------------------
@@ -648,6 +669,10 @@ impl Combat {
             if self.stage == Stage::AwaitChoice {
                 return; // the hook's effect (e.g. a Sly auto-play) raised its own decision: that play resumes later
             }
+        }
+        if self.enemy_cont.is_some() {
+            self.resume_enemy_turn();
+            return;
         }
         if !self.play_stack.is_empty() {
             self.run_play_stack();

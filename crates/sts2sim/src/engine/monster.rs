@@ -349,7 +349,8 @@ impl Combat {
     }
 
     /// `MonsterModel.PerformMove` (spec 04 §1.9).
-    pub fn perform_move(&mut self, c: Cid) {
+    /// Returns `Some(node)` if the move suspended on a decision (the caller keeps `node` for `finish_move`).
+    pub fn perform_move(&mut self, c: Cid) -> Option<u8> {
         let def = content::monster_def(self.cr(c).monster.id);
         let nm = self.cr(c).monster.next_move;
         assert!(nm != NO, "monster performing UNSET_MOVE");
@@ -364,6 +365,17 @@ impl Combat {
             self.creatures[c as usize].monster.performed_once |= 1u64 << nm;
             perform(self, c);
         }
+        if self.stage == Stage::AwaitChoice {
+            // The move raised a decision (Knowledge Demon): the bookkeeping below runs in `finish_move` once it resumed.
+            return Some(nm);
+        }
+        self.finish_move(c, nm);
+        None
+    }
+
+    /// The tail of `PerformMove`: `OnMovePerformed`, history, `IsPerformingMove = false` and the removal of a creature
+    /// that died during its own move.
+    pub(crate) fn finish_move(&mut self, c: Cid, nm: u8) {
         {
             let ms = &mut self.creatures[c as usize].monster;
             ms.performed.copy_within(1..4, 0);
