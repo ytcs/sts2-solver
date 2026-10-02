@@ -179,7 +179,8 @@ impl Combat {
         let mut kept: crate::util::ArrayVec<Power, MAX_POWERS> = crate::util::ArrayVec::new();
         let mut n = 0;
         for p in self.cr(c).powers.iter() {
-            if content::power_listener(p.id).should_power_be_removed_after_owner_death() {
+            let pme = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
+            if content::power_listener(p.id).should_power_be_removed_after_owner_death(self, pme) {
                 removed[n] = *p;
                 n += 1;
             } else {

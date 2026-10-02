@@ -276,7 +276,7 @@ pub trait Listener: Sync {
         target
     }
     /// `PowerModel.ShouldPowerBeRemovedAfterOwnerDeath` (false = the power survives its owner's death).
-    fn should_power_be_removed_after_owner_death(&self) -> bool {
+    fn should_power_be_removed_after_owner_death(&self, cx: &Combat, me: Me) -> bool {
         true
     }
     /// `AfterEnergyResetLate`.

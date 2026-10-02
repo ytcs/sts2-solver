@@ -38,7 +38,7 @@ listener!(DieForYouPower {
     fn should_allow_hitting(&self, cx: &Combat, _me: Me, creature: Cid) -> bool {
         cx.cr(creature).is_alive()
     }
-    fn should_power_be_removed_after_owner_death(&self) -> bool {
+    fn should_power_be_removed_after_owner_death(&self, _cx: &Combat, _me: Me) -> bool {
         false
     }
 });
