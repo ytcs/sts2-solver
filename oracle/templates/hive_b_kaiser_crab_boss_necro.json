@@ -1,0 +1,40 @@
+{
+ "name": "necrobinder_kaiser_crab_boss",
+ "ascension": 10,
+ "encounter": "KAISER_CRAB_BOSS",
+ "character": "NECROBINDER",
+ "hp": 400,
+ "max_hp": 400,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 1,
+ "deck": [
+  "STRIKE_NECROBINDER",
+  "STRIKE_NECROBINDER",
+  "STRIKE_NECROBINDER",
+  "STRIKE_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "DEFEND_NECROBINDER",
+  "BODYGUARD",
+  "UNLEASH",
+  "AFTERLIFE",
+  "AFTERLIFE",
+  "CLEANSE",
+  "SPUR",
+  "SIC_EM",
+  "POKE",
+  "BONE_SHARDS",
+  "SACRIFICE",
+  "NECRO_MASTERY",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BOUND_PHYLACTERY"
+ ],
+ "potions": []
+}

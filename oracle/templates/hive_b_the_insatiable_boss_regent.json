@@ -1,0 +1,46 @@
+{
+ "name": "regent_the_insatiable_boss",
+ "ascension": 10,
+ "encounter": "THE_INSATIABLE_BOSS",
+ "character": "REGENT",
+ "hp": 400,
+ "max_hp": 400,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 1,
+ "deck": [
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "FALLING_STAR",
+  "VENERATE",
+  "I_AM_INVINCIBLE",
+  "PROPHESIZE",
+  "MANIFEST_AUTHORITY",
+  "GLIMMER",
+  "PHOTON_CUT",
+  "COSMIC_INDIFFERENCE",
+  "BEGONE",
+  "GUARDS",
+  "MAKE_IT_SO",
+  "BULWARK",
+  "CONQUEROR",
+  {
+   "id": "REFINE_BLADE",
+   "upgrade": 1
+  },
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "DIVINE_RIGHT"
+ ],
+ "potions": []
+}

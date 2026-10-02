@@ -95,6 +95,20 @@ public static class Patches
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.FakeMerchantMonster), "GetLinesForMove")]
     static class P_FakeMerchantLines { static bool Prefix(ref IEnumerable<MegaCrit.Sts2.Core.Localization.LocString> __result) { __result = Array.Empty<MegaCrit.Sts2.Core.Localization.LocString>(); return false; } }
 
+    // Music-only hooks of the Act 2 bosses (`NRunMusicController.Instance?.UpdateMusicParameter`) throw a NullReferenceException
+    // in this headless process; they have no gameplay effect (hive_b slice).
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.Crusher), nameof(MegaCrit.Sts2.Core.Models.Monsters.Crusher.BeforeDeath))]
+    static class P_CrusherDeath { static bool Prefix(ref Task __result) { __result = Task.CompletedTask; return false; } }
+
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.Rocket), nameof(MegaCrit.Sts2.Core.Models.Monsters.Rocket.BeforeDeath))]
+    static class P_RocketDeath { static bool Prefix(ref Task __result) { __result = Task.CompletedTask; return false; } }
+
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.KnowledgeDemon), nameof(MegaCrit.Sts2.Core.Models.Monsters.KnowledgeDemon.BeforeRemovedFromRoom))]
+    static class P_KnowledgeDemonRemoved { static bool Prefix() => false; }
+
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.TheInsatiable), nameof(MegaCrit.Sts2.Core.Models.Monsters.TheInsatiable.AfterDeath))]
+    static class P_InsatiableDeath { static bool Prefix(ref Task __result) { __result = Task.CompletedTask; return false; } }
+
     [HarmonyPatch(typeof(ConsoleLogPrinter), nameof(ConsoleLogPrinter.Print))]
     static class P_Print
     {
