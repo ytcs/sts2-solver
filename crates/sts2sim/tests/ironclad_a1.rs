@@ -167,3 +167,17 @@ fn nested_cascades_finish_inner_first() {
     let ups: Vec<u8> = cx.pile(PileType::Exhaust).iter().map(|&c| cx.cards[c as usize].upgrade).collect();
     assert_eq!(ups, vec![0, 1, 0]);
 }
+
+#[test]
+fn dying_to_crimson_mantle_at_turn_start_loses_the_combat() {
+    let mut cx = base();
+    let uid = cx.apply_power(ids::power::CRIMSON_MANTLE_POWER, PLAYER, Dec::int(7), PLAYER, NO).unwrap();
+    cx.power_mut(PLAYER, uid).unwrap().aux = 5;
+    cx.cr_mut(PLAYER).hp = 3;
+    // Ending the turn: the enemy turn may hurt too, but the self-damage of 5 at the next turn start is lethal.
+    cx.cr_mut(PLAYER).block = 999;
+    assert!(cx.step(Action::EndTurn));
+    assert_eq!(cx.stage, Stage::Over);
+    assert_eq!(cx.outcome, Outcome::Defeat);
+    assert!(!cx.in_progress);
+}
