@@ -30,16 +30,18 @@ pub struct Attack {
     pub targeting: Targeting,
     /// `AttackCommand.Results`: filled in by `execute_attack` before `after_attack` listeners run (empty before that).
     pub results: Results,
+    /// Identity of this `AttackCommand` (unique per `execute_attack` call, 24 bits, never 0); set by `execute_attack`.
+    pub id: u32,
 }
 
 impl Attack {
     /// Monster move attack: `DamageCmd.Attack(n).FromMonster(m)` targeting the player(s).
     pub fn from_monster(dealer: Cid, damage: i32) -> Attack {
-        Attack { dealer, card: NO, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting: Targeting::AllOpponents, results: Results::new() }
+        Attack { dealer, card: NO, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting: Targeting::AllOpponents, results: Results::new(), id: 0 }
     }
     /// Card attack: `DamageCmd.Attack(n).FromCard(card, play).Targeting(t)`.
     pub fn from_card(dealer: Cid, card: CardIdx, damage: i32, targeting: Targeting) -> Attack {
-        Attack { dealer, card, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting, results: Results::new() }
+        Attack { dealer, card, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting, results: Results::new(), id: 0 }
     }
     pub fn hits(mut self, n: i32) -> Attack {
         self.hits = n;
@@ -213,6 +215,13 @@ impl Combat {
         if self.is_over_or_ending() || a.dealer == NO || self.cr(a.dealer).is_dead() {
             return all;
         }
+        let mut cur = *a;
+        self.attack_seq = (self.attack_seq + 1) & 0xFF_FFFF;
+        if self.attack_seq == 0 {
+            self.attack_seq = 1;
+        }
+        cur.id = self.attack_seq;
+        let a = &cur;
         self.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, a));
         let hits = a.hits; // ModifyAttackHitCount: no content overrides it.
         let dealer_side = self.cr(a.dealer).side;

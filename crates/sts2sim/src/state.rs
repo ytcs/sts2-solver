@@ -34,6 +34,8 @@ pub struct Power {
     pub aux: i32,
     pub applier: u8,
     pub skip_next_tick: bool,
+    /// Second private slot (Vigor: amount when its attack started).
+    pub aux2: i32,
 }
 
 #[derive(Clone, Copy, Default, Debug)]
@@ -341,6 +343,8 @@ pub struct Combat {
     pub ascension: u8,
     /// Encounter id (`ids::encounter::*`); content that summons into encounter slots (`GetNextSlot`) needs it.
     pub encounter: u16,
+    /// Counter that gives every `AttackCommand` a unique identity (`Attack::id`).
+    pub attack_seq: u32,
     pub rng: RngSet,
 
     pub round: i32,

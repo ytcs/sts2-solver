@@ -103,6 +103,7 @@ impl Combat {
             character: sc.character,
             ascension: sc.ascension,
             encounter: sc.encounter,
+            attack_seq: 0,
             rng: sc.rng,
             round: 1,
             side: Side::Player,

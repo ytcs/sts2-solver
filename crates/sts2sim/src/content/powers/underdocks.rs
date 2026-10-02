@@ -188,15 +188,40 @@ listener!(IntangiblePower {
     }
 });
 
-// VigorPower (monster-owned): `BeforeAttack` ignores non-card sources, so `commandToModify` stays null and the bonus
-// applies to every powered hit of the owner and is never consumed (spec 02 §6.6). Card-sourced Vigor (player) is not
-// ported here.
+// VigorPower (spec 02 §6.6, verbatim quirk): `BeforeAttack` records the first powered attack of the owner as
+// `commandToModify` (aux = card idx << 24 | attack id; 0 = none) and the amount at that moment (aux2); the bonus applies
+// to the owner's powered damage; `AfterAttack` of that very command consumes the recorded amount. `commandToModify`
+// is never cleared, so a Vigor gained later never fires again on other attacks.
+fn vigor_pack(attack: &Attack) -> i32 {
+    (((attack.card as u32) << 24) | (attack.id & 0xFF_FFFF)) as i32
+}
 listener!(VigorPower {
+    fn before_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
+        if attack.dealer != me.owner || !attack.props.is_powered() || aux(cx, &me) != 0 {
+            return;
+        }
+        let a = amount(cx, &me);
+        set_aux(cx, &me, vigor_pack(attack));
+        if let Some(i) = cx.power_idx(me.owner, me.idx) {
+            cx.cr_mut(me.owner).powers[i].aux2 = a;
+        }
+    }
     fn modify_damage_additive(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if me.owner != q.dealer || !q.props.is_powered() {
             return Dec::ZERO;
         }
+        let a = aux(cx, &me);
+        if a != 0 && q.card != NO && q.card != ((a as u32) >> 24) as u8 {
+            return Dec::ZERO;
+        }
         Dec::int(amount(cx, &me) as i64)
+    }
+    fn after_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
+        let a = aux(cx, &me);
+        if a != 0 && a == vigor_pack(attack) {
+            let start = cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].aux2);
+            cx.modify_power_amount(me.owner, me.idx, Dec::int(-(start as i64)), NO, NO);
+        }
     }
 });
 
