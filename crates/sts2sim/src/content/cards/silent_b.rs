@@ -39,9 +39,15 @@ fn calculated(cx: &Combat, c: CardIdx, extra: VarKind, multiplier: i32) -> i32 {
     cx.card_var(c, VarKind::CalcBase) + cx.card_var(c, extra) * multiplier
 }
 
+/// `CardCmd.Discard(cards)`: true if a Sly auto-play it triggered suspended on a decision (the one place that adapts to
+/// the engine's `discard_cards` return convention).
+pub(crate) fn discard_suspended(cx: &mut Combat, cards: &[CardIdx]) -> bool {
+    cx.discard_cards(cards, 0)
+}
+
 /// `CardCmd.Discard(cards)` then continue at `after` if a Sly auto-play suspended.
 fn discard_then(cx: &mut Combat, cards: &[CardIdx], after: u8) -> Flow {
-    if cx.discard_cards(cards, 0) {
+    if discard_suspended(cx, cards) {
         Flow::Suspend(after)
     } else {
         Flow::Done
@@ -494,7 +500,7 @@ listener!(ShadowStep {
         match phase {
             0 => {
                 let hand = cx.player.hand;
-                if cx.discard_cards(hand.as_slice(), 0) {
+                if discard_suspended(cx, hand.as_slice()) {
                     return Flow::Suspend(1);
                 }
                 cx.apply_power(ids::power::SHADOW_STEP_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
@@ -519,7 +525,7 @@ listener!(StormOfSteel {
                 let hand = cx.player.hand;
                 n = hand.len() as i32;
                 cx.cards[p.card as usize].counter[0] = n as i16;
-                if cx.discard_cards(hand.as_slice(), 0) {
+                if discard_suspended(cx, hand.as_slice()) {
                     return Flow::Suspend(1);
                 }
             }

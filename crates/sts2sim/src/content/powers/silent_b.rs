@@ -75,7 +75,7 @@ listener!(ToolsOfTheTradePower {
         match cx.ask_hand(ids::card::TOOLS_OF_THE_TRADE, a, a, |_, _| true) {
             Ask::Resolved(cards) => {
                 if !cards.is_empty() {
-                    cx.discard_cards(cards.as_slice(), 0);
+                    crate::content::cards::silent_b::discard_suspended(cx, cards.as_slice());
                 }
             }
             Ask::Pending => {
@@ -87,7 +87,7 @@ listener!(ToolsOfTheTradePower {
     fn resume_hook(&self, cx: &mut Combat, _me: Me, _phase: u8) {
         let cards = cx.choice.cards;
         if !cards.is_empty() {
-            cx.discard_cards(cards.as_slice(), 0);
+            crate::content::cards::silent_b::discard_suspended(cx, cards.as_slice());
         }
     }
 });
