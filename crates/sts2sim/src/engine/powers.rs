@@ -14,6 +14,11 @@ impl Combat {
         self.cr(c).powers.iter().position(|p| p.uid == uid)
     }
 
+    /// Mutable access to a live power instance by uid (private `aux` state).
+    pub fn power_mut(&mut self, c: Cid, uid: u16) -> Option<&mut Power> {
+        self.cr_mut(c).powers.as_mut_slice().iter_mut().find(|p| p.uid == uid)
+    }
+
     /// Current amount of the creature's power `id` (0 if absent).
     #[inline]
     pub fn power_amount(&self, c: Cid, id: u16) -> i32 {
@@ -112,7 +117,7 @@ impl Combat {
             let mut attached = false;
             if !v.is_zero() {
                 let amt = v.trunc().clamp(-MAX_POWER_AMOUNT, MAX_POWER_AMOUNT);
-                let p = Power { id, uid, amount: amt, amount_on_turn_start: amt, aux: 0, applier, skip_next_tick: false };
+                let p = Power { id, uid, amount: amt, amount_on_turn_start: 0 /* set by the next turn start (PowerModel._amountOnTurnStart default) */, aux: 0, applier, skip_next_tick: false };
                 self.cr_mut(target).powers.push(p);
                 attached = true;
             }

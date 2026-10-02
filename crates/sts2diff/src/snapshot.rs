@@ -42,7 +42,8 @@ fn card(cx: &Combat, c: CardIdx, with_cost: bool) -> Value {
     m.insert("id".into(), json!(ids::card::NAMES[k.id as usize]));
     m.insert("upgrade".into(), json!(k.upgrade));
     if with_cost {
-        m.insert("cost".into(), json!(cx.card_cost(c, true).max(0)));
+        // the oracle reports -1 for X-cost cards
+        m.insert("cost".into(), json!(if cx.card_def(c).x_cost { -1 } else { cx.card_cost(c, true).max(0) }));
     }
     Value::Object(m)
 }

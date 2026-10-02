@@ -119,6 +119,8 @@ impl Combat {
             n_cards: 0,
             hist: History::default(),
             play_ctx: None,
+            play_stack: Default::default(),
+            play_base: 0,
             potion_ctx: None,
             decision: None,
             choice: Choice::default(),
