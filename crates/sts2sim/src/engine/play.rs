@@ -120,7 +120,7 @@ impl Combat {
         };
         // 5. Hook.ModifyCardPlayResultLocation (guarded, threaded over pile + position), then
         //    AfterModifyingCardPlayResultLocation for the listeners that changed it (Feral).
-        let (result, result_pos) = self.modify_play_result_location(c, play.is_auto, play.energy_spent, result);
+        let (result, result_pos) = self.modify_play_result_location(c, play.is_auto, self.play_energy_value(&play), result);
         // 6. play count: (replay + 1), Hook.ModifyCardPlayCount (threaded) + AfterModifyingCardPlayCount.
         let count = self.generate_play_count(c, play.target);
         play.result_pile = result;
@@ -129,6 +129,19 @@ impl Combat {
         self.player.effect_depth += 1;
         self.play_ctx = Some(PlayCtx { play, step: PlayStep::Before, count, result, result_pos });
         self.run_play();
+    }
+
+    /// `ResourceInfo.EnergyValue`: what the card cost when it was played. Equal to the energy spent for a manual play;
+    /// an auto-play spends nothing but still has the card's cost (the player's energy for an X-cost card) as its value.
+    pub fn play_energy_value(&self, play: &CardPlay) -> i32 {
+        if !play.is_auto {
+            return play.energy_spent;
+        }
+        if self.card_def(play.card).x_cost {
+            self.player.energy
+        } else {
+            self.card_cost(play.card, true).max(0)
+        }
     }
 
     /// `Hook.ModifyCardPlayResultLocation` + `AfterModifyingCardPlayResultLocation` (the pile and the position are modelled).
@@ -202,7 +215,7 @@ impl Combat {
                     if p.play_index == 0 {
                         self.hist.first_plays_started += 1;
                     }
-                    if self.card_def(c).ctype == CardType::Attack && p.energy_spent == 0 {
+                    if self.card_def(c).ctype == CardType::Attack && self.play_energy_value(&p) == 0 {
                         self.hist.zero_cost_attacks_started += 1; // CardPlayStartedEntry with Resources.EnergyValue == 0 (Feral)
                     }
                     match self.card_def(c).ctype {
