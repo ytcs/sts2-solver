@@ -1,0 +1,137 @@
+{
+ "name": "glory_scrolls_of_biting_normal_i3_300",
+ "ascension": 10,
+ "encounter": "SCROLLS_OF_BITING_NORMAL",
+ "character": "IRONCLAD",
+ "hp": 300,
+ "max_hp": 300,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "BLUDGEON",
+  "BREAK",
+  {
+   "id": "BREAKTHROUGH",
+   "upgrade": 1
+  },
+  "BLOOD_WALL",
+  "HEMOKINESIS",
+  "IMPERVIOUS",
+  "CONFLAGRATION",
+  "FIGHT_ME",
+  "DISMANTLE",
+  "DOMINATE",
+  "BRAND",
+  "FIEND_FIRE",
+  "ASHEN_STRIKE",
+  "BODY_SLAM",
+  "BULLY",
+  "FEED",
+  "EVIL_EYE",
+  "EXPECT_A_FIGHT",
+  "BURNING_PACT",
+  {
+   "id": "TRUE_GRIT",
+   "upgrade": 1
+  },
+  "INFLAME",
+  "BATTLE_TRANCE",
+  "FORGOTTEN_RITUAL",
+  "DRUM_OF_BATTLE",
+  {
+   "id": "BLUDGEON",
+   "upgrade": 1
+  },
+  {
+   "id": "BREAK",
+   "upgrade": 1
+  },
+  {
+   "id": "HEMOKINESIS",
+   "upgrade": 1
+  },
+  {
+   "id": "FIGHT_ME",
+   "upgrade": 1
+  },
+  {
+   "id": "DISMANTLE",
+   "upgrade": 1
+  },
+  {
+   "id": "DOMINATE",
+   "upgrade": 1
+  },
+  {
+   "id": "BRAND",
+   "upgrade": 1
+  },
+  {
+   "id": "FIEND_FIRE",
+   "upgrade": 1
+  },
+  {
+   "id": "ASHEN_STRIKE",
+   "upgrade": 1
+  },
+  {
+   "id": "BODY_SLAM",
+   "upgrade": 1
+  },
+  {
+   "id": "BULLY",
+   "upgrade": 1
+  },
+  {
+   "id": "FEED",
+   "upgrade": 1
+  },
+  {
+   "id": "EVIL_EYE",
+   "upgrade": 1
+  },
+  {
+   "id": "EXPECT_A_FIGHT",
+   "upgrade": 1
+  },
+  {
+   "id": "BLOOD_WALL",
+   "upgrade": 1
+  },
+  {
+   "id": "FORGOTTEN_RITUAL",
+   "upgrade": 1
+  },
+  {
+   "id": "DRUM_OF_BATTLE",
+   "upgrade": 1
+  },
+  {
+   "id": "CONFLAGRATION",
+   "upgrade": 1
+  },
+  {
+   "id": "IMPERVIOUS",
+   "upgrade": 1
+  },
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": []
+}

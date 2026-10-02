@@ -202,3 +202,13 @@ fn living_shield_switches_to_smash_when_alone() {
     assert!(cx.step(Action::EndTurn));
     assert_eq!(move_id(&cx, shield), "SMASH_MOVE");
 }
+
+#[test]
+fn killing_a_minion_is_not_fatal_for_feed() {
+    let mut cx = Combat::new(&scenario(ids::encounter::FABRICATOR_NORMAL, 2, 5000));
+    let fab = cx.enemies[0];
+    assert!(cx.all_powers_trigger_fatal(fab));
+    assert!(cx.step(Action::EndTurn));
+    let bot = cx.enemies.iter().copied().find(|&e| e != fab).unwrap();
+    assert!(!cx.all_powers_trigger_fatal(bot));
+}

@@ -32,5 +32,9 @@ listener!(MinionPower {
     fn should_power_be_removed_after_owner_death(&self, _cx: &Combat, _me: Me) -> bool {
         false
     }
+    // Killing a minion does not count as a "fatal" kill (Feed / Hand of Greed / The Hunt rewards).
+    fn should_owner_death_trigger_fatal(&self, _cx: &Combat, _me: Me) -> bool {
+        false
+    }
 });
 
