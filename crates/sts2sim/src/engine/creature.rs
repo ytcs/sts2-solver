@@ -147,23 +147,48 @@ impl Combat {
 
     fn on_died(&mut self, c: Cid) {
         let is_enemy = self.cr(c).side == Side::Enemy;
-        let remove = is_enemy && !self.cr(c).is_pet;
+        // Hook.ShouldCreatureBeRemovedFromCombatAfterDeath is asked before AfterDeath (spec 02 §5.3).
+        let remove = is_enemy && !self.cr(c).is_pet && self.should_creature_be_removed_after_death(c);
         // AfterDeath(c, wasRemovalPrevented=false)
         self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c));
+        // alive teammates (enemy side), evaluated after AfterDeath (spawns from AfterDeath count)
+        let mut teammates: crate::util::ArrayVec<Cid, MAX_CREATURES> = crate::util::ArrayVec::new();
+        if is_enemy {
+            for &e in self.enemies.iter() {
+                if e != c && self.cr(e).is_alive() {
+                    teammates.push(e);
+                }
+            }
+        }
         if remove && self.enemies.contains(c) {
             self.remove_creature(c);
         }
-        // RemoveAllPowersAfterDeath: strip powers (AfterRemoved callbacks, no amount hooks).
+        let is_primary = is_enemy && self.is_primary_enemy(c); // computed BEFORE its powers are stripped
+        // RemoveAllPowersAfterDeath: strip powers whose `ShouldPowerBeRemovedAfterOwnerDeath` (AfterRemoved callbacks,
+        // no amount hooks); Minion / SteamEruption keep themselves.
         let mut removed = [Power::default(); MAX_POWERS];
-        let n = self.cr(c).powers.len();
-        removed[..n].copy_from_slice(self.cr(c).powers.as_slice());
-        self.cr_mut(c).powers.clear();
+        let mut kept: crate::util::ArrayVec<Power, MAX_POWERS> = crate::util::ArrayVec::new();
+        let mut n = 0;
+        for p in self.cr(c).powers.iter() {
+            let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
+            if content::listener(&me).should_power_be_removed_after_owner_death(self, me) {
+                removed[n] = *p;
+                n += 1;
+            } else {
+                kept.push(*p);
+            }
+        }
+        self.cr_mut(c).powers = kept;
         for p in &removed[..n] {
             let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
             content::listener(&me).after_removed(self, me, c);
         }
-        if c == PLAYER {
-            self.creatures[PLAYER as usize].block = self.creatures[PLAYER as usize].block;
+        // Minions die with the last primary enemy.
+        if is_enemy && is_primary && !teammates.is_empty() && teammates.iter().all(|&t| !self.is_primary_enemy(t)) {
+            let mut v = [0u8; MAX_CREATURES];
+            let k = teammates.len();
+            v[..k].copy_from_slice(teammates.as_slice());
+            self.kill(&v[..k]);
         }
     }
 

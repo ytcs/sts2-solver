@@ -97,10 +97,12 @@ impl Combat {
             potion_slots: sc.potion_slots,
             orb_slots: sc.orb_slots,
             effect_depth: 0,
+            gold: 99,
         };
         let mut cx = Combat {
             character: sc.character,
             ascension: sc.ascension,
+            encounter: sc.encounter,
             rng: sc.rng,
             round: 1,
             side: Side::Player,

@@ -253,6 +253,8 @@ pub struct PlayerState {
     pub orb_slots: u8,
     /// `BeginCardOrPotionEffect` depth.
     pub effect_depth: u8,
+    /// Run gold (only thieves — GremlinMerc's Thievery — change it in combat). Default 99 like the oracle's fresh player.
+    pub gold: i32,
 }
 
 /// What the agent must do next.
@@ -337,6 +339,8 @@ pub struct History {
 pub struct Combat {
     pub character: u8,
     pub ascension: u8,
+    /// Encounter id (`ids::encounter::*`); content that summons into encounter slots (`GetNextSlot`) needs it.
+    pub encounter: u16,
     pub rng: RngSet,
 
     pub round: i32,

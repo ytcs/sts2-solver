@@ -6,10 +6,22 @@ use crate::hooks::Kind;
 use crate::state::*;
 use crate::types::*;
 
+/// Pseudo node index of the generic `STUNNED` move created by `CreatureCmd.Stun` (a fresh `MoveState` per stun whose
+/// follow-up is `MonsterState::stun_follow_up`). Defs may therefore use at most 63 nodes. See `interrupts.rs`.
+pub const STUN_NODE: u8 = 63;
+
 impl Combat {
     /// `CombatState.CreateCreature` + `AddCreature` for an enemy: one `niche` draw for HP, unique among enemies already
     /// added (spec 04 §1.13); then `SetUpForCombat` (state machine built, `SpawnedThisTurn = true`).
     pub fn add_enemy(&mut self, monster_id: u16, slot: u8) -> Option<Cid> {
+        let cid = self.create_enemy(monster_id, slot)?;
+        self.attach_enemy(cid);
+        Some(cid)
+    }
+
+    /// `CombatState.CreateCreature` (enemy): allocates the creature and draws its HP (one `niche` draw, unique among the
+    /// enemies already attached); the creature is NOT yet in the enemy list (`attach_enemy` is `AddCreature`).
+    pub fn create_enemy(&mut self, monster_id: u16, slot: u8) -> Option<Cid> {
         let cid = (1..MAX_CREATURES as u8).find(|&i| !self.cr(i).in_combat)?;
         if !content::monster_implemented(monster_id) {
             self.flag_missing(Kind::Monster, monster_id);
@@ -33,13 +45,20 @@ impl Combat {
         let ms = MonsterState { id: monster_id, cur_state: def.initial, spawned_this_turn: true, ..Default::default() };
         let mut cr = Creature::default();
         cr.active = true;
-        cr.in_combat = true;
+        cr.in_combat = true; // reserves the creature slot; hooks only reach it once it is in `enemies`
         cr.side = Side::Enemy;
         cr.hp = hp;
         cr.max_hp = hp;
         cr.slot = slot;
         cr.monster = ms;
         self.creatures[cid as usize] = cr;
+        Some(cid)
+    }
+
+    /// `CombatState.AddCreature` + `CombatManager.AddCreature` (`SetUpForCombat`, slot sort).
+    pub fn attach_enemy(&mut self, cid: Cid) {
+        let def = content::monster_def(self.cr(cid).monster.id);
+        let slot = self.cr(cid).slot;
         self.enemies.push(cid);
         // SetUpForCombat: if the initial node is a Move it is logged immediately.
         if matches!(def.nodes[def.initial as usize], MonsterNode::Move { .. }) {
@@ -48,7 +67,6 @@ impl Combat {
         if slot != NO {
             self.sort_enemies_by_slot();
         }
-        Some(cid)
     }
 
     /// `CombatState.SortEnemiesBySlotName` — stable (insertion sort, <= 16 elements); unknown slot sorts first.
@@ -82,7 +100,11 @@ impl Combat {
         &content::monster_def(self.cr(c).monster.id).nodes[n as usize]
     }
 
-    fn can_transition_away(&self, c: Cid, n: u8) -> bool {
+    pub(crate) fn can_transition_away(&self, c: Cid, n: u8) -> bool {
+        if n == STUN_NODE {
+            // STUNNED has MustPerformOnceBeforeTransitioning.
+            return self.cr(c).monster.performed_once >> n & 1 != 0;
+        }
         match self.node(c, n) {
             MonsterNode::Move { must_perform_once, .. } => !*must_perform_once || self.cr(c).monster.performed_once >> n & 1 != 0,
             _ => true,
@@ -138,6 +160,9 @@ impl Combat {
     /// `GetNextState` of the current node: returns the next node index.
     fn next_state(&mut self, c: Cid, cur: u8) -> u8 {
         let def = content::monster_def(self.cr(c).monster.id);
+        if cur == STUN_NODE {
+            return self.cr(c).monster.stun_follow_up;
+        }
         match &def.nodes[cur as usize] {
             MonsterNode::Move { follow_up, .. } => {
                 if *follow_up == NO { def.initial } else { *follow_up }
@@ -175,7 +200,7 @@ impl Combat {
     pub fn roll_move(&mut self, c: Cid) {
         let def = content::monster_def(self.cr(c).monster.id);
         let cur = self.cr(c).monster.cur_state;
-        let is_move = |n: u8| matches!(def.nodes[n as usize], MonsterNode::Move { .. });
+        let is_move = |n: u8| n == STUN_NODE || matches!(def.nodes[n as usize], MonsterNode::Move { .. });
         let performed_first = self.cr(c).monster.performed_first;
         if !self.can_transition_away(c, cur) || (!performed_first && is_move(cur)) {
             // no transition, no RNG
@@ -190,6 +215,7 @@ impl Combat {
             self.creatures[c as usize].monster.performed_once &= !(1u64 << cur);
             cur = nxt;
             self.creatures[c as usize].monster.cur_state = cur;
+            self.creatures[c as usize].monster.stunned = cur == STUN_NODE;
             if first_logged == NO && is_move(cur) {
                 first_logged = cur;
             }
@@ -207,7 +233,10 @@ impl Combat {
         let nm = self.cr(c).monster.next_move;
         assert!(nm != NO, "monster performing UNSET_MOVE");
         self.creatures[c as usize].monster.is_performing = true;
-        if let MonsterNode::Move { perform, .. } = &def.nodes[nm as usize] {
+        if nm == STUN_NODE {
+            // the generic STUNNED move performs nothing (the optional stunMove side effects are cosmetic here)
+            self.creatures[c as usize].monster.performed_once |= 1u64 << nm;
+        } else if let MonsterNode::Move { perform, .. } = &def.nodes[nm as usize] {
             self.creatures[c as usize].monster.performed_once |= 1u64 << nm;
             perform(self, c);
         }
@@ -223,8 +252,4 @@ impl Combat {
         }
     }
 
-    /// `Hook.ShouldCreatureBeRemovedFromCombatAfterDeath` (AND) — no vetoing content yet.
-    pub fn should_creature_be_removed_after_death(&self, _c: Cid) -> bool {
-        true
-    }
 }

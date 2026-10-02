@@ -67,7 +67,10 @@ fn enemy(cx: &Combat, e: Cid) -> Value {
     m.insert("block".into(), json!(cr.block));
     m.insert("alive".into(), json!(cr.is_alive()));
     m.insert("powers".into(), powers(cx, e));
-    if ms.next_move != NO {
+    if ms.next_move == sts2sim::engine::STUN_NODE {
+        m.insert("next_move".into(), json!("STUNNED"));
+        m.insert("intents".into(), json!([{"type": "Stun"}]));
+    } else if ms.next_move != NO {
         if let MonsterNode::Move { id, intents, .. } = &def.nodes[ms.next_move as usize] {
             m.insert("next_move".into(), json!(id));
             let mut list = vec![];
@@ -108,6 +111,7 @@ pub fn snapshot(cx: &Combat) -> Value {
     o.insert("turn".into(), json!(cx.player.turn_number));
     o.insert("phase".into(), json!(phase(cx.player.phase)));
     o.insert("energy".into(), json!(cx.player.energy));
+    o.insert("gold".into(), json!(cx.player.gold));
     o.insert("combat_in_progress".into(), json!(cx.in_progress));
     o.insert("combat_over".into(), json!(over));
     o.insert("player".into(), json!({"hp": me.hp, "max_hp": me.max_hp, "block": me.block, "alive": me.is_alive(), "powers": powers(cx, PLAYER)}));

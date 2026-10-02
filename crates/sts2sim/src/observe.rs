@@ -206,7 +206,12 @@ impl Combat {
             // current intent(s)
             let def = content::monster_def(ms.id);
             let mut n_int = 0;
-            if ms.next_move != NO {
+            if ms.next_move == crate::engine::STUN_NODE {
+                w.n(11); // Intent::Stun
+                w.n(0);
+                w.n(0);
+                n_int += 1;
+            } else if ms.next_move != NO {
                 if let MonsterNode::Move { intents, .. } = &def.nodes[ms.next_move as usize] {
                     for it in intents.iter().take(OBS_INTENTS) {
                         let (kind, dmg, hits) = match it {

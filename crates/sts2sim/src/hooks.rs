@@ -269,6 +269,20 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- underdocks additions (appended; keep at the end) --------------------------------------------------------
+    /// `ShouldStopCombatFromEnding` — OR over listeners (unguarded iterator).
+    fn should_stop_combat_from_ending(&self, cx: &Combat, me: Me) -> bool {
+        false
+    }
+    /// `ShouldCreatureBeRemovedFromCombatAfterDeath` — AND over listeners (unguarded iterator).
+    fn should_creature_be_removed_after_death(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
+        true
+    }
+    /// `PowerModel.ShouldPowerBeRemovedAfterOwnerDeath` (asked of the power itself).
+    fn should_power_be_removed_after_owner_death(&self, cx: &Combat, me: Me) -> bool {
+        true
+    }
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,6 +375,9 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        should_stop_combat_from_ending,
+        should_creature_be_removed_after_death,
+        should_power_be_removed_after_owner_death,
     );
 }
 

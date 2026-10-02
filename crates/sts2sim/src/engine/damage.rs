@@ -28,16 +28,18 @@ pub struct Attack {
     pub hits: i32,
     pub props: ValueProp,
     pub targeting: Targeting,
+    /// `AttackCommand.Results`: filled in by `execute_attack` before `after_attack` listeners run (empty before that).
+    pub results: Results,
 }
 
 impl Attack {
     /// Monster move attack: `DamageCmd.Attack(n).FromMonster(m)` targeting the player(s).
     pub fn from_monster(dealer: Cid, damage: i32) -> Attack {
-        Attack { dealer, card: NO, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting: Targeting::AllOpponents }
+        Attack { dealer, card: NO, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting: Targeting::AllOpponents, results: Results::new() }
     }
     /// Card attack: `DamageCmd.Attack(n).FromCard(card, play).Targeting(t)`.
     pub fn from_card(dealer: Cid, card: CardIdx, damage: i32, targeting: Targeting) -> Attack {
-        Attack { dealer, card, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting }
+        Attack { dealer, card, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting, results: Results::new() }
     }
     pub fn hits(mut self, n: i32) -> Attack {
         self.hits = n;
@@ -253,7 +255,10 @@ impl Combat {
             }
             i += 1;
         }
-        self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
+        let mut done = *a;
+        done.results = all;
+        let done = &done;
+        self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, done));
         all
     }
 }

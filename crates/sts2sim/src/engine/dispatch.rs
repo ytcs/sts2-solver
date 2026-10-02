@@ -134,6 +134,21 @@ impl Combat {
 
     /// OR over `ShouldStopCombatFromEnding` (Adaptable, Infested, SteamEruption, Stock, Surprise).
     pub fn should_stop_combat_from_ending(&self) -> bool {
-        false
+        let bit = hookbit::should_stop_combat_from_ending;
+        if !self.listen.has(bit) {
+            return false;
+        }
+        let snap = self.snapshot(Mask::bit(bit));
+        snap.iter().any(|e| self.still_live(&e.me) && content::listener(&e.me).should_stop_combat_from_ending(self, e.me))
+    }
+
+    /// `Hook.ShouldCreatureBeRemovedFromCombatAfterDeath` — AND over (unguarded) listeners.
+    pub fn should_creature_be_removed_after_death(&self, c: Cid) -> bool {
+        let bit = hookbit::should_creature_be_removed_after_death;
+        if !self.listen.has(bit) {
+            return true;
+        }
+        let snap = self.snapshot(Mask::bit(bit));
+        snap.iter().all(|e| !self.still_live(&e.me) || content::listener(&e.me).should_creature_be_removed_after_death(self, e.me, c))
     }
 }

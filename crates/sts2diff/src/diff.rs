@@ -93,6 +93,7 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
     sc.validate().map_err(|e| format!("not implemented in the simulator: {e:?}"))?;
     let trace = load_jsonl(trace_path)?;
     let mut cx = Combat::new(&sc);
+    cx.player.gold = sv["gold"].as_i64().unwrap_or(99) as i32;
     let mut reported = 0;
     let mut ok = true;
     let mut buf = ActionBuf::new();
