@@ -29,7 +29,7 @@ fn scenario(seed: u64, relics: bool) -> Scenario {
         orb_slots: 3,
         potion_slots: 2,
         deck,
-        relics: if relics { vec![RelicInit { id: ids::relic::CRACKED_CORE, counter: 0 }] } else { vec![] },
+        relics: if relics { vec![RelicInit { id: ids::relic::CRACKED_CORE, counter: 0, ..Default::default() }] } else { vec![] },
         potions: vec![],
         rng: RngSet::from_run_seed(seed),
     }

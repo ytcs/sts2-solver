@@ -176,12 +176,10 @@ fn sturdy_clamp_keeps_up_to_ten_block() {
     assert_eq!(cx.cr(PLAYER).block, 10);
 }
 
-/// Every relic class is registered except the orb relics (Defect orbs engine is pending; see docs/relics.md).
+/// Every relic class is registered (the orb relics landed with the Defect/orb engine).
 #[test]
 fn every_relic_is_registered_except_the_known_unported() {
-    const UNPORTED: &[&str] = &[
-        "CRACKED_CORE", "EMOTION_CHIP", "GOLD_PLATED_CABLES", "INFUSED_CORE", "METRONOME", "RUNIC_CAPACITOR", "SYMBIOTIC_VIRUS",
-    ];
+    const UNPORTED: &[&str] = &[];
     let mut missing = vec![];
     for (i, name) in ids::relic::NAMES.iter().enumerate() {
         if !content::relic_implemented(i as u16) {
