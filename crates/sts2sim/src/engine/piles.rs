@@ -298,7 +298,7 @@ impl Combat {
             return 0;
         }
         // Hook.ShouldDraw (AND, guarded): the first vetoing listener is notified via AfterPreventingDraw.
-        if self.hooks_enabled() {
+        if self.listen.has(hookbit::should_draw) && self.hooks_enabled() {
             let snap = self.snapshot(Mask::bit(hookbit::should_draw));
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_draw(self, e.me, from_hand_draw) {

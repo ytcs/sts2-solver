@@ -21,6 +21,11 @@ impl Combat {
         &mut self.player.relics[me.idx as usize]
     }
 
+    /// `Owner.GetRelic<T>() != null` (e.g. `VulnerablePower` checks the dealer's PaperPhrog, `WeakPower` the target's PaperKrane).
+    pub fn has_relic(&self, id: u16) -> bool {
+        self.player.relics.iter().any(|r| r.id == id)
+    }
+
     /// `Owner.PlayerCombatState.TurnNumber`.
     #[inline(always)]
     pub fn turn_number(&self) -> i32 {

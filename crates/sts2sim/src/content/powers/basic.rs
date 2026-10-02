@@ -38,12 +38,17 @@ listener!(DexterityPower {
 });
 
 listener!(VulnerablePower {
-    fn modify_damage_multiplicative(&self, _cx: &Combat, me: Me, q: &DmgQ) -> Dec {
+    fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.target != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        // TODO(fidelity): dealer's PaperPhrog relic / Cruelty power and target's Debilitate adjust the multiplier.
-        Dec::frac(15, 1)
+        let mut num = Dec::frac(15, 1);
+        // The dealer's Paper Phrog: +0.25 (only when the target is not the relic owner).
+        if q.dealer == PLAYER && q.target != PLAYER && cx.has_relic(crate::ids::relic::PAPER_PHROG) {
+            num += Dec::frac(25, 2);
+        }
+        // TODO(fidelity): dealer's Cruelty power and target's Debilitate adjust the multiplier.
+        num
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Enemy {
@@ -53,12 +58,17 @@ listener!(VulnerablePower {
 });
 
 listener!(WeakPower {
-    fn modify_damage_multiplicative(&self, _cx: &Combat, me: Me, q: &DmgQ) -> Dec {
+    fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.dealer != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        // TODO(fidelity): target's PaperKrane relic and dealer's Debilitate adjust the multiplier.
-        Dec::frac(75, 2)
+        let mut num = Dec::frac(75, 2);
+        // The target's Paper Krane: -0.15 when the relic owner is the one being hit.
+        if q.target == PLAYER && cx.has_relic(crate::ids::relic::PAPER_KRANE) {
+            num -= Dec::frac(15, 2);
+        }
+        // TODO(fidelity): dealer's Debilitate adjusts the multiplier.
+        num
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Enemy {

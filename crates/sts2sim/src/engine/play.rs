@@ -198,7 +198,7 @@ impl Combat {
         // 6. play count: (replay + 1), threaded through Hook.ModifyCardPlayCount (guarded); the models that changed it
         // are then told via AfterModifyingCardPlayCount.
         let mut count_i = self.cards[c as usize].base_replay.saturating_add(1) as i32;
-        if self.hooks_enabled() {
+        if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
             let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
             let mut mods: super::damage::Mods = super::damage::Mods::new();
             for e in snap.iter() {

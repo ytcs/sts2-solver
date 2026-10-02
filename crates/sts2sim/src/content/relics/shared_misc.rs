@@ -305,6 +305,13 @@ listener!(LavaLamp {
     }
 });
 
+// +25% gold from every source.
+listener!(BowlerHat {
+    fn modify_gold_gained(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
+        amount * g::bowler_hat::GOLD_INCREASE
+    }
+});
+
 // ---- saved state only (run-level behaviour) ---------------------------------------------------------------------------------
 
 // counter = `CardsAdded` (saved); ShowCounter; DisplayAmount = counter % Cards. (Deck additions do not happen in combat.)

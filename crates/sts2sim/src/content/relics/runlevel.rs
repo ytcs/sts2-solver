@@ -11,7 +11,6 @@ listener!(Astrolabe {});
 listener!(BeautifulBracelet {});
 listener!(BingBong {});
 listener!(BlackStar {});
-listener!(BowlerHat {});
 listener!(CallingBell {});
 listener!(Cauldron {});
 listener!(Circlet {});
