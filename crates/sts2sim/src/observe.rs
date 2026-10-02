@@ -31,8 +31,8 @@ const DECISION_F: usize = 8 + OBS_MAX_CANDS * (CARD_F + 1);
 /// Per-orb features: (kind + 1, passive value, evoke value).
 pub const ORB_F: usize = 3;
 /// Orb block (appended at the end of the vector): `MAX_ORBS` orb entries front first (the slot count is the
-/// `orb_slots` field of the player block).
-const ORBS_F: usize = MAX_ORBS * ORB_F;
+/// `orb_slots` field of the player block), then the number of Lightning orbs channeled this combat (Voltaic's text).
+const ORBS_F: usize = MAX_ORBS * ORB_F + 1;
 /// Total length of the flat observation vector.
 pub const OBS_SIZE: usize = GLOBAL_F
     + PLAYER_F
@@ -281,6 +281,7 @@ impl Combat {
                 None => w.zeros(ORB_F),
             }
         }
+        w.n(self.player.lightning_channeled as i32);
         debug_assert_eq!(w.i, OBS_SIZE);
         OBS_SIZE
     }

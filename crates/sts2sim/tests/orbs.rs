@@ -163,9 +163,10 @@ fn observation_exposes_orbs_and_slots() {
     let cx = Combat::new(&scenario(9, true));
     let mut v = vec![0f32; OBS_SIZE];
     cx.observe(&mut v);
-    let tail = &v[OBS_SIZE - 10 * 3..];
+    let tail = &v[OBS_SIZE - (10 * 3 + 1)..];
     assert_eq!(&tail[0..3], &[ids::orb::LIGHTNING_ORB as f32 + 1.0, 3.0, 8.0]); // kind+1, passive, evoke
     assert_eq!(&tail[3..6], &[0.0, 0.0, 0.0]); // empty slot
+    assert_eq!(tail[30], 1.0); // Lightning orbs channeled so far (Cracked Core's)
 }
 
 #[test]

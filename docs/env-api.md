@@ -37,8 +37,8 @@ rarity/id like the pile screen), discard and exhaust in pile order, every enemy'
 
 Orbs (Defect): the slot count (`orb_slots`, player block) and, appended at the END of the vector, `MAX_ORBS` entries
 `(kind + 1, passive value, evoke value)` front (next to evoke) first — the values are what the orb hover shows (Focus,
-Dark's accumulated value, Glass decay included). Orbs and slots are fully visible to the player; the `combat_orbs` RNG
-(Chaos / Trash to Treasure) and the `lightning_channeled` history counter (Voltaic's count is derivable by the player) are hidden.
+Dark's accumulated value, Glass decay included) — followed by the number of Lightning orbs channeled this combat
+(the number Voltaic's text shows). Orbs and slots are fully visible to the player; the `combat_orbs` RNG stays hidden.
 
 Hidden (never in the observation): draw-pile order, all RNG stream states, monster-internal AI state beyond the
 displayed intent. `observe::hidden_state_does_not_leak` perturbs these and asserts the vector is unchanged.
