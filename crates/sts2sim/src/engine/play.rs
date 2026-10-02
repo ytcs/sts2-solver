@@ -5,6 +5,14 @@ use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
 
+/// Outcome of running a (possibly nested) play / discard: finished, or suspended on a decision. (Same name and shape as
+/// the engine-core port's `RunResult`.)
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RunResult {
+    Finished,
+    Suspended,
+}
+
 impl Combat {
     /// `CardModel.TargetType` (Silent slice): Shiv targets all enemies while its owner has Fan of Knives.
     pub fn card_target_type(&self, c: CardIdx) -> TargetType {
@@ -136,12 +144,11 @@ impl Combat {
             let mut mods: crate::util::ArrayVec<Me, 24> = crate::util::ArrayVec::new();
             for e in snap.iter() {
                 if self.still_live(&e.me) {
-                    if let Some(n) = content::listener(&e.me).modify_card_play_count(self, e.me, c, play.target, count) {
-                        if n != count {
-                            mods.push(e.me);
-                        }
-                        count = n;
+                    let n = content::listener(&e.me).modify_card_play_count(self, e.me, c, play.target, count);
+                    if n != count {
+                        mods.push(e.me);
                     }
+                    count = n;
                 }
             }
             for m in mods.iter() {

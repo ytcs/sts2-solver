@@ -197,11 +197,11 @@ listener!(NoDrawPower {
 
 // The next `Amount` Skills are played twice; expires at the end of the turn.
 listener!(BurstPower {
-    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, _target: Cid, play_count: i32) -> Option<i32> {
+    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, _target: Cid, count: i32) -> i32 {
         if me.owner != PLAYER || cx.card_def(card).ctype != CardType::Skill {
-            return None;
+            return count;
         }
-        Some(play_count + 1)
+        count + 1
     }
     fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, _card: CardIdx) {
         cx.decrement_power(me.owner, me.idx);

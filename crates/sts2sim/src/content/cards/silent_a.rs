@@ -4,7 +4,7 @@
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::VarKind;
-use crate::engine::{Ask, Attack, Targeting};
+use crate::engine::{Ask, Attack, RunResult, Targeting};
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -48,7 +48,7 @@ fn random_hittable_enemy(cx: &mut Combat) -> Option<Cid> {
 
 /// `CardCmd.Discard(cards)` then continue at `after` if a Sly auto-play suspended.
 fn discard_then(cx: &mut Combat, cards: &[CardIdx], after: u8) -> Flow {
-    if cx.discard_cards(cards, 0) {
+    if cx.discard_cards(cards, 0) == RunResult::Suspended {
         Flow::Suspend(after)
     } else {
         Flow::Done
@@ -66,6 +66,12 @@ fn ask_discard_last(cx: &mut Combat, purpose: u16, n: u8) -> Flow {
 fn answer_discard_last(cx: &mut Combat) -> Flow {
     let cards = cx.choice.cards;
     discard_then(cx, cards.as_slice(), DONE)
+}
+
+/// `CardPlaysFinished.Count(HappenedThisTurn && Type == Attack && Player == owner)`. (With the history-log port this is
+/// `hist_count_this_turn(HKind::CardPlayFinished, |e| card_def(e.id).ctype == CardType::Attack)`.)
+fn finished_attacks_this_turn(cx: &Combat) -> i32 {
+    cx.hist.attacks_finished_this_turn as i32
 }
 
 // ---- starters ------------------------------------------------------------------------------------------------------------
@@ -289,7 +295,7 @@ listener!(CalculatedGamble {
             0 => {
                 let hand = cx.player.hand;
                 let n = hand.len() as i32;
-                if cx.discard_cards(hand.as_slice(), n) {
+                if cx.discard_cards(hand.as_slice(), n) == RunResult::Suspended {
                     Flow::Suspend(DONE)
                 } else {
                     Flow::Done
@@ -463,7 +469,7 @@ listener!(FanOfKnives {
 listener!(Finisher {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
-        let hits = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.hist.attacks_finished_this_turn as i32;
+        let hits = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * finished_attacks_this_turn(cx);
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)).hits(hits));
         Flow::Done
     }
@@ -566,7 +572,7 @@ listener!(HiddenDaggers {
                 let n = cx.card_var(p.card, VarKind::Cards) as u8;
                 match cx.ask_hand(ids::card::HIDDEN_DAGGERS, n, n, |_, _| true) {
                     Ask::Resolved(cards) => {
-                        if cx.discard_cards(cards.as_slice(), 0) {
+                        if cx.discard_cards(cards.as_slice(), 0) == RunResult::Suspended {
                             return Flow::Suspend(2);
                         }
                         make_shivs(cx, p)
@@ -576,7 +582,7 @@ listener!(HiddenDaggers {
             }
             1 => {
                 let cards = cx.choice.cards;
-                if cx.discard_cards(cards.as_slice(), 0) {
+                if cx.discard_cards(cards.as_slice(), 0) == RunResult::Suspended {
                     return Flow::Suspend(2);
                 }
                 make_shivs(cx, p)

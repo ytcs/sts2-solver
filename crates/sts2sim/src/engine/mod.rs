@@ -18,3 +18,4 @@ pub use dispatch::*;
 pub use cmds::Ask;
 pub use action::{Action, ActionBuf, ACTION_SPACE};
 pub use turn::BASE_HAND_DRAW;
+pub use play::RunResult;

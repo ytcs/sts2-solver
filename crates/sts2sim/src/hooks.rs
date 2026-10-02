@@ -275,10 +275,10 @@ pub trait Listener: Sync {
     fn should_draw(&self, cx: &Combat, me: Me, from_hand_draw: bool) -> bool {
         true
     }
-    /// `ModifyCardPlayCount(card, target, playCount)` — threaded; `Some(new)` = this listener modified the count
-    /// (Burst, Duplication, ...). Followed by `AfterModifyingCardPlayCount(card)` on every modifier.
-    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, play_count: i32) -> Option<i32> {
-        None
+    /// `ModifyCardPlayCount(card, target, playCount)` — threaded int (Burst, Duplication, ...); a listener that returns a
+    /// different value is a "modifier" and gets `AfterModifyingCardPlayCount(card)` afterwards.
+    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
+        count
     }
     fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
 }

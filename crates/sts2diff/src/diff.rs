@@ -116,16 +116,21 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;
+                let mut picked = 0;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
                         println!("step {i}: pick {p} rejected");
                         return Ok(Verdict::Mismatch);
                     }
+                    picked += 1;
                     if cx.stage != Stage::AwaitChoice {
                         break;
                     }
                 }
-                if cx.stage == Stage::AwaitChoice && !cx.step(Action::Confirm) {
+                // The picks may have completed this decision and immediately raised the NEXT one (replayed plays, Sly
+                // auto-plays): a fresh decision has nothing selected yet, so it must not be confirmed here.
+                let fresh = picked > 0 && cx.decision.as_ref().map_or(false, |d| d.selected.is_empty());
+                if cx.stage == Stage::AwaitChoice && !fresh && !cx.step(Action::Confirm) {
                     println!("step {i}: decision still pending after the oracle's picks");
                     return Ok(Verdict::Mismatch);
                 }

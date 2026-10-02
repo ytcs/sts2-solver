@@ -286,11 +286,12 @@ impl Combat {
     }
 
     /// `CardCmd.DiscardAndDraw` (spec 03 §5.4): discard all (in order), then draw, then auto-play each Sly card in the
-    /// original order. Returns `true` if a Sly auto-play suspended on a decision: the calling effect must return
+    /// original order. Returns `Suspended` if a Sly auto-play suspended on a decision: the calling effect must return
     /// `Flow::Suspend(next)` for the rest of its body (remaining Sly cards are queued and run by the engine first).
-    pub fn discard_cards(&mut self, cards: &[CardIdx], draw: i32) -> bool {
+    pub fn discard_cards(&mut self, cards: &[CardIdx], draw: i32) -> crate::engine::RunResult {
+        use crate::engine::RunResult;
         if self.is_over_or_ending() || cards.is_empty() {
-            return false;
+            return RunResult::Finished;
         }
         let mut sly: ArrayVec<CardIdx, MAX_HAND> = ArrayVec::new();
         for &c in cards {
@@ -312,10 +313,10 @@ impl Combat {
                     q.push(c);
                 }
                 self.sly_queue = q;
-                return true;
+                return RunResult::Suspended;
             }
         }
-        false
+        RunResult::Finished
     }
 
     /// `CreatureCmd.LoseBlock`.
