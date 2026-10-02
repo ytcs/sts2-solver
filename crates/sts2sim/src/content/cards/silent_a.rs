@@ -475,8 +475,14 @@ listener!(Finisher {
     }
 });
 
-// Multiplayer only. Applies FlankingPower to the target enemy.
-listener!(Flanking {});
+// Multiplayer only constraint, but playable in single player (AnyEnemy): applies FlankingPower (x2 damage for every
+// other player than the applier, i.e. no effect solo).
+listener!(Flanking {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        cx.apply_power(ids::power::FLANKING_POWER, p.target, Dec::int(2), PLAYER, p.card);
+        Flow::Done
+    }
+});
 
 // Hits = number of Skills in hand.
 listener!(Flechettes {

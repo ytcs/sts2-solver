@@ -228,3 +228,24 @@ listener!(CorrosiveWavePower {
         }
     }
 });
+
+// ---- Multiplayer leftovers -------------------------------------------------------------------------------------------------------
+
+// Damage multiplier for everyone but the applier; expires at the end of the owner's side turn.
+listener!(FlankingPower {
+    fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
+        if q.target != me.owner || !q.props.is_powered() {
+            return Dec::ONE;
+        }
+        let applier = cx.power_idx(me.owner, me.idx).map_or(NO, |i| cx.cr(me.owner).powers[i].applier);
+        if q.dealer == applier {
+            return Dec::ONE;
+        }
+        Dec::int(cx.power_amount(me.owner, me.id) as i64)
+    }
+    fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
+        if owner_on(cx, me, side) {
+            cx.remove_power(me.owner, me.idx);
+        }
+    }
+});
