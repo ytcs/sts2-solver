@@ -176,6 +176,26 @@ fn sturdy_clamp_keeps_up_to_ten_block() {
     assert_eq!(cx.cr(PLAYER).block, 10);
 }
 
+/// Every relic class is registered except the ones that need engine systems that do not exist yet (see docs/relics.md).
+#[test]
+fn every_relic_is_registered_except_the_known_unported() {
+    const UNPORTED: &[&str] = &[
+        "BONE_FLUTE", "BOUND_PHYLACTERY", "BYRDPIP", "CRACKED_CORE", "DELICATE_FROND", "EMOTION_CHIP", "FENCING_MANUAL",
+        "GOLD_PLATED_CABLES", "INFUSED_CORE", "METRONOME", "PAELS_EYE", "PAELS_LEGION", "PHYLACTERY_UNBOUND", "RUNIC_CAPACITOR",
+        "SYMBIOTIC_VIRUS",
+    ];
+    let mut missing = vec![];
+    for (i, name) in ids::relic::NAMES.iter().enumerate() {
+        if !content::relic_implemented(i as u16) {
+            missing.push(*name);
+        }
+    }
+    let mut want: Vec<&str> = UNPORTED.to_vec();
+    want.sort();
+    missing.sort();
+    assert_eq!(missing, want);
+}
+
 #[test]
 fn combat_state_stays_small() {
     // design.md: `Clone` of a fight is a memcpy of ~14 KB; relic state / hook plumbing must not blow it up.

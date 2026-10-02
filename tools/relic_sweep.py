@@ -15,6 +15,11 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DECK = ("STRIKE_IRONCLAD:3,DEFEND_IRONCLAD:3,BASH,ANGER,ARMAMENTS,TRUE_GRIT,HEADBUTT,BURNING_PACT,THUNDERCLAP,"
         "SWORD_BOOMERANG,CINDER,BLOODLETTING,INFLAME,TWIN_STRIKE,IRON_WAVE,SHRUG_IT_OFF,POMMEL_STRIKE")
 
+WIDE = ("STRIKE_IRONCLAD:2,DEFEND_IRONCLAD:2,BASH,ANGER,ARMAMENTS,HEADBUTT,TRUE_GRIT,BATTLE_TRANCE,BLOOD_WALL,BODY_SLAM,BREAKTHROUGH,"
+        "BULLY,CONFLAGRATION,DEMON_FORM,DARK_EMBRACE,FEEL_NO_PAIN,FIEND_FIRE,FLAME_BARRIER,HAVOC,HEMOKINESIS,IMPERVIOUS,BARRICADE,"
+        "CORRUPTION,CASCADE,ASHEN_STRIKE,BLOODLETTING,DRUM_OF_BATTLE,EXPECT_A_FIGHT,DOMINATE,EVIL_EYE,COLOSSUS,CRUELTY,FEED,FIGHT_ME,"
+        "DISMANTLE,BRAND")
+
 ap = argparse.ArgumentParser()
 ap.add_argument("relics")
 ap.add_argument("--n", type=int, default=40)
@@ -23,6 +28,7 @@ ap.add_argument("--potions", default="")
 ap.add_argument("--hp", type=int)
 ap.add_argument("--props", default="")
 ap.add_argument("--deck", default=DECK)
+ap.add_argument("--wide", action="store_true", help="use the wider mix of ported cards (powers, auto-play, X cost, ...)")
 ap.add_argument("--starter-relic", action="store_true")
 ap.add_argument("--character", default="IRONCLAD")
 ap.add_argument("--max-energy", type=int)
@@ -35,7 +41,7 @@ ap.add_argument("--floor", type=int, default=1)
 a = ap.parse_args()
 
 cmd = [sys.executable, os.path.join(ROOT, "tools/mk_scenario.py"), "--encounter", a.encounter, "--character", a.character,
-       "--deck", a.deck, "--relics", a.relics, "--floor", str(a.floor)]
+       "--deck", WIDE if a.wide else a.deck, "--relics", a.relics, "--floor", str(a.floor)]
 if a.starter_relic:
     cmd.append("--starter")
 if a.potions:
