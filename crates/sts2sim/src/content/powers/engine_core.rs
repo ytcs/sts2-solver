@@ -54,3 +54,15 @@ listener!(NoDrawPower {
         }
     }
 });
+
+// Ambergris: an extra player turn (spec 01 §9.2) for each stack; consumed in `AfterTakingExtraTurn`. Invisible.
+listener!(AmbergrisPower {
+    fn should_take_extra_turn(&self, cx: &Combat, me: Me) -> bool {
+        cx.power_amount(me.owner, me.id) > 0 && me.owner == PLAYER
+    }
+    fn after_taking_extra_turn(&self, cx: &mut Combat, me: Me) {
+        if me.owner == PLAYER {
+            cx.decrement_power(me.owner, me.idx);
+        }
+    }
+});

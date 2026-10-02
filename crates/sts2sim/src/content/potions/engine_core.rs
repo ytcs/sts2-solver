@@ -30,3 +30,15 @@ listener!(Duplicator {
         Flow::Done
     }
 });
+
+// Ambergris (event potion): heal 50% max HP, then take an extra turn after this one (AmbergrisPower).
+listener!(Ambergris {
+    fn on_use_potion(&self, cx: &mut Combat, _potion: u16, target: Cid, _phase: u8) -> Flow {
+        let heal = Dec::int(cx.cr(target).max_hp as i64) * Dec::frac(5, 1);
+        cx.heal(target, heal);
+        if cx.in_progress {
+            cx.apply_power(ids::power::AMBERGRIS_POWER, target, Dec::ONE, PLAYER, NO);
+        }
+        Flow::Done
+    }
+});
