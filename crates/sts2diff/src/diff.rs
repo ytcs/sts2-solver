@@ -116,6 +116,9 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;
+                // A pick can complete this decision and immediately raise the next one (nested auto-play / Sly):
+                // a fresh decision has nothing selected yet and must be answered from the oracle's next `choices` entry.
+                let mut next_decision = false;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
                         println!("step {i}: pick {p} rejected");
@@ -124,8 +127,12 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     if cx.stage != Stage::AwaitChoice {
                         break;
                     }
+                    if cx.decision.as_ref().is_some_and(|d| d.selected.is_empty()) {
+                        next_decision = true;
+                        break;
+                    }
                 }
-                if cx.stage == Stage::AwaitChoice && !cx.step(Action::Confirm) {
+                if cx.stage == Stage::AwaitChoice && !next_decision && !cx.step(Action::Confirm) {
                     println!("step {i}: decision still pending after the oracle's picks");
                     return Ok(Verdict::Mismatch);
                 }
