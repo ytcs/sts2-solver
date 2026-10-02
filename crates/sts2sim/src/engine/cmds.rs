@@ -196,7 +196,10 @@ impl Combat {
                 cands.push(c);
             }
         }
-        if pile == PileType::Draw {
+        // A forced selection (`!RequireManualConfirmation && |L| <= min`) returns the pile's own order; only the screen
+        // shown to the player sorts the draw pile.
+        let forced = min == max && cands.len() <= min as usize;
+        if pile == PileType::Draw && !forced {
             let cards = &self.cards;
             let key = |c: &CardIdx| {
                 let id = cards[*c as usize].id;
