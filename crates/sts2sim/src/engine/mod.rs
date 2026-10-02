@@ -7,6 +7,7 @@ mod damage;
 mod dispatch;
 mod monster;
 mod piles;
+mod potion_gen;
 mod potions;
 mod play;
 mod powers;

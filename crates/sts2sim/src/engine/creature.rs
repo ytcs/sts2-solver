@@ -180,10 +180,6 @@ impl Combat {
 
     /// `KillWithoutCheckingWinCondition` (spec 02 §5.3), single-player path.
     fn kill_without_check(&mut self, c: Cid) {
-        self.kill_wc(c, 0);
-    }
-
-    fn kill_wc(&mut self, c: Cid, recursion: u32) {
         if !self.cr(c).in_combat && c != PLAYER {
             return;
         }
@@ -194,36 +190,12 @@ impl Combat {
             self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, d));
         }
         // BeforeDeath(c) — no content yet.
-        // Hook.ShouldDie: AND over the run-level iterator (every ShouldDie, then every ShouldDieLate); the first vetoer
-        // is the "preventer".
-        let mut preventer: Option<Me> = None;
-        'outer: for bit in [hookbit::should_die, hookbit::should_die_late] {
-            let snap = self.snapshot(Mask::bit(bit));
-            for e in snap.iter() {
-                if self.still_live(&e.me) {
-                    let l = content::listener(&e.me);
-                    let ok = if bit == hookbit::should_die { l.should_die(self, e.me, c) } else { l.should_die_late(self, e.me, c) };
-                    if !ok {
-                        preventer = Some(e.me);
-                        break 'outer;
-                    }
-                }
-            }
+        // ShouldDie / ShouldDieLate preventers (Fairy in a Bottle, Lizard Tail), see `Combat::try_prevent_death`:
+        // `engine-core` owns this sequence — keep this one call when reworking it.
+        if self.try_prevent_death(c) {
+            return;
         }
-        match preventer {
-            None => self.on_died(c),
-            Some(m) => {
-                assert!(recursion < 10, "combat is ending, but something keeps preventing the last creature from dying");
-                // AfterDeath(c, wasRemovalPrevented = true), then AfterPreventingDeath on the preventer.
-                self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c));
-                if self.still_live(&m) {
-                    content::listener(&m).after_preventing_death(self, m, c);
-                }
-                if self.cr(c).is_dead() {
-                    self.kill_wc(c, recursion + 1);
-                }
-            }
-        }
+        self.on_died(c);
     }
 
     fn on_died(&mut self, c: Cid) {

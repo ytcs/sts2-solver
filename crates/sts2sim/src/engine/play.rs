@@ -129,8 +129,8 @@ impl Combat {
         };
         // 5. Hook.ModifyCardPlayResultLocation (guarded, threaded; the pile is the only part modelled).
         let result = self.modify_card_play_result_location(c, play.is_auto, result);
-        // 6. play count: (replay + 1), threaded through Hook.ModifyCardPlayCount (+ AfterModifyingCardPlayCount).
-        let count = self.generate_play_count_for(c, play.target);
+        // 6. play count: (replay + 1), Hook.ModifyCardPlayCount — no content yet.
+        let count = self.generate_play_count(c, play.target);
         play.result_pile = result;
         play.play_count = count;
         // 7. owner dead: the play is abandoned
@@ -329,36 +329,29 @@ impl Combat {
         pile
     }
 
-    /// `CardModel.GeneratePlayCount`: `BaseReplayCount + 1`, threaded through `Hook.ModifyCardPlayCount` (guarded); the
-    /// models that changed it are then told via `AfterModifyingCardPlayCount` (ThrowingAxe marks itself used).
-    pub fn generate_play_count(&mut self, c: CardIdx) -> u8 {
-        self.generate_play_count_for(c, NO)
-    }
-
-    /// `generate_play_count` with the play's target (what `ModifyCardPlayCount` listeners receive).
-    pub fn generate_play_count_for(&mut self, c: CardIdx, target: Cid) -> u8 {
-        let mut count_i = self.cards[c as usize].base_replay.saturating_add(1) as i32;
+    /// `CardModel.GeneratePlayCount`: `(replay count + 1)` threaded through `Hook.ModifyCardPlayCount` (combat-guarded
+    /// listeners, list order), then `AfterModifyingCardPlayCount` on each modifier.
+    pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> u8 {
+        let mut count = self.cards[c as usize].base_replay as i32 + 1;
         if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
             let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
-            let mut mods: super::damage::Mods = super::damage::Mods::new();
+            let mut mods: crate::engine::Mods = crate::engine::Mods::new();
             for e in snap.iter() {
                 if self.still_live(&e.me) {
-                    let n = content::listener(&e.me).modify_card_play_count(self, e.me, c, target, count_i);
-                    if n != count_i {
+                    let n = content::listener(&e.me).modify_card_play_count(self, e.me, c, target, count);
+                    if n != count {
                         mods.push(e.me);
+                        count = n;
                     }
-                    count_i = n;
                 }
             }
-            if !mods.is_empty() {
-                self.dispatch_g(hookbit::after_modifying_card_play_count, |cx, me, l| {
-                    if mods.iter().any(|m| m.kind == me.kind && m.idx == me.idx && m.owner == me.owner) {
-                        l.after_modifying_card_play_count(cx, me, c);
-                    }
-                });
+            for m in mods.iter() {
+                if self.still_live(m) && self.hooks_enabled() {
+                    content::listener(m).after_modifying_card_play_count(self, *m, c);
+                }
             }
         }
-        count_i.clamp(0, 255) as u8
+        count.clamp(0, 255) as u8
     }
 
     /// Advances the in-flight card play until it finishes or needs a decision.

@@ -95,6 +95,8 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
     let mut cx = Combat::new(&sc);
     let mut reported = 0;
     let mut ok = true;
+    let lenient = std::env::var("STS2DIFF_LENIENT").is_ok();
+    let mut first_missing: Option<(usize, String)> = None;
     let mut buf = ActionBuf::new();
     for (i, rec) in trace.iter().enumerate() {
         if i > 0 {
@@ -142,12 +144,27 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             }
         }
         if let Some(m) = missing_name(&cx) {
-            println!("UNIMPLEMENTED {m} (step {i})");
-            return Ok(Verdict::Unimplemented);
+            // STS2DIFF_LENIENT=1: unported *cards* (e.g. offered by a card-generating potion) do not stop the replay;
+            // every step up to and including the one that generated them is still compared, and a divergence on a
+            // later step is reported as UNIMPLEMENTED (the unported card's own effect) instead of a mismatch.
+            if lenient && m.starts_with("card ") {
+                if first_missing.is_none() {
+                    first_missing = Some((i, m));
+                }
+            } else {
+                println!("UNIMPLEMENTED {m} (step {i})");
+                return Ok(Verdict::Unimplemented);
+            }
         }
         let mut diffs = vec![];
         compare("", &snapshot(&cx), rec, &mut diffs);
         if !diffs.is_empty() {
+            if let Some((j, m)) = &first_missing {
+                if i > *j {
+                    println!("UNIMPLEMENTED {m} (step {j}; state diverged at step {i}: {})", diffs.first().map(|s| s.as_str()).unwrap_or(""));
+                    return Ok(Verdict::Unimplemented);
+                }
+            }
             ok = false;
             if !quiet {
                 println!("step {i} (action {}): {} difference(s)", rec["action"], diffs.len());

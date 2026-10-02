@@ -17,6 +17,16 @@ impl Combat {
         0
     }
 
+    /// Generic named potion var (`DynamicVar("Name", v)`), by `gen_cards::var_name::*`.
+    pub fn potion_named_var(&self, potion: u16, name: u16) -> i32 {
+        for v in content::potion_def(potion).vars {
+            if v.kind == VarKind::Named && v.arg == name {
+                return v.base as i32;
+            }
+        }
+        0
+    }
+
     pub fn potion_power_var(&self, potion: u16, power: u16) -> i32 {
         for v in content::potion_def(potion).vars {
             if v.kind == VarKind::Power && v.arg == power {

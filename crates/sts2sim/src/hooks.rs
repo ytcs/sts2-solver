@@ -287,19 +287,9 @@ pub trait Listener: Sync {
     fn modify_x_value(&self, cx: &Combat, me: Me, card: CardIdx, value: i32) -> i32 {
         value
     }
-    /// `ModifyCardPlayCount` (threaded int) / `AfterModifyingCardPlayCount` (only for the modifiers).
-    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
-        count
-    }
-    fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
-    /// `ShouldDie` / `ShouldDieLate` — AND over the run-level iterator; the first vetoer gets `after_preventing_death`.
-    fn should_die(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
-        true
-    }
     fn should_die_late(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
         true
     }
-    fn after_preventing_death(&self, cx: &mut Combat, me: Me, creature: Cid) {}
     /// `Hook.AfterCreatureAddedToCombat` (unguarded): mid-combat spawns (`Combat::notify_creature_added`).
     fn after_creature_added_to_combat(&self, cx: &mut Combat, me: Me, creature: Cid) {}
     /// `AfterModifyingBlockAmount` — only for models that changed the block amount (`card` = source card or `NO`).
@@ -308,12 +298,6 @@ pub trait Listener: Sync {
     fn after_stars_gained(&self, cx: &mut Combat, me: Me, amount: i32) {}
     fn try_modify_star_cost(&self, cx: &Combat, me: Me, card: CardIdx, cost: Dec) -> Option<Dec> {
         None
-    }
-    fn after_potion_discarded(&self, cx: &mut Combat, me: Me, potion: u16) {}
-    fn after_potion_procured(&self, cx: &mut Combat, me: Me, potion: u16) {}
-    /// `ShouldProcurePotion` — AND (Sozu).
-    fn should_procure_potion(&self, cx: &Combat, me: Me, potion: u16) -> bool {
-        true
     }
     /// `Hook.AfterDiedToDoom` (unguarded): the creatures Doom just killed (`Combat::notify_died_to_doom`).
     fn after_died_to_doom(&self, cx: &mut Combat, me: Me, creatures: &[Cid]) {}
@@ -353,6 +337,39 @@ pub trait Listener: Sync {
     fn should_owner_death_trigger_fatal(&self, cx: &Combat, me: Me) -> bool {
         true
     }
+    // ---- potions / death prevention / play count (added by the potions work; append-only) -------------------------
+    /// `ShouldProcurePotion` — AND (Sozu).
+    fn should_procure_potion(&self, cx: &Combat, me: Me, potion: u16) -> bool {
+        true
+    }
+    fn after_potion_procured(&self, cx: &mut Combat, me: Me, potion: u16) {}
+    fn after_potion_discarded(&self, cx: &mut Combat, me: Me, potion: u16) {}
+    /// `ShouldDie` — AND over run + combat listeners; the first listener returning false is the "preventer".
+    fn should_die(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
+        true
+    }
+    /// `AfterPreventingDeath` — called on the preventer only.
+    fn after_preventing_death(&self, cx: &mut Combat, me: Me, creature: Cid) {}
+    /// `ModifyCardPlayCount` (threaded, DuplicationPower / Burst-like effects).
+    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
+        count
+    }
+    fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
+    /// `AfterPowerAmountChanged(power, amount, applier, cardSource)` with the full argument set (the plain
+    /// `after_power_amount_changed` only knows the power id). Dispatched right after it.
+    fn after_power_amount_changed_full(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {}
+}
+
+/// The arguments of `AfterPowerAmountChanged`: `power` is identified by (`target`, `uid`).
+#[derive(Clone, Copy, Debug)]
+pub struct PowerChange {
+    pub power_id: u16,
+    pub target: Cid,
+    pub uid: u16,
+    /// The change (delta), not the new total.
+    pub amount: i32,
+    pub applier: Cid,
+    pub card: CardIdx,
 }
 
 /// Statically derived hook mask of a listener type.
@@ -452,25 +469,26 @@ pub mod hookbit {
         after_preventing_draw,
         after_modifying_hand_draw,
         modify_x_value,
-        modify_card_play_count,
-        after_modifying_card_play_count,
-        should_die,
         should_die_late,
-        after_preventing_death,
         after_creature_added_to_combat,
         after_modifying_block_amount,
         after_stars_spent,
         after_stars_gained,
         try_modify_star_cost,
-        after_potion_discarded,
-        after_potion_procured,
-        should_procure_potion,
         modify_gold_gained,
         should_draw,
         after_card_drawn_early,
         modify_card_play_result_location,
         should_owner_death_trigger_fatal,
         after_died_to_doom,
+        should_procure_potion,
+        after_potion_procured,
+        after_potion_discarded,
+        should_die,
+        after_preventing_death,
+        modify_card_play_count,
+        after_modifying_card_play_count,
+        after_power_amount_changed_full,
     );
     // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
     // The static-metadata pseudo bits sit at the very top of the 192-bit mask: real hooks must stay below them.
