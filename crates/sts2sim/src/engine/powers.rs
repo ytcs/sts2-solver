@@ -139,6 +139,8 @@ impl Combat {
                 }
                 let vi = v.trunc();
                 self.dispatch_g(hookbit::after_power_amount_changed, |cx, m, l| l.after_power_amount_changed(cx, m, id, vi));
+                let ch = PowerChange { power_id: id, target, uid, amount: vi, applier, card };
+                self.dispatch_g(hookbit::after_power_amount_changed_full, |cx, m, l| l.after_power_amount_changed_full(cx, m, &ch));
             }
             return if attached { Some(uid) } else { None };
         }
@@ -226,6 +228,8 @@ impl Combat {
         let vi = v.trunc();
         if vi != 0 {
             self.dispatch_g(hookbit::after_power_amount_changed, |cx, m, l| l.after_power_amount_changed(cx, m, id, vi));
+            let ch = PowerChange { power_id: id, target: c, uid, amount: vi, applier, card };
+            self.dispatch_g(hookbit::after_power_amount_changed_full, |cx, m, l| l.after_power_amount_changed_full(cx, m, &ch));
         }
         if let Some(i) = self.power_idx(c, uid) {
             let d = content::power_def(id);

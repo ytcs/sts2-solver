@@ -141,7 +141,12 @@ impl Combat {
         if hp > 0 {
             self.lose_hp_internal(c, Dec::int(hp as i64));
         }
-        // BeforeDeath(c) — no content yet. ShouldDie preventers (Fairy in a Bottle, Lizard Tail) — none yet.
+        // BeforeDeath(c) — no content yet.
+        // ShouldDie preventers (Fairy in a Bottle; Lizard Tail via `should_die_late` is not ported yet): wired by the
+        // potions work, `engine-core` owns this sequence — keep this one line when reworking it.
+        if self.try_prevent_death(c) {
+            return;
+        }
         self.on_died(c);
     }
 

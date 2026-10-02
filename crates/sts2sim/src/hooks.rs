@@ -269,6 +269,40 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- potions / death prevention / play count (added by the potions work; append-only) -------------------------
+    /// `ShouldProcurePotion` — AND (Sozu).
+    fn should_procure_potion(&self, cx: &Combat, me: Me, potion: u16) -> bool {
+        true
+    }
+    fn after_potion_procured(&self, cx: &mut Combat, me: Me, potion: u16) {}
+    fn after_potion_discarded(&self, cx: &mut Combat, me: Me, potion: u16) {}
+    /// `ShouldDie` — AND over run + combat listeners; the first listener returning false is the "preventer".
+    fn should_die(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
+        true
+    }
+    /// `AfterPreventingDeath` — called on the preventer only.
+    fn after_preventing_death(&self, cx: &mut Combat, me: Me, creature: Cid) {}
+    /// `ModifyCardPlayCount` (threaded, DuplicationPower / Burst-like effects).
+    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
+        count
+    }
+    fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
+    /// `AfterPowerAmountChanged(power, amount, applier, cardSource)` with the full argument set (the plain
+    /// `after_power_amount_changed` only knows the power id). Dispatched right after it.
+    fn after_power_amount_changed_full(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {}
+}
+
+/// The arguments of `AfterPowerAmountChanged`: `power` is identified by (`target`, `uid`).
+#[derive(Clone, Copy, Debug)]
+pub struct PowerChange {
+    pub power_id: u16,
+    pub target: Cid,
+    pub uid: u16,
+    /// The change (delta), not the new total.
+    pub amount: i32,
+    pub applier: Cid,
+    pub card: CardIdx,
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,6 +395,14 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        should_procure_potion,
+        after_potion_procured,
+        after_potion_discarded,
+        should_die,
+        after_preventing_death,
+        modify_card_play_count,
+        after_modifying_card_play_count,
+        after_power_amount_changed_full,
     );
 }
 

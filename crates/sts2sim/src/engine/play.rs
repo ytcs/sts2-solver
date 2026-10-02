@@ -115,13 +115,38 @@ impl Combat {
         };
         // 5. Hook.ModifyCardPlayResultLocation — no content yet.
         // 6. play count: (replay + 1), Hook.ModifyCardPlayCount — no content yet.
-        let count = self.cards[c as usize].base_replay.saturating_add(1);
+        let count = self.generate_play_count(c, play.target);
         play.result_pile = result;
         play.play_count = count;
         // 7-8
         self.player.effect_depth += 1;
         self.play_ctx = Some(PlayCtx { play, step: PlayStep::Before, count, result });
         self.run_play();
+    }
+
+    /// `CardModel.GeneratePlayCount`: `(replay count + 1)` threaded through `Hook.ModifyCardPlayCount` (combat-guarded
+    /// listeners, list order), then `AfterModifyingCardPlayCount` on each modifier.
+    pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> u8 {
+        let mut count = self.cards[c as usize].base_replay as i32 + 1;
+        if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
+            let mut mods: crate::engine::Mods = crate::engine::Mods::new();
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    let n = content::listener(&e.me).modify_card_play_count(self, e.me, c, target, count);
+                    if n != count {
+                        mods.push(e.me);
+                        count = n;
+                    }
+                }
+            }
+            for m in mods.iter() {
+                if self.still_live(m) && self.hooks_enabled() {
+                    content::listener(m).after_modifying_card_play_count(self, *m, c);
+                }
+            }
+        }
+        count.clamp(0, 255) as u8
     }
 
     /// Advances the in-flight card play until it finishes or needs a decision.
