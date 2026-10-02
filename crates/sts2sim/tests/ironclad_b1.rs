@@ -119,3 +119,20 @@ fn thrash_absorbs_the_exhausted_attacks_modified_damage() {
     assert_eq!(cx.card_var(h[0], sts2sim::defs::VarKind::Damage), 4 + 8);
     assert_eq!(cx.player.exhaust.len(), 1);
 }
+
+#[test]
+fn stampede_autoplayed_headbutt_suspends_the_turn_end_and_resumes() {
+    let mut cx = base();
+    cx.apply_power(ids::power::STAMPEDE_POWER, PLAYER, Dec::int(1), PLAYER, NO);
+    set_hand(&mut cx, &[(ids::card::HEADBUTT, 0)]);
+    assert!(cx.step(Action::EndTurn));
+    // Headbutt (auto-played at the end of turn) asks which discarded card goes back on top of the draw pile.
+    assert_eq!(cx.stage, Stage::AwaitChoice);
+    let d = cx.decision.unwrap();
+    let chosen = d.cands[1];
+    assert!(cx.step(Action::Pick { idx: 1 }));
+    // the turn end continued: enemies acted, a new turn started and the chosen card is the first one drawn
+    assert_eq!(cx.stage, Stage::AwaitAction);
+    assert_eq!(cx.round, 2);
+    assert_eq!(cx.player.hand.get(0), Some(chosen));
+}
