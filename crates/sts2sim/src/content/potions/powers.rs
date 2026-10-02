@@ -15,7 +15,7 @@ fn apply_var_power(cx: &mut Combat, potion: u16, power: u16, target: Cid) {
 }
 
 // Potions whose whole effect is `PowerCmd.Apply<T>(target, PowerVar<T>)` (DEX, Focus, Intangible, Gigantification, Plating,
-// Thorns, Buffer, Ritual, Poison, Doom, Regen, Flex, Speed).
+// Thorns, Buffer, Ritual, Poison, Doom, Regen).
 listener!(DexterityPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         apply_var_power(cx, potion, ids::power::DEXTERITY_POWER, target);
@@ -93,16 +93,22 @@ listener!(RegenPotion {
     }
 });
 
+
+
+// Temporary Strength / Dexterity: the potion's var is the inner power's (Strength 5 / Dexterity 5), the applied power is
+// the potion's own temporary power.
 listener!(FlexPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
-        apply_var_power(cx, potion, ids::power::FLEX_POTION_POWER, target);
+        let v = cx.potion_power_var(potion, ids::power::STRENGTH_POWER);
+        cx.apply_power(ids::power::FLEX_POTION_POWER, target, Dec::int(v as i64), PLAYER, NO);
         Flow::Done
     }
 });
 
 listener!(SpeedPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
-        apply_var_power(cx, potion, ids::power::SPEED_POTION_POWER, target);
+        let v = cx.potion_power_var(potion, ids::power::DEXTERITY_POWER);
+        cx.apply_power(ids::power::SPEED_POTION_POWER, target, Dec::int(v as i64), PLAYER, NO);
         Flow::Done
     }
 });
