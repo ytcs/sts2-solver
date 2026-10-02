@@ -43,7 +43,7 @@ impl Combat {
             return RunResult::Finished;
         }
         let mut target = target;
-        match self.card_def(c).target {
+        match self.card_target_type(c) {
             TargetType::AnyEnemy => {
                 if target == NO {
                     let h = self.hittable_enemies();

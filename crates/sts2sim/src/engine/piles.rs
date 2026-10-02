@@ -369,24 +369,29 @@ impl Combat {
 
     /// `CardPileCmd.Draw` (spec 03 §6.3). Returns the number of cards drawn.
     pub fn draw_cards(&mut self, count: i32, from_hand_draw: bool) -> usize {
+        self.draw_cards_list(count, from_hand_draw).len()
+    }
+
+    /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
+    pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+        let mut out = crate::util::ArrayVec::new();
         if self.is_over_or_ending() {
-            return 0;
+            return out;
         }
         // Hook.ShouldDraw (guarded AND): the vetoing model (NoDraw) is told via AfterPreventingDraw.
         if let Some(m) = self.first_veto_g(hookbit::should_draw, |cx, me, l| l.should_draw(cx, me, from_hand_draw)) {
             if self.hooks_enabled() {
                 self.notify_one(m, |cx, me, l| l.after_preventing_draw(cx, me));
             }
-            return 0;
+            return out;
         }
         if count <= 0 {
-            return 0;
+            return out;
         }
         let mut room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         if room == 0 {
-            return 0;
+            return out;
         }
-        let mut drawn = 0;
         for _ in 0..count {
             if room <= 0 || self.is_over_or_ending() {
                 break;
@@ -403,14 +408,14 @@ impl Combat {
                 break;
             }
             self.move_card(card, PileType::Hand, CardPilePosition::Bottom);
-            drawn += 1;
+            out.push(card);
             let id = self.cards[card as usize].id;
             self.hist_push(HKind::CardDrawn, PLAYER, NO, id, card, 0, from_hand_draw as u8, 0, 0);
             self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
             self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         }
-        drawn
+        out
     }
 
     /// `CardCmd.Exhaust`.

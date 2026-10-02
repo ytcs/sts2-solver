@@ -19,34 +19,6 @@ listener!(Whistle {
     }
 });
 
-// Survivor: block, then discard a card from hand (`CardCmd.Discard`: Sly cards auto-play afterwards).
-listener!(Survivor {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        match phase {
-            0 => {
-                let b = cx.card_var(p.card, VarKind::Block);
-                cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::MOVE, p.card);
-                match cx.ask_hand(ids::card::SURVIVOR, 1, 1, |_, _| true) {
-                    Ask::Resolved(cards) => match cards.first() {
-                        Some(c) if cx.discard_cards(&[c], 0) == RunResult::Suspended => Flow::Suspend(2),
-                        _ => Flow::Done,
-                    },
-                    Ask::Pending => Flow::Suspend(1),
-                }
-            }
-            1 => {
-                if let Some(c) = cx.choice.cards.first() {
-                    if cx.discard_cards(&[c], 0) == RunResult::Suspended {
-                        return Flow::Suspend(2);
-                    }
-                }
-                Flow::Done
-            }
-            _ => Flow::Done,
-        }
-    }
-});
-
 // Begone: choose a card in hand; it is transformed into Minion Strike (upgraded iff Begone is).
 listener!(Begone {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {

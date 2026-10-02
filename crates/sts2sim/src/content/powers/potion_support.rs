@@ -59,16 +59,6 @@ listener!(BufferPower {
     }
 });
 
-// ThornsPower: damages the dealer of a powered attack.
-listener!(ThornsPower {
-    fn before_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, _amount: Dec, props: ValueProp, dealer: Cid) {
-        if target == me.owner && dealer != NO && props.is_powered() {
-            let a = cx.power_amount(me.owner, me.id);
-            cx.damage(&[dealer], Dec::int(a as i64), ValueProp::UNPOWERED.or(ValueProp::SKIP_HURT_ANIM), me.owner, NO);
-        }
-    }
-});
-
 // RitualPower: +Strength at the end of the owner's turn (an enemy-applied ritual skips its first tick).
 // `aux` = `_wasJustAppliedByEnemy`.
 listener!(RitualPower {
@@ -90,38 +80,6 @@ listener!(RitualPower {
         }
         let a = cx.power_amount(me.owner, me.id);
         cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(a as i64), me.owner, NO);
-    }
-});
-
-// PoisonPower: at the owner's turn start, deal `Amount` unblockable damage (1 + Accelerants times), losing 1 each time.
-listener!(PoisonPower {
-    fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side != side {
-            return;
-        }
-        let amount = cx.power_amount(me.owner, me.id);
-        let mut accel = 0;
-        let opp: &[Cid] = if cx.cr(me.owner).side == Side::Enemy { &[PLAYER] } else { cx.enemies.as_slice() };
-        let opp: crate::util::ArrayVec<Cid, MAX_CREATURES> = {
-            let mut v = crate::util::ArrayVec::new();
-            for &c in opp {
-                v.push(c);
-            }
-            v
-        };
-        for &c in opp.iter() {
-            if cx.cr(c).is_alive() {
-                accel += cx.power_amount(c, ids::power::ACCELERANT_POWER);
-            }
-        }
-        let iterations = amount.min(1 + accel);
-        for _ in 0..iterations {
-            let a = cx.power_amount(me.owner, me.id);
-            cx.damage(&[me.owner], Dec::int(a as i64), ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED), NO, NO);
-            if cx.cr(me.owner).is_alive() {
-                cx.decrement_power(me.owner, me.idx);
-            }
-        }
     }
 });
 
@@ -154,17 +112,6 @@ listener!(RetainHandPower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if cx.cr(me.owner).side == side {
             cx.decrement_power(me.owner, me.idx);
-        }
-    }
-});
-
-// BlockNextTurnPower: block when the owner's block is cleared at its next turn start.
-listener!(BlockNextTurnPower {
-    fn after_block_cleared(&self, cx: &mut Combat, me: Me, creature: Cid) {
-        if creature == me.owner {
-            let a = cx.power_amount(me.owner, me.id);
-            cx.gain_block(me.owner, Dec::int(a as i64), ValueProp::UNPOWERED, NO);
-            cx.remove_power(me.owner, me.idx);
         }
     }
 });

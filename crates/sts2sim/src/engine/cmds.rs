@@ -4,6 +4,7 @@ use crate::dec::Dec;
 use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
+use crate::defs::VarKind;
 use crate::util::ArrayVec;
 
 /// Result of requesting a decision: either already resolved (empty / forced choice) or pending (the effect must
@@ -352,4 +353,48 @@ impl Combat {
         self.stage = Stage::AwaitAction;
         self.resume_after_decision();
     }
+}
+
+// ---- Silent slice helpers ------------------------------------------------------------------------------------------------
+impl Combat {
+
+    /// `CardCmd.ApplySingleTurnSly`.
+    pub fn apply_single_turn_sly(&mut self, c: CardIdx) {
+        self.cards[c as usize].flags |= cflag::SINGLE_TURN_SLY;
+    }
+
+    /// `CardCmd.ApplySingleTurnRetain`.
+    pub fn apply_single_turn_retain(&mut self, c: CardIdx) {
+        self.cards[c as usize].flags |= cflag::SINGLE_TURN_RETAIN;
+    }
+
+    /// `PowerCmd.Remove<T>(creature)`: removes the creature's power `id` if present.
+    pub fn remove_power_by_id(&mut self, c: Cid, id: u16) {
+        if let Some(uid) = self.cr(c).power(id).map(|p| p.uid) {
+            self.remove_power(c, uid);
+        }
+    }
+
+    /// `Shiv.CreateInHand(owner, count, combatState)`: creates all cards first, then adds them one by one.
+    pub fn create_shivs_in_hand(&mut self, count: i32) -> ArrayVec<CardIdx, MAX_HAND> {
+        let mut shivs: ArrayVec<CardIdx, MAX_HAND> = ArrayVec::new();
+        if count <= 0 || self.is_over_or_ending() {
+            return shivs;
+        }
+        for _ in 0..count.min(MAX_HAND as i32) {
+            if let Some(c) = self.new_card(crate::ids::card::SHIV, 0) {
+                shivs.push(c);
+            }
+        }
+        for i in 0..shivs.len() {
+            let c = shivs[i];
+            self.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
+        }
+        shivs
+    }
+}
+
+// ---- Enchantments (Silent slice: only what Blade of Ink needs) ------------------------------------------------------------
+impl Combat {
+
 }

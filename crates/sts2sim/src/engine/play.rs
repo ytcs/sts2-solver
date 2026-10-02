@@ -18,9 +18,19 @@ pub enum RunResult {
 }
 
 impl Combat {
+    /// `CardModel.TargetType` (Silent slice): Shiv targets all enemies while its owner has Fan of Knives.
+    pub fn card_target_type(&self, c: CardIdx) -> TargetType {
+        let d = self.card_def(c);
+        if d.id == crate::ids::card::SHIV && self.has_power(PLAYER, crate::ids::power::FAN_OF_KNIVES_POWER) {
+            TargetType::AllEnemies
+        } else {
+            d.target
+        }
+    }
+
     /// `CardModel.IsValidTarget`.
     pub fn is_valid_target(&self, c: CardIdx, t: Cid) -> bool {
-        let tt = self.card_def(c).target;
+        let tt = self.card_target_type(c);
         if t == NO {
             return tt != TargetType::AnyEnemy && tt != TargetType::AnyAlly;
         }
@@ -87,7 +97,7 @@ impl Combat {
         if d.x_cost && self.card_star_cost(c) > self.player.stars {
             return false;
         }
-        if d.target == TargetType::AnyAlly {
+        if self.card_target_type(c) == TargetType::AnyAlly {
             return false; // single-player: NoLivingAllies
         }
         if self.should_play_preventer(c, AutoPlayType::None).is_some() {
