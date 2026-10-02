@@ -223,10 +223,18 @@ listener!(RupturePower {
 });
 
 // ---- Stampede: at end of turn auto-play `Amount` random attacks from hand -----------------------------------------------------
+// `aux` = iterations already done: an auto-played card may suspend on a decision (Headbutt), in which case the end of
+// turn re-enters this hook after the decision and the loop continues from `aux`.
 listener!(StampedePower {
     fn after_auto_post_play_phase_entered(&self, cx: &mut Combat, me: Me) {
-        let mut i = 0;
-        while i < cx.power_amount(me.owner, me.id) {
+        loop {
+            let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
+            let done = cx.cr(me.owner).powers[i].aux;
+            if done >= cx.cr(me.owner).powers[i].amount {
+                cx.cr_mut(me.owner).powers[i].aux = 0;
+                return;
+            }
+            cx.cr_mut(me.owner).powers[i].aux = done + 1;
             let mut items: crate::util::ArrayVec<CardIdx, 16> = crate::util::ArrayVec::new();
             for &c in cx.player.hand.iter() {
                 if cx.card_def(c).ctype == CardType::Attack && cx.card_keywords(c) & kw::UNPLAYABLE == 0 {
@@ -236,8 +244,10 @@ listener!(StampedePower {
             if !items.is_empty() {
                 let k = cx.rng.shuffle.next_int_range(0, items.len() as i32) as usize;
                 cx.auto_play(items[k], NO);
+                if cx.stage == Stage::AwaitChoice {
+                    return;
+                }
             }
-            i += 1;
         }
     }
 });

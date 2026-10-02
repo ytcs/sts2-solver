@@ -122,6 +122,7 @@ impl Combat {
             potion_ctx: None,
             decision: None,
             choice: Choice::default(),
+            end_turn_resume: None,
             missing: None,
         };
         // Player creature (CombatId 0).

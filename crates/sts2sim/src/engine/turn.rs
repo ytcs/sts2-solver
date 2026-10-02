@@ -204,7 +204,48 @@ impl Combat {
         self.stage = Stage::AwaitAction; // not accepting actions while resolving
         // ---- phase one ----
         self.player.phase = Phase::AutoPostPlay;
-        self.dispatch_g(hookbit::after_auto_post_play_phase_entered, |cx, me, l| l.after_auto_post_play_phase_entered(cx, me));
+        if !self.run_post_play_hooks(None) {
+            return; // an auto-played card (Stampede) asked for a decision; `resume_after_decision` continues the turn end
+        }
+        self.end_player_turn_rest();
+    }
+
+    /// `Hook.AfterAutoPostPlayPhaseEntered` pass. Returns false if a listener suspended on a decision (the listener is
+    /// remembered in `end_turn_resume` and re-entered when the decision is done; it must keep its own loop progress).
+    fn run_post_play_hooks(&mut self, resume: Option<Me>) -> bool {
+        if !(self.listen.has(hookbit::after_auto_post_play_phase_entered) && self.hooks_enabled()) {
+            return true;
+        }
+        let snap = self.snapshot(Mask::bit(hookbit::after_auto_post_play_phase_entered));
+        let mut started = resume.is_none();
+        for e in snap.iter() {
+            if !started {
+                match resume {
+                    Some(r) if r.kind == e.me.kind && r.owner == e.me.owner && r.idx == e.me.idx => started = true,
+                    _ => continue,
+                }
+            }
+            if self.still_live(&e.me) {
+                content::listener(&e.me).after_auto_post_play_phase_entered(self, e.me);
+                if self.stage == Stage::AwaitChoice {
+                    self.end_turn_resume = Some(e.me);
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    /// Continues the end of the player's turn after the post-play phase hooks were interrupted by a decision.
+    fn resume_end_turn(&mut self, me: Me) {
+        if !self.run_post_play_hooks(Some(me)) {
+            return;
+        }
+        self.end_player_turn_rest();
+    }
+
+    /// Rest of phase one + phase two of the turn end (from `Phase::End` on).
+    fn end_player_turn_rest(&mut self) {
         self.player.phase = Phase::End;
         self.dispatch_g(hookbit::before_side_turn_end_very_early, |cx, me, l| l.before_side_turn_end_very_early(cx, me, Side::Player));
         self.dispatch_g(hookbit::before_side_turn_end_early, |cx, me, l| l.before_side_turn_end_early(cx, me, Side::Player));
@@ -471,6 +512,11 @@ impl Combat {
     pub(crate) fn resume_after_decision(&mut self) {
         if self.play_ctx.is_some() {
             self.run_play();
+            if self.play_ctx.is_none() && self.stage != Stage::AwaitChoice {
+                if let Some(me) = self.end_turn_resume.take() {
+                    self.resume_end_turn(me);
+                }
+            }
         } else if self.potion_ctx.is_some() {
             self.run_potion();
         }

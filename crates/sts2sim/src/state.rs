@@ -393,6 +393,9 @@ pub struct Combat {
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
+    /// The `AfterAutoPostPlayPhaseEntered` listener that suspended (auto-played card raised a decision) while the
+    /// player's turn was ending; the turn end resumes from it once the decision is made.
+    pub end_turn_resume: Option<crate::hooks::Me>,
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
