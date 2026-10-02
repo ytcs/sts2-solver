@@ -413,9 +413,10 @@ impl Combat {
         self.end_of_turn_cleanup();
         self.dispatch_g(hookbit::after_side_turn_end, |cx, me, l| l.after_side_turn_end(cx, me, Side::Enemy));
         self.dispatch_g(hookbit::after_side_turn_end_late, |cx, me, l| l.after_side_turn_end_late(cx, me, Side::Enemy));
-        if self.check_win_condition() {
-            return;
-        }
+        // `EndEnemyTurn`: CheckWinCondition, then `if (!IsCombatEnding) SwitchSides` — but `IsCombatEnding` is false once
+        // the combat has already been ended by that check (`!IsInProgress`), so the side switch (round++, turn number++,
+        // side = Player) still happens after a win at the end of the enemy turn (e.g. Demise kill). Observed in the oracle.
+        self.check_win_condition();
         self.switch_sides();
     }
 

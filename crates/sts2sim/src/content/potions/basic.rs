@@ -2,7 +2,6 @@
 
 use crate::dec::Dec;
 use crate::defs::VarKind;
-use crate::engine::Attack;
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
