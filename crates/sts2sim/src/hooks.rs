@@ -351,9 +351,6 @@ pub trait Listener: Sync {
     fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
         count
     }
-    /// `AfterPowerAmountChanged(power, amount, applier, cardSource)` with the full argument set (the plain
-    /// `after_power_amount_changed` only knows the power id). Dispatched right after it.
-    fn after_power_amount_changed_full(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {}
     /// [G] `ModifyCardPlayResultLocation` (threaded; recorded when changed). `energy_value` = `ResourceInfo.EnergyValue`
     /// (the play's cost / captured X, also for auto-plays that spend nothing; FeralPower tests `energy_value > 0`).
     fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, is_auto: bool, energy_value: i32, loc: CardLocation) -> CardLocation {
@@ -661,7 +658,6 @@ pub mod hookbit {
         after_potion_discarded,
         after_potion_procured,
         after_modifying_card_play_count,
-        after_power_amount_changed_full,
         after_modifying_card_play_result_location,
         after_modifying_energy_gain,
         after_modifying_hand_draw,

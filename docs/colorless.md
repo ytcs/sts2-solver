@@ -21,22 +21,15 @@ Conventions worth knowing:
 * Multiplayer-only cards (Beacon of Hope, Believe in You, Coordinate, Gang Up, Huddle Up, Intercept, Knockdown, Lift, Mimic,
   Rally, Tag Team, The Ball) are ported with their single-player behaviour; the `AnyAlly` ones can never be played with one player.
 
-## Decisions raised from inside a hook (Entropy, Stratagem) — `engine/ext.rs`
+## Decisions raised from inside a hook (Entropy, Stratagem)
 
-The game awaits the choice in the middle of a hook dispatch (`EntropyPower.AfterPlayerTurnStart`, `StratagemPower.AfterShuffle`
-inside a draw). Hooks are plain calls here, so the whole *agent step* is rolled back and replayed instead:
+Both use the canonical mechanism (`cx.hook_ctx = Some((me, phase))` + `Listener::resume_hook`, turn start resumed through
+`turn_cont`), so the agent always sees the real state.
 
-1. `Combat::step` snapshots the state (cheap `Copy`; only when `ExtState::unwind_enabled`, set by `new_card` for Entropy /
-   Stratagem) and runs the step.
-2. A hook calls `cx.hook_decision(cx.ask_*(..), kind, id)`. If the decision is real and no recorded answer exists the step is
-   marked for rollback, the hook sees an empty selection and the step finishes "blind".
-3. `step` restores the snapshot, shows the decision (`stage = AwaitChoice`), and when the agent has answered re-executes the same
-   action with the answer in `ExtState::replay_answers`; every hook-decision site consumes its answer in order, so the
-   re-execution is bit-identical (RNG streams included) and may raise the next hook decision the same way.
-Between the rollback and the answer the observation shows the state *before* the action plus the decision's candidates.
-A hook decision in a combat that did not announce such cards is flagged `missing` (never silently wrong).
-The relics branch has a different mechanism for turn-start hooks (`suspend_hook_for_decision`); both can coexist.
+* Entropy (`AfterPlayerTurnStart`): like Tools of the Trade; the transform runs in `resume_hook` via `transform_cards(&[c], &[None])`.
+* Stratagem (`AfterShuffle`): resumable only during the turn-start hand draw (`Combat::drawing_hand`, `draw_resume`, `turn_cont == 3`
+  in `engine/turn.rs`/`piles.rs`). A reshuffle prompt during any other draw (a card's draw, Mayhem's auto-play) is flagged `missing`.
+* Inherited engine-core limitation: the listeners after the suspending one in the same turn-start pass still run before the
+  decision is answered (the game awaits). Entropy + another turn-start effect that changes the board (Rolling Boulder) can diverge.
 
-Hook-driven `AutoPlayFromDrawPile` (Mayhem) keeps its remaining cards in `ExtState::autoplay_queue`; `resume_after_decision`
-continues it after a nested card that asked for a decision. Card effects (Beat Down, Catastrophe) use `auto_play` /
-`Flow::Suspend` as documented in `play.rs`.
+Hook-driven `AutoPlayFromDrawPile` (Mayhem) and Beat Down / Catastrophe use the canonical `auto_play` / `RunResult::Suspended`.

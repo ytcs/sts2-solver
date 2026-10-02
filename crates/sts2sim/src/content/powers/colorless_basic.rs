@@ -154,7 +154,7 @@ listener!(DarkShacklesPower {
     fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
         cx.temp_before_applied(ids::power::STRENGTH_POWER, -1, target, amount, applier, card);
     }
-    fn after_power_amount_changed_full(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
+    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
         cx.temp_after_amount_changed(me, ids::power::STRENGTH_POWER, -1, ch);
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
@@ -165,7 +165,7 @@ listener!(CoordinatePower {
     fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
         cx.temp_before_applied(ids::power::STRENGTH_POWER, 1, target, amount, applier, card);
     }
-    fn after_power_amount_changed_full(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
+    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
         cx.temp_after_amount_changed(me, ids::power::STRENGTH_POWER, 1, ch);
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
