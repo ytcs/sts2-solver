@@ -1,0 +1,120 @@
+{
+ "name": "ench_attacks",
+ "ascension": 10,
+ "encounter": "NIBBITS_WEAK",
+ "character": "IRONCLAD",
+ "hp": 80,
+ "max_hp": 80,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  {
+   "id": "STRIKE_IRONCLAD",
+   "enchantment": {
+    "id": "SHARP",
+    "amount": 2
+   }
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "enchantment": {
+    "id": "VIGOROUS",
+    "amount": 3
+   }
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "enchantment": {
+    "id": "INSTINCT",
+    "amount": 1
+   }
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "enchantment": {
+    "id": "CORRUPTED",
+    "amount": 1
+   }
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "enchantment": {
+    "id": "MOMENTUM",
+    "amount": 2
+   }
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "enchantment": {
+    "id": "GLAM",
+    "amount": 1
+   }
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "enchantment": {
+    "id": "TEZCATARAS_EMBER",
+    "amount": 1
+   }
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "enchantment": {
+    "id": "SPIRAL",
+    "amount": 1
+   }
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "enchantment": {
+    "id": "INKY",
+    "amount": 1
+   }
+  },
+  {
+   "id": "BASH",
+   "enchantment": {
+    "id": "SHARP",
+    "amount": 4
+   },
+   "upgrade": 1
+  },
+  {
+   "id": "TWIN_STRIKE",
+   "enchantment": {
+    "id": "VIGOROUS",
+    "amount": 2
+   }
+  },
+  {
+   "id": "THUNDERCLAP",
+   "enchantment": {
+    "id": "INSTINCT",
+    "amount": 1
+   }
+  },
+  {
+   "id": "ANGER",
+   "enchantment": {
+    "id": "MOMENTUM",
+    "amount": 1
+   }
+  },
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": []
+}

@@ -15,6 +15,12 @@ impl Combat {
 
     /// `CombatState.CreateCard` / `CloneCard`: allocates a card instance in the arena (in no pile).
     pub fn new_card(&mut self, id: u16, upgrade: u8) -> Option<CardIdx> {
+        self.new_card_ex(id, upgrade, 0, 0)
+    }
+
+    /// Like `new_card` for a saved card (`CardModel.FromSerializable`): the enchantment (`enchant` = id + 1, 0 = none) is
+    /// applied FIRST (`OnEnchant` runs on the un-upgraded card), then the upgrades.
+    pub fn new_card_ex(&mut self, id: u16, upgrade: u8, enchant: u8, enchant_amount: i16) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
             debug_assert!(false, "card arena full");
             return None;
@@ -34,6 +40,13 @@ impl Combat {
             dupe_of: NO,
             ..Default::default()
         };
+        if enchant != 0 {
+            let eid = (enchant - 1) as u16;
+            if !content::enchantment_implemented(eid) {
+                self.flag_missing(Kind::Enchantment, eid);
+            }
+            self.enchant_unchecked(idx, eid, enchant_amount as i32);
+        }
         for _ in 0..upgrade {
             self.upgrade_card(idx);
         }

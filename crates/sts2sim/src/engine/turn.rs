@@ -352,7 +352,7 @@ impl Combat {
             }
             card.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::SINGLE_TURN_RETAIN | cflag::SINGLE_TURN_SLY);
             if !card.mods.is_empty() {
-                let mut kept: crate::util::ArrayVec<CostMod, 3> = crate::util::ArrayVec::new();
+                let mut kept: crate::engine::CostMods = crate::util::ArrayVec::new();
                 for m in card.mods.iter() {
                     if m.expire & EXPIRE_END_OF_TURN == 0 {
                         kept.push(*m);

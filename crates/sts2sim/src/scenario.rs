@@ -41,6 +41,24 @@ pub struct Scenario {
     pub rng: RngSet,
 }
 
+/// Optional per-card inputs of a saved deck card (`SerializableCard.enchantment` / `props`). Kept out of `DeckCard` so
+/// existing `DeckCard { id, upgrade }` literals keep compiling; `deck[i]` extras are index-aligned with `Scenario::deck`
+/// (missing entries = no enchantment, zero props).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DeckExtra {
+    /// Enchantment id + 1 (`ids::enchantment::*` + 1); 0 = none.
+    pub enchant: u8,
+    pub enchant_amount: i16,
+    /// The card's `[SavedProperty]` values (ints / bools in the order of the scenario JSON), stored in `Card::counter`.
+    pub props: [i16; 2],
+}
+
+/// Everything optional about a combat's initial conditions (see `Combat::new_with`).
+#[derive(Clone, Debug, Default)]
+pub struct ScenarioExtras {
+    pub deck: Vec<DeckExtra>,
+}
+
 #[derive(Debug)]
 pub enum ScenarioError {
     UnimplementedCard(&'static str),
@@ -80,6 +98,11 @@ impl Scenario {
 impl Combat {
     /// Builds the combat and runs it up to the first player decision (spec 01 §3-4).
     pub fn new(sc: &Scenario) -> Combat {
+        Self::new_with(sc, &ScenarioExtras::default())
+    }
+
+    /// `new` plus the optional inputs (deck card enchantments / saved properties).
+    pub fn new_with(sc: &Scenario, ex: &ScenarioExtras) -> Combat {
         sc.validate().expect("invalid scenario");
         let player_state = PlayerState {
             energy: 0,
@@ -133,6 +156,7 @@ impl Combat {
             sly_queue: ArrayVec::new(),
             hist_log: Default::default(),
             decision_seq: 0,
+            deck_enchant_inc: [0; 80],
         };
         // Player creature (CombatId 0).
         cx.creatures[PLAYER as usize] = Creature {
@@ -163,7 +187,9 @@ impl Combat {
         }
         // PopulateCombatState: clone deck in order, then the initial (unsorted) shuffle.
         for (i, d) in sc.deck.iter().enumerate() {
-            let c = cx.new_card(d.id, d.upgrade).expect("card arena");
+            let x = ex.deck.get(i).copied().unwrap_or_default();
+            let c = cx.new_card_ex(d.id, d.upgrade, x.enchant, x.enchant_amount).expect("card arena");
+            cx.cards[c as usize].counter = x.props;
             cx.cards[c as usize].deck_idx = i as u8;
             cx.cards[c as usize].pile = PileType::Draw as u8;
             cx.player.draw.push(c);

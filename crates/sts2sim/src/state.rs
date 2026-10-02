@@ -81,7 +81,7 @@ pub struct Card {
     /// Base energy cost after upgrades (`CardEnergyCost._base`); -1 = no cost.
     pub cost_base: i8,
     pub x_value: i16,
-    pub mods: ArrayVec<CostMod, 3>,
+    pub mods: crate::engine::CostMods,
     /// Per-card persistent counters (Rampage damage, Regret, ...), meaning defined by the card.
     pub counter: [i16; 2],
     /// Deck index this combat card was cloned from (`DeckVersion`), `NO` if none.
@@ -407,4 +407,6 @@ pub struct Combat {
     pub hist_log: crate::engine::HistLog,
     /// Number of decisions raised so far (lets a driver tell "the same decision" from "the next one").
     pub decision_seq: u32,
+    /// `DeckVersion` write-backs of enchantment amounts (Goopy): increments per deck index (outputs of the combat).
+    pub deck_enchant_inc: [u8; 80],
 }

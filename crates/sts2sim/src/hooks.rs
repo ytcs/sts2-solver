@@ -484,9 +484,25 @@ pub trait Listener: Sync {
     /// `EnchantmentModel.OnPlay` / `AfflictionModel.OnPlay` — run in the replay loop after the card's `OnPlay`.
     fn on_play_enchantment(&self, cx: &mut Combat, me: Me, play: &CardPlay) {}
     fn on_play_affliction(&self, cx: &mut Combat, me: Me, play: &CardPlay) {}
-    /// `AfflictionModel.CanAfflict(card)`.
-    fn can_afflict(&self, cx: &Combat, me: Me, card: CardIdx) -> bool {
+    /// `EnchantmentModel.CanEnchantCardType` / `CanEnchant` (default: the base rule + the type check).
+    fn can_enchant_card_type(&self, card_type: CardType) -> bool {
         true
+    }
+    fn can_enchant(&self, cx: &Combat, me: Me, card: CardIdx) -> bool {
+        cx.base_can_enchant(card, self.can_enchant_card_type(cx.card_def(card).ctype))
+    }
+    /// `AfflictionModel.CanAfflictCardType` / `CanAfflictUnplayableCards` / `IsStackable` / `CanAfflict(card)`.
+    fn can_afflict_card_type(&self, card_type: CardType) -> bool {
+        true
+    }
+    fn can_afflict_unplayable_cards(&self) -> bool {
+        true
+    }
+    fn affliction_is_stackable(&self) -> bool {
+        false
+    }
+    fn can_afflict(&self, cx: &Combat, me: Me, card: CardIdx) -> bool {
+        cx.base_can_afflict(me, card)
     }
 
     /// [G] `ShouldPlay` with the auto-play type (`AutoPlayType.None` for manual plays / `CanPlay`). Content that only
@@ -665,6 +681,11 @@ pub mod hookbit {
         on_play_enchantment,
         on_play_affliction,
         can_afflict,
+        can_enchant_card_type,
+        can_enchant,
+        can_afflict_card_type,
+        can_afflict_unplayable_cards,
+        affliction_is_stackable,
         should_play_kind,
         get_result_location_for_card_play,
     );

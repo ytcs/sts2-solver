@@ -4,7 +4,7 @@ use serde_json::Value;
 use sts2sim::ids;
 use sts2sim::rng::{deterministic_hash, Rng};
 use sts2sim::state::RngSet;
-use sts2sim::{DeckCard, RelicInit, Scenario};
+use sts2sim::{DeckCard, DeckExtra, RelicInit, Scenario, ScenarioExtras};
 
 fn strip(id: &str) -> &str {
     id.split_once('.').map_or(id, |(_, r)| r)
@@ -19,6 +19,11 @@ fn id_of(v: &Value) -> &str {
 }
 
 pub fn scenario(v: &Value) -> Result<Scenario, String> {
+    scenario_ex(v).map(|(s, _)| s)
+}
+
+/// The scenario plus the optional per-card inputs (enchantments, saved properties).
+pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
     let character = match v["character"].as_str().unwrap_or("IRONCLAD") {
         "IRONCLAD" => 0,
         "SILENT" => 1,
@@ -51,7 +56,20 @@ pub fn scenario(v: &Value) -> Result<Scenario, String> {
         }
     }
     let mut deck = vec![];
+    let mut extras = ScenarioExtras::default();
     for c in v["deck"].as_array().ok_or("scenario needs an explicit deck")? {
+        let mut x = DeckExtra::default();
+        if let Some(e) = c.get("enchantment") {
+            let eid = if e.is_string() { e.as_str().unwrap() } else { e["id"].as_str().unwrap_or("") };
+            x.enchant = find(&ids::enchantment::NAMES, eid, "enchantment")? as u8 + 1;
+            x.enchant_amount = e["amount"].as_i64().unwrap_or(1) as i16;
+        }
+        if let Some(p) = c["props"].as_object() {
+            for (i, v) in p.values().filter_map(|v| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64))).take(2).enumerate() {
+                x.props[i] = v as i16;
+            }
+        }
+        extras.deck.push(x);
         deck.push(DeckCard { id: find(&ids::card::NAMES, id_of(c), "card")?, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8 });
     }
     let mut relics = vec![];
@@ -69,7 +87,7 @@ pub fn scenario(v: &Value) -> Result<Scenario, String> {
         potions.push(find(&ids::potion::NAMES, id_of(p), "potion")?);
     }
     let hp = v["hp"].as_i64().unwrap_or(80) as i32;
-    Ok(Scenario {
+    Ok((Scenario {
         run_seed,
         total_floor: v["total_floor"].as_i64().unwrap_or(1) as i32,
         character,
@@ -84,5 +102,5 @@ pub fn scenario(v: &Value) -> Result<Scenario, String> {
         relics,
         potions,
         rng,
-    })
+    }, extras))
 }

@@ -89,10 +89,10 @@ fn missing_name(cx: &Combat) -> Option<String> {
 
 pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: bool) -> Result<Verdict, String> {
     let sv: Value = serde_json::from_str(&std::fs::read_to_string(scenario_path).map_err(|e| format!("{scenario_path}: {e}"))?).map_err(|e| e.to_string())?;
-    let sc = convert::scenario(&sv)?;
+    let (sc, extras) = convert::scenario_ex(&sv)?;
     sc.validate().map_err(|e| format!("not implemented in the simulator: {e:?}"))?;
     let trace = load_jsonl(trace_path)?;
-    let mut cx = Combat::new(&sc);
+    let mut cx = Combat::new_with(&sc, &extras);
     let mut reported = 0;
     let mut ok = true;
     let mut buf = ActionBuf::new();

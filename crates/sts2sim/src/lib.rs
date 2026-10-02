@@ -20,5 +20,5 @@ pub mod types;
 pub mod util;
 
 pub use engine::Action;
-pub use scenario::{DeckCard, RelicInit, Scenario};
+pub use scenario::{DeckCard, DeckExtra, RelicInit, Scenario, ScenarioExtras};
 pub use state::{Combat, Stage};
