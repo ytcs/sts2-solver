@@ -20,7 +20,7 @@ pub const OBS_POWERS: usize = 16;
 pub const OBS_INTENTS: usize = 3;
 
 /// Per-card features (`CARD_F` floats).
-pub const CARD_F: usize = 10;
+pub const CARD_F: usize = 12;
 /// Per-enemy features (`ENEMY_F` floats).
 pub const ENEMY_F: usize = 8 + OBS_POWERS * 2 + OBS_INTENTS * 3 + 4;
 const GLOBAL_F: usize = 10;
@@ -90,6 +90,8 @@ impl Combat {
         w.n(blk);
         w.n(card.counter[0] as i32);
         w.n(card.counter[1] as i32);
+        w.n(card.enchant_amount as i32);
+        w.n(card.affliction as i32);
     }
 
     fn write_pile_list(&self, w: &mut W, pile: &[CardIdx], sorted_multiset: bool) {
@@ -193,7 +195,7 @@ impl Combat {
             w.n(cr.max_hp);
             w.n(cr.block);
             w.n(cr.is_alive() as i32);
-            w.n(ms.stunned as i32);
+            w.n(self.is_stunned(e) as i32);
             for j in 0..OBS_POWERS {
                 match cr.powers.get(j) {
                     Some(p) => {
@@ -204,10 +206,9 @@ impl Combat {
                 }
             }
             // current intent(s)
-            let def = content::monster_def(ms.id);
             let mut n_int = 0;
             if ms.next_move != NO {
-                if let MonsterNode::Move { intents, .. } = &def.nodes[ms.next_move as usize] {
+                if let Some((_, intents)) = self.move_view(e) {
                     for it in intents.iter().take(OBS_INTENTS) {
                         let (kind, dmg, hits) = match it {
                             Intent::Attack { damage, hits } => (1, self.intent_damage(e, damage(self, e)), hits(self, e)),

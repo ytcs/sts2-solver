@@ -1,0 +1,174 @@
+//! Energy / stars commands (`PlayerCmd.GainEnergy` ...), X values, star costs and the "after modifying" dispatch helper.
+
+use super::damage::Mods;
+use crate::content;
+use crate::dec::Dec;
+use crate::engine::HKind;
+use crate::hooks::*;
+use crate::state::*;
+use crate::types::*;
+
+impl Combat {
+    /// `Hook.After*Modifying*(…, modifiers)` pattern: re-enumerates the listeners of the hook (fresh snapshot) and
+    /// calls `f` only for the models recorded in `mods` — in listener order, once per model even if it was recorded
+    /// by several passes (spec 02 §0).
+    pub fn dispatch_modifiers(&mut self, guarded: bool, bit: u32, mods: &Mods, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {
+        if mods.is_empty() || !self.listen.has(bit) || (guarded && !self.hooks_enabled()) {
+            return;
+        }
+        let snap = self.snapshot(Mask::bit(bit));
+        for e in snap.iter() {
+            if self.still_live(&e.me) && mods.iter().any(|m| m.kind == e.me.kind && m.owner == e.me.owner && m.idx == e.me.idx) {
+                f(self, e.me, content::listener(&e.me));
+            }
+        }
+    }
+
+    // ---- energy ----------------------------------------------------------------------------------------------------
+
+    /// `Hook.ModifyEnergyGain` (guarded, threaded): the models whose `(int)` value changed are recorded.
+    fn modify_energy_gain(&self, amount: Dec) -> (Dec, Mods) {
+        let mut v = amount;
+        let mut mods = Mods::new();
+        if self.listen.has(hookbit::modify_energy_gain) && self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_energy_gain));
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    let n = content::listener(&e.me).modify_energy_gain(self, e.me, v);
+                    if v.trunc() != n.trunc() {
+                        mods.push(e.me);
+                    }
+                    v = n;
+                }
+            }
+        }
+        (v, mods)
+    }
+
+    /// `PlayerCmd.GainEnergy(amount)`.
+    pub fn gain_energy(&mut self, n: i32) {
+        self.gain_energy_dec(Dec::int(n as i64));
+    }
+
+    pub fn gain_energy_dec(&mut self, amount: Dec) {
+        if amount <= Dec::ZERO || self.is_ending() {
+            return;
+        }
+        let (fin, mods) = self.modify_energy_gain(amount);
+        self.dispatch_modifiers(true, hookbit::after_modifying_energy_gain, &mods, |cx, me, l| l.after_modifying_energy_gain(cx, me));
+        if fin > Dec::ZERO {
+            self.player.energy = (self.player.energy as i64 + fin.trunc() as i64).clamp(0, 999_999_999) as i32;
+        }
+    }
+
+    /// `PlayerCmd.LoseEnergy(amount)`.
+    pub fn lose_energy(&mut self, n: i32) {
+        if n <= 0 || self.is_ending() {
+            return;
+        }
+        self.player.energy = (self.player.energy - n).clamp(0, 999_999_999);
+    }
+
+    /// `PlayerCmd.SetEnergy(amount)`: gain / lose the difference.
+    pub fn set_energy(&mut self, n: i32) {
+        if self.is_ending() {
+            return;
+        }
+        let e = self.player.energy;
+        if e < n {
+            self.gain_energy(n - e);
+        } else if e > n {
+            self.lose_energy(e - n);
+        }
+    }
+
+    // ---- stars -----------------------------------------------------------------------------------------------------
+
+    /// `PlayerCmd.GainStars` (`ShouldGainStars` AND, then `AfterStarsGained`).
+    pub fn gain_stars(&mut self, n: i32) {
+        if self.is_ending() {
+            return;
+        }
+        if self.first_veto_g(hookbit::should_gain_stars, |cx, me, l| l.should_gain_stars(cx, me, Dec::int(n as i64))).is_some() {
+            return;
+        }
+        let old = self.player.stars;
+        self.player.stars = (old + n).max(0);
+        let delta = self.player.stars - old;
+        if delta != 0 {
+            self.hist_push(HKind::StarsModified, PLAYER, NO, 0, NO, delta, 0, 0, 0);
+        }
+        self.dispatch_g(hookbit::after_stars_gained, |cx, me, l| l.after_stars_gained(cx, me, n));
+    }
+
+    /// `PlayerCmd.LoseStars`.
+    pub fn lose_stars(&mut self, n: i32) {
+        if n <= 0 || self.is_ending() {
+            return;
+        }
+        let old = self.player.stars;
+        self.player.stars = (old - n).max(0);
+        let delta = self.player.stars - old;
+        if delta != 0 {
+            self.hist_push(HKind::StarsModified, PLAYER, NO, 0, NO, delta, 0, 0, 0);
+        }
+    }
+
+    /// `PlayerCmd.SetStars`.
+    pub fn set_stars(&mut self, n: i32) {
+        if self.is_ending() {
+            return;
+        }
+        let s = self.player.stars;
+        if s < n {
+            self.gain_stars(n - s);
+        } else if s > n {
+            self.lose_stars(s - n);
+        }
+    }
+
+    /// `CardModel.GetStarCostWithModifiers()` (no X-star cards yet): canonical + upgrades, through `Hook.ModifyStarCost`
+    /// (guarded, threaded; skipped for negative costs). -1 = the card has no star cost.
+    #[inline(always)]
+    pub fn card_star_cost(&self, c: CardIdx) -> i32 {
+        if self.card_def(c).star_cost < 0 {
+            return -1;
+        }
+        self.card_star_cost_slow(c)
+    }
+
+    #[inline(never)]
+    fn card_star_cost_slow(&self, c: CardIdx) -> i32 {
+        let d = self.card_def(c);
+        let base = (d.star_cost as i32 + d.up_star_cost as i32 * self.cards[c as usize].upgrade as i32).max(0);
+        if !self.card_in_combat_pile(c) || !self.listen.has(hookbit::try_modify_star_cost) || !self.hooks_enabled() {
+            return base;
+        }
+        let mut v = Dec::int(base as i64);
+        let snap = self.snapshot(Mask::bit(hookbit::try_modify_star_cost));
+        for e in snap.iter() {
+            if self.still_live(&e.me) {
+                if let Some(n) = content::listener(&e.me).try_modify_star_cost(self, e.me, c, v) {
+                    v = n;
+                }
+            }
+        }
+        v.trunc()
+    }
+
+    // ---- X cost -----------------------------------------------------------------------------------------------------
+
+    /// `CardModel.ResolveEnergyXValue()`: the captured X through `Hook.ModifyXValue` (ChemicalX).
+    pub fn x_value(&self, c: CardIdx) -> i32 {
+        let mut v = self.cards[c as usize].x_value as i32;
+        if self.listen.has(hookbit::modify_x_value) && self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_x_value));
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    v = content::listener(&e.me).modify_x_value(self, e.me, c, v);
+                }
+            }
+        }
+        v
+    }
+}

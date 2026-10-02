@@ -5,6 +5,7 @@ use sts2sim::defs::{Intent, MonsterNode};
 use sts2sim::ids;
 use sts2sim::state::*;
 use sts2sim::types::*;
+
 use sts2sim::*;
 
 fn phase(p: Phase) -> &'static str {
@@ -44,6 +45,19 @@ fn card(cx: &Combat, c: CardIdx, with_cost: bool) -> Value {
     if with_cost {
         // the oracle reports -1 for X-cost cards
         m.insert("cost".into(), json!(if cx.card_def(c).x_cost { -1 } else { cx.card_cost(c, true).max(0) }));
+        // keywords (local + global), sorted by name like the oracle
+        let kws = cx.card_keywords(c);
+        let mut names: Vec<&str> = vec![];
+        for (bit, n) in [(kw::EXHAUST, "Exhaust"), (kw::ETHEREAL, "Ethereal"), (kw::INNATE, "Innate"), (kw::UNPLAYABLE, "Unplayable"), (kw::RETAIN, "Retain"), (kw::SLY, "Sly"), (kw::ETERNAL, "Eternal")] {
+            if kws & bit != 0 {
+                names.push(n);
+            }
+        }
+        names.sort();
+        m.insert("keywords".into(), json!(names));
+        if k.enchant != 0 {
+            m.insert("enchantment".into(), json!({"id": ids::enchantment::NAMES[(k.enchant - 1) as usize], "amount": k.enchant_amount}));
+        }
     }
     Value::Object(m)
 }
@@ -60,7 +74,6 @@ fn rng(r: &sts2sim::rng::Rng) -> Value {
 fn enemy(cx: &Combat, e: Cid) -> Value {
     let cr = cx.cr(e);
     let ms = &cr.monster;
-    let def = sts2sim::content::monster_def(ms.id);
     let mut m = Map::new();
     m.insert("id".into(), json!(ids::monster::NAMES[ms.id as usize]));
     m.insert("hp".into(), json!(cr.hp));
@@ -69,7 +82,7 @@ fn enemy(cx: &Combat, e: Cid) -> Value {
     m.insert("alive".into(), json!(cr.is_alive()));
     m.insert("powers".into(), powers(cx, e));
     if ms.next_move != NO {
-        if let MonsterNode::Move { id, intents, .. } = &def.nodes[ms.next_move as usize] {
+        if let Some((id, intents)) = cx.move_view(e) {
             m.insert("next_move".into(), json!(id));
             let mut list = vec![];
             for it in intents.iter() {

@@ -56,25 +56,17 @@ impl Combat {
         out
     }
 
-    /// `CreatureCmd.GainMaxHp`: `SetMaxHp(max + amount)` (hp clamped to the new max), then `Heal(delta)`.
-    pub fn gain_max_hp(&mut self, c: Cid, amount: i32) {
-        let cr = self.cr_mut(c);
-        let old = cr.max_hp;
-        cr.max_hp = (cr.max_hp + amount).clamp(0, 999_999_999);
-        cr.hp = cr.hp.min(cr.max_hp);
-        let delta = cr.max_hp - old;
-        self.heal(c, Dec::int(delta as i64));
+    /// `ListExtensions.UnstableShuffle(list, rng)` over cards with the given stream (Fisher-Yates, `n - 1` draws).
+    pub fn unstable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
+        self.rng_stream_mut(stream).shuffle(list);
     }
 
-    /// `creature.Powers.All(p => p.ShouldOwnerDeathTriggerFatal())` (Feed, Hand of Greed, The Hunt).
-    pub fn should_death_trigger_fatal(&self, c: Cid) -> bool {
-        for p in self.cr(c).powers.iter() {
-            let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
-            if !crate::content::listener(&me).should_owner_death_trigger_fatal(self, me) {
-                return false;
-            }
-        }
-        true
+    /// `ListExtensions.StableShuffle(list, rng)`: sorts with `CardModel.CompareTo` (.NET introsort: ties are permuted),
+    /// then `UnstableShuffle`.
+    pub fn stable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
+        let cards = &self.cards;
+        crate::sort::intro_sort(list, |a, b| Combat::card_cmp(cards, a, b));
+        self.rng_stream_mut(stream).shuffle(list);
     }
 
     /// `CardModel.SetToFreeThisTurn` (energy part): cost 0 until played or end of turn.
@@ -86,11 +78,18 @@ impl Combat {
         }
     }
 
-    /// `PlayerCmd.GainEnergy` (`ModifyEnergyGain` hook not implemented yet).
-    pub fn gain_energy(&mut self, n: i32) {
-        if n > 0 && !self.is_ending() {
-            self.player.energy += n;
+    /// `PlayerCmd.GainGold` (the `ModifyGoldGained` hook is run-level and not modelled): adds `n >= 0` gold.
+    pub fn gain_gold(&mut self, n: i32) {
+        if n > 0 {
+            self.gold = self.gold.saturating_add(n);
         }
+    }
+
+    /// Loses up to `n` gold; returns the amount actually lost (Debt, Thievery: `min(n, gold)`).
+    pub fn lose_gold(&mut self, n: i32) -> i32 {
+        let l = n.clamp(0, self.gold);
+        self.gold -= l;
+        l
     }
 
     /// `CombatState.HittableEnemies`: alive, attached, and `ShouldAllowHitting`.
@@ -146,12 +145,14 @@ impl Combat {
         copy.deck_idx = NO;
         self.cards[idx as usize] = copy;
         self.listen |= crate::content::card_mask(copy.id);
+        self.listen_cards |= crate::content::card_mask(copy.id);
         Some(idx)
     }
 
     /// `CardPileCmd.AddGeneratedCardToCombat`: a brand-new card enters `pile` (hand-full redirect applies).
     pub fn add_generated_card(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition) -> bool {
-        // History.CardGenerated — not tracked yet.
+        let cid = self.cards[c as usize].id;
+        self.hist_push(crate::engine::HKind::CardGenerated, PLAYER, NO, cid, c, 0, 0, 0, 0);
         let ok = self.move_card(c, pile, pos);
         if ok {
             self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, c));
@@ -241,6 +242,7 @@ impl Combat {
     }
 
     fn begin_decision(&mut self, source: DecisionSource, purpose: u16, min: u8, max: u8, cands: ArrayVec<CardIdx, 64>, confirm_required: bool, can_skip: bool) {
+        self.decision_seq += 1;
         self.decision = Some(Decision { source, min, max, cands, selected: ArrayVec::new(), confirm_required, can_skip, purpose });
     }
 

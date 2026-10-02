@@ -3,6 +3,7 @@
 use crate::content;
 use crate::defs::*;
 use crate::dec::Dec;
+use crate::engine::HKind;
 use crate::hooks::*;
 use crate::rng::Rng;
 use crate::sort::intro_sort;
@@ -14,6 +15,12 @@ impl Combat {
 
     /// `CombatState.CreateCard` / `CloneCard`: allocates a card instance in the arena (in no pile).
     pub fn new_card(&mut self, id: u16, upgrade: u8) -> Option<CardIdx> {
+        self.new_card_ex(id, upgrade, 0, 0)
+    }
+
+    /// Like `new_card` for a saved card (`CardModel.FromSerializable`): the enchantment (`enchant` = id + 1, 0 = none) is
+    /// applied FIRST (`OnEnchant` runs on the un-upgraded card), then the upgrades.
+    pub fn new_card_ex(&mut self, id: u16, upgrade: u8, enchant: u8, enchant_amount: i16) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
             debug_assert!(false, "card arena full");
             return None;
@@ -23,6 +30,7 @@ impl Combat {
         }
         let d = content::card_def(id);
         self.listen |= content::card_mask(id);
+        self.listen_cards |= content::card_mask(id);
         let idx = self.n_cards as CardIdx;
         self.n_cards += 1;
         self.cards[idx as usize] = Card {
@@ -30,8 +38,16 @@ impl Combat {
             pile: PileType::None as u8,
             cost_base: if d.x_cost { 0 } else { d.cost },
             deck_idx: NO,
+            dupe_of: NO,
             ..Default::default()
         };
+        if enchant != 0 {
+            let eid = (enchant - 1) as u16;
+            if !content::enchantment_implemented(eid) {
+                self.flag_missing(Kind::Enchantment, eid);
+            }
+            self.enchant_unchecked(idx, eid, enchant_amount as i32);
+        }
         for _ in 0..upgrade {
             self.upgrade_card(idx);
         }
@@ -92,11 +108,37 @@ impl Combat {
         0
     }
 
-    /// `CardModel.Keywords` (local keywords; global `ModifyKeywordsInCombat` not implemented yet).
+    /// Local keywords only (`CardModel.GetKeywordsWithSources(Local)`).
     #[inline]
-    pub fn card_keywords(&self, c: CardIdx) -> u8 {
+    pub fn card_keywords_local(&self, c: CardIdx) -> u8 {
         let card = &self.cards[c as usize];
         (self.card_def(c).keywords | card.kw_add) & !card.kw_remove
+    }
+
+    /// `CardModel.Keywords`: the local keyword set plus the global keywords of `Hook.ModifyKeywordsInCombat`
+    /// (unguarded; only for cards in a combat pile; HexPower adds Ethereal).
+    #[inline(always)]
+    pub fn card_keywords(&self, c: CardIdx) -> u8 {
+        let local = self.card_keywords_local(c);
+        if !self.listen.has(hookbit::try_modify_keywords_in_combat) {
+            return local;
+        }
+        self.card_keywords_global(c, local)
+    }
+
+    #[inline(never)]
+    fn card_keywords_global(&self, c: CardIdx, local: u8) -> u8 {
+        if !self.card_in_combat_pile(c) {
+            return local;
+        }
+        let snap = self.snapshot(Mask::bit(hookbit::try_modify_keywords_in_combat));
+        let mut k = local;
+        for e in snap.iter() {
+            if self.still_live(&e.me) {
+                k = content::listener(&e.me).try_modify_keywords_in_combat(self, e.me, c, k);
+            }
+        }
+        k
     }
 
     /// `CardEnergyCost.GetWithModifiers` (spec 03 §2.3).
@@ -221,9 +263,19 @@ impl Combat {
             self.dispatch_g(hookbit::after_card_entered_combat, |cx, me, l| l.after_card_entered_combat(cx, me, c));
         }
         if old != target {
-            self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+            self.fire_card_changed_piles(c, old);
         }
         true
+    }
+
+    /// `Hook.AfterCardChangedPiles`: two full passes (`AfterCardChangedPiles`, then `...Late`) over the run-level iterator.
+    #[inline]
+    pub fn fire_card_changed_piles(&mut self, c: CardIdx, old: PileType) {
+        if !self.listen.has(hookbit::after_card_changed_piles) && !self.listen.has(hookbit::after_card_changed_piles_late) {
+            return;
+        }
+        self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+        self.dispatch_u(hookbit::after_card_changed_piles_late, |cx, me, l| l.after_card_changed_piles_late(cx, me, c, old));
     }
 
     /// `CardPileCmd.RemoveFromCombat`: the card leaves combat for good.
@@ -232,16 +284,19 @@ impl Combat {
         if old != PileType::None {
             self.pile_mut(old).remove_value(c);
         }
-        let card = &mut self.cards[c as usize];
-        card.pile = PileType::None as u8;
-        card.flags |= cflag::REMOVED;
+        self.cards[c as usize].pile = PileType::None as u8;
+        // Hook.AfterCardChangedPiles(card, oldPile, newPile = None) — before `RemoveFromState`
+        if old != PileType::None {
+            self.fire_card_changed_piles(c, old);
+        }
+        self.cards[c as usize].flags |= cflag::REMOVED;
     }
 
     // ---- shuffle / draw -----------------------------------------------------------------------------------------
 
     /// Total order the game sorts cards by: ModelId ordinal (== our dense id) then upgrade level.
     #[inline]
-    fn card_cmp(cards: &[Card; MAX_CARDS], a: &CardIdx, b: &CardIdx) -> i32 {
+    pub(crate) fn card_cmp(cards: &[Card; MAX_CARDS], a: &CardIdx, b: &CardIdx) -> i32 {
         let (ca, cb) = (&cards[*a as usize], &cards[*b as usize]);
         if ca.id != cb.id {
             return if ca.id < cb.id { -1 } else { 1 };
@@ -253,7 +308,23 @@ impl Combat {
     pub fn initial_shuffle(&mut self) {
         let rng: &mut Rng = &mut self.rng.shuffle;
         rng.shuffle(self.player.draw.as_mut_slice());
-        // Hook.ModifyShuffleOrder(isInitial = true): no content yet (PerfectFit ignores initial shuffles).
+        // Hook.ModifyShuffleOrder(isInitial = true) (exempt from the combat-ending guard: the combat is starting).
+        let mut list = self.player.draw;
+        self.modify_shuffle_order(list.as_mut_slice(), true);
+        self.player.draw = list;
+    }
+
+    /// `Hook.ModifyShuffleOrder` (guarded, exempt while starting): every listener may reorder the list in place.
+    pub fn modify_shuffle_order(&self, list: &mut [CardIdx], is_initial: bool) {
+        if !self.listen.has(hookbit::modify_shuffle_order) || !self.hooks_enabled() {
+            return;
+        }
+        let snap = self.snapshot(Mask::bit(hookbit::modify_shuffle_order));
+        for e in snap.iter() {
+            if self.still_live(&e.me) {
+                content::listener(&e.me).modify_shuffle_order(self, e.me, list, is_initial);
+            }
+        }
     }
 
     /// `CardPileCmd.Shuffle` (spec 03 §7.3): discard ++ draw → `StableShuffle` → draw pile.
@@ -271,7 +342,7 @@ impl Combat {
         let cards = &self.cards;
         intro_sort(list.as_mut_slice(), |a, b| Self::card_cmp(cards, a, b));
         self.rng.shuffle.shuffle(list.as_mut_slice());
-        // Hook.ModifyShuffleOrder(isInitial = false): no content yet (PerfectFit).
+        self.modify_shuffle_order(list.as_mut_slice(), false);
         let from_discard = self.player.discard;
         self.player.discard.clear();
         self.player.draw.clear();
@@ -280,7 +351,7 @@ impl Combat {
             self.cards[c as usize].pile = PileType::Draw as u8;
         }
         for &c in from_discard.iter() {
-            self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, PileType::Discard));
+            self.fire_card_changed_piles(c, PileType::Discard);
         }
         self.dispatch_g(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me));
     }
@@ -294,17 +365,18 @@ impl Combat {
 
     /// `CardPileCmd.Draw` (spec 03 §6.3). Returns the number of cards drawn.
     pub fn draw_cards(&mut self, count: i32, from_hand_draw: bool) -> usize {
-        if self.is_over_or_ending() || count <= 0 {
+        if self.is_over_or_ending() {
             return 0;
         }
-        // Hook.ShouldDraw (NoDraw): AND over listeners, once per Draw call.
-        if self.hooks_enabled() && self.listen.has(hookbit::should_draw) {
-            let snap = self.snapshot(Mask::bit(hookbit::should_draw));
-            for e in snap.iter() {
-                if self.still_live(&e.me) && !content::listener(&e.me).should_draw(self, e.me, from_hand_draw) {
-                    return 0;
-                }
+        // Hook.ShouldDraw (guarded AND): the vetoing model (NoDraw) is told via AfterPreventingDraw.
+        if let Some(m) = self.first_veto_g(hookbit::should_draw, |cx, me, l| l.should_draw(cx, me, from_hand_draw)) {
+            if self.hooks_enabled() {
+                self.notify_one(m, |cx, me, l| l.after_preventing_draw(cx, me));
             }
+            return 0;
+        }
+        if count <= 0 {
+            return 0;
         }
         let mut room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         if room == 0 {
@@ -328,6 +400,8 @@ impl Combat {
             }
             self.move_card(card, PileType::Hand, CardPilePosition::Bottom);
             drawn += 1;
+            let id = self.cards[card as usize].id;
+            self.hist_push(HKind::CardDrawn, PLAYER, NO, id, card, 0, from_hand_draw as u8, 0, 0);
             self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
             self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
@@ -341,7 +415,8 @@ impl Combat {
             return;
         }
         self.move_card(c, PileType::Exhaust, CardPilePosition::Bottom);
-        self.hist.cards_exhausted_this_turn += 1; // History.CardExhausted
+        let id = self.cards[c as usize].id;
+        self.hist_push(HKind::CardExhausted, PLAYER, NO, id, c, 0, caused_by_ethereal as u8, 0, 0);
         self.dispatch_g(hookbit::after_card_exhausted, |cx, me, l| l.after_card_exhausted(cx, me, c, caused_by_ethereal));
     }
 }

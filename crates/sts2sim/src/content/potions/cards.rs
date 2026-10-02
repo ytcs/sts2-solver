@@ -2,7 +2,7 @@
 
 use crate::content::gen_pools;
 use crate::defs::{CardDef, VarKind};
-use crate::engine::Ask;
+use crate::engine::{Ask, RunResult};
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
@@ -234,22 +234,27 @@ fn exhaust_all(cx: &mut Combat, cards: &[CardIdx]) {
     }
 }
 
+// `CardCmd.DiscardAndDraw`; a Sly card whose auto-play asks for a decision suspends the potion until it is answered.
+fn brew(cx: &mut Combat, cards: &[CardIdx]) -> Flow {
+    match cx.discard_cards(cards, cards.len() as i32) {
+        RunResult::Suspended => Flow::Suspend(2),
+        RunResult::Finished => Flow::Done,
+    }
+}
+
 // Choose any number of hand cards to discard, then draw that many.
 listener!(GamblersBrew {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
         match phase {
             0 => match cx.ask_hand(purpose(potion), 0, u8::MAX, |_, _| true) {
-                Ask::Resolved(cards) => {
-                    cx.discard_and_draw(cards.as_slice(), cards.len() as i32);
-                    Flow::Done
-                }
+                Ask::Resolved(cards) => brew(cx, cards.as_slice()),
                 Ask::Pending => Flow::Suspend(1),
             },
-            _ => {
+            1 => {
                 let cards = cx.choice.cards;
-                cx.discard_and_draw(cards.as_slice(), cards.len() as i32);
-                Flow::Done
+                brew(cx, cards.as_slice())
             }
+            _ => Flow::Done,
         }
     }
 });

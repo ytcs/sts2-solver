@@ -31,7 +31,10 @@ macro_rules! registry {
     };
     (impl $ifn:ident, $ids:ident; $($id:ident => $ty:path),* $(,)?) => {
         pub fn $ifn(id: u16) -> bool {
-            matches!(id, $( ids::$ids::$id )|*)
+            // (robust for an empty list: a category with nothing ported yet)
+            $( if id == ids::$ids::$id { return true; } )*
+            let _ = id;
+            false
         }
     };
 }
@@ -45,7 +48,9 @@ pub fn listener(me: &Me) -> &'static dyn Listener {
         Kind::Potion => potion_listener(me.id),
         Kind::Card => card_listener(me.id),
         Kind::Monster => monster_listener(me.id),
-        Kind::Enchantment | Kind::Affliction | Kind::Orb => &NO_LISTENER,
+        Kind::Enchantment => enchantment_listener(me.id),
+        Kind::Affliction => affliction_listener(me.id),
+        Kind::Orb => &NO_LISTENER,
     }
 }
 

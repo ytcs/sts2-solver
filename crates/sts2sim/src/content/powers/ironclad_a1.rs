@@ -38,7 +38,7 @@ listener!(NoDrawPower {
         from_hand_draw
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side == side {
+        if cx.is_turn_participant(side, me.owner) {
             cx.remove_power(me.owner, me.idx);
         }
     }
@@ -77,11 +77,13 @@ listener!(CorruptionPower {
         }
         Some(Dec::ZERO)
     }
-    fn modify_card_play_result_location(&self, cx: &Combat, _me: Me, card: CardIdx, _is_auto: bool, pile: PileType) -> PileType {
+    fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, _is_auto: bool, _energy_value: i32, loc: CardLocation) -> CardLocation {
+        // `card.Owner.Creature != Owner` is always false (single player)
+        let _ = me;
         if cx.card_def(card).ctype != CardType::Skill {
-            return pile;
+            return loc;
         }
-        PileType::Exhaust
+        CardLocation::new(PileType::Exhaust, loc.pos)
     }
 });
 
@@ -162,6 +164,6 @@ listener!(HellraiserPower {
         if cx.card_def(card).tags & tag::STRIKE == 0 {
             return;
         }
-        cx.auto_play(card);
+        let _ = cx.auto_play(card, NO, AutoPlayType::Default, false);
     }
 });

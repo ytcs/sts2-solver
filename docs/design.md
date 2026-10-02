@@ -81,11 +81,12 @@ Since the first slice: decisions (click/confirm model, hand/pile/choose-a-card),
 4. Port from the decompiled `OnPlay`/hook body, following the specs; add a differential trace once the oracle exists.
 
 ### Known gaps (engine)
-Orbs, Osty/pets,
-stars/Forge, enchantments/afflictions, extra turns, history queries beyond per-turn counters, stun/revive monster
-interrupts, minion/secondary-enemy kill rules, `ModifyUnblockedDamageTarget`, X-cost replays, card generation/RNG
-helpers, encounter-local RNG (R0), and the many hooks not yet in the `Listener` trait (see spec 02 §2).
-Fidelity TODOs are marked `TODO(fidelity)` in code.
+Done in the engine-core pass: every `Hook.*` dispatcher, death/kill sequence (preventers, minions, escape, player death), mid-combat
+summons, stun / forced moves, nested auto-play + Sly + dupes + transform, replay / result-location hooks, global keywords, X values,
+enchantments (23) + affliction framework, extra turns, play history, end-turn requests, scenario extras (see the cheat sheet in
+`docs/porting-guide.md`). Still open: orbs, Osty/pets, Forge/stars content, a decision raised by an auto-play started from a
+*turn-start hook* (Mayhem / Imbued) cannot be resumed, deck-copy (run-level) listeners, encounter-local slot tables, `GainsBlock`
+as a card property (approximated by "has a Block var"). Fidelity TODOs are marked `TODO(fidelity)` in code.
 
 ## Milestones
 1. ✅ Specs from the decompiled source (`docs/spec/01–05`)

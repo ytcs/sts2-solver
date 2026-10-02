@@ -42,7 +42,7 @@ fn play_out(mut cx: Combat) -> (u64, Outcome) {
 
 fn main() {
     println!("size_of::<Combat>() = {} bytes", std::mem::size_of::<Combat>());
-    let n: u64 = 200_000;
+    let n: u64 = std::env::var("BENCH_N").ok().and_then(|s| s.parse().ok()).unwrap_or(200_000);
     let sc = scenario(0);
     let t = Instant::now();
     let mut steps = 0;
@@ -54,6 +54,7 @@ fn main() {
     }
     let dt = t.elapsed().as_secs_f64();
     println!("1 thread: {n} fights in {dt:.2}s = {:.0} fights/s, {:.2}M steps/s", n as f64 / dt, steps as f64 / dt / 1e6);
+    if std::env::var("BENCH_SINGLE").is_ok() { return; }
     let threads = std::thread::available_parallelism().map(|x| x.get()).unwrap_or(1);
     let t = Instant::now();
     let hs: Vec<_> = (0..threads).map(|k| {

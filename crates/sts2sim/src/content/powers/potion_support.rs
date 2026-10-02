@@ -209,7 +209,7 @@ listener!(DuplicationPower {
         cx.decrement_power(me.owner, me.idx);
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side == side {
+        if cx.is_turn_participant(side, me.owner) {
             cx.remove_power(me.owner, me.idx);
         }
     }
@@ -238,10 +238,9 @@ listener!(ShrinkPower {
             cx.decrement_power(me.owner, me.idx);
         }
     }
-    fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid) {
-        // wasRemovalPrevented == false is the only call the engine makes today.
+    fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {
         let applier = cx.cr(me.owner).power(me.id).map_or(NO, |p| p.applier);
-        if creature == applier {
+        if !was_removal_prevented && creature == applier {
             cx.remove_power(me.owner, me.idx);
         }
     }
