@@ -186,32 +186,6 @@ impl Combat {
         self.player.potions.iter().any(|p| p.is_some())
     }
 
-    /// `Player.HasOpenPotionSlots`.
-    pub fn has_open_potion_slot(&self) -> bool {
-        (0..self.player.potion_slots as usize).any(|i| self.player.potions[i].is_none())
-    }
-
-    /// `PotionCmd.TryToProcure`: `Hook.ShouldProcurePotion` (AND, run-level), then the first empty slot, then
-    /// `AfterPotionProcured`. Returns whether the potion was obtained.
-    pub fn procure_potion(&mut self, id: u16) -> bool {
-        let snap = self.snapshot(Mask::bit(hookbit::should_procure_potion));
-        for e in snap.iter() {
-            if self.still_live(&e.me) && !content::listener(&e.me).should_procure_potion(self, e.me, id) {
-                return false;
-            }
-        }
-        let Some(slot) = (0..self.player.potion_slots as usize).find(|&i| self.player.potions[i].is_none()) else {
-            return false;
-        };
-        if !content::potion_implemented(id) {
-            self.flag_missing(Kind::Potion, id);
-        }
-        self.player.potions[slot] = Some(Potion { id });
-        self.listen |= content::potion_mask(id);
-        self.dispatch_u(hookbit::after_potion_procured, |cx, me, l| l.after_potion_procured(cx, me, id));
-        true
-    }
-
     // ---- cards -------------------------------------------------------------------------------------------------------
 
     /// `CardModel.CostsEnergyOrStars(includeGlobalModifiers: true)`.

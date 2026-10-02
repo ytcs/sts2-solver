@@ -263,6 +263,18 @@ listener!(GhostSeed {
 // Adds a Potion-Shaped Rock after the other combat-start effects.
 listener!(PetrifiedToad {
     fn before_combat_start_late(&self, cx: &mut Combat, _me: Me) {
-        cx.procure_potion(ids::potion::POTION_SHAPED_ROCK);
+        cx.try_procure_potion(ids::potion::POTION_SHAPED_ROCK);
+    }
+});
+
+// Fills every open potion slot with a random potion (`PotionFactory.CreateRandomPotionOutOfCombat`, `CombatPotionGeneration`).
+listener!(DelicateFrond {
+    fn before_combat_start(&self, cx: &mut Combat, _me: Me) {
+        while cx.has_open_potion_slots() {
+            let Some(p) = cx.create_random_potion(false) else { break };
+            if !cx.try_procure_potion(p) {
+                break;
+            }
+        }
     }
 });

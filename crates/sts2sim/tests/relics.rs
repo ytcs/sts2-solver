@@ -180,7 +180,7 @@ fn sturdy_clamp_keeps_up_to_ten_block() {
 #[test]
 fn every_relic_is_registered_except_the_known_unported() {
     const UNPORTED: &[&str] = &[
-        "BONE_FLUTE", "BOUND_PHYLACTERY", "BYRDPIP", "CRACKED_CORE", "DELICATE_FROND", "EMOTION_CHIP", "FENCING_MANUAL",
+        "BONE_FLUTE", "BOUND_PHYLACTERY", "BYRDPIP", "CRACKED_CORE", "EMOTION_CHIP", "FENCING_MANUAL",
         "GOLD_PLATED_CABLES", "INFUSED_CORE", "METRONOME", "PAELS_EYE", "PAELS_LEGION", "PHYLACTERY_UNBOUND", "RUNIC_CAPACITOR",
         "SYMBIOTIC_VIRUS",
     ];

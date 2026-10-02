@@ -70,7 +70,7 @@ to their thresholds. `tools/gen_relics.py` regenerates the constants.
 
 Need engine systems that do not exist yet: orbs (CrackedCore, InfusedCore, GoldPlatedCables, RunicCapacitor, SymbioticVirus,
 EmotionChip, Metronome), pets / Osty (BoundPhylactery, PhylacteryUnbound, BoneFlute, Byrdpip, PaelsLegion), Forge
-(FencingManual), extra turns (PaelsEye), random potion generation (DelicateFrond: needs the potion pools).
+(FencingManual), extra turns (PaelsEye).
 Known limits of ported relics: BookRepairKnife needs `DoomPower` to call `Combat::notify_died_to_doom(&killed)`; PaperPhrog / PaperKrane are behaviour of `VulnerablePower` / `WeakPower` (they check for the relic);
 cards that read an X value must use `Combat::resolve_x_value` for ChemicalX; monster code that adds status cards through
 `add_generated_card` is treated as "not created by the player" only during the enemy turn (Regalite).
