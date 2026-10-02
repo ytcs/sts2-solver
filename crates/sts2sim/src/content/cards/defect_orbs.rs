@@ -1,6 +1,6 @@
 //! Defect cards that channel / evoke / read orbs (ported from the decompiled `OnPlay` bodies).
 
-use crate::dec::Dec;
+use super::defect_util::*;
 use crate::defs::VarKind;
 use crate::engine::{Attack, Targeting, VALID_ORBS};
 use crate::hooks::*;
@@ -8,25 +8,6 @@ use crate::ids;
 use crate::listener;
 use crate::state::*;
 use crate::types::*;
-
-fn d(v: i32) -> Dec {
-    Dec::int(v as i64)
-}
-
-/// `ResolveEnergyXValue()` (no `ModifyXValue` listener exists yet).
-fn x_value(cx: &Combat, c: CardIdx) -> i32 {
-    cx.cards[c as usize].x_value as i32
-}
-
-fn attack(cx: &mut Combat, p: &CardPlay) {
-    let dmg = cx.card_var(p.card, VarKind::Damage);
-    cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
-}
-
-fn block(cx: &mut Combat, p: &CardPlay) {
-    let b = cx.card_var(p.card, VarKind::Block);
-    cx.gain_block(PLAYER, d(b), ValueProp::MOVE, p.card);
-}
 
 fn channel_n(cx: &mut Combat, kind: u16, n: i32) {
     for _ in 0..n {
