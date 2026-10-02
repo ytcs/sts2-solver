@@ -112,9 +112,12 @@ impl Combat {
             let mut attached = false;
             if !v.is_zero() {
                 let amt = v.trunc().clamp(-MAX_POWER_AMOUNT, MAX_POWER_AMOUNT);
-                let p = Power { id, uid, amount: amt, amount_on_turn_start: amt, aux: 0, applier, skip_next_tick: false };
+                let p = Power { id, uid, amount: amt, amount_on_turn_start: 0 /* PowerModel._amountOnTurnStart defaults to 0 until the next BeforeTurnStart */, aux: 0, applier, skip_next_tick: false };
                 self.cr_mut(target).powers.push(p);
                 attached = true;
+                if id == crate::ids::power::DOOM_POWER && applier == PLAYER {
+                    self.necro.doom_applied_this_turn = true; // History.PowerReceived
+                }
             }
             if attached && self.cr(target).side == Side::Player && d.ptype == PowerType::Debuff {
                 if let Some(i) = self.power_idx(target, uid) {
@@ -214,6 +217,9 @@ impl Combat {
         let new_amount = (self.cr(c).powers[i].amount as i64 + v.trunc() as i64)
             .clamp(-(MAX_POWER_AMOUNT as i64), MAX_POWER_AMOUNT as i64) as i32;
         self.cr_mut(c).powers[i].amount = new_amount;
+        if id == crate::ids::power::DOOM_POWER && applier == PLAYER {
+            self.necro.doom_applied_this_turn = true; // History.PowerReceived (recorded even for a 0 offset)
+        }
         for m in given_mods.iter() {
             if self.still_live(m) {
                 content::listener(m).after_modifying_power_amount_given(self, *m, id);

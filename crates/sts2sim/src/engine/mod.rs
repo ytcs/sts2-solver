@@ -6,6 +6,7 @@ mod creature;
 mod damage;
 mod dispatch;
 mod monster;
+mod necro;
 mod pets;
 mod piles;
 mod potions;
@@ -14,6 +15,7 @@ mod powers;
 mod turn;
 
 pub use creature::DamageResult;
+pub use necro::{is_temporary_power, temporary_inner_power};
 pub use damage::{Attack, Mods, Results, Targeting};
 pub use dispatch::*;
 pub use cmds::Ask;

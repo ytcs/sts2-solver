@@ -118,6 +118,7 @@ impl Combat {
             cards: [Card::default(); MAX_CARDS],
             n_cards: 0,
             hist: History::default(),
+            necro: NecroState::default(),
             play_ctx: None,
             potion_ctx: None,
             decision: None,

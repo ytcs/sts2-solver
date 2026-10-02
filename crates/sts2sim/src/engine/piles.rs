@@ -323,6 +323,9 @@ impl Combat {
                 break;
             }
             self.move_card(card, PileType::Hand, CardPilePosition::Bottom);
+            if !from_hand_draw {
+                self.necro.non_hand_draws_this_turn = self.necro.non_hand_draws_this_turn.saturating_add(1); // CardDrawnEntry
+            }
             drawn += 1;
             self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);

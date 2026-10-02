@@ -61,7 +61,7 @@ impl Combat {
     }
 
     /// `CreatureCmd.SetMaxHp`: `MaxHp = max(0, amount)`, current HP clamped; `MaxHp <= 0` kills.
-    pub fn set_max_hp(&mut self, c: Cid, amount: i32) {
+    pub fn necro_set_max_hp(&mut self, c: Cid, amount: i32) {
         let cr = self.cr_mut(c);
         cr.max_hp = amount.max(0).min(999_999_999);
         cr.hp = cr.hp.min(cr.max_hp);
@@ -71,9 +71,9 @@ impl Combat {
     }
 
     /// `CreatureCmd.GainMaxHp`: raise max HP, then heal by the max-HP delta.
-    pub fn gain_max_hp(&mut self, c: Cid, amount: i32) {
+    pub fn necro_gain_max_hp(&mut self, c: Cid, amount: i32) {
         let old = self.cr(c).max_hp;
-        self.set_max_hp(c, old + amount);
+        self.necro_set_max_hp(c, old + amount);
         let delta = self.cr(c).max_hp - old;
         self.heal(c, Dec::int(delta as i64));
     }
@@ -86,7 +86,7 @@ impl Combat {
         }
         if self.is_osty_alive() {
             let o = self.osty().unwrap();
-            self.gain_max_hp(o, amount);
+            self.necro_gain_max_hp(o, amount);
         } else {
             let existing = self.osty();
             let reviving = existing.is_some();
@@ -98,7 +98,7 @@ impl Combat {
                     o
                 }
             };
-            self.set_max_hp(osty, amount);
+            self.necro_set_max_hp(osty, amount);
             self.heal(osty, Dec::int(amount as i64));
             if reviving {
                 self.dispatch_g(hookbit::after_osty_revived, |cx, me, l| l.after_osty_revived(cx, me, osty));

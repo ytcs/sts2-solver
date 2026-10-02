@@ -42,7 +42,8 @@ fn card(cx: &Combat, c: CardIdx, with_cost: bool) -> Value {
     m.insert("id".into(), json!(ids::card::NAMES[k.id as usize]));
     m.insert("upgrade".into(), json!(k.upgrade));
     if with_cost {
-        m.insert("cost".into(), json!(cx.card_cost(c, true).max(0)));
+        // X-cost cards report -1 (the oracle's `EnergyCost.CostsX` marker).
+        m.insert("cost".into(), json!(if sts2sim::content::card_def(k.id).x_cost { -1 } else { cx.card_cost(c, true).max(0) }));
     }
     Value::Object(m)
 }

@@ -42,8 +42,13 @@ listener!(VulnerablePower {
         if q.target != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        // TODO(fidelity): dealer's PaperPhrog relic / Cruelty power and target's Debilitate adjust the multiplier.
-        Dec::frac(15, 1)
+        // TODO(fidelity): dealer's PaperPhrog relic / Cruelty power adjust the multiplier.
+        let mut num = Dec::frac(15, 1);
+        // DebilitatePower.ModifyVulnerableMultiplier: `amount + (amount - 1)` on the target's own Debilitate.
+        if _cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
+            num = num + (num - Dec::ONE);
+        }
+        num
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Enemy {
@@ -57,8 +62,13 @@ listener!(WeakPower {
         if q.dealer != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        // TODO(fidelity): target's PaperKrane relic and dealer's Debilitate adjust the multiplier.
-        Dec::frac(75, 2)
+        // TODO(fidelity): target's PaperKrane relic adjusts the multiplier.
+        let mut num = Dec::frac(75, 2);
+        // DebilitatePower.ModifyWeakMultiplier: `amount - (1 - amount)` on the dealer's own Debilitate.
+        if _cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
+            num = num - (Dec::ONE - num);
+        }
+        num
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Enemy {

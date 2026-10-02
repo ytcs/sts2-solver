@@ -273,6 +273,10 @@ impl Combat {
                     }
                     // Enchantment.OnPlay / Affliction.OnPlay — no content yet.
                     // History.CardPlayFinished
+                    self.necro.set_finished(c);
+                    if self.card_keywords(c) & kw::ETHEREAL != 0 {
+                        self.necro.ethereal_plays = self.necro.ethereal_plays.saturating_add(1); // WasEthereal
+                    }
                     if self.card_def(c).ctype == CardType::Attack {
                         self.hist.attacks_finished_this_turn += 1;
                     }

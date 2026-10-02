@@ -230,6 +230,7 @@ impl Combat {
                 self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, t, d));
             }
             self.dispatch_u(hookbit::after_damage_given, |cx, me, l| l.after_damage_given(cx, me, dealer, t, r.unblocked, props));
+            self.dispatch_u(hookbit::after_damage_given_full, |cx, me, l| l.after_damage_given_full(cx, me, dealer, &r, props, card));
             if !r.killed || !self.cr(t).is_dead() {
                 self.dispatch_u(hookbit::after_damage_received, |cx, me, l| l.after_damage_received(cx, me, t, r.unblocked, props, dealer));
                 self.dispatch_u(hookbit::after_damage_received_src, |cx, me, l| l.after_damage_received_src(cx, me, t, r.unblocked, props, dealer, card));
@@ -293,6 +294,10 @@ impl Combat {
                 all.push(*x);
             }
             i += 1;
+        }
+        // History.CreatureAttacked (recorded after the hit loop, before AfterAttack): Osty's attacks feed Flatten / Fetch / Rattle.
+        if self.cr(a.dealer).is_pet {
+            self.necro.osty_attacks_this_turn = self.necro.osty_attacks_this_turn.saturating_add(1);
         }
         self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
         all

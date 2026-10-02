@@ -287,6 +287,8 @@ pub trait Listener: Sync {
     fn after_osty_revived(&self, cx: &mut Combat, me: Me, osty: Cid) {}
     /// `AfterSummon(summoner, amount)`.
     fn after_summon(&self, cx: &mut Combat, me: Me, amount: i32) {}
+    /// `AfterDamageGiven` with the whole `DamageResult` (`TotalDamage = blocked + unblocked`) and the card source.
+    fn after_damage_given_full(&self, cx: &mut Combat, me: Me, dealer: Cid, res: &crate::engine::DamageResult, props: ValueProp, card: CardIdx) {}
     /// `AfterDiedToDoom(creatures)`.
     fn after_died_to_doom(&self, cx: &mut Combat, me: Me, creatures: &[Cid]) {}
     // ---- appended hooks (ironclad_b1): variants carrying arguments the first-cut hooks above lack ----------
@@ -405,6 +407,7 @@ pub mod hookbit {
         should_power_be_removed_after_owner_death,
         after_energy_reset_late,
         after_card_played_late,
+        after_damage_given_full,
         after_osty_revived,
         after_summon,
         after_died_to_doom,

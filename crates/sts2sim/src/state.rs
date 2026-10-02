@@ -361,6 +361,37 @@ impl History {
     }
 }
 
+/// Necrobinder history queries (the game scans `CombatHistory.Entries`; we keep the tallies the cards read).
+#[derive(Clone, Copy, Default)]
+pub struct NecroState {
+    // ---- per-turn (cleared by `new_turn`; `HappenedThisTurn`) ----
+    /// `CreatureAttackedEntry`s whose actor is Osty.
+    pub osty_attacks_this_turn: i16,
+    /// `CardDrawnEntry`s with `!FromHandDraw`.
+    pub non_hand_draws_this_turn: i16,
+    /// A `PowerReceivedEntry` for Doom applied by the player.
+    pub doom_applied_this_turn: bool,
+    /// Bitset over card arena indices: cards with a `CardPlayFinishedEntry` this turn.
+    pub finished_cards: [u64; 3],
+    // ---- whole combat ----
+    /// `CardPlayFinishedEntry.WasEthereal` entries of the player.
+    pub ethereal_plays: i16,
+}
+
+impl NecroState {
+    pub fn new_turn(&mut self) {
+        let e = self.ethereal_plays;
+        *self = NecroState::default();
+        self.ethereal_plays = e;
+    }
+    pub fn finished(&self, c: CardIdx) -> bool {
+        self.finished_cards[(c / 64) as usize] >> (c % 64) & 1 != 0
+    }
+    pub fn set_finished(&mut self, c: CardIdx) {
+        self.finished_cards[(c / 64) as usize] |= 1u64 << (c % 64);
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Combat {
     pub character: u8,
@@ -387,6 +418,7 @@ pub struct Combat {
     pub cards: [Card; MAX_CARDS],
     pub n_cards: u16,
     pub hist: History,
+    pub necro: NecroState,
 
     /// In-flight card play (suspended while a decision is pending).
     pub play_ctx: Option<PlayCtx>,
