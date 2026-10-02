@@ -99,14 +99,6 @@ listener!(SicEmPower {
 
 // ---- Energy / draw ----------------------------------------------------------------------------------------------------
 
-listener!(EnergyNextTurnPower {
-    fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
-        let n = amount_of(cx, me);
-        cx.gain_energy(n);
-        cx.remove_power(me.owner, me.idx);
-    }
-});
-
 // +Amount max energy for the rest of the combat (Friendship).
 listener!(FriendshipPower {
     fn modify_max_energy(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {

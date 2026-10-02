@@ -1,4 +1,4 @@
-//! TEMPORARY copies of the Soul / Sweeping Gaze tokens (the colorless/status/token teammate owns the real ones in
+//! DUPLICATE (stand-in) copies of the Soul / Sweeping Gaze tokens (the colorless/status/token teammate owns the real ones in
 //! `cards/tokens.rs`). DELETE THIS FILE when merging that branch (duplicate registrations are a build error).
 
 use crate::defs::VarKind;
