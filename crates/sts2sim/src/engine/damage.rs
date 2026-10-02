@@ -174,6 +174,11 @@ impl Combat {
             res.block_broken = block_left <= 0 && blocked > Dec::ZERO;
             res.fully_blocked = !props.unblockable() && (blocked > Dec::ZERO || block_left > 0) && unblocked.trunc() == 0;
             res.blocked = blocked.trunc();
+            // History.DamageReceived (only while the combat is live and not ending).
+            if res.receiver == PLAYER && res.unblocked > 0 && self.in_progress && !self.is_ending() {
+                self.hist.player_lost_hp_this_turn = true;
+                self.hist.player_hits_taken = self.hist.player_hits_taken.saturating_add(1);
+            }
             results.push(res);
         }
 
@@ -192,6 +197,7 @@ impl Combat {
             self.dispatch_u(hookbit::after_damage_given, |cx, me, l| l.after_damage_given(cx, me, dealer, t, r.unblocked, props));
             if !r.killed || !self.cr(t).is_dead() {
                 self.dispatch_u(hookbit::after_damage_received, |cx, me, l| l.after_damage_received(cx, me, t, r.unblocked, props, dealer));
+                self.dispatch_u(hookbit::after_damage_received_src, |cx, me, l| l.after_damage_received_src(cx, me, t, r.unblocked, props, dealer, card));
             } else {
                 killed.push(t);
             }

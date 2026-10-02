@@ -55,6 +55,8 @@ pub mod cflag {
     /// Card left the combat for good (`HasBeenRemovedFromState`).
     pub const REMOVED: u16 = 1 << 4;
     pub const X_CAPTURED: u16 = 1 << 5;
+    /// Created by `CardModel.CreateClone` (`IsClone`): see `Combat::clone_card`.
+    pub const IS_CLONE: u16 = 1 << 6;
 }
 
 /// One card instance in the combat arena.
@@ -78,6 +80,8 @@ pub struct Card {
     pub mods: ArrayVec<CostMod, 3>,
     /// Per-card persistent counters (Rampage damage, Regret, ...), meaning defined by the card.
     pub counter: [i16; 2],
+    /// Permanent bonus to the card's Damage var in units of 1/10000 (Rampage, Thrash: `DynamicVars.Damage.BaseValue += x`).
+    pub dmg_bonus: i32,
     /// Deck index this combat card was cloned from (`DeckVersion`), `NO` if none.
     pub deck_idx: u8,
 }
@@ -331,6 +335,30 @@ pub struct History {
     pub cards_played_this_turn: i16,
     pub attacks_played_this_turn: i16,
     pub skills_played_this_turn: i16,
+    // ---- per-turn queries (reset by `new_turn`) ----
+    /// `CardPlayFinished` entries of Attack cards this turn.
+    pub attacks_finished_this_turn: i16,
+    /// The player received unblocked damage this turn (`DamageReceivedEntry.Result.UnblockedDamage > 0`).
+    pub player_lost_hp_this_turn: bool,
+    /// `BlockGainedEntry` with a `CardPlay` this turn (all plays) ...
+    pub card_blocks_this_turn: i16,
+    /// ... of which belong to the card play currently resolving.
+    pub card_blocks_this_play: i16,
+    // ---- whole-combat queries (survive `new_turn`) ----
+    /// `DamageReceivedEntry` with `Receiver == player && UnblockedDamage > 0`.
+    pub player_hits_taken: i16,
+    /// `CardExhaustedEntry` count.
+    pub cards_exhausted: i16,
+}
+
+impl History {
+    /// New side-turn: clears the `HappenedThisTurn` queries, keeps the whole-combat ones.
+    pub fn new_turn(&mut self) {
+        let (hits, exh) = (self.player_hits_taken, self.cards_exhausted);
+        *self = History::default();
+        self.player_hits_taken = hits;
+        self.cards_exhausted = exh;
+    }
 }
 
 #[derive(Clone, Copy)]

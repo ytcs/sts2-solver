@@ -86,6 +86,11 @@ impl Combat {
         // AfterModifyingBlockAmount(mods) — no content yet.
         if v > Dec::ZERO {
             self.gain_block_internal(c, v);
+            // History.BlockGained (entries with a CardPlay feed Unmovable).
+            if card != NO && props.has(ValueProp::MOVE) {
+                self.hist.card_blocks_this_turn = self.hist.card_blocks_this_turn.saturating_add(1);
+                self.hist.card_blocks_this_play = self.hist.card_blocks_this_play.saturating_add(1);
+            }
         }
         self.dispatch_g(hookbit::after_block_gained, |cx, me, l| l.after_block_gained(cx, me, c, v));
         v

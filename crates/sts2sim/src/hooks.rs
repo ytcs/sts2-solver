@@ -269,6 +269,27 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- appended hooks (ironclad_b1): variants carrying arguments the first-cut hooks above lack ----------
+    /// `ModifyCardPlayCount` (threaded int, guarded). `target` = chosen target or `NO`.
+    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
+        count
+    }
+    /// `AfterModifyingCardPlayCount` (only for listeners that changed the count).
+    fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
+    /// Full-arity `AfterPowerAmountChanged(power, amount, applier, cardSource)`: `target`/`power_id` identify the power
+    /// instance that changed, `delta` is the (modified) amount applied. Dispatched right after `after_power_amount_changed`.
+    fn after_power_amount_changed_ex(&self, cx: &mut Combat, me: Me, power_id: u16, target: Cid, delta: i32, applier: Cid, card: CardIdx) {}
+    /// Full-arity `AfterDamageReceived(..., cardSource)`. Dispatched right after `after_damage_received`.
+    fn after_damage_received_src(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, props: ValueProp, dealer: Cid, card: CardIdx) {}
+    /// `BeforeCardAutoPlayed`.
+    fn before_card_auto_played(&self, cx: &mut Combat, me: Me, card: CardIdx, target: Cid) {}
+    /// `CalculatedDamageVar.Calculate(target)` of a card (`None` = the card has no calculated damage). Called directly
+    /// on the card's listener (not a snapshot hook): cards whose damage is a `CalculatedDamageVar` should implement it so
+    /// effects that read it generically (Thrash) agree with the card's own attack.
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        None
+    }
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,6 +382,12 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        modify_card_play_count,
+        after_modifying_card_play_count,
+        after_power_amount_changed_ex,
+        after_damage_received_src,
+        before_card_auto_played,
+        calculated_damage,
     );
 }
 
