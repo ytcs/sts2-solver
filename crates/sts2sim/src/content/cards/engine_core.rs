@@ -19,17 +19,6 @@ listener!(Whistle {
     }
 });
 
-// Minion Strike (token): damage, draw.
-listener!(MinionStrike {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let dmg = cx.card_var(p.card, VarKind::Damage);
-        cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
-        let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
-    }
-});
-
 // Rebound (event card): damage, then the next card played returns to the top of the draw pile.
 listener!(Rebound {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -40,12 +29,3 @@ listener!(Rebound {
     }
 });
 
-// Normality (curse, unplayable): while it is in hand, no more than 3 cards may be played per turn.
-listener!(Normality {
-    fn should_play(&self, cx: &Combat, me: Me, _card: CardIdx) -> bool {
-        if cx.card_pile_type(me.idx as CardIdx) != PileType::Hand {
-            return true;
-        }
-        cx.plays_this_turn(|_| true) < 3
-    }
-});
