@@ -3,7 +3,6 @@
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
-use crate::state::*;
 
 // ---- BygoneEffigy: SLEEP -> WAKE (Str+10) -> SLASHES loop; spawns with Slow 1 --------------------------------------------------
 // 0 SLEEP_MOVE, 1 WAKE_MOVE, 2 SLEEP_MOVE_2 (unreachable), 3 SLASHES_MOVE

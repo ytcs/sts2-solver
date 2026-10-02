@@ -4,7 +4,6 @@
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
-use crate::state::*;
 
 pub const SLOT_PHROG: u8 = 0;
 /// `PhrogParasiteElite.GetWrigglerSlotName(i)` as a slot index.

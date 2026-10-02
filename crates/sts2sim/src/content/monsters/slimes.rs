@@ -3,7 +3,6 @@
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
-use crate::state::*;
 
 // ---- LeafSlimeS: RAND{TACKLE:CNR, GOOP:CNR} (initial is the branch: one AI draw at the first roll) ----------------------------
 // 0 TACKLE, 1 GOOP, 2 RAND (initial)

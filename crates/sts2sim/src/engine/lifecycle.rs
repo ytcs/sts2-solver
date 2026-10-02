@@ -6,8 +6,6 @@
 //! general summon/stun/revive machinery. When merging, keep the engine-core versions and adapt callers.
 
 use crate::content;
-use crate::defs::*;
-use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
 

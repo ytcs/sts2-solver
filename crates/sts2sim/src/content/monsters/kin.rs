@@ -4,7 +4,6 @@
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
-use crate::state::*;
 
 pub const SLOT_1: u8 = 0;
 pub const SLOT_2: u8 = 1;
