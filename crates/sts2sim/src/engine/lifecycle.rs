@@ -4,7 +4,6 @@
 //!
 //! (Summon / stun / afflict / forced-move machinery lives in `monster.rs` / `enchant.rs` from the engine-core pass.)
 
-use crate::content;
 use crate::state::*;
 use crate::types::*;
 

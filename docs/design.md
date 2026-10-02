@@ -80,13 +80,41 @@ Since the first slice: decisions (click/confirm model, hand/pile/choose-a-card),
 3. Register it in `content/mod.rs`; unregistered ids are rejected by `Scenario::validate` (never silently simulated).
 4. Port from the decompiled `OnPlay`/hook body, following the specs; add a differential trace once the oracle exists.
 
+### Integrated content status (after merging the parallel slices)
+Merge order on `sim-rebuild`: engine-core, Ironclad M-Z, Silent A-M, Silent N-Z, Overgrowth, Regent, Necrobinder (Ironclad A-L and potions
+were merged earlier). Every slice is validated by differential sweeps against the oracle (`oracle/templates/*.json`, run with
+`python3 tools/diff_sweep.py oracle/templates/<t>.json --n 20 --jobs 4`; potions via `tools/potion_sweep.py --all`, Necrobinder via
+`tools/necro_sweep.py all`): all `ok`; the only non-`ok` runs are `UNIMPLEMENTED` hits on content not yet merged (colorless / token /
+status / curse cards such as Debris, Minion Dive Bomb, The Gambit; Underdocks monsters).
+
+Coverage (`python3 tools/coverage.py`, implemented = a `listener!` / `MonsterDef` / encounter spawn exists):
+
+| kind | implemented | total |
+|---|---|---|
+| cards | 378 | 596 (63%) |
+| powers | 152 | 265 (57%) |
+| relics | 8 | 300 (2%) |
+| potions | 60 | 65 (92%) |
+| monsters | 30 | 120 (25%) |
+| encounters | 22 | 90 (24%) |
+| total | 650 | 1436 |
+
+Throughput after the merge (release, loaded shared machine, `crates/sts2sim/examples/bench.rs` / `crates/sts2env/examples/bench.rs`):
+69k full fights/s/thread (was 87k at the Ironclad-A-L+potions baseline, 94k originally), 458k fights/s on 14 threads, 0.73M env-steps/s
+(was 0.80M); `size_of::<Combat>()` 20.6 KB (was 14.5 KB: `Card` grew by star/enchant/affliction state, `HistLog` ring 2 KB, nested
+play/auto-play stacks). Candidates: shrink `HistLog` entries / ring, move rarely used card state out of `Card`, skip history writes
+for kinds nobody queries.
+
 ### Known gaps (engine)
 Done in the engine-core pass: every `Hook.*` dispatcher, death/kill sequence (preventers, minions, escape, player death), mid-combat
 summons, stun / forced moves, nested auto-play + Sly + dupes + transform, replay / result-location hooks, global keywords, X values,
 enchantments (23) + affliction framework, extra turns, play history, end-turn requests, scenario extras (see the cheat sheet in
-`docs/porting-guide.md`). Still open: orbs, Osty/pets, Forge/stars content, a decision raised by an auto-play started from a
-*turn-start hook* (Mayhem / Imbued) cannot be resumed, deck-copy (run-level) listeners, encounter-local slot tables, `GainsBlock`
-as a card property (approximated by "has a Block var"). Fidelity TODOs are marked `TODO(fidelity)` in code.
+`docs/porting-guide.md`). Added by the content slices: stars / star costs / Forge (Regent), Osty summon / revive / redirect (Necrobinder),
+turn-start and turn-end hook decisions (Tools of the Trade, Stampede), mid-combat monster lifecycle (Overgrowth).
+Still open: orbs (Defect), a decision raised by an auto-play started from a *turn-start hook* that is not the first listener of its
+pass (Mayhem / Imbued: listeners after the suspended one are skipped), deck-copy (run-level) listeners, encounter-local slot tables,
+`GainsBlock` as a card property (approximated by "has a Block var"), non-integer named card vars (Tank 1.5 / 0.5), `CalculatedVar`
+cards that need a calculated-var table (cards compute them by hand). Fidelity TODOs are marked `TODO(fidelity)` in code.
 
 ## Milestones
 1. ✅ Specs from the decompiled source (`docs/spec/01–05`)

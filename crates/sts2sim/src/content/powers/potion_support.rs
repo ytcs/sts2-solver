@@ -201,17 +201,3 @@ listener!(GigantificationPower {
 
 // FocusPower: scales orb values; orbs are not in the engine yet, so there is nothing to hook.
 listener!(FocusPower {});
-
-// DoomPower: creatures whose HP is <= Doom are killed at the end of their side's turn (enemies: BeforeSideTurnEnd, the
-// player side: AfterSideTurnEnd). Only the first doomed creature on the side triggers the kill of all of them.
-// TODO(fidelity): `Hook.AfterDiedToDoom` (BookRepairKnife) is not dispatched yet.
-fn doomed_on(cx: &Combat, side: Side) -> crate::util::ArrayVec<Cid, MAX_CREATURES> {
-    let mut v = crate::util::ArrayVec::new();
-    for &c in cx.creatures_on(side).iter() {
-        let amount = cx.power_amount(c, ids::power::DOOM_POWER);
-        if amount > 0 && cx.cr(c).hp <= amount {
-            v.push(c);
-        }
-    }
-    v
-}

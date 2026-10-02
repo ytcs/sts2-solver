@@ -1,7 +1,7 @@
 //! Necrobinder powers (Osty / Doom / Souls / Ethereal).
 
 use crate::dec::Dec;
-use crate::engine::{is_temporary_power, DamageResult};
+use crate::engine::is_temporary_power;
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;

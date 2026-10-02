@@ -9,6 +9,7 @@ use crate::state::*;
 
 const PLOW: u8 = 0;
 const STAMP: u8 = 1;
+#[allow(dead_code)] // the engine STUN_NODE replaces the monster-defined state (kept so node indices stay stable)
 const STUNNED: u8 = 2;
 const BEAST_CRY: u8 = 3;
 const STOMP: u8 = 4;

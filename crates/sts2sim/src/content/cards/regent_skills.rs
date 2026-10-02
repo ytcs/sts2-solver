@@ -178,11 +178,10 @@ listener!(KnowThyPlace {
     }
 });
 
-// Block now and BlockNextTurn (modified by block hooks now) next turn. The second BlockVar is not in the stat table
-// (named block var): base 5, +2 per upgrade.
+// Block now and `BlockVar("BlockNextTurn", 5)` (modified by block hooks now) next turn.
 listener!(Glitterstream {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let next = 5 + 2 * cx.cards[p.card as usize].upgrade as i64;
+        let next = cx.card_named_var(p.card, var_name::BLOCK_NEXT_TURN) as i64;
         let modified = cx.modify_block(PLAYER, Dec::int(next), ValueProp::MOVE, p.card);
         block(cx, p);
         cx.apply_power(ids::power::BLOCK_NEXT_TURN_POWER, PLAYER, modified, PLAYER, p.card);

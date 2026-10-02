@@ -8,7 +8,7 @@
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::content::gen_cards::var_name;
-use crate::engine::{Attack, HKind, RunResult, Targeting};
+use crate::engine::{Attack, HKind, Targeting};
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;

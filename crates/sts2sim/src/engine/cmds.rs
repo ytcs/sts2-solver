@@ -4,7 +4,6 @@ use crate::dec::Dec;
 use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
-use crate::defs::VarKind;
 use crate::util::ArrayVec;
 
 /// Result of requesting a decision: either already resolved (empty / forced choice) or pending (the effect must

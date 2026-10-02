@@ -1,12 +1,11 @@
 //! Rust combat state -> JSON in the oracle's trace schema (only fields the simulator models).
 
 use serde_json::{json, Map, Value};
-use sts2sim::defs::{Intent, MonsterNode};
+use sts2sim::defs::Intent;
 use sts2sim::ids;
 use sts2sim::state::*;
 use sts2sim::types::*;
 
-use sts2sim::*;
 
 fn phase(p: Phase) -> &'static str {
     match p {

@@ -288,12 +288,12 @@ listener!(TheHunt {
     }
 });
 
-// Attack, then 2 Shivs into the hand (one `CreateInHand` call each). `CardsVar("Shivs", 2)`: the generated table has
-// the unnamed-var parser's 0 for it, so the count is spelled out here.
+// Attack, then `CardsVar("Shivs", 2)` Shivs into the hand (one `CreateInHand` call each).
 listener!(LeadingStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack_single(cx, p);
-        for _ in 0..2 {
+        let n = cx.card_named_var(p.card, var_name::SHIVS);
+        for _ in 0..n {
             cx.create_shivs_in_hand(1);
         }
         Flow::Done

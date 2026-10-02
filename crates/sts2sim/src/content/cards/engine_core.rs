@@ -2,7 +2,7 @@
 
 use crate::dec::Dec;
 use crate::defs::VarKind;
-use crate::engine::{Ask, Attack, RunResult, Targeting};
+use crate::engine::{Attack, Targeting};
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
