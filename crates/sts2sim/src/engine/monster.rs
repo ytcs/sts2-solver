@@ -82,7 +82,7 @@ impl Combat {
         &content::monster_def(self.cr(c).monster.id).nodes[n as usize]
     }
 
-    fn can_transition_away(&self, c: Cid, n: u8) -> bool {
+    pub(crate) fn can_transition_away(&self, c: Cid, n: u8) -> bool {
         match self.node(c, n) {
             MonsterNode::Move { must_perform_once, .. } => !*must_perform_once || self.cr(c).monster.performed_once >> n & 1 != 0,
             _ => true,
@@ -140,7 +140,13 @@ impl Combat {
         let def = content::monster_def(self.cr(c).monster.id);
         match &def.nodes[cur as usize] {
             MonsterNode::Move { follow_up, .. } => {
-                if *follow_up == NO { def.initial } else { *follow_up }
+                if *follow_up == NO {
+                    def.initial
+                } else if *follow_up == FOLLOW_STORED {
+                    self.cr(c).monster.stun_follow_up
+                } else {
+                    *follow_up
+                }
             }
             MonsterNode::Random { branches, .. } => {
                 let mut ws = [0f32; 12];
@@ -221,10 +227,5 @@ impl Combat {
         if self.cr(c).is_dead() && self.cr(c).in_combat && self.should_creature_be_removed_after_death(c) {
             self.detach_creature(c);
         }
-    }
-
-    /// `Hook.ShouldCreatureBeRemovedFromCombatAfterDeath` (AND) — no vetoing content yet.
-    pub fn should_creature_be_removed_after_death(&self, _c: Cid) -> bool {
-        true
     }
 }

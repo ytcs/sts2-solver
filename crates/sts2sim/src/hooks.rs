@@ -269,6 +269,24 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- creature lifecycle predicates (Overgrowth content; see engine/lifecycle.rs) -----------------------------
+    /// `ShouldStopCombatFromEnding` — OR over every combat listener (unguarded).
+    fn should_stop_combat_from_ending(&self, cx: &Combat, me: Me) -> bool {
+        false
+    }
+    /// `ShouldCreatureBeRemovedFromCombatAfterDeath` — AND (unguarded).
+    fn should_creature_be_removed_from_combat_after_death(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
+        true
+    }
+    /// `ShouldPowerBeRemovedOnDeath(power)` — AND over listeners; `power_owner`/`power_id` identify the dying creature's power.
+    fn should_power_be_removed_on_death(&self, cx: &Combat, me: Me, power_owner: Cid, power_id: u16, power_is_debuff: bool) -> bool {
+        true
+    }
+    /// `ShouldPowerBeRemovedAfterOwnerDeath` — asked of the power itself.
+    fn should_power_be_removed_after_owner_death(&self, cx: &Combat, me: Me) -> bool {
+        true
+    }
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,6 +379,10 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        should_stop_combat_from_ending,
+        should_creature_be_removed_from_combat_after_death,
+        should_power_be_removed_on_death,
+        should_power_be_removed_after_owner_death,
     );
 }
 

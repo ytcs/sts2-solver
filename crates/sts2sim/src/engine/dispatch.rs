@@ -134,6 +134,16 @@ impl Combat {
 
     /// OR over `ShouldStopCombatFromEnding` (Adaptable, Infested, SteamEruption, Stock, Surprise).
     pub fn should_stop_combat_from_ending(&self) -> bool {
+        // Dispatched directly (unguarded): it decides whether combat ends.
+        if !self.listen.has(hookbit::should_stop_combat_from_ending) {
+            return false;
+        }
+        let snap = self.snapshot(Mask::bit(hookbit::should_stop_combat_from_ending));
+        for e in snap.iter() {
+            if self.still_live(&e.me) && content::listener(&e.me).should_stop_combat_from_ending(self, e.me) {
+                return true;
+            }
+        }
         false
     }
 }

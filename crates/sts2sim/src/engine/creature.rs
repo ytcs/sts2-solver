@@ -147,24 +147,85 @@ impl Combat {
 
     fn on_died(&mut self, c: Cid) {
         let is_enemy = self.cr(c).side == Side::Enemy;
-        let remove = is_enemy && !self.cr(c).is_pet;
+        // Hook.ShouldCreatureBeRemovedFromCombatAfterDeath is evaluated BEFORE AfterDeath (spec 02 §5.3).
+        let should_remove_from_combat = self.should_creature_be_removed_after_death(c);
+        let remove = is_enemy && !self.cr(c).is_pet && should_remove_from_combat;
         // AfterDeath(c, wasRemovalPrevented=false)
         self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c));
+        // teammates = alive creatures of the same side (snapshot before removal)
+        let teammates: crate::util::ArrayVec<Cid, MAX_CREATURES> = {
+            let mut o = crate::util::ArrayVec::new();
+            if is_enemy {
+                for &t in self.enemies.iter() {
+                    if t != c && self.cr(t).is_alive() {
+                        o.push(t);
+                    }
+                }
+            }
+            o
+        };
         if remove && self.enemies.contains(c) {
             self.remove_creature(c);
         }
-        // RemoveAllPowersAfterDeath: strip powers (AfterRemoved callbacks, no amount hooks).
+        let is_primary = self.is_primary_enemy(c);
+        // RemoveAllPowersAfterDeath: powers stay iff `!ShouldPowerBeRemovedAfterOwnerDeath || !Hook.ShouldPowerBeRemovedOnDeath`.
         let mut removed = [Power::default(); MAX_POWERS];
-        let n = self.cr(c).powers.len();
-        removed[..n].copy_from_slice(self.cr(c).powers.as_slice());
-        self.cr_mut(c).powers.clear();
-        for p in &removed[..n] {
+        let mut n_removed = 0;
+        let mut kept: crate::util::ArrayVec<Power, MAX_POWERS> = crate::util::ArrayVec::new();
+        let all: crate::util::ArrayVec<Power, MAX_POWERS> = self.cr(c).powers;
+        for p in all.iter() {
+            let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
+            let keep = !content::listener(&me).should_power_be_removed_after_owner_death(self, me)
+                || !self.should_power_be_removed_on_death(c, p);
+            if keep {
+                kept.push(*p);
+            } else {
+                removed[n_removed] = *p;
+                n_removed += 1;
+            }
+        }
+        self.cr_mut(c).powers = kept;
+        for p in &removed[..n_removed] {
             let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
             content::listener(&me).after_removed(self, me, c);
         }
-        if c == PLAYER {
-            self.creatures[PLAYER as usize].block = self.creatures[PLAYER as usize].block;
+        if is_enemy && is_primary && !teammates.is_empty() && teammates.iter().all(|&t| !self.is_primary_enemy(t)) {
+            // the last primary enemy died: every remaining secondary teammate is killed (CreatureCmd.Kill)
+            let mut v = [0u8; MAX_CREATURES];
+            for (i, &t) in teammates.iter().enumerate() {
+                v[i] = t;
+            }
+            self.kill(&v[..teammates.len()]);
         }
+    }
+
+    /// `Hook.ShouldPowerBeRemovedOnDeath(power)`: AND over every combat listener (unguarded).
+    fn should_power_be_removed_on_death(&self, owner: Cid, p: &Power) -> bool {
+        if !self.listen.has(hookbit::should_power_be_removed_on_death) {
+            return true;
+        }
+        let is_debuff = content::power_def(p.id).ptype == PowerType::Debuff;
+        let snap = self.snapshot(Mask::bit(hookbit::should_power_be_removed_on_death));
+        for e in snap.iter() {
+            if self.still_live(&e.me) && !content::listener(&e.me).should_power_be_removed_on_death(self, e.me, owner, p.id, is_debuff) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// `Hook.ShouldCreatureBeRemovedFromCombatAfterDeath`: AND over every combat listener (unguarded).
+    pub fn should_creature_be_removed_after_death(&self, c: Cid) -> bool {
+        if !self.listen.has(hookbit::should_creature_be_removed_from_combat_after_death) {
+            return true;
+        }
+        let snap = self.snapshot(Mask::bit(hookbit::should_creature_be_removed_from_combat_after_death));
+        for e in snap.iter() {
+            if self.still_live(&e.me) && !content::listener(&e.me).should_creature_be_removed_from_combat_after_death(self, e.me, c) {
+                return false;
+            }
+        }
+        true
     }
 
     /// `CombatManager.RemoveCreature` + `CombatState.RemoveCreature`: leaves hooks / the enemy list. A monster that

@@ -5,6 +5,7 @@ mod cmds;
 mod creature;
 mod damage;
 mod dispatch;
+mod lifecycle;
 mod monster;
 mod piles;
 mod potions;
