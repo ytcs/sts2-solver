@@ -673,7 +673,7 @@ listener!(Bookmark {
             }
         }
         if let Some(c) = cx.select_item(list.as_slice()) {
-            cx.add_cost_until_played(c, -1);
+            cx.add_cost_until_played(c, -1, false);
         }
     }
 });
@@ -696,7 +696,7 @@ listener!(CentennialPuzzle {
 });
 
 listener!(GremlinHorn {
-    fn after_death(&self, cx: &mut Combat, _me: Me, creature: Cid) {
+    fn after_death(&self, cx: &mut Combat, _me: Me, creature: Cid, _was_removal_prevented: bool) {
         if cx.cr(creature).side != Side::Player {
             cx.gain_energy(g::gremlin_horn::ENERGY);
             cx.draw_cards(g::gremlin_horn::CARDS, false);
@@ -736,8 +736,8 @@ listener!(ToughBandages {
 
 // flag 0 = `UsedThisTurn` (not saved); only blocks for cards the player generated.
 listener!(Regalite {
-    fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, _card: CardIdx) {
-        if cx.gen_by_player && !cx.rel(me).flag(0) {
+    fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, _card: CardIdx, added_by_player: bool) {
+        if added_by_player && !cx.rel(me).flag(0) {
             cx.rel_mut(me).set_flag(0, true);
             relic_block(cx, g::regalite::BLOCK);
         }

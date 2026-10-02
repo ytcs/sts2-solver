@@ -160,108 +160,12 @@ impl Combat {
 
     // ---- potion use (automatic path) ---------------------------------------------------------------------------------
 
-    /// Runs `body` with the player's hook listeners considered active even though HP is 0 (the death-prevention window:
-    /// the game only deactivates the player's hooks once the death is final, but the snapshot filters on HP).
-    fn with_player_hooks<R>(&mut self, body: impl FnOnce(&mut Combat) -> R) -> R {
-        let dead = self.creatures[PLAYER as usize].hp <= 0;
-        if dead {
-            self.creatures[PLAYER as usize].hp = 1;
-        }
-        let r = body(self);
-        if dead && self.creatures[PLAYER as usize].hp == 1 {
-            self.creatures[PLAYER as usize].hp = 0;
-        }
-        r
-    }
-
-    /// `Hook.ShouldDie` for `c`: AND over the (unguarded) listeners, every `ShouldDie` then every `ShouldDieLate`; the first
-    /// one that says no is the preventer.
-    pub fn find_death_preventer(&mut self, c: Cid) -> Option<Me> {
-        if !self.listen.has(hookbit::should_die) && !self.listen.has(hookbit::should_die_late) {
-            return None;
-        }
-        self.with_player_hooks(|cx| {
-            for bit in [hookbit::should_die, hookbit::should_die_late] {
-                let snap = cx.snapshot(Mask::bit(bit));
-                for e in snap.iter() {
-                    if !cx.still_live(&e.me) {
-                        continue;
-                    }
-                    let l = content::listener(&e.me);
-                    let ok = if bit == hookbit::should_die { l.should_die(cx, e.me, c) } else { l.should_die_late(cx, e.me, c) };
-                    if !ok {
-                        return Some(e.me);
-                    }
-                }
-            }
-            None
-        })
-    }
-
-    /// The prevention half of `CreatureCmd.KillWithoutCheckingWinCondition` (after `BeforeDeath`): while a listener
-    /// prevents the death, run `AfterDeath(wasRemovalPrevented: true)` and `AfterPreventingDeath` on the preventer (max 10
-    /// rounds, like the game's recursion guard). Returns true when the creature is alive again and the kill must stop.
-    ///
-    /// `after_death` has no `wasRemovalPrevented` flag: listeners that care about it (only monsters' own death logic) must not
-    /// react to a player whose death was prevented.
-    pub fn try_prevent_death(&mut self, c: Cid) -> bool {
-        for _ in 0..10 {
-            let Some(pre) = self.find_death_preventer(c) else { return false };
-            self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c));
-            // `Hook.AfterPreventingDeath`: only if the preventer is still a listener. (The listener body itself runs with
-            // the real HP: Fairy's heal starts from 0.)
-            let still = self.with_player_hooks(|cx| {
-                let snap = cx.snapshot(Mask::bit(hookbit::after_preventing_death).or(Mask::bit(hookbit::should_die)).or(Mask::bit(hookbit::should_die_late)));
-                snap.iter().any(|e| e.me.kind == pre.kind && e.me.idx == pre.idx && e.me.id == pre.id)
-            });
-            if still {
-                content::listener(&pre).after_preventing_death(self, pre, c);
-            }
-            if self.cr(c).hp > 0 {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// `PotionModel.OnUseWrapper` for an automatic potion (Fairy in a Bottle): no action context, no decisions.
-    pub fn use_potion_automatic(&mut self, slot: usize, target: Cid) {
-        let Some(p) = self.player.potions[slot] else { return };
-        let pid = p.id;
-        self.player.potions[slot] = None;
-        self.with_player_hooks(|cx| {
-            cx.dispatch_u(hookbit::before_potion_used, |cx, me, l| l.before_potion_used(cx, me, pid, target));
-        });
-        self.player.effect_depth += 1;
-        let _ = content::potion_listener(pid).on_use_potion(self, pid, target, 0);
-        self.player.effect_depth = self.player.effect_depth.saturating_sub(1);
-        if !self.cr(PLAYER).is_dead() {
-            self.dispatch_u(hookbit::after_potion_used, |cx, me, l| l.after_potion_used(cx, me, pid, target));
-        }
-    }
-
     // ---- small commands --------------------------------------------------------------------------------------------
-
-    // `PlayerCmd.GainStars` lives in `relic_cmds.rs` (with the `AfterStarsGained` hook).
 
     /// `CardModel.SetToFreeThisCombat` (energy part): cost 0 for the rest of the combat.
     pub fn set_to_free_this_combat(&mut self, c: CardIdx) {
         if self.card_def(c).cost >= 0 {
             self.cards[c as usize].mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: 0 });
-        }
-    }
-
-    /// `CardCmd.DiscardAndDraw`: discard each card (hooks per card), then draw `draw` cards.
-    /// TODO(fidelity): Sly cards are not auto-played after the draw.
-    pub fn discard_and_draw(&mut self, cards: &[CardIdx], draw: i32) {
-        if self.is_over_or_ending() || cards.is_empty() {
-            return;
-        }
-        for &c in cards {
-            self.discard_card(c);
-        }
-        if draw > 0 {
-            self.draw_cards(draw, false);
         }
     }
 
@@ -317,7 +221,7 @@ impl Combat {
 // The three C# base classes are identical up to the inner power and the sign; a derived power (FlexPotionPower,
 // SpeedPotionPower, ShacklingPotionPower, card powers, ...) just forwards its three hooks here:
 //   before_applied                  -> `temp_before_applied`
-//   after_power_amount_changed_full -> `temp_after_amount_changed`
+//   after_power_amount_changed -> `temp_after_amount_changed`
 //   after_side_turn_end             -> `temp_after_side_turn_end`
 impl Combat {
     /// `BeforeApplied`: apply `sign * amount` of the inner power right away.

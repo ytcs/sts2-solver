@@ -180,3 +180,29 @@ pub enum InstanceType {
     /// Stacks only with an instance of the same applier.
     PerApplier = 2,
 }
+
+// ---- engine-core additions -------------------------------------------------------------------------------------
+
+/// `AutoPlayType`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[repr(u8)]
+pub enum AutoPlayType {
+    #[default]
+    None = 0,
+    Default = 1,
+    SlyDiscard = 2,
+}
+
+/// `CardLocation` (`ModifyCardPlayResultLocation`): pile (+ position) a played card goes to. `PileType::None` =
+/// removed from combat.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct CardLocation {
+    pub pile: PileType,
+    pub pos: CardPilePosition,
+}
+
+impl CardLocation {
+    pub const fn new(pile: PileType, pos: CardPilePosition) -> CardLocation {
+        CardLocation { pile, pos }
+    }
+}

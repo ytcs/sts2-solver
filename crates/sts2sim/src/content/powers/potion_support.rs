@@ -25,34 +25,6 @@ listener!(ClarityPower {
     }
 });
 
-// PlatingPower: block at the end of the owner's turn, decremented at its next turn start.
-listener!(PlatingPower {
-    fn before_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
-        if side != Side::Player || me.owner == PLAYER || cx.round > 1 {
-            return;
-        }
-        let a = cx.power_amount(me.owner, me.id);
-        cx.gain_block(me.owner, Dec::int(a as i64), ValueProp::UNPOWERED, NO);
-    }
-    fn before_side_turn_end_early(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side == side {
-            let a = cx.power_amount(me.owner, me.id);
-            cx.gain_block(me.owner, Dec::int(a as i64), ValueProp::UNPOWERED, NO);
-        }
-    }
-    fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side != side {
-            return;
-        }
-        let is_player = me.owner == PLAYER;
-        if (is_player && cx.player.turn_number == 1) || (!is_player && cx.round == 1) {
-            return;
-        }
-        // Enemies lose `Decrement` (= player count = 1 in single player) via ModifyAmount; players Decrement: same.
-        cx.decrement_power(me.owner, me.idx);
-    }
-});
-
 // IntangiblePower: every HP loss is capped at 1; decrements after the enemy turn.
 listener!(IntangiblePower {
     fn modify_hp_lost_after_osty(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, _props: ValueProp, _dealer: Cid, _card: CardIdx) -> Dec {
@@ -87,16 +59,6 @@ listener!(BufferPower {
     }
 });
 
-// ThornsPower: damages the dealer of a powered attack.
-listener!(ThornsPower {
-    fn before_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, _amount: Dec, props: ValueProp, dealer: Cid) {
-        if target == me.owner && dealer != NO && props.is_powered() {
-            let a = cx.power_amount(me.owner, me.id);
-            cx.damage(&[dealer], Dec::int(a as i64), ValueProp::UNPOWERED.or(ValueProp::SKIP_HURT_ANIM), me.owner, NO);
-        }
-    }
-});
-
 // RitualPower: +Strength at the end of the owner's turn (an enemy-applied ritual skips its first tick).
 // `aux` = `_wasJustAppliedByEnemy`.
 listener!(RitualPower {
@@ -118,38 +80,6 @@ listener!(RitualPower {
         }
         let a = cx.power_amount(me.owner, me.id);
         cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(a as i64), me.owner, NO);
-    }
-});
-
-// PoisonPower: at the owner's turn start, deal `Amount` unblockable damage (1 + Accelerants times), losing 1 each time.
-listener!(PoisonPower {
-    fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side != side {
-            return;
-        }
-        let amount = cx.power_amount(me.owner, me.id);
-        let mut accel = 0;
-        let opp: &[Cid] = if cx.cr(me.owner).side == Side::Enemy { &[PLAYER] } else { cx.enemies.as_slice() };
-        let opp: crate::util::ArrayVec<Cid, MAX_CREATURES> = {
-            let mut v = crate::util::ArrayVec::new();
-            for &c in opp {
-                v.push(c);
-            }
-            v
-        };
-        for &c in opp.iter() {
-            if cx.cr(c).is_alive() {
-                accel += cx.power_amount(c, ids::power::ACCELERANT_POWER);
-            }
-        }
-        let iterations = amount.min(1 + accel);
-        for _ in 0..iterations {
-            let a = cx.power_amount(me.owner, me.id);
-            cx.damage(&[me.owner], Dec::int(a as i64), ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED), NO, NO);
-            if cx.cr(me.owner).is_alive() {
-                cx.decrement_power(me.owner, me.idx);
-            }
-        }
     }
 });
 
@@ -186,17 +116,6 @@ listener!(RetainHandPower {
     }
 });
 
-// BlockNextTurnPower: block when the owner's block is cleared at its next turn start.
-listener!(BlockNextTurnPower {
-    fn after_block_cleared(&self, cx: &mut Combat, me: Me, creature: Cid) {
-        if creature == me.owner {
-            let a = cx.power_amount(me.owner, me.id);
-            cx.gain_block(me.owner, Dec::int(a as i64), ValueProp::UNPOWERED, NO);
-            cx.remove_power(me.owner, me.idx);
-        }
-    }
-});
-
 // DuplicationPower: the next card(s) are played one extra time; expires at end of turn.
 listener!(DuplicationPower {
     fn modify_card_play_count(&self, _cx: &Combat, me: Me, _card: CardIdx, _target: Cid, count: i32) -> i32 {
@@ -209,7 +128,7 @@ listener!(DuplicationPower {
         cx.decrement_power(me.owner, me.idx);
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side == side {
+        if cx.is_turn_participant(side, me.owner) {
             cx.remove_power(me.owner, me.idx);
         }
     }
@@ -234,14 +153,13 @@ listener!(ShrinkPower {
         Dec::frac(7, 1) // (100 - 30) / 100
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side == side && cx.power_amount(me.owner, me.id) >= 0 {
+        if cx.is_turn_participant(side, me.owner) && cx.power_amount(me.owner, me.id) >= 0 {
             cx.decrement_power(me.owner, me.idx);
         }
     }
-    fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid) {
-        // wasRemovalPrevented == false is the only call the engine makes today.
+    fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {
         let applier = cx.cr(me.owner).power(me.id).map_or(NO, |p| p.applier);
-        if creature == applier {
+        if !was_removal_prevented && creature == applier {
             cx.remove_power(me.owner, me.idx);
         }
     }
@@ -283,43 +201,3 @@ listener!(GigantificationPower {
 
 // FocusPower: scales orb values; orbs are not in the engine yet, so there is nothing to hook.
 listener!(FocusPower {});
-
-// DoomPower: creatures whose HP is <= Doom are killed at the end of their side's turn (enemies: BeforeSideTurnEnd, the
-// player side: AfterSideTurnEnd). Only the first doomed creature on the side triggers the kill of all of them.
-// TODO(fidelity): `Hook.AfterDiedToDoom` (BookRepairKnife) is not dispatched yet.
-fn doomed_on(cx: &Combat, side: Side) -> crate::util::ArrayVec<Cid, MAX_CREATURES> {
-    let mut v = crate::util::ArrayVec::new();
-    for &c in cx.creatures_on(side).iter() {
-        let amount = cx.power_amount(c, ids::power::DOOM_POWER);
-        if amount > 0 && cx.cr(c).hp <= amount {
-            v.push(c);
-        }
-    }
-    v
-}
-
-fn doom_trigger(cx: &mut Combat, owner: Cid, side: Side) {
-    if cx.is_over_or_ending() || cx.cr(owner).side != side || cx.cr(owner).is_dead() {
-        return;
-    }
-    let doomed = doomed_on(cx, side);
-    if doomed.first() != Some(owner) {
-        return;
-    }
-    for &c in doomed.iter() {
-        cx.kill(&[c]);
-    }
-}
-
-listener!(DoomPower {
-    fn before_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if side != Side::Player {
-            doom_trigger(cx, me.owner, side);
-        }
-    }
-    fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if side != Side::Enemy {
-            doom_trigger(cx, me.owner, side);
-        }
-    }
-});

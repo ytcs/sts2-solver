@@ -32,7 +32,10 @@ macro_rules! registry {
     };
     (impl $ifn:ident, $ids:ident; $($id:ident => $ty:path),* $(,)?) => {
         pub fn $ifn(id: u16) -> bool {
-            matches!(id, $( ids::$ids::$id )|*)
+            // (robust for an empty list: a category with nothing ported yet)
+            $( if id == ids::$ids::$id { return true; } )*
+            let _ = id;
+            false
         }
     };
 }
@@ -46,7 +49,9 @@ pub fn listener(me: &Me) -> &'static dyn Listener {
         Kind::Potion => potion_listener(me.id),
         Kind::Card => card_listener(me.id),
         Kind::Monster => monster_listener(me.id),
-        Kind::Enchantment | Kind::Affliction | Kind::Orb => &NO_LISTENER,
+        Kind::Enchantment => enchantment_listener(me.id),
+        Kind::Affliction => affliction_listener(me.id),
+        Kind::Orb => &NO_LISTENER,
     }
 }
 
@@ -79,4 +84,12 @@ include!(concat!(env!("OUT_DIR"), "/registry.rs"));
 
 pub fn relic_def_exists(_id: u16) -> bool {
     true
+}
+
+/// Node index of a move/branch of `monster`'s state machine by its id string (e.g. `"REVIVE_MOVE"`).
+pub fn node_by_name(monster: u16, name: &str) -> Option<u8> {
+    let def = monster_def(monster);
+    def.nodes.iter().position(|n| match n {
+        MonsterNode::Move { id, .. } | MonsterNode::Random { id, .. } | MonsterNode::Cond { id, .. } => *id == name,
+    }).map(|i| i as u8)
 }

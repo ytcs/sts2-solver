@@ -537,7 +537,7 @@ listener!(SturdyClamp {
         }
         let block = cx.cr(PLAYER).block;
         if block > g::sturdy_clamp::BLOCK {
-            cx.lose_block(PLAYER, block - g::sturdy_clamp::BLOCK);
+            cx.lose_block(PLAYER, Dec::int((block - g::sturdy_clamp::BLOCK) as i64), NO);
         }
     }
 });

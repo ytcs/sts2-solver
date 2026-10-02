@@ -47,14 +47,22 @@ listener!(VulnerablePower {
         if q.dealer == PLAYER && q.target != PLAYER && cx.has_relic(crate::ids::relic::PAPER_PHROG) {
             mult += Dec::frac(25, 2);
         }
-        // The dealer's Cruelty power adds Amount/100 (CrueltyPower.ModifyVulnerableMultiplier; target != owner here).
-        if q.dealer != NO && q.dealer != q.target {
-            let cruelty = cx.power_amount(q.dealer, crate::ids::power::CRUELTY_POWER);
-            if cruelty != 0 {
+        // The dealer's Cruelty power (or its pet owner's, for Osty) adds Amount/100 (`CrueltyPower.ModifyVulnerableMultiplier`;
+        // a Cruelty owner never boosts damage against itself).
+        if q.dealer != NO {
+            let mut holder = q.dealer;
+            if cx.power_amount(holder, crate::ids::power::CRUELTY_POWER) == 0 && cx.cr(q.dealer).is_pet {
+                holder = cx.cr(q.dealer).owner;
+            }
+            let cruelty = cx.power_amount(holder, crate::ids::power::CRUELTY_POWER);
+            if cruelty != 0 && q.target != holder {
                 mult += Dec::frac(cruelty as i64, 2);
             }
         }
-        // TODO(fidelity): PetOwner's Cruelty and target's Debilitate also adjust the multiplier.
+        // `DebilitatePower.ModifyVulnerableMultiplier`: `amount + (amount - 1)` on the target's own Debilitate.
+        if cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
+            mult = mult + (mult - Dec::ONE);
+        }
         mult
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
@@ -74,7 +82,10 @@ listener!(WeakPower {
         if q.target == PLAYER && cx.has_relic(crate::ids::relic::PAPER_KRANE) {
             num -= Dec::frac(15, 2);
         }
-        // TODO(fidelity): dealer's Debilitate adjusts the multiplier.
+        // DebilitatePower.ModifyWeakMultiplier: `amount - (1 - amount)` on the dealer's own Debilitate.
+        if cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
+            num = num - (Dec::ONE - num);
+        }
         num
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {

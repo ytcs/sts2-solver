@@ -45,6 +45,28 @@ pub struct Scenario {
     pub rng: RngSet,
 }
 
+/// Optional per-card inputs of a saved deck card (`SerializableCard.enchantment` / `props`). Kept out of `DeckCard` so
+/// existing `DeckCard { id, upgrade }` literals keep compiling; `deck[i]` extras are index-aligned with `Scenario::deck`
+/// (missing entries = no enchantment, zero props).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DeckExtra {
+    /// Enchantment id + 1 (`ids::enchantment::*` + 1); 0 = none.
+    pub enchant: u8,
+    pub enchant_amount: i16,
+    /// The card's `[SavedProperty]` values (ints / bools in the order of the scenario JSON), stored in `Card::counter`.
+    pub props: [i16; 2],
+}
+
+/// Everything optional about a combat's initial conditions (see `Combat::new_with`).
+#[derive(Clone, Debug, Default)]
+pub struct ScenarioExtras {
+    pub deck: Vec<DeckExtra>,
+    /// `Player.Gold` (read / changed by Debt, Thievery, Royalties ...).
+    pub gold: i32,
+    /// `RunState.CurrentActIndex`.
+    pub act: u8,
+}
+
 #[derive(Debug)]
 pub enum ScenarioError {
     UnimplementedCard(&'static str),
@@ -83,7 +105,13 @@ impl Scenario {
 
 impl Combat {
     /// Builds the combat and runs it up to the first player decision (spec 01 §3-4).
+    #[inline(always)]
     pub fn new(sc: &Scenario) -> Combat {
+        Self::new_with(sc, &ScenarioExtras::default())
+    }
+
+    /// `new` plus the optional inputs (deck card enchantments / saved properties).
+    pub fn new_with(sc: &Scenario, ex: &ScenarioExtras) -> Combat {
         sc.validate().expect("invalid scenario");
         let player_state = PlayerState {
             energy: 0,
@@ -118,25 +146,35 @@ impl Combat {
             enemies: ArrayVec::new(),
             next_power_uid: 1,
             listen: Mask::EMPTY,
+            listen_cards: Mask::EMPTY,
             player: player_state,
             cards: [Card::default(); MAX_CARDS],
             n_cards: 0,
             hist: History::default(),
-            play_ctx: None,
-            play_stack: Default::default(),
-            play_base: 0,
+            play_stack: ArrayVec::new(),
             potion_ctx: None,
             decision: None,
             choice: Choice::default(),
+            end_turn_resume: None,
+            hook_ctx: None,
+            turn_cont: 0,
             missing: None,
-            player_active: true,
-            gen_by_player: true,
+            player_hooks_active: true,
+            escaped: 0,
+            extra_turn: false,
+            dmg_card: NO,
+            dmg_result: Default::default(),
+            autoplay_stack: ArrayVec::new(),
+            hist_log: Default::default(),
+            decision_seq: 0,
+            deck_enchant_inc: [0; 80],
+            play_serial: 0,
+            gold: ex.gold,
+            act: ex.act,
+            end_turn_requested: false,
             room_type: room_type_of(sc.encounter),
-            gold: 99,
             cur_power_card: NO,
-            pending_hook: None,
             auto_select: false,
-            turn_cont: None,
             deck_upgradable: sc.deck.iter().enumerate().take(128).fold(0u128, |m, (i, d)| {
                 if d.upgrade < content::card_def(d.id).max_upgrade { m | (1u128 << i) } else { m }
             }),
@@ -170,7 +208,9 @@ impl Combat {
         }
         // PopulateCombatState: clone deck in order, then the initial (unsorted) shuffle.
         for (i, d) in sc.deck.iter().enumerate() {
-            let c = cx.new_card(d.id, d.upgrade).expect("card arena");
+            let x = ex.deck.get(i).copied().unwrap_or_default();
+            let c = cx.new_card_ex(d.id, d.upgrade, x.enchant, x.enchant_amount).expect("card arena");
+            cx.cards[c as usize].counter = x.props;
             cx.cards[c as usize].deck_idx = i as u8;
             cx.cards[c as usize].pile = PileType::Draw as u8;
             cx.player.draw.push(c);

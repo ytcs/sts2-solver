@@ -1,6 +1,6 @@
-//! Relics whose hooks raise player decisions (hand / option screens) or auto-play cards. Their hooks suspend through
-//! `Combat::suspend_hook_for_decision` / `Combat::pending_hook` and continue in `hook_resume` (the turn start that raised
-//! them resumes afterwards, see `Combat::run_turn_start`).
+//! Relics whose hooks raise player decisions (hand / option screens) or auto-play cards. Their hooks suspend through the
+//! canonical `Combat::hook_ctx = Some((me, phase))` and continue in `resume_hook` (the turn start that raised them resumes
+//! afterwards through `Combat::turn_cont`).
 
 use crate::content::gen_pools;
 use crate::content::gen_relics as g;
@@ -33,10 +33,13 @@ listener!(GamblingChip {
         // CardSelectorPrefs(prompt, 0, 999999999)
         match cx.ask_hand(ids::relic::GAMBLING_CHIP, 0, u8::MAX, |_, _| true) {
             Ask::Resolved(cards) => gambling_chip_finish(cx, &cards),
-            Ask::Pending => cx.suspend_hook_for_decision(me, 0),
+            Ask::Pending => {
+                cx.hook_ctx = Some((me, 0));
+                cx.stage = Stage::AwaitChoice;
+            }
         }
     }
-    fn hook_resume(&self, cx: &mut Combat, _me: Me, _phase: u8) {
+    fn resume_hook(&self, cx: &mut Combat, _me: Me, _phase: u8) {
         let cards = cx.choice.cards;
         gambling_chip_finish(cx, &cards);
     }
@@ -54,10 +57,13 @@ listener!(ToastyMittens {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
         match cx.ask_hand(ids::relic::TOASTY_MITTENS, 1, 1, |_, _| true) {
             Ask::Resolved(cards) => toasty_mittens_finish(cx, &cards),
-            Ask::Pending => cx.suspend_hook_for_decision(me, 0),
+            Ask::Pending => {
+                cx.hook_ctx = Some((me, 0));
+                cx.stage = Stage::AwaitChoice;
+            }
         }
     }
-    fn hook_resume(&self, cx: &mut Combat, _me: Me, _phase: u8) {
+    fn resume_hook(&self, cx: &mut Combat, _me: Me, _phase: u8) {
         let cards = cx.choice.cards;
         toasty_mittens_finish(cx, &cards);
     }
@@ -79,10 +85,13 @@ listener!(Toolbox {
         // `FromChooseACardScreen(...)`: the oracle's selector may also pick nothing (min 0), like Discovery.
         match cx.ask_options(ids::relic::TOOLBOX, cards.as_slice(), true) {
             Ask::Resolved(picked) => toolbox_finish(cx, &picked),
-            Ask::Pending => cx.suspend_hook_for_decision(me, 0),
+            Ask::Pending => {
+                cx.hook_ctx = Some((me, 0));
+                cx.stage = Stage::AwaitChoice;
+            }
         }
     }
-    fn hook_resume(&self, cx: &mut Combat, _me: Me, _phase: u8) {
+    fn resume_hook(&self, cx: &mut Combat, _me: Me, _phase: u8) {
         let cards = cx.choice.cards;
         toolbox_finish(cx, &cards);
     }
@@ -110,10 +119,13 @@ listener!(ChoicesParadox {
         }
         match cx.ask_options(ids::relic::CHOICES_PARADOX, cards.as_slice(), false) {
             Ask::Resolved(picked) => choices_paradox_finish(cx, &picked),
-            Ask::Pending => cx.suspend_hook_for_decision(me, 0),
+            Ask::Pending => {
+                cx.hook_ctx = Some((me, 0));
+                cx.stage = Stage::AwaitChoice;
+            }
         }
     }
-    fn hook_resume(&self, cx: &mut Combat, _me: Me, _phase: u8) {
+    fn resume_hook(&self, cx: &mut Combat, _me: Me, _phase: u8) {
         let cards = cx.choice.cards;
         choices_paradox_finish(cx, &cards);
     }
@@ -149,7 +161,7 @@ listener!(WhisperingEarring {
                 _ => NO,
             };
             cx.spend_resources(card);
-            cx.auto_play_ex(card, target, true);
+            let _ = cx.auto_play(card, target, AutoPlayType::Default, true);
             played += 1;
         }
         cx.auto_select = was;
@@ -178,11 +190,7 @@ listener!(HistoryCourse {
         }
         let src = (cx.rel(me).aux - 1) as CardIdx;
         if let Some(c) = cx.create_dupe(src) {
-            cx.pending_hook = Some(PendingHook { me, phase: 0 });
-            cx.auto_play_ex(c, NO, false);
-            if cx.stage != Stage::AwaitChoice {
-                cx.pending_hook = None;
-            }
+            let _ = cx.auto_play(c, NO, AutoPlayType::Default, false);
         }
     }
     fn after_combat_end(&self, cx: &mut Combat, me: Me) {

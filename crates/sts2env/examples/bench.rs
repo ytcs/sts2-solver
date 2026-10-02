@@ -14,7 +14,7 @@ fn main() {
     deck.push(DeckCard { id: ids::card::ASCENDERS_BANE, upgrade: 0 });
     let sc = Scenario {
         run_seed: 0, total_floor: 1, character: 0, ascension: 10, encounter: ids::encounter::NIBBITS_WEAK, max_hp: 80, hp: 80,
-        max_energy: 3, orb_slots: 0, potion_slots: 2, deck, relics: vec![RelicInit { id: ids::relic::BURNING_BLOOD, counter: 0 }],
+        max_energy: 3, orb_slots: 0, potion_slots: 2, deck, relics: vec![RelicInit { id: ids::relic::BURNING_BLOOD, counter: 0, ..Default::default() }],
         potions: vec![], rng: RngSet::from_run_seed(0),
     };
     let n: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(10_000);

@@ -43,7 +43,7 @@ listener!(Ambergris {
 listener!(FruitJuice {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::MaxHp);
-        cx.gain_max_hp(target, n);
+        cx.gain_max_hp(target, Dec::int(n as i64));
         Flow::Done
     }
 });
@@ -105,7 +105,7 @@ listener!(EntropicBrew {
 });
 
 // Automatic: when the player would die, heal max(30% of max HP, 1) instead. `Usage == Automatic`, so it is never a legal
-// manual action; the death sequence (`Combat::try_prevent_death`) drives `should_die` / `after_preventing_death`.
+// manual action; the death sequence (`Combat::kill_ex`) drives `should_die` / `after_preventing_death`.
 listener!(FairyInABottle {
     fn on_use_potion(&self, cx: &mut Combat, _potion: u16, target: Cid, _phase: u8) -> Flow {
         // Math.Max(MaxHp * 0.3m, 1m)
@@ -117,7 +117,7 @@ listener!(FairyInABottle {
         creature != PLAYER
     }
     fn after_preventing_death(&self, cx: &mut Combat, me: Me, creature: Cid) {
-        cx.use_potion_automatic(me.idx as usize, creature);
+        cx.use_potion_now(me.idx as usize, creature);
     }
 });
 

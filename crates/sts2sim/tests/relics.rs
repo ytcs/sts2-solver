@@ -119,7 +119,7 @@ fn gambling_chip_suspends_the_turn_start_and_resumes_it() {
     for c in first_two {
         assert!(cx.player.discard.contains(c));
     }
-    assert!(cx.turn_cont.is_none() && cx.pending_hook.is_none());
+    assert!(cx.turn_cont == 0 && cx.hook_ctx.is_none());
 }
 
 #[test]
@@ -176,13 +176,11 @@ fn sturdy_clamp_keeps_up_to_ten_block() {
     assert_eq!(cx.cr(PLAYER).block, 10);
 }
 
-/// Every relic class is registered except the ones that need engine systems that do not exist yet (see docs/relics.md).
+/// Every relic class is registered except the orb relics (Defect orbs engine is pending; see docs/relics.md).
 #[test]
 fn every_relic_is_registered_except_the_known_unported() {
     const UNPORTED: &[&str] = &[
-        "BONE_FLUTE", "BOUND_PHYLACTERY", "BYRDPIP", "CRACKED_CORE", "EMOTION_CHIP", "FENCING_MANUAL",
-        "GOLD_PLATED_CABLES", "INFUSED_CORE", "METRONOME", "PAELS_EYE", "PAELS_LEGION", "PHYLACTERY_UNBOUND", "RUNIC_CAPACITOR",
-        "SYMBIOTIC_VIRUS",
+        "CRACKED_CORE", "EMOTION_CHIP", "GOLD_PLATED_CABLES", "INFUSED_CORE", "METRONOME", "RUNIC_CAPACITOR", "SYMBIOTIC_VIRUS",
     ];
     let mut missing = vec![];
     for (i, name) in ids::relic::NAMES.iter().enumerate() {

@@ -56,25 +56,39 @@ impl Combat {
         out
     }
 
-    /// `CreatureCmd.GainMaxHp`: `SetMaxHp(max + amount)` (hp clamped to the new max), then `Heal(delta)`.
-    pub fn gain_max_hp(&mut self, c: Cid, amount: i32) {
-        let cr = self.cr_mut(c);
-        let old = cr.max_hp;
-        cr.max_hp = (cr.max_hp + amount).clamp(0, 999_999_999);
-        cr.hp = cr.hp.min(cr.max_hp);
-        let delta = cr.max_hp - old;
-        self.heal(c, Dec::int(delta as i64));
+    /// `ListExtensions.UnstableShuffle(list, rng)` over cards with the given stream (Fisher-Yates, `n - 1` draws).
+    pub fn unstable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
+        self.rng_stream_mut(stream).shuffle(list);
     }
 
-    /// `creature.Powers.All(p => p.ShouldOwnerDeathTriggerFatal())` (Feed, Hand of Greed, The Hunt).
-    pub fn should_death_trigger_fatal(&self, c: Cid) -> bool {
-        for p in self.cr(c).powers.iter() {
-            let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
-            if !crate::content::listener(&me).should_owner_death_trigger_fatal(self, me) {
-                return false;
+    /// `ListExtensions.StableShuffle(list, rng)`: sorts with `CardModel.CompareTo` (.NET introsort: ties are permuted),
+    /// then `UnstableShuffle`.
+    pub fn stable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
+        let cards = &self.cards;
+        crate::sort::intro_sort(list, |a, b| Combat::card_cmp(cards, a, b));
+        self.rng_stream_mut(stream).shuffle(list);
+    }
+
+    /// `CardFactory.GetForCombat` (`rng.NextItem` per card, with replacement) over the generatable cards of `pool`.
+    pub fn get_for_combat(&mut self, pool: &[u16], count: usize) -> ArrayVec<CardIdx, 16> {
+        let mut list: ArrayVec<u16, 128> = ArrayVec::new();
+        for &id in pool {
+            let d = crate::content::card_def(id);
+            if !d.multiplayer_only && d.can_be_generated_in_combat && !matches!(d.rarity, CardRarity::Basic | CardRarity::Ancient | CardRarity::Event) {
+                list.push(id);
             }
         }
-        true
+        let mut out = ArrayVec::new();
+        if list.is_empty() {
+            return out;
+        }
+        for _ in 0..count {
+            let i = self.rng.combat_card_generation.next_int_range(0, list.len() as i32) as usize;
+            if let Some(c) = self.new_card(list[i], 0) {
+                out.push(c);
+            }
+        }
+        out
     }
 
     /// `CardModel.SetToFreeThisTurn` (energy part): cost 0 until played or end of turn.
@@ -84,13 +98,31 @@ impl Combat {
             let card = &mut self.cards[c as usize];
             card.mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED });
         }
+        self.set_star_cost_this_turn(c, 0);
     }
 
-    /// `PlayerCmd.GainEnergy` (`ModifyEnergyGain` hook not implemented yet).
-    pub fn gain_energy(&mut self, n: i32) {
-        if n > 0 && !self.is_ending() {
-            self.player.energy += n;
+    /// `PlayerCmd.GainGold`: `Hook.ModifyGoldGained` (threaded over the run-level listeners), then `Gold += (int)amount`
+    /// when positive.
+    pub fn gain_gold(&mut self, n: i32) {
+        let mut v = Dec::int(n as i64);
+        if self.listen.has(hookbit::modify_gold_gained) {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_gold_gained));
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    v = crate::content::listener(&e.me).modify_gold_gained(self, e.me, v);
+                }
+            }
         }
+        if v > Dec::ZERO {
+            self.gold = self.gold.saturating_add(v.trunc());
+        }
+    }
+
+    /// Loses up to `n` gold; returns the amount actually lost (Debt, Thievery: `min(n, gold)`).
+    pub fn lose_gold(&mut self, n: i32) -> i32 {
+        let l = n.clamp(0, self.gold);
+        self.gold -= l;
+        l
     }
 
     /// `CombatState.HittableEnemies`: alive, attached, and `ShouldAllowHitting`.
@@ -143,21 +175,22 @@ impl Combat {
         let mut copy = self.cards[c as usize];
         copy.pile = PileType::None as u8;
         copy.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::REMOVED);
+        copy.flags |= cflag::IS_CLONE;
         copy.deck_idx = NO;
         self.cards[idx as usize] = copy;
         self.listen |= crate::content::card_mask(copy.id);
+        self.listen_cards |= crate::content::card_mask(copy.id);
         Some(idx)
     }
 
     /// `CardPileCmd.AddGeneratedCardToCombat`: a brand-new card enters `pile` (hand-full redirect applies).
     pub fn add_generated_card(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition) -> bool {
-        // History.CardGenerated — not tracked yet.
+        // CardGeneratedEntry(creator): everything generated during the player's side is player-created.
+        let by_player = self.side == Side::Player;
+        self.hist_card_generated(c, by_player);
         let ok = self.move_card(c, pile, pos);
         if ok {
-            // `creator`: the player for cards generated on the player's turn (cards, relics, potions); monster moves that add
-            // status cards run during the enemy turn and pass no creator.
-            self.gen_by_player = self.side == Side::Player;
-            self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, c));
+            self.dispatch_g(hookbit::after_card_generated_for_combat, |cx, me, l| l.after_card_generated_for_combat(cx, me, c, by_player));
         }
         ok
     }
@@ -166,6 +199,47 @@ impl Combat {
     pub fn discard_card(&mut self, c: CardIdx) {
         self.move_card(c, PileType::Discard, CardPilePosition::Bottom);
         self.dispatch_g(hookbit::after_card_discarded, |cx, me, l| l.after_card_discarded(cx, me, c));
+    }
+
+    // ---- ironclad_b1 helpers ----------------------------------------------------------------------------------
+
+    /// Value of the card's named dynamic var (`DynamicVar(\"Name\", v)`), `name` = `gen_cards::var_name::*`.
+    pub fn card_named_var(&self, c: CardIdx, name: u16) -> i32 {
+        let card = &self.cards[c as usize];
+        for v in crate::content::card_def(card.id).vars {
+            if v.kind == crate::defs::VarKind::Named && v.arg == name {
+                return v.base as i32 + v.up as i32 * card.upgrade as i32;
+            }
+        }
+        0
+    }
+
+    /// Exact (decimal) value of the card's Damage var including permanent growth (`dmg_bonus`).
+    pub fn card_damage_dec(&self, c: CardIdx) -> Dec {
+        let card = &self.cards[c as usize];
+        let mut v = Dec::int(0);
+        for d in crate::content::card_def(card.id).vars {
+            if d.kind == crate::defs::VarKind::Damage {
+                v = Dec::int(d.base as i64 + d.up as i64 * card.upgrade as i64);
+            }
+        }
+        v + Dec::frac(card.dmg_bonus as i64, 4)
+    }
+
+    /// Adds `amount` (decimal) to the card's Damage var permanently (`DynamicVars.Damage.BaseValue += amount`).
+    pub fn add_card_damage(&mut self, c: CardIdx, amount: Dec) {
+        let milli = (amount * Dec::int(10_000)).trunc();
+        let card = &mut self.cards[c as usize];
+        card.dmg_bonus = card.dmg_bonus.saturating_add(milli);
+    }
+
+    /// `CardPileCmd.Draw(ctx, player)` for a single card: the drawn card, or `None` (empty piles / full hand / ending).
+    pub fn draw_one(&mut self) -> Option<CardIdx> {
+        let before = self.player.hand.len();
+        if self.draw_cards(1, false) == 0 {
+            return None;
+        }
+        if self.player.hand.len() > before { self.player.hand.last() } else { None }
     }
 
     // ---- decisions ---------------------------------------------------------------------------------------------
@@ -190,7 +264,10 @@ impl Combat {
                 cands.push(c);
             }
         }
-        if pile == PileType::Draw {
+        // A forced selection (`!RequireManualConfirmation && |L| <= min`) returns the pile's own order; only the screen
+        // shown to the player sorts the draw pile.
+        let forced = min == max && cands.len() <= min as usize;
+        if pile == PileType::Draw && !forced {
             let cards = &self.cards;
             let key = |c: &CardIdx| {
                 let id = cards[*c as usize].id;
@@ -260,6 +337,7 @@ impl Combat {
     }
 
     fn begin_decision(&mut self, source: DecisionSource, purpose: u16, min: u8, max: u8, cands: ArrayVec<CardIdx, 64>, confirm_required: bool, can_skip: bool) {
+        self.decision_seq += 1;
         self.decision = Some(Decision { source, min, max, cands, selected: ArrayVec::new(), confirm_required, can_skip, purpose });
     }
 
@@ -305,4 +383,48 @@ impl Combat {
         self.stage = Stage::AwaitAction;
         self.resume_after_decision();
     }
+}
+
+// ---- Silent slice helpers ------------------------------------------------------------------------------------------------
+impl Combat {
+
+    /// `CardCmd.ApplySingleTurnSly`.
+    pub fn apply_single_turn_sly(&mut self, c: CardIdx) {
+        self.cards[c as usize].flags |= cflag::SINGLE_TURN_SLY;
+    }
+
+    /// `CardCmd.ApplySingleTurnRetain`.
+    pub fn apply_single_turn_retain(&mut self, c: CardIdx) {
+        self.cards[c as usize].flags |= cflag::SINGLE_TURN_RETAIN;
+    }
+
+    /// `PowerCmd.Remove<T>(creature)`: removes the creature's power `id` if present.
+    pub fn remove_power_by_id(&mut self, c: Cid, id: u16) {
+        if let Some(uid) = self.cr(c).power(id).map(|p| p.uid) {
+            self.remove_power(c, uid);
+        }
+    }
+
+    /// `Shiv.CreateInHand(owner, count, combatState)`: creates all cards first, then adds them one by one.
+    pub fn create_shivs_in_hand(&mut self, count: i32) -> ArrayVec<CardIdx, MAX_HAND> {
+        let mut shivs: ArrayVec<CardIdx, MAX_HAND> = ArrayVec::new();
+        if count <= 0 || self.is_over_or_ending() {
+            return shivs;
+        }
+        for _ in 0..count.min(MAX_HAND as i32) {
+            if let Some(c) = self.new_card(crate::ids::card::SHIV, 0) {
+                shivs.push(c);
+            }
+        }
+        for i in 0..shivs.len() {
+            let c = shivs[i];
+            self.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
+        }
+        shivs
+    }
+}
+
+// ---- Enchantments (Silent slice: only what Blade of Ink needs) ------------------------------------------------------------
+impl Combat {
+
 }

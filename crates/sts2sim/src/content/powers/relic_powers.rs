@@ -41,8 +41,8 @@ listener!(HelicalDartPower {
     fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
         temp_before_applied(cx, ids::power::DEXTERITY_POWER, target, amount, applier, card);
     }
-    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, power_id: u16, amount: i32) {
-        temp_after_changed(cx, me, ids::power::DEXTERITY_POWER, power_id, amount);
+    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
+        temp_after_changed(cx, me, ids::power::DEXTERITY_POWER, ch.power_id, ch.amount);
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         temp_end_of_turn(cx, me, ids::power::DEXTERITY_POWER, side);
@@ -53,8 +53,8 @@ listener!(ReptileTrinketPower {
     fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
         temp_before_applied(cx, ids::power::STRENGTH_POWER, target, amount, applier, card);
     }
-    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, power_id: u16, amount: i32) {
-        temp_after_changed(cx, me, ids::power::STRENGTH_POWER, power_id, amount);
+    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
+        temp_after_changed(cx, me, ids::power::STRENGTH_POWER, ch.power_id, ch.amount);
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         temp_end_of_turn(cx, me, ids::power::STRENGTH_POWER, side);
@@ -70,6 +70,6 @@ listener!(ConfusedPower {
             return;
         }
         let cost = cx.rng.combat_energy_costs.next_int(4);
-        cx.set_cost_this_combat(card, cost);
+        cx.set_cost_this_combat(card, cost, false);
     }
 });

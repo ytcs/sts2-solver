@@ -201,7 +201,7 @@ listener!(FakeVenerableTeaSet {
 // +`MaxHp` max HP (and current HP) after every combat.
 listener!(ChosenCheese {
     fn after_combat_end(&self, cx: &mut Combat, _me: Me) {
-        cx.gain_max_hp(PLAYER, g::chosen_cheese::MAX_HP);
+        cx.gain_max_hp(PLAYER, Dec::int(g::chosen_cheese::MAX_HP as i64));
     }
 });
 
@@ -309,7 +309,7 @@ listener!(LavaLamp {
 // (`ShouldOwnerDeathTriggerFatal`).
 listener!(BookRepairKnife {
     fn after_died_to_doom(&self, cx: &mut Combat, _me: Me, creatures: &[Cid]) {
-        let n = creatures.iter().filter(|&&c| c != PLAYER && cx.should_death_trigger_fatal(c)).count() as i32;
+        let n = creatures.iter().filter(|&&c| c != PLAYER && cx.all_powers_trigger_fatal(c)).count() as i32;
         if n != 0 {
             cx.heal(PLAYER, Dec::int((g::book_repair_knife::HEAL * n) as i64));
         }

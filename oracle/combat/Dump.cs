@@ -21,6 +21,8 @@ public static class Dump
             ["upgrade"] = c.CurrentUpgradeLevel,
         };
         try { var cost = c.EnergyCost; o["cost"] = cost.CostsX ? -1 : cost.GetResolved(); } catch { }
+        try { if (c.HasStarCostX) o["star_cost"] = -1; else { var sc = c.GetStarCostWithModifiers(); if (sc >= 0) o["star_cost"] = sc; } } catch { }
+        try { if (c.Id.Entry == "SOVEREIGN_BLADE" || c.Id.Entry == "KINGLY_PUNCH") o["base_damage"] = (int)c.DynamicVars.Damage.BaseValue; } catch { }
         try { o["keywords"] = new JsonArray(c.Keywords.Select(k => (JsonNode)k.ToString()).OrderBy(x => x.ToString(), StringComparer.Ordinal).ToArray()); } catch { }
         if (c.Enchantment != null)
             o["enchantment"] = new JsonObject { ["id"] = c.Enchantment.Id.Entry, ["amount"] = c.Enchantment.Amount };

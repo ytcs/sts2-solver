@@ -20,6 +20,14 @@ pub struct DamageResult {
     pub fully_blocked: bool,
 }
 
+impl DamageResult {
+    /// `DamageResult.TotalDamage` = `BlockedDamage + UnblockedDamage` (overkill excluded).
+    #[inline]
+    pub fn total(&self) -> i32 {
+        self.blocked + self.unblocked
+    }
+}
+
 impl Combat {
     pub fn alloc_creature(&mut self) -> Option<Cid> {
         // Slot 0 is the player; recycle freed slots.
@@ -81,36 +89,36 @@ impl Combat {
         if self.is_over_or_ending() || self.cr(c).is_dead() {
             return Dec::ZERO;
         }
-        // BeforeBlockGained (raw amount) — no content yet.
-        let (v, mods) = self.modify_block_mods(c, amount, props, card);
+        self.dispatch_g(hookbit::before_block_gained, |cx, me, l| l.before_block_gained(cx, me, c, amount, props, card));
+        let (v, mods) = self.modify_block_ex(c, amount, props, card);
         let v = v.max(Dec::ZERO);
-        // AfterModifyingBlockAmount: only the models that changed the amount (guarded pass over the live listeners).
-        if !mods.is_empty() {
-            self.dispatch_g(hookbit::after_modifying_block_amount, |cx, me, l| {
-                if mods.iter().any(|m| m.kind == me.kind && m.idx == me.idx && m.owner == me.owner) {
-                    l.after_modifying_block_amount(cx, me, v, card);
-                }
-            });
-        }
+        self.dispatch_modifiers(true, hookbit::after_modifying_block_amount, &mods, |cx, me, l| l.after_modifying_block_amount(cx, me, v, card));
         if v > Dec::ZERO {
             self.gain_block_internal(c, v);
+            // History.BlockGained (`id` = identity of the card play it came from, for "another play" queries)
+            self.hist_push(crate::engine::HKind::BlockGained, c, NO, self.play_serial, card, v.trunc(), (card != NO) as u8, props.0, 0);
         }
         self.dispatch_g(hookbit::after_block_gained, |cx, me, l| l.after_block_gained(cx, me, c, v));
         v
     }
 
-    /// `Hook.ModifyBlock` (spec 02 §4.1): additive pass, multiplicative pass, floor at 0. No rounding.
+    /// `Hook.ModifyBlock` (spec 02 §4.1): enchantment add/mul, additive pass, multiplicative pass, floor at 0.
     pub fn modify_block(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
-        self.modify_block_mods(target, amount, props, card).0
+        self.modify_block_ex(target, amount, props, card).0
     }
 
-    /// `Hook.ModifyBlock` with the `modifiers` list (non-zero adders, non-1 multipliers) that gates
-    /// `AfterModifyingBlockAmount`.
-    pub fn modify_block_mods(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, super::damage::Mods) {
+    /// `Hook.ModifyBlock` with the list of models that changed the value (non-zero adders, non-1 multipliers).
+    pub fn modify_block_ex(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, super::Mods) {
         let m = (Mask::bit(hookbit::modify_block_additive)) | (Mask::bit(hookbit::modify_block_multiplicative));
-        let snap = self.snapshot(m);
-        let mut mods = super::damage::Mods::new();
+        let mut mods = super::Mods::new();
         let mut v = amount;
+        if card != NO && self.cards[card as usize].enchant != 0 {
+            let me = self.enchantment_me(card);
+            let l = content::listener(&me);
+            v += l.enchant_block_additive(self, me, v);
+            v *= l.enchant_block_multiplicative(self, me, v);
+        }
+        let snap = self.snapshot(m);
         for e in snap.iter() {
             if e.mask.has(hookbit::modify_block_additive) && self.still_live(&e.me) {
                 let q = BlockQ { target, card, props, amount: v };
@@ -134,7 +142,22 @@ impl Combat {
         (v.max(Dec::ZERO), mods)
     }
 
-    /// `CreatureCmd.Heal` (single-player, combat): `(int)min(hp + amount, max)`; heals revive a dead player.
+    /// `CreatureCmd.LoseBlock(target, amount, remover)`: no-op when combat is over / ending, the target is dead or
+    /// `amount <= 0`; `Block = max(Block - amount, 0)` (truncated); `AfterBlockBroken` if the block reached 0.
+    pub fn lose_block(&mut self, c: Cid, amount: Dec, remover: Cid) {
+        if self.is_over_or_ending() || self.cr(c).is_dead() || amount <= Dec::ZERO {
+            return;
+        }
+        let before = self.cr(c).block;
+        self.cr_mut(c).block = (Dec::int(before as i64) - amount).max(Dec::ZERO).trunc();
+        if before > 0 && self.cr(c).block <= 0 {
+            self.dispatch_u(hookbit::after_block_broken, |cx, me, l| l.after_block_broken(cx, me, c, remover));
+        }
+    }
+
+    /// `CreatureCmd.Heal(creature, amount)`: no-op for non-players once combat is ending; `(int)min(hp + amount, max)`;
+    /// healing a dead player revives it (hooks re-activate); `AfterCurrentHpChanged(amount)` fires with the REQUESTED
+    /// amount if `amount > 0` (spec 02 §5.2).
     pub fn heal(&mut self, c: Cid, amount: Dec) {
         if !self.cr(c).is_player && self.is_ending() {
             return;
@@ -143,22 +166,20 @@ impl Combat {
         let cur = Dec::int(self.cr(c).hp as i64);
         self.set_current_hp_internal(c, cur + amount);
         if was_dead && self.cr(c).is_alive() && c == PLAYER {
-            self.player_active = true; // Player.ActivateHooks
+            self.player_hooks_active = true;
         }
-        // AfterCurrentHpChanged(raw requested amount) when amount > 0 (unguarded run-level dispatch).
         if amount > Dec::ZERO && self.cr(c).in_combat {
             let d = amount.trunc();
             self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, d));
         }
     }
 
-    /// `CreatureCmd.SetCurrentHp`: clamps to max HP, fires `AfterCurrentHpChanged(new - old)` if it changed, then kills
-    /// the creature if it reached 0.
+    /// `CreatureCmd.SetCurrentHp`: hook delta if the value changed; kills if the creature ends up dead.
     pub fn set_current_hp(&mut self, c: Cid, amount: Dec) {
-        let before = self.cr(c).hp;
+        let old = self.cr(c).hp;
         self.set_current_hp_internal(c, amount);
-        if amount != Dec::int(before as i64) {
-            let d = (amount - Dec::int(before as i64)).trunc();
+        if self.cr(c).hp != old || amount != Dec::int(old as i64) {
+            let d = amount.trunc() - old;
             self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, d));
         }
         if self.cr(c).is_dead() {
@@ -166,59 +187,42 @@ impl Combat {
         }
     }
 
-    // ---- death -----------------------------------------------------------------------------------------------
-
-    /// `CreatureCmd.Kill(creatures)`.
-    pub fn kill(&mut self, victims: &[Cid]) {
-        for &v in victims {
-            self.kill_without_check(v);
+    /// `CreatureCmd.SetMaxHp`: returns the change; max HP <= 0 kills.
+    pub fn set_max_hp(&mut self, c: Cid, amount: Dec) -> i32 {
+        let old = self.cr(c).max_hp;
+        let n = amount.max(Dec::ZERO).min(Dec::int(MAX_STAT as i64)).trunc();
+        let cr = self.cr_mut(c);
+        cr.max_hp = n;
+        cr.hp = cr.hp.min(n);
+        if self.cr(c).max_hp <= 0 {
+            self.kill(&[c]);
         }
-        if self.cr(PLAYER).is_dead() && self.in_progress {
-            self.pending_loss = true;
-        }
+        self.cr(c).max_hp - old
     }
 
-    /// `KillWithoutCheckingWinCondition` (spec 02 §5.3), single-player path.
-    fn kill_without_check(&mut self, c: Cid) {
-        if !self.cr(c).in_combat && c != PLAYER {
-            return;
-        }
-        let hp = self.cr(c).hp;
-        if hp > 0 {
-            self.lose_hp_internal(c, Dec::int(hp as i64));
-            let d = -hp;
-            self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, d));
-        }
-        // BeforeDeath(c) — no content yet.
-        // ShouldDie / ShouldDieLate preventers (Fairy in a Bottle, Lizard Tail), see `Combat::try_prevent_death`:
-        // `engine-core` owns this sequence — keep this one call when reworking it.
-        if self.try_prevent_death(c) {
-            return;
-        }
-        self.on_died(c);
+    /// `CreatureCmd.GainMaxHp`: raise max HP, then heal by the change.
+    pub fn gain_max_hp(&mut self, c: Cid, amount: Dec) {
+        let cur = Dec::int(self.cr(c).max_hp as i64);
+        let delta = self.set_max_hp(c, cur + amount);
+        self.heal(c, Dec::int(delta as i64));
     }
 
-    fn on_died(&mut self, c: Cid) {
-        let is_enemy = self.cr(c).side == Side::Enemy;
-        let remove = is_enemy && !self.cr(c).is_pet;
-        // AfterDeath(c, wasRemovalPrevented=false)
-        self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c));
-        if remove && self.enemies.contains(c) {
-            self.remove_creature(c);
+    /// `CreatureCmd.LoseMaxHp`: if the new max is below the current HP, a full `Damage` call (Unblockable | Unpowered
+    /// [| Move]) removes the excess first; then max HP becomes `max(1, new)`.
+    pub fn lose_max_hp(&mut self, c: Cid, amount: Dec, is_from_card: bool) {
+        let new_max = Dec::int(self.cr(c).max_hp as i64) - amount;
+        let hp = Dec::int(self.cr(c).hp as i64);
+        if new_max < hp {
+            let mut props = ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED);
+            if is_from_card {
+                props = props.or(ValueProp::MOVE);
+            }
+            self.damage(&[c], hp - new_max, props, NO, NO);
         }
-        // RemoveAllPowersAfterDeath: strip powers (AfterRemoved callbacks, no amount hooks).
-        let mut removed = [Power::default(); MAX_POWERS];
-        let n = self.cr(c).powers.len();
-        removed[..n].copy_from_slice(self.cr(c).powers.as_slice());
-        self.cr_mut(c).powers.clear();
-        for p in &removed[..n] {
-            let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
-            content::listener(&me).after_removed(self, me, c);
-        }
-        if c == PLAYER {
-            self.player_active = false; // Player.DeactivateHooks (after the death sequence)
-        }
+        self.set_max_hp(c, new_max.max(Dec::ONE));
     }
+
+    // ---- death: see `death.rs` ----
 
     /// `CombatManager.RemoveCreature` + `CombatState.RemoveCreature`: leaves hooks / the enemy list. A monster that
     /// dies during its own move stays attached until the move finishes (handled by `perform_move`).
