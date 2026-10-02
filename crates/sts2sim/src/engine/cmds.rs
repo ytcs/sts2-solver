@@ -142,6 +142,7 @@ impl Combat {
     /// `CardCmd.Discard` for one card (Sly auto-play not implemented yet).
     pub fn discard_card(&mut self, c: CardIdx) {
         self.move_card(c, PileType::Discard, CardPilePosition::Bottom);
+        self.hist.discarded_this_turn += 1; // History.CardDiscarded (CardCmd.Discard* only; the flush does not log)
         self.dispatch_g(hookbit::after_card_discarded, |cx, me, l| l.after_card_discarded(cx, me, c));
     }
 
