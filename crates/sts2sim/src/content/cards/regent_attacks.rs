@@ -316,8 +316,10 @@ listener!(HeirloomHammer {
     }
 });
 
+// `CardModel.VisualCardPool.IsColorless`: the Colorless, Event and Token pools.
 fn is_colorless(id: u16) -> bool {
-    crate::content::gen_pools::COLORLESS.contains(&id)
+    use crate::content::gen_pools as p;
+    p::COLORLESS.contains(&id) || p::EVENT.contains(&id) || p::TOKEN.contains(&id)
 }
 
 fn clone_selection(cx: &mut Combat, p: &CardPlay, sel: Option<CardIdx>) {
