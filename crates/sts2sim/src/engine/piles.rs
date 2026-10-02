@@ -294,15 +294,35 @@ impl Combat {
 
     /// `CardPileCmd.Draw` (spec 03 §6.3). Returns the number of cards drawn.
     pub fn draw_cards(&mut self, count: i32, from_hand_draw: bool) -> usize {
-        if self.is_over_or_ending() || count <= 0 {
-            return 0;
+        self.draw_cards_list(count, from_hand_draw).len()
+    }
+
+    /// `Hook.ShouldDraw` — AND over guarded listeners (NoDrawPower).
+    fn should_draw(&self, from_hand_draw: bool) -> bool {
+        if self.hooks_enabled() && self.listen.has(hookbit::should_draw) {
+            let snap = self.snapshot(Mask::bit(hookbit::should_draw));
+            for e in snap.iter() {
+                if self.still_live(&e.me) && !content::listener(&e.me).should_draw(self, e.me, from_hand_draw) {
+                    return false;
+                }
+            }
         }
-        // Hook.ShouldDraw (NoDraw) — no content yet.
+        true
+    }
+
+    /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
+    pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+        let mut out = crate::util::ArrayVec::new();
+        if self.is_over_or_ending() || count <= 0 {
+            return out;
+        }
+        if !self.should_draw(from_hand_draw) {
+            return out;
+        }
         let mut room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         if room == 0 {
-            return 0;
+            return out;
         }
-        let mut drawn = 0;
         for _ in 0..count {
             if room <= 0 || self.is_over_or_ending() {
                 break;
@@ -319,11 +339,11 @@ impl Combat {
                 break;
             }
             self.move_card(card, PileType::Hand, CardPilePosition::Bottom);
-            drawn += 1;
+            out.push(card);
             self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         }
-        drawn
+        out
     }
 
     /// `CardCmd.Exhaust`.

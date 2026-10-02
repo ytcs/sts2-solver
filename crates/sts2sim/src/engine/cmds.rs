@@ -4,6 +4,7 @@ use crate::dec::Dec;
 use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
+use crate::defs::VarKind;
 use crate::util::ArrayVec;
 
 /// Result of requesting a decision: either already resolved (empty / forced choice) or pending (the effect must
@@ -264,5 +265,133 @@ impl Combat {
         self.choice = ch;
         self.stage = Stage::AwaitAction;
         self.resume_after_decision();
+    }
+}
+
+// ---- Silent slice helpers ------------------------------------------------------------------------------------------------
+impl Combat {
+    /// `CardModel.IsSlyThisTurn`: Sly keyword or the single-turn flag.
+    pub fn is_sly_this_turn(&self, c: CardIdx) -> bool {
+        self.card_keywords(c) & kw::SLY != 0 || self.cards[c as usize].flags & cflag::SINGLE_TURN_SLY != 0
+    }
+
+    /// `CardCmd.ApplySingleTurnSly`.
+    pub fn apply_single_turn_sly(&mut self, c: CardIdx) {
+        self.cards[c as usize].flags |= cflag::SINGLE_TURN_SLY;
+    }
+
+    /// `CardCmd.ApplySingleTurnRetain`.
+    pub fn apply_single_turn_retain(&mut self, c: CardIdx) {
+        self.cards[c as usize].flags |= cflag::SINGLE_TURN_RETAIN;
+    }
+
+    /// `CardCmd.DiscardAndDraw` (spec 03 §5.4): discard all (in order), then draw, then auto-play each Sly card in the
+    /// original order. Returns `true` if a Sly auto-play suspended on a decision: the calling effect must return
+    /// `Flow::Suspend(next)` for the rest of its body (remaining Sly cards are queued and run by the engine first).
+    pub fn discard_cards(&mut self, cards: &[CardIdx], draw: i32) -> bool {
+        if self.is_over_or_ending() || cards.is_empty() {
+            return false;
+        }
+        let mut sly: ArrayVec<CardIdx, MAX_HAND> = ArrayVec::new();
+        for &c in cards {
+            if self.is_sly_this_turn(c) {
+                sly.push(c);
+            }
+            self.discard_card(c);
+        }
+        if draw > 0 {
+            self.draw_cards_list(draw, false);
+        }
+        for i in 0..sly.len() {
+            if self.auto_play(sly[i], NO) {
+                let mut q: ArrayVec<CardIdx, 10> = ArrayVec::new();
+                for j in (i + 1)..sly.len() {
+                    q.push(sly[j]);
+                }
+                for &c in self.sly_queue.iter() {
+                    q.push(c);
+                }
+                self.sly_queue = q;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// `CreatureCmd.LoseBlock`.
+    pub fn lose_block(&mut self, c: Cid, amount: i32, remover: Cid) {
+        if self.is_over_or_ending() || self.cr(c).is_dead() || amount <= 0 {
+            return;
+        }
+        let before = self.cr(c).block;
+        self.cr_mut(c).block = (before - amount).max(0);
+        if before > 0 && self.cr(c).block <= 0 {
+            self.dispatch_u(hookbit::after_block_broken, |cx, me, l| l.after_block_broken(cx, me, c, remover));
+        }
+    }
+
+    /// `PowerCmd.Remove<T>(creature)`: removes the creature's power `id` if present.
+    pub fn remove_power_by_id(&mut self, c: Cid, id: u16) {
+        if let Some(uid) = self.cr(c).power(id).map(|p| p.uid) {
+            self.remove_power(c, uid);
+        }
+    }
+
+    /// Value of the card's explicitly named dynamic var (`DynamicVars["Name"]`, `gen_cards::var_name::*`).
+    pub fn card_named_var(&self, c: CardIdx, name: u16) -> i32 {
+        let card = &self.cards[c as usize];
+        for v in crate::content::card_def(card.id).vars {
+            if v.kind == VarKind::Named && v.arg == name {
+                return v.base as i32 + v.up as i32 * card.upgrade as i32;
+            }
+        }
+        0
+    }
+
+    /// `Shiv.CreateInHand(owner, count, combatState)`: creates all cards first, then adds them one by one.
+    pub fn create_shivs_in_hand(&mut self, count: i32) -> ArrayVec<CardIdx, MAX_HAND> {
+        let mut shivs: ArrayVec<CardIdx, MAX_HAND> = ArrayVec::new();
+        if count <= 0 || self.is_over_or_ending() {
+            return shivs;
+        }
+        for _ in 0..count.min(MAX_HAND as i32) {
+            if let Some(c) = self.new_card(crate::ids::card::SHIV, 0) {
+                shivs.push(c);
+            }
+        }
+        for i in 0..shivs.len() {
+            let c = shivs[i];
+            self.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
+        }
+        shivs
+    }
+}
+
+// ---- Enchantments (Silent slice: only what Blade of Ink needs) ------------------------------------------------------------
+impl Combat {
+    /// `CardCmd.Enchant<T>(card, amount)` for a card without an enchantment (stored as `enchantment id + 1`).
+    pub fn enchant_card(&mut self, c: CardIdx, enchantment: u16, amount: i32) {
+        let card = &mut self.cards[c as usize];
+        if card.enchant == 0 {
+            card.enchant = (enchantment + 1) as u8;
+            card.enchant_amount = amount as i16;
+        } else if card.enchant as u16 == enchantment + 1 {
+            card.enchant_amount += amount as i16;
+        }
+    }
+
+    /// `EnchantmentModel.OnPlay` of the card's enchantment (after the card's own `OnPlay`, every replay).
+    pub fn enchantment_on_play(&mut self, enchantment: u16, play: &CardPlay) {
+        if enchantment == crate::ids::enchantment::INKY {
+            // Inky: apply Weak (PowerVar 1) to the target, or to every hittable enemy for AllEnemies cards.
+            let id = crate::ids::power::WEAK_POWER;
+            if self.card_target_type(play.card) != TargetType::AllEnemies {
+                self.apply_power(id, play.target, Dec::ONE, PLAYER, play.card);
+            } else {
+                self.apply_power_to_hittable_enemies(id, Dec::ONE, PLAYER, play.card);
+            }
+        } else {
+            self.flag_missing(Kind::Enchantment, enchantment);
+        }
     }
 }

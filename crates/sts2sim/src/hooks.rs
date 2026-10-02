@@ -269,6 +269,18 @@ pub trait Listener: Sync {
     }
     /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
+
+    // ---- Silent slice additions (appended; union-merged) ------------------------------------------------------
+    /// `ShouldDraw(player, fromHandDraw)` — AND over listeners (NoDrawPower).
+    fn should_draw(&self, cx: &Combat, me: Me, from_hand_draw: bool) -> bool {
+        true
+    }
+    /// `ModifyCardPlayCount(card, target, playCount)` — threaded; `Some(new)` = this listener modified the count
+    /// (Burst, Duplication, ...). Followed by `AfterModifyingCardPlayCount(card)` on every modifier.
+    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, play_count: i32) -> Option<i32> {
+        None
+    }
+    fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
 }
 
 /// Statically derived hook mask of a listener type.
@@ -361,6 +373,9 @@ pub mod hookbit {
         after_death,
         on_play,
         on_turn_end_in_hand,
+        should_draw,
+        modify_card_play_count,
+        after_modifying_card_play_count,
     );
 }
 

@@ -331,6 +331,8 @@ pub struct History {
     pub cards_played_this_turn: i16,
     pub attacks_played_this_turn: i16,
     pub skills_played_this_turn: i16,
+    /// `CardPlayFinished` entries this turn for Attack cards (Finisher). Recorded after `OnPlay`, before `AfterCardPlayed`.
+    pub attacks_finished_this_turn: i16,
 }
 
 #[derive(Clone, Copy)]
@@ -362,6 +364,12 @@ pub struct Combat {
 
     /// In-flight card play (suspended while a decision is pending).
     pub play_ctx: Option<PlayCtx>,
+    /// Silent slice (Sly auto-play): plays suspended while a nested auto-play awaits a decision, innermost last.
+    pub play_outer: ArrayVec<PlayCtx, 3>,
+    /// Set by `auto_play` when it parked the calling card's ctx in `play_outer` (the inner play is awaiting a choice).
+    pub inner_parked: bool,
+    /// Sly cards still waiting to auto-play after a discard whose earlier Sly auto-play suspended on a decision.
+    pub sly_queue: ArrayVec<CardIdx, 10>,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
