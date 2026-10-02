@@ -68,30 +68,6 @@ listener!(Survivor {
     }
 });
 
-listener!(Reflex {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
-    }
-});
-
-listener!(Tactician {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let e = cx.card_var(p.card, VarKind::Energy);
-        cx.gain_energy(e);
-        Flow::Done
-    }
-});
-
-listener!(Untouchable {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let b = cx.card_var(p.card, VarKind::Block);
-        cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::MOVE, p.card);
-        Flow::Done
-    }
-});
-
 // Begone: choose a card in hand; it is transformed into Minion Strike (upgraded iff Begone is).
 listener!(Begone {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
