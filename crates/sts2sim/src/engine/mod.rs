@@ -13,6 +13,8 @@ mod history;
 mod dispatch;
 mod lifecycle;
 mod monster;
+mod necro;
+mod pets;
 mod piles;
 mod potion_gen;
 mod potions;
@@ -22,6 +24,7 @@ mod regent;
 mod turn;
 
 pub use creature::DamageResult;
+pub use necro::{is_temporary_power, temporary_inner_power};
 pub use damage::{Attack, Mods, Results, Targeting};
 pub use dispatch::*;
 pub use cmds::Ask;

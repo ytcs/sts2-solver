@@ -43,14 +43,23 @@ listener!(VulnerablePower {
             return Dec::ONE;
         }
         let mut mult = Dec::frac(15, 1);
-        // The dealer's Cruelty power adds Amount/100 (CrueltyPower.ModifyVulnerableMultiplier; target != owner here).
-        if q.dealer != NO && q.dealer != q.target {
-            let cruelty = cx.power_amount(q.dealer, crate::ids::power::CRUELTY_POWER);
-            if cruelty != 0 {
+        // The dealer's Cruelty power (or its pet owner's, for Osty) adds Amount/100 (`CrueltyPower.ModifyVulnerableMultiplier`;
+        // a Cruelty owner never boosts damage against itself).
+        if q.dealer != NO {
+            let mut holder = q.dealer;
+            if cx.power_amount(holder, crate::ids::power::CRUELTY_POWER) == 0 && cx.cr(q.dealer).is_pet {
+                holder = cx.cr(q.dealer).owner;
+            }
+            let cruelty = cx.power_amount(holder, crate::ids::power::CRUELTY_POWER);
+            if cruelty != 0 && q.target != holder {
                 mult += Dec::frac(cruelty as i64, 2);
             }
         }
-        // TODO(fidelity): dealer's PaperPhrog relic (+PetOwner's Cruelty) and target's Debilitate also adjust the multiplier.
+        // TODO(fidelity): the dealer's PaperPhrog relic also adjusts the multiplier (before Cruelty).
+        // `DebilitatePower.ModifyVulnerableMultiplier`: `amount + (amount - 1)` on the target's own Debilitate.
+        if cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
+            mult = mult + (mult - Dec::ONE);
+        }
         mult
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
@@ -65,8 +74,13 @@ listener!(WeakPower {
         if q.dealer != me.owner || !q.props.is_powered() {
             return Dec::ONE;
         }
-        // TODO(fidelity): target's PaperKrane relic and dealer's Debilitate adjust the multiplier.
-        Dec::frac(75, 2)
+        // TODO(fidelity): target's PaperKrane relic adjusts the multiplier.
+        let mut num = Dec::frac(75, 2);
+        // DebilitatePower.ModifyWeakMultiplier: `amount - (1 - amount)` on the dealer's own Debilitate.
+        if _cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
+            num = num - (Dec::ONE - num);
+        }
+        num
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Enemy {

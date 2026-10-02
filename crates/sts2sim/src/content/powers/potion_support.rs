@@ -215,29 +215,3 @@ fn doomed_on(cx: &Combat, side: Side) -> crate::util::ArrayVec<Cid, MAX_CREATURE
     }
     v
 }
-
-fn doom_trigger(cx: &mut Combat, owner: Cid, side: Side) {
-    if cx.is_over_or_ending() || cx.cr(owner).side != side || cx.cr(owner).is_dead() {
-        return;
-    }
-    let doomed = doomed_on(cx, side);
-    if doomed.first() != Some(owner) {
-        return;
-    }
-    for &c in doomed.iter() {
-        cx.kill(&[c]);
-    }
-}
-
-listener!(DoomPower {
-    fn before_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if side != Side::Player {
-            doom_trigger(cx, me.owner, side);
-        }
-    }
-    fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if side != Side::Enemy {
-            doom_trigger(cx, me.owner, side);
-        }
-    }
-});

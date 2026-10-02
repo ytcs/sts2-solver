@@ -89,8 +89,13 @@ impl Combat {
                     self.kill(teammates.as_slice());
                 }
             } else if c == PLAYER {
-                // OrbQueue.Clear (no orbs yet); kill Osty (no pets yet); DeactivateHooks; HandlePlayerDeath (single
-                // player: nothing — the combat is lost by the caller).
+                // OrbQueue.Clear (no orbs yet); `if (player.IsOstyAlive) Kill(Osty)`; DeactivateHooks; HandlePlayerDeath
+                // (single player: nothing — the combat is lost by the caller).
+                if let Some(o) = self.osty() {
+                    if self.cr(o).is_alive() {
+                        self.kill(&[o]);
+                    }
+                }
                 self.player_hooks_active = false;
             }
         } else {

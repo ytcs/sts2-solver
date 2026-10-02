@@ -327,6 +327,7 @@ impl Combat {
                     }
                     let ethereal = (self.card_keywords(c) & kw::ETHEREAL != 0) as u8;
                     self.hist_log.total[HKind::CardPlayFinished as usize] += 1;
+                    self.hist.set_finished(c);
                     match self.card_def(c).ctype {
                         CardType::Attack => self.hist.attacks_finished_this_turn += 1,
                         CardType::Skill => self.hist.skills_finished_this_turn += 1,

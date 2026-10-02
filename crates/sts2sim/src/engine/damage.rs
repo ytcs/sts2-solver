@@ -11,7 +11,8 @@ use crate::types::*;
 use crate::util::ArrayVec;
 
 pub type Mods = ArrayVec<Me, 24>;
-pub type Results = ArrayVec<DamageResult, 16>;
+// 64: multi-hit attacks keep one result per hit, two when Osty absorbs a hit (DieForYou redirect).
+pub type Results = ArrayVec<DamageResult, 64>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Targeting {
@@ -220,7 +221,7 @@ impl Combat {
         }
 
         // ---- post-hooks run after ALL targets resolved ----
-        let mut killed: ArrayVec<Cid, 16> = ArrayVec::new();
+        let mut killed: ArrayVec<Cid, 32> = ArrayVec::new();
         for i in 0..results.len() {
             let r = results[i];
             let t = r.receiver;
@@ -256,7 +257,7 @@ impl Combat {
             }
         }
         if !killed.is_empty() {
-            let mut v = [0u8; 16];
+            let mut v = [0u8; 32];
             let n = killed.len();
             v[..n].copy_from_slice(killed.as_slice());
             self.kill(&v[..n]);

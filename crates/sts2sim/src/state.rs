@@ -402,8 +402,20 @@ pub struct History {
     /// `CardPlayFinishedEntry`s of Skill cards / Shiv-tagged cards this turn (Silent: Finesse-likes).
     pub skills_finished_this_turn: i16,
     pub shivs_finished_this_turn: i16,
+    /// Bitset over card arena indices: cards with a `CardPlayFinishedEntry` this turn (Necrobinder).
+    pub finished_cards: [u64; 3],
     /// Per-play scratch used by Serpent Form / Strangle: the power amount when `BeforeCardPlayed` ran for a card.
     pub play_amounts: ArrayVec<PlayAmount, 16>,
+}
+
+impl History {
+    /// Whether card `c` has a `CardPlayFinishedEntry` this turn.
+    pub fn finished(&self, c: CardIdx) -> bool {
+        self.finished_cards[(c / 64) as usize] >> (c % 64) & 1 != 0
+    }
+    pub fn set_finished(&mut self, c: CardIdx) {
+        self.finished_cards[(c / 64) as usize] |= 1u64 << (c % 64);
+    }
 }
 
 /// `Dictionary<CardModel, int> amountsForPlayedCards` entry of a power instance (keyed by power uid + card).

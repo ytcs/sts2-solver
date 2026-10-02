@@ -20,6 +20,14 @@ pub struct DamageResult {
     pub fully_blocked: bool,
 }
 
+impl DamageResult {
+    /// `DamageResult.TotalDamage` = `BlockedDamage + UnblockedDamage` (overkill excluded).
+    #[inline]
+    pub fn total(&self) -> i32 {
+        self.blocked + self.unblocked
+    }
+}
+
 impl Combat {
     pub fn alloc_creature(&mut self) -> Option<Cid> {
         // Slot 0 is the player; recycle freed slots.
