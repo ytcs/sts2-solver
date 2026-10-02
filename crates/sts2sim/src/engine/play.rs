@@ -219,7 +219,8 @@ impl Combat {
         // The caller's own play (if any) is parked while the nested play runs synchronously.
         let parent = self.play_ctx.take();
         let saved_base = self.play_base;
-        self.play_base = self.play_stack.len() as u8;
+        let depth = self.play_stack.len();
+        self.play_base = depth as u8;
         self.begin_play(play);
         self.play_base = saved_base;
         if self.play_ctx.is_none() {
@@ -227,7 +228,8 @@ impl Combat {
             false
         } else {
             match parent {
-                Some(par) => self.play_stack.push(par),
+                // (plays nested deeper than the parent were pushed first: the parent goes below them)
+                Some(par) => self.play_stack.insert(depth, par),
                 None => self.flag_missing(Kind::Card, self.cards[c as usize].id), // decision with nobody to resume
             }
             true
@@ -353,8 +355,8 @@ impl Combat {
                         Flow::Suspend(next) => {
                             if self.play_stack.len() > depth {
                                 // A nested auto-play is waiting for the decision; this card resumes at `next` afterwards.
-                                let top = self.play_stack.len() - 1;
-                                self.play_stack[top].step = PlayStep::OnPlay(next);
+                                // (its entry sits at `depth`: everything deeper was pushed by plays nested inside it)
+                                self.play_stack[depth].step = PlayStep::OnPlay(next);
                             } else if let Some(mut ctx) = self.play_ctx {
                                 ctx.step = PlayStep::OnPlay(next);
                                 self.play_ctx = Some(ctx);

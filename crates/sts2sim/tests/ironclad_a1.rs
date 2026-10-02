@@ -147,3 +147,23 @@ fn body_slam_uses_block() {
     assert!(cx.step(Action::PlayCard { hand_pos: 0, target: e }));
     assert_eq!(cx.cr(e).hp, hp - (7 + 2));
 }
+
+#[test]
+fn nested_cascades_finish_inner_first() {
+    let mut cx = base();
+    // Corruption: Skills exhaust. Outer Cascade (X = 1) auto-plays Cascade+ (X = 0 + 1) which auto-plays Armaments;
+    // the Armaments decision is raised two plays deep. Result piles are decided innermost-first.
+    cx.apply_power(ids::power::CORRUPTION_POWER, PLAYER, Dec::int(1), PLAYER, NO);
+    set_hand(&mut cx, &[(ids::card::CASCADE, 0), (ids::card::STRIKE_IRONCLAD, 0), (ids::card::DEFEND_IRONCLAD, 0)]);
+    set_draw_top(&mut cx, &[(ids::card::CASCADE, 1), (ids::card::ARMAMENTS, 0)]);
+    cx.player.energy = 1;
+    assert!(cx.step(Action::PlayCard { hand_pos: 0, target: NO }));
+    assert_eq!(cx.stage, Stage::AwaitChoice);
+    assert!(cx.step(Action::Pick { idx: 0 }));
+    assert_eq!(cx.stage, Stage::AwaitAction);
+    assert!(cx.player.play.is_empty());
+    assert!(cx.play_stack.is_empty() && cx.play_ctx.is_none());
+    assert_eq!(ids_of(&cx, PileType::Exhaust), vec![ids::card::ARMAMENTS, ids::card::CASCADE, ids::card::CASCADE]);
+    let ups: Vec<u8> = cx.pile(PileType::Exhaust).iter().map(|&c| cx.cards[c as usize].upgrade).collect();
+    assert_eq!(ups, vec![0, 1, 0]);
+}
