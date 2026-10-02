@@ -4,7 +4,6 @@ use crate::hooks::*;
 use crate::ids;
 use crate::listener;
 use crate::state::*;
-use crate::types::*;
 
 // Channel one Dark orb per orb slot (the slot count is read once; a full queue keeps evoking its front orb).
 listener!(EssenceOfDarkness {
