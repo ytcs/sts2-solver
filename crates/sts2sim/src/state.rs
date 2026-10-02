@@ -323,6 +323,10 @@ pub struct PlayCtx {
     pub step: PlayStep,
     pub count: u8,
     pub result: PileType,
+    /// Cards pulled by `AutoPlayFromDrawPile` that this card's effect still has to auto-play (in order).
+    pub queue: ArrayVec<CardIdx, 16>,
+    /// `ExhaustOnNextPlay` value assigned to each queued card right before its auto-play.
+    pub queue_exhaust: bool,
 }
 
 /// Counters the game's combat history exposes to gameplay code (cards played this turn etc.).
@@ -364,6 +368,10 @@ pub struct Combat {
 
     /// In-flight card play (suspended while a decision is pending).
     pub play_ctx: Option<PlayCtx>,
+    /// Outer card plays suspended while a nested auto-play waits for a decision (innermost last).
+    pub play_stack: ArrayVec<PlayCtx, 4>,
+    /// `run_play` never pops below this stack depth (it belongs to callers further out).
+    pub play_base: u8,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,

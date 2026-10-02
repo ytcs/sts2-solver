@@ -116,7 +116,8 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;
-                for p in picks_of(ch) {
+                let picks = picks_of(ch);
+                for p in picks.iter().copied() {
                     if !cx.step(Action::Pick { idx: p }) {
                         println!("step {i}: pick {p} rejected");
                         return Ok(Verdict::Mismatch);
@@ -125,8 +126,12 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                         break;
                     }
                 }
-                if cx.stage == Stage::AwaitChoice && !cx.step(Action::Confirm) {
-                    println!("step {i}: decision still pending after the oracle's picks");
+                // After the oracle's picks the decision is either finished (possibly followed by a NEW decision raised by a
+                // nested effect: nothing selected yet), or waiting for the explicit confirm / skip.
+                let fresh_decision = !picks.is_empty() && cx.decision.as_ref().map_or(false, |d| d.selected.is_empty());
+                if cx.stage == Stage::AwaitChoice && !fresh_decision && !cx.step(Action::Confirm) {
+                    let d = cx.decision.as_ref();
+                    println!("step {i}: decision still pending after the oracle's picks (oracle decision #{ci} {}; simulator: {})", ch, d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?} selected {:?}", sts2sim::ids::card::NAMES.get(d.purpose as usize).copied().unwrap_or("?"), d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), d.selected.as_slice())));
                     return Ok(Verdict::Mismatch);
                 }
             }

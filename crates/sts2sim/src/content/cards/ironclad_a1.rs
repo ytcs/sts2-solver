@@ -371,3 +371,53 @@ listener!(Hemokinesis {
         Flow::Done
     }
 });
+
+// ---- auto-play -------------------------------------------------------------------------------------------------------
+
+// Auto-play the top card of the draw pile, exhausting it. Phase 1 = resume after a nested decision.
+listener!(Havoc {
+    fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
+        match phase {
+            0 => cx.auto_play_from_draw_pile(1, CardPilePosition::Top, true, 1),
+            _ => cx.continue_auto_play(1),
+        }
+    }
+});
+
+// X (+1 if upgraded) cards from the top of the draw pile are auto-played (without forced exhaust).
+listener!(Cascade {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        match phase {
+            0 => {
+                let mut n = cx.resolve_energy_x(p.card);
+                if cx.cards[p.card as usize].upgrade > 0 {
+                    n += 1;
+                }
+                cx.auto_play_from_draw_pile(n, CardPilePosition::Top, false, 1)
+            }
+            _ => cx.continue_auto_play(1),
+        }
+    }
+});
+
+// All-enemies attack; when it sits in the exhaust pile at the start of the post-play phase it plays itself.
+listener!(HowlFromBeyond {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let dmg = cx.card_var(p.card, VarKind::Damage);
+        cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::AllOpponents));
+        Flow::Done
+    }
+    fn after_auto_post_play_phase_entered(&self, cx: &mut Combat, me: Me) {
+        let c = me.idx as CardIdx;
+        if cx.card_pile_type(c) == PileType::Exhaust {
+            cx.auto_play(c);
+        }
+    }
+});
+
+listener!(Hellraiser {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        cx.apply_power(ids::power::HELLRAISER_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
+        Flow::Done
+    }
+});

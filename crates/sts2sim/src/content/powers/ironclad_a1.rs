@@ -154,3 +154,14 @@ listener!(FlameBarrierPower {
         }
     }
 });
+
+// Strike-tagged cards are auto-played as soon as they are drawn.
+// (The "infinite HP" auto-play cap only matters against enemies with infinite HP display; not modelled.)
+listener!(HellraiserPower {
+    fn after_card_drawn_early(&self, cx: &mut Combat, _me: Me, card: CardIdx, _from_hand_draw: bool) {
+        if cx.card_def(card).tags & tag::STRIKE == 0 {
+            return;
+        }
+        cx.auto_play(card);
+    }
+});
