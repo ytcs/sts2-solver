@@ -11,6 +11,7 @@ mod enchant;
 mod energy;
 mod history;
 mod dispatch;
+mod lifecycle;
 mod monster;
 mod piles;
 mod potion_gen;

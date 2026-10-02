@@ -1,0 +1,55 @@
+{
+ "name": "ironclad_the_kin_boss",
+ "ascension": 10,
+ "encounter": "THE_KIN_BOSS",
+ "character": "IRONCLAD",
+ "hp": 100,
+ "max_hp": 100,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "ANGER",
+  "ANGER",
+  "SHRUG_IT_OFF",
+  "SHRUG_IT_OFF",
+  "POMMEL_STRIKE",
+  "POMMEL_STRIKE",
+  "TWIN_STRIKE",
+  "TWIN_STRIKE",
+  "IRON_WAVE",
+  "IRON_WAVE",
+  "THUNDERCLAP",
+  "THUNDERCLAP",
+  "TRUE_GRIT",
+  "HEADBUTT",
+  "INFLAME",
+  "INFLAME",
+  {
+   "id": "BASH",
+   "upgrade": 1
+  },
+  "SWORD_BOOMERANG",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": [
+  "FIRE_POTION",
+  "WEAK_POTION"
+ ]
+}

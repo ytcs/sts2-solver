@@ -153,7 +153,7 @@ listener!(ShrinkPower {
         Dec::frac(7, 1) // (100 - 30) / 100
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-        if cx.cr(me.owner).side == side && cx.power_amount(me.owner, me.id) >= 0 {
+        if cx.is_turn_participant(side, me.owner) && cx.power_amount(me.owner, me.id) >= 0 {
             cx.decrement_power(me.owner, me.idx);
         }
     }

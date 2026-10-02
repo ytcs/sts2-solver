@@ -223,7 +223,13 @@ impl Combat {
         }
         match &def.nodes[cur as usize] {
             MonsterNode::Move { follow_up, .. } => {
-                if *follow_up == NO { def.initial } else { *follow_up }
+                if *follow_up == NO {
+                    def.initial
+                } else if *follow_up == crate::defs::FOLLOW_STORED {
+                    self.cr(c).monster.stun_follow_up
+                } else {
+                    *follow_up
+                }
             }
             MonsterNode::Random { branches, .. } => {
                 let mut ws = [0f32; 12];
