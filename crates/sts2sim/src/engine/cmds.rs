@@ -384,7 +384,8 @@ impl Combat {
     /// `EnchantmentModel.OnPlay` of the card's enchantment (after the card's own `OnPlay`, every replay).
     pub fn enchantment_on_play(&mut self, enchantment: u16, play: &CardPlay) {
         if enchantment == crate::ids::enchantment::INKY {
-            // Inky: apply Weak (PowerVar 1) to the target, or to every hittable enemy for AllEnemies cards.
+            // Inky: apply Weak (PowerVar<WeakPower>(1m)) to the target, or to every hittable enemy for AllEnemies cards.
+            // TODO(fidelity): the 1 is hand-copied from Inky.cs (no generated enchantment var table yet).
             let id = crate::ids::power::WEAK_POWER;
             if self.card_target_type(play.card) != TargetType::AllEnemies {
                 self.apply_power(id, play.target, Dec::ONE, PLAYER, play.card);

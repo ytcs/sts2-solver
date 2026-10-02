@@ -157,3 +157,16 @@ fn calculated_gamble_discards_the_hand_then_draws_that_many() {
     assert_eq!(cx.player.hand.len(), 2);
     assert_eq!(cx.stage, Stage::AwaitAction);
 }
+
+#[test]
+fn power_applied_mid_turn_has_zero_amount_on_turn_start_until_the_next_turn_starts() {
+    // Engine fix: `PowerModel._amountOnTurnStart` is 0 on creation and only refreshed by `Creature.BeforeTurnStart`.
+    let mut cx = base();
+    cx.apply_power(ids::power::STRENGTH_POWER, PLAYER, Dec::int(3), PLAYER, NO);
+    let p = cx.cr(PLAYER).power(ids::power::STRENGTH_POWER).unwrap();
+    assert_eq!((p.amount, p.amount_on_turn_start), (3, 0));
+    set_hand(&mut cx, &[]);
+    assert!(cx.step(Action::EndTurn));
+    let p = cx.cr(PLAYER).power(ids::power::STRENGTH_POWER).unwrap();
+    assert_eq!(p.amount_on_turn_start, 3);
+}

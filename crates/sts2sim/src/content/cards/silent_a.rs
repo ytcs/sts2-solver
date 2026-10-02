@@ -453,7 +453,8 @@ listener!(Fade {});
 listener!(FanOfKnives {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         cx.apply_power(ids::power::FAN_OF_KNIVES_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
-        // `CardsVar("Shivs", 4)`: gen_defs mis-parses a named CardsVar (base 0), so fall back to the real 4 (+1 upgrade).
+        // TODO(fidelity): `CardsVar("Shivs", 4)`: gen_defs mis-parses a named CardsVar (base 0, no upgrade delta), so fall back
+        // to the real 4 (+1 upgrade). Drops out once tools/gen_defs.py emits it as a Named var (see the fix in the final report).
         let mut n = cx.card_named_var(p.card, var_name::SHIVS);
         if n == 0 {
             n = 4 + cx.cards[p.card as usize].upgrade as i32;
