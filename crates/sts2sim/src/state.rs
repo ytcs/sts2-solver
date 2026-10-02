@@ -327,6 +327,8 @@ pub struct PlayCtx {
     pub queue: ArrayVec<CardIdx, 16>,
     /// `ExhaustOnNextPlay` value assigned to each queued card right before its auto-play.
     pub queue_exhaust: bool,
+    /// Position in the result pile (`CardLocation.position`; Nostalgia puts cards on top of the draw pile).
+    pub result_pos: CardPilePosition,
 }
 
 /// Counters the game's combat history exposes to gameplay code (cards played this turn etc.).
@@ -337,6 +339,8 @@ pub struct History {
     pub skills_played_this_turn: i16,
     /// `CardExhaustedEntry`s of the current round/side.
     pub cards_exhausted_this_turn: i16,
+    /// `CardPlayFinishedEntry` count over the whole combat (Gold Axe); survives `switch_sides`.
+    pub cards_finished_total: i32,
 }
 
 #[derive(Clone, Copy)]
@@ -378,4 +382,38 @@ pub struct Combat {
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
+    /// `Player.Gold` (scenarios start with the character default, 99; the oracle dumps it).
+    pub gold: i32,
+    /// Extension state of `engine/ext.rs` (hook-raised decisions, hook-driven auto-play queue).
+    pub ext: ExtState,
+}
+
+/// A step that was rolled back because a hook asked for a decision (see `engine/ext.rs`).
+#[derive(Clone, Copy)]
+pub struct UnwoundStep {
+    /// The agent action whose execution raised the decision (re-executed once the decision is answered).
+    pub action: crate::engine::Action,
+    /// The decision / stage that were pending when that action started (restored before the re-execution).
+    pub orig_decision: Option<Decision>,
+    pub orig_stage: Stage,
+}
+
+/// Extension state of the engine. One struct so the `Combat` literal gains a single field.
+#[derive(Clone, Copy, Default)]
+pub struct ExtState {
+    /// Cards waiting to be auto-played by a hook-driven `AutoPlayFromDrawPile` (Mayhem): (card, force exhaust).
+    pub autoplay_queue: ArrayVec<(CardIdx, bool), 8>,
+    /// A hook (not a card effect) is auto-playing: a nested card suspending on a decision is resumable.
+    pub hook_autoplay: bool,
+    /// True while `ShouldPlay` is evaluated for an auto-play (`AutoPlayType != None`).
+    pub should_play_auto: bool,
+    /// The combat contains content that can raise a decision from a hook, so `step` snapshots the state (see ext.rs).
+    pub unwind_enabled: bool,
+    /// A hook asked for a decision that has no recorded answer: the current step must be rolled back.
+    pub unwind: bool,
+    pub unwind_decision: Option<Decision>,
+    /// Answers recorded for hook-raised decisions of the step being re-executed.
+    pub replay_answers: ArrayVec<ArrayVec<CardIdx, 16>, 4>,
+    pub replay_pos: u8,
+    pub unwound: Option<UnwoundStep>,
 }

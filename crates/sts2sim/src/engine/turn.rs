@@ -331,7 +331,9 @@ impl Combat {
             }
         }
         // player-turn bookkeeping that is per-turn
+        let finished = self.hist.cards_finished_total;
         self.hist = History::default();
+        self.hist.cards_finished_total = finished;
         if self.side == Side::Enemy {
             self.run_enemy_turn();
         } else if self.in_progress {
@@ -422,8 +424,9 @@ impl Combat {
 
     // ---- agent interface ------------------------------------------------------------------------------------------
 
-    /// Applies an action. Returns false if it was illegal (state unchanged).
-    pub fn step(&mut self, a: Action) -> bool {
+    /// Applies an action. Returns false if it was illegal (state unchanged). (`step` in `ext.rs` wraps this with the
+    /// rollback protocol for decisions raised from hooks.)
+    pub(crate) fn step_inner(&mut self, a: Action) -> bool {
         match (self.stage, a) {
             (Stage::AwaitAction, Action::PlayCard { hand_pos, target }) => {
                 if !self.play_card(hand_pos as usize, target) {
@@ -477,6 +480,9 @@ impl Combat {
     pub(crate) fn resume_after_decision(&mut self) {
         if self.play_ctx.is_some() {
             self.run_play();
+            if self.play_ctx.is_none() && !self.ext.autoplay_queue.is_empty() {
+                self.drain_autoplay_queue(); // hook-driven auto-play (Mayhem) continues after the nested card
+            }
         } else if self.potion_ctx.is_some() {
             self.run_potion();
         }

@@ -23,6 +23,9 @@ impl Combat {
         }
         let d = content::card_def(id);
         self.listen |= content::card_mask(id);
+        if id == crate::ids::card::ENTROPY || id == crate::ids::card::STRATAGEM {
+            self.ext.unwind_enabled = true; // can raise a decision from inside a hook (see ext.rs)
+        }
         let idx = self.n_cards as CardIdx;
         self.n_cards += 1;
         self.cards[idx as usize] = Card {

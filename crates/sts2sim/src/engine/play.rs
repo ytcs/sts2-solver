@@ -119,7 +119,7 @@ impl Combat {
             PileType::Discard
         };
         // 5. Hook.ModifyCardPlayResultLocation (guarded, threaded; the pile is the only part modelled).
-        let result = self.modify_card_play_result_location(c, play.is_auto, result);
+        let (result, result_pos) = self.modify_card_play_result_location(c, play.is_auto, result);
         // 6. play count: (replay + 1), Hook.ModifyCardPlayCount — no content yet.
         let count = self.generate_play_count(c, play.target);
         play.result_pile = result;
@@ -130,7 +130,7 @@ impl Combat {
         }
         // 8
         self.player.effect_depth += 1;
-        self.play_ctx = Some(PlayCtx { play, step: PlayStep::Before, count, result, queue: Default::default(), queue_exhaust: false });
+        self.play_ctx = Some(PlayCtx { play, step: PlayStep::Before, count, result, queue: Default::default(), queue_exhaust: false, result_pos });
         self.run_play();
     }
 
@@ -174,7 +174,14 @@ impl Combat {
         if self.is_over_or_ending() || self.cr(PLAYER).is_dead() {
             return false;
         }
-        if self.card_keywords(c) & kw::UNPLAYABLE != 0 || !self.should_play_hooks(c) {
+        if self.card_keywords(c) & kw::UNPLAYABLE != 0 {
+            self.move_to_result_pile_without_playing(c);
+            return false;
+        }
+        self.ext.should_play_auto = true; // `AutoPlayType != None` (Enthralled lets auto-plays through)
+        let allowed = self.should_play_hooks(c);
+        self.ext.should_play_auto = false;
+        if !allowed {
             self.move_to_result_pile_without_playing(c);
             return false;
         }
@@ -230,7 +237,12 @@ impl Combat {
             match parent {
                 // (plays nested deeper than the parent were pushed first: the parent goes below them)
                 Some(par) => self.play_stack.insert(depth, par),
-                None => self.flag_missing(Kind::Card, self.cards[c as usize].id), // decision with nobody to resume
+                None => {
+                    // decision with nobody to resume (a hook-driven auto-play queue, e.g. Mayhem, resumes itself)
+                    if !self.ext.hook_autoplay {
+                        self.flag_missing(Kind::Card, self.cards[c as usize].id)
+                    }
+                }
             }
             true
         }
@@ -291,17 +303,25 @@ impl Combat {
         }
     }
 
-    /// `Hook.ModifyCardPlayResultLocation`.
-    fn modify_card_play_result_location(&self, c: CardIdx, is_auto: bool, mut pile: PileType) -> PileType {
-        if self.hooks_enabled() && self.listen.has(hookbit::modify_card_play_result_location) {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_result_location));
+    /// `Hook.ModifyCardPlayResultLocation`: threads (pile, position) through the listeners in order.
+    fn modify_card_play_result_location(&self, c: CardIdx, is_auto: bool, mut pile: PileType) -> (PileType, CardPilePosition) {
+        let mut pos = CardPilePosition::Bottom;
+        let m = Mask::bit(hookbit::modify_card_play_result_location) | Mask::bit(hookbit::modify_card_play_result_location_ex);
+        if self.hooks_enabled() && self.listen.intersects(m) {
+            let snap = self.snapshot(m);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
-                    pile = content::listener(&e.me).modify_card_play_result_location(self, e.me, c, is_auto, pile);
+                    let l = content::listener(&e.me);
+                    if e.mask.has(hookbit::modify_card_play_result_location) {
+                        pile = l.modify_card_play_result_location(self, e.me, c, is_auto, pile);
+                    }
+                    if e.mask.has(hookbit::modify_card_play_result_location_ex) {
+                        (pile, pos) = l.modify_card_play_result_location_ex(self, e.me, c, is_auto, pile, pos);
+                    }
                 }
             }
         }
-        pile
+        (pile, pos)
     }
 
     /// `CardModel.GeneratePlayCount`: `(replay count + 1)` threaded through `Hook.ModifyCardPlayCount` (combat-guarded
@@ -397,6 +417,7 @@ impl Combat {
                         continue;
                     }
                     // Enchantment.OnPlay / Affliction.OnPlay — no content yet.
+                    self.hist.cards_finished_total += 1; // History.CardPlayFinished
                     if self.in_progress {
                         let p = ctx.play;
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
@@ -424,7 +445,7 @@ impl Combat {
                 PileType::None => self.remove_card_from_combat(c),
                 PileType::Exhaust => self.exhaust_card(c, false),
                 p => {
-                    self.move_card(c, p, CardPilePosition::Bottom);
+                    self.move_card(c, p, ctx.result_pos);
                 }
             }
         }

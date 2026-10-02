@@ -125,6 +125,8 @@ impl Combat {
             decision: None,
             choice: Choice::default(),
             missing: None,
+            gold: 99,
+            ext: ExtState::default(),
         };
         // Player creature (CombatId 0).
         cx.creatures[PLAYER as usize] = Creature {

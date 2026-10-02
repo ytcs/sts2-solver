@@ -37,7 +37,7 @@ impl Combat {
     /// then a FULL `UnstableShuffle` of the candidates with `CombatCardGeneration` (n-1 draws regardless of `count`),
     /// take the first `count`, and instantiate them. `extra` is the call site's own `Where` filter.
     pub fn get_distinct_for_combat(&mut self, pool: &[u16], count: usize, extra: impl Fn(&crate::defs::CardDef) -> bool) -> ArrayVec<CardIdx, 16> {
-        let mut list: ArrayVec<u16, 128> = ArrayVec::new();
+        let mut list: ArrayVec<u16, 256> = ArrayVec::new(); // (256: Splash concatenates four character pools)
         for &id in pool {
             let d = crate::content::card_def(id);
             if !d.multiplayer_only && extra(d) && d.can_be_generated_in_combat
@@ -281,6 +281,15 @@ impl Combat {
         let mut ch = Choice::default();
         for &i in d.selected.iter() {
             ch.cards.push(d.cands[i as usize]);
+        }
+        if self.ext.unwound.is_some() {
+            // Answer to a decision raised from a hook (see ext.rs): record it; the step is re-executed by the caller.
+            let mut ans: ArrayVec<CardIdx, 16> = ArrayVec::new();
+            for &c in ch.cards.iter() {
+                ans.push(c);
+            }
+            self.ext.replay_answers.push(ans);
+            return;
         }
         self.choice = ch;
         self.stage = Stage::AwaitAction;

@@ -306,6 +306,12 @@ pub trait Listener: Sync {
     /// `AfterPowerAmountChanged(power, amount, applier, cardSource)` with the full argument set (the plain
     /// `after_power_amount_changed` only knows the power id). Dispatched right after it.
     fn after_power_amount_changed_full(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {}
+    // ---- appended hooks (colorless) -----------------------------------------------------------------------
+    /// `ModifyCardPlayResultLocation` with the position too (Nostalgia: Discard -> Draw, Top). Threaded in the same listener
+    /// pass as `modify_card_play_result_location`.
+    fn modify_card_play_result_location_ex(&self, cx: &Combat, me: Me, card: CardIdx, is_auto: bool, pile: PileType, pos: CardPilePosition) -> (PileType, CardPilePosition) {
+        (pile, pos)
+    }
 }
 
 /// The arguments of `AfterPowerAmountChanged`: `power` is identified by (`target`, `uid`).
@@ -422,6 +428,7 @@ pub mod hookbit {
         modify_card_play_count,
         after_modifying_card_play_count,
         after_power_amount_changed_full,
+        modify_card_play_result_location_ex,
     );
 }
 
