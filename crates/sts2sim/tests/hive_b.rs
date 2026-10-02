@@ -146,8 +146,22 @@ fn entomancer_adds_dazed_to_the_draw_pile_when_hit() {
 #[test]
 fn infested_prism_taints_skills_and_tainted_plays_add_damage_taken() {
     let mut cx = Combat::new(&scenario(ids::encounter::INFESTED_PRISMS_ELITE, 1, 2000));
-    let pos = find_in_hand(&cx, ids::card::DEFEND_IRONCLAD);
-    let Some(pos) = pos else { return }; // (the opening hand is seed-dependent)
+    let mut cx = cx;
+    // make sure a Defend (Skill) is in hand: swap one into the first slot if needed
+    let pos = match find_in_hand(&cx, ids::card::DEFEND_IRONCLAD) {
+        Some(p) => p,
+        None => {
+            let d = cx.player.draw.iter().copied().find(|&c| cx.cards[c as usize].id == ids::card::DEFEND_IRONCLAD).expect("a Defend in the draw pile");
+            let h = cx.player.hand[0];
+            cx.player.draw.remove_value(d);
+            cx.player.hand.remove_value(h);
+            cx.player.hand.push(d);
+            cx.player.draw.push(h);
+            cx.cards[d as usize].pile = PileType::Hand as u8;
+            cx.cards[h as usize].pile = PileType::Draw as u8;
+            cx.player.hand.len() as u8 - 1
+        }
+    };
     let card = cx.player.hand[pos as usize];
     assert_eq!(cx.card_affliction(card), Some(ids::affliction::TAINTED));
     assert!(cx.step(Action::PlayCard { hand_pos: pos, target: NO }));

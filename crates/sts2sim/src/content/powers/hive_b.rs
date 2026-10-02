@@ -212,14 +212,11 @@ listener!(SandpitPower {
             cx.decrement_power(me.owner, me.idx);
         }
     }
-    fn after_removed(&self, cx: &mut Combat, me: Me, old_owner: Cid) {
-        // `me.amount` is the removed power's amount; the target is stored in aux, which is gone with the power, so the
-        // (single-player) target is the player.
-        let target = PLAYER;
-        if cx.cr(old_owner).is_dead() || cx.cr(target).is_dead() {
+    fn after_removed(&self, cx: &mut Combat, _me: Me, old_owner: Cid) {
+        // `SandpitPower.Target` is the (single) player; aux (set by the Insatiable) only records it.
+        if cx.cr(old_owner).is_dead() || cx.cr(PLAYER).is_dead() {
             return;
         }
-        let _ = me;
         let mut victims: crate::util::ArrayVec<Cid, 2> = crate::util::ArrayVec::new();
         victims.push(PLAYER);
         if let Some(o) = cx.osty() {
