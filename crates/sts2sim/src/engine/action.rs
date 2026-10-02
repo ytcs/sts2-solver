@@ -93,7 +93,7 @@ impl Combat {
                     if !self.can_play(c) {
                         continue;
                     }
-                    if self.card_def(c).target == TargetType::AnyEnemy {
+                    if self.card_target_type(c) == TargetType::AnyEnemy {
                         for &e in self.enemies.iter() {
                             if self.is_valid_target(c, e) {
                                 out.push(Action::PlayCard { hand_pos: pos as u8, target: e });

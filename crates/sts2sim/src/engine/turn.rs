@@ -469,10 +469,25 @@ impl Combat {
 
     /// Continues whichever effect raised the decision that just finished.
     pub(crate) fn resume_after_decision(&mut self) {
-        if self.play_ctx.is_some() {
-            self.run_play();
-        } else if self.potion_ctx.is_some() {
-            self.run_potion();
+        loop {
+            if self.play_ctx.is_some() {
+                self.run_play();
+            } else if self.potion_ctx.is_some() {
+                self.run_potion();
+            }
+            // A nested (Sly) auto-play finished: first the remaining Sly cards of that discard, then the parked play.
+            if self.stage != Stage::AwaitChoice && self.play_ctx.is_none() && !self.sly_queue.is_empty() {
+                let c = self.sly_queue.remove(0);
+                self.auto_play(c, NO);
+                continue;
+            }
+            if self.stage != Stage::AwaitChoice && self.play_ctx.is_none() && !self.play_outer.is_empty() {
+                let n = self.play_outer.len();
+                self.play_ctx = Some(self.play_outer[n - 1]);
+                self.play_outer.truncate(n - 1);
+                continue;
+            }
+            break;
         }
     }
 

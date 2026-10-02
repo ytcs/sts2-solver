@@ -6,9 +6,19 @@ use crate::state::*;
 use crate::types::*;
 
 impl Combat {
+    /// `CardModel.TargetType` (Silent slice): Shiv targets all enemies while its owner has Fan of Knives.
+    pub fn card_target_type(&self, c: CardIdx) -> TargetType {
+        let d = self.card_def(c);
+        if d.id == crate::ids::card::SHIV && self.has_power(PLAYER, crate::ids::power::FAN_OF_KNIVES_POWER) {
+            TargetType::AllEnemies
+        } else {
+            d.target
+        }
+    }
+
     /// `CardModel.IsValidTarget`.
     pub fn is_valid_target(&self, c: CardIdx, t: Cid) -> bool {
-        let tt = self.card_def(c).target;
+        let tt = self.card_target_type(c);
         if t == NO {
             return tt != TargetType::AnyEnemy && tt != TargetType::AnyAlly;
         }
@@ -39,7 +49,7 @@ impl Combat {
         if d.star_cost > 0 && d.star_cost as i32 > self.player.stars {
             return false;
         }
-        if d.target == TargetType::AnyAlly {
+        if self.card_target_type(c) == TargetType::AnyAlly {
             return false; // single-player: NoLivingAllies
         }
         // Hook.ShouldPlay (AND), then the card's own IsPlayable.
@@ -88,19 +98,24 @@ impl Combat {
             energy_spent: energy_to_spend,
             stars_spent: stars_to_spend,
         };
-        self.begin_play(play);
+        self.begin_play(play, false);
         true
     }
 
     /// `CardModel.OnPlayWrapper` steps 1-8 (spec 03 §5.1); then runs the replay loop.
-    fn begin_play(&mut self, mut play: CardPlay) {
+    fn begin_play(&mut self, mut play: CardPlay, auto: bool) {
         let c = play.card;
-        // 2. move to the Play pile (AddDuringManualCardPlay)
-        self.player.hand.remove_value(c);
-        self.player.play.push(c);
-        self.cards[c as usize].pile = PileType::Play as u8;
-        let old = PileType::Hand;
-        self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+        if auto {
+            // 2 (auto). full `CardPileCmd.Add(card, Play, Bottom)` from wherever the card is.
+            self.move_card(c, PileType::Play, CardPilePosition::Bottom);
+        } else {
+            // 2. move to the Play pile (AddDuringManualCardPlay)
+            self.player.hand.remove_value(c);
+            self.player.play.push(c);
+            self.cards[c as usize].pile = PileType::Play as u8;
+            let old = PileType::Hand;
+            self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
+        }
         // 4. result location (consumes ExhaustOnNextPlay)
         let kws = self.card_keywords(c);
         let flags = self.cards[c as usize].flags;
@@ -114,8 +129,28 @@ impl Combat {
             PileType::Discard
         };
         // 5. Hook.ModifyCardPlayResultLocation — no content yet.
-        // 6. play count: (replay + 1), Hook.ModifyCardPlayCount — no content yet.
-        let count = self.cards[c as usize].base_replay.saturating_add(1);
+        // 6. playCount = replay + 1, then `Hook.ModifyCardPlayCount` (threaded) + `AfterModifyingCardPlayCount` on modifiers.
+        let mut count = self.cards[c as usize].base_replay as i32 + 1;
+        if self.hooks_enabled() && self.listen.has(hookbit::modify_card_play_count) {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
+            let mut mods: crate::util::ArrayVec<Me, 24> = crate::util::ArrayVec::new();
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    if let Some(n) = content::listener(&e.me).modify_card_play_count(self, e.me, c, play.target, count) {
+                        if n != count {
+                            mods.push(e.me);
+                        }
+                        count = n;
+                    }
+                }
+            }
+            for m in mods.iter() {
+                if self.still_live(m) {
+                    content::listener(m).after_modifying_card_play_count(self, *m, c);
+                }
+            }
+        }
+        let count = count.clamp(0, 255) as u8;
         play.result_pile = result;
         play.play_count = count;
         // 7-8
@@ -149,7 +184,22 @@ impl Combat {
                 PlayStep::OnPlay(phase) => {
                     let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
                     let p = ctx.play;
-                    match content::listener(&me).on_play(self, &p, phase) {
+                    let flow = content::listener(&me).on_play(self, &p, phase);
+                    if self.inner_parked {
+                        // A nested auto-play (Sly) is awaiting a decision and `auto_play` parked this play in
+                        // `play_outer`: record where to continue once the inner play has finished.
+                        self.inner_parked = false;
+                        if let Some(mut o) = self.play_outer.last() {
+                            o.step = match flow {
+                                Flow::Done => PlayStep::After,
+                                Flow::Suspend(n) => PlayStep::OnPlay(n),
+                            };
+                            let n = self.play_outer.len();
+                            self.play_outer[n - 1] = o;
+                        }
+                        return;
+                    }
+                    match flow {
                         Flow::Done => {
                             ctx.step = PlayStep::After;
                             self.play_ctx = Some(ctx);
@@ -167,7 +217,22 @@ impl Combat {
                         self.finish_play();
                         return;
                     }
-                    // Enchantment.OnPlay / Affliction.OnPlay — no content yet.
+                    // Enchantment.OnPlay (Silent slice: Inky only) / Affliction.OnPlay — no other content yet.
+                    {
+                        let e = self.cards[c as usize].enchant;
+                        if e != 0 {
+                            let p = ctx.play;
+                            self.enchantment_on_play(e as u16 - 1, &p);
+                            if self.cr(PLAYER).is_dead() {
+                                self.finish_play();
+                                return;
+                            }
+                        }
+                    }
+                    // History.CardPlayFinished
+                    if self.in_progress && self.card_def(c).ctype == CardType::Attack {
+                        self.hist.attacks_finished_this_turn += 1;
+                    }
                     if self.in_progress {
                         let p = ctx.play;
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
@@ -209,5 +274,98 @@ impl Combat {
         }
         card.mods = kept;
         card.flags &= !cflag::X_CAPTURED;
+    }
+}
+
+// ---- Sly / auto-play (Silent slice) -------------------------------------------------------------------------------------
+impl Combat {
+    /// `CardModel.MoveToResultPileWithoutPlaying` preceded by `CardPileCmd.Add(card, Play)` (spec 03 §5.2).
+    pub fn move_to_result_pile_without_playing(&mut self, c: CardIdx) {
+        self.move_card(c, PileType::Play, CardPilePosition::Bottom);
+        if self.card_pile_type(c) != PileType::Play {
+            return;
+        }
+        let flags = self.cards[c as usize].flags;
+        if flags & cflag::IS_DUPE != 0 {
+            self.remove_card_from_combat(c);
+        } else if flags & cflag::EXHAUST_ON_NEXT_PLAY != 0 || self.card_keywords(c) & kw::EXHAUST != 0 {
+            self.exhaust_card(c, false);
+        } else {
+            self.move_card(c, PileType::Discard, CardPilePosition::Bottom);
+        }
+    }
+
+    /// `CardCmd.AutoPlay` (spec 03 §5.2). `target = NO` picks a random hittable enemy for `AnyEnemy` cards.
+    /// Returns `true` when the (nested) play is suspended on a decision: the caller's effect must then return
+    /// `Flow::Suspend(next_phase)` for whatever remains of it.
+    pub fn auto_play(&mut self, c: CardIdx, target: Cid) -> bool {
+        if self.is_over_or_ending() || self.cr(PLAYER).is_dead() {
+            return false;
+        }
+        if self.card_keywords(c) & kw::UNPLAYABLE != 0 {
+            self.move_to_result_pile_without_playing(c);
+            return false;
+        }
+        // Hook.ShouldPlay (AND)
+        if self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::should_play));
+            for e in snap.iter() {
+                if self.still_live(&e.me) && !content::listener(&e.me).should_play(self, e.me, c) {
+                    self.move_to_result_pile_without_playing(c);
+                    return false;
+                }
+            }
+        }
+        let mut target = target;
+        match self.card_target_type(c) {
+            TargetType::AnyEnemy => {
+                if target == NO {
+                    let h = self.hittable_enemies();
+                    if !h.is_empty() {
+                        let i = self.rng.combat_targets.next_int_range(0, h.len() as i32) as usize;
+                        target = h[i];
+                    }
+                }
+                if target == NO {
+                    self.move_to_result_pile_without_playing(c);
+                    return false;
+                }
+            }
+            TargetType::AnyAlly => {
+                // single player: no other living player
+                self.move_to_result_pile_without_playing(c);
+                return false;
+            }
+            _ => {}
+        }
+        let d = self.card_def(c);
+        if d.x_cost {
+            // X cards autoplay with X = current energy (not consumed).
+            self.cards[c as usize].x_value = self.player.energy as i16;
+            self.cards[c as usize].flags |= cflag::X_CAPTURED;
+        }
+        let play = CardPlay {
+            card: c,
+            target,
+            is_auto: true,
+            play_index: 0,
+            play_count: 1,
+            result_pile: PileType::Discard,
+            energy_spent: 0,
+            stars_spent: 0,
+        };
+        // Run the nested play to completion; if it suspends on a decision, park the calling play behind it.
+        let saved = self.play_ctx.take();
+        self.begin_play(play, true);
+        if self.play_ctx.is_none() {
+            self.play_ctx = saved;
+            false
+        } else {
+            if let Some(s) = saved {
+                self.play_outer.push(s);
+                self.inner_parked = true;
+            }
+            true
+        }
     }
 }
