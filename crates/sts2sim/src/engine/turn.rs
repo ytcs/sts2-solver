@@ -502,14 +502,9 @@ impl Combat {
     pub(crate) fn resume_after_decision(&mut self) {
         if let Some((me, phase)) = self.hook_ctx.take() {
             content::listener(&me).resume_hook(self, me, phase);
-        }
-        if self.turn_cont != 0 {
-            if self.stage != Stage::AwaitChoice {
-                let t = self.turn_cont;
-                self.turn_cont = 0;
-                self.resume_turn_start(t);
+            if self.stage == Stage::AwaitChoice {
+                return; // the hook's effect (e.g. a Sly auto-play) raised its own decision: that play resumes later
             }
-            return;
         }
         loop {
             if self.play_ctx.is_some() {
@@ -530,6 +525,13 @@ impl Combat {
                 continue;
             }
             break;
+        }
+        // A turn start suspended by a hook decision (Tools of the Trade, ...) continues once the hook's own effects
+        // (including a nested Sly auto-play it triggered) are fully resolved.
+        if self.turn_cont != 0 && self.stage != Stage::AwaitChoice && self.play_ctx.is_none() {
+            let t = self.turn_cont;
+            self.turn_cont = 0;
+            self.resume_turn_start(t);
         }
     }
 
