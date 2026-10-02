@@ -1,5 +1,5 @@
 //! Powers that potions apply (ported so the potion sweeps can exercise them). Hook bodies follow the decompiled
-//! `Models/Powers/*.cs`; powers needing a subsystem the engine lacks (Doom, Ambergris/extra turns) are NOT registered
+//! `Models/Powers/*.cs`; powers needing a subsystem the engine lacks (Ambergris/extra turns) are NOT registered
 //! here, so using them is flagged as unimplemented at runtime.
 
 use crate::dec::Dec;
@@ -283,3 +283,43 @@ listener!(GigantificationPower {
 
 // FocusPower: scales orb values; orbs are not in the engine yet, so there is nothing to hook.
 listener!(FocusPower {});
+
+// DoomPower: creatures whose HP is <= Doom are killed at the end of their side's turn (enemies: BeforeSideTurnEnd, the
+// player side: AfterSideTurnEnd). Only the first doomed creature on the side triggers the kill of all of them.
+// TODO(fidelity): `Hook.AfterDiedToDoom` (BookRepairKnife) is not dispatched yet.
+fn doomed_on(cx: &Combat, side: Side) -> crate::util::ArrayVec<Cid, MAX_CREATURES> {
+    let mut v = crate::util::ArrayVec::new();
+    for &c in cx.creatures_on(side).iter() {
+        let amount = cx.power_amount(c, ids::power::DOOM_POWER);
+        if amount > 0 && cx.cr(c).hp <= amount {
+            v.push(c);
+        }
+    }
+    v
+}
+
+fn doom_trigger(cx: &mut Combat, owner: Cid, side: Side) {
+    if cx.is_over_or_ending() || cx.cr(owner).side != side || cx.cr(owner).is_dead() {
+        return;
+    }
+    let doomed = doomed_on(cx, side);
+    if doomed.first() != Some(owner) {
+        return;
+    }
+    for &c in doomed.iter() {
+        cx.kill(&[c]);
+    }
+}
+
+listener!(DoomPower {
+    fn before_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
+        if side != Side::Player {
+            doom_trigger(cx, me.owner, side);
+        }
+    }
+    fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
+        if side != Side::Enemy {
+            doom_trigger(cx, me.owner, side);
+        }
+    }
+});
