@@ -81,7 +81,7 @@ Since the first slice: decisions (click/confirm model, hand/pile/choose-a-card),
 4. Port from the decompiled `OnPlay`/hook body, following the specs; add a differential trace once the oracle exists.
 
 ### Known gaps (engine)
-Orbs, Osty/pets,
+Osty/pets,
 stars/Forge, enchantments/afflictions, extra turns, history queries beyond per-turn counters, stun/revive monster
 interrupts, minion/secondary-enemy kill rules, `ModifyUnblockedDamageTarget`, X-cost replays, card generation/RNG
 helpers, encounter-local RNG (R0), and the many hooks not yet in the `Listener` trait (see spec 02 §2).
