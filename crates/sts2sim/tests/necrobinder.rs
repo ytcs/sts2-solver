@@ -174,3 +174,16 @@ fn bone_shards_kills_osty_and_necro_mastery_hurts_enemies_for_its_lost_hp() {
     assert!(cx.cr(o).is_dead());
     assert_eq!(cx.cr(PLAYER).block, 9);
 }
+
+#[test]
+fn observation_exposes_osty_at_the_end_of_the_vector() {
+    let mut cx = base();
+    cx.summon(5); // Osty 6/6
+    set_hand(&mut cx, &[(ids::card::POKE, 0)]);
+    let mut v = vec![0f32; observe::OBS_SIZE];
+    cx.observe(&mut v);
+    let osty = &v[observe::OBS_SIZE - observe::OSTY_F..];
+    assert_eq!(&osty[..4], &[1.0, 1.0, 6.0, 6.0]); // present, alive, hp, max hp
+    let preview = osty[4 + 2 * observe::OBS_POWERS]; // first hand slot: Poke = 6 damage from Osty
+    assert_eq!(preview, 6.0);
+}

@@ -42,6 +42,7 @@ def main():
     ap.add_argument("--encounter", default="NIBBITS_WEAK")
     ap.add_argument("--extra", default="", help="extra deck spec appended (e.g. CARD:2)")
     ap.add_argument("--tag", default="s")
+    ap.add_argument("--policy-seed", type=int, default=11)
     ap.add_argument("--energy", type=int, default=0, help="override max energy (and 3x hp) to reach deeper combinations")
     a = ap.parse_args()
     names = list(GROUPS) if a.groups == ["all"] else a.groups
@@ -67,7 +68,7 @@ def main():
         open(tpl, "w").write(json.dumps(tj, indent=1))
         keep = f"/tmp/sts2sweep_{g}{'_up' if a.upgrade else ''}{'_mx' if a.mixed else ''}"
         r = subprocess.run([sys.executable, os.path.join(ROOT, "tools/diff_sweep.py"), tpl, "--n", str(a.n), "--jobs", str(a.jobs),
-                            "--keep", keep, "--tag", a.tag], capture_output=True, text=True)
+                            "--keep", keep, "--tag", a.tag, "--policy-seed", str(a.policy_seed)], capture_output=True, text=True)
         lines = [l for l in r.stdout.strip().splitlines()]
         print(f"=== {g}{' (upgraded)' if a.upgrade else ''}{' (mixed)' if a.mixed else ''}: {lines[-1] if lines else r.stderr[-200:]}")
         for l in lines[:-1][:14]:
