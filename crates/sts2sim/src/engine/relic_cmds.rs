@@ -139,6 +139,15 @@ impl Combat {
         }
     }
 
+    /// `Hook.AfterDiedToDoom(creatures)`: to be called by `DoomPower` after it killed `creatures`.
+    pub fn notify_died_to_doom(&mut self, creatures: &[Cid]) {
+        let mut list: ArrayVec<Cid, MAX_CREATURES> = ArrayVec::new();
+        for &c in creatures {
+            list.push(c);
+        }
+        self.dispatch_u(hookbit::after_died_to_doom, |cx, me, l| l.after_died_to_doom(cx, me, list.as_slice()));
+    }
+
     /// Alive enemies in list order (`GetOpponentsOf(player)` filtered by `IsAlive`).
     pub fn alive_enemies(&self) -> ArrayVec<Cid, MAX_CREATURES> {
         let mut o = ArrayVec::new();

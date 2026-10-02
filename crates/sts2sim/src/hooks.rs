@@ -315,6 +315,8 @@ pub trait Listener: Sync {
     fn should_procure_potion(&self, cx: &Combat, me: Me, potion: u16) -> bool {
         true
     }
+    /// `Hook.AfterDiedToDoom` (unguarded): the creatures Doom just killed (`Combat::notify_died_to_doom`).
+    fn after_died_to_doom(&self, cx: &mut Combat, me: Me, creatures: &[Cid]) {}
     /// Continuation of a hook that suspended (`Combat::suspend_hook`): called after its decision / the card play it started
     /// finished. `phase` is whatever the hook stored.
     fn hook_resume(&self, cx: &mut Combat, me: Me, phase: u8) {}
@@ -468,6 +470,7 @@ pub mod hookbit {
         after_card_drawn_early,
         modify_card_play_result_location,
         should_owner_death_trigger_fatal,
+        after_died_to_doom,
     );
     // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
     pub const hook_resume: u32 = 188;

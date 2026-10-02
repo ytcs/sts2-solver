@@ -98,3 +98,35 @@ fn relic_props_roundtrip_through_slots() {
     assert_eq!(defs[0].name, "CombatsLeft");
     assert_eq!(l.meta_initial().0, 5);
 }
+
+#[test]
+fn gambling_chip_suspends_the_turn_start_and_resumes_it() {
+    let mut cx = with_relics(vec![relic(ids::relic::GAMBLING_CHIP)], 80);
+    // Combat::new stopped inside the first turn start: a hand decision (discard any number) is pending.
+    assert_eq!(cx.stage, Stage::AwaitChoice);
+    assert_eq!(cx.player.phase, Phase::Start);
+    let d = cx.decision.as_ref().expect("decision");
+    assert_eq!((d.min, d.max, d.cands.len()), (0, u8::MAX, 5));
+    let first_two = [d.cands[0], d.cands[1]];
+    assert!(cx.step(Action::Pick { idx: 0 }));
+    assert!(cx.step(Action::Pick { idx: 1 }));
+    assert!(cx.step(Action::Confirm));
+    // the turn start continued: play phase, two cards discarded and two drawn
+    assert_eq!(cx.stage, Stage::AwaitAction);
+    assert_eq!(cx.player.phase, Phase::Play);
+    assert_eq!(cx.player.hand.len(), 5);
+    assert_eq!(cx.player.discard.len(), 2);
+    for c in first_two {
+        assert!(cx.player.discard.contains(c));
+    }
+    assert!(cx.turn_cont.is_none() && cx.pending_hook.is_none());
+}
+
+#[test]
+fn gambling_chip_with_an_empty_selection_just_continues() {
+    let mut cx = with_relics(vec![relic(ids::relic::GAMBLING_CHIP)], 80);
+    assert!(cx.step(Action::Confirm));
+    assert_eq!(cx.stage, Stage::AwaitAction);
+    assert_eq!(cx.player.hand.len(), 5);
+    assert!(cx.player.discard.is_empty());
+}

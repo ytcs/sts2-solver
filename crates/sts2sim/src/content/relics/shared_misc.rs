@@ -305,6 +305,17 @@ listener!(LavaLamp {
     }
 });
 
+// Heals `Heal` for every creature (not the owner) Doom kills, unless one of its powers keeps the kill from counting
+// (`ShouldOwnerDeathTriggerFatal`).
+listener!(BookRepairKnife {
+    fn after_died_to_doom(&self, cx: &mut Combat, _me: Me, creatures: &[Cid]) {
+        let n = creatures.iter().filter(|&&c| c != PLAYER && cx.should_death_trigger_fatal(c)).count() as i32;
+        if n != 0 {
+            cx.heal(PLAYER, Dec::int((g::book_repair_knife::HEAL * n) as i64));
+        }
+    }
+});
+
 // +25% gold from every source.
 listener!(BowlerHat {
     fn modify_gold_gained(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {

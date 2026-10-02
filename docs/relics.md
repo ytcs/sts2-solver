@@ -45,7 +45,7 @@ Engine behaviour that relics needed and that was missing: `heal` / `kill` / `set
 `gain_max_hp`; `Player.IsActiveForHooks` (`Combat::player_active`: relics keep listening while the dying player runs the
 ShouldDie / AfterDeath sequence); a power's `amount_on_turn_start` starts at 0; `gain_energy` is a no-op while the combat is
 ending; gold (`Combat::gold`, default 99, dumped); room type of the encounter (`Combat::room_type`: 0 monster / 1 elite / 2 boss
-from the id suffix); `spend_resources`, `auto_play_card` (`CardCmd.AutoPlay`), `procure_potion`, `lose_block`, star cost with hooks
+from the id suffix); `spend_resources`, `auto_play_ex` (`CardCmd.AutoPlay` with an explicit target / `skipXCapture`), `procure_potion`, `lose_block`, star cost with hooks
 (`card_star_cost`), `set_cost_this_combat` / `add_cost_until_played`.
 
 ## Hooks that need a decision (`shared_choice.rs`)
@@ -54,8 +54,10 @@ A hook cannot return `Flow::Suspend`. A relic hook that needs a decision calls `
 calls `cx.suspend_hook_for_decision(me, phase)` and returns. The player-turn start is a resumable state machine
 (`Combat::run_turn_start`, steps `0..=8`; `BeforeHandDraw`, `AfterPlayerTurnStart`, `AfterAutoPrePlayPhaseEntered(+Late)` use
 `dispatch_susp`): it stops after the suspending listener and `resume_after_decision` calls `Listener::hook_resume(me, phase)`
-(the picks are in `cx.choice`), then continues the turn start. A hook that auto-plays a card (`auto_play_card`) sets
-`cx.pending_hook` first and clears it when the play finished synchronously (WhisperingEarring loop). `sts2diff` answers prompts
+(the picks are in `cx.choice`), then continues the turn start. A hook that auto-plays a card (`auto_play_ex`) sets
+`cx.pending_hook` first and clears it when the play finished synchronously (HistoryCourse). Whispering Earring pushes the game's
+`VakuuCardSelector` while it auto-plays: `Combat::auto_select` makes every card-selection screen resolve to the first `max`
+candidates, so it never suspends. `sts2diff` answers prompts
 raised during setup (record 0) from the oracle's recorded `choices`.
 
 ## Validation
@@ -68,7 +70,7 @@ to their thresholds. `tools/gen_relics.py` regenerates the constants.
 
 Need engine systems that do not exist yet: orbs (CrackedCore, InfusedCore, GoldPlatedCables, RunicCapacitor, SymbioticVirus,
 EmotionChip, Metronome), pets / Osty (BoundPhylactery, PhylacteryUnbound, BoneFlute, Byrdpip, PaelsLegion), Forge
-(FencingManual), extra turns (PaelsEye), Doom kills (BookRepairKnife), random potion generation (DelicateFrond).
-Known limits of ported relics: PaperPhrog / PaperKrane are behaviour of `VulnerablePower` / `WeakPower` (they check for the relic);
+(FencingManual), extra turns (PaelsEye), random potion generation (DelicateFrond: needs the potion pools).
+Known limits of ported relics: BookRepairKnife needs `DoomPower` to call `Combat::notify_died_to_doom(&killed)`; PaperPhrog / PaperKrane are behaviour of `VulnerablePower` / `WeakPower` (they check for the relic);
 cards that read an X value must use `Combat::resolve_x_value` for ChemicalX; monster code that adds status cards through
 `add_generated_card` is treated as "not created by the player" only during the enemy turn (Regalite).
