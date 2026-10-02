@@ -75,7 +75,7 @@ impl Combat {
         let card = &self.cards[c as usize];
         for v in content::card_def(card.id).vars {
             if v.kind == kind && v.kind != VarKind::Power {
-                return v.base as i32 + v.up as i32 * card.upgrade as i32;
+                return v.base as i32 + v.up as i32 * card.upgrade as i32 + self.card_var_extra(c, kind);
             }
         }
         0

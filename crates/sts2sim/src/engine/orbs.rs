@@ -388,7 +388,11 @@ impl Combat {
     /// `CardEnergyCost.SetThisCombat(cost)`.
     pub fn cost_set_this_combat(&mut self, c: CardIdx, cost: i8) {
         if cost != 0 || self.card_def(c).cost >= 0 {
-            self.cards[c as usize].mods.push(CostMod { amount: cost, relative: false, reduce_only: false, expire: 0 });
+            // An absolute, non-reduce-only, combat-long modifier overrides every earlier modifier for good, so earlier ones
+            // are dropped (keeps the fixed-capacity list from overflowing on clone chains such as Adaptive Strike's).
+            let mods = &mut self.cards[c as usize].mods;
+            mods.clear();
+            mods.push(CostMod { amount: cost, relative: false, reduce_only: false, expire: 0 });
         }
     }
 
@@ -410,9 +414,18 @@ impl Combat {
 
     /// `CardEnergyCost.AddUntilPlayed(amount)`.
     pub fn cost_add_until_played(&mut self, c: CardIdx, amount: i8) {
-        if amount != 0 {
-            self.cards[c as usize].mods.push(CostMod { amount, relative: true, reduce_only: false, expire: EXPIRE_WHEN_PLAYED });
+        if amount == 0 {
+            return;
         }
+        // Adjacent identical relative modifiers fold (plain addition) so repeated effects cannot overflow the fixed list.
+        let card = &mut self.cards[c as usize];
+        if let Some(last) = card.mods.as_mut_slice().last_mut() {
+            if last.relative && !last.reduce_only && last.expire == EXPIRE_WHEN_PLAYED {
+                last.amount = last.amount.saturating_add(amount);
+                return;
+            }
+        }
+        card.mods.push(CostMod { amount, relative: true, reduce_only: false, expire: EXPIRE_WHEN_PLAYED });
     }
 
     /// `Monster.IntendsToAttack`: the monster's pending move has an attack intent.
@@ -425,6 +438,19 @@ impl Combat {
         match &crate::content::monster_def(ms.id).nodes[ms.next_move as usize] {
             MonsterNode::Move { intents, .. } => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
             _ => false,
+        }
+    }
+
+    /// Per-instance growth the card's logic adds to a dynamic var's base value (`DynamicVars.X.BaseValue += ...`):
+    /// Claw's accumulated damage and Genetic Algorithm's block (`CurrentBlock = 1 + IncreasedBlock`), both in `counter[0]`.
+    #[inline]
+    pub fn card_var_extra(&self, c: CardIdx, kind: crate::defs::VarKind) -> i32 {
+        use crate::defs::VarKind;
+        let card = &self.cards[c as usize];
+        match (card.id, kind) {
+            (ids::card::CLAW, VarKind::Damage) => card.counter[0] as i32,
+            (ids::card::GENETIC_ALGORITHM, VarKind::Block) => 1 + card.counter[0] as i32,
+            _ => 0,
         }
     }
 }

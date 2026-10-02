@@ -341,6 +341,8 @@ pub struct PlayCtx {
     pub step: PlayStep,
     pub count: u8,
     pub result: PileType,
+    /// Position in the result pile (`CardLocation.position`; Bottom unless a hook such as Feral changed it).
+    pub result_pos: CardPilePosition,
 }
 
 /// Counters the game's combat history exposes to gameplay code (cards played this turn etc.).
@@ -357,6 +359,8 @@ pub struct History {
     pub energy_spent: i16,
     /// `CardPlayStartedEntry`s with `IsFirstInSeries` this turn (Echo Form).
     pub first_plays_started: i16,
+    /// `CardPlayStartedEntry`s of Attack cards played for 0 energy this turn (Feral).
+    pub zero_cost_attacks_started: i16,
 }
 
 #[derive(Clone, Copy)]

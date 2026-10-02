@@ -44,25 +44,53 @@ fn temp_side_turn_end(cx: &mut Combat, me: Me, sign: i32, side: Side) {
     cx.apply_power(ids::power::FOCUS_POWER, me.owner, Dec::int((-sign * amount) as i64), me.owner, NO);
 }
 
-macro_rules! temp_focus {
-    ($name:ident, $sign:expr) => {
-        listener!($name {
-            fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
-                temp_before_applied(cx, $sign, target, amount, applier, card);
-            }
-            fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, power_id: u16, amount: i32) {
-                temp_after_changed(cx, me, $sign, power_id, amount);
-            }
-            fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
-                temp_side_turn_end(cx, me, $sign, side);
-            }
-        });
-    };
-}
-temp_focus!(FocusedStrikePower, 1);
-temp_focus!(HotfixPower, 1);
-temp_focus!(SynchronizePower, 1);
-temp_focus!(HyperbeamFocusDownPower, -1);
+listener!(FocusedStrikePower {
+    fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
+        temp_before_applied(cx, 1, target, amount, applier, card);
+    }
+    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, power_id: u16, amount: i32) {
+        temp_after_changed(cx, me, 1, power_id, amount);
+    }
+    fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
+        temp_side_turn_end(cx, me, 1, side);
+    }
+});
+
+listener!(HotfixPower {
+    fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
+        temp_before_applied(cx, 1, target, amount, applier, card);
+    }
+    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, power_id: u16, amount: i32) {
+        temp_after_changed(cx, me, 1, power_id, amount);
+    }
+    fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
+        temp_side_turn_end(cx, me, 1, side);
+    }
+});
+
+listener!(SynchronizePower {
+    fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
+        temp_before_applied(cx, 1, target, amount, applier, card);
+    }
+    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, power_id: u16, amount: i32) {
+        temp_after_changed(cx, me, 1, power_id, amount);
+    }
+    fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
+        temp_side_turn_end(cx, me, 1, side);
+    }
+});
+
+listener!(HyperbeamFocusDownPower {
+    fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
+        temp_before_applied(cx, -1, target, amount, applier, card);
+    }
+    fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, power_id: u16, amount: i32) {
+        temp_after_changed(cx, me, -1, power_id, amount);
+    }
+    fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
+        temp_side_turn_end(cx, me, -1, side);
+    }
+});
 
 // BiasedCognitionPower: at the start of the owner's turn, lose `Amount` Focus.
 listener!(BiasedCognitionPower {
@@ -318,7 +346,66 @@ listener!(OneForAllPower {
     }
 });
 
-// Credit-free power shells (no hooks of their own).
+// Echo Form: the first `Amount` cards the owner plays each turn are played twice.
+listener!(EchoFormPower {
+    fn modify_card_play_count(&self, cx: &Combat, me: Me, _card: CardIdx, _target: Cid, count: i32) -> i32 {
+        if cx.hist.first_plays_started as i32 >= cx.power_amount(me.owner, me.id) {
+            count
+        } else {
+            count + 1
+        }
+    }
+});
+
+// Signal Boost: the owner's next Power card is played twice (the power then decrements).
+listener!(SignalBoostPower {
+    fn modify_card_play_count(&self, cx: &Combat, _me: Me, card: CardIdx, _target: Cid, count: i32) -> i32 {
+        if cx.card_def(card).ctype != CardType::Power {
+            return count;
+        }
+        count + 1
+    }
+    fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, _card: CardIdx) {
+        cx.decrement_power(me.owner, me.idx);
+    }
+});
+
+// Feral: the first `Amount` Attacks played for 0 energy each turn return to the top of the hand instead of the discard
+// pile. `Power::aux` = zero-cost attacks played so far this turn (`Data.zeroCostAttacksPlayed`).
+listener!(FeralPower {
+    fn after_applied(&self, cx: &mut Combat, me: Me) {
+        let n = cx.hist.zero_cost_attacks_started as i32;
+        if let Some(i) = cx.power_idx(me.owner, me.idx) {
+            cx.cr_mut(me.owner).powers[i].aux = n;
+        }
+    }
+    fn modify_card_play_result_location_full(&self, cx: &Combat, me: Me, card: CardIdx, _is_auto: bool, energy_value: i32, pile: PileType, pos: CardPilePosition) -> (PileType, CardPilePosition) {
+        if cx.card_def(card).ctype != CardType::Attack || energy_value > 0 || cx.cards[card as usize].flags & cflag::IS_DUPE != 0 {
+            return (pile, pos);
+        }
+        let used = cx.cr(me.owner).power(me.id).map_or(0, |p| p.aux);
+        if used >= cx.power_amount(me.owner, me.id) {
+            return (pile, pos);
+        }
+        (PileType::Hand, CardPilePosition::Top)
+    }
+    fn after_modifying_card_play_result_location(&self, cx: &mut Combat, me: Me, _card: CardIdx) {
+        if let Some(i) = cx.power_idx(me.owner, me.idx) {
+            cx.cr_mut(me.owner).powers[i].aux += 1;
+        }
+    }
+    fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
+        if side == Side::Player {
+            if let Some(i) = cx.power_idx(me.owner, me.idx) {
+                cx.cr_mut(me.owner).powers[i].aux = 0;
+            }
+        }
+    }
+});
+
+// Multiplayer-only (Imitation Learning is an ally-targeted card): never applied in single player.
+listener!(ImitationLearningPower {});
+
 listener!(EnergyNextTurnPower {
     fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
         let a = cx.power_amount(me.owner, me.id);

@@ -284,6 +284,20 @@ pub trait Listener: Sync {
     fn after_orb_channeled(&self, cx: &mut Combat, me: Me, orb: &Orb) {}
     /// `AfterOrbEvoked`; `targets` are what the orb's `Evoke` returned (may include creatures that died since).
     fn after_orb_evoked(&self, cx: &mut Combat, me: Me, orb: &Orb, targets: &[Cid]) {}
+
+    // ---- card play count / result location (appended by the Defect port) -------------------------------------------
+    /// `ModifyCardPlayCount` (threaded int, guarded). `target` = chosen target or `NO`.
+    fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
+        count
+    }
+    /// `AfterModifyingCardPlayCount` (only for listeners that changed the count).
+    fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
+    /// `ModifyCardPlayResultLocation` (threaded over pile + position; `energy_value` = `resources.EnergyValue`).
+    fn modify_card_play_result_location_full(&self, cx: &Combat, me: Me, card: CardIdx, is_auto: bool, energy_value: i32, pile: PileType, pos: CardPilePosition) -> (PileType, CardPilePosition) {
+        (pile, pos)
+    }
+    /// `AfterModifyingCardPlayResultLocation` (only for listeners that changed the location).
+    fn after_modifying_card_play_result_location(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
 }
 
 /// Statically derived hook mask of a listener type.
@@ -381,6 +395,10 @@ pub mod hookbit {
         after_modifying_orb_passive_trigger_count,
         after_orb_channeled,
         after_orb_evoked,
+        modify_card_play_count,
+        after_modifying_card_play_count,
+        modify_card_play_result_location_full,
+        after_modifying_card_play_result_location,
     );
 }
 

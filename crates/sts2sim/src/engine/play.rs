@@ -114,15 +114,71 @@ impl Combat {
         } else {
             PileType::Discard
         };
-        // 5. Hook.ModifyCardPlayResultLocation — no content yet.
-        // 6. play count: (replay + 1), Hook.ModifyCardPlayCount — no content yet.
-        let count = self.cards[c as usize].base_replay.saturating_add(1);
+        // 5. Hook.ModifyCardPlayResultLocation (guarded, threaded over pile + position), then
+        //    AfterModifyingCardPlayResultLocation for the listeners that changed it (Feral).
+        let (result, result_pos) = self.modify_play_result_location(c, play.is_auto, play.energy_spent, result);
+        // 6. play count: (replay + 1), Hook.ModifyCardPlayCount (threaded) + AfterModifyingCardPlayCount.
+        let count = self.generate_play_count(c, play.target);
         play.result_pile = result;
         play.play_count = count;
         // 7-8
         self.player.effect_depth += 1;
-        self.play_ctx = Some(PlayCtx { play, step: PlayStep::Before, count, result });
+        self.play_ctx = Some(PlayCtx { play, step: PlayStep::Before, count, result, result_pos });
         self.run_play();
+    }
+
+    /// `Hook.ModifyCardPlayResultLocation` + `AfterModifyingCardPlayResultLocation` (the pile and the position are modelled).
+    fn modify_play_result_location(&mut self, c: CardIdx, is_auto: bool, energy_value: i32, pile: PileType) -> (PileType, CardPilePosition) {
+        let mut loc = (pile, CardPilePosition::Bottom);
+        if !(self.listen.has(hookbit::modify_card_play_result_location_full) && self.hooks_enabled()) {
+            return loc;
+        }
+        let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_result_location_full));
+        let mut mods: crate::util::ArrayVec<Me, 24> = crate::util::ArrayVec::new();
+        for e in snap.iter() {
+            if self.still_live(&e.me) {
+                let n = content::listener(&e.me).modify_card_play_result_location_full(self, e.me, c, is_auto, energy_value, loc.0, loc.1);
+                if n != loc {
+                    mods.push(e.me);
+                }
+                loc = n;
+            }
+        }
+        for m in mods.iter() {
+            if self.still_live(m) {
+                content::listener(m).after_modifying_card_play_result_location(self, *m, c);
+            }
+        }
+        loc
+    }
+
+    /// `CardModel.GeneratePlayCount`: `(replay count + 1)` threaded through `Hook.ModifyCardPlayCount`, then the
+    /// `AfterModifyingCardPlayCount` notification for the listeners that changed it (Echo Form, Signal Boost).
+    pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> u8 {
+        let mut count = self.cards[c as usize].base_replay as i32 + 1;
+        if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
+            let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
+            let mut mods: crate::util::ArrayVec<Me, 24> = crate::util::ArrayVec::new();
+            for e in snap.iter() {
+                if self.still_live(&e.me) {
+                    let n = content::listener(&e.me).modify_card_play_count(self, e.me, c, target, count);
+                    if n != count {
+                        mods.push(e.me);
+                    }
+                    count = n;
+                }
+            }
+            if !mods.is_empty() && self.hooks_enabled() {
+                let snap = self.snapshot(Mask::bit(hookbit::after_modifying_card_play_count));
+                for e in snap.iter() {
+                    let hit = mods.iter().any(|m| m.kind == e.me.kind && m.owner == e.me.owner && m.idx == e.me.idx);
+                    if hit && self.still_live(&e.me) {
+                        content::listener(&e.me).after_modifying_card_play_count(self, e.me, c);
+                    }
+                }
+            }
+        }
+        count.clamp(0, 255) as u8
     }
 
     /// Advances the in-flight card play until it finishes or needs a decision.
@@ -141,6 +197,9 @@ impl Combat {
                     self.hist.cards_played_this_turn += 1; // History.CardPlayStarted
                     if p.play_index == 0 {
                         self.hist.first_plays_started += 1;
+                    }
+                    if self.card_def(c).ctype == CardType::Attack && p.energy_spent == 0 {
+                        self.hist.zero_cost_attacks_started += 1; // CardPlayStartedEntry with Resources.EnergyValue == 0 (Feral)
                     }
                     match self.card_def(c).ctype {
                         CardType::Attack => self.hist.attacks_played_this_turn += 1,
@@ -200,7 +259,7 @@ impl Combat {
                 PileType::None => self.remove_card_from_combat(c),
                 PileType::Exhaust => self.exhaust_card(c, false),
                 p => {
-                    self.move_card(c, p, CardPilePosition::Bottom);
+                    self.move_card(c, p, ctx.result_pos);
                 }
             }
         }
