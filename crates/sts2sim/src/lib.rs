@@ -5,6 +5,7 @@
 //! throughput and memory efficiency. All simulation state is plain data (`Clone` is a memcpy,
 //! no heap allocation on the hot path) so tens of thousands of fights can run in parallel.
 
+pub mod bounds;
 pub mod content;
 pub mod dec;
 pub mod defs;

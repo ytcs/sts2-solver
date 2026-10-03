@@ -101,6 +101,14 @@ fn action_space() -> usize {
     sts2env::ACTIONS
 }
 
+/// `None` when nothing is proven; otherwise a sentence explaining why the fight cannot be won (see `sts2sim::bounds`).
+#[pyfunction]
+fn provably_unwinnable(scenario_json: &str) -> PyResult<Option<String>> {
+    let v: serde_json::Value = serde_json::from_str(scenario_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let (sc, ex) = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
+    Ok(sts2sim::bounds::provably_unwinnable(&sc, &ex).map(|p| p.describe()))
+}
+
 /// Observation layout and action-space constants: `{"sections": [(name, offset, size)], "consts": {name: value}}`.
 #[pyfunction]
 fn layout(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
@@ -126,6 +134,7 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;
     m.add_function(wrap_pyfunction!(action_space, m)?)?;
     m.add_function(wrap_pyfunction!(layout, m)?)?;
+    m.add_function(wrap_pyfunction!(provably_unwinnable, m)?)?;
     // `outcome` codes of `step` (set when `done`)
     m.add("OUTCOME_ONGOING", sts2env::OUTCOME_ONGOING)?;
     m.add("OUTCOME_WIN", sts2env::OUTCOME_WIN)?;

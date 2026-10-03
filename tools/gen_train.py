@@ -31,6 +31,7 @@ def main():
     ap.add_argument("--focus", default="mix", choices=["mix", "colorless", "junk", "gen", "turn"])
     ap.add_argument("--enchant", type=float, default=0.02)
     ap.add_argument("--no-stratagem", action="store_true")
+    ap.add_argument("--drop-unwinnable", action="store_true", help="drop fights `sts2.provably_unwinnable` proves lost (see docs/solver.md)")
     a = ap.parse_args()
     g = fg.Gen(a.catalog)
     chars = a.character.split(",") if a.character else None
@@ -53,11 +54,20 @@ def main():
         if a.no_stratagem and any((c if isinstance(c, str) else c["id"]) == "STRATAGEM" for c in s["deck"]):
             continue
         s.pop("policy", None)
+        try:
+            import sts2
+            why = sts2.provably_unwinnable(s)
+        except Exception:
+            why = None
+        s.setdefault("meta", {})["proved_unwinnable"] = why or False
+        if why and a.drop_unwinnable:
+            continue
         s["name"] = f"tr{a.seed}_{s['name']}"
         out.append(s)
     json.dump(out, open(a.out, "w"))
     from collections import Counter
-    print(f"{len(out)} scenarios -> {a.out}; characters {dict(Counter(s['character'] for s in out))}; "
+    n_lost = sum(1 for s in out if s['meta'].get('proved_unwinnable'))
+    print(f"{len(out)} scenarios ({n_lost} provably unwinnable) -> {a.out}; characters {dict(Counter(s['character'] for s in out))}; "
           f"rooms/enc sample {dict(Counter(s['encounter'] for s in out).most_common(6))}")
 
 

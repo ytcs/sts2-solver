@@ -618,3 +618,98 @@ impl Combat {
         rows
     }
 }
+
+
+// ---- provable bounds on enemy damage (used by `bounds`) -----------------------------------------------------------------------
+impl Combat {
+    /// `look_enter` for a bound: every conditional arm and every random branch is possible (a superset of what can happen), states go
+    /// into an unbounded list.
+    fn bound_enter(&self, c: Cid, mut ms: MonsterState, left: u8, to: u8, first: u8, out: &mut Vec<MonsterState>, depth: u32) {
+        if depth > 64 {
+            return;
+        }
+        if left == STUN_NODE {
+            ms.stun_performed = false;
+        } else {
+            ms.performed_once &= !(1u64 << left);
+        }
+        ms.cur_state = to;
+        if self.node_is_move(c, to) {
+            let first = if first == NO { to } else { first };
+            ms.log[(ms.log_len & 7) as usize] = first;
+            ms.log_len += 1;
+            if first < 64 {
+                ms.ever_logged |= 1u64 << first;
+            }
+            ms.next_move = to;
+            out.push(ms);
+            return;
+        }
+        let def = content::monster_def(ms.id);
+        match &def.nodes[to as usize] {
+            MonsterNode::Cond { arms, .. } => {
+                for (target, _) in arms.iter() {
+                    self.bound_enter(c, ms, to, *target, first, out, depth + 1);
+                }
+            }
+            MonsterNode::Random { branches, .. } => {
+                for b in branches.iter() {
+                    self.bound_enter(c, ms, to, b.target, first, out, depth + 1);
+                }
+            }
+            MonsterNode::Move { .. } => {}
+        }
+    }
+
+    /// The states the monster can be in one turn later (the pending move is performed, the next one is rolled).
+    pub fn bound_next_states(&self, c: Cid, ms: &MonsterState, out: &mut Vec<MonsterState>) {
+        let mut ms = *ms;
+        ms.performed_first = true;
+        let cur = ms.cur_state;
+        let def = content::monster_def(ms.id);
+        let nxt = if cur == STUN_NODE {
+            ms.stun_performed = true;
+            if ms.stun_follow_up == NO { def.initial } else { ms.stun_follow_up }
+        } else {
+            ms.performed_once |= 1u64 << cur;
+            match &def.nodes[cur as usize] {
+                MonsterNode::Move { follow_up, .. } => {
+                    if *follow_up == NO {
+                        def.initial
+                    } else if *follow_up == crate::defs::FOLLOW_STORED {
+                        ms.stun_follow_up
+                    } else {
+                        *follow_up
+                    }
+                }
+                _ => return,
+            }
+        };
+        self.bound_enter(c, ms, cur, nxt, NO, out, 0);
+    }
+
+    /// States are identified by the move node (and the stun bookkeeping): the bound takes every branch, so history never restricts it.
+    pub fn bound_same_state(a: &MonsterState, b: &MonsterState) -> bool {
+        a.cur_state == b.cur_state && a.stun_performed == b.stun_performed && a.stun_follow_up == b.stun_follow_up
+    }
+
+    /// Total attack damage of a move node against the player (as `node_attack_damage`), or with the player's attack-weakening
+    /// applied to every hit (`weak`: `floor(3/4 x)` of the per-hit damage, which is <= what the game computes).
+    pub fn bound_node_damage(&self, c: Cid, node: u8, weak: bool) -> i64 {
+        if node == STUN_NODE {
+            return 0;
+        }
+        let def = content::monster_def(self.cr(c).monster.id);
+        let MonsterNode::Move { intents, .. } = &def.nodes[node as usize] else { return 0 };
+        let hit = |d: i32| -> i64 { if weak { (d as i64 * 3) / 4 } else { d as i64 } };
+        let mut total = 0i64;
+        for it in intents.iter() {
+            match it {
+                Intent::Attack { damage, hits } => total += hit(self.intent_damage(c, damage(self, c))) * hits(self, c) as i64,
+                Intent::DeathBlowAttack { damage } => total += hit(self.intent_damage(c, damage(self, c))),
+                _ => {}
+            }
+        }
+        total
+    }
+}

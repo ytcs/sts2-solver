@@ -14,13 +14,19 @@ Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py);
 import json
 import numpy as np
 
-from ._sts2 import BatchEnv as _BatchEnv, obs_size, action_space, layout  # noqa: F401
+from ._sts2 import BatchEnv as _BatchEnv, obs_size, action_space, layout, provably_unwinnable as _provably_unwinnable  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )
 
 OBS_SIZE = obs_size()
 ACTIONS = action_space()
+
+
+def provably_unwinnable(scenario):
+    """None, or a sentence proving the fight cannot be won with this deck (a relaxation that only favours the player; see
+    `sts2sim::bounds`: pure damage / block cards, neutral relics, no potions, one enemy). None means nothing was proven."""
+    return _provably_unwinnable(json.dumps(scenario))
 
 
 class VecEnv:

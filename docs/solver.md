@@ -44,3 +44,23 @@ Eval set: `target/train/eval.json` (1500 fights, 5 characters, 3 acts, seed 22),
 Paired comparison on 100 fights (early checkpoint, M=5, K=6): policy 0.51 / 0.516 -> policy + search 0.63 / 0.446.
 
 (Final numbers: see the end of this file.)
+
+## Provably unwinnable fights (`sts2sim::bounds`, `sts2.provably_unwinnable`)
+Many generated fights cannot be won by anyone (a starter deck against a boss). `provably_unwinnable(scenario)` returns a sentence proving it, or `None`
+(= nothing proven). It relaxes the game in the player's favour and checks that even then the enemy cannot be killed before the player dies:
+
+* every card of the deck must be **pure**: found by probing it in the simulator (five different situations, the same card played twice, a Vulnerable
+  enemy) to spend only its energy, deal a fixed damage / gain a fixed block (+ Vulnerable / Weak), move cards between piles and change nothing else
+  (no energy, powers, upgrades, cost changes, extra plays, growth). 28 Ironclad and 28 Silent cards qualify; Defect / Necrobinder / Regent are not covered;
+* relics must only hook things that cannot matter in a fight (144 of 300), no potions, no starting powers, no enchantments;
+* one enemy that cannot react to damage (no stun / sleep / flee intents, no damage-reactive start powers) and whose behaviour is bounded from below
+  by the cheapest damage over every state its move machine can be in each turn (every branch counts as possible);
+* per turn the player may play any subset of its deck (hand size and draw order ignored) whose cost fits the energy: a damage / block frontier; block
+  does not carry over. A DP over turns (state = HP lost, value = damage dealt) shows whether the enemy's HP is ever reachable.
+
+Soundness is checked empirically, not just argued: `tools/check_bounds.py` generates decks of pure cards against every encounter, and no policy
+(random, scripted heuristic, the trained network sampled and greedy) may ever win a fight the prover flags. The first run found a real hole (Terror
+Eel's Shriek stuns it when damaged, which lowers its damage: reactive enemies are now refused); since then 3 seeds x ~530 flagged fights x 20k
+episodes per policy gave 0 wins. Coverage is small on the random-deck training distribution (decks nearly always contain a card, relic or potion the
+prover cannot vouch for), so `gen_train.py --drop-unwinnable` filters little there; it matters for the starter-deck-like cases a run-level optimizer
+would ask about, and the verdict is a cheap "do not even simulate this".
