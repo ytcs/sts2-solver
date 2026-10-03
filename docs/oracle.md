@@ -145,3 +145,26 @@ present in every record.
   to localise mismatches inside an enemy turn.
 * Potion/relic/card persistent-state injection beyond ints/bools/strings (`SavedProperties` int arrays, cards-in-props) is not wired in `Scenario.cs`.
 * Suggested follow-up: replay a handful of old real-game traces (git history `data/combat_traces`, older build) through scenarios to cross-check the stub layer end to end.
+
+## 7. Randomized differential fuzzing (`tools/fuzz_gen.py`)
+
+Per-entity sweeps validate one card / relic / monster at a time; the fuzzer validates their interactions. It generates realistic A10
+Ironclad / Silent runs (starter deck + 5-25 additions from the character pool + colorless, upgrades ~40%, some enchanted cards, curses,
+themed duplicates, 0-6 relics incl. "stress" relics that raise decisions / auto-play, relic counters, 0-2 potions, hp 50-90 or a "tank"
+pool, every encounter incl. event encounters, per-act floors), runs them through the oracle with the `random` / `playall` / `stall`
+policies in ONE process per job (`oracle.sh batch`, ~10 ms per fight) and diffs every trace against `sts2diff`.
+
+```
+python3 tools/fuzz_gen.py run --n 5000 --seed 1 --out /tmp/fz --jobs 6 [--relic-mode runlevel|many] [--force-relics A,B] [--force-cards X]
+python3 tools/fuzz_gen.py triage --out /tmp/fz            # re-diff the failing scenarios kept under /tmp/fz/jobK (first differences)
+python3 tools/fuzz_gen.py freeze --base /tmp/fz/job0/f1_17 --name my_regression --note "..."   # -> oracle/regression/my_regression.scenario.json
+python3 tools/fuzz_gen.py regress                         # replay every oracle/regression/*.scenario.json (scripted, policy independent)
+```
+Verdicts: `ok`, `mismatch`, `sim-error` (Rust panic), `oracle-error` (the real game threw; e.g. Inky on a non-targeted card), `unimplemented`
+(content / engine rule flagged as not ported: `Combat::missing`), `arena-full` (more than `MAX_CARDS` card instances in one fight).
+Debug aids: `STS2DIFF_DUMP=1` (full Rust + oracle record of the first diverging step), `STS2DIFF_DUMP=all`, `STS2_TRACE=1` (debug builds:
+every card play / draw / history entry of the Rust side), `tools/fuzz_relic_props.py` (relic saved properties used for counter injection).
+
+Known residual classes (flagged as `unimplemented`, never silent): a decision raised inside the draw loop of a card effect / potion / power
+(Stratagem after a mid-turn reshuffle, a Hellraiser auto-played prompt card drawn by a card effect) -- only the turn-start hand draw can
+suspend and resume; decision candidate lists are capped at `MAX_PICK` (64); a fight may create at most `MAX_CARDS` (160) card instances.

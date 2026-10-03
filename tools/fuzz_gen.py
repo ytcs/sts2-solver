@@ -17,6 +17,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 ORACLE = os.path.join(ROOT, "oracle/combat/oracle.sh")
 DIFF = os.environ.get("STS2DIFF") or os.path.join(ROOT, "target/debug/sts2diff")
 POOLS = os.path.join(ROOT, "tools/fuzz_pools.json")
+RELIC_PROPS = os.path.join(ROOT, "tools/fuzz_relic_props.json")  # tools/fuzz_relic_props.py
+SKIP_PROPS = {"Skin", "FurCoatActIndex", "FurCoatCoordCols", "FurCoatCoordRows", "FurCoatCoordsSet", "GoldenPathAct"}
 
 STARTERS = {  # deck, relic, base max hp
     "IRONCLAD": (["STRIKE_IRONCLAD"] * 5 + ["DEFEND_IRONCLAD"] * 4 + ["BASH"], "BURNING_BLOOD", 80),
@@ -84,6 +86,7 @@ class Gen:
             self.relics[ch] = [r["id"] for r in allr.values() if r["rarity"] not in ("Starter", "None") and r["id"] not in foreign
                                and r["id"] not in ("DEPRECATED_RELIC",) and r["id"] not in rl]
         self.relics_rl = sorted(rl & set(allr))
+        self.relic_props = json.load(open(RELIC_PROPS)) if os.path.exists(RELIC_PROPS) else {}
         self.potions = {}
         for ch, pn in (("IRONCLAD", "IroncladPotionPool"), ("SILENT", "SilentPotionPool")):
             ps = P["potions"][pn] + P["potions"]["SharedPotionPool"] + P["potions"]["EventPotionPool"]
@@ -102,6 +105,21 @@ class Gen:
                 e = rng.choice(opts)
                 d["enchantment"] = {"id": e["id"], "amount": rng.randint(1, 3) if e["show_amount"] else 1}
         return d if (up or "enchantment" in d) else c["id"]
+
+    def with_props(self, rng, rid):
+        """A relic that has been carried through the run can start the combat with accumulated counters / used flags."""
+        props = {k: v for k, v in self.relic_props.get(rid, {}).items() if k not in SKIP_PROPS}
+        if not props or rng.random() > 0.5:
+            return rid
+        out = {}
+        for k, v in props.items():
+            if isinstance(v, bool):
+                out[k] = rng.random() < 0.5
+            elif isinstance(v, int):
+                out[k] = rng.randint(0, 9)   # real counters wrap at their threshold (<= 10)
+            else:
+                out[k] = v
+        return {"id": rid, "props": out}
 
     def make(self, rng, name, seed_str, ch=None, enc=None, policy=None, force_relics=(), force_potions=(), force_cards=(), relic_mode=None):
         ch = ch or rng.choice(self.chars)
@@ -181,6 +199,7 @@ class Gen:
         tank = rng.random() < 0.12   # not a realistic HP pool: survives long enough to reach deep turns of the fight
         maxhp = rng.randint(150, 400) if tank else rng.randint(50, 90)
         hp = maxhp if (tank or rng.random() < 0.5) else max(1, int(maxhp * rng.uniform(0.3, 1.0)))
+        relics = [self.with_props(rng, r) if i else r for i, r in enumerate(relics)]
         pk = policy or (rng.choices(["random", "playall", "stall"], [1, 3, 2])[0] if tank else rng.choices(["random", "playall", "stall"], [5, 3, 1.2])[0])
         pol = {"kind": pk, "seed": rng.randrange(1, 1 << 30)}
         if pk != "random":

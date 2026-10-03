@@ -409,7 +409,7 @@ impl Combat {
     }
 
     /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
-    pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+    pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, 32> {
         // Only the turn-start hand draw itself is resumable: a draw made by an effect nested inside it (a Swift strike
         // auto-played by Hellraiser ...) behaves like any other card-effect draw.
         let outer = self.drawing_hand;
@@ -419,7 +419,7 @@ impl Combat {
         r
     }
 
-    fn draw_cards_list_inner(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+    fn draw_cards_list_inner(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, 32> {
         let mut out = crate::util::ArrayVec::new();
         if self.is_over_or_ending() {
             return out;
@@ -463,7 +463,9 @@ impl Combat {
                 eprintln!("TRACE draw {}", crate::ids::card::NAMES[self.cards[card as usize].id as usize]);
             }
             self.move_card(card, PileType::Hand, CardPilePosition::Bottom);
-            out.push(card);
+            if out.len() < 32 {
+                out.push(card);
+            }
             let id = self.cards[card as usize].id;
             self.hist_push(HKind::CardDrawn, PLAYER, NO, id, card, 0, from_hand_draw as u8, 0, 0);
             if self.drawn_hooks(card, from_hand_draw, 0) {
