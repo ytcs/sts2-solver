@@ -203,7 +203,7 @@ impl Combat {
     /// can be outstanding at once: a card auto-played from inside another card's play, e.g. Uproar), unlike a single
     /// `aux` slot.
     pub fn play_amount_add(&mut self, uid: u16, card: CardIdx, amount: i32) {
-        if self.hist.play_amounts.len() < 16 {
+        if self.hist.play_amounts.len() < 32 {
             self.hist.play_amounts.push(PlayAmount { uid, card, amount });
         }
     }

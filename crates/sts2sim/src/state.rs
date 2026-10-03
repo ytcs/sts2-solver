@@ -424,7 +424,7 @@ pub struct History {
     /// Bitset over card arena indices: cards with a `CardPlayFinishedEntry` this turn (Necrobinder).
     pub finished_cards: [u64; 3],
     /// Per-play scratch used by Serpent Form / Strangle: the power amount when `BeforeCardPlayed` ran for a card.
-    pub play_amounts: ArrayVec<PlayAmount, 16>,
+    pub play_amounts: ArrayVec<PlayAmount, 32>,
 }
 
 impl History {

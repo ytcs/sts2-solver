@@ -317,17 +317,6 @@ listener!(StratagemPower {
                     cx.hook_ctx = Some((me, 1));
                     cx.stage = Stage::AwaitChoice;
                 } else {
-                    if std::env::var("STS2_DEBUG_STRAT").is_ok() {
-                        eprintln!(
-                            "stratagem not resumable: depth {} hand {} nosusp {} potion {} stack {:?} side {:?}",
-                            cx.draw_depth,
-                            cx.drawing_hand,
-                            cx.draw_nosuspend,
-                            cx.potion_ctx.is_some(),
-                            cx.play_stack.last().map(|c| (c.play.card, c.step)),
-                            cx.side
-                        );
-                    }
                     cx.decision = None;
                     cx.flag_missing(Kind::Power, me.id);
                 }
