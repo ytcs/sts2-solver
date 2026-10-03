@@ -79,30 +79,24 @@ Since the first slice: decisions (click/confirm model, hand/pile/choose-a-card),
 3. Register it in `content/mod.rs`; unregistered ids are rejected by `Scenario::validate` (never silently simulated).
 4. Port from the decompiled `OnPlay`/hook body, following the specs; add a differential trace once the oracle exists.
 
-### Integrated content status (after merging the parallel slices)
-Merge order on `sim-rebuild`: engine-core, Ironclad M-Z, Silent A-M, Silent N-Z, Overgrowth, Regent, Necrobinder (Ironclad A-L and potions
-were merged earlier). Every slice is validated by differential sweeps against the oracle (`oracle/templates/*.json`, run with
-`python3 tools/diff_sweep.py oracle/templates/<t>.json --n 20 --jobs 4`; potions via `tools/potion_sweep.py --all`, Necrobinder via
-`tools/necro_sweep.py all`): all `ok`; the only non-`ok` runs are `UNIMPLEMENTED` hits on content not yet merged (colorless / token /
-status / curse cards such as Debris, Minion Dive Bomb, The Gambit; Underdocks monsters).
+### Content status (final integration)
+Everything on `sim-rebuild` is validated by differential sweeps against the real-game oracle: the template corpus
+(`oracle/templates/**`, `python3 tools/regress.py`, 418 templates, all `ok`), 1,254 recorded real-game traces replayed bit-identically
+(`tools/regress_cache.py check`, also through the in-place reset), 70+ frozen regression scenarios (`oracle/regression*`), and ~250,000
+randomized A10 fuzz fights (random decks × relics × potions × every encounter) with 0 residual mismatches.
 
-Coverage (`python3 tools/coverage.py`, implemented = a `listener!` / `MonsterDef` / encounter spawn exists):
+Coverage (`python3 tools/coverage.py`; implemented = a `listener!` / `MonsterDef` / encounter spawn exists):
 
-| kind | implemented | total |
-|---|---|---|
-| cards | 378 | 596 (63%) |
-| powers | 152 | 265 (57%) |
-| relics | 8 | 300 (2%) |
-| potions | 60 | 65 (92%) |
-| monsters | 30 | 120 (25%) |
-| encounters | 22 | 90 (24%) |
-| total | 650 | 1436 |
+| kind | implemented | total | not ported |
+|---|---|---|---|
+| cards | 595 | 596 | `DEPRECATED_CARD` |
+| powers | 256 | 265 | multiplayer-only (Concoct, Covered, Fade, Guarded, Intercept) and powers nothing applies (Gravity, Leadership, MagicBomb, NoEnergyGain) |
+| relics | 300 | 300 | — |
+| potions | 64 | 65 | `DEPRECATED_POTION` |
+| monsters | 114 | 120 | test/mock/deprecated (BigDummy, OneHp, TenHp, SingleAttack/MultiAttackMove, Deprecated) |
+| encounters | 89 | 90 | `DEPRECATED_ENCOUNTER` |
 
-Throughput after the merge (release, loaded shared machine, `crates/sts2sim/examples/bench.rs` / `crates/sts2env/examples/bench.rs`):
-69k full fights/s/thread (was 87k at the Ironclad-A-L+potions baseline, 94k originally), 458k fights/s on 14 threads, 0.73M env-steps/s
-(was 0.80M); `size_of::<Combat>()` 20.6 KB (was 14.5 KB: `Card` grew by star/enchant/affliction state, `HistLog` ring 2 KB, nested
-play/auto-play stacks). Candidates: shrink `HistLog` entries / ring, move rarely used card state out of `Card`, skip history writes
-for kinds nobody queries.
+Throughput (release, shared/loaded machine): ~80-95k full fights/s/thread, ~450k+ fights/s on 14 threads; `size_of::<Combat>()` ≈ 18.7 KB.
 
 ### Hardening phase (robustness, memory, throughput)
 Done on `sim-rebuild` after the content merge; every step was verified bit-identical (unit tests, `tools/regress_cache.py check` over the
@@ -159,21 +153,24 @@ hp / power / pending-loss write); the profile is now flat, with ~700 branch misp
 remaining floor; per-creature power capacity by role (`Power` is 20 B x 16 per creature; the player reached 13 powers in the corpus, so 16
 stays).
 
-### Known gaps (engine)
-Done in the engine-core pass: every `Hook.*` dispatcher, death/kill sequence (preventers, minions, escape, player death), mid-combat
-summons, stun / forced moves, nested auto-play + Sly + dupes + transform, replay / result-location hooks, global keywords, X values,
-enchantments (23) + affliction framework, extra turns, play history, end-turn requests, scenario extras (see the cheat sheet in
-`docs/porting-guide.md`). Added by the content slices: stars / star costs / Forge (Regent), Osty summon / revive / redirect (Necrobinder),
-turn-start and turn-end hook decisions (Tools of the Trade, Stampede), mid-combat monster lifecycle (Overgrowth).
-Orbs (Defect) are done (`engine/orbs.rs`). Still open: a decision raised by an auto-play started from a *turn-start hook* that is not the first listener of its
-pass (Mayhem / Imbued: listeners after the suspended one are skipped), deck-copy (run-level) listeners, encounter-local slot tables,
-`GainsBlock` as a card property (approximated by "has a Block var"), non-integer named card vars (Tank 1.5 / 0.5), `CalculatedVar`
-cards that need a calculated-var table (cards compute them by hand). Fidelity TODOs are marked `TODO(fidelity)` in code.
+### Known gaps (honest list)
+* **Stratagem decisions in draws that cannot suspend** (draws started from inside another hook — Centennial Puzzle, Iteration — or
+  `AutoPlayFromDrawPile` shuffles — Mayhem, Cascade, Havoc —, and draws that are not an effect's last action — Battle Trance, Acrobatics...):
+  the fight is flagged `Combat::missing` and batch envs end the episode with `OUTCOME_UNIMPLEMENTED`. ≈0.1-0.4% of fights *in decks that
+  contain Stratagem*; training distributions can simply exclude that one card. Parked oracle traces: `oracle/regression_pending/`.
+* **Fixed capacities** (160 cards, 16 powers per creature, 12 creature slots, 64 decision candidates in the action space): an overflowing
+  fight raises the sticky `Combat::overflow` flag and envs end it with `OUTCOME_OVERFLOW`; only extreme stall fights reach it.
+* **Information-contract assumptions not yet verified against the real UI**: discard/exhaust are exposed in pile order; "known top card"
+  knowledge (after put-on-top effects) is not tracked.
+* Run-level deck-copy listeners, `GainsBlock` as a card property (approximated by "has a Block var"), non-integer named card vars (Tank).
+* The oracle's own game code crashes on a few paths (Inky on non-enemy-targeted cards, Entropy with no eligible card): untestable, excluded.
+Fidelity TODOs are marked `TODO(fidelity)` in code.
 
 ## Milestones
 1. ✅ Specs from the decompiled source (`docs/spec/01–05`)
-2. ✅ Engine core + vertical slice (Ironclad starter vs Nibbit)
-3. ⏳ Oracle: run the real game headless from a scenario and dump per-step state (`oracle/`, `docs/oracle.md`)
-4. Differential harness: replay oracle traces in Rust, field-by-field compare; random-play fuzzing
-5. Content breadth (cards → powers → relics → potions → monsters/encounters), each validated against the oracle
-6. PyO3 batch env (`BatchEnv`, flat f32 observations, action masks, rayon) + benchmarks
+2. ✅ Engine core + vertical slice
+3. ✅ Oracle: the real game's combat code runs headless (`oracle/`, `docs/oracle.md`)
+4. ✅ Differential harness (`crates/sts2diff`), corpus regression (`tools/regress.py`), randomized fuzzing (`tools/fuzz_gen*.py`)
+5. ✅ Content breadth: all five characters, all four acts + events, relics, potions, enchantments
+6. ✅ Batched RL env (`crates/sts2env`) and Python bindings (`crates/sts2py`); hardening (robustness flags, memory, throughput)
+7. ⏳ Ongoing: more fuzz rounds after any content/engine change; Stratagem non-suspendable contexts; throughput tuning

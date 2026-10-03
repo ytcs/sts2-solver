@@ -51,6 +51,16 @@ obs, mask = env.reset()                                   # obs float32 [n, OBS_
 obs, mask, reward, done, info = env.step(actions)         # actions: int32 dense action indices (must be legal)
 ```
 
+## Episodes, rewards, scenario distributions
+* `done[i] = 1` ends an episode; `info["outcome"]`: `1` win, `-1` loss, `2` truncated (`max_steps`), `3` unimplemented content reached,
+  `4` capacity overflow (the last two mean the fight would not be faithful — drop or resample those episodes). Reward defaults to +1/−1
+  (configurable: `win`, `loss`, `hp_bonus`·final_hp/max_hp, per-step).
+* A scenario is the oracle JSON format (character, ascension, encounter, ordered deck with upgrades, relics, potions, HP, seed, …);
+  `VecEnv(scenarios=[...])` samples one uniformly per episode and redraws every RNG stream. Build distributions with
+  `tools/mk_scenario.py` or the randomized generators (`tools/fuzz_gen.py`, `fuzz_gen_orb_pet.py`, `fuzz_gen_mix.py`) — they produce
+  realistic Ascension-10 runs (starter deck + Ascender's Bane, random additions/upgrades/relics/potions) over every encounter.
+* Exclude the colorless card `STRATAGEM` from training decks (a few of its draw contexts are not yet resumable; see `docs/design.md`).
+
 ## How fidelity is guaranteed
 1. **Specs from the source** (`docs/spec/`): exact hook order, damage pipeline (decimal arithmetic), draw/shuffle (including
    .NET introsort tie behaviour), RNG streams, monster state machines.
