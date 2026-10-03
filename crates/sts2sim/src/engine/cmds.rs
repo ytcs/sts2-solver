@@ -197,6 +197,21 @@ impl Combat {
         self.add_generated_card_by(c, pile, pos, by_player)
     }
 
+    /// `amountsForPlayedCards.Add(card, amount)` of the power instance `uid`. Real dictionary semantics (several entries
+    /// can be outstanding at once: a card auto-played from inside another card's play, e.g. Uproar), unlike a single
+    /// `aux` slot.
+    pub fn play_amount_add(&mut self, uid: u16, card: CardIdx, amount: i32) {
+        if self.hist.play_amounts.len() < 16 {
+            self.hist.play_amounts.push(PlayAmount { uid, card, amount });
+        }
+    }
+
+    /// `amountsForPlayedCards.Remove(card, out value)`.
+    pub fn play_amount_take(&mut self, uid: u16, card: CardIdx) -> Option<i32> {
+        let pos = self.hist.play_amounts.as_slice().iter().rposition(|e| e.uid == uid && e.card == card)?;
+        Some(self.hist.play_amounts.remove(pos).amount)
+    }
+
     /// `CardPileCmd.AddGeneratedCardToCombat(card, pile, creator, pos)`; `by_player` = `creator != null`.
     pub fn add_generated_card_by(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition, by_player: bool) -> bool {
         self.hist_card_generated(c, by_player);

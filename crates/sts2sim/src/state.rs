@@ -486,6 +486,8 @@ pub struct Combat {
     pub draw_resume: Option<(i32, bool)>,
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
+    /// Nesting depth of `draw_cards_list` (a draw started by an `AfterCardDrawn` hook of another draw is depth 2).
+    pub draw_depth: u8,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
     /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
     pub turn_cont: u8,

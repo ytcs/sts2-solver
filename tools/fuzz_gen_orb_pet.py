@@ -153,7 +153,7 @@ def diff_one(base):
     m = re.search(r"Unimplemented(\w+)\(\"(\w+)\"\)", out + d.stderr)
     if m:
         return base, "unimplemented", f"UNIMPLEMENTED {m.group(1).lower()} {m.group(2)}"
-    return base, "mismatch" if d.returncode == 1 else "sim-error", (out or d.stderr)[-600:]
+    return base, "mismatch" if d.returncode == 1 else "sim-error", (out or d.stderr)[:900]
 
 
 def main():

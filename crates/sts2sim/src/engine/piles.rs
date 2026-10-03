@@ -393,6 +393,13 @@ impl Combat {
 
     /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
     pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+        self.draw_depth = self.draw_depth.saturating_add(1);
+        let out = self.draw_cards_inner(count, from_hand_draw);
+        self.draw_depth = self.draw_depth.saturating_sub(1);
+        out
+    }
+
+    fn draw_cards_inner(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
         let mut out = crate::util::ArrayVec::new();
         if self.is_over_or_ending() {
             return out;

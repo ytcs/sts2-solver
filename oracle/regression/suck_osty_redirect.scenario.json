@@ -1,0 +1,94 @@
+{
+ "name": "suck_osty_redirect",
+ "ascension": 10,
+ "encounter": "FOSSIL_STALKER_NORMAL",
+ "character": "NECROBINDER",
+ "hp": 47,
+ "max_hp": 76,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "fz200616x944831950",
+ "total_floor": 16,
+ "act": 0,
+ "deck": [
+  {
+   "id": "BODYGUARD"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "UNLEASH"
+  },
+  {
+   "id": "HIGH_FIVE",
+   "upgrade": 1
+  },
+  {
+   "id": "BLIGHT_STRIKE",
+   "upgrade": 1
+  },
+  {
+   "id": "GLIMPSE_BEYOND"
+  },
+  {
+   "id": "ULTIMATE_STRIKE"
+  },
+  {
+   "id": "NEGATIVE_PULSE"
+  },
+  {
+   "id": "REAVE",
+   "upgrade": 1
+  },
+  {
+   "id": "SACRIFICE",
+   "upgrade": 1
+  },
+  {
+   "id": "BONE_SHARDS"
+  },
+  {
+   "id": "PREP_TIME"
+  },
+  {
+   "id": "NEUROSURGE"
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "BOUND_PHYLACTERY",
+  "POTION_BELT",
+  "VEXING_PUZZLEBOX",
+  "STRIKE_DUMMY",
+  "BEATING_REMNANT"
+ ],
+ "potions": [
+  "EXPLOSIVE_AMPOULE"
+ ],
+ "note": "Fossil Stalker Suck: a hit redirected to Osty counts once (per-hit result groups; owner result dropped when a pet was hit). Rust counted Osty and the overkill result separately."
+}

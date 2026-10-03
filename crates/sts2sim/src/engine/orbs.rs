@@ -385,7 +385,7 @@ impl Combat {
             return false;
         }
         match &crate::content::monster_def(ms.id).nodes[ms.next_move as usize] {
-            MonsterNode::Move { intents, .. } => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
+            MonsterNode::Move { intents, .. } => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow | Intent::DeathBlowAttack { .. })),
             _ => false,
         }
     }
