@@ -167,15 +167,8 @@ listener!(KinglyKick {
     }
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, card: CardIdx, _from_hand_draw: bool) {
         if card as u16 == me.idx {
-            // EnergyCost.AddThisCombat(-1): combat-long relative modifier (folded into one entry).
-            let c = &mut cx.cards[card as usize];
-            if let Some(last) = c.mods.as_mut_slice().last_mut() {
-                if last.relative && !last.reduce_only && last.expire == 0 {
-                    last.amount = last.amount.saturating_sub(1);
-                    return;
-                }
-            }
-            c.mods.push(CostMod { amount: -1, relative: true, reduce_only: false, expire: 0 });
+            // EnergyCost.AddThisCombat(-1): a combat-long relative modifier (merged / evicted by push_cost_mod).
+            cx.push_cost_mod(card, CostMod { amount: -1, relative: true, reduce_only: false, expire: 0 });
         }
     }
 });

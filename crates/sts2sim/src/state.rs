@@ -381,10 +381,13 @@ pub enum PlayStep {
 }
 
 /// In-flight potion use (suspended while a decision is pending).
+/// Cards of an auto-play queue (`AutoPlayFromDrawPile` <= 10; Eidolon replays every Ethereal card of the exhaust pile: 12+ in a long fight).
+pub type QCards = ArrayVec<CardIdx, 32>;
+
 /// Cards of one `AutoPlayFromDrawPile` / `DiscardAndDraw` call still waiting to be auto-played (front = next).
 #[derive(Clone, Copy)]
 pub struct AutoQueue {
-    pub cards: ArrayVec<CardIdx, 10>,
+    pub cards: QCards,
     /// `AutoPlayFromDrawPile(forceExhaust)`.
     pub force_exhaust: bool,
     /// `AutoPlayType.SlyDiscard` queue (else `Default`).
@@ -414,7 +417,7 @@ pub struct DrawSusp {
     pub pos: CardPilePosition,
     pub force_exhaust: bool,
     /// The picks already made (kind 1).
-    pub picked: ArrayVec<CardIdx, 10>,
+    pub picked: QCards,
 }
 
 #[derive(Clone, Copy)]
@@ -526,7 +529,7 @@ pub struct Combat {
     pub hook_ctx: Option<(crate::hooks::Me, u8)>,
     /// A turn-start hand draw interrupted by a decision raised in `AfterShuffle` (Stratagem): (cards still to draw,
     /// from_hand_draw). `turn_cont == 4` resumes it.
-    pub draw_resume: Option<(i32, bool)>,
+    pub draw_resume: Option<(i32, bool, bool)>,
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
     /// Nesting depth of `draw_cards_list` calls (a draw started from an `AfterCardDrawn` hook, e.g. Iteration, is depth 2: its

@@ -100,12 +100,12 @@ impl Combat {
         if self.is_over_or_ending() {
             return RunResult::Finished;
         }
-        self.auto_play_pick_and_run(ArrayVec::new(), count.min(10), pos, force_exhaust)
+        self.auto_play_pick_and_run(QCards::new(), count.min(10), pos, force_exhaust)
     }
 
     /// The body of `AutoPlayFromDrawPile` from the pick loop on: `cards` were picked (and moved to the Play pile) before an
     /// `AfterShuffle` decision interrupted the call, `left` picks remain.
-    pub(crate) fn auto_play_pick_and_run(&mut self, mut cards: ArrayVec<CardIdx, 10>, left: i32, pos: CardPilePosition, force_exhaust: bool) -> RunResult {
+    pub(crate) fn auto_play_pick_and_run(&mut self, mut cards: QCards, left: i32, pos: CardPilePosition, force_exhaust: bool) -> RunResult {
         for i in 0..left {
             self.autoplay_shuffle_ok = true;
             self.shuffle_if_necessary();
@@ -141,8 +141,12 @@ impl Combat {
     /// A fixed list of `CardCmd.AutoPlay(card, null)` calls one after the other (Eidolon): same queue machinery as
     /// `AutoPlayFromDrawPile`, so a decision raised by one of the plays suspends the rest of the list.
     pub fn auto_play_list(&mut self, cards: &[CardIdx]) -> RunResult {
-        let mut q: ArrayVec<CardIdx, 10> = ArrayVec::new();
-        for &c in cards.iter().take(10) {
+        let mut q: QCards = QCards::new();
+        for &c in cards.iter() {
+            if q.len() >= 32 {
+                self.flag_missing(crate::hooks::Kind::Card, u16::MAX); // longer lists are not modelled
+                break;
+            }
             q.push(c);
         }
         let owner = self.play_stack.len() as i8 - 1;
@@ -222,7 +226,7 @@ impl Combat {
             self.draw_cards(cards_to_draw, false);
         }
         let owner = self.play_stack.len() as i8 - 1;
-        let mut q: ArrayVec<CardIdx, 10> = ArrayVec::new();
+        let mut q: QCards = QCards::new();
         for &c in sly.iter() {
             q.push(c);
         }

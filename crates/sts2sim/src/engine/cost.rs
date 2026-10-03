@@ -14,12 +14,16 @@ impl Combat {
         if !m.relative && !m.reduce_only && m.expire == 0 {
             card.mods.clear();
         }
-        // Adjacent relative, non-reduce-only modifiers with the same expiry commute: merge them (keeps Stampede-style
-        // "-1 per attack" stacks inside the 4 slots).
+        // Relative, non-reduce-only modifiers with the same expiry commute with each other (the cost is an unclamped
+        // running sum), so a new one merges into any earlier such entry that no absolute / reduce-only entry follows.
+        // This keeps Stampede / Kingly Kick / Slumbering Essence stacks inside the 4 slots.
         if m.relative && !m.reduce_only {
-            if let Some(last) = card.mods.as_mut_slice().last_mut() {
-                if last.relative && !last.reduce_only && last.expire == m.expire && (last.amount as i32 + m.amount as i32).abs() < 100 {
-                    last.amount += m.amount;
+            for e in card.mods.as_mut_slice().iter_mut().rev() {
+                if !e.relative || e.reduce_only {
+                    break;
+                }
+                if e.expire == m.expire && (e.amount as i32 + m.amount as i32).abs() < 100 {
+                    e.amount += m.amount;
                     return;
                 }
             }

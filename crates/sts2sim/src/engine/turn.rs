@@ -233,12 +233,12 @@ impl Combat {
         }
         if from == 4 {
             // The hand draw was interrupted by a decision raised in `AfterShuffle` (Stratagem): draw the rest.
-            if let Some((n, from_hand)) = self.draw_resume.take() {
+            if let Some((n, from_hand, in_shuffle)) = self.draw_resume.take() {
                 self.drawing_hand = true;
                 // The interrupted `AfterShuffle` pass continues with the listeners after the one that asked (BiiigHug, TheAbacus ...)
-                // BEFORE the rest of the draw.
-                if self.run_after_shuffle() {
-                    self.draw_resume = Some((n, from_hand));
+                // BEFORE the rest of the draw. (Not when the decision came from a card auto-played by a draw hook.)
+                if in_shuffle && self.run_after_shuffle() {
+                    self.draw_resume = Some((n, from_hand, true));
                     self.drawing_hand = false;
                     self.turn_cont = 4;
                     return true;

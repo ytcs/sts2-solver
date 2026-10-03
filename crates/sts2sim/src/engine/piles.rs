@@ -520,7 +520,7 @@ impl Combat {
             if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() {
                 if self.shuffle_decision_resumable() {
                     // An `AfterShuffle` listener (Stratagem) asked for a decision: the turn-start draw resumes afterwards.
-                    self.draw_resume = Some((count - i, from_hand_draw));
+                    self.draw_resume = Some((count - i, from_hand_draw, true));
                 } else if self.draw_susp_possible() {
                     // A draw of a card effect / potion: remember how much is left; `run_play_at` / `run_potion` suspend the effect
                     // if it turns out the draw was its last action.
@@ -544,7 +544,7 @@ impl Combat {
             if self.stage == Stage::AwaitChoice && self.hook_ctx.is_none() && self.shuffle_decision_resumable() {
                 // A draw hook auto-played a card that asks for a decision (Hellraiser + Seeker Strike) during the turn-start hand draw: the
                 // nested play resumes first, then the rest of the draw (`turn_cont` 4).
-                self.draw_resume = Some((count - i - 1, from_hand_draw));
+                self.draw_resume = Some((count - i - 1, from_hand_draw, false));
                 break;
             }
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
