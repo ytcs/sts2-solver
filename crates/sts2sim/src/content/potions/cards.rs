@@ -267,8 +267,9 @@ listener!(GamblersBrew {
 listener!(TouchOfInsanity {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
         let costs = |cx: &Combat, c: CardIdx| {
+            // `CostsEnergyOrStars(false) || CostsEnergyOrStars(true)` (the star cost is the CURRENT one: a card already made free is out)
             let d = cx.card_def(c);
-            (d.star_cost > 0) || (!d.x_cost && (cx.card_cost(c, false) > 0 || cx.card_cost(c, true) > 0))
+            (!d.x_cost && cx.card_cost(c, false) > 0) || cx.card_current_star_cost(c) > 0 || cx.costs_energy_or_stars(c)
         };
         match phase {
             0 => match cx.ask_hand(purpose(potion), 1, 1, costs) {

@@ -416,7 +416,15 @@ listener!(Thrash {
         let me = Me { kind: Kind::Card, owner: PLAYER, idx: other as u16, id: cx.cards[other as usize].id, amount: 0 };
         let base = match crate::content::listener(&me).calculated_damage(cx, other, NO) {
             Some(d) => d,
-            None => cx.card_damage_dec(other),
+            None => {
+                // `ContainsKey("Damage")` else `ContainsKey("OstyDamage")` (Osty attacks: Rattle, Sic 'Em ...)
+                let d = crate::content::card_def(cx.cards[other as usize].id);
+                if d.vars.iter().any(|v| v.kind == VarKind::Damage) || !d.vars.iter().any(|v| v.kind == VarKind::OstyDamage) {
+                    cx.card_damage_dec(other)
+                } else {
+                    Dec::int(cx.card_var(other, VarKind::OstyDamage) as i64)
+                }
+            }
         };
         let (dmg, _) = cx.modify_damage(NO, PLAYER, base, ValueProp::MOVE, other);
         cx.add_card_damage(p.card, dmg);
