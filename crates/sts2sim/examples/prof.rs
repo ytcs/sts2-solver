@@ -79,15 +79,17 @@ fn env_episode(seed: u64, obs: &mut [f32]) -> u64 {
     let mut h = 0u64;
     let mut steps = 0;
     while cx.stage != Stage::Over && steps < 2000 {
-        cx.observe(obs);
+        // what `BatchEnv` does per env-step: legal actions (sharing can_play with the observation) + observation
         let mut buf = engine::ActionBuf::new();
-        cx.legal_actions(&mut buf);
+        let mut playable = 0u16;
+        cx.legal_actions_ex(&mut buf, &mut playable);
+        cx.observe_ex(obs, Some(playable));
         let k = buf.len();
         let a = *buf.iter().nth(pol.next_int(k as i32) as usize).unwrap();
         cx.step(a);
         let mut o = 0u64;
-        for (i, v) in obs.iter().enumerate() {
-            o = o.wrapping_mul(0x100000001b3).wrapping_add(v.to_bits() as u64 + i as u64);
+        for i in (0..obs.len()).step_by(7) {
+            o = o.wrapping_mul(0x100000001b3).wrapping_add(obs[i].to_bits() as u64 + i as u64);
         }
         h = h.wrapping_mul(31).wrapping_add(o ^ stable_index(a));
         steps += 1;

@@ -123,6 +123,17 @@ impl Combat {
         w.n(card.affliction as i32);
     }
 
+    /// `(id + 1, amount)` of the first `OBS_POWERS` powers, zeros for the rest.
+    #[inline(always)]
+    fn write_powers(w: &mut W, cr: &Creature) {
+        let n = cr.powers.len().min(OBS_POWERS);
+        for p in &cr.powers.as_slice()[..n] {
+            w.n(p.id as i32 + 1);
+            w.n(p.amount);
+        }
+        w.zeros((OBS_POWERS - n) * 2);
+    }
+
     fn write_pile_list(&self, w: &mut W, pile: &[CardIdx], sorted_multiset: bool) {
         let n = pile.len().min(OBS_MAX_PILE);
         if sorted_multiset {
@@ -155,7 +166,9 @@ impl Combat {
     /// `observe` with the playability of the hand cards precomputed: bit `k` of `hand_playable` = `can_play(hand[k])` (as
     /// produced by `legal_actions_ex`), so a batch env that also needs the legal actions evaluates each hand card once.
     pub fn observe_ex(&self, out: &mut [f32], hand_playable: Option<u16>) -> usize {
-        out[..OBS_SIZE].fill(0.0);
+        let out = &mut out[..OBS_SIZE];
+        // SAFETY: `out` has exactly OBS_SIZE f32s; all-zero bytes are +0.0. (`fill(0.0)` compiled to a store loop.)
+        unsafe { core::ptr::write_bytes(out.as_mut_ptr(), 0, OBS_SIZE) };
         let mut w = W { out, i: 0 };
         let hand_ok = self.stage == Stage::AwaitAction && self.player.phase == Phase::Play;
         let me = self.cr(PLAYER);
@@ -179,25 +192,14 @@ impl Combat {
         w.n(self.player.stars);
         w.n(self.player.orb_slots as i32);
         w.n(self.player.potion_slots as i32);
-        for k in 0..OBS_POWERS {
-            match me.powers.get(k) {
-                Some(p) => {
-                    w.n(p.id as i32 + 1);
-                    w.n(p.amount);
-                }
-                None => w.zeros(2),
-            }
+        Self::write_powers(&mut w, me);
+        let n_relics = self.player.relics.len().min(MAX_RELICS);
+        for r in &self.player.relics.as_slice()[..n_relics] {
+            w.n(r.id as i32 + 1);
+            // The counter a player can see on the relic (`ShowCounter ? DisplayAmount`), not the raw state slot.
+            w.n(crate::content::relic_listener(r.id).meta_display(self, r).unwrap_or(0));
         }
-        for k in 0..MAX_RELICS {
-            match self.player.relics.get(k) {
-                Some(r) => {
-                    w.n(r.id as i32 + 1);
-                    // The counter a player can see on the relic (`ShowCounter ? DisplayAmount`), not the raw state slot.
-                    w.n(crate::content::relic_listener(r.id).meta_display(self, &r).unwrap_or(0));
-                }
-                None => w.zeros(2),
-            }
-        }
+        w.zeros((MAX_RELICS - n_relics) * 2);
         for k in 0..MAX_POTIONS {
             match self.player.potions[k] {
                 Some(p) => {
@@ -240,15 +242,7 @@ impl Combat {
             w.n(cr.block);
             w.n(cr.is_alive() as i32);
             w.n(self.is_stunned(e) as i32);
-            for j in 0..OBS_POWERS {
-                match cr.powers.get(j) {
-                    Some(p) => {
-                        w.n(p.id as i32 + 1);
-                        w.n(p.amount);
-                    }
-                    None => w.zeros(2),
-                }
-            }
+            Self::write_powers(&mut w, cr);
             // current intent(s)
             let mut n_int = 0;
             if ms.next_move != NO {
@@ -331,15 +325,7 @@ impl Combat {
                 w.n(cr.is_alive() as i32);
                 w.n(cr.hp);
                 w.n(cr.max_hp);
-                for j in 0..OBS_POWERS {
-                    match cr.powers.get(j) {
-                        Some(p) => {
-                            w.n(p.id as i32 + 1);
-                            w.n(p.amount);
-                        }
-                        None => w.zeros(2),
-                    }
-                }
+                Self::write_powers(&mut w, cr);
             }
             None => w.zeros(4 + OBS_POWERS * 2),
         }
