@@ -221,28 +221,31 @@ listener!(TagTeamPower {
 });
 
 // ---- CalamityPower: after each Attack you play, add `Amount` random Attacks of your character's pool to the hand --------
-// The per-card amount recorded at `BeforeCardPlayed` (the C# dictionary) lives in `card.counter[1]` (0 = none, else amount + 1).
+// The per-card amount recorded at `BeforeCardPlayed` (the C# dictionary) lives in the power's `aux`:
+// `(card index + 1) | (amount << 16)` for the one outstanding attack play (Attacks do not nest).
 listener!(CalamityPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_def(play.card).ctype != CardType::Attack {
             return;
         }
-        let a = cx.power_amount(me.owner, me.id);
-        cx.cards[play.card as usize].counter[1] = (a + 1) as i16;
+        if let Some(i) = cx.power_idx(me.owner, me.idx) {
+            let a = cx.cr(me.owner).powers[i].amount;
+            cx.cr_mut(me.owner).powers[i].aux = (play.card as i32 + 1) | (a << 16);
+        }
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let rec = cx.cards[play.card as usize].counter[1];
-        if rec == 0 {
+        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
+        let aux = cx.cr(me.owner).powers[i].aux;
+        if aux == 0 || (aux & 0xFFFF) != play.card as i32 + 1 {
             return;
         }
-        cx.cards[play.card as usize].counter[1] = 0;
-        let amount = (rec - 1) as usize;
+        cx.cr_mut(me.owner).powers[i].aux = 0;
+        let amount = (aux >> 16) as usize;
         let pool = cx.character_pool();
         let cards = cx.get_for_combat_where(pool, amount, |d| d.ctype == CardType::Attack);
         for &c in cards.iter() {
             cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
         }
-        let _ = me;
     }
 });
 
