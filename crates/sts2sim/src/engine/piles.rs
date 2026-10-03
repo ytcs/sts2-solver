@@ -30,6 +30,7 @@ impl Combat {
             self.flag_missing(Kind::Card, id);
         }
         let d = content::card_def(id);
+        self.strat_possible |= id == crate::ids::card::STRATAGEM;
         self.listen |= content::card_mask(id);
         self.listen_cards |= content::card_mask(id);
         let idx = self.n_cards as CardIdx;
@@ -423,22 +424,11 @@ impl Combat {
         self.draw_cards_list(count, from_hand_draw).len()
     }
 
-    /// Whether an `AfterShuffle` decision raised by the draw that is running now can be paused and resumed: the
-    /// turn-start hand draw, or a plain (non-nested) draw made by a card / potion effect (`on_play` finishes, the play
-    /// is held in front of its `After` step and the rest of the draw continues after the pick). Everything else (draws
-    /// from hooks, nested draws, draws whose caller reads the result or asks next) is flagged as not ported.
+    /// Whether an `AfterShuffle` decision raised by the draw that is running now can be paused in place: the turn-start hand draw
+    /// (`draw_resume` / `turn_cont` 4) and Foregone Conclusion's own shuffle (`hook_after`). Every other draw cannot suspend; a
+    /// Stratagem prompt there is answered by re-running the step (`engine/replay.rs`).
     pub fn draw_decision_resumable(&self) -> bool {
-        if self.hook_shuffle {
-            return true; // Foregone Conclusion's own shuffle (`hook_after`)
-        }
-        if self.draw_nosuspend > 0 || self.draw_depth != 1 {
-            // (depth 0: a shuffle outside `draw_cards`, e.g. AutoPlayFromDrawPile, cannot be paused either)
-            return false;
-        }
-        if self.drawing_hand || self.resuming_draw || self.potion_ctx.is_some() || self.hand_check {
-            return true;
-        }
-        matches!(self.play_stack.last().map(|c| c.step), Some(PlayStep::OnPlay(_)))
+        self.hook_shuffle || (self.drawing_hand && self.draw_nosuspend == 0 && self.draw_depth == 1)
     }
 
     /// `draw_cards` for call sites that read the drawn cards or ask for a decision right afterwards: a Stratagem pick
@@ -495,12 +485,8 @@ impl Combat {
             self.shuffle_if_necessary();
             if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() {
                 // An `AfterShuffle` listener (Stratagem) asked for a decision (only when `draw_decision_resumable`): the
-                // turn-start draw / the rest of this effect's draw resumes afterwards.
-                if self.drawing_hand {
-                    self.draw_resume = Some((count - i, from_hand_draw));
-                } else {
-                    self.draw_cont = Some((count - i, from_hand_draw));
-                }
+                // turn-start draw resumes afterwards.
+                self.draw_resume = Some((count - i, from_hand_draw));
                 break;
             }
             if self.player.draw.len() + self.player.discard.len() == 0 {

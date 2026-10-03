@@ -166,12 +166,8 @@ Debug aids: `STS2DIFF_DUMP=1` (full Rust + oracle record of the first diverging 
 every card play / draw / history entry of the Rust side), `tools/fuzz_relic_props.py` (relic saved properties used for counter injection).
 
 Known residual classes (flagged as `unimplemented`, never silent):
-* A decision raised inside a draw loop (Stratagem after a reshuffle, a Hellraiser auto-played prompt card) is resumable only in the turn-start
-  hand draw and in effects that draw through `Combat::draw_cards_s` / `draw_then_done` (`PH_DRAW_TAIL`: Shrug It Off, Pommel Strike, Backflip,
-  Acrobatics, Prepared, Dagger Throw, Battle Trance, Offering, Burning Pact, Drum of Battle, Finesse, ... and the draw potions). Everything
-  else that can draw (hook-driven draws such as Dark Embrace / Feel No Pain, `AutoPlayFromDrawPile` of Havoc / Cascade, Expertise, Escape Plan,
-  Pillage, Thinking Ahead, Calculated Gamble, the Swift enchantment, Clarity / Snecko Oil) flags `Combat::missing` when such a decision occurs.
-  ~0.1% of fights of the fuzz distribution.
+* (A Stratagem prompt raised inside any draw is no longer a residual class: see `engine/replay.rs`. A Hellraiser auto-played prompt card
+  inside the turn-start hand draw pauses in place as before.)
 * Decision candidate lists are capped at `MAX_PICK` (64): a draw/discard pile larger than that (very long fights) is not fully selectable.
 * A fight may create at most `MAX_CARDS` (160) card instances (a stalling policy for 50+ rounds).
 
@@ -201,10 +197,8 @@ must return `Suspend` or `Done` and the engine suspends the outer play while the
 Earring's selector) must apply its result exactly like a resumed one; turn-start passes that auto-play (`AfterAutoPrePlayPhaseEntered*`) and
 `AfterShuffle` are `dispatch_resumable`. The default arena is `MAX_CARDS` = 160 / `MAX_POWERS` = 16; an overflowing fight raises the sticky
 overflow flag (`util::raise_overflow`, `ov::*`) and `sts2diff` reports it as an error, never a silent mismatch. Stratagem prompts (an
-`AfterShuffle` decision raised inside a draw / shuffle) are resumable for: the turn-start hand draw, a plain draw that is the last thing a
-card / potion effect does (`draw_cont`), Foregone Conclusion's own `BeforeHandDraw` shuffle (`hook_shuffle` / `hook_after`) and the
-hand-empty draw at the very end of an outermost card play / potion (Unceasing Top: `hand_check`, via `draw_cont`).
-Known gaps (flagged unimplemented): a draw started from inside another hook (Iteration's `AfterCardDrawn`, Centennial Puzzle ...), a draw that is
-not the effect's last action (Battle Trance, Acrobatics, Prophesize, Bottled Potential ...) and `AutoPlayFromDrawPile` (Mayhem, Cascade, Havoc ...)
-that reshuffle while Stratagem is active; traces of the last two kinds are kept in `oracle/regression_pending/`. The oracle trace has a `log` field per record (history entries since the previous record: nested plays `play*`,
+`AfterShuffle` decision raised inside a draw / shuffle) pause in place for the turn-start hand draw and Foregone Conclusion's own
+`BeforeHandDraw` shuffle; every other context (mid-effect draws, hook-started draws, `AutoPlayFromDrawPile`, the hand-empty draw of Unceasing
+Top) is handled by **replay** (`engine/replay.rs`): the step is run, the state at the prompt is shown to the agent, and the agent's answer re-runs
+the step from its start. The traces that used to be parked in `oracle/regression_pending/` live in `oracle/regression/`. The oracle trace has a `log` field per record (history entries since the previous record: nested plays `play*`,
 draws, ...), and `sts2diff` compares keywords/enchantments of every pile and fails on oracle prompts the simulator never asked.

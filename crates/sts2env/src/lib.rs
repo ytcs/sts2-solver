@@ -32,6 +32,11 @@ pub trait ScenarioSource: Send + Sync {
         None
     }
 
+    /// Index of the scenario an episode runs (for per-scenario statistics); 0 for sources with a single scenario.
+    fn index(&self, _env: usize, _episode_seed: u64) -> u32 {
+        0
+    }
+
     /// Checks every scenario the source can produce (`BatchEnv::try_new` calls it once, so the per-episode reset can skip
     /// validation). The default accepts everything: sources built on `sample` are validated per episode instead.
     fn validate(&self) -> Result<(), ScenarioError> {
@@ -74,6 +79,9 @@ impl ScenarioSource for PoolScenario {
     fn pick(&self, _env: usize, episode_seed: u64) -> Option<&Scenario> {
         Some(&self.0[(episode_seed >> 17) as usize % self.0.len()])
     }
+    fn index(&self, _env: usize, episode_seed: u64) -> u32 {
+        ((episode_seed >> 17) as usize % self.0.len()) as u32
+    }
     fn validate(&self) -> Result<(), ScenarioError> {
         self.0.iter().try_for_each(|s| s.validate())
     }
@@ -111,6 +119,24 @@ struct Slot {
     cx: Combat,
     steps: u32,
     episode: u64,
+    /// Scenario index and starting HP fraction of the running episode.
+    scen: u32,
+    hp0: f32,
+    /// Summary of the episode that ended last.
+    last: EpisodeInfo,
+}
+
+/// What `BatchEnv::episode_info` reports per env about the episode that ended most recently.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct EpisodeInfo {
+    /// Index of the scenario in the source.
+    pub scen: u32,
+    /// Player HP lost during the fight as a fraction of max HP (a loss counts the HP the player had left as lost).
+    pub hp_lost: f32,
+    /// HP left at the end as a fraction of max HP (0 on a loss).
+    pub hp_end: f32,
+    /// Agent steps the episode took.
+    pub len: u32,
 }
 
 /// Why a `BatchEnv` call failed (always a caller / scenario error: stepping itself never fails or panics).
@@ -224,9 +250,15 @@ fn step_one(
         *done = 1;
         *outcome = oc;
         *reward += r;
+        let me = slot.cx.cr(0);
+        let end_frac = if oc == OUTCOME_WIN { me.hp as f32 / me.max_hp.max(1) as f32 } else { 0.0 };
+        slot.last = EpisodeInfo { scen: slot.scen, hp_lost: slot.hp0 - end_frac, hp_end: end_frac, len: slot.steps };
         slot.episode += 1;
         slot.steps = 0;
-        start_episode(source, env, BatchEnv::episode_seed(base, env, slot.episode), &mut slot.cx);
+        let seed = BatchEnv::episode_seed(base, env, slot.episode);
+        start_episode(source, env, seed, &mut slot.cx);
+        slot.scen = source.index(env, seed);
+        slot.hp0 = slot.cx.cr(0).hp as f32 / slot.cx.cr(0).max_hp.max(1) as f32;
     }
     write_obs_mask(&mut slot.cx, obs, mask);
 }
@@ -251,7 +283,9 @@ impl BatchEnv {
                 .map(|i| {
                     let episode = Self::episode_seed(base_seed, i, 0);
                     let sc = source.sample(i, episode);
-                    Ok(Slot { cx: Combat::try_new(&sc)?, steps: 0, episode: 0 })
+                    let cx = Combat::try_new(&sc)?;
+                    let hp0 = cx.cr(0).hp as f32 / cx.cr(0).max_hp.max(1) as f32;
+                    Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default() })
                 })
                 .collect()
         });
@@ -273,6 +307,13 @@ impl BatchEnv {
 
     pub fn is_empty(&self) -> bool {
         self.slots.is_empty()
+    }
+
+    /// Summary of the episode each env finished last (valid where `done` was set by the latest `step`).
+    pub fn episode_info(&self, out: &mut [EpisodeInfo]) {
+        for (o, s) in out.iter_mut().zip(self.slots.iter()) {
+            *o = s.last;
+        }
     }
 
     /// Writes the current observation / mask of every env (e.g. after construction).

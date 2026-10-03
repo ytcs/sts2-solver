@@ -246,11 +246,10 @@ impl Combat {
             attack_unblocked_hits,
             attack_player_hits,
             draw_depth,
-            draw_cont,
-            resuming_draw,
             draw_nosuspend,
             hook_shuffle,
-            hand_check,
+            strat_possible,
+            replay,
             hook_after,
             autoplay_stack,
             hist_log,
@@ -309,11 +308,10 @@ impl Combat {
         attack_results.clear();
         attack_hit_sizes.clear();
         *draw_depth = 0;
-        *draw_cont = None;
-        *resuming_draw = false;
         *draw_nosuspend = 0;
         *hook_shuffle = false;
-        *hand_check = false;
+        *strat_possible = false;
+        *replay = None;
         *hook_after = None;
         *attack_unblocked_hits = 0;
         *attack_player_hits = 0;
@@ -487,11 +485,10 @@ impl Combat {
             draw_resume: None,
             drawing_hand: false,
             draw_depth: 0,
-            draw_cont: None,
-            resuming_draw: false,
             draw_nosuspend: 0,
             hook_shuffle: false,
-            hand_check: false,
+            strat_possible: false,
+            replay: None,
             hook_after: None,
             turn_cont: 0,
             susp: ArrayVec::new(),

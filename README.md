@@ -60,7 +60,9 @@ obs, mask, reward, done, info = env.step(actions)         # actions: int32 dense
   `VecEnv(scenarios=[...])` samples one uniformly per episode and redraws every RNG stream. Build distributions with
   `tools/mk_scenario.py` or the randomized generators (`tools/fuzz_gen.py`, `fuzz_gen_orb_pet.py`, `fuzz_gen_mix.py`) — they produce
   realistic Ascension-10 runs (starter deck + Ascender's Bane, random additions/upgrades/relics/potions) over every encounter.
-* Exclude the colorless card `STRATAGEM` from training decks (a few of its draw contexts are not yet resumable; see `docs/design.md`).
+* Stratagem's reshuffle prompt works in every draw context (turn-start draw, mid-effect draws, hook-started draws, auto-plays): where the engine cannot pause
+  it, the step is re-run with the agent's pick (`engine/replay.rs`). The agent sees the effect's partial results at the prompt. Combats that contain a
+  Stratagem card pay one state copy per step; all others pay nothing.
 
 ## How fidelity is guaranteed
 1. **Specs from the source** (`docs/spec/`): exact hook order, damage pipeline (decimal arithmetic), draw/shuffle (including

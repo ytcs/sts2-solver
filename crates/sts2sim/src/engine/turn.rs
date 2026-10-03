@@ -370,14 +370,6 @@ impl Combat {
         }
     }
 
-    /// `check_for_empty_hand` as the last step of an outermost card play / potion use: an `AfterShuffle` decision raised by the draw it
-    /// makes (Unceasing Top + Stratagem) parks the rest of that draw (`draw_cont`).
-    pub(crate) fn check_for_empty_hand_last(&mut self) {
-        self.hand_check = self.play_stack.is_empty() && self.autoplay_stack.is_empty();
-        self.check_for_empty_hand();
-        self.hand_check = false;
-    }
-
     // ---- player turn end -----------------------------------------------------------------------------------------------
 
     /// Player ends the turn: phase one, phase two, side switch, enemy turn, next player turn (until the next decision).
@@ -696,7 +688,7 @@ impl Combat {
     pub fn step(&mut self, a: Action) -> bool {
         // (fold, never drop: bits raised by an `observe` / `legal_actions` call on this combat that nobody synced yet belong to it)
         self.sync_overflow();
-        let ok = self.step_inner(a);
+        let ok = if self.strat_possible { self.step_replayed(a) } else { self.step_inner(a) };
         self.sync_overflow();
         ok
     }
@@ -711,7 +703,7 @@ impl Combat {
         }
     }
 
-    fn step_inner(&mut self, a: Action) -> bool {
+    pub(crate) fn step_inner(&mut self, a: Action) -> bool {
         match (self.stage, a) {
             (Stage::AwaitAction, Action::PlayCard { hand_pos, target }) => {
                 if !self.play_card(hand_pos as usize, target) {
@@ -764,13 +756,9 @@ impl Combat {
     /// Differential-harness entry: a click on candidate `idx` in GAME order (what the real game's selector indexes).
     /// Agents use `Action::Pick`, whose index is a position of the displayed (canonical) list.
     pub fn step_pick_game_order(&mut self, idx: u8) -> bool {
-        if self.stage != Stage::AwaitChoice || !self.decision_pick_game(idx) {
-            return false;
-        }
-        if self.stage != Stage::AwaitChoice {
-            self.after_action();
-        }
-        true
+        let Some(d) = self.decision.as_ref() else { return false };
+        let Some(pos) = self.decision_view(d).iter().position(|&g| g == idx) else { return false };
+        self.step(Action::Pick { idx: pos as u8 })
     }
 
     /// Continues whichever effect raised the decision that just finished.
@@ -793,25 +781,6 @@ impl Combat {
             }
             let (me, phase) = self.hook_after.take().unwrap();
             content::listener(&me).resume_hook(self, me, phase);
-            if self.stage == Stage::AwaitChoice {
-                return;
-            }
-        }
-        if let Some((n, from_hand)) = self.draw_cont.take() {
-            // the draw of a card / potion effect was interrupted by a Stratagem pick: draw the rest (it may shuffle and ask again)
-            self.resuming_draw = true;
-            if let Some((_, 2)) = self.draw_pass {
-                // finish the `AfterShuffle` pass the pick interrupted (Biiig Hug's Soot comes after Stratagem's pick)
-                self.draw_pass = None;
-                if self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me)) {
-                    self.draw_pass = Some((NO, 2));
-                    self.draw_cont = Some((n, from_hand));
-                    self.resuming_draw = false;
-                    return;
-                }
-            }
-            self.draw_cards(n, from_hand);
-            self.resuming_draw = false;
             if self.stage == Stage::AwaitChoice {
                 return;
             }

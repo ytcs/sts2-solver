@@ -68,24 +68,24 @@ fn hidden_state_does_not_leak() {
         let base = obs(&cx);
 
         // 1. permute the draw-pile order
-        let mut a = cx;
+        let mut a = cx.clone();
         let mut rng = Rng::new(seed ^ 0xABCD);
         rng.shuffle(a.player.draw.as_mut_slice());
         assert!(obs(&a) == base, "draw order leaked (seed {seed})");
 
         // 1b. permute the discard and exhaust orders (a player only knows what is in the piles, not their order)
-        let mut a2 = cx;
+        let mut a2 = cx.clone();
         rng.shuffle(a2.player.discard.as_mut_slice());
         rng.shuffle(a2.player.exhaust.as_mut_slice());
         assert!(obs(&a2) == base, "discard/exhaust order leaked (seed {seed})");
 
         // 2. rewrite every RNG stream
-        let mut b = cx;
+        let mut b = cx.clone();
         b.rng = RngSet::from_run_seed(seed.wrapping_add(777));
         assert!(obs(&b) == base, "RNG state leaked (seed {seed})");
 
         // 3. hidden monster AI internals (current node / log) other than the visible intent + performed history
-        let mut c = cx;
+        let mut c = cx.clone();
         for &e in cx.enemies.iter() {
             c.creatures[e as usize].monster.ever_logged = !0;
             c.creatures[e as usize].monster.log = [3; 8];
@@ -99,10 +99,10 @@ fn hidden_state_does_not_leak() {
 fn visible_changes_do_change_the_observation() {
     let cx = midfight(3);
     let base = obs(&cx);
-    let mut a = cx;
+    let mut a = cx.clone();
     a.cr_mut(PLAYER).hp -= 1;
     assert!(obs(&a) != base);
-    let mut b = cx;
+    let mut b = cx.clone();
     if b.player.hand.len() >= 2 {
         let (x, y) = (b.player.hand[0], b.player.hand[1]);
         if b.cards[x as usize].id != b.cards[y as usize].id {
@@ -140,8 +140,8 @@ fn pile_selection_screen_does_not_reveal_pile_order() {
         let c = cx.new_card(id, 0).unwrap();
         cx.move_card(c, PileType::Discard, CardPilePosition::Bottom);
     }
-    let mut a = cx;
-    let mut b = cx;
+    let mut a = cx.clone();
+    let mut b = cx.clone();
     let mut rng = Rng::new(99);
     rng.shuffle(b.player.discard.as_mut_slice());
     for c in [&mut a, &mut b] {
@@ -158,4 +158,50 @@ fn pile_selection_screen_does_not_reveal_pile_order() {
     let mut sorted = ids_a.clone();
     sorted.sort_by_key(|&id| (sts2sim::content::card_def(id).rarity, id));
     assert_eq!(ids_a, sorted);
+}
+
+#[test]
+fn layout_sections_tile_the_observation() {
+    let l = observe::layout();
+    let mut off = 0;
+    for (name, o, sz) in l.iter() {
+        assert_eq!(*o, off, "section {name} starts where the previous one ended");
+        off += sz;
+    }
+    assert_eq!(off, OBS_SIZE);
+    let c: std::collections::HashMap<_, _> = observe::layout_consts().into_iter().collect();
+    assert_eq!(c["OBS_SIZE"], OBS_SIZE);
+    assert_eq!(c["ACTION_SPACE"], sts2sim::engine::ACTION_SPACE);
+    assert_eq!(c["OFF_CONFIRM"] + 1, c["ACTION_SPACE"]);
+}
+
+#[test]
+fn determinize_changes_only_hidden_state() {
+    let mut changed = 0;
+    for seed in 0..40 {
+        let cx = midfight(seed);
+        if cx.stage == Stage::Over {
+            continue;
+        }
+        let base = obs(&cx);
+        let mut a = cx.clone();
+        assert!(a.determinize(seed + 1));
+        assert!(obs(&a) == base, "determinize changed what the agent sees (seed {seed})");
+        let mut acts = sts2sim::engine::ActionBuf::new();
+        let mut acts_a = sts2sim::engine::ActionBuf::new();
+        cx.legal_actions(&mut acts);
+        a.legal_actions(&mut acts_a);
+        assert!(acts.as_slice() == acts_a.as_slice(), "legal actions changed (seed {seed})");
+        // it really resamples (checked over all seeds below) and the clone still plays on
+        changed += (0..cx.player.draw.len()).any(|k| a.player.draw[k] != cx.player.draw[k]) as u32;
+        for _ in 0..30 {
+            let mut v = sts2sim::engine::ActionBuf::new();
+            a.legal_actions(&mut v);
+            if v.is_empty() {
+                break;
+            }
+            assert!(a.step(v[(seed as usize * 7) % v.len()]));
+        }
+    }
+    assert!(changed > 10, "the draw order was resampled in only {changed} of 40 fights");
 }

@@ -14,7 +14,7 @@ Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py);
 import json
 import numpy as np
 
-from ._sts2 import BatchEnv as _BatchEnv, obs_size, action_space  # noqa: F401
+from ._sts2 import BatchEnv as _BatchEnv, obs_size, action_space, layout  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )
@@ -35,6 +35,7 @@ class VecEnv:
         self.done = np.zeros(n_envs, np.uint8)
         self.outcome = np.zeros(n_envs, np.int8)
         self.illegal = np.zeros(n_envs, np.uint8)
+        self._ep = np.zeros((n_envs, 4), np.float32)
 
     def reset(self):
         self._env.observe_all(self.obs, self.mask)
@@ -44,3 +45,11 @@ class VecEnv:
         a = np.ascontiguousarray(actions, dtype=np.int32)
         self._env.step(a, self.obs, self.mask, self.reward, self.done, self.outcome, self.illegal)
         return self.obs, self.mask, self.reward, self.done, {"outcome": self.outcome, "illegal": self.illegal}
+
+    def episode_info(self):
+        """Per env, the episode that ended last (valid where `done` was set by the latest `step`): dict of arrays
+        `scenario` (index into `scenarios`), `hp_lost` (fraction of max HP lost; a loss counts the HP that was left), `hp_end`
+        (fraction of max HP left, 0 on a loss) and `length` (agent steps)."""
+        self._env.episode_info(self._ep)
+        e = self._ep
+        return {"scenario": e[:, 0].astype(np.int32), "hp_lost": e[:, 1], "hp_end": e[:, 2], "length": e[:, 3].astype(np.int32)}

@@ -378,3 +378,72 @@ impl Combat {
         OBS_SIZE
     }
 }
+
+/// The sections of the observation vector in order: `(name, offset, size)`. The sizes sum to `OBS_SIZE` (tested).
+pub fn layout() -> Vec<(&'static str, usize, usize)> {
+    let sizes: [(&'static str, usize); 16] = [
+        ("global", GLOBAL_F),
+        ("player", PLAYER_F),
+        ("relics", RELIC_F),
+        ("potions", POTION_F),
+        ("hand", MAX_HAND * CARD_F),
+        ("draw", OBS_MAX_PILE * 2),
+        ("discard", OBS_MAX_PILE * 2),
+        ("exhaust", OBS_MAX_PILE * 2),
+        ("pile_sizes", 3),
+        ("enemies", OBS_MAX_ENEMIES * ENEMY_F),
+        ("decision", DECISION_F),
+        ("regent", REGENT_F),
+        ("osty", OSTY_F),
+        ("orbs", ORBS_F),
+        ("look", LOOK_F),
+        ("end", 0),
+    ];
+    let mut out = vec![];
+    let mut off = 0;
+    for (n, sz) in sizes {
+        out.push((n, off, sz));
+        off += sz;
+    }
+    out
+}
+
+/// Constants a consumer of the observation / action space needs (strides, capacities, vocabulary sizes, action offsets).
+pub fn layout_consts() -> Vec<(&'static str, usize)> {
+    use crate::engine::{ACTION_SPACE, MAX_PICK};
+    vec![
+        ("OBS_SIZE", OBS_SIZE),
+        ("ACTION_SPACE", ACTION_SPACE),
+        ("CARD_F", CARD_F),
+        ("ENEMY_F", ENEMY_F),
+        ("GLOBAL_F", GLOBAL_F),
+        ("PLAYER_F", PLAYER_F),
+        ("DECISION_F", DECISION_F),
+        ("OBS_MAX_ENEMIES", OBS_MAX_ENEMIES),
+        ("OBS_MAX_PILE", OBS_MAX_PILE),
+        ("OBS_MAX_CANDS", OBS_MAX_CANDS),
+        ("OBS_POWERS", OBS_POWERS),
+        ("OBS_INTENTS", OBS_INTENTS),
+        ("MAX_HAND", MAX_HAND),
+        ("MAX_POTIONS", MAX_POTIONS),
+        ("MAX_RELICS", MAX_RELICS),
+        ("MAX_ORBS", MAX_ORBS),
+        ("MAX_CREATURES", MAX_CREATURES),
+        ("MAX_PICK", MAX_PICK),
+        ("LOOK_H", LOOK_H),
+        ("LOOK_NODES", LOOK_NODES),
+        ("N_CARDS", crate::ids::card::COUNT),
+        ("N_POWERS", crate::ids::power::COUNT),
+        ("N_RELICS", crate::ids::relic::COUNT),
+        ("N_POTIONS", crate::ids::potion::COUNT),
+        ("N_MONSTERS", crate::ids::monster::COUNT),
+        ("N_ENCHANTMENTS", crate::ids::enchantment::COUNT),
+        ("N_AFFLICTIONS", crate::ids::affliction::COUNT),
+        ("N_ORBS", crate::ids::orb::COUNT),
+        ("OFF_PLAY", 1),
+        ("OFF_POTION", 1 + MAX_HAND * (MAX_CREATURES + 1)),
+        ("OFF_DISCARD", 1 + MAX_HAND * (MAX_CREATURES + 1) + MAX_POTIONS * (MAX_CREATURES + 1)),
+        ("OFF_PICK", 1 + MAX_HAND * (MAX_CREATURES + 1) + MAX_POTIONS * (MAX_CREATURES + 1) + MAX_POTIONS),
+        ("OFF_CONFIRM", 1 + MAX_HAND * (MAX_CREATURES + 1) + MAX_POTIONS * (MAX_CREATURES + 1) + MAX_POTIONS + MAX_PICK),
+    ]
+}

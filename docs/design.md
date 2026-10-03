@@ -154,10 +154,11 @@ remaining floor; per-creature power capacity by role (`Power` is 20 B x 16 per c
 stays).
 
 ### Known gaps (honest list)
-* **Stratagem decisions in draws that cannot suspend** (draws started from inside another hook — Centennial Puzzle, Iteration — or
-  `AutoPlayFromDrawPile` shuffles — Mayhem, Cascade, Havoc —, and draws that are not an effect's last action — Battle Trance, Acrobatics...):
-  the fight is flagged `Combat::missing` and batch envs end the episode with `OUTCOME_UNIMPLEMENTED`. ≈0.1-0.4% of fights *in decks that
-  contain Stratagem*; training distributions can simply exclude that one card. Parked oracle traces: `oracle/regression_pending/`.
+* **Replayed prompts** (Stratagem's reshuffle pick in a draw that cannot pause: a draw inside a hook, mid-effect, `AutoPlayFromDrawPile`):
+  `engine/replay.rs` snapshots the step, shows the agent the state at the prompt, then restores the snapshot and re-runs the same action
+  with the recorded answer (the engine is deterministic). Only combats with a Stratagem card (`Combat::strat_possible`) pay for it
+  (one `Combat` clone per step); a `Combat` clone taken at a prompt carries its snapshot (`Combat` is `Clone`, no longer `Copy`). Search must
+  `determinize` before the action, not at a replayed prompt.
 * **Fixed capacities** (160 cards, 16 powers per creature, 12 creature slots, 64 decision candidates in the action space): an overflowing
   fight raises the sticky `Combat::overflow` flag and envs end it with `OUTCOME_OVERFLOW`; only extreme stall fights reach it.
 * **Information-contract assumptions not yet verified against the real UI**: discard/exhaust are exposed in pile order; "known top card"
@@ -173,4 +174,5 @@ Fidelity TODOs are marked `TODO(fidelity)` in code.
 4. ✅ Differential harness (`crates/sts2diff`), corpus regression (`tools/regress.py`), randomized fuzzing (`tools/fuzz_gen*.py`)
 5. ✅ Content breadth: all five characters, all four acts + events, relics, potions, enchantments
 6. ✅ Batched RL env (`crates/sts2env`) and Python bindings (`crates/sts2py`); hardening (robustness flags, memory, throughput)
-7. ⏳ Ongoing: more fuzz rounds after any content/engine change; Stratagem non-suspendable contexts; throughput tuning
+7. ✅ Stratagem prompts in every draw context (replay continuation); ⏳ ongoing: fuzz rounds after any content/engine change, throughput tuning
+8. ⏳ Combat solver (`rl/`): PPO baseline, then search + value network

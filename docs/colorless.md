@@ -27,8 +27,9 @@ Both use the canonical mechanism (`cx.hook_ctx = Some((me, phase))` + `Listener:
 `turn_cont`), so the agent always sees the real state.
 
 * Entropy (`AfterPlayerTurnStart`): like Tools of the Trade; the transform runs in `resume_hook` via `transform_cards(&[c], &[None])`.
-* Stratagem (`AfterShuffle`): resumable only during the turn-start hand draw (`Combat::drawing_hand`, `draw_resume`, `turn_cont == 3`
-  in `engine/turn.rs`/`piles.rs`). A reshuffle prompt during any other draw (a card's draw, Mayhem's auto-play) is flagged `missing`.
+* Stratagem (`AfterShuffle`): paused in place only during the turn-start hand draw (`Combat::drawing_hand`, `draw_resume`, `turn_cont == 4`
+  in `engine/turn.rs`/`piles.rs`) and Foregone Conclusion's own shuffle. In every other draw (a card's draw, a hook's draw, Mayhem's
+  auto-play) the step is re-run with the agent's pick (`engine/replay.rs`, `StratagemPower::after_shuffle` -> `Combat::replay_prompt`).
 * Inherited engine-core limitation: the listeners after the suspending one in the same turn-start pass still run before the
   decision is answered (the game awaits). Entropy + another turn-start effect that changes the board (Rolling Boulder) can diverge.
 

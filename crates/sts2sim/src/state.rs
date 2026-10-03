@@ -406,6 +406,24 @@ pub struct Decision {
     pub purpose: u16,
 }
 
+/// A step re-run from its starting state so a decision raised somewhere the engine cannot suspend (a draw's reshuffle in the
+/// middle of a card effect, an auto-played card ...) can be answered by the agent: see `engine/replay.rs`.
+#[derive(Clone)]
+pub struct Replay {
+    /// The state the step started from.
+    pub s0: Combat,
+    pub action: crate::engine::Action,
+    /// The agent's answers so far (candidate indices in game order, click order), consumed in order by the re-run.
+    pub answers: ArrayVec<ArrayVec<u8, 16>, 6>,
+    pub pos: u8,
+    /// True when this is the state the agent is shown (the prompt with the effect's partial results), not a step in flight.
+    pub at_prompt: bool,
+    /// The prompt's selection was completed (the owning `step` then re-runs the action).
+    pub done: bool,
+    /// The state at the first unanswered prompt of the running step.
+    pub capture: Option<Box<Combat>>,
+}
+
 /// The finished selection handed back to the resumed effect.
 #[derive(Clone, Copy, Default)]
 pub struct Choice {
@@ -524,7 +542,7 @@ pub struct PlayAmount {
     pub amount: i32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Combat {
     pub character: u8,
     pub ascension: u8,
@@ -569,20 +587,16 @@ pub struct Combat {
     pub drawing_hand: bool,
     /// Nesting depth of `draw_cards_list` (a draw started by an `AfterCardDrawn` hook of another draw is depth 2).
     pub draw_depth: u8,
-    /// A draw started by a card / potion effect that was interrupted by an `AfterShuffle` decision (Stratagem):
-    /// (cards still to draw, from_hand_draw). The effect's own code already returned; `resume_after_decision` finishes
-    /// the draw once the pick is made (see `draw_decision_resumable`).
-    pub draw_cont: Option<(i32, bool)>,
-    /// True while `resume_after_decision` finishes an interrupted draw (a further shuffle may ask again).
-    pub resuming_draw: bool,
     /// >0 while a draw whose caller reads the drawn cards / asks right afterwards runs: its shuffle decisions cannot be paused.
     pub draw_nosuspend: u8,
     /// True while a hook (Foregone Conclusion's `BeforeHandDraw`) shuffles by itself: its `AfterShuffle` decision (Stratagem) can be
     /// paused (`hook_after`).
     pub hook_shuffle: bool,
-    /// True while the hand-empty check at the very end of an outermost card play / potion use runs: the draw it makes (Unceasing Top)
-    /// is the last thing left of the action, so an `AfterShuffle` decision can be paused (`draw_cont`).
-    pub hand_check: bool,
+    /// True once a Stratagem card exists in this combat: every `step` then runs under replay (see `engine/replay.rs`) so the card's
+    /// reshuffle prompt works in draw contexts that cannot be suspended.
+    pub strat_possible: bool,
+    /// Replay state of the step that is running / of the prompt the agent is looking at (None almost always).
+    pub replay: Option<Box<Replay>>,
     /// A hook whose own effect waits for the nested `AfterShuffle` decision pass: `resume_hook(phase)` runs once that pass is done.
     pub hook_after: Option<(crate::hooks::Me, u8)>,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,

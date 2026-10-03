@@ -453,6 +453,10 @@ impl Combat {
     }
 
     fn finish_decision(&mut self) {
+        if let Some(rp) = self.replay.as_mut().filter(|r| r.at_prompt) {
+            rp.done = true; // a replayed prompt: `step` re-runs the action with this answer (the state stays as shown)
+            return;
+        }
         let d = self.decision.take().unwrap();
         let mut ch = Choice::default();
         for &i in d.selected.iter() {

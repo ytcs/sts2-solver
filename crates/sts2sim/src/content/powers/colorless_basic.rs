@@ -298,8 +298,8 @@ listener!(EntropyPower {
 });
 
 // ---- StratagemPower: after a reshuffle choose `Amount` cards of the draw pile to put into the hand ---------------------
-// The decision is resumable during the turn-start hand draw (`draw_resume` / `turn_cont` 4) and during a plain draw of a
-// card / potion effect (`draw_cont`, see `Combat::draw_decision_resumable`); other draws flag it as not ported.
+// The decision pauses in place during the turn-start hand draw (`draw_resume` / `turn_cont` 4); in every other draw the step is
+// re-run with the agent's pick (`engine/replay.rs`).
 listener!(StratagemPower {
     fn after_shuffle(&self, cx: &mut Combat, me: Me) {
         if me.owner != PLAYER {
@@ -317,8 +317,19 @@ listener!(StratagemPower {
                     cx.hook_ctx = Some((me, 1));
                     cx.stage = Stage::AwaitChoice;
                 } else {
-                    cx.decision = None;
-                    cx.flag_missing(Kind::Power, me.id);
+                    // a context that cannot suspend: the step is re-run with the agent's pick (`engine/replay.rs`)
+                    match cx.replay_prompt() {
+                        crate::engine::ReplayAnswer::Cards(cards) => {
+                            for &c in cards.iter() {
+                                cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
+                            }
+                        }
+                        crate::engine::ReplayAnswer::Captured => {}
+                        crate::engine::ReplayAnswer::Unavailable => {
+                            cx.decision = None;
+                            cx.flag_missing(Kind::Power, me.id);
+                        }
+                    }
                 }
             }
         }
