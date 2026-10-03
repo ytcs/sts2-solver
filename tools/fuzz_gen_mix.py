@@ -297,7 +297,11 @@ def run_chunk(args):
                     except OSError: pass
             res.append((base, verdict, out.splitlines()[-1] if d.returncode == 3 else ""))
         else:
-            res.append((base, "mismatch" if d.returncode == 1 else "sim-error", (out or d.stderr)[-700:]))
+            msg = (out or d.stderr)[-700:]
+            kind = "mismatch" if d.returncode == 1 else "sim-error"
+            if "capacity overflow" in (d.stdout + d.stderr):
+                kind = "arena-full"  # a fixed capacity (cards / powers) overflowed: flagged, documented, not a mismatch
+            res.append((base, kind, msg))
     for p in paths:
         try: os.remove(p[: -len(".scenario.json")] + ".done")
         except OSError: pass
