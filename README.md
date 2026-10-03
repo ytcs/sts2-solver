@@ -64,6 +64,18 @@ obs, mask, reward, done, info = env.step(actions)         # actions: int32 dense
   it, the step is re-run with the agent's pick (`engine/replay.rs`). The agent sees the effect's partial results at the prompt. Combats that contain a
   Stratagem card pay one state copy per step; all others pay nothing.
 
+## Combat solver
+`rl/` trains and runs a solver on this environment: win first, then lose as little HP as possible. A PPO-trained policy/value network (entity encoders
++ pointer action head over the env's dense action space) plays every fight; `rl/search.py` improves it at test time by determinized play-outs
+(`VecEnv.fork_from` copies a fight and resamples exactly the information a player cannot see). `sts2.provably_unwinnable(scenario)` proves some fights
+lost for any play (e.g. the starter deck against a boss). Numbers, baselines and the commands are in [`docs/solver.md`](docs/solver.md).
+```bash
+.venv/bin/python tools/gen_train.py --n 6000 --seed 11 --out target/train/train.json     # realistic A10 fights
+.venv/bin/python rl/ppo.py --train target/train/train.json --eval target/train/eval.json --out target/runs/a
+.venv/bin/python rl/baselines.py --eval target/train/eval.json --policies random,heuristic,ckpt:target/runs/a/ckpt.pt
+.venv/bin/python rl/search.py --ckpt target/runs/a/ckpt.pt --eval target/train/eval.json --roots 200 --M 4 --K 4
+```
+
 ## How fidelity is guaranteed
 1. **Specs from the source** (`docs/spec/`): exact hook order, damage pipeline (decimal arithmetic), draw/shuffle (including
    .NET introsort tie behaviour), RNG streams, monster state machines.
