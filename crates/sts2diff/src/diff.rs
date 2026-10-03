@@ -163,6 +163,11 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 }
             }
             ok = false;
+            if std::env::var("STS2DIFF_DUMP").is_ok() {
+                // Debug aid: the simulator's full snapshot (and the oracle's record) of the first diverging step.
+                eprintln!("RUST   {}", snapshot(&cx));
+                eprintln!("ORACLE {}", rec);
+            }
             if !quiet {
                 println!("step {i} (action {}): {} difference(s)", rec["action"], diffs.len());
                 for d in diffs.iter().take(max_report) {

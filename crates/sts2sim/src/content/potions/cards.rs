@@ -17,22 +17,26 @@ const fn purpose(potion: u16) -> u16 {
 /// Shared body of Attack/Skill/Power/ColorlessPotion: `GetDistinctForCombat(pool.Where(filter), 3)` ->
 /// `FromChooseACardScreen(canSkip: true)` -> chosen card is free this turn and added to the hand.
 fn choose_a_card(cx: &mut Combat, potion: u16, phase: u8, pool: &[u16], extra: impl Fn(&CardDef) -> bool) -> Flow {
-    match phase {
-        0 => {
-            let cards = cx.get_distinct_for_combat(pool, 3, extra);
-            match cx.ask_options(purpose(potion), cards.as_slice(), true) {
-                Ask::Resolved(_) => Flow::Done,
-                Ask::Pending => Flow::Suspend(1),
-            }
-        }
-        _ => {
-            if let Some(c) = cx.choice.cards.first() {
-                cx.set_to_free_this_turn(c);
-                cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
-            }
-            Flow::Done
-        }
+    if phase != 0 {
+        return finish_choose_a_card(cx);
     }
+    let cards = cx.get_distinct_for_combat(pool, 3, extra);
+    match cx.ask_options(purpose(potion), cards.as_slice(), true) {
+        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
+        Ask::Resolved(cards) => {
+            cx.choice.cards = cards;
+            finish_choose_a_card(cx)
+        }
+        Ask::Pending => Flow::Suspend(1),
+    }
+}
+
+fn finish_choose_a_card(cx: &mut Combat) -> Flow {
+    if let Some(c) = cx.choice.cards.first() {
+        cx.set_to_free_this_turn(c);
+        cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
+    }
+    Flow::Done
 }
 
 listener!(AttackPotion {

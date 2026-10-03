@@ -25,6 +25,11 @@ STARTERS = {  # deck, relic, base max hp
 POOL_OF = {"IRONCLAD": "IroncladCardPool", "SILENT": "SilentCardPool"}
 ACT_IDX = {"Overgrowth": 0, "Underdocks": 0, "Hive": 1, "Glory": 2}
 NOT_PORTED_POTIONS = {"BONE_BREW", "DISTILLED_CHAOS", "KINGS_COURAGE"}  # tools/coverage.py --missing potions
+STRESS_RELICS = ["WHISPERING_EARRING", "GAMBLING_CHIP", "TOOLBOX", "TOASTY_MITTENS", "CHOICES_PARADOX", "HISTORY_COURSE", "PAELS_EYE",
+                 "PAELS_LEGION", "BONE_FLUTE", "BYRDPIP", "FENCING_MANUAL", "ICE_CREAM", "CHEMICAL_X", "LIZARD_TAIL", "PAPER_PHROG",
+                 "PAPER_KRANE", "RUNIC_PYRAMID", "UNCEASING_TOP", "PEN_NIB", "KUNAI", "SHURIKEN", "ORNAMENTAL_FAN", "DEMON_TONGUE",
+                 "BAG_OF_PREPARATION", "ART_OF_WAR", "CENTENNIAL_PUZZLE", "TOUGH_BANDAGES", "TINGSHA", "SNECKO_SKULL", "RED_SKULL",
+                 "MUSIC_BOX", "SIGNET_RING", "GAME_PIECE", "BLOOD_SOAKED_ROSE", "TANXS_WHISTLE", "BRILLIANT_SCARF"]
 OTHER_CHAR_RELIC_POOLS = ["RegentRelicPool", "NecrobinderRelicPool", "DefectRelicPool"]
 
 
@@ -129,6 +134,10 @@ class Gen:
                 r = "Common" if y < 0.45 else "Uncommon" if y < 0.85 else "Rare" if y < 0.985 else "Ancient"
                 c = rng.choice(byr[r] or pool)
             deck.append(self.card(rng, c, 0.4, ench_p))
+        if rng.random() < 0.5:   # themed deck: a few cards with extra copies, so card x card interactions occur
+            for c in [rng.choice(pool + self.colorless) for _ in range(rng.randint(2, 3))]:
+                for _ in range(rng.randint(1, 2)):
+                    deck.append(self.card(rng, c, 0.4, ench_p))
         if rng.random() < 0.2:
             for _ in range(rng.randint(1, 2)):
                 deck.append(self.card(rng, rng.choice(self.curses), 0.0))
@@ -147,11 +156,16 @@ class Gen:
             r = rng.choice(self.relics_rl) if rng.random() < 0.08 else rng.choice(self.relics[ch])
             if r not in relics:
                 relics.append(r)
+        if rng.random() < 0.3:   # relics that raise decisions / auto-play / reshape the turn
+            for r in rng.sample(STRESS_RELICS, rng.randint(1, 2)):
+                if r in self.relics[ch] and r not in relics:
+                    relics.append(r)
         npot = rng.choice([0, 1, 1, 2, 2])
         pots = [rng.choice(self.potions[ch]) for _ in range(npot)]
-        maxhp = rng.randint(50, 90)
-        hp = maxhp if rng.random() < 0.5 else max(1, int(maxhp * rng.uniform(0.3, 1.0)))
-        pk = policy or rng.choices(["random", "playall", "stall"], [5, 3, 1.2])[0]
+        tank = rng.random() < 0.12   # not a realistic HP pool: survives long enough to reach deep turns of the fight
+        maxhp = rng.randint(150, 400) if tank else rng.randint(50, 90)
+        hp = maxhp if (tank or rng.random() < 0.5) else max(1, int(maxhp * rng.uniform(0.3, 1.0)))
+        pk = policy or (rng.choices(["random", "playall", "stall"], [1, 3, 2])[0] if tank else rng.choices(["random", "playall", "stall"], [5, 3, 1.2])[0])
         pol = {"kind": pk, "seed": rng.randrange(1, 1 << 30)}
         if pk != "random":
             pol["max_steps"] = 1500

@@ -42,7 +42,11 @@ listener!(Abundance {
                     cx.upgrade_in_combat(c);
                 }
                 match cx.ask_options(ids::card::ABUNDANCE, cards.as_slice(), false) {
-                    Ask::Resolved(_) => Flow::Done,
+                    Ask::Resolved(cards) => {
+                        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
+                        cx.choice.cards = cards;
+                        self.on_play(cx, _p, 1)
+                    }
                     Ask::Pending => Flow::Suspend(1),
                 }
             }
