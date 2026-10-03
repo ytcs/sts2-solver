@@ -378,6 +378,8 @@ pub trait Listener: Sync {
     fn modify_gold_gained(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
     }
+    /// [R] `AfterGoldGained(player)` -- DragonFruit (`PlayerCmd.GainGold`, after the gold was added).
+    fn after_gold_gained(&self, cx: &mut Combat, me: Me) {}
     // ---- relic state metadata (static dispatch by relic id; NOT hooks, no mask bit that is ever dispatched) ----
     /// The relic's `[SavedProperty]` list: how the oracle dumps / injects its persistent state (`Relic::{counter,aux,flags}`).
     fn meta_props(&self) -> &'static [PropDef] {
@@ -744,6 +746,7 @@ pub mod hookbit {
         calculated_damage,
         resume_hook,
         modify_gold_gained,
+        after_gold_gained,
     );
     // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
     // They sit at the very top of the 256-bit mask; real hooks must stay below them.

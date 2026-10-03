@@ -233,10 +233,25 @@ def run_chunk(args):
     paths, keep_ok = args
     listf = paths[0].replace(".scenario.json", ".list")
     open(listf, "w").write("\n".join(paths) + "\n")
-    subprocess.run([ORACLE, "batch", listf], capture_output=True, text=True)
+    crashed = {}
+    pending = list(paths)
+    while pending:  # a process crash (stack overflow, OOM kill...) leaves no .done marker: isolate the culprit, rerun the rest
+        open(listf, "w").write("\n".join(pending) + "\n")
+        subprocess.run([ORACLE, "batch", listf], capture_output=True, text=True)
+        pending = [p for p in pending if not os.path.exists(p[: -len(".scenario.json")] + ".done")]
+        if pending:
+            open(listf, "w").write(pending[0] + "\n")
+            r = subprocess.run([ORACLE, "batch", listf], capture_output=True, text=True)
+            if not os.path.exists(pending[0][: -len(".scenario.json")] + ".done"):
+                crashed[pending[0]] = (r.stderr or r.stdout)[-600:] + f" (exit {r.returncode})"
+                open(pending[0][: -len(".scenario.json")] + ".done", "w").write("crash")
+            pending = [p for p in pending if not os.path.exists(p[: -len(".scenario.json")] + ".done")]
     res = []
     for p in paths:
         base = p[: -len(".scenario.json")]
+        if p in crashed:
+            res.append((base, "oracle-crash", crashed[p]))
+            continue
         if os.path.exists(base + ".error.txt"):
             res.append((base, "oracle-error", open(base + ".error.txt").read()[:500]))
             continue
@@ -254,6 +269,9 @@ def run_chunk(args):
             res.append((base, verdict, out.splitlines()[-1] if d.returncode == 3 else ""))
         else:
             res.append((base, "mismatch" if d.returncode == 1 else "sim-error", (out or d.stderr)[-700:]))
+    for p in paths:
+        try: os.remove(p[: -len(".scenario.json")] + ".done")
+        except OSError: pass
     try: os.remove(listf)
     except OSError: pass
     return res

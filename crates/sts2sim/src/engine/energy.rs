@@ -238,7 +238,8 @@ impl Combat {
         if !self.card_has_star_cost_x(c) {
             return 0;
         }
-        self.cards[c as usize].x_value as i32
+        // `Hook.ModifyXValue(CombatState, this, LastStarsSpent)` (ChemicalX also applies to star X costs)
+        self.x_value(c)
     }
 
     /// Sum of the positive `StarsModifiedEntry` amounts of this turn (Radiate).

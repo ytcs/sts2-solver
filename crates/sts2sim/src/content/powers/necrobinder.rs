@@ -310,18 +310,11 @@ listener!(SleightOfFleshPower {
 listener!(OblivionPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let amt = amount_of(cx, me);
-        if let Some(i) = cx.power_idx(me.owner, me.idx) {
-            cx.cr_mut(me.owner).powers[i].aux = (((play.card as i32) + 1) << 20) | amt.min((1 << 20) - 1);
-        }
+        cx.hist.remember_play(me.idx, play.card, amt);
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let Some(p) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).copied() else { return };
-        if p.aux >> 20 == (play.card as i32) + 1 {
-            let applier = p.applier;
-            let value = p.aux & ((1 << 20) - 1);
-            if let Some(i) = cx.power_idx(me.owner, me.idx) {
-                cx.cr_mut(me.owner).powers[i].aux = 0;
-            }
+        if let Some(value) = cx.hist.take_play(me.idx, play.card) {
+            let applier = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).map_or(PLAYER, |p| p.applier);
             cx.apply_power(ids::power::DOOM_POWER, me.owner, Dec::int(value as i64), applier, NO);
         }
     }

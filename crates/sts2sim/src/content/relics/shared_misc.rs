@@ -323,6 +323,13 @@ listener!(BowlerHat {
     }
 });
 
+// +MaxHp max HP (and HP) on every gold gain (`PlayerCmd.GainGold` -> `AfterGoldGained`, e.g. Hand of Greed kills).
+listener!(DragonFruit {
+    fn after_gold_gained(&self, cx: &mut Combat, _me: Me) {
+        cx.gain_max_hp(PLAYER, Dec::int(g::dragon_fruit::MAX_HP as i64));
+    }
+});
+
 // ---- saved state only (run-level behaviour) ---------------------------------------------------------------------------------
 
 // counter = `CardsAdded` (saved); ShowCounter; DisplayAmount = counter % Cards. (Deck additions do not happen in combat.)

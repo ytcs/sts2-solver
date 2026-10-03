@@ -92,9 +92,10 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
                     using (var w = new StreamWriter(bas + ".jsonl", false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" })
                         res = RunOne(sc, w, pump, null, maxSteps, maxRounds);
                     if (res.Error != null) File.WriteAllText(bas + ".error.txt", res.Error);
+                    File.WriteAllText(bas + ".done", res.Result);  // marks a completed run (a process crash leaves no .done)
                     Console.WriteLine($"{(res.Error == null ? "ok " : "ERR")} {path} {res.Result} {res.Recorded.Count}");
                 }
-                catch (Exception e) { File.WriteAllText(bas + ".error.txt", e.ToString()); Console.WriteLine("ERR " + path); }
+                catch (Exception e) { File.WriteAllText(bas + ".error.txt", e.ToString()); File.WriteAllText(bas + ".done", "error"); Console.WriteLine("ERR " + path); }
             }
             return 0;
         }

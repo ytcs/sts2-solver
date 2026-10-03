@@ -120,6 +120,7 @@ impl Combat {
         }
         if v > Dec::ZERO {
             self.gold = self.gold.saturating_add(v.trunc());
+            self.dispatch_u(hookbit::after_gold_gained, |cx, me, l| l.after_gold_gained(cx, me));
         }
     }
 

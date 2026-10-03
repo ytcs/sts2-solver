@@ -169,29 +169,14 @@ listener!(RagePower {
 });
 
 // ---- Rupture: Strength when the owner loses HP on its own turn --------------------------------------------------------------
-// C# keeps `Dictionary<CardModel,int> playedCards` (cards currently being played -> Strength to grant when they finish).
-// `aux` packs up to two entries (nested auto-plays), 16 bits each: `(card + 1) << 8 | accumulated amount`.
-fn rupture_slot(aux: i32, i: u32) -> (i32, i32) {
-    let v = (aux >> (16 * i)) & 0xFFFF;
-    (v >> 8, v & 0xFF)
-}
-fn rupture_set(aux: i32, i: u32, card1: i32, acc: i32) -> i32 {
-    (aux & !(0xFFFF << (16 * i))) | (((card1 << 8) | acc.min(255)) << (16 * i))
-}
-fn rupture_find(aux: i32, card: CardIdx) -> Option<u32> {
-    (0..2).find(|&i| rupture_slot(aux, i).0 == card as i32 + 1)
-}
-
+// C# keeps `Dictionary<CardModel,int> playedCards` (cards currently being played -> Strength to grant when they finish):
+// `hist.play_amounts` entries (nested auto-plays keep several).
 listener!(RupturePower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.side != cx.cr(me.owner).side {
             return;
         }
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let aux = cx.cr(me.owner).powers[i].aux;
-        if let Some(slot) = (0..2).find(|&s| rupture_slot(aux, s).0 == 0) {
-            cx.cr_mut(me.owner).powers[i].aux = rupture_set(aux, slot, play.card as i32 + 1, 0);
-        }
+        cx.hist.remember_play(me.idx, play.card, 0);
     }
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
         let card = cx.dmg_card; // `cardSource` of the damage
@@ -199,26 +184,16 @@ listener!(RupturePower {
             return;
         }
         let amount = cx.power_amount(me.owner, me.id);
-        let tracked = cx.power_idx(me.owner, me.idx).and_then(|i| {
-            let aux = cx.cr(me.owner).powers[i].aux;
-            if card == NO { None } else { rupture_find(aux, card).map(|s| (i, aux, s)) }
-        });
-        match tracked {
-            Some((i, aux, s)) => {
-                let (c1, acc) = rupture_slot(aux, s);
-                cx.cr_mut(me.owner).powers[i].aux = rupture_set(aux, s, c1, acc + amount);
-            }
-            None => {
-                cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(amount as i64), me.owner, NO);
+        if card != NO {
+            if let Some(acc) = cx.hist.play_entry(me.idx, card) {
+                *acc += amount;
+                return;
             }
         }
+        cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(amount as i64), me.owner, NO);
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let aux = cx.cr(me.owner).powers[i].aux;
-        if let Some(s) = rupture_find(aux, play.card) {
-            let (_, acc) = rupture_slot(aux, s);
-            cx.cr_mut(me.owner).powers[i].aux = rupture_set(aux, s, 0, 0);
+        if let Some(acc) = cx.hist.take_play(me.idx, play.card) {
             cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(acc as i64), me.owner, NO);
         }
     }

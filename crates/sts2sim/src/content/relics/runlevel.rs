@@ -22,7 +22,6 @@ listener!(DingyRug {});
 listener!(DistinguishedCape {});
 listener!(DollysMirror {});
 listener!(DowsingRod {});
-listener!(DragonFruit {});
 listener!(DreamCatcher {});
 listener!(Driftwood {});
 listener!(DustyTome {});

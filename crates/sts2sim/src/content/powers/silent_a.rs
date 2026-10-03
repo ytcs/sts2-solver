@@ -50,41 +50,16 @@ listener!(EnvenomPower {
 // ---- Afterimage -----------------------------------------------------------------------------------------------------------------
 
 // Remembers (card, power amount) at `BeforeCardPlayed` so only plays that started with the power active pay out at
-// `AfterCardPlayed`. `aux` packs up to two nested entries: bits 0..8 card index + 1, bits 8..16 amount (per slot of 16 bits).
-fn afterimage_slot(aux: i32, slot: u32) -> (u8, u8) {
-    let v = (aux >> (16 * slot)) & 0xFFFF;
-    ((v & 0xFF) as u8, ((v >> 8) & 0xFF) as u8)
-}
-fn afterimage_set(aux: i32, slot: u32, card_plus1: u8, amount: u8) -> i32 {
-    let mask = 0xFFFF << (16 * slot);
-    (aux & !mask) | (((card_plus1 as i32) | ((amount as i32) << 8)) << (16 * slot))
-}
-
+// `AfterCardPlayed` (`hist.play_amounts`: nested plays, e.g. a Sly chain, keep several entries).
 listener!(AfterimagePower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let amount = cx.cr(me.owner).powers[i].amount.clamp(0, 255) as u8;
-        let mut aux = cx.cr(me.owner).powers[i].aux;
-        for slot in 0..2 {
-            if afterimage_slot(aux, slot).0 == 0 {
-                aux = afterimage_set(aux, slot, play.card + 1, amount);
-                break;
-            }
-        }
-        cx.cr_mut(me.owner).powers[i].aux = aux;
+        let amount = cx.power_amount(me.owner, me.id);
+        cx.hist.remember_play(me.idx, play.card, amount);
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let mut aux = cx.cr(me.owner).powers[i].aux;
-        for slot in 0..2 {
-            let (c, amount) = afterimage_slot(aux, slot);
-            if c == play.card + 1 {
-                aux = afterimage_set(aux, slot, 0, 0);
-                cx.cr_mut(me.owner).powers[i].aux = aux;
-                if amount > 0 {
-                    cx.gain_block(me.owner, Dec::int(amount as i64), ValueProp::UNPOWERED, NO);
-                }
-                return;
+        if let Some(amount) = cx.hist.take_play(me.idx, play.card) {
+            if amount > 0 {
+                cx.gain_block(me.owner, Dec::int(amount as i64), ValueProp::UNPOWERED, NO);
             }
         }
     }

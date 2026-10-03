@@ -422,7 +422,7 @@ pub struct History {
     /// Bitset over card arena indices: cards with a `CardPlayFinishedEntry` this turn (Necrobinder).
     pub finished_cards: [u64; 3],
     /// Per-play scratch used by Serpent Form / Strangle: the power amount when `BeforeCardPlayed` ran for a card.
-    pub play_amounts: ArrayVec<PlayAmount, 16>,
+    pub play_amounts: ArrayVec<PlayAmount, 32>,
 }
 
 impl History {
@@ -432,6 +432,22 @@ impl History {
     }
     pub fn set_finished(&mut self, c: CardIdx) {
         self.finished_cards[(c / 64) as usize] |= 1u64 << (c % 64);
+    }
+    /// `amountsForPlayedCards.Add(card, amount)` of power instance `uid` (entries nest: auto-plays start plays inside plays).
+    pub fn remember_play(&mut self, uid: u16, card: CardIdx, amount: i32) {
+        self.play_amounts.push(PlayAmount { uid, card, amount });
+    }
+    /// `amountsForPlayedCards.Remove(card, out amount)`.
+    pub fn take_play(&mut self, uid: u16, card: CardIdx) -> Option<i32> {
+        let pos = self.play_amounts.as_slice().iter().rposition(|e| e.uid == uid && e.card == card)?;
+        Some(self.play_amounts.remove(pos).amount)
+    }
+    /// Mutable access to the entry (`playedCards[card] += ...`).
+    pub fn play_entry(&mut self, uid: u16, card: CardIdx) -> Option<&mut i32> {
+        self.play_amounts.as_mut_slice().iter_mut().rev().find(|e| e.uid == uid && e.card == card).map(|e| &mut e.amount)
+    }
+    pub fn has_play(&self, uid: u16, card: CardIdx) -> bool {
+        self.play_amounts.as_slice().iter().any(|e| e.uid == uid && e.card == card)
     }
 }
 
