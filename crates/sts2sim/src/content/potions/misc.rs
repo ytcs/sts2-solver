@@ -63,8 +63,7 @@ listener!(CureAll {
         let e = cx.potion_var(potion, VarKind::Energy);
         cx.gain_energy(e);
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 

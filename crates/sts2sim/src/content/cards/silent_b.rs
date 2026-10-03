@@ -380,8 +380,7 @@ listener!(Untouchable {
 listener!(Reflex {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 
@@ -468,9 +467,11 @@ listener!(PiercingWail {
 listener!(Prepared {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
-            0 => {
+            0 | 5 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+                if phase == 0 && cx.draw_cards_s(n, 5) {
+                    return Flow::Suspend(PH_DRAW_TAIL);
+                }
                 match cx.ask_hand(ids::card::PREPARED, n as u8, n as u8, |_, _| true) {
                     Ask::Resolved(cards) => discard_then(cx, cards.as_slice(), DONE),
                     Ask::Pending => Flow::Suspend(1),

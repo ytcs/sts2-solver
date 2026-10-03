@@ -318,6 +318,21 @@ impl Combat {
                 PlayStep::OnPlay(phase) => {
                     let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
                     let p = ctx.play;
+                    let mut phase = phase;
+                    if phase == PH_DRAW_TAIL {
+                        // The effect's draw was interrupted by a decision (`draw_cards_s`): finish it, then continue the effect.
+                        if self.resume_effect_draw() {
+                            return RunResult::Suspended;
+                        }
+                        if self.draw_next == DRAW_DONE {
+                            self.play_stack[idx].step = PlayStep::After;
+                            if self.nested_play_pending(idx) {
+                                return RunResult::Suspended;
+                            }
+                            continue;
+                        }
+                        phase = self.draw_next;
+                    }
                     match content::listener(&me).on_play(self, &p, phase) {
                         Flow::Done => {
                             self.play_stack[idx].step = PlayStep::After;

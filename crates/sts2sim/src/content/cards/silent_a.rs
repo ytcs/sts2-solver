@@ -56,6 +56,9 @@ fn discard_then(cx: &mut Combat, cards: &[CardIdx], after: u8) -> Flow {
 }
 
 /// `FromHandForDiscard(prefs(.., n))` + `CardCmd.Discard`, the last effect of a card. Phase `1` handles the answer.
+/// Effect phase "the interrupted draw is finished" (`Combat::draw_cards_s(n, AFTER_DRAW)`).
+const AFTER_DRAW: u8 = 5;
+
 fn ask_discard_last(cx: &mut Combat, purpose: u16, n: u8) -> Flow {
     match cx.ask_hand(purpose, n, n, |_, _| true) {
         Ask::Resolved(cards) => discard_then(cx, cards.as_slice(), DONE),
@@ -142,9 +145,12 @@ listener!(Acrobatics {
         match phase {
             0 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+                if cx.draw_cards_s(n, AFTER_DRAW) {
+                    return Flow::Suspend(PH_DRAW_TAIL);
+                }
                 ask_discard_last(cx, ids::card::ACROBATICS, 1)
             }
+            AFTER_DRAW => ask_discard_last(cx, ids::card::ACROBATICS, 1),
             1 => answer_discard_last(cx),
             _ => Flow::Done,
         }
@@ -156,8 +162,7 @@ listener!(Adrenaline {
         let e = cx.card_var(p.card, VarKind::Energy);
         cx.gain_energy(e);
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 
@@ -190,8 +195,7 @@ listener!(Backflip {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block_from_var(cx, p);
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 
@@ -343,9 +347,12 @@ listener!(DaggerThrow {
         match phase {
             0 => {
                 attack_single(cx, p);
-                cx.draw_cards(1, false);
+                if cx.draw_cards_s(1, AFTER_DRAW) {
+                    return Flow::Suspend(PH_DRAW_TAIL);
+                }
                 ask_discard_last(cx, ids::card::DAGGER_THROW, 1)
             }
+            AFTER_DRAW => ask_discard_last(cx, ids::card::DAGGER_THROW, 1),
             1 => answer_discard_last(cx),
             _ => Flow::Done,
         }

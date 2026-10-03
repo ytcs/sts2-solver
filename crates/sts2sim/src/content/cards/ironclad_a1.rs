@@ -96,9 +96,13 @@ listener!(FeelNoPain {
 // ---- skills ---------------------------------------------------------------------------------------------------------
 
 listener!(BattleTrance {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        if phase == 0 {
+            let n = cx.card_var(p.card, VarKind::Cards);
+            if cx.draw_cards_s(n, 1) {
+                return Flow::Suspend(PH_DRAW_TAIL);
+            }
+        }
         cx.apply_power(ids::power::NO_DRAW_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
         Flow::Done
     }
@@ -190,8 +194,7 @@ listener!(Dominate {
 listener!(DrumOfBattle {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
     fn after_card_exhausted(&self, cx: &mut Combat, me: Me, card: CardIdx, _by_ethereal: bool) {
         if card as u16 != me.idx {

@@ -42,8 +42,7 @@ listener!(ShrugItOff {
         let block = cx.card_var(p.card, VarKind::Block);
         cx.gain_block(PLAYER, Dec::int(block as i64), ValueProp::MOVE, p.card);
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 
@@ -52,8 +51,7 @@ listener!(PommelStrike {
         let dmg = cx.card_var(p.card, VarKind::Damage);
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 
@@ -240,8 +238,7 @@ listener!(BurningPact {
                         cx.exhaust_card(c, false);
                     }
                     let n = cx.card_var(p.card, VarKind::Cards);
-                    cx.draw_cards(n, false);
-                    Flow::Done
+                    cx.draw_then_done(n)
                 }
                 Ask::Pending => Flow::Suspend(1),
             },
@@ -250,8 +247,7 @@ listener!(BurningPact {
                     cx.exhaust_card(c, false);
                 }
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
-                Flow::Done
+                cx.draw_then_done(n)
             }
         }
     }

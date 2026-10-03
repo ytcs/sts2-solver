@@ -72,8 +72,7 @@ pub fn wither_fake_upgrade(cx: &mut Combat, card: CardIdx) {
 listener!(Slimed {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 

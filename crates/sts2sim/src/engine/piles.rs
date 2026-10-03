@@ -373,6 +373,10 @@ impl Combat {
         }
         let cards = &self.cards;
         intro_sort(list.as_mut_slice(), |a, b| Self::card_cmp(cards, a, b));
+        #[cfg(debug_assertions)]
+        if super::play::trace_on() {
+            eprintln!("TRACE shuffle {} cards (drawing_hand {} suspendable {} depth {})", list.len(), self.drawing_hand, self.draw_suspendable, self.draw_depth);
+        }
         self.rng.shuffle.shuffle(list.as_mut_slice());
         self.modify_shuffle_order(list.as_mut_slice(), false);
         let from_discard = self.player.discard;
@@ -385,8 +389,8 @@ impl Combat {
         for &c in from_discard.iter() {
             self.fire_card_changed_piles(c, PileType::Discard);
         }
-        if self.drawing_hand {
-            // During the turn-start hand draw a listener (Stratagem) may raise a decision: the listeners after it (Biiig Hug's
+        if self.draw_can_suspend() {
+            // During the turn-start hand draw (or a suspendable effect draw) a listener (Stratagem) may raise a decision: the listeners after it (Biiig Hug's
             // Soot, ...) run once it is answered (`draw_pass` 2, resumed by `setup_player_turn`).
             if self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me)) {
                 self.draw_pass = Some((NO, 2));
@@ -408,13 +412,74 @@ impl Combat {
         self.draw_cards_list(count, from_hand_draw).len()
     }
 
+    /// The draw in progress can be interrupted by a decision and resumed: the turn-start hand draw, or an effect's `draw_cards_s`.
+    #[inline]
+    pub(crate) fn draw_can_suspend(&self) -> bool {
+        self.drawing_hand || (self.draw_suspendable && self.draw_depth == 1)
+    }
+
+    /// `CardPileCmd.Draw(count)` for an effect that is over once the draw is done (`next` = `DRAW_DONE`) or continues at phase `next`
+    /// afterwards. Returns true when a decision raised inside the draw loop (Stratagem after a reshuffle, a Hellraiser auto-played
+    /// prompt card) interrupted it: the effect must `return Flow::Suspend(PH_DRAW_TAIL)` (the engine finishes the draw after the
+    /// decision and then continues at `next`).
+    pub fn draw_cards_s(&mut self, count: i32, next: u8) -> bool {
+        let before = self.draw_resume;
+        self.draw_suspendable = true;
+        self.draw_cards(count, false);
+        self.draw_suspendable = false;
+        let suspended = self.stage == Stage::AwaitChoice && self.draw_resume.is_some() && self.draw_resume != before;
+        if suspended {
+            self.draw_next = next;
+        }
+        suspended
+    }
+
+    /// `draw_cards_s` for an effect whose last action is the draw: `Flow::Done`, or the suspension to return from `on_play`.
+    pub fn draw_then_done(&mut self, count: i32) -> Flow {
+        if self.draw_cards_s(count, DRAW_DONE) {
+            Flow::Suspend(PH_DRAW_TAIL)
+        } else {
+            Flow::Done
+        }
+    }
+
+    /// Continues a draw interrupted inside an effect (`PH_DRAW_TAIL`): the rest of the interrupted hook pass, then the remaining
+    /// draws. Returns true if it was interrupted again.
+    pub(crate) fn resume_effect_draw(&mut self) -> bool {
+        let Some((n, from_hand)) = self.draw_resume.take() else { return false };
+        self.draw_suspendable = true;
+        self.draw_depth = 1; // (the interrupted draw was the effect's outermost one)
+        if let Some((card, phase)) = self.draw_pass.take() {
+            let suspended = if phase == 2 {
+                self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me))
+            } else {
+                self.drawn_hooks(card, from_hand, phase)
+            };
+            if suspended {
+                if phase == 2 {
+                    self.draw_pass = Some((NO, 2));
+                }
+                self.draw_resume = Some((n, from_hand));
+                self.draw_suspendable = false;
+                self.draw_depth = 0;
+                return true;
+            }
+        }
+        self.draw_depth = 0;
+        self.draw_cards(n, from_hand);
+        self.draw_suspendable = false;
+        self.stage == Stage::AwaitChoice && self.draw_resume.is_some()
+    }
+
     /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
     pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, 32> {
         // Only the turn-start hand draw itself is resumable: a draw made by an effect nested inside it (a Swift strike
         // auto-played by Hellraiser ...) behaves like any other card-effect draw.
         let outer = self.drawing_hand;
         self.drawing_hand = outer && from_hand_draw;
+        self.draw_depth += 1;
         let r = self.draw_cards_list_inner(count, from_hand_draw);
+        self.draw_depth -= 1;
         self.drawing_hand = outer;
         r
     }
@@ -446,8 +511,8 @@ impl Combat {
                 break;
             }
             self.shuffle_if_necessary();
-            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() && self.drawing_hand {
-                // An `AfterShuffle` listener (Stratagem) asked for a decision: the turn-start draw resumes afterwards.
+            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() && self.draw_can_suspend() {
+                // An `AfterShuffle` listener (Stratagem) asked for a decision: the draw resumes afterwards.
                 self.draw_resume = Some((count - i, from_hand_draw));
                 break;
             }
@@ -482,7 +547,7 @@ impl Combat {
     /// `Hook.AfterCardDrawnEarly` then `Hook.AfterCardDrawn` for one drawn card (`start_phase` 1 skips the early pass: resuming).
     /// During the turn-start hand draw the passes are resumable; returns true when one suspended on a decision (`draw_pass` says where).
     pub(crate) fn drawn_hooks(&mut self, card: CardIdx, from_hand_draw: bool, start_phase: u8) -> bool {
-        if !self.drawing_hand {
+        if !self.draw_can_suspend() {
             if start_phase == 0 {
                 self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
             }

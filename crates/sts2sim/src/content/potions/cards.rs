@@ -143,8 +143,7 @@ listener!(BottledPotential {
         cx.add_cards_to_pile(hand.as_slice(), PileType::Draw, CardPilePosition::Bottom);
         cx.shuffle_discard_into_draw();
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 
@@ -296,8 +295,7 @@ listener!(GlowwaterPotion {
         let hand = cx.player.hand;
         exhaust_all(cx, hand.as_slice());
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 

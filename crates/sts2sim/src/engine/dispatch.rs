@@ -140,25 +140,20 @@ impl Combat {
     /// right after such a listener and returns true; after the decision the same call continues with the listeners that
     /// follow it (`susp_after`). Used for the turn-start hooks (`BeforeHandDraw`, `AfterPlayerTurnStart`).
     pub fn dispatch_resumable(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
-        let resume = match self.susp_after {
-            Some((b, m, pos)) if b == bit => {
-                self.susp_after = None;
-                Some((m, pos as usize))
-            }
-            _ => None,
+        let resume = match self.susp.iter().position(|p| p.bit == bit) {
+            Some(i) => Some(self.susp.remove(i)),
+            None => None,
         };
         if !self.listen.has(bit) || !self.hooks_enabled() {
             return false;
         }
-        if let (Some(_), true) = (resume, self.susp_rest_full) {
+        if let Some(p) = resume.filter(|p| p.full) {
             // Continue with the listeners that were still to come when the pass suspended (the list built at its start).
-            let rest = self.susp_rest;
-            self.susp_rest.clear();
-            for (k, me) in rest.iter().enumerate() {
+            for (k, me) in p.rest.iter().enumerate() {
                 if self.still_live(me) {
                     f(self, *me, content::listener(me));
                     if self.stage == Stage::AwaitChoice {
-                        self.suspend_pass(bit, *me, 0, rest.as_slice()[k + 1..].iter().copied());
+                        self.suspend_pass(bit, *me, 0, p.rest.as_slice()[k + 1..].iter().copied());
                         return true;
                     }
                 }
@@ -167,11 +162,12 @@ impl Combat {
         }
         let snap = self.snapshot(Mask::bit(bit));
         let mut start = 0;
-        if let Some((last, pos)) = resume {
+        if let Some(p) = resume {
             // The suspended listener may have removed itself (a power): then the next one now sits at its old index.
+            let last = p.me;
             start = match snap.iter().position(|e| e.me.kind == last.kind && e.me.idx == last.idx && e.me.owner == last.owner && e.me.id == last.id) {
-                Some(p) => p + 1,
-                None => pos.min(snap.len()),
+                Some(i) => i + 1,
+                None => (p.pos as usize).min(snap.len()),
             };
         }
         for (i, e) in snap.iter().enumerate().skip(start) {
@@ -187,16 +183,18 @@ impl Combat {
     }
 
     fn suspend_pass(&mut self, bit: u32, me: Me, pos: u8, rest: impl Iterator<Item = Me>) {
-        self.susp_after = Some((bit, me, pos));
-        self.susp_rest.clear();
-        self.susp_rest_full = true;
+        let mut p = SuspPass { bit, me, pos, full: true, rest: ArrayVec::new() };
         for m in rest {
-            if self.susp_rest.len() >= 16 {
-                self.susp_rest_full = false;
+            if p.rest.len() >= 12 {
+                p.full = false;
                 break;
             }
-            self.susp_rest.push(m);
+            p.rest.push(m);
         }
+        if self.susp.len() >= 3 {
+            self.susp.remove(0);
+        }
+        self.susp.push(p);
     }
 
     /// Notification pass over the unguarded iterator (hooks that are part of the kill/death sequence).

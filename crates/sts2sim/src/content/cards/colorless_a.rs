@@ -1,7 +1,6 @@
 //! COLORLESS pool cards, part A: attacks, blocks, draw/energy, simple power cards. (Cards needing deeper engine support
 //! live in `colorless_b.rs`.)
 
-use crate::engine::calc_with;
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::{CardDef, VarKind};
@@ -38,6 +37,12 @@ fn apply_self(cx: &mut Combat, power: u16, amount: i32, p: &CardPlay) -> Option<
 fn draw(cx: &mut Combat, p: &CardPlay) {
     let n = cx.card_var(p.card, VarKind::Cards);
     cx.draw_cards(n, false);
+}
+
+/// `draw` as the last action of the effect.
+fn draw_last(cx: &mut Combat, p: &CardPlay) -> Flow {
+    let n = cx.card_var(p.card, VarKind::Cards);
+    cx.draw_then_done(n)
 }
 
 // ---- Anointed: pull Rare cards from the draw pile into the hand ----------------------------------------------------------
@@ -171,8 +176,7 @@ listener!(Fasten {
 listener!(Finesse {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
-        draw(cx, p);
-        Flow::Done
+        draw_last(cx, p)
     }
 });
 
@@ -189,8 +193,7 @@ listener!(Fisticuffs {
 listener!(FlashOfSteel {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
-        draw(cx, p);
-        Flow::Done
+        draw_last(cx, p)
     }
 });
 
@@ -290,8 +293,7 @@ listener!(HiddenGem {
 // Multiplayer only (AllAllies): each living player draws.
 listener!(HuddleUp {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        draw(cx, p);
-        Flow::Done
+        draw_last(cx, p)
     }
 });
 
@@ -299,7 +301,7 @@ listener!(Impatience {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let has_attack = cx.player.hand.iter().any(|&c| cx.card_def(c).ctype == CardType::Attack);
         if !has_attack {
-            draw(cx, p);
+            return draw_last(cx, p);
         }
         Flow::Done
     }
@@ -368,8 +370,7 @@ listener!(Lift {
 
 listener!(MasterOfStrategy {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        draw(cx, p);
-        Flow::Done
+        draw_last(cx, p)
     }
 });
 
@@ -620,8 +621,7 @@ listener!(Salvo {
 listener!(Scrawl {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let n = MAX_HAND as i32 - cx.player.hand.len() as i32;
-        cx.draw_cards(n, false);
-        Flow::Done
+        cx.draw_then_done(n)
     }
 });
 

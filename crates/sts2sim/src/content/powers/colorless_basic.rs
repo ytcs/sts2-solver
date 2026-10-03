@@ -316,7 +316,7 @@ listener!(StratagemPower {
                 }
             }
             crate::engine::Ask::Pending => {
-                if cx.drawing_hand {
+                if cx.draw_can_suspend() {
                     cx.hook_ctx = Some((me, 1));
                     cx.stage = Stage::AwaitChoice;
                 } else {

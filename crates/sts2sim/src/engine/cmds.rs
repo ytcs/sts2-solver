@@ -345,6 +345,10 @@ impl Combat {
 
     fn begin_decision(&mut self, source: DecisionSource, purpose: u16, min: u8, max: u8, cands: ArrayVec<CardIdx, 64>, confirm_required: bool, can_skip: bool) {
         self.decision_seq += 1;
+        #[cfg(debug_assertions)]
+        if super::play::trace_on() {
+            eprintln!("TRACE decision purpose {} min {} max {} cands {} (drawing_hand {} suspendable {} depth {})", purpose, min, max, cands.len(), self.drawing_hand, self.draw_suspendable, self.draw_depth);
+        }
         self.decision = Some(Decision { source, min, max, cands, selected: ArrayVec::new(), confirm_required, can_skip, purpose });
     }
 

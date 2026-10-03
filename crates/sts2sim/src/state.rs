@@ -371,6 +371,18 @@ pub struct Choice {
     pub cards: ArrayVec<CardIdx, 16>,
 }
 
+/// A suspended resumable hook pass: the listener that raised the decision and the listeners that were still to run (the game
+/// iterates a list built at the start of the pass; models that moved meanwhile, e.g. an auto-played card, keep their place in
+/// it). `full` = nothing was cut off at the capacity (otherwise the pass is rebuilt from a fresh snapshot, best effort).
+#[derive(Clone, Copy)]
+pub struct SuspPass {
+    pub bit: u32,
+    pub me: crate::hooks::Me,
+    pub pos: u8,
+    pub full: bool,
+    pub rest: ArrayVec<crate::hooks::Me, 12>,
+}
+
 /// Step of the card-play state machine (`CardModel.OnPlayWrapper`), resumable across decisions.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PlayStep {
@@ -499,20 +511,22 @@ pub struct Combat {
     pub draw_resume: Option<(i32, bool)>,
     /// The `AfterCardDrawn(Early)` pass (drawn card, 0 = early / 1 = normal) that a hand-draw decision interrupted.
     pub draw_pass: Option<(CardIdx, u8)>,
+    /// True while a card effect / potion draws through `draw_cards_s`: a decision raised inside that draw loop (Stratagem, a
+    /// Hellraiser auto-play) suspends the effect (`Flow::Suspend(PH_DRAW_TAIL)`) instead of being flagged as not modelled.
+    pub draw_suspendable: bool,
+    /// Nesting depth of `draw_cards_list` calls (only the outermost draw of an effect is suspendable).
+    pub draw_depth: u8,
+    /// Phase the effect continues at once the interrupted draw is finished (`DRAW_DONE` = the effect is over).
+    pub draw_next: u8,
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
     /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw, 5 / 6 / 7 = in the early /
     /// normal / late `AfterAutoPrePlayPhaseEntered` pass.
     pub turn_cont: u8,
-    /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
-    /// its index in the pass: the pass continues after it once the decision is resolved.
-    pub susp_after: Option<(u32, crate::hooks::Me, u8)>,
-    /// The listeners of that pass that were still to run when it suspended (the game iterates a list built at the start of
-    /// the pass; models that moved meanwhile, e.g. an auto-played card, keep their place in it). `susp_rest_full` = nothing
-    /// was cut off at the capacity (otherwise the pass is rebuilt from a fresh snapshot, best effort).
-    pub susp_rest: ArrayVec<crate::hooks::Me, 16>,
-    pub susp_rest_full: bool,
+    /// Resumable notification passes (`Combat::dispatch_resumable`) suspended by a decision, innermost last (a pass can be
+    /// suspended inside another suspended pass: the turn-start hook of Mayhem auto-plays a card whose draw reshuffles).
+    pub susp: ArrayVec<SuspPass, 3>,
     /// An enemy turn suspended inside a monster move that raised a decision (Knowledge Demon's Curse of Knowledge):
     /// the `Enemies` snapshot taken at the start of the turn and the index of the suspended mover.
     pub enemy_cont: Option<(ArrayVec<Cid, MAX_CREATURES>, u8, u8)>,

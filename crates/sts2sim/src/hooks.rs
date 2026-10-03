@@ -111,6 +111,11 @@ pub struct CardPlay {
     pub energy_value: i32,
 }
 
+/// Reserved effect phase: "finish the draw a decision interrupted" (`Combat::draw_cards_s`); the engine handles it itself and then
+/// continues the effect at `Combat::draw_next` (`DRAW_DONE`: the effect is over).
+pub const PH_DRAW_TAIL: u8 = 250;
+pub const DRAW_DONE: u8 = 255;
+
 /// Result of resumable effect code (`on_play`): finished, or suspended waiting for a decision.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Flow {
