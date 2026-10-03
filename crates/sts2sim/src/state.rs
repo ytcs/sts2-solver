@@ -479,8 +479,13 @@ pub struct Combat {
     pub choice: Choice,
     /// A hook that raised a decision, resumed through `Listener::resume_hook` once the choice is in `choice`.
     pub hook_ctx: Option<(crate::hooks::Me, u8)>,
+    /// A turn-start hand draw interrupted by a decision raised in `AfterShuffle` (Stratagem): (cards still to draw,
+    /// from_hand_draw). `turn_cont == 4` resumes it.
+    pub draw_resume: Option<(i32, bool)>,
+    /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
+    pub drawing_hand: bool,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
-    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`.
+    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
     pub turn_cont: u8,
     /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
     /// its index in the pass: the pass continues after it once the decision is resolved.

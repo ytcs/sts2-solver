@@ -2,6 +2,7 @@
 
 mod action;
 mod autoplay;
+mod cardcmds;
 mod cmds;
 mod creature;
 mod cost;

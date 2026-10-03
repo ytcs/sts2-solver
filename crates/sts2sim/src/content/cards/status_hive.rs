@@ -7,9 +7,4 @@ use crate::types::*;
 
 // Toxic: cost 1, Exhaust, no OnPlay effect; at turn end in hand deals 5 Unpowered|Move damage to the owner
 // (card source, no dealer).
-listener!(Toxic {
-    fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {
-        let n = cx.card_var(card, crate::defs::VarKind::Damage);
-        cx.damage(&[PLAYER], Dec::int(n as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), NO, card);
-    }
-});
+// (Toxic lives in status.rs.)

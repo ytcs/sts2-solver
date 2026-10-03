@@ -397,7 +397,7 @@ impl Combat {
         if room == 0 {
             return out;
         }
-        for _ in 0..count {
+        for i in 0..count {
             if room <= 0 || self.is_over_or_ending() {
                 break;
             }
@@ -405,6 +405,11 @@ impl Combat {
                 break;
             }
             self.shuffle_if_necessary();
+            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() && self.drawing_hand {
+                // An `AfterShuffle` listener (Stratagem) asked for a decision: the turn-start draw resumes afterwards.
+                self.draw_resume = Some((count - i, from_hand_draw));
+                break;
+            }
             if self.player.draw.len() + self.player.discard.len() == 0 {
                 break;
             }

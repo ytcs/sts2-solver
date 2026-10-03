@@ -159,6 +159,8 @@ impl Combat {
             choice: Choice::default(),
             end_turn_resume: None,
             hook_ctx: None,
+            draw_resume: None,
+            drawing_hand: false,
             turn_cont: 0,
             susp_after: None,
             enemy_cont: None,

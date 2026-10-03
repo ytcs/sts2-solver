@@ -37,7 +37,7 @@ impl Combat {
     /// then a FULL `UnstableShuffle` of the candidates with `CombatCardGeneration` (n-1 draws regardless of `count`),
     /// take the first `count`, and instantiate them. `extra` is the call site's own `Where` filter.
     pub fn get_distinct_for_combat(&mut self, pool: &[u16], count: usize, extra: impl Fn(&crate::defs::CardDef) -> bool) -> ArrayVec<CardIdx, 16> {
-        let mut list: ArrayVec<u16, 128> = ArrayVec::new();
+        let mut list: ArrayVec<u16, 256> = ArrayVec::new(); // (256: Splash concatenates four character pools)
         for &id in pool {
             let d = crate::content::card_def(id);
             if !d.multiplayer_only && extra(d) && d.can_be_generated_in_combat
@@ -76,7 +76,7 @@ impl Combat {
 
     /// `CardFactory.GetForCombat` over `pool.Where(extra)` (the call site's own filter, e.g. Metamorphosis: Attacks).
     pub fn get_for_combat_where(&mut self, pool: &[u16], count: usize, extra: impl Fn(&crate::defs::CardDef) -> bool) -> ArrayVec<CardIdx, 16> {
-        let mut list: ArrayVec<u16, 128> = ArrayVec::new();
+        let mut list: ArrayVec<u16, 256> = ArrayVec::new(); // 256: Splash concatenates four character pools
         for &id in pool {
             let d = crate::content::card_def(id);
             if !d.multiplayer_only && extra(d) && d.can_be_generated_in_combat && !matches!(d.rarity, CardRarity::Basic | CardRarity::Ancient | CardRarity::Event) {
