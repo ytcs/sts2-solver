@@ -94,6 +94,8 @@ pub struct Card {
     pub deck_idx: u8,
     /// The card this dupe / clone was created from (`DupeOf`), `NO` if none.
     pub dupe_of: u8,
+    /// Upgrade level this card had when `DampenPower` downgraded it (`downgradedCardsToOldUpgradeLevels`), 0 = none.
+    pub dampen_saved: u8,
 }
 pub type PileTypeBits = u8;
 
@@ -515,6 +517,11 @@ pub struct Combat {
     /// `AttackCommand.Results` (first 16 per-hit results) of the attack whose `after_attack` hooks are being dispatched
     /// (only filled when some listener has `after_attack`): Suck, Skittish.
     pub attack_results: ArrayVec<crate::engine::DamageResult, 16>,
+    /// Side channel for `AfterAttack` (C# `command.Results`): set by `execute_attack` right before the hook pass.
+    /// `attack_unblocked_hits` = results with unblocked damage > 0 (any receiver); `attack_player_hits` = those whose
+    /// receiver is the player creature.
+    pub attack_unblocked_hits: u8,
+    pub attack_player_hits: u8,
     /// Auto-play queues still waiting to be drained (one per in-progress `AutoPlayFromDrawPile` / Sly discard call; they
     /// nest like the C# locals: a card auto-played from a queue may itself start another one).
     pub autoplay_stack: ArrayVec<AutoQueue, 4>,

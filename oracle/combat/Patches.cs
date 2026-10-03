@@ -117,6 +117,10 @@ public static class Patches
         static void Prefix(bool canSkip) { ChoiceSelector.ChooseACardMustPick = !canSkip; }
         static void Postfix() { ChoiceSelector.ChooseACardMustPick = false; }
     }
+    // SoulNexus.AfterDeath (private, subscribed to Creature.Died) only resets a spine animation but dereferences
+    // NCombatRoom.Instance without a null check -> NRE when the Soul Nexus dies in the headless oracle. Visual only.
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.SoulNexus), "AfterDeath")]
+    static class P_SoulNexusDeath { static bool Prefix() => false; }
 
     [HarmonyPatch(typeof(ConsoleLogPrinter), nameof(ConsoleLogPrinter.Print))]
     static class P_Print

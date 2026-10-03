@@ -171,6 +171,8 @@ impl Combat {
             dmg_card: NO,
             dmg_result: Default::default(),
             attack_results: ArrayVec::new(),
+            attack_unblocked_hits: 0,
+            attack_player_hits: 0,
             autoplay_stack: ArrayVec::new(),
             hist_log: Default::default(),
             decision_seq: 0,

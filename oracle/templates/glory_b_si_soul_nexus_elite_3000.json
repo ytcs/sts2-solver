@@ -1,0 +1,62 @@
+{
+ "name": "silent_soul_nexus_elite",
+ "ascension": 10,
+ "encounter": "SOUL_NEXUS_ELITE",
+ "character": "SILENT",
+ "hp": 3000,
+ "max_hp": 3000,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 2,
+ "deck": [
+  "STRIKE_SILENT",
+  "STRIKE_SILENT",
+  "STRIKE_SILENT",
+  "STRIKE_SILENT",
+  "STRIKE_SILENT",
+  "DEFEND_SILENT",
+  "DEFEND_SILENT",
+  "DEFEND_SILENT",
+  "DEFEND_SILENT",
+  "DEFEND_SILENT",
+  "NEUTRALIZE",
+  "SURVIVOR",
+  {
+   "id": "BLADE_DANCE",
+   "upgrade": 1
+  },
+  "ACCURACY",
+  {
+   "id": "FOOTWORK",
+   "upgrade": 1
+  },
+  "NOXIOUS_FUMES",
+  "SERPENT_FORM",
+  "STRANGLE",
+  {
+   "id": "REFLEX",
+   "upgrade": 1
+  },
+  "TACTICIAN",
+  "UP_MY_SLEEVE",
+  "TOOLS_OF_THE_TRADE",
+  "BURST",
+  "FAN_OF_KNIVES",
+  "ENVENOM",
+  {
+   "id": "DEADLY_POISON",
+   "upgrade": 1
+  },
+  "LEG_SWEEP",
+  "SKEWER",
+  "MURDER",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "RING_OF_THE_SNAKE"
+ ],
+ "potions": []
+}

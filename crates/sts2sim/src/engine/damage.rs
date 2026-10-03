@@ -353,6 +353,8 @@ impl Combat {
             for x in all.iter().take(16) {
                 self.attack_results.push(*x);
             }
+            self.attack_unblocked_hits = all.iter().filter(|r| r.unblocked > 0).count() as u8;
+            self.attack_player_hits = all.iter().filter(|r| r.unblocked > 0 && r.receiver == PLAYER).count() as u8;
         }
         self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
         all
