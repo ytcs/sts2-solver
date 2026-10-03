@@ -86,6 +86,15 @@ pub fn relic_def_exists(_id: u16) -> bool {
     true
 }
 
+/// Extra initial-HP range offset decided by a monster's private `vars` (`MinInitialHp`/`MaxInitialHp` overrides that
+/// depend on model fields set before creation: Axebot's +10 max HP per respawn).
+pub fn monster_hp_bonus(id: u16, vars: [i32; 2]) -> i32 {
+    if id == ids::monster::AXEBOT {
+        return monsters::glory_a::axebot_hp_bonus(vars);
+    }
+    0
+}
+
 /// Node index of a move/branch of `monster`'s state machine by its id string (e.g. `"REVIVE_MOVE"`).
 pub fn node_by_name(monster: u16, name: &str) -> Option<u8> {
     let def = monster_def(monster);

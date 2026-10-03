@@ -212,7 +212,7 @@ impl Combat {
         let spawns = content::encounter_spawns(sc.encounter, &mut erng, sc.ascension).unwrap();
         for sp in spawns.iter() {
             // (an unported monster is flagged in `Combat::missing` by `add_enemy` and skipped, so the fight reports UNIMPLEMENTED)
-            let Some(c) = cx.add_enemy(sp.monster, sp.slot) else {
+            let Some(c) = cx.add_enemy_v(sp.monster, sp.slot, sp.vars) else {
                 assert!(cx.missing.is_some(), "too many enemies");
                 continue;
             };

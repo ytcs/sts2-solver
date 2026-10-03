@@ -228,41 +228,7 @@ pub static HAUNTED_SHIP_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- PunchConstruct ----------------------------------------------------------------------------------------------------
-
-mod punch_construct {
-    use super::*;
-    pub fn strong(cx: &Combat) -> i32 {
-        deadly(cx, 16, 14)
-    }
-    pub fn fast(cx: &Combat) -> i32 {
-        deadly(cx, 6, 5)
-    }
-    pub fn on_spawn(cx: &mut Combat, me: Cid) {
-        buff(cx, ids::power::ARTIFACT_POWER, 1, me);
-        // `StartingHpReduction` is only set by the PunchOff event encounter (not modelled).
-    }
-}
-// nodes: 0 READY, 1 FAST_PUNCH, 2 STRONG_PUNCH; INIT = READY (StartsWithFastPunch is event-only)
-pub static PUNCH_CONSTRUCT_DEF: MonsterDef = MonsterDef {
-    id: ids::monster::PUNCH_CONSTRUCT,
-    hp: hp!(55, 55, 60, 60),
-    initial: 0,
-    on_spawn: Some(punch_construct::on_spawn),
-    nodes: &[
-        mv!("READY_MOVE", |cx, me| { cx.gain_block(me, Dec::int(10), ValueProp::MOVE, NO); }, [Intent::Defend], 1),
-        mv!(
-            "FAST_PUNCH_MOVE",
-            |cx, me| {
-                hits(cx, me, punch_construct::fast(cx), 2);
-                debuff(cx, ids::power::FRAIL_POWER, 1, me);
-            },
-            [atk!(punch_construct::fast, 2), Intent::Debuff],
-            2
-        ),
-        mv!("STRONG_PUNCH_MOVE", |cx, me| hits(cx, me, punch_construct::strong(cx), 1), [atk!(punch_construct::strong)], 0),
-    ],
-};
+// (PunchConstruct lives in glory_a.rs.)
 
 // ---- SewerClam ---------------------------------------------------------------------------------------------------------
 
