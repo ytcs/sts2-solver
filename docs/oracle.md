@@ -173,7 +173,8 @@ Earring's selector) must apply its result exactly like a resumed one; turn-start
 `AfterShuffle` are `dispatch_resumable`. `big-arena` (cargo feature, on for `sts2diff`) raises `MAX_CARDS` 160 -> 254; an overflowing fight is
 flagged `missing`. Stratagem prompts (an `AfterShuffle` decision raised inside a draw / shuffle) are handled for: the turn-start hand draw,
 card effects and potions whose draw is their last action or that `return Flow::Suspend(next)` right after `cx.draw_cards(..)` when
-`cx.draw_pending()` (`draw_susp`; ~25 non-terminal draw cards are phase-converted), and `AutoPlayFromDrawPile` (Mayhem, Cascade, Havoc, ...).
+`cx.draw_pending()` (`draw_susp`; ~25 non-terminal draw cards are phase-converted), and `AutoPlayFromDrawPile` (Mayhem, Cascade, Havoc, ...), Foregone Conclusion's own shuffle (`hook_shuffle` / `hook_after`), and the
+hand-empty draw at the very end of an outermost card play / potion (Unceasing Top: `hand_check`).
 Known gap (flagged unimplemented): a draw started from inside a hook (Iteration's `AfterCardDrawn`, Centennial Puzzle, ...) that reshuffles
 while Stratagem is active. The oracle trace has a `log` field per record (history entries since the previous record: nested plays `play*`,
 draws, ...), and `sts2diff` compares keywords/enchantments of every pile and fails on oracle prompts the simulator never asked.
