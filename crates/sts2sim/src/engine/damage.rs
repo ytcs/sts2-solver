@@ -331,6 +331,21 @@ impl Combat {
         hits
     }
 
+    /// `Hook.AfterAttack` for an attack whose per-hit results are `all`: publishes them in `attack_results` (what
+    /// `AttackCommand.Results` gives the listeners) and dispatches. Also the `AttackContext` disposal of cards that drive
+    /// their own context (Echoing Slash, Omnislice), which skips the `CreatureAttacked` history entry.
+    pub fn dispatch_after_attack(&mut self, a: &Attack, all: &Results) {
+        if self.listen.has(hookbit::after_attack) {
+            self.attack_results.clear();
+            for x in all.iter().take(16) {
+                self.attack_results.push(*x);
+            }
+            self.attack_unblocked_hits = all.iter().filter(|r| r.unblocked > 0).count() as u8;
+            self.attack_player_hits = all.iter().filter(|r| r.unblocked > 0 && r.receiver == PLAYER).count() as u8;
+        }
+        self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
+    }
+
     /// `AttackCommand.Execute` (spec 02 §3.1).
     #[inline(always)]
     pub fn execute_attack(&mut self, a: &Attack) -> Results {
