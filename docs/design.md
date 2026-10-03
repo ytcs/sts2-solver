@@ -161,8 +161,8 @@ stays).
   `determinize` before the action, not at a replayed prompt.
 * **Fixed capacities** (160 cards, 16 powers per creature, 12 creature slots, 64 decision candidates in the action space): an overflowing
   fight raises the sticky `Combat::overflow` flag and envs end it with `OUTCOME_OVERFLOW`; only extreme stall fights reach it.
-* **Information-contract assumptions not yet verified against the real UI**: discard/exhaust are exposed in pile order; "known top card"
-  knowledge (after put-on-top effects) is not tracked.
+* **Information-contract assumptions not yet verified against the real UI**: piles are exposed as unordered multisets and pile screens in a
+  canonical visible-attribute order (by design, see `docs/env-api.md`); "known top card" knowledge (after put-on-top effects) is not tracked.
 * Run-level deck-copy listeners, `GainsBlock` as a card property (approximated by "has a Block var"), non-integer named card vars (Tank).
 * The oracle's own game code crashes on a few paths (Inky on non-enemy-targeted cards, Entropy with no eligible card): untestable, excluded.
 Fidelity TODOs are marked `TODO(fidelity)` in code.

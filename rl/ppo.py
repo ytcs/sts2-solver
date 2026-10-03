@@ -21,37 +21,42 @@ def make_env(path, n, seed, max_steps, hp_bonus):
     return sts2.VecEnv(n, scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=hp_bonus), scen
 
 
-@torch.no_grad()
-def evaluate(net, path, n_envs, per_env, seed, max_steps, hp_bonus, greedy=True):
-    """First `per_env` finished episodes of every env (no short-fight bias), greedy policy. Returns a stats dict."""
+def net_policy(net, greedy=True):
+    @torch.no_grad()
+    def act(obs, mask):
+        lg, _ = net(torch.from_numpy(obs.copy()), torch.from_numpy(mask.astype(np.int64)))
+        a = lg.argmax(1) if greedy else torch.distributions.Categorical(logits=lg).sample()
+        return a.numpy().astype(np.int32)
+    return act
+
+
+def evaluate(policy, path, n_envs, per_env, seed, max_steps, hp_bonus):
+    """First `per_env` finished episodes of every env (no short-fight bias). `policy(obs, mask) -> int32 actions`. Returns a stats dict."""
     env, scen = make_env(path, n_envs, seed, max_steps, hp_bonus)
     obs, mask = env.reset()
     got = np.zeros(n_envs, np.int32)
     rec = []
-    net.eval()
     while got.min() < per_env:
-        o = torch.from_numpy(obs.copy())
-        m = torch.from_numpy(mask.astype(np.int64))
-        lg, _ = net(o, m)
-        a = lg.argmax(1) if greedy else torch.distributions.Categorical(logits=lg).sample()
-        obs, mask, r, d, info = env.step(a.numpy().astype(np.int32))
+        obs, mask, r, d, info = env.step(policy(obs, mask))
         idx = np.nonzero(d)[0]
         if len(idx):
             ei = env.episode_info()
             for i in idx:
                 if got[i] < per_env:
                     got[i] += 1
-                    rec.append((int(ei["scenario"][i]), int(info["outcome"][i]), float(ei["hp_lost"][i]), int(ei["length"][i])))
-    net.train()
+                    rec.append((int(ei["scenario"][i]), int(info["outcome"][i]), float(ei["hp_lost"][i]), int(ei["length"][i]), float(ei["hp_end"][i])))
     return summarize(rec, scen)
 
 
 def summarize(rec, scen):
+    """`hp_lost_all` (primary with `win`): mean fraction of max HP lost over every valid fight; a loss (or a stall) is charged all the HP the
+    player had at the start, which is what a run-level optimizer pays for it."""
     rec = np.array(rec, dtype=np.float64)
     out = rec[:, 1]
     valid = (out == 1) | (out == -1) | (out == 2)
     win = out == 1
     res = {"episodes": int(len(rec)), "win": float(win[valid].mean()) if valid.any() else 0.0,
+           "hp_lost_all": float(rec[valid, 2].mean()) if valid.any() else None,
            "hp_lost_on_win": float(rec[win, 2].mean()) if win.any() else None,
            "stall": float((out == 2).mean()), "aborted": float(((out == 3) | (out == 4)).mean()), "len": float(rec[:, 3].mean())}
     by = {}
@@ -60,9 +65,9 @@ def summarize(rec, scen):
         for k in sorted({str(s.get(key)) for s in scen}):
             sel = np.array([str(scen[int(i)].get(key)) == k for i in rec[:, 0]]) & valid
             if sel.any():
-                g[k] = round(float((out[sel] == 1).mean()), 3)
+                g[k] = [round(float((out[sel] == 1).mean()), 3), round(float(rec[sel, 2].mean()), 3)]
         by[key] = g
-    res["by"] = by
+    res["by"] = by  # [win rate, mean HP lost]
     return res
 
 
@@ -88,19 +93,28 @@ def main():
     ap.add_argument("--eval-envs", type=int, default=1024)
     ap.add_argument("--eval-per-env", type=int, default=2)
     ap.add_argument("--d", type=int, default=64)
-    ap.add_argument("--layers", type=int, default=1)
+    ap.add_argument("--rounds", type=int, default=2)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--resume")
+    ap.add_argument("--resume", help="checkpoint to continue from (iteration count and lr schedule continue; --iters is the total)")
+    ap.add_argument("--warm", action="store_true", help="with --resume: take the weights only (fresh optimizer, iteration 0)")
     ap.add_argument("--threads", type=int, default=12)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     torch.set_num_threads(a.threads)
     torch.manual_seed(a.seed)
-    net = Net(d=a.d, layers=a.layers)
-    if a.resume:
-        net.load_state_dict(torch.load(a.resume))
-    print("params", n_params(net), flush=True)
+    net = Net(d=a.d, rounds=a.rounds)
     opt = torch.optim.Adam(net.parameters(), lr=a.lr, eps=1e-5)
+    it0, steps = 0, 0
+    if a.resume:  # a full checkpoint (net + optimizer + progress) or a bare state dict (weights only: warm start)
+        ck = torch.load(a.resume)
+        if "net" in ck:
+            net.load_state_dict(ck["net"])
+            if not a.warm:
+                opt.load_state_dict(ck["opt"])
+                it0, steps = ck["it"], ck["steps"]
+        else:
+            net.load_state_dict(ck)
+    print("params", n_params(net), "resuming at iteration", it0, flush=True)
     env, scen = make_env(a.train, a.envs, a.seed + 1000, a.max_steps, a.hp_bonus)
     N, T = a.envs, a.horizon
     A = sts2.ACTIONS
@@ -114,9 +128,9 @@ def main():
     obs, mask = env.reset()
     log = open(os.path.join(a.out, "log.jsonl"), "a")
     t0 = time.time()
-    steps = 0
+    steps0 = steps
     ep_stats = []
-    for it in range(1, a.iters + 1):
+    for it in range(it0 + 1, a.iters + 1):
         lr = a.lr * max(0.05, 1 - (it - 1) / a.iters)
         for g in opt.param_groups:
             g["lr"] = lr
@@ -174,7 +188,7 @@ def main():
                 ad = fadv[ix]
                 ad = (ad - ad.mean()) / (ad.std() + 1e-8)
                 pl = -torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad).mean()
-                vl = 0.5 * (v - fret[ix]).pow(2).mean()
+                vl = F.smooth_l1_loss(v, fret[ix])
                 p = logp.exp()
                 ent = -(p * logp.clamp(min=-30) * (fm[ix] > 0)).sum(1).mean()
                 loss = pl + a.vf * vl - a.ent * ent
@@ -187,7 +201,7 @@ def main():
                 stats["clip"] += ((ratio - 1).abs() > a.clip).float().mean().item()
                 nb += 1
         t_upd = time.time() - t_upd
-        rec = {"it": it, "steps": steps, "sps": int(steps / (time.time() - t0)), "t_roll": round(t_roll, 1), "t_upd": round(t_upd, 1), "lr": lr}
+        rec = {"it": it, "steps": steps, "sps": int((steps - steps0) / (time.time() - t0)), "t_roll": round(t_roll, 1), "t_upd": round(t_upd, 1), "lr": lr}
         rec.update({k: round(v / nb, 4) for k, v in stats.items()})
         if ep_stats:
             e = np.array(ep_stats)
@@ -196,10 +210,14 @@ def main():
                        ep_len=round(float(e[:, 2].mean()), 1), eps=len(e), aborted=int(((e[:, 0] == 3) | (e[:, 0] == 4)).sum()))
             ep_stats = []
         if it % a.eval_every == 0 or it == a.iters:
-            ev = evaluate(net, a.eval, a.eval_envs, a.eval_per_env, 777, a.max_steps, a.hp_bonus)
+            net.eval()
+            ev = evaluate(net_policy(net), a.eval, a.eval_envs, a.eval_per_env, 777, a.max_steps, a.hp_bonus)
+            net.train()
             rec["eval"] = ev
-            torch.save(net.state_dict(), os.path.join(a.out, "ckpt.pt"))
-            torch.save(net.state_dict(), os.path.join(a.out, f"ckpt_{it}.pt"))
+            ck = {"net": net.state_dict(), "opt": opt.state_dict(), "it": it, "steps": steps, "args": vars(a)}
+            torch.save(ck, os.path.join(a.out, "ckpt.pt"))
+            if it % (4 * a.eval_every) == 0 or it == a.iters:
+                torch.save(ck, os.path.join(a.out, f"ckpt_{it}.pt"))
         print(json.dumps(rec), flush=True)
         log.write(json.dumps(rec) + "\n"); log.flush()
 

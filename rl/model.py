@@ -19,31 +19,65 @@ C = LAY["consts"]
 SEC = {n: (o, s) for n, o, s in LAY["sections"]}
 
 
+def S(x):
+    """Signed log: unbounded game quantities (HP, damage, counters, powers ...) -> a small range, order-preserving."""
+    return torch.sign(x) * torch.log1p(x.abs())
+
+
 def sl(obs, name):
     o, s = SEC[name]
     return obs[:, o:o + s]
 
 
 def mlp(i, h, o):
-    return nn.Sequential(nn.Linear(i, h), nn.GELU(), nn.Linear(h, o))
+    return nn.Sequential(nn.Linear(i, h), nn.ReLU(), nn.Linear(h, o))
+
+
+class CtxMLP(nn.Module):
+    """mlp([x, ctx]) without materialising the concatenation: relu(x W_a + ctx W_b + b) W_2 (ctx is per sample, x per token)."""
+
+    def __init__(self, d, h, o):
+        super().__init__()
+        self.a = nn.Linear(d, h)
+        self.b = nn.Linear(d, h, bias=False)
+        self.o = nn.Linear(h, o)
+
+    def forward(self, x, ctx):  # x [B, N, d], ctx [B, d]
+        return self.o(F.relu(self.a(x) + self.b(ctx).unsqueeze(1)))
+
+
+class Bag(nn.Module):
+    """Weighted sum of embeddings over a padded id list: sum_k emb_k(id_i) * w_k(i), done as one fused embedding_bag (no [B, L, e] temporaries)."""
+
+    def __init__(self, n, e, channels):
+        super().__init__()
+        self.n, self.k = n + 1, channels
+        self.emb = nn.Embedding(self.k * self.n, e, padding_idx=0)
+
+    def forward(self, ids, w):
+        """ids [..., L] long (0 = empty), w [..., L, k] float -> [..., e]"""
+        lead = ids.shape[:-1]
+        L = ids.shape[-1]
+        ids = ids.reshape(-1, L)
+        w = w.reshape(-1, L, self.k)
+        offs = torch.arange(self.k, device=ids.device).view(1, 1, -1) * self.n
+        full = (ids.unsqueeze(-1) + offs * (ids > 0).unsqueeze(-1)).reshape(-1, L * self.k)
+        out = F.embedding_bag(full, self.emb.weight, per_sample_weights=w.reshape(-1, L * self.k) * (ids > 0).repeat_interleave(self.k, 1), mode="sum", padding_idx=0)
+        return out.view(*lead, -1)
 
 
 class PowerPool(nn.Module):
-    """Sum over a creature's powers of emb(id) gated by a function of the amount -> vector."""
+    """A creature's powers -> vector (embedding of the power scaled by features of its amount)."""
 
     def __init__(self, n_powers, e):
         super().__init__()
-        self.emb = nn.Embedding(n_powers + 1, e, padding_idx=0)
-        self.amt = nn.Linear(4, e)
-        self.out = nn.Linear(e, e)
+        self.bag = Bag(n_powers, e, 3)
 
     def forward(self, pw):  # pw [..., P, 2] (id+1, amount)
-        pid = pw[..., 0].long().clamp(0, self.emb.num_embeddings - 1)
+        pid = pw[..., 0].long().clamp(0, self.bag.n - 1)
         a = pw[..., 1]
-        f = torch.stack([a / 10.0, torch.sign(a) * torch.log1p(a.abs()) / 2.0, (a > 0).float(), (a < 0).float()], -1)
-        v = self.emb(pid) * torch.tanh(self.amt(f) + 1.0)
-        v = v * (pid > 0).unsqueeze(-1)
-        return self.out(v.sum(-2))
+        f = torch.stack([torch.ones_like(a), S(a) / 2.0, a.clamp(-10, 10) / 10.0], -1)
+        return self.bag(pid, f)
 
 
 class CardEnc(nn.Module):
@@ -55,52 +89,49 @@ class CardEnc(nn.Module):
         self.upg = nn.Embedding(4, 8)
         self.ench = nn.Embedding(C["N_ENCHANTMENTS"] + 1, 8)
         self.aff = nn.Embedding(C["N_AFFLICTIONS"] + 1, 8)
-        self.net = mlp(e + 24 + 8 + 12, 2 * d, d)
+        self.net = mlp(e + 24 + 8 + 13, 2 * d, d)
 
     def forward(self, f, extra):
-        """f [..., 12] = id+1, upgrade, cost, playable, keywords, enchant, dmg, blk, c0, c1, ench_amt, afflic; extra [..., 2] = star cost, osty dmg."""
+        """f [..., 12] = id+1, upgrade, cost, playable, keywords, enchant, dmg, blk, c0, c1, ench_amt, afflic; extra [..., 3] = star cost, osty dmg, selected."""
         cid = f[..., 0].long().clamp(0, self.card.num_embeddings - 1)
         kw = f[..., 4].long().unsqueeze(-1)
         bits = ((kw >> torch.arange(8, device=f.device)) & 1).float()
-        num = torch.stack([f[..., 2] / 3.0, f[..., 3], f[..., 6] / 20.0, f[..., 7] / 20.0, f[..., 8] / 10.0, f[..., 9] / 10.0,
-                           f[..., 10] / 5.0, (f[..., 0] > 0).float(), extra[..., 0] / 3.0, extra[..., 1] / 20.0, (f[..., 2] < 0).float(),
-                           torch.sign(f[..., 6])], -1)
+        num = torch.stack([S(f[..., 2]), f[..., 3], S(f[..., 6]) / 2.0, S(f[..., 7]) / 2.0, S(f[..., 8]) / 2.0, S(f[..., 9]) / 2.0,
+                           S(f[..., 10]) / 2.0, (f[..., 0] > 0).float(), S(extra[..., 0]), S(extra[..., 1]) / 2.0, (f[..., 2] < 0).float(),
+                           torch.sign(f[..., 6]), extra[..., 2]], -1)
         x = torch.cat([self.card(cid), self.upg(f[..., 1].long().clamp(0, 3)), self.ench(f[..., 5].long().clamp(0, self.ench.num_embeddings - 1)),
                        self.aff(f[..., 11].long().clamp(0, self.aff.num_embeddings - 1)), bits, num], -1)
         return self.net(x)
 
 
 class Net(nn.Module):
-    def __init__(self, d=64, e=32, layers=1, heads=4):
+    """Entity encoders -> pooled context -> `rounds` of message passing -> pointer heads (see the module docstring)."""
+
+    def __init__(self, d=64, e=24, rounds=2):
         super().__init__()
         self.d = d
         P = C["OBS_POWERS"]
+        self.rounds = rounds
         self.pp = PowerPool(C["N_POWERS"], e)
         self.card = CardEnc(d, e)
         self.mon = nn.Embedding(C["N_MONSTERS"] + 1, e, padding_idx=0)
         self.kind = nn.Embedding(16, 8)
         self.node = nn.Embedding(C["LOOK_NODES"] + 8, 8, padding_idx=0)
         n_enemy_in = e + e + 7 + 3 * (8 + 3) + 4 * 8 + C["LOOK_H"] * (C["LOOK_NODES"] + 1)
-        self.enemy = mlp(n_enemy_in, 2 * d, d)
-        self.relic = nn.Embedding(C["N_RELICS"] + 1, e, padding_idx=0)
-        self.relic_c = nn.Linear(1, e)
+        self.enemy = mlp(n_enemy_in, d, d)
+        self.relic = Bag(C["N_RELICS"], e, 2)
         self.potion = nn.Embedding(C["N_POTIONS"] + 1, e, padding_idx=0)
         self.potion_enc = mlp(e + 1, d, d)
-        self.orb = nn.Embedding(C["N_ORBS"] + 2, 8, padding_idx=0)
-        self.pile_card = nn.Embedding(C["N_CARDS"] + 1, e, padding_idx=0)
-        self.pile_up = nn.Embedding(4, e)
+        self.orb = nn.Embedding(C["N_ORBS"] + 2, 4, padding_idx=0)
+        self.pile = Bag(C["N_CARDS"], e, 2)  # (plain, upgraded) copies
         self.pile_enc = nn.ModuleList([mlp(e + 1, d, d) for _ in range(3)])
-        n_player_in = 8 + 5 + 3 + 3 * e + C["MAX_ORBS"] * 8 + C["MAX_ORBS"] * 2 + 1 + 4 + e
+        n_player_in = 8 + 5 + 3 + 3 * e + C["MAX_ORBS"] * 4 + C["MAX_ORBS"] * 2 + 1 + 4 + e
         self.player = mlp(n_player_in, 2 * d, d)
         self.dec_src = nn.Embedding(10, 8)
         self.dec = mlp(8 + 7, d, d)
-        # token types / positions
-        self.n_tok = 1 + C["OBS_MAX_ENEMIES"] + C["MAX_HAND"] + C["MAX_POTIONS"] + C["OBS_MAX_CANDS"] + 3 + 1
-        self.pos = nn.Parameter(torch.zeros(self.n_tok, d))
-        nn.init.normal_(self.pos, std=0.02)
-        layer = nn.TransformerEncoderLayer(d, heads, 2 * d, dropout=0.0, batch_first=True, norm_first=True, activation="gelu")
-        self.tf = nn.TransformerEncoder(layer, layers, enable_nested_tensor=False)
-        self.norm = nn.LayerNorm(d)
+        # message passing: ctx = f(player, sums of enemies / hand / potions / cands, piles); token += g_type([token, ctx])
+        self.ctx = nn.ModuleList([mlp(d * 9, d, d) for _ in range(rounds)])
+        self.upd = nn.ModuleList([nn.ModuleDict({k: CtxMLP(d, d, d) for k in ("player", "enemy", "hand", "potion", "cand")}) for _ in range(rounds)])
         # heads
         self.u_card = mlp(d, d, d)
         self.v_tgt = mlp(d, d, d)
@@ -114,12 +145,11 @@ class Net(nn.Module):
         self.end = mlp(2 * d, d, 1)
         self.value = mlp(2 * d, 2 * d, 1)
 
-    # ------------------------------------------------------------------------------------------------------------
-    def tokens(self, obs):
+    def encode(self, obs):
         B = obs.shape[0]
-        d = self.d
         H, E, K, Q = C["MAX_HAND"], C["OBS_MAX_ENEMIES"], C["MAX_POTIONS"], C["OBS_MAX_CANDS"]
         P = C["OBS_POWERS"]
+        dev = obs.device
         g = sl(obs, "global")
         pl = sl(obs, "player")
         relics = sl(obs, "relics").view(B, -1, 2)
@@ -130,112 +160,114 @@ class Net(nn.Module):
         regent = sl(obs, "regent")
         osty = sl(obs, "osty")
         orbs = sl(obs, "orbs")
-        look = sl(obs, "look").view(B, E, C["LOOK_H"] * (C["LOOK_NODES"] + 1))
+        look = sl(obs, "look").view(B, E, C["LOOK_H"], C["LOOK_NODES"] + 1)
+        # only the enemy slots that are occupied somewhere in this batch (most fights have 1-3 enemies)
+        E = max(1, int((enemies[..., 0] > 0.5).any(0).nonzero().max().item() + 1)) if (enemies[..., 0] > 0.5).any() else 1
+        enemies, look = enemies[:, :E], look[:, :E]
         # ---- player ----
         stage = g[:, 2:5]
-        gsc = torch.stack([g[:, 0] / 10.0, g[:, 1] / 10.0, g[:, 6] / 10.0, g[:, 7] / 5.0, g[:, 8] / 5.0], -1)
-        sc = torch.stack([pl[:, 0] / 100.0, pl[:, 0] / pl[:, 1].clamp(min=1), pl[:, 2] / 50.0, pl[:, 3] / 5.0, pl[:, 4] / 5.0, pl[:, 5] / 5.0,
-                          pl[:, 6] / 10.0, pl[:, 7] / 4.0], -1)
-        ppow = self.pp(pl[:, 8:8 + 2 * P].view(B, P, 2))
-        rid = relics[..., 0].long().clamp(0, self.relic.num_embeddings - 1)
-        rb = ((self.relic(rid) * torch.tanh(self.relic_c(relics[..., 1:2] / 10.0) + 1.0)) * (rid > 0).unsqueeze(-1)).sum(1)
-        pid = potions[..., 0].long().clamp(0, self.potion.num_embeddings - 1)
-        pb = (self.potion(pid) * (pid > 0).unsqueeze(-1)).sum(1)
+        gsc = torch.stack([S(g[:, 0]) / 2.0, S(g[:, 1]) / 2.0, S(g[:, 6]) / 2.0, S(g[:, 7]) / 2.0, S(g[:, 8]) / 2.0], -1)
+        sc = torch.stack([S(pl[:, 0]) / 3.0, pl[:, 0] / pl[:, 1].clamp(min=1), S(pl[:, 2]) / 3.0, S(pl[:, 3]), S(pl[:, 4]), S(pl[:, 5]),
+                          S(pl[:, 6]), S(pl[:, 7])], -1)
+        # all creatures' power lists in one pass: player, the 8 enemies, Osty
+        pw = torch.cat([pl[:, 8:8 + 2 * P].view(B, 1, P, 2), enemies[..., 8:8 + 2 * P].reshape(B, E, P, 2), osty[:, 4:4 + 2 * P].view(B, 1, P, 2)], 1)
+        pv = self.pp(pw)  # [B, 1 + E + 1, e]
+        ppow, epow, opow = pv[:, 0], pv[:, 1:1 + E], pv[:, -1]
+        rid = relics[..., 0].long().clamp(0, C["N_RELICS"])
+        rb = self.relic(rid, torch.stack([torch.ones_like(relics[..., 1]), S(relics[..., 1]) / 2.0], -1))
+        pid = potions[..., 0].long().clamp(0, C["N_POTIONS"])
+        pb = self.potion(pid).sum(1)
         orb_kind = orbs[:, :C["MAX_ORBS"] * 3].view(B, C["MAX_ORBS"], 3)
-        orb_e = self.orb(orb_kind[..., 0].long().clamp(0, self.orb.num_embeddings - 1)).flatten(1)
-        orb_v = torch.cat([orb_kind[..., 1:3].flatten(1) / 10.0, orbs[:, -1:] / 5.0], 1)
-        osty_f = torch.cat([osty[:, :4] / torch.tensor([1.0, 1.0, 50.0, 50.0], device=obs.device), self.pp(osty[:, 4:4 + 2 * P].view(B, P, 2))], 1)
-        pin = torch.cat([sc, gsc, stage, ppow, rb, pb, orb_e, orb_v, osty_f], 1)
-        player = self.player(pin)
+        orb_e = self.orb(orb_kind[..., 0].long().clamp(0, C["N_ORBS"] + 1)).flatten(1)
+        orb_v = torch.cat([S(orb_kind[..., 1:3].flatten(1)) / 2.0, S(orbs[:, -1:])], 1)
+        osty_f = torch.cat([osty[:, :2], S(osty[:, 2:4]) / 3.0, opow], 1)
+        player = self.player(torch.cat([sc, gsc, stage, ppow, rb, pb, orb_e, orb_v, osty_f], 1))
         # ---- enemies ----
         ep = enemies[..., 0] > 0.5
-        mon = self.mon(enemies[..., 2].long().clamp(0, self.mon.num_embeddings - 1))
-        epow = self.pp(enemies[..., 8:8 + 2 * P].view(B, E, P, 2))
-        esc = torch.stack([enemies[..., 3] / 100.0, enemies[..., 3] / enemies[..., 4].clamp(min=1), enemies[..., 5] / 50.0, enemies[..., 4] / 200.0,
+        mon = self.mon(enemies[..., 2].long().clamp(0, C["N_MONSTERS"]))
+        esc = torch.stack([S(enemies[..., 3]) / 3.0, enemies[..., 3] / enemies[..., 4].clamp(min=1), S(enemies[..., 5]) / 3.0, S(enemies[..., 4]) / 3.0,
                            enemies[..., 6], enemies[..., 7], ep.float()], -1)
-        iv = enemies[..., 8 + 2 * P:8 + 2 * P + 9].view(B, E, 3, 3)
+        iv = enemies[..., 8 + 2 * P:8 + 2 * P + 9].reshape(B, E, 3, 3)
         ie = self.kind(iv[..., 0].long().clamp(0, 15))
-        inum = torch.stack([iv[..., 1] / 30.0, iv[..., 2] / 5.0, iv[..., 1] * iv[..., 2] / 60.0], -1)
-        perf = enemies[..., 8 + 2 * P + 9:8 + 2 * P + 13].long().clamp(0, self.node.num_embeddings - 1)
+        inum = torch.stack([S(iv[..., 1]) / 2.0, S(iv[..., 2]), S(iv[..., 1] * iv[..., 2]) / 3.0], -1)
+        perf = enemies[..., 8 + 2 * P + 9:8 + 2 * P + 13].long().clamp(0, C["LOOK_NODES"] + 7)
         pe = self.node(perf).flatten(2)
-        lk = look.clone()
-        # expected damage columns are scaled down
-        lk = lk.view(B, E, C["LOOK_H"], C["LOOK_NODES"] + 1)
-        lk = torch.cat([lk[..., :-1], lk[..., -1:] / 50.0], -1).flatten(2)
-        ein = torch.cat([mon, epow, esc, torch.cat([ie, inum], -1).flatten(2), pe, lk], -1)
-        enemy = self.enemy(ein)
+        lk = torch.cat([look[..., :-1], S(look[..., -1:]) / 3.0], -1).flatten(2)
+        enemy = self.enemy(torch.cat([mon, epow, esc, torch.cat([ie, inum], -1).flatten(2), pe, lk], -1))
         cid = enemies[..., 1].long().clamp(0, C["MAX_CREATURES"] - 1)
         # ---- hand ----
-        hp_ = (hand[..., 0] > 0)
-        hextra = torch.stack([regent[:, :H], osty[:, -H:]], -1)
-        hand_t = self.card(hand, hextra)
+        hp_ = hand[..., 0] > 0
+        hand_t = self.card(hand, torch.stack([regent[:, :H], osty[:, -H:], torch.zeros_like(osty[:, -H:])], -1))
         # ---- potions ----
         pot_t = self.potion_enc(torch.cat([self.potion(pid), potions[..., 1:2]], -1))
         pot_p = pid > 0
-        # ---- decision candidates ----
-        cands = dec[:, 8:].view(B, Q, C["CARD_F"] + 1)
-        cextra = torch.stack([regent[:, H:H + Q], torch.zeros_like(regent[:, H:H + Q])], -1)
-        cand_t = self.card(cands[..., :C["CARD_F"]], cextra) + 0.0
-        sel = cands[..., C["CARD_F"]:C["CARD_F"] + 1]
-        cand_t = cand_t + sel * self.pos.new_ones(1, 1, d) * 0.5
+        # ---- decision: candidates only for the envs that have a pending selection ----
+        dec_on = dec[:, 0] > 0.5
+        rows = dec_on.nonzero().squeeze(1)
+        cands = dec[rows, 8:].view(len(rows), Q, C["CARD_F"] + 1)
+        rg = regent[rows, H:H + Q]
+        cand_t = self.card(cands[..., :C["CARD_F"]], torch.stack([rg, torch.zeros_like(rg), cands[..., C["CARD_F"]]], -1))
         cand_p = cands[..., 0] > 0
-        dsrc = self.dec_src(dec[:, 1].long().clamp(0, 9))
-        dh = torch.cat([dsrc, dec[:, 0:1], dec[:, 2:3] / 4.0, dec[:, 3:4] / 4.0, dec[:, 4:5] / 4.0, dec[:, 5:6], dec[:, 6:7], dec[:, 7:8] / 10.0], 1)
+        dh = torch.cat([self.dec_src(dec[:, 1].long().clamp(0, 9)), dec[:, 0:1], S(dec[:, 2:3]), S(dec[:, 3:4]), S(dec[:, 4:5]), dec[:, 5:6],
+                        dec[:, 6:7], S(dec[:, 7:8])], 1)
         dec_t = self.dec(dh)
-        dec_p = dec[:, 0] > 0.5
-        # ---- piles ----
+        # ---- piles: multiset of cards = bag of (plain / upgraded) card embeddings ----
         sizes = sl(obs, "pile_sizes")
-        pile_t = []
+        piles = []
         for k, nm in enumerate(["draw", "discard", "exhaust"]):
-            pv = sl(obs, nm).view(B, -1, 2)
-            ids = pv[..., 0].long().clamp(0, self.pile_card.num_embeddings - 1)
-            v = (self.pile_card(ids) + self.pile_up(pv[..., 1].long().clamp(0, 3))) * (ids > 0).unsqueeze(-1)
-            s = v.sum(1) / 4.0
-            pile_t.append(self.pile_enc[k](torch.cat([s, sizes[:, k:k + 1] / 20.0], 1)))
-        pile_t = torch.stack(pile_t, 1)
-        ones = torch.ones(B, 1, dtype=torch.bool, device=obs.device)
-        tok = torch.cat([player.unsqueeze(1), enemy, hand_t, pot_t, cand_t, pile_t, dec_t.unsqueeze(1)], 1) + self.pos
-        present = torch.cat([ones, ep, hp_, pot_p, cand_p, ones.expand(B, 3), dec_p.unsqueeze(1)], 1)
-        return tok, present, cid, ep
+            pv_ = sl(obs, nm).view(B, -1, 2)
+            L = max(1, int((pv_[..., 0] > 0).sum(1).max().item()))
+            pv_ = pv_[:, :L]
+            ids = pv_[..., 0].long().clamp(0, C["N_CARDS"])
+            up = (pv_[..., 1] > 0).float()
+            w = torch.stack([1.0 - up, up], -1) / 4.0
+            piles.append(self.pile_enc[k](torch.cat([self.pile(ids, w), S(sizes[:, k:k + 1]) / 3.0], 1)))
+        return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
+                    cand_p=cand_p, cid=cid, rows=rows)
 
     def forward(self, obs, mask):
         """Returns (masked logits [B, ACTION_SPACE], value [B])."""
         B = obs.shape[0]
         d = self.d
-        H, E, K, Q = C["MAX_HAND"], C["OBS_MAX_ENEMIES"], C["MAX_POTIONS"], C["OBS_MAX_CANDS"]
+        E, Q = C["OBS_MAX_ENEMIES"], C["OBS_MAX_CANDS"]
         T = C["MAX_CREATURES"]
-        tok, present, cid, ep = self.tokens(obs)
-        x = self.tf(tok, src_key_padding_mask=~present)
-        x = self.norm(x)
-        i = 0
-        ctx = x[:, 0]; i = 1
-        en = x[:, i:i + E]; i += E
-        hd = x[:, i:i + H]; i += H
-        pt = x[:, i:i + K]; i += K
-        cd = x[:, i:i + Q]; i += Q
-        pl3 = x[:, i:i + 3]; i += 3
-        dc = x[:, i]
-        pooled = (x * present.unsqueeze(-1)).sum(1) / present.sum(1, keepdim=True).clamp(min=1)
-        gctx = torch.cat([ctx, pooled], 1)
+        z = self.encode(obs)
+        player, enemy, hand, pot, cand = z["player"], z["enemy"], z["hand"], z["potion"], z["cand"]
+        ep, hp_, pot_p, cand_p = z["ep"].unsqueeze(-1), z["hp"].unsqueeze(-1), z["pot_p"].unsqueeze(-1), z["cand_p"].unsqueeze(-1)
+        rows = z["rows"]
+        E = enemy.shape[1]
+        zeros_c = torch.zeros(B, d, device=obs.device)
+        pile_cat = torch.cat(z["piles"], 1)
+        dec = z["dec"]
+        for r in range(self.rounds):
+            ctx = self.ctx[r](torch.cat([player, (enemy * ep).sum(1), (hand * hp_).sum(1), (pot * pot_p).sum(1), zeros_c.index_copy(0, rows, (cand * cand_p).sum(1) / 4.0),
+                                         pile_cat[:, :d], pile_cat[:, d:2 * d], pile_cat[:, 2 * d:], dec], 1))
+            u = self.upd[r]
+            player = player + u["player"](player.unsqueeze(1), ctx).squeeze(1)
+            enemy = enemy + u["enemy"](enemy, ctx)
+            hand = hand + u["hand"](hand, ctx)
+            pot = pot + u["potion"](pot, ctx)
+            if len(rows):
+                cand = cand + u["cand"](cand, ctx[rows])
+        gctx = torch.cat([player, ctx], 1)
         # targets: V[b, creature id] = v_tgt(enemy token); slot MAX_CREATURES = "no target"
-        v = self.v_tgt(en) * ep.unsqueeze(-1)
+        v = self.v_tgt(enemy) * ep
         V = torch.zeros(B, T + 1, d, device=obs.device, dtype=v.dtype)
         V[:, T] = self.v_none
-        V = V.scatter_add(1, cid.unsqueeze(-1).expand(-1, E, d), v)
+        V = V.scatter_add(1, z["cid"].unsqueeze(-1).expand(-1, E, d), v)
         scale = 1.0 / math.sqrt(d)
-        u = self.u_card(hd)
-        play = torch.einsum("bhd,btd->bht", u, V) * scale + self.b_card(hd)
-        up = self.u_pot(pt)
-        pot = torch.einsum("bkd,btd->bkt", up, V) * scale + self.b_pot(pt)
-        disc = self.disc_pot(pt).squeeze(-1)
-        pick_vis = self.pick(torch.cat([cd, dc.unsqueeze(1).expand(-1, Q, -1)], -1)).squeeze(-1)
-        pick = F.pad(pick_vis, (0, C["MAX_PICK"] - Q))
-        confirm = self.confirm(torch.cat([dc, ctx], 1))
+        play = torch.einsum("bhd,btd->bht", self.u_card(hand), V) * scale + self.b_card(hand)
+        pot_l = torch.einsum("bkd,btd->bkt", self.u_pot(pot), V) * scale + self.b_pot(pot)
+        disc = self.disc_pot(pot).squeeze(-1)
+        pick = torch.zeros(B, C["MAX_PICK"], device=obs.device)
+        if len(rows):
+            pv_ = self.pick(torch.cat([cand, dec[rows].unsqueeze(1).expand(-1, Q, -1)], -1)).squeeze(-1)
+            pick = pick.index_copy(0, rows, F.pad(pv_, (0, C["MAX_PICK"] - Q)))
+        confirm = self.confirm(torch.cat([dec, player], 1))
         end = self.end(gctx)
-        logits = torch.cat([end, play.flatten(1), pot.flatten(1), disc, pick, confirm], 1)
+        logits = torch.cat([end, play.flatten(1), pot_l.flatten(1), disc, pick, confirm], 1)
         logits = logits.masked_fill(mask == 0, -1e9)
-        value = self.value(gctx).squeeze(-1)
-        return logits, value
+        return logits, self.value(gctx).squeeze(-1)
 
 
 def n_params(m):
