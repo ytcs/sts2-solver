@@ -421,6 +421,12 @@ impl Combat {
         self.draw_susp.is_none() && (!self.play_stack.is_empty() || self.potion_ctx.is_some() || self.autoplay_shuffle_ok)
     }
 
+    /// Number of upgradable cards of the run deck (`PileType.Deck ... IsUpgradable`), through the deck-level upgrades made during
+    /// the combat (Improvement at combat end).
+    pub fn deck_upgradable_count(&self) -> usize {
+        (0..self.deck_len as usize).filter(|&i| self.deck_upgrade[i] < content::card_def(self.cards[i].id).max_upgrade).count()
+    }
+
     /// Position in the history log (see `drawn_since`).
     pub fn hist_mark(&self) -> u32 {
         self.hist_log.n

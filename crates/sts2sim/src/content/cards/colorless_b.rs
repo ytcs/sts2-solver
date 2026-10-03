@@ -74,8 +74,9 @@ listener!(BeatDown {
 // `StableShuffle` of the pile with the SHUFFLE stream. The resume phase is `iteration + 1`.
 listener!(Catastrophe {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        let n = cx.card_var(p.card, VarKind::Cards) as usize;
-        for i in (phase as usize)..n {
+        // (C# `i < DynamicVars.Cards.IntValue`: the bound is re-read every pass; an Apotheosis played by the loop upgrades this card)
+        let mut i = phase as usize;
+        while i < cx.card_var(p.card, VarKind::Cards) as usize {
             let mut playable: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
             for &c in cx.player.draw.iter() {
                 if cx.card_keywords(c) & kw::UNPLAYABLE == 0 {
@@ -97,6 +98,7 @@ listener!(Catastrophe {
                     return Flow::Suspend((i + 1) as u8);
                 }
             }
+            i += 1;
         }
         Flow::Done
     }

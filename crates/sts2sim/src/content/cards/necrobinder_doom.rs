@@ -130,6 +130,11 @@ listener!(TimesUp {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
         Flow::Done
     }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let doom = if cx.in_progress && target != NO { cx.power_amount(target, ids::power::DOOM_POWER) as i64 } else { 0 };
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * doom))
+    }
 });
 
 listener!(Countdown {

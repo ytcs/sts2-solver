@@ -253,6 +253,15 @@ listener!(PreciseCut {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
     }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        let mut in_hand = cx.player.hand.len() as i64;
+        if cx.card_pile_type(card) == PileType::Hand {
+            in_hand -= 1;
+        }
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * if cx.in_progress { -in_hand } else { 0 }))
+    }
 });
 
 // Base + extra per card discarded this turn.
@@ -263,6 +272,12 @@ listener!(MementoMori {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
     }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        let n = if cx.in_progress { cx.hist_count_this_turn(HKind::CardDiscarded, |_| true) as i64 } else { 0 };
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
+    }
 });
 
 // Base + extra per card drawn this combat.
@@ -272,6 +287,12 @@ listener!(Murder {
         let dmg = calculated(cx, p.card, VarKind::ExtraDamage, n);
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
+    }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        let n = if cx.in_progress { cx.hist_total(HKind::CardDrawn) as i64 } else { 0 };
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
     }
 });
 

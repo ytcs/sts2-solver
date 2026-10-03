@@ -216,6 +216,10 @@ listener!(GangUp {
         cx.execute_attack(&a);
         Flow::Done
     }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_gang_up(cx, card, target))
+    }
 });
 
 // 0 + 1 * (card plays finished so far this combat); Retain when upgraded (stat table).
@@ -233,6 +237,10 @@ listener!(GoldAxe {
         a.damage = d;
         cx.execute_attack(&a);
         Flow::Done
+    }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_gold_axe(cx, card, target))
     }
 });
 
@@ -393,6 +401,10 @@ listener!(MindBlast {
         a.damage = d;
         cx.execute_attack(&a);
         Flow::Done
+    }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_mind_blast(cx, card, target))
     }
 });
 
@@ -570,6 +582,10 @@ listener!(Rend {
         a.damage = d;
         cx.execute_attack(&a);
         Flow::Done
+    }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_rend(cx, card, target))
     }
 });
 

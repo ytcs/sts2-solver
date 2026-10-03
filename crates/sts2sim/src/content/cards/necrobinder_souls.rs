@@ -113,6 +113,12 @@ listener!(SoulStorm {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
         Flow::Done
     }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        let souls = if cx.in_progress { cx.player.exhaust.iter().filter(|&&c| cx.cards[c as usize].id == ids::card::SOUL).count() as i64 } else { 0 };
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * souls))
+    }
 });
 
 // ---- Ethereal / draw theme ----------------------------------------------------------------------------------------------

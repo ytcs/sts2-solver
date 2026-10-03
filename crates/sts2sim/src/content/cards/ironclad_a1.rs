@@ -263,6 +263,11 @@ listener!(AshenStrike {
         cx.execute_attack(&a);
         Flow::Done
     }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * if cx.in_progress { cx.player.exhaust.len() as i64 } else { 0 }))
+    }
 });
 
 listener!(Bludgeon {
@@ -278,6 +283,11 @@ listener!(BodySlam {
         let a = Attack::from_card_calc(PLAYER, p.card, Targeting::Single(p.target), |cx, _, _| cx.cr(PLAYER).block);
         cx.execute_attack(&a);
         Flow::Done
+    }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * if cx.in_progress { cx.cr(PLAYER).block as i64 } else { 0 }))
     }
 });
 
@@ -308,6 +318,11 @@ listener!(Bully {
         });
         cx.execute_attack(&a);
         Flow::Done
+    }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let m = if cx.in_progress && target != NO { cx.power_amount(target, ids::power::VULNERABLE_POWER) as i64 } else { 0 };
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * m))
     }
 });
 

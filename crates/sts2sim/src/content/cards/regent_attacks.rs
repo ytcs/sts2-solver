@@ -235,6 +235,13 @@ listener!(CrescentSpear {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, base + extra * n, Targeting::Single(p.target)));
         Flow::Done
     }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        let all_cards = cx.player_combat_cards();
+        let n = if cx.in_progress { all_cards.iter().filter(|&&c| cx.card_def(c).star_cost != -1).count() as i64 } else { 0 };
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
+    }
 });
 
 // 5 + Extra * (cards the player has generated this combat).
@@ -245,6 +252,12 @@ listener!(Supermassive {
         let n = cx.hist_log.generated_by_player as i32;
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, base + extra * n, Targeting::Single(p.target)));
         Flow::Done
+    }
+    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        let n = if cx.in_progress { cx.hist_log.generated_by_player as i64 } else { 0 };
+        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
     }
 });
 
