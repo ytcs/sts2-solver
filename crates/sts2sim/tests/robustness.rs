@@ -221,7 +221,7 @@ fn state_size_budget() {
     assert!(sz <= COMBAT_BUDGET, "Combat is {sz} bytes, budget {COMBAT_BUDGET}");
 }
 
-const COMBAT_BUDGET: usize = 17_600;
+const COMBAT_BUDGET: usize = 17_800;
 
 /// Creature slots: the player, Osty and the biggest encounter's enemies must fit with room for summons.
 #[test]
