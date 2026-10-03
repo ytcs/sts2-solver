@@ -68,4 +68,53 @@ public static class Fuzz
     }
 
     public static int StableHash(string s) { int h = 17; foreach (var c in s) h = unchecked(h * 31 + c); return h & 0x7fffffff; }
+
+    /// <summary>Metadata for external scenario generators (tools/fuzz_gen_orb_pet.py): encounters, card/relic/potion pools.</summary>
+    public static JsonObject ListMeta()
+    {
+        var o = new JsonObject();
+        var encs = new JsonArray();
+        foreach (var act in ModelDb.Acts)
+            foreach (var e in act.AllEncounters.Where(e => e != null))
+                encs.Add((JsonNode)new JsonObject { ["id"] = e.Id.Entry, ["act"] = act.Index, ["act_name"] = act.GetType().Name, ["room"] = e.RoomType.ToString(), ["weak"] = e.IsWeak });
+        foreach (var e in ModelDb.EventEncounters)
+            encs.Add((JsonNode)new JsonObject { ["id"] = e.Id.Entry, ["act"] = -1, ["act_name"] = "Event", ["room"] = e.RoomType.ToString(), ["weak"] = e.IsWeak });
+        o["encounters"] = encs;
+        JsonArray Cards(IEnumerable<CardModel> cs) { var a = new JsonArray(); foreach (var c in cs.OrderBy(c => c.Id.Entry, StringComparer.Ordinal)) a.Add((JsonNode)new JsonObject { ["id"] = c.Id.Entry, ["rarity"] = c.Rarity.ToString(), ["type"] = c.Type.ToString(), ["max_up"] = c.MaxUpgradeLevel, ["mp"] = c.MultiplayerConstraint.ToString(), ["target"] = c.TargetType.ToString() }); return a; }
+        JsonArray Ids(IEnumerable<string> ids) { var a = new JsonArray(); foreach (var i in ids.OrderBy(x => x, StringComparer.Ordinal)) a.Add((JsonNode)i); return a; }
+        var chars = new JsonObject();
+        foreach (var ch in ModelDb.AllCharacters)
+        {
+            chars[ch.Id.Entry] = new JsonObject
+            {
+                ["hp"] = ch.StartingHp,
+                ["starting_deck"] = Ids(ch.StartingDeck.Select(c => c.Id.Entry)),
+                ["starting_relics"] = Ids(ch.StartingRelics.Select(r => r.Id.Entry)),
+                ["cards"] = Cards(ch.CardPool.AllCards),
+                ["relics"] = Ids(ch.RelicPool.AllRelics.Select(r => r.Id.Entry)),
+                ["potions"] = Ids(ch.PotionPool.AllPotions.Select(p => p.Id.Entry)),
+            };
+        }
+        o["characters"] = chars;
+        o["colorless"] = Cards(ModelDb.CardPool<ColorlessCardPool>().AllCards);
+        o["curse"] = Cards(ModelDb.CardPool<CurseCardPool>().AllCards);
+        o["status"] = Cards(ModelDb.CardPool<StatusCardPool>().AllCards);
+        o["shared_relics"] = new JsonArray(ModelDb.RelicPool<SharedRelicPool>().AllRelics.OrderBy(r => r.Id.Entry, StringComparer.Ordinal).Select(r => (JsonNode)new JsonObject { ["id"] = r.Id.Entry, ["rarity"] = r.Rarity.ToString() }).ToArray());
+        var ens = new JsonArray();
+        foreach (var e in ModelDb.DebugEnchantments.OrderBy(e => e.Id.Entry, StringComparer.Ordinal))
+        {
+            if (e.GetType().Namespace != null && e.GetType().Namespace.Contains("Mock")) continue;
+            var ok = new JsonArray();
+            foreach (var c in ModelDb.AllCards.OrderBy(c => c.Id.Entry, StringComparer.Ordinal))
+            {
+                bool can = false;
+                try { can = e.CanEnchant(c); } catch { }
+                if (can) ok.Add((JsonNode)c.Id.Entry);
+            }
+            ens.Add((JsonNode)new JsonObject { ["id"] = e.Id.Entry, ["show_amount"] = e.ShowAmount, ["stackable"] = e.IsStackable, ["cards"] = ok });
+        }
+        o["enchantments"] = ens;
+        o["shared_potions"] = Ids(ModelDb.PotionPool<SharedPotionPool>().AllPotions.Select(p => p.Id.Entry));
+        return o;
+    }
 }

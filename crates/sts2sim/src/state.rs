@@ -350,7 +350,7 @@ pub struct Decision {
     pub source: DecisionSource,
     pub min: u8,
     pub max: u8,
-    pub cands: ArrayVec<CardIdx, 64>,
+    pub cands: ArrayVec<CardIdx, MAX_CARDS>,
     /// Candidate positions selected so far, in click order.
     pub selected: ArrayVec<u8, 16>,
     /// `RequireManualConfirmation` (`min != max`).
@@ -385,6 +385,8 @@ pub struct AutoQueue {
     pub force_exhaust: bool,
     /// `AutoPlayType.SlyDiscard` queue (else `Default`).
     pub sly: bool,
+    /// A plain list of `CardCmd.AutoPlay` calls (Eidolon): the cards' own exhaust-on-next-play flags are left alone.
+    pub plain: bool,
     /// Index in `play_stack` of the card play whose effect started the call (-1: none). The queue continues when the
     /// play above it finishes.
     pub owner: i8,
@@ -422,7 +424,7 @@ pub struct History {
     /// Bitset over card arena indices: cards with a `CardPlayFinishedEntry` this turn (Necrobinder).
     pub finished_cards: [u64; 3],
     /// Per-play scratch used by Serpent Form / Strangle: the power amount when `BeforeCardPlayed` ran for a card.
-    pub play_amounts: ArrayVec<PlayAmount, 16>,
+    pub play_amounts: ArrayVec<PlayAmount, 32>,
 }
 
 impl History {
@@ -486,6 +488,16 @@ pub struct Combat {
     pub draw_resume: Option<(i32, bool)>,
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
+    /// Nesting depth of `draw_cards_list` (a draw started by an `AfterCardDrawn` hook of another draw is depth 2).
+    pub draw_depth: u8,
+    /// A draw started by a card / potion effect that was interrupted by an `AfterShuffle` decision (Stratagem):
+    /// (cards still to draw, from_hand_draw). The effect's own code already returned; `resume_after_decision` finishes
+    /// the draw once the pick is made (see `draw_decision_resumable`).
+    pub draw_cont: Option<(i32, bool)>,
+    /// True while `resume_after_decision` finishes an interrupted draw (a further shuffle may ask again).
+    pub resuming_draw: bool,
+    /// >0 while a draw whose caller reads the drawn cards / asks right afterwards runs: its shuffle decisions cannot be paused.
+    pub draw_nosuspend: u8,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
     /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
     pub turn_cont: u8,
@@ -517,6 +529,8 @@ pub struct Combat {
     /// `AttackCommand.Results` (first 16 per-hit results) of the attack whose `after_attack` hooks are being dispatched
     /// (only filled when some listener has `after_attack`): Suck, Skittish.
     pub attack_results: ArrayVec<crate::engine::DamageResult, 16>,
+    /// Sizes of the per-hit groups of `attack_results` (C# `command.Results` is a list of per-hit result lists).
+    pub attack_hit_sizes: ArrayVec<u8, 16>,
     /// Side channel for `AfterAttack` (C# `command.Results`): set by `execute_attack` right before the hook pass.
     /// `attack_unblocked_hits` = results with unblocked damage > 0 (any receiver); `attack_player_hits` = those whose
     /// receiver is the player creature.

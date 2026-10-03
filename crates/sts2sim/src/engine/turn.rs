@@ -695,6 +695,15 @@ impl Combat {
                 return; // the hook's effect (e.g. a Sly auto-play) raised its own decision: that play resumes later
             }
         }
+        if let Some((n, from_hand)) = self.draw_cont.take() {
+            // the draw of a card / potion effect was interrupted by a Stratagem pick: draw the rest (it may shuffle and ask again)
+            self.resuming_draw = true;
+            self.draw_cards(n, from_hand);
+            self.resuming_draw = false;
+            if self.stage == Stage::AwaitChoice {
+                return;
+            }
+        }
         if self.enemy_cont.is_some() {
             self.resume_enemy_turn();
             return;

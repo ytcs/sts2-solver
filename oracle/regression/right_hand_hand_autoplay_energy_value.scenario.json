@@ -1,0 +1,118 @@
+{
+ "name": "right_hand_hand_autoplay_energy_value",
+ "ascension": 10,
+ "encounter": "LAGAVULIN_MATRIARCH_BOSS",
+ "character": "NECROBINDER",
+ "hp": 67,
+ "max_hp": 69,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "fz604551x19728999",
+ "total_floor": 17,
+ "act": 0,
+ "deck": [
+  {
+   "id": "BODYGUARD"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "UNLEASH"
+  },
+  {
+   "id": "REAP",
+   "upgrade": 1
+  },
+  {
+   "id": "FLATTEN"
+  },
+  {
+   "id": "RIGHT_HAND_HAND",
+   "upgrade": 1
+  },
+  {
+   "id": "FEAR"
+  },
+  {
+   "id": "FLATTEN",
+   "upgrade": 1
+  },
+  {
+   "id": "DREDGE"
+  },
+  {
+   "id": "AFTERLIFE",
+   "upgrade": 1
+  },
+  {
+   "id": "REAP"
+  },
+  {
+   "id": "UNDEATH",
+   "upgrade": 1
+  },
+  {
+   "id": "BANSHEES_CRY"
+  },
+  {
+   "id": "FEAR"
+  },
+  {
+   "id": "PURITY"
+  },
+  {
+   "id": "HIDDEN_GEM"
+  },
+  {
+   "id": "REAPER_FORM"
+  },
+  {
+   "id": "REANIMATE"
+  },
+  {
+   "id": "END_OF_DAYS",
+   "upgrade": 1
+  },
+  {
+   "id": "FLATTEN"
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "BOUND_PHYLACTERY",
+  "TINY_MAILBOX",
+  "SHOVEL",
+  "GNARLED_HAMMER",
+  "MEMBERSHIP_CARD"
+ ],
+ "potions": [
+  "DISTILLED_CHAOS",
+  "BONE_BREW"
+ ],
+ "note": "Right Hand Hand's AfterCardPlayedLate compares Resources.EnergyValue (cost of an auto-played card), not EnergySpent (0). Triggered via Distilled Chaos."
+}

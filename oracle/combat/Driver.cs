@@ -77,6 +77,7 @@ public sealed class Driver
     public int MaxSteps = 400;
     public int MaxRounds = 60;
     public Random RandomDriver;          // random mode
+    public double PlayBias;              // random mode: probability of dropping `end_turn` from the legal set when anything else is legal
     public string Result = "unfinished";
 
     public Driver(Scenario sc, TextWriter @out, Pump pump) { _sc = sc; _out = @out; _pump = pump; }
@@ -198,6 +199,7 @@ public sealed class Driver
         {
             _sel.RandomPolicy = RandomDriver;
             var legal = Legal();
+            if (PlayBias > 0 && legal.Count > 1 && RandomDriver.NextDouble() < PlayBias) legal = legal.Where(x => x.Kind != "end_turn").ToList();
             var a = legal[RandomDriver.Next(legal.Count)];
             Exec(a);
             steps++;

@@ -1,0 +1,90 @@
+{
+ "name": "calamity_nested_autoplay",
+ "ascension": 10,
+ "encounter": "MYSTERIOUS_KNIGHT_EVENT_ENCOUNTER",
+ "character": "DEFECT",
+ "hp": 82,
+ "max_hp": 118,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "fz400882x597519381",
+ "total_floor": 37,
+ "act": 2,
+ "deck": [
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DUALCAST"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "ZAP"
+  },
+  {
+   "id": "BARRAGE"
+  },
+  {
+   "id": "CALAMITY"
+  },
+  {
+   "id": "COLD_SNAP",
+   "upgrade": 1
+  },
+  {
+   "id": "THUNDER"
+  },
+  {
+   "id": "HAILSTORM"
+  },
+  {
+   "id": "TESLA_COIL",
+   "upgrade": 1
+  },
+  {
+   "id": "FOCUSED_STRIKE"
+  },
+  {
+   "id": "THE_GAMBIT"
+  },
+  {
+   "id": "FOCUSED_STRIKE",
+   "upgrade": 1
+  },
+  {
+   "id": "FOCUSED_STRIKE",
+   "upgrade": 1
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "CRACKED_CORE"
+ ],
+ "potions": [
+  "WEAK_POTION"
+ ],
+ "note": "Calamity + Uproar: an Attack auto-played inside an Attack play nests; the per-play dictionary must hold both entries (was a single aux slot)."
+}

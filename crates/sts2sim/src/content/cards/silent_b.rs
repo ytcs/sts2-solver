@@ -453,7 +453,7 @@ listener!(Prepared {
         match phase {
             0 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+                cx.draw_cards_nosuspend(n, false);
                 match cx.ask_hand(ids::card::PREPARED, n as u8, n as u8, |_, _| true) {
                     Ask::Resolved(cards) => discard_then(cx, cards.as_slice(), DONE),
                     Ask::Pending => Flow::Suspend(1),

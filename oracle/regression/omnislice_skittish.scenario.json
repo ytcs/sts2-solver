@@ -1,0 +1,84 @@
+{
+ "name": "omnislice_skittish",
+ "ascension": 10,
+ "encounter": "PHANTASMAL_GARDENERS_ELITE",
+ "character": "DEFECT",
+ "hp": 55,
+ "max_hp": 79,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "fz200580x813855336",
+ "total_floor": 7,
+ "act": 0,
+ "deck": [
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DUALCAST"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "ZAP"
+  },
+  {
+   "id": "HAILSTORM"
+  },
+  {
+   "id": "CONSUMING_SHADOW"
+  },
+  {
+   "id": "METEOR_STRIKE"
+  },
+  {
+   "id": "HOTFIX"
+  },
+  {
+   "id": "OMNISLICE",
+   "upgrade": 1
+  },
+  {
+   "id": "HUDDLE_UP"
+  },
+  {
+   "id": "IGNITION",
+   "upgrade": 1
+  },
+  {
+   "id": "REFRACT",
+   "upgrade": 1
+  },
+  {
+   "id": "SHADOW_SHIELD"
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "CRACKED_CORE"
+ ],
+ "potions": [],
+ "note": "Omnislice drives an AttackContext by hand: AfterAttack listeners (Skittish) must see its own results, not the previous attack's."
+}

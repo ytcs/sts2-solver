@@ -198,14 +198,20 @@ impl Combat {
         loc
     }
 
-    /// `GeneratePlayCount`: `(EnchantedReplayCount + 1)` through `Hook.ModifyCardPlayCount` (+ `AfterModifying...`).
-    pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> i32 {
-        let mut base = self.cards[c as usize].base_replay as i32;
+    /// `CardModel.GetEnchantedReplayCount`: `Enchantment?.EnchantPlayCount(BaseReplayCount) ?? BaseReplayCount`.
+    pub fn enchanted_replay_count(&self, c: CardIdx) -> i32 {
+        let base = self.cards[c as usize].base_replay as i32;
         if self.cards[c as usize].enchant != 0 {
             let me = self.enchantment_me(c);
-            base = content::listener(&me).enchant_play_count(self, me, base);
+            content::listener(&me).enchant_play_count(self, me, base)
+        } else {
+            base
         }
-        let mut count = base + 1;
+    }
+
+    /// `GeneratePlayCount`: `(EnchantedReplayCount + 1)` through `Hook.ModifyCardPlayCount` (+ `AfterModifying...`).
+    pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> i32 {
+        let mut count = self.enchanted_replay_count(c) + 1;
         if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
             let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
             let mut mods = super::Mods::new();
@@ -302,6 +308,10 @@ impl Combat {
                     match content::listener(&me).on_play(self, &p, phase) {
                         Flow::Done => {
                             self.play_stack[idx].step = PlayStep::After;
+                            if self.stage == Stage::AwaitChoice && self.draw_cont.is_some() {
+                                // the effect's draw was interrupted by a Stratagem pick: finish the rest after the pick
+                                return RunResult::Suspended;
+                            }
                         }
                         Flow::Suspend(next) => {
                             self.play_stack[idx].step = PlayStep::OnPlay(next);

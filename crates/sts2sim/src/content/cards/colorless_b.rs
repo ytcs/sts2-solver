@@ -31,9 +31,16 @@ fn beat_down_run(cx: &mut Combat, p: &CardPlay, start: usize) -> Flow {
             break;
         }
         let item = slots[i] - 1;
-        // The game picks the target itself (`NextItem(HittableEnemies)`, one `CombatTargets` draw) and then calls
-        // `AutoPlay(item, target)`; `auto_play` makes the identical single draw for an AnyEnemy card.
-        if cx.auto_play(item, NO, AutoPlayType::Default, false) == RunResult::Suspended {
+        // The card itself picks the target (`NextItem(HittableEnemies)`, one `CombatTargets` draw) BEFORE calling
+        // `AutoPlay(item, target)` -- so the draw happens even when AutoPlay then refuses to play the card (Sloth, ...).
+        let mut target = NO;
+        if cx.card_target_type(item) == TargetType::AnyEnemy {
+            let h = cx.hittable_enemies();
+            if !h.is_empty() {
+                target = h[cx.rng.combat_targets.next_int_range(0, h.len() as i32) as usize];
+            }
+        }
+        if cx.auto_play(item, target, AutoPlayType::Default, false) == RunResult::Suspended {
             return Flow::Suspend((i + 1) as u8);
         }
     }

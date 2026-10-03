@@ -1,0 +1,134 @@
+{
+ "name": "intends_to_attack_stunned",
+ "ascension": 10,
+ "encounter": "TUNNELER_WEAK",
+ "character": "DEFECT",
+ "hp": 65,
+ "max_hp": 93,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "fz903497x667584090",
+ "total_floor": 27,
+ "act": 1,
+ "deck": [
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DUALCAST"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "ZAP"
+  },
+  {
+   "id": "HAILSTORM"
+  },
+  {
+   "id": "SHADOW_SHIELD",
+   "upgrade": 1
+  },
+  {
+   "id": "COLD_SNAP",
+   "upgrade": 1
+  },
+  {
+   "id": "LIGHTNING_ROD"
+  },
+  {
+   "id": "THUNDER",
+   "upgrade": 1
+  },
+  {
+   "id": "FASTEN",
+   "upgrade": 1
+  },
+  {
+   "id": "SHADOW_SHIELD",
+   "upgrade": 1
+  },
+  {
+   "id": "BARRAGE"
+  },
+  {
+   "id": "COOLANT"
+  },
+  {
+   "id": "GOLD_AXE"
+  },
+  {
+   "id": "FUSION",
+   "upgrade": 1
+  },
+  {
+   "id": "BARRAGE"
+  },
+  {
+   "id": "GREED"
+  },
+  {
+   "id": "CAPACITOR"
+  },
+  {
+   "id": "FIGHT_THROUGH"
+  },
+  {
+   "id": "PROLONG",
+   "upgrade": 1
+  },
+  {
+   "id": "BALL_LIGHTNING",
+   "upgrade": 1
+  },
+  {
+   "id": "BALL_LIGHTNING"
+  },
+  {
+   "id": "GO_FOR_THE_EYES",
+   "upgrade": 1
+  },
+  {
+   "id": "HOTFIX"
+  },
+  {
+   "id": "GUNK_UP"
+  },
+  {
+   "id": "NULL",
+   "upgrade": 1
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "CRACKED_CORE",
+  "GNARLED_HAMMER",
+  "EMOTION_CHIP"
+ ],
+ "potions": [
+  "SHIP_IN_A_BOTTLE"
+ ],
+ "note": "Go for the Eyes on a stunned enemy: IntendsToAttack must go through move_view (synthetic STUNNED node), indexing the def panicked."
+}

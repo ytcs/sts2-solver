@@ -1,0 +1,119 @@
+{
+ "name": "eidolon_autoplay_suspend",
+ "ascension": 10,
+ "encounter": "WATERFALL_GIANT_BOSS",
+ "character": "NECROBINDER",
+ "hp": 271,
+ "max_hp": 271,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "fz500171x441337633",
+ "total_floor": 17,
+ "act": 0,
+ "deck": [
+  {
+   "id": "BODYGUARD"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "UNLEASH"
+  },
+  {
+   "id": "GRAVE_WARDEN",
+   "upgrade": 1
+  },
+  {
+   "id": "ROLLING_BOULDER",
+   "upgrade": 1
+  },
+  {
+   "id": "GRAVE_WARDEN",
+   "upgrade": 1
+  },
+  {
+   "id": "NEGATIVE_PULSE",
+   "upgrade": 1
+  },
+  {
+   "id": "EIDOLON"
+  },
+  {
+   "id": "ANOINTED"
+  },
+  {
+   "id": "SEEKER_STRIKE"
+  },
+  {
+   "id": "HAUNT",
+   "upgrade": 1
+  },
+  {
+   "id": "SCOURGE",
+   "upgrade": 1
+  },
+  {
+   "id": "CATASTROPHE"
+  },
+  {
+   "id": "SALVO"
+  },
+  {
+   "id": "SEANCE",
+   "upgrade": 1
+  },
+  {
+   "id": "VEILPIERCER",
+   "upgrade": 1
+  },
+  {
+   "id": "BONE_SHARDS"
+  },
+  {
+   "id": "THE_SCYTHE"
+  },
+  {
+   "id": "NECRO_MASTERY",
+   "upgrade": 1
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "BOUND_PHYLACTERY",
+  "STONE_CRACKER",
+  "UNSETTLING_LAMP",
+  "MUMMIFIED_HAND",
+  "REGAL_PILLOW",
+  "BIG_HAT"
+ ],
+ "potions": [
+  "SPEED_POTION",
+  "SWIFT_POTION"
+ ],
+ "note": "Eidolon auto-plays a list of exhausted Ethereal cards; a nested play that asks for a decision must suspend the rest of the list (was: loop ignored Suspended -> corrupted play stack)."
+}

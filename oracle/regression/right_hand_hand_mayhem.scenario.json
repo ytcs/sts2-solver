@@ -1,0 +1,131 @@
+{
+ "name": "right_hand_hand_mayhem",
+ "ascension": 10,
+ "encounter": "SCROLLS_OF_BITING_WEAK",
+ "character": "NECROBINDER",
+ "hp": 85,
+ "max_hp": 95,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "fz600946x80957329",
+ "total_floor": 35,
+ "act": 2,
+ "deck": [
+  {
+   "id": "BODYGUARD"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "UNLEASH"
+  },
+  {
+   "id": "DEATHBRINGER"
+  },
+  {
+   "id": "DISCOVERY",
+   "upgrade": 1
+  },
+  {
+   "id": "NO_ESCAPE"
+  },
+  {
+   "id": "SNAP"
+  },
+  {
+   "id": "THE_BOMB",
+   "upgrade": 1
+  },
+  {
+   "id": "RIGHT_HAND_HAND",
+   "upgrade": 1
+  },
+  {
+   "id": "AFTERLIFE",
+   "upgrade": 1
+  },
+  {
+   "id": "PUTREFY"
+  },
+  {
+   "id": "NEUROSURGE"
+  },
+  {
+   "id": "SPIRIT_OF_ASH",
+   "upgrade": 1
+  },
+  {
+   "id": "RATTLE",
+   "upgrade": 1
+  },
+  {
+   "id": "PANIC_BUTTON",
+   "upgrade": 1
+  },
+  {
+   "id": "DAZED"
+  },
+  {
+   "id": "MAYHEM",
+   "upgrade": 1
+  },
+  {
+   "id": "IMPATIENCE"
+  },
+  {
+   "id": "SCOURGE"
+  },
+  {
+   "id": "NEGATIVE_PULSE"
+  },
+  {
+   "id": "REAP"
+  },
+  {
+   "id": "REANIMATE",
+   "upgrade": 1
+  },
+  {
+   "id": "HAND_OF_GREED"
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "BOUND_PHYLACTERY",
+  "PRAYER_WHEEL",
+  "PEN_NIB",
+  "MYSTIC_LIGHTER",
+  "AKABEKO",
+  "SHURIKEN"
+ ],
+ "potions": [
+  "POTION_OF_DOOM",
+  "GAMBLERS_BREW"
+ ],
+ "note": "Same Right Hand Hand EnergyValue rule, triggered by a Mayhem auto-play at turn start."
+}

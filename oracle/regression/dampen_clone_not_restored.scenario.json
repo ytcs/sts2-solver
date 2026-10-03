@@ -1,0 +1,88 @@
+{
+ "name": "dampen_clone_not_restored",
+ "ascension": 10,
+ "encounter": "KNIGHTS_ELITE",
+ "character": "NECROBINDER",
+ "hp": 268,
+ "max_hp": 268,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "fz900471x435870993",
+ "total_floor": 41,
+ "act": 2,
+ "deck": [
+  {
+   "id": "BODYGUARD"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "UNLEASH"
+  },
+  {
+   "id": "SPLASH"
+  },
+  {
+   "id": "BONE_SHARDS",
+   "upgrade": 1
+  },
+  {
+   "id": "SNAP"
+  },
+  {
+   "id": "PULL_FROM_BELOW",
+   "upgrade": 1
+  },
+  {
+   "id": "HIGH_FIVE"
+  },
+  {
+   "id": "UNDEATH",
+   "upgrade": 1
+  },
+  {
+   "id": "BONE_SHARDS"
+  },
+  {
+   "id": "GOLD_AXE",
+   "upgrade": 1
+  },
+  {
+   "id": "PURITY"
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "BOUND_PHYLACTERY"
+ ],
+ "potions": [
+  "ATTACK_POTION",
+  "FRUIT_JUICE"
+ ],
+ "note": "Dampen restores only the cards it downgraded (dictionary keyed by card object): a clone made while Dampen is active (Undeath) stays downgraded."
+}

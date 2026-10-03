@@ -1,0 +1,134 @@
+{
+ "name": "hidden_gem_enchanted_replay",
+ "ascension": 10,
+ "encounter": "AXEBOTS_NORMAL",
+ "character": "DEFECT",
+ "hp": 282,
+ "max_hp": 282,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "fz1002569x478284532",
+ "total_floor": 37,
+ "act": 2,
+ "deck": [
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT",
+   "enchantment": {
+    "id": "GLAM",
+    "amount": 1
+   }
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DUALCAST"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "ZAP"
+  },
+  {
+   "id": "SEEKER_STRIKE"
+  },
+  {
+   "id": "CALAMITY",
+   "upgrade": 1
+  },
+  {
+   "id": "HIDDEN_GEM"
+  },
+  {
+   "id": "FUSION"
+  },
+  {
+   "id": "BARRAGE",
+   "upgrade": 1
+  },
+  {
+   "id": "COOLHEADED",
+   "upgrade": 1
+  },
+  {
+   "id": "FASTEN"
+  },
+  {
+   "id": "NULL",
+   "upgrade": 1
+  },
+  {
+   "id": "REGRET"
+  },
+  {
+   "id": "CONSUMING_SHADOW",
+   "upgrade": 1
+  },
+  {
+   "id": "ROLLING_BOULDER",
+   "upgrade": 1
+  },
+  {
+   "id": "INFECTION"
+  },
+  {
+   "id": "COOLHEADED"
+  },
+  {
+   "id": "HOTFIX"
+  },
+  {
+   "id": "SUNDER",
+   "upgrade": 1
+  },
+  {
+   "id": "INFECTION"
+  },
+  {
+   "id": "MULTI_CAST"
+  },
+  {
+   "id": "COLD_SNAP"
+  },
+  {
+   "id": "DARK_SHACKLES"
+  },
+  {
+   "id": "GLASSWORK",
+   "upgrade": 1
+  },
+  {
+   "id": "GLASSWORK",
+   "upgrade": 1
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "CRACKED_CORE",
+  "POWER_CELL",
+  "MEAT_ON_THE_BONE",
+  "GNARLED_HAMMER",
+  "ODDLY_SMOOTH_STONE"
+ ],
+ "potions": [],
+ "note": "Hidden Gem filters on GetEnchantedReplayCount() < 1 (Glam's pending replay counts), not on BaseReplayCount."
+}

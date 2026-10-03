@@ -117,7 +117,13 @@ impl Combat {
     pub fn run_potion(&mut self) {
         let Some(ctx) = self.potion_ctx else { return };
         let l = content::potion_listener(ctx.potion);
-        match l.on_use_potion(self, ctx.potion, ctx.target, ctx.phase) {
+        // phase 255: the effect already ran; only its interrupted draw (Stratagem pick) was pending
+        let r = if ctx.phase == 255 { Flow::Done } else { l.on_use_potion(self, ctx.potion, ctx.target, ctx.phase) };
+        if r == Flow::Done && ctx.phase != 255 && self.stage == Stage::AwaitChoice && self.draw_cont.is_some() {
+            self.potion_ctx = Some(PotionCtx { phase: 255, ..ctx });
+            return;
+        }
+        match r {
             Flow::Suspend(next) => {
                 self.potion_ctx = Some(PotionCtx { phase: next, ..ctx });
                 self.stage = Stage::AwaitChoice;

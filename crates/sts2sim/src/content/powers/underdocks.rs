@@ -29,7 +29,20 @@ listener!(SuckPower {
         if attack.dealer != me.owner || !attack.props.is_powered() {
             return;
         }
-        let n = cx.attack_results.iter().filter(|r| r.unblocked > 0).count() as i32;
+        // C# groups the results per hit; in a hit that damaged a pet (Osty took the damage) the owner's own result is dropped
+        // (`RemoveAll(r => r.Receiver == petHit.Receiver.PetOwner.Creature)`), and the hit counts when any remaining
+        // result has unblocked damage.
+        let mut n = 0;
+        let mut at = 0usize;
+        for &sz in cx.attack_hit_sizes.iter() {
+            let end = (at + sz as usize).min(cx.attack_results.len());
+            let group = &cx.attack_results.as_slice()[at..end];
+            at += sz as usize;
+            let pet_hit = group.iter().any(|r| cx.cr(r.receiver).is_pet);
+            if group.iter().any(|r| r.unblocked > 0 && !(pet_hit && r.receiver == PLAYER)) {
+                n += 1;
+            }
+        }
         if n > 0 {
             let a = amount(cx, &me);
             cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int((a * n) as i64), me.owner, NO);

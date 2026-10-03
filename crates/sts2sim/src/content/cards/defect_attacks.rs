@@ -162,7 +162,7 @@ listener!(Scrape {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
         let n = cx.card_var(p.card, VarKind::Cards);
-        let drawn = cx.draw_cards_list(n, false);
+        let drawn = cx.draw_cards_list_nosuspend(n, false);
         let mut discard: crate::util::ArrayVec<CardIdx, MAX_HAND> = crate::util::ArrayVec::new();
         for &c in drawn.iter() {
             if cx.card_cost(c, true) != 0 || cx.card_def(c).x_cost {
