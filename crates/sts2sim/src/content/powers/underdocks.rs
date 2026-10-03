@@ -29,7 +29,7 @@ listener!(SuckPower {
         if attack.dealer != me.owner || !attack.props.is_powered() {
             return;
         }
-        let n = cx.attack_results.iter().filter(|r| r.unblocked > 0).count() as i32;
+        let n = cx.attack_unblocked_hits as i32; // (counted over every result of the attack)
         if n > 0 {
             let a = amount(cx, &me);
             cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int((a * n) as i64), me.owner, NO);

@@ -63,7 +63,11 @@ impl Combat {
     /// A fresh mutable orb (`ModelDb.Orb<T>().ToMutable()`).
     pub fn new_orb(&mut self, kind: u16) -> Orb {
         let uid = self.player.next_orb_uid;
-        self.player.next_orb_uid = uid.wrapping_add(1);
+        let (next, wrapped) = uid.overflowing_add(1);
+        if wrapped {
+            crate::util::raise_overflow(crate::state::ov::COUNTER as u32);
+        }
+        self.player.next_orb_uid = next;
         let val = match kind {
             ids::orb::DARK_ORB => 6,
             ids::orb::GLASS_ORB => 4,

@@ -25,7 +25,7 @@ impl BatchEnvPy {
             return Err(PyValueError::new_err("no scenarios"));
         }
         let env = BatchEnv::try_new(n_envs, Box::new(PoolScenario::new(scs)), cfg, max_steps, seed)
-            .map_err(|e| PyValueError::new_err(format!("scenario cannot be started: {e:?}")))?;
+            .map_err(|e| PyValueError::new_err(format!("cannot create the env: {e:?}")))?;
         Ok(BatchEnvPy { env })
     }
 
@@ -33,8 +33,7 @@ impl BatchEnvPy {
         let o = obs.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let m = mask.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let env = &mut self.env;
-        py.detach(|| env.observe_all(o, m));
-        Ok(())
+        py.detach(|| env.observe_all(o, m)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -59,8 +58,7 @@ impl BatchEnvPy {
         let oc = outcome.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let il = illegal.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let env = &mut self.env;
-        py.detach(|| env.step(a, StepOut { obs: o, mask: m, reward: r, done: d, outcome: oc, illegal: il }));
-        Ok(())
+        py.detach(|| env.step(a, StepOut { obs: o, mask: m, reward: r, done: d, outcome: oc, illegal: il })).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 }
 

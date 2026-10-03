@@ -5,7 +5,8 @@ The RL environment must expose exactly what a human player can do and see. This 
 
 ## Choice space (`Combat::legal_actions`, `Action`)
 
-Dense action space of `ACTION_SPACE` indices (`Action::index` / `from_index`, mask via `Combat::action_mask`):
+Dense action space of `ACTION_SPACE` indices (`Action::index` / `from_index`, mask via `Combat::action_mask`; 252 with `MAX_CREATURES = 12`,
+always read the constant, never hard-code it):
 
 | Action | Legal when | Notes |
 |---|---|---|
@@ -71,6 +72,51 @@ displayed intent. `observe::hidden_state_does_not_leak` perturbs these and asser
 
 Assumptions to verify against the real UI via the oracle: discard/exhaust piles are shown in pile order; "known top
 card" information (after put-on-top effects) is not tracked yet (a human would remember it).
+
+## Episode outcomes and aborted episodes (`sts2env`, `sts2.VecEnv`)
+
+`step` returns `done[i] = 1` when an episode ended; `outcome[i]` tells how (`sts2env::OUTCOME_*`, mirrored in `sts2.OUTCOME_*`):
+
+| code | name | reward | meaning |
+|---|---|---|---|
+| 1 | `OUTCOME_WIN` | `win + hp_bonus * hp / max_hp` | victory |
+| -1 | `OUTCOME_LOSS` | `loss` | defeat |
+| 2 | `OUTCOME_TRUNCATED` | `step` only | hit `max_steps` |
+| 3 | `OUTCOME_UNIMPLEMENTED` | `step` only | the fight touched content that is not ported (`Combat::missing`) |
+| 4 | `OUTCOME_OVERFLOW` | `step` only | a fixed capacity of the simulator was exceeded and data was dropped (`Combat::overflow`) |
+
+Codes 2-4 are **truncations**: bootstrap from the value of the last state, never treat them as win/loss. 3 and 4 mean the fight can no longer be
+guaranteed faithful to the real game.
+
+### Capacities (what can overflow, and what happens)
+Nothing in the simulator panics or silently drops data when a fixed-capacity container is full. A full `ArrayVec` ignores the push and raises a
+thread-local flag (`util::raise_overflow`); `Combat::step` (and `sync_overflow`, called by the env after `observe`) folds it into the sticky
+`Combat::overflow` bitset (`state::ov::*`: `CONTAINER`, `CARDS`, `CREATURES`, `HISTORY`, `COUNTER`, `SCENARIO`). `sts2diff` reports it as a
+simulator error, `BatchEnv` as `OUTCOME_OVERFLOW`. Invalid scenarios are errors (`Combat::try_new`, `ScenarioError`), never panics.
+
+| resource | capacity | exceeded |
+|---|---|---|
+| card arena (deck + every generated card; cards are never recycled) | `MAX_CARDS` = 160 | `ov::CARDS` |
+| deck at combat start | `MAX_DECK` = 80 | `ScenarioError::DeckTooLarge` |
+| each pile | 160 (= arena) | cannot exceed the arena |
+| hand | 10 (game rule; extra cards go to the discard pile) | - |
+| creatures (player + Osty + enemies, incl. summons) | `MAX_CREATURES` = 12 (largest encounter starts with 4 enemies) | `ov::CREATURES` |
+| powers per creature | `MAX_POWERS` = 16 | `ov::CONTAINER` |
+| relics / potions / orbs | 24 / 4 / 10 | `ScenarioError` |
+| hook listeners of one dispatch (snapshot) | 256 | `ov::CONTAINER` |
+| per-attack results | 64 (first 16 are visible to `after_attack` listeners) | `ov::CONTAINER` |
+| decision candidates | 64 (= `MAX_PICK`, the action space addresses `Pick{0..64}`) | `ov::CONTAINER` |
+| selected cards of a decision / choice | 16 | `ov::CONTAINER` |
+| history ring (this-turn / last-turn queries) | 128 entries of the queried kinds | `ov::HISTORY` when an entry of the current or previous player turn is overwritten |
+| whole-combat counters (`hist_total` ...) | 65535 | `ov::COUNTER` |
+
+Observation limits (the observation is a fixed-size window, not a state copy): 8 enemies, 16 powers per creature, 64 cards per pile list, 16
+decision candidates. Beyond that the extra entries are simply not visible to the agent (the simulation itself is unaffected).
+
+## Resetting in place
+`Combat::reset(&Scenario)` / `reset_with` / `reset_validated` re-initialise an existing combat (no 17 KB construct-and-copy); `BatchEnv` resets finished
+episodes through `reset_validated` with an allocation-free `ScenarioSource::pick`. A reset combat is bit-identical to `Combat::new` (tested, and
+replayed against the oracle with `STS2DIFF_REUSE=1`).
 
 ## Throughput (this machine, release, random policy, observation + legal actions every step)
 ~0.26M steps/s/thread, ~2M steps/s on 14 threads (observation encoding is the main cost; room to optimise).

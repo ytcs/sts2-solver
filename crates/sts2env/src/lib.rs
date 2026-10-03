@@ -113,12 +113,34 @@ struct Slot {
     episode: u64,
 }
 
+/// Why a `BatchEnv` call failed (always a caller / scenario error: stepping itself never fails or panics).
+#[derive(Debug)]
+pub enum EnvError {
+    /// A scenario of the source cannot be started (unported content, does not fit the fixed capacities, ...).
+    Scenario(ScenarioError),
+    /// The worker thread pool could not be created.
+    Pool(String),
+    /// An output / input buffer is shorter than `n_envs` rows.
+    Buffer(&'static str),
+}
+impl From<ScenarioError> for EnvError {
+    fn from(e: ScenarioError) -> EnvError {
+        EnvError::Scenario(e)
+    }
+}
+
+/// Stack size of the env worker threads. The per-env work (a full `Combat::step` + observation, with hooks calling hooks)
+/// is a deep call tree with kilobyte frames; rayon nests such tasks on the stack while it work-steals, which overflowed the
+/// 2 MB default of the global pool now and then. (Virtual memory only: pages are committed when touched.)
+const WORKER_STACK: usize = 32 << 20;
+
 pub struct BatchEnv {
     slots: Vec<Slot>,
     source: Box<dyn ScenarioSource>,
     reward_cfg: RewardConfig,
     max_steps: u32,
     base_seed: u64,
+    pool: rayon::ThreadPool,
 }
 
 /// Per-step outputs (all slices have one entry per env; `obs` and `mask` are row-major `[n, OBS_SIZE]`/`[n, ACTION_SPACE]`).
@@ -151,24 +173,89 @@ fn start_episode(source: &dyn ScenarioSource, env: usize, episode_seed: u64, cx:
     }
 }
 
+/// One env, one step. Deliberately NOT inlined into the rayon closure: the engine inlined here has a frame of many kilobytes,
+/// and rayon's recursive splitting would otherwise stack one such frame per recursion level.
+#[inline(never)]
+#[allow(clippy::too_many_arguments)]
+fn step_one(
+    cfg: RewardConfig,
+    max_steps: u32,
+    base: u64,
+    source: &dyn ScenarioSource,
+    env: usize,
+    slot: &mut Slot,
+    a: i32,
+    obs: &mut [f32],
+    mask: &mut [u8],
+    reward: &mut f32,
+    done: &mut u8,
+    outcome: &mut i8,
+    illegal: &mut u8,
+) {
+    *reward = cfg.step;
+    *done = 0;
+    *outcome = OUTCOME_ONGOING;
+    *illegal = 0;
+    let ok = match Action::from_index(a as usize) {
+        Some(act) => slot.cx.step(act),
+        None => false,
+    };
+    if !ok {
+        *illegal = 1;
+    } else {
+        slot.steps += 1;
+    }
+    let mut end = None;
+    if slot.cx.missing.is_some() {
+        end = Some((OUTCOME_UNIMPLEMENTED, 0.0));
+    } else if slot.cx.overflow != 0 {
+        end = Some((OUTCOME_OVERFLOW, 0.0));
+    } else if slot.cx.stage == Stage::Over {
+        let c = &slot.cx;
+        let me = c.cr(0);
+        match c.outcome {
+            Outcome::Victory => end = Some((OUTCOME_WIN, cfg.win + cfg.hp_bonus * me.hp as f32 / me.max_hp.max(1) as f32)),
+            _ => end = Some((OUTCOME_LOSS, cfg.loss)),
+        }
+    } else if slot.steps >= max_steps {
+        end = Some((OUTCOME_TRUNCATED, 0.0));
+    }
+    if let Some((oc, r)) = end {
+        *done = 1;
+        *outcome = oc;
+        *reward += r;
+        slot.episode += 1;
+        slot.steps = 0;
+        start_episode(source, env, BatchEnv::episode_seed(base, env, slot.episode), &mut slot.cx);
+    }
+    write_obs_mask(&mut slot.cx, obs, mask);
+}
+
 impl BatchEnv {
-    /// Panics if a scenario of the source is invalid (construction time only); see [`BatchEnv::try_new`].
+    /// Panics if the env cannot be created (construction time only); see [`BatchEnv::try_new`].
     pub fn new(n: usize, source: Box<dyn ScenarioSource>, reward_cfg: RewardConfig, max_steps: u32, base_seed: u64) -> BatchEnv {
-        Self::try_new(n, source, reward_cfg, max_steps, base_seed).expect("invalid scenario")
+        Self::try_new(n, source, reward_cfg, max_steps, base_seed).expect("cannot create the batch env")
     }
 
     /// Builds `n` envs; fails (instead of panicking later) if the first scenario of any env cannot be started.
-    pub fn try_new(n: usize, source: Box<dyn ScenarioSource>, reward_cfg: RewardConfig, max_steps: u32, base_seed: u64) -> Result<BatchEnv, ScenarioError> {
+    pub fn try_new(n: usize, source: Box<dyn ScenarioSource>, reward_cfg: RewardConfig, max_steps: u32, base_seed: u64) -> Result<BatchEnv, EnvError> {
         source.validate()?;
-        let slots: Result<Vec<Slot>, ScenarioError> = (0..n)
-            .into_par_iter()
-            .map(|i| {
-                let episode = Self::episode_seed(base_seed, i, 0);
-                let sc = source.sample(i, episode);
-                Ok(Slot { cx: Combat::try_new(&sc)?, steps: 0, episode: 0 })
-            })
-            .collect();
-        Ok(BatchEnv { slots: slots?, source, reward_cfg, max_steps, base_seed })
+        let pool = rayon::ThreadPoolBuilder::new()
+            .stack_size(WORKER_STACK)
+            .thread_name(|i| format!("sts2-env-{i}"))
+            .build()
+            .map_err(|e| EnvError::Pool(e.to_string()))?;
+        let slots: Result<Vec<Slot>, ScenarioError> = pool.install(|| {
+            (0..n)
+                .into_par_iter()
+                .map(|i| {
+                    let episode = Self::episode_seed(base_seed, i, 0);
+                    let sc = source.sample(i, episode);
+                    Ok(Slot { cx: Combat::try_new(&sc)?, steps: 0, episode: 0 })
+                })
+                .collect()
+        });
+        Ok(BatchEnv { slots: slots?, source, reward_cfg, max_steps, base_seed, pool })
     }
 
     #[inline]
@@ -184,69 +271,72 @@ impl BatchEnv {
         self.slots.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.slots.is_empty()
+    }
+
     /// Writes the current observation / mask of every env (e.g. after construction).
-    pub fn observe_all(&mut self, obs: &mut [f32], mask: &mut [u8]) {
-        self.slots.par_iter_mut().zip(obs.par_chunks_mut(OBS_SIZE)).zip(mask.par_chunks_mut(ACTION_SPACE)).for_each(|((s, o), m)| {
-            write_obs_mask(&mut s.cx, o, m);
+    pub fn observe_all(&mut self, obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
+        let n = self.slots.len();
+        if obs.len() < n * OBS_SIZE {
+            return Err(EnvError::Buffer("obs buffer shorter than n_envs * OBS_SIZE"));
+        }
+        if mask.len() < n * ACTION_SPACE {
+            return Err(EnvError::Buffer("mask buffer shorter than n_envs * ACTION_SPACE"));
+        }
+        let slots = &mut self.slots;
+        self.pool.install(|| {
+            slots
+                .par_iter_mut()
+                .zip(obs[..n * OBS_SIZE].par_chunks_mut(OBS_SIZE))
+                .zip(mask[..n * ACTION_SPACE].par_chunks_mut(ACTION_SPACE))
+                .for_each(|((s, o), m)| observe_one(s, o, m));
         });
+        Ok(())
     }
 
     /// Applies one action per env (`actions[i]` is a dense action index), auto-resetting finished episodes.
-    pub fn step(&mut self, actions: &[i32], out: StepOut) {
+    pub fn step(&mut self, actions: &[i32], out: StepOut) -> Result<(), EnvError> {
+        let n = self.slots.len();
+        if actions.len() < n {
+            return Err(EnvError::Buffer("actions shorter than n_envs"));
+        }
+        if out.obs.len() < n * OBS_SIZE {
+            return Err(EnvError::Buffer("obs buffer shorter than n_envs * OBS_SIZE"));
+        }
+        if out.mask.len() < n * ACTION_SPACE {
+            return Err(EnvError::Buffer("mask buffer shorter than n_envs * ACTION_SPACE"));
+        }
+        if out.reward.len() < n || out.done.len() < n || out.outcome.len() < n || out.illegal.len() < n {
+            return Err(EnvError::Buffer("reward / done / outcome / illegal shorter than n_envs"));
+        }
         let cfg = self.reward_cfg;
         let max_steps = self.max_steps;
         let base = self.base_seed;
         let source = &*self.source;
-        self.slots
-            .par_iter_mut()
-            .enumerate()
-            .zip(actions.par_iter())
-            .zip(out.obs.par_chunks_mut(OBS_SIZE))
-            .zip(out.mask.par_chunks_mut(ACTION_SPACE))
-            .zip(out.reward.par_iter_mut())
-            .zip(out.done.par_iter_mut())
-            .zip(out.outcome.par_iter_mut())
-            .zip(out.illegal.par_iter_mut())
-            .for_each(|((((((((env, slot), &a), obs), mask), reward), done), outcome), illegal)| {
-                *reward = cfg.step;
-                *done = 0;
-                *outcome = OUTCOME_ONGOING;
-                *illegal = 0;
-                let ok = match Action::from_index(a as usize) {
-                    Some(act) => slot.cx.step(act),
-                    None => false,
-                };
-                if !ok {
-                    *illegal = 1;
-                } else {
-                    slot.steps += 1;
-                }
-                let mut end = None;
-                if slot.cx.missing.is_some() {
-                    end = Some((OUTCOME_UNIMPLEMENTED, 0.0));
-                } else if slot.cx.overflow != 0 {
-                    end = Some((OUTCOME_OVERFLOW, 0.0));
-                } else if slot.cx.stage == Stage::Over {
-                    let c = &slot.cx;
-                    let me = c.cr(0);
-                    match c.outcome {
-                        Outcome::Victory => end = Some((OUTCOME_WIN, cfg.win + cfg.hp_bonus * me.hp as f32 / me.max_hp.max(1) as f32)),
-                        _ => end = Some((OUTCOME_LOSS, cfg.loss)),
-                    }
-                } else if slot.steps >= max_steps {
-                    end = Some((OUTCOME_TRUNCATED, 0.0));
-                }
-                if let Some((oc, r)) = end {
-                    *done = 1;
-                    *outcome = oc;
-                    *reward += r;
-                    slot.episode += 1;
-                    slot.steps = 0;
-                    start_episode(source, env, BatchEnv::episode_seed(base, env, slot.episode), &mut slot.cx);
-                }
-                write_obs_mask(&mut slot.cx, obs, mask);
-            });
+        let slots = &mut self.slots;
+        self.pool.install(|| {
+            slots
+                .par_iter_mut()
+                .enumerate()
+                .zip(actions[..n].par_iter())
+                .zip(out.obs[..n * OBS_SIZE].par_chunks_mut(OBS_SIZE))
+                .zip(out.mask[..n * ACTION_SPACE].par_chunks_mut(ACTION_SPACE))
+                .zip(out.reward[..n].par_iter_mut())
+                .zip(out.done[..n].par_iter_mut())
+                .zip(out.outcome[..n].par_iter_mut())
+                .zip(out.illegal[..n].par_iter_mut())
+                .for_each(|((((((((env, slot), &a), obs), mask), reward), done), outcome), illegal)| {
+                    step_one(cfg, max_steps, base, source, env, slot, a, obs, mask, reward, done, outcome, illegal)
+                });
+        });
+        Ok(())
     }
+}
+
+#[inline(never)]
+fn observe_one(s: &mut Slot, obs: &mut [f32], mask: &mut [u8]) {
+    write_obs_mask(&mut s.cx, obs, mask);
 }
 
 /// Observation + action mask of one env. `can_play` of the hand is evaluated once (by `legal_actions_ex`) and shared with the

@@ -648,7 +648,8 @@ impl Combat {
     /// Capacity overflows anywhere below (a full `ArrayVec`, card arena, history ring ...) are folded into
     /// [`Combat::overflow`] when the step returns; a non-zero flag means the fight is no longer faithful.
     pub fn step(&mut self, a: Action) -> bool {
-        crate::util::take_overflow(); // (drop stale bits raised by another combat / an observation on this thread)
+        // (fold, never drop: bits raised by an `observe` / `legal_actions` call on this combat that nobody synced yet belong to it)
+        self.sync_overflow();
         let ok = self.step_inner(a);
         self.sync_overflow();
         ok

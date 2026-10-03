@@ -244,3 +244,36 @@ fn every_encounter_fits_the_creature_slots() {
     println!("largest encounter: {worst} with {max} enemies (MAX_CREATURES = {MAX_CREATURES})");
     assert!(max + 2 <= MAX_CREATURES, "{worst}: {max} enemies leave no room for the player + a pet");
 }
+
+/// Overflow raised by an `observe` / `legal_actions` call that nobody synced must not be lost by the next `step`.
+#[test]
+fn step_folds_unsynced_overflow() {
+    let mut cx = Combat::new(&scenario(ids::encounter::NIBBITS_WEAK, 10, 1));
+    sts2sim::util::take_overflow();
+    sts2sim::util::raise_overflow(sts2sim::util::OV_CONTAINER);
+    let mut buf = ActionBuf::new();
+    cx.legal_actions(&mut buf);
+    assert!(cx.step(buf[buf.len() - 1]));
+    assert!(cx.overflow & ov::CONTAINER != 0);
+}
+
+/// Overwriting history entries that no query can ask for any more (an old player turn) is silent; live ones are flagged.
+#[test]
+fn history_window_flags_only_live_entries() {
+    // entries of an old player turn are not live: overwriting them is silent
+    let mut cx = Combat::new(&scenario(ids::encounter::NIBBITS_WEAK, 10, 1));
+    sts2sim::util::take_overflow();
+    let used = cx.hist_log.n as usize; // (the opening hand is already logged)
+    for _ in 0..sts2sim::engine::HIST_CAP - used {
+        cx.hist_push(HKind::CardDrawn, PLAYER, NO, 0, NO, 0, 0, 0, 0);
+    }
+    assert_eq!(cx.overflow, 0);
+    cx.sync_overflow();
+    assert_eq!(cx.overflow, 0, "filling the ring exactly must not flag");
+    cx.player.turn_number += 3; // three player turns later: the first ring contents are dead
+    for _ in 0..sts2sim::engine::HIST_CAP {
+        cx.hist_push(HKind::CardDrawn, PLAYER, NO, 0, NO, 0, 0, 0, 0);
+    }
+    cx.sync_overflow();
+    assert_eq!(cx.overflow, 0, "overwriting dead entries must not flag");
+}

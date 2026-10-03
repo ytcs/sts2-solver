@@ -383,9 +383,13 @@ impl Combat {
         }
         self.hist_push(HKind::CreatureAttacked, a.dealer, NO, 0, a.card, all.len() as i32, 0, a.props.0, 0);
         if self.listen.has(hookbit::after_attack) {
+            // The listeners that read the list (`SkittishPower`) look for the first result of one receiver: keep exactly that, so
+            // the list is bounded by the number of creatures however many hits the attack had.
             self.attack_results.clear();
-            for x in all.iter().take(16) {
-                self.attack_results.push(*x);
+            for x in all.iter() {
+                if !self.attack_results.iter().any(|r| r.receiver == x.receiver) {
+                    self.attack_results.push(*x);
+                }
             }
             self.attack_unblocked_hits = all.iter().filter(|r| r.unblocked > 0).count() as u8;
             self.attack_player_hits = all.iter().filter(|r| r.unblocked > 0 && r.receiver == PLAYER).count() as u8;

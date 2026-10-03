@@ -108,7 +108,11 @@ impl Combat {
             return Some(uid);
         }
         let uid = self.next_power_uid;
-        self.next_power_uid = self.next_power_uid.wrapping_add(1);
+        let (next, wrapped) = self.next_power_uid.overflowing_add(1);
+        if wrapped {
+            crate::util::raise_overflow(ov::COUNTER as u32); // a power uid is reused: instances could be confused
+        }
+        self.next_power_uid = next;
         self.listen |= content::power_mask(id);
         if !content::power_implemented(id) {
             self.flag_missing(Kind::Power, id);

@@ -315,8 +315,8 @@ impl Combat {
     /// auto-plays the hand; `Combat::auto_select`).
     fn auto_selected(&self, cands: &ArrayVec<CardIdx, 64>, max: usize) -> ArrayVec<CardIdx, 16> {
         let mut v = ArrayVec::new();
-        for &c in cands.iter().take(max).take(16) {
-            v.push(c);
+        for &c in cands.iter().take(max) {
+            v.push(c); // (a full list flags the overflow)
         }
         v
     }
@@ -330,8 +330,8 @@ impl Combat {
         let manual = min != max;
         if !manual && cands.len() <= min as usize {
             let mut all = ArrayVec::new();
-            for &c in cands.iter().take(16) {
-                all.push(c);
+            for &c in cands.iter() {
+                all.push(c); // (a full list flags the overflow)
             }
             return Ask::Resolved(all);
         }

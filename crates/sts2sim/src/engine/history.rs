@@ -49,6 +49,13 @@ pub enum HKind {
 pub const HKIND_COUNT: usize = 17;
 
 impl HKind {
+    /// Kinds that `hist_any_last_player_turn` is asked about (`HappenedLastPlayerTurn`): their entries stay live for a second
+    /// player turn. A new last-turn query of another kind must be added here (debug-asserted in `hist_any_last_player_turn`).
+    #[inline(always)]
+    pub const fn keeps_last_turn(self) -> bool {
+        matches!(self, HKind::DamageReceived | HKind::CardPlayStarted)
+    }
+
     /// Whether entries of this kind are stored in the per-turn ring. The others are only counted (`HistLog::total`): no
     /// content queries them per turn, and keeping them out of the ring leaves its capacity to the kinds that are queried
     /// (`hist_count_this_turn` / `hist_any_last_player_turn` / `HistLog::iter`). A new per-turn query of one of these kinds
@@ -157,13 +164,18 @@ impl Combat {
         }
         let n = self.hist_log.n as usize;
         let i = n % HIST_CAP;
-        // The ring forgets its oldest entry. That is only harmless if no query can still ask for it: the queries are
-        // "this turn" and "last player turn", so overwriting an entry of either window loses data -> flag it.
+        // The ring forgets its oldest entry. That is only harmless if no query can still ask for it. The queries are
+        // "this turn" (same round / side / player turn) for every kind and "last player turn" (turn == current - 1, side ignored,
+        // so it also covers what the enemies did in between) for the kinds in `HKind::keeps_last_turn`. Overwriting a live entry
+        // loses data -> flag it.
         if n >= HIST_CAP {
             let old = &self.hist_log.entries[i];
-            if self.hist_this_turn(old) || self.hist_last_player_turn(old) {
+            if self.hist_this_turn(old) || (old.kind.keeps_last_turn() && old.turn as i32 + 1 >= self.player.turn_number) {
                 crate::util::raise_overflow(ov::HISTORY as u32);
             }
+        }
+        if self.round > u16::MAX as i32 || self.player.turn_number > u16::MAX as i32 {
+            crate::util::raise_overflow(ov::COUNTER as u32); // entries store round / turn as u16
         }
         self.hist_log.entries[i] = e;
         self.hist_log.n = self.hist_log.n.saturating_add(1);
@@ -193,7 +205,7 @@ impl Combat {
     }
 
     pub fn hist_any_last_player_turn(&self, kind: HKind, f: impl Fn(&HistEntry) -> bool) -> bool {
-        debug_assert!(kind.in_ring(), "{kind:?} entries are counter-only (HKind::in_ring)");
+        debug_assert!(kind.in_ring() && kind.keeps_last_turn(), "{kind:?} is not kept for last-player-turn queries (HKind::keeps_last_turn)");
         self.hist_log.iter().any(|e| e.kind == kind && self.hist_last_player_turn(e) && f(e))
     }
 

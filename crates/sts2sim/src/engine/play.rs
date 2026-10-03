@@ -287,7 +287,11 @@ impl Combat {
                         return self.finish_play(idx);
                     }
                     let p = ctx.play;
-                    self.play_serial = self.play_serial.wrapping_add(1);
+                    let (next, wrapped) = self.play_serial.overflowing_add(1);
+                    if wrapped {
+                        crate::util::raise_overflow(ov::COUNTER as u32);
+                    }
+                    self.play_serial = next;
                     self.dispatch_g(hookbit::before_card_played, |cx, me, l| l.before_card_played(cx, me, &p));
                     self.hist_card_play_started(&p);
                     self.hist.cards_played_this_turn += 1;
