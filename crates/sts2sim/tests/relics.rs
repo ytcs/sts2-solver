@@ -196,7 +196,5 @@ fn every_relic_is_registered_except_the_known_unported() {
 fn combat_state_stays_small() {
     // design.md: `Clone` of a fight is a memcpy of ~14 KB; relic state / hook plumbing must not blow it up.
     let n = std::mem::size_of::<Combat>();
-    // (the optional `big-arena` feature adds 94 card slots of ~72 bytes each)
-    let limit = 24 * 1024 + (MAX_CARDS - 160) * 72 + (MAX_POWERS - 16) * 16 * 20;
-    assert!(n < limit, "size_of::<Combat>() = {n}");
+    assert!(n < 24 * 1024, "size_of::<Combat>() = {n}");
 }

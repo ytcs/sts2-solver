@@ -67,17 +67,17 @@ impl W<'_> {
     fn n(&mut self, v: i32) {
         self.f(v as f32)
     }
+    /// `n` zero floats. The whole vector is zero-filled once up front (one memset) so skipping is enough.
+    #[inline(always)]
     fn zeros(&mut self, n: usize) {
-        for _ in 0..n {
-            self.f(0.0);
-        }
+        self.i += n;
     }
 }
 
 impl Combat {
     /// Intent damage as the UI computes it: `Hook.ModifyDamage(dealer = monster, target = player, Move)` floored at 0.
     pub fn intent_damage(&self, monster: Cid, base: i32) -> i32 {
-        self.modify_damage(PLAYER, monster, Dec::int(base as i64), ValueProp::MOVE, NO).0.trunc().max(0)
+        self.modify_damage_value(PLAYER, monster, Dec::int(base as i64), ValueProp::MOVE, NO).trunc().max(0)
     }
 
     /// Star cost as shown on the card: -1 none, -2 X (all stars), else the current cost with modifiers.
@@ -91,12 +91,16 @@ impl Combat {
         }
     }
 
-    fn write_card(&self, w: &mut W, c: CardIdx) {
+    /// `playable`: the already computed `can_play` of a hand card (see `observe_ex`), `None` = compute it here.
+    fn write_card(&self, w: &mut W, c: CardIdx, playable: Option<bool>) {
         let card = &self.cards[c as usize];
         let d = content::card_def(card.id);
-        let playable = (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32;
+        let playable = match playable {
+            Some(p) => p as i32,
+            None => (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32,
+        };
         let dmg = if d.vars.iter().any(|v| v.kind == VarKind::Damage) {
-            self.modify_damage(NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), ValueProp::MOVE, c).0.trunc()
+            self.modify_damage_value(NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), ValueProp::MOVE, c).trunc()
         } else {
             0
         };
@@ -119,30 +123,54 @@ impl Combat {
         w.n(card.affliction as i32);
     }
 
+    /// `(id + 1, amount)` of the first `OBS_POWERS` powers, zeros for the rest.
+    #[inline(always)]
+    fn write_powers(w: &mut W, cr: &Creature) {
+        let n = cr.powers.len().min(OBS_POWERS);
+        for p in &cr.powers.as_slice()[..n] {
+            w.n(p.id as i32 + 1);
+            w.n(p.amount);
+        }
+        w.zeros((OBS_POWERS - n) * 2);
+    }
+
     fn write_pile_list(&self, w: &mut W, pile: &[CardIdx], sorted_multiset: bool) {
-        let mut ents: [(u16, u8); OBS_MAX_PILE] = [(0, 0); OBS_MAX_PILE];
         let n = pile.len().min(OBS_MAX_PILE);
-        for (k, &c) in pile.iter().take(n).enumerate() {
-            ents[k] = (self.cards[c as usize].id, self.cards[c as usize].upgrade);
-        }
         if sorted_multiset {
-            // order-free view: sort by (rarity, id, upgrade) — what the pile screen shows
-            ents[..n].sort_by_key(|&(id, up)| (content::card_def(id).rarity, id, up));
-        }
-        for k in 0..OBS_MAX_PILE {
-            if k < n {
-                w.n(ents[k].0 as i32 + 1);
-                w.n(ents[k].1 as i32);
-            } else {
-                w.f(0.0);
-                w.f(0.0);
+            // order-free view: sort by (rarity, id, upgrade) — what the pile screen shows. The sort key is packed into one u32
+            // (equal keys are identical entries, so an unstable sort of keys gives the same vector as a stable sort of cards).
+            let mut keys = [0u32; OBS_MAX_PILE];
+            for (k, &c) in pile.iter().take(n).enumerate() {
+                let card = &self.cards[c as usize];
+                keys[k] = (content::card_def(card.id).rarity as u32) << 24 | (card.id as u32) << 8 | card.upgrade as u32;
+            }
+            keys[..n].sort_unstable();
+            for &key in &keys[..n] {
+                w.n(((key >> 8) & 0xFFFF) as i32 + 1);
+                w.n((key & 0xFF) as i32);
+            }
+        } else {
+            for &c in pile.iter().take(n) {
+                w.n(self.cards[c as usize].id as i32 + 1);
+                w.n(self.cards[c as usize].upgrade as i32);
             }
         }
+        w.zeros((OBS_MAX_PILE - n) * 2);
     }
 
     /// Writes the flat observation into `out` (`out.len() >= OBS_SIZE`). Returns `OBS_SIZE`.
     pub fn observe(&self, out: &mut [f32]) -> usize {
+        self.observe_ex(out, None)
+    }
+
+    /// `observe` with the playability of the hand cards precomputed: bit `k` of `hand_playable` = `can_play(hand[k])` (as
+    /// produced by `legal_actions_ex`), so a batch env that also needs the legal actions evaluates each hand card once.
+    pub fn observe_ex(&self, out: &mut [f32], hand_playable: Option<u16>) -> usize {
+        let out = &mut out[..OBS_SIZE];
+        // SAFETY: `out` has exactly OBS_SIZE f32s; all-zero bytes are +0.0. (`fill(0.0)` compiled to a store loop.)
+        unsafe { core::ptr::write_bytes(out.as_mut_ptr(), 0, OBS_SIZE) };
         let mut w = W { out, i: 0 };
+        let hand_ok = self.stage == Stage::AwaitAction && self.player.phase == Phase::Play;
         let me = self.cr(PLAYER);
         // ---- global ----
         w.n(self.round);
@@ -164,25 +192,14 @@ impl Combat {
         w.n(self.player.stars);
         w.n(self.player.orb_slots as i32);
         w.n(self.player.potion_slots as i32);
-        for k in 0..OBS_POWERS {
-            match me.powers.get(k) {
-                Some(p) => {
-                    w.n(p.id as i32 + 1);
-                    w.n(p.amount);
-                }
-                None => w.zeros(2),
-            }
+        Self::write_powers(&mut w, me);
+        let n_relics = self.player.relics.len().min(MAX_RELICS);
+        for r in &self.player.relics.as_slice()[..n_relics] {
+            w.n(r.id as i32 + 1);
+            // The counter a player can see on the relic (`ShowCounter ? DisplayAmount`), not the raw state slot.
+            w.n(crate::content::relic_listener(r.id).meta_display(self, r).unwrap_or(0));
         }
-        for k in 0..MAX_RELICS {
-            match self.player.relics.get(k) {
-                Some(r) => {
-                    w.n(r.id as i32 + 1);
-                    // The counter a player can see on the relic (`ShowCounter ? DisplayAmount`), not the raw state slot.
-                    w.n(crate::content::relic_listener(r.id).meta_display(self, &r).unwrap_or(0));
-                }
-                None => w.zeros(2),
-            }
-        }
+        w.zeros((MAX_RELICS - n_relics) * 2);
         for k in 0..MAX_POTIONS {
             match self.player.potions[k] {
                 Some(p) => {
@@ -195,7 +212,10 @@ impl Combat {
         // ---- hand (ordered) ----
         for k in 0..MAX_HAND {
             match self.player.hand.get(k) {
-                Some(c) => self.write_card(&mut w, c),
+                Some(c) => {
+                    let pre = hand_playable.map(|m| hand_ok && m >> k & 1 != 0);
+                    self.write_card(&mut w, c, pre)
+                }
                 None => w.zeros(CARD_F),
             }
         }
@@ -222,15 +242,7 @@ impl Combat {
             w.n(cr.block);
             w.n(cr.is_alive() as i32);
             w.n(self.is_stunned(e) as i32);
-            for j in 0..OBS_POWERS {
-                match cr.powers.get(j) {
-                    Some(p) => {
-                        w.n(p.id as i32 + 1);
-                        w.n(p.amount);
-                    }
-                    None => w.zeros(2),
-                }
-            }
+            Self::write_powers(&mut w, cr);
             // current intent(s)
             let mut n_int = 0;
             if ms.next_move != NO {
@@ -283,7 +295,7 @@ impl Combat {
                 for k in 0..OBS_MAX_CANDS {
                     match d.cands.get(k) {
                         Some(c) => {
-                            self.write_card(&mut w, c);
+                            self.write_card(&mut w, c, None);
                             w.n(d.selected.contains(k as u8) as i32);
                         }
                         None => w.zeros(CARD_F + 1),
@@ -313,15 +325,7 @@ impl Combat {
                 w.n(cr.is_alive() as i32);
                 w.n(cr.hp);
                 w.n(cr.max_hp);
-                for j in 0..OBS_POWERS {
-                    match cr.powers.get(j) {
-                        Some(p) => {
-                            w.n(p.id as i32 + 1);
-                            w.n(p.amount);
-                        }
-                        None => w.zeros(2),
-                    }
-                }
+                Self::write_powers(&mut w, cr);
             }
             None => w.zeros(4 + OBS_POWERS * 2),
         }
@@ -330,7 +334,7 @@ impl Combat {
                 Some(c) if self.card_def(c).vars.iter().any(|v| v.kind == VarKind::OstyDamage) && self.osty().is_some() => {
                     let o = self.osty().unwrap();
                     let base = Dec::int(self.card_var(c, VarKind::OstyDamage) as i64);
-                    w.n(self.modify_damage(NO, o, base, ValueProp::MOVE, c).0.trunc());
+                    w.n(self.modify_damage_value(NO, o, base, ValueProp::MOVE, c).trunc());
                 }
                 _ => w.f(0.0),
             }

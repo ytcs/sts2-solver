@@ -150,14 +150,9 @@ listener!(LightningRod {
 
 // Draw `Cards`, then a Burn goes to the discard pile.
 listener!(Overclock {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        if phase == 0 {
-            let n = cx.card_var(p.card, VarKind::Cards);
-            cx.draw_cards(n, false);
-            if cx.draw_pending() {
-                return Flow::Suspend(50);
-            }
-        }
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let n = cx.card_var(p.card, VarKind::Cards);
+        cx.draw_cards(n, false);
         cx.create_card_for_player(ids::card::BURN, 0, PileType::Discard, CardPilePosition::Bottom);
         Flow::Done
     }
@@ -165,25 +160,14 @@ listener!(Overclock {
 
 // Put the whole hand on the bottom of the draw pile, shuffle the discard + draw piles together, draw `Cards`.
 listener!(Reboot {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        if phase == 51 {
-            return Flow::Done; // the interrupted draw has finished
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let hand = cx.player.hand;
+        for &c in hand.iter() {
+            cx.move_card(c, PileType::Draw, CardPilePosition::Bottom);
         }
-        if phase == 0 {
-            let hand = cx.player.hand;
-            for &c in hand.iter() {
-                cx.move_card(c, PileType::Draw, CardPilePosition::Bottom);
-            }
-            cx.shuffle_discard_into_draw();
-            if cx.draw_pending() {
-                return Flow::Suspend(50); // a Stratagem prompt interrupted the shuffle
-            }
-        }
+        cx.shuffle_discard_into_draw();
         let n = cx.card_var(p.card, VarKind::Cards);
         cx.draw_cards(n, false);
-        if cx.draw_pending() {
-            return Flow::Suspend(51); // ... or the draw (terminal)
-        }
         Flow::Done
     }
 });

@@ -124,14 +124,9 @@ listener!(FyshOil {
 
 // Draw 1, then +3 Clarity.
 listener!(Clarity {
-    fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, phase: u8) -> Flow {
-        if phase == 0 {
-            let n = cx.potion_var(potion, VarKind::Cards);
-            cx.draw_cards(n, false);
-            if cx.draw_pending() {
-                return Flow::Suspend(50); // a Stratagem prompt interrupted the draw
-            }
-        }
+    fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
+        let n = cx.potion_var(potion, VarKind::Cards);
+        cx.draw_cards_nosuspend(n, false);
         apply_var_power(cx, potion, ids::power::CLARITY_POWER, target);
         Flow::Done
     }

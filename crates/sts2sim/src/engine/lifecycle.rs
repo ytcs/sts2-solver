@@ -20,18 +20,13 @@ impl Combat {
 
     /// `CardPileCmd.AddToCombatAndPreview<T>(targets, pile, count, creator, position)` for the (single) player.
     pub fn add_status_cards(&mut self, card_id: u16, pile: PileType, count: i32, pos: CardPilePosition) {
-        let by_player = self.side == Side::Player;
-        self.add_status_cards_as(card_id, pile, count, pos, by_player);
-    }
-
-    /// Same with an explicit `creator != null` (`false` for the `null`-creator calls of enemy powers / moves).
-    pub fn add_status_cards_as(&mut self, card_id: u16, pile: PileType, count: i32, pos: CardPilePosition, by_player: bool) {
         if self.cr(PLAYER).is_dead() {
             return;
         }
         for _ in 0..count {
             if let Some(c) = self.new_card(card_id, 0) {
-                self.add_generated_card_as(c, pile, pos, by_player);
+                // every caller is a monster / enemy power: `AddToCombatAndPreview<T>(.., creator: null)`
+                self.add_generated_card_by(c, pile, pos, false);
             }
         }
     }

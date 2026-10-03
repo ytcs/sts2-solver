@@ -5,11 +5,6 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-[features]
-# 254 card slots instead of 160 (CardIdx is a u8): for differential fuzzing of very long fights (Slimed / Wither spam). The default arena
-# keeps `Combat` ~23 KB; a fight that overflows it is flagged `missing` (unfaithful) instead of silently dropping cards.
-big-arena = []
-
 [dependencies]
 
 [dev-dependencies]

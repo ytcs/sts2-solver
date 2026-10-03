@@ -23,7 +23,7 @@ listener!(PersonalHivePower {
         }
         // (an Osty dealer is redirected to its owner: single player => the same card owner)
         let n = cx.power_amount(me.owner, me.id);
-        cx.add_status_cards_as(ids::card::DAZED, PileType::Draw, n, CardPilePosition::Random, false); // creator == null
+        cx.add_status_cards(ids::card::DAZED, PileType::Draw, n, CardPilePosition::Random);
     }
 });
 

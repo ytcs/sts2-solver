@@ -22,8 +22,8 @@ impl Combat {
     /// applied FIRST (`OnEnchant` runs on the un-upgraded card), then the upgrades.
     pub fn new_card_ex(&mut self, id: u16, upgrade: u8, enchant: u8, enchant_amount: i16) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
-            // The arena is full: the combat can no longer be faithful (the env treats `missing` as an error).
-            self.flag_missing(Kind::Card, u16::MAX);
+            // Arena full: the card cannot be created (the real game has no such limit) -> flag the combat.
+            self.overflow |= ov::CARDS;
             return None;
         }
         if !content::card_implemented(id) {
@@ -79,7 +79,7 @@ impl Combat {
             let new = (old + d.up_cost).max(0);
             if new < old {
                 for m in card.mods.as_mut_slice() {
-                    if !m.relative && m.amount > new {
+                    if !m.relative() && m.amount > new {
                         m.amount = new;
                     }
                 }
@@ -104,15 +104,10 @@ impl Combat {
         card.cost_base = if d.x_cost { 0 } else { d.cost };
         card.kw_add = 0;
         card.kw_remove = 0;
-        // `DowngradeInternal`: `Enchantment?.ModifyCard()` (= `OnEnchant` again: Tezcatara's Ember re-zeroes the cost and re-adds
-        // Eternal, ...) then `Affliction?.AfterApplied()`.
+        // `Enchantment?.ModifyCard()` re-runs `OnEnchant` (Tezcatara's Ember: cost 0 + Eternal again; Goopy / Slither keywords).
         if self.cards[c as usize].enchant != 0 {
             let me = self.enchantment_me(c);
             content::listener(&me).on_enchant(self, me, c);
-        }
-        if self.cards[c as usize].affliction != 0 {
-            let me = self.affliction_me(c);
-            content::listener(&me).after_applied(self, me);
         }
     }
 
@@ -165,7 +160,8 @@ impl Combat {
         if !self.card_in_combat_pile(c) {
             return local;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::try_modify_keywords_in_combat));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::try_modify_keywords_in_combat), &mut snap);
         let mut k = local;
         for e in snap.iter() {
             if self.still_live(&e.me) {
@@ -184,9 +180,9 @@ impl Combat {
             return n;
         }
         for m in card.mods.iter() {
-            n = if m.relative {
-                if m.reduce_only { n.min(n + m.amount as i32) } else { n + m.amount as i32 }
-            } else if m.reduce_only {
+            n = if m.relative() {
+                if m.reduce_only() { n.min(n + m.amount as i32) } else { n + m.amount as i32 }
+            } else if m.reduce_only() {
                 n.min(m.amount as i32)
             } else {
                 m.amount as i32
@@ -199,13 +195,24 @@ impl Combat {
     }
 
     /// `Hook.ModifyEnergyCostInCombat`: pass 1 then pass 2 ("Late" = free-cost effects); skipped if cost < 0.
+    #[inline(always)]
     fn modify_energy_cost_in_combat(&self, c: CardIdx, cost: i32) -> i32 {
-        if cost < 0 || !self.hooks_enabled() {
+        // (no listener = the cost is returned unchanged; checked first because `hooks_enabled` scans the enemies)
+        if cost < 0 || !self.listen.intersects(Mask::bit(hookbit::try_modify_energy_cost_in_combat) | Mask::bit(hookbit::try_modify_energy_cost_in_combat_late)) {
+            return cost;
+        }
+        self.modify_energy_cost_in_combat_slow(c, cost)
+    }
+
+    #[inline(never)]
+    fn modify_energy_cost_in_combat_slow(&self, c: CardIdx, cost: i32) -> i32 {
+        if !self.hooks_enabled() {
             return cost;
         }
         let mut v = Dec::int(cost as i64);
         for bit in [hookbit::try_modify_energy_cost_in_combat, hookbit::try_modify_energy_cost_in_combat_late] {
-            let snap = self.snapshot(Mask::bit(bit));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(bit), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     let l = content::listener(&e.me);
@@ -303,11 +310,16 @@ impl Combat {
     }
 
     /// `Hook.AfterCardChangedPiles`: two full passes (`AfterCardChangedPiles`, then `...Late`) over the run-level iterator.
-    #[inline]
+    #[inline(always)]
     pub fn fire_card_changed_piles(&mut self, c: CardIdx, old: PileType) {
         if !self.listen.has(hookbit::after_card_changed_piles) && !self.listen.has(hookbit::after_card_changed_piles_late) {
             return;
         }
+        self.fire_card_changed_piles_slow(c, old);
+    }
+
+    #[inline(never)]
+    fn fire_card_changed_piles_slow(&mut self, c: CardIdx, old: PileType) {
         self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
         self.dispatch_u(hookbit::after_card_changed_piles_late, |cx, me, l| l.after_card_changed_piles_late(cx, me, c, old));
     }
@@ -353,7 +365,8 @@ impl Combat {
         if !self.listen.has(hookbit::modify_shuffle_order) || !self.hooks_enabled() {
             return;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::modify_shuffle_order));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::modify_shuffle_order), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) {
                 content::listener(&e.me).modify_shuffle_order(self, e.me, list, is_initial);
@@ -387,13 +400,15 @@ impl Combat {
         for &c in from_discard.iter() {
             self.fire_card_changed_piles(c, PileType::Discard);
         }
-        self.run_after_shuffle();
-    }
-
-    /// `Hook.AfterShuffle` pass. A listener that raises a decision (Stratagem) stops the pass; it continues with the listeners that
-    /// follow it (`dispatch_resumable`) once the decision is answered (`setup_player_turn(4)`).
-    pub(crate) fn run_after_shuffle(&mut self) -> bool {
-        self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me))
+        if self.draw_decision_resumable() {
+            // During the turn-start hand draw / a suspendable effect draw a listener (Stratagem) may raise a decision: the listeners after it (Biiig Hug's
+            // Soot, ...) run once it is answered (`draw_pass` 2, resumed by `setup_player_turn`).
+            if self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me)) {
+                self.draw_pass = Some((NO, 2));
+            }
+        } else {
+            self.dispatch_g(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me));
+        }
     }
 
     #[inline]
@@ -408,90 +423,48 @@ impl Combat {
         self.draw_cards_list(count, from_hand_draw).len()
     }
 
+    /// Whether an `AfterShuffle` decision raised by the draw that is running now can be paused and resumed: the
+    /// turn-start hand draw, or a plain (non-nested) draw made by a card / potion effect (`on_play` finishes, the play
+    /// is held in front of its `After` step and the rest of the draw continues after the pick). Everything else (draws
+    /// from hooks, nested draws, draws whose caller reads the result or asks next) is flagged as not ported.
+    pub fn draw_decision_resumable(&self) -> bool {
+        if self.draw_nosuspend > 0 || self.draw_depth != 1 {
+            // (depth 0: a shuffle outside `draw_cards`, e.g. AutoPlayFromDrawPile, cannot be paused either)
+            return false;
+        }
+        if self.drawing_hand || self.resuming_draw || self.potion_ctx.is_some() {
+            return true;
+        }
+        matches!(self.play_stack.last().map(|c| c.step), Some(PlayStep::OnPlay(_)))
+    }
+
+    /// `draw_cards` for call sites that read the drawn cards or ask for a decision right afterwards: a Stratagem pick
+    /// raised by the shuffle cannot be paused there.
+    pub fn draw_cards_nosuspend(&mut self, count: i32, from_hand_draw: bool) -> usize {
+        self.draw_nosuspend += 1;
+        let n = self.draw_cards(count, from_hand_draw);
+        self.draw_nosuspend -= 1;
+        n
+    }
+
+    /// `draw_cards_list` counterpart of `draw_cards_nosuspend`.
+    pub fn draw_cards_list_nosuspend(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, 32> {
+        self.draw_nosuspend += 1;
+        let out = self.draw_cards_list(count, from_hand_draw);
+        self.draw_nosuspend -= 1;
+        out
+    }
+
     /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
-    pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+    pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, 32> {
         self.draw_depth = self.draw_depth.saturating_add(1);
-        let out = self.draw_cards_list_inner(count, from_hand_draw);
+        let out = self.draw_cards_inner(count, from_hand_draw);
         self.draw_depth = self.draw_depth.saturating_sub(1);
         out
     }
 
-    /// Whether an `AfterShuffle` decision raised inside a draw of a card effect / potion can be parked (`draw_susp`).
-    pub fn draw_susp_possible(&self) -> bool {
-        self.draw_susp.is_none() && (!self.play_stack.is_empty() || self.potion_ctx.is_some() || self.autoplay_shuffle_ok || self.hand_check)
-    }
-
-    /// Number of upgradable cards of the run deck (`PileType.Deck ... IsUpgradable`), through the deck-level upgrades made during
-    /// the combat (Improvement at combat end).
-    pub fn deck_upgradable_count(&self) -> usize {
-        (0..self.deck_len as usize).filter(|&i| self.deck_upgrade[i] < content::card_def(self.cards[i].id).max_upgrade).count()
-    }
-
-    /// Position in the history log (see `drawn_since`).
-    pub fn hist_mark(&self) -> u32 {
-        self.hist_log.n
-    }
-
-    /// The cards drawn since `mark` (a `hist_mark`), in order: lets a card that was interrupted by a Stratagem prompt in the middle of its draw
-    /// still see every card the draw produced.
-    pub fn drawn_since(&self, mark: u32) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+    fn draw_cards_inner(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, 32> {
         let mut out = crate::util::ArrayVec::new();
-        let n = self.hist_log.n;
-        let cap = self.hist_log.entries.len() as u32;
-        let start = if n - mark > cap { n - cap } else { mark };
-        for i in start..n {
-            let e = &self.hist_log.entries[(i % cap) as usize];
-            if e.kind == crate::engine::HKind::CardDrawn {
-                out.push(e.card);
-            }
-        }
-        out
-    }
-
-    /// `drawn_since` for a mark stored in the low 15 bits of a card counter.
-    pub fn drawn_since_low(&self, low: i16) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
-        let n = self.hist_log.n;
-        let mark = n.wrapping_sub(n.wrapping_sub(low as u32) & 0x7FFF);
-        self.drawn_since(mark)
-    }
-
-    /// A card effect that draws and still has work left asks this right after the draw: true when the draw stopped at a Stratagem prompt
-    /// (the effect must then `return Flow::Suspend(next)` and continue at phase `next`).
-    pub fn draw_pending(&self) -> bool {
-        self.draw_susp.is_some()
-    }
-
-    /// A cheap fingerprint of "something happened": history entries pushed, RNG draws, energy, stars, HP / block of everyone.
-    /// Equal before and after a piece of code means it did nothing observable (used to prove a draw was an effect's last action).
-    pub fn effect_checksum(&self) -> u64 {
-        let mut h = (self.hist_log.n as u64) ^ ((self.decision_seq as u64) << 40);
-        for r in [&self.rng.shuffle, &self.rng.combat_card_generation, &self.rng.combat_potion_generation, &self.rng.combat_card_selection,
-                  &self.rng.combat_energy_costs, &self.rng.combat_targets, &self.rng.monster_ai, &self.rng.niche, &self.rng.combat_orbs] {
-            h = h.wrapping_mul(31).wrapping_add(r.counter as u64);
-        }
-        h = h.wrapping_mul(31).wrapping_add(self.player.energy as u64);
-        h = h.wrapping_mul(31).wrapping_add(self.player.stars as u64);
-        h = h.wrapping_mul(31).wrapping_add(self.n_cards as u64);
-        for p in [&self.player.hand, &self.player.draw, &self.player.discard, &self.player.exhaust, &self.player.play] {
-            h = h.wrapping_mul(31).wrapping_add(p.len() as u64);
-        }
-        for c in self.creatures.iter() {
-            h = h.wrapping_mul(31).wrapping_add(c.hp as u64).wrapping_add((c.block as u64) << 20).wrapping_add((c.powers.len() as u64) << 40);
-        }
-        h
-    }
-
-    /// Whether an `AfterShuffle` decision raised right now can be resumed: only inside the outermost turn-start hand draw.
-    pub fn shuffle_decision_resumable(&self) -> bool {
-        (self.drawing_hand && self.draw_depth <= 1) || self.hook_shuffle
-    }
-
-    fn draw_cards_list_inner(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
-        let mut out = crate::util::ArrayVec::new();
-        if self.draw_susp.is_some() {
-            // The effect keeps going (another draw) while an `AfterShuffle` decision is pending: not a terminal draw.
-            self.abort_draw_susp();
-        }
         if self.is_over_or_ending() {
             return out;
         }
@@ -518,13 +491,12 @@ impl Combat {
             }
             self.shuffle_if_necessary();
             if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() {
-                if self.shuffle_decision_resumable() {
-                    // An `AfterShuffle` listener (Stratagem) asked for a decision: the turn-start draw resumes afterwards.
-                    self.draw_resume = Some((count - i, from_hand_draw, true));
-                } else if self.draw_susp_possible() {
-                    // A draw of a card effect / potion: remember how much is left; `run_play_at` / `run_potion` suspend the effect
-                    // if it turns out the draw was its last action.
-                    self.draw_susp = Some(DrawSusp { n: count - i, from_hand: from_hand_draw, sum: self.effect_checksum(), kind: 0, pos: CardPilePosition::Top, force_exhaust: false, picked: crate::util::ArrayVec::new() });
+                // An `AfterShuffle` listener (Stratagem) asked for a decision (only when `draw_decision_resumable`): the
+                // turn-start draw / the rest of this effect's draw resumes afterwards.
+                if self.drawing_hand {
+                    self.draw_resume = Some((count - i, from_hand_draw));
+                } else {
+                    self.draw_cont = Some((count - i, from_hand_draw));
                 }
                 break;
             }
@@ -539,17 +511,36 @@ impl Combat {
             out.push(card);
             let id = self.cards[card as usize].id;
             self.hist_push(HKind::CardDrawn, PLAYER, NO, id, card, 0, from_hand_draw as u8, 0, 0);
-            self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
-            self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
-            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_none() && self.shuffle_decision_resumable() {
-                // A draw hook auto-played a card that asks for a decision (Hellraiser + Seeker Strike) during the turn-start hand draw: the
-                // nested play resumes first, then the rest of the draw (`turn_cont` 4).
-                self.draw_resume = Some((count - i - 1, from_hand_draw, false));
+            if self.drawn_hooks(card, from_hand_draw, 0) {
+                // A decision raised by an `AfterCardDrawn` listener (Hellraiser auto-playing a Seeker Strike ...) during the turn-start
+                // hand draw: the rest of the pass and then the rest of the draw continue after it (`turn_cont` 4).
+                self.draw_resume = Some((count - i - 1, from_hand_draw));
                 break;
             }
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         }
         out
+    }
+
+    /// `Hook.AfterCardDrawnEarly` then `Hook.AfterCardDrawn` for one drawn card (`start_phase` 1 skips the early pass: resuming).
+    /// During the turn-start hand draw the passes are resumable; returns true when one suspended on a decision (`draw_pass` says where).
+    pub(crate) fn drawn_hooks(&mut self, card: CardIdx, from_hand_draw: bool, start_phase: u8) -> bool {
+        if !(self.drawing_hand && self.draw_depth <= 1) {
+            if start_phase == 0 {
+                self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
+            }
+            self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
+            return false;
+        }
+        if start_phase == 0 && self.dispatch_resumable(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw)) {
+            self.draw_pass = Some((card, 0));
+            return true;
+        }
+        if self.dispatch_resumable(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw)) {
+            self.draw_pass = Some((card, 1));
+            return true;
+        }
+        false
     }
 
     /// `CardCmd.Exhaust`.

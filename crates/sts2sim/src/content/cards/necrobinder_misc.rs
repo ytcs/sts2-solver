@@ -1,5 +1,6 @@
 //! Remaining Necrobinder cards (plain attacks / skills, discard-pile manipulation, copies, multiplayer-only cards).
 
+use crate::engine::calc_with;
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -61,11 +62,9 @@ listener!(DeathMarch {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         let _ = target;
-        let n = if cx.in_progress { cx.hist_count_this_turn(HKind::CardDrawn, |e| e.flags & 1 == 0) as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
+        Some(calc_with(cx, card, cx.hist_count_this_turn(HKind::CardDrawn, |e| e.flags & 1 == 0) as i32))
     }
 });
 

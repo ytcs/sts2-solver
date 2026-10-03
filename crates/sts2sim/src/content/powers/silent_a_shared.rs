@@ -34,14 +34,20 @@ listener!(PoisonPower {
             }
         }
         let iterations = amount.min(1 + accelerant);
+        // The C# loop works on the power instance: when the owner "dies" and comes back (Waterfall Giant revives at 999999999 HP)
+        // its Poison was removed from the list but the instance keeps going (`Amount` readable, `Decrement` on the detached instance).
+        let mut cur = amount;
         for _ in 0..iterations {
-            let Some(i) = cx.power_idx(me.owner, me.idx) else { break };
-            let cur = cx.cr(me.owner).powers[i].amount;
+            if let Some(i) = cx.power_idx(me.owner, me.idx) {
+                cur = cx.cr(me.owner).powers[i].amount;
+            }
             cx.damage(&[me.owner], Dec::int(cur as i64), ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED), NO, NO);
             if cx.cr(me.owner).is_alive() {
-                cx.decrement_power(me.owner, me.idx);
-            } else {
-                break;
+                if cx.power_idx(me.owner, me.idx).is_some() {
+                    cx.decrement_power(me.owner, me.idx);
+                } else {
+                    cur -= 1;
+                }
             }
         }
     }
@@ -49,8 +55,9 @@ listener!(PoisonPower {
 
 listener!(ThornsPower {
     fn before_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, _amount: Dec, props: ValueProp, dealer: Cid) {
-        // (`|| cardSource is Omnislice` not ported: no Silent content produces it)
-        if target == me.owner && dealer != NO && props.is_powered() {
+        // `props.IsPoweredAttack() || cardSource is Omnislice` (Omnislice's spill-over hit is Unpowered but still pokes Thorns)
+        let omnislice = cx.dmg_card != NO && cx.cards[cx.dmg_card as usize].id == ids::card::OMNISLICE;
+        if target == me.owner && dealer != NO && (props.is_powered() || omnislice) {
             let amt = cx.power_amount(me.owner, me.id);
             cx.damage(&[dealer], Dec::int(amt as i64), ValueProp::UNPOWERED.or(ValueProp::SKIP_HURT_ANIM), me.owner, NO);
         }

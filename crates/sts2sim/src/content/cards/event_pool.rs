@@ -33,7 +33,7 @@ listener!(Dowsing {});
 
 // ---- Abundance: choose 1 of 3 upgraded Power cards from the pool; it enters the hand free this turn ------------------------------
 listener!(Abundance {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+    fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
         match phase {
             0 => {
                 let pool = cx.character_pool();
@@ -42,10 +42,10 @@ listener!(Abundance {
                     cx.upgrade_in_combat(c);
                 }
                 match cx.ask_options(ids::card::ABUNDANCE, cards.as_slice(), false) {
-                    Ask::Resolved(c) => {
-                        // (resolved at once: Whispering Earring's selector, or nothing to choose from)
-                        cx.choice.cards = c;
-                        self.on_play(cx, p, 1)
+                    Ask::Resolved(cards) => {
+                        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
+                        cx.choice.cards = cards;
+                        self.on_play(cx, _p, 1)
                     }
                     Ask::Pending => Flow::Suspend(1),
                 }
@@ -84,16 +84,11 @@ listener!(Apparition {
 
 // ---- Brightest Flame: +Energy, draw, lose max HP (in that order) ---------------------------------------------------------------------
 listener!(BrightestFlame {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        if phase == 0 {
-            let e = cx.card_var(p.card, VarKind::Energy);
-            cx.gain_energy(e);
-            let n = cx.card_var(p.card, VarKind::Cards);
-            cx.draw_cards(n, false);
-            if cx.draw_pending() {
-                return Flow::Suspend(50);
-            }
-        }
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let e = cx.card_var(p.card, VarKind::Energy);
+        cx.gain_energy(e);
+        let n = cx.card_var(p.card, VarKind::Cards);
+        cx.draw_cards_nosuspend(n, false);
         let m = cx.card_var(p.card, VarKind::MaxHp);
         cx.lose_max_hp(PLAYER, Dec::int(m as i64), true);
         Flow::Done

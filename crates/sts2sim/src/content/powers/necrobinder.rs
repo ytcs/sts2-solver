@@ -306,16 +306,16 @@ listener!(SleightOfFleshPower {
 });
 
 // Enemy debuff: the player's cards played from now on (this turn) apply Doom(Amount) to this enemy afterwards. Expires at end of turn.
-// `aux` = (card index + 1) << 20 | recorded amount of the card play in flight.
+// The amount recorded when each card play starts is the C# `amountsForPlayedCards` dictionary (`play_amount_*`).
 listener!(OblivionPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let amt = amount_of(cx, me);
-        cx.hist.remember_play(me.idx, play.card, amt);
+        cx.play_amount_add(me.idx, play.card, amt);
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        if let Some(value) = cx.hist.take_play(me.idx, play.card) {
-            let applier = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).map_or(PLAYER, |p| p.applier);
-            cx.apply_power(ids::power::DOOM_POWER, me.owner, Dec::int(value as i64), applier, NO);
+        let Some(p) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).copied() else { return };
+        if let Some(value) = cx.play_amount_take(me.idx, play.card) {
+            cx.apply_power(ids::power::DOOM_POWER, me.owner, Dec::int(value as i64), p.applier, NO);
         }
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {

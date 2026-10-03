@@ -29,18 +29,17 @@ listener!(SuckPower {
         if attack.dealer != me.owner || !attack.props.is_powered() {
             return;
         }
-        // `command.Results` is grouped per hit; in each hit the results of the owner of a pet that was hit are dropped (the pet's
-        // own result stands for it), then the hit counts when any remaining result has unblocked damage.
+        // C# groups the results per hit; in a hit that damaged a pet (Osty took the damage) the owner's own result is dropped
+        // (`RemoveAll(r => r.Receiver == petHit.Receiver.PetOwner.Creature)`), and the hit counts when any remaining
+        // result has unblocked damage.
         let mut n = 0;
-        let mut seen: u32 = 0;
-        for h in cx.attack_results.iter().map(|r| r.hit) {
-            if seen >> h.min(31) & 1 != 0 {
-                continue;
-            }
-            seen |= 1 << h.min(31);
-            let group = || cx.attack_results.iter().filter(move |r| r.hit == h);
-            let dropped = |r: &crate::engine::DamageResult| group().any(|p| cx.cr(p.receiver).is_pet && cx.cr(p.receiver).owner == r.receiver);
-            if group().any(|r| !dropped(r) && r.unblocked > 0) {
+        let mut at = 0usize;
+        for &sz in cx.attack_hit_sizes.iter() {
+            let end = (at + sz as usize).min(cx.attack_results.len());
+            let group = &cx.attack_results.as_slice()[at..end];
+            at += sz as usize;
+            let pet_hit = group.iter().any(|r| cx.cr(r.receiver).is_pet);
+            if group.iter().any(|r| r.unblocked > 0 && !(pet_hit && r.receiver == PLAYER)) {
                 n += 1;
             }
         }
@@ -168,7 +167,7 @@ listener!(SmoggyPower {
             return;
         }
         // CardPlaysStarted.Any(this turn, Skill, player)
-        let skill_played = cx.plays_this_turn(|e| cx.card_def(e.card).ctype == CardType::Skill) > 0;
+        let skill_played = cx.plays_this_turn(|e| content::card_def(e.id as u16).ctype == CardType::Skill) > 0;
         if skill_played {
             smog_card(cx, card as usize);
         }

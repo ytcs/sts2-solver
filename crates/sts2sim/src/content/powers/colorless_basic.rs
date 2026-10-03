@@ -206,7 +206,7 @@ listener!(TagTeamPower {
         if applier == PLAYER {
             return count; // `card.Owner.Creature == Applier`
         }
-        let tt = cx.card_def(card).target;
+        let tt = cx.card_target_type(card);
         if tt == TargetType::AnyEnemy && target != me.owner {
             return count;
         }
@@ -221,19 +221,21 @@ listener!(TagTeamPower {
 });
 
 // ---- CalamityPower: after each Attack you play, add `Amount` random Attacks of your character's pool to the hand --------
-// The C# `amountsForPlayedCards` dictionary (card -> amount at `BeforeCardPlayed`) is `hist.play_amounts`: Attacks DO nest
-// (Uproar / Cascade auto-play an Attack from inside an Attack), so several entries can be outstanding.
+// The per-card amount recorded at `BeforeCardPlayed` is the C# `amountsForPlayedCards` dictionary (`play_amount_*`);
+// attacks DO nest (Uproar auto-plays an Attack from inside its own play).
 listener!(CalamityPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_def(play.card).ctype != CardType::Attack {
             return;
         }
-        let amount = cx.power_amount(me.owner, me.id);
-        cx.hist.play_amounts.push(PlayAmount { uid: me.idx, card: play.card, amount });
+        if let Some(i) = cx.power_idx(me.owner, me.idx) {
+            let a = cx.cr(me.owner).powers[i].amount;
+            cx.play_amount_add(me.idx, play.card, a);
+        }
     }
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let Some(pos) = cx.hist.play_amounts.as_slice().iter().rposition(|e| e.uid == me.idx && e.card == play.card) else { return };
-        let amount = cx.hist.play_amounts.remove(pos).amount as usize;
+        let Some(amount) = cx.play_amount_take(me.idx, play.card) else { return };
+        let amount = amount.max(0) as usize;
         let pool = cx.character_pool();
         let cards = cx.get_for_combat_where(pool, amount, |d| d.ctype == CardType::Attack);
         for &c in cards.iter() {
@@ -296,13 +298,8 @@ listener!(EntropyPower {
 });
 
 // ---- StratagemPower: after a reshuffle choose `Amount` cards of the draw pile to put into the hand ---------------------
-// The prompt is raised inside the shuffle, so the code that called the draw / shuffle must be able to wait for the answer:
-//  * the outermost turn-start hand draw (`draw_resume`, `turn_cont` 4);
-//  * a card effect / potion whose draw (or shuffle) is its last action or that returns `Flow::Suspend(next)` right after it (see
-//    `Combat::draw_pending`; the engine proves "last action" with `effect_checksum`): `draw_susp` parks the rest of the draw;
-//  * `AutoPlayFromDrawPile` (Mayhem, Cascade, Havoc, I Am Invincible, Distilled Chaos): `draw_susp.kind == 1`.
-// A draw started from a hook (Iteration's `AfterCardDrawn`, Centennial Puzzle ...) cannot pause: it is flagged as not ported
-// (documented gap; the env treats `missing` as unfaithful).
+// The decision is resumable during the turn-start hand draw (`draw_resume` / `turn_cont` 4) and during a plain draw of a
+// card / potion effect (`draw_cont`, see `Combat::draw_decision_resumable`); other draws flag it as not ported.
 listener!(StratagemPower {
     fn after_shuffle(&self, cx: &mut Combat, me: Me) {
         if me.owner != PLAYER {
@@ -316,12 +313,7 @@ listener!(StratagemPower {
                 }
             }
             crate::engine::Ask::Pending => {
-                if cx.shuffle_decision_resumable() || cx.draw_susp_possible() {
-                    if !cx.shuffle_decision_resumable() && cx.draw_depth == 0 {
-                        // A shuffle called directly by a card effect / potion (Reboot): nothing to finish drawing afterwards. (Inside a draw
-                        // the draw loop records what is left.)
-                        cx.draw_susp = Some(DrawSusp { n: 0, from_hand: false, sum: cx.effect_checksum(), kind: 0, pos: CardPilePosition::Top, force_exhaust: false, picked: crate::util::ArrayVec::new() });
-                    }
+                if cx.draw_decision_resumable() {
                     cx.hook_ctx = Some((me, 1));
                     cx.stage = Stage::AwaitChoice;
                 } else {

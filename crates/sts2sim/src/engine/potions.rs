@@ -117,25 +117,13 @@ impl Combat {
     pub fn run_potion(&mut self) {
         let Some(ctx) = self.potion_ctx else { return };
         let l = content::potion_listener(ctx.potion);
-        // phase 0xFF = the effect finished with a parked draw (Stratagem prompt): only the epilogue is left
-        let flow = if ctx.phase == 0xFF {
-            Flow::Done
-        } else {
-            let f = l.on_use_potion(self, ctx.potion, ctx.target, ctx.phase);
-            if let Some(ds) = self.draw_susp {
-                if self.effect_checksum() == ds.sum {
-                    if matches!(f, Flow::Done) {
-                        self.potion_ctx = Some(PotionCtx { phase: 0xFF, ..ctx });
-                        self.stage = Stage::AwaitChoice;
-                        return;
-                    }
-                } else {
-                    self.abort_draw_susp();
-                }
-            }
-            f
-        };
-        match flow {
+        // phase 255: the effect already ran; only its interrupted draw (Stratagem pick) was pending
+        let r = if ctx.phase == 255 { Flow::Done } else { l.on_use_potion(self, ctx.potion, ctx.target, ctx.phase) };
+        if r == Flow::Done && ctx.phase != 255 && self.stage == Stage::AwaitChoice && self.draw_cont.is_some() {
+            self.potion_ctx = Some(PotionCtx { phase: 255, ..ctx });
+            return;
+        }
+        match r {
             Flow::Suspend(next) => {
                 self.potion_ctx = Some(PotionCtx { phase: next, ..ctx });
                 self.stage = Stage::AwaitChoice;
@@ -147,7 +135,7 @@ impl Combat {
                 if !self.cr(PLAYER).is_dead() {
                     self.hist_push(HKind::PotionUsed, PLAYER, tgt, pid, NO, 0, 0, 0, 0);
                     self.dispatch_u(hookbit::after_potion_used, |cx, me, lst| lst.after_potion_used(cx, me, pid, tgt));
-                    self.check_for_empty_hand_last();
+                    self.check_for_empty_hand();
                 }
             }
         }

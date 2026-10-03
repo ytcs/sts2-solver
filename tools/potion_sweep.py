@@ -15,10 +15,10 @@ DECK = ("ANGER,ARMAMENTS,TRUE_GRIT,HEADBUTT,BURNING_PACT,THUNDERCLAP,"
         "SWORD_BOOMERANG,CINDER,BLOODLETTING,INFLAME,TWIN_STRIKE,IRON_WAVE,SHRUG_IT_OFF,POMMEL_STRIKE")
 ALL = [
     "AMBERGRIS", "ASHWATER", "ATTACK_POTION", "BEETLE_JUICE", "BLESSING_OF_THE_FORGE", "BLOCK_POTION", "BLOOD_POTION",
-    "BOTTLED_POTENTIAL", "CLARITY", "COLORLESS_POTION", "COSMIC_CONCOCTION", "CUNNING_POTION", "CURE_ALL", "DEXTERITY_POTION",
-    "DROPLET_OF_PRECOGNITION", "DUPLICATOR", "ENERGY_POTION", "ENTROPIC_BREW", "EXPLOSIVE_AMPOULE",
+    "BONE_BREW", "BOTTLED_POTENTIAL", "CLARITY", "COLORLESS_POTION", "COSMIC_CONCOCTION", "CUNNING_POTION", "CURE_ALL", "DEXTERITY_POTION",
+    "DISTILLED_CHAOS", "DROPLET_OF_PRECOGNITION", "DUPLICATOR", "ENERGY_POTION", "ENTROPIC_BREW", "ESSENCE_OF_DARKNESS", "EXPLOSIVE_AMPOULE",
     "FAIRY_IN_A_BOTTLE", "FIRE_POTION", "FLEX_POTION", "FOCUS_POTION", "FORTIFIER", "FOUL_POTION", "FRUIT_JUICE", "FYSH_OIL",
-    "GAMBLERS_BREW", "GHOST_IN_A_JAR", "GIGANTIFICATION_POTION", "GLOWWATER_POTION", "HEART_OF_IRON", "LIQUID_BRONZE",
+    "GAMBLERS_BREW", "GHOST_IN_A_JAR", "GIGANTIFICATION_POTION", "GLOWWATER_POTION", "HEART_OF_IRON", "KINGS_COURAGE", "LIQUID_BRONZE",
     "LIQUID_MEMORIES", "LUCKY_TONIC", "MAZALETHS_GIFT", "OROBIC_ACID", "POISON_POTION", "POTION_OF_BINDING",
     "POTION_OF_CAPACITY", "POTION_OF_DOOM", "POTION_SHAPED_ROCK", "POT_OF_GHOULS", "POWDERED_DEMISE", "POWER_POTION",
     "RADIANT_TINCTURE", "REGEN_POTION", "SHACKLING_POTION", "SHIP_IN_A_BOTTLE", "SKILL_POTION", "SNECKO_OIL", "SOLDIERS_STEW",
@@ -39,9 +39,13 @@ def main():
     ap.add_argument("--lenient", action="store_true")
     ap.add_argument("--jobs", type=int, default=3)
     ap.add_argument("--par", type=int, default=6, help="pairs swept concurrently")
-    ap.add_argument("--deck", default=DECK)
+    ap.add_argument("--deck", default=None, help="extra cards after the starter deck (default: ported Ironclad mix for IRONCLAD, none otherwise)")
+    ap.add_argument("--character", default="IRONCLAD")
+    ap.add_argument("--keep", default=None)
     ap.add_argument("--offsets", default="1,7")
     a = ap.parse_args()
+    if a.deck is None:
+        a.deck = DECK if a.character == "IRONCLAD" else ""
     pairs = [p.split(",") for p in a.pairs]
     if a.all:
         for i, p in enumerate(ALL):
@@ -53,7 +57,7 @@ def main():
     tmp = tempfile.mkdtemp(prefix="potsweep")
 
     def one(pr):
-        t = subprocess.run([sys.executable, os.path.join(ROOT, "tools/mk_scenario.py"), "--encounter", a.encounter, "--starter",
+        t = subprocess.run([sys.executable, os.path.join(ROOT, "tools/mk_scenario.py"), "--encounter", a.encounter, "--starter", "--character", a.character,
                             "--deck", a.deck, "--potions", ",".join(pr), "--hp", str(a.hp), "--relics", a.relics],
                            capture_output=True, text=True)
         if t.returncode != 0:
@@ -64,7 +68,7 @@ def main():
         path = os.path.join(tmp, "_".join(pr) + ".json")
         json.dump(s, open(path, "w"))
         r = subprocess.run([sys.executable, os.path.join(ROOT, "tools/diff_sweep.py"), path, "--n", str(a.n), "--jobs", str(a.jobs),
-                            "--keep", os.path.join(tmp, "out"), "--tag", "_".join(p[:6] + p[-3:] for p in pr) + "_"],
+                            "--keep", a.keep or os.path.join(tmp, "out"), "--tag", "_".join(p[:6] + p[-3:] for p in pr) + "_"],
                            capture_output=True, text=True, env=env)
         return pr, r.returncode, r.stdout.strip().splitlines()
 

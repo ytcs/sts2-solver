@@ -1,1 +1,118 @@
-{"name":"right_hand_hand_autoplay_energy_value","ascension":10,"encounter":"WATERFALL_GIANT_BOSS","character":"NECROBINDER","hp":48,"max_hp":69,"max_energy":3,"base_orb_slots":0,"max_potion_slots":2,"gold":50,"seed":"fmpb-44","total_floor":4,"act":0,"deck":["STRIKE_NECROBINDER","STRIKE_NECROBINDER","STRIKE_NECROBINDER","STRIKE_NECROBINDER","DEFEND_NECROBINDER","DEFEND_NECROBINDER","DEFEND_NECROBINDER","BODYGUARD","UNLEASH","BORROWED_TIME","FRIENDSHIP",{"id":"TRANSFIGURE","upgrade":1},"PULL_FROM_BELOW","RIGHT_HAND_HAND","MASTER_OF_STRATEGY",{"id":"MASTER_OF_STRATEGY","upgrade":1},"MAYHEM","HAND_OF_GREED","CALAMITY","SOW","SWEEPING_GAZE","NOSTALGIA","HIDDEN_GEM","ASCENDERS_BANE"],"relics":["GNARLED_HAMMER",{"id":"HAPPY_FLOWER","props":{"TurnsSeen":9}},"BOWLER_HAT"],"potions":["BONE_BREW","DISTILLED_CHAOS"],"meta":{"mode":"uniform","focus":"gen"},"note":"RightHandHand: Resources.EnergyValue (cost of an auto-played card), not EnergySpent; DistilledChaos port"}
+{
+ "name": "right_hand_hand_autoplay_energy_value",
+ "ascension": 10,
+ "encounter": "LAGAVULIN_MATRIARCH_BOSS",
+ "character": "NECROBINDER",
+ "hp": 67,
+ "max_hp": 69,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "fz604551x19728999",
+ "total_floor": 17,
+ "act": 0,
+ "deck": [
+  {
+   "id": "BODYGUARD"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "UNLEASH"
+  },
+  {
+   "id": "REAP",
+   "upgrade": 1
+  },
+  {
+   "id": "FLATTEN"
+  },
+  {
+   "id": "RIGHT_HAND_HAND",
+   "upgrade": 1
+  },
+  {
+   "id": "FEAR"
+  },
+  {
+   "id": "FLATTEN",
+   "upgrade": 1
+  },
+  {
+   "id": "DREDGE"
+  },
+  {
+   "id": "AFTERLIFE",
+   "upgrade": 1
+  },
+  {
+   "id": "REAP"
+  },
+  {
+   "id": "UNDEATH",
+   "upgrade": 1
+  },
+  {
+   "id": "BANSHEES_CRY"
+  },
+  {
+   "id": "FEAR"
+  },
+  {
+   "id": "PURITY"
+  },
+  {
+   "id": "HIDDEN_GEM"
+  },
+  {
+   "id": "REAPER_FORM"
+  },
+  {
+   "id": "REANIMATE"
+  },
+  {
+   "id": "END_OF_DAYS",
+   "upgrade": 1
+  },
+  {
+   "id": "FLATTEN"
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "BOUND_PHYLACTERY",
+  "TINY_MAILBOX",
+  "SHOVEL",
+  "GNARLED_HAMMER",
+  "MEMBERSHIP_CARD"
+ ],
+ "potions": [
+  "DISTILLED_CHAOS",
+  "BONE_BREW"
+ ],
+ "note": "Right Hand Hand's AfterCardPlayedLate compares Resources.EnergyValue (cost of an auto-played card), not EnergySpent (0). Triggered via Distilled Chaos."
+}

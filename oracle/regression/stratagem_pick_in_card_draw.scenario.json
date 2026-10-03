@@ -1,0 +1,97 @@
+{
+ "name": "stratagem_pick_in_card_draw",
+ "ascension": 10,
+ "encounter": "BYRDONIS_ELITE",
+ "character": "DEFECT",
+ "hp": 49,
+ "max_hp": 94,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "fz2200148x638736302",
+ "total_floor": 14,
+ "act": 0,
+ "deck": [
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DUALCAST"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "ZAP"
+  },
+  {
+   "id": "STRATAGEM"
+  },
+  {
+   "id": "STRATAGEM"
+  },
+  {
+   "id": "MASTER_OF_STRATEGY"
+  },
+  {
+   "id": "MASTER_OF_STRATEGY"
+  },
+  {
+   "id": "SCRAWL"
+  },
+  {
+   "id": "FINESSE"
+  },
+  {
+   "id": "FOCUSED_STRIKE"
+  },
+  {
+   "id": "BALL_LIGHTNING",
+   "upgrade": 1
+  },
+  {
+   "id": "BULK_UP",
+   "upgrade": 1
+  },
+  {
+   "id": "COLD_SNAP",
+   "upgrade": 1
+  },
+  {
+   "id": "HOTFIX",
+   "upgrade": 1
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "CRACKED_CORE",
+  "MANGO",
+  "BAG_OF_PREPARATION",
+  "TOOLBOX",
+  "STRIKE_DUMMY",
+  "GAME_PIECE",
+  "MUMMIFIED_HAND"
+ ],
+ "potions": [],
+ "note": "Stratagem's AfterShuffle pick raised by a card effect's draw (not the turn-start draw): pause the effect, pick, finish the draw, then the play's remaining steps (see Combat::draw_decision_resumable / draw_cont)."
+}

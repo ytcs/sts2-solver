@@ -70,7 +70,8 @@ impl Combat {
     fn clear_block(&mut self, c: Cid) {
         let mut preventer: Option<Me> = None;
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_clear_block));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_clear_block), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_clear_block(self, e.me, c) {
                     preventer = Some(e.me);
@@ -126,40 +127,24 @@ impl Combat {
         self.finish_player_turn_start(0);
     }
 
-    /// Rest of `StartTurn(Player)` after `SetupPlayerTurn` (spec 01 §6.1). `from` = 0 at the start, else the `turn_cont` step
-    /// being resumed (6 / 7 / 8 = inside the `AfterAutoPrePlayPhaseEntered` Early / normal / Late pass, where Mayhem, Imbued,
-    /// Bombardment and History Course auto-play cards that may raise decisions). Returns true if it suspended.
-    fn finish_player_turn_start(&mut self, from: u8) -> bool {
-        if from == 0 {
-            self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
-            self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
-            // OrbQueue.AfterTurnStart (Plasma), after the whole Hook.AfterSideTurnStart (incl. the Late pass).
-            if self.cr(PLAYER).is_alive() {
-                self.orbs_after_turn_start();
-            }
-            if self.cr(PLAYER).is_dead() {
-                // StartTurn step 10b: a dead player is marked ready to end the turn, which (single player) immediately runs
-                // phase one of the turn end; its `CheckWinCondition` then processes the pending loss (phase ends as `End`).
-                if self.in_progress {
-                    self.end_player_turn();
-                }
-                return false;
-            }
-            // RunAutoPrePlayPhase
-            self.player.phase = Phase::AutoPrePlay;
-            self.check_for_empty_hand();
+    /// Rest of `StartTurn(Player)` after `SetupPlayerTurn` (spec 01 §6.1). `from` = 0 at the start, else the `turn_cont` step being
+    /// resumed (5 / 6 / 7 = inside the early / normal / late `AfterAutoPrePlayPhaseEntered` pass, e.g. an Imbued card whose
+    /// auto-play raised a decision).
+    fn finish_player_turn_start(&mut self, from: u8) {
+        if from == 0 && self.finish_turn_start_before_auto_pre_play() {
+            return;
         }
-        if from <= 6 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered_early, |cx, me, l| l.after_auto_pre_play_phase_entered_early(cx, me)) {
+        if from <= 5 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered_early, |cx, me, l| l.after_auto_pre_play_phase_entered_early(cx, me)) {
+            self.turn_cont = 5;
+            return;
+        }
+        if from <= 6 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me)) {
             self.turn_cont = 6;
-            return true;
+            return;
         }
-        if from <= 7 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me)) {
+        if from <= 7 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered_late, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me)) {
             self.turn_cont = 7;
-            return true;
-        }
-        if from <= 8 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered_late, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me)) {
-            self.turn_cont = 8;
-            return true;
+            return;
         }
         self.player.phase = Phase::Play;
         if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
@@ -167,12 +152,32 @@ impl Combat {
             // An end-turn requested by the turn-start effects (Void Form ...) is held until `StartTurn` returns.
             self.consume_end_turn_request();
         }
+    }
+
+    /// `AfterSideTurnStart` .. `RunAutoPrePlayPhase` entry. Returns true when the turn start is over (dead player).
+    fn finish_turn_start_before_auto_pre_play(&mut self) -> bool {
+        self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
+        self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
+        // OrbQueue.AfterTurnStart (Plasma), after the whole Hook.AfterSideTurnStart (incl. the Late pass).
+        if self.cr(PLAYER).is_alive() {
+            self.orbs_after_turn_start();
+        }
+        if self.cr(PLAYER).is_dead() {
+            // StartTurn step 10b: a dead player is marked ready to end the turn, which (single player) immediately runs
+            // phase one of the turn end; its `CheckWinCondition` then processes the pending loss (phase ends as `End`).
+            if self.in_progress {
+                self.end_player_turn();
+            }
+            return true;
+        }
+        // RunAutoPrePlayPhase
+        self.player.phase = Phase::AutoPrePlay;
+        self.check_for_empty_hand();
         false
     }
 
     /// Continues a turn start that was suspended by a decision raised inside a turn-start hook (`turn_cont`: 1 = in
-    /// `BeforeHandDraw`, 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = in the opening hand draw, interrupted by
-    /// an `AfterShuffle` decision, 6-8 = in the `AfterAutoPrePlayPhaseEntered` passes); the suspended pass continues with the
+    /// `BeforeHandDraw`, 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = in the opening hand draw, interrupted by an `AfterShuffle` decision); the suspended pass continues with the
     /// listeners after the one that raised the decision (`dispatch_resumable`).
     pub(crate) fn resume_turn_start(&mut self, cont: u8) {
         if (1..=4).contains(&cont) {
@@ -180,7 +185,7 @@ impl Combat {
                 return;
             }
             self.finish_player_turn_start(0);
-        } else if (6..=8).contains(&cont) {
+        } else if (5..=7).contains(&cont) {
             self.finish_player_turn_start(cont);
         }
     }
@@ -189,7 +194,8 @@ impl Combat {
     pub fn max_energy(&self) -> i32 {
         let mut v = Dec::int(self.player.max_energy as i64);
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_max_energy));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_max_energy), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     v = content::listener(&e.me).modify_max_energy(self, e.me, v);
@@ -201,7 +207,8 @@ impl Combat {
 
     fn should_player_reset_energy(&self) -> bool {
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_player_reset_energy));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_player_reset_energy), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_player_reset_energy(self, e.me) {
                     return false;
@@ -233,15 +240,24 @@ impl Combat {
         }
         if from == 4 {
             // The hand draw was interrupted by a decision raised in `AfterShuffle` (Stratagem): draw the rest.
-            if let Some((n, from_hand, in_shuffle)) = self.draw_resume.take() {
+            if let Some((n, from_hand)) = self.draw_resume.take() {
                 self.drawing_hand = true;
-                // The interrupted `AfterShuffle` pass continues with the listeners after the one that asked (BiiigHug, TheAbacus ...)
-                // BEFORE the rest of the draw. (Not when the decision came from a card auto-played by a draw hook.)
-                if in_shuffle && self.run_after_shuffle() {
-                    self.draw_resume = Some((n, from_hand, true));
-                    self.drawing_hand = false;
-                    self.turn_cont = 4;
-                    return true;
+                if let Some((card, phase)) = self.draw_pass.take() {
+                    // finish the `AfterShuffle` / `AfterCardDrawn` pass the decision interrupted, then the rest of the draw
+                    let suspended = if phase == 2 {
+                        self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me))
+                    } else {
+                        self.drawn_hooks(card, from_hand, phase)
+                    };
+                    if suspended {
+                        if phase == 2 {
+                            self.draw_pass = Some((NO, 2));
+                        }
+                        self.drawing_hand = false;
+                        self.draw_resume = Some((n, from_hand));
+                        self.turn_cont = 4;
+                        return true;
+                    }
                 }
                 self.draw_cards(n, from_hand);
                 self.drawing_hand = false;
@@ -275,7 +291,8 @@ impl Combat {
                 if !self.listen.has(bit) {
                     continue;
                 }
-                let snap = self.snapshot(Mask::bit(bit));
+                let mut snap = crate::engine::Snapshot::new();
+                self.snapshot_into(Mask::bit(bit), &mut snap);
                 for e in snap.iter() {
                     if self.still_live(&e.me) {
                         let l = content::listener(&e.me);
@@ -353,14 +370,6 @@ impl Combat {
         }
     }
 
-    /// `check_for_empty_hand` as the last step of an outermost card play / potion use: an `AfterShuffle` decision raised by the draw it
-    /// makes (Unceasing Top + Stratagem) parks the rest of that draw (`draw_susp`).
-    pub(crate) fn check_for_empty_hand_last(&mut self) {
-        self.hand_check = self.play_stack.is_empty() && self.autoplay_stack.is_empty();
-        self.check_for_empty_hand();
-        self.hand_check = false;
-    }
-
     // ---- player turn end -----------------------------------------------------------------------------------------------
 
     /// Player ends the turn: phase one, phase two, side switch, enemy turn, next player turn (until the next decision).
@@ -380,7 +389,8 @@ impl Combat {
         if !(self.listen.has(hookbit::after_auto_post_play_phase_entered) && self.hooks_enabled()) {
             return true;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::after_auto_post_play_phase_entered));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::after_auto_post_play_phase_entered), &mut snap);
         let mut started = resume.is_none();
         for e in snap.iter() {
             if !started {
@@ -476,7 +486,8 @@ impl Combat {
     fn flush_player_hand(&mut self) {
         let mut flush = true;
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_flush));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_flush), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_flush(self, e.me) {
                     flush = false;
@@ -510,9 +521,9 @@ impl Combat {
             self.clear_star_mods(i as CardIdx, EXPIRE_END_OF_TURN);
             let card = &mut self.cards[i];
             if !card.mods.is_empty() {
-                let mut kept: crate::engine::CostMods = crate::util::ArrayVec::new();
+                let mut kept: crate::engine::CostMods = crate::util::SmallVec::new();
                 for m in card.mods.iter() {
-                    if m.expire & EXPIRE_END_OF_TURN == 0 {
+                    if m.expire() & EXPIRE_END_OF_TURN == 0 {
                         kept.push(*m);
                     }
                 }
@@ -654,6 +665,7 @@ impl Combat {
         self.dispatch_u(hookbit::after_combat_end, |cx, me, l| l.after_combat_end(cx, me));
         // Player.AfterCombatEnd: powers (no hooks), combat piles, block.
         self.cr_mut(PLAYER).powers.clear();
+        self.sync_secondary(PLAYER);
         self.cr_mut(PLAYER).block = 0;
         self.player.hand.clear();
         self.player.draw.clear();
@@ -662,7 +674,7 @@ impl Combat {
         self.player.play.clear();
         self.dispatch_u(hookbit::after_combat_victory_early, |cx, me, l| l.after_combat_victory_early(cx, me));
         self.dispatch_u(hookbit::after_combat_victory, |cx, me, l| l.after_combat_victory(cx, me));
-        self.hist_log = Default::default(); // History.Clear()
+        self.hist_log.clear(); // History.Clear()
         self.outcome = Outcome::Victory;
         self.stage = Stage::Over;
     }
@@ -670,7 +682,28 @@ impl Combat {
     // ---- agent interface ------------------------------------------------------------------------------------------
 
     /// Applies an action. Returns false if it was illegal (state unchanged).
+    ///
+    /// Capacity overflows anywhere below (a full `ArrayVec`, card arena, history ring ...) are folded into
+    /// [`Combat::overflow`] when the step returns; a non-zero flag means the fight is no longer faithful.
     pub fn step(&mut self, a: Action) -> bool {
+        // (fold, never drop: bits raised by an `observe` / `legal_actions` call on this combat that nobody synced yet belong to it)
+        self.sync_overflow();
+        let ok = self.step_inner(a);
+        self.sync_overflow();
+        ok
+    }
+
+    /// Moves the thread-local overflow bits (`util::raise_overflow`) into `self.overflow`. `step` does it automatically;
+    /// call it after `observe` / `legal_actions` (which build temporaries that can overflow too).
+    #[inline]
+    pub fn sync_overflow(&mut self) {
+        let o = crate::util::take_overflow();
+        if o != 0 {
+            self.overflow |= o as u16;
+        }
+    }
+
+    fn step_inner(&mut self, a: Action) -> bool {
         match (self.stage, a) {
             (Stage::AwaitAction, Action::PlayCard { hand_pos, target }) => {
                 if !self.play_card(hand_pos as usize, target) {
@@ -728,30 +761,21 @@ impl Combat {
                 return; // the hook's effect (e.g. a Sly auto-play) raised its own decision: that play resumes later
             }
         }
-        // A hook that shuffled by itself (Foregone Conclusion) and was interrupted by an `AfterShuffle` decision: the rest of that pass,
-        // then the hook's own continuation.
-        if self.hook_after.is_some() {
-            if matches!(self.susp.last(), Some(s) if s.bit == hookbit::after_shuffle) && self.run_after_shuffle() {
-                return;
+        if let Some((n, from_hand)) = self.draw_cont.take() {
+            // the draw of a card / potion effect was interrupted by a Stratagem pick: draw the rest (it may shuffle and ask again)
+            self.resuming_draw = true;
+            if let Some((_, 2)) = self.draw_pass {
+                // finish the `AfterShuffle` pass the pick interrupted (Biiig Hug's Soot comes after Stratagem's pick)
+                self.draw_pass = None;
+                if self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me)) {
+                    self.draw_pass = Some((NO, 2));
+                    self.draw_cont = Some((n, from_hand));
+                    self.resuming_draw = false;
+                    return;
+                }
             }
-            let (me, phase) = self.hook_after.take().unwrap();
-            content::listener(&me).resume_hook(self, me, phase);
-            if self.stage == Stage::AwaitChoice {
-                return;
-            }
-        }
-        // A card effect's / potion's draw interrupted by an `AfterShuffle` decision: the rest of that pass, then the rest of the draw.
-        if self.draw_susp.is_some() {
-            if matches!(self.susp.last(), Some(s) if s.bit == hookbit::after_shuffle) && self.run_after_shuffle() {
-                return;
-            }
-            let ds = self.draw_susp.take().unwrap();
-            if ds.kind == 1 {
-                // an interrupted `AutoPlayFromDrawPile`: the remaining picks, then every pick is auto-played
-                self.auto_play_pick_and_run(ds.picked, ds.n, ds.pos, ds.force_exhaust);
-            } else {
-                self.draw_cards(ds.n, ds.from_hand);
-            }
+            self.draw_cards(n, from_hand);
+            self.resuming_draw = false;
             if self.stage == Stage::AwaitChoice {
                 return;
             }

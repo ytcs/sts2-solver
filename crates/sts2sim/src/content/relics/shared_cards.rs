@@ -241,7 +241,7 @@ listener!(StoneCracker {
 
 fn ghost_seed_can_affect(cx: &Combat, c: CardIdx) -> bool {
     let d = cx.card_def(c);
-    d.rarity == CardRarity::Basic && d.tags & (tag::STRIKE | tag::DEFEND) != 0 && cx.card_keywords_local(c) & kw::ETHEREAL == 0
+    d.rarity == CardRarity::Basic && d.tags & (tag::STRIKE | tag::DEFEND) != 0 && cx.cards[c as usize].kw_add & kw::ETHEREAL == 0
 }
 // Basic Strikes / Defends become Ethereal.
 listener!(GhostSeed {

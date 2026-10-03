@@ -69,8 +69,8 @@ impl Combat {
             self.cards[c as usize].x_value = self.player.energy as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
-        if !skip_x_capture && self.card_has_star_cost_x(c) {
-            // LastStarsSpent = all current stars (not spent); skipped when the caller already spent the resources (Earring)
+        if self.card_has_star_cost_x(c) {
+            // LastStarsSpent = all current stars (not spent)
             self.cards[c as usize].x_value = self.player.stars as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
@@ -100,23 +100,9 @@ impl Combat {
         if self.is_over_or_ending() {
             return RunResult::Finished;
         }
-        self.auto_play_pick_and_run(QCards::new(), count.min(10), pos, force_exhaust)
-    }
-
-    /// The body of `AutoPlayFromDrawPile` from the pick loop on: `cards` were picked (and moved to the Play pile) before an
-    /// `AfterShuffle` decision interrupted the call, `left` picks remain.
-    pub(crate) fn auto_play_pick_and_run(&mut self, mut cards: QCards, left: i32, pos: CardPilePosition, force_exhaust: bool) -> RunResult {
-        for i in 0..left {
-            self.autoplay_shuffle_ok = true;
+        let mut cards: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
+        for _ in 0..count.min(AUTOPLAY_MAX as i32) {
             self.shuffle_if_necessary();
-            self.autoplay_shuffle_ok = false;
-            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() && self.draw_susp.is_some() {
-                // An `AfterShuffle` decision (Stratagem) interrupted the call: the picks made so far wait in the Play pile; the rest
-                // of the call (picks, then the plays) resumes in `resume_after_decision`.
-                let sum = self.effect_checksum();
-                self.draw_susp = Some(DrawSusp { n: left - i, from_hand: false, sum, kind: 1, pos, force_exhaust, picked: cards });
-                return RunResult::Suspended;
-            }
             let n = self.player.draw.len();
             let c = match pos {
                 CardPilePosition::Bottom => self.player.draw.last(),
@@ -138,15 +124,12 @@ impl Combat {
         self.drain_top_queue()
     }
 
-    /// A fixed list of `CardCmd.AutoPlay(card, null)` calls one after the other (Eidolon): same queue machinery as
-    /// `AutoPlayFromDrawPile`, so a decision raised by one of the plays suspends the rest of the list.
+    /// `foreach (card in cards) await CardCmd.AutoPlay(card, null)`: the cards are played in order; a decision inside one of
+    /// them suspends the rest of the list (continued by `resume_queues` once that play finished). The caller's `on_play`
+    /// must return `Flow::Suspend(next)` on `Suspended`, like for `auto_play`.
     pub fn auto_play_list(&mut self, cards: &[CardIdx]) -> RunResult {
-        let mut q: QCards = QCards::new();
-        for &c in cards.iter() {
-            if q.len() >= 32 {
-                self.flag_missing(crate::hooks::Kind::Card, u16::MAX); // longer lists are not modelled
-                break;
-            }
+        let mut q: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
+        for &c in cards.iter().take(AUTOPLAY_MAX) {
             q.push(c);
         }
         let owner = self.play_stack.len() as i8 - 1;
@@ -173,7 +156,6 @@ impl Combat {
                     continue;
                 }
                 if plain {
-                    // (leave the exhaust-on-next-play flag as it is)
                 } else if fe {
                     self.cards[c as usize].flags |= cflag::EXHAUST_ON_NEXT_PLAY;
                 } else {
@@ -226,7 +208,7 @@ impl Combat {
             self.draw_cards(cards_to_draw, false);
         }
         let owner = self.play_stack.len() as i8 - 1;
-        let mut q: QCards = QCards::new();
+        let mut q: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
         for &c in sly.iter() {
             q.push(c);
         }

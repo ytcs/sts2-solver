@@ -44,11 +44,4 @@ listener!(Unleash {
         cx.execute_attack(&Attack::from_card(osty, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        let osty = cx.living_osty();
-        let m = if cx.in_progress && osty != NO { cx.cr(osty).hp as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * m))
-    }
 });

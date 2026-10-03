@@ -4,19 +4,35 @@
 use crate::hooks::Mask;
 use crate::rng::Rng;
 use crate::types::*;
-use crate::util::ArrayVec;
+use crate::util::{ArrayVec, SmallVec};
 
-/// Card arena size (`CardIdx` is a u8 and 255 is `NO`). 160 overflows in 20+ turn Slimed / Wither fights; see feature `big-arena`.
-pub const MAX_CARDS: usize = if cfg!(feature = "big-arena") { 254 } else { 160 };
-pub const MAX_CREATURES: usize = 16;
-/// Power instances per creature (a power-heavy deep fight reaches 18+ on the player; see feature `big-arena`).
-pub const MAX_POWERS: usize = if cfg!(feature = "big-arena") { 24 } else { 16 };
+pub const MAX_CARDS: usize = 160;
+pub const MAX_CREATURES: usize = 12;
+pub const MAX_POWERS: usize = 16;
 pub const MAX_RELICS: usize = 24;
 pub const MAX_POTIONS: usize = 4;
 pub const MAX_HAND: usize = 10;
-/// Capacity of a decision's candidate list (a pile prompt: draw pile up to `MAX_CARDS`, realistically far fewer).
-pub const MAX_CANDS: usize = 160;
 pub const MAX_ORBS: usize = 10;
+/// Largest deck a combat accepts: deck card `i` indexes the `deck_*` side tables (`[_; MAX_DECK]`) and the rest of the card
+/// arena is kept for generated cards.
+pub const MAX_DECK: usize = 80;
+
+/// Bits of [`Combat::overflow`]: a fixed capacity was exceeded and data was dropped, so the fight can no longer be
+/// guaranteed faithful. Env wrappers must abort / truncate such an episode (like `missing`).
+pub mod ov {
+    /// A fixed-capacity `ArrayVec` (power list, decision candidates, snapshot, results, piles ...) was full on a push.
+    pub const CONTAINER: u16 = crate::util::OV_CONTAINER as u16;
+    /// The card arena (`MAX_CARDS`) was full when a card had to be created.
+    pub const CARDS: u16 = 1 << 1;
+    /// No free creature slot (`MAX_CREATURES`) for a spawned enemy / pet.
+    pub const CREATURES: u16 = 1 << 2;
+    /// The history ring overwrote an entry that a this-turn / last-turn query could still need.
+    pub const HISTORY: u16 = 1 << 3;
+    /// A saturating whole-combat counter hit its limit.
+    pub const COUNTER: u16 = 1 << 4;
+    /// The scenario does not fit the fixed capacities (deck / relics / potions / ...).
+    pub const SCENARIO: u16 = 1 << 5;
+}
 
 /// Creature handles: `0` is always the player. Pets (Osty) and enemies take later slots; slots of removed
 /// enemies are recycled. Enemy/ally *order* (which matters for hooks) lives in `Combat::allies/enemies`.
@@ -40,27 +56,46 @@ pub struct Power {
     pub skip_next_tick: bool,
 }
 
+/// A local cost modifier (`CardEnergyCost` modifier / temporary star cost), packed into two bytes.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct CostMod {
     pub amount: i8,
-    pub relative: bool,
-    pub reduce_only: bool,
+    /// bit0 = relative (add to the running cost), bit1 = reduce_only, bits 2.. = `expire` (see below).
+    bits: u8,
+}
+impl CostMod {
+    /// `expire`: 0 = lasts the combat, `EXPIRE_END_OF_TURN` (2) and/or `EXPIRE_WHEN_PLAYED` (4).
+    #[inline(always)]
+    pub const fn new(amount: i8, relative: bool, reduce_only: bool, expire: u8) -> CostMod {
+        CostMod { amount, bits: relative as u8 | (reduce_only as u8) << 1 | expire << 2 }
+    }
+    #[inline(always)]
+    pub const fn relative(self) -> bool {
+        self.bits & 1 != 0
+    }
+    #[inline(always)]
+    pub const fn reduce_only(self) -> bool {
+        self.bits & 2 != 0
+    }
     /// bit1 (2) = expires end of turn, bit2 (4) = expires when played. 0 = lasts the combat.
-    pub expire: u8,
+    #[inline(always)]
+    pub const fn expire(self) -> u8 {
+        self.bits >> 2
+    }
 }
 pub const EXPIRE_END_OF_TURN: u8 = 2;
 pub const EXPIRE_WHEN_PLAYED: u8 = 4;
 
 pub mod cflag {
-    pub const EXHAUST_ON_NEXT_PLAY: u16 = 1 << 0;
-    pub const SINGLE_TURN_RETAIN: u16 = 1 << 1;
-    pub const SINGLE_TURN_SLY: u16 = 1 << 2;
-    pub const IS_DUPE: u16 = 1 << 3;
+    pub const EXHAUST_ON_NEXT_PLAY: u8 = 1 << 0;
+    pub const SINGLE_TURN_RETAIN: u8 = 1 << 1;
+    pub const SINGLE_TURN_SLY: u8 = 1 << 2;
+    pub const IS_DUPE: u8 = 1 << 3;
     /// Card left the combat for good (`HasBeenRemovedFromState`).
-    pub const REMOVED: u16 = 1 << 4;
-    pub const X_CAPTURED: u16 = 1 << 5;
+    pub const REMOVED: u8 = 1 << 4;
+    pub const X_CAPTURED: u8 = 1 << 5;
     /// Created by `CardModel.CreateClone` (`IsClone`): see `Combat::clone_card`.
-    pub const IS_CLONE: u16 = 1 << 6;
+    pub const IS_CLONE: u8 = 1 << 6;
 }
 
 /// One card instance in the combat arena.
@@ -69,7 +104,7 @@ pub struct Card {
     pub id: u16,
     pub pile: PileTypeBits,
     pub upgrade: u8,
-    pub flags: u16,
+    pub flags: u8,
     /// Local keyword delta vs canonical (`AddKeyword` / `RemoveKeyword`).
     pub kw_add: u8,
     pub kw_remove: u8,
@@ -89,7 +124,7 @@ pub struct Card {
     pub x_value: i16,
     pub mods: crate::engine::CostMods,
     /// Temporary star costs (`_temporaryStarCosts`); the LAST entry wins. `amount` = cost, `expire` as for `mods`.
-    pub star_mods: ArrayVec<CostMod, 2>,
+    pub star_mods: SmallVec<CostMod, 2>,
     /// Per-card persistent counters (Rampage damage, Regret, ...), meaning defined by the card.
     pub counter: [i16; 2],
     /// Permanent bonus to the card's Damage var in units of 1/10000 (Rampage, Thrash: `DynamicVars.Damage.BaseValue += x`).
@@ -197,6 +232,9 @@ pub struct Creature {
     /// Encounter slot index (`NO` = none).
     pub slot: u8,
     pub powers: ArrayVec<Power, MAX_POWERS>,
+    /// Cache: some power of this creature has `PowerDef::secondary_enemy` (`OwnerIsSecondaryEnemy`: Minion, Illusion), which
+    /// makes it not count for `is_ending`. Maintained by `Combat::sync_secondary` at every power-list mutation.
+    pub secondary: bool,
     pub monster: MonsterState,
 }
 
@@ -214,6 +252,7 @@ impl Default for Creature {
             owner: NO,
             slot: NO,
             powers: ArrayVec::new(),
+            secondary: false,
             monster: MonsterState::default(),
         }
     }
@@ -354,7 +393,7 @@ pub struct Decision {
     pub source: DecisionSource,
     pub min: u8,
     pub max: u8,
-    pub cands: ArrayVec<CardIdx, MAX_CANDS>,
+    pub cands: ArrayVec<CardIdx, MAX_CARDS>,
     /// Candidate positions selected so far, in click order.
     pub selected: ArrayVec<u8, 16>,
     /// `RequireManualConfirmation` (`min != max`).
@@ -372,6 +411,18 @@ pub struct Choice {
     pub cards: ArrayVec<CardIdx, 16>,
 }
 
+/// A suspended resumable hook pass: the listener that raised the decision and the listeners that were still to run (the game
+/// iterates a list built at the start of the pass; models that moved meanwhile, e.g. an auto-played card, keep their place in
+/// it). `full` = nothing was cut off at the capacity (otherwise the pass is rebuilt from a fresh snapshot, best effort).
+#[derive(Clone, Copy)]
+pub struct SuspPass {
+    pub bit: u32,
+    pub me: crate::hooks::Me,
+    pub pos: u8,
+    pub full: bool,
+    pub rest: ArrayVec<crate::hooks::Me, 8>,
+}
+
 /// Step of the card-play state machine (`CardModel.OnPlayWrapper`), resumable across decisions.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PlayStep {
@@ -381,43 +432,22 @@ pub enum PlayStep {
 }
 
 /// In-flight potion use (suspended while a decision is pending).
-/// Cards of an auto-play queue (`AutoPlayFromDrawPile` <= 10; Eidolon replays every Ethereal card of the exhaust pile: 12+ in a long fight).
-pub type QCards = ArrayVec<CardIdx, 32>;
-
 /// Cards of one `AutoPlayFromDrawPile` / `DiscardAndDraw` call still waiting to be auto-played (front = next).
+/// Most cards one `AutoPlayFromDrawPile` call can queue (Cascade with X = energy; Ice Cream can bank a lot of energy).
+pub const AUTOPLAY_MAX: usize = 24;
+
 #[derive(Clone, Copy)]
 pub struct AutoQueue {
-    pub cards: QCards,
+    pub cards: ArrayVec<CardIdx, AUTOPLAY_MAX>,
     /// `AutoPlayFromDrawPile(forceExhaust)`.
     pub force_exhaust: bool,
     /// `AutoPlayType.SlyDiscard` queue (else `Default`).
     pub sly: bool,
-    /// Plain `CardCmd.AutoPlay` calls in a row (Eidolon): the cards' exhaust-on-next-play flags are left alone.
+    /// A plain list of `CardCmd.AutoPlay` calls (Eidolon): the cards' own exhaust-on-next-play flags are left alone.
     pub plain: bool,
     /// Index in `play_stack` of the card play whose effect started the call (-1: none). The queue continues when the
     /// play above it finishes.
     pub owner: i8,
-}
-
-/// A resumable notification pass that stopped on a decision: the hook bit and the listeners that were still to run (the pass
-/// resumes over this list, not a fresh snapshot). Passes nest (Mayhem's pass -> its shuffle's `AfterShuffle` pass): innermost last.
-#[derive(Clone, Copy)]
-pub struct SuspPass {
-    pub bit: u32,
-    pub rest: ArrayVec<crate::hooks::Me, 24>,
-}
-
-#[derive(Clone, Copy)]
-pub struct DrawSusp {
-    pub n: i32,
-    pub from_hand: bool,
-    pub sum: u64,
-    /// 1 = an `AutoPlayFromDrawPile` call interrupted at its reshuffle (`n` cards left to auto-play, from `pos`, `force_exhaust`).
-    pub kind: u8,
-    pub pos: CardPilePosition,
-    pub force_exhaust: bool,
-    /// The picks already made (kind 1).
-    pub picked: QCards,
 }
 
 #[derive(Clone, Copy)]
@@ -450,7 +480,7 @@ pub struct History {
     pub skills_finished_this_turn: i16,
     pub shivs_finished_this_turn: i16,
     /// Bitset over card arena indices: cards with a `CardPlayFinishedEntry` this turn (Necrobinder).
-    pub finished_cards: [u64; (MAX_CARDS + 63) / 64],
+    pub finished_cards: [u64; 3],
     /// Per-play scratch used by Serpent Form / Strangle: the power amount when `BeforeCardPlayed` ran for a card.
     pub play_amounts: ArrayVec<PlayAmount, 32>,
 }
@@ -465,7 +495,11 @@ impl History {
     }
     /// `amountsForPlayedCards.Add(card, amount)` of power instance `uid` (entries nest: auto-plays start plays inside plays).
     pub fn remember_play(&mut self, uid: u16, card: CardIdx, amount: i32) {
-        self.play_amounts.push(PlayAmount { uid, card, amount });
+        if self.play_amounts.len() < 32 {
+            self.play_amounts.push(PlayAmount { uid, card, amount });
+        } else {
+            crate::util::raise_overflow(crate::util::OV_CONTAINER);
+        }
     }
     /// `amountsForPlayedCards.Remove(card, out amount)`.
     pub fn take_play(&mut self, uid: u16, card: CardIdx) -> Option<i32> {
@@ -475,9 +509,6 @@ impl History {
     /// Mutable access to the entry (`playedCards[card] += ...`).
     pub fn play_entry(&mut self, uid: u16, card: CardIdx) -> Option<&mut i32> {
         self.play_amounts.as_mut_slice().iter_mut().rev().find(|e| e.uid == uid && e.card == card).map(|e| &mut e.amount)
-    }
-    pub fn has_play(&self, uid: u16, card: CardIdx) -> bool {
-        self.play_amounts.as_slice().iter().any(|e| e.uid == uid && e.card == card)
     }
 }
 
@@ -521,7 +552,7 @@ pub struct Combat {
 
     /// In-flight card plays, innermost last (an auto-play started from inside `on_play` pushes a nested play);
     /// suspended while a decision is pending.
-    pub play_stack: ArrayVec<PlayCtx, 16>,
+    pub play_stack: ArrayVec<PlayCtx, 6>,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
@@ -529,32 +560,29 @@ pub struct Combat {
     pub hook_ctx: Option<(crate::hooks::Me, u8)>,
     /// A turn-start hand draw interrupted by a decision raised in `AfterShuffle` (Stratagem): (cards still to draw,
     /// from_hand_draw). `turn_cont == 4` resumes it.
-    pub draw_resume: Option<(i32, bool, bool)>,
+    pub draw_resume: Option<(i32, bool)>,
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
-    /// True while a hook (Foregone Conclusion's `BeforeHandDraw`) shuffles directly: an `AfterShuffle` decision (Stratagem) raised then
-    /// can be resumed (`hook_after`).
-    pub hook_shuffle: bool,
-    /// True while the hand-empty check at the very end of a card play / potion use runs: a draw it makes (Unceasing Top) can park an
-    /// `AfterShuffle` decision (`draw_susp`) because nothing but the draw is left of the action.
-    pub hand_check: bool,
-    /// A hook whose own effect waits for the nested `AfterShuffle` decision pass: `resume_hook(phase)` runs once that pass is finished.
-    pub hook_after: Option<(crate::hooks::Me, u8)>,
-    /// Nesting depth of `draw_cards_list` calls (a draw started from an `AfterCardDrawn` hook, e.g. Iteration, is depth 2: its
-    /// `AfterShuffle` decisions cannot be resumed, only the outermost hand draw's can).
+    /// Nesting depth of `draw_cards_list` (a draw started by an `AfterCardDrawn` hook of another draw is depth 2).
     pub draw_depth: u8,
-    /// A card effect's / potion's draw interrupted by an `AfterShuffle` decision (Stratagem): cards still to draw and the
-    /// `effect_checksum` at that moment. Valid only when the effect does nothing else after the draw (terminal draw): the play
-    /// then resumes at its `After` step once the decision is answered and the rest of the draw is done.
-    pub draw_susp: Option<DrawSusp>,
-    /// True while `auto_play_from_draw_pile` reshuffles (an `AfterShuffle` decision can then be parked in `draw_susp`).
-    pub autoplay_shuffle_ok: bool,
+    /// A draw started by a card / potion effect that was interrupted by an `AfterShuffle` decision (Stratagem):
+    /// (cards still to draw, from_hand_draw). The effect's own code already returned; `resume_after_decision` finishes
+    /// the draw once the pick is made (see `draw_decision_resumable`).
+    pub draw_cont: Option<(i32, bool)>,
+    /// True while `resume_after_decision` finishes an interrupted draw (a further shuffle may ask again).
+    pub resuming_draw: bool,
+    /// >0 while a draw whose caller reads the drawn cards / asks right afterwards runs: its shuffle decisions cannot be paused.
+    pub draw_nosuspend: u8,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
-    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
+    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw, 5 / 6 / 7 = in the early /
+    /// normal / late `AfterAutoPrePlayPhaseEntered` pass.
     pub turn_cont: u8,
-    /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
-    /// its index in the pass: the pass continues after it once the decision is resolved.
+    /// Resumable notification passes (`Combat::dispatch_resumable`) suspended by a decision, innermost last (a pass can be
+    /// suspended inside another suspended pass: the turn-start hook of Mayhem auto-plays a card whose draw reshuffles).
     pub susp: ArrayVec<SuspPass, 3>,
+    /// The `AfterShuffle` / `AfterCardDrawn(Early)` pass (drawn card, 0 = early / 1 = normal / 2 = after-shuffle) that a decision
+    /// interrupted during the turn-start hand draw (`turn_cont` 4 finishes it, then the rest of the draw).
+    pub draw_pass: Option<(CardIdx, u8)>,
     /// An enemy turn suspended inside a monster move that raised a decision (Knowledge Demon's Curse of Knowledge):
     /// the `Enemies` snapshot taken at the start of the turn and the index of the suspended mover.
     pub enemy_cont: Option<(ArrayVec<Cid, MAX_CREATURES>, u8, u8)>,
@@ -564,6 +592,9 @@ pub struct Combat {
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
+    /// Bitset of `ov::*`: a fixed capacity was exceeded and data was dropped (never silently: see `util::raise_overflow`).
+    /// Non-zero = the fight is NOT faithful; env wrappers must abort / truncate the episode (like `missing`).
+    pub overflow: u16,
 
     // ---- engine-core additions ----
     /// `Player.IsActiveForHooks`: false from the end of the player's death sequence (`DeactivateHooks`) until revived.
@@ -579,7 +610,9 @@ pub struct Combat {
     pub dmg_result: crate::engine::DamageResult,
     /// `AttackCommand.Results` (first 16 per-hit results) of the attack whose `after_attack` hooks are being dispatched
     /// (only filled when some listener has `after_attack`): Suck, Skittish.
-    pub attack_results: ArrayVec<crate::engine::DamageResult, 64>,
+    pub attack_results: ArrayVec<crate::engine::DamageResult, 16>,
+    /// Sizes of the per-hit groups of `attack_results` (C# `command.Results` is a list of per-hit result lists).
+    pub attack_hit_sizes: ArrayVec<u8, 16>,
     /// Side channel for `AfterAttack` (C# `command.Results`): set by `execute_attack` right before the hook pass.
     /// `attack_unblocked_hits` = results with unblocked damage > 0 (any receiver); `attack_player_hits` = those whose
     /// receiver is the player creature.
@@ -587,16 +620,16 @@ pub struct Combat {
     pub attack_player_hits: u8,
     /// Auto-play queues still waiting to be drained (one per in-progress `AutoPlayFromDrawPile` / Sly discard call; they
     /// nest like the C# locals: a card auto-played from a queue may itself start another one).
-    pub autoplay_stack: ArrayVec<AutoQueue, 16>,
+    pub autoplay_stack: ArrayVec<AutoQueue, 4>,
     /// Combat history log (`engine/history.rs`).
     pub hist_log: crate::engine::HistLog,
     /// Number of decisions raised so far (lets a driver tell "the same decision" from "the next one").
     pub decision_seq: u32,
     /// `DeckVersion` write-backs of enchantment amounts (Goopy): increments per deck index (outputs of the combat).
-    pub deck_enchant_inc: [u8; 80],
+    pub deck_enchant_inc: [u8; MAX_DECK],
     /// Upgrade level of each run-deck card (`DeckVersion.CurrentUpgradeLevel`; index = deck index) and the deck size. Combat copies
     /// upgrade independently; only deck-level upgrades (Improvement power at combat end) change these.
-    pub deck_upgrade: [u8; 80],
+    pub deck_upgrade: [u8; MAX_DECK],
     pub deck_len: u8,
     /// Identity of the card play iteration in flight (`CardPlay` object): bumped before each `BeforeCardPlayed`.
     pub play_serial: u16,

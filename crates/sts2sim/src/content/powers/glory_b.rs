@@ -130,7 +130,7 @@ listener!(WitheringPresencePower {
         let left = aux_of(cx, &me) - 1;
         set_aux(cx, &me, left);
         if left <= 0 {
-            cx.add_status_cards_as(ids::card::WITHER, PileType::Hand, 1, CardPilePosition::Bottom, false); // creator == null
+            cx.add_status_cards(ids::card::WITHER, PileType::Hand, 1, CardPilePosition::Bottom);
             set_aux(cx, &me, 6);
         }
     }

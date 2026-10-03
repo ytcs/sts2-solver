@@ -1,0 +1,85 @@
+{
+ "name": "deathblow_intends_to_attack",
+ "ascension": 10,
+ "encounter": "LIVING_FOG_NORMAL",
+ "character": "DEFECT",
+ "hp": 206,
+ "max_hp": 206,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "fz402393x221892018",
+ "total_floor": 8,
+ "act": 0,
+ "deck": [
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DUALCAST"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "ZAP"
+  },
+  {
+   "id": "TEMPEST"
+  },
+  {
+   "id": "FERAL",
+   "upgrade": 1
+  },
+  {
+   "id": "PROLONG"
+  },
+  {
+   "id": "ULTIMATE_DEFEND"
+  },
+  {
+   "id": "TEMPEST",
+   "upgrade": 1
+  },
+  {
+   "id": "DECAY"
+  },
+  {
+   "id": "SHADOW_SHIELD",
+   "upgrade": 1
+  },
+  {
+   "id": "GO_FOR_THE_EYES",
+   "upgrade": 1
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "CRACKED_CORE",
+  "STRIKE_DUMMY",
+  "GOLD_PLATED_CABLES",
+  "STONE_CALENDAR"
+ ],
+ "potions": [],
+ "note": "Go for the Eyes vs Gas Bomb (DeathBlowAttack intent): Monster.IntendsToAttack is true for DeathBlow intents."
+}

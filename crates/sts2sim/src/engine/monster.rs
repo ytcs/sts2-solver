@@ -45,11 +45,15 @@ impl Combat {
 
     /// `create_enemy` with the monster's private integers set before the HP range is computed.
     pub fn create_enemy_v(&mut self, monster_id: u16, slot: u8, vars: [i32; 2]) -> Option<Cid> {
-        let cid = self.alloc_slot()?;
         if !content::monster_implemented(monster_id) {
             self.flag_missing(Kind::Monster, monster_id);
             return None;
         }
+        let Some(cid) = self.alloc_slot() else {
+            // No free creature slot: the summon cannot happen, which the real game would not do.
+            self.overflow |= ov::CREATURES;
+            return None;
+        };
         let def = content::monster_def(monster_id);
         let (mut lo, mut hi) = (def.hp)(self.ascension);
         let bonus = content::monster_hp_bonus(monster_id, vars);

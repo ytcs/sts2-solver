@@ -244,7 +244,7 @@ listener!(FishingRod {
         }
         cx.rel_mut(me).counter += 1;
         if cx.rel(me).counter % g::fishing_rod::COMBATS == 0 {
-            let n = cx.deck_upgradable_count() as i32;
+            let n = cx.deck_upgradable.count_ones() as i32;
             if n > 0 {
                 cx.rng.niche.next_int_range(0, n);
             }
@@ -264,7 +264,7 @@ listener!(WarHammer {
         if cx.room_type != 1 {
             return;
         }
-        let n = cx.deck_upgradable_count();
+        let n = cx.deck_upgradable.count_ones() as usize;
         let mut dummy = [0u8; 128];
         cx.rng.niche.shuffle(&mut dummy[..n]);
     }
@@ -320,13 +320,6 @@ listener!(BookRepairKnife {
 listener!(BowlerHat {
     fn modify_gold_gained(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount * g::bowler_hat::GOLD_INCREASE
-    }
-});
-
-// +MaxHp max HP (and HP) on every gold gain (`PlayerCmd.GainGold` -> `AfterGoldGained`, e.g. Hand of Greed kills).
-listener!(DragonFruit {
-    fn after_gold_gained(&self, cx: &mut Combat, _me: Me) {
-        cx.gain_max_hp(PLAYER, Dec::int(g::dragon_fruit::MAX_HP as i64));
     }
 });
 

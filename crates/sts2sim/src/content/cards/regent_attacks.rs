@@ -1,5 +1,6 @@
 //! Regent attack cards (bodies follow the decompiled `Models/Cards/<Class>.cs` `OnPlay`).
 
+use crate::engine::calc_with;
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Attack, HKind, Results, Targeting};
@@ -168,7 +169,7 @@ listener!(KinglyKick {
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, card: CardIdx, _from_hand_draw: bool) {
         if card as u16 == me.idx {
             // EnergyCost.AddThisCombat(-1): a combat-long relative modifier (merged / evicted by push_cost_mod).
-            cx.push_cost_mod(card, CostMod { amount: -1, relative: true, reduce_only: false, expire: 0 });
+            cx.push_cost_mod(card, CostMod::new(-1, true, false, 0));
         }
     }
 });
@@ -228,12 +229,10 @@ listener!(CrescentSpear {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, base + extra * n, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         let _ = target;
-        let all_cards = cx.player_combat_cards();
-        let n = if cx.in_progress { all_cards.iter().filter(|&&c| cx.card_def(c).star_cost != -1).count() as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
+        let n = cx.player_combat_cards().iter().filter(|&&c| cx.card_def(c).star_cost != -1).count() as i32;
+        Some(calc_with(cx, card, n))
     }
 });
 
@@ -246,11 +245,9 @@ listener!(Supermassive {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, base + extra * n, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         let _ = target;
-        let n = if cx.in_progress { cx.hist_log.generated_by_player as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
+        Some(calc_with(cx, card, cx.hist_log.generated_by_player as i32))
     }
 });
 
@@ -258,8 +255,7 @@ listener!(Supermassive {
 listener!(LunarBlast {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = dmg(cx, p.card);
-        // CardPlaysFinished (Skill, this turn): a nested play (Beat Down) is not finished yet
-        let hits = cx.hist.skills_finished_this_turn as i32;
+        let hits = cx.hist.skills_played_this_turn as i32;
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)).hits(hits));
         Flow::Done
     }

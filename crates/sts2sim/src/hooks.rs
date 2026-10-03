@@ -378,7 +378,7 @@ pub trait Listener: Sync {
     fn modify_gold_gained(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
     }
-    /// [R] `AfterGoldGained(player)` -- DragonFruit (`PlayerCmd.GainGold`, after the gold was added).
+    /// [U] `AfterGoldGained` (`PlayerCmd.GainGold`, after the gold was added): Dragon Fruit.
     fn after_gold_gained(&self, cx: &mut Combat, me: Me) {}
     // ---- relic state metadata (static dispatch by relic id; NOT hooks, no mask bit that is ever dispatched) ----
     /// The relic's `[SavedProperty]` list: how the oracle dumps / injects its persistent state (`Relic::{counter,aux,flags}`).

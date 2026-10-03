@@ -31,8 +31,8 @@ fn beat_down_run(cx: &mut Combat, p: &CardPlay, start: usize) -> Flow {
             break;
         }
         let item = slots[i] - 1;
-        // The game picks the target itself (`NextItem(HittableEnemies)`, one `CombatTargets` draw) BEFORE `AutoPlay(item,
-        // target)` runs its own checks, so the draw also happens when the auto-play is then refused (Sloth, ShouldPlay hooks).
+        // The card itself picks the target (`NextItem(HittableEnemies)`, one `CombatTargets` draw) BEFORE calling
+        // `AutoPlay(item, target)` -- so the draw happens even when AutoPlay then refuses to play the card (Sloth, ...).
         let mut target = NO;
         if cx.card_target_type(item) == TargetType::AnyEnemy {
             let h = cx.hittable_enemies();

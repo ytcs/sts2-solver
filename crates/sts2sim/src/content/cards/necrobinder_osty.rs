@@ -166,11 +166,11 @@ listener!(Snap {
 fn flatten_reduce_cost(cx: &mut Combat, c: CardIdx) {
     let card = &mut cx.cards[c as usize];
     if let Some(last) = card.mods.last() {
-        if !last.relative && !last.reduce_only && last.amount == 0 && last.expire == EXPIRE_END_OF_TURN {
+        if !last.relative() && !last.reduce_only() && last.amount == 0 && last.expire() == EXPIRE_END_OF_TURN {
             return;
         }
     }
-    card.mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: EXPIRE_END_OF_TURN });
+    card.mods.push(CostMod::new(0, false, false, EXPIRE_END_OF_TURN));
 }
 
 listener!(Flatten {
@@ -315,21 +315,6 @@ listener!(Squeeze {
         cx.execute_attack(&Attack::from_card(osty, p.card, d, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        let mut n = 0i64;
-        if cx.in_progress {
-            for pile in [PileType::Hand, PileType::Draw, PileType::Discard, PileType::Exhaust, PileType::Play] {
-                for &c in cx.pile(pile).iter() {
-                    if c != card && cx.card_def(c).tags & tag::OSTY_ATTACK != 0 {
-                        n += 1;
-                    }
-                }
-            }
-        }
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
-    }
 });
 
 // 10 (+5) + 1 x Osty's max HP.
@@ -342,13 +327,6 @@ listener!(Protector {
         let d = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::ExtraDamage) * cx.cr(osty).max_hp;
         cx.execute_attack(&Attack::from_card(osty, p.card, d, Targeting::Single(p.target)));
         Flow::Done
-    }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        let osty = cx.living_osty();
-        let m = if cx.in_progress && osty != NO { cx.cr(osty).max_hp as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * m))
     }
 });
 

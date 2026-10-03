@@ -37,6 +37,7 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             string outPath = kv.GetValueOrDefault("out");
             using var w = outPath != null ? new StreamWriter(outPath, false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" } : new StreamWriter(Console.OpenStandardOutput()) { NewLine = "\n" };
             int? rs = kv.TryGetValue("random", out var r) ? int.Parse(r) : null;
+            Driver.PolicyKind = kv.GetValueOrDefault("policy", "random");
             var res = RunOne(sc, w, pump, rs, maxSteps, maxRounds);
             if (kv.TryGetValue("record", out var recordPath))
             {
@@ -77,8 +78,46 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             File.WriteAllText(kv["out"], Catalog.Build().ToJsonString() + "\n");
             return 0;
         }
+        if (cmd == "dump-pools")
+        {
+            File.WriteAllText(kv["out"], Pools.Dump().ToJsonString() + "\n");
+            return 0;
+        }
+        if (cmd == "batch" && !kv.ContainsKey("list") && !File.Exists(positional ?? "")) return DoBatch(positional, kv, pump, maxSteps, maxRounds);
+        if (cmd == "list-meta")
+        {
+            var txt = Fuzz.ListMeta().ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+            if (kv.TryGetValue("out", out var lp)) File.WriteAllText(lp, txt + "\n"); else Console.WriteLine(txt);
+            return 0;
+        }
         if (cmd == "batch")
         {
+            if (kv.ContainsKey("list"))
+            {
+            // batch --list FILE --policy-base N: FILE has one scenario path per line (BASE.scenario.json); for each, run the random
+            // policy (seed = policy-base + line index) and write BASE.jsonl; one process for all (no per-fight JIT). Errors go to BASE.err.
+            var paths = File.ReadAllLines(kv["list"]).Where(l => l.Trim().Length > 0).ToList();
+            int pb = int.Parse(kv.GetValueOrDefault("policy-base", "0"));
+            PlayBiasArg = double.Parse(kv.GetValueOrDefault("play-bias", "0"), System.Globalization.CultureInfo.InvariantCulture);
+            int nbad = 0;
+            for (int i = 0; i < paths.Count; i++)
+            {
+                string bp = paths[i].Replace(".scenario.json", "");
+                RunResult res;
+                try
+                {
+                    var sc = Scenario.Load(paths[i]);
+                    using var w = new StreamWriter(bp + ".jsonl", false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" };
+                    res = RunOne(sc, w, pump, pb + i, maxSteps, maxRounds);
+                }
+                catch (Exception e) { res = new RunResult("exception", new List<ActionSpec>(), e.ToString()); }
+                if (res.Error != null) { nbad++; File.WriteAllText(bp + ".err", res.Error + "\n"); }
+                Console.WriteLine($"{(res.Error == null ? "ok " : "ERR")} {bp} {res.Result}");
+            }
+            Console.WriteLine($"batch done: {paths.Count} runs, {nbad} errors");
+            }
+            else
+            {
             // batch FILE: one scenario path per line; trace -> <scenario base>.jsonl, failure -> <base>.error.txt (one process, ~50 ms/fight)
             foreach (var line in File.ReadLines(positional))
             {
@@ -97,6 +136,7 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
                 }
                 catch (Exception e) { File.WriteAllText(bas + ".error.txt", e.ToString()); File.WriteAllText(bas + ".done", "error"); Console.WriteLine("ERR " + path); }
             }
+            }
             return 0;
         }
         if (cmd == "fuzz") return DoFuzz(kv, flags, pump, maxSteps, maxRounds);
@@ -106,10 +146,11 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
 
     record RunResult(string Result, List<ActionSpec> Recorded, string Error);
 
+    static double PlayBiasArg = 0;
     static RunResult RunOne(Scenario sc, TextWriter w, Pump pump, int? randomSeed, int maxSteps, int maxRounds)
     {
         Fatal.Message = null; Fatal.Warnings.Clear();
-        var driver = new Driver(sc, w, pump) { MaxSteps = maxSteps, MaxRounds = maxRounds };
+        var driver = new Driver(sc, w, pump) { MaxSteps = maxSteps, MaxRounds = maxRounds, PlayBias = PlayBiasArg };
         if (sc.Raw["policy"] is JsonObject po)
         {
             if (po["endw"] != null) driver.EndWeight = (double)po["endw"];
@@ -126,6 +167,38 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
         w.Flush();
         try { driver.Dispose(); } catch (Exception e) { err ??= "cleanup: " + e.Message; }
         return new RunResult(driver.Result, driver.Recorded, err);
+    }
+
+    /// <summary>`batch DIR`: run every DIR/*.scenario.json in this process (skipping ones that already have .jsonl/.err).
+    /// Scenario key `policy` = {"kind":"random|playall|stall","seed":N,"max_steps":N,"max_rounds":N}.
+    /// Writes DIR/NAME.jsonl, NAME.res ("result nactions") or NAME.err on oracle error.</summary>
+    static int DoBatch(string dir, Dictionary<string, string> kv, Pump pump, int maxSteps, int maxRounds)
+    {
+        var files = Directory.GetFiles(dir, "*.scenario.json").OrderBy(f => f, StringComparer.Ordinal).ToList();
+        int bad = 0;
+        foreach (var f in files)
+        {
+            string stem = f[..^".scenario.json".Length];
+            if (File.Exists(stem + ".res") || File.Exists(stem + ".err")) continue;
+            string err = null; RunResult res = null;
+            try
+            {
+                var sc = Scenario.Load(f);
+                var pol = sc.Raw["policy"]?.AsObject();
+                int? seed = pol == null ? null : (pol["seed"]?.GetValue<int>() ?? 1);   // no policy: scripted replay only
+                Driver.PolicyKind = (string)pol?["kind"] ?? "random";
+                int ms = pol?["max_steps"]?.GetValue<int>() ?? maxSteps;
+                int mr = pol?["max_rounds"]?.GetValue<int>() ?? maxRounds;
+                using var w = new StreamWriter(stem + ".jsonl", false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" };
+                res = RunOne(sc, w, pump, seed, ms, mr);
+                err = res.Error;
+            }
+            catch (Exception e) { err = e.ToString(); }
+            if (err != null) { bad++; File.WriteAllText(stem + ".err", err + "\n"); }
+            else File.WriteAllText(stem + ".res", $"{res.Result} {res.Recorded.Count}\n");
+        }
+        Console.WriteLine($"batch done: {files.Count} scenarios, {bad} oracle errors");
+        return 0;
     }
 
     static int DoFuzz(Dictionary<string, string> kv, HashSet<string> flags, Pump pump, int maxSteps, int maxRounds)

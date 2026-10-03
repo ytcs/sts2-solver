@@ -259,16 +259,16 @@ listener!(BurningPact {
 
 // Generate three distinct cards from the character's pool, choose one (or skip), add it to hand costing 0 this turn.
 listener!(Discovery {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+    fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
         match phase {
             0 => {
                 let pool = cx.character_pool();
                 let cards = cx.get_distinct_for_combat(pool, 3, |_| true);
                 match cx.ask_options(ids::card::DISCOVERY, cards.as_slice(), true) {
-                    Ask::Resolved(c) => {
-                        // (resolved at once: Whispering Earring's selector, or nothing to choose from)
-                        cx.choice.cards = c;
-                        self.on_play(cx, p, 1)
+                    Ask::Resolved(cards) => {
+                        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
+                        cx.choice.cards = cards;
+                        self.on_play(cx, _p, 1)
                     }
                     Ask::Pending => Flow::Suspend(1),
                 }

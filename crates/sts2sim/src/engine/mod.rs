@@ -28,7 +28,7 @@ mod turn;
 
 pub use creature::DamageResult;
 pub use necro::{is_temporary_power, temporary_inner_power};
-pub use damage::{Attack, Mods, Results, Targeting};
+pub use damage::{calc_with, Attack, Mods, Results, Targeting};
 pub use dispatch::*;
 pub use cmds::Ask;
 pub use action::{Action, ActionBuf, ACTION_SPACE};

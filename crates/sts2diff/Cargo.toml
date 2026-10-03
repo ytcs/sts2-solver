@@ -6,5 +6,5 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-sts2sim = { path = "../sts2sim", features = ["big-arena"] }
+sts2sim = { path = "../sts2sim" }
 serde_json = "1"

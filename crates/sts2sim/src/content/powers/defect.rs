@@ -225,18 +225,18 @@ listener!(SmokestackPower {
 // ---- card-play powers --------------------------------------------------------------------------------------------------
 
 /// Storm / Subroutine remember `(power card being played, Amount at that moment)` between `BeforeCardPlayed` and
-/// `AfterCardPlayed` (the game keeps a `Dictionary<CardModel, int>`): `hist.play_amounts` (plays nest).
+/// `AfterCardPlayed` (the game keeps a `Dictionary<CardModel, int>`; here `play_amount_*`, which supports nested plays).
 fn remember_power_card_play(cx: &mut Combat, me: Me, play: &CardPlay) {
     if cx.card_def(play.card).ctype != CardType::Power {
         return;
     }
     let amount = cx.power_amount(me.owner, me.id);
-    cx.hist.remember_play(me.idx, play.card, amount);
+    cx.play_amount_add(me.idx, play.card, amount);
 }
 
 /// Pops the remembered amount for `play.card` (0 if it was not remembered).
 fn take_power_card_play(cx: &mut Combat, me: Me, play: &CardPlay) -> i32 {
-    cx.hist.take_play(me.idx, play.card).unwrap_or(0).max(0)
+    cx.play_amount_take(me.idx, play.card).unwrap_or(0)
 }
 
 // Storm: whenever the owner plays a Power card, channel (Amount at the time it started playing) Lightning.

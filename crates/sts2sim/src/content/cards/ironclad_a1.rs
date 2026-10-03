@@ -1,5 +1,6 @@
 //! Ironclad cards, batch a1: pool positions [0,45) of the Ironclad pool (Aggression .. Impervious) that are not in basic.rs.
 
+use crate::engine::calc_with;
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Ask, Attack, HKind, RunResult, Targeting};
@@ -95,14 +96,9 @@ listener!(FeelNoPain {
 // ---- skills ---------------------------------------------------------------------------------------------------------
 
 listener!(BattleTrance {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        if phase == 0 {
-            let n = cx.card_var(p.card, VarKind::Cards);
-            cx.draw_cards(n, false);
-            if cx.draw_pending() {
-                return Flow::Suspend(50); // a Stratagem prompt interrupted the draw
-            }
-        }
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let n = cx.card_var(p.card, VarKind::Cards);
+        cx.draw_cards_nosuspend(n, false);
         cx.apply_power(ids::power::NO_DRAW_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
         Flow::Done
     }
@@ -263,10 +259,9 @@ listener!(AshenStrike {
         cx.execute_attack(&a);
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         let _ = target;
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * if cx.in_progress { cx.player.exhaust.len() as i64 } else { 0 }))
+        Some(calc_with(cx, card, cx.player.exhaust.len() as i32))
     }
 });
 
@@ -284,10 +279,9 @@ listener!(BodySlam {
         cx.execute_attack(&a);
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         let _ = target;
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * if cx.in_progress { cx.cr(PLAYER).block as i64 } else { 0 }))
+        Some(calc_with(cx, card, cx.cr(PLAYER).block))
     }
 });
 
@@ -319,10 +313,8 @@ listener!(Bully {
         cx.execute_attack(&a);
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let m = if cx.in_progress && target != NO { cx.power_amount(target, ids::power::VULNERABLE_POWER) as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * m))
+        Some(calc_with(cx, card, if target == NO { 0 } else { cx.power_amount(target, ids::power::VULNERABLE_POWER) }))
     }
 });
 

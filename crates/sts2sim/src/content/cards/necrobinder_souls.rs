@@ -113,12 +113,6 @@ listener!(SoulStorm {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        let souls = if cx.in_progress { cx.player.exhaust.iter().filter(|&&c| cx.cards[c as usize].id == ids::card::SOUL).count() as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * souls))
-    }
 });
 
 // ---- Ethereal / draw theme ----------------------------------------------------------------------------------------------
@@ -200,7 +194,10 @@ listener!(BansheesCry {
 
 // Auto-play every Ethereal, playable card in the exhaust pile.
 listener!(Eidolon {
-    fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
+    fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
+        if phase != 0 {
+            return Flow::Done;
+        }
         let list = cx.player.exhaust;
         let mut todo: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
         for &c in list.iter() {
@@ -209,8 +206,10 @@ listener!(Eidolon {
                 todo.push(c);
             }
         }
-        // (the list is fixed up front; one queue so a decision raised by one play suspends the rest of the list)
-        let _ = cx.auto_play_list(todo.as_slice());
+        // (a nested play that asks for a decision suspends the rest of the list)
+        if cx.auto_play_list(todo.as_slice()) == crate::engine::RunResult::Suspended {
+            return Flow::Suspend(1);
+        }
         Flow::Done
     }
 });
@@ -230,7 +229,7 @@ listener!(SculptingStrike {
         match phase {
             0 => {
                 attack(cx, p, Targeting::Single(p.target));
-                match cx.ask_hand(ids::card::SCULPTING_STRIKE, 1, 1, |cx, c| cx.card_keywords_local(c) & kw::ETHEREAL == 0) {
+                match cx.ask_hand(ids::card::SCULPTING_STRIKE, 1, 1, |cx, c| cx.card_keywords(c) & kw::ETHEREAL == 0) {
                     Ask::Resolved(cards) => {
                         if let Some(c) = cards.first() {
                             cx.apply_keyword(c, kw::ETHEREAL);

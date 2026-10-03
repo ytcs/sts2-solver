@@ -130,11 +130,6 @@ listener!(TimesUp {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let doom = if cx.in_progress && target != NO { cx.power_amount(target, ids::power::DOOM_POWER) as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * doom))
-    }
 });
 
 listener!(Countdown {
@@ -147,16 +142,11 @@ listener!(Countdown {
 
 // Gain energy, draw, then gain the Neurosurge debuff (Doom on yourself each turn).
 listener!(Neurosurge {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        if phase == 0 {
-            let e = cx.card_var(p.card, VarKind::Energy);
-            cx.gain_energy(e);
-            let c = cx.card_var(p.card, VarKind::Cards);
-            cx.draw_cards(c, false);
-            if cx.draw_pending() {
-                return Flow::Suspend(50);
-            }
-        }
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let e = cx.card_var(p.card, VarKind::Energy);
+        cx.gain_energy(e);
+        let c = cx.card_var(p.card, VarKind::Cards);
+        cx.draw_cards(c, false);
         let n = cx.card_power_var(p.card, ids::power::NEUROSURGE_POWER);
         apply_self(cx, ids::power::NEUROSURGE_POWER, n, p);
         Flow::Done

@@ -137,3 +137,23 @@ behaviour only matters insofar as the same code path computes both; never valida
 * **`FromChooseACardScreen(canSkip: false)`**: the game's selector contract hands (0,1) regardless; the oracle patches `canSkip` in
   (`P_ChooseACardSkip`) so the recorded `min` is 1 and Rust's `ask_options(.., can_skip = false)` agrees. **`VisualCardPool`**: Event cards that
   override it (Stack, Outmaneuver, Clash, ...) are NOT colorless for `c.VisualCardPool.IsColorless` filters (Heirloom Hammer).
+
+## Randomized differential fuzzing
+After the per-entity sweeps pass, run `python3 tools/fuzz_gen.py run --n 3000 --seed N --out DIR` (docs/oracle.md section 7): random realistic A10 Ironclad / Silent
+runs over every encounter diffed against the oracle. Failures are frozen into `oracle/regression_scripted/*.scenario.json` (`fuzz_gen.py freeze`) and replayed with `fuzz_gen.py regress`.
+## Hardening conventions (robustness / throughput)
+* **Fixed capacities never fail silently.** Use `ArrayVec` (a full push is dropped and flags `Combat::overflow`) and never truncate a list with a bare
+  `.take(N)` / `min(CAP)`: push every element so an overflow is recorded, or raise it yourself (`util::raise_overflow(ov::...)`, `Combat::overflow |= ov::...`).
+  A fallible allocation (`new_card` -> `None`, `add_enemy` -> `None`) must flag before returning `None`. The env aborts such episodes (`OUTCOME_OVERFLOW`).
+  The capacity table is in `docs/env-api.md`; the memory budget is enforced by `tests/robustness.rs::state_size_budget`.
+* **History**: `HKind::in_ring()` lists the kinds kept in the per-turn ring; kinds that are only counted (`hist_total`) are not stored. A new per-turn query of
+  a counter-only kind must add it to `in_ring` (debug-asserted).
+* **Hot-path rules** (see `docs/design.md` "Performance"): fill big lists through out-parameters (`snapshot_into`, `damage_into`, `modify_*_into`) instead of
+  returning them; keep the "nobody listens" test inline and the body out of line (`dispatch_u/g` do); use `Combat::observe_ex` + `legal_actions_ex` together so
+  `can_play` runs once per hand card; whoever mutates `Creature::powers` must call `sync_secondary(c)`; cost modifiers are built with `CostMod::new(..)`.
+* **Reset**: `Combat::reset_validated` names every `Combat` field in a destructuring `let`, so a new field that is not (re)initialised is a compile error. A card
+  slot beyond `n_cards` and the history ring beyond `n` are never read.
+* **Equivalence checks for engine/perf work**: `cargo test -p sts2sim`; `tools/regress_cache.py record` once (real game traces, `target/regress_cache`) then
+  `STS2DIFF=target/debug/sts2diff tools/regress_cache.py check` (+ `STS2DIFF_REUSE=1` to replay through the in-place reset); instruction counts with
+  `cargo build --profile prof -p sts2sim --example prof` + `valgrind --tool=callgrind target/prof/examples/prof {fights|reset|env} N` (prints a checksum
+  that must not change).

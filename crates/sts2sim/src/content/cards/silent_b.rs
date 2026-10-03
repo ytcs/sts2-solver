@@ -4,6 +4,7 @@
 //! NOT in this file (ported by the first-half Silent file because the starter deck needs them): `StrikeSilent`,
 //! `Neutralize`, `Survivor`.
 
+use crate::engine::calc_with;
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -253,14 +254,13 @@ listener!(PreciseCut {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         let _ = target;
-        let mut in_hand = cx.player.hand.len() as i64;
+        let mut in_hand = cx.player.hand.len() as i32;
         if cx.card_pile_type(card) == PileType::Hand {
             in_hand -= 1;
         }
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * if cx.in_progress { -in_hand } else { 0 }))
+        Some(calc_with(cx, card, -in_hand))
     }
 });
 
@@ -272,11 +272,9 @@ listener!(MementoMori {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         let _ = target;
-        let n = if cx.in_progress { cx.hist_count_this_turn(HKind::CardDiscarded, |_| true) as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
+        Some(calc_with(cx, card, cx.hist_count_this_turn(HKind::CardDiscarded, |_| true) as i32))
     }
 });
 
@@ -288,11 +286,9 @@ listener!(Murder {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
     }
-    // `CalculatedDamageVar.Calculate(target)` read generically (Thrash exhausting this card).
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         let _ = target;
-        let n = if cx.in_progress { cx.hist_total(HKind::CardDrawn) as i64 } else { 0 };
-        Some(Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * n))
+        Some(calc_with(cx, card, cx.hist_total(HKind::CardDrawn) as i32))
     }
 });
 
@@ -472,14 +468,9 @@ listener!(PiercingWail {
 listener!(Prepared {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
-            0 | 50 => {
+            0 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                if phase == 0 {
-                    cx.draw_cards(n, false);
-                    if cx.draw_pending() {
-                        return Flow::Suspend(50);
-                    }
-                }
+                cx.draw_cards_nosuspend(n, false);
                 match cx.ask_hand(ids::card::PREPARED, n as u8, n as u8, |_, _| true) {
                     Ask::Resolved(cards) => discard_then(cx, cards.as_slice(), DONE),
                     Ask::Pending => Flow::Suspend(1),

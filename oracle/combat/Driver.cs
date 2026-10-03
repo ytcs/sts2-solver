@@ -81,6 +81,7 @@ public sealed class Driver
     // Policy weights for the random driver (relative to 1.0 per legal action): `end_turn`, attack-card plays, potion uses.
     // endw = 0 means "never end the turn while anything else is legal" (long fights); atkw < 1 stalls (prefers skills/powers).
     public double EndWeight = 1, AttackWeight = 1, PotionWeight = 1;
+    public double PlayBias;              // random mode: probability of dropping `end_turn` from the legal set when anything else is legal
     public string Result = "unfinished";
 
     public Driver(Scenario sc, TextWriter @out, Pump pump) { _sc = sc; _out = @out; _pump = pump; }
@@ -203,8 +204,9 @@ public sealed class Driver
         {
             _sel.RandomPolicy = RandomDriver;
             var legal = Legal();
+            if (PlayBias > 0 && legal.Count > 1 && RandomDriver.NextDouble() < PlayBias) legal = legal.Where(x => x.Kind != "end_turn").ToList();
             ActionSpec a;
-            if (EndWeight == 1 && AttackWeight == 1 && PotionWeight == 1) a = legal[RandomDriver.Next(legal.Count)];
+            if (EndWeight == 1 && AttackWeight == 1 && PotionWeight == 1) a = PickAction(legal);
             else
             {
                 var hand = Pcs.Hand.Cards;
@@ -223,6 +225,26 @@ public sealed class Driver
         }
         if (CombatManager.Instance.IsInProgress) Result = "truncated";
         _sel.RandomPolicy = null;
+    }
+
+    /// <summary>Policy: random = uniform over legal actions; playall = end the turn only when nothing else is legal
+    /// (potions at 1/4 weight); stall = like playall but never plays an attack card (drags fights out to reach deep
+    /// turns and the scaling behaviour of enemies).</summary>
+    public static string PolicyKind = "random";
+    private ActionSpec PickAction(List<ActionSpec> legal)
+    {
+        if (PolicyKind == "random") return legal[RandomDriver.Next(legal.Count)];
+        if (PolicyKind != "playall" && PolicyKind != "stall") throw new OracleException("unknown policy " + PolicyKind);
+        var acts = legal.Where(x => x.Kind != "end_turn").ToList();
+        if (PolicyKind == "stall")
+        {
+            var hand = Pcs.Hand.Cards;
+            acts = acts.Where(x => x.Kind == "play" && hand[x.HandPos].Type != CardType.Attack).ToList();
+        }
+        if (acts.Count == 0) return legal.First(x => x.Kind == "end_turn");
+        var cardActs = acts.Where(x => x.Kind == "play").ToList();
+        if (cardActs.Count > 0 && (acts.Count == cardActs.Count || RandomDriver.Next(4) != 0)) return cardActs[RandomDriver.Next(cardActs.Count)];
+        return acts[RandomDriver.Next(acts.Count)];
     }
 
     public List<ActionSpec> Legal()

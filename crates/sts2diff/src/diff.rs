@@ -96,7 +96,30 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
     let (sc, extras) = convert::scenario_ex(&sv)?;
     sc.validate().map_err(|e| format!("not implemented in the simulator: {e:?}"))?;
     let trace = load_jsonl(trace_path)?;
-    let mut cx = Combat::new_with(&sc, &extras);
+    let mut cx = if std::env::var("STS2DIFF_REUSE").is_ok() {
+        // Exercise the in-place reset: dirty a combat by playing the same scenario under another seed (first legal action,
+        // random-ish but cheap), then `reset_with` the real scenario into it. It must replay exactly like a fresh `new`.
+        let mut dirty_sc = sc.clone();
+        dirty_sc.rng = sts2sim::state::RngSet::from_run_seed(sc.run_seed ^ 0x5DEECE66D);
+        dirty_sc.run_seed ^= 0x5DEECE66D;
+        let mut d = Combat::new_with(&dirty_sc, &extras);
+        let mut b = ActionBuf::new();
+        for k in 0..400usize {
+            if d.stage == Stage::Over {
+                break;
+            }
+            d.legal_actions(&mut b);
+            if b.is_empty() {
+                break;
+            }
+            let a = b[(k * 7 + 3) % b.len()];
+            d.step(a);
+        }
+        d.reset_with(&sc, &extras).map_err(|e| format!("reset: {e:?}"))?;
+        d
+    } else {
+        Combat::new_with(&sc, &extras)
+    };
     let mut reported = 0;
     let mut ok = true;
     let lenient = std::env::var("STS2DIFF_LENIENT").is_ok();
@@ -108,11 +131,11 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             cx.legal_actions(&mut buf);
             if !buf.iter().any(|a| *a == act) {
                 println!("step {i}: action {act:?} is NOT legal in the simulator (legal: {:?})", buf.as_slice());
-                return Ok(Verdict::Mismatch);
+                return Ok(mismatch_or_missing(&cx, i));
             }
             if !cx.step(act) {
                 println!("step {i}: simulator rejected {act:?}");
-                return Ok(Verdict::Mismatch);
+                return Ok(mismatch_or_missing(&cx, i));
             }
         }
         // Prompts raised while executing the action (record 0: while the combat was set up / the first turn started, e.g.
@@ -128,7 +151,7 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     }
                     let d = cx.decision.as_ref();
                     println!("step {i}: simulator raised a decision but the oracle made no choice (simulator: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?}", d.purpose, d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>())));
-                    return Ok(Verdict::Mismatch);
+                    return Ok(mismatch_or_missing(&cx, i));
                 };
                 ci += 1;
                 let seq = cx.decision_seq;
@@ -140,13 +163,9 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 }
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
-                        if let Some(m) = missing_name(&cx) {
-                            println!("UNIMPLEMENTED {m} (step {i}; decision sequence diverged)");
-                            return Ok(Verdict::Unimplemented);
-                        }
                         let d = cx.decision.as_ref();
                         println!("step {i}: pick {p} rejected (simulator decision: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} {} cands {:?}; hand {:?}; draw {} discard {}", d.purpose, d.min, d.max, d.cands.len(), d.cands.iter().take(12).map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.hand.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.draw.len(), cx.player.discard.len())));
-                        return Ok(Verdict::Mismatch);
+                        return Ok(mismatch_or_missing(&cx, i));
                     }
                     // finished (or replaced by the NEXT decision of the same effect)
                     if cx.stage != Stage::AwaitChoice || cx.decision_seq != seq {
@@ -162,7 +181,7 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     if let Some(d) = cx.decision.as_ref() {
                         println!("  simulator decision: purpose {} min {} max {} cands {} picked {:?}; oracle choice min/max {:?}/{:?} options {}", d.purpose, d.min, d.max, d.cands.len(), picks_of(ch), ch["min"], ch["max"], ch["options"].as_array().map_or(0, |a| a.len()));
                     }
-                    return Ok(Verdict::Mismatch);
+                    return Ok(mismatch_or_missing(&cx, i));
                 }
             }
             // Prompts the real game raised that the simulator never asked (a flagged-missing effect explains it).
@@ -187,6 +206,9 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 println!("UNIMPLEMENTED {m} (step {i})");
                 return Ok(Verdict::Unimplemented);
             }
+        }
+        if cx.overflow != 0 {
+            return Err(format!("simulator capacity overflow (flags {:#x}: dropped data) at step {i}", cx.overflow));
         }
         let mut diffs = vec![];
         let snap = snapshot(&cx);
@@ -225,4 +247,15 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
         println!("OK: {} steps match ({trace_path})", trace.len());
     }
     Ok(if ok { Verdict::Match } else { Verdict::Mismatch })
+}
+
+/// A replay that diverged structurally (illegal action, rejected pick, unexpected decision) while the simulator had
+/// already flagged unported content is an UNIMPLEMENTED hit, not a mismatch.
+fn mismatch_or_missing(cx: &Combat, step: usize) -> Verdict {
+    if let Some(m) = missing_name(cx) {
+        println!("UNIMPLEMENTED {m} (step {step}; replay diverged)");
+        Verdict::Unimplemented
+    } else {
+        Verdict::Mismatch
+    }
 }
