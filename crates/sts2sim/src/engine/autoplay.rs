@@ -69,8 +69,8 @@ impl Combat {
             self.cards[c as usize].x_value = self.player.energy as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
-        if self.card_has_star_cost_x(c) {
-            // LastStarsSpent = all current stars (not spent)
+        if !skip_x_capture && self.card_has_star_cost_x(c) {
+            // LastStarsSpent = all current stars (not spent); skipped when the caller already spent the resources (Earring)
             self.cards[c as usize].x_value = self.player.stars as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }

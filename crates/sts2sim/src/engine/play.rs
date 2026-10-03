@@ -198,14 +198,20 @@ impl Combat {
         loc
     }
 
-    /// `GeneratePlayCount`: `(EnchantedReplayCount + 1)` through `Hook.ModifyCardPlayCount` (+ `AfterModifying...`).
-    pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> i32 {
-        let mut base = self.cards[c as usize].base_replay as i32;
+    /// `CardModel.GetEnchantedReplayCount`: `BaseReplayCount` through the enchantment's `EnchantPlayCount`.
+    pub fn enchanted_replay_count(&self, c: CardIdx) -> i32 {
+        let base = self.cards[c as usize].base_replay as i32;
         if self.cards[c as usize].enchant != 0 {
             let me = self.enchantment_me(c);
-            base = content::listener(&me).enchant_play_count(self, me, base);
+            content::listener(&me).enchant_play_count(self, me, base)
+        } else {
+            base
         }
-        let mut count = base + 1;
+    }
+
+    /// `GeneratePlayCount`: `(EnchantedReplayCount + 1)` through `Hook.ModifyCardPlayCount` (+ `AfterModifying...`).
+    pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> i32 {
+        let mut count = self.enchanted_replay_count(c) + 1;
         if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
             let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
             let mut mods = super::Mods::new();

@@ -259,7 +259,7 @@ listener!(HiddenGem {
         let mut core: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
         for &c in cx.player.draw.iter() {
             let t = cx.card_def(c).ctype;
-            let ok = cx.card_keywords(c) & kw::UNPLAYABLE == 0 && !matches!(t, CardType::Curse | CardType::Quest) && cx.cards[c as usize].base_replay < 1;
+            let ok = cx.card_keywords(c) & kw::UNPLAYABLE == 0 && !matches!(t, CardType::Curse | CardType::Quest) && cx.enchanted_replay_count(c) < 1; // GetEnchantedReplayCount (Glam counts)
             if ok {
                 all.push(c);
                 if matches!(t, CardType::Attack | CardType::Skill | CardType::Power) {

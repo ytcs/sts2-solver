@@ -103,6 +103,16 @@ impl Combat {
         card.cost_base = if d.x_cost { 0 } else { d.cost };
         card.kw_add = 0;
         card.kw_remove = 0;
+        // `DowngradeInternal`: `Enchantment?.ModifyCard()` (= `OnEnchant` again: Tezcatara's Ember re-zeroes the cost and re-adds
+        // Eternal, ...) then `Affliction?.AfterApplied()`.
+        if self.cards[c as usize].enchant != 0 {
+            let me = self.enchantment_me(c);
+            content::listener(&me).on_enchant(self, me, c);
+        }
+        if self.cards[c as usize].affliction != 0 {
+            let me = self.affliction_me(c);
+            content::listener(&me).after_applied(self, me);
+        }
     }
 
     /// Value of the card's dynamic var of `kind` (`DynamicVars.X.BaseValue` as int).
