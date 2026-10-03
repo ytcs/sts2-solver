@@ -384,8 +384,9 @@ impl Combat {
         if ms.next_move == NO {
             return false;
         }
-        match &crate::content::monster_def(ms.id).nodes[ms.next_move as usize] {
-            MonsterNode::Move { intents, .. } => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
+        // (`next_move` can be the synthetic stun node, which is not in the monster's own node table: no attack intent)
+        match crate::content::monster_def(ms.id).nodes.get(ms.next_move as usize) {
+            Some(MonsterNode::Move { intents, .. }) => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
             _ => false,
         }
     }
