@@ -11,6 +11,7 @@ use crate::content;
 use crate::dec::Dec;
 use crate::defs::*;
 use crate::state::*;
+use crate::engine::{LOOK_H, LOOK_NODES};
 use crate::types::*;
 
 pub const OBS_MAX_ENEMIES: usize = 8;
@@ -39,6 +40,10 @@ pub const ORB_F: usize = 3;
 /// Orb block (appended at the end of the vector): `MAX_ORBS` orb entries front first (the slot count is the
 /// `orb_slots` field of the player block), then the number of Lightning orbs channeled this combat (Voltaic's text).
 pub const ORBS_F: usize = MAX_ORBS * ORB_F + 1;
+/// Expert pattern knowledge (appended at the END of the vector): per enemy slot and per future turn (`LOOK_H`), the probability
+/// of each move node and the expected total attack damage (see `Combat::lookahead`). The enemy's identity and node indices
+/// are in the enemy block, so the agent learns what each node means exactly as a player learns a monster.
+pub const LOOK_F: usize = OBS_MAX_ENEMIES * LOOK_H * (LOOK_NODES + 1);
 /// Total length of the flat observation vector.
 pub const OBS_SIZE: usize = GLOBAL_F
     + PLAYER_F
@@ -51,7 +56,8 @@ pub const OBS_SIZE: usize = GLOBAL_F
     + DECISION_F
     + REGENT_F
     + OSTY_F
-    + ORBS_F;
+    + ORBS_F
+    + LOOK_F;
 
 struct W<'a> {
     out: &'a mut [f32],
@@ -221,8 +227,8 @@ impl Combat {
         }
         // ---- piles ----
         self.write_pile_list(&mut w, self.player.draw.as_slice(), true);
-        self.write_pile_list(&mut w, self.player.discard.as_slice(), false);
-        self.write_pile_list(&mut w, self.player.exhaust.as_slice(), false);
+        self.write_pile_list(&mut w, self.player.discard.as_slice(), true);
+        self.write_pile_list(&mut w, self.player.exhaust.as_slice(), true);
         w.n(self.player.draw.len() as i32);
         w.n(self.player.discard.len() as i32);
         w.n(self.player.exhaust.len() as i32);
@@ -292,11 +298,13 @@ impl Combat {
                 w.n(d.confirm_required as i32);
                 w.n(d.can_skip as i32);
                 w.n(d.cands.len() as i32);
+                let view = self.decision_view(d);
                 for k in 0..OBS_MAX_CANDS {
-                    match d.cands.get(k) {
-                        Some(c) => {
+                    // displayed order (`view`), never the game's pile order
+                    match view.get(k).map(|vi| (vi, d.cands[vi as usize])) {
+                        Some((vi, c)) => {
                             self.write_card(&mut w, c, None);
-                            w.n(d.selected.contains(k as u8) as i32);
+                            w.n(d.selected.contains(vi) as i32);
                         }
                         None => w.zeros(CARD_F + 1),
                     }
@@ -311,8 +319,9 @@ impl Combat {
                 None => w.f(0.0),
             }
         }
+        let star_view = self.decision.as_ref().map(|d| self.decision_view(d));
         for k in 0..OBS_MAX_CANDS {
-            match self.decision.as_ref().and_then(|d| d.cands.get(k)) {
+            match self.decision.as_ref().and_then(|d| star_view.as_ref().and_then(|v| v.get(k)).map(|vi| d.cands[vi as usize])) {
                 Some(c) => w.n(self.obs_star_cost(c)),
                 None => w.f(0.0),
             }
@@ -351,6 +360,20 @@ impl Combat {
             }
         }
         w.n(self.hist_log.lightning_channeled as i32);
+        // ---- expert pattern knowledge about upcoming enemy turns (appended) ----
+        for k in 0..OBS_MAX_ENEMIES {
+            match self.enemies.get(k) {
+                Some(e) if self.cr(e).is_alive() => {
+                    for row in self.lookahead(e).iter() {
+                        for &p in row.prob.iter() {
+                            w.f(p);
+                        }
+                        w.f(row.exp_damage);
+                    }
+                }
+                _ => w.zeros(LOOK_H * (LOOK_NODES + 1)),
+            }
+        }
         debug_assert_eq!(w.i, OBS_SIZE);
         OBS_SIZE
     }

@@ -33,6 +33,7 @@ pub use dispatch::*;
 pub use cmds::Ask;
 pub use action::{Action, ActionBuf, ACTION_SPACE};
 pub use monster::{STUN_INTENTS, STUN_NODE};
+pub use monster::{LookRow, LOOK_H, LOOK_NODES};
 pub use turn::BASE_HAND_DRAW;
 pub use cost::CostMods;
 pub use play::RunResult;

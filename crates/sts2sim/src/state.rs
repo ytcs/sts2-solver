@@ -393,8 +393,10 @@ pub struct Decision {
     pub source: DecisionSource,
     pub min: u8,
     pub max: u8,
+    /// Candidates in the order the GAME presents them (what the oracle's selector indexes). For pile screens this can
+    /// reveal the pile order, so the agent never sees this order: it sees `Combat::decision_view` (a canonical order).
     pub cands: ArrayVec<CardIdx, MAX_CARDS>,
-    /// Candidate positions selected so far, in click order.
+    /// Candidate indices (into `cands`) selected so far, in click order.
     pub selected: ArrayVec<u8, 16>,
     /// `RequireManualConfirmation` (`min != max`).
     pub confirm_required: bool,

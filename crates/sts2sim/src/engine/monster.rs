@@ -215,7 +215,12 @@ impl Combat {
 
     /// Weight of branch `b` of a random node (spec 04 §1.3).
     fn branch_weight(&self, c: Cid, b: &Branch) -> f32 {
-        let ms = &self.cr(c).monster;
+        self.branch_weight_ms(c, &self.cr(c).monster, b)
+    }
+
+    /// `branch_weight` against an explicit (possibly hypothetical) monster state: only the move log / once-flags are read
+    /// from it; weight lambdas still read the live combat.
+    fn branch_weight_ms(&self, c: Cid, ms: &MonsterState, b: &Branch) -> f32 {
         let n = ms.log_len as usize;
         // repeat rule multiplier
         let mult: f32 = match b.repeat {
@@ -438,5 +443,178 @@ impl Combat {
     /// The listener `Me` of a monster creature.
     pub fn monster_me(&self, c: Cid) -> Me {
         Me { kind: Kind::Monster, owner: c, idx: 0, id: self.cr(c).monster.id, amount: 0 }
+    }
+}
+
+
+// ---- Expert pattern knowledge: what an experienced player knows about the upcoming turns -------------------------------
+//
+// The game only shows the CURRENT intent, but experienced players know each monster's pattern by heart: the cycle of a
+// deterministic monster, and the possible moves (with their odds) at random branches. `lookahead` reproduces exactly that
+// knowledge by walking the monster's own state machine forward on a COPY of its state — no RNG is consumed, so the realized
+// random outcomes stay hidden. Random nodes branch by their current weights (repeat rules / cooldowns evaluated on the
+// hypothetical move log); conditional nodes and weight lambdas read the combat as it is now.
+
+/// Future turns covered (turn +1 .. +LOOK_H after the one whose intent is shown).
+pub const LOOK_H: usize = 3;
+/// Move-node slots per horizon (nodes >= LOOK_NODES-1, and the synthetic STUNNED node, share the last slot).
+pub const LOOK_NODES: usize = 16;
+
+/// Per-horizon knowledge: probability of each move node being the monster's move, and the expected total attack damage
+/// (per-hit damage with the player's and monster's current modifiers x hits, probability-weighted).
+#[derive(Clone, Copy)]
+pub struct LookRow {
+    pub prob: [f32; LOOK_NODES],
+    pub exp_damage: f32,
+}
+
+type Paths = crate::util::ArrayVec<(MonsterState, f32), 48>;
+
+fn same_machine_state(a: &MonsterState, b: &MonsterState) -> bool {
+    a.cur_state == b.cur_state
+        && a.log == b.log
+        && a.log_len == b.log_len
+        && a.ever_logged == b.ever_logged
+        && a.performed_once == b.performed_once
+        && a.stun_performed == b.stun_performed
+        && a.stun_follow_up == b.stun_follow_up
+}
+
+impl Combat {
+    /// `RollMove` continued on a hypothetical state: leave `left`, enter `to`, and keep walking branch states until a move.
+    fn look_enter(&self, c: Cid, mut ms: MonsterState, left: u8, to: u8, first: u8, p: f32, out: &mut Paths) {
+        if left == STUN_NODE {
+            ms.stun_performed = false;
+        } else {
+            ms.performed_once &= !(1u64 << left);
+        }
+        ms.cur_state = to;
+        let is_move = self.node_is_move(c, to);
+        let first = if first == NO && is_move { to } else { first };
+        if is_move {
+            ms.log[(ms.log_len & 7) as usize] = first;
+            ms.log_len += 1;
+            if first < 64 {
+                ms.ever_logged |= 1u64 << first;
+            }
+            ms.next_move = to;
+            if out.len() < 48 {
+                out.push((ms, p));
+            }
+            return;
+        }
+        let def = content::monster_def(ms.id);
+        match &def.nodes[to as usize] {
+            MonsterNode::Cond { arms, .. } => {
+                for (target, pred) in arms.iter() {
+                    if pred(self, c) {
+                        self.look_enter(c, ms, to, *target, first, p, out);
+                        return;
+                    }
+                }
+            }
+            MonsterNode::Random { branches, .. } => {
+                let mut ws = [0f32; 12];
+                let mut sum = 0f64;
+                for (i, b) in branches.iter().enumerate().take(12) {
+                    ws[i] = self.branch_weight_ms(c, &ms, b);
+                    sum += ws[i] as f64;
+                }
+                if sum <= 0.0 {
+                    // all weights 0: the real walk takes the first branch (`0 - 0 <= 0`)
+                    if let Some(b) = branches.first() {
+                        self.look_enter(c, ms, to, b.target, first, p, out);
+                    }
+                    return;
+                }
+                for (i, b) in branches.iter().enumerate().take(12) {
+                    if ws[i] > 0.0 {
+                        self.look_enter(c, ms, to, b.target, first, p * (ws[i] as f64 / sum) as f32, out);
+                    }
+                }
+            }
+            MonsterNode::Move { .. } => {}
+        }
+    }
+
+    /// One turn forward: the pending move is performed in the enemy turn, then the next player turn rolls.
+    fn look_roll(&self, c: Cid, ms: &MonsterState, p: f32, out: &mut Paths) {
+        let mut ms = *ms;
+        ms.performed_first = true;
+        let cur = ms.cur_state;
+        let def = content::monster_def(ms.id);
+        let nxt = if cur == STUN_NODE {
+            ms.stun_performed = true;
+            if ms.stun_follow_up == NO { def.initial } else { ms.stun_follow_up }
+        } else {
+            ms.performed_once |= 1u64 << cur;
+            match &def.nodes[cur as usize] {
+                MonsterNode::Move { follow_up, .. } => {
+                    if *follow_up == NO {
+                        def.initial
+                    } else if *follow_up == crate::defs::FOLLOW_STORED {
+                        ms.stun_follow_up
+                    } else {
+                        *follow_up
+                    }
+                }
+                _ => return,
+            }
+        };
+        self.look_enter(c, ms, cur, nxt, NO, p, out);
+    }
+
+    /// Expected total attack damage of one move node (what its attack intents will show / do against the player).
+    fn node_attack_damage(&self, c: Cid, node: u8) -> f32 {
+        if node == STUN_NODE {
+            return 0.0;
+        }
+        let def = content::monster_def(self.cr(c).monster.id);
+        let MonsterNode::Move { intents, .. } = &def.nodes[node as usize] else { return 0.0 };
+        let mut total = 0i64;
+        for it in intents.iter() {
+            match it {
+                Intent::Attack { damage, hits } => total += self.intent_damage(c, damage(self, c)) as i64 * hits(self, c) as i64,
+                Intent::DeathBlowAttack { damage } => total += self.intent_damage(c, damage(self, c)) as i64,
+                _ => {}
+            }
+        }
+        total as f32
+    }
+
+    /// The monster's move distribution for the next `LOOK_H` turns after the current intent (see the section comment).
+    pub fn lookahead(&self, c: Cid) -> [LookRow; LOOK_H] {
+        let mut rows = [LookRow { prob: [0.0; LOOK_NODES], exp_damage: 0.0 }; LOOK_H];
+        let cr = self.cr(c);
+        if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player {
+            return rows;
+        }
+        let mut cur: Paths = crate::util::ArrayVec::new();
+        cur.push((cr.monster, 1.0));
+        for row in rows.iter_mut() {
+            let mut next: Paths = crate::util::ArrayVec::new();
+            for (ms, p) in cur.iter() {
+                self.look_roll(c, ms, *p, &mut next);
+            }
+            // merge identical machine states reached through different branches
+            let mut merged: Paths = crate::util::ArrayVec::new();
+            for (ms, p) in next.iter() {
+                if let Some(e) = merged.as_mut_slice().iter_mut().find(|(m, _)| same_machine_state(m, ms)) {
+                    e.1 += *p;
+                } else {
+                    merged.push((*ms, *p));
+                }
+            }
+            for (ms, p) in merged.iter() {
+                let slot = if ms.cur_state == STUN_NODE || ms.cur_state as usize >= LOOK_NODES - 1 { LOOK_NODES - 1 } else { ms.cur_state as usize };
+                row.prob[slot] += *p;
+                row.exp_damage += *p * self.node_attack_damage(c, ms.cur_state);
+            }
+            cur = merged;
+            if cur.is_empty() {
+                break;
+            }
+        }
+        rows
     }
 }

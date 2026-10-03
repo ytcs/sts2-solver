@@ -4,6 +4,7 @@ use sts2sim::observe::OBS_SIZE;
 use sts2sim::rng::Rng;
 use sts2sim::state::*;
 use sts2sim::types::*;
+use sts2sim::types::CardPilePosition;
 use sts2sim::*;
 
 fn scenario(seed: u64) -> Scenario {
@@ -70,12 +71,18 @@ fn hidden_state_does_not_leak() {
         let mut a = cx;
         let mut rng = Rng::new(seed ^ 0xABCD);
         rng.shuffle(a.player.draw.as_mut_slice());
-        assert_eq!(obs(&a), base, "draw order leaked (seed {seed})");
+        assert!(obs(&a) == base, "draw order leaked (seed {seed})");
+
+        // 1b. permute the discard and exhaust orders (a player only knows what is in the piles, not their order)
+        let mut a2 = cx;
+        rng.shuffle(a2.player.discard.as_mut_slice());
+        rng.shuffle(a2.player.exhaust.as_mut_slice());
+        assert!(obs(&a2) == base, "discard/exhaust order leaked (seed {seed})");
 
         // 2. rewrite every RNG stream
         let mut b = cx;
         b.rng = RngSet::from_run_seed(seed.wrapping_add(777));
-        assert_eq!(obs(&b), base, "RNG state leaked (seed {seed})");
+        assert!(obs(&b) == base, "RNG state leaked (seed {seed})");
 
         // 3. hidden monster AI internals (current node / log) other than the visible intent + performed history
         let mut c = cx;
@@ -84,7 +91,7 @@ fn hidden_state_does_not_leak() {
             c.creatures[e as usize].monster.log = [3; 8];
             c.creatures[e as usize].monster.log_len = 99;
         }
-        assert_eq!(obs(&c), base, "monster log leaked (seed {seed})");
+        assert!(obs(&c) == base, "monster log leaked (seed {seed})");
     }
 }
 
@@ -94,23 +101,14 @@ fn visible_changes_do_change_the_observation() {
     let base = obs(&cx);
     let mut a = cx;
     a.cr_mut(PLAYER).hp -= 1;
-    assert_ne!(obs(&a), base);
+    assert!(obs(&a) != base);
     let mut b = cx;
     if b.player.hand.len() >= 2 {
         let (x, y) = (b.player.hand[0], b.player.hand[1]);
         if b.cards[x as usize].id != b.cards[y as usize].id {
             b.player.hand[0] = y;
             b.player.hand[1] = x;
-            assert_ne!(obs(&b), base, "hand order is visible");
-        }
-    }
-    let mut c = cx;
-    if c.player.discard.len() >= 2 {
-        let (x, y) = (c.player.discard[0], c.player.discard[1]);
-        if c.cards[x as usize].id != c.cards[y as usize].id {
-            c.player.discard[0] = y;
-            c.player.discard[1] = x;
-            assert_ne!(obs(&c), base, "discard order is visible");
+            assert!(obs(&b) != base, "hand order is visible");
         }
     }
 }
@@ -125,4 +123,39 @@ fn intent_damage_reflects_modifiers() {
     assert_eq!(cx.intent_damage(e, 12), 18); // 12 * 1.5
     cx.apply_power(ids::power::STRENGTH_POWER, e, sts2sim::dec::Dec::int(2), e, NO);
     assert_eq!(cx.intent_damage(e, 12), 21); // (12+2) * 1.5
+}
+
+/// A pile-selection screen must not reveal the pile order: two states that differ only in the (hidden) order of the
+/// discard pile present the same candidates, and clicking the same displayed position picks an equivalent card.
+#[test]
+fn pile_selection_screen_does_not_reveal_pile_order() {
+    use sts2sim::engine::Ask;
+    let mut cx = Combat::new(&scenario(3));
+    // fill the discard pile with distinguishable cards in a known order
+    let old = cx.player.hand;
+    for &c in old.iter() {
+        cx.move_card(c, PileType::Discard, CardPilePosition::Bottom);
+    }
+    for id in [ids::card::TWIN_STRIKE, ids::card::BASH, ids::card::DEFEND_IRONCLAD, ids::card::STRIKE_IRONCLAD, ids::card::SHRUG_IT_OFF] {
+        let c = cx.new_card(id, 0).unwrap();
+        cx.move_card(c, PileType::Discard, CardPilePosition::Bottom);
+    }
+    let mut a = cx;
+    let mut b = cx;
+    let mut rng = Rng::new(99);
+    rng.shuffle(b.player.discard.as_mut_slice());
+    for c in [&mut a, &mut b] {
+        assert!(matches!(c.ask_pile(0, PileType::Discard, 1, 1, |_, _| true), Ask::Pending));
+        c.stage = Stage::AwaitChoice;
+    }
+    assert!(obs(&a) == obs(&b), "pile screen leaked the pile order");
+    // the displayed list is sorted by what is visible, not by pile order
+    let ids_a: Vec<u16> = {
+        let d = a.decision.unwrap();
+        let view = a.decision_view(&d);
+        (0..view.len()).map(|k| a.cards[d.cands[view[k] as usize] as usize].id).collect()
+    };
+    let mut sorted = ids_a.clone();
+    sorted.sort_by_key(|&id| (sts2sim::content::card_def(id).rarity, id));
+    assert_eq!(ids_a, sorted);
 }

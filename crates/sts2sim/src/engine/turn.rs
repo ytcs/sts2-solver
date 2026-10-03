@@ -761,6 +761,18 @@ impl Combat {
         }
     }
 
+    /// Differential-harness entry: a click on candidate `idx` in GAME order (what the real game's selector indexes).
+    /// Agents use `Action::Pick`, whose index is a position of the displayed (canonical) list.
+    pub fn step_pick_game_order(&mut self, idx: u8) -> bool {
+        if self.stage != Stage::AwaitChoice || !self.decision_pick_game(idx) {
+            return false;
+        }
+        if self.stage != Stage::AwaitChoice {
+            self.after_action();
+        }
+        true
+    }
+
     /// Continues whichever effect raised the decision that just finished.
     pub(crate) fn resume_after_decision(&mut self) {
         if let Some((me, phase)) = self.hook_ctx.take() {

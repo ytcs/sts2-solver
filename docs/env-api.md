@@ -20,9 +20,12 @@ Cards that are unplayable are **not** listed (a human cannot click them).
 
 ### Decisions (card select screens)
 Any effect may suspend for a `Decision` (`Combat::decision`): choose `min..=max` of an ordered candidate list.
-* Hand selections list candidates in hand order; **draw-pile selections are presented sorted by (rarity, id)** so the
-  hidden order does not leak (matches the game's pile screen / `CardSelectCmd`); discard/exhaust in pile order;
-  "choose a card" (Discovery-style) screens list the generated cards.
+* Hand selections list candidates in hand order (the hand is displayed in order); **every pile selection (draw, discard,
+  exhaust) is presented in a canonical order sorted by what a player can see of each card** (rarity, id, upgrade, cost,
+  enchantment, affliction; ties by game order), so the hidden pile order never leaks through a selection screen.
+  `Action::Pick{idx}` indexes this DISPLAYED list (`Combat::decision_view`). The engine keeps the game's own order
+  internally (`Decision::cands`); the differential harness clicks in game order via `Combat::step_pick_game_order`.
+  "Choose a card" (Discovery-style) screens list the generated cards.
 * Forced choices auto-resolve with no decision (`|candidates| <= min` when `min == max`; empty list).
 * `Pick` toggles a candidate; when `max` are selected the most recent selection is replaced (hand-UI behaviour).
   The decision completes by itself once `max` are selected unless `confirm_required` (`min != max`); `Confirm`
@@ -30,11 +33,22 @@ Any effect may suspend for a `Decision` (`Combat::decision`): choose `min..=max`
 * Result order = click order (this is what the real hand UI returns; matters for put-back-on-top effects).
 
 ## Information (`Combat::observe`, flat `f32`, `OBS_SIZE`)
-Visible to the agent: HP / max HP / block / energy / stars / powers, relics + counters, potions, hand in order with
-current cost, playability, keywords and damage/block previews, draw pile **as an unordered multiset** (sorted by
-rarity/id like the pile screen), discard and exhaust in pile order, every enemy's HP/block/powers, current intent(s)
-(type, per-hit damage computed with the same modifiers the UI uses, hit count) and its last four performed moves
-(the pattern history a player has seen), per-turn play counters, and any pending decision with its candidates.
+Visible to the agent: HP / max HP / block / energy / stars / powers, relics + counters, potions, the hand in order (it is
+displayed in order; hand positions are the play actions) with current cost, playability, keywords and damage/block previews,
+**the draw, discard and exhaust piles as unordered multisets** (a player knows what is in a pile, never its order), every
+enemy's HP/block/powers, current intent(s) (type, per-hit damage computed with the same modifiers the UI uses, hit count) and
+its last four performed moves, **expert pattern knowledge of the enemy's upcoming turns** (below), per-turn play counters, and
+any pending decision with its candidates.
+
+**Upcoming enemy turns (`Combat::lookahead`, section 12).** The game shows only the current intent, but experienced players
+know each monster's pattern by heart, so the pattern is treated as known information: for each enemy and each of the next
+`LOOK_H` = 3 turns after the one shown, the observation carries the probability of each move node (`LOOK_NODES` = 16 slots; node
+indices are per monster, the monster id is in the enemy block) and the expected total attack damage. It is computed by walking
+the monster's own state machine forward on a copy of its state: deterministic cycles are exact, random branches give their
+odds (repeat rules and cooldowns evaluated on the hypothetical move history), conditional branches read the current combat. **No
+RNG is consumed and the realized outcome of random branches stays hidden** (`lookahead_consumes_no_rng...` and the hidden-state
+test). It cannot foresee events a player also could not (a stun, a wake-up, a summon); a soundness test measures that ≈98.7% of
+the moves enemies actually make had been assigned positive probability.
 
 Layout (sections in vector order; sizes are constants in `observe.rs`, `OBS_SIZE` is their sum, asserted in `observe()`):
 
@@ -45,12 +59,13 @@ Layout (sections in vector order; sizes are constants in `observe.rs`, `OBS_SIZE
 | 3 | relics `(id+1, counter)` | `RELIC_F` |
 | 4 | potions | `POTION_F` |
 | 5 | hand, ordered, `CARD_F` per slot | `MAX_HAND * CARD_F` |
-| 6 | draw multiset, discard, exhaust `(id+1, upgrade)` x `OBS_MAX_PILE`, then the three pile sizes | `OBS_MAX_PILE*2*3 + 3` |
+| 6 | draw, discard, exhaust as sorted multisets `(id+1, upgrade)` x `OBS_MAX_PILE`, then the three pile sizes | `OBS_MAX_PILE*2*3 + 3` |
 | 7 | enemies in list order | `OBS_MAX_ENEMIES * ENEMY_F` |
 | 8 | pending decision (header + candidates, `CARD_F + selected` each) | `DECISION_F` |
 | 9 | **Regent** (appended): current star cost of each hand card and of each decision candidate | `REGENT_F` |
 | 10 | **Necrobinder** (appended): Osty present / alive / HP / max HP / powers, then the Osty-damage preview of each hand card | `OSTY_F` |
 | 11 | **Defect** (appended): `MAX_ORBS` orbs `(kind+1, passive, evoke)` front first (empty = zeros; the slot count is `orb_slots` in the player block), then the number of Lightning orbs channeled this combat (Voltaic's text) | `ORBS_F` |
+| 12 | **Expert pattern knowledge** (appended): per enemy slot and per future turn `LOOK_H`: probability of each of `LOOK_NODES` move nodes + expected attack damage | `LOOK_F` = `OBS_MAX_ENEMIES * LOOK_H * (LOOK_NODES + 1)` |
 
 `CARD_F` = 12 per card: `id+1, upgrade, energy cost (-1 = X), playable, keyword bitset, enchantment id, damage preview,
 block preview, counter[0], counter[1], enchantment amount, affliction id`.
@@ -67,11 +82,14 @@ damage preview of each hand card with an Osty-damage variable (what the card tex
 player's Strength / Weak). The block that absorbs damage aimed at Osty is the player's (see the player block). The diff
 snapshot exposes the same data as the oracle's `pets` array.
 
-Hidden (never in the observation): draw-pile order, all RNG stream states, monster-internal AI state beyond the
-displayed intent. `observe::hidden_state_does_not_leak` perturbs these and asserts the vector is unchanged.
+Hidden (never in the observation): the order of the draw, discard and exhaust piles, all RNG stream states, the realized
+outcome of random enemy branches, monster-internal AI state beyond the move pattern.
+`observe::hidden_state_does_not_leak` perturbs these (permuting all three piles, rewriting every RNG stream, scrambling
+monster logs) and asserts the vector is unchanged; `pile_selection_screen_does_not_reveal_pile_order` does the same for
+selection screens.
 
-Assumptions to verify against the real UI via the oracle: discard/exhaust piles are shown in pile order; "known top
-card" information (after put-on-top effects) is not tracked yet (a human would remember it).
+Open: "known top card" information (after a put-on-top effect a human remembers which card is on top of the draw pile) is not
+tracked yet.
 
 ## Episode outcomes and aborted episodes (`sts2env`, `sts2.VecEnv`)
 

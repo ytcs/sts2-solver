@@ -371,8 +371,57 @@ impl Combat {
         self.decision = Some(Decision { source, min, max, cands, selected: ArrayVec::new(), confirm_required, can_skip, purpose });
     }
 
-    /// Applies a `Pick` click to the pending decision. Returns false if illegal.
+    /// The order the AGENT sees the candidates in: position `k` of the displayed list is `cands[view[k]]`. Hand and
+    /// choose-a-card screens are shown in game order (identity); pile screens are sorted by what a player can see of each
+    /// card (rarity, id, upgrade, cost, enchantment, affliction), ties by game order — a canonical order that carries no
+    /// information about the pile order. A pure function of the candidates, so nothing extra is stored in the state.
+    pub fn decision_view(&self, d: &Decision) -> ArrayVec<u8, MAX_CARDS> {
+        let mut view: ArrayVec<u8, MAX_CARDS> = ArrayVec::new();
+        for k in 0..d.cands.len() {
+            view.push(k as u8);
+        }
+        if matches!(d.source, DecisionSource::Pile(_)) {
+            let mut keys: ArrayVec<u64, MAX_CARDS> = ArrayVec::new();
+            for &c in d.cands.iter() {
+                keys.push(self.visible_key(c));
+            }
+            let sl = view.as_mut_slice();
+            for i in 1..sl.len() {
+                let x = sl[i];
+                let mut j = i;
+                while j > 0 && (keys[sl[j - 1] as usize], sl[j - 1]) > (keys[x as usize], x) {
+                    sl[j] = sl[j - 1];
+                    j -= 1;
+                }
+                sl[j] = x;
+            }
+        }
+        view
+    }
+
+    /// Everything a player can see of a card in a pile (used to give pile screens a canonical, order-free presentation).
+    pub fn visible_key(&self, c: CardIdx) -> u64 {
+        let card = &self.cards[c as usize];
+        let d = crate::content::card_def(card.id);
+        (d.rarity as u64) << 56
+            | (card.id as u64) << 40
+            | (card.upgrade as u64) << 32
+            | (self.card_cost(c, true).clamp(-1, 254) as u64 & 0xFF) << 24
+            | (card.enchant as u64) << 16
+            | (card.affliction as u64) << 8
+    }
+
+    /// Agent-facing click: `i` is a position of the DISPLAYED list (`Decision::view`).
     pub(crate) fn decision_pick(&mut self, i: u8) -> bool {
+        let Some(d) = self.decision.as_ref() else { return false };
+        let view = self.decision_view(d);
+        let Some(&true_idx) = view.as_slice().get(i as usize) else { return false };
+        self.decision_pick_game(true_idx)
+    }
+
+    /// Applies a click on candidate `i` in GAME order (`Decision::cands`). Returns false if illegal. The differential
+    /// harness uses this (the real game's selector indexes the game's order); agents use `decision_pick`.
+    pub(crate) fn decision_pick_game(&mut self, i: u8) -> bool {
         let Some(d) = self.decision.as_mut() else { return false };
         if i as usize >= d.cands.len() {
             return false;

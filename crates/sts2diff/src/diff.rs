@@ -162,7 +162,7 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                         ch["options"].as_array().map(|a| a.iter().map(|o| o["id"].as_str().unwrap_or("?")).collect::<Vec<_>>().join(",")).unwrap_or_default(), picks_of(ch));
                 }
                 for p in picks_of(ch) {
-                    if !cx.step(Action::Pick { idx: p }) {
+                    if !cx.step_pick_game_order(p) {
                         let d = cx.decision.as_ref();
                         println!("step {i}: pick {p} rejected (simulator decision: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} {} cands {:?}; hand {:?}; draw {} discard {}", d.purpose, d.min, d.max, d.cands.len(), d.cands.iter().take(12).map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.hand.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.draw.len(), cx.player.discard.len())));
                         return Ok(mismatch_or_missing(&cx, i));

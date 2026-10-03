@@ -11,8 +11,9 @@ Ascender's Bane in the deck. Lower ascensions run through the same code but are 
 ## What the agent sees and chooses (the contract)
 See [`docs/env-api.md`](docs/env-api.md). In short: the action space and observation mirror what a human has —
 play card (with each legal target), use/discard potion, end turn, and the exact click-then-confirm card-selection screens;
-draw-pile contents are visible only as an unordered multiset (like the game's pile screen), RNG and future enemy moves are
-hidden, and a test perturbs hidden state to prove it can't leak into the observation.
+the draw, discard and exhaust piles are visible only as unordered multisets (a player knows what is in a pile, never its order),
+RNG is hidden, upcoming enemy turns are exposed as the expert pattern knowledge a veteran has by heart (exact cycles; odds at random
+branches; realized random outcomes stay hidden), and tests perturb hidden state to prove it can't leak into the observation.
 
 ## Layout
 | Path | What |
