@@ -382,7 +382,7 @@ impl Combat {
         use crate::defs::Intent;
         // (`move_view` also covers the synthetic STUNNED move, whose node index is not a real node)
         match self.move_view(e) {
-            Some((_, intents)) => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
+            Some((_, intents)) => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow | Intent::DeathBlowAttack { .. })),
             None => false,
         }
     }
