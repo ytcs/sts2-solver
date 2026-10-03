@@ -393,7 +393,9 @@ impl Combat {
             let mut r = Results::new();
             self.damage_into(hit.as_slice(), amount, a.props, a.dealer, a.card, &mut r);
             for x in r.iter() {
-                all.push(*x);
+                let mut x = *x;
+                x.hit = i.min(255) as u8;
+                all.push(x);
             }
             if hit_sizes.len() < 16 {
                 hit_sizes.push(r.len() as u8);
