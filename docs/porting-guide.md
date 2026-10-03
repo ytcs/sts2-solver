@@ -131,3 +131,7 @@ behaviour only matters insofar as the same code path computes both; never valida
 * **`FromChooseACardScreen(canSkip: false)`**: the game's selector contract hands (0,1) regardless; the oracle patches `canSkip` in
   (`P_ChooseACardSkip`) so the recorded `min` is 1 and Rust's `ask_options(.., can_skip = false)` agrees. **`VisualCardPool`**: Event cards that
   override it (Stack, Outmaneuver, Clash, ...) are NOT colorless for `c.VisualCardPool.IsColorless` filters (Heirloom Hammer).
+
+## Randomized differential fuzzing
+After the per-entity sweeps pass, run `python3 tools/fuzz_gen.py run --n 3000 --seed N --out DIR` (docs/oracle.md section 7): random realistic A10 Ironclad / Silent
+runs over every encounter diffed against the oracle. Failures are frozen into `oracle/regression/*.scenario.json` (`fuzz_gen.py freeze`) and replayed with `fuzz_gen.py regress`.

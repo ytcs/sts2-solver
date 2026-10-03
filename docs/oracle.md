@@ -165,6 +165,12 @@ Verdicts: `ok`, `mismatch`, `sim-error` (Rust panic), `oracle-error` (the real g
 Debug aids: `STS2DIFF_DUMP=1` (full Rust + oracle record of the first diverging step), `STS2DIFF_DUMP=all`, `STS2_TRACE=1` (debug builds:
 every card play / draw / history entry of the Rust side), `tools/fuzz_relic_props.py` (relic saved properties used for counter injection).
 
-Known residual classes (flagged as `unimplemented`, never silent): a decision raised inside the draw loop of a card effect / potion / power
-(Stratagem after a mid-turn reshuffle, a Hellraiser auto-played prompt card drawn by a card effect) -- only the turn-start hand draw can
-suspend and resume; decision candidate lists are capped at `MAX_PICK` (64); a fight may create at most `MAX_CARDS` (160) card instances.
+Known residual classes (flagged as `unimplemented`, never silent):
+* A decision raised inside a draw loop (Stratagem after a reshuffle, a Hellraiser auto-played prompt card) is resumable only in the turn-start
+  hand draw and in effects that draw through `Combat::draw_cards_s` / `draw_then_done` (`PH_DRAW_TAIL`: Shrug It Off, Pommel Strike, Backflip,
+  Acrobatics, Prepared, Dagger Throw, Battle Trance, Offering, Burning Pact, Drum of Battle, Finesse, ... and the draw potions). Everything
+  else that can draw (hook-driven draws such as Dark Embrace / Feel No Pain, `AutoPlayFromDrawPile` of Havoc / Cascade, Expertise, Escape Plan,
+  Pillage, Thinking Ahead, Calculated Gamble, the Swift enchantment, Clarity / Snecko Oil) flags `Combat::missing` when such a decision occurs.
+  ~0.1% of fights of the fuzz distribution.
+* Decision candidate lists are capped at `MAX_PICK` (64): a draw/discard pile larger than that (very long fights) is not fully selectable.
+* A fight may create at most `MAX_CARDS` (160) card instances (a stalling policy for 50+ rounds).
