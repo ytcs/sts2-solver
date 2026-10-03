@@ -56,7 +56,12 @@ impl Combat {
 
     #[inline(always)]
     pub fn card_def(&self, c: CardIdx) -> &'static CardDef {
-        content::card_def(self.cards[c as usize].id)
+        let card = &self.cards[c as usize];
+        // Mad Science's type / target are per-instance saved properties (`TinkerTimeType`): every other card is static.
+        if card.id == crate::ids::card::MAD_SCIENCE {
+            return content::cards::mad_science::variant(card.counter);
+        }
+        content::card_def(card.id)
     }
 
     /// `CardModel.UpgradeInternal` (stats only): +1 level, `UpgradeBy` on cost, keyword edits. Var deltas are

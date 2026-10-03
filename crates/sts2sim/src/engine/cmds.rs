@@ -71,10 +71,15 @@ impl Combat {
 
     /// `CardFactory.GetForCombat` (`rng.NextItem` per card, with replacement) over the generatable cards of `pool`.
     pub fn get_for_combat(&mut self, pool: &[u16], count: usize) -> ArrayVec<CardIdx, 16> {
+        self.get_for_combat_where(pool, count, |_| true)
+    }
+
+    /// `CardFactory.GetForCombat` over `pool.Where(extra)` (the call site's own filter, e.g. Metamorphosis: Attacks).
+    pub fn get_for_combat_where(&mut self, pool: &[u16], count: usize, extra: impl Fn(&crate::defs::CardDef) -> bool) -> ArrayVec<CardIdx, 16> {
         let mut list: ArrayVec<u16, 128> = ArrayVec::new();
         for &id in pool {
             let d = crate::content::card_def(id);
-            if !d.multiplayer_only && d.can_be_generated_in_combat && !matches!(d.rarity, CardRarity::Basic | CardRarity::Ancient | CardRarity::Event) {
+            if !d.multiplayer_only && extra(d) && d.can_be_generated_in_combat && !matches!(d.rarity, CardRarity::Basic | CardRarity::Ancient | CardRarity::Event) {
                 list.push(id);
             }
         }

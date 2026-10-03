@@ -1,0 +1,43 @@
+{
+ "name": "ironclad_phrog_parasite_elite",
+ "ascension": 10,
+ "encounter": "PHROG_PARASITE_ELITE",
+ "character": "IRONCLAD",
+ "hp": 120,
+ "max_hp": 120,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "ABUNDANCE",
+  "APOTHEOSIS",
+  "APPARITION",
+  "BRIGHTEST_FLAME",
+  "BYRD_SWOOP",
+  "CALTROPS",
+  "CLASH",
+  "DISTRACTION",
+  "DUAL_WIELD",
+  "ENLIGHTENMENT",
+  "ENTRENCH",
+  "EXTERMINATE",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": []
+}

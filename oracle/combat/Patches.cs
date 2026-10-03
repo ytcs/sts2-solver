@@ -109,6 +109,15 @@ public static class Patches
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.TheInsatiable), nameof(MegaCrit.Sts2.Core.Models.Monsters.TheInsatiable.AfterDeath))]
     static class P_InsatiableDeath { static bool Prefix(ref Task __result) { __result = Task.CompletedTask; return false; } }
 
+    // `CardSelectCmd.FromChooseACardScreen(ctx, cards, player, canSkip)` hands the selector (0,1) even when `canSkip` is false (the real
+    // screen then cannot be dismissed without a pick). Record `canSkip` so the oracle's selector enforces min = 1 in that case.
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Commands.CardSelectCmd), nameof(MegaCrit.Sts2.Core.Commands.CardSelectCmd.FromChooseACardScreen))]
+    static class P_ChooseACardSkip
+    {
+        static void Prefix(bool canSkip) { ChoiceSelector.ChooseACardMustPick = !canSkip; }
+        static void Postfix() { ChoiceSelector.ChooseACardMustPick = false; }
+    }
+
     [HarmonyPatch(typeof(ConsoleLogPrinter), nameof(ConsoleLogPrinter.Print))]
     static class P_Print
     {

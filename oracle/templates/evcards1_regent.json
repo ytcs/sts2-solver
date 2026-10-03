@@ -1,0 +1,43 @@
+{
+ "name": "regent_phrog_parasite_elite",
+ "ascension": 10,
+ "encounter": "PHROG_PARASITE_ELITE",
+ "character": "REGENT",
+ "hp": 120,
+ "max_hp": 120,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 0,
+ "deck": [
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "FALLING_STAR",
+  "VENERATE",
+  "ABUNDANCE",
+  "APOTHEOSIS",
+  "APPARITION",
+  "BRIGHTEST_FLAME",
+  "BYRD_SWOOP",
+  "CALTROPS",
+  "CLASH",
+  "DISTRACTION",
+  "DUAL_WIELD",
+  "ENLIGHTENMENT",
+  "ENTRENCH",
+  "EXTERMINATE",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "DIVINE_RIGHT"
+ ],
+ "potions": []
+}

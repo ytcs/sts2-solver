@@ -1,0 +1,36 @@
+{
+ "name": "ironclad_dense_vegetation_event_encounter",
+ "ascension": 10,
+ "encounter": "DENSE_VEGETATION_EVENT_ENCOUNTER",
+ "character": "IRONCLAD",
+ "hp": 80,
+ "max_hp": 80,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 1,
+ "act": 1,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "BASH",
+  "TWIN_STRIKE",
+  "SHRUG_IT_OFF",
+  "SHRUG_IT_OFF",
+  "ANGER",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": []
+}

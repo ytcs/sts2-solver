@@ -315,9 +315,17 @@ listener!(HeirloomHammer {
     }
 });
 
-// `CardModel.VisualCardPool.IsColorless`: the Colorless, Event and Token pools.
+// `CardModel.VisualCardPool.IsColorless`: the Colorless, Event and Token pools, except the Event cards that override
+// `VisualCardPool` to look like a character's card (Caltrops, Clash, Dual Wield, Distraction, Hello World, Entrench, Rip and Tear,
+// Rebound, Stack, Outmaneuver).
 fn is_colorless(id: u16) -> bool {
     use crate::content::gen_pools as p;
+    use crate::ids::card as c;
+    const EVENT_WITH_CHARACTER_LOOK: [u16; 10] =
+        [c::CALTROPS, c::CLASH, c::DUAL_WIELD, c::DISTRACTION, c::HELLO_WORLD, c::ENTRENCH, c::RIP_AND_TEAR, c::REBOUND, c::STACK, c::OUTMANEUVER];
+    if EVENT_WITH_CHARACTER_LOOK.contains(&id) {
+        return false;
+    }
     p::COLORLESS.contains(&id) || p::EVENT.contains(&id) || p::TOKEN.contains(&id)
 }
 
