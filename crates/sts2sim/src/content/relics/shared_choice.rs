@@ -16,14 +16,9 @@ use crate::util::ArrayVec;
 // ---- Gambling Chip: discard any cards from the opening hand, draw as many ------------------------------------------------------
 
 fn gambling_chip_finish(cx: &mut Combat, cards: &ArrayVec<CardIdx, 16>) {
-    // CardCmd.DiscardAndDraw: every discard (with its hooks), then the draw.
-    if cx.is_over_or_ending() || cards.is_empty() {
-        return;
-    }
-    for &c in cards.iter() {
-        cx.discard_card(c);
-    }
-    cx.draw_cards(cards.len() as i32, false);
+    // CardCmd.DiscardAndDraw: every discard (with its hooks), then the draw, then the Sly cards auto-play (a decision they raise
+    // leaves the turn start suspended: `resume_after_decision` continues it).
+    cx.discard_cards(cards.as_slice(), cards.len() as i32);
 }
 listener!(GamblingChip {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
@@ -155,7 +150,7 @@ listener!(WhisperingEarring {
             }
             let hand = cx.player.hand;
             let Some(card) = hand.iter().copied().find(|&c| cx.can_play(c)) else { break };
-            let target = match cx.card_def(card).target {
+            let target = match cx.card_target_type(card) {
                 TargetType::AnyEnemy => cx.hittable_enemies().first().unwrap_or(NO),
                 TargetType::AnyPlayer => PLAYER,
                 _ => NO,

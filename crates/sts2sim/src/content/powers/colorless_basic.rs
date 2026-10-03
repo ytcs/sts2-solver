@@ -206,7 +206,7 @@ listener!(TagTeamPower {
         if applier == PLAYER {
             return count; // `card.Owner.Creature == Applier`
         }
-        let tt = cx.card_def(card).target;
+        let tt = cx.card_target_type(card);
         if tt == TargetType::AnyEnemy && target != me.owner {
             return count;
         }

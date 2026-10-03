@@ -216,6 +216,9 @@ listener!(GangUp {
         cx.execute_attack(&a);
         Flow::Done
     }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_gang_up(cx, card, target))
+    }
 });
 
 // 0 + 1 * (card plays finished so far this combat); Retain when upgraded (stat table).
@@ -233,6 +236,9 @@ listener!(GoldAxe {
         a.damage = d;
         cx.execute_attack(&a);
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_gold_axe(cx, card, target))
     }
 });
 
@@ -393,6 +399,9 @@ listener!(MindBlast {
         a.damage = d;
         cx.execute_attack(&a);
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_mind_blast(cx, card, target))
     }
 });
 
@@ -575,6 +584,9 @@ listener!(Rend {
         cx.execute_attack(&a);
         Flow::Done
     }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_rend(cx, card, target))
+    }
 });
 
 // Only does something if it is the only card in the hand: draw one card at a time, then gain energy.
@@ -735,7 +747,11 @@ listener!(Splash {
                     }
                 }
                 match cx.ask_options(ids::card::SPLASH, cards.as_slice(), true) {
-                    Ask::Resolved(_) => Flow::Done,
+                    Ask::Resolved(cards) => {
+                        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
+                        cx.choice.cards = cards;
+                        self.on_play(cx, p, 1)
+                    }
                     Ask::Pending => Flow::Suspend(1),
                 }
             }

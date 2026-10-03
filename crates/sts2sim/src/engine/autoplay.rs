@@ -100,8 +100,8 @@ impl Combat {
         if self.is_over_or_ending() {
             return RunResult::Finished;
         }
-        let mut cards: ArrayVec<CardIdx, 10> = ArrayVec::new();
-        for _ in 0..count.min(10) {
+        let mut cards: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
+        for _ in 0..count.min(AUTOPLAY_MAX as i32) {
             self.shuffle_if_necessary();
             let n = self.player.draw.len();
             let c = match pos {
@@ -128,8 +128,8 @@ impl Combat {
     /// them suspends the rest of the list (continued by `resume_queues` once that play finished). The caller's `on_play`
     /// must return `Flow::Suspend(next)` on `Suspended`, like for `auto_play`.
     pub fn auto_play_list(&mut self, cards: &[CardIdx]) -> RunResult {
-        let mut q: ArrayVec<CardIdx, 10> = ArrayVec::new();
-        for &c in cards.iter().take(10) {
+        let mut q: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
+        for &c in cards.iter().take(AUTOPLAY_MAX) {
             q.push(c);
         }
         let owner = self.play_stack.len() as i8 - 1;
@@ -208,7 +208,7 @@ impl Combat {
             self.draw_cards(cards_to_draw, false);
         }
         let owner = self.play_stack.len() as i8 - 1;
-        let mut q: ArrayVec<CardIdx, 10> = ArrayVec::new();
+        let mut q: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
         for &c in sly.iter() {
             q.push(c);
         }

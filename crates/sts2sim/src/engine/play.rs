@@ -319,6 +319,11 @@ impl Combat {
                                 // the effect's draw was interrupted by a Stratagem pick: finish the rest after the pick
                                 return RunResult::Suspended;
                             }
+                            if self.play_stack.len() > idx + 1 {
+                                // a play started by a hook inside this effect (Hellraiser auto-playing a drawn card ...) is still
+                                // waiting for a decision: this play waits for it (the game's `await` blocks it)
+                                return RunResult::Suspended;
+                            }
                         }
                         Flow::Suspend(next) => {
                             self.play_stack[idx].step = PlayStep::OnPlay(next);

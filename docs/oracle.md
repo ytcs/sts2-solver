@@ -157,8 +157,8 @@ policies in ONE process per job (`oracle.sh batch`, ~10 ms per fight) and diffs 
 ```
 python3 tools/fuzz_gen.py run --n 5000 --seed 1 --out /tmp/fz --jobs 6 [--relic-mode runlevel|many] [--force-relics A,B] [--force-cards X]
 python3 tools/fuzz_gen.py triage --out /tmp/fz            # re-diff the failing scenarios kept under /tmp/fz/jobK (first differences)
-python3 tools/fuzz_gen.py freeze --base /tmp/fz/job0/f1_17 --name my_regression --note "..."   # -> oracle/regression/my_regression.scenario.json
-python3 tools/fuzz_gen.py regress                         # replay every oracle/regression/*.scenario.json (scripted, policy independent)
+python3 tools/fuzz_gen.py freeze --base /tmp/fz/job0/f1_17 --name my_regression --note "..."   # -> oracle/regression_scripted/my_regression.scenario.json
+python3 tools/fuzz_gen.py regress                         # replay every oracle/regression_scripted/*.scenario.json (scripted, policy independent)
 ```
 Verdicts: `ok`, `mismatch`, `sim-error` (Rust panic), `oracle-error` (the real game threw; e.g. Inky on a non-targeted card), `unimplemented`
 (content / engine rule flagged as not ported: `Combat::missing`), `arena-full` (more than `MAX_CARDS` card instances in one fight).

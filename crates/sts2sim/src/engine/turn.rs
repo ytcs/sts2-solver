@@ -124,11 +124,38 @@ impl Combat {
         if self.cr(PLAYER).is_alive() && self.setup_player_turn(0) {
             return; // suspended on a decision raised by a turn-start hook; `resume_turn_start` continues
         }
-        self.finish_player_turn_start();
+        self.finish_player_turn_start(0);
     }
 
-    /// Rest of `StartTurn(Player)` after `SetupPlayerTurn` (spec 01 §6.1).
-    fn finish_player_turn_start(&mut self) {
+    /// Rest of `StartTurn(Player)` after `SetupPlayerTurn` (spec 01 §6.1). `from` = 0 at the start, else the `turn_cont` step being
+    /// resumed (5 / 6 / 7 = inside the early / normal / late `AfterAutoPrePlayPhaseEntered` pass, e.g. an Imbued card whose
+    /// auto-play raised a decision).
+    fn finish_player_turn_start(&mut self, from: u8) {
+        if from == 0 && self.finish_turn_start_before_auto_pre_play() {
+            return;
+        }
+        if from <= 5 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered_early, |cx, me, l| l.after_auto_pre_play_phase_entered_early(cx, me)) {
+            self.turn_cont = 5;
+            return;
+        }
+        if from <= 6 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me)) {
+            self.turn_cont = 6;
+            return;
+        }
+        if from <= 7 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered_late, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me)) {
+            self.turn_cont = 7;
+            return;
+        }
+        self.player.phase = Phase::Play;
+        if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
+            self.stage = Stage::AwaitAction;
+            // An end-turn requested by the turn-start effects (Void Form ...) is held until `StartTurn` returns.
+            self.consume_end_turn_request();
+        }
+    }
+
+    /// `AfterSideTurnStart` .. `RunAutoPrePlayPhase` entry. Returns true when the turn start is over (dead player).
+    fn finish_turn_start_before_auto_pre_play(&mut self) -> bool {
         self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
         self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
         // OrbQueue.AfterTurnStart (Plasma), after the whole Hook.AfterSideTurnStart (incl. the Late pass).
@@ -141,20 +168,12 @@ impl Combat {
             if self.in_progress {
                 self.end_player_turn();
             }
-            return;
+            return true;
         }
         // RunAutoPrePlayPhase
         self.player.phase = Phase::AutoPrePlay;
         self.check_for_empty_hand();
-        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered_early, |cx, me, l| l.after_auto_pre_play_phase_entered_early(cx, me));
-        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me));
-        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered_late, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me));
-        self.player.phase = Phase::Play;
-        if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
-            self.stage = Stage::AwaitAction;
-            // An end-turn requested by the turn-start effects (Void Form ...) is held until `StartTurn` returns.
-            self.consume_end_turn_request();
-        }
+        false
     }
 
     /// Continues a turn start that was suspended by a decision raised inside a turn-start hook (`turn_cont`: 1 = in
@@ -165,7 +184,9 @@ impl Combat {
             if self.setup_player_turn(cont) {
                 return;
             }
-            self.finish_player_turn_start();
+            self.finish_player_turn_start(0);
+        } else if (5..=7).contains(&cont) {
+            self.finish_player_turn_start(cont);
         }
     }
 
@@ -221,6 +242,23 @@ impl Combat {
             // The hand draw was interrupted by a decision raised in `AfterShuffle` (Stratagem): draw the rest.
             if let Some((n, from_hand)) = self.draw_resume.take() {
                 self.drawing_hand = true;
+                if let Some((card, phase)) = self.draw_pass.take() {
+                    // finish the `AfterShuffle` / `AfterCardDrawn` pass the decision interrupted, then the rest of the draw
+                    let suspended = if phase == 2 {
+                        self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me))
+                    } else {
+                        self.drawn_hooks(card, from_hand, phase)
+                    };
+                    if suspended {
+                        if phase == 2 {
+                            self.draw_pass = Some((NO, 2));
+                        }
+                        self.drawing_hand = false;
+                        self.draw_resume = Some((n, from_hand));
+                        self.turn_cont = 4;
+                        return true;
+                    }
+                }
                 self.draw_cards(n, from_hand);
                 self.drawing_hand = false;
                 if self.stage == Stage::AwaitChoice {

@@ -1,5 +1,6 @@
 //! Ironclad cards, batch a1: pool positions [0,45) of the Ironclad pool (Aggression .. Impervious) that are not in basic.rs.
 
+use crate::engine::calc_with;
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Ask, Attack, HKind, RunResult, Targeting};
@@ -258,6 +259,10 @@ listener!(AshenStrike {
         cx.execute_attack(&a);
         Flow::Done
     }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        Some(calc_with(cx, card, cx.player.exhaust.len() as i32))
+    }
 });
 
 listener!(Bludgeon {
@@ -273,6 +278,10 @@ listener!(BodySlam {
         let a = Attack::from_card_calc(PLAYER, p.card, Targeting::Single(p.target), |cx, _, _| cx.cr(PLAYER).block);
         cx.execute_attack(&a);
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        Some(calc_with(cx, card, cx.cr(PLAYER).block))
     }
 });
 
@@ -303,6 +312,9 @@ listener!(Bully {
         });
         cx.execute_attack(&a);
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_with(cx, card, if target == NO { 0 } else { cx.power_amount(target, ids::power::VULNERABLE_POWER) }))
     }
 });
 

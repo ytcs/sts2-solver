@@ -134,7 +134,7 @@ behaviour only matters insofar as the same code path computes both; never valida
 
 ## Randomized differential fuzzing
 After the per-entity sweeps pass, run `python3 tools/fuzz_gen.py run --n 3000 --seed N --out DIR` (docs/oracle.md section 7): random realistic A10 Ironclad / Silent
-runs over every encounter diffed against the oracle. Failures are frozen into `oracle/regression/*.scenario.json` (`fuzz_gen.py freeze`) and replayed with `fuzz_gen.py regress`.
+runs over every encounter diffed against the oracle. Failures are frozen into `oracle/regression_scripted/*.scenario.json` (`fuzz_gen.py freeze`) and replayed with `fuzz_gen.py regress`.
 ## Hardening conventions (robustness / throughput)
 * **Fixed capacities never fail silently.** Use `ArrayVec` (a full push is dropped and flags `Combat::overflow`) and never truncate a list with a bare
   `.take(N)` / `min(CAP)`: push every element so an overflow is recorded, or raise it yourself (`util::raise_overflow(ov::...)`, `Combat::overflow |= ov::...`).

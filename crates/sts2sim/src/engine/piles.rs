@@ -104,6 +104,11 @@ impl Combat {
         card.cost_base = if d.x_cost { 0 } else { d.cost };
         card.kw_add = 0;
         card.kw_remove = 0;
+        // `Enchantment?.ModifyCard()` re-runs `OnEnchant` (Tezcatara's Ember: cost 0 + Eternal again; Goopy / Slither keywords).
+        if self.cards[c as usize].enchant != 0 {
+            let me = self.enchantment_me(c);
+            content::listener(&me).on_enchant(self, me, c);
+        }
     }
 
     /// Value of the card's dynamic var of `kind` (`DynamicVars.X.BaseValue` as int).
@@ -395,7 +400,15 @@ impl Combat {
         for &c in from_discard.iter() {
             self.fire_card_changed_piles(c, PileType::Discard);
         }
-        self.dispatch_g(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me));
+        if self.drawing_hand && self.draw_depth == 1 {
+            // During the turn-start hand draw a listener (Stratagem) may raise a decision: the listeners after it (Biiig Hug's
+            // Soot, ...) run once it is answered (`draw_pass` 2, resumed by `setup_player_turn`).
+            if self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me)) {
+                self.draw_pass = Some((NO, 2));
+            }
+        } else {
+            self.dispatch_g(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me));
+        }
     }
 
     #[inline]
@@ -498,11 +511,36 @@ impl Combat {
             out.push(card);
             let id = self.cards[card as usize].id;
             self.hist_push(HKind::CardDrawn, PLAYER, NO, id, card, 0, from_hand_draw as u8, 0, 0);
-            self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
-            self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
+            if self.drawn_hooks(card, from_hand_draw, 0) {
+                // A decision raised by an `AfterCardDrawn` listener (Hellraiser auto-playing a Seeker Strike ...) during the turn-start
+                // hand draw: the rest of the pass and then the rest of the draw continue after it (`turn_cont` 4).
+                self.draw_resume = Some((count - i - 1, from_hand_draw));
+                break;
+            }
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         }
         out
+    }
+
+    /// `Hook.AfterCardDrawnEarly` then `Hook.AfterCardDrawn` for one drawn card (`start_phase` 1 skips the early pass: resuming).
+    /// During the turn-start hand draw the passes are resumable; returns true when one suspended on a decision (`draw_pass` says where).
+    pub(crate) fn drawn_hooks(&mut self, card: CardIdx, from_hand_draw: bool, start_phase: u8) -> bool {
+        if !(self.drawing_hand && self.draw_depth <= 1) {
+            if start_phase == 0 {
+                self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
+            }
+            self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
+            return false;
+        }
+        if start_phase == 0 && self.dispatch_resumable(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw)) {
+            self.draw_pass = Some((card, 0));
+            return true;
+        }
+        if self.dispatch_resumable(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw)) {
+            self.draw_pass = Some((card, 1));
+            return true;
+        }
+        false
     }
 
     /// `CardCmd.Exhaust`.

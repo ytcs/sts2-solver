@@ -221,7 +221,9 @@ fn state_size_budget() {
     assert!(sz <= COMBAT_BUDGET, "Combat is {sz} bytes, budget {COMBAT_BUDGET}");
 }
 
-const COMBAT_BUDGET: usize = 17_800;
+// 17_800 -> 18_800 (deliberate): per-hook suspended-pass stack (3 x 8 listeners), deeper auto-play queues (24 cards), 160-entry history ring
+// (a very heavy Bolas / Memento Mori turn), 6 nested plays. Measured 18_720.
+const COMBAT_BUDGET: usize = 18_800;
 
 /// Creature slots: the player, Osty and the biggest encounter's enemies must fit with room for summons.
 #[test]

@@ -242,8 +242,8 @@ def diff_one(base):
         return base, "oracle-missing", ""
     d = subprocess.run([DIFF, "run", base + ".scenario.json", base + ".jsonl", "--max", "4"], capture_output=True, text=True)
     out = (d.stdout or "").strip()
-    if "card arena full" in (d.stderr or ""):
-        return base, "arena-full", "card arena (MAX_CARDS) exhausted: very long fight"
+    if "capacity overflow" in (d.stderr or "") or "card arena full" in (d.stderr or ""):
+        return base, "overflow", (d.stderr or "").strip()[:200]
     if "not implemented in the simulator" in (d.stderr or ""):
         return base, "unimplemented", "UNIMPLEMENTED " + d.stderr.split("UnimplementedPotion(")[-1].strip()
     if d.returncode == 0:
@@ -341,17 +341,17 @@ def freeze(a):
     full.pop("result", None)
     full["name"] = a.name
     full["note"] = a.note or f"fuzz regression {a.name}"
-    os.makedirs(os.path.join(ROOT, "oracle/regression"), exist_ok=True)
-    out = os.path.join(ROOT, "oracle/regression", a.name + ".scenario.json")
+    os.makedirs(os.path.join(ROOT, "oracle/regression_scripted"), exist_ok=True)
+    out = os.path.join(ROOT, "oracle/regression_scripted", a.name + ".scenario.json")
     json.dump(full, open(out, "w"), separators=(",", ":"))
     print("wrote", out, f"({len(script)} script entries, step {step})")
 
 
 def regress(a):
-    """Replay every oracle/regression/*.scenario.json through the oracle (scripted) and the Rust diff."""
+    """Replay every oracle/regression_scripted/*.scenario.json through the oracle (scripted) and the Rust diff."""
     import shutil, tempfile
     d = tempfile.mkdtemp(prefix="sts2reg_")
-    files = sorted(glob.glob(os.path.join(ROOT, "oracle/regression/*.scenario.json")))
+    files = sorted(glob.glob(os.path.join(ROOT, "oracle/regression_scripted/*.scenario.json")))
     for f in files:
         shutil.copy(f, d)
     subprocess.run([ORACLE, "batch", d], capture_output=True, text=True)

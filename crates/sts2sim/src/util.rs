@@ -22,6 +22,9 @@ thread_local! {
 #[cold]
 #[inline(never)]
 pub fn raise_overflow(bit: u32) {
+    if std::env::var("STS2_OVERFLOW_PANIC").is_ok() {
+        panic!("capacity overflow raised (bit {bit})");
+    }
     OVERFLOW.with(|c| c.set(c.get() | bit));
 }
 

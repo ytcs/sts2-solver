@@ -230,7 +230,8 @@ impl Combat {
             draw_resume,
             drawing_hand,
             turn_cont,
-            susp_after,
+            susp,
+            draw_pass,
             enemy_cont,
             end_turn_resume,
             missing,
@@ -292,7 +293,8 @@ impl Combat {
         *draw_resume = None;
         *drawing_hand = false;
         *turn_cont = 0;
-        *susp_after = None;
+        susp.clear();
+        *draw_pass = None;
         *enemy_cont = None;
         *missing = None;
         *overflow = 0;
@@ -483,7 +485,8 @@ impl Combat {
             resuming_draw: false,
             draw_nosuspend: 0,
             turn_cont: 0,
-            susp_after: None,
+            susp: ArrayVec::new(),
+            draw_pass: None,
             enemy_cont: None,
             missing: None,
             overflow: 0,

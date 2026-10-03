@@ -411,6 +411,18 @@ pub struct Choice {
     pub cards: ArrayVec<CardIdx, 16>,
 }
 
+/// A suspended resumable hook pass: the listener that raised the decision and the listeners that were still to run (the game
+/// iterates a list built at the start of the pass; models that moved meanwhile, e.g. an auto-played card, keep their place in
+/// it). `full` = nothing was cut off at the capacity (otherwise the pass is rebuilt from a fresh snapshot, best effort).
+#[derive(Clone, Copy)]
+pub struct SuspPass {
+    pub bit: u32,
+    pub me: crate::hooks::Me,
+    pub pos: u8,
+    pub full: bool,
+    pub rest: ArrayVec<crate::hooks::Me, 8>,
+}
+
 /// Step of the card-play state machine (`CardModel.OnPlayWrapper`), resumable across decisions.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PlayStep {
@@ -421,9 +433,12 @@ pub enum PlayStep {
 
 /// In-flight potion use (suspended while a decision is pending).
 /// Cards of one `AutoPlayFromDrawPile` / `DiscardAndDraw` call still waiting to be auto-played (front = next).
+/// Most cards one `AutoPlayFromDrawPile` call can queue (Cascade with X = energy; Ice Cream can bank a lot of energy).
+pub const AUTOPLAY_MAX: usize = 24;
+
 #[derive(Clone, Copy)]
 pub struct AutoQueue {
-    pub cards: ArrayVec<CardIdx, 10>,
+    pub cards: ArrayVec<CardIdx, AUTOPLAY_MAX>,
     /// `AutoPlayFromDrawPile(forceExhaust)`.
     pub force_exhaust: bool,
     /// `AutoPlayType.SlyDiscard` queue (else `Default`).
@@ -520,7 +535,7 @@ pub struct Combat {
 
     /// In-flight card plays, innermost last (an auto-play started from inside `on_play` pushes a nested play);
     /// suspended while a decision is pending.
-    pub play_stack: ArrayVec<PlayCtx, 4>,
+    pub play_stack: ArrayVec<PlayCtx, 6>,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
@@ -542,11 +557,15 @@ pub struct Combat {
     /// >0 while a draw whose caller reads the drawn cards / asks right afterwards runs: its shuffle decisions cannot be paused.
     pub draw_nosuspend: u8,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
-    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
+    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw, 5 / 6 / 7 = in the early /
+    /// normal / late `AfterAutoPrePlayPhaseEntered` pass.
     pub turn_cont: u8,
-    /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
-    /// its index in the pass: the pass continues after it once the decision is resolved.
-    pub susp_after: Option<(u32, crate::hooks::Me, u8)>,
+    /// Resumable notification passes (`Combat::dispatch_resumable`) suspended by a decision, innermost last (a pass can be
+    /// suspended inside another suspended pass: the turn-start hook of Mayhem auto-plays a card whose draw reshuffles).
+    pub susp: ArrayVec<SuspPass, 3>,
+    /// The `AfterShuffle` / `AfterCardDrawn(Early)` pass (drawn card, 0 = early / 1 = normal / 2 = after-shuffle) that a decision
+    /// interrupted during the turn-start hand draw (`turn_cont` 4 finishes it, then the rest of the draw).
+    pub draw_pass: Option<(CardIdx, u8)>,
     /// An enemy turn suspended inside a monster move that raised a decision (Knowledge Demon's Curse of Knowledge):
     /// the `Enemies` snapshot taken at the start of the turn and the index of the suspended mover.
     pub enemy_cont: Option<(ArrayVec<Cid, MAX_CREATURES>, u8, u8)>,
