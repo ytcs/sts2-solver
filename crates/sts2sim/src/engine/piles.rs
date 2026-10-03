@@ -396,7 +396,8 @@ impl Combat {
     /// is held in front of its `After` step and the rest of the draw continues after the pick). Everything else (draws
     /// from hooks, nested draws, draws whose caller reads the result or asks next) is flagged as not ported.
     pub fn draw_decision_resumable(&self) -> bool {
-        if self.draw_nosuspend > 0 || self.draw_depth > 1 {
+        if self.draw_nosuspend > 0 || self.draw_depth != 1 {
+            // (depth 0: a shuffle outside `draw_cards`, e.g. AutoPlayFromDrawPile, cannot be paused either)
             return false;
         }
         if self.drawing_hand || self.resuming_draw || self.potion_ctx.is_some() {
