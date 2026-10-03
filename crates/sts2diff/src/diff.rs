@@ -129,6 +129,12 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 };
                 ci += 1;
                 let seq = cx.decision_seq;
+                if std::env::var("STS2DIFF_DEC").is_ok() {
+                    let d = cx.decision.as_ref().unwrap();
+                    println!("step {i}: DECISION #{ci} purpose {} min {} max {} sim-cands {:?} | oracle options {} picks {:?}", d.purpose, d.min, d.max,
+                        d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(),
+                        ch["options"].as_array().map(|a| a.iter().map(|o| o["id"].as_str().unwrap_or("?")).collect::<Vec<_>>().join(",")).unwrap_or_default(), picks_of(ch));
+                }
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
                         if let Some(m) = missing_name(&cx) {
@@ -149,6 +155,15 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 }
             }
+            // Prompts the real game raised that the simulator never asked (a flagged-missing effect explains it).
+            if ci < choices.len() {
+                if let Some(m) = missing_name(&cx) {
+                    println!("UNIMPLEMENTED {m} (step {i}; the oracle raised {} more decision(s))", choices.len() - ci);
+                    return Ok(Verdict::Unimplemented);
+                }
+                println!("step {i}: the oracle raised {} decision(s) the simulator never asked (first: {})", choices.len() - ci, brief(choices[ci]));
+                return Ok(Verdict::Mismatch);
+            }
         }
         if let Some(m) = missing_name(&cx) {
             // STS2DIFF_LENIENT=1: unported *cards* (e.g. offered by a card-generating potion) do not stop the replay;
@@ -168,6 +183,12 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
         // Debug aid: STS2DIFF_DUMP=N prints the simulator's snapshot at record N (and the oracle's, for a side-by-side `diff`).
         if std::env::var("STS2DIFF_DUMP").ok().and_then(|v| v.parse::<usize>().ok()) == Some(i) {
             println!("RUST {snap}\nORACLE {rec}");
+            if std::env::var("STS2DIFF_HIST").is_ok() {
+                for e in cx.hist_log.iter() {
+                    let nm = |c: u8| if c == sts2sim::types::NO { "-".to_string() } else { sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize].to_string() };
+                    println!("HIST r{} t{} {:?} card {} actor {} other {} val {} flags {}", e.round, e.turn, e.kind, nm(e.card), e.actor, e.other, e.val, e.flags);
+                }
+            }
         }
         compare("", &snap, rec, &mut diffs);
         if !diffs.is_empty() {

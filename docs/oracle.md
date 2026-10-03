@@ -145,3 +145,31 @@ present in every record.
   to localise mismatches inside an enemy turn.
 * Potion/relic/card persistent-state injection beyond ints/bools/strings (`SavedProperties` int arrays, cards-in-props) is not wired in `Scenario.cs`.
 * Suggested follow-up: replay a handful of old real-game traces (git history `data/combat_traces`, older build) through scenarios to cross-check the stub layer end to end.
+
+## 7. Randomized differential fuzzing (fidelity hardening)
+
+`tools/fuzz_gen_mix.py` generates realistic random A10 runs (any character, act-scaled decks with colorless / event / curse / status cards,
+random upgrades and enchantments, 3-8 random relics with injected counters, 0-2 potions, any implemented encounter, a random driver policy),
+runs them through the oracle's **`batch`** command (one process per chunk, ~50 ms per fight) and replays each trace with `sts2diff`:
+
+```
+python3 tools/fuzz_gen_mix.py --n 1500 --seed r3 --out /tmp/fz/r3 --jobs 6            # mixed round; non-ok scenarios stay in the dir
+python3 tools/fuzz_gen_mix.py --n 300 --seed t --out /tmp/fz/t --focus turn --enchant 0.1   # turn-start auto-play / decisions (Mayhem, Imbued, Earring, ...)
+python3 tools/fuzz_gen_mix.py --n 700 --seed p --out /tmp/fz/p --each-potion               # every potion, round robin (also --each-relic)
+python3 tools/fuzz_triage.py /tmp/fz/r3          # re-run sts2diff on the kept scenarios (shows which a fix repaired)
+python3 tools/fuzz_show.py /tmp/fz/r3/fm_r3_17 0 5   # compact oracle trace view;  STS2DIFF_DUMP=N prints the Rust/oracle snapshot of record N
+python3 tools/fuzz_keep.py /tmp/fz/r3/fm_r3_17 NAME --upto 12 --note "..."   # promote a finding to oracle/regression/
+```
+Policies (`scenario.policy`, read by the oracle driver): `endw` (weight of `end_turn`; 0 = never end the turn while anything else is legal),
+`atkw` (attack weight; <1 stalls), `potw`, `max_steps`, `max_rounds`; `deep` mode also gives the player 400-999 HP so fights reach turn 10+.
+`oracle.sh catalog --out F` dumps pools / encounters (the generator input). Do not rebuild the oracle or `sts2diff` while a round is running
+(copy the binary and pass it through `STS2DIFF`). `oracle/regression/*.{scenario.json,jsonl}` are oracle-recorded traces (possibly truncated)
+that `crates/sts2diff/tests/regression.rs` replays on every `cargo test`.
+
+Rules that fell out of the fuzzing (the commit messages name each): per-play power state lives in `hist.remember_play/take_play` (plays nest through
+auto-play); every card-type/target query of a history entry uses `cx.card_def(e.card)` (Mad Science is per instance); an effect that auto-plays a card
+must return `Suspend` or `Done` and the engine suspends the outer play while the nested one waits (`run_play_at`); a `Resolved` choice (Whispering
+Earring's selector) must apply its result exactly like a resumed one; turn-start passes that auto-play (`AfterAutoPrePlayPhaseEntered*`) and
+`AfterShuffle` are `dispatch_resumable`. `big-arena` (cargo feature, on for `sts2diff`) raises `MAX_CARDS` 160 -> 254; an overflowing fight is
+flagged `missing`. Known gap: a Stratagem prompt raised outside the outermost turn-start hand draw (card-effect draws, draws nested in
+`AfterCardDrawn`) is flagged unimplemented.

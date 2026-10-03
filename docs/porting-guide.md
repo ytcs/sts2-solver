@@ -81,8 +81,11 @@ behaviour only matters insofar as the same code path computes both; never valida
   `add_keyword/remove_keyword`, `request_end_turn()` (Void Form), `enchant_card`, `afflict_card`, `new_card_ex`,
   stream helpers `stable_shuffle_cards` / `unstable_shuffle_cards`. A card's `on_play` that starts an auto-play must return
   `Flow::Suspend(next)` when the helper returns `RunResult::Suspended` (the nested play asked for a decision) and treat phase
-  `next` as "finished". **Open**: a decision raised by an auto-play started from a *turn-start hook* (Mayhem, Imbued) cannot be
-  resumed (the rest of the hook pass is lost).
+  `next` as "finished" (returning `Done` after a nested play that is still waiting also works: the engine suspends the outer play at its
+  `After` step). Several fixed auto-plays in a row (Eidolon) go through `auto_play_list` (one queue). A decision raised by an auto-play
+  started from a turn-start hook (Mayhem, Imbued, History Course) resumes: the `AfterAutoPrePlayPhaseEntered*` and `AfterShuffle` passes
+  are `dispatch_resumable` (`turn_cont` 6-8, 4). **Open**: a Stratagem prompt outside the outermost turn-start hand draw is flagged `missing`.
+  Per-play power state (C# `Dictionary<CardModel,int>`): `hist.remember_play(uid, card, amount)` / `take_play` (plays nest).
 * **History**: `cx.plays_this_turn(filter)`, `hist_count_this_turn(kind, filter)`, `hist_total(kind)`,
   `hist_any_last_player_turn(kind, filter)`; entries are pushed by the engine for plays, energy, draws, discards, exhausts,
   generated cards, afflictions, damage received, block gained, powers received, attacks, monster moves, potions, stars.
