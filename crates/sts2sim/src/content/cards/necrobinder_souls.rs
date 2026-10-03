@@ -229,7 +229,7 @@ listener!(SculptingStrike {
         match phase {
             0 => {
                 attack(cx, p, Targeting::Single(p.target));
-                match cx.ask_hand(ids::card::SCULPTING_STRIKE, 1, 1, |cx, c| cx.card_keywords(c) & kw::ETHEREAL == 0) {
+                match cx.ask_hand(ids::card::SCULPTING_STRIKE, 1, 1, |cx, c| cx.card_keywords_local(c) & kw::ETHEREAL == 0) {
                     Ask::Resolved(cards) => {
                         if let Some(c) = cards.first() {
                             cx.apply_keyword(c, kw::ETHEREAL);

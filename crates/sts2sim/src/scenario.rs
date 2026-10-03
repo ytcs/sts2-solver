@@ -249,6 +249,9 @@ impl Combat {
             draw_cont,
             resuming_draw,
             draw_nosuspend,
+            hook_shuffle,
+            hand_check,
+            hook_after,
             autoplay_stack,
             hist_log,
             decision_seq,
@@ -309,6 +312,9 @@ impl Combat {
         *draw_cont = None;
         *resuming_draw = false;
         *draw_nosuspend = 0;
+        *hook_shuffle = false;
+        *hand_check = false;
+        *hook_after = None;
         *attack_unblocked_hits = 0;
         *attack_player_hits = 0;
         autoplay_stack.clear();
@@ -484,6 +490,9 @@ impl Combat {
             draw_cont: None,
             resuming_draw: false,
             draw_nosuspend: 0,
+            hook_shuffle: false,
+            hand_check: false,
+            hook_after: None,
             turn_cont: 0,
             susp: ArrayVec::new(),
             draw_pass: None,

@@ -573,6 +573,14 @@ pub struct Combat {
     pub resuming_draw: bool,
     /// >0 while a draw whose caller reads the drawn cards / asks right afterwards runs: its shuffle decisions cannot be paused.
     pub draw_nosuspend: u8,
+    /// True while a hook (Foregone Conclusion's `BeforeHandDraw`) shuffles by itself: its `AfterShuffle` decision (Stratagem) can be
+    /// paused (`hook_after`).
+    pub hook_shuffle: bool,
+    /// True while the hand-empty check at the very end of an outermost card play / potion use runs: the draw it makes (Unceasing Top)
+    /// is the last thing left of the action, so an `AfterShuffle` decision can be paused (`draw_cont`).
+    pub hand_check: bool,
+    /// A hook whose own effect waits for the nested `AfterShuffle` decision pass: `resume_hook(phase)` runs once that pass is done.
+    pub hook_after: Option<(crate::hooks::Me, u8)>,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
     /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw, 5 / 6 / 7 = in the early /
     /// normal / late `AfterAutoPrePlayPhaseEntered` pass.

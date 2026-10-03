@@ -148,6 +148,10 @@ listener!(WhisperingEarring {
             if cx.is_over_or_ending() || cx.player.turn_number != 1 {
                 break;
             }
+            // `IsPlayerReadyToEndTurn(player)`: a played Void Form asked to end the turn
+            if cx.end_turn_requested {
+                break;
+            }
             let hand = cx.player.hand;
             let Some(card) = hand.iter().copied().find(|&c| cx.can_play(c)) else { break };
             let target = match cx.card_target_type(card) {

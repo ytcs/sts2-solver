@@ -69,8 +69,8 @@ impl Combat {
             self.cards[c as usize].x_value = self.player.energy as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
-        if self.card_has_star_cost_x(c) {
-            // LastStarsSpent = all current stars (not spent)
+        if !skip_x_capture && self.card_has_star_cost_x(c) {
+            // LastStarsSpent = all current stars (not spent); skipped when the caller already spent the resources (Earring)
             self.cards[c as usize].x_value = self.player.stars as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
@@ -101,6 +101,9 @@ impl Combat {
             return RunResult::Finished;
         }
         let mut cards: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
+        if count > AUTOPLAY_MAX as i32 {
+            crate::util::raise_overflow(crate::util::OV_CONTAINER);
+        }
         for _ in 0..count.min(AUTOPLAY_MAX as i32) {
             self.shuffle_if_necessary();
             let n = self.player.draw.len();
@@ -129,6 +132,9 @@ impl Combat {
     /// must return `Flow::Suspend(next)` on `Suspended`, like for `auto_play`.
     pub fn auto_play_list(&mut self, cards: &[CardIdx]) -> RunResult {
         let mut q: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
+        if cards.len() > AUTOPLAY_MAX {
+            crate::util::raise_overflow(crate::util::OV_CONTAINER); // longer lists are not modelled (never silently)
+        }
         for &c in cards.iter().take(AUTOPLAY_MAX) {
             q.push(c);
         }

@@ -168,6 +168,12 @@ impl Combat {
         }
     }
 
+    /// Number of upgradable cards of the run deck (`PileType.Deck ... IsUpgradable`), through the deck-level upgrades made during
+    /// the combat (Improvement at combat end).
+    pub fn deck_upgradable_count(&self) -> usize {
+        (0..self.deck_len as usize).filter(|&i| self.deck_upgrade[i] < crate::content::card_def(self.cards[i].id).max_upgrade).count()
+    }
+
     pub fn is_upgradable(&self, c: CardIdx) -> bool {
         self.cards[c as usize].upgrade < self.card_def(c).max_upgrade
     }
@@ -183,6 +189,7 @@ impl Combat {
         copy.pile = PileType::None as u8;
         copy.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::REMOVED);
         copy.flags |= cflag::IS_CLONE;
+        copy.dampen_saved = 0; // the C# `downgradedCardsToOldUpgradeLevels` dictionary is keyed by the original instance only
         copy.deck_idx = NO;
         copy.dampen_saved = 0; // the Dampen dictionary is keyed by card object: a clone is not restored when Dampen ends
         self.cards[idx as usize] = copy;
