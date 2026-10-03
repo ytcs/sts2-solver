@@ -161,6 +161,7 @@ impl Combat {
             hook_ctx: None,
             turn_cont: 0,
             susp_after: None,
+            enemy_cont: None,
             missing: None,
             player_hooks_active: true,
             escaped: 0,

@@ -485,6 +485,9 @@ pub struct Combat {
     /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
     /// its index in the pass: the pass continues after it once the decision is resolved.
     pub susp_after: Option<(u32, crate::hooks::Me, u8)>,
+    /// An enemy turn suspended inside a monster move that raised a decision (Knowledge Demon's Curse of Knowledge):
+    /// the `Enemies` snapshot taken at the start of the turn and the index of the suspended mover.
+    pub enemy_cont: Option<(ArrayVec<Cid, MAX_CREATURES>, u8, u8)>,
     /// The `AfterAutoPostPlayPhaseEntered` listener that suspended (auto-played card raised a decision) while the
     /// player's turn was ending; the turn end resumes from it once the decision is made.
     pub end_turn_resume: Option<crate::hooks::Me>,
