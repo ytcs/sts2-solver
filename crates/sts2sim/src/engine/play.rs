@@ -311,6 +311,9 @@ impl Combat {
                     }
                     ctx.step = PlayStep::OnPlay(0);
                     self.play_stack[idx] = ctx;
+                    if self.nested_play_pending(idx) {
+                        return RunResult::Suspended;
+                    }
                 }
                 PlayStep::OnPlay(phase) => {
                     let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
@@ -318,6 +321,9 @@ impl Combat {
                     match content::listener(&me).on_play(self, &p, phase) {
                         Flow::Done => {
                             self.play_stack[idx].step = PlayStep::After;
+                            if self.nested_play_pending(idx) {
+                                return RunResult::Suspended;
+                            }
                         }
                         Flow::Suspend(next) => {
                             self.play_stack[idx].step = PlayStep::OnPlay(next);
@@ -334,20 +340,34 @@ impl Combat {
                     }
                     let p = ctx.play;
                     // Enchantment.OnPlay, then Affliction.OnPlay (each followed by an owner-dead check)
+                    self.play_stack[idx].step = PlayStep::AfterAffliction;
                     if self.cards[c as usize].enchant != 0 {
                         let me = self.enchantment_me(c);
                         content::listener(&me).on_play_enchantment(self, me, &p);
                         if self.cr(PLAYER).is_dead() {
                             return self.finish_play(idx);
                         }
+                        if self.nested_play_pending(idx) {
+                            return RunResult::Suspended;
+                        }
                     }
+                }
+                PlayStep::AfterAffliction => {
+                    let p = ctx.play;
+                    self.play_stack[idx].step = PlayStep::AfterHooks;
                     if self.cards[c as usize].affliction != 0 {
                         let me = self.affliction_me(c);
                         content::listener(&me).on_play_affliction(self, me, &p);
                         if self.cr(PLAYER).is_dead() {
                             return self.finish_play(idx);
                         }
+                        if self.nested_play_pending(idx) {
+                            return RunResult::Suspended;
+                        }
                     }
+                }
+                PlayStep::AfterHooks => {
+                    let p = ctx.play;
                     let ethereal = (self.card_keywords(c) & kw::ETHEREAL != 0) as u8;
                     self.hist_log.total[HKind::CardPlayFinished as usize] += 1;
                     self.hist.set_finished(c);
@@ -362,13 +382,19 @@ impl Combat {
                     if ethereal != 0 {
                         self.hist_log.ethereal_finished += 1;
                     }
+                    self.play_stack[idx].step = PlayStep::Finish;
                     if self.in_progress {
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
                         self.dispatch_u(hookbit::after_card_played_late, |cx, me, l| l.after_card_played_late(cx, me, &p));
                         if self.cr(PLAYER).is_dead() {
                             return self.finish_play(idx);
                         }
+                        if self.nested_play_pending(idx) {
+                            return RunResult::Suspended;
+                        }
                     }
+                }
+                PlayStep::Finish => {
                     let mut ctx = self.play_stack[idx];
                     ctx.play.play_index += 1;
                     if ctx.play.play_index < ctx.count {
@@ -380,6 +406,13 @@ impl Combat {
                 }
             }
         }
+    }
+
+    /// A play started by a hook inside the play at `idx` (Hellraiser auto-playing a drawn card ...) is still on the stack, waiting
+    /// for a decision: the play at `idx` must wait for it (the game's `await` blocks it); `run_play_stack` resumes it afterwards.
+    #[inline]
+    fn nested_play_pending(&self, idx: usize) -> bool {
+        self.play_stack.len() > idx + 1
     }
 
     /// Steps 10-12 of `OnPlayWrapper`: depth--, move the card to its result pile, hand-empty check, clean up the

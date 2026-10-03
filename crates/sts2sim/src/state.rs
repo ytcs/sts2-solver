@@ -376,7 +376,14 @@ pub struct Choice {
 pub enum PlayStep {
     Before,
     OnPlay(u8),
+    /// Enchantment.OnPlay.
     After,
+    /// Affliction.OnPlay.
+    AfterAffliction,
+    /// `AfterCardPlayed` passes (a nested play raised by a listener leaves the play suspended AFTER them).
+    AfterHooks,
+    /// Replay iteration / finish.
+    Finish,
 }
 
 /// In-flight potion use (suspended while a decision is pending).

@@ -410,6 +410,16 @@ impl Combat {
 
     /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
     pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+        // Only the turn-start hand draw itself is resumable: a draw made by an effect nested inside it (a Swift strike
+        // auto-played by Hellraiser ...) behaves like any other card-effect draw.
+        let outer = self.drawing_hand;
+        self.drawing_hand = outer && from_hand_draw;
+        let r = self.draw_cards_list_inner(count, from_hand_draw);
+        self.drawing_hand = outer;
+        r
+    }
+
+    fn draw_cards_list_inner(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
         let mut out = crate::util::ArrayVec::new();
         if self.is_over_or_ending() {
             return out;
