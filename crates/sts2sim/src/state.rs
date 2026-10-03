@@ -461,7 +461,7 @@ pub struct PlayAmount {
     pub amount: i32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Combat {
     pub character: u8,
     pub ascension: u8,
@@ -493,7 +493,7 @@ pub struct Combat {
 
     /// In-flight card plays, innermost last (an auto-play started from inside `on_play` pushes a nested play);
     /// suspended while a decision is pending.
-    pub play_stack: ArrayVec<PlayCtx, 4>,
+    pub play_stack: ArrayVec<PlayCtx, 16>,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
@@ -542,7 +542,7 @@ pub struct Combat {
     pub attack_player_hits: u8,
     /// Auto-play queues still waiting to be drained (one per in-progress `AutoPlayFromDrawPile` / Sly discard call; they
     /// nest like the C# locals: a card auto-played from a queue may itself start another one).
-    pub autoplay_stack: ArrayVec<AutoQueue, 4>,
+    pub autoplay_stack: ArrayVec<AutoQueue, 16>,
     /// Combat history log (`engine/history.rs`).
     pub hist_log: crate::engine::HistLog,
     /// Number of decisions raised so far (lets a driver tell "the same decision" from "the next one").

@@ -126,7 +126,8 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 let seq = cx.decision_seq;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
-                        println!("step {i}: pick {p} rejected");
+                        let d = cx.decision.as_ref();
+                        println!("step {i}: pick {p} rejected (simulator decision: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} {} cands {:?}; hand {:?}; draw {} discard {}", d.purpose, d.min, d.max, d.cands.len(), d.cands.iter().take(12).map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.hand.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.draw.len(), cx.player.discard.len())));
                         return Ok(Verdict::Mismatch);
                     }
                     // finished (or replaced by the NEXT decision of the same effect)
