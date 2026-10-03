@@ -172,7 +172,7 @@ class Gen:
             if props and r.random() < 0.6:
                 p = {}
                 for name, kind in props:
-                    p[name] = (r.random() < 0.5) if kind == "flag" else r.choice([0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+                    p[name] = (r.random() < 0.5) if kind == "flag" else r.choice([0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])  # < 10: some setters take `value % 10`
                 out.append({"id": rid, "props": p})
             else:
                 out.append(rid)
@@ -220,6 +220,11 @@ class Gen:
             policy.update(endw=0.0 if r.random() < 0.6 else 0.15, atkw=r.choice([0.3, 1.0]), max_steps=1200, max_rounds=60)
             max_hp = hp = r.randint(400, 999)
         potions = self.make_potions(r, ch)
+        if a.force_potions:
+            potions = a.force_potions.split(",")[:2]
+        if a.force_relics:
+            have = {x if isinstance(x, str) else x["id"] for x in relics}
+            relics = [x for x in a.force_relics.split(",") if x not in have] + relics
         return {
             "name": f"fm_{idx}", "ascension": 10, "encounter": enc["id"], "character": ch, "hp": hp, "max_hp": max_hp,
             "max_energy": energy, "base_orb_slots": orbs, "max_potion_slots": 2, "gold": r.choice([0, 50, 99, 150, 300, 800]),
@@ -291,6 +296,8 @@ def main():
     ap.add_argument("--focus", choices=["mix", "colorless", "junk", "gen"])
     ap.add_argument("--mode", choices=["uniform", "greedy", "stall", "deep"])
     ap.add_argument("--relics", default="3-8")
+    ap.add_argument("--force-potions", help="comma list (max 2) used instead of random potions")
+    ap.add_argument("--force-relics", help="comma list prepended to the random relics")
     ap.add_argument("--keep-ok", action="store_true")
     ap.add_argument("--gen-only", action="store_true")
     a = ap.parse_args()
