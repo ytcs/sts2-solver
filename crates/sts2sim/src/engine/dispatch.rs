@@ -150,6 +150,21 @@ impl Combat {
         if !self.listen.has(bit) || !self.hooks_enabled() {
             return false;
         }
+        if let (Some(_), true) = (resume, self.susp_rest_full) {
+            // Continue with the listeners that were still to come when the pass suspended (the list built at its start).
+            let rest = self.susp_rest;
+            self.susp_rest.clear();
+            for (k, me) in rest.iter().enumerate() {
+                if self.still_live(me) {
+                    f(self, *me, content::listener(me));
+                    if self.stage == Stage::AwaitChoice {
+                        self.suspend_pass(bit, *me, 0, rest.as_slice()[k + 1..].iter().copied());
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
         let snap = self.snapshot(Mask::bit(bit));
         let mut start = 0;
         if let Some((last, pos)) = resume {
@@ -163,12 +178,25 @@ impl Combat {
             if self.still_live(&e.me) {
                 f(self, e.me, content::listener(&e.me));
                 if self.stage == Stage::AwaitChoice {
-                    self.susp_after = Some((bit, e.me, i as u8));
+                    self.suspend_pass(bit, e.me, i as u8, snap.as_slice()[i + 1..].iter().map(|x| x.me));
                     return true;
                 }
             }
         }
         false
+    }
+
+    fn suspend_pass(&mut self, bit: u32, me: Me, pos: u8, rest: impl Iterator<Item = Me>) {
+        self.susp_after = Some((bit, me, pos));
+        self.susp_rest.clear();
+        self.susp_rest_full = true;
+        for m in rest {
+            if self.susp_rest.len() >= 16 {
+                self.susp_rest_full = false;
+                break;
+            }
+            self.susp_rest.push(m);
+        }
     }
 
     /// Notification pass over the unguarded iterator (hooks that are part of the kill/death sequence).

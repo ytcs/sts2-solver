@@ -259,7 +259,7 @@ listener!(HiddenGem {
         let mut core: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
         for &c in cx.player.draw.iter() {
             let t = cx.card_def(c).ctype;
-            let ok = cx.card_keywords(c) & kw::UNPLAYABLE == 0 && !matches!(t, CardType::Curse | CardType::Quest) && cx.cards[c as usize].base_replay < 1;
+            let ok = cx.card_keywords(c) & kw::UNPLAYABLE == 0 && !matches!(t, CardType::Curse | CardType::Quest) && cx.enchanted_replay_count(c) < 1;
             if ok {
                 all.push(c);
                 if matches!(t, CardType::Attack | CardType::Skill | CardType::Power) {
@@ -411,6 +411,10 @@ listener!(Omnislice {
         cx.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, &ctx_attack));
         let dmg = cx.card_var(p.card, VarKind::Damage);
         let first = cx.damage(&[p.target], Dec::int(dmg as i64), ValueProp::MOVE, PLAYER, p.card);
+        let mut all = crate::engine::Results::new();
+        for x in first.iter() {
+            all.push(*x);
+        }
         if let Some(r) = first.first() {
             let mut others: crate::util::ArrayVec<Cid, MAX_CREATURES> = crate::util::ArrayVec::new();
             for &e in cx.enemies.iter() {
@@ -420,10 +424,13 @@ listener!(Omnislice {
             }
             if !others.is_empty() {
                 let total = r.blocked + r.unblocked + r.overkill;
-                cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
+                let more = cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
+                for x in more.iter() {
+            all.push(*x);
+        }
             }
         }
-        cx.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, &ctx_attack));
+        cx.after_attack_hook(&ctx_attack, all.as_slice());
         Flow::Done
     }
 });

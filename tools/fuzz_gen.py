@@ -60,7 +60,8 @@ class Gen:
             pool = [c for c in P["cards"][POOL_OF[ch]] if c["rarity"] in ("Common", "Uncommon", "Rare", "Ancient")]
             self.cards[ch] = pool
         self.colorless = colorless
-        self.ench = [e for e in P.get("enchantments", []) if e["cards"]]
+        # Inky is only created by Blade of Ink on attacks; on a non-targeted card the real game NREs in Inky.OnPlay
+        self.ench = [e for e in P.get("enchantments", []) if e["cards"] and e["id"] != "INKY"]
         self.curses = P["cards"]["CurseCardPool"]
         self.status = P["cards"]["StatusCardPool"]
         self.event_cards = P["cards"]["EventCardPool"]

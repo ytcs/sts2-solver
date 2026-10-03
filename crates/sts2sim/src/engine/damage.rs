@@ -290,6 +290,20 @@ impl Combat {
         hits
     }
 
+    /// `Hook.AfterAttack` for a finished attack: exposes the attack's damage results (`AttackCommand.Results`, flattened over all
+    /// hits) to the listeners through `attack_results` / `attack_unblocked_hits` / `attack_player_hits`.
+    pub fn after_attack_hook(&mut self, a: &Attack, all: &[DamageResult]) {
+        if self.listen.has(hookbit::after_attack) {
+            self.attack_results.clear();
+            for x in all.iter().take(16) {
+                self.attack_results.push(*x);
+            }
+            self.attack_unblocked_hits = all.iter().filter(|r| r.unblocked > 0).count() as u8;
+            self.attack_player_hits = all.iter().filter(|r| r.unblocked > 0 && r.receiver == PLAYER).count() as u8;
+        }
+        self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
+    }
+
     /// `AttackCommand.Execute` (spec 02 §3.1).
     pub fn execute_attack(&mut self, a: &Attack) -> Results {
         let mut all = Results::new();
@@ -348,15 +362,7 @@ impl Combat {
             i += 1;
         }
         self.hist_push(HKind::CreatureAttacked, a.dealer, NO, 0, a.card, all.len() as i32, 0, a.props.0, 0);
-        if self.listen.has(hookbit::after_attack) {
-            self.attack_results.clear();
-            for x in all.iter().take(16) {
-                self.attack_results.push(*x);
-            }
-            self.attack_unblocked_hits = all.iter().filter(|r| r.unblocked > 0).count() as u8;
-            self.attack_player_hits = all.iter().filter(|r| r.unblocked > 0 && r.receiver == PLAYER).count() as u8;
-        }
-        self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
+        self.after_attack_hook(a, all.as_slice());
         all
     }
 }

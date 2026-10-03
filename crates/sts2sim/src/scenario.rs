@@ -163,6 +163,8 @@ impl Combat {
             drawing_hand: false,
             turn_cont: 0,
             susp_after: None,
+            susp_rest: ArrayVec::new(),
+            susp_rest_full: true,
             enemy_cont: None,
             missing: None,
             player_hooks_active: true,

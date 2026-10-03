@@ -490,11 +490,17 @@ pub struct Combat {
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
-    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
+    /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw, 5 / 6 / 7 = in the early /
+    /// normal / late `AfterAutoPrePlayPhaseEntered` pass.
     pub turn_cont: u8,
     /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
     /// its index in the pass: the pass continues after it once the decision is resolved.
     pub susp_after: Option<(u32, crate::hooks::Me, u8)>,
+    /// The listeners of that pass that were still to run when it suspended (the game iterates a list built at the start of
+    /// the pass; models that moved meanwhile, e.g. an auto-played card, keep their place in it). `susp_rest_full` = nothing
+    /// was cut off at the capacity (otherwise the pass is rebuilt from a fresh snapshot, best effort).
+    pub susp_rest: ArrayVec<crate::hooks::Me, 16>,
+    pub susp_rest_full: bool,
     /// An enemy turn suspended inside a monster move that raised a decision (Knowledge Demon's Curse of Knowledge):
     /// the `Enemies` snapshot taken at the start of the turn and the index of the suspended mover.
     pub enemy_cont: Option<(ArrayVec<Cid, MAX_CREATURES>, u8, u8)>,

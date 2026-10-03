@@ -97,7 +97,8 @@ listener!(Imbued {
 listener!(Inky {
     fn on_play_enchantment(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let card = me.idx as CardIdx;
-        if cx.card_def(card).target != TargetType::AllEnemies {
+        // `Card.TargetType` (a Shiv is AllEnemies under Fan of Knives)
+        if cx.card_target_type(card) != TargetType::AllEnemies {
             cx.apply_power(ids::power::WEAK_POWER, play.target, Dec::ONE, PLAYER, card);
         } else {
             let t = cx.hittable_enemies();

@@ -392,13 +392,17 @@ listener!(EchoingSlash {
         let ctx = Attack::from_card(PLAYER, p.card, 0, Targeting::AllOpponents);
         cx.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, &ctx));
         let mut rounds = 1;
+        let mut all = crate::engine::Results::new();
         while rounds > 0 {
             rounds -= 1;
             let targets = cx.hittable_enemies();
             let res = cx.damage(targets.as_slice(), Dec::int(dmg as i64), ValueProp::MOVE, PLAYER, p.card);
             rounds += res.iter().filter(|r| r.killed).count();
+            for x in res.iter() {
+            all.push(*x);
         }
-        cx.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, &ctx));
+        }
+        cx.after_attack_hook(&ctx, all.as_slice());
         Flow::Done
     }
 });

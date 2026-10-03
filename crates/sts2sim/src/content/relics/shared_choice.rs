@@ -150,7 +150,7 @@ listener!(WhisperingEarring {
             }
             let hand = cx.player.hand;
             let Some(card) = hand.iter().copied().find(|&c| cx.can_play(c)) else { break };
-            let target = match cx.card_def(card).target {
+            let target = match cx.card_target_type(card) {
                 TargetType::AnyEnemy => cx.hittable_enemies().first().unwrap_or(NO),
                 TargetType::AnyPlayer => PLAYER,
                 _ => NO,
