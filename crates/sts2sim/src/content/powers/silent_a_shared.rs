@@ -49,8 +49,9 @@ listener!(PoisonPower {
 
 listener!(ThornsPower {
     fn before_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, _amount: Dec, props: ValueProp, dealer: Cid) {
-        // (`|| cardSource is Omnislice` not ported: no Silent content produces it)
-        if target == me.owner && dealer != NO && props.is_powered() {
+        // `props.IsPoweredAttack() || cardSource is Omnislice` (Omnislice's spill-over hit is Unpowered but still pokes Thorns)
+        let omnislice = cx.dmg_card != NO && cx.cards[cx.dmg_card as usize].id == ids::card::OMNISLICE;
+        if target == me.owner && dealer != NO && (props.is_powered() || omnislice) {
             let amt = cx.power_amount(me.owner, me.id);
             cx.damage(&[dealer], Dec::int(amt as i64), ValueProp::UNPOWERED.or(ValueProp::SKIP_HURT_ANIM), me.owner, NO);
         }

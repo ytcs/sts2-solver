@@ -194,7 +194,10 @@ listener!(BansheesCry {
 
 // Auto-play every Ethereal, playable card in the exhaust pile.
 listener!(Eidolon {
-    fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
+    fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
+        if phase != 0 {
+            return Flow::Done;
+        }
         let list = cx.player.exhaust;
         let mut todo: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
         for &c in list.iter() {
@@ -203,8 +206,9 @@ listener!(Eidolon {
                 todo.push(c);
             }
         }
-        for &c in todo.iter() {
-            let _ = cx.auto_play(c, NO, AutoPlayType::Default, false);
+        // (a nested play that asks for a decision suspends the rest of the list)
+        if cx.auto_play_list(todo.as_slice()) == crate::engine::RunResult::Suspended {
+            return Flow::Suspend(1);
         }
         Flow::Done
     }

@@ -385,6 +385,8 @@ pub struct AutoQueue {
     pub force_exhaust: bool,
     /// `AutoPlayType.SlyDiscard` queue (else `Default`).
     pub sly: bool,
+    /// A plain list of `CardCmd.AutoPlay` calls (Eidolon): the cards' own exhaust-on-next-play flags are left alone.
+    pub plain: bool,
     /// Index in `play_stack` of the card play whose effect started the call (-1: none). The queue continues when the
     /// play above it finishes.
     pub owner: i8,

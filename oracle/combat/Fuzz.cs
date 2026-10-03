@@ -100,6 +100,20 @@ public static class Fuzz
         o["curse"] = Cards(ModelDb.CardPool<CurseCardPool>().AllCards);
         o["status"] = Cards(ModelDb.CardPool<StatusCardPool>().AllCards);
         o["shared_relics"] = new JsonArray(ModelDb.RelicPool<SharedRelicPool>().AllRelics.OrderBy(r => r.Id.Entry, StringComparer.Ordinal).Select(r => (JsonNode)new JsonObject { ["id"] = r.Id.Entry, ["rarity"] = r.Rarity.ToString() }).ToArray());
+        var ens = new JsonArray();
+        foreach (var e in ModelDb.DebugEnchantments.OrderBy(e => e.Id.Entry, StringComparer.Ordinal))
+        {
+            if (e.GetType().Namespace != null && e.GetType().Namespace.Contains("Mock")) continue;
+            var ok = new JsonArray();
+            foreach (var c in ModelDb.AllCards.OrderBy(c => c.Id.Entry, StringComparer.Ordinal))
+            {
+                bool can = false;
+                try { can = e.CanEnchant(c); } catch { }
+                if (can) ok.Add((JsonNode)c.Id.Entry);
+            }
+            ens.Add((JsonNode)new JsonObject { ["id"] = e.Id.Entry, ["show_amount"] = e.ShowAmount, ["stackable"] = e.IsStackable, ["cards"] = ok });
+        }
+        o["enchantments"] = ens;
         o["shared_potions"] = Ids(ModelDb.PotionPool<SharedPotionPool>().AllPotions.Select(p => p.Id.Entry));
         return o;
     }

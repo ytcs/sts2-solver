@@ -290,7 +290,7 @@ listener!(RightHandHand {
     fn after_card_played_late(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let c = me.idx as CardIdx;
         let need = cx.card_var(c, VarKind::Energy);
-        if play.energy_spent >= need && cx.card_pile_type(c) == PileType::Discard {
+        if play.energy_value >= need && cx.card_pile_type(c) == PileType::Discard {
             cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
         }
     }

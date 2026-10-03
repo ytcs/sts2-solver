@@ -98,6 +98,13 @@ def make(meta, theme, i, rnd, characters, encounter=None, unported=frozenset()):
         if c["max_up"] > 0 and rnd.random() < 0.4:
             d["upgrade"] = 1
         deck.append(d)
+    # event/ancient enchantments on a few deck cards (~12% of runs)
+    if rnd.random() < 0.12:
+        for _ in range(rnd.choice([1, 1, 2, 3])):
+            en = rnd.choice([e for e in meta["enchantments"] if e["id"] != "DEPRECATED_ENCHANTMENT"])
+            ok = [d for d in deck if "enchantment" not in d and d["id"] in en["cards"]]
+            if ok:
+                rnd.choice(ok)["enchantment"] = {"id": en["id"], "amount": rnd.choice([1, 1, 2, 3]) if en["show_amount"] else 1}
     deck.append({"id": "ASCENDERS_BANE"})
     # --- relics (starter kept first)
     relics = list(cm["starting_relics"])
@@ -147,7 +154,17 @@ def diff_one(base):
     d = subprocess.run([DIFF, "run", base + ".scenario.json", base + ".jsonl", "--max", "4"], capture_output=True, text=True)
     out = d.stdout.strip()
     if d.returncode == 0:
-        return base, "ok", ""
+        # fight shape for the coverage stats line: records, last round, finished?
+        n, last = 0, ""
+        with open(base + ".jsonl") as f:
+            for line in f:
+                n += 1
+                last = line
+        try:
+            lr = json.loads(last)
+            return base, "ok", f"{n},{lr.get('round', 0)},{int(not lr.get('combat_in_progress', True))}"
+        except Exception:
+            return base, "ok", ""
     if d.returncode == 3:
         return base, "unimplemented", out.splitlines()[-1]
     m = re.search(r"Unimplemented(\w+)\(\"(\w+)\"\)", out + d.stderr)
@@ -204,10 +221,12 @@ def main():
         for rc, err in ex.map(run_shard, jobs):
             if rc != 0:
                 print("oracle shard failed:", err, file=sys.stderr)
-    res, bad = {}, []
+    res, bad, shape = {}, [], []
     with ThreadPoolExecutor(4) as ex:
         for base, v, msg in ex.map(diff_one, bases):
             res[v] = res.get(v, 0) + 1
+            if v == "ok" and msg:
+                shape.append(tuple(int(x) for x in msg.split(",")))
             if v == "ok" and not a.keep_ok:
                 for ext in (".scenario.json", ".jsonl"):
                     if os.path.exists(base + ext):
@@ -229,6 +248,11 @@ def main():
         print(f"--- {v}: {base}\n{msg}")
     if missing:
         print("UNIMPLEMENTED content hit:", ", ".join(f"{k} x{v}" for k, v in sorted(missing.items(), key=lambda t: -t[1])))
+    if shape:
+        steps = sorted(s[0] for s in shape)
+        rounds = sorted(s[1] for s in shape)
+        print(f"SHAPE ok fights={len(shape)} records median={steps[len(steps) // 2]} p90={steps[len(steps) * 9 // 10]} "
+              f"rounds median={rounds[len(rounds) // 2]} p90={rounds[len(rounds) * 9 // 10]} finished={sum(s[2] for s in shape) / len(shape):.2f}")
     print("SUMMARY", json.dumps(res), f"(artifacts in {a.out})")
     sys.exit(0 if not nonmiss else 1)
 
