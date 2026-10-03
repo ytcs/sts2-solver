@@ -86,15 +86,15 @@ impl Combat {
         card.kw_remove &= !d.up_add_kw;
     }
 
-    /// `CardModel.DowngradeInternal`: back to the canonical (un-upgraded) form — upgrade level 0, all dynamic vars
-    /// re-cloned from the canonical model (Rampage-style `dmg_bonus` growth is lost), base energy cost reset, local
-    /// keyword edits dropped. (Cost modifiers, enchantment and affliction are kept; their `ModifyCard`/`AfterApplied`
-    /// re-runs are no-ops for every ported entity.)
+    /// `CardModel.DowngradeInternal`: back to the canonical (un-upgraded) form — upgrade level 0, base energy cost reset,
+    /// local keyword edits dropped. The dynamic vars are re-cloned from the canonical model, but every card whose Damage
+    /// var grows during combat (Rampage, Thrash, Claw, Maul, Kingly Punch, The Ball) re-applies its accumulated growth in
+    /// `AfterDowngraded`, so `dmg_bonus` is kept. (Cost modifiers, enchantment and affliction are kept; their
+    /// `ModifyCard` / `AfterApplied` re-runs are no-ops for every ported entity.)
     pub fn downgrade_card(&mut self, c: CardIdx) {
         let d = self.card_def(c);
         let card = &mut self.cards[c as usize];
         card.upgrade = 0;
-        card.dmg_bonus = 0;
         card.cost_base = if d.x_cost { 0 } else { d.cost };
         card.kw_add = 0;
         card.kw_remove = 0;

@@ -229,3 +229,18 @@ fn aeonglass_withers_every_sixth_card_and_upgrades_them_with_increasing_intensit
     assert_eq!(cx.power_amount(ae, ids::power::STRENGTH_POWER), 4);
 }
 
+
+#[test]
+fn downgrade_keeps_accumulated_damage_growth_and_restores_the_upgrade() {
+    // Rampage / Thrash re-apply their accumulated growth in `AfterDowngraded`; Dampen must not lose it.
+    let mut cx = Combat::new(&scenario(ids::encounter::KNIGHTS_ELITE, 1, 4000, false));
+    let c = cx.new_card(ids::card::THRASH, 1).unwrap();
+    let up_dmg = cx.card_var(c, VarKind::Damage); // 4 + 2
+    cx.cards[c as usize].dmg_bonus = 7 * 10_000;
+    assert_eq!(cx.card_var(c, VarKind::Damage), up_dmg + 7);
+    cx.downgrade_card(c);
+    assert_eq!(cx.cards[c as usize].upgrade, 0);
+    assert_eq!(cx.card_var(c, VarKind::Damage), 4 + 7);
+    cx.upgrade_card(c);
+    assert_eq!(cx.card_var(c, VarKind::Damage), up_dmg + 7);
+}
