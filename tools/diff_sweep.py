@@ -47,7 +47,7 @@ def main():
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--tag", default="s")
     a = ap.parse_args()
-    outdir = a.keep or os.path.join(tempfile.gettempdir(), "sts2sweep")
+    outdir = a.keep or tempfile.mkdtemp(prefix="sts2sweep_")  # unique per invocation (concurrent sweeps never collide)
     os.makedirs(outdir, exist_ok=True)
     jobs = [(a.template, i, int(asc), a.policy_seed, outdir, a.tag) for i in range(a.n) for asc in a.asc.split(",")]
     res = {"ok": 0}
