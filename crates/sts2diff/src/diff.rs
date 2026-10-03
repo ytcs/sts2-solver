@@ -117,6 +117,11 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             let choices: Vec<&Value> = rec["choices"].as_array().map(|a| a.iter().collect()).unwrap_or_default();
             let mut ci = 0;
             while cx.stage == Stage::AwaitChoice {
+                if let Some(m) = missing_name(&cx) {
+                    // a rule flagged as not ported (e.g. a decision that cannot be resumed) also derails the decisions that follow
+                    println!("UNIMPLEMENTED {m} (step {i})");
+                    return Ok(Verdict::Unimplemented);
+                }
                 let Some(ch) = choices.get(ci) else {
                     let d = cx.decision.as_ref();
                     println!("step {i}: simulator raised a decision but the oracle made no choice (simulator: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?}", d.purpose, d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>())));
@@ -126,7 +131,8 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 let seq = cx.decision_seq;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
-                        println!("step {i}: pick {p} rejected");
+                        let d = cx.decision.as_ref();
+                        println!("step {i}: pick {p} rejected (simulator: {}; oracle options: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?}", d.purpose, d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>())), ch["options"].as_array().map_or(0, |a| a.len()));
                         return Ok(Verdict::Mismatch);
                     }
                     // finished (or replaced by the NEXT decision of the same effect)
@@ -154,6 +160,9 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             }
         }
         let mut diffs = vec![];
+        if std::env::var("STS2DIFF_DUMP").as_deref() == Ok("all") {
+            eprintln!("STEP {i} RUST {}", snapshot(&cx));
+        }
         compare("", &snapshot(&cx), rec, &mut diffs);
         if !diffs.is_empty() {
             if let Some((j, m)) = &first_missing {

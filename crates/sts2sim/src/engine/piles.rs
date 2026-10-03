@@ -94,8 +94,8 @@ impl Combat {
     /// `CardModel.DowngradeInternal`: back to the canonical (un-upgraded) form — upgrade level 0, base energy cost reset,
     /// local keyword edits dropped. The dynamic vars are re-cloned from the canonical model, but every card whose Damage
     /// var grows during combat (Rampage, Thrash, Claw, Maul, Kingly Punch, The Ball) re-applies its accumulated growth in
-    /// `AfterDowngraded`, so `dmg_bonus` is kept. (Cost modifiers, enchantment and affliction are kept; their
-    /// `ModifyCard` / `AfterApplied` re-runs are no-ops for every ported entity.)
+    /// `AfterDowngraded`, so `dmg_bonus` is kept. (Cost modifiers, enchantment and affliction are kept; the enchantment's
+    /// `ModifyCard` re-runs `OnEnchant`, the affliction's `AfterApplied` is a no-op for every ported entity.)
     pub fn downgrade_card(&mut self, c: CardIdx) {
         let d = self.card_def(c);
         let card = &mut self.cards[c as usize];
@@ -103,6 +103,11 @@ impl Combat {
         card.cost_base = if d.x_cost { 0 } else { d.cost };
         card.kw_add = 0;
         card.kw_remove = 0;
+        // `Enchantment?.ModifyCard()` re-runs `OnEnchant` (Tezcatara's Ember: cost 0 + Eternal again; Goopy / Slither / ... keywords).
+        if self.cards[c as usize].enchant != 0 {
+            let me = self.enchantment_me(c);
+            content::listener(&me).on_enchant(self, me, c);
+        }
     }
 
     /// Value of the card's dynamic var of `kind` (`DynamicVars.X.BaseValue` as int).
