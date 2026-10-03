@@ -132,6 +132,7 @@ impl Combat {
                 let amt = v.trunc().clamp(-MAX_POWER_AMOUNT, MAX_POWER_AMOUNT);
                 let p = Power { id, uid, amount: amt, amount_on_turn_start: 0, aux: content::power_listener(id).initial_power_aux(), applier, skip_next_tick: false };
                 self.cr_mut(target).powers.push(p);
+                self.sync_secondary(target);
                 attached = true;
                 self.hist_push(crate::engine::HKind::PowerReceived, target, applier, id, NO, v.trunc(), 0, 0, 0);
             }
@@ -247,10 +248,18 @@ impl Combat {
         new_amount
     }
 
+    /// Recomputes `Creature::secondary` after the power list of `c` changed.
+    #[inline]
+    pub(crate) fn sync_secondary(&mut self, c: Cid) {
+        let cr = self.cr_mut(c);
+        cr.secondary = cr.powers.iter().any(|p| content::power_def(p.id).secondary_enemy);
+    }
+
     /// `PowerCmd.Remove`: list removal then `AfterRemoved` (no amount hooks).
     pub fn remove_power(&mut self, c: Cid, uid: u16) {
         if let Some(i) = self.power_idx(c, uid) {
             let p = self.cr_mut(c).powers.remove(i);
+            self.sync_secondary(c);
             let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
             content::listener(&me).after_removed(self, me, c);
         }

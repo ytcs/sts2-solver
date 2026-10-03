@@ -12,10 +12,16 @@ impl Combat {
     /// `Hook.After*Modifying*(…, modifiers)` pattern: re-enumerates the listeners of the hook (fresh snapshot) and
     /// calls `f` only for the models recorded in `mods` — in listener order, once per model even if it was recorded
     /// by several passes (spec 02 §0).
+    #[inline(always)]
     pub fn dispatch_modifiers(&mut self, guarded: bool, bit: u32, mods: &Mods, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if mods.is_empty() || !self.listen.has(bit) || (guarded && !self.hooks_enabled()) {
             return;
         }
+        self.dispatch_modifiers_slow(bit, mods, &mut f);
+    }
+
+    #[inline(never)]
+    fn dispatch_modifiers_slow(&mut self, bit: u32, mods: &Mods, f: &mut dyn FnMut(&mut Combat, Me, &'static dyn Listener)) {
         let mut snap = crate::engine::Snapshot::new();
         self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {

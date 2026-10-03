@@ -232,6 +232,9 @@ pub struct Creature {
     /// Encounter slot index (`NO` = none).
     pub slot: u8,
     pub powers: ArrayVec<Power, MAX_POWERS>,
+    /// Cache: some power of this creature has `PowerDef::secondary_enemy` (`OwnerIsSecondaryEnemy`: Minion, Illusion), which
+    /// makes it not count for `is_ending`. Maintained by `Combat::sync_secondary` at every power-list mutation.
+    pub secondary: bool,
     pub monster: MonsterState,
 }
 
@@ -249,6 +252,7 @@ impl Default for Creature {
             owner: NO,
             slot: NO,
             powers: ArrayVec::new(),
+            secondary: false,
             monster: MonsterState::default(),
         }
     }

@@ -90,7 +90,8 @@ impl Combat {
             return Dec::ZERO;
         }
         self.dispatch_g(hookbit::before_block_gained, |cx, me, l| l.before_block_gained(cx, me, c, amount, props, card));
-        let (v, mods) = self.modify_block_ex(c, amount, props, card);
+        let mut mods = super::Mods::new();
+        let v = self.modify_block_into(c, amount, props, card, &mut mods);
         let v = v.max(Dec::ZERO);
         self.dispatch_modifiers(true, hookbit::after_modifying_block_amount, &mods, |cx, me, l| l.after_modifying_block_amount(cx, me, v, card));
         if v > Dec::ZERO {
@@ -104,13 +105,20 @@ impl Combat {
 
     /// `Hook.ModifyBlock` (spec 02 §4.1): enchantment add/mul, additive pass, multiplicative pass, floor at 0.
     pub fn modify_block(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
-        self.modify_block_ex(target, amount, props, card).0
+        let mut mods = super::Mods::new();
+        self.modify_block_into(target, amount, props, card, &mut mods)
     }
 
     /// `Hook.ModifyBlock` with the list of models that changed the value (non-zero adders, non-1 multipliers).
     pub fn modify_block_ex(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, super::Mods) {
-        let m = (Mask::bit(hookbit::modify_block_additive)) | (Mask::bit(hookbit::modify_block_multiplicative));
         let mut mods = super::Mods::new();
+        let v = self.modify_block_into(target, amount, props, card, &mut mods);
+        (v, mods)
+    }
+
+    /// [`Combat::modify_block_ex`] appending the modifiers to a caller-owned list (no copy of the list on return).
+    pub fn modify_block_into(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut super::Mods) -> Dec {
+        let m = (Mask::bit(hookbit::modify_block_additive)) | (Mask::bit(hookbit::modify_block_multiplicative));
         let mut v = amount;
         if card != NO && self.cards[card as usize].enchant != 0 {
             let me = self.enchantment_me(card);
@@ -140,7 +148,7 @@ impl Combat {
                 }
             }
         }
-        (v.max(Dec::ZERO), mods)
+        v.max(Dec::ZERO)
     }
 
     /// `CreatureCmd.LoseBlock(target, amount, remover)`: no-op when combat is over / ending, the target is dead or

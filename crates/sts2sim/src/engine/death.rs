@@ -186,6 +186,7 @@ impl Combat {
             }
         }
         self.cr_mut(c).powers = kept;
+        self.sync_secondary(c);
         removed
     }
 
@@ -237,6 +238,7 @@ impl Combat {
             return;
         }
         self.cr_mut(c).powers.clear();
+        self.sync_secondary(c);
         // CombatManager.RemoveCreature (BeforeRemovedFromRoom) then CombatState.CreatureEscaped.
         let me = Me { kind: Kind::Monster, owner: c, idx: 0, id: self.cr(c).monster.id, amount: 0 };
         content::listener(&me).before_removed_from_room(self, me);

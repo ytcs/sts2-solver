@@ -186,10 +186,17 @@ impl Combat {
     }
 
     /// `CreatureCmd.Damage` (spec 02 §3.3).
+    #[inline(always)]
     pub fn damage(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx) -> Results {
         let mut results = Results::new();
+        self.damage_into(targets, amount, props, dealer, card, &mut results);
+        results
+    }
+
+    /// [`Combat::damage`] writing into a caller-owned (empty) result list: the 1.3 KB list is not copied on return.
+    pub fn damage_into(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, results: &mut Results) {
         if dealer != NO && self.cr(dealer).is_dead() {
-            return results;
+            return;
         }
         for &t in targets {
             if self.cr(t).is_dead() {
@@ -281,7 +288,6 @@ impl Combat {
             v[..n].copy_from_slice(killed.as_slice());
             self.kill(&v[..n]);
         }
-        results
     }
 
     /// `History.DamageReceived` — only while the combat is live (in progress and not ending).
@@ -311,10 +317,17 @@ impl Combat {
     }
 
     /// `AttackCommand.Execute` (spec 02 §3.1).
+    #[inline(always)]
     pub fn execute_attack(&mut self, a: &Attack) -> Results {
         let mut all = Results::new();
+        self.execute_attack_into(a, &mut all);
+        all
+    }
+
+    /// [`Combat::execute_attack`] writing into a caller-owned (empty) result list (most callers ignore the results: no copy).
+    pub fn execute_attack_into(&mut self, a: &Attack, all: &mut Results) {
         if self.is_over_or_ending() || a.dealer == NO || self.cr(a.dealer).is_dead() {
-            return all;
+            return;
         }
         self.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, a));
         let hits = self.modify_attack_hit_count(a);
@@ -361,7 +374,8 @@ impl Combat {
                     Dec::int(self.card_var(a.card, VarKind::CalcBase) as i64 + self.card_var(a.card, VarKind::ExtraDamage) as i64 * m as i64)
                 }
             };
-            let r = self.damage(hit.as_slice(), amount, a.props, a.dealer, a.card);
+            let mut r = Results::new();
+            self.damage_into(hit.as_slice(), amount, a.props, a.dealer, a.card, &mut r);
             for x in r.iter() {
                 all.push(*x);
             }
@@ -377,6 +391,5 @@ impl Combat {
             self.attack_player_hits = all.iter().filter(|r| r.unblocked > 0 && r.receiver == PLAYER).count() as u8;
         }
         self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
-        all
     }
 }

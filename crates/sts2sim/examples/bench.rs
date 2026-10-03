@@ -20,7 +20,7 @@ fn scenario(seed: u64) -> Scenario {
     }
 }
 
-fn play_out(mut cx: Combat) -> (u64, Outcome) {
+fn play_out(cx: &mut Combat) -> (u64, Outcome) {
     let mut steps = 0u64;
     while cx.stage != Stage::Over {
         let e = cx.enemies.first().unwrap_or(NO);
@@ -44,28 +44,41 @@ fn main() {
     println!("size_of::<Combat>() = {} bytes", std::mem::size_of::<Combat>());
     let n: u64 = std::env::var("BENCH_N").ok().and_then(|s| s.parse().ok()).unwrap_or(200_000);
     let sc = scenario(0);
+    // (a) `Combat::new` per fight (the original benchmark), (b) one combat per thread reset in place (what the batch env does)
     let t = Instant::now();
     let mut steps = 0;
     for i in 0..n {
         let mut s = sc.clone();
         s.rng = RngSet::from_run_seed(i);
-        let (st, _) = play_out(Combat::new(&s));
+        let (st, _) = play_out(&mut Combat::new(&s));
         steps += st;
     }
     let dt = t.elapsed().as_secs_f64();
-    println!("1 thread: {n} fights in {dt:.2}s = {:.0} fights/s, {:.2}M steps/s", n as f64 / dt, steps as f64 / dt / 1e6);
+    println!("1 thread, Combat::new : {n} fights in {dt:.2}s = {:.0} fights/s, {:.2}M steps/s", n as f64 / dt, steps as f64 / dt / 1e6);
+    let ex = ScenarioExtras::default();
+    let t = Instant::now();
+    let mut steps = 0;
+    let mut cx = Combat::new(&sc);
+    for i in 0..n {
+        cx.reset_validated(&sc, &ex, 0, RngSet::from_run_seed_fast(i)).unwrap();
+        steps += play_out(&mut cx).0;
+    }
+    let dt = t.elapsed().as_secs_f64();
+    println!("1 thread, reset       : {n} fights in {dt:.2}s = {:.0} fights/s, {:.2}M steps/s", n as f64 / dt, steps as f64 / dt / 1e6);
     if std::env::var("BENCH_SINGLE").is_ok() { return; }
     let threads = std::thread::available_parallelism().map(|x| x.get()).unwrap_or(1);
     let t = Instant::now();
     let hs: Vec<_> = (0..threads).map(|k| {
         let sc = sc.clone();
         std::thread::spawn(move || {
+            let ex = ScenarioExtras::default();
+            let mut cx = Combat::new(&sc);
             let mut steps = 0u64;
-            for i in 0..n { let mut s = sc.clone(); s.rng = RngSet::from_run_seed(i + k as u64 * n); steps += play_out(Combat::new(&s)).0; }
+            for i in 0..n { cx.reset_validated(&sc, &ex, 0, RngSet::from_run_seed_fast(i + k as u64 * n)).unwrap(); steps += play_out(&mut cx).0; }
             steps
         })
     }).collect();
     let steps: u64 = hs.into_iter().map(|h| h.join().unwrap()).sum();
     let dt = t.elapsed().as_secs_f64();
-    println!("{threads} threads: {} fights in {dt:.2}s = {:.0} fights/s, {:.2}M steps/s", n * threads as u64, (n * threads as u64) as f64 / dt, steps as f64 / dt / 1e6);
+    println!("{threads} threads, reset  : {} fights in {dt:.2}s = {:.0} fights/s, {:.2}M steps/s", n * threads as u64, (n * threads as u64) as f64 / dt, steps as f64 / dt / 1e6);
 }

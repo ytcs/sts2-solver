@@ -190,9 +190,18 @@ impl Combat {
     }
 
     /// `Hook.ModifyEnergyCostInCombat`: pass 1 then pass 2 ("Late" = free-cost effects); skipped if cost < 0.
+    #[inline(always)]
     fn modify_energy_cost_in_combat(&self, c: CardIdx, cost: i32) -> i32 {
         // (no listener = the cost is returned unchanged; checked first because `hooks_enabled` scans the enemies)
-        if cost < 0 || !self.listen.intersects(Mask::bit(hookbit::try_modify_energy_cost_in_combat) | Mask::bit(hookbit::try_modify_energy_cost_in_combat_late)) || !self.hooks_enabled() {
+        if cost < 0 || !self.listen.intersects(Mask::bit(hookbit::try_modify_energy_cost_in_combat) | Mask::bit(hookbit::try_modify_energy_cost_in_combat_late)) {
+            return cost;
+        }
+        self.modify_energy_cost_in_combat_slow(c, cost)
+    }
+
+    #[inline(never)]
+    fn modify_energy_cost_in_combat_slow(&self, c: CardIdx, cost: i32) -> i32 {
+        if !self.hooks_enabled() {
             return cost;
         }
         let mut v = Dec::int(cost as i64);
@@ -296,11 +305,16 @@ impl Combat {
     }
 
     /// `Hook.AfterCardChangedPiles`: two full passes (`AfterCardChangedPiles`, then `...Late`) over the run-level iterator.
-    #[inline]
+    #[inline(always)]
     pub fn fire_card_changed_piles(&mut self, c: CardIdx, old: PileType) {
         if !self.listen.has(hookbit::after_card_changed_piles) && !self.listen.has(hookbit::after_card_changed_piles_late) {
             return;
         }
+        self.fire_card_changed_piles_slow(c, old);
+    }
+
+    #[inline(never)]
+    fn fire_card_changed_piles_slow(&mut self, c: CardIdx, old: PileType) {
         self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
         self.dispatch_u(hookbit::after_card_changed_piles_late, |cx, me, l| l.after_card_changed_piles_late(cx, me, c, old));
     }

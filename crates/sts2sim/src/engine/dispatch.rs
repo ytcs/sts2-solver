@@ -155,12 +155,12 @@ impl Combat {
     }
 
     /// Notification pass over the guarded iterator.
-    #[inline]
+    #[inline(always)]
     pub fn dispatch_g(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if !self.listen.has(bit) || !self.hooks_enabled() {
             return;
         }
-        self.dispatch_u(bit, &mut f);
+        self.dispatch_slow(bit, &mut f);
     }
 
     /// Guarded notification pass whose listeners may raise a decision (`Stage::AwaitChoice`, `hook_ctx` set): the pass stops
@@ -200,12 +200,19 @@ impl Combat {
     }
 
     /// Notification pass over the unguarded iterator (hooks that are part of the kill/death sequence).
-    #[inline]
+    #[inline(always)]
     pub fn dispatch_u(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if !self.listen.has(bit) {
             return;
         }
-        let mut snap = crate::engine::Snapshot::new();
+        self.dispatch_slow(bit, &mut f);
+    }
+
+    /// The part of a notification pass that runs only when some model listens. Out of line (and `dyn`) on purpose: the 3 KB
+    /// snapshot lives in this frame instead of in every caller's, so the many "nobody listens" call sites stay cheap.
+    #[inline(never)]
+    fn dispatch_slow(&mut self, bit: u32, f: &mut dyn FnMut(&mut Combat, Me, &'static dyn Listener)) {
+        let mut snap = Snapshot::new();
         self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) {
@@ -216,7 +223,8 @@ impl Combat {
 
     pub fn is_primary_enemy(&self, c: Cid) -> bool {
         let cr = &self.creatures[c as usize];
-        cr.side == Side::Enemy && !cr.powers.iter().any(|p| content::power_def(p.id).secondary_enemy)
+        debug_assert_eq!(cr.secondary, cr.powers.iter().any(|p| content::power_def(p.id).secondary_enemy), "stale Creature::secondary");
+        cr.side == Side::Enemy && !cr.secondary
     }
 
     /// OR over `ShouldStopCombatFromEnding` (Adaptable, Infested, SteamEruption, Stock, Surprise); unguarded.
@@ -228,11 +236,17 @@ impl Combat {
     }
 
     /// OR over a predicate hook on the unguarded iterator (`ShouldTakeExtraTurn` etc. use `any_true_g`).
+    #[inline(always)]
     pub fn any_true(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
         if !self.listen.has(bit) {
             return false;
         }
-        let mut snap = crate::engine::Snapshot::new();
+        self.any_true_slow(bit, &f)
+    }
+
+    #[inline(never)]
+    fn any_true_slow(&self, bit: u32, f: &dyn Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
+        let mut snap = Snapshot::new();
         self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && f(self, e.me, content::listener(&e.me)) {
@@ -248,11 +262,17 @@ impl Combat {
     }
 
     /// AND over a predicate hook (unguarded): the first model answering `false` — the "preventer" — is returned.
+    #[inline(always)]
     pub fn first_veto(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
         if !self.listen.has(bit) {
             return None;
         }
-        let mut snap = crate::engine::Snapshot::new();
+        self.first_veto_slow(bit, &f)
+    }
+
+    #[inline(never)]
+    fn first_veto_slow(&self, bit: u32, f: &dyn Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
+        let mut snap = Snapshot::new();
         self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && !f(self, e.me, content::listener(&e.me)) {

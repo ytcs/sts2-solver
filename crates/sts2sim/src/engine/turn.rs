@@ -627,6 +627,7 @@ impl Combat {
         self.dispatch_u(hookbit::after_combat_end, |cx, me, l| l.after_combat_end(cx, me));
         // Player.AfterCombatEnd: powers (no hooks), combat piles, block.
         self.cr_mut(PLAYER).powers.clear();
+        self.sync_secondary(PLAYER);
         self.cr_mut(PLAYER).block = 0;
         self.player.hand.clear();
         self.player.draw.clear();
