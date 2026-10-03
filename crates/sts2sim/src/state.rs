@@ -377,10 +377,13 @@ pub enum PlayStep {
 }
 
 /// In-flight potion use (suspended while a decision is pending).
+/// Most cards one `AutoPlayFromDrawPile` call can queue (Cascade with X = energy; Ice Cream can bank a lot of energy).
+pub const AUTOPLAY_MAX: usize = 32;
+
 /// Cards of one `AutoPlayFromDrawPile` / `DiscardAndDraw` call still waiting to be auto-played (front = next).
 #[derive(Clone, Copy)]
 pub struct AutoQueue {
-    pub cards: ArrayVec<CardIdx, 10>,
+    pub cards: ArrayVec<CardIdx, AUTOPLAY_MAX>,
     /// `AutoPlayFromDrawPile(forceExhaust)`.
     pub force_exhaust: bool,
     /// `AutoPlayType.SlyDiscard` queue (else `Default`).

@@ -100,8 +100,8 @@ impl Combat {
         if self.is_over_or_ending() {
             return RunResult::Finished;
         }
-        let mut cards: ArrayVec<CardIdx, 10> = ArrayVec::new();
-        for _ in 0..count.min(10) {
+        let mut cards: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
+        for _ in 0..count.min(AUTOPLAY_MAX as i32) {
             self.shuffle_if_necessary();
             let n = self.player.draw.len();
             let c = match pos {
@@ -194,7 +194,7 @@ impl Combat {
             self.draw_cards(cards_to_draw, false);
         }
         let owner = self.play_stack.len() as i8 - 1;
-        let mut q: ArrayVec<CardIdx, 10> = ArrayVec::new();
+        let mut q: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
         for &c in sly.iter() {
             q.push(c);
         }

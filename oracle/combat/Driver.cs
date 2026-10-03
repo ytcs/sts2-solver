@@ -198,12 +198,32 @@ public sealed class Driver
         {
             _sel.RandomPolicy = RandomDriver;
             var legal = Legal();
-            var a = legal[RandomDriver.Next(legal.Count)];
+            var a = PickAction(legal);
             Exec(a);
             steps++;
         }
         if (CombatManager.Instance.IsInProgress) Result = "truncated";
         _sel.RandomPolicy = null;
+    }
+
+    /// <summary>Policy: random = uniform over legal actions; playall = end the turn only when nothing else is legal
+    /// (potions at 1/4 weight); stall = like playall but never plays an attack card (drags fights out to reach deep
+    /// turns and the scaling behaviour of enemies).</summary>
+    public static string PolicyKind = "random";
+    private ActionSpec PickAction(List<ActionSpec> legal)
+    {
+        if (PolicyKind == "random") return legal[RandomDriver.Next(legal.Count)];
+        if (PolicyKind != "playall" && PolicyKind != "stall") throw new OracleException("unknown policy " + PolicyKind);
+        var acts = legal.Where(x => x.Kind != "end_turn").ToList();
+        if (PolicyKind == "stall")
+        {
+            var hand = Pcs.Hand.Cards;
+            acts = acts.Where(x => x.Kind == "play" && hand[x.HandPos].Type != CardType.Attack).ToList();
+        }
+        if (acts.Count == 0) return legal.First(x => x.Kind == "end_turn");
+        var cardActs = acts.Where(x => x.Kind == "play").ToList();
+        if (cardActs.Count > 0 && (acts.Count == cardActs.Count || RandomDriver.Next(4) != 0)) return cardActs[RandomDriver.Next(cardActs.Count)];
+        return acts[RandomDriver.Next(acts.Count)];
     }
 
     public List<ActionSpec> Legal()

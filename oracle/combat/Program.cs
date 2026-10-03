@@ -37,6 +37,7 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             string outPath = kv.GetValueOrDefault("out");
             using var w = outPath != null ? new StreamWriter(outPath, false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" } : new StreamWriter(Console.OpenStandardOutput()) { NewLine = "\n" };
             int? rs = kv.TryGetValue("random", out var r) ? int.Parse(r) : null;
+            Driver.PolicyKind = kv.GetValueOrDefault("policy", "random");
             var res = RunOne(sc, w, pump, rs, maxSteps, maxRounds);
             if (kv.TryGetValue("record", out var recordPath))
             {
@@ -72,6 +73,12 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             Console.WriteLine($"shuffle order match: {ok}; shuffle counter at record 0 = {shuf} (expected {sc.Deck.Count - 1} if nothing else drew); niche counter = {(int)rec["rng"]["niche"]["counter"]}; enemies = {rec["enemies"].AsArray().Count}");
             return ok ? 0 : 1;
         }
+        if (cmd == "dump-pools")
+        {
+            File.WriteAllText(kv["out"], Pools.Dump().ToJsonString() + "\n");
+            return 0;
+        }
+        if (cmd == "batch") return DoBatch(positional, kv, pump, maxSteps, maxRounds);
         if (cmd == "fuzz") return DoFuzz(kv, flags, pump, maxSteps, maxRounds);
         Console.Error.WriteLine(Usage);
         return 2;
@@ -90,6 +97,38 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
         w.Flush();
         try { driver.Dispose(); } catch (Exception e) { err ??= "cleanup: " + e.Message; }
         return new RunResult(driver.Result, driver.Recorded, err);
+    }
+
+    /// <summary>`batch DIR`: run every DIR/*.scenario.json in this process (skipping ones that already have .jsonl/.err).
+    /// Scenario key `policy` = {"kind":"random|playall|stall","seed":N,"max_steps":N,"max_rounds":N}.
+    /// Writes DIR/NAME.jsonl, NAME.res ("result nactions") or NAME.err on oracle error.</summary>
+    static int DoBatch(string dir, Dictionary<string, string> kv, Pump pump, int maxSteps, int maxRounds)
+    {
+        var files = Directory.GetFiles(dir, "*.scenario.json").OrderBy(f => f, StringComparer.Ordinal).ToList();
+        int bad = 0;
+        foreach (var f in files)
+        {
+            string stem = f[..^".scenario.json".Length];
+            if (File.Exists(stem + ".res") || File.Exists(stem + ".err")) continue;
+            string err = null; RunResult res = null;
+            try
+            {
+                var sc = Scenario.Load(f);
+                var pol = sc.Raw["policy"]?.AsObject();
+                int? seed = pol == null ? null : (pol["seed"]?.GetValue<int>() ?? 1);   // no policy: scripted replay only
+                Driver.PolicyKind = (string)pol?["kind"] ?? "random";
+                int ms = pol?["max_steps"]?.GetValue<int>() ?? maxSteps;
+                int mr = pol?["max_rounds"]?.GetValue<int>() ?? maxRounds;
+                using var w = new StreamWriter(stem + ".jsonl", false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" };
+                res = RunOne(sc, w, pump, seed, ms, mr);
+                err = res.Error;
+            }
+            catch (Exception e) { err = e.ToString(); }
+            if (err != null) { bad++; File.WriteAllText(stem + ".err", err + "\n"); }
+            else File.WriteAllText(stem + ".res", $"{res.Result} {res.Recorded.Count}\n");
+        }
+        Console.WriteLine($"batch done: {files.Count} scenarios, {bad} oracle errors");
+        return 0;
     }
 
     static int DoFuzz(Dictionary<string, string> kv, HashSet<string> flags, Pump pump, int maxSteps, int maxRounds)

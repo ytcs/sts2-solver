@@ -144,7 +144,8 @@ listener!(PaelsLegion {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::constant("Skin", "\"eyes\"")]
     }
-    fn meta_display(&self, _cx: &Combat, r: &Relic) -> Option<i32> {
-        if r.counter > 0 { Some(r.counter) } else { None }
+    // `DisplayAmount`: -1 when no combat is in progress or the cooldown is spent.
+    fn meta_display(&self, cx: &Combat, r: &Relic) -> Option<i32> {
+        if cx.in_progress && r.counter > 0 { Some(r.counter) } else { None }
     }
 });
