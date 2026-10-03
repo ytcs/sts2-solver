@@ -242,7 +242,14 @@ listener!(SpectrumShiftPower {
 // ForegoneConclusionPower: before the next draw, pick Amount cards from the draw pile into the hand (then removed).
 listener!(ForegoneConclusionPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
+        cx.hook_shuffle = true;
         cx.shuffle_if_necessary();
+        cx.hook_shuffle = false;
+        if cx.stage == Stage::AwaitChoice {
+            // An `AfterShuffle` listener (Stratagem) asked for a decision: the pick from the draw pile follows it (`resume_hook` phase 2).
+            cx.hook_after = Some((me, 2));
+            return;
+        }
         let a = amount(cx, &me).clamp(0, 255) as u8;
         match cx.ask_pile(ids::card::FOREGONE_CONCLUSION, PileType::Draw, a, a, |_, _| true) {
             Ask::Resolved(cards) => {
@@ -257,7 +264,24 @@ listener!(ForegoneConclusionPower {
             }
         }
     }
-    fn resume_hook(&self, cx: &mut Combat, me: Me, _phase: u8) {
+    fn resume_hook(&self, cx: &mut Combat, me: Me, phase: u8) {
+        if phase == 2 {
+            // The shuffle's `AfterShuffle` decision is done: now the pick itself.
+            let a = amount(cx, &me).clamp(0, 255) as u8;
+            match cx.ask_pile(ids::card::FOREGONE_CONCLUSION, PileType::Draw, a, a, |_, _| true) {
+                Ask::Resolved(cards) => {
+                    for &c in cards.iter() {
+                        cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
+                    }
+                    cx.remove_power(me.owner, me.idx);
+                }
+                Ask::Pending => {
+                    cx.hook_ctx = Some((me, 1));
+                    cx.stage = Stage::AwaitChoice;
+                }
+            }
+            return;
+        }
         let picked = cx.choice.cards;
         for &c in picked.iter() {
             cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);

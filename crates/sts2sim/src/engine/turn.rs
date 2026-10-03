@@ -353,6 +353,14 @@ impl Combat {
         }
     }
 
+    /// `check_for_empty_hand` as the last step of an outermost card play / potion use: an `AfterShuffle` decision raised by the draw it
+    /// makes (Unceasing Top + Stratagem) parks the rest of that draw (`draw_susp`).
+    pub(crate) fn check_for_empty_hand_last(&mut self) {
+        self.hand_check = self.play_stack.is_empty() && self.autoplay_stack.is_empty();
+        self.check_for_empty_hand();
+        self.hand_check = false;
+    }
+
     // ---- player turn end -----------------------------------------------------------------------------------------------
 
     /// Player ends the turn: phase one, phase two, side switch, enemy turn, next player turn (until the next decision).
@@ -718,6 +726,18 @@ impl Combat {
             content::listener(&me).resume_hook(self, me, phase);
             if self.stage == Stage::AwaitChoice {
                 return; // the hook's effect (e.g. a Sly auto-play) raised its own decision: that play resumes later
+            }
+        }
+        // A hook that shuffled by itself (Foregone Conclusion) and was interrupted by an `AfterShuffle` decision: the rest of that pass,
+        // then the hook's own continuation.
+        if self.hook_after.is_some() {
+            if matches!(self.susp.last(), Some(s) if s.bit == hookbit::after_shuffle) && self.run_after_shuffle() {
+                return;
+            }
+            let (me, phase) = self.hook_after.take().unwrap();
+            content::listener(&me).resume_hook(self, me, phase);
+            if self.stage == Stage::AwaitChoice {
+                return;
             }
         }
         // A card effect's / potion's draw interrupted by an `AfterShuffle` decision: the rest of that pass, then the rest of the draw.

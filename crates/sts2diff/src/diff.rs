@@ -154,7 +154,14 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     }
                 }
                 if cx.stage == Stage::AwaitChoice && cx.decision_seq == seq && !cx.step(Action::Confirm) {
+                    if let Some(m) = missing_name(&cx) {
+                        println!("UNIMPLEMENTED {m} (step {i}; decision still pending after the oracle's picks)");
+                        return Ok(Verdict::Unimplemented);
+                    }
                     println!("step {i}: decision still pending after the oracle's picks");
+                    if let Some(d) = cx.decision.as_ref() {
+                        println!("  simulator decision: purpose {} min {} max {} cands {} picked {:?}; oracle choice min/max {:?}/{:?} options {}", d.purpose, d.min, d.max, d.cands.len(), picks_of(ch), ch["min"], ch["max"], ch["options"].as_array().map_or(0, |a| a.len()));
+                    }
                     return Ok(Verdict::Mismatch);
                 }
             }

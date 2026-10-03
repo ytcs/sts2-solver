@@ -418,7 +418,7 @@ impl Combat {
 
     /// Whether an `AfterShuffle` decision raised inside a draw of a card effect / potion can be parked (`draw_susp`).
     pub fn draw_susp_possible(&self) -> bool {
-        self.draw_susp.is_none() && (!self.play_stack.is_empty() || self.potion_ctx.is_some() || self.autoplay_shuffle_ok)
+        self.draw_susp.is_none() && (!self.play_stack.is_empty() || self.potion_ctx.is_some() || self.autoplay_shuffle_ok || self.hand_check)
     }
 
     /// Number of upgradable cards of the run deck (`PileType.Deck ... IsUpgradable`), through the deck-level upgrades made during
@@ -483,7 +483,7 @@ impl Combat {
 
     /// Whether an `AfterShuffle` decision raised right now can be resumed: only inside the outermost turn-start hand draw.
     pub fn shuffle_decision_resumable(&self) -> bool {
-        self.drawing_hand && self.draw_depth <= 1
+        (self.drawing_hand && self.draw_depth <= 1) || self.hook_shuffle
     }
 
     fn draw_cards_list_inner(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {

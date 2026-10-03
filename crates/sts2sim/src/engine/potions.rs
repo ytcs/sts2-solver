@@ -147,7 +147,7 @@ impl Combat {
                 if !self.cr(PLAYER).is_dead() {
                     self.hist_push(HKind::PotionUsed, PLAYER, tgt, pid, NO, 0, 0, 0, 0);
                     self.dispatch_u(hookbit::after_potion_used, |cx, me, lst| lst.after_potion_used(cx, me, pid, tgt));
-                    self.check_for_empty_hand();
+                    self.check_for_empty_hand_last();
                 }
             }
         }

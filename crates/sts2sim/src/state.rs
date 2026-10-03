@@ -532,6 +532,14 @@ pub struct Combat {
     pub draw_resume: Option<(i32, bool, bool)>,
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
+    /// True while a hook (Foregone Conclusion's `BeforeHandDraw`) shuffles directly: an `AfterShuffle` decision (Stratagem) raised then
+    /// can be resumed (`hook_after`).
+    pub hook_shuffle: bool,
+    /// True while the hand-empty check at the very end of a card play / potion use runs: a draw it makes (Unceasing Top) can park an
+    /// `AfterShuffle` decision (`draw_susp`) because nothing but the draw is left of the action.
+    pub hand_check: bool,
+    /// A hook whose own effect waits for the nested `AfterShuffle` decision pass: `resume_hook(phase)` runs once that pass is finished.
+    pub hook_after: Option<(crate::hooks::Me, u8)>,
     /// Nesting depth of `draw_cards_list` calls (a draw started from an `AfterCardDrawn` hook, e.g. Iteration, is depth 2: its
     /// `AfterShuffle` decisions cannot be resumed, only the outermost hand draw's can).
     pub draw_depth: u8,
