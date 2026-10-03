@@ -103,7 +103,7 @@ class Gen:
                 d["enchantment"] = {"id": e["id"], "amount": rng.randint(1, 3) if e["show_amount"] else 1}
         return d if (up or "enchantment" in d) else c["id"]
 
-    def make(self, rng, name, seed_str, ch=None, enc=None, policy=None, force_relics=(), force_potions=(), force_cards=()):
+    def make(self, rng, name, seed_str, ch=None, enc=None, policy=None, force_relics=(), force_potions=(), force_cards=(), relic_mode=None):
         ch = ch or rng.choice(self.chars)
         e = enc or rng.choice(self.encs)
         act = ACT_IDX.get(e["act"], rng.randrange(3))
@@ -163,6 +163,14 @@ class Gen:
             for r in rng.sample(STRESS_RELICS, rng.randint(1, 2)):
                 if r in self.relics[ch] and r not in relics:
                     relics.append(r)
+        if relic_mode == "runlevel":   # relics registered as run-level only: checks that none of them matters in combat
+            for r in rng.sample(self.relics_rl, rng.randint(3, 6)):
+                if r not in relics:
+                    relics.append(r)
+        elif relic_mode == "many":     # long relic lists (8-14) for hook-order interactions
+            for r in rng.sample(self.relics[ch], rng.randint(8, 14)):
+                if r not in relics:
+                    relics.append(r)
         for r in force_relics:
             if r not in relics:
                 relics.append(r)
@@ -194,7 +202,7 @@ def gen(a):
         name = f"f{a.seed}_{i}"
         rng = random.Random(f"{a.seed}/{i}")
         sc = g.make(rng, name, f"fz{a.seed}x{i}", policy=a.policy, force_relics=[x for x in (a.force_relics or "").split(",") if x],
-                     force_potions=[x for x in (a.force_potions or "").split(",") if x], force_cards=[x for x in (a.force_cards or "").split(",") if x])
+                     force_potions=[x for x in (a.force_potions or "").split(",") if x], force_cards=[x for x in (a.force_cards or "").split(",") if x], relic_mode=a.relic_mode)
         json.dump(sc, open(os.path.join(d, name + ".scenario.json"), "w"))
         names.append((k, name))
     return names
@@ -212,6 +220,8 @@ def diff_one(base):
         return base, "oracle-missing", ""
     d = subprocess.run([DIFF, "run", base + ".scenario.json", base + ".jsonl", "--max", "4"], capture_output=True, text=True)
     out = (d.stdout or "").strip()
+    if "card arena full" in (d.stderr or ""):
+        return base, "arena-full", "card arena (MAX_CARDS) exhausted: very long fight"
     if "not implemented in the simulator" in (d.stderr or ""):
         return base, "unimplemented", "UNIMPLEMENTED " + d.stderr.split("UnimplementedPotion(")[-1].strip()
     if d.returncode == 0:
@@ -347,6 +357,7 @@ def main():
     ap.add_argument("--name", help="freeze: regression name")
     ap.add_argument("--note", default=None)
     ap.add_argument("--step", type=int, default=None)
+    ap.add_argument("--relic-mode", default=None, choices=["runlevel", "many"], help="runlevel: only run-level-registered relics; many: 8-14 relics")
     ap.add_argument("--force-relics", default=None, help="always include these relics")
     ap.add_argument("--force-potions", default=None, help="both potion slots are filled from this list")
     ap.add_argument("--force-cards", default=None, help="1-2 copies of each of these cards are added")

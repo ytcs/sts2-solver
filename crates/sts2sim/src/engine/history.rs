@@ -3,7 +3,7 @@
 //!
 //! The game keeps one unbounded list of entries cleared at combat end. Queries only ever ask for the current turn
 //! (`HappenedThisTurn`), the previous player turn (`HappenedLastPlayerTurn`) or the whole combat, so this port keeps
-//!  * a ring of the most recent `HIST_CAP` entries (enough for the current + previous turn of any realistic fight), and
+//!  * a ring of the most recent `HIST_CAP` entries (enough for the current + previous turn of a heavy turn: ~190 entries; kinds nobody queries per turn are counter-only), and
 //!  * whole-combat counters per entry kind (`Combat::hist_total`) that never overflow.
 //!
 //! Every entry snapshots `(round, side, player turn number)` like `CombatHistoryEntry`:
@@ -14,7 +14,7 @@ use crate::hooks::CardPlay;
 use crate::state::*;
 use crate::types::*;
 
-pub const HIST_CAP: usize = 128;
+pub const HIST_CAP: usize = 192;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(u8)]
@@ -103,6 +103,12 @@ impl Combat {
     /// Appends an entry (`Combat.History.*`): logged immediately after the event, before its After-hook.
     pub fn hist_push(&mut self, kind: HKind, actor: Cid, other: Cid, id: u16, card: CardIdx, val: i32, flags: u8, props: u8, aux: u8) {
         if !self.in_progress && !self.is_starting {
+            return;
+        }
+        // Kinds no gameplay code queries per turn only keep their whole-combat counter (they would crowd the ring out in a
+        // heavy turn: Bolas / Memento Mori look at every entry of the turn).
+        if matches!(kind, HKind::CardGenerated | HKind::MonsterPerformedMove | HKind::OrbChanneled | HKind::PotionUsed | HKind::Summoned) {
+            self.hist_log.total[kind as usize] = self.hist_log.total[kind as usize].saturating_add(1);
             return;
         }
         let e = HistEntry {
