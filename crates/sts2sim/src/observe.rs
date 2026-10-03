@@ -77,7 +77,7 @@ impl W<'_> {
 impl Combat {
     /// Intent damage as the UI computes it: `Hook.ModifyDamage(dealer = monster, target = player, Move)` floored at 0.
     pub fn intent_damage(&self, monster: Cid, base: i32) -> i32 {
-        self.modify_damage(PLAYER, monster, Dec::int(base as i64), ValueProp::MOVE, NO).0.trunc().max(0)
+        self.modify_damage_value(PLAYER, monster, Dec::int(base as i64), ValueProp::MOVE, NO).trunc().max(0)
     }
 
     /// Star cost as shown on the card: -1 none, -2 X (all stars), else the current cost with modifiers.
@@ -100,7 +100,7 @@ impl Combat {
             None => (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32,
         };
         let dmg = if d.vars.iter().any(|v| v.kind == VarKind::Damage) {
-            self.modify_damage(NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), ValueProp::MOVE, c).0.trunc()
+            self.modify_damage_value(NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), ValueProp::MOVE, c).trunc()
         } else {
             0
         };
@@ -348,7 +348,7 @@ impl Combat {
                 Some(c) if self.card_def(c).vars.iter().any(|v| v.kind == VarKind::OstyDamage) && self.osty().is_some() => {
                     let o = self.osty().unwrap();
                     let base = Dec::int(self.card_var(c, VarKind::OstyDamage) as i64);
-                    w.n(self.modify_damage(NO, o, base, ValueProp::MOVE, c).0.trunc());
+                    w.n(self.modify_damage_value(NO, o, base, ValueProp::MOVE, c).trunc());
                 }
                 _ => w.f(0.0),
             }

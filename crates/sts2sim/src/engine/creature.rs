@@ -118,7 +118,8 @@ impl Combat {
             v += l.enchant_block_additive(self, me, v);
             v *= l.enchant_block_multiplicative(self, me, v);
         }
-        let snap = self.snapshot(m);
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(m, &mut snap);
         for e in snap.iter() {
             if self.has_hook(&e.me, hookbit::modify_block_additive) && self.still_live(&e.me) {
                 let q = BlockQ { target, card, props, amount: v };

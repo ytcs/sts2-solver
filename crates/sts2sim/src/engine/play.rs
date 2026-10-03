@@ -61,7 +61,8 @@ impl Combat {
         if !self.hooks_enabled() {
             return None;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind), &mut snap);
         for e in snap.iter() {
             if !self.still_live(&e.me) {
                 continue;
@@ -182,7 +183,8 @@ impl Combat {
         if !self.listen.has(hookbit::modify_card_play_result_location) || !self.hooks_enabled() {
             return loc;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_result_location));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::modify_card_play_result_location), &mut snap);
         let mut mods = super::Mods::new();
         for e in snap.iter() {
             if self.still_live(&e.me) {
@@ -207,7 +209,8 @@ impl Combat {
         }
         let mut count = base + 1;
         if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_card_play_count), &mut snap);
             let mut mods = super::Mods::new();
             for e in snap.iter() {
                 if self.still_live(&e.me) {

@@ -27,7 +27,8 @@ impl Combat {
     pub fn modify_orb_value(&self, orb: &Orb, v: Dec) -> Dec {
         let mut v = v;
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_orb_value));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_orb_value), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     v = content::listener(&e.me).modify_orb_value(self, e.me, orb, v);
@@ -267,7 +268,8 @@ impl Combat {
         let mut count = 1;
         let mut mods: ArrayVec<Me, 24> = ArrayVec::new();
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_orb_passive_trigger_counts));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_orb_passive_trigger_counts), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     let n = content::listener(&e.me).modify_orb_passive_trigger_counts(self, e.me, &orb, count);
@@ -279,7 +281,8 @@ impl Combat {
             }
         }
         if !mods.is_empty() && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::after_modifying_orb_passive_trigger_count));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::after_modifying_orb_passive_trigger_count), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && mods.iter().any(|m| m.kind == e.me.kind && m.idx == e.me.idx && m.owner == e.me.owner && m.id == e.me.id) {
                     content::listener(&e.me).after_modifying_orb_passive_trigger_count(self, e.me, &orb);

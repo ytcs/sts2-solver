@@ -70,7 +70,8 @@ impl Combat {
     fn clear_block(&mut self, c: Cid) {
         let mut preventer: Option<Me> = None;
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_clear_block));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_clear_block), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_clear_block(self, e.me, c) {
                     preventer = Some(e.me);
@@ -172,7 +173,8 @@ impl Combat {
     pub fn max_energy(&self) -> i32 {
         let mut v = Dec::int(self.player.max_energy as i64);
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_max_energy));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_max_energy), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     v = content::listener(&e.me).modify_max_energy(self, e.me, v);
@@ -184,7 +186,8 @@ impl Combat {
 
     fn should_player_reset_energy(&self) -> bool {
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_player_reset_energy));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_player_reset_energy), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_player_reset_energy(self, e.me) {
                     return false;
@@ -250,7 +253,8 @@ impl Combat {
                 if !self.listen.has(bit) {
                     continue;
                 }
-                let snap = self.snapshot(Mask::bit(bit));
+                let mut snap = crate::engine::Snapshot::new();
+                self.snapshot_into(Mask::bit(bit), &mut snap);
                 for e in snap.iter() {
                     if self.still_live(&e.me) {
                         let l = content::listener(&e.me);
@@ -347,7 +351,8 @@ impl Combat {
         if !(self.listen.has(hookbit::after_auto_post_play_phase_entered) && self.hooks_enabled()) {
             return true;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::after_auto_post_play_phase_entered));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::after_auto_post_play_phase_entered), &mut snap);
         let mut started = resume.is_none();
         for e in snap.iter() {
             if !started {
@@ -443,7 +448,8 @@ impl Combat {
     fn flush_player_hand(&mut self) {
         let mut flush = true;
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_flush));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_flush), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_flush(self, e.me) {
                     flush = false;

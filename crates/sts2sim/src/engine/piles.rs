@@ -155,7 +155,8 @@ impl Combat {
         if !self.card_in_combat_pile(c) {
             return local;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::try_modify_keywords_in_combat));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::try_modify_keywords_in_combat), &mut snap);
         let mut k = local;
         for e in snap.iter() {
             if self.still_live(&e.me) {
@@ -196,7 +197,8 @@ impl Combat {
         }
         let mut v = Dec::int(cost as i64);
         for bit in [hookbit::try_modify_energy_cost_in_combat, hookbit::try_modify_energy_cost_in_combat_late] {
-            let snap = self.snapshot(Mask::bit(bit));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(bit), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     let l = content::listener(&e.me);
@@ -344,7 +346,8 @@ impl Combat {
         if !self.listen.has(hookbit::modify_shuffle_order) || !self.hooks_enabled() {
             return;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::modify_shuffle_order));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::modify_shuffle_order), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) {
                 content::listener(&e.me).modify_shuffle_order(self, e.me, list, is_initial);

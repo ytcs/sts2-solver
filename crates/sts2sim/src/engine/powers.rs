@@ -51,7 +51,8 @@ impl Combat {
         if !self.hooks_enabled() {
             return true;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::should_allow_hitting));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::should_allow_hitting), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && !content::listener(&e.me).should_allow_hitting(self, e.me, c) {
                 return false;
@@ -159,7 +160,8 @@ impl Combat {
     /// `ModifyPowerAmountGiven`: additive pass then multiplicative pass (SneckoSkull / UnsettlingLamp).
     fn modify_power_amount_given(&self, id: u16, giver: Cid, amount: Dec, target: Cid, card: CardIdx) -> (Dec, Mods) {
         let m = (Mask::bit(hookbit::modify_power_amount_given_additive)) | (Mask::bit(hookbit::modify_power_amount_given_multiplicative));
-        let snap = self.snapshot(m);
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(m, &mut snap);
         let mut v = amount;
         let mut mods = Mods::new();
         for e in snap.iter() {
@@ -185,7 +187,8 @@ impl Combat {
 
     /// `ModifyPowerAmountReceived`: threaded TRY hooks (Artifact, RuinedHelmet).
     fn modify_power_amount_received(&self, id: u16, target: Cid, amount: Dec, applier: Cid) -> (Dec, Mods) {
-        let snap = self.snapshot(Mask::bit(hookbit::try_modify_power_amount_received));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::try_modify_power_amount_received), &mut snap);
         let mut v = amount;
         let mut mods = Mods::new();
         if !self.hooks_enabled() {

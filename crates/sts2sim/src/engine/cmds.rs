@@ -111,7 +111,8 @@ impl Combat {
     pub fn gain_gold(&mut self, n: i32) {
         let mut v = Dec::int(n as i64);
         if self.listen.has(hookbit::modify_gold_gained) {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_gold_gained));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_gold_gained), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     v = crate::content::listener(&e.me).modify_gold_gained(self, e.me, v);

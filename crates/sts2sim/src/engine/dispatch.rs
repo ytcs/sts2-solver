@@ -24,8 +24,15 @@ impl Combat {
     /// `L_combat` restricted to listeners whose hook mask intersects `m`, in the game's order (spec 02 §1.1).
     pub fn snapshot(&self, m: Mask) -> Snapshot {
         let mut s = Snapshot::new();
+        self.snapshot_into(m, &mut s);
+        s
+    }
+
+    /// [`Combat::snapshot`] into a caller-owned (empty) list. Hot paths use this: returning the 3 KB list by value makes the
+    /// compiler copy it whole on every call, even when it is empty.
+    pub fn snapshot_into(&self, m: Mask, s: &mut Snapshot) {
         if !self.listen.intersects(m) {
-            return s;
+            return;
         }
         for &ci in self.allies.iter().chain(self.enemies.iter()) {
             let cr = &self.creatures[ci as usize];
@@ -85,7 +92,6 @@ impl Combat {
                 }
             }
         }
-        s
     }
 
     /// Whether the listener `me` overrides hook `bit` (its static hook mask).
@@ -171,7 +177,8 @@ impl Combat {
         if !self.listen.has(bit) || !self.hooks_enabled() {
             return false;
         }
-        let snap = self.snapshot(Mask::bit(bit));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(bit), &mut snap);
         let mut start = 0;
         if let Some((last, pos)) = resume {
             // The suspended listener may have removed itself (a power): then the next one now sits at its old index.
@@ -198,7 +205,8 @@ impl Combat {
         if !self.listen.has(bit) {
             return;
         }
-        let snap = self.snapshot(Mask::bit(bit));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) {
                 f(self, e.me, content::listener(&e.me));
@@ -224,7 +232,8 @@ impl Combat {
         if !self.listen.has(bit) {
             return false;
         }
-        let snap = self.snapshot(Mask::bit(bit));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && f(self, e.me, content::listener(&e.me)) {
                 return true;
@@ -243,7 +252,8 @@ impl Combat {
         if !self.listen.has(bit) {
             return None;
         }
-        let snap = self.snapshot(Mask::bit(bit));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && !f(self, e.me, content::listener(&e.me)) {
                 return Some(e.me);

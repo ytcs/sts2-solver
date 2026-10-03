@@ -66,11 +66,25 @@ impl Attack {
 impl Combat {
     /// `Hook.ModifyDamage` (spec 02 §3.2): additive pass, multiplicative pass, cap pass, floor at 0. No rounding.
     pub fn modify_damage(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, Mods) {
+        let mut mods = Mods::new();
+        let v = self.modify_damage_into(target, dealer, amount, props, card, &mut mods);
+        (v, mods)
+    }
+
+    /// `modify_damage` when the modifier list is not needed (previews).
+    #[inline]
+    pub fn modify_damage_value(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
+        let mut mods = Mods::new();
+        self.modify_damage_into(target, dealer, amount, props, card, &mut mods)
+    }
+
+    /// [`Combat::modify_damage`] with the list of modifiers appended to a caller-owned `mods` (no 300-byte copy per call).
+    pub fn modify_damage_into(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut Mods) -> Dec {
         let m = (Mask::bit(hookbit::modify_damage_additive))
             | (Mask::bit(hookbit::modify_damage_multiplicative))
             | (Mask::bit(hookbit::modify_damage_cap));
-        let snap = self.snapshot(m);
-        let mut mods = Mods::new();
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(m, &mut snap);
         let mut v = amount;
         // card.Enchantment.EnchantDamageAdditive then ...Multiplicative (before every listener pass; each enchantment
         // checks the damage props itself).
@@ -114,19 +128,19 @@ impl Combat {
                 }
             }
         }
-        (v.max(Dec::ZERO), mods)
+        v.max(Dec::ZERO)
     }
 
     /// `Hook.ModifyHpLost` for one phase pair (spec 02 §3.4). `after_osty=false` runs the BeforeOsty passes.
-    fn modify_hp_lost(&self, target: Cid, amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, after_osty: bool) -> (Dec, Mods) {
+    fn modify_hp_lost(&self, target: Cid, amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, after_osty: bool, mods: &mut Mods) -> Dec {
         let (b1, b2) = if after_osty {
             (hookbit::modify_hp_lost_after_osty, hookbit::modify_hp_lost_after_osty_late)
         } else {
             (hookbit::modify_hp_lost_before_osty, hookbit::modify_hp_lost_before_osty_late)
         };
-        let snap = self.snapshot((Mask::bit(b1)) | (Mask::bit(b2)));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into((Mask::bit(b1)) | (Mask::bit(b2)), &mut snap);
         let mut v = amount;
-        let mut mods = Mods::new();
         for bit in [b1, b2] {
             for e in snap.iter() {
                 if self.has_hook(&e.me, bit) && self.still_live(&e.me) {
@@ -144,7 +158,7 @@ impl Combat {
                 }
             }
         }
-        (v, mods)
+        v
     }
 
     fn after_modifying_hp_lost(&mut self, mods: &Mods, after_osty: bool) {
@@ -160,7 +174,8 @@ impl Combat {
         if !self.listen.has(hookbit::modify_unblocked_damage_target) {
             return target;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::modify_unblocked_damage_target));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::modify_unblocked_damage_target), &mut snap);
         let mut t = target;
         for e in snap.iter() {
             if self.still_live(&e.me) {
@@ -180,7 +195,8 @@ impl Combat {
             if self.cr(t).is_dead() {
                 continue;
             }
-            let (modified, mods) = self.modify_damage(t, dealer, amount, props, card);
+            let mut mods = Mods::new();
+            let modified = self.modify_damage_into(t, dealer, amount, props, card, &mut mods);
             self.dispatch_modifiers(false, hookbit::after_modifying_damage_amount, &mods, |cx, me, l| l.after_modifying_damage_amount(cx, me, card));
             if self.listen.has(hookbit::before_damage_received) {
                 self.dmg_card = card;
@@ -189,10 +205,12 @@ impl Combat {
             // Pet quirk: damage to Osty is absorbed by its owner's block.
             let block_owner = if self.cr(t).is_pet && self.cr(t).owner != NO { self.cr(t).owner } else { t };
             let blocked = self.damage_block_internal(block_owner, modified, props);
-            let (unblocked, mods) = self.modify_hp_lost(t, (modified - blocked).max(Dec::ZERO), props, dealer, card, false);
+            mods.clear();
+            let unblocked = self.modify_hp_lost(t, (modified - blocked).max(Dec::ZERO), props, dealer, card, false, &mut mods);
             self.after_modifying_hp_lost(&mods, false);
             let hp_target = self.modify_unblocked_damage_target(t, unblocked, props, dealer);
-            let (unblocked, mods) = self.modify_hp_lost(hp_target, unblocked, props, dealer, card, true);
+            mods.clear();
+            let unblocked = self.modify_hp_lost(hp_target, unblocked, props, dealer, card, true, &mut mods);
             self.after_modifying_hp_lost(&mods, true);
             let mut res = self.lose_hp_internal(hp_target, unblocked);
             let block_left = self.cr(t).block;
@@ -209,7 +227,8 @@ impl Combat {
                 // original target.
                 results.push(res);
                 self.hist_damage_received(res, dealer, card, props);
-                let (over, mods) = self.modify_hp_lost(t, Dec::int(res.overkill as i64), props, dealer, card, true);
+                mods.clear();
+                let over = self.modify_hp_lost(t, Dec::int(res.overkill as i64), props, dealer, card, true, &mut mods);
                 self.after_modifying_hp_lost(&mods, true);
                 let mut r2 = if over > Dec::ZERO { self.lose_hp_internal(t, over) } else { DamageResult { receiver: t, ..Default::default() } };
                 r2.blocked = blocked.trunc();
@@ -280,7 +299,8 @@ impl Combat {
     fn modify_attack_hit_count(&self, a: &Attack) -> i32 {
         let mut hits = a.hits;
         if self.listen.has(hookbit::modify_attack_hit_count) && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_attack_hit_count));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_attack_hit_count), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     hits = content::listener(&e.me).modify_attack_hit_count(self, e.me, a, hits);

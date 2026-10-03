@@ -105,7 +105,8 @@ impl Combat {
     /// `PotionCmd.TryToProcure`: `Hook.ShouldProcurePotion` (AND), add to the first free slot, `AfterPotionProcured`.
     pub fn try_procure_potion(&mut self, id: u16) -> bool {
         if self.listen.has(hookbit::should_procure_potion) {
-            let snap = self.snapshot(Mask::bit(hookbit::should_procure_potion));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_procure_potion), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_procure_potion(self, e.me, id) {
                     return false;

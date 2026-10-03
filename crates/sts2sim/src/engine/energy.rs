@@ -16,7 +16,8 @@ impl Combat {
         if mods.is_empty() || !self.listen.has(bit) || (guarded && !self.hooks_enabled()) {
             return;
         }
-        let snap = self.snapshot(Mask::bit(bit));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && mods.iter().any(|m| m.kind == e.me.kind && m.owner == e.me.owner && m.idx == e.me.idx) {
                 f(self, e.me, content::listener(&e.me));
@@ -31,7 +32,8 @@ impl Combat {
         let mut v = amount;
         let mut mods = Mods::new();
         if self.listen.has(hookbit::modify_energy_gain) && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_energy_gain));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_energy_gain), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     let n = content::listener(&e.me).modify_energy_gain(self, e.me, v);
@@ -185,7 +187,8 @@ impl Combat {
             return base;
         }
         let mut v = Dec::int(base as i64);
-        let snap = self.snapshot(Mask::bit(hookbit::try_modify_star_cost));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::try_modify_star_cost), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) {
                 if let Some(n) = content::listener(&e.me).try_modify_star_cost(self, e.me, c, v) {
@@ -252,7 +255,8 @@ impl Combat {
     pub fn x_value(&self, c: CardIdx) -> i32 {
         let mut v = self.cards[c as usize].x_value as i32;
         if self.listen.has(hookbit::modify_x_value) && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_x_value));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_x_value), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     v = content::listener(&e.me).modify_x_value(self, e.me, c, v);
