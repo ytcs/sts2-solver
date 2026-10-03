@@ -255,7 +255,8 @@ listener!(Supermassive {
 listener!(LunarBlast {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = dmg(cx, p.card);
-        let hits = cx.hist.skills_played_this_turn as i32;
+        // CardPlaysFinished (Skill, this turn): a nested play (Beat Down) is not finished yet
+        let hits = cx.hist.skills_finished_this_turn as i32;
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)).hits(hits));
         Flow::Done
     }
