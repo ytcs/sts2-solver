@@ -104,19 +104,21 @@ simulator error, `BatchEnv` as `OUTCOME_OVERFLOW`. Invalid scenarios are errors 
 | powers per creature | `MAX_POWERS` = 16 | `ov::CONTAINER` |
 | relics / potions / orbs | 24 / 4 / 10 | `ScenarioError` |
 | hook listeners of one dispatch (snapshot) | 256 | `ov::CONTAINER` |
-| per-attack results | 64 (first 16 are visible to `after_attack` listeners) | `ov::CONTAINER` |
+| per-attack results | 64 (`after_attack` listeners see the first result of every receiver, plus exact hit counters) | `ov::CONTAINER` |
 | decision candidates | 64 (= `MAX_PICK`, the action space addresses `Pick{0..64}`) | `ov::CONTAINER` |
 | selected cards of a decision / choice | 16 | `ov::CONTAINER` |
 | history ring (this-turn / last-turn queries) | 128 entries of the queried kinds | `ov::HISTORY` when an entry of the current or previous player turn is overwritten |
 | whole-combat counters (`hist_total` ...) | 65535 | `ov::COUNTER` |
 
 Observation limits (the observation is a fixed-size window, not a state copy): 8 enemies, 16 powers per creature, 64 cards per pile list, 16
-decision candidates. Beyond that the extra entries are simply not visible to the agent (the simulation itself is unaffected).
+decision candidates (the decision header carries the true candidate count; `Pick{i}` can address up to 64; a Phrog Parasite prompt in the corpus
+has 39). Beyond that the extra entries are simply not visible to the agent (the simulation itself is unaffected).
 
 ## Resetting in place
 `Combat::reset(&Scenario)` / `reset_with` / `reset_validated` re-initialise an existing combat (no 17 KB construct-and-copy); `BatchEnv` resets finished
 episodes through `reset_validated` with an allocation-free `ScenarioSource::pick`. A reset combat is bit-identical to `Combat::new` (tested, and
 replayed against the oracle with `STS2DIFF_REUSE=1`).
 
-## Throughput (this machine, release, random policy, observation + legal actions every step)
-~0.26M steps/s/thread, ~2M steps/s on 14 threads (observation encoding is the main cost; room to optimise).
+## Throughput (release, random policy, observation + legal actions every step, `cargo run --release -p sts2env --example bench`)
+~0.17M env-steps/s per core (1 thread), scaling linearly: 2.4M on an idle 14-core machine (0.95M measured while ~10 foreign cores were busy).
+The observation (~40% of an env step) and the engine step (~30%) dominate; see `docs/design.md` "Hardening phase" for the breakdown.
