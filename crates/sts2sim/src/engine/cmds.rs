@@ -183,6 +183,7 @@ impl Combat {
         copy.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::REMOVED);
         copy.flags |= cflag::IS_CLONE;
         copy.deck_idx = NO;
+        copy.dampen_saved = 0; // the Dampen dictionary is keyed by card object: a clone is not restored when Dampen ends
         self.cards[idx as usize] = copy;
         self.listen |= crate::content::card_mask(copy.id);
         self.listen_cards |= crate::content::card_mask(copy.id);

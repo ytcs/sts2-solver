@@ -1,0 +1,97 @@
+{
+ "name": "beat_down_target_before_autoplay",
+ "ascension": 10,
+ "encounter": "KNOWLEDGE_DEMON_BOSS",
+ "character": "NECROBINDER",
+ "hp": 67,
+ "max_hp": 91,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "fz901331x865758325",
+ "total_floor": 34,
+ "act": 1,
+ "deck": [
+  {
+   "id": "BODYGUARD"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "DEFEND_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "STRIKE_NECROBINDER"
+  },
+  {
+   "id": "UNLEASH"
+  },
+  {
+   "id": "INVOKE"
+  },
+  {
+   "id": "BEAT_DOWN"
+  },
+  {
+   "id": "CAPTURE_SPIRIT"
+  },
+  {
+   "id": "NECRO_MASTERY",
+   "upgrade": 1
+  },
+  {
+   "id": "SPLASH"
+  },
+  {
+   "id": "NEGATIVE_PULSE"
+  },
+  {
+   "id": "INVOKE"
+  },
+  {
+   "id": "BURN"
+  },
+  {
+   "id": "DEBT"
+  },
+  {
+   "id": "FLATTEN"
+  },
+  {
+   "id": "FLATTEN"
+  },
+  {
+   "id": "SEEKER_STRIKE"
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "BOUND_PHYLACTERY",
+  "BOOK_REPAIR_KNIFE",
+  "PENDULUM",
+  "LUCKY_FYSH"
+ ],
+ "potions": [
+  "VULNERABLE_POTION",
+  "SWIFT_POTION"
+ ],
+ "note": "Beat Down draws the target (CombatTargets) before AutoPlay; AutoPlay then vetoes the card (Sloth card limit). The draw must still be consumed."
+}
