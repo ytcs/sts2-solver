@@ -1,8 +1,6 @@
 //! Heal / max-HP / energy / generation-of-potions potions and the automatic Fairy in a Bottle.
 //!
-//! Not ported (blocked on subsystems the engine does not have yet, so they are deliberately unregistered and any
-//! scenario or generation that touches them is flagged as unimplemented): `BoneBrew` (Osty summon),
-//! `EssenceOfDarkness` (orb channeling), `KingsCourage` (Forge).
+//! Also: `BoneBrew` (Osty summon), `KingsCourage` (Forge), `DistilledChaos` (auto-play from the draw pile).
 
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -145,6 +143,37 @@ listener!(PotionShapedRock {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let d = cx.potion_var(potion, VarKind::Damage);
         cx.damage(&[target], Dec::int(d as i64), ValueProp::UNPOWERED, PLAYER, NO);
+        Flow::Done
+    }
+});
+
+// `OstyCmd.Summon(player, SummonVar 15, potion)`.
+listener!(BoneBrew {
+    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
+        let n = cx.potion_var(potion, VarKind::Summon);
+        cx.summon(n);
+        Flow::Done
+    }
+});
+
+// `ForgeCmd.Forge(ForgeVar 15, player, potion)`.
+listener!(KingsCourage {
+    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
+        let n = cx.potion_var(potion, VarKind::Forge);
+        cx.forge(n);
+        Flow::Done
+    }
+});
+
+// `CardPileCmd.AutoPlayFromDrawPile(player, RepeatVar 3, Top, forceExhaust: false)`.
+listener!(DistilledChaos {
+    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
+        if phase == 0 {
+            let n = cx.potion_var(potion, VarKind::Repeat);
+            if cx.auto_play_from_draw_pile(n, CardPilePosition::Top, false) == crate::engine::RunResult::Suspended {
+                return Flow::Suspend(1);
+            }
+        }
         Flow::Done
     }
 });

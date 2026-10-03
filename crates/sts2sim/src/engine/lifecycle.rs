@@ -25,7 +25,8 @@ impl Combat {
         }
         for _ in 0..count {
             if let Some(c) = self.new_card(card_id, 0) {
-                self.add_generated_card(c, pile, pos);
+                // every caller is a monster / enemy power: `AddToCombatAndPreview<T>(.., creator: null)`
+                self.add_generated_card_by(c, pile, pos, false);
             }
         }
     }

@@ -517,6 +517,8 @@ pub struct Combat {
     /// `AttackCommand.Results` (first 16 per-hit results) of the attack whose `after_attack` hooks are being dispatched
     /// (only filled when some listener has `after_attack`): Suck, Skittish.
     pub attack_results: ArrayVec<crate::engine::DamageResult, 16>,
+    /// Sizes of the per-hit groups of `attack_results` (C# `command.Results` is a list of per-hit result lists).
+    pub attack_hit_sizes: ArrayVec<u8, 16>,
     /// Side channel for `AfterAttack` (C# `command.Results`): set by `execute_attack` right before the hook pass.
     /// `attack_unblocked_hits` = results with unblocked damage > 0 (any receiver); `attack_player_hits` = those whose
     /// receiver is the player creature.

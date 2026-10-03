@@ -72,6 +72,36 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             Console.WriteLine($"shuffle order match: {ok}; shuffle counter at record 0 = {shuf} (expected {sc.Deck.Count - 1} if nothing else drew); niche counter = {(int)rec["rng"]["niche"]["counter"]}; enemies = {rec["enemies"].AsArray().Count}");
             return ok ? 0 : 1;
         }
+        if (cmd == "list-meta")
+        {
+            var txt = Fuzz.ListMeta().ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+            if (kv.TryGetValue("out", out var lp)) File.WriteAllText(lp, txt + "\n"); else Console.WriteLine(txt);
+            return 0;
+        }
+        if (cmd == "batch")
+        {
+            // batch --list FILE --policy-base N: FILE has one scenario path per line (BASE.scenario.json); for each, run the random
+            // policy (seed = policy-base + line index) and write BASE.jsonl; one process for all (no per-fight JIT). Errors go to BASE.err.
+            var paths = File.ReadAllLines(kv["list"]).Where(l => l.Trim().Length > 0).ToList();
+            int pb = int.Parse(kv.GetValueOrDefault("policy-base", "0"));
+            int nbad = 0;
+            for (int i = 0; i < paths.Count; i++)
+            {
+                string bp = paths[i].Replace(".scenario.json", "");
+                RunResult res;
+                try
+                {
+                    var sc = Scenario.Load(paths[i]);
+                    using var w = new StreamWriter(bp + ".jsonl", false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" };
+                    res = RunOne(sc, w, pump, pb + i, maxSteps, maxRounds);
+                }
+                catch (Exception e) { res = new RunResult("exception", new List<ActionSpec>(), e.ToString()); }
+                if (res.Error != null) { nbad++; File.WriteAllText(bp + ".err", res.Error + "\n"); }
+                Console.WriteLine($"{(res.Error == null ? "ok " : "ERR")} {bp} {res.Result}");
+            }
+            Console.WriteLine($"batch done: {paths.Count} runs, {nbad} errors");
+            return 0;
+        }
         if (cmd == "fuzz") return DoFuzz(kv, flags, pump, maxSteps, maxRounds);
         Console.Error.WriteLine(Usage);
         return 2;

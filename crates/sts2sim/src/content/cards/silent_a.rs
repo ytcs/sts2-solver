@@ -392,12 +392,23 @@ listener!(EchoingSlash {
         let ctx = Attack::from_card(PLAYER, p.card, 0, Targeting::AllOpponents);
         cx.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, &ctx));
         let mut rounds = 1;
+        let mut all: crate::util::ArrayVec<crate::engine::DamageResult, 16> = crate::util::ArrayVec::new();
+        let mut sizes: crate::util::ArrayVec<u8, 16> = crate::util::ArrayVec::new();
         while rounds > 0 {
             rounds -= 1;
             let targets = cx.hittable_enemies();
             let res = cx.damage(targets.as_slice(), Dec::int(dmg as i64), ValueProp::MOVE, PLAYER, p.card);
             rounds += res.iter().filter(|r| r.killed).count();
+            for r in res.iter() {
+                if all.len() < 16 {
+                    all.push(*r);
+                }
+            }
+            if sizes.len() < 16 {
+                sizes.push(res.len() as u8);
+            }
         }
+        cx.set_attack_results(all.as_slice(), sizes.as_slice());
         cx.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, &ctx));
         Flow::Done
     }

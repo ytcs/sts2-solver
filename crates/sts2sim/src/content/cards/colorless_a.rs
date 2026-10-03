@@ -411,6 +411,12 @@ listener!(Omnislice {
         cx.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, &ctx_attack));
         let dmg = cx.card_var(p.card, VarKind::Damage);
         let first = cx.damage(&[p.target], Dec::int(dmg as i64), ValueProp::MOVE, PLAYER, p.card);
+        let mut hit_results: crate::util::ArrayVec<crate::engine::DamageResult, 16> = crate::util::ArrayVec::new();
+        let mut hit_sizes: crate::util::ArrayVec<u8, 2> = crate::util::ArrayVec::new();
+        for r in first.iter().take(16) {
+            hit_results.push(*r);
+        }
+        hit_sizes.push(first.len() as u8);
         if let Some(r) = first.first() {
             let mut others: crate::util::ArrayVec<Cid, MAX_CREATURES> = crate::util::ArrayVec::new();
             for &e in cx.enemies.iter() {
@@ -420,9 +426,16 @@ listener!(Omnislice {
             }
             if !others.is_empty() {
                 let total = r.blocked + r.unblocked + r.overkill;
-                cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
+                let rest = cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
+                for r in rest.iter() {
+                    if hit_results.len() < 16 {
+                        hit_results.push(*r);
+                    }
+                }
+                hit_sizes.push(rest.len() as u8);
             }
         }
+        cx.set_attack_results(hit_results.as_slice(), hit_sizes.as_slice());
         cx.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, &ctx_attack));
         Flow::Done
     }
