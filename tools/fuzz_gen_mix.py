@@ -133,7 +133,8 @@ class Gen:
         for cid, up in deck:
             c = {"id": cid, "upgrade": up} if up else cid
             if cid == "MAD_SCIENCE":  # per-instance type (1 attack / 2 skill / 3 power) + rider (1-9), saved props
-                c = {"id": cid, "upgrade": up, "props": {"TinkerTimeRider": r.randint(1, 9), "TinkerTimeType": r.randint(1, 3)}}
+                ty = r.randint(1, 3)  # riders: attack 1-3, skill 4-6, power 7-9 (TinkerTime.ChooseRiderEffect)
+                c = {"id": cid, "upgrade": up, "props": {"TinkerTimeRider": 3 * (ty - 1) + r.randint(1, 3), "TinkerTimeType": ty}}
             out.append(c)
         # the game removes/transforms: occasionally drop a random starter strike/defend
         for _ in range(r.randint(0, 2)):
@@ -237,7 +238,7 @@ def run_chunk(args):
     for p in paths:
         base = p[: -len(".scenario.json")]
         if os.path.exists(base + ".error.txt"):
-            res.append((base, "oracle-error", open(base + ".error.txt").read()[-400:]))
+            res.append((base, "oracle-error", open(base + ".error.txt").read()[:500]))
             continue
         if not os.path.exists(base + ".jsonl"):
             res.append((base, "oracle-error", "no trace (oracle crashed?)"))

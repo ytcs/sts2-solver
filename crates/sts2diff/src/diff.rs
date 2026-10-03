@@ -154,7 +154,12 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             }
         }
         let mut diffs = vec![];
-        compare("", &snapshot(&cx), rec, &mut diffs);
+        let snap = snapshot(&cx);
+        // Debug aid: STS2DIFF_DUMP=N prints the simulator's snapshot at record N (and the oracle's, for a side-by-side `diff`).
+        if std::env::var("STS2DIFF_DUMP").ok().and_then(|v| v.parse::<usize>().ok()) == Some(i) {
+            println!("RUST {snap}\nORACLE {rec}");
+        }
+        compare("", &snap, rec, &mut diffs);
         if !diffs.is_empty() {
             if let Some((j, m)) = &first_missing {
                 if i > *j {

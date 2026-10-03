@@ -484,7 +484,7 @@ listener!(MakeItSo {
     fn after_card_played_late(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let c = me.idx as CardIdx;
         if cx.card_def(play.card).ctype == CardType::Skill && cx.card_pile_type(c) != PileType::Hand {
-            let n = cx.hist.skills_played_this_turn as i32;
+            let n = cx.hist.skills_finished_this_turn as i32;
             let k = cx.card_var(c, VarKind::Cards);
             if k > 0 && n % k == 0 {
                 cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);

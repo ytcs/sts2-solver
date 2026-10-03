@@ -190,8 +190,14 @@ impl Combat {
 
     /// `CardPileCmd.AddGeneratedCardToCombat`: a brand-new card enters `pile` (hand-full redirect applies).
     pub fn add_generated_card(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition) -> bool {
-        // CardGeneratedEntry(creator): everything generated during the player's side is player-created.
+        // CardGeneratedEntry(creator): everything generated during the player's side is player-created (callers whose C# passes a
+        // null creator while the player acts, e.g. enemy powers reacting to a hit, use `add_generated_card_as(.., false)`).
         let by_player = self.side == Side::Player;
+        self.add_generated_card_as(c, pile, pos, by_player)
+    }
+
+    /// `AddGeneratedCardToCombat(card, pile, creator, pos)` with an explicit `creator != null`.
+    pub fn add_generated_card_as(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition, by_player: bool) -> bool {
         self.hist_card_generated(c, by_player);
         let ok = self.move_card(c, pile, pos);
         if ok {
