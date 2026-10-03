@@ -206,7 +206,7 @@ listener!(TagTeamPower {
         if applier == PLAYER {
             return count; // `card.Owner.Creature == Applier`
         }
-        let tt = cx.card_target_type(card);
+        let tt = cx.card_def(card).target;
         if tt == TargetType::AnyEnemy && target != me.owner {
             return count;
         }
@@ -221,8 +221,8 @@ listener!(TagTeamPower {
 });
 
 // ---- CalamityPower: after each Attack you play, add `Amount` random Attacks of your character's pool to the hand --------
-// The per-card amount recorded at `BeforeCardPlayed` (the C# `amountsForPlayedCards` dictionary) lives on the card
-// (`Card::calamity_amount`): Attacks nest (a Sly discard / auto-play inside another Attack's effect), so one slot per power is not enough.
+// The per-card amount recorded at `BeforeCardPlayed` is the C# `amountsForPlayedCards` dictionary (`play_amount_*`);
+// attacks DO nest (Uproar auto-plays an Attack from inside its own play).
 listener!(CalamityPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_def(play.card).ctype != CardType::Attack {
@@ -230,15 +230,12 @@ listener!(CalamityPower {
         }
         if let Some(i) = cx.power_idx(me.owner, me.idx) {
             let a = cx.cr(me.owner).powers[i].amount;
-            cx.cards[play.card as usize].calamity_amount = a.clamp(1, 255) as u8;
+            cx.play_amount_add(me.idx, play.card, a);
         }
     }
-    fn after_card_played(&self, cx: &mut Combat, _me: Me, play: &CardPlay) {
-        let amount = cx.cards[play.card as usize].calamity_amount as usize;
-        if amount == 0 {
-            return;
-        }
-        cx.cards[play.card as usize].calamity_amount = 0;
+    fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
+        let Some(amount) = cx.play_amount_take(me.idx, play.card) else { return };
+        let amount = amount.max(0) as usize;
         let pool = cx.character_pool();
         let cards = cx.get_for_combat_where(pool, amount, |d| d.ctype == CardType::Attack);
         for &c in cards.iter() {
@@ -301,8 +298,8 @@ listener!(EntropyPower {
 });
 
 // ---- StratagemPower: after a reshuffle choose `Amount` cards of the draw pile to put into the hand ---------------------
-// A decision is only resumable during the turn-start hand draw (`draw_resume` / `turn_cont` 3); during other draws it is
-// flagged as not ported (the draw loop of a card effect cannot pause).
+// The decision is resumable during the turn-start hand draw (`draw_resume` / `turn_cont` 4) and during a plain draw of a
+// card / potion effect (`draw_cont`, see `Combat::draw_decision_resumable`); other draws flag it as not ported.
 listener!(StratagemPower {
     fn after_shuffle(&self, cx: &mut Combat, me: Me) {
         if me.owner != PLAYER {
@@ -316,15 +313,10 @@ listener!(StratagemPower {
                 }
             }
             crate::engine::Ask::Pending => {
-                if cx.draw_can_suspend() {
+                if cx.draw_decision_resumable() {
                     cx.hook_ctx = Some((me, 1));
                     cx.stage = Stage::AwaitChoice;
                 } else {
-                    #[cfg(debug_assertions)]
-                    if crate::engine::trace_on() {
-                        let names: Vec<&str> = cx.play_stack.iter().map(|c| crate::ids::card::NAMES[cx.cards[c.play.card as usize].id as usize]).collect();
-                        eprintln!("TRACE stratagem unsupported context: play stack {:?} potion {} side {:?}", names, cx.potion_ctx.is_some(), cx.side);
-                    }
                     cx.decision = None;
                     cx.flag_missing(Kind::Power, me.id);
                 }

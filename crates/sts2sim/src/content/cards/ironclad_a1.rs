@@ -1,6 +1,5 @@
 //! Ironclad cards, batch a1: pool positions [0,45) of the Ironclad pool (Aggression .. Impervious) that are not in basic.rs.
 
-use crate::engine::calc_with;
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Ask, Attack, HKind, RunResult, Targeting};
@@ -96,13 +95,9 @@ listener!(FeelNoPain {
 // ---- skills ---------------------------------------------------------------------------------------------------------
 
 listener!(BattleTrance {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        if phase == 0 {
-            let n = cx.card_var(p.card, VarKind::Cards);
-            if cx.draw_cards_s(n, 1) {
-                return Flow::Suspend(PH_DRAW_TAIL);
-            }
-        }
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+        let n = cx.card_var(p.card, VarKind::Cards);
+        cx.draw_cards(n, false);
         cx.apply_power(ids::power::NO_DRAW_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
         Flow::Done
     }
@@ -194,7 +189,8 @@ listener!(Dominate {
 listener!(DrumOfBattle {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
     fn after_card_exhausted(&self, cx: &mut Combat, me: Me, card: CardIdx, _by_ethereal: bool) {
         if card as u16 != me.idx {
@@ -262,10 +258,6 @@ listener!(AshenStrike {
         cx.execute_attack(&a);
         Flow::Done
     }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        Some(calc_with(cx, card, cx.player.exhaust.len() as i32))
-    }
 });
 
 listener!(Bludgeon {
@@ -281,10 +273,6 @@ listener!(BodySlam {
         let a = Attack::from_card_calc(PLAYER, p.card, Targeting::Single(p.target), |cx, _, _| cx.cr(PLAYER).block);
         cx.execute_attack(&a);
         Flow::Done
-    }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        Some(calc_with(cx, card, cx.cr(PLAYER).block))
     }
 });
 
@@ -315,9 +303,6 @@ listener!(Bully {
         });
         cx.execute_attack(&a);
         Flow::Done
-    }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        Some(calc_with(cx, card, if target == NO { 0 } else { cx.power_amount(target, ids::power::VULNERABLE_POWER) }))
     }
 });
 

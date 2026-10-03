@@ -69,8 +69,7 @@ Since the first slice: decisions (click/confirm model, hand/pile/choose-a-card),
 * `ArrayVec` is `MaybeUninit`-backed: temporaries (hook snapshots, damage results) cost nothing to create.
 * `Combat::listen` is the union of every present model's hook mask; a hook with no listener is one bit test.
   (First version zero-filled a 3 KB snapshot per dispatch: 11k → 94k fights/s/thread after this change.)
-* Next candidates: card arena/piles as u8 handles are already compact; avoid `is_ending()` scans in `hooks_enabled`
-  (cache per action), shrink `Combat` (power capacity per creature), SIMD-friendly observation packing.
+* (Hardening phase, below: snapshots are filled in place, dispatch slow paths are out of line, `Combat` is 17.5 KB, resets are in place.)
 
 ### How to add content
 1. Stats already exist in `content/gen_*.rs`. Re-run `tools/gen_defs.py` / `tools/gen_ids.py` after a game update.
@@ -104,6 +103,61 @@ Throughput after the merge (release, loaded shared machine, `crates/sts2sim/exam
 (was 0.80M); `size_of::<Combat>()` 20.6 KB (was 14.5 KB: `Card` grew by star/enchant/affliction state, `HistLog` ring 2 KB, nested
 play/auto-play stacks). Candidates: shrink `HistLog` entries / ring, move rarely used card state out of `Card`, skip history writes
 for kinds nobody queries.
+
+### Hardening phase (robustness, memory, throughput)
+Done on `sim-rebuild` after the content merge; every step was verified bit-identical (unit tests, `tools/regress_cache.py check` over the
+1236 cached real-game traces of all 398 templates, once with a fresh `Combat` and once through the in-place reset with `STS2DIFF_REUSE=1`,
+and the instruction-count harness checksums). Tools: `examples/prof.rs` (callgrind workload), `examples/sizes.rs`, `[profile.prof]`,
+`tools/regress_cache.py` (record the oracle's traces once, replay them in ~15 s).
+
+**Robustness** (details and the capacity table: `docs/env-api.md`). A full `ArrayVec` never panics or drops silently: it raises a
+thread-local flag that `Combat::step` folds into `Combat::overflow` (`state::ov::*`); card arena, creature slots, history ring, counters,
+uids and the scenario capacities are flagged the same way; `BatchEnv` ends such an episode with `OUTCOME_OVERFLOW` (4, also in `sts2py`),
+`sts2diff` reports it as an error. Invalid scenarios are `Err(ScenarioError)` (`Combat::try_new`), buffer-size mistakes are
+`Err(EnvError::Buffer)`, never panics (the release profile is `panic = "abort"`: a panic would kill the whole training process).
+The history ring only stores the kinds some content queries per turn and flags the overwrite of a still-live entry. Silent truncations were
+removed (forced selections cut at 16, `attack_results` cut at 16, `deck_enchant_inc` saturation, wrapping uids). Corpus audit (random-policy
+fights of 200 steps): up to 143 of 160 card slots (Test Subject boss), 13 of 16 player powers, 6 enemy powers, 8 creatures, 39 decision
+candidates (the observation shows 16 of them, the header carries the true count). Found and fixed on the way: the batch env overflowed
+rayon's 2 MB worker stacks about every other run (the inlined per-env step has a multi-KB frame that rayon stacks once per split level) -
+it now runs on its own pool with 32 MB stacks and a non-inlined leaf.
+
+**Memory** (`size_of::<Combat>()`, budget test `tests/robustness.rs::state_size_budget`):
+
+| | before | after |
+|---|---|---|
+| `Combat` | 21,072 B | 17,488 B |
+| `Card` x 160 | 60 B | 48 B (`CostMod` 4 -> 2 B, `u8` flags, `u8`-length lists) |
+| `Creature` x slots | 416 B x 16 | 416 B x 12 (largest encounter starts with 4 enemies; corpus peak 8) |
+| hook `Snapshot` (stack temporary) | 6,152 B | 3,076 B (no 32-byte mask per listener, capacity 128 -> 256) |
+| `ACTION_SPACE` | 308 | 252 (`MAX_CREATURES` + 1 target slots per hand card / potion): **invalidates saved policy heads** |
+
+**Throughput** (instruction counts from callgrind on the `prof` profile, 1000 greedy starter-vs-Nibbit fights; wall-clock on this shared
+machine fluctuates 30-50% from other jobs, so the A/B runs are interleaved):
+
+| | before (integrated `962cd3e`) | after |
+|---|---|---|
+| fight, `Combat::new` per fight | 158.7 M Ir | 108.9 M Ir (-31%) |
+| fight, one `Combat` reset in place | n/a | 86.2 M Ir (-46% vs `new` before; 82.0 M before the final robustness checks) |
+| env step (legal actions + observation + step), 100 random episodes | 91.9 M Ir | 52.4 M Ir (-43%) |
+| single-thread fights/s (interleaved release runs, best of 8 at load 8-24) | 48 k | 84 k (`new`), 93 k (reset); 1.4-1.9x per run |
+| env-steps/s per core (`sts2env` bench, 1 thread) | 0.11 M | 0.17-0.18 M |
+| env-steps/s, 14 threads on a machine with ~10 foreign busy cores | 0.55 M | 0.95 M |
+
+Per-core scaling is linear (1/2/4 threads: 0.17/0.30/0.58 M), so an idle 14-core box gives about 2.4 M env-steps/s (the 2 M target).
+What paid off, in order: reset in place and not building / copying 20 KB structs (one memset + memcpy per fight); filling snapshots in place
+instead of returning a 3 KB list (the compiler copied it whole on every call, even when empty); keeping the "nobody listens" test inline and the
+body out of line (`dispatch_*`: the 3 KB snapshot frame no longer sits in every caller); no 300-byte / 1.3 KB list copies in the damage and block
+pipelines; `Creature::secondary` instead of scanning powers in every `is_ending`; observation: one memset, skipping empty slots, packed sort
+keys for the draw-pile multiset, `can_play` evaluated once per hand card for mask + observation (`legal_actions_ex` / `observe_ex`);
+`Dec::trunc` on `i64`; cheaper `ArrayVec::insert/remove`. Callgrind counts `rep stos` per byte, so memset-heavy code looks worse in Ir than it is.
+
+Not optimized (would change semantics or needs a different design): `Dec::mul` needs the 128-bit product (the `decimal` stand-in must stay
+exact; `__divti3` is ~3% of a fight); observation previews re-run `modify_damage` / `modify_block` per hand card because every modifier is a
+hook that may depend on the card instance; `hooks_enabled` / `is_ending` are not cached across calls (a cache would need invalidation on every
+hp / power / pending-loss write); the profile is now flat, with ~700 branch mispredictions per fight (dyn hook calls, jump tables) as the
+remaining floor; per-creature power capacity by role (`Power` is 20 B x 16 per creature; the player reached 13 powers in the corpus, so 16
+stays).
 
 ### Known gaps (engine)
 Done in the engine-core pass: every `Hook.*` dispatcher, death/kill sequence (preventers, minions, escape, player death), mid-combat

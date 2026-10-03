@@ -42,7 +42,8 @@ listener!(ShrugItOff {
         let block = cx.card_var(p.card, VarKind::Block);
         cx.gain_block(PLAYER, Dec::int(block as i64), ValueProp::MOVE, p.card);
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 
@@ -51,7 +52,8 @@ listener!(PommelStrike {
         let dmg = cx.card_var(p.card, VarKind::Damage);
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 
@@ -238,7 +240,8 @@ listener!(BurningPact {
                         cx.exhaust_card(c, false);
                     }
                     let n = cx.card_var(p.card, VarKind::Cards);
-                    cx.draw_then_done(n)
+                    cx.draw_cards(n, false);
+                    Flow::Done
                 }
                 Ask::Pending => Flow::Suspend(1),
             },
@@ -247,7 +250,8 @@ listener!(BurningPact {
                     cx.exhaust_card(c, false);
                 }
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_then_done(n)
+                cx.draw_cards(n, false);
+                Flow::Done
             }
         }
     }
@@ -261,11 +265,7 @@ listener!(Discovery {
                 let pool = cx.character_pool();
                 let cards = cx.get_distinct_for_combat(pool, 3, |_| true);
                 match cx.ask_options(ids::card::DISCOVERY, cards.as_slice(), true) {
-                    Ask::Resolved(cards) => {
-                        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
-                        cx.choice.cards = cards;
-                        self.on_play(cx, _p, 1)
-                    }
+                    Ask::Resolved(_) => Flow::Done,
                     Ask::Pending => Flow::Suspend(1),
                 }
             }

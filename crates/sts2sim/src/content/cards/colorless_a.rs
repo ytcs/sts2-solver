@@ -39,12 +39,6 @@ fn draw(cx: &mut Combat, p: &CardPlay) {
     cx.draw_cards(n, false);
 }
 
-/// `draw` as the last action of the effect.
-fn draw_last(cx: &mut Combat, p: &CardPlay) -> Flow {
-    let n = cx.card_var(p.card, VarKind::Cards);
-    cx.draw_then_done(n)
-}
-
 // ---- Anointed: pull Rare cards from the draw pile into the hand ----------------------------------------------------------
 listener!(Anointed {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
@@ -176,7 +170,8 @@ listener!(Fasten {
 listener!(Finesse {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
-        draw_last(cx, p)
+        draw(cx, p);
+        Flow::Done
     }
 });
 
@@ -193,7 +188,8 @@ listener!(Fisticuffs {
 listener!(FlashOfSteel {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
-        draw_last(cx, p)
+        draw(cx, p);
+        Flow::Done
     }
 });
 
@@ -220,9 +216,6 @@ listener!(GangUp {
         cx.execute_attack(&a);
         Flow::Done
     }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        Some(calc_gang_up(cx, card, target))
-    }
 });
 
 // 0 + 1 * (card plays finished so far this combat); Retain when upgraded (stat table).
@@ -240,9 +233,6 @@ listener!(GoldAxe {
         a.damage = d;
         cx.execute_attack(&a);
         Flow::Done
-    }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        Some(calc_gold_axe(cx, card, target))
     }
 });
 
@@ -293,7 +283,8 @@ listener!(HiddenGem {
 // Multiplayer only (AllAllies): each living player draws.
 listener!(HuddleUp {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        draw_last(cx, p)
+        draw(cx, p);
+        Flow::Done
     }
 });
 
@@ -301,7 +292,7 @@ listener!(Impatience {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let has_attack = cx.player.hand.iter().any(|&c| cx.card_def(c).ctype == CardType::Attack);
         if !has_attack {
-            return draw_last(cx, p);
+            draw(cx, p);
         }
         Flow::Done
     }
@@ -370,7 +361,8 @@ listener!(Lift {
 
 listener!(MasterOfStrategy {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        draw_last(cx, p)
+        draw(cx, p);
+        Flow::Done
     }
 });
 
@@ -402,9 +394,6 @@ listener!(MindBlast {
         cx.execute_attack(&a);
         Flow::Done
     }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        Some(calc_mind_blast(cx, card, target))
-    }
 });
 
 listener!(Nostalgia {
@@ -422,10 +411,12 @@ listener!(Omnislice {
         cx.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, &ctx_attack));
         let dmg = cx.card_var(p.card, VarKind::Damage);
         let first = cx.damage(&[p.target], Dec::int(dmg as i64), ValueProp::MOVE, PLAYER, p.card);
-        let mut all = crate::engine::Results::new();
-        for x in first.iter() {
-            all.push(*x);
+        let mut hit_results: crate::util::ArrayVec<crate::engine::DamageResult, 16> = crate::util::ArrayVec::new();
+        let mut hit_sizes: crate::util::ArrayVec<u8, 2> = crate::util::ArrayVec::new();
+        for r in first.iter().take(16) {
+            hit_results.push(*r);
         }
+        hit_sizes.push(first.len() as u8);
         if let Some(r) = first.first() {
             let mut others: crate::util::ArrayVec<Cid, MAX_CREATURES> = crate::util::ArrayVec::new();
             for &e in cx.enemies.iter() {
@@ -435,13 +426,17 @@ listener!(Omnislice {
             }
             if !others.is_empty() {
                 let total = r.blocked + r.unblocked + r.overkill;
-                let more = cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
-                for x in more.iter() {
-            all.push(*x);
-        }
+                let rest = cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
+                for r in rest.iter() {
+                    if hit_results.len() < 16 {
+                        hit_results.push(*r);
+                    }
+                }
+                hit_sizes.push(rest.len() as u8);
             }
         }
-        cx.after_attack_hook(&ctx_attack, all.as_slice());
+        cx.set_attack_results(hit_results.as_slice(), hit_sizes.as_slice());
+        cx.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, &ctx_attack));
         Flow::Done
     }
 });
@@ -580,9 +575,6 @@ listener!(Rend {
         cx.execute_attack(&a);
         Flow::Done
     }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        Some(calc_rend(cx, card, target))
-    }
 });
 
 // Only does something if it is the only card in the hand: draw one card at a time, then gain energy.
@@ -621,7 +613,8 @@ listener!(Salvo {
 listener!(Scrawl {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let n = MAX_HAND as i32 - cx.player.hand.len() as i32;
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 
@@ -742,11 +735,7 @@ listener!(Splash {
                     }
                 }
                 match cx.ask_options(ids::card::SPLASH, cards.as_slice(), true) {
-                    Ask::Resolved(cards) => {
-                        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
-                        cx.choice.cards = cards;
-                        self.on_play(cx, p, 1)
-                    }
+                    Ask::Resolved(_) => Flow::Done,
                     Ask::Pending => Flow::Suspend(1),
                 }
             }
@@ -815,7 +804,8 @@ listener!(ThinkingAhead {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
             0 => {
-                draw(cx, p);
+                let n = cx.card_var(p.card, VarKind::Cards);
+                cx.draw_cards_nosuspend(n, false); // a decision follows: a Stratagem pick cannot be paused here
                 match cx.ask_hand(ids::card::THINKING_AHEAD, 1, 1, |_, _| true) {
                     Ask::Resolved(cards) => {
                         if let Some(c) = cards.first() {

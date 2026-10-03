@@ -1,8 +1,5 @@
 //! Heal / max-HP / energy / generation-of-potions potions and the automatic Fairy in a Bottle.
 //!
-//! Not ported (blocked on subsystems the engine does not have yet, so they are deliberately unregistered and any
-//! scenario or generation that touches them is flagged as unimplemented):
-//! `EssenceOfDarkness` (orb channeling).
 
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -28,7 +25,7 @@ listener!(BloodPotion {
     }
 });
 
-// Heal 50% of max HP, then (in combat) AmbergrisPower (extra turn; the power is not ported, so this is flagged).
+// Heal 50% of max HP, then (in combat) AmbergrisPower (an extra player turn).
 listener!(Ambergris {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         heal_percent(cx, potion, target);
@@ -63,7 +60,8 @@ listener!(CureAll {
         let e = cx.potion_var(potion, VarKind::Energy);
         cx.gain_energy(e);
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 
@@ -76,15 +74,42 @@ listener!(StarPotion {
     }
 });
 
-// +2 orb slots (capped at 10 slots in total).
+// +2 orb slots (`OrbCmd.AddSlots`: capped at 10 in total).
 listener!(PotionOfCapacity {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
-        if cx.is_over_or_ending() {
-            return Flow::Done;
-        }
         let n = cx.potion_var(potion, VarKind::Repeat);
-        let add = n.min(10 - cx.player.orb_slots as i32).max(0);
-        cx.player.orb_slots += add as u8;
+        cx.add_orb_slots(n);
+        Flow::Done
+    }
+});
+
+// Summon 15 (`OstyCmd.Summon`).
+listener!(BoneBrew {
+    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
+        let n = cx.potion_var(potion, VarKind::Summon);
+        cx.summon(n);
+        Flow::Done
+    }
+});
+
+// Forge 15 (`ForgeCmd.Forge`).
+listener!(KingsCourage {
+    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
+        let n = cx.potion_var(potion, VarKind::Forge);
+        cx.forge(n);
+        Flow::Done
+    }
+});
+
+// Auto-play `Repeat` cards from the top of the draw pile (no forced exhaust). Phase 1 = resume after a nested decision.
+listener!(DistilledChaos {
+    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
+        if phase == 0 {
+            let n = cx.potion_var(potion, VarKind::Repeat);
+            if cx.auto_play_from_draw_pile(n, CardPilePosition::Top, false) == crate::engine::RunResult::Suspended {
+                return Flow::Suspend(1);
+            }
+        }
         Flow::Done
     }
 });
@@ -148,35 +173,3 @@ listener!(PotionShapedRock {
     }
 });
 
-// ---- engine-backed potions (Osty summon, Forge, auto-play from the draw pile) -------------------------------------------------------
-
-// `OstyCmd.Summon(Summon = 15)`.
-listener!(BoneBrew {
-    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
-        let n = cx.potion_var(potion, VarKind::Summon);
-        cx.summon(n);
-        Flow::Done
-    }
-});
-
-// `ForgeCmd.Forge(15)`.
-listener!(KingsCourage {
-    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
-        let n = cx.potion_var(potion, VarKind::Forge);
-        cx.forge(n);
-        Flow::Done
-    }
-});
-
-// `CardPileCmd.AutoPlayFromDrawPile(Repeat = 3, Top, forceExhaust: false)`; phase 1 = resumed after a nested decision.
-listener!(DistilledChaos {
-    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
-        if phase == 0 {
-            let n = cx.potion_var(potion, VarKind::Repeat);
-            if cx.auto_play_from_draw_pile(n, CardPilePosition::Top, false) == crate::engine::RunResult::Suspended {
-                return Flow::Suspend(1);
-            }
-        }
-        Flow::Done
-    }
-});

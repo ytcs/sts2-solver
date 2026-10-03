@@ -51,7 +51,8 @@ impl Combat {
         if !self.hooks_enabled() {
             return true;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::should_allow_hitting));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::should_allow_hitting), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && !content::listener(&e.me).should_allow_hitting(self, e.me, c) {
                 return false;
@@ -107,7 +108,11 @@ impl Combat {
             return Some(uid);
         }
         let uid = self.next_power_uid;
-        self.next_power_uid = self.next_power_uid.wrapping_add(1);
+        let (next, wrapped) = self.next_power_uid.overflowing_add(1);
+        if wrapped {
+            crate::util::raise_overflow(ov::COUNTER as u32); // a power uid is reused: instances could be confused
+        }
+        self.next_power_uid = next;
         self.listen |= content::power_mask(id);
         if !content::power_implemented(id) {
             self.flag_missing(Kind::Power, id);
@@ -131,6 +136,7 @@ impl Combat {
                 let amt = v.trunc().clamp(-MAX_POWER_AMOUNT, MAX_POWER_AMOUNT);
                 let p = Power { id, uid, amount: amt, amount_on_turn_start: 0, aux: content::power_listener(id).initial_power_aux(), applier, skip_next_tick: false };
                 self.cr_mut(target).powers.push(p);
+                self.sync_secondary(target);
                 attached = true;
                 self.hist_push(crate::engine::HKind::PowerReceived, target, applier, id, NO, v.trunc(), 0, 0, 0);
             }
@@ -159,11 +165,12 @@ impl Combat {
     /// `ModifyPowerAmountGiven`: additive pass then multiplicative pass (SneckoSkull / UnsettlingLamp).
     fn modify_power_amount_given(&self, id: u16, giver: Cid, amount: Dec, target: Cid, card: CardIdx) -> (Dec, Mods) {
         let m = (Mask::bit(hookbit::modify_power_amount_given_additive)) | (Mask::bit(hookbit::modify_power_amount_given_multiplicative));
-        let snap = self.snapshot(m);
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(m, &mut snap);
         let mut v = amount;
         let mut mods = Mods::new();
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_power_amount_given_additive) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_power_amount_given_additive) && self.still_live(&e.me) {
                 let d = content::listener(&e.me).modify_power_amount_given_additive(self, e.me, id, giver, v, target, card);
                 v += d;
                 if !d.is_zero() {
@@ -172,7 +179,7 @@ impl Combat {
             }
         }
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_power_amount_given_multiplicative) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_power_amount_given_multiplicative) && self.still_live(&e.me) {
                 let f = content::listener(&e.me).modify_power_amount_given_multiplicative(self, e.me, id, giver, v, target, card);
                 v *= f;
                 if f != Dec::ONE {
@@ -185,7 +192,8 @@ impl Combat {
 
     /// `ModifyPowerAmountReceived`: threaded TRY hooks (Artifact, RuinedHelmet).
     fn modify_power_amount_received(&self, id: u16, target: Cid, amount: Dec, applier: Cid) -> (Dec, Mods) {
-        let snap = self.snapshot(Mask::bit(hookbit::try_modify_power_amount_received));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::try_modify_power_amount_received), &mut snap);
         let mut v = amount;
         let mut mods = Mods::new();
         if !self.hooks_enabled() {
@@ -244,10 +252,18 @@ impl Combat {
         new_amount
     }
 
+    /// Recomputes `Creature::secondary` after the power list of `c` changed.
+    #[inline]
+    pub(crate) fn sync_secondary(&mut self, c: Cid) {
+        let cr = self.cr_mut(c);
+        cr.secondary = cr.powers.iter().any(|p| content::power_def(p.id).secondary_enemy);
+    }
+
     /// `PowerCmd.Remove`: list removal then `AfterRemoved` (no amount hooks).
     pub fn remove_power(&mut self, c: Cid, uid: u16) {
         if let Some(i) = self.power_idx(c, uid) {
             let p = self.cr_mut(c).powers.remove(i);
+            self.sync_secondary(c);
             let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
             content::listener(&me).after_removed(self, me, c);
         }

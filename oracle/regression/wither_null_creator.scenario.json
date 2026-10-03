@@ -1,0 +1,138 @@
+{
+ "name": "wither_null_creator",
+ "ascension": 10,
+ "encounter": "AEONGLASS_BOSS",
+ "character": "DEFECT",
+ "hp": 269,
+ "max_hp": 269,
+ "max_energy": 3,
+ "base_orb_slots": 3,
+ "max_potion_slots": 2,
+ "seed": "fz200500x667051279",
+ "total_floor": 51,
+ "act": 2,
+ "deck": [
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DEFEND_DEFECT"
+  },
+  {
+   "id": "DUALCAST"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "STRIKE_DEFECT"
+  },
+  {
+   "id": "ZAP"
+  },
+  {
+   "id": "COMPILE_DRIVER",
+   "upgrade": 1
+  },
+  {
+   "id": "RAINBOW",
+   "upgrade": 1
+  },
+  {
+   "id": "HAILSTORM"
+  },
+  {
+   "id": "TRASH_TO_TREASURE",
+   "upgrade": 1
+  },
+  {
+   "id": "STRATAGEM",
+   "upgrade": 1
+  },
+  {
+   "id": "STRATAGEM"
+  },
+  {
+   "id": "CHARGE_BATTERY",
+   "upgrade": 1
+  },
+  {
+   "id": "LEAP",
+   "upgrade": 1
+  },
+  {
+   "id": "COMPILE_DRIVER",
+   "upgrade": 1
+  },
+  {
+   "id": "GANG_UP",
+   "upgrade": 1
+  },
+  {
+   "id": "SHADOW_SHIELD"
+  },
+  {
+   "id": "SHATTER"
+  },
+  {
+   "id": "SUBROUTINE"
+  },
+  {
+   "id": "GLASSWORK",
+   "upgrade": 1
+  },
+  {
+   "id": "CLAW",
+   "upgrade": 1
+  },
+  {
+   "id": "SYNCHRONIZE"
+  },
+  {
+   "id": "FOCUSED_STRIKE",
+   "upgrade": 1
+  },
+  {
+   "id": "UPROAR"
+  },
+  {
+   "id": "DOUBT"
+  },
+  {
+   "id": "CAPACITOR"
+  },
+  {
+   "id": "TEMPEST",
+   "upgrade": 1
+  },
+  {
+   "id": "CAPACITOR",
+   "upgrade": 1
+  },
+  {
+   "id": "ASCENDERS_BANE"
+  }
+ ],
+ "relics": [
+  "CRACKED_CORE",
+  "MANGO",
+  "TOOLBOX",
+  "DATA_DISK"
+ ],
+ "potions": [
+  "BLOCK_POTION"
+ ],
+ "note": "Aeonglass Wither is generated with creator=null: Trash to Treasure must not channel for it."
+}

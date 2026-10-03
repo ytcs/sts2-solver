@@ -63,20 +63,28 @@ impl Attack {
     }
 }
 
-/// `CalculatedVar.Calculate`: `CalculationBase + ExtraDamage * multiplier` (the multiplier only while the combat is in progress).
-pub fn calc_with(cx: &Combat, card: CardIdx, mult: i32) -> Dec {
-    let m = if cx.in_progress { mult } else { 0 };
-    Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * m as i64)
-}
-
 impl Combat {
     /// `Hook.ModifyDamage` (spec 02 §3.2): additive pass, multiplicative pass, cap pass, floor at 0. No rounding.
     pub fn modify_damage(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, Mods) {
+        let mut mods = Mods::new();
+        let v = self.modify_damage_into(target, dealer, amount, props, card, &mut mods);
+        (v, mods)
+    }
+
+    /// `modify_damage` when the modifier list is not needed (previews).
+    #[inline]
+    pub fn modify_damage_value(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
+        let mut mods = Mods::new();
+        self.modify_damage_into(target, dealer, amount, props, card, &mut mods)
+    }
+
+    /// [`Combat::modify_damage`] with the list of modifiers appended to a caller-owned `mods` (no 300-byte copy per call).
+    pub fn modify_damage_into(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut Mods) -> Dec {
         let m = (Mask::bit(hookbit::modify_damage_additive))
             | (Mask::bit(hookbit::modify_damage_multiplicative))
             | (Mask::bit(hookbit::modify_damage_cap));
-        let snap = self.snapshot(m);
-        let mut mods = Mods::new();
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(m, &mut snap);
         let mut v = amount;
         // card.Enchantment.EnchantDamageAdditive then ...Multiplicative (before every listener pass; each enchantment
         // checks the damage props itself).
@@ -87,7 +95,7 @@ impl Combat {
             v *= l.enchant_damage_multiplicative(self, me, v, props);
         }
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_damage_additive) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_damage_additive) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
                 let d = content::listener(&e.me).modify_damage_additive(self, e.me, &q);
                 v += d;
@@ -97,7 +105,7 @@ impl Combat {
             }
         }
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_damage_multiplicative) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_damage_multiplicative) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
                 let f = content::listener(&e.me).modify_damage_multiplicative(self, e.me, &q);
                 v *= f;
@@ -108,7 +116,7 @@ impl Combat {
         }
         let mut best = Dec::MAX;
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_damage_cap) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_damage_cap) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
                 let c = content::listener(&e.me).modify_damage_cap(self, e.me, &q);
                 if c < best {
@@ -120,22 +128,22 @@ impl Combat {
                 }
             }
         }
-        (v.max(Dec::ZERO), mods)
+        v.max(Dec::ZERO)
     }
 
     /// `Hook.ModifyHpLost` for one phase pair (spec 02 §3.4). `after_osty=false` runs the BeforeOsty passes.
-    fn modify_hp_lost(&self, target: Cid, amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, after_osty: bool) -> (Dec, Mods) {
+    fn modify_hp_lost(&self, target: Cid, amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, after_osty: bool, mods: &mut Mods) -> Dec {
         let (b1, b2) = if after_osty {
             (hookbit::modify_hp_lost_after_osty, hookbit::modify_hp_lost_after_osty_late)
         } else {
             (hookbit::modify_hp_lost_before_osty, hookbit::modify_hp_lost_before_osty_late)
         };
-        let snap = self.snapshot((Mask::bit(b1)) | (Mask::bit(b2)));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into((Mask::bit(b1)) | (Mask::bit(b2)), &mut snap);
         let mut v = amount;
-        let mut mods = Mods::new();
         for bit in [b1, b2] {
             for e in snap.iter() {
-                if e.mask.has(bit) && self.still_live(&e.me) {
+                if self.has_hook(&e.me, bit) && self.still_live(&e.me) {
                     let l = content::listener(&e.me);
                     let nv = match bit {
                         x if x == hookbit::modify_hp_lost_before_osty => l.modify_hp_lost_before_osty(self, e.me, target, v, props, dealer, card),
@@ -150,7 +158,7 @@ impl Combat {
                 }
             }
         }
-        (v, mods)
+        v
     }
 
     fn after_modifying_hp_lost(&mut self, mods: &Mods, after_osty: bool) {
@@ -166,7 +174,8 @@ impl Combat {
         if !self.listen.has(hookbit::modify_unblocked_damage_target) {
             return target;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::modify_unblocked_damage_target));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::modify_unblocked_damage_target), &mut snap);
         let mut t = target;
         for e in snap.iter() {
             if self.still_live(&e.me) {
@@ -177,29 +186,38 @@ impl Combat {
     }
 
     /// `CreatureCmd.Damage` (spec 02 §3.3).
+    #[inline(always)]
     pub fn damage(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx) -> Results {
         let mut results = Results::new();
+        self.damage_into(targets, amount, props, dealer, card, &mut results);
+        results
+    }
+
+    /// [`Combat::damage`] writing into a caller-owned (empty) result list: the 1.3 KB list is not copied on return.
+    pub fn damage_into(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, results: &mut Results) {
         if dealer != NO && self.cr(dealer).is_dead() {
-            return results;
+            return;
         }
         for &t in targets {
             if self.cr(t).is_dead() {
                 continue;
             }
-            let (modified, mods) = self.modify_damage(t, dealer, amount, props, card);
+            let mut mods = Mods::new();
+            let modified = self.modify_damage_into(t, dealer, amount, props, card, &mut mods);
             self.dispatch_modifiers(false, hookbit::after_modifying_damage_amount, &mods, |cx, me, l| l.after_modifying_damage_amount(cx, me, card));
-            // (every listener call re-sets the side channel: a listener's own nested damage call overwrites it)
-            self.dispatch_u(hookbit::before_damage_received, |cx, me, l| {
-                cx.dmg_card = card;
-                l.before_damage_received(cx, me, t, modified, props, dealer)
-            });
+            if self.listen.has(hookbit::before_damage_received) {
+                self.dmg_card = card;
+            }
+            self.dispatch_u(hookbit::before_damage_received, |cx, me, l| l.before_damage_received(cx, me, t, modified, props, dealer));
             // Pet quirk: damage to Osty is absorbed by its owner's block.
             let block_owner = if self.cr(t).is_pet && self.cr(t).owner != NO { self.cr(t).owner } else { t };
             let blocked = self.damage_block_internal(block_owner, modified, props);
-            let (unblocked, mods) = self.modify_hp_lost(t, (modified - blocked).max(Dec::ZERO), props, dealer, card, false);
+            mods.clear();
+            let unblocked = self.modify_hp_lost(t, (modified - blocked).max(Dec::ZERO), props, dealer, card, false, &mut mods);
             self.after_modifying_hp_lost(&mods, false);
             let hp_target = self.modify_unblocked_damage_target(t, unblocked, props, dealer);
-            let (unblocked, mods) = self.modify_hp_lost(hp_target, unblocked, props, dealer, card, true);
+            mods.clear();
+            let unblocked = self.modify_hp_lost(hp_target, unblocked, props, dealer, card, true, &mut mods);
             self.after_modifying_hp_lost(&mods, true);
             let mut res = self.lose_hp_internal(hp_target, unblocked);
             let block_left = self.cr(t).block;
@@ -216,7 +234,8 @@ impl Combat {
                 // original target.
                 results.push(res);
                 self.hist_damage_received(res, dealer, card, props);
-                let (over, mods) = self.modify_hp_lost(t, Dec::int(res.overkill as i64), props, dealer, card, true);
+                mods.clear();
+                let over = self.modify_hp_lost(t, Dec::int(res.overkill as i64), props, dealer, card, true, &mut mods);
                 self.after_modifying_hp_lost(&mods, true);
                 let mut r2 = if over > Dec::ZERO { self.lose_hp_internal(t, over) } else { DamageResult { receiver: t, ..Default::default() } };
                 r2.blocked = blocked.trunc();
@@ -232,40 +251,32 @@ impl Combat {
         for i in 0..results.len() {
             let r = results[i];
             let t = r.receiver;
-            // (the side channel `dmg_card` / `dmg_result` is rewritten before each listener call: a nested damage call made by
-            // a listener would overwrite it for the listeners after it)
+            // (the side channel `dmg_card` / `dmg_result` is rewritten before each dispatch: a nested damage call made by a
+            // hook would overwrite it)
             if r.block_broken && self.listen.has(hookbit::after_block_broken) {
-                self.dispatch_u(hookbit::after_block_broken, |cx, me, l| {
-                    cx.dmg_card = card;
-                    cx.dmg_result = r;
-                    l.after_block_broken(cx, me, t, dealer)
-                });
+                self.dmg_card = card;
+                self.dmg_result = r;
+                self.dispatch_u(hookbit::after_block_broken, |cx, me, l| l.after_block_broken(cx, me, t, dealer));
             }
             if r.unblocked > 0 && self.listen.has(hookbit::after_current_hp_changed) {
                 let d = -r.unblocked;
                 self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, t, d));
             }
             if self.listen.has(hookbit::after_damage_given) {
-                self.dispatch_u(hookbit::after_damage_given, |cx, me, l| {
-                    cx.dmg_card = card;
-                    cx.dmg_result = r;
-                    l.after_damage_given(cx, me, dealer, t, r.unblocked, props)
-                });
+                self.dmg_card = card;
+                self.dmg_result = r;
+                self.dispatch_u(hookbit::after_damage_given, |cx, me, l| l.after_damage_given(cx, me, dealer, t, r.unblocked, props));
             }
             if !r.killed || !self.cr(t).is_dead() {
                 if self.listen.has(hookbit::after_damage_received) {
-                    self.dispatch_u(hookbit::after_damage_received, |cx, me, l| {
-                        cx.dmg_card = card;
-                        cx.dmg_result = r;
-                        l.after_damage_received(cx, me, t, r.unblocked, props, dealer)
-                    });
+                    self.dmg_card = card;
+                    self.dmg_result = r;
+                    self.dispatch_u(hookbit::after_damage_received, |cx, me, l| l.after_damage_received(cx, me, t, r.unblocked, props, dealer));
                 }
                 if self.listen.has(hookbit::after_damage_received_late) {
-                    self.dispatch_u(hookbit::after_damage_received_late, |cx, me, l| {
-                        cx.dmg_card = card;
-                        cx.dmg_result = r;
-                        l.after_damage_received_late(cx, me, t, r.unblocked, props, dealer)
-                    });
+                    self.dmg_card = card;
+                    self.dmg_result = r;
+                    self.dispatch_u(hookbit::after_damage_received_late, |cx, me, l| l.after_damage_received_late(cx, me, t, r.unblocked, props, dealer));
                 }
             } else {
                 killed.push(t);
@@ -277,7 +288,6 @@ impl Combat {
             v[..n].copy_from_slice(killed.as_slice());
             self.kill(&v[..n]);
         }
-        results
     }
 
     /// `History.DamageReceived` — only while the combat is live (in progress and not ending).
@@ -286,7 +296,7 @@ impl Combat {
             let flags = r.fully_blocked as u8 | (r.block_broken as u8) << 1 | (r.killed as u8) << 2;
             self.hist_push(HKind::DamageReceived, r.receiver, dealer, 0, card, r.unblocked, flags, props.0, 0);
             if r.receiver == PLAYER && r.unblocked > 0 {
-                self.hist_log.player_hits_taken = self.hist_log.player_hits_taken.saturating_add(1);
+                crate::engine::history::bump(&mut self.hist_log.player_hits_taken);
             }
         }
     }
@@ -295,7 +305,8 @@ impl Combat {
     fn modify_attack_hit_count(&self, a: &Attack) -> i32 {
         let mut hits = a.hits;
         if self.listen.has(hookbit::modify_attack_hit_count) && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_attack_hit_count));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_attack_hit_count), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     hits = content::listener(&e.me).modify_attack_hit_count(self, e.me, a, hits);
@@ -305,34 +316,23 @@ impl Combat {
         hits
     }
 
-    /// `Hook.AfterAttack` for a finished attack: exposes the attack's damage results (`AttackCommand.Results`, flattened over all
-    /// hits) to the listeners through `attack_results` / `attack_unblocked_hits` / `attack_player_hits`.
-    pub fn after_attack_hook(&mut self, a: &Attack, all: &[DamageResult]) {
-        if self.listen.has(hookbit::after_attack) {
-            let unblocked_hits = all.iter().filter(|r| r.unblocked > 0).count() as u8;
-            let player_hits = all.iter().filter(|r| r.unblocked > 0 && r.receiver == PLAYER).count() as u8;
-            // (every listener call re-sets the side channels: a listener's own nested attack overwrites them)
-            self.dispatch_g(hookbit::after_attack, |cx, me, l| {
-                cx.attack_results.clear();
-                for x in all.iter().take(16) {
-                    cx.attack_results.push(*x);
-                }
-                cx.attack_unblocked_hits = unblocked_hits;
-                cx.attack_player_hits = player_hits;
-                l.after_attack(cx, me, a)
-            });
-        }
-    }
-
     /// `AttackCommand.Execute` (spec 02 §3.1).
+    #[inline(always)]
     pub fn execute_attack(&mut self, a: &Attack) -> Results {
         let mut all = Results::new();
+        self.execute_attack_into(a, &mut all);
+        all
+    }
+
+    /// [`Combat::execute_attack`] writing into a caller-owned (empty) result list (most callers ignore the results: no copy).
+    pub fn execute_attack_into(&mut self, a: &Attack, all: &mut Results) {
         if self.is_over_or_ending() || a.dealer == NO || self.cr(a.dealer).is_dead() {
-            return all;
+            return;
         }
         self.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, a));
         let hits = self.modify_attack_hit_count(a);
         let dealer_side = self.cr(a.dealer).side;
+        let mut hit_sizes: ArrayVec<u8, 16> = ArrayVec::new();
         let mut i = 0;
         while i < hits {
             if self.cr(a.dealer).is_dead() {
@@ -375,14 +375,36 @@ impl Combat {
                     Dec::int(self.card_var(a.card, VarKind::CalcBase) as i64 + self.card_var(a.card, VarKind::ExtraDamage) as i64 * m as i64)
                 }
             };
-            let r = self.damage(hit.as_slice(), amount, a.props, a.dealer, a.card);
+            let mut r = Results::new();
+            self.damage_into(hit.as_slice(), amount, a.props, a.dealer, a.card, &mut r);
             for x in r.iter() {
                 all.push(*x);
+            }
+            if hit_sizes.len() < 16 {
+                hit_sizes.push(r.len() as u8);
             }
             i += 1;
         }
         self.hist_push(HKind::CreatureAttacked, a.dealer, NO, 0, a.card, all.len() as i32, 0, a.props.0, 0);
-        self.after_attack_hook(a, all.as_slice());
-        all
+        if self.listen.has(hookbit::after_attack) {
+            self.set_attack_results(all.as_slice(), hit_sizes.as_slice());
+        }
+        self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
+    }
+
+    /// Fills the `AfterAttack` side channel (C# `command.Results`): `all` = the results of every hit in order, `sizes` =
+    /// how many of them belong to each hit. Cards that drive an `AttackContext` by hand (Omnislice, Echoing Slash) call
+    /// this right before dispatching `after_attack` themselves.
+    pub fn set_attack_results(&mut self, all: &[DamageResult], sizes: &[u8]) {
+        self.attack_results.clear();
+        for x in all.iter() {
+            self.attack_results.push(*x); // (a full list raises the sticky overflow flag)
+        }
+        self.attack_hit_sizes.clear();
+        for &s in sizes.iter() {
+            self.attack_hit_sizes.push(s);
+        }
+        self.attack_unblocked_hits = all.iter().filter(|r| r.unblocked > 0).count() as u8;
+        self.attack_player_hits = all.iter().filter(|r| r.unblocked > 0 && r.receiver == PLAYER).count() as u8;
     }
 }

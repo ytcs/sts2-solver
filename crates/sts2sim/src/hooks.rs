@@ -111,11 +111,6 @@ pub struct CardPlay {
     pub energy_value: i32,
 }
 
-/// Reserved effect phase: "finish the draw a decision interrupted" (`Combat::draw_cards_s`); the engine handles it itself and then
-/// continues the effect at `Combat::draw_next` (`DRAW_DONE`: the effect is over).
-pub const PH_DRAW_TAIL: u8 = 250;
-pub const DRAW_DONE: u8 = 255;
-
 /// Result of resumable effect code (`on_play`): finished, or suspended waiting for a decision.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Flow {
@@ -383,7 +378,7 @@ pub trait Listener: Sync {
     fn modify_gold_gained(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
     }
-    /// [R] `AfterGoldGained` (run-level, after the gold was added) -- Dragon Fruit (`PlayerCmd.GainGold`).
+    /// [U] `AfterGoldGained` (`PlayerCmd.GainGold`, after the gold was added): Dragon Fruit.
     fn after_gold_gained(&self, cx: &mut Combat, me: Me) {}
     // ---- relic state metadata (static dispatch by relic id; NOT hooks, no mask bit that is ever dispatched) ----
     /// The relic's `[SavedProperty]` list: how the oracle dumps / injects its persistent state (`Relic::{counter,aux,flags}`).

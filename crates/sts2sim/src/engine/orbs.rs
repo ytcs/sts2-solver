@@ -27,7 +27,8 @@ impl Combat {
     pub fn modify_orb_value(&self, orb: &Orb, v: Dec) -> Dec {
         let mut v = v;
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_orb_value));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_orb_value), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     v = content::listener(&e.me).modify_orb_value(self, e.me, orb, v);
@@ -62,7 +63,11 @@ impl Combat {
     /// A fresh mutable orb (`ModelDb.Orb<T>().ToMutable()`).
     pub fn new_orb(&mut self, kind: u16) -> Orb {
         let uid = self.player.next_orb_uid;
-        self.player.next_orb_uid = uid.wrapping_add(1);
+        let (next, wrapped) = uid.overflowing_add(1);
+        if wrapped {
+            crate::util::raise_overflow(crate::state::ov::COUNTER as u32);
+        }
+        self.player.next_orb_uid = next;
         let val = match kind {
             ids::orb::DARK_ORB => 6,
             ids::orb::GLASS_ORB => 4,
@@ -151,7 +156,7 @@ impl Combat {
         self.player.orbs.push(orb);
         self.hist_push(HKind::OrbChanneled, PLAYER, NO, orb.kind, NO, 0, 0, 0, 0); // CombatHistory.OrbChanneled
         if orb.kind == ids::orb::LIGHTNING_ORB {
-            self.hist_log.lightning_channeled = self.hist_log.lightning_channeled.saturating_add(1);
+            crate::engine::history::bump(&mut self.hist_log.lightning_channeled);
         }
         self.dispatch_g(hookbit::after_orb_channeled, |cx, me, l| l.after_orb_channeled(cx, me, &orb));
     }
@@ -267,7 +272,8 @@ impl Combat {
         let mut count = 1;
         let mut mods: ArrayVec<Me, 24> = ArrayVec::new();
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_orb_passive_trigger_counts));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_orb_passive_trigger_counts), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     let n = content::listener(&e.me).modify_orb_passive_trigger_counts(self, e.me, &orb, count);
@@ -279,7 +285,8 @@ impl Combat {
             }
         }
         if !mods.is_empty() && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::after_modifying_orb_passive_trigger_count));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::after_modifying_orb_passive_trigger_count), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && mods.iter().any(|m| m.kind == e.me.kind && m.idx == e.me.idx && m.owner == e.me.owner && m.id == e.me.id) {
                     content::listener(&e.me).after_modifying_orb_passive_trigger_count(self, e.me, &orb);
@@ -379,15 +386,11 @@ impl Combat {
 
     /// `Monster.IntendsToAttack`: the monster's pending move has an attack intent.
     pub fn intends_to_attack(&self, e: Cid) -> bool {
-        use crate::defs::{Intent, MonsterNode};
-        let ms = &self.cr(e).monster;
-        if ms.next_move == NO {
-            return false;
-        }
-        // (`next_move` can be the synthetic stun node, which is not in the monster's own node table: no attack intent)
-        match crate::content::monster_def(ms.id).nodes.get(ms.next_move as usize) {
-            Some(MonsterNode::Move { intents, .. }) => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
-            _ => false,
+        use crate::defs::Intent;
+        // (`move_view` also covers the synthetic STUNNED move, whose intent is Stun)
+        match self.move_view(e) {
+            Some((_, intents)) => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow | Intent::DeathBlowAttack { .. })),
+            None => false,
         }
     }
 

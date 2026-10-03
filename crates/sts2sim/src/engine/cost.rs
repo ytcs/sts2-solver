@@ -3,7 +3,7 @@
 use crate::state::*;
 
 /// Capacity of a card's local modifier list.
-pub type CostMods = crate::util::ArrayVec<CostMod, 4>;
+pub type CostMods = crate::util::SmallVec<CostMod, 4>;
 
 impl Combat {
     /// Appends a local cost modifier. The game's list is unbounded; here an absolute, non-reduce-only modifier that
@@ -11,14 +11,14 @@ impl Combat {
     /// dropped — this keeps Slither (a new `SetThisCombat` on every draw) bounded without changing any result.
     pub fn push_cost_mod(&mut self, c: CardIdx, m: CostMod) {
         let card = &mut self.cards[c as usize];
-        if !m.relative && !m.reduce_only && m.expire == 0 {
+        if !m.relative() && !m.reduce_only() && m.expire() == 0 {
             card.mods.clear();
         }
         // Adjacent relative, non-reduce-only modifiers with the same expiry commute: merge them (keeps Stampede-style
         // "-1 per attack" stacks inside the 4 slots).
-        if m.relative && !m.reduce_only {
+        if m.relative() && !m.reduce_only() {
             if let Some(last) = card.mods.as_mut_slice().last_mut() {
-                if last.relative && !last.reduce_only && last.expire == m.expire && (last.amount as i32 + m.amount as i32).abs() < 100 {
+                if last.relative() && !last.reduce_only() && last.expire() == m.expire() && (last.amount as i32 + m.amount as i32).abs() < 100 {
                     last.amount += m.amount;
                     return;
                 }
@@ -39,50 +39,50 @@ impl Combat {
     /// `SetUntilPlayed(amount)` — absolute, expires when played.
     pub fn set_cost_until_played(&mut self, c: CardIdx, amount: i32, reduce_only: bool) {
         if self.cost_guard_set(c, amount) {
-            self.push_cost_mod(c, CostMod { amount: amount as i8, relative: false, reduce_only, expire: EXPIRE_WHEN_PLAYED });
+            self.push_cost_mod(c, CostMod::new(amount as i8, false, reduce_only, EXPIRE_WHEN_PLAYED));
         }
     }
 
     /// `SetThisTurnOrUntilPlayed(amount)` — absolute, expires at end of turn or when played.
     pub fn set_cost_this_turn_or_until_played(&mut self, c: CardIdx, amount: i32, reduce_only: bool) {
         if self.cost_guard_set(c, amount) {
-            self.push_cost_mod(c, CostMod { amount: amount as i8, relative: false, reduce_only, expire: EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED });
+            self.push_cost_mod(c, CostMod::new(amount as i8, false, reduce_only, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED));
         }
     }
 
     /// `SetThisTurn(amount)` — absolute, expires at end of turn.
     pub fn set_cost_this_turn(&mut self, c: CardIdx, amount: i32, reduce_only: bool) {
         if self.cost_guard_set(c, amount) {
-            self.push_cost_mod(c, CostMod { amount: amount as i8, relative: false, reduce_only, expire: EXPIRE_END_OF_TURN });
+            self.push_cost_mod(c, CostMod::new(amount as i8, false, reduce_only, EXPIRE_END_OF_TURN));
         }
     }
 
     /// `SetThisCombat(amount)` — absolute, lasts the combat.
     pub fn set_cost_this_combat(&mut self, c: CardIdx, amount: i32, reduce_only: bool) {
         if self.cost_guard_set(c, amount) {
-            self.push_cost_mod(c, CostMod { amount: amount as i8, relative: false, reduce_only, expire: 0 });
+            self.push_cost_mod(c, CostMod::new(amount as i8, false, reduce_only, 0));
         }
     }
 
     /// `AddUntilPlayed(delta)` / `AddThisTurnOrUntilPlayed` / `AddThisTurn` / `AddThisCombat` — relative (no-op for 0).
     pub fn add_cost_until_played(&mut self, c: CardIdx, delta: i32, reduce_only: bool) {
         if delta != 0 {
-            self.push_cost_mod(c, CostMod { amount: delta as i8, relative: true, reduce_only, expire: EXPIRE_WHEN_PLAYED });
+            self.push_cost_mod(c, CostMod::new(delta as i8, true, reduce_only, EXPIRE_WHEN_PLAYED));
         }
     }
     pub fn add_cost_this_turn_or_until_played(&mut self, c: CardIdx, delta: i32, reduce_only: bool) {
         if delta != 0 {
-            self.push_cost_mod(c, CostMod { amount: delta as i8, relative: true, reduce_only, expire: EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED });
+            self.push_cost_mod(c, CostMod::new(delta as i8, true, reduce_only, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED));
         }
     }
     pub fn add_cost_this_turn(&mut self, c: CardIdx, delta: i32, reduce_only: bool) {
         if delta != 0 {
-            self.push_cost_mod(c, CostMod { amount: delta as i8, relative: true, reduce_only, expire: EXPIRE_END_OF_TURN });
+            self.push_cost_mod(c, CostMod::new(delta as i8, true, reduce_only, EXPIRE_END_OF_TURN));
         }
     }
     pub fn add_cost_this_combat(&mut self, c: CardIdx, delta: i32, reduce_only: bool) {
         if delta != 0 {
-            self.push_cost_mod(c, CostMod { amount: delta as i8, relative: true, reduce_only, expire: 0 });
+            self.push_cost_mod(c, CostMod::new(delta as i8, true, reduce_only, 0));
         }
     }
 
@@ -111,7 +111,7 @@ impl Combat {
         let new = (old + a).max(0);
         if new < old {
             for m in card.mods.as_mut_slice() {
-                if !m.relative && m.amount as i32 > new {
+                if !m.relative() && m.amount as i32 > new {
                     m.amount = new as i8;
                 }
             }

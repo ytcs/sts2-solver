@@ -117,23 +117,13 @@ impl Combat {
     pub fn run_potion(&mut self) {
         let Some(ctx) = self.potion_ctx else { return };
         let l = content::potion_listener(ctx.potion);
-        let mut phase = ctx.phase;
-        let mut r = None;
-        if phase == PH_DRAW_TAIL {
-            // The potion's draw was interrupted by a decision (`draw_cards_s`): finish it, then continue the effect.
-            if self.resume_effect_draw() {
-                r = Some(Flow::Suspend(PH_DRAW_TAIL));
-            } else if self.draw_next == DRAW_DONE {
-                r = Some(Flow::Done);
-            } else {
-                phase = self.draw_next;
-            }
+        // phase 255: the effect already ran; only its interrupted draw (Stratagem pick) was pending
+        let r = if ctx.phase == 255 { Flow::Done } else { l.on_use_potion(self, ctx.potion, ctx.target, ctx.phase) };
+        if r == Flow::Done && ctx.phase != 255 && self.stage == Stage::AwaitChoice && self.draw_cont.is_some() {
+            self.potion_ctx = Some(PotionCtx { phase: 255, ..ctx });
+            return;
         }
-        let flow = match r {
-            Some(f) => f,
-            None => l.on_use_potion(self, ctx.potion, ctx.target, phase),
-        };
-        match flow {
+        match r {
             Flow::Suspend(next) => {
                 self.potion_ctx = Some(PotionCtx { phase: next, ..ctx });
                 self.stage = Stage::AwaitChoice;

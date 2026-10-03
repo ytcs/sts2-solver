@@ -49,7 +49,8 @@ listener!(MinionStrike {
         let dmg = cx.card_var(p.card, VarKind::Damage);
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 

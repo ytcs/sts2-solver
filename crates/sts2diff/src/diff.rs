@@ -83,7 +83,6 @@ fn missing_name(cx: &Combat) -> Option<String> {
         Kind::Relic => format!("relic {}", sts2sim::ids::relic::NAMES[id as usize]),
         Kind::Potion => format!("potion {}", sts2sim::ids::potion::NAMES[id as usize]),
         Kind::Monster => format!("monster {}", sts2sim::ids::monster::NAMES[id as usize]),
-        Kind::Orb if id == sts2sim::engine::MID_DRAW_DECISION => "engine: decision raised inside a mid-turn draw loop".to_string(),
         _ => format!("{k:?} {id}"),
     })
 }
@@ -93,7 +92,30 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
     let (sc, extras) = convert::scenario_ex(&sv)?;
     sc.validate().map_err(|e| format!("not implemented in the simulator: {e:?}"))?;
     let trace = load_jsonl(trace_path)?;
-    let mut cx = Combat::new_with(&sc, &extras);
+    let mut cx = if std::env::var("STS2DIFF_REUSE").is_ok() {
+        // Exercise the in-place reset: dirty a combat by playing the same scenario under another seed (first legal action,
+        // random-ish but cheap), then `reset_with` the real scenario into it. It must replay exactly like a fresh `new`.
+        let mut dirty_sc = sc.clone();
+        dirty_sc.rng = sts2sim::state::RngSet::from_run_seed(sc.run_seed ^ 0x5DEECE66D);
+        dirty_sc.run_seed ^= 0x5DEECE66D;
+        let mut d = Combat::new_with(&dirty_sc, &extras);
+        let mut b = ActionBuf::new();
+        for k in 0..400usize {
+            if d.stage == Stage::Over {
+                break;
+            }
+            d.legal_actions(&mut b);
+            if b.is_empty() {
+                break;
+            }
+            let a = b[(k * 7 + 3) % b.len()];
+            d.step(a);
+        }
+        d.reset_with(&sc, &extras).map_err(|e| format!("reset: {e:?}"))?;
+        d
+    } else {
+        Combat::new_with(&sc, &extras)
+    };
     let mut reported = 0;
     let mut ok = true;
     let lenient = std::env::var("STS2DIFF_LENIENT").is_ok();
@@ -105,11 +127,11 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             cx.legal_actions(&mut buf);
             if !buf.iter().any(|a| *a == act) {
                 println!("step {i}: action {act:?} is NOT legal in the simulator (legal: {:?})", buf.as_slice());
-                return Ok(Verdict::Mismatch);
+                return Ok(mismatch_or_missing(&cx, i));
             }
             if !cx.step(act) {
                 println!("step {i}: simulator rejected {act:?}");
-                return Ok(Verdict::Mismatch);
+                return Ok(mismatch_or_missing(&cx, i));
             }
         }
         // Prompts raised while executing the action (record 0: while the combat was set up / the first turn started, e.g.
@@ -118,28 +140,17 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             let choices: Vec<&Value> = rec["choices"].as_array().map(|a| a.iter().collect()).unwrap_or_default();
             let mut ci = 0;
             while cx.stage == Stage::AwaitChoice {
-                if let Some(m) = missing_name(&cx) {
-                    // a rule flagged as not ported (e.g. a decision that cannot be resumed) also derails the decisions that follow
-                    println!("UNIMPLEMENTED {m} (step {i})");
-                    return Ok(Verdict::Unimplemented);
-                }
                 let Some(ch) = choices.get(ci) else {
                     let d = cx.decision.as_ref();
                     println!("step {i}: simulator raised a decision but the oracle made no choice (simulator: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?}", d.purpose, d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>())));
-                    return Ok(Verdict::Mismatch);
+                    return Ok(mismatch_or_missing(&cx, i));
                 };
                 ci += 1;
-                if ch["options"].as_array().map_or(0, |a| a.len()) > sts2sim::engine::ACTION_PICKS {
-                    // The dense action space addresses at most `MAX_PICK` candidates (very long fights only).
-                    println!("UNIMPLEMENTED engine: decision with more than {} candidates (step {i})", sts2sim::engine::ACTION_PICKS);
-                    return Ok(Verdict::Unimplemented);
-                }
                 let seq = cx.decision_seq;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
-                        let d = cx.decision.as_ref();
-                        println!("step {i}: pick {p} rejected (simulator: {}; oracle options: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?}", d.purpose, d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>())), ch["options"].as_array().map_or(0, |a| a.len()));
-                        return Ok(Verdict::Mismatch);
+                        println!("step {i}: pick {p} rejected");
+                        return Ok(mismatch_or_missing(&cx, i));
                     }
                     // finished (or replaced by the NEXT decision of the same effect)
                     if cx.stage != Stage::AwaitChoice || cx.decision_seq != seq {
@@ -148,7 +159,7 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 }
                 if cx.stage == Stage::AwaitChoice && cx.decision_seq == seq && !cx.step(Action::Confirm) {
                     println!("step {i}: decision still pending after the oracle's picks");
-                    return Ok(Verdict::Mismatch);
+                    return Ok(mismatch_or_missing(&cx, i));
                 }
             }
         }
@@ -165,10 +176,10 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 return Ok(Verdict::Unimplemented);
             }
         }
-        let mut diffs = vec![];
-        if std::env::var("STS2DIFF_DUMP").as_deref() == Ok("all") {
-            eprintln!("STEP {i} RUST {}", snapshot(&cx));
+        if cx.overflow != 0 {
+            return Err(format!("simulator capacity overflow (flags {:#x}: dropped data) at step {i}", cx.overflow));
         }
+        let mut diffs = vec![];
         compare("", &snapshot(&cx), rec, &mut diffs);
         if !diffs.is_empty() {
             if let Some((j, m)) = &first_missing {
@@ -178,11 +189,6 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 }
             }
             ok = false;
-            if std::env::var("STS2DIFF_DUMP").is_ok() {
-                // Debug aid: the simulator's full snapshot (and the oracle's record) of the first diverging step.
-                eprintln!("RUST   {}", snapshot(&cx));
-                eprintln!("ORACLE {}", rec);
-            }
             if !quiet {
                 println!("step {i} (action {}): {} difference(s)", rec["action"], diffs.len());
                 for d in diffs.iter().take(max_report) {
@@ -199,4 +205,15 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
         println!("OK: {} steps match ({trace_path})", trace.len());
     }
     Ok(if ok { Verdict::Match } else { Verdict::Mismatch })
+}
+
+/// A replay that diverged structurally (illegal action, rejected pick, unexpected decision) while the simulator had
+/// already flagged unported content is an UNIMPLEMENTED hit, not a mismatch.
+fn mismatch_or_missing(cx: &Combat, step: usize) -> Verdict {
+    if let Some(m) = missing_name(cx) {
+        println!("UNIMPLEMENTED {m} (step {step}; replay diverged)");
+        Verdict::Unimplemented
+    } else {
+        Verdict::Mismatch
+    }
 }

@@ -3,7 +3,7 @@
 //!
 //! The game keeps one unbounded list of entries cleared at combat end. Queries only ever ask for the current turn
 //! (`HappenedThisTurn`), the previous player turn (`HappenedLastPlayerTurn`) or the whole combat, so this port keeps
-//!  * a ring of the most recent `HIST_CAP` entries (enough for the current + previous turn of a heavy turn: ~190 entries; kinds nobody queries per turn are counter-only), and
+//!  * a ring of the most recent `HIST_CAP` entries (enough for the current + previous turn of any realistic fight), and
 //!  * whole-combat counters per entry kind (`Combat::hist_total`) that never overflow.
 //!
 //! Every entry snapshots `(round, side, player turn number)` like `CombatHistoryEntry`:
@@ -14,7 +14,7 @@ use crate::hooks::CardPlay;
 use crate::state::*;
 use crate::types::*;
 
-pub const HIST_CAP: usize = 192;
+pub const HIST_CAP: usize = 128;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(u8)]
@@ -48,6 +48,34 @@ pub enum HKind {
 }
 pub const HKIND_COUNT: usize = 17;
 
+impl HKind {
+    /// Kinds that `hist_any_last_player_turn` is asked about (`HappenedLastPlayerTurn`): their entries stay live for a second
+    /// player turn. A new last-turn query of another kind must be added here (debug-asserted in `hist_any_last_player_turn`).
+    #[inline(always)]
+    pub const fn keeps_last_turn(self) -> bool {
+        matches!(self, HKind::DamageReceived | HKind::CardPlayStarted)
+    }
+
+    /// Whether entries of this kind are stored in the per-turn ring. The others are only counted (`HistLog::total`): no
+    /// content queries them per turn, and keeping them out of the ring leaves its capacity to the kinds that are queried
+    /// (`hist_count_this_turn` / `hist_any_last_player_turn` / `HistLog::iter`). A new per-turn query of one of these kinds
+    /// must add it here (debug builds assert).
+    #[inline(always)]
+    pub const fn in_ring(self) -> bool {
+        !matches!(self, HKind::CardGenerated | HKind::CardPlayFinished | HKind::MonsterPerformedMove | HKind::OrbChanneled | HKind::PotionUsed | HKind::Summoned)
+    }
+}
+
+/// `*c += 1` for a whole-combat `u16` counter; at the limit the counter stays and the combat is flagged (`ov::COUNTER`) instead
+/// of wrapping silently.
+#[inline(always)]
+pub(crate) fn bump(c: &mut u16) {
+    if *c == u16::MAX {
+        crate::util::raise_overflow(ov::COUNTER as u32);
+    } else {
+        *c += 1;
+    }
+}
 #[derive(Clone, Copy, Default, Debug)]
 pub struct HistEntry {
     pub kind: HKind,
@@ -90,6 +118,17 @@ impl Default for HistLog {
 }
 
 impl HistLog {
+    /// `History.Clear()`: forgets everything. The ring is not zeroed: `iter()` only reads `[n - min(n, CAP), n)`.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.n = 0;
+        self.total = [0; HKIND_COUNT];
+        self.ethereal_finished = 0;
+        self.player_hits_taken = 0;
+        self.generated_by_player = 0;
+        self.lightning_channeled = 0;
+    }
+
     /// Entries still in the ring, oldest first.
     pub fn iter(&self) -> impl Iterator<Item = &HistEntry> {
         let n = self.n as usize;
@@ -103,16 +142,6 @@ impl Combat {
     /// Appends an entry (`Combat.History.*`): logged immediately after the event, before its After-hook.
     pub fn hist_push(&mut self, kind: HKind, actor: Cid, other: Cid, id: u16, card: CardIdx, val: i32, flags: u8, props: u8, aux: u8) {
         if !self.in_progress && !self.is_starting {
-            return;
-        }
-        #[cfg(debug_assertions)]
-        if super::play::trace_on() {
-            eprintln!("TRACE hist {:?} actor {} other {} val {} card {} flags {} id {} props {}", kind, actor, other, val, card, flags, id, props);
-        }
-        // Kinds no gameplay code queries per turn only keep their whole-combat counter (they would crowd the ring out in a
-        // heavy turn: Bolas / Memento Mori look at every entry of the turn).
-        if matches!(kind, HKind::CardGenerated | HKind::MonsterPerformedMove | HKind::OrbChanneled | HKind::PotionUsed | HKind::Summoned) {
-            self.hist_log.total[kind as usize] = self.hist_log.total[kind as usize].saturating_add(1);
             return;
         }
         let e = HistEntry {
@@ -129,10 +158,27 @@ impl Combat {
             id,
             val: val.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
         };
-        let i = self.hist_log.n as usize % HIST_CAP;
+        bump(&mut self.hist_log.total[kind as usize]);
+        if !kind.in_ring() {
+            return;
+        }
+        let n = self.hist_log.n as usize;
+        let i = n % HIST_CAP;
+        // The ring forgets its oldest entry. That is only harmless if no query can still ask for it. The queries are
+        // "this turn" (same round / side / player turn) for every kind and "last player turn" (turn == current - 1, side ignored,
+        // so it also covers what the enemies did in between) for the kinds in `HKind::keeps_last_turn`. Overwriting a live entry
+        // loses data -> flag it.
+        if n >= HIST_CAP {
+            let old = &self.hist_log.entries[i];
+            if self.hist_this_turn(old) || (old.kind.keeps_last_turn() && old.turn as i32 + 1 >= self.player.turn_number) {
+                crate::util::raise_overflow(ov::HISTORY as u32);
+            }
+        }
+        if self.round > u16::MAX as i32 || self.player.turn_number > u16::MAX as i32 {
+            crate::util::raise_overflow(ov::COUNTER as u32); // entries store round / turn as u16
+        }
         self.hist_log.entries[i] = e;
-        self.hist_log.n += 1;
-        self.hist_log.total[kind as usize] = self.hist_log.total[kind as usize].saturating_add(1);
+        self.hist_log.n = self.hist_log.n.saturating_add(1);
     }
 
     /// `entry.HappenedThisTurn(state)`.
@@ -149,6 +195,7 @@ impl Combat {
 
     /// Number of entries of `kind` that satisfy `f` and happened this turn.
     pub fn hist_count_this_turn(&self, kind: HKind, f: impl Fn(&HistEntry) -> bool) -> usize {
+        debug_assert!(kind.in_ring(), "{kind:?} entries are counter-only (HKind::in_ring)");
         self.hist_log.iter().filter(|e| e.kind == kind && self.hist_this_turn(e) && f(e)).count()
     }
 
@@ -158,6 +205,7 @@ impl Combat {
     }
 
     pub fn hist_any_last_player_turn(&self, kind: HKind, f: impl Fn(&HistEntry) -> bool) -> bool {
+        debug_assert!(kind.in_ring() && kind.keeps_last_turn(), "{kind:?} is not kept for last-player-turn queries (HKind::keeps_last_turn)");
         self.hist_log.iter().any(|e| e.kind == kind && self.hist_last_player_turn(e) && f(e))
     }
 
@@ -170,7 +218,7 @@ impl Combat {
     pub(crate) fn hist_card_generated(&mut self, c: CardIdx, by_player: bool) {
         let id = self.cards[c as usize].id;
         if by_player && self.in_progress {
-            self.hist_log.generated_by_player = self.hist_log.generated_by_player.saturating_add(1);
+            bump(&mut self.hist_log.generated_by_player);
         }
         self.hist_push(HKind::CardGenerated, PLAYER, NO, id, c, 0, by_player as u8, 0, 0);
     }

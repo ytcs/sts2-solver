@@ -17,13 +17,6 @@ pub enum RunResult {
     Suspended,
 }
 
-/// Debug builds only: `STS2_TRACE=1` prints every card play / draw to stderr (differential-test triage aid).
-#[cfg(debug_assertions)]
-pub(crate) fn trace_on() -> bool {
-    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var("STS2_TRACE").is_ok())
-}
-
 impl Combat {
     /// `CardModel.TargetType` with dynamic overrides: Shiv hits all enemies under Fan of Knives, Sovereign Blade under Seeking Edge.
     pub fn card_target_type(&self, c: CardIdx) -> TargetType {
@@ -68,13 +61,14 @@ impl Combat {
         if !self.hooks_enabled() {
             return None;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind), &mut snap);
         for e in snap.iter() {
             if !self.still_live(&e.me) {
                 continue;
             }
             let l = content::listener(&e.me);
-            let ok = (!e.mask.has(hookbit::should_play) || l.should_play(self, e.me, c)) && (!e.mask.has(hookbit::should_play_kind) || l.should_play_kind(self, e.me, c, kind));
+            let ok = (!self.has_hook(&e.me, hookbit::should_play) || l.should_play(self, e.me, c)) && (!self.has_hook(&e.me, hookbit::should_play_kind) || l.should_play_kind(self, e.me, c, kind));
             if !ok {
                 return Some(e.me);
             }
@@ -189,7 +183,8 @@ impl Combat {
         if !self.listen.has(hookbit::modify_card_play_result_location) || !self.hooks_enabled() {
             return loc;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_result_location));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::modify_card_play_result_location), &mut snap);
         let mut mods = super::Mods::new();
         for e in snap.iter() {
             if self.still_live(&e.me) {
@@ -205,21 +200,23 @@ impl Combat {
         loc
     }
 
-    /// `CardModel.GetEnchantedReplayCount`: `BaseReplayCount` through the enchantment's `EnchantPlayCount` (Glam, Spiral).
+    /// `CardModel.GetEnchantedReplayCount`: `Enchantment?.EnchantPlayCount(BaseReplayCount) ?? BaseReplayCount`.
     pub fn enchanted_replay_count(&self, c: CardIdx) -> i32 {
         let base = self.cards[c as usize].base_replay as i32;
         if self.cards[c as usize].enchant != 0 {
             let me = self.enchantment_me(c);
-            return content::listener(&me).enchant_play_count(self, me, base);
+            content::listener(&me).enchant_play_count(self, me, base)
+        } else {
+            base
         }
-        base
     }
 
     /// `GeneratePlayCount`: `(EnchantedReplayCount + 1)` through `Hook.ModifyCardPlayCount` (+ `AfterModifying...`).
     pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> i32 {
         let mut count = self.enchanted_replay_count(c) + 1;
         if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_card_play_count), &mut snap);
             let mut mods = super::Mods::new();
             for e in snap.iter() {
                 if self.still_live(&e.me) {
@@ -265,10 +262,6 @@ impl Combat {
         play.result_pile = loc.pile;
         play.play_count = count.clamp(0, 255) as u8;
         // 8. BeginCardOrPotionEffect
-        #[cfg(debug_assertions)]
-        if trace_on() {
-            eprintln!("TRACE play {} auto {} depth {}", crate::ids::card::NAMES[self.cards[c as usize].id as usize], play.is_auto, self.play_stack.len());
-        }
         self.player.effect_depth += 1;
         self.play_stack.push(PlayCtx { play, step: PlayStep::Before, count: count.clamp(0, 255) as u8, result: loc });
         let idx = self.play_stack.len() - 1;
@@ -300,7 +293,11 @@ impl Combat {
                         return self.finish_play(idx);
                     }
                     let p = ctx.play;
-                    self.play_serial = self.play_serial.wrapping_add(1);
+                    let (next, wrapped) = self.play_serial.overflowing_add(1);
+                    if wrapped {
+                        crate::util::raise_overflow(ov::COUNTER as u32);
+                    }
+                    self.play_serial = next;
                     self.dispatch_g(hookbit::before_card_played, |cx, me, l| l.before_card_played(cx, me, &p));
                     self.hist_card_play_started(&p);
                     self.hist.cards_played_this_turn += 1;
@@ -311,32 +308,15 @@ impl Combat {
                     }
                     ctx.step = PlayStep::OnPlay(0);
                     self.play_stack[idx] = ctx;
-                    if self.nested_play_pending(idx) {
-                        return RunResult::Suspended;
-                    }
                 }
                 PlayStep::OnPlay(phase) => {
                     let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
                     let p = ctx.play;
-                    let mut phase = phase;
-                    if phase == PH_DRAW_TAIL {
-                        // The effect's draw was interrupted by a decision (`draw_cards_s`): finish it, then continue the effect.
-                        if self.resume_effect_draw() {
-                            return RunResult::Suspended;
-                        }
-                        if self.draw_next == DRAW_DONE {
-                            self.play_stack[idx].step = PlayStep::After;
-                            if self.nested_play_pending(idx) {
-                                return RunResult::Suspended;
-                            }
-                            continue;
-                        }
-                        phase = self.draw_next;
-                    }
                     match content::listener(&me).on_play(self, &p, phase) {
                         Flow::Done => {
                             self.play_stack[idx].step = PlayStep::After;
-                            if self.nested_play_pending(idx) {
+                            if self.stage == Stage::AwaitChoice && self.draw_cont.is_some() {
+                                // the effect's draw was interrupted by a Stratagem pick: finish the rest after the pick
                                 return RunResult::Suspended;
                             }
                         }
@@ -355,36 +335,22 @@ impl Combat {
                     }
                     let p = ctx.play;
                     // Enchantment.OnPlay, then Affliction.OnPlay (each followed by an owner-dead check)
-                    self.play_stack[idx].step = PlayStep::AfterAffliction;
                     if self.cards[c as usize].enchant != 0 {
                         let me = self.enchantment_me(c);
                         content::listener(&me).on_play_enchantment(self, me, &p);
                         if self.cr(PLAYER).is_dead() {
                             return self.finish_play(idx);
                         }
-                        if self.nested_play_pending(idx) {
-                            return RunResult::Suspended;
-                        }
                     }
-                }
-                PlayStep::AfterAffliction => {
-                    let p = ctx.play;
-                    self.play_stack[idx].step = PlayStep::AfterHooks;
                     if self.cards[c as usize].affliction != 0 {
                         let me = self.affliction_me(c);
                         content::listener(&me).on_play_affliction(self, me, &p);
                         if self.cr(PLAYER).is_dead() {
                             return self.finish_play(idx);
                         }
-                        if self.nested_play_pending(idx) {
-                            return RunResult::Suspended;
-                        }
                     }
-                }
-                PlayStep::AfterHooks => {
-                    let p = ctx.play;
                     let ethereal = (self.card_keywords(c) & kw::ETHEREAL != 0) as u8;
-                    self.hist_log.total[HKind::CardPlayFinished as usize] += 1;
+                    crate::engine::history::bump(&mut self.hist_log.total[HKind::CardPlayFinished as usize]);
                     self.hist.set_finished(c);
                     match self.card_def(c).ctype {
                         CardType::Attack => self.hist.attacks_finished_this_turn += 1,
@@ -395,21 +361,15 @@ impl Combat {
                         self.hist.shivs_finished_this_turn += 1;
                     }
                     if ethereal != 0 {
-                        self.hist_log.ethereal_finished += 1;
+                        crate::engine::history::bump(&mut self.hist_log.ethereal_finished);
                     }
-                    self.play_stack[idx].step = PlayStep::Finish;
                     if self.in_progress {
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
                         self.dispatch_u(hookbit::after_card_played_late, |cx, me, l| l.after_card_played_late(cx, me, &p));
                         if self.cr(PLAYER).is_dead() {
                             return self.finish_play(idx);
                         }
-                        if self.nested_play_pending(idx) {
-                            return RunResult::Suspended;
-                        }
                     }
-                }
-                PlayStep::Finish => {
                     let mut ctx = self.play_stack[idx];
                     ctx.play.play_index += 1;
                     if ctx.play.play_index < ctx.count {
@@ -421,13 +381,6 @@ impl Combat {
                 }
             }
         }
-    }
-
-    /// A play started by a hook inside the play at `idx` (Hellraiser auto-playing a drawn card ...) is still on the stack, waiting
-    /// for a decision: the play at `idx` must wait for it (the game's `await` blocks it); `run_play_stack` resumes it afterwards.
-    #[inline]
-    fn nested_play_pending(&self, idx: usize) -> bool {
-        self.play_stack.len() > idx + 1
     }
 
     /// Steps 10-12 of `OnPlayWrapper`: depth--, move the card to its result pile, hand-empty check, clean up the
@@ -452,9 +405,9 @@ impl Combat {
         self.check_for_empty_hand();
         // 12. remove WhenPlayed local cost modifiers (after the card has moved).
         let card = &mut self.cards[c as usize];
-        let mut kept: crate::engine::CostMods = crate::util::ArrayVec::new();
+        let mut kept: crate::engine::CostMods = crate::util::SmallVec::new();
         for m in card.mods.iter() {
-            if m.expire & EXPIRE_WHEN_PLAYED == 0 {
+            if m.expire() & EXPIRE_WHEN_PLAYED == 0 {
                 kept.push(*m);
             }
         }

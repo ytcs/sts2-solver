@@ -17,26 +17,22 @@ const fn purpose(potion: u16) -> u16 {
 /// Shared body of Attack/Skill/Power/ColorlessPotion: `GetDistinctForCombat(pool.Where(filter), 3)` ->
 /// `FromChooseACardScreen(canSkip: true)` -> chosen card is free this turn and added to the hand.
 fn choose_a_card(cx: &mut Combat, potion: u16, phase: u8, pool: &[u16], extra: impl Fn(&CardDef) -> bool) -> Flow {
-    if phase != 0 {
-        return finish_choose_a_card(cx);
-    }
-    let cards = cx.get_distinct_for_combat(pool, 3, extra);
-    match cx.ask_options(purpose(potion), cards.as_slice(), true) {
-        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
-        Ask::Resolved(cards) => {
-            cx.choice.cards = cards;
-            finish_choose_a_card(cx)
+    match phase {
+        0 => {
+            let cards = cx.get_distinct_for_combat(pool, 3, extra);
+            match cx.ask_options(purpose(potion), cards.as_slice(), true) {
+                Ask::Resolved(_) => Flow::Done,
+                Ask::Pending => Flow::Suspend(1),
+            }
         }
-        Ask::Pending => Flow::Suspend(1),
+        _ => {
+            if let Some(c) = cx.choice.cards.first() {
+                cx.set_to_free_this_turn(c);
+                cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
+            }
+            Flow::Done
+        }
     }
-}
-
-fn finish_choose_a_card(cx: &mut Combat) -> Flow {
-    if let Some(c) = cx.choice.cards.first() {
-        cx.set_to_free_this_turn(c);
-        cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
-    }
-    Flow::Done
 }
 
 listener!(AttackPotion {
@@ -143,7 +139,8 @@ listener!(BottledPotential {
         cx.add_cards_to_pile(hand.as_slice(), PileType::Draw, CardPilePosition::Bottom);
         cx.shuffle_discard_into_draw();
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 
@@ -295,7 +292,8 @@ listener!(GlowwaterPotion {
         let hand = cx.player.hand;
         exhaust_all(cx, hand.as_slice());
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 
@@ -303,7 +301,7 @@ listener!(GlowwaterPotion {
 listener!(SneckoOil {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_cards(n, false);
+        cx.draw_cards_nosuspend(n, false); // the tail reads the whole hand
         let hand = cx.player.hand;
         for &c in hand.iter() {
             if cx.card_def(c).x_cost {
@@ -311,12 +309,7 @@ listener!(SneckoOil {
             }
             if cx.card_cost(c, false) >= 0 {
                 let cost = cx.rng.combat_energy_costs.next_int(4);
-                cx.cards[c as usize].mods.push(CostMod {
-                    amount: cost as i8,
-                    relative: false,
-                    reduce_only: false,
-                    expire: EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED,
-                });
+                cx.cards[c as usize].mods.push(CostMod::new(cost as i8, false, false, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED));
             }
         }
         Flow::Done

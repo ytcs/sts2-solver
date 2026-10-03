@@ -17,3 +17,10 @@ debug = false
 [profile.bench]
 inherits = "release"
 debug = true
+
+# Fast-iteration profile for instruction-count profiling (callgrind): optimised, parallel codegen, symbols.
+[profile.prof]
+inherits = "release"
+lto = "off"
+codegen-units = 16
+debug = 1

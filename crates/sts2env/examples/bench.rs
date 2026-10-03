@@ -1,4 +1,5 @@
 //! Batched random-policy throughput: N envs, masked-random actions, obs+mask written every step.
+use rayon::prelude::*;
 use std::time::Instant;
 use sts2env::*;
 use sts2sim::ids;
@@ -22,22 +23,36 @@ fn main() {
     let mut obs = vec![0f32; n * OBS];
     let mut mask = vec![0u8; n * ACTIONS];
     let (mut reward, mut done, mut outcome, mut illegal) = (vec![0f32; n], vec![0u8; n], vec![0i8; n], vec![0u8; n]);
-    env.observe_all(&mut obs, &mut mask);
-    let mut pol = Rng::new(7);
+    env.observe_all(&mut obs, &mut mask).unwrap();
     let mut actions = vec![0i32; n];
     let steps = 200;
+    let serial = std::env::var("BENCH_SERIAL_POLICY").is_ok();
     let t = Instant::now();
     let (mut episodes, mut wins) = (0u64, 0u64);
-    for _ in 0..steps {
-        for i in 0..n {
-            let row = &mask[i * ACTIONS..(i + 1) * ACTIONS];
+    for step in 0..steps {
+        // masked-random policy; parallel (like a GPU / vectorised policy would be) unless BENCH_SERIAL_POLICY is set
+        let pick_action = |i: usize, a: &mut i32, row: &[u8]| {
+            let mut pol = Rng::new(7 ^ ((step as u64) << 32) ^ i as u64);
             let k = row.iter().filter(|&&m| m != 0).count().max(1);
             let mut pick = pol.next_int(k as i32) as usize;
-            let mut a = 0;
-            for (j, &m) in row.iter().enumerate() { if m != 0 { if pick == 0 { a = j; break; } pick -= 1; } }
-            actions[i] = a as i32;
+            for (j, &m) in row.iter().enumerate() {
+                if m != 0 {
+                    if pick == 0 {
+                        *a = j as i32;
+                        break;
+                    }
+                    pick -= 1;
+                }
+            }
+        };
+        if serial {
+            for (i, (a, row)) in actions.iter_mut().zip(mask.chunks(ACTIONS)).enumerate() {
+                pick_action(i, a, row);
+            }
+        } else {
+            actions.par_iter_mut().zip(mask.par_chunks(ACTIONS)).enumerate().for_each(|(i, (a, row))| pick_action(i, a, row));
         }
-        env.step(&actions, StepOut { obs: &mut obs, mask: &mut mask, reward: &mut reward, done: &mut done, outcome: &mut outcome, illegal: &mut illegal });
+        env.step(&actions, StepOut { obs: &mut obs, mask: &mut mask, reward: &mut reward, done: &mut done, outcome: &mut outcome, illegal: &mut illegal }).unwrap();
         for i in 0..n { if done[i] != 0 { episodes += 1; if outcome[i] == OUTCOME_WIN { wins += 1; } } }
         assert!(illegal.iter().all(|&x| x == 0));
     }

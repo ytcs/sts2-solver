@@ -22,8 +22,6 @@ pub enum Action {
 
 const T: usize = MAX_CREATURES + 1; // target slots: creature id 0..MAX_CREATURES, plus "no target"
 pub const MAX_PICK: usize = 64;
-/// `MAX_PICK` for tools outside the crate.
-pub const ACTION_PICKS: usize = MAX_PICK;
 const OFF_PLAY: usize = 1;
 const OFF_POTION: usize = OFF_PLAY + MAX_HAND * T;
 const OFF_DISCARD: usize = OFF_POTION + MAX_POTIONS * T;
@@ -73,11 +71,23 @@ impl Action {
 impl Combat {
     /// Every action a human could take right now.
     pub fn legal_actions(&self, out: &mut ActionBuf) {
+        let mut playable = 0;
+        self.legal_actions_ex(out, &mut playable);
+    }
+
+    /// `legal_actions` that also reports which hand cards can be played: bit `k` of `hand_playable` = `can_play(hand[k])` (0 outside
+    /// the play phase). Feed it to `observe_ex` so the observation does not evaluate `can_play` a second time.
+    pub fn legal_actions_ex(&self, out: &mut ActionBuf, hand_playable: &mut u16) {
+        *hand_playable = 0;
         out.clear();
         match self.stage {
             Stage::Over => {}
             Stage::AwaitChoice => {
                 if let Some(d) = &self.decision {
+                    if d.cands.len() > MAX_PICK {
+                        // More candidates than the dense action space can address: the surplus cannot be picked.
+                        crate::util::raise_overflow(crate::util::OV_CONTAINER);
+                    }
                     for i in 0..d.cands.len().min(MAX_PICK) {
                         out.push(Action::Pick { idx: i as u8 });
                     }
@@ -95,6 +105,7 @@ impl Combat {
                     if !self.can_play(c) {
                         continue;
                     }
+                    *hand_playable |= 1 << pos;
                     if self.card_target_type(c) == TargetType::AnyEnemy {
                         for &e in self.enemies.iter() {
                             if self.is_valid_target(c, e) {

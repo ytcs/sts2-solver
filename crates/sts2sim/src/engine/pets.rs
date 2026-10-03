@@ -69,7 +69,8 @@ impl Combat {
     pub fn summon(&mut self, amount: i32) {
         let mut amt = Dec::int(amount as i64);
         if self.listen.has(hookbit::modify_summon_amount) && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_summon_amount));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_summon_amount), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     amt = content::listener(&e.me).modify_summon_amount(self, e.me, amt);

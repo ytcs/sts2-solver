@@ -126,7 +126,8 @@ listener!(Offering {
         let e = cx.card_var(p.card, VarKind::Energy);
         cx.gain_energy(e);
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 

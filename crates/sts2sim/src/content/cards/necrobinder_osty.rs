@@ -166,11 +166,11 @@ listener!(Snap {
 fn flatten_reduce_cost(cx: &mut Combat, c: CardIdx) {
     let card = &mut cx.cards[c as usize];
     if let Some(last) = card.mods.last() {
-        if !last.relative && !last.reduce_only && last.amount == 0 && last.expire == EXPIRE_END_OF_TURN {
+        if !last.relative() && !last.reduce_only() && last.amount == 0 && last.expire() == EXPIRE_END_OF_TURN {
             return;
         }
     }
-    card.mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: EXPIRE_END_OF_TURN });
+    card.mods.push(CostMod::new(0, false, false, EXPIRE_END_OF_TURN));
 }
 
 listener!(Flatten {
@@ -290,7 +290,7 @@ listener!(RightHandHand {
     fn after_card_played_late(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let c = me.idx as CardIdx;
         let need = cx.card_var(c, VarKind::Energy);
-        if play.energy_spent >= need && cx.card_pile_type(c) == PileType::Discard {
+        if play.energy_value >= need && cx.card_pile_type(c) == PileType::Discard {
             cx.move_card(c, PileType::Hand, CardPilePosition::Bottom);
         }
     }

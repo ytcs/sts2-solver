@@ -27,7 +27,8 @@ listener!(StrengthPotion {
 listener!(SwiftPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 

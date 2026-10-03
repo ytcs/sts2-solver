@@ -105,7 +105,8 @@ impl Combat {
     /// `PotionCmd.TryToProcure`: `Hook.ShouldProcurePotion` (AND), add to the first free slot, `AfterPotionProcured`.
     pub fn try_procure_potion(&mut self, id: u16) -> bool {
         if self.listen.has(hookbit::should_procure_potion) {
-            let snap = self.snapshot(Mask::bit(hookbit::should_procure_potion));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_procure_potion), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_procure_potion(self, e.me, id) {
                     return false;
@@ -165,7 +166,7 @@ impl Combat {
     /// `CardModel.SetToFreeThisCombat`: energy cost 0 for the rest of the combat, and `SetStarCostThisCombat(0)`.
     pub fn set_to_free_this_combat(&mut self, c: CardIdx) {
         if self.card_def(c).cost >= 0 {
-            self.cards[c as usize].mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: 0 });
+            self.cards[c as usize].mods.push(CostMod::new(0, false, false, 0));
         }
         self.set_star_cost_this_combat(c, 0);
     }

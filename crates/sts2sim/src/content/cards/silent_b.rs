@@ -4,7 +4,6 @@
 //! NOT in this file (ported by the first-half Silent file because the starter deck needs them): `StrikeSilent`,
 //! `Neutralize`, `Survivor`.
 
-use crate::engine::calc_with;
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -254,14 +253,6 @@ listener!(PreciseCut {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
     }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        let mut in_hand = cx.player.hand.len() as i32;
-        if cx.card_pile_type(card) == PileType::Hand {
-            in_hand -= 1;
-        }
-        Some(calc_with(cx, card, -in_hand))
-    }
 });
 
 // Base + extra per card discarded this turn.
@@ -272,10 +263,6 @@ listener!(MementoMori {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
     }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        Some(calc_with(cx, card, cx.hist_count_this_turn(HKind::CardDiscarded, |_| true) as i32))
-    }
 });
 
 // Base + extra per card drawn this combat.
@@ -285,10 +272,6 @@ listener!(Murder {
         let dmg = calculated(cx, p.card, VarKind::ExtraDamage, n);
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
-    }
-    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
-        let _ = target;
-        Some(calc_with(cx, card, cx.hist_total(HKind::CardDrawn) as i32))
     }
 });
 
@@ -380,7 +363,8 @@ listener!(Untouchable {
 listener!(Reflex {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_then_done(n)
+        cx.draw_cards(n, false);
+        Flow::Done
     }
 });
 
@@ -467,11 +451,9 @@ listener!(PiercingWail {
 listener!(Prepared {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
-            0 | 5 => {
+            0 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                if phase == 0 && cx.draw_cards_s(n, 5) {
-                    return Flow::Suspend(PH_DRAW_TAIL);
-                }
+                cx.draw_cards_nosuspend(n, false);
                 match cx.ask_hand(ids::card::PREPARED, n as u8, n as u8, |_, _| true) {
                     Ask::Resolved(cards) => discard_then(cx, cards.as_slice(), DONE),
                     Ask::Pending => Flow::Suspend(1),

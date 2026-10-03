@@ -28,16 +28,13 @@ mod turn;
 
 pub use creature::DamageResult;
 pub use necro::{is_temporary_power, temporary_inner_power};
-pub use damage::{calc_with, Attack, Mods, Results, Targeting};
+pub use damage::{Attack, Mods, Results, Targeting};
 pub use dispatch::*;
 pub use cmds::Ask;
-pub use action::{Action, ActionBuf, ACTION_PICKS, ACTION_SPACE};
+pub use action::{Action, ActionBuf, ACTION_SPACE};
 pub use monster::{STUN_INTENTS, STUN_NODE};
 pub use turn::BASE_HAND_DRAW;
 pub use cost::CostMods;
 pub use play::RunResult;
 pub use history::{HKind, HistEntry, HistLog, HIST_CAP};
 pub use orbs::VALID_ORBS;
-pub use piles::MID_DRAW_DECISION;
-#[cfg(debug_assertions)]
-pub(crate) use play::trace_on;
