@@ -18,6 +18,9 @@ pub struct DamageResult {
     pub blocked: i32,
     pub block_broken: bool,
     pub fully_blocked: bool,
+    /// Index of the attack hit this result belongs to (`AttackCommand.Results` is a list of per-hit lists; a hit that Osty
+    /// absorbed has two results). Set by `execute_attack`.
+    pub hit: u8,
 }
 
 impl DamageResult {

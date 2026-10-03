@@ -72,6 +72,32 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             Console.WriteLine($"shuffle order match: {ok}; shuffle counter at record 0 = {shuf} (expected {sc.Deck.Count - 1} if nothing else drew); niche counter = {(int)rec["rng"]["niche"]["counter"]}; enemies = {rec["enemies"].AsArray().Count}");
             return ok ? 0 : 1;
         }
+        if (cmd == "catalog")
+        {
+            File.WriteAllText(kv["out"], Catalog.Build().ToJsonString() + "\n");
+            return 0;
+        }
+        if (cmd == "batch")
+        {
+            // batch FILE: one scenario path per line; trace -> <scenario base>.jsonl, failure -> <base>.error.txt (one process, ~50 ms/fight)
+            foreach (var line in File.ReadLines(positional))
+            {
+                var path = line.Trim();
+                if (path.Length == 0) continue;
+                string bas = path.EndsWith(".scenario.json") ? path[..^".scenario.json".Length] : path;
+                try
+                {
+                    var sc = Scenario.Load(path);
+                    RunResult res;
+                    using (var w = new StreamWriter(bas + ".jsonl", false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" })
+                        res = RunOne(sc, w, pump, null, maxSteps, maxRounds);
+                    if (res.Error != null) File.WriteAllText(bas + ".error.txt", res.Error);
+                    Console.WriteLine($"{(res.Error == null ? "ok " : "ERR")} {path} {res.Result} {res.Recorded.Count}");
+                }
+                catch (Exception e) { File.WriteAllText(bas + ".error.txt", e.ToString()); Console.WriteLine("ERR " + path); }
+            }
+            return 0;
+        }
         if (cmd == "fuzz") return DoFuzz(kv, flags, pump, maxSteps, maxRounds);
         Console.Error.WriteLine(Usage);
         return 2;
@@ -83,6 +109,15 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
     {
         Fatal.Message = null; Fatal.Warnings.Clear();
         var driver = new Driver(sc, w, pump) { MaxSteps = maxSteps, MaxRounds = maxRounds };
+        if (sc.Raw["policy"] is JsonObject po)
+        {
+            if (po["endw"] != null) driver.EndWeight = (double)po["endw"];
+            if (po["atkw"] != null) driver.AttackWeight = (double)po["atkw"];
+            if (po["potw"] != null) driver.PotionWeight = (double)po["potw"];
+            if (po["max_steps"] != null) driver.MaxSteps = (int)po["max_steps"];
+            if (po["max_rounds"] != null) driver.MaxRounds = (int)po["max_rounds"];
+            if (po["seed"] != null && !randomSeed.HasValue) randomSeed = (int)po["seed"];
+        }
         if (randomSeed.HasValue) driver.RandomDriver = new Random(randomSeed.Value);
         string err = null;
         try { driver.Run(); }

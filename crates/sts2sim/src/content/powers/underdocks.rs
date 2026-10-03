@@ -29,7 +29,21 @@ listener!(SuckPower {
         if attack.dealer != me.owner || !attack.props.is_powered() {
             return;
         }
-        let n = cx.attack_results.iter().filter(|r| r.unblocked > 0).count() as i32;
+        // `command.Results` is grouped per hit; in each hit the results of the owner of a pet that was hit are dropped (the pet's
+        // own result stands for it), then the hit counts when any remaining result has unblocked damage.
+        let mut n = 0;
+        let mut seen: u32 = 0;
+        for h in cx.attack_results.iter().map(|r| r.hit) {
+            if seen >> h.min(31) & 1 != 0 {
+                continue;
+            }
+            seen |= 1 << h.min(31);
+            let group = || cx.attack_results.iter().filter(move |r| r.hit == h);
+            let dropped = |r: &crate::engine::DamageResult| group().any(|p| cx.cr(p.receiver).is_pet && cx.cr(p.receiver).owner == r.receiver);
+            if group().any(|r| !dropped(r) && r.unblocked > 0) {
+                n += 1;
+            }
+        }
         if n > 0 {
             let a = amount(cx, &me);
             cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int((a * n) as i64), me.owner, NO);

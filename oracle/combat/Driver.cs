@@ -77,6 +77,9 @@ public sealed class Driver
     public int MaxSteps = 400;
     public int MaxRounds = 60;
     public Random RandomDriver;          // random mode
+    // Policy weights for the random driver (relative to 1.0 per legal action): `end_turn`, attack-card plays, potion uses.
+    // endw = 0 means "never end the turn while anything else is legal" (long fights); atkw < 1 stalls (prefers skills/powers).
+    public double EndWeight = 1, AttackWeight = 1, PotionWeight = 1;
     public string Result = "unfinished";
 
     public Driver(Scenario sc, TextWriter @out, Pump pump) { _sc = sc; _out = @out; _pump = pump; }
@@ -198,7 +201,21 @@ public sealed class Driver
         {
             _sel.RandomPolicy = RandomDriver;
             var legal = Legal();
-            var a = legal[RandomDriver.Next(legal.Count)];
+            ActionSpec a;
+            if (EndWeight == 1 && AttackWeight == 1 && PotionWeight == 1) a = legal[RandomDriver.Next(legal.Count)];
+            else
+            {
+                var hand = Pcs.Hand.Cards;
+                double W(ActionSpec x) => x.Kind == "end_turn" ? EndWeight : x.Kind == "use_potion" ? PotionWeight
+                    : hand[x.HandPos].Type == MegaCrit.Sts2.Core.Entities.Cards.CardType.Attack ? AttackWeight : 1.0;
+                double tot = legal.Sum(W);
+                a = legal[legal.Count - 1]; // end_turn is always last (the only action left when every other weight is 0)
+                if (tot > 0)
+                {
+                    double r = RandomDriver.NextDouble() * tot;
+                    foreach (var x in legal) { r -= W(x); if (r < 0) { a = x; break; } }
+                }
+            }
             Exec(a);
             steps++;
         }
