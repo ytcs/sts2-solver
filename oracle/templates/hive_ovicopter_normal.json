@@ -1,0 +1,31 @@
+{
+ "name": "ironclad_ovicopter_normal",
+ "ascension": 10,
+ "encounter": "OVICOPTER_NORMAL",
+ "character": "IRONCLAD",
+ "hp": 300,
+ "max_hp": 300,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "seed": "1",
+ "total_floor": 20,
+ "act": 1,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  "ASCENDERS_BANE"
+ ],
+ "relics": [
+  "BURNING_BLOOD"
+ ],
+ "potions": []
+}
