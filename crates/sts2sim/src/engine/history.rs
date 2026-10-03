@@ -105,6 +105,10 @@ impl Combat {
         if !self.in_progress && !self.is_starting {
             return;
         }
+        #[cfg(debug_assertions)]
+        if super::play::trace_on() {
+            eprintln!("TRACE hist {:?} actor {} other {} val {} card {} flags {} id {}", kind, actor, other, val, card, flags, id);
+        }
         // Kinds no gameplay code queries per turn only keep their whole-combat counter (they would crowd the ring out in a
         // heavy turn: Bolas / Memento Mori look at every entry of the turn).
         if matches!(kind, HKind::CardGenerated | HKind::MonsterPerformedMove | HKind::OrbChanneled | HKind::PotionUsed | HKind::Summoned) {
