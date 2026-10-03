@@ -104,3 +104,45 @@ fn stress_random_policy() {
     }
     assert!(episodes > n);
 }
+
+/// A fork copies the fight (same observation: the hidden state is resampled, not the visible one), plays on independently, and with
+/// auto-reset off a finished fight stays finished and ignores actions.
+#[test]
+fn fork_copies_the_visible_state_and_frozen_slots_stay_finished() {
+    let mut main = BatchEnv::new(2, Box::new(FixedScenario(scenario(11))), RewardConfig::default(), 400, 5);
+    let n = 16;
+    let mut sim = BatchEnv::new(n, Box::new(FixedScenario(scenario(11))), RewardConfig::default(), 400, 9);
+    sim.set_autoreset(false);
+    let mut obs0 = vec![0f32; 2 * OBS];
+    let mut mask0 = vec![0u8; 2 * ACTIONS];
+    main.observe_all(&mut obs0, &mut mask0).unwrap();
+    let src: Vec<u32> = (0..n).map(|k| (k % 2) as u32).collect();
+    let dst: Vec<u32> = (0..n as u32).collect();
+    let seeds: Vec<u64> = (0..n as u64).map(|k| 100 + k).collect();
+    sim.fork_from(&main, &src, &dst, &seeds).unwrap();
+    let mut obs = vec![0f32; n * OBS];
+    let mut mask = vec![0u8; n * ACTIONS];
+    sim.observe_all(&mut obs, &mut mask).unwrap();
+    for k in 0..n {
+        let s = (k % 2) * OBS;
+        assert!(obs[k * OBS..(k + 1) * OBS] == obs0[s..s + OBS], "fork {k} sees a different state");
+        assert!(mask[k * ACTIONS..(k + 1) * ACTIONS] == mask0[(k % 2) * ACTIONS..(k % 2 + 1) * ACTIONS]);
+    }
+    assert!(sim.fork_from(&main, &src, &dst[..n - 1], &seeds).is_err());
+    assert!(sim.fork_from(&main, &[5], &[0], &[1]).is_err());
+    // play every fork to the end with the first legal action; finished ones stay done with a fixed outcome
+    let (mut reward, mut done, mut outcome, mut illegal) = (vec![0f32; n], vec![0u8; n], vec![0i8; n], vec![0u8; n]);
+    let mut seen = vec![0i8; n];
+    for _ in 0..600 {
+        let actions: Vec<i32> = (0..n).map(|k| mask[k * ACTIONS..(k + 1) * ACTIONS].iter().position(|&m| m != 0).unwrap_or(0) as i32).collect();
+        sim.step(&actions, StepOut { obs: &mut obs, mask: &mut mask, reward: &mut reward, done: &mut done, outcome: &mut outcome, illegal: &mut illegal }).unwrap();
+        for k in 0..n {
+            if seen[k] != 0 {
+                assert!(done[k] == 1 && outcome[k] == seen[k], "a finished fork changed");
+            } else if done[k] == 1 {
+                seen[k] = outcome[k];
+            }
+        }
+    }
+    assert!(seen.iter().all(|&o| o != 0), "every fork finished");
+}

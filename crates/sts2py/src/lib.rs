@@ -61,6 +61,17 @@ impl BatchEnvPy {
         py.detach(|| env.step(a, StepOut { obs: o, mask: m, reward: r, done: d, outcome: oc, illegal: il })).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
+    fn set_autoreset(&mut self, on: bool) {
+        self.env.set_autoreset(on);
+    }
+
+    /// Copy `src[src_idx[k]]` into this env's slot `dst_idx[k]`, resampling hidden state with `seeds[k]` (see `BatchEnv::fork_from`).
+    fn fork_from(&mut self, src: PyRef<'_, BatchEnvPy>, src_idx: PyReadonlyArray1<u32>, dst_idx: PyReadonlyArray1<u32>, seeds: PyReadonlyArray1<u64>) -> PyResult<()> {
+        let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
+        self.env.fork_from(&src.env, src_idx.as_slice().map_err(e)?, dst_idx.as_slice().map_err(e)?, seeds.as_slice().map_err(e)?)
+            .map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
     /// `[n, 4]` f32: scenario index, HP lost fraction, HP left fraction, episode length of the episode each env finished last.
     fn episode_info(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;

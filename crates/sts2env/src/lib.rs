@@ -124,6 +124,8 @@ struct Slot {
     hp0: f32,
     /// Summary of the episode that ended last.
     last: EpisodeInfo,
+    /// Set when the episode ended and the env does not auto-reset (`BatchEnv::set_autoreset(false)`): the outcome code.
+    frozen: Option<i8>,
 }
 
 /// What `BatchEnv::episode_info` reports per env about the episode that ended most recently.
@@ -167,6 +169,9 @@ pub struct BatchEnv {
     max_steps: u32,
     base_seed: u64,
     pool: rayon::ThreadPool,
+    /// Finished episodes restart on the next scenario (default). Search environments turn this off: a finished slot keeps its final
+    /// state, reports `done` with the same outcome every step and ignores actions.
+    autoreset: bool,
 }
 
 /// Per-step outputs (all slices have one entry per env; `obs` and `mask` are row-major `[n, OBS_SIZE]`/`[n, ACTION_SPACE]`).
@@ -207,6 +212,7 @@ fn step_one(
     cfg: RewardConfig,
     max_steps: u32,
     base: u64,
+    autoreset: bool,
     source: &dyn ScenarioSource,
     env: usize,
     slot: &mut Slot,
@@ -222,6 +228,14 @@ fn step_one(
     *done = 0;
     *outcome = OUTCOME_ONGOING;
     *illegal = 0;
+    if let Some(oc) = slot.frozen {
+        // a finished search slot: nothing happens, the outcome is reported again
+        *done = 1;
+        *outcome = oc;
+        *reward = 0.0;
+        write_obs_mask(&mut slot.cx, obs, mask);
+        return;
+    }
     let ok = match Action::from_index(a as usize) {
         Some(act) => slot.cx.step(act),
         None => false,
@@ -253,6 +267,11 @@ fn step_one(
         let me = slot.cx.cr(0);
         let end_frac = if oc == OUTCOME_WIN { me.hp as f32 / me.max_hp.max(1) as f32 } else { 0.0 };
         slot.last = EpisodeInfo { scen: slot.scen, hp_lost: slot.hp0 - end_frac, hp_end: end_frac, len: slot.steps };
+        if !autoreset {
+            slot.frozen = Some(oc);
+            write_obs_mask(&mut slot.cx, obs, mask);
+            return;
+        }
         slot.episode += 1;
         slot.steps = 0;
         let seed = BatchEnv::episode_seed(base, env, slot.episode);
@@ -285,11 +304,11 @@ impl BatchEnv {
                     let sc = source.sample(i, episode);
                     let cx = Combat::try_new(&sc)?;
                     let hp0 = cx.cr(0).hp as f32 / cx.cr(0).max_hp.max(1) as f32;
-                    Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default() })
+                    Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default(), frozen: None })
                 })
                 .collect()
         });
-        Ok(BatchEnv { slots: slots?, source, reward_cfg, max_steps, base_seed, pool })
+        Ok(BatchEnv { slots: slots?, source, reward_cfg, max_steps, base_seed, pool, autoreset: true })
     }
 
     #[inline]
@@ -307,6 +326,35 @@ impl BatchEnv {
 
     pub fn is_empty(&self) -> bool {
         self.slots.is_empty()
+    }
+
+    /// Finished episodes restart on the next scenario (`true`, the default) or stay finished (`false`, for search).
+    pub fn set_autoreset(&mut self, on: bool) {
+        self.autoreset = on;
+    }
+
+    /// Copies the combat of `src` slot `src_idx[k]` into this env's slot `dst_idx[k]` and resamples everything a player cannot see
+    /// (`Combat::determinize(seeds[k])`: pile orders and RNG streams). The copy continues as a fresh episode of the same scenario
+    /// (step counter restarts, finished state is cleared). Used to evaluate actions by simulated play-outs.
+    pub fn fork_from(&mut self, src: &BatchEnv, src_idx: &[u32], dst_idx: &[u32], seeds: &[u64]) -> Result<(), EnvError> {
+        if src_idx.len() != dst_idx.len() || seeds.len() != dst_idx.len() {
+            return Err(EnvError::Buffer("src / dst / seeds lengths differ"));
+        }
+        for k in 0..dst_idx.len() {
+            let (si, di) = (src_idx[k] as usize, dst_idx[k] as usize);
+            if si >= src.slots.len() || di >= self.slots.len() {
+                return Err(EnvError::Buffer("slot index out of range"));
+            }
+            let from = &src.slots[si];
+            let to = &mut self.slots[di];
+            to.cx = from.cx.clone();
+            to.cx.determinize(seeds[k]);
+            to.steps = 0;
+            to.scen = from.scen;
+            to.hp0 = from.hp0;
+            to.frozen = None;
+        }
+        Ok(())
     }
 
     /// Summary of the episode each env finished last (valid where `done` was set by the latest `step`).
@@ -354,6 +402,7 @@ impl BatchEnv {
         let cfg = self.reward_cfg;
         let max_steps = self.max_steps;
         let base = self.base_seed;
+        let autoreset = self.autoreset;
         let source = &*self.source;
         let slots = &mut self.slots;
         self.pool.install(|| {
@@ -368,7 +417,7 @@ impl BatchEnv {
                 .zip(out.outcome[..n].par_iter_mut())
                 .zip(out.illegal[..n].par_iter_mut())
                 .for_each(|((((((((env, slot), &a), obs), mask), reward), done), outcome), illegal)| {
-                    step_one(cfg, max_steps, base, source, env, slot, a, obs, mask, reward, done, outcome, illegal)
+                    step_one(cfg, max_steps, base, autoreset, source, env, slot, a, obs, mask, reward, done, outcome, illegal)
                 });
         });
         Ok(())

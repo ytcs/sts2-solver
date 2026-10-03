@@ -223,7 +223,7 @@ class Net(nn.Module):
             w = torch.stack([1.0 - up, up], -1) / 4.0
             piles.append(self.pile_enc[k](torch.cat([self.pile(ids, w), S(sizes[:, k:k + 1]) / 3.0], 1)))
         return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
-                    cand_p=cand_p, cid=cid, rows=rows)
+                    cand_p=cand_p, cid=cid, rows=rows, cand_sel=cands[..., C["CARD_F"]] > 0.5)
 
     def forward(self, obs, mask):
         """Returns (masked logits [B, ACTION_SPACE], value [B])."""
@@ -266,7 +266,18 @@ class Net(nn.Module):
         confirm = self.confirm(torch.cat([dec, player], 1))
         end = self.end(gctx)
         logits = torch.cat([end, play.flatten(1), pot_l.flatten(1), disc, pick, confirm], 1)
-        logits = logits.masked_fill(mask == 0, -1e9)
+        # Clicking a selected card again would undo it: never useful, and it lets a greedy policy loop forever on a selection screen.
+        # Removed from the legal set unless nothing else is legal.
+        if len(rows):
+            undo = torch.zeros(B, C["MAX_PICK"], dtype=torch.bool, device=obs.device)
+            undo[rows, :Q] = z["cand_sel"]
+            m = (mask > 0)
+            m_pick = m[:, C["OFF_PICK"]:C["OFF_PICK"] + C["MAX_PICK"]] & ~undo
+            m2 = torch.cat([m[:, :C["OFF_PICK"]], m_pick, m[:, C["OFF_PICK"] + C["MAX_PICK"]:]], 1)
+            m = torch.where(m2.any(1, keepdim=True), m2, m)
+        else:
+            m = mask > 0
+        logits = logits.masked_fill(~m, -1e9)
         return logits, self.value(gctx).squeeze(-1)
 
 

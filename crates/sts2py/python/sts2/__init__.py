@@ -46,6 +46,16 @@ class VecEnv:
         self._env.step(a, self.obs, self.mask, self.reward, self.done, self.outcome, self.illegal)
         return self.obs, self.mask, self.reward, self.done, {"outcome": self.outcome, "illegal": self.illegal}
 
+    def set_autoreset(self, on):
+        """With `False` a finished episode stays finished (done=1 and the same outcome every step, actions ignored): for search."""
+        self._env.set_autoreset(bool(on))
+
+    def fork_from(self, src, src_idx, dst_idx, seeds):
+        """Copy the fights `src_idx` of VecEnv `src` into this env's slots `dst_idx` and resample what a player cannot see (pile orders, RNG).
+        Call `reset()` afterwards to read the observations of the copies."""
+        self._env.fork_from(src._env, np.ascontiguousarray(src_idx, np.uint32), np.ascontiguousarray(dst_idx, np.uint32),
+                            np.ascontiguousarray(seeds, np.uint64))
+
     def episode_info(self):
         """Per env, the episode that ended last (valid where `done` was set by the latest `step`): dict of arrays
         `scenario` (index into `scenarios`), `hp_lost` (fraction of max HP lost; a loss counts the HP that was left), `hp_end`
