@@ -38,3 +38,4 @@ pub use cost::CostMods;
 pub use play::RunResult;
 pub use history::{HKind, HistEntry, HistLog, HIST_CAP};
 pub use orbs::VALID_ORBS;
+pub use piles::MID_DRAW_DECISION;

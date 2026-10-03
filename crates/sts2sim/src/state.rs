@@ -96,6 +96,9 @@ pub struct Card {
     pub dupe_of: u8,
     /// Upgrade level this card had when `DampenPower` downgraded it (`downgradedCardsToOldUpgradeLevels`), 0 = none.
     pub dampen_saved: u8,
+    /// `CalamityPower`'s `amountsForPlayedCards` entry for this card (the power's Amount when its current play began; 0 = none).
+    /// A per-card field because Attacks do nest (a Sly discard / auto-play inside another Attack's effect).
+    pub calamity_amount: u8,
 }
 pub type PileTypeBits = u8;
 
@@ -478,7 +481,7 @@ pub struct Combat {
 
     /// In-flight card plays, innermost last (an auto-play started from inside `on_play` pushes a nested play);
     /// suspended while a decision is pending.
-    pub play_stack: ArrayVec<PlayCtx, 16>,
+    pub play_stack: ArrayVec<PlayCtx, 12>,
     pub potion_ctx: Option<PotionCtx>,
     pub decision: Option<Decision>,
     pub choice: Choice,
@@ -535,7 +538,7 @@ pub struct Combat {
     pub attack_player_hits: u8,
     /// Auto-play queues still waiting to be drained (one per in-progress `AutoPlayFromDrawPile` / Sly discard call; they
     /// nest like the C# locals: a card auto-played from a queue may itself start another one).
-    pub autoplay_stack: ArrayVec<AutoQueue, 16>,
+    pub autoplay_stack: ArrayVec<AutoQueue, 8>,
     /// Combat history log (`engine/history.rs`).
     pub hist_log: crate::engine::HistLog,
     /// Number of decisions raised so far (lets a driver tell "the same decision" from "the next one").

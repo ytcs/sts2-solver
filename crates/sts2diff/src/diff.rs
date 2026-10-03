@@ -83,6 +83,7 @@ fn missing_name(cx: &Combat) -> Option<String> {
         Kind::Relic => format!("relic {}", sts2sim::ids::relic::NAMES[id as usize]),
         Kind::Potion => format!("potion {}", sts2sim::ids::potion::NAMES[id as usize]),
         Kind::Monster => format!("monster {}", sts2sim::ids::monster::NAMES[id as usize]),
+        Kind::Orb if id == sts2sim::engine::MID_DRAW_DECISION => "engine: decision raised inside a mid-turn draw loop".to_string(),
         _ => format!("{k:?} {id}"),
     })
 }

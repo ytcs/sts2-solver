@@ -10,6 +10,10 @@ use crate::sort::intro_sort;
 use crate::state::*;
 use crate::types::*;
 
+/// `Combat::missing` marker (`Kind::Orb`): a decision was raised inside the draw loop of a card effect / potion / power (not the
+/// turn-start hand draw). The decision itself works, but its position relative to the remaining draws is not modelled.
+pub const MID_DRAW_DECISION: u16 = u16::MAX;
+
 impl Combat {
     // ---- card instances ----------------------------------------------------------------------------------------
 
@@ -381,7 +385,15 @@ impl Combat {
         for &c in from_discard.iter() {
             self.fire_card_changed_piles(c, PileType::Discard);
         }
-        self.dispatch_g(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me));
+        if self.drawing_hand {
+            // During the turn-start hand draw a listener (Stratagem) may raise a decision: the listeners after it (Biiig Hug's
+            // Soot, ...) run once it is answered (`draw_pass` 2, resumed by `setup_player_turn`).
+            if self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me)) {
+                self.draw_pass = Some((NO, 2));
+            }
+        } else {
+            self.dispatch_g(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me));
+        }
     }
 
     #[inline]
@@ -436,6 +448,10 @@ impl Combat {
             if self.player.hand.len() >= MAX_HAND {
                 break;
             }
+            #[cfg(debug_assertions)]
+            if super::play::trace_on() {
+                eprintln!("TRACE draw {}", crate::ids::card::NAMES[self.cards[card as usize].id as usize]);
+            }
             self.move_card(card, PileType::Hand, CardPilePosition::Bottom);
             out.push(card);
             let id = self.cards[card as usize].id;
@@ -459,6 +475,10 @@ impl Combat {
                 self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
             }
             self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
+            if self.stage == Stage::AwaitChoice {
+                // A card effect's draw loop cannot suspend: the rest of the draw and the effect would run before the decision.
+                self.flag_missing(Kind::Orb, MID_DRAW_DECISION);
+            }
             return false;
         }
         if start_phase == 0 && self.dispatch_resumable(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw)) {

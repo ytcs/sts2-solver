@@ -17,6 +17,13 @@ pub enum RunResult {
     Suspended,
 }
 
+/// Debug builds only: `STS2_TRACE=1` prints every card play / draw to stderr (differential-test triage aid).
+#[cfg(debug_assertions)]
+pub(crate) fn trace_on() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("STS2_TRACE").is_ok())
+}
+
 impl Combat {
     /// `CardModel.TargetType` with dynamic overrides: Shiv hits all enemies under Fan of Knives, Sovereign Blade under Seeking Edge.
     pub fn card_target_type(&self, c: CardIdx) -> TargetType {
@@ -258,6 +265,10 @@ impl Combat {
         play.result_pile = loc.pile;
         play.play_count = count.clamp(0, 255) as u8;
         // 8. BeginCardOrPotionEffect
+        #[cfg(debug_assertions)]
+        if trace_on() {
+            eprintln!("TRACE play {} auto {} depth {}", crate::ids::card::NAMES[self.cards[c as usize].id as usize], play.is_auto, self.play_stack.len());
+        }
         self.player.effect_depth += 1;
         self.play_stack.push(PlayCtx { play, step: PlayStep::Before, count: count.clamp(0, 255) as u8, result: loc });
         let idx = self.play_stack.len() - 1;

@@ -21,9 +21,16 @@ Requires .NET 9 SDK, Linux x86-64. Nothing in the game directory is modified. A 
 ./oracle.sh fuzz --character IRONCLAD --encounters ALL --seeds 1-20 --out-dir /tmp/fz [--keep-all] [--ascension N]
         # many random scenarios (starter + random cards/relics/potions, random hp/floor) in ONE process (~50 ms each);
         # failing runs leave NAME.scenario.json (+ error) and NAME.jsonl in --out-dir. python3 fuzzsum.py DIR groups errors.
+./oracle.sh batch DIR [--max-steps N --max-rounds N]
+        # run every DIR/*.scenario.json in ONE process (~10 ms/fight); scenario key "policy": {"kind":"random|playall|stall","seed":N,
+        # "max_steps":N,"max_rounds":N}; writes NAME.jsonl + NAME.res ("result nactions") or NAME.err. Without "policy" the scenario's
+        # own "script" is replayed (regression scenarios, oracle/regression/). Driven by tools/fuzz_gen.py (randomised differential fuzzing).
+./oracle.sh dump-pools --out pools.json    # card / relic / potion pools, encounters (act, room type), enchantment applicability
 ./oracle.sh dump-rng SEED_STRING --out rng.json      # fresh nine streams {counter,s0..s3} for RunRngSet(seed)
 ./oracle.sh check-shuffle SCENARIO.json --trace trace.jsonl   # opening hand+draw == UnstableShuffle(deck, Rng(hash(seed),"shuffle"))
 ```
+`run` also takes `--policy random|playall|stall` (with `--random SEED`): `random` = uniform over legal actions, `playall` = end the turn
+only when nothing else is legal, `stall` = never plays an Attack (reaches deep turns).
 Options: `--max-steps N` (random driver, default 400), `--max-rounds N` (default 60), `--lenient` (do not abort on game `Log.Error`),
 `--verbose` (print game Info/Debug logs to stderr). Exit code 1 on oracle error (message on stderr).
 

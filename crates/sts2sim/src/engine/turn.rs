@@ -240,8 +240,16 @@ impl Combat {
             if let Some((n, from_hand)) = self.draw_resume.take() {
                 self.drawing_hand = true;
                 if let Some((card, phase)) = self.draw_pass.take() {
-                    // finish the `AfterCardDrawn` pass the decision interrupted, then the rest of the draw
-                    if self.drawn_hooks(card, from_hand, phase) {
+                    // finish the `AfterShuffle` / `AfterCardDrawn` pass the decision interrupted, then the rest of the draw
+                    let suspended = if phase == 2 {
+                        self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me))
+                    } else {
+                        self.drawn_hooks(card, from_hand, phase)
+                    };
+                    if suspended {
+                        if phase == 2 {
+                            self.draw_pass = Some((NO, 2));
+                        }
                         self.drawing_hand = false;
                         self.draw_resume = Some((n, from_hand));
                         self.turn_cont = 4;

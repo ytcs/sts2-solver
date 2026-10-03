@@ -183,6 +183,7 @@ impl Combat {
         copy.flags |= cflag::IS_CLONE;
         copy.deck_idx = NO;
         copy.dampen_saved = 0; // a clone is a new model: not in DampenPower's downgraded-cards dictionary
+        copy.calamity_amount = 0;
         self.cards[idx as usize] = copy;
         self.listen |= crate::content::card_mask(copy.id);
         self.listen_cards |= crate::content::card_mask(copy.id);
@@ -241,11 +242,8 @@ impl Combat {
 
     /// `CardPileCmd.Draw(ctx, player)` for a single card: the drawn card, or `None` (empty piles / full hand / ending).
     pub fn draw_one(&mut self) -> Option<CardIdx> {
-        let before = self.player.hand.len();
-        if self.draw_cards(1, false) == 0 {
-            return None;
-        }
-        if self.player.hand.len() > before { self.player.hand.last() } else { None }
+        // The drawn card even when an `AfterCardDrawn` listener (Hellraiser) moved it out of the hand again.
+        self.draw_cards_list(1, false).first()
     }
 
     // ---- decisions ---------------------------------------------------------------------------------------------

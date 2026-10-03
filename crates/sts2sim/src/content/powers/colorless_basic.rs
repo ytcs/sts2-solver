@@ -221,8 +221,8 @@ listener!(TagTeamPower {
 });
 
 // ---- CalamityPower: after each Attack you play, add `Amount` random Attacks of your character's pool to the hand --------
-// The per-card amount recorded at `BeforeCardPlayed` (the C# dictionary) lives in the power's `aux`:
-// `(card index + 1) | (amount << 16)` for the one outstanding attack play (Attacks do not nest).
+// The per-card amount recorded at `BeforeCardPlayed` (the C# `amountsForPlayedCards` dictionary) lives on the card
+// (`Card::calamity_amount`): Attacks nest (a Sly discard / auto-play inside another Attack's effect), so one slot per power is not enough.
 listener!(CalamityPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_def(play.card).ctype != CardType::Attack {
@@ -230,17 +230,15 @@ listener!(CalamityPower {
         }
         if let Some(i) = cx.power_idx(me.owner, me.idx) {
             let a = cx.cr(me.owner).powers[i].amount;
-            cx.cr_mut(me.owner).powers[i].aux = (play.card as i32 + 1) | (a << 16);
+            cx.cards[play.card as usize].calamity_amount = a.clamp(1, 255) as u8;
         }
     }
-    fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
-        let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
-        let aux = cx.cr(me.owner).powers[i].aux;
-        if aux == 0 || (aux & 0xFFFF) != play.card as i32 + 1 {
+    fn after_card_played(&self, cx: &mut Combat, _me: Me, play: &CardPlay) {
+        let amount = cx.cards[play.card as usize].calamity_amount as usize;
+        if amount == 0 {
             return;
         }
-        cx.cr_mut(me.owner).powers[i].aux = 0;
-        let amount = (aux >> 16) as usize;
+        cx.cards[play.card as usize].calamity_amount = 0;
         let pool = cx.character_pool();
         let cards = cx.get_for_combat_where(pool, amount, |d| d.ctype == CardType::Attack);
         for &c in cards.iter() {
