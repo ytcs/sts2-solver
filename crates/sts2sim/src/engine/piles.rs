@@ -541,6 +541,12 @@ impl Combat {
             self.hist_push(HKind::CardDrawn, PLAYER, NO, id, card, 0, from_hand_draw as u8, 0, 0);
             self.dispatch_g(hookbit::after_card_drawn_early, |cx, me, l| l.after_card_drawn_early(cx, me, card, from_hand_draw));
             self.dispatch_g(hookbit::after_card_drawn, |cx, me, l| l.after_card_drawn(cx, me, card, from_hand_draw));
+            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_none() && self.shuffle_decision_resumable() {
+                // A draw hook auto-played a card that asks for a decision (Hellraiser + Seeker Strike) during the turn-start hand draw: the
+                // nested play resumes first, then the rest of the draw (`turn_cont` 4).
+                self.draw_resume = Some((count - i - 1, from_hand_draw));
+                break;
+            }
             room = (MAX_HAND as i32 - self.player.hand.len() as i32).max(0);
         }
         out

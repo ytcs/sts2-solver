@@ -245,11 +245,8 @@ impl Combat {
 
     /// `CardPileCmd.Draw(ctx, player)` for a single card: the drawn card, or `None` (empty piles / full hand / ending).
     pub fn draw_one(&mut self) -> Option<CardIdx> {
-        let before = self.player.hand.len();
-        if self.draw_cards(1, false) == 0 {
-            return None;
-        }
-        if self.player.hand.len() > before { self.player.hand.last() } else { None }
+        // (the drawn card is returned even when a draw hook moved it away again, e.g. Hellraiser auto-playing a drawn Strike)
+        self.draw_cards_list(1, false).first()
     }
 
     // ---- decisions ---------------------------------------------------------------------------------------------
