@@ -400,8 +400,8 @@ impl Combat {
         for &c in from_discard.iter() {
             self.fire_card_changed_piles(c, PileType::Discard);
         }
-        if self.drawing_hand && self.draw_depth == 1 {
-            // During the turn-start hand draw a listener (Stratagem) may raise a decision: the listeners after it (Biiig Hug's
+        if self.draw_decision_resumable() {
+            // During the turn-start hand draw / a suspendable effect draw a listener (Stratagem) may raise a decision: the listeners after it (Biiig Hug's
             // Soot, ...) run once it is answered (`draw_pass` 2, resumed by `setup_player_turn`).
             if self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me)) {
                 self.draw_pass = Some((NO, 2));

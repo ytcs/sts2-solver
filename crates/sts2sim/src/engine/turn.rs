@@ -764,6 +764,16 @@ impl Combat {
         if let Some((n, from_hand)) = self.draw_cont.take() {
             // the draw of a card / potion effect was interrupted by a Stratagem pick: draw the rest (it may shuffle and ask again)
             self.resuming_draw = true;
+            if let Some((_, 2)) = self.draw_pass {
+                // finish the `AfterShuffle` pass the pick interrupted (Biiig Hug's Soot comes after Stratagem's pick)
+                self.draw_pass = None;
+                if self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me)) {
+                    self.draw_pass = Some((NO, 2));
+                    self.draw_cont = Some((n, from_hand));
+                    self.resuming_draw = false;
+                    return;
+                }
+            }
             self.draw_cards(n, from_hand);
             self.resuming_draw = false;
             if self.stage == Stage::AwaitChoice {

@@ -278,7 +278,7 @@ def run(a):
         for base, verdict, msg in ex.map(diff_one, bases):
             res[verdict] += 1
             if verdict == "ok":
-                lengths[msg.split()[0]] += 1
+                lengths[(msg.split() or ["?"])[0]] += 1
                 for ext in (".scenario.json", ".jsonl", ".res"):
                     try: os.remove(base + ext)
                     except OSError: pass
