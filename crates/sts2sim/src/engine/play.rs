@@ -61,13 +61,14 @@ impl Combat {
         if !self.hooks_enabled() {
             return None;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind), &mut snap);
         for e in snap.iter() {
             if !self.still_live(&e.me) {
                 continue;
             }
             let l = content::listener(&e.me);
-            let ok = (!e.mask.has(hookbit::should_play) || l.should_play(self, e.me, c)) && (!e.mask.has(hookbit::should_play_kind) || l.should_play_kind(self, e.me, c, kind));
+            let ok = (!self.has_hook(&e.me, hookbit::should_play) || l.should_play(self, e.me, c)) && (!self.has_hook(&e.me, hookbit::should_play_kind) || l.should_play_kind(self, e.me, c, kind));
             if !ok {
                 return Some(e.me);
             }
@@ -182,7 +183,8 @@ impl Combat {
         if !self.listen.has(hookbit::modify_card_play_result_location) || !self.hooks_enabled() {
             return loc;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_result_location));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::modify_card_play_result_location), &mut snap);
         let mut mods = super::Mods::new();
         for e in snap.iter() {
             if self.still_live(&e.me) {
@@ -213,7 +215,8 @@ impl Combat {
     pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> i32 {
         let mut count = self.enchanted_replay_count(c) + 1;
         if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_card_play_count));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_card_play_count), &mut snap);
             let mut mods = super::Mods::new();
             for e in snap.iter() {
                 if self.still_live(&e.me) {
@@ -290,7 +293,11 @@ impl Combat {
                         return self.finish_play(idx);
                     }
                     let p = ctx.play;
-                    self.play_serial = self.play_serial.wrapping_add(1);
+                    let (next, wrapped) = self.play_serial.overflowing_add(1);
+                    if wrapped {
+                        crate::util::raise_overflow(ov::COUNTER as u32);
+                    }
+                    self.play_serial = next;
                     self.dispatch_g(hookbit::before_card_played, |cx, me, l| l.before_card_played(cx, me, &p));
                     self.hist_card_play_started(&p);
                     self.hist.cards_played_this_turn += 1;
@@ -343,7 +350,7 @@ impl Combat {
                         }
                     }
                     let ethereal = (self.card_keywords(c) & kw::ETHEREAL != 0) as u8;
-                    self.hist_log.total[HKind::CardPlayFinished as usize] += 1;
+                    crate::engine::history::bump(&mut self.hist_log.total[HKind::CardPlayFinished as usize]);
                     self.hist.set_finished(c);
                     match self.card_def(c).ctype {
                         CardType::Attack => self.hist.attacks_finished_this_turn += 1,
@@ -354,7 +361,7 @@ impl Combat {
                         self.hist.shivs_finished_this_turn += 1;
                     }
                     if ethereal != 0 {
-                        self.hist_log.ethereal_finished += 1;
+                        crate::engine::history::bump(&mut self.hist_log.ethereal_finished);
                     }
                     if self.in_progress {
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));
@@ -398,9 +405,9 @@ impl Combat {
         self.check_for_empty_hand();
         // 12. remove WhenPlayed local cost modifiers (after the card has moved).
         let card = &mut self.cards[c as usize];
-        let mut kept: crate::engine::CostMods = crate::util::ArrayVec::new();
+        let mut kept: crate::engine::CostMods = crate::util::SmallVec::new();
         for m in card.mods.iter() {
-            if m.expire & EXPIRE_WHEN_PLAYED == 0 {
+            if m.expire() & EXPIRE_WHEN_PLAYED == 0 {
                 kept.push(*m);
             }
         }

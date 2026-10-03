@@ -166,11 +166,11 @@ listener!(Snap {
 fn flatten_reduce_cost(cx: &mut Combat, c: CardIdx) {
     let card = &mut cx.cards[c as usize];
     if let Some(last) = card.mods.last() {
-        if !last.relative && !last.reduce_only && last.amount == 0 && last.expire == EXPIRE_END_OF_TURN {
+        if !last.relative() && !last.reduce_only() && last.amount == 0 && last.expire() == EXPIRE_END_OF_TURN {
             return;
         }
     }
-    card.mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: EXPIRE_END_OF_TURN });
+    card.mods.push(CostMod::new(0, false, false, EXPIRE_END_OF_TURN));
 }
 
 listener!(Flatten {

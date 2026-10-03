@@ -21,14 +21,19 @@ impl BatchEnvPy {
             scs.push(sc);
         }
         let cfg = RewardConfig { win, loss, hp_bonus, step: step_reward };
-        Ok(BatchEnvPy { env: BatchEnv::new(n_envs, Box::new(PoolScenario::new(scs)), cfg, max_steps, seed) })
+        if scs.is_empty() {
+            return Err(PyValueError::new_err("no scenarios"));
+        }
+        let env = BatchEnv::try_new(n_envs, Box::new(PoolScenario::new(scs)), cfg, max_steps, seed)
+            .map_err(|e| PyValueError::new_err(format!("cannot create the env: {e:?}")))?;
+        Ok(BatchEnvPy { env })
     }
 
-    fn observe_all(&self, py: Python<'_>, mut obs: PyReadwriteArray2<f32>, mut mask: PyReadwriteArray2<u8>) -> PyResult<()> {
+    fn observe_all(&mut self, py: Python<'_>, mut obs: PyReadwriteArray2<f32>, mut mask: PyReadwriteArray2<u8>) -> PyResult<()> {
         let o = obs.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let m = mask.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
-        py.detach(|| self.env.observe_all(o, m));
-        Ok(())
+        let env = &mut self.env;
+        py.detach(|| env.observe_all(o, m)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -53,8 +58,7 @@ impl BatchEnvPy {
         let oc = outcome.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let il = illegal.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let env = &mut self.env;
-        py.detach(|| env.step(a, StepOut { obs: o, mask: m, reward: r, done: d, outcome: oc, illegal: il }));
-        Ok(())
+        py.detach(|| env.step(a, StepOut { obs: o, mask: m, reward: r, done: d, outcome: oc, illegal: il })).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 }
 
@@ -74,5 +78,12 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("BatchEnv", m.getattr("BatchEnvPy")?)?;
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;
     m.add_function(wrap_pyfunction!(action_space, m)?)?;
+    // `outcome` codes of `step` (set when `done`)
+    m.add("OUTCOME_ONGOING", sts2env::OUTCOME_ONGOING)?;
+    m.add("OUTCOME_WIN", sts2env::OUTCOME_WIN)?;
+    m.add("OUTCOME_LOSS", sts2env::OUTCOME_LOSS)?;
+    m.add("OUTCOME_TRUNCATED", sts2env::OUTCOME_TRUNCATED)?;
+    m.add("OUTCOME_UNIMPLEMENTED", sts2env::OUTCOME_UNIMPLEMENTED)?;
+    m.add("OUTCOME_OVERFLOW", sts2env::OUTCOME_OVERFLOW)?;
     Ok(())
 }

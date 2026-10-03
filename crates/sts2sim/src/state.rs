@@ -4,15 +4,35 @@
 use crate::hooks::Mask;
 use crate::rng::Rng;
 use crate::types::*;
-use crate::util::ArrayVec;
+use crate::util::{ArrayVec, SmallVec};
 
 pub const MAX_CARDS: usize = 160;
-pub const MAX_CREATURES: usize = 16;
+pub const MAX_CREATURES: usize = 12;
 pub const MAX_POWERS: usize = 16;
 pub const MAX_RELICS: usize = 24;
 pub const MAX_POTIONS: usize = 4;
 pub const MAX_HAND: usize = 10;
 pub const MAX_ORBS: usize = 10;
+/// Largest deck a combat accepts: deck card `i` indexes the `deck_*` side tables (`[_; MAX_DECK]`) and the rest of the card
+/// arena is kept for generated cards.
+pub const MAX_DECK: usize = 80;
+
+/// Bits of [`Combat::overflow`]: a fixed capacity was exceeded and data was dropped, so the fight can no longer be
+/// guaranteed faithful. Env wrappers must abort / truncate such an episode (like `missing`).
+pub mod ov {
+    /// A fixed-capacity `ArrayVec` (power list, decision candidates, snapshot, results, piles ...) was full on a push.
+    pub const CONTAINER: u16 = crate::util::OV_CONTAINER as u16;
+    /// The card arena (`MAX_CARDS`) was full when a card had to be created.
+    pub const CARDS: u16 = 1 << 1;
+    /// No free creature slot (`MAX_CREATURES`) for a spawned enemy / pet.
+    pub const CREATURES: u16 = 1 << 2;
+    /// The history ring overwrote an entry that a this-turn / last-turn query could still need.
+    pub const HISTORY: u16 = 1 << 3;
+    /// A saturating whole-combat counter hit its limit.
+    pub const COUNTER: u16 = 1 << 4;
+    /// The scenario does not fit the fixed capacities (deck / relics / potions / ...).
+    pub const SCENARIO: u16 = 1 << 5;
+}
 
 /// Creature handles: `0` is always the player. Pets (Osty) and enemies take later slots; slots of removed
 /// enemies are recycled. Enemy/ally *order* (which matters for hooks) lives in `Combat::allies/enemies`.
@@ -36,27 +56,46 @@ pub struct Power {
     pub skip_next_tick: bool,
 }
 
+/// A local cost modifier (`CardEnergyCost` modifier / temporary star cost), packed into two bytes.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct CostMod {
     pub amount: i8,
-    pub relative: bool,
-    pub reduce_only: bool,
+    /// bit0 = relative (add to the running cost), bit1 = reduce_only, bits 2.. = `expire` (see below).
+    bits: u8,
+}
+impl CostMod {
+    /// `expire`: 0 = lasts the combat, `EXPIRE_END_OF_TURN` (2) and/or `EXPIRE_WHEN_PLAYED` (4).
+    #[inline(always)]
+    pub const fn new(amount: i8, relative: bool, reduce_only: bool, expire: u8) -> CostMod {
+        CostMod { amount, bits: relative as u8 | (reduce_only as u8) << 1 | expire << 2 }
+    }
+    #[inline(always)]
+    pub const fn relative(self) -> bool {
+        self.bits & 1 != 0
+    }
+    #[inline(always)]
+    pub const fn reduce_only(self) -> bool {
+        self.bits & 2 != 0
+    }
     /// bit1 (2) = expires end of turn, bit2 (4) = expires when played. 0 = lasts the combat.
-    pub expire: u8,
+    #[inline(always)]
+    pub const fn expire(self) -> u8 {
+        self.bits >> 2
+    }
 }
 pub const EXPIRE_END_OF_TURN: u8 = 2;
 pub const EXPIRE_WHEN_PLAYED: u8 = 4;
 
 pub mod cflag {
-    pub const EXHAUST_ON_NEXT_PLAY: u16 = 1 << 0;
-    pub const SINGLE_TURN_RETAIN: u16 = 1 << 1;
-    pub const SINGLE_TURN_SLY: u16 = 1 << 2;
-    pub const IS_DUPE: u16 = 1 << 3;
+    pub const EXHAUST_ON_NEXT_PLAY: u8 = 1 << 0;
+    pub const SINGLE_TURN_RETAIN: u8 = 1 << 1;
+    pub const SINGLE_TURN_SLY: u8 = 1 << 2;
+    pub const IS_DUPE: u8 = 1 << 3;
     /// Card left the combat for good (`HasBeenRemovedFromState`).
-    pub const REMOVED: u16 = 1 << 4;
-    pub const X_CAPTURED: u16 = 1 << 5;
+    pub const REMOVED: u8 = 1 << 4;
+    pub const X_CAPTURED: u8 = 1 << 5;
     /// Created by `CardModel.CreateClone` (`IsClone`): see `Combat::clone_card`.
-    pub const IS_CLONE: u16 = 1 << 6;
+    pub const IS_CLONE: u8 = 1 << 6;
 }
 
 /// One card instance in the combat arena.
@@ -65,7 +104,7 @@ pub struct Card {
     pub id: u16,
     pub pile: PileTypeBits,
     pub upgrade: u8,
-    pub flags: u16,
+    pub flags: u8,
     /// Local keyword delta vs canonical (`AddKeyword` / `RemoveKeyword`).
     pub kw_add: u8,
     pub kw_remove: u8,
@@ -85,7 +124,7 @@ pub struct Card {
     pub x_value: i16,
     pub mods: crate::engine::CostMods,
     /// Temporary star costs (`_temporaryStarCosts`); the LAST entry wins. `amount` = cost, `expire` as for `mods`.
-    pub star_mods: ArrayVec<CostMod, 2>,
+    pub star_mods: SmallVec<CostMod, 2>,
     /// Per-card persistent counters (Rampage damage, Regret, ...), meaning defined by the card.
     pub counter: [i16; 2],
     /// Permanent bonus to the card's Damage var in units of 1/10000 (Rampage, Thrash: `DynamicVars.Damage.BaseValue += x`).
@@ -193,6 +232,9 @@ pub struct Creature {
     /// Encounter slot index (`NO` = none).
     pub slot: u8,
     pub powers: ArrayVec<Power, MAX_POWERS>,
+    /// Cache: some power of this creature has `PowerDef::secondary_enemy` (`OwnerIsSecondaryEnemy`: Minion, Illusion), which
+    /// makes it not count for `is_ending`. Maintained by `Combat::sync_secondary` at every power-list mutation.
+    pub secondary: bool,
     pub monster: MonsterState,
 }
 
@@ -210,6 +252,7 @@ impl Default for Creature {
             owner: NO,
             slot: NO,
             powers: ArrayVec::new(),
+            secondary: false,
             monster: MonsterState::default(),
         }
     }
@@ -513,6 +556,9 @@ pub struct Combat {
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
+    /// Bitset of `ov::*`: a fixed capacity was exceeded and data was dropped (never silently: see `util::raise_overflow`).
+    /// Non-zero = the fight is NOT faithful; env wrappers must abort / truncate the episode (like `missing`).
+    pub overflow: u16,
 
     // ---- engine-core additions ----
     /// `Player.IsActiveForHooks`: false from the end of the player's death sequence (`DeactivateHooks`) until revived.
@@ -544,10 +590,10 @@ pub struct Combat {
     /// Number of decisions raised so far (lets a driver tell "the same decision" from "the next one").
     pub decision_seq: u32,
     /// `DeckVersion` write-backs of enchantment amounts (Goopy): increments per deck index (outputs of the combat).
-    pub deck_enchant_inc: [u8; 80],
+    pub deck_enchant_inc: [u8; MAX_DECK],
     /// Upgrade level of each run-deck card (`DeckVersion.CurrentUpgradeLevel`; index = deck index) and the deck size. Combat copies
     /// upgrade independently; only deck-level upgrades (Improvement power at combat end) change these.
-    pub deck_upgrade: [u8; 80],
+    pub deck_upgrade: [u8; MAX_DECK],
     pub deck_len: u8,
     /// Identity of the card play iteration in flight (`CardPlay` object): bumped before each `BeforeCardPlayed`.
     pub play_serial: u16,

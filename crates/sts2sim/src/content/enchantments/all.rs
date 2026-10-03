@@ -69,6 +69,9 @@ listener!(Goopy {
         c.enchant_amount += 1;
         let di = c.deck_idx;
         if (di as usize) < cx.deck_enchant_inc.len() {
+            if cx.deck_enchant_inc[di as usize] == u8::MAX {
+                crate::util::raise_overflow(crate::state::ov::COUNTER as u32);
+            }
             cx.deck_enchant_inc[di as usize] = cx.deck_enchant_inc[di as usize].saturating_add(1);
         }
     }

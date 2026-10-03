@@ -22,7 +22,8 @@ impl Combat {
     /// applied FIRST (`OnEnchant` runs on the un-upgraded card), then the upgrades.
     pub fn new_card_ex(&mut self, id: u16, upgrade: u8, enchant: u8, enchant_amount: i16) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
-            debug_assert!(false, "card arena full");
+            // Arena full: the card cannot be created (the real game has no such limit) -> flag the combat.
+            self.overflow |= ov::CARDS;
             return None;
         }
         if !content::card_implemented(id) {
@@ -78,7 +79,7 @@ impl Combat {
             let new = (old + d.up_cost).max(0);
             if new < old {
                 for m in card.mods.as_mut_slice() {
-                    if !m.relative && m.amount > new {
+                    if !m.relative() && m.amount > new {
                         m.amount = new;
                     }
                 }
@@ -154,7 +155,8 @@ impl Combat {
         if !self.card_in_combat_pile(c) {
             return local;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::try_modify_keywords_in_combat));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::try_modify_keywords_in_combat), &mut snap);
         let mut k = local;
         for e in snap.iter() {
             if self.still_live(&e.me) {
@@ -173,9 +175,9 @@ impl Combat {
             return n;
         }
         for m in card.mods.iter() {
-            n = if m.relative {
-                if m.reduce_only { n.min(n + m.amount as i32) } else { n + m.amount as i32 }
-            } else if m.reduce_only {
+            n = if m.relative() {
+                if m.reduce_only() { n.min(n + m.amount as i32) } else { n + m.amount as i32 }
+            } else if m.reduce_only() {
                 n.min(m.amount as i32)
             } else {
                 m.amount as i32
@@ -188,13 +190,24 @@ impl Combat {
     }
 
     /// `Hook.ModifyEnergyCostInCombat`: pass 1 then pass 2 ("Late" = free-cost effects); skipped if cost < 0.
+    #[inline(always)]
     fn modify_energy_cost_in_combat(&self, c: CardIdx, cost: i32) -> i32 {
-        if cost < 0 || !self.hooks_enabled() {
+        // (no listener = the cost is returned unchanged; checked first because `hooks_enabled` scans the enemies)
+        if cost < 0 || !self.listen.intersects(Mask::bit(hookbit::try_modify_energy_cost_in_combat) | Mask::bit(hookbit::try_modify_energy_cost_in_combat_late)) {
+            return cost;
+        }
+        self.modify_energy_cost_in_combat_slow(c, cost)
+    }
+
+    #[inline(never)]
+    fn modify_energy_cost_in_combat_slow(&self, c: CardIdx, cost: i32) -> i32 {
+        if !self.hooks_enabled() {
             return cost;
         }
         let mut v = Dec::int(cost as i64);
         for bit in [hookbit::try_modify_energy_cost_in_combat, hookbit::try_modify_energy_cost_in_combat_late] {
-            let snap = self.snapshot(Mask::bit(bit));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(bit), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     let l = content::listener(&e.me);
@@ -292,11 +305,16 @@ impl Combat {
     }
 
     /// `Hook.AfterCardChangedPiles`: two full passes (`AfterCardChangedPiles`, then `...Late`) over the run-level iterator.
-    #[inline]
+    #[inline(always)]
     pub fn fire_card_changed_piles(&mut self, c: CardIdx, old: PileType) {
         if !self.listen.has(hookbit::after_card_changed_piles) && !self.listen.has(hookbit::after_card_changed_piles_late) {
             return;
         }
+        self.fire_card_changed_piles_slow(c, old);
+    }
+
+    #[inline(never)]
+    fn fire_card_changed_piles_slow(&mut self, c: CardIdx, old: PileType) {
         self.dispatch_u(hookbit::after_card_changed_piles, |cx, me, l| l.after_card_changed_piles(cx, me, c, old));
         self.dispatch_u(hookbit::after_card_changed_piles_late, |cx, me, l| l.after_card_changed_piles_late(cx, me, c, old));
     }
@@ -342,7 +360,8 @@ impl Combat {
         if !self.listen.has(hookbit::modify_shuffle_order) || !self.hooks_enabled() {
             return;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::modify_shuffle_order));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::modify_shuffle_order), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) {
                 content::listener(&e.me).modify_shuffle_order(self, e.me, list, is_initial);

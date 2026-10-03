@@ -7,47 +7,59 @@ use crate::state::*;
 use crate::types::*;
 use crate::util::ArrayVec;
 
+/// One listener of a snapshot. (It used to carry the listener's 32-byte hook mask; the few multi-bit passes query it
+/// through [`Combat::has_hook`] instead, which keeps a snapshot at 12 bytes per listener.)
 #[derive(Clone, Copy, Default)]
 pub struct Entry {
     pub me: Me,
-    pub mask: Mask,
 }
 
-pub type Snapshot = ArrayVec<Entry, 128>;
+/// Worst case a hook can have this many listeners: every card instance of the arena with a listener plus its affliction /
+/// enchantment, powers, relics, potions, monsters. Realistic fights stay far below; a fuller snapshot drops the surplus
+/// listeners and raises the overflow flag (`ArrayVec`).
+pub const SNAPSHOT_CAP: usize = 256;
+pub type Snapshot = ArrayVec<Entry, SNAPSHOT_CAP>;
 
 impl Combat {
     /// `L_combat` restricted to listeners whose hook mask intersects `m`, in the game's order (spec 02 §1.1).
     pub fn snapshot(&self, m: Mask) -> Snapshot {
         let mut s = Snapshot::new();
+        self.snapshot_into(m, &mut s);
+        s
+    }
+
+    /// [`Combat::snapshot`] into a caller-owned (empty) list. Hot paths use this: returning the 3 KB list by value makes the
+    /// compiler copy it whole on every call, even when it is empty.
+    pub fn snapshot_into(&self, m: Mask, s: &mut Snapshot) {
         if !self.listen.intersects(m) {
-            return s;
+            return;
         }
         for &ci in self.allies.iter().chain(self.enemies.iter()) {
             let cr = &self.creatures[ci as usize];
             for p in cr.powers.iter() {
                 let mask = content::power_mask(p.id);
                 if mask.intersects(m) {
-                    s.push(Entry { me: Me { kind: Kind::Power, owner: ci, idx: p.uid, id: p.id, amount: p.amount }, mask });
+                    s.push(Entry { me: Me { kind: Kind::Power, owner: ci, idx: p.uid, id: p.id, amount: p.amount } });
                 }
             }
             if !cr.is_player {
                 let mask = content::monster_mask(cr.monster.id);
                 if mask.intersects(m) {
-                    s.push(Entry { me: Me { kind: Kind::Monster, owner: ci, idx: 0, id: cr.monster.id, amount: 0 }, mask });
+                    s.push(Entry { me: Me { kind: Kind::Monster, owner: ci, idx: 0, id: cr.monster.id, amount: 0 } });
                 }
             } else if self.player_hooks_active {
                 let pl = &self.player;
                 for (i, r) in pl.relics.iter().enumerate() {
                     let mask = content::relic_mask(r.id);
                     if mask.intersects(m) {
-                        s.push(Entry { me: Me { kind: Kind::Relic, owner: ci, idx: i as u16, id: r.id, amount: r.counter }, mask });
+                        s.push(Entry { me: Me { kind: Kind::Relic, owner: ci, idx: i as u16, id: r.id, amount: r.counter } });
                     }
                 }
                 for (i, p) in pl.potions.iter().enumerate() {
                     if let Some(p) = p {
                         let mask = content::potion_mask(p.id);
                         if mask.intersects(m) {
-                            s.push(Entry { me: Me { kind: Kind::Potion, owner: ci, idx: i as u16, id: p.id, amount: 0 }, mask });
+                            s.push(Entry { me: Me { kind: Kind::Potion, owner: ci, idx: i as u16, id: p.id, amount: 0 } });
                         }
                     }
                 }
@@ -59,28 +71,43 @@ impl Combat {
                         let card = &self.cards[c as usize];
                         let mask = content::card_mask(card.id);
                         if mask.intersects(m) {
-                            s.push(Entry { me: Me { kind: Kind::Card, owner: ci, idx: c as u16, id: card.id, amount: 0 }, mask });
+                            s.push(Entry { me: Me { kind: Kind::Card, owner: ci, idx: c as u16, id: card.id, amount: 0 } });
                         }
                         // card.Affliction (BEFORE the enchantment), then card.Enchantment (spec 02 §1.1)
                         if card.affliction != 0 {
                             let aid = (card.affliction - 1) as u16;
                             let mask = content::affliction_mask(aid);
                             if mask.intersects(m) {
-                                s.push(Entry { me: Me { kind: Kind::Affliction, owner: ci, idx: c as u16, id: aid, amount: card.affliction_amount as i32 }, mask });
+                                s.push(Entry { me: Me { kind: Kind::Affliction, owner: ci, idx: c as u16, id: aid, amount: card.affliction_amount as i32 } });
                             }
                         }
                         if card.enchant != 0 {
                             let eid = (card.enchant - 1) as u16;
                             let mask = content::enchantment_mask(eid);
                             if mask.intersects(m) {
-                                s.push(Entry { me: Me { kind: Kind::Enchantment, owner: ci, idx: c as u16, id: eid, amount: card.enchant_amount as i32 }, mask });
+                                s.push(Entry { me: Me { kind: Kind::Enchantment, owner: ci, idx: c as u16, id: eid, amount: card.enchant_amount as i32 } });
                             }
                         }
                     }
                 }
             }
         }
-        s
+    }
+
+    /// Whether the listener `me` overrides hook `bit` (its static hook mask).
+    #[inline]
+    pub fn has_hook(&self, me: &Me, bit: u32) -> bool {
+        let m = match me.kind {
+            Kind::Power => content::power_mask(me.id),
+            Kind::Monster => content::monster_mask(me.id),
+            Kind::Relic => content::relic_mask(me.id),
+            Kind::Potion => content::potion_mask(me.id),
+            Kind::Card => content::card_mask(me.id),
+            Kind::Affliction => content::affliction_mask(me.id),
+            Kind::Enchantment => content::enchantment_mask(me.id),
+            Kind::Orb => Mask::EMPTY,
+        };
+        m.has(bit)
     }
 
     /// `CombatState.Contains(item)` evaluated when the item is reached.
@@ -128,12 +155,12 @@ impl Combat {
     }
 
     /// Notification pass over the guarded iterator.
-    #[inline]
+    #[inline(always)]
     pub fn dispatch_g(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if !self.listen.has(bit) || !self.hooks_enabled() {
             return;
         }
-        self.dispatch_u(bit, &mut f);
+        self.dispatch_slow(bit, &mut f);
     }
 
     /// Guarded notification pass whose listeners may raise a decision (`Stage::AwaitChoice`, `hook_ctx` set): the pass stops
@@ -150,7 +177,8 @@ impl Combat {
         if !self.listen.has(bit) || !self.hooks_enabled() {
             return false;
         }
-        let snap = self.snapshot(Mask::bit(bit));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(bit), &mut snap);
         let mut start = 0;
         if let Some((last, pos)) = resume {
             // The suspended listener may have removed itself (a power): then the next one now sits at its old index.
@@ -172,12 +200,20 @@ impl Combat {
     }
 
     /// Notification pass over the unguarded iterator (hooks that are part of the kill/death sequence).
-    #[inline]
+    #[inline(always)]
     pub fn dispatch_u(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if !self.listen.has(bit) {
             return;
         }
-        let snap = self.snapshot(Mask::bit(bit));
+        self.dispatch_slow(bit, &mut f);
+    }
+
+    /// The part of a notification pass that runs only when some model listens. Out of line (and `dyn`) on purpose: the 3 KB
+    /// snapshot lives in this frame instead of in every caller's, so the many "nobody listens" call sites stay cheap.
+    #[inline(never)]
+    fn dispatch_slow(&mut self, bit: u32, f: &mut dyn FnMut(&mut Combat, Me, &'static dyn Listener)) {
+        let mut snap = Snapshot::new();
+        self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) {
                 f(self, e.me, content::listener(&e.me));
@@ -187,7 +223,8 @@ impl Combat {
 
     pub fn is_primary_enemy(&self, c: Cid) -> bool {
         let cr = &self.creatures[c as usize];
-        cr.side == Side::Enemy && !cr.powers.iter().any(|p| content::power_def(p.id).secondary_enemy)
+        debug_assert_eq!(cr.secondary, cr.powers.iter().any(|p| content::power_def(p.id).secondary_enemy), "stale Creature::secondary");
+        cr.side == Side::Enemy && !cr.secondary
     }
 
     /// OR over `ShouldStopCombatFromEnding` (Adaptable, Infested, SteamEruption, Stock, Surprise); unguarded.
@@ -199,11 +236,18 @@ impl Combat {
     }
 
     /// OR over a predicate hook on the unguarded iterator (`ShouldTakeExtraTurn` etc. use `any_true_g`).
+    #[inline(always)]
     pub fn any_true(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
         if !self.listen.has(bit) {
             return false;
         }
-        let snap = self.snapshot(Mask::bit(bit));
+        self.any_true_slow(bit, &f)
+    }
+
+    #[inline(never)]
+    fn any_true_slow(&self, bit: u32, f: &dyn Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
+        let mut snap = Snapshot::new();
+        self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && f(self, e.me, content::listener(&e.me)) {
                 return true;
@@ -214,15 +258,22 @@ impl Combat {
 
     /// OR over a predicate hook on the guarded iterator.
     pub fn any_true_g(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
-        self.hooks_enabled() && self.any_true(bit, f)
+        self.listen.has(bit) && self.hooks_enabled() && self.any_true(bit, f)
     }
 
     /// AND over a predicate hook (unguarded): the first model answering `false` — the "preventer" — is returned.
+    #[inline(always)]
     pub fn first_veto(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
         if !self.listen.has(bit) {
             return None;
         }
-        let snap = self.snapshot(Mask::bit(bit));
+        self.first_veto_slow(bit, &f)
+    }
+
+    #[inline(never)]
+    fn first_veto_slow(&self, bit: u32, f: &dyn Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
+        let mut snap = Snapshot::new();
+        self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && !f(self, e.me, content::listener(&e.me)) {
                 return Some(e.me);
@@ -233,7 +284,7 @@ impl Combat {
 
     /// AND over a predicate hook on the guarded iterator (every dispatch is a no-op, i.e. `None`, once combat is ending).
     pub fn first_veto_g(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
-        if !self.hooks_enabled() {
+        if !self.listen.has(bit) || !self.hooks_enabled() {
             return None;
         }
         self.first_veto(bit, f)

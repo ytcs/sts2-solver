@@ -70,7 +70,8 @@ impl Combat {
     fn clear_block(&mut self, c: Cid) {
         let mut preventer: Option<Me> = None;
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_clear_block));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_clear_block), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_clear_block(self, e.me, c) {
                     preventer = Some(e.me);
@@ -172,7 +173,8 @@ impl Combat {
     pub fn max_energy(&self) -> i32 {
         let mut v = Dec::int(self.player.max_energy as i64);
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_max_energy));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_max_energy), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     v = content::listener(&e.me).modify_max_energy(self, e.me, v);
@@ -184,7 +186,8 @@ impl Combat {
 
     fn should_player_reset_energy(&self) -> bool {
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_player_reset_energy));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_player_reset_energy), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_player_reset_energy(self, e.me) {
                     return false;
@@ -250,7 +253,8 @@ impl Combat {
                 if !self.listen.has(bit) {
                     continue;
                 }
-                let snap = self.snapshot(Mask::bit(bit));
+                let mut snap = crate::engine::Snapshot::new();
+                self.snapshot_into(Mask::bit(bit), &mut snap);
                 for e in snap.iter() {
                     if self.still_live(&e.me) {
                         let l = content::listener(&e.me);
@@ -347,7 +351,8 @@ impl Combat {
         if !(self.listen.has(hookbit::after_auto_post_play_phase_entered) && self.hooks_enabled()) {
             return true;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::after_auto_post_play_phase_entered));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::after_auto_post_play_phase_entered), &mut snap);
         let mut started = resume.is_none();
         for e in snap.iter() {
             if !started {
@@ -443,7 +448,8 @@ impl Combat {
     fn flush_player_hand(&mut self) {
         let mut flush = true;
         if self.hooks_enabled() {
-            let snap = self.snapshot(Mask::bit(hookbit::should_flush));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::should_flush), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) && !content::listener(&e.me).should_flush(self, e.me) {
                     flush = false;
@@ -477,9 +483,9 @@ impl Combat {
             self.clear_star_mods(i as CardIdx, EXPIRE_END_OF_TURN);
             let card = &mut self.cards[i];
             if !card.mods.is_empty() {
-                let mut kept: crate::engine::CostMods = crate::util::ArrayVec::new();
+                let mut kept: crate::engine::CostMods = crate::util::SmallVec::new();
                 for m in card.mods.iter() {
-                    if m.expire & EXPIRE_END_OF_TURN == 0 {
+                    if m.expire() & EXPIRE_END_OF_TURN == 0 {
                         kept.push(*m);
                     }
                 }
@@ -621,6 +627,7 @@ impl Combat {
         self.dispatch_u(hookbit::after_combat_end, |cx, me, l| l.after_combat_end(cx, me));
         // Player.AfterCombatEnd: powers (no hooks), combat piles, block.
         self.cr_mut(PLAYER).powers.clear();
+        self.sync_secondary(PLAYER);
         self.cr_mut(PLAYER).block = 0;
         self.player.hand.clear();
         self.player.draw.clear();
@@ -629,7 +636,7 @@ impl Combat {
         self.player.play.clear();
         self.dispatch_u(hookbit::after_combat_victory_early, |cx, me, l| l.after_combat_victory_early(cx, me));
         self.dispatch_u(hookbit::after_combat_victory, |cx, me, l| l.after_combat_victory(cx, me));
-        self.hist_log = Default::default(); // History.Clear()
+        self.hist_log.clear(); // History.Clear()
         self.outcome = Outcome::Victory;
         self.stage = Stage::Over;
     }
@@ -637,7 +644,28 @@ impl Combat {
     // ---- agent interface ------------------------------------------------------------------------------------------
 
     /// Applies an action. Returns false if it was illegal (state unchanged).
+    ///
+    /// Capacity overflows anywhere below (a full `ArrayVec`, card arena, history ring ...) are folded into
+    /// [`Combat::overflow`] when the step returns; a non-zero flag means the fight is no longer faithful.
     pub fn step(&mut self, a: Action) -> bool {
+        // (fold, never drop: bits raised by an `observe` / `legal_actions` call on this combat that nobody synced yet belong to it)
+        self.sync_overflow();
+        let ok = self.step_inner(a);
+        self.sync_overflow();
+        ok
+    }
+
+    /// Moves the thread-local overflow bits (`util::raise_overflow`) into `self.overflow`. `step` does it automatically;
+    /// call it after `observe` / `legal_actions` (which build temporaries that can overflow too).
+    #[inline]
+    pub fn sync_overflow(&mut self) {
+        let o = crate::util::take_overflow();
+        if o != 0 {
+            self.overflow |= o as u16;
+        }
+    }
+
+    fn step_inner(&mut self, a: Action) -> bool {
         match (self.stage, a) {
             (Stage::AwaitAction, Action::PlayCard { hand_pos, target }) => {
                 if !self.play_card(hand_pos as usize, target) {

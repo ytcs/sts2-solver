@@ -124,7 +124,8 @@ impl Combat {
             if !self.listen.has(bit) {
                 continue;
             }
-            let snap = self.snapshot(Mask::bit(bit));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(bit), &mut snap);
             for e in snap.iter() {
                 if !self.still_live(&e.me) {
                     continue;
@@ -144,7 +145,8 @@ impl Combat {
         if !self.listen.has(hookbit::should_creature_be_removed_from_combat_after_death) {
             return true;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::should_creature_be_removed_from_combat_after_death));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::should_creature_be_removed_from_combat_after_death), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && !content::listener(&e.me).should_creature_be_removed_from_combat_after_death(self, e.me, c) {
                 return false;
@@ -158,7 +160,8 @@ impl Combat {
         if !self.listen.has(hookbit::should_power_be_removed_on_death) {
             return true;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::should_power_be_removed_on_death));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::should_power_be_removed_on_death), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) && !content::listener(&e.me).should_power_be_removed_on_death(self, e.me, owner, power_id) {
                 return false;
@@ -183,6 +186,7 @@ impl Combat {
             }
         }
         self.cr_mut(c).powers = kept;
+        self.sync_secondary(c);
         removed
     }
 
@@ -205,7 +209,8 @@ impl Combat {
         if !self.listen.has(hookbit::after_died_to_doom) {
             return;
         }
-        let snap = self.snapshot(Mask::bit(hookbit::after_died_to_doom));
+        let mut snap = crate::engine::Snapshot::new();
+        self.snapshot_into(Mask::bit(hookbit::after_died_to_doom), &mut snap);
         for e in snap.iter() {
             if self.still_live(&e.me) {
                 content::listener(&e.me).after_died_to_doom(self, e.me, creatures);
@@ -233,6 +238,7 @@ impl Combat {
             return;
         }
         self.cr_mut(c).powers.clear();
+        self.sync_secondary(c);
         // CombatManager.RemoveCreature (BeforeRemovedFromRoom) then CombatState.CreatureEscaped.
         let me = Me { kind: Kind::Monster, owner: c, idx: 0, id: self.cr(c).monster.id, amount: 0 };
         content::listener(&me).before_removed_from_room(self, me);

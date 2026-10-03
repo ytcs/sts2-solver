@@ -101,7 +101,7 @@ impl Combat {
         let canonical = self.card_def(c).cost;
         if canonical >= 0 {
             let card = &mut self.cards[c as usize];
-            card.mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED });
+            card.mods.push(CostMod::new(0, false, false, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED));
         }
         self.set_star_cost_this_turn(c, 0);
     }
@@ -111,7 +111,8 @@ impl Combat {
     pub fn gain_gold(&mut self, n: i32) {
         let mut v = Dec::int(n as i64);
         if self.listen.has(hookbit::modify_gold_gained) {
-            let snap = self.snapshot(Mask::bit(hookbit::modify_gold_gained));
+            let mut snap = crate::engine::Snapshot::new();
+            self.snapshot_into(Mask::bit(hookbit::modify_gold_gained), &mut snap);
             for e in snap.iter() {
                 if self.still_live(&e.me) {
                     v = crate::content::listener(&e.me).modify_gold_gained(self, e.me, v);
@@ -338,8 +339,8 @@ impl Combat {
     /// auto-plays the hand; `Combat::auto_select`).
     fn auto_selected(&self, cands: &ArrayVec<CardIdx, MAX_CARDS>, max: usize) -> ArrayVec<CardIdx, 16> {
         let mut v = ArrayVec::new();
-        for &c in cands.iter().take(max).take(16) {
-            v.push(c);
+        for &c in cands.iter().take(max) {
+            v.push(c); // (a full list flags the overflow)
         }
         v
     }
@@ -353,8 +354,8 @@ impl Combat {
         let manual = min != max;
         if !manual && cands.len() <= min as usize {
             let mut all = ArrayVec::new();
-            for &c in cands.iter().take(16) {
-                all.push(c);
+            for &c in cands.iter() {
+                all.push(c); // (a full list flags the overflow)
             }
             return Ask::Resolved(all);
         }
