@@ -24,7 +24,7 @@ STARTERS = {  # deck, relic, base max hp
 }
 POOL_OF = {"IRONCLAD": "IroncladCardPool", "SILENT": "SilentCardPool"}
 ACT_IDX = {"Overgrowth": 0, "Underdocks": 0, "Hive": 1, "Glory": 2}
-NOT_PORTED_POTIONS = {"BONE_BREW", "DISTILLED_CHAOS", "KINGS_COURAGE"}  # tools/coverage.py --missing potions
+NOT_PORTED_POTIONS = set()  # tools/coverage.py --missing potions
 STRESS_RELICS = ["WHISPERING_EARRING", "GAMBLING_CHIP", "TOOLBOX", "TOASTY_MITTENS", "CHOICES_PARADOX", "HISTORY_COURSE", "PAELS_EYE",
                  "PAELS_LEGION", "BONE_FLUTE", "BYRDPIP", "FENCING_MANUAL", "ICE_CREAM", "CHEMICAL_X", "LIZARD_TAIL", "PAPER_PHROG",
                  "PAPER_KRANE", "RUNIC_PYRAMID", "UNCEASING_TOP", "PEN_NIB", "KUNAI", "SHURIKEN", "ORNAMENTAL_FAN", "DEMON_TONGUE",
@@ -103,7 +103,7 @@ class Gen:
                 d["enchantment"] = {"id": e["id"], "amount": rng.randint(1, 3) if e["show_amount"] else 1}
         return d if (up or "enchantment" in d) else c["id"]
 
-    def make(self, rng, name, seed_str, ch=None, enc=None, policy=None):
+    def make(self, rng, name, seed_str, ch=None, enc=None, policy=None, force_relics=(), force_potions=(), force_cards=()):
         ch = ch or rng.choice(self.chars)
         e = enc or rng.choice(self.encs)
         act = ACT_IDX.get(e["act"], rng.randrange(3))
@@ -149,6 +149,9 @@ class Gen:
             if i < len(deck) and rng.random() < 0.8:
                 deck[i] = None
         deck = [c for c in deck if c is not None]
+        for cid in force_cards:
+            for _ in range(rng.randint(1, 2)):
+                deck.append({"id": cid, "upgrade": rng.randint(0, 1)} if rng.random() < 0.5 else cid)
         deck.append("ASCENDERS_BANE")
         relics = [relic]
         nrel = rng.choice([0, 0, 1, 2, 2, 3, 3, 4, 5, 6])
@@ -160,8 +163,13 @@ class Gen:
             for r in rng.sample(STRESS_RELICS, rng.randint(1, 2)):
                 if r in self.relics[ch] and r not in relics:
                     relics.append(r)
+        for r in force_relics:
+            if r not in relics:
+                relics.append(r)
         npot = rng.choice([0, 1, 1, 2, 2])
         pots = [rng.choice(self.potions[ch]) for _ in range(npot)]
+        if force_potions:
+            pots = [rng.choice(force_potions) for _ in range(2)]
         tank = rng.random() < 0.12   # not a realistic HP pool: survives long enough to reach deep turns of the fight
         maxhp = rng.randint(150, 400) if tank else rng.randint(50, 90)
         hp = maxhp if (tank or rng.random() < 0.5) else max(1, int(maxhp * rng.uniform(0.3, 1.0)))
@@ -185,7 +193,8 @@ def gen(a):
         os.makedirs(d, exist_ok=True)
         name = f"f{a.seed}_{i}"
         rng = random.Random(f"{a.seed}/{i}")
-        sc = g.make(rng, name, f"fz{a.seed}x{i}", policy=a.policy)
+        sc = g.make(rng, name, f"fz{a.seed}x{i}", policy=a.policy, force_relics=[x for x in (a.force_relics or "").split(",") if x],
+                     force_potions=[x for x in (a.force_potions or "").split(",") if x], force_cards=[x for x in (a.force_cards or "").split(",") if x])
         json.dump(sc, open(os.path.join(d, name + ".scenario.json"), "w"))
         names.append((k, name))
     return names
@@ -338,6 +347,9 @@ def main():
     ap.add_argument("--name", help="freeze: regression name")
     ap.add_argument("--note", default=None)
     ap.add_argument("--step", type=int, default=None)
+    ap.add_argument("--force-relics", default=None, help="always include these relics")
+    ap.add_argument("--force-potions", default=None, help="both potion slots are filled from this list")
+    ap.add_argument("--force-cards", default=None, help="1-2 copies of each of these cards are added")
     ap.add_argument("--policy", default=None, help="force one policy kind (random|playall|stall)")
     a = ap.parse_args()
     {"gen": gen, "run": run, "triage": triage, "freeze": freeze, "regress": regress}[a.cmd](a)
