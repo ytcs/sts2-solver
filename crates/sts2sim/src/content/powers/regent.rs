@@ -364,7 +364,7 @@ listener!(OrbitPower {
 // PaleBlueDotPower: after the 5th card played in a turn, draw Amount extra cards next turn. `aux` = activated this turn.
 listener!(PaleBlueDotPower {
     fn after_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
-        if aux(cx, &me) == 0 && cx.hist.cards_played_this_turn >= 5 {
+        if aux(cx, &me) == 0 && cx.hist.cards_finished_this_turn >= 5 {
             set_aux(cx, &me, 1);
             let a = amount(cx, &me);
             cx.apply_power(ids::power::DRAW_CARDS_NEXT_TURN_POWER, me.owner, Dec::int(a as i64), me.owner, NO);

@@ -474,6 +474,8 @@ pub struct History {
     pub skills_played_this_turn: i16,
     /// `CardExhaustedEntry`s of the current round/side.
     pub cards_exhausted_this_turn: i16,
+    /// `CardPlayFinishedEntry`s of any card this turn (Pale Blue Dot: nested auto-plays finish before their parent).
+    pub cards_finished_this_turn: i16,
     /// `CardPlayFinishedEntry`s of Attack cards this turn.
     pub attacks_finished_this_turn: i16,
     /// `CardPlayFinishedEntry`s of Skill cards / Shiv-tagged cards this turn (Silent: Finesse-likes).

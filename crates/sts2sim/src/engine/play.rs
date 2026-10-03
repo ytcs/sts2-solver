@@ -357,6 +357,7 @@ impl Combat {
                     let ethereal = (self.card_keywords(c) & kw::ETHEREAL != 0) as u8;
                     crate::engine::history::bump(&mut self.hist_log.total[HKind::CardPlayFinished as usize]);
                     self.hist.set_finished(c);
+                    self.hist.cards_finished_this_turn += 1;
                     match self.card_def(c).ctype {
                         CardType::Attack => self.hist.attacks_finished_this_turn += 1,
                         CardType::Skill => self.hist.skills_finished_this_turn += 1,
