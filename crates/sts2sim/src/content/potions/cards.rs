@@ -16,12 +16,15 @@ const fn purpose(potion: u16) -> u16 {
 
 /// Shared body of Attack/Skill/Power/ColorlessPotion: `GetDistinctForCombat(pool.Where(filter), 3)` ->
 /// `FromChooseACardScreen(canSkip: true)` -> chosen card is free this turn and added to the hand.
-fn choose_a_card(cx: &mut Combat, potion: u16, phase: u8, pool: &[u16], extra: impl Fn(&CardDef) -> bool) -> Flow {
+fn choose_a_card(cx: &mut Combat, potion: u16, phase: u8, pool: &[u16], extra: &dyn Fn(&CardDef) -> bool) -> Flow {
     match phase {
         0 => {
             let cards = cx.get_distinct_for_combat(pool, 3, extra);
             match cx.ask_options(purpose(potion), cards.as_slice(), true) {
-                Ask::Resolved(_) => Flow::Done,
+                Ask::Resolved(c) => {
+                    cx.choice.cards = c; // resolved at once (Whispering Earring's selector)
+                    choose_a_card(cx, potion, 1, pool, extra)
+                }
                 Ask::Pending => Flow::Suspend(1),
             }
         }
@@ -38,27 +41,27 @@ fn choose_a_card(cx: &mut Combat, potion: u16, phase: u8, pool: &[u16], extra: i
 listener!(AttackPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
         let pool = cx.character_pool();
-        choose_a_card(cx, potion, phase, pool, |d| d.ctype == CardType::Attack)
+        choose_a_card(cx, potion, phase, pool, &|d| d.ctype == CardType::Attack)
     }
 });
 
 listener!(SkillPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
         let pool = cx.character_pool();
-        choose_a_card(cx, potion, phase, pool, |d| d.ctype == CardType::Skill)
+        choose_a_card(cx, potion, phase, pool, &|d| d.ctype == CardType::Skill)
     }
 });
 
 listener!(PowerPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
         let pool = cx.character_pool();
-        choose_a_card(cx, potion, phase, pool, |d| d.ctype == CardType::Power)
+        choose_a_card(cx, potion, phase, pool, &|d| d.ctype == CardType::Power)
     }
 });
 
 listener!(ColorlessPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
-        choose_a_card(cx, potion, phase, &gen_pools::COLORLESS, |_| true)
+        choose_a_card(cx, potion, phase, &gen_pools::COLORLESS, &|_| true)
     }
 });
 

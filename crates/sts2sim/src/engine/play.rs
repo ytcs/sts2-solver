@@ -302,6 +302,14 @@ impl Combat {
                     match content::listener(&me).on_play(self, &p, phase) {
                         Flow::Done => {
                             self.play_stack[idx].step = PlayStep::After;
+                            // An effect that started a nested play (auto-play) which is waiting for a decision and has nothing left
+                            // to do afterwards: this play resumes at `After` once the nested plays (and queues) are finished.
+                            if self.play_stack.len() > idx + 1 {
+                                if self.stage != Stage::AwaitChoice {
+                                    self.stage = Stage::AwaitChoice;
+                                }
+                                return RunResult::Suspended;
+                            }
                         }
                         Flow::Suspend(next) => {
                             self.play_stack[idx].step = PlayStep::OnPlay(next);

@@ -33,7 +33,7 @@ listener!(Dowsing {});
 
 // ---- Abundance: choose 1 of 3 upgraded Power cards from the pool; it enters the hand free this turn ------------------------------
 listener!(Abundance {
-    fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
             0 => {
                 let pool = cx.character_pool();
@@ -42,7 +42,11 @@ listener!(Abundance {
                     cx.upgrade_in_combat(c);
                 }
                 match cx.ask_options(ids::card::ABUNDANCE, cards.as_slice(), false) {
-                    Ask::Resolved(_) => Flow::Done,
+                    Ask::Resolved(c) => {
+                        // (resolved at once: Whispering Earring's selector, or nothing to choose from)
+                        cx.choice.cards = c;
+                        self.on_play(cx, p, 1)
+                    }
                     Ask::Pending => Flow::Suspend(1),
                 }
             }

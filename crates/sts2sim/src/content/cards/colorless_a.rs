@@ -731,7 +731,11 @@ listener!(Splash {
                     }
                 }
                 match cx.ask_options(ids::card::SPLASH, cards.as_slice(), true) {
-                    Ask::Resolved(_) => Flow::Done,
+                    Ask::Resolved(c) => {
+                        // (resolved at once: Whispering Earring's selector, or nothing to choose from)
+                        cx.choice.cards = c;
+                        self.on_play(cx, p, 1)
+                    }
                     Ask::Pending => Flow::Suspend(1),
                 }
             }

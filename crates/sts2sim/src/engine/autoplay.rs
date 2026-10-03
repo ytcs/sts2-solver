@@ -120,7 +120,19 @@ impl Combat {
             self.move_card(c, PileType::Play, CardPilePosition::Bottom);
         }
         let owner = self.play_stack.len() as i8 - 1;
-        self.autoplay_stack.push(AutoQueue { cards, force_exhaust, sly: false, owner });
+        self.autoplay_stack.push(AutoQueue { cards, force_exhaust, sly: false, plain: false, owner });
+        self.drain_top_queue()
+    }
+
+    /// A fixed list of `CardCmd.AutoPlay(card, null)` calls one after the other (Eidolon): same queue machinery as
+    /// `AutoPlayFromDrawPile`, so a decision raised by one of the plays suspends the rest of the list.
+    pub fn auto_play_list(&mut self, cards: &[CardIdx]) -> RunResult {
+        let mut q: ArrayVec<CardIdx, 10> = ArrayVec::new();
+        for &c in cards.iter().take(10) {
+            q.push(c);
+        }
+        let owner = self.play_stack.len() as i8 - 1;
+        self.autoplay_stack.push(AutoQueue { cards: q, force_exhaust: false, sly: false, plain: true, owner });
         self.drain_top_queue()
     }
 
@@ -133,7 +145,7 @@ impl Combat {
                 return RunResult::Finished;
             }
             let c = q.cards.remove(0);
-            let (sly, fe) = (q.sly, q.force_exhaust);
+            let (sly, fe, plain) = (q.sly, q.force_exhaust, q.plain);
             if !sly && self.cr(PLAYER).is_dead() {
                 self.autoplay_stack.pop();
                 return RunResult::Finished;
@@ -142,7 +154,9 @@ impl Combat {
                 if self.cards[c as usize].flags & cflag::REMOVED != 0 {
                     continue;
                 }
-                if fe {
+                if plain {
+                    // (leave the exhaust-on-next-play flag as it is)
+                } else if fe {
                     self.cards[c as usize].flags |= cflag::EXHAUST_ON_NEXT_PLAY;
                 } else {
                     self.cards[c as usize].flags &= !cflag::EXHAUST_ON_NEXT_PLAY;
@@ -198,7 +212,7 @@ impl Combat {
         for &c in sly.iter() {
             q.push(c);
         }
-        self.autoplay_stack.push(AutoQueue { cards: q, force_exhaust: false, sly: true, owner });
+        self.autoplay_stack.push(AutoQueue { cards: q, force_exhaust: false, sly: true, plain: false, owner });
         self.drain_top_queue()
     }
 

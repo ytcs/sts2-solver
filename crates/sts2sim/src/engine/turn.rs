@@ -123,48 +123,65 @@ impl Combat {
         if self.cr(PLAYER).is_alive() && self.setup_player_turn(0) {
             return; // suspended on a decision raised by a turn-start hook; `resume_turn_start` continues
         }
-        self.finish_player_turn_start();
+        self.finish_player_turn_start(0);
     }
 
-    /// Rest of `StartTurn(Player)` after `SetupPlayerTurn` (spec 01 §6.1).
-    fn finish_player_turn_start(&mut self) {
-        self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
-        self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
-        // OrbQueue.AfterTurnStart (Plasma), after the whole Hook.AfterSideTurnStart (incl. the Late pass).
-        if self.cr(PLAYER).is_alive() {
-            self.orbs_after_turn_start();
-        }
-        if self.cr(PLAYER).is_dead() {
-            // StartTurn step 10b: a dead player is marked ready to end the turn, which (single player) immediately runs
-            // phase one of the turn end; its `CheckWinCondition` then processes the pending loss (phase ends as `End`).
-            if self.in_progress {
-                self.end_player_turn();
+    /// Rest of `StartTurn(Player)` after `SetupPlayerTurn` (spec 01 §6.1). `from` = 0 at the start, else the `turn_cont` step
+    /// being resumed (6 / 7 / 8 = inside the `AfterAutoPrePlayPhaseEntered` Early / normal / Late pass, where Mayhem, Imbued,
+    /// Bombardment and History Course auto-play cards that may raise decisions). Returns true if it suspended.
+    fn finish_player_turn_start(&mut self, from: u8) -> bool {
+        if from == 0 {
+            self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Player));
+            self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Player));
+            // OrbQueue.AfterTurnStart (Plasma), after the whole Hook.AfterSideTurnStart (incl. the Late pass).
+            if self.cr(PLAYER).is_alive() {
+                self.orbs_after_turn_start();
             }
-            return;
+            if self.cr(PLAYER).is_dead() {
+                // StartTurn step 10b: a dead player is marked ready to end the turn, which (single player) immediately runs
+                // phase one of the turn end; its `CheckWinCondition` then processes the pending loss (phase ends as `End`).
+                if self.in_progress {
+                    self.end_player_turn();
+                }
+                return false;
+            }
+            // RunAutoPrePlayPhase
+            self.player.phase = Phase::AutoPrePlay;
+            self.check_for_empty_hand();
         }
-        // RunAutoPrePlayPhase
-        self.player.phase = Phase::AutoPrePlay;
-        self.check_for_empty_hand();
-        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered_early, |cx, me, l| l.after_auto_pre_play_phase_entered_early(cx, me));
-        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me));
-        self.dispatch_g(hookbit::after_auto_pre_play_phase_entered_late, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me));
+        if from <= 6 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered_early, |cx, me, l| l.after_auto_pre_play_phase_entered_early(cx, me)) {
+            self.turn_cont = 6;
+            return true;
+        }
+        if from <= 7 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered, |cx, me, l| l.after_auto_pre_play_phase_entered(cx, me)) {
+            self.turn_cont = 7;
+            return true;
+        }
+        if from <= 8 && self.dispatch_resumable(hookbit::after_auto_pre_play_phase_entered_late, |cx, me, l| l.after_auto_pre_play_phase_entered_late(cx, me)) {
+            self.turn_cont = 8;
+            return true;
+        }
         self.player.phase = Phase::Play;
         if !self.check_win_condition() && self.stage != Stage::AwaitChoice {
             self.stage = Stage::AwaitAction;
             // An end-turn requested by the turn-start effects (Void Form ...) is held until `StartTurn` returns.
             self.consume_end_turn_request();
         }
+        false
     }
 
     /// Continues a turn start that was suspended by a decision raised inside a turn-start hook (`turn_cont`: 1 = in
-    /// `BeforeHandDraw`, 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = in the opening hand draw, interrupted by an `AfterShuffle` decision); the suspended pass continues with the
+    /// `BeforeHandDraw`, 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = in the opening hand draw, interrupted by
+    /// an `AfterShuffle` decision, 6-8 = in the `AfterAutoPrePlayPhaseEntered` passes); the suspended pass continues with the
     /// listeners after the one that raised the decision (`dispatch_resumable`).
     pub(crate) fn resume_turn_start(&mut self, cont: u8) {
         if (1..=4).contains(&cont) {
             if self.setup_player_turn(cont) {
                 return;
             }
-            self.finish_player_turn_start();
+            self.finish_player_turn_start(0);
+        } else if (6..=8).contains(&cont) {
+            self.finish_player_turn_start(cont);
         }
     }
 

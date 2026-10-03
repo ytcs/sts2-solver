@@ -203,9 +203,8 @@ listener!(Eidolon {
                 todo.push(c);
             }
         }
-        for &c in todo.iter() {
-            let _ = cx.auto_play(c, NO, AutoPlayType::Default, false);
-        }
+        // (the list is fixed up front; one queue so a decision raised by one play suspends the rest of the list)
+        let _ = cx.auto_play_list(todo.as_slice());
         Flow::Done
     }
 });

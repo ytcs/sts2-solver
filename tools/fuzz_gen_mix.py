@@ -26,6 +26,8 @@ STARTERS = {  # character -> (starter deck, starter relic, hp, energy, orb slots
     "NECROBINDER": (["STRIKE_NECROBINDER"] * 4 + ["DEFEND_NECROBINDER"] * 4 + ["BODYGUARD", "UNLEASH"], "BOUND_PHYLACTERY", 66, 3, 0),
     "REGENT": (["STRIKE_REGENT"] * 4 + ["DEFEND_REGENT"] * 4 + ["FALLING_STAR", "VENERATE"], "DIVINE_RIGHT", 75, 3, 0),
 }
+ATTACK_ENCH = ["SHARP", "VIGOROUS", "INSTINCT", "MOMENTUM", "SWIFT", "STEADY", "ADROIT", "GLAM", "PERFECT_FIT", "SOWN", "TEZCATARAS_EMBER", "SLUMBERING_ESSENCE", "CLONE"]
+SKILL_ENCH = ["IMBUED", "IMBUED", "SWIFT", "STEADY", "ADROIT", "GLAM", "PERFECT_FIT", "SOWN", "TEZCATARAS_EMBER", "SLUMBERING_ESSENCE", "CLONE"]
 CHAR_W = {"REGENT": 40, "IRONCLAD": 15, "SILENT": 15, "DEFECT": 15, "NECROBINDER": 15}
 
 
@@ -71,6 +73,7 @@ class Gen:
         self.relics = {k: [r for r in v if r["id"] in self.have["relic"]] for k, v in self.cat["relics"].items()}
         self.potions = {k: [p for p in v if p["id"] in self.have["potion"]] for k, v in self.cat["potions"].items()}
         self.encs = [e for e in self.cat["encounters"] if e["id"] in self.have["encounter"]]
+        self.ctypes = {c["id"]: c["type"] for pool in self.cat["cards"].values() for c in pool}
 
     # ---- deck -----------------------------------------------------------------------------------------------------
     def pick_card(self, r, pool, rarity_w=(("Common", 5), ("Uncommon", 4), ("Rare", 2))):
@@ -80,7 +83,7 @@ class Gen:
         w = [dict(rarity_w).get(c["rarity"], 1) for c in cards]
         return r.choices(cards, w)[0]
 
-    def make_deck(self, r, ch, act, focus, upg_p):
+    def make_deck(self, r, ch, act, focus, upg_p, enchant_p=0.04):
         starter = list(STARTERS[ch][0])
         n_add = {0: r.randint(4, 14), 1: r.randint(10, 22), 2: r.randint(14, 30)}[act]
         # composition weights: own pool, colorless, event, curse, status/token (focus shifts them)
@@ -91,10 +94,16 @@ class Gen:
             w = {"own": 25, "colorless": 20, "event": 20, "curse": 20, "status": 15, "dupe": 0}
         elif focus == "gen":  # card generation / auto-play heavy
             w = {"own": 40, "colorless": 45, "event": 5, "curse": 2, "status": 2, "dupe": 6}
+        elif focus == "turn":  # turn-start auto-play / decisions: Mayhem, Stratagem, auto-play cards, choice cards (+ Imbued)
+            w = {"own": 40, "colorless": 25, "event": 5, "curse": 3, "status": 3, "dupe": 4, "autoplay": 20}
         gen_ids = ["DISCOVERY", "ENTROPY", "MAYHEM", "STRATAGEM", "BEAT_DOWN", "JACK_OF_ALL_TRADES", "MASTER_OF_STRATEGY", "ALCHEMIZE",
                    "HAND_OF_GREED", "TRANSFORM", "CATASTROPHE", "DRAMATIC_ENTRANCE", "NOSTALGIA", "MIMIC", "PRODUCTION", "BELIEVE_IN_YOU",
                    "SCRAWL", "BEGONE", "HIDDEN_GEM", "SPLASH", "WHITE_NOISE", "QUASAR", "SEEKING_EDGE", "THE_BOMB", "COORDINATE",
                    "PRIMAL_FORCE", "HEGEMONY", "CONVERGENCE", "PARRY", "FOREGONE_CONCLUSION"]
+        autoplay_ids = ["MAYHEM", "STRATAGEM", "BEAT_DOWN", "BOMBARDMENT", "CATASTROPHE", "DECISIONS_DECISIONS", "EIDOLON", "HOWL_FROM_BEYOND",
+                        "KNIFE_TRAP", "UPROAR", "HAVOC", "CASCADE", "STAMPEDE", "IMITATION_LEARNING", "HELLRAISER", "DISCOVERY", "ENTROPY",
+                        "JACK_OF_ALL_TRADES", "MASTER_OF_STRATEGY", "ALCHEMIZE", "ARMAMENTS", "HEADBUTT", "BURNING_PACT", "TRUE_GRIT", "TOOLBOX",
+                        "SURVIVOR", "PREPARED", "ACROBATICS", "CALCULATED_GAMBLE", "DAGGER_THROW", "TACTICIAN", "MASTER_PLANNER", "TOOLS_OF_THE_TRADE"]
         added = []
         kinds = list(w)
         for _ in range(n_add):
@@ -122,6 +131,10 @@ class Gen:
                     added.append(r.choice(pool))
             elif k == "dupe" and added:
                 added.append(r.choice(added))
+            elif k == "autoplay":
+                pool = [c for c in self.cards[ch] + self.cards["COLORLESS"] if c["id"] in autoplay_ids]
+                if pool:
+                    added.append(r.choice(pool))
         deck = []
         for cid in starter:
             deck.append((cid, 1 if r.random() < upg_p * 0.5 else 0))
@@ -132,6 +145,10 @@ class Gen:
         out = []
         for cid, up in deck:
             c = {"id": cid, "upgrade": up} if up else cid
+            ctype = self.ctypes.get(cid)
+            if ctype in ("Attack", "Skill") and r.random() < enchant_p and cid != "MAD_SCIENCE":
+                pool = ATTACK_ENCH if ctype == "Attack" else SKILL_ENCH
+                c = {"id": cid, "upgrade": up, "enchantment": {"id": r.choice(pool), "amount": 1}}
             if cid == "MAD_SCIENCE":  # per-instance type (1 attack / 2 skill / 3 power) + rider (1-9), saved props
                 ty = r.randint(1, 3)  # riders: attack 1-3, skill 4-6, power 7-9 (TinkerTime.ChooseRiderEffect)
                 c = {"id": cid, "upgrade": up, "props": {"TinkerTimeRider": 3 * (ty - 1) + r.randint(1, 3), "TinkerTimeType": ty}}
@@ -207,8 +224,8 @@ class Gen:
         floor = {0: r.randint(1, 16), 1: r.randint(18, 33), 2: r.randint(35, 50)}[act]
         max_hp = hp0 + act * r.randint(5, 25) + r.randint(0, 15)
         mode = a.mode or r.choices(["uniform", "greedy", "stall", "deep"], [30, 35, 10, 25])[0]
-        focus = a.focus or r.choices(["mix", "colorless", "junk", "gen"], [40, 25, 10, 25])[0]
-        deck = self.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act])
+        focus = a.focus or r.choices(["mix", "colorless", "junk", "gen", "turn"], [30, 20, 8, 20, 22])[0]
+        deck = self.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act], enchant_p=a.enchant)
         relics = self.make_relics(r, ch, *[int(x) for x in a.relics.split("-")])
         policy = {"seed": r.randrange(1 << 30), "endw": 1.0, "atkw": 1.0, "potw": r.choice([0.3, 1.0, 2.0]), "max_steps": 500, "max_rounds": 40}
         hp = int(max_hp * r.uniform(0.5, 1.0))
@@ -222,6 +239,10 @@ class Gen:
         potions = self.make_potions(r, ch)
         if a.force_potions:
             potions = a.force_potions.split(",")[:2]
+        if focus == "turn" and not a.force_relics:
+            tsr = [x for x in ("GAMBLING_CHIP", "TOASTY_MITTENS", "TOOLBOX", "CHOICES_PARADOX", "WHISPERING_EARRING", "HISTORY_COURSE", "UNCEASING_TOP", "BAG_OF_PREPARATION") if x in self.have["relic"]]
+            have = {x if isinstance(x, str) else x["id"] for x in relics}
+            relics = [x for x in r.sample(tsr, r.randint(1, 2)) if x not in have] + relics
         if a.force_relics:
             have = {x if isinstance(x, str) else x["id"] for x in relics}
             relics = [x for x in a.force_relics.split(",") if x not in have] + relics
@@ -293,7 +314,8 @@ def main():
     ap.add_argument("--encounter")
     ap.add_argument("--act", type=int)
     ap.add_argument("--room", help="comma list of monster,elite,boss")
-    ap.add_argument("--focus", choices=["mix", "colorless", "junk", "gen"])
+    ap.add_argument("--focus", choices=["mix", "colorless", "junk", "gen", "turn"])
+    ap.add_argument("--enchant", type=float, default=0.04, help="probability that an Attack/Skill card carries an enchantment")
     ap.add_argument("--mode", choices=["uniform", "greedy", "stall", "deep"])
     ap.add_argument("--relics", default="3-8")
     ap.add_argument("--force-potions", help="comma list (max 2) used instead of random potions")
