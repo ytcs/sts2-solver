@@ -302,6 +302,10 @@ impl Combat {
                     match content::listener(&me).on_play(self, &p, phase) {
                         Flow::Done => {
                             self.play_stack[idx].step = PlayStep::After;
+                            if self.stage == Stage::AwaitChoice && self.draw_cont.is_some() {
+                                // the effect's draw was interrupted by a Stratagem pick: finish the rest after the pick
+                                return RunResult::Suspended;
+                            }
                         }
                         Flow::Suspend(next) => {
                             self.play_stack[idx].step = PlayStep::OnPlay(next);

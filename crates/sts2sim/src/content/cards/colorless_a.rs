@@ -804,7 +804,8 @@ listener!(ThinkingAhead {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
             0 => {
-                draw(cx, p);
+                let n = cx.card_var(p.card, VarKind::Cards);
+                cx.draw_cards_nosuspend(n, false); // a decision follows: a Stratagem pick cannot be paused here
                 match cx.ask_hand(ids::card::THINKING_AHEAD, 1, 1, |_, _| true) {
                     Ask::Resolved(cards) => {
                         if let Some(c) = cards.first() {

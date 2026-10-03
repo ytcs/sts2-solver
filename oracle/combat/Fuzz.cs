@@ -80,7 +80,7 @@ public static class Fuzz
         foreach (var e in ModelDb.EventEncounters)
             encs.Add((JsonNode)new JsonObject { ["id"] = e.Id.Entry, ["act"] = -1, ["act_name"] = "Event", ["room"] = e.RoomType.ToString(), ["weak"] = e.IsWeak });
         o["encounters"] = encs;
-        JsonArray Cards(IEnumerable<CardModel> cs) { var a = new JsonArray(); foreach (var c in cs.OrderBy(c => c.Id.Entry, StringComparer.Ordinal)) a.Add((JsonNode)new JsonObject { ["id"] = c.Id.Entry, ["rarity"] = c.Rarity.ToString(), ["type"] = c.Type.ToString(), ["max_up"] = c.MaxUpgradeLevel, ["mp"] = c.MultiplayerConstraint.ToString() }); return a; }
+        JsonArray Cards(IEnumerable<CardModel> cs) { var a = new JsonArray(); foreach (var c in cs.OrderBy(c => c.Id.Entry, StringComparer.Ordinal)) a.Add((JsonNode)new JsonObject { ["id"] = c.Id.Entry, ["rarity"] = c.Rarity.ToString(), ["type"] = c.Type.ToString(), ["max_up"] = c.MaxUpgradeLevel, ["mp"] = c.MultiplayerConstraint.ToString(), ["target"] = c.TargetType.ToString() }); return a; }
         JsonArray Ids(IEnumerable<string> ids) { var a = new JsonArray(); foreach (var i in ids.OrderBy(x => x, StringComparer.Ordinal)) a.Add((JsonNode)i); return a; }
         var chars = new JsonObject();
         foreach (var ch in ModelDb.AllCharacters)

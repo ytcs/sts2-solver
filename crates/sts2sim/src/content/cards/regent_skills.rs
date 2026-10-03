@@ -280,7 +280,7 @@ listener!(Glimmer {
         match phase {
             0 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+                cx.draw_cards_nosuspend(n, false);
                 let k = cx.card_named_var(p.card, var_name::PUT_BACK).clamp(0, 10) as u8;
                 match cx.ask_hand(ids::card::GLIMMER, k, k, |_, _| true) {
                     Ask::Resolved(cards) => {
@@ -306,7 +306,7 @@ listener!(PhotonCut {
                 let d = cx.card_base_damage(p.card);
                 cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+                cx.draw_cards_nosuspend(n, false);
                 let k = cx.card_named_var(p.card, var_name::PUT_BACK).clamp(0, 10) as u8;
                 match cx.ask_hand(ids::card::PHOTON_CUT, k, k, |_, _| true) {
                     Ask::Resolved(cards) => {
@@ -456,7 +456,7 @@ listener!(DecisionsDecisions {
         match phase {
             0 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+                cx.draw_cards_nosuspend(n, false);
                 match cx.ask_hand(ids::card::DECISIONS_DECISIONS, 1, 1, decisions_filter) {
                     Ask::Resolved(cards) => {
                         cx.cards[p.card as usize].counter[0] = cards.first().map_or(0, |c| c as i16 + 1);

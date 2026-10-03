@@ -104,11 +104,11 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             cx.legal_actions(&mut buf);
             if !buf.iter().any(|a| *a == act) {
                 println!("step {i}: action {act:?} is NOT legal in the simulator (legal: {:?})", buf.as_slice());
-                return Ok(Verdict::Mismatch);
+                return Ok(mismatch_or_missing(&cx, i));
             }
             if !cx.step(act) {
                 println!("step {i}: simulator rejected {act:?}");
-                return Ok(Verdict::Mismatch);
+                return Ok(mismatch_or_missing(&cx, i));
             }
         }
         // Prompts raised while executing the action (record 0: while the combat was set up / the first turn started, e.g.
@@ -120,14 +120,14 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 let Some(ch) = choices.get(ci) else {
                     let d = cx.decision.as_ref();
                     println!("step {i}: simulator raised a decision but the oracle made no choice (simulator: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?}", d.purpose, d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>())));
-                    return Ok(Verdict::Mismatch);
+                    return Ok(mismatch_or_missing(&cx, i));
                 };
                 ci += 1;
                 let seq = cx.decision_seq;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
                         println!("step {i}: pick {p} rejected");
-                        return Ok(Verdict::Mismatch);
+                        return Ok(mismatch_or_missing(&cx, i));
                     }
                     // finished (or replaced by the NEXT decision of the same effect)
                     if cx.stage != Stage::AwaitChoice || cx.decision_seq != seq {
@@ -136,7 +136,7 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 }
                 if cx.stage == Stage::AwaitChoice && cx.decision_seq == seq && !cx.step(Action::Confirm) {
                     println!("step {i}: decision still pending after the oracle's picks");
-                    return Ok(Verdict::Mismatch);
+                    return Ok(mismatch_or_missing(&cx, i));
                 }
             }
         }
@@ -179,4 +179,15 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
         println!("OK: {} steps match ({trace_path})", trace.len());
     }
     Ok(if ok { Verdict::Match } else { Verdict::Mismatch })
+}
+
+/// A replay that diverged structurally (illegal action, rejected pick, unexpected decision) while the simulator had
+/// already flagged unported content is an UNIMPLEMENTED hit, not a mismatch.
+fn mismatch_or_missing(cx: &Combat, step: usize) -> Verdict {
+    if let Some(m) = missing_name(cx) {
+        println!("UNIMPLEMENTED {m} (step {step}; replay diverged)");
+        Verdict::Unimplemented
+    } else {
+        Verdict::Mismatch
+    }
 }

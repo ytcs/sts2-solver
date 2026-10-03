@@ -32,6 +32,11 @@ THEME_RE = {
 }
 
 
+# per-shard probability that the oracle's random policy drops `end_turn` when something else is legal (0 = uniform):
+# play-heavy shards play many more cards per turn, i.e. reach many more card x power x orb x pet interactions
+BIASES = [0.0, 0.7, 0.9, 0.5, 0.95]
+
+
 def load_meta():
     p = os.path.join(ROOT, "target", "sts2_fuzz_meta.json")
     os.makedirs(os.path.dirname(p), exist_ok=True)
@@ -61,7 +66,10 @@ def card_theme(meta):
     return out
 
 
-def make(meta, theme, i, rnd, characters, encounter=None, unported=frozenset()):
+def make(meta, theme, i, rnd, characters, encounter=None, unported=frozenset(), force=(), n_add=None):
+    tgt = {c["id"]: c["target"] for k in ("colorless", "curse", "status") for c in meta[k]}
+    for chm in meta["characters"].values():
+        tgt.update({c["id"]: c["target"] for c in chm["cards"]})
     ch = rnd.choice(characters)
     cm = meta["characters"][ch]
     encs = [e for e in meta["encounters"] if encounter is None or e["id"] == encounter]
@@ -78,7 +86,11 @@ def make(meta, theme, i, rnd, characters, encounter=None, unported=frozenset()):
     weights = [(3 if theme.get(c["id"]) else 1) * {"Common": 3, "Uncommon": 2, "Rare": 1.3}.get(c["rarity"], 1) for c in pool]
     if rnd.random() < 0.35:  # "build" mode: strongly theme-focused deck
         weights = [w * (6 if theme.get(c["id"]) else 1) for w, c in zip(weights, pool)]
-    n_add = rnd.randint(5, 25)
+    n_add = rnd.randint(*(n_add or (5, 25)))
+    for fc in force:  # --force-cards ID[+][:count]
+        cid, _, cnt = fc.rstrip('+').partition(':')
+        for _ in range(int(cnt or 1)):
+            deck.append({'id': cid, **({'upgrade': 1} if fc.rstrip('0123456789:').endswith('+') or fc.endswith('+') else {})})
     dupe_ok = rnd.random() < 0.5
     for _ in range(n_add):
         r = rnd.random()
@@ -103,6 +115,8 @@ def make(meta, theme, i, rnd, characters, encounter=None, unported=frozenset()):
         for _ in range(rnd.choice([1, 1, 2, 3])):
             en = rnd.choice([e for e in meta["enchantments"] if e["id"] != "DEPRECATED_ENCHANTMENT"])
             ok = [d for d in deck if "enchantment" not in d and d["id"] in en["cards"]]
+            if en["id"] == "INKY":  # Inky.OnPlay dereferences cardPlay.Target: a NullReferenceException in the game itself on Self cards
+                ok = [d for d in ok if tgt.get(d["id"]) in ("AnyEnemy", "AllEnemies")]
             if ok:
                 rnd.choice(ok)["enchantment"] = {"id": en["id"], "amount": rnd.choice([1, 1, 2, 3]) if en["show_amount"] else 1}
     deck.append({"id": "ASCENDERS_BANE"})
@@ -126,7 +140,7 @@ def make(meta, theme, i, rnd, characters, encounter=None, unported=frozenset()):
     base = cm["hp"]
     max_hp = base + rnd.randint(0, 12) + act * rnd.randint(0, 14) + rnd.choice([0, 0, 0, 7, 14])
     hp = max(5, int(max_hp * rnd.uniform(0.45, 1.0)))
-    if rnd.random() < 0.2:  # stress mode: survive long enough to reach deep into the monster move sets
+    if rnd.random() < 0.3:  # stress mode: survive long enough to reach deep into the monster move sets
         max_hp = rnd.randint(150, 300)
         hp = max_hp
     s = {
@@ -139,10 +153,11 @@ def make(meta, theme, i, rnd, characters, encounter=None, unported=frozenset()):
 
 
 def run_shard(args):
-    paths, shard_dir, policy_base = args
+    paths, shard_dir, policy_base, bias = args
     lst = os.path.join(shard_dir, "list.txt")
     open(lst, "w").write("\n".join(paths) + "\n")
-    r = subprocess.run([ORACLE, "batch", "--list", lst, "--policy-base", str(policy_base)], capture_output=True, text=True)
+    r = subprocess.run([ORACLE, "batch", "--list", lst, "--policy-base", str(policy_base), "--play-bias", str(bias),
+                        "--max-steps", "500"], capture_output=True, text=True)
     return r.returncode, r.stderr[-500:]
 
 
@@ -185,6 +200,8 @@ def main():
     ap.add_argument("--gen-only", action="store_true")
     ap.add_argument("--keep-ok", action="store_true")
     ap.add_argument("--skip-potions", default="")
+    ap.add_argument("--force-cards", default="", help="ID[+][:count],... appended to every deck (focus runs)")
+    ap.add_argument("--n-add", default="", help="MIN,MAX random additions instead of 5,25")
     ap.add_argument("--recheck", action="store_true", help="only re-diff the kept NAME.scenario.json/.jsonl pairs in --out (after a fix)")
     a = ap.parse_args()
     if a.recheck:
@@ -204,7 +221,8 @@ def main():
     chars = a.characters.split(",")
     bases = []
     for i in range(a.n):
-        s = make(meta, theme, a.seed * 100000 + i, rnd, chars, a.encounter, set(filter(None, a.skip_potions.split(","))))
+        s = make(meta, theme, a.seed * 100000 + i, rnd, chars, a.encounter, set(filter(None, a.skip_potions.split(","))),
+                 [x for x in a.force_cards.split(",") if x], tuple(int(x) for x in a.n_add.split(",")) if a.n_add else None)
         base = os.path.join(a.out, s["name"])
         json.dump(s, open(base + ".scenario.json", "w"))
         bases.append(base)
@@ -216,7 +234,7 @@ def main():
     for k, sh in enumerate(shards):
         d = os.path.join(a.out, f"shard{k}")
         os.makedirs(d, exist_ok=True)
-        jobs.append(([b + ".scenario.json" for b in sh], d, pol + k * 100003))
+        jobs.append(([b + ".scenario.json" for b in sh], d, pol + k * 100003, BIASES[(k + a.seed) % len(BIASES)]))
     with ThreadPoolExecutor(a.jobs) as ex:
         for rc, err in ex.map(run_shard, jobs):
             if rc != 0:
@@ -231,11 +249,8 @@ def main():
                 for ext in (".scenario.json", ".jsonl"):
                     if os.path.exists(base + ext):
                         os.remove(base + ext)
-            elif v == "unimplemented" and not a.keep_ok:
+            elif v == "unimplemented":
                 bad.append((base, v, msg))
-                for ext in (".jsonl",):
-                    if os.path.exists(base + ext):
-                        os.remove(base + ext)
             elif v != "ok":
                 bad.append((base, v, msg))
     missing = {}

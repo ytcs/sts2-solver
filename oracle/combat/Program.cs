@@ -84,6 +84,7 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             // policy (seed = policy-base + line index) and write BASE.jsonl; one process for all (no per-fight JIT). Errors go to BASE.err.
             var paths = File.ReadAllLines(kv["list"]).Where(l => l.Trim().Length > 0).ToList();
             int pb = int.Parse(kv.GetValueOrDefault("policy-base", "0"));
+            PlayBiasArg = double.Parse(kv.GetValueOrDefault("play-bias", "0"), System.Globalization.CultureInfo.InvariantCulture);
             int nbad = 0;
             for (int i = 0; i < paths.Count; i++)
             {
@@ -109,10 +110,11 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
 
     record RunResult(string Result, List<ActionSpec> Recorded, string Error);
 
+    static double PlayBiasArg = 0;
     static RunResult RunOne(Scenario sc, TextWriter w, Pump pump, int? randomSeed, int maxSteps, int maxRounds)
     {
         Fatal.Message = null; Fatal.Warnings.Clear();
-        var driver = new Driver(sc, w, pump) { MaxSteps = maxSteps, MaxRounds = maxRounds };
+        var driver = new Driver(sc, w, pump) { MaxSteps = maxSteps, MaxRounds = maxRounds, PlayBias = PlayBiasArg };
         if (randomSeed.HasValue) driver.RandomDriver = new Random(randomSeed.Value);
         string err = null;
         try { driver.Run(); }

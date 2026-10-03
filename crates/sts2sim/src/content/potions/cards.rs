@@ -301,7 +301,7 @@ listener!(GlowwaterPotion {
 listener!(SneckoOil {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_cards(n, false);
+        cx.draw_cards_nosuspend(n, false); // the tail reads the whole hand
         let hand = cx.player.hand;
         for &c in hand.iter() {
             if cx.card_def(c).x_cost {

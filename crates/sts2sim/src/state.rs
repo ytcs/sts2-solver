@@ -350,7 +350,7 @@ pub struct Decision {
     pub source: DecisionSource,
     pub min: u8,
     pub max: u8,
-    pub cands: ArrayVec<CardIdx, 64>,
+    pub cands: ArrayVec<CardIdx, MAX_CARDS>,
     /// Candidate positions selected so far, in click order.
     pub selected: ArrayVec<u8, 16>,
     /// `RequireManualConfirmation` (`min != max`).
@@ -490,6 +490,14 @@ pub struct Combat {
     pub drawing_hand: bool,
     /// Nesting depth of `draw_cards_list` (a draw started by an `AfterCardDrawn` hook of another draw is depth 2).
     pub draw_depth: u8,
+    /// A draw started by a card / potion effect that was interrupted by an `AfterShuffle` decision (Stratagem):
+    /// (cards still to draw, from_hand_draw). The effect's own code already returned; `resume_after_decision` finishes
+    /// the draw once the pick is made (see `draw_decision_resumable`).
+    pub draw_cont: Option<(i32, bool)>,
+    /// True while `resume_after_decision` finishes an interrupted draw (a further shuffle may ask again).
+    pub resuming_draw: bool,
+    /// >0 while a draw whose caller reads the drawn cards / asks right afterwards runs: its shuffle decisions cannot be paused.
+    pub draw_nosuspend: u8,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
     /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
     pub turn_cont: u8,

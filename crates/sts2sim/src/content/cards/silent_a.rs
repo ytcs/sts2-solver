@@ -142,7 +142,7 @@ listener!(Acrobatics {
         match phase {
             0 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+                cx.draw_cards_nosuspend(n, false);
                 ask_discard_last(cx, ids::card::ACROBATICS, 1)
             }
             1 => answer_discard_last(cx),
@@ -343,7 +343,7 @@ listener!(DaggerThrow {
         match phase {
             0 => {
                 attack_single(cx, p);
-                cx.draw_cards(1, false);
+                cx.draw_cards_nosuspend(1, false);
                 ask_discard_last(cx, ids::card::DAGGER_THROW, 1)
             }
             1 => answer_discard_last(cx),
@@ -423,7 +423,7 @@ listener!(Envenom {
 
 listener!(EscapePlan {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let drawn = cx.draw_cards_list(1, false);
+        let drawn = cx.draw_cards_list_nosuspend(1, false);
         if let Some(c) = drawn.first() {
             if cx.card_def(c).ctype == CardType::Skill {
                 block_from_var(cx, p);
@@ -437,7 +437,7 @@ listener!(EscapePlan {
 listener!(Expertise {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
-        let drawn = cx.draw_cards_list(n, false);
+        let drawn = cx.draw_cards_list_nosuspend(n, false);
         for &c in drawn.iter() {
             cx.apply_single_turn_retain(c);
         }

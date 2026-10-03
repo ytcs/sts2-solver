@@ -298,8 +298,8 @@ listener!(EntropyPower {
 });
 
 // ---- StratagemPower: after a reshuffle choose `Amount` cards of the draw pile to put into the hand ---------------------
-// A decision is only resumable during the turn-start hand draw (`draw_resume` / `turn_cont` 3); during other draws it is
-// flagged as not ported (the draw loop of a card effect cannot pause).
+// The decision is resumable during the turn-start hand draw (`draw_resume` / `turn_cont` 4) and during a plain draw of a
+// card / potion effect (`draw_cont`, see `Combat::draw_decision_resumable`); other draws flag it as not ported.
 listener!(StratagemPower {
     fn after_shuffle(&self, cx: &mut Combat, me: Me) {
         if me.owner != PLAYER {
@@ -313,10 +313,21 @@ listener!(StratagemPower {
                 }
             }
             crate::engine::Ask::Pending => {
-                if cx.drawing_hand && cx.draw_depth <= 1 {
+                if cx.draw_decision_resumable() {
                     cx.hook_ctx = Some((me, 1));
                     cx.stage = Stage::AwaitChoice;
                 } else {
+                    if std::env::var("STS2_DEBUG_STRAT").is_ok() {
+                        eprintln!(
+                            "stratagem not resumable: depth {} hand {} nosusp {} potion {} stack {:?} side {:?}",
+                            cx.draw_depth,
+                            cx.drawing_hand,
+                            cx.draw_nosuspend,
+                            cx.potion_ctx.is_some(),
+                            cx.play_stack.last().map(|c| (c.play.card, c.step)),
+                            cx.side
+                        );
+                    }
                     cx.decision = None;
                     cx.flag_missing(Kind::Power, me.id);
                 }

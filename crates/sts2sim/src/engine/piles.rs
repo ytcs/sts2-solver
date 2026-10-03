@@ -391,6 +391,37 @@ impl Combat {
         self.draw_cards_list(count, from_hand_draw).len()
     }
 
+    /// Whether an `AfterShuffle` decision raised by the draw that is running now can be paused and resumed: the
+    /// turn-start hand draw, or a plain (non-nested) draw made by a card / potion effect (`on_play` finishes, the play
+    /// is held in front of its `After` step and the rest of the draw continues after the pick). Everything else (draws
+    /// from hooks, nested draws, draws whose caller reads the result or asks next) is flagged as not ported.
+    pub fn draw_decision_resumable(&self) -> bool {
+        if self.draw_nosuspend > 0 || self.draw_depth > 1 {
+            return false;
+        }
+        if self.drawing_hand || self.resuming_draw || self.potion_ctx.is_some() {
+            return true;
+        }
+        matches!(self.play_stack.last().map(|c| c.step), Some(PlayStep::OnPlay(_)))
+    }
+
+    /// `draw_cards` for call sites that read the drawn cards or ask for a decision right afterwards: a Stratagem pick
+    /// raised by the shuffle cannot be paused there.
+    pub fn draw_cards_nosuspend(&mut self, count: i32, from_hand_draw: bool) -> usize {
+        self.draw_nosuspend += 1;
+        let n = self.draw_cards(count, from_hand_draw);
+        self.draw_nosuspend -= 1;
+        n
+    }
+
+    /// `draw_cards_list` counterpart of `draw_cards_nosuspend`.
+    pub fn draw_cards_list_nosuspend(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+        self.draw_nosuspend += 1;
+        let out = self.draw_cards_list(count, from_hand_draw);
+        self.draw_nosuspend -= 1;
+        out
+    }
+
     /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
     pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
         self.draw_depth = self.draw_depth.saturating_add(1);
@@ -426,9 +457,14 @@ impl Combat {
                 break;
             }
             self.shuffle_if_necessary();
-            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() && self.drawing_hand {
-                // An `AfterShuffle` listener (Stratagem) asked for a decision: the turn-start draw resumes afterwards.
-                self.draw_resume = Some((count - i, from_hand_draw));
+            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() {
+                // An `AfterShuffle` listener (Stratagem) asked for a decision (only when `draw_decision_resumable`): the
+                // turn-start draw / the rest of this effect's draw resumes afterwards.
+                if self.drawing_hand {
+                    self.draw_resume = Some((count - i, from_hand_draw));
+                } else {
+                    self.draw_cont = Some((count - i, from_hand_draw));
+                }
                 break;
             }
             if self.player.draw.len() + self.player.discard.len() == 0 {
