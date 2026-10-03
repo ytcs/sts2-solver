@@ -516,6 +516,8 @@ pub struct Combat {
     /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
     /// its index in the pass: the pass continues after it once the decision is resolved.
     pub susp_after: Option<(u32, crate::hooks::Me, u8)>,
+    /// The listeners of that pass that were still to run when it suspended (the pass resumes over this list, not a fresh snapshot).
+    pub susp_rest: ArrayVec<crate::hooks::Me, 48>,
     /// An enemy turn suspended inside a monster move that raised a decision (Knowledge Demon's Curse of Knowledge):
     /// the `Enemies` snapshot taken at the start of the turn and the index of the suspended mover.
     pub enemy_cont: Option<(ArrayVec<Cid, MAX_CREATURES>, u8, u8)>,
