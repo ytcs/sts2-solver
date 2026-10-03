@@ -81,7 +81,7 @@ impl Combat {
             v *= l.enchant_damage_multiplicative(self, me, v, props);
         }
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_damage_additive) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_damage_additive) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
                 let d = content::listener(&e.me).modify_damage_additive(self, e.me, &q);
                 v += d;
@@ -91,7 +91,7 @@ impl Combat {
             }
         }
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_damage_multiplicative) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_damage_multiplicative) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
                 let f = content::listener(&e.me).modify_damage_multiplicative(self, e.me, &q);
                 v *= f;
@@ -102,7 +102,7 @@ impl Combat {
         }
         let mut best = Dec::MAX;
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_damage_cap) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_damage_cap) && self.still_live(&e.me) {
                 let q = DmgQ { target, dealer, card, props, amount: v };
                 let c = content::listener(&e.me).modify_damage_cap(self, e.me, &q);
                 if c < best {
@@ -129,7 +129,7 @@ impl Combat {
         let mut mods = Mods::new();
         for bit in [b1, b2] {
             for e in snap.iter() {
-                if e.mask.has(bit) && self.still_live(&e.me) {
+                if self.has_hook(&e.me, bit) && self.still_live(&e.me) {
                     let l = content::listener(&e.me);
                     let nv = match bit {
                         x if x == hookbit::modify_hp_lost_before_osty => l.modify_hp_lost_before_osty(self, e.me, target, v, props, dealer, card),
@@ -271,7 +271,7 @@ impl Combat {
             let flags = r.fully_blocked as u8 | (r.block_broken as u8) << 1 | (r.killed as u8) << 2;
             self.hist_push(HKind::DamageReceived, r.receiver, dealer, 0, card, r.unblocked, flags, props.0, 0);
             if r.receiver == PLAYER && r.unblocked > 0 {
-                self.hist_log.player_hits_taken = self.hist_log.player_hits_taken.saturating_add(1);
+                crate::engine::history::bump(&mut self.hist_log.player_hits_taken);
             }
         }
     }

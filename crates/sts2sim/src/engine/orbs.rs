@@ -151,7 +151,7 @@ impl Combat {
         self.player.orbs.push(orb);
         self.hist_push(HKind::OrbChanneled, PLAYER, NO, orb.kind, NO, 0, 0, 0, 0); // CombatHistory.OrbChanneled
         if orb.kind == ids::orb::LIGHTNING_ORB {
-            self.hist_log.lightning_channeled = self.hist_log.lightning_channeled.saturating_add(1);
+            crate::engine::history::bump(&mut self.hist_log.lightning_channeled);
         }
         self.dispatch_g(hookbit::after_orb_channeled, |cx, me, l| l.after_orb_channeled(cx, me, &orb));
     }

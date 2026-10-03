@@ -629,7 +629,7 @@ impl Combat {
         self.player.play.clear();
         self.dispatch_u(hookbit::after_combat_victory_early, |cx, me, l| l.after_combat_victory_early(cx, me));
         self.dispatch_u(hookbit::after_combat_victory, |cx, me, l| l.after_combat_victory(cx, me));
-        self.hist_log = Default::default(); // History.Clear()
+        self.hist_log.clear(); // History.Clear()
         self.outcome = Outcome::Victory;
         self.stage = Stage::Over;
     }
@@ -637,7 +637,27 @@ impl Combat {
     // ---- agent interface ------------------------------------------------------------------------------------------
 
     /// Applies an action. Returns false if it was illegal (state unchanged).
+    ///
+    /// Capacity overflows anywhere below (a full `ArrayVec`, card arena, history ring ...) are folded into
+    /// [`Combat::overflow`] when the step returns; a non-zero flag means the fight is no longer faithful.
     pub fn step(&mut self, a: Action) -> bool {
+        crate::util::take_overflow(); // (drop stale bits raised by another combat / an observation on this thread)
+        let ok = self.step_inner(a);
+        self.sync_overflow();
+        ok
+    }
+
+    /// Moves the thread-local overflow bits (`util::raise_overflow`) into `self.overflow`. `step` does it automatically;
+    /// call it after `observe` / `legal_actions` (which build temporaries that can overflow too).
+    #[inline]
+    pub fn sync_overflow(&mut self) {
+        let o = crate::util::take_overflow();
+        if o != 0 {
+            self.overflow |= o as u16;
+        }
+    }
+
+    fn step_inner(&mut self, a: Action) -> bool {
         match (self.stage, a) {
             (Stage::AwaitAction, Action::PlayCard { hand_pos, target }) => {
                 if !self.play_card(hand_pos as usize, target) {

@@ -67,7 +67,7 @@ impl Combat {
                 continue;
             }
             let l = content::listener(&e.me);
-            let ok = (!e.mask.has(hookbit::should_play) || l.should_play(self, e.me, c)) && (!e.mask.has(hookbit::should_play_kind) || l.should_play_kind(self, e.me, c, kind));
+            let ok = (!self.has_hook(&e.me, hookbit::should_play) || l.should_play(self, e.me, c)) && (!self.has_hook(&e.me, hookbit::should_play_kind) || l.should_play_kind(self, e.me, c, kind));
             if !ok {
                 return Some(e.me);
             }
@@ -333,7 +333,7 @@ impl Combat {
                         }
                     }
                     let ethereal = (self.card_keywords(c) & kw::ETHEREAL != 0) as u8;
-                    self.hist_log.total[HKind::CardPlayFinished as usize] += 1;
+                    crate::engine::history::bump(&mut self.hist_log.total[HKind::CardPlayFinished as usize]);
                     self.hist.set_finished(c);
                     match self.card_def(c).ctype {
                         CardType::Attack => self.hist.attacks_finished_this_turn += 1,
@@ -344,7 +344,7 @@ impl Combat {
                         self.hist.shivs_finished_this_turn += 1;
                     }
                     if ethereal != 0 {
-                        self.hist_log.ethereal_finished += 1;
+                        crate::engine::history::bump(&mut self.hist_log.ethereal_finished);
                     }
                     if self.in_progress {
                         self.dispatch_u(hookbit::after_card_played, |cx, me, l| l.after_card_played(cx, me, &p));

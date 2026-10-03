@@ -7,13 +7,18 @@ use crate::state::*;
 use crate::types::*;
 use crate::util::ArrayVec;
 
+/// One listener of a snapshot. (It used to carry the listener's 32-byte hook mask; the few multi-bit passes query it
+/// through [`Combat::has_hook`] instead, which keeps a snapshot at 12 bytes per listener.)
 #[derive(Clone, Copy, Default)]
 pub struct Entry {
     pub me: Me,
-    pub mask: Mask,
 }
 
-pub type Snapshot = ArrayVec<Entry, 128>;
+/// Worst case a hook can have this many listeners: every card instance of the arena with a listener plus its affliction /
+/// enchantment, powers, relics, potions, monsters. Realistic fights stay far below; a fuller snapshot drops the surplus
+/// listeners and raises the overflow flag (`ArrayVec`).
+pub const SNAPSHOT_CAP: usize = 256;
+pub type Snapshot = ArrayVec<Entry, SNAPSHOT_CAP>;
 
 impl Combat {
     /// `L_combat` restricted to listeners whose hook mask intersects `m`, in the game's order (spec 02 §1.1).
@@ -27,27 +32,27 @@ impl Combat {
             for p in cr.powers.iter() {
                 let mask = content::power_mask(p.id);
                 if mask.intersects(m) {
-                    s.push(Entry { me: Me { kind: Kind::Power, owner: ci, idx: p.uid, id: p.id, amount: p.amount }, mask });
+                    s.push(Entry { me: Me { kind: Kind::Power, owner: ci, idx: p.uid, id: p.id, amount: p.amount } });
                 }
             }
             if !cr.is_player {
                 let mask = content::monster_mask(cr.monster.id);
                 if mask.intersects(m) {
-                    s.push(Entry { me: Me { kind: Kind::Monster, owner: ci, idx: 0, id: cr.monster.id, amount: 0 }, mask });
+                    s.push(Entry { me: Me { kind: Kind::Monster, owner: ci, idx: 0, id: cr.monster.id, amount: 0 } });
                 }
             } else if self.player_hooks_active {
                 let pl = &self.player;
                 for (i, r) in pl.relics.iter().enumerate() {
                     let mask = content::relic_mask(r.id);
                     if mask.intersects(m) {
-                        s.push(Entry { me: Me { kind: Kind::Relic, owner: ci, idx: i as u16, id: r.id, amount: r.counter }, mask });
+                        s.push(Entry { me: Me { kind: Kind::Relic, owner: ci, idx: i as u16, id: r.id, amount: r.counter } });
                     }
                 }
                 for (i, p) in pl.potions.iter().enumerate() {
                     if let Some(p) = p {
                         let mask = content::potion_mask(p.id);
                         if mask.intersects(m) {
-                            s.push(Entry { me: Me { kind: Kind::Potion, owner: ci, idx: i as u16, id: p.id, amount: 0 }, mask });
+                            s.push(Entry { me: Me { kind: Kind::Potion, owner: ci, idx: i as u16, id: p.id, amount: 0 } });
                         }
                     }
                 }
@@ -59,21 +64,21 @@ impl Combat {
                         let card = &self.cards[c as usize];
                         let mask = content::card_mask(card.id);
                         if mask.intersects(m) {
-                            s.push(Entry { me: Me { kind: Kind::Card, owner: ci, idx: c as u16, id: card.id, amount: 0 }, mask });
+                            s.push(Entry { me: Me { kind: Kind::Card, owner: ci, idx: c as u16, id: card.id, amount: 0 } });
                         }
                         // card.Affliction (BEFORE the enchantment), then card.Enchantment (spec 02 §1.1)
                         if card.affliction != 0 {
                             let aid = (card.affliction - 1) as u16;
                             let mask = content::affliction_mask(aid);
                             if mask.intersects(m) {
-                                s.push(Entry { me: Me { kind: Kind::Affliction, owner: ci, idx: c as u16, id: aid, amount: card.affliction_amount as i32 }, mask });
+                                s.push(Entry { me: Me { kind: Kind::Affliction, owner: ci, idx: c as u16, id: aid, amount: card.affliction_amount as i32 } });
                             }
                         }
                         if card.enchant != 0 {
                             let eid = (card.enchant - 1) as u16;
                             let mask = content::enchantment_mask(eid);
                             if mask.intersects(m) {
-                                s.push(Entry { me: Me { kind: Kind::Enchantment, owner: ci, idx: c as u16, id: eid, amount: card.enchant_amount as i32 }, mask });
+                                s.push(Entry { me: Me { kind: Kind::Enchantment, owner: ci, idx: c as u16, id: eid, amount: card.enchant_amount as i32 } });
                             }
                         }
                     }
@@ -81,6 +86,22 @@ impl Combat {
             }
         }
         s
+    }
+
+    /// Whether the listener `me` overrides hook `bit` (its static hook mask).
+    #[inline]
+    pub fn has_hook(&self, me: &Me, bit: u32) -> bool {
+        let m = match me.kind {
+            Kind::Power => content::power_mask(me.id),
+            Kind::Monster => content::monster_mask(me.id),
+            Kind::Relic => content::relic_mask(me.id),
+            Kind::Potion => content::potion_mask(me.id),
+            Kind::Card => content::card_mask(me.id),
+            Kind::Affliction => content::affliction_mask(me.id),
+            Kind::Enchantment => content::enchantment_mask(me.id),
+            Kind::Orb => Mask::EMPTY,
+        };
+        m.has(bit)
     }
 
     /// `CombatState.Contains(item)` evaluated when the item is reached.
@@ -214,7 +235,7 @@ impl Combat {
 
     /// OR over a predicate hook on the guarded iterator.
     pub fn any_true_g(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
-        self.hooks_enabled() && self.any_true(bit, f)
+        self.listen.has(bit) && self.hooks_enabled() && self.any_true(bit, f)
     }
 
     /// AND over a predicate hook (unguarded): the first model answering `false` — the "preventer" — is returned.
@@ -233,7 +254,7 @@ impl Combat {
 
     /// AND over a predicate hook on the guarded iterator (every dispatch is a no-op, i.e. `None`, once combat is ending).
     pub fn first_veto_g(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
-        if !self.hooks_enabled() {
+        if !self.listen.has(bit) || !self.hooks_enabled() {
             return None;
         }
         self.first_veto(bit, f)

@@ -67,10 +67,10 @@ impl W<'_> {
     fn n(&mut self, v: i32) {
         self.f(v as f32)
     }
+    /// `n` zero floats. The whole vector is zero-filled once up front (one memset) so skipping is enough.
+    #[inline(always)]
     fn zeros(&mut self, n: usize) {
-        for _ in 0..n {
-            self.f(0.0);
-        }
+        self.i += n;
     }
 }
 
@@ -91,10 +91,14 @@ impl Combat {
         }
     }
 
-    fn write_card(&self, w: &mut W, c: CardIdx) {
+    /// `playable`: the already computed `can_play` of a hand card (see `observe_ex`), `None` = compute it here.
+    fn write_card(&self, w: &mut W, c: CardIdx, playable: Option<bool>) {
         let card = &self.cards[c as usize];
         let d = content::card_def(card.id);
-        let playable = (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32;
+        let playable = match playable {
+            Some(p) => p as i32,
+            None => (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32,
+        };
         let dmg = if d.vars.iter().any(|v| v.kind == VarKind::Damage) {
             self.modify_damage(NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), ValueProp::MOVE, c).0.trunc()
         } else {
@@ -120,29 +124,40 @@ impl Combat {
     }
 
     fn write_pile_list(&self, w: &mut W, pile: &[CardIdx], sorted_multiset: bool) {
-        let mut ents: [(u16, u8); OBS_MAX_PILE] = [(0, 0); OBS_MAX_PILE];
         let n = pile.len().min(OBS_MAX_PILE);
-        for (k, &c) in pile.iter().take(n).enumerate() {
-            ents[k] = (self.cards[c as usize].id, self.cards[c as usize].upgrade);
-        }
         if sorted_multiset {
-            // order-free view: sort by (rarity, id, upgrade) — what the pile screen shows
-            ents[..n].sort_by_key(|&(id, up)| (content::card_def(id).rarity, id, up));
-        }
-        for k in 0..OBS_MAX_PILE {
-            if k < n {
-                w.n(ents[k].0 as i32 + 1);
-                w.n(ents[k].1 as i32);
-            } else {
-                w.f(0.0);
-                w.f(0.0);
+            // order-free view: sort by (rarity, id, upgrade) — what the pile screen shows. The sort key is packed into one u32
+            // (equal keys are identical entries, so an unstable sort of keys gives the same vector as a stable sort of cards).
+            let mut keys = [0u32; OBS_MAX_PILE];
+            for (k, &c) in pile.iter().take(n).enumerate() {
+                let card = &self.cards[c as usize];
+                keys[k] = (content::card_def(card.id).rarity as u32) << 24 | (card.id as u32) << 8 | card.upgrade as u32;
+            }
+            keys[..n].sort_unstable();
+            for &key in &keys[..n] {
+                w.n(((key >> 8) & 0xFFFF) as i32 + 1);
+                w.n((key & 0xFF) as i32);
+            }
+        } else {
+            for &c in pile.iter().take(n) {
+                w.n(self.cards[c as usize].id as i32 + 1);
+                w.n(self.cards[c as usize].upgrade as i32);
             }
         }
+        w.zeros((OBS_MAX_PILE - n) * 2);
     }
 
     /// Writes the flat observation into `out` (`out.len() >= OBS_SIZE`). Returns `OBS_SIZE`.
     pub fn observe(&self, out: &mut [f32]) -> usize {
+        self.observe_ex(out, None)
+    }
+
+    /// `observe` with the playability of the hand cards precomputed: bit `k` of `hand_playable` = `can_play(hand[k])` (as
+    /// produced by `legal_actions_ex`), so a batch env that also needs the legal actions evaluates each hand card once.
+    pub fn observe_ex(&self, out: &mut [f32], hand_playable: Option<u16>) -> usize {
+        out[..OBS_SIZE].fill(0.0);
         let mut w = W { out, i: 0 };
+        let hand_ok = self.stage == Stage::AwaitAction && self.player.phase == Phase::Play;
         let me = self.cr(PLAYER);
         // ---- global ----
         w.n(self.round);
@@ -195,7 +210,10 @@ impl Combat {
         // ---- hand (ordered) ----
         for k in 0..MAX_HAND {
             match self.player.hand.get(k) {
-                Some(c) => self.write_card(&mut w, c),
+                Some(c) => {
+                    let pre = hand_playable.map(|m| hand_ok && m >> k & 1 != 0);
+                    self.write_card(&mut w, c, pre)
+                }
                 None => w.zeros(CARD_F),
             }
         }
@@ -283,7 +301,7 @@ impl Combat {
                 for k in 0..OBS_MAX_CANDS {
                     match d.cands.get(k) {
                         Some(c) => {
-                            self.write_card(&mut w, c);
+                            self.write_card(&mut w, c, None);
                             w.n(d.selected.contains(k as u8) as i32);
                         }
                         None => w.zeros(CARD_F + 1),

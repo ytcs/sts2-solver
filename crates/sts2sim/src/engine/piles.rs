@@ -22,7 +22,8 @@ impl Combat {
     /// applied FIRST (`OnEnchant` runs on the un-upgraded card), then the upgrades.
     pub fn new_card_ex(&mut self, id: u16, upgrade: u8, enchant: u8, enchant_amount: i16) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
-            debug_assert!(false, "card arena full");
+            // Arena full: the card cannot be created (the real game has no such limit) -> flag the combat.
+            self.overflow |= ov::CARDS;
             return None;
         }
         if !content::card_implemented(id) {
@@ -189,7 +190,8 @@ impl Combat {
 
     /// `Hook.ModifyEnergyCostInCombat`: pass 1 then pass 2 ("Late" = free-cost effects); skipped if cost < 0.
     fn modify_energy_cost_in_combat(&self, c: CardIdx, cost: i32) -> i32 {
-        if cost < 0 || !self.hooks_enabled() {
+        // (no listener = the cost is returned unchanged; checked first because `hooks_enabled` scans the enemies)
+        if cost < 0 || !self.listen.intersects(Mask::bit(hookbit::try_modify_energy_cost_in_combat) | Mask::bit(hookbit::try_modify_energy_cost_in_combat_late)) || !self.hooks_enabled() {
             return cost;
         }
         let mut v = Dec::int(cost as i64);

@@ -163,7 +163,7 @@ impl Combat {
         let mut v = amount;
         let mut mods = Mods::new();
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_power_amount_given_additive) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_power_amount_given_additive) && self.still_live(&e.me) {
                 let d = content::listener(&e.me).modify_power_amount_given_additive(self, e.me, id, giver, v, target, card);
                 v += d;
                 if !d.is_zero() {
@@ -172,7 +172,7 @@ impl Combat {
             }
         }
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_power_amount_given_multiplicative) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_power_amount_given_multiplicative) && self.still_live(&e.me) {
                 let f = content::listener(&e.me).modify_power_amount_given_multiplicative(self, e.me, id, giver, v, target, card);
                 v *= f;
                 if f != Dec::ONE {

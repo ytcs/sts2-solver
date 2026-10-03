@@ -120,7 +120,7 @@ impl Combat {
         }
         let snap = self.snapshot(m);
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_block_additive) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_block_additive) && self.still_live(&e.me) {
                 let q = BlockQ { target, card, props, amount: v };
                 let d = content::listener(&e.me).modify_block_additive(self, e.me, &q);
                 v += d;
@@ -130,7 +130,7 @@ impl Combat {
             }
         }
         for e in snap.iter() {
-            if e.mask.has(hookbit::modify_block_multiplicative) && self.still_live(&e.me) {
+            if self.has_hook(&e.me, hookbit::modify_block_multiplicative) && self.still_live(&e.me) {
                 let q = BlockQ { target, card, props, amount: v };
                 let f = content::listener(&e.me).modify_block_multiplicative(self, e.me, &q);
                 v *= f;

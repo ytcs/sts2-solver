@@ -92,7 +92,30 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
     let (sc, extras) = convert::scenario_ex(&sv)?;
     sc.validate().map_err(|e| format!("not implemented in the simulator: {e:?}"))?;
     let trace = load_jsonl(trace_path)?;
-    let mut cx = Combat::new_with(&sc, &extras);
+    let mut cx = if std::env::var("STS2DIFF_REUSE").is_ok() {
+        // Exercise the in-place reset: dirty a combat by playing the same scenario under another seed (first legal action,
+        // random-ish but cheap), then `reset_with` the real scenario into it. It must replay exactly like a fresh `new`.
+        let mut dirty_sc = sc.clone();
+        dirty_sc.rng = sts2sim::state::RngSet::from_run_seed(sc.run_seed ^ 0x5DEECE66D);
+        dirty_sc.run_seed ^= 0x5DEECE66D;
+        let mut d = Combat::new_with(&dirty_sc, &extras);
+        let mut b = ActionBuf::new();
+        for k in 0..400usize {
+            if d.stage == Stage::Over {
+                break;
+            }
+            d.legal_actions(&mut b);
+            if b.is_empty() {
+                break;
+            }
+            let a = b[(k * 7 + 3) % b.len()];
+            d.step(a);
+        }
+        d.reset_with(&sc, &extras).map_err(|e| format!("reset: {e:?}"))?;
+        d
+    } else {
+        Combat::new_with(&sc, &extras)
+    };
     let mut reported = 0;
     let mut ok = true;
     let lenient = std::env::var("STS2DIFF_LENIENT").is_ok();
@@ -152,6 +175,9 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 println!("UNIMPLEMENTED {m} (step {i})");
                 return Ok(Verdict::Unimplemented);
             }
+        }
+        if cx.overflow != 0 {
+            return Err(format!("simulator capacity overflow (flags {:#x}: dropped data) at step {i}", cx.overflow));
         }
         let mut diffs = vec![];
         compare("", &snapshot(&cx), rec, &mut diffs);

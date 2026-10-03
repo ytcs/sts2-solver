@@ -7,6 +7,7 @@
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 const SCALE: i128 = 1_000_000_000_000;
+const SCALE64: i64 = SCALE as i64;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
 pub struct Dec(i128);
@@ -36,6 +37,11 @@ impl Dec {
     /// `(int)value` — truncation toward zero (C# cast semantics).
     #[inline(always)]
     pub fn trunc(self) -> i32 {
+        // Values below ~9.2e6 (every card / monster number) fit an i64: its division by a constant is a multiply-shift
+        // instead of a `__divti3` call. Identical result (both truncate toward zero).
+        if let Ok(x) = i64::try_from(self.0) {
+            return (x / SCALE64).clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+        }
         let v = self.0 / SCALE;
         v.clamp(i32::MIN as i128, i32::MAX as i128) as i32
     }
@@ -43,6 +49,9 @@ impl Dec {
     /// `decimal.Truncate` as a Dec (used by change-detection in the hp-loss hooks).
     #[inline(always)]
     pub fn truncate(self) -> Dec {
+        if let Ok(x) = i64::try_from(self.0) {
+            return Dec((x / SCALE64 * SCALE64) as i128);
+        }
         Dec(self.0 / SCALE * SCALE)
     }
 

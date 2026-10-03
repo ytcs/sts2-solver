@@ -6,8 +6,35 @@
 
 use core::mem::MaybeUninit;
 
-/// Ordered fixed-capacity vector. Overflow is a logic error (debug-asserted; silently dropped in release so a
-/// pathological fight can never be UB, but capacities are sized so real fights cannot hit it).
+use core::cell::Cell;
+
+/// Overflow bit raised by a full [`ArrayVec`].
+pub const OV_CONTAINER: u32 = 1;
+
+thread_local! {
+    /// Capacity overflows seen on this thread since the last [`take_overflow`] (see below). `const`-initialised: reading
+    /// or writing it is a plain thread-pointer-relative access, and it is only written on the (cold) overflow path.
+    static OVERFLOW: Cell<u32> = const { Cell::new(0) };
+}
+
+/// Sticky "a fixed-capacity container dropped data" signal. A full [`ArrayVec`] never panics or writes out of bounds: the
+/// push is dropped and this thread-local flag is raised so the owner of the simulation (`Combat::step` / `observe` in the
+/// env wrappers) can mark the episode as overflowed instead of silently diverging from the real game.
+#[cold]
+#[inline(never)]
+pub fn raise_overflow(bit: u32) {
+    OVERFLOW.with(|c| c.set(c.get() | bit));
+}
+
+/// Returns and clears the overflow bits raised on this thread (`0` = nothing was dropped).
+#[inline]
+pub fn take_overflow() -> u32 {
+    OVERFLOW.with(|c| c.replace(0))
+}
+
+/// Ordered fixed-capacity vector. Overflow never panics (so a pathological fight can never abort a whole batch process,
+/// and is never UB): the offending push/insert is dropped and [`raise_overflow`] records it, which `Combat` turns into its
+/// `overflow` flag. Capacities are sized so realistic fights cannot hit it.
 pub struct ArrayVec<T: Copy, const N: usize> {
     len: u16,
     items: [MaybeUninit<T>; N],
@@ -53,17 +80,18 @@ impl<T: Copy, const N: usize> ArrayVec<T, N> {
     }
     #[inline(always)]
     pub fn push(&mut self, v: T) {
-        debug_assert!((self.len as usize) < N, "ArrayVec overflow");
         if (self.len as usize) < N {
             self.items[self.len as usize] = MaybeUninit::new(v);
             self.len += 1;
+        } else {
+            raise_overflow(OV_CONTAINER);
         }
     }
     /// `List<T>.Insert(index, v)`.
     pub fn insert(&mut self, index: usize, v: T) {
-        debug_assert!((self.len as usize) < N, "ArrayVec overflow");
         let n = self.len as usize;
         if n >= N {
+            raise_overflow(OV_CONTAINER);
             return;
         }
         let index = index.min(n);

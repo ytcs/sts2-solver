@@ -48,6 +48,27 @@ pub enum HKind {
 }
 pub const HKIND_COUNT: usize = 17;
 
+impl HKind {
+    /// Whether entries of this kind are stored in the per-turn ring. The others are only counted (`HistLog::total`): no
+    /// content queries them per turn, and keeping them out of the ring leaves its capacity to the kinds that are queried
+    /// (`hist_count_this_turn` / `hist_any_last_player_turn` / `HistLog::iter`). A new per-turn query of one of these kinds
+    /// must add it here (debug builds assert).
+    #[inline(always)]
+    pub const fn in_ring(self) -> bool {
+        !matches!(self, HKind::CardGenerated | HKind::CardPlayFinished | HKind::MonsterPerformedMove | HKind::OrbChanneled | HKind::PotionUsed | HKind::Summoned)
+    }
+}
+
+/// `*c += 1` for a whole-combat `u16` counter; at the limit the counter stays and the combat is flagged (`ov::COUNTER`) instead
+/// of wrapping silently.
+#[inline(always)]
+pub(crate) fn bump(c: &mut u16) {
+    if *c == u16::MAX {
+        crate::util::raise_overflow(ov::COUNTER as u32);
+    } else {
+        *c += 1;
+    }
+}
 #[derive(Clone, Copy, Default, Debug)]
 pub struct HistEntry {
     pub kind: HKind,
@@ -90,6 +111,17 @@ impl Default for HistLog {
 }
 
 impl HistLog {
+    /// `History.Clear()`: forgets everything. The ring is not zeroed: `iter()` only reads `[n - min(n, CAP), n)`.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.n = 0;
+        self.total = [0; HKIND_COUNT];
+        self.ethereal_finished = 0;
+        self.player_hits_taken = 0;
+        self.generated_by_player = 0;
+        self.lightning_channeled = 0;
+    }
+
     /// Entries still in the ring, oldest first.
     pub fn iter(&self) -> impl Iterator<Item = &HistEntry> {
         let n = self.n as usize;
@@ -119,10 +151,22 @@ impl Combat {
             id,
             val: val.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
         };
-        let i = self.hist_log.n as usize % HIST_CAP;
+        bump(&mut self.hist_log.total[kind as usize]);
+        if !kind.in_ring() {
+            return;
+        }
+        let n = self.hist_log.n as usize;
+        let i = n % HIST_CAP;
+        // The ring forgets its oldest entry. That is only harmless if no query can still ask for it: the queries are
+        // "this turn" and "last player turn", so overwriting an entry of either window loses data -> flag it.
+        if n >= HIST_CAP {
+            let old = &self.hist_log.entries[i];
+            if self.hist_this_turn(old) || self.hist_last_player_turn(old) {
+                crate::util::raise_overflow(ov::HISTORY as u32);
+            }
+        }
         self.hist_log.entries[i] = e;
-        self.hist_log.n += 1;
-        self.hist_log.total[kind as usize] = self.hist_log.total[kind as usize].saturating_add(1);
+        self.hist_log.n = self.hist_log.n.saturating_add(1);
     }
 
     /// `entry.HappenedThisTurn(state)`.
@@ -139,6 +183,7 @@ impl Combat {
 
     /// Number of entries of `kind` that satisfy `f` and happened this turn.
     pub fn hist_count_this_turn(&self, kind: HKind, f: impl Fn(&HistEntry) -> bool) -> usize {
+        debug_assert!(kind.in_ring(), "{kind:?} entries are counter-only (HKind::in_ring)");
         self.hist_log.iter().filter(|e| e.kind == kind && self.hist_this_turn(e) && f(e)).count()
     }
 
@@ -148,6 +193,7 @@ impl Combat {
     }
 
     pub fn hist_any_last_player_turn(&self, kind: HKind, f: impl Fn(&HistEntry) -> bool) -> bool {
+        debug_assert!(kind.in_ring(), "{kind:?} entries are counter-only (HKind::in_ring)");
         self.hist_log.iter().any(|e| e.kind == kind && self.hist_last_player_turn(e) && f(e))
     }
 
@@ -160,7 +206,7 @@ impl Combat {
     pub(crate) fn hist_card_generated(&mut self, c: CardIdx, by_player: bool) {
         let id = self.cards[c as usize].id;
         if by_player && self.in_progress {
-            self.hist_log.generated_by_player = self.hist_log.generated_by_player.saturating_add(1);
+            bump(&mut self.hist_log.generated_by_player);
         }
         self.hist_push(HKind::CardGenerated, PLAYER, NO, id, c, 0, by_player as u8, 0, 0);
     }

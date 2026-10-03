@@ -13,6 +13,26 @@ pub const MAX_RELICS: usize = 24;
 pub const MAX_POTIONS: usize = 4;
 pub const MAX_HAND: usize = 10;
 pub const MAX_ORBS: usize = 10;
+/// Largest deck a combat accepts: deck card `i` indexes the `deck_*` side tables (`[_; MAX_DECK]`) and the rest of the card
+/// arena is kept for generated cards.
+pub const MAX_DECK: usize = 80;
+
+/// Bits of [`Combat::overflow`]: a fixed capacity was exceeded and data was dropped, so the fight can no longer be
+/// guaranteed faithful. Env wrappers must abort / truncate such an episode (like `missing`).
+pub mod ov {
+    /// A fixed-capacity `ArrayVec` (power list, decision candidates, snapshot, results, piles ...) was full on a push.
+    pub const CONTAINER: u16 = crate::util::OV_CONTAINER as u16;
+    /// The card arena (`MAX_CARDS`) was full when a card had to be created.
+    pub const CARDS: u16 = 1 << 1;
+    /// No free creature slot (`MAX_CREATURES`) for a spawned enemy / pet.
+    pub const CREATURES: u16 = 1 << 2;
+    /// The history ring overwrote an entry that a this-turn / last-turn query could still need.
+    pub const HISTORY: u16 = 1 << 3;
+    /// A saturating whole-combat counter hit its limit.
+    pub const COUNTER: u16 = 1 << 4;
+    /// The scenario does not fit the fixed capacities (deck / relics / potions / ...).
+    pub const SCENARIO: u16 = 1 << 5;
+}
 
 /// Creature handles: `0` is always the player. Pets (Osty) and enemies take later slots; slots of removed
 /// enemies are recycled. Enemy/ally *order* (which matters for hooks) lives in `Combat::allies/enemies`.
@@ -501,6 +521,9 @@ pub struct Combat {
     /// First piece of content used in this combat that has no Rust implementation yet (kind, id). A fight with this
     /// set is NOT faithful; env wrappers must treat it as an error.
     pub missing: Option<(crate::hooks::Kind, u16)>,
+    /// Bitset of `ov::*`: a fixed capacity was exceeded and data was dropped (never silently: see `util::raise_overflow`).
+    /// Non-zero = the fight is NOT faithful; env wrappers must abort / truncate the episode (like `missing`).
+    pub overflow: u16,
 
     // ---- engine-core additions ----
     /// `Player.IsActiveForHooks`: false from the end of the player's death sequence (`DeactivateHooks`) until revived.
@@ -530,10 +553,10 @@ pub struct Combat {
     /// Number of decisions raised so far (lets a driver tell "the same decision" from "the next one").
     pub decision_seq: u32,
     /// `DeckVersion` write-backs of enchantment amounts (Goopy): increments per deck index (outputs of the combat).
-    pub deck_enchant_inc: [u8; 80],
+    pub deck_enchant_inc: [u8; MAX_DECK],
     /// Upgrade level of each run-deck card (`DeckVersion.CurrentUpgradeLevel`; index = deck index) and the deck size. Combat copies
     /// upgrade independently; only deck-level upgrades (Improvement power at combat end) change these.
-    pub deck_upgrade: [u8; 80],
+    pub deck_upgrade: [u8; MAX_DECK],
     pub deck_len: u8,
     /// Identity of the card play iteration in flight (`CardPlay` object): bumped before each `BeforeCardPlayed`.
     pub play_serial: u16,

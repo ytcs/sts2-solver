@@ -1,5 +1,6 @@
 //! Deterministic workload for instruction-count profiling (`valgrind --tool=callgrind`).
 //! `prof fights [N]`: greedy fights (starter vs Nibbits), `Combat::new` per fight.
+//! `prof reset [N]`: the same fights on one reused combat (`Combat::reset_validated`), i.e. the batch-env path.
 //! `prof env [N]`: random masked-policy episodes with observation + legal-action generation every step (what a batch env does).
 //! Prints a checksum so optimisations can be verified bit-identical.
 use sts2sim::ids;
@@ -37,7 +38,7 @@ fn scenario(seed: u64) -> Scenario {
     }
 }
 
-fn greedy(mut cx: Combat) -> u64 {
+fn greedy(cx: &mut Combat) -> u64 {
     let mut steps = 0u64;
     while cx.stage != Stage::Over {
         let e = cx.enemies.first().unwrap_or(NO);
@@ -86,9 +87,17 @@ fn main() {
     let n: u64 = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(200);
     let mut sum = 0u64;
     let mut obs = vec![0f32; OBS_SIZE];
+    let sc = scenario(0);
+    let mut cx = Combat::new(&sc);
     for i in 0..n {
         sum = sum.wrapping_mul(1000003).wrapping_add(match mode.as_str() {
-            "fights" => greedy(Combat::new(&scenario(i))),
+            "fights" => greedy(&mut Combat::new(&scenario(i))),
+            "reset" => {
+                // what a batch env does: one combat per slot, re-initialised in place for every episode
+                let ex = ScenarioExtras::default();
+                cx.reset_validated(&sc, &ex, 0, RngSet::from_run_seed_fast(i)).unwrap();
+                greedy(&mut cx)
+            }
             _ => env_episode(i, &mut obs),
         });
     }

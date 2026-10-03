@@ -58,7 +58,7 @@ tpls = sorted(p for p in glob.glob(os.path.join(ROOT, "oracle/templates/**/*.jso
 res = {}
 bad = []
 if a.mode == "record":
-    jobs = [(t, i) for t in tpls for i in range(a.n)]
+    jobs = [(t, i) for i in range(a.n) for t in tpls]  # breadth first
     with ThreadPoolExecutor(a.jobs) as ex:
         for base, v, msg in ex.map(record, jobs):
             res[v] = res.get(v, 0) + 1
