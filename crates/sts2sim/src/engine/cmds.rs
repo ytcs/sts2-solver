@@ -254,7 +254,7 @@ impl Combat {
 
     /// `CardSelectCmd.FromHand*` (spec 03 §9.2): candidates in hand order; auto-resolves forced choices.
     pub fn ask_hand(&mut self, purpose: u16, min: u8, max: u8, filter: impl Fn(&Combat, CardIdx) -> bool) -> Ask {
-        let mut cands: ArrayVec<CardIdx, 64> = ArrayVec::new();
+        let mut cands: ArrayVec<CardIdx, MAX_CANDS> = ArrayVec::new();
         for &c in self.player.hand.iter() {
             if filter(self, c) {
                 cands.push(c);
@@ -266,7 +266,7 @@ impl Combat {
     /// `CardSelectCmd.FromCombatPile`: candidates in pile order, except the draw pile which is presented sorted by
     /// (rarity, id) — a stable sort — so its real order stays hidden (spec 03 §9.3).
     pub fn ask_pile(&mut self, purpose: u16, pile: PileType, min: u8, max: u8, filter: impl Fn(&Combat, CardIdx) -> bool) -> Ask {
-        let mut cands: ArrayVec<CardIdx, 64> = ArrayVec::new();
+        let mut cands: ArrayVec<CardIdx, MAX_CANDS> = ArrayVec::new();
         for &c in self.pile(pile).iter() {
             if filter(self, c) {
                 cands.push(c);
@@ -299,7 +299,7 @@ impl Combat {
 
     /// `CardSelectCmd.FromChooseACardScreen`: pick one of the (already generated) cards, optionally skip.
     pub fn ask_options(&mut self, purpose: u16, options: &[CardIdx], can_skip: bool) -> Ask {
-        let mut cands: ArrayVec<CardIdx, 64> = ArrayVec::new();
+        let mut cands: ArrayVec<CardIdx, MAX_CANDS> = ArrayVec::new();
         for &c in options {
             cands.push(c);
         }
@@ -315,7 +315,7 @@ impl Combat {
 
     /// `VakuuCardSelector.GetSelectedCards`: `options.Take(maxSelect)` (the selector Whispering Earring pushes while it
     /// auto-plays the hand; `Combat::auto_select`).
-    fn auto_selected(&self, cands: &ArrayVec<CardIdx, 64>, max: usize) -> ArrayVec<CardIdx, 16> {
+    fn auto_selected(&self, cands: &ArrayVec<CardIdx, MAX_CANDS>, max: usize) -> ArrayVec<CardIdx, 16> {
         let mut v = ArrayVec::new();
         for &c in cands.iter().take(max).take(16) {
             v.push(c);
@@ -325,7 +325,7 @@ impl Combat {
 
     /// Shared decision entry for `FromHand`/`FromCombatPile`: `RequireManualConfirmation = (min != max)`;
     /// `!manual && |L| <= min` auto-resolves with all candidates (no decision).
-    fn raise(&mut self, source: DecisionSource, purpose: u16, min: u8, max: u8, cands: ArrayVec<CardIdx, 64>, can_skip: bool) -> Ask {
+    fn raise(&mut self, source: DecisionSource, purpose: u16, min: u8, max: u8, cands: ArrayVec<CardIdx, MAX_CANDS>, can_skip: bool) -> Ask {
         if self.is_over_or_ending() || cands.is_empty() {
             return Ask::Resolved(ArrayVec::new());
         }
@@ -344,7 +344,7 @@ impl Combat {
         Ask::Pending
     }
 
-    fn begin_decision(&mut self, source: DecisionSource, purpose: u16, min: u8, max: u8, cands: ArrayVec<CardIdx, 64>, confirm_required: bool, can_skip: bool) {
+    fn begin_decision(&mut self, source: DecisionSource, purpose: u16, min: u8, max: u8, cands: ArrayVec<CardIdx, MAX_CANDS>, confirm_required: bool, can_skip: bool) {
         self.decision_seq += 1;
         self.decision = Some(Decision { source, min, max, cands, selected: ArrayVec::new(), confirm_required, can_skip, purpose });
     }

@@ -296,7 +296,7 @@ impl Combat {
     pub fn dispatch_after_attack(&mut self, a: &Attack, all: &Results) {
         if self.listen.has(hookbit::after_attack) {
             self.attack_results.clear();
-            for x in all.iter().take(16) {
+            for x in all.iter().take(64) {
                 self.attack_results.push(*x);
             }
             self.attack_unblocked_hits = all.iter().filter(|r| r.unblocked > 0).count() as u8;

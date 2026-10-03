@@ -161,6 +161,7 @@ impl Combat {
             hook_ctx: None,
             draw_resume: None,
             drawing_hand: false,
+            draw_depth: 0,
             turn_cont: 0,
             susp_after: None,
             enemy_cont: None,

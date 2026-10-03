@@ -296,8 +296,9 @@ listener!(EntropyPower {
 });
 
 // ---- StratagemPower: after a reshuffle choose `Amount` cards of the draw pile to put into the hand ---------------------
-// A decision is only resumable during the turn-start hand draw (`draw_resume` / `turn_cont` 3); during other draws it is
-// flagged as not ported (the draw loop of a card effect cannot pause).
+// A decision is only resumable during the outermost turn-start hand draw (`draw_resume` / `turn_cont` 4); during other draws (a
+// card effect's draw, a draw started from an `AfterCardDrawn` hook) it is flagged as not ported: the caller of such a draw has no
+// way to pause (documented gap; the env treats `missing` as unfaithful).
 listener!(StratagemPower {
     fn after_shuffle(&self, cx: &mut Combat, me: Me) {
         if me.owner != PLAYER {
@@ -311,7 +312,7 @@ listener!(StratagemPower {
                 }
             }
             crate::engine::Ask::Pending => {
-                if cx.drawing_hand {
+                if cx.shuffle_decision_resumable() {
                     cx.hook_ctx = Some((me, 1));
                     cx.stage = Stage::AwaitChoice;
                 } else {

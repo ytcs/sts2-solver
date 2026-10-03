@@ -78,6 +78,7 @@ pub enum Verdict {
 fn missing_name(cx: &Combat) -> Option<String> {
     use sts2sim::hooks::Kind;
     cx.missing.map(|(k, id)| match k {
+        Kind::Card if id == u16::MAX => "card arena full (MAX_CARDS)".to_string(),
         Kind::Card => format!("card {}", sts2sim::ids::card::NAMES[id as usize]),
         Kind::Power => format!("power {}", sts2sim::ids::power::NAMES[id as usize]),
         Kind::Relic => format!("relic {}", sts2sim::ids::relic::NAMES[id as usize]),
@@ -118,6 +119,10 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             let mut ci = 0;
             while cx.stage == Stage::AwaitChoice {
                 let Some(ch) = choices.get(ci) else {
+                    if let Some(m) = missing_name(&cx) {
+                        println!("UNIMPLEMENTED {m} (step {i}; decision sequence diverged)");
+                        return Ok(Verdict::Unimplemented);
+                    }
                     let d = cx.decision.as_ref();
                     println!("step {i}: simulator raised a decision but the oracle made no choice (simulator: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} cands {:?}", d.purpose, d.min, d.max, d.cands.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>())));
                     return Ok(Verdict::Mismatch);
@@ -126,6 +131,10 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 let seq = cx.decision_seq;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {
+                        if let Some(m) = missing_name(&cx) {
+                            println!("UNIMPLEMENTED {m} (step {i}; decision sequence diverged)");
+                            return Ok(Verdict::Unimplemented);
+                        }
                         let d = cx.decision.as_ref();
                         println!("step {i}: pick {p} rejected (simulator decision: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} {} cands {:?}; hand {:?}; draw {} discard {}", d.purpose, d.min, d.max, d.cands.len(), d.cands.iter().take(12).map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.hand.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.draw.len(), cx.player.discard.len())));
                         return Ok(Verdict::Mismatch);

@@ -22,7 +22,8 @@ impl Combat {
     /// applied FIRST (`OnEnchant` runs on the un-upgraded card), then the upgrades.
     pub fn new_card_ex(&mut self, id: u16, upgrade: u8, enchant: u8, enchant_amount: i16) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
-            debug_assert!(false, "card arena full");
+            // The arena is full: the combat can no longer be faithful (the env treats `missing` as an error).
+            self.flag_missing(Kind::Card, u16::MAX);
             return None;
         }
         if !content::card_implemented(id) {
@@ -386,7 +387,13 @@ impl Combat {
         for &c in from_discard.iter() {
             self.fire_card_changed_piles(c, PileType::Discard);
         }
-        self.dispatch_g(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me));
+        self.run_after_shuffle();
+    }
+
+    /// `Hook.AfterShuffle` pass. A listener that raises a decision (Stratagem) stops the pass; it continues with the listeners that
+    /// follow it (`dispatch_resumable`) once the decision is answered (`setup_player_turn(4)`).
+    pub(crate) fn run_after_shuffle(&mut self) -> bool {
+        self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me))
     }
 
     #[inline]
@@ -403,6 +410,18 @@ impl Combat {
 
     /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
     pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+        self.draw_depth = self.draw_depth.saturating_add(1);
+        let out = self.draw_cards_list_inner(count, from_hand_draw);
+        self.draw_depth = self.draw_depth.saturating_sub(1);
+        out
+    }
+
+    /// Whether an `AfterShuffle` decision raised right now can be resumed: only inside the outermost turn-start hand draw.
+    pub fn shuffle_decision_resumable(&self) -> bool {
+        self.drawing_hand && self.draw_depth <= 1
+    }
+
+    fn draw_cards_list_inner(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
         let mut out = crate::util::ArrayVec::new();
         if self.is_over_or_ending() {
             return out;
@@ -429,7 +448,7 @@ impl Combat {
                 break;
             }
             self.shuffle_if_necessary();
-            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() && self.drawing_hand {
+            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() && self.shuffle_decision_resumable() {
                 // An `AfterShuffle` listener (Stratagem) asked for a decision: the turn-start draw resumes afterwards.
                 self.draw_resume = Some((count - i, from_hand_draw));
                 break;

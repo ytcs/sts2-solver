@@ -56,7 +56,7 @@ fn play_out(cx: &mut Combat) {
         assert!(steps < 4000, "fight does not terminate");
         // The card arena is capped (`MAX_CARDS`): a very long Test Subject fight (a Wound per hit, Burns every 3rd turn)
         // can fill it; stop the smoke run before that.
-        if cx.n_cards as usize + 12 >= MAX_CARDS {
+        if cx.n_cards as usize + 48 >= MAX_CARDS {
             break;
         }
     }

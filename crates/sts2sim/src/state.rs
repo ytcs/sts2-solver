@@ -6,12 +6,15 @@ use crate::rng::Rng;
 use crate::types::*;
 use crate::util::ArrayVec;
 
-pub const MAX_CARDS: usize = 254; // CardIdx is a u8 and 255 is `NO`; 160 overflowed in 20+ turn Slimed fights
+/// Card arena size (`CardIdx` is a u8 and 255 is `NO`). 160 overflows in 20+ turn Slimed / Wither fights; see feature `big-arena`.
+pub const MAX_CARDS: usize = if cfg!(feature = "big-arena") { 254 } else { 160 };
 pub const MAX_CREATURES: usize = 16;
 pub const MAX_POWERS: usize = 16;
 pub const MAX_RELICS: usize = 24;
 pub const MAX_POTIONS: usize = 4;
 pub const MAX_HAND: usize = 10;
+/// Capacity of a decision's candidate list (a pile prompt: draw pile up to `MAX_CARDS`, realistically far fewer).
+pub const MAX_CANDS: usize = 160;
 pub const MAX_ORBS: usize = 10;
 
 /// Creature handles: `0` is always the player. Pets (Osty) and enemies take later slots; slots of removed
@@ -350,7 +353,7 @@ pub struct Decision {
     pub source: DecisionSource,
     pub min: u8,
     pub max: u8,
-    pub cands: ArrayVec<CardIdx, 64>,
+    pub cands: ArrayVec<CardIdx, MAX_CANDS>,
     /// Candidate positions selected so far, in click order.
     pub selected: ArrayVec<u8, 16>,
     /// `RequireManualConfirmation` (`min != max`).
@@ -422,7 +425,7 @@ pub struct History {
     pub skills_finished_this_turn: i16,
     pub shivs_finished_this_turn: i16,
     /// Bitset over card arena indices: cards with a `CardPlayFinishedEntry` this turn (Necrobinder).
-    pub finished_cards: [u64; 3],
+    pub finished_cards: [u64; (MAX_CARDS + 63) / 64],
     /// Per-play scratch used by Serpent Form / Strangle: the power amount when `BeforeCardPlayed` ran for a card.
     pub play_amounts: ArrayVec<PlayAmount, 32>,
 }
@@ -461,7 +464,7 @@ pub struct PlayAmount {
     pub amount: i32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Combat {
     pub character: u8,
     pub ascension: u8,
@@ -504,6 +507,9 @@ pub struct Combat {
     pub draw_resume: Option<(i32, bool)>,
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
+    /// Nesting depth of `draw_cards_list` calls (a draw started from an `AfterCardDrawn` hook, e.g. Iteration, is depth 2: its
+    /// `AfterShuffle` decisions cannot be resumed, only the outermost hand draw's can).
+    pub draw_depth: u8,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
     /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
     pub turn_cont: u8,
@@ -534,7 +540,7 @@ pub struct Combat {
     pub dmg_result: crate::engine::DamageResult,
     /// `AttackCommand.Results` (first 16 per-hit results) of the attack whose `after_attack` hooks are being dispatched
     /// (only filled when some listener has `after_attack`): Suck, Skittish.
-    pub attack_results: ArrayVec<crate::engine::DamageResult, 16>,
+    pub attack_results: ArrayVec<crate::engine::DamageResult, 64>,
     /// Side channel for `AfterAttack` (C# `command.Results`): set by `execute_attack` right before the hook pass.
     /// `attack_unblocked_hits` = results with unblocked damage > 0 (any receiver); `attack_player_hits` = those whose
     /// receiver is the player creature.

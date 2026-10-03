@@ -320,6 +320,8 @@ def main():
     ap.add_argument("--relics", default="3-8")
     ap.add_argument("--force-potions", help="comma list (max 2) used instead of random potions")
     ap.add_argument("--force-relics", help="comma list prepended to the random relics")
+    ap.add_argument("--each-potion", action="store_true", help="round-robin: scenario i carries potion i mod #potions")
+    ap.add_argument("--each-relic", action="store_true", help="round-robin: scenario i carries relic i mod #relics")
     ap.add_argument("--keep-ok", action="store_true")
     ap.add_argument("--gen-only", action="store_true")
     a = ap.parse_args()
