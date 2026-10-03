@@ -30,7 +30,16 @@ public static class Dump
         return o;
     }
 
-    public static JsonObject CardBrief(CardModel c) => new JsonObject { ["id"] = c.Id.Entry, ["upgrade"] = c.CurrentUpgradeLevel };
+    // Non-hand piles: id, upgrade, keywords (local + global sources: a stray Ethereal on a drawn card must be seen when it happens, not
+    // many steps later when the card is drawn) and the enchantment.
+    public static JsonObject CardBrief(CardModel c)
+    {
+        var o = new JsonObject { ["id"] = c.Id.Entry, ["upgrade"] = c.CurrentUpgradeLevel };
+        try { o["keywords"] = new JsonArray(c.Keywords.Select(k => (JsonNode)k.ToString()).OrderBy(x => x.ToString(), StringComparer.Ordinal).ToArray()); } catch { }
+        if (c.Enchantment != null)
+            o["enchantment"] = new JsonObject { ["id"] = c.Enchantment.Id.Entry, ["amount"] = c.Enchantment.Amount };
+        return o;
+    }
 
     public static JsonObject Props(SavedProperties p)
     {

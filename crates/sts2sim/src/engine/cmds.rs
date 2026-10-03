@@ -183,6 +183,7 @@ impl Combat {
         copy.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::REMOVED);
         copy.flags |= cflag::IS_CLONE;
         copy.deck_idx = NO;
+        copy.dampen_saved = 0; // the C# `downgradedCardsToOldUpgradeLevels` dictionary is keyed by the original instance only
         self.cards[idx as usize] = copy;
         self.listen |= crate::content::card_mask(copy.id);
         self.listen_cards |= crate::content::card_mask(copy.id);

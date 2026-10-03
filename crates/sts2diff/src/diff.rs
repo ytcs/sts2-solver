@@ -14,6 +14,8 @@ pub fn compare(path: &str, rust: &Value, oracle: &Value, out: &mut Vec<String>) 
             for (k, rv) in r {
                 match o.get(k) {
                     Some(ov) => compare(&format!("{path}.{k}"), rv, ov, out),
+                    // Older recordings (oracle/regression, samples) carry no keywords / enchantment for the non-hand piles.
+                    None if (k == "keywords" || k == "enchantment") && [".draw[", ".discard[", ".exhaust[", ".play_pile["].iter().any(|p| path.starts_with(p)) => {}
                     None => out.push(format!("{path}.{k}: missing in oracle (rust = {rv})")),
                 }
             }
@@ -80,6 +82,7 @@ fn missing_name(cx: &Combat) -> Option<String> {
     cx.missing.map(|(k, id)| match k {
         Kind::Card if id == u16::MAX => "card arena full (MAX_CARDS)".to_string(),
         Kind::Card => format!("card {}", sts2sim::ids::card::NAMES[id as usize]),
+        Kind::Power if id == u16::MAX => "power capacity (MAX_POWERS)".to_string(),
         Kind::Power => format!("power {}", sts2sim::ids::power::NAMES[id as usize]),
         Kind::Relic => format!("relic {}", sts2sim::ids::relic::NAMES[id as usize]),
         Kind::Potion => format!("potion {}", sts2sim::ids::potion::NAMES[id as usize]),

@@ -41,10 +41,9 @@ fn card(cx: &Combat, c: CardIdx, with_cost: bool) -> Value {
     let mut m = Map::new();
     m.insert("id".into(), json!(ids::card::NAMES[k.id as usize]));
     m.insert("upgrade".into(), json!(k.upgrade));
-    if with_cost {
-        // the oracle reports -1 for X-cost cards
-        m.insert("cost".into(), json!(if cx.card_def(c).x_cost { -1 } else { cx.card_cost(c, true).max(0) }));
-        // keywords (local + global), sorted by name like the oracle
+    {
+        // keywords (local + global), sorted by name like the oracle; every pile (a stray keyword on a card in the draw pile must show up
+        // when it happens, not when the card is drawn)
         let kws = cx.card_keywords(c);
         let mut names: Vec<&str> = vec![];
         for (bit, n) in [(kw::EXHAUST, "Exhaust"), (kw::ETHEREAL, "Ethereal"), (kw::INNATE, "Innate"), (kw::UNPLAYABLE, "Unplayable"), (kw::RETAIN, "Retain"), (kw::SLY, "Sly"), (kw::ETERNAL, "Eternal")] {
@@ -57,6 +56,10 @@ fn card(cx: &Combat, c: CardIdx, with_cost: bool) -> Value {
         if k.enchant != 0 {
             m.insert("enchantment".into(), json!({"id": ids::enchantment::NAMES[(k.enchant - 1) as usize], "amount": k.enchant_amount}));
         }
+    }
+    if with_cost {
+        // the oracle reports -1 for X-cost cards
+        m.insert("cost".into(), json!(if cx.card_def(c).x_cost { -1 } else { cx.card_cost(c, true).max(0) }));
         if cx.card_has_star_cost_x(c) {
             m.insert("star_cost".into(), json!(-1));
         } else if cx.card_current_star_cost(c) >= 0 {

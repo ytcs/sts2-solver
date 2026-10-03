@@ -379,14 +379,11 @@ impl Combat {
 
     /// `Monster.IntendsToAttack`: the monster's pending move has an attack intent.
     pub fn intends_to_attack(&self, e: Cid) -> bool {
-        use crate::defs::{Intent, MonsterNode};
-        let ms = &self.cr(e).monster;
-        if ms.next_move == NO {
-            return false;
-        }
-        match &crate::content::monster_def(ms.id).nodes[ms.next_move as usize] {
-            MonsterNode::Move { intents, .. } => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
-            _ => false,
+        use crate::defs::Intent;
+        // (`move_view` also covers the synthetic STUNNED move, whose node index is not a real node)
+        match self.move_view(e) {
+            Some((_, intents)) => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow)),
+            None => false,
         }
     }
 

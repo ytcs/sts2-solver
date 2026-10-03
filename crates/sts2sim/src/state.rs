@@ -9,7 +9,8 @@ use crate::util::ArrayVec;
 /// Card arena size (`CardIdx` is a u8 and 255 is `NO`). 160 overflows in 20+ turn Slimed / Wither fights; see feature `big-arena`.
 pub const MAX_CARDS: usize = if cfg!(feature = "big-arena") { 254 } else { 160 };
 pub const MAX_CREATURES: usize = 16;
-pub const MAX_POWERS: usize = 16;
+/// Power instances per creature (a power-heavy deep fight reaches 18+ on the player; see feature `big-arena`).
+pub const MAX_POWERS: usize = if cfg!(feature = "big-arena") { 24 } else { 16 };
 pub const MAX_RELICS: usize = 24;
 pub const MAX_POTIONS: usize = 4;
 pub const MAX_HAND: usize = 10;

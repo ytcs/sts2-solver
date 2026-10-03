@@ -130,6 +130,11 @@ impl Combat {
             if !v.is_zero() {
                 let amt = v.trunc().clamp(-MAX_POWER_AMOUNT, MAX_POWER_AMOUNT);
                 let p = Power { id, uid, amount: amt, amount_on_turn_start: 0, aux: content::power_listener(id).initial_power_aux(), applier, skip_next_tick: false };
+                if self.cr(target).powers.len() >= MAX_POWERS {
+                    // No room for another power instance: the fight can no longer be faithful (see feature `big-arena`).
+                    self.flag_missing(Kind::Power, u16::MAX);
+                    return None;
+                }
                 self.cr_mut(target).powers.push(p);
                 attached = true;
                 self.hist_push(crate::engine::HKind::PowerReceived, target, applier, id, NO, v.trunc(), 0, 0, 0);

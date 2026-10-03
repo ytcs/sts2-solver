@@ -189,6 +189,9 @@ listener!(SwordSagePower {
         }
     }
     fn after_card_entered_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {
+        if cx.cards[card as usize].flags & cflag::IS_CLONE != 0 {
+            return; // `card.IsClone`: a clone / dupe already carries the original's replays
+        }
         let a = amount(cx, &me);
         add_blade_replays(cx, card, a);
     }
