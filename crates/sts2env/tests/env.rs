@@ -3,7 +3,7 @@ use sts2env::*;
 use sts2sim::ids;
 use sts2sim::rng::Rng;
 use sts2sim::state::RngSet;
-use sts2sim::{DeckCard, RelicInit, Scenario};
+use sts2sim::{DeckCard, RelicInit, Scenario, ScenarioExtras};
 
 fn scenario(n_deck: usize) -> Scenario {
     let mut deck = vec![];
@@ -145,4 +145,23 @@ fn fork_copies_the_visible_state_and_frozen_slots_stay_finished() {
         }
     }
     assert!(seen.iter().all(|&o| o != 0), "every fork finished");
+}
+
+/// Deck enchantments of a scenario reach the combats the env starts (the first episode and every auto-reset).
+#[test]
+fn pool_scenario_applies_deck_enchantments() {
+    use sts2sim::DeckExtra;
+    let mut ex = ScenarioExtras::default();
+    ex.deck = vec![DeckExtra::default(); 10];
+    ex.deck[0] = DeckExtra { enchant: (ids::enchantment::SHARP + 1) as u8, enchant_amount: 3, ..Default::default() };
+    let sc = scenario(10);
+    let n = 8;
+    let mut env = BatchEnv::new(n, Box::new(PoolScenario::with_extras(vec![(sc.clone(), ex)])), RewardConfig::default(), 50, 1);
+    let mut plain = BatchEnv::new(n, Box::new(PoolScenario::new(vec![sc])), RewardConfig::default(), 50, 1);
+    let (mut a, mut ma) = (vec![0f32; n * OBS], vec![0u8; n * ACTIONS]);
+    let (mut b, mut mb) = (vec![0f32; n * OBS], vec![0u8; n * ACTIONS]);
+    env.observe_all(&mut a, &mut ma).unwrap();
+    plain.observe_all(&mut b, &mut mb).unwrap();
+    // some hand shows the enchanted card's larger damage preview: the observations differ somewhere
+    assert!(a != b, "the enchantment never showed up in an observation");
 }

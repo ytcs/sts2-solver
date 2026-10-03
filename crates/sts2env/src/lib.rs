@@ -13,6 +13,7 @@ use rayon::prelude::*;
 use sts2sim::engine::ACTION_SPACE;
 use sts2sim::observe::OBS_SIZE;
 use sts2sim::state::{RngSet, Stage};
+use sts2sim::ScenarioExtras;
 use sts2sim::types::Outcome;
 use sts2sim::{Action, Combat, Scenario};
 
@@ -29,6 +30,11 @@ pub trait ScenarioSource: Send + Sync {
     /// RNG streams, which the env derives from `episode_seed` itself): return that stored scenario. `None` (the default)
     /// makes the env call [`ScenarioSource::sample`] each episode.
     fn pick(&self, _env: usize, _episode_seed: u64) -> Option<&Scenario> {
+        None
+    }
+
+    /// Optional per-card inputs (enchantments, saved properties) of the scenario `pick` returns for the same episode.
+    fn extras(&self, _env: usize, _episode_seed: u64) -> Option<&ScenarioExtras> {
         None
     }
 
@@ -62,11 +68,19 @@ impl ScenarioSource for FixedScenario {
 }
 
 /// Uniform choice among several scenarios per episode (e.g. different encounters / decks).
-pub struct PoolScenario(Vec<Scenario>);
+pub struct PoolScenario(Vec<Scenario>, Vec<ScenarioExtras>);
 impl PoolScenario {
     pub fn new(v: Vec<Scenario>) -> PoolScenario {
         assert!(!v.is_empty());
-        PoolScenario(v)
+        let ex = v.iter().map(|_| ScenarioExtras::default()).collect();
+        PoolScenario(v, ex)
+    }
+
+    /// Scenarios with their deck enchantments / saved card properties (what the oracle JSON can carry).
+    pub fn with_extras(v: Vec<(Scenario, ScenarioExtras)>) -> PoolScenario {
+        assert!(!v.is_empty());
+        let (s, e) = v.into_iter().unzip();
+        PoolScenario(s, e)
     }
 }
 impl ScenarioSource for PoolScenario {
@@ -81,6 +95,9 @@ impl ScenarioSource for PoolScenario {
     }
     fn index(&self, _env: usize, episode_seed: u64) -> u32 {
         ((episode_seed >> 17) as usize % self.0.len()) as u32
+    }
+    fn extras(&self, _env: usize, episode_seed: u64) -> Option<&ScenarioExtras> {
+        Some(&self.1[(episode_seed >> 17) as usize % self.0.len()])
     }
     fn validate(&self) -> Result<(), ScenarioError> {
         self.0.iter().try_for_each(|s| s.validate())
@@ -188,13 +205,14 @@ pub struct StepOut<'a> {
 /// (Re)starts `cx` on the scenario of `episode_seed`. Never panics: a scenario that cannot be started leaves the combat
 /// flagged (`overflow`) so the env reports `OUTCOME_OVERFLOW` for it instead of aborting the process.
 fn start_episode(source: &dyn ScenarioSource, env: usize, episode_seed: u64, cx: &mut Combat) {
-    let ex = sts2sim::ScenarioExtras::default();
+    let default_ex = sts2sim::ScenarioExtras::default();
+    let ex = source.extras(env, episode_seed).unwrap_or(&default_ex);
     let r = match source.pick(env, episode_seed) {
-        Some(sc) => cx.reset_validated(sc, &ex, episode_seed, RngSet::from_run_seed_fast(episode_seed)),
+        Some(sc) => cx.reset_validated(sc, ex, episode_seed, RngSet::from_run_seed_fast(episode_seed)),
         None => {
             let sc = source.sample(env, episode_seed);
             match sc.validate() {
-                Ok(()) => cx.reset_validated(&sc, &ex, sc.run_seed, sc.rng),
+                Ok(()) => cx.reset_validated(&sc, ex, sc.run_seed, sc.rng),
                 Err(e) => Err(e),
             }
         }
@@ -302,7 +320,8 @@ impl BatchEnv {
                 .map(|i| {
                     let episode = Self::episode_seed(base_seed, i, 0);
                     let sc = source.sample(i, episode);
-                    let cx = Combat::try_new(&sc)?;
+                    let default_ex = ScenarioExtras::default();
+                    let cx = Combat::try_new_with(&sc, source.extras(i, episode).unwrap_or(&default_ex))?;
                     let hp0 = cx.cr(0).hp as f32 / cx.cr(0).max_hp.max(1) as f32;
                     Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default(), frozen: None })
                 })

@@ -16,15 +16,15 @@ impl BatchEnvPy {
         let mut scs = vec![];
         for s in scenarios_json {
             let v: serde_json::Value = serde_json::from_str(&s).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            let sc = sts2diff::convert::scenario(&v).map_err(PyValueError::new_err)?;
+            let (sc, ex) = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
             sc.validate().map_err(|e| PyValueError::new_err(format!("scenario uses unported content: {e:?}")))?;
-            scs.push(sc);
+            scs.push((sc, ex));
         }
         let cfg = RewardConfig { win, loss, hp_bonus, step: step_reward };
         if scs.is_empty() {
             return Err(PyValueError::new_err("no scenarios"));
         }
-        let env = BatchEnv::try_new(n_envs, Box::new(PoolScenario::new(scs)), cfg, max_steps, seed)
+        let env = BatchEnv::try_new(n_envs, Box::new(PoolScenario::with_extras(scs)), cfg, max_steps, seed)
             .map_err(|e| PyValueError::new_err(format!("cannot create the env: {e:?}")))?;
         Ok(BatchEnvPy { env })
     }
