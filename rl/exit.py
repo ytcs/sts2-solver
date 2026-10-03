@@ -56,7 +56,7 @@ def train(a):
     D = {k: np.concatenate(v) for k, v in data.items()}
     n = len(D["z"])
     print("samples", n, flush=True)
-    obs = torch.from_numpy(D["obs"].astype(np.float32))
+    obs = torch.nan_to_num(torch.from_numpy(D["obs"].astype(np.float32)), posinf=60000.0, neginf=-60000.0)
     mask = torch.from_numpy(D["mask"].astype(np.int64))
     acts = torch.from_numpy(D["acts"].astype(np.int64))
     legal = torch.from_numpy(D["legal"])

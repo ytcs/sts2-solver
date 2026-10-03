@@ -94,6 +94,7 @@ def main():
     ap.add_argument("--eval-per-env", type=int, default=2)
     ap.add_argument("--d", type=int, default=64)
     ap.add_argument("--rounds", type=int, default=2)
+    ap.add_argument("--hold-prob", type=float, default=0.0, help="fraction of episodes that run under a random 'no potion before turn T' rule (T in 2..5, or never): states that hold a resource then show up in the data")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", help="checkpoint to continue from (iteration count and lr schedule continue; --iters is the total)")
     ap.add_argument("--warm", action="store_true", help="with --resume: take the weights only (fresh optimizer, iteration 0)")
@@ -126,6 +127,14 @@ def main():
     b_rew = torch.zeros(T, N)
     b_done = torch.zeros(T, N)
     obs, mask = env.reset()
+    rng = np.random.default_rng(a.seed + 7)
+    POT = slice(sts2.layout()["consts"]["OFF_POTION"], sts2.layout()["consts"]["OFF_DISCARD"])
+    hold_until = np.zeros(N, np.int32)  # 0 = free, k = no potion before turn k, 99 = never
+    def draw_rules(idx):
+        use = rng.random(len(idx)) < a.hold_prob
+        t = rng.choice([2, 3, 4, 5, 99], size=len(idx))
+        hold_until[idx] = np.where(use, t, 0)
+    draw_rules(np.arange(N))
     log = open(os.path.join(a.out, "log.jsonl"), "a")
     t0 = time.time()
     steps0 = steps
@@ -139,8 +148,15 @@ def main():
         t_roll = time.time()
         with torch.inference_mode():
             for t in range(T):
+                m_eff = mask
+                if a.hold_prob > 0:
+                    m_eff = mask.copy()
+                    bad = (hold_until > 0) & (obs[:, 1] < hold_until)
+                    m_eff[bad, POT] = 0
+                    empty = m_eff.sum(1) == 0
+                    m_eff[empty] = mask[empty]
                 b_obs[t].numpy()[:] = obs
-                b_mask[t].numpy()[:] = mask
+                b_mask[t].numpy()[:] = m_eff
                 lg, v = net(b_obs[t], b_mask[t].long())
                 logp = F.log_softmax(lg, 1)
                 act = torch.multinomial(logp.exp(), 1).squeeze(1)
@@ -154,6 +170,8 @@ def main():
                 b_rew[t] = torch.from_numpy(r)
                 b_done[t] = torch.from_numpy(done.astype(np.float32))
                 if done.any():
+                    if a.hold_prob > 0:
+                        draw_rules(np.nonzero(done)[0])
                     ei = env.episode_info()
                     for i in np.nonzero(done)[0]:
                         ep_stats.append((int(oc[i]), float(ei["hp_lost"][i]), int(ei["length"][i])))

@@ -225,8 +225,8 @@ class Net(nn.Module):
         return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
                     cand_p=cand_p, cid=cid, rows=rows, cand_sel=cands[..., C["CARD_F"]] > 0.5)
 
-    def forward(self, obs, mask):
-        """Returns (masked logits [B, ACTION_SPACE], value [B])."""
+    def forward(self, obs, mask, policy=True, value=True):
+        """Returns (masked logits [B, ACTION_SPACE], value [B]); `policy=False` / `value=False` skips that head (None) and its cost."""
         B = obs.shape[0]
         d = self.d
         E, Q = C["OBS_MAX_ENEMIES"], C["OBS_MAX_CANDS"]
@@ -250,6 +250,8 @@ class Net(nn.Module):
             if len(rows):
                 cand = cand + u["cand"](cand, ctx[rows])
         gctx = torch.cat([player, ctx], 1)
+        if not policy:
+            return None, self.value(gctx).squeeze(-1)
         # targets: V[b, creature id] = v_tgt(enemy token); slot MAX_CREATURES = "no target"
         v = self.v_tgt(enemy) * ep
         V = torch.zeros(B, T + 1, d, device=obs.device, dtype=v.dtype)
@@ -278,7 +280,7 @@ class Net(nn.Module):
         else:
             m = mask > 0
         logits = logits.masked_fill(~m, -1e9)
-        return logits, self.value(gctx).squeeze(-1)
+        return logits, (self.value(gctx).squeeze(-1) if value else None)
 
 
 def n_params(m):

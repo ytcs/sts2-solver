@@ -40,10 +40,33 @@ Eval set: `target/train/eval.json` (1500 fights, 5 characters, 3 acts, seed 22),
 | untrained net | 0.031 | 0.725 |
 | scripted heuristic | 0.363 | 0.572 |
 | PPO, 2.5M steps (early) | 0.477 | 0.526 |
+| PPO, 60M steps (`models/solver_base.pt`) | 0.630 | 0.443 |
 
-Paired comparison on 100 fights (early checkpoint, M=5, K=6): policy 0.51 / 0.516 -> policy + search 0.63 / 0.446.
+Search on top (same fights, paired seeds; `rl/bench_search.py`):
 
-(Final numbers: see the end of this file.)
+| set | greedy policy | + search (5 options x 8 futures) |
+|---|---|---|
+| broad eval, 150 fights | 64.7% / 0.424 | 72.0% / 0.379 |
+| mid-difficulty (model wins 15-85%), 200 fights | 52.0% / 0.577 | 75.0% / 0.475 |
+| Phrog Parasite deck from the user, 120 attempts | 56% | 83% |
+
+What the search work taught (all measured, see the benchmark scripts):
+* Cost is the network: 85% of a search is network inference (before the policy-only / value-only split and the batched value calls; now ~60% rollout
+  policy, ~18% value, ~10% simulator). int8 dynamic quantization is slower and changes decisions; the lever is doing less work (skip the network when
+  one action is legal, pruning candidates below 3% probability) and **big batches**: 60 roots ~5 s/fight, 150 ~3 s, 400 ~2.3 s. Wall-clock on this laptop
+  CPU varies 2-5x between identical runs (thermal throttling): compare work, not single timings.
+* Forcing extra candidates (end turn, the likeliest potion action) into the search was neutral to harmful (broad set 65% vs 69%, mid set 75.5% vs
+  75.0%); off by default. Scoring options with full-fight play-outs instead of end-of-turn + value head was not better on the broad set (71.3% vs 72.0%)
+  and several times slower.
+* The first distillation (25k search-labelled states) did not improve the network: targets from 4 noisy futures per action. `rl/mine.py` confirms
+  disagreements with 48 futures before keeping them.
+* What-if examples (Phrog Parasite deck): the network alone drinks a Duplicator potion on turn 1 whatever it holds (72.5% win); forcing "only with Perfected
+  Strike in hand" gives 77.7%. With search the potion goes on Perfected Strike whenever it is in hand (85.7% win), and forcing the rule is not better.
+
+## The solver API (`rl/solver.py`)
+`Solver().solve(scenarios, attempts=32)` plays `attempts` fights of every scenario (deck variants ...) with the network + search, all together in large
+batches, and returns win rate (+ standard error), mean HP lost (losses charged in full), HP left on wins. 576 fights (9 deck variants x 64) took 65 s.
+`rl/whatif.py` (card removal, split timing), `rl/potion_whatif.py`, `rl/trace.py` (play-by-play page of the best / worst line) build on the same pieces.
 
 ## Provably unwinnable fights (`sts2sim::bounds`, `sts2.provably_unwinnable`)
 Many generated fights cannot be won by anyone (a starter deck against a boss). `provably_unwinnable(scenario)` returns a sentence proving it, or `None`
