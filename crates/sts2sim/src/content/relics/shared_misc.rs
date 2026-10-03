@@ -387,6 +387,13 @@ listener!(MawBank {
     }
 });
 
+// Max HP +1 whenever gold is gained (Maw Bank at room entry, ...).
+listener!(DragonFruit {
+    fn after_gold_gained(&self, cx: &mut Combat, _me: Me) {
+        cx.gain_max_hp(PLAYER, Dec::int(g::dragon_fruit::MAX_HP as i64));
+    }
+});
+
 listener!(LavaRock {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::flag("HasTriggered", 0)]
