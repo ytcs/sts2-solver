@@ -129,6 +129,11 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(Verdict::Mismatch);
                 };
                 ci += 1;
+                if ch["options"].as_array().map_or(0, |a| a.len()) > sts2sim::engine::ACTION_PICKS {
+                    // The dense action space addresses at most `MAX_PICK` candidates (very long fights only).
+                    println!("UNIMPLEMENTED engine: decision with more than {} candidates (step {i})", sts2sim::engine::ACTION_PICKS);
+                    return Ok(Verdict::Unimplemented);
+                }
                 let seq = cx.decision_seq;
                 for p in picks_of(ch) {
                     if !cx.step(Action::Pick { idx: p }) {

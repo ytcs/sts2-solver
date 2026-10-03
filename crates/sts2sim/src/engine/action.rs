@@ -22,6 +22,8 @@ pub enum Action {
 
 const T: usize = MAX_CREATURES + 1; // target slots: creature id 0..MAX_CREATURES, plus "no target"
 pub const MAX_PICK: usize = 64;
+/// `MAX_PICK` for tools outside the crate.
+pub const ACTION_PICKS: usize = MAX_PICK;
 const OFF_PLAY: usize = 1;
 const OFF_POTION: usize = OFF_PLAY + MAX_HAND * T;
 const OFF_DISCARD: usize = OFF_POTION + MAX_POTIONS * T;

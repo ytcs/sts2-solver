@@ -320,6 +320,11 @@ listener!(StratagemPower {
                     cx.hook_ctx = Some((me, 1));
                     cx.stage = Stage::AwaitChoice;
                 } else {
+                    #[cfg(debug_assertions)]
+                    if crate::engine::trace_on() {
+                        let names: Vec<&str> = cx.play_stack.iter().map(|c| crate::ids::card::NAMES[cx.cards[c.play.card as usize].id as usize]).collect();
+                        eprintln!("TRACE stratagem unsupported context: play stack {:?} potion {} side {:?}", names, cx.potion_ctx.is_some(), cx.side);
+                    }
                     cx.decision = None;
                     cx.flag_missing(Kind::Power, me.id);
                 }
