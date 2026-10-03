@@ -207,11 +207,7 @@ impl Combat {
         ok
     }
 
-    /// `CardCmd.Discard` for one card (Sly auto-play not implemented yet).
-    pub fn discard_card(&mut self, c: CardIdx) {
-        self.move_card(c, PileType::Discard, CardPilePosition::Bottom);
-        self.dispatch_g(hookbit::after_card_discarded, |cx, me, l| l.after_card_discarded(cx, me, c));
-    }
+    // (`CardCmd.Discard` / `DiscardAndDraw`, including the Sly auto-plays, is `Combat::discard_cards` in `autoplay.rs`.)
 
     // ---- ironclad_b1 helpers ----------------------------------------------------------------------------------
 

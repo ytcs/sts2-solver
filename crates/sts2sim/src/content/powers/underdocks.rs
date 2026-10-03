@@ -168,7 +168,7 @@ listener!(SmoggyPower {
             return;
         }
         // CardPlaysStarted.Any(this turn, Skill, player)
-        let skill_played = cx.plays_this_turn(|e| content::card_def(e.id as u16).ctype == CardType::Skill) > 0;
+        let skill_played = cx.plays_this_turn(|e| cx.card_def(e.card).ctype == CardType::Skill) > 0;
         if skill_played {
             smog_card(cx, card as usize);
         }

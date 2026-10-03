@@ -20,10 +20,8 @@ fn gambling_chip_finish(cx: &mut Combat, cards: &ArrayVec<CardIdx, 16>) {
     if cx.is_over_or_ending() || cards.is_empty() {
         return;
     }
-    for &c in cards.iter() {
-        cx.discard_card(c);
-    }
-    cx.draw_cards(cards.len() as i32, false);
+    // (a Sly card that raises a decision leaves `stage = AwaitChoice`; the turn start resumes after the play stack drains)
+    let _ = cx.discard_cards(cards.as_slice(), cards.len() as i32);
 }
 listener!(GamblingChip {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {

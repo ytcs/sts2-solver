@@ -249,7 +249,7 @@ listener!(NostalgiaPower {
         if me.owner != PLAYER || !matches!(cx.card_def(card).ctype, CardType::Attack | CardType::Skill) || loc.pile != PileType::Discard {
             return loc;
         }
-        let started = cx.plays_this_turn(|e| matches!(crate::content::card_def(e.id).ctype, CardType::Attack | CardType::Skill)) as i32;
+        let started = cx.plays_this_turn(|e| matches!(cx.card_def(e.card).ctype, CardType::Attack | CardType::Skill)) as i32;
         if started >= cx.power_amount(me.owner, me.id) {
             return loc;
         }

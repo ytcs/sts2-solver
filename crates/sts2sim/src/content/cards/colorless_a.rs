@@ -411,6 +411,10 @@ listener!(Omnislice {
         cx.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, &ctx_attack));
         let dmg = cx.card_var(p.card, VarKind::Damage);
         let first = cx.damage(&[p.target], Dec::int(dmg as i64), ValueProp::MOVE, PLAYER, p.card);
+        let mut all = crate::engine::Results::new();
+        for r in first.iter() {
+            all.push(*r); // `context.AddHit(list)`: hit 0
+        }
         if let Some(r) = first.first() {
             let mut others: crate::util::ArrayVec<Cid, MAX_CREATURES> = crate::util::ArrayVec::new();
             for &e in cx.enemies.iter() {
@@ -420,10 +424,15 @@ listener!(Omnislice {
             }
             if !others.is_empty() {
                 let total = r.blocked + r.unblocked + r.overkill;
-                cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
+                let second = cx.damage(others.as_slice(), Dec::int(total as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), PLAYER, p.card);
+                for r in second.iter() {
+                    let mut r = *r;
+                    r.hit = 1;
+                    all.push(r);
+                }
             }
         }
-        cx.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, &ctx_attack));
+        cx.dispatch_after_attack(&ctx_attack, &all);
         Flow::Done
     }
 });

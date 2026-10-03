@@ -368,7 +368,7 @@ listener!(SignalBoostPower {
 // pile. `Power::aux` = zero-cost attacks played so far this turn (`Data.zeroCostAttacksPlayed`).
 listener!(FeralPower {
     fn after_applied(&self, cx: &mut Combat, me: Me) {
-        let n = cx.hist_count_this_turn(HKind::CardPlayStarted, |e| e.aux == 0 && crate::content::card_def(e.id).ctype == CardType::Attack) as i32;
+        let n = cx.hist_count_this_turn(HKind::CardPlayStarted, |e| e.aux == 0 && cx.card_def(e.card).ctype == CardType::Attack) as i32;
         if let Some(i) = cx.power_idx(me.owner, me.idx) {
             cx.cr_mut(me.owner).powers[i].aux = n;
         }

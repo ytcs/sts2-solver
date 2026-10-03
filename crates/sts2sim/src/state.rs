@@ -6,7 +6,7 @@ use crate::rng::Rng;
 use crate::types::*;
 use crate::util::ArrayVec;
 
-pub const MAX_CARDS: usize = 160;
+pub const MAX_CARDS: usize = 254; // CardIdx is a u8 and 255 is `NO`; 160 overflowed in 20+ turn Slimed fights
 pub const MAX_CREATURES: usize = 16;
 pub const MAX_POWERS: usize = 16;
 pub const MAX_RELICS: usize = 24;

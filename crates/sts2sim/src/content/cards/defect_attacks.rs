@@ -159,7 +159,10 @@ listener!(RocketPunch {
 
 // Damage, draw `Cards`, discard the drawn cards that do not cost 0 (X-cost cards count as non-zero).
 listener!(Scrape {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        if phase != 0 {
+            return Flow::Done; // the Sly auto-play of a discarded card finished
+        }
         attack(cx, p);
         let n = cx.card_var(p.card, VarKind::Cards);
         let drawn = cx.draw_cards_list(n, false);
@@ -169,11 +172,9 @@ listener!(Scrape {
                 discard.push(c);
             }
         }
-        // CardCmd.Discard: nothing if the combat is over/ending; each card moves + fires AfterCardDiscarded (Sly: none here).
-        if !cx.is_over_or_ending() {
-            for &c in discard.iter() {
-                cx.discard_card(c);
-            }
+        // CardCmd.Discard(cards) = DiscardAndDraw(cards, 0): each card moves + fires AfterCardDiscarded, then the Sly ones auto-play.
+        if cx.discard_cards(discard.as_slice(), 0) == crate::engine::RunResult::Suspended {
+            return Flow::Suspend(1);
         }
         Flow::Done
     }

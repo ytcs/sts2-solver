@@ -392,13 +392,22 @@ listener!(EchoingSlash {
         let ctx = Attack::from_card(PLAYER, p.card, 0, Targeting::AllOpponents);
         cx.dispatch_g(hookbit::before_attack, |cx, me, l| l.before_attack(cx, me, &ctx));
         let mut rounds = 1;
+        let mut hit = 0u8;
+        let mut all = crate::engine::Results::new();
         while rounds > 0 {
             rounds -= 1;
             let targets = cx.hittable_enemies();
             let res = cx.damage(targets.as_slice(), Dec::int(dmg as i64), ValueProp::MOVE, PLAYER, p.card);
             rounds += res.iter().filter(|r| r.killed).count();
+            for r in res.iter() {
+                let mut r = *r;
+                r.hit = hit; // `attackContext.AddHit(results)`: one result list per round
+                all.push(r);
+            }
+            hit = hit.saturating_add(1);
         }
-        cx.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, &ctx));
+        // AttackContext disposal: `AfterAttack` sees every round's results
+        cx.dispatch_after_attack(&ctx, &all);
         Flow::Done
     }
 });
