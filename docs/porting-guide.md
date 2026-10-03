@@ -84,7 +84,10 @@ behaviour only matters insofar as the same code path computes both; never valida
   `next` as "finished" (returning `Done` after a nested play that is still waiting also works: the engine suspends the outer play at its
   `After` step). Several fixed auto-plays in a row (Eidolon) go through `auto_play_list` (one queue). A decision raised by an auto-play
   started from a turn-start hook (Mayhem, Imbued, History Course) resumes: the `AfterAutoPrePlayPhaseEntered*` and `AfterShuffle` passes
-  are `dispatch_resumable` (`turn_cont` 6-8, 4). **Open**: a Stratagem prompt outside the outermost turn-start hand draw is flagged `missing`.
+  are `dispatch_resumable` (`turn_cont` 6-8, 4; nested suspended passes live on the `susp` stack with the listeners still to run). A card
+  that draws and still has work afterwards writes `cx.draw_cards(n, false); if cx.draw_pending() { return Flow::Suspend(50) }` (Stratagem's
+  prompt interrupted the draw; the engine finishes the draw after the decision and the card continues at phase 50). A draw from inside a hook
+  while Stratagem reshuffles is still flagged `missing`.
   Per-play power state (C# `Dictionary<CardModel,int>`): `hist.remember_play(uid, card, amount)` / `take_play` (plays nest).
 * **History**: `cx.plays_this_turn(filter)`, `hist_count_this_turn(kind, filter)`, `hist_total(kind)`,
   `hist_any_last_player_turn(kind, filter)`; entries are pushed by the engine for plays, energy, draws, discards, exhausts,

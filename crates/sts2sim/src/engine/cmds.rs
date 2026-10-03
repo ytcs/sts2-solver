@@ -174,6 +174,7 @@ impl Combat {
     /// `CardModel.CreateClone` + registration: copies live state (including active cost modifiers).
     pub fn clone_card(&mut self, c: CardIdx) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
+            self.flag_missing(Kind::Card, u16::MAX); // arena full: no longer faithful
             return None;
         }
         let idx = self.n_cards as CardIdx;

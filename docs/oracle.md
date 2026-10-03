@@ -171,5 +171,9 @@ auto-play); every card-type/target query of a history entry uses `cx.card_def(e.
 must return `Suspend` or `Done` and the engine suspends the outer play while the nested one waits (`run_play_at`); a `Resolved` choice (Whispering
 Earring's selector) must apply its result exactly like a resumed one; turn-start passes that auto-play (`AfterAutoPrePlayPhaseEntered*`) and
 `AfterShuffle` are `dispatch_resumable`. `big-arena` (cargo feature, on for `sts2diff`) raises `MAX_CARDS` 160 -> 254; an overflowing fight is
-flagged `missing`. Known gap: a Stratagem prompt raised outside the outermost turn-start hand draw (card-effect draws, draws nested in
-`AfterCardDrawn`) is flagged unimplemented.
+flagged `missing`. Stratagem prompts (an `AfterShuffle` decision raised inside a draw / shuffle) are handled for: the turn-start hand draw,
+card effects and potions whose draw is their last action or that `return Flow::Suspend(next)` right after `cx.draw_cards(..)` when
+`cx.draw_pending()` (`draw_susp`; ~25 non-terminal draw cards are phase-converted), and `AutoPlayFromDrawPile` (Mayhem, Cascade, Havoc, ...).
+Known gap (flagged unimplemented): a draw started from inside a hook (Iteration's `AfterCardDrawn`, Centennial Puzzle, ...) that reshuffles
+while Stratagem is active. The oracle trace has a `log` field per record (history entries since the previous record: nested plays `play*`,
+draws, ...), and `sts2diff` compares keywords/enchantments of every pile and fails on oracle prompts the simulator never asked.

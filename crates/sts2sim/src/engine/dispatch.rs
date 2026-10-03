@@ -13,7 +13,9 @@ pub struct Entry {
     pub mask: Mask,
 }
 
-pub type Snapshot = ArrayVec<Entry, 128>;
+/// Listener list of one hook pass: every card in the arena can listen (+ powers / relics / monsters).
+pub const SNAP_CAP: usize = MAX_CARDS + 32;
+pub type Snapshot = ArrayVec<Entry, SNAP_CAP>;
 
 impl Combat {
     /// `L_combat` restricted to listeners whose hook mask intersects `m`, in the game's order (spec 02 §1.1).
@@ -149,7 +151,7 @@ impl Combat {
         if !self.listen.has(bit) || !self.hooks_enabled() {
             return false;
         }
-        let items: ArrayVec<Me, 128> = match resumed {
+        let items: ArrayVec<Me, SNAP_CAP> = match resumed {
             Some(rest) => {
                 let mut v = ArrayVec::new();
                 for &m in rest.iter() {
