@@ -1,6 +1,7 @@
 //! COLORLESS pool cards, part A: attacks, blocks, draw/energy, simple power cards. (Cards needing deeper engine support
 //! live in `colorless_b.rs`.)
 
+use crate::engine::calc_with;
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::{CardDef, VarKind};
@@ -216,6 +217,9 @@ listener!(GangUp {
         cx.execute_attack(&a);
         Flow::Done
     }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_gang_up(cx, card, target))
+    }
 });
 
 // 0 + 1 * (card plays finished so far this combat); Retain when upgraded (stat table).
@@ -233,6 +237,9 @@ listener!(GoldAxe {
         a.damage = d;
         cx.execute_attack(&a);
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_gold_axe(cx, card, target))
     }
 });
 
@@ -393,6 +400,9 @@ listener!(MindBlast {
         a.damage = d;
         cx.execute_attack(&a);
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_mind_blast(cx, card, target))
     }
 });
 
@@ -568,6 +578,9 @@ listener!(Rend {
         a.damage = d;
         cx.execute_attack(&a);
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        Some(calc_rend(cx, card, target))
     }
 });
 

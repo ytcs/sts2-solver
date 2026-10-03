@@ -239,6 +239,15 @@ impl Combat {
             // The hand draw was interrupted by a decision raised in `AfterShuffle` (Stratagem): draw the rest.
             if let Some((n, from_hand)) = self.draw_resume.take() {
                 self.drawing_hand = true;
+                if let Some((card, phase)) = self.draw_pass.take() {
+                    // finish the `AfterCardDrawn` pass the decision interrupted, then the rest of the draw
+                    if self.drawn_hooks(card, from_hand, phase) {
+                        self.drawing_hand = false;
+                        self.draw_resume = Some((n, from_hand));
+                        self.turn_cont = 4;
+                        return true;
+                    }
+                }
                 self.draw_cards(n, from_hand);
                 self.drawing_hand = false;
                 if self.stage == Stage::AwaitChoice {

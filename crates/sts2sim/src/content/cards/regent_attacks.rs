@@ -1,5 +1,6 @@
 //! Regent attack cards (bodies follow the decompiled `Models/Cards/<Class>.cs` `OnPlay`).
 
+use crate::engine::calc_with;
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Attack, HKind, Results, Targeting};
@@ -235,6 +236,11 @@ listener!(CrescentSpear {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, base + extra * n, Targeting::Single(p.target)));
         Flow::Done
     }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        let n = cx.player_combat_cards().iter().filter(|&&c| cx.card_def(c).star_cost != -1).count() as i32;
+        Some(calc_with(cx, card, n))
+    }
 });
 
 // 5 + Extra * (cards the player has generated this combat).
@@ -245,6 +251,10 @@ listener!(Supermassive {
         let n = cx.hist_log.generated_by_player as i32;
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, base + extra * n, Targeting::Single(p.target)));
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        let _ = target;
+        Some(calc_with(cx, card, cx.hist_log.generated_by_player as i32))
     }
 });
 

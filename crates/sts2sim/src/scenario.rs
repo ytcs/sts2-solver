@@ -160,6 +160,7 @@ impl Combat {
             end_turn_resume: None,
             hook_ctx: None,
             draw_resume: None,
+            draw_pass: None,
             drawing_hand: false,
             turn_cont: 0,
             susp_after: None,

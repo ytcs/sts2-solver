@@ -487,6 +487,8 @@ pub struct Combat {
     /// A turn-start hand draw interrupted by a decision raised in `AfterShuffle` (Stratagem): (cards still to draw,
     /// from_hand_draw). `turn_cont == 4` resumes it.
     pub draw_resume: Option<(i32, bool)>,
+    /// The `AfterCardDrawn(Early)` pass (drawn card, 0 = early / 1 = normal) that a hand-draw decision interrupted.
+    pub draw_pass: Option<(CardIdx, u8)>,
     /// True while the turn-start hand draw runs (the only draw whose `AfterShuffle` decisions can be resumed).
     pub drawing_hand: bool,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
