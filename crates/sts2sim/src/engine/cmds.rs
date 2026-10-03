@@ -253,7 +253,7 @@ impl Combat {
     pub fn ask_hand(&mut self, purpose: u16, min: u8, max: u8, filter: impl Fn(&Combat, CardIdx) -> bool) -> Ask {
         let mut cands: ArrayVec<CardIdx, 64> = ArrayVec::new();
         for &c in self.player.hand.iter() {
-            if filter(self, c) {
+            if filter(self, c) && cands.len() < 64 {
                 cands.push(c);
             }
         }
@@ -265,7 +265,9 @@ impl Combat {
     pub fn ask_pile(&mut self, purpose: u16, pile: PileType, min: u8, max: u8, filter: impl Fn(&Combat, CardIdx) -> bool) -> Ask {
         let mut cands: ArrayVec<CardIdx, 64> = ArrayVec::new();
         for &c in self.pile(pile).iter() {
-            if filter(self, c) {
+            // (candidate lists are capped at `MAX_PICK`: the dense action space cannot address more; a pile that large only
+            // occurs in very long fights, the cards past the cap are simply not selectable)
+            if filter(self, c) && cands.len() < 64 {
                 cands.push(c);
             }
         }
