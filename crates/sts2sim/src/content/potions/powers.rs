@@ -126,7 +126,7 @@ listener!(FyshOil {
 listener!(Clarity {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_cards(n, false);
+        cx.draw_cards_nosuspend(n, false);
         apply_var_power(cx, potion, ids::power::CLARITY_POWER, target);
         Flow::Done
     }

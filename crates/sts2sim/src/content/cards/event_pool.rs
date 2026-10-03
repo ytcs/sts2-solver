@@ -88,7 +88,7 @@ listener!(BrightestFlame {
         let e = cx.card_var(p.card, VarKind::Energy);
         cx.gain_energy(e);
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
+        cx.draw_cards_nosuspend(n, false);
         let m = cx.card_var(p.card, VarKind::MaxHp);
         cx.lose_max_hp(PLAYER, Dec::int(m as i64), true);
         Flow::Done

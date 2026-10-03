@@ -596,7 +596,7 @@ listener!(Restlessness {
         if only {
             let n = cx.card_var(p.card, VarKind::Cards);
             for _ in 0..n {
-                cx.draw_cards(1, false);
+                cx.draw_cards_nosuspend(1, false);
             }
             let e = cx.card_var(p.card, VarKind::Energy);
             cx.gain_energy(e);

@@ -311,6 +311,25 @@ def triage(a):
             print("   " + msg.replace("\n", "\n   ")[:600])
 
 
+def rediff(a):
+    """Re-run only the diff phase over the scenarios / traces already under DIR (after an oracle crash or a Rust fix)."""
+    bases = [f[:-len(".scenario.json")] for f in sorted(glob.glob(os.path.join(a.out, "job*", "*.scenario.json")))]
+    res = collections.Counter()
+    bad = []
+    with ThreadPoolExecutor(a.jobs) as ex:
+        for base, verdict, msg in ex.map(diff_one, bases):
+            res[verdict] += 1
+            if verdict == "ok":
+                for ext in (".scenario.json", ".jsonl", ".res"):
+                    try: os.remove(base + ext)
+                    except OSError: pass
+            else:
+                bad.append((base, verdict, msg[:150].replace("\n", " ")))
+    print("RESULTS", dict(res))
+    for b in bad[:40]:
+        print(*b)
+
+
 def freeze(a):
     """Turn a failing fuzz scenario into a committed, policy-independent regression scenario (oracle/regression/NAME.scenario.json):
     the oracle's recorded script is replayed up to the first mismatching step (inclusive)."""
@@ -368,7 +387,7 @@ def regress(a):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["gen", "run", "triage", "freeze", "regress"])
+    ap.add_argument("cmd", choices=["gen", "run", "triage", "freeze", "regress", "rediff"])
     ap.add_argument("--n", type=int, default=200)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", default=None)
@@ -386,7 +405,7 @@ def main():
     ap.add_argument("--force-cards", default=None, help="1-2 copies of each of these cards are added")
     ap.add_argument("--policy", default=None, help="force one policy kind (random|playall|stall)")
     a = ap.parse_args()
-    {"gen": gen, "run": run, "triage": triage, "freeze": freeze, "regress": regress}[a.cmd](a)
+    {"gen": gen, "run": run, "triage": triage, "freeze": freeze, "regress": regress, "rediff": rediff}[a.cmd](a)
 
 
 main()

@@ -98,7 +98,7 @@ listener!(FeelNoPain {
 listener!(BattleTrance {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
+        cx.draw_cards_nosuspend(n, false);
         cx.apply_power(ids::power::NO_DRAW_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
         Flow::Done
     }
