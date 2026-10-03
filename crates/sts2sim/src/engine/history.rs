@@ -107,7 +107,7 @@ impl Combat {
         }
         #[cfg(debug_assertions)]
         if super::play::trace_on() {
-            eprintln!("TRACE hist {:?} actor {} other {} val {} card {} flags {} id {}", kind, actor, other, val, card, flags, id);
+            eprintln!("TRACE hist {:?} actor {} other {} val {} card {} flags {} id {} props {}", kind, actor, other, val, card, flags, id, props);
         }
         // Kinds no gameplay code queries per turn only keep their whole-combat counter (they would crowd the ring out in a
         // heavy turn: Bolas / Memento Mori look at every entry of the turn).

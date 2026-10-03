@@ -121,7 +121,7 @@ class Gen:
                 out[k] = v
         return {"id": rid, "props": out}
 
-    def make(self, rng, name, seed_str, ch=None, enc=None, policy=None, force_relics=(), force_potions=(), force_cards=(), relic_mode=None):
+    def make(self, rng, name, seed_str, ch=None, enc=None, policy=None, force_relics=(), force_potions=(), force_cards=(), relic_mode=None, card_cycle=None):
         ch = ch or rng.choice(self.chars)
         e = enc or rng.choice(self.encs)
         act = ACT_IDX.get(e["act"], rng.randrange(3))
@@ -167,6 +167,9 @@ class Gen:
             if i < len(deck) and rng.random() < 0.8:
                 deck[i] = None
         deck = [c for c in deck if c is not None]
+        if card_cycle is not None:   # --each-card: every character / colorless card is forced into the deck in turn
+            cyc = sorted(c["id"] for c in self.cards[ch] + self.colorless)
+            force_cards = list(force_cards) + [cyc[card_cycle % len(cyc)]]
         for cid in force_cards:
             for _ in range(rng.randint(1, 2)):
                 deck.append({"id": cid, "upgrade": rng.randint(0, 1)} if rng.random() < 0.5 else cid)
@@ -221,7 +224,7 @@ def gen(a):
         name = f"f{a.seed}_{i}"
         rng = random.Random(f"{a.seed}/{i}")
         sc = g.make(rng, name, f"fz{a.seed}x{i}", policy=a.policy, force_relics=[x for x in (a.force_relics or "").split(",") if x],
-                     force_potions=[x for x in (a.force_potions or "").split(",") if x], force_cards=[x for x in (a.force_cards or "").split(",") if x], relic_mode=a.relic_mode)
+                     force_potions=[x for x in (a.force_potions or "").split(",") if x], force_cards=[x for x in (a.force_cards or "").split(",") if x], relic_mode=a.relic_mode, card_cycle=(i // 2 if a.each_card else None))
         json.dump(sc, open(os.path.join(d, name + ".scenario.json"), "w"))
         names.append((k, name))
     return names
@@ -377,6 +380,7 @@ def main():
     ap.add_argument("--note", default=None)
     ap.add_argument("--step", type=int, default=None)
     ap.add_argument("--relic-mode", default=None, choices=["runlevel", "many"], help="runlevel: only run-level-registered relics; many: 8-14 relics")
+    ap.add_argument("--each-card", action="store_true", help="cycle through every card of the pools, forcing 1-2 copies (2 fights per card per pass)")
     ap.add_argument("--force-relics", default=None, help="always include these relics")
     ap.add_argument("--force-potions", default=None, help="both potion slots are filled from this list")
     ap.add_argument("--force-cards", default=None, help="1-2 copies of each of these cards are added")
