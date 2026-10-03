@@ -231,7 +231,14 @@ def gen(a):
 
 
 def oracle_job(d):
-    r = subprocess.run([ORACLE, "batch", d, "--max-steps", "600"], capture_output=True, text=True)
+    """One oracle process per job dir. The process occasionally dies (unhandled game exception in the batch loop); the batch skips
+    scenarios that already have .res/.err, so a few retries finish the directory. The last stderr is kept in DIR/oracle.stderr."""
+    r = None
+    for _ in range(4):
+        r = subprocess.run([ORACLE, "batch", d, "--max-steps", "600"], capture_output=True, text=True)
+        if r.returncode == 0:
+            return d, 0, ""
+        open(os.path.join(d, "oracle.stderr"), "a").write((r.stderr or "")[-3000:] + "\n----\n")
     return d, r.returncode, (r.stderr or "")[-300:]
 
 
