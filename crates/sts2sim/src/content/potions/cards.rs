@@ -309,12 +309,7 @@ listener!(SneckoOil {
             }
             if cx.card_cost(c, false) >= 0 {
                 let cost = cx.rng.combat_energy_costs.next_int(4);
-                cx.cards[c as usize].mods.push(CostMod {
-                    amount: cost as i8,
-                    relative: false,
-                    reduce_only: false,
-                    expire: EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED,
-                });
+                cx.cards[c as usize].mods.push(CostMod::new(cost as i8, false, false, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED));
             }
         }
         Flow::Done

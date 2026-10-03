@@ -79,7 +79,7 @@ impl Combat {
             let new = (old + d.up_cost).max(0);
             if new < old {
                 for m in card.mods.as_mut_slice() {
-                    if !m.relative && m.amount > new {
+                    if !m.relative() && m.amount > new {
                         m.amount = new;
                     }
                 }
@@ -175,9 +175,9 @@ impl Combat {
             return n;
         }
         for m in card.mods.iter() {
-            n = if m.relative {
-                if m.reduce_only { n.min(n + m.amount as i32) } else { n + m.amount as i32 }
-            } else if m.reduce_only {
+            n = if m.relative() {
+                if m.reduce_only() { n.min(n + m.amount as i32) } else { n + m.amount as i32 }
+            } else if m.reduce_only() {
                 n.min(m.amount as i32)
             } else {
                 m.amount as i32

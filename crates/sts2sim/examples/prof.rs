@@ -60,6 +60,19 @@ fn greedy(cx: &mut Combat) -> u64 {
     steps ^ ((cx.cr(0).hp as u64) << 32)
 }
 
+/// Dense action index of the original layout (16 creature slots), so checksums stay comparable across `MAX_CREATURES` changes.
+fn stable_index(a: Action) -> u64 {
+    let t = |t: u8| if t == NO { 16u64 } else { t as u64 };
+    match a {
+        Action::EndTurn => 0,
+        Action::PlayCard { hand_pos, target } => 1 + hand_pos as u64 * 17 + t(target),
+        Action::UsePotion { slot, target } => 1 + 10 * 17 + slot as u64 * 17 + t(target),
+        Action::DiscardPotion { slot } => 1 + 10 * 17 + 4 * 17 + slot as u64,
+        Action::Pick { idx } => 1 + 10 * 17 + 4 * 17 + 4 + idx as u64,
+        Action::Confirm => 1 + 10 * 17 + 4 * 17 + 4 + 64,
+    }
+}
+
 fn env_episode(seed: u64, obs: &mut [f32]) -> u64 {
     let mut cx = Combat::new(&scenario(seed));
     let mut pol = Rng::new(seed ^ 0x55);
@@ -76,7 +89,7 @@ fn env_episode(seed: u64, obs: &mut [f32]) -> u64 {
         for (i, v) in obs.iter().enumerate() {
             o = o.wrapping_mul(0x100000001b3).wrapping_add(v.to_bits() as u64 + i as u64);
         }
-        h = h.wrapping_mul(31).wrapping_add(o ^ a.index() as u64);
+        h = h.wrapping_mul(31).wrapping_add(o ^ stable_index(a));
         steps += 1;
     }
     h ^ steps

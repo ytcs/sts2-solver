@@ -101,7 +101,7 @@ impl Combat {
         let canonical = self.card_def(c).cost;
         if canonical >= 0 {
             let card = &mut self.cards[c as usize];
-            card.mods.push(CostMod { amount: 0, relative: false, reduce_only: false, expire: EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED });
+            card.mods.push(CostMod::new(0, false, false, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED));
         }
         self.set_star_cost_this_turn(c, 0);
     }

@@ -200,7 +200,7 @@ impl Combat {
     }
 
     fn add_temp_star_cost(&mut self, c: CardIdx, cost: i32, expire: u8) {
-        let m = CostMod { amount: cost as i8, relative: false, reduce_only: false, expire };
+        let m = CostMod::new(cost as i8, false, false, expire);
         let mods = &mut self.cards[c as usize].star_mods;
         if mods.len() >= 2 {
             mods.remove(0);
@@ -227,9 +227,9 @@ impl Combat {
         if card.star_mods.is_empty() {
             return;
         }
-        let mut kept: crate::util::ArrayVec<CostMod, 2> = crate::util::ArrayVec::new();
+        let mut kept: crate::util::SmallVec<CostMod, 2> = crate::util::SmallVec::new();
         for m in card.star_mods.iter() {
-            if m.expire & flag == 0 {
+            if m.expire() & flag == 0 {
                 kept.push(*m);
             }
         }

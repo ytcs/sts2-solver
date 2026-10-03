@@ -391,9 +391,9 @@ impl Combat {
         self.check_for_empty_hand();
         // 12. remove WhenPlayed local cost modifiers (after the card has moved).
         let card = &mut self.cards[c as usize];
-        let mut kept: crate::engine::CostMods = crate::util::ArrayVec::new();
+        let mut kept: crate::engine::CostMods = crate::util::SmallVec::new();
         for m in card.mods.iter() {
-            if m.expire & EXPIRE_WHEN_PLAYED == 0 {
+            if m.expire() & EXPIRE_WHEN_PLAYED == 0 {
                 kept.push(*m);
             }
         }

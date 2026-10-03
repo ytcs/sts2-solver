@@ -170,12 +170,12 @@ listener!(KinglyKick {
             // EnergyCost.AddThisCombat(-1): combat-long relative modifier (folded into one entry).
             let c = &mut cx.cards[card as usize];
             if let Some(last) = c.mods.as_mut_slice().last_mut() {
-                if last.relative && !last.reduce_only && last.expire == 0 {
+                if last.relative() && !last.reduce_only() && last.expire() == 0 {
                     last.amount = last.amount.saturating_sub(1);
                     return;
                 }
             }
-            c.mods.push(CostMod { amount: -1, relative: true, reduce_only: false, expire: 0 });
+            c.mods.push(CostMod::new(-1, true, false, 0));
         }
     }
 });

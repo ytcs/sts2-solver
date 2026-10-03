@@ -221,4 +221,26 @@ fn state_size_budget() {
     assert!(sz <= COMBAT_BUDGET, "Combat is {sz} bytes, budget {COMBAT_BUDGET}");
 }
 
-const COMBAT_BUDGET: usize = 21_100;
+const COMBAT_BUDGET: usize = 17_600;
+
+/// Creature slots: the player, Osty and the biggest encounter's enemies must fit with room for summons.
+#[test]
+fn every_encounter_fits_the_creature_slots() {
+    let mut max = 0;
+    let mut worst = "";
+    for id in 0..ids::encounter::COUNT as u16 {
+        if !sts2sim::content::encounter_implemented(id) {
+            continue;
+        }
+        for seed in 0..8u64 {
+            let mut r = sts2sim::rng::Rng::new(seed);
+            let n = sts2sim::content::encounter_spawns(id, &mut r, 10).unwrap().len();
+            if n > max {
+                max = n;
+                worst = ids::encounter::NAMES[id as usize];
+            }
+        }
+    }
+    println!("largest encounter: {worst} with {max} enemies (MAX_CREATURES = {MAX_CREATURES})");
+    assert!(max + 2 <= MAX_CREATURES, "{worst}: {max} enemies leave no room for the player + a pet");
+}

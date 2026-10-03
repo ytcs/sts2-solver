@@ -483,9 +483,9 @@ impl Combat {
             self.clear_star_mods(i as CardIdx, EXPIRE_END_OF_TURN);
             let card = &mut self.cards[i];
             if !card.mods.is_empty() {
-                let mut kept: crate::engine::CostMods = crate::util::ArrayVec::new();
+                let mut kept: crate::engine::CostMods = crate::util::SmallVec::new();
                 for m in card.mods.iter() {
-                    if m.expire & EXPIRE_END_OF_TURN == 0 {
+                    if m.expire() & EXPIRE_END_OF_TURN == 0 {
                         kept.push(*m);
                     }
                 }
