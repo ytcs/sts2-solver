@@ -416,6 +416,65 @@ impl Combat {
         out
     }
 
+    /// Whether an `AfterShuffle` decision raised inside a draw of a card effect / potion can be parked (`draw_susp`).
+    pub fn draw_susp_possible(&self) -> bool {
+        self.draw_susp.is_none() && (!self.play_stack.is_empty() || self.potion_ctx.is_some() || self.autoplay_shuffle_ok)
+    }
+
+    /// Position in the history log (see `drawn_since`).
+    pub fn hist_mark(&self) -> u32 {
+        self.hist_log.n
+    }
+
+    /// The cards drawn since `mark` (a `hist_mark`), in order: lets a card that was interrupted by a Stratagem prompt in the middle of its draw
+    /// still see every card the draw produced.
+    pub fn drawn_since(&self, mark: u32) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+        let mut out = crate::util::ArrayVec::new();
+        let n = self.hist_log.n;
+        let cap = self.hist_log.entries.len() as u32;
+        let start = if n - mark > cap { n - cap } else { mark };
+        for i in start..n {
+            let e = &self.hist_log.entries[(i % cap) as usize];
+            if e.kind == crate::engine::HKind::CardDrawn {
+                out.push(e.card);
+            }
+        }
+        out
+    }
+
+    /// `drawn_since` for a mark stored in the low 15 bits of a card counter.
+    pub fn drawn_since_low(&self, low: i16) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
+        let n = self.hist_log.n;
+        let mark = n.wrapping_sub(n.wrapping_sub(low as u32) & 0x7FFF);
+        self.drawn_since(mark)
+    }
+
+    /// A card effect that draws and still has work left asks this right after the draw: true when the draw stopped at a Stratagem prompt
+    /// (the effect must then `return Flow::Suspend(next)` and continue at phase `next`).
+    pub fn draw_pending(&self) -> bool {
+        self.draw_susp.is_some()
+    }
+
+    /// A cheap fingerprint of "something happened": history entries pushed, RNG draws, energy, stars, HP / block of everyone.
+    /// Equal before and after a piece of code means it did nothing observable (used to prove a draw was an effect's last action).
+    pub fn effect_checksum(&self) -> u64 {
+        let mut h = (self.hist_log.n as u64) ^ ((self.decision_seq as u64) << 40);
+        for r in [&self.rng.shuffle, &self.rng.combat_card_generation, &self.rng.combat_potion_generation, &self.rng.combat_card_selection,
+                  &self.rng.combat_energy_costs, &self.rng.combat_targets, &self.rng.monster_ai, &self.rng.niche, &self.rng.combat_orbs] {
+            h = h.wrapping_mul(31).wrapping_add(r.counter as u64);
+        }
+        h = h.wrapping_mul(31).wrapping_add(self.player.energy as u64);
+        h = h.wrapping_mul(31).wrapping_add(self.player.stars as u64);
+        h = h.wrapping_mul(31).wrapping_add(self.n_cards as u64);
+        for p in [&self.player.hand, &self.player.draw, &self.player.discard, &self.player.exhaust, &self.player.play] {
+            h = h.wrapping_mul(31).wrapping_add(p.len() as u64);
+        }
+        for c in self.creatures.iter() {
+            h = h.wrapping_mul(31).wrapping_add(c.hp as u64).wrapping_add((c.block as u64) << 20).wrapping_add((c.powers.len() as u64) << 40);
+        }
+        h
+    }
+
     /// Whether an `AfterShuffle` decision raised right now can be resumed: only inside the outermost turn-start hand draw.
     pub fn shuffle_decision_resumable(&self) -> bool {
         self.drawing_hand && self.draw_depth <= 1
@@ -423,6 +482,10 @@ impl Combat {
 
     fn draw_cards_list_inner(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, MAX_HAND> {
         let mut out = crate::util::ArrayVec::new();
+        if self.draw_susp.is_some() {
+            // The effect keeps going (another draw) while an `AfterShuffle` decision is pending: not a terminal draw.
+            self.abort_draw_susp();
+        }
         if self.is_over_or_ending() {
             return out;
         }
@@ -448,9 +511,15 @@ impl Combat {
                 break;
             }
             self.shuffle_if_necessary();
-            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() && self.shuffle_decision_resumable() {
-                // An `AfterShuffle` listener (Stratagem) asked for a decision: the turn-start draw resumes afterwards.
-                self.draw_resume = Some((count - i, from_hand_draw));
+            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() {
+                if self.shuffle_decision_resumable() {
+                    // An `AfterShuffle` listener (Stratagem) asked for a decision: the turn-start draw resumes afterwards.
+                    self.draw_resume = Some((count - i, from_hand_draw));
+                } else if self.draw_susp_possible() {
+                    // A draw of a card effect / potion: remember how much is left; `run_play_at` / `run_potion` suspend the effect
+                    // if it turns out the draw was its last action.
+                    self.draw_susp = Some(DrawSusp { n: count - i, from_hand: from_hand_draw, sum: self.effect_checksum(), kind: 0, pos: CardPilePosition::Top, force_exhaust: false, picked: crate::util::ArrayVec::new() });
+                }
                 break;
             }
             if self.player.draw.len() + self.player.discard.len() == 0 {

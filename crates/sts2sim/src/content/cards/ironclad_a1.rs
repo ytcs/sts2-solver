@@ -95,9 +95,14 @@ listener!(FeelNoPain {
 // ---- skills ---------------------------------------------------------------------------------------------------------
 
 listener!(BattleTrance {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        if phase == 0 {
+            let n = cx.card_var(p.card, VarKind::Cards);
+            cx.draw_cards(n, false);
+            if cx.draw_pending() {
+                return Flow::Suspend(50); // a Stratagem prompt interrupted the draw
+            }
+        }
         cx.apply_power(ids::power::NO_DRAW_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
         Flow::Done
     }

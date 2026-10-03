@@ -73,6 +73,7 @@ public sealed class Driver
     private RunState _run;
     private readonly ChoiceSelector _sel = new();
     private int _step;
+    private int _logIdx;
     public readonly List<ActionSpec> Recorded = new();
     public int MaxSteps = 400;
     public int MaxRounds = 60;
@@ -129,6 +130,7 @@ public sealed class Driver
         _sel.Prompts.Clear();
         var s = Dump.State(_player, _run, St);
         foreach (var kv in s) rec[kv.Key] = kv.Value?.DeepClone();
+        rec["log"] = Dump.Log(ref _logIdx);
         bool over = !CombatManager.Instance.IsInProgress;
         rec["combat_over"] = over;
         if (over)

@@ -137,12 +137,23 @@ fn create_in_hand(cx: &mut Combat, id: u16, n: i32, upgrade: bool) {
 
 // Hand -> top of draw pile, shuffle, draw 5.
 listener!(BottledPotential {
-    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
-        let hand = cx.player.hand;
-        cx.add_cards_to_pile(hand.as_slice(), PileType::Draw, CardPilePosition::Bottom);
-        cx.shuffle_discard_into_draw();
+    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
+        if phase == 51 {
+            return Flow::Done; // the interrupted draw has finished
+        }
+        if phase == 0 {
+            let hand = cx.player.hand;
+            cx.add_cards_to_pile(hand.as_slice(), PileType::Draw, CardPilePosition::Bottom);
+            cx.shuffle_discard_into_draw();
+            if cx.draw_pending() {
+                return Flow::Suspend(50); // a Stratagem prompt interrupted the shuffle
+            }
+        }
         let n = cx.potion_var(potion, VarKind::Cards);
         cx.draw_cards(n, false);
+        if cx.draw_pending() {
+            return Flow::Suspend(51);
+        }
         Flow::Done
     }
 });
@@ -302,9 +313,14 @@ listener!(GlowwaterPotion {
 
 // Draw 7, then every non-X, costed card in the hand gets a random cost 0..=3 until played / end of turn.
 listener!(SneckoOil {
-    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
-        let n = cx.potion_var(potion, VarKind::Cards);
-        cx.draw_cards(n, false);
+    fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
+        if phase == 0 {
+            let n = cx.potion_var(potion, VarKind::Cards);
+            cx.draw_cards(n, false);
+            if cx.draw_pending() {
+                return Flow::Suspend(50);
+            }
+        }
         let hand = cx.player.hand;
         for &c in hand.iter() {
             if cx.card_def(c).x_cost {

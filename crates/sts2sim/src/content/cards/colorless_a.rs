@@ -575,12 +575,17 @@ listener!(Rend {
 
 // Only does something if it is the only card in the hand: draw one card at a time, then gain energy.
 listener!(Restlessness {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let only = cx.player.hand.iter().all(|&c| c == p.card);
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        // phase k >= 50: resumed after the k-50'th of the `Cards` single draws was interrupted by a Stratagem prompt
+        let only = phase >= 50 || cx.player.hand.iter().all(|&c| c == p.card);
         if only {
             let n = cx.card_var(p.card, VarKind::Cards);
-            for _ in 0..n {
+            let from = if phase >= 50 { (phase - 50) as i32 + 1 } else { 0 };
+            for i in from..n {
                 cx.draw_cards(1, false);
+                if cx.draw_pending() {
+                    return Flow::Suspend(50 + i as u8);
+                }
             }
             let e = cx.card_var(p.card, VarKind::Energy);
             cx.gain_energy(e);
@@ -803,8 +808,13 @@ listener!(TheGambit {
 listener!(ThinkingAhead {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
-            0 => {
-                draw(cx, p);
+            0 | 50 => {
+                if phase == 0 {
+                    draw(cx, p);
+                    if cx.draw_pending() {
+                        return Flow::Suspend(50);
+                    }
+                }
                 match cx.ask_hand(ids::card::THINKING_AHEAD, 1, 1, |_, _| true) {
                     Ask::Resolved(cards) => {
                         if let Some(c) = cards.first() {

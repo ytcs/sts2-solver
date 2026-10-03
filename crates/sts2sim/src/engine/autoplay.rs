@@ -100,9 +100,23 @@ impl Combat {
         if self.is_over_or_ending() {
             return RunResult::Finished;
         }
-        let mut cards: ArrayVec<CardIdx, 10> = ArrayVec::new();
-        for _ in 0..count.min(10) {
+        self.auto_play_pick_and_run(ArrayVec::new(), count.min(10), pos, force_exhaust)
+    }
+
+    /// The body of `AutoPlayFromDrawPile` from the pick loop on: `cards` were picked (and moved to the Play pile) before an
+    /// `AfterShuffle` decision interrupted the call, `left` picks remain.
+    pub(crate) fn auto_play_pick_and_run(&mut self, mut cards: ArrayVec<CardIdx, 10>, left: i32, pos: CardPilePosition, force_exhaust: bool) -> RunResult {
+        for i in 0..left {
+            self.autoplay_shuffle_ok = true;
             self.shuffle_if_necessary();
+            self.autoplay_shuffle_ok = false;
+            if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() && self.draw_susp.is_some() {
+                // An `AfterShuffle` decision (Stratagem) interrupted the call: the picks made so far wait in the Play pile; the rest
+                // of the call (picks, then the plays) resumes in `resume_after_decision`.
+                let sum = self.effect_checksum();
+                self.draw_susp = Some(DrawSusp { n: left - i, from_hand: false, sum, kind: 1, pos, force_exhaust, picked: cards });
+                return RunResult::Suspended;
+            }
             let n = self.player.draw.len();
             let c = match pos {
                 CardPilePosition::Bottom => self.player.draw.last(),

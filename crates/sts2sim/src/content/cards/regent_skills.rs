@@ -53,11 +53,16 @@ listener!(GatherLight {
 });
 
 listener!(Glow {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let s = cx.card_var(p.card, VarKind::Stars);
-        cx.gain_stars(s);
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
+        if phase == 0 {
+            let s = cx.card_var(p.card, VarKind::Stars);
+            cx.gain_stars(s);
+            cx.draw_cards(n, false);
+            if cx.draw_pending() {
+                return Flow::Suspend(50);
+            }
+        }
         self_power_n(cx, p, ids::power::DRAW_CARDS_NEXT_TURN_POWER, n);
         Flow::Done
     }
@@ -107,9 +112,14 @@ listener!(Convergence {
 });
 
 listener!(BigBang {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        if phase == 0 {
+            let n = cx.card_var(p.card, VarKind::Cards);
+            cx.draw_cards(n, false);
+            if cx.draw_pending() {
+                return Flow::Suspend(50);
+            }
+        }
         let s = cx.card_var(p.card, VarKind::Stars);
         cx.gain_stars(s);
         let e = cx.card_var(p.card, VarKind::Energy);
@@ -282,9 +292,14 @@ fn put_back_on_top(cx: &mut Combat, cards: crate::util::ArrayVec<CardIdx, 16>) {
 listener!(Glimmer {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
-            0 => {
-                let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+            0 | 50 => {
+                if phase == 0 {
+                    let n = cx.card_var(p.card, VarKind::Cards);
+                    cx.draw_cards(n, false);
+                    if cx.draw_pending() {
+                        return Flow::Suspend(50); // a Stratagem prompt interrupted the draw
+                    }
+                }
                 let k = cx.card_named_var(p.card, var_name::PUT_BACK).clamp(0, 10) as u8;
                 match cx.ask_hand(ids::card::GLIMMER, k, k, |_, _| true) {
                     Ask::Resolved(cards) => {
@@ -306,11 +321,16 @@ listener!(Glimmer {
 listener!(PhotonCut {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
-            0 => {
-                let d = cx.card_base_damage(p.card);
-                cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
-                let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+            0 | 50 => {
+                if phase == 0 {
+                    let d = cx.card_base_damage(p.card);
+                    cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
+                    let n = cx.card_var(p.card, VarKind::Cards);
+                    cx.draw_cards(n, false);
+                    if cx.draw_pending() {
+                        return Flow::Suspend(50);
+                    }
+                }
                 let k = cx.card_named_var(p.card, var_name::PUT_BACK).clamp(0, 10) as u8;
                 match cx.ask_hand(ids::card::PHOTON_CUT, k, k, |_, _| true) {
                     Ask::Resolved(cards) => {
@@ -458,9 +478,14 @@ fn decisions_loop(cx: &mut Combat, p: &CardPlay, from: u8) -> Flow {
 listener!(DecisionsDecisions {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
-            0 => {
-                let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+            0 | 50 => {
+                if phase == 0 {
+                    let n = cx.card_var(p.card, VarKind::Cards);
+                    cx.draw_cards(n, false);
+                    if cx.draw_pending() {
+                        return Flow::Suspend(50);
+                    }
+                }
                 match cx.ask_hand(ids::card::DECISIONS_DECISIONS, 1, 1, decisions_filter) {
                     Ask::Resolved(cards) => {
                         cx.cards[p.card as usize].counter[0] = cards.first().map_or(0, |c| c as i16 + 1);

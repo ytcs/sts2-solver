@@ -140,13 +140,10 @@ impl Combat {
     /// right after such a listener and returns true; after the decision the same call continues with the listeners that
     /// follow it (`susp_after`). Used for the turn-start hooks (`BeforeHandDraw`, `AfterPlayerTurnStart`).
     pub fn dispatch_resumable(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
-        // A suspended pass keeps the listeners that were still to run (`susp_rest`): the pass iterates the snapshot taken when it
+        // A suspended pass keeps the listeners that were still to run (`susp`): the pass iterates the snapshot taken when it
         // started, so a listener that left play meanwhile (an exhausted Imbued card, a removed power) must not shift the rest.
-        let resumed = match self.susp_after {
-            Some((b, _, _)) if b == bit => {
-                self.susp_after = None;
-                Some(std::mem::take(&mut self.susp_rest))
-            }
+        let resumed = match self.susp.last() {
+            Some(top) if top.bit == bit => Some(self.susp.pop().unwrap().rest),
             _ => None,
         };
         if !self.listen.has(bit) || !self.hooks_enabled() {
@@ -171,13 +168,16 @@ impl Combat {
         };
         for (i, &me) in items.iter().enumerate() {
             if self.still_live(&me) {
+                let depth = self.susp.len();
                 f(self, me, content::listener(&me));
                 if self.stage == Stage::AwaitChoice {
-                    self.susp_after = Some((bit, me, i as u8));
-                    self.susp_rest.clear();
-                    for &m in items.iter().skip(i + 1).take(48) {
-                        self.susp_rest.push(m);
+                    let mut rest = ArrayVec::new();
+                    for &m in items.iter().skip(i + 1).take(24) {
+                        rest.push(m);
                     }
+                    // Passes started by this listener itself (Mayhem -> its reshuffle's `AfterShuffle` pass) suspended first and resume
+                    // first: this (outer) pass goes below them.
+                    self.susp.insert(depth.min(self.susp.len()), SuspPass { bit, rest });
                     return true;
                 }
             }

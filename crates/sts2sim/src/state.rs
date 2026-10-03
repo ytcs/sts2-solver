@@ -396,6 +396,27 @@ pub struct AutoQueue {
     pub owner: i8,
 }
 
+/// A resumable notification pass that stopped on a decision: the hook bit and the listeners that were still to run (the pass
+/// resumes over this list, not a fresh snapshot). Passes nest (Mayhem's pass -> its shuffle's `AfterShuffle` pass): innermost last.
+#[derive(Clone, Copy)]
+pub struct SuspPass {
+    pub bit: u32,
+    pub rest: ArrayVec<crate::hooks::Me, 24>,
+}
+
+#[derive(Clone, Copy)]
+pub struct DrawSusp {
+    pub n: i32,
+    pub from_hand: bool,
+    pub sum: u64,
+    /// 1 = an `AutoPlayFromDrawPile` call interrupted at its reshuffle (`n` cards left to auto-play, from `pos`, `force_exhaust`).
+    pub kind: u8,
+    pub pos: CardPilePosition,
+    pub force_exhaust: bool,
+    /// The picks already made (kind 1).
+    pub picked: ArrayVec<CardIdx, 10>,
+}
+
 #[derive(Clone, Copy)]
 pub struct PotionCtx {
     pub potion: u16,
@@ -511,14 +532,18 @@ pub struct Combat {
     /// Nesting depth of `draw_cards_list` calls (a draw started from an `AfterCardDrawn` hook, e.g. Iteration, is depth 2: its
     /// `AfterShuffle` decisions cannot be resumed, only the outermost hand draw's can).
     pub draw_depth: u8,
+    /// A card effect's / potion's draw interrupted by an `AfterShuffle` decision (Stratagem): cards still to draw and the
+    /// `effect_checksum` at that moment. Valid only when the effect does nothing else after the draw (terminal draw): the play
+    /// then resumes at its `After` step once the decision is answered and the rest of the draw is done.
+    pub draw_susp: Option<DrawSusp>,
+    /// True while `auto_play_from_draw_pile` reshuffles (an `AfterShuffle` decision can then be parked in `draw_susp`).
+    pub autoplay_shuffle_ok: bool,
     /// Where a turn start suspended by a hook decision resumes (0 = not suspended): 1 = in `BeforeHandDraw`,
     /// 2 = in `BeforeHandDrawLate`, 3 = in `AfterPlayerTurnStart`, 4 = interrupted opening hand draw.
     pub turn_cont: u8,
     /// The listener of a resumable notification pass (`Combat::dispatch_resumable`) that raised the pending decision, with
     /// its index in the pass: the pass continues after it once the decision is resolved.
-    pub susp_after: Option<(u32, crate::hooks::Me, u8)>,
-    /// The listeners of that pass that were still to run when it suspended (the pass resumes over this list, not a fresh snapshot).
-    pub susp_rest: ArrayVec<crate::hooks::Me, 48>,
+    pub susp: ArrayVec<SuspPass, 3>,
     /// An enemy turn suspended inside a monster move that raised a decision (Knowledge Demon's Curse of Knowledge):
     /// the `Enemies` snapshot taken at the start of the turn and the index of the suspended mover.
     pub enemy_cont: Option<(ArrayVec<Cid, MAX_CREATURES>, u8, u8)>,

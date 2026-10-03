@@ -296,9 +296,13 @@ listener!(EntropyPower {
 });
 
 // ---- StratagemPower: after a reshuffle choose `Amount` cards of the draw pile to put into the hand ---------------------
-// A decision is only resumable during the outermost turn-start hand draw (`draw_resume` / `turn_cont` 4); during other draws (a
-// card effect's draw, a draw started from an `AfterCardDrawn` hook) it is flagged as not ported: the caller of such a draw has no
-// way to pause (documented gap; the env treats `missing` as unfaithful).
+// The prompt is raised inside the shuffle, so the code that called the draw / shuffle must be able to wait for the answer:
+//  * the outermost turn-start hand draw (`draw_resume`, `turn_cont` 4);
+//  * a card effect / potion whose draw (or shuffle) is its last action or that returns `Flow::Suspend(next)` right after it (see
+//    `Combat::draw_pending`; the engine proves "last action" with `effect_checksum`): `draw_susp` parks the rest of the draw;
+//  * `AutoPlayFromDrawPile` (Mayhem, Cascade, Havoc, I Am Invincible, Distilled Chaos): `draw_susp.kind == 1`.
+// A draw started from a hook (Iteration's `AfterCardDrawn`, Centennial Puzzle ...) cannot pause: it is flagged as not ported
+// (documented gap; the env treats `missing` as unfaithful).
 listener!(StratagemPower {
     fn after_shuffle(&self, cx: &mut Combat, me: Me) {
         if me.owner != PLAYER {
@@ -312,7 +316,12 @@ listener!(StratagemPower {
                 }
             }
             crate::engine::Ask::Pending => {
-                if cx.shuffle_decision_resumable() {
+                if cx.shuffle_decision_resumable() || cx.draw_susp_possible() {
+                    if !cx.shuffle_decision_resumable() && cx.draw_depth == 0 {
+                        // A shuffle called directly by a card effect / potion (Reboot): nothing to finish drawing afterwards. (Inside a draw
+                        // the draw loop records what is left.)
+                        cx.draw_susp = Some(DrawSusp { n: 0, from_hand: false, sum: cx.effect_checksum(), kind: 0, pos: CardPilePosition::Top, force_exhaust: false, picked: crate::util::ArrayVec::new() });
+                    }
                     cx.hook_ctx = Some((me, 1));
                     cx.stage = Stage::AwaitChoice;
                 } else {

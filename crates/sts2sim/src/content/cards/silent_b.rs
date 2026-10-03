@@ -451,9 +451,14 @@ listener!(PiercingWail {
 listener!(Prepared {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
-            0 => {
+            0 | 50 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards(n, false);
+                if phase == 0 {
+                    cx.draw_cards(n, false);
+                    if cx.draw_pending() {
+                        return Flow::Suspend(50);
+                    }
+                }
                 match cx.ask_hand(ids::card::PREPARED, n as u8, n as u8, |_, _| true) {
                     Ask::Resolved(cards) => discard_then(cx, cards.as_slice(), DONE),
                     Ask::Pending => Flow::Suspend(1),

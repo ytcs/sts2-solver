@@ -117,7 +117,25 @@ impl Combat {
     pub fn run_potion(&mut self) {
         let Some(ctx) = self.potion_ctx else { return };
         let l = content::potion_listener(ctx.potion);
-        match l.on_use_potion(self, ctx.potion, ctx.target, ctx.phase) {
+        // phase 0xFF = the effect finished with a parked draw (Stratagem prompt): only the epilogue is left
+        let flow = if ctx.phase == 0xFF {
+            Flow::Done
+        } else {
+            let f = l.on_use_potion(self, ctx.potion, ctx.target, ctx.phase);
+            if let Some(ds) = self.draw_susp {
+                if self.effect_checksum() == ds.sum {
+                    if matches!(f, Flow::Done) {
+                        self.potion_ctx = Some(PotionCtx { phase: 0xFF, ..ctx });
+                        self.stage = Stage::AwaitChoice;
+                        return;
+                    }
+                } else {
+                    self.abort_draw_susp();
+                }
+            }
+            f
+        };
+        match flow {
             Flow::Suspend(next) => {
                 self.potion_ctx = Some(PotionCtx { phase: next, ..ctx });
                 self.stage = Stage::AwaitChoice;

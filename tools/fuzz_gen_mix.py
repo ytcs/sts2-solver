@@ -226,6 +226,9 @@ class Gen:
         mode = a.mode or r.choices(["uniform", "greedy", "stall", "deep"], [30, 35, 10, 25])[0]
         focus = a.focus or r.choices(["mix", "colorless", "junk", "gen", "turn"], [30, 20, 8, 20, 22])[0]
         deck = self.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act], enchant_p=a.enchant)
+        if a.force_cards:
+            for cid in a.force_cards.split(","):
+                deck.append({"id": cid, "upgrade": r.randint(0, 1)} if self.ctypes.get(cid) and r.random() < 0.5 else cid)
         relics = self.make_relics(r, ch, *[int(x) for x in a.relics.split("-")])
         policy = {"seed": r.randrange(1 << 30), "endw": 1.0, "atkw": 1.0, "potw": r.choice([0.3, 1.0, 2.0]), "max_steps": 500, "max_rounds": 40}
         hp = int(max_hp * r.uniform(0.5, 1.0))
@@ -288,7 +291,7 @@ def run_chunk(args):
         out = d.stdout.strip()
         if d.returncode in (0, 3):
             verdict = "ok" if d.returncode == 0 else "unimplemented"
-            if not keep_ok:
+            if not keep_ok and not (verdict == "unimplemented" and os.environ.get("KEEP_UNIMPL")):
                 for ext in (".scenario.json", ".jsonl"):
                     try: os.remove(base + ext)
                     except OSError: pass
@@ -320,6 +323,7 @@ def main():
     ap.add_argument("--relics", default="3-8")
     ap.add_argument("--force-potions", help="comma list (max 2) used instead of random potions")
     ap.add_argument("--force-relics", help="comma list prepended to the random relics")
+    ap.add_argument("--force-cards", help="comma list of card ids added to every deck (repeat an id for copies)")
     ap.add_argument("--each-potion", action="store_true", help="round-robin: scenario i carries potion i mod #potions")
     ap.add_argument("--each-relic", action="store_true", help="round-robin: scenario i carries relic i mod #relics")
     ap.add_argument("--keep-ok", action="store_true")

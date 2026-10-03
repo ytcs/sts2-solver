@@ -84,11 +84,16 @@ listener!(Apparition {
 
 // ---- Brightest Flame: +Energy, draw, lose max HP (in that order) ---------------------------------------------------------------------
 listener!(BrightestFlame {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let e = cx.card_var(p.card, VarKind::Energy);
-        cx.gain_energy(e);
-        let n = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(n, false);
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        if phase == 0 {
+            let e = cx.card_var(p.card, VarKind::Energy);
+            cx.gain_energy(e);
+            let n = cx.card_var(p.card, VarKind::Cards);
+            cx.draw_cards(n, false);
+            if cx.draw_pending() {
+                return Flow::Suspend(50);
+            }
+        }
         let m = cx.card_var(p.card, VarKind::MaxHp);
         cx.lose_max_hp(PLAYER, Dec::int(m as i64), true);
         Flow::Done

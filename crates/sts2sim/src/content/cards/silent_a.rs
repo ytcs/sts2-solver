@@ -143,8 +143,12 @@ listener!(Acrobatics {
             0 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
                 cx.draw_cards(n, false);
+                if cx.draw_pending() {
+                    return Flow::Suspend(50); // a Stratagem prompt interrupted the draw
+                }
                 ask_discard_last(cx, ids::card::ACROBATICS, 1)
             }
+            50 => ask_discard_last(cx, ids::card::ACROBATICS, 1),
             1 => answer_discard_last(cx),
             _ => Flow::Done,
         }
@@ -344,8 +348,12 @@ listener!(DaggerThrow {
             0 => {
                 attack_single(cx, p);
                 cx.draw_cards(1, false);
+                if cx.draw_pending() {
+                    return Flow::Suspend(50);
+                }
                 ask_discard_last(cx, ids::card::DAGGER_THROW, 1)
             }
+            50 => ask_discard_last(cx, ids::card::DAGGER_THROW, 1),
             1 => answer_discard_last(cx),
             _ => Flow::Done,
         }
@@ -420,8 +428,18 @@ listener!(Envenom {
 });
 
 listener!(EscapePlan {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let drawn = cx.draw_cards_list(1, false);
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        let drawn = if phase == 50 {
+            cx.drawn_since_low(cx.cards[p.card as usize].counter[1])
+        } else {
+            let mark = cx.hist_mark();
+            let d = cx.draw_cards_list(1, false);
+            if cx.draw_pending() {
+                cx.cards[p.card as usize].counter[1] = (mark & 0x7FFF) as i16;
+                return Flow::Suspend(50); // a Stratagem prompt interrupted the draw
+            }
+            d
+        };
         if let Some(c) = drawn.first() {
             if cx.card_def(c).ctype == CardType::Skill {
                 block_from_var(cx, p);
@@ -433,9 +451,19 @@ listener!(EscapePlan {
 
 // Draw, and the drawn cards Retain this turn.
 listener!(Expertise {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let n = cx.card_var(p.card, VarKind::Cards);
-        let drawn = cx.draw_cards_list(n, false);
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        let drawn = if phase == 50 {
+            cx.drawn_since_low(cx.cards[p.card as usize].counter[1])
+        } else {
+            let n = cx.card_var(p.card, VarKind::Cards);
+            let mark = cx.hist_mark();
+            let d = cx.draw_cards_list(n, false);
+            if cx.draw_pending() {
+                cx.cards[p.card as usize].counter[1] = (mark & 0x7FFF) as i16;
+                return Flow::Suspend(50);
+            }
+            d
+        };
         for &c in drawn.iter() {
             cx.apply_single_turn_retain(c);
         }

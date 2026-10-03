@@ -720,6 +720,22 @@ impl Combat {
                 return; // the hook's effect (e.g. a Sly auto-play) raised its own decision: that play resumes later
             }
         }
+        // A card effect's / potion's draw interrupted by an `AfterShuffle` decision: the rest of that pass, then the rest of the draw.
+        if self.draw_susp.is_some() {
+            if matches!(self.susp.last(), Some(s) if s.bit == hookbit::after_shuffle) && self.run_after_shuffle() {
+                return;
+            }
+            let ds = self.draw_susp.take().unwrap();
+            if ds.kind == 1 {
+                // an interrupted `AutoPlayFromDrawPile`: the remaining picks, then every pick is auto-played
+                self.auto_play_pick_and_run(ds.picked, ds.n, ds.pos, ds.force_exhaust);
+            } else {
+                self.draw_cards(ds.n, ds.from_hand);
+            }
+            if self.stage == Stage::AwaitChoice {
+                return;
+            }
+        }
         if self.enemy_cont.is_some() {
             self.resume_enemy_turn();
             return;

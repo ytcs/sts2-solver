@@ -142,11 +142,16 @@ listener!(Countdown {
 
 // Gain energy, draw, then gain the Neurosurge debuff (Doom on yourself each turn).
 listener!(Neurosurge {
-    fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let e = cx.card_var(p.card, VarKind::Energy);
-        cx.gain_energy(e);
-        let c = cx.card_var(p.card, VarKind::Cards);
-        cx.draw_cards(c, false);
+    fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
+        if phase == 0 {
+            let e = cx.card_var(p.card, VarKind::Energy);
+            cx.gain_energy(e);
+            let c = cx.card_var(p.card, VarKind::Cards);
+            cx.draw_cards(c, false);
+            if cx.draw_pending() {
+                return Flow::Suspend(50);
+            }
+        }
         let n = cx.card_power_var(p.card, ids::power::NEUROSURGE_POWER);
         apply_self(cx, ids::power::NEUROSURGE_POWER, n, p);
         Flow::Done

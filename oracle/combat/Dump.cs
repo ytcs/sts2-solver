@@ -53,6 +53,38 @@ public static class Dump
         return o.Count == 0 ? null : o;
     }
 
+    /// <summary>Debug aid: the combat-history entries added since the previous record (`log`), e.g. "play CATASTROPHE", "play* HIBERNATE" (auto-play), "draw X".
+    /// Not compared by sts2diff; use tools/fuzz_show.py to see which nested plays / draws the real game did inside one action.</summary>
+    public static JsonArray Log(ref int idx)
+    {
+        var a = new JsonArray();
+        try
+        {
+            var entries = MegaCrit.Sts2.Core.Combat.CombatManager.Instance.History.Entries.ToList();
+            if (idx > entries.Count) idx = 0;
+            for (int i = idx; i < entries.Count; i++)
+            {
+                string t;
+                switch (entries[i])
+                {
+                    case MegaCrit.Sts2.Core.Combat.History.Entries.CardPlayStartedEntry e: t = (e.CardPlay.IsAutoPlay ? "play* " : "play ") + e.CardPlay.Card.Id.Entry + " #" + (e.CardPlay.PlayIndex + 1) + "/" + e.CardPlay.PlayCount; break;
+                    case MegaCrit.Sts2.Core.Combat.History.Entries.CardDrawnEntry e: t = "draw " + e.Card.Id.Entry; break;
+                    case MegaCrit.Sts2.Core.Combat.History.Entries.CardDiscardedEntry e: t = "discard " + e.Card.Id.Entry; break;
+                    case MegaCrit.Sts2.Core.Combat.History.Entries.CardExhaustedEntry e: t = "exhaust " + e.Card.Id.Entry; break;
+                    case MegaCrit.Sts2.Core.Combat.History.Entries.CardGeneratedEntry e: t = "gen " + e.Card.Id.Entry; break;
+                    case MegaCrit.Sts2.Core.Combat.History.Entries.PowerReceivedEntry e: t = "power " + e.Power.Id.Entry + " " + e.Amount; break;
+                    case MegaCrit.Sts2.Core.Combat.History.Entries.EnergySpentEntry e: t = "energy " + e.Amount; break;
+                    case MegaCrit.Sts2.Core.Combat.History.Entries.BlockGainedEntry e: t = "block " + e.Amount; break;
+                    default: t = entries[i].GetType().Name.Replace("Entry", ""); break;
+                }
+                a.Add((JsonNode)t);
+            }
+            idx = entries.Count;
+        }
+        catch { }
+        return a;
+    }
+
     public static JsonArray Pile(CardPile pile, bool brief = false)
     {
         var a = new JsonArray();

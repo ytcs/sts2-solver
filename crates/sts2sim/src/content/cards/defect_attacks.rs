@@ -160,12 +160,22 @@ listener!(RocketPunch {
 // Damage, draw `Cards`, discard the drawn cards that do not cost 0 (X-cost cards count as non-zero).
 listener!(Scrape {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        if phase != 0 {
+        if phase == 1 {
             return Flow::Done; // the Sly auto-play of a discarded card finished
         }
-        attack(cx, p);
-        let n = cx.card_var(p.card, VarKind::Cards);
-        let drawn = cx.draw_cards_list(n, false);
+        let drawn = if phase == 50 {
+            cx.drawn_since_low(cx.cards[p.card as usize].counter[1])
+        } else {
+            attack(cx, p);
+            let n = cx.card_var(p.card, VarKind::Cards);
+            let mark = cx.hist_mark();
+            let d = cx.draw_cards_list(n, false);
+            if cx.draw_pending() {
+                cx.cards[p.card as usize].counter[1] = (mark & 0x7FFF) as i16;
+                return Flow::Suspend(50); // a Stratagem prompt interrupted the draw
+            }
+            d
+        };
         let mut discard: crate::util::ArrayVec<CardIdx, MAX_HAND> = crate::util::ArrayVec::new();
         for &c in drawn.iter() {
             if cx.card_cost(c, true) != 0 || cx.card_def(c).x_cost {

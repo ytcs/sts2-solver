@@ -305,7 +305,26 @@ impl Combat {
                 PlayStep::OnPlay(phase) => {
                     let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
                     let p = ctx.play;
-                    match content::listener(&me).on_play(self, &p, phase) {
+                    let flow = content::listener(&me).on_play(self, &p, phase);
+                    if let Some(ds) = self.draw_susp {
+                        // The effect's draw hit an `AfterShuffle` decision (Stratagem). If the draw was the effect's last action the play
+                        // simply waits (`After` step) until the decision is answered and the rest of the draw is done; otherwise
+                        // the effect would continue before the decision: not supported.
+                        if self.effect_checksum() == ds.sum {
+                            match flow {
+                                Flow::Done => {
+                                    self.play_stack[idx].step = PlayStep::After;
+                                    return RunResult::Suspended;
+                                }
+                                // The effect returned `Suspend(next)` right after the draw (`draw_pending()`): it continues at phase `next`
+                                // once the decision is answered and the draw is finished (handled by the Suspend arm below).
+                                Flow::Suspend(_) => {}
+                            }
+                        } else {
+                            self.abort_draw_susp();
+                        }
+                    }
+                    match flow {
                         Flow::Done => {
                             self.play_stack[idx].step = PlayStep::After;
                             // An effect that started a nested play (auto-play) which is waiting for a decision and has nothing left
@@ -378,6 +397,16 @@ impl Combat {
                 }
             }
         }
+    }
+
+    /// Gives up a parked draw (the effect did more after it): the Stratagem prompt cannot be honoured in the right order.
+    pub(crate) fn abort_draw_susp(&mut self) {
+        self.draw_susp = None;
+        self.decision = None;
+        self.hook_ctx = None;
+        self.susp.clear();
+        self.stage = Stage::AwaitAction;
+        self.flag_missing(crate::hooks::Kind::Power, crate::ids::power::STRATAGEM_POWER);
     }
 
     /// Steps 10-12 of `OnPlayWrapper`: depth--, move the card to its result pile, hand-empty check, clean up the
