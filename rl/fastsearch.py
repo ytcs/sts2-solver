@@ -25,6 +25,24 @@ if DEV.type == "cuda":
     torch.backends.cudnn.allow_tf32 = True
 
 
+def available_cpus():
+    """CPUs this process may really use: the affinity mask, capped by the container's CPU quota (cgroup v2 `cpu.max` or v1 `cfs_quota_us`):
+    `os.cpu_count()` reports the host's cores, which oversubscribes a container (threads fighting for a 10-CPU quota ran 2x slower)."""
+    n = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 8)
+    try:
+        if os.path.exists("/sys/fs/cgroup/cpu.max"):
+            q, per = open("/sys/fs/cgroup/cpu.max").read().split()
+            if q != "max":
+                n = min(n, max(1, int(int(q) / int(per) + 0.5)))
+        elif os.path.exists("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"):
+            q, per = int(open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read()), int(open("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read())
+            if q > 0:
+                n = min(n, max(1, int(q / per + 0.5)))
+    except (OSError, ValueError):
+        pass
+    return n
+
+
 def host_shapes(obs):
     """Shapes the network needs for this batch, from the host-side observation (no device syncs): occupied enemy slots, longest pile list,
     and the rows that have a pending card selection."""
@@ -104,7 +122,7 @@ class FastSearch:
         self.M, self.K, self.conf, self.pmin, self.margin = M, K, conf, pmin, margin
         self.roll_cap, self.max_steps, self.hp_bonus, self.greedy_roll = roll_cap, max_steps, hp_bonus, greedy_roll
         self.roots, self.groups = roots, groups
-        self.threads = threads or max(2, (os.cpu_count() or 8) - 2)
+        self.threads = threads or max(2, available_cpus() - 1)
         self.timers = collections.defaultdict(float)
         self.stats = {}
         self.cuda = DEV.type == "cuda"
