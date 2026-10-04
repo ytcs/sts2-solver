@@ -1,0 +1,6 @@
+b128 iteration 2400 steps 314572800
+a64: greedy policy: win 0.559 hp_lost_all 0.585
+a64: M=5 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.813 hp_lost_all 0.462 stall 0.003  370s (1.23s/fight)
+b128: greedy policy: win 0.640 hp_lost_all 0.550
+b128: M=5 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.783 hp_lost_all 0.473 stall 0.003  370s (1.23s/fight)
+CMP_DONE

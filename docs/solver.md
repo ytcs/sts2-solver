@@ -82,6 +82,39 @@ searched option (held-out agreement with the search's best option fell 61% -> 50
 value-only fit to the final results of search-played fights (search got 5.6 points *worse*: the search compares candidate states that search-play never visits).
 What does pay off is bigger networks and more PPO steps, and the search on top.
 
+### Search budget and evaluator (600 paired mid-set fights, +- 1.6)
+| search setting (128-wide network) | win | HP lost | s / fight |
+|---|---|---|---|
+| greedy network alone | 65.3% | 0.546 | - |
+| 5 options x 8 futures | 80.8% | 0.453 | 0.67 |
+| 5 x 24 | 81.0% | 0.446 | 1.16 |
+| 8 x 16 | 81.0% | 0.452 | 1.23 |
+| 5 x 8 scored by full-fight play-outs (no value head) | 75.3% | 0.487 | 2.79 |
+| **3 x 8** (the default) | 80.2-81.3% | 0.460 | 0.54 |
+| 3 x 4 / 2 x 8 | 78.2% / 77.0% | 0.462 / 0.476 | 0.46 / 0.47 |
+
+Search saturates around 81%: more options or futures do not help, and scoring with full-fight play-outs is worse (the value head is a better evaluator than
+noisy play-outs). **Averaging the value heads of several networks does help**:
+| evaluator at 3 x 8 | win | HP lost | s / fight |
+|---|---|---|---|
+| b128 alone | 80.2% | 0.456 | 0.54 |
+| **b128 policy, value = mean(b128, c128, d128)** (default) | **82.8%** | 0.444 | 0.56 |
+| b128 policy, value = mean(b128, a64) | 83.7% | 0.446 | 0.55 |
+| ensemble of 3 (policy and value averaged) | 81.5% | 0.442 | 1.22 |
+| ensemble of 4 | 82.0% | 0.444 | 1.57 |
+(b128, c128, d128: three 128-wide networks, different seeds, 314M PPO steps each, 65-66% greedy on the eval set.)
+
+### Final solver (`rl/solver.py` defaults) on the full held-out eval set (1,500 fights x 2 attempts)
+**72.6% win (+- 0.8), 0.360 of max HP lost** at 4.4 fights/s (16-vCPU pod). The same network played greedily: 65.5% / 0.424; the scripted heuristic: 36.3% / 0.572;
+random: 14.5% / 0.686. By character (win, HP lost): Ironclad 0.757 / 0.318, Regent 0.746 / 0.356, Defect 0.735 / 0.360, Silent 0.697 / 0.378, Necrobinder
+0.692 / 0.392; by act: 0.886 / 0.197, 0.745 / 0.374, 0.569 / 0.488 (a large part of act 2-3's losses are fights that no policy wins, see the winnable analysis).
+
+### Throughput (Runpod RTX 4090 pod, 16 vCPUs; `data/analysis/gpu_session/`)
+* PPO about 50k samples/s per run (laptop CPU 3-4k); search 4.4 fights/s on the eval mix with 4 worker processes, 2.9 on 100 mid-difficulty decks
+  (long fights); one worker process: 1.3-2.9 fights/s depending on the batch (large batches matter). `Solver(procs=4)` is a 2.2x gain: the Python around
+  the search is single-threaded. 100 decks x 32 attempts = 3,200 fights gave +-5.3 points per deck: +-2.5 needs about 150 attempts per deck.
+* Cost of this whole session on Runpod: about $8.5 of the $50 budget (secure-cloud 4090 at $0.74/h for 11.3 h plus about $0.12 of failed community-cloud attempts).
+
 ## The solver API (`rl/solver.py`)
 `Solver().solve(scenarios, attempts=32)` plays `attempts` fights of every scenario (deck variants ...) with the network + search, all together in large
 batches, and returns win rate (+ standard error), mean HP lost (losses charged in full), HP left on wins. 576 fights (9 deck variants x 64) took 65 s.

@@ -1,0 +1,9 @@
+217566 searched decisions; 217566 with an option spread >= 0.0
+holdout before: policy agrees with the search's best option 0.610, value mse 0.4723
+epoch 0: policy 1.406 value 0.1434 kl-to-old 0.0060 | holdout agrees 0.589, value mse 0.3117  (11s)
+epoch 1: policy 1.412 value 0.1098 kl-to-old 0.0049 | holdout agrees 0.589, value mse 0.2907  (23s)
+epoch 2: policy 1.440 value 0.1118 kl-to-old 0.0058 | holdout agrees 0.585, value mse 0.2762  (34s)
+saved models/solver_v1.pt
+v1: greedy policy: win 0.640 hp_lost_all 0.553
+v1: M=5 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.737 hp_lost_all 0.479 stall 0.000  72s (0.24s/fight)
+V1_DONE

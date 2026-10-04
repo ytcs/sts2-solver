@@ -1,0 +1,6 @@
+b128 alone: M=3 K=4 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.782 hp_lost_all 0.462 stall 0.003  274s (0.46s/fight)
+b128 alone: M=2 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.770 hp_lost_all 0.476 stall 0.008  285s (0.47s/fight)
+b128 alone: M=3 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.802 hp_lost_all 0.460 stall 0.007  324s (0.54s/fight)
+b128 policy, value = mean(b128, a64): M=3 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.837 hp_lost_all 0.446 stall 0.007  330s (0.55s/fight)
+b128 policy, value = mean(b128, a64, base): M=3 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.810 hp_lost_all 0.446 stall 0.005  342s (0.57s/fight)
+ENS_DONE

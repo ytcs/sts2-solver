@@ -34,8 +34,9 @@ Optional, for differential testing against the real game: `cd oracle/combat && d
 * `rl/` the solver: `model.py` (network), `ppo.py`, `search.py` (play-out search), `solver.py` (the API to use), `mine.py` + `train_mined.py`
   (disagreement mining and fine-tuning), `whatif.py` / `potion_whatif.py` / `potion_search.py` / `trace.py` (analysis of one fight, the HTML page),
   `winnable.py`, `baselines.py`, `bench_search.py`.
-* `models/solver_base.pt` the best network (PPO, 60.6M steps, iteration 1850; weights only, what `Solver` loads);
-  `models/solver_base_full.pt` the same with the optimizer state (`ppo.py --resume`).
+* `models/solver_b128.pt` the best network (128-wide, PPO 314M steps); `solver_c128.pt`, `solver_d128.pt` (same, other seeds: value ensemble), `solver_a64.pt`
+  (64-wide); `solver_base.pt` the first 64-wide network, `solver_base_full.pt` with the optimizer state (`ppo.py --resume`). `Solver()` loads b128 + the value
+  heads of c128 / d128.
 * `data/` the card / relic / encounter catalog, the scenario sets (`train.json` 6000 fights, `eval.json` 1500, `mid.json` 786 mid-difficulty fights,
   `iron0_*`), the example fights, the analysis outputs, the first mining archive. `tools/setup_data.sh` copies them where the scripts expect them
   (`target/train/`, ...). New sets: `tools/gen_train.py` (needs only `data/catalog.json`, not the game).
@@ -52,7 +53,7 @@ were written on has no GPU); the CPU path is tested. `train_mined.py` and `exit.
 * The simulator speed itself (about 1M env-steps/s on 12 cores including observations) will not change; PPO collection was 3-4k samples/s here, mostly
   network time, so expect a large gain from the GPU.
 
-## 5. State of the work (end of this machine's session)
+## 5. State of the work (end of the GPU session; the Runpod pod has been terminated)
 Results are in `docs/solver.md` (tables) and `README.md`. In short: PPO policy 63% win / 0.443 HP lost on the 1500-fight eval set (random 14%,
 heuristic 36%); the same network with play-out search is +7 to +23 points depending on the set (paired seeds); the search is the strong solver and the
 network alone is the weak part. Open items, in the order I would do them:

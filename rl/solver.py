@@ -20,15 +20,37 @@ import sts2
 from search import Searcher, load
 from ppo import net_policy
 
-DEFAULT_CKPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "solver_b128.pt")
+_M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
+DEFAULT_CKPT = os.path.join(_M, "solver_b128.pt")
+# value heads averaged into the search's evaluation (policy stays b128's): +2.5 points of win rate at no extra cost (docs/solver.md)
+DEFAULT_VALUE_CKPTS = [os.path.join(_M, "solver_c128.pt"), os.path.join(_M, "solver_d128.pt")]
+
+
+_WORKER = None
+
+
+def _init_worker(cfg):
+    """Pool initializer: each worker process loads its own networks (and CUDA context) and builds its own simulator pool."""
+    global _WORKER
+    os.environ.setdefault("RAYON_NUM_THREADS", str(max(2, cfg.pop("cores") // cfg["procs"])))
+    _WORKER = Solver(**cfg)
+
+
+def _run_shard(args):
+    flat, search, seed = args
+    return _WORKER._fights(flat, search, seed)
 
 
 class Solver:
-    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, pmin=0.0, force=False, margin=0.0, threads=8, batch=600, max_steps=300, value_ckpts=None):
+    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, pmin=0.0, force=False, margin=0.0, threads=8, batch=600, max_steps=300, value_ckpts="default", procs=4):
         """`ckpt`: a checkpoint path, or several (comma-separated string / list) = an ensemble for both policy and value; `value_ckpts`: extra networks
         whose value heads are averaged in while the policy stays the first network's. Defaults: 3 options x 8 futures per decision (best cost / quality)."""
+        self.cfg = dict(ckpt=ckpt, M=M, K=K, pmin=pmin, force=force, margin=margin, threads=max(1, threads // max(procs, 1)), batch=batch, max_steps=max_steps, value_ckpts=value_ckpts, procs=1)
+        self.procs, self.pool = procs, None
         torch.set_num_threads(threads)
         self.net = load(ckpt)
+        if value_ckpts == "default":
+            value_ckpts = DEFAULT_VALUE_CKPTS if ckpt == DEFAULT_CKPT else None
         self.value_nets = [load(c) for c in value_ckpts] if value_ckpts else None
         self.M, self.K, self.pmin, self.force, self.margin = M, K, pmin, force, margin
         self.batch, self.max_steps = batch, max_steps
@@ -66,7 +88,17 @@ class Solver:
         S = len(scenarios)
         flat = [scenarios[i] for _ in range(attempts) for i in range(S)]  # attempt-major: roots spread over scenarios
         t0 = time.time()
-        rows = self._fights(flat, search, seed)
+        if self.procs > 1 and len(flat) >= 2 * self.procs:
+            if self.pool is None:  # persistent worker pool (spawn: CUDA does not survive a fork)
+                import multiprocessing as mp
+                cfg = dict(self.cfg, cores=os.cpu_count() or 8, procs=self.procs)
+                self.pool = mp.get_context("spawn").Pool(self.procs, initializer=_init_worker, initargs=(cfg,))
+            n = len(flat)
+            bounds = [round(i * n / self.procs) for i in range(self.procs + 1)]
+            shards = [(flat[bounds[i]:bounds[i + 1]], search, seed + 100003 * i) for i in range(self.procs)]
+            rows = [r for part in self.pool.map(_run_shard, shards) for r in part]
+        else:
+            rows = self._fights(flat, search, seed)
         if verbose:
             print(f"{len(flat)} fights in {time.time() - t0:.0f}s ({len(flat) / (time.time() - t0):.1f} fights/s)", flush=True)
         res = []
@@ -90,12 +122,13 @@ def main():
     ap.add_argument("--value-extra", nargs="*", default=[], help="extra checkpoints whose value heads are averaged in")
     ap.add_argument("--no-search", action="store_true", help="the network alone (greedy)")
     ap.add_argument("--threads", type=int, default=8); ap.add_argument("--batch", type=int, default=600)
+    ap.add_argument("--procs", type=int, default=4, help="worker processes (the Python around the search is single-threaded: 3-4 give 2-3x on a 16-core machine)")
     ap.add_argument("--out"); ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     scen = json.load(open(a.scenarios))
     if isinstance(scen, dict):
         scen = [scen]
-    S = Solver(a.ckpt, a.M, a.K, threads=a.threads, batch=a.batch, value_ckpts=a.value_extra or None)
+    S = Solver(a.ckpt, a.M, a.K, threads=a.threads, batch=a.batch, procs=a.procs, value_ckpts=(a.value_extra or None) if a.value_extra or a.ckpt != DEFAULT_CKPT else "default")
     res = S.solve(scen, a.attempts, search=not a.no_search, seed=a.seed, verbose=True)
     for sc, r in zip(scen, res):
         print(f"{sc.get('name', '?'):28s} win {r['win']:.3f} ±{r['win_se']:.3f}  HP lost {100 * (r['hp_lost'] or 0):.0f}%  HP left on win {r['hp_left_on_win']:.0f}")

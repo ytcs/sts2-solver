@@ -1,0 +1,6 @@
+sed: -e expression #1, char 19: unknown option to `s'
+search: ensemble3 policy+value: M=3 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.815 hp_lost_all 0.442 stall 0.007  731s (1.22s/fight)
+search: b128 policy, value=mean(b,c,d): M=3 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.828 hp_lost_all 0.444 stall 0.005  336s (0.56s/fight)
+search: ensemble4 policy+value (b,c,d,a64): M=3 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.820 hp_lost_all 0.444 stall 0.008  941s (1.57s/fight)
+search: c128 alone: M=3 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.802 hp_lost_all 0.456 stall 0.010  323s (0.54s/fight)
+ENS2_DONE
