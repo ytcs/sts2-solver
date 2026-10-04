@@ -591,6 +591,8 @@ impl Combat {
         }
         let mut cur: Paths = crate::util::ArrayVec::new();
         cur.push((cr.monster, 1.0));
+        // damage of a move node does not change within this call: compute it once per node (it runs the whole damage pipeline per intent)
+        let mut node_dmg = [-1f32; 256];
         for row in rows.iter_mut() {
             let mut next: Paths = crate::util::ArrayVec::new();
             for (ms, p) in cur.iter() {
@@ -608,7 +610,11 @@ impl Combat {
             for (ms, p) in merged.iter() {
                 let slot = if ms.cur_state == STUN_NODE || ms.cur_state as usize >= LOOK_NODES - 1 { LOOK_NODES - 1 } else { ms.cur_state as usize };
                 row.prob[slot] += *p;
-                row.exp_damage += *p * self.node_attack_damage(c, ms.cur_state);
+                let n = ms.cur_state as usize;
+                if node_dmg[n] < 0.0 {
+                    node_dmg[n] = self.node_attack_damage(c, ms.cur_state);
+                }
+                row.exp_damage += *p * node_dmg[n];
             }
             cur = merged;
             if cur.is_empty() {
