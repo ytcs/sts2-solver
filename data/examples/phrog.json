@@ -1,0 +1,4 @@
+{"name":"phrog_user","ascension":10,"encounter":"PHROG_PARASITE_ELITE","character":"IRONCLAD","hp":87,"max_hp":87,"max_energy":3,"max_potion_slots":2,"gold":0,"seed":"phrog-1","total_floor":8,"act":0,
+ "deck":["STRIKE_IRONCLAD","STRIKE_IRONCLAD","STRIKE_IRONCLAD","STRIKE_IRONCLAD","STRIKE_IRONCLAD","DEFEND_IRONCLAD","DEFEND_IRONCLAD","DEFEND_IRONCLAD","DEFEND_IRONCLAD","BASH","ASCENDERS_BANE",
+         {"id":"FINESSE","upgrade":1},"BURNING_PACT","TREMBLE","PERFECTED_STRIKE"],
+ "relics":["BURNING_BLOOD","ODDLY_SMOOTH_STONE"],"potions":[]}

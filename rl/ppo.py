@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
-from model import Net, n_params
+from model import Net, n_params, DEV
 
 
 def make_env(path, n, seed, max_steps, hp_bonus):
@@ -24,9 +24,9 @@ def make_env(path, n, seed, max_steps, hp_bonus):
 def net_policy(net, greedy=True):
     @torch.no_grad()
     def act(obs, mask):
-        lg, _ = net(torch.from_numpy(obs.copy()), torch.from_numpy(mask.astype(np.int64)))
+        lg, _ = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV))
         a = lg.argmax(1) if greedy else torch.distributions.Categorical(logits=lg).sample()
-        return a.numpy().astype(np.int32)
+        return a.cpu().numpy().astype(np.int32)
     return act
 
 
@@ -103,7 +103,7 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     torch.set_num_threads(a.threads)
     torch.manual_seed(a.seed)
-    net = Net(d=a.d, rounds=a.rounds)
+    net = Net(d=a.d, rounds=a.rounds).to(DEV)
     opt = torch.optim.Adam(net.parameters(), lr=a.lr, eps=1e-5)
     it0, steps = 0, 0
     if a.resume:  # a full checkpoint (net + optimizer + progress) or a bare state dict (weights only: warm start)
@@ -157,13 +157,13 @@ def main():
                     m_eff[empty] = mask[empty]
                 b_obs[t].numpy()[:] = obs
                 b_mask[t].numpy()[:] = m_eff
-                lg, v = net(b_obs[t], b_mask[t].long())
+                lg, v = net(b_obs[t].to(DEV), b_mask[t].long().to(DEV))
                 logp = F.log_softmax(lg, 1)
                 act = torch.multinomial(logp.exp(), 1).squeeze(1)
-                b_act[t] = act
-                b_lp[t] = logp.gather(1, act[:, None]).squeeze(1)
-                b_val[t] = v
-                obs, mask, rew, done, info = env.step(act.numpy().astype(np.int32))
+                b_act[t] = act.cpu()
+                b_lp[t] = logp.gather(1, act[:, None]).squeeze(1).cpu()
+                b_val[t] = v.cpu()
+                obs, mask, rew, done, info = env.step(act.cpu().numpy().astype(np.int32))
                 r = rew.copy()
                 oc = info["outcome"]
                 r[oc == 2] = -1.0  # stalled out
@@ -176,8 +176,8 @@ def main():
                     for i in np.nonzero(done)[0]:
                         ep_stats.append((int(oc[i]), float(ei["hp_lost"][i]), int(ei["length"][i])))
                 steps += N
-            _, last_v = net(torch.from_numpy(obs.copy()), torch.from_numpy(mask.astype(np.int64)))
-            b_val[T] = last_v
+            _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV))
+            b_val[T] = last_v.cpu()
         t_roll = time.time() - t_roll
         # ---- GAE ----
         adv = torch.zeros(T, N)
@@ -199,23 +199,24 @@ def main():
             perm = torch.randperm(T * N)
             for s in range(0, T * N, a.mb):
                 ix = perm[s:s + a.mb]
-                lg, v = net(fo[ix], fm[ix].long())
+                ixd = ix
+                lg, v = net(fo[ix].to(DEV), fm[ix].long().to(DEV))
                 logp = F.log_softmax(lg, 1)
-                nlp = logp.gather(1, fa[ix, None]).squeeze(1)
-                ratio = (nlp - flp[ix]).exp()
-                ad = fadv[ix]
+                nlp = logp.gather(1, fa[ix, None].to(DEV)).squeeze(1)
+                ratio = (nlp - flp[ix].to(DEV)).exp()
+                ad = fadv[ix].to(DEV)
                 ad = (ad - ad.mean()) / (ad.std() + 1e-8)
                 pl = -torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad).mean()
-                vl = F.smooth_l1_loss(v, fret[ix])
+                vl = F.smooth_l1_loss(v, fret[ix].to(DEV))
                 p = logp.exp()
-                ent = -(p * logp.clamp(min=-30) * (fm[ix] > 0)).sum(1).mean()
+                ent = -(p * logp.clamp(min=-30) * (fm[ix].to(DEV) > 0)).sum(1).mean()
                 loss = pl + a.vf * vl - a.ent * ent
                 opt.zero_grad(set_to_none=True)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(net.parameters(), 0.5)
                 opt.step()
                 stats["pl"] += pl.item(); stats["vl"] += vl.item(); stats["ent"] += ent.item()
-                stats["kl"] += ((ratio - 1) - (nlp - flp[ix])).mean().item()
+                stats["kl"] += ((ratio - 1) - (nlp - flp[ix].to(DEV))).mean().item()
                 stats["clip"] += ((ratio - 1).abs() > a.clip).float().mean().item()
                 nb += 1
         t_upd = time.time() - t_upd

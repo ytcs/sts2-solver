@@ -14,7 +14,7 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
-from model import C, SEC, Net
+from model import C, SEC, Net, DEV
 from ppo import evaluate, net_policy
 
 H, E, T = C["MAX_HAND"], C["OBS_MAX_ENEMIES"], C["MAX_CREATURES"] + 1
@@ -119,7 +119,7 @@ def main():
         if name == "random":
             pol = random_policy()
         elif name == "untrained":
-            pol = net_policy(Net().eval())
+            pol = net_policy(Net().to(DEV).eval())
         elif name == "heuristic":
             pol = heuristic_policy()
         elif name.startswith("ckpt:"):  # a trained network, greedy

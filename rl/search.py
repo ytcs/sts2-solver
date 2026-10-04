@@ -15,7 +15,7 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
-from model import Net, C
+from model import Net, C, DEV
 from ppo import make_env, summarize, net_policy, evaluate
 
 A = sts2.ACTIONS
@@ -28,12 +28,12 @@ def load(path):
     args = ck.get("args", {})
     net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2))
     net.load_state_dict(ck["net"] if "net" in ck else ck)
-    return net.eval()
+    return net.to(DEV).eval()
 
 
 @torch.no_grad()
 def fwd(net, obs, mask, policy=True, value=True):
-    lg, v = net(torch.from_numpy(obs), torch.from_numpy(mask.astype(np.int64)), policy=policy, value=value)
+    lg, v = net(torch.from_numpy(obs).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV), policy=policy, value=value)
     return lg, v
 
 
@@ -42,9 +42,9 @@ def values(net, obs, chunk=4096):
     """Value head only, in big batches."""
     out = []
     for i in range(0, len(obs), chunk):
-        _, v = net(torch.from_numpy(obs[i:i + chunk]), None, policy=False)
+        _, v = net(torch.from_numpy(obs[i:i + chunk]).to(DEV), None, policy=False)
         out.append(v)
-    return torch.cat(out).numpy() if out else np.zeros(0, np.float32)
+    return torch.cat(out).cpu().numpy() if out else np.zeros(0, np.float32)
 
 
 class Timers(collections.defaultdict):
@@ -84,7 +84,7 @@ class Searcher:
             mask = self.mask_fn(obs, mask)
         t = time.perf_counter()
         lg, _ = fwd(self.net, obs.copy(), mask, value=False)
-        prob = torch.softmax(lg, 1).numpy()
+        prob = torch.softmax(lg, 1).cpu().numpy()
         t = self.timers.clock("net root", t)
         order = np.argsort(-prob, 1)[:, :M]
         best = order[:, 0].astype(np.int32)
@@ -161,7 +161,7 @@ class Searcher:
                 t = time.perf_counter()
                 lg, _ = fwd(self.net, sobs[idx[thinking]].copy(), sm[thinking], value=False)
                 t = self.timers.clock("net rollout", t)
-                a[idx[thinking]] = (lg.argmax(1) if self.greedy_roll else torch.multinomial(torch.softmax(lg, 1), 1).squeeze(1)).numpy()
+                a[idx[thinking]] = (lg.argmax(1) if self.greedy_roll else torch.multinomial(torch.softmax(lg, 1), 1).squeeze(1)).cpu().numpy()
         if end_idx:
             t = time.perf_counter()
             est[np.concatenate(end_idx)] += values(self.net, np.concatenate(end_obs))

@@ -22,7 +22,7 @@ def main():
     ap.add_argument("--n", type=int, default=1000)
     ap.add_argument("--seed", default="1")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--catalog", default=os.path.join(ROOT, "target/train/catalog.json"))
+    ap.add_argument("--catalog", default=next((q for q in (os.path.join(ROOT, "target/train/catalog.json"), os.path.join(ROOT, "data/catalog.json")) if os.path.exists(q)), os.path.join(ROOT, "data/catalog.json")))
     ap.add_argument("--character", help="comma list; default all five (weights as in the fuzz generator)")
     ap.add_argument("--act", help="comma list of acts 0,1,2 (default all)")
     ap.add_argument("--room", help="comma list of monster,elite,boss")

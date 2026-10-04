@@ -1,0 +1,39 @@
+{
+ "free": 0.7253333333333334,
+ "dup": {
+  "FINESSE+": {
+   "share": 0.343,
+   "win": 0.6180758017492711
+  },
+  "STRIKE_IRONCLAD": {
+   "share": 0.249,
+   "win": 0.7228915662650602
+  },
+  "BASH": {
+   "share": 0.226,
+   "win": 0.7964601769911505
+  },
+  "PERFECTED_STRIKE": {
+   "share": 0.166,
+   "win": 0.8614457831325302
+  },
+  "TREMBLE": {
+   "share": 0.008,
+   "win": 0.5833333333333334
+  },
+  "BURNING_PACT": {
+   "share": 0.005333333333333333,
+   "win": 0.75
+  },
+  "DEFEND_IRONCLAD": {
+   "share": 0.0026666666666666666,
+   "win": 0.625
+  }
+ },
+ "only with Perfected Strike in hand": 0.7773333333333333,
+ "not before turn 2": 0.7666666666666667,
+ "not before turn 3": 0.7163333333333334,
+ "not before turn 4": 0.741,
+ "never drink it": 0.44033333333333335,
+ "ps_open": 0.34
+}

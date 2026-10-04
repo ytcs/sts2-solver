@@ -77,7 +77,7 @@ class Confirmer(Searcher):
             th = ~forced
             if th.any():
                 lg, _ = fwd(self.net, sobs[idx[th]].copy(), sm[th], value=False)
-                a[idx[th]] = (lg.argmax(1) if self.greedy_roll else torch.multinomial(torch.softmax(lg, 1), 1).squeeze(1)).numpy()
+                a[idx[th]] = (lg.argmax(1) if self.greedy_roll else torch.multinomial(torch.softmax(lg, 1), 1).squeeze(1)).cpu().numpy()
         if ei:
             est[np.concatenate(ei)] += values(self.net, np.concatenate(eo))
         d = np.array(dst).reshape(len(roots), 2, K)

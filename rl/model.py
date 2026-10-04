@@ -7,6 +7,7 @@ the tokens; the action head is a *pointer* head that scores exactly the dense ac
 potion x target, discard potion, pick, confirm, end turn), so a card is scored from its own token, never from a fixed input slot.
 """
 import math
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,6 +15,7 @@ import torch.nn.functional as F
 
 import sts2
 
+DEV = torch.device(os.environ.get("STS2_DEVICE", "cpu"))  # STS2_DEVICE=cuda runs the network on a GPU (observations stay numpy on the CPU side)
 LAY = sts2.layout()
 C = LAY["consts"]
 SEC = {n: (o, s) for n, o, s in LAY["sections"]}

@@ -31,7 +31,8 @@ def main():
     ap.add_argument("--ckpt")
     ap.add_argument("--seed", type=int, default=1)
     a = ap.parse_args()
-    cat = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "target/train/catalog.json")))
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    cat = json.load(open(next(q for q in (os.path.join(root, "target/train/catalog.json"), os.path.join(root, "data/catalog.json")) if os.path.exists(q))))
     encs = [e["id"] for e in cat["encounters"]]
     r = random.Random(a.seed)
     scen, flagged = [], []
