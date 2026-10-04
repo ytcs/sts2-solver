@@ -69,7 +69,7 @@ obs, mask, reward, done, info = env.step(actions)         # actions: int32 dense
 + pointer action head over the env's dense action space) plays every fight; `rl/search.py` improves it at test time by determinized play-outs
 (`VecEnv.fork_from` copies a fight and resamples exactly the information a player cannot see), with a value ensemble: on a held-out set of 1,500 A10 fights
 (5 characters, 3 acts) the solver wins **72.6%** and loses 36% of max HP on average (network alone 65.5% / 42%, scripted heuristic 36% / 57%, random 14.5% / 69%);
-`rl/solver.py` solves many deck variants at several fights per second on a GPU box. `sts2.provably_unwinnable(scenario)` proves some fights
+`rl/solver.py` solves many deck variants at about 190 fights/s on a GPU box (search as a Rust state machine + CUDA-graph networks). `sts2.provably_unwinnable(scenario)` proves some fights
 lost for any play (e.g. the starter deck against a boss). Numbers, baselines and the commands are in [`docs/solver.md`](docs/solver.md).
 ```bash
 .venv/bin/python tools/gen_train.py --n 6000 --seed 11 --out target/train/train.json     # realistic A10 fights

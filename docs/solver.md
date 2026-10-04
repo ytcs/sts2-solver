@@ -115,8 +115,48 @@ random: 14.5% / 0.686. By character (win, HP lost): Ironclad 0.757 / 0.318, Rege
   the search is single-threaded. 100 decks x 32 attempts = 3,200 fights gave +-5.3 points per deck: +-2.5 needs about 150 attempts per deck.
 * Cost of this whole session on Runpod: about $8.5 of the $50 budget (secure-cloud 4090 at $0.74/h for 11.3 h plus about $0.12 of failed community-cloud attempts).
 
+## Speed: the Rust search engine (about 45x, same strength)
+The python search (`rl/search.py`) did 4.4 fights/s on the pod. The default `Solver` now runs **190+ fights/s** on the same pod (RTX 4090, 16 vCPUs) at the same
+or better strength. Where the time went and what changed (counters: `rl/profile_search.py`, `rl/bench_fast.py`; 300 fights of the eval set unless noted):
+
+| | before (python search) | after |
+|---|---|---|
+| policy rows through the network per fight | 13,950 | 1,550 |
+| simulator steps per fight, live / stepped | 15,250 / 432,000 | 2,640 / 2,640 |
+| network calls per 300 fights | 18,000 of ~230 rows | 553 of ~1,200 rows (steady state: thousands) |
+
+1. **A policy loop in card-selection screens (about 9x fewer rows).** Picking a card when the selection is already full replaces the latest pick, so a *sampled*
+   policy can wander between picks for dozens of steps instead of confirming. 7% of the play-outs hit the 60-step cap that way (they scored no value at all)
+   and on some fights they were 90% of the network rows. A full selection with `Confirm` legal is now confirmed automatically (the swap could have been chosen
+   as the last pick directly). This also made the estimates better: the same fights went from 67.7% to 72.7% win on a 300-fight check.
+2. **A Rust state machine instead of lock-step python** (`crates/sts2env/src/search.rs`, `rl/fastsearch.py`). Each fight is a "root" with its own `M x K` play-out copies;
+   the engine runs everything up to the next decision (forced moves, the simulator, forks, scoring, the next fight of the queue) on the rayon pool and writes one observation
+   row per request. Python only evaluates the networks on whatever rows are pending, so batches stay large regardless of how long each fight is (lock-step batches thinned out
+   to a few fights in the tail), finished or idle slots cost nothing (96% of the old simulator work was frozen slots re-writing their observations), and rows from many fights at different
+   phases share one batch. Two engines alternate so the CPU simulates one while the GPU evaluates the other. Results are reproducible per job and independent of the pool size and
+   thread count (`crates/sts2env/tests/search.rs`).
+3. **A big pool.** At 512 roots the network was launch-bound (about 3.5 ms per call whatever the batch size: 145k rows/s at 512 rows, 1.2M rows/s at 4096); 2,048 roots in flight keeps
+   the batches at thousands of rows: 28 -> 71 fights/s.
+4. **CUDA graphs** (`GraphFn`): policy and value (the 3-network ensemble in one graph) per padded batch size, rows without / with a pending selection in separate graphs
+   (static shapes, no host syncs): 71 -> 129 fights/s. **bf16 autocast inside the graphs**: 129 -> 191-196 fights/s, no change in strength.
+
+Measured on the pod (6,000-12,000 fights of the eval set, `rl/bench_fast.py`, `rl/sweep.py`):
+| configuration | fights/s | win | HP lost |
+|---|---|---|---|
+| python search, 4 processes (before) | 4.4 | 72.6% | 0.360 |
+| Rust engine, 512 roots, eager fp32 (1,500 fights) | 27.8 | 73.9% | - |
+| + 2,048 roots | 71 | 74.3% | - |
+| + CUDA graphs | 129 | 73.9% | - |
+| + bf16 (**default**; 12,000 fights, +-0.4) | **191-196** | **74.0%** | 0.359 |
+| full eval protocol (1,500 x 2, fp32 graphs, `Solver.solve`) | 126 | 74.2% | 0.358 |
+
+Search-setting sweep at the new speed (1,500 x 2 fights, +-0.8; bf16): K=4 futures 173 f/s 73.7% / 0.364; 2 value networks instead of 3 with K=6 (8,000-fight run: 278 f/s, 73.5% / 0.364);
+M=2 options 184 f/s, 71.8% (worse); skipping the search where the policy is >= 95% sure 206 f/s, 71.9% (worse); a 64-wide play-out network 146 f/s vs 124 (fp32) and 73.6%: not worth it.
+`Solver(..., conf=, roll_ckpt=, K=, value_ckpts=)` exposes them. 100 decks x 64 attempts (6,400 fights of the mid-difficulty set) take 43 s (150 fights/s; the python search needed about 40 minutes).
+Not done: more overlap between the CPU engine (37% of the wall time) and the GPU wait (58%), adaptive attempts per deck, an even cheaper value ensemble (distillation).
+
 ## The solver API (`rl/solver.py`)
-`Solver().solve(scenarios, attempts=32)` plays `attempts` fights of every scenario (deck variants ...) with the network + search, all together in large
+`Solver().solve(scenarios, attempts=32)` (the Rust engine; `engine="py"` selects the python search, which the analysis tools use) plays `attempts` fights of every scenario (deck variants ...) with the network + search, all together in large
 batches, and returns win rate (+ standard error), mean HP lost (losses charged in full), HP left on wins. 576 fights (9 deck variants x 64) took 65 s.
 `rl/whatif.py` (card removal, split timing), `rl/potion_whatif.py`, `rl/trace.py` (play-by-play page of the best / worst line) build on the same pieces.
 

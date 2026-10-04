@@ -42,8 +42,7 @@ Optional, for differential testing against the real game: `cd oracle/combat && d
 
 ## 4. Moving to the GPU
 `rl/model.py` reads `STS2_DEVICE` (default `cpu`); `ppo.py`, `search.py`, `solver.py`, `baselines.py`, `mine.py` move tensors to it and bring results
-back as numpy, because the simulator (Rust, rayon) always runs on the CPU and produces numpy batches. **This path is untested** (the machine these
-were written on has no GPU); the CPU path is tested. `train_mined.py` and `exit.py` are still CPU-only. Things to expect and tune:
+back as numpy, because the simulator (Rust, rayon) always runs on the CPU and produces numpy batches. The GPU path was exercised on a Runpod RTX 4090 (`docs/solver.md`); the CPU path is tested locally. `train_mined.py` and `exit.py` are still CPU-only. Things to expect and tune:
 * The network is small (460k parameters), so a GPU mostly pays off through **large batches**: raise `--envs` (PPO: 4096+), `Solver(batch=...)` and the
   search `roots` (thousands). Search is network-bound (about 85% of its time was inference on the CPU); the simulator part is about 10%.
 * `Net.encode` slices to the occupied enemy slots / pile lengths of the batch (`.item()` syncs); fine on a GPU, but if it shows up in a profile pad
@@ -52,7 +51,10 @@ were written on has no GPU); the CPU path is tested. `train_mined.py` and `exit.
 * The simulator speed itself (about 1M env-steps/s on 12 cores including observations) will not change; PPO collection was 3-4k samples/s here, mostly
   network time, so expect a large gain from the GPU.
 
-## 5. State of the work (end of the GPU session; the Runpod pod has been terminated)
+## 5. State of the work (end of the speed session)
+The solver (`rl/solver.py`) now runs the search in a Rust state machine (`crates/sts2env/src/search.rs`, driven by `rl/fastsearch.py`): 190+ fights/s on a 4090 pod, 45x the
+previous python search at the same strength; see "Speed" in `docs/solver.md`. `rl/profile_search.py` (python search counters), `rl/bench_fast.py` (engine), `rl/bench_net.py` (network alone), `rl/sweep.py` (configurations).
+Earlier GPU session:
 Results are in `docs/solver.md` (tables) and `README.md`. In short: PPO policy 63% win / 0.443 HP lost on the 1500-fight eval set (random 14%,
 heuristic 36%); the same network with play-out search is +7 to +23 points depending on the set (paired seeds); the search is the strong solver and the
 network alone is the weak part. Open items, in the order I would do them:
