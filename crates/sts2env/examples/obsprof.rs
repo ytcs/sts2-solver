@@ -50,7 +50,7 @@ fn main() {
     unsafe {
         let p = sts2sim::observe::OBS_PROF;
         let tot: u64 = p.iter().sum();
-        for (name, k) in [("hand cards", 1), ("piles", 2), ("enemies (intents)", 3), ("lookahead", 4), ("player+relics", 5), ("  card damage", 6), ("  card block", 7), ("  card cost", 8), ("  card keywords", 9)] {
+        for (name, k) in [("hand cards", 1), ("piles", 2), ("enemies (intents)", 3), ("lookahead", 4), ("player+relics", 5), ("  card damage", 6), ("  card block", 7), ("  card cost", 8), ("  card keywords", 9), ("  look key", 10), ("  look paths/cache", 11)] {
             println!("  {name:<20} {:8.0} cycles/call  {:5.1}% of the profiled sections", p[k] as f64 / n, 100.0 * p[k] as f64 / tot as f64);
         }
         println!("  total profiled {:.0} cycles/call", tot as f64 / n);

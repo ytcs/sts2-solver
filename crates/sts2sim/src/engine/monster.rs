@@ -582,18 +582,13 @@ impl Combat {
         total as f32
     }
 
-    /// The monster's move distribution for the next `LOOK_H` turns after the current intent (see the section comment).
-    pub fn lookahead(&self, c: Cid) -> [LookRow; LOOK_H] {
-        let mut rows = [LookRow { prob: [0.0; LOOK_NODES], exp_damage: 0.0 }; LOOK_H];
-        let cr = self.cr(c);
-        if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player {
-            return rows;
-        }
+    /// The (node, probability) pairs of the monster's possible moves, per horizon (`lookahead` turns them into rows). Depends on the monster's state machine
+    /// state and on what conditions / weights read (its own powers, the enemies standing), not on the player.
+    fn look_paths(&self, c: Cid) -> [LookList; LOOK_H] {
+        let mut out: [LookList; LOOK_H] = [LookList::new(), LookList::new(), LookList::new()];
         let mut cur: Paths = crate::util::ArrayVec::new();
-        cur.push((cr.monster, 1.0));
-        // damage of a move node does not change within this call: compute it once per node (it runs the whole damage pipeline per intent)
-        let mut node_dmg = [-1f32; 256];
-        for row in rows.iter_mut() {
+        cur.push((self.cr(c).monster, 1.0));
+        for list in out.iter_mut() {
             let mut next: Paths = crate::util::ArrayVec::new();
             for (ms, p) in cur.iter() {
                 self.look_roll(c, ms, *p, &mut next);
@@ -608,23 +603,107 @@ impl Combat {
                 }
             }
             for (ms, p) in merged.iter() {
-                let slot = if ms.cur_state == STUN_NODE || ms.cur_state as usize >= LOOK_NODES - 1 { LOOK_NODES - 1 } else { ms.cur_state as usize };
-                row.prob[slot] += *p;
-                let n = ms.cur_state as usize;
-                if node_dmg[n] < 0.0 {
-                    node_dmg[n] = self.node_attack_damage(c, ms.cur_state);
-                }
-                row.exp_damage += *p * node_dmg[n];
+                list.push((ms.cur_state, *p));
             }
             cur = merged;
             if cur.is_empty() {
                 break;
             }
         }
+        out
+    }
+
+    /// Digest of everything `look_paths(c)` reads: the monster's machine state, its powers, and the line-up of enemies.
+    fn look_key(&self, c: Cid) -> u64 {
+        #[inline(always)]
+        fn mix(h: &mut u64, v: u64) {
+            *h = (*h ^ v).wrapping_mul(0x100000001b3).rotate_left(23);
+        }
+        let cr = self.cr(c);
+        let m = &cr.monster;
+        let mut h = 0xcbf29ce484222325u64;
+        mix(&mut h, m.id as u64 | (m.cur_state as u64) << 16 | (m.next_move as u64) << 24 | (m.performed_first as u64) << 32 | (m.spawned_this_turn as u64) << 33
+            | (m.is_performing as u64) << 34 | (m.stunned as u64) << 35 | (m.stun_performed as u64) << 36 | (m.stun_move.is_some() as u64) << 37 | (m.stun_follow_up as u64) << 40);
+        mix(&mut h, u64::from_le_bytes(m.log));
+        mix(&mut h, m.log_len as u64);
+        mix(&mut h, m.ever_logged);
+        mix(&mut h, m.performed_once);
+        mix(&mut h, u32::from_le_bytes(m.performed) as u64);
+        for v in m.vars {
+            mix(&mut h, v as u32 as u64);
+        }
+        for p in cr.powers.as_slice() {
+            mix(&mut h, (p.id as u64) << 32 | p.amount as u32 as u64);
+        }
+        mix(&mut h, cr.slot as u64 | (cr.hp as u64) << 8);
+        for &e in self.enemies.iter() {
+            let o = self.cr(e);
+            mix(&mut h, (o.monster.id as u64) | (o.slot as u64) << 16 | (o.is_alive() as u64) << 24 | (o.hp as u32 as u64) << 32);
+            mix(&mut h, e as u64);
+        }
+        h
+    }
+
+    /// The monster's move distribution for the next `LOOK_H` turns after the current intent (see the section comment).
+    pub fn lookahead(&self, c: Cid) -> [LookRow; LOOK_H] {
+        self.lookahead_with(c, true)
+    }
+
+    /// `lookahead` without the cache (tests compare the two).
+    pub fn lookahead_fresh(&self, c: Cid) -> [LookRow; LOOK_H] {
+        self.lookahead_with(c, false)
+    }
+
+    fn lookahead_with(&self, c: Cid, cached: bool) -> [LookRow; LOOK_H] {
+        let mut rows = [LookRow { prob: [0.0; LOOK_NODES], exp_damage: 0.0 }; LOOK_H];
+        let cr = self.cr(c);
+        if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player {
+            return rows;
+        }
+        #[cfg(feature = "obs_prof")]
+        let t0 = unsafe { core::arch::x86_64::_rdtsc() };
+        let key = self.look_key(c);
+        #[cfg(feature = "obs_prof")]
+        unsafe { crate::observe::OBS_PROF[10] += core::arch::x86_64::_rdtsc() - t0; }
+        #[cfg(feature = "obs_prof")]
+        let t1 = unsafe { core::arch::x86_64::_rdtsc() };
+        let lists = if !cached { self.look_paths(c) } else { LOOK_CACHE.with(|t| {
+            let mut t = t.borrow_mut();
+            let slot = (key as usize) & (LOOK_CACHE_SLOTS - 1);
+            if let Some((k, l)) = &t[slot] {
+                if *k == key {
+                    return l.clone();
+                }
+            }
+            let l = self.look_paths(c);
+            t[slot] = Some((key, l.clone()));
+            l
+        }) };
+        #[cfg(feature = "obs_prof")]
+        unsafe { crate::observe::OBS_PROF[11] += core::arch::x86_64::_rdtsc() - t1; }
+        // damage of a move node does not change within this call: compute it once per node (it runs the whole damage pipeline per intent)
+        let mut node_dmg = [-1f32; 256];
+        for (row, list) in rows.iter_mut().zip(lists.iter()) {
+            for &(node, p) in list.iter() {
+                let slot = if node == STUN_NODE || node as usize >= LOOK_NODES - 1 { LOOK_NODES - 1 } else { node as usize };
+                row.prob[slot] += p;
+                let n = node as usize;
+                if node_dmg[n] < 0.0 {
+                    node_dmg[n] = self.node_attack_damage(c, node);
+                }
+                row.exp_damage += p * node_dmg[n];
+            }
+        }
         rows
     }
 }
 
+type LookList = crate::util::ArrayVec<(u8, f32), 48>;
+const LOOK_CACHE_SLOTS: usize = 256;
+thread_local! {
+    /// Direct-mapped cache of `look_paths` by `look_key` (a search simulates many copies of the same enemies).
+    static LOOK_CACHE: std::cell::RefCell<Vec<Option<(u64, [LookList; LOOK_H])>>> = std::cell::RefCell::new(vec![None; LOOK_CACHE_SLOTS]);
+}
 
 // ---- provable bounds on enemy damage (used by `bounds`) -----------------------------------------------------------------------
 impl Combat {

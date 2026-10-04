@@ -43,6 +43,10 @@ pub struct SearchCfg {
     /// Share the in-turn play of an option between its futures: one play-out per option runs on a scratch copy and the `k` futures branch (each with its own
     /// determinization) at the first step that touches hidden information (a draw, a shuffle, a random choice, the enemy turn).
     pub lead: bool,
+    /// Futures are determinized with rotations of one shuffle (`Combat::determinize_strat`).
+    pub strat: bool,
+    /// An option whose line (the shared prefix of the option chosen at the previous decision) is still being followed is not searched again: its estimate is carried over.
+    pub carry: bool,
     /// A fight is truncated after this many steps of the real fight.
     pub max_steps: u32,
     pub win: f32,
@@ -99,6 +103,7 @@ pub struct SearchStats {
     pub lead_branch: u64,
     pub lead_clean: u64,
     pub lead_prefix_steps: u64,
+    pub carried: u64,
     pub lead_first_unclean: u64,
     /// time stamp counter ticks spent in: `step`, legal actions, observation rows (policy / value), forks (clone + determinize), the rest of the real fight's moves
     pub cy_step: u64,
@@ -167,6 +172,12 @@ struct Block {
     qs: [f32; MAX_M],
     /// option j still plays its shared prefix on `sims[j * k]` (`sims[(j + 1) * k - 1]` is its scratch copy)
     lead: [bool; MAX_M],
+    /// actions the shared prefix of option j has played so far (plus the step that ended it)
+    lead_acts: [Vec<u16>; MAX_M],
+    /// the line being followed: remaining actions and the estimate of the decision that chose it
+    carry: Option<(Vec<u16>, f32)>,
+    /// option j is the carried line (estimate in `qs`)
+    known: [bool; MAX_M],
     /// determinization seeds of the futures of the current decision
     ks: Vec<u64>,
     todo: Vec<(usize, SimSt)>,
@@ -323,7 +334,7 @@ fn shows_draw_pile(cx: &Combat) -> bool {
 /// With `scratch` (the shared prefix of an option) every step is first tried on a copy: if it touches hidden information the function returns
 /// `Some(act)` with `scratch` holding the state before that step and `sim` spoilt, so the caller can branch there; otherwise it behaves as without.
 #[inline(never)]
-fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut SearchStats, mut scratch: Option<&mut Combat>) -> Option<Action> {
+fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut SearchStats, mut scratch: Option<&mut Combat>, mut acts: Option<&mut Vec<u16>>) -> Option<Action> {
     loop {
         let sig0 = if let Some(sc) = scratch.as_deref_mut() {
             sc.clone_from(&sim.cx);
@@ -346,6 +357,9 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
                 sim.steps -= 1;
                 return Some(act);
             }
+        }
+        if let Some(v) = acts.as_deref_mut() {
+            v.push(act.index() as u16);
         }
         if !ok {
             // cannot happen for an action the policy took from the legal set; count it and score the copy as lost
@@ -405,7 +419,7 @@ impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
         let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0 }).collect();
-        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
+        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], lead_acts: Default::default(), carry: None, known: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
     }
 
     /// Takes the next job (if any) and sets the real fight up. Returns false when the queue is empty.
@@ -422,6 +436,7 @@ impl Block {
             self.main.overflow |= sts2sim::state::ov::SCENARIO;
         }
         self.job = j as u32;
+        self.carry = None;
         self.steps = 0;
         self.scen = si;
         let me = self.main.cr(0);
@@ -446,6 +461,16 @@ impl Block {
     fn main_act(&mut self, act: Action, sh: &Shared, rec: Option<MoveRec>) -> bool {
         if sh.record {
             self.log.push(rec.unwrap_or_else(|| MoveRec::forced(act.index() as u16)));
+        }
+        if let Some((v, _)) = self.carry.as_mut() {
+            if v.first() == Some(&(act.index() as u16)) {
+                v.remove(0);
+                if v.is_empty() {
+                    self.carry = None;
+                }
+            } else {
+                self.carry = None;
+            }
         }
         let t0 = tsc();
         let ok = self.main.step(act);
@@ -554,7 +579,18 @@ impl Block {
         let lead = cfg.lead && k >= 2;
         for j in 0..m {
             self.lead[j] = false;
-            if !self.ok[j] {
+            self.known[j] = false;
+            self.lead_acts[j].clear();
+            if cfg.carry && self.ok[j] {
+                if let Some((v, q)) = &self.carry {
+                    if v.first() == Some(&(self.opts[j] as u16)) {
+                        self.known[j] = true;
+                        self.qs[j] = *q;
+                        self.stats.carried += 1;
+                    }
+                }
+            }
+            if !self.ok[j] || self.known[j] {
                 for kk in 0..k {
                     self.sims[j * k + kk].st = SimSt::Idle;
                 }
@@ -578,7 +614,7 @@ impl Block {
                 }
                 let t0 = tsc();
                 sim.cx.clone_from(&self.main);
-                sim.cx.determinize(self.ks[kk]);
+                if cfg.strat { sim.cx.determinize_strat(self.ks[0], self.ks[kk], kk, k); } else { sim.cx.determinize(self.ks[kk]); }
                 self.stats.cy_fork += tsc() - t0;
                 sim.start_turn = turn;
                 sim.est = 0.0;
@@ -590,7 +626,7 @@ impl Block {
                 self.lead_run(j, first, cfg, out);
             } else {
                 for kk in 0..k {
-                    sim_run(&mut self.sims[j * k + kk], first, cfg, out, &mut self.stats, None);
+                    sim_run(&mut self.sims[j * k + kk], first, cfg, out, &mut self.stats, None, None);
                 }
             }
         }
@@ -607,12 +643,13 @@ impl Block {
             let (head, tail) = self.sims.split_at_mut(base + k - 1);
             let scratch = &mut tail[0];
             let lead = &mut head[base];
-            sim_run(lead, act, cfg, out, &mut self.stats, Some(&mut scratch.cx))
+            sim_run(lead, act, cfg, out, &mut self.stats, Some(&mut scratch.cx), Some(&mut self.lead_acts[j]))
         };
         match branch {
             Some(a) => {
                 // `sims[base + k - 1]` holds the state before the step `a`: every future starts from it with its own determinization
                 self.stats.lead_branch += 1;
+                self.lead_acts[j].push(a.index() as u16);
                 self.stats.lead_prefix_steps += self.sims[base].steps as u64;
                 self.stats.lead_first_unclean += (self.sims[base].steps == 0) as u64;
                 let (est, steps, start_turn) = {
@@ -626,13 +663,13 @@ impl Block {
                 for kk in 0..k {
                     let sim = &mut self.sims[base + kk];
                     let t0 = tsc();
-                    sim.cx.determinize(self.ks[kk]);
+                    if cfg.strat { sim.cx.determinize_strat(self.ks[0], self.ks[kk], kk, k); } else { sim.cx.determinize(self.ks[kk]); }
                     self.stats.cy_fork += tsc() - t0;
                     self.stats.forks += 1;
                     sim.est = est;
                     sim.steps = steps;
                     sim.start_turn = start_turn;
-                    sim_run(sim, a, cfg, out, &mut self.stats, None);
+                    sim_run(sim, a, cfg, out, &mut self.stats, None, None);
                 }
                 self.lead[j] = false;
             }
@@ -672,7 +709,7 @@ impl Block {
             if !self.ok[j] {
                 continue;
             }
-            let q = self.sims[j * k..(j + 1) * k].iter().map(|s| s.est).sum::<f32>() / k as f32;
+            let q = if self.known[j] { self.qs[j] } else { self.sims[j * k..(j + 1) * k].iter().map(|s| s.est).sum::<f32>() / k as f32 };
             self.qs[j] = q;
             if j == 0 {
                 q0 = q;
@@ -689,6 +726,9 @@ impl Block {
             s.st = SimSt::Idle;
         }
         let rec = self.move_rec(self.opts[best], true, sh);
+        if cfg.carry && !self.known[best] {
+            self.carry = if self.lead_acts[best].first() == Some(&(self.opts[best] as u16)) { Some((std::mem::take(&mut self.lead_acts[best]), self.qs[best])) } else { None };
+        }
         let finished = match Action::from_index(self.opts[best] as usize) {
             Some(a) => self.main_act(a, sh, rec),
             None => {
@@ -760,7 +800,7 @@ impl Block {
                                     if is_lead {
                                         self.lead_run(j, act, &cfg, out);
                                     } else {
-                                        sim_run(&mut self.sims[idx], act, &cfg, out, &mut self.stats, None);
+                                        sim_run(&mut self.sims[idx], act, &cfg, out, &mut self.stats, None, None);
                                     }
                                 }
                                 None => {
@@ -869,6 +909,7 @@ impl SearchEngine {
             t.lead_branch += s.lead_branch;
             t.lead_clean += s.lead_clean;
             t.lead_prefix_steps += s.lead_prefix_steps;
+            t.carried += s.carried;
             t.lead_first_unclean += s.lead_first_unclean;
             t.cy_step += s.cy_step;
             t.cy_legal += s.cy_legal;
