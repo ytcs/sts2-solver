@@ -88,7 +88,7 @@ class GraphFn:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -101,6 +101,8 @@ class FastSearch:
         self.stats = {}
         self.cuda = DEV.type == "cuda"
         self.graph_E = graph_E
+        self.amp = amp  # bf16 autocast inside the graphs (the networks are compute-bound there)
+        self.value_amp = amp if value_amp is None else value_amp
         self.buckets = (1024, 2048, 4096, 8192, 16384) if buckets is None else buckets
         self.dec_buckets = (64, 256, 1024, 4096)
         self._graphs = {}
@@ -147,8 +149,12 @@ class FastSearch:
         if key not in self._graphs:
             M, greedy, E = self.M, self.greedy_roll, self.graph_E
 
+            amp = self.amp
+
             def fn(o, m):
-                lg, _ = net(o, m, value=False, E=E, L=64, has_dec=has_dec)
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
+                    lg, _ = net(o, m, value=False, E=E, L=64, has_dec=has_dec)
+                lg = lg.float()
                 if greedy:
                     act = lg.argmax(1)
                 else:  # sampling from softmax(lg) = argmax of the logits plus Gumbel noise
@@ -163,8 +169,11 @@ class FastSearch:
         if key not in self._graphs:
             nets, E = [self.net] + list(self.value_nets), self.graph_E
 
+            amp = self.value_amp
+
             def fn(o, m):
-                v = sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec)[1] for n in nets)
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
+                    v = sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec)[1].float() for n in nets)
                 return (v / len(nets)).unsqueeze(1)
             self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, False, self._pool)
         return self._graphs[key]
