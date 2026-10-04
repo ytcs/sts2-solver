@@ -1,0 +1,21 @@
+6000 fights in 84.5s = 71.02 fights/s; finished 1.000; win 0.743 hp_lost_all 0.430; outcomes {np.float32(-1.0): np.int64(1538), np.float32(1.0): np.int64(4457), np.float32(2.0): np.int64(4), np.float32(4.0): np.int64(1)}
+  run               83.9s  99.3%
+  launch net        73.6s  87.1%
+  engine            10.0s  11.8%
+  setup              0.6s   0.7%
+  wait net           0.0s   0.0%
+  root_decisions        155,162.0  per fight       25.9
+  searched              155,042.0  per fight       25.8
+  forced_root            25,698.0  per fight        4.3
+  sim_steps          15,751,052.0  per fight     2625.2
+  forced_sim          3,000,309.0  per fight      500.1
+  policy_rows         9,306,665.0  per fight     1551.1
+  value_rows          3,116,560.0  per fight      519.4
+  forks               3,599,240.0  per fight      599.9
+  illegal                     0.0  per fight        0.0
+  end_turn            3,116,560.0  per fight      519.4
+  end_term              482,680.0  per fight       80.4
+  end_cap                     0.0  per fight        0.0
+  end_stuck                   0.0  per fight        0.0
+  cycles                  3,488.0  per fight        0.6
+  rows_per_cycle          3,561.1  per fight        0.6

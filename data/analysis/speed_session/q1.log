@@ -1,0 +1,2 @@
+1500 scenarios x2: 125.7 fights/s; win 0.7420 (+-0.0030) hp_lost 0.3584 (24s)
+{'root_decisions': 76796, 'searched': 76728, 'forced_root': 12874, 'sim_steps': 7738002, 'forced_sim': 1471024, 'policy_rows': 4562758, 'value_rows': 1548603, 'forks': 1781016, 'illegal': 0, 'end_turn': 1548603, 'end_term': 232411, 'end_cap': 2, 'end_stuck': 0, 'cycles': 2668, 'rows_per_cycle': 2289.847451274363}
