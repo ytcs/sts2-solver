@@ -26,13 +26,14 @@ ap.add_argument("--seed", type=int, default=5)
 ap.add_argument("--no-value-ens", action="store_true")
 ap.add_argument("--no-graphs", action="store_true")
 ap.add_argument("--amp", action="store_true")
+ap.add_argument("--profile-gpu", action="store_true")
 ap.add_argument("--E", type=int, default=8)
 a = ap.parse_args()
 torch.set_num_threads(a.torch_threads)
 net = load(DEFAULT_CKPT)
 vn = [] if a.no_value_ens else [load(c) for c in DEFAULT_VALUE_CKPTS]
 scen = json.load(open(a.eval))[:a.n]
-fs = FastSearch(net, vn, a.M, a.K, conf=a.conf, roll_cap=a.roll_cap, roots=a.roots, groups=a.groups, threads=a.threads, use_graphs=not a.no_graphs, graph_E=a.E, amp=a.amp)
+fs = FastSearch(net, vn, a.M, a.K, conf=a.conf, roll_cap=a.roll_cap, roots=a.roots, groups=a.groups, threads=a.threads, use_graphs=not a.no_graphs, graph_E=a.E, amp=a.amp, profile_gpu=a.profile_gpu)
 fs.warm()
 js = np.tile(np.arange(len(scen), dtype=np.uint32), a.attempts)
 jd = (np.arange(len(js), dtype=np.uint64) + np.uint64(a.seed * 1000003))
@@ -48,3 +49,9 @@ for k, v in sorted(fs.timers.items(), key=lambda kv: -kv[1]):
     print(f"  {k:14s} {v:7.1f}s {100 * v / dt:5.1f}%")
 for k, v in fs.stats.items():
     print(f"  {k:16s} {v:>14,.1f}  per fight {v / len(r):10.1f}")
+if a.profile_gpu:
+    tot = 0
+    for k, (ms, n, rows) in sorted(fs.gpu_ms().items()):
+        tot += ms
+        print(f"  GPU {k:14s} {ms / 1000:6.1f}s  {n:7d} replays  {rows / max(n, 1):7.0f} rows/replay  {ms / max(n, 1):5.2f} ms/replay  {1000 * ms / max(rows, 1):.2f} us/row")
+    print(f"  GPU total {tot / 1000:.1f}s of {dt:.1f}s")

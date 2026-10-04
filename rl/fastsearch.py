@@ -40,9 +40,10 @@ class GraphFn:
     """`fn(obs [B, OBS], mask [B, ACT] | None) -> [B, ...]` replayed as a CUDA graph per padded batch size: one replay instead of several hundred kernel
     launches (the network is launch-bound at the batch sizes the search produces)."""
 
-    def __init__(self, fn, buckets, with_mask, pool):
+    def __init__(self, fn, buckets, with_mask, pool, label="", events=None):
         self.fn, self.buckets, self.with_mask, self.pool = fn, tuple(sorted(buckets)), with_mask, pool
         self.graphs = {}
+        self.label, self.events = label, events  # events: a list collecting (cuda event pair, rows) per replay when profiling
 
     def _capture(self, B):
         sobs = torch.zeros(B, OBS, device=DEV)
@@ -81,14 +82,21 @@ class GraphFn:
                 torch.index_select(obs, 0, sel, out=sobs[:m])
                 if smask is not None:
                     torch.index_select(mask, 0, sel, out=smask[:m])
-            g.replay()
+            if self.events is not None:
+                e0, e1 = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+                e0.record()
+                g.replay()
+                e1.record()
+                self.events.append((e0, e1, m))
+            else:
+                g.replay()
             outs.append(out[:m].clone())
         return outs[0] if len(outs) == 1 else torch.cat(outs)
 
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, depth=1 << 30):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, depth=1 << 30, profile_gpu=False):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -101,6 +109,8 @@ class FastSearch:
         self.stats = {}
         self.cuda = DEV.type == "cuda"
         self.graph_E = graph_E
+        self.profile_gpu = profile_gpu and self.cuda  # CUDA events around every graph replay: where the GPU time goes (`gpu_ms`)
+        self._ev = collections.defaultdict(list)
         self.depth = depth  # play-outs ask the value network after this many policy decisions (default: play to the end of the turn)
         self.record = record  # keep the moves of every fight (`moves`, `replay`): play-by-play traces
         self._runs = []
@@ -164,7 +174,7 @@ class FastSearch:
                     act = (lg - torch.log(-torch.log(torch.rand_like(lg).clamp_min(1e-20)))).argmax(1)
                 tp, ti = torch.softmax(lg, 1).topk(M, 1)
                 return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
-            self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, True, self._pool)
+            self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None)
         return self._graphs[key]
 
     def _val_graph(self, has_dec):
@@ -178,7 +188,7 @@ class FastSearch:
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
                     v = sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec)[1].float() for n in nets)
                 return (v / len(nets)).unsqueeze(1)
-            self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, False, self._pool)
+            self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None)
         return self._graphs[key]
 
     @torch.no_grad()
@@ -350,3 +360,11 @@ class FastSearch:
             steps.append(dict(obs=obs[i], a=int(a), info=info))
         steps.append(dict(obs=obs[len(acts)], a=None, info=None))
         return steps
+
+    def gpu_ms(self):
+        """With `profile_gpu`: {label: (total ms, replays, rows)} of the graph replays so far."""
+        torch.cuda.synchronize()
+        out = {}
+        for k, evs in self._ev.items():
+            out[k] = (sum(a.elapsed_time(b) for a, b, _ in evs), len(evs), sum(n for _, _, n in evs))
+        return out
