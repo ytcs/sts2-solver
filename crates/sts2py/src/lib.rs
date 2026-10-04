@@ -249,6 +249,8 @@ impl SearchEnginePy {
         d.set_item("cy_obs", s.cy_obs)?;
         d.set_item("cy_fork", s.cy_fork)?;
         d.set_item("cy_main", s.cy_main)?;
+        d.set_item("cy_endturn", s.cy_endturn)?;
+        d.set_item("n_endturn", s.n_endturn)?;
         Ok(d)
     }
 }

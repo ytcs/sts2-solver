@@ -114,7 +114,7 @@ class GraphFn:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, depth=1 << 30, profile_gpu=False, compile=True, lead=True, lead_greedy=False):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, depth=1 << 30, profile_gpu=False, compile=True, lead=True, lead_greedy=False, merge_dec=True):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -138,6 +138,7 @@ class FastSearch:
         self.value_amp = amp if value_amp is None else value_amp
         self.buckets = (1024, 2048, 4096, 8192, 16384) if buckets is None else buckets
         self.dec_buckets = (64, 256, 1024, 4096)
+        self.merge_dec = merge_dec  # one graph per head for rows with and without a pending selection (the candidate branch costs less than a second replay)
         self._graphs = {}
         self._pool = torch.cuda.graph_pool_handle() if self.cuda and use_graphs else None
         self.use_graphs = self.cuda and use_graphs
@@ -166,11 +167,11 @@ class FastSearch:
             return
         t = time.perf_counter()
         for net in {id(self.net): self.net, id(self.roll_net): self.roll_net}.values():
-            for hd in (False, True):
+            for hd in ((True,) if self.merge_dec else (False, True)):
                 fn = self._pol_graph(net, hd)
                 for B in fn.buckets:
                     fn._capture(B)
-        for hd in (False, True):
+        for hd in ((True,) if self.merge_dec else (False, True)):
             fn = self._val_graph(hd)
             for B in fn.buckets:
                 fn._capture(B)
@@ -197,7 +198,7 @@ class FastSearch:
                     act = (lg - torch.log(-torch.log(torch.rand_like(lg).clamp_min(1e-20)))).argmax(1)
                 tp, ti = torch.softmax(lg, 1).topk(M, 1)
                 return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
-            self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None)
+            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None)
         return self._graphs[key]
 
     def _val_graph(self, has_dec):
@@ -214,7 +215,7 @@ class FastSearch:
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
                     v = ens(o)
                 return (v / len(nets)).unsqueeze(1)
-            self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None)
+            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None)
         return self._graphs[key]
 
     @torch.no_grad()
@@ -226,6 +227,8 @@ class FastSearch:
             kind = G["pol_kind"][:n_pol]
             res = torch.empty(n_pol, 2 * M + 1, device=DEV)
             sim, dec = (kind & 1) != 0, (kind & 2) != 0
+            if self.merge_dec:
+                dec = np.ones_like(dec)
             split = self.roll_net is not self.net
             # classes: (network, has_dec); with a separate play-out network the real fight's decisions go to the main network
             for use_main in ((False, True) if split else (None,)):
@@ -245,6 +248,8 @@ class FastSearch:
         if n_val:
             vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
             dec = (G["val_kind"][:n_val] & 2) != 0
+            if self.merge_dec:
+                dec = np.ones_like(dec)
             nd = int(dec.sum())
             if nd == 0:
                 out = self._val_graph(False)(vo, None)

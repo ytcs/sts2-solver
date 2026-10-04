@@ -111,6 +111,9 @@ pub struct SearchStats {
     pub cy_obs: u64,
     pub cy_fork: u64,
     pub cy_main: u64,
+    /// share of `cy_step` taken by turn-ending steps and their number
+    pub cy_endturn: u64,
+    pub n_endturn: u64,
 }
 
 #[inline(always)]
@@ -337,7 +340,12 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
         };
         let t0 = tsc();
         let ok = sim.cx.step(act);
-        st.cy_step += tsc() - t0;
+        let dt = tsc() - t0;
+        st.cy_step += dt;
+        if matches!(act, Action::EndTurn) {
+            st.cy_endturn += dt;
+            st.n_endturn += 1;
+        }
         sim.steps += 1;
         st.sim_steps += 1;
         if let Some(sig0) = sig0 {
@@ -889,6 +897,8 @@ impl SearchEngine {
             t.cy_obs += s.cy_obs;
             t.cy_fork += s.cy_fork;
             t.cy_main += s.cy_main;
+            t.cy_endturn += s.cy_endturn;
+            t.n_endturn += s.n_endturn;
         }
         t
     }

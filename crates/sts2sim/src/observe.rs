@@ -126,21 +126,45 @@ impl Combat {
             Some(p) => p as i32,
             None => (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32,
         };
+        #[cfg(feature = "obs_prof")]
+        let t6 = tsc();
         let dmg = if d.vars.iter().any(|v| v.kind == VarKind::Damage) {
             self.modify_damage_value(NO, PLAYER, Dec::int(self.card_base_damage(c) as i64), ValueProp::MOVE, c).trunc()
         } else {
             0
         };
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            OBS_PROF[6] += tsc() - t6;
+        }
+        #[cfg(feature = "obs_prof")]
+        let t7 = tsc();
         let blk = if d.vars.iter().any(|v| v.kind == VarKind::Block) {
             self.modify_block(PLAYER, Dec::int(self.card_var(c, VarKind::Block) as i64), ValueProp::MOVE, c).trunc()
         } else {
             0
         };
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            OBS_PROF[7] += tsc() - t7;
+        }
         w.n(card.id as i32 + 1);
         w.n(card.upgrade as i32);
+        #[cfg(feature = "obs_prof")]
+        let t8 = tsc();
         w.n(if d.x_cost { -1 } else { self.card_cost(c, true).max(0) });
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            OBS_PROF[8] += tsc() - t8;
+        }
         w.n(playable);
+        #[cfg(feature = "obs_prof")]
+        let t9 = tsc();
         w.n(self.card_keywords(c) as i32);
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            OBS_PROF[9] += tsc() - t9;
+        }
         w.n(card.enchant as i32);
         w.n(dmg);
         w.n(blk);
