@@ -15,7 +15,7 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
-from model import Net, C, DEV
+from model import Net, C, DEV, Ensemble
 from ppo import make_env, summarize, net_policy, evaluate
 
 A = sts2.ACTIONS
@@ -24,7 +24,11 @@ TURN = 1  # obs[:, 1] = the player's turn counter
 
 
 def load(path):
-    ck = torch.load(path)
+    """A checkpoint, or several joined by commas (an `Ensemble`: mean policy log-probabilities, mean value)."""
+    if isinstance(path, (list, tuple)) or "," in path:
+        parts = list(path) if isinstance(path, (list, tuple)) else path.split(",")
+        return Ensemble([load(p) for p in parts]).to(DEV).eval()
+    ck = torch.load(path, map_location="cpu")
     args = ck.get("args", {})
     net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2))
     net.load_state_dict(ck["net"] if "net" in ck else ck)
@@ -57,12 +61,13 @@ class Timers(collections.defaultdict):
 
 
 class Searcher:
-    def __init__(self, net, n_roots, M=6, K=8, margin=0.0, seed=0, hp_bonus=0.5, max_steps=600, roll_cap=60, conf=1.01, record=None, pmin=0.0, force=False, greedy_roll=False, full=False):
+    def __init__(self, net, n_roots, M=6, K=8, margin=0.0, seed=0, hp_bonus=0.5, max_steps=600, roll_cap=60, conf=1.01, record=None, pmin=0.0, force=False, greedy_roll=False, full=False, value_nets=None):
         self.net, self.R, self.M, self.K, self.margin = net, n_roots, M, K, margin
         self.rng = np.random.default_rng(seed)
         self.hp_bonus, self.max_steps, self.roll_cap = hp_bonus, max_steps, roll_cap
         self.sim = None
         self.timers = Timers()
+        self.value_nets = value_nets  # extra networks whose value heads are averaged with the main one (an ensemble of evaluators)
         self.full = full  # play-outs run to the end of the fight: the estimate is the real final reward, the value head is not used
         self.greedy_roll = greedy_roll  # play-outs follow the policy's top action (no sampling blunders in the estimate)
         self.pmin = pmin  # candidates must have at least this policy probability (the top one always stays)
@@ -164,7 +169,11 @@ class Searcher:
                 a[idx[thinking]] = (lg.argmax(1) if self.greedy_roll else torch.multinomial(torch.softmax(lg, 1), 1).squeeze(1)).cpu().numpy()
         if end_idx:
             t = time.perf_counter()
-            est[np.concatenate(end_idx)] += values(self.net, np.concatenate(end_obs))
+            ob = np.concatenate(end_obs)
+            vv = values(self.net, ob)
+            if self.value_nets:
+                vv = (vv + sum(values(n2, ob) for n2 in self.value_nets)) / (1 + len(self.value_nets))
+            est[np.concatenate(end_idx)] += vv
             t = self.timers.clock("net value", t)
         if self.full:
             est[live] += -1.0  # still going when the cap hit: a stall counts as a loss

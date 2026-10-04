@@ -82,7 +82,7 @@ def main():
                 loss = loss + a.mined_weight * F.cross_entropy(mlg, ms[j].to(DEV))
             opt.zero_grad(); loss.backward(); torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0); opt.step(); steps += 1
         print(f"epoch {ep}: policy {pl.item():.3f} value {vl.item():.4f} kl-to-old {kl.item():.4f} | holdout agrees %.3f, value mse %.4f  ({time.time() - t0:.0f}s)" % agree(te), flush=True)
-    ck = torch.load(a.ckpt)
+    ck = torch.load(a.ckpt, map_location="cpu")
     torch.save({"net": net.state_dict(), "args": ck.get("args", {}), "it": ck.get("it", 0), "steps": ck.get("steps", 0)}, a.out)
     print("saved", a.out)
 

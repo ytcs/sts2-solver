@@ -285,5 +285,21 @@ class Net(nn.Module):
         return logits, (self.value(gctx).squeeze(-1) if value else None)
 
 
+class Ensemble(nn.Module):
+    """Several networks seen as one: the policy is the geometric mean of the members' policies (mean of log-probabilities), the value the mean of their values."""
+
+    def __init__(self, nets):
+        super().__init__()
+        self.nets = nn.ModuleList(nets)
+
+    def forward(self, obs, mask, policy=True, value=True):
+        outs = [n(obs, mask, policy=policy, value=value) for n in self.nets]
+        lg = None
+        if policy:
+            lg = torch.stack([F.log_softmax(o[0], 1) for o in outs]).mean(0)
+        v = torch.stack([o[1] for o in outs]).mean(0) if value else None
+        return lg, v
+
+
 def n_params(m):
     return sum(p.numel() for p in m.parameters())

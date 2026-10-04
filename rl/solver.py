@@ -2,7 +2,7 @@
 """The combat solver: trained network + determinized play-out search, for many fights at once.
 
   Python:   from solver import Solver
-            S = Solver()                                  # models/solver_base.pt, search M=5 options x K=8 futures
+            S = Solver()                                  # models/solver_b128.pt, search 3 options x 8 futures
             res = S.solve(scenarios, attempts=32)         # list of scenario dicts (deck variants ...) -> one result per scenario
   CLI:      .venv/bin/python rl/solver.py --scenarios variants.json --attempts 32 [--no-search] [--out results.json]
 
@@ -20,13 +20,16 @@ import sts2
 from search import Searcher, load
 from ppo import net_policy
 
-DEFAULT_CKPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "solver_base.pt")
+DEFAULT_CKPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "solver_b128.pt")
 
 
 class Solver:
-    def __init__(self, ckpt=DEFAULT_CKPT, M=5, K=8, pmin=0.0, force=False, margin=0.0, threads=8, batch=600, max_steps=300):
+    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, pmin=0.0, force=False, margin=0.0, threads=8, batch=600, max_steps=300, value_ckpts=None):
+        """`ckpt`: a checkpoint path, or several (comma-separated string / list) = an ensemble for both policy and value; `value_ckpts`: extra networks
+        whose value heads are averaged in while the policy stays the first network's. Defaults: 3 options x 8 futures per decision (best cost / quality)."""
         torch.set_num_threads(threads)
         self.net = load(ckpt)
+        self.value_nets = [load(c) for c in value_ckpts] if value_ckpts else None
         self.M, self.K, self.pmin, self.force, self.margin = M, K, pmin, force, margin
         self.batch, self.max_steps = batch, max_steps
 
@@ -36,7 +39,7 @@ class Solver:
         for i0 in range(0, len(scen_per_fight), self.batch):
             chunk = scen_per_fight[i0:i0 + self.batch]
             if search:
-                s = Searcher(self.net, len(chunk), self.M, self.K, self.margin, seed=seed + i0, max_steps=self.max_steps, pmin=self.pmin, force=self.force)
+                s = Searcher(self.net, len(chunk), self.M, self.K, self.margin, seed=seed + i0, max_steps=self.max_steps, pmin=self.pmin, force=self.force, value_nets=self.value_nets)
                 rec = s.play(chunk, seed=seed + i0, verbose=False, with_records=True, round_robin=True)
                 rows += [(r[1], r[2], r[3], r[4]) for r in rec]
             else:
@@ -83,7 +86,8 @@ def main():
     ap.add_argument("--scenarios", required=True, help="JSON file: one scenario or a list of scenarios (oracle format)")
     ap.add_argument("--attempts", type=int, default=32)
     ap.add_argument("--ckpt", default=DEFAULT_CKPT)
-    ap.add_argument("--M", type=int, default=5); ap.add_argument("--K", type=int, default=8)
+    ap.add_argument("--M", type=int, default=3); ap.add_argument("--K", type=int, default=8)
+    ap.add_argument("--value-extra", nargs="*", default=[], help="extra checkpoints whose value heads are averaged in")
     ap.add_argument("--no-search", action="store_true", help="the network alone (greedy)")
     ap.add_argument("--threads", type=int, default=8); ap.add_argument("--batch", type=int, default=600)
     ap.add_argument("--out"); ap.add_argument("--seed", type=int, default=0)
@@ -91,7 +95,7 @@ def main():
     scen = json.load(open(a.scenarios))
     if isinstance(scen, dict):
         scen = [scen]
-    S = Solver(a.ckpt, a.M, a.K, threads=a.threads, batch=a.batch)
+    S = Solver(a.ckpt, a.M, a.K, threads=a.threads, batch=a.batch, value_ckpts=a.value_extra or None)
     res = S.solve(scen, a.attempts, search=not a.no_search, seed=a.seed, verbose=True)
     for sc, r in zip(scen, res):
         print(f"{sc.get('name', '?'):28s} win {r['win']:.3f} ±{r['win_se']:.3f}  HP lost {100 * (r['hp_lost'] or 0):.0f}%  HP left on win {r['hp_left_on_win']:.0f}")

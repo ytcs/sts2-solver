@@ -107,7 +107,7 @@ def main():
     opt = torch.optim.Adam(net.parameters(), lr=a.lr, eps=1e-5)
     it0, steps = 0, 0
     if a.resume:  # a full checkpoint (net + optimizer + progress) or a bare state dict (weights only: warm start)
-        ck = torch.load(a.resume)
+        ck = torch.load(a.resume, map_location="cpu")
         if "net" in ck:
             net.load_state_dict(ck["net"])
             if not a.warm:

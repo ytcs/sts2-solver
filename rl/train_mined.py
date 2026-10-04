@@ -43,7 +43,7 @@ def main():
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
     torch.manual_seed(a.seed)
-    ck = torch.load(a.ckpt)
+    ck = torch.load(a.ckpt, map_location="cpu")
     net, ref = load(a.ckpt), load(a.ckpt)
     D = {k: np.concatenate([np.load(f)[k] for f in a.mined]) for k in ("obs", "mask", "policy", "search")}
     n = len(D["search"])

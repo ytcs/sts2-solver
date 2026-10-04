@@ -45,7 +45,7 @@ def collect(a):
 
 def train(a):
     torch.set_num_threads(a.threads)
-    ck = torch.load(a.ckpt)
+    ck = torch.load(a.ckpt, map_location="cpu")
     net = load(a.ckpt)
     net.train()
     data = {k: [] for k in ("obs", "mask", "acts", "legal", "q", "p", "z")}

@@ -17,6 +17,7 @@ ap.add_argument("--configs", default="5,8,0,0")
 ap.add_argument("--conf", type=float, default=1.01)
 ap.add_argument("--threads", type=int, default=8)
 ap.add_argument("--greedy", action="store_true")
+ap.add_argument("--value-extra", nargs="*", default=[], help="more checkpoints whose value heads are averaged into the search's evaluation")
 a = ap.parse_args()
 torch.set_num_threads(a.threads)
 net = load(a.ckpt)
@@ -25,7 +26,7 @@ if a.greedy:
     print(f"greedy policy: win {r['win']:.3f} hp_lost_all {r['hp_lost_all']:.3f}", flush=True)
 for cfg in a.configs.split(";"):
     M, K, pmin, force, margin, gr, full = (cfg.split(",") + ["0", "0", "0"])[:7]
-    s = Searcher(net, a.roots, int(M), int(K), float(margin), seed=3, max_steps=300, conf=a.conf, pmin=float(pmin), force=bool(int(force)), greedy_roll=bool(int(gr)), full=bool(int(full)))
+    s = Searcher(net, a.roots, int(M), int(K), float(margin), seed=3, max_steps=300, conf=a.conf, pmin=float(pmin), force=bool(int(force)), greedy_roll=bool(int(gr)), full=bool(int(full)), value_nets=[load(c) for c in a.value_extra] or None)
     t = time.time()
     res = s.play(a.eval, verbose=False)
     dt = time.time() - t

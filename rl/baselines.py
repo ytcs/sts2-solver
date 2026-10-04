@@ -123,11 +123,8 @@ def main():
         elif name == "heuristic":
             pol = heuristic_policy()
         elif name.startswith("ckpt:"):  # a trained network, greedy
-            ck = torch.load(name[5:])
-            args = ck.get("args", {})
-            net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2))
-            net.load_state_dict(ck["net"] if "net" in ck else ck)
-            pol = net_policy(net.to(DEV).eval())
+            from search import load as load_ckpt  # one checkpoint, or several joined by commas (an ensemble)
+            pol = net_policy(load_ckpt(name[5:]))
         res = evaluate(pol, a.eval, a.envs, a.per_env, 777, a.max_steps, a.hp_bonus)
         print(name, json.dumps(res), flush=True)
 
