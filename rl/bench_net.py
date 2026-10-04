@@ -92,14 +92,18 @@ if a.profile:
     print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=18, max_name_column_width=60))
 
 if a.compile:
-    B = 4096
-    o = torch.from_numpy(obs[:B]).to(DEV)
-    m = torch.from_numpy(mask[:B]).to(DEV)
     net = nets["b128"]
-    cf = torch.compile(lambda o, m: net(o, m, value=False, E=a.E, L=64, has_dec=False), mode="max-autotune-no-cudagraphs")
-    with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+    for mode in ("default", "max-autotune-no-cudagraphs"):
+        torch._dynamo.reset()
+        cf = torch.compile(lambda o, m: net(o, m, value=False, E=a.E, L=64, has_dec=False), mode=mode, dynamic=True)
+        cv = torch.compile(lambda o: net(o, None, policy=False, E=a.E, L=64, has_dec=False), mode=mode, dynamic=True)
         t = time.time()
-        cf(o, m)
-        print(f"compile {time.time() - t:.0f}s")
-        g = graph(lambda: cf(o, m))
-        print(f"b128/bf16 compiled + graph pol B={B}: {timeit(g.replay):.2f} ms")
+        for B in (1024, 2048, 4096, 8192):
+            o = torch.from_numpy(obs[:B]).to(DEV)
+            m = torch.from_numpy(mask[:B]).to(DEV)
+            with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+                cf(o, m)
+                cv(o)
+                g = graph(lambda: cf(o, m))
+                gv = graph(lambda: cv(o))
+                print(f"{mode} dynamic B={B}: pol {timeit(g.replay):.2f} ms  val {timeit(gv.replay):.2f} ms   (elapsed incl. compile {time.time() - t:.0f}s)", flush=True)
