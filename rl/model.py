@@ -309,3 +309,15 @@ class Ensemble(nn.Module):
 
 def n_params(m):
     return sum(p.numel() for p in m.parameters())
+
+
+def load(path):
+    """A checkpoint, or several joined by commas (an `Ensemble`: mean policy log-probabilities, mean value), on `DEV` in eval mode."""
+    if isinstance(path, (list, tuple)) or "," in path:
+        parts = list(path) if isinstance(path, (list, tuple)) else path.split(",")
+        return Ensemble([load(p) for p in parts]).to(DEV).eval()
+    ck = torch.load(path, map_location="cpu")
+    args = ck.get("args", {})
+    net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2))
+    net.load_state_dict(ck["net"] if "net" in ck else ck)
+    return net.to(DEV).eval()

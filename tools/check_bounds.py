@@ -61,7 +61,7 @@ def main():
     pols = {"random": random_policy(1), "heuristic": heuristic_policy()}
     if a.ckpt:
         import torch
-        from search import load
+        from model import load
         from ppo import net_policy
         torch.set_num_threads(8)
         net = load(a.ckpt)

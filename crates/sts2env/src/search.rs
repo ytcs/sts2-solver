@@ -58,6 +58,24 @@ pub struct JobResult {
     pub done: bool,
 }
 
+/// One move of a recorded fight: the action played, and for searched decisions the options considered with their policy probabilities
+/// and estimated returns.
+#[derive(Clone, Copy, Debug)]
+pub struct MoveRec {
+    pub action: u16,
+    pub searched: bool,
+    pub opts: [u16; MAX_M],
+    pub p: [f32; MAX_M],
+    pub q: [f32; MAX_M],
+    pub legal: [bool; MAX_M],
+}
+
+impl MoveRec {
+    fn forced(action: u16) -> MoveRec {
+        MoveRec { action, searched: false, opts: [0; MAX_M], p: [0.0; MAX_M], q: [0.0; MAX_M], legal: [false; MAX_M] }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SearchStats {
     pub root_decisions: u64,
@@ -113,6 +131,10 @@ struct Block {
     rng: u64,
     opts: [i32; MAX_M],
     ok: [bool; MAX_M],
+    /// probabilities of the options of the current decision and the estimates of the finished search
+    probs: [f32; MAX_M],
+    qs: [f32; MAX_M],
+    log: Vec<MoveRec>,
     stats: SearchStats,
 }
 
@@ -154,6 +176,9 @@ struct Shared<'a> {
     jobs: &'a [(u32, u64)],
     next_job: AtomicUsize,
     results: SendPtr<JobResult>,
+    /// per-job move logs (empty unless the engine records)
+    logs: SendPtr<Vec<MoveRec>>,
+    record: bool,
 }
 
 fn splitmix(s: &mut u64) -> u64 {
@@ -291,7 +316,7 @@ impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
         let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0 }).collect();
-        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], stats: SearchStats::default() })
+        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], log: Vec::new(), stats: SearchStats::default() })
     }
 
     /// Takes the next job (if any) and sets the real fight up. Returns false when the queue is empty.
@@ -322,10 +347,17 @@ impl Block {
         let r = JobResult { scen: self.scen, outcome, hp_lost: self.hp0 - end_frac, hp_end: end_frac, len: self.steps, done: true };
         // SAFETY: every job index is taken by exactly one block (atomic counter), so this entry is written once and by this task only.
         unsafe { *sh.results.0.add(self.job as usize) = r };
+        if sh.record {
+            // SAFETY: as above, one writer per job.
+            unsafe { *sh.logs.0.add(self.job as usize) = std::mem::take(&mut self.log) };
+        }
     }
 
     /// Plays `act` in the real fight. Returns true if the job ended (and the next one could not be started: the block is idle).
-    fn main_act(&mut self, act: Action, sh: &Shared) -> bool {
+    fn main_act(&mut self, act: Action, sh: &Shared, rec: Option<MoveRec>) -> bool {
+        if sh.record {
+            self.log.push(rec.unwrap_or_else(|| MoveRec::forced(act.index() as u16)));
+        }
         let ok = self.main.step(act);
         self.steps += 1;
         let mut end = terminal(&self.main, self.steps, sh.cfg.max_steps, &sh.cfg).map(|t| t.0);
@@ -358,7 +390,7 @@ impl Block {
                 }
             } else if let Some(a) = forced_action(&self.main, &buf) {
                 self.stats.forced_root += 1;
-                if self.main_act(a, sh) {
+                if self.main_act(a, sh, None) {
                     self.st = RootSt::Idle;
                     return;
                 }
@@ -372,6 +404,22 @@ impl Block {
         }
     }
 
+    /// The record of the decision being played (None when the engine does not record).
+    fn move_rec(&self, action: i32, searched: bool, sh: &Shared) -> Option<MoveRec> {
+        if !sh.record {
+            return None;
+        }
+        let mut r = MoveRec::forced(action as u16);
+        r.searched = searched;
+        for j in 0..sh.cfg.m {
+            r.opts[j] = self.opts[j] as u16;
+            r.p[j] = self.probs[j];
+            r.legal[j] = self.ok[j];
+            r.q[j] = if searched && self.ok[j] { self.qs[j] } else { f32::NAN };
+        }
+        Some(r)
+    }
+
     /// The policy ranked the actions of the real fight's decision: play the best one or search.
     fn on_root_policy(&mut self, inp: &Inputs, row: usize, sh: &Shared, out: &Out) {
         let cfg = &sh.cfg;
@@ -382,14 +430,16 @@ impl Block {
         for j in 0..m {
             self.opts[j] = r[j] as i32;
             let p = r[m + j];
+            self.probs[j] = p;
             self.ok[j] = p > 0.0 && (p >= cfg.pmin || j == 0);
             n_legal += self.ok[j] as usize;
         }
         self.stats.root_decisions += 1;
         if n_legal <= 1 || r[m] >= cfg.conf {
             let a = Action::from_index(self.opts[0] as usize);
+            let rec = self.move_rec(self.opts[0], false, sh);
             let finished = match a {
-                Some(a) => self.main_act(a, sh),
+                Some(a) => self.main_act(a, sh, rec),
                 None => {
                     self.stats.illegal += 1;
                     self.record(sh, OUTCOME_TRUNCATED);
@@ -447,6 +497,7 @@ impl Block {
                 continue;
             }
             let q = self.sims[j * k..(j + 1) * k].iter().map(|s| s.est).sum::<f32>() / k as f32;
+            self.qs[j] = q;
             if j == 0 {
                 q0 = q;
             }
@@ -461,8 +512,9 @@ impl Block {
         for s in self.sims[..m * k].iter_mut() {
             s.st = SimSt::Idle;
         }
+        let rec = self.move_rec(self.opts[best], true, sh);
         let finished = match Action::from_index(self.opts[best] as usize) {
-            Some(a) => self.main_act(a, sh),
+            Some(a) => self.main_act(a, sh, rec),
             None => {
                 self.stats.illegal += 1;
                 self.record(sh, OUTCOME_TRUNCATED);
@@ -527,6 +579,8 @@ pub struct SearchEngine {
     jobs: Vec<(u32, u64)>,
     blocks: Vec<Block>,
     results: Vec<JobResult>,
+    logs: Vec<Vec<MoveRec>>,
+    record: bool,
     next_job: usize,
     pool: rayon::ThreadPool,
     started: bool,
@@ -534,7 +588,7 @@ pub struct SearchEngine {
 
 impl SearchEngine {
     /// `scen`: the distinct scenarios; `jobs`: one `(scenario index, seed)` per fight to play; `n_roots`: fights played at the same time.
-    pub fn new(scen: Vec<(Scenario, ScenarioExtras)>, jobs: Vec<(u32, u64)>, n_roots: usize, cfg: SearchCfg, threads: usize) -> Result<SearchEngine, EnvError> {
+    pub fn new(scen: Vec<(Scenario, ScenarioExtras)>, jobs: Vec<(u32, u64)>, n_roots: usize, cfg: SearchCfg, threads: usize, record: bool) -> Result<SearchEngine, EnvError> {
         if scen.is_empty() || cfg.m == 0 || cfg.m > MAX_M || cfg.k == 0 {
             return Err(EnvError::Buffer("bad search configuration"));
         }
@@ -553,7 +607,8 @@ impl SearchEngine {
         let n = n_roots.min(jobs.len()).max(1);
         let blocks: Result<Vec<Block>, EnvError> = pool.install(|| (0..n).into_par_iter().map(|_| Block::new(&scen[0].0, &scen[0].1, cfg.m * cfg.k)).collect());
         let results = vec![JobResult::default(); jobs.len()];
-        Ok(SearchEngine { cfg, scen, jobs, blocks: blocks?, results, next_job: 0, pool, started: false })
+        let logs = if record { vec![Vec::new(); jobs.len()] } else { Vec::new() };
+        Ok(SearchEngine { cfg, scen, jobs, blocks: blocks?, results, logs, record, next_job: 0, pool, started: false })
     }
 
     pub fn n_roots(&self) -> usize {
@@ -567,6 +622,11 @@ impl SearchEngine {
     /// Largest number of policy / value rows one call can request (size the buffers with it).
     pub fn max_rows(&self) -> (usize, usize) {
         (self.blocks.len() * (self.cfg.m * self.cfg.k + 1), self.blocks.len() * self.cfg.m * self.cfg.k)
+    }
+
+    /// The recorded moves of a finished job (empty unless the engine was created with `record`).
+    pub fn moves(&self, job: usize) -> &[MoveRec] {
+        self.logs.get(job).map(|v| v.as_slice()).unwrap_or(&[])
     }
 
     pub fn results(&self) -> &[JobResult] {
@@ -623,7 +683,7 @@ impl SearchEngine {
             n_pol: AtomicUsize::new(0),
             n_val: AtomicUsize::new(0),
         };
-        let sh = Shared { cfg: self.cfg, scen: &self.scen, jobs: &self.jobs, next_job: AtomicUsize::new(self.next_job), results: SendPtr(self.results.as_mut_ptr()) };
+        let sh = Shared { cfg: self.cfg, scen: &self.scen, jobs: &self.jobs, next_job: AtomicUsize::new(self.next_job), results: SendPtr(self.results.as_mut_ptr()), logs: SendPtr(self.logs.as_mut_ptr()), record: self.record };
         let inp = if first { None } else { Some(Inputs { pol: pol.unwrap(), val: val.unwrap() }) };
         let blocks = &mut self.blocks;
         self.pool.install(|| {
@@ -632,4 +692,26 @@ impl SearchEngine {
         self.next_job = sh.next_job.load(Ordering::Relaxed).min(self.jobs.len());
         Ok((out.n_pol.load(Ordering::Relaxed), out.n_val.load(Ordering::Relaxed)))
     }
+}
+
+/// Replays a recorded fight: the observation and action mask before every action (`actions.len() + 1` rows, the last one after the final action).
+/// The fight depends only on the scenario, the job seed and the actions (the real fight is never determinized).
+pub fn replay(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], obs: &mut [f32], mask: &mut [u8]) -> Result<usize, EnvError> {
+    scen.0.validate()?;
+    let mut cx = Combat::try_new_with(&scen.0, &scen.1)?;
+    cx.reset_validated(&scen.0, &scen.1, seed, RngSet::from_run_seed_fast(seed)).map_err(EnvError::Scenario)?;
+    let n = actions.len() + 1;
+    if obs.len() < n * OBS_SIZE || mask.len() < n * ACTION_SPACE {
+        return Err(EnvError::Buffer("replay buffers too small"));
+    }
+    for i in 0..n {
+        crate::write_obs_mask(&mut cx, &mut obs[i * OBS_SIZE..(i + 1) * OBS_SIZE], &mut mask[i * ACTION_SPACE..(i + 1) * ACTION_SPACE]);
+        if i < actions.len() {
+            match Action::from_index(actions[i] as usize) {
+                Some(a) if cx.step(a) => {}
+                _ => return Err(EnvError::Buffer("the recorded action is not legal: the replay diverged")),
+            }
+        }
+    }
+    Ok(n)
 }

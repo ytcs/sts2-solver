@@ -17,13 +17,13 @@ capacity overflow; never seen in the training distribution so far).
 | `rl/model.py` | policy/value network: entity encoders (player, enemies with intents + expert look-ahead, hand cards, potions, pending-selection candidates, pile multisets as card-embedding bags), pooled context, 2 message-passing rounds, **pointer action head** scoring exactly the env's dense action space; clicking an already selected card again is masked out |
 | `rl/ppo.py` | PPO (CPU), resumable checkpoints, held-out evaluation every N iterations |
 | `rl/baselines.py` | random, untrained-greedy, scripted heuristic; also evaluates any checkpoint (`ckpt:PATH`) |
-| `rl/search.py` | determinized play-out search on top of a network (below) |
-| `rl/exit.py` | expert iteration: collect search targets, distill them into the network |
+| `rl/fastsearch.py`, `crates/sts2env/src/search.rs` | determinized play-out search on top of a network: the Rust state machine and its network driver (below) |
 
 Observation features are signed-log scaled (`S(x) = sign(x) log(1+|x|)`): HP, damage, counters and power amounts are unbounded in this game
 (a first run without it showed value-loss spikes up to 1600 and a frozen policy).
 
-## Search (`rl/search.py`)
+## Search
+(The experiments below up to "Speed" were run with the first, python implementation of the search and with distillation / mining tools; those were removed once the Rust engine replaced them, last commit with them: 443d7e7. The method is the same.)
 `VecEnv.fork_from` copies a fight and **determinizes** it (`Combat::determinize`: draw / discard / exhaust orders and all nine RNG streams are
 resampled; everything the player can see is unchanged, tested). At each decision the policy's top-M legal actions are each played on K
 determinized copies (the same K seeds for every action: a paired comparison); a copy then follows the policy to the end of the
@@ -42,7 +42,7 @@ Eval set: `target/train/eval.json` (1500 fights, 5 characters, 3 acts, seed 22),
 | PPO, 2.5M steps (early) | 0.477 | 0.526 |
 | PPO, 60M steps (`models/solver_base.pt`) | 0.630 | 0.443 |
 
-Search on top (same fights, paired seeds; `rl/bench_search.py`):
+Search on top (same fights, paired seeds):
 
 | set | greedy policy | + search (5 options x 8 futures) |
 |---|---|---|
@@ -116,8 +116,8 @@ random: 14.5% / 0.686. By character (win, HP lost): Ironclad 0.757 / 0.318, Rege
 * Cost of this whole session on Runpod: about $8.5 of the $50 budget (secure-cloud 4090 at $0.74/h for 11.3 h plus about $0.12 of failed community-cloud attempts).
 
 ## Speed: the Rust search engine (about 45x, same strength)
-The python search (`rl/search.py`) did 4.4 fights/s on the pod. The default `Solver` now runs **190+ fights/s** on the same pod (RTX 4090, 16 vCPUs) at the same
-or better strength. Where the time went and what changed (counters: `rl/profile_search.py`, `rl/bench_fast.py`; 300 fights of the eval set unless noted):
+The first, python search did 4.4 fights/s on the pod. The default `Solver` now runs **190+ fights/s** on the same pod (RTX 4090, 16 vCPUs) at the same
+or better strength. Where the time went and what changed (counters: `rl/bench_fast.py`; 300 fights of the eval set unless noted):
 
 | | before (python search) | after |
 |---|---|---|
@@ -158,7 +158,7 @@ Not done: more overlap between the CPU engine (37% of the wall time) and the GPU
 ## The solver API (`rl/solver.py`)
 `Solver().solve(scenarios, attempts=32)` (the Rust engine; `engine="py"` selects the python search, which the analysis tools use) plays `attempts` fights of every scenario (deck variants ...) with the network + search, all together in large
 batches, and returns win rate (+ standard error), mean HP lost (losses charged in full), HP left on wins. 576 fights (9 deck variants x 64) took 65 s.
-`rl/whatif.py` (card removal, split timing), `rl/potion_whatif.py`, `rl/trace.py` (play-by-play page of the best / worst line) build on the same pieces.
+`rl/whatif.py` (card removal / addition), `rl/trace.py` (play-by-play page of the best / worst line) build on the same pieces.
 
 ## Provably unwinnable fights (`sts2sim::bounds`, `sts2.provably_unwinnable`)
 Many generated fights cannot be won by anyone (a starter deck against a boss). `provably_unwinnable(scenario)` returns a sentence proving it, or `None`

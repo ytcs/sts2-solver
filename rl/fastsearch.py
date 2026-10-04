@@ -88,7 +88,7 @@ class GraphFn:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -101,6 +101,8 @@ class FastSearch:
         self.stats = {}
         self.cuda = DEV.type == "cuda"
         self.graph_E = graph_E
+        self.record = record  # keep the moves of every fight (`moves`, `replay`): play-by-play traces
+        self._runs = []
         self.amp = amp  # bf16 autocast inside the graphs (the networks are compute-bound there)
         self.value_amp = amp if value_amp is None else value_amp
         self.buckets = (1024, 2048, 4096, 8192, 16384) if buckets is None else buckets
@@ -274,7 +276,7 @@ class FastSearch:
             if len(idx) == 0:
                 continue
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, self.pmin, self.margin,
-                                     self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads)
+                                     self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record)
             pc, vc = eng.max_rows()
             pin = self.cuda
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)
@@ -315,6 +317,8 @@ class FastSearch:
                 self.timers["launch net"] += time.perf_counter() - t
             if verbose and cycles % 200 == 0:
                 print(f"  cycle {cycles}, {sum(int(G['eng'].results_done()) for G in groups) if hasattr(groups[0]['eng'], 'results_done') else '?'}", flush=True)
+        self._runs = [(G["idx"], G["eng"]) for G in groups]
+        self._seeds, self._scen, self._job_scen = job_seed, scenarios, job_scen
         out = np.zeros((nj, 6), np.float32)
         for G in groups:
             r = np.zeros((len(G["idx"]), 6), np.float32)
@@ -326,3 +330,22 @@ class FastSearch:
         self.stats = dict(tot, cycles=cycles, rows_per_cycle=rows / max(cycles, 1))
         self.timers["run"] += time.perf_counter() - t0
         return out
+
+    def trace(self, job):
+        """The recorded fight of `job` of the latest run (needs `record=True`): a list of steps `dict(obs, a, info)` (the last one has a=None),
+        where `info` (searched decisions only) holds the options considered: acts, p (policy probability), q (estimated return), legal."""
+        for idx, eng in self._runs:
+            pos = np.searchsorted(idx, job)
+            if pos < len(idx) and idx[pos] == job:
+                acts, searched, opts, p, q, legal = eng.moves(int(pos))
+                break
+        else:
+            raise KeyError(job)
+        scen = self._scen[int(self._job_scen[job])]
+        obs, mask = sts2.replay(scen, self._seeds[job], acts)
+        steps = []
+        for i, a in enumerate(acts):
+            info = dict(acts=opts[i, :self.M].tolist(), p=p[i, :self.M].tolist(), q=q[i, :self.M].tolist(), legal=legal[i, :self.M].astype(bool).tolist()) if searched[i] else None
+            steps.append(dict(obs=obs[i], a=int(a), info=info))
+        steps.append(dict(obs=obs[len(acts)], a=None, info=None))
+        return steps

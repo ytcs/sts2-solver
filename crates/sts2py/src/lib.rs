@@ -101,7 +101,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         scenarios_json: Vec<String>,
@@ -119,6 +119,7 @@ impl SearchEnginePy {
         loss: f32,
         hp_bonus: f32,
         threads: usize,
+        record: bool,
     ) -> PyResult<Self> {
         let mut scs = vec![];
         for s in scenarios_json {
@@ -130,7 +131,7 @@ impl SearchEnginePy {
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
         let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus };
-        let eng = sts2env::search::SearchEngine::new(scs, jobs, n_roots, cfg, threads).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
+        let eng = sts2env::search::SearchEngine::new(scs, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
         Ok(SearchEnginePy { eng })
     }
 
@@ -191,6 +192,33 @@ impl SearchEnginePy {
         Ok(())
     }
 
+    /// Recorded moves of a finished job: `(actions [n] i32, searched [n] u8, options [n, M] i32, probabilities [n, M] f32, estimates [n, M] f32 (NaN: not tried), legal [n, M] u8)`.
+    #[allow(clippy::type_complexity)]
+    fn moves<'py>(&self, py: Python<'py>, job: usize) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        use numpy::{PyArray1, PyArrayMethods};
+        let mv = self.eng.moves(job);
+        let m = sts2env::search::MAX_M;
+        let a: Vec<i32> = mv.iter().map(|x| x.action as i32).collect();
+        let sr: Vec<u8> = mv.iter().map(|x| x.searched as u8).collect();
+        let opts: Vec<i32> = mv.iter().flat_map(|x| x.opts.iter().map(|&o| o as i32)).collect();
+        let p: Vec<f32> = mv.iter().flat_map(|x| x.p.iter().copied()).collect();
+        let q: Vec<f32> = mv.iter().flat_map(|x| x.q.iter().copied()).collect();
+        let lg: Vec<u8> = mv.iter().flat_map(|x| x.legal.iter().map(|&b| b as u8)).collect();
+        let n = mv.len();
+        let t = pyo3::types::PyTuple::new(
+            py,
+            [
+                PyArray1::from_vec(py, a).into_any(),
+                PyArray1::from_vec(py, sr).into_any(),
+                PyArray1::from_vec(py, opts).reshape([n, m])?.into_any(),
+                PyArray1::from_vec(py, p).reshape([n, m])?.into_any(),
+                PyArray1::from_vec(py, q).reshape([n, m])?.into_any(),
+                PyArray1::from_vec(py, lg).reshape([n, m])?.into_any(),
+            ],
+        )?;
+        Ok(t)
+    }
+
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
         let s = self.eng.stats();
         let d = pyo3::types::PyDict::new(py);
@@ -209,6 +237,20 @@ impl SearchEnginePy {
         d.set_item("end_stuck", s.end_stuck)?;
         Ok(d)
     }
+}
+
+/// Replays a recorded fight (`SearchEnginePy.moves`): `(obs [n + 1, OBS], mask [n + 1, ACTIONS])` before every action and after the last one.
+#[pyfunction]
+fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReadonlyArray1<i32>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
+    use numpy::{PyArray1, PyArrayMethods};
+    let v: serde_json::Value = serde_json::from_str(scenario_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let scen = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
+    let acts: Vec<u16> = actions.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?.iter().map(|&a| a as u16).collect();
+    let n = acts.len() + 1;
+    let mut obs = vec![0f32; n * sts2env::OBS];
+    let mut mask = vec![0u8; n * sts2env::ACTIONS];
+    sts2env::search::replay(&scen, seed, &acts, &mut obs, &mut mask).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
+    Ok((PyArray1::from_vec(py, obs).reshape([n, sts2env::OBS])?, PyArray1::from_vec(py, mask).reshape([n, sts2env::ACTIONS])?))
 }
 
 #[pyfunction]
@@ -270,6 +312,7 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SearchEnginePy>()?;
     m.add("BatchEnv", m.getattr("BatchEnvPy")?)?;
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;
+    m.add_function(wrap_pyfunction!(replay, m)?)?;
     m.add_function(wrap_pyfunction!(action_space, m)?)?;
     m.add_function(wrap_pyfunction!(layout, m)?)?;
     m.add_function(wrap_pyfunction!(names, m)?)?;

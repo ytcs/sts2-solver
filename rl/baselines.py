@@ -123,7 +123,7 @@ def main():
         elif name == "heuristic":
             pol = heuristic_policy()
         elif name.startswith("ckpt:"):  # a trained network, greedy
-            from search import load as load_ckpt  # one checkpoint, or several joined by commas (an ensemble)
+            from model import load as load_ckpt  # one checkpoint, or several joined by commas (an ensemble)
             pol = net_policy(load_ckpt(name[5:]))
         res = evaluate(pol, a.eval, a.envs, a.per_env, 777, a.max_steps, a.hp_bonus)
         print(name, json.dumps(res), flush=True)

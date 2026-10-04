@@ -7,7 +7,7 @@ import argparse, json, os, sys, time
 import numpy as np
 import torch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from search import load
+from model import load
 from solver import DEFAULT_CKPT, DEFAULT_VALUE_CKPTS
 from fastsearch import FastSearch
 

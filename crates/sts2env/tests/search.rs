@@ -51,7 +51,7 @@ fn answer(obs: &[f32], mask: &[u8], m: usize, out: &mut [f32]) {
 
 fn run(threads: usize, n_roots: usize, jobs: Vec<(u32, u64)>, cfg: SearchCfg) -> (Vec<JobResult>, SearchStats) {
     let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default()), (scenario(14, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
-    let mut eng = SearchEngine::new(scen, jobs, n_roots, cfg, threads).unwrap();
+    let mut eng = SearchEngine::new(scen, jobs, n_roots, cfg, threads, false).unwrap();
     let (pc, vc) = eng.max_rows();
     let (mut po, mut pm, mut pk, mut vo, mut vk) = (vec![0f32; pc * OBS_SIZE], vec![0u8; pc * ACTION_SPACE], vec![0u8; pc], vec![0f32; vc * OBS_SIZE], vec![0u8; vc]);
     let stride = 2 * cfg.m + 1;

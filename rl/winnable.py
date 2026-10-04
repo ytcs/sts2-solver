@@ -13,7 +13,7 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
-from search import load
+from model import load
 from ppo import net_policy
 
 

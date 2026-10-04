@@ -15,7 +15,7 @@ Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py);
 import json
 import numpy as np
 
-from ._sts2 import SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable  # noqa: F401
+from ._sts2 import replay as _replay, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )
@@ -70,3 +70,9 @@ class VecEnv:
         self._env.episode_info(self._ep)
         e = self._ep
         return {"scenario": e[:, 0].astype(np.int32), "hp_lost": e[:, 1], "hp_end": e[:, 2], "length": e[:, 3].astype(np.int32)}
+
+
+def replay(scenario, seed, actions):
+    """Replays a fight recorded by the search engine (`SearchEngine.moves`): `(obs [n + 1, OBS_SIZE], mask [n + 1, ACTIONS])` before every action
+    and after the last one. `seed` is the job seed of the fight; the real fight depends on nothing else."""
+    return _replay(json.dumps(scenario), int(seed), np.ascontiguousarray(actions, np.int32))

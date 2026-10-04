@@ -66,7 +66,7 @@ obs, mask, reward, done, info = env.step(actions)         # actions: int32 dense
 
 ## Combat solver
 `rl/` trains and runs a solver on this environment: win first, then lose as little HP as possible. A PPO-trained policy/value network (entity encoders
-+ pointer action head over the env's dense action space) plays every fight; `rl/search.py` improves it at test time by determinized play-outs
++ pointer action head over the env's dense action space) plays every fight; `rl/fastsearch.py` + `crates/sts2env/src/search.rs` improve it at test time by determinized play-outs
 (`VecEnv.fork_from` copies a fight and resamples exactly the information a player cannot see), with a value ensemble: on a held-out set of 1,500 A10 fights
 (5 characters, 3 acts) the solver wins **72.6%** and loses 36% of max HP on average (network alone 65.5% / 42%, scripted heuristic 36% / 57%, random 14.5% / 69%);
 `rl/solver.py` solves many deck variants at about 190 fights/s on a GPU box (search as a Rust state machine + CUDA-graph networks). `sts2.provably_unwinnable(scenario)` proves some fights
@@ -75,7 +75,7 @@ lost for any play (e.g. the starter deck against a boss). Numbers, baselines and
 .venv/bin/python tools/gen_train.py --n 6000 --seed 11 --out target/train/train.json     # realistic A10 fights
 .venv/bin/python rl/ppo.py --train target/train/train.json --eval target/train/eval.json --out target/runs/a
 .venv/bin/python rl/baselines.py --eval target/train/eval.json --policies random,heuristic,ckpt:target/runs/a/ckpt.pt
-.venv/bin/python rl/search.py --ckpt target/runs/a/ckpt.pt --eval target/train/eval.json --roots 200 --M 4 --K 4
+.venv/bin/python rl/solver.py --scenarios target/train/eval.json --attempts 2      # network + search (the default solver) on the eval set
 ```
 
 ## How fidelity is guaranteed

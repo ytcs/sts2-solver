@@ -11,11 +11,10 @@ the same information the agent had. Without `--standalone` the file is a page fr
 """
 import argparse, collections, json, os, sys
 import numpy as np
-import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
-from search import Searcher, load
+from solver import Solver
 
 LAY = sts2.layout()
 C = LAY["consts"]
@@ -480,16 +479,18 @@ function bars(rows, base, fmtv) {
 if (DATA.analysis) {
   const A = DATA.analysis, two = $('div', 'two');
   const p1 = $('section', 'panel');
-  p1.append($('h2', '', 'Which card matters'), $('p', 'sub', 'Win rate when one copy of a card is taken out of the deck, against ' + Math.round(A.base.win * 100) + '% with the full deck (' + A.n + ' attempts each, model alone). Green: the deck is better without it.'));
+  p1.append($('h2', '', 'Which card matters'), $('p', 'sub', 'Win rate when one copy of a card is taken out of the deck, against ' + Math.round(A.base.win * 100) + '% with the full deck (' + A.n + ' attempts each). Green: the deck is better without it.'));
   const rows = A.removal.slice().sort((a, b) => b.win - a.win).map(r => [r.card + (r.copies > 1 ? ' (×' + r.copies + ')' : ''), r.win, r]);
   p1.append(bars(rows, A.base.win, (d, v) => (d >= 0 ? '+' : '') + Math.round(d * 100) + ' pts'));
   const p2 = $('section', 'panel');
+  if (A.split && A.split.length) {
   p2.append($('h2', '', 'When to split the Parasite'), $('p', 'sub', 'The Parasite bursts into Wrigglers when it dies. Win rate when the model may not kill it before turn T (T = 1 is no restriction; the model never manages it before turn 2).'));
   const rows2 = A.split.map(r => ['not before turn ' + r.T, r.win, r]);
   p2.append(bars(rows2, A.split[0].win, (d, v, r) => Math.round(v * 100) + '%'));
   const obs = Object.entries(A.split_observed || {});
   if (obs.length) p2.append($('p', 'note', 'Left alone, the model splits on ' + obs.map(([t, o]) => 'turn ' + t + ' in ' + Math.round(o.share * 100) + '% of fights (' + Math.round(o.win * 100) + '% won)').join(', ') + '.'));
-  two.append(p1, p2); app.append(two);
+  }
+  two.append(p1); if (A.split && A.split.length) two.append(p2); app.append(two);
   if (A.potion) {
     const P = A.potion, pp = $('section', 'panel');
     pp.append($('h2', '', 'When to drink the Duplicator'), $('p', 'sub', 'The model drinks it on turn 1 in every fight, whatever it holds: it ends up duplicating ' + P.dup.slice(0, 4).map(d => d.card + ' (' + Math.round(d.share * 100) + '% of fights, ' + Math.round(d.win * 100) + '% won)').join(', ') + '. Win rate under forced rules, model alone:'));
@@ -528,37 +529,29 @@ def scenario_summary(scen):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ckpt", required=True)
     ap.add_argument("--scenario", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--roots", type=int, default=120)
+    ap.add_argument("--attempts", type=int, default=120)
     ap.add_argument("--M", type=int, default=5)
     ap.add_argument("--K", type=int, default=8)
-    ap.add_argument("--greedy", action="store_true")
+    ap.add_argument("--greedy", action="store_true", help="the network alone, no search")
     ap.add_argument("--seed", type=int, default=11)
-    ap.add_argument("--threads", type=int, default=6)
     ap.add_argument("--standalone", action="store_true")
     ap.add_argument("--title")
-    ap.add_argument("--potion", help="JSON written by rl/potion_whatif.py")
-    ap.add_argument("--analysis", help="JSON written by rl/whatif.py: adds the card-removal and split-timing panels")
+    ap.add_argument("--analysis", help="JSON written by rl/whatif.py: adds the card-removal panel")
     a = ap.parse_args()
-    torch.set_num_threads(a.threads)
     scen = json.load(open(a.scenario))
-    tmp = a.out + ".scenarios.json"
-    json.dump([scen], open(tmp, "w"))
-    net = load(a.ckpt)
-    trace = [[] for _ in range(a.roots)]
-    s = Searcher(net, a.roots, a.M, a.K, 0.0, seed=a.seed, max_steps=300, conf=(0.0 if a.greedy else 1.01))
-    if a.greedy:
-        s.conf = 0.0  # never search: the policy's own top action
-    rec = s.play(tmp, seed=a.seed, verbose=False, with_records=True, trace=trace)
-    os.remove(tmp)
-    rec = [tuple(r) for r in rec]
+    S = Solver(M=a.M, K=a.K, conf=(0.0 if a.greedy else 1.01), roots=min(a.attempts, 512), groups=1)
+    S.fs.record = True
+    seeds = np.uint64(a.seed) * np.uint64(1_000_003) + np.arange(a.attempts, dtype=np.uint64)
+    raw = S.fs.run([scen], np.zeros(a.attempts, np.uint32), seeds)
+    rec = [(0, int(r[1]), float(r[2]), int(r[4]), float(r[3])) for r in raw]  # scenario, outcome, hp_lost, length, hp_end
+    trace = {i: S.fs.trace(i) for i in range(a.attempts) if rec[i][1] in (1, -1, 2)}
     wins = [r for r in rec if r[1] == 1]
     mode = "the policy alone (greedy)" if a.greedy else f"policy + search ({a.M} options × {a.K} simulated futures per decision)"
     data = dict(
         title=a.title or f"{title(scen['encounter'])}: play by play",
-        subtitle=f"{title(scen['character'])} against {title(scen['encounter'])}, played by the trained model. The best and the worst of {a.roots} attempts at the same fight.",
+        subtitle=f"{title(scen['character'])} against {title(scen['encounter'])}, played by the trained model. The best and the worst of {a.attempts} attempts at the same fight.",
         scenario=scenario_summary(scen),
         stats=dict(attempts=len(rec), wins=len(wins), hp_left_on_win=(float(np.mean([r[4] for r in wins])) * scen["max_hp"] if wins else 0.0), mode=mode),
         note="Every line is read from what the agent saw (hand, piles, enemy intents), the same information a player has. The agent does not see the order of its draw pile or any random outcome in advance. “Search value” is the average final score of the simulated futures after that option: +1 for a win (up to +0.5 more for HP left), −1 for a loss.",
@@ -577,13 +570,8 @@ def main():
     if a.analysis:
         w = json.load(open(a.analysis))
         data["analysis"] = dict(base=w["base"], n=w["base"]["n"], removal=[dict(card=title(r["card"].rstrip("+")) + ("+" if r["card"].endswith("+") else ""), copies=r["copies"], win=r["win"]) for r in w["removal"]],
-                                split=[dict(T=r["T"], win=r["win"]) for r in w["split"]], split_observed=w.get("split_observed", {}),
-                                search=({k: v for k, v in w["search"].items()} if w.get("search") else None), search_roots=240)
-    if a.potion and "analysis" in data:
-        pw = json.load(open(a.potion))
-        rules = [dict(rule=k, win=v) for k, v in pw.items() if k not in ("free", "dup", "ps_open")]
-        data["analysis"]["potion"] = dict(free=pw["free"], ps_open=pw.get("ps_open", 0.34), rules=rules,
-                                          dup=[dict(card=title(k.rstrip("+")) + ("+" if k.endswith("+") else ""), share=v["share"], win=v["win"]) for k, v in pw["dup"].items()])
+                                split=[dict(T=r["T"], win=r["win"]) for r in w.get("split", [])], split_observed=w.get("split_observed", {}),
+                                search=({k: v for k, v in w["search"].items()} if w.get("search") else None), search_roots=a.attempts)
     for key, i in chosen.items():
         st = story(trace[i])
         st.update(outcome=key, steps=len(trace[i]) - 1)

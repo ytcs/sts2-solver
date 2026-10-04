@@ -5,7 +5,7 @@ import numpy as np
 import torch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
-from search import load
+from model import load
 from fastsearch import host_shapes
 from solver import DEFAULT_CKPT
 from model import DEV

@@ -482,7 +482,7 @@ fn observe_one(s: &mut Slot, obs: &mut [f32], mask: &mut [u8]) {
 
 /// Observation + action mask of one env. `can_play` of the hand is evaluated once (by `legal_actions_ex`) and shared with the
 /// observation. Temporaries of both can overflow too: a flag raised here ends the episode on the next step.
-fn write_obs_mask(cx: &mut Combat, obs: &mut [f32], mask: &mut [u8]) {
+pub(crate) fn write_obs_mask(cx: &mut Combat, obs: &mut [f32], mask: &mut [u8]) {
     let mut buf = sts2sim::engine::ActionBuf::new();
     let mut playable = 0u16;
     cx.legal_actions_ex(&mut buf, &mut playable);
