@@ -114,7 +114,7 @@ class GraphFn:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=False, strat=False):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
