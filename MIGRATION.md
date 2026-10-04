@@ -1,8 +1,7 @@
 # Moving the workspace to a new machine (GPU)
 
 Everything needed to continue is in this repository except three things that must not be redistributed or are rebuilt locally:
-the game install (`sts2.dll`), the decompiled game source (`decomp/`), and build outputs (`target/`, `.venv/`). The repository is **private**:
-the simulator is a port of the game's logic.
+the game install (`sts2.dll`), the decompiled game source (`decomp/`), and build outputs (`target/`, `.venv/`). The repository is public (no secrets in it, but note the simulator is a port of the game's logic; `decomp/` and the game files are gitignored):
 
 ## 1. Prerequisites
 | need | why | notes |
