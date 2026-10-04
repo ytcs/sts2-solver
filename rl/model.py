@@ -244,7 +244,7 @@ class Net(nn.Module):
         ep, hp_, pot_p, cand_p = z["ep"].unsqueeze(-1), z["hp"].unsqueeze(-1), z["pot_p"].unsqueeze(-1), z["cand_p"].unsqueeze(-1)
         rows = z["rows"]
         E = enemy.shape[1]
-        zeros_c = torch.zeros(B, d, device=obs.device)
+        zeros_c = torch.zeros(B, d, device=obs.device, dtype=player.dtype)
         pile_cat = torch.cat(z["piles"], 1)
         dec = z["dec"]
         for r in range(self.rounds):
@@ -272,7 +272,7 @@ class Net(nn.Module):
         pick = torch.zeros(B, C["MAX_PICK"], device=obs.device)
         if len(rows):
             pv_ = self.pick(torch.cat([cand, dec[rows].unsqueeze(1).expand(-1, Q, -1)], -1)).squeeze(-1)
-            pick = pick.index_copy(0, rows, F.pad(pv_, (0, C["MAX_PICK"] - Q)))
+            pick = pick.to(pv_.dtype).index_copy(0, rows, F.pad(pv_, (0, C["MAX_PICK"] - Q)))
         confirm = self.confirm(torch.cat([dec, player], 1))
         end = self.end(gctx)
         logits = torch.cat([end, play.flatten(1), pot_l.flatten(1), disc, pick, confirm], 1)
