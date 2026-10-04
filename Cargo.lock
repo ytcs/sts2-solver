@@ -342,6 +342,8 @@ name = "sts2env"
 version = "0.1.0"
 dependencies = [
  "rayon",
+ "serde_json",
+ "sts2diff",
  "sts2sim",
 ]
 

@@ -40,6 +40,8 @@ pub struct SearchCfg {
     pub margin: f32,
     /// Play-outs stop after this many steps (no bootstrap).
     pub roll_cap: u32,
+    /// A play-out asks the value network for the state it has reached after this many policy decisions (instead of playing on to the end of the turn).
+    pub depth: u32,
     /// A fight is truncated after this many steps of the real fight.
     pub max_steps: u32,
     pub win: f32,
@@ -91,6 +93,26 @@ pub struct SearchStats {
     pub end_term: u64,
     pub end_cap: u64,
     pub end_stuck: u64,
+    pub end_depth: u64,
+    /// time stamp counter ticks spent in: `step`, legal actions, observation rows (policy / value), forks (clone + determinize), the rest of the real fight's moves
+    pub cy_step: u64,
+    pub cy_legal: u64,
+    pub cy_obs: u64,
+    pub cy_fork: u64,
+    pub cy_main: u64,
+}
+
+#[inline(always)]
+fn tsc() -> u64 {
+    #[cfg(target_arch = "x86_64")]
+    // SAFETY: rdtsc has no preconditions.
+    unsafe {
+        core::arch::x86_64::_rdtsc()
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        0
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -110,6 +132,8 @@ struct Sim {
     start_turn: i32,
     est: f32,
     steps: u32,
+    /// policy decisions taken after the first action
+    pdec: u32,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -261,7 +285,9 @@ fn val_row(out: &Out, cx: &Combat) -> usize {
 #[inline(never)]
 fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut SearchStats) {
     loop {
+        let t0 = tsc();
         let ok = sim.cx.step(act);
+        st.cy_step += tsc() - t0;
         sim.steps += 1;
         st.sim_steps += 1;
         if !ok {
@@ -278,9 +304,11 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
             return;
         }
         if sim.cx.player.turn_number > sim.start_turn {
+            let t0 = tsc();
             let row = val_row(out, &sim.cx);
             let buf = ActionBuf::new();
             write_row(&mut sim.cx, &buf, None, out.val_obs, None, row);
+            st.cy_obs += tsc() - t0;
             st.value_rows += 1;
             st.end_turn += 1;
             sim.st = SimSt::Val(row as u32);
@@ -293,7 +321,9 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
         }
         let mut buf = ActionBuf::new();
         let mut playable = 0u16;
+        let t0 = tsc();
         sim.cx.legal_actions_ex(&mut buf, &mut playable);
+        st.cy_legal += tsc() - t0;
         if buf.is_empty() {
             sim.st = SimSt::Done;
             st.end_stuck += 1;
@@ -302,9 +332,23 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
         if let Some(a) = forced_action(&sim.cx, &buf) {
             act = a;
             st.forced_sim += 1;
+        } else if sim.pdec >= cfg.depth {
+            // deep enough: the value network judges the state as it stands
+            let t0 = tsc();
+            let row = val_row(out, &sim.cx);
+            let buf = ActionBuf::new();
+            write_row(&mut sim.cx, &buf, None, out.val_obs, None, row);
+            st.cy_obs += tsc() - t0;
+            st.value_rows += 1;
+            st.end_depth += 1;
+            sim.st = SimSt::Val(row as u32);
+            return;
         } else {
+            sim.pdec += 1;
+            let t0 = tsc();
             let row = pol_row(out, true, &sim.cx);
             write_row(&mut sim.cx, &buf, Some(playable), out.pol_obs, Some(out.pol_mask), row);
+            st.cy_obs += tsc() - t0;
             st.policy_rows += 1;
             sim.st = SimSt::Pol(row as u32);
             return;
@@ -315,7 +359,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
 impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
-        let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0 }).collect();
+        let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, pdec: 0 }).collect();
         Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], log: Vec::new(), stats: SearchStats::default() })
     }
 
@@ -358,7 +402,9 @@ impl Block {
         if sh.record {
             self.log.push(rec.unwrap_or_else(|| MoveRec::forced(act.index() as u16)));
         }
+        let t0 = tsc();
         let ok = self.main.step(act);
+        self.stats.cy_main += tsc() - t0;
         self.steps += 1;
         let mut end = terminal(&self.main, self.steps, sh.cfg.max_steps, &sh.cfg).map(|t| t.0);
         if !ok {
@@ -463,11 +509,14 @@ impl Block {
                     sim.st = SimSt::Idle;
                     continue;
                 }
+                let t0 = tsc();
                 sim.cx.clone_from(&self.main);
                 sim.cx.determinize(ks[kk]);
+                self.stats.cy_fork += tsc() - t0;
                 sim.start_turn = turn;
                 sim.est = 0.0;
                 sim.steps = 0;
+                sim.pdec = 0;
                 self.stats.forks += 1;
                 match Action::from_index(self.opts[j] as usize) {
                     Some(a) => sim_run(sim, a, cfg, out, &mut self.stats),
@@ -650,6 +699,12 @@ impl SearchEngine {
             t.end_term += s.end_term;
             t.end_cap += s.end_cap;
             t.end_stuck += s.end_stuck;
+            t.end_depth += s.end_depth;
+            t.cy_step += s.cy_step;
+            t.cy_legal += s.cy_legal;
+            t.cy_obs += s.cy_obs;
+            t.cy_fork += s.cy_fork;
+            t.cy_main += s.cy_main;
         }
         t
     }

@@ -48,7 +48,7 @@ for cfg in a.configs:
             policy = v
         elif k in ("amp", "value_amp"):
             kw[k] = bool(int(v))
-        elif k in ("M", "K", "roll_cap", "graph_E", "roots", "groups"):
+        elif k in ("M", "K", "roll_cap", "graph_E", "roots", "groups", "depth"):
             kw[k] = int(v)
         else:
             kw[k] = float(v)

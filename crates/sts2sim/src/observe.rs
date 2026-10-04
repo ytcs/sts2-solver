@@ -80,6 +80,27 @@ impl W<'_> {
     }
 }
 
+/// Cycle counters per section of `observe_ex` (feature `obs_prof`; not thread safe, diagnostics only).
+#[cfg(feature = "obs_prof")]
+pub static mut OBS_PROF: [u64; 16] = [0; 16];
+#[cfg(feature = "obs_prof")]
+#[inline(always)]
+fn tsc() -> u64 {
+    // SAFETY: rdtsc has no preconditions.
+    unsafe { core::arch::x86_64::_rdtsc() }
+}
+macro_rules! prof {
+    ($k:expr, $t:ident, $body:block) => {{
+        #[cfg(feature = "obs_prof")]
+        let $t = tsc();
+        $body
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            OBS_PROF[$k] += tsc() - $t;
+        }
+    }};
+}
+
 impl Combat {
     /// Intent damage as the UI computes it: `Hook.ModifyDamage(dealer = monster, target = player, Move)` floored at 0.
     pub fn intent_damage(&self, monster: Cid, base: i32) -> i32 {
@@ -190,6 +211,7 @@ impl Combat {
         w.n(self.hist.skills_played_this_turn as i32);
         w.n(self.ascension as i32);
         // ---- player ----
+        prof!(5, t5, {
         w.n(me.hp);
         w.n(me.max_hp);
         w.n(me.block);
@@ -206,6 +228,7 @@ impl Combat {
             w.n(crate::content::relic_listener(r.id).meta_display(self, r).unwrap_or(0));
         }
         w.zeros((MAX_RELICS - n_relics) * 2);
+        });
         for k in 0..MAX_POTIONS {
             match self.player.potions[k] {
                 Some(p) => {
@@ -216,6 +239,7 @@ impl Combat {
             }
         }
         // ---- hand (ordered) ----
+        prof!(1, t1, {
         for k in 0..MAX_HAND {
             match self.player.hand.get(k) {
                 Some(c) => {
@@ -225,14 +249,18 @@ impl Combat {
                 None => w.zeros(CARD_F),
             }
         }
+        });
         // ---- piles ----
+        prof!(2, t2, {
         self.write_pile_list(&mut w, self.player.draw.as_slice(), true);
         self.write_pile_list(&mut w, self.player.discard.as_slice(), true);
         self.write_pile_list(&mut w, self.player.exhaust.as_slice(), true);
+        });
         w.n(self.player.draw.len() as i32);
         w.n(self.player.discard.len() as i32);
         w.n(self.player.exhaust.len() as i32);
         // ---- enemies (list order) ----
+        prof!(3, t3, {
         for k in 0..OBS_MAX_ENEMIES {
             let Some(e) = self.enemies.get(k) else {
                 w.zeros(ENEMY_F);
@@ -283,6 +311,7 @@ impl Combat {
                 w.n(if ms.performed[j] == NO { 0 } else { ms.performed[j] as i32 + 1 });
             }
         }
+        });
         // ---- pending decision ----
         match &self.decision {
             Some(d) => {
@@ -361,6 +390,7 @@ impl Combat {
         }
         w.n(self.hist_log.lightning_channeled as i32);
         // ---- expert pattern knowledge about upcoming enemy turns (appended) ----
+        prof!(4, t4, {
         for k in 0..OBS_MAX_ENEMIES {
             match self.enemies.get(k) {
                 Some(e) if self.cr(e).is_alive() => {
@@ -374,6 +404,7 @@ impl Combat {
                 _ => w.zeros(LOOK_H * (LOOK_NODES + 1)),
             }
         }
+        });
         debug_assert_eq!(w.i, OBS_SIZE);
         OBS_SIZE
     }
