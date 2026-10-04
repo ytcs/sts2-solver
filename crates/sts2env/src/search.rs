@@ -45,6 +45,9 @@ pub struct SearchCfg {
     pub lead: bool,
     /// The shared prefix follows the policy's most probable action (no sampling).
     pub lead_greedy: bool,
+    /// When the policy itself ends the turn inside a shared prefix, the value network judges the state it ended the turn in (no futures, no enemy turn):
+    /// the value head is trained on exactly those states.
+    pub end_value: bool,
     /// A play-out asks the value network for the state it has reached after this many policy decisions (instead of playing on to the end of the turn).
     pub depth: u32,
     /// A fight is truncated after this many steps of the real fight.
@@ -105,6 +108,7 @@ pub struct SearchStats {
     pub lead_clean: u64,
     pub lead_prefix_steps: u64,
     pub lead_first_unclean: u64,
+    pub lead_endvalue: u64,
     /// time stamp counter ticks spent in: `step`, legal actions, observation rows (policy / value), forks (clone + determinize), the rest of the real fight's moves
     pub cy_step: u64,
     pub cy_legal: u64,
@@ -630,6 +634,17 @@ impl Block {
             sim_run(lead, act, cfg, out, &mut self.stats, Some(&mut scratch.cx))
         };
         match branch {
+            Some(Action::EndTurn) if cfg.end_value && self.sims[base].steps > 0 => {
+                // the policy ended the turn inside the shared prefix: `sims[base + k - 1]` is the state it ended it in
+                self.stats.lead_endvalue += 1;
+                let t0 = tsc();
+                let scratch = &mut self.sims[base + k - 1];
+                let row = val_row(out, &scratch.cx);
+                write_row(&mut scratch.cx, &ActionBuf::new(), None, out.val_obs, None, row);
+                self.stats.cy_obs += tsc() - t0;
+                self.stats.value_rows += 1;
+                self.sims[base].st = SimSt::Val(row as u32);
+            }
             Some(a) => {
                 // `sims[base + k - 1]` holds the state before the step `a`: every future starts from it with its own determinization
                 self.stats.lead_branch += 1;
@@ -892,6 +907,7 @@ impl SearchEngine {
             t.lead_clean += s.lead_clean;
             t.lead_prefix_steps += s.lead_prefix_steps;
             t.lead_first_unclean += s.lead_first_unclean;
+            t.lead_endvalue += s.lead_endvalue;
             t.cy_step += s.cy_step;
             t.cy_legal += s.cy_legal;
             t.cy_obs += s.cy_obs;

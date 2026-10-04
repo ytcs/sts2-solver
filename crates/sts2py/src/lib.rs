@@ -101,7 +101,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, depth, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, lead_greedy=false))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, depth, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, lead_greedy=false, end_value=false))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         scenarios_json: Vec<String>,
@@ -123,6 +123,7 @@ impl SearchEnginePy {
         record: bool,
         lead: bool,
         lead_greedy: bool,
+        end_value: bool,
     ) -> PyResult<Self> {
         let mut scs = vec![];
         for s in scenarios_json {
@@ -133,7 +134,7 @@ impl SearchEnginePy {
         }
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
-        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, lead, lead_greedy, depth, max_steps, win, loss, hp_bonus };
+        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, lead, lead_greedy, end_value, depth, max_steps, win, loss, hp_bonus };
         let eng = sts2env::search::SearchEngine::new(scs, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
         Ok(SearchEnginePy { eng })
     }
@@ -244,6 +245,7 @@ impl SearchEnginePy {
         d.set_item("lead_clean", s.lead_clean)?;
         d.set_item("lead_prefix_steps", s.lead_prefix_steps)?;
         d.set_item("lead_first_unclean", s.lead_first_unclean)?;
+        d.set_item("lead_endvalue", s.lead_endvalue)?;
         d.set_item("cy_step", s.cy_step)?;
         d.set_item("cy_legal", s.cy_legal)?;
         d.set_item("cy_obs", s.cy_obs)?;
