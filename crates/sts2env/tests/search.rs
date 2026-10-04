@@ -76,7 +76,7 @@ fn run(threads: usize, n_roots: usize, jobs: Vec<(u32, u64)>, cfg: SearchCfg) ->
 }
 
 fn cfg() -> SearchCfg {
-    SearchCfg { m: 3, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, lead: false, carry: false, strat: false, k1: 0, z: 1.0, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5 }
+    SearchCfg { m: 3, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, lead: false, carry: false, strat: false, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5 }
 }
 
 #[test]
@@ -145,23 +145,4 @@ fn carried_lines_finish_and_save_searches() {
         assert_eq!((r[i].outcome, r[i].len), (r2[i].outcome, r2[i].len), "job {i}");
     }
     assert!(s1.carried > 0 && s1.forks < s0.forks, "{} carried, forks {} vs {}", s1.carried, s1.forks, s0.forks);
-}
-
-#[test]
-fn adaptive_futures_finish_reproducibly_and_start_fewer_futures() {
-    let jobs: Vec<(u32, u64)> = (0..24).map(|i| ((i % 2) as u32, 1300 + i as u64)).collect();
-    let mut c = cfg();
-    c.k = 6;
-    c.lead = true;
-    c.strat = true;
-    let (_, full) = run(2, 5, jobs.clone(), c);
-    c.k1 = 2;
-    c.z = 0.5;
-    let (r1, s1) = run(2, 5, jobs.clone(), c);
-    assert!(r1.iter().all(|x| x.done && matches!(x.outcome, 1 | -1 | 2)));
-    let (r2, _) = run(1, 24, jobs, c);
-    for i in 0..24 {
-        assert_eq!((r1[i].outcome, r1[i].len), (r2[i].outcome, r2[i].len), "job {i}");
-    }
-    assert!(s1.forks < full.forks, "{} vs {}", s1.forks, full.forks);
 }
