@@ -25,7 +25,7 @@ js = np.tile(np.arange(S, dtype=np.uint32), a.attempts)
 jd = np.uint64(a.seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
 nets = {}
 pool = {}
-SEARCH_DEFAULTS = dict(M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, depth=1 << 30, lead=True, lead_greedy=False, greedy_roll=False, merge_dec=True, end_value=False)
+SEARCH_DEFAULTS = dict(M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, depth=1 << 30, lead=True, lead_greedy=False, greedy_roll=False, merge_dec=True, end_value=False, k_first=0)
 
 
 def get(p):
@@ -50,7 +50,7 @@ for cfg in a.configs:
             policy = v
         elif k in ("amp", "value_amp", "lead", "lead_greedy", "compile", "merge_dec", "end_value"):
             kw[k] = bool(int(v))
-        elif k in ("M", "K", "roll_cap", "graph_E", "roots", "groups", "depth"):
+        elif k in ("M", "K", "roll_cap", "graph_E", "roots", "groups", "depth", "k_first"):
             kw[k] = int(v)
         else:
             kw[k] = float(v)

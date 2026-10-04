@@ -114,7 +114,7 @@ class GraphFn:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, depth=1 << 30, profile_gpu=False, compile=True, lead=True, lead_greedy=False, merge_dec=True, end_value=False):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, depth=1 << 30, profile_gpu=False, compile=True, lead=True, lead_greedy=False, merge_dec=True, end_value=False, k_first=0):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -130,6 +130,7 @@ class FastSearch:
         self.compile = compile and self.cuda  # torch.compile (inductor fusion, dynamic batch) inside the CUDA graphs: about 1.7x faster networks
         self.profile_gpu = profile_gpu and self.cuda  # CUDA events around every graph replay: where the GPU time goes (`gpu_ms`)
         self._ev = collections.defaultdict(list)
+        self.k_first = k_first  # futures of options that need hidden information from their first action on (0: K)
         self.end_value = end_value  # value network on the state where the policy ended the turn (needs `lead`)
         self.lead, self.lead_greedy = lead, lead_greedy  # share the in-turn play of an option between its futures until hidden information is needed
         self.depth = depth  # play-outs ask the value network after this many policy decisions (default: play to the end of the turn)
@@ -319,7 +320,7 @@ class FastSearch:
             if len(idx) == 0:
                 continue
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, self.pmin, self.margin,
-                                     self.roll_cap, self.depth, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.lead_greedy, self.end_value)
+                                     self.roll_cap, self.depth, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.lead_greedy, self.end_value, self.k_first)
             pc, vc = eng.max_rows()
             pin = self.cuda
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)

@@ -48,6 +48,9 @@ pub struct SearchCfg {
     /// When the policy itself ends the turn inside a shared prefix, the value network judges the state it ended the turn in (no futures, no enemy turn):
     /// the value head is trained on exactly those states.
     pub end_value: bool,
+    /// Futures of an option whose very first action already touches hidden information (a draw, the enemy turn ...): such futures cannot share any play, so they are
+    /// the expensive ones.
+    pub k_first: usize,
     /// A play-out asks the value network for the state it has reached after this many policy decisions (instead of playing on to the end of the turn).
     pub depth: u32,
     /// A fight is truncated after this many steps of the real fight.
@@ -178,6 +181,8 @@ struct Block {
     qs: [f32; MAX_M],
     /// option j still plays its shared prefix on `sims[j * k]` (`sims[(j + 1) * k - 1]` is its scratch copy)
     lead: [bool; MAX_M],
+    /// futures used by option j in the current decision
+    nk: [usize; MAX_M],
     /// determinization seeds of the futures of the current decision
     ks: Vec<u64>,
     todo: Vec<(usize, SimSt)>,
@@ -428,7 +433,7 @@ impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
         let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, pdec: 0 }).collect();
-        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
+        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], nk: [0; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
     }
 
     /// Takes the next job (if any) and sets the real fight up. Returns false when the queue is empty.
@@ -577,6 +582,7 @@ impl Block {
         let lead = cfg.lead && k >= 2;
         for j in 0..m {
             self.lead[j] = false;
+            self.nk[j] = k;
             if !self.ok[j] {
                 for kk in 0..k {
                     self.sims[j * k + kk].st = SimSt::Idle;
@@ -654,11 +660,30 @@ impl Block {
                     let l = &self.sims[base];
                     (l.est, l.steps, l.pdec, l.start_turn)
                 };
-                for kk in 0..k - 1 {
+                // an option that needs hidden information from its first action on gets fewer futures (each is a full play-out of its own)
+                let kb = if steps == 0 { cfg.k_first.clamp(1, k) } else { k };
+                self.nk[j] = kb;
+                // the last used slot is the scratch copy (the branch state): move it when fewer futures are used
+                if kb < k {
                     let (head, tail) = self.sims.split_at_mut(base + k - 1);
-                    head[base + kk].cx.clone_from(&tail[0].cx);
+                    head[base + kb - 1].cx.clone_from(&tail[0].cx);
+                    for kk in kb..k {
+                        self.sims[base + kk].st = SimSt::Idle;
+                    }
                 }
-                for kk in 0..k {
+                for kk in 0..kb - 1 {
+                    if kb < k {
+                        let src = base + kb - 1;
+                        if kk != kb - 1 {
+                            let (head, tail) = self.sims.split_at_mut(src);
+                            head[base + kk].cx.clone_from(&tail[0].cx);
+                        }
+                    } else {
+                        let (head, tail) = self.sims.split_at_mut(base + k - 1);
+                        head[base + kk].cx.clone_from(&tail[0].cx);
+                    }
+                }
+                for kk in 0..kb {
                     let sim = &mut self.sims[base + kk];
                     let t0 = tsc();
                     sim.cx.determinize(self.ks[kk]);
@@ -708,7 +733,8 @@ impl Block {
             if !self.ok[j] {
                 continue;
             }
-            let q = self.sims[j * k..(j + 1) * k].iter().map(|s| s.est).sum::<f32>() / k as f32;
+            let nk = self.nk[j];
+            let q = self.sims[j * k..j * k + nk].iter().map(|s| s.est).sum::<f32>() / nk as f32;
             self.qs[j] = q;
             if j == 0 {
                 q0 = q;
