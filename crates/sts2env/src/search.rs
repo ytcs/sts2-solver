@@ -45,6 +45,10 @@ pub struct SearchCfg {
     pub lead: bool,
     /// Futures are determinized with rotations of one shuffle (`Combat::determinize_strat`).
     pub strat: bool,
+    /// Adaptive futures: an option branching at hidden information first gets `k1` futures; the options still within `z` standard errors of the best (paired
+    /// differences over the futures) get the remaining `k - k1`. 0: all `k` at once.
+    pub k1: usize,
+    pub z: f32,
     /// An option whose line (the shared prefix of the option chosen at the previous decision) is still being followed is not searched again: its estimate is carried over.
     pub carry: bool,
     /// A fight is truncated after this many steps of the real fight.
@@ -176,6 +180,11 @@ struct Block {
     lead_acts: [Vec<u16>; MAX_M],
     /// the line being followed: remaining actions and the estimate of the decision that chose it
     carry: Option<(Vec<u16>, f32)>,
+    /// option j branched into futures: the step that ended its prefix, and the lead's state at that point
+    branch: [Option<(Action, f32, u32, i32)>; MAX_M],
+    /// futures of option j started so far; the second wave has run
+    nk: [usize; MAX_M],
+    wave2: bool,
     /// option j is the carried line (estimate in `qs`)
     known: [bool; MAX_M],
     /// determinization seeds of the futures of the current decision
@@ -226,6 +235,19 @@ struct Shared<'a> {
     /// per-job move logs (empty unless the engine records)
     logs: SendPtr<Vec<MoveRec>>,
     record: bool,
+}
+
+/// Position of future `i` among the rotations of the draw pile: van der Corput order, so any prefix of the futures is spread evenly.
+fn future_frac(i: usize) -> f32 {
+    let (mut x, mut f, mut n) = (0.0f32, 0.5f32, i);
+    while n > 0 {
+        if n & 1 == 1 {
+            x += f;
+        }
+        f *= 0.5;
+        n >>= 1;
+    }
+    x
 }
 
 fn splitmix(s: &mut u64) -> u64 {
@@ -419,7 +441,7 @@ impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
         let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0 }).collect();
-        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], lead_acts: Default::default(), carry: None, known: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
+        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], lead_acts: Default::default(), carry: None, branch: [None; MAX_M], nk: [0; MAX_M], wave2: false, known: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
     }
 
     /// Takes the next job (if any) and sets the real fight up. Returns false when the queue is empty.
@@ -577,9 +599,13 @@ impl Block {
         }
         let turn = self.main.player.turn_number;
         let lead = cfg.lead && k >= 2;
+        let sd = k + 1; // slots per option: the futures and a scratch copy
+        self.wave2 = false;
         for j in 0..m {
             self.lead[j] = false;
             self.known[j] = false;
+            self.branch[j] = None;
+            self.nk[j] = 0;
             self.lead_acts[j].clear();
             if cfg.carry && self.ok[j] {
                 if let Some((v, q)) = &self.carry {
@@ -591,30 +617,32 @@ impl Block {
                 }
             }
             if !self.ok[j] || self.known[j] {
-                for kk in 0..k {
-                    self.sims[j * k + kk].st = SimSt::Idle;
+                for kk in 0..sd {
+                    self.sims[j * sd + kk].st = SimSt::Idle;
                 }
                 continue;
             }
             let Some(first) = Action::from_index(self.opts[j] as usize) else {
-                for kk in 0..k {
-                    let sim = &mut self.sims[j * k + kk];
-                    sim.st = SimSt::Done;
+                for kk in 0..sd {
+                    let sim = &mut self.sims[j * sd + kk];
+                    sim.st = if kk < k { SimSt::Done } else { SimSt::Idle };
                     sim.est = cfg.loss;
                 }
+                self.nk[j] = k;
                 continue;
             };
-            // with `lead` only future 0 exists until the option needs hidden information; the other slots wait
+            // with `lead` only the lead exists until the option needs hidden information; the other slots wait
             let n_now = if lead { 1 } else { k };
-            for kk in 0..k {
-                let sim = &mut self.sims[j * k + kk];
+            self.nk[j] = k;
+            for kk in 0..sd {
+                let sim = &mut self.sims[j * sd + kk];
                 if kk >= n_now {
                     sim.st = SimSt::Idle;
                     continue;
                 }
                 let t0 = tsc();
                 sim.cx.clone_from(&self.main);
-                if cfg.strat { sim.cx.determinize_strat(self.ks[0], self.ks[kk], kk, k); } else { sim.cx.determinize(self.ks[kk]); }
+                if cfg.strat { sim.cx.determinize_strat(self.ks[0], self.ks[kk], future_frac(kk)); } else { sim.cx.determinize(self.ks[kk]); }
                 self.stats.cy_fork += tsc() - t0;
                 sim.start_turn = turn;
                 sim.est = 0.0;
@@ -626,7 +654,7 @@ impl Block {
                 self.lead_run(j, first, cfg, out);
             } else {
                 for kk in 0..k {
-                    sim_run(&mut self.sims[j * k + kk], first, cfg, out, &mut self.stats, None, None);
+                    sim_run(&mut self.sims[j * sd + kk], first, cfg, out, &mut self.stats, None, None);
                 }
             }
         }
@@ -635,42 +663,27 @@ impl Block {
     }
 
     /// Runs the shared prefix of option `j` (see `SearchCfg::lead`) from `act` until it needs the policy / the value network, ends, or reaches a step that
-    /// touches hidden information, where the `k` futures branch.
+    /// touches hidden information, where the futures branch.
     fn lead_run(&mut self, j: usize, act: Action, cfg: &SearchCfg, out: &Out) {
         let k = cfg.k;
-        let base = j * k;
+        let base = j * (k + 1);
         let branch = {
-            let (head, tail) = self.sims.split_at_mut(base + k - 1);
+            let (head, tail) = self.sims.split_at_mut(base + k);
             let scratch = &mut tail[0];
             let lead = &mut head[base];
             sim_run(lead, act, cfg, out, &mut self.stats, Some(&mut scratch.cx), Some(&mut self.lead_acts[j]))
         };
         match branch {
             Some(a) => {
-                // `sims[base + k - 1]` holds the state before the step `a`: every future starts from it with its own determinization
+                // `sims[base + k]` holds the state before the step `a`: every future starts from it with its own determinization
                 self.stats.lead_branch += 1;
                 self.lead_acts[j].push(a.index() as u16);
                 self.stats.lead_prefix_steps += self.sims[base].steps as u64;
                 self.stats.lead_first_unclean += (self.sims[base].steps == 0) as u64;
-                let (est, steps, start_turn) = {
-                    let l = &self.sims[base];
-                    (l.est, l.steps, l.start_turn)
-                };
-                for kk in 0..k - 1 {
-                    let (head, tail) = self.sims.split_at_mut(base + k - 1);
-                    head[base + kk].cx.clone_from(&tail[0].cx);
-                }
-                for kk in 0..k {
-                    let sim = &mut self.sims[base + kk];
-                    let t0 = tsc();
-                    if cfg.strat { sim.cx.determinize_strat(self.ks[0], self.ks[kk], kk, k); } else { sim.cx.determinize(self.ks[kk]); }
-                    self.stats.cy_fork += tsc() - t0;
-                    self.stats.forks += 1;
-                    sim.est = est;
-                    sim.steps = steps;
-                    sim.start_turn = start_turn;
-                    sim_run(sim, a, cfg, out, &mut self.stats, None, None);
-                }
+                let l = &self.sims[base];
+                self.branch[j] = Some((a, l.est, l.steps, l.start_turn));
+                let first_wave = if cfg.k1 > 0 && cfg.k1 < k { cfg.k1 } else { k };
+                self.spawn_futures(j, 0, first_wave, cfg, out);
                 self.lead[j] = false;
             }
             None => {
@@ -681,10 +694,31 @@ impl Block {
         }
     }
 
+    /// Starts futures `from..to` of option `j` from its branch point.
+    fn spawn_futures(&mut self, j: usize, from: usize, to: usize, cfg: &SearchCfg, out: &Out) {
+        let k = cfg.k;
+        let base = j * (k + 1);
+        let (a, est, steps, start_turn) = self.branch[j].expect("branched");
+        for kk in from..to {
+            let (head, tail) = self.sims.split_at_mut(base + k);
+            let sim = &mut head[base + kk];
+            let t0 = tsc();
+            sim.cx.clone_from(&tail[0].cx);
+            if cfg.strat { sim.cx.determinize_strat(self.ks[0], self.ks[kk], future_frac(kk)); } else { sim.cx.determinize(self.ks[kk]); }
+            self.stats.cy_fork += tsc() - t0;
+            self.stats.forks += 1;
+            sim.est = est;
+            sim.steps = steps;
+            sim.start_turn = start_turn;
+            sim_run(sim, a, cfg, out, &mut self.stats, None, None);
+        }
+        self.nk[j] = to;
+    }
+
     /// The shared prefix of option `j` ended without needing hidden information: every future has the same result.
     fn lead_finish(&mut self, j: usize, cfg: &SearchCfg) {
         let k = cfg.k;
-        let base = j * k;
+        let base = j * (k + 1);
         let est = self.sims[base].est;
         for kk in 1..k {
             let sim = &mut self.sims[base + kk];
@@ -695,12 +729,67 @@ impl Block {
         self.stats.lead_clean += 1;
     }
 
+    /// Mean estimate of option `j` over its futures so far.
+    fn option_q(&self, j: usize, cfg: &SearchCfg) -> f32 {
+        if self.known[j] {
+            return self.qs[j];
+        }
+        let base = j * (cfg.k + 1);
+        let n = self.nk[j].max(1);
+        self.sims[base..base + n].iter().map(|s| s.est).sum::<f32>() / n as f32
+    }
+
+    /// Second wave: options still within `z` standard errors (paired over the first futures) of the best get the rest of their futures. True if any started.
+    fn start_second_wave(&mut self, cfg: &SearchCfg, out: &Out) -> bool {
+        let (m, k, k1) = (cfg.m, cfg.k, cfg.k1);
+        let sd = k + 1;
+        let qs: Vec<f32> = (0..m).map(|j| if self.ok[j] { self.option_q(j, cfg) } else { f32::NEG_INFINITY }).collect();
+        let b = (0..m).fold(0, |b, j| if qs[j] > qs[b] { j } else { b });
+        let est = |this: &Self, j: usize, i: usize| this.sims[j * sd + i].est;
+        let mut contested = [false; MAX_M];
+        for j in 0..m {
+            if j == b || !self.ok[j] {
+                continue;
+            }
+            // standard error of the difference between the best and option j over the first `k1` futures (paired: same determinizations)
+            let (bj, jj) = (self.known[b], self.known[j]);
+            let d: Vec<f32> = (0..k1).map(|i| match (bj, jj) {
+                (false, false) => est(self, b, i) - est(self, j, i),
+                (true, false) => qs[b] - est(self, j, i),
+                _ => est(self, b, i) - qs[j],
+            }).collect();
+            let mean = d.iter().sum::<f32>() / k1 as f32;
+            let var = d.iter().map(|x| (x - mean) * (x - mean)).sum::<f32>() / (k1 as f32 - 1.0).max(1.0);
+            let se = (var / k1 as f32).sqrt();
+            if qs[b] - qs[j] < cfg.z * se {
+                contested[j] = true;
+                contested[b] = true;
+            }
+        }
+        let mut started = false;
+        for j in 0..m {
+            if contested[j] && self.branch[j].is_some() && self.nk[j] < k {
+                self.spawn_futures(j, self.nk[j], k, cfg, out);
+                started = true;
+            }
+        }
+        started
+    }
+
     /// If every play-out of the current decision is done: plays the best option for real and moves on.
     fn try_finish_search(&mut self, sh: &Shared, out: &Out) {
         let cfg = &sh.cfg;
         let (m, k) = (cfg.m, cfg.k);
-        if self.sims[..m * k].iter().any(|s| matches!(s.st, SimSt::Pol(_) | SimSt::Val(_))) {
+        let sd = k + 1;
+        if self.sims[..m * sd].iter().any(|s| matches!(s.st, SimSt::Pol(_) | SimSt::Val(_))) {
             return;
+        }
+        if cfg.lead && cfg.k1 > 1 && cfg.k1 < k && !self.wave2 {
+            self.wave2 = true;
+            if self.start_second_wave(cfg, out) {
+                // the new futures may have finished at once: look again
+                return self.try_finish_search(sh, out);
+            }
         }
         let mut best = 0usize;
         let mut best_q = f32::NEG_INFINITY;
@@ -709,7 +798,7 @@ impl Block {
             if !self.ok[j] {
                 continue;
             }
-            let q = if self.known[j] { self.qs[j] } else { self.sims[j * k..(j + 1) * k].iter().map(|s| s.est).sum::<f32>() / k as f32 };
+            let q = self.option_q(j, cfg);
             self.qs[j] = q;
             if j == 0 {
                 q0 = q;
@@ -722,7 +811,7 @@ impl Block {
         if best != 0 && best_q - q0 <= cfg.margin {
             best = 0;
         }
-        for s in self.sims[..m * k].iter_mut() {
+        for s in self.sims[..m * sd].iter_mut() {
             s.st = SimSt::Idle;
         }
         let rec = self.move_rec(self.opts[best], true, sh);
@@ -787,13 +876,13 @@ impl Block {
                 // only the sims that were waiting when this call began have an answer (a branching option starts others during the loop)
                 let mut todo = std::mem::take(&mut self.todo);
                 todo.clear();
-                todo.extend((0..cfg.m * cfg.k).filter(|&i| matches!(self.sims[i].st, SimSt::Pol(_) | SimSt::Val(_))).map(|i| (i, self.sims[i].st)));
+                todo.extend((0..cfg.m * (cfg.k + 1)).filter(|&i| matches!(self.sims[i].st, SimSt::Pol(_) | SimSt::Val(_))).map(|i| (i, self.sims[i].st)));
                 for &(idx, waiting) in todo.iter() {
                     match waiting {
                         SimSt::Pol(row) => {
                             let r = row as usize * stride;
-                            let j = idx / cfg.k;
-                            let is_lead = self.lead[j] && idx % cfg.k == 0;
+                            let j = idx / (cfg.k + 1);
+                            let is_lead = self.lead[j] && idx % (cfg.k + 1) == 0;
                             let a = inp.pol[r + 2 * m] as i32;
                             match Action::from_index(a as usize) {
                                 Some(act) => {
@@ -813,8 +902,8 @@ impl Block {
                             let sim = &mut self.sims[idx];
                             sim.est += inp.val[row as usize];
                             sim.st = SimSt::Done;
-                            let j = idx / cfg.k;
-                            if self.lead[j] && idx % cfg.k == 0 {
+                            let j = idx / (cfg.k + 1);
+                            if self.lead[j] && idx % (cfg.k + 1) == 0 {
                                 self.lead_finish(j, &cfg);
                             }
                         }
@@ -860,7 +949,7 @@ impl SearchEngine {
             .build()
             .map_err(|e| EnvError::Pool(e.to_string()))?;
         let n = n_roots.min(jobs.len()).max(1);
-        let blocks: Result<Vec<Block>, EnvError> = pool.install(|| (0..n).into_par_iter().map(|_| Block::new(&scen[0].0, &scen[0].1, cfg.m * cfg.k)).collect());
+        let blocks: Result<Vec<Block>, EnvError> = pool.install(|| (0..n).into_par_iter().map(|_| Block::new(&scen[0].0, &scen[0].1, cfg.m * (cfg.k + 1))).collect());
         let results = vec![JobResult::default(); jobs.len()];
         let logs = if record { vec![Vec::new(); jobs.len()] } else { Vec::new() };
         Ok(SearchEngine { cfg, scen, jobs, blocks: blocks?, results, logs, record, next_job: 0, pool, started: false })
