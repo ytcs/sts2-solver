@@ -1,0 +1,5 @@
+amp=1,end_value=0                          472.0 fights/s  win 0.7386 (+-0.0040)  hp_lost 0.3621  pol rows/fight 884 val 518  (25s)
+amp=1,end_value=1                          599.4 fights/s  win 0.7105 (+-0.0041)  hp_lost 0.3913  pol rows/fight 883 val 301  (20s)
+amp=1,end_value=1,K=4                     1031.7 fights/s  win 0.7051 (+-0.0042)  hp_lost 0.3963  pol rows/fight 495 val 166  (12s)
+amp=1,end_value=1,K=6                      716.5 fights/s  win 0.7073 (+-0.0042)  hp_lost 0.3934  pol rows/fight 689 val 233  (17s)
+amp=1,end_value=1,value=1                  721.4 fights/s  win 0.7036 (+-0.0042)  hp_lost 0.3952  pol rows/fight 872 val 299  (17s)

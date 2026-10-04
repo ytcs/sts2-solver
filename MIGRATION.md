@@ -52,8 +52,8 @@ back as numpy, because the simulator (Rust, rayon) always runs on the CPU and pr
   network time, so expect a large gain from the GPU.
 
 ## 5. State of the work (end of the speed session)
-The solver (`rl/solver.py`) now runs the search in a Rust state machine (`crates/sts2env/src/search.rs`, driven by `rl/fastsearch.py`): 190+ fights/s on a 4090 pod, 45x the
-previous python search at the same strength; see "Speed" in `docs/solver.md`. `rl/bench_fast.py` (engine), `rl/bench_net.py` (network alone), `rl/sweep.py` (configurations).
+The solver (`rl/solver.py`) now runs the search in a Rust state machine (`crates/sts2env/src/search.rs`, driven by `rl/fastsearch.py`): 540 fights/s (K=4: 800+) on a 10-CPU 4090 pod, over 100x the
+first python search at about the same strength; see "Speed" in `docs/solver.md`. `rl/bench_fast.py` (engine), `rl/bench_net.py` (network alone), `rl/sweep.py` (configurations).
 Earlier GPU session:
 Results are in `docs/solver.md` (tables) and `README.md`. In short: PPO policy 63% win / 0.443 HP lost on the 1500-fight eval set (random 14%,
 heuristic 36%); the same network with play-out search is +7 to +23 points depending on the set (paired seeds); the search is the strong solver and the

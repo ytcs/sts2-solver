@@ -226,3 +226,33 @@ fn every_defect_pool_card_and_the_starter_relic_are_registered() {
     assert!(content::relic_implemented(ids::relic::CRACKED_CORE));
     assert!(content::power_implemented(ids::power::FOCUS_POWER));
 }
+
+/// Uproar auto-plays an Attack from the draw pile: with only Uproars in it the plays nest deeper than the fixed play stack. That must raise the
+/// capacity flag (the fight is flagged as no longer faithful), never index past the stack.
+#[test]
+fn nested_auto_plays_beyond_the_play_stack_raise_overflow_instead_of_panicking() {
+    let mut cx = Combat::new(&scenario(3));
+    let c = put(&mut cx, ids::card::UPROAR, 0, PileType::Hand);
+    let others: Vec<CardIdx> = cx.player.draw.iter().copied().collect();
+    for o in others {
+        assert!(cx.move_card(o, PileType::Discard, CardPilePosition::Bottom));
+    }
+    for _ in 0..12 {
+        put(&mut cx, ids::card::UPROAR, 0, PileType::Draw);
+    }
+    cx.player.energy = 10;
+    for e in cx.enemies.iter().copied().collect::<Vec<_>>() {
+        cx.cr_mut(e).hp = 9999;
+        cx.cr_mut(e).max_hp = 9999;
+    }
+    let pos = hand_pos(&cx, c);
+    let mut buf = engine::ActionBuf::new();
+    cx.legal_actions(&mut buf);
+    let target = buf.iter().find_map(|a| match a {
+        Action::PlayCard { hand_pos, target } if *hand_pos == pos => Some(*target),
+        _ => None,
+    });
+    let t = target.expect("Uproar is playable");
+    let _ = cx.step(Action::PlayCard { hand_pos: pos, target: t });
+    assert!(cx.overflow != 0, "twelve nested Uproars do not fit the play stack: the overflow flag must be raised");
+}

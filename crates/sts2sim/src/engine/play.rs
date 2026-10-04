@@ -262,6 +262,12 @@ impl Combat {
         play.result_pile = loc.pile;
         play.play_count = count.clamp(0, 255) as u8;
         // 8. BeginCardOrPotionEffect
+        if self.play_stack.len() >= 6 {
+            // plays started inside plays (Uproar auto-playing another Uproar from the draw pile ...) are nested deeper than the fixed play stack: the fight is no longer
+            // faithful (`overflow`), and the play is dropped instead of indexing past the stack
+            crate::util::raise_overflow(crate::util::OV_CONTAINER);
+            return RunResult::Finished;
+        }
         self.player.effect_depth += 1;
         self.play_stack.push(PlayCtx { play, step: PlayStep::Before, count: count.clamp(0, 255) as u8, result: loc });
         let idx = self.play_stack.len() - 1;

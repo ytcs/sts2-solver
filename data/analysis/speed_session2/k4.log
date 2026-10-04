@@ -1,0 +1,38 @@
+15000 fights in 18.7s = 801.80 fights/s; finished 1.000; win 0.734 hp_lost_all 0.440; outcomes {np.float32(-1.0): np.int64(3989), np.float32(1.0): np.int64(11005), np.float32(2.0): np.int64(5), np.float32(4.0): np.int64(1)}
+  warm              52.7s 281.6%
+  run               18.2s  97.4%
+  engine            13.1s  70.1%
+  wait net           2.9s  15.5%
+  launch net         2.2s  11.7%
+  setup              0.5s   2.5%
+  root_decisions        386,846.0  per fight       25.8
+  searched              386,576.0  per fight       25.8
+  forced_root            64,773.0  per fight        4.3
+  sim_steps          14,864,458.0  per fight      991.0
+  forced_sim          2,235,071.0  per fight      149.0
+  policy_rows         7,532,920.0  per fight      502.2
+  value_rows          3,906,991.0  per fight      260.5
+  forks               5,483,313.0  per fight      365.6
+  illegal                     0.0  per fight        0.0
+  panics                      0.0  per fight        0.0
+  end_turn            3,906,991.0  per fight      260.5
+  end_term              486,036.0  per fight       32.4
+  end_cap                     0.0  per fight        0.0
+  end_stuck                   0.0  per fight        0.0
+  end_depth                   0.0  per fight        0.0
+  lead_branch         1,090,286.0  per fight       72.7
+  lead_clean             31,883.0  per fight        2.1
+  lead_prefix_steps    1,814,312.0  per fight      121.0
+  lead_first_unclean      340,942.0  per fight       22.7
+  cy_step          114,314,756,581.0  per fight  7620983.8
+  cy_legal         10,333,297,461.0  per fight   688886.5
+  cy_obs           124,682,030,468.0  per fight  8312135.4
+  cy_fork          11,742,962,026.0  per fight   782864.1
+  cy_main          4,611,607,172.0  per fight   307440.5
+  cy_endturn       60,158,774,660.0  per fight  4010585.0
+  n_endturn           4,701,517.0  per fight      313.4
+  cycles                  5,385.0  per fight        0.4
+  rows_per_cycle          2,124.0  per fight        0.1
+  GPU pol dec=True      7.2s     5384 replays     1399 rows/replay   1.34 ms/replay  0.95 us/row
+  GPU val dec=True      6.7s     2611 replays     1496 rows/replay   2.58 ms/replay  1.72 us/row
+  GPU total 13.9s of 18.7s

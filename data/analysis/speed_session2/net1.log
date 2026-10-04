@@ -1,0 +1,30 @@
+rows 15214
+1024 b128/fp32 pol 1.29ms  b128/fp32 val 1.12ms  b128/bf16 pol 1.16ms  b128/bf16 val 1.00ms  a64/fp32 pol 1.01ms  a64/fp32 val 0.92ms  a64/bf16 pol 1.03ms  a64/bf16 val 0.91ms
+2048 b128/fp32 pol 1.70ms  b128/fp32 val 1.44ms  b128/bf16 pol 1.51ms  b128/bf16 val 1.30ms  a64/fp32 pol 1.31ms  a64/fp32 val 1.16ms  a64/bf16 pol 1.27ms  a64/bf16 val 1.12ms
+4096 b128/fp32 pol 2.81ms  b128/fp32 val 2.30ms  b128/bf16 pol 2.24ms  b128/bf16 val 1.92ms  a64/fp32 pol 1.93ms  a64/fp32 val 1.69ms  a64/bf16 pol 1.78ms  a64/bf16 val 1.58ms
+8192 b128/fp32 pol 6.06ms  b128/fp32 val 4.95ms  b128/bf16 pol 4.11ms  b128/bf16 val 3.47ms  a64/fp32 pol 3.77ms  a64/fp32 val 3.25ms  a64/bf16 pol 3.04ms  a64/bf16 val 2.70ms
+------------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                        Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg     Self CUDA   Self CUDA %    CUDA total  CUDA time avg    # of Calls  
+------------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+ampere_bf16_s1688gemm_bf16_128x128_ldg8_relu_f2f_stages_3...         0.00%       0.000us         0.00%       0.000us       0.000us       1.358ms        12.04%       1.358ms      11.811us           115  
+void at::native::vectorized_gather_kernel<16, long>(char*...         0.00%       0.000us         0.00%       0.000us       0.000us       1.252ms        11.10%       1.252ms      22.771us            55  
+void at::native::(anonymous namespace)::EmbeddingBag_upda...         0.00%       0.000us         0.00%       0.000us       0.000us     877.288us         7.78%     877.288us      35.092us            25  
+void at::native::elementwise_kernel<128, 4, at::native::g...         0.00%       0.000us         0.00%       0.000us       0.000us     531.683us         4.71%     531.683us      15.191us            35  
+void at::native::vectorized_elementwise_kernel<4, at::nat...         0.00%       0.000us         0.00%       0.000us       0.000us     473.988us         4.20%     473.988us       3.646us           130  
+ampere_bf16_s16816gemm_bf16_64x64_ldg8_relu_f2f_stages_64...         0.00%       0.000us         0.00%       0.000us       0.000us     408.766us         3.62%     408.766us       5.450us            75  
+void at::native::elementwise_kernel<128, 2, at::native::g...         0.00%       0.000us         0.00%       0.000us       0.000us     355.584us         3.15%     355.584us       1.871us           190  
+void at::native::elementwise_kernel<128, 4, at::native::g...         0.00%       0.000us         0.00%       0.000us       0.000us     344.193us         3.05%     344.193us       8.605us            40  
+void at::native::elementwise_kernel<128, 4, at::native::g...         0.00%       0.000us         0.00%       0.000us       0.000us     331.208us         2.94%     331.208us       3.897us            85  
+void at::native::elementwise_kernel<128, 4, at::native::g...         0.00%       0.000us         0.00%       0.000us       0.000us     315.426us         2.80%     315.426us       3.711us            85  
+void cutlass::Kernel2<cutlass_75_wmma_tensorop_bf16_s1616...         0.00%       0.000us         0.00%       0.000us       0.000us     311.424us         2.76%     311.424us      10.381us            30  
+void at::native::(anonymous namespace)::CatArrayBatchedCo...         0.00%       0.000us         0.00%       0.000us       0.000us     303.491us         2.69%     303.491us      12.140us            25  
+void at::native::elementwise_kernel<128, 2, at::native::g...         0.00%       0.000us         0.00%       0.000us       0.000us     285.923us         2.53%     285.923us       1.546us           185  
+void at::native::(anonymous namespace)::CatArrayBatchedCo...         0.00%       0.000us         0.00%       0.000us       0.000us     244.963us         2.17%     244.963us       9.799us            25  
+void at::native::(anonymous namespace)::CatArrayBatchedCo...         0.00%       0.000us         0.00%       0.000us       0.000us     229.730us         2.04%     229.730us      15.315us            15  
+void at::native::vectorized_elementwise_kernel<4, at::nat...         0.00%       0.000us         0.00%       0.000us       0.000us     229.568us         2.04%     229.568us       1.177us           195  
+void at::native::vectorized_elementwise_kernel<4, at::nat...         0.00%       0.000us         0.00%       0.000us       0.000us     217.217us         1.93%     217.217us       1.114us           195  
+void cutlass::Kernel2<cutlass_75_tensorop_bf16_s1688gemm_...         0.00%       0.000us         0.00%       0.000us       0.000us     210.659us         1.87%     210.659us      14.044us            15  
+------------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+Self CPU time total: 9.860ms
+Self CUDA time total: 11.281ms
+

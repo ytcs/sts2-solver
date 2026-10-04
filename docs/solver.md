@@ -155,6 +155,37 @@ M=2 options 184 f/s, 71.8% (worse); skipping the search where the policy is >= 9
 `Solver(..., conf=, roll_ckpt=, K=, value_ckpts=)` exposes them. 100 decks x 64 attempts (6,400 fights of the mid-difficulty set) take 43 s (150 fights/s; the python search needed about 40 minutes).
 Not done: more overlap between the CPU engine (37% of the wall time) and the GPU wait (58%), adaptive attempts per deck, an even cheaper value ensemble (distillation).
 
+### Second round: 4.4 -> 540 fights/s (K=4: 780-880), the 1000 fights/s question
+Measured on a second pod (RTX 4090, **10.2 CPUs of quota**; `os.cpu_count()` showed 48 host cores, so thread counts must follow the cgroup quota: `fastsearch.available_cpus`).
+Everything below is the default `Solver`; logs in `data/analysis/speed_session2/`.
+
+| step | fights/s | win | HP lost |
+|---|---|---|---|
+| bf16 CUDA graphs (end of the first round, this pod) | 221 | 73.8% | 0.360 |
+| + `torch.compile` (inductor fusion, dynamic batch) inside the graphs | 348 | 73.9% | 0.360 |
+| + shared prefix per option (`lead`, default), K=8 (18,000 fights) | **536** | 73.6% (+-0.33) | 0.3627 |
+| same, K=4 futures | **781-880** | 73.4% | 0.366 |
+| without `lead` (K=8), same run | 379 | 73.9% | 0.359 |
+
+What was learned:
+* **The network was memory-bound, not compute-bound.** Kernel profile of one forward: matmuls 16%, embedding gathers / bags / elementwise the rest; a 64-wide network is barely faster than the
+  128-wide one. Inductor fusion gives 1.6-2x per forward (policy 4096 rows: 2.24 -> 1.41 ms; value 1.92 -> 0.93 ms; 12% more with max-autotune at 2 minutes of compile). Compiled graphs are cached on disk after the first run.
+* **Shared prefix (`lead`).** Of all actions only 27% touch hidden information (RNG streams, draw-pile order; `examples/hiddenprof.rs`): EndTurn 86%, a Strike 3-7%. So an option's in-turn play is simulated
+  once on a scratch copy and the K futures (own determinization each) branch at the first step that touches hidden information, usually the turn-ending step. Policy rows -42%, simulator steps -30%, forks
+  -75%. Costs about 0.3 points of win rate (one sampled continuation per option instead of K).
+* **CPU is now the bottleneck** (engine 70% of the wall time). Per fight, cycles: simulator steps 46% (turn-ending steps alone are half of it), observation rows 41% (lookahead 37% of an observation,
+  hand cards 28%, piles 13%, intents 11%), forks 5%, legal actions 4%. `examples/obsprof.rs` (feature `obs_prof`) profiles the observation per section. GPU time is about equal; the pod's CPU quota is what limits.
+  With 16 CPUs the same code should clear 1000 fights/s at K=4; K=8 needs about 24.
+* **Negative results (removed again):** value network on the state where the policy ends its turn instead of simulating the enemy turn (+27% speed, **-2.8 points**: the value head is worse on pre-turn-end
+  states); play-outs stopping after d policy decisions with a mid-turn value (d=2: -1.4, d=3: -0.6 points, +10% speed); fewer futures for options that need hidden information at their first action
+  (K=4/3/2: -0.5/-1.0/-1.6 points: those are exactly the high-variance options); a greedy shared prefix (no gain, loops); dropping candidates below 3% / 8% policy probability (-3.7 / -4.5 points: unlikely actions
+  matter); more fights in flight (4096 roots) or 3 pipeline groups: no gain; separate graphs for rows with a pending selection: neutral against merging them (merged is the default).
+* **A simulator bug found by the engine** (rare, ~1 in 30,000 fights): Uproar auto-playing a random Attack from the draw pile nests plays; with 6+ Uproars in the draw pile the fixed play stack overflowed and indexed
+  out of bounds. It now raises the capacity flag (fight reported as aborted, `OUTCOME_OVERFLOW`); the engine also catches a panic in any fight, reports job / scenario / seed on stderr, aborts only that fight
+  and continues (`panics` counter), regression test in `tests/defect_cards.rs`.
+* Not done: caching the observation's lookahead per enemy state (about -10% CPU), sharing the enemy turn between futures (needs a pause point between the enemy phase and the draw in `Combat::step`),
+  carrying a searched line's estimate to the next decision (about -20% futures, biased), sequential / adaptive K, distilling the 3 value heads into one (GPU -30%).
+
 ## The solver API (`rl/solver.py`)
 `Solver().solve(scenarios, attempts=32)` (the Rust engine; `engine="py"` selects the python search, which the analysis tools use) plays `attempts` fights of every scenario (deck variants ...) with the network + search, all together in large
 batches, and returns win rate (+ standard error), mean HP lost (losses charged in full), HP left on wins. 576 fights (9 deck variants x 64) took 65 s.
