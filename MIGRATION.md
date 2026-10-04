@@ -76,3 +76,18 @@ network alone is the weak part. Open items, in the order I would do them:
 .venv/bin/python tools/check_bounds.py --n 1500 --episodes 20000 --ckpt models/solver_base.pt    # soundness of the unwinnable-fight prover
 ```
 (The scripts read `target/train/...`; run `tools/setup_data.sh` first, or point `--eval` at `data/train/...` as above.)
+
+## 7. Runpod notes (what worked, what did not)
+Budget agreed with the user: **$50 lifetime** on Runpod. Everything below is driven from the local machine with the Runpod plugin (`claude plugin install runpod@runpod`,
+MCP sign-in via OAuth) and plain `ssh` (a dedicated key, `~/.ssh/runpod_sts2`, registered on the account; `~/.ssh/config` host `sts2pod`).
+* Use the **secure cloud RTX 4090 ($0.74/h)**, image `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404` (torch 2.8 + CUDA 12.8; the older cu124 image does not
+  support Blackwell cards). The community-cloud 4090 ($0.34/h) landed on a host whose GPU failed `cuInit` (error 999) twice and one host with no TCP port mapping:
+  test `python -c "import torch; print(torch.cuda.is_available())"` right after boot and terminate on failure (a failed attempt costs cents).
+* Direct SSH needs `ports: ["22/tcp"]` and `startSsh: true`; the pod only exposes the port after about a minute (`get-pod` -> `ssh.direct`). The SSH proxy
+  (`ssh.runpod.io`) hung for non-interactive use, scp/rsync need the direct port. The container disk is wiped when a pod is terminated: copy results back first.
+* Setup on a fresh pod takes about 3 minutes: Rust via rustup, `git clone` (the repo is public), `uv venv --system-site-packages` (reuses the image's CUDA torch),
+  `maturin develop --release`, `tools/setup_data.sh`. The script used is `tools/runpod_setup.sh`.
+* Measured on the pod (16 vCPUs): PPO about 50k samples/s per run (two runs side by side: about 100k/s; the laptop did 3-4k), search about 35 fights/s on a short
+  fight; the miner (`rl/mine.py`) is CPU-bound (single-threaded Python around the Rust env): run several in parallel (`tools/runpod_loop.sh` does).
+* `tools/runpod_loop.sh ROUNDS ROOTS CHUNKS`: unattended DAgger-style loop (mine disagreements, fine-tune from the base on everything mined, evaluate, repeat,
+  search benchmark at the end). Logs in `target/exit/loop.log`.
