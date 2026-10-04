@@ -1,0 +1,6 @@
+amp=1,strat=1,carry=1                      502.1 fights/s  win 0.7394 (+-0.0033)  hp_lost 0.3620  pol rows/fight 758 val 418  (36s)
+amp=1,K=6,strat=1,carry=1                  584.2 fights/s  win 0.7343 (+-0.0033)  hp_lost 0.3650  pol rows/fight 597 val 315  (31s)
+amp=1,K=4,strat=1,carry=1                  873.7 fights/s  win 0.7306 (+-0.0033)  hp_lost 0.3663  pol rows/fight 431 val 210  (21s)
+amp=1,K=3,strat=1,carry=1                 1041.4 fights/s  win 0.7280 (+-0.0033)  hp_lost 0.3685  pol rows/fight 347 val 157  (17s)
+amp=1,K=2,strat=1,carry=1                 1153.0 fights/s  win 0.7221 (+-0.0033)  hp_lost 0.3718  pol rows/fight 265 val 105  (16s)
+amp=1,lead=0,strat=1                       318.6 fights/s  win 0.7426 (+-0.0033)  hp_lost 0.3581  pol rows/fight 1537 val 520  (56s)

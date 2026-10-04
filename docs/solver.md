@@ -186,6 +186,31 @@ What was learned:
 * Not done: caching the observation's lookahead per enemy state (about -10% CPU), sharing the enemy turn between futures (needs a pause point between the enemy phase and the draw in `Combat::step`),
   carrying a searched line's estimate to the next decision (about -20% futures, biased), sequential / adaptive K, distilling the 3 value heads into one (GPU -30%).
 
+### Third round: algorithmic ideas, no extra hardware (pod with 13.6 CPUs of quota; logs in `data/analysis/speed_session3/`)
+Same machine within a session, 12-18k fights per row (+-0.33 points), all with `lead`:
+
+| configuration | fights/s | win | HP lost |
+|---|---|---|---|
+| `lead`, K=8 (round two default) | 390-465 | 73.7% | 0.3625 |
+| + stratified determinization (`strat`) | 433 | 74.0% | 0.3615 |
+| + carried lines (`carry`) = **new default** | 464-545 | 73.7-73.9% | 0.362 |
+| K=6 | 584 | 73.4% | 0.365 |
+| K=4 | 854-874 | 73.1-73.2% | 0.366 |
+| K=3 | 896-1041 | 72.8% | 0.3685 |
+| K=2 | 1153 | 72.2% | 0.372 |
+| no `lead`, K=8 (+strat) | 319 | 74.3% | 0.358 |
+
+* **Stratified determinization** (`Combat::determinize_strat`): all futures of a decision share one uniform shuffle and future i rotates the draw pile by a different fraction, so the next hands the
+  futures draw are disjoint parts of one shuffle (each future is still uniform). Free: +0.2-0.3 points at every K, no extra work.
+* **Carried lines** (`carry`): the option chosen at a decision remembers its shared prefix and its estimate; at the next decision the candidate equal to the line's next action is not simulated again
+  (15% fewer rows, quality unchanged). Only valid because the prefix touched no hidden information.
+* **Lookahead path cache** (thread-local, keyed by the monster's machine state, its powers and the enemy line-up; `tests/lookahead_cache.rs` checks cached == fresh on 40k rows): observation -6%.
+  The rest of the lookahead is the per-node damage pipeline.
+* **Tested, no gain, removed:** adaptive futures (3-4 first, the rest only for options within z standard errors of the best, paired): lands exactly on the line between K=4 and K=8.
+* **Where the CPU goes now** (callgrind, `examples/endturnprof.rs`): the turn-ending step is dominated by enemy turns, `snapshot_into` (building the listener list for each hook dispatch, scanning
+  every pile when any card listens) is about 9% inclusive; hand-card damage/block in observations about 5% of all CPU. Neither is attractive: listener order must stay bit-exact and the damage
+  pipeline reads arbitrary state, so a cache could silently go stale. The quality-for-speed frontier above (K) is the remaining lever: 1000 fights/s costs about 1 point of win rate on this hardware.
+
 ## The solver API (`rl/solver.py`)
 `Solver().solve(scenarios, attempts=32)` (the Rust engine; `engine="py"` selects the python search, which the analysis tools use) plays `attempts` fights of every scenario (deck variants ...) with the network + search, all together in large
 batches, and returns win rate (+ standard error), mean HP lost (losses charged in full), HP left on wins. 576 fights (9 deck variants x 64) took 65 s.
