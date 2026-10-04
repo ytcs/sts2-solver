@@ -25,6 +25,7 @@ js = np.tile(np.arange(S, dtype=np.uint32), a.attempts)
 jd = np.uint64(a.seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
 nets = {}
 pool = {}
+SEARCH_DEFAULTS = dict(M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, depth=1 << 30, lead=True, lead_greedy=False, greedy_roll=False)
 
 
 def get(p):
@@ -59,7 +60,7 @@ for cfg in a.configs:
         pool[gkey] = FastSearch(get(policy), [get(c) for c in DEFAULT_VALUE_CKPTS[:value_n]], **kw)
         pool[gkey].warm()
     fs = pool[gkey]
-    for k, v in kw.items():
+    for k, v in {**SEARCH_DEFAULTS, **kw}.items():
         setattr(fs, k, v)
     fs.roots, fs.groups = kw.get("roots", 2048), kw.get("groups", 2)
     t = time.time()
