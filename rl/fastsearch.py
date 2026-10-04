@@ -96,7 +96,7 @@ class GraphFn:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, depth=1 << 30, profile_gpu=False):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, depth=1 << 30, profile_gpu=False, compile=True):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -109,6 +109,7 @@ class FastSearch:
         self.stats = {}
         self.cuda = DEV.type == "cuda"
         self.graph_E = graph_E
+        self.compile = compile and self.cuda  # torch.compile (inductor fusion, dynamic batch) inside the CUDA graphs: about 1.7x faster networks
         self.profile_gpu = profile_gpu and self.cuda  # CUDA events around every graph replay: where the GPU time goes (`gpu_ms`)
         self._ev = collections.defaultdict(list)
         self.depth = depth  # play-outs ask the value network after this many policy decisions (default: play to the end of the turn)
@@ -163,10 +164,13 @@ class FastSearch:
             M, greedy, E = self.M, self.greedy_roll, self.graph_E
 
             amp = self.amp
+            logits = lambda o, m: net(o, m, value=False, E=E, L=64, has_dec=has_dec)[0]
+            if self.compile:
+                logits = torch.compile(logits, dynamic=True)
 
             def fn(o, m):
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
-                    lg, _ = net(o, m, value=False, E=E, L=64, has_dec=has_dec)
+                    lg = logits(o, m)
                 lg = lg.float()
                 if greedy:
                     act = lg.argmax(1)
@@ -183,10 +187,13 @@ class FastSearch:
             nets, E = [self.net] + list(self.value_nets), self.graph_E
 
             amp = self.value_amp
+            ens = lambda o: sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec)[1].float() for n in nets)
+            if self.compile:
+                ens = torch.compile(ens, dynamic=True)
 
             def fn(o, m):
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
-                    v = sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec)[1].float() for n in nets)
+                    v = ens(o)
                 return (v / len(nets)).unsqueeze(1)
             self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None)
         return self._graphs[key]
