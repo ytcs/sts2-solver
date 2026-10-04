@@ -18,6 +18,7 @@ import torch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
 from search import Searcher, load
+from fastsearch import FastSearch
 from ppo import net_policy
 
 _M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
@@ -42,7 +43,8 @@ def _run_shard(args):
 
 
 class Solver:
-    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, pmin=0.0, force=False, margin=0.0, threads=8, batch=600, max_steps=300, value_ckpts="default", procs=4):
+    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, pmin=0.0, force=False, margin=0.0, threads=8, batch=600, max_steps=300, value_ckpts="default", procs=4,
+                 engine="rust", roots=512, groups=2, conf=1.01, roll_ckpt=None):
         """`ckpt`: a checkpoint path, or several (comma-separated string / list) = an ensemble for both policy and value; `value_ckpts`: extra networks
         whose value heads are averaged in while the policy stays the first network's. Defaults: 3 options x 8 futures per decision (best cost / quality)."""
         self.cfg = dict(ckpt=ckpt, M=M, K=K, pmin=pmin, force=force, margin=margin, threads=max(1, threads // max(procs, 1)), batch=batch, max_steps=max_steps, value_ckpts=value_ckpts, procs=1)
@@ -54,6 +56,11 @@ class Solver:
         self.value_nets = [load(c) for c in value_ckpts] if value_ckpts else None
         self.M, self.K, self.pmin, self.force, self.margin = M, K, pmin, force, margin
         self.batch, self.max_steps = batch, max_steps
+        self.engine = engine
+        if engine == "rust":  # the search as a Rust state machine (sts2env::search); the python Searcher stays for the analysis tools (masks, traces)
+            assert not force, "force needs the python searcher (engine='py')"
+            self.fs = FastSearch(self.net, self.value_nets, M, K, conf=conf, pmin=pmin, margin=margin, max_steps=max_steps, roots=roots, groups=groups,
+                                 roll_net=load(roll_ckpt) if roll_ckpt else None)
 
     def _fights(self, scen_per_fight, search, seed):
         """Plays one fight per entry of `scen_per_fight`; returns rows (outcome, hp_lost, length, hp_end)."""
@@ -88,7 +95,12 @@ class Solver:
         S = len(scenarios)
         flat = [scenarios[i] for _ in range(attempts) for i in range(S)]  # attempt-major: roots spread over scenarios
         t0 = time.time()
-        if self.procs > 1 and len(flat) >= 2 * self.procs:
+        if search and self.engine == "rust":
+            js = np.tile(np.arange(S, dtype=np.uint32), attempts)  # attempt-major
+            jd = np.uint64(seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
+            r = self.fs.run(scenarios, js, jd)
+            rows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3]) for i in range(len(js))]
+        elif self.procs > 1 and len(flat) >= 2 * self.procs:
             if self.pool is None:  # persistent worker pool (spawn: CUDA does not survive a fork)
                 import multiprocessing as mp
                 cfg = dict(self.cfg, cores=os.cpu_count() or 8, procs=self.procs)
@@ -123,12 +135,16 @@ def main():
     ap.add_argument("--no-search", action="store_true", help="the network alone (greedy)")
     ap.add_argument("--threads", type=int, default=8); ap.add_argument("--batch", type=int, default=600)
     ap.add_argument("--procs", type=int, default=4, help="worker processes (the Python around the search is single-threaded: 3-4 give 2-3x on a 16-core machine)")
+    ap.add_argument("--engine", default="rust", choices=["rust", "py"])
+    ap.add_argument("--roots", type=int, default=512); ap.add_argument("--groups", type=int, default=2)
+    ap.add_argument("--conf", type=float, default=1.01); ap.add_argument("--roll-ckpt")
     ap.add_argument("--out"); ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     scen = json.load(open(a.scenarios))
     if isinstance(scen, dict):
         scen = [scen]
-    S = Solver(a.ckpt, a.M, a.K, threads=a.threads, batch=a.batch, procs=a.procs, value_ckpts=(a.value_extra or None) if a.value_extra or a.ckpt != DEFAULT_CKPT else "default")
+    S = Solver(a.ckpt, a.M, a.K, threads=a.threads, batch=a.batch, procs=a.procs, value_ckpts=(a.value_extra or None) if a.value_extra or a.ckpt != DEFAULT_CKPT else "default",
+               engine=a.engine, roots=a.roots, groups=a.groups, conf=a.conf, roll_ckpt=a.roll_ckpt)
     res = S.solve(scen, a.attempts, search=not a.no_search, seed=a.seed, verbose=True)
     for sc, r in zip(scen, res):
         print(f"{sc.get('name', '?'):28s} win {r['win']:.3f} ±{r['win_se']:.3f}  HP lost {100 * (r['hp_lost'] or 0):.0f}%  HP left on win {r['hp_left_on_win']:.0f}")

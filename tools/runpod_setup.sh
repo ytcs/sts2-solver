@@ -5,7 +5,7 @@ if ! command -v cargo >/dev/null; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 fi
 source "$HOME/.cargo/env"
-[ -d sts2-solver ] || git clone --depth 1 -b sim-rebuild https://github.com/ytcs/sts2-solver.git
+[ -d sts2-solver ] || git clone --depth 1 -b master https://github.com/ytcs/sts2-solver.git
 cd sts2-solver
 git pull -q || true
 uv venv --system-site-packages .venv

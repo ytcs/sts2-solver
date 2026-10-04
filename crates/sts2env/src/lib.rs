@@ -9,6 +9,8 @@
 //! (content that is not ported) and `OUTCOME_OVERFLOW` (a fixed capacity of the simulator was exceeded, see
 //! `Combat::overflow`). Both end with reward 0 (+ the step reward); training code should treat them as truncations.
 
+pub mod search;
+
 use rayon::prelude::*;
 use sts2sim::engine::ACTION_SPACE;
 use sts2sim::observe::OBS_SIZE;

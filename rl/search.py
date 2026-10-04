@@ -67,6 +67,7 @@ class Searcher:
         self.hp_bonus, self.max_steps, self.roll_cap = hp_bonus, max_steps, roll_cap
         self.sim = None
         self.timers = Timers()
+        self.counts = collections.defaultdict(int)  # work done: decisions searched, rollout steps simulated, rows through the network ...
         self.value_nets = value_nets  # extra networks whose value heads are averaged with the main one (an ensemble of evaluators)
         self.full = full  # play-outs run to the end of the fight: the estimate is the real final reward, the value head is not used
         self.greedy_roll = greedy_roll  # play-outs follow the policy's top action (no sampling blunders in the estimate)
@@ -114,6 +115,8 @@ class Searcher:
         n_legal = legal.sum(1)
         self.last_info = {int(r): dict(acts=order[r].tolist(), p=prob[r, order[r]].tolist(), q=None, legal=legal[r].tolist()) for r in np.nonzero(active)[0]}
         todo = np.nonzero(active & (n_legal > 1) & (prob[np.arange(R), order[:, 0]] < self.conf))[0]
+        self.counts["root decisions"] += int(active.sum())
+        self.counts["searched decisions"] += len(todo)
         if len(todo) == 0:
             return best
         # forks: slot (r, j, k) = (r * M + j) * K + k
@@ -126,6 +129,7 @@ class Searcher:
                 for k in range(K):
                     src.append(r); dst.append((r * M + j) * K + k); acts.append(order[r, j]); seeds.append(ks[k])
         src, dst = np.array(src, np.uint32), np.array(dst, np.uint32)
+        self.counts["forks"] += len(dst)
         acts_arr = np.array(acts, np.int32)
         t = time.perf_counter()
         self.sim.fork_from(main, src, dst, np.array(seeds, np.uint64))
@@ -145,6 +149,8 @@ class Searcher:
             t = time.perf_counter()
             sobs, smask, rew, done, info = self.sim.step(a)
             t = self.timers.clock("rust: step+observe", t)
+            self.counts["sim steps (live)"] += int(live.sum())
+            self.counts["sim steps (slots)"] += n
             est[live] += rew[live]
             fin = live & (done > 0)
             ended_turn = np.zeros(n, bool) if self.full else live & ~fin & (sobs[:, TURN] > start_turn)
@@ -164,12 +170,15 @@ class Searcher:
             thinking = ~forced
             if thinking.any():
                 t = time.perf_counter()
+                self.counts["net rollout rows"] += int(thinking.sum())
+                self.counts["net rollout calls"] += 1
                 lg, _ = fwd(self.net, sobs[idx[thinking]].copy(), sm[thinking], value=False)
                 t = self.timers.clock("net rollout", t)
                 a[idx[thinking]] = (lg.argmax(1) if self.greedy_roll else torch.multinomial(torch.softmax(lg, 1), 1).squeeze(1)).cpu().numpy()
         if end_idx:
             t = time.perf_counter()
             ob = np.concatenate(end_obs)
+            self.counts["net value rows"] += len(ob)
             vv = values(self.net, ob)
             if self.value_nets:
                 vv = (vv + sum(values(n2, ob) for n2 in self.value_nets)) / (1 + len(self.value_nets))

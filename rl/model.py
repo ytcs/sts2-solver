@@ -147,7 +147,9 @@ class Net(nn.Module):
         self.end = mlp(2 * d, d, 1)
         self.value = mlp(2 * d, 2 * d, 1)
 
-    def encode(self, obs):
+    def encode(self, obs, E=None, L=None, has_dec=None):
+        """`E` (enemy slots), `L` (pile entries) and `has_dec` (every row has a pending card selection / none has) fix the shapes: no device-to-host
+        syncs, so the caller (which knows the batch from the host-side observation) can run it without stalls. None: derived from the batch."""
         B = obs.shape[0]
         H, E, K, Q = C["MAX_HAND"], C["OBS_MAX_ENEMIES"], C["MAX_POTIONS"], C["OBS_MAX_CANDS"]
         P = C["OBS_POWERS"]
@@ -164,7 +166,8 @@ class Net(nn.Module):
         orbs = sl(obs, "orbs")
         look = sl(obs, "look").view(B, E, C["LOOK_H"], C["LOOK_NODES"] + 1)
         # only the enemy slots that are occupied somewhere in this batch (most fights have 1-3 enemies)
-        E = max(1, int((enemies[..., 0] > 0.5).any(0).nonzero().max().item() + 1)) if (enemies[..., 0] > 0.5).any() else 1
+        if E is None:
+            E = max(1, int((enemies[..., 0] > 0.5).any(0).nonzero().max().item() + 1)) if (enemies[..., 0] > 0.5).any() else 1
         enemies, look = enemies[:, :E], look[:, :E]
         # ---- player ----
         stage = g[:, 2:5]
@@ -204,8 +207,10 @@ class Net(nn.Module):
         pot_t = self.potion_enc(torch.cat([self.potion(pid), potions[..., 1:2]], -1))
         pot_p = pid > 0
         # ---- decision: candidates only for the envs that have a pending selection ----
-        dec_on = dec[:, 0] > 0.5
-        rows = dec_on.nonzero().squeeze(1)
+        if has_dec is None:
+            rows = (dec[:, 0] > 0.5).nonzero().squeeze(1)
+        else:
+            rows = torch.arange(B, device=dev) if has_dec else torch.zeros(0, dtype=torch.long, device=dev)
         cands = dec[rows, 8:].view(len(rows), Q, C["CARD_F"] + 1)
         rg = regent[rows, H:H + Q]
         cand_t = self.card(cands[..., :C["CARD_F"]], torch.stack([rg, torch.zeros_like(rg), cands[..., C["CARD_F"]]], -1))
@@ -218,8 +223,8 @@ class Net(nn.Module):
         piles = []
         for k, nm in enumerate(["draw", "discard", "exhaust"]):
             pv_ = sl(obs, nm).view(B, -1, 2)
-            L = max(1, int((pv_[..., 0] > 0).sum(1).max().item()))
-            pv_ = pv_[:, :L]
+            Lk = L if L is not None else max(1, int((pv_[..., 0] > 0).sum(1).max().item()))
+            pv_ = pv_[:, :Lk]
             ids = pv_[..., 0].long().clamp(0, C["N_CARDS"])
             up = (pv_[..., 1] > 0).float()
             w = torch.stack([1.0 - up, up], -1) / 4.0
@@ -227,13 +232,14 @@ class Net(nn.Module):
         return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
                     cand_p=cand_p, cid=cid, rows=rows, cand_sel=cands[..., C["CARD_F"]] > 0.5)
 
-    def forward(self, obs, mask, policy=True, value=True):
-        """Returns (masked logits [B, ACTION_SPACE], value [B]); `policy=False` / `value=False` skips that head (None) and its cost."""
+    def forward(self, obs, mask, policy=True, value=True, **shape):
+        """Returns (masked logits [B, ACTION_SPACE], value [B]); `policy=False` / `value=False` skips that head (None) and its cost.
+        `shape`: E / L / has_dec of `encode`."""
         B = obs.shape[0]
         d = self.d
         E, Q = C["OBS_MAX_ENEMIES"], C["OBS_MAX_CANDS"]
         T = C["MAX_CREATURES"]
-        z = self.encode(obs)
+        z = self.encode(obs, **shape)
         player, enemy, hand, pot, cand = z["player"], z["enemy"], z["hand"], z["potion"], z["cand"]
         ep, hp_, pot_p, cand_p = z["ep"].unsqueeze(-1), z["hp"].unsqueeze(-1), z["pot_p"].unsqueeze(-1), z["cand_p"].unsqueeze(-1)
         rows = z["rows"]
@@ -292,8 +298,8 @@ class Ensemble(nn.Module):
         super().__init__()
         self.nets = nn.ModuleList(nets)
 
-    def forward(self, obs, mask, policy=True, value=True):
-        outs = [n(obs, mask, policy=policy, value=value) for n in self.nets]
+    def forward(self, obs, mask, policy=True, value=True, **shape):
+        outs = [n(obs, mask, policy=policy, value=value, **shape) for n in self.nets]
         lg = None
         if policy:
             lg = torch.stack([F.log_softmax(o[0], 1) for o in outs]).mean(0)

@@ -15,7 +15,7 @@ Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py);
 import json
 import numpy as np
 
-from ._sts2 import BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable  # noqa: F401
+from ._sts2 import SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )
