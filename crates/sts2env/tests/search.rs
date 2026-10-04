@@ -76,7 +76,7 @@ fn run(threads: usize, n_roots: usize, jobs: Vec<(u32, u64)>, cfg: SearchCfg) ->
 }
 
 fn cfg() -> SearchCfg {
-    SearchCfg { m: 3, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, lead: false, lead_greedy: false, end_value: false, k_first: 4, depth: u32::MAX, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5 }
+    SearchCfg { m: 3, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, lead: false, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5 }
 }
 
 #[test]

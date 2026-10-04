@@ -43,16 +43,6 @@ pub struct SearchCfg {
     /// Share the in-turn play of an option between its futures: one play-out per option runs on a scratch copy and the `k` futures branch (each with its own
     /// determinization) at the first step that touches hidden information (a draw, a shuffle, a random choice, the enemy turn).
     pub lead: bool,
-    /// The shared prefix follows the policy's most probable action (no sampling).
-    pub lead_greedy: bool,
-    /// When the policy itself ends the turn inside a shared prefix, the value network judges the state it ended the turn in (no futures, no enemy turn):
-    /// the value head is trained on exactly those states.
-    pub end_value: bool,
-    /// Futures of an option whose very first action already touches hidden information (a draw, the enemy turn ...): such futures cannot share any play, so they are
-    /// the expensive ones.
-    pub k_first: usize,
-    /// A play-out asks the value network for the state it has reached after this many policy decisions (instead of playing on to the end of the turn).
-    pub depth: u32,
     /// A fight is truncated after this many steps of the real fight.
     pub max_steps: u32,
     pub win: f32,
@@ -105,13 +95,11 @@ pub struct SearchStats {
     pub end_term: u64,
     pub end_cap: u64,
     pub end_stuck: u64,
-    pub end_depth: u64,
     /// options that branched at a hidden-information step / finished before needing one
     pub lead_branch: u64,
     pub lead_clean: u64,
     pub lead_prefix_steps: u64,
     pub lead_first_unclean: u64,
-    pub lead_endvalue: u64,
     /// time stamp counter ticks spent in: `step`, legal actions, observation rows (policy / value), forks (clone + determinize), the rest of the real fight's moves
     pub cy_step: u64,
     pub cy_legal: u64,
@@ -153,8 +141,6 @@ struct Sim {
     start_turn: i32,
     est: f32,
     steps: u32,
-    /// policy decisions taken after the first action
-    pdec: u32,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -181,8 +167,6 @@ struct Block {
     qs: [f32; MAX_M],
     /// option j still plays its shared prefix on `sims[j * k]` (`sims[(j + 1) * k - 1]` is its scratch copy)
     lead: [bool; MAX_M],
-    /// futures used by option j in the current decision
-    nk: [usize; MAX_M],
     /// determinization seeds of the futures of the current decision
     ks: Vec<u64>,
     todo: Vec<(usize, SimSt)>,
@@ -405,19 +389,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
         if let Some(a) = forced_action(&sim.cx, &buf) {
             act = a;
             st.forced_sim += 1;
-        } else if sim.pdec >= cfg.depth {
-            // deep enough: the value network judges the state as it stands
-            let t0 = tsc();
-            let row = val_row(out, &sim.cx);
-            let buf = ActionBuf::new();
-            write_row(&mut sim.cx, &buf, None, out.val_obs, None, row);
-            st.cy_obs += tsc() - t0;
-            st.value_rows += 1;
-            st.end_depth += 1;
-            sim.st = SimSt::Val(row as u32);
-            return None;
         } else {
-            sim.pdec += 1;
             let t0 = tsc();
             let row = pol_row(out, true, &sim.cx);
             write_row(&mut sim.cx, &buf, Some(playable), out.pol_obs, Some(out.pol_mask), row);
@@ -432,8 +404,8 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
 impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
-        let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, pdec: 0 }).collect();
-        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], nk: [0; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
+        let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0 }).collect();
+        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
     }
 
     /// Takes the next job (if any) and sets the real fight up. Returns false when the queue is empty.
@@ -582,7 +554,6 @@ impl Block {
         let lead = cfg.lead && k >= 2;
         for j in 0..m {
             self.lead[j] = false;
-            self.nk[j] = k;
             if !self.ok[j] {
                 for kk in 0..k {
                     self.sims[j * k + kk].st = SimSt::Idle;
@@ -612,7 +583,6 @@ impl Block {
                 sim.start_turn = turn;
                 sim.est = 0.0;
                 sim.steps = 0;
-                sim.pdec = 0;
                 self.stats.forks += 1;
             }
             if lead {
@@ -640,50 +610,20 @@ impl Block {
             sim_run(lead, act, cfg, out, &mut self.stats, Some(&mut scratch.cx))
         };
         match branch {
-            Some(Action::EndTurn) if cfg.end_value && self.sims[base].steps > 0 => {
-                // the policy ended the turn inside the shared prefix: `sims[base + k - 1]` is the state it ended it in
-                self.stats.lead_endvalue += 1;
-                let t0 = tsc();
-                let scratch = &mut self.sims[base + k - 1];
-                let row = val_row(out, &scratch.cx);
-                write_row(&mut scratch.cx, &ActionBuf::new(), None, out.val_obs, None, row);
-                self.stats.cy_obs += tsc() - t0;
-                self.stats.value_rows += 1;
-                self.sims[base].st = SimSt::Val(row as u32);
-            }
             Some(a) => {
                 // `sims[base + k - 1]` holds the state before the step `a`: every future starts from it with its own determinization
                 self.stats.lead_branch += 1;
                 self.stats.lead_prefix_steps += self.sims[base].steps as u64;
                 self.stats.lead_first_unclean += (self.sims[base].steps == 0) as u64;
-                let (est, steps, pdec, start_turn) = {
+                let (est, steps, start_turn) = {
                     let l = &self.sims[base];
-                    (l.est, l.steps, l.pdec, l.start_turn)
+                    (l.est, l.steps, l.start_turn)
                 };
-                // an option that needs hidden information from its first action on gets fewer futures (each is a full play-out of its own)
-                let kb = if steps == 0 { cfg.k_first.clamp(1, k) } else { k };
-                self.nk[j] = kb;
-                // the last used slot is the scratch copy (the branch state): move it when fewer futures are used
-                if kb < k {
+                for kk in 0..k - 1 {
                     let (head, tail) = self.sims.split_at_mut(base + k - 1);
-                    head[base + kb - 1].cx.clone_from(&tail[0].cx);
-                    for kk in kb..k {
-                        self.sims[base + kk].st = SimSt::Idle;
-                    }
+                    head[base + kk].cx.clone_from(&tail[0].cx);
                 }
-                for kk in 0..kb - 1 {
-                    if kb < k {
-                        let src = base + kb - 1;
-                        if kk != kb - 1 {
-                            let (head, tail) = self.sims.split_at_mut(src);
-                            head[base + kk].cx.clone_from(&tail[0].cx);
-                        }
-                    } else {
-                        let (head, tail) = self.sims.split_at_mut(base + k - 1);
-                        head[base + kk].cx.clone_from(&tail[0].cx);
-                    }
-                }
-                for kk in 0..kb {
+                for kk in 0..k {
                     let sim = &mut self.sims[base + kk];
                     let t0 = tsc();
                     sim.cx.determinize(self.ks[kk]);
@@ -691,7 +631,6 @@ impl Block {
                     self.stats.forks += 1;
                     sim.est = est;
                     sim.steps = steps;
-                    sim.pdec = pdec;
                     sim.start_turn = start_turn;
                     sim_run(sim, a, cfg, out, &mut self.stats, None);
                 }
@@ -733,8 +672,7 @@ impl Block {
             if !self.ok[j] {
                 continue;
             }
-            let nk = self.nk[j];
-            let q = self.sims[j * k..j * k + nk].iter().map(|s| s.est).sum::<f32>() / nk as f32;
+            let q = self.sims[j * k..(j + 1) * k].iter().map(|s| s.est).sum::<f32>() / k as f32;
             self.qs[j] = q;
             if j == 0 {
                 q0 = q;
@@ -816,7 +754,7 @@ impl Block {
                             let r = row as usize * stride;
                             let j = idx / cfg.k;
                             let is_lead = self.lead[j] && idx % cfg.k == 0;
-                            let a = if is_lead && cfg.lead_greedy { inp.pol[r] } else { inp.pol[r + 2 * m] } as i32;
+                            let a = inp.pol[r + 2 * m] as i32;
                             match Action::from_index(a as usize) {
                                 Some(act) => {
                                     if is_lead {
@@ -928,12 +866,10 @@ impl SearchEngine {
             t.end_term += s.end_term;
             t.end_cap += s.end_cap;
             t.end_stuck += s.end_stuck;
-            t.end_depth += s.end_depth;
             t.lead_branch += s.lead_branch;
             t.lead_clean += s.lead_clean;
             t.lead_prefix_steps += s.lead_prefix_steps;
             t.lead_first_unclean += s.lead_first_unclean;
-            t.lead_endvalue += s.lead_endvalue;
             t.cy_step += s.cy_step;
             t.cy_legal += s.cy_legal;
             t.cy_obs += s.cy_obs;
