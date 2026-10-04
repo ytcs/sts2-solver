@@ -24,6 +24,7 @@ S = len(scen)
 js = np.tile(np.arange(S, dtype=np.uint32), a.attempts)
 jd = np.uint64(a.seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
 nets = {}
+pool = {}
 
 
 def get(p):
@@ -52,8 +53,15 @@ for cfg in a.configs:
             kw[k] = int(v)
         else:
             kw[k] = float(v)
-    fs = FastSearch(get(policy), [get(c) for c in DEFAULT_VALUE_CKPTS[:value_n]], **kw)
-    fs.warm()
+    # networks, bf16 and the shapes fix the compiled graphs: configurations that differ only in the search parameters share one FastSearch (no recompiling)
+    gkey = (policy, value_n, kw.get("roll_net") and id(kw["roll_net"]), kw.get("amp"), kw.get("value_amp"), kw.get("M", 3), kw.get("graph_E", 8), kw.get("compile", True))
+    if gkey not in pool:
+        pool[gkey] = FastSearch(get(policy), [get(c) for c in DEFAULT_VALUE_CKPTS[:value_n]], **kw)
+        pool[gkey].warm()
+    fs = pool[gkey]
+    for k, v in kw.items():
+        setattr(fs, k, v)
+    fs.roots, fs.groups = kw.get("roots", 2048), kw.get("groups", 2)
     t = time.time()
     r = fs.run(scen, js, jd)
     dt = time.time() - t
