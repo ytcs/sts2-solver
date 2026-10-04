@@ -44,7 +44,7 @@ def _run_shard(args):
 
 class Solver:
     def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, pmin=0.0, force=False, margin=0.0, threads=8, batch=600, max_steps=300, value_ckpts="default", procs=4,
-                 engine="rust", roots=512, groups=2, conf=1.01, roll_ckpt=None):
+                 engine="rust", roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None):
         """`ckpt`: a checkpoint path, or several (comma-separated string / list) = an ensemble for both policy and value; `value_ckpts`: extra networks
         whose value heads are averaged in while the policy stays the first network's. Defaults: 3 options x 8 futures per decision (best cost / quality)."""
         self.cfg = dict(ckpt=ckpt, M=M, K=K, pmin=pmin, force=force, margin=margin, threads=max(1, threads // max(procs, 1)), batch=batch, max_steps=max_steps, value_ckpts=value_ckpts, procs=1)
@@ -59,8 +59,11 @@ class Solver:
         self.engine = engine
         if engine == "rust":  # the search as a Rust state machine (sts2env::search); the python Searcher stays for the analysis tools (masks, traces)
             assert not force, "force needs the python searcher (engine='py')"
-            self.fs = FastSearch(self.net, self.value_nets, M, K, conf=conf, pmin=pmin, margin=margin, max_steps=max_steps, roots=roots, groups=groups,
-                                 roll_net=load(roll_ckpt) if roll_ckpt else None)
+            cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
+            # a big pool of fights in flight keeps the network batches large (2048 roots x 24 play-outs); bf16 inside CUDA graphs is free (docs/solver.md)
+            self.fs = FastSearch(self.net, self.value_nets, M, K, conf=conf, pmin=pmin, margin=margin, max_steps=max_steps, roots=roots or (2048 if cuda else 256),
+                                 groups=groups, roll_net=load(roll_ckpt) if roll_ckpt else None, amp=cuda if amp is None else amp)
+            self.fs.warm()
 
     def _fights(self, scen_per_fight, search, seed):
         """Plays one fight per entry of `scen_per_fight`; returns rows (outcome, hp_lost, length, hp_end)."""
@@ -136,7 +139,7 @@ def main():
     ap.add_argument("--threads", type=int, default=8); ap.add_argument("--batch", type=int, default=600)
     ap.add_argument("--procs", type=int, default=4, help="worker processes (the Python around the search is single-threaded: 3-4 give 2-3x on a 16-core machine)")
     ap.add_argument("--engine", default="rust", choices=["rust", "py"])
-    ap.add_argument("--roots", type=int, default=512); ap.add_argument("--groups", type=int, default=2)
+    ap.add_argument("--roots", type=int, default=None); ap.add_argument("--groups", type=int, default=2)
     ap.add_argument("--conf", type=float, default=1.01); ap.add_argument("--roll-ckpt")
     ap.add_argument("--out"); ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()

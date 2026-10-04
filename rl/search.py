@@ -21,6 +21,7 @@ from ppo import make_env, summarize, net_policy, evaluate
 A = sts2.ACTIONS
 sts2_C = sts2.layout()["consts"]
 TURN = 1  # obs[:, 1] = the player's turn counter
+DEC0 = dict((n, o) for n, o, _ in sts2.layout()["sections"])["decision"]  # decision header: [pending, source, min, max, selected, confirm_required, can_skip, n_cands]
 
 
 def load(path):
@@ -167,6 +168,12 @@ class Searcher:
             forced = (sm > 0).sum(1) == 1  # one legal action: no network needed
             if forced.any():
                 a[idx[forced]] = sm[forced].argmax(1)
+            # a full card selection is confirmed (picking another card at max only swaps the latest pick; a sampled policy wanders between picks for dozens of steps)
+            d0 = DEC0
+            full = (sobs[idx, d0] > 0.5) & (sobs[idx, d0 + 4] == sobs[idx, d0 + 3]) & (sm[:, C["OFF_CONFIRM"]] > 0) & ~forced
+            if full.any():
+                a[idx[full]] = C["OFF_CONFIRM"]
+                forced = forced | full
             thinking = ~forced
             if thinking.any():
                 t = time.perf_counter()
