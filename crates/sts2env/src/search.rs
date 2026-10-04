@@ -130,9 +130,11 @@ impl<T> Copy for SendPtr<T> {}
 struct Out {
     pol_obs: SendPtr<f32>,
     pol_mask: SendPtr<u8>,
-    /// per policy row: 0 = a decision of the real fight, 1 = a move inside a play-out
+    /// per policy row: bit 0 = a move inside a play-out (0: a decision of the real fight), bit 1 = a card selection is pending
     pol_kind: SendPtr<u8>,
     val_obs: SendPtr<f32>,
+    /// per value row: bit 1 = a card selection is pending
+    val_kind: SendPtr<u8>,
     pol_cap: usize,
     val_cap: usize,
     n_pol: AtomicUsize,
@@ -213,7 +215,8 @@ fn write_row(cx: &mut Combat, buf: &ActionBuf, playable: Option<u16>, obs: SendP
     cx.sync_overflow();
 }
 
-fn pol_row(out: &Out, kind: u8) -> usize {
+fn pol_row(out: &Out, sim: bool, cx: &Combat) -> usize {
+    let kind = sim as u8 | (cx.decision.is_some() as u8) << 1;
     let r = out.n_pol.fetch_add(1, Ordering::Relaxed);
     assert!(r < out.pol_cap, "policy request buffer too small");
     // SAFETY: row `r` is owned by the caller (unique counter value) and below the capacity.
@@ -221,9 +224,11 @@ fn pol_row(out: &Out, kind: u8) -> usize {
     r
 }
 
-fn val_row(out: &Out) -> usize {
+fn val_row(out: &Out, cx: &Combat) -> usize {
     let r = out.n_val.fetch_add(1, Ordering::Relaxed);
     assert!(r < out.val_cap, "value request buffer too small");
+    // SAFETY: as in `pol_row`.
+    unsafe { *out.val_kind.0.add(r) = (cx.decision.is_some() as u8) << 1 };
     r
 }
 
@@ -248,7 +253,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
             return;
         }
         if sim.cx.player.turn_number > sim.start_turn {
-            let row = val_row(out);
+            let row = val_row(out, &sim.cx);
             let buf = ActionBuf::new();
             write_row(&mut sim.cx, &buf, None, out.val_obs, None, row);
             st.value_rows += 1;
@@ -273,7 +278,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
             act = a;
             st.forced_sim += 1;
         } else {
-            let row = pol_row(out, 1);
+            let row = pol_row(out, true, &sim.cx);
             write_row(&mut sim.cx, &buf, Some(playable), out.pol_obs, Some(out.pol_mask), row);
             st.policy_rows += 1;
             sim.st = SimSt::Pol(row as u32);
@@ -358,7 +363,7 @@ impl Block {
                     return;
                 }
             } else {
-                let row = pol_row(out, 0);
+                let row = pol_row(out, false, &self.main);
                 write_row(&mut self.main, &buf, Some(playable), out.pol_obs, Some(out.pol_mask), row);
                 self.stats.policy_rows += 1;
                 self.st = RootSt::Pol(row as u32);
@@ -597,9 +602,9 @@ impl SearchEngine {
     /// One cycle. The first call (`pol` / `val` = `None`) starts the roots; every later call passes the answers to the rows the previous call
     /// returned: `pol` = `[rows, 2M + 1]` f32 (the `M` best action indices, their probabilities, the action a play-out plays), `val` = `[rows]`.
     /// Writes the next requests into the buffers and returns `(policy rows, value rows)`; `(0, 0)` with [`SearchEngine::finished`] ends the run.
-    pub fn advance(&mut self, pol: Option<&[f32]>, val: Option<&[f32]>, pol_obs: &mut [f32], pol_mask: &mut [u8], pol_kind: &mut [u8], val_obs: &mut [f32]) -> Result<(usize, usize), EnvError> {
+    pub fn advance(&mut self, pol: Option<&[f32]>, val: Option<&[f32]>, pol_obs: &mut [f32], pol_mask: &mut [u8], pol_kind: &mut [u8], val_obs: &mut [f32], val_kind: &mut [u8]) -> Result<(usize, usize), EnvError> {
         let (pc, vc) = self.max_rows();
-        if pol_obs.len() < pc * OBS_SIZE || pol_mask.len() < pc * ACTION_SPACE || pol_kind.len() < pc || val_obs.len() < vc * OBS_SIZE {
+        if pol_obs.len() < pc * OBS_SIZE || pol_mask.len() < pc * ACTION_SPACE || pol_kind.len() < pc || val_obs.len() < vc * OBS_SIZE || val_kind.len() < vc {
             return Err(EnvError::Buffer("request buffers too small, see SearchEngine::max_rows"));
         }
         let first = !self.started;
@@ -612,6 +617,7 @@ impl SearchEngine {
             pol_mask: SendPtr(pol_mask.as_mut_ptr()),
             pol_kind: SendPtr(pol_kind.as_mut_ptr()),
             val_obs: SendPtr(val_obs.as_mut_ptr()),
+            val_kind: SendPtr(val_kind.as_mut_ptr()),
             pol_cap: pc,
             val_cap: vc,
             n_pol: AtomicUsize::new(0),

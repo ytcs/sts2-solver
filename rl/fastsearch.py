@@ -36,9 +36,59 @@ def host_shapes(obs):
     return E, L, obs[:, _DEC] > 0.5
 
 
+class GraphFn:
+    """`fn(obs [B, OBS], mask [B, ACT] | None) -> [B, ...]` replayed as a CUDA graph per padded batch size: one replay instead of several hundred kernel
+    launches (the network is launch-bound at the batch sizes the search produces)."""
+
+    def __init__(self, fn, buckets, with_mask, pool):
+        self.fn, self.buckets, self.with_mask, self.pool = fn, tuple(sorted(buckets)), with_mask, pool
+        self.graphs = {}
+
+    def _capture(self, B):
+        sobs = torch.zeros(B, OBS, device=DEV)
+        smask = torch.zeros(B, ACT, dtype=torch.uint8, device=DEV) if self.with_mask else None
+        if smask is not None:
+            smask[:, 0] = 1  # every padded row has a legal action (no NaN in the softmax of rows that are ignored)
+        st = torch.cuda.Stream()
+        st.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(st), torch.no_grad():
+            for _ in range(2):
+                self.fn(sobs, smask)
+        torch.cuda.current_stream().wait_stream(st)
+        g = torch.cuda.CUDAGraph()
+        with torch.no_grad(), torch.cuda.graph(g, pool=self.pool):
+            out = self.fn(sobs, smask)
+        self.graphs[B] = (g, sobs, smask, out)
+
+    @torch.no_grad()
+    def __call__(self, obs, mask, idx=None):
+        """Rows `idx` (a device index tensor) of obs / mask, or all of them; returns a fresh [rows, ...] tensor."""
+        n = len(obs) if idx is None else len(idx)
+        outs = []
+        top = self.buckets[-1]
+        for a in range(0, n, top):
+            m = min(top, n - a)
+            B = next(b for b in self.buckets if b >= m)
+            if B not in self.graphs:
+                self._capture(B)
+            g, sobs, smask, out = self.graphs[B]
+            sel = slice(a, a + m) if idx is None else idx[a:a + m]
+            if idx is None:
+                sobs[:m].copy_(obs[sel])
+                if smask is not None:
+                    smask[:m].copy_(mask[sel])
+            else:
+                torch.index_select(obs, 0, sel, out=sobs[:m])
+                if smask is not None:
+                    torch.index_select(mask, 0, sel, out=smask[:m])
+            g.replay()
+            outs.append(out[:m].clone())
+        return outs[0] if len(outs) == 1 else torch.cat(outs)
+
+
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -50,6 +100,12 @@ class FastSearch:
         self.timers = collections.defaultdict(float)
         self.stats = {}
         self.cuda = DEV.type == "cuda"
+        self.graph_E = graph_E
+        self.buckets = (1024, 2048, 4096, 8192, 16384) if buckets is None else buckets
+        self.dec_buckets = (64, 256, 1024, 4096)
+        self._graphs = {}
+        self._pool = torch.cuda.graph_pool_handle() if self.cuda and use_graphs else None
+        self.use_graphs = self.cuda and use_graphs
 
     # ---- network side ----
     def _run(self, fn, obs_np, obs_t, mask_t=None):
@@ -69,8 +125,95 @@ class FastSearch:
         out[i1] = r1
         return out
 
+    def warm(self):
+        """Captures every graph up front (a few seconds) so a timed run does not pay for it."""
+        if not self.use_graphs:
+            return
+        t = time.perf_counter()
+        for net in {id(self.net): self.net, id(self.roll_net): self.roll_net}.values():
+            for hd in (False, True):
+                fn = self._pol_graph(net, hd)
+                for B in fn.buckets:
+                    fn._capture(B)
+        for hd in (False, True):
+            fn = self._val_graph(hd)
+            for B in fn.buckets:
+                fn._capture(B)
+        torch.cuda.synchronize()
+        self.timers["warm"] += time.perf_counter() - t
+
+    def _pol_graph(self, net, has_dec):
+        key = ("pol", id(net), has_dec)
+        if key not in self._graphs:
+            M, greedy, E = self.M, self.greedy_roll, self.graph_E
+
+            def fn(o, m):
+                lg, _ = net(o, m, value=False, E=E, L=64, has_dec=has_dec)
+                if greedy:
+                    act = lg.argmax(1)
+                else:  # sampling from softmax(lg) = argmax of the logits plus Gumbel noise
+                    act = (lg - torch.log(-torch.log(torch.rand_like(lg).clamp_min(1e-20)))).argmax(1)
+                tp, ti = torch.softmax(lg, 1).topk(M, 1)
+                return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
+            self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, True, self._pool)
+        return self._graphs[key]
+
+    def _val_graph(self, has_dec):
+        key = ("val", has_dec)
+        if key not in self._graphs:
+            nets, E = [self.net] + list(self.value_nets), self.graph_E
+
+            def fn(o, m):
+                v = sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec)[1] for n in nets)
+                return (v / len(nets)).unsqueeze(1)
+            self._graphs[key] = GraphFn(fn, self.dec_buckets if has_dec else self.buckets, False, self._pool)
+        return self._graphs[key]
+
+    @torch.no_grad()
+    def _evaluate_graphs(self, G, n_pol, n_val):
+        M = self.M
+        if n_pol:
+            obs = G["pol_obs_t"][:n_pol].to(DEV, non_blocking=True)
+            mask = G["pol_mask_t"][:n_pol].to(DEV, non_blocking=True)
+            kind = G["pol_kind"][:n_pol]
+            res = torch.empty(n_pol, 2 * M + 1, device=DEV)
+            sim, dec = (kind & 1) != 0, (kind & 2) != 0
+            split = self.roll_net is not self.net
+            # classes: (network, has_dec); with a separate play-out network the real fight's decisions go to the main network
+            for use_main in ((False, True) if split else (None,)):
+                for hd in (False, True):
+                    sel = (dec == hd) if use_main is None else ((dec == hd) & (sim != use_main))
+                    k = int(sel.sum())
+                    if k == 0:
+                        continue
+                    net = self.net if (use_main or not split) else self.roll_net
+                    fn = self._pol_graph(net, hd)
+                    if k == n_pol:
+                        res.copy_(fn(obs, mask))
+                    else:
+                        idx = torch.from_numpy(np.flatnonzero(sel)).to(DEV, non_blocking=True)
+                        res[idx] = fn(obs, mask, idx)
+            G["pol_out_t"][:n_pol].copy_(res, non_blocking=True)
+        if n_val:
+            vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
+            dec = (G["val_kind"][:n_val] & 2) != 0
+            nd = int(dec.sum())
+            if nd == 0:
+                out = self._val_graph(False)(vo, None)
+            elif nd == n_val:
+                out = self._val_graph(True)(vo, None)
+            else:
+                out = torch.empty(n_val, 1, device=DEV)
+                for hd in (False, True):
+                    idx = torch.from_numpy(np.flatnonzero(dec == hd)).to(DEV, non_blocking=True)
+                    out[idx] = self._val_graph(hd)(vo, None, idx)
+            G["val_out_t"][:n_val].copy_(out.squeeze(1), non_blocking=True)
+        G["event"].record()
+
     @torch.no_grad()
     def _evaluate(self, g, n_pol, n_val):
+        if self.use_graphs:
+            return self._evaluate_graphs(g, n_pol, n_val)
         """Launches the networks on group g's requests; the answers land in the group's host buffers (call `_collect` before reading)."""
         G = g
         M = self.M
@@ -126,7 +269,7 @@ class FastSearch:
             pc, vc = eng.max_rows()
             pin = self.cuda
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)
-            for name, shape, dt in (("pol_obs", (pc, OBS), torch.float32), ("pol_mask", (pc, ACT), torch.uint8), ("pol_kind", (pc,), torch.uint8), ("val_obs", (vc, OBS), torch.float32),
+            for name, shape, dt in (("pol_obs", (pc, OBS), torch.float32), ("pol_mask", (pc, ACT), torch.uint8), ("pol_kind", (pc,), torch.uint8), ("val_obs", (vc, OBS), torch.float32), ("val_kind", (vc,), torch.uint8),
                                     ("pol_out", (pc, 2 * self.M + 1), torch.float32), ("val_out", (vc,), torch.float32)):
                 t = torch.empty(shape, dtype=dt, pin_memory=pin)
                 G[name + "_t"] = t
@@ -137,7 +280,7 @@ class FastSearch:
         self.timers["setup"] += time.perf_counter() - t0
         t0 = time.perf_counter()
         for G in groups:
-            G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["val_obs"])
+            G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["val_obs"], G["val_kind"])
             self._evaluate(G, G["n_pol"], G["n_val"])
         active = list(groups)
         cycles = rows = 0
@@ -150,7 +293,7 @@ class FastSearch:
                 if not self.cuda:
                     pass
                 npol, nval = G["n_pol"], G["n_val"]
-                G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["val_obs"], G["pol_out"][:npol], G["val_out"][:nval])
+                G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["val_obs"], G["val_kind"], G["pol_out"][:npol], G["val_out"][:nval])
                 self.timers["engine"] += time.perf_counter() - t
                 cycles += 1
                 rows += G["n_pol"] + G["n_val"]
