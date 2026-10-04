@@ -94,6 +94,7 @@ pub struct SearchStats {
     pub value_rows: u64,
     pub forks: u64,
     pub illegal: u64,
+    pub panics: u64,
     pub end_turn: u64,
     pub end_term: u64,
     pub end_cap: u64,
@@ -716,6 +717,28 @@ impl Block {
         }
     }
 
+    /// After a panic inside this block: the current fight is recorded as aborted (`OUTCOME_OVERFLOW`) and the block starts the next job.
+    fn recover(&mut self, sh: &Shared, out: &Out) {
+        eprintln!("search engine: panic while playing job {} (scenario {}, seed {:#x}, {} moves played); the fight is aborted", self.job, self.scen, sh.jobs.get(self.job as usize).map(|j| j.1).unwrap_or(0), self.steps);
+        if sh.record {
+            eprintln!("  moves so far: {:?}", self.log.iter().map(|m| m.action).collect::<Vec<_>>());
+        }
+        self.stats.panics += 1;
+        for s in self.sims.iter_mut() {
+            s.st = SimSt::Idle;
+        }
+        self.lead = [false; MAX_M];
+        if self.job != NONE {
+            self.record(sh, OUTCOME_OVERFLOW);
+            self.job = NONE;
+        }
+        self.st = RootSt::Idle;
+        // the combat the panic left behind is not trusted: `start_job` rebuilds it from the scenario
+        if self.start_job(sh) {
+            self.root_next(sh, out);
+        }
+    }
+
     #[inline(never)]
     fn advance(&mut self, inp: Option<&Inputs>, sh: &Shared, out: &Out) {
         let m = sh.cfg.m;
@@ -851,6 +874,7 @@ impl SearchEngine {
             t.value_rows += s.value_rows;
             t.forks += s.forks;
             t.illegal += s.illegal;
+            t.panics += s.panics;
             t.end_turn += s.end_turn;
             t.end_term += s.end_term;
             t.end_cap += s.end_cap;
@@ -902,7 +926,12 @@ impl SearchEngine {
         let inp = if first { None } else { Some(Inputs { pol: pol.unwrap(), val: val.unwrap() }) };
         let blocks = &mut self.blocks;
         self.pool.install(|| {
-            blocks.par_iter_mut().for_each(|b| b.advance(inp.as_ref(), &sh, &out));
+            blocks.par_iter_mut().for_each(|b| {
+                // a simulator bug in one fight must not take the whole batch down: abort that fight (reported on stderr) and go on with the next job
+                if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| b.advance(inp.as_ref(), &sh, &out))).is_err() {
+                    b.recover(&sh, &out);
+                }
+            });
         });
         self.next_job = sh.next_job.load(Ordering::Relaxed).min(self.jobs.len());
         Ok((out.n_pol.load(Ordering::Relaxed), out.n_val.load(Ordering::Relaxed)))

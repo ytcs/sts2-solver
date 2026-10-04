@@ -234,6 +234,7 @@ impl SearchEnginePy {
         d.set_item("value_rows", s.value_rows)?;
         d.set_item("forks", s.forks)?;
         d.set_item("illegal", s.illegal)?;
+        d.set_item("panics", s.panics)?;
         d.set_item("end_turn", s.end_turn)?;
         d.set_item("end_term", s.end_term)?;
         d.set_item("end_cap", s.end_cap)?;
