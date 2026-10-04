@@ -76,7 +76,7 @@ fn run(threads: usize, n_roots: usize, jobs: Vec<(u32, u64)>, cfg: SearchCfg) ->
 }
 
 fn cfg() -> SearchCfg {
-    SearchCfg { m: 3, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, depth: u32::MAX, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5 }
+    SearchCfg { m: 3, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, lead: false, lead_greedy: false, depth: u32::MAX, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5 }
 }
 
 #[test]
@@ -112,4 +112,21 @@ fn confident_policy_skips_the_search() {
     let (r, s) = run(2, 3, jobs, c);
     assert!(r.iter().all(|x| x.done));
     assert_eq!((s.searched, s.forks, s.value_rows), (0, 0, 0));
+}
+
+#[test]
+fn shared_prefix_search_finishes_reproducibly_and_does_less_work() {
+    let jobs: Vec<(u32, u64)> = (0..24).map(|i| ((i % 2) as u32, 500 + i as u64)).collect();
+    let mut c = cfg();
+    c.lead = true;
+    let (r1, s1) = run(2, 5, jobs.clone(), c);
+    assert!(r1.iter().all(|x| x.done && matches!(x.outcome, 1 | -1 | 2)));
+    assert_eq!(s1.illegal, 0);
+    assert!(s1.lead_branch + s1.lead_clean > 0);
+    let (r2, _) = run(1, 24, jobs.clone(), c);
+    for i in 0..24 {
+        assert_eq!((r1[i].outcome, r1[i].len), (r2[i].outcome, r2[i].len), "job {i}");
+    }
+    let (_, s0) = run(2, 5, jobs, cfg());
+    assert!(s1.sim_steps < s0.sim_steps, "{} vs {}", s1.sim_steps, s0.sim_steps);
 }

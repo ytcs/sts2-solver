@@ -46,7 +46,7 @@ for cfg in a.configs:
             kw["roll_net"] = get(v)
         elif k == "policy":
             policy = v
-        elif k in ("amp", "value_amp"):
+        elif k in ("amp", "value_amp", "lead", "lead_greedy", "compile"):
             kw[k] = bool(int(v))
         elif k in ("M", "K", "roll_cap", "graph_E", "roots", "groups", "depth"):
             kw[k] = int(v)

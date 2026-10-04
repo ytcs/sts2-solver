@@ -40,6 +40,11 @@ pub struct SearchCfg {
     pub margin: f32,
     /// Play-outs stop after this many steps (no bootstrap).
     pub roll_cap: u32,
+    /// Share the in-turn play of an option between its futures: one play-out per option runs on a scratch copy and the `k` futures branch (each with its own
+    /// determinization) at the first step that touches hidden information (a draw, a shuffle, a random choice, the enemy turn).
+    pub lead: bool,
+    /// The shared prefix follows the policy's most probable action (no sampling).
+    pub lead_greedy: bool,
     /// A play-out asks the value network for the state it has reached after this many policy decisions (instead of playing on to the end of the turn).
     pub depth: u32,
     /// A fight is truncated after this many steps of the real fight.
@@ -94,6 +99,11 @@ pub struct SearchStats {
     pub end_cap: u64,
     pub end_stuck: u64,
     pub end_depth: u64,
+    /// options that branched at a hidden-information step / finished before needing one
+    pub lead_branch: u64,
+    pub lead_clean: u64,
+    pub lead_prefix_steps: u64,
+    pub lead_first_unclean: u64,
     /// time stamp counter ticks spent in: `step`, legal actions, observation rows (policy / value), forks (clone + determinize), the rest of the real fight's moves
     pub cy_step: u64,
     pub cy_legal: u64,
@@ -158,6 +168,11 @@ struct Block {
     /// probabilities of the options of the current decision and the estimates of the finished search
     probs: [f32; MAX_M],
     qs: [f32; MAX_M],
+    /// option j still plays its shared prefix on `sims[j * k]` (`sims[(j + 1) * k - 1]` is its scratch copy)
+    lead: [bool; MAX_M],
+    /// determinization seeds of the futures of the current decision
+    ks: Vec<u64>,
+    todo: Vec<(usize, SimSt)>,
     log: Vec<MoveRec>,
     stats: SearchStats,
 }
@@ -281,27 +296,67 @@ fn val_row(out: &Out, cx: &Combat) -> usize {
     r
 }
 
+/// What a step can consume of the information a player does not have: the RNG streams (call counters) and the order of the draw pile.
+/// Also changed by drawing, shuffling, random choices and the enemy turn.
+fn hidden_sig(cx: &Combat) -> (i64, u64) {
+    let r = &cx.rng;
+    let c = r.shuffle.counter as i64
+        + r.combat_card_generation.counter as i64
+        + r.combat_potion_generation.counter as i64
+        + r.combat_card_selection.counter as i64
+        + r.combat_energy_costs.counter as i64
+        + r.combat_targets.counter as i64
+        + r.monster_ai.counter as i64
+        + r.niche.counter as i64
+        + r.combat_orbs.counter as i64;
+    let mut h = 0xcbf29ce484222325u64;
+    for &x in cx.player.draw.as_slice() {
+        h = (h ^ x as u64).wrapping_mul(0x100000001b3);
+    }
+    (c, h)
+}
+
+/// Does the state show something that depends on the (hidden) order of the draw pile? A pending selection among cards of the draw pile does.
+fn shows_draw_pile(cx: &Combat) -> bool {
+    matches!(&cx.decision, Some(d) if matches!(d.source, sts2sim::state::DecisionSource::Pile(sts2sim::types::PileType::Draw)))
+}
+
 /// Plays `act` on a play-out copy and then every forced move, until it needs the policy / the value network or ends.
+///
+/// With `scratch` (the shared prefix of an option) every step is first tried on a copy: if it touches hidden information the function returns
+/// `Some(act)` with `scratch` holding the state before that step and `sim` spoilt, so the caller can branch there; otherwise it behaves as without.
 #[inline(never)]
-fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut SearchStats) {
+fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut SearchStats, mut scratch: Option<&mut Combat>) -> Option<Action> {
     loop {
+        let sig0 = if let Some(sc) = scratch.as_deref_mut() {
+            sc.clone_from(&sim.cx);
+            Some(hidden_sig(&sim.cx))
+        } else {
+            None
+        };
         let t0 = tsc();
         let ok = sim.cx.step(act);
         st.cy_step += tsc() - t0;
         sim.steps += 1;
         st.sim_steps += 1;
+        if let Some(sig0) = sig0 {
+            if ok && (hidden_sig(&sim.cx) != sig0 || shows_draw_pile(&sim.cx)) {
+                sim.steps -= 1;
+                return Some(act);
+            }
+        }
         if !ok {
             // cannot happen for an action the policy took from the legal set; count it and score the copy as lost
             st.illegal += 1;
             sim.est += cfg.loss;
             sim.st = SimSt::Done;
-            return;
+            return None;
         }
         if let Some((_, r)) = terminal(&sim.cx, 0, u32::MAX, cfg) {
             sim.est += r;
             sim.st = SimSt::Done;
             st.end_term += 1;
-            return;
+            return None;
         }
         if sim.cx.player.turn_number > sim.start_turn {
             let t0 = tsc();
@@ -312,12 +367,12 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
             st.value_rows += 1;
             st.end_turn += 1;
             sim.st = SimSt::Val(row as u32);
-            return;
+            return None;
         }
         if sim.steps >= cfg.roll_cap {
             sim.st = SimSt::Done;
             st.end_cap += 1;
-            return;
+            return None;
         }
         let mut buf = ActionBuf::new();
         let mut playable = 0u16;
@@ -327,7 +382,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
         if buf.is_empty() {
             sim.st = SimSt::Done;
             st.end_stuck += 1;
-            return;
+            return None;
         }
         if let Some(a) = forced_action(&sim.cx, &buf) {
             act = a;
@@ -342,7 +397,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
             st.value_rows += 1;
             st.end_depth += 1;
             sim.st = SimSt::Val(row as u32);
-            return;
+            return None;
         } else {
             sim.pdec += 1;
             let t0 = tsc();
@@ -351,7 +406,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
             st.cy_obs += tsc() - t0;
             st.policy_rows += 1;
             sim.st = SimSt::Pol(row as u32);
-            return;
+            return None;
         }
     }
 }
@@ -360,7 +415,7 @@ impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
         let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, pdec: 0 }).collect();
-        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], log: Vec::new(), stats: SearchStats::default() })
+        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
     }
 
     /// Takes the next job (if any) and sets the real fight up. Returns false when the queue is empty.
@@ -500,35 +555,119 @@ impl Block {
             return;
         }
         self.stats.searched += 1;
-        let ks: Vec<u64> = (0..k).map(|_| splitmix(&mut self.rng)).collect();
+        self.ks.clear();
+        for _ in 0..k {
+            let x = splitmix(&mut self.rng);
+            self.ks.push(x);
+        }
         let turn = self.main.player.turn_number;
+        let lead = cfg.lead && k >= 2;
         for j in 0..m {
+            self.lead[j] = false;
+            if !self.ok[j] {
+                for kk in 0..k {
+                    self.sims[j * k + kk].st = SimSt::Idle;
+                }
+                continue;
+            }
+            let Some(first) = Action::from_index(self.opts[j] as usize) else {
+                for kk in 0..k {
+                    let sim = &mut self.sims[j * k + kk];
+                    sim.st = SimSt::Done;
+                    sim.est = cfg.loss;
+                }
+                continue;
+            };
+            // with `lead` only future 0 exists until the option needs hidden information; the other slots wait
+            let n_now = if lead { 1 } else { k };
             for kk in 0..k {
                 let sim = &mut self.sims[j * k + kk];
-                if !self.ok[j] {
+                if kk >= n_now {
                     sim.st = SimSt::Idle;
                     continue;
                 }
                 let t0 = tsc();
                 sim.cx.clone_from(&self.main);
-                sim.cx.determinize(ks[kk]);
+                sim.cx.determinize(self.ks[kk]);
                 self.stats.cy_fork += tsc() - t0;
                 sim.start_turn = turn;
                 sim.est = 0.0;
                 sim.steps = 0;
                 sim.pdec = 0;
                 self.stats.forks += 1;
-                match Action::from_index(self.opts[j] as usize) {
-                    Some(a) => sim_run(sim, a, cfg, out, &mut self.stats),
-                    None => {
-                        sim.st = SimSt::Done;
-                        sim.est = cfg.loss;
-                    }
+            }
+            if lead {
+                self.lead[j] = true;
+                self.lead_run(j, first, cfg, out);
+            } else {
+                for kk in 0..k {
+                    sim_run(&mut self.sims[j * k + kk], first, cfg, out, &mut self.stats, None);
                 }
             }
         }
         self.st = RootSt::Searching;
         self.try_finish_search(sh, out);
+    }
+
+    /// Runs the shared prefix of option `j` (see `SearchCfg::lead`) from `act` until it needs the policy / the value network, ends, or reaches a step that
+    /// touches hidden information, where the `k` futures branch.
+    fn lead_run(&mut self, j: usize, act: Action, cfg: &SearchCfg, out: &Out) {
+        let k = cfg.k;
+        let base = j * k;
+        let branch = {
+            let (head, tail) = self.sims.split_at_mut(base + k - 1);
+            let scratch = &mut tail[0];
+            let lead = &mut head[base];
+            sim_run(lead, act, cfg, out, &mut self.stats, Some(&mut scratch.cx))
+        };
+        match branch {
+            Some(a) => {
+                // `sims[base + k - 1]` holds the state before the step `a`: every future starts from it with its own determinization
+                self.stats.lead_branch += 1;
+                self.stats.lead_prefix_steps += self.sims[base].steps as u64;
+                self.stats.lead_first_unclean += (self.sims[base].steps == 0) as u64;
+                let (est, steps, pdec, start_turn) = {
+                    let l = &self.sims[base];
+                    (l.est, l.steps, l.pdec, l.start_turn)
+                };
+                for kk in 0..k - 1 {
+                    let (head, tail) = self.sims.split_at_mut(base + k - 1);
+                    head[base + kk].cx.clone_from(&tail[0].cx);
+                }
+                for kk in 0..k {
+                    let sim = &mut self.sims[base + kk];
+                    let t0 = tsc();
+                    sim.cx.determinize(self.ks[kk]);
+                    self.stats.cy_fork += tsc() - t0;
+                    self.stats.forks += 1;
+                    sim.est = est;
+                    sim.steps = steps;
+                    sim.pdec = pdec;
+                    sim.start_turn = start_turn;
+                    sim_run(sim, a, cfg, out, &mut self.stats, None);
+                }
+                self.lead[j] = false;
+            }
+            None => {
+                if self.sims[base].st == SimSt::Done {
+                    self.lead_finish(j, cfg);
+                }
+            }
+        }
+    }
+
+    /// The shared prefix of option `j` ended without needing hidden information: every future has the same result.
+    fn lead_finish(&mut self, j: usize, cfg: &SearchCfg) {
+        let k = cfg.k;
+        let base = j * k;
+        let est = self.sims[base].est;
+        for kk in 1..k {
+            let sim = &mut self.sims[base + kk];
+            sim.est = est;
+            sim.st = SimSt::Done;
+        }
+        self.lead[j] = false;
+        self.stats.lead_clean += 1;
     }
 
     /// If every play-out of the current decision is done: plays the best option for real and moves on.
@@ -595,27 +734,44 @@ impl Block {
             RootSt::Searching => {
                 let Some(inp) = inp else { return };
                 let cfg = sh.cfg;
-                let mut stats = self.stats;
-                for sim in self.sims[..cfg.m * cfg.k].iter_mut() {
-                    match sim.st {
+                // only the sims that were waiting when this call began have an answer (a branching option starts others during the loop)
+                let mut todo = std::mem::take(&mut self.todo);
+                todo.clear();
+                todo.extend((0..cfg.m * cfg.k).filter(|&i| matches!(self.sims[i].st, SimSt::Pol(_) | SimSt::Val(_))).map(|i| (i, self.sims[i].st)));
+                for &(idx, waiting) in todo.iter() {
+                    match waiting {
                         SimSt::Pol(row) => {
-                            let a = inp.pol[row as usize * stride + 2 * m] as i32;
+                            let r = row as usize * stride;
+                            let j = idx / cfg.k;
+                            let is_lead = self.lead[j] && idx % cfg.k == 0;
+                            let a = if is_lead && cfg.lead_greedy { inp.pol[r] } else { inp.pol[r + 2 * m] } as i32;
                             match Action::from_index(a as usize) {
-                                Some(act) => sim_run(sim, act, &cfg, out, &mut stats),
+                                Some(act) => {
+                                    if is_lead {
+                                        self.lead_run(j, act, &cfg, out);
+                                    } else {
+                                        sim_run(&mut self.sims[idx], act, &cfg, out, &mut self.stats, None);
+                                    }
+                                }
                                 None => {
-                                    stats.illegal += 1;
-                                    sim.st = SimSt::Done;
+                                    self.stats.illegal += 1;
+                                    self.sims[idx].st = SimSt::Done;
                                 }
                             }
                         }
                         SimSt::Val(row) => {
+                            let sim = &mut self.sims[idx];
                             sim.est += inp.val[row as usize];
                             sim.st = SimSt::Done;
+                            let j = idx / cfg.k;
+                            if self.lead[j] && idx % cfg.k == 0 {
+                                self.lead_finish(j, &cfg);
+                            }
                         }
                         _ => {}
                     }
                 }
-                self.stats = stats;
+                self.todo = todo;
                 self.try_finish_search(sh, out);
             }
         }
@@ -700,6 +856,10 @@ impl SearchEngine {
             t.end_cap += s.end_cap;
             t.end_stuck += s.end_stuck;
             t.end_depth += s.end_depth;
+            t.lead_branch += s.lead_branch;
+            t.lead_clean += s.lead_clean;
+            t.lead_prefix_steps += s.lead_prefix_steps;
+            t.lead_first_unclean += s.lead_first_unclean;
             t.cy_step += s.cy_step;
             t.cy_legal += s.cy_legal;
             t.cy_obs += s.cy_obs;
