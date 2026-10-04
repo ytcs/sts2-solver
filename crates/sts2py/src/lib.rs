@@ -1,7 +1,7 @@
 use numpy::{PyReadonlyArray1, PyReadwriteArray1, PyReadwriteArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use sts2env::{BatchEnv, PoolScenario, RewardConfig, StepOut};
+use sts2env::{BatchEnv, PoolScenario, RewardConfig, RoundRobinScenario, StepOut};
 
 #[pyclass]
 struct BatchEnvPy {
@@ -11,8 +11,8 @@ struct BatchEnvPy {
 #[pymethods]
 impl BatchEnvPy {
     #[new]
-    #[pyo3(signature = (n_envs, scenarios_json, seed, max_steps, win, loss, hp_bonus, step_reward))]
-    fn new(n_envs: usize, scenarios_json: Vec<String>, seed: u64, max_steps: u32, win: f32, loss: f32, hp_bonus: f32, step_reward: f32) -> PyResult<Self> {
+    #[pyo3(signature = (n_envs, scenarios_json, seed, max_steps, win, loss, hp_bonus, step_reward, round_robin=false))]
+    fn new(n_envs: usize, scenarios_json: Vec<String>, seed: u64, max_steps: u32, win: f32, loss: f32, hp_bonus: f32, step_reward: f32, round_robin: bool) -> PyResult<Self> {
         let mut scs = vec![];
         for s in scenarios_json {
             let v: serde_json::Value = serde_json::from_str(&s).map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -24,7 +24,8 @@ impl BatchEnvPy {
         if scs.is_empty() {
             return Err(PyValueError::new_err("no scenarios"));
         }
-        let env = BatchEnv::try_new(n_envs, Box::new(PoolScenario::with_extras(scs)), cfg, max_steps, seed)
+        let source: Box<dyn sts2env::ScenarioSource> = if round_robin { Box::new(RoundRobinScenario::with_extras(scs)) } else { Box::new(PoolScenario::with_extras(scs)) };
+        let env = BatchEnv::try_new(n_envs, source, cfg, max_steps, seed)
             .map_err(|e| PyValueError::new_err(format!("cannot create the env: {e:?}")))?;
         Ok(BatchEnvPy { env })
     }
@@ -109,6 +110,23 @@ fn provably_unwinnable(scenario_json: &str) -> PyResult<Option<String>> {
     Ok(sts2sim::bounds::provably_unwinnable(&sc, &ex).map(|p| p.describe()))
 }
 
+/// Display names (SCREAMING_SNAKE ids) of cards, powers, relics, potions, monsters, encounters, enchantments, afflictions, orbs, indexed by id.
+#[pyfunction]
+fn names(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
+    use sts2sim::ids;
+    let d = pyo3::types::PyDict::new(py);
+    d.set_item("card", ids::card::NAMES.to_vec())?;
+    d.set_item("power", ids::power::NAMES.to_vec())?;
+    d.set_item("relic", ids::relic::NAMES.to_vec())?;
+    d.set_item("potion", ids::potion::NAMES.to_vec())?;
+    d.set_item("monster", ids::monster::NAMES.to_vec())?;
+    d.set_item("encounter", ids::encounter::NAMES.to_vec())?;
+    d.set_item("enchantment", ids::enchantment::NAMES.to_vec())?;
+    d.set_item("affliction", ids::affliction::NAMES.to_vec())?;
+    d.set_item("orb", ids::orb::NAMES.to_vec())?;
+    Ok(d)
+}
+
 /// Observation layout and action-space constants: `{"sections": [(name, offset, size)], "consts": {name: value}}`.
 #[pyfunction]
 fn layout(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
@@ -134,6 +152,7 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;
     m.add_function(wrap_pyfunction!(action_space, m)?)?;
     m.add_function(wrap_pyfunction!(layout, m)?)?;
+    m.add_function(wrap_pyfunction!(names, m)?)?;
     m.add_function(wrap_pyfunction!(provably_unwinnable, m)?)?;
     // `outcome` codes of `step` (set when `done`)
     m.add("OUTCOME_ONGOING", sts2env::OUTCOME_ONGOING)?;

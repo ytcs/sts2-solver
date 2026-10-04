@@ -104,6 +104,36 @@ impl ScenarioSource for PoolScenario {
     }
 }
 
+/// Env `i` always plays scenario `i % len` (every episode, only the RNG streams change): `n_envs = n x len` gives `n` attempts of every scenario.
+pub struct RoundRobinScenario(Vec<Scenario>, Vec<ScenarioExtras>);
+impl RoundRobinScenario {
+    pub fn with_extras(v: Vec<(Scenario, ScenarioExtras)>) -> RoundRobinScenario {
+        assert!(!v.is_empty());
+        let (s, e) = v.into_iter().unzip();
+        RoundRobinScenario(s, e)
+    }
+}
+impl ScenarioSource for RoundRobinScenario {
+    fn sample(&self, env: usize, episode_seed: u64) -> Scenario {
+        let mut s = self.0[env % self.0.len()].clone();
+        s.run_seed = episode_seed;
+        s.rng = RngSet::from_run_seed(episode_seed);
+        s
+    }
+    fn pick(&self, env: usize, _episode_seed: u64) -> Option<&Scenario> {
+        Some(&self.0[env % self.0.len()])
+    }
+    fn extras(&self, env: usize, _episode_seed: u64) -> Option<&ScenarioExtras> {
+        Some(&self.1[env % self.0.len()])
+    }
+    fn index(&self, env: usize, _episode_seed: u64) -> u32 {
+        (env % self.0.len()) as u32
+    }
+    fn validate(&self) -> Result<(), ScenarioError> {
+        self.0.iter().try_for_each(|s| s.validate())
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct RewardConfig {
     pub win: f32,

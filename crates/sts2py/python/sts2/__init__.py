@@ -9,12 +9,13 @@
 (content not ported), OUTCOME_OVERFLOW 4 (a fixed simulator capacity was exceeded, data dropped). Codes 2-4 end the episode with
 reward 0: treat them as truncations, not as a win or a loss.
 
+With `round_robin=True` env `i` always plays `scenarios[i % len(scenarios)]` (n_envs = k x len gives k attempts of each).
 Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py); every episode redraws all RNG streams.
 """
 import json
 import numpy as np
 
-from ._sts2 import BatchEnv as _BatchEnv, obs_size, action_space, layout, provably_unwinnable as _provably_unwinnable  # noqa: F401
+from ._sts2 import BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )
@@ -30,11 +31,11 @@ def provably_unwinnable(scenario):
 
 
 class VecEnv:
-    def __init__(self, n_envs, scenarios, seed=0, max_steps=2000, win=1.0, loss=-1.0, hp_bonus=0.0, step_reward=0.0):
+    def __init__(self, n_envs, scenarios, seed=0, max_steps=2000, win=1.0, loss=-1.0, hp_bonus=0.0, step_reward=0.0, round_robin=False):
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         self.n = n_envs
-        self._env = _BatchEnv(n_envs, [json.dumps(s) for s in scenarios], seed, max_steps, win, loss, hp_bonus, step_reward)
+        self._env = _BatchEnv(n_envs, [json.dumps(s) for s in scenarios], seed, max_steps, win, loss, hp_bonus, step_reward, round_robin)
         self.obs = np.zeros((n_envs, OBS_SIZE), np.float32)
         self.mask = np.zeros((n_envs, ACTIONS), np.uint8)
         self.reward = np.zeros(n_envs, np.float32)

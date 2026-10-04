@@ -34,28 +34,32 @@ def kind(a):
 
 
 class Confirmer(Searcher):
-    """Re-estimates chosen (root, action) pairs with many more futures."""
+    """Re-estimates chosen (root, action) pairs with many more futures, in a simulator of its own."""
 
-    def estimate(self, main, roots, acts, K, seed):
-        """roots: list of root indices, acts: [len(roots), 2] actions to compare. Returns q [len(roots), 2]."""
-        R, M = self.R, 2
-        assert len(roots) <= self.R
+    def make_confirm_sim(self, scen, cap, K):
+        self.cap, self.cK = cap, K
+        self.csim = sts2.VecEnv(cap * 2 * K, scen[:1], seed=int(self.rng.integers(1 << 30)), max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=self.hp_bonus)
+        self.csim.set_autoreset(False)
+
+    def estimate(self, main, roots, acts):
+        """roots: root indices (at most `cap`), acts: [len(roots), 2] actions to compare. Returns (mean, standard error) of shape [len(roots), 2]."""
+        K, n = self.cK, self.cap * 2 * self.cK
+        assert len(roots) <= self.cap
         ks = self.rng.integers(1 << 62, size=(len(roots), K), dtype=np.uint64)
         src, dst, first, seeds = [], [], [], []
         for i, r in enumerate(roots):
             for j in range(2):
                 for k in range(K):
                     src.append(r); dst.append((i * 2 + j) * K + k); first.append(acts[i][j]); seeds.append(ks[i, k])
-        self.sim.fork_from(main, np.array(src, np.uint32), np.array(dst, np.uint32), np.array(seeds, np.uint64))
-        n = self.R * self.M * self.K
-        sobs, smask = self.sim.reset()
+        self.csim.fork_from(main, np.array(src, np.uint32), np.array(dst, np.uint32), np.array(seeds, np.uint64))
+        sobs, smask = self.csim.reset()
         start = sobs[:, 1].copy()
         live = np.zeros(n, bool); live[dst] = True
         a = np.full(n, -1, np.int32); a[dst] = first
         est = np.zeros(n, np.float32)
         ei, eo = [], []
         for _ in range(self.roll_cap):
-            sobs, smask, rew, done, info = self.sim.step(a)
+            sobs, smask, rew, done, info = self.csim.step(a)
             est[live] += rew[live]
             fin = live & (done > 0)
             ended = live & ~fin & (sobs[:, 1] > start)
@@ -99,13 +103,11 @@ def main():
         rec = []
         s = Confirmer(net, a.roots, a.M, a.K, 0.0, seed=a.seed + chunk, max_steps=a.max_steps, pmin=a.pmin, greedy_roll=a.greedy_roll, record=rec)
         # the confirmation pass needs a bigger simulator: roots x 2 actions x confirm futures
-        main = None
         scen = json.load(open(a.train))
         main = sts2.VecEnv(a.roots, scen, seed=a.seed * 1000 + chunk, max_steps=a.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5)
         main.set_autoreset(False)
-        s.K = max(a.K, a.confirm) // 2 * 2
-        s.make_sim(scen)
-        s.K = a.K
+        s.make_sim(scen[:1])
+        s.make_confirm_sim(scen, 48, a.confirm)
         obs, mask = main.reset()
         finished = np.zeros(a.roots, bool)
         while not finished.all():
@@ -128,11 +130,10 @@ def main():
                 roots = [c[0] for c in cand]
                 acts = [[c[1], c[2]] for c in cand]
                 # confirmation: chunked to the simulator's size
-                per = max(1, (s.R * s.M * s.K) // (2 * max(a.confirm, 1)) - 1)
-                s.K = max(a.K, a.confirm)
+                per = s.cap
                 for i0 in range(0, len(roots), per):
                     rr, aa = roots[i0:i0 + per], acts[i0:i0 + per]
-                    q, se = s.estimate(main, rr, aa, a.confirm, 0)
+                    q, se = s.estimate(main, rr, aa)
                     for i, r in enumerate(rr):
                         gain = q[i][1] - q[i][0]
                         if gain > a.gap and gain > 2 * np.hypot(se[i][0], se[i][1]):
@@ -141,11 +142,12 @@ def main():
                             keep["policy"].append(c[1]); keep["search"].append(c[2]); keep["q"].append(q[i].copy()); keep["p_policy"].append(c[5])
                             stats["confirmed"] += 1
                             stats["confirmed: prefers " + kind(c[2]) + " over " + kind(c[1])] += 1
-                s.K = a.K
             a_ = act.copy(); a_[finished] = -1
             obs, mask, rew, done, inf = main.step(a_)
             finished |= done > 0
         print(f"chunk {chunk} {time.time() - t0:.0f}s: {dict(stats)}", flush=True)
+        os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
+        np.savez_compressed(a.out, **{k: np.array(v) for k, v in keep.items()})  # (saved after every chunk: a long run can be stopped any time)
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     np.savez_compressed(a.out, **{k: np.array(v) for k, v in keep.items()})
     print("searched decisions:", stats["searched"], "| search disagreed (gain > gap):", stats["disagree"], "| confirmed:", stats["confirmed"])
