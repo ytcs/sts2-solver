@@ -127,7 +127,7 @@ def main():
             args = ck.get("args", {})
             net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2))
             net.load_state_dict(ck["net"] if "net" in ck else ck)
-            pol = net_policy(net.eval())
+            pol = net_policy(net.to(DEV).eval())
         res = evaluate(pol, a.eval, a.envs, a.per_env, 777, a.max_steps, a.hp_bonus)
         print(name, json.dumps(res), flush=True)
 

@@ -8,8 +8,9 @@ cd "$(dirname "$0")/.."
 PY=.venv/bin/python
 ROUNDS=${1:-3}; ROOTS=${2:-600}; CHUNKS=${3:-4}; NPROC=${NPROC:-3}
 BASE=${BASE:-models/solver_base.pt}
+TRAIN=${TRAIN:-target/train/mid_train.json}   # mining scenarios: must be disjoint from the evaluation sets (mid.json, eval.json)
 CK=$BASE
-ARCH="target/exit/mine1.npz"
+ARCH=""
 export STS2_DEVICE=${STS2_DEVICE:-cuda} RAYON_NUM_THREADS=$(( ($(nproc) > 16 ? 16 : $(nproc)) / NPROC + 1 )) OMP_NUM_THREADS=2
 mkdir -p target/exit
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a target/exit/loop.log; }
@@ -28,13 +29,13 @@ for r in $(seq 1 $ROUNDS); do
   log "round $r: mining with $CK"
   pids=()
   for p in $(seq 1 $NPROC); do
-    $PY -u rl/mine.py --ckpt $CK --train target/train/mid.json --roots $ROOTS --chunks $CHUNKS --confirm 32 --pmin 0.03 --threads 2 --seed $((r * 100 + p)) --out target/exit/r${r}_$p.npz > target/exit/r${r}_$p.log 2>&1 &
+    $PY -u rl/mine.py --ckpt $CK --train $TRAIN --roots $ROOTS --chunks $CHUNKS --confirm 32 --pmin 0.03 --threads 2 --seed $((r * 100 + p)) --out target/exit/r${r}_$p.npz > target/exit/r${r}_$p.log 2>&1 &
     pids+=($!)
   done
   wait "${pids[@]}"
   ARCH="$ARCH $(ls target/exit/r${r}_*.npz 2>/dev/null | tr '\n' ' ')"
   log "round $r mined: $($PY -c "import numpy as np,sys; print(sum(len(np.load(f)['search']) for f in sys.argv[1:]), 'confirmed states in', len(sys.argv)-1, 'archives')" $ARCH)"
-  (unset STS2_DEVICE; $PY -u rl/train_mined.py --ckpt $BASE --mined $ARCH --states target/train/mid.json --out models/solver_r$r.pt --epochs 12 --lr 1e-4 --anchors 30000 --threads 12) 2>&1 | grep -v Warn | tail -4 | tee -a target/exit/loop.log
+  (unset STS2_DEVICE; $PY -u rl/train_mined.py --ckpt $BASE --mined $ARCH --states $TRAIN --out models/solver_r$r.pt --epochs 12 --lr 1e-4 --anchors 30000 --threads 12) 2>&1 | grep -v Warn | tail -4 | tee -a target/exit/loop.log
   CK=models/solver_r$r.pt
   evalmodel r$r $CK
 done

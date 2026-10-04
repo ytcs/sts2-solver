@@ -63,6 +63,25 @@ What the search work taught (all measured, see the benchmark scripts):
 * What-if examples (Phrog Parasite deck): the network alone drinks a Duplicator potion on turn 1 whatever it holds (72.5% win); forcing "only with Perfected
   Strike in hand" gives 77.7%. With search the potion goes on Perfected Strike whenever it is in hand (85.7% win), and forcing the rule is not better.
 
+## GPU session (Runpod RTX 4090) results
+Throughput: PPO about 50k samples/s per run (laptop CPU: 3-4k), search 4 fights/s on mid-difficulty fights when the CPU is not shared (laptop: 0.3-1).
+Networks (held-out eval set, 1500 fights, greedy): 64-wide, 60M steps 63.0% / 0.443 HP lost; 64-wide + 66M more steps on a 30,000-scenario set with potion-hold
+randomization 63.8% / 0.436; **128-wide from scratch, 314M steps: 65.8% / 0.423** (`models/solver_b128.pt`, the best network).
+
+Mid-difficulty set (`data/train/mid.json`, 300 paired fights, +- 2.4): greedy / search(5 options x 8 futures)
+| network | greedy | search |
+|---|---|---|
+| 64-wide (a64) | 55.9% | 81.3% |
+| 128-wide (b128) | 64.0% | 79.3% (0.459 HP lost) |
+| b128 + policy distillation on 217k searched decisions (soft targets) | 65.7% | 79.0% |
+| b128 + value-only fine-tune on the search-played results | 64.0% | 73.7% |
+| b128 + 6,072 confirmed disagreements (round 1, 64-wide) | 60.8% vs 60.1% base (3144 episodes) | - |
+
+**Distilling the search into the network did not work**, in three variants: single-state confirmed corrections (tiny gain, within noise), soft targets over every
+searched option (held-out agreement with the search's best option fell 61% -> 50%: the option values come from 8 futures and most differences are noise), and a
+value-only fit to the final results of search-played fights (search got 5.6 points *worse*: the search compares candidate states that search-play never visits).
+What does pay off is bigger networks and more PPO steps, and the search on top.
+
 ## The solver API (`rl/solver.py`)
 `Solver().solve(scenarios, attempts=32)` plays `attempts` fights of every scenario (deck variants ...) with the network + search, all together in large
 batches, and returns win rate (+ standard error), mean HP lost (losses charged in full), HP left on wins. 576 fights (9 deck variants x 64) took 65 s.

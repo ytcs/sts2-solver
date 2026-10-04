@@ -92,11 +92,14 @@ def main():
     ap.add_argument("--gap", type=float, default=0.08, help="minimum estimated gain of the search's action over the policy's")
     ap.add_argument("--confirm", type=int, default=48, help="futures per action in the confirmation pass")
     ap.add_argument("--greedy-roll", action="store_true")
+    ap.add_argument("--save-all", default="", help="also write EVERY searched decision (obs, mask, options, their estimated returns, the fight's final reward) to this .npz, for soft-target distillation (rl/train_soft.py)")
     ap.add_argument("--threads", type=int, default=8); ap.add_argument("--seed", type=int, default=1); ap.add_argument("--max-steps", type=int, default=300)
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
     net = load(a.ckpt)
     keep = collections.defaultdict(list)
+    allr = collections.defaultdict(list)
+    fin_rew = {}  # (chunk * roots + root) -> final reward of that fight
     stats = collections.Counter()
     t0 = time.time()
     for chunk in range(a.chunks):
@@ -125,6 +128,12 @@ def main():
                 if d["acts"][j] != top and d["q"][j] - d["q"][0] > a.gap and act[r] == d["acts"][j]:
                     cand.append((r, top, d["acts"][j], d["q"][0], d["q"][j], d["p"][0]))
             stats["searched"] += sum(1 for d in info.values() if d["q"] is not None)
+            if a.save_all:
+                for r, d in info.items():
+                    if d["q"] is not None and active[r]:
+                        allr["obs"].append(np.clip(obs[r], -60000, 60000).astype(np.float16)); allr["mask"].append(mask[r].copy())
+                        allr["acts"].append(np.array(d["acts"], np.int16)); allr["legal"].append(np.array(d["legal"], bool))
+                        allr["q"].append(np.array(d["q"], np.float32)); allr["p"].append(np.array(d["p"], np.float32)); allr["root"].append(chunk * a.roots + r)
             stats["disagree"] += len(cand)
             if cand:
                 roots = [c[0] for c in cand]
@@ -144,10 +153,18 @@ def main():
                             stats["confirmed: prefers " + kind(c[2]) + " over " + kind(c[1])] += 1
             a_ = act.copy(); a_[finished] = -1
             obs, mask, rew, done, inf = main.step(a_)
+            newly = (done > 0) & ~finished
+            if newly.any():
+                ei = main.episode_info()
+                for r in np.nonzero(newly)[0]:
+                    fin_rew[chunk * a.roots + int(r)] = (1.0 + 0.5 * float(ei["hp_end"][r])) if inf["outcome"][r] == 1 else -1.0
             finished |= done > 0
         print(f"chunk {chunk} {time.time() - t0:.0f}s: {dict(stats)}", flush=True)
         os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
         np.savez_compressed(a.out, **{k: np.array(v) for k, v in keep.items()})  # (saved after every chunk: a long run can be stopped any time)
+        if a.save_all:
+            z = np.array([fin_rew.get(int(r), -1.0) for r in allr["root"]], np.float32)
+            np.savez_compressed(a.save_all, z=z, **{k: np.array(v) for k, v in allr.items()})
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     np.savez_compressed(a.out, **{k: np.array(v) for k, v in keep.items()})
     print("searched decisions:", stats["searched"], "| search disagreed (gain > gap):", stats["disagree"], "| confirmed:", stats["confirmed"])
