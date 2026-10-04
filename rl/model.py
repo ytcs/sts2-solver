@@ -248,7 +248,7 @@ class Net(nn.Module):
         pile_cat = torch.cat(z["piles"], 1)
         dec = z["dec"]
         for r in range(self.rounds):
-            ctx = self.ctx[r](torch.cat([player, (enemy * ep).sum(1), (hand * hp_).sum(1), (pot * pot_p).sum(1), zeros_c.index_copy(0, rows, (cand * cand_p).sum(1) / 4.0),
+            ctx = self.ctx[r](torch.cat([player, (enemy * ep).sum(1), (hand * hp_).sum(1), (pot * pot_p).sum(1), zeros_c.index_copy(0, rows, ((cand * cand_p).sum(1) / 4.0).to(zeros_c.dtype)),
                                          pile_cat[:, :d], pile_cat[:, d:2 * d], pile_cat[:, 2 * d:], dec], 1))
             u = self.upd[r]
             player = player + u["player"](player.unsqueeze(1), ctx).squeeze(1)
@@ -272,7 +272,7 @@ class Net(nn.Module):
         pick = torch.zeros(B, C["MAX_PICK"], device=obs.device)
         if len(rows):
             pv_ = self.pick(torch.cat([cand, dec[rows].unsqueeze(1).expand(-1, Q, -1)], -1)).squeeze(-1)
-            pick = pick.to(pv_.dtype).index_copy(0, rows, F.pad(pv_, (0, C["MAX_PICK"] - Q)))
+            pick = pick.index_copy(0, rows, F.pad(pv_, (0, C["MAX_PICK"] - Q)).to(pick.dtype))
         confirm = self.confirm(torch.cat([dec, player], 1))
         end = self.end(gctx)
         logits = torch.cat([end, play.flatten(1), pot_l.flatten(1), disc, pick, confirm], 1)
