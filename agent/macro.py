@@ -179,6 +179,7 @@ def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), att
     nodes: tokens M (regular monster), W (weak monster), E (elite), B (boss), R (rest), S (smith instead of rest), ? $ T (no fight assumed).
     Pools: the act's pool for the token's kind minus `exclude` (encounters already seen: the bag does not repeat them until it empties).
     Prints win probability per node, expected HP after the node (conditional on winning, Burning Blood included) and the route's win probability.
+    Potions: only a B node is solved with the belt (a potion is thrown once); every other node without potions, a lower bound.
     """
     base = dict(deck_json)
     maxhp = base["max_hp"]
@@ -196,7 +197,8 @@ def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), att
             lines.append(f"{i + 1:2d} {t}  (no fight assumed)  HP {cur:5.1f}")
             continue
         encs = narrow([e for e in pools.pool(act, kind[t]) if e not in set(exclude)], kind[t], ctx)
-        scen = [dict(base, hp=max(1, int(round(cur))), name=f"{t}@{e}", encounter=e, seed=f"route{i}") for e in encs]
+        pots = base.get("potions", []) if t == "B" else []  # a potion is thrown once: only the boss node gets the belt (every node used to get all of it: the same potion counted in every fight of the route)
+        scen = [dict(base, hp=max(1, int(round(cur))), potions=pots, name=f"{t}@{e}", encounter=e, seed=f"route{i}") for e in encs]
         res = engine.solve(scen, attempts=attempts)
         w = sum(r["win"] for r in res) / len(res)
         left = sum(r["win"] * r["hp_left_on_win"] for r in res) / max(sum(r["win"] for r in res), 1e-9)
