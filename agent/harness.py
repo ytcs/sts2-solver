@@ -145,7 +145,7 @@ class Harness:
         self._ended.add(self.fight_id)
         hp = _hp(text) if text else None
         self.log.event("fight_end", id=self.fight_id, hp=hp, screen=_kind(text) if text else None, hp_start=self.fight_hp0, actions=self.fight_actions, replay=dict(self.rp.stats),
-                       errors=self.rp.errors[:3])
+                       errors=self.rp.errors[:3], diff_examples={k: v for k, v in self.rp.examples.items() if not k.startswith("random")})
 
     # ------------------------------------------------------------------ micro
 
