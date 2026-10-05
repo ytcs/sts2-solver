@@ -97,19 +97,19 @@ class Replayer:
                 self.stats["random_pile_diffs"] += 1
                 continue
             cat = category(line)
-            self._note("diff " + cat, f"{action or 'start'}: {line[:200]}")
+            self._note("diff " + cat, f"{action or 'start'} [{getattr(self, '_played', '')}]: {line[:200]}")
         self._sync(state, action)
 
     def _sync(self, state, action):
         rep = json.loads(self.sim.sync(json.dumps(state)))
         for k in ("created", "from_discard", "from_exhaust"):
             if rep[k]:
-                self._note("sync " + k, f"{action or 'start'}: {rep}")
+                self._note("sync " + k, f"{action or 'start'} [{getattr(self, '_played', '')}]: {rep}")
         for n in rep["notes"]:
             self._note("sync note", n)
         post = self.sim.diff(json.dumps(state))
         for line in post:
-            self._note("residual " + category(line), f"{action or 'start'}: {line[:200]}")
+            self._note("residual " + category(line), f"{action or 'start'} [{getattr(self, '_played', '')}]: {line[:200]}")
         if self.sim.missing():
             self._note("missing content", self.sim.missing())
 
@@ -146,6 +146,16 @@ class Replayer:
         self._note("intent unmatched", f"want {want} got {intents_of(json.loads(first.snapshot())) if first else '?'}")
         if first is not None:
             self.sim = first
+
+    def _card_at(self, act):
+        """Id of the card a `play` action plays (read from the simulator's hand before the action), for the divergence notes."""
+        a = json.loads(act)
+        if "play" not in a:
+            return ""
+        try:
+            return json.loads(self.sim.snapshot())["hand"][a["play"]["hand_pos"]]["id"]
+        except Exception:  # noqa: BLE001
+            return ""
 
     def _map_potion(self, act):
         """The scenario lists potions in slot order and the simulator packs them into slots 0..n-1; the game keeps their real slots (a lone potion in the
@@ -198,6 +208,7 @@ class Replayer:
                     self._end_turn(state)
                 else:
                     act = self._map_potion(act)
+                    self._played = self._card_at(act)
                     try:
                         self.sim.apply(act)
                     except Exception:  # noqa: BLE001

@@ -29,7 +29,7 @@ def starts(run, encounters=None, first_only=False):
     return out
 
 
-def play_fight(eng, sc, seed, budget, tol_hp=0.0, max_steps=400):
+def play_fight(eng, sc, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False):
     """One fight in the simulator, every decision by `Engine.decide` with the given time cap. Returns (outcome, HP lost, steps)."""
     sim = sts2.Sim(json.dumps(sc), seed)
     hp0 = json.loads(sim.snapshot())["player"]["hp"]
@@ -38,7 +38,7 @@ def play_fight(eng, sc, seed, budget, tol_hp=0.0, max_steps=400):
         stage = sim.stage()
         if stage == "over":
             break
-        d = eng.decide(sc, sim, 0.3 if stage == "choice" else budget, tol_hp=tol_hp)
+        d = eng.decide(sc, sim, 0.3 if stage == "choice" else budget, tol_hp=tol_hp, keep_potions=keep_potions)
         sim.step(d["action"])
         steps += 1
     hp1 = json.loads(sim.snapshot())["player"]["hp"]
@@ -52,6 +52,7 @@ def main():
     ap.add_argument("--budgets", default="0.3,1.5,6")
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--out", default="")
+    ap.add_argument("--no-potions", action="store_true", help="the solver may not drink potions (the live harness forbids them in comfortable fights)")
     a = ap.parse_args()
     eng = Engine()
     encs = [x for x in a.encounters.split(",") if x]
@@ -64,7 +65,7 @@ def main():
             res = []
             t0 = time.time()
             for s in range(1, a.seeds + 1):
-                o, lost, n = play_fight(eng, sc, 1000 + s, b)
+                o, lost, n = play_fight(eng, sc, 1000 + s, b, keep_potions=a.no_potions)
                 res.append(dict(outcome=o, hp_lost=lost, steps=n))
             row["runs"][str(b)] = dict(results=res, mean_hp_lost=float(np.mean([r["hp_lost"] for r in res])), wins=sum(r["outcome"] == 1 for r in res), secs=round(time.time() - t0))
             print(e["encounter"], "budget", b, "mean HP lost %.1f" % row["runs"][str(b)]["mean_hp_lost"], "wins", row["runs"][str(b)]["wins"], "/", a.seeds, flush=True)

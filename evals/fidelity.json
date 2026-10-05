@@ -1,0 +1,340 @@
+{
+ "residual .relics": {
+  "count": 366,
+  "cards": {
+   "TAUNT": 7,
+   "DEMON_FORM": 6,
+   "PRIMAL_FORCE": 6,
+   "BASH": 4,
+   "STRIKE_IRONCLAD": 4,
+   "POMMEL_STRIKE": 4,
+   "GIANT_ROCK": 3,
+   "DEFEND_IRONCLAD": 2
+  },
+  "examples": [
+   "start: .relics[6].props.Skin: rust \"eyes\" vs oracle \"horns\"",
+   "{\"play\": {\"hand_pos\": 0}}: .relics[6].props.Skin: rust \"eyes\" vs oracle \"horns\"",
+   "{\"play\": {\"hand_pos\": 0}}: .relics[6].props.Skin: rust \"eyes\" vs oracle \"horns\"",
+   "{\"play\": {\"hand_pos\": 4}} [DEFEND_IRONCLAD]: .relics[3].counter: rust 3 vs oracle 0",
+   "{\"play\": {\"hand_pos\": 4}} [DEFEND_IRONCLAD]: .relics[3].props.CardsAdded: rust 13 vs oracle 15",
+   "{\"play\": {\"hand_pos\": 0}} [DEMON_FORM]: .relics[3].counter: rust 3 vs oracle 0"
+  ]
+ },
+ "diff .relics": {
+  "count": 347,
+  "cards": {
+   "TAUNT": 10,
+   "DEMON_FORM": 8,
+   "PRIMAL_FORCE": 7,
+   "STRIKE_IRONCLAD": 7,
+   "POMMEL_STRIKE": 6,
+   "BASH": 5,
+   "GIANT_ROCK": 5,
+   "CINDER": 3
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 0}}: .relics[6].props.Skin: rust \"eyes\" vs oracle \"horns\"",
+   "{\"play\": {\"hand_pos\": 0}}: .relics[6].props.Skin: rust \"eyes\" vs oracle \"horns\"",
+   "{\"play\": {\"hand_pos\": 0, \"target\": 2}}: .relics[6].props.Skin: rust \"eyes\" vs oracle \"horns\"",
+   "{\"play\": {\"hand_pos\": 4}} [DEFEND_IRONCLAD]: .relics[3].counter: rust 3 vs oracle 0",
+   "{\"play\": {\"hand_pos\": 4}} [DEFEND_IRONCLAD]: .relics[3].props.CardsAdded: rust 13 vs oracle 15",
+   "{\"play\": {\"hand_pos\": 0}} [DEMON_FORM]: .relics[3].counter: rust 3 vs oracle 0"
+  ]
+ },
+ "diff .enemies[0].hp": {
+  "count": 11,
+  "cards": {
+   "MAUL": 3,
+   "STRIKE_IRONCLAD": 2,
+   "GIANT_ROCK": 2,
+   "DEFEND_IRONCLAD": 1,
+   "PRIMAL_FORCE": 1,
+   "CINDER": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 0, \"target\": 2}}: .enemies[0].hp: rust 47 vs oracle 41",
+   "{\"play\": {\"hand_pos\": 4}} [DEFEND_IRONCLAD]: .enemies[0].hp: rust 90 vs oracle 87",
+   "{\"play\": {\"hand_pos\": 1}} [PRIMAL_FORCE]: .enemies[0].hp: rust 165 vs oracle 162",
+   "{\"play\": {\"hand_pos\": 4, \"target\": 0}} [STRIKE_IRONCLAD]: .enemies[0].hp: rust 7 vs oracle 13",
+   "{\"play\": {\"hand_pos\": 1, \"target\": 0}} [CINDER]: .enemies[0].hp: rust 14 vs oracle 12",
+   "{\"play\": {\"hand_pos\": 1, \"target\": 2}} [MAUL]: .enemies[0].hp: rust 14 vs oracle 5"
+  ]
+ },
+ "diff .enemies[2].hp": {
+  "count": 2,
+  "cards": {
+   "STRIKE_IRONCLAD": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 0, \"target\": 2}}: .enemies[2].hp: rust 12 vs oracle 18",
+   "{\"play\": {\"hand_pos\": 4, \"target\": 0}} [STRIKE_IRONCLAD]: .enemies[2].hp: rust 26 vs oracle 20"
+  ]
+ },
+ "sync created": {
+  "count": 8,
+  "cards": {
+   "PRIMAL_FORCE": 6,
+   "MAUL": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 5}}: {'cost_fixes': 2, 'created': 1, 'from_discard': 0, 'from_draw': 0, 'from_exhaust': 0, 'notes': [], 'returned': 1}",
+   "{\"play\": {\"hand_pos\": 2}} [PRIMAL_FORCE]: {'cost_fixes': 0, 'created': 1, 'from_discard': 0, 'from_draw': 0, 'from_exhaust': 0, 'notes': [], 'returned': 1}",
+   "{\"play\": {\"hand_pos\": 6}} [PRIMAL_FORCE]: {'cost_fixes': 0, 'created': 1, 'from_discard': 0, 'from_draw': 0, 'from_exhaust': 0, 'notes': [], 'returned': 1}",
+   "{\"play\": {\"hand_pos\": 1}} [PRIMAL_FORCE]: {'cost_fixes': 0, 'created': 1, 'from_discard': 0, 'from_draw': 3, 'from_exhaust': 0, 'notes': [], 'returned': 0}",
+   "{\"play\": {\"hand_pos\": 0}} [PRIMAL_FORCE]: {'cost_fixes': 1, 'created': 1, 'from_discard': 0, 'from_draw': 0, 'from_exhaust': 0, 'notes': [], 'returned': 1}",
+   "{\"play\": {\"hand_pos\": 3}} [PRIMAL_FORCE]: {'cost_fixes': 0, 'created': 1, 'from_discard': 0, 'from_draw': 0, 'from_exhaust': 0, 'notes': [], 'returned': 1}"
+  ]
+ },
+ "residual .draw": {
+  "count": 69,
+  "cards": {
+   "PRIMAL_FORCE": 6,
+   "GIANT_ROCK": 4,
+   "DEFEND_IRONCLAD": 3,
+   "TAUNT": 2,
+   "DEMON_FORM": 2,
+   "MAUL": 2,
+   "SHRUG_IT_OFF": 1,
+   "ANGER": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 5}}: .draw: length rust 10 vs oracle 9  [rust [{\"id\":\"CINDER\",\"upgrade\":0},{\"id\":\"DEFEND_IRONCLAD\",\"upgrade\":0},{\"id\":\"DEFEND_IRONCLAD\",\"upgrade\":0},{\"id\":\"GIANT_ROCK\",\"upgrade\":0},{\"id\":\"HOWL_FROM_BEYOND\"",
+   "{\"end_turn\": true}: .draw: length rust 5 vs oracle 4  [rust [{\"id\":\"CINDER\",\"upgrade\":0},{\"id\":\"DEFEND_IRONCLAD\",\"upgrade\":0},{\"id\":\"GIANT_ROCK\",\"upgrade\":0},{\"id\":\"PRIMAL_FORCE\",\"upgrade\":0},{\"id\":\"STRIKE_IRONCLAD\",\"upg",
+   "{\"play\": {\"hand_pos\": 4, \"target\": 1}}: .draw: length rust 5 vs oracle 4  [rust [{\"id\":\"CINDER\",\"upgrade\":0},{\"id\":\"DEFEND_IRONCLAD\",\"upgrade\":0},{\"id\":\"GIANT_ROCK\",\"upgrade\":0},{\"id\":\"PRIMAL_FORCE\",\"upgrade\":0},{\"id\":\"STRIKE_IRONCLAD\",\"upg",
+   "{\"play\": {\"hand_pos\": 2}} [PRIMAL_FORCE]: .draw: length rust 1 vs oracle 0  [rust [{\"id\":\"GIANT_ROCK\",\"upgrade\":0}]] [oracle []]",
+   "{\"play\": {\"hand_pos\": 1}} [SHRUG_IT_OFF]: .draw: length rust 30 vs oracle 29  [rust [{\"id\":\"BASH\",\"upgrade\":0},{\"id\":\"BODY_SLAM\",\"upgrade\":0},{\"id\":\"CINDER\",\"upgrade\":0},{\"id\":\"CONFLAGRATION\",\"upgrade\":0},{\"id\":\"DEFEND_IRONCLAD\",\"upgrade\":0},",
+   "{\"play\": {\"hand_pos\": 3}} [DEFEND_IRONCLAD]: .draw: length rust 30 vs oracle 29  [rust [{\"id\":\"BASH\",\"upgrade\":0},{\"id\":\"BODY_SLAM\",\"upgrade\":0},{\"id\":\"CINDER\",\"upgrade\":0},{\"id\":\"CONFLAGRATION\",\"upgrade\":0},{\"id\":\"DEFEND_IRONCLAD\",\"upgrade\":0},"
+  ]
+ },
+ "residual .phase": {
+  "count": 6,
+  "cards": {},
+  "examples": [
+   "start []: .phase: rust \"Play\" vs oracle \"Start\"",
+   "start []: .phase: rust \"Play\" vs oracle \"Start\"",
+   "start []: .phase: rust \"Play\" vs oracle \"Start\"",
+   "start []: .phase: rust \"Play\" vs oracle \"Start\"",
+   "start []: .phase: rust \"Play\" vs oracle \"Start\"",
+   "start []: .phase: rust \"Play\" vs oracle \"Start\""
+  ]
+ },
+ "action failed": {
+  "count": 6,
+  "cards": {},
+  "examples": [
+   "{\"choose\": [0]}: no selection is pending",
+   "{\"choose\": [0]}: no selection is pending",
+   "{\"choose\": [0]}: no selection is pending",
+   "{\"choose\": [0]}: no selection is pending",
+   "{\"choose\": [0]}: no selection is pending",
+   "{\"choose\": [0]}: no selection is pending"
+  ]
+ },
+ "diff .energy": {
+  "count": 5,
+  "cards": {
+   "DEFEND_IRONCLAD": 1,
+   "PRIMAL_FORCE": 1,
+   "SETUP_STRIKE": 1,
+   "BASH": 1,
+   "MAUL": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 4}} [DEFEND_IRONCLAD]: .energy: rust 2 vs oracle 3",
+   "{\"play\": {\"hand_pos\": 1}} [PRIMAL_FORCE]: .energy: rust 3 vs oracle 4",
+   "{\"play\": {\"hand_pos\": 4, \"target\": 1}} [SETUP_STRIKE]: .energy: rust 2 vs oracle 3",
+   "{\"play\": {\"hand_pos\": 2, \"target\": 0}} [BASH]: .energy: rust 1 vs oracle 2",
+   "{\"play\": {\"hand_pos\": 1, \"target\": 2}} [MAUL]: .energy: rust 2 vs oracle 3"
+  ]
+ },
+ "diff .player.block": {
+  "count": 9,
+  "cards": {
+   "TAUNT": 4,
+   "DEFEND_IRONCLAD": 2,
+   "SHRUG_IT_OFF": 2
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 6, \"target\": 0}} [TAUNT]: .player.block: rust 12 vs oracle 6",
+   "{\"play\": {\"hand_pos\": 1}} [DEFEND_IRONCLAD]: .player.block: rust 6 vs oracle 12",
+   "{\"play\": {\"hand_pos\": 4, \"target\": 0}} [TAUNT]: .player.block: rust 12 vs oracle 6",
+   "{\"play\": {\"hand_pos\": 2, \"target\": 0}} [TAUNT]: .player.block: rust 6 vs oracle 12",
+   "{\"play\": {\"hand_pos\": 2}} [SHRUG_IT_OFF]: .player.block: rust 16 vs oracle 8",
+   "{\"play\": {\"hand_pos\": 1}} [SHRUG_IT_OFF]: .player.block: rust 16 vs oracle 8"
+  ]
+ },
+ "sync from_exhaust": {
+  "count": 4,
+  "cards": {
+   "CINDER": 4
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 3, \"target\": 0}} [CINDER]: {'cost_fixes': 2, 'created': 0, 'from_discard': 0, 'from_draw': 0, 'from_exhaust': 1, 'notes': [], 'returned': 1}",
+   "{\"play\": {\"hand_pos\": 0, \"target\": 1}} [CINDER]: {'cost_fixes': 0, 'created': 0, 'from_discard': 0, 'from_draw': 0, 'from_exhaust': 1, 'notes': [], 'returned': 1}",
+   "{\"play\": {\"hand_pos\": 8, \"target\": 0}} [CINDER]: {'cost_fixes': 1, 'created': 0, 'from_discard': 0, 'from_draw': 0, 'from_exhaust': 1, 'notes': [], 'returned': 1}",
+   "{\"play\": {\"hand_pos\": 4, \"target\": 0}} [CINDER]: {'cost_fixes': 0, 'created': 0, 'from_discard': 0, 'from_draw': 0, 'from_exhaust': 1, 'notes': [], 'returned': 1}"
+  ]
+ },
+ "sync from_discard": {
+  "count": 5,
+  "cards": {
+   "SHRUG_IT_OFF": 1,
+   "ANGER": 1,
+   "CINDER": 1,
+   "TAUNT": 1,
+   "MAUL": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 1}} [SHRUG_IT_OFF]: {'cost_fixes': 0, 'created': 0, 'from_discard': 1, 'from_draw': 0, 'from_exhaust': 0, 'notes': [], 'returned': 1}",
+   "{\"end_turn\": true} [ANGER]: {'cost_fixes': 1, 'created': 0, 'from_discard': 1, 'from_draw': 2, 'from_exhaust': 0, 'notes': ['discard: 1 cards created'], 'returned': 3}",
+   "{\"play\": {\"hand_pos\": 1, \"target\": 0}} [CINDER]: {'cost_fixes': 0, 'created': 0, 'from_discard': 1, 'from_draw': 0, 'from_exhaust': 0, 'notes': [], 'returned': 1}",
+   "{\"end_turn\": true} [TAUNT]: {'cost_fixes': 5, 'created': 0, 'from_discard': 1, 'from_draw': 0, 'from_exhaust': 0, 'notes': [], 'returned': 1}",
+   "{\"end_turn\": true} [MAUL]: {'cost_fixes': 1, 'created': 0, 'from_discard': 1, 'from_draw': 3, 'from_exhaust': 0, 'notes': ['discard: 1 cards created'], 'returned': 4}"
+  ]
+ },
+ "diff .enemies": {
+  "count": 2,
+  "cards": {
+   "SETUP_STRIKE": 1,
+   "STRIKE_IRONCLAD": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 4, \"target\": 1}} [SETUP_STRIKE]: .enemies: length rust 3 vs oracle 2  [rust [{\"alive\":true,\"block\":0,\"hp\":12,\"id\":\"LEAF_SLIME_S\",\"intents\":[{\"damage\":4,\"hits\":1,\"total_damage\":4,\"type\":\"Attack\"}],\"max_hp\":12,\"next_move\":\"TACKLE_MOVE\"",
+   "{\"play\": {\"hand_pos\": 3, \"target\": 1}} [STRIKE_IRONCLAD]: .enemies: length rust 2 vs oracle 1  [rust [{\"alive\":true,\"block\":0,\"hp\":3,\"id\":\"LEAF_SLIME_S\",\"intents\":[{\"damage\":4,\"hits\":1,\"total_damage\":4,\"type\":\"Attack\"}],\"max_hp\":12,\"next_move\":\"TACKLE_MOVE\","
+  ]
+ },
+ "sync note": {
+  "count": 4,
+  "cards": {},
+  "examples": [
+   "enemy count: simulator 3 vs real 2",
+   "enemy count: simulator 2 vs real 1",
+   "discard: 1 cards created",
+   "discard: 1 cards created"
+  ]
+ },
+ "residual .enemies": {
+  "count": 2,
+  "cards": {
+   "SETUP_STRIKE": 1,
+   "STRIKE_IRONCLAD": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 4, \"target\": 1}} [SETUP_STRIKE]: .enemies: length rust 3 vs oracle 2  [rust [{\"alive\":true,\"block\":0,\"hp\":3,\"id\":\"LEAF_SLIME_S\",\"intents\":[{\"damage\":4,\"hits\":1,\"total_damage\":4,\"type\":\"Attack\"}],\"max_hp\":12,\"next_move\":\"TACKLE_MOVE\",",
+   "{\"play\": {\"hand_pos\": 3, \"target\": 1}} [STRIKE_IRONCLAD]: .enemies: length rust 2 vs oracle 1  [rust [{\"alive\":true,\"block\":0,\"hp\":3,\"id\":\"LEAF_SLIME_S\",\"intents\":[{\"damage\":4,\"hits\":1,\"total_damage\":4,\"type\":\"Attack\"}],\"max_hp\":12,\"next_move\":\"TACKLE_MOVE\","
+  ]
+ },
+ "diff .enemies[0].max_hp": {
+  "count": 2,
+  "cards": {
+   "CINDER": 1,
+   "STRIKE_IRONCLAD": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 1, \"target\": 0}} [CINDER]: .enemies[0].max_hp: rust 14 vs oracle 12",
+   "{\"end_turn\": true} [STRIKE_IRONCLAD]: .enemies[0].max_hp: rust 20 vs oracle 22"
+  ]
+ },
+ "diff .enemies[1].hp": {
+  "count": 6,
+  "cards": {
+   "GIANT_ROCK": 2,
+   "CINDER": 1,
+   "MAUL": 1,
+   "STRIKE_IRONCLAD": 1,
+   "TAUNT": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 1, \"target\": 0}} [CINDER]: .enemies[1].hp: rust 17 vs oracle 15",
+   "{\"play\": {\"hand_pos\": 1, \"target\": 2}} [MAUL]: .enemies[1].hp: rust 29 vs oracle 20",
+   "{\"end_turn\": true} [STRIKE_IRONCLAD]: .enemies[1].hp: rust 24 vs oracle 23",
+   "{\"end_turn\": true} [TAUNT]: .enemies[1].hp: rust 24 vs oracle 23",
+   "{\"play\": {\"hand_pos\": 1, \"target\": 2}} [GIANT_ROCK]: .enemies[1].hp: rust 30 vs oracle 24",
+   "{\"play\": {\"hand_pos\": 0, \"target\": 0}} [GIANT_ROCK]: .enemies[1].hp: rust 0 vs oracle 1"
+  ]
+ },
+ "diff .enemies[1].max_hp": {
+  "count": 3,
+  "cards": {
+   "CINDER": 1,
+   "STRIKE_IRONCLAD": 1,
+   "TAUNT": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 1, \"target\": 0}} [CINDER]: .enemies[1].max_hp: rust 17 vs oracle 15",
+   "{\"end_turn\": true} [STRIKE_IRONCLAD]: .enemies[1].max_hp: rust 24 vs oracle 23",
+   "{\"end_turn\": true} [TAUNT]: .enemies[1].max_hp: rust 24 vs oracle 23"
+  ]
+ },
+ "diff .enemies[3].hp": {
+  "count": 1,
+  "cards": {
+   "TAUNT": 1
+  },
+  "examples": [
+   "{\"end_turn\": true} [TAUNT]: .enemies[3].hp: rust 21 vs oracle 24"
+  ]
+ },
+ "diff .enemies[3].max_hp": {
+  "count": 1,
+  "cards": {
+   "TAUNT": 1
+  },
+  "examples": [
+   "{\"end_turn\": true} [TAUNT]: .enemies[3].max_hp: rust 21 vs oracle 24"
+  ]
+ },
+ "diff .enemies[1].alive": {
+  "count": 1,
+  "cards": {
+   "GIANT_ROCK": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 0, \"target\": 0}} [GIANT_ROCK]: .enemies[1].alive: rust false vs oracle true"
+  ]
+ },
+ "diff .enemies[1].intents": {
+  "count": 2,
+  "cards": {
+   "GIANT_ROCK": 1,
+   "STRIKE_IRONCLAD": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 0, \"target\": 0}} [GIANT_ROCK]: .enemies[1].intents: length rust 0 vs oracle 2  [rust []] [oracle [{\"damage\":9,\"hits\":1,\"total_damage\":9,\"type\":\"Attack\"},{\"type\":\"Debuff\"}]]",
+   "{\"play\": {\"hand_pos\": 2, \"target\": 0}} [STRIKE_IRONCLAD]: .enemies[1].intents: length rust 0 vs oracle 2  [rust []] [oracle [{\"damage\":9,\"hits\":1,\"total_damage\":9,\"type\":\"Attack\"},{\"type\":\"Debuff\"}]]"
+  ]
+ },
+ "diff .enemies[1].next_move": {
+  "count": 2,
+  "cards": {
+   "GIANT_ROCK": 1,
+   "STRIKE_IRONCLAD": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 0, \"target\": 0}} [GIANT_ROCK]: .enemies[1].next_move: rust \"DEAD_MOVE\" vs oracle \"CONSTRICT_MOVE\"",
+   "{\"play\": {\"hand_pos\": 2, \"target\": 0}} [STRIKE_IRONCLAD]: .enemies[1].next_move: rust \"DEAD_MOVE\" vs oracle \"CONSTRICT_MOVE\""
+  ]
+ },
+ "residual .enemies[1].intents": {
+  "count": 2,
+  "cards": {
+   "GIANT_ROCK": 1,
+   "STRIKE_IRONCLAD": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 0, \"target\": 0}} [GIANT_ROCK]: .enemies[1].intents: length rust 0 vs oracle 2  [rust []] [oracle [{\"damage\":9,\"hits\":1,\"total_damage\":9,\"type\":\"Attack\"},{\"type\":\"Debuff\"}]]",
+   "{\"play\": {\"hand_pos\": 2, \"target\": 0}} [STRIKE_IRONCLAD]: .enemies[1].intents: length rust 0 vs oracle 2  [rust []] [oracle [{\"damage\":9,\"hits\":1,\"total_damage\":9,\"type\":\"Attack\"},{\"type\":\"Debuff\"}]]"
+  ]
+ },
+ "residual .enemies[1].next_move": {
+  "count": 2,
+  "cards": {
+   "GIANT_ROCK": 1,
+   "STRIKE_IRONCLAD": 1
+  },
+  "examples": [
+   "{\"play\": {\"hand_pos\": 0, \"target\": 0}} [GIANT_ROCK]: .enemies[1].next_move: rust \"DEAD_MOVE\" vs oracle \"CONSTRICT_MOVE\"",
+   "{\"play\": {\"hand_pos\": 2, \"target\": 0}} [STRIKE_IRONCLAD]: .enemies[1].next_move: rust \"DEAD_MOVE\" vs oracle \"CONSTRICT_MOVE\""
+  ]
+ }
+}

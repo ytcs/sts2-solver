@@ -23,8 +23,23 @@ def main():
     ap.add_argument("--out", default="target/replay_check.json")
     ap.add_argument("--no-buy", action="store_true", default=True)
     ap.add_argument("--encounters", default="", help="comma-separated encounter ids to jump to (dev console `fight`), one per fight; HP is topped up first")
+    ap.add_argument("--loadout", default="", help="RUN[:ENCOUNTER]: give the test run the deck (non-starter cards), relics and potions recorded at that fight start (dev console)")
     a = ap.parse_args()
+    loadout = []
+    if a.loadout:
+        run, _, enc = a.loadout.partition(":")
+        sc = None
+        for line in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "runs", run, "events.jsonl"), encoding="utf-8"):
+            e = json.loads(line)
+            if e["kind"] == "fight_start" and (not enc or e["encounter"] == enc):
+                sc = e["scenario"]
+        starter = collections.Counter({"STRIKE_IRONCLAD": 5, "DEFEND_IRONCLAD": 4, "BASH": 1, "ASCENDERS_BANE": 1})
+        need = collections.Counter(c["id"] for c in sc["deck"]) - starter
+        loadout += [f"x relic add {r['id']}" for r in sc["relics"] if r["id"] != "BURNING_BLOOD"]
+        loadout += [f"x card {cid} Deck" for cid, n in need.items() for _ in range(n)]
+        loadout += [f"x potion {p['id']}" for p in sc.get("potions", [])]
 
+    applied = False
     pending = [e for e in a.encounters.split(",") if e]
     totals = collections.Counter()
     examples = collections.defaultdict(list)
@@ -36,6 +51,8 @@ def main():
     state = call("s")
     for _ in range(a.steps):
         kind, opts, lines = parse(state)
+        if kind == "MENU":
+            applied = False  # a new run starts: it needs the loadout again
         if "(busy)" in lines[0] or not opts:
             time.sleep(1)
             state = call("s")
@@ -68,6 +85,11 @@ def main():
                 if fights >= a.fights:
                     break
             if pending and kind in ("REWARDS", "CARD_REWARD", "MAP", "EVENT", "SHOP", "RESTSITE", "TREASURE"):
+                if loadout and not applied:
+                    for c in loadout:
+                        call(c)
+                    print(f"  loadout applied ({len(loadout)} commands)", flush=True)
+                    applied = True
                 call("x heal 999")
                 r = call("x fight " + pending.pop(0))
                 state = call("s")
