@@ -109,6 +109,7 @@ class Harness:
         except Exception as e:  # noqa: BLE001
             pred = dict(error=str(e)[:80])
         self.fight_hp0 = (sc["hp"], sc["max_hp"])
+        self.last_enc = sc.get("encounter")
         self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
         # potions are for fights the solver may lose or that cost a lot: a comfortable fight keeps them (a clear win leaves the strongest potion for the elite or boss)
         def comfortable(p):
@@ -525,6 +526,26 @@ class Harness:
                 f"replay: {st.get('end_turn_matched', 0)} enemy turns matched, {st.get('end_turn_unmatched', 0)} unmatched; divergences: {bad or 'none'}")
 
     def handle(self, line):
+        out = self._handle(line)
+        self._watch_run_end(out)
+        return out
+
+    def _watch_run_end(self, out):
+        """Record how a run ended (once per run record): the screen after the last fight, the floor, the encounter that ended it. `improve review` reads it."""
+        try:
+            kind = _kind(out)
+            first = out.splitlines()[0].lower() if out else ""
+            if not (kind == "GAME_OVER" or "victory" in first):
+                return
+            if getattr(self, "_run_end_logged", None) == self.log.run_id:
+                return
+            self._run_end_logged = self.log.run_id
+            head = next((l for l in out.splitlines() if re.search(r"A\d+ F\d+", l)), "")
+            self.log.event("run_end", screen=kind, header=head, last_encounter=getattr(self, "last_enc", None), text=out[:400])
+        except Exception:  # noqa: BLE001  never let bookkeeping break a command
+            pass
+
+    def _handle(self, line):
         line = line.strip()
         cmd, _, rest = line.partition(" ")
         try:

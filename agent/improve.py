@@ -85,7 +85,8 @@ def review(run_id=None):
                 fid[k] += v
         for a in f["acts"]:
             if a.get("searched") and a.get("options"):
-                top_p = max(a["options"], key=lambda o: o["p"])
+                cands = [o for o in a["options"] if o.get("q") is not None] or a["options"]  # a held potion has p but was never searched: not the policy's choice
+                top_p = max(cands, key=lambda o: o["p"])
                 act_total += 1
                 dis_by_enc[s["encounter"]][1] += 1
                 if top_p["text"] != a["text"]:
@@ -105,11 +106,24 @@ def review(run_id=None):
             lines.append("  most overridden: " + ", ".join(f"{e} {a}/{b}" for _, e, a, b in worst))
     div = [e for e in ev if e["kind"] == "divergence"]
     lines.append(f"fidelity: replay divergences {dict(fid) or 'none'}; game rejected {len(div)} simulator action(s)")
+    lines += _run_outcome(ev)
+    dec_lines, overrides, unpriced = _macro_decisions(ev, os.path.basename(run_dir))
+    lines += dec_lines
+    costly = sorted(glob.glob(os.path.join(run_dir, "fights", "*.json")))
+    if costly:
+        lines.append(f"costly fights kept for hindsight review ({len(costly)}): " + ", ".join(os.path.basename(c) for c in costly))
     follow = []
+    if costly:
+        follow.append("hindsight review of each costly fight: `python -m agent.hindsight <file> --log` (luck or a solver gap?); a gap pattern goes to the corpus / fine-tune, an encounter pattern to `sts2-acts/encounters.md`")
+    if overrides:
+        follow.append(f"{len(overrides)} override(s) of the numbers: judge each against what happened (held / failed) and edit the blind-spot list in `sts2-deckbuilding` (tallied in evals/overrides.jsonl)")
+    if unpriced:
+        follow.append(f"{unpriced} card pick(s) were not priced by `reward` / `eval` first: the rule is numbers first, then judgment")
     if fid or div:
         follow.append("simulator fidelity first: reproduce the divergence (agent.validate, verify/regress) and fix the simulator before trusting any model comparison")
     if surprises:
-        follow.append(f"{len(surprises)} fight(s) far from the prediction: add them to the corpus and look for a pattern (encounter, card type, relic); a pattern justifies a fine-tune")
+        follow.append(f"{len(surprises)} fight(s) far from the prediction: add them to the corpus and look for a pattern (encounter, card type, relic); a pattern justifies a fine-tune; "
+                      "write what the fight asked into `sts2-acts/encounters.md` (and `sts2-mechanics` for a new power) with `[played]`")
     if act_total and dis_total / act_total > 0.35:
         follow.append("the search overrides the policy often: the policy is poor on this distribution; a fine-tune on the corpus should raise greedy strength")
     if not follow:
@@ -125,12 +139,66 @@ def review(run_id=None):
     return text
 
 
+def _run_outcome(ev):
+    """How the run ended and what ended it (the `run_end` event the harness writes on the game-over / victory screen)."""
+    ends = [e for e in ev if e["kind"] == "run_end"]
+    if not ends:
+        return ["outcome: run not finished (no game-over screen seen)"]
+    e = ends[-1]
+    return [f"outcome: {e.get('screen')} | {e.get('header')} | last encounter {e.get('last_encounter')}"]
+
+
+def _macro_decisions(ev, run):
+    """Non-combat decisions against the numbers: for every card reward priced by `reward`, did the pick follow the best smooth boss score (skip = option 0)? Every
+    `-- why` containing `override` is listed and appended to evals/overrides.jsonl (the tally the deck-building blind-spot list is judged by). Returns
+    (lines, overrides, number of card picks nobody priced)."""
+    lines, overrides = [], []
+    pending, priced, followed, unpriced, off = None, 0, 0, 0, []
+    for e in ev:
+        if e["kind"] == "reward_eval":
+            pending = e
+        elif e["kind"] == "eval":
+            pending = pending or e
+        elif e["kind"] == "macro":
+            screen = (e.get("screen") or "").split(" ")[0]
+            why = e.get("why") or ""
+            if "override" in why.lower():
+                overrides.append(dict(run=run, screen=screen, choice=e.get("choice"), why=why[:300]))
+            if screen == "CARD_REWARD":
+                pick = (e.get("choice") or "").split()[0] if e.get("choice") else ""
+                if pending is None:
+                    unpriced += 1
+                elif pending["kind"] == "reward_eval" and pick.isdigit():
+                    res = (pending.get("result") or {}).get("boss") or {}
+                    names = pending.get("options", [])
+                    vi = int(pick) + 1 if int(pick) < len(names) else 0  # variants: 0 = skip, 1.. = the cards in screen order
+                    wins = {int(k): v["win"] for k, v in res.items()}
+                    if wins:
+                        best = max(wins, key=wins.get)
+                        priced += 1
+                        if wins.get(vi, 0) >= wins[best] - 0.02:
+                            followed += 1
+                        else:
+                            label = lambda i: "skip" if i == 0 else (names[i - 1] if i - 1 < len(names) else str(i))  # noqa: E731
+                            off.append(f"  picked {label(vi)} ({wins.get(vi, 0):.3f}) over {label(best)} ({wins[best]:.3f}) vs boss, why: {why[:160]}")
+                pending = None
+    if priced or unpriced:
+        lines.append(f"card picks: {priced} priced by `reward`, followed the best smooth boss score (within 0.02) in {followed}; {unpriced} not priced")
+    lines += off
+    for o in overrides:
+        lines.append(f"  override [{o['screen']}] choice {o['choice']}: {o['why'][:200]}")
+        _append(os.path.join(EVALS, "overrides.jsonl"), o)
+    return lines, overrides, unpriced
+
+
 # ---------------------------------------------------------------------------------------------------------------- strategy backlog
 
 def lessons():
     out = []
-    for p in sorted(glob.glob(os.path.join(ROOT, ".claude", "skills", "*", "SKILL.md"))):
-        name = os.path.basename(os.path.dirname(p))
+    for p in sorted(glob.glob(os.path.join(ROOT, ".claude", "skills", "*", "*.md"))):
+        if os.path.basename(p) == "runs.md":
+            continue  # run logs hold history, not claims
+        name = os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p)
         for i, l in enumerate(open(p, encoding="utf-8"), 1):
             if "[hyp]" in l:
                 out.append(f"{name}:{i}: {l.strip()[:200]}")
@@ -165,11 +233,7 @@ def finetune(iters=200, name=None):
     train_json = os.path.join(CORPUS, "fights_train.json")
     if not os.path.exists(train_json) or not json.load(open(train_json)):
         return "no corpus yet: play runs, then `corpus`"
-    base_train = os.path.join(ROOT, "target", "train", "train.json")
-    if not os.path.exists(base_train):  # the base distribution was pruned from the tree; it is in git history
-        os.makedirs(os.path.dirname(base_train), exist_ok=True)
-        data = subprocess.run(["git", "show", "HEAD:data/train/train.json"], cwd=ROOT, capture_output=True).stdout
-        open(base_train, "wb").write(data)
+    base_train = _train_set("train", 30000, 1, 0.15)
     base = json.load(open(base_train))
     mine = json.load(open(train_json))
     reps = max(1, len(base) // (4 * max(len(mine), 1)))  # the corpus makes up about a fifth of the mix
@@ -178,13 +242,24 @@ def finetune(iters=200, name=None):
     name = name or time.strftime("ft%Y%m%d-%H%M")
     out = os.path.join(ROOT, "target", "runs", name)
     cur = _current()
-    cmd = [sys.executable, os.path.join(ROOT, "rl", "ppo.py"), "--train", mix, "--eval", os.path.join(ROOT, "data", "train", "eval.json"), "--out", out, "--resume", cur["policy"],
+    cmd = [sys.executable, os.path.join(ROOT, "rl", "ppo.py"), "--train", mix, "--eval", _train_set("eval", 1500, 22, 0.0), "--out", out, "--resume", cur["policy"],
            "--warm", "--iters", str(iters), "--d", "128", "--hold-prob", "0.15"]
     os.makedirs(out, exist_ok=True)
     log = open(os.path.join(out, "train.log"), "w")
     subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=log, env=dict(os.environ, STS2_DEVICE=os.environ.get("STS2_DEVICE", "cuda")))
     _append(os.path.join(EVALS, "ledger.jsonl"), dict(t=time.time(), kind="finetune_started", name=name, base=cur["policy"], corpus=len(mine), reps=reps, iters=iters))
     return f"fine-tune started: {out} (log: train.log); when it has produced a checkpoint run `gate {out}/ckpt.pt`"
+
+
+def _train_set(name, n, seed, energy_prob):
+    """A scenario set from `tools/gen_train.py` (realistic A10 fights; `energy_prob` = share with 4-7 energy), generated once into target/train/. Different seeds are
+    disjoint, so the held-out sets (seeds 22, 23) never overlap the training set (seed 1)."""
+    path = os.path.join(ROOT, "target", "train", f"{name}.json")
+    if not os.path.exists(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        subprocess.check_call([sys.executable, os.path.join(ROOT, "tools", "gen_train.py"), "--n", str(n), "--seed", str(seed), "--energy-prob", str(energy_prob), "--out", path],
+                              cwd=ROOT, stdout=subprocess.DEVNULL)
+    return path
 
 
 def _current():
@@ -203,7 +278,8 @@ def gate(candidate, vs=None, attempts=2, n_eval=600):
     hold = os.path.join(CORPUS, "fights_holdout.json")
     if os.path.exists(hold):
         sets["corpus_holdout"] = json.load(open(hold))
-    sets["eval"] = json.load(open(os.path.join(ROOT, "data", "train", "eval.json")))[:n_eval]
+    sets["eval"] = json.load(open(_train_set("eval", 1500, 22, 0.0)))[:n_eval]
+    sets["eval_energy"] = json.load(open(_train_set("eval_energy", 600, 23, 1.0)))[:n_eval]  # every scenario at 4-7 energy: the old mix had almost none
     res = {}
     for label, ck, vals in (("candidate", candidate, None), ("current", vs, cur["values"] if vs == cur["policy"] else None)):
         S = Solver(ckpt=ck, value_ckpts=vals if vals else None)

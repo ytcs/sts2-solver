@@ -25,6 +25,8 @@ import sts2
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from agent.fight import Replayer  # noqa: E402
 
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+
 
 def percentile_of_real(eng, scenario, real_lost, replays, budget):
     from agent.budget_replay import play_fight
@@ -110,6 +112,7 @@ def main():
     ap.add_argument("--min-gap", type=float, default=2.0, help="HP the best option must beat the played one by to be listed")
     ap.add_argument("--max-decisions", type=int, default=80)
     ap.add_argument("--no-luck", action="store_true")
+    ap.add_argument("--log", action="store_true", help="append the verdict to evals/gaps.jsonl (read by `agent.improve`)")
     a = ap.parse_args()
     export = json.load(open(a.fight))
     from agent.engine import Engine
@@ -123,6 +126,12 @@ def main():
               f" the real loss is at the {100 * pct:.0f}th percentile -> {'unlucky draws / rolls' if pct >= 0.9 else 'about what this deck loses here'}")
     rows = review(eng, export, a.budget, a.min_gap, a.max_decisions)
     print(f"\ndecisions where a {a.budget:.0f}s search prefers another line by >= {a.min_gap} HP: {len([r for r in rows if 'gap_hp' in r])}")
+    if a.log:
+        gaps = [r for r in rows if "gap_hp" in r]
+        rec = dict(kind="hindsight", fight=a.fight, encounter=export["encounter"], hp_lost=real_lost, luck_percentile=None if a.no_luck else round(pct, 2),
+                   gaps=len(gaps), worst_gap_hp=max([r["gap_hp"] for r in gaps], default=0), decisions=[(r["index"], r["played"], r["best"], r["gap_hp"]) for r in gaps[:10]])
+        with open(os.path.join(ROOT, "evals", "gaps.jsonl"), "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec) + chr(10))
     for r in rows:
         if "gap_hp" in r:
             print(f"  action {r['index']:3d} turn {r['turn']}: played `{r['played']}`  vs  `{r['best']}`  (+{r['gap_hp']} HP)")
