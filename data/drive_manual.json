@@ -1,0 +1,4 @@
+{
+  "_doc": "Encounters I drive by hand (adv each decision, I pick; the solver's options and values are the input) instead of `combat`: fights where the solver has shown a gap or the game a mechanic it handles badly. Elites, bosses and fights the prediction calls dangerous are manual anyway (harness `_drive_mode`). Each entry: why, and the evidence. Remove an entry when a review shows the solver plays it well.",
+  "LIVING_FOG_NORMAL": "Smoggy (one Skill per turn) and Gas Bomb minions: the solver left Inferno in hand for the whole fight and lost 23 HP net at 50/80, the 99th percentile of its own prediction (r20261005-160158)"
+}

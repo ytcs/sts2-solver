@@ -28,8 +28,33 @@ HEAL = 0.3
 MAX_BELT = 3  # potions priced as a budget (the belt has 2-3 slots; the boss tables grow as 2^n)
 # Reward value of a node, in "one monster's card reward" units (a judgment `[hyp]`, override with --w E=4,M=1,...): an elite is a relic, a rare chance and gold (~4 cards),
 # a treasure a relic, a shop buys cards / relics / a removal with the gold in hand, a rest is HP (counted low: the DP already prices HP), an unknown is an event or a fight.
-WEIGHTS = {"M": 1.0, "E": 4.0, "T": 3.0, "$": 1.5, "?": 1.2, "R": 0.3}
+# An elite: a relic (3.5) + a card reward with ~3x the rare odds (~1.3) = 5 (its gold is counted through the shops below); a treasure: a relic. "$" is a MULTIPLIER on the
+# shop's value, which is what the gold I arrive with buys (`shop_buy`).
+WEIGHTS = {"M": 1.0, "E": 5.0, "T": 3.5, "$": 1.0, "?": 1.2, "R": 0.3}
 NONE = frozenset()
+# Gold on the way `[code]` (A10 Poverty x0.75): monster 7-15 (EncounterModel.MinGoldReward/MaxGoldReward 10-20), elite 26-33 (35-45), treasure 31-39
+# (OneOffSynchronizer.DoTreasureRoomRewards 42-52); unknowns `[hyp]` ~10.
+GOLD_GAIN = {"M": 11, "E": 30, "?": 10, "T": 35, "R": 0, "$": 0}
+GOLD_STEP, GOLD_CAP = 10, 600
+# What a shop sells `[code]` (MerchantInventory, MerchantCardEntry, MerchantRelicEntry, MerchantPotionEntry, MerchantCardRemovalEntry): 5 class cards at 50 / 75 / 150
+# (common / uncommon / rare, x0.95-1.05, one of them on sale at half), 2 colorless (x1.15), 3 relics at 175 / 225 / 275 (x0.85-1.15), 3 potions at 50 / 75 / 100, a removal
+# at 100 (+50 per removal bought, A10 Inflation). Value per item in card-reward units `[hyp]`: the best card of the 7 ~1.0 (about 60 gold with the sale), a second card 0.6,
+# a removal 0.8, a relic 3.5 (~225), a potion 0.4.
+SHOP_ITEMS = (("card", 60, 1.0), ("card2", 75, 0.6), ("removal", 100, 0.8), ("relic", 225, 3.5), ("potion", 60, 0.4))
+
+
+def shop_buy(g):
+    """(value, gold spent) of the best basket a shop sells for g gold (exact over the 32 baskets of SHOP_ITEMS): below ~60 gold a shop buys nothing, 60-160 one or two cheap
+    items, ~225 a relic."""
+    best = (0.0, 0)
+    n = len(SHOP_ITEMS)
+    for m in range(1 << n):
+        cost = sum(SHOP_ITEMS[i][1] for i in range(n) if m >> i & 1)
+        if cost <= g:
+            v = sum(SHOP_ITEMS[i][2] for i in range(n) if m >> i & 1)
+            if v > best[0] + 1e-9 or (abs(v - best[0]) < 1e-9 and cost < best[1]):
+                best = (v, cost)
+    return best
 
 
 def parse_map(text):
@@ -225,20 +250,29 @@ class Calc:
         self.cache[ck] = out
         return out
 
-    def Rw(self, key, w):
-        """Vector over HP: expected reward collected from `key` onward (rewards count only while alive), the best child at every node, every fight played without a potion. Boss = 0."""
+    @staticmethod
+    def _gold_after(t, g):
+        """Gold leaving a node of type t entered with g (expected income; a shop spends what its best basket costs), on the GOLD_STEP grid."""
+        g = g - shop_buy(g)[1] if t == "$" else g + GOLD_GAIN.get(t, 0)
+        return min(GOLD_CAP, int(round(g / GOLD_STEP)) * GOLD_STEP)
+
+    def Rw(self, key, w, g=0):
+        """Vector over HP: expected reward collected from `key` onward (rewards count only while alive), the best child at every node, every fight played without a potion. Boss = 0.
+        g = gold on entering `key`: a shop's weight is scaled by shop_scale(g)."""
         if key == "BOSS":
             return np.zeros(self.H + 1)
-        ck = ("R", key, w)
+        g = min(GOLD_CAP, int(round(g / GOLD_STEP)) * GOLD_STEP)
+        ck = ("R", key, w, g)
         if ck in self.cache:
             return self.cache[ck]
         t = self.nodes[key]["type"]
-        r = self.weights.get(t, 0.0)
+        r = self.weights.get(t, 0.0) * (shop_buy(g)[0] if t == "$" else 1.0)
         fk = self.kind_of(key, w)
         w2 = min(w + 1, self.weak_fights) if t == "M" else w
+        g2 = self._gold_after(t, g)
 
         def G(w_):
-            vs = [self.Rw(c, w_) for c in self.kids(key)]
+            vs = [self.Rw(c, w_, g2) for c in self.kids(key)]
             return np.max(vs, axis=0) if vs else np.zeros(self.H + 1)
 
         if fk:
@@ -261,13 +295,14 @@ class Calc:
         self.cache[ck] = out
         return out
 
-    def reward_path(self, start, w, hp):
-        """Follow the best child of the reward DP at the expected HP."""
+    def reward_path(self, start, w, hp, g=0):
+        """Follow the best child of the reward DP at the expected HP (and the expected gold)."""
         path, key, cur = [], start, float(hp)
         while key != "BOSS":
             path.append(key)
             t = self.nodes[key]["type"]
             fk = self.kind_of(key, w)
+            g = self._gold_after(t, g)
             if t == "M":
                 w = min(w + 1, self.weak_fights)
             if fk:
@@ -277,7 +312,7 @@ class Calc:
                 cur = min(self.H, cur + self.heal)
             kids = self.kids(key)
             hp_i = max(1, min(self.H, int(round(cur))))
-            key = max(kids, key=lambda c: self.Rw(c, w)[hp_i]) if kids else "BOSS"
+            key = max(kids, key=lambda c: self.Rw(c, w, g)[hp_i]) if kids else "BOSS"
         return path
 
     # ------------------------------------------------------------------------------------------------------------ fixed path statistics
@@ -427,15 +462,19 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
         if st["elites"]:
             lines.append("      elite arrivals (alive, mean HP, q10 HP): " + "; ".join(f"{calc.nodes[e[0]]['type']}{e[0][0]}c{e[0][1]} {e[1]:.2f}, {e[2]:.0f}, {e[3]}" for e in st["elites"]))
     lines.append("")
+    gm = re.search(r"\bG(\d+)\b", state_text)
+    gold = int(gm.group(1)) if gm else 0
     wtxt = " ".join(f"{k}={v:g}" for k, v in calc.weights.items())
     lines.append(f"reward-weighted routes (expected rewards collected while alive, fights without potions; weights {wtxt}; change with --w E=5,$=1): per option on offer, then the best path")
+    lines.append(f"  a shop is worth what the gold I arrive with buys ($ = multiplier): from {gold} gold now, +{GOLD_GAIN['M']} per monster, +{GOLD_GAIN['E']} per elite, +{GOLD_GAIN['T']} per treasure; "
+                 "shop value at 50/100/150/250/400 gold: " + "/".join(f"{shop_buy(x)[0]:.1f}" for x in (50, 100, 150, 250, 400)))
     lines.append(f"{'option':10s} {'reward':>7s} {'reach':>6s} {'HP@boss':>8s} {'win':>6s}  fights elites rests shops unk treas  path")
-    ropts = sorted(starts, key=lambda s_: -calc.Rw(s_, w0)[hp_now])
+    ropts = sorted(starts, key=lambda s_: -calc.Rw(s_, w0, gold)[hp_now])
     for s_ in ropts:
-        path = calc.reward_path(s_, w0, hp_now)
+        path = calc.reward_path(s_, w0, hp_now, gold)
         st = calc.path_stats(path, w0, hp_now)
         c = st["counts"]
-        lines.append(f"{nodes[s_]['type'] + str(s_[0]) + 'c' + str(s_[1]):10s} {calc.Rw(s_, w0)[hp_now]:7.2f} {st['alive']:6.3f} {st['mean_hp']:8.1f} {st['win']:6.3f}  {c['M'] + c['E']:6d} {c['E']:6d} {c['R']:5d} {c['$']:5d} {c['?']:3d} {c['T']:5d}  {_fmt_path(calc, path)}")
+        lines.append(f"{nodes[s_]['type'] + str(s_[0]) + 'c' + str(s_[1]):10s} {calc.Rw(s_, w0, gold)[hp_now]:7.2f} {st['alive']:6.3f} {st['mean_hp']:8.1f} {st['win']:6.3f}  {c['M'] + c['E']:6d} {c['E']:6d} {c['R']:5d} {c['$']:5d} {c['?']:3d} {c['T']:5d}  {_fmt_path(calc, path)}")
     lines.append("")
     lines.append("F = adaptive optimum for that requirement (can exceed the fixed path's win); reach = alive on arrival at the boss; HP@boss / q10 = mean / 10th percentile HP then.")
     return "\n".join(lines)

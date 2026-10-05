@@ -44,3 +44,10 @@
 {"kind": "fidelity", "run": "20261004-224215", "what": "diff .enemies[3].hp", "count": 1}
 {"kind": "fidelity", "run": "20261004-224215", "what": "diff .enemies[3].max_hp", "count": 1}
 {"kind": "fidelity", "run": "20261005-130851", "what": "diff .enemies[0].hp", "count": 1}
+{"kind": "fidelity", "run": "20261005-160158", "what": "diff .enemies[0].hp", "count": 5}
+{"kind": "fidelity", "run": "20261005-160158", "what": "diff .player.block", "count": 2}
+{"kind": "fidelity", "run": "20261005-160158", "what": "diff .enemies[0].powers", "count": 1}
+{"kind": "hindsight", "fight": "runs/20261005-160158/fights/18_SOUL_FYSH_BOSS.json", "encounter": "SOUL_FYSH_BOSS", "hp_lost": 47, "luck_percentile": 0.88, "gaps": 0, "worst_gap_hp": 0, "decisions": []}
+{"kind": "hindsight", "fight": "runs/20261005-160158/fights/19_TUNNELER_WEAK.json", "encounter": "TUNNELER_WEAK", "hp_lost": 12, "luck_percentile": 0.9, "gaps": 1, "worst_gap_hp": 2.0, "decisions": [[4, "end turn", "potion 0", 2.0]]}
+{"kind": "hindsight", "fight": "runs/20261005-160158/fights/22_MYTES_NORMAL.json", "encounter": "MYTES_NORMAL", "hp_lost": -7, "luck_percentile": 0.0, "gaps": 3, "worst_gap_hp": 2.6, "decisions": [[2, "play THUNDERCLAP #2", "potion 0", 2.0], [4, "play DEFEND_IRONCLAD #1", "potion 0", 2.6], [5, "end turn", "potion 0", 2.2]]}
+{"kind": "hindsight", "fight": "runs/20261005-160158/fights/17_HAUNTED_SHIP_NORMAL.json", "encounter": "HAUNTED_SHIP_NORMAL", "hp_lost": 3, "luck_percentile": 0.58, "gaps": 0, "worst_gap_hp": 0, "decisions": []}

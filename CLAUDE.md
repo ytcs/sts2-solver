@@ -24,5 +24,7 @@ Read them before acting. Enforced: hooks (`.claude/settings.json`) refuse any ha
 
 Lower levels only add to or deviate from the general ones; the more specific skill wins. A lesson for every character or act belongs in `sts2-strategy`.
 
+**Meta rule: never use SKILL files as a journal.** A skill is a mutable set of rules (rules, mechanics, tests, status tags) and carries no history: no runs, past fights, examples from play, logs or TODOs. Evidence and history go to `runs/<run>/` and `evals/` (details: `sts2`, "Rules that never bend").
+
 ## For humans and tests
 The gate is off for a daemon started with `STS2_SKILL_GATE=off` (your own terminal, never an agent session) and for scripts that build `Harness()` directly (sweeps, calibration, benches). Design: `agent/skillgate.py`.

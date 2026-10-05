@@ -10,7 +10,7 @@ Pools: `sts2-acts`; boss rows: `encounters.md`. r214119 = run 20261004-214119 (U
 ## Picks (256 attempts, elite or boss pool) `[sim]`
 - Inferno+ +25, Anger +17..+25, Setup Strike +21, Dismantle +13, Perfected Strike +11 (weak deck) / HP -5 (strong deck), Rampage HP -17. Blood Wall -5 -> +10 once Inferno is in the deck.
 - Breakthrough, Rupture, Vicious, Molten Fist, Cinder, Body Slam, a second Anger: <= 0 vs Lagavulin once the deck was built (Cinder +10 vs Waterfall Giant). Inflame +42, Inflame+Tremble +73 vs Lagavulin alone while the elite pool showed ~0: evaluate the known boss alone.
-- Run 4: Primal Force (Hefty Tablet) Act 1 elites 22 -> 99%, Waterfall 0 -> 22%, a second copy +18 on Hive elites; vs Waterfall Shrug +18, Taunt +15, Radiant Tincture +22 (single use), Centennial Puzzle +10.5.
+- Primal Force (Hefty Tablet): Act 1 elites 22 -> 99%, Waterfall 0 -> 22%, a second copy +18 on Hive elites; vs Waterfall: Shrug +18, Taunt +15, Radiant Tincture +22 (single use), Centennial Puzzle +10.5.
 - Hellraiser is playable: the Slippery 7-vs-6 desync was a replay sample (6/7/8 over 40 shuffles), powers now sync.
 
 ## HP gates `[sim]`

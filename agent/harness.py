@@ -163,6 +163,7 @@ class Harness:
         self.fight_hp0 = (sc["hp"], sc["max_hp"])
         self.last_enc = sc.get("encounter")
         self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
+        self.drive = self._drive_mode(sc.get("encounter", ""), pred, sc["hp"])
         # potions are for fights the solver may lose or that cost a lot: a comfortable fight keeps them (a clear win leaves the strongest potion for the elite or boss)
         def comfortable(p):
             return "win" in p and p["win"] - p["win_se"] >= 0.95 and p["hp_lost"] * sc["max_hp"] <= 0.4 * sc["hp"]
@@ -178,7 +179,37 @@ class Harness:
             except Exception:  # noqa: BLE001
                 self.keep_potions = False
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], deck=len(sc["deck"]), relics=[r["id"] for r in sc["relics"]],
-                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol, keep_potions=sorted(self._kp()) if self._kp() is not True else True)
+                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol, keep_potions=sorted(self._kp()) if self._kp() is not True else True,
+                       drive=self.drive)
+
+    MANUAL_WIN = 0.90  # a fight predicted below this win rate is driven by hand
+    MANUAL_Q90 = 0.40  # ... and so is one whose 90th-percentile predicted loss is this share of my HP or more
+
+    def _drive_mode(self, enc, pred, hp):
+        """("auto" | "manual", why) for this fight. Manual = I play every decision from `adv` (the solver's options and values are the input, the choice is mine), so its gaps
+        show up as disagreements instead of hiding inside `combat`. Manual: an elite or boss, an encounter listed in data/drive_manual.json, a predicted win under MANUAL_WIN, or a
+        90th-percentile predicted loss of MANUAL_Q90 of my HP or more. `combat` / `turn` refuse in a manual fight unless given `!`."""
+        try:
+            listed = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "drive_manual.json")))
+        except Exception:  # noqa: BLE001
+            listed = {}
+        if enc in listed:
+            return "manual", f"listed: {listed[enc]}"
+        if enc.endswith(("_ELITE", "_BOSS")):
+            return "manual", "an elite or boss"
+        if "win" in pred and pred["win"] < self.MANUAL_WIN:
+            return "manual", f"predicted win {pred['win']:.2f} < {self.MANUAL_WIN}"
+        q = pred.get("lost_q")
+        if q and q[18] >= self.MANUAL_Q90 * hp:
+            return "manual", f"q90 predicted loss {q[18]:.0f} HP >= {self.MANUAL_Q90:.0%} of {hp}"
+        return "auto", f"predicted win {pred.get('win', '?')}, q90 loss {q[18] if q else '?'} HP"
+
+    def _drive_line(self):
+        d = getattr(self, "drive", None)
+        if not d:
+            return ""
+        how = "play each decision with `adv` then `a <i>` (`combat !` / `turn !` to auto-play anyway, with the reason)" if d[0] == "manual" else "`combat` is fine"
+        return f"DRIVE: {d[0].upper()} ({d[1]}): {how}\n"
 
     @staticmethod
     def _auto_budget(pred, hp, max_hp):
@@ -206,13 +237,14 @@ class Harness:
             import numpy as np
             lost = self.fight_hp0[0] - hp[0]
             pit = round(float(np.interp(lost, self._pred_q, np.linspace(0, 1, len(self._pred_q)))), 3)  # where the real loss falls in the predicted distribution (0 = best case, 1 = worse than predicted)
-        self._save_costly_fight(hp)
+        self._save_costly_fight(hp, pit)
         self.log.event("fight_end", id=self.fight_id, hp=hp, pit=pit, potions_used=getattr(self, "potions_used", 0), pred_lost_q=self._pred_q, screen=_kind(text) if text else None, hp_start=self.fight_hp0, actions=self.fight_actions, replay=dict(self.rp.stats),
                        errors=self.rp.errors[:3], diff_examples={k: v for k, v in self.rp.examples.items() if not k.startswith("random")})
 
     COSTLY = 0.30  # a fight that loses this share of max HP (or is lost) is kept whole for the hindsight review (`python -m agent.hindsight`)
+    TAIL = 0.90  # ... and so is one whose loss falls in the worst 10% of the prediction (the simulation-game gap shows there first)
 
-    def _save_costly_fight(self, hp):
+    def _save_costly_fight(self, hp, pit=None):
         """Keep the full export (scenario, action log, observed state after every action) of a costly fight: `runs/<run>/fights/<id>_<encounter>.json`. The log may
         end one action before the last (the final sync happens before the killing blow)."""
         f = getattr(self, "_last_f", None)
@@ -220,7 +252,7 @@ class Harness:
             return
         lost = self.fight_hp0[0] - hp[0]
         bad = any(k.startswith(("diff", "residual", "action failed", "intent unmatched", "start unmatched", "missing")) for k in self.rp.stats)  # fidelity cases are kept too
-        if lost < self.COSTLY * self.fight_hp0[1] and hp[0] > 0 and not bad:
+        if lost < self.COSTLY * self.fight_hp0[1] and hp[0] > 0 and not bad and (pit is None or pit < self.TAIL):
             return
         try:
             d = os.path.join(self.log.dir, "fights")
@@ -232,12 +264,22 @@ class Harness:
 
     # ------------------------------------------------------------------ micro
 
+    def _label(self, text):
+        """A selection pick in the GAME's numbering: the simulator numbers the choices in its own order (`pick 4 (STRIKE)` could be option 1 on the screen)."""
+        m = re.match(r"pick (\d+)(.*)", str(text))
+        if not m or self.rp is None:
+            return text
+        try:
+            return f"pick {self.rp.sim.pick_game_index(int(m.group(1)))}{m.group(2)}"
+        except Exception:  # noqa: BLE001
+            return text
+
     def _advice_text(self, d):
         opts = sorted(d["options"], key=lambda o: -(o["q"] if o["q"] is not None else -9))
-        alts = "; ".join(f"{o['text']} q{o['q']}" for o in opts[:3] if o["action"] != d["action"])
+        alts = "; ".join(f"{self._label(o['text'])} q{o['q']}" for o in opts[:3] if o["action"] != d["action"])
         mine = next((o for o in d["options"] if o["action"] == d["action"]), None)
         q = f" q{mine['q']}" if mine and mine["q"] is not None else ""
-        return f"{d['text']}{q}" + (f"   [alt: {alts}]" if alts else "")
+        return f"{self._label(d['text'])}{q}" + (f"   [alt: {alts}]" if alts else "")
 
     def _game_json(self, j):
         """The simulator numbers potions by position in its own list; the game by slot (an empty first slot makes them differ). Translate a `use_potion` action."""
@@ -264,18 +306,26 @@ class Harness:
         return "outlook (expected damage, next 3 turns): " + "  ".join(f"e{i} " + "/".join(f"{x:.0f}" for x in v) for i, v in rows) if rows else ""
 
     def advice(self, budget=None):
+        if _kind(call("peek")) == "GAME_OVER":  # the game still exports the finished fight there: no decision to search
+            self._fight_end(call("peek"))
+            return "not in combat"
         f = self.sync()
         if f is None:
             return "not in combat"
         bad = self._sync_problem(f)
         if bad:
             return bad
+        if self.rp.sim.stage() == "choice" and _kind(call("peek")) == "COMBAT":
+            self.rp.resolve_phantom_choice(f["state"], "phantom choice on a COMBAT screen")
         d = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol, keep_potions=self._kp())
+        self.log.event("advice", fight=self.fight_id, text=d["text"], options=[dict(text=o["text"], q=o["q"]) for o in d["options"][:6]], drive=getattr(self, "drive", None))  # manual fights: my choice (the next `macro` event) vs this
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook()
 
     def _kp(self):
-        """keep_potions for the live search: only the potions I held by hand are off the table. The solver is NOT limited: it may propose a potion as often as it likes."""
-        return self.fight_hold
+        """keep_potions for the live search: the potions I held by hand are off the table, and after `combat go` (I declined potions for this fight) all of them, so the search
+        plans the line I will actually play (searching as if a declined potion will be thrown next turn picked worse lines: Living Fog, run 20261005-160158, 99th percentile).
+        Until I decline, the solver is NOT limited: it may propose a potion as often as it likes."""
+        return True if self._decline_fight == self.fight_id else (self.fight_hold | self.hold)  # a `hold` given mid-fight counts at once
 
     def _potion_gate(self, d, out):
         """Every time the solver's chosen action is a potion, I am at the gate. Returns (stop message or None, the decision to execute). The solver itself is unchanged: it may propose
@@ -298,7 +348,7 @@ class Harness:
         q_wait = max((o["q"] for o in others), default=None)
         base = self.eng().decide(self.rp.scenario, self.rp.sim, min(self._budget(), 6.0), tol_hp=self.fight_tol, keep_potions=True)
         q_none = max((o["q"] for o in base["options"] if o["q"] is not None), default=None)
-        lines = [f"POTION (your call): the solver wants `{d['text']}` now."]
+        lines = [f"POTION (your call): the solver wants `{d['text']}` ({self._potion_name(d['text'])}) now."]
         if q_with is not None and q_none is not None:
             dq = q_with - q_none
             lines.append(f"  best line with potions {q_with:.2f} vs with none {q_none:.2f}: potions add {dq:+.2f} (about {dq / 2 * 100:+.0f}% win, or {dq * 2 * self.rp.scenario['max_hp']:+.0f} HP at the same win rate)")
@@ -306,9 +356,32 @@ class Harness:
             best_np = max(others, key=lambda o: o["q"])
             tie = " (a TIE: the solver picked the potion on a tie)" if abs(q_with - q_wait) < 0.02 else ""
             lines.append(f"  using it NOW beats the best non-potion action ({best_np['text']}) by {q_with - q_wait:+.2f}{tie}")
-        lines.append(f"  HP {self.rp.scenario.get('hp', '?')}/{self.rp.scenario.get('max_hp', '?')} now; potions in the belt: {', '.join(p['id'] for p in self.rp.scenario.get('potions', []))}")
+        lines.append(f"  HP {self.rp.scenario.get('hp', '?')}/{self.rp.scenario.get('max_hp', '?')} now; potions in the belt: {', '.join(self._belt()) or 'none'}")
         lines.append("Answer: `combat ok` (throw this one), `combat skip` (decline this one), `combat go` (decline every proposal this fight). Weigh the boss and the route, not only this fight.")
         return "\n".join(lines), d
+
+    def _belt(self):
+        """The potions in the game's belt, slot order (the header's `pots[...]`; `-` = empty slot). Relic-made potions (Potion-Shaped Rock) are there, not in the fight scenario."""
+        m = re.search(r"pots\[([^\]]*)\]", call("peek"))
+        return [p.strip() for p in m.group(1).split(",")] if m else []
+
+    def _potion_name(self, text):
+        m = re.match(r"potion (\d+)", str(text))
+        belt = self._belt()
+        return belt[int(m.group(1))] if m and int(m.group(1)) < len(belt) else "?"
+
+    def potions_now(self):
+        """potions: what each potion in the belt adds right now (read-only): the best line with potions vs with none, and the best line with each slot alone allowed."""
+        f = self.sync()
+        if f is None:
+            return "not in combat\n"
+        base = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(), tol_hp=self.fight_tol, keep_potions=True)
+        free = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(), tol_hp=self.fight_tol, keep_potions=self._kp())
+        qb = max((o["q"] for o in base["options"] if o["q"] is not None), default=None)
+        qf = max((o["q"] for o in free["options"] if o["q"] is not None), default=None)
+        out = [f"belt: {', '.join(self._belt()) or 'none'}",
+               f"best line with no potion: {base['text']} (value {qb:.2f}); with potions allowed: {free['text']} ({self._potion_name(free['text']) if str(free['text']).startswith('potion') else 'no potion now'}, value {qf:.2f}; +0.1 is about +5% win or +16 HP)"]
+        return "\n".join(out) + "\n"
 
     def _answer_selection(self):
         """A card-selection prompt: the search picks card by card on a copy of the simulator; the whole answer goes to the game at once."""
@@ -367,6 +440,8 @@ class Harness:
                 reply = self._answer_selection()
                 out.append("  choose")
             else:
+                if self.rp.sim.stage() == "choice":  # no selection on the screen, one in the simulator: settle it and re-sync (else it sends `pick` forever)
+                    self.rp.resolve_phantom_choice(f["state"], "phantom choice on a COMBAT screen")
                 t0 = T()
                 d = self.eng().decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol, keep_potions=self._kp())
                 tm["decide"] += T() - t0
@@ -440,6 +515,19 @@ class Harness:
             self.last_state = reply
             if reply.startswith("ERR"):
                 return reply
+        if last_kind in ("COMBAT", "SELECT") and _kind(reply) not in ("COMBAT", "SELECT") and self.rp is not None:
+            # a fight I finished by hand (manual drive, the killing blow, or my death): record its end NOW with the screen it left, not at the next sync (which read the HP
+            # after a rest, and never came after a death: the game keeps exporting the finished fight on the GAME_OVER screen)
+            try:
+                self._fight_end(reply)
+            except Exception:  # noqa: BLE001  never let bookkeeping break a command
+                pass
+        if _kind(reply) == "COMBAT" and last_kind not in ("COMBAT", "SELECT"):  # a fight just started: decide auto or manual for it now
+            try:
+                self.sync()
+                reply = reply.rstrip("\n") + "\n" + self._drive_line()
+            except Exception:  # noqa: BLE001  never let bookkeeping break a command
+                pass
         return reply
 
     @staticmethod
@@ -459,6 +547,8 @@ class Harness:
                 opts.append((m.group(1), m.group(2).lower()))
         starts = [n for n, t in opts if t.startswith(want)]  # `~card` means the line that starts with `card`, not a potion whose text mentions cards
         hits = starts if len(starts) == 1 else [n for n, t in opts if want in t]
+        if len(hits) > 1 and len({t for n, t in opts if n in hits}) == 1:  # identical options (two copies of Strike): any of them is the same action
+            hits = hits[:1]
         if len(hits) == 1:
             return " ".join([hits[0]] + args)
         if len(hits) > 1:
@@ -765,13 +855,17 @@ class Harness:
                 now = f"auto (this fight: {self.fight_budget}s)" if self.budget is None else f"{self.budget}s"
                 return f"search budget {now} per combat decision\n"
             if cmd == "adv":
-                return self.state() + "advice: " + self.advice(secs) + "\n"
-            ans = rest.strip()
+                adv = self.advice(secs)
+                return self.state() + self._drive_line() + "advice: " + adv + "\n"
+            words = rest.split()
+            force = "!" in words
+            ans = " ".join(w for w in words if w != "!")
+            secs = float(ans) if cmd in ("turn", "combat") and ans.replace(".", "", 1).isdigit() else secs
             ok, skip, go = ans == "ok", ans == "skip", ans == "go"
-            if cmd == "turn":
-                return self.play(False, secs, ok=ok, skip=skip, go=go)
-            if cmd == "combat":
-                return self.play(True, secs, ok=ok, skip=skip, go=go)
+            if cmd in ("turn", "combat"):
+                if self.sync() is not None and getattr(self, "drive", ("auto",))[0] == "manual" and not force:
+                    return "REFUSED: this fight is MANUAL.\n" + self._drive_line()
+                return self.play(cmd == "combat", secs, ok=ok, skip=skip, go=go)
             if cmd == "potions":
                 return self.potions_now()
             if cmd == "a":

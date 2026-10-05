@@ -40,6 +40,6 @@ The Neow / ancient option changes which path is best: decide the pair. A wrong p
 
 ## Risk budget `[hyp]`
 - Rule: survival of the act boss is a constraint, not the goal. While `python -m agent routes` shows the route with the extra elites at >= ~0.9 boss win, take the elites (relic + rare odds + gold); once the act boss is saturated (`eval --boss --smooth` >= 0.95) the next-act pool is what is short, and surplus HP is the currency that buys it.
-- Guard: never plan two elites with no rest between them, whatever the boss-win column says: `routes` prints each elite's arrival HP (alive, mean, q10) under every representative route; the second elite's mean below ~50% of max HP means a rest is missing. The boss-win column hides variance (one elite fight lost 30 HP against a 17 HP prediction, the 98th percentile of simulator replays).
+- Guard: never plan two elites with no rest between them, whatever the boss-win column says: `routes` prints each elite's arrival HP (alive, mean, q10) under every representative route; the second elite's mean below ~50% of max HP means a rest is missing. The boss-win column hides variance: read the q10 arrival HP.
 - Test: `reward` / `eval --next --smooth` next-act column after each elite relic and rare vs the boss-win points the route gave up; an elite that cost 0.05-0.10 of a saturated boss win must have bought more than that in the next-act pool.
 - Status: unmeasured; `routes` prices only the survival side (rewards are counts).

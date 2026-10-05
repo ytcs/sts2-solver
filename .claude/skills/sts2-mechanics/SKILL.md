@@ -17,6 +17,8 @@ description: Use before fighting an unfamiliar enemy, at any event after floor 1
 - **Pen Nib**: every 10th Attack deals double; the counter persists across fights (`relics`); card text shows doubled numbers when the next attack is the 10th. Aim it at the biggest uncapped hit. `[played]`
 - **Armaments+** upgrades the whole hand for the combat (cost 1): play it before cards that profit (Battle Trance+, Bash+). `[hyp]` Test: `adv` with and without it on turns with 2+ upgradable cards.
 - **Tangled**: my attacks cost 1 more; **Frail**: block reduced; **Shrink**: my damage reduced; all show in displayed numbers.
+- **Petrified Toad**: each combat start procures a Potion-Shaped Rock (15 damage) into a free slot only; an unthrown rock stays and takes a slot. Throw the rock every fight it is in the belt. A potion that would fill the last slot is a calculation, not a rule: it is worth the best single use of that potion (the fight where it helps most) minus the rocks it displaces (one 15-damage throw in every fight it waits through, until thrown). Price both belts on the fights ahead: `eval --boss` / `--elites` at the expected HP with `--v "rock|potions=<belt>" --v "new|potions=<belt>,<ID>"` (Toad procures the rock into a free slot in the simulator too).
+- **Living Fog** (Underdocks regular, 82 HP): its first attack applies Smoggy (after a Skill is played, every other Skill is unplayable for the rest of that turn: one Skill per turn), then it summons Gas Bombs (8 HP minions that explode for 9). Area damage (Inferno) answers the bombs. `[code]`
 - Shop **Meal Ticket** heals 15 on entering a shop. Entering a new act heals (13 -> 66 of 80). Boss and elite rewards can offer extra rare sets (White Star). `[played]`
 
 ## Events

@@ -216,6 +216,24 @@ class Replayer:
         self.stats["target_repaired"] += 1
         return True
 
+    def resolve_phantom_choice(self, state=None, why="phantom choice"):
+        """The simulator waits on a card selection the game never opened: a hidden draw resolved differently (Havoc played the sim's own random top card, say
+        Headbutt, while the game's top card opened nothing). Settle it with any legal answer (confirm if offered, else the first pick), then re-align the piles
+        to the game's observation. Without this the replay never syncs again and the live loop sends `pick` actions the game rejects (a stalled fight)."""
+        n = 0
+        while self.sim.stage() == "choice" and n < 40:
+            legal = self.sim.legal()
+            if not legal:
+                break
+            a = next((i for i, t in legal if t == "confirm"), legal[0][0])
+            self.sim.step(a)
+            n += 1
+        if n:
+            self._note("phantom choice", f"{why}: {n} answer(s) [{getattr(self, '_played', '')}]")
+            if state is not None:
+                self._sync(state, why)
+        return n
+
     def advance(self, fight):
         log = fight["log"]
         states = fight.get("states")
@@ -225,6 +243,14 @@ class Replayer:
             last = i == len(log) - 1
             # the state observed after this action (the bridge records one after every action it settles); the current one for the latest
             state = states[i + 1] if states and states[i + 1] is not None else (fight["state"] if last else None)
+            if '"choose"' not in act and self.sim.stage() == "choice":  # the game moved on without the selection the simulator expects
+                self.resolve_phantom_choice(states[i] if states else None, "phantom choice before a logged action")
+            if '"choose"' in act and self.sim.stage() != "choice":  # the reverse: the game asked for a selection the simulator never opened; the
+                self._note("game-only selection", f"{act} [{getattr(self, '_played', '')}]")  # answer changed only piles, which the sync below restores
+                self.applied += 1
+                if state is not None:
+                    self._sync(state, act)
+                continue
             try:
                 if '"end_turn"' in act:
                     self._end_turn(state)

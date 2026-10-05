@@ -240,7 +240,7 @@ def parse_card_options(state):
     import re
     opts, skip = [], None
     for line in state.split("\n"):
-        m = re.match(r"^(\d+) (.+?)\((\d+|X|-)\) ", line)
+        m = re.match(r"^(\d+) (.+?)\(([^()]*)\) ", line)  # cost: 1, X, -, or energy/star like `1/2*` (Regent cards: Resonance): any cost text, else the card vanished from the table
         if m:
             cid, up = card_from_name(m.group(2))
             opts.append((int(m.group(1)), m.group(2).strip(), cid, up))
