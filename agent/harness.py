@@ -8,7 +8,7 @@ Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <
   a <i> [target] [-- why]   (chain steps with `;`, `~text` picks the option containing text: `a ~gold; ~card; ~proceed`; stops on error / combat, map click last)
                         take option i of the screen (macro and everything else); `-- why` is stored with the decision. A map click onto an elite or boss
                         below 60% HP is refused unless confirmed with `a <i> !`
-  eval {json} | eval [--all] --enc IDS --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
+  eval {json} | eval [--all] [--smooth] --enc IDS --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
   route <M E R S B ...> [--hp N] [--act Hive] [--exclude IDS]   HP budget (pools narrowed to what can still appear: not the encounters already met this act, only the known boss) along a planned route (fights played at the HP I would arrive with, rests heal 30%)
   relics                relic counters in combat (Pen Nib, Book of Five Rings ...)
   note <text>           a free-text note in the run record
@@ -422,6 +422,8 @@ class Harness:
                     spec["all"] = True
                 elif t == "--future":  # eval: the boss and elite pools of this act and every later act (horizon check)
                     spec["encounters"] = self._future_encounters()
+                elif t == "--smooth":  # the deck-choice objective: win rate averaged over start HP x1 / 1.5 / 2 / 3 (macro.evaluate_smooth)
+                    spec["smooth"] = True
                 elif t == "--attempts":
                     spec["attempts"] = int(toks[i + 1])
                     i += 1

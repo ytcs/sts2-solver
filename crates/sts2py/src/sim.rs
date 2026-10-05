@@ -338,7 +338,9 @@ impl Sim {
                 notes.push(format!("{key}: {} cards created", r.created));
             }
         }
-        if let Some(a) = real["draw"].as_array() {
+        // (a card still resolving sits in the play pile, in no visible pile: the sim may hold it elsewhere, so the draw pile is not reconciled then)
+        let playing = real["play_pile"].as_array().map_or(false, |a| !a.is_empty());
+        if let (Some(a), false) = (real["draw"].as_array(), playing) {
             let cards: Vec<ObsCard> = a.iter().filter_map(|c| card_ids(c["id"].as_str().unwrap_or("")).map(|id| ObsCard { id, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8, cost: None })).collect();
             let r = self.cx.sync_draw(&cards);
             if r.created > 0 {

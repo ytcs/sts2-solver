@@ -86,7 +86,36 @@ def resolve_encounters(spec):
     return out[: e["n"]] if e.get("n") else out
 
 
+SMOOTH_MULTS = (1.0, 1.5, 2.0, 3.0)
+
+
+def evaluate_smooth(engine, deck_json, spec):
+    """The graded objective for deck choices (`sts2-deckbuilding`, bench `agent.deckbench`): the win rate averaged over start HP x1 / 1.5 / 2 / 3. A deck far
+    from beating the fight still wins with enough HP, so the average does not go flat when every option loses; what picks reduce is the HP a fight needs."""
+    hp = spec.get("hp", "current")
+    h0 = deck_json["max_hp"] if hp == "full" else (deck_json["hp"] if hp == "current" else hp)
+    sub = dict(spec, smooth=False)
+    parts = []
+    for m in SMOOTH_MULTS:
+        d = dict(deck_json, hp=int(round(h0 * m)), max_hp=max(deck_json["max_hp"], int(round(h0 * m))))
+        parts.append(evaluate(engine, d, dict(sub, hp="current")))
+    variants = spec["variants"]
+    summary, lines = {}, [f"smooth objective: win rate averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of {h0}  ({len(variants)} variants)"]
+    for vi, v in enumerate(variants):
+        wins = [p[1][vi]["win"] for p in parts]
+        se = (sum(p[1][vi]["se"] ** 2 for p in parts) ** 0.5) / len(parts)
+        summary[vi] = dict(win=sum(wins) / len(wins), se=se, hp_lost=sum(p[1][vi]["hp_lost"] for p in parts) / len(parts), by_hp=wins)
+        lines.append(f"{v.get('name', vi):24s} smooth {summary[vi]['win']:.3f} ±{se:.3f}  | " + " ".join(f"x{m}:{w:.2f}" for m, w in zip(SMOOTH_MULTS, wins)))
+    for vi in range(1, len(variants)):
+        d = summary[vi]["win"] - summary[0]["win"]
+        sd = (summary[vi]["se"] ** 2 + summary[0]["se"] ** 2) ** 0.5
+        lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: smooth {d:+.3f} (±{sd:.3f})")
+    return "\n".join(lines), summary
+
+
 def evaluate(engine, deck_json, spec):
+    if spec.get("smooth"):
+        return evaluate_smooth(engine, deck_json, spec)
     base = dict(deck_json)
     hp = spec.get("hp", "current")
     if hp == "full":

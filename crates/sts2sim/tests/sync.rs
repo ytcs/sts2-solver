@@ -109,3 +109,26 @@ fn sync_draw_drops_a_generated_card_the_real_game_does_not_have() {
     assert_eq!(total(&cx), deck_total + 1, "the phantom Whirlwind must leave the combat");
     assert!(names(&cx, &cx.player.draw.clone()).iter().all(|(id, _)| *id != ids::card::WHIRLWIND));
 }
+
+#[test]
+fn full_sync_sequence_conserves_cards_against_a_different_shuffle() {
+    for seed in 0..30u64 {
+        let mut cx = combat(seed);
+        let before = total(&cx);
+        let other = combat(seed + 1000);
+        // the "real" state: the same deck, another shuffle, a few cards already in the discard pile
+        let obs = |cx: &Combat, p: &Pile| -> Vec<ObsCard> { names(cx, p).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, cost: None }).collect() };
+        let hand = obs(&other, &other.player.hand);
+        let draw = obs(&other, &other.player.draw);
+        cx.sync_hand(&hand);
+        cx.sync_pile(PileType::Exhaust, &[]);
+        cx.sync_pile(PileType::Discard, &[]);
+        cx.sync_draw(&draw);
+        assert_eq!(total(&cx), before, "seed {seed}: a deck card was created or deleted");
+        let mut a = names(&cx, &cx.player.draw.clone());
+        let mut b: Vec<(u16, u8)> = draw.iter().map(|o| (o.id, o.upgrade)).collect();
+        a.sort();
+        b.sort();
+        assert_eq!(a, b, "seed {seed}: draw pile multiset");
+    }
+}
