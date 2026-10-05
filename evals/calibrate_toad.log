@@ -1,0 +1,17 @@
+relics applied: ['VAJRA', 'LANTERN', 'FESTIVE_POPPER', 'RAINBOW_RING'] | deck 21
+SPINY_TOAD_NORMAL sim  mean HP lost 23.9  wins 40/40  (22s)
+SPINY_TOAD_NORMAL real 0 {'hp_lost': 38, 'won': True}
+SPINY_TOAD_NORMAL real 1 {'hp_lost': 14, 'won': True}
+SPINY_TOAD_NORMAL real 2 {'hp_lost': 3, 'won': True}
+SPINY_TOAD_NORMAL real 3 {'hp_lost': 35, 'won': True}
+SPINY_TOAD_NORMAL real 4 {'hp_lost': 20, 'won': True}
+SPINY_TOAD_NORMAL real 5 {'hp_lost': 7, 'won': True}
+SPINY_TOAD_NORMAL real 6 {'hp_lost': 24, 'won': True}
+SPINY_TOAD_NORMAL real 7 {'hp_lost': 13, 'won': True}
+SPINY_TOAD_NORMAL real 8 {'hp_lost': 24, 'won': True}
+SPINY_TOAD_NORMAL real 9 {'hp_lost': 35, 'won': True}
+SPINY_TOAD_NORMAL real 10 {'hp_lost': 31, 'won': True}
+SPINY_TOAD_NORMAL real 11 {'hp_lost': 40, 'won': True}
+SPINY_TOAD_NORMAL real 12 {'hp_lost': 19, 'won': True}
+SPINY_TOAD_NORMAL real 13 {'hp_lost': 30, 'won': True}
+SPINY_TOAD_NORMAL REAL mean HP lost 23.8 (se 3.0) wins 14/14   vs SIM 23.9 (se 1.6)
