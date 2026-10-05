@@ -338,6 +338,13 @@ impl Sim {
                 notes.push(format!("{key}: {} cards created", r.created));
             }
         }
+        if let Some(a) = real["draw"].as_array() {
+            let cards: Vec<ObsCard> = a.iter().filter_map(|c| card_ids(c["id"].as_str().unwrap_or("")).map(|id| ObsCard { id, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8, cost: None })).collect();
+            let r = self.cx.sync_draw(&cards);
+            if r.created > 0 {
+                notes.push(format!("draw: {} cards created", r.created));
+            }
+        }
         self.cx.sync_energy(real["energy"].as_i64().unwrap_or(0) as i32, real["stars"].as_i64().unwrap_or(0) as i32);
         let p = &real["player"];
         self.cx.sync_creature(PLAYER, p["hp"].as_i64().unwrap_or(1) as i32, p["max_hp"].as_i64().unwrap_or(1) as i32, p["block"].as_i64().unwrap_or(0) as i32);

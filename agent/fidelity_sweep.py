@@ -135,6 +135,7 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", default="evals/fid.jsonl")
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--only", default="", help="comma-separated labels (or substrings) to run, whatever is done already")
     a = ap.parse_args()
     rng = random.Random(a.seed)
     chars = [c for c in a.chars.split(",") if c]
@@ -160,7 +161,10 @@ def main():
     t_start = time.time()
     n = 0
     for case in cases(a.mode, chars, rng, a.limit):
-        if case["label"] in done:
+        if a.only:
+            if not any(o in case["label"] for o in a.only.split(",")):
+                continue
+        elif case["label"] in done:
             continue
         keep.clear()
         res = dict(label=case["label"], enc=case["enc"], ok=False)
@@ -186,7 +190,7 @@ def main():
                     res["examples"] = {k: v[:3] for k, v in ex.items() if not k.startswith(BENIGN_PREFIX) and not (k.endswith(".relics") and all("props.Skin" in t for t in v))}
                     res["created"] = stats.get("sync created", 0)
                     res["errors"] = keep.get("errors", [])[:2]
-                    if any(k.startswith(("diff .energy", "diff .player", "action failed")) or "intents" in k for k in res["stats"]) and keep.get("f"):
+                    if (any(k.startswith(("diff .energy", "diff .player", "action failed")) or "intents" in k for k in res["stats"]) or res["stats"].get("residual .draw", 0) >= 5) and keep.get("f"):
                         name = re.sub(r"[^A-Za-z0-9_.-]", "_", case["label"]) + ".json"
                         json.dump(dict(label=case["label"], enc=case["enc"], scenario=keep["scenario"], fight=keep["f"]), open(os.path.join(ROOT, "evals", "fidelity_fights", name), "w"))
         except Exception as ex:  # noqa: BLE001

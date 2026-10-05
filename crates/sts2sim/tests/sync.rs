@@ -89,3 +89,23 @@ fn sync_pile_follows_the_observed_discard() {
     assert_eq!(cx.player.discard.len(), 0);
     assert_eq!(total(&cx), before);
 }
+
+#[test]
+fn sync_draw_drops_a_generated_card_the_real_game_does_not_have() {
+    let mut cx = combat(7);
+    // a card created during the fight (random generation: Stoke, Discovery ...) sits in the simulated hand
+    let g = cx.new_card(ids::card::WHIRLWIND, 0).unwrap();
+    cx.player.hand.push(g);
+    cx.cards[g as usize].pile = PileType::Hand as u8;
+    let deck_total = total(&cx) - 1;
+    // the real hand holds a different generated card instead; the real draw pile is the deck's remainder
+    let mut real: Vec<ObsCard> = names(&cx, &cx.player.hand.clone()).into_iter().filter(|(id, _)| *id != ids::card::WHIRLWIND).map(|(id, upgrade)| ObsCard { id, upgrade, cost: None }).collect();
+    real.push(ObsCard { id: ids::card::ANGER, upgrade: 0, cost: None });
+    let rep = cx.sync_hand(&real);
+    assert_eq!((rep.created, rep.returned), (1, 1));
+    // the phantom went back to the draw pile with the sync; the observed draw pile does not have it
+    let want: Vec<ObsCard> = names(&cx, &cx.player.draw.clone()).into_iter().filter(|(id, _)| *id != ids::card::WHIRLWIND).map(|(id, upgrade)| ObsCard { id, upgrade, cost: None }).collect();
+    cx.sync_draw(&want);
+    assert_eq!(total(&cx), deck_total + 1, "the phantom Whirlwind must leave the combat");
+    assert!(names(&cx, &cx.player.draw.clone()).iter().all(|(id, _)| *id != ids::card::WHIRLWIND));
+}

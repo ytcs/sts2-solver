@@ -1,0 +1,14 @@
+sequence 1/8 (50s): skip 0.00  random 0.01  greedy 0.00  hindsight 0.84
+sequence 2/8 (82s): skip 0.00  random 0.00  greedy 0.00  hindsight 0.00
+sequence 3/8 (115s): skip 0.00  random 0.00  greedy 0.00  hindsight 0.34
+sequence 4/8 (147s): skip 0.00  random 0.00  greedy 0.00  hindsight 0.85
+sequence 5/8 (192s): skip 0.00  random 0.03  greedy 0.00  hindsight 0.77
+sequence 6/8 (234s): skip 0.00  random 0.00  greedy 0.21  hindsight 0.76
+sequence 7/8 (267s): skip 0.00  random 0.00  greedy 0.99  hindsight 0.99
+sequence 8/8 (297s): skip 0.00  random 0.03  greedy 0.99  hindsight 1.00
+
+mean final win rate vs LAGAVULIN_MATRIARCH_BOSS after 10 screens:
+  skip       win 0.000 (se 0.000)  hp lost 1.00  picks 0.0
+  random     win 0.007 (se 0.004)  hp lost 1.00  picks 7.2
+  greedy     win 0.274 (se 0.149)  hp lost 0.86  picks 1.9
+  hindsight  win 0.693 (se 0.115)  hp lost 0.73  picks 6.4

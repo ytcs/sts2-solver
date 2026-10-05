@@ -1,0 +1,17 @@
+sequence 1/8 (272s): skip 0.00  random 0.00  greedy 0.00  greedy_h 0.84  greedy_pick 0.83  hindsight 0.82  hindsight_h 0.84
+sequence 2/8 (492s): skip 0.00  random 0.00  greedy 0.00  greedy_h 0.61  greedy_pick 0.53  hindsight 0.00  hindsight_h 0.61
+sequence 3/8 (747s): skip 0.00  random 0.00  greedy 0.00  greedy_h 0.40  greedy_pick 0.14  hindsight 0.03  hindsight_h 0.55
+sequence 4/8 (943s): skip 0.00  random 0.00  greedy 0.00  greedy_h 0.50  greedy_pick 0.50  hindsight 0.85  hindsight_h 0.80
+sequence 5/8 (1146s): skip 0.00  random 0.03  greedy 0.00  greedy_h 0.76  greedy_pick 0.86  hindsight 0.79  hindsight_h 0.81
+sequence 6/8 (1374s): skip 0.00  random 0.00  greedy 0.50  greedy_h 0.50  greedy_pick 0.66  hindsight 0.53  hindsight_h 0.86
+sequence 7/8 (1529s): skip 0.00  random 0.00  greedy 0.99  greedy_h 0.97  greedy_pick 0.97  hindsight 0.99  hindsight_h 0.98
+sequence 8/8 (1683s): skip 0.00  random 0.03  greedy 1.00  greedy_h 0.99  greedy_pick 0.97  hindsight 0.99  hindsight_h 1.00
+
+mean final win rate vs LAGAVULIN_MATRIARCH_BOSS after 10 screens:
+  skip       win 0.000 (se 0.000)  hp lost 1.00  picks 0.0
+  random     win 0.008 (se 0.005)  hp lost 1.00  picks 7.2
+  greedy     win 0.311 (se 0.150)  hp lost 0.85  picks 2.2
+  greedy_h   win 0.698 (se 0.075)  hp lost 0.77  picks 8.6
+  greedy_pick win 0.683 (se 0.094)  hp lost 0.76  picks 10.0
+  hindsight  win 0.626 (se 0.133)  hp lost 0.75  picks 5.6
+  hindsight_h win 0.806 (se 0.053)  hp lost 0.72  picks 8.2

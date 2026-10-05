@@ -128,9 +128,9 @@ impl Combat {
                 _ => {
                     self.pile_mut(pile).remove_value(c);
                     let n = self.player.draw.len();
-                    let at = self.rng.shuffle.next_int((n + 1) as i32) as usize;
-                    self.player.draw.insert(at, c);
-                    self.cards[c as usize].pile = PileType::Draw as u8;
+                let at = self.rng.shuffle.next_int((n + 1) as i32) as usize;
+                self.player.draw.insert(at, c);
+                self.cards[c as usize].pile = PileType::Draw as u8;
                     rep.returned += 1;
                 }
             }
@@ -157,6 +157,46 @@ impl Combat {
                 if let Some(c) = found {
                     self.pile_mut(pile).push(c);
                     self.cards[c as usize].pile = pile as u8;
+                }
+            }
+        }
+        rep
+    }
+
+    /// Makes the draw pile hold exactly the observed cards as a multiset (the order is hidden): the player sees which cards are in it. A simulated card the
+    /// real pile does not have and that was created during the fight (random generation that rolled differently in the real game: Stoke, Discovery ...) does
+    /// not exist in the real game and leaves the combat; a surplus deck card stays (it is in the wrong pile and the other syncs own that). Missing cards are
+    /// created at a random position. Call after the hand and the visible piles are synced.
+    pub fn sync_draw(&mut self, obs: &[ObsCard]) -> HandSync {
+        use std::collections::HashMap;
+        let mut rep = HandSync::default();
+        let mut want: HashMap<(u16, u8), i32> = HashMap::new();
+        for o in obs {
+            *want.entry((o.id, o.upgrade)).or_insert(0) += 1;
+        }
+        let current: Vec<CardIdx> = self.player.draw.iter().copied().collect();
+        for c in current {
+            let key = (self.cards[c as usize].id, self.cards[c as usize].upgrade);
+            match want.get_mut(&key) {
+                Some(n) if *n > 0 => *n -= 1,
+                _ => {
+                    if self.cards[c as usize].deck_idx == NO {
+                        self.player.draw.remove_value(c);
+                        self.cards[c as usize].pile = PileType::None as u8;
+                        self.cards[c as usize].flags |= cflag::REMOVED;
+                        rep.returned += 1;
+                    }
+                }
+            }
+        }
+        for ((id, up), n) in want {
+            for _ in 0..n.max(0) {
+                if let Some(c) = self.new_card(id, up) {
+                    let len = self.player.draw.len();
+                    let at = self.rng.shuffle.next_int((len + 1) as i32) as usize;
+                    self.player.draw.insert(at, c);
+                    self.cards[c as usize].pile = PileType::Draw as u8;
+                    rep.created += 1;
                 }
             }
         }

@@ -169,6 +169,28 @@ class Replayer:
             a["use_potion"]["slot"] = slots.index(s)
         return json.dumps(a)
 
+    def _map_choose(self, act, before):
+        """A logged `choose` over the hand (Entropy, Survivor ...) names a position in the GAME's hand; the simulator's hand holds the same multiset only when
+        its draw matched (and not even then: a random transform rolled differently). Translate to the simulator's option showing the same card (`before` = the game state observed before the action)."""
+        import re
+        a = json.loads(act)
+        if "choose" not in a or len(a["choose"]) != 1 or not before or self.sim.stage() != "choice":
+            return act
+        opts = [(i, m.group(2)) for _, t in self.sim.legal() for m in [re.match(r"pick (\d+) \((\w+)\)", t)] if m for i in [int(m.group(1))]]
+        hand = [c["id"] for c in before.get("hand", [])]
+        snap_hand = sorted(c["id"] for c in json.loads(self.sim.snapshot())["hand"])
+        k = a["choose"][0]
+        if sorted(o for _, o in opts) != snap_hand or k >= len(hand):
+            return act
+        if opts[k][1] == hand[k]:
+            return act
+        same = [i for i, o in opts if o == hand[k]]
+        if not same:
+            return act
+        self.stats["choose_remapped"] += 1
+        a["choose"] = [same[0]]
+        return json.dumps(a)
+
     def _repair_target(self, act, state):
         """A logged `play` without a target (the bridge could not find the enemy any more, e.g. it died from the very hit): try every legal target of that
         card and keep the one whose result matches the observed state best. Returns True if the action was applied."""
@@ -208,6 +230,7 @@ class Replayer:
                     self._end_turn(state)
                 else:
                     act = self._map_potion(act)
+                    act = self._map_choose(act, states[i] if states else None)
                     self._played = self._card_at(act)
                     try:
                         self.sim.apply(act)

@@ -71,15 +71,22 @@ class Scorer:
     def __init__(self, eng, target, attempts, hp=80):
         self.eng, self.target, self.attempts, self.cache, self.calls, self.hp = eng, target, attempts, {}, 0, hp
 
-    def many(self, decks):
-        todo = [tuple(sorted(d)) for d in decks if tuple(sorted(d)) not in self.cache]
-        todo = list(dict.fromkeys(todo))
+    def many(self, decks, hp=None):
+        hp = hp or self.hp
+        key = lambda d: (hp, tuple(sorted(d)))  # noqa: E731
+        todo = list(dict.fromkeys(key(d) for d in decks if key(d) not in self.cache))
         if todo:
-            res = self.eng.solve([scenario(list(d), self.target, self.hp) for d in todo], attempts=self.attempts)
-            for d, r in zip(todo, res):
-                self.cache[d] = (r["win"], r["win_se"], r["hp_lost"] or 0.0)
+            res = self.eng.solve([scenario(list(d), self.target, hp) for _, d in todo], attempts=self.attempts)
+            for k, r in zip(todo, res):
+                self.cache[k] = (r["win"], r["win_se"], r["hp_lost"] or 0.0)
             self.calls += len(todo)
-        return [self.cache[tuple(sorted(d))] for d in decks]
+        return [self.cache[key(d)] for d in decks]
+
+    def smooth(self, decks, mults=(1.0, 1.5, 2.0, 3.0)):
+        """A graded objective that does not go flat when every deck loses: the win rate averaged over handicapped start HPs (x1 .. x3). A deck that is far
+        from beating the target still wins with enough HP; the HP it needs is what picks reduce."""
+        per = [self.many(decks, int(self.hp * m)) for m in mults]
+        return [float(np.mean([p[i][0] for p in per])) for i in range(len(decks))]
 
 
 def run_policy(name, seq, sc, tau, beam, rng):
@@ -103,6 +110,27 @@ def run_policy(name, seq, sc, tau, beam, rng):
             if gain > tau * se or (gain >= 0 and res[best][2] < res[0][2] - 0.02 and tau == 0):
                 deck = deck + [offer[best - 1]]
         return deck
+    if name in ("greedy_h", "greedy_pick"):
+        # greedy_h: pick the option with the best smooth objective (never skips unless every option is worse than the current deck)
+        for offer in seq:
+            cands = [deck] + [deck + [c] for c in offer]
+            v = sc.smooth(cands)
+            best = max(range(1, 4), key=lambda i: v[i])
+            if v[best] >= v[0] - (0.0 if name == "greedy_h" else 1e9):
+                deck = deck + [offer[best - 1]]
+        return deck
+    if name == "hindsight_h":
+        beams = [([], 0.0)]
+        for offer in seq:
+            cands = []
+            for d, _ in beams:
+                cands.append(d)
+                cands += [d + [c] for c in offer]
+            cands = [list(x) for x in {tuple(sorted(c)): c for c in cands}.values()]
+            v = sc.smooth(cands)
+            scored = sorted(zip(cands, v), key=lambda t: -t[1])
+            beams = [(d, x) for d, x in scored[:beam]]
+        return beams[0][0]
     if name == "hindsight":
         beams = [([], 0.0)]
         for offer in seq:
