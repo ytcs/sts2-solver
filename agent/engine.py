@@ -57,7 +57,10 @@ class Engine:
         t0 = time.perf_counter()
         tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)  # the return counts half the HP fraction left
         acc, first, rounds = {}, None, 0
-        skip = {a for a, t in sim.legal() if t.startswith("discard potion") or (keep_potions and t.startswith("potion"))}  # the bridge cannot discard a potion, and a tie must never throw one away
+        held = {p["slot"] for p in scenario.get("potions", []) if isinstance(keep_potions, (set, frozenset)) and p["id"] in keep_potions}  # potions held back for a later fight
+        def _held(t):
+            return t.startswith("potion") and (keep_potions is True or (t.split() + [""])[1].isdigit() and int(t.split()[1]) in held)
+        skip = {a for a, t in sim.legal() if t.startswith("discard potion") or _held(t)}  # the bridge cannot discard a potion, and a tie must never throw one away
         while True:
             self.seed += 1
             r = self.fs.decide(scenario, sim, (self.seed if seed is None else seed + rounds))

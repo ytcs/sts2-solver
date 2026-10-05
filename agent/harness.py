@@ -58,6 +58,7 @@ class Harness:
         self.budget = None  # fixed seconds of search per decision (`budget <s>`); None = auto from the fight's predicted danger (`budget auto`)
         self.fight_budget = 1.0
         self.keep_potions = False
+        self.hold = set()  # potion ids the solver may not use (kept for the boss): `hold ID,ID`, `hold none`
         self.fight_tol = 1.0  # HP of expected regret the search may leave on the table per decision
 
     # ------------------------------------------------------------------ plumbing
@@ -99,16 +100,29 @@ class Harness:
         sc = f["scenario"]
         pred = {}
         try:
-            r = self.eng().solve([dict(sc, name="start")], attempts=PRED_ATTEMPTS)[0]
+            usable = [p for p in sc["potions"] if p["id"] not in self.hold]  # held potions are not part of the plan for this fight
+            r = self.eng().solve([dict(sc, name="start", potions=usable)], attempts=PRED_ATTEMPTS)[0]
             pred = dict(win=round(r["win"], 3), win_se=round(r["win_se"], 3), hp_lost=round(r["hp_lost"] or 0, 3), hp_lost_se=round(r.get("hp_lost_se") or 0, 3), n=r["attempts"])
         except Exception as e:  # noqa: BLE001
             pred = dict(error=str(e)[:80])
         self.fight_hp0 = (sc["hp"], sc["max_hp"])
         self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
         # potions are for fights the solver may lose or that cost a lot: a comfortable fight keeps them (a clear win leaves the strongest potion for the elite or boss)
-        self.keep_potions = "win" in pred and pred["win"] - pred["win_se"] >= 0.95 and pred["hp_lost"] * sc["max_hp"] <= 0.4 * sc["hp"]
+        def comfortable(p):
+            return "win" in p and p["win"] - p["win_se"] >= 0.95 and p["hp_lost"] * sc["max_hp"] <= 0.4 * sc["hp"]
+        self.keep_potions = comfortable(pred)
+        if self.keep_potions and sc["potions"]:  # the prediction above may have used potions: confirm the fight is comfortable without them (else the live play, which may not use them, loses HP the prediction did not expect)
+            try:
+                r = self.eng().solve([dict(sc, name="start", potions=[])], attempts=PRED_ATTEMPTS)[0]
+                pred_np = dict(win=round(r["win"], 3), win_se=round(r["win_se"], 3), hp_lost=round(r["hp_lost"] or 0, 3))
+                pred["without_potions"] = pred_np
+                self.keep_potions = comfortable(pred_np)
+                if not self.keep_potions:
+                    pred.update(pred_np, hp_lost_se=0.0)
+            except Exception:  # noqa: BLE001
+                self.keep_potions = False
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], deck=len(sc["deck"]), relics=[r["id"] for r in sc["relics"]],
-                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol, keep_potions=self.keep_potions)
+                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol, keep_potions=(True if self.keep_potions else self.hold))
 
     @staticmethod
     def _auto_budget(pred, hp, max_hp):
@@ -162,7 +176,7 @@ class Harness:
         bad = self._sync_problem(f)
         if bad:
             return bad
-        d = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol, keep_potions=self.keep_potions)
+        d = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol, keep_potions=(True if self.keep_potions else self.hold))
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook()
 
     def _answer_selection(self):
@@ -217,7 +231,7 @@ class Harness:
                 out.append("  choose")
             else:
                 t0 = T()
-                d = self.eng().decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol, keep_potions=self.keep_potions)
+                d = self.eng().decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol, keep_potions=(True if self.keep_potions else self.hold))
                 tm["decide"] += T() - t0
                 self.fight_actions += 1
                 self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"])
@@ -415,6 +429,9 @@ class Harness:
             if cmd in ("", "s"):
                 return self.state()
             secs = float(rest) if cmd in ("adv", "turn", "combat", "budget") and rest.replace(".", "", 1).isdigit() else None
+            if cmd == "hold":
+                self.hold = set() if rest.strip() in ("", "none") else {x.strip().upper().replace(" ", "_") for x in rest.split(",")}
+                return f"solver may not use: {sorted(self.hold) or 'nothing held'}\n"
             if cmd == "budget":
                 if secs is not None:
                     self.budget = secs

@@ -20,3 +20,6 @@ description: Use before fighting an unfamiliar enemy or when a power, relic or c
 - **Tangled**: my attacks cost 1 more; **Frail**: block reduced; **Shrink**: my damage reduced. They show in the displayed numbers.
 - Shop **Meal Ticket** heals 15 on entering a shop; entering a new act heals (13 -> 66 of 80). `[played]`
 - Boss and elite reward screens can offer extra rare card sets (White Star). `[played]`
+
+## Events
+- **Slippery Bridge** (Act 1+, after floor 6) `[code]` (`SlipperyBridge.cs`): "Overcome" removes the card SHOWN in its hover tip, not a random one. The first shown card is random among non-Basic removable cards (never a Strike, Defend or Bash). "Hold On" costs HP (3, then 4, 5, ...) and re-rolls the shown card to a different type; the re-roll can draw any removable card except ones already skipped, Basics included. So: price removing each card with `eval remove=ID`, and hold on until the shown card is a Strike/Defend or otherwise cheap to lose, if the escalating HP is affordable. `[played]` I removed Tremble (-5.1 pts vs Lagavulin) on my first reading of this event; a Strike removal was +2.3.

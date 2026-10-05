@@ -39,3 +39,8 @@ For the act's boss first (it is known: `m`), then the elites that can still appe
 - Each run's `events.jsonl` holds every eval (spec and result) and every action with its `-- why`. After a run: for each pick, compare the eval gain to what happened in the fights it was meant to fix (`python -m agent.improve review`); mark each rule that held or failed in the character/act skill with `[played]`.
 - Keep two lists in the character skill: rules that predicted well (promote to `[sim]`/`[played]`) and rules that failed (delete or revise with the numbers).
 - Change one thing per run when possible (a pick threshold, a route shape) so the effect can be read.
+
+## Lessons from run 3 (reached Act 3, died to the first Act 3 boss) `[played]`
+- Early game is where power is added: Act 1 picks (Inferno, Anger, Setup Strike, Inflame+Tremble vs Lagavulin) moved win rates by 20-70 points; by Act 2-3 almost every offered card was below the 2 SE bar (12 skips in Act 2), and the deck stalled. When a boss pool is at ~0%, a +5 point pick will not save the run: look for outliers (rares, relics, potions, shops, transforms, upgrades) and build the target deck for the boss, not incremental picks; consider taking rare picks (Demon Form +12/+9) over marginal elite-HP picks (Tear Asunder +22 elites, +0 boss) when the boss is the gate.
+- Pre-check the next act's boss on the Act N boss reward: it is on the map only after entering the act, but the pool is known (`sts2-acts`): evaluate against all three bosses.
+- Potions and consumables are cheap power: against hard bosses Powdered Demise (+14), Flex (+11) and Block Potion (+12) beat every card in the same shop.
