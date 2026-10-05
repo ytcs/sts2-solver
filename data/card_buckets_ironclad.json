@@ -1,0 +1,1171 @@
+{
+ "AGGRESSION": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "ANGER": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 0,
+  "damage": 6,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "ARMAMENTS": {
+  "block": 5,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "ASHEN_STRIKE": {
+  "block": 0,
+  "buckets": [
+   "FD",
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 6,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BARRICADE": {
+  "block": 0,
+  "buckets": [
+   "ACC",
+   "SB",
+   "SD"
+  ],
+  "cost": 3,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BASH": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 2,
+  "damage": 8,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BATTLE_TRANCE": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 0,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 3,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BLAZE": {
+  "buckets": [
+   "FD"
+  ]
+ },
+ "BLOODLETTING": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 0,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 2,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BLOOD_WALL": {
+  "block": 16,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BLUDGEON": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 3,
+  "damage": 32,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BODY_SLAM": {
+  "block": 0,
+  "buckets": [
+   "FB",
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BRAND": {
+  "block": 0,
+  "buckets": [
+   "ACC",
+   "SD"
+  ],
+  "cost": 0,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BREAK": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 20,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BREAKTHROUGH": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 9,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BULLY": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 0,
+  "damage": 4,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "BURNING_PACT": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "CASCADE": {
+  "block": 0,
+  "buckets": [
+   "ACC",
+   "FD"
+  ],
+  "cost": -1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": -11,
+  "exhaust": false,
+  "strength": 0
+ },
+ "CINDER": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 2,
+  "damage": 18,
+  "dexterity": 0,
+  "draw": -1,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "COLOSSUS": {
+  "block": 4,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "CONFLAGRATION": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 8,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "CORRUPTION": {
+  "block": 0,
+  "buckets": [
+   "ACC",
+   "SB",
+   "SD"
+  ],
+  "cost": 3,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "CRIMSON_MANTLE": {
+  "block": 0,
+  "buckets": [
+   "SB",
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "CRUELTY": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "DARK_EMBRACE": {
+  "block": 0,
+  "buckets": [
+   "ACC",
+   "SB",
+   "SD"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "DEFEND_IRONCLAD": {
+  "block": 5,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "DEMONIC_SHIELD": {
+  "buckets": [
+   "FB"
+  ]
+ },
+ "DEMON_FORM": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 3,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "DISMANTLE": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 8,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "DOMINATE": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": true,
+  "strength": 1
+ },
+ "DRUM_OF_BATTLE": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 2,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "EVIL_EYE": {
+  "block": 8,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "EXPECT_A_FIGHT": {
+  "block": 15,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 3,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "FEED": {
+  "block": 0,
+  "buckets": [
+   "FD",
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 10,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": true,
+  "strength": 0
+ },
+ "FEEL_NO_PAIN": {
+  "block": 0,
+  "buckets": [
+   "SB",
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "FIEND_FIRE": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 2,
+  "damage": 28,
+  "dexterity": 0,
+  "draw": -4,
+  "energy": 0,
+  "exhaust": true,
+  "strength": 0
+ },
+ "FIGHT_ME": {
+  "block": 0,
+  "buckets": [
+   "FD",
+   "SD"
+  ],
+  "cost": 2,
+  "damage": 10,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 3
+ },
+ "FLAME_BARRIER": {
+  "block": 12,
+  "buckets": [
+   "FB",
+   "SB"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "FORGOTTEN_RITUAL": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 3,
+  "exhaust": true,
+  "strength": 0
+ },
+ "HAVOC": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "HEADBUTT": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 9,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "HELLRAISER": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "HEMOKINESIS": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 15,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "HOWL_FROM_BEYOND": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 3,
+  "damage": 18,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "IMPERVIOUS": {
+  "block": 30,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": true,
+  "strength": 0
+ },
+ "INFERNAL_BLADE": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 1,
+  "energy": 0,
+  "exhaust": true,
+  "strength": 0
+ },
+ "INFERNO": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "INFLAME": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 2
+ },
+ "IRON_WAVE": {
+  "block": 5,
+  "buckets": [
+   "FB",
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 5,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "JUGGERNAUT": {
+  "block": 0,
+  "buckets": [
+   "SB",
+   "SD"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "JUGGLING": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "MANGLE": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 3,
+  "damage": 20,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "MIDNIGHT": {
+  "buckets": []
+ },
+ "MOLTEN_FIST": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 10,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": true,
+  "strength": 0
+ },
+ "NOT_YET": {
+  "block": 0,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": true,
+  "strength": 0
+ },
+ "OFFERING": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 0,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 3,
+  "energy": 2,
+  "exhaust": true,
+  "strength": 0
+ },
+ "ONE_TWO_PUNCH": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "OUTRAGE": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 0,
+  "damage": 9,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "PACTS_END": {
+  "block": 0,
+  "buckets": [],
+  "cost": 0,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "PERFECTED_STRIKE": {
+  "block": 0,
+  "buckets": [
+   "FD",
+   "SD"
+  ],
+  "cost": 2,
+  "damage": 30,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "PILLAGE": {
+  "block": 0,
+  "buckets": [
+   "ACC",
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 6,
+  "dexterity": 0,
+  "draw": 6,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "POMMEL_STRIKE": {
+  "block": 0,
+  "buckets": [
+   "ACC",
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 9,
+  "dexterity": 0,
+  "draw": 1,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "PRIMAL_FORCE": {
+  "block": 0,
+  "buckets": [
+   "FD",
+   "SD"
+  ],
+  "cost": 0,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "PYRE": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "RAGE": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 0,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "RAMPAGE": {
+  "block": 0,
+  "buckets": [
+   "FD",
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 10,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "RUPTURE": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "SECOND_WIND": {
+  "block": 20,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": -4,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "SETUP_STRIKE": {
+  "block": 0,
+  "buckets": [
+   "FD",
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 7,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 3
+ },
+ "SHRUG_IT_OFF": {
+  "block": 8,
+  "buckets": [
+   "ACC",
+   "FB"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 1,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "SPITE": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 0,
+  "damage": 5,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "STAMPEDE": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "STOKE": {
+  "block": 0,
+  "buckets": [
+   "ACC"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "STOMP": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 3,
+  "damage": 12,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "STONE_ARMOR": {
+  "block": 0,
+  "buckets": [
+   "SB",
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "STRIKE_IRONCLAD": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 6,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "SWORD_BOOMERANG": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 9,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "TANK": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "TAUNT": {
+  "block": 6,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "TEAR_ASUNDER": {
+  "block": 0,
+  "buckets": [
+   "FD",
+   "SD"
+  ],
+  "cost": 2,
+  "damage": 5,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "THRASH": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 8,
+  "dexterity": 0,
+  "draw": -1,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "THUNDERCLAP": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 4,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "TREMBLE": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": true,
+  "strength": 0
+ },
+ "TRUE_GRIT": {
+  "block": 7,
+  "buckets": [
+   "FB"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": -1,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "TWIN_STRIKE": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 1,
+  "damage": 10,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "UNMOVABLE": {
+  "block": 0,
+  "buckets": [
+   "SB",
+   "SD"
+  ],
+  "cost": 2,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "UNRELENTING": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 2,
+  "damage": 14,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "UPPERCUT": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": 2,
+  "damage": 13,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "VICIOUS": {
+  "block": 0,
+  "buckets": [
+   "SD"
+  ],
+  "cost": 1,
+  "damage": 0,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": 0,
+  "exhaust": false,
+  "strength": 0
+ },
+ "WHIRLWIND": {
+  "block": 0,
+  "buckets": [
+   "FD"
+  ],
+  "cost": -1,
+  "damage": 50,
+  "dexterity": 0,
+  "draw": 0,
+  "energy": -11,
+  "exhaust": false,
+  "strength": 0
+ }
+}

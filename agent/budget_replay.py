@@ -29,7 +29,7 @@ def starts(run, encounters=None, first_only=False):
     return out
 
 
-def play_fight(eng, sc, seed, budget, tol_hp=0.25, max_steps=400):
+def play_fight(eng, sc, seed, budget, tol_hp=0.0, max_steps=400):
     """One fight in the simulator, every decision by `Engine.decide` with the given time cap. Returns (outcome, HP lost, steps)."""
     sim = sts2.Sim(json.dumps(sc), seed)
     hp0 = json.loads(sim.snapshot())["player"]["hp"]
