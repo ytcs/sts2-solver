@@ -92,6 +92,7 @@ class Solver:
             n = int(valid.sum())
             p = win.sum() / max(n, 1)
             res.append(dict(win=float(p), win_se=float((p * (1 - p) / max(n, 1)) ** 0.5), hp_lost=float(r[valid, 1].mean()) if n else None,
+                            hp_lost_se=float(r[valid, 1].std(ddof=1) / n ** 0.5) if n > 1 else None,
                             hp_left_on_win=float(r[win, 3].mean() * scenarios[i]["max_hp"]) if win.any() else 0.0, attempts=n, aborted=int((~valid).sum())))
         return res
 

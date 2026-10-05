@@ -21,9 +21,19 @@ def serve():
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind(("127.0.0.1", PORT))
     srv.listen(4)
+    threading.Thread(target=h.eng, daemon=True).start()  # load the networks while the first decisions are made
     print(f"agent harness on 127.0.0.1:{PORT}", flush=True)
 
     def conn(c):
+        try:
+            _conn(c)
+        except Exception as e:  # noqa: BLE001  one bad request must not take the daemon down
+            try:
+                c.sendall(f"ERR daemon: {type(e).__name__}: {e}\n".encode())
+            except OSError:
+                pass
+
+    def _conn(c):
         with c:
             data = b""
             while not data.endswith(b"\n"):
@@ -92,7 +102,15 @@ def main():
         if line == "quit":
             return
         start_daemon()
-    print(ask(line), end="")
+    try:
+        print(ask(line), end="")
+    except (ConnectionError, OSError) as e:
+        # the daemon died under this command: restart it; repeat only commands that change nothing in the game
+        if line.split()[0] in ("s", "d", "p", "m", "adv", "status", "relics", "budget", "route", "eval"):
+            start_daemon()
+            print(ask(line), end="")
+        else:
+            print(f"ERR the harness daemon dropped the connection ({type(e).__name__}); the command may have been applied. Run `s` (restarts the daemon) before anything else.")
 
 
 if __name__ == "__main__":

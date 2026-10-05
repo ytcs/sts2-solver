@@ -3,9 +3,10 @@
 Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <command>`):
   s                     the game state (numbered options), as the bridge renders it
   adv [secs]            the state plus the solver's advice for the next combat action and the enemies' expected damage over the next turns (nothing is played)
-  turn [secs]           play the current combat turn with the solver; combat [secs] plays the whole fight. secs = search budget per decision (default 1 s,
-                        `budget <s>` changes the default): a fraction of a second is enough for obvious turns, give high-stakes turns 5-20 s
-  a <i> [target] [-- why]   take option i of the screen (macro and everything else); `-- why` is stored with the decision. A map click onto an elite or boss
+  turn [secs]           play the current combat turn with the solver; combat [secs] plays the whole fight. secs = search budget per decision (default auto: the cap is set at fight start from the
+                        solver's predicted danger, 1-15 s; `budget <s>` fixes it, `budget auto` restores). Search stops early on a clear winner or a tie
+  a <i> [target] [-- why]   (chain steps with `;`, `~text` picks the option containing text: `a ~gold; ~card; ~proceed`; stops on error / combat, map click last)
+                        take option i of the screen (macro and everything else); `-- why` is stored with the decision. A map click onto an elite or boss
                         below 60% HP is refused unless confirmed with `a <i> !`
   eval {json} | eval --enc IDS --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
   route <M E R S B ...> [--hp N] [--act Hive] [--exclude IDS]   HP budget along a planned route (fights played at the HP I would arrive with, rests heal 30%)
@@ -20,6 +21,7 @@ Macro = me, with `eval` for the combat side of a choice and the strategy book (`
 import json
 import re
 import shlex
+import threading
 import time
 import traceback
 
@@ -38,9 +40,13 @@ def _hp(text):
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
+PRED_ATTEMPTS = 320  # fights played from the start for the prediction (~1.2 s, same as 48): win rate +-0.03 at worst, HP cost +-0.5% of max HP
+
+
 class Harness:
     def __init__(self):
         self.engine = None
+        self._eng_lock = threading.Lock()
         self.rp = None
         self.fight_id = None
         self.log = RunLog()
@@ -48,15 +54,18 @@ class Harness:
         self.fight_hp0 = None
         self.fight_actions = 0
         self._ended = set()
-        self.budget = 1.0  # seconds of search per combat decision; `budget <s>` sets the default, `adv/turn/combat <s>` override once
+        self.budget = None  # fixed seconds of search per decision (`budget <s>`); None = auto from the fight's predicted danger (`budget auto`)
+        self.fight_budget = 1.0
+        self.fight_tol = 1.0  # HP of expected regret the search may leave on the table per decision
 
     # ------------------------------------------------------------------ plumbing
 
     def eng(self):
-        if self.engine is None:
-            from agent.engine import Engine
-            self.engine = Engine()
-        return self.engine
+        with self._eng_lock:
+            if self.engine is None:
+                from agent.engine import Engine
+                self.engine = Engine()
+            return self.engine
 
     def state(self):
         self.last_state = call("s")
@@ -88,13 +97,28 @@ class Harness:
         sc = f["scenario"]
         pred = {}
         try:
-            r = self.eng().solve([dict(sc, name="start")], attempts=48)[0]
-            pred = dict(win=round(r["win"], 3), hp_lost=round(r["hp_lost"] or 0, 3))
+            r = self.eng().solve([dict(sc, name="start")], attempts=PRED_ATTEMPTS)[0]
+            pred = dict(win=round(r["win"], 3), win_se=round(r["win_se"], 3), hp_lost=round(r["hp_lost"] or 0, 3), hp_lost_se=round(r.get("hp_lost_se") or 0, 3), n=r["attempts"])
         except Exception as e:  # noqa: BLE001
             pred = dict(error=str(e)[:80])
         self.fight_hp0 = (sc["hp"], sc["max_hp"])
+        self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], deck=len(sc["deck"]), relics=[r["id"] for r in sc["relics"]],
-                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred)
+                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol)
+
+    @staticmethod
+    def _auto_budget(pred, hp, max_hp):
+        """(time cap in s, tolerated expected regret in HP) per decision, from the solver's prediction for this fight at this HP. The search stops by itself when the
+        expected regret of the leading action is under the tolerance (a tie or a clear winner), so the cap only bounds contested decisions: it grows with the danger
+        (2 * P(loss) + expected HP cost / current HP) and the tolerance shrinks. A fight that costs the same HP whatever I do ends early: that loss belongs to the macro side."""
+        if "win" not in pred:
+            return 5.0, 0.5
+        # one standard error on the pessimistic side: a small sample must not make a fight look safer than it is
+        danger = (1 - pred["win"] + pred["win_se"]) * 2 + (pred["hp_lost"] + pred["hp_lost_se"]) * max_hp / max(hp, 1)
+        return round(min(15.0, 0.5 + 12 * danger), 1), round(max(0.25, 1 / (1 + 3 * danger)), 2)
+
+    def _budget(self, override=None):
+        return override if override is not None else (self.budget if self.budget is not None else self.fight_budget)
 
     def _fight_end(self, text=None):
         """Record the end of the current fight. `text` = the screen right after it (HP is read from it); without it the HP is unknown."""
@@ -134,7 +158,7 @@ class Harness:
         bad = self._sync_problem(f)
         if bad:
             return bad
-        d = self.eng().decide(self.rp.scenario, self.rp.sim, self.budget if budget is None else budget)
+        d = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol)
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook()
 
     def _answer_selection(self):
@@ -145,7 +169,7 @@ class Harness:
             return call("a 0")
         s2, picks = sim.copy(), []
         for _ in range(40):
-            d = self.eng().decide(self.rp.scenario, s2, min(self.budget, 0.3))
+            d = self.eng().decide(self.rp.scenario, s2, min(self._budget(), 0.3))
             aj = json.loads(d["json"])
             if "pick" in aj:
                 picks.append(s2.pick_game_index(aj["pick"]))
@@ -156,21 +180,27 @@ class Harness:
         return call("do " + json.dumps({"choose": picks}))
 
     def play(self, whole_fight=False, budget=None, max_actions=120):
-        budget = self.budget if budget is None else budget
+        budget = self._budget(budget)
         out = []
+        tm = dict(state=0.0, sync=0.0, decide=0.0, do=0.0)
+        T = time.perf_counter
         for _ in range(max_actions):
+            t0 = T()
             txt = self.state()
+            tm["state"] += T() - t0
             k = _kind(txt)
             if k not in ("COMBAT", "SELECT"):
                 self._fight_end(txt)
                 self.sync()
-                out.append("-- combat over")
+                out.append("-- combat over  (secs: " + " ".join(f"{k} {v:.1f}" for k, v in tm.items()) + ")")
                 out.append(txt)
                 return "\n".join(out)
             if txt.split("\n")[0].endswith("(busy)"):
                 time.sleep(0.5)
                 continue
+            t0 = T()
             f = self.sync()
+            tm["sync"] += T() - t0
             if f is None:
                 continue
             bad = self._sync_problem(f)
@@ -182,11 +212,17 @@ class Harness:
                 reply = self._answer_selection()
                 out.append("  choose")
             else:
-                d = self.eng().decide(self.rp.scenario, self.rp.sim, budget)
+                t0 = T()
+                d = self.eng().decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol)
+                tm["decide"] += T() - t0
                 self.fight_actions += 1
                 self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"])
                 out.append("  " + self._advice_text(d))
+                t0 = T()
                 reply = call("do " + d["json"])
+                tm["do"] += T() - t0
+                tm["do_end"] = tm.get("do_end", 0.0) + (T() - t0 if '"end_turn"' in d["json"] else 0.0)
+                tm["n"] = tm.get("n", 0) + 1
                 if reply.startswith("ERR"):
                     self.log.event("divergence", what="the game rejected a legal simulator action", action=d["json"], reply=reply.split("\n")[0])
                     out.append(reply)
@@ -206,17 +242,52 @@ class Harness:
     # ------------------------------------------------------------------ macro
 
     def act(self, argline):
+        """`a <i> [target] [-- why]`, or a chain `a 0; ~gold; ~card 1; ~proceed -- why`: steps run one after the other, each against the screen the previous one left.
+        A step is an option number (+ args) or `~text` = the first option whose label contains text. The chain stops at the first error or refusal and when a combat
+        starts; a map choice must be the last step (never chain map clicks)."""
         why = None
         if " -- " in argline:
             argline, why = argline.split(" -- ", 1)
-        before = self.state()
-        guard = self._map_guard(before, argline)
-        if guard:
-            return guard
-        reply = call("a " + argline)
-        self.log.event("macro", screen=before.split("\n")[0], state=before[:1500], choice=argline, why=why, result=reply.split("\n")[0])
-        self.last_state = reply
+        steps = [t.strip() for t in argline.split(";") if t.strip()]
+        reply, last_kind = "", None
+        for i, step in enumerate(steps):
+            before = self.last_state if i else call("peek")  # after a step the reply is already the settled state
+            if not i and (before.startswith("ERR") or before.split("\n")[0].endswith("(busy)")):
+                before = self.state()  # mid-transition: wait for it to settle
+            kind = _kind(before)
+            if i and (kind in ("SELECT", "MENU") or (kind == "COMBAT" and last_kind != "COMBAT")):
+                return reply + f"[chain stopped before `{step}`: {_kind(before)}]\n"
+            if _kind(before) == "MAP" and i < len(steps) - 1:
+                return "REFUSED: a map choice must be the last step of a chain.\n" + before
+            step = self._resolve(before, step)
+            if step.startswith("ERR"):
+                return step + "\n" + before
+            guard = self._map_guard(before, step)
+            if guard:
+                return guard
+            last_kind = kind
+            reply = call("a " + step)
+            self.log.event("macro", screen=before.split("\n")[0], state=before[:1500], choice=step, why=why, result=reply.split("\n")[0])
+            self.last_state = reply
+            if reply.startswith("ERR"):
+                return reply
         return reply
+
+    @staticmethod
+    def _resolve(state, step):
+        """`~text [args]` -> `<i> [args]` for the first option line whose label contains text (case-insensitive); text may be several words (args are `eN` or `!`)."""
+        if not step.startswith("~"):
+            return step
+        words = step[1:].split()
+        args = []
+        while words and (re.fullmatch(r"e\d+|!|\d+", words[-1]) and len(words) > 1):
+            args.insert(0, words.pop())
+        want = " ".join(words).lower()
+        for l in state.split("\n"):
+            m = re.match(r"^(\d+) (.*)", l)
+            if m and want in m.group(2).lower():
+                return " ".join([m.group(1)] + args)
+        return f"ERR no option matching `{want}`"
 
     def _map_guard(self, state, argline):
         """Entering an elite below 60% HP needs an explicit `!` after the option number (e.g. `a 0 !`). A shakedown run died by chaining a map click that was an elite
@@ -317,7 +388,10 @@ class Harness:
             if cmd == "budget":
                 if secs is not None:
                     self.budget = secs
-                return f"search budget {self.budget}s per combat decision\n"
+                elif rest.strip() == "auto":
+                    self.budget = None
+                now = f"auto (this fight: {self.fight_budget}s)" if self.budget is None else f"{self.budget}s"
+                return f"search budget {now} per combat decision\n"
             if cmd == "adv":
                 return self.state() + "advice: " + self.advice(secs) + "\n"
             if cmd == "turn":

@@ -25,13 +25,22 @@ from solver import Solver  # noqa: E402
 MAX_ROUNDS = 400
 
 
-def _separated(acc, z=3.0):
-    """True when the best action's mean return exceeds the runner-up's by `z` standard errors (round means as samples, at least 3 rounds)."""
-    ranked = sorted(((np.mean(v), np.var(v, ddof=1) / len(v), a) for a, v in acc.items() if len(v) >= 3), reverse=True)
+def _opportunity_loss(acc):
+    """Expected regret of stopping now (Bayesian expected opportunity loss, as in ranking-and-selection): the largest, over the other options, of
+    E[max(0, mu_other - mu_best)] with the means' standard errors from the round means (at least 4 rounds each). It is ~0 both when one option is clearly ahead
+    and when the options tie (all lines cost the same), and large only when thinking can still change the outcome. Units: return (1 HP = 0.5 / max HP)."""
+    ranked = sorted(((np.mean(v), np.var(v, ddof=1) / len(v)) for v in acc.values() if len(v) >= 4), reverse=True)
     if len(ranked) < 2:
-        return len(ranked) == 1 and len(acc) == 1
-    (m1, v1, _), (m2, v2, _) = ranked[0], ranked[1]
-    return (m1 - m2) > z * math.sqrt(v1 + v2 + 1e-12)
+        return 0.0 if len(acc) <= 1 else math.inf
+    m1, v1 = ranked[0]
+    worst = 0.0
+    for m2, v2 in ranked[1:]:
+        se = math.sqrt(v1 + v2 + 1e-12)
+        d = (m1 - m2) / se
+        pdf = math.exp(-0.5 * d * d) / math.sqrt(2 * math.pi)
+        cdf_neg = 0.5 * math.erfc(d / math.sqrt(2))
+        worst = max(worst, se * (pdf - d * cdf_neg))
+    return worst
 
 
 class Engine:
@@ -42,10 +51,11 @@ class Engine:
         self.fs.warm()
         self.seed = 0
 
-    def decide(self, scenario, sim, budget=1.0, seed=None):
+    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0):
         """Best next action for the fight in `sim`. Returns dict(action, json, text, searched, rounds, seconds, options=[dict(action, text, p, q)]);
-        `json` is the oracle-script form of the action (sent to the bridge's `do`); a selection is answered pick by pick (see `agent.harness`)."""
+        Search stops at `budget` seconds or when the expected regret of the leading action is below `tol_hp` HP; `json` is the oracle-script form of the action (sent to the bridge's `do`); a selection is answered pick by pick (see `agent.harness`)."""
         t0 = time.perf_counter()
+        tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)  # the return counts half the HP fraction left
         acc, first, rounds = {}, None, 0
         while True:
             self.seed += 1
@@ -58,7 +68,7 @@ class Engine:
             for a, q, ok in zip(r["opts"], r["q"], r["legal"]):
                 if ok and not np.isnan(q):
                     acc.setdefault(a, []).append(float(q))
-            if time.perf_counter() - t0 >= budget or rounds >= MAX_ROUNDS or (rounds >= 3 and _separated(acc)):
+            if time.perf_counter() - t0 >= budget or rounds >= MAX_ROUNDS or (rounds >= 4 and _opportunity_loss(acc) < tol):
                 break
         text = dict(sim.legal())
         opts = []

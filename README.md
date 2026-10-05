@@ -28,7 +28,7 @@ bash mods/AgentBridge/dev.sh
 
 python -m agent s                  # state with numbered options (the daemon starts hidden on first use; loading takes about a minute)
 python -m agent a 1 ironclad 10 SEED   # menu: new run (option 0) or custom run with a seed (option 1); then `a <i> [target] [-- why]` for everything else
-python -m agent adv 5              # solver advice with a 5 s search budget (default 1 s; ~0.3 s for obvious turns) plus the enemies' expected damage next turns
+python -m agent adv 5              # solver advice with a 5 s search budget (default: auto, 1-15 s from the fight's predicted danger; early stop on a clear winner or tie) plus the enemies' expected damage next turns
 python -m agent turn | combat      # let the solver play this turn / the whole fight (`budget <s>` sets the default search time)
 python -m agent eval --pool Hive:elite --v "+Card|add=ID" --v "smith|upgrade=ID"   # combat value of choices against encounter pools
 python -m agent route M E R S B --hp 50 --act Hive    # HP budget along a planned route

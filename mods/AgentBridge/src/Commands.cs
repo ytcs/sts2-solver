@@ -15,6 +15,8 @@ public static class Commands
             case "s":
                 await Settle(0, null);
                 return await MainThread.Run(() => { Main.EnsureSelector(); Snap.Observe(); return Decisions.Build().Render(); });
+            case "peek":   // the state as it is now, without waiting for the screen to settle (for reading the screen right after an action that already settled)
+                return await MainThread.Run(() => { Main.EnsureSelector(); return Decisions.Build().Render(); });
             case "a":
             {
                 string before = await MainThread.Run(() => Decisions.Build().Sig());
@@ -130,7 +132,7 @@ public static class Commands
 
     /// <summary>
     /// Waits (main thread, frame by frame) until the game is at a decision: a pending card choice, a ready combat turn, or any other screen
-    /// whose options stay unchanged for ~15 frames. Gives up after 30 s and returns whatever is there.
+    /// whose options stay unchanged for ~8 frames. Gives up after 30 s and returns whatever is there.
     /// </summary>
     private static Task Settle(int minFrames, string? before)
     {
@@ -157,7 +159,7 @@ public static class Commands
                 string sig = d.Sig();
                 if (sig == last) stable++;
                 else { stable = 0; last = sig; }
-                return stable >= 15;
+                return stable >= 8;
             }, 30000);
         }).Unwrap();
     }

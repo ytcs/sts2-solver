@@ -14,6 +14,8 @@ public static class Main
     {
         var tree = (SceneTree)Engine.GetMainLoop();
         tree.ProcessFrame += MainThread.Pump;
+        // the bridge waits in frames (screens settle after N stable frames): an uncapped frame rate makes every wait several times shorter
+        try { Engine.MaxFps = 0; DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled); } catch { }
         new HarmonyLib.Harmony("agentbridge").PatchAll(typeof(Main).Assembly);
         int port = int.TryParse(System.Environment.GetEnvironmentVariable("STS2_BRIDGE_PORT"), out var p) ? p : 15555;
         Server.Start(port);
@@ -30,6 +32,8 @@ public static class Main
             _setup = true;
             // tutorial popups (FTUEs) block flows the agent cannot see; the game's own AutoSlay bot turns them off the same way
             try { MegaCrit.Sts2.Core.Saves.SaveManager.Instance.SetFtuesEnabled(enabled: false); } catch { }
+            // no combat animations to wait for: the game's own Instant fast mode (7 s instead of 21 s for the same fight)
+            try { MegaCrit.Sts2.Core.Saves.SaveManager.Instance.PrefsSave.FastMode = MegaCrit.Sts2.Core.Settings.FastModeType.Instant; } catch { }
         }
         if (CardSelectCmd.Selector != AgentSelector.Instance)
             CardSelectCmd.PushSelector(AgentSelector.Instance);
