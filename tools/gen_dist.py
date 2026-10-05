@@ -6,7 +6,7 @@ left on a win (after end-of-combat heals, as the search's returns count it).
   tools/gen_dist.py --scenarios data/train/mid.json,target/dist/gen.json --attempts 2 --hp-low 0.25 --out target/dist/data_a.npz
 
 Start HP is spread (`--hp-low`..1 of max HP, half of the jobs) so low-HP states, where the shape of the distribution matters most, are well covered.
-Output: obs [N, OBS] float16, label [N] int8 (0 = loss, 1..20 = win with HP fraction in bin b-1 of 20 equal bins), plus scenario / job ids.
+Output: obs [N, OBS] float32, label [N] int8 (0 = loss, 1..20 = win with HP fraction in bin b-1 of 20 equal bins), plus scenario / job ids.
 """
 import argparse, json, os, sys, time
 import numpy as np
@@ -76,7 +76,7 @@ def main():
             bad += 1
             continue
         keep = [0] + [i + 1 for i, x in enumerate(acts) if x == 0 and i + 1 < len(o) - 1]  # fight start + the state after every end turn (a new player turn)
-        obs_l.append(o[keep].astype(np.float16))
+        obs_l.append(o[keep].astype(np.float32))  # float32: some observation fields exceed the float16 range (inf -> NaN features)
         lab_l.append(np.full(len(keep), label_of(outcome, hp_end), np.int8))
         sid_l.append(np.full(len(keep), j, np.int32))
     if not obs_l:
