@@ -22,6 +22,8 @@ class RunLog:
         self.run_id = run_id or time.strftime("%Y%m%d-%H%M%S")
         self.dir = os.path.join(ROOT, self.run_id)
         self._f = None
+        os.makedirs(ROOT, exist_ok=True)
+        open(cur, "w").write(self.run_id)  # a daemon restart must continue this record (the seen-encounter bags and the review depend on it)
 
     def _open(self):
         if self._f is None:

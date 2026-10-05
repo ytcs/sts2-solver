@@ -20,6 +20,11 @@ Each act has a fixed number of floors; every floor is a resource, and a route is
 5. Re-plan at every node: after each room, compare the remaining paths from here with updated HP, gold, deck and the encounters already seen (the bag does not repeat them until it empties). Change the plan only for a reason that I write in the `-- why`.
 6. Before every click: read every option on the map screen, check gold against the shop I am routing to, HP against the elite (a click onto an elite or boss below 60% HP needs `!`: only after `eval` at the current HP), and where the next rest is. Never chain map choices.
 
+## The boss and the elites are known or narrowable
+- The act's boss(es) are shown on the map (`m` prints `boss: <row> <ID> [+ <ID>]`): evaluate and plan against that boss only; `eval --pool <Act>:boss` and `route` narrow to it automatically (`--all` for the whole pool). At A10 the final act has two bosses in sequence (first, second): plan HP and potions for both.
+- Elites, weak and regular fights come from a bag per kind that is refilled with the whole pool when empty; a draw avoids repeating the previous entry (`ActModel.GenerateRooms`, `AddWithoutRepeatingTags` `[code]`). After n met of a pool of P, the next is among the pool minus the last n mod P met; on a fresh bag (n mod P == 0, such as the 4th elite of 3) everything but the one just met is possible. The harness applies this in `eval` and `route` (`macro.narrow`). Weak fights come first in an act, then the regular bag.
+- Work back from the boss: how much HP does that boss need (`eval --hp 34/45/60/80`), and which route gets me there with it?
+
 ## Rules of thumb `[hyp]` unless marked
 - Rest before a boss or a planned elite chain when HP binds; smith when HP is spare. Two consecutive elites need a rest between them.
 - A shop is worth the floor only if gold covers something `eval` or removal value justifies; otherwise take the unknown or the fight that rewards a card. `[played]`: entered a shop with 40 gold and bought nothing.

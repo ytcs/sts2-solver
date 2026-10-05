@@ -409,7 +409,10 @@ public static class Decisions
                   .Append('>').Append(string.Join(",", p.Children.OrderBy(c => c.coord.col).Select(c => c.coord.col)));
             sb.Append('\n');
         }
-        sb.Append($"boss: {rs.Map.BossMapPoint?.coord.row}\n");
+        // the act's boss(es) are shown on the map screen (top-bar icon), so they are public information
+        sb.Append($"boss: {rs.Map.BossMapPoint?.coord.row} {rs.Act.BossEncounter?.Id.Entry}");
+        if (rs.Act.HasSecondBoss) sb.Append($" + {rs.Act.SecondBossEncounter?.Id.Entry}");
+        sb.Append('\n');
         return sb.ToString();
     }
 

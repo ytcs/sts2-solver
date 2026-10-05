@@ -51,13 +51,13 @@ class Engine:
         self.fs.warm()
         self.seed = 0
 
-    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0):
+    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False):
         """Best next action for the fight in `sim`. Returns dict(action, json, text, searched, rounds, seconds, options=[dict(action, text, p, q)]);
         Search stops at `budget` seconds or when the expected regret of the leading action is below `tol_hp` HP; `json` is the oracle-script form of the action (sent to the bridge's `do`); a selection is answered pick by pick (see `agent.harness`)."""
         t0 = time.perf_counter()
         tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)  # the return counts half the HP fraction left
         acc, first, rounds = {}, None, 0
-        skip = {a for a, t in sim.legal() if t.startswith("discard potion")}  # the bridge cannot discard a potion, and a tie must never throw one away
+        skip = {a for a, t in sim.legal() if t.startswith("discard potion") or (keep_potions and t.startswith("potion"))}  # the bridge cannot discard a potion, and a tie must never throw one away
         while True:
             self.seed += 1
             r = self.fs.decide(scenario, sim, (self.seed if seed is None else seed + rounds))

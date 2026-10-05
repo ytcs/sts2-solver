@@ -8,8 +8,8 @@ Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <
   a <i> [target] [-- why]   (chain steps with `;`, `~text` picks the option containing text: `a ~gold; ~card; ~proceed`; stops on error / combat, map click last)
                         take option i of the screen (macro and everything else); `-- why` is stored with the decision. A map click onto an elite or boss
                         below 60% HP is refused unless confirmed with `a <i> !`
-  eval {json} | eval --enc IDS --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
-  route <M E R S B ...> [--hp N] [--act Hive] [--exclude IDS]   HP budget along a planned route (fights played at the HP I would arrive with, rests heal 30%)
+  eval {json} | eval [--all] --enc IDS --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
+  route <M E R S B ...> [--hp N] [--act Hive] [--exclude IDS]   HP budget (pools narrowed to what can still appear: not the encounters already met this act, only the known boss) along a planned route (fights played at the HP I would arrive with, rests heal 30%)
   relics                relic counters in combat (Pen Nib, Book of Five Rings ...)
   note <text>           a free-text note in the run record
   status                what the harness is holding (run id, fight, replay fidelity, engine)
@@ -19,6 +19,7 @@ Micro = `turn` / `combat`: the solver searches every action from a state rebuilt
 Macro = me, with `eval` for the combat side of a choice and the strategy book (`.claude/skills/sts2-*`) for everything else.
 """
 import json
+import os
 import re
 import shlex
 import threading
@@ -56,6 +57,7 @@ class Harness:
         self._ended = set()
         self.budget = None  # fixed seconds of search per decision (`budget <s>`); None = auto from the fight's predicted danger (`budget auto`)
         self.fight_budget = 1.0
+        self.keep_potions = False
         self.fight_tol = 1.0  # HP of expected regret the search may leave on the table per decision
 
     # ------------------------------------------------------------------ plumbing
@@ -103,8 +105,10 @@ class Harness:
             pred = dict(error=str(e)[:80])
         self.fight_hp0 = (sc["hp"], sc["max_hp"])
         self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
+        # potions are for fights the solver may lose or that cost a lot: a comfortable fight keeps them (a clear win leaves the strongest potion for the elite or boss)
+        self.keep_potions = "win" in pred and pred["win"] - pred["win_se"] >= 0.95 and pred["hp_lost"] * sc["max_hp"] <= 0.4 * sc["hp"]
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], deck=len(sc["deck"]), relics=[r["id"] for r in sc["relics"]],
-                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol)
+                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol, keep_potions=self.keep_potions)
 
     @staticmethod
     def _auto_budget(pred, hp, max_hp):
@@ -158,7 +162,7 @@ class Harness:
         bad = self._sync_problem(f)
         if bad:
             return bad
-        d = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol)
+        d = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol, keep_potions=self.keep_potions)
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook()
 
     def _answer_selection(self):
@@ -213,7 +217,7 @@ class Harness:
                 out.append("  choose")
             else:
                 t0 = T()
-                d = self.eng().decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol)
+                d = self.eng().decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol, keep_potions=self.keep_potions)
                 tm["decide"] += T() - t0
                 self.fight_actions += 1
                 self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"])
@@ -325,9 +329,31 @@ class Harness:
         if raw == "null":
             return "no run in progress"
         deck = json.loads(raw)
-        text = macro.route_budget(self.eng(), deck, nodes, hp if hp is not None else deck["hp"], act, excl, att)
+        text = macro.route_budget(self.eng(), deck, nodes, hp if hp is not None else deck["hp"], act, excl, att, ctx=self._ctx())
         self.log.event("route", nodes=nodes, hp=hp, text=text)
         return text
+
+    def _ctx(self):
+        """What narrows the encounter pools (see `macro.narrow`): the encounters met in the current act, in order (from this run's record, so a daemon restart loses
+        nothing), and the act's boss(es) in fight order when the map shows them (`boss: <row> ID [+ ID]`)."""
+        bosses, act, seen, ids = [], None, [], set()
+        try:
+            m = re.search(r"^boss: \d+ (\w+)(?: \+ (\w+))?", call("m"), re.M)
+            bosses = [b for b in (m.groups() if m else ()) if b]
+            h = re.search(r"A(\d+) F\d+", call("peek"))
+            act = int(h.group(1)) - 1 if h else None
+            path = os.path.join(self.log.dir, "events.jsonl")
+            if act is not None and os.path.exists(path):
+                for line in open(path, encoding="utf-8"):
+                    if '"fight_start"' not in line:
+                        continue
+                    e = json.loads(line)
+                    if e.get("scenario", {}).get("act") == act and e["id"] not in ids:
+                        ids.add(e["id"])
+                        seen.append(e["encounter"])
+        except Exception:  # noqa: BLE001
+            pass
+        return dict(seen=seen, bosses=bosses)
 
     def evaluate(self, argline):
         argline = argline.strip()
@@ -346,6 +372,8 @@ class Harness:
                     a, kind, *n = toks[i + 1].split(":")
                     spec["encounters"] = dict(act=a, kind=kind, n=int(n[0]) if n else 0)
                     i += 1
+                elif t == "--all":  # do not narrow the pool to the fights that can still appear
+                    spec["all"] = True
                 elif t == "--attempts":
                     spec["attempts"] = int(toks[i + 1])
                     i += 1
@@ -363,6 +391,8 @@ class Harness:
                 i += 1
         if "encounters" not in spec:
             return "need --enc IDS or --pool Act:kind[:n]"
+        if not spec.pop("all", False):
+            spec["_ctx"] = self._ctx()
         raw = call("deck.json").strip()
         if raw == "null":
             return "no run in progress"

@@ -49,6 +49,32 @@ def apply_variant(base, v):
     return s
 
 
+def narrow(ids, kind, ctx):
+    """The encounters of `kind` that can still appear next, following the game's own draw (ActModel.GenerateRooms, AddWithoutRepeatingTags `[code]`).
+    ctx = dict(seen=encounters met this act in order, bosses=[boss, second boss] in fight order, or empty when unknown).
+    Weak, regular and elite encounters come from a bag per kind that is refilled with the whole pool whenever it is empty: after n met of a pool of P, the
+    current bag has had n mod P of them removed, so the next one is among the rest. When a new bag starts (n mod P == 0, e.g. the 4th elite of 3) the whole pool is
+    possible again except the encounter just met (a draw avoids repeating the previous entry unless nothing else is left). A boss pool shrinks to the act's
+    known boss(es) not yet fought, in order (a second boss at A10 comes after the first)."""
+    if not ctx:
+        return ids
+    seen = [x for x in ctx.get("seen", []) if x in ids]
+    if kind == "boss":
+        known = [b for b in ctx.get("bosses", []) if b in ids]
+        fought = len(seen)
+        return known[fought:] or known or ids
+    n, P = len(seen), len(ids)
+    if P <= 1:
+        return ids
+    k = n % P
+    if k:
+        consumed = set(seen[n - k:])
+        return [i for i in ids if i not in consumed] or ids
+    if seen:  # a fresh bag: anything but the entry just met
+        return [i for i in ids if i != seen[-1]] or ids
+    return ids
+
+
 def resolve_encounters(spec):
     e = spec["encounters"]
     if isinstance(e, list):
@@ -56,7 +82,7 @@ def resolve_encounters(spec):
     names = [e["act"]] if "act" in e and e["act"] in pools.ACTS else pools.act_names(e.get("act_index", 0))
     out = []
     for n in names:
-        out += pools.pool(n, e.get("kind", "regular"))
+        out += narrow(pools.pool(n, e.get("kind", "regular")), e.get("kind", "regular"), spec.get("_ctx"))
     return out[: e["n"]] if e.get("n") else out
 
 
@@ -100,7 +126,7 @@ def evaluate(engine, deck_json, spec):
 
 # ----------------------------------------------------------------------------------------------------------------------------- route HP budget
 
-def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), attempts=48, smith_rests=()):
+def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), attempts=48, smith_rests=(), ctx=None):
     """Walk a planned route and chain the solver's results: every fight node is played at the HP I would arrive with, a rest heals 30% of max HP.
 
     nodes: tokens M (regular monster), W (weak monster), E (elite), B (boss), R (rest), S (smith instead of rest), ? $ T (no fight assumed).
@@ -122,7 +148,7 @@ def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), att
         if t in ("S", "?", "$", "T"):
             lines.append(f"{i + 1:2d} {t}  (no fight assumed)  HP {cur:5.1f}")
             continue
-        encs = [e for e in pools.pool(act, kind[t]) if e not in set(exclude)]
+        encs = narrow([e for e in pools.pool(act, kind[t]) if e not in set(exclude)], kind[t], ctx)
         scen = [dict(base, hp=max(1, int(round(cur))), name=f"{t}@{e}", encounter=e, seed=f"route{i}") for e in encs]
         res = engine.solve(scen, attempts=attempts)
         w = sum(r["win"] for r in res) / len(res)
