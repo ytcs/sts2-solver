@@ -55,34 +55,55 @@ def pools():
     return cls, col
 
 
-def card_gains(engine, deck_json, hz, ids, attempts=32, hold=()):
-    """{ID: need-weighted gain over the current deck} for every card in `ids` (one batch; a card the simulator cannot run is dropped by bisection)."""
+_GAINS = {}  # (deck, relics, fights, attempts) -> gains: repeated calls at the same deck are free
+
+
+def _gains(engine, deck_json, hz, batch, attempts, smooth, hold):
+    """{ID: need-weighted gain over the current deck} for the cards in `batch` (one evaluation; a card the simulator cannot run is dropped by bisection)."""
     out = {}
 
-    def run(batch):
-        variants = [dict(name="keep")] + [dict(name=c, add=[c]) for c in batch]
+    def run(b):
+        variants = [dict(name="keep")] + [dict(name=c, add=[c]) for c in b]
         res = {}
-        for key, encs, smooth, att in (("boss", hz["boss"], True, attempts), ("elites", hz["elites"], False, attempts), ("next act", hz["next"], False, max(16, attempts // 2))):
+        for key, encs, sm, att in (("boss", hz["boss"], smooth, attempts), ("elites", hz["elites"], False, attempts), ("next act", hz["next"], False, max(8, attempts // 2))):
             if encs:
-                _, res[key] = macro.evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp="full", smooth=smooth, hold=hold))
+                _, res[key] = macro.evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp="full", smooth=sm, hold=hold))
         nv, solved = macro.need_view(res, len(variants))
-        for vi, c in enumerate(batch, start=1):
+        for vi, c in enumerate(b, start=1):
             g = nv[vi][2] if nv and nv[vi][2] is not None else 0.0
             out[c] = g
 
-    def safe(batch):
-        if not batch:
+    def safe(b):
+        if not b:
             return
         try:
-            run(batch)
+            run(b)
         except Exception:  # noqa: BLE001  unported content: split until the culprit is alone
-            if len(batch) == 1:
+            if len(b) == 1:
                 return
-            mid = len(batch) // 2
-            safe(batch[:mid])
-            safe(batch[mid:])
+            mid = len(b) // 2
+            safe(b[:mid])
+            safe(b[mid:])
 
-    safe(list(ids))
+    safe(list(batch))
+    return out
+
+
+def card_gains(engine, deck_json, hz, ids, attempts=32, hold=(), top=40):
+    """Need-weighted gain of every pool card for the current deck, in two stages: a cheap screen of all cards (a quarter of the attempts, the boss without the HP-smooth
+    average), then the `top` best re-priced properly (smooth boss, full attempts). Cards that did not make the second stage keep half their (clipped) screening gain."""
+    key = (tuple(sorted((c["id"], c.get("upgrade", 0)) for c in deck_json["deck"])), tuple(r["id"] for r in deck_json.get("relics", [])), tuple(p["id"] for p in deck_json.get("potions", [])),
+           tuple(hz["boss"]), tuple(hz["elites"]), tuple(hz["next"]), attempts, top)
+    if key in _GAINS:
+        return dict(_GAINS[key])
+    coarse = _gains(engine, deck_json, hz, ids, max(8, attempts // 4), False, hold)
+    best = [c for c, _ in sorted(coarse.items(), key=lambda kv: -kv[1])[:top]]
+    fine = _gains(engine, deck_json, hz, best, attempts, True, hold)
+    out = {c: 0.5 * max(0.0, g) for c, g in coarse.items()}
+    out.update(fine)
+    if len(_GAINS) >= 4:
+        _GAINS.pop(next(iter(_GAINS)))
+    _GAINS[key] = dict(out)
     return out
 
 

@@ -3,16 +3,20 @@
 `python -m agent routes [--attempts N] [--pf P]` (read-only). What it does:
 1. Reads the act map (`m`) and the nodes on offer now (the MAP screen).
 2. Plays the current deck + relics from a grid of start HPs against the encounters that can still appear, per fight kind (weak / regular / elite / boss), and keeps the
-   end HP of every attempt (death = 0): a transition matrix T_kind[hp, hp'] over the whole HP range, interpolated between the grid points.
-3. Exact backward dynamic programming over (node, monsters met, elites still required, HP): F = probability of winning the act boss, assuming I choose the best child
-   at every node with the HP I then have (I do re-plan at every node). A rest heals 30% of max HP; shop / treasure change nothing; an unknown room is a regular fight with
-   probability `pf` (default 0.15 `[hyp]`) else nothing. Events that cost HP or give HP are NOT modelled.
+   end HP of every attempt (death = 0): a transition matrix T[hp, hp'] over the whole HP range, interpolated between the grid points. The belt is a BUDGET: every non-boss
+   kind gets a table with no potion and one per potion (that potion alone available), the boss one per subset of the belt.
+3. Exact backward dynamic programming over (node, monsters met, elites still required, potions still unspent, HP): F = probability of winning the act boss, assuming I choose
+   the best child at every node with the HP I then have (I do re-plan at every node) and, at every fight, whether to throw one of the remaining potions: a potion counts at the
+   fight where it helps most (an elite or the boss) and only once along a route. A potion chosen for a fight is assumed spent (the table was played with it available; the solver
+   may not have needed it, so what is left for later is a lower bound). A rest heals 30% of max HP; shop / treasure change nothing; an unknown room is a regular fight with
+   probability `pf` (default 0.15 `[hyp]`), played without a potion, else nothing. Events that cost HP or give HP are NOT modelled.
 4. The price of rewards: the best survival with at least k more elites (k = 0 .. elites on the map), per option on offer, and for each k the representative route (following
    the policy at the expected HP) with its fixed-path stats: P(reach the boss alive), expected HP on arrival, P(win the boss), counts of fights / elites / rests / shops /
-   unknowns. Risk against reward stays a judgment: an elite is a relic plus rare odds (`sts2-pathing`), a rest is HP, a shop needs gold.
+   unknowns, and the potion plan. Risk against reward stays a judgment: an elite is a relic plus rare odds (`sts2-pathing`), a rest is HP, a shop needs gold.
 """
-import math
+import json
 import re
+from itertools import combinations
 
 import numpy as np
 
@@ -21,9 +25,11 @@ from agent import macro, pools
 GRID = 9  # start-HP grid points per fight kind
 KINDS = ("weak", "regular", "elite", "boss")
 HEAL = 0.3
+MAX_BELT = 3  # potions priced as a budget (the belt has 2-3 slots; the boss tables grow as 2^n)
 # Reward value of a node, in "one monster's card reward" units (a judgment `[hyp]`, override with --w E=4,M=1,...): an elite is a relic, a rare chance and gold (~4 cards),
 # a treasure a relic, a shop buys cards / relics / a removal with the gold in hand, a rest is HP (counted low: the DP already prices HP), an unknown is an event or a fight.
 WEIGHTS = {"M": 1.0, "E": 4.0, "T": 3.0, "$": 1.5, "?": 1.2, "R": 0.3}
+NONE = frozenset()
 
 
 def parse_map(text):
@@ -50,6 +56,10 @@ def offered(state_text):
     return [(int(r), int(c)) for r, c in re.findall(r"^\d+ \w+ r(\d+)c(\d+)", state_text, re.M)]
 
 
+def subsets(n):
+    return [frozenset(c) for r in range(n + 1) for c in combinations(range(n), r)]
+
+
 def _hist(ends, maxhp):
     h = np.zeros(maxhp + 1)
     for e in ends:
@@ -57,23 +67,8 @@ def _hist(ends, maxhp):
     return h / max(h.sum(), 1)
 
 
-def transition_matrix(engine, deck_json, encounters, attempts, tag, hold=()):
-    """T[hp, hp'] for a fight drawn uniformly from `encounters`, played at every start HP (grid + linear interpolation of the end-HP distributions)."""
-    maxhp = deck_json["max_hp"]
-    grid = sorted({max(6, int(round(x))) for x in np.linspace(6, maxhp, GRID)})
-    scen, idx = [], []
-    for gi, g in enumerate(grid):
-        for e in encounters:
-            pots = deck_json.get("potions", [])
-            if hold and tag != "boss":  # potions are spent only when worth it: every non-boss fight is priced without them (a lower bound)
-                pots = [] if hold == "all" else [p for p in pots if p["id"] not in hold]
-            scen.append(dict(deck_json, hp=g, potions=pots, name=f"{tag}@{e}@{g}", encounter=e, seed=f"routes{tag}{g}"))
-            idx.append(gi)
-    res = engine.solve(scen, attempts=attempts)
-    hists = []
-    for gi in range(len(grid)):
-        ends = [x for r, i in zip(res, idx) if i == gi for x in r["ends"]]
-        hists.append(_hist(ends, maxhp))
+def _matrix(hists, grid, maxhp):
+    """T[hp, hp'] from the end-HP histograms at the grid start HPs (linear interpolation between grid points)."""
     T = np.zeros((maxhp + 1, maxhp + 1))
     T[0, 0] = 1.0
     for hp in range(1, maxhp + 1):
@@ -88,13 +83,57 @@ def transition_matrix(engine, deck_json, encounters, attempts, tag, hold=()):
     return T
 
 
-def build_tables(engine, deck_json, act, ctx, attempts, hold=()):
-    tabs = {}
+UNIT = 4  # attempts per scenario in the one big batch: a table that wants more attempts gets replicated scenarios (the solver's job ids differ, so the replicas are independent)
+_CACHE = {}  # signature -> tables: they depend on the deck, relics, belt and what can still appear, not on my HP, so repeated `routes` calls at the same deck cost nothing
+
+
+def _signature(deck_json, act, ctx, attempts):
+    deck = tuple(sorted((c["id"], c.get("upgrade", 0), json.dumps(c.get("enchantment"), sort_keys=True)) for c in deck_json["deck"]))
+    relics = tuple((r["id"], json.dumps(r.get("props"), sort_keys=True), r.get("counter")) for r in deck_json.get("relics", []))
+    pots = tuple(p["id"] for p in deck_json.get("potions", []))
+    return (deck, relics, pots, deck_json["max_hp"], act, tuple(ctx.get("seen", [])), tuple(ctx.get("bosses", [])), attempts)
+
+
+def build_tables(engine, deck_json, act, ctx, attempts, hold=None):
+    """tabs[(kind, S)] = transition matrix with the potions S (a frozenset of belt indices) available; tabs["_belt"] = the potion ids. One batched solver call for every table.
+    Potion variants exist for elites and the boss only: a potion thrown in a hallway fight is not what the route decision is about. `hold` is unused (kept for callers)."""
+    key = _signature(deck_json, act, ctx, attempts)
+    if key in _CACHE:
+        return _CACHE[key]
+    maxhp = deck_json["max_hp"]
+    belt = list(deck_json.get("potions", []))[:MAX_BELT]
     per = dict(weak=max(8, attempts), regular=max(4, attempts // 3), elite=max(16, attempts * 2), boss=max(32, attempts * 4))
+    grid = sorted({max(6, int(round(x))) for x in np.linspace(6, maxhp, GRID)})
+    scen, owners, tables = [], [], []
     for k in KINDS:
         encs = macro.narrow(pools.pool(act, k), k, ctx)
-        if encs:
-            tabs[k] = transition_matrix(engine, deck_json, encs, per[k], k, hold)
+        if not encs:
+            continue
+        if k == "boss":
+            sets = subsets(len(belt))
+        elif k == "elite":
+            sets = [NONE] + [frozenset({i}) for i in range(len(belt))]
+        else:
+            sets = [NONE]
+        reps = max(1, per[k] // UNIT)
+        for S in sets:
+            tables.append((k, S))
+            pots = [belt[i] for i in sorted(S)]
+            for gi, g in enumerate(grid):
+                for e in encs:
+                    for r in range(reps):
+                        scen.append(dict(deck_json, hp=g, potions=pots, name=f"{k}@{e}@{g}#{r}", encounter=e, seed=f"routes{k}{g}"))
+                        owners.append((k, S, gi))
+    res = engine.solve(scen, attempts=UNIT)
+    ends = {}
+    for r, (k, S, gi) in zip(res, owners):
+        ends.setdefault((k, S, gi), []).extend(r["ends"])
+    tabs = {"_belt": [p["id"] for p in belt]}
+    for k, S in tables:
+        tabs[(k, S)] = _matrix([_hist(ends[(k, S, gi)], maxhp) for gi in range(len(grid))], grid, maxhp)
+    if len(_CACHE) >= 3:
+        _CACHE.pop(next(iter(_CACHE)))
+    _CACHE[key] = tabs
     return tabs
 
 
@@ -103,16 +142,23 @@ class Calc:
         self.weights = dict(WEIGHTS)
         self.goal = goal  # "win": P(win the boss); "reach": P(alive on arrival), when the boss is out of reach for the deck and the rewards on the way must close the gap
         self.nodes, self.boss_row, self.tabs, self.H, self.weak_fights, self.pf = nodes, boss_row, tabs, maxhp, weak_fights, pf
+        self.belt = tabs.get("_belt", [])
+        self.full = frozenset(range(len(self.belt)))
         self.heal = int(round(HEAL * maxhp))
         self.cache = {}
-        self.max_elites = 0  # filled by solve
 
-    def _terminal(self):
+    def has(self, kind):
+        return (kind, NONE) in self.tabs
+
+    def T(self, kind, S=NONE):
+        return self.tabs[(kind, S)]
+
+    def _terminal(self, S):
         if self.goal == "reach":
             v = np.ones(self.H + 1)
             v[0] = 0.0
             return v
-        return self.tabs["boss"][:, 1:].sum(axis=1)
+        return self.T("boss", S)[:, 1:].sum(axis=1)
 
     def kids(self, key):
         r = key[0]
@@ -125,15 +171,26 @@ class Calc:
         if t == "E":
             return "elite"
         if t == "M":
-            return "weak" if w < self.weak_fights and "weak" in self.tabs else "regular"
+            return "weak" if w < self.weak_fights and self.has("weak") else "regular"
         return None
 
-    def F(self, key, w, k):
-        """Vector over HP: P(win the boss) when about to enter `key` with `w` monsters met and `k` more elites required."""
+    def kind_of_unknown(self, w):
+        return "weak" if w < self.weak_fights and self.has("weak") else "regular"
+
+    def _options(self, fk, S):
+        """The ways to play a fight of kind fk with the potions S still unspent: (None, S) = no potion, (i, S - {i}) = throw potion i."""
+        opts = [(None, S)]
+        for i in sorted(S):
+            if (fk, frozenset({i})) in self.tabs:
+                opts.append((i, S - {i}))
+        return opts
+
+    def F(self, key, w, k, S=None):
+        """Vector over HP: P(win the boss) when about to enter `key` with `w` monsters met, `k` more elites required and the potions S unspent (default: the whole belt)."""
+        S = self.full if S is None else S
         if key == "BOSS":
-            ok = self._terminal() if k == 0 else np.zeros(self.H + 1)
-            return ok
-        ck = (key, w, k)
+            return self._terminal(S) if k == 0 else np.zeros(self.H + 1)
+        ck = (key, w, k, S)
         if ck in self.cache:
             return self.cache[ck]
         t = self.nodes[key]["type"]
@@ -141,33 +198,35 @@ class Calc:
         w2 = min(w + 1, self.weak_fights) if t == "M" else w
         k2 = max(0, k - 1) if t == "E" else k
 
-        def G(w_, k_):  # best child with the HP I then have
-            vs = [self.F(c, w_, k_) for c in self.kids(key)]
+        def G(w_, k_, S_):  # best child with the HP I then have
+            vs = [self.F(c, w_, k_, S_) for c in self.kids(key)]
             return np.max(vs, axis=0) if vs else np.zeros(self.H + 1)
 
         if fk:
-            g = G(w2, k2)
-            g = g.copy()
-            g[0] = 0.0
-            out = self.tabs[fk] @ g
+            out = None
+            for i, S2 in self._options(fk, S):
+                g = G(w2, k2, S2).copy()
+                g[0] = 0.0
+                v = self.T(fk, NONE if i is None else frozenset({i})) @ g
+                out = v if out is None else np.maximum(out, v)  # the best way to play this fight, chosen with the HP I arrive with
         elif t == "R":
-            g = G(w, k)
+            g = G(w, k, S)
             idx = np.minimum(np.arange(self.H + 1) + self.heal, self.H)
             out = g[idx]
             out[0] = 0.0
         else:
-            g = G(w, k)
+            g = G(w, k, S)
             out = g.copy()
-            if t == "?" and self.pf > 0 and "regular" in self.tabs:
+            if t == "?" and self.pf > 0 and self.has("regular"):
                 fk2 = self.kind_of_unknown(w)
-                g2 = G(min(w + 1, self.weak_fights), k).copy()
+                g2 = G(min(w + 1, self.weak_fights), k, S).copy()
                 g2[0] = 0.0
-                out = self.pf * (self.tabs[fk2] @ g2) + (1 - self.pf) * g
+                out = self.pf * (self.T(fk2) @ g2) + (1 - self.pf) * g
         self.cache[ck] = out
         return out
 
     def Rw(self, key, w):
-        """Vector over HP: expected reward collected from `key` onward (rewards count only while alive), the best child at every node. Boss = 0."""
+        """Vector over HP: expected reward collected from `key` onward (rewards count only while alive), the best child at every node, every fight played without a potion. Boss = 0."""
         if key == "BOSS":
             return np.zeros(self.H + 1)
         ck = ("R", key, w)
@@ -185,7 +244,7 @@ class Calc:
         if fk:
             g = G(w2) + r
             g[0] = 0.0
-            out = self.tabs[fk] @ g
+            out = self.T(fk) @ g
         elif t == "R":
             g = G(w)
             idx = np.minimum(np.arange(self.H + 1) + self.heal, self.H)
@@ -194,10 +253,10 @@ class Calc:
         else:
             g = G(w)
             out = r + g
-            if t == "?" and self.pf > 0 and "regular" in self.tabs:
+            if t == "?" and self.pf > 0 and self.has("regular"):
                 g2 = G(min(w + 1, self.weak_fights)) + r
                 g2[0] = 0.0
-                out = self.pf * (self.tabs[self.kind_of_unknown(w)] @ g2) + (1 - self.pf) * (r + g)
+                out = self.pf * (self.T(self.kind_of_unknown(w)) @ g2) + (1 - self.pf) * (r + g)
             out[0] = 0.0
         self.cache[ck] = out
         return out
@@ -212,7 +271,7 @@ class Calc:
             if t == "M":
                 w = min(w + 1, self.weak_fights)
             if fk:
-                row = self.tabs[fk][max(1, min(self.H, int(round(cur))))]
+                row = self.T(fk)[max(1, min(self.H, int(round(cur))))]
                 cur = float((row[1:] * np.arange(1, self.H + 1)).sum() / max(row[1:].sum(), 1e-9))
             elif t == "R":
                 cur = min(self.H, cur + self.heal)
@@ -221,39 +280,51 @@ class Calc:
             key = max(kids, key=lambda c: self.Rw(c, w)[hp_i]) if kids else "BOSS"
         return path
 
-    def kind_of_unknown(self, w):
-        return "weak" if w < self.weak_fights and "weak" in self.tabs else "regular"
-
     # ------------------------------------------------------------------------------------------------------------ fixed path statistics
     def policy_path(self, start, w, k, hp):
-        """Follow the best child at the expected HP (rounded). Returns the node list from `start` to the last node before the boss."""
-        path, key, cur = [], start, float(hp)
+        """Follow the DP at the expected HP: the best child and, at every fight, the best way to play it (a potion or none). Returns (nodes from `start` to the last node before
+        the boss, plan = {node: potion index thrown there}); the potions left over go to the boss."""
+        path, plan, key, cur, S = [], {}, start, float(hp), self.full
         while key != "BOSS":
             path.append(key)
             t = self.nodes[key]["type"]
             fk = self.kind_of(key, w)
+            w_in = w
             if t == "M":
                 w = min(w + 1, self.weak_fights)
             if t == "E":
                 k = max(0, k - 1)
-            hp_i = int(round(cur))
+            hp_i = max(1, min(self.H, int(round(cur))))
             if fk:
-                row = self.tabs[fk][max(1, min(self.H, hp_i))]
-                alive = row[1:].sum()
-                cur = float((row[1:] * np.arange(1, self.H + 1)).sum() / max(alive, 1e-9))
+                best, best_v = (None, S), -1.0
+                for i, S2 in self._options(fk, S):
+                    kids = self.kids(key)
+                    g = (np.max([self.F(c, w, k, S2) for c in kids], axis=0) if kids else np.zeros(self.H + 1)).copy()
+                    g[0] = 0.0
+                    v = float((self.T(fk, NONE if i is None else frozenset({i})) @ g)[hp_i])
+                    if v > best_v + 1e-9:
+                        best, best_v = (i, S2), v
+                i, S = best
+                if i is not None:
+                    plan[key] = i
+                row = self.T(fk, NONE if i is None else frozenset({i}))[hp_i]
+                cur = float((row[1:] * np.arange(1, self.H + 1)).sum() / max(row[1:].sum(), 1e-9))
             elif t == "R":
                 cur = min(self.H, cur + self.heal)
             kids = self.kids(key)
-            hp_i = int(round(cur))
-            key = max(kids, key=lambda c: self.F(c, w, k)[max(1, min(self.H, hp_i))]) if kids else "BOSS"
-        return path
+            hp_i = max(1, min(self.H, int(round(cur))))
+            key = max(kids, key=lambda c: self.F(c, w, k, S)[hp_i]) if kids else "BOSS"
+        plan["BOSS"] = S
+        return path, plan
 
-    def path_stats(self, path, w, hp):
-        """Fixed path: P(reach the boss alive), E[HP on arrival | alive], P(win the boss), HP quantiles on arrival."""
+    def path_stats(self, path, w, hp, plan=None):
+        """Fixed path (and potion plan): P(reach the boss alive), E[HP on arrival | alive], P(win the boss), HP quantiles on arrival. Without a plan no potion is thrown before the boss."""
+        plan = plan or {}
         d = np.zeros(self.H + 1)
         d[max(1, min(self.H, int(hp)))] = 1.0
         counts = dict(M=0, E=0, R=0, **{"$": 0, "?": 0, "T": 0})
         elites = []  # (node, P(alive on arrival), mean HP, q10 HP) at every elite on the path: two elites without a rest between them show up as a falling mean
+        used = set()
         for key in path:
             t = self.nodes[key]["type"]
             counts[t] += 1
@@ -266,35 +337,49 @@ class Calc:
             if t == "M":
                 w = min(w + 1, self.weak_fights)
             if fk:
-                d = d @ self.tabs[fk]
+                i = plan.get(key)
+                if i is not None:
+                    used.add(i)
+                d = d @ self.T(fk, NONE if i is None else frozenset({i}))
             elif t == "R":
                 nd = np.zeros_like(d)
                 for h in range(self.H + 1):
                     nd[min(self.H, h + self.heal) if h > 0 else 0] += d[h]
                 d = nd
-            elif t == "?" and self.pf > 0 and "regular" in self.tabs:
-                d = (1 - self.pf) * d + self.pf * (d @ self.tabs[self.kind_of_unknown(w)])
+            elif t == "?" and self.pf > 0 and self.has("regular"):
+                d = (1 - self.pf) * d + self.pf * (d @ self.T(self.kind_of_unknown(w)))
         alive = d[1:].sum()
         mean = float((d[1:] * np.arange(1, self.H + 1)).sum() / max(alive, 1e-9))
         cdf = np.cumsum(d[1:]) / max(alive, 1e-9)
         q = lambda p: int(np.searchsorted(cdf, p) + 1)
-        pwin = float(d @ self.tabs["boss"][:, 1:].sum(axis=1))  # the boss win probability whatever the goal
-        return dict(alive=float(alive), mean_hp=mean, q10=q(0.1), q50=q(0.5), win=pwin, counts=counts, elites=elites)
+        S_boss = self.full - used
+        pwin = float(d @ self.T("boss", S_boss)[:, 1:].sum(axis=1))  # the boss win probability whatever the goal, with the potions left
+        return dict(alive=float(alive), mean_hp=mean, q10=q(0.1), q50=q(0.5), win=pwin, counts=counts, elites=elites, boss_potions=sorted(S_boss))
 
 
 def _fmt_path(calc, path):
     return " ".join(calc.nodes[k]["type"] + f"{k[0]}c{k[1]}" for k in path)
 
 
-def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, tabs=None, weights=None, hold=()):
+def _fmt_plan(calc, plan):
+    if not calc.belt:
+        return "no potions"
+    parts = [f"{calc.belt[i]} at {calc.nodes[n]['type']}{n[0]}c{n[1]}" for n, i in plan.items() if n != "BOSS"]
+    left = [calc.belt[i] for i in sorted(plan.get("BOSS", NONE))]
+    if left:
+        parts.append(f"{', '.join(left)} at the boss")
+    return "; ".join(parts) or "no potion thrown"
+
+
+def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, tabs=None, weights=None, hold=None):
     nodes, boss_row = parse_map(map_text)
     if not nodes or boss_row is None:
         return "routes: no act map"
     hp_now = int(re.search(r"HP (\d+)/", state_text).group(1)) if re.search(r"HP (\d+)/", state_text) else deck_json["hp"]
     maxhp = deck_json["max_hp"]
     if tabs is None:
-        tabs = build_tables(engine, deck_json, act, ctx, attempts, hold)
-    if "boss" not in tabs:
+        tabs = build_tables(engine, deck_json, act, ctx, attempts)
+    if ("boss", NONE) not in tabs:
         return "routes: boss unknown"
     calc = Calc(nodes, boss_row, tabs, maxhp, pools.ACTS[act]["weak_fights"], pf)
     calc.weights.update(weights or {})
@@ -317,8 +402,9 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
             max_e = k
         else:
             break
+    belt_txt = ", ".join(calc.belt) if calc.belt else "none"
     lines = [f"route survival (win the act boss) from {hp_now}/{maxhp} HP, {len(starts)} option(s) on offer, monsters met {w0}, unknown = regular fight {pf:.0%}; "
-             f"events / shops / treasure not modelled", ""]
+             f"events / shops / treasure not modelled", f"potions in the belt: {belt_txt}; each is thrown at most once along a route, at the fight where it helps most (an elite or the boss), never counted twice", ""]
     if note:
         lines.append(note)
         lines.append("")
@@ -332,16 +418,17 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
     lines.append(f"{'k':>2s} {'F':>6s} {'reach':>6s} {'HP@boss':>8s} {'q10':>4s} {'win':>6s}  fights elites rests shops unk treas  path")
     for k in range(max_e + 1):
         best = max(starts, key=lambda s: calc.F(s, w0, k)[hp_now])
-        path = calc.policy_path(best, w0, k, hp_now)
-        st = calc.path_stats(path, w0, hp_now)
+        path, plan = calc.policy_path(best, w0, k, hp_now)
+        st = calc.path_stats(path, w0, hp_now, plan)
         c = st["counts"]
         fights = c["M"] + c["E"]
         lines.append(f"{k:2d} {calc.F(best, w0, k)[hp_now]:6.3f} {st['alive']:6.3f} {st['mean_hp']:8.1f} {st['q10']:4d} {st['win']:6.3f}  {fights:6d} {c['E']:6d} {c['R']:5d} {c['$']:5d} {c['?']:3d} {c['T']:5d}  {_fmt_path(calc, path)}")
+        lines.append(f"      potion plan: {_fmt_plan(calc, plan)}")
         if st["elites"]:
             lines.append("      elite arrivals (alive, mean HP, q10 HP): " + "; ".join(f"{calc.nodes[e[0]]['type']}{e[0][0]}c{e[0][1]} {e[1]:.2f}, {e[2]:.0f}, {e[3]}" for e in st["elites"]))
     lines.append("")
     wtxt = " ".join(f"{k}={v:g}" for k, v in calc.weights.items())
-    lines.append(f"reward-weighted routes (expected rewards collected while alive; weights {wtxt}; change with --w E=5,$=1): per option on offer, then the best path")
+    lines.append(f"reward-weighted routes (expected rewards collected while alive, fights without potions; weights {wtxt}; change with --w E=5,$=1): per option on offer, then the best path")
     lines.append(f"{'option':10s} {'reward':>7s} {'reach':>6s} {'HP@boss':>8s} {'win':>6s}  fights elites rests shops unk treas  path")
     ropts = sorted(starts, key=lambda s_: -calc.Rw(s_, w0)[hp_now])
     for s_ in ropts:
