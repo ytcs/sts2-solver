@@ -1,6 +1,9 @@
 using System.Text;
 using Godot;
 using MegaCrit.Sts2.Core.Entities.Merchant;
+using MegaCrit.Sts2.Core.Events.Custom.CrystalSphereEvent;
+using MegaCrit.Sts2.Core.Events.Custom.CrystalSphereEvent.CrystalSphereItems;
+using MegaCrit.Sts2.Core.Nodes.Events.Custom.CrystalSphere;
 using MegaCrit.Sts2.Core.Entities.Potions;
 using MegaCrit.Sts2.Core.GameActions;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
@@ -304,6 +307,9 @@ public static class Decisions
                         return null;
                     });
                 return;
+            case NCrystalSphereScreen s:
+                CrystalSphere(d, s);
+                return;
             case NGameOverScreen s:
                 d.Kind = "GAME_OVER";
                 d.Info.Append(Text.NodeLabel(s)).Append('\n');
@@ -315,6 +321,57 @@ public static class Decisions
                 Buttons(d, top);
                 return;
         }
+    }
+
+    /// <summary>
+    /// The Crystal Sphere event minigame: an 11x11 fog grid; each divination clears the 3x3 block around a cell (big tool) or one cell (small tool); a hidden item pays out when every
+    /// cell it covers is clear. The text shows what the screen shows: hidden cells as #, cleared cells as . or, where an item shows through, its kind (R relic, P potion, C card,
+    /// X curse, g gold). Hidden cells never reveal their contents. (The generic fallback listed only the first 40 of 121 cells and hid the Proceed button.)
+    /// </summary>
+    private static void CrystalSphere(Decision d, NCrystalSphereScreen s)
+    {
+        d.Kind = "CRYSTAL_SPHERE";
+        var g = s._entity;
+        d.Info.Append($"{g.DivinationCount} divinations left, tool {g.CrystalSphereTool} (big clears the 3x3 block around the cell, small one cell); an item pays out once every cell it covers is clear.\n");
+        d.Info.Append("grid (# hidden, . clear, R relic, P potion, C card, X curse, g gold shown through clear cells); rows are y, columns x:\n    ");
+        var size = g.GridSize;
+        for (int x = 0; x < size.X; x++) d.Info.Append((x % 10).ToString());
+        d.Info.Append('\n');
+        for (int y = 0; y < size.Y; y++)
+        {
+            d.Info.Append(y.ToString().PadLeft(2)).Append("  ");
+            for (int x = 0; x < size.X; x++)
+            {
+                var c = g.cells[x, y];
+                d.Info.Append(c.IsHidden ? '#' : c.Item switch
+                {
+                    CrystalSphereRelic => 'R',
+                    CrystalSpherePotion => 'P',
+                    CrystalSphereCardReward => 'C',
+                    CrystalSphereCurse => 'X',
+                    CrystalSphereGold => 'g',
+                    null => '.',
+                    _ => '?',
+                });
+            }
+            d.Info.Append('\n');
+        }
+        if (!g.IsFinished)
+        {
+            d.Add("divine <x> <y>: spend a divination on that cell", args =>
+            {
+                if (args.Length < 2 || !int.TryParse(args[0], out int x) || !int.TryParse(args[1], out int y)) return "usage: a 0 <x> <y>";
+                if (x < 0 || y < 0 || x >= size.X || y >= size.Y) return $"cell {x},{y} is off the {size.X}x{size.Y} grid";
+                var cell = s._cellContainer.GetChildren().OfType<NCrystalSphereCell>().FirstOrDefault(c => c.Entity.X == x && c.Entity.Y == y);
+                if (cell == null) return $"no cell node at {x},{y}";
+                if (!cell.Entity.IsHidden && g.CrystalSphereTool != CrystalSphereMinigame.CrystalSphereToolType.Big) return $"cell {x},{y} is already clear";
+                cell.ForceClick();
+                return null;
+            });
+            d.Add("tool big", _ => { s._bigDivinationButton.ForceClick(); return null; });
+            d.Add("tool small", _ => { s._smallDivinationButton.ForceClick(); return null; });
+        }
+        if (s._proceedButton is { IsEnabled: true } p && p.IsVisibleInTree()) d.Click("proceed", p);
     }
 
     private static async Task ConfirmLater(Node screen)

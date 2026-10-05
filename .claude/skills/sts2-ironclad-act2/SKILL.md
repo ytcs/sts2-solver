@@ -17,6 +17,7 @@ Pools: `sts2-acts`; Insatiable row, target deck, potion numbers: `encounters.md`
 - Ancient Tezcatara (run 3): Yummy Cookie (upgrade 4) +14 on elites; Biiig Hug loses to the Soot cards it adds; Seal of Gold drains shop gold.
 - Book of Five Rings heals 20 when a 5th card is added (full heal at 10 HP): with low HP take cheap cards `[played]`.
 - Colorful Philosophers (3 cards of another class): best +5 +- 3.8, under 2 se `[sim]`.
+- Darv ancient vs Kaiser Crab (96 attempts): Ectoplasm +0.118 smooth, Philosopher's Stone +0.104, Snecko Eye +0.095; Hive elites 0.87 / 0.67 / 0.90 (Entomancer 0.61 / 0.19 / 0.85). Ectoplasm ends gold: spend it first `[sim]`.
 
 ## To test `[hyp]`
 - Another class's pool holds a card worth >= +10 on the Act 2 boss: scan every card with `eval ... add=ID`.

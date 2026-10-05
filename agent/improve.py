@@ -78,7 +78,7 @@ def review(run_id=None):
         maxhp = s["max_hp"]
         hp_lost = (s["hp"] / maxhp) if lost else ((s["hp"] - (hp_end or s["hp"])) / maxhp)
         pw = s["predicted"].get("win")
-        rows.append((s["encounter"], pw, 0 if lost else 1, s["predicted"].get("hp_lost"), hp_lost))
+        rows.append((s["encounter"], pw, 0 if lost else 1, s["predicted"].get("hp_lost"), hp_lost, en.get("pit"), (s["predicted"].get("lost_q") or [None] * 21)[10], (s["predicted"].get("lost_q") or [None] * 21)[18]))
         if pw is not None and abs(pw - (0 if lost else 1)) >= 0.6:
             surprises.append(dict(kind="surprise", run=os.path.basename(run_dir), fight=fid_, encounter=s["encounter"], predicted_win=pw, won=not lost, hp_lost=round(hp_lost, 3)))
         for k, v in (en.get("replay") or {}).items():
@@ -95,11 +95,15 @@ def review(run_id=None):
                     dis_by_enc[s["encounter"]][0] += 1
     if rows:
         n = len(rows)
-        brier = sum((w - a) ** 2 for _, w, a, _, _ in rows if w is not None) / n
+        brier = sum((r[1] - r[2]) ** 2 for r in rows if r[1] is not None) / n
         lines.append(f"fights: {sum(r[2] for r in rows)}/{n} won; predicted win rate {sum(r[1] for r in rows if r[1] is not None) / n:.2f}, Brier {brier:.3f}; "
                      f"HP lost {100 * sum(r[4] for r in rows) / n:.1f}% of max vs predicted {100 * sum((r[3] or 0) for r in rows) / n:.1f}%")
-        for enc, pw, won, ph, ah in rows:
-            lines.append(f"  {enc:30s} pred win {pw if pw is not None else '-':>5} actual {'W' if won else 'L'}   HP lost {100 * ah:4.0f}% (pred {100 * (ph or 0):3.0f}%)")
+        for enc, pw, won, ph, ah, pit, q50, q90 in rows:
+            dist = f"  loss pct {pit:.2f} (pred median {q50:.0f} HP, q90 {q90:.0f} HP)" if pit is not None and q50 is not None else ""
+            lines.append(f"  {enc:30s} pred win {pw if pw is not None else '-':>5} actual {'W' if won else 'L'}   HP lost {100 * ah:4.0f}% (pred {100 * (ph or 0):3.0f}%){dist}")
+        pits = [r[5] for r in rows if r[5] is not None]
+        if pits:
+            lines.append(f"calibration of the predicted HP-loss distribution over {len(pits)} fights: mean percentile {sum(pits) / len(pits):.2f} (0.50 if calibrated), {sum(1 for x in pits if x > 0.9)} in the worst 10% (expected {0.1 * len(pits):.1f}), {sum(1 for x in pits if x > 0.97)} beyond the 97th")
     if act_total:
         lines.append(f"search overrode the policy's top action in {dis_total}/{act_total} searched decisions ({100 * dis_total / act_total:.0f}%)")
         worst = sorted(((a / max(b, 1), e, a, b) for e, (a, b) in dis_by_enc.items() if b >= 5), reverse=True)[:3]

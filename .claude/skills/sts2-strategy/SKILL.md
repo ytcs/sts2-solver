@@ -19,3 +19,4 @@ description: Use at the start of a run and when a decision is not covered by pat
 - **Potions: keep the strongest for the act's boss unless the solver predicts a clear loss without it** (automatic in comfortable fights: `sts2-harness`). Test: the potion as an `eval` variant (values `[sim]` in `encounters.md`); fights lost with it held. Hold rule `[hyp]`.
 - **Events: a relic or large resource over a small heal; a curse costs one slot.** Test: `eval --v` with `add=CURSE_ID` vs the relic variant. `[hyp]`
 - **Check gold against shop prices before routing to a shop** (`brief`, `m`). `[played]`
+- **On a reward screen take relics before gold (and read what a relic changes before any pickup): Bowler Hat gives +25% to gold gained after it.** Test: gold before and after the pickup (`s`), 30 -> 37 with the hat first. `[played]`

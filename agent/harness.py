@@ -12,6 +12,8 @@ Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <
   brief                 the run at a glance: header, deck, buckets and gaps, relics, potions, the known boss and the elites that can still appear
   eval {json} | eval [--all] [--smooth] (--enc IDS | --pool Act:kind[:n] | --future | --boss | --elites | --next) --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
   route <M E R S B ...> [--hp N] [--act Hive] [--exclude IDS]   HP budget (pools narrowed to what can still appear: not the encounters already met this act, only the known boss) along a planned route (fights played at the HP I would arrive with, rests heal 30%)
+  routes [--attempts N] [--pf P]   survival of every route on the act map (exact DP over node x HP with the solver's fight outcomes): per option on offer, P(win boss) with at least k more elites, and the representative route per k (agent/routes.py)
+  rmcalc [--attempts N] [--hp full|current|N]   every removable card priced as a removal (boss smooth, elites left, next act), ranked: use at a shop's removal, a removal event
   relics                relic counters in combat (Pen Nib, Book of Five Rings ...)
   hold ID[,ID]          keep those potions out of the solver's choices (`hold none` releases)
   note <text>           a free-text note in the run record
@@ -69,10 +71,32 @@ class Harness:
         self.budget = None  # fixed seconds of search per decision (`budget <s>`); None = auto from the fight's predicted danger (`budget auto`)
         self.fight_budget = 1.0
         self.keep_potions = False
-        self.hold = set()  # potion ids the solver may not use (kept for the boss): `hold ID,ID`, `hold none`
+        self._potion_ok = 0
+        self._potion_skip = 0
+        self._decline_fight = None
+        self.potions_used = 0
+        self.fight_hold = set()  # the potions the solver may not use in THIS fight: `hold`, released for the boss and for a fight that is unsafe without them
+        self._pred_q = None  # the predicted distribution of HP lost for this fight (calibration: where the real loss falls in it)
+        self.hold = self._load_hold()  # potion ids the solver may not use (kept for the boss): `hold ID,ID`, `hold none`; saved with the run record, so a daemon restart keeps it
         self.fight_tol = 1.0  # HP of expected regret the search may leave on the table per decision
 
     # ------------------------------------------------------------------ plumbing
+
+    def _hold_path(self):
+        return os.path.join(self.log.dir, "hold.json")
+
+    def _load_hold(self):
+        try:
+            return set(json.load(open(self._hold_path(), encoding="utf-8")))
+        except (OSError, ValueError):
+            return set()
+
+    def _save_hold(self):
+        try:
+            os.makedirs(self.log.dir, exist_ok=True)
+            json.dump(sorted(self.hold), open(self._hold_path(), "w", encoding="utf-8"))
+        except OSError:
+            pass
 
     def eng(self):
         with self._eng_lock:
@@ -108,22 +132,41 @@ class Harness:
         self._last_f = f
         return f
 
+    @staticmethod
+    def _dist(r, hp):
+        """The predicted distribution of HP lost from one `solve` result: 21 quantiles (0, 5 ... 100 %) of the start HP minus the end HP (a loss counts as the whole start HP)."""
+        import numpy as np
+        ends = np.array(r.get("ends") or [])
+        if not len(ends):
+            return None
+        return [round(float(x), 1) for x in np.percentile(hp - ends, np.linspace(0, 100, 21))]
+
+    QWORTH = 0.1  # a potion is worth a look when it raises the search value by this much (value = +1 win / -1 loss + 0.5 x HP fraction left: 0.1 is about +5% win or +16 HP at 80 max HP)
+
     def _fight_start(self, f):
         sc = f["scenario"]
         pred = {}
+        self.fight_hold = set(self.hold)  # only the potions I held by hand are off the table; every other potion is the solver's PROPOSAL, thrown only after my confirmation (`combat ok`)
+        self._potion_ok = 0
+        self._potion_skip = 0
+        self._decline_fight = None
+        self.potions_used = 0
         try:
-            usable = [p for p in sc["potions"] if p["id"] not in self.hold]  # held potions are not part of the plan for this fight
+            usable = []  # the prediction is the no-potion lower bound: potions are used only when I judge they are worth it
             r = self.eng().solve([dict(sc, name="start", potions=usable)], attempts=PRED_ATTEMPTS)[0]
-            pred = dict(win=round(r["win"], 3), win_se=round(r["win_se"], 3), hp_lost=round(r["hp_lost"] or 0, 3), hp_lost_se=round(r.get("hp_lost_se") or 0, 3), n=r["attempts"])
+            q = self._dist(r, sc["hp"])
+            pred = dict(win=round(r["win"], 3), win_se=round(r["win_se"], 3), hp_lost=round(r["hp_lost"] or 0, 3), hp_lost_se=round(r.get("hp_lost_se") or 0, 3), n=r["attempts"], lost_q=q)
+            self._pred_q = q
         except Exception as e:  # noqa: BLE001
             pred = dict(error=str(e)[:80])
+            self._pred_q = None
         self.fight_hp0 = (sc["hp"], sc["max_hp"])
         self.last_enc = sc.get("encounter")
         self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
         # potions are for fights the solver may lose or that cost a lot: a comfortable fight keeps them (a clear win leaves the strongest potion for the elite or boss)
         def comfortable(p):
             return "win" in p and p["win"] - p["win_se"] >= 0.95 and p["hp_lost"] * sc["max_hp"] <= 0.4 * sc["hp"]
-        self.keep_potions = comfortable(pred)
+        self.keep_potions = False  # potions stay in the search; a chosen potion stops for my confirmation (_potion_gate)
         if self.keep_potions and sc["potions"]:  # the prediction above may have used potions: confirm the fight is comfortable without them (else the live play, which may not use them, loses HP the prediction did not expect)
             try:
                 r = self.eng().solve([dict(sc, name="start", potions=[])], attempts=PRED_ATTEMPTS)[0]
@@ -135,7 +178,7 @@ class Harness:
             except Exception:  # noqa: BLE001
                 self.keep_potions = False
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], deck=len(sc["deck"]), relics=[r["id"] for r in sc["relics"]],
-                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol, keep_potions=(True if self.keep_potions else self.hold))
+                       potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol, keep_potions=sorted(self._kp()) if self._kp() is not True else True)
 
     @staticmethod
     def _auto_budget(pred, hp, max_hp):
@@ -156,9 +199,15 @@ class Harness:
         if self.rp is None or self.fight_id in self._ended:
             return
         self._ended.add(self.fight_id)
+        text = text or self.last_state  # a fight finished by a hand `a` (sim desync) ends here without the screen: the reply of that `a` is the screen after it
         hp = _hp(text) if text else None
+        pit = None
+        if hp and self.fight_hp0 and self._pred_q:
+            import numpy as np
+            lost = self.fight_hp0[0] - hp[0]
+            pit = round(float(np.interp(lost, self._pred_q, np.linspace(0, 1, len(self._pred_q)))), 3)  # where the real loss falls in the predicted distribution (0 = best case, 1 = worse than predicted)
         self._save_costly_fight(hp)
-        self.log.event("fight_end", id=self.fight_id, hp=hp, screen=_kind(text) if text else None, hp_start=self.fight_hp0, actions=self.fight_actions, replay=dict(self.rp.stats),
+        self.log.event("fight_end", id=self.fight_id, hp=hp, pit=pit, potions_used=getattr(self, "potions_used", 0), pred_lost_q=self._pred_q, screen=_kind(text) if text else None, hp_start=self.fight_hp0, actions=self.fight_actions, replay=dict(self.rp.stats),
                        errors=self.rp.errors[:3], diff_examples={k: v for k, v in self.rp.examples.items() if not k.startswith("random")})
 
     COSTLY = 0.30  # a fight that loses this share of max HP (or is lost) is kept whole for the hindsight review (`python -m agent.hindsight`)
@@ -170,7 +219,8 @@ class Harness:
         if not hp or f is None or f.get("id") != self.fight_id or not self.fight_hp0:
             return
         lost = self.fight_hp0[0] - hp[0]
-        if lost < self.COSTLY * self.fight_hp0[1] and hp[0] > 0:
+        bad = any(k.startswith(("diff", "residual", "action failed", "intent unmatched", "start unmatched", "missing")) for k in self.rp.stats)  # fidelity cases are kept too
+        if lost < self.COSTLY * self.fight_hp0[1] and hp[0] > 0 and not bad:
             return
         try:
             d = os.path.join(self.log.dir, "fights")
@@ -220,8 +270,45 @@ class Harness:
         bad = self._sync_problem(f)
         if bad:
             return bad
-        d = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol, keep_potions=(True if self.keep_potions else self.hold))
+        d = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol, keep_potions=self._kp())
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook()
+
+    def _kp(self):
+        """keep_potions for the live search: only the potions I held by hand are off the table. The solver is NOT limited: it may propose a potion as often as it likes."""
+        return self.fight_hold
+
+    def _potion_gate(self, d, out):
+        """Every time the solver's chosen action is a potion, I am at the gate. Returns (stop message or None, the decision to execute). The solver itself is unchanged: it may propose
+        potions without limit. The answers: `combat ok` throws exactly this one; `combat skip` declines this one (the best non-potion action is played instead); `combat go` declines
+        every proposal for the rest of the fight (my answer, automated). The stop explains what the potion saves: the search value of the best line with potions minus the best line
+        with none (value = +1 win / -1 loss + 0.5 x HP fraction left; 0.1 is about +5% win or +16 HP), and what using it now adds over the best non-potion action."""
+        if not str(d.get("text", "")).startswith("potion"):
+            return None, d
+        if self._potion_ok > 0:
+            self._potion_ok -= 1
+            self.potions_used += 1
+            return None, d
+        others = [o for o in d["options"] if o["q"] is not None and not str(o["text"]).startswith("potion")]
+        if (self._potion_skip > 0 or self._decline_fight == self.fight_id) and others:
+            if self._potion_skip > 0:
+                self._potion_skip -= 1
+            alt = max(others, key=lambda o: o["q"])
+            return None, dict(d, action=alt["action"], json=self.rp.sim.action_json(alt["action"]), text=alt["text"])
+        q_with = max((o["q"] for o in d["options"] if o["q"] is not None), default=None)
+        q_wait = max((o["q"] for o in others), default=None)
+        base = self.eng().decide(self.rp.scenario, self.rp.sim, min(self._budget(), 6.0), tol_hp=self.fight_tol, keep_potions=True)
+        q_none = max((o["q"] for o in base["options"] if o["q"] is not None), default=None)
+        lines = [f"POTION (your call): the solver wants `{d['text']}` now."]
+        if q_with is not None and q_none is not None:
+            dq = q_with - q_none
+            lines.append(f"  best line with potions {q_with:.2f} vs with none {q_none:.2f}: potions add {dq:+.2f} (about {dq / 2 * 100:+.0f}% win, or {dq * 2 * self.rp.scenario['max_hp']:+.0f} HP at the same win rate)")
+        if q_with is not None and q_wait is not None and others:
+            best_np = max(others, key=lambda o: o["q"])
+            tie = " (a TIE: the solver picked the potion on a tie)" if abs(q_with - q_wait) < 0.02 else ""
+            lines.append(f"  using it NOW beats the best non-potion action ({best_np['text']}) by {q_with - q_wait:+.2f}{tie}")
+        lines.append(f"  HP {self.rp.scenario.get('hp', '?')}/{self.rp.scenario.get('max_hp', '?')} now; potions in the belt: {', '.join(p['id'] for p in self.rp.scenario.get('potions', []))}")
+        lines.append("Answer: `combat ok` (throw this one), `combat skip` (decline this one), `combat go` (decline every proposal this fight). Weigh the boss and the route, not only this fight.")
+        return "\n".join(lines), d
 
     def _answer_selection(self):
         """A card-selection prompt: the search picks card by card on a copy of the simulator; the whole answer goes to the game at once."""
@@ -241,8 +328,14 @@ class Harness:
         self.log.event("action", kind_="choose", picks=picks, text=f"choose {picks}")
         return call("do " + json.dumps({"choose": picks}))
 
-    def play(self, whole_fight=False, budget=None, max_actions=120):
+    def play(self, whole_fight=False, budget=None, max_actions=120, ok=False, skip=False, go=False):
         budget = self._budget(budget)
+        if ok:
+            self._potion_ok = 1
+        if skip:
+            self._potion_skip = 1
+        if go:
+            self._decline_fight = self.fight_id
         out = []
         tm = dict(state=0.0, sync=0.0, decide=0.0, do=0.0)
         T = time.perf_counter
@@ -275,8 +368,13 @@ class Harness:
                 out.append("  choose")
             else:
                 t0 = T()
-                d = self.eng().decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol, keep_potions=(True if self.keep_potions else self.hold))
+                d = self.eng().decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol, keep_potions=self._kp())
                 tm["decide"] += T() - t0
+                gate, d = self._potion_gate(d, out)
+                if gate:
+                    out.append(gate)
+                    out.append(txt)
+                    return "\n".join(out)
                 self.fight_actions += 1
                 self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"])
                 out.append("  " + self._advice_text(d))
@@ -319,6 +417,7 @@ class Harness:
             kind = _kind(before)
             if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2:
                 self.log.new_run()  # a new run starts from the menu: its own record (the narrowing of the encounter pools reads it)
+                self.hold = set()
             if i and self.gate:
                 refusal = self._skill_refusal(before)
                 if refusal:
@@ -327,6 +426,8 @@ class Harness:
                 return reply + f"[chain stopped before `{step}`: {_kind(before)}]\n"
             if _kind(before) == "MAP" and i < len(steps) - 1:
                 return "REFUSED: a map choice must be the last step of a chain.\n" + before
+            if i and re.match(r"^\d+(\s|$)", step):
+                return reply + f"REFUSED: `{step}` is an option number after an earlier step of the same chain: the list shifted when that step ran. Name the option (`~text`) or send it as its own call after reading the screen.\n"
             step = self._resolve(before, step)
             if step.startswith("ERR"):
                 return step + "\n" + before
@@ -351,10 +452,17 @@ class Harness:
         while words and (re.fullmatch(r"e\d+|!|\d+", words[-1]) and len(words) > 1):
             args.insert(0, words.pop())
         want = " ".join(words).lower()
+        opts = []
         for l in state.split("\n"):
             m = re.match(r"^(\d+) (.*)", l)
-            if m and want in m.group(2).lower():
-                return " ".join([m.group(1)] + args)
+            if m:
+                opts.append((m.group(1), m.group(2).lower()))
+        starts = [n for n, t in opts if t.startswith(want)]  # `~card` means the line that starts with `card`, not a potion whose text mentions cards
+        hits = starts if len(starts) == 1 else [n for n, t in opts if want in t]
+        if len(hits) == 1:
+            return " ".join([hits[0]] + args)
+        if len(hits) > 1:
+            return f"ERR `{want}` matches options {', '.join(hits)}: name it more exactly, or use the number in its own call"
         return f"ERR no option matching `{want}`"
 
     def _map_guard(self, state, argline):
@@ -397,11 +505,70 @@ class Harness:
         self.log.event("route", nodes=nodes, hp=hp, text=text)
         return text
 
+    def routes(self, argline):
+        """routes [--attempts N] [--pf P] [--w E=4,M=1]: survival of every route on the act map and the price of each extra elite (agent.routes)."""
+        from agent import pools, routes
+        toks = shlex.split(argline)
+        att = int(toks[toks.index("--attempts") + 1]) if "--attempts" in toks else 24
+        pf = float(toks[toks.index("--pf") + 1]) if "--pf" in toks else 0.15
+        weights = {}
+        if "--w" in toks:
+            weights = {kv.split("=")[0]: float(kv.split("=")[1]) for kv in toks[toks.index("--w") + 1].split(",")}
+        raw = call("deck.json").strip()
+        if raw == "null":
+            return "no run in progress"
+        deck = json.loads(raw)
+        ctx = self._ctx()
+        cur = self._cur_act(ctx)
+        names = pools.act_names(cur)
+        if len(names) > 1 and ctx["bosses"]:
+            names = [n for n in names if any(b in pools.pool(n, "boss") for b in ctx["bosses"])] or names
+        text = routes.analyse(self.eng(), deck, call("m"), call("peek"), ctx, names[0], att, pf, weights=weights, hold="all")
+        self.log.event("routes", text=text)
+        return text
+
+    def rmcalc(self, argline):
+        """rmcalc [--attempts N] [--hp full|current|N]: every removable card priced as a removal (boss smooth, elites, next act), ranked (macro.removal_report)."""
+        toks = shlex.split(argline)
+        att = int(toks[toks.index("--attempts") + 1]) if "--attempts" in toks else 64
+        hp = toks[toks.index("--hp") + 1] if "--hp" in toks else "full"
+        hp = hp if hp in ("full", "current") else int(hp)
+        raw = call("deck.json").strip()
+        if raw == "null":
+            return "no run in progress\n"
+        text, res = macro.removal_report(self.eng(), json.loads(raw), self._horizon(), att, hp, "all")
+        self.log.event("rmcalc", text=text)
+        return text + "\n"
+
+    def pickplan(self, argline):
+        """pickplan [--screens K] [--elites E] [--shops S] [--slots N] [--rho R] [--attempts N]: how picky to be at a card reward given the offers still to come (agent.pickplan)."""
+        from agent import pickplan
+        toks = shlex.split(argline)
+        def opt(name, default, cast):
+            return cast(toks[toks.index(name) + 1]) if name in toks else default
+        raw = call("deck.json").strip()
+        if raw == "null":
+            return "no run in progress\n"
+        deck = json.loads(raw)
+        hz = self._horizon()
+        state = call("peek")
+        offer = None
+        if _kind(state) == "CARD_REWARD":
+            opts, _skip = macro.parse_card_options(state)
+            offer = {n: cid for _, n, cid, _ in opts if cid}
+        text, res = pickplan.analyse(self.eng(), deck, hz, None, opt("--screens", 3, int), opt("--elites", 0, int), opt("--shops", 0, int), opt("--slots", 6, int), opt("--rho", 0.85, float), attempts=opt("--attempts", 32, int), hold="all")
+        if offer:
+            g = res["gains"]
+            tau = res["tau"]
+            text += f"\nthis screen (take iff gain >= tau* = {tau:.3f}): " + "; ".join(f"{n} {g.get(c, float('nan')):+.3f} {'TAKE' if g.get(c, -1) >= tau and g.get(c, -1) > 0 else 'skip'}" for n, c in sorted(offer.items(), key=lambda kv: -g.get(kv[1], -9)))
+        self.log.event("pickplan", text=text)
+        return text + "\n"
+
     def _future_encounters(self):
         """Elite and boss encounters of the current act and every later act (an act with two variants: the one the boss belongs to, when known)."""
         from agent import pools
         ctx = self._ctx()
-        cur = _act_index(call("peek")) or 0
+        cur = self._cur_act(ctx)
         out = []
         for ai in range(cur, 3):
             names = pools.act_names(ai)
@@ -418,7 +585,7 @@ class Harness:
         `elites` = the elites of this act that can still appear, `next` = every elite and boss of the next act (empty in the last act)."""
         from agent import pools
         ctx = self._ctx()
-        cur = _act_index(call("peek")) or 0
+        cur = self._cur_act(ctx)
         names = pools.act_names(cur)
         if len(names) > 1 and ctx["bosses"]:
             names = [n for n in names if any(b in pools.pool(n, "boss") for b in ctx["bosses"])] or names
@@ -427,6 +594,20 @@ class Harness:
         nxt = [e for n in (pools.act_names(cur + 1) if cur < 2 else []) for k in ("elite", "boss") for e in pools.pool(n, k)]
         return dict(boss=boss, elites=elites, next=nxt, ctx=ctx)
 
+    def _cur_act(self, ctx):
+        """0-based act for the pools. The act the map's boss belongs to wins over the state header: `peek` does not wait for the screen to settle and can come back
+        without a header (right after a fight or an act change), which used to fall back to act 0 and price Act 1 bosses in Act 2."""
+        from agent import pools
+        for b in ctx["bosses"]:
+            for name, d in pools.ACTS.items():
+                if b in pools.pool(name, "boss"):
+                    return d["act"]
+        for _ in range(3):
+            act = _act_index(call("peek"))
+            if act is not None:
+                return act
+        return 0
+
     def _ctx(self):
         """What narrows the encounter pools (see `macro.narrow`): the encounters met in the current act, in order (from this run's record, so a daemon restart loses
         nothing), and the act's boss(es) in fight order when the map shows them (`boss: <row> ID [+ ID]`)."""
@@ -434,7 +615,7 @@ class Harness:
         try:
             m = re.search(r"^boss: \d+ (\w+)(?: \+ (\w+))?", call("m"), re.M)
             bosses = [b for b in (m.groups() if m else ()) if b]
-            act = _act_index(call("peek"))
+            act = self._cur_act(dict(bosses=bosses))
             path = os.path.join(self.log.dir, "events.jsonl")
             if act is not None and os.path.exists(path):
                 for line in open(path, encoding="utf-8"):
@@ -463,7 +644,7 @@ class Harness:
         deck = json.loads(raw)
         opts, skip = macro.parse_card_options(state)
         hz = self._horizon()
-        text, res = macro.reward_report(self.eng(), deck, opts, hz, att, hp)
+        text, res = macro.reward_report(self.eng(), deck, opts, hz, att, hp, "all")
         self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in r.items()} for k, r in res.items()}, boss=hz["boss"])
         return text + f"\nskip is option {skip}; pick with `a <i> -- why`\n"
 
@@ -510,12 +691,13 @@ class Harness:
                     v = dict(name=parts[0])
                     for p in parts[1:]:
                         k, val = p.split("=", 1)
-                        v[k] = int(val) if k == "hp" else val.split(",")
+                        v[k] = int(val) if k == "hp" else [x for x in val.split(",") if x]  # `potions=` (empty) = no potions
                     spec["variants"].append(v)
                     i += 1
                 i += 1
         if "encounters" not in spec:
             return "need --enc IDS or --pool Act:kind[:n]"
+        spec.setdefault("hold", "all")  # non-boss fights are priced without potions (a lower bound: I spend one only when it is worth it); the boss with them
         if not spec.pop("all", False):
             spec["_ctx"] = self._ctx()
         raw = call("deck.json").strip()
@@ -531,7 +713,8 @@ class Harness:
         st = dict(self.rp.stats) if self.rp else {}
         bad = {k: v for k, v in st.items() if k.startswith(("diff", "residual", "action failed", "intent unmatched", "start unmatched", "missing"))}
         return (f"run {self.log.run_id}  engine {'loaded' if self.engine else 'not loaded'}  fight {self.fight_id}  actions {self.fight_actions}\n"
-                f"replay: {st.get('end_turn_matched', 0)} enemy turns matched, {st.get('end_turn_unmatched', 0)} unmatched; divergences: {bad or 'none'}")
+                f"replay: {st.get('end_turn_matched', 0)} enemy turns matched, {st.get('end_turn_unmatched', 0)} unmatched; divergences: {bad or 'none'}\n"
+                f"potions held back from the solver: {sorted(self.hold) or 'none'}")
 
     def handle(self, line):
         out = self._handle(line)
@@ -572,6 +755,7 @@ class Harness:
             secs = float(rest) if cmd in ("adv", "turn", "combat", "budget") and rest.replace(".", "", 1).isdigit() else None
             if cmd == "hold":
                 self.hold = set() if rest.strip() in ("", "none") else {x.strip().upper().replace(" ", "_") for x in rest.split(",")}
+                self._save_hold()
                 return f"solver may not use: {sorted(self.hold) or 'nothing held'}\n"
             if cmd == "budget":
                 if secs is not None:
@@ -582,10 +766,14 @@ class Harness:
                 return f"search budget {now} per combat decision\n"
             if cmd == "adv":
                 return self.state() + "advice: " + self.advice(secs) + "\n"
+            ans = rest.strip()
+            ok, skip, go = ans == "ok", ans == "skip", ans == "go"
             if cmd == "turn":
-                return self.play(False, secs)
+                return self.play(False, secs, ok=ok, skip=skip, go=go)
             if cmd == "combat":
-                return self.play(True, secs)
+                return self.play(True, secs, ok=ok, skip=skip, go=go)
+            if cmd == "potions":
+                return self.potions_now()
             if cmd == "a":
                 return self.act(rest)
             if cmd == "eval":
@@ -602,6 +790,12 @@ class Harness:
                 return "\n".join(f"{r['id']}" + (f" counter {r['counter']}" if "counter" in r else "") + (f" {r['props']}" if "props" in r else "") for r in st["relics"]) + "\n"
             if cmd == "route":
                 return self.route(rest)
+            if cmd == "routes":
+                return self.routes(rest)
+            if cmd == "rmcalc":
+                return self.rmcalc(rest)
+            if cmd == "pickplan":
+                return self.pickplan(rest)
             if cmd == "note":
                 self.log.event("note", text=rest)
                 return "noted\n"

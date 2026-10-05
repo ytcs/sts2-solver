@@ -13,6 +13,8 @@ Card names: `ID` or `ID+` (upgraded). Variant keys: add, remove, upgrade, relics
 """
 import copy
 
+import numpy as np
+
 from agent import pools
 
 
@@ -29,13 +31,20 @@ def apply_variant(base, v):
     for c in v.get("remove", []):
         want = _card(c)
         for i, d in enumerate(deck):
-            if d["id"] == want["id"] and (not c.endswith("+") and not isinstance(c, dict) or d.get("upgrade", 0) == want.get("upgrade", 0)):
+            exact = isinstance(c, dict) or c.endswith("+")  # "ID" removes the first copy whatever its upgrade; "ID+" or a dict only that upgrade
+            if d["id"] == want["id"] and (not exact or d.get("upgrade", 0) == want.get("upgrade", 0)):
                 deck.pop(i)
                 break
     for c in v.get("upgrade", []):
         for d in deck:
             if d["id"] == _card(c)["id"] and d.get("upgrade", 0) == 0:
                 d["upgrade"] = 1
+                break
+    for e in v.get("enchant", []):  # ["OFFERING:IMBUED", ...] or [("OFFERING", "IMBUED")]: the first copy of the card without an enchantment gets it (ancient / event enchants)
+        cid, ench = e.split(":") if isinstance(e, str) else e
+        for d in deck:
+            if d["id"] == cid and not d.get("enchantment"):
+                d["enchantment"] = {"id": ench, "amount": 1}
                 break
     deck.extend(_card(c) for c in v.get("add", []))
     for r in v.get("relics_remove", []):
@@ -44,6 +53,7 @@ def apply_variant(base, v):
         s["relics"].append({"id": r} if isinstance(r, str) else r)
     if "potions" in v:
         s["potions"] = [{"id": p, "slot": i} for i, p in enumerate(v["potions"])]
+        s["max_potion_slots"] = max(s.get("max_potion_slots", 2), len(v["potions"]))  # a variant with more potions than slots (Alchemical Coffer) widens the belt
     if "hp" in v:
         s["hp"] = int(v["hp"])
     return s
@@ -104,7 +114,8 @@ def evaluate_smooth(engine, deck_json, spec):
     for vi, v in enumerate(variants):
         wins = [p[1][vi]["win"] for p in parts]
         se = (sum(p[1][vi]["se"] ** 2 for p in parts) ** 0.5) / len(parts)
-        summary[vi] = dict(win=sum(wins) / len(wins), se=se, hp_lost=sum(p[1][vi]["hp_lost"] for p in parts) / len(parts), by_hp=wins)
+        per = {e: sum(p[1][vi]["per"][e] for p in parts) / len(parts) for e in parts[0][1][vi]["per"]}
+        summary[vi] = dict(win=sum(wins) / len(wins), se=se, hp_lost=sum(p[1][vi]["hp_lost"] for p in parts) / len(parts), by_hp=wins, per=per)
         lines.append(f"{v.get('name', vi):24s} smooth {summary[vi]['win']:.3f} ±{se:.3f}  | " + " ".join(f"x{m}:{w:.2f}" for m, w in zip(SMOOTH_MULTS, wins)))
     for vi in range(1, len(variants)):
         d = summary[vi]["win"] - summary[0]["win"]
@@ -124,11 +135,16 @@ def evaluate(engine, deck_json, spec):
         base["hp"] = hp
     encs = resolve_encounters(spec)
     variants = spec["variants"]
+    hold = spec.get("hold", ())
+    drop_all = hold == "all"
+    hold = set() if drop_all else set(hold)
     scen, index = [], []
     for vi, v in enumerate(variants):
         sv = apply_variant(base, v)
         for e in encs:
             sc = dict(sv, name=f"{v.get('name', vi)}@{e}", encounter=e, seed=f"macro{vi}")
+            if (hold or drop_all) and not e.endswith("_BOSS"):  # potions are spent only when worth it and kept for the boss, so every other fight is priced without them (a lower bound)
+                sc["potions"] = [] if drop_all else [p for p in sc.get("potions", []) if p["id"] not in hold]
             scen.append(sc)
             index.append((vi, e))
     res = engine.solve(scen, attempts=spec.get("attempts", 64))
@@ -142,8 +158,10 @@ def evaluate(engine, deck_json, spec):
         win = sum(r["win"] for _, r in rows) / len(rows)
         se = (sum(r["win_se"] ** 2 for _, r in rows) ** 0.5) / len(rows)
         hpl = sum((r["hp_lost"] or 0) for _, r in rows) / len(rows)
-        summary[vi] = dict(win=win, se=se, hp_lost=hpl)
-        lines.append(f"{v.get('name', vi):24s} win {win:.3f} ±{se:.3f}  HP lost {100 * hpl:4.1f}%  | " + " ".join(f"{e.split('_')[0][:8]}:{r['win']:.2f}" for e, r in rows))
+        lost = np.concatenate([base["hp"] - np.array(r["ends"]) for _, r in rows if r.get("ends")]) if any(r.get("ends") for _, r in rows) else np.zeros(1)
+        lq = [float(x) for x in np.percentile(lost, [10, 50, 90, 97.5])]  # the distribution of HP lost (a loss counts as the whole start HP), pooled over the encounters
+        summary[vi] = dict(win=win, se=se, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows})  # per-encounter win: the weakest-fight views need it
+        lines.append(f"{v.get('name', vi):24s} win {win:.3f} ±{se:.3f}  HP lost {100 * hpl:4.1f}% (q10/50/90/97.5: {lq[0]:.0f}/{lq[1]:.0f}/{lq[2]:.0f}/{lq[3]:.0f} HP)  | " + " ".join(f"{e.split('_')[0][:8]}:{r['win']:.2f}" for e, r in rows))
     if len(variants) > 1:
         b = summary[0]
         for vi in range(1, len(variants)):
@@ -231,7 +249,29 @@ def parse_card_options(state):
     return opts, skip
 
 
-def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full"):
+def need_view(res, nvar, names=None):
+    """The weakest-link view of a pick table. `res` = {set name: {variant index: summary with per-encounter wins}}; variant 0 is the baseline (skip / keep).
+    For every variant: the weakest upcoming fight (the lowest win over the boss and the elites still to come) and the need-weighted gain: the mean change in win over all
+    listed fights, each weighted by how unsolved it is for the baseline (1 - baseline win), so a fight the baseline already wins counts ~0 and an unsolved one counts in full.
+    Returns (rows, solved) with rows[vi] = (weakest id, weakest win, need gain) and solved True when every fight is solved by the baseline (the gain is then n/a)."""
+    fights = []
+    for key in ("boss", "elites", "next act"):
+        for e in res.get(key, {}).get(0, {}).get("per", {}):
+            fights.append((key, e))
+    if not fights:
+        return {}, True
+    w = {f: max(0.0, 1.0 - res[f[0]][0]["per"][f[1]]) for f in fights}
+    tot = sum(w.values())
+    rows = {}
+    for vi in range(nvar):
+        cur = [(e, res[k][vi]["per"][e]) for k, e in fights if k in ("boss", "elites")] or [(e, res[k][vi]["per"][e]) for k, e in fights]
+        worst = min(cur, key=lambda t: t[1])
+        gain = sum(w[f] * (res[f[0]][vi]["per"][f[1]] - res[f[0]][0]["per"][f[1]]) for f in fights) / tot if tot > 0.05 else None
+        rows[vi] = (worst[0], worst[1], gain)
+    return rows, tot <= 0.05
+
+
+def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full", hold=()):
     """One table for a card reward: every option (and skip) against the known boss (smooth objective), the elites still to come and the next act's elites and
     bosses (plain win rate / HP lost at `hp`). Prices only the combat side; gold, route and the plan stay my judgment."""
     from agent import card_tags
@@ -240,7 +280,7 @@ def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full"):
     res = {}
     for key, encs, smooth, att in sets:
         if encs:
-            _, res[key] = evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth))
+            _, res[key] = evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth, hold=hold))
     lines = [f"card reward vs boss {','.join(hz['boss']) or '?'} (smooth = win averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of full HP), "
              f"{len(hz['elites'])} elites left, {len(hz['next'])} next-act elite/boss fights; {attempts} attempts"]
     lines.append(f"{'option':22s} {'boss smooth':>16s} {'boss@full':>9s} {'elites win/HP':>14s} {'next act win/HP':>16s}  fills")
@@ -258,6 +298,12 @@ def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full"):
         cid = v.get("add", [None])[0]
         fills = "/".join(tags.get(cid.rstrip("+"), {}).get("buckets", [])) if cid else ""
         lines.append(f"{v['name']:22s} {cells[0]:>16s} {cells[1]:>9s} {cells[2]:>14s} {cells[3]:>16s}  {fills}")
+    nv, solved = need_view(res, len(variants))
+    if nv:
+        lines.append("weakest link (the lowest win over the boss and the elites to come) and need-weighted gain (each fight weighted by 1 - its skip win: a solved fight counts ~0)" + ("; every fight is solved by the baseline, so the gain is n/a" if solved else ""))
+        for vi, v in enumerate(variants):
+            e, wv, g = nv[vi]
+            lines.append(f"  {v['name']:22s} weakest {e.split('_')[0][:14]:14s} {wv:.2f}   need-weighted gain " + (f"{g:+.3f}" if g is not None else "n/a"))
     unmapped = [n for _, n, cid, _ in opts if not cid]
     if unmapped:
         lines.append("not evaluated (no simulator id for the display name): " + ", ".join(unmapped))
@@ -266,6 +312,50 @@ def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full"):
         lines.append("deck buckets " + " ".join(f"{k} {n}" for k, n in line.items()) + "  gaps " + str(card_tags.deficiencies(line)))
     except Exception:  # noqa: BLE001
         pass
+    return "\n".join(lines), res
+
+
+ETERNAL = {"ASCENDERS_BANE", "GREED"}  # cannot be removed
+
+
+def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
+    """One table for a card removal (shop service, event, Peace Pipe ...): every distinct removable card of the deck against the known boss (smooth objective), the
+    elites still to come and the next act's elites and bosses, sorted by the boss smooth score. Prices the combat side only: what the removal costs (shop price rises per
+    use), the card's role in a plan the simulator cannot see (enablers whose partner is not yet in the deck, relic synergies it does model) stay my judgment."""
+    seen, variants = set(), [dict(name="keep all")]
+    for d in deck_json["deck"]:
+        key = (d["id"], d.get("upgrade", 0))
+        if key in seen or d["id"] in ETERNAL:
+            continue
+        seen.add(key)
+        variants.append(dict(name="-" + d["id"] + ("+" if key[1] else ""), remove=[dict(id=key[0], upgrade=key[1])]))
+    n = sum(1 for d in deck_json["deck"] if d["id"] not in ETERNAL)
+    sets = [("boss", hz["boss"], True, attempts), ("elites", hz["elites"], False, max(32, attempts * 2 // 3)), ("next act", hz["next"], False, max(32, attempts * 2 // 3))]
+    res = {}
+    for key, encs, smooth, att in sets:
+        if encs:
+            _, res[key] = evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth, hold=hold))
+    base = res.get("boss", {}).get(0)
+    rows = []
+    for vi, v in enumerate(variants):
+        b = res.get("boss", {}).get(vi)
+        e = res.get("elites", {}).get(vi)
+        x = res.get("next act", {}).get(vi)
+        rows.append((vi, v["name"], b, e, x))
+    # the boss smooth score first (a 0.02 band is a tie), then the next act's win rate, then the HP the elites cost: a saturated boss must not leave the order arbitrary
+    order = [rows[0]] + sorted(rows[1:], key=lambda r: (-round((r[2]["win"] if r[2] else 0) / 0.02), -(r[4]["win"] if r[4] else 0), (r[3]["hp_lost"] if r[3] else 1)))
+    lines = [f"card removal vs boss {','.join(hz['boss']) or '?'} (smooth), {len(hz['elites'])} elites left, {len(hz['next'])} next-act fights; deck {n} removable cards; {attempts} attempts"]
+    lines.append(f"{'remove':24s} {'boss smooth':>16s} {'boss@full':>9s} {'elites win/HP':>14s} {'next act win/HP':>16s}")
+    for vi, name, b, e, x in order:
+        c0 = (f"{b['win']:.3f}" + (f" ({b['win'] - base['win']:+.3f})" if vi and base else "")) if b else "-"
+        c1 = f"{b['by_hp'][0]:.2f}" if b else "-"
+        c2 = f"{e['win']:.2f}/{100 * e['hp_lost']:.0f}%" if e else "-"
+        c3 = f"{x['win']:.2f}/{100 * x['hp_lost']:.0f}%" if x else "-"
+        lines.append(f"{name:24s} {c0:>16s} {c1:>9s} {c2:>14s} {c3:>16s}")
+    if base:
+        se = base["se"]
+        top = [r for r in order[1:] if r[2] and r[2]["win"] >= order[1][2]["win"] - 2 * se]
+        lines.append(f"sorted by boss smooth (0.02 ties), then next-act win, then elite HP; best: {order[1][1]} ({order[1][2]['win'] - base['win']:+.3f}); boss within 2 se of it: {', '.join(r[1] for r in top)}")
     return "\n".join(lines), res
 
 

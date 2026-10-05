@@ -52,6 +52,12 @@ fn obs_powers(v: &Value) -> Option<Vec<(u16, i32)>> {
     Some(a.iter().filter_map(|p| power_ids(p["id"].as_str()?).map(|id| (id, p["amount"].as_i64().unwrap_or(0) as i32))).collect())
 }
 
+/// The observed `amount_on_turn_start` of a creature's powers as (id, value); the game exports the field only when it differs from `amount`, so it defaults to it.
+fn obs_powers_turn_start(v: &Value) -> Option<Vec<(u16, i32)>> {
+    let a = v["powers"].as_array()?;
+    Some(a.iter().filter_map(|p| power_ids(p["id"].as_str()?).map(|id| (id, p["amount_on_turn_start"].as_i64().or_else(|| p["amount"].as_i64()).unwrap_or(0) as i32))).collect())
+}
+
 fn card_ids(name: &str) -> Option<u16> {
     sts2sim::ids::card::NAMES.iter().position(|n| *n == name).map(|i| i as u16)
 }
@@ -363,6 +369,9 @@ impl Sim {
         let mut powers_changed = 0u32;
         if let Some(ob) = obs_powers(p) {
             powers_changed += self.cx.sync_powers(PLAYER, &ob) as u32;
+            if let Some(ts) = obs_powers_turn_start(p) {
+                self.cx.sync_turn_start(PLAYER, &ts);
+            }
         }
         if let Some(es) = real["enemies"].as_array() {
             let ids: Vec<Cid> = self.cx.enemies.iter().copied().collect();
@@ -373,6 +382,9 @@ impl Sim {
                 self.cx.sync_creature(cid, e["hp"].as_i64().unwrap_or(0) as i32, e["max_hp"].as_i64().unwrap_or(1) as i32, e["block"].as_i64().unwrap_or(0) as i32);
                 if let Some(ob) = obs_powers(e) {
                     powers_changed += self.cx.sync_powers(cid, &ob) as u32;
+                    if let Some(ts) = obs_powers_turn_start(e) {
+                        self.cx.sync_turn_start(cid, &ts);
+                    }
                 }
             }
         }

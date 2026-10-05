@@ -33,3 +33,13 @@ The Neow / ancient option changes which path is best: decide the pair. A wrong p
 - A shop is worth the floor only if gold covers something `eval` or removal value justifies; else take the unknown or the fight that rewards a card.
 - Against a damage-gated boss pool an elite's relic + card is cheap HP.
 - Neow / ancient: take the option that moves the boss-pool win rate or the route's reward budget most; a large gold sum is only as good as the shops on the route; a curse is one slot (`add=CURSE_ID`).
+
+## Forced lanes `[hyp]`
+- A chain of single-child nodes is a commitment. Before the click that enters it, price the elite that ends it at the HP you will arrive with, after the HP the chain and any HP-costing event take: `python -m agent routes` (survival over the whole map, per option and per elite requirement) or `route` over the chain. An elite below ~60% win at the expected arrival HP means another lane, or skipping the HP-costing event.
+- An event that costs HP is priced in the HP the next elite sees, not only in what it gives.
+
+## Risk budget `[hyp]`
+- Rule: survival of the act boss is a constraint, not the goal. While `python -m agent routes` shows the route with the extra elites at >= ~0.9 boss win, take the elites (relic + rare odds + gold); once the act boss is saturated (`eval --boss --smooth` >= 0.95) the next-act pool is what is short, and surplus HP is the currency that buys it.
+- Guard: never plan two elites with no rest between them, whatever the boss-win column says: `routes` prints each elite's arrival HP (alive, mean, q10) under every representative route; the second elite's mean below ~50% of max HP means a rest is missing. The boss-win column hides variance (one elite fight lost 30 HP against a 17 HP prediction, the 98th percentile of simulator replays).
+- Test: `reward` / `eval --next --smooth` next-act column after each elite relic and rare vs the boss-win points the route gave up; an elite that cost 0.05-0.10 of a saturated boss win must have bought more than that in the next-act pool.
+- Status: unmeasured; `routes` prices only the survival side (rewards are counts).

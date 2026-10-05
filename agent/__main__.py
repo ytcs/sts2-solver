@@ -4,6 +4,7 @@ The daemon keeps the networks and the aligned simulator in memory, so each comma
 Commands: see `agent/harness.py`.
 """
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -102,12 +103,20 @@ def batch(lines, keep_going=False):
     The text is literal, so `-- why` needs no shell quoting; read-only commands (`s`, `eval`, `brief` ...) can share one call with the decision that follows them."""
     if not up():
         start_daemon()
+    acted = False  # an action ran in this batch: a later bare option number could hit a shifted list
     for raw in lines:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
+        if acted and re.match(r"^a \d+(\s|$)", line):
+            print(">>> " + line)
+            print("REFUSED: a numbered option after an earlier action in the same batch: the screen has changed and the number may now be another option. Use `a ~text`, or send it in its own call after reading the screen.")
+            print(">>> batch stopped here")
+            return
         print(">>> " + line)
         out = ask(line)
+        if line.split()[0] not in READ_ONLY and not out.startswith(("ERR", "REFUSED")):
+            acted = True
         print(out, end="" if out.endswith(chr(10)) else chr(10))
         if not keep_going and (out.startswith(("ERR", "REFUSED")) or "[chain stopped" in out):
             print(">>> batch stopped here")

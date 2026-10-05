@@ -43,3 +43,4 @@
 {"kind": "fidelity", "run": "20261004-224215", "what": "diff .enemies[0].max_hp", "count": 3}
 {"kind": "fidelity", "run": "20261004-224215", "what": "diff .enemies[3].hp", "count": 1}
 {"kind": "fidelity", "run": "20261004-224215", "what": "diff .enemies[3].max_hp", "count": 1}
+{"kind": "fidelity", "run": "20261005-130851", "what": "diff .enemies[0].hp", "count": 1}

@@ -250,6 +250,22 @@ impl Combat {
         changed
     }
 
+    /// Puts the powers' `amount_on_turn_start` (the stack the creature had when its turn started, which the game exports) on the observed values, for the powers both
+    /// sides have. `sync_powers` copies only (id, amount): a power the real creature got from a random effect the simulator resolved differently (Stampede picking Bash
+    /// where the simulator played Strike) is created here with 0, which the diff then reported as a divergence and voided the advice.
+    pub fn sync_turn_start(&mut self, cid: Cid, obs: &[(u16, i32)]) {
+        let mut left: Vec<Option<(u16, i32)>> = obs.iter().map(|&o| Some(o)).collect();
+        let ids: Vec<(u16, u16)> = self.cr(cid).powers.iter().map(|p| (p.uid, p.id)).collect();
+        for (uid, id) in ids {
+            if let Some(k) = left.iter().position(|o| matches!(o, Some((oid, _)) if *oid == id)) {
+                let (_, v) = left[k].take().unwrap();
+                if let Some(i) = self.power_idx(cid, uid) {
+                    self.cr_mut(cid).powers[i].amount_on_turn_start = v;
+                }
+            }
+        }
+    }
+
     /// Sets a creature's visible numbers (HP, max HP, block). `cid` is the creature id (0 = player).
     pub fn sync_creature(&mut self, cid: Cid, hp: i32, max_hp: i32, block: i32) {
         let c = self.cr_mut(cid);
