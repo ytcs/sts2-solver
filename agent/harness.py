@@ -164,6 +164,7 @@ class Harness:
         self.last_enc = sc.get("encounter")
         self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
         self.drive = self._drive_mode(sc.get("encounter", ""), pred, sc["hp"])
+        self.fight_util, self.fight_util_why = self._fight_util(sc)
         # potions are for fights the solver may lose or that cost a lot: a comfortable fight keeps them (a clear win leaves the strongest potion for the elite or boss)
         def comfortable(p):
             return "win" in p and p["win"] - p["win_se"] >= 0.95 and p["hp_lost"] * sc["max_hp"] <= 0.4 * sc["hp"]
@@ -180,7 +181,7 @@ class Harness:
                 self.keep_potions = False
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], deck=len(sc["deck"]), relics=[r["id"] for r in sc["relics"]],
                        potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol, keep_potions=sorted(self._kp()) if self._kp() is not True else True,
-                       drive=self.drive)
+                       drive=self.drive, util=self.fight_util, util_why=self.fight_util_why)
 
     MANUAL_WIN = 0.90  # a fight predicted below this win rate is driven by hand
     MANUAL_Q90 = 0.40  # ... and so is one whose 90th-percentile predicted loss is this share of my HP or more
@@ -209,7 +210,7 @@ class Harness:
         if not d:
             return ""
         how = "play each decision with `adv` then `a <i>` (`combat !` / `turn !` to auto-play anyway, with the reason)" if d[0] == "manual" else "`combat` is fine"
-        return f"DRIVE: {d[0].upper()} ({d[1]}): {how}\n"
+        return f"DRIVE: {d[0].upper()} ({d[1]}): {how}\nSEARCH OBJECTIVE: {getattr(self, 'fight_util_why', 'linear')}\n"
 
     @staticmethod
     def _auto_budget(pred, hp, max_hp):
@@ -317,9 +318,36 @@ class Harness:
             return bad
         if self.rp.sim.stage() == "choice" and _kind(call("peek")) == "COMBAT":
             self.rp.resolve_phantom_choice(f["state"], "phantom choice on a COMBAT screen")
-        d = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol, keep_potions=self._kp())
+        d = self._decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol, keep_potions=self._kp())
         self.log.event("advice", fight=self.fight_id, text=d["text"], options=[dict(text=o["text"], q=o["q"]) for o in d["options"][:6]], drive=getattr(self, "drive", None))  # manual fights: my choice (the next `macro` event) vs this
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook()
+
+    def _decide(self, scenario, sim, budget, **kw):
+        """Every live search goes through here: it scores lines by what the ending HP is worth for the rest of the act (`fight_util`, from the route DP at
+        fight start) when the end-HP distribution head is available, else by the linear return."""
+        return self.eng().decide(scenario, sim, budget, util=getattr(self, "fight_util", None), **kw)
+
+    def _fight_util(self, sc):
+        """(util or None, why): the 21-entry utility of this fight's endings (`agent.routes.continuation_util`); linear for a boss (no route after it) and
+        without the head (`models/dist_b128.pt`)."""
+        if getattr(self.eng(), "dist_head", None) is None:
+            return None, "linear (no end-HP distribution head)"
+        if str(sc.get("encounter", "")).endswith("_BOSS"):
+            return None, "linear (a boss: no route after it)"
+        try:
+            from agent import pools, routes
+            raw = call("deck.json").strip()
+            if raw == "null":
+                return None, "linear (no run)"
+            deck = json.loads(raw)
+            ctx = self._ctx()
+            cur = self._cur_act(ctx)
+            names = pools.act_names(cur)
+            if len(names) > 1 and ctx["bosses"]:
+                names = [n for n in names if any(b in pools.pool(n, "boss") for b in ctx["bosses"])] or names
+            return routes.continuation_util(self.eng(), deck, call("m"), ctx, names[0])
+        except Exception as e:  # noqa: BLE001  never let bookkeeping break a fight
+            return None, f"linear ({str(e)[:60]})"
 
     def _kp(self):
         """keep_potions for the live search: the potions I held by hand are off the table, and after `combat go` (I declined potions for this fight) all of them, so the search
@@ -346,7 +374,7 @@ class Harness:
             return None, dict(d, action=alt["action"], json=self.rp.sim.action_json(alt["action"]), text=alt["text"])
         q_with = max((o["q"] for o in d["options"] if o["q"] is not None), default=None)
         q_wait = max((o["q"] for o in others), default=None)
-        base = self.eng().decide(self.rp.scenario, self.rp.sim, min(self._budget(), 6.0), tol_hp=self.fight_tol, keep_potions=True)
+        base = self._decide(self.rp.scenario, self.rp.sim, min(self._budget(), 6.0), tol_hp=self.fight_tol, keep_potions=True)
         q_none = max((o["q"] for o in base["options"] if o["q"] is not None), default=None)
         lines = [f"POTION (your call): the solver wants `{d['text']}` ({self._potion_name(d['text'])}) now."]
         if q_with is not None and q_none is not None:
@@ -375,8 +403,8 @@ class Harness:
         f = self.sync()
         if f is None:
             return "not in combat\n"
-        base = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(), tol_hp=self.fight_tol, keep_potions=True)
-        free = self.eng().decide(self.rp.scenario, self.rp.sim, self._budget(), tol_hp=self.fight_tol, keep_potions=self._kp())
+        base = self._decide(self.rp.scenario, self.rp.sim, self._budget(), tol_hp=self.fight_tol, keep_potions=True)
+        free = self._decide(self.rp.scenario, self.rp.sim, self._budget(), tol_hp=self.fight_tol, keep_potions=self._kp())
         qb = max((o["q"] for o in base["options"] if o["q"] is not None), default=None)
         qf = max((o["q"] for o in free["options"] if o["q"] is not None), default=None)
         out = [f"belt: {', '.join(self._belt()) or 'none'}",
@@ -391,7 +419,7 @@ class Harness:
             return call("a 0")
         s2, picks = sim.copy(), []
         for _ in range(40):
-            d = self.eng().decide(self.rp.scenario, s2, min(self._budget(), 0.3))
+            d = self._decide(self.rp.scenario, s2, min(self._budget(), 0.3))
             aj = json.loads(d["json"])
             if "pick" in aj:
                 picks.append(s2.pick_game_index(aj["pick"]))
@@ -443,7 +471,7 @@ class Harness:
                 if self.rp.sim.stage() == "choice":  # no selection on the screen, one in the simulator: settle it and re-sync (else it sends `pick` forever)
                     self.rp.resolve_phantom_choice(f["state"], "phantom choice on a COMBAT screen")
                 t0 = T()
-                d = self.eng().decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol, keep_potions=self._kp())
+                d = self._decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol, keep_potions=self._kp())
                 tm["decide"] += T() - t0
                 gate, d = self._potion_gate(d, out)
                 if gate:
