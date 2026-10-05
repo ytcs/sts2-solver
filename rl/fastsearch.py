@@ -115,7 +115,7 @@ class GraphFn:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -135,6 +135,11 @@ class FastSearch:
         self.carry = carry  # follow the line of the chosen option: its estimate is reused at the next decision instead of searching it again
         self.lead = lead  # share the in-turn play of an option between its futures until hidden information is needed
         self.record = record  # keep the moves of every fight (`moves`, `replay`): play-by-play traces
+        # end-HP distribution head on `net`'s trunk (`rl/dist.py`); with a utility set (`set_util`), a play-out is scored E[U(end HP)] (value rows) and U at a
+        # finished fight (the Rust terminal), instead of the mean linear return
+        self.dist_head = dist_head
+        self.util = None
+        self._util_t = torch.zeros(21, device=DEV)
         self._runs = []
         self.amp = amp  # bf16 autocast inside the graphs (the networks are compute-bound there)
         self.value_amp = amp if value_amp is None else value_amp
@@ -144,6 +149,18 @@ class FastSearch:
         self._graphs = {}
         self._pool = torch.cuda.graph_pool_handle() if self.cuda and use_graphs else None
         self.use_graphs = self.cuda and use_graphs
+
+    def set_util(self, util):
+        """`util`: 21 floats (loss, then wins with the HP fraction in 20 equal bins) or None for the linear return. Needs `dist_head` for value rows."""
+        if util is None:
+            self.util = None
+            return
+        if self.dist_head is None:
+            raise ValueError("set_util needs a dist_head (rl/dist.py)")
+        u = np.asarray(util, np.float32)
+        assert u.shape == (21,), u.shape
+        self.util = u
+        self._util_t.copy_(torch.from_numpy(u).to(DEV))  # in place: captured graphs read this buffer
 
     # ---- network side ----
     def _run(self, fn, obs_np, obs_t, mask_t=None):
@@ -205,6 +222,8 @@ class FastSearch:
         return self._graphs[key]
 
     def _val_graph(self, has_dec):
+        if self.util is not None:
+            return self._util_graph(has_dec)
         key = ("val", has_dec)
         if key not in self._graphs:
             nets, E = [self.net] + list(self.value_nets), self.graph_E
@@ -219,6 +238,20 @@ class FastSearch:
                     v = ens(o)
                 return (v / len(nets)).unsqueeze(1)
             self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None)
+        return self._graphs[key]
+
+    def _util_graph(self, has_dec):
+        key = ("util", has_dec)
+        if key not in self._graphs:
+            net, head, E, ut = self.net, self.dist_head, self.graph_E, self._util_t
+            amp = self.value_amp
+
+            def fn(o, m):
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
+                    g = net.trunk(o, E=E, L=64, has_dec=has_dec)
+                lg = head(g.float())
+                return (torch.softmax(lg, 1) * ut).sum(1, keepdim=True)
+            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"util dec={has_dec}", None)
         return self._graphs[key]
 
     @torch.no_grad()
@@ -294,6 +327,9 @@ class FastSearch:
         if n_val:
             vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
             def val(o, m, **shape):
+                if self.util is not None:
+                    lg = self.dist_head(self.net.trunk(o, **shape).float())
+                    return (torch.softmax(lg, 1) * self._util_t).sum(1)
                 v = self.net(o, None, policy=False, **shape)[1]
                 for n2 in self.value_nets:
                     v = v + n2(o, None, policy=False, **shape)[1]
@@ -321,7 +357,8 @@ class FastSearch:
             if len(idx) == 0:
                 continue
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, 0.0, 0.0,
-                                     self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.carry, self.strat, starts)
+                                     self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.carry, self.strat, starts,
+                                     None if self.util is None else [float(x) for x in self.util])
             pc, vc = eng.max_rows()
             pin = self.cuda
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)

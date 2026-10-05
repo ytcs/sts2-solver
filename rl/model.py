@@ -232,7 +232,12 @@ class Net(nn.Module):
         return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
                     cand_p=cand_p, cid=cid, rows=rows, cand_sel=cands[..., C["CARD_F"]] > 0.5)
 
-    def forward(self, obs, mask, policy=True, value=True, **shape):
+    def trunk(self, obs, **shape):
+        """The pooled context the value head reads (`gctx` [B, 2d]): encoders + message passing. Heads trained on a frozen network
+        (`rl/dist.py`, the end-HP distribution) use it."""
+        return self.forward(obs, None, policy=False, value=False, _gctx=True, **shape)
+
+    def forward(self, obs, mask, policy=True, value=True, _gctx=False, **shape):
         """Returns (masked logits [B, ACTION_SPACE], value [B]); `policy=False` / `value=False` skips that head (None) and its cost.
         `shape`: E / L / has_dec of `encode`."""
         B = obs.shape[0]
@@ -258,6 +263,8 @@ class Net(nn.Module):
             if len(rows):
                 cand = cand + u["cand"](cand, ctx[rows])
         gctx = torch.cat([player, ctx], 1)
+        if _gctx:
+            return gctx
         if not policy:
             return None, self.value(gctx).squeeze(-1)
         # targets: V[b, creature id] = v_tgt(enemy token); slot MAX_CREATURES = "no target"
