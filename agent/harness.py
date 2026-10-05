@@ -361,6 +361,24 @@ class Harness:
         self.log.event("route", nodes=nodes, hp=hp, text=text)
         return text
 
+    def _future_encounters(self):
+        """Elite and boss encounters of the current act and every later act (an act with two variants: the one the boss belongs to, when known)."""
+        from agent import pools
+        ctx = self._ctx()
+        raw = call("peek")
+        h = re.search(r"A(\d+) F\d+", raw) or re.search(r"A(\d+) F\d+", call("s"))
+        cur = int(h.group(1)) - 1 if h else 0
+        out = []
+        for ai in range(cur, 3):
+            names = pools.act_names(ai)
+            if ai == cur and len(names) > 1 and ctx["bosses"]:
+                names = [n for n in names if any(b in pools.pool(n, "boss") for b in ctx["bosses"])] or names
+            for n in names:
+                for kind in ("elite", "boss"):
+                    ids = macro.narrow(pools.pool(n, kind), kind, ctx)
+                    out += ids
+        return out
+
     def _ctx(self):
         """What narrows the encounter pools (see `macro.narrow`): the encounters met in the current act, in order (from this run's record, so a daemon restart loses
         nothing), and the act's boss(es) in fight order when the map shows them (`boss: <row> ID [+ ID]`)."""
@@ -402,6 +420,8 @@ class Harness:
                     i += 1
                 elif t == "--all":  # do not narrow the pool to the fights that can still appear
                     spec["all"] = True
+                elif t == "--future":  # eval: the boss and elite pools of this act and every later act (horizon check)
+                    spec["encounters"] = self._future_encounters()
                 elif t == "--attempts":
                     spec["attempts"] = int(toks[i + 1])
                     i += 1
