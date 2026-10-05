@@ -60,7 +60,14 @@ def make_sequence(rng, screens, pool):
 
 
 def scenario(deck, target, hp=80):  # hp is overridden by Scorer.hp
-    d = [dict(id=c, upgrade=0) for c, k in STARTER for _ in range(k)] + [dict(id=c, upgrade=0) for c in deck]
+    # deck entries: "ID" (added card), "ID+" (added, upgraded), "@ID" (one starter copy of ID upgraded)
+    starter = [dict(id=c, upgrade=0) for c, k in STARTER for _ in range(k)]
+    for c in (x for x in deck if x.startswith("@")):
+        for d in starter:
+            if d["id"] == c[1:] and not d["upgrade"]:
+                d["upgrade"] = 1
+                break
+    d = starter + [dict(id=c.rstrip("+"), upgrade=1 if c.endswith("+") else 0) for c in deck if not c.startswith("@")]
     return dict(name="bench", ascension=10, encounter=target, character="IRONCLAD", hp=hp, max_hp=hp, max_energy=3, gold=0, max_potion_slots=2, base_orb_slots=0,
                 seed="bench", total_floor=1, act=0, deck=d, relics=[dict(id="BURNING_BLOOD")], potions=[])
 
@@ -94,7 +101,22 @@ class Scorer:
         return [float(np.mean([p[i][0] for p in per])) for i in range(len(decks))]
 
 
-def run_policy(name, seq, sc, tau, beam, rng):
+def upgrade_options(deck):
+    """Decks after upgrading one card: each distinct added card not upgraded yet, and each starter card type (one copy)."""
+    out = []
+    for c in dict.fromkeys(x for x in deck if not x.startswith("@") and not x.endswith("+")):
+        d = list(deck)
+        d[d.index(c)] = c + "+"
+        out.append(d)
+    ups = [x for x in deck if x.startswith("@")]
+    for sid, k in STARTER:
+        if sid == "ASCENDERS_BANE" or ups.count("@" + sid) >= k:
+            continue
+        out.append(list(deck) + ["@" + sid])
+    return out
+
+
+def run_policy(name, seq, sc, tau, beam, rng, upgrade_every=0):
     deck = []
     if name == "skip":
         return deck
@@ -117,12 +139,17 @@ def run_policy(name, seq, sc, tau, beam, rng):
         return deck
     if name in ("greedy_h", "greedy_pick"):
         # greedy_h: pick the option with the best smooth objective (never skips unless every option is worse than the current deck)
-        for offer in seq:
+        for si, offer in enumerate(seq):
             cands = [deck] + [deck + [c] for c in offer]
             v = sc.smooth(cands)
             best = max(range(1, 4), key=lambda i: v[i])
             if v[best] >= v[0] - (0.0 if name == "greedy_h" else 1e9):
                 deck = deck + [offer[best - 1]]
+            if upgrade_every and (si + 1) % upgrade_every == 0:  # a rest site: upgrade the card that helps most (or none)
+                ups = [deck] + upgrade_options(deck)
+                vu = sc.smooth(ups)
+                bu = max(range(len(ups)), key=lambda i: vu[i])
+                deck = ups[bu]
         return deck
     if name == "hindsight_h":
         beams = [([], 0.0)]
@@ -162,6 +189,7 @@ def main():
     ap.add_argument("--tau", type=float, default=0.0, help="greedy: pick only if the gain exceeds tau standard errors")
     ap.add_argument("--beam", type=int, default=6)
     ap.add_argument("--hp", type=int, default=80, help="start HP of the target fight (lower = harder)")
+    ap.add_argument("--upgrade-every", type=int, default=0, help="greedy_h / greedy_pick: after every K screens, upgrade the card (or starter card type) that helps most")
     ap.add_argument("--mults", default="1,1.5,2,3", help="start-HP multiples of the smooth objective (hard fights need larger ones: Aeonglass 1,2,3,4,6)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", default="")
@@ -180,7 +208,7 @@ def main():
         final = Scorer(eng, a.target, a.final_attempts, a.hp, mults)
         row = dict(sequence=seq, policies={})
         for p in policies:
-            deck = run_policy(p, seq, sc, a.tau, a.beam, random.Random(a.seed * 1000 + s))
+            deck = run_policy(p, seq, sc, a.tau, a.beam, random.Random(a.seed * 1000 + s), a.upgrade_every)
             w, se, hl = final.many([deck])[0]
             bh = final.by_hp([deck])[0]
             row["policies"][p] = dict(deck=deck, win=w, win_se=se, hp_lost=hl, picks=len(deck), evals=sc.calls, by_hp=bh, smooth=float(np.mean(bh)))

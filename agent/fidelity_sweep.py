@@ -111,6 +111,14 @@ def cases(mode, chars, rng, limit):
             cm = [f"x card {c} Deck" for c in rng.sample(ids, rng.randint(14, 22))] + [f"x relic add {r}" for r in rng.sample(rel, rng.randint(3, 8))]
             cm += [f"x potion {p}" for p in rng.sample(pots, rng.randint(0, 2))]
             out.append(dict(label=f"fuzz:{i}:{ch}", character=ch, cmds=cm, enc=rng.choice(allenc)))
+    elif mode == "aeonglass":
+        # exhaust packages against Aeonglass (Wither: unplayable, hurts at turn end in hand, +3 per Increasing Intensity; a new one every 6 cards played)
+        tags = json.load(open(os.path.join(ROOT, "data", "card_buckets_ironclad.json"), encoding="utf-8"))
+        ex = [c for c, v in tags.items() if v.get("exhaust") and c not in ("PRIMAL_FORCE",)]
+        core = ["SECOND_WIND", "SECOND_WIND", "TRUE_GRIT", "TRUE_GRIT", "BURNING_PACT", "BURNING_PACT", "FIEND_FIRE", "FEEL_NO_PAIN", "DARK_EMBRACE", "CORRUPTION", "HAVOC", "SHRUG_IT_OFF"]
+        decks = [core] + [rng.sample(ex, min(len(ex), 12)) + rng.sample(["FEEL_NO_PAIN", "DARK_EMBRACE", "CORRUPTION", "BURNING_PACT", "SECOND_WIND", "TRUE_GRIT", "FIEND_FIRE"], 3) for _ in range(5)]
+        for i, d in enumerate(decks):
+            out.append(dict(label=f"aeon:{i}", character="ironclad", cmds=[f"x card {c} Deck" for c in d], enc="AEONGLASS_BOSS"))
     elif mode == "recorded":
         best = {}
         for f in sorted(glob.glob(os.path.join(ROOT, "runs", "*", "events.jsonl"))):

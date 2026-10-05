@@ -1,0 +1,22 @@
+GA (offline): 108s, 1195 evals; best complete deck smooth 0.618 by HP [0.0, 0.18, 0.91, 1.0, 1.0]; top cards [('INFERNO', 32.0), ('RUPTURE', 24.400000000000002), ('SPITE', 22.0), ('STONE_ARMOR', 19.7), ('TWIN_STRIKE', 18.900000000000002), ('CRIMSON_MANTLE', 18.0), ('UPPERCUT', 18.0), ('FIGHT_ME', 18.0)]
+sequence 1/6: skip 0.00 (0s)  greedy 0.00 (6s)  greedy_pick 0.02 (101s)  greedy_h 0.02 (101s)  mock_h 0.02 (223s)  rollout_tag:4 0.11 (204s)  rollout_rand:4 0.10 (181s)  rollout_tag:8 0.00 (338s)  elite_freq 0.00 (0s)  hindsight_h 0.00 (106s)
+sequence 2/6: skip 0.00 (0s)  greedy 0.00 (6s)  greedy_pick 0.00 (74s)  greedy_h 0.00 (74s)  mock_h 0.00 (1019s)  rollout_tag:4 0.01 (154s)  rollout_rand:4 0.00 (139s)  rollout_tag:8 0.00 (262s)  elite_freq 0.00 (0s)  hindsight_h 0.00 (92s)
+sequence 3/6: skip 0.00 (0s)  greedy 0.00 (6s)  greedy_pick 0.00 (67s)  greedy_h 0.00 (67s)  mock_h 0.00 (162s)  rollout_tag:4 0.00 (142s)  rollout_rand:4 0.00 (173s)  rollout_tag:8 0.01 (246s)  elite_freq 0.00 (0s)  hindsight_h 0.00 (98s)
+sequence 4/6: skip 0.00 (0s)  greedy 0.00 (7s)  greedy_pick 0.52 (85s)  greedy_h 0.54 (85s)  mock_h 0.58 (177s)  rollout_tag:4 0.57 (140s)  rollout_rand:4 0.48 (137s)  rollout_tag:8 0.60 (229s)  elite_freq 0.39 (0s)  hindsight_h 0.28 (98s)
+sequence 5/6: skip 0.00 (0s)  greedy 0.00 (6s)  greedy_pick 0.23 (80s)  greedy_h 0.21 (78s)  mock_h 0.21 (185s)  rollout_tag:4 0.20 (159s)  rollout_rand:4 0.33 (162s)  rollout_tag:8 0.30 (277s)  elite_freq 0.08 (0s)  hindsight_h 0.00 (96s)
+sequence 6/6: skip 0.00 (0s)  greedy 0.00 (6s)  greedy_pick 0.36 (69s)  greedy_h 0.32 (69s)  mock_h 0.53 (147s)  rollout_tag:4 0.53 (148s)  rollout_rand:4 0.55 (155s)  rollout_tag:8 0.56 (243s)  elite_freq 0.54 (0s)  hindsight_h 0.30 (98s)
+
+6 paired sequences; smooth = win averaged over start HP x1.0/2.0/3.0/4.0/6.0
+approach          smooth    se      vs greedy_h    x1    x2    x3    x4    x6 picks   evals  kfights    secs
+skip               0.000 0.000  -0.183 +- 0.090  0.00  0.00  0.00  0.00  0.00   0.0       0      0.0       0
+greedy             0.000 0.000  -0.183 +- 0.090  0.00  0.00  0.00  0.00  0.00   0.0      36      2.3       6
+greedy_pick        0.188 0.089  +0.005 +- 0.008  0.00  0.01  0.15  0.29  0.49  20.0     305     19.5      79
+greedy_h           0.183 0.090                   0.00  0.01  0.14  0.29  0.48  18.5     303     19.4      79
+mock_h             0.222 0.109  +0.039 +- 0.034  0.00  0.02  0.25  0.35  0.49  14.0     558     35.7     319
+rollout_tag:4      0.235 0.104  +0.052 +- 0.035  0.00  0.01  0.25  0.34  0.57  17.3    1535     49.1     158
+rollout_rand:4     0.243 0.099  +0.059 +- 0.042  0.00  0.01  0.22  0.40  0.58  16.2    1537     49.2     158
+rollout_tag:8      0.246 0.116  +0.062 +- 0.039  0.00  0.03  0.30  0.40  0.51  16.5    3048     97.5     266
+elite_freq         0.168 0.097  -0.015 +- 0.054  0.00  0.01  0.16  0.28  0.40  20.0       0      0.0       0
+hindsight_h        0.098 0.062  -0.085 +- 0.048  0.00  0.00  0.03  0.14  0.32   2.3     722     46.2      98
+ga_ceiling         0.618              (offline)  0.00  0.18  0.91  1.00  1.00          1195     38.2     108
+   (elite_freq pays the GA once per target; the ceiling is a complete deck of any cards, not reachable from the offers)

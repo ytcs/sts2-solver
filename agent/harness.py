@@ -96,6 +96,7 @@ class Harness:
             self.fight_actions = 0
             self._fight_start(f)
         self.rp.advance(f)
+        self._last_f = f
         return f
 
     def _fight_start(self, f):
@@ -146,8 +147,28 @@ class Harness:
             return
         self._ended.add(self.fight_id)
         hp = _hp(text) if text else None
+        self._save_costly_fight(hp)
         self.log.event("fight_end", id=self.fight_id, hp=hp, screen=_kind(text) if text else None, hp_start=self.fight_hp0, actions=self.fight_actions, replay=dict(self.rp.stats),
                        errors=self.rp.errors[:3], diff_examples={k: v for k, v in self.rp.examples.items() if not k.startswith("random")})
+
+    COSTLY = 0.30  # a fight that loses this share of max HP (or is lost) is kept whole for the hindsight review (`python -m agent.hindsight`)
+
+    def _save_costly_fight(self, hp):
+        """Keep the full export (scenario, action log, observed state after every action) of a costly fight: `runs/<run>/fights/<id>_<encounter>.json`. The log may
+        end one action before the last (the final sync happens before the killing blow)."""
+        f = getattr(self, "_last_f", None)
+        if not hp or f is None or f.get("id") != self.fight_id or not self.fight_hp0:
+            return
+        lost = self.fight_hp0[0] - hp[0]
+        if lost < self.COSTLY * self.fight_hp0[1] and hp[0] > 0:
+            return
+        try:
+            d = os.path.join(self.log.dir, "fights")
+            os.makedirs(d, exist_ok=True)
+            enc = self.rp.scenario.get("encounter", "?") if self.rp is not None else "?"
+            json.dump(dict(id=self.fight_id, encounter=enc, hp_start=self.fight_hp0, hp_end=hp, scenario=self.rp.scenario, fight=f), open(os.path.join(d, f"{self.fight_id}_{enc}.json"), "w"))
+        except Exception:  # noqa: BLE001  never let bookkeeping break a fight
+            pass
 
     # ------------------------------------------------------------------ micro
 
