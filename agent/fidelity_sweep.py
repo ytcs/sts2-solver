@@ -146,6 +146,7 @@ def main():
     os.makedirs(os.path.join(ROOT, "evals", "fidelity_fights"), exist_ok=True)
     h = Harness()
     h._sync_problem = lambda f: None
+    h.handle("budget 0.25")  # validation needs plausible play, not strong play
     keep = {}
     orig_sync = h.sync
 

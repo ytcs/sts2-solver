@@ -47,7 +47,7 @@ class Engine:
     def __init__(self, M=5, K=32):
         self.solver = Solver()
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        self.fs = FastSearch(self.solver.net, self.solver.value_nets, M, K, conf=1.01, roots=1, groups=1, amp=cuda)
+        self.fs = FastSearch(self.solver.net, self.solver.value_nets, M, K, conf=1.01, roots=1, groups=1, amp=cuda, force_end_turn=os.environ.get("STS2_FORCE_END", "0") == "1")
         self.fs.warm()
         self.seed = 0
 

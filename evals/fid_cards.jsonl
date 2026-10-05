@@ -1,0 +1,36 @@
+{"label": "card:ironclad:AGGRESSION", "enc": "SLIMES_NORMAL", "ok": true, "stats": {"residual .draw[9].upgrade": 3, "residual .draw[4].upgrade": 4, "sync note": 2, "residual .draw": 8}, "examples": {"residual .draw[9].upgrade": ["{\"end_turn\": true} [DEFEND_IRONCLAD]: .draw[9].upgrade: rust 1 vs oracle 0", "{\"play\": {\"hand_pos\": 1, \"target\": 0}} [BASH]: .draw[9].upgrade: rust 1 vs oracle 0", "{\"play\": {\"hand_pos\": 0, \"target\": 0}} [STRIKE_IRONCLAD]: .draw[9].upgrade: rust 1 vs oracle 0"], "residual .draw[4].upgrade": ["{\"end_turn\": true} [STRIKE_IRONCLAD]: .draw[4].upgrade: rust 1 vs oracle 0", "{\"play\": {\"hand_pos\": 0, \"target\": 0}} [STRIKE_IRONCLAD]: .draw[4].upgrade: rust 1 vs oracle 0", "{\"play\": {\"hand_pos\": 1}} [DEFEND_IRONCLAD]: .draw[4].upgrade: rust 1 vs oracle 0"], "sync note": ["discard: 2 cards created", "discard: 1 cards created"], "residual .draw": ["{\"end_turn\": true} [STRIKE_IRONCLAD]: .draw: length rust 2 vs oracle 0  [rust [{\"id\":\"STRIKE_IRONCLAD\",\"upgrade\":1},{\"id\":\"STRIKE_IRONCLAD\",\"upgrade\":1}]] [oracle []]", "{\"play\": {\"hand_pos\": 3}} [DEFEND_IRONCLAD]: .draw: length rust 2 vs oracle 0  [rust [{\"id\":\"STRIKE_IRONCLAD\",\"upgrade\":1},{\"id\":\"STRIKE_IRONCLAD\",\"upgrade\":1}]] [oracle []]", "{\"play\": {\"hand_pos\": 0, \"target\": 0}} [STRIKE_IRONCLAD]: .draw: length rust 2 vs oracle 0  [rust [{\"id\":\"STRIKE_IRONCLAD\",\"upgrade\":1},{\"id\":\"STRIKE_IRONCLAD\",\"upgrade\":1}]] [oracle []]"]}, "created": 1, "errors": []}
+{"label": "card:ironclad:ANGER", "enc": "FLYCONID_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:ARMAMENTS", "enc": "INKLETS_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:ASHEN_STRIKE", "enc": "CUBEX_CONSTRUCT_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BARRICADE", "enc": "KNIGHTS_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BASH", "enc": "DECIMILLIPEDE_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BATTLE_TRANCE", "enc": "BYGONE_EFFIGY_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BLAZE", "enc": "CORPSE_SLUGS_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BLOOD_WALL", "enc": "HAUNTED_SHIP_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BLOODLETTING", "enc": "EXOSKELETONS_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BLUDGEON", "enc": "ENTOMANCER_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BODY_SLAM", "enc": "SOUL_NEXUS_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BRAND", "enc": "SLIMES_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BREAK", "enc": "FLYCONID_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BREAKTHROUGH", "enc": "INKLETS_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BULLY", "enc": "CUBEX_CONSTRUCT_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:BURNING_PACT", "enc": "KNIGHTS_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:CASCADE", "enc": "DECIMILLIPEDE_ELITE", "ok": false, "error": "no fresh run"}
+{"label": "card:ironclad:CINDER", "enc": "BYGONE_EFFIGY_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:COLOSSUS", "enc": "CORPSE_SLUGS_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:CONFLAGRATION", "enc": "HAUNTED_SHIP_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:CORRUPTION", "enc": "EXOSKELETONS_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:CRIMSON_MANTLE", "enc": "ENTOMANCER_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:CRUELTY", "enc": "SOUL_NEXUS_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:DARK_EMBRACE", "enc": "SLIMES_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:DEFEND_IRONCLAD", "enc": "FLYCONID_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:DEMON_FORM", "enc": "INKLETS_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:DEMONIC_SHIELD", "enc": "CUBEX_CONSTRUCT_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:DISMANTLE", "enc": "KNIGHTS_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:DOMINATE", "enc": "DECIMILLIPEDE_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:DRUM_OF_BATTLE", "enc": "BYGONE_EFFIGY_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:EVIL_EYE", "enc": "CORPSE_SLUGS_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:EXPECT_A_FIGHT", "enc": "HAUNTED_SHIP_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:FEED", "enc": "EXOSKELETONS_NORMAL", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:FEEL_NO_PAIN", "enc": "ENTOMANCER_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
+{"label": "card:ironclad:FIEND_FIRE", "enc": "SOUL_NEXUS_ELITE", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}

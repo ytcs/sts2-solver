@@ -59,7 +59,7 @@ def make_sequence(rng, screens, pool):
     return seq
 
 
-def scenario(deck, target, hp=80):
+def scenario(deck, target, hp=80):  # hp is overridden by Scorer.hp
     d = [dict(id=c, upgrade=0) for c, k in STARTER for _ in range(k)] + [dict(id=c, upgrade=0) for c in deck]
     return dict(name="bench", ascension=10, encounter=target, character="IRONCLAD", hp=hp, max_hp=hp, max_energy=3, gold=0, max_potion_slots=2, base_orb_slots=0,
                 seed="bench", total_floor=1, act=0, deck=d, relics=[dict(id="BURNING_BLOOD")], potions=[])
@@ -68,14 +68,14 @@ def scenario(deck, target, hp=80):
 class Scorer:
     """Solver win rate and HP lost of decks against the target; results are cached by deck."""
 
-    def __init__(self, eng, target, attempts):
-        self.eng, self.target, self.attempts, self.cache, self.calls = eng, target, attempts, {}, 0
+    def __init__(self, eng, target, attempts, hp=80):
+        self.eng, self.target, self.attempts, self.cache, self.calls, self.hp = eng, target, attempts, {}, 0, hp
 
     def many(self, decks):
         todo = [tuple(sorted(d)) for d in decks if tuple(sorted(d)) not in self.cache]
         todo = list(dict.fromkeys(todo))
         if todo:
-            res = self.eng.solve([scenario(list(d), self.target) for d in todo], attempts=self.attempts)
+            res = self.eng.solve([scenario(list(d), self.target, self.hp) for d in todo], attempts=self.attempts)
             for d, r in zip(todo, res):
                 self.cache[d] = (r["win"], r["win_se"], r["hp_lost"] or 0.0)
             self.calls += len(todo)
@@ -128,6 +128,7 @@ def main():
     ap.add_argument("--final-attempts", type=int, default=512, help="attempts for the final score of each policy's deck")
     ap.add_argument("--tau", type=float, default=0.0, help="greedy: pick only if the gain exceeds tau standard errors")
     ap.add_argument("--beam", type=int, default=6)
+    ap.add_argument("--hp", type=int, default=80, help="start HP of the target fight (lower = harder)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", default="")
     a = ap.parse_args()
@@ -140,8 +141,8 @@ def main():
     t0 = time.time()
     for s in range(a.sequences):
         seq = make_sequence(rng, a.screens, pool)
-        sc = Scorer(eng, a.target, a.attempts)
-        final = Scorer(eng, a.target, a.final_attempts)
+        sc = Scorer(eng, a.target, a.attempts, a.hp)
+        final = Scorer(eng, a.target, a.final_attempts, a.hp)
         row = dict(sequence=seq, policies={})
         for p in policies:
             deck = run_policy(p, seq, sc, a.tau, a.beam, random.Random(a.seed * 1000 + s))

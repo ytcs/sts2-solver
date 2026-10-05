@@ -1,0 +1,14 @@
+sequence 1/8 (13s): skip 0.38  random 0.69  greedy 1.00  hindsight 1.00
+sequence 2/8 (23s): skip 0.38  random 0.65  greedy 0.99  hindsight 0.99
+sequence 3/8 (33s): skip 0.36  random 0.94  greedy 0.96  hindsight 0.99
+sequence 4/8 (45s): skip 0.38  random 0.48  greedy 1.00  hindsight 1.00
+sequence 5/8 (54s): skip 0.38  random 0.96  greedy 1.00  hindsight 1.00
+sequence 6/8 (65s): skip 0.37  random 0.82  greedy 1.00  hindsight 1.00
+sequence 7/8 (76s): skip 0.37  random 0.82  greedy 1.00  hindsight 1.00
+sequence 8/8 (87s): skip 0.38  random 0.96  greedy 0.99  hindsight 1.00
+
+mean final win rate vs SKULKING_COLONY_ELITE after 5 screens:
+  skip       win 0.375 (se 0.002)  hp lost 0.94  picks 0.0
+  random     win 0.790 (se 0.057)  hp lost 0.82  picks 3.5
+  greedy     win 0.993 (se 0.004)  hp lost 0.60  picks 4.5
+  hindsight  win 0.997 (se 0.002)  hp lost 0.56  picks 4.5

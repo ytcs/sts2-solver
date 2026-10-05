@@ -1,0 +1,14 @@
+sequence 1/8 (29s): skip 0.01  random 0.86  greedy 1.00  hindsight 1.00
+sequence 2/8 (49s): skip 0.01  random 0.95  greedy 1.00  hindsight 1.00
+sequence 3/8 (74s): skip 0.01  random 0.98  greedy 1.00  hindsight 1.00
+sequence 4/8 (95s): skip 0.01  random 0.02  greedy 1.00  hindsight 1.00
+sequence 5/8 (118s): skip 0.01  random 0.99  greedy 1.00  hindsight 1.00
+sequence 6/8 (138s): skip 0.00  random 0.32  greedy 1.00  hindsight 1.00
+sequence 7/8 (159s): skip 0.01  random 0.98  greedy 1.00  hindsight 1.00
+sequence 8/8 (180s): skip 0.01  random 1.00  greedy 1.00  hindsight 1.00
+
+mean final win rate vs TERROR_EEL_ELITE after 8 screens:
+  skip       win 0.005 (se 0.000)  hp lost 1.00  picks 0.0
+  random     win 0.764 (se 0.124)  hp lost 0.72  picks 5.5
+  greedy     win 1.000 (se 0.000)  hp lost 0.39  picks 5.9
+  hindsight  win 1.000 (se 0.000)  hp lost 0.33  picks 7.6

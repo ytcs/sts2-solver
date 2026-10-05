@@ -112,12 +112,25 @@ class GraphFn:
         return outs[0] if len(outs) == 1 else torch.cat(outs)
 
 
+
+def _with_end_turn(p, tp, ti, mask):
+    """Make sure action 0 (end turn) is among the M ranked options whenever it is legal: it replaces the lowest-ranked option."""
+    M = ti.shape[1]
+    missing = (ti != 0).all(1) & (mask[:, 0] > 0)
+    last = torch.arange(M, device=ti.device).unsqueeze(0) == (M - 1)
+    sel = missing.unsqueeze(1) & last
+    ti = torch.where(sel, torch.zeros_like(ti), ti)
+    tp = torch.where(sel, p[:, 0:1].expand_as(tp), tp)
+    return tp, ti
+
+
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, pmin=0.0, margin=0.0, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, force_end_turn=False):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
+        self.force_end_turn = force_end_turn  # always search 'end turn' (action 0) as one of the M options: a policy that never ranks it high would otherwise never consider passing (enemy Thorns, Ripple Basin, Art of War)
         self.roll_net = roll_net if roll_net is not None else net
         self.M, self.K, self.conf, self.pmin, self.margin = M, K, conf, pmin, margin
         self.roll_cap, self.max_steps, self.hp_bonus, self.greedy_roll = roll_cap, max_steps, hp_bonus, greedy_roll
@@ -183,6 +196,7 @@ class FastSearch:
         key = ("pol", id(net), has_dec)
         if key not in self._graphs:
             M, greedy, E = self.M, self.greedy_roll, self.graph_E
+            force = self.force_end_turn
 
             amp = self.amp
             logits = lambda o, m: net(o, m, value=False, E=E, L=64, has_dec=has_dec)[0]
@@ -197,7 +211,10 @@ class FastSearch:
                     act = lg.argmax(1)
                 else:  # sampling from softmax(lg) = argmax of the logits plus Gumbel noise
                     act = (lg - torch.log(-torch.log(torch.rand_like(lg).clamp_min(1e-20)))).argmax(1)
-                tp, ti = torch.softmax(lg, 1).topk(M, 1)
+                pr = torch.softmax(lg, 1)
+                tp, ti = pr.topk(M, 1)
+                if force:
+                    tp, ti = _with_end_turn(pr, tp, ti, m)
                 return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
             self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None)
         return self._graphs[key]
@@ -280,6 +297,8 @@ class FastSearch:
                     p = torch.softmax(lg, 1)
                     tp, ti = p.topk(M, 1)
                     act = ti[:, 0] if self.greedy_roll else torch.multinomial(p, 1).squeeze(1)
+                    if self.force_end_turn:
+                        tp, ti = _with_end_turn(p, tp, ti, m)
                     return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
                 return pol
             res = self._run(pol_fn(self.roll_net), G["pol_obs"][:n_pol], obs, mask)
