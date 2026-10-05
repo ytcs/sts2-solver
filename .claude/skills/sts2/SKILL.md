@@ -16,7 +16,7 @@ description: Use at the start of any Slay the Spire 2 run or session: root of th
 | 0 | `sts2` | this file: rules, hierarchy, tags, update protocol | always, first |
 | 1 | `sts2-harness` | commands, solver and `eval` use, speed, review loop | at run start |
 | 1 | `sts2-strategy` | principles shared by every character and act: combat, macro, route, cards, potions, boss-first | at run start |
-| 1 | `sts2-deckbuilding` | five-bucket deck audit, the questions each fight asks, pick procedure, plan switching, per-pick ledger | at every card reward, shop, rest, relic |
+| 1 | `sts2-deckbuilding` | pick protocol (`reward` / `eval --smooth` numbers, then the judgment pass for what the numbers are blind to), five-bucket audit, what each fight asks, override log | at every card reward, shop, rest, relic |
 | 1 | `sts2-pathing` | map route and Neow / ancient as one co-optimized decision; floors as a budget | at every Neow / ancient and before every map click |
 | 1 | `sts2-acts` | act structure, encounter pools, ancients; `encounters.md`: what each boss/elite asks (shared reference) | when planning routes or fights |
 | 1 | `sts2-mechanics` | verified monster / power / relic mechanics (shared reference) | before an unfamiliar enemy or power |
