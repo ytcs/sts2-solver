@@ -2,16 +2,18 @@ decomp/
 target/
 __pycache__/
 *.so
+*.pyd
+*.pdb
 .venv/
 bin/
 obj/
-.venv/
 *.egg-info/
 .claude/worktrees/
-
 runs/
-target/
 data/corpus/
 
-*.pyd
-*.pdb
+# regenerable experiment output (summaries *.json / *.jsonl stay)
+evals/*.log
+evals/*.out
+evals/_*
+evals/fidelity_fights/

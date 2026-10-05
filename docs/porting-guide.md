@@ -1,158 +1,59 @@
-# Porting guide (for engineers/agents adding content or engine features)
+# Porting guide (adding content or engine features)
 
-Goal: a bit-exact Rust replica of STS2 v0.111.0 combat. **Truth = the real game**, replayed through the oracle. A port is
-"done" only when differential sweeps against the oracle show zero mismatches for scenarios exercising it.
+Goal: a bit-exact Rust replica of STS2 v0.111.0 combat. **Truth = the real game**, replayed through the oracle. A port is done when differential sweeps against the oracle show zero mismatches for scenarios exercising it.
 
-## Target: MAX ASCENSION (A10) ONLY
-The user only plays Ascension 10. Every template, sweep and test uses `ascension: 10` (A8 tough-enemy HP and A9 deadly-enemy
-values live in monster definitions via `asc::val`; A4 removes a potion slot; A5 appends **Ascender's Bane** to the deck).
-`tools/mk_scenario.py` builds correct A10 scenarios (2 potion slots, Ascender's Bane appended) — use it. Lower-ascension
-behaviour only matters insofar as the same code path computes both; never validate against A0 only.
+## Target: Ascension 10 only
+Every template, sweep and test uses `ascension: 10`: A8 tough-enemy HP and A9 deadly-enemy values live in monster definitions via `asc::val`; A4 removes a potion slot; A5 appends **Ascender's Bane** to the deck. A10 scenarios therefore have `max_potion_slots: 2` and Ascender's Bane in the deck (see any `oracle/templates/*.json`). Never validate against A0 only.
 
 ## Layout
-* `decomp/` — decompiled C# (read-only, gitignored; regenerate: see `docs/design.md`). Class names are the ids.
-* `docs/spec/01–05` — verified semantics of the engine (read the sections you need, don't read everything).
-* `crates/sts2sim/src/` — engine. `content/{cards,powers,relics,potions,monsters,encounters}/*.rs` — one file per batch of
-  related entities; **new files auto-register** (see below). `content/gen_*.rs` and `ids.rs` are generated; never edit.
-* `crates/sts2diff` + `verify/diff_sweep.py` — differential testing. `oracle/` — the real-game harness (see `docs/oracle.md`).
+* `decomp/`: decompiled C# (read-only, gitignored, not in the checkout; regenerate with ilspycmd, see `docs/design.md`). Class names are the ids.
+* `docs/spec/01-05`: verified semantics of the engine (read the sections you need).
+* `crates/sts2sim/src/`: engine. `content/{cards,powers,relics,potions,monsters,encounters,enchantments,afflictions}/*.rs`, one file per batch of related entities; **new files auto-register** (`build.rs`). `content/gen_*.rs` and `ids.rs` are generated: never edit; regenerate with `scripts/porting/gen_defs.py`, `gen_ids.py`, `gen_relics.py` after a game update.
+* `crates/sts2diff` + `verify/diff_sweep.py`: differential testing. `oracle/`: the real-game harness (`docs/oracle.md`).
 
 ## Writing content
-* `listener!(ClassName { fn hook(...) {...} ... });` — `ClassName` must be the exact C# class name (e.g. `StrikeIronclad`,
-  `VulnerablePower`, `BurningBlood`, `Nibbit`). The build script (`build.rs`) registers it by id; duplicates are a build error.
-  Use `listener!(Name {});` for an implemented entity without hooks. Use `//` comments, not `///`, before the macro.
-* Hook list/signatures: `hooks.rs` (`Listener` trait). **Each C# `override` of an AbstractModel hook = one trait method.** If a
-  hook you need does not exist: add the trait method, its bit in `hookbit::bits!`, and the dispatch call at the right place in
-  the engine, following `docs/spec/02` (listener order, guarded vs unguarded dispatch, tiers). Keep such edits small and
-  contiguous; append new hooks at the END of the lists (the repo merges `hooks.rs` with a union strategy).
-* Cards: stats come from `gen_cards.rs` (cost/type/target/keywords/vars/upgrade deltas). Implement `on_play` (resumable:
-  `Flow::Suspend(phase)` after raising a decision with `cx.ask_hand/ask_pile/ask_options`). Read vars with
-  `cx.card_var(card, VarKind::X)` / `cx.card_power_var(card, power_id)`.
-* Powers: stats in `gen_powers.rs`. Implement only the hooks the C# overrides. Use `cx.tick_down_power`, `cx.decrement_power`, ...
-* Relics: `listener!(ClassName { ... })` in `content/relics/*.rs`; persistent state lives in `Relic{counter,flags,aux}` and is
-  described by `meta_props/meta_display/meta_initial`; constants come from `gen_relics` (`scripts/porting/gen_relics.py`); validate with
-  `tools/relic_sweep.py`. Full conventions (state mapping, suspendable hooks, helpers): `docs/relics.md`.
-* Monsters: `pub static <SLUG>_DEF: MonsterDef` (state machine; see `content/monsters/nibbit.rs`) + optional `listener!(Class {})`.
-  Encounters: `pub fn spawn_<slug_lower>(rng, ascension) -> Spawns` (see `content/encounters/basic.rs`).
-* Anything you do not port is flagged at runtime (`Combat::missing`) and reported by the sweep as `UNIMPLEMENTED ...`.
-* Keep numeric math exact: damage/block go through `Dec` (decimal stand-in) exactly where C# uses `decimal`.
-* Prefer helper commands in `engine/cmds.rs` (`gain_energy`, `draw_cards`, `apply_power`, `damage`, `execute_attack`,
-  `move_card`, `exhaust_card`, `ask_*`, ...). Add new generic helpers there when several entities need them.
-* Do **not** hand-copy numbers that exist in the generated tables or the decompiled source; extract them.
-* Performance matters (10⁵ parallel fights): no heap allocation in the hot path, no `Vec`/`String` in content code, prefer
-  `ArrayVec`, avoid `dyn` beyond the listener table, keep hooks cheap.
+* `listener!(ClassName { fn hook(...) {...} ... });`: `ClassName` is the exact C# class name (`StrikeIronclad`, `VulnerablePower`, `BurningBlood`, `Nibbit`). `build.rs` registers it by id; duplicates are a build error. `listener!(Name {});` registers an entity without hooks. Use `//` comments, not `///`, before the macro. Check: `grep -rho "^listener!(\w*" crates/sts2sim/src/content | sort | uniq -d` prints nothing.
+* Hooks: `hooks.rs` (`Listener` trait). **Each C# `override` of an AbstractModel hook is one trait method**, single-variant signature. Hooks whose C# signature carries more than the Rust one expose the rest through `cx.dmg_card` / `cx.dmg_result` (post-damage hooks), `cx.play_serial`, `should_play_kind`. Tiers (`*_early` / `*_late`) are separate methods = separate passes. Direct virtuals (enchantment `enchant_damage_*`, `enchant_play_count`, `can_enchant*`, power `should_power_be_removed_after_owner_death`, `initial_power_aux`, monster `before_removed_from_room`, card `get_result_location_for_card_play`) are trait methods too.
+* A missing hook: add the trait method, its bit in `hookbit::bits!`, and the dispatch call at the right place in the engine, following `docs/spec/02` (listener order, guarded vs unguarded dispatch, tiers). Keep the edit small and append to the END of the lists (`hooks.rs` merges with a union strategy, `.gitattributes`).
+* Cards: stats come from `gen_cards.rs`. Implement `on_play(cx, play, phase)`; resumable effects return `Flow::Suspend(phase)` after raising a decision with `cx.ask_hand/ask_pile/ask_options`. Read vars with `cx.card_var(card, VarKind::X)` / `cx.card_power_var(card, power_id)`. Typed vars with an explicit name (`CardsVar("Shivs", 3)`, `EnergyVar("ExtraCost", 1)`, `BlockVar("BlockNextTurn", 5)`, `PowerVar<WeakPower>("SappingWeak", 2)`) become `Named` vars: `card_named_var(card, var_name::SHIVS)`. Never hard-code values that exist in generated tables or the decompiled source.
+* Powers: stats in `gen_powers.rs`; implement only the hooks the C# overrides (`cx.tick_down_power`, `cx.decrement_power`, ...).
+* Relics: `content/relics/*.rs`, state mapping, `meta_*` methods and generated constants in `docs/relics.md`.
+* Monsters: `pub static <SLUG>_DEF: MonsterDef` (state machine, see `content/monsters/nibbit.rs`) plus an optional `listener!(Class {})`. Encounters: `pub fn spawn_<slug_lower>(rng, ascension) -> Spawns` (see `content/encounters/basic.rs`).
+* Numeric math is exact: damage/block go through `Dec` exactly where C# uses `decimal`.
+* Prefer the helpers in `engine/cmds.rs` (`gain_energy`, `draw_cards`, `apply_power`, `damage`, `execute_attack`, `move_card`, `exhaust_card`, `ask_*`, ...); add new generic helpers there when several entities need them.
+* Hot path: no heap allocation, no `Vec` / `String` in content code, prefer `ArrayVec`, no `dyn` beyond the listener table, cheap hooks.
+* Anything not ported is flagged at runtime (`Combat::missing`) and reported by sweeps as `UNIMPLEMENTED ...`.
 
-## Validation loop (mandatory)
-1. Make a scenario template: `python3 tools/mk_scenario.py --encounter X --starter --deck A:3,B+ ... > oracle/templates/t.json`
-   (fields: encounter, character, hp, deck [card ids], relics, potions, ascension, seed, ...). Put the entities you ported into
-   the deck / relics / potions / encounter. Only encounters/monsters/cards that are ported can run in Rust; the oracle runs anything.
-2. `cargo build -p sts2diff` then `python3 verify/diff_sweep.py TEMPLATE.json --n 40` (default `--asc 10`).
-   * `ok` — Rust matched the real game on every step (state incl. all RNG streams).
-   * `mismatch` — printed first differing field. Reproduce: `target/debug/sts2diff run X.scenario.json X.jsonl`.
-   * `UNIMPLEMENTED content hit: ...` — the fight touched content with no Rust port yet (cards generated by Discovery etc.);
-     port those too or accept as out of scope for your task.
-3. Fix until the sweep is clean for several seeds and ascension levels. Look at oracle traces (JSONL) to see what really happened;
-   if the trace and the C# source disagree with your reading, the trace wins — then find out why.
-4. Add a focused unit test under `crates/sts2sim/tests/` for non-obvious rules.
-5. Run `cargo test -p sts2sim` before finishing.
+## Validation loop
+1. Make a template: a scenario JSON in the `docs/oracle.md` section 2 schema, A10, with the ported entities in the deck / relics / potions / encounter (copy and edit any file in `oracle/templates/`; per-card-family and per-encounter-group templates live there). Only ported content runs in Rust; the oracle runs anything.
+2. `cargo build -p sts2diff`, then `python3 verify/diff_sweep.py TEMPLATE.json --n 40` (`--asc 10` is the default; `--keep DIR`, `--tag X`, `--policy-seed N`, `--jobs N`).
+   * `ok`: Rust matched the real game on every step (state including all RNG streams).
+   * `mismatch`: prints the first differing field. Reproduce: `target/debug/sts2diff run X.scenario.json X.jsonl`; `STS2DIFF_DUMP=N` dumps both snapshots at record N.
+   * `UNIMPLEMENTED content hit`: the fight touched unported content (cards generated by Discovery, etc.); port it or accept it as out of scope.
+3. Fix until the sweep is clean for several seeds. The oracle trace wins over your reading of the C# source: find out why they disagree.
+4. Add a focused test under `crates/sts2sim/tests/` for non-obvious rules; run `cargo test -p sts2sim`.
+5. Before merging, `python3 verify/regress.py` (all 418 templates) must be clean, or `verify/regress_cache.py record` once and `check` after each change (`STS2DIFF=target/debug/sts2diff`, `STS2DIFF_REUSE=1` replays through the in-place reset).
+6. Randomized fuzzing: `python3 tools/fuzz_gen.py run --n 3000 --seed N --out DIR` and `tools/fuzz_gen_mix.py` (`docs/oracle.md` section 7). Freeze failures into `oracle/regression_scripted/` with `fuzz_gen.py freeze`; replay with `fuzz_gen.py regress`.
 
-## Process rules
-* Work in your own git worktree/branch; commit your work there with clear messages (do not push; the coordinator merges).
-* Do not edit generated files, `decomp/`, `docs/spec/`, or other people's content files. Engine edits: minimal, well-commented.
-* If you find an engine bug, fix it at the root and add a test; mention it in your final report.
-* Final report (<= 25 lines): what is ported, sweep results (counts), engine changes, open problems/mismatches you could not resolve.
+Engine mechanisms have their own templates: `oracle/templates/engine_*.json` (death preventers, stun, Havoc/Sly/Begone/Duplicator, all 23 enchantments, extra turn, Void Form). After changing `oracle/combat/Dump.cs`, rebuild the oracle (`cd oracle/combat && dotnet build -c Release`).
 
-## Engine-core API cheat sheet (added by the engine-core pass)
-* **Hooks**: every `Hook.*` of spec 02 App. A is a `Listener` method (new ones sit in the "engine-core additions" block of
-  `hooks.rs`). `after_death` now takes `(creature, was_removal_prevented)`. Hooks whose C# signature carries more than the Rust
-  one expose the rest through `cx.dmg_card` / `cx.dmg_result` (post-damage hooks), `cx.play_serial`, `should_play_kind`
-  (auto-play type). Tiers (`*_early`/`*_late`) are separate methods = separate passes. Direct virtuals (enchantment
-  `enchant_damage_*`, `enchant_play_count`, `can_enchant*`, power `should_power_be_removed_after_owner_death`,
-  `initial_power_aux`, monster `before_removed_from_room`, card `get_result_location_for_card_play`) are also trait methods.
-* **Death**: `cx.kill(&[c])` / `kill_ex(.., force)`, `escape(c)`, `heal`, `set_max_hp`, `gain_max_hp`, `lose_max_hp`,
-  `lose_block`, preventers via `should_die` / `should_die_late` + `after_preventing_death`, `use_potion_now(slot, target)`
-  for self-using potions, `after_died_to_doom`, `all_powers_trigger_fatal`.
-* **Monsters**: `summon_enemy(monster, slot, vars)` (= `CreatureCmd.Add`), `next_free_slot(n)`, `stun(c, stun_move, next)`,
-  `set_move_immediate(c, node, force)`, `is_stunned`, `last_logged_move`, `STUN_NODE` (synthetic STUNNED node; use
-  `cx.move_view(c)` instead of indexing `nodes[next_move]`), `prepare_for_next_turn`. Enemy slots are never recycled while
-  an unused slot exists (power `applier` ids stay unambiguous).
-* **Cards**: `auto_play(card, target, kind, skip_x) -> RunResult`, `auto_play_from_draw_pile(n, pos, force_exhaust)`,
-  `discard_cards(&[..], draw)` (Sly), `create_dupe`, `clone_card`, `transform_cards(&[orig], &[Some((id, up))|None])`,
-  `x_value(card)`, cost helpers (`set_cost_this_turn`, `add_cost_until_played`, ... in `engine/cost.rs`),
-  `add_keyword/remove_keyword`, `request_end_turn()` (Void Form), `enchant_card`, `afflict_card`, `new_card_ex`,
-  stream helpers `stable_shuffle_cards` / `unstable_shuffle_cards`. A card's `on_play` that starts an auto-play must return
-  `Flow::Suspend(next)` when the helper returns `RunResult::Suspended` (the nested play asked for a decision) and treat phase
-  `next` as "finished" (returning `Done` after a nested play that is still waiting also works: the engine suspends the outer play at its
-  `After` step). Several fixed auto-plays in a row (Eidolon) go through `auto_play_list` (one queue). A decision raised by an auto-play
-  started from a turn-start hook (Mayhem, Imbued, History Course) resumes: the `AfterAutoPrePlayPhaseEntered*` and `AfterShuffle` passes
-  are `dispatch_resumable` (`turn_cont` 6-8, 4; nested suspended passes live on the `susp` stack with the listeners still to run). A card
-  that draws just calls `cx.draw_cards(n, false)` and carries on: a Stratagem prompt raised by a reshuffle inside it is handled by replay
-  (`engine/replay.rs`: the step is re-run from its start with the agent's answer), so card code needs no continuation for it.
-  Per-play power state (C# `Dictionary<CardModel,int>`): `hist.remember_play(uid, card, amount)` / `take_play` (plays nest).
-* **History**: `cx.plays_this_turn(filter)`, `hist_count_this_turn(kind, filter)`, `hist_total(kind)`,
-  `hist_any_last_player_turn(kind, filter)`; entries are pushed by the engine for plays, energy, draws, discards, exhausts,
-  generated cards, afflictions, damage received, block gained, powers received, attacks, monster moves, potions, stars.
-* **Scenario extras**: `Combat::new_with(&Scenario, &ScenarioExtras)` carries deck-card enchantments / saved props
-  (`Card::counter`), gold and act; `convert::scenario_ex` fills it from the oracle JSON. `Scenario`/`DeckCard` literals are unchanged.
-* **Oracle sweeps** for engine mechanisms live in `oracle/templates/engine_*.json` (death preventers, stun, Havoc/Sly/Begone/Duplicator,
-  all 23 enchantments, extra turn, Void Form); the `engine_core.rs` content files hold the representative entities (drop them if
-  another branch ports the same class).
+## Engine API cheat sheet
+* **Death**: `cx.kill(&[c])` / `kill_ex(.., force)`, `escape(c)`, `heal`, `set_max_hp`, `gain_max_hp`, `lose_max_hp`, `lose_block`; preventers via `should_die` / `should_die_late` + `after_preventing_death`; `use_potion_now(slot, target)` for self-using potions; `after_died_to_doom`, `all_powers_trigger_fatal`. `after_death` takes `(creature, was_removal_prevented)`.
+* **Monsters**: `summon_enemy(monster, slot, vars)` (= `CreatureCmd.Add`), `next_free_slot(n)`, `stun(c, stun_move, next)`, `set_move_immediate(c, node, force)`, `is_stunned`, `last_logged_move`, `STUN_NODE` (synthetic node: use `cx.move_view(c)`, not `nodes[next_move]`), `prepare_for_next_turn`. Enemy slots are not recycled while an unused slot exists (power `applier` ids stay unambiguous).
+* **Cards**: `auto_play(card, target, kind, skip_x) -> RunResult`, `auto_play_from_draw_pile(n, pos, force_exhaust)`, `auto_play_list` (several fixed auto-plays in one queue), `discard_cards(&[..], draw)` (Sly), `create_dupe`, `clone_card`, `transform_cards(&[orig], &[Some((id, up))|None])`, `x_value(card)`, cost helpers in `engine/cost.rs` (`set_cost_this_turn`, `add_cost_until_played`, ...), `add_keyword/remove_keyword`, `request_end_turn()`, `enchant_card`, `afflict_card`, `new_card_ex`, `stable_shuffle_cards` / `unstable_shuffle_cards`. Per-card state lives in `Card::counter` (`[i16; 2]`); per-instance variants (Mad Science) are read with `cx.card_def(c)`, never `content::card_def(card.id)`.
+* **Auto-play and suspension**: a `on_play` that starts an auto-play returns `Flow::Suspend(next)` when the helper returns `RunResult::Suspended` and treats phase `next` as finished (returning `Done` after a nested play that still waits also works: the engine suspends the outer play at its `After` step). Auto-play queues are a stack (`autoplay_stack`; Cascade -> Havoc). A decision raised by an auto-play started from a turn-start hook (Mayhem, Imbued, History Course) resumes through `dispatch_resumable` passes (`AfterAutoPrePlayPhaseEntered*`, `AfterShuffle`; `turn_cont` 6-8 and 4; suspended passes sit on the `susp` stack with their remaining listeners). Per-play power state (C# `Dictionary<CardModel,int>`): `hist.remember_play(uid, card, amount)` / `take_play`, since plays nest.
+* **Draws**: a card that draws calls `cx.draw_cards(n, false)` and carries on; a Stratagem prompt raised by a reshuffle inside it is handled by replay (`engine/replay.rs`), so card code needs no continuation.
+* **Turn-flow suspensions**: a hook that raises a decision sets `cx.hook_ctx = Some((me, phase))` and implements `resume_hook`; `turn_cont` resumes a suspended turn start, `end_turn_resume` a suspended `AfterAutoPostPlayPhaseEntered` pass. A decision raised by a monster move (Knowledge Demon's Curse of Knowledge) calls `ask_options`; on `Ask::Pending` it sets `cx.hook_ctx = Some((cx.monster_me(me), phase)); cx.stage = Stage::AwaitChoice;` and returns. `perform_move` then skips its bookkeeping, `enemy_turn_from` saves the `Enemies` snapshot in `enemy_cont`, and after the pick the listener's `resume_hook` finishes the move and the enemy turn continues. The oracle records the prompt in the `end_turn` record's `choices`.
+* **History queries** (never add private counters): `cx.plays_this_turn(filter)`, `hist_count_this_turn(kind, filter)`, `hist_total(kind)`, `hist_any_last_player_turn(kind, filter)`, `hist_log.player_hits_taken`, `hist_log.generated_by_player`, `hist_log.ethereal_finished`, `hist.attacks_finished_this_turn` / `skills_finished_this_turn` / `shivs_finished_this_turn`, `hist.finished(card)`, `stars_gained_this_turn()`. Entries are pushed by the engine for plays, energy, draws, discards, exhausts, generated cards, afflictions, damage received, block gained, powers received, attacks, monster moves, potions, stars. `BlockGained` entries carry the card-play serial in `id`; `DamageReceived` has receiver in `actor`, dealer in `other`, unblocked HP in `val`. `HKind::in_ring()` lists the kinds kept in the per-turn ring; a new per-turn query of a counter-only kind must add it (debug-asserted).
+* **Stars**: `energy.rs` owns `gain/lose/set_stars`, `card_star_cost` (X = all stars), temporary star costs; `engine/regent.rs` has Forge / Sovereign Blade helpers. **Osty**: `engine/pets.rs` (`osty()`, `summon`), redirect and overkill in `damage.rs`.
+* **Scenario extras**: `Combat::new_with(&Scenario, &ScenarioExtras)` carries deck-card enchantments / saved props (`Card::counter`), gold and act; `convert::scenario_ex` (sts2diff) fills it from the oracle JSON.
+* **Observation vector**: append-only sections; update the layout table in `docs/env-api.md` when adding one.
+* **Event content** (`monsters/event_only.rs`, `monsters/mysterious_knight.rs`, `encounters/events.rs`, `cards/event_pool.rs`, `cards/mad_science.rs`): events only choose the encounter, so no scenario field is needed. `BattlewornDummyTimeLimitPower` makes the dummy escape. Deck-level upgrades (Improvement power at combat end) live in `Combat::deck_upgrade`.
+* **Selection details**: `FromChooseACardScreen(canSkip: false)` hands the selector (0,1) regardless; the oracle patches `canSkip` in (`P_ChooseACardSkip`) so the recorded `min` is 1 and `ask_options(.., can_skip = false)` agrees. Event cards that override `VisualCardPool` (Stack, Outmaneuver, Clash, ...) are NOT colorless for `c.VisualCardPool.IsColorless` filters (Heirloom Hammer).
+* **Shared power files**: `powers/artifact_minion.rs` (Artifact, Minion), `vigor.rs`, `silent_a_shared.rs` (Poison, Thorns, BlockNextTurn, EnergyNextTurn), `silent_b.rs` (DrawCardsNextTurn), `ironclad_*` (NoDraw, Plating, ...). One `listener!` per class repo-wide.
 
-## Integration notes (conventions that came out of merging the parallel slices)
-* **One `listener!` per class, repo-wide.** Duplicates are a build error. Shared powers live in one file: `powers/artifact_minion.rs`
-  (Artifact, Minion), `powers/vigor.rs` (Vigor), `powers/silent_a_shared.rs` (Poison, Thorns, BlockNextTurn, EnergyNextTurn),
-  `powers/silent_b.rs` (DrawCardsNextTurn), `powers/ironclad_*` (NoDraw, Plating, ...). `engine_core*` representatives vanish
-  automatically when a real port exists (and the duplicates were deleted). Check: `grep -rho "^listener!(\w*" crates/sts2sim/src/content | sort | uniq -d` must print nothing.
-* **Hook signatures are single-variant.** `after_power_amount_changed(cx, me, &PowerChange)` (power id, target, uid, delta, applier,
-  card source), `after_card_generated_for_combat(cx, me, card, added_by_player)`, `get_result_location_for_card_play(cx, me, card,
-  base) -> CardLocation` (receives the base rule's result), `after_death(cx, me, creature, was_removal_prevented)`,
-  `should_power_be_removed_on_death(cx, me, owner, power_id)`. Arguments the C# signature has but the Rust one lacks are read from
-  `cx.dmg_card` / `cx.dmg_result` (post-damage hooks) and `cx.play_serial`.
-* **History queries** (never add private counters): `hist_count_this_turn(HKind, |e| ..)`, `hist_total(kind)`, `hist_log.player_hits_taken`,
-  `hist_log.generated_by_player`, `hist_log.ethereal_finished`, `hist.attacks_finished_this_turn` / `skills_finished_this_turn` /
-  `shivs_finished_this_turn`, `hist.finished(card)`, `stars_gained_this_turn()`; `BlockGained` entries carry the card-play serial in `id`
-  (Unmovable), `DamageReceived` has receiver in `actor`, dealer in `other`, unblocked HP in `val`.
-* **Stars**: `energy.rs` owns `gain/lose/set_stars`, `card_star_cost` (X = all stars), temporary star costs (`set_star_cost_*`);
-  `engine/regent.rs` only Forge / Sovereign Blade helpers. **Osty**: `engine/pets.rs` (`osty()`, `summon`), redirect + overkill in `damage.rs`.
-* **Auto-play queues are a stack** (`autoplay_stack`): a card auto-played from `AutoPlayFromDrawPile` may start its own queue
-  (Cascade -> Havoc). `RunResult::Suspended` from any helper = return `Flow::Suspend(next)`.
-* **Turn flow suspensions**: a hook that raises a decision sets `cx.hook_ctx = Some((me, phase))` and implements `resume_hook`;
-  `turn_cont` resumes a suspended turn start; `end_turn_resume` a suspended `AfterAutoPostPlayPhaseEntered` pass.
-* **Decisions raised by a monster move** (Knowledge Demon's Curse of Knowledge): the move calls `ask_options`, and on `Ask::Pending`
-  sets `cx.hook_ctx = Some((cx.monster_me(me), phase)); cx.stage = Stage::AwaitChoice;` and returns; `perform_move` then skips its
-  bookkeeping, `enemy_turn_from` saves the `Enemies` snapshot in `enemy_cont`, and after the pick the monster listener's `resume_hook`
-  finishes the move, `finish_move` runs, and the enemy turn continues at the next enemy. The oracle trace records the prompt in the
-  `end_turn` record's `choices` (the screen is skippable: `min = 0`).
-* **Observation vector**: append-only sections (see the layout table in `docs/env-api.md`); update the table when adding one.
-* `scripts/porting/gen_defs.py` turns typed vars with an explicit name (`CardsVar("Shivs", 3)`, `EnergyVar("ExtraCost", 1)`,
-  `BlockVar("BlockNextTurn", 5)`, `PowerVar<WeakPower>("SappingWeak", 2)`) into `Named` vars: read them with `card_named_var(card,
-  var_name::SHIVS)`; never hard-code their values.
-* Templates: `oracle/templates/<slice>_*.json` (made with `tools/mk_scenario.py`); a representative subset per card family / encounter
-  group must be `ok` before a merge. After changing `oracle/combat/Dump.cs` rebuild the oracle (`cd oracle/combat && dotnet build -c Release`).
-* **Event content** (`monsters/event_only.rs`, `monsters/mysterious_knight.rs`, `encounters/events.rs`, `cards/event_pool.rs`, `cards/mad_science.rs`): the
-  events only choose the encounter, so no scenario field is needed (the oracle's `encounter` id is enough). `BattlewornDummyTimeLimitPower`
-  makes the dummy `escape`. **Per-instance card type**: Mad Science's type/target come from its saved props (`Card::counter` = `[rider, type]`,
-  sorted JSON keys); `Combat::card_def(c)` returns the instance's variant, so always query `cx.card_def(c)` (never `content::card_def(card.id)`)
-  for `ctype` / `target`. **Deck-level upgrades** (Improvement power at combat end) live in `Combat::deck_upgrade`.
-* **`FromChooseACardScreen(canSkip: false)`**: the game's selector contract hands (0,1) regardless; the oracle patches `canSkip` in
-  (`P_ChooseACardSkip`) so the recorded `min` is 1 and Rust's `ask_options(.., can_skip = false)` agrees. **`VisualCardPool`**: Event cards that
-  override it (Stack, Outmaneuver, Clash, ...) are NOT colorless for `c.VisualCardPool.IsColorless` filters (Heirloom Hammer).
-
-## Randomized differential fuzzing
-After the per-entity sweeps pass, run `python3 tools/fuzz_gen.py run --n 3000 --seed N --out DIR` (docs/oracle.md section 7): random realistic A10 Ironclad / Silent
-runs over every encounter diffed against the oracle. Failures are frozen into `oracle/regression_scripted/*.scenario.json` (`fuzz_gen.py freeze`) and replayed with `fuzz_gen.py regress`.
-## Hardening conventions (robustness / throughput)
-* **Fixed capacities never fail silently.** Use `ArrayVec` (a full push is dropped and flags `Combat::overflow`) and never truncate a list with a bare
-  `.take(N)` / `min(CAP)`: push every element so an overflow is recorded, or raise it yourself (`util::raise_overflow(ov::...)`, `Combat::overflow |= ov::...`).
-  A fallible allocation (`new_card` -> `None`, `add_enemy` -> `None`) must flag before returning `None`. The env aborts such episodes (`OUTCOME_OVERFLOW`).
-  The capacity table is in `docs/env-api.md`; the memory budget is enforced by `tests/robustness.rs::state_size_budget`.
-* **History**: `HKind::in_ring()` lists the kinds kept in the per-turn ring; kinds that are only counted (`hist_total`) are not stored. A new per-turn query of
-  a counter-only kind must add it to `in_ring` (debug-asserted).
-* **Hot-path rules** (see `docs/design.md` "Performance"): fill big lists through out-parameters (`snapshot_into`, `damage_into`, `modify_*_into`) instead of
-  returning them; keep the "nobody listens" test inline and the body out of line (`dispatch_u/g` do); use `Combat::observe_ex` + `legal_actions_ex` together so
-  `can_play` runs once per hand card; whoever mutates `Creature::powers` must call `sync_secondary(c)`; cost modifiers are built with `CostMod::new(..)`.
-* **Reset**: `Combat::reset_validated` names every `Combat` field in a destructuring `let`, so a new field that is not (re)initialised is a compile error. A card
-  slot beyond `n_cards` and the history ring beyond `n` are never read.
-* **Equivalence checks for engine/perf work**: `cargo test -p sts2sim`; `verify/regress_cache.py record` once (real game traces, `target/regress_cache`) then
-  `STS2DIFF=target/debug/sts2diff verify/regress_cache.py check` (+ `STS2DIFF_REUSE=1` to replay through the in-place reset); instruction counts with
-  `cargo build --profile prof -p sts2sim --example prof` + `valgrind --tool=callgrind target/prof/examples/prof {fights|reset|env} N` (prints a checksum
-  that must not change).
+## Conventions: capacities, hot path, reset
+* **Fixed capacities never fail silently.** Use `ArrayVec` (a full push is dropped and flags `Combat::overflow`) and never truncate a list with a bare `.take(N)` or `min(CAP)`: push every element so an overflow is recorded, or raise it yourself (`util::raise_overflow(ov::...)`, `Combat::overflow |= ov::...`). A fallible allocation (`new_card` -> `None`, `add_enemy` -> `None`) flags before returning `None`. The env aborts such episodes (`OUTCOME_OVERFLOW`). Capacity table: `docs/env-api.md`; memory budget: `tests/robustness.rs::state_size_budget`.
+* **Hot path**: fill big lists through out-parameters (`snapshot_into`, `damage_into`, `modify_*_into`) instead of returning them; keep the "nobody listens" test inline and the body out of line (`dispatch_u/g`); use `Combat::observe_ex` with `legal_actions_ex` so `can_play` runs once per hand card; whoever mutates `Creature::powers` calls `sync_secondary(c)`; cost modifiers are built with `CostMod::new(..)`.
+* **Reset**: `Combat::reset_validated` names every `Combat` field in a destructuring `let`, so a new field that is not (re)initialised is a compile error. A card slot beyond `n_cards` and the history ring beyond `n` are never read.
+* **Equivalence checks for engine or perf work**: `cargo test -p sts2sim`; `verify/regress_cache.py check` (also with `STS2DIFF_REUSE=1`); instruction counts with `cargo build --profile prof -p sts2sim --example prof` and `valgrind --tool=callgrind target/prof/examples/prof {fights|reset|env} N` (prints a checksum that must not change).

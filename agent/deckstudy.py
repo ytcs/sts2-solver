@@ -4,7 +4,7 @@
         --attempts 64 --final-attempts 256 --mults 1,2,3,4,6 --out evals/ds_aeonglass_a.json
     python -m agent.deckstudy --report evals/ds_aeonglass_a.json evals/ds_aeonglass_b.json     # merge result files and print the comparison table
 
-The task (as in `agent.deckbench`): the starter deck, `--screens` card-reward screens of 3 random Ironclad cards (rarities 60/37/3%) plus skip, the same sequences for
+The task: the starter deck, `--screens` card-reward screens of 3 random Ironclad cards (rarities 60/37/3%) plus skip, the same sequences for
 every approach (paired). The score of a final deck is the solver's win rate against the target averaged over start HP x`--mults` ("smooth"; Aeonglass needs
 1,2,3,4,6), at `--final-attempts`. Compute is counted per approach with its OWN evaluation cache, so nothing is free because another approach ran first.
 
@@ -22,21 +22,153 @@ Approaches
   hindsight_h      beam search that knows the whole sequence (reference: not available in play)
 and, once per target, `ga_ceiling`: the best complete deck of the genetic search (any cards, no offers): what 20 added cards can reach at all.
 """
+
 import argparse
 import collections
 import json
 import os
 import random
+import re
 import sys
 import time
 
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from agent import card_tags, deckbench  # noqa: E402
-from agent.deckbench import STARTER, Scorer, card_pool, make_sequence, run_policy  # noqa: E402
+from agent import card_tags  # noqa: E402
 
-ROOT = deckbench.ROOT
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+
+STARTER = [("STRIKE_IRONCLAD", 5), ("DEFEND_IRONCLAD", 4), ("BASH", 1), ("ASCENDERS_BANE", 1)]
+RARITY_ODDS = (("Common", 0.60), ("Uncommon", 0.37), ("Rare", 0.03))
+
+
+def card_pool():
+    """Ironclad reward cards by rarity, from the simulator's own card table."""
+    root = os.path.join(ROOT, "crates", "sts2sim", "src", "content")
+    pool_src = open(os.path.join(root, "gen_pools.rs"), encoding="utf-8").read().split("pub static IRONCLAD")[1].split("];")[0]
+    ids = set(re.findall(r"ids::card::([A-Z0-9_]+)", pool_src))
+    rar = {}
+    for m in re.finditer(r"CardDef::new\(ids::card::([A-Z0-9_]+), -?\d+, CardType::\w+, CardRarity::(\w+)", open(os.path.join(root, "gen_cards.rs"), encoding="utf-8").read()):
+        rar[m.group(1)] = m.group(2)
+    out = {"Common": [], "Uncommon": [], "Rare": []}
+    for cid in sorted(ids):
+        if rar.get(cid) in out:
+            out[rar[cid]].append(cid)
+    return out
+
+
+def make_sequence(rng, screens, pool):
+    seq = []
+    for _ in range(screens):
+        offer = []
+        while len(offer) < 3:
+            r = rng.random()
+            tier = "Common" if r < RARITY_ODDS[0][1] else ("Uncommon" if r < RARITY_ODDS[0][1] + RARITY_ODDS[1][1] else "Rare")
+            c = rng.choice(pool[tier])
+            if c not in offer:
+                offer.append(c)
+        seq.append(offer)
+    return seq
+
+
+def scenario(deck, target, hp=80):  # hp is overridden by Scorer.hp
+    # deck entries: "ID" (added card), "ID+" (added, upgraded), "@ID" (one starter copy of ID upgraded)
+    starter = [dict(id=c, upgrade=0) for c, k in STARTER for _ in range(k)]
+    for c in (x for x in deck if x.startswith("@")):
+        for d in starter:
+            if d["id"] == c[1:] and not d["upgrade"]:
+                d["upgrade"] = 1
+                break
+    d = starter + [dict(id=c.rstrip("+"), upgrade=1 if c.endswith("+") else 0) for c in deck if not c.startswith("@")]
+    return dict(name="bench", ascension=10, encounter=target, character="IRONCLAD", hp=hp, max_hp=hp, max_energy=3, gold=0, max_potion_slots=2, base_orb_slots=0,
+                seed="bench", total_floor=1, act=0, deck=d, relics=[dict(id="BURNING_BLOOD")], potions=[])
+
+
+class Scorer:
+    """Solver win rate and HP lost of decks against the target; results are cached by deck."""
+
+    def __init__(self, eng, target, attempts, hp=80, mults=(1.0, 1.5, 2.0, 3.0)):
+        self.eng, self.target, self.attempts, self.cache, self.calls, self.hp, self.mults = eng, target, attempts, {}, 0, hp, tuple(mults)
+
+    def many(self, decks, hp=None):
+        hp = hp or self.hp
+        key = lambda d: (hp, tuple(sorted(d)))  # noqa: E731
+        todo = list(dict.fromkeys(key(d) for d in decks if key(d) not in self.cache))
+        if todo:
+            res = self.eng.solve([scenario(list(d), self.target, hp) for _, d in todo], attempts=self.attempts)
+            for k, r in zip(todo, res):
+                self.cache[k] = (r["win"], r["win_se"], r["hp_lost"] or 0.0)
+            self.calls += len(todo)
+        return [self.cache[key(d)] for d in decks]
+
+    def by_hp(self, decks):
+        """Win rate of every deck at each start-HP multiple: list (per deck) of lists (per multiple)."""
+        per = [self.many(decks, int(self.hp * m)) for m in self.mults]
+        return [[p[i][0] for p in per] for i in range(len(decks))]
+
+    def smooth(self, decks, mults=None):
+        """A graded objective that does not go flat when every deck loses: the win rate averaged over handicapped start HPs (x1 .. x3). A deck that is far
+        from beating the target still wins with enough HP; the HP it needs is what picks reduce."""
+        per = [self.many(decks, int(self.hp * m)) for m in (mults or self.mults)]
+        return [float(np.mean([p[i][0] for p in per])) for i in range(len(decks))]
+
+
+def upgrade_options(deck):
+    """Decks after upgrading one card: each distinct added card not upgraded yet, and each starter card type (one copy)."""
+    out = []
+    for c in dict.fromkeys(x for x in deck if not x.startswith("@") and not x.endswith("+")):
+        d = list(deck)
+        d[d.index(c)] = c + "+"
+        out.append(d)
+    ups = [x for x in deck if x.startswith("@")]
+    for sid, k in STARTER:
+        if sid == "ASCENDERS_BANE" or ups.count("@" + sid) >= k:
+            continue
+        out.append(list(deck) + ["@" + sid])
+    return out
+
+
+def run_policy(name, seq, sc, upgrade_every=0):
+    """The simulator-scored policies: skip, greedy (plain win rate, skips when no gain), greedy_pick / greedy_h (smooth objective; greedy_h skips only when every option is
+    worse than the current deck), hindsight_h (beam search that knows the whole sequence). `upgrade_every` K: after every K screens upgrade the best card (greedy_h / greedy_pick)."""
+    deck = []
+    if name == "skip":
+        return deck
+    if name == "greedy":
+        for offer in seq:
+            cands = [deck] + [deck + [c] for c in offer]
+            res = sc.many(cands)
+            best = max(range(1, 4), key=lambda i: (res[i][0], -res[i][2]))
+            gain = res[best][0] - res[0][0]
+            if gain > 0 or (gain >= 0 and res[best][2] < res[0][2] - 0.02):
+                deck = deck + [offer[best - 1]]
+        return deck
+    if name in ("greedy_h", "greedy_pick"):
+        for si, offer in enumerate(seq):
+            cands = [deck] + [deck + [c] for c in offer]
+            v = sc.smooth(cands)
+            best = max(range(1, 4), key=lambda i: v[i])
+            if v[best] >= v[0] - (0.0 if name == "greedy_h" else 1e9):
+                deck = deck + [offer[best - 1]]
+            if upgrade_every and (si + 1) % upgrade_every == 0:
+                ups = [deck] + upgrade_options(deck)
+                vu = sc.smooth(ups)
+                deck = ups[max(range(len(ups)), key=lambda i: vu[i])]
+        return deck
+    if name == "hindsight_h":
+        beams = [([], 0.0)]
+        for offer in seq:
+            cands = []
+            for d, _ in beams:
+                cands.append(d)
+                cands += [d + [c] for c in offer]
+            cands = [list(x) for x in {tuple(sorted(c)): c for c in cands}.values()]
+            scored = sorted(zip(cands, sc.smooth(cands)), key=lambda t: -t[1])
+            beams = scored[:3]
+        return beams[0][0]
+    raise ValueError(name)
+
 RARITY_W = {"Common": 0.0, "Uncommon": 0.1, "Rare": 0.2}
 
 
@@ -223,7 +355,7 @@ def run(a):
             elif p == "elite_freq":
                 deck = run_elite_freq(seq, freq, prng)
             else:
-                deck = run_policy(p, seq, sc, 0.0, a.beam, prng, 0)
+                deck = run_policy(p, seq, sc, a.upgrade_every)
             secs = time.time() - t0
             bh = final.by_hp([deck])[0]
             row["policies"][p] = dict(deck=deck, picks=len(deck), secs=secs, evals=sc.calls, fights=sc.calls * sc.attempts, by_hp=bh, smooth=float(np.mean(bh)))
@@ -271,7 +403,7 @@ def main():
     ap.add_argument("--attempts", type=int, default=64)
     ap.add_argument("--rollout-attempts", type=int, default=32)
     ap.add_argument("--final-attempts", type=int, default=256)
-    ap.add_argument("--beam", type=int, default=3)
+    ap.add_argument("--upgrade-every", type=int, default=0, help="greedy_h / greedy_pick: after every K screens upgrade the card (or starter card type) that helps most")
     ap.add_argument("--hp", type=int, default=80)
     ap.add_argument("--mults", default="1,2,3,4,6")
     ap.add_argument("--ga-pop", type=int, default=16)

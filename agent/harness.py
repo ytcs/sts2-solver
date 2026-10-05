@@ -10,10 +10,12 @@ Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <
                         below 60% HP is refused unless confirmed with `a <i> !`
   reward [--attempts N] [--hp full]   on a card reward screen: every option and skip priced against the boss (smooth), the elites left and the next act, in one table
   brief                 the run at a glance: header, deck, buckets and gaps, relics, potions, the known boss and the elites that can still appear
-  eval {json} | eval [--all] [--smooth] (--enc IDS | --boss | --elites | --next) --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
+  eval {json} | eval [--all] [--smooth] (--enc IDS | --pool Act:kind[:n] | --future | --boss | --elites | --next) --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
   route <M E R S B ...> [--hp N] [--act Hive] [--exclude IDS]   HP budget (pools narrowed to what can still appear: not the encounters already met this act, only the known boss) along a planned route (fights played at the HP I would arrive with, rests heal 30%)
   relics                relic counters in combat (Pen Nib, Book of Five Rings ...)
+  hold ID[,ID]          keep those potions out of the solver's choices (`hold none` releases)
   note <text>           a free-text note in the run record
+  newrun                start a new run record
   status                what the harness is holding (run id, fight, replay fidelity, engine)
   d | p draw | m | draw r1c6 r2c6 ... | x ... | f ...   straight to the bridge (deck, piles, map, draw a route on the map, dev console, fast mode)
 
@@ -36,6 +38,12 @@ from agent.runlog import RunLog
 
 def _kind(text):
     return text.split("\n", 1)[0].split(" ")[0] if text else "?"
+
+
+def _act_index(text):
+    """0-based act from a state header ("A2 F20 IRONCLAD ..."), None when the screen has no header."""
+    m = re.search(r"A(\d+) F\d+", text or "")
+    return int(m.group(1)) - 1 if m else None
 
 
 def _hp(text):
@@ -311,7 +319,6 @@ class Harness:
             kind = _kind(before)
             if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2:
                 self.log.new_run()  # a new run starts from the menu: its own record (the narrowing of the encounter pools reads it)
-                self.seen_reset = True
             if i and self.gate:
                 refusal = self._skill_refusal(before)
                 if refusal:
@@ -394,9 +401,7 @@ class Harness:
         """Elite and boss encounters of the current act and every later act (an act with two variants: the one the boss belongs to, when known)."""
         from agent import pools
         ctx = self._ctx()
-        raw = call("peek")
-        h = re.search(r"A(\d+) F\d+", raw) or re.search(r"A(\d+) F\d+", call("s"))
-        cur = int(h.group(1)) - 1 if h else 0
+        cur = _act_index(call("peek")) or 0
         out = []
         for ai in range(cur, 3):
             names = pools.act_names(ai)
@@ -409,12 +414,11 @@ class Harness:
         return out
 
     def _horizon(self):
-        """The three encounter sets a pick is judged against (`sts2-deckbuilding` 3b): `boss` = the act's known boss (or its pool when the map has not shown it),
+        """The three encounter sets a pick is judged against (`sts2-deckbuilding` section 4): `boss` = the act's known boss (or its pool when the map has not shown it),
         `elites` = the elites of this act that can still appear, `next` = every elite and boss of the next act (empty in the last act)."""
         from agent import pools
         ctx = self._ctx()
-        h = re.search(r"A(\d+) F\d+", call("peek"))
-        cur = int(h.group(1)) - 1 if h else 0
+        cur = _act_index(call("peek")) or 0
         names = pools.act_names(cur)
         if len(names) > 1 and ctx["bosses"]:
             names = [n for n in names if any(b in pools.pool(n, "boss") for b in ctx["bosses"])] or names
@@ -430,8 +434,7 @@ class Harness:
         try:
             m = re.search(r"^boss: \d+ (\w+)(?: \+ (\w+))?", call("m"), re.M)
             bosses = [b for b in (m.groups() if m else ()) if b]
-            h = re.search(r"A(\d+) F\d+", call("peek"))
-            act = int(h.group(1)) - 1 if h else None
+            act = _act_index(call("peek"))
             path = os.path.join(self.log.dir, "events.jsonl")
             if act is not None and os.path.exists(path):
                 for line in open(path, encoding="utf-8"):

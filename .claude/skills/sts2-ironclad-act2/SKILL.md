@@ -1,27 +1,23 @@
 ---
 name: sts2-ironclad-act2
-description: Use when entering or planning Act 2 (Hive) as the Ironclad: elite and boss notes, Smith vs Rest, deviations from the general strategy. Little evidence yet.
+description: Use when entering or planning Act 2 (Hive) as the Ironclad: hallway and elite HP cost, rest rule, The Insatiable deck, ancient and relic values. Deviations from the general strategy only.
 ---
 
-# Ironclad Act 2 (additions to `sts2-strategy`, `sts2-ironclad`)
+# Ironclad Act 2 (deviations from `sts2-strategy`, `sts2-ironclad`)
 
-Pools: `sts2-acts` (2 weak fights, 14 rooms).
+Pools: `sts2-acts`; Insatiable row, target deck, potion numbers: `encounters.md`.
 
-## Known `[played]`
-- Shakedown run: Act 2 boss win about 30-50% and elites 94-99% at ~50% HP cost for an Act 1 end deck `[sim]`; died at floor 24 entering an elite at 37/80 (see `sts2-strategy`).
+## HP economy `[played]` / `[sim]`
+- Hallways cost 20-40 HP (predicted 10-30; Act 1: 5-15), runs 3-4. Hive elites: 42-67% at 66 HP (mid deck), 94-99% at ~50% HP cost (Act 1 end deck), 99% at full HP (run 4).
+- Rest before every elite: 84% at 43 HP vs 99% at 67 HP (run 3). Test: `eval --elites --hp <now>` vs `<after rest>`.
+- The Insatiable: ~30-50% for an Act 1 end deck; potions decide it (`encounters.md`); `hold` them for it.
 
-## Run 3 (Underdocks->Hive, boss The Insatiable) `[played]` / `[sim]`
-- Beat The Insatiable at 8 HP. Hallways cost 21-37 HP each (Act 1 cost 5-15): Act 2 is an HP-resource act; Hive elites 42-67% at 66 HP for a mid deck. Rest before every elite (84% at 43 HP vs 99% at 67 HP).
-- Ancient (Tezcatara): Yummy Cookie (upgrade 4) was +14 on elites; Biiig Hug loses to the Soot cards it adds; Seal of Gold drains the gold you need for shops.
-- Potions decide the boss: Powdered Demise +14..+15, Flex Potion +9..+11 against Insatiable/elites; buy and hold them (`hold` command) for the boss.
-- Target deck for The Insatiable: scaling Strength + burst + acceleration (Demon Form, Bludgeon, Tremble, Offering): 60% vs 2%; I never found those cards (skipped 12 reward screens whose best option was < 2 SE).
-- Colorful Philosophers gives three skippable card rewards from another class; I found nothing above the bar (best Ice Lance/FTL +5 +- 3.8). A scan of each class's pool for cards that would greatly lift the deck (not just the offered ones) is worth building.
-
-## Run 4 (boss The Insatiable again) `[played]` / `[sim]`
-- The deck that beat it at 97% (80 HP): Primal Force x2, Demon Form (elite reward, +33.6 vs 7.8% base), Bag of Preparation (+9.8), Bronze Scales (+10.9, 3 Thorns), Kusarigama, Pael's Legion (pet that doubles a block), Gorget, Red Mask, Cinder, Pommel, Shrug, Taunt x2, Book of Five Rings (a card added 5 times = heal 20: take cheap cards when HP is low).
-- Hallway fights still cost 20-40 HP in Act 2 (predicted 10-30); elites are better value at full HP (99%): relic + rare odds. Rest before them.
-- Pael's Legion shows a random cosmetic `Skin` prop that the fidelity check flagged as DESYNC until it was ignored (fixed in `harness._sync_problem`).
+## Items
+- Run 4 beat The Insatiable at 97% (80 HP) with Primal Force x2, Demon Form (elite reward: +33.6 vs 7.8% base), Bag of Preparation +9.8, Bronze Scales +10.9 (3 Thorns), Kusarigama, Pael's Legion.
+- Ancient Tezcatara (run 3): Yummy Cookie (upgrade 4) +14 on elites; Biiig Hug loses to the Soot cards it adds; Seal of Gold drains shop gold.
+- Book of Five Rings heals 20 when a 5th card is added (full heal at 10 HP): with low HP take cheap cards `[played]`.
+- Colorful Philosophers (3 cards of another class): best +5 +- 3.8, under 2 se `[sim]`.
 
 ## To test `[hyp]`
-- Smith versus Rest before the Act 2 boss, per boss (solver win rate with and without the upgrade).
-- Which Act 2 elites a typical Act 1 deck can afford.
+- Another class's pool holds a card worth >= +10 on the Act 2 boss: scan every card with `eval ... add=ID`.
+- Smith vs rest before the Act 2 boss, per boss: `eval` with and without the upgrade at arrival HP.

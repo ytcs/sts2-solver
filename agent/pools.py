@@ -35,7 +35,6 @@ def _snake(name):
 
 
 _KNOWN = set(sts2.names()["encounter"])
-UNKNOWN = []
 
 
 def _ids(s):
@@ -44,8 +43,6 @@ def _ids(s):
         i = _snake(n)
         if i in _KNOWN:
             out.append(i)
-        else:
-            UNKNOWN.append((n, i))
     return out
 
 

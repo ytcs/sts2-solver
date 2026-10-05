@@ -10,6 +10,8 @@ import sys
 import threading
 import time
 
+from agent.skillgate import READ_ONLY
+
 PORT = int(os.environ.get("STS2_AGENT_PORT", 15556))
 
 
@@ -130,7 +132,7 @@ def main():
             print("bye")
             return
         # the daemon died under this command: restart it; repeat only commands that change nothing in the game
-        if line.split()[0] in ("s", "d", "p", "m", "adv", "status", "relics", "budget", "route", "eval"):
+        if line.split()[0] in READ_ONLY:
             start_daemon()
             print(ask(line), end="")
         else:

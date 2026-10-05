@@ -2,7 +2,8 @@
 """The outer loop: turn experience into improvements, and adopt an improvement only when it measurably helps.
 
   python -m agent.improve review [run-id]       report on a run: fights (predicted vs actual), search-vs-policy disagreement, simulator fidelity, macro decisions
-  python -m agent.improve lessons               the strategy book's open hypotheses (`[hyp]` lines) = the experiment backlog
+  python -m agent.improve lessons               the strategy book's open hypotheses (`[hyp]`) = the experiment backlog
+  python -m agent.improve gaps                  surprising fights, fidelity divergences and hindsight verdicts recorded so far (evals/gaps.jsonl)
   python -m agent.improve corpus                collect the fights of all runs into data/corpus (train / held-out split by run)
   python -m agent.improve finetune [--iters N]  fine-tune the current network on corpus + base distribution (PPO, `rl/ppo.py`), in the background
   python -m agent.improve gate CKPT [--vs CKPT] compare a candidate with the current network on fixed held-out sets; writes evals/ledger.jsonl
@@ -120,7 +121,7 @@ def review(run_id=None):
     if unpriced:
         follow.append(f"{unpriced} card pick(s) were not priced by `reward` / `eval` first: the rule is numbers first, then judgment")
     if fid or div:
-        follow.append("simulator fidelity first: reproduce the divergence (agent.validate, verify/regress) and fix the simulator before trusting any model comparison")
+        follow.append("simulator fidelity first: reproduce the divergence (agent.fidelity_sweep, agent.fidelity_trace) and fix the simulator before trusting any model comparison")
     if surprises:
         follow.append(f"{len(surprises)} fight(s) far from the prediction: add them to the corpus and look for a pattern (encounter, card type, relic); a pattern justifies a fine-tune; "
                       "write what the fight asked into `sts2-acts/encounters.md` (and `sts2-mechanics` for a new power) with `[played]`")
@@ -193,16 +194,32 @@ def _macro_decisions(ev, run):
 
 # ---------------------------------------------------------------------------------------------------------------- strategy backlog
 
+NL = chr(10)
+
+
 def lessons():
+    """The experiment backlog: every `[hyp]` bullet in the strategy book, including the bullets under a `[hyp]` heading."""
     out = []
     for p in sorted(glob.glob(os.path.join(ROOT, ".claude", "skills", "*", "*.md"))):
-        if os.path.basename(p) == "runs.md":
-            continue  # run logs hold history, not claims
         name = os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p)
+        under = False
         for i, l in enumerate(open(p, encoding="utf-8"), 1):
-            if "[hyp]" in l:
+            if l.startswith("#"):
+                under = "[hyp]" in l
+                continue
+            if l.strip() and ("[hyp]" in l or (under and l.lstrip().startswith(("-", "*", "1", "2", "3", "4", "5", "6", "7", "8", "9")))):
                 out.append(f"{name}:{i}: {l.strip()[:200]}")
-    return f"{len(out)} open hypotheses\n" + "\n".join(out)
+    return f"{len(out)} open hypotheses" + NL + NL.join(out)
+
+
+def gaps():
+    """What `review` and `hindsight --log` recorded in evals/gaps.jsonl: surprising fights, fidelity divergences, hindsight verdicts, counted by kind and encounter."""
+    p = os.path.join(EVALS, "gaps.jsonl")
+    if not os.path.exists(p):
+        return "no gaps recorded"
+    rows = [json.loads(l) for l in open(p, encoding="utf-8") if l.strip()]
+    by = collections.Counter((r.get("kind"), r.get("encounter") or r.get("what", "")) for r in rows)
+    return f"{len(rows)} records" + NL + NL.join(f"  {k[0]:10s} {k[1]:40s} {n}" for k, n in by.most_common(25))
 
 
 # ---------------------------------------------------------------------------------------------------------------- corpus / fine-tune / gate
@@ -276,8 +293,9 @@ def gate(candidate, vs=None, attempts=2, n_eval=600):
     vs = vs or cur["policy"]
     sets = {}
     hold = os.path.join(CORPUS, "fights_holdout.json")
-    if os.path.exists(hold):
-        sets["corpus_holdout"] = json.load(open(hold))
+    if not os.path.exists(hold) or not json.load(open(hold)):
+        return "gate: FAIL (no corpus holdout: play runs and run `corpus` first; a candidate must gain on fights it was not trained on)"
+    sets["corpus_holdout"] = json.load(open(hold))
     sets["eval"] = json.load(open(_train_set("eval", 1500, 22, 0.0)))[:n_eval]
     sets["eval_energy"] = json.load(open(_train_set("eval_energy", 600, 23, 1.0)))[:n_eval]  # every scenario at 4-7 energy: the old mix had almost none
     res = {}
@@ -317,13 +335,13 @@ def ledger():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["review", "lessons", "corpus", "finetune", "gate", "adopt", "ledger"])
+    ap.add_argument("cmd", choices=["review", "lessons", "gaps", "corpus", "finetune", "gate", "adopt", "ledger"])
     ap.add_argument("arg", nargs="?")
     ap.add_argument("--vs")
     ap.add_argument("--iters", type=int, default=200)
     ap.add_argument("--as", dest="as_name")
     a = ap.parse_args()
-    out = dict(review=lambda: review(a.arg), lessons=lessons, corpus=corpus, finetune=lambda: finetune(a.iters), gate=lambda: gate(a.arg, a.vs),
+    out = dict(review=lambda: review(a.arg), lessons=lessons, gaps=gaps, corpus=corpus, finetune=lambda: finetune(a.iters), gate=lambda: gate(a.arg, a.vs),
                adopt=lambda: adopt(a.arg, a.as_name), ledger=ledger)[a.cmd]()
     print(out)
 

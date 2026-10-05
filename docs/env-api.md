@@ -40,7 +40,7 @@ enemy's HP/block/powers, current intent(s) (type, per-hit damage computed with t
 its last four performed moves, **expert pattern knowledge of the enemy's upcoming turns** (below), per-turn play counters, and
 any pending decision with its candidates.
 
-**Upcoming enemy turns (`Combat::lookahead`, section 12).** The game shows only the current intent, but experienced players
+**Upcoming enemy turns (`Combat::lookahead`, layout row 12).** The game shows only the current intent, but experienced players
 know each monster's pattern by heart, so the pattern is treated as known information: for each enemy and each of the next
 `LOOK_H` = 3 turns after the one shown, the observation carries the probability of each move node (`LOOK_NODES` = 16 slots; node
 indices are per monster, the monster id is in the enemy block) and the expected total attack damage. It is computed by walking
@@ -88,8 +88,7 @@ outcome of random enemy branches, monster-internal AI state beyond the move patt
 monster logs) and asserts the vector is unchanged; `pile_selection_screen_does_not_reveal_pile_order` does the same for
 selection screens.
 
-Open: "known top card" information (after a put-on-top effect a human remembers which card is on top of the draw pile) is not
-tracked yet.
+Not tracked: "known top card" information (after a put-on-top effect a human remembers which card is on top of the draw pile).
 
 ## Episode outcomes and aborted episodes (`sts2env`, `sts2.VecEnv`)
 
@@ -121,11 +120,11 @@ simulator error, `BatchEnv` as `OUTCOME_OVERFLOW`. Invalid scenarios are errors 
 | creatures (player + Osty + enemies, incl. summons) | `MAX_CREATURES` = 12 (largest encounter starts with 4 enemies) | `ov::CREATURES` |
 | powers per creature | `MAX_POWERS` = 16 | `ov::CONTAINER` |
 | relics / potions / orbs | 24 / 4 / 10 | `ScenarioError` |
-| hook listeners of one dispatch (snapshot) | 256 | `ov::CONTAINER` |
-| per-attack results | 64 (`after_attack` listeners see the first result of every receiver, plus exact hit counters) | `ov::CONTAINER` |
+| hook listeners of one dispatch (snapshot) | 256 (`SNAPSHOT_CAP`) | `ov::CONTAINER` |
+| per-attack results | 16 (`after_attack` listeners see the first 16 per-hit results, plus exact hit counters) | `ov::CONTAINER` |
 | decision candidates | 64 (= `MAX_PICK`, the action space addresses `Pick{0..64}`) | `ov::CONTAINER` |
 | selected cards of a decision / choice | 16 | `ov::CONTAINER` |
-| history ring (this-turn / last-turn queries) | 128 entries of the queried kinds | `ov::HISTORY` when an entry of the current or previous player turn is overwritten |
+| history ring (this-turn / last-turn queries) | 160 entries (`HIST_CAP`) of the queried kinds | `ov::HISTORY` when an entry of the current or previous player turn is overwritten |
 | whole-combat counters (`hist_total` ...) | 65535 | `ov::COUNTER` |
 
 Observation limits (the observation is a fixed-size window, not a state copy): 8 enemies, 16 powers per creature, 64 cards per pile list, 16
@@ -133,10 +132,10 @@ decision candidates (the decision header carries the true candidate count; `Pick
 has 39). Beyond that the extra entries are simply not visible to the agent (the simulation itself is unaffected).
 
 ## Resetting in place
-`Combat::reset(&Scenario)` / `reset_with` / `reset_validated` re-initialise an existing combat (no 17 KB construct-and-copy); `BatchEnv` resets finished
+`Combat::reset(&Scenario)` / `reset_with` / `reset_validated` re-initialise an existing combat (no 18.8 KB construct-and-copy); `BatchEnv` resets finished
 episodes through `reset_validated` with an allocation-free `ScenarioSource::pick`. A reset combat is bit-identical to `Combat::new` (tested, and
 replayed against the oracle with `STS2DIFF_REUSE=1`).
 
 ## Throughput (release, random policy, observation + legal actions every step, `cargo run --release -p sts2env --example bench`)
 ~0.17M env-steps/s per core (1 thread), scaling linearly: 2.4M on an idle 14-core machine (0.95M measured while ~10 foreign cores were busy).
-The observation (~40% of an env step) and the engine step (~30%) dominate; see `docs/design.md` "Hardening phase" for the breakdown.
+The observation (~40% of an env step) and the engine step (~30%) dominate; see `docs/design.md` "Performance".

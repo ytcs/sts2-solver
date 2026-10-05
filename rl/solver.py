@@ -33,7 +33,7 @@ if os.path.exists(_CUR):
 
 
 class Solver:
-    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, pmin=0.0, margin=0.0, max_steps=300, value_ckpts="default", roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None,
+    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, value_ckpts="default", roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None,
                  threads=None):
         """`ckpt`: a checkpoint path, or several (comma-separated string / list) = an ensemble for both policy and value; `value_ckpts`: extra networks
         whose value heads are averaged in while the policy stays the first network's. Defaults: 3 options x 8 futures per decision (best cost / quality).
@@ -47,7 +47,7 @@ class Solver:
         self.max_steps = max_steps
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         # a big pool of fights in flight keeps the network batches large (2048 roots x 24 play-outs); bf16 inside CUDA graphs is free (docs/solver.md)
-        self.fs = FastSearch(self.net, self.value_nets, M, K, conf=conf, pmin=pmin, margin=margin, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
+        self.fs = FastSearch(self.net, self.value_nets, M, K, conf=conf, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
                              roll_net=load(roll_ckpt) if roll_ckpt else None, amp=cuda if amp is None else amp)
         self.fs.warm()
 

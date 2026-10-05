@@ -1,18 +1,13 @@
-"""Review of a costly fight (the outer loop's check for gaps in the solver): was the loss bad luck, or did the solver (or I) play a clearly worse line?
+"""Was a costly fight bad luck, or did the solver play a clearly worse line?
 
-    python -m agent.hindsight runs/<run>/fights/<id>_<ENCOUNTER>.json [--budget 20] [--replays 40] [--min-gap 2] [--max-decisions 60]
+    python -m agent.hindsight runs/<run>/fights/<id>_<ENCOUNTER>.json [--budget 20] [--replays 40] [--replay-budget 1] [--min-gap 2] [--max-decisions 80] [--no-luck] [--log]
 
-The harness keeps the whole export of every fight that lost >= 30% of max HP (or was lost) under `runs/<run>/fights/`. Two questions per fight:
-
-1. **Luck or systematic?** The fight is replayed from its start in the simulator `--replays` times with the live decision procedure (same deck, relics, HP, no potion
-   policy tricks) at a normal budget: where does the real HP loss fall in that distribution? Above the 90th percentile = unlucky draws / enemy rolls, in the middle or
-   below = this deck simply loses that much there (a deck / route problem, not a solver problem).
-2. **Play by play.** At every decision of the real fight the simulator is rebuilt from what was observed (as in play), `Engine.decide` runs at a large budget
-   (`--budget` seconds) and the line the solver prefers is compared with the action that was played, in HP (the solver's own value of both). Decisions where the
-   best option beats the played one by `--min-gap` HP or more are listed: a pattern there (the same card, the same kind of turn) is a solver gap to fix; scattered
-   small gaps are search noise. This conditions on what a player knew; the realized draws are not used (a "lucky line" would not be a gap).
-
-A fight in the log may end one action before the last (the final sync precedes the killing blow); the review stops there.
+The harness keeps the export of every fight that lost >= 30% of max HP (or was lost) under `runs/<run>/fights/`. Two checks:
+1. Luck: the fight is replayed from its start `--replays` times with the live decision procedure; the percentile of the real HP loss in that distribution (>= 90th = unlucky,
+   else the deck simply loses that much there).
+2. Play by play: at each decision the simulator is rebuilt from the observations, `Engine.decide` runs for `--budget` seconds, and decisions where its best option beats the played
+   one by >= `--min-gap` HP are listed. A pattern (same card, same kind of turn) is a solver gap; scattered small gaps are search noise. Realized draws are not used.
+`--log` appends the verdict to evals/gaps.jsonl (`python -m agent.improve gaps`). The log may end one action before the last (the final sync precedes the killing blow).
 """
 import argparse
 import json
@@ -29,7 +24,7 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
 
 def percentile_of_real(eng, scenario, real_lost, replays, budget):
-    from agent.budget_replay import play_fight
+    from agent.engine import play_fight
     lost = []
     for k in range(replays):
         o, hp_lost, _ = play_fight(eng, scenario, 9000 + k, budget, keep_potions=False)

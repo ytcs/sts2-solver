@@ -1,11 +1,9 @@
-"""Run records: what the outer loop learns from.
+"""Run records: `runs/<run-id>/events.jsonl`, one JSON object per line `{"t": unix time, "kind": ..., ...}`.
 
-`runs/<run-id>/events.jsonl` has one JSON object per line:
-  {"t": unix time, "kind": ..., ...}
-kinds: `fight_start` (scenario summary and the solver's prediction), `action` (one micro decision: chosen action, options with p / q, searched or forced),
-`fight_end` (outcome, HP), `macro` (a non-combat decision: screen, options, choice, my reason, optional evaluation), `eval` (a macro evaluation and its
-numbers), `note` (free text), `divergence` (the simulator disagreed with the game).
-`agent.improve review` turns these into gap reports; `agent.improve corpus` collects the fight scenarios for fine-tuning.
+kinds: `fight_start` (scenario, the solver's prediction), `action` (a micro decision: chosen action, options with p / q), `fight_end` (outcome, HP, replay fidelity),
+`macro` (a non-combat decision: screen, choice, `why`), `eval` / `reward_eval` / `route` (the numbers behind a macro decision), `run_end` (game-over or victory screen),
+`note`, `divergence` (the game rejected an action the simulator allowed). Costly fights are kept whole under `runs/<run-id>/fights/`.
+`agent.improve review` reads these; `agent.improve corpus` collects the fight scenarios for fine-tuning.
 """
 import json
 import os

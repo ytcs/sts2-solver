@@ -28,6 +28,12 @@ $ python -m agent.bridge a 2 e1        # Bash the second slug
 | `a <i> [args]` | take option i. Combat: `e<k>` targets enemy k (needed for `->e` options when there are several enemies). Main menu "new run": `a <i> <character> [ascension] [seed]` |
 | `a <i> [<j> ...]` / `a -` | answer a `SELECT` card-choice prompt (hand discards, exhausts, upgrades, transforms, removals, grids...) |
 | `a dp <slot>` | discard a potion (0-based slot), e.g. to take a potion reward with a full belt |
+| `peek` | the current state without waiting for the screen to settle |
+| `do <json>` | one action in the oracle script vocabulary (`{"play":{...}}`, `{"end_turn":true}`, ...), then the new state like `a`; the harness's solver uses it |
+| `fight` | JSON `{scenario, log, state}` of the current combat (visible information only) |
+| `snap`, `deck.json` | JSON snapshots of the state / deck |
+| `draw r1c6 r2c6 ...` / `draw clear` | draw a route on the in-game map |
+| `mods` | run modifiers selectable on the Custom Run screen |
 | `d` | deck, relics, potions |
 | `p draw\|discard\|exhaust` | a combat pile, as an unordered multiset (the draw order is hidden, as for a player) |
 | `m` | the whole act map (`<type>c<col>><child cols>`, `*` = visited) |

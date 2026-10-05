@@ -9,7 +9,7 @@ cd oracle/combat
 dotnet build -c Release            # needs the game install; override with -p:GameDir=/path/to/data_sts2_linuxbsd_x86_64
 ```
 Default `GameDir` = `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_x86_64` (same as `oracle/RngGolden`).
-Requires .NET 9 SDK, Linux x86-64. Nothing in the game directory is modified. A harmless
+Requires .NET 9 SDK, Linux x86-64 (the Godot stub `mmap`s raw x86-64 machine code through libc and `GameDir` points at the `linuxbsd` data folder): it does not build or run on the Windows dev machine, so run the oracle, `verify/` sweeps and `tools/fuzz_gen*.py` on a Linux host. Nothing in the game directory is modified. A harmless
 `SentryGodotInitializer: ...` line is printed to stdout at start-up by the game assembly; always use `--out`.
 
 ## Run
@@ -24,7 +24,9 @@ Requires .NET 9 SDK, Linux x86-64. Nothing in the game directory is modified. A 
 ./oracle.sh batch DIR [--max-steps N --max-rounds N]
         # run every DIR/*.scenario.json in ONE process (~10 ms/fight); scenario key "policy": {"kind":"random|playall|stall","seed":N,
         # "max_steps":N,"max_rounds":N}; writes NAME.jsonl + NAME.res ("result nactions") or NAME.err. Without "policy" the scenario's
-        # own "script" is replayed (regression scenarios, oracle/regression/). Driven by tools/fuzz_gen.py (randomised differential fuzzing).
+        # own "script" is replayed (regression scenarios, oracle/regression/). Driven by tools/fuzz_gen*.py (randomised differential fuzzing).
+./oracle.sh catalog --out catalog.json     # pools and encounters for the generators (`tools/gen_train.py`, `tools/fuzz_gen_mix.py`)
+./oracle.sh list-meta --out meta.json      # pools / encounters metadata for `tools/fuzz_gen_orb_pet.py`
 ./oracle.sh dump-pools --out pools.json    # card / relic / potion pools, encounters (act, room type), enchantment applicability
 ./oracle.sh dump-rng SEED_STRING --out rng.json      # fresh nine streams {counter,s0..s3} for RunRngSet(seed)
 ./oracle.sh check-shuffle SCENARIO.json --trace trace.jsonl   # opening hand+draw == UnstableShuffle(deck, Rng(hash(seed),"shuffle"))

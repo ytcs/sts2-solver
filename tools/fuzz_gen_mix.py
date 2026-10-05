@@ -31,7 +31,7 @@ SKILL_ENCH = ["IMBUED", "IMBUED", "SWIFT", "STEADY", "ADROIT", "GLAM", "PERFECT_
 CHAR_W = {"REGENT": 40, "IRONCLAD": 15, "SILENT": 15, "DEFECT": 15, "NECROBINDER": 15}
 
 
-def slugify(name):  # same as tools/coverage.py
+def slugify(name):  # same as scripts/porting
     out, i, last = [], 0, -1
     while i < len(name):
         if i + 1 < len(name) and name[i].isascii() and name[i].isalnum() and "A" <= name[i + 1] <= "Z":

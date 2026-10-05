@@ -1,181 +1,81 @@
-# STS2 combat simulator — design
+# STS2 combat simulator: design
 
-> Note: the harness restructure removed development scripts (fuzzers, sweeps, audits, coverage, generators of training sets, `rl/trace.py`, `rl/winnable.py`, `rl/baselines.py`, `rl/sweep.py`, `rl/bench_net.py`) and the training / analysis data. Scripts named below that are gone are in git history: `git show 22730bd:<path>`.
-
-
-Target: Slay the Spire 2 **v0.111.0 public-beta** (Steam build 24724944, commit 41cef1ea). Single-player combat only.
-Purpose: an RL environment that replays real fights faithfully (relics + relic state, potions, draw/discard/exhaust
-order, enemy move patterns, RNG) at 10⁴–10⁵ parallel fights.
-
-Priorities, in order: **fidelity → throughput → memory**. Fidelity is verified by differential testing against the
-real game (see Validation); it is never assumed.
+Target: Slay the Spire 2 **v0.111.0 public beta** (Steam build 24724944, commit 41cef1ea). Single-player combat only.
+Purpose: an RL environment that replays real fights faithfully (relics and relic state, potions, draw/discard/exhaust order, enemy move patterns, RNG) at 10^4-10^5 parallel fights.
+Priorities, in order: fidelity, throughput, memory. Fidelity is verified by differential testing against the real game (Validation).
 
 ## Decisions
-
 | Topic | Decision | Why |
 |---|---|---|
-| Language | Rust core (`crates/sts2sim`), PyO3 bindings later | No GC, predictable layout, rayon; Python/PyTorch on top |
-| Source of truth | Decompiled `sts2.dll` in `decomp/` (gitignored, regenerate with ilspycmd) | Game logic is regular C#; we port rules, not guess them |
-| State | Plain data, fixed capacities, `Clone` = memcpy, zero heap on the hot path | Search/RL need cheap copies; 10⁵ envs ≈ hundreds of MB |
-| Control flow | Explicit step machine, **not** async. `step(state, action)` runs until the next decision | Async futures cannot be cloned/snapshotted |
-| Decisions | Everything the player chooses (play card/target, potion, end turn, card-select prompts) is an `Action` over a `legal_actions()` list | Uniform RL interface |
-| Content | One Rust module per card/relic/power/potion/monster, dispatched by `match` on a dense id; per-kind hook bitmask so iteration skips non-listeners | Fast dispatch, no dyn |
-| Numbers | Integer / fixed-point arithmetic mirroring the game's `decimal` pipeline (exact rounding points taken from spec 02) | Bit-exact damage |
-| RNG | Port of `MegaRandom`/`Rng` (done; golden-tested against the game's own code) | Same seeds → same draws |
+| Language | Rust core (`crates/sts2sim`), batch env (`crates/sts2env`), PyO3 bindings (`crates/sts2py`) | no GC, predictable layout, rayon; Python/PyTorch on top |
+| Source of truth | decompiled `sts2.dll` in `decomp/` (gitignored, not in the checkout; regenerate with ilspycmd), `docs/spec/01-05` | the game logic is regular C#; rules are ported, not guessed |
+| State | plain data, fixed capacities, `Clone` = memcpy, no heap on the hot path | search and RL need cheap copies |
+| Control flow | explicit step machine, not async: `step(action)` runs until the next decision | async futures cannot be cloned |
+| Decisions | everything the player chooses (card/target, potion, end turn, card-select prompts) is an `Action` from `legal_actions()` | uniform RL interface |
+| Content | one Rust `listener!` per card/relic/power/potion/monster/enchantment/affliction, class name = C# class name; dispatch by dense id, per-kind hook bitmask | fast dispatch, no `dyn` beyond the listener table |
+| Numbers | integer / fixed-point `Dec` mirroring the game's `decimal` pipeline | bit-exact damage |
+| RNG | port of `MegaRandom` / `Rng`, golden-tested against the game's own code (`oracle/RngGolden`, `tests/rng_golden.rs`); .NET introsort for reshuffle order (`sort.rs`) | same seeds, same draws |
 
 ### Suspension model
-The game awaits inside nested hook calls. We mirror its synchronous semantics with direct recursion, and
-resolve player choices with a **phase-resumable** effect function: `fn on_play(cx, phase) -> Flow`, where
-`Flow::Suspend(next_phase)` records a pending decision and returns to the caller loop; the chosen value is
-available to `on_play(cx, next_phase)`. Cards with no choices are single-phase. Choices raised from inside
-hooks (rare) are handled case-by-case by queueing the decision and a resume op at the front of the op stack.
+The game awaits inside nested hook calls. The simulator mirrors its synchronous semantics with direct recursion and resolves player choices with a phase-resumable effect function: `fn on_play(cx, play, phase) -> Flow`, where `Flow::Suspend(next_phase)` records a pending `Decision` and returns to the step loop; the chosen value is available to `on_play(.., next_phase)`. Cards without choices are single-phase. Choices raised inside hooks use `cx.hook_ctx = Some((me, phase))` plus `Listener::resume_hook`; turn start and end resume through `turn_cont` / `end_turn_resume`. Conventions: `docs/porting-guide.md`.
 
-### State layout (target)
-* `Combat { rng streams, turn/side/phase, player: Creature, enemies: [Creature; N], cards: [Card; CAP], piles, relics, potions, op_stack, pending_decision }`
-* `Creature { hp, max_hp, block, powers: [(PowerId u16, amount i32, aux i32); P] }` — powers kept in game list order
-  when order affects hook order (spec 02 decides).
-* Cards live in an arena (`cards[i]`); piles are small index arrays preserving order (draw pile order matters).
+Prompts raised inside draws that cannot pause (Stratagem's reshuffle pick in a card's draw, a hook's draw, `AutoPlayFromDrawPile`) are **replayed** (`engine/replay.rs`): the step is snapshotted, the agent sees the state at the prompt, then the snapshot is restored and the same action re-runs with the recorded answer (the engine is deterministic). Only combats containing a Stratagem (`Combat::strat_possible`) pay for it (one `Combat` clone per step); a `Combat` cloned at a prompt carries its snapshot. Search must `determinize` before the action, not at a replayed prompt.
 
-### Public API (planned)
-* `Combat::new(&Scenario, seed) -> Combat`
-* `combat.legal_actions(&mut ActionBuf)`, `combat.step(Action) -> StepOutcome`
-* `BatchEnv` (rayon) with a flat `f32` observation tensor and action masks for NumPy zero-copy.
+### State and API
+* `Combat`: RNG streams, turn/side/phase, player, enemies, card arena (`cards[CAP]`, piles are index arrays preserving order), relics, potions, orbs, op stack, pending decision, history ring. `Creature { hp, max_hp, block, powers }` with powers in game list order. `size_of::<Combat>()` is about 18.8 KB; `tests/robustness.rs::state_size_budget` fails if it exceeds its budget (18,816 B).
+* Rust: `Combat::new(&Scenario)`, `try_new`, `new_with(&Scenario, &ScenarioExtras)` (deck enchantments, saved props, gold, act), `legal_actions`, `action_mask`, `step(Action) -> bool`, `observe`, `determinize`; `reset` / `reset_with` / `reset_validated` re-initialise in place (bit-identical to `new`, tested).
+* `sts2env::BatchEnv` (rayon, flat `f32` observation tensor, action masks, `fork_from`, autoreset) and `sts2.VecEnv`, `sts2.Sim` (one steppable, alignable fight), `sts2.provably_unwinnable` in Python. Contract: `docs/env-api.md`.
+* Capacities (`MAX_CARDS` 160, `MAX_POWERS` 16, `MAX_CREATURES` 12, `MAX_PICK` 64, `ACTION_SPACE` 252) are in `docs/env-api.md`. A full `ArrayVec` never panics or drops silently: it raises a flag folded into `Combat::overflow` and `BatchEnv` ends the episode with `OUTCOME_OVERFLOW`. The release profile is `panic = "abort"`, so invalid scenarios return `Err(ScenarioError)` instead of panicking. `ACTION_SPACE` depends on `MAX_CREATURES`: changing it invalidates saved policy heads.
+* `BatchEnv` runs on its own rayon pool with 32 MB worker stacks (the inlined per-env step has a multi-KB frame) and a non-inlined leaf.
 
-## Validation (fidelity)
-1. **Unit golden tests**: RNG/hash/shuffle vs the game's own code (done — `oracle/RngGolden`).
-2. **Differential combat oracle**: a mod that runs the *real* game headless, injects a scenario (character, deck with
-   upgrades/enchantments, relics with state, potions, encounter, seed) and a scripted action list, and dumps the full
-   state after every step. The Rust sim replays the same script and must match field-for-field. Prior art for the
-   harness (headless boot, `EnterRoomDebug`, autopilot) is in git history at `a1a341a:mods/DataDumper`.
-3. **Random-play fuzzing** against the oracle for every encounter × character; mismatches are triaged per entity.
+### Adding content
+1. Stats exist in `content/gen_*.rs`; regenerate after a game update with `scripts/porting/gen_defs.py`, `gen_ids.py`, `gen_relics.py`.
+2. Write `listener!(Name { fn hook(...) {...} })` in the matching `content/*/` file; the macro derives the hook mask from the methods overridden. New files register automatically (`build.rs`).
+3. Unregistered ids are rejected by `Scenario::validate` and, if met mid-fight, flagged as `Combat::missing`; they never run silently.
+4. Port from the decompiled `OnPlay` / hook body, then validate against the oracle. Details: `docs/porting-guide.md`.
 
-## Status (engine core + vertical slice)
+## Validation
+1. **Golden tests**: RNG, string hash and shuffle against the game's own code.
+2. **Differential oracle**: the real game's combat code runs headless (`oracle/`, `docs/oracle.md`); a scenario plus a script produces a full-state trace after every step; `crates/sts2diff` replays it in Rust and compares field by field (all nine RNG streams included).
+3. **Template corpus**: 418 templates in `oracle/templates/**` (`verify/diff_sweep.py` per template, `verify/regress.py` for all). `verify/regress_cache.py record` stores the oracle's traces once; `check` replays them in seconds, also through the in-place reset with `STS2DIFF_REUSE=1`.
+4. **Frozen regressions**: 82 scenarios (`oracle/regression/` replayed by `cargo test`, `oracle/regression_scripted/` by `tools/fuzz_gen.py regress`).
+5. **Randomized fuzzing**: random A10 decks x relics x potions x every encounter (`tools/fuzz_gen*.py`). About 250,000 fights at the last full round, 0 residual mismatches.
+6. **Live game**: `python -m agent.fidelity_sweep` plays fights in the real game and counts every divergence between the simulator's prediction and the visible state.
 
-Built and tested (`cargo test -p sts2sim`):
-* `rng`, `sort` — bit-exact RNG (golden-tested against the game's own `Rng`), `.NET` introsort for reshuffle order.
-* `dec` — fixed-point `decimal` stand-in for the damage pipeline.
-* `engine/` — listener dispatch with the game's snapshot/liveness/guard semantics, creatures, damage pipeline
-  (modify → block → HP-loss phases → post-hooks → kill), powers (stacking, Artifact-style received-amount hooks,
-  tick-down), piles (draw/shuffle/exhaust/hand-full redirect), resumable card-play pipeline, monster state machine
-  (weighted branches, repeat/cooldown rules, spawn HP rule), turn loop (player/enemy turns, innate, flush, win/loss).
-* `content/` — generated stat tables for all 596 cards and 265 powers (`scripts/porting/gen_defs.py`) and generated id tables
-  (`scripts/porting/gen_ids.py`); hand-written behaviour only for Strike/Defend/Bash, Strength/Dexterity/Vulnerable/Weak/Frail,
-  Burning Blood, Nibbit (`NIBBITS_WEAK`).
-* Throughput (release, this machine): ~94k full fights/s/thread, ~660k fights/s on 14 threads (~11M agent-steps/s),
-  `size_of::<Combat>() ≈ 14 KB`. See `crates/sts2sim/examples/bench.rs`.
+Run the fuzz and regression sweeps after any content or engine change.
 
-Since the first slice: decisions (click/confirm model, hand/pile/choose-a-card), potions, dense action space +
-`legal_actions`/`action_mask`, human-information observation with a hidden-state leak test, card pools +
-`GetDistinctForCombat`, 15 more Ironclad cards + Discovery, 8 potions. See `docs/env-api.md`.
-
-### Performance notes
-* `ArrayVec` is `MaybeUninit`-backed: temporaries (hook snapshots, damage results) cost nothing to create.
-* `Combat::listen` is the union of every present model's hook mask; a hook with no listener is one bit test.
-  (First version zero-filled a 3 KB snapshot per dispatch: 11k → 94k fights/s/thread after this change.)
-* (Hardening phase, below: snapshots are filled in place, dispatch slow paths are out of line, `Combat` is 17.5 KB, resets are in place.)
-
-### How to add content
-1. Stats already exist in `content/gen_*.rs`. Re-run `scripts/porting/gen_defs.py` / `scripts/porting/gen_ids.py` after a game update.
-2. Write a `listener!(Name { fn hook(...) {...} })` in `content/{cards,powers,relics,monsters}.rs` — the macro derives the
-   hook mask from the methods you override. Card effects use `on_play`; resumable effects return `Flow::Suspend(phase)`
-   after raising a `Decision`.
-3. Register it in `content/mod.rs`; unregistered ids are rejected by `Scenario::validate` (never silently simulated).
-4. Port from the decompiled `OnPlay`/hook body, following the specs; add a differential trace once the oracle exists.
-
-### Content status (final integration)
-Everything on `sim-rebuild` is validated by differential sweeps against the real-game oracle: the template corpus
-(`oracle/templates/**`, `python3 verify/regress.py`, 418 templates, all `ok`), 1,254 recorded real-game traces replayed bit-identically
-(`verify/regress_cache.py check`, also through the in-place reset), 70+ frozen regression scenarios (`oracle/regression*`), and ~250,000
-randomized A10 fuzz fights (random decks × relics × potions × every encounter) with 0 residual mismatches.
-
-Coverage (`python3 tools/coverage.py`; implemented = a `listener!` / `MonsterDef` / encounter spawn exists):
-
+## Coverage
+Implemented means a `listener!`, `MonsterDef` or encounter spawn exists.
 | kind | implemented | total | not ported |
 |---|---|---|---|
 | cards | 595 | 596 | `DEPRECATED_CARD` |
 | powers | 256 | 265 | multiplayer-only (Concoct, Covered, Fade, Guarded, Intercept) and powers nothing applies (Gravity, Leadership, MagicBomb, NoEnergyGain) |
-| relics | 300 | 300 | — |
+| relics | 300 | 300 | none |
 | potions | 64 | 65 | `DEPRECATED_POTION` |
 | monsters | 114 | 120 | test/mock/deprecated (BigDummy, OneHp, TenHp, SingleAttack/MultiAttackMove, Deprecated) |
 | encounters | 89 | 90 | `DEPRECATED_ENCOUNTER` |
 
-Throughput (release, shared/loaded machine): ~80-95k full fights/s/thread, ~450k+ fights/s on 14 threads; `size_of::<Combat>()` ≈ 18.7 KB.
+Also implemented: 23 enchantments, 7 afflictions. Characters: Ironclad, Silent, Defect (orbs), Necrobinder (Osty, Doom), Regent (stars, Forge); acts 1-3 (Overgrowth or Underdocks, Hive, Glory) plus events.
 
-### Hardening phase (robustness, memory, throughput)
-Done on `sim-rebuild` after the content merge; every step was verified bit-identical (unit tests, `verify/regress_cache.py check` over the
-1236 cached real-game traces of all 398 templates, once with a fresh `Combat` and once through the in-place reset with `STS2DIFF_REUSE=1`,
-and the instruction-count harness checksums). Tools: `examples/prof.rs` (callgrind workload), `examples/sizes.rs`, `[profile.prof]`,
-`verify/regress_cache.py` (record the oracle's traces once, replay them in ~15 s).
+## Performance
+Measured with `cargo run --release -p sts2env --example bench` (random policy, observation and legal actions each step) and callgrind on the `prof` profile (`examples/prof.rs`: `fights|reset|env N`, prints a checksum that must not change under a pure optimisation).
 
-**Robustness** (details and the capacity table: `docs/env-api.md`). A full `ArrayVec` never panics or drops silently: it raises a
-thread-local flag that `Combat::step` folds into `Combat::overflow` (`state::ov::*`); card arena, creature slots, history ring, counters,
-uids and the scenario capacities are flagged the same way; `BatchEnv` ends such an episode with `OUTCOME_OVERFLOW` (4, also in `sts2py`),
-`sts2diff` reports it as an error. Invalid scenarios are `Err(ScenarioError)` (`Combat::try_new`), buffer-size mistakes are
-`Err(EnvError::Buffer)`, never panics (the release profile is `panic = "abort"`: a panic would kill the whole training process).
-The history ring only stores the kinds some content queries per turn and flags the overwrite of a still-live entry. Silent truncations were
-removed (forced selections cut at 16, `attack_results` cut at 16, `deck_enchant_inc` saturation, wrapping uids). Corpus audit (random-policy
-fights of 200 steps): up to 143 of 160 card slots (Test Subject boss), 13 of 16 player powers, 6 enemy powers, 8 creatures, 39 decision
-candidates (the observation shows 16 of them, the header carries the true count). Found and fixed on the way: the batch env overflowed
-rayon's 2 MB worker stacks about every other run (the inlined per-env step has a multi-KB frame that rayon stacks once per split level) -
-it now runs on its own pool with 32 MB stacks and a non-inlined leaf.
+| metric | value |
+|---|---|
+| single-thread full fights/s | ~84k (`Combat::new` per fight), ~93k (reset in place) |
+| env-steps/s per core | 0.17-0.18M; 1/2/4 threads: 0.17/0.30/0.58M (linear); 0.95M on 14 threads with ~10 foreign cores busy; ~2.4M on an idle 14-core box (estimate) |
+| instructions, 1000 greedy starter-vs-Nibbit fights | 108.9 M Ir for the 1000-fight workload (`new` per fight), 86.2 M (reset); env step 52.4 M Ir for 100 random episodes |
 
-**Memory** (`size_of::<Combat>()`, budget test `tests/robustness.rs::state_size_budget`):
+Rules that keep it there:
+* `ArrayVec` is `MaybeUninit`-backed; hook snapshots are filled in place (`snapshot_into`, `damage_into`, `modify_*_into`), never returned as 3 KB lists. `Combat::listen` is the union of every present model's hook mask, so a hook with no listener is one bit test; keep the test inline and the body out of line (`dispatch_u` / `dispatch_g`).
+* Reset in place: one memset and memcpy per fight; `Combat::reset_validated` names every `Combat` field in a destructuring `let`, so an uninitialised new field is a compile error.
+* Observation: one memset, empty slots skipped, packed sort keys for pile multisets; `observe_ex` + `legal_actions_ex` evaluate `can_play` once per hand card. `Creature::secondary` caches whether an enemy is secondary, which the ending test reads (call `sync_secondary` after any write to `powers`). `Dec::trunc` on `i64`.
+* Memory: `Card` 48 B x 160, `Creature` 416 B x 12, hook `Snapshot` 256 entries (~3 KB stack temporary).
+* Not optimised because it would change semantics or needs a new design: `Dec::mul` needs the 128-bit product (`__divti3` ~3% of a fight); observation previews re-run `modify_damage` / `modify_block` per hand card because modifiers are hooks that may depend on the instance; `hooks_enabled` / `is_ending` are not cached across calls (a cache needs invalidation on every hp / power / pending-loss write); about 700 branch mispredictions per fight (dyn hook calls, jump tables) are the remaining floor.
 
-| | before | after |
-|---|---|---|
-| `Combat` | 21,072 B | 17,488 B |
-| `Card` x 160 | 60 B | 48 B (`CostMod` 4 -> 2 B, `u8` flags, `u8`-length lists) |
-| `Creature` x slots | 416 B x 16 | 416 B x 12 (largest encounter starts with 4 enemies; corpus peak 8) |
-| hook `Snapshot` (stack temporary) | 6,152 B | 3,076 B (no 32-byte mask per listener, capacity 128 -> 256) |
-| `ACTION_SPACE` | 308 | 252 (`MAX_CREATURES` + 1 target slots per hand card / potion): **invalidates saved policy heads** |
-
-**Throughput** (instruction counts from callgrind on the `prof` profile, 1000 greedy starter-vs-Nibbit fights; wall-clock on this shared
-machine fluctuates 30-50% from other jobs, so the A/B runs are interleaved):
-
-| | before (integrated `962cd3e`) | after |
-|---|---|---|
-| fight, `Combat::new` per fight | 158.7 M Ir | 108.9 M Ir (-31%) |
-| fight, one `Combat` reset in place | n/a | 86.2 M Ir (-46% vs `new` before; 82.0 M before the final robustness checks) |
-| env step (legal actions + observation + step), 100 random episodes | 91.9 M Ir | 52.4 M Ir (-43%) |
-| single-thread fights/s (interleaved release runs, best of 8 at load 8-24) | 48 k | 84 k (`new`), 93 k (reset); 1.4-1.9x per run |
-| env-steps/s per core (`sts2env` bench, 1 thread) | 0.11 M | 0.17-0.18 M |
-| env-steps/s, 14 threads on a machine with ~10 foreign busy cores | 0.55 M | 0.95 M |
-
-Per-core scaling is linear (1/2/4 threads: 0.17/0.30/0.58 M), so an idle 14-core box gives about 2.4 M env-steps/s (the 2 M target).
-What paid off, in order: reset in place and not building / copying 20 KB structs (one memset + memcpy per fight); filling snapshots in place
-instead of returning a 3 KB list (the compiler copied it whole on every call, even when empty); keeping the "nobody listens" test inline and the
-body out of line (`dispatch_*`: the 3 KB snapshot frame no longer sits in every caller); no 300-byte / 1.3 KB list copies in the damage and block
-pipelines; `Creature::secondary` instead of scanning powers in every `is_ending`; observation: one memset, skipping empty slots, packed sort
-keys for the draw-pile multiset, `can_play` evaluated once per hand card for mask + observation (`legal_actions_ex` / `observe_ex`);
-`Dec::trunc` on `i64`; cheaper `ArrayVec::insert/remove`. Callgrind counts `rep stos` per byte, so memset-heavy code looks worse in Ir than it is.
-
-Not optimized (would change semantics or needs a different design): `Dec::mul` needs the 128-bit product (the `decimal` stand-in must stay
-exact; `__divti3` is ~3% of a fight); observation previews re-run `modify_damage` / `modify_block` per hand card because every modifier is a
-hook that may depend on the card instance; `hooks_enabled` / `is_ending` are not cached across calls (a cache would need invalidation on every
-hp / power / pending-loss write); the profile is now flat, with ~700 branch mispredictions per fight (dyn hook calls, jump tables) as the
-remaining floor; per-creature power capacity by role (`Power` is 20 B x 16 per creature; the player reached 13 powers in the corpus, so 16
-stays).
-
-### Known gaps (honest list)
-* **Replayed prompts** (Stratagem's reshuffle pick in a draw that cannot pause: a draw inside a hook, mid-effect, `AutoPlayFromDrawPile`):
-  `engine/replay.rs` snapshots the step, shows the agent the state at the prompt, then restores the snapshot and re-runs the same action
-  with the recorded answer (the engine is deterministic). Only combats with a Stratagem card (`Combat::strat_possible`) pay for it
-  (one `Combat` clone per step); a `Combat` clone taken at a prompt carries its snapshot (`Combat` is `Clone`, no longer `Copy`). Search must
-  `determinize` before the action, not at a replayed prompt.
-* **Fixed capacities** (160 cards, 16 powers per creature, 12 creature slots, 64 decision candidates in the action space): an overflowing
-  fight raises the sticky `Combat::overflow` flag and envs end it with `OUTCOME_OVERFLOW`; only extreme stall fights reach it.
-* **Information-contract assumptions not yet verified against the real UI**: piles are exposed as unordered multisets and pile screens in a
-  canonical visible-attribute order (by design, see `docs/env-api.md`); "known top card" knowledge (after put-on-top effects) is not tracked.
-* Run-level deck-copy listeners, `GainsBlock` as a card property (approximated by "has a Block var"), non-integer named card vars (Tank).
-* The oracle's own game code crashes on a few paths (Inky on non-enemy-targeted cards, Entropy with no eligible card): untestable, excluded.
-Fidelity TODOs are marked `TODO(fidelity)` in code.
-
-## Milestones
-1. ✅ Specs from the decompiled source (`docs/spec/01–05`)
-2. ✅ Engine core + vertical slice
-3. ✅ Oracle: the real game's combat code runs headless (`oracle/`, `docs/oracle.md`)
-4. ✅ Differential harness (`crates/sts2diff`), corpus regression (`verify/regress.py`), randomized fuzzing (`tools/fuzz_gen*.py`)
-5. ✅ Content breadth: all five characters, all four acts + events, relics, potions, enchantments
-6. ✅ Batched RL env (`crates/sts2env`) and Python bindings (`crates/sts2py`); hardening (robustness flags, memory, throughput)
-7. ✅ Stratagem prompts in every draw context (replay continuation); ⏳ ongoing: fuzz rounds after any content/engine change, throughput tuning
-8. ⏳ Combat solver (`rl/`): PPO baseline, then search + value network
+## Known gaps
+* **Fixed capacities**: an overflowing fight sets `Combat::overflow`; only extreme stall fights reach it (corpus peak of random-policy 200-step fights: 143 of 160 card slots, 13 of 16 player powers, 8 creatures, 39 decision candidates).
+* **Information contract not verified against the real UI**: piles are exposed as unordered multisets and pile selection screens in a canonical order (`docs/env-api.md`); "known top card" knowledge after put-on-top effects is not tracked.
+* Run-level deck-copy listeners, `GainsBlock` as a card property (approximated by "has a Block var"), non-integer named card vars (Tank) are not modelled.
+* The oracle's own game code crashes on a few paths (Inky on non-enemy-targeted cards, Entropy with no eligible card); those cases are untestable and excluded.
+* Content the simulator does not port is reported, never simulated silently (`Combat::missing`, `OUTCOME_UNIMPLEMENTED`, fuzz verdict `unimplemented`).

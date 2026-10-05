@@ -1,4 +1,4 @@
-//! COLORLESS pool cards, part B: cards that need the engine extensions in `engine/ext.rs` (nested auto-play, potion
+//! COLORLESS pool cards, part B: cards that need the engine extensions in `engine/autoplay.rs` (nested auto-play, potion
 //! generation, hook-raised decisions via their powers).
 
 use crate::dec::Dec;

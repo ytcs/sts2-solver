@@ -7,7 +7,6 @@ The loadout is the deck / relics of the first recorded `fight_start` of the run 
 a pickup effect are skipped (as in the fidelity sweep) and reported, and the simulator gets exactly the loadout that was applied.
 """
 import argparse
-import collections
 import json
 import os
 import re
@@ -22,10 +21,6 @@ from agent.bridge import call  # noqa: E402
 from agent.harness import Harness  # noqa: E402
 
 ROOT = fs.ROOT
-STARTER = collections.Counter({"STRIKE_IRONCLAD": 5, "DEFEND_IRONCLAD": 4, "BASH": 1, "ASCENDERS_BANE": 1})
-SKIP = {"HEFTY_TABLET", "ARCANE_SCROLL", "YUMMY_COOKIE", "CLAWS", "WAR_PAINT", "CURSED_PEARL", "MAD_SCIENCE"}
-
-
 def loadout(run, index=-1):
     sc = [json.loads(l) for l in open(os.path.join(ROOT, "runs", run, "events.jsonl"), encoding="utf-8")]
     sc = [e["scenario"] for e in sc if e["kind"] == "fight_start"]
@@ -33,31 +28,17 @@ def loadout(run, index=-1):
 
 
 def applied(sc):
-    """Commands for the console and the scenario the simulator gets (the loadout minus what the console cannot add)."""
-    relics = [r["id"] for r in sc["relics"] if r["id"] != "BURNING_BLOOD" and r["id"] not in SKIP and r["id"] in fs.relic_ids()]
-    need = collections.Counter(c["id"] for c in sc["deck"] if c["id"] not in SKIP) - STARTER
-    cmds = [f"x relic add {r}" for r in relics] + [f"x card {c} Deck" for c, k in need.items() for _ in range(k)]
-    deck = [dict(id=c, upgrade=0) for c, k in STARTER.items() for _ in range(k)] + [dict(id=c, upgrade=0) for c, k in need.items() for _ in range(k)]
-    simsc = dict(sc, hp=80, max_hp=80, deck=deck, relics=[dict(id="BURNING_BLOOD")] + [dict(id=r) for r in relics], potions=[])
-    return cmds, simsc, relics
+    """Console commands for the recorded loadout and the scenario the simulator gets (the same cards and relics, full HP, no potions)."""
+    cmds, relics, need = fs.console_loadout(sc, set(fs.relic_ids()))
+    deck = [dict(id=c, upgrade=0) for c, k in fs.STARTER.items() for _ in range(k)] + [dict(id=c, upgrade=0) for c, k in need.items() for _ in range(k)]
+    return cmds, dict(sc, hp=80, max_hp=80, deck=deck, relics=[dict(id="BURNING_BLOOD")] + [dict(id=r) for r in relics], potions=[]), relics
 
 
 def real_fight(h, cmds, enc):
-    if not fs.fresh_run(h, "ironclad"):
+    if fs.console_fight(h, "ironclad", cmds, enc, rounds=40):
         return None
-    for c in cmds:
-        call(c)
-    call("x heal 999")
-    r = call("x fight " + enc)
-    if r.startswith(("fail", "ERR")):
-        return None
-    for _ in range(40):
-        h.handle("combat")
-        if fs.state_kind(call("s")) not in ("COMBAT", "SELECT"):
-            break
     m = re.search(r"HP (\d+)/(\d+)", call("s"))
-    won = fs.state_kind(call("s")) != "GAME_OVER"
-    return dict(hp_lost=80 - (int(m.group(1)) if m else 0), won=won)
+    return dict(hp_lost=80 - (int(m.group(1)) if m else 0), won=fs.state_kind(call("s")) != "GAME_OVER")
 
 
 def main():
@@ -73,7 +54,7 @@ def main():
     sc = loadout(a.run, a.index)
     cmds, simsc, relics = applied(sc)
     print("relics applied:", relics, "| deck", len(simsc["deck"]), flush=True)
-    from agent.budget_replay import play_fight
+    from agent.engine import play_fight
     from agent.engine import Engine
     eng = Engine()
     out = dict(run=a.run, budget=a.budget, relics=relics, deck=[c["id"] for c in simsc["deck"]], results={})

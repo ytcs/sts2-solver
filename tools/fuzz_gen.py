@@ -17,7 +17,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 ORACLE = os.path.join(ROOT, "oracle/combat/oracle.sh")
 DIFF = os.environ.get("STS2DIFF") or os.path.join(ROOT, "target/debug/sts2diff")
 POOLS = os.path.join(ROOT, "tools/fuzz_pools.json")
-RELIC_PROPS = os.path.join(ROOT, "tools/fuzz_relic_props.json")  # tools/fuzz_relic_props.py
+RELIC_PROPS = os.path.join(ROOT, "tools/fuzz_relic_props.json")  # tools/fuzz_gen.py
 SKIP_PROPS = {"Skin", "FurCoatActIndex", "FurCoatCoordCols", "FurCoatCoordRows", "FurCoatCoordsSet", "GoldenPathAct"}
 
 STARTERS = {  # deck, relic, base max hp

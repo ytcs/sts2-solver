@@ -47,7 +47,7 @@ class Engine:
     def __init__(self, M=5, K=32):
         self.solver = Solver()
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        self.fs = FastSearch(self.solver.net, self.solver.value_nets, M, K, conf=1.01, roots=1, groups=1, amp=cuda, force_end_turn=os.environ.get("STS2_FORCE_END", "0") == "1")
+        self.fs = FastSearch(self.solver.net, self.solver.value_nets, M, K, conf=1.01, roots=1, groups=1, amp=cuda)
         self.fs.warm()
         self.seed = 0
 
@@ -88,3 +88,18 @@ class Engine:
     def solve(self, scenarios, attempts=64, seed=0):
         """Fights played from their start by the batch solver: one dict per scenario (win, win_se, hp_lost, hp_left_on_win, attempts, aborted)."""
         return self.solver.solve(scenarios, attempts=attempts, seed=seed)
+
+
+def play_fight(eng, scenario, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False):
+    """One fight in the simulator from its start, every decision by `Engine.decide` at the given time cap. Returns (outcome, HP lost, steps)."""
+    import json
+    import sts2
+    sim = sts2.Sim(json.dumps(scenario), seed)
+    hp0 = json.loads(sim.snapshot())["player"]["hp"]
+    steps = 0
+    while sim.outcome() == 0 and steps < max_steps and sim.stage() != "over":
+        d = eng.decide(scenario, sim, 0.3 if sim.stage() == "choice" else budget, tol_hp=tol_hp, keep_potions=keep_potions)
+        sim.step(d["action"])
+        steps += 1
+    hp1 = json.loads(sim.snapshot())["player"]["hp"]
+    return sim.outcome(), hp0 - max(hp1, 0), steps

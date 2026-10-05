@@ -90,7 +90,7 @@ SMOOTH_MULTS = (1.0, 1.5, 2.0, 3.0)
 
 
 def evaluate_smooth(engine, deck_json, spec):
-    """The graded objective for deck choices (`sts2-deckbuilding`, bench `agent.deckbench`): the win rate averaged over start HP x1 / 1.5 / 2 / 3. A deck far
+    """The graded objective for deck choices (`sts2-deckbuilding`, study `agent.deckstudy`): the win rate averaged over start HP x1 / 1.5 / 2 / 3. A deck far
     from beating the fight still wins with enough HP, so the average does not go flat when every option loses; what picks reduce is the HP a fight needs."""
     hp = spec.get("hp", "current")
     h0 = deck_json["max_hp"] if hp == "full" else (deck_json["hp"] if hp == "current" else hp)
@@ -155,7 +155,7 @@ def evaluate(engine, deck_json, spec):
 
 # ----------------------------------------------------------------------------------------------------------------------------- route HP budget
 
-def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), attempts=48, smith_rests=(), ctx=None):
+def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), attempts=48, ctx=None):
     """Walk a planned route and chain the solver's results: every fight node is played at the HP I would arrive with, a rest heals 30% of max HP.
 
     nodes: tokens M (regular monster), W (weak monster), E (elite), B (boss), R (rest), S (smith instead of rest), ? $ T (no fight assumed).

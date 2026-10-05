@@ -1,27 +1,30 @@
 ---
 name: sts2-ironclad-act1
-description: Use when entering or planning Act 1 as the Ironclad: deviations and run evidence for Overgrowth / Underdocks, per-boss prep (Vantom, Waterfall Giant, Lagavulin Matriarch), HP-gate numbers; run logs are in runs.md.
+description: Use when entering or planning Act 1 (Overgrowth or Underdocks) as the Ironclad: pick values, boss HP gates, routing numbers. Deviations from the general strategy only.
 ---
 
-# Ironclad Act 1 (additions to `sts2-strategy`, `sts2-ironclad`)
+# Ironclad Act 1 (deviations from `sts2-strategy`, `sts2-ironclad`)
 
-Pools and room counts: `sts2-acts`.
+Pools: `sts2-acts`; boss rows: `encounters.md`. r214119 = run 20261004-214119 (Underdocks), r215036 = 20261004-215036 (Overgrowth); records in `runs/`.
 
-## Distilled from the runs (details: `runs.md`)
-- **Which gate binds changes with the deck.** A weak deck (starter + few cards) loses bosses for lack of damage at any HP (boss win 18% at 49 HP, 24% at 80). A deck with Inferno+/Anger/Rampage/Blood Wall is HP-gated: Overgrowth boss pool 96% at 80 HP, 66% at 60, 28% at 45, 19% at 34 (Vantom alone 0.46 at 60, 0.11 at 45) `[sim]`. Re-run `eval --hp 34/45/60/80` against the known boss every few picks; once HP-gated, plan rests (not elites) to arrive above the gate.
-- **Boss-specific eval beats pool eval.** Against Lagavulin Matriarch alone, Inflame +42 and Inflame+Tremble +73 points while the elite pool showed ~0 for both `[sim]`: always evaluate against the known boss.
-- **Strong early picks `[sim]`** (elite or boss pool, 256 attempts): Inferno+ +25, Anger +17..+25, Setup Strike +21, Dismantle +13, Perfected Strike +11 (weak deck) / HP -5 (strong deck), Rampage -17 HP. Blood Wall flips from -5 to +10 once Inferno is in the deck; Breakthrough, Rupture, Vicious, Molten Fist, Cinder, Body Slam, a second Anger were <= 0 against Lagavulin once the deck was built.
-- **HP path of the lost Vantom run:** two elites and a regular fight between one rest and the boss left 10 HP before the final rest. A forced lane without rests near the end is a route error (plan back from the boss's HP gate).
-- **Hellraiser vs Slippery (the 7-vs-6 desync) was NOT a rule bug** `[sim]`: from one identical state the end-of-turn draw leaves Slippery at 6 / 7 / 8 over 40 shuffles, depending on how many Strikes Hellraiser auto-plays; the replay just held a different sample than the game. The simulator now takes the enemy and player power amounts the game shows after every action (`sync_powers`), so the solver's advice stays valid; the card is playable again (judge it with `eval`).
-- Pantograph (+25 HP at each boss) makes boss arrival HP cheap; without it every elite must be paid for with a rest `[played]`.
+## Picks (256 attempts, elite or boss pool) `[sim]`
+- Inferno+ +25, Anger +17..+25, Setup Strike +21, Dismantle +13, Perfected Strike +11 (weak deck) / HP -5 (strong deck), Rampage HP -17. Blood Wall -5 -> +10 once Inferno is in the deck.
+- Breakthrough, Rupture, Vicious, Molten Fist, Cinder, Body Slam, a second Anger: <= 0 vs Lagavulin once the deck was built (Cinder +10 vs Waterfall Giant). Inflame +42, Inflame+Tremble +73 vs Lagavulin alone while the elite pool showed ~0: evaluate the known boss alone.
+- Run 4: Primal Force (Hefty Tablet) Act 1 elites 22 -> 99%, Waterfall 0 -> 22%, a second copy +18 on Hive elites; vs Waterfall Shrug +18, Taunt +15, Radiant Tincture +22 (single use), Centennial Puzzle +10.5.
+- Hellraiser is playable: the Slippery 7-vs-6 desync was a replay sample (6/7/8 over 40 shuffles), powers now sync.
 
-## Run 4 (Underdocks, boss Waterfall Giant, cleared at 80/80 start) `[played]` / `[sim]`
-- Neow Hefty Tablet -> Primal Force (0-cost: all Attacks in hand become Giant Rock): Act 1 elites 22% -> 99%, Waterfall 0 -> 22%; a second copy from the Act 1 boss reward was +18 on Hive elites. A rare picked from 3 by horizon eval beat every other option; Arcane Scroll's random rare is a gamble (+16 avg).
-- Early buys that moved Waterfall Giant: Shrug +18, Taunt +15 (sale), Radiant Tincture +22 (single use), Centennial Puzzle +10.5, Cinder +10, Pommel (Hive elites +8). Baseline Waterfall: 17% -> 94.5% by floor 15 from ~8 picks.
-- Event Spoils Map ("The Legends Were True"): a quest card that turns Act 2's map into a special layout whose treasure gives +600 gold; one dead slot. Worth it only if Act 2 shops have targets: with 760 gold I found nothing to buy that moved the Act 2/3 bosses (Bronze Scales +10.9 Insatiable/-19 HP on elites was the best).
-- Do not blind-follow a chained command with `a 0`: a failed chain step left the card screen open and `a 0` took the wrong card (Howl from Beyond).
+## HP gates `[sim]`
+- Weak deck (starter + few cards): damage-gated; boss win 18% at 49 HP, 24% at 80.
+- Deck with Inferno+ / Anger / Rampage / Blood Wall: HP-gated; Overgrowth boss pool 96 / 66 / 28 / 19% at 80 / 60 / 45 / 34 HP, Vantom alone 0.46 at 60, 0.11 at 45 (r215036). Test every few picks: `eval --boss --hp 34/45/60/80`.
+- Build for the weakest boss of the pool from the first reward: r214119 died to Waterfall Giant at 79/80, predicted 45% (se 2.8, 320 fights) `[played]`.
+- Pantograph (+25 HP at each boss) makes arrival HP cheap; without it every elite costs a rest `[played]`.
+
+## Routing `[played]`
+- r215036 reached Vantom at 34/80 (predicted 10.6%, se 1.7): the last third of a forced lane held two elites and a regular fight for one rest. Before committing a lane, count the rests after the last elite and run `eval --boss --hp <arrival HP>`.
+- Spoils Map (+600 gold at Act 2 treasure, one dead slot): 760 gold moved no Act 2/3 boss (run 4); take it only with Act 2 shop targets.
 
 ## To test `[hyp]`
-- Ancient choice against the real Act 1 map: option-by-route table.
-- Elite count that maximises boss readiness for a given early deck (this run: 2 elites, both won, relic + rare card each).
-- A Waterfall Giant plan: what beats it (eval variants vs `WATERFALL_GIANT_BOSS` only).
+- Ancient choice against the real map: option-by-route table (`sts2-pathing`).
+- Elite count that maximises boss readiness (run 4: 2 elites, both won): `route` variants, `eval --boss` at arrival HP.
+- What beats Waterfall Giant: `eval` variants against `WATERFALL_GIANT_BOSS` only.
+- Hold the Strength Potion for the burst turn instead of boss turn 1: compare with `hindsight`.

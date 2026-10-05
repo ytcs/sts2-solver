@@ -1,23 +1,29 @@
-# What each boss and elite asks of a deck (fill as learned; one row per encounter)
+# What each boss and elite asks of a deck
 
-Use with `sts2-deckbuilding` step 2. Tags: `[code]`, `[sim]`, `[played]`, `[hyp]`. Buckets: FD front damage, SD scaling damage, FB front block, SB scaling block, ACC acceleration.
+Used by `sts2-deckbuilding` section 4. Buckets: FD front damage, SD scaling damage, FB front block, SB scaling block, ACC acceleration. Test for any line: `eval --pool <Act>:boss|elite` or boss-alone `--v` variants.
 
-| encounter | asks (needs) | notes and evidence |
-|---|---|---|
-| Vantom (Act 1 boss, Overgrowth) | FB for a ~30 hit about every 4th turn (14 / 30 / 0 expected damage pattern); cheap many-hit damage or HP-loss triggers to strip Slippery 9; burst on buff turns | Slippery: every unblocked hit deals 1 and removes one stack `[code]` `[played]`; with Inferno+ Blood Wall stripped a stack per HP loss `[played]`; win 0.46 at 60 HP, 0.11 at 45 `[sim]` |
-| Waterfall Giant (Act 1 boss, Underdocks) | sustained damage and block over a long fight (250 HP) | weakest boss for a Strike/Hemokinesis/Dismantle deck, ~0.43-0.5 at 80 HP `[sim]` |
-| Lagavulin Matriarch (Act 1 boss, Underdocks) | SD and vulnerability (Inflame + Tremble took win from 0.4% to 74%) | a scaling fight; early turns are not the threat `[sim]`; verify mechanics when first seen |
-| Soul Fysh (Act 1 boss, Underdocks) | low demand: 0.98 for a mid-strength deck | `[sim]` |
-| Skulking Colony (elite) | FD to break Hardened Shell 20 per hit class; 16 attack | 80 HP; cost 37 HP at 68 HP with a mid deck `[played]` |
-| Bygone Effigy (elite, Overgrowth) | SD; sleeps first turn | `[played]` |
-| Phrog Parasite (elite, Overgrowth) | AoE for the wrigglers | `[played]`, see `sts2-mechanics` |
-| Terror Eel (elite, Underdocks) | 150 HP, Shriek at 75; SD and block | `[played]` |
-| The Insatiable (Act 2 boss, Hive) | 341 HP, a hard clock: Liquify (T1) puts Sandpit 4 on me (-1 per enemy turn, 0 = instant death) and shuffles in 6 Frantic Escape cards (cost 1, +1 per play, each +1 Sandpit); then Thrash 9x2, Bite 31, Salivate (+3 Str), Thrash. Needs ~65 damage per turn for 5 turns: SD + burst + acceleration | `[code]` TheInsatiable.cs, SandpitPower.cs, FranticEscape.cs. Eval target deck Demon Form + Bludgeon + Tremble + Offering 60% vs 2% baseline; Powdered Demise +14, Flex +11; won at 8 HP with Strength 5-7, Pyre+, Tea Set `[played]` |
-| Aeonglass (Act 3 boss 1, Glory) | 535 HP, Artifact 3, Withering Presence 6; Ebb 26 + 33 block, Eye Lasers 12x2, Increasing Intensity (+4 Str, Wither status) | `[code]` Aeonglass.cs; this deck 7% at 76 HP, died `[played]` |
-| Queen (Act 3 boss 2, Glory) | 419 HP, Torch Head Amalgam, Execution 18, Off With Your Head 4x5, Enrage | `[code]` Queen.cs; 0% for this deck `[sim]` |
-| Spiny Toad (Act 2 hallway) | Thorns 5 while Spiked (each powered hit on it costs me 5), Explosion 25, Lash 19 | `[code]` SpinyToad.cs; predicted 13-17% HP, lost 55% `[played]` |
+## Bosses
+- **Vantom** (A1 Overgrowth): FB for a ~30 hit every ~4th turn (pattern 14 / 30 / 0); many cheap hits or HP-loss triggers to strip Slippery 9 (each unblocked hit deals 1, removes a stack `[code]`); burst on buff turns. Win 0.46 at 60 HP, 0.11 at 45 `[sim]`.
+- **Waterfall Giant** (A1 Underdocks): sustained damage and block over 250 HP. 0.43-0.50 at 80 HP, weakest of its pool `[sim]`.
+- **Lagavulin Matriarch** (A1 Underdocks): SD and vulnerability; early turns are not the threat. Inflame + Tremble 0.4% -> 74% `[sim]`.
+- **Soul Fysh** (A1 Underdocks): low demand, 0.98 for a mid deck `[sim]`.
+- **The Insatiable** (A2 Hive, 341 HP): hard clock. Liquify (T1) puts Sandpit 4 on me (-1 per enemy turn, 0 = death) and shuffles in 6 Frantic Escape (cost 1, +1 per play, each +1 Sandpit); then Thrash 9x2, Bite 31, Salivate (+3 Str), Thrash. Needs ~65 damage per turn for 5 turns: SD + burst + ACC `[code]` (TheInsatiable.cs, SandpitPower.cs, FranticEscape.cs). Won at 8 HP with Strength 5-7 `[played]`.
+- **Aeonglass** (A3 Glory, 535 HP): Artifact 3 (wastes the first three debuffs), Withering Presence 6, Ebb 26 + 33 block, Eye Lasers 12x2, Increasing Intensity (+4 Str, Wither status); a Wither card every 6 cards played `[code]` Aeonglass.cs. Act 2-clear deck 7% at 76 HP `[played]`.
+- **Queen** (A3 Glory, 419 HP): kill Torch Head Amalgam first; Execution 18, Off With Your Head 4x5, Enrage; applies Frail / Weak / Vulnerable 99 `[code]` Queen.cs. 0% for the Act 2-clear deck `[sim]`.
+- **Test Subject** (A3 Glory): three forms (111 -> 212 -> 313 HP), respawns `[played]` run 4.
+- Act 3 sweeps `[sim]` (run 4, Act 2-clear deck, 80 HP): baseline ~0% on Aeonglass and Queen; no single Ironclad card (88 tested) or relic (215) moves Aeonglass more than +4 or the Queen more than +3 (noise ~1-2); bundles of six strong cards 3-4% / 0%. Glory elites are fine (83-98%).
 
-## Act 3 boss sweeps `[sim]` (run 4, deck of an Act 2 clear, 80 HP)
-- Aeonglass and Queen both read ~0% for the baseline deck (deterministic loss, no aborted fights). Adding any single Ironclad card (88 tested) or any single relic (215 tested) moves Aeonglass by at most +4 points and the Queen by at most +3 (noise ~1-2): there is no single outlier; bundles of six strong cards (Bludgeon, Offering, Dismantle, Hemokinesis, Rampage, Fiend Fire / Barricade, Juggernaut, Impervious ...) reach only 3-4% on Aeonglass and 0% on the Queen.
-- Aeonglass: Wither (junk) card every 6 cards played, so Second Wind is +3.9 there; Artifact 3 wastes the first three debuffs.
-- Queen: kill the Torch Head Amalgam first; she applies Frail/Weak/Vulnerable 99 on me. A new plan (not a card) is needed: see `sts2-ironclad-act3`.
+## Elites and hallways
+- **Bygone Effigy** (A1): SD; sleeps first turn; starter deck predicted win 2% `[sim]`.
+- **Phrog Parasite** (A1): AoE; dies into four Wrigglers (stunned first turn) plus Infection cards `[played]`.
+- **Skulking Colony** (A1, 80 HP): FD to break Hardened Shell (20 per hit class); 16 attack; cost 37 HP at 68 HP `[played]`.
+- **Terror Eel** (A1): 150 HP, Shriek at 75; SD and block `[played]`.
+- **Spiny Toad** (A2 hallway): Thorns 5 while Spiked (each powered hit on it costs me 5), Explosion 25, Lash 19 `[code]` SpinyToad.cs; predicted 13-17% HP, lost 55% `[played]` (calibration: `evidence.md`).
+
+## Target decks (check every reward, shop and event against them)
+- Insatiable: Strength scaling + burst + ACC (Demon Form + Bludgeon + Tremble + Offering): 60% vs 2% baseline `[sim]`.
+- Aeonglass: self-damage Strength engine (Inferno + Rupture + Demon Form + Fight Me + Spite + Stone Armor + Crimson Mantle), not exhaust: 0.61 vs 0.00-0.21 for hand-built exhaust decks `[sim]` (`evidence.md`).
+- Queen: high sustained damage plus HP carry `[hyp]`; test: boss-alone `eval` of candidate decks.
+
+## Potions `[sim]`
+Against hard bosses a potion beats every card in the same shop: Powdered Demise +14..+15 and Flex Potion +9..+11 (The Insatiable, Act 2 elites), Block Potion +12. Test: the potion as an `eval` variant against the known boss.

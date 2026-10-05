@@ -96,6 +96,34 @@ def fresh_run(h, character, tries=14):
     return False
 
 
+STARTER = collections.Counter({"STRIKE_IRONCLAD": 5, "DEFEND_IRONCLAD": 4, "BASH": 1, "ASCENDERS_BANE": 1})
+PICKUP = {"HEFTY_TABLET", "ARCANE_SCROLL", "YUMMY_COOKIE", "CLAWS", "WAR_PAINT", "CURSED_PEARL", "MAD_SCIENCE"}  # open a selection screen when the console adds them
+
+
+def console_loadout(sc, allowed_relics=None):
+    """Dev-console commands that rebuild a recorded scenario's relics and added cards on a fresh Ironclad run. Returns (commands, relic ids applied, added cards as a Counter)."""
+    relics = [r["id"] for r in sc["relics"] if r["id"] != "BURNING_BLOOD" and r["id"] not in PICKUP and (allowed_relics is None or r["id"] in allowed_relics)]
+    need = collections.Counter(c["id"] for c in sc["deck"] if c["id"] not in PICKUP) - STARTER
+    return [f"x relic add {r}" for r in relics] + [f"x card {c} Deck" for c, k in need.items() for _ in range(k)], relics, need
+
+
+def console_fight(h, character, cmds, enc, rounds=25):
+    """Fresh run, loadout, full heal, console fight, then the solver plays it. Returns None when the fight was played, else why not."""
+    if not fresh_run(h, character):
+        return "no fresh run"
+    for c in cmds:
+        call(c)
+    call("x heal 999")
+    r = call("x fight " + enc)
+    if r.startswith(("fail", "ERR")):
+        return "fight: " + r.strip()[:80]
+    for _ in range(rounds):
+        h.handle("combat")
+        if state_kind(call("s")) not in ("COMBAT", "SELECT"):
+            break
+    return None
+
+
 def cases(mode, chars, rng, limit):
     out = []
     if mode == "cards":
@@ -118,14 +146,6 @@ def cases(mode, chars, rng, limit):
             cm = [f"x card {c} Deck" for c in rng.sample(ids, rng.randint(14, 22))] + [f"x relic add {r}" for r in rng.sample(rel, rng.randint(3, 8))]
             cm += [f"x potion {p}" for p in rng.sample(pots, rng.randint(0, 2))]
             out.append(dict(label=f"fuzz:{i}:{ch}", character=ch, cmds=cm, enc=rng.choice(allenc)))
-    elif mode == "aeonglass":
-        # exhaust packages against Aeonglass (Wither: unplayable, hurts at turn end in hand, +3 per Increasing Intensity; a new one every 6 cards played)
-        tags = json.load(open(os.path.join(ROOT, "data", "card_buckets_ironclad.json"), encoding="utf-8"))
-        ex = [c for c, v in tags.items() if v.get("exhaust") and c not in ("PRIMAL_FORCE",)]
-        core = ["SECOND_WIND", "SECOND_WIND", "TRUE_GRIT", "TRUE_GRIT", "BURNING_PACT", "BURNING_PACT", "FIEND_FIRE", "FEEL_NO_PAIN", "DARK_EMBRACE", "CORRUPTION", "HAVOC", "SHRUG_IT_OFF"]
-        decks = [core] + [rng.sample(ex, min(len(ex), 12)) + rng.sample(["FEEL_NO_PAIN", "DARK_EMBRACE", "CORRUPTION", "BURNING_PACT", "SECOND_WIND", "TRUE_GRIT", "FIEND_FIRE"], 3) for _ in range(5)]
-        for i, d in enumerate(decks):
-            out.append(dict(label=f"aeon:{i}", character="ironclad", cmds=[f"x card {c} Deck" for c in d], enc="AEONGLASS_BOSS"))
     elif mode == "recorded":
         best = {}
         for f in sorted(glob.glob(os.path.join(ROOT, "runs", "*", "events.jsonl"))):
@@ -133,12 +153,8 @@ def cases(mode, chars, rng, limit):
                 e = json.loads(line)
                 if e["kind"] == "fight_start":
                     best[frozenset(r["id"] for r in e["scenario"]["relics"])] = e["scenario"]
-        starter = collections.Counter({"STRIKE_IRONCLAD": 5, "DEFEND_IRONCLAD": 4, "BASH": 1, "ASCENDERS_BANE": 1})
-        skip = {"HEFTY_TABLET", "ARCANE_SCROLL", "YUMMY_COOKIE", "CLAWS", "WAR_PAINT", "CURSED_PEARL", "MAD_SCIENCE"}
         for li, sc in enumerate(sorted(best.values(), key=lambda s: -len(s["relics"]))[: (limit or 8)]):
-            need = collections.Counter(c["id"] for c in sc["deck"] if c["id"] not in skip) - starter
-            cm = [f"x relic add {r['id']}" for r in sc["relics"] if r["id"] != "BURNING_BLOOD" and r["id"] not in skip]
-            cm += [f"x card {c} Deck" for c, k in need.items() for _ in range(k)]
+            cm = console_loadout(sc)[0]
             for j in range(6):
                 out.append(dict(label=f"recorded:{li}:{j}", character="ironclad", cmds=cm, enc=rng.choice(ENCOUNTERS)))
     return out[:limit] if limit and mode != "fuzz" else out
@@ -186,30 +202,19 @@ def main():
         keep.clear()
         res = dict(label=case["label"], enc=case["enc"], ok=False)
         try:
-            if not fresh_run(h, case["character"]):
-                res["error"] = "no fresh run"
+            err = console_fight(h, case["character"], case["cmds"], case["enc"])
+            if err:
+                res["error"] = err
             else:
-                for c in case["cmds"]:
-                    call(c)
-                call("x heal 999")
-                r = call("x fight " + case["enc"])
-                if r.startswith("fail") or r.startswith("ERR"):
-                    res["error"] = "fight: " + r.strip()[:80]
-                else:
-                    for _ in range(25):
-                        h.handle("combat")
-                        if state_kind(call("s")) not in ("COMBAT", "SELECT"):
-                            break
-                    res["ok"] = True
-                    stats = keep.get("stats", {})
-                    res["stats"] = {k: v for k, v in stats.items() if not k.startswith(BENIGN_PREFIX)}
-                    ex = keep.get("examples", {})
-                    res["examples"] = {k: v[:3] for k, v in ex.items() if not k.startswith(BENIGN_PREFIX) and not (k.endswith(".relics") and all("props.Skin" in t for t in v))}
-                    res["created"] = stats.get("sync created", 0)
-                    res["errors"] = keep.get("errors", [])[:2]
-                    if (any(k.startswith(("diff .energy", "diff .player", "action failed")) or "intents" in k for k in res["stats"]) or res["stats"].get("residual .draw", 0) >= 5) and keep.get("f"):
-                        name = re.sub(r"[^A-Za-z0-9_.-]", "_", case["label"]) + ".json"
-                        json.dump(dict(label=case["label"], enc=case["enc"], scenario=keep["scenario"], fight=keep["f"]), open(os.path.join(ROOT, "evals", "fidelity_fights", name), "w"))
+                stats = keep.get("stats", {})
+                ex = keep.get("examples", {})
+                res.update(ok=True, stats={k: v for k, v in stats.items() if not k.startswith(BENIGN_PREFIX)},
+                           examples={k: v[:3] for k, v in ex.items() if not k.startswith(BENIGN_PREFIX) and not (k.endswith(".relics") and all("props.Skin" in t for t in v))},
+                           created=stats.get("sync created", 0), errors=keep.get("errors", [])[:2])
+                bad = any(k.startswith(("diff .energy", "diff .player", "action failed")) or "intents" in k for k in res["stats"]) or res["stats"].get("residual .draw", 0) >= 5
+                if bad and keep.get("f"):  # keep the game's own log for `agent.fidelity_trace`
+                    name = re.sub(r"[^A-Za-z0-9_.-]", "_", case["label"]) + ".json"
+                    json.dump(dict(label=case["label"], enc=case["enc"], scenario=keep["scenario"], fight=keep["f"]), open(os.path.join(ROOT, "evals", "fidelity_fights", name), "w"))
         except Exception as ex:  # noqa: BLE001
             res["error"] = repr(ex)[:120]
         with open(out_path, "a", encoding="utf-8") as fo:
