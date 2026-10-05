@@ -1,0 +1,2 @@
+sequence 1/4 (216s): skip 0.00/0.00  greedy 0.00/0.00  greedy_h 0.00/0.02  greedy_pick 0.00/0.02  hindsight_h 0.00/0.00  (win at start HP / smooth)
+sequence 2/4 (390s): skip 0.00/0.00  greedy 0.00/0.00  greedy_h 0.00/0.00  greedy_pick 0.00/0.00  hindsight_h 0.00/0.00  (win at start HP / smooth)

@@ -189,3 +189,101 @@ def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), att
         cur = max(1.0, left)
     lines.append(f"route win probability (product of node win rates): {p_route:.3f}")
     return "\n".join(lines)
+
+
+# ----------------------------------------------------------------------------------------------------------------------------- one-call reports for the agent
+
+_CARD_IDS = None
+
+
+def card_id_set():
+    """Every card id of the simulator (parsed from its card table once)."""
+    global _CARD_IDS
+    if _CARD_IDS is None:
+        import os
+        import re
+        src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crates", "sts2sim", "src", "content", "gen_cards.rs"), encoding="utf-8").read()
+        _CARD_IDS = set(re.findall(r"CardDef::new\(ids::card::([A-Z0-9_]+)", src))
+    return _CARD_IDS
+
+
+def card_from_name(name):
+    """'Setup Strike' / 'Ashen Strike+' -> ('SETUP_STRIKE', 0|1), or (None, 0) when the display name does not map to a simulator id."""
+    import re
+    up = 1 if name.strip().endswith("+") else 0
+    cid = re.sub(r"[^A-Z0-9]+", "_", name.strip().rstrip("+").upper().replace("'", "")).strip("_")
+    return (cid if cid in card_id_set() else None), up
+
+
+def parse_card_options(state):
+    """The options of a CARD_REWARD screen: [(index, display name, card id or None, upgrade)] and the index of Skip (or None)."""
+    import re
+    opts, skip = [], None
+    for line in state.split("\n"):
+        m = re.match(r"^(\d+) (.+?)\((\d+|X|-)\) ", line)
+        if m:
+            cid, up = card_from_name(m.group(2))
+            opts.append((int(m.group(1)), m.group(2).strip(), cid, up))
+            continue
+        m = re.match(r"^(\d+) Skip", line)
+        if m:
+            skip = int(m.group(1))
+    return opts, skip
+
+
+def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full"):
+    """One table for a card reward: every option (and skip) against the known boss (smooth objective), the elites still to come and the next act's elites and
+    bosses (plain win rate / HP lost at `hp`). Prices only the combat side; gold, route and the plan stay my judgment."""
+    from agent import card_tags
+    variants = [dict(name="skip")] + [dict(name=n, add=[(cid + "+") if u else cid]) for _, n, cid, u in opts if cid]
+    sets = [("boss", hz["boss"], True, attempts), ("elites", hz["elites"], False, max(48, attempts * 2 // 3)), ("next act", hz["next"], False, max(48, attempts * 2 // 3))]
+    res = {}
+    for key, encs, smooth, att in sets:
+        if encs:
+            _, res[key] = evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth))
+    lines = [f"card reward vs boss {','.join(hz['boss']) or '?'} (smooth = win averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of full HP), "
+             f"{len(hz['elites'])} elites left, {len(hz['next'])} next-act elite/boss fights; {attempts} attempts"]
+    lines.append(f"{'option':22s} {'boss smooth':>16s} {'boss@full':>9s} {'elites win/HP':>14s} {'next act win/HP':>16s}  fills")
+    try:
+        tags = card_tags.load()
+    except Exception:  # noqa: BLE001
+        tags = {}
+    base = res.get("boss", {}).get(0)
+    for vi, v in enumerate(variants):
+        b = res.get("boss", {}).get(vi)
+        cells = [(f"{b['win']:.3f}" + (f" ({b['win'] - base['win']:+.3f})" if vi and base else "")) if b else "-", f"{b['by_hp'][0]:.2f}" if b else "-"]
+        for key in ("elites", "next act"):
+            r = res.get(key, {}).get(vi)
+            cells.append(f"{r['win']:.2f}/{100 * r['hp_lost']:.0f}%" if r else "-")
+        cid = v.get("add", [None])[0]
+        fills = "/".join(tags.get(cid.rstrip("+"), {}).get("buckets", [])) if cid else ""
+        lines.append(f"{v['name']:22s} {cells[0]:>16s} {cells[1]:>9s} {cells[2]:>14s} {cells[3]:>16s}  {fills}")
+    unmapped = [n for _, n, cid, _ in opts if not cid]
+    if unmapped:
+        lines.append("not evaluated (no simulator id for the display name): " + ", ".join(unmapped))
+    try:
+        line = card_tags.deck_line(deck_json["deck"], tags)
+        lines.append("deck buckets " + " ".join(f"{k} {n}" for k, n in line.items()) + "  gaps " + str(card_tags.deficiencies(line)))
+    except Exception:  # noqa: BLE001
+        pass
+    return "\n".join(lines), res
+
+
+def brief_text(state, deck_json, hz):
+    """The run at a glance in one call: header, deck by card, buckets, relics, potions, what the pools can still throw at me."""
+    import collections
+    import re
+    from agent import card_tags
+    head = next((l for l in state.split("\n") if re.search(r"A\d+ F\d+", l)), state.split("\n")[0])
+    c = collections.Counter(d["id"] + ("+" if d.get("upgrade") else "") for d in deck_json["deck"])
+    deck = ", ".join(f"{k}x{n}" if n > 1 else k for k, n in sorted(c.items()))
+    lines = [head, f"deck ({len(deck_json['deck'])}): {deck}", "relics: " + ", ".join(r["id"] for r in deck_json["relics"]),
+             "potions: " + (", ".join(p["id"] for p in deck_json["potions"]) or "-")]
+    try:
+        tags = card_tags.load()
+        line = card_tags.deck_line(deck_json["deck"], tags)
+        lines.append("buckets " + " ".join(f"{k} {n}" for k, n in line.items()) + "  gaps " + str(card_tags.deficiencies(line)))
+    except Exception:  # noqa: BLE001
+        pass
+    lines.append(f"boss: {', '.join(hz['boss']) or 'unknown'} | elites that can still appear: {', '.join(hz['elites']) or '-'} | met this act: {', '.join(hz['ctx']['seen']) or '-'}")
+    return "\n".join(lines)

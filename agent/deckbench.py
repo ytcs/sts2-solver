@@ -68,8 +68,8 @@ def scenario(deck, target, hp=80):  # hp is overridden by Scorer.hp
 class Scorer:
     """Solver win rate and HP lost of decks against the target; results are cached by deck."""
 
-    def __init__(self, eng, target, attempts, hp=80):
-        self.eng, self.target, self.attempts, self.cache, self.calls, self.hp = eng, target, attempts, {}, 0, hp
+    def __init__(self, eng, target, attempts, hp=80, mults=(1.0, 1.5, 2.0, 3.0)):
+        self.eng, self.target, self.attempts, self.cache, self.calls, self.hp, self.mults = eng, target, attempts, {}, 0, hp, tuple(mults)
 
     def many(self, decks, hp=None):
         hp = hp or self.hp
@@ -82,10 +82,15 @@ class Scorer:
             self.calls += len(todo)
         return [self.cache[key(d)] for d in decks]
 
-    def smooth(self, decks, mults=(1.0, 1.5, 2.0, 3.0)):
+    def by_hp(self, decks):
+        """Win rate of every deck at each start-HP multiple: list (per deck) of lists (per multiple)."""
+        per = [self.many(decks, int(self.hp * m)) for m in self.mults]
+        return [[p[i][0] for p in per] for i in range(len(decks))]
+
+    def smooth(self, decks, mults=None):
         """A graded objective that does not go flat when every deck loses: the win rate averaged over handicapped start HPs (x1 .. x3). A deck that is far
         from beating the target still wins with enough HP; the HP it needs is what picks reduce."""
-        per = [self.many(decks, int(self.hp * m)) for m in mults]
+        per = [self.many(decks, int(self.hp * m)) for m in (mults or self.mults)]
         return [float(np.mean([p[i][0] for p in per])) for i in range(len(decks))]
 
 
@@ -157,6 +162,7 @@ def main():
     ap.add_argument("--tau", type=float, default=0.0, help="greedy: pick only if the gain exceeds tau standard errors")
     ap.add_argument("--beam", type=int, default=6)
     ap.add_argument("--hp", type=int, default=80, help="start HP of the target fight (lower = harder)")
+    ap.add_argument("--mults", default="1,1.5,2,3", help="start-HP multiples of the smooth objective (hard fights need larger ones: Aeonglass 1,2,3,4,6)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", default="")
     a = ap.parse_args()
@@ -169,22 +175,27 @@ def main():
     t0 = time.time()
     for s in range(a.sequences):
         seq = make_sequence(rng, a.screens, pool)
-        sc = Scorer(eng, a.target, a.attempts, a.hp)
-        final = Scorer(eng, a.target, a.final_attempts, a.hp)
+        mults = [float(x) for x in a.mults.split(",")]
+        sc = Scorer(eng, a.target, a.attempts, a.hp, mults)
+        final = Scorer(eng, a.target, a.final_attempts, a.hp, mults)
         row = dict(sequence=seq, policies={})
         for p in policies:
             deck = run_policy(p, seq, sc, a.tau, a.beam, random.Random(a.seed * 1000 + s))
             w, se, hl = final.many([deck])[0]
-            row["policies"][p] = dict(deck=deck, win=w, win_se=se, hp_lost=hl, picks=len(deck), evals=sc.calls)
+            bh = final.by_hp([deck])[0]
+            row["policies"][p] = dict(deck=deck, win=w, win_se=se, hp_lost=hl, picks=len(deck), evals=sc.calls, by_hp=bh, smooth=float(np.mean(bh)))
         rows.append(row)
-        print(f"sequence {s + 1}/{a.sequences} ({time.time() - t0:.0f}s): " + "  ".join(f"{p} {row['policies'][p]['win']:.2f}" for p in policies), flush=True)
+        print(f"sequence {s + 1}/{a.sequences} ({time.time() - t0:.0f}s): " + "  ".join(f"{p} {row['policies'][p]['win']:.2f}/{row['policies'][p]['smooth']:.2f}" for p in policies) + "  (win at start HP / smooth)", flush=True)
         if a.out:
             json.dump(dict(target=a.target, screens=a.screens, rows=rows), open(os.path.join(ROOT, a.out), "w"))
     print("\nmean final win rate vs", a.target, "after", a.screens, "screens:")
     for p in policies:
         ws = [r["policies"][p]["win"] for r in rows]
         hl = [r["policies"][p]["hp_lost"] for r in rows]
-        print(f"  {p:10s} win {np.mean(ws):.3f} (se {np.std(ws) / max(1, len(ws)) ** 0.5:.3f})  hp lost {np.mean(hl):.2f}  picks {np.mean([r['policies'][p]['picks'] for r in rows]):.1f}")
+        sm = [r["policies"][p]["smooth"] for r in rows]
+        bh = np.mean([r["policies"][p]["by_hp"] for r in rows], axis=0)
+        print(f"  {p:10s} win {np.mean(ws):.3f} (se {np.std(ws) / max(1, len(ws)) ** 0.5:.3f})  smooth {np.mean(sm):.3f} (se {np.std(sm) / max(1, len(sm)) ** 0.5:.3f})  hp lost {np.mean(hl):.2f}  picks {np.mean([r['policies'][p]['picks'] for r in rows]):.1f}"
+              f"  win by start HP x{'/'.join(str(m) for m in mults)}: {' '.join(f'{x:.2f}' for x in bh)}")
 
 
 if __name__ == "__main__":

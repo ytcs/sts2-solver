@@ -93,10 +93,30 @@ def start_daemon():
     raise SystemExit("the harness daemon did not start; see target/agent.log")
 
 
+def batch(lines, keep_going=False):
+    """`python -m agent - <<'EOF' ... EOF`: one command per line, run in order, each output printed under `>>> command`. Blank lines and `#` comments are skipped.
+    A line whose output starts with ERR / REFUSED / `[chain stopped` ends the batch (the later lines assumed the screen it was meant to leave), unless --keep-going.
+    The text is literal, so `-- why` needs no shell quoting; read-only commands (`s`, `eval`, `brief` ...) can share one call with the decision that follows them."""
+    if not up():
+        start_daemon()
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        print(">>> " + line)
+        out = ask(line)
+        print(out, end="" if out.endswith(chr(10)) else chr(10))
+        if not keep_going and (out.startswith(("ERR", "REFUSED")) or "[chain stopped" in out):
+            print(">>> batch stopped here")
+            return
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     if len(sys.argv) > 1 and sys.argv[1] == "serve":
         return serve()
+    if sys.argv[1:2] == ["-"]:
+        return batch(sys.stdin.read().splitlines(), keep_going="--keep-going" in sys.argv[2:])
     line = " ".join(sys.argv[1:]) or "s"
     if not up():
         if line == "quit":
@@ -105,6 +125,9 @@ def main():
     try:
         print(ask(line), end="")
     except (ConnectionError, OSError) as e:
+        if line == "quit":
+            print("bye")
+            return
         # the daemon died under this command: restart it; repeat only commands that change nothing in the game
         if line.split()[0] in ("s", "d", "p", "m", "adv", "status", "relics", "budget", "route", "eval"):
             start_daemon()

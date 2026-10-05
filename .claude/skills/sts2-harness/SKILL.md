@@ -12,6 +12,13 @@ Run as `.venv/Scripts/python.exe -m agent <cmd>` with `STS2_DEVICE=cuda`; detail
 `adv [secs]` advice plus the enemies' expected damage; `turn` / `combat` let the solver play a turn / the fight. `budget <s>` fixes the search time; default auto (1-15 s from the fight's predicted danger; stops early when the expected regret is under ~1 HP). `adv 20` when one turn is pivotal. `SIMULATOR DESYNC` or `DIFFERS` voids the advice: play by hand and run `status`.
 `hold POWDERED_DEMISE[,ID]` keeps those potions out of the solver's choices (for the boss; `hold none` releases; set again after a daemon restart). `eval --pool <Act>:<regular|elite|boss> --hp full --attempts 256 --v "name|add=ID|remove=ID|upgrade=ID"` combat value of deck variants (ids are upper-case snake names: HEMOKINESIS); `route M E R ... --hp N`; `note`, `status`, `newrun`. Add `--smooth` for deck choices: win rate averaged over start HP x1/1.5/2/3 (4x the cost; the objective `sts2-deckbuilding` picks by).
 
+## Fewer calls per decision `[code]`
+- **Batch**: `python -m agent - <<'EOF'` with one command per line runs them in order, each output under `>>> command`; the text is literal, so `-- why` needs no quoting (parentheses, semicolons and quotes are fine). It stops at the first `ERR` / `REFUSED` / `[chain stopped` (add `--keep-going` after `-` to continue). Use it to read and decide in one call, e.g. `brief` + `reward` + (next call) the pick.
+- `brief`: header, deck by card, five-bucket line and gaps, relics, potions, the known boss and the elites that can still appear (the state every pick needs, in one call).
+- `reward [--attempts N] [--hp full]` on a card reward screen: every option and skip priced against the boss (smooth objective), the elites that can still appear and the next act's elites and bosses, with the buckets each card fills. Replaces the separate `eval` calls of the pick procedure; a card whose display name has no simulator id is listed as not evaluated (use `eval`).
+- `eval --boss | --elites | --next` replace `--pool <Act>:<kind>` (known boss, elites that can still appear, next act's elites and bosses, from the map and the bag logic).
+- A chain now passes through a selection screen when the next step names its option: `a ~smith; ~Bash` (rest, smith, pick the card) is one call.
+
 ## Speed `[played]`
 Target: a run in 30 min, fights 1-2 min. The bridge runs Instant fast mode; `combat` plays a whole fight in 5-40 s. Use `combat` for easy fights, `turn` / `adv` when the stakes are real, short reasons, no re-reading unchanged state, a whole reward screen in one chained `a`.
 

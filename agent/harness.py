@@ -8,7 +8,9 @@ Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <
   a <i> [target] [-- why]   (chain steps with `;`, `~text` picks the option containing text: `a ~gold; ~card; ~proceed`; stops on error / combat, map click last)
                         take option i of the screen (macro and everything else); `-- why` is stored with the decision. A map click onto an elite or boss
                         below 60% HP is refused unless confirmed with `a <i> !`
-  eval {json} | eval [--all] [--smooth] --enc IDS --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
+  reward [--attempts N] [--hp full]   on a card reward screen: every option and skip priced against the boss (smooth), the elites left and the next act, in one table
+  brief                 the run at a glance: header, deck, buckets and gaps, relics, potions, the known boss and the elites that can still appear
+  eval {json} | eval [--all] [--smooth] (--enc IDS | --boss | --elites | --next) --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
   route <M E R S B ...> [--hp N] [--act Hive] [--exclude IDS]   HP budget (pools narrowed to what can still appear: not the encounters already met this act, only the known boss) along a planned route (fights played at the HP I would arrive with, rests heal 30%)
   relics                relic counters in combat (Pen Nib, Book of Five Rings ...)
   note <text>           a free-text note in the run record
@@ -287,7 +289,7 @@ class Harness:
             if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2:
                 self.log.new_run()  # a new run starts from the menu: its own record (the narrowing of the encounter pools reads it)
                 self.seen_reset = True
-            if i and (kind in ("SELECT", "MENU") or (kind == "COMBAT" and last_kind != "COMBAT")):
+            if i and ((kind == "SELECT" and not step.startswith("~")) or kind == "MENU" or (kind == "COMBAT" and last_kind != "COMBAT")):
                 return reply + f"[chain stopped before `{step}`: {_kind(before)}]\n"
             if _kind(before) == "MAP" and i < len(steps) - 1:
                 return "REFUSED: a map choice must be the last step of a chain.\n" + before
@@ -379,6 +381,21 @@ class Harness:
                     out += ids
         return out
 
+    def _horizon(self):
+        """The three encounter sets a pick is judged against (`sts2-deckbuilding` 3b): `boss` = the act's known boss (or its pool when the map has not shown it),
+        `elites` = the elites of this act that can still appear, `next` = every elite and boss of the next act (empty in the last act)."""
+        from agent import pools
+        ctx = self._ctx()
+        h = re.search(r"A(\d+) F\d+", call("peek"))
+        cur = int(h.group(1)) - 1 if h else 0
+        names = pools.act_names(cur)
+        if len(names) > 1 and ctx["bosses"]:
+            names = [n for n in names if any(b in pools.pool(n, "boss") for b in ctx["bosses"])] or names
+        boss = [e for n in names for e in macro.narrow(pools.pool(n, "boss"), "boss", ctx)]
+        elites = [e for n in names for e in macro.narrow(pools.pool(n, "elite"), "elite", ctx)]
+        nxt = [e for n in (pools.act_names(cur + 1) if cur < 2 else []) for k in ("elite", "boss") for e in pools.pool(n, k)]
+        return dict(boss=boss, elites=elites, next=nxt, ctx=ctx)
+
     def _ctx(self):
         """What narrows the encounter pools (see `macro.narrow`): the encounters met in the current act, in order (from this run's record, so a daemon restart loses
         nothing), and the act's boss(es) in fight order when the map shows them (`boss: <row> ID [+ ID]`)."""
@@ -401,6 +418,32 @@ class Harness:
             pass
         return dict(seen=seen, bosses=bosses)
 
+    def reward(self, argline):
+        """reward [--attempts N] [--hp full|current|N]: the card reward on screen, every option and skip priced in one call (boss smooth, elites, next act)."""
+        state = call("peek")
+        if _kind(state) != "CARD_REWARD":
+            return f"reward: not a card reward screen ({_kind(state)}); use eval\n"
+        toks = shlex.split(argline)
+        att = int(toks[toks.index("--attempts") + 1]) if "--attempts" in toks else 96
+        hp = toks[toks.index("--hp") + 1] if "--hp" in toks else "full"
+        hp = hp if hp in ("full", "current") else int(hp)
+        raw = call("deck.json").strip()
+        if raw == "null":
+            return "no run in progress\n"
+        deck = json.loads(raw)
+        opts, skip = macro.parse_card_options(state)
+        hz = self._horizon()
+        text, res = macro.reward_report(self.eng(), deck, opts, hz, att, hp)
+        self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in r.items()} for k, r in res.items()}, boss=hz["boss"])
+        return text + f"\nskip is option {skip}; pick with `a <i> -- why`\n"
+
+    def brief(self):
+        state = call("peek")
+        raw = call("deck.json").strip()
+        if raw == "null":
+            return state
+        return macro.brief_text(state, json.loads(raw), self._horizon()) + "\n"
+
     def evaluate(self, argline):
         argline = argline.strip()
         if argline.startswith("{"):
@@ -418,6 +461,8 @@ class Harness:
                     a, kind, *n = toks[i + 1].split(":")
                     spec["encounters"] = dict(act=a, kind=kind, n=int(n[0]) if n else 0)
                     i += 1
+                elif t in ("--boss", "--elites", "--next"):  # the horizon sets (see _horizon): the known boss, the elites that can still appear, the next act's elites + bosses
+                    spec["encounters"] = self._horizon()[t[2:]]
                 elif t == "--all":  # do not narrow the pool to the fights that can still appear
                     spec["all"] = True
                 elif t == "--future":  # eval: the boss and elite pools of this act and every later act (horizon check)
@@ -485,6 +530,10 @@ class Harness:
                 return self.act(rest)
             if cmd == "eval":
                 return self.evaluate(rest)
+            if cmd == "reward":
+                return self.reward(rest)
+            if cmd == "brief":
+                return self.brief()
             if cmd == "relics":   # relic counters and saved state of the live fight (e.g. Pen Nib: attacks played so far, Book of Five Rings ...)
                 raw = call("snap").strip()
                 if raw == "null":
