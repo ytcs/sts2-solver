@@ -26,8 +26,6 @@ Consequences:
 - With few elites per pool, each elite met removes it from the next draws until the bag refills. Tracking which weak, regular and elite encounters were already seen narrows what comes next. Allowed: it is observed information.
 
 ## Observed in my own harness tests `[played]`
-- A10 Ironclad starts a run at 64/80 HP with 99 gold and Ascender's Bane in the 11-card deck (same as the recorded expert run). Neow offers three relics (varies by seed).
-- Starter deck with solver play (no dev help): Act 1 weak and regular encounters are won; the first elite is lost (see `sts2-core`, Measured).
 
 - The full map (every room type and every edge) is visible while the Neow / ancient choice is on screen, so route and ancient can be planned together. `[played]`
 
@@ -37,7 +35,7 @@ Consequences:
 - Whether the boss's identity is visible on the map before the act's fights (the map export shows only its row).
 - Underdocks vs Overgrowth: how the game picks the Act 1 variant.
 
-## Route and ancient reasoning (see `sts2-core` for the loop)
+## Route and ancient reasoning (general rules: `sts2-strategy`)
 - Option-by-route check: score every ancient option on each plausible route; if the ranking never flips, choose the best option then route; if it flips, decide the pair.
 - Cost a route node by its slot: monster rooms beyond the weak allowance are regular-pool fights; elites cost by the elite pool average minus those already met.
 - Routes are policies: commit to the next node only.

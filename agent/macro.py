@@ -2,7 +2,7 @@
 
 A choice (add / remove / upgrade a card, take or skip a relic, buy a potion, rest vs smith ...) is a *variant* of the current run state. Every variant is
 played by the solver against the same set of encounters; the difference in win rate and HP lost is the choice's value for those fights. This prices the
-combat side of a decision only: gold, future upgrades and route value are not in it, they stay my judgment (see `.claude/skills/sts2-core`).
+combat side of a decision only: gold, future upgrades and route value are not in it, they stay my judgment (see `.claude/skills/sts2-strategy`).
 
   spec = dict(encounters=["NIBBITS_WEAK", ...] | dict(act="Hive", kind="regular", n=4),
               variants=[dict(name="skip"), dict(name="+Anger", add=["ANGER"]), dict(name="smith pommel", upgrade=["POMMEL_STRIKE"])],

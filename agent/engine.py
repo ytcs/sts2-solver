@@ -57,6 +57,7 @@ class Engine:
         t0 = time.perf_counter()
         tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)  # the return counts half the HP fraction left
         acc, first, rounds = {}, None, 0
+        skip = {a for a, t in sim.legal() if t.startswith("discard potion")}  # the bridge cannot discard a potion, and a tie must never throw one away
         while True:
             self.seed += 1
             r = self.fs.decide(scenario, sim, (self.seed if seed is None else seed + rounds))
@@ -66,7 +67,7 @@ class Engine:
             if not r["searched"]:
                 break  # a forced move: nothing to refine
             for a, q, ok in zip(r["opts"], r["q"], r["legal"]):
-                if ok and not np.isnan(q):
+                if ok and a not in skip and not np.isnan(q):
                     acc.setdefault(a, []).append(float(q))
             if time.perf_counter() - t0 >= budget or rounds >= MAX_ROUNDS or (rounds >= 4 and _opportunity_loss(acc) < tol):
                 break

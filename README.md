@@ -43,7 +43,7 @@ Commands are documented in [`agent/harness.py`](agent/harness.py); the bridge pr
   in the simulator: it replays the actions taken, resamples enemy turns until the intents match what the game shows, and aligns the visible state (hand, piles as multisets, HP, block, energy).
   Hidden information (draw order, RNG, random enemy branches) is the simulator's own random sample, never read from the game. The search then tries the likeliest actions on determinized
   futures and the action is sent to the game. About 10 ms per decision after the load.
-* **Macro (everything else).** I decide, using the strategy book (`.claude/skills/sts2-*`, indexed by `sts2-index`) and `eval`, which plays variants of the deck against the encounters ahead
+* **Macro (everything else).** I decide, using the strategy book (`.claude/skills/sts2-*`, rooted at the `sts2` skill) and `eval`, which plays variants of the deck against the encounters ahead
   and reports win rate and HP lost with their margins. The act's encounter pools (weak / regular / elite / boss) are in `agent/pools.py`.
 * **No cheating:** no dev console or god mode in a scored run, no hidden state (draw order, RNG streams, the pre-rolled encounter and elite order), no restarts. The run seed is not exported.
 
