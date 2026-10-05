@@ -1,94 +1,89 @@
-# STS2 combat simulator — an RL environment that matches the real game
+# STS2 self-play harness
 
-A bit-exact, allocation-free Rust re-implementation of **Slay the Spire 2 combat** (v0.111.0 public-beta, single player),
-built to run 10⁴–10⁵ fights in parallel as a reinforcement-learning environment. Fidelity is not assumed: every card,
-relic, potion, power and monster is differential-tested against the real game's own code, step by step, including the
-state of all nine RNG streams.
+A harness that lets an agent (Claude) play **Slay the Spire 2** end to end in the real game, with a combat solver for the turn-by-turn decisions, tools to price
+the macro decisions (cards, relics, shops, rests, routes), and an outer loop that turns experience into a better strategy book and a better solver.
 
-**Target:** Ascension 10 (the only level that matters here): A8 tough-enemy HP, A9 deadly-enemy damage, 2 potion slots,
-Ascender's Bane in the deck. Lower ascensions run through the same code but are not the validation target.
+**Target:** Ascension 10 (A8 tough-enemy HP, A9 deadly-enemy damage, 2 potion slots, Ascender's Bane, a second boss; the run starts at 64/80 HP for the Ironclad).
+Game build: v0.111.0 public beta. Winning the run is the goal, finishing with the most HP the second one.
 
-## What the agent sees and chooses (the contract)
-See [`docs/env-api.md`](docs/env-api.md). In short: the action space and observation mirror what a human has —
-play card (with each legal target), use/discard potion, end turn, and the exact click-then-confirm card-selection screens;
-the draw, discard and exhaust piles are visible only as unordered multisets (a player knows what is in a pile, never its order),
-RNG is hidden, upcoming enemy turns are exposed as the expert pattern knowledge a veteran has by heart (exact cycles; odds at random
-branches; realized random outcomes stay hidden), and tests perturb hidden state to prove it can't leak into the observation.
+```
+ game (Godot + C#)                          python -m agent <cmd>
+ └─ mods/AgentBridge  :15555  ◄────────────  agent daemon :15556  ◄──── me (shell)
+    state, actions, visible fight export       ├─ fight.py    rebuild the fight in the simulator from observations only
+                                               ├─ engine.py   network + determinized search (micro), batch solver (macro / predictions)
+                                               ├─ macro.py    price a choice: variants of the current deck vs encounters
+                                               ├─ harness.py  commands, run record      └─ improve.py  outer loop
+```
+
+## Quick start
+```bash
+# one-time: Rust + Python environment
+cargo test --workspace
+uv venv .venv && uv pip install maturin numpy torch pillow yt-dlp --python .venv/Scripts/python.exe
+VIRTUAL_ENV=$PWD/.venv .venv/Scripts/maturin develop --release -m crates/sts2py/Cargo.toml
+export STS2_DEVICE=cuda                                  # GPU for the networks (a compile of ~2 min the first time)
+
+# the game with the bridge mod (needs .NET 9; Steam game id 2868840): kills the game, builds, installs, relaunches, waits for the bridge
+bash mods/AgentBridge/dev.sh
+
+python -m agent s                  # state with numbered options (the daemon starts hidden on first use; loading takes about a minute)
+python -m agent a 1 ironclad 10 SEED   # menu: new run (option 0) or custom run with a seed (option 1); then `a <i> [target] [-- why]` for everything else
+python -m agent adv 5              # solver advice with a 5 s search budget (default 1 s; ~0.3 s for obvious turns) plus the enemies' expected damage next turns
+python -m agent turn | combat      # let the solver play this turn / the whole fight (`budget <s>` sets the default search time)
+python -m agent eval --pool Hive:elite --v "+Card|add=ID" --v "smith|upgrade=ID"   # combat value of choices against encounter pools
+python -m agent route M E R S B --hp 50 --act Hive    # HP budget along a planned route
+python -m agent draw r1c6 r2c6 ...  # draw the planned route on the in-game map; `d` deck, `p draw` a pile, `m` the map, `relics` counters
+python -m agent status             # replay fidelity of the current fight, engine, run id
+python -m agent quit
+```
+Commands are documented in [`agent/harness.py`](agent/harness.py); the bridge protocol in [`mods/AgentBridge/README.md`](mods/AgentBridge/README.md). Guards: `adv`/`turn` refuse and say so loudly when the simulator is out of sync with the game, and a map click onto an elite or boss below 60% HP needs `!`.
+
+## How a decision is made
+* **Micro (every combat action).** The bridge exports the fight start (deck, relics, potions, HP, encounter) and the visible state after every action. `agent/fight.py` rebuilds the fight
+  in the simulator: it replays the actions taken, resamples enemy turns until the intents match what the game shows, and aligns the visible state (hand, piles as multisets, HP, block, energy).
+  Hidden information (draw order, RNG, random enemy branches) is the simulator's own random sample, never read from the game. The search then tries the likeliest actions on determinized
+  futures and the action is sent to the game. About 10 ms per decision after the load.
+* **Macro (everything else).** I decide, using the strategy book (`.claude/skills/sts2-*`, indexed by `sts2-index`) and `eval`, which plays variants of the deck against the encounters ahead
+  and reports win rate and HP lost with their margins. The act's encounter pools (weak / regular / elite / boss) are in `agent/pools.py`.
+* **No cheating:** no dev console or god mode in a scored run, no hidden state (draw order, RNG streams, the pre-rolled encounter and elite order), no restarts. The run seed is not exported.
+
+## The outer loop (`agent/improve.py`)
+Every decision and fight is recorded in `runs/<id>/events.jsonl` (the solver's prediction at each fight start, every action with the options weighed, outcomes, my reasons for macro choices).
+```bash
+python -m agent.improve review          # predicted vs actual, how often search overrides the policy, simulator fidelity, follow-ups
+python -m agent.improve lessons         # the strategy book's open hypotheses = the experiment backlog
+python -m agent.improve corpus          # fights of all runs -> data/corpus (train / held-out split by run)
+python -m agent.improve finetune        # PPO fine-tune of the current network on corpus + base distribution
+python -m agent.improve gate CKPT       # candidate vs current on the corpus holdout and the fixed eval set, paired seeds -> evals/ledger.jsonl
+python -m agent.improve adopt CKPT --as NAME   # only after the gate passed
+```
+Strategy lessons are adopted by the same rule as checkpoints: a claim in a skill moves from `[hyp]` to `[sim]` / `[played]` only with a test behind it.
 
 ## Layout
 | Path | What |
 |---|---|
+| `agent/` | The harness: bridge client, fight rebuild, engine, macro evaluation, run record, outer loop, daemon + CLI, self-tests (`selftest`, `validate`), `video/` (watch a recorded run). |
+| `mods/AgentBridge/` | The game mod (C#): state, actions, fight export. |
+| `.claude/skills/` | The strategy book. |
+| `rl/` | The solver: `model.py` (network), `ppo.py` (training), `fastsearch.py` (search driver), `solver.py` (batch solver). |
 | `crates/sts2sim` | The simulator (engine, content, observation, action space). No dependencies. |
-| `crates/sts2env` | `BatchEnv`: thousands of auto-resetting envs stepped with rayon into flat buffers. |
-| `crates/sts2py` | PyO3 bindings → `import sts2; env = sts2.VecEnv(...)` (zero-copy NumPy). |
+| `crates/sts2env` | `BatchEnv` and the search state machine (`search.rs`). |
+| `crates/sts2py` | PyO3 bindings: `sts2.VecEnv`, `sts2.Sim` (one fight, steppable, alignable), the search engine. |
 | `crates/sts2diff` | Differential tester: replays real-game traces in Rust and compares full state. |
-| `oracle/` | The oracle: the game's own C# combat code running headless (no Godot runtime), driven by scenarios. |
-| `tools/` | Generators (`gen_ids.py`, `gen_defs.py`, …), `mk_scenario.py`, `diff_sweep.py`, `regress.py`, `coverage.py`. |
-| `docs/` | `design.md` (architecture, performance), `spec/01–05` (verified engine semantics), `oracle.md`, `env-api.md`, `porting-guide.md`. |
-| `decomp/` | Decompiled game source (gitignored; regenerate with `ilspycmd`, see `docs/design.md`). |
+| `oracle/`, `verify/` | The game's own combat code running headless, and the scripts that diff the simulator against it. |
+| `scripts/porting/` | Generators for the simulator's id and definition tables (when the game updates). |
+| `docs/` | `design.md`, `spec/`, `oracle.md`, `env-api.md`, `solver.md`, `porting-guide.md`. |
+| `models/`, `data/` | Trained networks; the fixed eval sets (`data/train/eval.json`, `mid.json`); `data/corpus` from my runs. |
+| `runs/`, `evals/` | Run records; the gap list and the adoption ledger. |
 
-## Quick start
-```bash
-# build + test the simulator
-cargo test --workspace
+## The simulator and the solver
+A bit-exact, allocation-free Rust re-implementation of Slay the Spire 2 combat, differential-tested against the real game's own code (every card, relic, potion, power and monster, step by step,
+including all nine RNG streams). The contract is in [`docs/env-api.md`](docs/env-api.md): the action space and observation mirror what a human has; draw, discard and exhaust piles are unordered
+multisets, RNG is hidden, upcoming enemy turns are exposed as expert pattern knowledge (exact cycles, odds at random branches).
 
-# Python environment (venv with maturin + numpy)
-uv venv .venv && uv pip install maturin numpy --python .venv/bin/python
-(cd crates/sts2py && VIRTUAL_ENV=$PWD/../../.venv ../../.venv/bin/maturin develop --release)
-.venv/bin/python tools/py_smoke.py 4096
+The solver (`rl/`): a PPO-trained policy/value network plus determinized play-out search (`VecEnv.fork_from` copies a fight and resamples exactly what a player cannot see), with a value
+ensemble. On 1,500 held-out A10 fights it wins 72.6% and loses 36% of max HP on average (network alone 65.5% / 42%). Numbers and design: [`docs/solver.md`](docs/solver.md).
 
-# differential testing against the real game
-(cd oracle/combat && dotnet build -c Release)            # needs the game install (sts2.dll)
-cargo build -p sts2diff
-python3 tools/mk_scenario.py --encounter NIBBITS_WEAK --starter --deck ANGER,SHRUG_IT_OFF:2 > /tmp/t.json
-python3 tools/diff_sweep.py /tmp/t.json --n 40            # A10 by default
-python3 tools/regress.py --n 3                            # every template in oracle/templates
-python3 tools/coverage.py                                 # what is ported
-```
-```python
-import sts2, json
-env = sts2.VecEnv(n_envs=4096, scenarios=[json.load(open("scenario.json"))], seed=0)
-obs, mask = env.reset()                                   # obs float32 [n, OBS_SIZE], mask uint8 [n, ACTIONS]
-obs, mask, reward, done, info = env.step(actions)         # actions: int32 dense action indices (must be legal)
-```
-
-## Episodes, rewards, scenario distributions
-* `done[i] = 1` ends an episode; `info["outcome"]`: `1` win, `-1` loss, `2` truncated (`max_steps`), `3` unimplemented content reached,
-  `4` capacity overflow (the last two mean the fight would not be faithful — drop or resample those episodes). Reward defaults to +1/−1
-  (configurable: `win`, `loss`, `hp_bonus`·final_hp/max_hp, per-step).
-* A scenario is the oracle JSON format (character, ascension, encounter, ordered deck with upgrades, relics, potions, HP, seed, …);
-  `VecEnv(scenarios=[...])` samples one uniformly per episode and redraws every RNG stream. Build distributions with
-  `tools/mk_scenario.py` or the randomized generators (`tools/fuzz_gen.py`, `fuzz_gen_orb_pet.py`, `fuzz_gen_mix.py`) — they produce
-  realistic Ascension-10 runs (starter deck + Ascender's Bane, random additions/upgrades/relics/potions) over every encounter.
-* Stratagem's reshuffle prompt works in every draw context (turn-start draw, mid-effect draws, hook-started draws, auto-plays): where the engine cannot pause
-  it, the step is re-run with the agent's pick (`engine/replay.rs`). The agent sees the effect's partial results at the prompt. Combats that contain a
-  Stratagem card pay one state copy per step; all others pay nothing.
-
-## Combat solver
-`rl/` trains and runs a solver on this environment: win first, then lose as little HP as possible. A PPO-trained policy/value network (entity encoders
-+ pointer action head over the env's dense action space) plays every fight; `rl/fastsearch.py` + `crates/sts2env/src/search.rs` improve it at test time by determinized play-outs
-(`VecEnv.fork_from` copies a fight and resamples exactly the information a player cannot see), with a value ensemble: on a held-out set of 1,500 A10 fights
-(5 characters, 3 acts) the solver wins **72.6%** and loses 36% of max HP on average (network alone 65.5% / 42%, scripted heuristic 36% / 57%, random 14.5% / 69%);
-`rl/solver.py` solves many deck variants at 500-900 fights/s on a 10-CPU GPU box (search as a Rust state machine + compiled CUDA-graph networks; `docs/solver.md`). `sts2.provably_unwinnable(scenario)` proves some fights
-lost for any play (e.g. the starter deck against a boss). Numbers, baselines and the commands are in [`docs/solver.md`](docs/solver.md).
-```bash
-.venv/bin/python tools/gen_train.py --n 6000 --seed 11 --out target/train/train.json     # realistic A10 fights
-.venv/bin/python rl/ppo.py --train target/train/train.json --eval target/train/eval.json --out target/runs/a
-.venv/bin/python rl/baselines.py --eval target/train/eval.json --policies random,heuristic,ckpt:target/runs/a/ckpt.pt
-.venv/bin/python rl/solver.py --scenarios target/train/eval.json --attempts 2      # network + search (the default solver) on the eval set
-```
-
-## How fidelity is guaranteed
-1. **Specs from the source** (`docs/spec/`): exact hook order, damage pipeline (decimal arithmetic), draw/shuffle (including
-   .NET introsort tie behaviour), RNG streams, monster state machines.
-2. **The oracle** (`docs/oracle.md`): real game code, headless, deterministic; records full state after every step.
-3. **Differential tests**: `sts2diff` replays the same scripted actions in Rust and compares every field — HP, block, powers
-   (list order), piles (order), intents, relic counters, orbs, Osty, stars, and the counter/state of all RNG streams.
-4. **Corpus + fuzzing**: `oracle/templates/` (hundreds of scenarios, run by `tools/regress.py`) and randomized fuzz rounds
-   across characters × decks × relics × potions × every encounter.
-5. **Unported content never runs silently**: using anything without a Rust port sets `Combat::missing`; envs abort such
-   episodes (`OUTCOME_UNIMPLEMENTED`).
-
-## Status
-See the coverage table in [`docs/design.md`](docs/design.md) and run `python3 tools/coverage.py`. Known gaps and open
-problems are tracked in `docs/design.md`.
+How fidelity is checked: specs from the game source (`docs/spec/`), the oracle (`docs/oracle.md`), differential tests (`cargo run -p sts2diff`, `verify/regress.py`), and, for the live game,
+`python -m agent.validate` which plays real fights and counts every time the simulator's own prediction of the visible state was wrong. Unported content never runs silently
+(`Combat::missing`).

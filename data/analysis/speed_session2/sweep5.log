@@ -1,7 +1,0 @@
-amp=1,merge_dec=0                          447.5 fights/s  win 0.7399 (+-0.0046)  hp_lost 0.3619  pol rows/fight 889 val 519  (20s)
-amp=1,merge_dec=1                          542.8 fights/s  win 0.7397 (+-0.0046)  hp_lost 0.3621  pol rows/fight 881 val 518  (17s)
-amp=1,groups=3                             441.0 fights/s  win 0.7388 (+-0.0046)  hp_lost 0.3624  pol rows/fight 885 val 520  (20s)
-amp=1,roots=4096                           529.2 fights/s  win 0.7412 (+-0.0046)  hp_lost 0.3629  pol rows/fight 878 val 518  (17s)
-amp=1,roots=1024                           438.6 fights/s  win 0.7418 (+-0.0046)  hp_lost 0.3624  pol rows/fight 883 val 518  (21s)
-amp=1,K=4                                  879.7 fights/s  win 0.7359 (+-0.0046)  hp_lost 0.3662  pol rows/fight 497 val 260  (10s)
-amp=1,K=6                                  650.4 fights/s  win 0.7381 (+-0.0046)  hp_lost 0.3626  pol rows/fight 691 val 389  (14s)

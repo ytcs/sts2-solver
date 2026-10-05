@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Build: dotnet build -c Release   (copies the mod into <game>/mods/AgentBridge/) -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>AgentBridge</AssemblyName>
+    <RootNamespace>AgentBridge</RootNamespace>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <Sts2Path Condition="'$(Sts2Path)' == ''">C:/Program Files (x86)/Steam/steamapps/common/Slay the Spire 2</Sts2Path>
+    <Sts2DataDir>$(Sts2Path)/data_sts2_windows_x86_64</Sts2DataDir>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="sts2"><HintPath>$(Sts2DataDir)/sts2.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="GodotSharp"><HintPath>$(Sts2DataDir)/GodotSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(Sts2DataDir)/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="all" />
+    <Publicize Include="sts2" />
+  </ItemGroup>
+  <Target Name="CopyToMods" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath);AgentBridge.json" DestinationFolder="$(Sts2Path)/mods/AgentBridge/" />
+  </Target>
+</Project>

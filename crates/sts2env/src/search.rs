@@ -220,6 +220,8 @@ struct Inputs<'a> {
 struct Shared<'a> {
     cfg: SearchCfg,
     scen: &'a [(Scenario, ScenarioExtras)],
+    /// per scenario index: a combat to start the job from (a mid-fight state), instead of resetting the scenario
+    starts: &'a [Option<Combat>],
     jobs: &'a [(u32, u64)],
     next_job: AtomicUsize,
     results: SendPtr<JobResult>,
@@ -432,7 +434,9 @@ impl Block {
         }
         let (si, seed) = sh.jobs[j];
         let (sc, ex) = &sh.scen[si as usize];
-        if self.main.reset_validated(sc, ex, seed, RngSet::from_run_seed_fast(seed)).is_err() {
+        if let Some(Some(c)) = sh.starts.get(si as usize) {
+            self.main = c.clone();
+        } else if self.main.reset_validated(sc, ex, seed, RngSet::from_run_seed_fast(seed)).is_err() {
             self.main.overflow |= sts2sim::state::ov::SCENARIO;
         }
         self.job = j as u32;
@@ -831,6 +835,7 @@ impl Block {
 pub struct SearchEngine {
     cfg: SearchCfg,
     scen: Vec<(Scenario, ScenarioExtras)>,
+    starts: Vec<Option<Combat>>,
     jobs: Vec<(u32, u64)>,
     blocks: Vec<Block>,
     results: Vec<JobResult>,
@@ -844,6 +849,12 @@ pub struct SearchEngine {
 impl SearchEngine {
     /// `scen`: the distinct scenarios; `jobs`: one `(scenario index, seed)` per fight to play; `n_roots`: fights played at the same time.
     pub fn new(scen: Vec<(Scenario, ScenarioExtras)>, jobs: Vec<(u32, u64)>, n_roots: usize, cfg: SearchCfg, threads: usize, record: bool) -> Result<SearchEngine, EnvError> {
+        Self::new_with_starts(scen, Vec::new(), jobs, n_roots, cfg, threads, record)
+    }
+
+    /// Like `new`; `starts[i]` (when present) is a combat that jobs of scenario `i` start from instead of the scenario's beginning (a fight in progress:
+    /// the search then decides from there; hidden information is resampled for every future as always).
+    pub fn new_with_starts(scen: Vec<(Scenario, ScenarioExtras)>, starts: Vec<Option<Combat>>, jobs: Vec<(u32, u64)>, n_roots: usize, cfg: SearchCfg, threads: usize, record: bool) -> Result<SearchEngine, EnvError> {
         if scen.is_empty() || cfg.m == 0 || cfg.m > MAX_M || cfg.k == 0 {
             return Err(EnvError::Buffer("bad search configuration"));
         }
@@ -863,7 +874,7 @@ impl SearchEngine {
         let blocks: Result<Vec<Block>, EnvError> = pool.install(|| (0..n).into_par_iter().map(|_| Block::new(&scen[0].0, &scen[0].1, cfg.m * cfg.k)).collect());
         let results = vec![JobResult::default(); jobs.len()];
         let logs = if record { vec![Vec::new(); jobs.len()] } else { Vec::new() };
-        Ok(SearchEngine { cfg, scen, jobs, blocks: blocks?, results, logs, record, next_job: 0, pool, started: false })
+        Ok(SearchEngine { cfg, scen, starts, jobs, blocks: blocks?, results, logs, record, next_job: 0, pool, started: false })
     }
 
     pub fn n_roots(&self) -> usize {
@@ -951,7 +962,7 @@ impl SearchEngine {
             n_pol: AtomicUsize::new(0),
             n_val: AtomicUsize::new(0),
         };
-        let sh = Shared { cfg: self.cfg, scen: &self.scen, jobs: &self.jobs, next_job: AtomicUsize::new(self.next_job), results: SendPtr(self.results.as_mut_ptr()), logs: SendPtr(self.logs.as_mut_ptr()), record: self.record };
+        let sh = Shared { cfg: self.cfg, scen: &self.scen, starts: &self.starts, jobs: &self.jobs, next_job: AtomicUsize::new(self.next_job), results: SendPtr(self.results.as_mut_ptr()), logs: SendPtr(self.logs.as_mut_ptr()), record: self.record };
         let inp = if first { None } else { Some(Inputs { pol: pol.unwrap(), val: val.unwrap() }) };
         let blocks = &mut self.blocks;
         self.pool.install(|| {

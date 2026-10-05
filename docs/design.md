@@ -1,5 +1,8 @@
 # STS2 combat simulator — design
 
+> Note: the harness restructure removed development scripts (fuzzers, sweeps, audits, coverage, generators of training sets, `rl/trace.py`, `rl/winnable.py`, `rl/baselines.py`, `rl/sweep.py`, `rl/bench_net.py`) and the training / analysis data. Scripts named below that are gone are in git history: `git show 22730bd:<path>`.
+
+
 Target: Slay the Spire 2 **v0.111.0 public-beta** (Steam build 24724944, commit 41cef1ea). Single-player combat only.
 Purpose: an RL environment that replays real fights faithfully (relics + relic state, potions, draw/discard/exhaust
 order, enemy move patterns, RNG) at 10⁴–10⁵ parallel fights.
@@ -55,8 +58,8 @@ Built and tested (`cargo test -p sts2sim`):
   (modify → block → HP-loss phases → post-hooks → kill), powers (stacking, Artifact-style received-amount hooks,
   tick-down), piles (draw/shuffle/exhaust/hand-full redirect), resumable card-play pipeline, monster state machine
   (weighted branches, repeat/cooldown rules, spawn HP rule), turn loop (player/enemy turns, innate, flush, win/loss).
-* `content/` — generated stat tables for all 596 cards and 265 powers (`tools/gen_defs.py`) and generated id tables
-  (`tools/gen_ids.py`); hand-written behaviour only for Strike/Defend/Bash, Strength/Dexterity/Vulnerable/Weak/Frail,
+* `content/` — generated stat tables for all 596 cards and 265 powers (`scripts/porting/gen_defs.py`) and generated id tables
+  (`scripts/porting/gen_ids.py`); hand-written behaviour only for Strike/Defend/Bash, Strength/Dexterity/Vulnerable/Weak/Frail,
   Burning Blood, Nibbit (`NIBBITS_WEAK`).
 * Throughput (release, this machine): ~94k full fights/s/thread, ~660k fights/s on 14 threads (~11M agent-steps/s),
   `size_of::<Combat>() ≈ 14 KB`. See `crates/sts2sim/examples/bench.rs`.
@@ -72,7 +75,7 @@ Since the first slice: decisions (click/confirm model, hand/pile/choose-a-card),
 * (Hardening phase, below: snapshots are filled in place, dispatch slow paths are out of line, `Combat` is 17.5 KB, resets are in place.)
 
 ### How to add content
-1. Stats already exist in `content/gen_*.rs`. Re-run `tools/gen_defs.py` / `tools/gen_ids.py` after a game update.
+1. Stats already exist in `content/gen_*.rs`. Re-run `scripts/porting/gen_defs.py` / `scripts/porting/gen_ids.py` after a game update.
 2. Write a `listener!(Name { fn hook(...) {...} })` in `content/{cards,powers,relics,monsters}.rs` — the macro derives the
    hook mask from the methods you override. Card effects use `on_play`; resumable effects return `Flow::Suspend(phase)`
    after raising a `Decision`.
@@ -81,8 +84,8 @@ Since the first slice: decisions (click/confirm model, hand/pile/choose-a-card),
 
 ### Content status (final integration)
 Everything on `sim-rebuild` is validated by differential sweeps against the real-game oracle: the template corpus
-(`oracle/templates/**`, `python3 tools/regress.py`, 418 templates, all `ok`), 1,254 recorded real-game traces replayed bit-identically
-(`tools/regress_cache.py check`, also through the in-place reset), 70+ frozen regression scenarios (`oracle/regression*`), and ~250,000
+(`oracle/templates/**`, `python3 verify/regress.py`, 418 templates, all `ok`), 1,254 recorded real-game traces replayed bit-identically
+(`verify/regress_cache.py check`, also through the in-place reset), 70+ frozen regression scenarios (`oracle/regression*`), and ~250,000
 randomized A10 fuzz fights (random decks × relics × potions × every encounter) with 0 residual mismatches.
 
 Coverage (`python3 tools/coverage.py`; implemented = a `listener!` / `MonsterDef` / encounter spawn exists):
@@ -99,10 +102,10 @@ Coverage (`python3 tools/coverage.py`; implemented = a `listener!` / `MonsterDef
 Throughput (release, shared/loaded machine): ~80-95k full fights/s/thread, ~450k+ fights/s on 14 threads; `size_of::<Combat>()` ≈ 18.7 KB.
 
 ### Hardening phase (robustness, memory, throughput)
-Done on `sim-rebuild` after the content merge; every step was verified bit-identical (unit tests, `tools/regress_cache.py check` over the
+Done on `sim-rebuild` after the content merge; every step was verified bit-identical (unit tests, `verify/regress_cache.py check` over the
 1236 cached real-game traces of all 398 templates, once with a fresh `Combat` and once through the in-place reset with `STS2DIFF_REUSE=1`,
 and the instruction-count harness checksums). Tools: `examples/prof.rs` (callgrind workload), `examples/sizes.rs`, `[profile.prof]`,
-`tools/regress_cache.py` (record the oracle's traces once, replay them in ~15 s).
+`verify/regress_cache.py` (record the oracle's traces once, replay them in ~15 s).
 
 **Robustness** (details and the capacity table: `docs/env-api.md`). A full `ArrayVec` never panics or drops silently: it raises a
 thread-local flag that `Combat::step` folds into `Combat::overflow` (`state::ov::*`); card arena, creature slots, history ring, counters,
@@ -171,7 +174,7 @@ Fidelity TODOs are marked `TODO(fidelity)` in code.
 1. ✅ Specs from the decompiled source (`docs/spec/01–05`)
 2. ✅ Engine core + vertical slice
 3. ✅ Oracle: the real game's combat code runs headless (`oracle/`, `docs/oracle.md`)
-4. ✅ Differential harness (`crates/sts2diff`), corpus regression (`tools/regress.py`), randomized fuzzing (`tools/fuzz_gen*.py`)
+4. ✅ Differential harness (`crates/sts2diff`), corpus regression (`verify/regress.py`), randomized fuzzing (`tools/fuzz_gen*.py`)
 5. ✅ Content breadth: all five characters, all four acts + events, relics, potions, enchantments
 6. ✅ Batched RL env (`crates/sts2env`) and Python bindings (`crates/sts2py`); hardening (robustness flags, memory, throughput)
 7. ✅ Stratagem prompts in every draw context (replay continuation); ⏳ ongoing: fuzz rounds after any content/engine change, throughput tuning

@@ -1,7 +1,0 @@
-greedy policy: win 0.653 hp_lost_all 0.546
-M=5 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.808 hp_lost_all 0.453 stall 0.003  400s (0.67s/fight)
-M=5 K=24 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.810 hp_lost_all 0.446 stall 0.002  697s (1.16s/fight)
-M=8 K=16 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.810 hp_lost_all 0.452 stall 0.003  740s (1.23s/fight)
-M=5 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=1 conf=1.01: win 0.753 hp_lost_all 0.487 stall 0.005  1674s (2.79s/fight)
-M=3 K=8 pmin=0 force=0 margin=0 greedy_roll=0 full=0 conf=1.01: win 0.813 hp_lost_all 0.461 stall 0.003  321s (0.54s/fight)
-BUDGET_DONE

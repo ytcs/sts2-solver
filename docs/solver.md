@@ -1,5 +1,8 @@
 # Combat solver (`rl/`)
 
+> Note: the harness restructure removed development scripts (fuzzers, sweeps, audits, coverage, generators of training sets, `rl/trace.py`, `rl/winnable.py`, `rl/baselines.py`, `rl/sweep.py`, `rl/bench_net.py`) and the training / analysis data. Scripts named below that are gone are in git history: `git show 22730bd:<path>`.
+
+
 Goal: given a deck, relics, potions, HP and an encounter (Ascension 10), play the fight to **win first, then lose as little HP as
 possible**. The run-level optimizer that will call this as a subroutine is out of scope; the primary metrics are therefore
 
