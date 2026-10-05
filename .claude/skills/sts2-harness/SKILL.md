@@ -1,6 +1,6 @@
 ---
 name: sts2-harness
-description: How to operate the STS2 self-play harness (python -m agent): commands, action chaining, the solver (adv/turn/combat), eval syntax, speed targets, harness quirks and the post-run review loop. Load at the start of any run.
+description: Use before the first action of a run and whenever unsure how to drive the game: python -m agent commands, action chaining, solver (adv/turn/combat), eval syntax and pool narrowing, speed targets, harness quirks, post-run review loop.
 ---
 
 # Harness operation

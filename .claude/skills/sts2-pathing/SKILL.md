@@ -1,6 +1,6 @@
 ---
 name: sts2-pathing
-description: How to plan the map route and choose the Neow / ancient option in Slay the Spire 2 as one co-optimized decision: floors as a scarce resource, candidate-route enumeration, scoring with route/eval, drawing the route, option-by-route tables, re-planning per node. Load at every Neow / ancient and before every map click.
+description: Use at every Neow / ancient choice and before every map click: floors as a scarce resource, route enumeration, scoring with route and eval, option-by-route table, drawing the route, known boss and encounter-bag narrowing, re-planning each node.
 ---
 
 # Pathing and ancient / Neow (shared by all characters and acts)

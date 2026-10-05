@@ -1,6 +1,6 @@
 ---
 name: sts2-ironclad-act3
-description: Ironclad Act 3 (Glory) deviations and evidence including the A10 second boss: elite pool (Knights, Mecha Knight, Soul Nexus), boss pool. Load on entering Act 3 as the Ironclad. No evidence yet.
+description: Use when entering or planning Act 3 (Glory) as the Ironclad, including the A10 second boss: elite and boss notes and deviations from the general strategy. No evidence yet.
 ---
 
 # Ironclad Act 3 (additions to `sts2-strategy`, `sts2-ironclad`)

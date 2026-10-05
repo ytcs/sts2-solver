@@ -1,6 +1,6 @@
 ---
 name: sts2-ironclad-act2
-description: Ironclad Act 2 (Hive) deviations and evidence: elite pool (Decimillipede, Entomancer, Infested Prisms), boss pool, Smith vs Rest. Load on entering Act 2 as the Ironclad. No evidence yet beyond one shakedown.
+description: Use when entering or planning Act 2 (Hive) as the Ironclad: elite and boss notes, Smith vs Rest, deviations from the general strategy. Little evidence yet.
 ---
 
 # Ironclad Act 2 (additions to `sts2-strategy`, `sts2-ironclad`)

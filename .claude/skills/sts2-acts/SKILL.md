@@ -1,6 +1,6 @@
 ---
 name: sts2-acts
-description: Slay the Spire 2 act structure and encounter pools: room counts, how many weak fights each act has, weak/regular/elite/boss lists per act, ancients, the A10 double boss, and which information is hidden. Use when planning a route or estimating the cost of the next fight.
+description: Use when planning routes or fights: act structure, encounter pools (weak/regular/elite/boss per act), how the game draws encounters, ancients, the A10 double boss; encounters.md lists what each boss and elite asks of a deck.
 ---
 
 # STS2 acts and encounter pools

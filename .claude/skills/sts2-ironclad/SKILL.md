@@ -1,6 +1,6 @@
 ---
 name: sts2-ironclad
-description: Ironclad-only additions to the general STS2 strategy: starting facts at A10, archetypes and key cards with eval evidence, HP-loss triggers. Load at character select; the act files add per-act deviations.
+description: Use when the character is Ironclad (at character select and at every Ironclad card or relic choice): only what differs from the general strategy: A10 start, HP-loss triggers, card eval evidence, archetype notes.
 ---
 
 # Ironclad (additions to `sts2-strategy`)

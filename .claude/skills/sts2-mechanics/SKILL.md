@@ -1,6 +1,6 @@
 ---
 name: sts2-mechanics
-description: Verified monster, power and relic mechanics in Slay the Spire 2 (A10) that change how a turn should be played: Slippery, Hard to Kill, Burrowed, Artifact, Pen Nib, Inferno/Rupture triggers and more. Read before fighting an unfamiliar enemy.
+description: Use before fighting an unfamiliar enemy or when a power, relic or card behaves unexpectedly: verified mechanics (Slippery, Hard to Kill, Burrowed, Artifact, Pen Nib, Inferno/Rupture triggers and more).
 ---
 
 # STS2 mechanics (verified; add only what code or play confirmed)
