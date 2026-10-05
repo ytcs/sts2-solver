@@ -313,9 +313,9 @@ class Harness:
                 self.log.new_run()  # a new run starts from the menu: its own record (the narrowing of the encounter pools reads it)
                 self.seen_reset = True
             if i and self.gate:
-                why = self._skill_refusal(before)
-                if why:
-                    return reply + f"[chain stopped before `{step}`: {why}]" + chr(10)
+                refusal = self._skill_refusal(before)
+                if refusal:
+                    return reply + f"[chain stopped before `{step}`: {refusal}]" + chr(10)
             if i and ((kind == "SELECT" and not step.startswith("~")) or kind == "MENU" or (kind == "COMBAT" and last_kind != "COMBAT")):
                 return reply + f"[chain stopped before `{step}`: {_kind(before)}]\n"
             if _kind(before) == "MAP" and i < len(steps) - 1:

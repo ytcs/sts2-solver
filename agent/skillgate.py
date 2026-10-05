@@ -26,6 +26,8 @@ SKILLS = os.path.join(ROOT, ".claude", "skills")
 CORE = ("sts2", "sts2-harness", "sts2-strategy")
 READ_ONLY = {"s", "peek", "status", "brief", "m", "d", "p", "eval", "reward", "route", "adv", "relics", "note", "budget", "hold", "quit", "mods", "snap", "fight", "deck.json", "newrun", ""}
 BRIDGE_READ_ONLY = {"s", "peek", "d", "p", "m", "fight", "snap", "deck.json", "mods", "f"}
+# screen kinds the bridge emits for deck decisions (Decisions.cs: reward screens, CHOOSE_*, and the room type for shop / rest site / treasure)
+DECK_SCREENS = {"CARD_REWARD", "REWARDS", "CHOOSE_CARD", "CHOOSE_RELIC", "CHOOSE_BUNDLE", "SHOP", "RESTSITE", "TREASURE"}
 COMBAT_LINE = re.compile(r"^T\d+ E\d+/\d+", re.M)
 
 
@@ -136,11 +138,11 @@ def screen_skills(state_text):
         char = m.group(3).lower()
         need += [f"sts2-{char}", f"sts2-{char}-act{m.group(1)}"]
     in_combat = bool(COMBAT_LINE.search(state_text or ""))
-    if first == "MAP" or (first == "EVENT" and floor <= 1):
+    if first == "MAP":
         need.append("sts2-pathing")
-    elif first == "EVENT":
-        need.append("sts2-mechanics")
-    elif first in ("CARD_REWARD", "REWARDS", "SHOP", "REST", "REST_SITE", "CAMPFIRE", "TREASURE", "UPGRADE") or (first == "SELECT" and not in_combat):
+    elif first == "EVENT":  # Neow and the ancients choose a route as well as a boon; later events are mechanics
+        need += ["sts2-pathing"] + (["sts2-mechanics"] if floor > 1 else [])
+    elif first in DECK_SCREENS or (first == "SELECT" and not in_combat):
         need.append("sts2-deckbuilding")
     return [s for s in dict.fromkeys(need) if exists(s)]
 

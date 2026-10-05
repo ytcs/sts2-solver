@@ -32,7 +32,13 @@ from agent.bridge import call  # noqa: E402
 from agent.harness import Harness  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-DECOMP_RELICS = os.path.join("C:\\Users\\steve\\AppData\\Local\\Temp\\claude\\C--Users-steve-sts2\\08497c2b-df82-4a87-995e-71f1e59c7df1\\scratchpad\\decomp", "MegaCrit.Sts2.Core.Models.Relics")
+def _decomp_relics():
+    """The decompiled relic sources (a relic with an AfterObtained effect cannot be added through the console). `STS2_DECOMP` or ./decomp, either layout."""
+    base = os.environ.get("STS2_DECOMP") or os.path.join(ROOT, "decomp")
+    for sub in ("MegaCrit.Sts2.Core.Models.Relics", os.path.join("MegaCrit", "Sts2", "Core", "Models", "Relics")):
+        if os.path.isdir(os.path.join(base, sub)):
+            return os.path.join(base, sub)
+    raise SystemExit(f"decompiled relics not found under {base}: set STS2_DECOMP to the decompile directory")
 ENCOUNTERS = ["SLIMES_NORMAL", "FLYCONID_NORMAL", "INKLETS_NORMAL", "CUBEX_CONSTRUCT_NORMAL", "KNIGHTS_ELITE", "DECIMILLIPEDE_ELITE", "BYGONE_EFFIGY_ELITE",
               "CORPSE_SLUGS_NORMAL", "HAUNTED_SHIP_NORMAL", "EXOSKELETONS_NORMAL", "ENTOMANCER_ELITE", "SOUL_NEXUS_ELITE"]
 BENIGN_PREFIX = ("random", "residual .phase", "start_tries", "end_turn", "sync from_discard", "sync from_exhaust", "sync created", "sync powers")
@@ -52,8 +58,9 @@ def relic_ids():
     """Implemented relics without an AfterObtained effect (a pickup effect opens a selection screen when the console adds the relic)."""
     src = open(os.path.join(ROOT, "crates", "sts2sim", "src", "content", "gen_relics.rs"), encoding="utf-8").read()
     out = []
+    decomp = _decomp_relics()
     for m in re.findall(r"pub mod ([a-z0-9_]+)\s*\{", src):
-        f = os.path.join(DECOMP_RELICS, camel(m) + ".cs")
+        f = os.path.join(decomp, camel(m) + ".cs")
         if os.path.exists(f) and "AfterObtained" in open(f, encoding="utf-8").read():
             continue
         out.append(m.upper())
