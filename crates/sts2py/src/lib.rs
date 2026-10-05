@@ -1,6 +1,7 @@
 use numpy::{PyReadonlyArray1, PyReadonlyArray2, PyReadwriteArray1, PyReadwriteArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+mod sim;
 use sts2env::{BatchEnv, PoolScenario, RewardConfig, RoundRobinScenario, StepOut};
 
 #[pyclass]
@@ -101,7 +102,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         scenarios_json: Vec<String>,
@@ -123,6 +124,7 @@ impl SearchEnginePy {
         lead: bool,
         carry: bool,
         strat: bool,
+        starts: Option<Vec<Option<PyRef<'_, sim::Sim>>>>,
     ) -> PyResult<Self> {
         let mut scs = vec![];
         for s in scenarios_json {
@@ -134,7 +136,8 @@ impl SearchEnginePy {
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
         let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, lead, strat, carry, max_steps, win, loss, hp_bonus };
-        let eng = sts2env::search::SearchEngine::new(scs, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
+        let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
+        let eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
         Ok(SearchEnginePy { eng })
     }
 
@@ -326,6 +329,7 @@ fn layout(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
 fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BatchEnvPy>()?;
     m.add_class::<SearchEnginePy>()?;
+    m.add_class::<sim::Sim>()?;
     m.add("BatchEnv", m.getattr("BatchEnvPy")?)?;
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;
     m.add_function(wrap_pyfunction!(replay, m)?)?;

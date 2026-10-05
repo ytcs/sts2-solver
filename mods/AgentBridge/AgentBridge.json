@@ -1,0 +1,10 @@
+{
+  "id": "AgentBridge",
+  "name": "Agent Bridge",
+  "author": "ytc",
+  "description": "Exposes game state and legal actions as compact text on 127.0.0.1 so an external agent can play.",
+  "version": "v0.1.0",
+  "has_pck": false,
+  "has_dll": true,
+  "affects_gameplay": false
+}

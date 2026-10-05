@@ -26,6 +26,7 @@ mod powers;
 mod regent;
 mod relic_cmds;
 mod replay;
+mod sync;
 mod turn;
 
 pub use creature::DamageResult;
@@ -39,6 +40,7 @@ pub use monster::{STUN_INTENTS, STUN_NODE};
 pub use monster::{LookRow, LOOK_H, LOOK_NODES};
 pub use turn::BASE_HAND_DRAW;
 pub use cost::CostMods;
+pub use sync::{HandSync, ObsCard};
 pub use play::RunResult;
 pub use history::{HKind, HistEntry, HistLog, HIST_CAP};
 pub use orbs::VALID_ORBS;

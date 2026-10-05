@@ -2,7 +2,7 @@
 
 Code: `content/cards/{colorless_a,colorless_b,curses_pool,status,tokens}.rs` (+ `curses.rs` = Ascender's Bane),
 powers in `content/powers/colorless_basic.rs`, helpers in `engine/cardcmds.rs`, engine extensions in `engine/ext.rs`.
-Validation templates: `oracle/templates/cc/*.json` (run `tools/diff_sweep.py TEMPLATE --n 40 --keep target/sw --tag X`;
+Validation templates: `oracle/templates/cc/*.json` (run `verify/diff_sweep.py TEMPLATE --n 40 --keep target/sw --tag X`;
 `tools/play_cover.py TEMPLATE` shows which cards the random policy actually played).
 
 Conventions worth knowing:

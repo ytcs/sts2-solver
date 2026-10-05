@@ -305,7 +305,7 @@ class FastSearch:
             g["event"].synchronize()
 
     # ---- driver ----
-    def run(self, scenarios, job_scen, job_seed, verbose=False):
+    def run(self, scenarios, job_scen, job_seed, verbose=False, starts=None):
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         job_scen = np.ascontiguousarray(job_scen, np.uint32)
@@ -319,7 +319,7 @@ class FastSearch:
             if len(idx) == 0:
                 continue
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, self.pmin, self.margin,
-                                     self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.carry, self.strat)
+                                     self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.carry, self.strat, starts)
             pc, vc = eng.max_rows()
             pin = self.cuda
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)
@@ -373,6 +373,21 @@ class FastSearch:
         self.stats = dict(tot, cycles=cycles, rows_per_cycle=rows / max(cycles, 1))
         self.timers["run"] += time.perf_counter() - t0
         return out
+
+    def decide(self, scenario, sim, seed=0):
+        """Search ONE decision of a fight in progress. `sim` is an `sts2.Sim` aligned with the real fight (`agent.fight.Replayer.sim`); `scenario` is the fight-start scenario
+        (any valid scenario of the same content). The root's M likeliest actions are tried on K determinized futures each (hidden information resampled, everything
+        visible kept). Returns dict(action, opts, p, q, legal): the action to play and, per option, its dense action index, the policy's probability and the estimated
+        return (win = +1 plus half the HP fraction left, loss = -1); `q` is NaN for options that were not tried (a forced move is not searched)."""
+        old = (self.max_steps, self.record)
+        self.max_steps, self.record = 1, True
+        try:
+            self.run([scenario], np.zeros(1, np.uint32), np.array([seed], np.uint64), starts=[sim])
+            acts, searched, opts, p, q, legal = self._runs[0][1].moves(0)
+        finally:
+            self.max_steps, self.record = old
+        return dict(action=int(acts[0]), searched=bool(searched[0]), opts=opts[0, :self.M].tolist(), p=p[0, :self.M].tolist(), q=q[0, :self.M].tolist(),
+                    legal=legal[0, :self.M].astype(bool).tolist())
 
     def trace(self, job):
         """The recorded fight of `job` of the latest run (needs `record=True`): a list of steps `dict(obs, a, info)` (the last one has a=None),

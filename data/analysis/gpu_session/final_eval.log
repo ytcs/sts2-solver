@@ -1,3 +1,0 @@
-FINAL solver on the 1500-fight eval set (2 attempts each = 3000 fights, 682s, 4.4 fights/s): win 0.726 (se 0.008), mean HP lost 0.360
-character {'DEFECT': (0.735, 0.36), 'IRONCLAD': (0.757, 0.318), 'NECROBINDER': (0.692, 0.392), 'REGENT': (0.746, 0.356), 'SILENT': (0.697, 0.378)}
-act {'0': (0.886, 0.197), '1': (0.745, 0.374), '2': (0.569, 0.488)}

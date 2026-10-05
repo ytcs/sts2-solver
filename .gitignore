@@ -8,3 +8,10 @@ obj/
 .venv/
 *.egg-info/
 .claude/worktrees/
+
+runs/
+target/
+data/corpus/
+
+*.pyd
+*.pdb

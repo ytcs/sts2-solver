@@ -25,6 +25,11 @@ _M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
 DEFAULT_CKPT = os.path.join(_M, "solver_b128.pt")
 # value heads averaged into the search's evaluation (policy stays b128's): +2.5 points of win rate at no extra cost (docs/solver.md)
 DEFAULT_VALUE_CKPTS = [os.path.join(_M, "solver_c128.pt"), os.path.join(_M, "solver_d128.pt")]
+# a checkpoint adopted through `python -m agent.improve adopt` (after it passed the gate) replaces the defaults
+_CUR = os.path.join(_M, "current.json")
+if os.path.exists(_CUR):
+    _c = json.load(open(_CUR))
+    DEFAULT_CKPT, DEFAULT_VALUE_CKPTS = _c["policy"], _c["values"]
 
 
 class Solver:
