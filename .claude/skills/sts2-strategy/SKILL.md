@@ -7,7 +7,7 @@ description: Use at the start of a run and when a decision is not covered by pat
 
 ## The loop (every decision)
 1. Identify the decision type and invoke its skill: map / Neow -> `sts2-pathing`; card, shop, rest, relic, upgrade -> `sts2-deckbuilding`; fight -> `adv` / `combat` (`sts2-harness`), `sts2-mechanics` for unknowns.
-2. Name the known facts that bound it: the boss (shown on the map), the elites that can still appear, HP and gold now, the rests and shops ahead.
+2. Name the known facts that bound it (and the plan for the next two acts: `sts2-deckbuilding` horizon rule): the boss (shown on the map), the elites that can still appear, HP and gold now, the rests and shops ahead.
 3. Price the options with `eval` (against the known boss and the next threats), skip if nothing clears the bar.
 4. Act with a `-- why` containing the numbers; after the run, update the book at the most specific level.
 

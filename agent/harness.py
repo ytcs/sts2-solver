@@ -156,12 +156,23 @@ class Harness:
         q = f" q{mine['q']}" if mine and mine["q"] is not None else ""
         return f"{d['text']}{q}" + (f"   [alt: {alts}]" if alts else "")
 
+    def _game_json(self, j):
+        """The simulator numbers potions by position in its own list; the game by slot (an empty first slot makes them differ). Translate a `use_potion` action."""
+        a = json.loads(j)
+        if "use_potion" in a:
+            slots = [p["slot"] for p in self.rp.scenario.get("potions", [])]
+            i = a["use_potion"]["slot"]
+            if i < len(slots):
+                a["use_potion"]["slot"] = slots[i]
+            return json.dumps(a)
+        return j
+
     def _sync_problem(self, f):
         """None when the simulator matches the game, else a loud description. Advice from a desynced simulator is stale or wrong: never use it silently."""
         if self.rp.errors:
             return f"SIMULATOR DESYNC ({self.rp.errors[-1][:120]}). Do not trust advice; play by hand or restart the fight tracking with `status`."
         from agent.fight import RANDOM_PREFIXES
-        bad = [l for l in self.rp.sim.diff(json.dumps(f["state"])) if not l.startswith(RANDOM_PREFIXES)]
+        bad = [l for l in self.rp.sim.diff(json.dumps(f["state"])) if not l.startswith(RANDOM_PREFIXES) and "props.Skin" not in l]  # a relic's random cosmetic skin (Pael's Legion) is not game state
         return f"SIMULATOR DIFFERS FROM THE GAME: {bad[0][:140]}" if bad else None
 
     def _outlook(self):
@@ -237,7 +248,7 @@ class Harness:
                 self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"])
                 out.append("  " + self._advice_text(d))
                 t0 = T()
-                reply = call("do " + d["json"])
+                reply = call("do " + self._game_json(d["json"]))
                 tm["do"] += T() - t0
                 tm["do_end"] = tm.get("do_end", 0.0) + (T() - t0 if '"end_turn"' in d["json"] else 0.0)
                 tm["n"] = tm.get("n", 0) + 1
@@ -273,6 +284,9 @@ class Harness:
             if not i and (before.startswith("ERR") or before.split("\n")[0].endswith("(busy)")):
                 before = self.state()  # mid-transition: wait for it to settle
             kind = _kind(before)
+            if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2:
+                self.log.new_run()  # a new run starts from the menu: its own record (the narrowing of the encounter pools reads it)
+                self.seen_reset = True
             if i and (kind in ("SELECT", "MENU") or (kind == "COMBAT" and last_kind != "COMBAT")):
                 return reply + f"[chain stopped before `{step}`: {_kind(before)}]\n"
             if _kind(before) == "MAP" and i < len(steps) - 1:

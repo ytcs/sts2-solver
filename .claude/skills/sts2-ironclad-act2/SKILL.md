@@ -17,6 +17,11 @@ Pools: `sts2-acts` (2 weak fights, 14 rooms).
 - Target deck for The Insatiable: scaling Strength + burst + acceleration (Demon Form, Bludgeon, Tremble, Offering): 60% vs 2%; I never found those cards (skipped 12 reward screens whose best option was < 2 SE).
 - Colorful Philosophers gives three skippable card rewards from another class; I found nothing above the bar (best Ice Lance/FTL +5 +- 3.8). A scan of each class's pool for cards that would greatly lift the deck (not just the offered ones) is worth building.
 
+## Run 4 (boss The Insatiable again) `[played]` / `[sim]`
+- The deck that beat it at 97% (80 HP): Primal Force x2, Demon Form (elite reward, +33.6 vs 7.8% base), Bag of Preparation (+9.8), Bronze Scales (+10.9, 3 Thorns), Kusarigama, Pael's Legion (pet that doubles a block), Gorget, Red Mask, Cinder, Pommel, Shrug, Taunt x2, Book of Five Rings (a card added 5 times = heal 20: take cheap cards when HP is low).
+- Hallway fights still cost 20-40 HP in Act 2 (predicted 10-30); elites are better value at full HP (99%): relic + rare odds. Rest before them.
+- Pael's Legion shows a random cosmetic `Skin` prop that the fidelity check flagged as DESYNC until it was ignored (fixed in `harness._sync_problem`).
+
 ## To test `[hyp]`
 - Smith versus Rest before the Act 2 boss, per boss (solver win rate with and without the upgrade).
 - Which Act 2 elites a typical Act 1 deck can afford.

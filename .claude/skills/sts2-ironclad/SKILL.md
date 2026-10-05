@@ -18,3 +18,7 @@ description: Use when the character is Ironclad (at character select and at ever
 ## To test `[hyp]`
 - Smith versus Rest before a boss as a function of HP and the boss.
 - How much HP a typical Act 1 elite costs with a starter-plus-few-cards deck, and when taking it pays.
+
+## Conditional picks `[sim]`
+- Second Wind (user hint "good"): +3.9 vs Aeonglass (Wither junk is exhausted for block), but -4.2 vs The Insatiable and -1.8 vs Glory elites with a deck that already wins them (384 att, 80 HP, run 4). Pick when Aeonglass is the gate or when the deck carries many status/junk cards; otherwise skip.
+- Pael's Tooth: its removed cards return upgraded, one per combat, so the thinning benefit lasts ~5 fights.

@@ -15,6 +15,12 @@ Pools and room counts: `sts2-acts`.
 - **Avoid Hellraiser** until the simulator is fixed: it desyncs Slippery (rust 7 vs game 6), so the solver's advice was void in the boss fight `[played]`.
 - Pantograph (+25 HP at each boss) makes boss arrival HP cheap; without it every elite must be paid for with a rest `[played]`.
 
+## Run 4 (Underdocks, boss Waterfall Giant, cleared at 80/80 start) `[played]` / `[sim]`
+- Neow Hefty Tablet -> Primal Force (0-cost: all Attacks in hand become Giant Rock): Act 1 elites 22% -> 99%, Waterfall 0 -> 22%; a second copy from the Act 1 boss reward was +18 on Hive elites. A rare picked from 3 by horizon eval beat every other option; Arcane Scroll's random rare is a gamble (+16 avg).
+- Early buys that moved Waterfall Giant: Shrug +18, Taunt +15 (sale), Radiant Tincture +22 (single use), Centennial Puzzle +10.5, Cinder +10, Pommel (Hive elites +8). Baseline Waterfall: 17% -> 94.5% by floor 15 from ~8 picks.
+- Event Spoils Map ("The Legends Were True"): a quest card that turns Act 2's map into a special layout whose treasure gives +600 gold; one dead slot. Worth it only if Act 2 shops have targets: with 760 gold I found nothing to buy that moved the Act 2/3 bosses (Bronze Scales +10.9 Insatiable/-19 HP on elites was the best).
+- Do not blind-follow a chained command with `a 0`: a failed chain step left the card screen open and `a 0` took the wrong card (Howl from Beyond).
+
 ## To test `[hyp]`
 - Ancient choice against the real Act 1 map: option-by-route table.
 - Elite count that maximises boss readiness for a given early deck (this run: 2 elites, both won, relic + rare card each).

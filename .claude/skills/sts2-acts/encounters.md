@@ -16,3 +16,8 @@ Use with `sts2-deckbuilding` step 2. Tags: `[code]`, `[sim]`, `[played]`, `[hyp]
 | Aeonglass (Act 3 boss 1, Glory) | 535 HP, Artifact 3, Withering Presence 6; Ebb 26 + 33 block, Eye Lasers 12x2, Increasing Intensity (+4 Str, Wither status) | `[code]` Aeonglass.cs; this deck 7% at 76 HP, died `[played]` |
 | Queen (Act 3 boss 2, Glory) | 419 HP, Torch Head Amalgam, Execution 18, Off With Your Head 4x5, Enrage | `[code]` Queen.cs; 0% for this deck `[sim]` |
 | Spiny Toad (Act 2 hallway) | Thorns 5 while Spiked (each powered hit on it costs me 5), Explosion 25, Lash 19 | `[code]` SpinyToad.cs; predicted 13-17% HP, lost 55% `[played]` |
+
+## Act 3 boss sweeps `[sim]` (run 4, deck of an Act 2 clear, 80 HP)
+- Aeonglass and Queen both read ~0% for the baseline deck (deterministic loss, no aborted fights). Adding any single Ironclad card (88 tested) or any single relic (215 tested) moves Aeonglass by at most +4 points and the Queen by at most +3 (noise ~1-2): there is no single outlier; bundles of six strong cards (Bludgeon, Offering, Dismantle, Hemokinesis, Rampage, Fiend Fire / Barricade, Juggernaut, Impervious ...) reach only 3-4% on Aeonglass and 0% on the Queen.
+- Aeonglass: Wither (junk) card every 6 cards played, so Second Wind is +3.9 there; Artifact 3 wastes the first three debuffs.
+- Queen: kill the Torch Head Amalgam first; she applies Frail/Weak/Vulnerable 99 on me. A new plan (not a card) is needed: see `sts2-ironclad-act3`.

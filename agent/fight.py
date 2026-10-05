@@ -175,7 +175,7 @@ class Replayer:
                 c.apply(json.dumps({"play": {"hand_pos": pos, "target": k}}))
             except Exception:  # noqa: BLE001
                 continue
-            n = sum(1 for line in c.diff(json.dumps(state)) if not line.startswith(RANDOM_PREFIXES))
+            n = sum(1 for line in c.diff(json.dumps(state)) if not line.startswith(RANDOM_PREFIXES) and "props.Skin" not in line)
             if best is None or n < best_n:
                 best, best_n = c, n
         if best is None:

@@ -25,6 +25,13 @@ For the act's boss first (it is known: `m`), then the elites that can still appe
 4. Check conditions: does the plan need a specific draw (three attacks in a turn, a power early)? Prefer picks that make the plan robust to a bad draw (acceleration, cheap cards, redundancy) over picks that add one more condition.
 5. Write the ledger line: `bucket line; gap; options with eval deltas (win, HP); choice`.
 
+## 3b. Horizon rule (long-term plan, not only the next boss)
+- Evaluate every pick at three horizons: (1) the current act's known boss and the elites that can still appear, (2) the NEXT act's pools (all elites, all bosses: `--pool Hive:elite`, `--pool Hive:boss`; the boss only becomes visible on entering the act), (3) the final act's pools (`Glory:*`; at A10 the final act has two bosses back to back). Write the three deltas in the `-- why`.
+- Before the current boss is solved the first horizon dominates; once the current boss is above ~85% (or after the Act 1 boss), the later horizons decide: a pick that is +3 now and +12 later beats one that is +8 now and -3 later. Prefer carry-over power: scaling (Strength, energy, draw), rares, relics, potions for later bosses, upgrades of the cards that carry.
+- Keep a written target deck for each later boss (in `encounters.md` and the act skill): for The Insatiable it is Strength scaling + burst + acceleration (Demon Form, Bludgeon, Tremble, Offering = 60% vs 2%); for Act 3's two bosses (Aeonglass 535 HP with Artifact 3, Queen 419) it is high sustained damage per turn plus HP carry. Every reward screen, shop and event is checked against that list first: look for the cards on it, not only for incremental gains.
+- Keep gold and potion slots for later acts when the current act is solved; shops in Acts 2-3 have the cards the target deck needs.
+- Audit at each act boundary: the five-bucket line, the HP-gate numbers for each later boss (`eval --hp`), and which target cards are still missing.
+
 ## 4. Plan and switch
 - State the fight plan before the boss and each elite (what wins it, in which bucket it lives, what condition it needs).
 - During the fight, after turn 1-2, ask whether the opening draws killed the plan. If so, switch to the plan that uses what is in hand (the expert's example: with the powers bottom-decked, play the 0-cost attacks to enable a three-attack relic instead of blocking).
