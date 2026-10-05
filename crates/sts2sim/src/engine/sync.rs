@@ -164,9 +164,9 @@ impl Combat {
     }
 
     /// Makes the draw pile hold exactly the observed cards as a multiset (the order is hidden): the player sees which cards are in it. A simulated card the
-    /// real pile does not have and that was created during the fight (random generation that rolled differently in the real game: Stoke, Discovery ...) does
-    /// not exist in the real game and leaves the combat; a surplus deck card stays (it is in the wrong pile and the other syncs own that). Missing cards are
-    /// created at a random position. Call after the hand and the visible piles are synced.
+    /// real pile does not have (random generation / upgrade that the real game resolved on another card: Stoke, Discovery, Aggression ...) does not exist in the
+    /// real game and leaves the combat; a surplus card of the same kind as a missing one is replaced by it. Missing cards are created at a random position.
+    /// Call after the hand and the visible piles are synced (they are exact then, so the draw pile is what is left).
     pub fn sync_draw(&mut self, obs: &[ObsCard]) -> HandSync {
         use std::collections::HashMap;
         let mut rep = HandSync::default();
@@ -175,22 +175,24 @@ impl Combat {
             *want.entry((o.id, o.upgrade)).or_insert(0) += 1;
         }
         let current: Vec<CardIdx> = self.player.draw.iter().copied().collect();
+        let mut surplus: Vec<CardIdx> = vec![];
         for c in current {
             let key = (self.cards[c as usize].id, self.cards[c as usize].upgrade);
             match want.get_mut(&key) {
                 Some(n) if *n > 0 => *n -= 1,
-                _ => {
-                    if self.cards[c as usize].deck_idx == NO {
-                        self.player.draw.remove_value(c);
-                        self.cards[c as usize].pile = PileType::None as u8;
-                        self.cards[c as usize].flags |= cflag::REMOVED;
-                        rep.returned += 1;
-                    }
-                }
+                _ => surplus.push(c),
             }
         }
         for ((id, up), n) in want {
             for _ in 0..n.max(0) {
+                // a surplus card of the same kind is the observed card with a different upgrade level (the two games upgraded different random cards:
+                // Stone Cracker, Aggression ...): replace it, so the pile does not grow
+                if let Some(k) = surplus.iter().position(|&c| self.cards[c as usize].id == id) {
+                    let c = surplus.remove(k);
+                    self.player.draw.remove_value(c);
+                    self.cards[c as usize].pile = PileType::None as u8;
+                    self.cards[c as usize].flags |= cflag::REMOVED;
+                }
                 if let Some(c) = self.new_card(id, up) {
                     let len = self.player.draw.len();
                     let at = self.rng.shuffle.next_int((len + 1) as i32) as usize;
@@ -199,6 +201,14 @@ impl Combat {
                     rep.created += 1;
                 }
             }
+        }
+        // the hand and the visible piles were synced exactly, so a card left over in the draw pile is a phantom (a random generation / upgrade the real game
+        // resolved on another card), whatever its origin
+        for c in surplus {
+            self.player.draw.remove_value(c);
+            self.cards[c as usize].pile = PileType::None as u8;
+            self.cards[c as usize].flags |= cflag::REMOVED;
+            rep.returned += 1;
         }
         rep
     }

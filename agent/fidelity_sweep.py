@@ -80,7 +80,9 @@ def fresh_run(h, character, tries=14):
             h.handle("a 0")
             continue
         if k == "SELECT":
-            h.handle("a -")
+            h.handle("a 0")  # a selection that needs a pick (Decisions, Decisions ...); `a -` is refused then
+            if state_kind(call("s")) == "SELECT":
+                h.handle("a -")
             continue
         call("x die")
         time.sleep(0.8)
