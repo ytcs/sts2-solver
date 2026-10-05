@@ -102,7 +102,7 @@ class Replayer:
 
     def _sync(self, state, action):
         rep = json.loads(self.sim.sync(json.dumps(state)))
-        for k in ("created", "from_discard", "from_exhaust"):
+        for k in ("created", "from_discard", "from_exhaust", "powers"):
             if rep[k]:
                 self._note("sync " + k, f"{action or 'start'} [{getattr(self, '_played', '')}]: {rep}")
         for n in rep["notes"]:

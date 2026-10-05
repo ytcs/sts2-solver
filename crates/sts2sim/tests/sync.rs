@@ -132,3 +132,19 @@ fn full_sync_sequence_conserves_cards_against_a_different_shuffle() {
         assert_eq!(a, b, "seed {seed}: draw pile multiset");
     }
 }
+
+#[test]
+fn sync_powers_sets_amounts_drops_and_applies() {
+    let mut cx = combat(11);
+    let e = cx.enemies[0];
+    cx.apply_power(ids::power::STRENGTH_POWER, e, sts2sim::dec::Dec::int(2), e, NO);
+    cx.apply_power(ids::power::VULNERABLE_POWER, e, sts2sim::dec::Dec::int(3), PLAYER, NO);
+    // the real enemy: Strength 5 (not 2), no Vulnerable, Weak 1 (the simulator has none)
+    let n = cx.sync_powers(e, &[(ids::power::STRENGTH_POWER, 5), (ids::power::WEAK_POWER, 1)]);
+    assert_eq!(n, 3);
+    assert_eq!(cx.power_amount(e, ids::power::STRENGTH_POWER), 5);
+    assert!(!cx.has_power(e, ids::power::VULNERABLE_POWER));
+    assert_eq!(cx.power_amount(e, ids::power::WEAK_POWER), 1);
+    // already equal: nothing changes
+    assert_eq!(cx.sync_powers(e, &[(ids::power::STRENGTH_POWER, 5), (ids::power::WEAK_POWER, 1)]), 0);
+}

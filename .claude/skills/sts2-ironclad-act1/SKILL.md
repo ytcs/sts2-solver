@@ -12,7 +12,7 @@ Pools and room counts: `sts2-acts`.
 - **Boss-specific eval beats pool eval.** Against Lagavulin Matriarch alone, Inflame +42 and Inflame+Tremble +73 points while the elite pool showed ~0 for both `[sim]`: always evaluate against the known boss.
 - **Strong early picks `[sim]`** (elite or boss pool, 256 attempts): Inferno+ +25, Anger +17..+25, Setup Strike +21, Dismantle +13, Perfected Strike +11 (weak deck) / HP -5 (strong deck), Rampage -17 HP. Blood Wall flips from -5 to +10 once Inferno is in the deck; Breakthrough, Rupture, Vicious, Molten Fist, Cinder, Body Slam, a second Anger were <= 0 against Lagavulin once the deck was built.
 - **HP path of the lost Vantom run:** two elites and a regular fight between one rest and the boss left 10 HP before the final rest. A forced lane without rests near the end is a route error (plan back from the boss's HP gate).
-- **Avoid Hellraiser** until the simulator is fixed: it desyncs Slippery (rust 7 vs game 6), so the solver's advice was void in the boss fight `[played]`.
+- **Hellraiser vs Slippery (the 7-vs-6 desync) was NOT a rule bug** `[sim]`: from one identical state the end-of-turn draw leaves Slippery at 6 / 7 / 8 over 40 shuffles, depending on how many Strikes Hellraiser auto-plays; the replay just held a different sample than the game. The simulator now takes the enemy and player power amounts the game shows after every action (`sync_powers`), so the solver's advice stays valid; the card is playable again (judge it with `eval`).
 - Pantograph (+25 HP at each boss) makes boss arrival HP cheap; without it every elite must be paid for with a rest `[played]`.
 
 ## Run 4 (Underdocks, boss Waterfall Giant, cleared at 80/80 start) `[played]` / `[sim]`

@@ -6,6 +6,7 @@
 //! from the real game. After a sync the simulator is one sample of the player's belief about the fight.
 
 use crate::state::*;
+use crate::dec::Dec;
 use crate::types::*;
 
 /// One card of the observed hand.
@@ -211,6 +212,42 @@ impl Combat {
             rep.returned += 1;
         }
         rep
+    }
+
+    /// Puts a creature's powers on the observed ones (id, amount): the amounts of powers both have are set, powers the real creature does not have are dropped
+    /// (no hooks), powers only the real creature has are applied. The two games resolve hidden draws and random targets differently (Hellraiser auto-plays
+    /// the Strikes it draws: Slippery 9 -> 6, 7 or 8 depending on the shuffle), and the player sees the result. Returns how many powers were changed.
+    pub fn sync_powers(&mut self, cid: Cid, obs: &[(u16, i32)]) -> u16 {
+        let mut changed = 0u16;
+        let mut left: Vec<Option<(u16, i32)>> = obs.iter().map(|&o| Some(o)).collect();
+        let current: Vec<(u16, u16, i32)> = self.cr(cid).powers.iter().map(|p| (p.uid, p.id, p.amount)).collect();
+        for (uid, id, amount) in current {
+            let hit = left.iter().position(|o| matches!(o, Some((oid, _)) if *oid == id));
+            match hit {
+                Some(k) => {
+                    let (_, want) = left[k].take().unwrap();
+                    if want != amount {
+                        if let Some(i) = self.power_idx(cid, uid) {
+                            self.cr_mut(cid).powers[i].amount = want;
+                            changed += 1;
+                        }
+                    }
+                }
+                None => {
+                    if let Some(i) = self.power_idx(cid, uid) {
+                        self.cr_mut(cid).powers.remove(i);
+                        self.sync_secondary(cid);
+                        changed += 1;
+                    }
+                }
+            }
+        }
+        for (id, amount) in left.into_iter().flatten() {
+            if amount != 0 && self.apply_power(id, cid, Dec::int(amount as i64), cid, NO).is_some() {
+                changed += 1;
+            }
+        }
+        changed
     }
 
     /// Sets a creature's visible numbers (HP, max HP, block). `cid` is the creature id (0 = player).

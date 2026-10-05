@@ -35,7 +35,7 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DECOMP_RELICS = os.path.join("C:\\Users\\steve\\AppData\\Local\\Temp\\claude\\C--Users-steve-sts2\\08497c2b-df82-4a87-995e-71f1e59c7df1\\scratchpad\\decomp", "MegaCrit.Sts2.Core.Models.Relics")
 ENCOUNTERS = ["SLIMES_NORMAL", "FLYCONID_NORMAL", "INKLETS_NORMAL", "CUBEX_CONSTRUCT_NORMAL", "KNIGHTS_ELITE", "DECIMILLIPEDE_ELITE", "BYGONE_EFFIGY_ELITE",
               "CORPSE_SLUGS_NORMAL", "HAUNTED_SHIP_NORMAL", "EXOSKELETONS_NORMAL", "ENTOMANCER_ELITE", "SOUL_NEXUS_ELITE"]
-BENIGN_PREFIX = ("random", "residual .phase", "start_tries", "end_turn", "sync from_discard", "sync from_exhaust", "sync created")
+BENIGN_PREFIX = ("random", "residual .phase", "start_tries", "end_turn", "sync from_discard", "sync from_exhaust", "sync created", "sync powers")
 
 
 def pool_ids(name):

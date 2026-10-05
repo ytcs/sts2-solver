@@ -42,6 +42,16 @@ fn visible(mut v: Value) -> Value {
     v
 }
 
+fn power_ids(name: &str) -> Option<u16> {
+    sts2sim::ids::power::NAMES.iter().position(|n| *n == name).map(|i| i as u16)
+}
+
+/// The observed powers of a creature as (id, amount); `None` when the observation has no power list. A power the simulator does not know is skipped.
+fn obs_powers(v: &Value) -> Option<Vec<(u16, i32)>> {
+    let a = v["powers"].as_array()?;
+    Some(a.iter().filter_map(|p| power_ids(p["id"].as_str()?).map(|id| (id, p["amount"].as_i64().unwrap_or(0) as i32))).collect())
+}
+
 fn card_ids(name: &str) -> Option<u16> {
     sts2sim::ids::card::NAMES.iter().position(|n| *n == name).map(|i| i as u16)
 }
@@ -350,6 +360,10 @@ impl Sim {
         self.cx.sync_energy(real["energy"].as_i64().unwrap_or(0) as i32, real["stars"].as_i64().unwrap_or(0) as i32);
         let p = &real["player"];
         self.cx.sync_creature(PLAYER, p["hp"].as_i64().unwrap_or(1) as i32, p["max_hp"].as_i64().unwrap_or(1) as i32, p["block"].as_i64().unwrap_or(0) as i32);
+        let mut powers_changed = 0u32;
+        if let Some(ob) = obs_powers(p) {
+            powers_changed += self.cx.sync_powers(PLAYER, &ob) as u32;
+        }
         if let Some(es) = real["enemies"].as_array() {
             let ids: Vec<Cid> = self.cx.enemies.iter().copied().collect();
             if es.len() != ids.len() {
@@ -357,11 +371,14 @@ impl Sim {
             }
             for (e, &cid) in es.iter().zip(ids.iter()) {
                 self.cx.sync_creature(cid, e["hp"].as_i64().unwrap_or(0) as i32, e["max_hp"].as_i64().unwrap_or(1) as i32, e["block"].as_i64().unwrap_or(0) as i32);
+                if let Some(ob) = obs_powers(e) {
+                    powers_changed += self.cx.sync_powers(cid, &ob) as u32;
+                }
             }
         }
         Ok(json!({
             "from_draw": rep.from_draw, "from_discard": rep.from_discard, "from_exhaust": rep.from_exhaust,
-            "created": rep.created, "returned": rep.returned, "cost_fixes": rep.cost_fixes, "notes": notes,
+            "created": rep.created, "returned": rep.returned, "cost_fixes": rep.cost_fixes, "powers": powers_changed, "notes": notes,
         })
         .to_string())
     }
