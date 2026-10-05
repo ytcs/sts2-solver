@@ -16,6 +16,7 @@ PORT = int(os.environ.get("STS2_AGENT_PORT", 15556))
 def serve():
     from agent.harness import Harness
     h = Harness()
+    h.gate = os.environ.get("STS2_SKILL_GATE", "").lower() != "off"  # no game action before the governing skills are loaded (agent/skillgate.py)
     lock = threading.Lock()
     srv = socket.socket()
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

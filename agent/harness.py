@@ -28,7 +28,7 @@ import threading
 import time
 import traceback
 
-from agent import macro
+from agent import macro, skillgate
 from agent.bridge import call
 from agent.fight import Replayer
 from agent.runlog import RunLog
@@ -54,6 +54,7 @@ class Harness:
         self.fight_id = None
         self.log = RunLog()
         self.last_state = ""
+        self.gate = False  # the daemon turns the skill gate on (`agent.skillgate`): no game action before the governing skills are loaded; tests build a bare Harness
         self.fight_hp0 = None
         self.fight_actions = 0
         self._ended = set()
@@ -311,6 +312,10 @@ class Harness:
             if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2:
                 self.log.new_run()  # a new run starts from the menu: its own record (the narrowing of the encounter pools reads it)
                 self.seen_reset = True
+            if i and self.gate:
+                why = self._skill_refusal(before)
+                if why:
+                    return reply + f"[chain stopped before `{step}`: {why}]" + chr(10)
             if i and ((kind == "SELECT" and not step.startswith("~")) or kind == "MENU" or (kind == "COMBAT" and last_kind != "COMBAT")):
                 return reply + f"[chain stopped before `{step}`: {_kind(before)}]\n"
             if _kind(before) == "MAP" and i < len(steps) - 1:
@@ -545,9 +550,19 @@ class Harness:
         except Exception:  # noqa: BLE001  never let bookkeeping break a command
             pass
 
+    def _skill_refusal(self, state_text):
+        """None, or why this game action may not happen yet (skills of the ACTIVE session not loaded). Off for a bare Harness (tests) and with STS2_SKILL_GATE=off."""
+        if not self.gate:
+            return None
+        return skillgate.gate_message(skillgate.active(), state_text)
+
     def _handle(self, line):
         line = line.strip()
         cmd, _, rest = line.partition(" ")
+        if self.gate and cmd not in skillgate.READ_ONLY:
+            why = self._skill_refusal(call("peek"))
+            if why:
+                return "REFUSED: " + why + chr(10)
         try:
             if cmd in ("", "s"):
                 return self.state()

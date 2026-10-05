@@ -10,6 +10,9 @@ description: Use at the start of any Slay the Spire 2 run or session: root of th
 - Allowed information: the screen, public game knowledge (pools, card text, monster patterns), what I observed this run.
 - Goal: win the run; second, finish with the most HP.
 
+## Loading is enforced
+CLAUDE.md is the only file guaranteed to be read. Hooks and the harness refuse game actions until this skill, `sts2-harness` and `sts2-strategy` are loaded in the session, and refuse a screen's decisions until its skill (table below, `load` column) is loaded. A compaction or clear forgets the record: load them again. `REFUSED: skills not loaded: X` means invoke X, read it, repeat the command.
+
 ## Hierarchy (general first, specific only adds or deviates)
 | level | skill | holds | load |
 |---|---|---|---|

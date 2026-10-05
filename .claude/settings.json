@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/skill_gate.py\" start" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash|Write|Edit|NotebookEdit", "hooks": [ { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/skill_gate.py\" check" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Skill", "hooks": [ { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/skill_gate.py\" record" } ] }
+    ]
+  }
+}
