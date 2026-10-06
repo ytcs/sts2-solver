@@ -79,6 +79,7 @@ def test_potion_gate_stops_then_ok(monkeypatch, tmp_path):
     out = ok(h.handle("combat !"))
     golden("potion_gate.txt", out)
     assert out.startswith("POTION (your call): the solver wants `potion 0` (Strength Potion) now.\n")
+    assert "\n  HP 41/72 now; potions in the belt: Strength Potion, -\n" in out  # bug fix: the HP now, not the fight's start HP (72/72)
     assert fake.actions() == []
     fake.end_after_turn = True
     out = ok(h.handle("combat ok !"))

@@ -1,7 +1,7 @@
 POTION (your call): the solver wants `potion 0` (Strength Potion) now.
   best line with potions 0.60 vs with none 0.45: potions add +0.15 (about +7% win, or +22 HP at the same win rate)
   using it NOW beats the best non-potion action (play BOLAS #0 -> e1) by +0.10
-  HP 72/72 now; potions in the belt: Strength Potion, -
+  HP 41/72 now; potions in the belt: Strength Potion, -
 Answer: `combat ok` (throw this one), `combat skip` (decline this one), `combat go` (decline every proposal this fight). Weigh the boss and the route, not only this fight.
 COMBAT
 A3 F38 IRONCLAD A10 HP 41/72 G150 pots[Strength Potion, -]

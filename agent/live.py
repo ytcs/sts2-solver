@@ -315,7 +315,9 @@ class Live:
             best_np = max(others, key=lambda o: o["q"])
             tie = " (a TIE: the solver picked the potion on a tie)" if abs(q_with - q_wait) < 0.02 else ""
             lines.append(f"  using it NOW beats the best non-potion action ({best_np['text']}) by {q_with - q_wait:+.2f}{tie}")
-        lines.append(f"  HP {self.rp.scenario.get('hp', '?')}/{self.rp.scenario.get('max_hp', '?')} now; potions in the belt: {', '.join(self._belt()) or 'none'}")
+        now = call("peek")
+        hp = scr.hp(now) or (self.rp.scenario.get("hp", "?"), self.rp.scenario.get("max_hp", "?"))  # the header's HP (the scenario's is the fight start)
+        lines.append(f"  HP {hp[0]}/{hp[1]} now; potions in the belt: {', '.join(scr.belt(now)) or 'none'}")
         lines.append("Answer: `combat ok` (throw this one), `combat skip` (decline this one), `combat go` (decline every proposal this fight). Weigh the boss and the route, not only this fight.")
         return "\n".join(lines), d
 
