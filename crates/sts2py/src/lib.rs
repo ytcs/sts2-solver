@@ -166,13 +166,14 @@ impl SearchEnginePy {
     }
 
     /// One cycle (see `sts2env::search::SearchEngine::advance`); the first call passes `pol = val = None`.
-    #[pyo3(signature = (pol_obs, pol_mask, pol_kind, val_obs, val_kind, pol=None, val=None))]
+    #[pyo3(signature = (pol_obs, pol_mask, pol_kind, pol_u, val_obs, val_kind, pol=None, val=None))]
     fn advance(
         &mut self,
         py: Python<'_>,
         mut pol_obs: PyReadwriteArray2<f32>,
         mut pol_mask: PyReadwriteArray2<u8>,
         mut pol_kind: PyReadwriteArray1<u8>,
+        mut pol_u: PyReadwriteArray1<f32>,
         mut val_obs: PyReadwriteArray2<f32>,
         mut val_kind: PyReadwriteArray1<u8>,
         pol: Option<PyReadonlyArray2<f32>>,
@@ -182,6 +183,7 @@ impl SearchEnginePy {
         let po = pol_obs.as_slice_mut().map_err(er)?;
         let pm = pol_mask.as_slice_mut().map_err(er)?;
         let pk = pol_kind.as_slice_mut().map_err(er)?;
+        let pu = pol_u.as_slice_mut().map_err(er)?;
         let vo = val_obs.as_slice_mut().map_err(er)?;
         let vk = val_kind.as_slice_mut().map_err(er)?;
         let pa = match &pol {
@@ -193,7 +195,7 @@ impl SearchEnginePy {
             None => None,
         };
         let eng = &mut self.eng;
-        py.detach(|| eng.advance(pa, va, po, pm, pk, vo, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+        py.detach(|| eng.advance(pa, va, po, pm, pk, pu, vo, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
     /// `[n_jobs, 6]` f32: scenario index, outcome, HP lost fraction, HP left fraction, length, finished (1/0).

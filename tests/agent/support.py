@@ -175,7 +175,7 @@ class FakeEngine:
                 sorted((c["id"], c.get("upgrade", 0), json.dumps(c.get("enchantment"), sort_keys=True)) for c in sc.get("deck", [])),
                 sorted(r["id"] for r in sc.get("relics", [])), [p["id"] for p in sc.get("potions", [])])
 
-    def solve(self, scenarios, attempts=64, seed=0, util=None):
+    def solve(self, scenarios, attempts=64, seed=0, util=None, groups=None):
         self.log.append(dict(attempts=attempts, util=util is not None, scen=[[sc.get("name"), sc.get("encounter"), sc.get("hp"), [p["id"] for p in sc.get("potions", [])]] for sc in scenarios]))
         out = []
         for sc in scenarios:

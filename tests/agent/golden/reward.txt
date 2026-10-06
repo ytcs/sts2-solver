@@ -1,17 +1,17 @@
 card reward vs boss KNOWLEDGE_DEMON_BOSS (smooth = win averaged over start HP x1.0/1.5/2.0/3.0 of full HP), 3 elites left, 6 next-act elite/boss fights; 16 attempts
 option                      boss smooth boss@full  elites win/HP  next act win/HP  fills
-skip                              0.734      0.44       0.53/67%         0.66/60%  
-Hemokinesis              0.781 (+0.047)      0.75       0.42/74%         0.49/70%  FD
-Cruelty                  0.312 (-0.422)      0.62       0.70/57%         0.28/83%  SD
-Stone Armor              0.547 (-0.188)      0.31       0.38/76%         0.56/68%  SB/SD
+skip                              0.734      0.44       0.47/73%         0.40/76%  
+Hemokinesis              0.469 (-0.266)      0.31       0.49/71%         0.49/70%  FD
+Cruelty                  0.469 (-0.266)      0.94       0.69/54%         0.44/74%  SD
+Stone Armor              0.594 (-0.141)      1.00       0.53/69%         0.52/69%  SB/SD
 weakest link (the lowest win over the boss and the elites to come) and need-weighted gain (each fight weighted by 1 - its skip win: a solved fight counts ~0)
-  skip                   weakest ENTOMANCER     0.19   need-weighted gain +0.000
-  Hemokinesis            weakest ENTOMANCER     0.40   need-weighted gain -0.040
-  Cruelty                weakest KNOWLEDGE      0.31   need-weighted gain -0.105
-  Stone Armor            weakest INFESTED       0.15   need-weighted gain +0.008
+  skip                   weakest INFESTED       0.38   need-weighted gain +0.000
+  Hemokinesis            weakest INFESTED       0.19   need-weighted gain +0.066
+  Cruelty                weakest KNOWLEDGE      0.47   need-weighted gain +0.075
+  Stone Armor            weakest DECIMILLIPEDE  0.33   need-weighted gain +0.121
 deck buckets FD 14 SD 5 FB 8 SB 2 ACC 4  gaps {}
 section-3 bar (a card into solved buckets must clearly beat skip: boss smooth > max(3 se, 0.05) or +0.10 on the weakest fight):
-  Hemokinesis            boss +0.047 (bar 0.208) weakest +0.31  -> solved buckets, clears the bar
-  Cruelty                boss -0.422 (bar 0.216) weakest +0.19  -> solved buckets, clears the bar
-  Stone Armor            boss -0.188 (bar 0.229) weakest -0.04  -> below the bar (solved buckets): default skip unless the judgment names a future problem / synergy it solves
+  Hemokinesis            boss -0.266 (bar 0.228) weakest -0.12  -> below the bar (solved buckets): default skip unless the judgment names a future problem / synergy it solves
+  Cruelty                boss -0.266 (bar 0.213) weakest +0.50  -> solved buckets, clears the bar
+  Stone Armor            boss -0.141 (bar 0.199) weakest +0.56  -> solved buckets, clears the bar
 skip is option 3; pick with `a <i> -- why`

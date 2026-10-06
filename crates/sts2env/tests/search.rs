@@ -53,10 +53,10 @@ fn run(threads: usize, n_roots: usize, jobs: Vec<(u32, u64)>, cfg: SearchCfg) ->
     let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default()), (scenario(14, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
     let mut eng = SearchEngine::new(scen, jobs, n_roots, cfg, threads, false).unwrap();
     let (pc, vc) = eng.max_rows();
-    let (mut po, mut pm, mut pk, mut vo, mut vk) = (vec![0f32; pc * OBS_SIZE], vec![0u8; pc * ACTION_SPACE], vec![0u8; pc], vec![0f32; vc * OBS_SIZE], vec![0u8; vc]);
+    let (mut po, mut pm, mut pk, mut pu, mut vo, mut vk) = (vec![0f32; pc * OBS_SIZE], vec![0u8; pc * ACTION_SPACE], vec![0u8; pc], vec![0f32; pc], vec![0f32; vc * OBS_SIZE], vec![0u8; vc]);
     let stride = 2 * cfg.m + 1;
     let (mut pol, mut val) = (vec![0f32; pc * stride], vec![0f32; vc]);
-    let (mut np, mut nv) = eng.advance(None, None, &mut po, &mut pm, &mut pk, &mut vo, &mut vk).unwrap();
+    let (mut np, mut nv) = eng.advance(None, None, &mut po, &mut pm, &mut pk, &mut pu, &mut vo, &mut vk).unwrap();
     let mut cycles = 0;
     while np + nv > 0 {
         for r in 0..np {
@@ -67,7 +67,7 @@ fn run(threads: usize, n_roots: usize, jobs: Vec<(u32, u64)>, cfg: SearchCfg) ->
         }
         let pa = pol[..np * stride].to_vec();
         let va = val[..nv].to_vec();
-        (np, nv) = eng.advance(Some(&pa), Some(&va), &mut po, &mut pm, &mut pk, &mut vo, &mut vk).unwrap();
+        (np, nv) = eng.advance(Some(&pa), Some(&va), &mut po, &mut pm, &mut pk, &mut pu, &mut vo, &mut vk).unwrap();
         cycles += 1;
         assert!(cycles < 100_000, "the engine does not terminate");
     }

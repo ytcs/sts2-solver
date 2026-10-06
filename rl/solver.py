@@ -69,15 +69,21 @@ class Solver:
                 got |= new
         return out
 
-    def solve(self, scenarios, attempts=32, search=True, seed=0, verbose=False):
-        """One result dict per scenario (same order)."""
+    def solve(self, scenarios, attempts=32, search=True, seed=0, verbose=False, groups=None):
+        """One result dict per scenario (same order). `groups`: one id per scenario; scenarios with the same id get the same seed for every attempt
+        (common random numbers: deck variants of one encounter meet the same RNG streams and search seeds, so their difference is not luck)."""
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         S = len(scenarios)
         t0 = time.time()
         if search:
             js = np.tile(np.arange(S, dtype=np.uint32), attempts)  # attempt-major: the pool is always spread over the scenarios
-            jd = np.uint64(seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
+            if groups is None:
+                jd = np.uint64(seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
+            else:
+                g = np.asarray(groups, dtype=np.uint64)[js]
+                att = (np.arange(len(js)) // S).astype(np.uint64)
+                jd = np.uint64(seed) * np.uint64(1_000_003) + g * np.uint64(attempts) + att
             r = self.fs.run(scenarios, js, jd)
             rows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3]) for i in range(len(js))]
         else:

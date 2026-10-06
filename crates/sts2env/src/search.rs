@@ -153,6 +153,8 @@ struct Sim {
     start_turn: i32,
     est: f32,
     steps: u32,
+    /// the play-out's own stream for sampling the policy's moves (`Out::pol_u`): seeded from the future's key, so a job seed fixes the play-outs
+    rng: u64,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -208,6 +210,8 @@ struct Out {
     pol_mask: SendPtr<u8>,
     /// per policy row: bit 0 = a move inside a play-out (0: a decision of the real fight), bit 1 = a card selection is pending
     pol_kind: SendPtr<u8>,
+    /// per policy row: a uniform in (0, 1) the caller samples a play-out's move with (inverse CDF of the policy); 0.5 for a decision of the real fight
+    pol_u: SendPtr<f32>,
     val_obs: SendPtr<f32>,
     /// per value row: bit 1 = a card selection is pending
     val_kind: SendPtr<u8>,
@@ -304,14 +308,25 @@ fn write_row(cx: &mut Combat, buf: &ActionBuf, playable: Option<u16>, obs: SendP
     cx.sync_overflow();
 }
 
-fn pol_row(out: &Out, sim: bool, cx: &Combat) -> usize {
+fn pol_row(out: &Out, sim: bool, cx: &Combat, u: f32) -> usize {
     let kind = sim as u8 | (cx.decision.is_some() as u8) << 1;
     let r = out.n_pol.fetch_add(1, Ordering::Relaxed);
     assert!(r < out.pol_cap, "policy request buffer too small");
     // SAFETY: row `r` is owned by the caller (unique counter value) and below the capacity.
-    unsafe { *out.pol_kind.0.add(r) = kind };
+    unsafe {
+        *out.pol_kind.0.add(r) = kind;
+        *out.pol_u.0.add(r) = u;
+    }
     r
 }
+
+/// A uniform in (0, 1) from the stream `s`.
+fn unit(s: &mut u64) -> f32 {
+    ((splitmix(s) >> 40) as f32 + 0.5) / (1u64 << 24) as f32
+}
+
+/// Salt of a play-out's sampling stream (`Sim::rng`), seeded from its future's determinization key.
+const ROLL_SALT: u64 = 0x5DEE_CE66_D1CE_4E5B;
 
 fn val_row(out: &Out, cx: &Combat) -> usize {
     let r = out.n_val.fetch_add(1, Ordering::Relaxed);
@@ -422,7 +437,8 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
             st.forced_sim += 1;
         } else {
             let t0 = tsc();
-            let row = pol_row(out, true, &sim.cx);
+            let u = unit(&mut sim.rng);
+            let row = pol_row(out, true, &sim.cx, u);
             write_row(&mut sim.cx, &buf, Some(playable), out.pol_obs, Some(out.pol_mask), row);
             st.cy_obs += tsc() - t0;
             st.policy_rows += 1;
@@ -435,7 +451,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
 impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
-        let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0 }).collect();
+        let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0 }).collect();
         Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], lead_acts: Default::default(), carry: None, known: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
     }
 
@@ -530,7 +546,7 @@ impl Block {
                     return;
                 }
             } else {
-                let row = pol_row(out, false, &self.main);
+                let row = pol_row(out, false, &self.main, 0.5);
                 write_row(&mut self.main, &buf, Some(playable), out.pol_obs, Some(out.pol_mask), row);
                 self.stats.policy_rows += 1;
                 self.st = RootSt::Pol(row as u32);
@@ -638,6 +654,7 @@ impl Block {
                 sim.start_turn = turn;
                 sim.est = 0.0;
                 sim.steps = 0;
+                sim.rng = self.ks[kk] ^ ROLL_SALT;
                 self.stats.forks += 1;
             }
             if lead {
@@ -688,6 +705,7 @@ impl Block {
                     sim.est = est;
                     sim.steps = steps;
                     sim.start_turn = start_turn;
+                    sim.rng = self.ks[kk] ^ ROLL_SALT ^ (steps as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
                     sim_run(sim, a, cfg, out, &mut self.stats, None, None);
                 }
                 self.lead[j] = false;
@@ -954,11 +972,12 @@ impl SearchEngine {
     }
 
     /// One cycle. The first call (`pol` / `val` = `None`) starts the roots; every later call passes the answers to the rows the previous call
-    /// returned: `pol` = `[rows, 2M + 1]` f32 (the `M` best action indices, their probabilities, the action a play-out plays), `val` = `[rows]`.
+    /// returned: `pol` = `[rows, 2M + 1]` f32 (the `M` best action indices, their probabilities, the action a play-out plays, sampled with the row's
+    /// `pol_u` uniform so that the job seeds fix every play-out), `val` = `[rows]`.
     /// Writes the next requests into the buffers and returns `(policy rows, value rows)`; `(0, 0)` with [`SearchEngine::finished`] ends the run.
-    pub fn advance(&mut self, pol: Option<&[f32]>, val: Option<&[f32]>, pol_obs: &mut [f32], pol_mask: &mut [u8], pol_kind: &mut [u8], val_obs: &mut [f32], val_kind: &mut [u8]) -> Result<(usize, usize), EnvError> {
+    pub fn advance(&mut self, pol: Option<&[f32]>, val: Option<&[f32]>, pol_obs: &mut [f32], pol_mask: &mut [u8], pol_kind: &mut [u8], pol_u: &mut [f32], val_obs: &mut [f32], val_kind: &mut [u8]) -> Result<(usize, usize), EnvError> {
         let (pc, vc) = self.max_rows();
-        if pol_obs.len() < pc * OBS_SIZE || pol_mask.len() < pc * ACTION_SPACE || pol_kind.len() < pc || val_obs.len() < vc * OBS_SIZE || val_kind.len() < vc {
+        if pol_obs.len() < pc * OBS_SIZE || pol_mask.len() < pc * ACTION_SPACE || pol_kind.len() < pc || pol_u.len() < pc || val_obs.len() < vc * OBS_SIZE || val_kind.len() < vc {
             return Err(EnvError::Buffer("request buffers too small, see SearchEngine::max_rows"));
         }
         let first = !self.started;
@@ -970,6 +989,7 @@ impl SearchEngine {
             pol_obs: SendPtr(pol_obs.as_mut_ptr()),
             pol_mask: SendPtr(pol_mask.as_mut_ptr()),
             pol_kind: SendPtr(pol_kind.as_mut_ptr()),
+            pol_u: SendPtr(pol_u.as_mut_ptr()),
             val_obs: SendPtr(val_obs.as_mut_ptr()),
             val_kind: SendPtr(val_kind.as_mut_ptr()),
             pol_cap: pc,

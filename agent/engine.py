@@ -102,12 +102,12 @@ class Engine:
         return dict(action=a, json=sim.action_json(a), text=text.get(a, f"#{a}"), searched=first["searched"], rounds=rounds,
                     seconds=round(time.perf_counter() - t0, 2), options=opts)
 
-    def solve(self, scenarios, attempts=64, seed=0, util=None):
+    def solve(self, scenarios, attempts=64, seed=0, util=None, groups=None):
         """Fights played from their start by the batch solver: one dict per scenario (win, win_se, hp_lost, hp_left_on_win, attempts, aborted).
         `util`: play them under this HP-worth curve (the results stay raw HP outcomes); None = the linear return."""
         self.solver.fs.set_util(util)
         try:
-            return self.solver.solve(scenarios, attempts=attempts, seed=seed)
+            return self.solver.solve(scenarios, attempts=attempts, seed=seed, groups=groups)
         finally:
             self.solver.fs.set_util(None)
 

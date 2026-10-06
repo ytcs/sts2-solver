@@ -152,12 +152,13 @@ def evaluate(engine, deck_json, spec):
     for vi, v in enumerate(variants):
         sv = apply_variant(base, v)
         for e in encs:
-            sc = dict(sv, name=f"{v.get('name', vi)}@{e}", encounter=e, seed=f"macro{vi}")
+            sc = dict(sv, name=f"{v.get('name', vi)}@{e}", encounter=e, seed=f"macro{encs.index(e)}")  # seeded by encounter, not variant: common random numbers
             if (hold or drop_all) and not e.endswith("_BOSS"):  # potions are spent only when worth it and kept for the boss, so every other fight is priced without them (a lower bound)
                 sc["potions"] = [] if drop_all else [p for p in sc.get("potions", []) if p["id"] not in hold]
             scen.append(sc)
             index.append((vi, e))
-    res = engine.solve(scen, attempts=spec.get("attempts", 64))
+    # every variant of one encounter gets the same seeds per attempt (common random numbers): variant differences are not luck
+    res = engine.solve(scen, attempts=spec.get("attempts", 64), groups=[encs.index(e) for _, e in index])
     by = {}
     for (vi, e), r in zip(index, res):
         by.setdefault(vi, []).append((e, r))

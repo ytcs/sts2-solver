@@ -95,10 +95,14 @@ def collect_states(max_states, seed):
 PER_FIGHT = 6
 
 
+REFEREE_LEAF = 1  # the referee's continuation depth, pinned: rounds 1-2 (evals/bench_search*.jsonl) were refereed at depth 1, whatever the search default is
+
+
 class Referee:
-    def __init__(self, M=3, K=8):
+    def __init__(self, M=3, K=8, leaf=REFEREE_LEAF):
         from solver import Solver
         self.solver = Solver(M=M, K=K)
+        self.solver.fs.leaf_turns, self.solver.fs.roll_cap = leaf, 60 * leaf
 
     def play(self, st, cand_idx, reps, rep0):
         """Values (and wins, HP fractions) of candidates `cand_idx` over repetitions rep0..rep0+reps-1 (common random numbers across candidates)."""
@@ -223,7 +227,7 @@ def main():
             res = referee_state(ref, st, a.max_reps)
             keys = [act_key(t) for _, t in st["cands"]]
             rec = dict(file=st["file"], step=st["step"], encounter=st["encounter"], kind=st["kind"], cands=keys, ref={keys[ci]: r for ci, r in res.items()},
-                       picks=row, potion=any(k.startswith("potion") for k in keys))
+                       picks=row, potion=any(k.startswith("potion") for k in keys), referee_leaf=REFEREE_LEAF)
             if strong and i < a.strong:
                 rs = referee_state(strong, st, min(a.max_reps, 128))
                 rec["ref_strong"] = {keys[ci]: r for ci, r in rs.items()}

@@ -11,19 +11,19 @@ solve attempts=8 util=False n=906 sha=04672cc1ac31
   QUEEN_BOSS [POWER_POTION] x151
   SOUL_NEXUS_ELITE [] x151
   TEST_SUBJECT_BOSS [POWER_POTION] x151
-solve attempts=8 util=False n=41 sha=01c7bd53a11b
+solve attempts=8 util=False n=41 sha=97f123d250de
   KNOWLEDGE_DEMON_BOSS [POWER_POTION] x41
-solve attempts=8 util=False n=41 sha=81c456e40a66
+solve attempts=8 util=False n=41 sha=492dc126a4be
   KNOWLEDGE_DEMON_BOSS [POWER_POTION] x41
-solve attempts=8 util=False n=41 sha=02168339b979
+solve attempts=8 util=False n=41 sha=bba0202164e9
   KNOWLEDGE_DEMON_BOSS [POWER_POTION] x41
-solve attempts=8 util=False n=41 sha=0d619c38207b
+solve attempts=8 util=False n=41 sha=1e4a76567ee5
   KNOWLEDGE_DEMON_BOSS [POWER_POTION] x41
-solve attempts=8 util=False n=123 sha=3c8b5c972a77
+solve attempts=8 util=False n=123 sha=3a24abee7f3e
   DECIMILLIPEDE_ELITE [] x41
   ENTOMANCER_ELITE [] x41
   INFESTED_PRISMS_ELITE [] x41
-solve attempts=8 util=False n=246 sha=639a19e0a406
+solve attempts=8 util=False n=246 sha=8a8ccaf2f7ff
   AEONGLASS_BOSS [POWER_POTION] x41
   KNIGHTS_ELITE [] x41
   MECHA_KNIGHT_ELITE [] x41

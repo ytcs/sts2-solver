@@ -1,2 +1,2 @@
 1 variants x 6 encounters x 8 attempts, start HP 71/80
-baseline                 win 0.562 ±0.053  HP lost 61.4% (q10/50/90/97.5: 14/54/71/71 HP)  | KNIGHTS:1.00 MECHA:0.00 SOUL:0.75 QUEEN:0.75 TEST:0.25 AEONGLAS:0.62
+baseline                 win 0.688 ±0.047  HP lost 52.5% (q10/50/90/97.5: 10/39/71/71 HP)  | KNIGHTS:1.00 MECHA:0.75 SOUL:0.88 QUEEN:0.88 TEST:0.62 AEONGLAS:0.00

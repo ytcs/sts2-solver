@@ -60,12 +60,19 @@ def host_shapes(obs):
     return E, L, obs[:, _DEC] > 0.5
 
 
-class GraphFn:
-    """`fn(obs [B, OBS], mask [B, ACT] | None) -> [B, ...]` replayed as a CUDA graph per padded batch size: one replay instead of several hundred kernel
-    launches (the network is launch-bound at the batch sizes the search produces)."""
+def _sample(pr, u):
+    """One action per row of the probabilities `pr` [B, ACT], by inverse CDF with the engine's uniform `u` [B]: the job seed, not the GPU's random state,
+    decides every play-out move, so two variants of a deck evaluated with the same seeds meet the same play-out luck (common random numbers)."""
+    c = pr.cumsum(1)
+    return (c < u.unsqueeze(1) * c[:, -1:]).sum(1).clamp_max(pr.shape[1] - 1)
 
-    def __init__(self, fn, buckets, with_mask, pool, label="", events=None):
-        self.fn, self.buckets, self.with_mask, self.pool = fn, tuple(sorted(buckets)), with_mask, pool
+
+class GraphFn:
+    """`fn(obs [B, OBS], mask [B, ACT] | None[, u [B]]) -> [B, ...]` replayed as a CUDA graph per padded batch size: one replay instead of several hundred
+    kernel launches (the network is launch-bound at the batch sizes the search produces). `with_u`: a per-row uniform (`_sample`) is a third input."""
+
+    def __init__(self, fn, buckets, with_mask, pool, label="", events=None, with_u=False):
+        self.fn, self.buckets, self.with_mask, self.pool, self.with_u = fn, tuple(sorted(buckets)), with_mask, pool, with_u
         self.graphs = {}
         self.label, self.events = label, events  # events: a list collecting (cuda event pair, rows) per replay when profiling
 
@@ -74,20 +81,22 @@ class GraphFn:
         smask = torch.zeros(B, ACT, dtype=torch.uint8, device=DEV) if self.with_mask else None
         if smask is not None:
             smask[:, 0] = 1  # every padded row has a legal action (no NaN in the softmax of rows that are ignored)
+        su = torch.full((B,), 0.5, device=DEV) if self.with_u else None
+        args = (sobs, smask) + ((su,) if self.with_u else ())
         st = torch.cuda.Stream()
         st.wait_stream(torch.cuda.current_stream())
         with torch.cuda.stream(st), torch.no_grad():
             for _ in range(2):
-                self.fn(sobs, smask)
+                self.fn(*args)
         torch.cuda.current_stream().wait_stream(st)
         g = torch.cuda.CUDAGraph()
         with torch.no_grad(), torch.cuda.graph(g, pool=self.pool):
-            out = self.fn(sobs, smask)
-        self.graphs[B] = (g, sobs, smask, out)
+            out = self.fn(*args)
+        self.graphs[B] = (g, sobs, smask, su, out)
 
     @torch.no_grad()
-    def __call__(self, obs, mask, idx=None):
-        """Rows `idx` (a device index tensor) of obs / mask, or all of them; returns a fresh [rows, ...] tensor."""
+    def __call__(self, obs, mask, idx=None, u=None):
+        """Rows `idx` (a device index tensor) of obs / mask (/ u), or all of them; returns a fresh [rows, ...] tensor."""
         n = len(obs) if idx is None else len(idx)
         outs = []
         top = self.buckets[-1]
@@ -96,16 +105,20 @@ class GraphFn:
             B = next(b for b in self.buckets if b >= m)
             if B not in self.graphs:
                 self._capture(B)
-            g, sobs, smask, out = self.graphs[B]
+            g, sobs, smask, su, out = self.graphs[B]
             sel = slice(a, a + m) if idx is None else idx[a:a + m]
             if idx is None:
                 sobs[:m].copy_(obs[sel])
                 if smask is not None:
                     smask[:m].copy_(mask[sel])
+                if su is not None:
+                    su[:m].copy_(u[sel])
             else:
                 torch.index_select(obs, 0, sel, out=sobs[:m])
                 if smask is not None:
                     torch.index_select(mask, 0, sel, out=smask[:m])
+                if su is not None:
+                    torch.index_select(u, 0, sel, out=su[:m])
             if self.events is not None:
                 e0, e1 = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
                 e0.record()
@@ -174,18 +187,19 @@ class FastSearch:
         return self._ufeat_t.expand(o.shape[0], 8)
 
     # ---- network side ----
-    def _run(self, fn, obs_np, obs_t, mask_t=None):
-        """`fn(obs, mask, **shape)` on the rows of `obs_t` (device) split into rows without / with a pending card selection (each static in shape)."""
+    def _run(self, fn, obs_np, obs_t, mask_t=None, u_t=None):
+        """`fn(obs, mask, [u=,] **shape)` on the rows of `obs_t` (device) split into rows without / with a pending card selection (each static in shape)."""
         E, L, dec = host_shapes(obs_np)
         nd = int(dec.sum())
+        uk = lambda i: {} if u_t is None else {"u": u_t if i is None else u_t[i]}
         if nd == 0:
-            return fn(obs_t, mask_t, E=E, L=L, has_dec=False)
+            return fn(obs_t, mask_t, E=E, L=L, has_dec=False, **uk(None))
         if nd == len(dec):
-            return fn(obs_t, mask_t, E=E, L=L, has_dec=True)
+            return fn(obs_t, mask_t, E=E, L=L, has_dec=True, **uk(None))
         i1 = torch.from_numpy(np.flatnonzero(dec)).to(DEV)
         i0 = torch.from_numpy(np.flatnonzero(~dec)).to(DEV)
-        r0 = fn(obs_t[i0], None if mask_t is None else mask_t[i0], E=E, L=L, has_dec=False)
-        r1 = fn(obs_t[i1], None if mask_t is None else mask_t[i1], E=E, L=L, has_dec=True)
+        r0 = fn(obs_t[i0], None if mask_t is None else mask_t[i0], E=E, L=L, has_dec=False, **uk(i0))
+        r1 = fn(obs_t[i1], None if mask_t is None else mask_t[i1], E=E, L=L, has_dec=True, **uk(i1))
         out = r0.new_empty((len(dec),) + r0.shape[1:])
         out[i0] = r0
         out[i1] = r1
@@ -218,18 +232,14 @@ class FastSearch:
             if self.compile:
                 logits = torch.compile(logits, dynamic=True)
 
-            def fn(o, m):
+            def fn(o, m, u):
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
                     lg = logits(o, m)
-                lg = lg.float()
-                if greedy:
-                    act = lg.argmax(1)
-                else:  # sampling from softmax(lg) = argmax of the logits plus Gumbel noise
-                    act = (lg - torch.log(-torch.log(torch.rand_like(lg).clamp_min(1e-20)))).argmax(1)
-                pr = torch.softmax(lg, 1)
+                pr = torch.softmax(lg.float(), 1)
+                act = pr.argmax(1) if greedy else _sample(pr, u)
                 tp, ti = pr.topk(M, 1)
                 return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
-            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None)
+            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None, with_u=True)
         return self._graphs[key]
 
     def _val_graph(self, has_dec):
@@ -256,6 +266,7 @@ class FastSearch:
             obs = G["pol_obs_t"][:n_pol].to(DEV, non_blocking=True)
             mask = G["pol_mask_t"][:n_pol].to(DEV, non_blocking=True)
             kind = G["pol_kind"][:n_pol]
+            u = G["pol_u_t"][:n_pol].to(DEV, non_blocking=True)
             res = torch.empty(n_pol, 2 * M + 1, device=DEV)
             sim, dec = (kind & 1) != 0, (kind & 2) != 0
             if self.merge_dec:
@@ -271,10 +282,10 @@ class FastSearch:
                     net = self.net if (use_main or not split) else self.roll_net
                     fn = self._pol_graph(net, hd)
                     if k == n_pol:
-                        res.copy_(fn(obs, mask))
+                        res.copy_(fn(obs, mask, u=u))
                     else:
                         idx = torch.from_numpy(np.flatnonzero(sel)).to(DEV, non_blocking=True)
-                        res[idx] = fn(obs, mask, idx)
+                        res[idx] = fn(obs, mask, idx, u=u)
             G["pol_out_t"][:n_pol].copy_(res, non_blocking=True)
         if n_val:
             vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
@@ -304,20 +315,21 @@ class FastSearch:
         if n_pol:
             obs = G["pol_obs_t"][:n_pol].to(DEV, non_blocking=True)
             mask = G["pol_mask_t"][:n_pol].to(DEV, non_blocking=True)
+            u = G["pol_u_t"][:n_pol].to(DEV, non_blocking=True)
             def pol_fn(net):
-                def pol(o, m, **shape):
+                def pol(o, m, u, **shape):
                     lg, _ = net(o, m, value=False, ufeat=self._uf(o), **shape)
-                    p = torch.softmax(lg, 1)
+                    p = torch.softmax(lg.float(), 1)
                     tp, ti = p.topk(M, 1)
-                    act = ti[:, 0] if self.greedy_roll else torch.multinomial(p, 1).squeeze(1)
+                    act = ti[:, 0] if self.greedy_roll else _sample(p, u)
                     return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
                 return pol
-            res = self._run(pol_fn(self.roll_net), G["pol_obs"][:n_pol], obs, mask)
+            res = self._run(pol_fn(self.roll_net), G["pol_obs"][:n_pol], obs, mask, u)
             if self.roll_net is not self.net:  # decisions of the real fight go to the (stronger) main network
                 ir = np.flatnonzero(G["pol_kind"][:n_pol] == 0)
                 if len(ir):
                     ir_t = torch.from_numpy(ir).to(DEV)
-                    res[ir_t] = self._run(pol_fn(self.net), G["pol_obs"][ir], obs[ir_t], mask[ir_t])
+                    res[ir_t] = self._run(pol_fn(self.net), G["pol_obs"][ir], obs[ir_t], mask[ir_t], u[ir_t])
             G["pol_out_t"][:n_pol].copy_(res, non_blocking=True)
         if n_val:
             vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
@@ -354,7 +366,7 @@ class FastSearch:
             pc, vc = eng.max_rows()
             pin = self.cuda
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)
-            for name, shape, dt in (("pol_obs", (pc, OBS), torch.float32), ("pol_mask", (pc, ACT), torch.uint8), ("pol_kind", (pc,), torch.uint8), ("val_obs", (vc, OBS), torch.float32), ("val_kind", (vc,), torch.uint8),
+            for name, shape, dt in (("pol_obs", (pc, OBS), torch.float32), ("pol_mask", (pc, ACT), torch.uint8), ("pol_kind", (pc,), torch.uint8), ("pol_u", (pc,), torch.float32), ("val_obs", (vc, OBS), torch.float32), ("val_kind", (vc,), torch.uint8),
                                     ("pol_out", (pc, 2 * self.M + 1), torch.float32), ("val_out", (vc,), torch.float32)):
                 t = torch.empty(shape, dtype=dt, pin_memory=pin)
                 G[name + "_t"] = t
@@ -365,7 +377,7 @@ class FastSearch:
         self.timers["setup"] += time.perf_counter() - t0
         t0 = time.perf_counter()
         for G in groups:
-            G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["val_obs"], G["val_kind"])
+            G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_obs"], G["val_kind"])
             self._evaluate(G, G["n_pol"], G["n_val"])
         active = list(groups)
         cycles = rows = 0
@@ -378,7 +390,7 @@ class FastSearch:
                 if not self.cuda:
                     pass
                 npol, nval = G["n_pol"], G["n_val"]
-                G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["val_obs"], G["val_kind"], G["pol_out"][:npol], G["val_out"][:nval])
+                G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_obs"], G["val_kind"], G["pol_out"][:npol], G["val_out"][:nval])
                 self.timers["engine"] += time.perf_counter() - t
                 cycles += 1
                 rows += G["n_pol"] + G["n_val"]
