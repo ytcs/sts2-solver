@@ -102,6 +102,13 @@ class Live:
         self.last_enc = sc.get("encounter")
         self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
         self.drive = self._drive_mode(sc.get("encounter", ""), pred, sc["hp"])
+        try:  # the act map as it stood (once per change): offline replays of route-DP decisions (potion prices, routes) need it
+            mt = self._context().map_text
+            if mt and mt != getattr(self, "_logged_map", None):
+                self.log.event("map", text=mt)
+                self._logged_map = mt
+        except Exception:  # noqa: BLE001  never let bookkeeping break a fight
+            pass
         kp = self._kp()
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], deck=len(sc["deck"]), relics=[r["id"] for r in sc["relics"]],
                        potions=[p["id"] for p in sc["potions"]], scenario=sc, predicted=pred, budget=self.fight_budget, tol_hp=self.fight_tol, keep_potions=sorted(kp) if kp is not True else True,
