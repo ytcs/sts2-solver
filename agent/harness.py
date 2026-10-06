@@ -372,7 +372,7 @@ class Harness:
             return None, "linear (a boss: no route after it)"
         try:
             from agent import pools, routes
-            raw = call("deck.json").strip()
+            raw = self._deck_raw()
             if raw == "null":
                 return None, "linear (no run)"
             deck = json.loads(raw)
@@ -423,6 +423,16 @@ class Harness:
         lines.append(f"  HP {self.rp.scenario.get('hp', '?')}/{self.rp.scenario.get('max_hp', '?')} now; potions in the belt: {', '.join(self._belt()) or 'none'}")
         lines.append("Answer: `combat ok` (throw this one), `combat skip` (decline this one), `combat go` (decline every proposal this fight). Weigh the boss and the route, not only this fight.")
         return "\n".join(lines), d
+
+    def _deck_raw(self):
+        """The run snapshot every calculator prices (`deck.json`), with the potions I `hold` taken out of the belt: a held potion is not spent in any
+        priced fight, the boss included (a Foul Potion kept for a merchant must not be thrown by the simulated boss fight)."""
+        raw = call("deck.json").strip()
+        if raw == "null" or not self.hold:
+            return raw
+        d = json.loads(raw)
+        d["potions"] = [p for p in d.get("potions", []) if p["id"] not in self.hold]
+        return json.dumps(d)
 
     def _belt(self):
         """The potions in the game's belt, slot order (the header's `pots[...]`; `-` = empty slot). Relic-made potions (Potion-Shaped Rock) are there, not in the fight scenario."""
@@ -705,7 +715,7 @@ class Harness:
             else:
                 nodes.append(t)
             i += 1
-        raw = call("deck.json").strip()
+        raw = self._deck_raw()
         if raw == "null":
             return "no run in progress"
         deck = json.loads(raw)
@@ -722,7 +732,7 @@ class Harness:
         weights = {}
         if "--w" in toks:
             weights = {kv.split("=")[0]: float(kv.split("=")[1]) for kv in toks[toks.index("--w") + 1].split(",")}
-        raw = call("deck.json").strip()
+        raw = self._deck_raw()
         if raw == "null":
             return "no run in progress"
         deck = json.loads(raw)
@@ -744,7 +754,7 @@ class Harness:
         att = int(toks[toks.index("--attempts") + 1]) if "--attempts" in toks else 64
         hp = toks[toks.index("--hp") + 1] if "--hp" in toks else "full"
         hp = hp if hp in ("full", "current") else int(hp)
-        raw = call("deck.json").strip()
+        raw = self._deck_raw()
         if raw == "null":
             return "no run in progress\n"
         text, res = macro.removal_report(self.eng(), json.loads(raw), self._horizon(), att, hp, "all")
@@ -757,7 +767,7 @@ class Harness:
         toks = shlex.split(argline)
         def opt(name, default, cast):
             return cast(toks[toks.index(name) + 1]) if name in toks else default
-        raw = call("deck.json").strip()
+        raw = self._deck_raw()
         if raw == "null":
             return "no run in progress\n"
         deck = json.loads(raw)
@@ -849,7 +859,7 @@ class Harness:
         att = int(toks[toks.index("--attempts") + 1]) if "--attempts" in toks else 96
         hp = toks[toks.index("--hp") + 1] if "--hp" in toks else "full"
         hp = hp if hp in ("full", "current") else int(hp)
-        raw = call("deck.json").strip()
+        raw = self._deck_raw()
         if raw == "null":
             return "no run in progress\n"
         deck = json.loads(raw)
@@ -862,7 +872,7 @@ class Harness:
 
     def brief(self):
         state = call("peek")
-        raw = call("deck.json").strip()
+        raw = self._deck_raw()
         if raw == "null":
             return state
         return macro.brief_text(state, json.loads(raw), self._horizon()) + "\n"
@@ -912,7 +922,7 @@ class Harness:
         spec.setdefault("hold", "all")  # non-boss fights are priced without potions (a lower bound: I spend one only when it is worth it); the boss with them
         if not spec.pop("all", False):
             spec["_ctx"] = self._ctx()
-        raw = call("deck.json").strip()
+        raw = self._deck_raw()
         if raw == "null":
             return "no run in progress"
         text, summary = macro.evaluate(self.eng(), json.loads(raw), spec)
