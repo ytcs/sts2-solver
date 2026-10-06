@@ -77,9 +77,22 @@ def collect_states(max_states, seed):
             out.append(dict(file=f"{run}/{name}", step=i + 1, encounter=f["encounter"], kind=kind_of(f["encounter"]), scenario=fight["scenario"],
                             sim=sim.copy(), cands=list(keys.values())[:8]))
     rng.shuffle(out)
-    # every boss / elite state first, then hallways, up to the cap
-    out.sort(key=lambda s: {"boss": 0, "elite": 1, "hallway": 2}[s["kind"]])
-    return out[:max_states]
+    # stratified: at most PER_FIGHT states per fight (decisions of one fight are correlated), then quotas per kind (40 % boss, 33 % elite, 27 % hallway)
+    per, kept = {}, []
+    for s in out:
+        if per.get(s["file"], 0) < PER_FIGHT:
+            per[s["file"]] = per.get(s["file"], 0) + 1
+            kept.append(s)
+    quota = {"boss": round(0.40 * max_states), "elite": round(0.33 * max_states)}
+    quota["hallway"] = max_states - quota["boss"] - quota["elite"]
+    picked = []
+    for k in ("boss", "elite", "hallway"):
+        picked += [s for s in kept if s["kind"] == k][:quota[k]]
+    rest = [s for s in kept if s not in picked]
+    return (picked + rest)[:max_states]
+
+
+PER_FIGHT = 6
 
 
 class Referee:
