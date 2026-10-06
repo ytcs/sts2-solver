@@ -105,6 +105,18 @@ impl Sim {
         self.clone()
     }
 
+    /// A copy whose belt lacks the potions in `slots` (the potions held back from the search: no line in the search tree may use them; the slots stay, so
+    /// every other action keeps its index).
+    fn without_potions(&self, slots: Vec<usize>) -> Sim {
+        let mut s = self.clone();
+        for i in slots {
+            if i < s.cx.player.potions.len() {
+                s.cx.player.potions[i] = None;
+            }
+        }
+        s
+    }
+
     /// Resamples the hidden state (the three pile orders and all RNG streams). False while a prompt replay is on screen.
     fn determinize(&mut self, seed: u64) -> bool {
         self.cx.determinize(seed)
@@ -389,7 +401,23 @@ impl Sim {
             if es.len() != ids.len() {
                 notes.push(format!("enemy count: simulator {} vs real {}", ids.len(), es.len()));
             }
-            for (e, &cid) in es.iter().zip(ids.iter()) {
+            // Pair by monster id in order, not by position: one side can still list a dead minion the other has already removed (Fabricator's bots), and
+            // a positional zip then writes a dead slot's 0 HP onto a living enemy (the simulator ended the fight early). Unmatched ids fall back to position.
+            let name = |c: Cid| sts2sim::ids::monster::NAMES[self.cx.cr(c).monster.id as usize];
+            let mut used = vec![false; ids.len()];
+            let mut pairs: Vec<(&Value, Cid)> = Vec::new();
+            for (k, e) in es.iter().enumerate() {
+                let want = e["id"].as_str().unwrap_or("");
+                let alive = e["alive"].as_bool().unwrap_or(true);
+                let pick = (0..ids.len()).find(|&j| !used[j] && name(ids[j]) == want && self.cx.cr(ids[j]).is_alive() == alive)
+                    .or_else(|| (0..ids.len()).find(|&j| !used[j] && name(ids[j]) == want))
+                    .or_else(|| if k < ids.len() && !used[k] { Some(k) } else { None });
+                if let Some(j) = pick {
+                    used[j] = true;
+                    pairs.push((e, ids[j]));
+                }
+            }
+            for (e, cid) in pairs {
                 self.cx.sync_creature(cid, e["hp"].as_i64().unwrap_or(0) as i32, e["max_hp"].as_i64().unwrap_or(1) as i32, e["block"].as_i64().unwrap_or(0) as i32);
                 if let Some(ob) = obs_powers(e) {
                     powers_changed += self.cx.sync_powers(cid, &ob) as u32;

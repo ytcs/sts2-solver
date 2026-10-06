@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Events.Custom.CrystalSphereEvent;
 using MegaCrit.Sts2.Core.Events.Custom.CrystalSphereEvent.CrystalSphereItems;
 using MegaCrit.Sts2.Core.Nodes.Events.Custom.CrystalSphere;
+using MegaCrit.Sts2.Core.Nodes.Events.Custom;
 using MegaCrit.Sts2.Core.Entities.Potions;
 using MegaCrit.Sts2.Core.GameActions;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
@@ -58,7 +59,7 @@ public static class Decisions
         {
             d.Kind = sel.Min == sel.Max ? $"SELECT {sel.Min}" : $"SELECT {sel.Min}-{sel.Max}";
             if (!string.IsNullOrEmpty(sel.Prompt)) d.Info.Append(sel.Prompt).Append('\n');
-            d.Info.Append("answer: a <i> [<j> ...]  (a - for none)\n");
+            d.Info.Append(sel.Min == 0 ? "answer: a <i> [<j> ...]  (a - for none)\n" : "answer: a <i> [<j> ...]\n");
             foreach (var c in sel.Options) d.Add(Text.Card(c), _ => "use: a <i> [<j> ...]");
             return d;
         }
@@ -482,7 +483,7 @@ public static class Decisions
         if (room == null || room.RoomType is RoomType.Unassigned or RoomType.Map) { d.Busy = true; return; }  // between rooms / acts
         switch (room?.RoomType)
         {
-            case RoomType.Event: Event(d); break;
+            case RoomType.Event: Event(d, me); break;
             case RoomType.RestSite: Rest(d); break;
             case RoomType.Shop: Shop(d, me); break;
             case RoomType.Treasure: Treasure(d); break;
@@ -504,7 +505,7 @@ public static class Decisions
         }
     }
 
-    private static void Event(Decision d)
+    private static void Event(Decision d, Player me)
     {
         var room = Root.GetNodeOrNull("/root/Game/RootSceneContainer/Run/RoomContainer/EventRoom");
         if (room == null) return;
@@ -528,6 +529,11 @@ public static class Decisions
             try { b.Event.DynamicVars.AddTo(b.Option.Description); ds = Text.Loc(b.Option.Description); } catch { }
             d.Click(ds.Length > 0 ? $"{t}: {ds}" : t, b);
         }
+        if (buttons.Count == 0 && UiHelper.FindFirst<NFakeMerchant>(room) is { } fake && fake.Inventory is { } finv)
+        {
+            Inventory(d, me, finv, () => fake.Call(NFakeMerchant.MethodName.OpenInventory), fake, UiHelper.FindFirst<NProceedButton>(fake), "leave the merchant");
+            return;
+        }
         if (buttons.Count == 0 && UiHelper.FindFirst<NAncientEventLayout>(room) is { } anc
             && anc.GetNodeOrNull<NButton>("%DialogueHitbox") is { } hit && hit.Visible && hit.IsEnabled)
             d.Add("continue dialogue", _ => { hit.EmitSignal(NClickableControl.SignalName.Released, hit); return null; });
@@ -545,7 +551,13 @@ public static class Decisions
     private static void Shop(Decision d, Player me)
     {
         if (NMerchantRoom.Instance is not { } room) return;
-        var inv = room.Inventory;
+        Inventory(d, me, room.Inventory, room.OpenInventory, room, room.ProceedButton, "leave shop");
+    }
+
+    /// <summary>A merchant inventory as options: the shop room and the Fake Merchant event (`FakeMerchant.cs`, a custom event layout with the same
+    /// `NMerchantInventory`; throwing a Foul Potion at it starts a fight, which the generic potion option covers).</summary>
+    private static void Inventory(Decision d, Player me, NMerchantInventory inv, Action open, Node root, NProceedButton? proceed, string leave)
+    {
         foreach (var slot in inv.GetAllSlots().Where(s => s.Entry.IsStocked))
         {
             var e = slot.Entry;
@@ -561,15 +573,16 @@ public static class Decisions
             {
                 if (!e.EnoughGold) return "not enough gold";
                 if (e is MerchantPotionEntry && !me.HasOpenPotionSlots) return "potion slots full (a dp <slot> first)";
-                if (!inv.IsOpen) room.OpenInventory();
+                if (!inv.IsOpen) open();
                 Fire(e.OnTryPurchaseWrapper(inv.Inventory));
                 return null;
             });
         }
-        d.Add("leave shop", _ =>
+        if (proceed == null) return;
+        d.Add(leave, _ =>
         {
-            if (inv.IsOpen && UiHelper.FindFirst<NBackButton>(room) is { } back) back.ForceClick();
-            Fire(ProceedLater(room.ProceedButton));
+            if (inv.IsOpen && UiHelper.FindFirst<NBackButton>(root) is { } back) back.ForceClick();
+            Fire(ProceedLater(proceed));
             return null;
         });
     }

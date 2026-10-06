@@ -51,3 +51,48 @@
 {"kind": "hindsight", "fight": "runs/20261005-160158/fights/19_TUNNELER_WEAK.json", "encounter": "TUNNELER_WEAK", "hp_lost": 12, "luck_percentile": 0.9, "gaps": 1, "worst_gap_hp": 2.0, "decisions": [[4, "end turn", "potion 0", 2.0]]}
 {"kind": "hindsight", "fight": "runs/20261005-160158/fights/22_MYTES_NORMAL.json", "encounter": "MYTES_NORMAL", "hp_lost": -7, "luck_percentile": 0.0, "gaps": 3, "worst_gap_hp": 2.6, "decisions": [[2, "play THUNDERCLAP #2", "potion 0", 2.0], [4, "play DEFEND_IRONCLAD #1", "potion 0", 2.6], [5, "end turn", "potion 0", 2.2]]}
 {"kind": "hindsight", "fight": "runs/20261005-160158/fights/17_HAUNTED_SHIP_NORMAL.json", "encounter": "HAUNTED_SHIP_NORMAL", "hp_lost": 3, "luck_percentile": 0.58, "gaps": 0, "worst_gap_hp": 0, "decisions": []}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[0].hp", "count": 9}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[0].max_hp", "count": 5}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[1].hp", "count": 5}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[1].max_hp", "count": 4}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[2].hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[2].max_hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[3].hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[3].max_hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[0].powers", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .player.powers", "count": 2}
+{"kind": "fidelity", "run": "20261005-201805", "what": "residual .hand[3].cost", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "residual .hand[4].cost", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .energy", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "action failed", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[0].hp", "count": 9}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[0].max_hp", "count": 5}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[1].hp", "count": 5}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[1].max_hp", "count": 4}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[2].hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[2].max_hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[3].hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[3].max_hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[0].powers", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .player.powers", "count": 2}
+{"kind": "fidelity", "run": "20261005-201805", "what": "residual .hand[3].cost", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "residual .hand[4].cost", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .energy", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "action failed", "count": 1}
+{"kind": "hindsight", "fight": "runs/20261005-201805/fights/13_VANTOM_BOSS.json", "encounter": "VANTOM_BOSS", "hp_lost": 27, "luck_percentile": 0.34, "gaps": 6, "worst_gap_hp": 17.8, "decisions": [[2, "play STRIKE_IRONCLAD #1 -> e0", "play BASH #0 -> e0", 15.5], [10, "play POMMEL_STRIKE #0 -> e0", "play STRIKE_IRONCLAD #2 -> e0", 10.2], [11, "play IRON_WAVE #4 -> e0", "play STRIKE_IRONCLAD #0 -> e0", 17.8], [12, "play DEFEND_IRONCLAD #2", "play STRIKE_IRONCLAD #3 -> e0", 11.5], [15, "play UNRELENTING #2 -> e0", "play SHRUG_IT_OFF #3", 3.8], [24, "play DEFEND_IRONCLAD #2", "end turn", 3.0]]}
+{"kind": "hindsight", "fight": "runs/20261005-201805/fights/19_KNOWLEDGE_DEMON_BOSS.json", "encounter": "KNOWLEDGE_DEMON_BOSS", "hp_lost": 25, "luck_percentile": 1.0, "gaps": 10, "worst_gap_hp": 64.5, "decisions": [[2, "play SHRUG_IT_OFF #2", "play FISTICUFFS #3 -> e0", 4.6], [6, "play IRON_WAVE #0 -> e0", "play SQUASH #3 -> e0", 3.2], [7, "play DEFEND_IRONCLAD #1", "play SQUASH #2 -> e0", 17.6], [27, "play UNRELENTING #3 -> e0", "end turn", 5.1], [30, "play SHRUG_IT_OFF #0", "play HEADBUTT #4 -> e0", 35.4], [36, "play PERFECTED_STRIKE #0 -> e0", "play STRIKE_IRONCLAD #3 -> e0", 4.8], [37, "play STRIKE_IRONCLAD #2 -> e0", "end turn", 5.4], [39, "play POMMEL_STRIKE #0 -> e0", "play STRIKE_IRONCLAD #4 -> e0", 3.0], [40, "play UNRELENTING #4 -> e0", "play STRIKE_IRONCLAD #3 -> e0", 64.5], [41, "play STRIKE_IRONCLAD #3 -> e0", "play DEFEND_IRONCLAD #1", 32.6]]}
+{"kind": "hindsight", "fight": "runs/20261005-201805/fights/23_SOUL_NEXUS_ELITE.json", "encounter": "SOUL_NEXUS_ELITE", "hp_lost": 35, "luck_percentile": 0.9, "gaps": 11, "worst_gap_hp": 45.6, "decisions": [[2, "play POMMEL_STRIKE #0 -> e0", "potion 0", 2.4], [3, "end turn", "potion 0", 42.8], [6, "play POMMEL_STRIKE #0 -> e0", "potion 0", 5.3], [7, "end turn", "potion 0", 45.6], [10, "end turn", "potion 0", 29.2], [16, "play STRIKE_IRONCLAD #2 -> e0", "potion 0", 4.8], [17, "end turn", "potion 0", 41.8], [20, "play MASTER_OF_STRATEGY #6", "play PERFECTED_STRIKE #4 -> e0", 6.3], [24, "play SHRUG_IT_OFF #4", "potion 0", 7.5], [25, "play BOLAS #0 -> e0", "potion 0", 2.4]]}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[0].hp", "count": 9}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[0].max_hp", "count": 5}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[1].hp", "count": 5}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[1].max_hp", "count": 4}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[2].hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[2].max_hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[3].hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[3].max_hp", "count": 3}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .enemies[0].powers", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .player.powers", "count": 2}
+{"kind": "fidelity", "run": "20261005-201805", "what": "residual .hand[3].cost", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "residual .hand[4].cost", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "diff .energy", "count": 1}
+{"kind": "fidelity", "run": "20261005-201805", "what": "action failed", "count": 1}

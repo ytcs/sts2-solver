@@ -78,7 +78,7 @@ listener!(Toolbox {
         }
         let cards = cx.get_distinct_for_combat(&gen_pools::COLORLESS, g::toolbox::CARDS as usize, |_| true);
         // `FromChooseACardScreen(...)`: the oracle's selector may also pick nothing (min 0), like Discovery.
-        match cx.ask_options(ids::relic::TOOLBOX, cards.as_slice(), true) {
+        match cx.ask_options(ids::relic::TOOLBOX, cards.as_slice(), false) {
             Ask::Resolved(picked) => toolbox_finish(cx, &picked),
             Ask::Pending => {
                 cx.hook_ctx = Some((me, 0));

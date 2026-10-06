@@ -131,10 +131,14 @@ class Replayer:
             except Exception as e:  # noqa: BLE001
                 self.errors.append(f"end_turn: {e}")
                 continue
-            if s.stage() == "over":
-                self.sim = s
-                return
-            got = intents_of(json.loads(s.snapshot()))
+            if s.stage() == "over":  # only a resample whose fight also ended in the game: an "over" sample while the game goes on is a wrong roll
+                if not state.get("combat_in_progress", True):  # (Stampede's random target killed the 8-HP Fabricator in the sim, a bot in the game)
+                    self.sim = s
+                    return
+                self.stats["end_turn_over_rejected"] += 1
+                continue
+            snap = json.loads(s.snapshot())
+            got = intents_of(snap)
             if first is None:
                 first = s
             if got == want:

@@ -27,8 +27,10 @@ public sealed class AgentSelector : MegaCrit.Sts2.Core.TestSupport.ICardSelector
     {
         var list = options.ToList();
         if (list.Count == 0) return Task.FromResult<IEnumerable<CardModel>>(Array.Empty<CardModel>());
-        var p = new Pending { Options = list, Min = Math.Min(minSelect, list.Count), Max = Math.Min(maxSelect, list.Count), Tcs = new(TaskCreationOptions.RunContinuationsAsynchronously), Prompt = PromptPatch.Next };
+        int min = Math.Max(minSelect, PromptPatch.NextMin ?? 0);  // a human cannot skip where the game's screen forbids it
+        var p = new Pending { Options = list, Min = Math.Min(min, list.Count), Max = Math.Min(Math.Max(maxSelect, min), list.Count), Tcs = new(TaskCreationOptions.RunContinuationsAsynchronously), Prompt = PromptPatch.Next };
         PromptPatch.Next = null;
+        PromptPatch.NextMin = null;
         Current = p;
         return p.Tcs.Task;
     }

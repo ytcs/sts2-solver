@@ -9,6 +9,10 @@ namespace AgentBridge;
 public static class PromptPatch
 {
     public static string? Next;
+    /// <summary>The minimum pick a human has on the next screen when the game's call passes a looser one to a custom selector:
+    /// `FromChooseACardScreen` always calls `Selector.GetSelectedCards(cards, 0, 1)`, but its screen allows skipping only with `canSkip`
+    /// (Knowledge Demon's Curse of Knowledge and Toolbox pass false: a human must pick one).</summary>
+    public static int? NextMin;
 
     static IEnumerable<MethodBase> TargetMethods() =>
         typeof(MegaCrit.Sts2.Core.Commands.CardSelectCmd).GetMethods(BindingFlags.Public | BindingFlags.Static)
@@ -32,8 +36,17 @@ public static class PromptPatch
                 else if (a is AbstractModel m) source = Title(m);
             }
             Next = source.Length > 0 ? $"{prompt} (from {source})" : prompt;
+            NextMin = null;
+            if (__originalMethod.Name == "FromChooseACardScreen")
+            {
+                bool canSkip = false;  // the parameter's default
+                var ps = __originalMethod.GetParameters();
+                for (int i = 0; i < ps.Length && i < __args.Length; i++)
+                    if (ps[i].Name == "canSkip" && __args[i] is bool b) canSkip = b;
+                if (!canSkip) NextMin = 1;
+            }
         }
-        catch { Next = null; }
+        catch { Next = null; NextMin = null; }
     }
 
     private static string Title(AbstractModel m) => m switch

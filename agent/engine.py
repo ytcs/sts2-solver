@@ -67,9 +67,12 @@ class Engine:
         def _held(t):
             return t.startswith("potion") and (keep_potions is True or (t.split() + [""])[1].isdigit() and int(t.split()[1]) in held)
         skip = {a for a, t in sim.legal() if t.startswith("discard potion") or _held(t)}  # the bridge cannot discard a potion, and a tie must never throw one away
+        # held potions leave the searched copy entirely: filtering only the first action still let deeper lines of the tree throw them (and value those lines)
+        drop = list(range(len(scenario.get("potions", [])))) if keep_potions is True else sorted(held)
+        search = sim.without_potions(drop) if drop else sim
         while True:
             self.seed += 1
-            r = self.fs.decide(scenario, sim, (self.seed if seed is None else seed + rounds))
+            r = self.fs.decide(scenario, search, (self.seed if seed is None else seed + rounds))
             rounds += 1
             if first is None:
                 first = r

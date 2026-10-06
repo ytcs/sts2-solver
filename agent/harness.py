@@ -44,6 +44,8 @@ PICK_RECORD = {"buckets:": "<five-bucket line, which are open>", "weakest:": "<w
                "judgment:": "<plan fit, density, future problems, synergies: why this choice>"}
 
 
+# calculator outputs that priced nothing (a guard must not count them as the procedure having run); "routes: no node left before the boss" did price
+PRICING_FAILED = ("ERR", "REFUSED", "reward: not", "no run", "need --enc", "routes: no act map", "routes: boss unknown", "eval: ")
 PRICING = {"eval": "evaluate", "reward": "reward", "route": "route", "routes": "routes", "rmcalc": "rmcalc", "pickplan": "pickplan"}
 
 
@@ -262,6 +264,11 @@ class Harness:
     def _budget(self, override=None):
         return override if override is not None else (self.budget if self.budget is not None else self.fight_budget)
 
+    def _tol(self, override=None):
+        """Early-stop tolerance of the search: an explicit time (`adv N`, `budget N`) is searched in full (no stop on a near-tie), the automatic budget
+        stops once the expected regret is below `fight_tol` HP."""
+        return 0.0 if (override is not None or self.budget is not None) else self.fight_tol
+
     def _fight_end(self, text=None):
         """Record the end of the current fight. `text` = the screen right after it (HP is read from it); without it the HP is unknown."""
         if self.rp is None or self.fight_id in self._ended:
@@ -352,9 +359,14 @@ class Harness:
         bad = self._sync_problem(f)
         if bad:
             return bad
-        if self.rp.sim.stage() == "choice" and _kind(call("peek")) == "COMBAT":
+        screen = call("peek")
+        if self.rp.sim.stage() == "choice" and _kind(screen) == "COMBAT":
             self.rp.resolve_phantom_choice(f["state"], "phantom choice on a COMBAT screen")
-        d = self._decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self.fight_tol, keep_potions=self._kp())
+        if self.rp.sim.stage() == "choice" and _kind(screen) == "SELECT":
+            bad = self._choice_mismatch(screen)
+            if bad:
+                return bad
+        d = self._decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self._tol(budget), keep_potions=self._kp())
         self.log.event("advice", fight=self.fight_id, text=d["text"], options=[dict(text=o["text"], q=o["q"]) for o in d["options"][:6]], drive=getattr(self, "drive", None))  # manual fights: my choice (the next `macro` event) vs this
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook()
 
@@ -389,7 +401,7 @@ class Harness:
         """keep_potions for the live search: the potions I held by hand are off the table, and after `combat go` (I declined potions for this fight) all of them, so the search
         plans the line I will actually play (searching as if a declined potion will be thrown next turn picked worse lines: Living Fog, run 20261005-160158, 99th percentile).
         Until I decline, the solver is NOT limited: it may propose a potion as often as it likes."""
-        return True if self._decline_fight == self.fight_id else (self.fight_hold | self.hold)  # a `hold` given mid-fight counts at once
+        return True if self._decline_fight == self.fight_id else set(self.hold)  # the current `hold`: one given or released mid-fight counts at once
 
     def _potion_gate(self, d, out):
         """Every time the solver's chosen action is a potion, I am at the gate. Returns (stop message or None, the decision to execute). The solver itself is unchanged: it may propose
@@ -453,16 +465,38 @@ class Harness:
         free = self._decide(self.rp.scenario, self.rp.sim, self._budget(), tol_hp=self.fight_tol, keep_potions=self._kp())
         qb = max((o["q"] for o in base["options"] if o["q"] is not None), default=None)
         qf = max((o["q"] for o in free["options"] if o["q"] is not None), default=None)
+        fq = lambda q: "?" if q is None else f"{q:.2f}"  # noqa: E731  (no searched option has a value at a forced step)
         out = [f"belt: {', '.join(self._belt()) or 'none'}",
-               f"best line with no potion: {base['text']} (value {qb:.2f}); with potions allowed: {free['text']} ({self._potion_name(free['text']) if str(free['text']).startswith('potion') else 'no potion now'}, value {qf:.2f}; +0.1 is about +5% win or +16 HP)"]
+               f"best line with no potion: {base['text']} (value {fq(qb)}); with potions allowed: {free['text']} ({self._potion_name(free['text']) if str(free['text']).startswith('potion') else 'no potion now'}, value {fq(qf)}; +0.1 is about +5% win or +16 HP)"]
         return "\n".join(out) + "\n"
 
-    def _answer_selection(self):
+    def _new_run(self):
+        """A new run record (the narrowing of the encounter pools reads it) and every per-run memory cleared: holds, priced floors, the last reward table."""
+        self.log.new_run()
+        self.hold = set()
+        self.priced = {}
+        self.reward_screen = None
+
+    def _choice_mismatch(self, screen):
+        """None when the simulator's pending selection offers the same cards as the game's SELECT screen, else a description. Random offers (Colorless /
+        Attack / Skill / Power Potion, Discovery) roll differently in the simulator: its pick would name a card the game does not show."""
+        import re as _re
+        game = sorted(macro.card_from_name(m.group(1))[0] or m.group(1).strip() for l in screen.splitlines() for m in [_re.match(r"^\d+ (.+?)\(", l)] if m)
+        sim = sorted(m.group(1) for _, t in self.rp.sim.legal() for m in [_re.match(r"pick \d+ \((\w+)\)", t)] if m)
+        if not game or not sim or game == sim:
+            return None
+        self.log.event("divergence", what="selection options differ", game=game, sim=sim)
+        return f"SIMULATOR CHOICE DIFFERS: the game offers {', '.join(game)}, the simulator {', '.join(sim)}. Answer by hand (`a <i>`); the solver's pick does not apply."
+
+    def _answer_selection(self, screen=""):
         """A card-selection prompt: the search picks card by card on a copy of the simulator; the whole answer goes to the game at once."""
         sim = self.rp.sim
         if sim.stage() != "choice":
             self.log.event("divergence", what="the game asks for a selection, the simulator does not")
             return call("a 0")
+        bad = self._choice_mismatch(screen)
+        if bad:
+            return "ERR " + bad
         s2, picks = sim.copy(), []
         for _ in range(40):
             d = self._decide(self.rp.scenario, s2, min(self._budget(), 0.3))
@@ -511,13 +545,13 @@ class Harness:
                 out.append(txt)
                 return "\n".join(out)
             if k == "SELECT":
-                reply = self._answer_selection()
+                reply = self._answer_selection(txt)
                 out.append("  choose")
             else:
                 if self.rp.sim.stage() == "choice":  # no selection on the screen, one in the simulator: settle it and re-sync (else it sends `pick` forever)
                     self.rp.resolve_phantom_choice(f["state"], "phantom choice on a COMBAT screen")
                 t0 = T()
-                d = self._decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self.fight_tol, keep_potions=self._kp())
+                d = self._decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self._tol(), keep_potions=self._kp())
                 tm["decide"] += T() - t0
                 gate, d = self._potion_gate(d, out)
                 if gate:
@@ -565,8 +599,7 @@ class Harness:
                 before = self.state()  # mid-transition: wait for it to settle
             kind = _kind(before)
             if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2:
-                self.log.new_run()  # a new run starts from the menu: its own record (the narrowing of the encounter pools reads it)
-                self.hold = set()
+                self._new_run()
             if i and self.gate:
                 refusal = self._skill_refusal(before)
                 if refusal:
@@ -658,7 +691,7 @@ class Harness:
         line = next((l for l in state.split("\n") if re.match(rf"^{toks[0]} ", l)), "")
         n_opts = sum(1 for l in state.split("\n") if re.match(r"^\d+ ", l))
         here = _floor(state)
-        ran = lambda *c: any(self.priced.get(x) == here for x in c)  # noqa: E731
+        ran = lambda *c: here is not None and any(self.priced.get(x) == here for x in c)  # noqa: E731  (no header: nothing counts as priced)
         lw = (why or "").lower()
         if kind == "CARD_REWARD":
             return self._pick_guard(state, step, why)
@@ -689,7 +722,7 @@ class Harness:
         names = tuple(o[1] for o in opts)
         if not names:
             return None
-        if self.reward_screen != names:
+        if self.reward_screen != (_floor(state), names):  # this screen's table: same floor and same cards (a stale table from another screen does not count)
             return "REFUSED: run `reward` on this card reward first (sts2-deckbuilding section 1, step 2), then pick with the section-3 bar in the `-- why`.\n" + state
         missing = [k for k in PICK_RECORD if k not in (why or "").lower()]
         if missing:
@@ -866,7 +899,7 @@ class Harness:
         opts, skip = macro.parse_card_options(state)
         hz = self._horizon()
         text, res = macro.reward_report(self.eng(), deck, opts, hz, att, hp, "all")
-        self.reward_screen = tuple(o[1] for o in opts)
+        self.reward_screen = (_floor(state), tuple(o[1] for o in opts))
         self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in r.items()} for k, r in res.items()}, boss=hz["boss"])
         return text + f"\nskip is option {skip}; pick with `a <i> -- why`\n"
 
@@ -1003,9 +1036,10 @@ class Harness:
             if cmd == "a":
                 return self.act(rest)
             if cmd in PRICING:  # the decision guards ask which calculators ran on this floor
+                here = _floor(call("peek"))  # the floor the calculator priced (read before it runs: the screen it saw)
                 out = getattr(self, PRICING[cmd])(rest)
-                if not out.startswith(("ERR", "reward: not", "no run")):
-                    self.priced[cmd] = _floor(call("peek"))
+                if here and not out.startswith(PRICING_FAILED):
+                    self.priced[cmd] = here
                 return out
             if cmd == "brief":
                 return self.brief()
@@ -1021,8 +1055,10 @@ class Harness:
             if cmd == "status":
                 return self.status() + "\n"
             if cmd == "newrun":
-                self.log.new_run()
+                self._new_run()
                 return f"run {self.log.run_id}\n"
+            if cmd == "do" and self.gate:  # a raw bridge action skips every guard (held potions, map, decision record): play through `a` / `turn` / `combat`
+                return "REFUSED: `do` sends a raw action past the harness's guards; use `a <i>`, `turn` or `combat`.\n"
             return call(line)
         except Exception:  # noqa: BLE001
             return "ERR harness: " + traceback.format_exc()

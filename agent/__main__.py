@@ -97,6 +97,14 @@ def start_daemon():
     raise SystemExit("the harness daemon did not start; see target/agent.log")
 
 
+STOP_LINES = ("ERR", "REFUSED", "SIMULATOR DESYNC", "SIMULATOR DIFFERS", "SIMULATOR CHOICE DIFFERS", "POTION (your call)")
+
+
+def _stops(out):
+    """A line inside the output that needs me before anything else runs (`combat` / `turn` print it after the actions they played)."""
+    return any(l.startswith(STOP_LINES) for l in out.splitlines())
+
+
 def batch(lines, keep_going=False):
     """`python -m agent - <<'EOF' ... EOF`: one command per line, run in order, each output printed under `>>> command`. Blank lines and `#` comments are skipped.
     A line whose output starts with ERR / REFUSED / `[chain stopped` ends the batch (the later lines assumed the screen it was meant to leave), unless --keep-going.
@@ -118,7 +126,7 @@ def batch(lines, keep_going=False):
         if line.split()[0] not in READ_ONLY and not out.startswith(("ERR", "REFUSED")):
             acted = True
         print(out, end="" if out.endswith(chr(10)) else chr(10))
-        if not keep_going and (out.startswith(("ERR", "REFUSED")) or "[chain stopped" in out):
+        if not keep_going and (out.startswith(("ERR", "REFUSED")) or "[chain stopped" in out or _stops(out)):
             print(">>> batch stopped here")
             return
 

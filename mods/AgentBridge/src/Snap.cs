@@ -14,7 +14,9 @@ public static class Snap
     /// <summary>Scenario JSON captured when the combat is set up (before any start-of-combat effect), null outside combat.</summary>
     public static string? Scenario;
     /// <summary>Counts combats (new id at every SetUpCombat).</summary>
-    public static int FightId;
+    // Unique across game restarts: the counter starts from the launch time (minutes since 2026) times 1000, so a relaunched game never reuses an id
+    // the harness has already recorded (fight ends, met encounters and fight files are keyed by it).
+    public static int FightId = (int)((DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 1767225600) / 60) * 1000;
     /// <summary>Actions of this combat so far, each one a JSON object: {"play":{"hand_pos":i,"target":e}}, {"use_potion":{"slot":s,"target":e}}, {"end_turn":true}, {"choose":[...]}.</summary>
     public static readonly List<string> Log = new();
     /// <summary>Visible state observed after `n` logged actions (key n; 0 = the start of the fight). Lets the solver rebuild the fight statelessly.</summary>

@@ -54,7 +54,11 @@ def review(run_id=None):
         return "no runs recorded"
     def has_fights(x):
         return any(e["kind"] == "fight_start" for e in runlog.read(os.path.dirname(x)))
-    p = next((x for x in paths if run_id and run_id in x), next((x for x in reversed(paths) if has_fights(x)), paths[-1]))
+    want = os.path.basename(os.path.normpath(run_id)) if run_id else None  # `runs/<id>` or `<id>`: the run folder's name, matched exactly
+    p = next((x for x in paths if want and os.path.basename(os.path.dirname(x)) == want), None) if want else None
+    if want and p is None:
+        return f"no run named {want}"
+    p = p or next((x for x in reversed(paths) if has_fights(x)), paths[-1])
     run_dir = os.path.dirname(p)
     ev = runlog.read(run_dir)
     fights = collections.OrderedDict()
