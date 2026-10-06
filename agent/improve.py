@@ -149,10 +149,7 @@ def review(run_id=None):
         follow.append("no gap stands out in this run")
     lines.append("follow-ups:")
     lines += [f"  - {t}" for t in follow]
-    for s_ in surprises:
-        _append(os.path.join(EVALS, "gaps.jsonl"), s_)
-    for k, v in fid.items():
-        _append(os.path.join(EVALS, "gaps.jsonl"), dict(kind="fidelity", run=os.path.basename(run_dir), what=k, count=v))
+    _append_new(os.path.join(EVALS, "gaps.jsonl"), surprises + [dict(kind="fidelity", run=os.path.basename(run_dir), what=k, count=v) for k, v in fid.items()], GAP_KEY)
     text = "\n".join(lines)
     with open(os.path.join(run_dir, "review.md"), "w", encoding="utf-8") as f:
         f.write(text + "\n")
@@ -193,15 +190,16 @@ def _macro_decisions(ev, run):
                 elif pending["kind"] == "reward_eval" and pick.isdigit():
                     res = (pending.get("result") or {}).get("boss") or {}
                     names = pending.get("options", [])
-                    vi = int(pick) + 1 if int(pick) < len(names) else 0  # variants: 0 = skip, 1.. = the cards in screen order
+                    cards = _variant_options(names)
+                    vi = _pick_variant(int(pick), names, cards)
                     wins = {int(k): v["win"] for k, v in res.items()}
-                    if wins:
+                    if wins and vi is not None:  # vi None: the pick was a card the table did not evaluate (no simulator id)
                         best = max(wins, key=wins.get)
                         priced += 1
                         if wins.get(vi, 0) >= wins[best] - 0.02:
                             followed += 1
                         else:
-                            label = lambda i: "skip" if i == 0 else (names[i - 1] if i - 1 < len(names) else str(i))  # noqa: E731
+                            label = lambda i: "skip" if i == 0 else (names[cards[i - 1]] if i - 1 < len(cards) else str(i))  # noqa: E731
                             off.append(f"  picked {label(vi)} ({wins.get(vi, 0):.3f}) over {label(best)} ({wins[best]:.3f}) vs boss, why: {why[:160]}")
                 pending = None
     if priced or unpriced:
@@ -209,8 +207,48 @@ def _macro_decisions(ev, run):
     lines += off
     for o in overrides:
         lines.append(f"  judgment [{o['screen']}] choice {o['choice']}: {o['judgment'][:200]}")
-        _append(os.path.join(EVALS, "judgments.jsonl"), o)
+    _append_new(os.path.join(EVALS, "judgments.jsonl"), overrides, JUDGMENT_KEY)
     return lines, overrides, unpriced
+
+
+def _variant_options(names):
+    """Which screen options a `reward` table priced, in variant order (variant 0 = skip, then these): `macro.reward_report` evaluates only the cards whose
+    display name maps to a simulator id, so an unmapped card shifts every later variant."""
+    from agent.macro import card_from_name
+    return [i for i, n in enumerate(names) if card_from_name(n)[0]]
+
+
+def _pick_variant(pick, names, cards):
+    """The table's variant of the option picked on screen: 0 for skip (past the cards), None for a card the table did not evaluate."""
+    if pick >= len(names):
+        return 0
+    return cards.index(pick) + 1 if pick in cards else None
+
+
+GAP_KEY = ("kind", "run", "fight", "what")  # one surprise per fight, one fidelity count per divergence kind and run
+JUDGMENT_KEY = ("run", "screen", "choice", "why")
+
+
+def _append_new(path, objs, key):
+    """Append the records the file does not hold yet: a record whose identity (`key` fields) is in the file n times is written only from its (n+1)-th
+    occurrence in `objs` on. Re-running `review` on a run adds nothing, and lines already there (a tally may annotate them) are never rewritten; a later
+    review of a run still in progress keeps the first counts."""
+    def ident(o):
+        return tuple(json.dumps(o.get(k), sort_keys=True, default=str) for k in key)
+    have = collections.Counter()
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            for l in f:
+                try:
+                    have[ident(json.loads(l))] += 1
+                except ValueError:
+                    continue
+    seen = collections.Counter()
+    for o in objs:
+        k = ident(o)
+        seen[k] += 1
+        if seen[k] > have[k]:
+            _append(path, o)
 
 
 # ---------------------------------------------------------------------------------------------------------------- strategy backlog
