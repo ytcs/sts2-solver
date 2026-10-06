@@ -31,18 +31,18 @@ def provably_unwinnable(scenario):
 
 
 class VecEnv:
-    def __init__(self, n_envs, scenarios, seed=0, max_steps=2000, win=1.0, loss=-1.0, hp_bonus=0.0, step_reward=0.0, round_robin=False):
+    def __init__(self, n_envs, scenarios, seed=0, max_steps=2000, win=1.0, loss=-1.0, hp_bonus=0.0, step_reward=0.0, round_robin=False, turn_cap=0):
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         self.n = n_envs
-        self._env = _BatchEnv(n_envs, [json.dumps(s) for s in scenarios], seed, max_steps, win, loss, hp_bonus, step_reward, round_robin)
+        self._env = _BatchEnv(n_envs, [json.dumps(s) for s in scenarios], seed, max_steps, win, loss, hp_bonus, step_reward, round_robin, turn_cap)
         self.obs = np.zeros((n_envs, OBS_SIZE), np.float32)
         self.mask = np.zeros((n_envs, ACTIONS), np.uint8)
         self.reward = np.zeros(n_envs, np.float32)
         self.done = np.zeros(n_envs, np.uint8)
         self.outcome = np.zeros(n_envs, np.int8)
         self.illegal = np.zeros(n_envs, np.uint8)
-        self._ep = np.zeros((n_envs, 4), np.float32)
+        self._ep = np.zeros((n_envs, 7), np.float32)
 
     def reset(self):
         self._env.observe_all(self.obs, self.mask)
@@ -66,10 +66,12 @@ class VecEnv:
     def episode_info(self):
         """Per env, the episode that ended last (valid where `done` was set by the latest `step`): dict of arrays
         `scenario` (index into `scenarios`), `hp_lost` (fraction of max HP lost; a loss counts the HP that was left), `hp_end`
-        (fraction of max HP left, 0 on a loss) and `length` (agent steps)."""
+        (fraction of max HP left, 0 on a loss), `length` (agent steps), `hp_end_abs` (HP left, 0 on a loss), `max_hp_end` and `turns` (player turns).
+        `turn_cap` > 0: a fight still running after that many player turns ends as a loss."""
         self._env.episode_info(self._ep)
         e = self._ep
-        return {"scenario": e[:, 0].astype(np.int32), "hp_lost": e[:, 1], "hp_end": e[:, 2], "length": e[:, 3].astype(np.int32)}
+        return {"scenario": e[:, 0].astype(np.int32), "hp_lost": e[:, 1], "hp_end": e[:, 2], "length": e[:, 3].astype(np.int32),
+                "hp_end_abs": e[:, 4].astype(np.int32), "max_hp_end": e[:, 5].astype(np.int32), "turns": e[:, 6].astype(np.int32)}
 
 
 def replay(scenario, seed, actions):

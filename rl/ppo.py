@@ -3,8 +3,11 @@
 
   .venv/bin/python rl/ppo.py --train target/train/train.json --eval target/train/eval.json --out target/runs/a --iters 500
 
-Reward: +1 for a win (+ `--hp-bonus` x HP fraction left), -1 for a loss or for stalling past `--max-steps`; aborted episodes
-(unported content / capacity overflow) end with reward 0 and are counted separately.
+Reward: +1 for a win (+ `--hp-bonus` x HP fraction left), -1 for a loss, for stalling past `--max-steps` or for still fighting after `--turn-cap`
+player turns; aborted episodes (unported content / capacity overflow) end with reward 0 and are counted separately.
+
+`--heads` (`docs/rl_redesign.md` M1): the value is the expected worth of the fight-outcome distribution (`rl/heads.py`), trained by cross-entropy on
+lambda-returns of the distribution itself (`--lam-head`); `--head-warmup K` first trains that head alone for K iterations (policy and trunk frozen).
 """
 import argparse, json, os, sys, time
 import numpy as np
@@ -14,12 +17,13 @@ import torch.nn.functional as F
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
 import utility
+import heads as H
 from model import Net, n_params, DEV, load_weights
 
 
-def make_env(path, n, seed, max_steps, hp_bonus):
+def make_env(path, n, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
     scen = json.load(open(path))
-    return sts2.VecEnv(n, scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=hp_bonus), scen
+    return sts2.VecEnv(n, scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=hp_bonus, turn_cap=turn_cap), scen
 
 
 def net_policy(net, greedy=True):
@@ -31,9 +35,9 @@ def net_policy(net, greedy=True):
     return act
 
 
-def evaluate(policy, path, n_envs, per_env, seed, max_steps, hp_bonus):
+def evaluate(policy, path, n_envs, per_env, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
     """First `per_env` finished episodes of every env (no short-fight bias). `policy(obs, mask) -> int32 actions`. Returns a stats dict."""
-    env, scen = make_env(path, n_envs, seed, max_steps, hp_bonus)
+    env, scen = make_env(path, n_envs, seed, max_steps, hp_bonus, turn_cap)
     obs, mask = env.reset()
     got = np.zeros(n_envs, np.int32)
     rec = []
@@ -97,6 +101,10 @@ def main():
     ap.add_argument("--rounds", type=int, default=2)
     ap.add_argument("--hold-prob", type=float, default=0.0, help="fraction of episodes that run under a random 'no potion before turn T' rule (T in 2..5, or never): states that hold a resource then show up in the data")
     ap.add_argument("--util-prob", type=float, default=0.0, help="share of episodes whose win reward follows a random HP-worth curve (rl/utility.py) instead of the linear return; the network reads the curve as an input")
+    ap.add_argument("--heads", action="store_true", help="value = expected worth of the fight-outcome head (rl/heads.py) instead of the scalar value head")
+    ap.add_argument("--head-warmup", type=int, default=0, help="with --heads: first train the outcome head alone for this many iterations (policy and trunk frozen)")
+    ap.add_argument("--lam-head", type=float, default=0.95, help="lambda of the outcome head's targets (1 = Monte Carlo endings, 0 = next state's prediction)")
+    ap.add_argument("--turn-cap", type=int, default=H.TURN_CAP, help="a fight still running after this many player turns is a loss (0 = no cap)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", help="checkpoint to continue from (iteration count and lr schedule continue; --iters is the total)")
     ap.add_argument("--warm", action="store_true", help="with --resume: take the weights only (fresh optimizer, iteration 0)")
@@ -105,20 +113,26 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     torch.set_num_threads(a.threads)
     torch.manual_seed(a.seed)
-    net = Net(d=a.d, rounds=a.rounds).to(DEV)
+    if a.heads and a.util_prob > 0:
+        raise SystemExit("--heads uses today's linear worth of the ending (rl/heads.py): no --util-prob")
+    net = Net(d=a.d, rounds=a.rounds, heads=a.heads).to(DEV)
     opt = torch.optim.Adam(net.parameters(), lr=a.lr, eps=1e-5)
+    allow = ("ucond.", "outcome.") if a.heads else ("ucond.",)
     it0, steps = 0, 0
     if a.resume:  # a full checkpoint (net + optimizer + progress) or a bare state dict (weights only: warm start)
         ck = torch.load(a.resume, map_location="cpu")
         if "net" in ck:
-            load_weights(net, ck["net"])
+            load_weights(net, ck["net"], allow)
             if not a.warm:
                 opt.load_state_dict(ck["opt"])
                 it0, steps = ck["it"], ck["steps"]
         else:
-            load_weights(net, ck)
+            load_weights(net, ck, allow)
     print("params", n_params(net), "resuming at iteration", it0, flush=True)
-    env, scen = make_env(a.train, a.envs, a.seed + 1000, a.max_steps, a.hp_bonus)
+    env, scen = make_env(a.train, a.envs, a.seed + 1000, a.max_steps, a.hp_bonus, a.turn_cap)
+    # the outcome head alone first: its own optimizer, the rest of the network untouched
+    opt_w = torch.optim.Adam(net.outcome.parameters(), lr=a.lr, eps=1e-5) if a.heads and a.head_warmup > 0 else None
+    it_warm = it0 + (a.head_warmup if opt_w is not None else 0)  # iterations up to this one only train the outcome head
     N, T = a.envs, a.horizon
     A = sts2.ACTIONS
     b_obs = torch.zeros(T, N, sts2.OBS_SIZE)
@@ -129,6 +143,9 @@ def main():
     b_rew = torch.zeros(T, N)
     b_done = torch.zeros(T, N)
     b_feat = torch.zeros(T, N, 8)
+    if a.heads:
+        b_pout = torch.zeros(T + 1, N, H.NC)  # the outcome head's distribution at every observation (and the one after the horizon)
+        b_term = torch.full((T, N), -1, dtype=torch.long)  # at an episode's last step: its ending class; -2 = aborted (no target); -1 = not done
     obs, mask = env.reset()
     rng = np.random.default_rng(a.seed + 7)
     # one HP-worth curve per running episode (redrawn when it ends): the win reward and the network's input
@@ -154,9 +171,10 @@ def main():
     t0 = time.time()
     steps0 = steps
     ep_stats = []
-    for it in range(it0 + 1, a.iters + 1):
-        lr = a.lr * max(0.05, 1 - (it - 1) / a.iters)
-        for g in opt.param_groups:
+    for it in range(it0 + 1, a.iters + 1 + (it_warm - it0)):
+        warm = it <= it_warm
+        lr = a.lr * max(0.05, 1 - (max(it - (it_warm - it0), 1) - 1) / max(a.iters, 1))  # warm-up iterations do not advance the schedule
+        for g in (opt_w if warm else opt).param_groups:
             g["lr"] = lr
         # ---- rollout ----
         net.eval()
@@ -173,7 +191,11 @@ def main():
                 b_obs[t].numpy()[:] = obs
                 b_mask[t].numpy()[:] = m_eff
                 b_feat[t].numpy()[:] = feat
-                lg, v = net(b_obs[t].to(DEV), b_mask[t].long().to(DEV), ufeat=b_feat[t].to(DEV))
+                if a.heads:
+                    lg, v, ol = net(b_obs[t].to(DEV), b_mask[t].long().to(DEV), ufeat=b_feat[t].to(DEV), outcome=True)
+                    b_pout[t] = torch.softmax(ol, 1).cpu()
+                else:
+                    lg, v = net(b_obs[t].to(DEV), b_mask[t].long().to(DEV), ufeat=b_feat[t].to(DEV))
                 logp = F.log_softmax(lg, 1)
                 act = torch.multinomial(logp.exp(), 1).squeeze(1)
                 b_act[t] = act.cpu()
@@ -193,6 +215,12 @@ def main():
                         r[i] = ri
                 b_rew[t] = torch.from_numpy(r)
                 b_done[t] = torch.from_numpy(done.astype(np.float32))
+                if a.heads:
+                    b_term[t] = -1
+                    if done.any():
+                        cls = H.end_class(oc == 1, ei["hp_end_abs"])
+                        cls = np.where((oc == 3) | (oc == 4), -2, cls)  # aborted: no ending to learn from
+                        b_term[t] = torch.from_numpy(np.where(done, cls, -1).astype(np.int64))
                 if done.any():
                     if a.hold_prob > 0:
                         draw_rules(np.nonzero(done)[0])
@@ -200,7 +228,11 @@ def main():
                     for i in np.nonzero(done)[0]:
                         ep_stats.append((int(oc[i]), float(ei["hp_lost"][i]), int(ei["length"][i])))
                 steps += N
-            _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV))
+            if a.heads:
+                _, last_v, last_ol = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True)
+                b_pout[T] = torch.softmax(last_ol, 1).cpu()
+            else:
+                _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV))
             b_val[T] = last_v.cpu()
         t_roll = time.time() - t_roll
         if inv_err[1] and inv_err[0] > 1e-4:  # the reward override must reproduce the env's own return for the linear curve
@@ -214,11 +246,27 @@ def main():
             last = delta + a.gamma * a.lam * nd * last
             adv[t] = last
         ret = adv + b_val[:T]
+        if a.heads:  # the outcome head's targets: lambda-mix of the next state's prediction and the one-hot ending, backwards through the rollout
+            tgt = torch.zeros(T, N, H.NC)
+            wt = torch.ones(T, N)
+            y = b_pout[T].clone()
+            eye = torch.eye(H.NC)
+            for t in reversed(range(T)):
+                term = b_term[t]
+                boot = (1 - a.lam_head) * b_pout[t + 1] + a.lam_head * y
+                ended = term >= 0
+                aborted = term == -2
+                y = torch.where(ended.unsqueeze(1), eye[term.clamp(min=0)], boot)
+                y = torch.where(aborted.unsqueeze(1), b_pout[t], y)  # no target: its own prediction, weight 0
+                wt[t] = (~aborted).float()
+                tgt[t] = y
         # ---- update ----
         net.train()
         t_upd = time.time()
         fo, fm, ff = b_obs.view(T * N, -1), b_mask.view(T * N, -1), b_feat.view(T * N, -1)
         fa, flp, fadv, fret = b_act.view(-1), b_lp.view(-1), adv.view(-1), ret.view(-1)
+        if a.heads:
+            ftgt, fwt = tgt.view(T * N, -1), wt.view(-1)
         stats = {"pl": 0.0, "vl": 0.0, "ent": 0.0, "kl": 0.0, "clip": 0.0}
         nb = 0
         for ep in range(a.epochs):
@@ -226,27 +274,36 @@ def main():
             for s in range(0, T * N, a.mb):
                 ix = perm[s:s + a.mb]
                 ixd = ix
-                lg, v = net(fo[ix].to(DEV), fm[ix].long().to(DEV), ufeat=ff[ix].to(DEV))
+                if a.heads:
+                    lg, v, ol = net(fo[ix].to(DEV), fm[ix].long().to(DEV), ufeat=ff[ix].to(DEV), outcome=True)
+                else:
+                    lg, v = net(fo[ix].to(DEV), fm[ix].long().to(DEV), ufeat=ff[ix].to(DEV))
                 logp = F.log_softmax(lg, 1)
                 nlp = logp.gather(1, fa[ix, None].to(DEV)).squeeze(1)
                 ratio = (nlp - flp[ix].to(DEV)).exp()
                 ad = fadv[ix].to(DEV)
                 ad = (ad - ad.mean()) / (ad.std() + 1e-8)
                 pl = -torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad).mean()
-                vl = F.smooth_l1_loss(v, fret[ix].to(DEV))
+                if a.heads:  # cross-entropy against the lambda-targets (aborted endings weigh 0)
+                    w_ = fwt[ix].to(DEV)
+                    vl = (-(ftgt[ix].to(DEV) * F.log_softmax(ol, 1)).sum(1) * w_).sum() / w_.sum().clamp(min=1)
+                else:
+                    vl = F.smooth_l1_loss(v, fret[ix].to(DEV))
                 p = logp.exp()
                 ent = -(p * logp.clamp(min=-30) * (fm[ix].to(DEV) > 0)).sum(1).mean()
-                loss = pl + a.vf * vl - a.ent * ent
-                opt.zero_grad(set_to_none=True)
+                o_ = opt_w if warm else opt
+                loss = a.vf * vl if warm else pl + a.vf * vl - a.ent * ent
+                o_.zero_grad(set_to_none=True)
+                net.zero_grad(set_to_none=True)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(net.parameters(), 0.5)
-                opt.step()
+                o_.step()
                 stats["pl"] += pl.item(); stats["vl"] += vl.item(); stats["ent"] += ent.item()
                 stats["kl"] += ((ratio - 1) - (nlp - flp[ix].to(DEV))).mean().item()
                 stats["clip"] += ((ratio - 1).abs() > a.clip).float().mean().item()
                 nb += 1
         t_upd = time.time() - t_upd
-        rec = {"inv": [round(inv_err[0], 6), inv_err[1]], "it": it, "steps": steps, "sps": int((steps - steps0) / (time.time() - t0)), "t_roll": round(t_roll, 1), "t_upd": round(t_upd, 1), "lr": lr}
+        rec = {"inv": [round(inv_err[0], 6), inv_err[1]], "it": it, "warm": warm, "steps": steps, "sps": int((steps - steps0) / (time.time() - t0)), "t_roll": round(t_roll, 1), "t_upd": round(t_upd, 1), "lr": lr}
         rec.update({k: round(v / nb, 4) for k, v in stats.items()})
         if ep_stats:
             e = np.array(ep_stats)
@@ -254,14 +311,15 @@ def main():
             rec.update(win=round(float(wins.mean()), 3), hp_lost=round(float(e[wins, 1].mean()), 3) if wins.any() else None,
                        ep_len=round(float(e[:, 2].mean()), 1), eps=len(e), aborted=int(((e[:, 0] == 3) | (e[:, 0] == 4)).sum()))
             ep_stats = []
-        if it % a.eval_every == 0 or it == a.iters:
+        last_it = a.iters + (it_warm - it0)
+        if it % a.eval_every == 0 or it == last_it:
             net.eval()
-            ev = evaluate(net_policy(net), a.eval, a.eval_envs, a.eval_per_env, 777, a.max_steps, a.hp_bonus)
+            ev = evaluate(net_policy(net), a.eval, a.eval_envs, a.eval_per_env, 777, a.max_steps, a.hp_bonus, a.turn_cap)
             net.train()
             rec["eval"] = ev
             ck = {"net": net.state_dict(), "opt": opt.state_dict(), "it": it, "steps": steps, "args": vars(a)}
             torch.save(ck, os.path.join(a.out, "ckpt.pt"))
-            if it % (4 * a.eval_every) == 0 or it == a.iters:
+            if it % (4 * a.eval_every) == 0 or it == last_it:
                 torch.save(ck, os.path.join(a.out, f"ckpt_{it}.pt"))
         print(json.dumps(rec), flush=True)
         log.write(json.dumps(rec) + "\n"); log.flush()

@@ -14,6 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import sts2
+import heads as H
 
 DEV = torch.device(os.environ.get("STS2_DEVICE", "cpu"))  # STS2_DEVICE=cuda runs the network on a GPU (observations stay numpy on the CPU side)
 LAY = sts2.layout()
@@ -109,9 +110,11 @@ class CardEnc(nn.Module):
 class Net(nn.Module):
     """Entity encoders -> pooled context -> `rounds` of message passing -> pointer heads (see the module docstring)."""
 
-    def __init__(self, d=64, e=24, rounds=2):
+    def __init__(self, d=64, e=24, rounds=2, heads=False):
         super().__init__()
         self.d = d
+        # `heads`: the value is the expected worth of the fight-outcome distribution (`rl/heads.py`, the `outcome` head) instead of the scalar `value` head
+        self.heads = heads
         P = C["OBS_POWERS"]
         self.rounds = rounds
         self.pp = PowerPool(C["N_POWERS"], e)
@@ -146,6 +149,8 @@ class Net(nn.Module):
         self.confirm = mlp(2 * d, d, 1)
         self.end = mlp(2 * d, d, 1)
         self.value = mlp(2 * d, 2 * d, 1)
+        if heads:
+            self.outcome = mlp(2 * d, 2 * d, H.NC)
         # the fight's HP-worth curve (rl/utility.py feats: U at 1/8 .. 8/8 of max HP), added to the player token; zero-initialised, so a network
         # trained before the input existed behaves exactly as before, and the input only matters once training has used it
         self.ucond = nn.Linear(8, d)
@@ -243,9 +248,9 @@ class Net(nn.Module):
         (`rl/dist.py`, the end-HP distribution) use it."""
         return self.forward(obs, None, policy=False, value=False, _gctx=True, ufeat=ufeat, **shape)
 
-    def forward(self, obs, mask, policy=True, value=True, _gctx=False, ufeat=None, **shape):
+    def forward(self, obs, mask, policy=True, value=True, _gctx=False, ufeat=None, outcome=False, **shape):
         """Returns (masked logits [B, ACTION_SPACE], value [B]); `policy=False` / `value=False` skips that head (None) and its cost.
-        `shape`: E / L / has_dec of `encode`."""
+        `outcome` (a `heads` network): returns (logits, value, outcome logits [B, NC]) from one pass. `shape`: E / L / has_dec of `encode`."""
         B = obs.shape[0]
         d = self.d
         E, Q = C["OBS_MAX_ENEMIES"], C["OBS_MAX_CANDS"]
@@ -274,7 +279,7 @@ class Net(nn.Module):
         if _gctx:
             return gctx
         if not policy:
-            return None, self.value(gctx).squeeze(-1)
+            return None, self._value(gctx, obs)
         # targets: V[b, creature id] = v_tgt(enemy token); slot MAX_CREATURES = "no target"
         v = self.v_tgt(enemy) * ep
         V = torch.zeros(B, T + 1, d, device=obs.device, dtype=v.dtype)
@@ -303,7 +308,20 @@ class Net(nn.Module):
         else:
             m = mask > 0
         logits = logits.masked_fill(~m, -1e9)
-        return logits, (self.value(gctx).squeeze(-1) if value else None)
+        if outcome:
+            ol = self.outcome_logits(gctx)
+            return logits, H.value(ol, sl(obs, "player")[:, 1]), ol
+        return logits, (self._value(gctx, obs) if value else None)
+
+    def outcome_logits(self, gctx):
+        """[B, NC] logits of the fight's ending (`rl/heads.py`), in fp32 outside any autocast."""
+        with torch.autocast(gctx.device.type, enabled=False):
+            return self.outcome(gctx.float())
+
+    def _value(self, gctx, obs):
+        if not self.heads:
+            return self.value(gctx).squeeze(-1)
+        return H.value(self.outcome_logits(gctx), sl(obs, "player")[:, 1])  # raw max HP of the observation
 
 
 class Ensemble(nn.Module):
@@ -333,14 +351,15 @@ def load(path):
         return Ensemble([load(p) for p in parts]).to(DEV).eval()
     ck = torch.load(path, map_location="cpu")
     args = ck.get("args", {})
-    net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2))
+    net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2), heads=bool(args.get("heads", False)))
     load_weights(net, ck["net"] if "net" in ck else ck)
     return net.to(DEV).eval()
 
 
-def load_weights(net, sd):
-    """A state dict into `net`; a checkpoint from before the HP-worth input (`ucond`) loads with that input at zero (identical behaviour)."""
+def load_weights(net, sd, allow_missing=("ucond.",)):
+    """A state dict into `net`; a checkpoint from before the HP-worth input (`ucond`) loads with that input at zero (identical behaviour).
+    `allow_missing`: more parameter prefixes the checkpoint may lack (a warm start of the `outcome` head from a scalar-value network)."""
     missing, unexpected = net.load_state_dict(sd, strict=False)
-    bad = [k for k in missing if not k.startswith("ucond.")] + list(unexpected)
+    bad = [k for k in missing if not k.startswith(tuple(allow_missing))] + list(unexpected)
     if bad:
         raise RuntimeError(f"checkpoint does not match the network: {bad[:6]}")

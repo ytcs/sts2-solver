@@ -59,6 +59,8 @@ pub struct SearchCfg {
     /// `table`: the fight's HP-worth curve at 1 % steps), instead of `win + hp_bonus * fraction` / `loss`.
     pub util: [f32; 102],
     pub use_util: bool,
+    /// A fight (real or play-out) still running after this many player turns is a loss (0 = no cap), as in the training env (`RewardConfig::turn_cap`).
+    pub turn_cap: u32,
 }
 
 /// What the engine reports per job (fight).
@@ -269,6 +271,8 @@ fn terminal(cx: &Combat, steps: u32, max_steps: u32, cfg: &SearchCfg) -> Option<
             }
             _ => Some((OUTCOME_LOSS, if cfg.use_util { cfg.util[0] } else { cfg.loss })),
         }
+    } else if cfg.turn_cap > 0 && cx.player.turn_number > cfg.turn_cap as i32 {
+        Some((OUTCOME_LOSS, if cfg.use_util { cfg.util[0] } else { cfg.loss }))
     } else if steps >= max_steps {
         Some((OUTCOME_TRUNCATED, 0.0))
     } else {

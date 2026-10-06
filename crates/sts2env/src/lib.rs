@@ -144,11 +144,13 @@ pub struct RewardConfig {
     pub hp_bonus: f32,
     /// Per-step reward (usually 0 or slightly negative).
     pub step: f32,
+    /// A fight still running after this many player turns ends as a loss (0 = no cap). Stalls are losses, as in the search (`SearchCfg::turn_cap`).
+    pub turn_cap: u32,
 }
 
 impl Default for RewardConfig {
     fn default() -> Self {
-        RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.0, step: 0.0 }
+        RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.0, step: 0.0, turn_cap: 0 }
     }
 }
 
@@ -188,6 +190,10 @@ pub struct EpisodeInfo {
     pub hp_end: f32,
     /// Agent steps the episode took.
     pub len: u32,
+    /// HP left at the end (absolute; 0 on a loss), the max HP at the end, and the player turns the fight took.
+    pub hp_end_abs: i32,
+    pub max_hp_end: i32,
+    pub turns: i32,
 }
 
 /// Why a `BatchEnv` call failed (always a caller / scenario error: stepping itself never fails or panics).
@@ -307,6 +313,8 @@ fn step_one(
             Outcome::Victory => end = Some((OUTCOME_WIN, cfg.win + cfg.hp_bonus * me.hp as f32 / me.max_hp.max(1) as f32)),
             _ => end = Some((OUTCOME_LOSS, cfg.loss)),
         }
+    } else if cfg.turn_cap > 0 && slot.cx.player.turn_number > cfg.turn_cap as i32 {
+        end = Some((OUTCOME_LOSS, cfg.loss));
     } else if slot.steps >= max_steps {
         end = Some((OUTCOME_TRUNCATED, 0.0));
     }
@@ -316,7 +324,8 @@ fn step_one(
         *reward += r;
         let me = slot.cx.cr(0);
         let end_frac = if oc == OUTCOME_WIN { me.hp as f32 / me.max_hp.max(1) as f32 } else { 0.0 };
-        slot.last = EpisodeInfo { scen: slot.scen, hp_lost: slot.hp0 - end_frac, hp_end: end_frac, len: slot.steps };
+        slot.last = EpisodeInfo { scen: slot.scen, hp_lost: slot.hp0 - end_frac, hp_end: end_frac, len: slot.steps, hp_end_abs: if oc == OUTCOME_WIN { me.hp } else { 0 },
+                                  max_hp_end: me.max_hp, turns: slot.cx.player.turn_number };
         if !autoreset {
             slot.frozen = Some(oc);
             write_obs_mask(&mut slot.cx, obs, mask);

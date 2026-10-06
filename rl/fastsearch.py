@@ -15,6 +15,7 @@ import torch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
 import utility
+import heads
 from model import DEV, SEC, C
 
 OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS
@@ -362,7 +363,7 @@ class FastSearch:
                 continue
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, 0.0, 0.0,
                                      self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.carry, self.strat, starts,
-                                     None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns)
+                                     None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns, turn_cap=heads.TURN_CAP)
             pc, vc = eng.max_rows()
             pin = self.cuda
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)

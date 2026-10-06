@@ -12,8 +12,9 @@ struct BatchEnvPy {
 #[pymethods]
 impl BatchEnvPy {
     #[new]
-    #[pyo3(signature = (n_envs, scenarios_json, seed, max_steps, win, loss, hp_bonus, step_reward, round_robin=false))]
-    fn new(n_envs: usize, scenarios_json: Vec<String>, seed: u64, max_steps: u32, win: f32, loss: f32, hp_bonus: f32, step_reward: f32, round_robin: bool) -> PyResult<Self> {
+    #[pyo3(signature = (n_envs, scenarios_json, seed, max_steps, win, loss, hp_bonus, step_reward, round_robin=false, turn_cap=0))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(n_envs: usize, scenarios_json: Vec<String>, seed: u64, max_steps: u32, win: f32, loss: f32, hp_bonus: f32, step_reward: f32, round_robin: bool, turn_cap: u32) -> PyResult<Self> {
         let mut scs = vec![];
         for s in scenarios_json {
             let v: serde_json::Value = serde_json::from_str(&s).map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -21,7 +22,7 @@ impl BatchEnvPy {
             sc.validate().map_err(|e| PyValueError::new_err(format!("scenario uses unported content: {e:?}")))?;
             scs.push((sc, ex));
         }
-        let cfg = RewardConfig { win, loss, hp_bonus, step: step_reward };
+        let cfg = RewardConfig { win, loss, hp_bonus, step: step_reward, turn_cap };
         if scs.is_empty() {
             return Err(PyValueError::new_err("no scenarios"));
         }
@@ -74,20 +75,18 @@ impl BatchEnvPy {
             .map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
-    /// `[n, 4]` f32: scenario index, HP lost fraction, HP left fraction, episode length of the episode each env finished last.
+    /// `[n, 7]` f32: scenario index, HP lost fraction, HP left fraction, episode length, HP left (absolute, 0 on a loss), max HP at the end, player turns
+    /// of the episode each env finished last.
     fn episode_info(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let n = self.env.len();
-        if o.len() < n * 4 {
-            return Err(PyValueError::new_err("buffer shorter than n_envs * 4"));
+        if o.len() < n * 7 {
+            return Err(PyValueError::new_err("buffer shorter than n_envs * 7"));
         }
         let mut info = vec![sts2env::EpisodeInfo::default(); n];
         self.env.episode_info(&mut info);
         for (k, i) in info.iter().enumerate() {
-            o[k * 4] = i.scen as f32;
-            o[k * 4 + 1] = i.hp_lost;
-            o[k * 4 + 2] = i.hp_end;
-            o[k * 4 + 3] = i.len as f32;
+            o[k * 7..k * 7 + 7].copy_from_slice(&[i.scen as f32, i.hp_lost, i.hp_end, i.len as f32, i.hp_end_abs as f32, i.max_hp_end as f32, i.turns as f32]);
         }
         Ok(())
     }
@@ -102,7 +101,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1, turn_cap=0))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         scenarios_json: Vec<String>,
@@ -127,6 +126,7 @@ impl SearchEnginePy {
         starts: Option<Vec<Option<PyRef<'_, sim::Sim>>>>,
         util: Option<Vec<f32>>,
         leaf_turns: u32,
+        turn_cap: u32,
     ) -> PyResult<Self> {
         let mut scs = vec![];
         for s in scenarios_json {
@@ -146,7 +146,7 @@ impl SearchEnginePy {
             Some(u) => return Err(PyValueError::new_err(format!("util must have 102 entries (loss, then wins at 0..100 % HP), got {}", u.len()))),
             None => false,
         };
-        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util };
+        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util, turn_cap };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
         Ok(SearchEnginePy { eng })

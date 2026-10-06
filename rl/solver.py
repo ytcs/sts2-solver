@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
 from model import load
 from fastsearch import FastSearch
+import heads
 from ppo import net_policy
 
 _M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
@@ -54,7 +55,7 @@ class Solver:
     def _greedy(self, scenarios, attempts, seed):
         """The network alone (its most probable action every time): rows (outcome, hp_lost, length, hp_end)."""
         flat = [scenarios[i] for _ in range(attempts) for i in range(len(scenarios))]  # attempt-major
-        env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True)
+        env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=heads.TURN_CAP)
         pol = net_policy(self.net)
         obs, mask = env.reset()
         got = np.zeros(len(flat), bool)
