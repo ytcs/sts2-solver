@@ -11,7 +11,7 @@ weakest link (the lowest win over the boss and the elites to come) and need-weig
   Stone Armor            weakest ENTOMANCER     0.17   need-weighted gain -0.129
 deck buckets FD 14 SD 5 FB 8 SB 2 ACC 4  gaps {}
 section-3 bar (a card into solved buckets must clearly beat skip: boss smooth > max(3 se, 0.05) or +0.10 on the weakest fight):
-  Hemokinesis            boss +0.141 (bar 0.239) weakest +0.13  -> solved buckets, clears the bar
-  Cruelty                boss +0.109 (bar 0.251) weakest +0.07  -> below the bar (solved buckets): default skip unless the judgment names a future problem / synergy it solves
-  Stone Armor            boss +0.125 (bar 0.235) weakest +0.12  -> solved buckets, clears the bar
+  Hemokinesis            boss +0.141 (bar 0.227) weakest +0.13  -> solved buckets, clears the bar
+  Cruelty                boss +0.109 (bar 0.298) weakest +0.07  -> below the bar (solved buckets): default skip unless the judgment names a future problem / synergy it solves
+  Stone Armor            boss +0.125 (bar 0.227) weakest +0.12  -> solved buckets, clears the bar
 skip is option 3; pick with `a <i> -- why`

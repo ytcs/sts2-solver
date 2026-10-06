@@ -10,6 +10,6 @@ weakest link (the lowest win over the boss and the elites to come) and need-weig
 not evaluated (no simulator id for the display name): Mystery Card
 deck buckets FD 14 SD 5 FB 8 SB 2 ACC 4  gaps {}
 section-3 bar (a card into solved buckets must clearly beat skip: boss smooth > max(3 se, 0.05) or +0.10 on the weakest fight):
-  Hemokinesis            boss -0.266 (bar 0.228) weakest -0.12  -> below the bar (solved buckets): default skip unless the judgment names a future problem / synergy it solves
-  Stone Armor            boss -0.141 (bar 0.199) weakest +0.56  -> solved buckets, clears the bar
+  Hemokinesis            boss -0.266 (bar 0.160) weakest -0.12  -> below the bar (solved buckets): default skip unless the judgment names a future problem / synergy it solves
+  Stone Armor            boss -0.141 (bar 0.181) weakest +0.56  -> solved buckets, clears the bar
 skip is option 3; pick with `a <i> -- why`

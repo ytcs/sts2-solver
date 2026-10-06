@@ -336,7 +336,7 @@ class Harness(Live):
         hz = self._horizon()
         text, res = macro.reward_report(self.eng(), deck, opts, hz, att, hp, "all")
         self.reward_screen = guards.reward_key(state)
-        self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in r.items()} for k, r in res.items()}, boss=hz["boss"])
+        self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in macro.loggable(r).items()} for k, r in res.items()}, boss=hz["boss"])
         return text + f"\nskip is option {skip}; pick with `a <i> -- why`\n"
 
     def brief(self):
@@ -389,7 +389,7 @@ class Harness(Live):
             spec["_ctx"] = self._ctx()
         deck = self._run()
         text, summary = macro.evaluate(self.eng(), deck, spec)
-        self.log.event("eval", spec=spec, result=summary)
+        self.log.event("eval", spec=spec, result=macro.loggable(summary))
         return text
 
     # ------------------------------------------------------------------ dispatch

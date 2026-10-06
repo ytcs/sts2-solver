@@ -100,7 +100,8 @@ class Solver:
             res.append(dict(win=float(p), win_se=float((p * (1 - p) / max(n, 1)) ** 0.5), hp_lost=float(r[valid, 1].mean()) if n else None,
                             hp_lost_se=float(r[valid, 1].std(ddof=1) / n ** 0.5) if n > 1 else None,
                             hp_left_on_win=float(r[win, 3].mean() * scenarios[i]["max_hp"]) if win.any() else 0.0, attempts=n, aborted=int((~valid).sum()),
-                            ends=np.where(win, r[:, 3] * scenarios[i]["max_hp"], 0.0)[valid].tolist()))  # end HP per attempt, 0 when lost (agent.routes)
+                            ends=np.where(win, r[:, 3] * scenarios[i]["max_hp"], 0.0)[valid].tolist(),  # end HP per attempt, 0 when lost (agent.routes)
+                            wins=[float(w) if ok else None for w, ok in zip(win, valid)]))  # every attempt in order (None: aborted): paired differences under `groups`
         return res
 
 

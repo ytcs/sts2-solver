@@ -106,8 +106,40 @@ def _pooled_se(ses):
 
 
 def _vs(summary, vi, key="win"):
-    """(difference, its standard error) of variant vi against the baseline (variant 0)."""
-    return summary[vi][key] - summary[0][key], (summary[vi]["se"] ** 2 + summary[0]["se"] ** 2) ** 0.5
+    """(difference, its standard error) of variant vi against the baseline (variant 0). The se is the paired one when the evaluation kept the attempts
+    (`dse`: variants share seeds per encounter, so their luck cancels), else the two variants' se combined as if independent."""
+    d = summary[vi][key] - summary[0][key]
+    if key == "win" and summary[vi].get("dse") is not None:
+        return d, summary[vi]["dse"]
+    return d, (summary[vi]["se"] ** 2 + summary[0]["se"] ** 2) ** 0.5
+
+
+def loggable(summary):
+    """An evaluation summary without the per-attempt arrays (for the run log)."""
+    return {vi: {k: v for k, v in s.items() if k != "diffs"} for vi, s in summary.items()}
+
+
+def _paired_se(diffs):
+    """Standard error of the mean over encounters of per-attempt win differences ({encounter: [attempt diffs, nan = an aborted attempt]}); None if any
+    encounter has fewer than 2 paired attempts."""
+    ses = []
+    for x in diffs.values():
+        x = np.asarray(x, float)
+        x = x[~np.isnan(x)]
+        if len(x) < 2:
+            return None
+        ses.append(x.std(ddof=1) / len(x) ** 0.5)
+    return _pooled_se(ses) if ses else None
+
+
+def _diffs(rows, rows0):
+    """Per encounter, the per-attempt win differences of a variant's results against the baseline's (None without per-attempt wins)."""
+    out = {}
+    for (e, r), (e0, r0) in zip(rows, rows0):
+        if e != e0 or r.get("wins") is None or r0.get("wins") is None or len(r["wins"]) != len(r0["wins"]):
+            return None
+        out[e] = [np.nan if a is None or b is None else a - b for a, b in zip(r["wins"], r0["wins"])]
+    return out
 
 
 def evaluate_smooth(engine, deck_json, spec):
@@ -126,11 +158,14 @@ def evaluate_smooth(engine, deck_json, spec):
         wins = [p[1][vi]["win"] for p in parts]
         se = _pooled_se(p[1][vi]["se"] for p in parts)
         per = {e: sum(p[1][vi]["per"][e] for p in parts) / len(parts) for e in parts[0][1][vi]["per"]}
-        summary[vi] = dict(win=sum(wins) / len(wins), se=se, hp_lost=sum(p[1][vi]["hp_lost"] for p in parts) / len(parts), by_hp=wins, per=per)
+        # paired: per encounter and attempt, the difference averaged over the HP levels (the levels share seeds, so they are not independent)
+        dl = [p[1][vi].get("diffs") for p in parts]
+        dse = _paired_se({e: np.mean([d[e] for d in dl], axis=0) for e in dl[0]}) if all(d is not None for d in dl) else None
+        summary[vi] = dict(win=sum(wins) / len(wins), se=se, dse=dse if vi else None, hp_lost=sum(p[1][vi]["hp_lost"] for p in parts) / len(parts), by_hp=wins, per=per)
         lines.append(f"{v.get('name', vi):24s} smooth {summary[vi]['win']:.3f} ±{se:.3f}  | " + " ".join(f"x{m}:{w:.2f}" for m, w in zip(SMOOTH_MULTS, wins)))
     for vi in range(1, len(variants)):
         d, sd = _vs(summary, vi)
-        lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: smooth {d:+.3f} (±{sd:.3f})")
+        lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: smooth {d:+.3f} (±{sd:.3f}{' paired' if summary[vi]['dse'] is not None else ''})")
     return "\n".join(lines), summary
 
 
@@ -171,11 +206,13 @@ def evaluate(engine, deck_json, spec):
         hpl = sum((r["hp_lost"] or 0) for _, r in rows) / len(rows)
         lost = np.concatenate([base["hp"] - np.array(r["ends"]) for _, r in rows if r.get("ends")]) if any(r.get("ends") for _, r in rows) else np.zeros(1)
         lq = [float(x) for x in np.percentile(lost, [10, 50, 90, 97.5])]  # the distribution of HP lost (a loss counts as the whole start HP), pooled over the encounters
-        summary[vi] = dict(win=win, se=se, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows})  # per-encounter win: the weakest-fight views need it
+        diffs = _diffs(rows, by[0])
+        summary[vi] = dict(win=win, se=se, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows},  # per-encounter win: the weakest-fight views need it
+                           diffs=diffs, dse=_paired_se(diffs) if vi and diffs is not None else None)
         lines.append(f"{v.get('name', vi):24s} win {win:.3f} ±{se:.3f}  HP lost {100 * hpl:4.1f}% (q10/50/90/97.5: {lq[0]:.0f}/{lq[1]:.0f}/{lq[2]:.0f}/{lq[3]:.0f} HP)  | " + " ".join(f"{e.split('_')[0][:8]}:{r['win']:.2f}" for e, r in rows))
     for vi in range(1, len(variants)):
         d, sd = _vs(summary, vi)
-        lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: win {d:+.3f} (±{sd:.3f}), HP lost {100 * (summary[vi]['hp_lost'] - summary[0]['hp_lost']):+.1f} pts")
+        lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: win {d:+.3f} (±{sd:.3f}{' paired' if summary[vi]['dse'] is not None else ''}), HP lost {100 * (summary[vi]['hp_lost'] - summary[0]['hp_lost']):+.1f} pts")
     return "\n".join(lines), summary
 
 
