@@ -26,6 +26,100 @@ const NONE: u32 = u32::MAX;
 /// Largest number of options per decision.
 pub const MAX_M: usize = 8;
 
+/// Classes of the fight-outcome head (`rl/heads.py`): 0 = a loss, b = 1..HEAD_NB = a win with end HP in ((b - 1) * HEAD_BIN, b * HEAD_BIN] (the last bin open).
+pub const HEAD_BIN: i32 = 2;
+pub const HEAD_NB: usize = 75;
+pub const HEAD_NC: usize = HEAD_NB + 1;
+/// Belt slots the potion prices and the potion-use head cover.
+pub const POT: usize = sts2sim::state::MAX_POTIONS;
+
+/// What a job's endings are worth (`docs/rl_redesign.md` 3.2, the decision layer): with `table`, a finished play-out scores `u[class of its ending]` and a leaf
+/// `sum_b P(b) u[b]` from the outcome head's distribution, minus `price[k]` for every root potion the play-out used (at a leaf, plus `price[k]` times the potion-use
+/// head's probability for a root potion still in its slot). Without `table` (the default): today's linear return (`win + hp_bonus x HP fraction` / `loss`).
+#[derive(Clone, Copy, Debug)]
+pub struct Worth {
+    pub table: bool,
+    pub u: [f32; HEAD_NC],
+    pub price: [f32; POT],
+}
+
+impl Worth {
+    pub fn linear() -> Worth {
+        Worth { table: false, u: [0.0; HEAD_NC], price: [0.0; POT] }
+    }
+}
+
+/// Class of a won fight that ends at `hp` (`rl/heads.py` `end_class`).
+fn end_class(hp: i32) -> usize {
+    ((hp.max(0) + HEAD_BIN - 1) / HEAD_BIN).clamp(1, HEAD_NB as i32) as usize
+}
+
+/// Potion ids per belt slot (`u16::MAX` = empty).
+fn pot_ids(cx: &Combat) -> [u16; POT] {
+    let mut o = [u16::MAX; POT];
+    for (k, p) in cx.player.potions.iter().enumerate().take(POT) {
+        if let Some(p) = p {
+            o[k] = p.id;
+        }
+    }
+    o
+}
+
+/// The price of every root potion a play-out used, plus (at a leaf, `p_use` = the potion-use head) the price times the probability that a root potion still in its slot is used.
+fn potion_charge(w: &Worth, used: u8, p_use: Option<&[f32]>) -> f32 {
+    let mut c = 0.0;
+    for k in 0..POT {
+        if w.price[k] == 0.0 {
+            continue;
+        }
+        if (used >> k) & 1 == 1 {
+            c += w.price[k];
+        } else if let Some(p) = p_use {
+            c += w.price[k] * p[k];
+        }
+    }
+    c
+}
+
+/// Score of a finished play-out (`terminal`'s reward, or with a worth table the worth of its class minus its potion charge).
+fn end_score(cx: &Combat, oc: i8, r: f32, w: &Worth, used: u8) -> f32 {
+    if !w.table {
+        return r;
+    }
+    let base = match oc {
+        OUTCOME_WIN => w.u[end_class(cx.cr(0).hp)],
+        OUTCOME_LOSS => w.u[0],
+        _ => return 0.0,
+    };
+    base - potion_charge(w, used, None)
+}
+
+/// A value row's answer at a leaf: the scalar value (`val_w` = 1), or the outcome head's class probabilities (and the potion-use head's per-slot probabilities)
+/// combined with the job's worth; without a table, today's linear return of each class from the leaf's max HP (`rl/heads.py` `value`).
+fn leaf_value(r: &[f32], cx: &Combat, cfg: &SearchCfg, w: &Worth, used: u8) -> f32 {
+    if r.len() == 1 {
+        return r[0];
+    }
+    let p = &r[..HEAD_NC];
+    if w.table {
+        let mut v = 0.0f32;
+        for b in 0..HEAD_NC {
+            v += p[b] * w.u[b];
+        }
+        let pu = if r.len() >= HEAD_NC + POT { Some(&r[HEAD_NC..HEAD_NC + POT]) } else { None };
+        v - potion_charge(w, used, pu)
+    } else {
+        let mx = cx.cr(0).max_hp.max(1) as f32;
+        let half = (HEAD_BIN as f32 - 1.0) / 2.0;
+        let mut v = p[0] * cfg.loss;
+        for (b, &pb) in p.iter().enumerate().skip(1) {
+            let c = b as f32 * HEAD_BIN as f32 - half;
+            v += pb * (cfg.win + cfg.hp_bonus * (c / mx).min(1.0));
+        }
+        v
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct SearchCfg {
     /// Options (the policy's most probable actions) tried per decision.
@@ -61,6 +155,9 @@ pub struct SearchCfg {
     pub use_util: bool,
     /// A fight (real or play-out) still running after this many player turns is a loss (0 = no cap), as in the training env (`RewardConfig::turn_cap`).
     pub turn_cap: u32,
+    /// Floats per value row the caller answers: 1 (a scalar value), `HEAD_NC` (the outcome head's class probabilities) or `HEAD_NC + POT` (and the potion-use
+    /// head's per-slot probabilities). Rows wider than 1 are combined in Rust with the job's [`Worth`].
+    pub val_w: usize,
 }
 
 /// What the engine reports per job (fight).
@@ -72,6 +169,8 @@ pub struct JobResult {
     pub hp_end: f32,
     pub len: u32,
     pub done: bool,
+    /// end HP (absolute; 0 unless won)
+    pub hp_end_abs: i32,
 }
 
 /// One move of a recorded fight: the action played, and for searched decisions the options considered with their policy probabilities
@@ -157,6 +256,21 @@ struct Sim {
     steps: u32,
     /// the play-out's own stream for sampling the policy's moves (`Out::pol_u`): seeded from the future's key, so a job seed fixes the play-outs
     rng: u64,
+    /// the root's potion ids per slot and the slots whose root potion this play-out has used (or lost) so far (tracked with a worth table only)
+    pot0: [u16; POT],
+    used: u8,
+}
+
+impl Sim {
+    /// Marks the root potions no longer in their slot as used.
+    #[inline]
+    fn track_potions(&mut self) {
+        for k in 0..POT {
+            if self.pot0[k] != u16::MAX && (self.used >> k) & 1 == 0 && self.cx.player.potions[k].map(|p| p.id) != Some(self.pot0[k]) {
+                self.used |= 1 << k;
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -227,12 +341,15 @@ struct Out {
 struct Inputs<'a> {
     /// `[rows, 2M + 1]`: the M best action indices, their probabilities, the action to play in a play-out.
     pol: &'a [f32],
+    /// `[rows, val_w]`
     val: &'a [f32],
 }
 
 struct Shared<'a> {
     cfg: SearchCfg,
     scen: &'a [(Scenario, ScenarioExtras)],
+    /// per scenario index: what its endings are worth
+    worth: &'a [Worth],
     /// per scenario index: a combat to start the job from (a mid-fight state), instead of resetting the scenario
     starts: &'a [Option<Combat>],
     jobs: &'a [(u32, u64)],
@@ -370,7 +487,8 @@ fn shows_draw_pile(cx: &Combat) -> bool {
 /// With `scratch` (the shared prefix of an option) every step is first tried on a copy: if it touches hidden information the function returns
 /// `Some(act)` with `scratch` holding the state before that step and `sim` spoilt, so the caller can branch there; otherwise it behaves as without.
 #[inline(never)]
-fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut SearchStats, mut scratch: Option<&mut Combat>, mut acts: Option<&mut Vec<u16>>) -> Option<Action> {
+#[allow(clippy::too_many_arguments)]
+fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats, mut scratch: Option<&mut Combat>, mut acts: Option<&mut Vec<u16>>) -> Option<Action> {
     loop {
         let sig0 = if let Some(sc) = scratch.as_deref_mut() {
             sc.clone_from(&sim.cx);
@@ -400,28 +518,38 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
         if !ok {
             // cannot happen for an action the policy took from the legal set; count it and score the copy as lost
             st.illegal += 1;
-            sim.est += cfg.loss;
+            sim.est += if w.table { w.u[0] } else { cfg.loss };
             sim.st = SimSt::Done;
             return None;
         }
-        if let Some((_, r)) = terminal(&sim.cx, 0, u32::MAX, cfg) {
-            sim.est += r;
+        if w.table {
+            sim.track_potions();
+        }
+        if let Some((oc, r)) = terminal(&sim.cx, 0, u32::MAX, cfg) {
+            sim.est += end_score(&sim.cx, oc, r, w, sim.used);
             sim.st = SimSt::Done;
             st.end_term += 1;
             return None;
         }
-        if (sim.cx.player.turn_number - sim.start_turn) as i64 >= cfg.leaf_turns as i64 {
+        // with a worth table a capped play-out is valued by the network (0 is not a neutral score in those units)
+        let capped = sim.steps >= cfg.roll_cap;
+        let at_leaf = (sim.cx.player.turn_number - sim.start_turn) as i64 >= cfg.leaf_turns as i64;
+        if at_leaf || (capped && w.table) {
             let t0 = tsc();
             let row = val_row(out, &sim.cx);
             let buf = ActionBuf::new();
             write_row(&mut sim.cx, &buf, None, out.val_obs, None, row);
             st.cy_obs += tsc() - t0;
             st.value_rows += 1;
-            st.end_turn += 1;
+            if at_leaf {
+                st.end_turn += 1;
+            } else {
+                st.end_cap += 1;
+            }
             sim.st = SimSt::Val(row as u32);
             return None;
         }
-        if sim.steps >= cfg.roll_cap {
+        if capped {
             sim.st = SimSt::Done;
             st.end_cap += 1;
             return None;
@@ -455,7 +583,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
 impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
-        let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0 }).collect();
+        let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0, pot0: [u16::MAX; POT], used: 0 }).collect();
         Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], lead_acts: Default::default(), carry: None, known: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
     }
 
@@ -487,7 +615,8 @@ impl Block {
     fn record(&mut self, sh: &Shared, outcome: i8) {
         let me = self.main.cr(0);
         let end_frac = if outcome == OUTCOME_WIN { me.hp as f32 / me.max_hp.max(1) as f32 } else { 0.0 };
-        let r = JobResult { scen: self.scen, outcome, hp_lost: self.hp0 - end_frac, hp_end: end_frac, len: self.steps, done: true };
+        let hp_end_abs = if outcome == OUTCOME_WIN { me.hp } else { 0 };
+        let r = JobResult { scen: self.scen, outcome, hp_lost: self.hp0 - end_frac, hp_end: end_frac, len: self.steps, done: true, hp_end_abs };
         // SAFETY: every job index is taken by exactly one block (atomic counter), so this entry is written once and by this task only.
         unsafe { *sh.results.0.add(self.job as usize) = r };
         if sh.record {
@@ -616,6 +745,8 @@ impl Block {
         }
         let turn = self.main.player.turn_number;
         let lead = cfg.lead && k >= 2;
+        let w = &sh.worth[self.scen as usize];
+        let pot0 = pot_ids(&self.main);
         for j in 0..m {
             self.lead[j] = false;
             self.known[j] = false;
@@ -659,14 +790,16 @@ impl Block {
                 sim.est = 0.0;
                 sim.steps = 0;
                 sim.rng = self.ks[kk] ^ ROLL_SALT;
+                sim.pot0 = pot0;
+                sim.used = 0;
                 self.stats.forks += 1;
             }
             if lead {
                 self.lead[j] = true;
-                self.lead_run(j, first, cfg, out);
+                self.lead_run(j, first, cfg, w, out);
             } else {
                 for kk in 0..k {
-                    sim_run(&mut self.sims[j * k + kk], first, cfg, out, &mut self.stats, None, None);
+                    sim_run(&mut self.sims[j * k + kk], first, cfg, w, out, &mut self.stats, None, None);
                 }
             }
         }
@@ -676,14 +809,14 @@ impl Block {
 
     /// Runs the shared prefix of option `j` (see `SearchCfg::lead`) from `act` until it needs the policy / the value network, ends, or reaches a step that
     /// touches hidden information, where the `k` futures branch.
-    fn lead_run(&mut self, j: usize, act: Action, cfg: &SearchCfg, out: &Out) {
+    fn lead_run(&mut self, j: usize, act: Action, cfg: &SearchCfg, w: &Worth, out: &Out) {
         let k = cfg.k;
         let base = j * k;
         let branch = {
             let (head, tail) = self.sims.split_at_mut(base + k - 1);
             let scratch = &mut tail[0];
             let lead = &mut head[base];
-            sim_run(lead, act, cfg, out, &mut self.stats, Some(&mut scratch.cx), Some(&mut self.lead_acts[j]))
+            sim_run(lead, act, cfg, w, out, &mut self.stats, Some(&mut scratch.cx), Some(&mut self.lead_acts[j]))
         };
         match branch {
             Some(a) => {
@@ -692,9 +825,9 @@ impl Block {
                 self.lead_acts[j].push(a.index() as u16);
                 self.stats.lead_prefix_steps += self.sims[base].steps as u64;
                 self.stats.lead_first_unclean += (self.sims[base].steps == 0) as u64;
-                let (est, steps, start_turn) = {
+                let (est, steps, start_turn, pot0, used) = {
                     let l = &self.sims[base];
-                    (l.est, l.steps, l.start_turn)
+                    (l.est, l.steps, l.start_turn, l.pot0, l.used)
                 };
                 for kk in 0..k - 1 {
                     let (head, tail) = self.sims.split_at_mut(base + k - 1);
@@ -709,8 +842,10 @@ impl Block {
                     sim.est = est;
                     sim.steps = steps;
                     sim.start_turn = start_turn;
+                    sim.pot0 = pot0;
+                    sim.used = used;
                     sim.rng = self.ks[kk] ^ ROLL_SALT ^ (steps as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
-                    sim_run(sim, a, cfg, out, &mut self.stats, None, None);
+                    sim_run(sim, a, cfg, w, out, &mut self.stats, None, None);
                 }
                 self.lead[j] = false;
             }
@@ -825,6 +960,8 @@ impl Block {
             RootSt::Searching => {
                 let Some(inp) = inp else { return };
                 let cfg = sh.cfg;
+                let w = &sh.worth[self.scen as usize];
+                let vw = cfg.val_w;
                 // only the sims that were waiting when this call began have an answer (a branching option starts others during the loop)
                 let mut todo = std::mem::take(&mut self.todo);
                 todo.clear();
@@ -839,9 +976,9 @@ impl Block {
                             match Action::from_index(a as usize) {
                                 Some(act) => {
                                     if is_lead {
-                                        self.lead_run(j, act, &cfg, out);
+                                        self.lead_run(j, act, &cfg, w, out);
                                     } else {
-                                        sim_run(&mut self.sims[idx], act, &cfg, out, &mut self.stats, None, None);
+                                        sim_run(&mut self.sims[idx], act, &cfg, w, out, &mut self.stats, None, None);
                                     }
                                 }
                                 None => {
@@ -852,7 +989,8 @@ impl Block {
                         }
                         SimSt::Val(row) => {
                             let sim = &mut self.sims[idx];
-                            sim.est += inp.val[row as usize];
+                            let r = row as usize * vw;
+                            sim.est += leaf_value(&inp.val[r..r + vw], &sim.cx, &cfg, w, sim.used);
                             sim.st = SimSt::Done;
                             let j = idx / cfg.k;
                             if self.lead[j] && idx % cfg.k == 0 {
@@ -872,6 +1010,7 @@ impl Block {
 pub struct SearchEngine {
     cfg: SearchCfg,
     scen: Vec<(Scenario, ScenarioExtras)>,
+    worth: Vec<Worth>,
     starts: Vec<Option<Combat>>,
     jobs: Vec<(u32, u64)>,
     blocks: Vec<Block>,
@@ -892,8 +1031,11 @@ impl SearchEngine {
     /// Like `new`; `starts[i]` (when present) is a combat that jobs of scenario `i` start from instead of the scenario's beginning (a fight in progress:
     /// the search then decides from there; hidden information is resampled for every future as always).
     pub fn new_with_starts(scen: Vec<(Scenario, ScenarioExtras)>, starts: Vec<Option<Combat>>, jobs: Vec<(u32, u64)>, n_roots: usize, cfg: SearchCfg, threads: usize, record: bool) -> Result<SearchEngine, EnvError> {
-        if scen.is_empty() || cfg.m == 0 || cfg.m > MAX_M || cfg.k == 0 {
+        if scen.is_empty() || cfg.m == 0 || cfg.m > MAX_M || cfg.k == 0 || !(cfg.val_w == 1 || cfg.val_w == HEAD_NC || cfg.val_w == HEAD_NC + POT) {
             return Err(EnvError::Buffer("bad search configuration"));
+        }
+        if cfg.use_util && cfg.val_w != 1 {
+            return Err(EnvError::Buffer("the HP-worth curve (util) needs scalar value rows"));
         }
         if jobs.iter().any(|&(s, _)| s as usize >= scen.len()) {
             return Err(EnvError::Buffer("job refers to an unknown scenario"));
@@ -911,7 +1053,23 @@ impl SearchEngine {
         let blocks: Result<Vec<Block>, EnvError> = pool.install(|| (0..n).into_par_iter().map(|_| Block::new(&scen[0].0, &scen[0].1, cfg.m * cfg.k)).collect());
         let results = vec![JobResult::default(); jobs.len()];
         let logs = if record { vec![Vec::new(); jobs.len()] } else { Vec::new() };
-        Ok(SearchEngine { cfg, scen, starts, jobs, blocks: blocks?, results, logs, record, next_job: 0, pool, started: false })
+        let worth = vec![Worth::linear(); scen.len()];
+        Ok(SearchEngine { cfg, scen, worth, starts, jobs, blocks: blocks?, results, logs, record, next_job: 0, pool, started: false })
+    }
+
+    /// What each scenario's endings are worth (one [`Worth`] per scenario; default linear). A table needs value rows from the outcome head (`val_w` > 1).
+    pub fn set_worth(&mut self, worth: Vec<Worth>) -> Result<(), EnvError> {
+        if worth.len() != self.scen.len() {
+            return Err(EnvError::Buffer("one worth per scenario"));
+        }
+        if self.started {
+            return Err(EnvError::Buffer("set_worth after the first advance"));
+        }
+        if self.cfg.val_w == 1 && worth.iter().any(|w| w.table) {
+            return Err(EnvError::Buffer("a worth table needs the outcome head's value rows (val_w > 1)"));
+        }
+        self.worth = worth;
+        Ok(())
     }
 
     pub fn n_roots(&self) -> usize {
@@ -925,6 +1083,10 @@ impl SearchEngine {
     /// Largest number of policy / value rows one call can request (size the buffers with it).
     pub fn max_rows(&self) -> (usize, usize) {
         (self.blocks.len() * (self.cfg.m * self.cfg.k + 1), self.blocks.len() * self.cfg.m * self.cfg.k)
+    }
+
+    pub fn val_w(&self) -> usize {
+        self.cfg.val_w
     }
 
     /// The recorded moves of a finished job (empty unless the engine was created with `record`).
@@ -984,6 +1146,11 @@ impl SearchEngine {
         if pol_obs.len() < pc * OBS_SIZE || pol_mask.len() < pc * ACTION_SPACE || pol_kind.len() < pc || pol_u.len() < pc || val_obs.len() < vc * OBS_SIZE || val_kind.len() < vc {
             return Err(EnvError::Buffer("request buffers too small, see SearchEngine::max_rows"));
         }
+        if let Some(v) = val {
+            if v.len() % self.cfg.val_w != 0 {
+                return Err(EnvError::Buffer("value answers are not a whole number of rows of val_w floats"));
+            }
+        }
         let first = !self.started;
         if !first && (pol.is_none() || val.is_none()) {
             return Err(EnvError::Buffer("answers missing"));
@@ -1001,7 +1168,7 @@ impl SearchEngine {
             n_pol: AtomicUsize::new(0),
             n_val: AtomicUsize::new(0),
         };
-        let sh = Shared { cfg: self.cfg, scen: &self.scen, starts: &self.starts, jobs: &self.jobs, next_job: AtomicUsize::new(self.next_job), results: SendPtr(self.results.as_mut_ptr()), logs: SendPtr(self.logs.as_mut_ptr()), record: self.record };
+        let sh = Shared { cfg: self.cfg, scen: &self.scen, worth: &self.worth, starts: &self.starts, jobs: &self.jobs, next_job: AtomicUsize::new(self.next_job), results: SendPtr(self.results.as_mut_ptr()), logs: SendPtr(self.logs.as_mut_ptr()), record: self.record };
         let inp = if first { None } else { Some(Inputs { pol: pol.unwrap(), val: val.unwrap() }) };
         let blocks = &mut self.blocks;
         self.pool.install(|| {

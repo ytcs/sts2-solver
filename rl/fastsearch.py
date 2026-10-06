@@ -6,7 +6,11 @@ one observation row into a request buffer; this driver runs the policy on all po
 and hands the answers back. Two engines (`groups`) alternate so the CPU simulates one while the GPU evaluates the other.
 
   fs = FastSearch(net, value_nets=[...], M=3, K=8)
-  rows = fs.run(scenario_dicts, job_scen, job_seed)      # [n_jobs, 6]: scenario, outcome, hp_lost, hp_end, length, finished
+  rows = fs.run(scenario_dicts, job_scen, job_seed)      # [n_jobs, 7]: scenario, outcome, hp_lost, hp_end, length, finished, end HP (absolute)
+
+With an outcome-head network (`rl/heads.py`) and no extra value networks, value rows come back as the head's class probabilities and Rust combines them
+with each job's worth (`run(..., worth=)`: per scenario None = today's linear return, or a table over the classes and per-slot potion prices; the decision
+layer of `docs/rl_redesign.md` 3.2).
 """
 import json, os, sys, time, collections
 import numpy as np
@@ -19,6 +23,24 @@ import heads
 from model import DEV, SEC, C
 
 OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS
+_NAMES = sts2.names()
+NC, POT = _NAMES["head_nc"], _NAMES["pot"]
+assert NC == heads.NC and _NAMES["head_bin"] == heads.BIN, "rl/heads.py and the Rust search disagree on the outcome classes"
+WORTH_W = 1 + NC + POT
+
+
+def worth_row(w):
+    """One scenario's worth for the engine: None = linear; else dict(u=[NC] class worths, price=[POT] per belt slot, default 0)."""
+    r = np.zeros(WORTH_W, np.float32)
+    if w is None:
+        return r
+    u = np.asarray(w["u"], np.float32)
+    assert u.shape == (NC,), u.shape
+    r[0] = 1.0
+    r[1:1 + NC] = u
+    pr = np.asarray(w.get("price", np.zeros(POT)), np.float32)
+    r[1 + NC:1 + NC + len(pr)] = pr
+    return r
 _E0, _ES, _EN = SEC["enemies"][0], C["ENEMY_F"], C["OBS_MAX_ENEMIES"]
 # Play-out depth in player turns before the value network takes over. 2 since 2026-10-06: decision regret vs a Monte Carlo referee 0.0038 vs 0.0099 at
 # depth 1 (150 recorded states, `tools/bench_search.py`, paired fight-clustered CI of the difference excludes 0); whole fights with the live search shape
@@ -135,7 +157,7 @@ class GraphFn:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, roll_cap=None, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=None):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=None, dist=None):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -161,6 +183,11 @@ class FastSearch:
         # the fight's HP-worth curve (`rl/utility.py`, `set_util`): the networks read it as an input (U at 8 HP points, one buffer for every row) and the
         # Rust terminal scores a finished fight by it; default linear = the original return
         self.dist_head = dist_head  # unused (kept for callers); the add-on end-HP head was not adopted
+        # value rows as the outcome head's class probabilities, combined in Rust per job (default: whenever the network has the head and no extra value nets)
+        self.dist = (bool(getattr(net, "heads", False)) and not self.value_nets) if dist is None else dist
+        if self.dist and (self.value_nets or not getattr(net, "heads", False)):
+            raise ValueError("dist value rows need one outcome-head network (no extra value nets)")
+        self.val_w = NC if self.dist else 1
         self.util = None
         self._ufeat_t = torch.tensor(utility.LINEAR_FEATS, device=DEV)
         self._runs = []
@@ -249,14 +276,18 @@ class FastSearch:
             nets, E = [self.net] + list(self.value_nets), self.graph_E
 
             amp = self.value_amp
-            ens = lambda o: sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec, ufeat=self._uf(o))[1].float() for n in nets)
+            if self.dist:
+                net0 = self.net
+                ens = lambda o: torch.softmax(net0.outcome_logits(net0.trunk(o, E=E, L=64, has_dec=has_dec, ufeat=self._uf(o))), 1)
+            else:
+                ens = lambda o: sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec, ufeat=self._uf(o))[1].float() for n in nets)
             if self.compile:
                 ens = torch.compile(ens, dynamic=True)
 
             def fn(o, m):
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
                     v = ens(o)
-                return (v / len(nets)).unsqueeze(1)
+                return v.float() if self.dist else (v / len(nets)).unsqueeze(1)
             self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None)
         return self._graphs[key]
 
@@ -299,11 +330,11 @@ class FastSearch:
             elif nd == n_val:
                 out = self._val_graph(True)(vo, None)
             else:
-                out = torch.empty(n_val, 1, device=DEV)
+                out = torch.empty(n_val, self.val_w, device=DEV)
                 for hd in (False, True):
                     idx = torch.from_numpy(np.flatnonzero(dec == hd)).to(DEV, non_blocking=True)
                     out[idx] = self._val_graph(hd)(vo, None, idx)
-            G["val_out_t"][:n_val].copy_(out.squeeze(1), non_blocking=True)
+            G["val_out_t"][:n_val].copy_(out.view(n_val, self.val_w), non_blocking=True)
         G["event"].record()
 
     @torch.no_grad()
@@ -335,11 +366,13 @@ class FastSearch:
         if n_val:
             vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
             def val(o, m, **shape):
+                if self.dist:
+                    return torch.softmax(self.net.outcome_logits(self.net.trunk(o, ufeat=self._uf(o), **shape)), 1)
                 v = self.net(o, None, policy=False, ufeat=self._uf(o), **shape)[1]
                 for n2 in self.value_nets:
                     v = v + n2(o, None, policy=False, ufeat=self._uf(o), **shape)[1]
-                return v / (1 + len(self.value_nets))
-            G["val_out_t"][:n_val].copy_(self._run(val, G["val_obs"][:n_val], vo), non_blocking=True)
+                return (v / (1 + len(self.value_nets))).unsqueeze(1)
+            G["val_out_t"][:n_val].copy_(self._run(val, G["val_obs"][:n_val], vo).view(n_val, self.val_w), non_blocking=True)
         if self.cuda:
             G["event"].record()
 
@@ -348,9 +381,16 @@ class FastSearch:
             g["event"].synchronize()
 
     # ---- driver ----
-    def run(self, scenarios, job_scen, job_seed, verbose=False, starts=None):
+    def run(self, scenarios, job_scen, job_seed, verbose=False, starts=None, worth=None):
+        """`worth`: per scenario None (linear) or dict(u=[NC], price=[POT]) (`worth_row`); needs dist value rows."""
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
+        wt = None
+        if worth is not None and any(w is not None for w in worth):
+            if not self.dist:
+                raise ValueError("a worth table needs dist value rows (an outcome-head network, no extra value nets)")
+            assert len(worth) == len(scenarios)
+            wt = np.stack([worth_row(w) for w in worth])
         job_scen = np.ascontiguousarray(job_scen, np.uint32)
         job_seed = np.ascontiguousarray(job_seed, np.uint64)
         nj = len(job_scen)
@@ -363,12 +403,13 @@ class FastSearch:
                 continue
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, 0.0, 0.0,
                                      self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.carry, self.strat, starts,
-                                     None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns, turn_cap=heads.TURN_CAP)
+                                     None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns, turn_cap=heads.TURN_CAP,
+                                     val_w=self.val_w, worth=wt)
             pc, vc = eng.max_rows()
             pin = self.cuda
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)
             for name, shape, dt in (("pol_obs", (pc, OBS), torch.float32), ("pol_mask", (pc, ACT), torch.uint8), ("pol_kind", (pc,), torch.uint8), ("pol_u", (pc,), torch.float32), ("val_obs", (vc, OBS), torch.float32), ("val_kind", (vc,), torch.uint8),
-                                    ("pol_out", (pc, 2 * self.M + 1), torch.float32), ("val_out", (vc,), torch.float32)):
+                                    ("pol_out", (pc, 2 * self.M + 1), torch.float32), ("val_out", (vc, self.val_w), torch.float32)):
                 t = torch.empty(shape, dtype=dt, pin_memory=pin)
                 G[name + "_t"] = t
                 G[name] = t.numpy()
@@ -391,7 +432,7 @@ class FastSearch:
                 if not self.cuda:
                     pass
                 npol, nval = G["n_pol"], G["n_val"]
-                G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_obs"], G["val_kind"], G["pol_out"][:npol], G["val_out"][:nval])
+                G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_obs"], G["val_kind"], G["pol_out"][:npol], G["val_out"][:nval].reshape(-1))
                 self.timers["engine"] += time.perf_counter() - t
                 cycles += 1
                 rows += G["n_pol"] + G["n_val"]
@@ -406,9 +447,9 @@ class FastSearch:
                 print(f"  cycle {cycles}, {sum(int(G['eng'].results_done()) for G in groups) if hasattr(groups[0]['eng'], 'results_done') else '?'}", flush=True)
         self._runs = [(G["idx"], G["eng"]) for G in groups]
         self._seeds, self._scen, self._job_scen = job_seed, scenarios, job_scen
-        out = np.zeros((nj, 6), np.float32)
+        out = np.zeros((nj, 7), np.float32)
         for G in groups:
-            r = np.zeros((len(G["idx"]), 6), np.float32)
+            r = np.zeros((len(G["idx"]), 7), np.float32)
             G["eng"].results(r)
             out[G["idx"]] = r
         tot = collections.Counter()

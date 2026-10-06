@@ -101,7 +101,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1, turn_cap=0))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         scenarios_json: Vec<String>,
@@ -127,6 +127,8 @@ impl SearchEnginePy {
         util: Option<Vec<f32>>,
         leaf_turns: u32,
         turn_cap: u32,
+        val_w: usize,
+        worth: Option<PyReadonlyArray2<f32>>,
     ) -> PyResult<Self> {
         let mut scs = vec![];
         for s in scenarios_json {
@@ -146,9 +148,30 @@ impl SearchEnginePy {
             Some(u) => return Err(PyValueError::new_err(format!("util must have 102 entries (loss, then wins at 0..100 % HP), got {}", u.len()))),
             None => false,
         };
-        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util, turn_cap };
+        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util, turn_cap, val_w };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
-        let eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
+        let n_scen = scs.len();
+        let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
+        if let Some(wa) = worth {
+            // [n_scen, 1 + HEAD_NC + POT]: table flag (0 = linear), the worth of each class, the price of each belt slot's potion
+            use sts2env::search::{Worth, HEAD_NC, POT};
+            let w = wa.as_slice().map_err(e)?;
+            let width = 1 + HEAD_NC + POT;
+            if w.len() != n_scen * width {
+                return Err(PyValueError::new_err(format!("worth must be [n_scenarios, {width}] (flag, {HEAD_NC} class worths, {POT} potion prices)")));
+            }
+            let ws = (0..n_scen)
+                .map(|i| {
+                    let r = &w[i * width..(i + 1) * width];
+                    let mut x = Worth::linear();
+                    x.table = r[0] != 0.0;
+                    x.u.copy_from_slice(&r[1..1 + HEAD_NC]);
+                    x.price.copy_from_slice(&r[1 + HEAD_NC..]);
+                    x
+                })
+                .collect();
+            eng.set_worth(ws).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
+        }
         Ok(SearchEnginePy { eng })
     }
 
@@ -198,17 +221,24 @@ impl SearchEnginePy {
         py.detach(|| eng.advance(pa, va, po, pm, pk, pu, vo, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
-    /// `[n_jobs, 6]` f32: scenario index, outcome, HP lost fraction, HP left fraction, length, finished (1/0).
+    /// `[n_jobs, 6]` (or `[n_jobs, 7]`) f32: scenario index, outcome, HP lost fraction, HP left fraction, length, finished (1/0) (, end HP absolute).
     fn results(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {
+        let w = out.as_array().ncols();
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let r = self.eng.results();
-        if o.len() < r.len() * 6 {
-            return Err(PyValueError::new_err("buffer shorter than n_jobs * 6"));
+        if !(w == 6 || w == 7) || o.len() < r.len() * w {
+            return Err(PyValueError::new_err("buffer must be [n_jobs, 6] or [n_jobs, 7]"));
         }
         for (k, j) in r.iter().enumerate() {
-            o[k * 6..k * 6 + 6].copy_from_slice(&[j.scen as f32, j.outcome as f32, j.hp_lost, j.hp_end, j.len as f32, j.done as u8 as f32]);
+            let row = [j.scen as f32, j.outcome as f32, j.hp_lost, j.hp_end, j.len as f32, j.done as u8 as f32, j.hp_end_abs as f32];
+            o[k * w..k * w + w].copy_from_slice(&row[..w]);
         }
         Ok(())
+    }
+
+    /// Floats per value row this engine expects.
+    fn val_w(&self) -> usize {
+        self.eng.val_w()
     }
 
     /// Recorded moves of a finished job: `(actions [n] i32, searched [n] u8, options [n, M] i32, probabilities [n, M] f32, estimates [n, M] f32 (NaN: not tried), legal [n, M] u8)`.
@@ -308,6 +338,9 @@ fn provably_unwinnable(scenario_json: &str) -> PyResult<Option<String>> {
 fn names(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
     use sts2sim::ids;
     let d = pyo3::types::PyDict::new(py);
+    d.set_item("head_nc", sts2env::search::HEAD_NC)?;
+    d.set_item("head_bin", sts2env::search::HEAD_BIN)?;
+    d.set_item("pot", sts2env::search::POT)?;
     d.set_item("card", ids::card::NAMES.to_vec())?;
     d.set_item("power", ids::power::NAMES.to_vec())?;
     d.set_item("relic", ids::relic::NAMES.to_vec())?;

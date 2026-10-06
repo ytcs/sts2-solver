@@ -36,7 +36,7 @@ if os.path.exists(_CUR):
 
 class Solver:
     def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, value_ckpts="default", roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None,
-                 threads=None):
+                 threads=None, dist=None):
         """`ckpt`: a checkpoint path, or several (comma-separated string / list) = an ensemble for both policy and value; `value_ckpts`: extra networks
         whose value heads are averaged in while the policy stays the first network's. Defaults: 3 options x 8 futures per decision (best cost / quality).
         `roots`: fights in flight (default 2048 on CUDA, 256 on the CPU); `amp`: bf16 inside CUDA graphs (default on CUDA)."""
@@ -50,7 +50,7 @@ class Solver:
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         # a big pool of fights in flight keeps the network batches large (2048 roots x 24 play-outs); bf16 inside CUDA graphs is free (docs/solver.md)
         self.fs = FastSearch(self.net, self.value_nets, M, K, conf=conf, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
-                             roll_net=load(roll_ckpt) if roll_ckpt else None, amp=cuda if amp is None else amp)
+                             roll_net=load(roll_ckpt) if roll_ckpt else None, amp=cuda if amp is None else amp, dist=dist)
         self.fs.warm()
 
     def _greedy(self, scenarios, attempts, seed):
@@ -71,9 +71,10 @@ class Solver:
                 got |= new
         return out
 
-    def solve(self, scenarios, attempts=32, search=True, seed=0, verbose=False, groups=None):
+    def solve(self, scenarios, attempts=32, search=True, seed=0, verbose=False, groups=None, worth=None):
         """One result dict per scenario (same order). `groups`: one id per scenario; scenarios with the same id get the same seed for every attempt
-        (common random numbers: deck variants of one encounter meet the same RNG streams and search seeds, so their difference is not luck)."""
+        (common random numbers: deck variants of one encounter meet the same RNG streams and search seeds, so their difference is not luck).
+        `worth`: per scenario None (linear) or dict(u=[classes], price=[slots]): what the search maximises (`fastsearch.worth_row`); results stay raw outcomes."""
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         S = len(scenarios)
@@ -86,8 +87,8 @@ class Solver:
                 g = np.asarray(groups, dtype=np.uint64)[js]
                 att = (np.arange(len(js)) // S).astype(np.uint64)
                 jd = np.uint64(seed) * np.uint64(1_000_003) + g * np.uint64(attempts) + att
-            r = self.fs.run(scenarios, js, jd)
-            rows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3]) for i in range(len(js))]
+            r = self.fs.run(scenarios, js, jd, worth=worth)
+            rows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6]) for i in range(len(js))]
         else:
             rows = self._greedy(scenarios, attempts, seed)
         if verbose:
@@ -103,6 +104,7 @@ class Solver:
                             hp_lost_se=float(r[valid, 1].std(ddof=1) / n ** 0.5) if n > 1 else None,
                             hp_left_on_win=float(r[win, 3].mean() * scenarios[i]["max_hp"]) if win.any() else 0.0, attempts=n, aborted=int((~valid).sum()),
                             ends=np.where(win, r[:, 3] * scenarios[i]["max_hp"], 0.0)[valid].tolist(),  # end HP per attempt, 0 when lost (agent.routes)
+                            ends_abs=[float(x) if ok else None for x, ok in zip(r[:, 4], valid)] if r.shape[1] > 4 else None,  # absolute end HP per attempt in order (0: lost)
                             wins=[float(w) if ok else None for w, ok in zip(win, valid)]))  # every attempt in order (None: aborted): paired differences under `groups`
         return res
 
