@@ -13,7 +13,8 @@ import torch.nn.functional as F
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
-from model import Net, n_params, DEV
+import utility
+from model import Net, n_params, DEV, load_weights
 
 
 def make_env(path, n, seed, max_steps, hp_bonus):
@@ -95,6 +96,7 @@ def main():
     ap.add_argument("--d", type=int, default=64)
     ap.add_argument("--rounds", type=int, default=2)
     ap.add_argument("--hold-prob", type=float, default=0.0, help="fraction of episodes that run under a random 'no potion before turn T' rule (T in 2..5, or never): states that hold a resource then show up in the data")
+    ap.add_argument("--util-prob", type=float, default=0.0, help="share of episodes whose win reward follows a random HP-worth curve (rl/utility.py) instead of the linear return; the network reads the curve as an input")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", help="checkpoint to continue from (iteration count and lr schedule continue; --iters is the total)")
     ap.add_argument("--warm", action="store_true", help="with --resume: take the weights only (fresh optimizer, iteration 0)")
@@ -109,12 +111,12 @@ def main():
     if a.resume:  # a full checkpoint (net + optimizer + progress) or a bare state dict (weights only: warm start)
         ck = torch.load(a.resume, map_location="cpu")
         if "net" in ck:
-            net.load_state_dict(ck["net"])
+            load_weights(net, ck["net"])
             if not a.warm:
                 opt.load_state_dict(ck["opt"])
                 it0, steps = ck["it"], ck["steps"]
         else:
-            net.load_state_dict(ck)
+            load_weights(net, ck)
     print("params", n_params(net), "resuming at iteration", it0, flush=True)
     env, scen = make_env(a.train, a.envs, a.seed + 1000, a.max_steps, a.hp_bonus)
     N, T = a.envs, a.horizon
@@ -126,8 +128,21 @@ def main():
     b_val = torch.zeros(T + 1, N)
     b_rew = torch.zeros(T, N)
     b_done = torch.zeros(T, N)
+    b_feat = torch.zeros(T, N, 8)
     obs, mask = env.reset()
     rng = np.random.default_rng(a.seed + 7)
+    # one HP-worth curve per running episode (redrawn when it ends): the win reward and the network's input
+    curves = np.tile(utility.linear(), (N, 1))
+    is_lin = np.ones(N, bool)
+    feat = np.tile(utility.LINEAR_FEATS, (N, 1)).astype(np.float32)
+    def draw_curves(idx):
+        for i in idx:
+            u = utility.sample(rng, p_linear=1.0 - a.util_prob)
+            curves[i] = u
+            is_lin[i] = bool(np.allclose(u, utility.linear()))
+            feat[i] = utility.feats(u)
+    draw_curves(np.arange(N))
+    inv_err = [0.0, 0]  # max |overridden - env reward| on linear-curve wins, and how many were checked
     POT = slice(sts2.layout()["consts"]["OFF_POTION"], sts2.layout()["consts"]["OFF_DISCARD"])
     hold_until = np.zeros(N, np.int32)  # 0 = free, k = no potion before turn k, 99 = never
     def draw_rules(idx):
@@ -157,7 +172,8 @@ def main():
                     m_eff[empty] = mask[empty]
                 b_obs[t].numpy()[:] = obs
                 b_mask[t].numpy()[:] = m_eff
-                lg, v = net(b_obs[t].to(DEV), b_mask[t].long().to(DEV))
+                b_feat[t].numpy()[:] = feat
+                lg, v = net(b_obs[t].to(DEV), b_mask[t].long().to(DEV), ufeat=b_feat[t].to(DEV))
                 logp = F.log_softmax(lg, 1)
                 act = torch.multinomial(logp.exp(), 1).squeeze(1)
                 b_act[t] = act.cpu()
@@ -167,18 +183,28 @@ def main():
                 r = rew.copy()
                 oc = info["outcome"]
                 r[oc == 2] = -1.0  # stalled out
+                if done.any():
+                    ei = env.episode_info()
+                    for i in np.nonzero(done & (oc == 1))[0]:  # a win: the reward of this episode's curve at the exact end-HP fraction
+                        ri = 1.0 + utility.HP_BONUS * float(np.interp(float(ei["hp_end"][i]), utility.FRAC, curves[i]))
+                        if is_lin[i]:
+                            inv_err[0] = max(inv_err[0], abs(ri - float(r[i])))
+                            inv_err[1] += 1
+                        r[i] = ri
                 b_rew[t] = torch.from_numpy(r)
                 b_done[t] = torch.from_numpy(done.astype(np.float32))
                 if done.any():
                     if a.hold_prob > 0:
                         draw_rules(np.nonzero(done)[0])
-                    ei = env.episode_info()
+                    draw_curves(np.nonzero(done)[0])
                     for i in np.nonzero(done)[0]:
                         ep_stats.append((int(oc[i]), float(ei["hp_lost"][i]), int(ei["length"][i])))
                 steps += N
-            _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV))
+            _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV))
             b_val[T] = last_v.cpu()
         t_roll = time.time() - t_roll
+        if inv_err[1] and inv_err[0] > 1e-4:  # the reward override must reproduce the env's own return for the linear curve
+            raise SystemExit(f"reward invariant broken: max |overridden - env| = {inv_err[0]:.6f} over {inv_err[1]} linear wins (hp_end is not the HP fraction the env pays)")
         # ---- GAE ----
         adv = torch.zeros(T, N)
         last = torch.zeros(N)
@@ -191,7 +217,7 @@ def main():
         # ---- update ----
         net.train()
         t_upd = time.time()
-        fo, fm = b_obs.view(T * N, -1), b_mask.view(T * N, -1)
+        fo, fm, ff = b_obs.view(T * N, -1), b_mask.view(T * N, -1), b_feat.view(T * N, -1)
         fa, flp, fadv, fret = b_act.view(-1), b_lp.view(-1), adv.view(-1), ret.view(-1)
         stats = {"pl": 0.0, "vl": 0.0, "ent": 0.0, "kl": 0.0, "clip": 0.0}
         nb = 0
@@ -200,7 +226,7 @@ def main():
             for s in range(0, T * N, a.mb):
                 ix = perm[s:s + a.mb]
                 ixd = ix
-                lg, v = net(fo[ix].to(DEV), fm[ix].long().to(DEV))
+                lg, v = net(fo[ix].to(DEV), fm[ix].long().to(DEV), ufeat=ff[ix].to(DEV))
                 logp = F.log_softmax(lg, 1)
                 nlp = logp.gather(1, fa[ix, None].to(DEV)).squeeze(1)
                 ratio = (nlp - flp[ix].to(DEV)).exp()
@@ -220,7 +246,7 @@ def main():
                 stats["clip"] += ((ratio - 1).abs() > a.clip).float().mean().item()
                 nb += 1
         t_upd = time.time() - t_upd
-        rec = {"it": it, "steps": steps, "sps": int((steps - steps0) / (time.time() - t0)), "t_roll": round(t_roll, 1), "t_upd": round(t_upd, 1), "lr": lr}
+        rec = {"inv": [round(inv_err[0], 6), inv_err[1]], "it": it, "steps": steps, "sps": int((steps - steps0) / (time.time() - t0)), "t_roll": round(t_roll, 1), "t_upd": round(t_upd, 1), "lr": lr}
         rec.update({k: round(v / nb, 4) for k, v in stats.items()})
         if ep_stats:
             e = np.array(ep_stats)

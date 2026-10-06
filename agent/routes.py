@@ -406,11 +406,11 @@ def _fmt_plan(calc, plan):
     return "; ".join(parts) or "no potion thrown"
 
 
-def continuation_util(engine, deck_json, map_text, ctx, act, attempts=24, pf=0.15, hp_bonus=0.5):
-    """What each ending of the fight at the current map node is worth for the rest of the act, as the 21-entry utility of the end-HP classes
-    (`rl/dist.py`: loss, then wins with the HP fraction in 20 bins). V(hp) = P(win the act boss | leave this node with hp), best child, at least 0 more elites
-    (P(reach the boss alive) when the boss is out of reach for the deck); a win at hp is worth 1 + hp_bonus x V(hp) / V(max HP), a loss -1, so the scale of the
-    search's return is unchanged (a linear return would be 1 + hp_bonus x hp / max). Returns (util or None, one-line description)."""
+def continuation_util(engine, deck_json, map_text, ctx, act, attempts=24, pf=0.15):
+    """What each ending of the fight at the current map node is worth for the rest of the act: the HP-worth curve (`rl/utility.py`, 101 floats over the HP
+    fraction) of V(hp) = P(win the act boss | leave this node with hp), best child, at least 0 more elites; P(reach the boss alive) when the boss is out of
+    reach for the deck. Returns (curve or None, one-line description)."""
+    import utility  # rl/ (on the path through agent.engine)
     nodes, boss_row = parse_map(map_text)
     vis = [k for k, v in nodes.items() if v["visited"]]
     if not nodes or boss_row is None or not vis:
@@ -429,12 +429,11 @@ def continuation_util(engine, deck_json, map_text, ctx, act, attempts=24, pf=0.1
         V = np.max([calc.F(c, w0, 0) for c in kids], axis=0) if kids else np.zeros(maxhp + 1)
         if V[maxhp] >= 0.05:
             break
-    if V[maxhp] <= 1e-6:
+    if V.max() <= 1e-6:
         return None, "no continuation value"
-    U = np.clip(np.maximum.accumulate(V) / max(V.max(), 1e-9), 0.0, 1.0)  # more HP is never worse (table noise can say otherwise)
-    util = [-1.0] + [1.0 + hp_bonus * float(U[min(maxhp, max(1, int(round((b + 0.5) / 20 * maxhp))))]) for b in range(20)]
-    pts = " ".join(f"{int(f * 100)}%:{U[max(1, int(round(f * maxhp)))]:.2f}" for f in (0.1, 0.25, 0.5, 0.75, 1.0))
-    return util, f"HP worth = P({goal} the act boss) from the next node, relative to full HP: {pts}"
+    u = utility.from_values(V)
+    pts = " ".join(f"{p}%:{u[p]:.2f}" for p in (10, 25, 50, 75, 100))
+    return u, f"HP worth = P({goal} the act boss) from the next node, relative to full HP: {pts}"
 
 
 def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, tabs=None, weights=None, hold=None):

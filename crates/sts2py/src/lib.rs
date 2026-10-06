@@ -136,13 +136,13 @@ impl SearchEnginePy {
         }
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
-        let mut ut = [0f32; 21];
+        let mut ut = [0f32; 102];
         let use_util = match &util {
-            Some(u) if u.len() == 21 => {
+            Some(u) if u.len() == 102 => {
                 ut.copy_from_slice(u);
                 true
             }
-            Some(u) => return Err(PyValueError::new_err(format!("util must have 21 entries (loss + 20 HP bins), got {}", u.len()))),
+            Some(u) => return Err(PyValueError::new_err(format!("util must have 102 entries (loss, then wins at 0..100 % HP), got {}", u.len()))),
             None => false,
         };
         let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util };

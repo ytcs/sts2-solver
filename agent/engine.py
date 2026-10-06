@@ -44,16 +44,14 @@ def _opportunity_loss(acc):
 
 
 class Engine:
-    def __init__(self, M=5, K=32):
-        self.solver = Solver()
+    def __init__(self, M=5, K=32, ckpt=None, value_ckpts="default"):
+        """`ckpt` / `value_ckpts`: other networks than the adopted ones (a gate or an A/B)."""
+        self.solver = Solver() if ckpt is None else Solver(ckpt, value_ckpts=value_ckpts)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        # the end-HP distribution head (`rl/dist.py`) on the policy network's trunk: lets `decide` score lines by a utility of the ending HP (`util=`)
-        self.dist_head = None
-        dp = os.path.join(_RL, "..", "models", "dist_b128.pt")
-        if os.path.exists(dp):
-            from dist import load_head  # noqa: E402
-            _, self.dist_head = load_head(dp, base=self.solver.net)
-        self.fs = FastSearch(self.solver.net, self.solver.value_nets, M, K, conf=1.01, roots=1, groups=1, amp=cuda, dist_head=self.dist_head)
+        self.fs = FastSearch(self.solver.net, self.solver.value_nets, M, K, conf=1.01, roots=1, groups=1, amp=cuda)
+        # live play uses the fight's HP-worth curve only with networks trained for it (`models/current.json` "util": true, written at adoption)
+        cur = os.path.join(_RL, "..", "models", "current.json")
+        self.util_trained = ckpt is None and os.path.exists(cur) and bool(__import__("json").load(open(cur)).get("util"))
         self.fs.warm()
         self.seed = 0
 
@@ -62,8 +60,8 @@ class Engine:
         Search stops at `budget` seconds or when the expected regret of the leading action is below `tol_hp` HP; `json` is the oracle-script form of the action (sent to the bridge's `do`); a selection is answered pick by pick (see `agent.harness`)."""
         t0 = time.perf_counter()
         tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)  # the return counts half the HP fraction left
-        # `util`: 21 floats (loss, then wins by HP-fraction bin; `rl/dist.py`) = what each ending is worth for the rest of the run; None = the linear return
-        self.fs.set_util(util if (util is not None and self.dist_head is not None) else None)
+        # `util`: the fight's HP-worth curve (101 floats, `rl/utility.py`) = what each ending is worth for the rest of the act; None = the linear return
+        self.fs.set_util(util)
         acc, first, rounds = {}, None, 0
         held = {i for i, p in enumerate(scenario.get("potions", [])) if isinstance(keep_potions, (set, frozenset)) and p["id"] in keep_potions}  # potions held back for a later fight
         def _held(t):
@@ -94,9 +92,14 @@ class Engine:
         return dict(action=a, json=sim.action_json(a), text=text.get(a, f"#{a}"), searched=first["searched"], rounds=rounds,
                     seconds=round(time.perf_counter() - t0, 2), options=opts)
 
-    def solve(self, scenarios, attempts=64, seed=0):
-        """Fights played from their start by the batch solver: one dict per scenario (win, win_se, hp_lost, hp_left_on_win, attempts, aborted)."""
-        return self.solver.solve(scenarios, attempts=attempts, seed=seed)
+    def solve(self, scenarios, attempts=64, seed=0, util=None):
+        """Fights played from their start by the batch solver: one dict per scenario (win, win_se, hp_lost, hp_left_on_win, attempts, aborted).
+        `util`: play them under this HP-worth curve (the results stay raw HP outcomes); None = the linear return."""
+        self.solver.fs.set_util(util)
+        try:
+            return self.solver.solve(scenarios, attempts=attempts, seed=seed)
+        finally:
+            self.solver.fs.set_util(None)
 
 
 def play_fight(eng, scenario, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False, util=None):

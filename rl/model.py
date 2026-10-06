@@ -146,6 +146,12 @@ class Net(nn.Module):
         self.confirm = mlp(2 * d, d, 1)
         self.end = mlp(2 * d, d, 1)
         self.value = mlp(2 * d, 2 * d, 1)
+        # the fight's HP-worth curve (rl/utility.py feats: U at 1/8 .. 8/8 of max HP), added to the player token; zero-initialised, so a network
+        # trained before the input existed behaves exactly as before, and the input only matters once training has used it
+        self.ucond = nn.Linear(8, d)
+        nn.init.zeros_(self.ucond.weight)
+        nn.init.zeros_(self.ucond.bias)
+        self.register_buffer("lin_feats", torch.tensor([0.12, 0.25, 0.37, 0.50, 0.62, 0.75, 0.87, 1.00]), persistent=False)
 
     def encode(self, obs, E=None, L=None, has_dec=None):
         """`E` (enemy slots), `L` (pile entries) and `has_dec` (every row has a pending card selection / none has) fix the shapes: no device-to-host
@@ -232,12 +238,12 @@ class Net(nn.Module):
         return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
                     cand_p=cand_p, cid=cid, rows=rows, cand_sel=cands[..., C["CARD_F"]] > 0.5)
 
-    def trunk(self, obs, **shape):
+    def trunk(self, obs, ufeat=None, **shape):
         """The pooled context the value head reads (`gctx` [B, 2d]): encoders + message passing. Heads trained on a frozen network
         (`rl/dist.py`, the end-HP distribution) use it."""
-        return self.forward(obs, None, policy=False, value=False, _gctx=True, **shape)
+        return self.forward(obs, None, policy=False, value=False, _gctx=True, ufeat=ufeat, **shape)
 
-    def forward(self, obs, mask, policy=True, value=True, _gctx=False, **shape):
+    def forward(self, obs, mask, policy=True, value=True, _gctx=False, ufeat=None, **shape):
         """Returns (masked logits [B, ACTION_SPACE], value [B]); `policy=False` / `value=False` skips that head (None) and its cost.
         `shape`: E / L / has_dec of `encode`."""
         B = obs.shape[0]
@@ -246,6 +252,8 @@ class Net(nn.Module):
         T = C["MAX_CREATURES"]
         z = self.encode(obs, **shape)
         player, enemy, hand, pot, cand = z["player"], z["enemy"], z["hand"], z["potion"], z["cand"]
+        uf = self.lin_feats.to(player.dtype).expand(B, 8) if ufeat is None else ufeat.to(player.dtype)
+        player = player + self.ucond(uf)
         ep, hp_, pot_p, cand_p = z["ep"].unsqueeze(-1), z["hp"].unsqueeze(-1), z["pot_p"].unsqueeze(-1), z["cand_p"].unsqueeze(-1)
         rows = z["rows"]
         E = enemy.shape[1]
@@ -305,8 +313,8 @@ class Ensemble(nn.Module):
         super().__init__()
         self.nets = nn.ModuleList(nets)
 
-    def forward(self, obs, mask, policy=True, value=True, **shape):
-        outs = [n(obs, mask, policy=policy, value=value, **shape) for n in self.nets]
+    def forward(self, obs, mask, policy=True, value=True, ufeat=None, **shape):
+        outs = [n(obs, mask, policy=policy, value=value, ufeat=ufeat, **shape) for n in self.nets]
         lg = None
         if policy:
             lg = torch.stack([F.log_softmax(o[0], 1) for o in outs]).mean(0)
@@ -326,5 +334,13 @@ def load(path):
     ck = torch.load(path, map_location="cpu")
     args = ck.get("args", {})
     net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2))
-    net.load_state_dict(ck["net"] if "net" in ck else ck)
+    load_weights(net, ck["net"] if "net" in ck else ck)
     return net.to(DEV).eval()
+
+
+def load_weights(net, sd):
+    """A state dict into `net`; a checkpoint from before the HP-worth input (`ucond`) loads with that input at zero (identical behaviour)."""
+    missing, unexpected = net.load_state_dict(sd, strict=False)
+    bad = [k for k in missing if not k.startswith("ucond.")] + list(unexpected)
+    if bad:
+        raise RuntimeError(f"checkpoint does not match the network: {bad[:6]}")

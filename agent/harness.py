@@ -151,9 +151,10 @@ class Harness:
         self._potion_skip = 0
         self._decline_fight = None
         self.potions_used = 0
+        self.fight_util, self.fight_util_why = self._fight_util(sc)  # before the prediction: it plays the fight under the same objective as live play
         try:
             usable = []  # the prediction is the no-potion lower bound: potions are used only when I judge they are worth it
-            r = self.eng().solve([dict(sc, name="start", potions=usable)], attempts=PRED_ATTEMPTS)[0]
+            r = self.eng().solve([dict(sc, name="start", potions=usable)], attempts=PRED_ATTEMPTS, util=self.fight_util)[0]
             q = self._dist(r, sc["hp"])
             pred = dict(win=round(r["win"], 3), win_se=round(r["win_se"], 3), hp_lost=round(r["hp_lost"] or 0, 3), hp_lost_se=round(r.get("hp_lost_se") or 0, 3), n=r["attempts"], lost_q=q)
             self._pred_q = q
@@ -164,7 +165,6 @@ class Harness:
         self.last_enc = sc.get("encounter")
         self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
         self.drive = self._drive_mode(sc.get("encounter", ""), pred, sc["hp"])
-        self.fight_util, self.fight_util_why = self._fight_util(sc)
         # potions are for fights the solver may lose or that cost a lot: a comfortable fight keeps them (a clear win leaves the strongest potion for the elite or boss)
         def comfortable(p):
             return "win" in p and p["win"] - p["win_se"] >= 0.95 and p["hp_lost"] * sc["max_hp"] <= 0.4 * sc["hp"]
@@ -328,10 +328,10 @@ class Harness:
         return self.eng().decide(scenario, sim, budget, util=getattr(self, "fight_util", None), **kw)
 
     def _fight_util(self, sc):
-        """(util or None, why): the 21-entry utility of this fight's endings (`agent.routes.continuation_util`); linear for a boss (no route after it) and
-        without the head (`models/dist_b128.pt`)."""
-        if getattr(self.eng(), "dist_head", None) is None:
-            return None, "linear (no end-HP distribution head)"
+        """(curve or None, why): the HP-worth curve of this fight's endings (`agent.routes.continuation_util`); linear for a boss (no route after it) and
+        with networks not trained for it."""
+        if not getattr(self.eng(), "util_trained", False):
+            return None, "linear (the adopted networks were not trained with the HP-worth input)"
         if str(sc.get("encounter", "")).endswith("_BOSS"):
             return None, "linear (a boss: no route after it)"
         try:

@@ -52,9 +52,9 @@ pub struct SearchCfg {
     pub win: f32,
     pub loss: f32,
     pub hp_bonus: f32,
-    /// With `use_util`: the return of a finished play-out is `util[class]`, class 0 = loss, 1..=20 = win with the HP fraction left in bin `class - 1`
-    /// of 20 equal bins (the classes of the end-HP distribution head, `rl/dist.py`), instead of `win + hp_bonus * fraction` / `loss`.
-    pub util: [f32; 21],
+    /// With `use_util`: the return of a finished play-out is `util[0]` for a loss and `util[1 + round(100 * hp fraction)]` for a win (`rl/utility.py`
+    /// `table`: the fight's HP-worth curve at 1 % steps), instead of `win + hp_bonus * fraction` / `loss`.
+    pub util: [f32; 102],
     pub use_util: bool,
 }
 
@@ -254,8 +254,8 @@ fn terminal(cx: &Combat, steps: u32, max_steps: u32, cfg: &SearchCfg) -> Option<
             Outcome::Victory => {
                 let frac = me.hp as f32 / me.max_hp.max(1) as f32;
                 if cfg.use_util {
-                    let b = ((frac * 20.0).max(0.0) as usize).min(19);
-                    Some((OUTCOME_WIN, cfg.util[1 + b]))
+                    let i = ((frac * 100.0).round().max(0.0) as usize).min(100);
+                    Some((OUTCOME_WIN, cfg.util[1 + i]))
                 } else {
                     Some((OUTCOME_WIN, cfg.win + cfg.hp_bonus * frac))
                 }

@@ -14,6 +14,7 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
+import utility
 from model import DEV, SEC, C
 
 OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS
@@ -135,11 +136,11 @@ class FastSearch:
         self.carry = carry  # follow the line of the chosen option: its estimate is reused at the next decision instead of searching it again
         self.lead = lead  # share the in-turn play of an option between its futures until hidden information is needed
         self.record = record  # keep the moves of every fight (`moves`, `replay`): play-by-play traces
-        # end-HP distribution head on `net`'s trunk (`rl/dist.py`); with a utility set (`set_util`), a play-out is scored E[U(end HP)] (value rows) and U at a
-        # finished fight (the Rust terminal), instead of the mean linear return
-        self.dist_head = dist_head
+        # the fight's HP-worth curve (`rl/utility.py`, `set_util`): the networks read it as an input (U at 8 HP points, one buffer for every row) and the
+        # Rust terminal scores a finished fight by it; default linear = the original return
+        self.dist_head = dist_head  # unused (kept for callers); the add-on end-HP head was not adopted
         self.util = None
-        self._util_t = torch.zeros(21, device=DEV)
+        self._ufeat_t = torch.tensor(utility.LINEAR_FEATS, device=DEV)
         self._runs = []
         self.amp = amp  # bf16 autocast inside the graphs (the networks are compute-bound there)
         self.value_amp = amp if value_amp is None else value_amp
@@ -150,17 +151,19 @@ class FastSearch:
         self._pool = torch.cuda.graph_pool_handle() if self.cuda and use_graphs else None
         self.use_graphs = self.cuda and use_graphs
 
-    def set_util(self, util):
-        """`util`: 21 floats (loss, then wins with the HP fraction in 20 equal bins) or None for the linear return. Needs `dist_head` for value rows."""
-        if util is None:
+    def set_util(self, curve):
+        """`curve`: the fight's HP-worth curve (101 floats, `rl/utility.py`) or None for the linear return. Sets the networks' input (in place: the
+        captured graphs read this buffer) and the Rust terminal table."""
+        if curve is None:
             self.util = None
+            self._ufeat_t.copy_(torch.from_numpy(utility.LINEAR_FEATS).to(DEV))
             return
-        if self.dist_head is None:
-            raise ValueError("set_util needs a dist_head (rl/dist.py)")
-        u = np.asarray(util, np.float32)
-        assert u.shape == (21,), u.shape
-        self.util = u
-        self._util_t.copy_(torch.from_numpy(u).to(DEV))  # in place: captured graphs read this buffer
+        u = utility.normalize(curve)
+        self.util = utility.table(u)
+        self._ufeat_t.copy_(torch.from_numpy(utility.feats(u)).to(DEV))
+
+    def _uf(self, o):
+        return self._ufeat_t.expand(o.shape[0], 8)
 
     # ---- network side ----
     def _run(self, fn, obs_np, obs_t, mask_t=None):
@@ -203,7 +206,7 @@ class FastSearch:
             M, greedy, E = self.M, self.greedy_roll, self.graph_E
 
             amp = self.amp
-            logits = lambda o, m: net(o, m, value=False, E=E, L=64, has_dec=has_dec)[0]
+            logits = lambda o, m: net(o, m, value=False, E=E, L=64, has_dec=has_dec, ufeat=self._uf(o))[0]
             if self.compile:
                 logits = torch.compile(logits, dynamic=True)
 
@@ -222,14 +225,12 @@ class FastSearch:
         return self._graphs[key]
 
     def _val_graph(self, has_dec):
-        if self.util is not None:
-            return self._util_graph(has_dec)
         key = ("val", has_dec)
         if key not in self._graphs:
             nets, E = [self.net] + list(self.value_nets), self.graph_E
 
             amp = self.value_amp
-            ens = lambda o: sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec)[1].float() for n in nets)
+            ens = lambda o: sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec, ufeat=self._uf(o))[1].float() for n in nets)
             if self.compile:
                 ens = torch.compile(ens, dynamic=True)
 
@@ -238,20 +239,6 @@ class FastSearch:
                     v = ens(o)
                 return (v / len(nets)).unsqueeze(1)
             self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None)
-        return self._graphs[key]
-
-    def _util_graph(self, has_dec):
-        key = ("util", has_dec)
-        if key not in self._graphs:
-            net, head, E, ut = self.net, self.dist_head, self.graph_E, self._util_t
-            amp = self.value_amp
-
-            def fn(o, m):
-                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
-                    g = net.trunk(o, E=E, L=64, has_dec=has_dec)
-                lg = head(g.float())
-                return (torch.softmax(lg, 1) * ut).sum(1, keepdim=True)
-            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"util dec={has_dec}", None)
         return self._graphs[key]
 
     @torch.no_grad()
@@ -311,7 +298,7 @@ class FastSearch:
             mask = G["pol_mask_t"][:n_pol].to(DEV, non_blocking=True)
             def pol_fn(net):
                 def pol(o, m, **shape):
-                    lg, _ = net(o, m, value=False, **shape)
+                    lg, _ = net(o, m, value=False, ufeat=self._uf(o), **shape)
                     p = torch.softmax(lg, 1)
                     tp, ti = p.topk(M, 1)
                     act = ti[:, 0] if self.greedy_roll else torch.multinomial(p, 1).squeeze(1)
@@ -327,12 +314,9 @@ class FastSearch:
         if n_val:
             vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
             def val(o, m, **shape):
-                if self.util is not None:
-                    lg = self.dist_head(self.net.trunk(o, **shape).float())
-                    return (torch.softmax(lg, 1) * self._util_t).sum(1)
-                v = self.net(o, None, policy=False, **shape)[1]
+                v = self.net(o, None, policy=False, ufeat=self._uf(o), **shape)[1]
                 for n2 in self.value_nets:
-                    v = v + n2(o, None, policy=False, **shape)[1]
+                    v = v + n2(o, None, policy=False, ufeat=self._uf(o), **shape)[1]
                 return v / (1 + len(self.value_nets))
             G["val_out_t"][:n_val].copy_(self._run(val, G["val_obs"][:n_val], vo), non_blocking=True)
         if self.cuda:
