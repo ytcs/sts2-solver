@@ -33,7 +33,10 @@ A refusal names what is missing: run it, write the record, repeat.
 `python -m agent - <<'EOF'` with one command per line runs them in order, output under `>>> command`; text is literal (no quoting). It stops at the first `ERR` / `REFUSED` / `[chain stopped` (`--keep-going` after `-` continues). E.g. `brief` + `reward` in one call, then the pick.
 
 ## Cost of the calculators (warm daemon) `[hyp]` (test: time them on a warm daemon)
-`reward` ~6 s, `routes` ~5 s (0.5 s again at the same deck: the tables are cached by deck, relics, belt and encounters left), `rmcalc` ~8 s, 1-variant `eval` ~3 s, `pickplan` ~27 s (1.3 s again: gains cached; a cheap screen of all cards, then the top 40 priced properly). A cold daemon costs ~35 s (networks and CUDA): do not `quit` it unless code changed. Run `pickplan` once per act and after a shop, `routes` at every fork.
+Act 2 deck with every horizon (`tools/time_tables.py`, search depth 2): `reward` ~35 s, `routes` ~21 s (0 s again at the same deck: the tables are cached by deck, relics, belt and encounters left), `rmcalc` ~66 s, 1-variant `eval --smooth --boss` ~16 s, `eval --elites` ~3 s, `pickplan` ~165 s (under 1 s again: gains cached; a cheap screen of all cards, then the top 40 priced properly). Depth 1 would be 2.3x faster. A cold daemon costs ~30 s (networks and CUDA): do not `quit` it unless code changed. Run `pickplan` once per act and after a shop, `routes` at every fork.
+
+## Draws of the tables `[code]`
+Every variant of one call meets the same fights (common random numbers): a `vs` line marked `paired` has the se of the difference itself, smaller than the two rows' se combined (about 2x for an upgrade, little for an added card or a belt change). The draws are seeded per screen: a re-run on the same screen repeats them exactly and confirms nothing; `--seed N` on any calculator draws fresh ones, more `--attempts` adds more.
 
 ## Speed `[hyp]` (test: run and fight durations in `review`)
 Target a run in 30 min, fights 1-2 min (`combat` takes 5-40 s). `combat` for easy fights, `turn` / `adv` when the stakes are real; short reasons; no re-reading unchanged state; a reward screen in one chained `a`.
