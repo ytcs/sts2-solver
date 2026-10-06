@@ -4,8 +4,9 @@ Numbering. The fight scenario lists the belt's potions in slot order, each with 
 empty first slot makes the two differ: a lone potion in the second slot is game slot 1, simulator potion 0). The simulator's actions and texts
 (`potion 0 -> e1`, `{"use_potion": {"slot": 0}}`) use the packed index; the bridge, the header's `pots[...]` and the logged actions use game slots.
 
-Policy. The solver may PROPOSE any potion; I answer at the gate (`combat ok / skip / go`, `agent.live`). What the live search may use (`search_keep`):
-the potions I `hold` are off the table, and after `combat go` all of them for the rest of that fight. What pricing sees (`priced_view`): the run snapshot
+Policy. Potions are my decision: the live search plans without them (`search_keep`) unless I `potion allow` one for the fight, and the harness checks at
+the start of every turn whether throwing one now saves HP or win over the rest of the fight, alerting when it does (`agent.live`, `agent.potion_price`);
+the potions I `hold` are never used. What pricing sees (`priced_view`): the run snapshot
 without the held potions, so no priced fight (the boss included) spends a potion I keep for something else; non-boss fights are priced without
 potions anyway (`hold="all"` in `macro.evaluate`, a lower bound) and the boss with the belt.
 """
@@ -47,6 +48,14 @@ def to_sim_action(scenario, act):
     return json.dumps(a)
 
 
+def live_slots(scenario, sim):
+    """[(slot, id)] of the potions the simulator can use now: its `potion N` actions number the fight's slots (the scenario's order), which stay fixed when one
+    is thrown (its slot empties; the snapshot's potion list is packed and shifts). A potion made mid-fight has no scenario entry: id `POTION_N`."""
+    pots = scenario.get("potions", [])
+    slots = sorted({int(m.group(1)) for _, t in sim.legal() for m in [re.match(r"potion (\d+)", t)] if m})
+    return [(n, pots[n]["id"] if n < len(pots) else f"POTION_{n}") for n in slots]
+
+
 def text_index(text):
     """The simulator potion index of an action text (`potion 1 -> e0` -> 1), else None."""
     m = re.match(r"potion (\d+)", str(text))
@@ -63,10 +72,12 @@ def held_indices(scenario, keep):
     return []
 
 
-def search_keep(hold, declined_fight, fight_id):
-    """keep_potions for the live search: True (no potion) once I declined potions for this fight (`combat go`), else the ids I hold. Searching as if a
-    declined potion will be thrown next turn picked worse lines (Living Fog, run 20261005-160158, 99th percentile). Until I decline, the solver is NOT limited."""
-    return True if declined_fight == fight_id else set(hold)
+def search_keep(hold, allowed, belt):
+    """keep_potions for the live search: every potion in the belt except those I allowed for this fight, and never a held one; True when none is allowed.
+    Potions are my decision (the harness prices them at junctures and alerts, `agent.live`): a search that may throw them throws on ties, and searching as if
+    a declined potion will be thrown later picked worse lines (Living Fog, 99th percentile)."""
+    keep = (set(belt) - set(allowed)) | set(hold)
+    return True if keep >= set(belt) else keep
 
 
 def priced_view(deck, hold):

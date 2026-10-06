@@ -25,7 +25,7 @@ def run_batch(monkeypatch, replies, lines, keep_going=False):
 def test_stops():
     assert cli._stops("ERR x")
     assert cli._stops("  play\nREFUSED: y")
-    assert cli._stops("  Strike\nPOTION (your call): the solver wants")
+    assert cli._stops("  Strike\nPOTION ALERT (turn 2): throwing now")
     assert cli._stops("x\nSIMULATOR DESYNC (e)")
     assert cli._stops("x\nSIMULATOR DIFFERS FROM THE GAME: y")
     assert cli._stops("x\nSIMULATOR CHOICE DIFFERS: z")
@@ -40,7 +40,7 @@ def test_batch_runs_and_skips_comments(monkeypatch):
 
 
 def test_batch_stop_rules(monkeypatch):
-    for reply in ("ERR bad\n", "REFUSED: no\n", "SHOP\n[chain stopped before `x`: COMBAT]\n", "  Strike\nPOTION (your call): y\n", "  a\nSIMULATOR DESYNC (q)\n"):
+    for reply in ("ERR bad\n", "REFUSED: no\n", "SHOP\n[chain stopped before `x`: COMBAT]\n", "  Strike\nPOTION ALERT (turn 1): y\n", "  a\nSIMULATOR DESYNC (q)\n"):
         sent, out = run_batch(monkeypatch, {"a": reply}, ["a 0", "s"])
         assert sent == ["a 0"], reply
         assert out.endswith(">>> batch stopped here\n")

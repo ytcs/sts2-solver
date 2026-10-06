@@ -331,13 +331,18 @@ def test_hold_and_held_potions(monkeypatch, tmp_path):
     h.handle("hold POWER_POTION")
     assert [p["id"] for p in json.loads(h._deck_raw())["potions"]] == ["FIRE_POTION"]
     assert {k: v for k, v in json.loads(h._deck_raw()).items() if k != "potions"} == {k: v for k, v in d.items() if k != "potions"}
-    assert h._kp() is True  # no fight yet: fight_id None == _decline_fight None
-    h.fight_id = "7"
-    assert h._kp() == {"POWER_POTION"}
-    h._decline_fight = "7"
-    assert h._kp() is True
-    h.fight_id = "8"
-    assert h._kp() == {"POWER_POTION"}
+    assert h._kp() is True  # no fight: nothing to use
+    from agent import potions
+    belt = ["POWER_POTION", "FIRE_POTION"]
+    assert potions.search_keep({"POWER_POTION"}, set(), belt) is True  # default: the search plans without potions
+    assert potions.search_keep({"POWER_POTION"}, {"FIRE_POTION", "POWER_POTION"}, belt) == {"POWER_POTION"}  # allowed, but a held one never
+    assert potions.search_keep(set(), set(belt), belt) == set()
+
+    class Sim:  # slot 0 already thrown: the simulator's `potion N` keeps the fight's slot numbers
+        def legal(self):
+            return [(1, "potion 1"), (2, "discard potion 1"), (3, "end turn")]
+    sc = dict(potions=[dict(id="WEAK_POTION", slot=0), dict(id="SPEED_POTION", slot=1)])
+    assert potions.live_slots(sc, Sim()) == [(1, "SPEED_POTION")]
     assert h.status().endswith("potions held back from the solver: ['POWER_POTION']")
     from agent.harness import Harness
     h2 = Harness()  # a daemon restart keeps the hold

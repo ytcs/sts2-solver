@@ -84,9 +84,8 @@ class Live:
 
     def _fight_start(self, f):
         sc = f["scenario"]
-        self._potion_ok = 0  # every potion is the solver's PROPOSAL, thrown only after my confirmation (`combat ok`); only the potions I hold are off the table
-        self._potion_skip = 0
-        self._decline_fight = None
+        self._allowed = set()  # potions the live search may use this fight (`potion allow`); none by default: potions are my decision, the harness alerts
+        self._checked_turn = None  # the turn the potion juncture last checked
         self.potions_used = 0
         self.fight_util, self.fight_util_why = self._fight_util(sc)  # before the prediction: it plays the fight under the same objective as live play
         try:
@@ -244,9 +243,12 @@ class Live:
             bad = self._choice_mismatch(screen)
             if bad:
                 return bad
+        self._potion_last = None
+        alert = self._potion_juncture() if self.rp.sim.stage() == "play" else None
+        fresh = None if alert or not self._potion_last else "potions this turn (no alert):\n" + "\n".join(self._potion_last)
         d = self._decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self._tol(budget), keep_potions=self._kp())
         self.log.event("advice", fight=self.fight_id, text=d["text"], options=[dict(text=o["text"], q=o["q"]) for o in d["options"][:6]], drive=getattr(self, "drive", None))  # manual fights: my choice (the next `macro` event) vs this
-        return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook()
+        return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook() + (f"\n{alert}" if alert else "") + (f"\n{fresh}" if fresh else "")
 
     def _decide(self, scenario, sim, budget, **kw):
         """Every live search goes through here: it scores lines by what the ending HP is worth for the rest of the act (`fight_util`, from the route DP at
@@ -271,11 +273,15 @@ class Live:
         except Exception as e:  # noqa: BLE001  never let bookkeeping break a fight
             return None, f"linear ({str(e)[:60]})"
 
-    # ------------------------------------------------------------------ potions: the solver proposes, I answer (agent.potions)
+    # ------------------------------------------------------------------ potions: my decision; the harness prices them at junctures and alerts (agent.potions)
 
     def _kp(self):
-        """keep_potions for the live search (`potions.search_keep`): the current `hold` (one given or released mid-fight counts at once), all after `combat go`."""
-        return potions.search_keep(self.hold, self._decline_fight, self.fight_id)
+        """keep_potions for the live search (`potions.search_keep`): every potion except those I allowed for this fight (`potion allow`); never a held one."""
+        return potions.search_keep(self.hold, getattr(self, "_allowed", set()), [pid for _, pid in self._sim_potions()])
+
+    def _sim_potions(self):
+        """[(slot, id)] of the potions usable now (`potions.live_slots`: the simulator's slots, fixed for the fight)."""
+        return potions.live_slots(self.rp.scenario, self.rp.sim) if self.rp is not None else []
 
     def _game_json(self, j):
         """The simulator numbers potions by position in its own list; the game by slot (an empty first slot makes them differ). Translate a `use_potion` action."""
@@ -293,54 +299,46 @@ class Live:
         belt = self._belt()
         return belt[i] if i is not None and i < len(belt) else "?"
 
-    def _potion_gate(self, d):
-        """Every time the solver's chosen action is a potion, I am at the gate. Returns (stop message or None, the decision to execute). The solver itself is unchanged: it may propose
-        potions without limit. The answers: `combat ok` throws exactly this one; `combat skip` declines this one (the best non-potion action is played instead); `combat go` declines
-        every proposal for the rest of the fight (my answer, automated). The stop explains what the potion saves: the search value of the best line with potions minus the best line
-        with none (value = +1 win / -1 loss + 0.5 x HP fraction left; 0.1 is about +5% win or +16 HP), and what using it now adds over the best non-potion action."""
-        if not str(d.get("text", "")).startswith("potion"):
-            return None, d
-        if self._potion_ok > 0:
-            self._potion_ok -= 1
-            self.potions_used += 1
-            return None, d
-        others = [o for o in d["options"] if o["q"] is not None and not str(o["text"]).startswith("potion")]
-        if (self._potion_skip > 0 or self._decline_fight == self.fight_id) and others:
-            if self._potion_skip > 0:
-                self._potion_skip -= 1
-            alt = max(others, key=lambda o: o["q"])
-            return None, dict(d, action=alt["action"], json=self.rp.sim.action_json(alt["action"]), text=alt["text"])
-        q_with = max((o["q"] for o in d["options"] if o["q"] is not None), default=None)
-        q_wait = max((o["q"] for o in others), default=None)
-        base = self._decide(self.rp.scenario, self.rp.sim, min(self._budget(), 6.0), tol_hp=self.fight_tol, keep_potions=True)
-        q_none = max((o["q"] for o in base["options"] if o["q"] is not None), default=None)
-        lines = [f"POTION (your call): the solver wants `{d['text']}` ({self._potion_name(d['text'])}) now."]
-        if q_with is not None and q_none is not None:
-            dq = q_with - q_none
-            lines.append(f"  best line with potions {q_with:.2f} vs with none {q_none:.2f}: potions add {dq:+.2f} (about {dq / 2 * 100:+.0f}% win, or {dq * 2 * self.rp.scenario['max_hp']:+.0f} HP at the same win rate)")
-        if q_with is not None and q_wait is not None and others:
-            best_np = max(others, key=lambda o: o["q"])
-            tie = " (a TIE: the solver picked the potion on a tie)" if abs(q_with - q_wait) < 0.02 else ""
-            lines.append(f"  using it NOW beats the best non-potion action ({best_np['text']}) by {q_with - q_wait:+.2f}{tie}")
-        try:
-            lines += self._potion_prices(d)
-        except Exception as e:  # noqa: BLE001  the price is advice: never let it break the gate
-            lines.append(f"  (potion price unavailable: {str(e)[:80]})")
+    def _potion_juncture(self, force=False):
+        """At the start of each player turn (once per turn): None, or the POTION ALERT text. For every potion I do not hold: does throwing it NOW save HP or win
+        over the rest of this fight (`potion_price.now_vs_hold`: throw now then none, vs never; paired futures)? Alert when it adds >= ALERT_WIN win or
+        ALERT_HP of max HP beyond 2 se; the alert also prices spending it in this fight vs keeping it (run-survival units). Whether and when: mine."""
+        from agent import potion_price
+        if self.rp is None or self.rp.sim.stage() != "play":
+            return None
+        pots = self._sim_potions()
+        skip = {i for i, pid in pots if pid in self.hold or pid in getattr(self, "_allowed", set())}
+        if len(skip) == len(pots):
+            return None
+        snap = json.loads(self.rp.sim.snapshot())
+        turn = snap.get("turn")
+        if not force and turn == getattr(self, "_checked_turn", None):
+            return None
+        self._checked_turn = turn
+        rows = potion_price.now_vs_hold(self.eng(), self.rp.scenario, self.rp.sim, skip, seed=int(self.fight_id or 0) * 100 + int(turn or 0))
+        self.log.event("potion_check", fight=self.fight_id, turn=turn, rows=rows)
+        self._potion_last = [potion_price.now_text(r) for r in rows]
+        alerts = [r for r in rows if r["alert"]]
+        if not (force or alerts):
+            return None
+        lines = [f"POTION ALERT (turn {turn}): " + ("throwing now saves HP or win over the rest of this fight" if alerts else "asked")] + self._potion_last
+        for r in (alerts or rows):
+            try:
+                lines += self._potion_prices(r["i"])
+            except Exception as e:  # noqa: BLE001  the price is advice: never let it break the fight
+                lines.append(f"  {r['id']}: no spend-vs-keep price ({str(e)[:80]})")
         now = call("peek")
-        hp = scr.hp(now) or (self.rp.scenario.get("hp", "?"), self.rp.scenario.get("max_hp", "?"))  # the header's HP (the scenario's is the fight start)
-        lines.append(f"  HP {hp[0]}/{hp[1]} now; potions in the belt: {', '.join(scr.belt(now)) or 'none'}")
-        lines.append("Answer: `combat ok` (throw this one), `combat skip` (decline this one), `combat go` (decline every proposal this fight). Weigh the boss and the route, not only this fight.")
-        return "\n".join(lines), d
+        hp_s = scr.hp(now) or (snap["player"]["hp"], snap["player"]["max_hp"])
+        lines.append(f"  HP {hp_s[0]}/{hp_s[1]} now; belt: {', '.join(scr.belt(now)) or 'none'}")
+        lines.append("Your call: throw it by hand (`a <i>`, the potion's option on the screen), wait for a better turn (the check repeats every turn), "
+                     "`potion allow <name|all>` to let the search use it this fight, or go on without (`turn` / `combat`: no new alert this turn).")
+        return "\n".join(lines)
 
-    def _potion_prices(self, d, q_none=None):
-        """Spend the proposed potion in this fight or keep it, in run-survival units (`agent.potion_price`): this fight played on from now with only it vs with
-        none (paired futures), each ending weighed by P(win the act boss | that HP) from the route DP with the potion spent / kept; in the act boss, by the
-        next act's boss win (at full HP: the act transition heals) with / without it."""
+    def _potion_prices(self, i):
+        """Spend the potion at simulator index i in this fight or keep it, in run-survival units (`agent.potion_price`): this fight played on from now with only it
+        vs with none (paired futures), each ending weighed by P(win the act boss | that HP) from the route DP with the potion spent / kept; in the act boss, by
+        the next act's boss win (at full HP: the act transition heals) with / without it, or this fight's win when that boss is out of reach."""
         from agent import potion_price, routes
-        i = potions.text_index(d["text"])
-        pots = self.rp.scenario.get("potions", [])
-        if i is None or i >= len(pots):
-            return []
         eng = self.eng()
         deck = self._run()
         enc = str(self.rp.scenario.get("encounter", ""))
@@ -359,23 +357,27 @@ class Live:
         else:
             rc = self._context()
             act_values = lambda spend: routes.continuation_values(eng, deck, rc.map_text, rc.ctx, rc.names[0], spend=spend)  # noqa: E731
-        p = potion_price.price(eng, self.rp.scenario, self.rp.sim, i, deck, act_values=act_values, next_boss=next_boss, seed=self.fight_id or 0)
+        p = potion_price.price(eng, self.rp.scenario, self.rp.sim, i, deck, act_values=act_values, next_boss=next_boss, seed=int(self.fight_id or 0))
         self.log.event("potion_price", fight=self.fight_id, **{k: v for k, v in p.items()})
         return potion_price.text(p)
 
+    def potion_cmd(self, rest):
+        """potion allow <name|all> | potion deny <name|all> | potion: the potions the live search may use in THIS fight (default none: potions are my call)."""
+        words = rest.split(None, 1)
+        if words and words[0] in ("allow", "deny"):
+            ids = {pid for _, pid in self._sim_potions()}
+            want = ids if (len(words) < 2 or words[1].strip().lower() == "all") else potions.parse_hold(words[1])
+            cur = getattr(self, "_allowed", set())
+            self._allowed = (cur | want) if words[0] == "allow" else (cur - want)
+            self.log.event("potion_allow", fight=self.fight_id, allowed=sorted(self._allowed))
+        return f"the search may use this fight: {sorted(getattr(self, '_allowed', set())) or 'no potion'}\n"
+
     def potions_now(self):
-        """potions: what each potion in the belt adds right now (read-only): the best line with potions vs with none, and the best line with each slot alone allowed."""
+        """potions: the juncture check on demand (read-only): this fight with my potions vs without, and every potion priced spend vs keep."""
         f = self.sync()
         if f is None:
             return "not in combat\n"
-        base = self._decide(self.rp.scenario, self.rp.sim, self._budget(), tol_hp=self.fight_tol, keep_potions=True)
-        free = self._decide(self.rp.scenario, self.rp.sim, self._budget(), tol_hp=self.fight_tol, keep_potions=self._kp())
-        qb = max((o["q"] for o in base["options"] if o["q"] is not None), default=None)
-        qf = max((o["q"] for o in free["options"] if o["q"] is not None), default=None)
-        fq = lambda q: "?" if q is None else f"{q:.2f}"  # noqa: E731  (no searched option has a value at a forced step)
-        out = [f"belt: {', '.join(self._belt()) or 'none'}",
-               f"best line with no potion: {base['text']} (value {fq(qb)}); with potions allowed: {free['text']} ({self._potion_name(free['text']) if str(free['text']).startswith('potion') else 'no potion now'}, value {fq(qf)}; +0.1 is about +5% win or +16 HP)"]
-        return "\n".join(out) + "\n"
+        return (self._potion_juncture(force=True) or "no potion to price") + "\n"
 
     # ------------------------------------------------------------------ selections and the play loop
 
@@ -410,14 +412,8 @@ class Live:
         self.log.event("action", kind_="choose", picks=picks, text=f"choose {picks}")
         return self._send("do " + json.dumps({"choose": picks}))
 
-    def play(self, whole_fight=False, budget=None, max_actions=120, ok=False, skip=False, go=False):
+    def play(self, whole_fight=False, budget=None, max_actions=120):
         budget = self._budget(budget)
-        if ok:
-            self._potion_ok = 1
-        if skip:
-            self._potion_skip = 1
-        if go:
-            self._decline_fight = self.fight_id
         out = []
         tm = dict(state=0.0, sync=0.0, decide=0.0, do=0.0)
         T = time.perf_counter
@@ -452,13 +448,17 @@ class Live:
                 if self.rp.sim.stage() == "choice":  # no selection on the screen, one in the simulator: settle it and re-sync (else it sends `pick` forever)
                     self.rp.resolve_phantom_choice(f["state"], "phantom choice on a COMBAT screen")
                 t0 = T()
-                d = self._decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self._tol(), keep_potions=self._kp())
-                tm["decide"] += T() - t0
-                gate, d = self._potion_gate(d)
-                if gate:
-                    out.append(gate)
+                alert = self._potion_juncture()
+                tm["potions"] = tm.get("potions", 0.0) + (T() - t0)
+                if alert:
+                    out.append(alert)
                     out.append(txt)
                     return "\n".join(out)
+                t0 = T()
+                d = self._decide(self.rp.scenario, self.rp.sim, budget, tol_hp=self._tol(), keep_potions=self._kp())
+                tm["decide"] += T() - t0
+                if str(d["text"]).startswith("potion"):
+                    self.potions_used += 1
                 self.fight_actions += 1
                 self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"])
                 out.append("  " + self._advice_text(d))

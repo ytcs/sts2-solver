@@ -49,3 +49,7 @@ Run-survival price (`agent/potion_price.py`, 2026-10-06; the route DP replaced b
 - Soul Nexus turn 4 (59/72): Strength KEEP (-0.063 +- 0.015 P(win Test Subject)), Colorless tie (+0.035 +- 0.018). In this fight both potions add 3-7 end HP on average (win 0.98 either way): the ~42 HP the real fight lost after holding does not replicate in expectation (real end 19/72 vs simulated mean 35 without potions).
 - Vantom turn 1 (66/80): Weak +0.047 +- 0.027 P(win Vantom) (0.95 -> 1.00), Speed +0.031 +- 0.031 (end HP 25 vs 26): the Act 2 bosses are out of reach for this deck (win 0.01), so this fight's win alone counts -> spend the Weak Potion in Vantom.
 - Cost: ~6 s per potion for the end-HP play-outs (128 futures); the route DP tables are cached per deck / belt.
+
+Per-turn check "throw now (best target, no potion after) vs never this fight" (`potion_price.now_vs_hold`, 32 paired futures, depth 2; 2026-10-06):
+- Vantom: turn 1 Weak +10.3 +- 1.5 end HP, +0.06 win (ALERT); turn 2 Weak +7.1; Speed ~0 on turns 1-6, +5.5 +- 0.3 on turn 7. 1-5 s per turn.
+- Soul Nexus (before the slot fix, same slots there): turn 1 Strength +16.8 +- 3.1 HP / +0.19 win, Colorless +10.4 (ALERT both); turn 2 Strength +0.50 win; turn 3 Strength +11.3; turn 4 ~+5.5 each. The real fight held both until turns 5-6 and ended 19/72: the check would have alerted on turns 1-3.

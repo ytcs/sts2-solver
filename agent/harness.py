@@ -15,7 +15,9 @@ Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <
   routes [--attempts N] [--pf P]   survival of every route on the act map (exact DP over node x HP with the solver's fight outcomes): per option on offer, P(win boss) with at least k more elites, and the representative route per k (agent/routes.py)
   rmcalc [--attempts N] [--hp full|current|N]   every removable card priced as a removal (boss smooth, elites left, next act), ranked: use at a shop's removal, a removal event
   relics                relic counters in combat (Pen Nib, Book of Five Rings ...)
-  hold ID[,ID]          keep those potions out of the solver's choices (`hold none` releases)
+  hold ID[,ID]          keep those potions out of the per-turn check, the search and every table (`hold none` releases)
+  potions               the per-turn potion check on demand: throw each potion now vs never this fight, and spend vs keep (agent.potion_price)
+  potion allow|deny <name|all>   the potions the live search may use in this fight (default none: potions are my call; `turn` / `combat` stop on POTION ALERT)
   note <text>           a free-text note in the run record
   newrun                start a new run record
   status                what the harness is holding (run id, fight, replay fidelity, engine)
@@ -24,7 +26,7 @@ Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <
 Micro = `turn` / `combat`: the solver searches every action from a state rebuilt out of observations only (`agent.fight`), then the action is sent to the game.
 Macro = me, with `eval` for the combat side of a choice and the strategy book (`.claude/skills/sts2-*`) for everything else.
 
-Layout: this file dispatches commands and owns the state; `agent.live` (mixin) is the fight loop and the potion gate, `agent.guards` the decision guards,
+Layout: this file dispatches commands and owns the state; `agent.live` (mixin) is the fight loop and the potion junctures, `agent.guards` the decision guards,
 `agent.screen` reads screen text, `agent.runctx` the run context the calculators price against, `agent.potions` the slot numbering and the potion policy.
 """
 import functools
@@ -82,9 +84,8 @@ class Harness(Live):
         self._ended = set()
         self.budget = None  # fixed seconds of search per decision (`budget <s>`); None = auto from the fight's predicted danger (`budget auto`)
         self.fight_budget = 1.0
-        self._potion_ok = 0  # the potion gate's answers (agent.live): `combat ok` / `combat skip` pending, the fight I declined potions for (`combat go`)
-        self._potion_skip = 0
-        self._decline_fight = None
+        self._allowed = set()  # potions the live search may use in the current fight (`potion allow`, agent.live); none by default
+        self._checked_turn = None
         self.potions_used = 0
         self._pred_q = None  # the predicted distribution of HP lost for this fight (calibration: where the real loss falls in it)
         self.hold = self._load_hold()  # potion ids the solver may not use (kept for the boss): `hold ID,ID`, `hold none`; saved with the run record, so a daemon restart keeps it
@@ -459,13 +460,14 @@ class Harness(Live):
             force = "!" in words
             ans = " ".join(w for w in words if w != "!")
             secs = float(ans) if cmd in ("turn", "combat") and ans.replace(".", "", 1).isdigit() else secs
-            ok, skip, go = ans == "ok", ans == "skip", ans == "go"
             if cmd in ("turn", "combat"):
                 if self.sync() is not None and getattr(self, "drive", ("auto",))[0] == "manual" and not force:
                     return "REFUSED: this fight is MANUAL.\n" + self._drive_line()
-                return self.play(cmd == "combat", secs, ok=ok, skip=skip, go=go)
+                return self.play(cmd == "combat", secs)
             if cmd == "potions":
                 return self.potions_now()
+            if cmd == "potion":
+                return self.potion_cmd(rest)
             if cmd == "a":
                 return self.act(rest)
             if cmd in PRICING:  # the decision guards ask which calculators ran on this floor

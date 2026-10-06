@@ -74,7 +74,8 @@ class Engine:
         # `util`: the fight's HP-worth curve (101 floats, `rl/utility.py`) = what each ending is worth for the rest of the act; None = the linear return
         self.fs.set_util(util)
         acc, first, rounds = {}, None, 0
-        held = potions.held_indices(scenario, keep_potions)  # simulator indices of the potions held back (`agent.potions`)
+        # simulator slots of the potions held back (`agent.potions`): the scenario's order (a thrown potion leaves its slot empty; the slots do not shift)
+        held = potions.held_indices(scenario, keep_potions)
         def _held(t):
             return t.startswith("potion") and (keep_potions is True or potions.text_index(t) in held)
         skip = {a for a, t in sim.legal() if t.startswith("discard potion") or _held(t)}  # the bridge cannot discard a potion, and a tie must never throw one away

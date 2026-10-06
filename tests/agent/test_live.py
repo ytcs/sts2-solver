@@ -58,10 +58,10 @@ def test_turn_plays_until_end_turn(monkeypatch, tmp_path):
     out = ok(h.handle("turn !"))
     assert out == "  play BOLAS #0 -> e1 q0.5   [alt: play SQUASH #2 -> e0 q0.3; end turn q0.2]\n  end turn q0.4   [alt: play BOLAS #0 -> e1 q0.1; play BOLAS #0 -> e0 qNone]\n" + COMBAT
     assert fake.actions() == ['do {"play":{"hand_pos":0,"target":1}}', 'do {"end_turn":true}']
-    assert [c["keep_potions"] for c in eng.decide_calls] == [set(), set()]
+    assert [c["keep_potions"] for c in eng.decide_calls] == [True, True]  # potions are my call: the search plans without them
     ev = events(h)
     st = [e for e in ev if e["kind"] == "fight_start"][-1]
-    assert st["encounter"] == "FABRICATOR_NORMAL" and st["keep_potions"] == [] and st["util"] is None
+    assert st["encounter"] == "FABRICATOR_NORMAL" and st["keep_potions"] is True and st["util"] is None
     assert st["util_why"] == "linear (the adopted networks were not trained with the HP-worth input)"
     assert [e["text"] for e in ev if e["kind"] == "action"] == ["play BOLAS #0 -> e1", "end turn"]
     assert h.fight_actions == 2
@@ -69,48 +69,45 @@ def test_turn_plays_until_end_turn(monkeypatch, tmp_path):
         assert h.handle("turn") == "REFUSED: this fight is MANUAL.\n" + h._drive_line()
 
 
-def test_potion_gate_stops_then_ok(monkeypatch, tmp_path):
-    def script(i, sim, kp):
-        if kp is True:  # the gate's no-potion search
-            return "play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.45, "end turn": 0.1}
-        if i <= 3:
-            return "potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5, "end turn": 0.1}
-        return "end turn", {"end turn": 0.3}
-    h, fake, eng = setup(monkeypatch, tmp_path, script)
+def _alerting(monkeypatch):
+    """potion_price.now_vs_hold stubbed: throwing the Strength Potion now adds 8 win points and 9 HP over the rest of the fight."""
+    from agent import potion_price
+    row = dict(i=0, id="STRENGTH_POTION", action="potion 0", win_now=0.7, win_hold=0.62, hp_now=30.0, hp_hold=21.0, d_win=0.08, d_hp=9.0, se_win=0.02, se_hp=2.0,
+               attempts=32, alert=True)
+    calls = []
+    monkeypatch.setattr(potion_price, "now_vs_hold", lambda eng, sc, sim, skip=(), **kw: calls.append(sorted(skip)) or ([] if 0 in skip else [dict(row)]))
+    return calls
+
+
+def test_potion_alert_stops_once_per_turn(monkeypatch, tmp_path):
+    """Potions are my call: the search plans without them, the turn's check alerts (and stops `turn` / `combat`) when throwing one now saves HP or win;
+    a second `turn` on the same turn plays on without a new alert."""
+    calls = _alerting(monkeypatch)
+    h, fake, eng = setup(monkeypatch, tmp_path, lambda i, sim, kp: ("end turn", {"end turn": 0.3}))
     out = ok(h.handle("combat !"))
     golden("potion_gate.txt", out)
-    assert out.startswith("POTION (your call): the solver wants `potion 0` (Strength Potion) now.\n")
-    assert "\n  HP 41/72 now; potions in the belt: Strength Potion, -\n" in out  # bug fix: the HP now, not the fight's start HP (72/72)
-    assert fake.actions() == []
-    fake.end_after_turn = True
-    out = ok(h.handle("combat ok !"))
-    assert fake.actions() == ['do {"use_potion": {"slot": 0}}', 'do {"end_turn":true}']
-    assert h.potions_used == 1
-    assert out.split("\n")[0] == "  potion 0 q0.6   [alt: play BOLAS #0 -> e1 q0.5; end turn q0.1]"
-    assert "-- combat over" in out and out.endswith(REWARDS)
-    ends = [e for e in events(h) if e["kind"] == "fight_end"]
-    assert len(ends) == 1 and ends[0]["hp"] == [41, 72] and ends[0]["potions_used"] == 1 and ends[0]["screen"] == "REWARDS"
+    assert out.startswith("POTION ALERT (turn 7): throwing now saves HP or win over the rest of this fight\n  STRENGTH_POTION: throw NOW (potion 0)")
+    assert "\n  HP 41/72 now; belt: Strength Potion, -\n" in out
+    assert fake.actions() == [] and calls == [[]]
+    out = ok(h.handle("turn !"))
+    assert fake.actions() == ['do {"end_turn":true}'] and calls == [[]]  # no second check this turn
+    assert [c["keep_potions"] for c in eng.decide_calls] == [True]
+    assert [e["kind"] for e in events(h) if e["kind"].startswith("potion")] == ["potion_check", "potion_price"]
 
 
-def test_potion_gate_skip_and_go(monkeypatch, tmp_path):
+def test_potion_allow(monkeypatch, tmp_path):
+    """`potion allow <name>` lets the search use that potion for the rest of the fight; it is no longer checked (the search times it)."""
+    calls = _alerting(monkeypatch)
+
     def script(i, sim, kp):
-        if i == 1:
-            return "potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5, "end turn": 0.1}
-        return "end turn", {"end turn": 0.3}
+        return ("potion 0", {"potion 0": 0.6, "end turn": 0.1}) if kp != True and i == 1 else ("end turn", {"end turn": 0.3})  # noqa: E712
     h, fake, eng = setup(monkeypatch, tmp_path, script)
-    out = ok(h.handle("turn skip !"))
-    assert fake.actions() == ['do {"play":{"hand_pos":0,"target":1}}', 'do {"end_turn":true}']
-    assert out.split("\n")[0] == "  play BOLAS #0 -> e1 q0.5   [alt: potion 0 q0.6; end turn q0.1]"
-    assert h.potions_used == 0
-
-    def script2(i, sim, kp):
-        return ("potion 0", {"potion 0": 0.6, "end turn": 0.1}) if i == 1 else ("end turn", {"end turn": 0.3})
-    h, fake, eng = setup(monkeypatch, tmp_path, script2)
-    ok(h.handle("turn go !"))
-    ok(h.handle("turn !"))  # the decline lasts the fight
-    assert h._decline_fight == h.fight_id and h._kp() is True
-    assert [c["keep_potions"] for c in eng.decide_calls] == [True, True]
-    assert fake.actions() == ['do {"end_turn":true}', 'do {"end_turn":true}']
+    h.sync()
+    assert h.handle("potion allow strength potion") == "the search may use this fight: ['STRENGTH_POTION']\n"
+    out = ok(h.handle("turn !"))
+    assert fake.actions() == ['do {"use_potion": {"slot": 0}}', 'do {"end_turn":true}'] and h.potions_used == 1
+    assert calls == [] or calls == [[0]]
+    assert h.handle("potion deny all") == "the search may use this fight: no potion\n"
 
 
 def test_advice(monkeypatch, tmp_path):
@@ -126,27 +123,26 @@ def test_advice(monkeypatch, tmp_path):
 
 
 def test_potions_command(monkeypatch, tmp_path):
-    def script(i, sim, kp):
-        return ("play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.45}) if kp is True else ("potion 0", {"potion 0": 0.6})
-    h, fake, eng = setup(monkeypatch, tmp_path, script)
+    """`potions`: the turn's check on demand (no alert needed), with the real paired play-outs (FakeEngine.play_on) and every potion priced."""
+    h, fake, eng = setup(monkeypatch, tmp_path, lambda i, sim, kp: ("end turn", {"end turn": 0.3}))
     out = ok(h.handle("potions"))
-    assert out == ("belt: Strength Potion, -\nbest line with no potion: play BOLAS #0 -> e1 (value 0.45); with potions allowed: potion 0 (Strength Potion, value 0.60; "
-                   "+0.1 is about +5% win or +16 HP)\n")
+    golden("potions_cmd.txt", out)
+    assert out.startswith("POTION ALERT (turn 7): asked\n  STRENGTH_POTION: throw NOW (potion 0) then none vs never this fight")
+    assert [e for e in eng.log if "play_on" in e][0]["play_on"] == 32
 
 
-def test_potion_name_by_game_slot(monkeypatch, tmp_path):
-    """Bug fix: the gate named the potion by indexing the belt (game slots) with the simulator's packed index: a lone potion in the second slot printed `-`."""
+def test_potion_slot_translation(monkeypatch, tmp_path):
+    """Bug fix: the simulator's packed potion index is sent to the game as the game's slot (a lone potion in the second slot is slot 1)."""
     f = live_fight()
     f["scenario"] = dict(f["scenario"], potions=[dict(id="STRENGTH_POTION", slot=1)])
+    _alerting(monkeypatch)
+
     def script(i, sim, kp):
-        if kp is True:
-            return "play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.45}
-        return ("potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5}) if i <= 3 else ("end turn", {"end turn": 0.3})
+        return ("potion 0", {"potion 0": 0.6}) if kp != True and i == 1 else ("end turn", {"end turn": 0.3})  # noqa: E712
     h, fake, eng = setup(monkeypatch, tmp_path, script, fight=f, screen_text=COMBAT.replace("pots[Strength Potion, -]", "pots[-, Strength Potion]"))
-    out = ok(h.handle("turn !"))
-    assert out.startswith("POTION (your call): the solver wants `potion 0` (Strength Potion) now.\n"), out
-    assert "potions in the belt: -, Strength Potion" in out
-    ok(h.handle("turn ok !"))
+    h.sync()
+    h.handle("potion allow all")
+    ok(h.handle("turn !"))
     assert fake.actions()[0] == 'do {"use_potion": {"slot": 1}}'  # the game's slot
     assert h._potion_name("potion 0 -> e1") == "Strength Potion"
 
@@ -193,6 +189,9 @@ def test_engine_held_potions():
 
         def action_json(self, a):
             return json.dumps({"a": a})
+
+        def snapshot(self):
+            return json.dumps(dict(potions=[dict(id="FIRE_POTION"), dict(id="BLOCK_POTION")]))
 
     class FS:
         def __init__(self):
