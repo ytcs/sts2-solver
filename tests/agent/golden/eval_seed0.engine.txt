@@ -1,0 +1,2 @@
+solve attempts=8 util=False n=1 sha=3565baddb964
+  KNOWLEDGE_DEMON_BOSS [POWER_POTION] x1

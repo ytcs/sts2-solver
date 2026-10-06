@@ -98,7 +98,13 @@ def card_gains(engine, deck_json, hz, ids, attempts=32, hold=(), top=40):
         return dict(_GAINS[key])
     coarse = _gains(engine, deck_json, hz, ids, max(8, attempts // 4), False, hold)
     best = [c for c, _ in sorted(coarse.items(), key=lambda kv: -kv[1])[:top]]
-    fine = _gains(engine, deck_json, hz, best, attempts, True, hold)
+    # fresh draws for the second stage: the luck that promoted a card in the screen must not carry into its proper price
+    s0 = getattr(engine, "table_seed", 0)
+    engine.table_seed = s0 + 7_777
+    try:
+        fine = _gains(engine, deck_json, hz, best, attempts, True, hold)
+    finally:
+        engine.table_seed = s0
     out = {c: 0.5 * max(0.0, g) for c, g in coarse.items()}
     out.update(fine)
     if len(_GAINS) >= 4:

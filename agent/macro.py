@@ -160,8 +160,8 @@ def evaluate_smooth(engine, deck_json, spec):
         per = {e: sum(p[1][vi]["per"][e] for p in parts) / len(parts) for e in parts[0][1][vi]["per"]}
         # paired: per encounter and attempt, the difference averaged over the HP levels (the levels share seeds, so they are not independent)
         dl = [p[1][vi].get("diffs") for p in parts]
-        dse = _paired_se({e: np.mean([d[e] for d in dl], axis=0) for e in dl[0]}) if all(d is not None for d in dl) else None
-        summary[vi] = dict(win=sum(wins) / len(wins), se=se, dse=dse if vi else None, hp_lost=sum(p[1][vi]["hp_lost"] for p in parts) / len(parts), by_hp=wins, per=per)
+        diffs = {e: np.mean([d[e] for d in dl], axis=0) for e in dl[0]} if all(d is not None for d in dl) else None
+        summary[vi] = dict(win=sum(wins) / len(wins), se=se, diffs=diffs, dse=_paired_se(diffs) if vi and diffs is not None else None, hp_lost=sum(p[1][vi]["hp_lost"] for p in parts) / len(parts), by_hp=wins, per=per)
         lines.append(f"{v.get('name', vi):24s} smooth {summary[vi]['win']:.3f} ±{se:.3f}  | " + " ".join(f"x{m}:{w:.2f}" for m, w in zip(SMOOTH_MULTS, wins)))
     for vi in range(1, len(variants)):
         d, sd = _vs(summary, vi)
@@ -440,8 +440,17 @@ def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
     for vi, name, *_ in order:
         lines.append(f"{name:24s} {horizon_cells(res, vi)}")
     if base:
-        se = base["se"]
-        top = [r for r in order[1:] if r[2] and r[2]["win"] >= order[1][2]["win"] - 2 * se]
+        best = order[1][2]
+
+        def se_vs_best(b):  # paired when the attempts were kept: both differences against the baseline share its draws
+            if b is best:
+                return 0.0
+            if b.get("diffs") is not None and best.get("diffs") is not None:
+                s = _paired_se({e: np.asarray(b["diffs"][e]) - np.asarray(best["diffs"][e]) for e in b["diffs"]})
+                if s is not None:
+                    return s
+            return (b["se"] ** 2 + best["se"] ** 2) ** 0.5
+        top = [r for r in order[1:] if r[2] and r[2]["win"] >= best["win"] - 2 * se_vs_best(r[2])]
         lines.append(f"sorted by boss smooth (0.02 ties), then next-act win, then elite HP; best: {order[1][1]} ({order[1][2]['win'] - base['win']:+.3f}); boss within 2 se of it: {', '.join(r[1] for r in top)}")
     return "\n".join(lines), res
 

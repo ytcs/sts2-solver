@@ -33,6 +33,7 @@ import os
 import re
 import threading
 import traceback
+import zlib
 
 from agent import guards, macro, potions, runctx, skillgate
 from agent import screen as scr
@@ -73,6 +74,7 @@ class Harness(Live):
         self.log = RunLog()
         self.last_state = ""
         self.priced = {}  # calculator -> floor ('A1 F5') it last ran on: the decision guards (`_decision_guard`) read it
+        self.table_seed = 0  # seed of the tables on this screen (set per pricing call from the floor, `--seed N` adds N): `Engine.table_seed`
         self.reward_screen = None  # (floor, card names) of the card reward last priced with `reward` (the pick guard needs it)
         self.gate = False  # the daemon turns the skill gate on (`agent.skillgate`): no game action before the governing skills are loaded; tests build a bare Harness
         self.fight_hp0 = None
@@ -121,6 +123,7 @@ class Harness(Live):
             if self.engine is None:
                 from agent.engine import Engine
                 self.engine = Engine()
+            self.engine.table_seed = self.table_seed
             return self.engine
 
     def _send(self, line):
@@ -467,6 +470,10 @@ class Harness(Live):
                 return self.act(rest)
             if cmd in PRICING:  # the decision guards ask which calculators ran on this floor
                 here = scr.floor_key(call("peek"))  # the floor the calculator priced (read before it runs: the screen it saw)
+                m = re.search(r"(?:^|\s)--seed\s+(\d+)", rest)  # `--seed N`: fresh draws on this screen (a re-run without it repeats the same ones)
+                if m:
+                    rest = rest[:m.start()] + rest[m.end():]
+                self.table_seed = zlib.crc32((here or "").encode()) % 100_000 * 100 + (int(m.group(1)) if m else 0)
                 out = getattr(self, PRICING[cmd])(rest)
                 if here and not out.startswith(PRICING_FAILED):
                     self.priced[cmd] = here

@@ -62,6 +62,16 @@ def test_eval_variants(monkeypatch, tmp_path):
     golden("eval_smooth.event.json", json.dumps(e["result"], sort_keys=True, indent=0) + "\n")
 
 
+def test_table_seed(monkeypatch, tmp_path):
+    """Tables are seeded per screen: a re-run on the same floor repeats the draws, `--seed N` draws fresh ones (and is not passed on to the command)."""
+    h, out, fake = run(monkeypatch, tmp_path, screen("shop_a2"), "eval --boss --attempts 8", "eval_seed0")
+    s0 = h.engine.table_seed
+    ok(h.handle("eval --boss --attempts 8"))
+    assert h.engine.table_seed == s0
+    ok(h.handle("eval --boss --attempts 8 --seed 3"))
+    assert h.engine.table_seed == s0 + 3
+
+
 def test_eval_pools(monkeypatch, tmp_path):
     run(monkeypatch, tmp_path, screen("shop_a2"), 'eval --elites --attempts 8 --hp full --v "up|upgrade=BASH"', "eval_elites")
     run(monkeypatch, tmp_path, screen("shop_a2"), "eval --next --attempts 8", "eval_next")

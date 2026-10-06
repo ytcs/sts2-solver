@@ -1,0 +1,2 @@
+1 variants x 1 encounters x 8 attempts, start HP 71/80
+baseline                 win 1.000 ±0.000  HP lost 46.6% (q10/50/90/97.5: 26/36/50/54 HP)  | KNOWLEDG:1.00

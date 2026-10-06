@@ -62,6 +62,9 @@ class Engine:
         self.util_trained = ckpt is None and os.path.exists(cur) and bool(_read_json(cur).get("util"))
         self.fs.warm()
         self.seed = 0
+        # seed of the tables (`solve` without a seed): the harness sets it per screen, so a re-run on the same screen repeats the same draws (and every variant
+        # of one call shares them: common random numbers) while the next screen, or `--seed N`, draws fresh ones
+        self.table_seed = 0
 
     def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, util=None):
         """Best next action for the fight in `sim`. Returns dict(action, json, text, searched, rounds, seconds, options=[dict(action, text, p, q)]);
@@ -102,12 +105,12 @@ class Engine:
         return dict(action=a, json=sim.action_json(a), text=text.get(a, f"#{a}"), searched=first["searched"], rounds=rounds,
                     seconds=round(time.perf_counter() - t0, 2), options=opts)
 
-    def solve(self, scenarios, attempts=64, seed=0, util=None, groups=None):
+    def solve(self, scenarios, attempts=64, seed=None, util=None, groups=None):
         """Fights played from their start by the batch solver: one dict per scenario (win, win_se, hp_lost, hp_left_on_win, attempts, aborted).
         `util`: play them under this HP-worth curve (the results stay raw HP outcomes); None = the linear return."""
         self.solver.fs.set_util(util)
         try:
-            return self.solver.solve(scenarios, attempts=attempts, seed=seed, groups=groups)
+            return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups)
         finally:
             self.solver.fs.set_util(None)
 
