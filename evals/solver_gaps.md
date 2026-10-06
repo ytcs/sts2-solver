@@ -44,3 +44,8 @@ Recorded fights of run 20261005-201805; `Engine.decide` 6 s x 3 seeds for this f
 - Soul Nexus turn 4, 59/72 HP, belt Strength + Colorless: Strength +8 % here vs +10.2 +- 4.0 at the Glory bosses; Colorless +11 % vs +15.1 +- 4.0. Holding cost ~40 HP in the real fight (19/72 at the end), which the boss price at today's HP does not see.
 - "Use now" vs the best non-potion action is a tie (within 0.003) at both states: a potion thrown now or later lands in the same line.
 Open: the boss price at the arrival HP each choice leads to (HP-dependent boss win from the route DP, `routes.continuation_util`).
+
+Run-survival price (`agent/potion_price.py`, 2026-10-06; the route DP replaced by the act boss's win at hp + 30 % rest heal, the map was not saved):
+- Soul Nexus turn 4 (59/72): Strength KEEP (-0.063 +- 0.015 P(win Test Subject)), Colorless tie (+0.035 +- 0.018). In this fight both potions add 3-7 end HP on average (win 0.98 either way): the ~42 HP the real fight lost after holding does not replicate in expectation (real end 19/72 vs simulated mean 35 without potions).
+- Vantom turn 1 (66/80): Weak +0.047 +- 0.027 P(win Vantom) (0.95 -> 1.00), Speed +0.031 +- 0.031 (end HP 25 vs 26): the Act 2 bosses are out of reach for this deck (win 0.01), so this fight's win alone counts -> spend the Weak Potion in Vantom.
+- Cost: ~6 s per potion for the end-HP play-outs (128 futures); the route DP tables are cached per deck / belt.

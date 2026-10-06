@@ -1,8 +1,7 @@
 POTION (your call): the solver wants `potion 0` (Strength Potion) now.
   best line with potions 0.60 vs with none 0.45: potions add +0.15 (about +7% win, or +22 HP at the same win rate)
   using it NOW beats the best non-potion action (play BOLAS #0 -> e1) by +0.10
-  STRENGTH_POTION in THIS fight: +7.5% win-equivalent (best line with only it vs none; 0.5 x HP fraction counts too)
-  STRENGTH_POTION at the next boss (QUEEN, TEST, AEONGLASS, HP now 41): -10.4% win (±4.0, paired; boss win 0.46 with it). Throw it here when this fight's number is the larger one (losing here ends the run too).
+  STRENGTH_POTION: no price (no route value: no map position)
   HP 41/72 now; potions in the belt: Strength Potion, -
 Answer: `combat ok` (throw this one), `combat skip` (decline this one), `combat go` (decline every proposal this fight). Weigh the boss and the route, not only this fight.
 COMBAT

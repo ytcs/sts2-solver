@@ -190,6 +190,16 @@ class FakeEngine:
                             wins=[1.0 if e > 0 else 0.0 for e in ends]))
         return out
 
+    def play_on(self, scenario, starts, seeds):
+        """Deterministic stand-in for the batch solver continuing a live fight: the outcome and end HP depend on the seed and the potions left in the copy."""
+        self.log.append(dict(play_on=len(starts), potions=[len(json.loads(s.snapshot()).get("potions", [])) for s in starts[:1]]))
+        out = []
+        for s, sd in zip(starts, seeds):
+            n = len(json.loads(s.snapshot()).get("potions", []))
+            rng = random.Random(_h(str(sd), n))
+            out.append((1, 0.2 + 0.1 * n + 0.5 * rng.random()) if rng.random() < 0.6 + 0.2 * n else (-1, 0.0))
+        return out
+
     def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, util=None):
         self.decide_calls.append(dict(budget=budget, tol_hp=tol_hp, keep_potions=keep_potions))
         if self._decide is not None:

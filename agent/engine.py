@@ -114,6 +114,12 @@ class Engine:
         finally:
             self.solver.fs.set_util(None)
 
+    def play_on(self, scenario, starts, seeds):
+        """Fights continued from the simulators `starts` (one per job, e.g. determinized copies of a live fight) by the batch solver with job seeds `seeds`:
+        one (outcome, end HP fraction) per job (outcome 1 = win)."""
+        rows = self.solver.fs.run([scenario] * len(starts), np.arange(len(starts), dtype=np.uint32), np.asarray(seeds, np.uint64), starts=list(starts))
+        return [(int(r[1]), float(r[3])) for r in rows]
+
 
 def play_fight(eng, scenario, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False, util=None):
     """One fight in the simulator from its start, every decision by `Engine.decide` at the given time cap. Returns (outcome, HP lost, steps)."""

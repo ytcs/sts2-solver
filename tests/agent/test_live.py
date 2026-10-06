@@ -73,7 +73,7 @@ def test_potion_gate_stops_then_ok(monkeypatch, tmp_path):
     def script(i, sim, kp):
         if kp is True:  # the gate's no-potion search
             return "play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.45, "end turn": 0.1}
-        if i <= 4:  # the gate's searches: with none, this potion alone
+        if i <= 3:
             return "potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5, "end turn": 0.1}
         return "end turn", {"end turn": 0.3}
     h, fake, eng = setup(monkeypatch, tmp_path, script)
@@ -141,7 +141,7 @@ def test_potion_name_by_game_slot(monkeypatch, tmp_path):
     def script(i, sim, kp):
         if kp is True:
             return "play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.45}
-        return ("potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5}) if i <= 4 else ("end turn", {"end turn": 0.3})  # the gate's searches: with none, this potion alone
+        return ("potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5}) if i <= 3 else ("end turn", {"end turn": 0.3})
     h, fake, eng = setup(monkeypatch, tmp_path, script, fight=f, screen_text=COMBAT.replace("pots[Strength Potion, -]", "pots[-, Strength Potion]"))
     out = ok(h.handle("turn !"))
     assert out.startswith("POTION (your call): the solver wants `potion 0` (Strength Potion) now.\n"), out
@@ -229,3 +229,30 @@ def test_game_json_slots(monkeypatch, tmp_path):
     assert json.loads(h._game_json('{"use_potion":{"slot":1,"target":0}}')) == {"use_potion": {"slot": 2, "target": 0}}
     assert json.loads(h._game_json('{"use_potion":{"slot":4}}')) == {"use_potion": {"slot": 4}}
     assert h._game_json('{"end_turn":true}') == '{"end_turn":true}'
+
+
+def test_potion_price_units(monkeypatch, tmp_path):
+    """agent.potion_price: both arms on the same futures and seeds, a loss worth 0, the ending weighed by the route DP's V with the potion spent / kept;
+    exactly one copy of the potion allowed in the 'only it' arm."""
+    import numpy as np
+    from agent import potion_price
+    h, fake, eng = setup(monkeypatch, tmp_path, lambda i, sim, kp: ("end turn", {"end turn": 0.3}))
+    h.sync()
+    sim, sc = h.rp.sim, h.rp.scenario
+    mx = sc["max_hp"]
+    calls = []
+
+    def act_values(spend):
+        calls.append(spend)
+        return [np.linspace(0, 0.5, mx + 1), np.linspace(0, 0.6, mx + 1)], "win"
+    p = potion_price.price(eng, sc, sim, 0, deck(), act_values=act_values, attempts=16, seed=3)
+    assert calls == [(("STRENGTH_POTION",), ())]
+    plays = [e for e in eng.log if "play_on" in e]
+    assert [e["potions"] for e in plays] == [[1], [0]]  # only it, then none
+    assert p["kind"] == "act" and 0 <= p["hold"] <= 0.6 and 0 <= p["throw"] <= 0.5
+    assert abs(p["diff"] - (p["throw"] - p["hold"])) < 1e-12
+    golden("potion_price.txt", "\n".join(potion_price.text(p)) + "\n")
+    q = potion_price.price(eng, sc, sim, 0, deck(), next_boss=lambda drop: 0.4 if drop else 0.5, attempts=16, seed=3)
+    assert q["kind"] == "next act" and abs(q["hold"] - q["win_hold"] * 0.5) < 1e-12 and abs(q["throw"] - q["win_throw"] * 0.4) < 1e-12
+    r = potion_price.price(eng, sc, sim, 0, deck(), next_boss=lambda drop: 0.01, attempts=16, seed=3)  # the next boss out of reach: this fight's win alone
+    assert r["kind"] == "this fight" and abs(r["diff"] - (r["win_throw"] - r["win_hold"])) < 1e-12
