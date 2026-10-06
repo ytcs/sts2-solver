@@ -73,7 +73,7 @@ def test_potion_gate_stops_then_ok(monkeypatch, tmp_path):
     def script(i, sim, kp):
         if kp is True:  # the gate's no-potion search
             return "play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.45, "end turn": 0.1}
-        if i <= 3:
+        if i <= 4:  # the gate's searches: with none, this potion alone
             return "potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5, "end turn": 0.1}
         return "end turn", {"end turn": 0.3}
     h, fake, eng = setup(monkeypatch, tmp_path, script)
@@ -141,7 +141,7 @@ def test_potion_name_by_game_slot(monkeypatch, tmp_path):
     def script(i, sim, kp):
         if kp is True:
             return "play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.45}
-        return ("potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5}) if i <= 3 else ("end turn", {"end turn": 0.3})
+        return ("potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5}) if i <= 4 else ("end turn", {"end turn": 0.3})  # the gate's searches: with none, this potion alone
     h, fake, eng = setup(monkeypatch, tmp_path, script, fight=f, screen_text=COMBAT.replace("pots[Strength Potion, -]", "pots[-, Strength Potion]"))
     out = ok(h.handle("turn !"))
     assert out.startswith("POTION (your call): the solver wants `potion 0` (Strength Potion) now.\n"), out

@@ -37,3 +37,10 @@ Each entry: the observation, the hypothesis, the test that would confirm it. Clo
 
 ## FIX: Fabricator desync (sim ended the fight early)
 - Act 3 hallway Fabricator + Guardbot + Stabbot (Minions): with the Fabricator at 8 HP behind 15 block the sim reported `combat_in_progress: false` while the game continued (SIMULATOR DIFFERS, `combat` stopped). Reproduce from `runs/20261005-201805/fights/` (fight 22) with `agent.fidelity_trace`.
+
+## Potion gate prices (task A), regression states, depth 2 (2026-10-06)
+Recorded fights of run 20261005-201805; `Engine.decide` 6 s x 3 seeds for this fight, `macro.evaluate` 64 attempts for the next boss (paired se).
+- Vantom turn 1, 66/80 HP, belt Weak + Speed: Weak +15.0 % here vs +0.5 % at the Act 2 bosses (boss win 0.01: the deck is not ready, potions do not matter there) -> throw; Speed ~0 here, ~0 there (the turn-1 proposal was a TIE).
+- Soul Nexus turn 4, 59/72 HP, belt Strength + Colorless: Strength +8 % here vs +10.2 +- 4.0 at the Glory bosses; Colorless +11 % vs +15.1 +- 4.0. Holding cost ~40 HP in the real fight (19/72 at the end), which the boss price at today's HP does not see.
+- "Use now" vs the best non-potion action is a tie (within 0.003) at both states: a potion thrown now or later lands in the same line.
+Open: the boss price at the arrival HP each choice leads to (HP-dependent boss win from the route DP, `routes.continuation_util`).

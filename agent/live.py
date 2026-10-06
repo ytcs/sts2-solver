@@ -315,11 +315,57 @@ class Live:
             best_np = max(others, key=lambda o: o["q"])
             tie = " (a TIE: the solver picked the potion on a tie)" if abs(q_with - q_wait) < 0.02 else ""
             lines.append(f"  using it NOW beats the best non-potion action ({best_np['text']}) by {q_with - q_wait:+.2f}{tie}")
+        try:
+            lines += self._potion_prices(d, q_none)
+        except Exception as e:  # noqa: BLE001  the price is advice: never let it break the gate
+            lines.append(f"  (potion price unavailable: {str(e)[:80]})")
         now = call("peek")
         hp = scr.hp(now) or (self.rp.scenario.get("hp", "?"), self.rp.scenario.get("max_hp", "?"))  # the header's HP (the scenario's is the fight start)
         lines.append(f"  HP {hp[0]}/{hp[1]} now; potions in the belt: {', '.join(scr.belt(now)) or 'none'}")
         lines.append("Answer: `combat ok` (throw this one), `combat skip` (decline this one), `combat go` (decline every proposal this fight). Weigh the boss and the route, not only this fight.")
         return "\n".join(lines), d
+
+    def _potion_prices(self, d, q_none):
+        """The two prices of the proposed potion, in win points: what it is worth in THIS fight (the best line with only this potion allowed minus the best line
+        with none) and what it is worth in the next boss (`eval` of that boss at the HP now, belt with vs without it; paired, cached per deck / belt / boss).
+        Throwing now (or later in this fight) spends it either way: the choice is this fight vs the boss, not now vs next turn."""
+        i = potions.text_index(d["text"])
+        pots = self.rp.scenario.get("potions", [])
+        if i is None or i >= len(pots) or q_none is None:
+            return []
+        pid = pots[i]["id"]
+        others = {p["id"] for j, p in enumerate(pots) if j != i and p["id"] != pid}
+        alone = self._decide(self.rp.scenario, self.rp.sim, min(self._budget(), 6.0), tol_hp=self.fight_tol, keep_potions=others | set(self.hold))
+        q_alone = max((o["q"] for o in alone["options"] if o["q"] is not None), default=None)
+        out = []
+        if q_alone is not None:
+            out.append(f"  {pid} in THIS fight: {50 * (q_alone - q_none):+.1f}% win-equivalent (best line with only it vs none; 0.5 x HP fraction counts too)")
+        enc = str(self.rp.scenario.get("encounter", ""))
+        hz = self._horizon()
+        boss = [e for e in hz.get("next", []) if e.endswith("_BOSS")] if enc in hz.get("boss", []) or enc.endswith("_BOSS") else list(hz.get("boss", []))
+        if not boss:
+            return out
+        deck = self._run()
+        hp_now = scr.hp(call("peek"))  # the header's HP: the run snapshot can lag inside a fight
+        if hp_now:
+            deck = dict(deck, hp=hp_now[0])
+        key = (tuple(sorted((c["id"], c.get("upgrade", 0)) for c in deck["deck"])), tuple(p["id"] for p in deck.get("potions", [])), pid, tuple(boss), deck["hp"] // 5)
+        cache = self.__dict__.setdefault("_potion_price_cache", {})
+        if key not in cache:
+            belt = [p for p in deck.get("potions", []) if p["id"] not in self.hold]
+            without = list(belt)
+            for j, p in enumerate(without):
+                if p["id"] == pid:
+                    del without[j]
+                    break
+            spec = dict(encounters=boss, attempts=64, hp="current", hold=(), variants=[dict(name="belt"), dict(name="without", potions=[p["id"] for p in without])])
+            _, summ = macro.evaluate(self.eng(), dict(deck, potions=belt), spec)
+            dd, se = macro._vs(summ, 1)
+            cache[key] = (-dd, se, summ[0]["win"])
+        g, se, w = cache[key]
+        out.append(f"  {pid} at the next boss ({', '.join(b.split('_')[0] for b in boss)}, HP now {deck['hp']}): {100 * g:+.1f}% win (±{100 * se:.1f}, paired; boss win {w:.2f} with it)."
+                   f" Throw it here when this fight's number is the larger one (losing here ends the run too).")
+        return out
 
     def potions_now(self):
         """potions: what each potion in the belt adds right now (read-only): the best line with potions vs with none, and the best line with each slot alone allowed."""
