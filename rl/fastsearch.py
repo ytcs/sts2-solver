@@ -19,6 +19,11 @@ from model import DEV, SEC, C
 
 OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS
 _E0, _ES, _EN = SEC["enemies"][0], C["ENEMY_F"], C["OBS_MAX_ENEMIES"]
+# Play-out depth in player turns before the value network takes over. 2 since 2026-10-06: decision regret vs a Monte Carlo referee 0.0038 vs 0.0099 at
+# depth 1 (150 recorded states, `tools/bench_search.py`, paired fight-clustered CI of the difference excludes 0); whole fights with the live search shape
+# (5x32, 1200 eval fights x 4) win +0.88 % +- 0.37 %, HP lost -1.1 % of max +- 0.15 % (`tools/ab_leaf.py`, evals/ab_leaf_5x32.json). Costs ~2x per decision.
+LEAF_TURNS = 2
+
 _PILES = [SEC[n][0] for n in ("draw", "discard", "exhaust")]
 _DEC = SEC["decision"][0]
 if DEV.type == "cuda":
@@ -115,15 +120,17 @@ class GraphFn:
 
 
 class FastSearch:
-    def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=1):
+    def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, roll_cap=None, max_steps=300, hp_bonus=0.5, greedy_roll=False,
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=None):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
         self.roll_net = roll_net if roll_net is not None else net
         self.M, self.K, self.conf = M, K, conf
+        # play-out depth: the ONE default for live play and every batch table (agent.engine, rl/solver.py; evals/bench_search*.jsonl, evals/ab_leaf_5x32.json)
+        self.leaf_turns = LEAF_TURNS if leaf_turns is None else leaf_turns  # player turns a play-out runs before the value network (1 = this turn; large = to the fight's end)
+        roll_cap = roll_cap if roll_cap is not None else 60 * self.leaf_turns if self.leaf_turns < 100 else 400  # step cap of a play-out, scaled with its depth
         self.roll_cap, self.max_steps, self.hp_bonus, self.greedy_roll = roll_cap, max_steps, hp_bonus, greedy_roll
-        self.leaf_turns = leaf_turns  # player turns a play-out runs before the value network (1 = this turn; large = to the fight's end, raise roll_cap with it)
         self.roots, self.groups = roots, groups
         self.threads = threads or max(2, available_cpus() - 1)
         self.timers = collections.defaultdict(float)

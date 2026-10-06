@@ -14,7 +14,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "rl"))
 from solver import Solver  # noqa: E402
 
-CAPS = {1: 60, 2: 120, 3: 180}
+CAPS = {1: 60, 2: 120, 3: 180, 99: 400}
 
 
 def main():
@@ -24,13 +24,19 @@ def main():
     ap.add_argument("--attempts", type=int, default=4)
     ap.add_argument("--seed", type=int, default=909)
     ap.add_argument("--out", default=os.path.join(ROOT, "evals", "ab_leaf.json"))
+    ap.add_argument("--M", type=int, default=3)
+    ap.add_argument("--K", type=int, default=8)
+    ap.add_argument("--kind", default="all", help="all | boss | elite | normal: only these encounters")
     a = ap.parse_args()
     rng = np.random.default_rng(a.seed)
-    fights = json.load(open(os.path.join(ROOT, "data", "train", "eval.json")))[:a.limit]
+    fights = json.load(open(os.path.join(ROOT, "data", "train", "eval.json")))
+    if a.kind != "all":
+        fights = [s for s in fights if str(s.get("encounter", "")).endswith("_" + a.kind.upper())]
+    fights = fights[:a.limit]
     for k, s in enumerate(fights):
         if k % 2:
             s["hp"] = max(1, int(round(s["max_hp"] * rng.uniform(0.25, 1.0))))
-    solver = Solver()
+    solver = Solver(M=a.M, K=a.K)
     res = {}
     for leaf in [int(x) for x in a.leafs.split(",")]:
         solver.fs.leaf_turns, solver.fs.roll_cap = leaf, CAPS.get(leaf, 400)
