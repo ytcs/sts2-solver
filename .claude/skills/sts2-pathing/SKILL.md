@@ -29,7 +29,7 @@ The Neow / ancient option changes which path is best: decide the pair. A wrong p
 - **Elite rewards `[code]`** (`CardRarityOdds.cs`; A10 Scarcity): rare chance per card 1.5% in normal fights, **5% in elites**, 4.5% in shops, plus a rarity offset that starts at -5%, grows +0.5% per card rolled, resets after a rare (cap +40%); uncommon 37% / 40% / 37%; boss reward 100% rare. An elite always gives a relic and more gold: ~3x a monster's rare odds plus a guaranteed relic. Weigh elites as rewards against their HP cost and the rests that pay it.
 
 ## Rules of thumb `[hyp]` (test: `route` plus `eval --boss --hp <arrival HP>` over candidate routes; compare with the outcome in `review`)
-- Rest before a boss or a planned elite chain when HP binds; smith when HP is spare. Two consecutive elites need a rest between them (`[played]`: two elites + one rest before Vantom, arrival 34/80, boss win 10.6%).
+- Rest before a boss or a planned elite chain when HP binds; smith when HP is spare. Two consecutive elites need a rest between them.
 - A shop is worth the floor only if gold covers something `eval` or removal value justifies; else take the unknown or the fight that rewards a card.
 - Against a damage-gated boss pool an elite's relic + card is cheap HP.
 - Neow / ancient: take the option that moves the boss-pool win rate or the route's reward budget most; a large gold sum is only as good as the shops on the route; a curse is one slot (`add=CURSE_ID`).

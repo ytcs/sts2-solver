@@ -11,7 +11,7 @@
   python -m agent.improve ledger                what was tried and decided
 
 Two kinds of things get improved, each with its own gate:
-  strategy (the skills in .claude/skills): a lesson moves from `[hyp]` to `[sim]` / `[played]` only with a test behind it (a macro `eval`, a solver A/B, a run record).
+  strategy (the skills in .claude/skills): a lesson moves from `[hyp]` to `[sim]` only with a measurement behind it (a macro `eval`, a solver A/B).
   model / search: a checkpoint or a search setting is adopted only if it beats the current one on the held-out fights (corpus holdout and the fixed eval set) with
   paired seeds; the result is in evals/ledger.jsonl.
 Triggers for a fine-tune (from `review`): fights lost or surprising against the solver's own prediction, concentrated in some encounters / card kinds; a high
@@ -128,7 +128,7 @@ def review(run_id=None):
         follow.append("simulator fidelity first: reproduce the divergence (agent.fidelity_sweep, agent.fidelity_trace) and fix the simulator before trusting any model comparison")
     if surprises:
         follow.append(f"{len(surprises)} fight(s) far from the prediction: add them to the corpus and look for a pattern (encounter, card type, relic); a pattern justifies a fine-tune; "
-                      "write what the fight asked into `sts2-acts/encounters.md` (and `sts2-mechanics` for a new power) with `[played]`")
+                      "write what the fight asked into `sts2-acts/encounters.md` (and `sts2-mechanics` for a new power) as a rule tagged `[code]` / `[sim]` or `[hyp]` with its test, no run history")
     if act_total and dis_total / act_total > 0.35:
         follow.append("the search overrides the policy often: the policy is poor on this distribution; a fine-tune on the corpus should raise greedy strength")
     if not follow:

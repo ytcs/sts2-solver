@@ -5,7 +5,7 @@ description: Use when entering or planning Act 1 (Overgrowth or Underdocks) as t
 
 # Ironclad Act 1 (deviations from `sts2-strategy`, `sts2-ironclad`)
 
-Pools: `sts2-acts`; boss rows: `encounters.md`. r214119 = run 20261004-214119 (Underdocks), r215036 = 20261004-215036 (Overgrowth); records in `runs/`.
+Pools: `sts2-acts`; boss rows: `encounters.md`.
 
 ## Picks (256 attempts, elite or boss pool) `[sim]`
 - Inferno+ +25, Anger +17..+25, Setup Strike +21, Dismantle +13, Perfected Strike +11 (weak deck) / HP -5 (strong deck), Rampage HP -17. Blood Wall -5 -> +10 once Inferno is in the deck.
@@ -15,16 +15,16 @@ Pools: `sts2-acts`; boss rows: `encounters.md`. r214119 = run 20261004-214119 (U
 
 ## HP gates `[sim]`
 - Weak deck (starter + few cards): damage-gated; boss win 18% at 49 HP, 24% at 80.
-- Deck with Inferno+ / Anger / Rampage / Blood Wall: HP-gated; Overgrowth boss pool 96 / 66 / 28 / 19% at 80 / 60 / 45 / 34 HP, Vantom alone 0.46 at 60, 0.11 at 45 (r215036). Test every few picks: `eval --boss --hp 34/45/60/80`.
-- Build for the weakest boss of the pool from the first reward: r214119 died to Waterfall Giant at 79/80, predicted 45% (se 2.8, 320 fights) `[played]`.
-- Pantograph (+25 HP at each boss) makes arrival HP cheap; without it every elite costs a rest `[played]`.
+- Deck with Inferno+ / Anger / Rampage / Blood Wall: HP-gated; Overgrowth boss pool 96 / 66 / 28 / 19% at 80 / 60 / 45 / 34 HP, Vantom alone 0.46 at 60, 0.11 at 45. Test every few picks: `eval --boss --hp 34/45/60/80`.
+- Build for the weakest boss of the pool from the first reward (Waterfall Giant: 45% at 79/80 HP, se 2.8, 320 fights). `[hyp]` Test: boss-alone `eval` for each boss of the pool every few picks.
+- Pantograph (+25 HP at each boss) makes arrival HP cheap; without it every elite costs a rest. `[hyp]` Test: `routes` elite lanes at the arrival HP with and without the +25.
 
-## Routing `[played]`
-- r215036 reached Vantom at 34/80 (predicted 10.6%, se 1.7): the last third of a forced lane held two elites and a regular fight for one rest. Before committing a lane, count the rests after the last elite and run `eval --boss --hp <arrival HP>`.
-- Spoils Map (+600 gold at Act 2 treasure, one dead slot): 760 gold moved no Act 2/3 boss (run 4); take it only with Act 2 shop targets.
+## Routing `[hyp]`
+- Before committing a forced lane, count the rests after its last elite (two elites and a regular fight for one rest is too few) and run `eval --boss --hp <arrival HP>`.
+- Spoils Map (+600 gold at Act 2 treasure, one dead slot): the gold alone moves no Act 2/3 boss; take it only with Act 2 shop targets. Test: `eval --next` of the basket the gold buys.
 
 ## To test `[hyp]`
 - Ancient choice against the real map: option-by-route table (`sts2-pathing`).
-- Elite count that maximises boss readiness (run 4: 2 elites, both won): `route` variants, `eval --boss` at arrival HP.
+- Elite count that maximises boss readiness: `route` variants, `eval --boss` at arrival HP.
 - What beats Waterfall Giant: `eval` variants against `WATERFALL_GIANT_BOSS` only.
 - Hold the Strength Potion for the burst turn instead of boss turn 1: compare with `hindsight`.

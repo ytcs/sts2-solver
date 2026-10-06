@@ -32,15 +32,15 @@ A refusal names what is missing: run it, write the record, repeat.
 ## Batch mode `[code]`
 `python -m agent - <<'EOF'` with one command per line runs them in order, output under `>>> command`; text is literal (no quoting). It stops at the first `ERR` / `REFUSED` / `[chain stopped` (`--keep-going` after `-` continues). E.g. `brief` + `reward` in one call, then the pick.
 
-## Cost of the calculators `[played]` (warm daemon)
+## Cost of the calculators (warm daemon) `[hyp]` (test: time them on a warm daemon)
 `reward` ~6 s, `routes` ~5 s (0.5 s again at the same deck: the tables are cached by deck, relics, belt and encounters left), `rmcalc` ~8 s, 1-variant `eval` ~3 s, `pickplan` ~27 s (1.3 s again: gains cached; a cheap screen of all cards, then the top 40 priced properly). A cold daemon costs ~35 s (networks and CUDA): do not `quit` it unless code changed. Run `pickplan` once per act and after a shop, `routes` at every fork.
 
-## Speed `[played]`
+## Speed `[hyp]` (test: run and fight durations in `review`)
 Target a run in 30 min, fights 1-2 min (`combat` takes 5-40 s). `combat` for easy fights, `turn` / `adv` when the stakes are real; short reasons; no re-reading unchanged state; a reward screen in one chained `a`.
 
-## Quirks `[played]`
+## Quirks `[code]`
 - `REFUSED: skills not loaded: X`: invoke X, read it, repeat (`CLAUDE.md`, Rule 0).
-- Never chain map or node choices (a chained click entered an elite at 37/80). A click onto an elite or boss below 60% HP needs `!`.
+- Never chain map or node choices. A click onto an elite or boss below 60% HP needs `!`.
 - Option numbers shift after every action. The harness refuses a bare `a <i>` after an earlier step in the same chain or batch, and `~text` prefers the one option that starts with the text and refuses when several still match: name options (`~gold`), or read `s` and send the number in its own call.
 - Crystal Sphere (event minigame, 121 cells): the bridge's generic overlay fallback lists only 40 controls, so the cells hide Proceed. `a 0 <x> <y>` / tool / proceed come from the `CrystalSphere` case in `mods/AgentBridge/src/Decisions.cs` (installed 2026-10-05; untested live). Never use the console. Play: `sts2-crystal-sphere`. `[code]`
 - `hold` is saved with the run record and survives a daemon restart (cleared on a new run); `status` lists what is held. Set it as soon as the boss potion is in the belt.
@@ -56,5 +56,5 @@ Target a run in 30 min, fights 1-2 min (`combat` takes 5-40 s). `combat` for eas
 1. `python -m agent.improve review` (writes `runs/<run>/review.md`): outcome; predicted vs actual per fight (Brier, HP); search overrides of the policy; fidelity divergences; card picks vs the best smooth boss score; every recorded `judgment:`; costly fights in `runs/<run>/fights/`.
 2. **Fidelity first**: reproduce a divergence (`python -m agent.fidelity_sweep --mode recorded`, `agent.fidelity_trace`, `agent.calibrate`) and fix it before any model comparison.
 3. **Costly fights** (lost >= 30% max HP, or lost): `python -m agent.hindsight <file> --log` says luck (percentile of the real loss among simulator replays) or solver gap (decisions where a large-budget search prefers another line by >= 2 HP). Gap patterns go to the corpus / fine-tune; encounter patterns to `sts2-acts/encounters.md`.
-4. **Judgments**: did each recorded `judgment:` hold in the fights that followed? Edit the rules it relied on in `sts2-deckbuilding` (narrow, tighten the test, delete) and tag the claim `[played]` or `[hyp]`; tally in `evals/judgments.jsonl`. `python -m agent.improve lessons` lists every open `[hyp]`: the experiment backlog.
+4. **Judgments**: did each recorded `judgment:` hold in the fights that followed? Edit the rules it relied on in `sts2-deckbuilding` (narrow, tighten the test, delete) and tag the claim `[sim]` once measured, else `[hyp]` with its test; tally in `evals/judgments.jsonl`. `python -m agent.improve lessons` lists every open `[hyp]`: the experiment backlog.
 5. **Model changes** only when 2-3 runs show a pattern: `corpus` -> `finetune` -> `gate` (candidate gains >= 1 point on the corpus holdout and loses <= 1 on the fixed eval and the 4-7-energy eval) -> `adopt`; every step in `evals/ledger.jsonl`. Strategy changes go through the book, model changes through the gate; neither on a single run.

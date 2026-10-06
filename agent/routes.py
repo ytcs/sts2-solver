@@ -454,6 +454,8 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
         vis = [k for k, v in nodes.items() if v["visited"]]
         cur = max(vis, default=None)
         starts = [c for c in (nodes[cur]["children"] if cur else []) if c in nodes] if cur else [k for k in nodes if k[0] == min(r for r, _ in nodes)]
+    if not starts:
+        return "routes: no node left before the boss: the next fight is the boss, price rest vs smith with `eval --boss` at both HPs"
     not_monster = set(pools.pool(act, "elite")) | set(pools.pool(act, "boss"))
     w0 = min(sum(1 for e in ctx.get("seen", []) if e not in not_monster), calc.weak_fights)
     if max(calc.F(s, w0, 0)[hp_now] for s in starts) < 0.05:
