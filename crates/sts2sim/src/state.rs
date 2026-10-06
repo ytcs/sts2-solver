@@ -9,8 +9,11 @@ use crate::util::{ArrayVec, SmallVec};
 pub const MAX_CARDS: usize = 160;
 pub const MAX_CREATURES: usize = 12;
 pub const MAX_POWERS: usize = 16;
-pub const MAX_RELICS: usize = 24;
-pub const MAX_POTIONS: usize = 4;
+/// Relics a combat holds (late runs carry 25-30); the observation shows at most `OBS_RELICS` of the combat ones (`relic_mask`).
+pub const MAX_RELICS: usize = 40;
+pub const OBS_RELICS: usize = 24;
+/// Belt slots (A10 has 2; belt relics add more). 8 since M3 (`docs/rl_redesign.md`).
+pub const MAX_POTIONS: usize = 8;
 pub const MAX_HAND: usize = 10;
 pub const MAX_ORBS: usize = 10;
 /// Largest deck a combat accepts: deck card `i` indexes the `deck_*` side tables (`[_; MAX_DECK]`) and the rest of the card

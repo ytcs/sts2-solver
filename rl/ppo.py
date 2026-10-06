@@ -111,6 +111,10 @@ def main():
     ap.add_argument("--pot-head", action="store_true", help="with --heads: the potion-use head (per belt slot)")
     ap.add_argument("--pot-coef", type=float, default=0.5, help="weight of the potion-use head's loss")
     ap.add_argument("--warm-prefix", default="outcome.", help="comma-separated parameter-name prefixes the --head-warmup iterations train (the rest frozen)")
+    ap.add_argument("--adaptive", type=int, default=0, help="every N iterations reweight the training fights (M3): fights the policy wins 20-80 %% weigh 1, the "
+                    "others --adaptive-floor; win estimated per fight, shrunk toward its (encounter, act, character) group")
+    ap.add_argument("--adaptive-floor", type=float, default=0.3)
+    ap.add_argument("--lr-floor", type=float, default=0.05, help="the lr decays linearly to this fraction of --lr")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", help="checkpoint to continue from (iteration count and lr schedule continue; --iters is the total)")
     ap.add_argument("--warm", action="store_true", help="with --resume: take the weights only (fresh optimizer, iteration 0)")
@@ -140,6 +144,11 @@ def main():
             load_weights(net, ck, allow)
     print("params", n_params(net), "resuming at iteration", it0, flush=True)
     env, scen = make_env(a.train, a.envs, a.seed + 1000, a.max_steps, a.hp_bonus, a.turn_cap)
+    adapt_rec = None
+    if a.adaptive:  # per-fight and per-group win counts from the training episodes
+        gkey = {}
+        grp = np.array([gkey.setdefault((s.get("encounter"), s.get("act"), s.get("character")), len(gkey)) for s in scen])
+        s_n, s_w = np.zeros(len(scen)), np.zeros(len(scen))
     # the outcome head alone first: its own optimizer, the rest of the network untouched
     prefixes = tuple(p for p in a.warm_prefix.split(",") if p)
     warm_params = [p for n, p in net.named_parameters() if n.startswith(prefixes)]
@@ -192,7 +201,14 @@ def main():
     ep_stats = []
     for it in range(it0 + 1, a.iters + 1 + (it_warm - it0)):
         warm = it <= it_warm
-        lr = a.lr * max(0.05, 1 - (max(it - (it_warm - it0), 1) - 1) / max(a.iters, 1))  # warm-up iterations do not advance the schedule
+        lr = a.lr * max(a.lr_floor, 1 - (max(it - (it_warm - it0), 1) - 1) / max(a.iters, 1))  # warm-up iterations do not advance the schedule
+        if a.adaptive and it % a.adaptive == 0 and s_n.sum() > 0:
+            g_n, g_w = np.bincount(grp, s_n, len(gkey)), np.bincount(grp, s_w, len(gkey))
+            pg = (g_w + 1) / (g_n + 2)
+            ps = (s_w + 4 * pg[grp]) / (s_n + 4)
+            wts = np.where((ps >= 0.2) & (ps <= 0.8), 1.0, a.adaptive_floor)
+            env.set_weights(wts)
+            adapt_rec = dict(share_mid=round(float(((ps >= 0.2) & (ps <= 0.8)).mean()), 3), seen=round(float((s_n > 0).mean()), 3))
         for g in (opt_w if warm else opt).param_groups:
             g["lr"] = lr
         # ---- rollout ----
@@ -253,6 +269,10 @@ def main():
                     draw_curves(np.nonzero(done)[0])
                     for i in np.nonzero(done)[0]:
                         ep_stats.append((int(oc[i]), float(ei["hp_lost"][i]), int(ei["length"][i])))
+                        if a.adaptive and oc[i] in (1, -1, 2):
+                            si = int(ei["scenario"][i])
+                            s_n[si] += 1
+                            s_w[si] += oc[i] == 1
                 steps += N
             if a.pot_head:
                 _, last_v, last_ol, last_pl = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True, potuse=True)
@@ -358,6 +378,8 @@ def main():
         t_upd = time.time() - t_upd
         rec = {"inv": [round(inv_err[0], 6), inv_err[1]], "it": it, "warm": warm, "steps": steps, "sps": int((steps - steps0) / (time.time() - t0)), "t_roll": round(t_roll, 1), "t_upd": round(t_upd, 1), "lr": lr}
         rec.update({k: round(v / nb, 4) for k, v in stats.items()})
+        if adapt_rec:
+            rec["adaptive"] = adapt_rec
         if ep_stats:
             e = np.array(ep_stats)
             wins = e[:, 0] == 1

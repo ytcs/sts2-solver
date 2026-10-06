@@ -56,7 +56,13 @@ def main():
     ap.add_argument("--attempts", type=int, default=2)
     ap.add_argument("--out", default=os.path.join(ROOT, "evals", "gate_m1.json"))
     ap.add_argument("--pair", action="append", default=[], help="extra paired comparison cand_conf:ref_conf (e.g. heads:current+cd)")
+    ap.add_argument("--set", action="append", default=[], help="extra scenario set name=path (reported; PASS still needs every set)")
+    ap.add_argument("--only", help="comma list: run only these sets")
     a = ap.parse_args()
+    global SETS
+    SETS = dict(SETS, **dict(x.split("=", 1) for x in a.set))
+    if a.only:
+        SETS = {k: v for k, v in SETS.items() if k in a.only.split(",")}
     vals = [v for v in a.values.split(",") if v]
     refs = [r.split("=", 1) for r in a.ref]
     cn, cp = a.cand.split("=", 1)

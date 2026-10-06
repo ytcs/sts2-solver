@@ -26,7 +26,7 @@ pub const CARD_F: usize = 12;
 pub const ENEMY_F: usize = 8 + OBS_POWERS * 2 + OBS_INTENTS * 3 + 4;
 const GLOBAL_F: usize = 10;
 const PLAYER_F: usize = 8 + OBS_POWERS * 2;
-const RELIC_F: usize = MAX_RELICS * 2;
+const RELIC_F: usize = OBS_RELICS * 2;
 const POTION_F: usize = MAX_POTIONS * 2;
 /// Regent block (appended at the END of the vector): current star cost of each hand card (-1 = none, X = all stars is
 /// reported as -2) and of each decision candidate. Stars themselves are in the player block.
@@ -252,13 +252,13 @@ impl Combat {
         // relics with no combat effect are not shown (`relic_mask`, `docs/rl_redesign.md` M2) unless the mask is switched off
         let mask = MASK_RELICS.load(std::sync::atomic::Ordering::Relaxed);
         let mut n_relics = 0;
-        for r in self.player.relics.as_slice().iter().filter(|r| !mask || crate::relic_mask::OBSERVED.get(r.id as usize).copied().unwrap_or(true)).take(MAX_RELICS) {
+        for r in self.player.relics.as_slice().iter().filter(|r| !mask || crate::relic_mask::OBSERVED.get(r.id as usize).copied().unwrap_or(true)).take(OBS_RELICS) {
             n_relics += 1;
             w.n(r.id as i32 + 1);
             // The counter a player can see on the relic (`ShowCounter ? DisplayAmount`), not the raw state slot.
             w.n(crate::content::relic_listener(r.id).meta_display(self, r).unwrap_or(0));
         }
-        w.zeros((MAX_RELICS - n_relics) * 2);
+        w.zeros((OBS_RELICS - n_relics) * 2);
         });
         for k in 0..MAX_POTIONS {
             match self.player.potions[k] {
@@ -488,7 +488,7 @@ pub fn layout_consts() -> Vec<(&'static str, usize)> {
         ("OBS_INTENTS", OBS_INTENTS),
         ("MAX_HAND", MAX_HAND),
         ("MAX_POTIONS", MAX_POTIONS),
-        ("MAX_RELICS", MAX_RELICS),
+        ("MAX_RELICS", OBS_RELICS),
         ("MAX_ORBS", MAX_ORBS),
         ("MAX_CREATURES", MAX_CREATURES),
         ("MAX_PICK", MAX_PICK),

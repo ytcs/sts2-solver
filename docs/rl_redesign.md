@@ -82,6 +82,8 @@ One table in `data/` classifying every relic from its decompiled hooks (`decomp/
 - Advance a stage on fixed per-stage probe sets; report coverage (encounter x relic class x potion count x card type; situation probes: lethal this turn, a big-hit turn with a potion in hand, choice screens, multi-phase bosses).
 - Prerequisite: observation resized for 8 potions and more relics (`MAX_POTIONS`, `MAX_RELICS`): a fresh network, trained from scratch through the curriculum.
 
+**Deviation (2026-10-06): warm start instead of from scratch.** The network reads the observation per entity (pointer heads, per-token encoders), so h128's weights load unchanged into the resized layout (8 potion slots, 40 relics held / 24 observed) and reproduce h128's results exactly (800/800 fights). M3 therefore fine-tunes h128 (+ its potion-use head) on the new mix rather than training from scratch through staged curricula; the easy stage (`gen_curriculum.py --stage easy`) stays available if a from-scratch run is needed. Data: `tools/gen_curriculum.py` (120k fights, seed 31: relics drawn from the full act / ancient pools then filtered to observed + potion-linked, belts up to 8, start HP 20-100 %) + the old training set (30k, no forgetting); adaptive sampling (`ppo.py --adaptive`: fights at 20-80 % win weigh 1, others 0.3, estimated per fight shrunk to its encounter x act x character group). Price-aware potion training is NOT part of M3 (one change set).
+
 **Gate:** the M1 gate on today's sets, plus an 8-potion / ancient-relic eval set (generated with a held-out seed) where the new network must beat the old by >= 2 se.
 
 ### M4: AutoSlay sampler
