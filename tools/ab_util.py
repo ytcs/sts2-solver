@@ -22,7 +22,7 @@ def v_curve(eng, nxt, heal, maxhp, attempts):
     res = eng.solve(scen, attempts=attempts)
     w = np.array([r["win"] for r in res])
     hp = np.arange(maxhp + 1)
-    V = np.interp(hp, grid, w)
+    V = np.maximum.accumulate(np.interp(hp, grid, w))  # more HP is never worse: smooth the sampling noise of the grid
     V[0] = 0.0
     return V
 
@@ -51,7 +51,10 @@ def main():
         V = v_curve(eng, c["next"], c["heal"], maxhp, a.v_attempts)
         util = util_of(V, maxhp)
         row = dict(name=c["name"], V=[round(float(V[int(round(x * maxhp))]), 3) for x in (0.1, 0.25, 0.5, 0.75, 1.0)])
-        for arm, u in (("linear", None), ("util", util)):
+        sys.path.insert(0, os.path.join(ROOT, "rl"))
+        from dist import linear_util
+        # dist_linear: the head with the linear objective (isolates the evaluator: head vs the 3-network value ensemble) from the objective itself
+        for arm, u in (("linear", None), ("dist_linear", [float(x) for x in linear_util()]), ("util", util)):
             ends, wins, lost = [], 0, []
             for k in range(a.n):
                 o, hl, _ = play_fight(eng, f, 31000 + k, a.budget, tol_hp=a.tol, util=u)

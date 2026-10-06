@@ -431,7 +431,7 @@ def continuation_util(engine, deck_json, map_text, ctx, act, attempts=24, pf=0.1
             break
     if V[maxhp] <= 1e-6:
         return None, "no continuation value"
-    U = np.clip(V / V[maxhp], 0.0, 1.0)
+    U = np.clip(np.maximum.accumulate(V) / max(V.max(), 1e-9), 0.0, 1.0)  # more HP is never worse (table noise can say otherwise)
     util = [-1.0] + [1.0 + hp_bonus * float(U[min(maxhp, max(1, int(round((b + 0.5) / 20 * maxhp))))]) for b in range(20)]
     pts = " ".join(f"{int(f * 100)}%:{U[max(1, int(round(f * maxhp)))]:.2f}" for f in (0.1, 0.25, 0.5, 0.75, 1.0))
     return util, f"HP worth = P({goal} the act boss) from the next node, relative to full HP: {pts}"
