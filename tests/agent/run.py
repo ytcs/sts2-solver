@@ -20,10 +20,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..")))
 import support  # noqa: E402
 
 
-class Skip(Exception):
-    pass
-
-
 def main(argv):
     sys.stdout.reconfigure(encoding="utf-8")
     pat = argv[argv.index("-k") + 1] if "-k" in argv else None

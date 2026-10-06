@@ -157,10 +157,16 @@ class Harness(Live):
         act = runctx.act_of_bosses(ctx["bosses"])
         if act is not None:
             return act
+        errs = []
         for _ in range(3):
-            act = scr.act_index(call("peek"))
+            s = call("peek")
+            act = scr.act_index(s)
             if act is not None:
                 return act
+            if s.startswith("ERR"):
+                errs.append(s.split("\n")[0])
+        if errs:  # act 0 because the bridge failed, not because the screen has no header: the pools may be the wrong act's
+            self._bookkeeping_error("context: act", RuntimeError(errs[-1]))
         return 0
 
     def _context(self):
@@ -171,6 +177,8 @@ class Harness(Live):
         bosses, map_text, seen = [], "", []
         try:
             map_text = call("m")
+            if map_text.startswith("ERR"):  # the bridge reports its failures as text: no boss known, but say why in the record
+                self._bookkeeping_error("context: map", RuntimeError(map_text.split("\n")[0]))
             bosses = runctx.bosses_from_map(map_text)
         except Exception as e:  # noqa: BLE001
             self._bookkeeping_error("context: map", e)

@@ -137,11 +137,14 @@ class FakeBridge:
 def patch_bridge(mp, fake):
     """Replace `call` everywhere it was imported by name (agent.harness and any module split out of it later), and make the socket path raise."""
     import agent.bridge as bridge
+    import agent.harness  # noqa: F401  imported first, so its modules bind the real `call` that is replaced below (a cold import after patching would keep a fake)
     real = bridge.call
     for name, mod in list(sys.modules.items()):
-        if (name == "agent" or name.startswith("agent.")) and mod is not None and getattr(mod, "call", None) is real:
+        c = getattr(mod, "call", None) if mod is not None and (name == "agent" or name.startswith("agent.")) else None
+        if c is not None and (c is real or isinstance(c, FakeBridge)):  # a second harness in the same test replaces the first one's fake
             mp.setattr(mod, "call", fake)
-    mp.setattr(bridge, "call", fake)
+    for name in ("agent.bridge", "agent.harness", "agent.live"):  # (agent.live: after the refactor)
+        assert name not in sys.modules or sys.modules[name].call is fake, name
 
     def no_socket(*a, **kw):
         raise AssertionError("a test tried to reach the real bridge")
@@ -257,6 +260,18 @@ def golden(name, text):
         import difflib
         diff = "".join(list(difflib.unified_diff(want.splitlines(True), text.splitlines(True), "golden", "now"))[:60])
         raise AssertionError(f"golden {name} differs:\n{diff}")
+
+
+class Skip(Exception):
+    """A skipped test (tests/agent/run.py counts it); under pytest, pytest.skip."""
+
+
+def skip(why):
+    try:
+        import pytest
+    except ImportError:
+        raise Skip(why) from None
+    pytest.skip(why)
 
 
 def ok(out):

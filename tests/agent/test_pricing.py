@@ -95,6 +95,41 @@ def test_brief(monkeypatch, tmp_path):
     run(monkeypatch, tmp_path, screen("shop_a2"), "brief", "brief")
 
 
+def test_context_read_once_per_command(monkeypatch, tmp_path):
+    """The map and the run record are read once per command (not once per horizon set), afresh for the next command, and dropped when an action runs."""
+    from agent import runctx
+    reads = []
+    real = runctx.encounters_met
+    monkeypatch.setattr(runctx, "encounters_met", lambda path, act: reads.append(act) or real(path, act))
+    fake = FakeBridge(screen("shop_a2"), deck_json=deck(), map_text=MAP_A2, on_action=[screen("shop_a2")])
+    h = make_harness(monkeypatch, tmp_path, fake, events=fight_starts(upto=18))
+    ok(h.handle("eval --boss --smooth --attempts 4 --v x|add=BASH"))
+    ok(h.handle('eval --elites --next --future --attempts 4 --v "x|add=BASH"'))
+    assert fake.calls.count("m") == 2 and reads == [1, 1]
+    ok(h.handle("routes --attempts 4"))
+    assert fake.calls.count("m") == 3 and len(reads) == 3
+    h._context()
+    h._send("a 0")
+    assert h._rc is None
+
+
+def test_context_logs_bridge_errors(monkeypatch, tmp_path):
+    """A bridge failure while building the context reads as `no boss known` (same tables as without a map) and is recorded as a harness_error event."""
+    outs = []
+    for i, m in enumerate(("no map\n", "ERR bridge down: the game is not running or the mod is not loaded\n")):
+        fake = FakeBridge(screen("shop_a2"), deck_json=deck(), map_text=m)
+        h = make_harness(monkeypatch, tmp_path, fake, events=fight_starts(upto=18), run_id=f"r{i}")
+        outs.append((ok(h.handle("brief")), ok(h.handle("eval --boss --attempts 4"))))
+        errs = [e for e in events(h) if e["kind"] == "harness_error"]
+        assert len(errs) == 2 * i, errs  # one per command
+    assert outs[0] == outs[1]
+    assert errs[0]["where"] == "context: map" and "ERR bridge down" in errs[0]["error"]
+    fake = FakeBridge("ERR bridge connection lost (OSError)\n", deck_json=deck(), map_text="no map\n")
+    h = make_harness(monkeypatch, tmp_path, fake, run_id="r3")
+    assert h._cur_act(dict(bosses=[])) == 0
+    assert [e["where"] for e in events(h) if e["kind"] == "harness_error"] == ["context: act"]
+
+
 def test_context_from_record(monkeypatch, tmp_path):
     """The narrowing context: encounters met this act in order (from the run record, one per fight id), the boss(es) from the map."""
     fake = FakeBridge(screen("shop_a2"), deck_json=deck(), map_text=MAP_A2.replace("KNOWLEDGE_DEMON_BOSS", "KNOWLEDGE_DEMON_BOSS + KAISER_CRAB_BOSS"))

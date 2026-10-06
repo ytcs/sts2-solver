@@ -2,7 +2,8 @@
 The engine's decisions are scripted (FakeEngine.decide); the simulator is the real one, aligned by the Replayer."""
 import json
 
-from support import FakeBridge, FakeEngine, deck, events, fixture_json, golden, make_harness, ok
+import support
+from support import MAP_A2, FakeBridge, FakeEngine, deck, events, fight_starts, fixture_json, golden, make_harness, ok
 
 COMBAT = """COMBAT
 A3 F38 IRONCLAD A10 HP 41/72 G150 pots[Strength Potion, -]
@@ -150,12 +151,35 @@ def test_potion_name_by_game_slot(monkeypatch, tmp_path):
     assert h._potion_name("potion 0 -> e1") == "Strength Potion"
 
 
+def test_fight_util_inputs(monkeypatch, tmp_path):
+    """The HP-worth curve of a fight (networks trained for it): the route DP gets the priced deck (held potions out), the map, the narrowing context and
+    the act's pool variant; a boss and a missing run are linear."""
+    from agent import routes
+
+    class UtilEngine(FakeEngine):
+        util_trained = True
+    got = []
+    monkeypatch.setattr(routes, "continuation_util", lambda eng, deck, map_text, ctx, act, *a, **kw: got.append((deck, map_text, ctx, act)) or (None, "recorded"))
+    fake = FakeBridge(support.screen("shop_a2"), deck_json=dict(deck(), potions=[dict(id="POWER_POTION", slot=0), dict(id="FIRE_POTION", slot=1)]), map_text=MAP_A2)
+    h = make_harness(monkeypatch, tmp_path, fake, events=fight_starts(upto=18), engine=UtilEngine())
+    h.handle("hold FIRE_POTION")
+    assert h._fight_util(dict(encounter="MYTES_NORMAL")) == (None, "recorded")
+    d, m, ctx, act = got[-1]
+    assert [p["id"] for p in d["potions"]] == ["POWER_POTION"] and d["max_hp"] == deck()["max_hp"]
+    assert m == MAP_A2 and act == "Hive"
+    assert ctx == dict(seen=["TUNNELER_WEAK", "EXOSKELETONS_WEAK", "OVICOPTER_NORMAL", "MYTES_NORMAL", "LOUSE_PROGENITOR_NORMAL"], bosses=["KNOWLEDGE_DEMON_BOSS"])
+    assert h._fight_util(dict(encounter="KNOWLEDGE_DEMON_BOSS")) == (None, "linear (a boss: no route after it)")
+    fake.deck = None
+    assert h._fight_util(dict(encounter="MYTES_NORMAL")) == (None, "linear (no run)")
+    assert len(got) == 1
+
+
 def test_engine_held_potions():
     """`Engine.decide` with held potions: they leave the searched copy (`without_potions`, by the simulator's packed index) and are never chosen."""
     try:
         from agent.engine import Engine
     except Exception as e:  # noqa: BLE001  torch / rl not importable here
-        raise type("Skip", (Exception,), {})(f"agent.engine not importable: {e}")
+        support.skip(f"agent.engine not importable: {e}")
 
     class Sim:
         def __init__(self, dropped=()):
