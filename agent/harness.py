@@ -635,6 +635,9 @@ class Harness:
             if not ran("routes", "route"):
                 return f"REFUSED: run `routes` on this floor before a {'fork' if kind == 'MAP' else 'Neow / ancient'} choice (sts2-pathing procedure, sts2-harness: routes at every fork).\n" + state
             return None
+        if kind == "RESTSITE" and not re.search(r"(?i)proceed", line) and not (ran("routes") and ran("eval")):
+            return ("REFUSED: rest or smith is priced over the rest of the act (sts2-deckbuilding section 6): `routes --hp <HP after the rest>` and `routes` at "
+                    "the HP now, plus `eval --smooth --boss --next` upgrade variants, on this floor.\n" + state)
         if (kind == "SHOP" and not re.search(r"(?i)leave", line)) or (kind == "RESTSITE" and not re.search(r"(?i)proceed", line)):
             if not ran("eval", "rmcalc", "routes", "pickplan"):
                 return f"REFUSED: price this {kind.lower()} decision first (`eval` variants, `rmcalc`, `routes`; sts2-deckbuilding section 1 / 6), on this floor.\n" + state
@@ -707,7 +710,10 @@ class Harness:
         names = pools.act_names(cur)
         if len(names) > 1 and ctx["bosses"]:
             names = [n for n in names if any(b in pools.pool(n, "boss") for b in ctx["bosses"])] or names
-        text = routes.analyse(self.eng(), deck, call("m"), call("peek"), ctx, names[0], att, pf, weights=weights, hold="all")
+        state = call("peek")
+        if "--hp" in toks:  # what-if start HP (rest vs smith: the HP after the rest vs now)
+            state = re.sub(r"HP \d+/", f"HP {int(toks[toks.index('--hp') + 1])}/", state, count=1)
+        text = routes.analyse(self.eng(), deck, call("m"), state, ctx, names[0], att, pf, weights=weights, hold="all")
         self.log.event("routes", text=text)
         return text
 
