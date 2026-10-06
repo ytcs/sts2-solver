@@ -132,6 +132,23 @@ def test_potions_command(monkeypatch, tmp_path):
                    "+0.1 is about +5% win or +16 HP)\n")
 
 
+def test_potion_name_by_game_slot(monkeypatch, tmp_path):
+    """Bug fix: the gate named the potion by indexing the belt (game slots) with the simulator's packed index: a lone potion in the second slot printed `-`."""
+    f = live_fight()
+    f["scenario"] = dict(f["scenario"], potions=[dict(id="STRENGTH_POTION", slot=1)])
+    def script(i, sim, kp):
+        if kp is True:
+            return "play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.45}
+        return ("potion 0", {"potion 0": 0.6, "play BOLAS #0 -> e1": 0.5}) if i <= 3 else ("end turn", {"end turn": 0.3})
+    h, fake, eng = setup(monkeypatch, tmp_path, script, fight=f, screen_text=COMBAT.replace("pots[Strength Potion, -]", "pots[-, Strength Potion]"))
+    out = ok(h.handle("turn !"))
+    assert out.startswith("POTION (your call): the solver wants `potion 0` (Strength Potion) now.\n"), out
+    assert "potions in the belt: -, Strength Potion" in out
+    ok(h.handle("turn ok !"))
+    assert fake.actions()[0] == 'do {"use_potion": {"slot": 1}}'  # the game's slot
+    assert h._potion_name("potion 0 -> e1") == "Strength Potion"
+
+
 def test_engine_held_potions():
     """`Engine.decide` with held potions: they leave the searched copy (`without_potions`, by the simulator's packed index) and are never chosen."""
     try:

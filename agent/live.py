@@ -279,7 +279,10 @@ class Live:
         return scr.belt(call("peek"))
 
     def _potion_name(self, text):
+        """The belt name of the simulator's `potion N`: N is the packed index, the belt is by game slot (`pots[-, Fire Potion]`: potion 0 is slot 1)."""
         i = potions.text_index(text)
+        if i is not None and self.rp is not None:
+            i = potions.game_slot(self.rp.scenario, i)
         belt = self._belt()
         return belt[i] if i is not None and i < len(belt) else "?"
 
