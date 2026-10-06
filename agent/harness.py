@@ -124,7 +124,26 @@ class Harness:
 
     def state(self):
         self.last_state = call("s")
+        if _kind(self.last_state) == "COMBAT":
+            return self.last_state.rstrip("\n") + "\n" + self._combat_info()
         return self.last_state
+
+    def _combat_info(self):
+        """What a good player reads every turn besides the hand: the draw pile (unordered) and each enemy's move plan after the shown intent, with what each
+        possible move does (damage at today's modifiers, statuses into my piles, debuffs on me, its own buffs / block). From the synced simulator."""
+        try:
+            if self.sync() is None:
+                return ""
+            lines = []
+            draw = call("p draw").strip().split("\n")
+            if draw and draw[0].startswith("draw"):
+                lines.append(draw[0].rstrip(":") + ": " + ", ".join(l.strip() for l in draw[1:] if l.strip()))
+            for i, rows in self.rp.sim.intent_plan():
+                turns = ["+%d %s" % (h + 1, " | ".join(f"{n} {t}" + (f" ({p:.0%})" if p < 0.995 else "") for n, p, t in r)) for h, r in enumerate(rows)]
+                lines.append(f"e{i} plan: " + "  ".join(turns))
+            return "\n".join(lines) + "\n" if lines else ""
+        except Exception as e:  # noqa: BLE001  never let the display break a command
+            return f"(combat info unavailable: {str(e)[:80]})\n"
 
     def _fight_json(self):
         raw = call("fight").strip()
@@ -573,6 +592,8 @@ class Harness:
                 reply = reply.rstrip("\n") + "\n" + self._drive_line()
             except Exception:  # noqa: BLE001  never let bookkeeping break a command
                 pass
+        if _kind(reply) == "COMBAT":
+            reply = reply.rstrip("\n") + "\n" + self._combat_info()
         return reply
 
     @staticmethod

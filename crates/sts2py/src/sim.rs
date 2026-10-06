@@ -280,6 +280,17 @@ impl Sim {
             .collect()
     }
 
+    /// Per living enemy (index): per future turn after the shown intent, [(move, probability, intent text)] (`Combat::intent_plan`).
+    fn intent_plan(&self) -> Vec<(usize, Vec<Vec<(String, f32, String)>>)> {
+        self.cx
+            .enemies
+            .iter()
+            .enumerate()
+            .filter(|(_, &c)| self.cx.cr(c).is_alive())
+            .map(|(i, &c)| (i, self.cx.intent_plan(c)))
+            .collect()
+    }
+
     /// Plays dense action `idx`. False if it is not legal.
     fn step(&mut self, idx: usize) -> bool {
         match Action::from_index(idx) {

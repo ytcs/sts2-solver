@@ -337,6 +337,8 @@ def _bar_verdict(variants, res, tags, gaps, nv):
         d = boss[vi]["win"] - boss[0]["win"]
         se = (boss[vi]["se"] ** 2 + boss[0]["se"] ** 2) ** 0.5
         dw = (nv[vi][1] - w0) if nv and w0 is not None else 0.0
+        if boss[vi].get("by_hp") and boss[0].get("by_hp"):  # the smooth average saturates at x1.5+; the weakest fight is judged at the HP I arrive with too
+            dw = max(dw, boss[vi]["by_hp"][0] - boss[0]["by_hp"][0])
         bar = max(3 * se, 0.05)
         clear = d > bar or dw >= 0.10
         if opens:

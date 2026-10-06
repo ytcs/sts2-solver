@@ -564,6 +564,134 @@ impl Combat {
         self.look_enter(c, ms, cur, nxt, NO, p, out);
     }
 
+    /// What a human reads off the move pattern: per future turn (+1 .. +LOOK_H after the shown intent), each possible move with its probability and a
+    /// short intent text ("30 + status", "7x2", "buff"), damage with the current modifiers. Same walk as `lookahead`; consumes no RNG.
+    pub fn intent_plan(&self, c: Cid) -> Vec<Vec<(String, f32, String)>> {
+        let cr = self.cr(c);
+        if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player {
+            return Vec::new();
+        }
+        let def = content::monster_def(cr.monster.id);
+        self.look_paths(c)
+            .iter()
+            .map(|list| {
+                let mut acc: Vec<(u8, f32)> = Vec::new();
+                for &(node, p) in list.iter() {
+                    match acc.iter_mut().find(|(n, _)| *n == node) {
+                        Some(e) => e.1 += p,
+                        None => acc.push((node, p)),
+                    }
+                }
+                acc.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
+                acc.into_iter()
+                    .map(|(node, p)| {
+                        if node == STUN_NODE {
+                            return ("STUNNED".to_string(), p, "stunned".to_string());
+                        }
+                        let MonsterNode::Move { id, intents, .. } = &def.nodes[node as usize] else { return ("?".to_string(), p, String::new()) };
+                        let parts: Vec<String> = intents
+                            .iter()
+                            .map(|it| match it {
+                                Intent::Attack { damage, hits } => {
+                                    let (d, h) = (self.intent_damage(c, damage(self, c)), hits(self, c));
+                                    if h > 1 { format!("{d}x{h}") } else { format!("{d}") }
+                                }
+                                Intent::DeathBlowAttack { damage } => format!("{} (dies)", self.intent_damage(c, damage(self, c))),
+                                Intent::StatusCard => "status".into(),
+                                Intent::CardDebuff => "card debuff".into(),
+                                Intent::Buff => "buff".into(),
+                                Intent::Debuff => "debuff".into(),
+                                Intent::DebuffStrong => "strong debuff".into(),
+                                Intent::Defend => "block".into(),
+                                Intent::Escape => "escape".into(),
+                                Intent::Heal => "heal".into(),
+                                Intent::Hidden => "hidden".into(),
+                                Intent::Summon => "summon".into(),
+                                Intent::Sleep => "sleep".into(),
+                                Intent::Stun => "stun".into(),
+                                Intent::DeathBlow => "death blow".into(),
+                            })
+                            .collect();
+                        let mut text = parts.join(" + ");
+                        let fx = self.move_effects(c, node);
+                        if !fx.is_empty() {
+                            text = format!("{text} [{fx}]");
+                        }
+                        (id.trim_end_matches("_MOVE").to_string(), p, text)
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// What one move does besides its damage, found by performing it on a copy of the combat (the player's block set huge so the copy cannot die or
+    /// lose HP): debuffs / buffs on me, cards it adds to my piles, its own powers and block, summons. E.g. "me: Vulnerable +3; discard: +3 Wound; self: Strength +2".
+    /// Amounts are those of the move performed now (a scaling move shows today's numbers). Consumes no RNG of the real combat.
+    pub fn move_effects(&self, c: Cid, node: u8) -> String {
+        use std::collections::BTreeMap;
+        let mut cx = self.clone();
+        cx.creatures[PLAYER as usize].block = 1 << 20;
+        cx.creatures[c as usize].monster.next_move = node;
+        let powers = |cx: &Combat, who: Cid| -> BTreeMap<u16, i32> {
+            let mut m = BTreeMap::new();
+            for p in cx.cr(who).powers.iter() {
+                *m.entry(p.id).or_insert(0) += p.amount;
+            }
+            m
+        };
+        let piles = |cx: &Combat| -> [BTreeMap<u16, i32>; 4] {
+            let mut out: [BTreeMap<u16, i32>; 4] = Default::default();
+            for (k, pile) in [&cx.player.hand, &cx.player.draw, &cx.player.discard, &cx.player.exhaust].iter().enumerate() {
+                for &ci in pile.iter() {
+                    *out[k].entry(cx.cards[ci as usize].id).or_insert(0) += 1;
+                }
+            }
+            out
+        };
+        let (me0, self0, piles0, blk0) = (powers(&cx, PLAYER), powers(&cx, c), piles(&cx), cx.cr(c).block);
+        let alive0 = cx.enemies.iter().filter(|&&e| cx.cr(e).is_alive()).count();
+        let _ = cx.perform_move(c);
+        let (me1, self1, piles1, blk1) = (powers(&cx, PLAYER), powers(&cx, c), piles(&cx), cx.cr(c).block);
+        let alive1 = cx.enemies.iter().filter(|&&e| cx.cr(e).is_alive()).count();
+        let pdiff = |a: &BTreeMap<u16, i32>, b: &BTreeMap<u16, i32>| -> Vec<String> {
+            let keys: std::collections::BTreeSet<u16> = a.keys().chain(b.keys()).copied().collect();
+            keys.into_iter()
+                .filter_map(|k| {
+                    let d = b.get(&k).copied().unwrap_or(0) - a.get(&k).copied().unwrap_or(0);
+                    (d != 0).then(|| format!("{} {:+}", crate::ids::power::NAMES[k as usize].trim_end_matches("_POWER"), d))
+                })
+                .collect()
+        };
+        let mut out = Vec::new();
+        let me = pdiff(&me0, &me1);
+        if !me.is_empty() {
+            out.push(format!("me: {}", me.join(", ")));
+        }
+        for (k, name) in ["hand", "draw", "discard", "exhaust"].iter().enumerate() {
+            let added: Vec<String> = piles1[k]
+                .iter()
+                .filter_map(|(&id, &n)| {
+                    let d = n - piles0[k].get(&id).copied().unwrap_or(0);
+                    (d > 0).then(|| format!("+{d} {}", crate::ids::card::NAMES[id as usize]))
+                })
+                .collect();
+            if !added.is_empty() {
+                out.push(format!("{name}: {}", added.join(", ")));
+            }
+        }
+        let mut me_self = pdiff(&self0, &self1);
+        if blk1 > blk0 {
+            me_self.push(format!("block +{}", blk1 - blk0));
+        }
+        if !me_self.is_empty() {
+            out.push(format!("self: {}", me_self.join(", ")));
+        }
+        if alive1 > alive0 {
+            out.push(format!("summons {}", alive1 - alive0));
+        }
+        out.join("; ")
+    }
+
     /// Expected total attack damage of one move node (what its attack intents will show / do against the player).
     fn node_attack_damage(&self, c: Cid, node: u8) -> f32 {
         if node == STUN_NODE {
