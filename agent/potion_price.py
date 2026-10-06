@@ -13,6 +13,7 @@ This is the decision layer of the RL redesign in miniature (`docs/rl_redesign.md
 worth of HP is applied outside it.
 """
 import json
+import re
 
 import numpy as np
 
@@ -21,9 +22,11 @@ REACH = 0.05  # below this next-act boss win, today's deck says nothing about th
 ALERT_WIN = 0.03  # the per-turn check alerts when throwing a potion now adds this much win over the rest of the fight ...
 ALERT_HP = 0.10  # ... or saves this share of max HP (mean end HP, a loss counted as 0), in both cases beyond 2 paired se
 NOW_ATTEMPTS = 32  # futures per arm of the per-turn check
+PICK_ATTEMPTS = 8  # futures (other seeds) that choose a potion's target before the reported arms: picking on the reported futures would inflate the gain
+KEEP_WIN = 0.10  # a potion I chose to keep this fight (`potion keep`) alerts again only when throwing it now adds this much win (this fight's survival)
 
 
-def now_vs_hold(engine, scenario, sim, skip=(), attempts=NOW_ATTEMPTS, seed=0):
+def now_vs_hold(engine, scenario, sim, skip=(), attempts=NOW_ATTEMPTS, seed=0, kept=()):
     """The per-turn question: does throwing a potion NOW save HP (or win) over the rest of this fight? Per potion in the simulator (packed index, not in
     `skip`): the fight played on from now after throwing it now (its best target) with no potion after, vs played on with no potion at all; both arms on the
     same determinized futures and job seeds. Returns [dict(i, id, action, win_now, win_hold, hp_now, hp_hold, d_win, d_hp, se_win, se_hp, alert)]."""
@@ -33,42 +36,48 @@ def now_vs_hold(engine, scenario, sim, skip=(), attempts=NOW_ATTEMPTS, seed=0):
         return []
     mx = scenario.get("max_hp", 80)
     every = [n for n, _ in pots]
-    seeds = [7_919 * (r + 1) + seed for r in range(attempts)]
-    bases = []
-    for r in range(attempts):
-        c = sim.copy()
-        c.determinize(1_000_003 * (r + 1) + seed)
-        bases.append(c)
+    def futures(n, s0):
+        out = []
+        for r in range(n):
+            c = sim.copy()
+            c.determinize(1_000_003 * (r + 1) + s0)
+            out.append(c)
+        return out, [7_919 * (r + 1) + s0 for r in range(n)]
+    bases, seeds = futures(attempts, seed)
+    picks, pseeds = futures(PICK_ATTEMPTS, seed + 500_009)
 
-    def ends(starts):
-        res = engine.play_on(scenario, starts, seeds)
+    def ends(starts, sd):
+        res = engine.play_on(scenario, starts, sd)
         return np.array([hp * mx if oc == 1 else 0.0 for oc, hp in res])
-    hold = ends([b.without_potions(every) for b in bases])
+
+    def thrown(bs, a, i):
+        out = []
+        for b in bs:
+            c = b.copy()
+            c.step(a)
+            left = [n for n in every if n != i]
+            out.append(c.without_potions(left) if left else c)
+        return out
+    hold = ends([b.without_potions(every) for b in bases], seeds)
     out = []
     for i, pid in pots:
         if i in skip:
             continue
-        best = None
-        for a, t in sim.legal():
-            if not t.startswith(f"potion {i}") or t.startswith("discard"):
-                continue
-            starts = []
-            for b in bases:
-                c = b.copy()
-                c.step(a)
-                left = [n for n in every if n != i]
-                starts.append(c.without_potions(left) if left else c)
-            e = ends(starts)
-            if best is None or e.mean() > best[2].mean():
-                best = (a, t, e)
-        if best is None:
+        acts = [(a, t) for a, t in sim.legal() if re.match(rf"potion {i}( |$)", t)]
+        if not acts:
             continue
-        a, t, now = best
+        if len(acts) > 1:  # the target is chosen on other futures, so the reported gain is not the max of noisy estimates
+            acts = [max(acts, key=lambda at: ends(thrown(picks, at[0], i), pseeds).mean())]
+        a, t = acts[0]
+        now = ends(thrown(bases, a, i), seeds)
         dw, dh = (now > 0).astype(float) - (hold > 0), now - hold
         se = lambda x: float(x.std(ddof=1) / len(x) ** 0.5) if len(x) > 1 else 0.0  # noqa: E731
         r = dict(i=i, id=pid, action=t, win_now=float((now > 0).mean()), win_hold=float((hold > 0).mean()), hp_now=float(now.mean()), hp_hold=float(hold.mean()),
                  d_win=float(dw.mean()), d_hp=float(dh.mean()), se_win=se(dw), se_hp=se(dh), attempts=attempts)
-        r["alert"] = bool((r["d_win"] >= ALERT_WIN and r["d_win"] > 2 * r["se_win"]) or (r["d_hp"] >= ALERT_HP * mx and r["d_hp"] > 2 * r["se_hp"]))
+        if pid in kept:  # I chose to keep it this fight: only this fight's survival reopens the question
+            r["alert"] = bool(r["d_win"] >= KEEP_WIN and r["d_win"] > 2 * r["se_win"])
+        else:
+            r["alert"] = bool((r["d_win"] >= ALERT_WIN and r["d_win"] > 2 * r["se_win"]) or (r["d_hp"] >= ALERT_HP * mx and r["d_hp"] > 2 * r["se_hp"]))
         out.append(r)
     return out
 

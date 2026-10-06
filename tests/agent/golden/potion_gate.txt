@@ -2,7 +2,7 @@ POTION ALERT (turn 7): throwing now saves HP or win over the rest of this fight
   STRENGTH_POTION: throw NOW (potion 0) then none vs never this fight: win 0.70 vs 0.62 (+0.08 ±0.02), mean end HP 30 vs 21 (+9.0 ±2.0; a loss counts 0; 32 paired futures)
   STRENGTH_POTION: no price (no route value: no map position)
   HP 41/72 now; belt: Strength Potion, -
-Your call: throw it by hand (`a <i>`, the potion's option on the screen), wait for a better turn (the check repeats every turn), `potion allow <name|all>` to let the search use it this fight, or go on without (`turn` / `combat`: no new alert this turn).
+Your call: throw it by hand (`a <i>`, the potion's option on the screen), wait for a better turn (the check repeats every turn), `potion allow <name|all>` to let the search use it this fight, `potion keep <name>` (no more alerts for it this fight unless the win is at stake), or go on without (`turn` / `combat`: no new alert this turn).
 COMBAT
 A3 F38 IRONCLAD A10 HP 41/72 G150 pots[Strength Potion, -]
 T6 E3/3 draw5 disc8 exh1

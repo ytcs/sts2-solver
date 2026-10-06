@@ -17,7 +17,8 @@ Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <
   relics                relic counters in combat (Pen Nib, Book of Five Rings ...)
   hold ID[,ID]          keep those potions out of the per-turn check, the search and every table (`hold none` releases)
   potions               the per-turn potion check on demand: throw each potion now vs never this fight, and spend vs keep (agent.potion_price)
-  potion allow|deny <name|all>   the potions the live search may use in this fight (default none: potions are my call; `turn` / `combat` stop on POTION ALERT)
+  potion allow|deny|keep <name|all>   allow/deny: the potions the live search may use in this fight (default none: potions are my call; `turn` / `combat` stop on
+                        POTION ALERT); keep: no more alerts for it this fight unless this fight's win is at stake
   note <text>           a free-text note in the run record
   newrun                start a new run record
   status                what the harness is holding (run id, fight, replay fidelity, engine)
@@ -445,7 +446,7 @@ class Harness(Live):
             if cmd == "hold":
                 self.hold = potions.parse_hold(rest)
                 self._save_hold()
-                return f"solver may not use: {sorted(self.hold) or 'nothing held'}\n"
+                return f"held (out of the potion check, the search and every table): {sorted(self.hold) or 'nothing held'}\n"
             if cmd == "budget":
                 if secs is not None:
                     self.budget = secs

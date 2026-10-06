@@ -325,7 +325,7 @@ def test_hold_and_held_potions(monkeypatch, tmp_path):
     fake = FakeBridge(screen("shop_a2"), deck_json=d)
     h = make_harness(monkeypatch, tmp_path, fake)
     assert json.loads(h._deck_raw()) == d
-    assert h.handle("hold power potion, Fire_Potion") == "solver may not use: ['FIRE_POTION', 'POWER_POTION']\n"
+    assert h.handle("hold power potion, Fire_Potion") == "held (out of the potion check, the search and every table): ['FIRE_POTION', 'POWER_POTION']\n"
     with open(os.path.join(h.log.dir, "hold.json"), encoding="utf-8") as f:
         assert json.load(f) == ["FIRE_POTION", "POWER_POTION"]
     h.handle("hold POWER_POTION")
@@ -347,8 +347,8 @@ def test_hold_and_held_potions(monkeypatch, tmp_path):
     from agent.harness import Harness
     h2 = Harness()  # a daemon restart keeps the hold
     assert h2.hold == {"POWER_POTION"}
-    assert h.handle("hold none") == "solver may not use: nothing held\n"
-    assert h.handle("hold") == "solver may not use: nothing held\n"
+    assert h.handle("hold none") == "held (out of the potion check, the search and every table): nothing held\n"
+    assert h.handle("hold") == "held (out of the potion check, the search and every table): nothing held\n"
     assert json.loads(h._deck_raw()) == d
     fake.deck = None
     assert h._deck_raw() == "null"

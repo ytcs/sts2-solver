@@ -255,3 +255,15 @@ def test_potion_price_units(monkeypatch, tmp_path):
     assert q["kind"] == "next act" and abs(q["hold"] - q["win_hold"] * 0.5) < 1e-12 and abs(q["throw"] - q["win_throw"] * 0.4) < 1e-12
     r = potion_price.price(eng, sc, sim, 0, deck(), next_boss=lambda drop: 0.01, attempts=16, seed=3)  # the next boss out of reach: this fight's win alone
     assert r["kind"] == "this fight" and abs(r["diff"] - (r["win_throw"] - r["win_hold"])) < 1e-12
+
+
+def test_potion_keep(monkeypatch, tmp_path):
+    """`potion keep <name>`: kept for the boss this fight; the check is told (alerts then only when this fight's win is at stake)."""
+    from agent import potion_price
+    seen = []
+    monkeypatch.setattr(potion_price, "now_vs_hold", lambda eng, sc, sim, skip=(), **kw: seen.append(sorted(kw.get("kept", ()))) or [])
+    h, fake, eng = setup(monkeypatch, tmp_path, lambda i, sim, kp: ("end turn", {"end turn": 0.3}))
+    h.sync()
+    assert h.handle("potion keep strength potion").startswith("kept this fight (alerts only if this fight's win is at stake): ['STRENGTH_POTION']")
+    ok(h.handle("turn !"))
+    assert seen == [["STRENGTH_POTION"]]

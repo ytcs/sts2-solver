@@ -86,6 +86,7 @@ class Live:
         sc = f["scenario"]
         self._allowed = set()  # potions the live search may use this fight (`potion allow`); none by default: potions are my decision, the harness alerts
         self._checked_turn = None  # the turn the potion juncture last checked
+        self._kept = set()  # potions I keep this fight (`potion keep`): alerts only when this fight's win is at stake
         self.potions_used = 0
         self.fight_util, self.fight_util_why = self._fight_util(sc)  # before the prediction: it plays the fight under the same objective as live play
         try:
@@ -315,7 +316,7 @@ class Live:
         if not force and turn == getattr(self, "_checked_turn", None):
             return None
         self._checked_turn = turn
-        rows = potion_price.now_vs_hold(self.eng(), self.rp.scenario, self.rp.sim, skip, seed=int(self.fight_id or 0) * 100 + int(turn or 0))
+        rows = potion_price.now_vs_hold(self.eng(), self.rp.scenario, self.rp.sim, skip, seed=int(self.fight_id or 0) * 100 + int(turn or 0), kept=getattr(self, "_kept", set()))
         self.log.event("potion_check", fight=self.fight_id, turn=turn, rows=rows)
         self._potion_last = [potion_price.now_text(r) for r in rows]
         alerts = [r for r in rows if r["alert"]]
@@ -331,7 +332,8 @@ class Live:
         hp_s = scr.hp(now) or (snap["player"]["hp"], snap["player"]["max_hp"])
         lines.append(f"  HP {hp_s[0]}/{hp_s[1]} now; belt: {', '.join(scr.belt(now)) or 'none'}")
         lines.append("Your call: throw it by hand (`a <i>`, the potion's option on the screen), wait for a better turn (the check repeats every turn), "
-                     "`potion allow <name|all>` to let the search use it this fight, or go on without (`turn` / `combat`: no new alert this turn).")
+                     "`potion allow <name|all>` to let the search use it this fight, `potion keep <name>` (no more alerts for it this fight unless the win "
+                     "is at stake), or go on without (`turn` / `combat`: no new alert this turn).")
         return "\n".join(lines)
 
     def _potion_prices(self, i):
@@ -358,12 +360,18 @@ class Live:
             rc = self._context()
             act_values = lambda spend: routes.continuation_values(eng, deck, rc.map_text, rc.ctx, rc.names[0], spend=spend)  # noqa: E731
         p = potion_price.price(eng, self.rp.scenario, self.rp.sim, i, deck, act_values=act_values, next_boss=next_boss, seed=int(self.fight_id or 0))
-        self.log.event("potion_price", fight=self.fight_id, **{k: v for k, v in p.items()})
+        self.log.event("potion_price", fight=self.fight_id, price=p)  # not **p: the price has a `kind` field, which is the event's own
         return potion_price.text(p)
 
     def potion_cmd(self, rest):
-        """potion allow <name|all> | potion deny <name|all> | potion: the potions the live search may use in THIS fight (default none: potions are my call)."""
+        """potion allow <name|all> | potion deny <name|all>: the potions the live search may use in THIS fight (default none: potions are my call).
+        potion keep <name|all>: I keep it this fight (for the boss): no more alerts for it unless throwing it adds KEEP_WIN to this fight's win."""
         words = rest.split(None, 1)
+        if words and words[0] == "keep":
+            ids = {pid for _, pid in self._sim_potions()}
+            self._kept = getattr(self, "_kept", set()) | (ids if (len(words) < 2 or words[1].strip().lower() == "all") else potions.parse_hold(words[1]))
+            self.log.event("potion_keep", fight=self.fight_id, kept=sorted(self._kept))
+            return f"kept this fight (alerts only if this fight's win is at stake): {sorted(self._kept)}\n"
         if words and words[0] in ("allow", "deny"):
             ids = {pid for _, pid in self._sim_potions()}
             want = ids if (len(words) < 2 or words[1].strip().lower() == "all") else potions.parse_hold(words[1])
