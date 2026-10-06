@@ -34,3 +34,6 @@ Each entry: the observation, the hypothesis, the test that would confirm it. Clo
 ## Missed lethal (Turret Operator, 16 HP, Mangle in hand)
 - Observed: hand Mangle (3 cost, 20 damage) with 6 energy vs a lone Turret Operator at 16 HP about to attack 6x5; the solver (via `turn !`) played other cards, took 4 HP and needed another turn.
 - Test: from logged fights, every state where some single card or 2-card line kills the last enemy; how often the solver's first choice reaches lethal this turn. Expected ~100%.
+
+## FIX: Fabricator desync (sim ended the fight early)
+- Act 3 hallway Fabricator + Guardbot + Stabbot (Minions): with the Fabricator at 8 HP behind 15 block the sim reported `combat_in_progress: false` while the game continued (SIMULATOR DIFFERS, `combat` stopped). Reproduce from `runs/20261005-201805/fights/` (fight 22) with `agent.fidelity_trace`.
