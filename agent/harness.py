@@ -38,13 +38,28 @@ from agent.fight import Replayer
 from agent.runlog import RunLog
 
 
+# the decision record of a card pick (sts2-deckbuilding section 1): every field must appear in the `-- why`
+PICK_RECORD = {"buckets:": "<five-bucket line, which are open>", "weakest:": "<weakest fight and what it asks>",
+               "numbers:": "<table: best option and gain, the chosen card's section-3 bar status>",
+               "judgment:": "<plan fit, density, future problems, synergies: why this choice>"}
+
+
+PRICING = {"eval": "evaluate", "reward": "reward", "route": "route", "routes": "routes", "rmcalc": "rmcalc", "pickplan": "pickplan"}
+
+
+def _floor(text):
+    """'A1 F5' from a screen header (the key the decision guards compare against), or None."""
+    m = re.search(r"\bA(\d+) F(\d+)\b", text or "")
+    return f"A{m.group(1)} F{m.group(2)}" if m else None
+
+
 def _kind(text):
     return text.split("\n", 1)[0].split(" ")[0] if text else "?"
 
 
 def _act_index(text):
     """0-based act from a state header ("A2 F20 IRONCLAD ..."), None when the screen has no header."""
-    m = re.search(r"A(\d+) F\d+", text or "")
+    m = re.search(r"A(\d+) F\d+", text or "")
     return int(m.group(1)) - 1 if m else None
 
 
@@ -64,6 +79,8 @@ class Harness:
         self.fight_id = None
         self.log = RunLog()
         self.last_state = ""
+        self.priced = {}  # calculator -> floor ('A1 F5') it last ran on: the decision guards (`_decision_guard`) read it
+        self.reward_screen = None  # option names of the card reward last priced with `reward` (the pick guard needs it)
         self.gate = False  # the daemon turns the skill gate on (`agent.skillgate`): no game action before the governing skills are loaded; tests build a bare Harness
         self.fight_hp0 = None
         self.fight_actions = 0
@@ -534,7 +551,7 @@ class Harness:
             step = self._resolve(before, step)
             if step.startswith("ERR"):
                 return step + "\n" + before
-            guard = self._map_guard(before, step)
+            guard = self._map_guard(before, step) or (self._decision_guard(before, step, why) if self.gate else None)
             if guard:
                 return guard
             last_kind = kind
@@ -595,6 +612,55 @@ class Harness:
         line = next((l for l in state.split("\n") if re.match(rf"^{toks[0]} ", l)), "")
         if hp and hp[0] < 0.6 * hp[1] and re.match(rf"^{toks[0]} (Elite|Boss)", line):
             return f"REFUSED: `{line}` at {hp[0]}/{hp[1]} HP. Heal first, or confirm with `a {toks[0]} !` if this is deliberate (check `route` first).\n" + state
+        return None
+
+    def _decision_guard(self, state, step, why):
+        """The skills executed, not just read: each decision screen needs the calculator its skill prescribes, run on this floor, and a `-- why` that records the
+        inputs. The numbers are one input; any choice is allowed once they are on the table and the record is complete.
+          MAP with a fork, Neow / ancient (EVENT on floor 1): `routes` (or `route`) on this floor (sts2-pathing procedure; sts2-harness: routes at every fork)
+          SHOP purchase, RESTSITE choice: `eval` / `rmcalc` / `routes` / `pickplan` on this floor and `numbers:` + `judgment:` in the why (sts2-deckbuilding)
+          CARD_REWARD pick: `_pick_guard`"""
+        kind = _kind(state)
+        toks = step.split()
+        if not toks or not toks[0].isdigit():
+            return None
+        line = next((l for l in state.split("\n") if re.match(rf"^{toks[0]} ", l)), "")
+        n_opts = sum(1 for l in state.split("\n") if re.match(r"^\d+ ", l))
+        here = _floor(state)
+        ran = lambda *c: any(self.priced.get(x) == here for x in c)  # noqa: E731
+        lw = (why or "").lower()
+        if kind == "CARD_REWARD":
+            return self._pick_guard(state, step, why)
+        if (kind == "MAP" and n_opts >= 2) or (kind == "EVENT" and here and here.endswith(" F1") and n_opts >= 2):
+            if not ran("routes", "route"):
+                return f"REFUSED: run `routes` on this floor before a {'fork' if kind == 'MAP' else 'Neow / ancient'} choice (sts2-pathing procedure, sts2-harness: routes at every fork).\n" + state
+            return None
+        if (kind == "SHOP" and not re.search(r"(?i)leave", line)) or (kind == "RESTSITE" and not re.search(r"(?i)proceed", line)):
+            if not ran("eval", "rmcalc", "routes", "pickplan"):
+                return f"REFUSED: price this {kind.lower()} decision first (`eval` variants, `rmcalc`, `routes`; sts2-deckbuilding section 1 / 6), on this floor.\n" + state
+            miss = [k for k in ("numbers:", "judgment:") if k not in lw]
+            if miss:
+                return f"REFUSED: the `-- why` records the decision: numbers: <what the calculators said> ; judgment: <what decided it>. Missing: {', '.join(miss)}.\n"
+        return None
+
+    def _pick_guard(self, state, step, why):
+        """`sts2-deckbuilding` section 1 executed, not just read: on a card reward, a pick needs this screen's `reward` table and a `-- why` that records every
+        input of the decision (`buckets:`, `weakest:`, `numbers:`, `judgment:`). The table is one input: any choice is allowed once the record is complete."""
+        if _kind(state) != "CARD_REWARD":
+            return None
+        toks = step.split()
+        if not toks or not toks[0].isdigit():
+            return None
+        opts, skip = macro.parse_card_options(state)
+        names = tuple(o[1] for o in opts)
+        if not names:
+            return None
+        if self.reward_screen != names:
+            return "REFUSED: run `reward` on this card reward first (sts2-deckbuilding section 1, step 2), then pick with the section-3 bar in the `-- why`.\n" + state
+        missing = [k for k in PICK_RECORD if k not in (why or "").lower()]
+        if missing:
+            return ("REFUSED: the `-- why` of a card pick records each input of the decision (sts2-deckbuilding section 1): "
+                    + "; ".join(f"{k} {PICK_RECORD[k]}" for k in PICK_RECORD) + f". Missing: {', '.join(missing)}.\n")
         return None
 
     def route(self, argline):
@@ -763,6 +829,7 @@ class Harness:
         opts, skip = macro.parse_card_options(state)
         hz = self._horizon()
         text, res = macro.reward_report(self.eng(), deck, opts, hz, att, hp, "all")
+        self.reward_screen = tuple(o[1] for o in opts)
         self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in r.items()} for k, r in res.items()}, boss=hz["boss"])
         return text + f"\nskip is option {skip}; pick with `a <i> -- why`\n"
 
@@ -898,10 +965,11 @@ class Harness:
                 return self.potions_now()
             if cmd == "a":
                 return self.act(rest)
-            if cmd == "eval":
-                return self.evaluate(rest)
-            if cmd == "reward":
-                return self.reward(rest)
+            if cmd in PRICING:  # the decision guards ask which calculators ran on this floor
+                out = getattr(self, PRICING[cmd])(rest)
+                if not out.startswith(("ERR", "reward: not", "no run")):
+                    self.priced[cmd] = _floor(call("peek"))
+                return out
             if cmd == "brief":
                 return self.brief()
             if cmd == "relics":   # relic counters and saved state of the live fight (e.g. Pen Nib: attacks played so far, Book of Five Rings ...)
@@ -910,14 +978,6 @@ class Harness:
                     return "not in combat\n"
                 st = json.loads(raw)
                 return "\n".join(f"{r['id']}" + (f" counter {r['counter']}" if "counter" in r else "") + (f" {r['props']}" if "props" in r else "") for r in st["relics"]) + "\n"
-            if cmd == "route":
-                return self.route(rest)
-            if cmd == "routes":
-                return self.routes(rest)
-            if cmd == "rmcalc":
-                return self.rmcalc(rest)
-            if cmd == "pickplan":
-                return self.pickplan(rest)
             if cmd == "note":
                 self.log.event("note", text=rest)
                 return "noted\n"

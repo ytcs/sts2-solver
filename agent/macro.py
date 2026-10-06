@@ -311,10 +311,42 @@ def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full", hold=()):
         lines.append("not evaluated (no simulator id for the display name): " + ", ".join(unmapped))
     try:
         line = card_tags.deck_line(deck_json["deck"], tags)
-        lines.append("deck buckets " + " ".join(f"{k} {n}" for k, n in line.items()) + "  gaps " + str(card_tags.deficiencies(line)))
+        gaps = card_tags.deficiencies(line)
+        lines.append("deck buckets " + " ".join(f"{k} {n}" for k, n in line.items()) + "  gaps " + str(gaps))
+        lines += _bar_verdict(variants, res, tags, gaps, nv)
     except Exception:  # noqa: BLE001
         pass
     return "\n".join(lines), res
+
+
+
+def _bar_verdict(variants, res, tags, gaps, nv):
+    """`sts2-deckbuilding` section 3 applied to the table: a card that fills no open bucket must clearly beat skip (boss smooth gain well beyond 2 se: > max(3 se,
+    0.05), or +0.10 on the weakest fight); otherwise the default is skip. One input of the pick: the judgment pass weighs it with the plan, density and future problems."""
+    boss = res.get("boss", {})
+    if 0 not in boss:
+        return []
+    out = ["section-3 bar (a card into solved buckets must clearly beat skip: boss smooth > max(3 se, 0.05) or +0.10 on the weakest fight):"]
+    w0 = nv.get(0, (None, None, None))[1] if nv else None
+    for vi, v in enumerate(variants):
+        if not vi or vi not in boss:
+            continue
+        cid = v["add"][0].rstrip("+")
+        bk = tags.get(cid, {}).get("buckets", [])
+        opens = [b for b in bk if b in gaps]
+        d = boss[vi]["win"] - boss[0]["win"]
+        se = (boss[vi]["se"] ** 2 + boss[0]["se"] ** 2) ** 0.5
+        dw = (nv[vi][1] - w0) if nv and w0 is not None else 0.0
+        bar = max(3 * se, 0.05)
+        clear = d > bar or dw >= 0.10
+        if opens:
+            verdict = "fills open " + "/".join(opens) + (": take on numbers" if d > 0 else ": price vs the gap")
+        elif clear:
+            verdict = "solved buckets, clears the bar"
+        else:
+            verdict = "below the bar (solved buckets): default skip unless the judgment names a future problem / synergy it solves"
+        out.append(f"  {v['name']:22s} boss {d:+.3f} (bar {bar:.3f}) weakest {dw:+.2f}  -> {verdict}")
+    return out
 
 
 ETERNAL = {"ASCENDERS_BANE", "GREED"}  # cannot be removed

@@ -121,7 +121,7 @@ def review(run_id=None):
     if costly:
         follow.append("hindsight review of each costly fight: `python -m agent.hindsight <file> --log` (luck or a solver gap?); a gap pattern goes to the corpus / fine-tune, an encounter pattern to `sts2-acts/encounters.md`")
     if overrides:
-        follow.append(f"{len(overrides)} override(s) of the numbers: judge each against what happened (held / failed) and edit the blind-spot list in `sts2-deckbuilding` (tallied in evals/overrides.jsonl)")
+        follow.append(f"{len(overrides)} recorded judgment(s): judge each against what happened (held / failed) and edit the rules in `sts2-deckbuilding` they relied on (tallied in evals/judgments.jsonl)")
     if unpriced:
         follow.append(f"{unpriced} card pick(s) were not priced by `reward` / `eval` first: the rule is numbers first, then judgment")
     if fid or div:
@@ -154,9 +154,9 @@ def _run_outcome(ev):
 
 
 def _macro_decisions(ev, run):
-    """Non-combat decisions against the numbers: for every card reward priced by `reward`, did the pick follow the best smooth boss score (skip = option 0)? Every
-    `-- why` containing `override` is listed and appended to evals/overrides.jsonl (the tally the deck-building blind-spot list is judged by). Returns
-    (lines, overrides, number of card picks nobody priced)."""
+    """Non-combat decisions and their inputs: for every card reward priced by `reward`, where the pick sits against the best smooth boss score (skip = option 0;
+    the table is one input, not the answer). Every `-- why` with a `judgment:` field (older runs: `override`) is listed with that field and appended to
+    evals/judgments.jsonl: the tally the deck-building rules are judged by after the run (held / failed). Returns (lines, judgments, picks nobody priced)."""
     lines, overrides = [], []
     pending, priced, followed, unpriced, off = None, 0, 0, 0, []
     for e in ev:
@@ -167,8 +167,10 @@ def _macro_decisions(ev, run):
         elif e["kind"] == "macro":
             screen = (e.get("screen") or "").split(" ")[0]
             why = e.get("why") or ""
-            if "override" in why.lower():
-                overrides.append(dict(run=run, screen=screen, choice=e.get("choice"), why=why[:300]))
+            lw = why.lower()
+            if "judgment:" in lw or "override" in lw:
+                j = why[lw.index("judgment:"):] if "judgment:" in lw else why
+                overrides.append(dict(run=run, screen=screen, choice=e.get("choice"), judgment=j[:300], why=why[:300]))
             if screen == "CARD_REWARD":
                 pick = (e.get("choice") or "").split()[0] if e.get("choice") else ""
                 if pending is None:
@@ -191,8 +193,8 @@ def _macro_decisions(ev, run):
         lines.append(f"card picks: {priced} priced by `reward`, followed the best smooth boss score (within 0.02) in {followed}; {unpriced} not priced")
     lines += off
     for o in overrides:
-        lines.append(f"  override [{o['screen']}] choice {o['choice']}: {o['why'][:200]}")
-        _append(os.path.join(EVALS, "overrides.jsonl"), o)
+        lines.append(f"  judgment [{o['screen']}] choice {o['choice']}: {o['judgment'][:200]}")
+        _append(os.path.join(EVALS, "judgments.jsonl"), o)
     return lines, overrides, unpriced
 
 
