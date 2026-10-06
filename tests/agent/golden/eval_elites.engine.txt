@@ -1,0 +1,4 @@
+solve attempts=8 util=False n=6 sha=9732a143554e
+  DECIMILLIPEDE_ELITE [] x2
+  ENTOMANCER_ELITE [] x2
+  INFESTED_PRISMS_ELITE [] x2

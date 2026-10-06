@@ -1,0 +1,4 @@
+route from 71/80 HP, act Overgrowth, 8 attempts per encounter
+ 1 W  win 0.500 (worst SHRINKER 0.12)  HP in  71.0 -> after win  38.7   route win so far 0.500
+ 2 M  win 0.521 (worst SNAPPING 0.12)  HP in  38.7 -> after win  23.4   route win so far 0.260
+route win probability (product of node win rates): 0.260

@@ -1,0 +1,17 @@
+SHOP
+A2 F23 IRONCLAD A10 HP 36/80 G230 pots[Power Potion, Vulnerable Potion]
+0 26g card Setup Strike(1) Deal 7 damage. Gain 3 Strength this turn. SALE
+1 76g card Spite(0) Deal 5 damage. If you lost HP this turn, hits 2 times.
+2 78g card Forgotten Ritual(1) Gain 3E. Exhaust.
+3 76g card Burning Pact(1) Exhaust 1 card. Draw 2 cards.
+4 76g card Stampede(2) At the end of your turn, 1 random Attack in your Hand is played against a random enemy.
+5 83g card Fisticuffs(1) Deal 7 damage. Gain Block equal to damage dealt.
+6 170g card Calamity(3) Whenever you play an Attack, add a random Attack into your Hand.
+7 286g relic Demon Tongue: The first time you lose HP on your turn, heal HP equal to the amount lost. (can't afford)
+8 189g relic Bag of Preparation: At the start of each combat, draw 2 additional cards.
+9 215g relic Kifuda: Upon pickup, Enchant up to 3 cards with Adroit.
+10 51g potion Colorless Potion: Choose 1 of 3 random Colorless cards to add into your Hand. It's free to play this turn.
+11 75g potion Duplicator: This turn, your next card is played an extra time.
+12 49g potion Swift Potion: Draw 3 cards.
+13 100g remove a card
+14 leave shop

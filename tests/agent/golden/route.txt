@@ -1,0 +1,8 @@
+route from 40/80 HP, act Hive, 8 attempts per encounter
+ 1 M  win 0.714 (worst EXOSKELETONS 0.25)  HP in  40.0 -> after win  22.6   route win so far 0.714
+ 2 E  win 0.417 (worst INFESTED 0.00)  HP in  22.6 -> after win  14.8   route win so far 0.298
+ 3 R  rest: HP  38.8
+ 4 S  (no fight assumed)  HP  38.8
+ 5 ?  (no fight assumed)  HP  38.8
+ 6 B  win 0.625 (worst KNOWLEDGE 0.62)  HP in  38.8 -> after win  21.4   route win so far 0.186
+route win probability (product of node win rates): 0.186

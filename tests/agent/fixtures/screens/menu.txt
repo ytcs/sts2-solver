@@ -1,0 +1,3 @@
+MENU
+0 new run  (a <i> <character> [ascension] [seed]; characters: ironclad silent defect regent necrobinder)
+1 custom run  (a <i> <character> <ascension> <seed> [modifier ids, comma separated; see `mods`])

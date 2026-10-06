@@ -1,0 +1,17 @@
+card reward vs boss KNOWLEDGE_DEMON_BOSS (smooth = win averaged over start HP x1.0/1.5/2.0/3.0 of full HP), 3 elites left, 6 next-act elite/boss fights; 16 attempts
+option                      boss smooth boss@full  elites win/HP  next act win/HP  fills
+skip                              0.391      0.69       0.41/65%         0.65/54%  
+Hemokinesis              0.375 (-0.016)      0.69       0.44/67%         0.51/62%  FD
+Cruelty                  0.625 (+0.234)      0.81       0.57/60%         0.33/70%  SD
+Stone Armor              0.562 (+0.172)      0.88       0.58/60%         0.52/61%  SB/SD
+weakest link (the lowest win over the boss and the elites to come) and need-weighted gain (each fight weighted by 1 - its skip win: a solved fight counts ~0)
+  skip                   weakest INFESTED       0.23   need-weighted gain +0.000
+  Hemokinesis            weakest INFESTED       0.21   need-weighted gain +0.068
+  Cruelty                weakest INFESTED       0.46   need-weighted gain +0.059
+  Stone Armor            weakest INFESTED       0.12   need-weighted gain +0.065
+deck buckets FD 14 SD 5 FB 8 SB 2 ACC 4  gaps {}
+section-3 bar (a card into solved buckets must clearly beat skip: boss smooth > max(3 se, 0.05) or +0.10 on the weakest fight):
+  Hemokinesis            boss -0.016 (bar 0.237) weakest +0.00  -> below the bar (solved buckets): default skip unless the judgment names a future problem / synergy it solves
+  Cruelty                boss +0.234 (bar 0.214) weakest +0.23  -> solved buckets, clears the bar
+  Stone Armor            boss +0.172 (bar 0.240) weakest +0.19  -> solved buckets, clears the bar
+skip is option 3; pick with `a <i> -- why`

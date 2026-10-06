@@ -1,0 +1,5 @@
+REWARDS
+A1 F2 IRONCLAD A10 HP 68/80 G99 pots[-, -]
+0 9 Gold
+1 card: Armaments | Headbutt | Perfected Strike
+2 proceed (skip the rest)

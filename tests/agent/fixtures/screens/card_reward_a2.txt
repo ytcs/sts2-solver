@@ -1,0 +1,6 @@
+CARD_REWARD
+A2 F19 IRONCLAD A10 HP 61/80 G207 pots[Power Potion, Vulnerable Potion]
+0 Hemokinesis(1) Lose 2 HP. Deal 15 damage.
+1 Cruelty(1) Vulnerable enemies take an additional 25% damage.
+2 Stone Armor(1) Gain 4 Plating.
+3 Skip

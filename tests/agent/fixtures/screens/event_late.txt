@@ -1,0 +1,5 @@
+EVENT
+A1 F4 IRONCLAD A10 HP 68/80 G20 pots[-, -]
+This or That?: Arms suddenly jut out from a nearby hole, clutching a suspicious bag of riches and a clearly cursed relic. “This... or That?” a scratched-up voice whispers from below.
+0 This: Lose 6 HP. Gain 66 Gold.
+1 That: Add Clumsy to your Deck. Obtain a random Relic.
