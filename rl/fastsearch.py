@@ -116,13 +116,14 @@ class GraphFn:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, roll_cap=60, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=1):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
         self.roll_net = roll_net if roll_net is not None else net
         self.M, self.K, self.conf = M, K, conf
         self.roll_cap, self.max_steps, self.hp_bonus, self.greedy_roll = roll_cap, max_steps, hp_bonus, greedy_roll
+        self.leaf_turns = leaf_turns  # player turns a play-out runs before the value network (1 = this turn; large = to the fight's end, raise roll_cap with it)
         self.roots, self.groups = roots, groups
         self.threads = threads or max(2, available_cpus() - 1)
         self.timers = collections.defaultdict(float)
@@ -342,7 +343,7 @@ class FastSearch:
                 continue
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, 0.0, 0.0,
                                      self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.carry, self.strat, starts,
-                                     None if self.util is None else [float(x) for x in self.util])
+                                     None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns)
             pc, vc = eng.max_rows()
             pin = self.cuda
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)

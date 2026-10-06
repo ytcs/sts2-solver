@@ -40,6 +40,9 @@ pub struct SearchCfg {
     pub margin: f32,
     /// Play-outs stop after this many steps (no bootstrap).
     pub roll_cap: u32,
+    /// Player turns a play-out runs before the value network takes over: 1 = to the end of the current turn (the original search), k = through k turn
+    /// boundaries, `u32::MAX` = to the end of the fight (still capped by `roll_cap`; a capped play-out scores its running estimate, no bootstrap).
+    pub leaf_turns: u32,
     /// Share the in-turn play of an option between its futures: one play-out per option runs on a scratch copy and the `k` futures branch (each with its own
     /// determinization) at the first step that touches hidden information (a draw, a shuffle, a random choice, the enemy turn).
     pub lead: bool,
@@ -388,7 +391,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, out: &Out, st: &mut 
             st.end_term += 1;
             return None;
         }
-        if sim.cx.player.turn_number > sim.start_turn {
+        if (sim.cx.player.turn_number - sim.start_turn) as i64 >= cfg.leaf_turns as i64 {
             let t0 = tsc();
             let row = val_row(out, &sim.cx);
             let buf = ActionBuf::new();

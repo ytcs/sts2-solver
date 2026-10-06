@@ -102,7 +102,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         scenarios_json: Vec<String>,
@@ -126,6 +126,7 @@ impl SearchEnginePy {
         strat: bool,
         starts: Option<Vec<Option<PyRef<'_, sim::Sim>>>>,
         util: Option<Vec<f32>>,
+        leaf_turns: u32,
     ) -> PyResult<Self> {
         let mut scs = vec![];
         for s in scenarios_json {
@@ -145,7 +146,7 @@ impl SearchEnginePy {
             Some(u) => return Err(PyValueError::new_err(format!("util must have 102 entries (loss, then wins at 0..100 % HP), got {}", u.len()))),
             None => false,
         };
-        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util };
+        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
         Ok(SearchEnginePy { eng })
