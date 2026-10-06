@@ -17,6 +17,10 @@ Picky or not: `pickplan [--screens K] [--shops S]` (about 90 s) prices every poo
 
 Under 2 se (~0.05 at 96 attempts) is a tie: break it by bucket gap and plan fit. Value is not additive (Blood Wall -5 -> +10 once Inferno was in): re-price after every pick.
 
+**Saturated smooth score: judge at the real HP.** When the smooth columns at x1.5 and above are >= ~0.9, the average hides what an option does at the HP I will fight at: re-price the close options with a plain `eval --boss --hp <arrival HP> --attempts 192+` and decide on that column. `[sim]` Rupture+ vs Test Subject + Aeonglass: smooth +0.023 (se 0.021, a tie) but +0.181 (se 0.030) at the real 72 HP.
+
+**Screens that allow several picks (Orrery, multi-set rewards, a shop):** price bundles, not only single cards. The question is which SET of picks to take: evaluate the best candidate of each offer together (`--v "bundle|add=A,B,C"`) and the leave-one-out bundles, at the real HP, against the deck without them. Several individual ties can add up to a clear gain. Never skip every offer of a multi-pick screen on single-card ties. `[hyp]` Test: bundle vs skip-all at the real HP the next time.
+
 ## 2. Blind spots of the numbers (rule | test | status)
 1. **Enablers and payoffs dead until the partner arrives** (Barricade, Demon Form with few hits, Feel No Pain without exhaust, Dark Embrace, Corruption). Take the enabler only if the bundle gain is large AND >= 2 payoffs are in the deck or likely met (known shop / ancient rares, elite rewards) AND the interim cost is survivable; else skip. Test: `--v "enabler|add=E" --v "bundle|add=E,P1,P2" --v "payoff alone|add=P1,P2"`; `route` the next fights with the enabler as a dead card. `[hyp]`
 2. **Offer availability is the bottleneck:** best 20-card deck of any cards 0.62 vs best online deck 0.25. Buy access (elites, shops with gold kept for Act 2-3, ancients / Neow, card-choice events, boss potions): a +4 pick is worth less than a route adding an elite or shop before the boss. Test: `route` variants. `[sim]`
