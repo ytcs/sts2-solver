@@ -341,7 +341,8 @@ def _train_set(name, n, seed, energy_prob):
 def _current():
     p = os.path.join(MODELS, "current.json")
     if os.path.exists(p):
-        return _load(p)
+        c = _load(p)
+        return dict(policy=os.path.join(MODELS, c["policy"]), values=[os.path.join(MODELS, v) for v in c["values"]])
     return dict(policy=os.path.join(MODELS, "solver_b128.pt"), values=[os.path.join(MODELS, "solver_c128.pt"), os.path.join(MODELS, "solver_d128.pt")])
 
 
@@ -378,12 +379,18 @@ def gate(candidate, vs=None, attempts=2, n_eval=600):
     return "\n".join(lines)
 
 
-def adopt(ckpt, as_name):
+def adopt(ckpt, as_name, values=None):
+    """Install `ckpt` as the default policy (weights and args only, no optimizer state). `values`: the extra value nets averaged into the search,
+    "none" for the network's own value alone, default: keep the current ones."""
+    import torch
     dst = os.path.join(MODELS, as_name)
-    shutil.copy(ckpt, dst)
+    ck = torch.load(ckpt, map_location="cpu")
+    torch.save({"net": ck["net"] if "net" in ck else ck, "args": ck.get("args", {})}, dst)
     cur = _current()
-    _dump(dict(policy=dst, values=cur["values"]), os.path.join(MODELS, "current.json"), indent=1)
-    _append(os.path.join(EVALS, "ledger.jsonl"), dict(t=time.time(), kind="adopt", ckpt=dst))
+    vals = cur["values"] if values is None else ([] if values == "none" else values.split(","))
+    vals = [os.path.basename(v) for v in vals]  # names relative to models/ (rl/solver.py resolves them): the file works on any machine
+    _dump(dict(policy=as_name, values=vals), os.path.join(MODELS, "current.json"), indent=1)
+    _append(os.path.join(EVALS, "ledger.jsonl"), dict(t=time.time(), kind="adopt", ckpt=dst, values=vals))
     return f"adopted {dst} as the default policy (restart the harness daemon to load it)"
 
 
@@ -399,9 +406,10 @@ def main():
     ap.add_argument("--vs")
     ap.add_argument("--iters", type=int, default=200)
     ap.add_argument("--as", dest="as_name")
+    ap.add_argument("--values", help="adopt: extra value nets (comma list in models/) or none")
     a = ap.parse_args()
     out = dict(review=lambda: review(a.arg), lessons=lessons, gaps=gaps, corpus=corpus, finetune=lambda: finetune(a.iters), gate=lambda: gate(a.arg, a.vs),
-               adopt=lambda: adopt(a.arg, a.as_name), ledger=ledger)[a.cmd]()
+               adopt=lambda: adopt(a.arg, a.as_name, a.values), ledger=ledger)[a.cmd]()
     print(out)
 
 

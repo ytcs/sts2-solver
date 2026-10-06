@@ -30,7 +30,8 @@ DEFAULT_VALUE_CKPTS = [os.path.join(_M, "solver_c128.pt"), os.path.join(_M, "sol
 _CUR = os.path.join(_M, "current.json")
 if os.path.exists(_CUR):
     _c = json.load(open(_CUR))
-    DEFAULT_CKPT, DEFAULT_VALUE_CKPTS = _c["policy"], _c["values"]
+    _abs = lambda p: p if os.path.isabs(p) else os.path.join(_M, p)  # noqa: E731  names relative to models/
+    DEFAULT_CKPT, DEFAULT_VALUE_CKPTS = _abs(_c["policy"]), [_abs(v) for v in _c["values"]]
 
 
 class Solver:

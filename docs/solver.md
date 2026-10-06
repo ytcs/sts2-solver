@@ -88,7 +88,9 @@ Search saturates near 81% on this set. Averaging value heads helps (3 x 8):
 | ensemble of 4 | 82.0% | 0.444 | 1.57 |
 
 ### Default solver on `eval.json`
-**73.7-73.9% win (+-0.33), 0.362 of max HP lost** (12-18k fights, pod C below). The same network greedy: 65.5% / 0.424.
+**Since 2026-10-06: `solver_h128` (fight-outcome head, `docs/rl_redesign.md` M1a), no extra value nets, search depth 2: 74.4-75.0% win, 0.348 of max HP lost** (`tools/gate_m1.py`, 1,500 fights x 4 attempts, 3 options x 8 futures; the same run gives b128 + c/d 74.0-74.5% / 0.360). Paired vs b128 + c/d: win +0.005 +- 0.003, HP lost -0.012 +- 0.0015 (`evals/gate_m1_full2.json`).
+
+Before (b128 + c128/d128 values, depth 1): **73.7-73.9% win (+-0.33), 0.362 of max HP lost** (12-18k fights, pod C below). The same network greedy: 65.5% / 0.424.
 
 By character and act, from the Python-search run (72.6% overall, 0.360; the Rust default is about 1 point higher):
 | | Ironclad | Regent | Defect | Silent | Necrobinder | act 1 | act 2 | act 3 |

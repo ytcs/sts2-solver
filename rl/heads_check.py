@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""How well a network's value predicts the fight it is in (`docs/rl_redesign.md` M1 calibration report), on its own greedy play of a scenario set.
+"""How well a network's value predicts the fight it is in (`docs/rl_redesign.md` M1 calibration report), on its own play of a scenario set (greedy, or sampled with `--sample`).
 
   STS2_DEVICE=cuda python rl/heads_check.py target/m1/heads/ckpt.pt [target/m1/control/ckpt.pt ...] [--data target/train/eval.json] [--n 600]
 
@@ -19,7 +19,7 @@ from model import DEV, load
 
 
 @torch.no_grad()
-def collect(net, scen, seed=5, max_steps=600):
+def collect(net, scen, seed=5, max_steps=600, sample=False):
     env = sts2.VecEnv(len(scen), scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
     obs, mask = env.reset()
     n = len(scen)
@@ -37,7 +37,8 @@ def collect(net, scen, seed=5, max_steps=600):
         v = v.float().cpu().numpy()
         for i in np.nonzero(live)[0]:
             rows[i].append((v[i], None if p is None else p[i]))
-        obs, mask, r, d, info = env.step(lg.argmax(1).cpu().numpy().astype(np.int32))
+        act = torch.distributions.Categorical(logits=lg.float()).sample() if sample else lg.argmax(1)
+        obs, mask, r, d, info = env.step(act.cpu().numpy().astype(np.int32))
         if d.any():
             ei = env.episode_info()
             for i in np.nonzero(d & live)[0]:
@@ -73,7 +74,7 @@ def report(net, rows, final):
             q = {}
             for lvl in (0.1, 0.5, 0.9):
                 qcls = (cdfs < lvl).sum(1) + 1  # predicted quantile class
-                q[f"below_q{int(lvl * 100)}"] = round(float((ct < qcls).mean()), 3)
+                q[f"below_q{int(lvl * 100)}"] = round(float((ct < qcls).mean() + 0.5 * (ct == qcls).mean()), 3)  # half credit inside the crossing bin
             out["end_hp_coverage"] = q
     return out
 
@@ -84,12 +85,13 @@ def main():
     ap.add_argument("--data", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "target", "train", "eval.json"))
     ap.add_argument("--n", type=int, default=600)
     ap.add_argument("--out")
+    ap.add_argument("--sample", action="store_true", help="play the policy as trained (sampled), the one its value and the search's play-outs follow; default greedy")
     a = ap.parse_args()
     scen = json.load(open(a.data))[:a.n]
     res = {}
     for c in a.ckpts:
         net = load(c)
-        rows, final = collect(net, scen)
+        rows, final = collect(net, scen, sample=a.sample)
         res[c] = report(net, rows, final)
         print(c, json.dumps(res[c]), flush=True)
     if a.out:

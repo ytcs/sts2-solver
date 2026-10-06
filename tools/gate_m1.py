@@ -15,7 +15,9 @@ import numpy as np
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, os.path.join(ROOT, "rl"))
 
-SETS = {"eval": "target/train/eval.json", "eval_energy": "target/train/eval_energy.json"}
+SEED = int(os.environ.get("GATE_SEED", "7"))
+SETS = {"eval": "target/train/eval.json", "eval_energy": "target/train/eval_energy.json", "corpus": "target/train/corpus_all.json"}  # corpus: fights of real runs
+SETS = {k: v for k, v in SETS.items() if os.path.exists(os.path.join(ROOT, v))}
 
 
 def run(ckpt, values, sets, n, attempts):
@@ -25,7 +27,7 @@ def run(ckpt, values, sets, n, attempts):
     for name, path in sets.items():
         scen = json.load(open(os.path.join(ROOT, path)))[:n]
         t = time.time()
-        res = S.solve(scen, attempts=attempts, seed=7)
+        res = S.solve(scen, attempts=attempts, seed=SEED)
         out[name] = dict(win=[r["win"] for r in res], hp_lost=[r["hp_lost"] if r["hp_lost"] is not None else np.nan for r in res], secs=time.time() - t)
     del S
     import torch
@@ -41,22 +43,27 @@ def paired(a, b):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ref", required=True)
+    ap.add_argument("--ref", required=True, action="append", help="name=ckpt; repeat for several references")
     ap.add_argument("--cand", required=True)
     ap.add_argument("--values", default="")
     ap.add_argument("--n", type=int, default=600)
     ap.add_argument("--attempts", type=int, default=2)
     ap.add_argument("--out", default=os.path.join(ROOT, "evals", "gate_m1.json"))
+    ap.add_argument("--pair", action="append", default=[], help="extra paired comparison cand_conf:ref_conf (e.g. heads:current+cd)")
     a = ap.parse_args()
     vals = [v for v in a.values.split(",") if v]
-    (rn, rp), (cn, cp) = a.ref.split("=", 1), a.cand.split("=", 1)
-    confs = [(rn, rp, []), (cn, cp, [])] + ([(rn + "+cd", rp, vals), (cn + "+cd", cp, vals)] if vals else [])
+    refs = [r.split("=", 1) for r in a.ref]
+    cn, cp = a.cand.split("=", 1)
+    confs = [(n_, c, []) for n_, c in refs] + [(cn, cp, [])]
+    if vals:
+        confs += [(n_ + "+cd", c, vals) for n_, c in refs] + [(cn + "+cd", cp, vals)]
     res = {}
     for name, ck, vl in confs:
         res[name] = run(ck, vl, SETS, a.n, a.attempts)
         print(name, {s: (round(float(np.mean(r["win"])), 4), round(float(np.nanmean(r["hp_lost"])), 4), round(r["secs"])) for s, r in res[name].items()}, flush=True)
     verdict = {}
-    for ref, cand in [(rn, cn)] + ([(rn + "+cd", cn + "+cd")] if vals else []):
+    pairs = [(rn, cn) for rn, _ in refs] + ([(rn + "+cd", cn + "+cd") for rn, _ in refs] if vals else []) + [tuple(p.split(":")[::-1]) for p in a.pair]
+    for ref, cand in pairs:
         rows = {}
         ok = True
         for s in SETS:
@@ -68,7 +75,8 @@ def main():
         verdict[f"{cand} vs {ref}"] = dict(sets=rows, PASS=bool(ok))
         print(f"{cand} vs {ref}: {'PASS' if ok else 'FAIL'}", flush=True)
     json.dump(dict(confs=[(n_, c, v) for n_, c, v in confs], n=a.n, attempts=a.attempts, verdict=verdict,
-                   means={k: {s: dict(win=float(np.mean(r["win"])), hp_lost=float(np.nanmean(r["hp_lost"]))) for s, r in v.items()} for k, v in res.items()}),
+                   means={k: {s: dict(win=float(np.mean(r["win"])), hp_lost=float(np.nanmean(r["hp_lost"]))) for s, r in v.items()} for k, v in res.items()},
+                   per_scenario={k: {s: dict(win=r["win"], hp_lost=[None if np.isnan(x) else x for x in r["hp_lost"]]) for s, r in v.items()} for k, v in res.items()}, seed=SEED),
               open(a.out, "w"), indent=1)
 
 

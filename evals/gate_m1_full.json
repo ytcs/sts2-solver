@@ -1,0 +1,177 @@
+{
+ "confs": [
+  [
+   "control",
+   "target/m1/control/ckpt.pt",
+   []
+  ],
+  [
+   "current",
+   "models/solver_b128.pt",
+   []
+  ],
+  [
+   "heads",
+   "target/m1/heads/ckpt.pt",
+   []
+  ],
+  [
+   "control+cd",
+   "target/m1/control/ckpt.pt",
+   [
+    "models/solver_c128.pt",
+    "models/solver_d128.pt"
+   ]
+  ],
+  [
+   "current+cd",
+   "models/solver_b128.pt",
+   [
+    "models/solver_c128.pt",
+    "models/solver_d128.pt"
+   ]
+  ],
+  [
+   "heads+cd",
+   "target/m1/heads/ckpt.pt",
+   [
+    "models/solver_c128.pt",
+    "models/solver_d128.pt"
+   ]
+  ]
+ ],
+ "n": 1500,
+ "attempts": 4,
+ "verdict": {
+  "heads vs control": {
+   "sets": {
+    "eval": {
+     "win": 0.0028,
+     "win_se": 0.003,
+     "hp_lost": -0.0061,
+     "hp_lost_se": 0.0015
+    },
+    "eval_energy": {
+     "win": 0.0106,
+     "win_se": 0.0046,
+     "hp_lost": -0.0073,
+     "hp_lost_se": 0.0023
+    }
+   },
+   "PASS": true
+  },
+  "heads vs current": {
+   "sets": {
+    "eval": {
+     "win": 0.0103,
+     "win_se": 0.0033,
+     "hp_lost": -0.0136,
+     "hp_lost_se": 0.0016
+    },
+    "eval_energy": {
+     "win": 0.0122,
+     "win_se": 0.0044,
+     "hp_lost": -0.0168,
+     "hp_lost_se": 0.0022
+    }
+   },
+   "PASS": true
+  },
+  "heads+cd vs control+cd": {
+   "sets": {
+    "eval": {
+     "win": 0.0014,
+     "win_se": 0.0032,
+     "hp_lost": -0.0036,
+     "hp_lost_se": 0.0015
+    },
+    "eval_energy": {
+     "win": 0.0065,
+     "win_se": 0.0045,
+     "hp_lost": -0.007,
+     "hp_lost_se": 0.0023
+    }
+   },
+   "PASS": true
+  },
+  "heads+cd vs current+cd": {
+   "sets": {
+    "eval": {
+     "win": 0.0037,
+     "win_se": 0.003,
+     "hp_lost": -0.0093,
+     "hp_lost_se": 0.0015
+    },
+    "eval_energy": {
+     "win": 0.0112,
+     "win_se": 0.0046,
+     "hp_lost": -0.0142,
+     "hp_lost_se": 0.0022
+    }
+   },
+   "PASS": true
+  }
+ },
+ "means": {
+  "control": {
+   "eval": {
+    "win": 0.7413333333333333,
+    "hp_lost": 0.35440045076111953
+   },
+   "eval_energy": {
+    "win": 0.81875,
+    "hp_lost": 0.264894861318171
+   }
+  },
+  "current": {
+   "eval": {
+    "win": 0.7338333333333333,
+    "hp_lost": 0.3618799423376719
+   },
+   "eval_energy": {
+    "win": 0.8170833333333334,
+    "hp_lost": 0.2744520165088276
+   }
+  },
+  "heads": {
+   "eval": {
+    "win": 0.7441666666666666,
+    "hp_lost": 0.34829929361244044
+   },
+   "eval_energy": {
+    "win": 0.8293055555555556,
+    "hp_lost": 0.25761978605555164
+   }
+  },
+  "control+cd": {
+   "eval": {
+    "win": 0.7421666666666666,
+    "hp_lost": 0.35400890312592187
+   },
+   "eval_energy": {
+    "win": 0.8238888888888889,
+    "hp_lost": 0.26708172872041663
+   }
+  },
+  "current+cd": {
+   "eval": {
+    "win": 0.739888888888889,
+    "hp_lost": 0.3596548362920682
+   },
+   "eval_energy": {
+    "win": 0.8191666666666667,
+    "hp_lost": 0.2742206411374112
+   }
+  },
+  "heads+cd": {
+   "eval": {
+    "win": 0.7435555555555556,
+    "hp_lost": 0.3503882486588425
+   },
+   "eval_energy": {
+    "win": 0.8304166666666667,
+    "hp_lost": 0.26006817220399775
+   }
+  }
+ }
+}

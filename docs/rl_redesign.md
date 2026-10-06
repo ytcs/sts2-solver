@@ -56,6 +56,8 @@ The worth of HP and potions for the rest of the run. The network sees the fight;
 ## 4. Milestones
 
 ### M1: env and model on today's mix
+**M1a PASSED and adopted (2026-10-06, `models/solver_h128.pt`, ledger):** the outcome head (end classes only; the potion head moved to M1b) combined inside the network at today's weights, fine-tuned from b128 (1,500 iterations, gamma 1.0, 100 head-only warm-up iterations) against a matched scalar-value control. Paired gate (eval 1,500 + eval_energy 600 + 718 real-run corpus fights, 4 attempts) vs today's b128 + c/d: win +0.005 / +0.007 / -0.002 (se ~0.003-0.005), HP lost -0.012 / -0.014 / -0.010 of max (se ~0.002); vs the control: HP lost -0.010 to -0.012; at live search width (5 x 32) on bosses: win +0.015 +- 0.005, HP lost -0.010 +- 0.002. The extra value nets add nothing on top of the head: adopted alone. Calibration (sampled policy): P(win) Brier 0.077, end-HP coverage 0.12 / 0.50 / 0.85 at q10 / q50 / q90. Remaining for M1b: the potion-use head, value rows `[rows, H]` combined in Rust with per-job weights (the route's HP worth, potion prices).
+
 1. Env: per-episode components (outcome, start HP, end HP absolute, player turns, potions used per slot, cap hit); the 99-turn cap; start HP as given.
 2. Model: `end` and `pot` heads on the shared trunk; the scalar value head kept only as a warm-start target for the first iterations (distil, then drop).
 3. Search: `[rows, H]` value outputs, the combination and the terminal mapping in Rust with per-scenario weights; `rl/fastsearch.py` value graphs return the heads.
