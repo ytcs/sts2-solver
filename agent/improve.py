@@ -37,7 +37,7 @@ MODELS = os.path.join(ROOT, "models")
 
 
 def _runs():
-    return sorted(glob.glob(os.path.join(runlog.ROOT, "*", "events.jsonl")))
+    return sorted(glob.glob(os.path.join(runlog.ROOT, "*", "events.jsonl")), key=os.path.getmtime)  # oldest first by last write: run ids are not all timestamps (shakedown-1)
 
 
 def _append(path, obj):
