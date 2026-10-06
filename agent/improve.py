@@ -46,6 +46,16 @@ def _append(path, obj):
         f.write(json.dumps(obj, default=str) + "\n")
 
 
+def _load(path):
+    with open(path) as f:
+        return json.load(f)
+
+
+def _dump(obj, path, **kw):
+    with open(path, "w") as f:
+        json.dump(obj, f, **kw)
+
+
 # ---------------------------------------------------------------------------------------------------------------- review
 
 def review(run_id=None):
@@ -144,7 +154,8 @@ def review(run_id=None):
     for k, v in fid.items():
         _append(os.path.join(EVALS, "gaps.jsonl"), dict(kind="fidelity", run=os.path.basename(run_dir), what=k, count=v))
     text = "\n".join(lines)
-    open(os.path.join(run_dir, "review.md"), "w", encoding="utf-8").write(text + "\n")
+    with open(os.path.join(run_dir, "review.md"), "w", encoding="utf-8") as f:
+        f.write(text + "\n")
     return text
 
 
@@ -251,21 +262,21 @@ def corpus():
             sc["seed"] = key
             # the split is by run, so held-out fights come from runs the network was never fine-tuned on
             (hold if int(hashlib.sha1(run.encode()).hexdigest(), 16) % 5 == 0 else train).append(sc)
-    json.dump(train, open(os.path.join(CORPUS, "fights_train.json"), "w"))
-    json.dump(hold, open(os.path.join(CORPUS, "fights_holdout.json"), "w"))
+    _dump(train, os.path.join(CORPUS, "fights_train.json"))
+    _dump(hold, os.path.join(CORPUS, "fights_holdout.json"))
     return f"corpus: {len(train)} train fights, {len(hold)} held-out fights in {CORPUS}"
 
 
 def finetune(iters=200, name=None):
     train_json = os.path.join(CORPUS, "fights_train.json")
-    if not os.path.exists(train_json) or not json.load(open(train_json)):
+    if not os.path.exists(train_json) or not _load(train_json):
         return "no corpus yet: play runs, then `corpus`"
     base_train = _train_set("train", 30000, 1, 0.15)
-    base = json.load(open(base_train))
-    mine = json.load(open(train_json))
+    base = _load(base_train)
+    mine = _load(train_json)
     reps = max(1, len(base) // (4 * max(len(mine), 1)))  # the corpus makes up about a fifth of the mix
     mix = os.path.join(ROOT, "target", "train", "mix.json")
-    json.dump(base + mine * reps, open(mix, "w"))
+    _dump(base + mine * reps, mix)
     name = name or time.strftime("ft%Y%m%d-%H%M")
     out = os.path.join(ROOT, "target", "runs", name)
     cur = _current()
@@ -292,7 +303,7 @@ def _train_set(name, n, seed, energy_prob):
 def _current():
     p = os.path.join(MODELS, "current.json")
     if os.path.exists(p):
-        return json.load(open(p))
+        return _load(p)
     return dict(policy=os.path.join(MODELS, "solver_b128.pt"), values=[os.path.join(MODELS, "solver_c128.pt"), os.path.join(MODELS, "solver_d128.pt")])
 
 
@@ -303,11 +314,11 @@ def gate(candidate, vs=None, attempts=2, n_eval=600):
     vs = vs or cur["policy"]
     sets = {}
     hold = os.path.join(CORPUS, "fights_holdout.json")
-    if not os.path.exists(hold) or not json.load(open(hold)):
+    if not os.path.exists(hold) or not _load(hold):
         return "gate: FAIL (no corpus holdout: play runs and run `corpus` first; a candidate must gain on fights it was not trained on)"
-    sets["corpus_holdout"] = json.load(open(hold))
-    sets["eval"] = json.load(open(_train_set("eval", 1500, 22, 0.0)))[:n_eval]
-    sets["eval_energy"] = json.load(open(_train_set("eval_energy", 600, 23, 1.0)))[:n_eval]  # every scenario at 4-7 energy: the old mix had almost none
+    sets["corpus_holdout"] = _load(hold)
+    sets["eval"] = _load(_train_set("eval", 1500, 22, 0.0))[:n_eval]
+    sets["eval_energy"] = _load(_train_set("eval_energy", 600, 23, 1.0))[:n_eval]  # every scenario at 4-7 energy: the old mix had almost none
     res = {}
     for label, ck, vals in (("candidate", candidate, None), ("current", vs, cur["values"] if vs == cur["policy"] else None)):
         S = Solver(ckpt=ck, value_ckpts=vals if vals else None)
@@ -333,7 +344,7 @@ def adopt(ckpt, as_name):
     dst = os.path.join(MODELS, as_name)
     shutil.copy(ckpt, dst)
     cur = _current()
-    json.dump(dict(policy=dst, values=cur["values"]), open(os.path.join(MODELS, "current.json"), "w"), indent=1)
+    _dump(dict(policy=dst, values=cur["values"]), os.path.join(MODELS, "current.json"), indent=1)
     _append(os.path.join(EVALS, "ledger.jsonl"), dict(t=time.time(), kind="adopt", ckpt=dst))
     return f"adopted {dst} as the default policy (restart the harness daemon to load it)"
 

@@ -15,8 +15,6 @@ Method:
    density, `sts2-deckbuilding` blind spot 7). Search tau for the best expected total. The current screen: take the options with gain >= tau (best first), skip the rest.
 `[hyp]`: rho and the slot count are judgments (defaults rho 0.85, slots 6); the gains of different cards are treated as additive.
 """
-import json
-import math
 import os
 import re
 
@@ -33,15 +31,20 @@ SHOP = dict(common=0.585, uncommon=0.37, rare=0.045)
 GROWTH, OFFSET0, OFFSET_MAX = 0.005, -0.05, 0.4
 
 
+def _read(name):
+    with open(os.path.join(RUST, name), encoding="utf-8") as f:
+        return f.read()
+
+
 def _pool(name):
-    src = open(os.path.join(RUST, "gen_pools.rs"), encoding="utf-8").read()
+    src = _read("gen_pools.rs")
     m = re.search(r"pub static %s: \[u16; \d+\] = \[(.*?)\];" % name, src, re.S)
     return re.findall(r"ids::card::(\w+)", m.group(1))
 
 
 def card_table():
     """{ID: (rarity, type)} for the Ironclad and colorless pools, parsed from the generated card definitions."""
-    src = open(os.path.join(RUST, "gen_cards.rs"), encoding="utf-8").read()
+    src = _read("gen_cards.rs")
     info = {}
     for m in re.finditer(r"CardDef::new\(ids::card::(\w+), -?\d+, CardType::(\w+), CardRarity::(\w+),", src):
         info[m.group(1)] = (m.group(3).lower(), m.group(2).lower())
@@ -64,10 +67,7 @@ def _gains(engine, deck_json, hz, batch, attempts, smooth, hold):
 
     def run(b):
         variants = [dict(name="keep")] + [dict(name=c, add=[c]) for c in b]
-        res = {}
-        for key, encs, sm, att in (("boss", hz["boss"], smooth, attempts), ("elites", hz["elites"], False, attempts), ("next act", hz["next"], False, max(8, attempts // 2))):
-            if encs:
-                _, res[key] = macro.evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp="full", smooth=sm, hold=hold))
+        res = macro.price_horizon(engine, deck_json, variants, hz, "full", hold, attempts, attempts, max(8, attempts // 2), smooth_boss=smooth)
         nv, solved = macro.need_view(res, len(variants))
         for vi, c in enumerate(b, start=1):
             g = nv[vi][2] if nv and nv[vi][2] is not None else 0.0
@@ -170,7 +170,9 @@ def simulate(gains, cls, col, screens, elites, shops, offset, slots, rho, taus, 
     return totals / trials
 
 
-def analyse(engine, deck_json, hz, offer_gains=None, screens=3, elites=0, shops=0, slots=6, rho=0.85, offset=OFFSET0, attempts=32, hold=()):
+def analyse(engine, deck_json, hz, offer=None, screens=3, elites=0, shops=0, slots=6, rho=0.85, offset=OFFSET0, attempts=32, hold=()):
+    """The planner's report; `offer` = the card reward on screen ({display name: card id}): each option is judged against tau* (a card outside the
+    priced pools has no gain: `nan`, skip)."""
     cls, col = pools()
     ids = [c for c in list(cls) + list(col)]
     gains = card_gains(engine, deck_json, hz, ids, attempts, hold)
@@ -189,6 +191,8 @@ def analyse(engine, deck_json, hz, offer_gains=None, screens=3, elites=0, shops=
         evk = simulate(gains, cls, col, k, 0, 0, offset, slots, rho, taus, trials=1500, seed=7)
         curve.append((k, taus[int(np.argmax(evk))]))
     lines.append("runway curve (regular reward screens left before the dangerous fight, no shop): tau* = " + ", ".join(f"{k}: {t:.3f}" for k, t in curve) + "  (the closer the fight, the less picky)")
-    if offer_gains:
-        lines.append(f"this screen (take iff gain >= tau* = {taus[best]:.3f}): " + "; ".join(f"{n} {g:+.3f} {'TAKE' if g >= taus[best] and g > 0 else 'skip'}" for n, g in sorted(offer_gains.items(), key=lambda kv: -kv[1])))
+    if offer:
+        tau = taus[best]
+        lines.append(f"this screen (take iff gain >= tau* = {tau:.3f}): " + "; ".join(f"{n} {gains.get(c, float('nan')):+.3f} {'TAKE' if gains.get(c, -1) >= tau and gains.get(c, -1) > 0 else 'skip'}"
+                                                                                for n, c in sorted(offer.items(), key=lambda kv: -gains.get(kv[1], -9))))
     return "\n".join(lines), dict(tau=taus[best], gains=gains, ev=dict(zip(taus, ev.tolist())))

@@ -99,6 +99,17 @@ def resolve_encounters(spec):
 SMOOTH_MULTS = (1.0, 1.5, 2.0, 3.0)
 
 
+def _pooled_se(ses):
+    """Standard error of a mean of independent estimates with these standard errors."""
+    ses = list(ses)
+    return (sum(s ** 2 for s in ses) ** 0.5) / len(ses)
+
+
+def _vs(summary, vi, key="win"):
+    """(difference, its standard error) of variant vi against the baseline (variant 0)."""
+    return summary[vi][key] - summary[0][key], (summary[vi]["se"] ** 2 + summary[0]["se"] ** 2) ** 0.5
+
+
 def evaluate_smooth(engine, deck_json, spec):
     """The graded objective for deck choices (`sts2-deckbuilding`, study `agent.deckstudy`): the win rate averaged over start HP x1 / 1.5 / 2 / 3. A deck far
     from beating the fight still wins with enough HP, so the average does not go flat when every option loses; what picks reduce is the HP a fight needs."""
@@ -113,13 +124,12 @@ def evaluate_smooth(engine, deck_json, spec):
     summary, lines = {}, [f"smooth objective: win rate averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of {h0}  ({len(variants)} variants)"]
     for vi, v in enumerate(variants):
         wins = [p[1][vi]["win"] for p in parts]
-        se = (sum(p[1][vi]["se"] ** 2 for p in parts) ** 0.5) / len(parts)
+        se = _pooled_se(p[1][vi]["se"] for p in parts)
         per = {e: sum(p[1][vi]["per"][e] for p in parts) / len(parts) for e in parts[0][1][vi]["per"]}
         summary[vi] = dict(win=sum(wins) / len(wins), se=se, hp_lost=sum(p[1][vi]["hp_lost"] for p in parts) / len(parts), by_hp=wins, per=per)
         lines.append(f"{v.get('name', vi):24s} smooth {summary[vi]['win']:.3f} ±{se:.3f}  | " + " ".join(f"x{m}:{w:.2f}" for m, w in zip(SMOOTH_MULTS, wins)))
     for vi in range(1, len(variants)):
-        d = summary[vi]["win"] - summary[0]["win"]
-        sd = (summary[vi]["se"] ** 2 + summary[0]["se"] ** 2) ** 0.5
+        d, sd = _vs(summary, vi)
         lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: smooth {d:+.3f} (±{sd:.3f})")
     return "\n".join(lines), summary
 
@@ -156,18 +166,15 @@ def evaluate(engine, deck_json, spec):
     for vi, v in enumerate(variants):
         rows = by[vi]
         win = sum(r["win"] for _, r in rows) / len(rows)
-        se = (sum(r["win_se"] ** 2 for _, r in rows) ** 0.5) / len(rows)
+        se = _pooled_se(r["win_se"] for _, r in rows)
         hpl = sum((r["hp_lost"] or 0) for _, r in rows) / len(rows)
         lost = np.concatenate([base["hp"] - np.array(r["ends"]) for _, r in rows if r.get("ends")]) if any(r.get("ends") for _, r in rows) else np.zeros(1)
         lq = [float(x) for x in np.percentile(lost, [10, 50, 90, 97.5])]  # the distribution of HP lost (a loss counts as the whole start HP), pooled over the encounters
         summary[vi] = dict(win=win, se=se, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows})  # per-encounter win: the weakest-fight views need it
         lines.append(f"{v.get('name', vi):24s} win {win:.3f} ±{se:.3f}  HP lost {100 * hpl:4.1f}% (q10/50/90/97.5: {lq[0]:.0f}/{lq[1]:.0f}/{lq[2]:.0f}/{lq[3]:.0f} HP)  | " + " ".join(f"{e.split('_')[0][:8]}:{r['win']:.2f}" for e, r in rows))
-    if len(variants) > 1:
-        b = summary[0]
-        for vi in range(1, len(variants)):
-            d = summary[vi]["win"] - b["win"]
-            sd = (summary[vi]["se"] ** 2 + b["se"] ** 2) ** 0.5
-            lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: win {d:+.3f} (±{sd:.3f}), HP lost {100 * (summary[vi]['hp_lost'] - b['hp_lost']):+.1f} pts")
+    for vi in range(1, len(variants)):
+        d, sd = _vs(summary, vi)
+        lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: win {d:+.3f} (±{sd:.3f}), HP lost {100 * (summary[vi]['hp_lost'] - summary[0]['hp_lost']):+.1f} pts")
     return "\n".join(lines), summary
 
 
@@ -222,7 +229,8 @@ def card_id_set():
     if _CARD_IDS is None:
         import os
         import re
-        src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crates", "sts2sim", "src", "content", "gen_cards.rs"), encoding="utf-8").read()
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crates", "sts2sim", "src", "content", "gen_cards.rs"), encoding="utf-8") as f:
+            src = f.read()
         _CARD_IDS = set(re.findall(r"CardDef::new\(ids::card::([A-Z0-9_]+)", src))
     return _CARD_IDS
 
@@ -238,16 +246,15 @@ def card_from_name(name):
 def parse_card_options(state):
     """The options of a CARD_REWARD screen: [(index, display name, card id or None, upgrade)] and the index of Skip (or None)."""
     import re
+    from agent import screen
     opts, skip = [], None
-    for line in state.split("\n"):
-        m = re.match(r"^(\d+) (.+?)\(([^()]*)\) ", line)  # cost: 1, X, -, or energy/star like `1/2*` (Regent cards: Resonance): any cost text, else the card vanished from the table
+    for num, label in screen.options(state):
+        m = re.match(r"^(.+?)\(([^()]*)\) ", label)  # cost: 1, X, -, or energy/star like `1/2*` (Regent cards: Resonance): any cost text, else the card vanished from the table
         if m:
-            cid, up = card_from_name(m.group(2))
-            opts.append((int(m.group(1)), m.group(2).strip(), cid, up))
-            continue
-        m = re.match(r"^(\d+) Skip", line)
-        if m:
-            skip = int(m.group(1))
+            cid, up = card_from_name(m.group(1))
+            opts.append((int(num), m.group(1).strip(), cid, up))
+        elif label.startswith("Skip"):
+            skip = int(num)
     return opts, skip
 
 
@@ -273,33 +280,49 @@ def need_view(res, nvar, names=None):
     return rows, tot <= 0.05
 
 
+def price_horizon(engine, deck_json, variants, hz, hp, hold, boss_attempts, other_attempts, next_attempts=None, smooth_boss=True):
+    """Every variant against the three horizon sets of a pick (`sts2-deckbuilding` section 4): the known boss (smooth objective unless `smooth_boss` is off),
+    the elites still to come and the next act's elites and bosses (plain win rate / HP lost at `hp`). Returns {set name: evaluate summary}; an empty set is left out."""
+    sets = (("boss", hz["boss"], smooth_boss, boss_attempts), ("elites", hz["elites"], False, other_attempts),
+            ("next act", hz["next"], False, other_attempts if next_attempts is None else next_attempts))
+    res = {}
+    for key, encs, smooth, att in sets:
+        if encs:
+            _, res[key] = evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth, hold=hold))
+    return res
+
+
+HORIZON_HEAD = f"{'boss smooth':>16s} {'boss@full':>9s} {'elites win/HP':>14s} {'next act win/HP':>16s}"
+
+
+def horizon_cells(res, vi):
+    """The four cells of variant vi in a `price_horizon` table: boss smooth (and its gain over variant 0), boss win at the HP I arrive with, elites and next
+    act win / HP lost; `-` where the set was empty."""
+    base, b = res.get("boss", {}).get(0), res.get("boss", {}).get(vi)
+    cells = [(f"{b['win']:.3f}" + (f" ({b['win'] - base['win']:+.3f})" if vi and base else "")) if b else "-", f"{b['by_hp'][0]:.2f}" if b else "-"]
+    for key in ("elites", "next act"):
+        r = res.get(key, {}).get(vi)
+        cells.append(f"{r['win']:.2f}/{100 * r['hp_lost']:.0f}%" if r else "-")
+    return f"{cells[0]:>16s} {cells[1]:>9s} {cells[2]:>14s} {cells[3]:>16s}"
+
+
 def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full", hold=()):
     """One table for a card reward: every option (and skip) against the known boss (smooth objective), the elites still to come and the next act's elites and
     bosses (plain win rate / HP lost at `hp`). Prices only the combat side; gold, route and the plan stay my judgment."""
     from agent import card_tags
     variants = [dict(name="skip")] + [dict(name=n, add=[(cid + "+") if u else cid]) for _, n, cid, u in opts if cid]
-    sets = [("boss", hz["boss"], True, attempts), ("elites", hz["elites"], False, max(48, attempts * 2 // 3)), ("next act", hz["next"], False, max(48, attempts * 2 // 3))]
-    res = {}
-    for key, encs, smooth, att in sets:
-        if encs:
-            _, res[key] = evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth, hold=hold))
+    res = price_horizon(engine, deck_json, variants, hz, hp, hold, attempts, max(48, attempts * 2 // 3))
     lines = [f"card reward vs boss {','.join(hz['boss']) or '?'} (smooth = win averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of full HP), "
              f"{len(hz['elites'])} elites left, {len(hz['next'])} next-act elite/boss fights; {attempts} attempts"]
-    lines.append(f"{'option':22s} {'boss smooth':>16s} {'boss@full':>9s} {'elites win/HP':>14s} {'next act win/HP':>16s}  fills")
+    lines.append(f"{'option':22s} {HORIZON_HEAD}  fills")
     try:
         tags = card_tags.load()
     except Exception:  # noqa: BLE001
         tags = {}
-    base = res.get("boss", {}).get(0)
     for vi, v in enumerate(variants):
-        b = res.get("boss", {}).get(vi)
-        cells = [(f"{b['win']:.3f}" + (f" ({b['win'] - base['win']:+.3f})" if vi and base else "")) if b else "-", f"{b['by_hp'][0]:.2f}" if b else "-"]
-        for key in ("elites", "next act"):
-            r = res.get(key, {}).get(vi)
-            cells.append(f"{r['win']:.2f}/{100 * r['hp_lost']:.0f}%" if r else "-")
         cid = v.get("add", [None])[0]
         fills = "/".join(tags.get(cid.rstrip("+"), {}).get("buckets", [])) if cid else ""
-        lines.append(f"{v['name']:22s} {cells[0]:>16s} {cells[1]:>9s} {cells[2]:>14s} {cells[3]:>16s}  {fills}")
+        lines.append(f"{v['name']:22s} {horizon_cells(res, vi)}  {fills}")
     nv, solved = need_view(res, len(variants))
     if nv:
         lines.append("weakest link (the lowest win over the boss and the elites to come) and need-weighted gain (each fight weighted by 1 - its skip win: a solved fight counts ~0)" + ("; every fight is solved by the baseline, so the gain is n/a" if solved else ""))
@@ -319,7 +342,6 @@ def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full", hold=()):
     return "\n".join(lines), res
 
 
-
 def _bar_verdict(variants, res, tags, gaps, nv):
     """`sts2-deckbuilding` section 3 applied to the table: a card that fills no open bucket must clearly beat skip (boss smooth gain well beyond 2 se: > max(3 se,
     0.05), or +0.10 on the weakest fight); otherwise the default is skip. One input of the pick: the judgment pass weighs it with the plan, density and future problems."""
@@ -334,8 +356,7 @@ def _bar_verdict(variants, res, tags, gaps, nv):
         cid = v["add"][0].rstrip("+")
         bk = tags.get(cid, {}).get("buckets", [])
         opens = [b for b in bk if b in gaps]
-        d = boss[vi]["win"] - boss[0]["win"]
-        se = (boss[vi]["se"] ** 2 + boss[0]["se"] ** 2) ** 0.5
+        d, se = _vs(boss, vi)
         dw = (nv[vi][1] - w0) if nv and w0 is not None else 0.0
         if boss[vi].get("by_hp") and boss[0].get("by_hp"):  # the smooth average saturates at x1.5+; the weakest fight is judged at the HP I arrive with too
             dw = max(dw, boss[vi]["by_hp"][0] - boss[0]["by_hp"][0])
@@ -366,11 +387,7 @@ def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
         seen.add(key)
         variants.append(dict(name="-" + d["id"] + ("+" if key[1] else ""), remove=[dict(id=key[0], upgrade=key[1])]))
     n = sum(1 for d in deck_json["deck"] if d["id"] not in ETERNAL)
-    sets = [("boss", hz["boss"], True, attempts), ("elites", hz["elites"], False, max(32, attempts * 2 // 3)), ("next act", hz["next"], False, max(32, attempts * 2 // 3))]
-    res = {}
-    for key, encs, smooth, att in sets:
-        if encs:
-            _, res[key] = evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth, hold=hold))
+    res = price_horizon(engine, deck_json, variants, hz, hp, hold, attempts, max(32, attempts * 2 // 3))
     base = res.get("boss", {}).get(0)
     rows = []
     for vi, v in enumerate(variants):
@@ -381,13 +398,9 @@ def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
     # the boss smooth score first (a 0.02 band is a tie), then the next act's win rate, then the HP the elites cost: a saturated boss must not leave the order arbitrary
     order = [rows[0]] + sorted(rows[1:], key=lambda r: (-round((r[2]["win"] if r[2] else 0) / 0.02), -(r[4]["win"] if r[4] else 0), (r[3]["hp_lost"] if r[3] else 1)))
     lines = [f"card removal vs boss {','.join(hz['boss']) or '?'} (smooth), {len(hz['elites'])} elites left, {len(hz['next'])} next-act fights; deck {n} removable cards; {attempts} attempts"]
-    lines.append(f"{'remove':24s} {'boss smooth':>16s} {'boss@full':>9s} {'elites win/HP':>14s} {'next act win/HP':>16s}")
-    for vi, name, b, e, x in order:
-        c0 = (f"{b['win']:.3f}" + (f" ({b['win'] - base['win']:+.3f})" if vi and base else "")) if b else "-"
-        c1 = f"{b['by_hp'][0]:.2f}" if b else "-"
-        c2 = f"{e['win']:.2f}/{100 * e['hp_lost']:.0f}%" if e else "-"
-        c3 = f"{x['win']:.2f}/{100 * x['hp_lost']:.0f}%" if x else "-"
-        lines.append(f"{name:24s} {c0:>16s} {c1:>9s} {c2:>14s} {c3:>16s}")
+    lines.append(f"{'remove':24s} {HORIZON_HEAD}")
+    for vi, name, *_ in order:
+        lines.append(f"{name:24s} {horizon_cells(res, vi)}")
     if base:
         se = base["se"]
         top = [r for r in order[1:] if r[2] and r[2]["win"] >= order[1][2]["win"] - 2 * se]
@@ -398,9 +411,8 @@ def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
 def brief_text(state, deck_json, hz):
     """The run at a glance in one call: header, deck by card, buckets, relics, potions, what the pools can still throw at me."""
     import collections
-    import re
-    from agent import card_tags
-    head = next((l for l in state.split("\n") if re.search(r"A\d+ F\d+", l)), state.split("\n")[0])
+    from agent import card_tags, screen
+    head = screen.header_line(state, state.split("\n")[0])
     c = collections.Counter(d["id"] + ("+" if d.get("upgrade") else "") for d in deck_json["deck"])
     deck = ", ".join(f"{k}x{n}" if n > 1 else k for k, n in sorted(c.items()))
     lines = [head, f"deck ({len(deck_json['deck'])}): {deck}", "relics: " + ", ".join(r["id"] for r in deck_json["relics"]),

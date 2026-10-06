@@ -12,6 +12,8 @@ import collections, json, random
 
 import sts2
 
+from agent import potions
+
 # pre-sync differences under these prefixes are expected whenever cards were drawn (the simulator drew other cards than the real game)
 RANDOM_PREFIXES = (".hand", ".draw", ".discard", ".exhaust")
 
@@ -162,16 +164,8 @@ class Replayer:
             return ""
 
     def _map_potion(self, act):
-        """The scenario lists potions in slot order and the simulator packs them into slots 0..n-1; the game keeps their real slots (a lone potion in the
-        second slot is slot 1). Translate a logged `use_potion` slot to the simulator's."""
-        a = json.loads(act)
-        if "use_potion" not in a:
-            return act
-        slots = sorted(p.get("slot", i) for i, p in enumerate(self.scenario["potions"]))
-        s = a["use_potion"]["slot"]
-        if s in slots:
-            a["use_potion"]["slot"] = slots.index(s)
-        return json.dumps(a)
+        """A logged `use_potion` names the game slot; the simulator packs the belt into 0..n-1 (`agent.potions`)."""
+        return potions.to_sim_action(self.scenario, act)
 
     def _map_choose(self, act, before):
         """A logged `choose` over the hand (Entropy, Survivor ...) names a position in the GAME's hand; the simulator's hand holds the same multiset only when
