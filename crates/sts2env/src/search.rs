@@ -171,6 +171,8 @@ pub struct JobResult {
     pub done: bool,
     /// end HP (absolute; 0 unless won)
     pub hp_end_abs: i32,
+    /// belt slots whose starting potion is still there at the end (bit k = slot k)
+    pub pot_kept: u8,
 }
 
 /// One move of a recorded fight: the action played, and for searched decisions the options considered with their policy probabilities
@@ -290,6 +292,8 @@ struct Block {
     hp0: f32,
     scen: u32,
     rng: u64,
+    /// the belt when the job started
+    pot_start: [u16; POT],
     opts: [i32; MAX_M],
     ok: [bool; MAX_M],
     /// probabilities of the options of the current decision and the estimates of the finished search
@@ -584,7 +588,7 @@ impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, n_sims: usize) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
         let sims = (0..n_sims).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0, pot0: [u16::MAX; POT], used: 0 }).collect();
-        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], lead_acts: Default::default(), carry: None, known: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
+        Ok(Block { main, sims, st: RootSt::Idle, job: NONE, steps: 0, hp0: 0.0, scen: 0, rng: 0, pot_start: [u16::MAX; POT], opts: [0; MAX_M], ok: [false; MAX_M], probs: [0.0; MAX_M], qs: [0.0; MAX_M], lead: [false; MAX_M], lead_acts: Default::default(), carry: None, known: [false; MAX_M], ks: Vec::new(), todo: Vec::new(), log: Vec::new(), stats: SearchStats::default() })
     }
 
     /// Takes the next job (if any) and sets the real fight up. Returns false when the queue is empty.
@@ -608,6 +612,7 @@ impl Block {
         self.scen = si;
         let me = self.main.cr(0);
         self.hp0 = me.hp as f32 / me.max_hp.max(1) as f32;
+        self.pot_start = pot_ids(&self.main);
         self.rng = seed ^ 0xA5A5_5A5A_1234_8765;
         true
     }
@@ -616,7 +621,9 @@ impl Block {
         let me = self.main.cr(0);
         let end_frac = if outcome == OUTCOME_WIN { me.hp as f32 / me.max_hp.max(1) as f32 } else { 0.0 };
         let hp_end_abs = if outcome == OUTCOME_WIN { me.hp } else { 0 };
-        let r = JobResult { scen: self.scen, outcome, hp_lost: self.hp0 - end_frac, hp_end: end_frac, len: self.steps, done: true, hp_end_abs };
+        let now = pot_ids(&self.main);
+        let pot_kept = (0..POT).filter(|&k| self.pot_start[k] != u16::MAX && now[k] == self.pot_start[k]).fold(0u8, |b, k| b | 1 << k);
+        let r = JobResult { scen: self.scen, outcome, hp_lost: self.hp0 - end_frac, hp_end: end_frac, len: self.steps, done: true, hp_end_abs, pot_kept };
         // SAFETY: every job index is taken by exactly one block (atomic counter), so this entry is written once and by this task only.
         unsafe { *sh.results.0.add(self.job as usize) = r };
         if sh.record {

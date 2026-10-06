@@ -63,6 +63,10 @@ struct W<'a> {
     out: &'a mut [f32],
     i: usize,
 }
+/// Observation leaves out relics without a combat effect (`relic_mask::OBSERVED`). On by default; off reproduces observations from before M2
+/// (networks trained before the mask, A/B tests).
+pub static MASK_RELICS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
 impl W<'_> {
     #[inline(always)]
     fn f(&mut self, v: f32) {
@@ -245,8 +249,11 @@ impl Combat {
         w.n(self.player.orb_slots as i32);
         w.n(self.player.potion_slots as i32);
         Self::write_powers(&mut w, me);
-        let n_relics = self.player.relics.len().min(MAX_RELICS);
-        for r in &self.player.relics.as_slice()[..n_relics] {
+        // relics with no combat effect are not shown (`relic_mask`, `docs/rl_redesign.md` M2) unless the mask is switched off
+        let mask = MASK_RELICS.load(std::sync::atomic::Ordering::Relaxed);
+        let mut n_relics = 0;
+        for r in self.player.relics.as_slice().iter().filter(|r| !mask || crate::relic_mask::OBSERVED.get(r.id as usize).copied().unwrap_or(true)).take(MAX_RELICS) {
+            n_relics += 1;
             w.n(r.id as i32 + 1);
             // The counter a player can see on the relic (`ShowCounter ? DisplayAmount`), not the raw state slot.
             w.n(crate::content::relic_listener(r.id).meta_display(self, r).unwrap_or(0));

@@ -6,7 +6,7 @@ one observation row into a request buffer; this driver runs the policy on all po
 and hands the answers back. Two engines (`groups`) alternate so the CPU simulates one while the GPU evaluates the other.
 
   fs = FastSearch(net, value_nets=[...], M=3, K=8)
-  rows = fs.run(scenario_dicts, job_scen, job_seed)      # [n_jobs, 7]: scenario, outcome, hp_lost, hp_end, length, finished, end HP (absolute)
+  rows = fs.run(scenario_dicts, job_scen, job_seed)      # [n_jobs, 8]: scenario, outcome, hp_lost, hp_end, length, finished, end HP (absolute), potions kept (bits)
 
 With an outcome-head network (`rl/heads.py`) and no extra value networks, value rows come back as the head's class probabilities and Rust combines them
 with each job's worth (`run(..., worth=)`: per scenario None = today's linear return, or a table over the classes and per-slot potion prices; the decision
@@ -187,7 +187,8 @@ class FastSearch:
         self.dist = (bool(getattr(net, "heads", False)) and not self.value_nets) if dist is None else dist
         if self.dist and (self.value_nets or not getattr(net, "heads", False)):
             raise ValueError("dist value rows need one outcome-head network (no extra value nets)")
-        self.val_w = NC if self.dist else 1
+        self.pot = self.dist and bool(getattr(net, "pot", False))  # the potion-use head's per-slot probabilities follow the classes in each value row
+        self.val_w = (NC + POT if self.pot else NC) if self.dist else 1
         self.util = None
         self._ufeat_t = torch.tensor(utility.LINEAR_FEATS, device=DEV)
         self._runs = []
@@ -277,8 +278,12 @@ class FastSearch:
 
             amp = self.value_amp
             if self.dist:
-                net0 = self.net
-                ens = lambda o: torch.softmax(net0.outcome_logits(net0.trunk(o, E=E, L=64, has_dec=has_dec, ufeat=self._uf(o))), 1)
+                net0, pot = self.net, self.pot
+
+                def ens(o):
+                    ol, pl = net0.heads_out(o, E=E, L=64, has_dec=has_dec, ufeat=self._uf(o))
+                    p = torch.softmax(ol, 1)
+                    return torch.cat([p, torch.sigmoid(pl)], 1) if pot else p
             else:
                 ens = lambda o: sum(n(o, None, policy=False, E=E, L=64, has_dec=has_dec, ufeat=self._uf(o))[1].float() for n in nets)
             if self.compile:
@@ -367,7 +372,9 @@ class FastSearch:
             vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
             def val(o, m, **shape):
                 if self.dist:
-                    return torch.softmax(self.net.outcome_logits(self.net.trunk(o, ufeat=self._uf(o), **shape)), 1)
+                    ol, pl = self.net.heads_out(o, ufeat=self._uf(o), **shape)
+                    p = torch.softmax(ol, 1)
+                    return torch.cat([p, torch.sigmoid(pl)], 1) if self.pot else p
                 v = self.net(o, None, policy=False, ufeat=self._uf(o), **shape)[1]
                 for n2 in self.value_nets:
                     v = v + n2(o, None, policy=False, ufeat=self._uf(o), **shape)[1]
@@ -447,9 +454,9 @@ class FastSearch:
                 print(f"  cycle {cycles}, {sum(int(G['eng'].results_done()) for G in groups) if hasattr(groups[0]['eng'], 'results_done') else '?'}", flush=True)
         self._runs = [(G["idx"], G["eng"]) for G in groups]
         self._seeds, self._scen, self._job_scen = job_seed, scenarios, job_scen
-        out = np.zeros((nj, 7), np.float32)
+        out = np.zeros((nj, 8), np.float32)
         for G in groups:
-            r = np.zeros((len(G["idx"]), 7), np.float32)
+            r = np.zeros((len(G["idx"]), 8), np.float32)
             G["eng"].results(r)
             out[G["idx"]] = r
         tot = collections.Counter()

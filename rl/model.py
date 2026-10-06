@@ -110,11 +110,13 @@ class CardEnc(nn.Module):
 class Net(nn.Module):
     """Entity encoders -> pooled context -> `rounds` of message passing -> pointer heads (see the module docstring)."""
 
-    def __init__(self, d=64, e=24, rounds=2, heads=False):
+    def __init__(self, d=64, e=24, rounds=2, heads=False, pot=False):
         super().__init__()
         self.d = d
         # `heads`: the value is the expected worth of the fight-outcome distribution (`rl/heads.py`, the `outcome` head) instead of the scalar `value` head
         self.heads = heads
+        # `pot`: the potion-use head, P(the potion in belt slot k is used before the fight ends) per slot (`docs/rl_redesign.md` 3.1)
+        self.pot = pot
         P = C["OBS_POWERS"]
         self.rounds = rounds
         self.pp = PowerPool(C["N_POWERS"], e)
@@ -151,6 +153,8 @@ class Net(nn.Module):
         self.value = mlp(2 * d, 2 * d, 1)
         if heads:
             self.outcome = mlp(2 * d, 2 * d, H.NC)
+        if pot:
+            self.pot_use = mlp(3 * d, d, 1)  # [potion token, gctx] -> logit
         # the fight's HP-worth curve (rl/utility.py feats: U at 1/8 .. 8/8 of max HP), added to the player token; zero-initialised, so a network
         # trained before the input existed behaves exactly as before, and the input only matters once training has used it
         self.ucond = nn.Linear(8, d)
@@ -248,9 +252,14 @@ class Net(nn.Module):
         (`rl/dist.py`, the end-HP distribution) use it."""
         return self.forward(obs, None, policy=False, value=False, _gctx=True, ufeat=ufeat, **shape)
 
-    def forward(self, obs, mask, policy=True, value=True, _gctx=False, ufeat=None, outcome=False, **shape):
+    def heads_out(self, obs, ufeat=None, **shape):
+        """(outcome logits [B, NC] fp32, potion-use logits [B, MAX_POTIONS] fp32 or None) without the policy: the search's value rows."""
+        return self.forward(obs, None, policy=False, value=False, _heads=True, ufeat=ufeat, **shape)
+
+    def forward(self, obs, mask, policy=True, value=True, _gctx=False, ufeat=None, outcome=False, potuse=False, _heads=False, **shape):
         """Returns (masked logits [B, ACTION_SPACE], value [B]); `policy=False` / `value=False` skips that head (None) and its cost.
-        `outcome` (a `heads` network): returns (logits, value, outcome logits [B, NC]) from one pass. `shape`: E / L / has_dec of `encode`."""
+        `outcome` (a `heads` network): returns (logits, value, outcome logits [B, NC]) from one pass; with `potuse` also the potion-use logits [B, MAX_POTIONS]
+        (a `pot` network) as a fourth element. `shape`: E / L / has_dec of `encode`."""
         B = obs.shape[0]
         d = self.d
         E, Q = C["OBS_MAX_ENEMIES"], C["OBS_MAX_CANDS"]
@@ -278,6 +287,8 @@ class Net(nn.Module):
         gctx = torch.cat([player, ctx], 1)
         if _gctx:
             return gctx
+        if _heads:
+            return self.outcome_logits(gctx), (self.pot_logits(pot, gctx) if self.pot else None)
         if not policy:
             return None, self._value(gctx, obs)
         # targets: V[b, creature id] = v_tgt(enemy token); slot MAX_CREATURES = "no target"
@@ -310,8 +321,16 @@ class Net(nn.Module):
         logits = logits.masked_fill(~m, -1e9)
         if outcome:
             ol = self.outcome_logits(gctx)
+            if potuse:
+                return logits, H.value(ol, sl(obs, "player")[:, 1]), ol, self.pot_logits(pot, gctx)
             return logits, H.value(ol, sl(obs, "player")[:, 1]), ol
         return logits, (self._value(gctx, obs) if value else None)
+
+    def pot_logits(self, pot, gctx):
+        """[B, MAX_POTIONS] logits of P(the slot's potion is used before the fight ends), fp32 (meaningless for empty slots: mask them)."""
+        with torch.autocast(gctx.device.type, enabled=False):
+            x = torch.cat([pot.float(), gctx.float().unsqueeze(1).expand(-1, pot.shape[1], -1)], -1)
+            return self.pot_use(x).squeeze(-1)
 
     def outcome_logits(self, gctx):
         """[B, NC] logits of the fight's ending (`rl/heads.py`), in fp32 outside any autocast."""
@@ -351,7 +370,7 @@ def load(path):
         return Ensemble([load(p) for p in parts]).to(DEV).eval()
     ck = torch.load(path, map_location="cpu")
     args = ck.get("args", {})
-    net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2), heads=bool(args.get("heads", False)))
+    net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2), heads=bool(args.get("heads", False)), pot=bool(args.get("pot_head", False)))
     load_weights(net, ck["net"] if "net" in ck else ck)
     return net.to(DEV).eval()
 

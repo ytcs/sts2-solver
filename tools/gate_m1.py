@@ -5,7 +5,8 @@ seeds (search on, `Solver`), per set; differences against the reference are figh
   STS2_DEVICE=cuda python tools/gate_m1.py --ref control=target/m1/control/ckpt.pt --cand heads=target/m1/heads/ckpt.pt \
       [--values models/solver_c128.pt,models/solver_d128.pt] [--n 600] [--attempts 2] [--out evals/gate_m1.json]
 
-Configurations: each of ref / cand alone, and with `--values` (extra value nets averaged in, as `adopt` would install). PASS (per candidate config vs
+Configurations: each of ref / cand alone, and with `--values` (extra value nets averaged in, as `adopt` would install). A checkpoint written
+`path@nomask` runs with the relic mask off (observations show every relic, as before M2). PASS (per candidate config vs
 the same ref config, every set): win >= -0.01 and HP lost <= +0.01 of max (loss counts the whole start HP), both on the point estimate.
 """
 import argparse, json, os, sys, time
@@ -22,6 +23,10 @@ SETS = {k: v for k, v in SETS.items() if os.path.exists(os.path.join(ROOT, v))}
 
 def run(ckpt, values, sets, n, attempts):
     from solver import Solver
+    import sts2
+    nomask = ckpt.endswith("@nomask")
+    ckpt = ckpt[:-len("@nomask")] if nomask else ckpt
+    prev = sts2.set_relic_mask(not nomask)
     S = Solver(ckpt, value_ckpts=values or None)
     out = {}
     for name, path in sets.items():
@@ -30,6 +35,7 @@ def run(ckpt, values, sets, n, attempts):
         res = S.solve(scen, attempts=attempts, seed=SEED)
         out[name] = dict(win=[r["win"] for r in res], hp_lost=[r["hp_lost"] if r["hp_lost"] is not None else np.nan for r in res], secs=time.time() - t)
     del S
+    sts2.set_relic_mask(prev)
     import torch
     torch.cuda.empty_cache()
     return out

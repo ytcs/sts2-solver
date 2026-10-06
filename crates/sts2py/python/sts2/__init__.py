@@ -15,7 +15,7 @@ Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py);
 import json
 import numpy as np
 
-from ._sts2 import Sim, replay as _replay, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable  # noqa: F401
+from ._sts2 import Sim, replay as _replay, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable, set_relic_mask  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )
@@ -42,6 +42,7 @@ class VecEnv:
         self.done = np.zeros(n_envs, np.uint8)
         self.outcome = np.zeros(n_envs, np.int8)
         self.illegal = np.zeros(n_envs, np.uint8)
+        self.pot_used = np.zeros(n_envs, np.uint8)
         self._ep = np.zeros((n_envs, 7), np.float32)
 
     def reset(self):
@@ -51,7 +52,13 @@ class VecEnv:
     def step(self, actions):
         a = np.ascontiguousarray(actions, dtype=np.int32)
         self._env.step(a, self.obs, self.mask, self.reward, self.done, self.outcome, self.illegal)
-        return self.obs, self.mask, self.reward, self.done, {"outcome": self.outcome, "illegal": self.illegal}
+        self._env.potion_used(self.pot_used)
+        # pot_used: bit k = the potion in belt slot k before this step is gone after it (thrown, discarded, consumed), measured before an auto-reset
+        return self.obs, self.mask, self.reward, self.done, {"outcome": self.outcome, "illegal": self.illegal, "pot_used": self.pot_used}
+
+    def set_weights(self, w):
+        """Pool sources (the default, not `round_robin`): episodes starting from now draw scenario i with probability w[i] / sum(w)."""
+        self._env.set_weights(np.ascontiguousarray(w, np.float32))
 
     def set_autoreset(self, on):
         """With `False` a finished episode stays finished (done=1 and the same outcome every step, actions ignored): for search."""

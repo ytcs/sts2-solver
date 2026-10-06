@@ -8,6 +8,9 @@ player turns; aborted episodes (unported content / capacity overflow) end with r
 
 `--heads` (`docs/rl_redesign.md` M1): the value is the expected worth of the fight-outcome distribution (`rl/heads.py`), trained by cross-entropy on
 lambda-returns of the distribution itself (`--lam-head`); `--head-warmup K` first trains that head alone for K iterations (policy and trunk frozen).
+`--pot-head` (M1b): the potion-use head, P(the potion in belt slot k is used before the fight ends), binary cross-entropy against lambda-mixed targets
+(1 when the env reports the slot's potion used at this step, 0 when the fight ends with it, else the next state's prediction); empty slots masked.
+`--warm-prefix pot_use.` with `--head-warmup K` trains that head alone on a frozen network.
 """
 import argparse, json, os, sys, time
 import numpy as np
@@ -105,6 +108,9 @@ def main():
     ap.add_argument("--head-warmup", type=int, default=0, help="with --heads: first train the outcome head alone for this many iterations (policy and trunk frozen)")
     ap.add_argument("--lam-head", type=float, default=0.95, help="lambda of the outcome head's targets (1 = Monte Carlo endings, 0 = next state's prediction)")
     ap.add_argument("--turn-cap", type=int, default=H.TURN_CAP, help="a fight still running after this many player turns is a loss (0 = no cap)")
+    ap.add_argument("--pot-head", action="store_true", help="with --heads: the potion-use head (per belt slot)")
+    ap.add_argument("--pot-coef", type=float, default=0.5, help="weight of the potion-use head's loss")
+    ap.add_argument("--warm-prefix", default="outcome.", help="comma-separated parameter-name prefixes the --head-warmup iterations train (the rest frozen)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", help="checkpoint to continue from (iteration count and lr schedule continue; --iters is the total)")
     ap.add_argument("--warm", action="store_true", help="with --resume: take the weights only (fresh optimizer, iteration 0)")
@@ -115,9 +121,13 @@ def main():
     torch.manual_seed(a.seed)
     if a.heads and a.util_prob > 0:
         raise SystemExit("--heads uses today's linear worth of the ending (rl/heads.py): no --util-prob")
-    net = Net(d=a.d, rounds=a.rounds, heads=a.heads).to(DEV)
+    if a.pot_head and not a.heads:
+        raise SystemExit("--pot-head needs --heads")
+    net = Net(d=a.d, rounds=a.rounds, heads=a.heads, pot=a.pot_head).to(DEV)
     opt = torch.optim.Adam(net.parameters(), lr=a.lr, eps=1e-5)
     allow = ("ucond.", "outcome.") if a.heads else ("ucond.",)
+    if a.pot_head:
+        allow = allow + ("pot_use.",)
     it0, steps = 0, 0
     if a.resume:  # a full checkpoint (net + optimizer + progress) or a bare state dict (weights only: warm start)
         ck = torch.load(a.resume, map_location="cpu")
@@ -131,7 +141,11 @@ def main():
     print("params", n_params(net), "resuming at iteration", it0, flush=True)
     env, scen = make_env(a.train, a.envs, a.seed + 1000, a.max_steps, a.hp_bonus, a.turn_cap)
     # the outcome head alone first: its own optimizer, the rest of the network untouched
-    opt_w = torch.optim.Adam(net.outcome.parameters(), lr=a.lr, eps=1e-5) if a.heads and a.head_warmup > 0 else None
+    prefixes = tuple(p for p in a.warm_prefix.split(",") if p)
+    warm_params = [p for n, p in net.named_parameters() if n.startswith(prefixes)]
+    opt_w = torch.optim.Adam(warm_params, lr=a.lr, eps=1e-5) if a.heads and a.head_warmup > 0 else None
+    if opt_w is not None and not warm_params:
+        raise SystemExit(f"--warm-prefix {a.warm_prefix}: no parameters")
     it_warm = it0 + (a.head_warmup if opt_w is not None else 0)  # iterations up to this one only train the outcome head
     N, T = a.envs, a.horizon
     A = sts2.ACTIONS
@@ -146,6 +160,11 @@ def main():
     if a.heads:
         b_pout = torch.zeros(T + 1, N, H.NC)  # the outcome head's distribution at every observation (and the one after the horizon)
         b_term = torch.full((T, N), -1, dtype=torch.long)  # at an episode's last step: its ending class; -2 = aborted (no target); -1 = not done
+    KP = sts2.layout()["consts"]["MAX_POTIONS"]
+    _po = {n: o for n, o, s in sts2.layout()["sections"]}["potions"]
+    if a.pot_head:
+        b_ppot = torch.zeros(T + 1, N, KP)  # the potion-use head's probabilities at every observation
+        b_pused = torch.zeros(T, N, KP)  # slot k's potion used up at this step (env)
     obs, mask = env.reset()
     rng = np.random.default_rng(a.seed + 7)
     # one HP-worth curve per running episode (redrawn when it ends): the win reward and the network's input
@@ -191,7 +210,11 @@ def main():
                 b_obs[t].numpy()[:] = obs
                 b_mask[t].numpy()[:] = m_eff
                 b_feat[t].numpy()[:] = feat
-                if a.heads:
+                if a.pot_head:
+                    lg, v, ol, pl_ = net(b_obs[t].to(DEV), b_mask[t].long().to(DEV), ufeat=b_feat[t].to(DEV), outcome=True, potuse=True)
+                    b_pout[t] = torch.softmax(ol, 1).cpu()
+                    b_ppot[t] = torch.sigmoid(pl_).cpu()
+                elif a.heads:
                     lg, v, ol = net(b_obs[t].to(DEV), b_mask[t].long().to(DEV), ufeat=b_feat[t].to(DEV), outcome=True)
                     b_pout[t] = torch.softmax(ol, 1).cpu()
                 else:
@@ -202,6 +225,9 @@ def main():
                 b_lp[t] = logp.gather(1, act[:, None]).squeeze(1).cpu()
                 b_val[t] = v.cpu()
                 obs, mask, rew, done, info = env.step(act.cpu().numpy().astype(np.int32))
+                if a.pot_head:
+                    pu = info["pot_used"]
+                    b_pused[t] = torch.from_numpy(((pu[:, None] >> np.arange(KP)) & 1).astype(np.float32))
                 r = rew.copy()
                 oc = info["outcome"]
                 r[oc == 2] = -1.0  # stalled out
@@ -228,7 +254,11 @@ def main():
                     for i in np.nonzero(done)[0]:
                         ep_stats.append((int(oc[i]), float(ei["hp_lost"][i]), int(ei["length"][i])))
                 steps += N
-            if a.heads:
+            if a.pot_head:
+                _, last_v, last_ol, last_pl = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True, potuse=True)
+                b_pout[T] = torch.softmax(last_ol, 1).cpu()
+                b_ppot[T] = torch.sigmoid(last_pl).cpu()
+            elif a.heads:
                 _, last_v, last_ol = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True)
                 b_pout[T] = torch.softmax(last_ol, 1).cpu()
             else:
@@ -260,6 +290,16 @@ def main():
                 y = torch.where(aborted.unsqueeze(1), b_pout[t], y)  # no target: its own prediction, weight 0
                 wt[t] = (~aborted).float()
                 tgt[t] = y
+        if a.pot_head:  # potion-use targets: 1 when used at this step, 0 when the fight ends with it, else lambda-mix of the next prediction and the next target
+            ptgt = torch.zeros(T, N, KP)
+            yp = b_ppot[T].clone()
+            for t in reversed(range(T)):
+                done_t = b_done[t].unsqueeze(1) > 0
+                boot = (1 - a.lam_head) * b_ppot[t + 1] + a.lam_head * yp
+                yp = torch.where(b_pused[t] > 0, torch.ones_like(boot), torch.where(done_t, torch.zeros_like(boot), boot))
+                ptgt[t] = yp
+            pocc = (b_obs[:, :, _po:_po + 2 * KP:2] > 0).float()  # slots holding a potion at each observation
+            pw_ = pocc * wt.unsqueeze(-1)  # aborted episodes weigh 0
         # ---- update ----
         net.train()
         t_upd = time.time()
@@ -268,13 +308,18 @@ def main():
         if a.heads:
             ftgt, fwt = tgt.view(T * N, -1), wt.view(-1)
         stats = {"pl": 0.0, "vl": 0.0, "ent": 0.0, "kl": 0.0, "clip": 0.0}
+        if a.pot_head:
+            fptgt, fpw = ptgt.view(T * N, KP), pw_.view(T * N, KP)
+            stats.update(potl=0.0, pot_brier=0.0, pot_base=0.0)
         nb = 0
         for ep in range(a.epochs):
             perm = torch.randperm(T * N)
             for s in range(0, T * N, a.mb):
                 ix = perm[s:s + a.mb]
                 ixd = ix
-                if a.heads:
+                if a.pot_head:
+                    lg, v, ol, pl_ = net(fo[ix].to(DEV), fm[ix].long().to(DEV), ufeat=ff[ix].to(DEV), outcome=True, potuse=True)
+                elif a.heads:
                     lg, v, ol = net(fo[ix].to(DEV), fm[ix].long().to(DEV), ufeat=ff[ix].to(DEV), outcome=True)
                 else:
                     lg, v = net(fo[ix].to(DEV), fm[ix].long().to(DEV), ufeat=ff[ix].to(DEV))
@@ -293,10 +338,18 @@ def main():
                 ent = -(p * logp.clamp(min=-30) * (fm[ix].to(DEV) > 0)).sum(1).mean()
                 o_ = opt_w if warm else opt
                 loss = a.vf * vl if warm else pl + a.vf * vl - a.ent * ent
+                if a.pot_head:
+                    yt, ww = fptgt[ix].to(DEV), fpw[ix].to(DEV)
+                    potl = (F.binary_cross_entropy_with_logits(pl_, yt, reduction="none") * ww).sum() / ww.sum().clamp(min=1)
+                    loss = loss + a.pot_coef * potl
+                    with torch.no_grad():
+                        stats["potl"] += potl.item()
+                        stats["pot_brier"] += ((torch.sigmoid(pl_) - yt) ** 2 * ww).sum().item() / max(ww.sum().item(), 1)
+                        stats["pot_base"] += ((yt - (yt * ww).sum() / ww.sum().clamp(min=1)) ** 2 * ww).sum().item() / max(ww.sum().item(), 1)
                 o_.zero_grad(set_to_none=True)
                 net.zero_grad(set_to_none=True)
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(net.parameters(), 0.5)
+                torch.nn.utils.clip_grad_norm_([q for g in o_.param_groups for q in g["params"]], 0.5)  # the norm of what this optimizer steps
                 o_.step()
                 stats["pl"] += pl.item(); stats["vl"] += vl.item(); stats["ent"] += ent.item()
                 stats["kl"] += ((ratio - 1) - (nlp - flp[ix].to(DEV))).mean().item()

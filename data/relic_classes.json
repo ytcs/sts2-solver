@@ -1,0 +1,2315 @@
+{
+ "version": 1,
+ "source": "M2 relic mask (docs/rl_redesign.md): every relic in sts2.names()[\"relic\"] classified from decomp/MegaCrit.Sts2.Core.Models.Relics/*.cs override hooks and crates/sts2sim/src/content/relics/*.rs. hooks = decomp override methods (IsAllowed/AfterCloned dropped).",
+ "classes": {
+  "combat": "has an effect inside a fight (incl. end-of-fight heals / max HP)",
+  "macro_only": "no effect inside a fight; the network should not see it",
+  "potion_linked": "combat relevance is through potions (slots, generation, potion-use effects); scenarios must carry potions",
+  "card_linked": "leaves specific cards / curses / enchantments / type-wide upgrades in the deck; scenarios must carry them"
+ },
+ "relics": {
+  "AKABEKO": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "Akabeko.cs: AfterSideTurnStart; sim shared_start.rs"
+  },
+  "ALCHEMICAL_COFFER": {
+   "class": "potion_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +N slots filled with random potions"
+  },
+  "AMETHYST_AUBERGINE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterModifyingRewards",
+    "TryModifyRewards"
+   ],
+   "note": "TryModifyRewards: gold reward"
+  },
+  "ANCHOR": {
+   "class": "combat",
+   "hooks": [
+    "BeforeCombatStart"
+   ],
+   "note": "Anchor.cs: BeforeCombatStart; sim shared_start.rs"
+  },
+  "ARCANE_SCROLL": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: adds a random rare card"
+  },
+  "ARCHAIC_TOOTH": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: transforms starter card into its Ancient (Bash->Break, Neutralize->Suppress, ...)"
+  },
+  "ART_OF_WAR": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "AfterEnergyReset",
+    "AfterSideTurnEnd"
+   ],
+   "note": "ArtOfWar.cs: AfterCardPlayed, AfterCombatEnd, AfterEnergyReset, AfterSideTurnEnd; sim shared_play.rs"
+  },
+  "ASTROLABE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: transform 3 chosen + upgrade; generic deck upgrade at pickup (low confidence: could be card_linked)"
+  },
+  "BAG_OF_MARBLES": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnStart"
+   ],
+   "note": "BagOfMarbles.cs: BeforeSideTurnStart; sim shared_start.rs"
+  },
+  "BAG_OF_PREPARATION": {
+   "class": "combat",
+   "hooks": [
+    "ModifyHandDraw"
+   ],
+   "note": "BagOfPreparation.cs: ModifyHandDraw; sim shared_start.rs"
+  },
+  "BEATING_REMNANT": {
+   "class": "combat",
+   "hooks": [
+    "AfterDamageReceived",
+    "AfterModifyingHpLostAfterOsty",
+    "BeforeSideTurnStart",
+    "ModifyHpLostAfterOsty"
+   ],
+   "note": "BeatingRemnant.cs: AfterDamageReceived, AfterModifyingHpLostAfterOsty, BeforeSideTurnStart, ModifyHpLostAfterOsty; sim shared_start.rs"
+  },
+  "BEAUTIFUL_BRACELET": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Swift 2 on 4 random cards"
+  },
+  "BELLOWS": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "Bellows.cs: AfterPlayerTurnStart; sim shared_start.rs"
+  },
+  "BELT_BUCKLE": {
+   "class": "potion_linked",
+   "also": [
+    "combat"
+   ],
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterCombatVictory",
+    "AfterObtained",
+    "AfterPotionDiscarded",
+    "AfterPotionProcured",
+    "AfterPotionUsed",
+    "BeforeCombatStart"
+   ],
+   "note": "+Dex while holding no potions; potion procured/used/discarded hooks (sim shared_play)"
+  },
+  "BIG_HAT": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "BigHat.cs: AfterSideTurnStart; sim shared_cards.rs"
+  },
+  "BIG_MUSHROOM": {
+   "class": "combat",
+   "hooks": [
+    "AfterObtained",
+    "AfterRoomEntered",
+    "ModifyHandDraw"
+   ],
+   "note": "ModifyHandDraw -2 on turn 1; AfterObtained +20 max HP"
+  },
+  "BIIIG_HUG": {
+   "class": "combat",
+   "hooks": [
+    "AfterObtained",
+    "AfterShuffle"
+   ],
+   "note": "AfterShuffle: Soot into draw pile; AfterObtained removes cards"
+  },
+  "BING_BONG": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCardChangedPiles"
+   ],
+   "note": "AfterCardChangedPiles(Deck): duplicates cards added to deck (no deck adds in combat)"
+  },
+  "BLACK_BLOOD": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatVictory"
+   ],
+   "note": "AfterCombatVictory: heal"
+  },
+  "BLACK_STAR": {
+   "class": "macro_only",
+   "hooks": [
+    "TryModifyRewards"
+   ],
+   "note": "TryModifyRewards: elite relic reward"
+  },
+  "BLESSED_ANTLER": {
+   "class": "combat",
+   "hooks": [
+    "BeforeHandDraw",
+    "ModifyMaxEnergy"
+   ],
+   "note": "BlessedAntler.cs: BeforeHandDraw, ModifyMaxEnergy; sim shared_cards.rs"
+  },
+  "BLOOD_SOAKED_ROSE": {
+   "class": "card_linked",
+   "also": [
+    "combat"
+   ],
+   "hooks": [
+    "AfterObtained",
+    "ModifyMaxEnergy"
+   ],
+   "note": "AfterObtained: Enthralled curse; ModifyMaxEnergy +1 (sim shared_start)"
+  },
+  "BLOOD_VIAL": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStartLate"
+   ],
+   "note": "BloodVial.cs: AfterPlayerTurnStartLate; sim shared_start.rs"
+  },
+  "BONE_FLUTE": {
+   "class": "combat",
+   "hooks": [
+    "AfterAttack"
+   ],
+   "note": "BoneFlute.cs: AfterAttack; sim pets_forge.rs"
+  },
+  "BONE_TEA": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "AfterPlayerTurnStart turn 1: upgrade hand, N combats"
+  },
+  "BOOKMARK": {
+   "class": "combat",
+   "hooks": [
+    "AfterFlush"
+   ],
+   "note": "Bookmark.cs: AfterFlush; sim shared_play.rs"
+  },
+  "BOOK_OF_FIVE_RINGS": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCardChangedPiles"
+   ],
+   "note": "AfterCardChangedPiles(Deck): heal every 5 cards added (no deck adds in combat)"
+  },
+  "BOOK_REPAIR_KNIFE": {
+   "class": "combat",
+   "hooks": [
+    "AfterDiedToDoom"
+   ],
+   "note": "BookRepairKnife.cs: AfterDiedToDoom; sim shared_misc.rs"
+  },
+  "BOOMING_CONCH": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart",
+    "ModifyHandDraw"
+   ],
+   "note": "BoomingConch.cs: AfterSideTurnStart, ModifyHandDraw; sim shared_start.rs"
+  },
+  "BOUND_PHYLACTERY": {
+   "class": "combat",
+   "hooks": [
+    "AfterEnergyResetLate",
+    "BeforeCombatStart"
+   ],
+   "note": "BoundPhylactery.cs: AfterEnergyResetLate, BeforeCombatStart; sim necrobinder.rs"
+  },
+  "BOWLER_HAT": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterModifyingGoldGained",
+    "ModifyGoldGained"
+   ],
+   "note": "ModifyGoldGained x1.25 (sim implements; gold only)"
+  },
+  "BREAD": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart",
+    "ModifyMaxEnergy"
+   ],
+   "note": "Bread.cs: AfterSideTurnStart, ModifyMaxEnergy; sim shared_start.rs"
+  },
+  "BRILLIANT_SCARF": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "BeforeSideTurnStart",
+    "TryModifyEnergyCostInCombatLate",
+    "TryModifyStarCost"
+   ],
+   "note": "BrilliantScarf.cs: AfterCardPlayed, AfterCombatEnd, BeforeSideTurnStart, TryModifyEnergyCostInCombatLate, TryModifyStarCost; sim shared_misc.rs"
+  },
+  "BRIMSTONE": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "Brimstone.cs: AfterSideTurnStart; sim ironclad.rs"
+  },
+  "BRONZE_SCALES": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "BronzeScales.cs: AfterRoomEntered; sim shared_start.rs"
+  },
+  "BURNING_BLOOD": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatVictory"
+   ],
+   "note": "AfterCombatVictory: heal 6"
+  },
+  "BURNING_STICKS": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardExhausted",
+    "AfterCombatEnd",
+    "AfterRoomEntered"
+   ],
+   "note": "BurningSticks.cs: AfterCardExhausted, AfterCombatEnd, AfterRoomEntered; sim shared_play.rs"
+  },
+  "BYRDPIP": {
+   "class": "card_linked",
+   "also": [
+    "combat"
+   ],
+   "hooks": [
+    "AfterObtained",
+    "BeforeCombatStart"
+   ],
+   "note": "AfterObtained: Byrdonis Egg -> Byrd Swoop (always, hatched from egg); BeforeCombatStart pet (sim pets_forge)"
+  },
+  "CALLING_BELL": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Curse of the Bell + 3 relic rewards"
+  },
+  "CANDELABRA": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "Candelabra.cs: AfterSideTurnStart; sim shared_start.rs"
+  },
+  "CAPTAINS_WHEEL": {
+   "class": "combat",
+   "hooks": [
+    "AfterBlockCleared"
+   ],
+   "note": "CaptainsWheel.cs: AfterBlockCleared; sim shared_start.rs"
+  },
+  "CAULDRON": {
+   "class": "potion_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: potion rewards"
+  },
+  "CENTENNIAL_PUZZLE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterDamageReceived"
+   ],
+   "note": "CentennialPuzzle.cs: AfterCombatEnd, AfterDamageReceived; sim shared_play.rs"
+  },
+  "CHANDELIER": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "Chandelier.cs: AfterSideTurnStart; sim shared_start.rs"
+  },
+  "CHARONS_ASHES": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardExhausted"
+   ],
+   "note": "CharonsAshes.cs: AfterCardExhausted; sim ironclad.rs"
+  },
+  "CHEMICAL_X": {
+   "class": "combat",
+   "hooks": [
+    "BeforeCardPlayed",
+    "ModifyXValue"
+   ],
+   "note": "ChemicalX.cs: BeforeCardPlayed, ModifyXValue; sim shared_play.rs"
+  },
+  "CHOICES_PARADOX": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "ChoicesParadox.cs: AfterPlayerTurnStart; sim shared_choice.rs"
+  },
+  "CHOSEN_CHEESE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd"
+   ],
+   "note": "AfterCombatEnd: +max HP (changes end HP / max HP)"
+  },
+  "CIRCLET": {
+   "class": "macro_only",
+   "hooks": [],
+   "note": "no hooks (placeholder relic)"
+  },
+  "CLAWS": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: transforms chosen cards into Maul"
+  },
+  "CLOAK_CLASP": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnEnd"
+   ],
+   "note": "CloakClasp.cs: BeforeSideTurnEnd; sim shared_play.rs"
+  },
+  "CRACKED_CORE": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnStart"
+   ],
+   "note": "CrackedCore.cs: BeforeSideTurnStart; sim defect.rs"
+  },
+  "CROSSBOW": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "Crossbow.cs: AfterSideTurnStart; sim shared_cards.rs"
+  },
+  "CURSED_PEARL": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Greed curse + gold"
+  },
+  "DARKSTONE_PERIAPT": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCardChangedPiles"
+   ],
+   "note": "AfterCardChangedPiles(Deck): +max HP per curse added (no deck adds in combat)"
+  },
+  "DATA_DISK": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "DataDisk.cs: AfterRoomEntered; sim shared_start.rs"
+  },
+  "DAUGHTER_OF_THE_WIND": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "DaughterOfTheWind.cs: AfterCardPlayed; sim shared_play.rs"
+  },
+  "DELICATE_FROND": {
+   "class": "potion_linked",
+   "also": [
+    "combat"
+   ],
+   "hooks": [
+    "BeforeCombatStart"
+   ],
+   "note": "BeforeCombatStart: procures potions into empty slots (sim shared_cards)"
+  },
+  "DEMON_TONGUE": {
+   "class": "combat",
+   "hooks": [
+    "AfterDamageReceived",
+    "BeforeSideTurnStart"
+   ],
+   "note": "DemonTongue.cs: AfterDamageReceived, BeforeSideTurnStart; sim ironclad.rs"
+  },
+  "DEPRECATED_RELIC": {
+   "class": "macro_only",
+   "hooks": [],
+   "note": "no hooks (removed-relic placeholder)"
+  },
+  "DIAMOND_DIADEM": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "DiamondDiadem.cs: AfterSideTurnStart; sim shared_start.rs"
+  },
+  "DINGY_RUG": {
+   "class": "macro_only",
+   "hooks": [
+    "ModifyCardRewardCreationOptions"
+   ],
+   "note": "ModifyCardRewardCreationOptions: colorless in rewards"
+  },
+  "DISTINGUISHED_CAPE": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: 2 random curses + 3 Apparition"
+  },
+  "DIVINE_DESTINY": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "DivineDestiny.cs: AfterSideTurnStart; sim shared_misc.rs"
+  },
+  "DIVINE_RIGHT": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "DivineRight.cs: AfterRoomEntered; sim shared_misc.rs"
+  },
+  "DOLLYS_MIRROR": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: duplicate a deck card"
+  },
+  "DOWSING_ROD": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: adds Dowsing"
+  },
+  "DRAGON_FRUIT": {
+   "class": "combat",
+   "hooks": [
+    "AfterGoldGained"
+   ],
+   "note": "AfterGoldGained: +max HP, reachable in combat (Hand of Greed); sim runlevel.rs implements"
+  },
+  "DREAM_CATCHER": {
+   "class": "macro_only",
+   "hooks": [
+    "ModifyExtraRestSiteHealText",
+    "TryModifyRestSiteHealRewards"
+   ],
+   "note": "TryModifyRestSiteHealRewards: card reward"
+  },
+  "DRIFTWOOD": {
+   "class": "macro_only",
+   "hooks": [
+    "TryModifyRewardsLate"
+   ],
+   "note": "TryModifyRewardsLate: card reward reroll"
+  },
+  "DUSTY_TOME": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: adds an upgraded Ancient card"
+  },
+  "ECTOPLASM": {
+   "class": "combat",
+   "hooks": [
+    "AfterModifyingGoldGained",
+    "ModifyGoldGained",
+    "ModifyMaxEnergy"
+   ],
+   "note": "ModifyMaxEnergy +1; no gold gain"
+  },
+  "ELECTRIC_SHRYMP": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Imbued on 1 chosen card"
+  },
+  "EMBER_TEA": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "AfterRoomEntered(Combat): +2 Strength for N combats"
+  },
+  "EMOTION_CHIP": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterDamageReceived",
+    "AfterPlayerTurnStart"
+   ],
+   "note": "EmotionChip.cs: AfterCombatEnd, AfterDamageReceived, AfterPlayerTurnStart; sim defect.rs"
+  },
+  "EMPTY_CAGE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: remove cards"
+  },
+  "ETERNAL_FEATHER": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "AfterRoomEntered(RestSite): heal"
+  },
+  "FAKE_ANCHOR": {
+   "class": "combat",
+   "hooks": [
+    "BeforeCombatStart"
+   ],
+   "note": "FakeAnchor.cs: BeforeCombatStart; sim shared_start.rs"
+  },
+  "FAKE_BLOOD_VIAL": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStartLate"
+   ],
+   "note": "FakeBloodVial.cs: AfterPlayerTurnStartLate; sim shared_start.rs"
+  },
+  "FAKE_HAPPY_FLOWER": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterSideTurnStart"
+   ],
+   "note": "FakeHappyFlower.cs: AfterCombatEnd, AfterSideTurnStart; sim shared_play.rs"
+  },
+  "FAKE_LEES_WAFFLE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: heal %"
+  },
+  "FAKE_MANGO": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +max HP"
+  },
+  "FAKE_MERCHANTS_RUG": {
+   "class": "macro_only",
+   "hooks": [],
+   "note": "no hooks (Fake Merchant UI check)"
+  },
+  "FAKE_ORICHALCUM": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnEnd",
+    "BeforeSideTurnEndVeryEarly",
+    "BeforeSideTurnStart"
+   ],
+   "note": "FakeOrichalcum.cs: BeforeSideTurnEnd, BeforeSideTurnEndVeryEarly, BeforeSideTurnStart; sim shared_start.rs"
+  },
+  "FAKE_SNECKO_EYE": {
+   "class": "combat",
+   "hooks": [
+    "AfterObtained",
+    "BeforeCombatStart"
+   ],
+   "note": "FakeSneckoEye.cs: AfterObtained, BeforeCombatStart; sim shared_start.rs"
+  },
+  "FAKE_STRIKE_DUMMY": {
+   "class": "combat",
+   "hooks": [
+    "ModifyDamageAdditive"
+   ],
+   "note": "FakeStrikeDummy.cs: ModifyDamageAdditive; sim shared_damage.rs"
+  },
+  "FAKE_VENERABLE_TEA_SET": {
+   "class": "combat",
+   "hooks": [
+    "AfterEnergyReset",
+    "AfterRoomEntered"
+   ],
+   "note": "AfterEnergyReset: +energy in the fight after a rest site (flag set out of combat)"
+  },
+  "FENCING_MANUAL": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "FencingManual.cs: AfterSideTurnStart; sim pets_forge.rs"
+  },
+  "FESTIVE_POPPER": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "FestivePopper.cs: AfterPlayerTurnStart; sim shared_start.rs"
+  },
+  "FIDDLE": {
+   "class": "combat",
+   "hooks": [
+    "AfterPreventingDraw",
+    "ModifyHandDraw",
+    "ShouldDraw"
+   ],
+   "note": "Fiddle.cs: AfterPreventingDraw, ModifyHandDraw, ShouldDraw; sim shared_start.rs"
+  },
+  "FISHING_ROD": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCombatEnd"
+   ],
+   "note": "AfterCombatEnd: every N monster fights upgrade a deck card (post-fight)"
+  },
+  "FORGOTTEN_SOUL": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardExhausted"
+   ],
+   "note": "ForgottenSoul.cs: AfterCardExhausted; sim shared_start.rs"
+  },
+  "FRAGRANT_MUSHROOM": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: 15 HP loss + upgrades 2 random cards; generic deck upgrade at pickup (low confidence: could be card_linked)"
+  },
+  "FRESNEL_LENS": {
+   "class": "card_linked",
+   "hooks": [
+    "ModifyMerchantCardCreationResults",
+    "TryModifyCardBeingAddedToDeck",
+    "TryModifyCardRewardOptionsLate"
+   ],
+   "note": "TryModifyCardBeingAddedToDeck/rewards/shop: Nimble on added cards"
+  },
+  "FROZEN_EGG": {
+   "class": "card_linked",
+   "hooks": [
+    "ModifyMerchantCardCreationResults",
+    "TryModifyCardBeingAddedToDeck",
+    "TryModifyCardRewardOptionsLate"
+   ],
+   "note": "TryModifyCardBeingAddedToDeck: Powers added upgraded"
+  },
+  "FUNERARY_MASK": {
+   "class": "combat",
+   "hooks": [
+    "BeforeHandDraw"
+   ],
+   "note": "FuneraryMask.cs: BeforeHandDraw; sim shared_cards.rs"
+  },
+  "FUR_COAT": {
+   "class": "combat",
+   "hooks": [
+    "AfterCreatureAddedToCombat",
+    "AfterObtained",
+    "BeforeCombatStart",
+    "ModifyGeneratedMapLate"
+   ],
+   "note": "BeforeCombatStart/AfterCreatureAddedToCombat: enemies to 1 HP on marked map nodes; sim hook-less (not modelled)"
+  },
+  "GALACTIC_DUST": {
+   "class": "combat",
+   "hooks": [
+    "AfterStarsSpent"
+   ],
+   "note": "GalacticDust.cs: AfterStarsSpent; sim shared_misc.rs"
+  },
+  "GAMBLING_CHIP": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "GamblingChip.cs: AfterPlayerTurnStart; sim shared_choice.rs"
+  },
+  "GAME_PIECE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "GamePiece.cs: AfterCardPlayed; sim shared_play.rs"
+  },
+  "GHOST_SEED": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardEnteredCombat",
+    "AfterRoomEntered"
+   ],
+   "note": "AfterCardEnteredCombat/AfterRoomEntered: basic Strikes/Defends Ethereal in combat"
+  },
+  "GIRYA": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered",
+    "TryModifyRestSiteOptions"
+   ],
+   "note": "AfterRoomEntered(Combat): Strength = times lifted; rest-site Lift option"
+  },
+  "GLASS_EYE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: 5 card rewards"
+  },
+  "GLITTER": {
+   "class": "card_linked",
+   "hooks": [
+    "TryModifyCardRewardOptionsLate"
+   ],
+   "note": "TryModifyCardRewardOptionsLate: Glam on reward cards"
+  },
+  "GNARLED_HAMMER": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Sharp 3 on up to 3 cards"
+  },
+  "GOLDEN_COMPASS": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained",
+    "ModifyGeneratedMap",
+    "ModifyUnknownMapPointRoomTypes"
+   ],
+   "note": "ModifyGeneratedMap / ModifyUnknownMapPointRoomTypes"
+  },
+  "GOLDEN_PEARL": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: gold"
+  },
+  "GOLD_PLATED_CABLES": {
+   "class": "combat",
+   "hooks": [
+    "AfterModifyingOrbPassiveTriggerCount",
+    "ModifyOrbPassiveTriggerCounts"
+   ],
+   "note": "GoldPlatedCables.cs: AfterModifyingOrbPassiveTriggerCount, ModifyOrbPassiveTriggerCounts; sim defect.rs"
+  },
+  "GORGET": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "Gorget.cs: AfterRoomEntered; sim shared_start.rs"
+  },
+  "GREMLIN_HORN": {
+   "class": "combat",
+   "hooks": [
+    "AfterDeath"
+   ],
+   "note": "GremlinHorn.cs: AfterDeath; sim shared_play.rs"
+  },
+  "HAND_DRILL": {
+   "class": "combat",
+   "hooks": [
+    "AfterBlockBroken"
+   ],
+   "note": "HandDrill.cs: AfterBlockBroken; sim shared_play.rs"
+  },
+  "HAPPY_FLOWER": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterSideTurnStart"
+   ],
+   "note": "HappyFlower.cs: AfterCombatEnd, AfterSideTurnStart; sim shared_play.rs"
+  },
+  "HEFTY_TABLET": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: choose a rare + Injury curse"
+  },
+  "HELICAL_DART": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "HelicalDart.cs: AfterCardPlayed; sim shared_cards.rs"
+  },
+  "HISTORY_COURSE": {
+   "class": "combat",
+   "hooks": [
+    "AfterAutoPrePlayPhaseEntered"
+   ],
+   "note": "AfterAutoPrePlayPhaseEntered: replays last turn's Attack (sim tracks it with play/turn hooks)"
+  },
+  "HORN_CLEAT": {
+   "class": "combat",
+   "hooks": [
+    "AfterBlockCleared"
+   ],
+   "note": "HornCleat.cs: AfterBlockCleared; sim shared_start.rs"
+  },
+  "ICE_CREAM": {
+   "class": "combat",
+   "hooks": [
+    "ShouldPlayerResetEnergy"
+   ],
+   "note": "IceCream.cs: ShouldPlayerResetEnergy; sim shared_start.rs"
+  },
+  "INFUSED_CORE": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart",
+    "ModifyOrbValue"
+   ],
+   "note": "InfusedCore.cs: AfterSideTurnStart, ModifyOrbValue; sim defect.rs"
+  },
+  "INTIMIDATING_HELMET": {
+   "class": "combat",
+   "hooks": [
+    "BeforeCardPlayed"
+   ],
+   "note": "IntimidatingHelmet.cs: BeforeCardPlayed; sim shared_play.rs"
+  },
+  "IRON_CLUB": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "IronClub.cs: AfterCardPlayed; sim shared_play.rs"
+  },
+  "IVORY_TILE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "IvoryTile.cs: AfterCardPlayed; sim shared_play.rs"
+  },
+  "JEWELED_MASK": {
+   "class": "combat",
+   "hooks": [
+    "BeforeHandDraw"
+   ],
+   "note": "JeweledMask.cs: BeforeHandDraw; sim shared_cards.rs"
+  },
+  "JEWELRY_BOX": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: adds Apotheosis"
+  },
+  "JOSS_PAPER": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardExhausted",
+    "AfterCombatEnd",
+    "AfterSideTurnEnd"
+   ],
+   "note": "JossPaper.cs: AfterCardExhausted, AfterCombatEnd, AfterSideTurnEnd; sim shared_play.rs"
+  },
+  "JUZU_BRACELET": {
+   "class": "macro_only",
+   "hooks": [
+    "ModifyUnknownMapPointRoomTypes"
+   ],
+   "note": "ModifyUnknownMapPointRoomTypes: no monsters in ?"
+  },
+  "KALEIDOSCOPE": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: card rewards from other characters' pools"
+  },
+  "KIFUDA": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Adroit 3 on up to N cards"
+  },
+  "KUNAI": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "BeforeSideTurnStart"
+   ],
+   "note": "Kunai.cs: AfterCardPlayed, AfterCombatEnd, BeforeSideTurnStart; sim shared_play.rs"
+  },
+  "KUSARIGAMA": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "AfterSideTurnEnd",
+    "BeforeCombatStart"
+   ],
+   "note": "Kusarigama.cs: AfterCardPlayed, AfterCombatEnd, AfterSideTurnEnd, BeforeCombatStart; sim shared_play.rs"
+  },
+  "LANTERN": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "Lantern.cs: AfterSideTurnStart; sim shared_start.rs"
+  },
+  "LARGE_CAPSULE": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: 2 relics + basic Strike + basic Defend"
+  },
+  "LASTING_CANDY": {
+   "class": "macro_only",
+   "hooks": [
+    "BeforeCombatRewardOffered",
+    "TryModifyCardRewardOptions"
+   ],
+   "note": "BeforeCombatRewardOffered / TryModifyCardRewardOptions: extra power in rewards"
+  },
+  "LAVA_LAMP": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterDamageReceived",
+    "AfterRoomEntered",
+    "TryModifyCardRewardOptionsLate"
+   ],
+   "note": "tracks unblocked damage in fight; effect = upgraded card rewards (post-fight)"
+  },
+  "LAVA_ROCK": {
+   "class": "macro_only",
+   "hooks": [
+    "TryModifyRewards"
+   ],
+   "note": "TryModifyRewards: act-1 boss relics"
+  },
+  "LEAD_PAPERWEIGHT": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: choose 1 of 2 colorless cards"
+  },
+  "LEAFY_POULTICE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: -max HP, random transform of 1 basic Strike + 1 Defend (low confidence: could be card_linked)"
+  },
+  "LEES_WAFFLE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +max HP, full heal"
+  },
+  "LETTER_OPENER": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "AfterSideTurnStart",
+    "BeforeCombatStart"
+   ],
+   "note": "LetterOpener.cs: AfterCardPlayed, AfterCombatEnd, AfterSideTurnStart, BeforeCombatStart; sim shared_play.rs"
+  },
+  "LIZARD_TAIL": {
+   "class": "combat",
+   "hooks": [
+    "AfterPreventingDeath",
+    "ShouldDieLate"
+   ],
+   "note": "LizardTail.cs: AfterPreventingDeath, ShouldDieLate; sim shared_play.rs"
+  },
+  "LOOMING_FRUIT": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +max HP"
+  },
+  "LORDS_PARASOL": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "AfterRoomEntered(Merchant): buys everything"
+  },
+  "LOST_COFFER": {
+   "class": "potion_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: card reward + potion reward"
+  },
+  "LOST_WISP": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "LostWisp.cs: AfterCardPlayed; sim shared_play.rs"
+  },
+  "LUCKY_FYSH": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCardChangedPiles"
+   ],
+   "note": "AfterCardChangedPiles(Deck): gold per card added"
+  },
+  "LUNAR_PASTRY": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnEnd"
+   ],
+   "note": "LunarPastry.cs: AfterSideTurnEnd; sim shared_misc.rs"
+  },
+  "MANGO": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +max HP"
+  },
+  "MASSIVE_SCROLL": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: choose a card (multiplayer only)"
+  },
+  "MAW_BANK": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterItemPurchased",
+    "AfterRoomEntered"
+   ],
+   "note": "AfterRoomEntered: gold until a purchase (sim keeps the hook, gold only)"
+  },
+  "MEAL_TICKET": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "AfterRoomEntered(Merchant): heal"
+  },
+  "MEAT_CLEAVER": {
+   "class": "macro_only",
+   "hooks": [
+    "TryModifyRestSiteOptions"
+   ],
+   "note": "TryModifyRestSiteOptions: Cook"
+  },
+  "MEAT_ON_THE_BONE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatVictoryEarly",
+    "AfterCurrentHpChanged",
+    "BeforeCombatStart"
+   ],
+   "note": "AfterCombatVictoryEarly: heal 12 if HP <= 50%"
+  },
+  "MEMBERSHIP_CARD": {
+   "class": "macro_only",
+   "hooks": [
+    "ModifyMerchantPrice"
+   ],
+   "note": "ModifyMerchantPrice"
+  },
+  "MERCURY_HOURGLASS": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "MercuryHourglass.cs: AfterPlayerTurnStart; sim shared_start.rs"
+  },
+  "METRONOME": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterOrbChanneled",
+    "AfterRoomEntered"
+   ],
+   "note": "Metronome.cs: AfterCombatEnd, AfterOrbChanneled, AfterRoomEntered; sim defect.rs"
+  },
+  "MINIATURE_CANNON": {
+   "class": "combat",
+   "hooks": [
+    "ModifyDamageAdditive"
+   ],
+   "note": "MiniatureCannon.cs: ModifyDamageAdditive; sim shared_damage.rs"
+  },
+  "MINIATURE_TENT": {
+   "class": "macro_only",
+   "hooks": [
+    "ShouldDisableRemainingRestSiteOptions"
+   ],
+   "note": "ShouldDisableRemainingRestSiteOptions"
+  },
+  "MINI_REGENT": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterStarsSpent",
+    "BeforeSideTurnStart"
+   ],
+   "note": "MiniRegent.cs: AfterCombatEnd, AfterStarsSpent, BeforeSideTurnStart; sim shared_misc.rs"
+  },
+  "MOLTEN_EGG": {
+   "class": "card_linked",
+   "hooks": [
+    "ModifyMerchantCardCreationResults",
+    "TryModifyCardBeingAddedToDeck",
+    "TryModifyCardRewardOptionsLate"
+   ],
+   "note": "TryModifyCardBeingAddedToDeck: Attacks added upgraded"
+  },
+  "MR_STRUGGLES": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "MrStruggles.cs: AfterPlayerTurnStart; sim shared_start.rs"
+  },
+  "MUMMIFIED_HAND": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "MummifiedHand.cs: AfterCardPlayed; sim shared_play.rs"
+  },
+  "MUSIC_BOX": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "BeforeCardPlayed",
+    "BeforeSideTurnStart"
+   ],
+   "note": "MusicBox.cs: AfterCardPlayed, AfterCombatEnd, BeforeCardPlayed, BeforeSideTurnStart; sim shared_play.rs"
+  },
+  "MYSTIC_LIGHTER": {
+   "class": "combat",
+   "hooks": [
+    "ModifyDamageAdditive"
+   ],
+   "note": "MysticLighter.cs: ModifyDamageAdditive; sim shared_damage.rs"
+  },
+  "NEOWS_BONES": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: 2 Neow relics + 1 random curse"
+  },
+  "NEOWS_SACRIFICE": {
+   "class": "card_linked",
+   "also": [
+    "potion_linked"
+   ],
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Guilty card + Ambergris potion"
+  },
+  "NEOWS_TALISMAN": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: upgrades one basic Strike and one basic Defend"
+  },
+  "NEOWS_TORMENT": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: adds Neow's Fury"
+  },
+  "NEW_LEAF": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: random transform of chosen card"
+  },
+  "NINJA_SCROLL": {
+   "class": "combat",
+   "hooks": [
+    "BeforeHandDraw"
+   ],
+   "note": "NinjaScroll.cs: BeforeHandDraw; sim shared_cards.rs"
+  },
+  "NUNCHAKU": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "Nunchaku.cs: AfterCardPlayed; sim shared_play.rs"
+  },
+  "NUTRITIOUS_OYSTER": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +max HP"
+  },
+  "NUTRITIOUS_SOUP": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Tezcatara's Ember on every basic Strike"
+  },
+  "ODDLY_SMOOTH_STONE": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "OddlySmoothStone.cs: AfterRoomEntered; sim shared_start.rs"
+  },
+  "OLD_COIN": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: gold"
+  },
+  "ORANGE_DOUGH": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "OrangeDough.cs: AfterSideTurnStart; sim shared_cards.rs"
+  },
+  "ORICHALCUM": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnEnd",
+    "BeforeSideTurnEndVeryEarly",
+    "BeforeSideTurnStart"
+   ],
+   "note": "Orichalcum.cs: BeforeSideTurnEnd, BeforeSideTurnEndVeryEarly, BeforeSideTurnStart; sim shared_start.rs"
+  },
+  "ORNAMENTAL_FAN": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "BeforeSideTurnStart"
+   ],
+   "note": "OrnamentalFan.cs: AfterCardPlayed, AfterCombatEnd, BeforeSideTurnStart; sim shared_play.rs"
+  },
+  "ORRERY": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: card rewards"
+  },
+  "PAELS_BLOOD": {
+   "class": "combat",
+   "hooks": [
+    "ModifyHandDraw"
+   ],
+   "note": "PaelsBlood.cs: ModifyHandDraw; sim shared_start.rs"
+  },
+  "PAELS_CLAW": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Goopy on every enchantable deck card"
+  },
+  "PAELS_EYE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterObtained",
+    "AfterSideTurnStart",
+    "AfterTakingExtraTurn",
+    "BeforeCardPlayed",
+    "BeforeSideTurnEndEarly",
+    "ShouldTakeExtraTurn"
+   ],
+   "note": "PaelsEye.cs: AfterCombatEnd, AfterObtained, AfterSideTurnStart, AfterTakingExtraTurn, BeforeCardPlayed, BeforeSideTurnEndEarly, ShouldTakeExtraTurn; sim pets_forge.rs"
+  },
+  "PAELS_FLESH": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterSideTurnStart",
+    "BeforeCombatStart",
+    "BeforeSideTurnStart",
+    "ModifyMaxEnergy"
+   ],
+   "note": "PaelsFlesh.cs: AfterCombatEnd, AfterSideTurnStart, BeforeCombatStart, BeforeSideTurnStart, ModifyMaxEnergy; sim shared_misc.rs"
+  },
+  "PAELS_GROWTH": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained",
+    "TryModifyRestSiteOptions"
+   ],
+   "note": "AfterObtained: Clone 4 on 1 card; rest-site Clone option"
+  },
+  "PAELS_HORN": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: adds 2 Relax"
+  },
+  "PAELS_LEGION": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "AfterModifyingBlockAmount",
+    "AfterObtained",
+    "AfterSideTurnStart",
+    "BeforeCombatStart",
+    "ModifyBlockMultiplicative"
+   ],
+   "note": "PaelsLegion.cs: AfterCardPlayed, AfterCombatEnd, AfterModifyingBlockAmount, AfterObtained, AfterSideTurnStart, BeforeCombatStart, ModifyBlockMultiplicative; sim pets_forge.rs"
+  },
+  "PAELS_TEARS": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterSideTurnStart",
+    "BeforeSideTurnEnd"
+   ],
+   "note": "PaelsTears.cs: AfterCombatEnd, AfterSideTurnStart, BeforeSideTurnEnd; sim shared_misc.rs"
+  },
+  "PAELS_TOOTH": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterObtained"
+   ],
+   "note": "AfterObtained removes 5 cards; AfterCombatEnd returns one upgraded to deck (post-fight)"
+  },
+  "PAELS_WING": {
+   "class": "macro_only",
+   "hooks": [
+    "TryModifyCardRewardAlternatives"
+   ],
+   "note": "TryModifyCardRewardAlternatives: sacrifice rewards for relics"
+  },
+  "PANDORAS_BOX": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: transforms every basic Strike/Defend"
+  },
+  "PANTOGRAPH": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered",
+    "BeforeCombatStart"
+   ],
+   "note": "BeforeCombatStart: heal in boss fights"
+  },
+  "PAPER_KRANE": {
+   "class": "combat",
+   "hooks": [
+    "ModifyWeakMultiplier"
+   ],
+   "note": "WeakPower checks GetRelic<PaperKrane> (ModifyWeakMultiplier -0.15); sim powers/basic.rs:82 (misfiled in runlevel.rs)"
+  },
+  "PAPER_PHROG": {
+   "class": "combat",
+   "hooks": [
+    "ModifyVulnerableMultiplier"
+   ],
+   "note": "VulnerablePower checks GetRelic<PaperPhrog> (ModifyVulnerableMultiplier +0.25); sim powers/basic.rs:47"
+  },
+  "PARRYING_SHIELD": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnEnd"
+   ],
+   "note": "ParryingShield.cs: AfterSideTurnEnd; sim shared_start.rs"
+  },
+  "PEAR": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +max HP"
+  },
+  "PENDULUM": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "BeforeHandDraw",
+    "ModifyHandDraw"
+   ],
+   "note": "Pendulum.cs: AfterCombatEnd, BeforeHandDraw, ModifyHandDraw; sim shared_play.rs"
+  },
+  "PEN_NIB": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "BeforeCardPlayed",
+    "ModifyDamageMultiplicative"
+   ],
+   "note": "PenNib.cs: AfterCardPlayed, BeforeCardPlayed, ModifyDamageMultiplicative; sim shared_play.rs"
+  },
+  "PERMAFROST": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterRoomEntered"
+   ],
+   "note": "Permafrost.cs: AfterCardPlayed, AfterRoomEntered; sim shared_play.rs"
+  },
+  "PETRIFIED_TOAD": {
+   "class": "potion_linked",
+   "also": [
+    "combat"
+   ],
+   "hooks": [
+    "BeforeCombatStartLate"
+   ],
+   "note": "BeforeCombatStartLate: procures Potion-Shaped Rock (sim shared_cards)"
+  },
+  "PHIAL_HOLSTER": {
+   "class": "potion_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +1 slot, 2 random potions"
+  },
+  "PHILOSOPHERS_STONE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCreatureAddedToCombat",
+    "AfterRoomEntered",
+    "ModifyMaxEnergy"
+   ],
+   "note": "PhilosophersStone.cs: AfterCreatureAddedToCombat, AfterRoomEntered, ModifyMaxEnergy; sim shared_start.rs"
+  },
+  "PHYLACTERY_UNBOUND": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart",
+    "BeforeCombatStart"
+   ],
+   "note": "PhylacteryUnbound.cs: AfterSideTurnStart, BeforeCombatStart; sim necrobinder.rs"
+  },
+  "PLANISPHERE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "AfterRoomEntered(Unknown map point): heal before the room (incl. a ? that becomes a fight); sim hook-less"
+  },
+  "POCKETWATCH": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "AfterModifyingHandDraw",
+    "AfterSideTurnStart",
+    "BeforeSideTurnStart",
+    "ModifyHandDraw"
+   ],
+   "note": "Pocketwatch.cs: AfterCardPlayed, AfterCombatEnd, AfterModifyingHandDraw, AfterSideTurnStart, BeforeSideTurnStart, ModifyHandDraw; sim shared_play.rs"
+  },
+  "POLLINOUS_CORE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterModifyingHandDraw",
+    "BeforeHandDraw",
+    "ModifyHandDraw"
+   ],
+   "note": "PollinousCore.cs: AfterCombatEnd, AfterModifyingHandDraw, BeforeHandDraw, ModifyHandDraw; sim shared_play.rs"
+  },
+  "POMANDER": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: upgrade chosen cards; generic deck upgrade at pickup (low confidence: could be card_linked)"
+  },
+  "POTION_BELT": {
+   "class": "potion_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +2 potion slots"
+  },
+  "POWER_CELL": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnStart"
+   ],
+   "note": "PowerCell.cs: BeforeSideTurnStart; sim shared_cards.rs"
+  },
+  "PRAYER_WHEEL": {
+   "class": "macro_only",
+   "hooks": [
+    "TryModifyRewards"
+   ],
+   "note": "TryModifyRewards: extra card reward"
+  },
+  "PRECARIOUS_SHEARS": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: remove 2 cards + 16 damage at pickup"
+  },
+  "PRECISE_SCISSORS": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: remove cards"
+  },
+  "PRESERVED_FOG": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: remove cards + Folly curse"
+  },
+  "PRISMATIC_GEM": {
+   "class": "combat",
+   "hooks": [
+    "ModifyCardRewardCreationOptions",
+    "ModifyMaxEnergy"
+   ],
+   "note": "ModifyMaxEnergy +1; also all-character card rewards"
+  },
+  "PUMPKIN_CANDLE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterObtained",
+    "ModifyMaxEnergy",
+    "TryModifyRestSiteOptions"
+   ],
+   "note": "ModifyMaxEnergy +1 while kindled; AfterCombatEnd uses a kindle"
+  },
+  "PUNCH_DAGGER": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Momentum on 1 card"
+  },
+  "RADIANT_PEARL": {
+   "class": "combat",
+   "hooks": [
+    "BeforeHandDraw"
+   ],
+   "note": "RadiantPearl.cs: BeforeHandDraw; sim shared_cards.rs"
+  },
+  "RAINBOW_RING": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "BeforeSideTurnStart"
+   ],
+   "note": "RainbowRing.cs: AfterCardPlayed, AfterCombatEnd, BeforeSideTurnStart; sim shared_play.rs"
+  },
+  "RAZOR_TOOTH": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "RazorTooth.cs: AfterCardPlayed; sim shared_play.rs"
+  },
+  "RED_MASK": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnStart"
+   ],
+   "note": "RedMask.cs: BeforeSideTurnStart; sim shared_start.rs"
+  },
+  "RED_SKULL": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterCurrentHpChanged",
+    "AfterRoomEntered"
+   ],
+   "note": "RedSkull.cs: AfterCombatEnd, AfterCurrentHpChanged, AfterRoomEntered; sim ironclad.rs"
+  },
+  "REGALITE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardGeneratedForCombat",
+    "AfterCombatEnd",
+    "BeforeSideTurnStart"
+   ],
+   "note": "Regalite.cs: AfterCardGeneratedForCombat, AfterCombatEnd, BeforeSideTurnStart; sim shared_play.rs"
+  },
+  "REGAL_PILLOW": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterRestSiteHeal",
+    "AfterRoomEntered",
+    "ModifyExtraRestSiteHealText",
+    "ModifyRestSiteHealAmount"
+   ],
+   "note": "ModifyRestSiteHealAmount"
+  },
+  "REPTILE_TRINKET": {
+   "class": "potion_linked",
+   "also": [
+    "combat"
+   ],
+   "hooks": [
+    "AfterPotionUsed"
+   ],
+   "note": "AfterPotionUsed: temporary Strength (sim shared_play)"
+  },
+  "RINGING_TRIANGLE": {
+   "class": "combat",
+   "hooks": [
+    "ShouldFlush"
+   ],
+   "note": "RingingTriangle.cs: ShouldFlush; sim shared_start.rs"
+  },
+  "RING_OF_THE_DRAKE": {
+   "class": "combat",
+   "hooks": [
+    "ModifyHandDraw"
+   ],
+   "note": "RingOfTheDrake.cs: ModifyHandDraw; sim shared_start.rs"
+  },
+  "RING_OF_THE_SNAKE": {
+   "class": "combat",
+   "hooks": [
+    "ModifyHandDraw"
+   ],
+   "note": "RingOfTheSnake.cs: ModifyHandDraw; sim shared_start.rs"
+  },
+  "RIPPLE_BASIN": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "BeforeSideTurnEnd",
+    "BeforeSideTurnStart"
+   ],
+   "note": "RippleBasin.cs: AfterCardPlayed, AfterCombatEnd, BeforeSideTurnEnd, BeforeSideTurnStart; sim shared_play.rs"
+  },
+  "ROYAL_POISON": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "RoyalPoison.cs: AfterPlayerTurnStart; sim shared_start.rs"
+  },
+  "ROYAL_STAMP": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Royally Approved on 1 card"
+  },
+  "RUINED_HELMET": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterModifyingPowerAmountReceived",
+    "TryModifyPowerAmountReceived"
+   ],
+   "note": "RuinedHelmet.cs: AfterCombatEnd, AfterModifyingPowerAmountReceived, TryModifyPowerAmountReceived; sim ironclad.rs"
+  },
+  "RUNIC_CAPACITOR": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "RunicCapacitor.cs: AfterSideTurnStart; sim defect.rs"
+  },
+  "RUNIC_PYRAMID": {
+   "class": "combat",
+   "hooks": [
+    "ShouldFlush"
+   ],
+   "note": "RunicPyramid.cs: ShouldFlush; sim shared_start.rs"
+  },
+  "SAI": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "Sai.cs: AfterSideTurnStart; sim shared_start.rs"
+  },
+  "SAND_CASTLE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: upgrades N random cards; generic deck upgrade at pickup (low confidence: could be card_linked)"
+  },
+  "SCREAMING_FLAGON": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnEnd"
+   ],
+   "note": "ScreamingFlagon.cs: BeforeSideTurnEnd; sim shared_play.rs"
+  },
+  "SCROLL_BOXES": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: choose a 3-card bundle from own pool"
+  },
+  "SEAL_OF_GOLD": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "SealOfGold.cs: AfterSideTurnStart; sim shared_start.rs"
+  },
+  "SEA_GLASS": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: pick any of 15 cards from another character's pool"
+  },
+  "SELF_FORMING_CLAY": {
+   "class": "combat",
+   "hooks": [
+    "AfterDamageReceived"
+   ],
+   "note": "SelfFormingClay.cs: AfterDamageReceived; sim ironclad.rs"
+  },
+  "SERE_TALON": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: -9 max HP, adds 3 Wish"
+  },
+  "SHOVEL": {
+   "class": "macro_only",
+   "hooks": [
+    "TryModifyRestSiteOptions"
+   ],
+   "note": "TryModifyRestSiteOptions: Dig"
+  },
+  "SHURIKEN": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "BeforeSideTurnStart"
+   ],
+   "note": "Shuriken.cs: AfterCardPlayed, AfterCombatEnd, BeforeSideTurnStart; sim shared_play.rs"
+  },
+  "SIGNET_RING": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: gold"
+  },
+  "SILKEN_TRESS": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterModifyingCardRewardOptions",
+    "AfterObtained",
+    "TryModifyCardRewardOptionsLate"
+   ],
+   "note": "AfterObtained: lose all gold; next card reward Glam-enchanted (sim hook-less, correct)"
+  },
+  "SILVER_CRUCIBLE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterModifyingCardRewardOptions",
+    "AfterRoomEntered",
+    "ShouldGenerateTreasure",
+    "TryModifyCardRewardOptionsLate"
+   ],
+   "note": "TryModifyCardRewardOptionsLate: upgraded rewards; ShouldGenerateTreasure"
+  },
+  "SLING_OF_COURAGE": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "SlingOfCourage.cs: AfterRoomEntered; sim shared_start.rs"
+  },
+  "SMALL_CAPSULE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: relic reward"
+  },
+  "SNECKO_EYE": {
+   "class": "combat",
+   "hooks": [
+    "AfterObtained",
+    "BeforeCombatStart",
+    "ModifyHandDraw"
+   ],
+   "note": "SneckoEye.cs: AfterObtained, BeforeCombatStart, ModifyHandDraw; sim shared_start.rs"
+  },
+  "SNECKO_SKULL": {
+   "class": "combat",
+   "hooks": [
+    "AfterModifyingPowerAmountGiven",
+    "ModifyPowerAmountGivenAdditive"
+   ],
+   "note": "SneckoSkull.cs: AfterModifyingPowerAmountGiven, ModifyPowerAmountGivenAdditive; sim shared_damage.rs"
+  },
+  "SOZU": {
+   "class": "potion_linked",
+   "also": [
+    "combat"
+   ],
+   "hooks": [
+    "ModifyMaxEnergy",
+    "ShouldProcurePotion"
+   ],
+   "note": "ShouldProcurePotion false (no new potions) + ModifyMaxEnergy (sim shared_start)"
+  },
+  "SPARKLING_ROUGE": {
+   "class": "combat",
+   "hooks": [
+    "AfterBlockCleared"
+   ],
+   "note": "SparklingRouge.cs: AfterBlockCleared; sim shared_start.rs"
+  },
+  "SPIKED_GAUNTLETS": {
+   "class": "combat",
+   "hooks": [
+    "ModifyMaxEnergy",
+    "TryModifyEnergyCostInCombat"
+   ],
+   "note": "SpikedGauntlets.cs: ModifyMaxEnergy, TryModifyEnergyCostInCombat; sim shared_start.rs"
+  },
+  "STONE_CALENDAR": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterRoomEntered",
+    "AfterSideTurnStart",
+    "BeforeSideTurnEnd"
+   ],
+   "note": "StoneCalendar.cs: AfterCombatEnd, AfterRoomEntered, AfterSideTurnStart, BeforeSideTurnEnd; sim shared_play.rs"
+  },
+  "STONE_CRACKER": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "AfterRoomEntered(Combat): upgrades random draw-pile cards for the fight"
+  },
+  "STONE_HUMIDIFIER": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterRestSiteHeal",
+    "ModifyExtraRestSiteHealText"
+   ],
+   "note": "AfterRestSiteHeal: +max HP"
+  },
+  "STORYBOOK": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: adds Brightest Flame"
+  },
+  "STRAWBERRY": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: +max HP"
+  },
+  "STRIKE_DUMMY": {
+   "class": "combat",
+   "hooks": [
+    "ModifyDamageAdditive"
+   ],
+   "note": "StrikeDummy.cs: ModifyDamageAdditive; sim shared_damage.rs"
+  },
+  "STURDY_CLAMP": {
+   "class": "combat",
+   "hooks": [
+    "AfterPreventingBlockClear",
+    "ShouldClearBlock"
+   ],
+   "note": "SturdyClamp.cs: AfterPreventingBlockClear, ShouldClearBlock; sim shared_start.rs"
+  },
+  "SWORD_OF_JADE": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "SwordOfJade.cs: AfterRoomEntered; sim shared_start.rs"
+  },
+  "SWORD_OF_STONE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCombatVictory"
+   ],
+   "note": "AfterCombatVictory(elite): counter, becomes Sword of Jade (post-fight)"
+  },
+  "SYMBIOTIC_VIRUS": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "SymbioticVirus.cs: AfterSideTurnStart; sim defect.rs"
+  },
+  "TANXS_WHISTLE": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: adds Whistle"
+  },
+  "TEA_OF_DISCOURTESY": {
+   "class": "combat",
+   "hooks": [
+    "BeforeCombatStart"
+   ],
+   "note": "BeforeCombatStart: Dazed into draw pile for N combats"
+  },
+  "THE_ABACUS": {
+   "class": "combat",
+   "hooks": [
+    "AfterShuffle"
+   ],
+   "note": "TheAbacus.cs: AfterShuffle; sim shared_play.rs"
+  },
+  "THE_BOOT": {
+   "class": "combat",
+   "hooks": [
+    "AfterModifyingHpLostAfterOsty",
+    "ModifyHpLostAfterOstyLate"
+   ],
+   "note": "TheBoot.cs: AfterModifyingHpLostAfterOsty, ModifyHpLostAfterOstyLate; sim shared_start.rs"
+  },
+  "THE_COURIER": {
+   "class": "macro_only",
+   "hooks": [
+    "ModifyMerchantPrice",
+    "ShouldRefillMerchantEntry"
+   ],
+   "note": "ModifyMerchantPrice, ShouldRefillMerchantEntry"
+  },
+  "THROWING_AXE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterModifyingCardPlayCount",
+    "AfterRoomEntered",
+    "ModifyCardPlayCount"
+   ],
+   "note": "ThrowingAxe.cs: AfterCombatEnd, AfterModifyingCardPlayCount, AfterRoomEntered, ModifyCardPlayCount; sim shared_play.rs"
+  },
+  "TINGSHA": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardDiscarded"
+   ],
+   "note": "Tingsha.cs: AfterCardDiscarded; sim shared_play.rs"
+  },
+  "TINY_MAILBOX": {
+   "class": "potion_linked",
+   "hooks": [
+    "ModifyExtraRestSiteHealText",
+    "TryModifyRestSiteHealRewards"
+   ],
+   "note": "TryModifyRestSiteHealRewards: 2 potion rewards on rest heal"
+  },
+  "TOASTY_MITTENS": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "ToastyMittens.cs: AfterPlayerTurnStart; sim shared_choice.rs"
+  },
+  "TOOLBOX": {
+   "class": "combat",
+   "hooks": [
+    "BeforeHandDraw"
+   ],
+   "note": "Toolbox.cs: BeforeHandDraw; sim shared_choice.rs"
+  },
+  "TOUCH_OF_OROBAS": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: replaces starter relic with its upgrade (that relic carries the combat effect)"
+  },
+  "TOUGH_BANDAGES": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardDiscarded"
+   ],
+   "note": "ToughBandages.cs: AfterCardDiscarded; sim shared_play.rs"
+  },
+  "TOXIC_EGG": {
+   "class": "card_linked",
+   "hooks": [
+    "ModifyMerchantCardCreationResults",
+    "TryModifyCardBeingAddedToDeck",
+    "TryModifyCardRewardOptionsLate"
+   ],
+   "note": "TryModifyCardBeingAddedToDeck: Skills added upgraded"
+  },
+  "TOY_BOX": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: 5 wax relics; AfterCombatEnd melts one (post-fight)"
+  },
+  "TRI_BOOMERANG": {
+   "class": "card_linked",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: Instinct on chosen cards"
+  },
+  "TUNGSTEN_ROD": {
+   "class": "combat",
+   "hooks": [
+    "AfterModifyingHpLostAfterOsty",
+    "ModifyHpLostAfterOsty"
+   ],
+   "note": "TungstenRod.cs: AfterModifyingHpLostAfterOsty, ModifyHpLostAfterOsty; sim shared_start.rs"
+  },
+  "TUNING_FORK": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed"
+   ],
+   "note": "TuningFork.cs: AfterCardPlayed; sim shared_play.rs"
+  },
+  "TWISTED_FUNNEL": {
+   "class": "combat",
+   "hooks": [
+    "BeforeSideTurnStart"
+   ],
+   "note": "TwistedFunnel.cs: BeforeSideTurnStart; sim shared_start.rs"
+  },
+  "UNCEASING_TOP": {
+   "class": "combat",
+   "hooks": [
+    "AfterHandEmptied"
+   ],
+   "note": "UnceasingTop.cs: AfterHandEmptied; sim shared_play.rs"
+  },
+  "UNDYING_SIGIL": {
+   "class": "combat",
+   "hooks": [
+    "ModifyDamageMultiplicative"
+   ],
+   "note": "UndyingSigil.cs: ModifyDamageMultiplicative; sim shared_damage.rs"
+  },
+  "UNSETTLING_LAMP": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "BeforeCombatStart",
+    "BeforePowerAmountChanged",
+    "ModifyPowerAmountGivenMultiplicative"
+   ],
+   "note": "UnsettlingLamp.cs: AfterCardPlayed, AfterCombatEnd, BeforeCombatStart, BeforePowerAmountChanged, ModifyPowerAmountGivenMultiplicative; sim shared_damage.rs"
+  },
+  "VAJRA": {
+   "class": "combat",
+   "hooks": [
+    "AfterRoomEntered"
+   ],
+   "note": "Vajra.cs: AfterRoomEntered; sim shared_start.rs"
+  },
+  "VAKUU_CARD_SELECTOR": {
+   "class": "macro_only",
+   "hooks": [],
+   "note": "not a RelicModel: ICardSelector used by Whispering Earring"
+  },
+  "VAMBRACE": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "AfterModifyingBlockAmount",
+    "BeforeCombatStart",
+    "ModifyBlockMultiplicative"
+   ],
+   "note": "Vambrace.cs: AfterCardPlayed, AfterCombatEnd, AfterModifyingBlockAmount, BeforeCombatStart, ModifyBlockMultiplicative; sim shared_damage.rs"
+  },
+  "VELVET_CHOKER": {
+   "class": "combat",
+   "hooks": [
+    "AfterCardPlayed",
+    "AfterCombatEnd",
+    "AfterRoomEntered",
+    "BeforeSideTurnStart",
+    "ModifyMaxEnergy",
+    "ShouldPlay"
+   ],
+   "note": "VelvetChoker.cs: AfterCardPlayed, AfterCombatEnd, AfterRoomEntered, BeforeSideTurnStart, ModifyMaxEnergy, ShouldPlay; sim shared_play.rs"
+  },
+  "VENERABLE_TEA_SET": {
+   "class": "combat",
+   "hooks": [
+    "AfterEnergyReset",
+    "AfterRoomEntered"
+   ],
+   "note": "AfterEnergyReset: +energy in the fight after a rest site (flag set out of combat)"
+  },
+  "VERY_HOT_COCOA": {
+   "class": "combat",
+   "hooks": [
+    "AfterSideTurnStart"
+   ],
+   "note": "VeryHotCocoa.cs: AfterSideTurnStart; sim shared_start.rs"
+  },
+  "VEXING_PUZZLEBOX": {
+   "class": "combat",
+   "hooks": [
+    "AfterPlayerTurnStart"
+   ],
+   "note": "VexingPuzzlebox.cs: AfterPlayerTurnStart; sim shared_cards.rs"
+  },
+  "VITRUVIAN_MINION": {
+   "class": "combat",
+   "hooks": [
+    "ModifyBlockMultiplicative",
+    "ModifyDamageMultiplicative"
+   ],
+   "note": "VitruvianMinion.cs: ModifyBlockMultiplicative, ModifyDamageMultiplicative; sim shared_damage.rs"
+  },
+  "WAR_HAMMER": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCombatVictory"
+   ],
+   "note": "AfterCombatVictory(elite): upgrade deck cards (post-fight)"
+  },
+  "WAR_PAINT": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: upgrades N random Skills; generic deck upgrade at pickup (low confidence: could be card_linked)"
+  },
+  "WHETSTONE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: upgrades N random Attacks; generic deck upgrade at pickup (low confidence: could be card_linked)"
+  },
+  "WHISPERING_EARRING": {
+   "class": "combat",
+   "hooks": [
+    "AfterAutoPrePlayPhaseEnteredLate",
+    "ModifyMaxEnergy"
+   ],
+   "note": "WhisperingEarring.cs: AfterAutoPrePlayPhaseEnteredLate, ModifyMaxEnergy; sim shared_choice.rs"
+  },
+  "WHITE_BEAST_STATUE": {
+   "class": "potion_linked",
+   "hooks": [
+    "ShouldForcePotionReward"
+   ],
+   "note": "ShouldForcePotionReward: potion reward after every combat"
+  },
+  "WHITE_STAR": {
+   "class": "macro_only",
+   "hooks": [
+    "TryModifyRewards"
+   ],
+   "note": "TryModifyRewards: elite boss-card reward"
+  },
+  "WINGED_BOOTS": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterRoomEntered",
+    "ShouldAllowFreeTravel"
+   ],
+   "note": "ShouldAllowFreeTravel"
+  },
+  "WING_CHARM": {
+   "class": "card_linked",
+   "hooks": [
+    "TryModifyCardRewardOptionsLate"
+   ],
+   "note": "TryModifyCardRewardOptionsLate: Swift on one reward card"
+  },
+  "WONGOS_MYSTERY_TICKET": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterCombatEnd",
+    "AfterModifyingRewards",
+    "TryModifyRewards"
+   ],
+   "note": "AfterCombatEnd counter + TryModifyRewards: relics"
+  },
+  "WONGO_CUSTOMER_APPRECIATION_BADGE": {
+   "class": "macro_only",
+   "hooks": [],
+   "note": "no hooks"
+  },
+  "YUMMY_COOKIE": {
+   "class": "macro_only",
+   "hooks": [
+    "AfterObtained"
+   ],
+   "note": "AfterObtained: upgrade chosen cards; generic deck upgrade at pickup (low confidence: could be card_linked)"
+  }
+ }
+}

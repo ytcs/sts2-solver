@@ -1,0 +1,148 @@
+{
+ "n": 100,
+ "attempts": 8,
+ "probe": [
+  "LAVA_LAMP",
+  "PLANISPHERE",
+  "BOOK_OF_FIVE_RINGS",
+  "WONGO_CUSTOMER_APPRECIATION_BADGE",
+  "FAKE_LEES_WAFFLE",
+  "SHOVEL",
+  "DREAM_CATCHER",
+  "SMALL_CAPSULE"
+ ],
+ "results": {
+  "mask_on": {
+   "LAVA_LAMP": {
+    "win": 0.0,
+    "win_se": 0.0,
+    "hp_lost": 0.0,
+    "hp_lost_se": 0.0,
+    "max_abs_win": 0.0,
+    "fights_changed": 0
+   },
+   "PLANISPHERE": {
+    "win": 0.0,
+    "win_se": 0.0,
+    "hp_lost": 0.0,
+    "hp_lost_se": 0.0,
+    "max_abs_win": 0.0,
+    "fights_changed": 0
+   },
+   "BOOK_OF_FIVE_RINGS": {
+    "win": 0.0,
+    "win_se": 0.0,
+    "hp_lost": 0.0,
+    "hp_lost_se": 0.0,
+    "max_abs_win": 0.0,
+    "fights_changed": 0
+   },
+   "WONGO_CUSTOMER_APPRECIATION_BADGE": {
+    "win": 0.0,
+    "win_se": 0.0,
+    "hp_lost": 0.0,
+    "hp_lost_se": 0.0,
+    "max_abs_win": 0.0,
+    "fights_changed": 0
+   },
+   "FAKE_LEES_WAFFLE": {
+    "win": 0.0,
+    "win_se": 0.0,
+    "hp_lost": 0.0,
+    "hp_lost_se": 0.0,
+    "max_abs_win": 0.0,
+    "fights_changed": 0
+   },
+   "SHOVEL": {
+    "win": 0.0,
+    "win_se": 0.0,
+    "hp_lost": 0.0,
+    "hp_lost_se": 0.0,
+    "max_abs_win": 0.0,
+    "fights_changed": 0
+   },
+   "DREAM_CATCHER": {
+    "win": 0.0,
+    "win_se": 0.0,
+    "hp_lost": 0.0,
+    "hp_lost_se": 0.0,
+    "max_abs_win": 0.0,
+    "fights_changed": 0
+   },
+   "SMALL_CAPSULE": {
+    "win": 0.0,
+    "win_se": 0.0,
+    "hp_lost": 0.0,
+    "hp_lost_se": 0.0,
+    "max_abs_win": 0.0,
+    "fights_changed": 0
+   }
+  },
+  "mask_off": {
+   "LAVA_LAMP": {
+    "win": -0.00125,
+    "win_se": 0.005474631577475411,
+    "hp_lost": 0.0030022864043712616,
+    "hp_lost_se": 0.003083340738498277,
+    "max_abs_win": 0.25,
+    "fights_changed": 75
+   },
+   "PLANISPHERE": {
+    "win": -0.00875,
+    "win_se": 0.005960465289274526,
+    "hp_lost": 0.0029865119233727453,
+    "hp_lost_se": 0.002449644975235401,
+    "max_abs_win": 0.25,
+    "fights_changed": 70
+   },
+   "BOOK_OF_FIVE_RINGS": {
+    "win": -0.005,
+    "win_se": 0.005595813731096784,
+    "hp_lost": 0.0024042142182588576,
+    "hp_lost_se": 0.002742380110718721,
+    "max_abs_win": 0.25,
+    "fights_changed": 72
+   },
+   "WONGO_CUSTOMER_APPRECIATION_BADGE": {
+    "win": 0.005,
+    "win_se": 0.004322831096268819,
+    "hp_lost": 0.004738392829895019,
+    "hp_lost_se": 0.0028452620057967263,
+    "max_abs_win": 0.25,
+    "fights_changed": 75
+   },
+   "FAKE_LEES_WAFFLE": {
+    "win": -0.0075,
+    "win_se": 0.0061082408319094676,
+    "hp_lost": 0.0017440979182720183,
+    "hp_lost_se": 0.0031981022367706634,
+    "max_abs_win": 0.25,
+    "fights_changed": 73
+   },
+   "SHOVEL": {
+    "win": -0.00875,
+    "win_se": 0.0064684061234416765,
+    "hp_lost": 0.003055039644241333,
+    "hp_lost_se": 0.0024124681042820913,
+    "max_abs_win": 0.375,
+    "fights_changed": 74
+   },
+   "DREAM_CATCHER": {
+    "win": -0.00375,
+    "win_se": 0.005744727490437989,
+    "hp_lost": -0.0003477327153086662,
+    "hp_lost_se": 0.002690714288763921,
+    "max_abs_win": 0.25,
+    "fights_changed": 77
+   },
+   "SMALL_CAPSULE": {
+    "win": -0.005,
+    "win_se": 0.004673696004602175,
+    "hp_lost": 0.00285544827580452,
+    "hp_lost_se": 0.0026135783139968937,
+    "max_abs_win": 0.25,
+    "fights_changed": 71
+   }
+  }
+ }
+}

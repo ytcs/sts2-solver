@@ -68,6 +68,22 @@ impl BatchEnvPy {
         self.env.set_autoreset(on);
     }
 
+    /// Sampling weights of the scenarios (pool sources only): episodes starting from now draw scenario i with probability w_i / sum w.
+    fn set_weights(&mut self, w: PyReadonlyArray1<f32>) -> PyResult<()> {
+        let w = w.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?;
+        if self.env.set_weights(w) { Ok(()) } else { Err(PyValueError::new_err("weights need a pool source with one weight per scenario")) }
+    }
+
+    /// `[n]` u8: belt slots whose potion the latest step used up (bit k = slot k), measured before an auto-reset.
+    fn potion_used(&self, mut out: PyReadwriteArray1<u8>) -> PyResult<()> {
+        let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
+        if o.len() < self.env.len() {
+            return Err(PyValueError::new_err("buffer shorter than n_envs"));
+        }
+        self.env.potion_used(o);
+        Ok(())
+    }
+
     /// Copy `src[src_idx[k]]` into this env's slot `dst_idx[k]`, resampling hidden state with `seeds[k]` (see `BatchEnv::fork_from`).
     fn fork_from(&mut self, src: PyRef<'_, BatchEnvPy>, src_idx: PyReadonlyArray1<u32>, dst_idx: PyReadonlyArray1<u32>, seeds: PyReadonlyArray1<u64>) -> PyResult<()> {
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
@@ -221,16 +237,17 @@ impl SearchEnginePy {
         py.detach(|| eng.advance(pa, va, po, pm, pk, pu, vo, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
-    /// `[n_jobs, 6]` (or `[n_jobs, 7]`) f32: scenario index, outcome, HP lost fraction, HP left fraction, length, finished (1/0) (, end HP absolute).
+    /// `[n_jobs, 6..8]` f32: scenario index, outcome, HP lost fraction, HP left fraction, length, finished (1/0) (, end HP absolute, belt slots whose starting
+    /// potion is still there at the end as bits).
     fn results(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {
         let w = out.as_array().ncols();
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let r = self.eng.results();
-        if !(w == 6 || w == 7) || o.len() < r.len() * w {
-            return Err(PyValueError::new_err("buffer must be [n_jobs, 6] or [n_jobs, 7]"));
+        if !(6..=8).contains(&w) || o.len() < r.len() * w {
+            return Err(PyValueError::new_err("buffer must be [n_jobs, 6..8]"));
         }
         for (k, j) in r.iter().enumerate() {
-            let row = [j.scen as f32, j.outcome as f32, j.hp_lost, j.hp_end, j.len as f32, j.done as u8 as f32, j.hp_end_abs as f32];
+            let row = [j.scen as f32, j.outcome as f32, j.hp_lost, j.hp_end, j.len as f32, j.done as u8 as f32, j.hp_end_abs as f32, j.pot_kept as f32];
             o[k * w..k * w + w].copy_from_slice(&row[..w]);
         }
         Ok(())
@@ -315,6 +332,12 @@ fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReado
     Ok((PyArray1::from_vec(py, obs).reshape([n, sts2env::OBS])?, PyArray1::from_vec(py, mask).reshape([n, sts2env::ACTIONS])?))
 }
 
+/// Whether observations leave out relics with no combat effect (`sts2sim::relic_mask`; on by default). Returns the previous setting.
+#[pyfunction]
+fn set_relic_mask(on: bool) -> bool {
+    sts2sim::observe::MASK_RELICS.swap(on, std::sync::atomic::Ordering::Relaxed)
+}
+
 #[pyfunction]
 fn obs_size() -> usize {
     sts2env::OBS
@@ -378,6 +401,7 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<sim::Sim>()?;
     m.add("BatchEnv", m.getattr("BatchEnvPy")?)?;
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;
+    m.add_function(wrap_pyfunction!(set_relic_mask, m)?)?;
     m.add_function(wrap_pyfunction!(replay, m)?)?;
     m.add_function(wrap_pyfunction!(action_space, m)?)?;
     m.add_function(wrap_pyfunction!(layout, m)?)?;

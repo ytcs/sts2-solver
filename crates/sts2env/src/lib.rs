@@ -50,6 +50,12 @@ pub trait ScenarioSource: Send + Sync {
     fn validate(&self) -> Result<(), ScenarioError> {
         Ok(())
     }
+
+    /// Sampling weights of the scenarios (one per scenario; the next episodes draw scenario i with probability w_i / sum w). Returns false when the
+    /// source does not sample from a list (the weights are ignored).
+    fn set_weights(&mut self, _w: &[f32]) -> bool {
+        false
+    }
 }
 
 /// Same scenario every episode; only the RNG streams change.
@@ -70,39 +76,62 @@ impl ScenarioSource for FixedScenario {
 }
 
 /// Uniform choice among several scenarios per episode (e.g. different encounters / decks).
-pub struct PoolScenario(Vec<Scenario>, Vec<ScenarioExtras>);
+pub struct PoolScenario(Vec<Scenario>, Vec<ScenarioExtras>, Option<Vec<f64>>);
 impl PoolScenario {
     pub fn new(v: Vec<Scenario>) -> PoolScenario {
         assert!(!v.is_empty());
         let ex = v.iter().map(|_| ScenarioExtras::default()).collect();
-        PoolScenario(v, ex)
+        PoolScenario(v, ex, None)
     }
 
     /// Scenarios with their deck enchantments / saved card properties (what the oracle JSON can carry).
     pub fn with_extras(v: Vec<(Scenario, ScenarioExtras)>) -> PoolScenario {
         assert!(!v.is_empty());
         let (s, e) = v.into_iter().unzip();
-        PoolScenario(s, e)
+        PoolScenario(s, e, None)
+    }
+
+    /// The scenario of an episode: uniform, or by the cumulative weights (`set_weights`).
+    fn idx(&self, episode_seed: u64) -> usize {
+        match &self.2 {
+            None => (episode_seed >> 17) as usize % self.0.len(),
+            Some(cdf) => {
+                let u = (episode_seed >> 11) as f64 / (1u64 << 53) as f64 * cdf[cdf.len() - 1];
+                cdf.partition_point(|&c| c <= u).min(self.0.len() - 1)
+            }
+        }
     }
 }
 impl ScenarioSource for PoolScenario {
     fn sample(&self, _env: usize, episode_seed: u64) -> Scenario {
-        let mut s = self.0[(episode_seed >> 17) as usize % self.0.len()].clone();
+        let mut s = self.0[self.idx(episode_seed)].clone();
         s.run_seed = episode_seed;
         s.rng = RngSet::from_run_seed(episode_seed);
         s
     }
     fn pick(&self, _env: usize, episode_seed: u64) -> Option<&Scenario> {
-        Some(&self.0[(episode_seed >> 17) as usize % self.0.len()])
+        Some(&self.0[self.idx(episode_seed)])
     }
     fn index(&self, _env: usize, episode_seed: u64) -> u32 {
-        ((episode_seed >> 17) as usize % self.0.len()) as u32
+        self.idx(episode_seed) as u32
     }
     fn extras(&self, _env: usize, episode_seed: u64) -> Option<&ScenarioExtras> {
-        Some(&self.1[(episode_seed >> 17) as usize % self.0.len()])
+        Some(&self.1[self.idx(episode_seed)])
     }
     fn validate(&self) -> Result<(), ScenarioError> {
         self.0.iter().try_for_each(|s| s.validate())
+    }
+    fn set_weights(&mut self, w: &[f32]) -> bool {
+        if w.len() != self.0.len() {
+            return false;
+        }
+        let mut acc = 0.0f64;
+        let cdf: Vec<f64> = w.iter().map(|&x| {
+            acc += x.max(0.0) as f64;
+            acc
+        }).collect();
+        self.2 = if acc > 0.0 { Some(cdf) } else { None };
+        true
     }
 }
 
@@ -177,6 +206,20 @@ struct Slot {
     last: EpisodeInfo,
     /// Set when the episode ended and the env does not auto-reset (`BatchEnv::set_autoreset(false)`): the outcome code.
     frozen: Option<i8>,
+    /// Belt slots whose potion the latest step used up or lost (bit k = slot k; thrown, discarded or consumed by a relic / power such as Fairy in a Bottle),
+    /// computed before an auto-reset: the potion-use head's target (`docs/rl_redesign.md` 3.3).
+    pot_used: u8,
+}
+
+/// Potion id per belt slot (`u16::MAX` = empty).
+fn belt(cx: &Combat) -> [u16; sts2sim::state::MAX_POTIONS] {
+    let mut o = [u16::MAX; sts2sim::state::MAX_POTIONS];
+    for (k, p) in cx.player.potions.iter().enumerate() {
+        if let Some(p) = p {
+            o[k] = p.id;
+        }
+    }
+    o
 }
 
 /// What `BatchEnv::episode_info` reports per env about the episode that ended most recently.
@@ -284,6 +327,7 @@ fn step_one(
     *done = 0;
     *outcome = OUTCOME_ONGOING;
     *illegal = 0;
+    slot.pot_used = 0;
     if let Some(oc) = slot.frozen {
         // a finished search slot: nothing happens, the outcome is reported again
         *done = 1;
@@ -292,6 +336,7 @@ fn step_one(
         write_obs_mask(&mut slot.cx, obs, mask);
         return;
     }
+    let before = belt(&slot.cx);
     let ok = match Action::from_index(a as usize) {
         Some(act) => slot.cx.step(act),
         None => false,
@@ -300,6 +345,12 @@ fn step_one(
         *illegal = 1;
     } else {
         slot.steps += 1;
+        let after = belt(&slot.cx);
+        for k in 0..before.len() {
+            if before[k] != u16::MAX && after[k] != before[k] {
+                slot.pot_used |= 1 << k;
+            }
+        }
     }
     let mut end = None;
     if slot.cx.missing.is_some() {
@@ -364,7 +415,7 @@ impl BatchEnv {
                     let default_ex = ScenarioExtras::default();
                     let cx = Combat::try_new_with(&sc, source.extras(i, episode).unwrap_or(&default_ex))?;
                     let hp0 = cx.cr(0).hp as f32 / cx.cr(0).max_hp.max(1) as f32;
-                    Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default(), frozen: None })
+                    Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default(), frozen: None, pot_used: 0 })
                 })
                 .collect()
         });
@@ -386,6 +437,11 @@ impl BatchEnv {
 
     pub fn is_empty(&self) -> bool {
         self.slots.is_empty()
+    }
+
+    /// Sampling weights of the source's scenarios for the episodes that start from now on (see `ScenarioSource::set_weights`).
+    pub fn set_weights(&mut self, w: &[f32]) -> bool {
+        self.source.set_weights(w)
     }
 
     /// Finished episodes restart on the next scenario (`true`, the default) or stay finished (`false`, for search).
@@ -415,6 +471,13 @@ impl BatchEnv {
             to.frozen = None;
         }
         Ok(())
+    }
+
+    /// Per env, the belt slots whose potion the latest `step` used up (bit k = slot k), measured before an auto-reset.
+    pub fn potion_used(&self, out: &mut [u8]) {
+        for (o, s) in out.iter_mut().zip(self.slots.iter()) {
+            *o = s.pot_used;
+        }
     }
 
     /// Summary of the episode each env finished last (valid where `done` was set by the latest `step`).

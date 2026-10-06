@@ -12,6 +12,7 @@ pub mod defs;
 pub mod engine;
 pub mod hooks;
 pub mod observe;
+pub mod relic_mask;
 pub mod ids;
 pub mod rng;
 pub mod scenario;
