@@ -12,7 +12,7 @@ Public information only for policies: which cells are clear and which item KIND 
 `(hidden (11,11) bool, kinds (11,11) int8)`; kinds[x,y] != 0 only on clear cells covered by an item.
 
 CLI (never touches the game):
-    python agent/crystal_sphere.py advise [--n N] [--k K]  < grid.txt     # best clicks for the bridge's CRYSTAL_SPHERE text
+    python agent/crystal_sphere.py advise [--n N] [--curse -300] <<'EOF' ... the bridge's CRYSTAL_SPHERE text ... EOF   # best click, plan, E and P(curse) per click
     python agent/crystal_sphere.py bench --n 3 --games 20000 [--policies a,b,c] [--procs 16]
     python agent/crystal_sphere.py opening --n 6                          # the opening clicks of the playbook policy
 """
@@ -709,34 +709,37 @@ def parse_grid(text):
     return hidden, kinds, left
 
 
-def advise(text, n=None, k=3000, seed=None):
+def advise(text, n=None, k=3000, seed=None, curse=-300.0):
     hidden, kinds, left = parse_grid(text)
     r = n or left
     if not r:
         raise SystemExit("divinations left unknown: pass --n")
     rng = np.random.default_rng(seed)
     hm = hidden.reshape(-1).astype(np.float32)
-    post = Post(hidden, kinds, k, rng, min_ess=150, kmax=20000)
+    vals = VALUES.copy()
+    vals[CURSE_I] = curse  # planning penalty: -300 cuts P(curse) at no measurable value cost (skill, section 3)
+    post = Post(hidden, kinds, k, rng, values=vals, min_ess=150, kmax=20000)
     E, Pc = post.evaluate(hm)
     S = plan_set(post, hm, r)
     j_plan = pick_from_plan(post, hm, S)
     j_greedy = best_of(E, hm)
-    out = [f"{r} divinations left; posterior samples {post.k}, ESS {post.ess:.0f}" + ("" if post.ok else "  (observation not reproducible: prior used)")]
-    out.append("planned set (play the marked one first, replan after each click): " + ", ".join(f"{t} {x} {y}" for t, x, y in map(cand_name, S)))
-    out.append(f"recommended: {cand_text(j_plan)}   (greedy single best: {cand_text(j_greedy)})")
+    def short(j):
+        t, x, y = cand_name(j)
+        return f"{t} {x} {y}"
+
+    out = [f"{r} divinations left; {post.k} posterior samples, ESS {post.ess:.0f}" + ("" if post.ok else "  (grid not reproducible by one placement pass: prior used)")]
+    out.append("plan for the remaining clicks (replan after each click): " + ", ".join(short(j) for j in S))
+    out.append("RECOMMENDED: " + cand_text(j_plan) + (f"      (one-click greedy would play {short(j_greedy)})" if j_greedy != j_plan else ""))
     ok = valid_mask(hm)
-    order = np.argsort(-np.where(ok, E, -1e18))[:8]
-    out.append("top clicks by expected immediate value (gold-eq) / P(reveal curse):")
-    for j in order:
-        out.append(f"  {cand_text(j):28s} E={E[j]:7.1f}  Pc={Pc[j]:.3f}")
-    out.append("safest clicks (P(curse) < 0.5%) with the most value: " + ", ".join(f"{cand_text(j)}={E[j]:.1f}" for j in np.argsort(-np.where(ok & (Pc < 0.005), E, -1e18))[:5]))
-    # P(curse | cell) hints
+    out.append(f"top clicks: expected immediate value (gold-eq, curse counted at {curse:g}) and P(reveals the curse)")
+    for j in np.argsort(-np.where(ok, E, -1e18))[:6]:
+        out.append(f"  {short(j):10s} E={E[j]:6.1f}  Pc={Pc[j]:.3f}")
     return "\n".join(out)
 
 
 def cand_text(j):
     t, x, y = cand_name(j)
-    return f"{t} tool at x={x} y={y}  (a 1 / a 2 then a 0 {x} {y})" if True else ""
+    return f"{t} at x={x} y={y}  ->  " + ("a 1 (if the tool is not already Big), then " if t == "big" else "a 2, then ") + f"a 0 {x} {y}"
 
 
 def main(argv=None):
@@ -748,10 +751,11 @@ def main(argv=None):
     ap.add_argument("--procs", type=int, default=16)
     ap.add_argument("--k", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=12345)
+    ap.add_argument("--curse", type=float, default=-300.0, help="advise: gold-eq penalty for revealing the curse while planning")
     ap.add_argument("--json", default="")
     a = ap.parse_args(argv)
     if a.cmd == "advise":
-        print(advise(sys.stdin.read(), a.n if "--n" in (argv or sys.argv) else None, a.k))
+        print(advise(sys.stdin.read(), a.n if "--n" in (argv or sys.argv) else None, a.k, curse=a.curse))
     elif a.cmd == "opening":
         print("blind_opt:", [cand_name(j) for j in blind_opt_clicks(a.n)])
         cache = {}
