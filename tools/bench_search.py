@@ -162,11 +162,19 @@ CONFIGS = {
     "wide3": dict(M=8, K=512, budget=3.0, tol=0.0, leaf=1, cap=60),
     "leaf2": dict(M=5, K=32, budget=3.0, tol=0.0, leaf=2, cap=120),
     "leafend": dict(M=5, K=32, budget=3.0, tol=0.0, leaf=10_000, cap=400),
+    # round 2: depth at the live budget, depth per fight kind, depth plus width
+    "leaf2_1s": dict(M=5, K=32, budget=1.0, tol=0.0, leaf=2, cap=120),
+    "leaf2_live": dict(M=5, K=32, budget=1.0, tol=0.6, leaf=2, cap=120),
+    "leaf3_3s": dict(M=5, K=32, budget=3.0, tol=0.0, leaf=3, cap=180),
+    "mixed_3s": dict(M=5, K=32, budget=3.0, tol=0.0, leaf=2, cap=120, boss_leaf=10_000, boss_cap=400),
+    "mixed_1s": dict(M=5, K=32, budget=1.0, tol=0.0, leaf=2, cap=120, boss_leaf=10_000, boss_cap=400),
+    "leaf2_wide1s": dict(M=8, K=128, budget=1.0, tol=0.0, leaf=2, cap=120),
 }
 
 
 def choose(eng, st, cfg):
-    eng.fs.leaf_turns, eng.fs.roll_cap = cfg["leaf"], cfg["cap"]
+    boss = st["kind"] == "boss" and "boss_leaf" in cfg
+    eng.fs.leaf_turns, eng.fs.roll_cap = (cfg["boss_leaf"], cfg["boss_cap"]) if boss else (cfg["leaf"], cfg["cap"])
     d = eng.decide(st["scenario"], st["sim"], budget=cfg["budget"], tol_hp=cfg["tol"])
     if cfg.get("greedy"):
         opts = [o for o in d["options"]]
@@ -185,9 +193,12 @@ def main():
     ap.add_argument("--strong", type=int, default=20)
     ap.add_argument("--seed", type=int, default=3)
     ap.add_argument("--out", default=os.path.join(ROOT, "evals", "bench_search.jsonl"))
+    ap.add_argument("--reuse", help="an earlier output: keep its referee values, add the picks of --configs (same states: collection is deterministic)")
     a = ap.parse_args()
     t0 = time.time()
     states = collect_states(a.states, a.seed)
+    if a.reuse:
+        return add_picks(a, states, t0)
     print(f"{len(states)} states ({sum(s['kind'] == 'boss' for s in states)} boss, {sum(s['kind'] == 'elite' for s in states)} elite) in {time.time() - t0:.0f}s", flush=True)
     names = a.configs.split(",")
     engines = {}
@@ -221,6 +232,34 @@ def main():
             if i % 5 == 0:
                 print(f"  referee {i + 1}/{len(states)} ({time.time() - t0:.0f}s)", flush=True)
     report(a.out, names)
+
+
+def add_picks(a, states, t0):
+    """The picks of new configurations on the states an earlier run refereed (matched by fight file and step)."""
+    old = {(r["file"], r["step"]): r for r in (json.loads(l) for l in open(a.reuse))}
+    names = a.configs.split(",")
+    engines = {}
+    for n in names:
+        c = CONFIGS[n]
+        if (c["M"], c["K"]) not in engines:
+            engines[(c["M"], c["K"])] = Engine(M=c["M"], K=c["K"])
+    out, missing = [], 0
+    for i, st in enumerate(states):
+        rec = old.get((st["file"], st["step"]))
+        if rec is None:
+            missing += 1
+            continue
+        for n in names:
+            c = CONFIGS[n]
+            rec["picks"][n] = act_key(choose(engines[(c["M"], c["K"])], st, c))
+        out.append(rec)
+        if i % 10 == 0:
+            print(f"  picks {i + 1}/{len(states)} ({time.time() - t0:.0f}s)", flush=True)
+    with open(a.out, "w") as fo:
+        for rec in out:
+            fo.write(json.dumps(rec) + "\n")
+    print(f"{len(out)} states matched, {missing} not in {a.reuse}")
+    report(a.out, list(dict.fromkeys(list(out[0]["picks"]) if out else names)))
 
 
 def report(path, names):
