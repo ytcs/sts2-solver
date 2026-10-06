@@ -10,9 +10,11 @@
 """
 import os, socket, sys, time
 
+from agent.skillgate import BRIDGE_READ_ONLY
+
 PORT = int(os.environ.get("STS2_BRIDGE_PORT", 15555))
-# commands that change nothing: safe to repeat when the connection drops
-READ_ONLY = ("s", "peek", "d", "p", "m", "fight", "snap", "deck.json", "mods", "f")
+# commands that are safe to repeat when the connection drops (one list with the skill gate's hook; `f` (fast mode) is idempotent, though the harness gate counts it as an action)
+READ_ONLY = tuple(sorted(BRIDGE_READ_ONLY))
 
 
 def _once(line, port, timeout):

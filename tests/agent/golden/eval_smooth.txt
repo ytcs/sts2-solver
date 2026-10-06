@@ -1,0 +1,6 @@
+smooth objective: win rate averaged over start HP x1.0/1.5/2.0/3.0 of 71  (3 variants)
+baseline                 smooth 0.625 ±0.053  | x1.0:0.56 x1.5:1.00 x2.0:0.38 x3.0:0.56
++setup                   smooth 0.406 ±0.055  | x1.0:0.25 x1.5:0.44 x2.0:0.75 x3.0:0.19
+-strike                  smooth 0.406 ±0.058  | x1.0:0.38 x1.5:0.25 x2.0:0.31 x3.0:0.69
+  +setup vs baseline: smooth -0.219 (±0.077)
+  -strike vs baseline: smooth -0.219 (±0.079)

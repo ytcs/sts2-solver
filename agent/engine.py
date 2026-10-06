@@ -9,6 +9,7 @@ known patterns) and resamples hidden information (draw order, enemy random branc
 actions on 32 futures each (~10 ms); rounds repeat with fresh futures until the budget is spent or the best action is clearly ahead, so an obvious turn
 costs a fraction of a second and a high-stakes turn can be given more time. `budget=0` is a single round.
 """
+import json
 import math
 import os
 import sys
@@ -17,12 +18,19 @@ import time
 import numpy as np
 import torch
 
+from agent import potions
+
 _RL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "rl")
 sys.path.insert(0, _RL)
 from fastsearch import FastSearch  # noqa: E402
 from solver import Solver  # noqa: E402
 
 MAX_ROUNDS = 400
+
+
+def _read_json(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def _opportunity_loss(acc):
@@ -51,7 +59,7 @@ class Engine:
         self.fs = FastSearch(self.solver.net, self.solver.value_nets, M, K, conf=1.01, roots=1, groups=1, amp=cuda)
         # live play uses the fight's HP-worth curve only with networks trained for it (`models/current.json` "util": true, written at adoption)
         cur = os.path.join(_RL, "..", "models", "current.json")
-        self.util_trained = ckpt is None and os.path.exists(cur) and bool(__import__("json").load(open(cur)).get("util"))
+        self.util_trained = ckpt is None and os.path.exists(cur) and bool(_read_json(cur).get("util"))
         self.fs.warm()
         self.seed = 0
 
@@ -63,13 +71,12 @@ class Engine:
         # `util`: the fight's HP-worth curve (101 floats, `rl/utility.py`) = what each ending is worth for the rest of the act; None = the linear return
         self.fs.set_util(util)
         acc, first, rounds = {}, None, 0
-        held = {i for i, p in enumerate(scenario.get("potions", [])) if isinstance(keep_potions, (set, frozenset)) and p["id"] in keep_potions}  # potions held back for a later fight
+        held = potions.held_indices(scenario, keep_potions)  # simulator indices of the potions held back (`agent.potions`)
         def _held(t):
-            return t.startswith("potion") and (keep_potions is True or (t.split() + [""])[1].isdigit() and int(t.split()[1]) in held)
+            return t.startswith("potion") and (keep_potions is True or potions.text_index(t) in held)
         skip = {a for a, t in sim.legal() if t.startswith("discard potion") or _held(t)}  # the bridge cannot discard a potion, and a tie must never throw one away
         # held potions leave the searched copy entirely: filtering only the first action still let deeper lines of the tree throw them (and value those lines)
-        drop = list(range(len(scenario.get("potions", [])))) if keep_potions is True else sorted(held)
-        search = sim.without_potions(drop) if drop else sim
+        search = sim.without_potions(held) if held else sim
         while True:
             self.seed += 1
             r = self.fs.decide(scenario, search, (self.seed if seed is None else seed + rounds))
@@ -107,7 +114,6 @@ class Engine:
 
 def play_fight(eng, scenario, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False, util=None):
     """One fight in the simulator from its start, every decision by `Engine.decide` at the given time cap. Returns (outcome, HP lost, steps)."""
-    import json
     import sts2
     sim = sts2.Sim(json.dumps(scenario), seed)
     hp0 = json.loads(sim.snapshot())["player"]["hp"]

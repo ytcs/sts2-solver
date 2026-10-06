@@ -4,13 +4,13 @@ The daemon keeps the networks and the aligned simulator in memory, so each comma
 Commands: see `agent/harness.py`.
 """
 import os
-import re
 import socket
 import subprocess
 import sys
 import threading
 import time
 
+from agent.screen import is_bare_number
 from agent.skillgate import READ_ONLY
 
 PORT = int(os.environ.get("STS2_AGENT_PORT", 15556))
@@ -116,7 +116,7 @@ def batch(lines, keep_going=False):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        if acted and re.match(r"^a \d+(\s|$)", line):
+        if acted and line.startswith("a ") and is_bare_number(line[2:]):
             print(">>> " + line)
             print("REFUSED: a numbered option after an earlier action in the same batch: the screen has changed and the number may now be another option. Use `a ~text`, or send it in its own call after reading the screen.")
             print(">>> batch stopped here")

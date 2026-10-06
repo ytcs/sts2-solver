@@ -1,0 +1,4 @@
+2 variants x 2 encounters x 8 attempts, start HP 71/80
+baseline                 win 0.625 ±0.077  HP lost 61.2% (q10/50/90/97.5: 24/47/71/71 HP)  | NIBBITS:0.25 KNOWLEDG:1.00
+pots                     win 0.500 ±0.121  HP lost 57.7% (q10/50/90/97.5: 10/60/71/71 HP)  | NIBBITS:0.62 KNOWLEDG:0.38
+  pots vs baseline: win -0.125 (±0.143), HP lost -3.5 pts

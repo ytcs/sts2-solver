@@ -1,0 +1,4 @@
+MAP
+A1 F2 IRONCLAD A10 HP 68/80 G108 pots[-, -]
+full map: m
+0 Shop r2c3 -> ?c2

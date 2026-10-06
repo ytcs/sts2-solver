@@ -1,0 +1,2 @@
+1 variants x 3 encounters x 8 attempts, start HP 71/80
+baseline                 win 0.542 ±0.097  HP lost 57.9% (q10/50/90/97.5: 12/52/71/71 HP)  | DECIMILL:0.38 ENTOMANC:0.75 INFESTED:0.50

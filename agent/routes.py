@@ -20,7 +20,7 @@ from itertools import combinations
 
 import numpy as np
 
-from agent import macro, pools
+from agent import macro, pools, screen
 
 GRID = 9  # start-HP grid points per fight kind
 KINDS = ("weak", "regular", "elite", "boss")
@@ -78,7 +78,7 @@ def parse_map(text):
 
 def offered(state_text):
     """Node coordinates on offer on the MAP screen: lines like `0 Monster r7c5 -> Rc4,Mc6`."""
-    return [(int(r), int(c)) for r, c in re.findall(r"^\d+ \w+ r(\d+)c(\d+)", state_text, re.M)]
+    return [(int(m.group(1)), int(m.group(2))) for _, label in screen.options(state_text) for m in [re.match(r"\w+ r(\d+)c(\d+)", label)] if m]
 
 
 def subsets(n):
@@ -119,9 +119,9 @@ def _signature(deck_json, act, ctx, attempts):
     return (deck, relics, pots, deck_json["max_hp"], act, tuple(ctx.get("seen", [])), tuple(ctx.get("bosses", [])), attempts)
 
 
-def build_tables(engine, deck_json, act, ctx, attempts, hold=None):
+def build_tables(engine, deck_json, act, ctx, attempts):
     """tabs[(kind, S)] = transition matrix with the potions S (a frozenset of belt indices) available; tabs["_belt"] = the potion ids. One batched solver call for every table.
-    Potion variants exist for elites and the boss only: a potion thrown in a hallway fight is not what the route decision is about. `hold` is unused (kept for callers)."""
+    Potion variants exist for elites and the boss only: a potion thrown in a hallway fight is not what the route decision is about."""
     key = _signature(deck_json, act, ctx, attempts)
     if key in _CACHE:
         return _CACHE[key]
@@ -436,11 +436,11 @@ def continuation_util(engine, deck_json, map_text, ctx, act, attempts=24, pf=0.1
     return u, f"HP worth = P({goal} the act boss) from the next node, relative to full HP: {pts}"
 
 
-def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, tabs=None, weights=None, hold=None):
+def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, tabs=None, weights=None):
     nodes, boss_row = parse_map(map_text)
     if not nodes or boss_row is None:
         return "routes: no act map"
-    hp_now = int(re.search(r"HP (\d+)/", state_text).group(1)) if re.search(r"HP (\d+)/", state_text) else deck_json["hp"]
+    hp_now = (screen.hp(state_text) or (deck_json["hp"],))[0]
     maxhp = deck_json["max_hp"]
     if tabs is None:
         tabs = build_tables(engine, deck_json, act, ctx, attempts)
@@ -494,8 +494,7 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
         if st["elites"]:
             lines.append("      elite arrivals (alive, mean HP, q10 HP): " + "; ".join(f"{calc.nodes[e[0]]['type']}{e[0][0]}c{e[0][1]} {e[1]:.2f}, {e[2]:.0f}, {e[3]}" for e in st["elites"]))
     lines.append("")
-    gm = re.search(r"\bG(\d+)\b", state_text)
-    gold = int(gm.group(1)) if gm else 0
+    gold = screen.gold(state_text) or 0
     wtxt = " ".join(f"{k}={v:g}" for k, v in calc.weights.items())
     lines.append(f"reward-weighted routes (expected rewards collected while alive, fights without potions; weights {wtxt}; change with --w E=5,$=1): per option on offer, then the best path")
     lines.append(f"  a shop is worth what the gold I arrive with buys ($ = multiplier): from {gold} gold now, +{GOLD_GAIN['M']} per monster, +{GOLD_GAIN['E']} per elite, +{GOLD_GAIN['T']} per treasure; "

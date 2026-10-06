@@ -1,0 +1,30 @@
+route survival (win the act boss) from 36/80 HP, 2 option(s) on offer, monsters met 2, unknown = regular fight 15%; events / shops / treasure not modelled
+potions in the belt: POWER_POTION; each is thrown at most once along a route, at the fight where it helps most (an elite or the boss), never counted twice
+
+per option on offer: P(win boss) with at least k more elites on the way (adaptive: best child at each node)
+option        k>=0    k>=1    k>=2    k>=3
+M2c0         0.100   0.100   0.000   0.000
+M2c2         0.101   0.101   0.099   0.032
+
+representative route per elite requirement (fixed path from the best option; stats of that path)
+ k      F  reach  HP@boss  q10    win  fights elites rests shops unk treas  path
+ 0  0.101  0.204     39.1   29  0.099       3      1     2     0   1     0  M2c2 ?3c1 R4c1 M5c2 E6c2 R7c2
+      potion plan: POWER_POTION at E6c2
+      elite arrivals (alive, mean HP, q10 HP): E6c2 0.35, 25, 12
+ 1  0.101  0.204     39.1   29  0.099       3      1     2     0   1     0  M2c2 ?3c1 R4c1 M5c2 E6c2 R7c2
+      potion plan: POWER_POTION at E6c2
+      elite arrivals (alive, mean HP, q10 HP): E6c2 0.35, 25, 12
+ 2  0.099  0.192     55.6   50  0.098       3      2     2     0   0     1  M2c2 E3c2 E4c2 T5c3 R6c3 R7c2
+      potion plan: POWER_POTION at E4c2
+      elite arrivals (alive, mean HP, q10 HP): E3c2 0.62, 21, 10; E4c2 0.31, 13, 5
+ 3  0.032  0.056     28.4   26  0.032       5      3     1     0   0     0  M2c2 E3c2 E4c2 M5c2 E6c2 R7c2
+      potion plan: POWER_POTION at E6c2
+      elite arrivals (alive, mean HP, q10 HP): E3c2 0.62, 21, 10; E4c2 0.31, 13, 5; E6c2 0.09, 6, 2
+
+reward-weighted routes (expected rewards collected while alive, fights without potions; weights M=1 E=5 T=3.5 $=1 ?=1.2 R=0.3; change with --w E=5,$=1): per option on offer, then the best path
+  a shop is worth what the gold I arrive with buys ($ = multiplier): from 230 gold now, +11 per monster, +30 per elite, +35 per treasure; shop value at 50/100/150/250/400 gold: 0.0/1.0/1.6/3.5/5.3
+option      reward  reach  HP@boss    win  fights elites rests shops unk treas  path
+M2c2          3.62  0.159     56.3  0.069       3      2     2     0   0     1  M2c2 E3c2 E4c2 T5c3 R6c3 R7c2
+M2c0          2.80  0.181     39.1  0.080       3      1     2     0   1     0  M2c0 ?3c1 R4c1 M5c2 E6c2 R7c2
+
+F = adaptive optimum for that requirement (can exceed the fixed path's win); reach = alive on arrival at the boss; HP@boss / q10 = mean / 10th percentile HP then.

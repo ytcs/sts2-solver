@@ -1,0 +1,6 @@
+pick planner: 2 regular + 0 elite reward screens and 0 shops ahead, 4 deck slots, rho 0.85, rarity offset -0.050; 150 pool cards priced (need-weighted gain over the current deck: boss KNOWLEDGE_DEMON_BOSS, elites to come, next act)
+expected total gain: take anything positive 0.263; threshold policy tau* = 0.025 -> 0.277
+best cards for this deck: BATTLE_TRANCE +0.326, TANK +0.301, STOKE +0.214, AGGRESSION +0.204, IRON_WAVE +0.204, COORDINATE +0.198, PRODUCTION +0.195, TREMBLE +0.186, STONE_ARMOR +0.183, FORGOTTEN_RITUAL +0.172, TRUE_GRIT +0.168, CATASTROPHE +0.160
+share of pool cards with gain >= tau*: 68%
+runway curve (regular reward screens left before the dangerous fight, no shop): tau* = 0: 0.000, 1: 0.000, 2: 0.025, 3: 0.055, 4: 0.070, 6: 0.085, 8: 0.095  (the closer the fight, the less picky)
+this screen (take iff gain >= tau* = 0.025): Hemokinesis +0.033 TAKE; Bash +nan skip
