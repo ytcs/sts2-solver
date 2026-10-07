@@ -7,9 +7,11 @@ kinds: `fight_start` (scenario, the solver's prediction), `action` (a micro deci
 """
 import json
 import os
+import re
 import time
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "runs")
+SCREEN_LINE = re.compile(r"^[A-Z][A-Z_]{2,}( \d+| \(busy\))?\s*$")  # a bridge screen's first line (`COMBAT`, `SELECT 1`); not `ERR ...`, `REFUSED: ...`
 
 
 def _set_current(run_id):
@@ -28,6 +30,7 @@ class RunLog:
         self.run_id = run_id or time.strftime("%Y%m%d-%H%M%S")
         self.dir = os.path.join(ROOT, self.run_id)
         self._f = None
+        self._live = {}  # what `live()` last wrote to live.json
         _set_current(self.run_id)
 
     def _open(self):
@@ -40,6 +43,31 @@ class RunLog:
         f = self._open()
         f.write(json.dumps(dict(t=round(time.time(), 2), kind=kind, **kw), default=str) + "\n")
         f.flush()
+
+    def live(self, screen=None, reply=None, fight=..., **kw):
+        """`runs/<id>/live.json`: the latest screen, harness reply and fight export the harness ALREADY fetched (no bridge call here), for the
+        read-only dashboard (`tools/dashboard`). `reply` replaces `screen` when it is a screen itself (first line `COMBAT`, `MAP`, `SELECT 1` ...);
+        the fight export is written without its growing `states` list. Atomic (temp file + rename); never raises."""
+        try:
+            if reply is not None and SCREEN_LINE.match(reply.split("\n", 1)[0]):
+                screen = reply
+            live = self._live
+            if live.get("run") != self.run_id:
+                live.clear()
+            live.update(kw, run=self.run_id, t=round(time.time(), 2))
+            if screen is not None:
+                live.update(screen=screen[:20000], t_screen=live["t"])
+            if reply is not None:
+                live["reply"] = reply[:20000]
+            if fight is not ...:  # None = not in a fight (the harness keeps the last export after a fight ends)
+                live["fight"] = {k: v for k, v in fight.items() if k != "states"} if isinstance(fight, dict) else None
+            os.makedirs(self.dir, exist_ok=True)
+            p = os.path.join(self.dir, "live.json")
+            with open(p + ".tmp", "w", encoding="utf-8") as f:
+                json.dump(live, f, default=str)
+            os.replace(p + ".tmp", p)  # Windows: fails while a reader holds the file open; the next write catches up
+        except Exception:  # noqa: BLE001  the dashboard feed must never break a command
+            pass
 
     def new_run(self):
         """Start a new record (a new run began)."""

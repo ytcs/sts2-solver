@@ -441,6 +441,7 @@ class Harness(Live):
         self._rc = None  # every command reads the run afresh (the screen may have changed since the last one)
         out = self._handle(line)
         self._watch_run_end(out)
+        self.log.live(cmd=line, reply=out, screen=self.last_state, fight=getattr(self, "_last_f", None) if self.rp is not None else None)  # dashboard feed (no bridge call)
         return out
 
     def _watch_run_end(self, out):
