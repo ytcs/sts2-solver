@@ -107,6 +107,9 @@ def collect(a):
     print(f"done in {(time.time() - t_all) / 60:.1f} min -> {stem}_NNN.npz", flush=True)
 
 
+POLICY_HEADS = {"u_card", "b_card", "v_tgt", "v_none", "u_pot", "b_pot", "disc_pot", "pick", "confirm", "end"}  # rl/model.py pointer heads
+
+
 class Data:
     """One or more `collect` files; `chunks` yields replayed rows (obs, mask, opts, policy target, outcome class) a chunk of fights at a time."""
 
@@ -119,9 +122,12 @@ class Data:
             ok = np.isfinite(q)
             e = np.where(ok, np.exp((np.where(ok, q, -np.inf) - np.nanmax(q, 1, keepdims=True)) / tau), 0.0)
             tgt = (e / e.sum(1, keepdims=True)).astype(np.float32)
+            lo, hi = np.nanmin(np.where(ok, q, np.nan), 1, keepdims=True), np.nanmax(np.where(ok, q, np.nan), 1, keepdims=True)
+            qn = np.where(ok, (q - lo) / np.maximum(hi - lo, 1e-6), np.nan)  # each decision's tried options scaled to [0, 1] (Gumbel MuZero's normalisation)
+            qn = np.where(ok, qn - np.nanmean(qn, 1, keepdims=True), 0.0).astype(np.float32)  # centred: untried actions keep their prior
             order = np.argsort(z["d_fight"], kind="stable")
             self.parts.append(dict(scen=scen, f_scen=z["f_scen"], f_seed=z["f_seed"], f_cls=z["f_cls"], f_off=z["f_off"], acts=z["acts"].astype(np.int32),
-                                   d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], tgt=tgt[order]))
+                                   d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], tgt=tgt[order], qn=qn[order]))
             self.parts[-1]["d_lo"] = np.searchsorted(self.parts[-1]["d_fight"], np.arange(len(z["f_cls"]) + 1))
         # parts searched with different widths (3x8 vs 5x32) carry different option counts: pad to the widest, a padded option counts as not tried
         m = max(p["d_opts"].shape[1] for p in self.parts)
@@ -130,6 +136,7 @@ class Data:
             if k:
                 p["d_opts"] = np.pad(p["d_opts"], ((0, 0), (0, k)), constant_values=-1)
                 p["tgt"] = np.pad(p["tgt"], ((0, 0), (0, k)))
+                p["qn"] = np.pad(p["qn"], ((0, 0), (0, k)))
         self.index = [(pi, f) for pi, p in enumerate(self.parts) for f in range(len(p["f_cls"]))]
 
     def __len__(self):
@@ -137,7 +144,7 @@ class Data:
 
     def rows(self, fights):
         """The training rows of these fights, replayed in parallel (`sts2.replay_rows`)."""
-        out = [[], [], [], [], []]
+        out = [[], [], [], [], [], []]
         by = {}
         for pi, f in fights:
             by.setdefault(pi, []).append(f)
@@ -156,6 +163,7 @@ class Data:
             sel = np.concatenate(sel)
             out[0].append(o); out[1].append(m); out[2].append(p["d_opts"][sel]); out[3].append(p["tgt"][sel])
             out[4].append(np.repeat(p["f_cls"][fs], np.diff(soff)))
+            out[5].append(p["qn"][sel])
         return [np.concatenate(x) for x in out]
 
 
@@ -182,15 +190,30 @@ def train(a):
     perm = rng.permutation(len(idx))
     n_hold = max(1, int(len(idx) * a.holdout))
     hold, tr = [tuple(x) for x in idx[perm[:n_hold]]], [tuple(x) for x in idx[perm[n_hold:]]]
-    opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=1e-4)
-    print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}", flush=True)
+    if a.freeze_policy:  # the value-only arm: the pointer heads keep the init network's weights (the shared trunk still trains)
+        for k, prm in net.named_parameters():
+            if k.split(".")[0] in POLICY_HEADS:
+                prm.requires_grad_(False)
+    prior = load(a.init).eval() if a.target == "anchored" else None
+    opt = torch.optim.AdamW([q for q in net.parameters() if q.requires_grad], lr=a.lr, weight_decay=1e-4)
+    print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target {a.target}"
+          f"{' (c=%g)' % a.c if a.target == 'anchored' else ''}{', policy heads frozen' if a.freeze_policy else ''}", flush=True)
 
-    def batch_loss(o, m, op, tg, cl):
+    def batch_loss(o, m, op, tg, cl, qn):
         o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m.astype(np.int64)).to(DEV)
         op, tg, cl = torch.from_numpy(op.astype(np.int64)).to(DEV), torch.from_numpy(tg).to(DEV), torch.from_numpy(cl.astype(np.int64)).to(DEV)
         lg, _, ol = net(o, m, outcome=True)[:3]
-        lp = F.log_softmax(lg.float(), 1).gather(1, op.clamp(min=0))
-        pl = -(tg * torch.where(op >= 0, lp, torch.zeros_like(lp))).sum(1).mean()
+        if prior is not None:
+            # anchored target (Gumbel MuZero's improved policy): the init network's prior, shifted by c x the centred normalised search estimate
+            # on the options the search tried; untried actions keep the prior. Where the estimates are within noise the prior's ranking survives.
+            with torch.no_grad():
+                pl0 = prior(o, m, value=False)[0].float()
+                shift = torch.zeros_like(pl0).scatter_(1, op.clamp(min=0), torch.where(op >= 0, a.c * torch.from_numpy(qn).to(DEV), 0.0))
+                t = torch.softmax(pl0 + shift, 1)
+            pl = -(t * F.log_softmax(lg.float(), 1).clamp(min=-30)).sum(1).mean()
+        else:
+            lp = F.log_softmax(lg.float(), 1).gather(1, op.clamp(min=0))
+            pl = -(tg * torch.where(op >= 0, lp, torch.zeros_like(lp))).sum(1).mean()
         vl = -(hl_gauss(cl, a.sigma) * F.log_softmax(ol.float(), 1)).sum(1).mean()
         return pl, vl
 
@@ -259,6 +282,10 @@ def main():
     t.add_argument("--tau", type=float, default=0.02, help="temperature over the options' search estimates (linear return units)")
     t.add_argument("--sigma", type=float, default=0.75, help="HL-Gauss width of the win classes, in bins")
     t.add_argument("--pol", type=float, default=1.0, help="weight of the policy loss")
+    t.add_argument("--target", choices=["soft", "anchored"], default="anchored",
+                   help="policy target: soft = softmax(q / tau) over the tried options (made the player worse, E9); anchored = prior + c x normalised q")
+    t.add_argument("--c", type=float, default=2.0, help="anchored target: weight of the normalised search estimate")
+    t.add_argument("--freeze-policy", action="store_true", help="train the value side only (policy heads frozen)")
     t.add_argument("--holdout", type=float, default=0.05); t.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     collect(a) if a.cmd == "collect" else train(a)
