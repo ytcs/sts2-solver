@@ -867,10 +867,14 @@ function lossHist(q, hp0, lost) {
     const m = mass[b] || 0;
     bars += bar(m, b === lostBin ? "hit" : "", `${b * HIST_BIN} to ${b * HIST_BIN + HIST_BIN - 1} HP lost: ${pct(m)} of the simulations${b === lostBin ? ` (the real loss: ${lost})` : ""}`);
   }
-  if (dead > 0.001) bars += `<b class="gap"></b>` + bar(dead, "dead" + (lost != null && lost >= H ? " hit" : ""), `died: ${pct(dead)} of the simulations`);
-  return `<div class="quantrow"><span class="faint small">simulated results</span><span class="qend" title="best case: HP lost in the best simulated outcome">${hpTxt(q[0])}</span>
+  if (dead > 0.001 || (lost != null && lost >= H)) bars += `<b class="gap"></b>` + bar(dead, "dead" + (lost != null && lost >= H ? " hit" : ""), `died: ${pct(dead)} of the simulations`);
+  // the end numbers are the plot's boundaries (the real loss widens them when it fell outside the simulations): the first bar's lower edge,
+  // and the last bar's upper edge, or the whole starting HP when the last bar is the deaths
+  const hasDead = dead > 0.001 || (lost != null && lost >= H);
+  const left = lo * HIST_BIN, right = hasDead && H !== Infinity ? H : (hi + 1) * HIST_BIN;
+  return `<div class="quantrow"><span class="faint small">simulated results</span><span class="qend" title="the plot starts at ${left} HP lost">${hpTxt(left)}</span>
     <div class="quant" title="HP lost in the simulated fights: one bar per ${HIST_BIN} HP, height = share of the simulations${dead > 0.001 ? "; last bar = died" : ""}${lost != null ? "; red = where the real loss fell" : ""}">${bars}</div>
-    <span class="qend" title="worst case: HP lost in the worst simulated outcome">${hpTxt(q[q.length - 1])}</span><span class="faint small">HP lost${dead > 0.001 ? `, died ${pct(dead)}` : ""} · ${HIST_BIN} HP per bar</span></div>`;
+    <span class="qend" title="${hasDead ? `the last bar: died (all ${right} HP lost)` : `the plot ends at ${right} HP lost`}">${hpTxt(right)}</span><span class="faint small">HP lost${dead > 0.001 ? `, died ${pct(dead)}` : ""} · ${HIST_BIN} HP per bar</span></div>`;
 }
 function fightHTML(it, latest) {
   const s = it.start, e = it.end, p = (s && s.predicted) || {};
