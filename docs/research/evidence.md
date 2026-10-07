@@ -93,4 +93,9 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 - **Round 2, chunked attempt:** 4,096-fight chunks in one process ran at 25-27 fights/s for 8 chunks (153-162 s each). Chunk 9 took 479 s and the watchdog (3x the median) ended the run.
 - **Bisection:** the same 4,096 scenarios, run in 256-fight pieces in a fresh process, finished in 4.7 min, with every piece at 14-22 s.
 - **Correction (later the same day): the process-state explanation did not hold.** A fresh process that started with chunk 9 also passed the watchdog limit (600 s), while the chunk's first 256 jobs, with their exact seeds, ran in 15 s in a fresh process. Cause unknown, still under investigation; chunking with resume plus the watchdog keeps a collection bounded meanwhile.
-- **Open:** find the cause; check whether the live daemon is affected (decision latency over a run).
+- **Root cause (bisection with exact seeds, each piece in a subprocess with a hard timeout):**
+  - The culprit was one job: pool_r2_rest #10351, Ironclad, 24-card deck, KNIGHTS_ELITE, seed 101 x 1,000,003 + 10351.
+  - Alone it hung for minutes; its 15 neighbours took 0.2-1.2 s each.
+  - On a build with the engine loop guard it finishes in 1.9 s.
+  - So an infinite loop inside one engine step, reached in a search play-out, hung the search. Nothing bounded a single step before the guard.
+- **Open:** what loops in that fight: a simulator bug, or a legitimate combo that should count as progress rather than an overflow (combos are a real strategy, `docs/rebuild.md`).
