@@ -10,7 +10,8 @@ Sets (`data/bench/<set>.json`: scenarios plus per-attempt labels):
   mix     cross-character cards, ancient relics, belts up to 8 (tools/gen_curriculum.py, held-out seed)
   tail    late game: Act 3 (act index 2) elites and bosses with decks of 28+ cards (tools/gen_curriculum.py, held-out seed)
   pairs   ranking: (base, variant) fights, the variant adds a pool card, removes a card, upgrades a card or drops a potion; labelled with
-          common random numbers so the reference difference is paired
+          common random numbers so the reference difference is paired, 256 attempts at search width 3x8 (32 attempts left the reference agreeing
+          with itself on only 66% of signs: E3)
 
 Labels: `Solver(h128, M=5, K=32)`, the search's live width without adaptive rounds; potions are free to use (the allowed set is the whole belt).
 Scores of a predictor's fight-start prediction (the outcome head averaged over SHUFFLES opening shuffles):
@@ -29,7 +30,7 @@ sys.path.insert(0, os.path.join(ROOT, "rl"))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 OUT = os.path.join(ROOT, "data", "bench")
 LABEL_CKPT = os.path.join(ROOT, "models", "solver_h128.pt")
-ATTEMPTS, PAIR_ATTEMPTS, SHUFFLES = 8, 32, 8
+ATTEMPTS, PAIR_ATTEMPTS, SHUFFLES = 8, 256, 8
 SETS = ("eval", "corpus", "mix", "tail")
 
 
@@ -105,11 +106,12 @@ def build(a):
     path = os.path.join(OUT, "pairs.json")
     if not os.path.exists(path) or a.force:
         base = sets["eval"][:200] + sets["mix"][:150] + sets["tail"][:100] + sets["corpus"][:100]
-        tri = pairs(base, rng)
+        tri = pairs(base, rng)[:a.pairs]
         flat = [x for b, v, _ in tri for x in (b, v)]
         groups = [i // 2 for i in range(len(flat))]  # base and variant share the RNG streams and search seeds of every attempt
         t0 = time.time()
-        res = S.solve(flat, attempts=PAIR_ATTEMPTS, seed=13, groups=groups)
+        # card effects are a few points against fight-to-fight variance: the reference needs many paired attempts at a cheaper width (E3)
+        res = Solver(LABEL_CKPT, M=3, K=8, value_ckpts=[]).solve(flat, attempts=PAIR_ATTEMPTS, seed=13, groups=groups)
         rows = []
         for i, (b, v, kind) in enumerate(tri):
             rb, rv = res[2 * i], res[2 * i + 1]
@@ -206,7 +208,7 @@ def score_net(ck):
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
-    b = sub.add_parser("build"); b.add_argument("--force", action="store_true")
+    b = sub.add_parser("build"); b.add_argument("--force", action="store_true"); b.add_argument("--pairs", type=int, default=300)
     s = sub.add_parser("score"); s.add_argument("ckpts", nargs="+")
     a = ap.parse_args()
     if a.cmd == "build":

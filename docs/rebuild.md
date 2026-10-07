@@ -57,6 +57,7 @@ It predicts play under the best combat policy we have (search), not the raw netw
 - Starter-card name matching (done, `agent/live.py`).
 - Fight-start predictions state which potions they assume.
 - Card text on the rewards screen.
+- Known, predates the rebuild: the search's `carry` optimization never fires (`crates/sts2env/tests/search.rs::carried_lines_finish_and_save_searches`: 0 carried). This costs speed only (about 15% more network rows); results are unaffected.
 - *Gate:* a full act played with no false `DIFFERS`.
 
 **S1. Observation and fidelity (forces a retrain, so it goes first).**
