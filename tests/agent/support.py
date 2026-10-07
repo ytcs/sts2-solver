@@ -289,3 +289,8 @@ def ok(out):
     """A command's output that must not be the harness's exception text."""
     assert not out.startswith("ERR harness"), out
     return out
+
+
+def bare(out):
+    """A reply without the public-odds line (`agent/tracker.py`) the harness adds to decision screens."""
+    return "".join(x for x in out.splitlines(keepends=True) if not x.startswith("public odds:"))

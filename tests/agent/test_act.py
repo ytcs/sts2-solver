@@ -2,7 +2,7 @@
 import json
 import os
 
-from support import FakeBridge, deck, events, make_harness, ok, screen
+from support import FakeBridge, bare, deck, events, make_harness, ok, screen
 
 from agent import harness, skillgate
 
@@ -23,7 +23,7 @@ def test_single_step_logs_macro(monkeypatch, tmp_path):
     fake = FakeBridge(screen("rewards"), on_action=[screen("card_reward")])
     h = make_harness(monkeypatch, tmp_path, fake)
     out = ok(h.handle("a ~card -- look at the cards"))
-    assert out == screen("card_reward")
+    assert bare(out) == screen("card_reward")
     assert fake.actions() == ["a 1"]
     e = [x for x in events(h) if x["kind"] == "macro"][-1]
     assert e["screen"] == "REWARDS" and e["choice"] == "1" and e["why"] == "look at the cards" and e["result"] == "CARD_REWARD"
@@ -37,7 +37,7 @@ def test_chain_runs_steps_in_order(monkeypatch, tmp_path):
     h = make_harness(monkeypatch, tmp_path, fake)
     out = ok(h.handle("a ~gold; ~proceed -- why"))
     assert fake.actions() == ["a 0", "a 1"]
-    assert out == screen("map_single")
+    assert bare(out) == screen("map_single")
     assert [e["choice"] for e in events(h) if e["kind"] == "macro"] == ["0", "1"]
 
 
@@ -53,7 +53,7 @@ def test_bare_number_after_a_step_refused(monkeypatch, tmp_path):
     fake = FakeBridge(screen("rewards"), on_action=[screen("rewards")])
     h = make_harness(monkeypatch, tmp_path, fake)
     out = h.handle("a 0; 1")
-    assert out == screen("rewards") + "REFUSED: `1` is an option number after an earlier step of the same chain: the list shifted when that step ran. Name the option (`~text`) or send it as its own call after reading the screen.\n"
+    assert bare(out) == screen("rewards") + "REFUSED: `1` is an option number after an earlier step of the same chain: the list shifted when that step ran. Name the option (`~text`) or send it as its own call after reading the screen.\n"
     assert fake.actions() == ["a 0"]
 
 
@@ -62,15 +62,15 @@ def test_chain_stops_at_combat_select_menu(monkeypatch, tmp_path):
     fake.fight = None
     h = make_harness(monkeypatch, tmp_path, fake)
     out = h.handle("a 0")
-    assert out == screen("combat")  # no fight export: no drive line, no combat info
+    assert bare(out) == screen("combat")  # no fight export: no drive line, no combat info
     fake = FakeBridge(screen("rewards"), on_action=[screen("combat")])
     h = make_harness(monkeypatch, tmp_path, fake)
     out = h.handle("a 0; ~strike")
-    assert out == screen("combat") + "[chain stopped before `~strike`: COMBAT]\n"
+    assert bare(out) == screen("combat") + "[chain stopped before `~strike`: COMBAT]\n"
     fake = FakeBridge(screen("restsite"), on_action=[screen("select")])
     h = make_harness(monkeypatch, tmp_path, fake)
     out = h.handle("a 1; 0")
-    assert out == screen("select") + "[chain stopped before `0`: SELECT]\n"
+    assert bare(out) == screen("select") + "[chain stopped before `0`: SELECT]\n"
     fake = FakeBridge(screen("restsite"), on_action=[screen("select"), screen("restsite")])
     h = make_harness(monkeypatch, tmp_path, fake)
     out = ok(h.handle("a 1; ~pommel"))  # a selection step named by text goes through
@@ -78,7 +78,7 @@ def test_chain_stops_at_combat_select_menu(monkeypatch, tmp_path):
     fake = FakeBridge(screen("game_over"), on_action=[screen("menu")])
     h = make_harness(monkeypatch, tmp_path, fake)
     out = h.handle("a 0; 0 ironclad 10")
-    assert out == screen("menu") + "[chain stopped before `0 ironclad 10`: MENU]\n"
+    assert bare(out) == screen("menu") + "[chain stopped before `0 ironclad 10`: MENU]\n"
 
 
 def test_chain_errors(monkeypatch, tmp_path):
@@ -260,12 +260,12 @@ def test_skill_gate_in_handle(monkeypatch, tmp_path):
     assert h.handle("a 0") == "REFUSED: " + msgs["REWARDS"] + "\n"
     assert h.handle("turn") == "REFUSED: " + msgs["REWARDS"] + "\n"
     assert fake.actions() == []
-    assert h.handle("s") == screen("rewards")  # read-only
+    assert bare(h.handle("s")) == screen("rewards")  # read-only
     fake.screen = screen("treasure")
     msgs["CARD_REWARD"] = "skills not loaded in this session: sts2-x. Invoke them with the Skill tool and read them, then repeat the command. No game action happens before that."
     h.priced["routes"] = "A1 F2"
     out = h.handle("a 0; ~armaments")
-    assert out == screen("card_reward") + "[chain stopped before `~armaments`: " + msgs["CARD_REWARD"] + "]\n"
+    assert bare(out) == screen("card_reward") + "[chain stopped before `~armaments`: " + msgs["CARD_REWARD"] + "]\n"
     fake.screen = screen("shop")
     assert h.handle("do {\"end_turn\":true}") == "REFUSED: `do` sends a raw action past the harness's guards; use `a <i>`, `turn` or `combat`.\n"
 

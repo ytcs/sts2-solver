@@ -38,7 +38,7 @@ import threading
 import traceback
 import zlib
 
-from agent import guards, macro, potions, runctx, skillgate
+from agent import guards, macro, potions, runctx, skillgate, tracker
 from agent import screen as scr
 from agent.args import Args
 from agent.bridge import call
@@ -261,6 +261,16 @@ class Harness(Live):
                 self._bookkeeping_error("fight start", e)
         if scr.kind(reply) == "COMBAT":
             reply = reply.rstrip("\n") + "\n" + self._combat_info()
+        return self._public(reply, fight_start=scr.kind(reply) == "COMBAT" and last_kind not in ("COMBAT", "SELECT"))
+
+    def _public(self, reply, fight_start=False):
+        """Adds the public run counters (`agent/tracker.py`: potion drop chance, rare offset, unknown-room odds, removal price) to the screens where they
+        bear on a choice: map, rewards, shop, event, treasure, rest, and the start of a fight (a potion spent now vs the chance of another after it)."""
+        if scr.kind(reply) in ("MAP", "REWARDS", "CARD_REWARD", "SHOP", "EVENT", "TREASURE", "RESTSITE") or fight_start:
+            try:
+                return reply.rstrip("\n") + "\n" + tracker.from_record(os.path.join(self.log.dir, "events.jsonl")).line() + "\n"
+            except Exception as e:  # noqa: BLE001  never let bookkeeping break a command
+                self._bookkeeping_error("tracker", e)
         return reply
 
     _resolve = staticmethod(scr.resolve)
@@ -441,7 +451,7 @@ class Harness(Live):
                 return "REFUSED: " + why + "\n"
         try:
             if cmd in ("", "s"):
-                return self.state()
+                return self._public(self.state())
             secs = float(rest) if cmd in ("adv", "turn", "combat", "budget") and rest.replace(".", "", 1).isdigit() else None
             if cmd == "hold":
                 self.hold = potions.parse_hold(rest)
