@@ -19,12 +19,10 @@ def engine_digest(eng):
     return "\n".join(out) + "\n"
 
 
-def run(monkeypatch, tmp_path, screen_text, cmd, name, hold=None):
+def run(monkeypatch, tmp_path, screen_text, cmd, name):
     eng = FakeEngine()
     fake = FakeBridge(screen_text, deck_json=deck(), map_text=MAP_A2)
     h = make_harness(monkeypatch, tmp_path, fake, events=fight_starts(upto=18), engine=eng)
-    if hold:
-        h.handle("hold " + hold)
     out = ok(h.handle(cmd))
     golden(name + ".txt", out)
     golden(name + ".engine.txt", engine_digest(eng))
@@ -38,10 +36,6 @@ def test_reward(monkeypatch, tmp_path):
     e = [x for x in events(h) if x["kind"] == "reward_eval"][-1]
     assert e["options"] == ["Hemokinesis", "Cruelty", "Stone Armor"] and e["boss"] == ["KNOWLEDGE_DEMON_BOSS"]
     golden("reward.event.json", json.dumps(dict(result=e["result"]), sort_keys=True, indent=0) + "\n")
-
-
-def test_reward_held_potion(monkeypatch, tmp_path):
-    run(monkeypatch, tmp_path, screen("card_reward_a2"), "reward --attempts 16 --hp current", "reward_held", hold="POWER_POTION")
 
 
 def test_reward_unmapped_card(monkeypatch, tmp_path):

@@ -25,7 +25,8 @@ def run_batch(monkeypatch, replies, lines, keep_going=False):
 def test_stops():
     assert cli._stops("ERR x")
     assert cli._stops("  play\nREFUSED: y")
-    assert cli._stops("  Strike\nPOTION ALERT (turn 2): throwing now")
+    assert cli._stops("  Strike\nPOTION PROPOSAL (turn 2): FIRE_POTION now")
+    assert not cli._stops("  Strike\nPOTION ALERT (turn 2): throwing now")  # the retired alert
     assert cli._stops("x\nSIMULATOR DESYNC (e)")
     assert cli._stops("x\nSIMULATOR DIFFERS FROM THE GAME: y")
     assert cli._stops("x\nSIMULATOR CHOICE DIFFERS: z")
@@ -40,7 +41,7 @@ def test_batch_runs_and_skips_comments(monkeypatch):
 
 
 def test_batch_stop_rules(monkeypatch):
-    for reply in ("ERR bad\n", "REFUSED: no\n", "SHOP\n[chain stopped before `x`: COMBAT]\n", "  Strike\nPOTION ALERT (turn 1): y\n", "  a\nSIMULATOR DESYNC (q)\n"):
+    for reply in ("ERR bad\n", "REFUSED: no\n", "SHOP\n[chain stopped before `x`: COMBAT]\n", "  Strike\nPOTION PROPOSAL (turn 1): y\n", "  a\nSIMULATOR DESYNC (q)\n"):
         sent, out = run_batch(monkeypatch, {"a": reply}, ["a 0", "s"])
         assert sent == ["a 0"], reply
         assert out.endswith(">>> batch stopped here\n")
@@ -57,8 +58,8 @@ def test_batch_bare_number_after_action(monkeypatch):
     assert sent == ["s", "eval --boss", "a 3"]  # read-only commands do not count as an action
     sent, out = run_batch(monkeypatch, {"a": "REFUSED: x\n"}, ["a 2", "a 3"], keep_going=True)
     assert sent == ["a 2", "a 3"]  # a refused action changed nothing
-    sent, out = run_batch(monkeypatch, {"a": "SHOP\n", "hold": "held\n"}, ["hold X", "a 3", "a ~x", "a 1"])
-    assert sent == ["hold X", "a 3", "a ~x"]
+    sent, out = run_batch(monkeypatch, {"a": "SHOP\n", "potions": "table\n"}, ["potions", "a 3", "a ~x", "a 1"])
+    assert sent == ["potions", "a 3", "a ~x"]
     sent, out = run_batch(monkeypatch, {"a": "SHOP\n", "combat": "played\n"}, ["combat", "a 3"])
     assert sent == ["combat"]
     sent, out = run_batch(monkeypatch, {"a": "SHOP\n"}, ["a ~x", "a ~y; 3", "a 12x"])
@@ -68,9 +69,9 @@ def test_batch_bare_number_after_action(monkeypatch):
 def test_read_only_lists():
     assert set(bridge.READ_ONLY) == skillgate.BRIDGE_READ_ONLY
     assert cli.READ_ONLY is skillgate.READ_ONLY
-    for c in ("s", "peek", "brief", "eval", "reward", "route", "routes", "rmcalc", "pickplan", "adv", "m", "d", "p", "status", "relics", "hold", "budget", "note", "potions"):
+    for c in ("s", "peek", "brief", "eval", "reward", "route", "routes", "rmcalc", "pickplan", "adv", "m", "d", "p", "status", "relics", "budget", "note", "potions"):
         assert c in skillgate.READ_ONLY, c
-    for c in ("a", "turn", "combat", "x", "draw", "f", "do"):
+    for c in ("a", "turn", "combat", "x", "draw", "f", "do", "potion", "hold"):
         assert c not in skillgate.READ_ONLY, c
     assert "f" in bridge.READ_ONLY  # safe to resend after a dropped connection; still an action for the skill gate
 

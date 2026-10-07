@@ -1,5 +1,0 @@
-POTION ALERT (turn 7): asked
-  STRENGTH_POTION: throw NOW (potion 0) then none vs never this fight: win 0.66 vs 0.66 (+0.00 ±0.00), mean end HP 21 vs 21 (+0.0 ±0.0; a loss counts 0; 32 paired futures)
-  STRENGTH_POTION: no price (no route value: no map position)
-  HP 41/72 now; belt: Strength Potion, -
-Your call: throw it by hand (`a <i>`, the potion's option on the screen), wait for a better turn (the check repeats every turn), `potion allow <name|all>` to let the search use it this fight, `potion keep <name>` (no more alerts for it this fight unless the win is at stake), or go on without (`turn` / `combat`: no new alert this turn).

@@ -18,19 +18,15 @@ import time
 import numpy as np
 import torch
 
-from agent import potions
+from agent import potions, proposal
 
 _RL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "rl")
 sys.path.insert(0, _RL)
+import heads  # noqa: E402
 from fastsearch import FastSearch  # noqa: E402
 from solver import Solver  # noqa: E402
 
 MAX_ROUNDS = 400
-
-
-def _read_json(path):
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
 
 
 def _opportunity_loss(acc):
@@ -57,20 +53,25 @@ class Engine:
         self.solver = Solver() if ckpt is None else Solver(ckpt, value_ckpts=value_ckpts)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         self.fs = FastSearch(self.solver.net, self.solver.value_nets, M, K, conf=1.01, roots=1, groups=1, amp=cuda)
-        # live play uses the fight's HP-worth curve only with networks trained for it (`models/current.json` "util": true, written at adoption)
-        cur = os.path.join(_RL, "..", "models", "current.json")
-        self.util_trained = ckpt is None and os.path.exists(cur) and bool(_read_json(cur).get("util"))
+        # a per-fight objective table (`worth`, `agent.proposal.fight_objective`) needs the outcome head's value rows in both searches
+        self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
+        assert (proposal.HEAD_BIN, proposal.HEAD_NC) == (heads.BIN, heads.NC), "agent/proposal.py and rl/heads.py disagree on the outcome classes"
         self.fs.warm()
         self.seed = 0
         # seed of the tables (`solve` without a seed): the harness sets it per screen, so a re-run on the same screen repeats the same draws (and every variant
         # of one call shares them: common random numbers) while the next screen, or `--seed N`, draws fresh ones
         self.table_seed = 0
 
-    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, util=None):
+    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, util=None, worth=None):
         """Best next action for the fight in `sim`. Returns dict(action, json, text, searched, rounds, seconds, options=[dict(action, text, p, q)]);
-        Search stops at `budget` seconds or when the expected regret of the leading action is below `tol_hp` HP; `json` is the oracle-script form of the action (sent to the bridge's `do`); a selection is answered pick by pick (see `agent.harness`)."""
+        Search stops at `budget` seconds or when the expected regret of the leading action is below `tol_hp` HP; `json` is the oracle-script form of the action (sent to the bridge's `do`); a selection is answered pick by pick (see `agent.harness`).
+        `worth`: the fight's objective as a table over the outcome head's classes (`agent.proposal.win_only_worth`; None = the linear return); the q values are
+        then in the table's units and the tolerance is scaled by the table's span (a win-only table: `tol_hp` HP of the linear return = the same share of a win)."""
         t0 = time.perf_counter()
         tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)  # the return counts half the HP fraction left
+        if worth is not None:  # the linear return spans loss -1 .. win at full HP +1.5; a table spans its own range
+            u = np.asarray(worth["u"], np.float64)
+            tol *= float(u.max() - u[0]) / 2.5
         # `util`: the fight's HP-worth curve (101 floats, `rl/utility.py`) = what each ending is worth for the rest of the act; None = the linear return
         self.fs.set_util(util)
         acc, first, rounds = {}, None, 0
@@ -83,7 +84,7 @@ class Engine:
         search = sim.without_potions(held) if held else sim
         while True:
             self.seed += 1
-            r = self.fs.decide(scenario, search, (self.seed if seed is None else seed + rounds))
+            r = self.fs.decide(scenario, search, (self.seed if seed is None else seed + rounds), worth=worth)
             rounds += 1
             if first is None:
                 first = r
@@ -106,30 +107,43 @@ class Engine:
         return dict(action=a, json=sim.action_json(a), text=text.get(a, f"#{a}"), searched=first["searched"], rounds=rounds,
                     seconds=round(time.perf_counter() - t0, 2), options=opts)
 
-    def solve(self, scenarios, attempts=64, seed=None, util=None, groups=None):
+    def solve(self, scenarios, attempts=64, seed=None, util=None, groups=None, worth=None):
         """Fights played from their start by the batch solver: one dict per scenario (win, win_se, hp_lost, hp_left_on_win, attempts, aborted).
-        `util`: play them under this HP-worth curve (the results stay raw HP outcomes); None = the linear return."""
+        `util`: play them under this HP-worth curve (scalar value networks only); `worth`: under this class table (outcome-head networks, the same for every
+        scenario); None = the linear return. The results stay raw outcomes."""
         self.solver.fs.set_util(util)
         try:
-            return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups)
+            return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,
+                                     worth=None if worth is None else [worth] * len(scenarios))
         finally:
             self.solver.fs.set_util(None)
 
-    def play_on(self, scenario, starts, seeds):
-        """Fights continued from the simulators `starts` (one per job, e.g. determinized copies of a live fight) by the batch solver with job seeds `seeds`:
-        one (outcome, end HP fraction) per job (outcome 1 = win)."""
-        rows = self.solver.fs.run([scenario] * len(starts), np.arange(len(starts), dtype=np.uint32), np.asarray(seeds, np.uint64), starts=list(starts))
-        return [(int(r[1]), float(r[3])) for r in rows]
+    def play_on(self, scenario, starts, seeds, worth=None, record=False):
+        """Fights continued from the simulators `starts` (one per job, e.g. determinized copies of a live fight) by the batch solver with job seeds `seeds`,
+        searched under `worth` (None = linear): one (outcome, end HP fraction, end HP) per job (outcome 1 = win). `record`: also the actions each job took,
+        [(outcome, fraction, hp, actions)]."""
+        fs = self.solver.fs
+        old = fs.record
+        fs.record = record
+        try:
+            rows = fs.run([scenario] * len(starts), np.arange(len(starts), dtype=np.uint32), np.asarray(seeds, np.uint64), starts=list(starts),
+                          worth=None if worth is None else [worth] * len(starts))
+            out = [(int(r[1]), float(r[3]), float(r[6])) for r in rows]
+            if record:
+                out = [o + (fs.job_actions(j),) for j, o in enumerate(out)]
+        finally:
+            fs.record = old
+        return out
 
 
-def play_fight(eng, scenario, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False, util=None):
+def play_fight(eng, scenario, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False, util=None, worth=None):
     """One fight in the simulator from its start, every decision by `Engine.decide` at the given time cap. Returns (outcome, HP lost, steps)."""
     import sts2
     sim = sts2.Sim(json.dumps(scenario), seed)
     hp0 = json.loads(sim.snapshot())["player"]["hp"]
     steps = 0
     while sim.outcome() == 0 and steps < max_steps and sim.stage() != "over":
-        d = eng.decide(scenario, sim, 0.3 if sim.stage() == "choice" else budget, tol_hp=tol_hp, keep_potions=keep_potions, util=util)
+        d = eng.decide(scenario, sim, 0.3 if sim.stage() == "choice" else budget, tol_hp=tol_hp, keep_potions=keep_potions, util=util, worth=worth)
         sim.step(d["action"])
         steps += 1
     hp1 = json.loads(sim.snapshot())["player"]["hp"]

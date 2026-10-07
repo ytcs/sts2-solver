@@ -162,7 +162,7 @@ class FakeEngine:
     """Deterministic stand-in for `agent.engine.Engine`: every result is a function of the scenario's content (never of its position in the batch),
     so the same pricing request gives the same numbers before and after a refactor. `log` records every solve call (attempts + scenario keys)."""
 
-    util_trained = False
+    worth_ok = True  # the per-fight objective tables (`agent.proposal.fight_objective`) are available
 
     def __init__(self, decide=None):
         self.log = []
@@ -175,8 +175,8 @@ class FakeEngine:
                 sorted((c["id"], c.get("upgrade", 0), json.dumps(c.get("enchantment"), sort_keys=True)) for c in sc.get("deck", [])),
                 sorted(r["id"] for r in sc.get("relics", [])), [p["id"] for p in sc.get("potions", [])])
 
-    def solve(self, scenarios, attempts=64, seed=None, util=None, groups=None):
-        self.log.append(dict(attempts=attempts, util=util is not None, scen=[[sc.get("name"), sc.get("encounter"), sc.get("hp"), [p["id"] for p in sc.get("potions", [])]] for sc in scenarios]))
+    def solve(self, scenarios, attempts=64, seed=None, util=None, groups=None, worth=None):
+        self.log.append(dict(attempts=attempts, util=util is not None, **({"worth": worth.get("kind", "table")} if worth is not None else {}), scen=[[sc.get("name"), sc.get("encounter"), sc.get("hp"), [p["id"] for p in sc.get("potions", [])]] for sc in scenarios]))
         out = []
         for sc in scenarios:
             rng = random.Random(_h(self._key(sc), attempts))
@@ -190,18 +190,40 @@ class FakeEngine:
                             wins=[1.0 if e > 0 else 0.0 for e in ends]))
         return out
 
-    def play_on(self, scenario, starts, seeds):
-        """Deterministic stand-in for the batch solver continuing a live fight: the outcome and end HP depend on the seed and the potions left in the copy."""
-        self.log.append(dict(play_on=len(starts), potions=[len(json.loads(s.snapshot()).get("potions", [])) for s in starts[:1]]))
+    @staticmethod
+    def arm_key(sim):
+        """What a play-out start shows of the potion arms: (potions in the belt, the player's Strength, the turn)."""
+        sn = json.loads(sim.snapshot())
+        st = sum(p.get("amount", 0) for p in sn.get("player", {}).get("powers", []) if p.get("id") == "STRENGTH_POWER")
+        return len(sn.get("potions", [])), st, sn.get("turn")
+
+    def outcome(self, key, sd):
+        """(won, end HP fraction) of one play-out: a function of the seed alone (every potion arm ties, so nothing is proposed); the proposal tests
+        override it with arm-dependent outcomes (`arm_key`)."""
+        rng = random.Random(_h(str(sd)))
+        return (1, 0.2 + 0.5 * rng.random()) if rng.random() < 0.6 else (-1, 0.0)
+
+    def play_on(self, scenario, starts, seeds, worth=None, record=False):
+        """Deterministic stand-in for the batch solver continuing a live fight (`outcome`); `record`: each job's actions are its start's end turn."""
+        self.log.append(dict(play_on=len(starts), worth=(worth or {}).get("kind", "linear"), potions=[len(json.loads(s.snapshot()).get("potions", [])) for s in starts[:1]]))
+        mx = scenario.get("max_hp", 80)
         out = []
         for s, sd in zip(starts, seeds):
-            n = len(json.loads(s.snapshot()).get("potions", []))
-            rng = random.Random(_h(str(sd), n))
-            out.append((1, 0.2 + 0.1 * n + 0.5 * rng.random()) if rng.random() < 0.6 + 0.2 * n else (-1, 0.0))
+            oc, fr = self.outcome(self.arm_key(s), sd)
+            row = (oc, fr, round(fr * mx) if oc == 1 else 0.0)
+            if record:  # the turn ended at once, then the first option of every selection that asks
+                c, acts = s.copy(), [a for a, t in s.legal() if t == "end turn"][:1]
+                for a in acts[:1]:
+                    c.step(a)
+                while c.stage() == "choice" and len(acts) < 40:
+                    acts.append(c.legal()[0][0])
+                    c.step(acts[-1])
+                row += (acts,)
+            out.append(row)
         return out
 
-    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, util=None):
-        self.decide_calls.append(dict(budget=budget, tol_hp=tol_hp, keep_potions=keep_potions))
+    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, util=None, worth=None):
+        self.decide_calls.append(dict(budget=budget, tol_hp=tol_hp, keep_potions=keep_potions, worth=(worth or {}).get("kind", "linear")))
         if self._decide is not None:
             return self._decide(scenario, sim, budget, keep_potions)
         raise AssertionError("FakeEngine.decide called without a scripted decision")

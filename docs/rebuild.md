@@ -118,6 +118,7 @@ Plan:
 - One potion per commit: the operator commits a single potion, and the next turn's proposal decides whether another is needed. `potion allow all` goes away (user: three potions at the Act 1 Kin, where one, Power Potion 0.4 -> 0.94 win, was enough).
 - Per-fight objective: an act boss followed by an ancient heal is priced and searched on P(win) alone (win-only worth table via the existing per-job `Worth` plumbing); HP matters only where it carries to later fights.
 - *Gate:* on the potion regression states, the proposals agree with large-budget references.
+- *Done (2026-10-07, gate pending):* `agent/proposal.py`. Arms per potion on the same futures and job seeds, the other potions out of every arm: now (best target chosen on other futures), keep (this turn played as in the save arm, replayed on a copy that holds the potion; usable from the next turn), save (`without_potions`). Stop when now beats keep and save by more than 2 paired se in the fight's score, or when the better of now / keep wins more often than save by more than 2 paired se; nothing else. The live card search plans without potions. `potion use <name>` commits one; `potion aside <name>` keeps one for the boss (it then stops a non-boss fight only when the win is at stake). The win-only table goes to the fight-start prediction, `Engine.decide` and the proposal's play-outs. Python only: no Rust change.
 
 **S5. Run model.**
 - An act simulator in which the deck changes:

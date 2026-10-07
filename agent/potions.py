@@ -4,11 +4,8 @@ Numbering. The fight scenario lists the belt's potions in slot order, each with 
 empty first slot makes the two differ: a lone potion in the second slot is game slot 1, simulator potion 0). The simulator's actions and texts
 (`potion 0 -> e1`, `{"use_potion": {"slot": 0}}`) use the packed index; the bridge, the header's `pots[...]` and the logged actions use game slots.
 
-Policy. Potions are my decision: the live search plans without them (`search_keep`) unless I `potion allow` one for the fight, and the harness checks at
-the start of every turn whether throwing one now saves HP or win over the rest of the fight, alerting when it does (`agent.live`, `agent.potion_price`);
-the potions I `hold` are never used. What pricing sees (`priced_view`): the run snapshot
-without the held potions, so no priced fight (the boss included) spends a potion I keep for something else; non-boss fights are priced without
-potions anyway (`hold="all"` in `macro.evaluate`, a lower bound) and the boss with the belt.
+Policy (`agent.proposal`): the solver sees every potion and proposes; only the operator commits one (`potion use`, `a <i>`), one per commit. The live
+card-play search plans without potions (`held_indices(..., True)`). Potions set aside for the boss (`potion aside`) are named with `parse_names`.
 """
 import json
 import re
@@ -72,22 +69,6 @@ def held_indices(scenario, keep):
     return []
 
 
-def search_keep(hold, allowed, belt):
-    """keep_potions for the live search: every potion in the belt except those I allowed for this fight, and never a held one; True when none is allowed.
-    Potions are my decision (the harness prices them at junctures and alerts, `agent.live`): a search that may throw them throws on ties, and searching as if
-    a declined potion will be thrown later picked worse lines (Living Fog, 99th percentile)."""
-    keep = (set(belt) - set(allowed)) | set(hold)
-    return True if keep >= set(belt) else keep
-
-
-def priced_view(deck, hold):
-    """The run snapshot as every calculator prices it: the potions I hold are taken out of the belt (a Foul Potion kept for a merchant must not be thrown
-    by the simulated boss fight)."""
-    if not hold:
-        return deck
-    return dict(deck, potions=[p for p in deck.get("potions", []) if p["id"] not in hold])
-
-
-def parse_hold(rest):
-    """`hold fire potion, Block_Potion` -> {'FIRE_POTION', 'BLOCK_POTION'}; `hold` / `hold none` -> empty."""
+def parse_names(rest):
+    """`fire potion, Block_Potion` -> {'FIRE_POTION', 'BLOCK_POTION'}; '' / 'none' -> empty."""
     return set() if rest.strip() in ("", "none") else {x.strip().upper().replace(" ", "_") for x in rest.split(",")}
