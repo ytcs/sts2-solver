@@ -89,19 +89,26 @@ public static class Snap
             deck.Add(co);
         }
         o["deck"] = deck;
-        var relics = new JsonArray();
-        foreach (var r in sp.Relics)
-        {
-            var ro = new JsonObject { ["id"] = r.Id.Entry };
-            var pj = Props(r.Props);
-            if (pj != null) ro["props"] = pj;
-            relics.Add(ro);
-        }
-        o["relics"] = relics;
+        o["relics"] = Relics(me);
         var potions = new JsonArray();
         foreach (var p in sp.Potions) potions.Add(new JsonObject { ["id"] = p.Id.Entry, ["slot"] = p.SlotIndex });
         o["potions"] = potions;
         return o.ToJsonString();
+    }
+
+    /// <summary>The player's relics in order as [{id, props?, counter?}]: props = the [SavedProperty] values (the simulator's relic state),
+    /// counter = DisplayAmount when the relic shows one. Shared by the fight-start scenario and every observed state.</summary>
+    private static JsonArray Relics(Player me)
+    {
+        var relics = new JsonArray();
+        foreach (var r in me.Relics)
+        {
+            var ro = new JsonObject { ["id"] = r.Id.Entry };
+            try { var pj = Props(SavedProperties.From(r)); if (pj != null) ro["props"] = pj; } catch { }
+            try { if (r.ShowCounter) ro["counter"] = r.DisplayAmount; } catch { }
+            relics.Add(ro);
+        }
+        return relics;
     }
 
     // ------------------------------------------------------------------ action log
@@ -271,15 +278,7 @@ public static class Snap
         foreach (var ob in pcs.OrbQueue.Orbs) orbs.Add(new JsonObject { ["id"] = ob.Id.Entry, ["passive"] = (double)ob.PassiveVal, ["evoke"] = (double)ob.EvokeVal });
         o["orbs"] = orbs;
         o["orb_capacity"] = pcs.OrbQueue.Capacity;
-        var relics = new JsonArray();
-        foreach (var r in me.Relics)
-        {
-            var ro = new JsonObject { ["id"] = r.Id.Entry };
-            try { var pj = Props(SavedProperties.From(r)); if (pj != null) ro["props"] = pj; } catch { }
-            try { if (r.ShowCounter) ro["counter"] = r.DisplayAmount; } catch { }
-            relics.Add(ro);
-        }
-        o["relics"] = relics;
+        o["relics"] = Relics(me);
         var potions = new JsonArray();
         for (int k = 0; k < me.PotionSlots.Count; k++)
             if (me.PotionSlots[k] != null) potions.Add(new JsonObject { ["slot"] = k, ["id"] = me.PotionSlots[k].Id.Entry });

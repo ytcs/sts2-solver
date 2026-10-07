@@ -399,7 +399,7 @@ impl Sim {
     }
 
     /// Puts the visible state on the real one: the hand (cards, order, costs), energy, stars, HP / max HP / block of the player and the enemies
-    /// (matched by identity, the list in the game's order). Returns a JSON report of what had to change.
+    /// (matched by identity, the list in the game's order), the relics' counters and saved properties. Returns a JSON report of what had to change.
     fn sync(&mut self, real_json: &str) -> PyResult<String> {
         let real: Value = serde_json::from_str(real_json).map_err(err)?;
         let mut notes: Vec<String> = vec![];
@@ -480,9 +480,24 @@ impl Sim {
                 }
             }
         }
+        // relic counters / saved properties (Pen Nib's attacks, Joss Paper's exhausts, Kunai's attacks this turn ...)
+        let mut relics_changed = 0u32;
+        if real.get("relics").is_some() {
+            let rr = self.cx.sync_relics(&sts2diff::convert::obs_relics(&real["relics"]));
+            relics_changed = rr.changed as u32;
+            if rr.unpaired > 0 {
+                notes.push(format!("relics: {} with no simulated relic of that id", rr.unpaired));
+            }
+            if !rr.unknown_props.is_empty() {
+                notes.push(format!("relic props not modelled: {}", rr.unknown_props.join(", ")));
+            }
+            for id in rr.counter_mismatch {
+                notes.push(format!("relic {}: shown counter not reproducible", sts2sim::ids::relic::NAMES[id as usize]));
+            }
+        }
         Ok(json!({
             "from_draw": rep.from_draw, "from_discard": rep.from_discard, "from_exhaust": rep.from_exhaust,
-            "created": rep.created, "returned": rep.returned, "cost_fixes": rep.cost_fixes, "powers": powers_changed, "notes": notes,
+            "created": rep.created, "returned": rep.returned, "cost_fixes": rep.cost_fixes, "powers": powers_changed, "relics": relics_changed, "notes": notes,
         })
         .to_string())
     }

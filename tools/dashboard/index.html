@@ -35,6 +35,8 @@ img { image-rendering: auto; }
 #pots, #relics { display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
 .icon { width: 30px; height: 30px; object-fit: contain; vertical-align: middle; }
 .icon.sm { width: 22px; height: 22px; }
+.relicb { position: relative; display: inline-block; line-height: 0; }
+.relicb > b { position: absolute; right: -3px; bottom: -3px; min-width: 12px; padding: 0 2px; border-radius: 6px; background: #000c; color: var(--text); font-size: 9.5px; line-height: 12px; text-align: center; pointer-events: none; }
 .slot { width: 30px; height: 30px; border: 1px dashed var(--line); border-radius: 50%; display: inline-block; }
 .chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 9px; background: var(--panel2); border: 1px solid var(--line); font-size: 11.5px; white-space: nowrap; }
 #odds { color: var(--dim); font-size: 11.5px; margin-top: 3px; }
@@ -251,6 +253,15 @@ function iconHTML(kind, id, extra = "") {
   const t = e.title || titleCase(id);
   return e.img ? `<img class="icon ${extra}" src="${A(e.img)}" title="${esc(t + (e.desc ? ": " + e.desc : ""))}" alt="${esc(t)}">` : `<span class="chip" title="${esc(e.desc || "")}">${esc(t)}</span>`;
 }
+// a header relic icon with its live counter (the game's DisplayAmount) as a badge; saved properties (Pen Nib's AttacksPlayed ...) in the tooltip
+function relicBadgeHTML(r) {
+  const icon = iconHTML("relics", r.id, "sm");
+  const props = r.props ? Object.entries(r.props).map(([k, v]) => `${k} ${typeof v === "object" ? JSON.stringify(v) : v}`).join(", ") : "";
+  if (r.counter == null && !props) return icon;
+  const state = [r.counter != null ? `counter ${r.counter}` : "", props].filter(Boolean).join(", ");
+  const tipped = icon.replace(/title="/, `title="[${esc(state)}] `);  // the icon's own tooltip (title: description), state first
+  return `<span class="relicb">${tipped}${r.counter != null ? `<b>${esc(r.counter)}</b>` : ""}</span>`;
+}
 function powersHTML(list) {
   return `<div class="powers">${(list || []).map((p) => {
     const e = M.powers[p.id] || {}, t = powerTitle(p.id);
@@ -346,8 +357,8 @@ function currentScreen() {
 function knownRun() {  // relics / deck / potions: the live fight, else the latest fight start
   const f = S.live && S.live.fight, fs = lastOf("fight_start");
   const sc = (f && f.scenario) || (fs && fs.scenario) || null;
-  const relics = (f && f.state && f.state.relics) ? f.state.relics.map((r) => r.id) : sc ? sc.relics.map((r) => r.id) : [];
-  return { scenario: sc, relics, deck: sc ? sc.deck : [] };
+  const relicState = (f && f.state && f.state.relics) || (sc && sc.relics) || [];  // [{id, counter?, props?}]
+  return { scenario: sc, relics: relicState.map((r) => r.id), relicState, deck: sc ? sc.deck : [] };
 }
 function mapText() {
   let best = null, bt = 0;
@@ -370,7 +381,7 @@ function renderTop() {
   $("hpbar").querySelector("span").textContent = hp ? `${hp[0]} / ${hp[1]}` : "";
   $("gold").innerHTML = h ? `${M.ui.top_bar_gold ? `<img src="${A(M.ui.top_bar_gold)}">` : ""}<span class="gold">${h.gold}</span>` : "";
   $("pots").innerHTML = h ? h.pots.map((p) => p === "-" ? `<span class="slot" title="empty slot"></span>` : iconHTML("potions", M.potionByTitle[p.toLowerCase()] || p)).join("") : "";
-  $("relics").innerHTML = run.relics.map((r) => iconHTML("relics", r, "sm")).join("");
+  $("relics").innerHTML = run.relicState.map(relicBadgeHTML).join("");
   const odds = ((S.live && S.live.reply) || "").split("\n").find((l) => l.startsWith("public odds:"));
   $("odds").textContent = odds || "";
   $("odds").classList.toggle("hidden", !odds);

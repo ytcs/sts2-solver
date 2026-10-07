@@ -779,4 +779,13 @@ impl Relic {
             Slot::Flag(b) => self.set_flag(b, v != 0),
         }
     }
+    /// Puts one exported `[SavedProperty]` value (`name` = the C# property name, bools as 0/1) on its slot; `defs` is the relic's
+    /// `Listener::meta_props`. `false`: the relic models no property of that name. A fixed-literal property is accepted and ignored.
+    pub fn set_prop(&mut self, defs: &[PropDef], name: &str, v: i32) -> bool {
+        let Some(d) = defs.iter().find(|d| d.name == name) else { return false };
+        if d.lit.is_empty() {
+            self.set(d.slot, v);
+        }
+        true
+    }
 }
