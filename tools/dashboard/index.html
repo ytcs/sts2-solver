@@ -202,6 +202,8 @@ table.pt td.best { color: var(--good); font-weight: 600; }
 .qbar > i { display: block; height: 100%; background: #4d76a8; }
 .qrow.chosen .qbar > i { background: var(--good); }
 .act { margin: 4px 0 0; }
+.turnhd { font: 600 10px/1.2 "Segoe UI", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .09em; color: var(--faint); margin: 10px 0 2px; padding-top: 6px; border-top: 1px solid var(--line); }
+.turnhd:first-child { margin-top: 4px; border-top: none; padding-top: 0; }
 .act > summary { font-size: 12px; }
 .ev details > summary { color: var(--faint); font-size: 11.5px; margin-top: 6px; }
 .ev details[open] > summary { color: var(--dim); }
@@ -769,8 +771,14 @@ function renderBigMap() {  // the overlay: drawn when opened, and again only whe
 function closeMapPop() { const p = $("mappop"); p.classList.add("hidden"); $("bigmap").innerHTML = ""; }
 
 // ------------------------------------------------------------------ decision feed
+const ACT_CTX = { pots: {}, foes: [] };
+function foeNames(ids) {  // target index -> display name; "Kin Follower 1", "Kin Follower 2" when a name repeats
+  const titles = (ids || []).map((id) => creatureTitle(id)), seen = {};
+  const count = titles.reduce((m, t) => ((m[t] = (m[t] || 0) + 1), m), {});
+  return titles.map((t) => (count[t] > 1 ? `${t} ${(seen[t] = (seen[t] || 0) + 1)}` : t));
+}
 function prettyAction(t) {
-  return esc(String(t || "")).replace(/\b([A-Z][A-Z0-9_]{2,})\b/g, (m) => (M.cards[m] ? `<b>${esc(M.cards[m].title)}</b>` : M.potions[m] ? `<b>${esc(M.potions[m].title)}</b>` : m));
+  return esc(String(t || "")).replace(/ -&gt; e(\d+)\b/g, (m, n) => (ACT_CTX.foes[n] ? ` &rarr; <b>${esc(ACT_CTX.foes[n])}</b>` : m)).replace(/\bpotion (\d+)\b/g, (m, n) => { const id = ACT_CTX.pots[n]; return id ? `potion <b>${esc(M.potions[id] ? M.potions[id].title : titleCase(id))}</b>` : m; }).replace(/\b([A-Z][A-Z0-9_]{2,})\b/g, (m) => (M.cards[m] ? `<b>${esc(M.cards[m].title)}</b>` : M.potions[m] ? `<b>${esc(M.potions[m].title)}</b>` : m));
 }
 function qRows(options, chosenText) {
   const qs = options.map((o) => o.q).filter((q) => q != null);
@@ -906,8 +914,50 @@ function lossHist(q, hp0, lost) {
     <div class="quant" title="HP lost in the simulated fights: one bar per ${HIST_BIN} HP, height = share of the simulations${dead > 0.001 ? "; last bar = died" : ""}${lost != null ? "; red = where the real loss fell" : ""}">${bars}</div>
     <span class="qend" title="${hasDead ? `the last bar: died (all ${right} HP lost)` : `the plot ends at ${right} HP lost`}">${hpTxt(right)}</span></div>`;
 }
+// target names: `-> eN` indexes the enemies still in combat at that moment (the list shrinks as they die). New records carry them on each
+// action (`foes`); for older ones a saved fight export (runs/<id>/fights) has the enemies after every logged action (fetched once per fight)
+const FOES = {};  // fight id -> [enemy ids after n actions], null while asked / when there is none
+function foesAt(fightId, a, n) {
+  if (a.foes) return a.foes;
+  const lf = S.live && S.live.fight;
+  const st = FOES[fightId];
+  if (st && st.length) return st[Math.min(n, st.length - 1)] || [];
+  if (lf && lf.id === fightId && lf.state && lf.state.enemies) return lf.state.enemies.filter((x) => x.alive !== false).map((x) => x.id);
+  return [];
+}
+function wantFoes(s) {
+  if (!s || s.id == null || FOES[s.id] !== undefined) return;
+  FOES[s.id] = null;
+  fetch(`/api/fight?run=${encodeURIComponent(S.run)}&name=${encodeURIComponent(`${s.id}_${s.encounter}.json`)}&states=1`).then((r) => (r.ok ? r.json() : null)).then((j) => {
+    const sts = j && j.fight && j.fight.states;
+    if (!sts) return;
+    const keys = Object.keys(sts).map(Number).sort((x, y) => x - y), out = [];
+    for (const k of keys) out[k] = ((sts[k] || {}).enemies || []).filter((x) => x.alive !== false).sort((x, y) => (x.index ?? 0) - (y.index ?? 0)).map((x) => x.id);
+    for (let k = 0; k < out.length; k++) if (!out[k]) out[k] = out[k - 1] || [];
+    FOES[s.id] = out;
+    renderFeed();
+  }).catch(() => { /* no saved export: targets stay eN */ });
+}
+function actsByTurn(all, keep = 150, fightId = null) {  // turn numbers over the whole fight, the latest `keep` actions shown
+  let turn = 1, shown = null, n = 0, out = all.length > keep ? `<div class="faint small">(earlier actions not shown)</div>` : "";
+  const from = Math.max(0, all.length - keep);
+  all.forEach((a, i) => {
+    if ((a.kind === "potion_check" || a.kind === "potion_proposal") && a.turn) turn = +a.turn;
+    if (i >= from) {
+      if (turn !== shown) { out += `<div class="turnhd">turn ${turn}</div>`; shown = turn; }
+      ACT_CTX.foes = foeNames(foesAt(fightId, a, n));
+      out += actionHTML(a, i - from, all.length - from);
+    }
+    if (a.kind === "action" || a.kind === "macro") n++;
+    if (a.kind === "action" && /^end\b/.test(a.text || "")) turn++;
+  });
+  return out;
+}
 function fightHTML(it, latest) {
   const s = it.start, e = it.end, p = (s && s.predicted) || {};
+  ACT_CTX.pots = {};
+  if (s && !it.acts.some((a) => a.foes)) wantFoes(s);
+  (((s && s.scenario) || {}).potions || []).forEach((x, i) => { if (x && x.id) ACT_CTX.pots[x.slot ?? i] = x.id; });
   const enc = s ? s.encounter : "fight";
   const icon = M.encounters[enc] && M.encounters[enc].icon;
   const lost = e && e.hp && e.hp_start ? e.hp_start[0] - e.hp[0] : null;
@@ -921,7 +971,7 @@ function fightHTML(it, latest) {
       ${s && s.drive ? `<span class="faint" title="${esc(s.drive[0] + ": " + s.drive[1] + (s.budget != null ? `; search budget ${s.budget}s` : ""))}">${esc(s.drive[0])}</span>` : ""}</div>${quant}
     ${e && e.errors && e.errors.length ? `<div class="bad small">replay: ${esc(e.errors.join("; "))}</div>` : ""}
     ${det("fa" + (s ? s.t : e.t), `<span class="dim small">${acts.filter((a) => a.kind === "action").length} actions, ${acts.filter((a) => a.kind === "potion_proposal" || a.kind === "potion_check").length} potion checks</span>`,
-      `<div style="margin-left:6px">${acts.slice(-150).map((a, i, arr) => actionHTML(a, i, arr.length)).join("")}</div>`, latest && !e)}`;
+      `<div style="margin-left:6px">${actsByTurn(acts, 150, s ? s.id : e ? e.id : null)}</div>`, latest && !e)}`;
   return `<div class="ev fight">${evHead("fight", "", head, (s || e).t)}${body}</div>`;
 }
 function looseHTML(e) {
