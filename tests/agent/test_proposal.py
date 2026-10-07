@@ -257,3 +257,18 @@ def test_engine_worth_and_potions():
     eng.fs.seen.clear()
     d = eng.decide(sc, Sim(), budget=0.0, keep_potions={"BLOCK_POTION"})
     assert eng.fs.seen[0] == ([1], None) and d["text"] == "potion 0"  # BLOCK_POTION is the simulator's potion 1 (game slot 2)
+
+
+def test_commit_targeted_potion(monkeypatch, tmp_path):
+    """A potion with a target: `potion use` throws it at the target the proposal chose (on its own futures); with no proposal this turn it refuses."""
+    f = live_fight()
+    f["scenario"] = dict(f["scenario"], potions=[dict(id="FIRE_POTION", slot=0)])
+    f["state"] = dict(f["state"], potions=[dict(id="FIRE_POTION", slot=0)])
+    h, fake, eng = setup(monkeypatch, tmp_path, TIE, fight=f, screen_text=COMBAT.replace("Strength Potion", "Fire Potion"))
+    assert h.handle("potion use fire potion").startswith("ERR FIRE_POTION needs a target and no proposal priced one this turn")
+    ok(h.handle("potions"))
+    r = proposals(h)[-1]["rows"][0]
+    assert r["id"] == "FIRE_POTION" and r["text"].startswith("potion 0 -> e")
+    ok(h.handle("potion use fire potion"))
+    target = int(r["text"].rsplit("e", 1)[1])
+    assert [json.loads(x[3:]) for x in fake.actions()] == [{"use_potion": {"slot": 0, "target": target}}]
