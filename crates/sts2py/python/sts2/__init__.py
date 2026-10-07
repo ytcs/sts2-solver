@@ -56,6 +56,10 @@ class VecEnv:
         # pot_used: bit k = the potion in belt slot k before this step is gone after it (thrown, discarded, consumed), measured before an auto-reset
         return self.obs, self.mask, self.reward, self.done, {"outcome": self.outcome, "illegal": self.illegal, "pot_used": self.pot_used}
 
+    def set_turn_cap(self, cap):
+        """A fight still running after `cap` player turns ends as a loss, from the next step on (0 = no cap)."""
+        self._env.set_turn_cap(int(cap))
+
     def set_weights(self, w):
         """Pool sources (the default, not `round_robin`): episodes starting from now draw scenario i with probability w[i] / sum(w)."""
         self._env.set_weights(np.ascontiguousarray(w, np.float32))

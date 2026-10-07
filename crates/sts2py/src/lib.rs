@@ -68,6 +68,11 @@ impl BatchEnvPy {
         self.env.set_autoreset(on);
     }
 
+    /// The player-turn cap from the next step on (0 = none).
+    fn set_turn_cap(&mut self, cap: u32) {
+        self.env.set_turn_cap(cap);
+    }
+
     /// Sampling weights of the scenarios (pool sources only): episodes starting from now draw scenario i with probability w_i / sum w.
     fn set_weights(&mut self, w: PyReadonlyArray1<f32>) -> PyResult<()> {
         let w = w.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?;

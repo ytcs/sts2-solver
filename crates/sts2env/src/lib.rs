@@ -439,6 +439,11 @@ impl BatchEnv {
         self.slots.is_empty()
     }
 
+    /// The player-turn cap (a fight still running after it ends as a loss; 0 = none) from the next step on: a curriculum relaxes it stage by stage.
+    pub fn set_turn_cap(&mut self, cap: u32) {
+        self.reward_cfg.turn_cap = cap;
+    }
+
     /// Sampling weights of the source's scenarios for the episodes that start from now on (see `ScenarioSource::set_weights`).
     pub fn set_weights(&mut self, w: &[f32]) -> bool {
         self.source.set_weights(w)

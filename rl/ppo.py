@@ -114,6 +114,20 @@ def main():
     ap.add_argument("--adaptive", type=int, default=0, help="every N iterations reweight the training fights (M3): fights the policy wins 20-80 %% weigh 1, the "
                     "others --adaptive-floor; win estimated per fight, shrunk toward its (encounter, act, character) group")
     ap.add_argument("--adaptive-floor", type=float, default=0.3)
+    ap.add_argument("--curriculum", default="", help="comma list of difficulty edges, e.g. 0.1,0.3,0.5,0.7,0.9,1: stage 0 = fights with meta.stage == easy, stage k = "
+                    "certified fights (meta.cert.diff, tools/certify_fights.py) with difficulty up to edge k; every fight of the bands up to the stage weighs 1, the "
+                    "stage's own band --cur-boost (cumulative: the last stage is nearly uniform over the certified pool); a stage advances when its band's mean "
+                    "return (win + 0.5 x HP fraction / -1) stops improving (M3)")
+    ap.add_argument("--cur-boost", type=float, default=2.0)
+    ap.add_argument("--distill", default="", help="comma list of rl/distill.py files: search-played decisions mixed into every update (policy: cross-entropy to the "
+                    "search's preference over its options; outcome head: the fight's real ending)")
+    ap.add_argument("--distill-coef", type=float, default=1.0)
+    ap.add_argument("--distill-mb", type=int, default=1024, help="distillation rows per minibatch")
+    ap.add_argument("--cur-caps", default="", help="comma list: the player-turn cap of each stage (short fights first, relaxed later); default --turn-cap throughout")
+    ap.add_argument("--cur-window", type=int, default=25, help="iterations per plateau window")
+    ap.add_argument("--cur-min", type=int, default=50)
+    ap.add_argument("--cur-max", type=int, default=400)
+    ap.add_argument("--cur-eps", type=float, default=0.005, help="a window improving the stage's win by less than this ends the stage")
     ap.add_argument("--lr-floor", type=float, default=0.05, help="the lr decays linearly to this fraction of --lr")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", help="checkpoint to continue from (iteration count and lr schedule continue; --iters is the total)")
@@ -145,11 +159,36 @@ def main():
     print("params", n_params(net), "resuming at iteration", it0, flush=True)
     env, scen = make_env(a.train, a.envs, a.seed + 1000, a.max_steps, a.hp_bonus, a.turn_cap)
     adapt_rec = None
+    cur = None
+    env_cap = [a.turn_cap]
+    if a.curriculum:  # band of every fight: 0 = easy stage, k = difficulty in (edge k-1, edge k]
+        edges = [float(x) for x in a.curriculum.split(",")]
+        band = np.array([0 if s.get("meta", {}).get("stage") == "easy" else 1 + int(np.searchsorted(edges, s["meta"]["cert"]["diff"] - 1e-9)) for s in scen])
+        band = np.minimum(band, len(edges))
+        cur = dict(stage=0, since=0, wins=[], last=None, n_stages=len(edges) + 1, counts=np.bincount(band, minlength=len(edges) + 1).tolist())
+
+        def cur_weights(k):
+            return np.where(band == k, a.cur_boost, np.where(band < k, 1.0, 0.0))
+
+        for k in range(len(edges) + 1):  # sampling share of every band at every stage
+            w = cur_weights(k)
+            print(f"stage {k}: share by band", [round(float(w[band == b].sum() / w.sum()), 3) for b in range(len(edges) + 1)], flush=True)
+        caps = [int(x) for x in a.cur_caps.split(",")] if a.cur_caps else []
+        cap_of = lambda k: caps[min(k, len(caps) - 1)] if caps else a.turn_cap  # noqa: E731
+        env.set_weights(cur_weights(0))
+        env.set_turn_cap(cap_of(0))
+        env_cap[0] = cap_of(0)
+        print("curriculum bands", cur["counts"], "caps", [cap_of(k) for k in range(cur["n_stages"])], flush=True)
     if a.adaptive:  # per-fight and per-group win counts from the training episodes
         gkey = {}
         grp = np.array([gkey.setdefault((s.get("encounter"), s.get("act"), s.get("character")), len(gkey)) for s in scen])
         s_n, s_w = np.zeros(len(scen)), np.zeros(len(scen))
     # the outcome head alone first: its own optimizer, the rest of the network untouched
+    dist_d = None
+    if a.distill:
+        parts = [np.load(p) for p in a.distill.split(",")]
+        dist_d = {k: torch.from_numpy(np.concatenate([q[k] for q in parts])) for k in ("obs", "mask", "opts", "tgt", "cls")}
+        print("distillation rows", len(dist_d["cls"]), flush=True)
     prefixes = tuple(p for p in a.warm_prefix.split(",") if p)
     warm_params = [p for n, p in net.named_parameters() if n.startswith(prefixes)]
     opt_w = torch.optim.Adam(warm_params, lr=a.lr, eps=1e-5) if a.heads and a.head_warmup > 0 else None
@@ -269,6 +308,14 @@ def main():
                     draw_curves(np.nonzero(done)[0])
                     for i in np.nonzero(done)[0]:
                         ep_stats.append((int(oc[i]), float(ei["hp_lost"][i]), int(ei["length"][i])))
+                        if cur is not None and oc[i] in (1, -1, 2):
+                            cur["capped"] = cur.get("capped", [0, 0])
+                            cur["capped"][0] += 1
+                            cur["capped"][1] += oc[i] == -1 and ei["turns"][i] > env_cap[0]
+                            if band[int(ei["scenario"][i])] == cur["stage"]:
+                                cur["ep"] = cur.get("ep", [0, 0.0])
+                                cur["ep"][0] += 1
+                                cur["ep"][1] += (1.0 + 0.5 * float(ei["hp_end"][i])) if oc[i] == 1 else -1.0
                         if a.adaptive and oc[i] in (1, -1, 2):
                             si = int(ei["scenario"][i])
                             s_n[si] += 1
@@ -358,6 +405,20 @@ def main():
                 ent = -(p * logp.clamp(min=-30) * (fm[ix].to(DEV) > 0)).sum(1).mean()
                 o_ = opt_w if warm else opt
                 loss = a.vf * vl if warm else pl + a.vf * vl - a.ent * ent
+                if dist_d is not None and not warm:
+                    di = torch.randint(0, len(dist_d["cls"]), (a.distill_mb,))
+                    d_obs, d_mask = dist_d["obs"][di].float().to(DEV), dist_d["mask"][di].long().to(DEV)
+                    d_opts, d_tgt, d_cls = dist_d["opts"][di].long().to(DEV), dist_d["tgt"][di].to(DEV), dist_d["cls"][di].long().to(DEV)
+                    if a.heads:
+                        dlg, _, dol = net(d_obs, d_mask, outcome=True)[:3]
+                    else:
+                        dlg, _ = net(d_obs, d_mask)
+                    dlp = F.log_softmax(dlg.float(), 1).gather(1, d_opts.clamp(min=0))
+                    dpl = -(d_tgt * torch.where(d_opts >= 0, dlp, torch.zeros_like(dlp))).sum(1).mean()
+                    dvl = F.cross_entropy(dol.float()[d_cls >= 0], d_cls[d_cls >= 0]) if a.heads and (d_cls >= 0).any() else torch.zeros((), device=DEV)
+                    loss = loss + a.distill_coef * (dpl + a.vf * dvl)
+                    stats["dpl"] = stats.get("dpl", 0.0) + dpl.item()
+                    stats["dvl"] = stats.get("dvl", 0.0) + dvl.item()
                 if a.pot_head:
                     yt, ww = fptgt[ix].to(DEV), fpw[ix].to(DEV)
                     potl = (F.binary_cross_entropy_with_logits(pl_, yt, reduction="none") * ww).sum() / ww.sum().clamp(min=1)
@@ -380,6 +441,23 @@ def main():
         rec.update({k: round(v / nb, 4) for k, v in stats.items()})
         if adapt_rec:
             rec["adaptive"] = adapt_rec
+        if cur is not None and not warm:
+            cur["since"] += 1
+            rec["stage"] = cur["stage"]
+            if cur["since"] % a.cur_window == 0:
+                n, w_ = cur.pop("ep", [0, 0.0])
+                win = w_ / max(n, 1)  # the band's mean return
+                rec["stage_ret"] = round(win, 4)
+                cn, cc = cur.pop("capped", [0, 0])
+                rec["capped"] = round(cc / max(cn, 1), 4)
+                done_ = cur["last"] is not None and cur["since"] >= a.cur_min and win - cur["last"] < a.cur_eps
+                cur["last"] = win
+                if (done_ or cur["since"] >= a.cur_max) and cur["stage"] + 1 < cur["n_stages"]:
+                    cur.update(stage=cur["stage"] + 1, since=0, last=None)
+                    env.set_weights(cur_weights(cur["stage"]))
+                    env.set_turn_cap(cap_of(cur["stage"]))
+                    env_cap[0] = cap_of(cur["stage"])
+                    rec["stage_advance"] = cur["stage"]
         if ep_stats:
             e = np.array(ep_stats)
             wins = e[:, 0] == 1
