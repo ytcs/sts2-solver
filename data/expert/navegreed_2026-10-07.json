@@ -1,0 +1,1422 @@
+{
+ "meta": {
+  "player": "NaveGreed",
+  "video_url": "https://www.youtube.com/watch?v=rxMGDepYyy8",
+  "upload_date": "2026-10-07",
+  "title": "Most Underrated and Most Overrated | A10 Ironclad Run - Slay the Spire 2 (A/B title; also listed as 'Watch Before You Auto Pick Stoke!')",
+  "duration_s": 4420,
+  "build": "v0.111.0 (2026.08.14), read from the in-game HUD; matches our pinned build",
+  "mods": "HUD shows MODDED (3); mods not identified",
+  "seed": "3EC3BCK90DQX (read at 720p; 0/O and 8/B are uncertain)",
+  "character": "IRONCLAD",
+  "ascension": 10,
+  "result": "VICTORY on floor 49 at 47/95 HP",
+  "acts": [
+   "Underdocks",
+   "Hive",
+   "Glory"
+  ],
+  "video_notes": "An edited upload of a Twitch stream, from Neow to the victory screen, with some cuts inside fights. Macro decisions were read from frames every 2 s, the three fights from frames every 1 s.",
+  "conventions": "Ids follow data/catalog.json; a trailing + means upgraded; '?' marks an uncertain reading; t is the video timestamp (m:ss); options null means the reward screen was not captured."
+ },
+ "macro": [
+  {
+   "floor": 1,
+   "t": "0:20",
+   "kind": "ancient",
+   "ancient": "NEOW",
+   "options": [
+    "LAVA_ROCK",
+    "FISHING_ROD",
+    "DOWSING_ROD"
+   ],
+   "choice": "FISHING_ROD",
+   "hp": "64/80",
+   "gold": 99,
+   "note": "starting deck: 5 STRIKE_IRONCLAD, 4 DEFEND_IRONCLAD, BASH, ASCENDERS_BANE; relic BURNING_BLOOD"
+  },
+  {
+   "floor": 2,
+   "t": "0:44",
+   "kind": "monster",
+   "encounter": "CORPSE_SLUGS_WEAK",
+   "hp_after": "61/80",
+   "card_options": [
+    "SWORD_BOOMERANG",
+    "EVIL_EYE",
+    "TRUE_GRIT"
+   ],
+   "card_choice": "EVIL_EYE",
+   "fight_ref": "A"
+  },
+  {
+   "floor": 3,
+   "t": "1:28",
+   "kind": "monster",
+   "encounter": "SLUDGE_SPINNER_WEAK?",
+   "note": "single plant-like enemy, 47 HP",
+   "hp_after": "51/80",
+   "card_options": [
+    "TAUNT",
+    "DRUM_OF_BATTLE",
+    "ANGER"
+   ],
+   "card_choice": "ANGER",
+   "relic_trigger": "FISHING_ROD upgrades BASH"
+  },
+  {
+   "floor": 4,
+   "t": "2:04",
+   "kind": "monster",
+   "encounter": "TOADPOLES_WEAK?",
+   "note": "two fish, 12 and 26 HP; reward screen not captured, pick inferred from the deck view at 3:08",
+   "hp_after": "54/80",
+   "card_options": null,
+   "card_choice": "BLOOD_WALL"
+  },
+  {
+   "floor": 5,
+   "t": "2:40",
+   "kind": "shop",
+   "gold_before": 131,
+   "stock": {
+    "cards": {
+     "MOLTEN_FIST": 51,
+     "PERFECTED_STRIKE": 52,
+     "ARMAMENTS": 25,
+     "RAGE": 77,
+     "STAMPEDE": 74,
+     "IMPATIENCE": 83,
+     "ETERNAL_ARMOR": 173
+    },
+    "relics": [
+     "?(247)",
+     "?(164)",
+     "?(194)"
+    ],
+    "potions": [
+     "?(76)",
+     "SHIP_IN_A_BOTTLE(103)",
+     "?(49)"
+    ],
+    "removal": 100
+   },
+   "bought": [
+    "ARMAMENTS",
+    "SHIP_IN_A_BOTTLE"
+   ],
+   "gold_after": 13,
+   "note": "ARMAMENTS was on sale"
+  },
+  {
+   "floor": 6,
+   "t": "4:52",
+   "kind": "monster",
+   "encounter": "TWO_TAILED_RATS_NORMAL",
+   "hp_after": "50/80",
+   "card_options": [
+    "UPPERCUT",
+    "RAGE",
+    "BLOOD_WALL"
+   ],
+   "card_choice": "UPPERCUT",
+   "potion": "ATTACK_POTION"
+  },
+  {
+   "floor": 7,
+   "t": "6:04",
+   "kind": "elite",
+   "encounter": "SKULKING_COLONY_ELITE?",
+   "note": "single 80 HP enemy",
+   "hp_after": "44/80",
+   "relic": "ORICHALCUM",
+   "potion": "SWIFT_POTION",
+   "card_options": [
+    "BLOOD_WALL",
+    "SHRUG_IT_OFF",
+    "EXPECT_A_FIGHT"
+   ],
+   "card_choice": "SHRUG_IT_OFF"
+  },
+  {
+   "floor": 8,
+   "t": "7:28",
+   "kind": "monster",
+   "encounter": "?",
+   "note": "two enemies, 39 and 47 HP",
+   "hp_after": "31/80",
+   "card_options": [
+    "SHRUG_IT_OFF",
+    "BREAKTHROUGH",
+    "BULLY"
+   ],
+   "card_choice": "BREAKTHROUGH",
+   "potion": "ATTACK_POTION"
+  },
+  {
+   "floor": 9,
+   "t": "8:28",
+   "kind": "rest",
+   "choice": "smith",
+   "target": "UPPERCUT",
+   "hp": "31/80"
+  },
+  {
+   "floor": 10,
+   "t": "8:36",
+   "kind": "treasure",
+   "relic": "?"
+  },
+  {
+   "floor": 11,
+   "t": "8:44",
+   "kind": "elite",
+   "encounter": "PHANTASMAL_GARDENERS_ELITE?",
+   "note": "four enemies, 27-30 HP; one ATTACK_POTION used",
+   "hp_after": "27/80",
+   "relic": "ORNAMENTAL_FAN",
+   "card_options": [
+    "BLOODLETTING",
+    "PYRE",
+    "ARMAMENTS"
+   ],
+   "card_choice": "PYRE"
+  },
+  {
+   "floor": 12,
+   "t": "9:30",
+   "kind": "rest",
+   "choice": "rest",
+   "hp_before": "27/80",
+   "hp_after": "51/80"
+  },
+  {
+   "floor": 13,
+   "t": "9:48",
+   "kind": "monster",
+   "encounter": "?",
+   "note": "single 60 HP enemy with Artifact",
+   "card_options": [
+    "HEADBUTT",
+    "BREAKTHROUGH",
+    "TWIN_STRIKE"
+   ],
+   "card_choice": "HEADBUTT",
+   "relic_trigger": "FISHING_ROD upgrades a DEFEND_IRONCLAD"
+  },
+  {
+   "floor": 14,
+   "t": "10:12",
+   "kind": "elite",
+   "encounter": "TERROR_EEL_ELITE",
+   "hp_before": "56/80",
+   "hp_after": "48/80",
+   "relic": "BLOOD_VIAL",
+   "potion": "SKILL_POTION",
+   "card_options": [
+    "RAMPAGE?",
+    "POMMEL_STRIKE",
+    "BURNING_PACT"
+   ],
+   "card_choice": "BURNING_PACT",
+   "fight_ref": "B"
+  },
+  {
+   "floor": 15,
+   "t": "11:40",
+   "kind": "event",
+   "event": "WATERLOGGED_SCRIPTORIUM",
+   "options": [
+    "Bloody Ink (+6 max HP)",
+    "Tentacle Quill (55 gold: Steady on 1 card)",
+    "Prickly Sponge (99 gold: Steady on 2 cards)"
+   ],
+   "choice": "Prickly Sponge",
+   "targets": [
+    "ARMAMENTS",
+    "ANGER"
+   ],
+   "gold_before": 153,
+   "gold_after": 54
+  },
+  {
+   "floor": 16,
+   "t": "12:16",
+   "kind": "rest",
+   "choice": "smith",
+   "target": "ARMAMENTS",
+   "hp": "48/80"
+  },
+  {
+   "floor": 17,
+   "t": "12:24",
+   "kind": "boss",
+   "encounter": "LAGAVULIN_MATRIARCH_BOSS",
+   "hp_before": "48/80",
+   "hp_after": "24/80",
+   "gold_after": 129,
+   "potion": "STRENGTH_POTION",
+   "card_options": [
+    "PRIMAL_FORCE",
+    "MANGLE",
+    "FIEND_FIRE"
+   ],
+   "card_choice": "PRIMAL_FORCE",
+   "fight_ref": "C"
+  },
+  {
+   "floor": 17,
+   "t": "14:30",
+   "kind": "act_boundary",
+   "act": 1,
+   "hp": "24/80",
+   "gold": 129,
+   "deck": [
+    "STRIKE_IRONCLAD x4",
+    "DEFEND_IRONCLAD x3",
+    "DEFEND_IRONCLAD+",
+    "BASH+",
+    "ANGER+(Steady)",
+    "ARMAMENTS+(Steady)",
+    "BLOOD_WALL",
+    "SHRUG_IT_OFF",
+    "BREAKTHROUGH",
+    "UPPERCUT+",
+    "EVIL_EYE",
+    "PYRE",
+    "HEADBUTT",
+    "BURNING_PACT",
+    "PRIMAL_FORCE",
+    "ASCENDERS_BANE"
+   ],
+   "relics": [
+    "BURNING_BLOOD",
+    "FISHING_ROD",
+    "ORICHALCUM",
+    "?(F10 treasure)",
+    "ORNAMENTAL_FAN",
+    "BLOOD_VIAL"
+   ],
+   "path": "M M M $ E M R T E R M E ? R B (M monster, E elite, R rest, T treasure, $ shop, ? event, B boss)"
+  },
+  {
+   "floor": 18,
+   "t": "14:40",
+   "kind": "ancient",
+   "ancient": "PAEL",
+   "options": [
+    "PAELS_FLESH",
+    "PAELS_CLAW",
+    "PAELS_LEGION"
+   ],
+   "choice": "PAELS_LEGION",
+   "hp": "68/80",
+   "gold": 129,
+   "note": "choice from commentary ('Legion's very good') and the relic bar"
+  },
+  {
+   "floor": 19,
+   "t": "16:08",
+   "kind": "monster",
+   "encounter": "BOWLBUGS_WEAK?",
+   "note": "three bugs, 26-28 HP; options not captured",
+   "hp_after": "69/80",
+   "card_options": null,
+   "card_choice": "FLAME_BARRIER"
+  },
+  {
+   "floor": 20,
+   "t": "16:50",
+   "kind": "event",
+   "event": "FIELD_OF_MAN_SIZED_HOLES",
+   "options": [
+    "Resist (remove 2 cards, gain Normality)",
+    "Enter Your Hole (enchant Perfect Fit)"
+   ],
+   "choice": "ENTER_YOUR_HOLE",
+   "targets": [
+    "BURNING_PACT"
+   ]
+  },
+  {
+   "floor": 21,
+   "t": "17:20",
+   "kind": "monster",
+   "encounter": "THIEVING_HOPPER_WEAK",
+   "hp_after": "78/80?",
+   "note": "stole BURNING_PACT, returned on the kill"
+  },
+  {
+   "floor": 22,
+   "t": "18:24",
+   "kind": "monster",
+   "encounter": "OVICOPTER_NORMAL",
+   "hp_after": "68/80",
+   "card_options": [
+    "ANGER",
+    "ARMAMENTS",
+    "SECOND_WIND"
+   ],
+   "card_choice": "SECOND_WIND",
+   "potion": "FRUIT_JUICE",
+   "relic_trigger": "FISHING_ROD upgrades BREAKTHROUGH"
+  },
+  {
+   "floor": 23,
+   "t": "21:08",
+   "kind": "monster",
+   "encounter": "BOWLBUGS_NORMAL?",
+   "note": "four bugs, 23-30 HP",
+   "hp_after": "70/80",
+   "card_options": [
+    "CINDER+",
+    "STAMPEDE",
+    "CRUELTY+"
+   ],
+   "card_choice": "CRUELTY+"
+  },
+  {
+   "floor": 24,
+   "t": "22:20",
+   "kind": "rest",
+   "choice": "smith",
+   "target": "PYRE",
+   "hp": "70/80"
+  },
+  {
+   "floor": 25,
+   "t": "22:36",
+   "kind": "elite",
+   "encounter": "DECIMILLIPEDE_ELITE",
+   "hp_before": "72/80",
+   "hp_after": "40/80",
+   "relic": "GORGET?",
+   "potion": "?",
+   "card_options": [
+    "SECOND_WIND",
+    "MOLTEN_FIST",
+    "CINDER"
+   ],
+   "card_choice": "SKIP"
+  },
+  {
+   "floor": 26,
+   "t": "25:00",
+   "kind": "treasure",
+   "relic": "PETRIFIED_TOAD"
+  },
+  {
+   "floor": 27,
+   "t": "25:16",
+   "kind": "elite",
+   "encounter": "ENTOMANCER_ELITE?",
+   "note": "single 165 HP enemy",
+   "hp_after": "39/85",
+   "relic": "HORN_CLEAT",
+   "card_options": null,
+   "card_choice": "SKIP?"
+  },
+  {
+   "floor": 28,
+   "t": "27:00",
+   "kind": "monster",
+   "encounter": "?",
+   "note": "three enemies, 48/23/42 HP",
+   "hp_after": "46/85",
+   "card_options": [
+    "TRUE_GRIT",
+    "NOT_YET",
+    "HEADBUTT"
+   ],
+   "card_choice": "NOT_YET"
+  },
+  {
+   "floor": 29,
+   "t": "28:24",
+   "kind": "elite",
+   "encounter": "INFESTED_PRISMS_ELITE",
+   "hp_after": "46/85",
+   "relic": "SELF_FORMING_CLAY",
+   "card_options": [
+    "RAGE",
+    "SHRUG_IT_OFF",
+    "POMMEL_STRIKE"
+   ],
+   "card_choice": "POMMEL_STRIKE?",
+   "note": "hovered Skip, then a card flew into the deck"
+  },
+  {
+   "floor": 30,
+   "t": "30:36",
+   "kind": "event",
+   "event": "SELF_HELP_BOOK",
+   "options": [
+    "Read the Back (Attack: Sharp 2)",
+    "Random Passage (Skill: Nimble 2)",
+    "Entire Book (Power: Swift 2)"
+   ],
+   "choice": "Entire Book",
+   "targets": [
+    "CRUELTY+"
+   ]
+  },
+  {
+   "floor": 31,
+   "t": "30:48",
+   "kind": "elite",
+   "encounter": "DECIMILLIPEDE_ELITE?",
+   "hp_before": "48/85",
+   "hp_after": "22/85",
+   "relic": "RAINBOW_RING",
+   "card_options": [
+    "BLUDGEON",
+    "TWIN_STRIKE",
+    "SETUP_STRIKE"
+   ],
+   "card_choice": "SKIP"
+  },
+  {
+   "floor": 32,
+   "t": "36:16",
+   "kind": "rest",
+   "choice": "rest"
+  },
+  {
+   "floor": 33,
+   "t": "36:32",
+   "kind": "boss",
+   "encounter": "KAISER_CRAB_BOSS",
+   "hp_after": "39/85",
+   "gold_after": 410,
+   "card_options": [
+    "TEAR_ASUNDER",
+    "STOKE",
+    "ONE_TWO_PUNCH"
+   ],
+   "card_choice": "TEAR_ASUNDER",
+   "note": "the video's thesis: Stoke rejected because the deck's only energy source is Pyre, which Stoke can exhaust; Tear Asunder taken for the Queen"
+  },
+  {
+   "floor": 33,
+   "t": "39:30",
+   "kind": "act_boundary",
+   "act": 2,
+   "hp": "39/85",
+   "gold": 410,
+   "relics_added": [
+    "PAELS_LEGION",
+    "GORGET?",
+    "PETRIFIED_TOAD",
+    "HORN_CLEAT",
+    "SELF_FORMING_CLAY",
+    "RAINBOW_RING"
+   ],
+   "cards_added": [
+    "FLAME_BARRIER",
+    "SECOND_WIND",
+    "CRUELTY+(Swift 2)",
+    "NOT_YET",
+    "POMMEL_STRIKE?",
+    "TEAR_ASUNDER"
+   ],
+   "upgrades": [
+    "BREAKTHROUGH (rod)",
+    "PYRE (smith)"
+   ],
+   "path": "ancient M ? M M M R E T E M E ? E R B"
+  },
+  {
+   "floor": 34,
+   "t": "41:20",
+   "kind": "ancient",
+   "ancient": "TANX?",
+   "options": [
+    "IRON_CLUB",
+    "MEAT_CLEAVER",
+    "TRI_BOOMERANG"
+   ],
+   "choice": "TRI_BOOMERANG",
+   "targets": [
+    "BREAKTHROUGH+",
+    "UPPERCUT+",
+    "TEAR_ASUNDER"
+   ],
+   "hp": "77/85",
+   "gold": 410,
+   "note": "Instinct enchant on three attacks"
+  },
+  {
+   "floor": 35,
+   "t": "43:52",
+   "kind": "monster",
+   "encounter": "SCROLLS_OF_BITING_WEAK",
+   "relic_trigger": "FISHING_ROD upgrades BLOOD_WALL",
+   "card_options": null,
+   "card_choice": "?"
+  },
+  {
+   "floor": 36,
+   "t": "44:56",
+   "kind": "monster",
+   "encounter": "?",
+   "note": "two enemies, 65 and 51 HP",
+   "hp_after": "85/85",
+   "card_options": [
+    "BURNING_PACT",
+    "SETUP_STRIKE",
+    "BLOOD_WALL"
+   ],
+   "card_choice": "SKIP?"
+  },
+  {
+   "floor": 37,
+   "t": "45:40",
+   "kind": "shop",
+   "gold_before": 438,
+   "stock": {
+    "cards": {
+     "POMMEL_STRIKE": 52,
+     "SETUP_STRIKE": 50,
+     "RAGE": 39,
+     "SHRUG_IT_OFF": 49,
+     "JUGGLING": 74,
+     "FASTEN": 82,
+     "SCRAWL": 168
+    },
+    "relics": {
+     "CENTENNIAL_PUZZLE": 181,
+     "?a": 187,
+     "?b": 172
+    },
+    "potions": [
+     "?(74)",
+     "?(49)",
+     "ENERGY_POTION?(50)"
+    ],
+    "removal": 100
+   },
+   "bought": [
+    "CENTENNIAL_PUZZLE",
+    "FASTEN",
+    "removal (target ?)",
+    "ENERGY_POTION?"
+   ],
+   "gold_after": 25,
+   "note": "413 gold spent = 181 + 82 + 100 + 50"
+  },
+  {
+   "floor": 38,
+   "t": "47:56",
+   "kind": "event",
+   "event": "THE_FUTURE_OF_POTIONS",
+   "options": [
+    "Insert Common Potion: lose BLOCK_POTION, gain an upgraded common attack",
+    "Insert Common Potion: lose ENERGY_POTION, gain an upgraded common attack"
+   ],
+   "choice": "lose BLOCK_POTION",
+   "result": "?(upgraded common attack)"
+  },
+  {
+   "floor": 39,
+   "t": "48:16",
+   "kind": "monster",
+   "encounter": "FROG_KNIGHT_NORMAL",
+   "hp_after": "78/85?",
+   "card_options": null,
+   "card_choice": "?"
+  },
+  {
+   "floor": 40,
+   "t": "50:44",
+   "kind": "elite",
+   "encounter": "SOUL_NEXUS_ELITE",
+   "hp_before": "85/85",
+   "hp_after": "66/85",
+   "relic": "?"
+  },
+  {
+   "floor": 41,
+   "t": "52:40",
+   "kind": "treasure",
+   "relic": "?"
+  },
+  {
+   "floor": 42,
+   "t": "52:48",
+   "kind": "rest",
+   "choice": "smith",
+   "target": "BURNING_PACT"
+  },
+  {
+   "floor": 43,
+   "t": "52:56",
+   "kind": "elite",
+   "encounter": "KNIGHTS_ELITE",
+   "hp_after": "44/95",
+   "relic": "?"
+  },
+  {
+   "floor": 44,
+   "t": "57:12",
+   "kind": "monster",
+   "encounter": "GLOBE_HEAD_NORMAL?",
+   "hp_after": "52/95",
+   "relic_trigger": "FISHING_ROD upgrades POMMEL_STRIKE",
+   "potion": "BLOOD_POTION",
+   "card_choice": "SKIP?",
+   "note": "commentary: took the hallway path over a rest site because Blood Vial + Not Yet heal and fights give cards and potions"
+  },
+  {
+   "floor": 45,
+   "t": "59:44",
+   "kind": "monster",
+   "encounter": "OWL_MAGISTRATE_NORMAL",
+   "hp_after": "83/95?",
+   "card_options": null,
+   "card_choice": "RAGE"
+  },
+  {
+   "floor": 46,
+   "t": "61:16",
+   "kind": "elite",
+   "encounter": "MECHA_KNIGHT_ELITE",
+   "hp_after": "62/95",
+   "relic": "VAMBRACE",
+   "potion": "LUCKY_TONIC",
+   "card_options": [
+    "?",
+    "?",
+    "AGGRESSION"
+   ],
+   "card_choice": "AGGRESSION"
+  },
+  {
+   "floor": 47,
+   "t": "63:20",
+   "kind": "rest",
+   "choice": "rest",
+   "hp_max": 95
+  },
+  {
+   "floor": 48,
+   "t": "63:32",
+   "kind": "boss",
+   "encounter": "AEONGLASS_BOSS",
+   "hp_after": "85/95?",
+   "note": "a buffer potion was used, per commentary"
+  },
+  {
+   "floor": 49,
+   "t": "68:24",
+   "kind": "boss",
+   "encounter": "QUEEN_BOSS",
+   "note": "with Torch Head Amalgam; A10 second boss",
+   "hp_after": "47/95"
+  },
+  {
+   "floor": 49,
+   "t": "71:20",
+   "kind": "outcome",
+   "result": "VICTORY",
+   "hp": "47/95"
+  }
+ ],
+ "fights": [
+  {
+   "id": "A",
+   "floor": 2,
+   "encounter": "CORPSE_SLUGS_WEAK",
+   "t_start": "0:44",
+   "t_end": "1:11",
+   "detail": "partial: read from 2 s frames; some plays inferred from HP changes",
+   "start": {
+    "hp": "64/80",
+    "max_energy": 3,
+    "relics": [
+     "BURNING_BLOOD",
+     "FISHING_ROD"
+    ],
+    "potions": [],
+    "deck_size": 11,
+    "enemies": [
+     {
+      "name": "Corpse Slug",
+      "hp": 27
+     },
+     {
+      "name": "Corpse Slug",
+      "hp": 28
+     }
+    ]
+   },
+   "turns": [
+    {
+     "turn": 1,
+     "energy": 3,
+     "hand": [
+      "DEFEND_IRONCLAD",
+      "BASH",
+      "STRIKE_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "DEFEND_IRONCLAD"
+     ],
+     "intents": [
+      "slug1: debuff (Frail)",
+      "slug2: 3x2"
+     ],
+     "actions": [
+      "DEFEND_IRONCLAD",
+      "STRIKE_IRONCLAD -> slug1",
+      "STRIKE_IRONCLAD -> slug1",
+      "end"
+     ],
+     "after": "slug1 15/27; hp 63"
+    },
+    {
+     "turn": 2,
+     "energy": 3,
+     "hand": [
+      "DEFEND_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "DEFEND_IRONCLAD"
+     ],
+     "intents": [
+      "slug1: 3x2",
+      "slug2: 9"
+     ],
+     "actions": [
+      "STRIKE_IRONCLAD -> slug1",
+      "STRIKE_IRONCLAD -> slug1",
+      "STRIKE_IRONCLAD -> slug1 (dies)",
+      "end"
+     ],
+     "after": "slug2 eats the corpse (Ravenous); hp 63",
+     "note": "commentary afterwards: playing Bash in this fight would have saved about 13 HP"
+    },
+    {
+     "turn": 3,
+     "energy": 3,
+     "hand": [
+      "ASCENDERS_BANE",
+      "DEFEND_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "DEFEND_IRONCLAD",
+      "BASH"
+     ],
+     "intents": [
+      "slug2: 14?"
+     ],
+     "actions": [
+      "DEFEND_IRONCLAD",
+      "STRIKE_IRONCLAD -> slug2",
+      "DEFEND_IRONCLAD?",
+      "end"
+     ],
+     "after": "slug2 22/28; hp 55"
+    },
+    {
+     "turn": 4,
+     "energy": 3,
+     "hand": [
+      "STRIKE_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "DEFEND_IRONCLAD",
+      "DEFEND_IRONCLAD",
+      "STRIKE_IRONCLAD?"
+     ],
+     "intents": [
+      "slug2: debuff (Frail)"
+     ],
+     "actions": [
+      "STRIKE_IRONCLAD -> slug2",
+      "STRIKE_IRONCLAD -> slug2",
+      "STRIKE_IRONCLAD? -> slug2",
+      "end"
+     ],
+     "after": "slug2 4/28"
+    },
+    {
+     "turn": 5,
+     "energy": 3,
+     "hand": [
+      "?"
+     ],
+     "intents": [
+      "slug2: 8x2"
+     ],
+     "actions": [
+      "STRIKE_IRONCLAD -> slug2 (dies)"
+     ],
+     "after": "win; Burning Blood heals to 61/80"
+    }
+   ]
+  },
+  {
+   "id": "B",
+   "floor": 14,
+   "encounter": "TERROR_EEL_ELITE",
+   "t_start": "10:13",
+   "t_end": "11:21",
+   "detail": "full turn sequence from 1 fps frames; Headbutt's top-deck choice not readable",
+   "start": {
+    "hp": "56/80",
+    "max_energy": 3,
+    "relics": [
+     "BURNING_BLOOD",
+     "FISHING_ROD",
+     "ORICHALCUM",
+     "?(treasure)",
+     "ORNAMENTAL_FAN"
+    ],
+    "potions": [
+     "ATTACK_POTION?"
+    ],
+    "deck": [
+     "STRIKE_IRONCLAD x4",
+     "DEFEND_IRONCLAD x3",
+     "DEFEND_IRONCLAD+",
+     "BASH+",
+     "ANGER",
+     "ARMAMENTS",
+     "BLOOD_WALL",
+     "SHRUG_IT_OFF",
+     "BREAKTHROUGH",
+     "UPPERCUT+",
+     "EVIL_EYE",
+     "PYRE",
+     "HEADBUTT",
+     "ASCENDERS_BANE"
+    ],
+    "enemies": [
+     {
+      "name": "Terror Eel",
+      "hp": 150
+     }
+    ]
+   },
+   "turns": [
+    {
+     "turn": 1,
+     "energy": 3,
+     "hand": [
+      "ANGER",
+      "DEFEND_IRONCLAD",
+      "ARMAMENTS",
+      "DEFEND_IRONCLAD",
+      "STRIKE_IRONCLAD"
+     ],
+     "intents": [
+      "18"
+     ],
+     "actions": [
+      "ARMAMENTS (upgrades ANGER)",
+      "DEFEND_IRONCLAD",
+      "DEFEND_IRONCLAD",
+      "ANGER+ -> eel",
+      "end"
+     ],
+     "after": "eel 138; hp 53"
+    },
+    {
+     "turn": 2,
+     "energy": 3,
+     "hand": [
+      "UPPERCUT+",
+      "STRIKE_IRONCLAD",
+      "PYRE",
+      "ASCENDERS_BANE",
+      "BASH+"
+     ],
+     "intents": [
+      "4x3 + buff"
+     ],
+     "actions": [
+      "PYRE",
+      "STRIKE_IRONCLAD -> eel",
+      "end"
+     ],
+     "after": "eel 132, gains Vigor; Orichalcum 6 block; hp 47"
+    },
+    {
+     "turn": 3,
+     "energy": 4,
+     "hand": [
+      "BREAKTHROUGH",
+      "BLOOD_WALL",
+      "DEFEND_IRONCLAD",
+      "HEADBUTT",
+      "EVIL_EYE",
+      "(drew SHRUG_IT_OFF)"
+     ],
+     "intents": [
+      "24"
+     ],
+     "actions": [
+      "SHRUG_IT_OFF",
+      "BLOOD_WALL",
+      "HEADBUTT -> eel (top: ?)",
+      "end"
+     ],
+     "after": "eel 123; blocked all; hp 45"
+    },
+    {
+     "turn": 4,
+     "energy": 4,
+     "hand": [
+      "UPPERCUT+",
+      "STRIKE_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "DEFEND_IRONCLAD+",
+      "STRIKE_IRONCLAD"
+     ],
+     "intents": [
+      "4x3"
+     ],
+     "actions": [
+      "UPPERCUT+ -> eel",
+      "DEFEND_IRONCLAD+",
+      "STRIKE_IRONCLAD -> eel",
+      "end"
+     ],
+     "after": "eel 101; hp 44"
+    },
+    {
+     "turn": 5,
+     "energy": 4,
+     "hand": [
+      "ARMAMENTS",
+      "STRIKE_IRONCLAD",
+      "BLOOD_WALL",
+      "STRIKE_IRONCLAD",
+      "HEADBUTT"
+     ],
+     "intents": [
+      "18"
+     ],
+     "actions": [
+      "HEADBUTT -> eel (top: ?)",
+      "ARMAMENTS (upgrades BLOOD_WALL)",
+      "BLOOD_WALL+",
+      "end"
+     ],
+     "after": "eel 88; blocked all; hp 42"
+    },
+    {
+     "turn": 6,
+     "energy": 4,
+     "hand": [
+      "DEFEND_IRONCLAD+",
+      "STRIKE_IRONCLAD",
+      "DEFEND_IRONCLAD",
+      "SHRUG_IT_OFF?",
+      "EVIL_EYE",
+      "ANGER+"
+     ],
+     "intents": [
+      "4x3"
+     ],
+     "actions": [
+      "DEFEND_IRONCLAD+",
+      "ANGER+ -> eel",
+      "DEFEND_IRONCLAD?",
+      "end"
+     ],
+     "after": "eel 80; blocked all"
+    },
+    {
+     "turn": 7,
+     "energy": 4,
+     "hand": [
+      "BASH+",
+      "STRIKE_IRONCLAD",
+      "BREAKTHROUGH",
+      "UPPERCUT+",
+      "DEFEND_IRONCLAD"
+     ],
+     "intents": [
+      "24"
+     ],
+     "actions": [
+      "BASH+ -> eel",
+      "UPPERCUT+ -> eel",
+      "?",
+      "end"
+     ],
+     "after": "eel 51 (crossing 75 HP triggered its stun move?)"
+    },
+    {
+     "turn": 8,
+     "energy": 4,
+     "hand": [
+      "ANGER+",
+      "DEFEND_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "?"
+     ],
+     "intents": [
+      "debuff?"
+     ],
+     "actions": [
+      "ANGER+ -> eel",
+      "STRIKE_IRONCLAD -> eel",
+      "ANGER+ -> eel",
+      "end"
+     ],
+     "after": "eel 6"
+    },
+    {
+     "turn": 9,
+     "energy": 4,
+     "hand": [
+      "DEFEND_IRONCLAD",
+      "UPPERCUT+",
+      "?"
+     ],
+     "intents": [
+      "?"
+     ],
+     "actions": [
+      "UPPERCUT+ -> eel (dies)"
+     ],
+     "after": "win; hp 42 + 6 = 48/80"
+    }
+   ]
+  },
+  {
+   "id": "C",
+   "floor": 17,
+   "encounter": "LAGAVULIN_MATRIARCH_BOSS",
+   "t_start": "12:25",
+   "t_end": "14:27",
+   "detail": "full turn sequence from 1 fps frames (13 turns); exhaust and top-deck choices partly unreadable",
+   "start": {
+    "hp": "48/80 (50/80 after +2 at combat start)",
+    "max_energy": 3,
+    "relics": [
+     "BURNING_BLOOD",
+     "FISHING_ROD",
+     "ORICHALCUM",
+     "?(treasure)",
+     "ORNAMENTAL_FAN",
+     "BLOOD_VIAL"
+    ],
+    "potions": [
+     "ATTACK_POTION?",
+     "SKILL_POTION"
+    ],
+    "deck": [
+     "STRIKE_IRONCLAD x4",
+     "DEFEND_IRONCLAD x3",
+     "DEFEND_IRONCLAD+",
+     "BASH+",
+     "ANGER+(Steady)",
+     "ARMAMENTS+(Steady)",
+     "BLOOD_WALL",
+     "SHRUG_IT_OFF",
+     "BREAKTHROUGH",
+     "UPPERCUT+",
+     "EVIL_EYE",
+     "PYRE",
+     "HEADBUTT",
+     "BURNING_PACT",
+     "ASCENDERS_BANE"
+    ],
+    "enemies": [
+     {
+      "name": "Lagavulin Matriarch",
+      "hp": 233,
+      "powers": "Asleep, Plating 12"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "turn": 1,
+     "energy": 3,
+     "hand": [
+      "DEFEND_IRONCLAD",
+      "BASH+",
+      "BLOOD_WALL",
+      "BREAKTHROUGH",
+      "BURNING_PACT"
+     ],
+     "intents": [
+      "asleep"
+     ],
+     "actions": [
+      "BURNING_PACT (exhaust BREAKTHROUGH; draw UPPERCUT+, ASCENDERS_BANE)",
+      "DEFEND_IRONCLAD?",
+      "end"
+     ],
+     "after": "boss 233, Plating 12"
+    },
+    {
+     "turn": 2,
+     "energy": 3,
+     "hand": [
+      "SHRUG_IT_OFF",
+      "STRIKE_IRONCLAD",
+      "DEFEND_IRONCLAD",
+      "ANGER+",
+      "DEFEND_IRONCLAD"
+     ],
+     "intents": [
+      "asleep"
+     ],
+     "actions": [
+      "SHRUG_IT_OFF",
+      "end (ANGER+ retained)"
+     ],
+     "after": "hp 50"
+    },
+    {
+     "turn": 3,
+     "energy": 3,
+     "hand": [
+      "ANGER+",
+      "ARMAMENTS+",
+      "STRIKE_IRONCLAD",
+      "EVIL_EYE",
+      "STRIKE_IRONCLAD",
+      "HEADBUTT",
+      "STRIKE_IRONCLAD"
+     ],
+     "intents": [
+      "asleep (Plating 11)"
+     ],
+     "actions": [
+      "HEADBUTT -> boss (top: ?)",
+      "STRIKE_IRONCLAD -> boss",
+      "STRIKE_IRONCLAD -> boss (Ornamental Fan block)",
+      "end"
+     ],
+     "after": "boss wakes, stunned; 223/233"
+    },
+    {
+     "turn": 4,
+     "energy": 3,
+     "hand": [
+      "ANGER+",
+      "ARMAMENTS+",
+      "STRIKE_IRONCLAD",
+      "PYRE",
+      "DEFEND_IRONCLAD",
+      "STRIKE_IRONCLAD",
+      "BLOOD_WALL"
+     ],
+     "intents": [
+      "21"
+     ],
+     "actions": [
+      "ARMAMENTS+ (upgrades the hand)",
+      "PYRE",
+      "ANGER+ -> boss",
+      "end"
+     ],
+     "after": "boss 215; took 16; hp 34"
+    },
+    {
+     "turn": 5,
+     "energy": 5,
+     "hand": [
+      "SHRUG_IT_OFF",
+      "BASH+",
+      "DEFEND_IRONCLAD",
+      "EVIL_EYE",
+      "STRIKE_IRONCLAD",
+      "BURNING_PACT",
+      "ANGER+"
+     ],
+     "intents": [
+      "10x2"
+     ],
+     "actions": [
+      "SHRUG_IT_OFF",
+      "BURNING_PACT (exhaust ?; draw 2)",
+      "EVIL_EYE?",
+      "UPPERCUT+ -> boss",
+      "end"
+     ],
+     "after": "boss 202, Weak 2, Vulnerable 2; blocked all (24 block)"
+    },
+    {
+     "turn": 6,
+     "energy": 5,
+     "hand": [
+      "STRIKE_IRONCLAD",
+      "HEADBUTT",
+      "STRIKE_IRONCLAD",
+      "DEFEND_IRONCLAD",
+      "BASH+"
+     ],
+     "intents": [
+      "10 + block"
+     ],
+     "actions": [
+      "BASH+ -> boss",
+      "HEADBUTT -> boss (top: ?)",
+      "STRIKE_IRONCLAD -> boss",
+      "STRIKE_IRONCLAD? -> boss",
+      "end"
+     ],
+     "after": "boss 165; hp 33"
+    },
+    {
+     "turn": 7,
+     "energy": 5,
+     "hand": [
+      "DEFEND_IRONCLAD+",
+      "SHRUG_IT_OFF",
+      "STRIKE_IRONCLAD+",
+      "BASH+",
+      "ARMAMENTS+",
+      "EVIL_EYE"
+     ],
+     "intents": [
+      "debuff + buff (boss block 14)"
+     ],
+     "actions": [
+      "SHRUG_IT_OFF",
+      "BASH+ -> boss",
+      "STRIKE_IRONCLAD+ -> boss",
+      "end"
+     ],
+     "after": "boss 151; me -2 Str and -2 Dex, boss gains Str"
+    },
+    {
+     "turn": 8,
+     "energy": 5,
+     "hand": [
+      "UPPERCUT+",
+      "ARMAMENTS+",
+      "DEFEND_IRONCLAD",
+      "STRIKE_IRONCLAD+",
+      "BURNING_PACT",
+      "ANGER+"
+     ],
+     "intents": [
+      "23 (17 with Weak)"
+     ],
+     "actions": [
+      "UPPERCUT+ -> boss",
+      "ANGER+ -> boss",
+      "BURNING_PACT (exhaust ?; draw 2)",
+      "ANGER+ -> boss",
+      "DEFEND_IRONCLAD",
+      "end"
+     ],
+     "after": "boss 117; hp 29"
+    },
+    {
+     "turn": 9,
+     "energy": 5,
+     "hand": [
+      "BLOOD_WALL+",
+      "BURNING_PACT",
+      "DEFEND_IRONCLAD+",
+      "SHRUG_IT_OFF",
+      "ANGER+",
+      "?"
+     ],
+     "intents": [
+      "9x2"
+     ],
+     "actions": [
+      "BURNING_PACT (exhaust STRIKE_IRONCLAD; draw 2)",
+      "SHRUG_IT_OFF",
+      "ANGER+ -> boss",
+      "ANGER+ -> boss",
+      "ANGER+ -> boss",
+      "BLOOD_WALL+",
+      "end"
+     ],
+     "after": "boss 90; blocked all; hp 27"
+    },
+    {
+     "turn": 10,
+     "energy": 5,
+     "hand": [
+      "HEADBUTT",
+      "DEFEND_IRONCLAD+",
+      "STRIKE_IRONCLAD+",
+      "STRIKE_IRONCLAD+",
+      "EVIL_EYE"
+     ],
+     "intents": [
+      "16 + block"
+     ],
+     "actions": [
+      "HEADBUTT -> boss (top: ?)",
+      "STRIKE_IRONCLAD+ -> boss",
+      "EVIL_EYE",
+      "STRIKE_IRONCLAD+ -> boss",
+      "end"
+     ],
+     "after": "boss 60; blocked all"
+    },
+    {
+     "turn": 11,
+     "energy": 5,
+     "hand": [
+      "BURNING_PACT",
+      "ANGER+",
+      "DEFEND_IRONCLAD",
+      "BASH+",
+      "UPPERCUT+"
+     ],
+     "intents": [
+      "debuff + buff (boss block 14)"
+     ],
+     "actions": [
+      "BURNING_PACT (exhaust DEFEND_IRONCLAD; draw STRIKE_IRONCLAD, ARMAMENTS+)",
+      "BASH+? -> boss",
+      "UPPERCUT+ -> boss",
+      "end"
+     ],
+     "after": "boss 46; me -4 Str and -4 Dex"
+    },
+    {
+     "turn": 12,
+     "energy": 5,
+     "hand": [
+      "ANGER+ x4",
+      "ARMAMENTS+",
+      "BURNING_PACT",
+      "STRIKE_IRONCLAD",
+      "STRIKE_IRONCLAD+"
+     ],
+     "intents": [
+      "18"
+     ],
+     "actions": [
+      "BURNING_PACT (exhaust STRIKE_IRONCLAD; draw 2)",
+      "ANGER+ -> boss (x5)",
+      "end"
+     ],
+     "after": "boss 9; took 9; hp 18"
+    },
+    {
+     "turn": 13,
+     "energy": 5,
+     "hand": [
+      "ANGER+ x2",
+      "STRIKE_IRONCLAD+",
+      "DEFEND_IRONCLAD+",
+      "EVIL_EYE"
+     ],
+     "intents": [
+      "14x2"
+     ],
+     "actions": [
+      "ANGER+ -> boss",
+      "ANGER+ -> boss (dies)"
+     ],
+     "after": "win; Burning Blood heals to 24/80; no potion used in the fight"
+    }
+   ]
+  }
+ ]
+}
