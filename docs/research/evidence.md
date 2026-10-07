@@ -101,7 +101,7 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 - **What loops (answered):** a real-game soft-lock, not a simulator bug and not a combo: Pillage + Hellraiser + Velvet Choker.
   - **Method:** a scratch build that dumps the state before any step that trips `ov::LOOP` and replays it with a trace of every card play and hook call. Run in a separate package directory; the shared venv was not touched.
   - **Reproduction:** on the current build the exact job seed no longer trips (0 trips in 1, 8 and 64 copies). Other seeds of the same scenario do: 12 trips over 64 seeds at 5x32. All 12 are the same cycle: Pillage in the play pile, the Choker at 6, Hellraiser on, the work budget exhausted at nesting depth 0.
-  - **The state:** turn 5-6 at 2-4 HP. Infernal Blade made a Pillage, and it is played while Hellraiser's power is on. Everything else is exhausted or in hand, so the draw and discard piles hold only Strike-tagged cards (Strike, Setup Strike).
+  - **The state:** turn 5-6 at 2-4 HP. A Pillage created in combat (the deck has none; Infernal Blade and two Entropy are present) is played while Hellraiser's power is on. Everything else is exhausted or in hand, so the draw and discard piles hold only Strike-tagged cards (Strike, Setup Strike).
   - **The cycle:**
     - Pillage draws until it draws a non-Attack.
     - Hellraiser auto-plays each drawn Strike, which Velvet Choker counts.
