@@ -206,10 +206,10 @@ def score_net(ck):
         print("        " + "  ".join(f"{k} {np.mean([np.sign(dwo[i]) == np.sign(ref_u[i]) for i in range(len(rows)) if rows[i]['kind'] == k and big_u[i]]):.2f}" for k in kinds))
 
 
-def play(ck):
+def play(ck, roots=None):
     """A network as the search's policy and evaluator at live width on the frozen sets, on the labels' seeds: win and end HP paired with the labels."""
     from solver import Solver
-    S = Solver(ck, M=5, K=32, value_ckpts=[])
+    S = Solver(ck, M=5, K=32, value_ckpts=[], roots=roots)
     print(f"\n== play {os.path.basename(ck)} (search 5x32 vs the labels' h128 5x32, same seeds)")
     for name in SETS:
         path = os.path.join(OUT, name + ".json")
@@ -229,12 +229,13 @@ def main():
     b = sub.add_parser("build"); b.add_argument("--force", action="store_true"); b.add_argument("--pairs", type=int, default=300)
     s = sub.add_parser("score"); s.add_argument("ckpts", nargs="+")
     pl = sub.add_parser("play"); pl.add_argument("ckpts", nargs="+")
+    pl.add_argument("--roots", type=int, default=None, help="fights in flight (default 2048 on CUDA); fewer = less host and GPU memory")
     a = ap.parse_args()
     if a.cmd == "build":
         build(a)
     elif a.cmd == "play":
         for ck in a.ckpts:
-            play(ck)
+            play(ck, a.roots)
     else:
         for ck in a.ckpts:
             score_net(ck)
