@@ -1260,7 +1260,7 @@
      }
     }
    ],
-   "note": "take any number of 15 cards (5 per rarity) of one other character's pool; modelled as the best 1 of each rarity"
+   "note": "take any number of 15 cards (5 per rarity) of one other character's pool; modelled as 1 of each rarity (which one is the caller's pick)"
   },
   "SERE_TALON": {
    "title": "Sere Talon",
