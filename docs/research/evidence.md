@@ -196,3 +196,16 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - 63% of bench eval (376 of 600) and 61% of bench mix (368 of 600).
 - Now flagged in data/catalog.json (`scripts/flag_multiplayer_cards.py`) and excluded everywhere. Training skips fights holding one.
 - E1-E10 were measured on data that includes them. Paired comparisons within that data remain valid. Absolute levels are not representative of single-player states, so the benchmark is to be regenerated without these cards.
+
+## E12. The predictor's resolution, not its calibration, is the weak point
+- **Method:** r2's Brier on the v1 bench sets (E7) against the noise floor a perfect predictor would hit against 8-attempt labels (mean of p(1-p)/(n-1)).
+
+| set | Brier | floor | excess | per-fight error |
+|---|---|---|---|---|
+| eval | 0.0289 | 0.0059 | 0.0230 | ~0.15 |
+| corpus | 0.0168 | 0.0022 | 0.0146 | ~0.12 |
+| mix | 0.0277 | 0.0072 | 0.0205 | ~0.14 |
+| tail | 0.0341 | 0.0111 | 0.0230 | ~0.15 |
+
+- **What this shows:** calibrated on average (bias within 0.011), but the win estimate of a typical fight is off by 0.12-0.15. The search uses the same network to judge every leaf, which fits E8 (a bigger search with the same judge finds no more wins). Network judgment is the bottleneck to attack: capacity, PPO on hard fights, lower-variance value targets.
+- **Next diagnostics:** headroom (a search on the true future, as an upper bound) and whether the search's candidates miss the best action on tail states.
