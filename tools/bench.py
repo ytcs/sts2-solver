@@ -252,7 +252,7 @@ def _greedy(net, scen, per_env, seed):
     return out
 
 
-def screen(cks, per_env=8, seed=5):
+def screen(cks, per_env=4, seed=5):
     """Greedy win per set for each checkpoint, paired with the first (same env seeds), plus the fight-start predictor's bias and Brier."""
     from model import load
     sets = {n: json.load(open(os.path.join(OUT, n + ".json"))) for n in SETS if os.path.exists(os.path.join(OUT, n + ".json"))}
@@ -306,7 +306,7 @@ def main():
     s = sub.add_parser("score"); s.add_argument("ckpts", nargs="+")
     pl = sub.add_parser("play"); pl.add_argument("ckpts", nargs="+")
     sc = sub.add_parser("screen"); sc.add_argument("ckpts", nargs="+", help="the first is the base the others are paired with")
-    sc.add_argument("--per-env", type=int, default=8)
+    sc.add_argument("--per-env", type=int, default=4)
     pl.add_argument("--roots", type=int, default=None, help="fights in flight (default 2048 on CUDA); fewer = less host and GPU memory")
     a = ap.parse_args()
     if a.cmd == "build":
