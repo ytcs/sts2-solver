@@ -888,14 +888,15 @@ impl Combat {
         let t1 = unsafe { core::arch::x86_64::_rdtsc() };
         let rows = if !cached { self.look_rows(c, false) } else { LOOK_CACHE.with(|t| {
             let mut t = t.borrow_mut();
-            let slot = (key as usize) & (LOOK_CACHE_SLOTS - 1);
-            if let Some((k, r)) = &t[slot] {
-                if *k == key {
-                    return *r;
-                }
+            #[cfg(feature = "obs_prof")]
+            unsafe { crate::observe::OBS_PROF[12] += 1; }
+            if let Some(r) = t.get(key) {
+                return r;
             }
+            #[cfg(feature = "obs_prof")]
+            unsafe { crate::observe::OBS_PROF[13] += 1; }
             let r = self.look_rows(c, true);
-            t[slot] = Some((key, r));
+            t.put(key, r);
             r
         }) };
         #[cfg(feature = "obs_prof")]
@@ -1115,10 +1116,74 @@ fn look_rng() -> &'static RngSet {
     R.get_or_init(|| RngSet::from_run_seed(LOOK_SEED))
 }
 
-const LOOK_CACHE_SLOTS: usize = 1024;
+/// Entries of a look-ahead cache (`LOOK_WAYS`-way set associative, the least recently used entry of a set is replaced; ~290 B each): the
+/// thread's own (`LOOK_CACHE`), or one installed for a while with [`with_look_cache`] (the search gives each root its own: a root's
+/// play-outs repeat each other's states, and the thread pool hands a root to any thread). The direct-mapped 1,024-entry thread cache of
+/// before missed 60% of the lookups of a 5x32 search where a cache per root misses 36% (34% of the lookups are keys never seen before).
+pub const LOOK_CACHE_ENTRIES: usize = 1024;
+const LOOK_WAYS: usize = 8;
+
+/// `look_rows` by `look_key`: per set the keys and their last use (0 = empty), then the rows.
+pub struct LookCache {
+    keys: Vec<[u64; LOOK_WAYS]>,
+    used: Vec<[u32; LOOK_WAYS]>,
+    rows: Vec<[LookRow; LOOK_H]>,
+    clock: u32,
+}
+
+impl LookCache {
+    /// `entries`: a power of two, at least `LOOK_WAYS`.
+    pub fn new(entries: usize) -> LookCache {
+        assert!(entries.is_power_of_two() && entries >= LOOK_WAYS, "look-ahead cache entries must be a power of two >= {LOOK_WAYS}");
+        let sets = entries / LOOK_WAYS;
+        LookCache { keys: vec![[0; LOOK_WAYS]; sets], used: vec![[0; LOOK_WAYS]; sets], rows: vec![[EMPTY_ROW; LOOK_H]; entries], clock: 0 }
+    }
+
+    #[inline]
+    fn tick(&mut self) -> u32 {
+        if self.clock == u32::MAX {
+            // after 4 billion uses: start over (every entry empty)
+            self.used.iter_mut().for_each(|u| *u = [0; LOOK_WAYS]);
+            self.clock = 0;
+        }
+        self.clock += 1;
+        self.clock
+    }
+
+    #[inline]
+    fn get(&mut self, key: u64) -> Option<[LookRow; LOOK_H]> {
+        let set = (key as usize) & (self.keys.len() - 1);
+        let w = (0..LOOK_WAYS).find(|&w| self.keys[set][w] == key && self.used[set][w] != 0)?;
+        self.used[set][w] = self.tick();
+        Some(self.rows[set * LOOK_WAYS + w])
+    }
+
+    fn put(&mut self, key: u64, r: [LookRow; LOOK_H]) {
+        let set = (key as usize) & (self.keys.len() - 1);
+        let w = (0..LOOK_WAYS).min_by_key(|&w| self.used[set][w]).unwrap_or(0);
+        self.keys[set][w] = key;
+        self.used[set][w] = self.tick();
+        self.rows[set * LOOK_WAYS + w] = r;
+    }
+}
+
+/// Runs `f` with `cache` as this thread's look-ahead cache (the thread's own comes back afterwards, also when `f` unwinds). The cache only
+/// saves work: what `lookahead` returns does not depend on which cache is installed.
+pub fn with_look_cache<R>(cache: &mut Box<LookCache>, f: impl FnOnce() -> R) -> R {
+    struct Restore<'a>(&'a mut Box<LookCache>);
+    impl Drop for Restore<'_> {
+        fn drop(&mut self) {
+            LOOK_CACHE.with(|t| std::mem::swap(&mut *t.borrow_mut(), self.0));
+        }
+    }
+    LOOK_CACHE.with(|t| std::mem::swap(&mut *t.borrow_mut(), cache));
+    let _restore = Restore(cache);
+    f()
+}
+
 thread_local! {
-    /// Direct-mapped cache of `look_rows` by `look_key` (a search simulates many copies of the same enemies).
-    static LOOK_CACHE: std::cell::RefCell<Vec<Option<(u64, [LookRow; LOOK_H])>>> = std::cell::RefCell::new(vec![None; LOOK_CACHE_SLOTS]);
+    /// `look_rows` by `look_key` (a search simulates many copies of the same enemies), allocated on a thread's first look-ahead.
+    static LOOK_CACHE: std::cell::RefCell<Box<LookCache>> = std::cell::RefCell::new(Box::new(LookCache::new(LOOK_CACHE_ENTRIES)));
     /// The last `look_mode` result, by `look_key(NO)` (the enemies of one combat are looked at one after the other).
     static LOOK_MODE: std::cell::RefCell<Option<(u64, [[LookRow; LOOK_H]; MAX_CREATURES], u16)>> = const { std::cell::RefCell::new(None) };
 }

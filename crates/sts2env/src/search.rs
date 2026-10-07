@@ -15,7 +15,7 @@
 
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use sts2sim::engine::{ActionBuf, ACTION_SPACE};
+use sts2sim::engine::{with_look_cache, ActionBuf, LookCache, ACTION_SPACE, LOOK_CACHE_ENTRIES};
 use sts2sim::observe::OBS_SIZE;
 use sts2sim::state::{RngSet, Stage};
 use sts2sim::types::Outcome;
@@ -564,6 +564,8 @@ struct Block {
     todo: Vec<(usize, SimSt)>,
     log: Vec<MoveRec>,
     stats: SearchStats,
+    /// this root's look-ahead cache, installed while the root advances (`sts2sim::engine::with_look_cache`)
+    look: Option<Box<LookCache>>,
 }
 
 struct SendPtr<T>(*mut T);
@@ -942,6 +944,7 @@ impl Block {
             todo: Vec::new(),
             log: Vec::new(),
             stats: SearchStats::default(),
+            look: Some(Box::new(LookCache::new(LOOK_CACHE_ENTRIES))),
         })
     }
 
@@ -1836,10 +1839,16 @@ impl SearchEngine {
         let blocks = &mut self.blocks;
         self.pool.install(|| {
             blocks.par_iter_mut().for_each(|b| {
-                // a simulator bug in one fight must not take the whole batch down: abort that fight (reported on stderr) and go on with the next job
-                if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| b.advance(inp.as_ref(), &sh, &out))).is_err() {
-                    b.recover(&sh, &out);
-                }
+                // the root's own look-ahead cache: its play-outs repeat each other's enemy states, whichever thread runs it (a thread's cache
+                // shared by the roots it happens to run missed 1.3x as often at 8 threads)
+                let mut look = b.look.take().expect("the root's look-ahead cache");
+                with_look_cache(&mut look, || {
+                    // a simulator bug in one fight must not take the whole batch down: abort that fight (reported on stderr) and go on with the next job
+                    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| b.advance(inp.as_ref(), &sh, &out))).is_err() {
+                        b.recover(&sh, &out);
+                    }
+                });
+                b.look = Some(look);
             });
         });
         self.next_job = sh.next_job.load(Ordering::Relaxed).min(self.jobs.len());
