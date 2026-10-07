@@ -6,7 +6,7 @@
   tools/bench.py play CKPT             # the network as the search's policy: win and end HP paired with the labels (same seeds)
 
 Sets (`data/bench/<set>.json`: scenarios plus per-attempt labels):
-  eval    the first 600 fights of data/train/eval.json (5 characters, 3 acts, generated decks)
+  eval    600 generated fights (tools/gen_train.py seed 122: 5 characters, 3 acts)
   corpus  real-run fights (data/corpus/fights_holdout.json)
   mix     cross-character cards, ancient relics, belts up to 8 (tools/gen_curriculum.py, held-out seed)
   tail    late game: Act 3 (act index 2) elites and bosses with decks of 28+ cards (tools/gen_curriculum.py, held-out seed)
@@ -48,17 +48,38 @@ def _curriculum(n, seed):
     return json.load(open(out))
 
 
+def _cid(c):
+    return c if isinstance(c, str) else c["id"]
+
+
 def _deck_ids(sc):
     return [c if isinstance(c, str) else c["id"] for c in sc["deck"]]
 
 
+def _multiplayer_only():
+    cat = _load("data/catalog.json")
+    return {c["id"] for pool in cat["cards"].values() for c in pool if c.get("multiplayer_only")}
+
+
+def _gen_train(n, seed):
+    import subprocess
+    out = os.path.join(ROOT, "target", "bench", f"train_{seed}.json")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if not os.path.exists(out):
+        subprocess.run([sys.executable, os.path.join(ROOT, "tools", "gen_train.py"), "--n", str(n), "--seed", str(seed), "--out", out], check=True)
+    return json.load(open(out))
+
+
 def scenarios(rng):
-    """The frozen scenario sets (deterministic given the seeds)."""
-    s = {"eval": _load("data/train/eval.json")[:600], "corpus": _load("data/corpus/fights_holdout.json")}
-    mix = _curriculum(4000, 41)
+    """The frozen scenario sets (deterministic given the seeds). v2 (2026-10-07): no multiplayer-only card anywhere (single-player runs never
+    offer them; v1 had them in ~62% of fights, E11)."""
+    mp = _multiplayer_only()
+    clean = lambda xs: [x for x in xs if not any(_cid(c) in mp for c in x["deck"])]  # noqa: E731
+    s = {"eval": clean(_gen_train(800, 122))[:600], "corpus": clean(_load("data/corpus/fights_holdout.json"))}
+    mix = clean(_curriculum(4000, 141))
     rng.shuffle(mix)
     s["mix"] = mix[:600]
-    tail = [x for x in _curriculum(20000, 43) if x["act"] == 2 and len(x["deck"]) >= 28 and x["encounter"].endswith(("_ELITE", "_BOSS"))]
+    tail = [x for x in clean(_curriculum(20000, 143)) if x["act"] == 2 and len(x["deck"]) >= 28 and x["encounter"].endswith(("_ELITE", "_BOSS"))]
     s["tail"] = tail[:400]
     return s
 
@@ -71,7 +92,7 @@ def pairs(base, rng):
         kind = rng.choice(["add", "remove", "upgrade", "potion"] if sc.get("potions") else ["add", "remove", "upgrade"])
         v = json.loads(json.dumps(sc))
         if kind == "add":
-            pool = [c["id"] for c in cat.get(sc["character"], []) if c["rarity"] in ("Common", "Uncommon", "Rare")]
+            pool = [c["id"] for c in cat.get(sc["character"], []) if c["rarity"] in ("Common", "Uncommon", "Rare") and not c.get("multiplayer_only")]
             v["deck"].append(rng.choice(pool))
         elif kind == "remove":
             ok = [i for i, c in enumerate(_deck_ids(sc)) if c not in ("ASCENDERS_BANE",)]
