@@ -37,6 +37,7 @@ pub mod ov {
     pub const SCENARIO: u16 = 1 << 5;
     /// Runaway-work safeguard: one `step` (or one look-ahead turn) exceeded [`WORK_LIMIT`], [`HOOK_DEPTH_LIMIT`] or
     /// [`TURN_LIMIT`] (an infinite trigger chain). The step was cut short: the combat is only safe to drop (see `Combat::trip_loop`).
+    /// Unlike the capacity bits, the env and the search score it as a loss (`sts2env::looped`: the real game soft-locks there).
     pub const LOOP: u16 = 1 << 6;
 }
 

@@ -121,10 +121,15 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
     - with the Choker, the step trips;
     - with the Choker closing mid-chain, exactly 6 Strikes land and then it trips;
     - without the Choker, the same chain is a finite combo that wins the fight with no trip.
-  - **Implication (scoring, not yet changed):**
-    - `search.rs` `terminal` reports any overflow as `OUTCOME_OVERFLOW` with score 0. At 2 HP a soft-lock line (0) beats a likely loss (-1 linear, or `u[0]`), so the search is paid for finding it.
-    - In the real game, playing into it freezes the fight. `ov::LOOP` should score as a loss, in search and in `BatchEnv` rewards. Capacity overflows stay neutral.
-    - Cost: a guard false positive would then be scored as a loss, so the limits must stay far above every finite chain (corpus max 174 work units vs 20,000).
+  - **Implication (scoring):**
+    - Before: `search.rs` `terminal` reported any overflow as `OUTCOME_OVERFLOW` with score 0. At 2 HP a soft-lock line (0) beat a likely loss (-1 linear, or `u[0]`), so the search was paid for finding it.
+    - Changed: in the real game, playing into it freezes the fight, so `ov::LOOP` now scores as a loss (`sts2env::looped`):
+      - search play-outs get the loss value (-1 linear, `u[0]` with a worth table) and the search avoids the line (`crates/sts2env/tests/loop_loss.rs`);
+      - a real fight ending this way is recorded as `OUTCOME_LOSS`;
+      - `BatchEnv` episodes end as `OUTCOME_LOSS` with the loss reward;
+      - counters: `BatchEnv::loops`, and the search stats `end_loop` / `fight_loops`;
+      - capacity overflows stay neutral.
+    - Cost: a guard false positive is now scored as a loss, so the limits must stay far above every finite chain (corpus max 174 work units vs 20,000).
 
 ## E7. Round 2 (r2, from r1)
 - **Data:** about 157k search-played fights (r1's 88.6k at 3x8, plus 64.5k at the live 5x32 and 4k from the bisection), ~4.2M decisions; new look-ahead observations (S1).

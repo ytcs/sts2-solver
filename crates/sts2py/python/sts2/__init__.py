@@ -7,7 +7,9 @@
 
 `info["outcome"]` (valid where `done`): OUTCOME_WIN 1, OUTCOME_LOSS -1, OUTCOME_TRUNCATED 2 (max_steps), OUTCOME_UNIMPLEMENTED 3
 (content not ported), OUTCOME_OVERFLOW 4 (a fixed simulator capacity was exceeded, data dropped). Codes 2-4 end the episode with
-reward 0: treat them as truncations, not as a win or a loss.
+reward 0: treat them as truncations, not as a win or a loss. A step the loop guard cut short (a trigger chain that never ends: a
+fight the real game soft-locks on, e.g. Pillage + Hellraiser + Velvet Choker) is OUTCOME_LOSS with the loss reward, in the env and in
+the search; `VecEnv.loops()` and the search stats (`end_loop` play-outs, `fight_loops` real fights) count them.
 
 With `round_robin=True` env `i` always plays `scenarios[i % len(scenarios)]` (n_envs = k x len gives k attempts of each).
 Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py); every episode redraws all RNG streams.
@@ -55,6 +57,10 @@ class VecEnv:
         self._env.potion_used(self.pot_used)
         # pot_used: bit k = the potion in belt slot k before this step is gone after it (thrown, discarded, consumed), measured before an auto-reset
         return self.obs, self.mask, self.reward, self.done, {"outcome": self.outcome, "illegal": self.illegal, "pot_used": self.pot_used}
+
+    def loops(self):
+        """Episodes the loop guard ended since the env was created (each reported as OUTCOME_LOSS with the loss reward)."""
+        return int(self._env.loops())
 
     def set_turn_cap(self, cap):
         """A fight still running after `cap` player turns ends as a loss, from the next step on (0 = no cap)."""

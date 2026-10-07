@@ -209,6 +209,9 @@ pub struct SearchStats {
     pub end_term: u64,
     pub end_cap: u64,
     pub end_stuck: u64,
+    /// play-outs the loop guard ended (scored as losses, part of `end_term`), and real fights it ended (recorded as `OUTCOME_LOSS`)
+    pub end_loop: u64,
+    pub fight_loops: u64,
     /// options that branched at a hidden-information step / finished before needing one
     pub lead_branch: u64,
     pub lead_clean: u64,
@@ -376,6 +379,9 @@ fn splitmix(s: &mut u64) -> u64 {
 fn terminal(cx: &Combat, steps: u32, max_steps: u32, cfg: &SearchCfg) -> Option<(i8, f32)> {
     if cx.missing.is_some() {
         Some((OUTCOME_UNIMPLEMENTED, 0.0))
+    } else if crate::looped(cx) {
+        // the loop guard tripped: a fight the real game never finishes (a soft-lock) is a loss, not a neutral abort (`crate::looped`)
+        Some((OUTCOME_LOSS, if cfg.use_util { cfg.util[0] } else { cfg.loss }))
     } else if cx.overflow != 0 {
         Some((OUTCOME_OVERFLOW, 0.0))
     } else if cx.stage == Stage::Over {
@@ -533,6 +539,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             sim.est += end_score(&sim.cx, oc, r, w, sim.used);
             sim.st = SimSt::Done;
             st.end_term += 1;
+            st.end_loop += crate::looped(&sim.cx) as u64;
             return None;
         }
         // with a worth table a capped play-out is valued by the network (0 is not a neutral score in those units)
@@ -657,6 +664,7 @@ impl Block {
             end = Some(OUTCOME_TRUNCATED);
         }
         if let Some(oc) = end {
+            self.stats.fight_loops += crate::looped(&self.main) as u64;
             self.record(sh, oc);
             return !self.start_job(sh);
         }
@@ -674,7 +682,10 @@ impl Block {
             let mut playable = 0u16;
             self.main.legal_actions_ex(&mut buf, &mut playable);
             if buf.is_empty() {
-                self.record(sh, OUTCOME_TRUNCATED);
+                // (a fight the loop guard already ended, e.g. a start state or combat-start hooks that ran away: a loss, `crate::looped`)
+                let looped = crate::looped(&self.main);
+                self.stats.fight_loops += looped as u64;
+                self.record(sh, if looped { OUTCOME_LOSS } else { OUTCOME_TRUNCATED });
                 if !self.start_job(sh) {
                     self.st = RootSt::Idle;
                     return;
@@ -1123,6 +1134,8 @@ impl SearchEngine {
             t.end_term += s.end_term;
             t.end_cap += s.end_cap;
             t.end_stuck += s.end_stuck;
+            t.end_loop += s.end_loop;
+            t.fight_loops += s.fight_loops;
             t.lead_branch += s.lead_branch;
             t.lead_clean += s.lead_clean;
             t.lead_prefix_steps += s.lead_prefix_steps;

@@ -68,6 +68,11 @@ impl BatchEnvPy {
         self.env.set_autoreset(on);
     }
 
+    /// Episodes the loop guard ended (`ov::LOOP`), over every env since creation; each was reported as `OUTCOME_LOSS`.
+    fn loops(&self) -> u64 {
+        self.env.loops()
+    }
+
     /// The player-turn cap from the next step on (0 = none).
     fn set_turn_cap(&mut self, cap: u32) {
         self.env.set_turn_cap(cap);
@@ -307,6 +312,8 @@ impl SearchEnginePy {
         d.set_item("end_term", s.end_term)?;
         d.set_item("end_cap", s.end_cap)?;
         d.set_item("end_stuck", s.end_stuck)?;
+        d.set_item("end_loop", s.end_loop)?;
+        d.set_item("fight_loops", s.fight_loops)?;
         d.set_item("lead_branch", s.lead_branch)?;
         d.set_item("lead_clean", s.lead_clean)?;
         d.set_item("carried", s.carried)?;

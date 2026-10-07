@@ -84,7 +84,7 @@ def collect(a):
         for idx, eng in fs._runs:
             for jl, j in enumerate(idx):
                 oc, hp_end = res[j, 1], res[j, 6]
-                if oc not in (1, -1, 2):
+                if oc not in (1, -1, 2):  # (a fight the loop guard ended is already -1: a real-game soft-lock is a loss, `sts2env::looped`)
                     continue
                 acts, searched, opts, _p, q, legal = eng.moves(jl)
                 f = len(F_["scen"])

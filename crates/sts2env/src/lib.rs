@@ -8,6 +8,11 @@
 //! Episodes whose fight can no longer be guaranteed faithful are aborted instead of continued: `OUTCOME_UNIMPLEMENTED`
 //! (content that is not ported) and `OUTCOME_OVERFLOW` (a fixed capacity of the simulator was exceeded, see
 //! `Combat::overflow`). Both end with reward 0 (+ the step reward); training code should treat them as truncations.
+//!
+//! Except the loop guard (`ov::LOOP`, `sts2sim` `engine/budget.rs`): a step whose trigger chain never ends is a fight the real game
+//! never finishes either (it soft-locks: Pillage + Hellraiser + Velvet Choker, `docs/research/evidence.md` E6), so it ends as
+//! `OUTCOME_LOSS` with the loss reward, here and in the search (a play-out into it scores as a loss), whatever capacity bits the
+//! runaway chain raised on the way. [`looped`] tells such a loss from an ordinary one; `BatchEnv::loops` and the search stats count them.
 
 pub mod search;
 
@@ -193,7 +198,15 @@ pub const OUTCOME_TRUNCATED: i8 = 2;
 pub const OUTCOME_UNIMPLEMENTED: i8 = 3;
 /// Episode aborted because a fixed capacity of the simulator was exceeded (card arena, power list, history ring, decision
 /// candidates, ... see `Combat::overflow` / `sts2sim::state::ov`): data was dropped, so the fight is no longer faithful.
+/// (Not the loop guard: a tripped `ov::LOOP` ends as `OUTCOME_LOSS`, see [`looped`].)
 pub const OUTCOME_OVERFLOW: i8 = 4;
+
+/// The loop guard ended this fight (`ov::LOOP`): the real game would never finish the step (a soft-lock), so the env and the search
+/// score it as a loss (`OUTCOME_LOSS`, loss reward), taking precedence over the capacity bits the runaway chain may have raised.
+#[inline]
+pub fn looped(cx: &Combat) -> bool {
+    cx.overflow & sts2sim::state::ov::LOOP != 0
+}
 
 struct Slot {
     cx: Combat,
@@ -209,6 +222,8 @@ struct Slot {
     /// Belt slots whose potion the latest step used up or lost (bit k = slot k; thrown, discarded or consumed by a relic / power such as Fairy in a Bottle),
     /// computed before an auto-reset: the potion-use head's target (`docs/rl_redesign.md` 3.3).
     pot_used: u8,
+    /// Episodes of this env that the loop guard ended (scored as losses), since the env was created.
+    loops: u64,
 }
 
 /// Potion id per belt slot (`u16::MAX` = empty).
@@ -355,6 +370,10 @@ fn step_one(
     let mut end = None;
     if slot.cx.missing.is_some() {
         end = Some((OUTCOME_UNIMPLEMENTED, 0.0));
+    } else if looped(&slot.cx) {
+        // a real-game soft-lock: a loss (module doc)
+        slot.loops += 1;
+        end = Some((OUTCOME_LOSS, cfg.loss));
     } else if slot.cx.overflow != 0 {
         end = Some((OUTCOME_OVERFLOW, 0.0));
     } else if slot.cx.stage == Stage::Over {
@@ -415,7 +434,7 @@ impl BatchEnv {
                     let default_ex = ScenarioExtras::default();
                     let cx = Combat::try_new_with(&sc, source.extras(i, episode).unwrap_or(&default_ex))?;
                     let hp0 = cx.cr(0).hp as f32 / cx.cr(0).max_hp.max(1) as f32;
-                    Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default(), frozen: None, pot_used: 0 })
+                    Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default(), frozen: None, pot_used: 0, loops: 0 })
                 })
                 .collect()
         });
@@ -483,6 +502,11 @@ impl BatchEnv {
         for (o, s) in out.iter_mut().zip(self.slots.iter()) {
             *o = s.pot_used;
         }
+    }
+
+    /// Episodes the loop guard ended, over every env since creation (each reported as `OUTCOME_LOSS`, see [`looped`]).
+    pub fn loops(&self) -> u64 {
+        self.slots.iter().map(|s| s.loops).sum()
     }
 
     /// Summary of the episode each env finished last (valid where `done` was set by the latest `step`).
@@ -569,4 +593,65 @@ pub(crate) fn write_obs_mask(cx: &mut Combat, obs: &mut [f32], mask: &mut [u8]) 
         mask[a.index()] = 1;
     }
     cx.sync_overflow();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sts2sim::dec::Dec;
+    use sts2sim::state::{CardIdx, PLAYER};
+    use sts2sim::types::{CardPilePosition, PileType, NO};
+    use sts2sim::{ids, DeckCard, RelicInit};
+
+    /// Pillage + Hellraiser + Velvet Choker at 5 plays, only Strikes to draw (`crates/sts2sim/tests/loop_guard.rs`): playing Pillage loops.
+    fn scenario() -> Scenario {
+        Scenario {
+            run_seed: 3,
+            total_floor: 1,
+            character: 0,
+            ascension: 10,
+            encounter: ids::encounter::NIBBITS_WEAK,
+            max_hp: 80,
+            hp: 80,
+            max_energy: 3,
+            orb_slots: 0,
+            potion_slots: 2,
+            deck: (0..10).map(|_| DeckCard { id: ids::card::STRIKE_IRONCLAD, upgrade: 0 }).collect(),
+            relics: vec![RelicInit { id: ids::relic::BURNING_BLOOD, ..Default::default() }, RelicInit { id: ids::relic::VELVET_CHOKER, ..Default::default() }],
+            potions: vec![],
+            rng: RngSet::from_run_seed(3),
+        }
+    }
+
+    fn arm(cx: &mut Combat) {
+        let all: Vec<CardIdx> = cx.player.hand.iter().chain(cx.player.draw.iter()).chain(cx.player.discard.iter()).copied().collect();
+        for (k, &c) in all.iter().enumerate() {
+            cx.move_card(c, if k < 2 { PileType::Discard } else { PileType::Exhaust }, CardPilePosition::Bottom);
+        }
+        let p = cx.new_card(ids::card::PILLAGE, 0).unwrap();
+        cx.move_card(p, PileType::Hand, CardPilePosition::Bottom);
+        cx.apply_power(ids::power::HELLRAISER_POWER, PLAYER, Dec::int(1), PLAYER, NO);
+        let r = cx.player.relics.iter().position(|r| r.id == ids::relic::VELVET_CHOKER).unwrap();
+        cx.player.relics[r].counter = 5;
+        cx.sync_overflow();
+        assert_eq!(cx.overflow, 0);
+    }
+
+    #[test]
+    fn an_episode_the_loop_guard_ends_is_a_loss_with_the_loss_reward() {
+        let cfg = RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.5, step: -0.01, turn_cap: 0 };
+        let mut env = BatchEnv::new(1, Box::new(PoolScenario::new(vec![scenario()])), cfg, 1000, 5);
+        arm(&mut env.slots[0].cx);
+        let e = env.slots[0].cx.enemies[0];
+        let (mut obs, mut mask) = (vec![0f32; OBS_SIZE], vec![0u8; ACTION_SPACE]);
+        let (mut reward, mut done, mut outcome, mut illegal) = ([0f32], [0u8], [0i8], [0u8]);
+        let a = [Action::PlayCard { hand_pos: 0, target: e }.index() as i32];
+        env.step(&a, StepOut { obs: &mut obs, mask: &mut mask, reward: &mut reward, done: &mut done, outcome: &mut outcome, illegal: &mut illegal }).unwrap();
+        assert_eq!((done[0], outcome[0], illegal[0]), (1, OUTCOME_LOSS, 0));
+        assert!((reward[0] - (-1.0 - 0.01)).abs() < 1e-6, "the loss reward (+ the step reward), not 0: {}", reward[0]);
+        assert_eq!(env.loops(), 1);
+        let mut info = [EpisodeInfo::default()];
+        env.episode_info(&mut info);
+        assert_eq!((info[0].hp_end, info[0].hp_end_abs), (0.0, 0), "scored like any loss");
+    }
 }
