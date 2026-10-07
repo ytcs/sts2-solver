@@ -872,9 +872,9 @@ function lossHist(q, hp0, lost) {
   // and the last bar's upper edge, or the whole starting HP when the last bar is the deaths
   const hasDead = dead > 0.001 || (lost != null && lost >= H);
   const left = lo * HIST_BIN, right = hasDead && H !== Infinity ? H : (hi + 1) * HIST_BIN;
-  return `<div class="quantrow"><span class="faint small">simulated results</span><span class="qend" title="the plot starts at ${left} HP lost">${hpTxt(left)}</span>
+  return `<div class="quantrow"><span class="faint small">simulated HP loss</span><span class="qend" title="the plot starts at ${left} HP lost">${hpTxt(left)}</span>
     <div class="quant" title="HP lost in the simulated fights: one bar per ${HIST_BIN} HP, height = share of the simulations${dead > 0.001 ? "; last bar = died" : ""}${lost != null ? "; red = where the real loss fell" : ""}">${bars}</div>
-    <span class="qend" title="${hasDead ? `the last bar: died (all ${right} HP lost)` : `the plot ends at ${right} HP lost`}">${hpTxt(right)}</span><span class="faint small">HP lost${dead > 0.001 ? `, died ${pct(dead)}` : ""} · ${HIST_BIN} HP per bar</span></div>`;
+    <span class="qend" title="${hasDead ? `the last bar: died (all ${right} HP lost)` : `the plot ends at ${right} HP lost`}">${hpTxt(right)}</span></div>`;
 }
 function fightHTML(it, latest) {
   const s = it.start, e = it.end, p = (s && s.predicted) || {};
@@ -888,7 +888,7 @@ function fightHTML(it, latest) {
     ${s ? `<span class="small">HP ${s.hp}/${s.max_hp}</span>` : ""}${e && e.hp ? ` <span class="small">&rarr; ${e.hp[0]}/${e.hp[1]}</span>` : latest && !e ? ` <span class="chip good">in progress</span>` : ""}`;
   const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span>HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b> <span class="faint">(${pct(p.hp_lost, 1)} of max)</span></span>
       ${lost != null ? `<span>actual lost <b class="${e.pit != null && e.pit > 0.9 ? "bad" : ""}">${lost}</b>${e.pit != null ? ` <span class="faint">(${pct(e.pit)} quantile)</span>` : ""}</span>` : ""}
-      ${s && s.drive ? `<span class="dim">${esc(s.drive[0])}: ${esc(s.drive[1])}</span>` : ""}${s && s.budget != null ? `<span class="faint">budget ${s.budget}s</span>` : ""}</div>${quant}
+      ${s && s.drive ? `<span class="dim" title="${esc(s.drive[0] + ": " + s.drive[1])}">${esc(s.drive[0])}${/^predicted win/.test(s.drive[1] || "") ? "" : ": " + esc(s.drive[1])}</span>` : ""}${s && s.budget != null ? `<span class="faint">budget ${s.budget}s</span>` : ""}</div>${quant}
     ${e && e.errors && e.errors.length ? `<div class="bad small">replay: ${esc(e.errors.join("; "))}</div>` : ""}
     ${det("fa" + (s ? s.t : e.t), `<span class="dim small">${acts.filter((a) => a.kind === "action").length} actions, ${acts.filter((a) => a.kind === "potion_proposal" || a.kind === "potion_check").length} potion checks</span>`,
       `<div style="margin-left:6px">${acts.slice(-150).map((a, i, arr) => actionHTML(a, i, arr.length)).join("")}</div>`, latest && !e)}`;
