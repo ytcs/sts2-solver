@@ -35,7 +35,30 @@ pub mod ov {
     pub const COUNTER: u16 = 1 << 4;
     /// The scenario does not fit the fixed capacities (deck / relics / potions / ...).
     pub const SCENARIO: u16 = 1 << 5;
+    /// Runaway-work safeguard: one `step` (or one look-ahead turn) exceeded [`WORK_LIMIT`], [`HOOK_DEPTH_LIMIT`] or
+    /// [`TURN_LIMIT`] (an infinite trigger chain). The step was cut short: the combat is only safe to drop (see `Combat::trip_loop`).
+    pub const LOOP: u16 = 1 << 6;
 }
+
+// Limits of the runaway-work safeguard (`engine/budget.rs`). Measured (2026-10) over ~95k fights / 5.5M steps: the training scenario
+// sets (`data/train/eval.json`, `mid.json`, `data/corpus/fights_*.json`), 13k fuzz scenarios (`tools/fuzz_gen.py gen`, incl. `--relic-mode
+// many`; `tools/fuzz_gen_mix.py --gen-only`, all five characters, incl. `--mode deep`), the oracle templates and frozen regressions,
+// each played with 4 random-policy seeds and a greedy play-everything policy for up to 600 (deep: 3000) steps, observing every step.
+// Maxima: 174 work units in one step (a Glory boss template), hook depth 12 (fuzz) / 10 (`eidolon_long_exhaust_queue`), 2 player turns
+// started by one step, 59 work units in one look-ahead turn.
+
+/// Most work units one `Combat::step` (or one look-ahead turn) may spend before it is cut short with `ov::LOOP`. A unit is a hook pass
+/// that has listeners (`dispatch_slow`, `dispatch_resumable`, `dispatch_modifiers_slow`, the post-play pass), a card play (each
+/// `PlayStep::Before`, i.e. every replay of a card), an attack hit or a monster state-machine transition. ~115x the measured maximum
+/// (174); a tripped step costs a few milliseconds at most.
+pub const WORK_LIMIT: u32 = 20_000;
+/// Most hook passes nested inside each other (a hook whose effect fires a hook whose effect ...). The chain is Rust recursion: a
+/// looping one overflows the stack long before it exhausts the work budget, so the depth has its own, stack-safe limit (~5x the
+/// measured maximum of 12; 64 levels fit a 2 MB debug-build test thread).
+pub const HOOK_DEPTH_LIMIT: u16 = 64;
+/// Most player turns one step may start (10x the measured maximum of 2): an end of turn requested at every turn start (Void Form
+/// auto-played by Mayhem) recurses turn after turn inside one step, outside any hook pass.
+pub const TURN_LIMIT: u16 = 20;
 
 /// Creature handles: `0` is always the player. Pets (Osty) and enemies take later slots; slots of removed
 /// enemies are recycled. Enemy/ally *order* (which matters for hooks) lives in `Combat::allies/enemies`.
@@ -624,6 +647,14 @@ pub struct Combat {
     /// Bitset of `ov::*`: a fixed capacity was exceeded and data was dropped (never silently: see `util::raise_overflow`).
     /// Non-zero = the fight is NOT faithful; env wrappers must abort / truncate the episode (like `missing`).
     pub overflow: u16,
+    /// Runaway-work safeguard (`ov::LOOP`): work units spent by the running step (reset by `step`, `look_turn`, `reset`).
+    pub work: u32,
+    /// The step's budget for `work`: [`WORK_LIMIT`] (tests may lower it); 0 once the safeguard tripped (every further unit fails).
+    pub work_limit: u32,
+    /// Hook passes running now, nested inside each other (limit [`HOOK_DEPTH_LIMIT`]).
+    pub hook_depth: u16,
+    /// Player turns started by the running step (limit [`TURN_LIMIT`]).
+    pub step_turns: u16,
 
     // ---- engine-core additions ----
     /// `Player.IsActiveForHooks`: false from the end of the player's death sequence (`DeactivateHooks`) until revived.

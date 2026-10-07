@@ -341,6 +341,9 @@ impl Combat {
         let mut cur = cur;
         let mut first_logged = NO;
         loop {
+            if !self.tick() {
+                return; // runaway-work safeguard (`engine/budget.rs`): a state machine cycling without reaching a move
+            }
             let nxt = self.next_state(c, cur);
             self.on_exit_state(c, cur);
             cur = nxt;
@@ -760,6 +763,7 @@ impl Combat {
     pub fn move_effects(&self, c: Cid, node: u8) -> String {
         use std::collections::BTreeMap;
         let mut cx = self.clone();
+        cx.budget_reset();
         cx.rng = *look_rng();
         cx.creatures[PLAYER as usize].block = 1 << 20;
         cx.creatures[c as usize].monster.next_move = node;

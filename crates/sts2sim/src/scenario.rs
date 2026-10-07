@@ -236,6 +236,10 @@ impl Combat {
             end_turn_resume,
             missing,
             overflow,
+            work,
+            work_limit,
+            hook_depth,
+            step_turns,
             player_hooks_active,
             escaped,
             extra_turn,
@@ -300,6 +304,10 @@ impl Combat {
         *enemy_cont = None;
         *missing = None;
         *overflow = 0;
+        *work = 0;
+        *work_limit = WORK_LIMIT;
+        *hook_depth = 0;
+        *step_turns = 0;
         *player_hooks_active = true;
         *escaped = 0;
         *extra_turn = false;
@@ -431,6 +439,9 @@ impl Combat {
         cx.initial_shuffle();
         cx.start_combat();
         cx.sync_overflow();
+        if cx.overflow & ov::LOOP != 0 {
+            cx.stage = Stage::Over; // the combat-start hooks ran away (`Combat::trip_loop`)
+        }
         Ok(())
     }
 
@@ -496,6 +507,10 @@ impl Combat {
             enemy_cont: None,
             missing: None,
             overflow: 0,
+            work: 0,
+            work_limit: WORK_LIMIT,
+            hook_depth: 0,
+            step_turns: 0,
             player_hooks_active: true,
             escaped: 0,
             extra_turn: false,

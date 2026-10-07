@@ -365,7 +365,7 @@ impl Combat {
         let mut hit_sizes: ArrayVec<u8, 16> = ArrayVec::new();
         let mut i = 0;
         while i < hits {
-            if self.cr(a.dealer).is_dead() {
+            if self.cr(a.dealer).is_dead() || !self.tick() {
                 break;
             }
             // possibleTargets, recomputed every hit; IsAlive (not IsHittable).

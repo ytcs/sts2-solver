@@ -22,6 +22,9 @@ impl Combat {
 
     #[inline(never)]
     fn dispatch_modifiers_slow(&mut self, bit: u32, mods: &Mods, f: &mut dyn FnMut(&mut Combat, Me, &'static dyn Listener)) {
+        if !self.pass_enter() {
+            return; // runaway-work safeguard tripped (`engine/budget.rs`)
+        }
         let mut snap = crate::engine::Snapshot::new();
         self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
@@ -29,6 +32,7 @@ impl Combat {
                 f(self, e.me, content::listener(&e.me));
             }
         }
+        self.pass_exit();
     }
 
     // ---- energy ----------------------------------------------------------------------------------------------------
