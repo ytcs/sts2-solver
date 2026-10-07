@@ -11,6 +11,7 @@ grew or changed, a read of the new bytes; the page polls about once a second.
                                  (a line still being written waits for the next poll; start < N means the file was replaced)
   GET /api/fights?run=ID         the saved fight exports (runs/<ID>/fights/*.json): names only
   GET /api/fight?run=ID&name=F   one export, without its per-action `states` list unless `&states=1`
+  GET /api/cards                 data/dashboard_cards.json: card costs (upgraded, stars) and full text (tools/dashboard/card_data.py)
   GET /assets/<path>             the art cache
 """
 import argparse
@@ -34,6 +35,7 @@ class Handler(BaseHTTPRequestHandler):
     runs = os.path.join(ROOT, "runs")
     assets = os.path.join(ROOT, "target", "dashboard", "assets")
     page = os.path.join(HERE, "index.html")
+    cards = os.path.join(ROOT, "data", "dashboard_cards.json")
 
     def log_message(self, *a):  # quiet: one line per poll would flood the terminal
         pass
@@ -171,6 +173,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file(os.path.join(self.assets, rel), cache=True)
             if path == "/api/runs":
                 return self._runs()
+            if path == "/api/cards":
+                return self._file(self.cards)
             if path.startswith("/api/"):
                 run, d = self._run_dir(q)
                 if d is None:

@@ -5,7 +5,7 @@
 Reads `SlayTheSpire2.pck` (Godot 4; parsed as untrusted data, nothing in it is executed) and writes, keyed by our ids (UPPER_SNAKE, as in
 `data/catalog.json` and `crates/sts2sim/src/ids.rs`):
   cards/<ID>.webp       card portraits (art only: the dashboard draws the frame)
-  relics/<ID>.png, potions/<ID>.webp, powers/<ID>.png, orbs/<ID>.webp, intents/<name>.webp, ui/<name>.png (map icons, energy, top bar)
+  relics/<ID>.png, potions/<ID>.webp, powers/<ID>.png, orbs/<ID>.webp, intents/<name>.webp, ui/<name>.png (map icons, energy, star, top bar)
   creatures/<ID>/       Spine 4.2 rig of a monster / character: skeleton.skel, skeleton.atlas (pages renamed to .webp), page images, meta.json
                         (skin, animation, scale from the creature's scene); the page draws one still frame of it, in the browser
   manifest.json         every id -> its image and display name (localization/eng), plus the counts
@@ -235,6 +235,7 @@ class Extractor:
         man["intents"] = intents
         man["ui"] = {k: self.sprite(v, f"ui/{k}.png") for k, v in UI_SPRITES.items()}
         man["ui"]["orb_empty"] = self.save("images/orbs/empty_orb.png", "ui/orb_empty.webp")
+        man["ui"]["star_icon"] = self.save("images/packed/sprite_fonts/star_icon.png", "ui/star_icon.png")  # Regent star costs (card_data.py writes it too)
         mon_loc, enc_loc = self.loc("monsters"), self.loc("encounters")
         creatures = {}
         for cid, cls in list(ids.get("monster", [])) + [(c, c.title()) for c in CHARACTERS]:

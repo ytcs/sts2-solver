@@ -1,0 +1,8310 @@
+{
+"cards": {
+"ABRASIVE": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Sly.\nGain 1 [gold]Dexterity[/gold].\nGain 4 [gold]Thorns[/gold].",
+"Sly.\nGain 1 [gold]Dexterity[/gold].\nGain 6 [gold]Thorns[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ABUNDANCE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Choose 1 of 3 [gold]Upgraded[/gold] [gold]Powers[/gold] to add into your [gold]Hand[/gold]. It's free to play this turn.\nExhaust.",
+"Choose 1 of 3 [gold]Upgraded[/gold] [gold]Powers[/gold] to add into your [gold]Hand[/gold]. It's free to play this turn.\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"ACCELERANT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Poison[/gold] is triggered 1 additional time.",
+"[gold]Poison[/gold] is triggered 2 additional times."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ACCURACY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Shivs[/gold] deal 4 additional damage.",
+"[gold]Shivs[/gold] deal 6 additional damage."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ACROBATICS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 3 cards.\nDiscard 1 card.",
+"Draw 4 cards.\nDiscard 1 card."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ADAPTIVE_STRIKE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 18 damage.\nAdd a 0[energy] copy of this card into your [gold]Discard Pile[/gold].",
+"Deal 23 damage.\nAdd a 0[energy] copy of this card into your [gold]Discard Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ADRENALINE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:1].\nDraw 2 cards.\nExhaust.",
+"Gain [energy:2].\nDraw 2 cards.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"AFTERIMAGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play a card, gain 1 [gold]Block[/gold].",
+"Innate.\nWhenever you play a card, gain 1 [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"AFTERLIFE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Summon[/gold] 6.\nExhaust.",
+"[gold]Summon[/gold] 9.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"AGGRESSION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, put a random Attack from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold] and [gold]Upgrade[/gold] it.",
+"Innate.\nAt the start of your turn, put a random Attack from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold] and [gold]Upgrade[/gold] it."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ALCHEMIZE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Procure a random potion.\nExhaust.",
+"Procure a random potion.\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"ALIGNMENT": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 2,
+"target": "Self_",
+"text": [
+"Gain [energy:2].",
+"Gain [energy:3]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ALL_FOR_ONE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nPut ALL 0[energy] cards from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold].",
+"Deal 14 damage.\nPut ALL 0[energy] cards from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ANGER": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.\nAdd a copy of this card into your [gold]Discard Pile[/gold].",
+"Deal 8 damage.\nAdd a copy of this card into your [gold]Discard Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ANOINTED": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Put every [gold]Rare[/gold] card from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold].\nExhaust.",
+"Retain.\nPut every [gold]Rare[/gold] card from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ANTICIPATE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 2 [gold]Dexterity[/gold] this turn.",
+"Gain 4 [gold]Dexterity[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"APOTHEOSIS": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Innate.\n[gold]Upgrade[/gold] ALL your cards.\nExhaust.",
+"Innate.\n[gold]Upgrade[/gold] ALL your cards.\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"APPARITION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Ethereal.\nGain 1 [gold]Intangible[/gold].\nExhaust.",
+"Gain 1 [gold]Intangible[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ARMAMENTS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].\n[gold]Upgrade[/gold] a card in your [gold]Hand[/gold].",
+"Gain 5 [gold]Block[/gold].\n[gold]Upgrade[/gold] ALL cards in your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ARSENAL": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you create a card, gain 1 [gold]Strength[/gold].",
+"Innate.\nWhenever you create a card, gain 1 [gold]Strength[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ASCENDERS_BANE": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable. Ethereal.\nEternal."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ASHEN_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.\nDeals 3 additional damage for each card in your [gold]Exhaust Pile[/gold].",
+"Deal 6 damage.\nDeals 4 additional damage for each card in your [gold]Exhaust Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ASSASSINATE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Innate.\nDeal 10 damage.\nApply 1 [gold]Vulnerable[/gold].\nExhaust.",
+"Innate.\nDeal 13 damage.\nApply 2 [gold]Vulnerable[/gold].\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ASTRAL_PULSE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 3,
+"target": "AllEnemies",
+"text": [
+"Deal 6 damage to ALL enemies twice.",
+"Deal 8 damage to ALL enemies twice."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"AUTOMATION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Every 10 cards you draw, gain [energy:1].",
+"Every 10 cards you draw, gain [energy:1]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"BACKFLIP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].\nDraw 2 cards.",
+"Gain 8 [gold]Block[/gold].\nDraw 2 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BACKSTAB": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Innate.\nDeal 11 damage.\nExhaust.",
+"Innate.\nDeal 15 damage.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BAD_LUCK": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAt the end of your turn, if this is in your Hand, lose 13 HP.\nEternal."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BALL_LIGHTNING": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 7 damage.\n[gold]Channel[/gold] 1 [gold]Lightning[/gold].",
+"Deal 10 damage.\n[gold]Channel[/gold] 1 [gold]Lightning[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BANSHEES_CRY": {
+"cost": 9,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 33 damage to ALL enemies.\nCosts [energy:2] less for each [gold]Ethereal[/gold] card played this combat.",
+"Deal 33 damage to ALL enemies.\nCosts [energy:2] less for each [gold]Ethereal[/gold] card played this combat."
+],
+"type": "Attack",
+"up_cost": -2,
+"up_star": 0,
+"x": false
+},
+"BARRAGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage for each [gold]Channeled[/gold] Orb.",
+"Deal 7 damage for each [gold]Channeled[/gold] Orb."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BARRICADE": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Block[/gold] is not removed at the start of your turn.",
+"[gold]Block[/gold] is not removed at the start of your turn."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"BASH": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nApply 2 [gold]Vulnerable[/gold].",
+"Deal 10 damage.\nApply 3 [gold]Vulnerable[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BATTLE_TRANCE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 3 cards.\nYou cannot draw additional cards this turn.",
+"Draw 4 cards.\nYou cannot draw additional cards this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BEACON_OF_HOPE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you gain [gold]Block[/gold] on your turn, other players gain half that much [gold]Block[/gold].",
+"Innate.\nWhenever you gain [gold]Block[/gold] on your turn, other players gain half that much [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BEAM_CELL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 3 damage.\nApply 1 [gold]Vulnerable[/gold].",
+"Deal 4 damage.\nApply 2 [gold]Vulnerable[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BEAT_DOWN": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "RandomEnemy",
+"text": [
+"Play 3 random Attacks from your [gold]Discard Pile[/gold].",
+"Play 4 random Attacks from your [gold]Discard Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BEAT_INTO_SHAPE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage.\n[gold]Forge[/gold] X.\n[gold]Forges[/gold] an additional 5 for every other time you've hit the enemy this turn.",
+"Deal 7 damage.\n[gold]Forge[/gold] X.\n[gold]Forges[/gold] an additional 7 for every other time you've hit the enemy this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BECKON": {
+"cost": 1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"At the end of your turn, if this is in your [gold]Hand[/gold],\n lose 6 HP."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BEGONE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Choose a card in your [gold]Hand[/gold] to [gold]Transform[/gold] into [gold]Minion Strike[/gold].",
+"Choose a card in your [gold]Hand[/gold] to [gold]Transform[/gold] into [gold]Minion Strike+[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BELIEVE_IN_YOU": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Another player gains [energy:2].",
+"Another player gains [energy:3]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BIASED_COGNITION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Focus[/gold].\nAt the start of your turn, lose 1 [gold]Focus[/gold].",
+"Gain 6 [gold]Focus[/gold].\nAt the start of your turn, lose 1 [gold]Focus[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BIG_BANG": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 1 card.\nGain [energy:1].\nGain [star:1].\n[gold]Forge[/gold] 5.\nExhaust.",
+"Innate.\nDraw 1 card.\nGain [energy:1].\nGain [star:1].\n[gold]Forge[/gold] 5.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BLACK_HOLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you spend or gain [star], deal 3 damage to ALL enemies.",
+"Whenever you spend or gain [star], deal 4 damage to ALL enemies."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BLADE_DANCE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add 3 [gold]Shivs[/gold] into your [gold]Hand[/gold].\nExhaust.",
+"Add 4 [gold]Shivs[/gold] into your [gold]Hand[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BLADE_OF_INK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add 2 Inky [gold]Shivs[/gold] into your [gold]Hand[/gold].",
+"Add 3 Inky [gold]Shivs[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BLADE_SYMPHONY": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllAllies",
+"text": [
+"Add 2 [gold]Shivs[/gold] to ALL players' [gold]Hands[/gold].",
+"Add 2 [gold]Shivs[/gold] to ALL players' [gold]Hands[/gold]."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"BLAZE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Give another player 5 [gold]Strength[/gold].",
+"Give another player 7 [gold]Strength[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BLIGHT_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nApply [gold]Doom[/gold] equal to damage dealt.",
+"Deal 10 damage.\nApply [gold]Doom[/gold] equal to damage dealt."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BLOODLETTING": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Lose 3 HP.\nGain [energy:2].",
+"Lose 3 HP.\nGain [energy:3]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BLOOD_WALL": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Lose 2 HP.\nGain 16 [gold]Block[/gold].",
+"Lose 2 HP.\nGain 20 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BLUDGEON": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 32 damage.",
+"Deal 42 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BLUR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].\n[gold]Block[/gold] is not removed at the start of your next turn.",
+"Gain 8 [gold]Block[/gold].\n[gold]Block[/gold] is not removed at the start of your next turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BODYGUARD": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Summon[/gold] 5.",
+"[gold]Summon[/gold] 7."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BODY_SLAM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal damage equal to your [gold]Block[/gold].",
+"Deal damage equal to your [gold]Block[/gold]."
+],
+"type": "Attack",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"BOLAS": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 3 damage.\nAt the start of your next turn, return this to your [gold]Hand[/gold].",
+"Deal 4 damage.\nAt the start of your next turn, return this to your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BOMBARDMENT": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 18 damage.\nAt the start of your turn, if this is in your [gold]Exhaust Pile[/gold], play it.\nExhaust.",
+"Deal 24 damage.\nAt the start of your turn, if this is in your [gold]Exhaust Pile[/gold], play it.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BONE_SHARDS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"If [gold]Osty[/gold] is alive, he deals 9 damage to ALL enemies and you gain 9 [gold]Block[/gold].\n[gold]Osty[/gold] dies.",
+"If [gold]Osty[/gold] is alive, he deals 12 damage to ALL enemies and you gain 12 [gold]Block[/gold].\n[gold]Osty[/gold] dies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BOOST_AWAY": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 6 [gold]Block[/gold].\nAdd a [gold]Dazed[/gold] into your [gold]Discard Pile[/gold].",
+"Gain 9 [gold]Block[/gold].\nAdd a [gold]Dazed[/gold] into your [gold]Discard Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BOOT_SEQUENCE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Innate.\nGain 10 [gold]Block[/gold].\nExhaust.",
+"Innate.\nGain 13 [gold]Block[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BORROWED_TIME": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:4].\nCards cost an additional [energy:1] this turn.",
+"Gain [energy:6].\nCards cost an additional [energy:1] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BOUNCING_FLASK": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "RandomEnemy",
+"text": [
+"Apply 3 [gold]Poison[/gold] to a random enemy 3 times.",
+"Apply 3 [gold]Poison[/gold] to a random enemy 4 times."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BRAND": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Lose 1 HP.\n[gold]Exhaust[/gold] 1 card.\nGain 1 [gold]Strength[/gold].",
+"Lose 1 HP.\n[gold]Exhaust[/gold] 1 card.\nGain 2 [gold]Strength[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BREAK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 20 damage.\nApply 5 [gold]Vulnerable[/gold].",
+"Deal 30 damage.\nApply 7 [gold]Vulnerable[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BREAKTHROUGH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Lose 1 HP.\nDeal 9 damage to ALL enemies.",
+"Lose 1 HP.\nDeal 13 damage to ALL enemies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BRIGHTEST_FLAME": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:2].\nDraw 2 cards.\nLose 2 Max HP.",
+"Gain [energy:3].\nDraw 3 cards.\nLose 2 Max HP."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BUBBLE_BUBBLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"If the enemy has [gold]Poison[/gold], apply 9 [gold]Poison[/gold].",
+"If the enemy has [gold]Poison[/gold], apply 12 [gold]Poison[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BUFFER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Prevent the next time you would lose HP.",
+"Prevent the next 2 times you would lose HP."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BULK_UP": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Lose 1 Orb Slot.\nGain 2 [gold]Strength[/gold].\nGain 2 [gold]Dexterity[/gold].",
+"Lose 1 Orb Slot.\nGain 3 [gold]Strength[/gold].\nGain 3 [gold]Dexterity[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BULLET_TIME": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"You cannot draw additional cards this turn. ALL cards in your [gold]Hand[/gold] are free to play this turn.",
+"You cannot draw additional cards this turn. ALL cards in your [gold]Hand[/gold] are free to play this turn."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"BULLY": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 4 damage.\nDeals 2 additional damage for each [gold]Vulnerable[/gold] on the enemy.",
+"Deal 4 damage.\nDeals 3 additional damage for each [gold]Vulnerable[/gold] on the enemy."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BULWARK": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 12 [gold]Block[/gold].\n[gold]Forge[/gold] 10.",
+"Gain 15 [gold]Block[/gold].\n[gold]Forge[/gold] 13."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BUNDLE_OF_JOY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add 3 random Colorless cards into your [gold]Hand[/gold].\nExhaust.",
+"Add 4 random Colorless cards into your [gold]Hand[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BURN": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAt the end of your turn, if this is in your [gold]Hand[/gold], take 2 damage."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BURNING_PACT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Exhaust[/gold] 1 card.\nDraw 2 cards.",
+"[gold]Exhaust[/gold] 1 card.\nDraw 3 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BURST": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"This turn, your next Skill is played an extra time.",
+"This turn, your next X Skills are played an extra time."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BURY": {
+"cost": 4,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 52 damage.",
+"Deal 63 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BYRDONIS_EGG": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nCan be hatched at a [gold]Rest Site[/gold]."
+],
+"type": "Quest",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"BYRD_SWOOP": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 14 damage.",
+"Deal 18 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CACOPHONY": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Every 33 cards drawn by ALL players, deal 66 damage to a random enemy.",
+"Every 33 cards drawn by ALL players, deal 99 damage to a random enemy."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CALAMITY": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play an Attack, add a random Attack into your [gold]Hand[/gold].",
+"Whenever you play an Attack, add a random Attack into your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"CALCIFY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Osty's[/gold] attacks deal 4 additional damage.",
+"[gold]Osty's[/gold] attacks deal 6 additional damage."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CALCULATED_GAMBLE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Discard your [gold]Hand[/gold],\nthen draw that many cards.\nExhaust.",
+"Retain.\nDiscard your [gold]Hand[/gold],\nthen draw that many cards.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CALL_OF_THE_VOID": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, add 1 random card into your [gold]Hand[/gold]. It gains [gold]Ethereal[/gold].",
+"Innate.\nAt the start of your turn, add 1 random card into your [gold]Hand[/gold]. It gains [gold]Ethereal[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CALTROPS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you are attacked, deal 3 damage back.",
+"Whenever you are attacked, deal 5 damage back."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CAPACITOR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 2 Orb Slots.",
+"Gain 3 Orb Slots."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CAPTURE_SPIRIT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Enemy loses 3 HP.\nAdd 3 [gold]Souls[/gold] into your [gold]Draw Pile[/gold].",
+"Enemy loses 4 HP.\nAdd 4 [gold]Souls[/gold] into your [gold]Draw Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CASCADE": {
+"cost": -1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Play the top X cards of your [gold]Draw Pile[/gold].",
+"Play the top X+1 cards of your [gold]Draw Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"CATASTROPHE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Play 2 random cards from your [gold]Draw Pile[/gold].",
+"Play 3 random cards from your [gold]Draw Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CELESTIAL_MIGHT": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage 3 times.",
+"Deal 6 damage 4 times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CHAOS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel[/gold] 1 random Orb.",
+"[gold]Channel[/gold] 2 random Orbs."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CHARGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Choose 2 cards in your [gold]Draw Pile[/gold] to [gold]Transform[/gold] into\n[gold]Minion Dive Bombs[/gold].",
+"Choose 2 cards in your [gold]Draw Pile[/gold] to [gold]Transform[/gold] into\n[gold]Minion Dive Bombs+[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CHARGE_BATTERY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 7 [gold]Block[/gold].\nNext turn, gain [energy:1].",
+"Gain 10 [gold]Block[/gold].\nNext turn, gain [energy:1]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CHILD_OF_THE_STARS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you spend [star], gain 2 [gold]Block[/gold] for each [star] spent.",
+"Whenever you spend [star], gain 3 [gold]Block[/gold] for each [star] spent."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CHILL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel[/gold] 1 [gold]Frost[/gold] for each enemy.\nExhaust.",
+"[gold]Channel[/gold] 1 [gold]Frost[/gold] for each enemy."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CINDER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 18 damage.\n[gold]Exhaust[/gold] 1 card at random.",
+"Deal 24 damage.\n[gold]Exhaust[/gold] 1 card at random."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CLASH": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Can only be played if every card in your [gold]Hand[/gold] is an Attack.\nDeal 14 damage.",
+"Can only be played if every card in your [gold]Hand[/gold] is an Attack.\nDeal 18 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CLAW": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 3 damage.\nIncrease the damage of ALL Claw cards by 2 this combat.",
+"Deal 4 damage.\nIncrease the damage of ALL Claw cards by 3 this combat."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CLEANSE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Summon[/gold] 3.\n[gold]Exhaust[/gold] 1 card from your [gold]Draw Pile[/gold].",
+"[gold]Summon[/gold] 5.\n[gold]Exhaust[/gold] 1 card from your [gold]Draw Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CLOAK_AND_DAGGER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 6 [gold]Block[/gold].\nAdd 1 [gold]Shiv[/gold] into your [gold]Hand[/gold].",
+"Gain 6 [gold]Block[/gold].\nAdd 2 [gold]Shivs[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CLOAK_OF_STARS": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 1,
+"target": "Self_",
+"text": [
+"Gain 7 [gold]Block[/gold].",
+"Gain 10 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CLUMSY": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable. Ethereal."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COLD_SNAP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.\n[gold]Channel[/gold] 1 [gold]Frost[/gold].",
+"Deal 9 damage.\n[gold]Channel[/gold] 1 [gold]Frost[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COLLISION_COURSE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nAdd a [gold]Debris[/gold] into your [gold]Hand[/gold].",
+"Deal 14 damage.\nAdd a [gold]Debris[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COLOSSUS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 4 [gold]Block[/gold].\nYou receive 50% less damage from [gold]Vulnerable[/gold] enemies this turn.",
+"Gain 7 [gold]Block[/gold].\nYou receive 50% less damage from [gold]Vulnerable[/gold] enemies this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COMET": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 5,
+"target": "AnyEnemy",
+"text": [
+"Deal 33 damage.\nApply 3 [gold]Weak[/gold].\nApply 3 [gold]Vulnerable[/gold].",
+"Deal 44 damage.\nApply 3 [gold]Weak[/gold].\nApply 3 [gold]Vulnerable[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COMPACT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 6 [gold]Block[/gold].\n[gold]Transform[/gold] all Status cards in your [gold]Hand[/gold] into [gold]Fuel[/gold].",
+"Gain 7 [gold]Block[/gold].\n[gold]Transform[/gold] all Status cards in your [gold]Hand[/gold] into [gold]Fuel+[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COMPILE_DRIVER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 7 damage.\nDraw 1 card for each unique Orb you have.",
+"Deal 10 damage.\nDraw 1 card for each unique Orb you have."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CONCOCT": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Choose another player. Whenever their Attacks deal unblocked damage this turn, they apply 3 [gold]Poison[/gold].",
+"Choose another player. Whenever their Attacks deal unblocked damage this turn, they apply 4 [gold]Poison[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CONFLAGRATION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 2 damage to ALL enemies 4 times.",
+"Deal 2 damage to ALL enemies 5 times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CONQUEROR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Forge[/gold] 3.\n[gold]Sovereign Blade[/gold] deals double damage to the enemy this turn.",
+"[gold]Forge[/gold] 5.\n[gold]Sovereign Blade[/gold] deals double damage to the enemy this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CONSTELLATION": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 2,
+"target": "AnyAlly",
+"text": [
+"Another player draws 1 card, gains [energy:1], and gains 9 [gold]Block[/gold].",
+"Another player draws 1 card, gains [energy:1], and gains 12 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CONSUMING_SHADOW": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel[/gold] 2 [gold]Dark[/gold].\nAt the end of your turn, [gold]Evoke[/gold] your leftmost Orb.",
+"[gold]Channel[/gold] 3 [gold]Dark[/gold].\nAt the end of your turn, [gold]Evoke[/gold] your leftmost Orb."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CONVERGENCE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Next turn,\ngain [energy:1] and [star:1].\n[gold]Retain[/gold] your [gold]Hand[/gold] this turn.",
+"Next turn,\ngain [energy:1] and [star:2].\n[gold]Retain[/gold] your [gold]Hand[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COOLANT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, gain 2 [gold]Block[/gold] for each unique Orb you have.",
+"At the start of your turn, gain 3 [gold]Block[/gold] for each unique Orb you have."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COOLHEADED": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel[/gold] 1 [gold]Frost[/gold].\nDraw 1 card.",
+"[gold]Channel[/gold] 1 [gold]Frost[/gold].\nDraw 2 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COORDINATE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Give another player 5 [gold]Strength[/gold] this turn.",
+"Give another player 8 [gold]Strength[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CORROSIVE_WAVE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you draw a card this turn, apply 2 [gold]Poison[/gold] to ALL enemies.",
+"Whenever you draw a card this turn, apply 3 [gold]Poison[/gold] to ALL enemies."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CORRUPTION": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Skills cost 0 [energy].\nWhenever you play a Skill, [gold]Exhaust[/gold] it.",
+"Skills cost 0 [energy].\nWhenever you play a Skill, [gold]Exhaust[/gold] it."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"COSMIC_INDIFFERENCE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 6 [gold]Block[/gold].\nPut a card from your [gold]Discard Pile[/gold] on top of your [gold]Draw Pile[/gold].",
+"Gain 9 [gold]Block[/gold].\nPut a card from your [gold]Discard Pile[/gold] on top of your [gold]Draw Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"COUNTDOWN": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, apply 6 [gold]Doom[/gold] to a random enemy.",
+"At the start of your turn, apply 9 [gold]Doom[/gold] to a random enemy."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CRASH_LANDING": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 21 damage to ALL enemies.\nFill your [gold]Hand[/gold] with [gold]Debris[/gold].",
+"Deal 26 damage to ALL enemies.\nFill your [gold]Hand[/gold] with [gold]Debris[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CREATIVE_AI": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, add a random Power into your [gold]Hand[/gold].",
+"At the start of your turn, add a random Power into your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"CRESCENT_SPEAR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": 1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nDeals 2 additional damage for ALL your cards that have a [star] cost.",
+"Deal 8 damage.\nDeals 3 additional damage for ALL your cards that have a [star] cost."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CRIMSON_MANTLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, lose 1 HP and gain 7 [gold]Block[/gold].",
+"At the start of your turn, lose 1 HP and gain 10 [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CRUELTY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Vulnerable[/gold] enemies take an additional 25% damage.",
+"[gold]Vulnerable[/gold] enemies take an additional 50% damage."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CRUSH_UNDER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 8 damage to ALL enemies. All enemies lose 1 [gold]Strength[/gold] this turn.",
+"Deal 9 damage to ALL enemies. All enemies lose 2 [gold]Strength[/gold] this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"CURSE_OF_THE_BELL": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nEternal."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DAGGER_SPRAY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 4 damage to ALL enemies twice.",
+"Deal 6 damage to ALL enemies twice."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DAGGER_THROW": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nDraw 1 card.\nDiscard 1 card.",
+"Deal 12 damage.\nDraw 1 card.\nDiscard 1 card."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DANSE_MACABRE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play a card that costs [energy:2] or more, gain 4 [gold]Block[/gold].",
+"Whenever you play a card that costs [energy:2] or more, gain 6 [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DARKNESS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel[/gold] 1 [gold]Dark[/gold].\nTrigger the passive ability of all [gold]Dark[/gold] Orbs.",
+"[gold]Channel[/gold] 1 [gold]Dark[/gold].\nTrigger the passive ability of all [gold]Dark[/gold] Orbs twice."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DARK_EMBRACE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever a card is [gold]Exhausted[/gold],\ndraw 1 card.",
+"Whenever a card is [gold]Exhausted[/gold],\ndraw 1 card."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"DARK_SHACKLES": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Enemy loses 9 [gold]Strength[/gold] this turn.\nExhaust.",
+"Enemy loses 15 [gold]Strength[/gold] this turn.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DASH": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Gain 10 [gold]Block[/gold].\nDeal 10 damage.",
+"Gain 13 [gold]Block[/gold].\nDeal 13 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DAZED": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable. Ethereal."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEADLY_POISON": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Apply 5 [gold]Poison[/gold].",
+"Apply 7 [gold]Poison[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEATHBRINGER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Apply 21 [gold]Doom[/gold] and 1 [gold]Weak[/gold] to ALL enemies.",
+"Apply 26 [gold]Doom[/gold] and 1 [gold]Weak[/gold] to ALL enemies."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEATHS_DOOR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 6 [gold]Block[/gold].\nIf you applied [gold]Doom[/gold] this turn, gain [gold]Block[/gold] 2 additional times.",
+"Gain 7 [gold]Block[/gold].\nIf you applied [gold]Doom[/gold] this turn, gain [gold]Block[/gold] 2 additional times."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEATH_MARCH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nDeals 4 additional damage for each card drawn during your turn.",
+"Deal 9 damage.\nDeals 6 additional damage for each card drawn during your turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEBILITATE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\n[gold]Vulnerable[/gold] and [gold]Weak[/gold] are twice as effective against the enemy for the next 2 turns.",
+"Deal 12 damage.\n[gold]Vulnerable[/gold] and [gold]Weak[/gold] are twice as effective against the enemy for the next 3 turns."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEBRIS": {
+"cost": 1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Exhaust."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEBT": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAt the end of your turn, if this is in your [gold]Hand[/gold], lose 10 [gold]Gold[/gold]."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DECAY": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAt the end of your turn, if this is in your [gold]Hand[/gold], take 2 damage."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DECISIONS_DECISIONS": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 6,
+"target": "Self_",
+"text": [
+"Draw 3 cards.\nChoose a Skill in your [gold]Hand[/gold] and play it 3 times.\nExhaust.",
+"Draw 5 cards.\nChoose a Skill in your [gold]Hand[/gold] and play it 3 times.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEFEND_DEFECT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].",
+"Gain 8 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEFEND_IRONCLAD": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].",
+"Gain 8 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEFEND_NECROBINDER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].",
+"Gain 8 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEFEND_REGENT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].",
+"Gain 8 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEFEND_SILENT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].",
+"Gain 8 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEFILE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Ethereal.\nDeal 13 damage.",
+"Ethereal.\nDeal 17 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEFLECT": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 4 [gold]Block[/gold].",
+"Gain 7 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEFRAGMENT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 1 [gold]Focus[/gold].",
+"Gain 2 [gold]Focus[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEFY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Ethereal.\nGain 6 [gold]Block[/gold].\nApply 1 [gold]Weak[/gold].",
+"Ethereal.\nGain 9 [gold]Block[/gold].\nApply 1 [gold]Weak[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DELAY": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 11 [gold]Block[/gold].\nNext turn,\ngain [energy:1].",
+"Gain 13 [gold]Block[/gold].\nNext turn,\ngain [energy:2]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEMESNE": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Ethereal.\nAt the start of your turn, gain [energy:1] and draw 1 additional card.",
+"Ethereal.\nAt the start of your turn, gain [energy:1] and draw 1 additional card."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"DEMONIC_SHIELD": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Lose 1 HP.\nGive another player [gold]Block[/gold] equal to your [gold]Block[/gold].\nExhaust.",
+"Lose 1 HP.\nGive another player [gold]Block[/gold] equal to your [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEMON_FORM": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, gain 3 [gold]Strength[/gold].",
+"At the start of your turn, gain 4 [gold]Strength[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEPRECATED_CARD": {
+"cost": 0,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"This card was removed in a recent update.\nDraw 1 card.\nRemove this from your [gold]Deck[/gold].\nExhaust."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEVASTATE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": 4,
+"target": "AnyEnemy",
+"text": [
+"Deal 35 damage.",
+"Deal 45 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DEVOUR_LIFE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play a [gold]Soul[/gold], [gold]Summon[/gold] 1.",
+"Whenever you play a [gold]Soul[/gold], [gold]Summon[/gold] 2."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DIRGE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Summon[/gold] 3 X times.\nAdd X [gold]Souls[/gold] into your [gold]Draw Pile[/gold].\nExhaust.",
+"[gold]Summon[/gold] 4 X times.\nAdd X [gold]Souls+[/gold] into your [gold]Draw Pile[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"DISCOVERY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Choose 1 of 3 random cards to add into your [gold]Hand[/gold]. It's free to play this turn.\nExhaust.",
+"Choose 1 of 3 random cards to add into your [gold]Hand[/gold]. It's free to play this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DISINTEGRATION": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"At the end of your turn, take 6 damage."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DISMANTLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nIf the enemy is [gold]Vulnerable[/gold], hits twice.",
+"Deal 10 damage.\nIf the enemy is [gold]Vulnerable[/gold], hits twice."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DISTRACTION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add a random Skill into your [gold]Hand[/gold]. It's free to play this turn.\nExhaust.",
+"Add a random Skill into your [gold]Hand[/gold]. It's free to play this turn.\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"DODGE_AND_ROLL": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 4 [gold]Block[/gold].\nNext turn, gain 4 [gold]Block[/gold].",
+"Gain 6 [gold]Block[/gold].\nNext turn, gain 6 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DOMINATE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Apply 1 [gold]Vulnerable[/gold].\nGain 1 [gold]Strength[/gold] for each [gold]Vulnerable[/gold] on the enemy.\nExhaust.",
+"Apply 2 [gold]Vulnerable[/gold].\nGain 1 [gold]Strength[/gold] for each [gold]Vulnerable[/gold] on the enemy.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DOUBLE_ENERGY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Double your Energy.\nExhaust.",
+"Double your Energy.\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"DOUBT": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAt the end of your turn, if this is in your [gold]Hand[/gold], gain 1 [gold]Weak[/gold]."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DOWSING": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAfter entering 5 more [gold]?[/gold] rooms, transforms into an [gold]Abundance[/gold]."
+],
+"type": "Quest",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DRAIN_POWER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\n[gold]Upgrade[/gold] 2 random cards in your [gold]Discard Pile[/gold].",
+"Deal 12 damage.\n[gold]Upgrade[/gold] 3 random cards in your [gold]Discard Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DRAMATIC_ENTRANCE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Innate.\nDeal 11 damage to ALL enemies.\nExhaust.",
+"Innate.\nDeal 15 damage to ALL enemies.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DREDGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Put 3 cards from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold].\nExhaust.",
+"Retain.\nPut 3 cards from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DRUM_OF_BATTLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 2 cards.\nWhen this card is [gold]Exhausted[/gold], gain [energy:2].",
+"Draw 2 cards.\nWhen this card is [gold]Exhausted[/gold], gain [energy:3]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DUALCAST": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Evoke[/gold] your rightmost Orb twice.",
+"[gold]Evoke[/gold] your rightmost Orb twice."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"DUAL_WIELD": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Choose an Attack or Power card. Add a copy of that card into your [gold]Hand[/gold].",
+"Choose an Attack or Power card. Add 2 copies of that card into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"DYING_STAR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": 3,
+"target": "AllEnemies",
+"text": [
+"Ethereal.\nDeal 9 damage to ALL enemies. ALL enemies lose 9 [gold]Strength[/gold] this turn.",
+"Ethereal.\nDeal 11 damage to ALL enemies. ALL enemies lose 11 [gold]Strength[/gold] this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ECHOING_SLASH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 10 damage to ALL enemies.\nRepeat this effect for each enemy killed.",
+"Deal 13 damage to ALL enemies.\nRepeat this effect for each enemy killed."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ECHO_FORM": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Ethereal.\nThe first card you play each turn is played an extra time.",
+"The first card you play each turn is played an extra time."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"EIDOLON": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Play ALL [gold]Ethereal[/gold] cards in your [gold]Exhaust Pile[/gold].\nExhaust.",
+"Play ALL [gold]Ethereal[/gold] cards in your [gold]Exhaust Pile[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"END_OF_DAYS": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Apply 29 [gold]Doom[/gold] to ALL enemies.\nKill enemies with at least as much [gold]Doom[/gold] as HP.",
+"Apply 37 [gold]Doom[/gold] to ALL enemies.\nKill enemies with at least as much [gold]Doom[/gold] as HP."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ENERGY_SURGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllAllies",
+"text": [
+"ALL players gain [energy:2].\nExhaust.",
+"ALL players gain [energy:3].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ENFEEBLING_TOUCH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Ethereal.\nEnemy loses 8 [gold]Strength[/gold] this turn.",
+"Ethereal.\nEnemy loses 11 [gold]Strength[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ENLIGHTENMENT": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Reduce the cost of ALL cards in your [gold]Hand[/gold] to 1 this turn.\nExhaust.",
+"Reduce the cost of ALL cards in your [gold]Hand[/gold] to 1 this combat.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ENTHRALLED": {
+"cost": 2,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"If this is in your [gold]Hand[/gold], it must be played before other cards.\nEternal."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ENTRENCH": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Double your [gold]Block[/gold].",
+"Double your [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"ENTROPY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, [gold]Transform[/gold] 1 card in your [gold]Hand[/gold].",
+"Innate.\nAt the start of your turn, [gold]Transform[/gold] 1 card in your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ENVENOM": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever an Attack deals unblocked damage, apply 1 [gold]Poison[/gold].",
+"Whenever an Attack deals unblocked damage, apply 2 [gold]Poison[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"EQUILIBRIUM": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 13 [gold]Block[/gold].\n[gold]Retain[/gold] your [gold]Hand[/gold] this turn.",
+"Gain 16 [gold]Block[/gold].\n[gold]Retain[/gold] your [gold]Hand[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ERADICATE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Retain.\nDeal 11 damage X times.",
+"Retain.\nDeal 14 damage X times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"ESCAPE_PLAN": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 1 card.\nIf you draw a Skill, gain 3 [gold]Block[/gold].",
+"Draw 1 card.\nIf you draw a Skill, gain 5 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ETERNAL_ARMOR": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 9 [gold]Plating[/gold].",
+"Gain 12 [gold]Plating[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"EVIL_EYE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 8 [gold]Block[/gold].\nGain another 8 [gold]Block[/gold] if you have [gold]Exhausted[/gold] a card this turn.",
+"Gain 11 [gold]Block[/gold].\nGain another 11 [gold]Block[/gold] if you have [gold]Exhausted[/gold] a card this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"EXPECT_A_FIGHT": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 15 [gold]Block[/gold].\nGains 5 additional [gold]Block[/gold] for each [gold]Strength[/gold] you have.",
+"Gain 16 [gold]Block[/gold].\nGains 8 additional [gold]Block[/gold] for each [gold]Strength[/gold] you have."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"EXPERTISE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 2 cards.\nThey gain [gold]Retain[/gold] this turn.",
+"Draw 3 cards.\nThey gain [gold]Retain[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"EXPOSE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Remove all [gold]Artifact[/gold] and [gold]Block[/gold] from the enemy.\nApply 2 [gold]Vulnerable[/gold].\nExhaust.",
+"Remove all [gold]Artifact[/gold] and [gold]Block[/gold] from the enemy.\nApply 3 [gold]Vulnerable[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"EXTERMINATE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 3 damage to ALL enemies 4 times.",
+"Deal 4 damage to ALL enemies 4 times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FADE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Retain.\nAnother player gains 6 [gold]Dexterity[/gold] this turn.",
+"Retain.\nAnother player gains 9 [gold]Dexterity[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FALLING_STAR": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 2,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nApply 1 [gold]Weak[/gold].\nApply 1 [gold]Vulnerable[/gold].",
+"Deal 12 damage.\nApply 1 [gold]Weak[/gold].\nApply 1 [gold]Vulnerable[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FAN_OF_KNIVES": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Shivs[/gold] now hit ALL enemies.\nAdd 4 [gold]Shivs[/gold] into your [gold]Hand[/gold].",
+"[gold]Shivs[/gold] now hit ALL enemies.\nAdd 5 [gold]Shivs[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FASTEN": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain an additional 4 [gold]Block[/gold] from Defend cards.",
+"Gain an additional 6 [gold]Block[/gold] from Defend cards."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FEAR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Ethereal.\nDeal 7 damage.\nApply 1 [gold]Vulnerable[/gold].",
+"Ethereal.\nDeal 8 damage.\nApply 2 [gold]Vulnerable[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FEED": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nIf [gold]Fatal[/gold], raise your Max HP by 3.\nExhaust.",
+"Deal 12 damage.\nIf [gold]Fatal[/gold], raise your Max HP by 4.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FEEDING_FRENZY": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Strength[/gold] this turn.",
+"Gain 7 [gold]Strength[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FEEL_NO_PAIN": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever a card is [gold]Exhausted[/gold], gain 3 [gold]Block[/gold].",
+"Whenever a card is [gold]Exhausted[/gold], gain 4 [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FERAL": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"The first time you play a\n0[energy] Attack each turn,\nreturn it to your [gold]Hand[/gold].",
+"The first time you play a\n0[energy] Attack each turn,\nreturn it to your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"FETCH": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 3 damage.\nIf this is the first time this card has been played this turn, draw 1 card.",
+"[gold]Osty[/gold] deals 6 damage.\nIf this is the first time this card has been played this turn, draw 1 card."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FIEND_FIRE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Exhaust[/gold] your [gold]Hand[/gold].\nDeal 7 damage for each card [gold]Exhausted[/gold].\nExhaust.",
+"[gold]Exhaust[/gold] your [gold]Hand[/gold].\nDeal 10 damage for each card [gold]Exhausted[/gold].\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FIGHT_ME": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage twice.\nGain 3 [gold]Strength[/gold].\nThe enemy gains 1 [gold]Strength[/gold].",
+"Deal 6 damage twice.\nGain 4 [gold]Strength[/gold].\nThe enemy gains 1 [gold]Strength[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FIGHT_THROUGH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 13 [gold]Block[/gold].\nAdd 2 [gold]Wounds[/gold] into your [gold]Discard Pile[/gold].",
+"Gain 17 [gold]Block[/gold].\nAdd 2 [gold]Wounds[/gold] into your [gold]Discard Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FINESSE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 4 [gold]Block[/gold].\nDraw 1 card.",
+"Gain 7 [gold]Block[/gold].\nDraw 1 card."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FINISHER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage for each Attack already played this turn.",
+"Deal 8 damage for each Attack already played this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FISTICUFFS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 7 damage.\nGain [gold]Block[/gold] equal to damage dealt.",
+"Deal 9 damage.\nGain [gold]Block[/gold] equal to damage dealt."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FLAK_CANNON": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "RandomEnemy",
+"text": [
+"[gold]Exhaust[/gold] ALL your Status cards.\nDeal 8 damage to a random enemy for each card [gold]Exhausted[/gold].",
+"[gold]Exhaust[/gold] ALL your Status cards.\nDeal 11 damage to a random enemy for each card [gold]Exhausted[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FLAME_BARRIER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 12 [gold]Block[/gold].\nWhenever you are attacked this turn, deal 4 damage back.",
+"Gain 16 [gold]Block[/gold].\nWhenever you are attacked this turn, deal 6 damage back."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FLANKING": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"The enemy takes double attack damage from other players this turn.",
+"The enemy takes double attack damage from other players this turn."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"FLASH_OF_STEEL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage.\nDraw 1 card.",
+"Deal 8 damage.\nDraw 1 card."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FLATTEN": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 12 damage.\nThis card costs 0 [energy] if [gold]Osty[/gold] has attacked this turn.",
+"[gold]Osty[/gold] deals 16 damage.\nThis card costs 0 [energy] if [gold]Osty[/gold] has attacked this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FLECHETTES": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage for each Skill in your [gold]Hand[/gold].",
+"Deal 7 damage for each Skill in your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FLICK_FLACK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Sly.\nDeal 7 damage to ALL enemies.",
+"Sly.\nDeal 9 damage to ALL enemies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FOCUSED_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nGain 1 [gold]Focus[/gold] this turn.",
+"Deal 11 damage.\nGain 2 [gold]Focus[/gold] this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FOLLY": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable. Innate. Ethereal.\nEternal."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FOOTWORK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 2 [gold]Dexterity[/gold].",
+"Gain 3 [gold]Dexterity[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FORBIDDEN_GRIMOIRE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the end of combat, you may remove a card from your [gold]Deck[/gold].\nEternal.",
+"At the end of combat, you may remove a card from your [gold]Deck[/gold].\nEternal."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"FOREGONE_CONCLUSION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Next turn, put 2 cards from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold].",
+"Next turn, put 3 cards from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FORGOTTEN_RITUAL": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:3].\nExhaust.",
+"Gain [energy:4].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FRANTIC_ESCAPE": {
+"cost": 1,
+"max_upgrade": 0,
+"star": -1,
+"target": "Self_",
+"text": [
+"Get farther away.\nIncrease [gold]Sandpit[/gold] by 1.\nIncrease the cost of this card by 1."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FRIENDSHIP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Lose 2 [gold]Strength[/gold].\nGain [energy:1] at the start of each turn.",
+"Lose 1 [gold]Strength[/gold].\nGain [energy:1] at the start of each turn."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FTL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage.\nIf you have played fewer than 3 cards this turn, draw 1 card.",
+"Deal 6 damage.\nIf you have played fewer than 4 cards this turn, draw 1 card."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FUEL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:1].\nExhaust.",
+"Gain [energy:2].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FURNACE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, [gold]Forge[/gold] 5.",
+"At the start of your turn, [gold]Forge[/gold] 7."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"FUSION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel[/gold] 1 [gold]Plasma[/gold].\nExhaust.",
+"[gold]Channel[/gold] 1 [gold]Plasma[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GAMMA_BLAST": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 3,
+"target": "AnyEnemy",
+"text": [
+"Deal 13 damage.\nApply 2 [gold]Weak[/gold].\nApply 2 [gold]Vulnerable[/gold].",
+"Deal 18 damage.\nApply 2 [gold]Weak[/gold].\nApply 2 [gold]Vulnerable[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GANG_UP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage.\nDeals 5 additional damage for each time another player has attacked the enemy this turn.",
+"Deal 5 damage.\nDeals 7 additional damage for each time another player has attacked the enemy this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GATHER_LIGHT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 8 [gold]Block[/gold].\nGain [star:1].",
+"Gain 11 [gold]Block[/gold].\nGain [star:1]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GENESIS": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, gain [star:2].",
+"At the start of your turn, gain [star:3]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GENETIC_ALGORITHM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 0 [gold]Block[/gold].\nPermanently increase this card's [gold]Block[/gold] by 3.\nExhaust.",
+"Gain 0 [gold]Block[/gold].\nPermanently increase this card's [gold]Block[/gold] by 4.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GIANT_ROCK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 20 damage.",
+"Deal 24 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GLACIER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 6 [gold]Block[/gold].\n[gold]Channel[/gold] 2 [gold]Frost[/gold].",
+"Gain 9 [gold]Block[/gold].\n[gold]Channel[/gold] 2 [gold]Frost[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GLASSWORK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].\n[gold]Channel[/gold] 1 [gold]Glass[/gold].",
+"Gain 8 [gold]Block[/gold].\n[gold]Channel[/gold] 1 [gold]Glass[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GLIMMER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 3 cards.\nPut 1 card from your [gold]Hand[/gold] on top of your [gold]Draw Pile[/gold].",
+"Draw 4 cards.\nPut 1 card from your [gold]Hand[/gold] on top of your [gold]Draw Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GLIMPSE_BEYOND": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllAllies",
+"text": [
+"ALL players add 3 [gold]Souls[/gold] into their [gold]Draw Pile[/gold].\nExhaust.",
+"ALL players add 4 [gold]Souls[/gold] into their [gold]Draw Pile[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GLITTERSTREAM": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 11 [gold]Block[/gold].\nNext turn, gain 5 [gold]Block[/gold].",
+"Gain 13 [gold]Block[/gold].\nNext turn, gain 7 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GLOW": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [star:1].\nDraw 1 card.\nNext turn, draw 1 card.",
+"Gain [star:2].\nDraw 1 card.\nNext turn, draw 1 card."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GOLD_AXE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal damage equal to the number of cards played this combat.",
+"Retain.\nDeal damage equal to the number of cards played this combat."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GO_FOR_THE_EYES": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 3 damage.\nIf the enemy intends to attack, apply 1 [gold]Weak[/gold].",
+"Deal 4 damage.\nIf the enemy intends to attack, apply 2 [gold]Weak[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GRAND_FINALE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Can only be played if there are no cards in your [gold]Draw Pile[/gold]. Deal 60 damage to ALL enemies.",
+"Can only be played if there are no cards in your [gold]Draw Pile[/gold]. Deal 75 damage to ALL enemies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GRAVEBLAST": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 4 damage.\nPut a card from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold].\nExhaust.",
+"Deal 6 damage.\nPut a card from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GRAVE_WARDEN": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 8 [gold]Block[/gold].\nAdd a [gold]Soul[/gold] into your [gold]Draw Pile[/gold].",
+"Gain 11 [gold]Block[/gold].\nAdd a [gold]Soul[/gold] into your [gold]Draw Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GREED": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nEternal."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GUARDS": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Transform[/gold] any number of cards in your [gold]Hand[/gold] into [gold]Minion Sacrifice[/gold].\nExhaust.",
+"[gold]Transform[/gold] any number of cards in your [gold]Hand[/gold] into [gold]Minion Sacrifice+[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GUIDING_STAR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": 1,
+"target": "AnyEnemy",
+"text": [
+"Deal 12 damage.\nNext turn, draw 2 cards.",
+"Deal 13 damage.\nNext turn, draw 3 cards."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GUILTY": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nRemoved from your [gold]Deck[/gold] after 5 combats."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"GUNK_UP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 4 damage 3 times.\nAdd a [gold]Slimed[/gold] into your [gold]Discard Pile[/gold].",
+"Deal 5 damage 3 times.\nAdd a [gold]Slimed[/gold] into your [gold]Discard Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HAILSTORM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the end of your turn, if you have [gold]Frost[/gold], deal 6 damage to ALL enemies.",
+"At the end of your turn, if you have [gold]Frost[/gold], deal 8 damage to ALL enemies."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HAMMER_TIME": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you [gold]Forge[/gold], all allies [gold]Forge[/gold] as well.",
+"Whenever you [gold]Forge[/gold], all allies [gold]Forge[/gold] as well."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"HAND_OF_GREED": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 20 damage.\nIf [gold]Fatal[/gold], gain 20 [gold]Gold[/gold].",
+"Deal 25 damage.\nIf [gold]Fatal[/gold], gain 25 [gold]Gold[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HAND_TRICK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 7 [gold]Block[/gold].\nAdd [gold]Sly[/gold] to a Skill in your [gold]Hand[/gold] this turn.",
+"Gain 10 [gold]Block[/gold].\nAdd [gold]Sly[/gold] to a Skill in your [gold]Hand[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HANG": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nDouble the damage ALL Hang cards deal to this enemy.",
+"Deal 13 damage.\nDouble the damage ALL Hang cards deal to this enemy."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HAUNT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play a [gold]Soul[/gold], a random enemy loses 7 HP.",
+"Whenever you play a [gold]Soul[/gold], a random enemy loses 9 HP."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HAVOC": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Play the top card of your [gold]Draw Pile[/gold] and [gold]Exhaust[/gold] it.",
+"Play the top card of your [gold]Draw Pile[/gold] and [gold]Exhaust[/gold] it."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"HAZE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Apply 4 [gold]Poison[/gold] and 1 [gold]Weak[/gold] to ALL enemies.",
+"Apply 6 [gold]Poison[/gold] and 2 [gold]Weak[/gold] to ALL enemies."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HEADBUTT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nPut a card from your [gold]Discard Pile[/gold] on top of your [gold]Draw Pile[/gold].",
+"Deal 12 damage.\nPut a card from your [gold]Discard Pile[/gold] on top of your [gold]Draw Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HEAVENLY_DRILL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage X times.\nDouble X if it's 4 or more.",
+"Deal 10 damage X times.\nDouble X if it's 4 or more."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"HEGEMONY": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 15 damage.\nNext turn, gain [energy:2].",
+"Deal 18 damage.\nNext turn, gain [energy:3]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HEIRLOOM_HAMMER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 20 damage.\nChoose a Colorless card in your [gold]Hand[/gold]. Add a copy of that card into your [gold]Hand[/gold].",
+"Deal 25 damage.\nChoose a Colorless card in your [gold]Hand[/gold]. Add a copy of that card into your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HELIX_DRILL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 3 damage for each [energy] spent on other cards this turn.",
+"Deal 5 damage for each [energy] spent on other cards this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HELLO_WORLD": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, add a random Common card into your [gold]Hand[/gold].",
+"Innate.\nAt the start of your turn, add a random Common card into your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HELLRAISER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you draw a card containing \u201cStrike\u201d, it is played against a random enemy.",
+"Whenever you draw a card containing \u201cStrike\u201d, it is played against a random enemy."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"HEMOKINESIS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Lose 2 HP.\nDeal 15 damage.",
+"Lose 2 HP.\nDeal 20 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HIBERNATE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"This turn, your [gold]Frost[/gold] grants ALL allies [gold]Block[/gold].\nChannel 2 [gold]Frost[/gold].",
+"This turn, your [gold]Frost[/gold] grants ALL allies [gold]Block[/gold].\nChannel 3 [gold]Frost[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HIDDEN_CACHE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [star:1].\nNext turn, gain [star:3].",
+"Gain [star:1].\nNext turn, gain [star:4]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HIDDEN_DAGGERS": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Discard 2 cards.\nAdd 2 [gold]Shivs[/gold] into your [gold]Hand[/gold].",
+"Discard 2 cards.\nAdd 2 [gold]Shivs+[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HIDDEN_GEM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"A random card without [gold]Replay[/gold] in your [gold]Draw Pile[/gold] gains [gold]Replay[/gold] 2.",
+"A random card without [gold]Replay[/gold] in your [gold]Draw Pile[/gold] gains [gold]Replay[/gold] 3."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HIGH_FIVE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"[gold]Osty[/gold] deals 11 damage\nand applies 2 [gold]Vulnerable[/gold]\nto ALL enemies.",
+"[gold]Osty[/gold] deals 13 damage\nand applies 3 [gold]Vulnerable[/gold]\nto ALL enemies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HOLOGRAM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 3 [gold]Block[/gold].\nPut a card from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold].\nExhaust.",
+"Gain 5 [gold]Block[/gold].\nPut a card from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HOTFIX": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 2 [gold]Focus[/gold] this turn.\nExhaust.",
+"Gain 2 [gold]Focus[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HOWL_FROM_BEYOND": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 18 damage to ALL enemies.\nAt the end of your turn, if this is in your [gold]Exhaust Pile[/gold], play it.",
+"Deal 24 damage to ALL enemies.\nAt the end of your turn, if this is in your [gold]Exhaust Pile[/gold], play it."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HUDDLE_UP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllAllies",
+"text": [
+"ALL players draw 2 cards.\nExhaust.",
+"ALL players draw 3 cards.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"HYPERBEAM": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 24 damage to ALL enemies.\nLose 3 [gold]Focus[/gold] this turn.",
+"Deal 30 damage to ALL enemies.\nLose 3 [gold]Focus[/gold] this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ICE_LANCE": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 19 damage.\n[gold]Channel[/gold] 3 [gold]Frost[/gold].",
+"Deal 24 damage.\n[gold]Channel[/gold] 3 [gold]Frost[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"IGNITION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Another player [gold]Channels[/gold] [gold]Plasma[/gold].\nExhaust.",
+"Another player [gold]Channels[/gold] [gold]Plasma[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"IMITATION_LEARNING": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Choose another player.\nThe next 2 times they play a Power, you play a copy of it.\nExhaust.",
+"Choose another player.\nThe next 3 times they play a Power, you play a copy of it.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"IMPATIENCE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"If you have no Attacks in your [gold]Hand[/gold], draw 2 cards.",
+"If you have no Attacks in your [gold]Hand[/gold], draw 3 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"IMPERVIOUS": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 30 [gold]Block[/gold].\nExhaust.",
+"Gain 40 [gold]Block[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"INFECTION": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAt the end of your turn, if this is in your [gold]Hand[/gold], take 3 damage."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"INFERNAL_BLADE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add a random Attack into your [gold]Hand[/gold]. It's free to play this turn.\nExhaust.",
+"Add a random Attack into your [gold]Hand[/gold]. It's free to play this turn.\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"INFERNO": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, lose 1 HP.\nWhenever you lose HP on your turn, deal 6 damage to ALL enemies.",
+"At the start of your turn, lose 1 HP.\nWhenever you lose HP on your turn, deal 9 damage to ALL enemies."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"INFINITE_BLADES": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, add 1 [gold]Shiv[/gold] into your [gold]Hand[/gold].",
+"Innate.\nAt the start of your turn, add 1 [gold]Shiv[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"INFLAME": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 2 [gold]Strength[/gold].",
+"Gain 3 [gold]Strength[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"INJURY": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"INTERCEPT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Gain 9 [gold]Block[/gold].\nRedirect all incoming attacks that would be dealt to another player this turn to you.",
+"Gain 13 [gold]Block[/gold].\nRedirect all incoming attacks that would be dealt to another player this turn to you."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"INVOKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Next turn, [gold]Summon[/gold] 2 and gain [energy:2].",
+"Next turn, [gold]Summon[/gold] 3 and gain [energy:3]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"IRON_WAVE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Gain 5 [gold]Block[/gold].\nDeal 5 damage.",
+"Gain 7 [gold]Block[/gold].\nDeal 7 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ITERATION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"The first time you draw a Status each turn, draw 2 cards.",
+"The first time you draw a Status each turn, draw 3 cards."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"I_AM_INVINCIBLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 10 [gold]Block[/gold].\nAt the end of your turn, if this is on top of your [gold]Draw Pile[/gold], play it.",
+"Gain 13 [gold]Block[/gold].\nAt the end of your turn, if this is on top of your [gold]Draw Pile[/gold], play it."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"JACKPOT": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 25 damage.\nAdd 3 random 0[energy] cards into your [gold]Hand[/gold].",
+"Deal 30 damage.\nAdd 3 random [gold]Upgraded[/gold] 0[energy] cards into your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"JACK_OF_ALL_TRADES": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add 1 random Colorless card into your [gold]Hand[/gold].\nExhaust.",
+"Add 2 random Colorless cards into your [gold]Hand[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"JUGGERNAUT": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you gain [gold]Block[/gold], deal 6 damage to a random enemy.",
+"Whenever you gain [gold]Block[/gold], deal 8 damage to a random enemy."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"JUGGLING": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add a copy of the third [gold]Attack[/gold] you play each turn into your [gold]Hand[/gold].",
+"Innate.\nAdd a copy of the third [gold]Attack[/gold] you play each turn into your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"KINGLY_KICK": {
+"cost": 4,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 27 damage.\nWhenever you draw this card, reduce its cost by 1.",
+"Deal 35 damage.\nWhenever you draw this card, reduce its cost by 1."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"KINGLY_PUNCH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nWhenever you draw this card, increase its damage by 4 this combat.",
+"Deal 10 damage.\nWhenever you draw this card, increase its damage by 6 this combat."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"KNIFE_TRAP": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Play every [gold]Shiv[/gold] in your [gold]Exhaust Pile[/gold] on the enemy.",
+"[gold]Upgrade[/gold] and play every [gold]Shiv[/gold] in your [gold]Exhaust Pile[/gold] on the enemy."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"KNOCKDOWN": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nThe enemy takes double damage from other players this turn.",
+"Deal 14 damage.\nThe enemy takes triple damage from other players this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"KNOCKOUT_BLOW": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 30 damage.\nIf this kills an enemy, gain [star:5].",
+"Deal 38 damage.\nIf this kills an enemy, gain [star:5]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"KNOW_THY_PLACE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Apply 1 [gold]Weak[/gold].\nApply 1 [gold]Vulnerable[/gold].\nExhaust.",
+"Apply 1 [gold]Weak[/gold].\nApply 1 [gold]Vulnerable[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LANTERN_KEY": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "Self_",
+"text": [
+"Unplayable.\nUnlocks a special event in the next Act."
+],
+"type": "Quest",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LARGESSE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Another player adds 1 random Colorless card to their [gold]Hand[/gold].",
+"Another player adds 1 random [gold]Upgraded[/gold] Colorless card to their [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LEADING_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 3 damage.\nAdd 2 [gold]Shivs[/gold] into your [gold]Hand[/gold].",
+"Deal 6 damage.\nAdd 2 [gold]Shivs[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LEAP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 9 [gold]Block[/gold].",
+"Gain 12 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LEGION_OF_BONE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllAllies",
+"text": [
+"ALL players [gold]Summon[/gold] 6.",
+"ALL players [gold]Summon[/gold] 8."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LEG_SWEEP": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Apply 2 [gold]Weak[/gold].\nGain 11 [gold]Block[/gold].",
+"Apply 3 [gold]Weak[/gold].\nGain 14 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LETHALITY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Ethereal.\nThe first Attack each turn deals 50% additional damage.",
+"Ethereal.\nThe first Attack each turn deals 75% additional damage."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LIFT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Give another player 11 [gold]Block[/gold].",
+"Give another player 16 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LIGHTNING_ROD": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 4 [gold]Block[/gold].\nAt the start of the next X turns, [gold]Channel[/gold] 1 [gold]Lightning[/gold].",
+"Gain 7 [gold]Block[/gold].\nAt the start of the next X turns, [gold]Channel[/gold] 1 [gold]Lightning[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LOOP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, trigger the passive ability of your rightmost Orb.",
+"At the start of your turn, trigger the passive ability of your rightmost Orb 2 times."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LUMINESCE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Retain.\nGain [energy:2].\nExhaust.",
+"Retain.\nGain [energy:3].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"LUNAR_BLAST": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 4 damage for each Skill already played this turn.",
+"Deal 5 damage for each Skill already played this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MACHINE_LEARNING": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, draw 1 additional card.",
+"Innate.\nAt the start of your turn, draw 1 additional card."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MAD_SCIENCE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 12 damage.\n???",
+"Innate.\nDeal 12 damage.\n???"
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MAKE_IT_SO": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.\nEvery 3 Skills you play in a turn, put this into your [gold]Hand[/gold].",
+"Deal 9 damage.\nEvery 3 Skills you play in a turn, put this into your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MALAISE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Enemy loses X [gold]Strength[/gold]. Apply X [gold]Weak[/gold].\nExhaust.",
+"Enemy loses X+1 [gold]Strength[/gold]. Apply X+1 [gold]Weak[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"MANGLE": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 20 damage.\nEnemy loses 10 [gold]Strength[/gold] this turn.",
+"Deal 26 damage.\nEnemy loses 15 [gold]Strength[/gold] this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MANIFEST_AUTHORITY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 7 [gold]Block[/gold].\nAdd 1 random Colorless card into your [gold]Hand[/gold].",
+"Gain 8 [gold]Block[/gold].\nAdd 1 random [gold]Upgraded[/gold] Colorless card into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MASTER_OF_STRATEGY": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 3 cards.\nExhaust.",
+"Draw 4 cards.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MASTER_PLANNER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"When you play a Skill, it gains [gold]Sly[/gold].",
+"When you play a Skill, it gains [gold]Sly[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"MAUL": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage twice.\nIncrease the damage of ALL Maul cards by 2 this combat.",
+"Deal 6 damage twice.\nIncrease the damage of ALL Maul cards by 3 this combat."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MAYHEM": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, play the top card of your [gold]Draw Pile[/gold].",
+"At the start of your turn, play the top card of your [gold]Draw Pile[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"MELANCHOLY": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 13 [gold]Block[/gold].\nReduce this card's cost by [energy:1] whenever ANYONE dies.",
+"Gain 17 [gold]Block[/gold].\nReduce this card's cost by [energy:1] whenever ANYONE dies."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MEMENTO_MORI": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nDeals 4 additional damage for each card discarded this turn.",
+"Deal 11 damage.\nDeals 5 additional damage for each card discarded this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"METAMORPHOSIS": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add 3 random Attacks into your [gold]Draw Pile[/gold]. They're free to play this combat.\nExhaust.",
+"Add 5 random Attacks into your [gold]Draw Pile[/gold]. They're free to play this combat.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"METEOR_SHOWER": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 2,
+"target": "AllEnemies",
+"text": [
+"Deal 14 damage to ALL enemies.\nApply 2 [gold]Weak[/gold] and [gold]Vulnerable[/gold] to ALL enemies.",
+"Deal 21 damage to ALL enemies.\nApply 2 [gold]Weak[/gold] and [gold]Vulnerable[/gold] to ALL enemies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"METEOR_STRIKE": {
+"cost": 5,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 24 damage.\n[gold]Channel[/gold] 3 [gold]Plasma[/gold].",
+"Deal 30 damage.\n[gold]Channel[/gold] 3 [gold]Plasma[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MIDNIGHT": {
+"cost": 12,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 60 damage.\nCosts 1 less [energy] for each card [gold]Exhausted[/gold] this combat by ANYONE.",
+"Deal 72 damage.\nCosts 1 less [energy] for each card [gold]Exhausted[/gold] this combat by ANYONE."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MIMIC": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Gain [gold]Block[/gold] equal to the [gold]Block[/gold] on another player.\nExhaust.",
+"Gain [gold]Block[/gold] equal to the [gold]Block[/gold] on another player."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MIND_BLAST": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Innate.\nDeal damage equal to the number of cards in your [gold]Draw Pile[/gold].",
+"Innate.\nDeal damage equal to the number of cards in your [gold]Draw Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"MIND_ROT": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Draw 1 fewer card each turn."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MINION_DIVE_BOMB": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 13 damage.\nExhaust.",
+"Deal 16 damage.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MINION_SACRIFICE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 7 [gold]Block[/gold].\nExhaust.",
+"Gain 10 [gold]Block[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MINION_STRIKE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.\nDraw 1 card.\nExhaust.",
+"Deal 9 damage.\nDraw 1 card.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MIRAGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [gold]Block[/gold] equal to [gold]Poison[/gold] on ALL enemies.\nExhaust.",
+"Gain [gold]Block[/gold] equal to [gold]Poison[/gold] on ALL enemies."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MISERY": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 7 damage.\nApply any debuffs on the enemy to ALL other enemies.",
+"Retain.\nDeal 9 damage.\nApply any debuffs on the enemy to ALL other enemies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MODDED": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 1 Orb Slot.\nDraw 1 card. Increase this card's cost by 1.",
+"Gain 1 Orb Slot.\nDraw 2 cards. Increase this card's cost by 1."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MOLTEN_FIST": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nDouble the enemy's [gold]Vulnerable[/gold].\nExhaust.",
+"Deal 14 damage.\nDouble the enemy's [gold]Vulnerable[/gold].\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MOMENTUM_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 11 damage.\nReduce this card's cost to 0 [energy].",
+"Deal 15 damage.\nReduce this card's cost to 0 [energy]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MONARCHS_GAZE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you attack an enemy, it loses 1 [gold]Strength[/gold] this turn.",
+"Whenever you attack an enemy, it loses 1 [gold]Strength[/gold] this turn."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"MONOLOGUE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play a card this turn, gain 1 [gold]Strength[/gold] this turn.",
+"Retain.\nWhenever you play a card this turn, gain 1 [gold]Strength[/gold] this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"MULTI_CAST": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Evoke[/gold] your rightmost Orb X times.",
+"[gold]Evoke[/gold] your rightmost Orb X+1 times."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"MURDER": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 1 damage.\nDeals 1 additional damage for each card drawn this combat.",
+"Deal 1 damage.\nDeals 1 additional damage for each card drawn this combat."
+],
+"type": "Attack",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"NECRO_MASTERY": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Summon[/gold] 5.\nWhenever [gold]Osty[/gold] loses HP,\nALL enemies lose that much HP as well.",
+"[gold]Summon[/gold] 8.\nWhenever [gold]Osty[/gold] loses HP,\nALL enemies lose that much HP as well."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NEGATIVE_PULSE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Gain 5 [gold]Block[/gold].\nApply 7 [gold]Doom[/gold] to ALL enemies.",
+"Gain 6 [gold]Block[/gold].\nApply 11 [gold]Doom[/gold] to ALL enemies."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NEOWS_FURY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nPut up to 2 cards from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold].\nExhaust.",
+"Deal 14 damage.\nPut up to 3 cards from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold].\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NEUROSURGE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:3].\nDraw 2 cards.\nAt the start of your turn, apply 3 [gold]Doom[/gold] to yourself.",
+"Gain [energy:4].\nDraw 2 cards.\nAt the start of your turn, apply 3 [gold]Doom[/gold] to yourself."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NEUTRALIZE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 3 damage.\nApply 1 [gold]Weak[/gold].",
+"Deal 4 damage.\nApply 2 [gold]Weak[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NEUTRON_AEGIS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": 5,
+"target": "Self_",
+"text": [
+"Gain 8 [gold]Plating[/gold].",
+"Gain 11 [gold]Plating[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NIGHTMARE": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Choose a card.\nNext turn, add 3 copies of that card into your [gold]Hand[/gold].\nExhaust.",
+"Choose a card.\nNext turn, add 3 copies of that card into your [gold]Hand[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"NORMALITY": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nYou cannot play more than 3 cards this turn."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NOSTALGIA": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"The first Attack or Skill you play each turn is placed on top of your [gold]Draw Pile[/gold].",
+"The first Attack or Skill you play each turn is placed on top of your [gold]Draw Pile[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"NOT_YET": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Heal 10 HP.\nExhaust.",
+"Heal 13 HP.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NOXIOUS_FUMES": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, apply 2 [gold]Poison[/gold] to ALL enemies.",
+"At the start of your turn, apply 3 [gold]Poison[/gold] to ALL enemies."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NO_ESCAPE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Apply 10 [gold]Doom[/gold], plus an additional 5 [gold]Doom[/gold] for every 10 [gold]Doom[/gold] already on this enemy.",
+"Apply 15 [gold]Doom[/gold], plus an additional 5 [gold]Doom[/gold] for every 10 [gold]Doom[/gold] already on this enemy."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"NULL": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nApply 1 [gold]Weak[/gold].\n[gold]Channel[/gold] 1 [gold]Dark[/gold].",
+"Deal 13 damage.\nApply 2 [gold]Weak[/gold].\n[gold]Channel[/gold] 1 [gold]Dark[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"OBLIVION": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Whenever you play a card this turn, apply 3 [gold]Doom[/gold] to the enemy.",
+"Whenever you play a card this turn, apply 4 [gold]Doom[/gold] to the enemy."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"OFFERING": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Lose 6 HP.\nGain [energy:2].\nDraw 3 cards.\nExhaust.",
+"Lose 6 HP.\nGain [energy:2].\nDraw 5 cards.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"OMNISLICE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nDamage ALL other enemies equal to the damage dealt.",
+"Deal 11 damage.\nDamage ALL other enemies equal to the damage dealt."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ONE_FOR_ALL": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllAllies",
+"text": [
+"EVERYONE'S 0 [energy] Attacks deal 3 additional damage.",
+"EVERYONE'S 0 [energy] Attacks deal 4 additional damage."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ONE_TWO_PUNCH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"This turn, your next Attack is played an extra time.",
+"This turn, your next 2 Attacks are played an extra time."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ORBIT": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Every [energy] you spend,\ngain [energy:1].",
+"Every [energy] you spend,\ngain [energy:1]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"OUTBREAK": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Apply 9 [gold]Poison[/gold] to ALL enemies.\n[gold]Poison[/gold] triggers immediately.",
+"Apply 12 [gold]Poison[/gold] to ALL enemies.\n[gold]Poison[/gold] triggers immediately."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"OUTMANEUVER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Next turn, gain [energy:2].",
+"Next turn, gain [energy:3]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"OUTRAGE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nAdd a copy of this card into EVERYONE'S [gold]Discard Pile[/gold].",
+"Deal 13 damage.\nAdd a copy of this card into EVERYONE'S [gold]Discard Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"OVERCLOCK": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 2 cards.\nAdd a [gold]Burn[/gold] into your [gold]Discard Pile[/gold].",
+"Draw 3 cards.\nAdd a [gold]Burn[/gold] into your [gold]Discard Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PACTS_END": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"If you have 3 or more cards in your [gold]Exhaust Pile[/gold],\ndeal 18 damage to ALL enemies.",
+"If you have 3 or more cards in your [gold]Exhaust Pile[/gold],\ndeal 24 damage to ALL enemies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PAGESTORM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you draw an [gold]Ethereal[/gold] card, draw 1 card.",
+"Whenever you draw an [gold]Ethereal[/gold] card, draw 1 card."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"PALE_BLUE_DOT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"If you play 5 or more cards in a turn, draw 1 card at the start of your next turn.",
+"If you play 5 or more cards in a turn, draw 2 cards at the start of your next turn."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PANACHE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Every time you play 5 cards in a single turn, deal 10 damage to ALL enemies.",
+"Every time you play 5 cards in a single turn, deal 14 damage to ALL enemies."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PANIC_BUTTON": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 30 [gold]Block[/gold].\nYou cannot gain [gold]Block[/gold] from cards for 2 turns.\nExhaust.",
+"Gain 40 [gold]Block[/gold].\nYou cannot gain [gold]Block[/gold] from cards for 2 turns.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PARRY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Sovereign Blade[/gold] now gains 10 [gold]Block[/gold].",
+"[gold]Sovereign Blade[/gold] now gains 14 [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PARSE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Ethereal.\nDraw 3 cards.",
+"Ethereal.\nDraw 4 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PARTICLE_WALL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 2,
+"target": "Self_",
+"text": [
+"Gain 9 [gold]Block[/gold].\nReturn this card to your [gold]Hand[/gold].",
+"Gain 12 [gold]Block[/gold].\nReturn this card to your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PATTER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 8 [gold]Block[/gold].\nGain 2 [gold]Vigor[/gold].",
+"Gain 10 [gold]Block[/gold].\nGain 3 [gold]Vigor[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PECK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 2 damage 3 times.",
+"Deal 2 damage 4 times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PERFECTED_STRIKE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.\nDeals 2 additional damage for ALL your cards containing \u201cStrike\u201d.",
+"Deal 6 damage.\nDeals 3 additional damage for ALL your cards containing \u201cStrike\u201d."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PHANTOM_BLADES": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Shivs[/gold] gain [gold]Retain[/gold].\nThe first [gold]Shiv[/gold] you play each turn deals 9 additional damage.",
+"[gold]Shivs[/gold] gain [gold]Retain[/gold].\nThe first [gold]Shiv[/gold] you play each turn deals 12 additional damage."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PHOTON_CUT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nDraw 1 card.\nPut 1 card from your [gold]Hand[/gold] on top of your [gold]Draw Pile[/gold].",
+"Deal 13 damage.\nDraw 2 cards.\nPut 1 card from your [gold]Hand[/gold] on top of your [gold]Draw Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PIERCING_WAIL": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"ALL enemies lose 6 [gold]Strength[/gold] this turn.\nExhaust.",
+"ALL enemies lose 8 [gold]Strength[/gold] this turn.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PILLAGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.\nDraw cards until you draw a non-Attack card.",
+"Deal 9 damage.\nDraw cards until you draw a non-Attack card."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PILLAR_OF_CREATION": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you create a card, gain 2 [gold]Block[/gold].",
+"Whenever you create a card, gain 3 [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PINPOINT": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 15 damage.\nCosts 1 less [energy] for each Skill played this turn.",
+"Deal 19 damage.\nCosts 1 less [energy] for each Skill played this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PLOT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllAllies",
+"text": [
+"Next turn, ALL players draw 2 cards.",
+"Next turn, ALL players draw 3 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"POISONED_STAB": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.\nApply 3 [gold]Poison[/gold].",
+"Deal 8 damage.\nApply 4 [gold]Poison[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"POKE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 6 damage.",
+"[gold]Osty[/gold] deals 9 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"POMMEL_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nDraw 1 card.",
+"Deal 10 damage.\nDraw 2 cards."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"POOR_SLEEP": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable. Retain."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"POUNCE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 14 damage.\nThe next Skill you play costs 0 [energy].",
+"Deal 20 damage.\nThe next Skill you play costs 0 [energy]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PRECISE_CUT": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 13 damage.\nDeals 2 less damage for each other card in your [gold]Hand[/gold].",
+"Deal 16 damage.\nDeals 2 less damage for each other card in your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PREDATOR": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 15 damage.\nNext turn, draw 2 cards.",
+"Deal 20 damage.\nNext turn, draw 2 cards."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PREPARED": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 1 card.\nDiscard 1 card.",
+"Draw 2 cards.\nDiscard 2 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PREP_TIME": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, gain 4 [gold]Vigor[/gold].",
+"At the start of your turn, gain 6 [gold]Vigor[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PRIMAL_FORCE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Transform all Attacks in your [gold]Hand[/gold] into [gold]Giant Rock[/gold].",
+"Transform all Attacks in your [gold]Hand[/gold] into [gold]Giant Rock+[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PRODUCTION": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:2].\nExhaust.",
+"Gain [energy:3].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PROLONG": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Next turn, gain [gold]Block[/gold] equal to your current [gold]Block[/gold].\nExhaust.",
+"Next turn, gain [gold]Block[/gold] equal to your current [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PROPHESIZE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 6 cards.",
+"Draw 9 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PROTECTOR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 10 damage.\nDeals additional damage equal to [gold]Osty's[/gold] [gold]Max HP[/gold].",
+"[gold]Osty[/gold] deals 15 damage.\nDeals additional damage equal to [gold]Osty's[/gold] [gold]Max HP[/gold]."
+],
+"type": "Attack",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"PROWESS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 1 [gold]Strength[/gold].\nGain 1 [gold]Dexterity[/gold].",
+"Gain 2 [gold]Strength[/gold].\nGain 2 [gold]Dexterity[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PULL_AGGRO": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Summon[/gold] 4.\nGain 7 [gold]Block[/gold].",
+"[gold]Summon[/gold] 5.\nGain 9 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PULL_FROM_BELOW": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage for each [gold]Ethereal[/gold] card played this combat.",
+"Deal 7 damage for each [gold]Ethereal[/gold] card played this combat."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PURITY": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Retain.\nExhaust up to 3 cards in your [gold]Hand[/gold].\nExhaust.",
+"Retain.\nExhaust up to 5 cards in your [gold]Hand[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PUTREFY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Apply 2 [gold]Weak[/gold].\nApply 2 [gold]Vulnerable[/gold].\nExhaust.",
+"Apply 3 [gold]Weak[/gold].\nApply 3 [gold]Vulnerable[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"PYRE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:1] at the start of each turn.",
+"Gain [energy:2] at the start of each turn."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"QUADCAST": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Evoke[/gold] your rightmost Orb 4 times.",
+"[gold]Evoke[/gold] your rightmost Orb 4 times."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"QUASAR": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 2,
+"target": "Self_",
+"text": [
+"Choose 1 of 3 random Colorless cards to add into your [gold]Hand[/gold].",
+"Choose 1 of 3 random [gold]Upgraded[/gold] Colorless cards to add into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RADIATE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 3 damage to ALL enemies for each [star:1] gained this turn.",
+"Deal 4 damage to ALL enemies for each [star:1] gained this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RAGE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play an Attack this turn, gain 3 [gold]Block[/gold].",
+"Whenever you play an Attack this turn, gain 5 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RAINBOW": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel[/gold] 1 [gold]Lightning[/gold].\n[gold]Channel[/gold] 1 [gold]Frost[/gold].\n[gold]Channel[/gold] 1 [gold]Dark[/gold].\nExhaust.",
+"[gold]Channel[/gold] 1 [gold]Lightning[/gold].\n[gold]Channel[/gold] 1 [gold]Frost[/gold].\n[gold]Channel[/gold] 1 [gold]Dark[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RALLY": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllAllies",
+"text": [
+"ALL players gain 12 [gold]Block[/gold].",
+"ALL players gain 17 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RAMPAGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nIncrease this card's damage by 5 this combat.",
+"Deal 10 damage.\nIncrease this card's damage by 10 this combat."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RATTLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 7 damage.\nHits an additional time for each other time he has attacked this turn.",
+"[gold]Osty[/gold] deals 9 damage.\nHits an additional time for each other time he has attacked this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REANIMATE": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Summon[/gold] 20.\nExhaust.",
+"[gold]Summon[/gold] 25.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REAP": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Retain.\nDeal 27 damage.",
+"Retain.\nDeal 33 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REAPER_FORM": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever Attacks deal damage, apply that much [gold]Doom[/gold].",
+"Retain.\nWhenever Attacks deal damage, apply that much [gold]Doom[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REAVE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nAdd a [gold]Soul[/gold] into your [gold]Draw Pile[/gold].",
+"Deal 13 damage.\nAdd a [gold]Soul+[/gold] into your [gold]Draw Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REBOOT": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Shuffle ALL your cards into your [gold]Draw Pile[/gold].\nDraw 4 cards.\nExhaust.",
+"Shuffle ALL your cards into your [gold]Draw Pile[/gold].\nDraw 6 cards.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REBOUND": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nPut the next card you play this turn on top of your [gold]Draw Pile[/gold].",
+"Deal 12 damage.\nPut the next card you play this turn on top of your [gold]Draw Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REFINE_BLADE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Forge[/gold] 8.\nNext turn, gain [energy:1].",
+"[gold]Forge[/gold] 12.\nNext turn, gain [energy:1]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REFLECT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": 3,
+"target": "Self_",
+"text": [
+"Gain 15 [gold]Block[/gold].\nBlocked attack damage is reflected to your attacker this turn.",
+"Gain 20 [gold]Block[/gold].\nBlocked attack damage is reflected to your attacker this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REFLEX": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Sly.\nDraw 2 cards.",
+"Sly.\nDraw 3 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REFRACT": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage twice.\n[gold]Channel[/gold] 2 [gold]Glass[/gold].",
+"Deal 13 damage twice.\n[gold]Channel[/gold] 2 [gold]Glass[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REGRET": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAt the end of your turn, if this is in your [gold]Hand[/gold], lose 1 HP for each card in your [gold]Hand[/gold]."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RELAX": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 16 [gold]Block[/gold].\nNext turn, draw 2 cards and gain [energy:2].\nExhaust.",
+"Gain 18 [gold]Block[/gold].\nNext turn, draw 3 cards and gain [energy:3].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"REND": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nDeals 5 additional damage for each unique debuff on the enemy.",
+"Deal 12 damage.\nDeals 8 additional damage for each unique debuff on the enemy."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RESONANCE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": 2,
+"target": "AllEnemies",
+"text": [
+"Gain 1 [gold]Strength[/gold]. ALL enemies lose 1 [gold]Strength[/gold].",
+"Gain 2 [gold]Strength[/gold]. ALL enemies lose 1 [gold]Strength[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RESTLESSNESS": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Retain.\nIf your [gold]Hand[/gold] is empty, draw 2 cards and gain [energy:2].",
+"Retain.\nIf your [gold]Hand[/gold] is empty, draw 3 cards and gain [energy:3]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RICOCHET": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "RandomEnemy",
+"text": [
+"Sly.\nDeal 3 damage to a random enemy 4 times.",
+"Sly.\nDeal 3 damage to a random enemy 5 times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RIGHT_HAND_HAND": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 4 damage.\nWhenever you play a card that costs [energy:2] or more, return this to your [gold]Hand[/gold] from the [gold]Discard Pile[/gold].",
+"[gold]Osty[/gold] deals 6 damage.\nWhenever you play a card that costs [energy:2] or more, return this to your [gold]Hand[/gold] from the [gold]Discard Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RIP_AND_TEAR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "RandomEnemy",
+"text": [
+"Deal 7 damage to a random enemy twice.",
+"Deal 9 damage to a random enemy twice."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ROCKET_PUNCH": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 13 damage.\nDraw 1 card.\nWhenever you create a Status, reduce this card's cost by 1 [energy] until played.",
+"Deal 14 damage.\nDraw 2 cards.\nWhenever you create a Status, reduce this card's cost by 1 [energy] until played."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ROLLING_BOULDER": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, deal 5 damage to ALL enemies and increase this damage by 5.",
+"At the start of your turn, deal 10 damage to ALL enemies and increase this damage by 5."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ROYALTIES": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the end of combat, gain 30 [gold]Gold[/gold].",
+"At the end of combat, gain 40 [gold]Gold[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ROYAL_GAMBLE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": 5,
+"target": "Self_",
+"text": [
+"Gain 9 [star].\nExhaust.",
+"Retain.\nGain 9 [star].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"RUPTURE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you lose HP on your turn, gain 1 [gold]Strength[/gold].",
+"Whenever you lose HP on your turn, gain 2 [gold]Strength[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SACRIFICE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Retain.\nIf [gold]Osty[/gold] is alive, he dies and you gain [gold]Block[/gold] equal to triple his Max HP.",
+"Retain.\nIf [gold]Osty[/gold] is alive, he dies and you gain [gold]Block[/gold] equal to triple his Max HP."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SALVO": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 12 damage.\n[gold]Retain[/gold] your [gold]Hand[/gold] this turn.",
+"Deal 16 damage.\n[gold]Retain[/gold] your [gold]Hand[/gold] this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SCAVENGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Exhaust[/gold] a card.\nNext turn, gain [energy:2].",
+"[gold]Exhaust[/gold] a card.\nNext turn, gain [energy:3]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SCOURGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Apply 13 [gold]Doom[/gold].\nDraw 1 card.",
+"Apply 16 [gold]Doom[/gold].\nDraw 2 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SCRAPE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 7 damage.\nDraw 4 cards.\nDiscard all cards drawn this way that do not cost 0 [energy].",
+"Deal 10 damage.\nDraw 5 cards.\nDiscard all cards drawn this way that do not cost 0 [energy]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SCRAWL": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw cards until your [gold]Hand[/gold] is full.\nExhaust.",
+"Retain.\nDraw cards until your [gold]Hand[/gold] is full.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SCULPTING_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nAdd [gold]Ethereal[/gold] to a card in your [gold]Hand[/gold].",
+"Deal 12 damage.\nAdd [gold]Ethereal[/gold] to a card in your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SEANCE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Ethereal.\nTransform a card in your [gold]Draw Pile[/gold] into [gold]Soul[/gold].",
+"Ethereal.\nTransform a card in your [gold]Draw Pile[/gold] into [gold]Soul[/gold]."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SECOND_WIND": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Exhaust[/gold] all non-Attack cards in your [gold]Hand[/gold]. Gain 5 [gold]Block[/gold] for each card [gold]Exhausted[/gold].",
+"[gold]Exhaust[/gold] all non-Attack cards in your [gold]Hand[/gold]. Gain 7 [gold]Block[/gold] for each card [gold]Exhausted[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SECRET_TECHNIQUE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Put a Skill from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold].\nExhaust.",
+"Put a Skill from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SECRET_WEAPON": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Put an Attack from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold].\nExhaust.",
+"Put an Attack from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SEEKER_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nChoose 1 of 3 cards in your [gold]Draw Pile[/gold] to add into your [gold]Hand[/gold].",
+"Deal 12 damage.\nChoose 1 of 3 cards in your [gold]Draw Pile[/gold] to add into your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SEEKING_EDGE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Forge[/gold] 7.\n[gold]Sovereign Blade[/gold] now deals damage to ALL enemies.",
+"[gold]Forge[/gold] 11.\n[gold]Sovereign Blade[/gold] now deals damage to ALL enemies."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SENTRY_MODE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, add 1 [gold]Sweeping Gaze[/gold] into your [gold]Hand[/gold].",
+"At the start of your turn, add 1 [gold]Sweeping Gaze[/gold] into your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SERPENT_FORM": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play a card, deal 4 damage to a random enemy.",
+"Whenever you play a card, deal 6 damage to a random enemy."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SETUP_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 7 damage.\nGain 3 [gold]Strength[/gold] this turn.",
+"Deal 9 damage.\nGain 4 [gold]Strength[/gold] this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SEVEN_STARS": {
+"cost": 2,
+"max_upgrade": 1,
+"star": 7,
+"target": "AllEnemies",
+"text": [
+"Deal 7 damage to ALL enemies 7 times.",
+"Deal 7 damage to ALL enemies 7 times."
+],
+"type": "Attack",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SEVERANCE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 13 damage.\nAdd a [gold]Soul[/gold] into your [gold]Draw Pile[/gold], [gold]Hand[/gold], and [gold]Discard Pile[/gold].",
+"Deal 18 damage.\nAdd a [gold]Soul[/gold] into your [gold]Draw Pile[/gold], [gold]Hand[/gold], and [gold]Discard Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SHADOWMELD": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Double your [gold]Block[/gold] gain this turn.",
+"Double your [gold]Block[/gold] gain this turn."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SHADOW_SHIELD": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 11 [gold]Block[/gold].\n[gold]Channel[/gold] 1 [gold]Dark[/gold].",
+"Gain 15 [gold]Block[/gold].\n[gold]Channel[/gold] 1 [gold]Dark[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SHADOW_STEP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Discard your [gold]Hand[/gold].\nNext turn, Attacks deal double damage.",
+"Discard your [gold]Hand[/gold].\nNext turn, Attacks deal double damage."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SHAME": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAt the end of your turn, if this is in your [gold]Hand[/gold], gain 1 [gold]Frail[/gold]."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SHARED_FATE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Lose 2 [gold]Strength[/gold].\nEnemy loses 2 [gold]Strength[/gold].\nExhaust.",
+"Lose 2 [gold]Strength[/gold].\nEnemy loses 3 [gold]Strength[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SHATTER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 7 damage to ALL enemies.\n[gold]Evoke[/gold] all of your Orbs twice.\nExhaust.",
+"Deal 11 damage to ALL enemies.\n[gold]Evoke[/gold] all of your Orbs twice.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SHINING_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nGain [star:2].\nPut this card on top of your [gold]Draw Pile[/gold].",
+"Deal 11 damage.\nGain [star:2].\nPut this card on top of your [gold]Draw Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SHIV": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 4 damage.\nExhaust.",
+"Deal 6 damage.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SHOCKWAVE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Apply 3 [gold]Weak[/gold] and [gold]Vulnerable[/gold] to ALL enemies.\nExhaust.",
+"Apply 5 [gold]Weak[/gold] and [gold]Vulnerable[/gold] to ALL enemies.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SHROUD": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you apply [gold]Doom[/gold], gain 3 [gold]Block[/gold].",
+"Whenever you apply [gold]Doom[/gold], gain 4 [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SHRUG_IT_OFF": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 8 [gold]Block[/gold].\nDraw 1 card.",
+"Gain 11 [gold]Block[/gold].\nDraw 1 card."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SIC_EM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 5 damage.\nWhenever [gold]Osty[/gold] hits this enemy this turn, [gold]Summon[/gold] 3.",
+"[gold]Osty[/gold] deals 6 damage.\nWhenever [gold]Osty[/gold] hits this enemy this turn, [gold]Summon[/gold] 4."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SIDESTEP": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Next turn, gain [energy:1].",
+"Next turn, gain [energy:2]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SIGNAL_BOOST": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"The next Power you play is played an additional time.\nExhaust.",
+"The next Power you play is played an additional time.\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SKEWER": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage X times.",
+"Deal 11 damage X times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"SKIM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 3 cards.",
+"Draw 4 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SLEIGHT_OF_FLESH": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you apply a debuff to an enemy, they take 9 damage.",
+"Whenever you apply a debuff to an enemy, they take 13 damage."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SLICE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.",
+"Deal 9 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SLIMED": {
+"cost": 1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Draw 1 card.\nExhaust."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SLOTH": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"You cannot play more than 3 cards each turn."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SMOKESTACK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you create a Status, deal 5 damage to ALL enemies.",
+"Whenever you create a Status, deal 7 damage to ALL enemies."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SNAKEBITE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Retain.\nApply 7 [gold]Poison[/gold].",
+"Retain.\nApply 10 [gold]Poison[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SNAP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 7 damage.\nAdd [gold]Retain[/gold] to a card in your [gold]Hand[/gold].",
+"[gold]Osty[/gold] deals 10 damage.\nAdd [gold]Retain[/gold] to a card in your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SNEAKY": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Sly.\nWhenever another player attacks an enemy, gain 1 [gold]Block[/gold].",
+"Sly.\nWhenever another player attacks an enemy, gain 2 [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SOLAR_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nGain [star:1].",
+"Deal 10 damage.\nGain [star:2]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SOOT": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SOUL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 2 cards.\nExhaust.",
+"Draw 3 cards.\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SOULBOUND": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Choose an ally.\nWhenever you create a [gold]Soul[/gold], add a [gold]Soul[/gold] to their [gold]Draw Pile[/gold].",
+"Innate.\nChoose an ally.\nWhenever you create a [gold]Soul[/gold], add a [gold]Soul[/gold] to their [gold]Draw Pile[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SOUL_STORM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 9 damage.\nDeals 4 additional damage for each [gold]Soul[/gold] in your [gold]Exhaust Pile[/gold].",
+"Deal 9 damage.\nDeals 6 additional damage for each [gold]Soul[/gold] in your [gold]Exhaust Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SOVEREIGN_BLADE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Retain.\nDeal 10 damage.",
+"Retain.\nDeal 10 damage."
+],
+"type": "Attack",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SOW": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Retain.\nDeal 8 damage to ALL enemies.",
+"Retain.\nDeal 11 damage to ALL enemies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SPECTRUM_SHIFT": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, add 1 random Colorless card into your [gold]Hand[/gold].",
+"At the start of your turn, add 1 random Colorless card into your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SPEEDSTER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you draw a card during your turn, deal 2 damage to ALL enemies.",
+"Innate.\nWhenever you draw a card during your turn, deal 2 damage to ALL enemies."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SPINNER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, [gold]Channel[/gold] 1 [gold]Glass[/gold].",
+"[gold]Channel[/gold] 1 [gold]Glass[/gold].\nAt the start of your turn, [gold]Channel[/gold] 1 [gold]Glass[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SPIRIT_OF_ASH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play an [gold]Ethereal[/gold] card, gain 4 [gold]Block[/gold].",
+"Whenever you play an [gold]Ethereal[/gold] card, gain 5 [gold]Block[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SPITE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage.\nIf you lost HP this turn,\nhits 2 times.",
+"Deal 5 damage.\nIf you lost HP this turn,\nhits 3 times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SPLASH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Choose 1 of 3 random Attacks from another character to add into your [gold]Hand[/gold]. It's free to play this turn.",
+"Choose 1 of 3 random [gold]Upgraded[/gold] Attacks from another character to add into your [gold]Hand[/gold]. It's free to play this turn."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SPOILS_MAP": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "Self_",
+"text": [
+"Unplayable.\nMarks a site of 600 extra [gold]Gold[/gold] in the next Act."
+],
+"type": "Quest",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SPOILS_OF_BATTLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Forge[/gold] 6.\nDraw 2 cards.",
+"[gold]Forge[/gold] 9.\nDraw 2 cards."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SPORE_MIND": {
+"cost": 1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Exhaust."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SPUR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Retain.\n[gold]Summon[/gold] 3.\n[gold]Osty[/gold] heals 5 HP.",
+"Retain.\n[gold]Summon[/gold] 5.\n[gold]Osty[/gold] heals 7 HP."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SQUASH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nApply 2 [gold]Vulnerable[/gold].",
+"Deal 12 damage.\nApply 3 [gold]Vulnerable[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SQUEEZE": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 25 damage.\nDeals 5 additional damage for ALL your other [gold]Osty[/gold] Attacks.",
+"[gold]Osty[/gold] deals 30 damage.\nDeals 6 additional damage for ALL your other [gold]Osty[/gold] Attacks."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STACK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [gold]Block[/gold] equal to the number of cards in your [gold]Discard Pile[/gold].",
+"Gain [gold]Block[/gold] equal to the number of cards in your [gold]Discard Pile[/gold] +3."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STAMPEDE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the end of your turn, 1 random Attack in your [gold]Hand[/gold] is played against a random enemy.",
+"At the end of your turn, 1 random Attack in your [gold]Hand[/gold] is played against a random enemy."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"STARDUST": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -2,
+"target": "RandomEnemy",
+"text": [
+"Deal 5 damage to a random enemy X times.",
+"Deal 7 damage to a random enemy X times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STOKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Exhaust[/gold] your [gold]Hand[/gold].\nAdd 1 random card into your [gold]Hand[/gold] for each card [gold]Exhausted[/gold].",
+"[gold]Exhaust[/gold] your [gold]Hand[/gold].\nAdd 1 random [gold]Upgraded[/gold] card into your [gold]Hand[/gold] for each card [gold]Exhausted[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STOMP": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 12 damage to ALL enemies.\nCosts 1 less [energy] for each Attack played this turn.",
+"Deal 15 damage to ALL enemies.\nCosts 1 less [energy] for each Attack played this turn."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STONE_ARMOR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 4 [gold]Plating[/gold].",
+"Gain 6 [gold]Plating[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STORM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play a Power, [gold]Channel[/gold] 1 [gold]Lightning[/gold].",
+"Whenever you play a Power, [gold]Channel[/gold] 2 [gold]Lightning[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STORM_OF_STEEL": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Discard your [gold]Hand[/gold].\nAdd 1 [gold]Shiv[/gold] into your [gold]Hand[/gold] for each card discarded.",
+"Discard your [gold]Hand[/gold].\nAdd 1 [gold]Shiv+[/gold] into your [gold]Hand[/gold] for each card discarded."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STRANGLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nWhenever you play a card this turn, the enemy loses 2 HP.",
+"Deal 10 damage.\nWhenever you play a card this turn, the enemy loses 3 HP."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STRATAGEM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you shuffle your [gold]Draw Pile[/gold], choose a card from it to put into your [gold]Hand[/gold].",
+"Whenever you shuffle your [gold]Draw Pile[/gold], choose a card from it to put into your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"STRIKE_DEFECT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.",
+"Deal 9 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STRIKE_IRONCLAD": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.",
+"Deal 9 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STRIKE_NECROBINDER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.",
+"Deal 9 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STRIKE_REGENT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.",
+"Deal 9 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"STRIKE_SILENT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage.",
+"Deal 9 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SUBROUTINE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you play a Power, gain [energy].",
+"Whenever you play a Power, gain [energy]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SUCKER_PUNCH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 8 damage.\nApply 1 [gold]Weak[/gold].",
+"Deal 10 damage.\nApply 2 [gold]Weak[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SUMMON_FORTH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Put [gold]Sovereign Blade[/gold] into your [gold]Hand[/gold] from anywhere.\n[gold]Forge[/gold] 8.",
+"Put [gold]Sovereign Blade[/gold] into your [gold]Hand[/gold] from anywhere.\n[gold]Forge[/gold] 11."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SUNDER": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 26 damage.\nIf this kills an enemy, gain [energy:3].",
+"Deal 34 damage.\nIf this kills an enemy, gain [energy:3]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SUPERCRITICAL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:4].\nExhaust.",
+"Gain [energy:6].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SUPERMASSIVE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage.\nDeals 3 additional damage for each card you created this combat.",
+"Deal 5 damage.\nDeals 4 additional damage for each card you created this combat."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SUPPRESS": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Innate.\nDeal 11 damage.\nApply 3 [gold]Weak[/gold].",
+"Innate.\nDeal 17 damage.\nApply 5 [gold]Weak[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SURVIVOR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 8 [gold]Block[/gold].\nDiscard 1 card.",
+"Gain 11 [gold]Block[/gold].\nDiscard 1 card."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SWEEPING_BEAM": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 6 damage to ALL enemies.\nDraw 1 card.",
+"Deal 9 damage to ALL enemies.\nDraw 1 card."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SWEEPING_GAZE": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "RandomEnemy",
+"text": [
+"Ethereal.\n[gold]Osty[/gold] deals 10 damage to a random enemy.\nExhaust.",
+"Ethereal.\n[gold]Osty[/gold] deals 15 damage to a random enemy.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SWORD_BOOMERANG": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "RandomEnemy",
+"text": [
+"Deal 3 damage to a random enemy 3 times.",
+"Deal 3 damage to a random enemy 4 times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SWORD_SAGE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Sovereign Blade[/gold] gains [gold]Replay[/gold] 1.",
+"[gold]Sovereign Blade[/gold] gains [gold]Replay[/gold] 1."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"SYNCHRONIZE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 1 [gold]Focus[/gold] this turn for each unique Orb you have.",
+"Gain 2 [gold]Focus[/gold] this turn for each unique Orb you have."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"SYNTHESIS": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 14 damage.\nThe next Power you play costs 0 [energy].",
+"Deal 20 damage.\nThe next Power you play costs 0 [energy]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TACTICIAN": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Sly.\nGain [energy:1].",
+"Sly.\nGain [energy:2]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TAG_TEAM": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 11 damage.\nThe next Attack another player plays on the enemy is played an extra time.",
+"Deal 15 damage.\nThe next Attack another player plays on the enemy is played an extra time."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TANK": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Take 100% more damage from enemies.\nAllies take 0% less damage from enemies.",
+"Take 100% more damage from enemies.\nAllies take 0% less damage from enemies."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"TAUNT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Gain 6 [gold]Block[/gold].\nApply 1 [gold]Vulnerable[/gold].",
+"Gain 7 [gold]Block[/gold].\nApply 2 [gold]Vulnerable[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TEAR_ASUNDER": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage.\nHits an additional time for each time you lost HP this combat.",
+"Deal 7 damage.\nHits an additional time for each time you lost HP this combat."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TEMPEST": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel[/gold] X [gold]Lightning[/gold].",
+"[gold]Channel[/gold] X+1 [gold]Lightning[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"TERRAFORMING": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 7 [gold]Vigor[/gold].",
+"Gain 10 [gold]Vigor[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TESLA_COIL": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 3 damage.\nTrigger all [gold]Lightning[/gold] against the enemy.",
+"Deal 4 damage.\nTrigger all [gold]Lightning[/gold] against the enemy twice."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THE_BALL": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nIncrease this card's damage by 10 this combat and give it to a random ally.",
+"Deal 10 damage.\nIncrease this card's damage by 15 this combat and give it to a random ally."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THE_BOMB": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the end of 3 turns, deal 40 damage to ALL enemies.",
+"At the end of 3 turns, deal 50 damage to ALL enemies."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THE_GAMBIT": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 50 [gold]Block[/gold].\nIf you take unblocked attack damage this combat, die.",
+"Gain 75 [gold]Block[/gold].\nIf you take unblocked attack damage this combat, die."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THE_HUNT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nIf [gold]Fatal[/gold], gain an additional card reward.\nExhaust.",
+"Deal 15 damage.\nIf [gold]Fatal[/gold], gain an additional card reward.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THE_SCYTHE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 0 damage.\nPermanently increase this card's damage by 5.\nExhaust.",
+"Deal 0 damage.\nPermanently increase this card's damage by 7.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THE_SEALED_THRONE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": 3,
+"target": "Self_",
+"text": [
+"Whenever you play a card, gain [star].",
+"Whenever you play a card, gain [star]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"THE_SMITH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": 4,
+"target": "Self_",
+"text": [
+"[gold]Forge[/gold] 30.",
+"[gold]Forge[/gold] 40."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THINKING_AHEAD": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Draw 2 cards.\nPut 1 card from your [gold]Hand[/gold] on top of your [gold]Draw Pile[/gold].\nExhaust.",
+"Draw 2 cards.\nPut 1 card from your [gold]Hand[/gold] on top of your [gold]Draw Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THRASH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 4 damage twice.\n[gold]Exhaust[/gold] a random Attack in your [gold]Hand[/gold] and add its damage to this card.",
+"Deal 6 damage twice.\n[gold]Exhaust[/gold] a random Attack in your [gold]Hand[/gold] and add its damage to this card."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THRUMMING_HATCHET": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 11 damage.\nAt the start of your next turn, return this to your [gold]Hand[/gold].",
+"Deal 14 damage.\nAt the start of your next turn, return this to your [gold]Hand[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THUNDER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you [gold]Evoke Lightning[/gold], deal 8 damage to each enemy hit.",
+"Whenever you [gold]Evoke Lightning[/gold], deal 11 damage to each enemy hit."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"THUNDERCLAP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 4 damage and apply 1 [gold]Vulnerable[/gold] to ALL enemies.",
+"Deal 7 damage and apply 1 [gold]Vulnerable[/gold] to ALL enemies."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TIMES_UP": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal damage equal to the enemy's [gold]Doom[/gold].",
+"Retain.\nDeal damage equal to the enemy's [gold]Doom[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TOOLS_OF_THE_TRADE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, draw 1 card and discard 1 card.",
+"At the start of your turn, draw 1 card and discard 1 card."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"TORIC_TOUGHNESS": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 5 [gold]Block[/gold].\nGain 5 [gold]Block[/gold] at the start of the next 2 turns.",
+"Gain 7 [gold]Block[/gold].\nGain 7 [gold]Block[/gold] at the start of the next 2 turns."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TOXIC": {
+"cost": 1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"At the end of your turn, if this is in your [gold]Hand[/gold], take 5 damage.\nExhaust."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TRACKING": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Weak[/gold] enemies take 50% more damage from Attacks.",
+"[gold]Weak[/gold] enemies take 50% more damage from Attacks."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"TRANSFIGURE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add [gold]Replay[/gold] to a card in your [gold]Hand[/gold].\nIt costs an extra [energy:1].\nExhaust.",
+"Add [gold]Replay[/gold] to a card in your [gold]Hand[/gold].\nIt costs an extra [energy:1]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TRASH_TO_TREASURE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you create a Status, [gold]Channel[/gold] 1 random Orb.",
+"Whenever you create a Status, [gold]Channel[/gold] 1 random Orb."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"TREMBLE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Apply 3 [gold]Vulnerable[/gold].\nExhaust.",
+"Apply 4 [gold]Vulnerable[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TRUE_GRIT": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 7 [gold]Block[/gold].\n[gold]Exhaust[/gold] 1 card at random.",
+"Gain 9 [gold]Block[/gold].\n[gold]Exhaust[/gold] 1 card."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TURBO": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:2].\nAdd a [gold]Void[/gold] into your [gold]Discard Pile[/gold].",
+"Gain [energy:3].\nAdd a [gold]Void[/gold] into your [gold]Discard Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TUTOR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyAlly",
+"text": [
+"Another player chooses a card in their [gold]Draw Pile[/gold] to add into their [gold]Hand[/gold].",
+"Another player chooses a card in their [gold]Draw Pile[/gold] to add into their [gold]Hand[/gold]."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"TWIN_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 5 damage twice.",
+"Deal 7 damage twice."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"TYRANNY": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the start of your turn, draw 1 card and [gold]Exhaust[/gold] 1 card from your [gold]Hand[/gold].",
+"Innate.\nAt the start of your turn, draw 1 card and [gold]Exhaust[/gold] 1 card from your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ULTIMATE_DEFEND": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 11 [gold]Block[/gold].",
+"Gain 15 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ULTIMATE_STRIKE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 14 damage.",
+"Deal 20 damage."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"UNDEATH": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 7 [gold]Block[/gold].\nAdd a copy of this card into your [gold]Discard Pile[/gold].",
+"Gain 9 [gold]Block[/gold].\nAdd a copy of this card into your [gold]Discard Pile[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"UNDERWORLD": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever other players deal attack damage this turn, apply that much [gold]Doom[/gold].\nExhaust.",
+"Whenever other players deal attack damage this turn, apply that much [gold]Doom[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"UNLEASH": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"[gold]Osty[/gold] deals 6 damage.\nDeals additional damage equal to [gold]Osty's[/gold] current HP.",
+"[gold]Osty[/gold] deals 9 damage.\nDeals additional damage equal to [gold]Osty's[/gold] current HP."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"UNMOVABLE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"The first time you gain [gold]Block[/gold] from a card each turn, double the amount gained.",
+"The first time you gain [gold]Block[/gold] from a card each turn, double the amount gained."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"UNRELENTING": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 14 damage.\nThe next Attack you play costs 0 [energy].",
+"Deal 20 damage.\nThe next Attack you play costs 0 [energy]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"UNTOUCHABLE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Sly.\nGain 6 [gold]Block[/gold].",
+"Sly.\nGain 9 [gold]Block[/gold]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"UPPERCUT": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 13 damage.\nApply 1 [gold]Weak[/gold].\nApply 1 [gold]Vulnerable[/gold].",
+"Deal 13 damage.\nApply 2 [gold]Weak[/gold].\nApply 2 [gold]Vulnerable[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"UPROAR": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 6 damage twice.\nPlay a random Attack from your [gold]Draw Pile[/gold].",
+"Deal 8 damage twice.\nPlay a random Attack from your [gold]Draw Pile[/gold]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"UP_MY_SLEEVE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add 3 [gold]Shivs[/gold] into your [gold]Hand[/gold].\nReduce this card's cost by 1.",
+"Add 4 [gold]Shivs[/gold] into your [gold]Hand[/gold].\nReduce this card's cost by 1."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"VEILPIERCER": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 10 damage.\nThe next [gold]Ethereal[/gold] card you play costs 0 [energy].",
+"Deal 13 damage.\nThe next [gold]Ethereal[/gold] card you play costs 0 [energy]."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"VENERATE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [star:2].",
+"Gain [star:3]."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"VICIOUS": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Whenever you apply [gold]Vulnerable[/gold], draw 1 card.",
+"Whenever you apply [gold]Vulnerable[/gold], draw 2 cards."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"VOID": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable. Ethereal.\nWhenever you draw this card, lose [energy:1]."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"VOID_FORM": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Ethereal.\nEnd your turn.\nThe first 2 cards you play each turn are free to play.",
+"End your turn.\nThe first 2 cards you play each turn are free to play."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"VOLLEY": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "RandomEnemy",
+"text": [
+"Deal 10 damage to a random enemy X times.",
+"Deal 14 damage to a random enemy X times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"VOLTAIC": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel Lightning[/gold] equal to the [gold]Lightning[/gold] already [gold]Channeled[/gold] this combat.\nExhaust.",
+"[gold]Channel Lightning[/gold] equal to the [gold]Lightning[/gold] already [gold]Channeled[/gold] this combat."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"WASTE_AWAY": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Gain 1 less [energy] per turn."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"WELL_LAID_PLANS": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"At the end of your turn, you no longer discard your [gold]Hand[/gold].",
+"At the end of your turn, you no longer discard your [gold]Hand[/gold]."
+],
+"type": "Power",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"WHIRLWIND": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "AllEnemies",
+"text": [
+"Deal 5 damage to ALL enemies X times.",
+"Deal 8 damage to ALL enemies X times."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": true
+},
+"WHISTLE": {
+"cost": 2,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 33 damage.\n[gold]Stun[/gold] the enemy.\nExhaust.",
+"Deal 44 damage.\n[gold]Stun[/gold] the enemy.\nExhaust."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"WHITE_NOISE": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Add a random Power into your [gold]Hand[/gold]. It's free to play this turn.\nExhaust.",
+"Add a random Power into your [gold]Hand[/gold]. It's free to play this turn.\nExhaust."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+},
+"WISH": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Put a card from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold].\nExhaust.",
+"Retain.\nPut a card from your [gold]Draw Pile[/gold] into your [gold]Hand[/gold].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"WISP": {
+"cost": 0,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain [energy:1].\nExhaust.",
+"Retain.\nGain [energy:1].\nExhaust."
+],
+"type": "Skill",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"WITHER": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable.\nAt the end of your turn, if this is in your [gold]Hand[/gold], take 3 damage."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"WOUND": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable."
+],
+"type": "Status",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"WRAITH_FORM": {
+"cost": 3,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"Gain 2 [gold]Intangible[/gold].\nAt the start of your turn, lose 1 [gold]Dexterity[/gold].",
+"Gain 3 [gold]Intangible[/gold].\nAt the start of your turn, lose 1 [gold]Dexterity[/gold]."
+],
+"type": "Power",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"WRITHE": {
+"cost": -1,
+"max_upgrade": 0,
+"star": -1,
+"target": "None",
+"text": [
+"Unplayable. Innate."
+],
+"type": "Curse",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"WROUGHT_IN_WAR": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "AnyEnemy",
+"text": [
+"Deal 7 damage.\n[gold]Forge[/gold] 7.",
+"Deal 9 damage.\n[gold]Forge[/gold] 9."
+],
+"type": "Attack",
+"up_cost": 0,
+"up_star": 0,
+"x": false
+},
+"ZAP": {
+"cost": 1,
+"max_upgrade": 1,
+"star": -1,
+"target": "Self_",
+"text": [
+"[gold]Channel[/gold] 1 [gold]Lightning[/gold].",
+"[gold]Channel[/gold] 1 [gold]Lightning[/gold]."
+],
+"type": "Skill",
+"up_cost": -1,
+"up_star": 0,
+"x": false
+}
+},
+"source": "tools/dashboard/card_data.py from gen_cards.rs and the game's localization"
+}

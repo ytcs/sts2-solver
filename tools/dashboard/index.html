@@ -51,7 +51,10 @@ main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr
 #infopanel .shd .title { font-size: 14px; }
 #deckorder { margin-left: auto; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; font-size: 11.5px; padding: 1px 8px; cursor: pointer; }
 #deckorder:hover { border-color: var(--dim); }
-#feedwrap { position: sticky; top: 84px; max-height: calc(100vh - 96px); overflow: auto; }
+#side { position: sticky; top: 84px; max-height: calc(100vh - 96px); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#mappanel { flex: none; padding-bottom: 6px; }
+#feedwrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
+@media (max-width: 1000px) { #side { position: static; max-height: none; } }
 
 /* combat */
 #enemies { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: flex-end; min-height: 120px; }
@@ -102,6 +105,24 @@ main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr
 .card .cost.noimg { background: radial-gradient(#ffd27a, #a8641a); border-radius: 50%; color: #1b1203; text-shadow: none; }
 .card.unplayable { filter: grayscale(.6) brightness(.8); }
 .card.sel { outline: 2px solid var(--chosen-line); outline-offset: 1px; }
+.card { cursor: zoom-in; }
+.card .star { position: absolute; right: 1px; top: 1px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font: 700 12px Kreon, serif; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 3px #000; background: center/contain no-repeat; }
+.card .star.noimg { background: radial-gradient(#ffe9a0, #c9962a); border-radius: 50%; color: #1b1203; text-shadow: none; }
+.card.hasstar .ct { padding-right: 18px; }
+.card.mini .star { width: 16px; height: 16px; font-size: 10px; }
+.card.mini.hasstar .ct { padding-right: 14px; }
+.ico { height: 1.15em; width: auto; vertical-align: -3px; margin: 0 1px; }
+.kwd { color: var(--gold); }
+#cardpop { position: fixed; inset: 0; z-index: 50; background: #000b; display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
+#cardpop .big { width: min(320px, 100%); cursor: zoom-out; border-width: 3px; border-radius: 12px; }
+#cardpop .big .ct { font-size: 19px; padding: 8px 34px 6px 40px; min-height: 36px; }
+#cardpop .big .cost, #cardpop .big .star { width: 40px; height: 40px; font-size: 21px; }
+#cardpop .big .star { right: 2px; top: 2px; }
+#cardpop .big .pt { height: 230px; }
+#cardpop .big .ty { font-size: 12px; padding: 2px; }
+#cardpop .big .cd { font-size: 14.5px; line-height: 1.45; padding: 10px 14px 12px; text-align: center; min-height: 70px; }
+#cardpop .big .live, #cardpop .big .upgr { font-size: 12px; padding: 6px 12px 8px; border-top: 1px solid #0006; background: #0003; }
+#cardpop .big .upgr .ico { height: 1.05em; }
 .card.mini { width: 74px; } .card.mini .pt { height: 42px; } .card.mini .ct { font-size: 10px; padding-left: 14px; min-height: 16px; } .card.mini .cost { width: 16px; height: 16px; font-size: 10px; } .card.mini .cd, .card.mini .ty { display: none; }
 
 /* options (non-combat screens) */
@@ -127,6 +148,15 @@ main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr
 #map .node.here circle.bg { stroke: #fff; stroke-width: 3.5; }
 #map .node text { fill: var(--text); font: 700 13px Kreon, serif; text-anchor: middle; }
 #map .ptag { font: 600 11px var(--mono); fill: var(--good); }
+#minimap svg { width: 100%; height: auto; display: block; }
+#minimap .edge { stroke: #4a4f5c; stroke-width: 2; stroke-dasharray: 4 4; }
+#minimap .edge.done { stroke: var(--gold); stroke-width: 3.5; stroke-dasharray: none; }
+#minimap .edge.plan, #map .edge.plan { stroke: var(--accent); stroke-width: 3; stroke-dasharray: none; opacity: .85; }
+#minimap .node circle.bg { fill: #2a2e38; stroke: #4a4f5c; }
+#minimap .node.visited circle.bg { fill: #4a3f20; stroke: var(--gold); stroke-width: 2; }
+#minimap .node.plan circle.bg, #map .node.plan circle.bg { stroke: var(--accent); stroke-width: 2.5; }
+#minimap .node.here circle.bg { stroke: #fff; stroke-width: 3; }
+#minimap .node text { fill: var(--text); font: 700 13px Kreon, serif; text-anchor: middle; }
 
 /* feed */
 .ev { border-left: 3px solid var(--line); padding: 4px 0 6px 8px; margin: 0 0 6px; }
@@ -187,11 +217,15 @@ table.pt td.best { color: var(--good); font-weight: 700; }
       <div class="sub" id="screenbox"><div class="shd"><span class="title">Screen text</span></div><pre id="screentext"></pre></div>
     </section>
   </div>
-  <section class="panel" id="feedwrap">
-    <h2>Decisions <span class="dim small" id="feedsub"></span></h2>
-    <div id="feed"></div>
-  </section>
+  <div id="side">
+    <section class="panel" id="mappanel"><h2>Map <span class="dim small" id="mapsub"></span></h2><div id="minimap"></div></section>
+    <section class="panel" id="feedwrap">
+      <h2>Decisions <span class="dim small" id="feedsub"></span></h2>
+      <div id="feed"></div>
+    </section>
+  </div>
 </main>
+<div id="cardpop" class="hidden" title="click or Esc to close"></div>
 <script>
 "use strict";
 const S = { run: "", follow: true, offset: 0, events: [], live: null, liveTag: null, man: null, lastRuns: 0, open: {}, creatures: {}, spine: null, dirty: true, err: null };
@@ -215,7 +249,13 @@ async function loadManifest() {
   for (const [id, c] of Object.entries(M.cards)) (M.cardByTitle[c.title.toLowerCase()] ||= []).push(id);
   for (const [id, p] of Object.entries(M.potions)) M.potionByTitle[p.title.toLowerCase()] = id;
   for (const [id, p] of Object.entries(M.relics)) M.relicByTitle[p.title.toLowerCase()] = id;
+  try {  // card costs (upgraded, stars) and full text: data/dashboard_cards.json (tools/dashboard/card_data.py)
+    const r = await fetch("/api/cards");
+    if (!r.ok) throw new Error(r.status);
+    CD = (await r.json()).cards || {};
+  } catch (e) { console.warn("no card table (run tools/dashboard/card_data.py): base costs from the manifest", e); }
 }
+let CD = {};
 let CHAR = "";
 function cardIdByName(name) {
   const ids = M.cardByTitle[String(name).toLowerCase().replace(/\+\d*$/, "").trim()];
@@ -228,24 +268,85 @@ const powerTitle = (id) => (M.powers[id] ? M.powers[id].title : titleCase(String
 const creatureTitle = (id) => (M.creatures[id] ? M.creatures[id].title : titleCase(id));
 const encTitle = (id) => (M.encounters[id] ? M.encounters[id].title : titleCase(id));
 
+// costs: live values win (o.cost from the hand or the screen line; o.star: undefined = not known live, "" or null = none, -1 or "X" = X),
+// else the card table (data/dashboard_cards.json: canonical cost + upgrade delta), else the art manifest's base cost
+function cardCosts(id, o = {}) {
+  const d = CD[id], c = M.cards[id] || {}, lv = o.upgrade || 0, isX = d ? d.x : c.x;
+  let e;
+  if (o.cost != null && o.cost !== "") e = o.cost === "X" || (o.cost < 0 && isX) ? "X" : o.cost < 0 ? "" : o.cost;
+  else if (d) e = d.x ? "X" : d.cost < 0 ? "" : Math.max(0, d.cost + d.up_cost * lv);
+  else e = c.x ? "X" : c.cost == null || c.cost < 0 ? "" : c.cost;
+  let s = "";
+  if (o.star !== undefined) s = o.star === "" || o.star == null ? "" : o.star === "X" || o.star === -1 ? "X" : o.star;
+  else if (d && d.star !== -1) s = d.star === -2 ? "X" : Math.max(0, d.star + d.up_star * lv);
+  return { e, s };
+}
+function cardText(id, lv) {  // the full card text at this upgrade level (table), or null
+  const d = CD[id];
+  return d && d.text ? d.text[Math.min(lv || 0, d.text.length - 1)] : null;
+}
+function energyImg(id) {
+  const c = M.cards[id] || {};
+  const color = c.color && M.ui["energy_" + c.color] ? c.color : CHAR.toLowerCase() || "colorless";
+  return M.ui["energy_" + color] || M.ui.energy_colorless;
+}
+function richText(t, id) {  // table text -> HTML: [gold]..[/gold], [energy:N], [energy], [star:N], [star], newlines
+  const ei = energyImg(id), si = M.ui.star_icon;
+  const eic = ei ? `<img class="ico" src="${A(ei)}" alt="E">` : "E", sic = si ? `<img class="ico" src="${A(si)}" alt="*">` : "&#9733;";
+  return esc(t).replace(/\[gold\]/g, `<span class="kwd">`).replace(/\[\/gold\]/g, "</span>")
+    .replace(/\[energy:(\w+)\]/g, (m, n) => `${n}${eic}`).replace(/\[energy\]/g, eic)
+    .replace(/\[star:(\w+)\]/g, (m, n) => (/^\d$/.test(n) && +n <= 4 ? sic.repeat(+n) : n + sic)).replace(/\[star\]/g, sic)
+    .replace(/\n/g, "<br>");
+}
+const plainText = (t) => String(t || "").replace(/\[\/?gold\]/g, "").replace(/\[energy:(\w+)\]/g, "$1E").replace(/\[energy\]/g, "E")
+  .replace(/\[star:(\d+)\]/g, (m, n) => "*".repeat(+n)).replace(/\[star\]/g, "*").replace(/\s+/g, " ").trim();
 function cardHTML(id, o = {}) {
   const c = M.cards[id] || {};
   const up = o.upgrade > 0;
   const title = (c.title || titleCase(id) || o.name || "?") + (up ? "+" + (o.upgrade > 1 ? o.upgrade : "") : "");
-  const cost = o.cost ?? c.cost;
-  const costTxt = c.x ? "X" : cost == null || cost < 0 ? "" : cost;
-  const color = c.color && M.ui["energy_" + c.color] ? c.color : CHAR.toLowerCase() || "colorless";
-  const eimg = M.ui["energy_" + color] || M.ui.energy_colorless;
+  const { e: costTxt, s: starTxt } = cardCosts(id, o);
+  const eimg = energyImg(id), simg = M.ui.star_icon;
   const unplay = (o.keywords || []).includes("Unplayable");
-  const desc = o.desc ?? c.desc ?? "";
+  const full = cardText(id, o.upgrade);
+  const descHTML = o.desc != null ? esc(o.desc) : full != null ? richText(full, id) : esc(c.desc || "");
+  const tip = o.desc ?? (full != null ? plainText(full) : c.desc || "");
   const type = c.type || (o.status ? "Status" : "");
-  return `<div class="card ${esc(type)} ${o.mini ? "mini" : ""} ${unplay ? "unplayable" : ""} ${o.sel ? "sel" : ""}" title="${esc(title + (desc ? " - " + desc : ""))}">
+  const data = `data-id="${esc(id)}" data-up="${esc(o.upgrade || 0)}" data-e="${esc(costTxt)}" data-s="${esc(starTxt)}"${o.desc != null ? ` data-live="${esc(o.desc)}"` : ""}${unplay ? ` data-unplay="1"` : ""}`;
+  return `<div class="card ${esc(type)} ${o.mini ? "mini" : ""} ${unplay ? "unplayable" : ""} ${o.sel ? "sel" : ""} ${starTxt !== "" ? "hasstar" : ""}" ${data} title="${esc(title + (tip ? " - " + tip : ""))} (click: full card)">
     ${costTxt === "" || unplay ? "" : `<div class="cost ${eimg ? "" : "noimg"}" style="${eimg ? `background-image:url('${A(eimg)}')` : ""}">${esc(costTxt)}</div>`}
+    ${starTxt === "" ? "" : `<div class="star ${simg ? "" : "noimg"}" style="${simg ? `background-image:url('${A(simg)}')` : ""}" title="star cost">${esc(starTxt)}</div>`}
     <div class="ct ${up ? "up" : ""}">${esc(title)}</div>
     ${c.img ? `<div class="pt" style="background-image:url('${A(c.img)}')"></div>` : `<div class="pt none">${esc(type || "card")}</div>`}
     <div class="ty">${esc([c.rarity, type].filter(Boolean).join(" "))}</div>
-    <div class="cd">${esc(desc)}</div></div>`;
+    <div class="cd">${descHTML}</div></div>`;
 }
+// ------------------------------------------------------------------ the full card, on click (one overlay at body level: the panels re-render)
+function cardPopHTML(el) {
+  const id = el.dataset.id, lv = +el.dataset.up || 0, c = M.cards[id] || {}, d = CD[id];
+  const title = (c.title || titleCase(id)) + (lv > 0 ? "+" + (lv > 1 ? lv : "") : "");
+  const e = el.dataset.e ?? "", s = el.dataset.s ?? "", live = el.dataset.live;
+  const eimg = energyImg(id), simg = M.ui.star_icon;
+  const full = cardText(id, lv);
+  const liveDiffers = live != null && (full == null || plainText(full) !== live.replace(/\s*(\(can't afford\)|SALE)\s*$/g, "").trim());
+  const canUp = d && d.max_upgrade > lv && d.text && d.text.length > lv + 1;
+  let upLine = "";
+  if (canUp) {
+    const nc = cardCosts(id, { upgrade: lv + 1 });
+    const costChange = nc.e !== cardCosts(id, { upgrade: lv }).e || nc.s !== cardCosts(id, { upgrade: lv }).s;
+    upLine = `<div class="upgr"><span class="dim">upgraded${costChange ? ` (cost ${nc.e}${nc.s !== "" ? ` / ${nc.s}&#9733;` : ""})` : ""}:</span> ${richText(cardText(id, lv + 1), id)}</div>`;
+  }
+  return `<div class="big card ${esc(c.type || "")}">
+    ${e === "" || el.dataset.unplay ? "" : `<div class="cost ${eimg ? "" : "noimg"}" style="${eimg ? `background-image:url('${A(eimg)}')` : ""}">${esc(e)}</div>`}
+    ${s === "" ? "" : `<div class="star ${simg ? "" : "noimg"}" style="${simg ? `background-image:url('${A(simg)}')` : ""}">${esc(s)}</div>`}
+    <div class="ct ${lv > 0 ? "up" : ""}">${esc(title)}</div>
+    ${c.img ? `<div class="pt" style="background-image:url('${A(c.img)}')"></div>` : `<div class="pt none">${esc(c.type || "card")}</div>`}
+    <div class="ty">${esc([c.rarity, c.type, c.color && c.color !== CHAR.toLowerCase() ? titleCase(c.color) : ""].filter(Boolean).join(" · "))}</div>
+    <div class="cd">${full != null ? richText(full, id) : esc(live ?? c.desc ?? "")}</div>
+    ${liveDiffers && full != null ? `<div class="live"><span class="dim">in game now:</span> ${esc(live)}</div>` : ""}
+    ${upLine}</div>`;
+}
+function openCardPop(el) { const p = $("cardpop"); p.innerHTML = cardPopHTML(el); p.classList.remove("hidden"); }
+function closeCardPop() { const p = $("cardpop"); p.classList.add("hidden"); p.innerHTML = ""; }
 function iconHTML(kind, id, extra = "") {
   const tab = M[kind] || {}, e = tab[id] || {};
   const t = e.title || titleCase(id);
@@ -321,12 +422,13 @@ function options(text) {
   for (const l of (text || "").split("\n")) { const m = /^(\d+) (.*)$/.exec(l); if (m) out.push({ n: +m[1], label: m[2] }); }
   return out;
 }
-function parseCardLabel(label) {  // "Beam Cell(0) Deal 3 damage." / "(x) Defend(1) Gain 5 Block." / "51g card Beam Cell(0) ..."
-  const m = /^(?:(\d+)g (?:card )?)?(\(x\) )?([^()]+?)(\+\d*)?\((\d+|X|-?\d+)\)\s*(.*)$/.exec(label);
+function parseCardLabel(label) {  // "Beam Cell(0) Deal 3 damage." / "(x) Defend(1) Gain 5 Block." / "51g card Beam Cell(0) ..." / Regent: "Resonance(1/2*) ...", "Stardust(0/X*) ..."
+  const m = /^(?:(\d+)g (?:card )?)?(\(x\) )?([^()]+?)(\+\d*)?\((X|-?\d+)(?:\/(X|\d+)\*)?\)\s*(.*)$/.exec(label);
   if (!m) return null;
   const id = cardIdByName(m[3]);
   if (!id) return null;
-  return { id, price: m[1] ? +m[1] : null, unplayable: !!m[2], upgrade: m[4] ? (m[4].length > 1 ? +m[4].slice(1) : 1) : 0, cost: m[5] === "X" ? null : +m[5], desc: m[6] };
+  return { id, price: m[1] ? +m[1] : null, unplayable: !!m[2], upgrade: m[4] ? (m[4].length > 1 ? +m[4].slice(1) : 1) : 0,
+    cost: m[5] === "X" ? "X" : +m[5], star: m[6] == null ? "" : m[6] === "X" ? "X" : +m[6], desc: m[7] };
 }
 function mapOptionCoord(label) { const m = /\br(\d+)c(\d+)\b/.exec(label || ""); return m ? `r${m[1]}c${m[2]}` : null; }
 function chosenLabel(state, choice) {
@@ -446,8 +548,8 @@ function combatHTML(f, text, kind) {
   for (let i = orbs.length; i < (st.orb_capacity || 0); i++) orbs.push(`<div class="orb">${M.ui.orb_empty ? `<img src="${A(M.ui.orb_empty)}" style="opacity:.5">` : "( )"}<span>&nbsp;</span></div>`);
   const pets = (st.pets || []).map((p) => `<div class="creature" style="width:120px"><div class="art" style="height:90px" data-creature="${esc(p.id || "OSTY")}"><div class="ph" style="width:70px;height:70px">${esc(creatureTitle(p.id || "OSTY"))}</div></div>${p.hp != null ? hpLine(p.hp, p.max_hp, p.block) : ""}${powersHTML(p.powers)}</div>`).join("");
   const descs = {};
-  for (const o of options(text)) { const c = parseCardLabel(o.label); if (c && !(c.id in descs)) descs[c.id] = c.desc; }
-  const hand = (st.hand || []).map((c) => cardHTML(c.id, { upgrade: c.upgrade, cost: c.cost, keywords: c.keywords, desc: descs[c.id] })).join("");
+  for (const o of options(text)) { const c = parseCardLabel(o.label); const k = c && c.id + "+" + c.upgrade; if (c && !(k in descs)) descs[k] = c.desc; }
+  const hand = (st.hand || []).map((c) => cardHTML(c.id, { upgrade: c.upgrade, cost: c.cost, star: "star_cost" in c ? c.star_cost : "", keywords: c.keywords, desc: descs[c.id + "+" + (c.upgrade || 0)] })).join("");
   const pile = (name, list) => {
     const k = "pile-" + name;
     const sorted = [...(list || [])].sort((a, b) => cardTitle(a.id).localeCompare(cardTitle(b.id)));
@@ -497,7 +599,7 @@ function optionsHTML(text, kind) {
   const cards = [], rest = [];
   for (const o of opts) {
     const c = parseCardLabel(o.label), r = priceFor(price, o.label);
-    if (c) cards.push(`<div class="cardopt ${r && r.act === best ? "best" : ""}"><span class="n">${o.n}${c.price != null ? ` <span class="gold small">${c.price}g</span>` : ""}</span>${cardHTML(c.id, { upgrade: c.upgrade, cost: c.cost, desc: c.desc })}${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
+    if (c) cards.push(`<div class="cardopt ${r && r.act === best ? "best" : ""}"><span class="n">${o.n}${c.price != null ? ` <span class="gold small">${c.price}g</span>` : ""}</span>${cardHTML(c.id, { upgrade: c.upgrade, cost: c.cost, star: c.star, desc: c.desc })}${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
     else {
       let icon = "";
       const rm = /\brelic ([^:(]+?)(?::|\(|$)/.exec(o.label), pm = /\bpotion ([^:(]+?)(?::|\(|$)/.exec(o.label);
@@ -535,44 +637,79 @@ function parseMap(txt) {
   }
   return { rows, nodes, boss };
 }
-function mapHTML(text) {
+function mapModel() {  // the act map with the path taken, the current node and the planned route (`draw`), or null
   const mt = mapText();
-  const offers = options(text).map((o) => ({ n: o.n, coord: mapOptionCoord(o.label), label: o.label }));
-  const price = latestPrice("MAP");
-  if (!mt) return `<div class="dim small">no act map in the record yet (logged at each fight start, or after \`m\`)</div>` + optionsHTML(text, "MAP");
+  if (!mt) return null;
   const P = parseMap(mt);
   // the path: nodes marked visited in the map text plus every map choice since
   const mapT = (lastOf("map") || {}).t || 0;
   for (const e of S.events) if (e.kind === "macro" && e.screen === "MAP" && e.t >= mapT) { const c = mapOptionCoord(chosenLabel(e.state, e.choice)); if (c && P.nodes[c]) P.nodes[c].visited = true; }
+  const visited = Object.values(P.nodes).filter((n) => n.visited).sort((a, b) => b.r - a.r);
+  const here = visited[0] || null;
+  const rp = lastOf("route_plan");  // harness `draw r1c6 ...`; only the part still ahead of us
+  const route = rp ? (rp.nodes || []).filter((c) => P.nodes[c] && (!here || P.nodes[c].r > here.r)) : [];
+  return { P, here, route, key: mt + "|" + visited.map((n) => `r${n.r}c${n.c}`).join(",") + "|" + route.join(",") };
+}
+function mapSVG(m, o = {}) {  // o.compact: floors left to right (the side panel); else bottom to top (the MAP screen) with offers and prices
+  const P = m.P, offers = o.offers || [], price = o.price, cmp = !!o.compact;
   const rs = Object.keys(P.rows).map(Number), maxR = Math.max(...rs, 1), cols = 7;
-  const W = 520, top = 70, dy = 40, H = top + maxR * dy + 30;
-  const X = (c) => 40 + (c * (W - 80)) / (cols - 1), Y = (r) => top + (maxR - r) * dy + 10;
-  let edges = "", nodes = "";
-  const visited = Object.values(P.nodes).filter((n) => n.visited);
-  const here = visited.sort((a, b) => b.r - a.r)[0];
+  let W, H, pos, boss, nr, ic, br;
+  if (cmp) {
+    W = 560; H = 150; nr = 8.5; ic = 15; br = 19;
+    pos = (r, c) => [16 + (r * (W - 80)) / maxR, 12 + (c * (H - 24)) / (cols - 1)];
+    boss = [W - 24, H / 2];
+  } else {
+    const top = 70, dy = 40;
+    W = 520; H = top + maxR * dy + 30; nr = 15; ic = 26; br = 30;
+    pos = (r, c) => [40 + (c * (W - 80)) / (cols - 1), top + (maxR - r) * dy + 10];
+    boss = [W / 2, top - 34];
+  }
+  const planSet = new Set(m.route);
+  let edges = "", plan = "", nodes = "";
   for (const n of Object.values(P.nodes)) {
+    const [x1, y1] = pos(n.r, n.c);
     for (const k of n.kids) {
-      const ch = P.nodes[`r${n.r + 1}c${k}`];
-      edges += `<line class="edge ${n.visited && ch && ch.visited ? "done" : ""}" x1="${X(n.c)}" y1="${Y(n.r)}" x2="${X(k)}" y2="${Y(n.r + 1)}"/>`;
+      const ch = P.nodes[`r${n.r + 1}c${k}`], [x2, y2] = pos(n.r + 1, k);
+      edges += `<line class="edge ${n.visited && ch && ch.visited ? "done" : ""}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
     }
-    if (n.r === maxR) edges += `<line class="edge" x1="${X(n.c)}" y1="${Y(n.r)}" x2="${W / 2}" y2="${top - 20}"/>`;
+    if (n.r === maxR) edges += `<line class="edge" x1="${x1}" y1="${y1}" x2="${boss[0]}" y2="${boss[1]}"/>`;
+  }
+  const chain = (m.here ? [`r${m.here.r}c${m.here.c}`] : []).concat(m.route);
+  for (let i = 1; i < chain.length; i++) {
+    const a = P.nodes[chain[i - 1]], b = P.nodes[chain[i]];
+    if (a && b && b.r === a.r + 1) { const [x1, y1] = pos(a.r, a.c), [x2, y2] = pos(b.r, b.c); plan += `<line class="edge plan" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`; }
   }
   for (const n of Object.values(P.nodes)) {
-    const coord = `r${n.r}c${n.c}`, off = offers.find((o) => o.coord === coord);
+    const coord = `r${n.r}c${n.c}`, off = offers.find((x) => x.coord === coord), [x, y] = pos(n.r, n.c);
     const icon = M.ui[MAPICON[n.type]];
     const r = price && off ? priceFor(price, off.label) : null;
-    nodes += `<g class="node ${n.visited ? "visited" : ""} ${off ? "offer" : ""} ${here === n ? "here" : ""}"><title>${esc(coord + " " + n.type)}</title>
-      <circle class="bg" cx="${X(n.c)}" cy="${Y(n.r)}" r="15"/>
-      ${icon ? `<image href="${A(icon)}" x="${X(n.c) - 13}" y="${Y(n.r) - 13}" width="26" height="26"/>` : `<text x="${X(n.c)}" y="${Y(n.r) + 5}">${esc(n.type)}</text>`}
-      ${off ? `<text x="${X(n.c) - 21}" y="${Y(n.r) - 9}" style="fill:var(--gold);font-size:12px">${off.n}</text>` : ""}
-      ${r ? `<text class="ptag" x="${X(n.c) + 18}" y="${Y(n.r) + 4}" text-anchor="start">${pct(r.act)}</text>` : ""}</g>`;
+    nodes += `<g class="node ${n.visited ? "visited" : ""} ${off ? "offer" : ""} ${planSet.has(coord) ? "plan" : ""} ${m.here === n ? "here" : ""}"><title>${esc(coord + " " + n.type)}</title>
+      <circle class="bg" cx="${x}" cy="${y}" r="${nr}"/>
+      ${icon ? `<image href="${A(icon)}" x="${x - ic / 2}" y="${y - ic / 2}" width="${ic}" height="${ic}"/>` : `<text x="${x}" y="${y + (cmp ? 3 : 5)}" style="${cmp ? "font-size:9px" : ""}">${esc(n.type)}</text>`}
+      ${off ? `<text x="${x - nr - 6}" y="${y - nr + 6}" style="fill:var(--gold);font-size:12px">${off.n}</text>` : ""}
+      ${r ? `<text class="ptag" x="${x + nr + 3}" y="${y + 4}" text-anchor="start">${pct(r.act)}</text>` : ""}</g>`;
   }
   const bossIds = P.boss ? P.boss.ids : [];
   const bicon = bossIds.map((b) => M.encounters[b] && M.encounters[b].icon).find(Boolean);
-  const bossSvg = `<g class="node"><circle class="bg" cx="${W / 2}" cy="${top - 34}" r="30" style="fill:#3a1f1f;stroke:var(--bad)"/>
-    ${bicon ? `<image href="${A(bicon)}" x="${W / 2 - 28}" y="${top - 62}" width="56" height="56"/>` : `<text x="${W / 2}" y="${top - 30}">BOSS</text>`}
-    <text x="${W / 2 + 40}" y="${top - 30}" text-anchor="start" style="font-size:13px">${esc(bossIds.map(encTitle).join(" + "))}</text></g>`;
-  return `<div id="map"><svg viewBox="0 0 ${W} ${H}" style="max-width:${W}px;margin:auto">${edges}${bossSvg}${nodes}</svg></div>${optionsHTML(text, "MAP")}`;
+  const bossSvg = `<g class="node"><title>${esc(bossIds.map(encTitle).join(" + ") || "boss")}</title><circle class="bg" cx="${boss[0]}" cy="${boss[1]}" r="${br}" style="fill:#3a1f1f;stroke:var(--bad)"/>
+    ${bicon ? `<image href="${A(bicon)}" x="${boss[0] - br + 2}" y="${boss[1] - br + 2}" width="${2 * br - 4}" height="${2 * br - 4}"/>` : `<text x="${boss[0]}" y="${boss[1] + 4}" style="font-size:${cmp ? 9 : 13}px">BOSS</text>`}
+    ${cmp ? "" : `<text x="${boss[0] + 40}" y="${boss[1] + 4}" text-anchor="start" style="font-size:13px">${esc(bossIds.map(encTitle).join(" + "))}</text>`}</g>`;
+  return `<svg viewBox="0 0 ${W} ${H}" style="max-width:${W}px;margin:auto">${edges}${plan}${bossSvg}${nodes}</svg>`;
+}
+function mapHTML(text) {
+  const m = mapModel();
+  if (!m) return `<div class="dim small">no act map in the record yet (logged at each fight start, or after \`m\`)</div>` + optionsHTML(text, "MAP");
+  const offers = options(text).map((o) => ({ n: o.n, coord: mapOptionCoord(o.label), label: o.label }));
+  return `<div id="map">${mapSVG(m, { offers, price: latestPrice("MAP") })}</div>${optionsHTML(text, "MAP")}`;
+}
+function renderMiniMap() {  // the side panel's map: redrawn only when the map, the path or the planned route changed
+  const m = mapModel(), key = m ? m.key : "";
+  if (key === S.mapKey) return;
+  S.mapKey = key;
+  if (!m) { $("minimap").innerHTML = `<div class="dim small">no act map in the record yet (logged at each fight start, or after \`m\`)</div>`; $("mapsub").textContent = ""; return; }
+  const bossIds = m.P.boss ? m.P.boss.ids : [];
+  $("mapsub").textContent = [m.here ? `at r${m.here.r}c${m.here.c}` : "act start", m.route.length ? `planned ${m.route.join(" ")}` : "", bossIds.length ? "boss " + bossIds.map(encTitle).join(" + ") : ""].filter(Boolean).join(" · ");
+  $("minimap").innerHTML = mapSVG(m, { compact: true });
 }
 
 // ------------------------------------------------------------------ decision feed
@@ -634,7 +771,7 @@ function macroHTML(it) {
   const optsBody = `<div class="opts" style="margin-top:4px">${opts.map((o) => `<div class="opt small ${label === o.label ? "best" : ""}" style="${label === o.label ? "background:var(--chosen);border-color:var(--chosen-line)" : ""}"><span class="n">${o.n}</span><span>${esc(o.label)}</span></div>`).join("")}</div>`;
   const card = parseCardLabel(label);
   return `<div class="ev macro">${evHead(e.screen || "macro", "", `<span class="dim small">${h ? `A${h.act} F${h.floor}` : ""}</span>`, e.t)}
-    <div style="display:flex;gap:8px;align-items:center;margin-top:2px">${card ? cardHTML(card.id, { upgrade: card.upgrade, mini: true }) : ""}<div><span class="dim">chose</span> <span class="choice">${esc(label)}</span>${e.result ? ` <span class="faint small">&rarr; ${esc(e.result)}</span>` : ""}</div></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:2px">${card ? cardHTML(card.id, { upgrade: card.upgrade, cost: card.cost, star: card.star, mini: true }) : ""}<div><span class="dim">chose</span> <span class="choice">${esc(label)}</span>${e.result ? ` <span class="faint small">&rarr; ${esc(e.result)}</span>` : ""}</div></div>
     ${e.why ? `<div class="why">${esc(e.why)}</div>` : ""}
     ${it.price ? priceTable(it.price, label) : ""}
     ${opts.length > 1 ? det("mo" + e.t, `<span class="dim small">${opts.length} options</span>`, optsBody, false) : ""}</div>`;
@@ -685,6 +822,7 @@ function looseHTML(e) {
   }
   if (k === "reward_eval") return `<div class="ev calc">${evHead("reward", "", `<span class="dim small">${esc((e.options || []).join(" | "))}</span>`, e.t)}${det("r" + e.t, `<span class="dim small">numbers</span>`, `<pre>${esc(JSON.stringify(e.result, null, 1))}</pre>`, false)}</div>`;
   if (k === "divergence" || k === "harness_error") return `<div class="ev warn">${evHead(k, "", "", e.t)}<div class="small">${esc(e.what || e.where || "")} ${esc(e.error || "")} ${e.game ? `game ${esc(e.game.join(", "))} vs sim ${esc((e.sim || []).join(", "))}` : ""}</div></div>`;
+  if (k === "route_plan") return `<div class="ev calc">${evHead("route plan", "", `<span class="small">${esc((e.nodes || []).join(" → "))}</span>`, e.t)}</div>`;
   if (k === "note") return `<div class="ev">${evHead("note", "", "", e.t)}<div class="why" style="background:var(--panel2)">${esc(e.text)}</div></div>`;
   if (k === "run_end") return `<div class="ev warn">${evHead("run end", "", `<b>${esc(e.screen)}</b>`, e.t)}<pre>${esc(e.text || "")}</pre></div>`;
   return `<div class="ev">${evHead(k, "", "", e.t)}<pre>${esc(JSON.stringify(e).slice(0, 400))}</pre></div>`;
@@ -735,7 +873,7 @@ async function tick() {
     await pollLive();
     const grew = await pollEvents();
     if (grew) { renderFeed(); S.dirty = true; }
-    if (S.dirty) { renderTop(); renderScreen(); S.dirty = false; }
+    if (S.dirty) { renderTop(); renderScreen(); renderMiniMap(); S.dirty = false; }
     const t = Math.max((S.live && S.live.t) || 0, (S.events.length && S.events[S.events.length - 1].t) || 0);
     const age = t ? Date.now() / 1000 - t : null;
     $("dot").className = "dot " + (age == null ? "" : age < 120 ? "ok" : "stale");
@@ -750,6 +888,12 @@ document.addEventListener("toggle", (ev) => {
   const d = ev.target; if (!(d instanceof HTMLDetailsElement)) return;
   if (d.dataset.k) S.open[d.dataset.k] = d.open;
 }, true);
+document.addEventListener("click", (ev) => {  // a card opens its full view; any click (or Esc) closes it
+  if (!$("cardpop").classList.contains("hidden")) { closeCardPop(); return; }
+  const el = ev.target.closest && ev.target.closest(".card[data-id]");
+  if (el) openCardPop(el);
+});
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeCardPop(); });
 $("deckorder").addEventListener("click", () => {
   S.deckOrder = S.deckOrder === "acq" ? "alpha" : "acq";
   try { localStorage.setItem(DECK_ORDER_KEY, S.deckOrder); } catch (e) { /* not persisted: still switches */ }
