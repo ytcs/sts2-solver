@@ -3,6 +3,7 @@
 
   tools/bench.py build                 # freeze the sets into data/bench/ and label them (search at live width, h128; ~1 h on one GPU)
   tools/bench.py score CKPT [CKPT ...] # calibration and ranking of each network's fight-start prediction
+  tools/bench.py play CKPT             # the network as the search's policy: win and end HP paired with the labels (same seeds)
 
 Sets (`data/bench/<set>.json`: scenarios plus per-attempt labels):
   eval    the first 600 fights of data/train/eval.json (5 characters, 3 acts, generated decks)
@@ -205,14 +206,35 @@ def score_net(ck):
         print("        " + "  ".join(f"{k} {np.mean([np.sign(dwo[i]) == np.sign(ref_u[i]) for i in range(len(rows)) if rows[i]['kind'] == k and big_u[i]]):.2f}" for k in kinds))
 
 
+def play(ck):
+    """A network as the search's policy and evaluator at live width on the frozen sets, on the labels' seeds: win and end HP paired with the labels."""
+    from solver import Solver
+    S = Solver(ck, M=5, K=32, value_ckpts=[])
+    print(f"\n== play {os.path.basename(ck)} (search 5x32 vs the labels' h128 5x32, same seeds)")
+    for name in SETS:
+        path = os.path.join(OUT, name + ".json")
+        if not os.path.exists(path):
+            continue
+        rows = json.load(open(path))
+        res = S.solve([r["scenario"] for r in rows], attempts=ATTEMPTS, seed=11)
+        d = np.array([np.mean([b - a for a, b in zip(r["wins"], x["wins"]) if a is not None and b is not None]) for r, x in zip(rows, res)])
+        hp = np.array([np.mean([(b or 0) - (a or 0) for a, b in zip(r["ends"], x["ends_abs"]) if a is not None and b is not None]) for r, x in zip(rows, res)])
+        print(f"{name:7s} win {np.mean([x['win'] for x in res]):.3f} vs {np.mean([np.mean([w for w in r['wins'] if w is not None]) for r in rows]):.3f}: "
+              f"{d.mean():+.3f} +- {d.std(ddof=1) / len(d) ** 0.5:.3f}; end HP {hp.mean():+.2f} +- {hp.std(ddof=1) / len(hp) ** 0.5:.2f}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build"); b.add_argument("--force", action="store_true"); b.add_argument("--pairs", type=int, default=300)
     s = sub.add_parser("score"); s.add_argument("ckpts", nargs="+")
+    pl = sub.add_parser("play"); pl.add_argument("ckpts", nargs="+")
     a = ap.parse_args()
     if a.cmd == "build":
         build(a)
+    elif a.cmd == "play":
+        for ck in a.ckpts:
+            play(ck)
     else:
         for ck in a.ckpts:
             score_net(ck)

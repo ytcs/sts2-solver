@@ -337,6 +337,55 @@ fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReado
     Ok((PyArray1::from_vec(py, obs).reshape([n, sts2env::OBS])?, PyArray1::from_vec(py, mask).reshape([n, sts2env::ACTIONS])?))
 }
 
+/// Many recorded fights at once, in parallel: fight i replays `actions[off[i]..off[i + 1]]` from `scenarios[scen[i]]` with `seeds[i]` and returns
+/// the observation and mask before each of its `steps[soff[i]..soff[i + 1]]` (indices into its own steps), all fights' rows concatenated in order.
+/// What `rl/exit.py` trains on: the decisions the search made, rebuilt from the compact record.
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, seeds: Vec<u64>, actions: PyReadonlyArray1<i32>, off: Vec<usize>,
+                    steps: Vec<u32>, soff: Vec<usize>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
+    use numpy::{PyArray1, PyArrayMethods};
+    use rayon::prelude::*;
+    let parsed: Vec<(sts2sim::scenario::Scenario, sts2sim::scenario::ScenarioExtras)> = scenarios
+        .iter()
+        .map(|s| {
+            let v: serde_json::Value = serde_json::from_str(s).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)
+        })
+        .collect::<PyResult<_>>()?;
+    let acts: Vec<u16> = actions.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?.iter().map(|&a| a as u16).collect();
+    let (o, a) = (sts2env::OBS, sts2env::ACTIONS);
+    let parts: Vec<Result<(Vec<f32>, Vec<u8>), String>> = py.detach(|| {
+        (0..seeds.len())
+            .into_par_iter()
+            .map(|i| {
+                let fa = &acts[off[i]..off[i + 1]];
+                let n = fa.len() + 1;
+                let mut obs = vec![0f32; n * o];
+                let mut mask = vec![0u8; n * a];
+                sts2env::search::replay(&parsed[scen[i] as usize], seeds[i], fa, &mut obs, &mut mask).map_err(|e| format!("fight {i}: {e:?}"))?;
+                let st = &steps[soff[i]..soff[i + 1]];
+                let mut ro = Vec::with_capacity(st.len() * o);
+                let mut rm = Vec::with_capacity(st.len() * a);
+                for &t in st {
+                    let t = t as usize;
+                    ro.extend_from_slice(&obs[t * o..(t + 1) * o]);
+                    rm.extend_from_slice(&mask[t * a..(t + 1) * a]);
+                }
+                Ok((ro, rm))
+            })
+            .collect()
+    });
+    let (mut obs, mut mask) = (Vec::new(), Vec::new());
+    for p in parts {
+        let (ro, rm) = p.map_err(PyValueError::new_err)?;
+        obs.extend(ro);
+        mask.extend(rm);
+    }
+    let r = obs.len() / o;
+    Ok((PyArray1::from_vec(py, obs).reshape([r, o])?, PyArray1::from_vec(py, mask).reshape([r, a])?))
+}
+
 /// Whether observations leave out relics with no combat effect (`sts2sim::relic_mask`; on by default). Returns the previous setting.
 #[pyfunction]
 fn set_relic_mask(on: bool) -> bool {
@@ -408,6 +457,7 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;
     m.add_function(wrap_pyfunction!(set_relic_mask, m)?)?;
     m.add_function(wrap_pyfunction!(replay, m)?)?;
+    m.add_function(wrap_pyfunction!(replay_rows, m)?)?;
     m.add_function(wrap_pyfunction!(action_space, m)?)?;
     m.add_function(wrap_pyfunction!(layout, m)?)?;
     m.add_function(wrap_pyfunction!(names, m)?)?;

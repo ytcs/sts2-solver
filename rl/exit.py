@@ -5,7 +5,7 @@
   rl/exit.py train   --init models/solver_h128.pt --data target/exit/r1.npz [more.npz ...] --out target/exit/r1.pt [--epochs 4]
 
 `collect` stores fights compactly (scenario, seed, the action sequence, the outcome class, and per searched decision the options tried with their
-search estimates); `train` replays the actions to observations (`sts2.replay`, deterministic) chunk by chunk, so millions of rows need no disk or RAM.
+search estimates); `train` replays the actions to observations (`sts2.replay_rows`, deterministic, in parallel) chunk by chunk, so millions of rows need no disk or RAM.
 Targets per searched decision:
   policy   softmax of the options' search estimates at temperature `--tau` (the search's improved policy over the options it tried)
   outcome  the class of how that fight really ended (loss, or the 2-HP end bin) under search play, HL-Gauss-smoothed over neighbouring win bins
@@ -72,22 +72,34 @@ class Data:
             order = np.argsort(z["d_fight"], kind="stable")
             self.parts.append(dict(scen=scen, f_scen=z["f_scen"], f_seed=z["f_seed"], f_cls=z["f_cls"], f_off=z["f_off"], acts=z["acts"].astype(np.int32),
                                    d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], tgt=tgt[order]))
+            self.parts[-1]["d_lo"] = np.searchsorted(self.parts[-1]["d_fight"], np.arange(len(z["f_cls"]) + 1))
         self.index = [(pi, f) for pi, p in enumerate(self.parts) for f in range(len(p["f_cls"]))]
 
     def __len__(self):
         return len(self.index)
 
     def rows(self, fights):
-        obs, mask, opts, tgt, cls = [], [], [], [], []
+        """The training rows of these fights, replayed in parallel (`sts2.replay_rows`)."""
+        out = [[], [], [], [], []]
+        by = {}
         for pi, f in fights:
+            by.setdefault(pi, []).append(f)
+        for pi, fs in by.items():
             p = self.parts[pi]
-            lo, hi = np.searchsorted(p["d_fight"], [f, f + 1])
-            if lo == hi:
+            fs = [f for f in fs if p["d_lo"][f] < p["d_lo"][f + 1]]
+            if not fs:
                 continue
-            o, m = sts2.replay(p["scen"][p["f_scen"][f]], int(p["f_seed"][f]), p["acts"][p["f_off"][f]:p["f_off"][f + 1]])
-            st = p["d_step"][lo:hi]
-            obs.append(o[st]); mask.append(m[st]); opts.append(p["d_opts"][lo:hi]); tgt.append(p["tgt"][lo:hi]); cls.append(np.full(hi - lo, p["f_cls"][f]))
-        return [np.concatenate(x) for x in (obs, mask, opts, tgt, cls)]
+            uniq, inv = np.unique(p["f_scen"][fs], return_inverse=True)
+            acts, off, steps, soff, sel = [], [0], [], [0], []
+            for f in fs:
+                acts.append(p["acts"][p["f_off"][f]:p["f_off"][f + 1]]); off.append(off[-1] + len(acts[-1]))
+                lo, hi = p["d_lo"][f], p["d_lo"][f + 1]
+                steps.append(p["d_step"][lo:hi]); soff.append(soff[-1] + hi - lo); sel.append(np.arange(lo, hi))
+            o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff)
+            sel = np.concatenate(sel)
+            out[0].append(o); out[1].append(m); out[2].append(p["d_opts"][sel]); out[3].append(p["tgt"][sel])
+            out[4].append(np.repeat(p["f_cls"][fs], np.diff(soff)))
+        return [np.concatenate(x) for x in out]
 
 
 def hl_gauss(cls, sigma):

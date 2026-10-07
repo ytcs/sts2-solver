@@ -53,3 +53,23 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 - **Implications:**
   - The ranking benchmark needs about 256+ attempts per pair (at a cheaper search width) to have a ceiling worth measuring against.
   - Single macro choices move outcomes by a few points, so pricing them by sampling fights needs hundreds of play-outs per option. A calibrated predictor that returns the expectation directly is the only affordable way to price them.
+
+## E4. Round 1 of expert iteration (`rl/exit.py`)
+- **Setup:**
+  - Data: h128 search at 3x8 played 88,600 fights, one attempt each (12 min, 122 fights/s), giving 2.33M searched decisions.
+  - Pool: 60k from target/m3/train_mix, the real-run corpus train set x4, ~5.8k tail fights x2, 15k later-act fights (generator seed 47); held out from every bench set.
+  - Training: 3 epochs from h128 (21 min), lr 1e-4, policy target = softmax of the options' search estimates (tau 0.02), outcome target = the fight's realized class under search play, HL-Gauss sigma 0.75.
+  - Holdout loss: outcome 4.15 → 1.93, policy 2.82 → 1.18.
+- **Calibration against live-width h128 search labels (`tools/bench.py score`):**
+
+| set | bias h128 → r1 | Brier h128 → r1 | pred 0.4-0.6 → actual (r1) |
+|---|---|---|---|
+| eval | -0.090 → -0.017 | 0.047 → 0.030 | 0.51 → 0.62 |
+| corpus | -0.019 → +0.009 | 0.032 → 0.023 | (n 4) |
+| mix | -0.126 → -0.028 | 0.061 → 0.029 | 0.50 → 0.55 |
+| tail | -0.144 → -0.014 | 0.079 → 0.038 | 0.51 → 0.51 |
+
+- **What this shows:** the outcome head trained on search-played outcomes predicts search play far better on every set, including the tail. A residual -0.02 remains on eval and mix; the labels used 3x8, the bench 5x32.
+- **What it does not show:**
+  - Ranking quality: the strong ranking reference is not built yet.
+  - Whether r1 plays as well as h128 as the search's policy: that is the `play` check.

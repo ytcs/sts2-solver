@@ -15,7 +15,7 @@ Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py);
 import json
 import numpy as np
 
-from ._sts2 import Sim, replay as _replay, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable, set_relic_mask  # noqa: F401
+from ._sts2 import Sim, replay as _replay, replay_rows as _replay_rows, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable, set_relic_mask  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )
@@ -89,3 +89,10 @@ def replay(scenario, seed, actions):
     """Replays a fight recorded by the search engine (`SearchEngine.moves`): `(obs [n + 1, OBS_SIZE], mask [n + 1, ACTIONS])` before every action
     and after the last one. `seed` is the job seed of the fight; the real fight depends on nothing else."""
     return _replay(json.dumps(scenario), int(seed), np.ascontiguousarray(actions, np.int32))
+
+
+def replay_rows(scenarios, scen, seeds, actions, off, steps, soff):
+    """Many recorded fights in parallel (`rl/exit.py`): fight i replays `actions[off[i]:off[i + 1]]` from `scenarios[scen[i]]` with `seeds[i]`;
+    returns `(obs [R, OBS_SIZE], mask [R, ACTIONS])` before each of its `steps[soff[i]:soff[i + 1]]`, all fights' rows concatenated."""
+    return _replay_rows([json.dumps(s) for s in scenarios], [int(x) for x in scen], [int(x) for x in seeds], np.ascontiguousarray(actions, np.int32),
+                        [int(x) for x in off], [int(x) for x in steps], [int(x) for x in soff])

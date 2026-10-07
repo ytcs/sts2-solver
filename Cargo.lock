@@ -353,6 +353,7 @@ version = "0.1.0"
 dependencies = [
  "numpy",
  "pyo3",
+ "rayon",
  "serde_json",
  "sts2diff",
  "sts2env",
