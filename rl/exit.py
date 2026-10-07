@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Expert iteration (`docs/rebuild.md` S3): the search plays fights, the network learns to predict how the SEARCH's fights end and to choose like it.
 
-  rl/exit.py collect --ckpt models/solver_h128.pt --fights F.json [F2.json ...] --out target/exit/r1.npz [--M 3 --K 8] [--attempts 2]
-  rl/exit.py train   --init models/solver_h128.pt --data target/exit/r1.npz [more.npz ...] --out target/exit/r1.pt [--epochs 4]
+  rl/exit.py collect --ckpt models/solver_h128.pt --fights F.json [F2.json ...] --out target/exit/r1.npz [--M 3 --K 8] [--attempts 2] [--max-minutes 120]
+  rl/exit.py train   --init models/solver_h128.pt --data target/exit/r1_*.npz --out target/exit/r1.pt [--epochs 4]
 
 `collect` stores fights compactly (scenario, seed, the action sequence, the outcome class, and per searched decision the options tried with their
 search estimates); `train` replays the actions to observations (`sts2.replay_rows`, deterministic, in parallel) chunk by chunk, so millions of rows need no disk or RAM.
@@ -22,39 +22,82 @@ import sts2  # noqa: E402
 import heads as H  # noqa: E402
 
 
+def _save(path, scen, F_, D):
+    np.savez_compressed(path, scenarios=np.array(json.dumps(scen)), f_scen=np.array(F_["scen"], np.int32), f_seed=np.array(F_["seed"], np.uint64),
+                        f_cls=np.array(F_["cls"], np.int16), f_off=np.array(F_["off"], np.int64), acts=np.array(F_["acts"], np.int16),
+                        d_fight=np.array(D["fight"], np.int32), d_step=np.array(D["step"], np.int32), d_opts=np.array(D["opts"], np.int16), d_q=np.array(D["q"], np.float32))
+
+
 def collect(a):
+    """Search-played fights, a chunk at a time: each chunk is saved as its own part (`<out>_NNN.npz`, train takes them all), reports its rate, an ETA
+    and its longest fights; nothing starts after `--max-minutes`; a watchdog ends the process if a chunk runs longer than `--chunk-timeout` x the
+    median chunk (the chunk's scenarios are dumped next to the output for diagnosis)."""
+    import threading
     from fastsearch import FastSearch
     from model import load
     scen = [s for f in a.fights for s in json.load(open(f))]
+    sts2.set_look_legacy(a.look_legacy)
     fs = FastSearch(load(a.ckpt), M=a.M, K=a.K, record=True, roots=a.roots, amp=True)
     fs.warm()
-    S = len(scen)
-    js = np.tile(np.arange(S, dtype=np.uint32), a.attempts)
-    jd = np.uint64(a.seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
-    t0 = time.time()
-    res = fs.run(scen, js, jd, verbose=True)  # prints "cycle N, <fights done>" every 200 cycles: progress for long collections
-    F_ = dict(scen=[], seed=[], cls=[], off=[0], acts=[])
-    D = dict(fight=[], step=[], opts=[], q=[])
-    for idx, eng in fs._runs:
-        for jl, j in enumerate(idx):
-            oc, hp_end = res[j, 1], res[j, 6]
-            if oc not in (1, -1, 2):
-                continue
-            acts, searched, opts, _p, q, legal = eng.moves(jl)
-            f = len(F_["scen"])
-            F_["scen"].append(int(js[j])); F_["seed"].append(int(jd[j])); F_["cls"].append(int(H.end_class(oc == 1, hp_end)))
-            F_["acts"].extend(int(x) for x in acts); F_["off"].append(len(F_["acts"]))
-            for t in np.nonzero(searched)[0]:
-                ok = legal[t, :a.M].astype(bool) & np.isfinite(q[t, :a.M])
-                if ok.sum() < 2:
+    jobs = [(i, att) for att in range(a.attempts) for i in range(len(scen))]
+    stem = a.out[:-4] if a.out.endswith(".npz") else a.out
+    os.makedirs(os.path.dirname(os.path.abspath(stem)), exist_ok=True)
+    t_all, times, state = time.time(), [], {"start": None, "chunk": None}
+
+    def watchdog():
+        while True:
+            time.sleep(10)
+            st = state["start"]
+            if st is None or len(times) < 2:
+                limit = a.first_timeout * 60
+            else:
+                limit = a.chunk_timeout * float(np.median(times))
+            if st is not None and time.time() - st > limit:
+                bad = stem + f"_stuck_{state['chunk']:03d}.json"
+                json.dump(state["scen"], open(bad, "w"))
+                print(f"WATCHDOG: chunk {state['chunk']} ran {time.time() - st:.0f}s > limit {limit:.0f}s; its scenarios -> {bad}; exiting", flush=True)
+                os._exit(2)
+    threading.Thread(target=watchdog, daemon=True).start()
+    n_chunks = (len(jobs) + a.chunk - 1) // a.chunk
+    for k in range(n_chunks):
+        if time.time() - t_all > a.max_minutes * 60:
+            print(f"deadline: {a.max_minutes} min reached after {k} of {n_chunks} chunks; stopping (parts saved so far are complete)", flush=True)
+            break
+        part = jobs[k * a.chunk:(k + 1) * a.chunk]
+        cs = [scen[i] for i, _ in part]
+        js = np.arange(len(cs), dtype=np.uint32)
+        jd = np.array([np.uint64(a.seed) * np.uint64(1_000_003) + np.uint64(att * len(scen) + i) for i, att in part], dtype=np.uint64)
+        state.update(start=time.time(), chunk=k, scen=cs)
+        res = fs.run(cs, js, jd)
+        dt = time.time() - state["start"]
+        state["start"] = None
+        times.append(dt)
+        F_ = dict(scen=[], seed=[], cls=[], off=[0], acts=[])
+        D = dict(fight=[], step=[], opts=[], q=[])
+        for idx, eng in fs._runs:
+            for jl, j in enumerate(idx):
+                oc, hp_end = res[j, 1], res[j, 6]
+                if oc not in (1, -1, 2):
                     continue
-                D["fight"].append(f); D["step"].append(int(t))
-                D["opts"].append(np.where(ok, opts[t, :a.M], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :a.M], np.nan).astype(np.float32))
-    os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    np.savez_compressed(a.out, scenarios=np.array(json.dumps(scen)), f_scen=np.array(F_["scen"], np.int32), f_seed=np.array(F_["seed"], np.uint64),
-                        f_cls=np.array(F_["cls"], np.int16), f_off=np.array(F_["off"], np.int64), acts=np.array(F_["acts"], np.int16),
-                        d_fight=np.array(D["fight"], np.int32), d_step=np.array(D["step"], np.int32), d_opts=np.array(D["opts"], np.int16), d_q=np.array(D["q"], np.float32))
-    print(f"{S} fights x {a.attempts}: search win {np.mean(res[:, 1] == 1):.3f}; {len(F_['cls'])} fights, {len(D['fight'])} decisions -> {a.out} ({time.time() - t0:.0f}s)", flush=True)
+                acts, searched, opts, _p, q, legal = eng.moves(jl)
+                f = len(F_["scen"])
+                F_["scen"].append(int(js[j])); F_["seed"].append(int(jd[j])); F_["cls"].append(int(H.end_class(oc == 1, hp_end)))
+                F_["acts"].extend(int(x) for x in acts); F_["off"].append(len(F_["acts"]))
+                for t in np.nonzero(searched)[0]:
+                    ok = legal[t, :a.M].astype(bool) & np.isfinite(q[t, :a.M])
+                    if ok.sum() < 2:
+                        continue
+                    D["fight"].append(f); D["step"].append(int(t))
+                    D["opts"].append(np.where(ok, opts[t, :a.M], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :a.M], np.nan).astype(np.float32))
+        _save(f"{stem}_{k:03d}.npz", cs, F_, D)
+        lens = res[:, 4]
+        top = np.argsort(-lens)[:3]
+        rate = len(cs) / dt
+        eta = (len(jobs) - (k + 1) * a.chunk) / max(rate, 1e-9) / 60
+        print(f"chunk {k + 1}/{n_chunks}: {len(cs)} fights in {dt:.0f}s ({rate:.1f}/s), win {np.mean(res[:, 1] == 1):.3f}, {len(D['fight'])} decisions; "
+              f"length mean {lens.mean():.0f} max {lens.max():.0f} ({', '.join(cs[i]['encounter'] for i in top)}); outcomes {dict(zip(*np.unique(res[:, 1], return_counts=True)))}; "
+              f"ETA {eta:.0f} min", flush=True)
+    print(f"done in {(time.time() - t_all) / 60:.1f} min -> {stem}_NNN.npz", flush=True)
 
 
 class Data:
@@ -188,6 +231,11 @@ def main():
     c.add_argument("--ckpt", required=True); c.add_argument("--fights", nargs="+", required=True); c.add_argument("--out", required=True)
     c.add_argument("--M", type=int, default=3); c.add_argument("--K", type=int, default=8); c.add_argument("--attempts", type=int, default=2)
     c.add_argument("--roots", type=int, default=2048); c.add_argument("--seed", type=int, default=101)
+    c.add_argument("--chunk", type=int, default=2048, help="fights per saved part")
+    c.add_argument("--look-legacy", action="store_true", help="the enemy look-ahead from before S1 (per-monster pattern walk)")
+    c.add_argument("--max-minutes", type=float, default=120, help="no new chunk starts after this")
+    c.add_argument("--chunk-timeout", type=float, default=3.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
+    c.add_argument("--first-timeout", type=float, default=30.0, help="watchdog limit in minutes for the first two chunks")
     t = sub.add_parser("train")
     t.add_argument("--init", required=True); t.add_argument("--data", nargs="+", required=True); t.add_argument("--out", required=True)
     t.add_argument("--epochs", type=int, default=4); t.add_argument("--chunk", type=int, default=2048); t.add_argument("--mb", type=int, default=2048)
