@@ -15,7 +15,7 @@ Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py);
 import json
 import numpy as np
 
-from ._sts2 import Sim, replay as _replay, replay_rows as _replay_rows, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable, set_relic_mask  # noqa: F401
+from ._sts2 import Sim, replay as _replay, replay_rows as _replay_rows, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable, set_relic_mask, set_look_legacy  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )

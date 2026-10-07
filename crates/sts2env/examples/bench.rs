@@ -19,7 +19,16 @@ fn main() {
         potions: vec![], rng: RngSet::from_run_seed(0),
     };
     let n: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(10_000);
-    let mut env = BatchEnv::new(n, Box::new(FixedScenario(sc)), RewardConfig::default(), 2000, 1);
+    // BENCH_SCENARIOS=data/train/eval.json: the episodes cycle through a scenario list (the training mix) instead of one Nibbit fight
+    let source: Box<dyn ScenarioSource> = match std::env::var("BENCH_SCENARIOS") {
+        Ok(path) => {
+            let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+            let pool: Vec<_> = v.as_array().unwrap().iter().filter_map(|sj| sts2diff::convert::scenario_ex(sj).ok()).filter(|(sc, _)| sc.validate().is_ok()).collect();
+            Box::new(PoolScenario::with_extras(pool))
+        }
+        Err(_) => Box::new(FixedScenario(sc)),
+    };
+    let mut env = BatchEnv::new(n, source, RewardConfig::default(), 2000, 1);
     let mut obs = vec![0f32; n * OBS];
     let mut mask = vec![0u8; n * ACTIONS];
     let (mut reward, mut done, mut outcome, mut illegal) = (vec![0f32; n], vec![0u8; n], vec![0i8; n], vec![0u8; n]);

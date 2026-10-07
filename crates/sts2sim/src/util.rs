@@ -22,10 +22,26 @@ thread_local! {
 #[cold]
 #[inline(never)]
 pub fn raise_overflow(bit: u32) {
+    if QUIET.with(|q| q.get()) {
+        return;
+    }
     if std::env::var("STS2_OVERFLOW_PANIC").is_ok() {
         panic!("capacity overflow raised (bit {bit})");
     }
     OVERFLOW.with(|c| c.set(c.get() | bit));
+}
+
+thread_local! {
+    static QUIET: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Runs `f` with overflows ignored: for throwaway copies of a combat (the enemy look-ahead's projection), whose overflows say
+/// nothing about the fight being simulated.
+pub fn quiet<R>(f: impl FnOnce() -> R) -> R {
+    let was = QUIET.with(|q| q.replace(true));
+    let r = f();
+    QUIET.with(|q| q.set(was));
+    r
 }
 
 /// Returns and clears the overflow bits raised on this thread (`0` = nothing was dropped).

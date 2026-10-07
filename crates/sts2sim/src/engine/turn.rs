@@ -574,6 +574,16 @@ impl Combat {
 
     /// `StartTurn(Enemy)` + `ExecuteEnemyTurn` + `EndEnemyTurn` (spec 01 §10).
     fn run_enemy_turn(&mut self) {
+        if self.start_enemy_turn() {
+            return;
+        }
+        // ExecuteEnemyTurn: snapshot of Enemies at turn start.
+        let snapshot = self.creatures_on(Side::Enemy);
+        self.enemy_turn_from(snapshot, 0);
+    }
+
+    /// `StartTurn(Enemy)`. Returns true if the combat ended.
+    fn start_enemy_turn(&mut self) -> bool {
         self.player.phase = Phase::None;
         let list = self.creatures_on(Side::Enemy);
         self.before_turn_start(Side::Enemy);
@@ -586,12 +596,7 @@ impl Combat {
         }
         self.dispatch_g(hookbit::after_side_turn_start, |cx, me, l| l.after_side_turn_start(cx, me, Side::Enemy));
         self.dispatch_g(hookbit::after_side_turn_start_late, |cx, me, l| l.after_side_turn_start_late(cx, me, Side::Enemy));
-        if self.check_win_condition() {
-            return;
-        }
-        // ExecuteEnemyTurn: snapshot of Enemies at turn start.
-        let snapshot = self.creatures_on(Side::Enemy);
-        self.enemy_turn_from(snapshot, 0);
+        self.check_win_condition()
     }
 
     /// The `ExecuteEnemyTurn` loop from snapshot index `from`, then `EndEnemyTurn`. A monster move that raises a decision
@@ -613,20 +618,108 @@ impl Combat {
                 return;
             }
         }
-        // EndEnemyTurnInternal
-        self.dispatch_g(hookbit::before_side_turn_end_very_early, |cx, me, l| l.before_side_turn_end_very_early(cx, me, Side::Enemy));
-        self.dispatch_g(hookbit::before_side_turn_end_early, |cx, me, l| l.before_side_turn_end_early(cx, me, Side::Enemy));
-        self.dispatch_g(hookbit::before_side_turn_end, |cx, me, l| l.before_side_turn_end(cx, me, Side::Enemy));
-        self.end_of_turn_cleanup();
-        self.dispatch_g(hookbit::after_side_turn_end, |cx, me, l| l.after_side_turn_end(cx, me, Side::Enemy));
-        self.dispatch_g(hookbit::after_side_turn_end_late, |cx, me, l| l.after_side_turn_end_late(cx, me, Side::Enemy));
-        if self.check_win_condition() {
+        if self.end_enemy_turn(true) {
             // Quirk (spec 01 §10.3): `IsCombatEnding` is false once the combat is no longer in progress, so the side
             // switch (round / turn counters) still happens after a win or loss detected right here.
             self.flip_sides();
             return;
         }
         self.switch_sides();
+    }
+
+    /// `EndEnemyTurnInternal`. Returns true if the combat ended. `cleanup`: the per-card end-of-turn cleanup (the look-ahead
+    /// skips it: no monster reads it).
+    fn end_enemy_turn(&mut self, cleanup: bool) -> bool {
+        self.dispatch_g(hookbit::before_side_turn_end_very_early, |cx, me, l| l.before_side_turn_end_very_early(cx, me, Side::Enemy));
+        self.dispatch_g(hookbit::before_side_turn_end_early, |cx, me, l| l.before_side_turn_end_early(cx, me, Side::Enemy));
+        self.dispatch_g(hookbit::before_side_turn_end, |cx, me, l| l.before_side_turn_end(cx, me, Side::Enemy));
+        if cleanup {
+            self.end_of_turn_cleanup();
+        }
+        self.dispatch_g(hookbit::after_side_turn_end, |cx, me, l| l.after_side_turn_end(cx, me, Side::Enemy));
+        self.dispatch_g(hookbit::after_side_turn_end_late, |cx, me, l| l.after_side_turn_end_late(cx, me, Side::Enemy));
+        self.check_win_condition()
+    }
+
+    /// One turn of the enemy look-ahead (`engine/monster.rs`), run on its projected copy of the combat: the player passes (the
+    /// player side's turn-end hooks run for whatever listens to them; the hand does nothing), the enemy turn runs as in `run_enemy_turn`,
+    /// then the next player turn starts up to the point where the enemies roll (`PrepareForNextTurn`; the player's block is
+    /// cleared there too). Pending decisions are dropped (the copy auto-selects card choices). Returns false once the projected
+    /// combat is over.
+    pub(crate) fn look_turn(&mut self) -> bool {
+        self.look_drop_decision();
+        let mut snapshot = self.creatures_on(Side::Enemy);
+        let mut from = 0;
+        if let Some((snap, i, nm)) = self.enemy_cont.take() {
+            // looking ahead from inside an enemy turn (a monster's prompt): that turn finishes first
+            self.finish_move(snap[i as usize], nm);
+            snapshot = snap;
+            from = i as usize + 1;
+        } else if self.side == Side::Player {
+            self.player.phase = Phase::End;
+            self.dispatch_g(hookbit::before_side_turn_end_very_early, |cx, me, l| l.before_side_turn_end_very_early(cx, me, Side::Player));
+            self.dispatch_g(hookbit::before_side_turn_end_early, |cx, me, l| l.before_side_turn_end_early(cx, me, Side::Player));
+            self.dispatch_g(hookbit::before_side_turn_end, |cx, me, l| l.before_side_turn_end(cx, me, Side::Player));
+            self.dispatch_g(hookbit::after_side_turn_end, |cx, me, l| l.after_side_turn_end(cx, me, Side::Player));
+            self.dispatch_g(hookbit::after_side_turn_end_late, |cx, me, l| l.after_side_turn_end_late(cx, me, Side::Player));
+            self.look_drop_decision();
+            self.flip_sides();
+            if self.check_win_condition() || self.start_enemy_turn() {
+                return false;
+            }
+            snapshot = self.creatures_on(Side::Enemy);
+        }
+        for &e in snapshot.iter().skip(from) {
+            if !self.enemies.contains(e) || self.cr(e).monster.spawned_this_turn || self.cr(e).monster.next_move == NO {
+                continue;
+            }
+            if let Some(nm) = self.perform_move(e) {
+                self.look_drop_decision();
+                self.finish_move(e, nm);
+            }
+            if self.check_win_condition() {
+                return false;
+            }
+        }
+        if self.end_enemy_turn(false) {
+            return false;
+        }
+        self.look_drop_decision();
+        self.flip_sides();
+        let list = self.creatures_on(Side::Player);
+        self.before_turn_start_for(&list);
+        self.dispatch_g(hookbit::before_side_turn_start, |cx, me, l| l.before_side_turn_start(cx, me, Side::Player));
+        self.player.phase = Phase::Start;
+        for &c in list.iter() {
+            self.clear_block(c);
+        }
+        self.look_drop_decision();
+        self.in_progress && !self.is_ending()
+    }
+
+    /// A decision raised inside the look-ahead's projected combat is answered with nothing: a monster's move continues
+    /// (`resume_hook` with an empty choice), anything else is dropped.
+    fn look_drop_decision(&mut self) {
+        for _ in 0..4 {
+            if self.stage != Stage::AwaitChoice {
+                break;
+            }
+            self.decision = None;
+            self.choice.cards.clear();
+            self.stage = Stage::AwaitAction;
+            if let Some((me, phase)) = self.hook_ctx.take() {
+                if me.kind == Kind::Monster {
+                    content::listener(&me).resume_hook(self, me, phase);
+                }
+            }
+        }
+        self.play_stack.clear();
+        self.potion_ctx = None;
+        self.hook_after = None;
+        self.draw_pass = None;
+        self.turn_cont = 0;
+        self.end_turn_resume = None;
+        self.susp.clear();
     }
 
     /// Continues an enemy turn that was suspended inside a monster move (after the hook resumed the move's effect).

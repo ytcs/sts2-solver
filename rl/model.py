@@ -124,7 +124,9 @@ class Net(nn.Module):
         self.mon = nn.Embedding(C["N_MONSTERS"] + 1, e, padding_idx=0)
         self.kind = nn.Embedding(16, 8)
         self.node = nn.Embedding(C["LOOK_NODES"] + 8, 8, padding_idx=0)
-        n_enemy_in = e + e + 7 + 3 * (8 + 3) + 4 * 8 + C["LOOK_H"] * (C["LOOK_NODES"] + 1)
+        # the look-ahead rows, then (S1) the pending move node and the stored follow-up, both through `node`: new inputs go last, and
+        # `load_weights` gives an older checkpoint zero weights for them (identical behaviour)
+        n_enemy_in = e + e + 7 + 3 * (8 + 3) + 4 * 8 + C["LOOK_H"] * (C["LOOK_NODES"] + 1) + C["MOVE_STATE_F"] * 8
         self.enemy = mlp(n_enemy_in, d, d)
         self.relic = Bag(C["N_RELICS"], e, 2)
         self.potion = nn.Embedding(C["N_POTIONS"] + 1, e, padding_idx=0)
@@ -180,10 +182,11 @@ class Net(nn.Module):
         osty = sl(obs, "osty")
         orbs = sl(obs, "orbs")
         look = sl(obs, "look").view(B, E, C["LOOK_H"], C["LOOK_NODES"] + 1)
+        moves = sl(obs, "enemy_moves").view(B, E, C["MOVE_STATE_F"])
         # only the enemy slots that are occupied somewhere in this batch (most fights have 1-3 enemies)
         if E is None:
             E = max(1, int((enemies[..., 0] > 0.5).any(0).nonzero().max().item() + 1)) if (enemies[..., 0] > 0.5).any() else 1
-        enemies, look = enemies[:, :E], look[:, :E]
+        enemies, look, moves = enemies[:, :E], look[:, :E], moves[:, :E]
         # ---- player ----
         stage = g[:, 2:5]
         gsc = torch.stack([S(g[:, 0]) / 2.0, S(g[:, 1]) / 2.0, S(g[:, 6]) / 2.0, S(g[:, 7]) / 2.0, S(g[:, 8]) / 2.0], -1)
@@ -213,7 +216,8 @@ class Net(nn.Module):
         perf = enemies[..., 8 + 2 * P + 9:8 + 2 * P + 13].long().clamp(0, C["LOOK_NODES"] + 7)
         pe = self.node(perf).flatten(2)
         lk = torch.cat([look[..., :-1], S(look[..., -1:]) / 3.0], -1).flatten(2)
-        enemy = self.enemy(torch.cat([mon, epow, esc, torch.cat([ie, inum], -1).flatten(2), pe, lk], -1))
+        me = self.node(moves.long().clamp(0, C["LOOK_NODES"] + 7)).flatten(2)
+        enemy = self.enemy(torch.cat([mon, epow, esc, torch.cat([ie, inum], -1).flatten(2), pe, lk, me], -1))
         cid = enemies[..., 1].long().clamp(0, C["MAX_CREATURES"] - 1)
         # ---- hand ----
         hp_ = hand[..., 0] > 0
@@ -377,7 +381,13 @@ def load(path):
 
 def load_weights(net, sd, allow_missing=("ucond.",)):
     """A state dict into `net`; a checkpoint from before the HP-worth input (`ucond`) loads with that input at zero (identical behaviour).
+    A checkpoint from before S1 (3 look-ahead turns, no pending-move inputs) gets zero weights for the enemy inputs added since, which all
+    come after its own: it computes exactly what it did on the inputs it knew (with `sts2.set_look_legacy(True)` those are the same values).
     `allow_missing`: more parameter prefixes the checkpoint may lack (a warm start of the `outcome` head from a scalar-value network)."""
+    sd = dict(sd)
+    w, w_new = sd.get("enemy.0.weight"), net.enemy[0].weight
+    if w is not None and w.shape[1] < w_new.shape[1] and w.shape[0] == w_new.shape[0]:
+        sd["enemy.0.weight"] = torch.cat([w, w.new_zeros(w.shape[0], w_new.shape[1] - w.shape[1])], 1)
     missing, unexpected = net.load_state_dict(sd, strict=False)
     bad = [k for k in missing if not k.startswith(tuple(allow_missing))] + list(unexpected)
     if bad:

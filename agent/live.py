@@ -225,7 +225,7 @@ class Live:
     def _outlook(self):
         """Expected enemy damage over the next turns after the shown intent (the move pattern humans know by heart)."""
         rows = self.rp.sim.lookahead()
-        return "outlook (expected damage, next 3 turns): " + "  ".join(f"e{i} " + "/".join(f"{x:.0f}" for x in v) for i, v in rows) if rows else ""
+        return f"outlook (expected damage, next {len(rows[0][1])} turns): " + "  ".join(f"e{i} " + "/".join(f"{x:.0f}" for x in v) for i, v in rows) if rows else ""
 
     def advice(self, budget=None):
         if scr.kind(call("peek")) == "GAME_OVER":  # the game still exports the finished fight there: no decision to search

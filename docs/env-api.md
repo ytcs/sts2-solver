@@ -40,15 +40,34 @@ enemy's HP/block/powers, current intent(s) (type, per-hit damage computed with t
 its last four performed moves, **expert pattern knowledge of the enemy's upcoming turns** (below), per-turn play counters, and
 any pending decision with its candidates.
 
-**Upcoming enemy turns (`Combat::lookahead`, layout row 12).** The game shows only the current intent, but experienced players
+**Upcoming enemy turns (`Combat::lookahead`, layout rows 12-13).** The game shows only the current intent, but experienced players
 know each monster's pattern by heart, so the pattern is treated as known information: for each enemy and each of the next
-`LOOK_H` = 3 turns after the one shown, the observation carries the probability of each move node (`LOOK_NODES` = 16 slots; node
-indices are per monster, the monster id is in the enemy block) and the expected total attack damage. It is computed by walking
-the monster's own state machine forward on a copy of its state: deterministic cycles are exact, random branches give their
-odds (repeat rules and cooldowns evaluated on the hypothetical move history), conditional branches read the current combat. **No
-RNG is consumed and the realized outcome of random branches stays hidden** (`lookahead_consumes_no_rng...` and the hidden-state
-test). It cannot foresee events a player also could not (a stun, a wake-up, a summon); a soundness test measures that ≈98.7% of
-the moves enemies actually make had been assigned positive probability.
+`LOOK_H` = 4 turns after the one shown, the observation carries the probability of each move node (`LOOK_NODES` = 16 slots; node
+indices are per monster, the monster id is in the enemy block) and the expected total attack damage. It is computed by playing the
+next turns forward on a projected copy of the combat (`engine/monster.rs`, `look_turn` in `engine/turn.rs`):
+* the player passes and is inert (no powers, relics, cards or block act; it cannot die), so the rows are the pattern under the
+  status quo; branches the player can force (damage thresholds, kills, wake-ups by damage, stuns) are not anticipated;
+* the engine runs each enemy turn: moves are performed, powers tick (Asleep / Slumber count down, debuffs expire, poison), monsters
+  buff themselves, summon, die; at every roll the monster's state machine branches into each possible move with the game's odds,
+  conditions and weights reading the projected combat;
+* projections are per monster: the monster looked at branches, and so do its joint peers (`LOOK_JOINT`: Two-Tailed Rats read
+  each other's pending summon and share a call count); every other enemy takes its most likely move at each roll. Enemies roll in
+  list order, so a roll sees the moves rolled before it;
+* the expected damage is what the intent would show in the projected combat (the monster's projected Strength, Weak ...) against
+  the player's current modifiers;
+* paths reaching the same state are merged; at most 8 are kept per turn (the least likely are dropped, and a row then sums to less
+  than 1, as it does when the projected monster dies or the projected fight ends).
+
+**No RNG is consumed and no realized random outcome is read:** the copy's RNG streams are replaced by a fixed seed, so a random
+effect inside a projected move gets an arbitrary fixed outcome (`lookahead_consumes_no_rng...`, the hidden-state test). Calibration
+(`tests/lookahead.rs`): with a passive player (what the projection assumes) every observed move count matches its predicted count
+within 3 sigma over 162k predictions, and no move predicted impossible happens; under random play 1.2% of the moves happen with
+predicted probability 0 (all forced by the player). `LOOK_LEGACY` (`sts2.set_look_legacy`) restores the look-ahead from before S1
+(each machine walked alone over 3 turns, conditions reading the current combat) for networks trained before it.
+
+Section 13 (`enemy_moves`, `MOVE_STATE_F` = 2 per enemy slot) says where each pattern stands: the pending move node + 1 (the intent
+block shows only its intent types; 255 = stunned) and the node the monster resumes after a stun (or its stored follow-up) + 1, 0 when
+none, in the encoding of the performed-move history.
 
 Layout (sections in vector order; sizes are constants in `observe.rs`, `OBS_SIZE` is their sum, asserted in `observe()`):
 
@@ -66,6 +85,7 @@ Layout (sections in vector order; sizes are constants in `observe.rs`, `OBS_SIZE
 | 10 | **Necrobinder** (appended): Osty present / alive / HP / max HP / powers, then the Osty-damage preview of each hand card | `OSTY_F` |
 | 11 | **Defect** (appended): `MAX_ORBS` orbs `(kind+1, passive, evoke)` front first (empty = zeros; the slot count is `orb_slots` in the player block), then the number of Lightning orbs channeled this combat (Voltaic's text) | `ORBS_F` |
 | 12 | **Expert pattern knowledge** (appended): per enemy slot and per future turn `LOOK_H`: probability of each of `LOOK_NODES` move nodes + expected attack damage | `LOOK_F` = `OBS_MAX_ENEMIES * LOOK_H * (LOOK_NODES + 1)` |
+| 13 | **Enemy moves** (appended, S1): per enemy slot, pending move node + 1 and the stored follow-up + 1 | `ENEMY_MOVES_F` = `OBS_MAX_ENEMIES * MOVE_STATE_F` |
 
 `CARD_F` = 12 per card: `id+1, upgrade, energy cost (-1 = X), playable, keyword bitset, enchantment id, damage preview,
 block preview, counter[0], counter[1], enchantment amount, affliction id`.
@@ -138,4 +158,6 @@ replayed against the oracle with `STS2DIFF_REUSE=1`).
 
 ## Throughput (release, random policy, observation + legal actions every step, `cargo run --release -p sts2env --example bench`)
 ~0.17M env-steps/s per core (1 thread), scaling linearly: 2.4M on an idle 14-core machine (0.95M measured while ~10 foreign cores were busy).
-The observation (~40% of an env step) and the engine step (~30%) dominate; see `docs/design.md` "Performance".
+The observation (~40% of an env step) and the engine step (~30%) dominate; see `docs/design.md` "Performance". These figures predate S1:
+the projected look-ahead costs about 8 us per uncached enemy (`examples/lookprof.rs`). On the training mix (`BENCH_SCENARIOS=data/train/eval.json`,
+1 thread, random play, 83% of look-aheads uncached) an env step takes 6.3 us before S1, 11.5 / 14.2 / 16.9 us with `LOOK_H` = 3 / 4 / 5.
