@@ -97,7 +97,7 @@ Record 0 is the state after combat setup and the first turn start (`action: null
 No in-combat RNG draw is gated on TestMode.
 
 ## 6. Limits
-* One player; Linux x86-64 only (the stub is raw x86-64 machine code); the game build is pinned by the `sts2.dll` it references (v0.111.0).
+* One player; x86-64 only (the stub is raw x86-64 machine code), Linux or Windows (`mmap` or `VirtualAlloc`; the Windows build of v0.111.0 reproduces the Linux-recorded `oracle/regression` traces); the game build is pinned by the `sts2.dll` it references (v0.111.0).
 * Records are taken at player decision points only. Mid-enemy-turn states are not dumped (the `log` field localises mismatches inside an enemy turn).
 * Persistent-state injection beyond ints/bools/strings (`SavedProperties` int arrays, cards-in-props) is not wired in `Scenario.cs`.
 * Decision candidate lists are capped at `MAX_PICK` (64); a fight may create at most `MAX_CARDS` (160) card instances (a stalling policy for 50+ rounds). Both are flagged, never silent.
@@ -108,7 +108,7 @@ Per-entity sweeps validate one card, relic or monster at a time; the fuzzers val
 | tool | what |
 |---|---|
 | `tools/fuzz_gen.py` | `gen`, `run`, `triage` (re-diff failing scenarios), `rediff` (re-run only the diff phase after an oracle crash or a Rust fix), `freeze`, `regress`. Ironclad / Silent by default (`--characters`). Options `--relic-mode runlevel\|many`, `--each-card`, `--force-relics/-potions/-cards`, `--policy` |
-| `tools/fuzz_gen_mix.py` | any character, act-scaled; `--focus mix\|colorless\|junk\|gen\|turn` (`turn` = turn-start auto-play and decisions: Mayhem, Imbued, Earring), `--mode uniform\|greedy\|stall\|deep` (`deep` gives 400-999 HP so fights reach turn 10+), `--enchant P`, `--each-potion`, `--each-relic`, `--keep-ok`, `--gen-only` |
+| `tools/fuzz_gen_mix.py` | any character, act-scaled; `--focus mix\|colorless\|junk\|gen\|turn\|cross` (`turn` = turn-start auto-play and decisions: Mayhem, Imbued, Earring; `cross` = another character's orbs, stars and Forge, Osty and Doom, or Shiv and Sly, with its potions and star sources), `--cross P` (1-4 cards from another character's pool, default 0.3, the `gen_curriculum.py` draw), `--mode uniform\|greedy\|stall\|deep` (`deep` gives 400-999 HP so fights reach turn 10+), `--enchant P`, `--each-potion`, `--each-relic`, `--keep-ok`, `--gen-only` |
 | `tools/fuzz_gen_orb_pet.py` | Defect and Necrobinder (orbs, Osty) |
 
 ```

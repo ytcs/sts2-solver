@@ -225,7 +225,7 @@ listener!(Turbo {
     }
 });
 
-// A random Power card from the Defect pool joins the hand, free this turn.
+// A random Power card from the owner's character pool (`Owner.Character.CardPool`) joins the hand, free this turn.
 listener!(WhiteNoise {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let pool = cx.character_pool();

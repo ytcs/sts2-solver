@@ -1,0 +1,68 @@
+{
+ "name": "cross_shiv_non_silent",
+ "ascension": 10,
+ "encounter": "SHRINKER_BEETLE_WEAK",
+ "character": "REGENT",
+ "hp": 70,
+ "max_hp": 88,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "gold": 800,
+ "seed": "fmkc-51",
+ "total_floor": 3,
+ "act": 0,
+ "deck": [
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  {
+   "id": "DEFEND_REGENT",
+   "upgrade": 0,
+   "enchantment": {
+    "id": "SLUMBERING_ESSENCE",
+    "amount": 1
+   }
+  },
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "FALLING_STAR",
+  "VENERATE",
+  "GENESIS",
+  "GENESIS",
+  "KNOCKOUT_BLOW",
+  "KINGLY_PUNCH",
+  "THE_GAMBIT",
+  "HIDDEN_GEM",
+  "LARGESSE",
+  "ASCENDERS_BANE",
+  {
+   "id": "MASTER_PLANNER",
+   "upgrade": 1
+  },
+  "SNEAKY"
+ ],
+ "relics": [
+  "DIVINE_RIGHT",
+  "MANGO",
+  "SHURIKEN",
+  "PRAYER_WHEEL",
+  {
+   "id": "GALACTIC_DUST",
+   "props": {
+    "StarsSpent": 8
+   }
+  },
+  "NINJA_SCROLL",
+  "RAZOR_TOOTH",
+  "TOOLBOX",
+  "SOZU"
+ ],
+ "potions": [
+  "ENERGY_POTION",
+  "BLESSING_OF_THE_FORGE"
+ ],
+ "note": "Shiv generation and play on a non-Silent."
+}

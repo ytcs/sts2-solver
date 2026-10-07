@@ -15,8 +15,10 @@ import argparse, glob, json, os, random, re, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-ORACLE = os.path.join(ROOT, "oracle/combat/oracle.sh")
-DIFF = os.environ.get("STS2DIFF") or os.path.join(ROOT, "target/debug/sts2diff")
+# oracle.sh is a bash wrapper around `dotnet OracleCombat.dll`; on Windows call dotnet directly
+ORACLE = (["dotnet", os.path.join(ROOT, "oracle/combat/bin/Release/net9.0/OracleCombat.dll")] if os.name == "nt"
+          else [os.path.join(ROOT, "oracle/combat/oracle.sh")])
+DIFF = os.environ.get("STS2DIFF") or os.path.join(ROOT, "target/debug/sts2diff" + (".exe" if os.name == "nt" else ""))
 SRC = os.path.join(ROOT, "crates/sts2sim/src")
 
 STARTERS = {  # character -> (starter deck, starter relic, hp, energy, orb slots)
@@ -29,6 +31,32 @@ STARTERS = {  # character -> (starter deck, starter relic, hp, energy, orb slots
 ATTACK_ENCH = ["SHARP", "VIGOROUS", "INSTINCT", "MOMENTUM", "SWIFT", "STEADY", "ADROIT", "GLAM", "PERFECT_FIT", "SOWN", "TEZCATARAS_EMBER", "SLUMBERING_ESSENCE", "CLONE"]
 SKILL_ENCH = ["IMBUED", "IMBUED", "SWIFT", "STEADY", "ADROIT", "GLAM", "PERFECT_FIT", "SOWN", "TEZCATARAS_EMBER", "SLUMBERING_ESSENCE", "CLONE"]
 CHAR_W = {"REGENT": 40, "IRONCLAD": 15, "SILENT": 15, "DEFECT": 15, "NECROBINDER": 15}
+# --focus cross: one character's mechanic on another character (docs/research/game_code.md B). Theme -> (owner, cards, potions).
+CROSS_THEMES = {
+    "orb": ("DEFECT", ["BALL_LIGHTNING", "BIASED_COGNITION", "BULK_UP", "CAPACITOR", "CHAOS", "CHILL", "COLD_SNAP", "CONSUMING_SHADOW",
+                       "COOLHEADED", "DARKNESS", "DEFRAGMENT", "DUALCAST", "FOCUSED_STRIKE", "FUSION", "GLACIER", "GLASSWORK", "HIBERNATE",
+                       "HOTFIX", "HYPERBEAM", "ICE_LANCE", "IGNITION", "METEOR_STRIKE", "MODDED", "MULTI_CAST", "NULL", "QUADCAST",
+                       "RAINBOW", "REFRACT", "SHADOW_SHIELD", "SHATTER", "SPINNER", "SYNCHRONIZE", "TEMPEST", "VOLTAIC", "ZAP"],
+            ["FOCUS_POTION", "ESSENCE_OF_DARKNESS", "POTION_OF_CAPACITY"]),
+    "star": ("REGENT", ["ALIGNMENT", "ASTRAL_PULSE", "BEAT_INTO_SHAPE", "BIG_BANG", "BULWARK", "CLOAK_OF_STARS", "COMET", "CONQUEROR",
+                        "CONSTELLATION", "CRESCENT_SPEAR", "DECISIONS_DECISIONS", "DEVASTATE", "DYING_STAR", "FALLING_STAR", "FURNACE",
+                        "GAMMA_BLAST", "GATHER_LIGHT", "GLOW", "GUIDING_STAR", "HAMMER_TIME", "HIDDEN_CACHE", "KNOCKOUT_BLOW",
+                        "METEOR_SHOWER", "NEUTRON_AEGIS", "PARTICLE_WALL", "QUASAR", "REFINE_BLADE", "REFLECT", "RESONANCE",
+                        "ROYAL_GAMBLE", "SEEKING_EDGE", "SEVEN_STARS", "SHINING_STRIKE", "SOLAR_STRIKE", "SPOILS_OF_BATTLE",
+                        "SUMMON_FORTH", "THE_SEALED_THRONE", "THE_SMITH", "VENERATE", "WROUGHT_IN_WAR"],
+             ["STAR_POTION", "COSMIC_CONCOCTION", "KINGS_COURAGE"]),
+    "osty": ("NECROBINDER", ["AFTERLIFE", "BLIGHT_STRIKE", "BODYGUARD", "BONE_SHARDS", "CLEANSE", "COUNTDOWN", "DEATHBRINGER", "DEATHS_DOOR",
+                             "DIRGE", "END_OF_DAYS", "FETCH", "FLATTEN", "HIGH_FIVE", "LEGION_OF_BONE", "NECRO_MASTERY", "NEGATIVE_PULSE",
+                             "NEUROSURGE", "NO_ESCAPE", "OBLIVION", "POKE", "PROTECTOR", "PULL_AGGRO", "RATTLE", "REANIMATE", "REAPER_FORM",
+                             "RIGHT_HAND_HAND", "SACRIFICE", "SCOURGE", "SHROUD", "SIC_EM", "SNAP", "SPUR", "SQUEEZE", "TIMES_UP",
+                             "UNDERWORLD", "UNLEASH"],
+             ["POTION_OF_DOOM", "POT_OF_GHOULS", "BONE_BREW"]),
+    "shiv": ("SILENT", ["ABRASIVE", "ACCURACY", "BLADE_DANCE", "BLADE_OF_INK", "BLADE_SYMPHONY", "CLOAK_AND_DAGGER", "FAN_OF_KNIVES",
+                        "FLICK_FLACK", "HAND_TRICK", "HIDDEN_DAGGERS", "INFINITE_BLADES", "KNIFE_TRAP", "LEADING_STRIKE", "MASTER_PLANNER",
+                        "PHANTOM_BLADES", "REFLEX", "RICOCHET", "SNEAKY", "STORM_OF_STEEL", "TACTICIAN", "UNTOUCHABLE", "UP_MY_SLEEVE",
+                        "SURVIVOR", "ACROBATICS", "PREPARED", "CALCULATED_GAMBLE", "DAGGER_THROW"], []),
+}
+STAR_SOURCES = ["VENERATE", "GLOW", "GATHER_LIGHT"]  # star-cost cards on a non-Regent need stars to become playable
 
 
 def slugify(name):  # same as scripts/porting
@@ -83,7 +111,7 @@ class Gen:
         w = [dict(rarity_w).get(c["rarity"], 1) for c in cards]
         return r.choices(cards, w)[0]
 
-    def make_deck(self, r, ch, act, focus, upg_p, enchant_p=0.04):
+    def make_deck(self, r, ch, act, focus, upg_p, enchant_p=0.04, cross_p=0.0):
         starter = list(STARTERS[ch][0])
         n_add = {0: r.randint(4, 14), 1: r.randint(10, 22), 2: r.randint(14, 30)}[act]
         # composition weights: own pool, colorless, event, curse, status/token (focus shifts them)
@@ -135,6 +163,10 @@ class Gen:
                 pool = [c for c in self.cards[ch] + self.cards["COLORLESS"] if c["id"] in autoplay_ids]
                 if pool:
                     added.append(r.choice(pool))
+        if cross_p and r.random() < cross_p:  # other characters' cards, drawn as tools/gen_curriculum.py does (Kaleidoscope, Sea Glass...)
+            other = r.choice([c for c in STARTERS if c != ch])
+            for _ in range(r.randint(1, 4)):
+                added.append(self.pick_card(r, [x for x in self.cards[other] if x["rarity"] in ("Common", "Uncommon", "Rare")]))
         deck = []
         for cid in starter:
             deck.append((cid, 1 if r.random() < upg_p * 0.5 else 0))
@@ -199,6 +231,25 @@ class Gen:
             out.insert(0, out.pop(i))
         return out
 
+    def cross_focus(self, r, ch, deck, relics, potions):
+        """A themed slice of another character's mechanic (orbs / stars and Forge / Osty, Summon and Doom / Shiv and Sly), with the
+        potions and star sources that reach it in a real run (Prismatic Gem, Kaleidoscope, Splash, transforms, foreign potions)."""
+        theme = r.choice([t for t, (owner, _, _) in CROSS_THEMES.items() if owner != ch])
+        _, ids, pots = CROSS_THEMES[theme]
+        ids = [i for i in ids if i in self.have["card"] and i in self.ctypes]
+        for _ in range(r.randint(2, 6)):
+            cid = r.choice(ids)
+            deck.append({"id": cid, "upgrade": 1} if r.random() < 0.3 else cid)
+        if theme == "star":
+            for _ in range(r.randint(0, 2)):
+                deck.append(r.choice(STAR_SOURCES))
+            if r.random() < 0.4 and "DIVINE_RIGHT" in self.have["relic"]:
+                relics.insert(0, "DIVINE_RIGHT")
+        pots = [p for p in pots if p in self.have["potion"]]
+        if pots and r.random() < 0.6:
+            potions = (potions + [r.choice(pots)])[-2:]
+        return potions
+
     def make_potions(self, r, ch):
         pool = [p for p in self.potions[ch] + self.potions["SHARED"] if p["usage"] in ("CombatOnly", "AnyTime")]
         n = r.choices([0, 1, 2], [1, 4, 5])[0]
@@ -224,8 +275,8 @@ class Gen:
         floor = {0: r.randint(1, 16), 1: r.randint(18, 33), 2: r.randint(35, 50)}[act]
         max_hp = hp0 + act * r.randint(5, 25) + r.randint(0, 15)
         mode = a.mode or r.choices(["uniform", "greedy", "stall", "deep"], [30, 35, 10, 25])[0]
-        focus = a.focus or r.choices(["mix", "colorless", "junk", "gen", "turn"], [30, 20, 8, 20, 22])[0]
-        deck = self.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act], enchant_p=a.enchant)
+        focus = a.focus or r.choices(["mix", "colorless", "junk", "gen", "turn", "cross"], [30, 20, 8, 20, 22, getattr(a, "cross_w", 0)])[0]
+        deck = self.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act], enchant_p=a.enchant, cross_p=getattr(a, "cross", 0.0))
         if a.force_cards:
             for cid in a.force_cards.split(","):
                 deck.append({"id": cid, "upgrade": r.randint(0, 1)} if self.ctypes.get(cid) and r.random() < 0.5 else cid)
@@ -240,6 +291,8 @@ class Gen:
             policy.update(endw=0.0 if r.random() < 0.6 else 0.15, atkw=r.choice([0.3, 1.0]), max_steps=1200, max_rounds=60)
             max_hp = hp = r.randint(400, 999)
         potions = self.make_potions(r, ch)
+        if focus == "cross":
+            potions = self.cross_focus(r, ch, deck, relics, potions)
         if a.force_potions:
             potions = a.force_potions.split(",")[:2]
         if focus == "turn" and not a.force_relics:
@@ -266,11 +319,11 @@ def run_chunk(args):
     pending = list(paths)
     while pending:  # a process crash (stack overflow, OOM kill...) leaves no .done marker: isolate the culprit, rerun the rest
         open(listf, "w").write("\n".join(pending) + "\n")
-        subprocess.run([ORACLE, "batch", listf], capture_output=True, text=True)
+        subprocess.run(ORACLE + ["batch", listf], capture_output=True, text=True)
         pending = [p for p in pending if not os.path.exists(p[: -len(".scenario.json")] + ".done")]
         if pending:
             open(listf, "w").write(pending[0] + "\n")
-            r = subprocess.run([ORACLE, "batch", listf], capture_output=True, text=True)
+            r = subprocess.run(ORACLE + ["batch", listf], capture_output=True, text=True)
             if not os.path.exists(pending[0][: -len(".scenario.json")] + ".done"):
                 crashed[pending[0]] = (r.stderr or r.stdout)[-600:] + f" (exit {r.returncode})"
                 open(pending[0][: -len(".scenario.json")] + ".done", "w").write("crash")
@@ -321,7 +374,9 @@ def main():
     ap.add_argument("--encounter")
     ap.add_argument("--act", type=int)
     ap.add_argument("--room", help="comma list of monster,elite,boss")
-    ap.add_argument("--focus", choices=["mix", "colorless", "junk", "gen", "turn"])
+    ap.add_argument("--focus", choices=["mix", "colorless", "junk", "gen", "turn", "cross"])
+    ap.add_argument("--cross", type=float, default=0.3, help="probability that a deck gets 1-4 cards from another character's pool")
+    ap.add_argument("--cross-w", type=float, default=15, help="weight of the random focus `cross` (vs mix 30, colorless 20, ...)")
     ap.add_argument("--enchant", type=float, default=0.04, help="probability that an Attack/Skill card carries an enchantment")
     ap.add_argument("--mode", choices=["uniform", "greedy", "stall", "deep"])
     ap.add_argument("--relics", default="3-8")
@@ -336,7 +391,7 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     cat = os.path.join(a.out, "catalog.json")
     if not os.path.exists(cat):
-        subprocess.run([ORACLE, "catalog", "--out", cat], capture_output=True, check=True)
+        subprocess.run(ORACLE + ["catalog", "--out", cat], capture_output=True, check=True)
     g = Gen(cat)
     paths = []
     for i in range(a.n):
