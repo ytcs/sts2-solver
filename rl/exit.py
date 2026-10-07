@@ -147,7 +147,7 @@ POLICY_HEADS = {"u_card", "b_card", "v_tgt", "v_none", "u_pot", "b_pot", "disc_p
 class Data:
     """One or more `collect` files; `chunks` yields replayed rows (obs, mask, opts, policy target, outcome class) a chunk of fights at a time."""
 
-    def __init__(self, paths, tau, keep_mp=False, qnorm="minmax"):
+    def __init__(self, paths, tau, keep_mp=False, qnorm="minmax", qse=0.078, hard=False):
         self.parts = []
         for p in paths:
             z = np.load(p)
@@ -163,6 +163,17 @@ class Data:
                 # the estimates in return units, centred: min-max stretches a noise-level gap to the full scale (most decisions are near-ties: the
                 # best of 5 options repeats across search seeds in 66% of states, a gap beyond 2 se in 8.5%; tools/target_noise.py), units keep it small
                 qn = np.where(ok, np.where(ok, q, 0.0) - np.nanmean(np.where(ok, q, np.nan), 1, keepdims=True), 0.0).astype(np.float32)
+            elif qnorm == "cmpo":
+                # Muesli's CMPO: the advantage over the tried options' mean in units of one estimate's noise (`qse`: se at 5x32), clipped to [-1, 1]
+                qa = np.where(ok, q, 0.0) - np.nanmean(np.where(ok, q, np.nan), 1, keepdims=True)
+                qn = np.where(ok, np.clip(qa / qse, -1.0, 1.0), 0.0).astype(np.float32)
+            if hard:
+                # the move the search played (imitation of the stronger player): the option equal to the recorded action, else the best estimate
+                played = z["acts"][z["f_off"][z["d_fight"]] + z["d_step"]]
+                h = (z["d_opts"] == played[:, None]) & ok
+                none = ~h.any(1)
+                h[none] = np.eye(q.shape[1], dtype=bool)[np.nanargmax(np.where(ok, q, -np.inf)[none], 1)] if none.any() else h[none]
+                tgt = h.astype(np.float32)
             order = np.argsort(z["d_fight"], kind="stable")
             # format 2 (a Gumbel root): the shift of pi' per candidate; None for format 1 (`--target gumbel` needs it)
             adv = np.nan_to_num(z["d_adv"].astype(np.float32))[order] if "d_adv" in z.files else None
@@ -240,7 +251,7 @@ def train(a):
     rng = np.random.default_rng(a.seed)
     net = load(a.init).train()
     assert net.heads, "an outcome-head network is needed (models/solver_h128.pt)"
-    data = Data(a.data, a.tau, qnorm=a.qnorm)
+    data = Data(a.data, a.tau, qnorm=a.qnorm, qse=a.qse, hard=a.target == "hard")
     idx = np.array(data.index, dtype=object)
     perm = rng.permutation(len(idx))
     n_hold = max(1, int(len(idx) * a.holdout))
@@ -306,7 +317,7 @@ def train(a):
             nb = 0
             for b in range(0, len(r[0]), a.mb):
                 pl, vl = batch_loss(*(x[b:b + a.mb] for x in r))
-                loss = a.pol * pl + vl
+                loss = a.pol * pl + a.vw * vl
                 opt.zero_grad(set_to_none=True)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
@@ -347,12 +358,14 @@ def main():
     t.add_argument("--tau", type=float, default=0.02, help="temperature over the options' search estimates (linear return units)")
     t.add_argument("--sigma", type=float, default=0.75, help="HL-Gauss width of the win classes, in bins")
     t.add_argument("--pol", type=float, default=1.0, help="weight of the policy loss")
-    t.add_argument("--target", choices=["soft", "anchored", "gumbel"], default="anchored",
+    t.add_argument("--target", choices=["soft", "anchored", "gumbel", "hard"], default="anchored",
                    help="policy target: soft = softmax(q / tau) over the tried options (made the player worse, E9); anchored = prior + c x normalised q; "
-                        "gumbel = Gumbel MuZero's pi' recorded by a --root gumbel collection")
+                        "gumbel = Gumbel MuZero's pi' recorded by a --root gumbel collection; hard = the move the search played (one-hot)")
     t.add_argument("--c", type=float, default=2.0, help="anchored target: weight of the normalised search estimate (logits per unit of --qnorm)")
-    t.add_argument("--qnorm", choices=["minmax", "abs"], default="minmax", help="anchored target: each decision's estimates scaled to [0, 1] (minmax) or "
+    t.add_argument("--qnorm", choices=["minmax", "abs", "cmpo"], default="minmax", help="anchored target: each decision's estimates scaled to [0, 1] (minmax) or "
                    "in return units (abs: a near-tie shifts the prior by almost nothing; c 4 turns a 2-se gap at 5x32, ~0.22, into ~0.9 logits)")
+    t.add_argument("--qse", type=float, default=0.078, help="--qnorm cmpo: noise se of one option's estimate (0.078 at 5x32, tools/target_noise.py)")
+    t.add_argument("--vw", type=float, default=1.0, help="weight of the outcome loss (0: policy only, no interference through the shared trunk)")
     t.add_argument("--freeze-policy", action="store_true", help="train the value side only (policy heads frozen)")
     t.add_argument("--holdout", type=float, default=0.05); t.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
