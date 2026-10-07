@@ -1,5 +1,6 @@
 {
  "policy": "solver_h128.pt",
  "values": [],
- "predictor": "predictor_r1.pt"
+ "predictor": "predictor_r2.pt",
+ "look": "new"
 }

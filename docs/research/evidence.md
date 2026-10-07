@@ -99,3 +99,19 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - On a build with the engine loop guard it finishes in 1.9 s.
   - So an infinite loop inside one engine step, reached in a search play-out, hung the search. Nothing bounded a single step before the guard.
 - **Open:** what loops in that fight: a simulator bug, or a legitimate combo that should count as progress rather than an overflow (combos are a real strategy, `docs/rebuild.md`).
+
+## E7. Round 2 (r2, from r1)
+- **Data:** about 157k search-played fights (r1's 88.6k at 3x8, plus 64.5k at the live 5x32 and 4k from the bisection), ~4.2M decisions; new look-ahead observations (S1).
+- **Training:** 3 epochs, about 7 min (parallel replay).
+- **Calibration (`tools/bench.py score`, both on the S1 build):**
+
+| set | bias r1 → r2 | Brier r1 → r2 |
+|---|---|---|
+| eval | -0.021 → -0.005 | 0.0310 → 0.0289 |
+| corpus | +0.005 → +0.005 | 0.0222 → 0.0168 |
+| mix | -0.032 → -0.011 | 0.0295 → 0.0277 |
+| tail | -0.017 → +0.004 | 0.0381 → 0.0341 |
+
+- **Ranking:** unchanged (worth sign agreement 0.796 for both, Spearman 0.53-0.54).
+- **S3 gate:** not fully met. Bias is within 0.02 on every set, but some deciles still miss by ~0.07 (eval 0.4-0.6: 0.51 → 0.58; mix 0.2-0.4: 0.29 → 0.36).
+- **Adopted** as the predictor (`models/current.json`); h128 stays the search policy.
