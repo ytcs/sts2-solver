@@ -52,7 +52,11 @@ main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr
 #deckorder { margin-left: auto; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; font-size: 11.5px; padding: 1px 8px; cursor: pointer; }
 #deckorder:hover { border-color: var(--dim); }
 #side { position: sticky; top: 84px; max-height: calc(100vh - 96px); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-#mappanel { flex: none; padding-bottom: 6px; }
+#mappanel { cursor: zoom-in; padding-bottom: 6px; }
+#mappop { position: fixed; inset: 0; z-index: 50; background: #000c; display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
+#mappop .inner { width: min(1500px, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+#mappop h2 { font-size: 17px; margin-bottom: 8px; display: flex; gap: 10px; align-items: baseline; }
+#mappop svg { max-width: none !important; }
 #feedwrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
 @media (max-width: 1000px) { #side { position: static; max-height: none; } }
 
@@ -148,15 +152,15 @@ main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr
 #map .node.here circle.bg { stroke: #fff; stroke-width: 3.5; }
 #map .node text { fill: var(--text); font: 700 13px Kreon, serif; text-anchor: middle; }
 #map .ptag { font: 600 11px var(--mono); fill: var(--good); }
-#minimap svg { width: 100%; height: auto; display: block; }
-#minimap .edge { stroke: #4a4f5c; stroke-width: 2; stroke-dasharray: 4 4; }
-#minimap .edge.done { stroke: var(--gold); stroke-width: 3.5; stroke-dasharray: none; }
-#minimap .edge.plan, #map .edge.plan { stroke: var(--accent); stroke-width: 3; stroke-dasharray: none; opacity: .85; }
-#minimap .node circle.bg { fill: #2a2e38; stroke: #4a4f5c; }
-#minimap .node.visited circle.bg { fill: #4a3f20; stroke: var(--gold); stroke-width: 2; }
-#minimap .node.plan circle.bg, #map .node.plan circle.bg { stroke: var(--accent); stroke-width: 2.5; }
-#minimap .node.here circle.bg { stroke: #fff; stroke-width: 3; }
-#minimap .node text { fill: var(--text); font: 700 13px Kreon, serif; text-anchor: middle; }
+.mapview svg { width: 100%; height: auto; display: block; }
+.mapview .edge { stroke: #4a4f5c; stroke-width: 2; stroke-dasharray: 4 4; }
+.mapview .edge.done { stroke: var(--gold); stroke-width: 3.5; stroke-dasharray: none; }
+.mapview .edge.plan, #map .edge.plan { stroke: var(--accent); stroke-width: 3; stroke-dasharray: none; opacity: .85; }
+.mapview .node circle.bg { fill: #2a2e38; stroke: #4a4f5c; }
+.mapview .node.visited circle.bg { fill: #4a3f20; stroke: var(--gold); stroke-width: 2; }
+.mapview .node.plan circle.bg, #map .node.plan circle.bg { stroke: var(--accent); stroke-width: 2.5; }
+.mapview .node.here circle.bg { stroke: #fff; stroke-width: 3; }
+.mapview .node text { fill: var(--text); font: 700 13px Kreon, serif; text-anchor: middle; }
 
 /* feed */
 .ev { border-left: 3px solid var(--line); padding: 4px 0 6px 8px; margin: 0 0 6px; }
@@ -209,6 +213,7 @@ table.pt td.best { color: var(--good); font-weight: 700; }
       <h2><span id="screenkind">Screen</span><span class="dim small" id="screensub"></span></h2>
       <div id="screen"><div class="empty">waiting for the harness (runs/CURRENT)</div></div>
     </section>
+    <section class="panel" id="mappanel" style="margin-top:10px" title="click: larger map"><h2>Map <span class="dim small" id="mapsub"></span><span class="faint small" style="margin-left:auto">click to enlarge</span></h2><div id="minimap" class="mapview"></div></section>
     <section class="panel" id="infopanel" style="margin-top:10px">
       <div class="sub" id="deckbox"><div class="shd"><span class="title">Deck</span> <span class="dim small" id="decksub"></span>
         <button type="button" id="deckorder" title="deck order: click to switch between alphabetical and the order the cards were added"></button></div>
@@ -218,7 +223,6 @@ table.pt td.best { color: var(--good); font-weight: 700; }
     </section>
   </div>
   <div id="side">
-    <section class="panel" id="mappanel"><h2>Map <span class="dim small" id="mapsub"></span></h2><div id="minimap"></div></section>
     <section class="panel" id="feedwrap">
       <h2>Decisions <span class="dim small" id="feedsub"></span></h2>
       <div id="feed"></div>
@@ -226,6 +230,7 @@ table.pt td.best { color: var(--good); font-weight: 700; }
   </div>
 </main>
 <div id="cardpop" class="hidden" title="click or Esc to close"></div>
+<div id="mappop" class="hidden" title="click or Esc to close"><div class="inner"><h2 class="title"><span>Map</span> <span class="dim small" id="mappopsub"></span></h2><div id="bigmap" class="mapview"></div></div></div>
 <script>
 "use strict";
 const S = { run: "", follow: true, offset: 0, events: [], live: null, liveTag: null, man: null, lastRuns: 0, open: {}, creatures: {}, spine: null, dirty: true, err: null };
@@ -650,14 +655,14 @@ function mapModel() {  // the act map with the path taken, the current node and 
   const route = rp ? (rp.nodes || []).filter((c) => P.nodes[c] && (!here || P.nodes[c].r > here.r)) : [];
   return { P, here, route, key: mt + "|" + visited.map((n) => `r${n.r}c${n.c}`).join(",") + "|" + route.join(",") };
 }
-function mapSVG(m, o = {}) {  // o.compact: floors left to right (the side panel); else bottom to top (the MAP screen) with offers and prices
+function mapSVG(m, o = {}) {  // o.compact: floors left to right (the map panel; o.big: its overlay); else bottom to top (the MAP screen) with offers and prices
   const P = m.P, offers = o.offers || [], price = o.price, cmp = !!o.compact;
   const rs = Object.keys(P.rows).map(Number), maxR = Math.max(...rs, 1), cols = 7;
   let W, H, pos, boss, nr, ic, br;
   if (cmp) {
-    W = 560; H = 150; nr = 8.5; ic = 15; br = 19;
-    pos = (r, c) => [16 + (r * (W - 80)) / maxR, 12 + (c * (H - 24)) / (cols - 1)];
-    boss = [W - 24, H / 2];
+    if (o.big) { W = 1480; H = 430; nr = 17; ic = 28; br = 38; } else { W = 900; H = 250; nr = 12.5; ic = 21; br = 28; }
+    pos = (r, c) => [nr + 6 + (r * (W - 2 * br - 3 * nr - 20)) / maxR, nr + 4 + (c * (H - 2 * nr - 8)) / (cols - 1)];
+    boss = [W - br - 4, H / 2];
   } else {
     const top = 70, dy = 40;
     W = 520; H = top + maxR * dy + 30; nr = 15; ic = 26; br = 30;
@@ -685,14 +690,14 @@ function mapSVG(m, o = {}) {  // o.compact: floors left to right (the side panel
     const r = price && off ? priceFor(price, off.label) : null;
     nodes += `<g class="node ${n.visited ? "visited" : ""} ${off ? "offer" : ""} ${planSet.has(coord) ? "plan" : ""} ${m.here === n ? "here" : ""}"><title>${esc(coord + " " + n.type)}</title>
       <circle class="bg" cx="${x}" cy="${y}" r="${nr}"/>
-      ${icon ? `<image href="${A(icon)}" x="${x - ic / 2}" y="${y - ic / 2}" width="${ic}" height="${ic}"/>` : `<text x="${x}" y="${y + (cmp ? 3 : 5)}" style="${cmp ? "font-size:9px" : ""}">${esc(n.type)}</text>`}
+      ${icon ? `<image href="${A(icon)}" x="${x - ic / 2}" y="${y - ic / 2}" width="${ic}" height="${ic}"/>` : `<text x="${x}" y="${y + 5}">${esc(n.type)}</text>`}
       ${off ? `<text x="${x - nr - 6}" y="${y - nr + 6}" style="fill:var(--gold);font-size:12px">${off.n}</text>` : ""}
       ${r ? `<text class="ptag" x="${x + nr + 3}" y="${y + 4}" text-anchor="start">${pct(r.act)}</text>` : ""}</g>`;
   }
   const bossIds = P.boss ? P.boss.ids : [];
   const bicon = bossIds.map((b) => M.encounters[b] && M.encounters[b].icon).find(Boolean);
   const bossSvg = `<g class="node"><title>${esc(bossIds.map(encTitle).join(" + ") || "boss")}</title><circle class="bg" cx="${boss[0]}" cy="${boss[1]}" r="${br}" style="fill:#3a1f1f;stroke:var(--bad)"/>
-    ${bicon ? `<image href="${A(bicon)}" x="${boss[0] - br + 2}" y="${boss[1] - br + 2}" width="${2 * br - 4}" height="${2 * br - 4}"/>` : `<text x="${boss[0]}" y="${boss[1] + 4}" style="font-size:${cmp ? 9 : 13}px">BOSS</text>`}
+    ${bicon ? `<image href="${A(bicon)}" x="${boss[0] - br + 2}" y="${boss[1] - br + 2}" width="${2 * br - 4}" height="${2 * br - 4}"/>` : `<text x="${boss[0]}" y="${boss[1] + 4}" style="font-size:12px">BOSS</text>`}
     ${cmp ? "" : `<text x="${boss[0] + 40}" y="${boss[1] + 4}" text-anchor="start" style="font-size:13px">${esc(bossIds.map(encTitle).join(" + "))}</text>`}</g>`;
   return `<svg viewBox="0 0 ${W} ${H}" style="max-width:${W}px;margin:auto">${edges}${plan}${bossSvg}${nodes}</svg>`;
 }
@@ -702,15 +707,22 @@ function mapHTML(text) {
   const offers = options(text).map((o) => ({ n: o.n, coord: mapOptionCoord(o.label), label: o.label }));
   return `<div id="map">${mapSVG(m, { offers, price: latestPrice("MAP") })}</div>${optionsHTML(text, "MAP")}`;
 }
-function renderMiniMap() {  // the side panel's map: redrawn only when the map, the path or the planned route changed
+function renderMiniMap() {  // the map panel: redrawn only when the map, the path or the planned route changed
   const m = mapModel(), key = m ? m.key : "";
   if (key === S.mapKey) return;
   S.mapKey = key;
-  if (!m) { $("minimap").innerHTML = `<div class="dim small">no act map in the record yet (logged at each fight start, or after \`m\`)</div>`; $("mapsub").textContent = ""; return; }
+  if (!m) { $("minimap").innerHTML = `<div class="dim small">no act map in the record yet (logged at each fight start, or after \`m\`)</div>`; $("mapsub").textContent = ""; if (!$("mappop").classList.contains("hidden")) renderBigMap(); return; }
   const bossIds = m.P.boss ? m.P.boss.ids : [];
   $("mapsub").textContent = [m.here ? `at r${m.here.r}c${m.here.c}` : "act start", m.route.length ? `planned ${m.route.join(" ")}` : "", bossIds.length ? "boss " + bossIds.map(encTitle).join(" + ") : ""].filter(Boolean).join(" · ");
   $("minimap").innerHTML = mapSVG(m, { compact: true });
+  if (!$("mappop").classList.contains("hidden")) renderBigMap();
 }
+function renderBigMap() {  // the overlay: drawn when opened, and again only when the panel's map changes while it is open
+  const m = mapModel();
+  $("mappopsub").textContent = $("mapsub").textContent;
+  $("bigmap").innerHTML = m ? mapSVG(m, { compact: true, big: true }) : `<div class="dim small">no act map in the record yet</div>`;
+}
+function closeMapPop() { const p = $("mappop"); p.classList.add("hidden"); $("bigmap").innerHTML = ""; }
 
 // ------------------------------------------------------------------ decision feed
 function prettyAction(t) {
@@ -890,10 +902,12 @@ document.addEventListener("toggle", (ev) => {
 }, true);
 document.addEventListener("click", (ev) => {  // a card opens its full view; any click (or Esc) closes it
   if (!$("cardpop").classList.contains("hidden")) { closeCardPop(); return; }
+  if (!$("mappop").classList.contains("hidden")) { closeMapPop(); return; }
   const el = ev.target.closest && ev.target.closest(".card[data-id]");
-  if (el) openCardPop(el);
+  if (el) { openCardPop(el); return; }
+  if (ev.target.closest && ev.target.closest("#mappanel")) { $("mappop").classList.remove("hidden"); renderBigMap(); }
 });
-document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeCardPop(); });
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closeCardPop(); closeMapPop(); } });
 $("deckorder").addEventListener("click", () => {
   S.deckOrder = S.deckOrder === "acq" ? "alpha" : "acq";
   try { localStorage.setItem(DECK_ORDER_KEY, S.deckOrder); } catch (e) { /* not persisted: still switches */ }
