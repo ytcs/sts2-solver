@@ -1,0 +1,69 @@
+{
+ "name": "cross_star_cost_non_regent",
+ "ascension": 10,
+ "encounter": "PUNCH_CONSTRUCT_NORMAL",
+ "character": "IRONCLAD",
+ "hp": 77,
+ "max_hp": 86,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "gold": 99,
+ "seed": "fmkc-355",
+ "total_floor": 7,
+ "act": 0,
+ "deck": [
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  "STRIKE_IRONCLAD",
+  {
+   "id": "DEFEND_IRONCLAD",
+   "upgrade": 1
+  },
+  {
+   "id": "DEFEND_IRONCLAD",
+   "upgrade": 1
+  },
+  "DEFEND_IRONCLAD",
+  "DEFEND_IRONCLAD",
+  "BASH",
+  {
+   "id": "BEAT_DOWN",
+   "upgrade": 1
+  },
+  "BULLY",
+  "EVIL_EYE",
+  "DISTRACTION",
+  {
+   "id": "SPLASH",
+   "upgrade": 1
+  },
+  "APPARITION",
+  "BEACON_OF_HOPE",
+  "SPLASH",
+  "MOLTEN_FIST",
+  "BLUDGEON",
+  "ASCENDERS_BANE",
+  "SOLAR_STRIKE",
+  "CONSTELLATION",
+  {
+   "id": "REFLECT",
+   "upgrade": 1
+  },
+  "CLOAK_OF_STARS",
+  "VENERATE",
+  "GATHER_LIGHT"
+ ],
+ "relics": [
+  "BURNING_BLOOD",
+  "DAUGHTER_OF_THE_WIND",
+  "DUSTY_TOME",
+  "WHITE_STAR",
+  "LEES_WAFFLE"
+ ],
+ "potions": [
+  "OROBIC_ACID"
+ ],
+ "note": "Star gain and star-cost cards on a non-Regent (stars are on every PlayerCombatState)."
+}

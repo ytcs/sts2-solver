@@ -38,7 +38,7 @@ Prompts raised inside draws that cannot pause (Stratagem's reshuffle pick in a c
 1. **Golden tests**: RNG, string hash and shuffle against the game's own code.
 2. **Differential oracle**: the real game's combat code runs headless (`oracle/`, `docs/oracle.md`); a scenario plus a script produces a full-state trace after every step; `crates/sts2diff` replays it in Rust and compares field by field (all nine RNG streams included).
 3. **Template corpus**: 418 templates in `oracle/templates/**` (`verify/diff_sweep.py` per template, `verify/regress.py` for all). `verify/regress_cache.py record` stores the oracle's traces once; `check` replays them in seconds, also through the in-place reset with `STS2DIFF_REUSE=1`.
-4. **Frozen regressions**: 82 scenarios (`oracle/regression/` replayed by `cargo test`, `oracle/regression_scripted/` by `tools/fuzz_gen.py regress`).
+4. **Frozen regressions**: 89 scenarios (`oracle/regression/` replayed by `cargo test`, `oracle/regression_scripted/` by `tools/fuzz_gen.py regress`).
 5. **Randomized fuzzing**: random A10 decks x relics x potions x every encounter (`tools/fuzz_gen*.py`). About 250,000 fights at the last full round, 0 residual mismatches.
 6. **Live game**: `python -m agent.fidelity_sweep` plays fights in the real game and counts every divergence between the simulator's prediction and the visible state.
 

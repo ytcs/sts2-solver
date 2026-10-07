@@ -1,0 +1,98 @@
+{
+ "name": "cross_summon_osty_non_necrobinder",
+ "ascension": 10,
+ "encounter": "PHANTASMAL_GARDENERS_ELITE",
+ "character": "REGENT",
+ "hp": 842,
+ "max_hp": 842,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "gold": 99,
+ "seed": "fmkc-2",
+ "total_floor": 16,
+ "act": 0,
+ "deck": [
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "DEFEND_REGENT",
+  {
+   "id": "DEFEND_REGENT",
+   "upgrade": 0,
+   "enchantment": {
+    "id": "TEZCATARAS_EMBER",
+    "amount": 1
+   }
+  },
+  {
+   "id": "DEFEND_REGENT",
+   "upgrade": 1
+  },
+  "DEFEND_REGENT",
+  "FALLING_STAR",
+  "VENERATE",
+  "MAYHEM",
+  "VOID_FORM",
+  "REFINE_BLADE",
+  "MANIFEST_AUTHORITY",
+  "SECRET_TECHNIQUE",
+  {
+   "id": "HEIRLOOM_HAMMER",
+   "upgrade": 0,
+   "enchantment": {
+    "id": "GLAM",
+    "amount": 1
+   }
+  },
+  "KNOCKDOWN",
+  "STARDUST",
+  "ABUNDANCE",
+  "BRIGHTEST_FLAME",
+  "WASTE_AWAY",
+  "ETERNAL_ARMOR",
+  "ROYAL_GAMBLE",
+  "SHINING_STRIKE",
+  "ASCENDERS_BANE",
+  "REANIMATE",
+  {
+   "id": "SQUEEZE",
+   "upgrade": 1
+  },
+  {
+   "id": "SQUEEZE",
+   "upgrade": 1
+  },
+  {
+   "id": "END_OF_DAYS",
+   "upgrade": 1
+  },
+  {
+   "id": "HIGH_FIVE",
+   "upgrade": 1
+  },
+  "RATTLE"
+ ],
+ "relics": [
+  "DIVINE_RIGHT",
+  "CHANDELIER",
+  "MANGO",
+  "REGALITE",
+  "STRIKE_DUMMY",
+  "PARRYING_SHIELD",
+  {
+   "id": "GALACTIC_DUST",
+   "props": {
+    "StarsSpent": 3
+   }
+  },
+  "FAKE_SNECKO_EYE",
+  "SEA_GLASS"
+ ],
+ "potions": [
+  "LIQUID_MEMORIES",
+  "BONE_BREW"
+ ],
+ "note": "Summon on a non-Necrobinder creates Osty (OstyCmd.Summon)."
+}

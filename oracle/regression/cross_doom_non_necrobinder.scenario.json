@@ -1,0 +1,77 @@
+{
+ "name": "cross_doom_non_necrobinder",
+ "ascension": 10,
+ "encounter": "OVICOPTER_NORMAL",
+ "character": "REGENT",
+ "hp": 81,
+ "max_hp": 87,
+ "max_energy": 3,
+ "base_orb_slots": 0,
+ "max_potion_slots": 2,
+ "gold": 50,
+ "seed": "fmkc-146",
+ "total_floor": 29,
+ "act": 1,
+ "deck": [
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  "STRIKE_REGENT",
+  {
+   "id": "DEFEND_REGENT",
+   "upgrade": 1
+  },
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "DEFEND_REGENT",
+  "FALLING_STAR",
+  "VENERATE",
+  {
+   "id": "SEVEN_STARS",
+   "upgrade": 1
+  },
+  "KINGLY_PUNCH",
+  "PROPHESIZE",
+  "WHISTLE",
+  "PARRY",
+  "CLOAK_OF_STARS",
+  "KINGLY_PUNCH",
+  "CHILD_OF_THE_STARS",
+  {
+   "id": "PHOTON_CUT",
+   "upgrade": 1
+  },
+  "ETERNAL_ARMOR",
+  "CURSE_OF_THE_BELL",
+  "ENTROPY",
+  "KINGLY_PUNCH",
+  "GLOW",
+  "ETERNAL_ARMOR",
+  "TYRANNY",
+  {
+   "id": "REFINE_BLADE",
+   "upgrade": 1
+  },
+  "BEACON_OF_HOPE",
+  "KNOCKOUT_BLOW",
+  "ASCENDERS_BANE",
+  "RIGHT_HAND_HAND",
+  "NECRO_MASTERY"
+ ],
+ "relics": [
+  "DIVINE_RIGHT",
+  "PERMAFROST",
+  "BELT_BUCKLE",
+  "GREMLIN_HORN",
+  "PRECARIOUS_SHEARS",
+  "SLING_OF_COURAGE",
+  "GAMBLING_CHIP",
+  "VAJRA",
+  "IVORY_TILE"
+ ],
+ "potions": [
+  "DROPLET_OF_PRECOGNITION",
+  "POTION_OF_DOOM"
+ ],
+ "note": "Doom applied by a non-Necrobinder."
+}

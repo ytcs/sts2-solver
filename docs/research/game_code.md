@@ -381,6 +381,15 @@ Spot checks where the decomp and the simulator agree exactly:
      the orb (`engine/orbs.rs:152-155`).
    - The simulator's `summon` has no `source` argument. This is harmless because nothing overrides `ModifySummonAmount`.
 
+**Status (S1):** risks 1-3 closed.
+- `fuzz_gen_mix.py` now draws 1-4 cards from another character's pool in 30% of decks (`--cross`) and has `--focus cross`
+  (themed orb / star and Forge / Osty, Summon and Doom / Shiv and Sly slices, with the foreign potions, star sources and
+  Divine Right).
+- The converter defaults a missing `base_orb_slots` to the character's value (Defect 3).
+- Oracle rounds (Windows build of the oracle): 3,000 `--focus cross` fights, 2,500 mixed fights, 700 Bulk Up / Capacitor /
+  orb-potion fights (Defect and others): 0 mismatches (one `arena-full`, a documented capacity flag).
+- Frozen as `oracle/regression/cross_*` and `defect_missing_base_orb_slots`.
+
 For how cards from other characters enter a deck at run level, see C2 (the authoritative list).
 
 ---

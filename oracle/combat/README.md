@@ -9,7 +9,7 @@ cd oracle/combat
 dotnet build -c Release            # needs the game install; override with -p:GameDir=/path/to/data_sts2_linuxbsd_x86_64
 ```
 Default `GameDir` = `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_x86_64` (same as `oracle/RngGolden`).
-Requires .NET 9 SDK, Linux x86-64 (the Godot stub `mmap`s raw x86-64 machine code through libc and `GameDir` points at the `linuxbsd` data folder): it does not build or run on the Windows dev machine, so run the oracle, `verify/` sweeps and `tools/fuzz_gen*.py` on a Linux host. Nothing in the game directory is modified. A harmless
+Requires .NET 9 SDK, x86-64 (the Godot stub is raw x86-64 machine code, allocated with `mmap` on Linux and `VirtualAlloc` on Windows). On Windows `GameDir` defaults to the Steam `data_sts2_windows_x86_64` folder; `oracle.sh` needs bash, so `tools/fuzz_gen_mix.py` calls `dotnet bin/Release/net9.0/OracleCombat.dll` directly there (`dotnet` on `PATH`). Nothing in the game directory is modified. A harmless
 `SentryGodotInitializer: ...` line is printed to stdout at start-up by the game assembly; always use `--out`.
 
 ## Run

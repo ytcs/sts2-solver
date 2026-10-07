@@ -112,7 +112,8 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
         max_hp: v["max_hp"].as_i64().map(|x| x as i32).unwrap_or(hp),
         hp,
         max_energy: v["max_energy"].as_i64().unwrap_or(3) as i32,
-        orb_slots: v["base_orb_slots"].as_u64().unwrap_or(0) as u8,
+        // Missing = the character's `BaseOrbSlotCount` (Defect 3, others 0), as the oracle's template player has it.
+        orb_slots: v["base_orb_slots"].as_u64().unwrap_or(if character == 2 { 3 } else { 0 }) as u8,
         potion_slots: v["max_potion_slots"].as_u64().unwrap_or(3) as u8,
         deck,
         relics,

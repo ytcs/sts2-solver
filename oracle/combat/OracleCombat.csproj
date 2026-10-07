@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>CS8981;CS0168;CS0219;CS1998</NoWarn>
+    <GameDir Condition="'$(GameDir)' == '' And '$(OS)' == 'Windows_NT'">C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64</GameDir>
     <GameDir Condition="'$(GameDir)' == ''">$(HOME)/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_x86_64</GameDir>
   </PropertyGroup>
   <ItemGroup>
