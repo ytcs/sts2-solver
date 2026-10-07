@@ -67,3 +67,12 @@ A Silent A10 run played from the screen, ignoring the old calculators (the decis
 - Fidelity bug (F3, slimes): Lightning orbs hit random enemies (hidden RNG), so the simulator's sample killed a different slime than the game. After the deaths, `Sim.sync` matched enemies by list position, giving `SIMULATOR DIFFERS: .enemies[0].id LEAF_SLIME_S vs TWIG_SLIME_M`, and the solver stalled. Fix: match enemies by identity and HP.
 - The old potion alerts stop hallway fights repeatedly (S4 removes them).
 - Headless: `steam.exe -applaunch 2868840 --headless` runs the game with no window and no renderer; the bridge and saves work, and a run in progress continues after a restart (menu: `continue run`). Harness gap: `a 0 <character>` on a MENU that offers `continue run` continues the run but opens a new run record (the public counters reset); restore `runs/CURRENT` by hand until fixed.
+- Run 2, Act 1 cleared (Defect, 50/72 after The Kin). `price` (r2) gave clear separations at forks, cards and events; shop priced one purchase at a time. Gaps:
+  - the run horizon is flat (decisions fall back to the act or fight horizon; see the continuation-value priority in `docs/rebuild.md`);
+  - gold is undervalued (the base policy only buys removals);
+  - no bundle pricing;
+  - no potion-swap pricing on REWARDS screens;
+  - random card offers (Power Potion) can't be re-synced;
+  - `price` runs on single-option screens;
+  - `~gold` is ambiguous when there are two gold rewards (Amethyst Aubergine).
+- Rest before the boss (24/72): I rested on fight numbers (boss win 0.996 rest vs 0.94 smith); the user's correction is that the run-level trade should decide (memory: run-level-decisions).

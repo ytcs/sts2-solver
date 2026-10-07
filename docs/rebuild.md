@@ -153,6 +153,10 @@ Plan:
   - the act-boundary HP and the act reached by real runs fall inside the simulated distribution;
   - a decision's price is stable under fresh draws (se reported).
 
+**Continuation value (priority, user 2026-10-07).** The run horizon of `price` is flat (P(win run) = 0 for every option under the base policy), so choices fall back to the act or fight horizon. That is myopic: rest at boss win 0.996 vs smith at 0.94 should compare 0.996 x V(next act | no upgrade) vs 0.94 x V(next act | upgrade).
+- Need a non-flat V(act-start state) = P(win the rest of the run | deck, relics, potions, HP after the ancient heal).
+- Candidates: a stronger base policy (plan-directed) so run rollouts sometimes win; a learned value over act-start states trained on rollouts; or measured boss-pool win rates of the next acts as a proxy.
+
 **Shop and drafting requirements (user, 2026-10-07):**
 - Price bundles within the budget: a set of purchases can be positive while each part alone is negative.
 - Price saving gold against buying when the shop offers only small gains (the value of gold carried to the next shops).
