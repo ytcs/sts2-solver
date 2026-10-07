@@ -94,8 +94,9 @@ class GraphFn:
     """`fn(obs [B, OBS], mask [B, ACT] | None[, u [B]]) -> [B, ...]` replayed as a CUDA graph per padded batch size: one replay instead of several hundred
     kernel launches (the network is launch-bound at the batch sizes the search produces). `with_u`: a per-row uniform (`_sample`) is a third input."""
 
-    def __init__(self, fn, buckets, with_mask, pool, label="", events=None, with_u=False):
+    def __init__(self, fn, buckets, with_mask, pool, label="", events=None, with_u=False, legacy_pad=False):
         self.fn, self.buckets, self.with_mask, self.pool, self.with_u = fn, tuple(sorted(buckets)), with_mask, pool, with_u
+        self.legacy_pad = legacy_pad  # pad every remainder to the next bucket (the plan before 2026-10-07: reproduces older tables bit for bit)
         self.graphs = {}
         self.label, self.events = label, events  # events: a list collecting (cuda event pair, rows) per replay when profiling
 
@@ -122,10 +123,8 @@ class GraphFn:
         """Rows `idx` (a device index tensor) of obs / mask (/ u), or all of them; returns a fresh [rows, ...] tensor."""
         n = len(obs) if idx is None else len(idx)
         outs = []
-        top = self.buckets[-1]
-        for a in range(0, n, top):
-            m = min(top, n - a)
-            B = next(b for b in self.buckets if b >= m)
+        a = 0
+        for m, B in self.plan(n):
             if B not in self.graphs:
                 self._capture(B)
             g, sobs, smask, su, out = self.graphs[B]
@@ -147,11 +146,33 @@ class GraphFn:
                 e0.record()
                 g.replay()
                 e1.record()
-                self.events.append((e0, e1, m))
+                self.events.append((e0, e1, m, B))
             else:
                 g.replay()
             outs.append(out[:m].clone())
+            a += m
         return outs[0] if len(outs) == 1 else torch.cat(outs)
+
+    def plan(self, n):
+        """(rows, padded batch) per replay covering `n` rows: whole top buckets, then the remainder in the bucket that holds it when that pads by at
+        most the smallest bucket, else the largest bucket below it, and again. Padding the remainder to the next bucket wasted 22 % of the policy
+        rows and 77 % of the value rows (5x32, roots 1024); the network's time is close to proportional to the padded batch."""
+        bs, out = self.buckets, []
+        if self.legacy_pad:
+            return [(min(bs[-1], n - a), next(b for b in bs if b >= min(bs[-1], n - a))) for a in range(0, n, bs[-1])]
+        while n > 0:
+            if n >= bs[-1]:
+                out.append((bs[-1], bs[-1]))
+                n -= bs[-1]
+                continue
+            b = next(x for x in bs if x >= n)
+            if b == bs[0] or b - n <= bs[0]:
+                out.append((n, b))
+                break
+            lo = max(x for x in bs if x <= n)
+            out.append((lo, lo))
+            n -= lo
+        return out
 
 
 
@@ -215,7 +236,7 @@ class HostBuffers:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, roll_cap=None, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=None, dist=None):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=None, dist=None, legacy_pad=False):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
         self.net, self.value_nets = net, value_nets or []
@@ -253,7 +274,9 @@ class FastSearch:
         self._bufs = []  # one HostBuffers per engine group, reused across runs
         self.amp = amp  # bf16 autocast inside the graphs (the networks are compute-bound there)
         self.value_amp = amp if value_amp is None else value_amp
-        self.buckets = (1024, 2048, 4096, 8192, 16384) if buckets is None else buckets
+        # padded batch sizes of the graphs (`GraphFn.plan`); `legacy_pad`: the buckets and padding before 2026-10-07 (bit-identical to older tables; ~15 % slower at 5x32)
+        self.legacy_pad = legacy_pad
+        self.buckets = ((1024, 2048, 4096, 8192, 16384) if legacy_pad else (256, 512, 1024, 2048, 4096, 8192, 16384)) if buckets is None else buckets
         self.dec_buckets = (64, 256, 1024, 4096)
         self.merge_dec = merge_dec  # one graph per head for rows with and without a pending selection (the candidate branch costs less than a second replay)
         self._graphs = {}
@@ -327,7 +350,7 @@ class FastSearch:
                 act = pr.argmax(1) if greedy else _sample(pr, u)
                 tp, ti = pr.topk(M, 1)
                 return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
-            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None, with_u=True)
+            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None, with_u=True, legacy_pad=self.legacy_pad)
         return self._graphs[key]
 
     def _val_graph(self, has_dec):
@@ -352,7 +375,7 @@ class FastSearch:
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
                     v = ens(o)
                 return v.float() if self.dist else (v / len(nets)).unsqueeze(1)
-            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None)
+            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None, legacy_pad=self.legacy_pad)
         return self._graphs[key]
 
     @torch.no_grad()
@@ -484,8 +507,9 @@ class FastSearch:
             idx = np.arange(gi, nj, self.groups)  # interleaved jobs: every group sees the whole mix
             if len(idx) == 0:
                 continue
+            nb = min(max(1, self.roots // self.groups), len(idx))  # blocks of this engine: more threads than blocks only cost the pool's start (~1 ms of a live round)
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, 0.0, 0.0,
-                                     self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.carry, self.strat, starts,
+                                     self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, min(self.threads, nb), self.record, self.lead, self.carry, self.strat, starts,
                                      None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns, turn_cap=heads.TURN_CAP,
                                      val_w=self.val_w, worth=wt)
             # one observation buffer for policy and value rows when the engine supports it (`advance_shared`: half the pinned memory); an older
@@ -562,9 +586,9 @@ class FastSearch:
                     legal=legal[0, :self.M].astype(bool).tolist())
 
     def gpu_ms(self):
-        """With `profile_gpu`: {label: (total ms, replays, rows)} of the graph replays so far."""
+        """With `profile_gpu`: {label: (total ms, replays, rows, padded rows)} of the graph replays so far."""
         torch.cuda.synchronize()
         out = {}
         for k, evs in self._ev.items():
-            out[k] = (sum(a.elapsed_time(b) for a, b, _ in evs), len(evs), sum(n for _, _, n in evs))
+            out[k] = (sum(e[0].elapsed_time(e[1]) for e in evs), len(evs), sum(e[2] for e in evs), sum(e[3] for e in evs))
         return out
