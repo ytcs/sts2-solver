@@ -21,7 +21,7 @@ uv venv .venv && uv pip install maturin numpy torch --python .venv/Scripts/pytho
 VIRTUAL_ENV=$PWD/.venv .venv/Scripts/maturin develop --release -m crates/sts2py/Cargo.toml
 export STS2_DEVICE=cuda                 # GPU for the networks (the first run compiles for about 2 minutes)
 
-# the game with the bridge mod (.NET 9; Steam game id 2868840): kills the game, builds, installs, relaunches headless (GUI=1 for a window), waits for the bridge; a run in progress is lost (bridge runs write no run save)
+# the game with the bridge mod (.NET 9; Steam game id 2868840): kills the game, builds, installs, relaunches headless (GUI=1 for a window), waits for the bridge; a run in progress continues (menu: `continue run`)
 bash mods/AgentBridge/dev.sh
 
 python -m agent s                       # state with numbered options; the daemon starts hidden on first use (loading takes about a minute)
