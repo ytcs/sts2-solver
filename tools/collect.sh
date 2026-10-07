@@ -3,8 +3,9 @@
 # from the saved parts up to 3 times (transient machine load slows a chunk now and then; a real hang repeats); any other exit code stops.
 # Usage: tools/collect.sh <rl/exit.py collect arguments>
 retries=0
+PY=.venv/Scripts/python.exe; [ -x "$PY" ] || PY=.venv/bin/python   # Windows or Linux (pods) venv
 while true; do
-  .venv/Scripts/python.exe rl/exit.py collect "$@"
+  "$PY" rl/exit.py collect "$@"
   rc=$?
   if [ $rc -eq 2 ] && [ $retries -lt 3 ]; then
     retries=$((retries + 1)); echo "watchdog kill: retry $retries of 3"
