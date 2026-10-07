@@ -59,7 +59,14 @@ def collect(a):
                 os._exit(2)
     threading.Thread(target=watchdog, daemon=True).start()
     n_chunks = (len(jobs) + a.chunk - 1) // a.chunk
+    ran = 0
     for k in range(n_chunks):
+        if os.path.exists(f"{stem}_{k:03d}.npz"):  # done by an earlier process (a long-lived process slows down: fresh ones resume here)
+            continue
+        if ran >= a.chunks_per_process:
+            print(f"{n_chunks - k} chunks left: exiting for a fresh process (exit code 3)", flush=True)
+            sys.exit(3)
+        ran += 1
         if time.time() - t_all > a.max_minutes * 60:
             print(f"deadline: {a.max_minutes} min reached after {k} of {n_chunks} chunks; stopping (parts saved so far are complete)", flush=True)
             break
@@ -232,6 +239,8 @@ def main():
     c.add_argument("--M", type=int, default=3); c.add_argument("--K", type=int, default=8); c.add_argument("--attempts", type=int, default=2)
     c.add_argument("--roots", type=int, default=2048); c.add_argument("--seed", type=int, default=101)
     c.add_argument("--chunk", type=int, default=2048, help="fights per saved part")
+    c.add_argument("--chunks-per-process", type=int, default=3, help="chunks before exiting with code 3 for a fresh process: a long-lived search process "
+                   "slows down chunk after chunk (round 2: chunk 9 took 3x the median; the same fights in a fresh process ran at full speed)")
     c.add_argument("--look-legacy", action="store_true", help="the enemy look-ahead from before S1 (per-monster pattern walk)")
     c.add_argument("--max-minutes", type=float, default=120, help="no new chunk starts after this")
     c.add_argument("--chunk-timeout", type=float, default=3.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
