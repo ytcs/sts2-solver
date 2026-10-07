@@ -78,7 +78,7 @@ fn search(choker: bool, with_table: bool) -> (JobResult, Vec<MoveRec>, SearchSta
     let sc = scenario(choker);
     let start = pillage_state(&sc, choker);
     let vw = if with_table { HEAD_NC } else { 1 };
-    let cfg = SearchCfg { m: 4, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, leaf_turns: 1, lead: false, carry: false, strat: false, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5, util: [0.0; 102], use_util: false, turn_cap: 0, val_w: vw };
+    let cfg = SearchCfg { m: 4, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, leaf_turns: 1, lead: false, carry: false, strat: false, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5, util: [0.0; 102], use_util: false, turn_cap: 0, val_w: vw, ..SearchCfg::default() };
     let mut eng = SearchEngine::new_with_starts(vec![(sc, ScenarioExtras::default())], vec![Some(start.clone())], vec![(0, 17)], 1, cfg, 2, true).unwrap();
     if with_table {
         eng.set_worth(vec![table()]).unwrap();
@@ -177,7 +177,7 @@ fn a_real_fight_in_the_loop_is_recorded_as_a_loss() {
     let e = start.enemies[0];
     assert!(start.step(Action::PlayCard { hand_pos: 0, target: e }));
     assert!(sts2env::looped(&start));
-    let cfg = SearchCfg { m: 4, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, leaf_turns: 1, lead: false, carry: false, strat: false, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5, util: [0.0; 102], use_util: false, turn_cap: 0, val_w: 1 };
+    let cfg = SearchCfg { m: 4, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, leaf_turns: 1, lead: false, carry: false, strat: false, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5, util: [0.0; 102], use_util: false, turn_cap: 0, val_w: 1, ..SearchCfg::default() };
     let mut eng = SearchEngine::new_with_starts(vec![(sc, ScenarioExtras::default())], vec![Some(start)], vec![(0, 17)], 1, cfg, 1, false).unwrap();
     let (pc, vc) = eng.max_rows();
     let (mut po, mut pm, mut pk, mut pu, mut vo, mut vk) = (vec![0f32; pc * OBS_SIZE], vec![0u8; pc * ACTION_SPACE], vec![0u8; pc], vec![0f32; pc], vec![0f32; vc * OBS_SIZE], vec![0u8; vc]);

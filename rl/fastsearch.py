@@ -8,6 +8,11 @@ and hands the answers back. Two engines (`groups`) alternate so the CPU simulate
   fs = FastSearch(net, value_nets=[...], M=3, K=8)
   rows = fs.run(scenario_dicts, job_scen, job_seed)      # [n_jobs, 8]: scenario, outcome, hp_lost, hp_end, length, finished, end HP (absolute), potions kept (bits)
 
+Root modes (`root=`): "topm" (default, live play) tries the policy's M likeliest actions on K futures each; "gumbel" samples `gumbel_m` candidates without
+replacement over every legal action (Gumbel-top-k on the prior's logits) and spends `gumbel_n` futures by sequential halving (Danihelka et al. 2022),
+recording Gumbel MuZero's improved policy per searched decision (`moves_gumbel`, `decide(...)["pi"]`). Gumbel mode evaluates the root rows' full logits once
+more outside the graphs (a few rows per cycle) and needs an extension built from this tree (`root=` / `moves_gumbel`).
+
 With an outcome-head network (`rl/heads.py`) and no extra value networks, value rows come back as the head's class probabilities and Rust combines them
 with each job's worth (`run(..., worth=)`: per scenario None = today's linear return, or a table over the classes and per-slot potion prices; the decision
 layer of `docs/rl_redesign.md` 3.2).
@@ -184,7 +189,7 @@ class HostBuffers:
     caches freed blocks for the life of the process (a 1.27 GB request commits 2.00 GB, measured), and a fresh set per run left the old size classes cached.
     `pol_kind` / `val_kind` never leave the host and are not pinned."""
 
-    PINNED = ("pol_obs", "pol_mask", "pol_u", "val_obs", "pol_out", "val_out")
+    PINNED = ("pol_obs", "pol_mask", "pol_u", "val_obs", "pol_out", "val_out", "root_out")
 
     def __init__(self, pin):
         self.pin = pin
@@ -192,11 +197,11 @@ class HostBuffers:
         self.t = {}  # name -> torch view of the same memory
         self._reg = []  # registered base pointers
 
-    def ensure(self, pc, vc, pol_w, val_w, shared=False):
+    def ensure(self, pc, vc, pol_w, val_w, shared=False, root_rows=0):
         """Room for `pc` policy and `vc` value rows. `shared` (the engine's `advance_shared`): one observation buffer `pol_obs` of `pc` rows holds
-        both kinds (value rows from its end backwards) and there is no `val_obs`."""
+        both kinds (value rows from its end backwards) and there is no `val_obs`. `root_rows` (Gumbel mode): the root logits answer, one row per block."""
         want = {"pol_obs": (pc, OBS), "pol_mask": (pc, ACT), "pol_kind": (pc,), "pol_u": (pc,), "val_obs": (vc, OBS), "val_kind": (vc,),
-                "pol_out": (pc, pol_w), "val_out": (vc, val_w)}
+                "pol_out": (pc, pol_w), "val_out": (vc, val_w), "root_out": (root_rows, ACT)}
         if shared:
             del want["val_obs"]
             self._free("val_obs")
@@ -236,12 +241,19 @@ class HostBuffers:
 
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, roll_cap=None, max_steps=300, hp_bonus=0.5, greedy_roll=False,
-                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=None, dist=None, legacy_pad=False):
+                 roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=None, dist=None, legacy_pad=False,
+                 root="topm", gumbel_m=16, gumbel_n=160, c_visit=50.0, c_scale=0.1):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
-        the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s."""
+        the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s.
+        `root`: "topm" (M options x K futures) or "gumbel" (`gumbel_m` sampled candidates, `gumbel_n` futures by sequential halving, sigma(q) =
+        (c_visit + max visits) x c_scale x q scaled to [0, 1] by the return's range; `sts2env::search::SearchCfg`). K, carry and pmin do not apply to a
+        Gumbel root, and M is only the width of the policy answers."""
         self.net, self.value_nets = net, value_nets or []
         self.roll_net = roll_net if roll_net is not None else net
         self.M, self.K, self.conf = M, K, conf
+        if root not in ("topm", "gumbel"):
+            raise ValueError(f"root must be 'topm' or 'gumbel', got {root!r}")
+        self.root, self.gumbel_m, self.gumbel_n, self.c_visit, self.c_scale = root, gumbel_m, gumbel_n, c_visit, c_scale
         # play-out depth: the ONE default for live play and every batch table (agent.engine, rl/solver.py; evals/bench_search*.jsonl, evals/ab_leaf_5x32.json)
         self.leaf_turns = LEAF_TURNS if leaf_turns is None else leaf_turns  # player turns a play-out runs before the value network (1 = this turn; large = to the fight's end)
         roll_cap = roll_cap if roll_cap is not None else 60 * self.leaf_turns if self.leaf_turns < 100 else 400  # step cap of a play-out, scaled with its depth
@@ -406,6 +418,8 @@ class FastSearch:
                         idx = torch.from_numpy(np.flatnonzero(sel)).to(DEV, non_blocking=True)
                         res[idx] = fn(obs, mask, idx, u=u)
             G["pol_out_t"][:n_pol].copy_(res, non_blocking=True)
+            if G["gumbel"]:
+                self._root_logits(G, n_pol, obs, mask)
         if n_val:
             _, vo = self._val_obs(G, n_val)
             dec = (G["val_kind"][:n_val] & 2) != 0
@@ -426,6 +440,7 @@ class FastSearch:
 
     @torch.no_grad()
     def _evaluate(self, g, n_pol, n_val):
+        g["n_root"] = 0  # Gumbel mode: set by `_root_logits` when this call has real-fight policy rows
         if self.use_graphs:
             return self._evaluate_graphs(g, n_pol, n_val)
         """Launches the networks on group g's requests; the answers land in the group's host buffers (call `_collect` before reading)."""
@@ -450,6 +465,8 @@ class FastSearch:
                     ir_t = torch.from_numpy(ir).to(DEV)
                     res[ir_t] = self._run(pol_fn(self.net), G["pol_obs"][ir], obs[ir_t], mask[ir_t], u[ir_t])
             G["pol_out_t"][:n_pol].copy_(res, non_blocking=True)
+            if G["gumbel"]:
+                self._root_logits(G, n_pol, obs, mask)
         if n_val:
             vo_np, vo = self._val_obs(G, n_val)
             def val(o, m, **shape):
@@ -465,6 +482,22 @@ class FastSearch:
         if self.cuda:
             G["event"].record()
 
+    @torch.no_grad()
+    def _root_logits(self, G, n_pol, obs, mask):
+        """Gumbel mode: log-probabilities over the whole action space of the policy rows that are decisions of a real fight (`pol_kind & 1 == 0`), in
+        row order, into the group's `root_out` (the engine samples the candidates and computes pi' from them). Eager fp32, outside the graphs: a few
+        rows per cycle."""
+        ir = np.flatnonzero((G["pol_kind"][:n_pol] & 1) == 0)
+        G["n_root"] = len(ir)
+        if not len(ir):
+            return
+        it = torch.from_numpy(ir).to(DEV)
+
+        def fn(o, m, **shape):
+            lg = self.net(o, m, value=False, ufeat=self._uf(o), **shape)[0].float()  # masked logits (illegal: -1e9)
+            return torch.log_softmax(lg, 1)
+        G["root_out_t"][:len(ir)].copy_(self._run(fn, G["pol_obs"][ir], obs[it], mask[it]), non_blocking=True)
+
     @staticmethod
     def _val_obs(G, n):
         """The `n` value rows of group G in row order: (host view, device tensor). In the shared layout row r sits at `shared - 1 - r`."""
@@ -475,9 +508,11 @@ class FastSearch:
 
     @staticmethod
     def _advance(G, pol=None, val=None):
+        # Gumbel mode: the root logits of the previous call's real-fight rows ride along (only then: an older extension has no `root` argument)
+        kw = {"root": G["root_out"][:G["n_root"]]} if G["gumbel"] and pol is not None else {}
         if G["shared"]:
-            return G["eng"].advance_shared(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_kind"], pol, val)
-        return G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_obs"], G["val_kind"], pol, val)
+            return G["eng"].advance_shared(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_kind"], pol, val, **kw)
+        return G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_obs"], G["val_kind"], pol, val, **kw)
 
     def _collect(self, g):
         if self.cuda:
@@ -508,10 +543,13 @@ class FastSearch:
             if len(idx) == 0:
                 continue
             nb = min(max(1, self.roots // self.groups), len(idx))  # blocks of this engine: more threads than blocks only cost the pool's start (~1 ms of a live round)
+            gumbel = self.root == "gumbel"
+            # the Gumbel arguments only when asked for: the top-M root keeps working with an extension built before them
+            gkw = dict(root="gumbel", gm=self.gumbel_m, gn=self.gumbel_n, c_visit=self.c_visit, c_scale=self.c_scale) if gumbel else {}
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, 0.0, 0.0,
                                      self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, min(self.threads, nb), self.record, self.lead, self.carry, self.strat, starts,
                                      None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns, turn_cap=heads.TURN_CAP,
-                                     val_w=self.val_w, worth=wt)
+                                     val_w=self.val_w, worth=wt, **gkw)
             # one observation buffer for policy and value rows when the engine supports it (`advance_shared`: half the pinned memory); an older
             # extension gets the two buffers of `max_rows`
             shared = eng.shared_rows() if hasattr(eng, "advance_shared") else 0
@@ -519,8 +557,8 @@ class FastSearch:
             while len(self._bufs) <= gi:
                 self._bufs.append(HostBuffers(self.cuda))
             B = self._bufs[gi]
-            B.ensure(pc, vc, 2 * self.M + 1, self.val_w, shared=bool(shared))
-            G = dict(eng=eng, idx=idx, n_pol=0, n_val=0, shared=shared)
+            B.ensure(pc, vc, 2 * self.M + 1, self.val_w, shared=bool(shared), root_rows=eng.n_roots() if gumbel else 0)
+            G = dict(eng=eng, idx=idx, n_pol=0, n_val=0, shared=shared, gumbel=gumbel, n_root=0)
             for name, arr in B.a.items():
                 G[name], G[name + "_t"] = arr, B.t[name]
             if self.cuda:
@@ -583,8 +621,14 @@ class FastSearch:
             acts, searched, opts, p, q, legal = self._runs[0][1].moves(0)
         finally:
             self.max_steps, self.record = old
-        return dict(action=int(acts[0]), searched=bool(searched[0]), opts=opts[0, :self.M].tolist(), p=p[0, :self.M].tolist(), q=q[0, :self.M].tolist(),
-                    legal=legal[0, :self.M].astype(bool).tolist())
+        W = self.gumbel_m if self.root == "gumbel" else self.M
+        out = dict(action=int(acts[0]), searched=bool(searched[0]), opts=opts[0, :W].tolist(), p=p[0, :W].tolist(), q=q[0, :W].tolist(),
+                   legal=legal[0, :W].astype(bool).tolist())
+        if self.root == "gumbel":
+            # per candidate: futures played, Gumbel MuZero's improved policy pi', and adv = sigma(q) - sigma(v) (pi' = softmax(logits + adv))
+            _g, n, pi, adv, v = self._runs[0][1].moves_gumbel(0)
+            out.update(n=n[0, :W].tolist(), pi=pi[0, :W].tolist(), adv=adv[0, :W].tolist(), v=float(v[0]))
+        return out
 
     def job_actions(self, j):
         """With `record`: the dense actions job j of the last `run` took, in order (jobs are interleaved over the engine groups)."""

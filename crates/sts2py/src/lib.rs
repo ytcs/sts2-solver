@@ -142,7 +142,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, root="topm", gm=16, gn=160, c_visit=50.0, c_scale=0.1))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -171,6 +171,11 @@ impl SearchEnginePy {
         turn_cap: u32,
         val_w: usize,
         worth: Option<PyReadonlyArray2<f32>>,
+        root: &str,
+        gm: usize,
+        gn: usize,
+        c_visit: f32,
+        c_scale: f32,
     ) -> PyResult<Self> {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
@@ -184,7 +189,12 @@ impl SearchEnginePy {
             Some(u) => return Err(PyValueError::new_err(format!("util must have 102 entries (loss, then wins at 0..100 % HP), got {}", u.len()))),
             None => false,
         };
-        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util, turn_cap, val_w };
+        let root = match root {
+            "topm" => sts2env::search::RootMode::TopM,
+            "gumbel" => sts2env::search::RootMode::Gumbel,
+            r => return Err(PyValueError::new_err(format!("root must be \"topm\" or \"gumbel\", got {r:?}"))),
+        };
+        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util, turn_cap, val_w, root, gm, gn, c_visit, c_scale };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let n_scen = scs.len();
         let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
@@ -224,8 +234,10 @@ impl SearchEnginePy {
         self.eng.finished()
     }
 
-    /// One cycle (see `sts2env::search::SearchEngine::advance`); the first call passes `pol = val = None`.
-    #[pyo3(signature = (pol_obs, pol_mask, pol_kind, pol_u, val_obs, val_kind, pol=None, val=None))]
+    /// One cycle (see `sts2env::search::SearchEngine::advance`); the first call passes `pol = val = None`. Gumbel mode (`root="gumbel"`) also needs
+    /// `root` = `[real-fight policy rows of the previous call (pol_kind & 1 == 0), ACTIONS]` logits in row order (`SearchEngine::advance_root`).
+    #[pyo3(signature = (pol_obs, pol_mask, pol_kind, pol_u, val_obs, val_kind, pol=None, val=None, root=None))]
+    #[allow(clippy::too_many_arguments)]
     fn advance(
         &mut self,
         py: Python<'_>,
@@ -237,8 +249,13 @@ impl SearchEnginePy {
         mut val_kind: PyReadwriteArray1<u8>,
         pol: Option<PyReadonlyArray2<f32>>,
         val: Option<PyReadonlyArray1<f32>>,
+        root: Option<PyReadonlyArray2<f32>>,
     ) -> PyResult<(usize, usize)> {
         let er = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
+        let ra = match &root {
+            Some(r) => Some(r.as_slice().map_err(er)?),
+            None => None,
+        };
         let po = pol_obs.as_slice_mut().map_err(er)?;
         let pm = pol_mask.as_slice_mut().map_err(er)?;
         let pk = pol_kind.as_slice_mut().map_err(er)?;
@@ -254,7 +271,7 @@ impl SearchEnginePy {
             None => None,
         };
         let eng = &mut self.eng;
-        py.detach(|| eng.advance(pa, va, po, pm, pk, pu, vo, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+        py.detach(|| eng.advance_root(pa, va, ra, po, pm, pk, pu, vo, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
     /// Rows of the one request buffer `advance_shared` uses (`sts2env::search::SearchEngine::shared_rows`).
@@ -264,7 +281,7 @@ impl SearchEnginePy {
 
     /// `advance` with one observation buffer `obs` [shared_rows, OBS] for both kinds of rows: policy row r at row r, value row r at row
     /// `shared_rows - 1 - r` (`sts2env::search::SearchEngine::advance_shared`); `mask`, `pol_kind`, `pol_u`, `val_kind` have `shared_rows` rows.
-    #[pyo3(signature = (obs, mask, pol_kind, pol_u, val_kind, pol=None, val=None))]
+    #[pyo3(signature = (obs, mask, pol_kind, pol_u, val_kind, pol=None, val=None, root=None))]
     #[allow(clippy::too_many_arguments)]
     fn advance_shared(
         &mut self,
@@ -276,8 +293,13 @@ impl SearchEnginePy {
         mut val_kind: PyReadwriteArray1<u8>,
         pol: Option<PyReadonlyArray2<f32>>,
         val: Option<PyReadonlyArray1<f32>>,
+        root: Option<PyReadonlyArray2<f32>>,
     ) -> PyResult<(usize, usize)> {
         let er = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
+        let ra = match &root {
+            Some(r) => Some(r.as_slice().map_err(er)?),
+            None => None,
+        };
         let o = obs.as_slice_mut().map_err(er)?;
         let pm = mask.as_slice_mut().map_err(er)?;
         let pk = pol_kind.as_slice_mut().map_err(er)?;
@@ -292,7 +314,7 @@ impl SearchEnginePy {
             None => None,
         };
         let eng = &mut self.eng;
-        py.detach(|| eng.advance_shared(pa, va, o, pm, pk, pu, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+        py.detach(|| eng.advance_shared_root(pa, va, ra, o, pm, pk, pu, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
     /// `[n_jobs, 6..8]` f32: scenario index, outcome, HP lost fraction, HP left fraction, length, finished (1/0) (, end HP absolute, belt slots whose starting
@@ -343,6 +365,41 @@ impl SearchEnginePy {
         Ok(t)
     }
 
+    /// The Gumbel part of the recorded moves of a finished job (`sts2env::search::MoveRec`): `(gumbel [n] u8, futures [n, M] i32, pi [n, M] f32 (the improved
+    /// policy pi' of each candidate), adv [n, M] f32 (sigma(q) - sigma(v): pi' = softmax(prior logits + adv), adv = 0 off the candidates), v [n] f32 (the completed
+    /// Q of the actions not sampled))`; columns line up with `moves`' options.
+    #[allow(clippy::type_complexity)]
+    fn moves_gumbel<'py>(&self, py: Python<'py>, job: usize) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        use numpy::{PyArray1, PyArrayMethods};
+        let mv = self.eng.moves(job);
+        let m = sts2env::search::MAX_M;
+        let n = mv.len();
+        let g: Vec<u8> = mv.iter().map(|x| x.gumbel as u8).collect();
+        let cnt: Vec<i32> = mv.iter().flat_map(|x| x.n.iter().map(|&c| c as i32)).collect();
+        let pi: Vec<f32> = mv.iter().flat_map(|x| x.pi.iter().copied()).collect();
+        let adv: Vec<f32> = mv.iter().flat_map(|x| x.adv.iter().copied()).collect();
+        let v: Vec<f32> = mv.iter().map(|x| x.v).collect();
+        let t = pyo3::types::PyTuple::new(
+            py,
+            [
+                PyArray1::from_vec(py, g).into_any(),
+                PyArray1::from_vec(py, cnt).reshape([n, m])?.into_any(),
+                PyArray1::from_vec(py, pi).reshape([n, m])?.into_any(),
+                PyArray1::from_vec(py, adv).reshape([n, m])?.into_any(),
+                PyArray1::from_vec(py, v).into_any(),
+            ],
+        )?;
+        Ok(t)
+    }
+
+    /// "topm" or "gumbel".
+    fn root_mode(&self) -> &'static str {
+        match self.eng.root_mode() {
+            sts2env::search::RootMode::TopM => "topm",
+            sts2env::search::RootMode::Gumbel => "gumbel",
+        }
+    }
+
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
         let s = self.eng.stats();
         let d = pyo3::types::PyDict::new(py);
@@ -374,6 +431,11 @@ impl SearchEnginePy {
         d.set_item("cy_main", s.cy_main)?;
         d.set_item("cy_endturn", s.cy_endturn)?;
         d.set_item("n_endturn", s.n_endturn)?;
+        d.set_item("g_cand", s.g_cand)?;
+        d.set_item("g_rank1", s.g_rank[0])?;
+        d.set_item("g_rank2_5", s.g_rank[1])?;
+        d.set_item("g_rank6_8", s.g_rank[2])?;
+        d.set_item("g_rank9", s.g_rank[3])?;
         Ok(d)
     }
 }

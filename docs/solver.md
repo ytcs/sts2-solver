@@ -36,6 +36,17 @@ Engine mechanics (all on by default):
 * **Failure handling.** A panic in any fight is caught: job / scenario / seed go to stderr, only that fight aborts, `panics` counts them. Capacity overflow reports `OUTCOME_OVERFLOW`.
 * **GPU path** (`GraphFn`, `compile=True`, `amp=True` on CUDA): policy and value (the 3-network ensemble in one graph) are captured as CUDA graphs per padded batch size (static shapes, no host syncs), with `torch.compile` fusion and bf16 autocast inside the graphs (no change in strength). Compiled graphs are cached on disk after the first run (about 2 minutes). Thread counts follow the cgroup CPU quota (`fastsearch.available_cpus`), not `os.cpu_count()`.
 
+### Root modes
+`SearchCfg::root` / `FastSearch(root=...)`. Default `"topm"` (above; live play and every table). E8-E12 found that a larger search with the same top-M restriction wins no more: the root only tries what the prior already ranks high and the play-outs follow the same policy, so a large budget cannot find an action the prior ranks low.
+
+`"gumbel"` (Gumbel MuZero's root, Danihelka et al. 2022; `gumbel_m` candidates, `gumbel_n` futures):
+* **Candidates.** Gumbel-top-k over every legal action except potion discards: `gumbel_m` actions sampled without replacement from the prior (`g + log p`, one Gumbel per action from the job's stream, so a job seed fixes the sample). The root's logits over the whole action space come back with the policy answers (`advance_root`; `FastSearch` evaluates the root rows once more, eager, outside the graphs).
+* **Sequential halving.** `ceil(log2 m)` phases; each phase plays every surviving candidate on `n / (phases x survivors)` fresh futures (the last phase also takes the rounding remainder), the same futures for every candidate (common random numbers), and keeps the better half by `g + log p + sigma(completed Q)`. Completed Q = the mean of all of a candidate's futures so far. The action played is the best survivor by the same score.
+* **sigma** = `(c_visit + max visits) x c_scale x qn`, `qn` = Q scaled to [0, 1] by the return's known range (linear `loss .. win + hp_bonus`, the HP-worth curve's or the worth table's range), not by the decision's own min-max: that stretches noise-level gaps (~0.01) to the full scale (E9). `c_visit` 50 (paper), `c_scale` 0.1 (mctx's default; tunable).
+* **Improved policy** recorded per searched decision (`MoveRec`, `moves_gumbel`, `decide(...)["pi"]`): pi' = softmax(logits + sigma(completed Q)), where an action not sampled has completed Q = v_mix (the root state's value from one extra value row, mixed with the prior-weighted mean Q of the candidates, the paper's eq. 33). Stored sparsely as `adv = sigma(q) - sigma(v_mix)` per candidate (0 elsewhere) and pi' per candidate; `rl/exit.py collect --root gumbel` saves it (format 2) and `train --target gumbel` rebuilds pi' on the init network's logits.
+* `carry` and `pmin` / `margin` do not apply; `lead` and `strat` work per phase (`strat` rotations in van der Corput order, so any prefix of the futures is spread). Slots per root: the largest phase (`SearchCfg::slots`), e.g. 160 at 16 x 160. Not handled: duplicate actions (two identical cards) are separate candidates, as in top-M.
+* Benchmark: `tools/bench_search.py --from-scenarios data/bench/tail.json --configs topm5x32,gumbel16x160,...` (equal budget: 160 futures per decision).
+
 ## API
 ```python
 from solver import Solver                    # rl/solver.py
