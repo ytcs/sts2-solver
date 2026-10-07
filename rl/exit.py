@@ -32,7 +32,7 @@ def collect(a):
     js = np.tile(np.arange(S, dtype=np.uint32), a.attempts)
     jd = np.uint64(a.seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
     t0 = time.time()
-    res = fs.run(scen, js, jd)
+    res = fs.run(scen, js, jd, verbose=True)  # prints "cycle N, <fights done>" every 200 cycles: progress for long collections
     F_ = dict(scen=[], seed=[], cls=[], off=[0], acts=[])
     D = dict(fight=[], step=[], opts=[], q=[])
     for idx, eng in fs._runs:

@@ -450,7 +450,7 @@ class FastSearch:
                 t = time.perf_counter()
                 self._evaluate(G, G["n_pol"], G["n_val"])
                 self.timers["launch net"] += time.perf_counter() - t
-            if verbose and cycles % 200 == 0:
+            if verbose and cycles % 2000 == 0:
                 print(f"  cycle {cycles}, {sum(int(G['eng'].results_done()) for G in groups) if hasattr(groups[0]['eng'], 'results_done') else '?'}", flush=True)
         self._runs = [(G["idx"], G["eng"]) for G in groups]
         self._seeds, self._scen, self._job_scen = job_seed, scenarios, job_scen
