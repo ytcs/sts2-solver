@@ -82,8 +82,9 @@ def test_win_only_worth():
     assert len(u) == proposal.HEAD_NC == 76 and u[0] == 0.0
     assert all(b > a for a, b in zip(u[1:41], u[2:41])) and all(abs(x - 1.01) < 1e-12 for x in u[41:])  # capped at max HP
     assert 1.0 < u[1] < 1.0 + 1e-3
-    w = dict(kind="win only", u=u)
-    assert proposal.score((1, 0.5, 40), 80, w) == u[20] and proposal.score((-1, 0.0, 0), 80, w) == 0.0
+    w = proposal.win_only_worth(80)
+    assert proposal.score((1, 0.5, 40), 80, w) == 1.0 and proposal.score((-1, 0.0, 0), 80, w) == 0.0  # the arms are priced on P(win) alone
+    assert proposal.score((1, 0.5, 40), 80, dict(u=u)) == u[20]  # a table without `price_u` prices by its own classes
     assert proposal.score((1, 0.5, 40), 80, None) == 1.25 and proposal.score((-1, 0.0), 80, None) == -1.0
     try:  # the classes agree with the network's head
         import sys
@@ -193,16 +194,19 @@ def test_boss_objective_reaches_every_search(monkeypatch, tmp_path):
     monkeypatch.setattr(proposal, "fight_objective", lambda sc, bosses=(), seen=(): (proposal.win_only_worth(sc["max_hp"]), "win only (test boss)"))
     h, fake, eng = setup(monkeypatch, tmp_path, NOW_WINS)
     out = ok(h.handle("turn !"))
-    assert "objective: win only (test boss)" in out
+    # a win-only score is P(win): every arm wins here, so now's HP gain stops nothing (the 1% HP tiebreak orders the search's lines only)
+    assert "POTION PROPOSAL" not in out and fake.actions() == ['do {"end_turn":true}']
+    r = proposals(h)[-1]["rows"][0]
+    assert all(r["arms"][a]["score"] == 1.0 for a in proposal.ARMS) and not r["beats"] and proposals(h)[-1]["proposed"] is None
+    assert proposals(h)[-1]["objective"] == "win only (test boss)"
     st = [e for e in events(h) if e["kind"] == "fight_start"][-1]
     assert st["worth"] == "win only" and st["objective"] == "win only (test boss)"
     assert [e.get("worth") for e in eng.log if "attempts" in e] == ["win only"]  # the fight-start prediction
-    assert {e["worth"] for e in eng.log if "play_on" in e} == {"win only"}
-    ok(h.handle("turn !"))
-    assert [c["worth"] for c in eng.decide_calls] == ["win only"]
-    # a win-only score is P(win) plus the tiebreak: every arm wins here, so the scores sit in [1, 1.01]
-    r = proposals(h)[-1]["rows"][0]
-    assert all(1.0 <= r["arms"][a]["score"] <= 1.01 for a in proposal.ARMS)
+    assert {e["worth"] for e in eng.log if "play_on" in e} == {"win only"}  # the potion arms
+    assert [c["worth"] for c in eng.decide_calls] == ["win only"]  # the live search
+    h2, fake2, eng2 = setup(monkeypatch, tmp_path / "stake", STAKE)  # the win at stake still stops a boss fight
+    assert "POTION PROPOSAL (turn 7): STRENGTH_POTION now (potion 0): the win is at stake" in ok(h2.handle("turn !"))
+    assert "objective: win only (test boss)" in ok(h2.handle("potions"))
 
 
 def test_networks_without_head_stay_linear(monkeypatch, tmp_path):

@@ -20,7 +20,8 @@ A potion set aside for the boss (`potion aside`) stops a non-boss fight only whe
 
 Objective (`fight_objective`): an act boss followed by the ancient's heal (the acts 1-2 bosses; in the last act the final boss: at A10 the second of the
 two, since HP carries from the first) is searched and priced on P(win) only: the win-only table over the outcome head's classes (loss 0, a win 1 plus a
-tiny HP tiebreak), through the search's per-job worth (`rl/fastsearch.py` `worth_row`, `crates/sts2env/src/search.rs` `Worth`). Every other fight keeps
+tiny HP tiebreak for the search's lines; the potion arms are scored on P(win) alone), through the search's per-job worth (`rl/fastsearch.py`
+`worth_row`, `crates/sts2env/src/search.rs` `Worth`). Every other fight keeps
 the linear return (win +1 + 0.5 x end HP / max HP, loss -1) until a continuation value supplies per-fight tables.
 """
 import re
@@ -43,10 +44,11 @@ ARMS = ("now", "keep", "save")
 # ------------------------------------------------------------------ the per-fight objective
 
 def win_only_worth(max_hp, tie=WIN_ONLY_TIE):
-    """The win-only table: loss 0, a win 1 + tie x (end HP / max HP) at each win class's centre."""
+    """The win-only table the search maximises: loss 0, a win 1 + tie x (end HP / max HP) at each win class's centre. `price_u` is what the potion arms
+    are scored by: P(win) alone (the tiebreak only orders the search's lines; an HP gain must not stop a fight whose objective is the win)."""
     mx = max(int(max_hp or 1), 1)
     u = [0.0] + [1.0 + tie * min((b * HEAD_BIN - (HEAD_BIN - 1) / 2.0) / mx, 1.0) for b in range(1, HEAD_NB + 1)]
-    return dict(u=u, kind="win only")
+    return dict(u=u, price_u=[0.0] + [1.0] * HEAD_NB, kind="win only")
 
 
 def fight_objective(scenario, bosses=(), seen=()):
@@ -78,12 +80,12 @@ def end_class(won, hp):
 
 
 def score(row, max_hp, worth):
-    """One play-out (outcome, end HP fraction[, end HP]) in the objective's units."""
+    """One play-out (outcome, end HP fraction[, end HP]) in the objective's pricing units (`price_u` when the table has one: P(win) for the win-only table)."""
     won = row[0] == 1
     hp = row[2] if len(row) > 2 else row[1] * max_hp
     if worth is None:
         return 1.0 + 0.5 * row[1] if won else -1.0
-    return float(worth["u"][end_class(won, hp)])
+    return float(worth.get("price_u", worth["u"])[end_class(won, hp)])
 
 
 # ------------------------------------------------------------------ pricing
