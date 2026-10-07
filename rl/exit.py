@@ -2,12 +2,16 @@
 """Expert iteration (`docs/rebuild.md` S3): the search plays fights, the network learns to predict how the SEARCH's fights end and to choose like it.
 
   rl/exit.py collect --ckpt models/solver_h128.pt --fights F.json [F2.json ...] --out target/exit/r1.npz [--M 3 --K 8] [--attempts 2] [--max-minutes 120]
-  rl/exit.py train   --init models/solver_h128.pt --data target/exit/r1_*.npz --out target/exit/r1.pt [--epochs 4]
+                     [--root gumbel --gumbel-m 16 --gumbel-n 160]
+  rl/exit.py train   --init models/solver_h128.pt --data target/exit/r1_*.npz --out target/exit/r1.pt [--epochs 4] [--target gumbel]
 
 `collect` stores fights compactly (scenario, seed, the action sequence, the outcome class, and per searched decision the options tried with their
 search estimates); `train` replays the actions to observations (`sts2.replay_rows`, deterministic, in parallel) chunk by chunk, so millions of rows need no disk or RAM.
 Targets per searched decision:
-  policy   softmax of the options' search estimates at temperature `--tau` (the search's improved policy over the options it tried)
+  policy   `--target anchored` (default): the init network's prior shifted by c x the decision's centred min-max-normalised estimates on the options tried;
+           `soft`: softmax of the options' search estimates at temperature `--tau`; `gumbel` (parts collected with `--root gumbel`): Gumbel MuZero's
+           improved policy pi' = softmax(prior logits + sigma(completed Q)) over every legal action, rebuilt from the recorded shift adv = sigma(q) -
+           sigma(v) of each candidate (0 for the actions not sampled, whose completed Q is v) on the init network's logits
   outcome  the class of how that fight really ended (loss, or the 2-HP end bin) under search play, HL-Gauss-smoothed over neighbouring win bins
            (Farebrother et al. 2024); realized outcomes, never the max of the search's estimates (winner's curse)
 """
@@ -23,9 +27,16 @@ import heads as H  # noqa: E402
 
 
 def _save(path, scen, F_, D):
+    """Format 1: the arrays below. Format 2 (`version` = 2, a Gumbel root) adds per decision the candidates' futures `d_n`, improved policy `d_pi`, shift
+    `d_adv` (pi' = softmax(logits + adv)) and the completed Q of the actions not sampled `d_v`; readers of format 1 ignore them."""
+    extra = {}
+    if "adv" in D:
+        extra = dict(version=np.array(2), root=np.array("gumbel"), d_n=np.array(D["n"], np.int16), d_pi=np.array(D["pi"], np.float32),
+                     d_adv=np.array(D["adv"], np.float32), d_v=np.array(D["v"], np.float32))
     np.savez_compressed(path, scenarios=np.array(json.dumps(scen)), f_scen=np.array(F_["scen"], np.int32), f_seed=np.array(F_["seed"], np.uint64),
                         f_cls=np.array(F_["cls"], np.int16), f_off=np.array(F_["off"], np.int64), acts=np.array(F_["acts"], np.int16),
-                        d_fight=np.array(D["fight"], np.int32), d_step=np.array(D["step"], np.int32), d_opts=np.array(D["opts"], np.int16), d_q=np.array(D["q"], np.float32))
+                        d_fight=np.array(D["fight"], np.int32), d_step=np.array(D["step"], np.int32), d_opts=np.array(D["opts"], np.int16), d_q=np.array(D["q"], np.float32),
+                        **extra)
 
 
 def collect(a):
@@ -37,7 +48,9 @@ def collect(a):
     from model import load
     scen = [s for f in a.fights for s in json.load(open(f))]
     sts2.set_look_legacy(a.look_legacy)
-    fs = FastSearch(load(a.ckpt), M=a.M, K=a.K, record=True, roots=a.roots, amp=True)
+    gumbel = a.root == "gumbel"
+    fs = FastSearch(load(a.ckpt), M=a.M, K=a.K, record=True, roots=a.roots, amp=True, root=a.root, gumbel_m=a.gumbel_m, gumbel_n=a.gumbel_n)
+    W = a.gumbel_m if gumbel else a.M  # options recorded per decision
     fs.warm()
     jobs = [(i, att) for att in range(a.attempts) for i in range(len(scen))]
     stem = a.out[:-4] if a.out.endswith(".npz") else a.out
@@ -80,22 +93,27 @@ def collect(a):
         state["start"] = None
         times.append(dt)
         F_ = dict(scen=[], seed=[], cls=[], off=[0], acts=[])
-        D = dict(fight=[], step=[], opts=[], q=[])
+        D = dict(fight=[], step=[], opts=[], q=[]) | (dict(n=[], pi=[], adv=[], v=[]) if gumbel else {})
         for idx, eng in fs._runs:
             for jl, j in enumerate(idx):
                 oc, hp_end = res[j, 1], res[j, 6]
                 if oc not in (1, -1, 2):  # (a fight the loop guard ended is already -1: a real-game soft-lock is a loss, `sts2env::looped`)
                     continue
                 acts, searched, opts, _p, q, legal = eng.moves(jl)
+                if gumbel:
+                    _g, gn, gpi, gadv, gv = eng.moves_gumbel(jl)
                 f = len(F_["scen"])
                 F_["scen"].append(int(js[j])); F_["seed"].append(int(jd[j])); F_["cls"].append(int(H.end_class(oc == 1, hp_end)))
                 F_["acts"].extend(int(x) for x in acts); F_["off"].append(len(F_["acts"]))
                 for t in np.nonzero(searched)[0]:
-                    ok = legal[t, :a.M].astype(bool) & np.isfinite(q[t, :a.M])
+                    ok = legal[t, :W].astype(bool) & np.isfinite(q[t, :W])
                     if ok.sum() < 2:
                         continue
                     D["fight"].append(f); D["step"].append(int(t))
-                    D["opts"].append(np.where(ok, opts[t, :a.M], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :a.M], np.nan).astype(np.float32))
+                    D["opts"].append(np.where(ok, opts[t, :W], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :W], np.nan).astype(np.float32))
+                    if gumbel:
+                        D["n"].append(np.where(ok, gn[t, :W], 0).astype(np.int16)); D["pi"].append(np.where(ok, gpi[t, :W], 0.0).astype(np.float32))
+                        D["adv"].append(np.where(ok, gadv[t, :W], 0.0).astype(np.float32)); D["v"].append(float(gv[t]))
         # the engines hold every block's play-out combats (~4 GB per group at 2048 roots x 5x32): a loop variable still naming one kept it alive
         # through the next chunk's search
         eng = None
@@ -130,8 +148,10 @@ class Data:
             qn = np.where(ok, (q - lo) / np.maximum(hi - lo, 1e-6), np.nan)  # each decision's tried options scaled to [0, 1] (Gumbel MuZero's normalisation)
             qn = np.where(ok, qn - np.nanmean(qn, 1, keepdims=True), 0.0).astype(np.float32)  # centred: untried actions keep their prior
             order = np.argsort(z["d_fight"], kind="stable")
+            # format 2 (a Gumbel root): the shift of pi' per candidate; None for format 1 (`--target gumbel` needs it)
+            adv = np.nan_to_num(z["d_adv"].astype(np.float32))[order] if "d_adv" in z.files else None
             self.parts.append(dict(scen=scen, f_scen=z["f_scen"], f_seed=z["f_seed"], f_cls=z["f_cls"], f_off=z["f_off"], acts=z["acts"].astype(np.int32),
-                                   d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], tgt=tgt[order], qn=qn[order]))
+                                   d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], tgt=tgt[order], qn=qn[order], adv=adv))
             self.parts[-1]["d_lo"] = np.searchsorted(self.parts[-1]["d_fight"], np.arange(len(z["f_cls"]) + 1))
         # parts searched with different widths (3x8 vs 5x32) carry different option counts: pad to the widest, a padded option counts as not tried
         m = max(p["d_opts"].shape[1] for p in self.parts)
@@ -141,6 +161,8 @@ class Data:
                 p["d_opts"] = np.pad(p["d_opts"], ((0, 0), (0, k)), constant_values=-1)
                 p["tgt"] = np.pad(p["tgt"], ((0, 0), (0, k)))
                 p["qn"] = np.pad(p["qn"], ((0, 0), (0, k)))
+                if p["adv"] is not None:
+                    p["adv"] = np.pad(p["adv"], ((0, 0), (0, k)))
         # fights whose deck holds a multiplayer-only card are left out (single-player runs never offer those cards; data/catalog.json flags them)
         cat = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "catalog.json")))
         mp = {c["id"] for pool in cat["cards"].values() for c in pool if c.get("multiplayer_only")}
@@ -151,9 +173,14 @@ class Data:
     def __len__(self):
         return len(self.index)
 
+    def has_gumbel(self):
+        """Every part carries the Gumbel improved policy (format 2)."""
+        return all(p["adv"] is not None for p in self.parts)
+
     def rows(self, fights):
-        """The training rows of these fights, replayed in parallel (`sts2.replay_rows`)."""
-        out = [[], [], [], [], [], []]
+        """The training rows of these fights, replayed in parallel (`sts2.replay_rows`): obs, mask, options, soft target, outcome class, normalised
+        estimates, Gumbel shift (zeros for format 1)."""
+        out = [[], [], [], [], [], [], []]
         by = {}
         for pi, f in fights:
             by.setdefault(pi, []).append(f)
@@ -173,6 +200,7 @@ class Data:
             out[0].append(o); out[1].append(m); out[2].append(p["d_opts"][sel]); out[3].append(p["tgt"][sel])
             out[4].append(np.repeat(p["f_cls"][fs], np.diff(soff)))
             out[5].append(p["qn"][sel])
+            out[6].append(p["adv"][sel] if p["adv"] is not None else np.zeros_like(p["qn"][sel]))
         return [np.concatenate(x) for x in out]
 
 
@@ -203,21 +231,25 @@ def train(a):
         for k, prm in net.named_parameters():
             if k.split(".")[0] in POLICY_HEADS:
                 prm.requires_grad_(False)
-    prior = load(a.init).eval() if a.target == "anchored" else None
+    if a.target == "gumbel" and not data.has_gumbel():
+        raise SystemExit("--target gumbel needs parts collected with --root gumbel (format 2: d_adv)")
+    prior = load(a.init).eval() if a.target in ("anchored", "gumbel") else None
     opt = torch.optim.AdamW([q for q in net.parameters() if q.requires_grad], lr=a.lr, weight_decay=1e-4)
     print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target {a.target}"
           f"{' (c=%g)' % a.c if a.target == 'anchored' else ''}{', policy heads frozen' if a.freeze_policy else ''}", flush=True)
 
-    def batch_loss(o, m, op, tg, cl, qn):
+    def batch_loss(o, m, op, tg, cl, qn, adv):
         o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m.astype(np.int64)).to(DEV)
         op, tg, cl = torch.from_numpy(op.astype(np.int64)).to(DEV), torch.from_numpy(tg).to(DEV), torch.from_numpy(cl.astype(np.int64)).to(DEV)
         lg, _, ol = net(o, m, outcome=True)[:3]
         if prior is not None:
             # anchored target (Gumbel MuZero's improved policy): the init network's prior, shifted by c x the centred normalised search estimate
             # on the options the search tried; untried actions keep the prior. Where the estimates are within noise the prior's ranking survives.
+            # gumbel: pi' = softmax(logits + sigma(completed Q)) = softmax(logits + adv), adv = sigma(q) - sigma(v) on the candidates, 0 elsewhere
             with torch.no_grad():
                 pl0 = prior(o, m, value=False)[0].float()
-                shift = torch.zeros_like(pl0).scatter_(1, op.clamp(min=0), torch.where(op >= 0, a.c * torch.from_numpy(qn).to(DEV), 0.0))
+                sh = a.c * torch.from_numpy(qn).to(DEV) if a.target == "anchored" else torch.from_numpy(adv).to(DEV)
+                shift = torch.zeros_like(pl0).scatter_(1, op.clamp(min=0), torch.where(op >= 0, sh, 0.0))
                 t = torch.softmax(pl0 + shift, 1)
             pl = -(t * F.log_softmax(lg.float(), 1).clamp(min=-30)).sum(1).mean()
         else:
@@ -281,6 +313,9 @@ def main():
     c.add_argument("--chunks-per-process", type=int, default=3, help="chunks before exiting with code 3 for a fresh process: a long-lived search process "
                    "slows down chunk after chunk (round 2: chunk 9 took 3x the median; the same fights in a fresh process ran at full speed)")
     c.add_argument("--look-legacy", action="store_true", help="the enemy look-ahead from before S1 (per-monster pattern walk)")
+    c.add_argument("--root", choices=["topm", "gumbel"], default="topm", help="search root: top-M x K, or Gumbel candidates + sequential halving (records pi')")
+    c.add_argument("--gumbel-m", type=int, default=16, help="--root gumbel: candidates sampled per decision")
+    c.add_argument("--gumbel-n", type=int, default=160, help="--root gumbel: futures per decision")
     c.add_argument("--max-minutes", type=float, default=120, help="no new chunk starts after this")
     c.add_argument("--chunk-timeout", type=float, default=5.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
     c.add_argument("--first-timeout", type=float, default=30.0, help="watchdog limit in minutes for the first two chunks")
@@ -291,8 +326,9 @@ def main():
     t.add_argument("--tau", type=float, default=0.02, help="temperature over the options' search estimates (linear return units)")
     t.add_argument("--sigma", type=float, default=0.75, help="HL-Gauss width of the win classes, in bins")
     t.add_argument("--pol", type=float, default=1.0, help="weight of the policy loss")
-    t.add_argument("--target", choices=["soft", "anchored"], default="anchored",
-                   help="policy target: soft = softmax(q / tau) over the tried options (made the player worse, E9); anchored = prior + c x normalised q")
+    t.add_argument("--target", choices=["soft", "anchored", "gumbel"], default="anchored",
+                   help="policy target: soft = softmax(q / tau) over the tried options (made the player worse, E9); anchored = prior + c x normalised q; "
+                        "gumbel = Gumbel MuZero's pi' recorded by a --root gumbel collection")
     t.add_argument("--c", type=float, default=2.0, help="anchored target: weight of the normalised search estimate")
     t.add_argument("--freeze-policy", action="store_true", help="train the value side only (policy heads frozen)")
     t.add_argument("--holdout", type=float, default=0.05); t.add_argument("--seed", type=int, default=0)

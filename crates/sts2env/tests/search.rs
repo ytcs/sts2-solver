@@ -79,7 +79,7 @@ fn run(threads: usize, n_roots: usize, jobs: Vec<(u32, u64)>, cfg: SearchCfg) ->
 }
 
 fn cfg() -> SearchCfg {
-    SearchCfg { m: 3, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, leaf_turns: 1, lead: false, carry: false, strat: false, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5, util: [0.0; 102], use_util: false, turn_cap: 0, val_w: 1, clairvoyant: false }
+    SearchCfg { m: 3, k: 4, conf: 1.01, pmin: 0.0, margin: 0.0, roll_cap: 60, leaf_turns: 1, lead: false, carry: false, strat: false, max_steps: 300, win: 1.0, loss: -1.0, hp_bonus: 0.5, util: [0.0; 102], use_util: false, turn_cap: 0, val_w: 1, ..SearchCfg::default() }
 }
 
 #[test]
@@ -201,7 +201,244 @@ fn shared_request_buffer_matches_separate_buffers() {
     }
 }
 
-/// The engine's run with recorded moves (`record`); returns the engine for `moves`.
+// ---- Gumbel root (Gumbel-top-k candidates + sequential halving) ----
+
+/// Root logits of the stand-in network: a hash of (observation, action) for every legal action, the network's -1e9 mask elsewhere.
+fn root_logits(obs: &[f32], mask: &[u8], out: &mut [f32]) {
+    let h = hash(obs);
+    for a in 0..ACTION_SPACE {
+        out[a] = if mask[a] > 0 { ((h ^ (a as u64).wrapping_mul(0x9E3779B97F4A7C15)) % 4000) as f32 / 1000.0 } else { -1e9 };
+    }
+}
+
+/// `run` in Gumbel mode: every real-fight policy row (`pol_kind & 1 == 0`) is also answered with root logits. Returns the recorded moves too.
+fn run_gumbel(threads: usize, n_roots: usize, jobs: Vec<(u32, u64)>, cfg: SearchCfg, shared: bool) -> (Vec<JobResult>, SearchStats, Vec<Vec<MoveRec>>) {
+    let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default()), (scenario(14, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
+    let nj = jobs.len();
+    let mut eng = SearchEngine::new(scen, jobs, n_roots, cfg, threads, true).unwrap();
+    let cap = eng.shared_rows();
+    let (pc, vc) = if shared { (cap, cap) } else { eng.max_rows() };
+    let (mut po, mut pm, mut pk, mut pu, mut vo, mut vk) = (vec![0f32; pc * OBS_SIZE], vec![0u8; pc * ACTION_SPACE], vec![0u8; pc], vec![0f32; pc], vec![0f32; vc * OBS_SIZE], vec![0u8; vc]);
+    let stride = 2 * cfg.m + 1;
+    let (mut pol, mut val) = (vec![0f32; pc * stride], vec![0f32; vc]);
+    #[allow(clippy::too_many_arguments)]
+    fn step(eng: &mut SearchEngine, shared: bool, pa: Option<&[f32]>, va: Option<&[f32]>, ra: Option<&[f32]>, po: &mut [f32], pm: &mut [u8], pk: &mut [u8], pu: &mut [f32], vo: &mut [f32], vk: &mut [u8]) -> (usize, usize) {
+        if shared {
+            eng.advance_shared_root(pa, va, ra, po, pm, pk, pu, vk).unwrap()
+        } else {
+            eng.advance_root(pa, va, ra, po, pm, pk, pu, vo, vk).unwrap()
+        }
+    }
+    let (mut np, mut nv) = step(&mut eng, shared, None, None, None, &mut po, &mut pm, &mut pk, &mut pu, &mut vo, &mut vk);
+    let mut cycles = 0;
+    while np + nv > 0 {
+        let mut root = Vec::new();
+        for r in 0..np {
+            let (o, m) = (&po[r * OBS_SIZE..(r + 1) * OBS_SIZE], &pm[r * ACTION_SPACE..(r + 1) * ACTION_SPACE]);
+            answer(o, m, cfg.m, &mut pol[r * stride..(r + 1) * stride]);
+            if pk[r] & 1 == 0 {
+                let mut l = vec![0f32; ACTION_SPACE];
+                root_logits(o, m, &mut l);
+                root.extend(l);
+            }
+        }
+        for r in 0..nv {
+            let o = if shared { &po[(cap - 1 - r) * OBS_SIZE..(cap - r) * OBS_SIZE] } else { &vo[r * OBS_SIZE..(r + 1) * OBS_SIZE] };
+            val[r] = (hash(o) % 1000) as f32 / 2000.0 - 0.25;
+        }
+        let pa = pol[..np * stride].to_vec();
+        let va = val[..nv].to_vec();
+        (np, nv) = step(&mut eng, shared, Some(&pa), Some(&va), Some(&root), &mut po, &mut pm, &mut pk, &mut pu, &mut vo, &mut vk);
+        cycles += 1;
+        assert!(cycles < 100_000, "the engine does not terminate");
+    }
+    assert!(eng.finished());
+    let moves = (0..nj).map(|j| eng.moves(j).to_vec()).collect();
+    (eng.results().to_vec(), eng.stats(), moves)
+}
+
+fn gcfg() -> SearchCfg {
+    SearchCfg { m: 3, k: 4, root: RootMode::Gumbel, gm: 8, gn: 24, leaf_turns: 1, roll_cap: 60, lead: false, carry: false, strat: false, ..SearchCfg::default() }
+}
+
+#[test]
+fn halving_plan_spends_the_budget_in_ceil_log2_phases() {
+    assert_eq!(halving_plan(16, 160), vec![(16, 2), (8, 5), (4, 10), (2, 24)]);
+    assert_eq!(halving_plan(2, 160), vec![(2, 80)]);
+    assert_eq!(halving_plan(5, 160), vec![(5, 10), (3, 17), (2, 29)]);
+    assert!(halving_plan(1, 160).is_empty());
+    for m in 2..=MAX_M {
+        for n in [m, 2 * m, 40, 160, 640] {
+            let p = halving_plan(m, n);
+            assert_eq!(p.len(), (m as f64).log2().ceil() as usize, "m {m}");
+            assert_eq!(p[0].0, m);
+            assert_eq!(p.last().unwrap().0, 2);
+            assert!(p.windows(2).all(|w| w[1].0 == w[0].0.div_ceil(2)));
+            let used: usize = p.iter().map(|&(s, v)| s * v).sum();
+            if n >= m * p.len() {
+                assert!(used <= n && used + 2 > n, "m {m} n {n}: {used}");
+            }
+        }
+    }
+    // the slot pool holds the largest phase of any candidate count
+    let c = SearchCfg { root: RootMode::Gumbel, gm: 16, gn: 160, ..SearchCfg::default() };
+    assert_eq!(c.slots(), 160);
+    assert_eq!(SearchCfg { root: RootMode::TopM, m: 5, k: 32, ..SearchCfg::default() }.slots(), 160);
+}
+
+#[test]
+fn gumbel_top_1_samples_the_softmax() {
+    // Gumbel-max: argmax(g + logits) is a sample of softmax(logits)
+    let logits = [0.0f32, 1.0, -1.0, 0.5];
+    let z: f32 = logits.iter().map(|x| x.exp()).sum();
+    let mut s = 12345u64;
+    let mut cnt = [0usize; 4];
+    let n = 40_000;
+    for _ in 0..n {
+        let g: Vec<f32> = logits
+            .iter()
+            .map(|&l| {
+                s = s.wrapping_add(0x9E3779B97F4A7C15);
+                let mut x = s;
+                x = (x ^ (x >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+                x = (x ^ (x >> 27)).wrapping_mul(0x94D049BB133111EB);
+                x ^= x >> 31;
+                gumbel(((x >> 40) as f32 + 0.5) / (1u64 << 24) as f32) + l
+            })
+            .collect();
+        cnt[top_k(&g, 1)[0]] += 1;
+    }
+    for i in 0..4 {
+        let (f, p) = (cnt[i] as f32 / n as f32, logits[i].exp() / z);
+        assert!((f - p).abs() < 0.01, "action {i}: {f} vs {p}");
+    }
+    assert_eq!(top_k(&[0.5, 2.0, 2.0, -1.0], 3), vec![1, 2, 0]);
+}
+
+/// Sequential halving with a fixed fake value (each future of candidate j returns q[j]): the candidate with the best value is kept through every phase and
+/// played even with the lowest prior, when the value gap outweighs the prior gap on the sigma scale; with equal values the prior (g + logits) decides.
+#[test]
+fn sequential_halving_keeps_the_best_under_a_fixed_fake_value() {
+    let sig = Sigma { lo: -1.0, hi: 1.5, c_visit: 50.0, c_scale: 0.1 };
+    for (m, n) in [(16usize, 160usize), (8, 64), (5, 40), (2, 10), (3, 9)] {
+        for best in 0..m {
+            // g + logits decreasing with j: candidate m - 1 has the lowest prior
+            let gl: Vec<f32> = (0..m).map(|j| 1.0 - 0.1 * j as f32).collect(); // a prior gap of up to 1.5 vs a value gap worth >= 3.1 on the sigma scale
+            let q: Vec<f32> = (0..m).map(|j| if j == best { 1.0 } else { -0.5 + 0.01 * j as f32 }).collect();
+            let mut h = Halving::new(gl, n);
+            loop {
+                let (v, _) = h.phase_futures();
+                for j in 0..m {
+                    if h.alive[j] {
+                        h.add(j, q[j] * v as f32, v as u32);
+                    }
+                }
+                if !h.next_phase(&sig) {
+                    break;
+                }
+                assert!(h.alive[best], "m {m} best {best}: eliminated after phase {}", h.phase);
+                assert_eq!(h.alive.iter().filter(|&&a| a).count(), h.plan[h.phase].0);
+            }
+            assert_eq!(h.best(&sig), best, "m {m} n {n}");
+            // the last survivors have the most futures, and the futures add up to the plan
+            assert_eq!(h.n[best], h.max_n());
+            assert_eq!(h.n.iter().map(|&x| x as usize).sum::<usize>(), h.plan.iter().map(|&(s, v)| s * v).sum::<usize>());
+        }
+        // equal values: the best g + logits wins
+        let gl: Vec<f32> = (0..m).map(|j| (j as f32 * 0.37).sin()).collect();
+        let mut h = Halving::new(gl.clone(), n);
+        loop {
+            let (v, _) = h.phase_futures();
+            for j in 0..m {
+                if h.alive[j] {
+                    h.add(j, 0.2 * v as f32, v as u32);
+                }
+            }
+            if !h.next_phase(&sig) {
+                break;
+            }
+        }
+        assert_eq!(h.best(&sig), top_k(&gl, 1)[0]);
+    }
+}
+
+#[test]
+fn gumbel_search_finishes_reproducibly_and_records_the_improved_policy() {
+    let jobs: Vec<(u32, u64)> = (0..16).map(|i| ((i % 2) as u32, 3000 + i as u64)).collect();
+    for (lead, strat) in [(false, false), (true, true)] {
+        let mut c = gcfg();
+        c.lead = lead;
+        c.strat = strat;
+        let (r1, s1, m1) = run_gumbel(2, 5, jobs.clone(), c, false);
+        assert!(r1.iter().all(|x| x.done && matches!(x.outcome, 1 | -1 | 2)));
+        assert_eq!(s1.illegal, 0);
+        assert!(s1.searched > 0);
+        assert_eq!(s1.g_rank.iter().sum::<u64>(), s1.searched);
+        // candidates beyond the policy's top-M (m = 3) are tried: the prior's ranking no longer bounds the search
+        assert!(s1.g_cand > 3 * s1.searched, "{} candidates over {} searches", s1.g_cand, s1.searched);
+        // the schedule (threads, fights in flight, shared buffer) changes nothing: the job seed fixes the Gumbel sample and every future
+        for (th, roots, shared) in [(1, 16, false), (4, 3, false), (3, 6, true)] {
+            let (r2, s2, m2) = run_gumbel(th, roots, jobs.clone(), c, shared);
+            for i in 0..16 {
+                assert_eq!((r1[i].outcome, r1[i].len), (r2[i].outcome, r2[i].len), "job {i}");
+                assert_eq!(r1[i].hp_lost.to_bits(), r2[i].hp_lost.to_bits(), "job {i}");
+                assert_eq!(m1[i].len(), m2[i].len());
+                for (a, b) in m1[i].iter().zip(&m2[i]) {
+                    assert_eq!((a.action, a.opts, a.n), (b.action, b.opts, b.n));
+                    assert_eq!(a.q.map(f32::to_bits), b.q.map(f32::to_bits));
+                    assert_eq!(a.pi.map(f32::to_bits), b.pi.map(f32::to_bits));
+                }
+            }
+            assert_eq!((s1.policy_rows, s1.value_rows, s1.sim_steps, s1.g_rank), (s2.policy_rows, s2.value_rows, s2.sim_steps, s2.g_rank));
+        }
+        let mut searched = 0;
+        for mv in m1.iter().flatten().filter(|m| m.searched) {
+            searched += 1;
+            assert!(mv.gumbel);
+            let nc = mv.legal.iter().filter(|&&l| l).count();
+            assert!(nc >= 2 && nc <= c.gm);
+            let opts = &mv.opts[..nc];
+            assert!((1..nc).all(|i| !opts[..i].contains(&opts[i])), "candidates are sampled without replacement: {opts:?}");
+            // futures follow the halving plan: every candidate tried, the action played among those with the most futures (the last survivors)
+            let plan = halving_plan(nc, c.gn);
+            let total: usize = plan.iter().map(|&(s, v)| s * v).sum();
+            assert_eq!(mv.n[..nc].iter().map(|&x| x as usize).sum::<usize>(), total);
+            let mx = *mv.n[..nc].iter().max().unwrap();
+            assert_eq!(mx as usize, plan.iter().map(|p| p.1).sum::<usize>());
+            let jp = opts.iter().position(|&o| o == mv.action).expect("the action played is a candidate");
+            assert_eq!(mv.n[jp], mx);
+            assert!(mv.q[..nc].iter().all(|q| q.is_finite()) && mv.v.is_finite());
+            // pi' over the candidates: positive, at most 1 in total, and pi'(a) / p(a) ordered like adv (softmax of logits + adv)
+            let s: f32 = mv.pi[..nc].iter().sum();
+            assert!(s > 0.0 && s <= 1.0 + 1e-4, "{s}");
+            for i in 0..nc {
+                for j in 0..nc {
+                    if mv.adv[i] > mv.adv[j] + 1e-4 {
+                        assert!(mv.pi[i] / mv.p[i] > mv.pi[j] / mv.p[j]);
+                    }
+                }
+            }
+        }
+        assert_eq!(searched as u64, s1.searched);
+    }
+}
+
+#[test]
+fn gumbel_mode_needs_the_root_logits() {
+    let jobs: Vec<(u32, u64)> = (0..2).map(|i| (0u32, 11 + i as u64)).collect();
+    let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
+    let mut eng = SearchEngine::new(scen, jobs, 2, gcfg(), 1, false).unwrap();
+    let (pc, vc) = eng.max_rows();
+    let (mut po, mut pm, mut pk, mut pu, mut vo, mut vk) = (vec![0f32; pc * OBS_SIZE], vec![0u8; pc * ACTION_SPACE], vec![0u8; pc], vec![0f32; pc], vec![0f32; vc * OBS_SIZE], vec![0u8; vc]);
+    let (np, nv) = eng.advance(None, None, &mut po, &mut pm, &mut pk, &mut pu, &mut vo, &mut vk).unwrap();
+    assert!(np > 0);
+    let pa = vec![0f32; np * (2 * gcfg().m + 1)];
+    let va = vec![0f32; nv];
+    assert!(eng.advance(Some(&pa), Some(&va), &mut po, &mut pm, &mut pk, &mut pu, &mut vo, &mut vk).is_err());
+    let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
+    assert!(SearchEngine::new(scen, vec![(0, 1)], 1, SearchCfg { gm: 1, ..gcfg() }, 1, false).is_err());
+}
+
 fn run_recorded(threads: usize, n_roots: usize, scen: Vec<(Scenario, ScenarioExtras)>, jobs: Vec<(u32, u64)>, cfg: SearchCfg) -> SearchEngine {
     let mut eng = SearchEngine::new(scen, jobs, n_roots, cfg, threads, true).unwrap();
     let (pc, vc) = eng.max_rows();
