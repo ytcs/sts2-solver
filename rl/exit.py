@@ -26,12 +26,13 @@ import sts2  # noqa: E402
 import heads as H  # noqa: E402
 
 
-def _save(path, scen, F_, D):
+def _save(path, scen, F_, D, policy_only=False):
     """Format 1: the arrays below. Format 2 (`version` = 2, a Gumbel root) adds per decision the candidates' futures `d_n`, improved policy `d_pi`, shift
-    `d_adv` (pi' = softmax(logits + adv)) and the completed Q of the actions not sampled `d_v`; readers of format 1 ignore them."""
-    extra = {}
+    `d_adv` (pi' = softmax(logits + adv)) and the completed Q of the actions not sampled `d_v`; readers of format 1 ignore them. `policy_only` (restart
+    parts, `--restarts`): `train` leaves their fights out of the outcome loss."""
+    extra = {"policy_only": np.array(1)} if policy_only else {}
     if "adv" in D:
-        extra = dict(version=np.array(2), root=np.array("gumbel"), d_n=np.array(D["n"], np.int16), d_pi=np.array(D["pi"], np.float32),
+        extra |= dict(version=np.array(2), root=np.array("gumbel"), d_n=np.array(D["n"], np.int16), d_pi=np.array(D["pi"], np.float32),
                      d_adv=np.array(D["adv"], np.float32), d_v=np.array(D["v"], np.float32))
     np.savez_compressed(path, scenarios=np.array(json.dumps(scen)), f_scen=np.array(F_["scen"], np.int32), f_seed=np.array(F_["seed"], np.uint64),
                         f_cls=np.array(F_["cls"], np.int16), f_off=np.array(F_["off"], np.int64), acts=np.array(F_["acts"], np.int16),
@@ -46,7 +47,9 @@ def collect(a):
     import threading
     from fastsearch import FastSearch
     from model import load
-    scen = [s for f in a.fights for s in json.load(open(f))]
+    # restarts (`tools/nearmiss.py`): search from the true state the prefix reaches; a fight is stored as the original seed + prefix + new actions
+    rs = json.load(open(a.restarts))["restarts"] if a.restarts else None
+    scen = [r["scenario"] for r in rs] if rs else [s for f in a.fights for s in json.load(open(f))]
     sts2.set_look_legacy(a.look_legacy)
     gumbel = a.root == "gumbel"
     fs = FastSearch(load(a.ckpt), M=a.M, K=a.K, record=True, roots=a.roots, amp=True, root=a.root, gumbel_m=a.gumbel_m, gumbel_n=a.gumbel_n)
@@ -88,7 +91,15 @@ def collect(a):
         js = np.arange(len(cs), dtype=np.uint32)
         jd = np.array([np.uint64(a.seed) * np.uint64(1_000_003) + np.uint64(att * len(scen) + i) for i, att in part], dtype=np.uint64)
         state.update(start=time.time(), chunk=k, scen=cs)
-        res = fs.run(cs, js, jd)
+        starts = None
+        if rs:
+            starts = []
+            for i, _ in part:
+                sim = sts2.Sim(json.dumps(rs[i]["scenario"]), int(rs[i]["seed"]))
+                for x in rs[i]["prefix"]:
+                    sim.step(int(x))
+                starts.append(sim)
+        res = fs.run(cs, js, jd, starts=starts)
         dt = time.time() - state["start"]
         state["start"] = None
         times.append(dt)
@@ -103,13 +114,14 @@ def collect(a):
                 if gumbel:
                     _g, gn, gpi, gadv, gv = eng.moves_gumbel(jl)
                 f = len(F_["scen"])
-                F_["scen"].append(int(js[j])); F_["seed"].append(int(jd[j])); F_["cls"].append(int(H.end_class(oc == 1, hp_end)))
-                F_["acts"].extend(int(x) for x in acts); F_["off"].append(len(F_["acts"]))
+                pre = rs[part[j][0]]["prefix"] if rs else []
+                F_["scen"].append(int(js[j])); F_["seed"].append(int(rs[part[j][0]]["seed"]) if rs else int(jd[j])); F_["cls"].append(int(H.end_class(oc == 1, hp_end)))
+                F_["acts"].extend(int(x) for x in pre); F_["acts"].extend(int(x) for x in acts); F_["off"].append(len(F_["acts"]))
                 for t in np.nonzero(searched)[0]:
                     ok = legal[t, :W].astype(bool) & np.isfinite(q[t, :W])
                     if ok.sum() < 2:
                         continue
-                    D["fight"].append(f); D["step"].append(int(t))
+                    D["fight"].append(f); D["step"].append(len(pre) + int(t))
                     D["opts"].append(np.where(ok, opts[t, :W], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :W], np.nan).astype(np.float32))
                     if gumbel:
                         D["n"].append(np.where(ok, gn[t, :W], 0).astype(np.int16)); D["pi"].append(np.where(ok, gpi[t, :W], 0.0).astype(np.float32))
@@ -118,7 +130,7 @@ def collect(a):
         # through the next chunk's search
         eng = None
         fs._runs = []
-        _save(f"{stem}_{k:03d}.npz", cs, F_, D)
+        _save(f"{stem}_{k:03d}.npz", cs, F_, D, policy_only=bool(rs))
         lens = res[:, 4]
         top = np.argsort(-lens)[:3]
         rate = len(cs) / dt
@@ -152,6 +164,7 @@ class Data:
             adv = np.nan_to_num(z["d_adv"].astype(np.float32))[order] if "d_adv" in z.files else None
             self.parts.append(dict(scen=scen, f_scen=z["f_scen"], f_seed=z["f_seed"], f_cls=z["f_cls"], f_off=z["f_off"], acts=z["acts"].astype(np.int32),
                                    d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], tgt=tgt[order], qn=qn[order], adv=adv))
+            self.parts[-1]["policy_only"] = bool(z["policy_only"]) if "policy_only" in z.files else False
             self.parts[-1]["d_lo"] = np.searchsorted(self.parts[-1]["d_fight"], np.arange(len(z["f_cls"]) + 1))
         # parts searched with different widths (3x8 vs 5x32) carry different option counts: pad to the widest, a padded option counts as not tried
         m = max(p["d_opts"].shape[1] for p in self.parts)
@@ -179,8 +192,8 @@ class Data:
 
     def rows(self, fights):
         """The training rows of these fights, replayed in parallel (`sts2.replay_rows`): obs, mask, options, soft target, outcome class, normalised
-        estimates, Gumbel shift (zeros for format 1)."""
-        out = [[], [], [], [], [], [], []]
+        estimates, Gumbel shift (zeros for format 1), outcome weight (0 for the rows of `policy_only` parts: restarts selected on a lost future)."""
+        out = [[], [], [], [], [], [], [], []]
         by = {}
         for pi, f in fights:
             by.setdefault(pi, []).append(f)
@@ -201,6 +214,7 @@ class Data:
             out[4].append(np.repeat(p["f_cls"][fs], np.diff(soff)))
             out[5].append(p["qn"][sel])
             out[6].append(p["adv"][sel] if p["adv"] is not None else np.zeros_like(p["qn"][sel]))
+            out[7].append(np.full(len(sel), 0.0 if p["policy_only"] else 1.0, np.float32))
         return [np.concatenate(x) for x in out]
 
 
@@ -238,7 +252,7 @@ def train(a):
     print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target {a.target}"
           f"{' (c=%g)' % a.c if a.target == 'anchored' else ''}{', policy heads frozen' if a.freeze_policy else ''}", flush=True)
 
-    def batch_loss(o, m, op, tg, cl, qn, adv):
+    def batch_loss(o, m, op, tg, cl, qn, adv, ow):
         o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m.astype(np.int64)).to(DEV)
         op, tg, cl = torch.from_numpy(op.astype(np.int64)).to(DEV), torch.from_numpy(tg).to(DEV), torch.from_numpy(cl.astype(np.int64)).to(DEV)
         lg, _, ol = net(o, m, outcome=True)[:3]
@@ -255,7 +269,8 @@ def train(a):
         else:
             lp = F.log_softmax(lg.float(), 1).gather(1, op.clamp(min=0))
             pl = -(tg * torch.where(op >= 0, lp, torch.zeros_like(lp))).sum(1).mean()
-        vl = -(hl_gauss(cl, a.sigma) * F.log_softmax(ol.float(), 1)).sum(1).mean()
+        ow = torch.from_numpy(ow).to(DEV)
+        vl = (-(hl_gauss(cl, a.sigma) * F.log_softmax(ol.float(), 1)).sum(1) * ow).sum() / ow.sum().clamp(min=1.0)
         return pl, vl
 
     @torch.no_grad()
@@ -306,7 +321,7 @@ def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("collect")
-    c.add_argument("--ckpt", required=True); c.add_argument("--fights", nargs="+", required=True); c.add_argument("--out", required=True)
+    c.add_argument("--ckpt", required=True); c.add_argument("--fights", nargs="+"); c.add_argument("--out", required=True)
     c.add_argument("--M", type=int, default=3); c.add_argument("--K", type=int, default=8); c.add_argument("--attempts", type=int, default=2)
     c.add_argument("--roots", type=int, default=2048); c.add_argument("--seed", type=int, default=101)
     c.add_argument("--chunk", type=int, default=2048, help="fights per saved part")
@@ -317,6 +332,8 @@ def main():
     c.add_argument("--gumbel-m", type=int, default=16, help="--root gumbel: candidates sampled per decision")
     c.add_argument("--gumbel-n", type=int, default=160, help="--root gumbel: futures per decision")
     c.add_argument("--max-minutes", type=float, default=120, help="no new chunk starts after this")
+    c.add_argument("--restarts", help="search from the restart states of `tools/nearmiss.py` (true states inside near-miss losses) instead of --fights; "
+                   "parts are marked policy_only")
     c.add_argument("--chunk-timeout", type=float, default=5.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
     c.add_argument("--first-timeout", type=float, default=30.0, help="watchdog limit in minutes for the first two chunks")
     t = sub.add_parser("train")
