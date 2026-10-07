@@ -397,8 +397,9 @@ class Live:
 
     def _choice_mismatch(self, screen):
         """None when the simulator's pending selection offers the same cards as the game's SELECT screen, else a description. Random offers (Colorless /
-        Attack / Skill / Power Potion, Discovery) roll differently in the simulator: its pick would name a card the game does not show. A prompt from the
-        hand after a draw (Survivor, Dagger Throw) is first re-synced: the simulator drew its own sample, the game's hand is visible."""
+        Attack / Skill / Power Potion, Discovery) roll differently in the simulator: its pending choice is re-synced to the game's offered cards
+        (`Sim.sync_choice` creates them as the candidates). A prompt from the hand after a draw (Survivor, Dagger Throw) is re-synced the same way:
+        the simulator drew its own sample, the game's hand is visible."""
         labels = [m.group(1) for _, label in scr.options(screen) for m in [re.match(r"(.+?)\(", label)] if m]
         game = sorted(self._base(x) for x in labels)
         sim_cands = lambda: sorted(self._base(m.group(1)) for _, t in self.rp.sim.legal() for m in [re.match(r"pick \d+ \((\w+)\)", t)] if m)  # noqa: E731
@@ -414,10 +415,14 @@ class Live:
                 break
             used.add(j)
             opts.append((hand[j]["id"], int(hand[j].get("upgrade", 0))))
-        if len(opts) == len(labels) and self.rp.sim.sync_choice(json.dumps(real), opts):
+        offer = len(opts) < len(labels)  # not all in the hand: a random offer of generated cards, named on screen
+        if offer:
+            from agent import macro
+            opts = [macro.card_from_name(x) for x in labels]
+        if all(cid for cid, _ in opts) and self.rp.sim.sync_choice(json.dumps(real), opts):
             sim = sim_cands()
             if game == sim:
-                self.log.event("sync", what="selection re-synced to the game's hand")
+                self.log.event("sync", what="selection re-synced to the game's " + ("offer" if offer else "hand"))
                 return None
         self.log.event("divergence", what="selection options differ", game=game, sim=sim)
         return f"SIMULATOR CHOICE DIFFERS: the game offers {', '.join(game)}, the simulator {', '.join(sim)}. Answer by hand (`a <i>`); the solver's pick does not apply."
