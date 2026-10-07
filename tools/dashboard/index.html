@@ -101,7 +101,7 @@ main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr
 .card { width: 112px; border-radius: 8px; background: #2b2f39; border: 2px solid var(--status); position: relative; overflow: hidden; box-shadow: 0 2px 6px #0008; }
 .card.Attack { border-color: var(--attack); } .card.Skill { border-color: var(--skill); } .card.Power { border-color: var(--power); }
 .card.Curse { border-color: var(--curse); } .card.Status { border-color: var(--status); } .card.Quest { border-color: var(--quest); }
-.card .ct { font: 700 12px/1.1 Kreon, Georgia, serif; text-align: center; padding: 4px 4px 3px 18px; background: #0006; min-height: 20px; }
+.card .ct { font: 700 12px/1.1 Kreon, Georgia, serif; text-align: center; padding: 4px 4px 3px 18px; background: #0006; height: 34px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }  /* fixed two-line title, text at the bottom: the art starts at the same height on every card */
 .card .ct.up { color: var(--good); }
 .card .pt { height: 78px; background: #111 center/cover no-repeat; }
 .card .pt.none { display: flex; align-items: center; justify-content: center; color: var(--faint); font: 11px Kreon, serif; background: repeating-linear-gradient(45deg, #23262e, #23262e 6px, #262a33 6px, #262a33 12px); }
@@ -121,7 +121,7 @@ main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr
 .kwd { color: var(--gold); }
 #cardpop { position: fixed; inset: 0; z-index: 50; background: #000b; display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
 #cardpop .big { width: min(320px, 100%); cursor: zoom-out; border-width: 3px; border-radius: 12px; }
-#cardpop .big .ct { font-size: 19px; padding: 8px 34px 6px 40px; min-height: 36px; }
+#cardpop .big .ct { font-size: 19px; padding: 8px 34px 6px 40px; height: auto; min-height: 36px; align-items: center; }
 #cardpop .big .cost, #cardpop .big .star { width: 40px; height: 40px; font-size: 21px; }
 #cardpop .big .star { right: 2px; top: 2px; }
 #cardpop .big .pt { height: 230px; }
@@ -129,7 +129,7 @@ main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr
 #cardpop .big .cd { font-size: 14.5px; line-height: 1.45; padding: 10px 14px 12px; text-align: center; min-height: 70px; }
 #cardpop .big .live, #cardpop .big .upgr { font-size: 12px; padding: 6px 12px 8px; border-top: 1px solid #0006; background: #0003; }
 #cardpop .big .upgr .ico { height: 1.05em; }
-.card.mini { width: 74px; } .card.mini .pt { height: 42px; } .card.mini .ct { font-size: 10px; padding-left: 14px; min-height: 16px; } .card.mini .cost { width: 16px; height: 16px; font-size: 10px; } .card.mini .cd, .card.mini .ty { display: none; }
+.card.mini { width: 74px; } .card.mini .pt { height: 42px; } .card.mini .ct { font-size: 10px; padding-left: 14px; height: 29px; } .card.mini .cost { width: 16px; height: 16px; font-size: 10px; } .card.mini .cd, .card.mini .ty { display: none; }
 
 /* options (non-combat screens) */
 .opts { display: flex; flex-direction: column; gap: 4px; }
