@@ -546,6 +546,13 @@ class Harness(Live):
                 return f"run {self.log.run_id}\n"
             if cmd == "do" and self.gate:  # a raw bridge action skips every guard (held potions, map, decision record): play through `a` / `turn` / `combat`
                 return "REFUSED: `do` sends a raw action past the harness's guards; use `a <i>`, `turn` or `combat`.\n"
+            if cmd == "draw":  # the planned route, for the dashboard's map (logged after the bridge drew it)
+                out = call(line)
+                try:
+                    self.log.event("route_plan", nodes=re.findall(r"r\d+c\d+", rest))
+                except Exception as e:  # noqa: BLE001  never let bookkeeping break a command
+                    self._bookkeeping_error("route plan", e)
+                return out
             return call(line)
         except Exception:  # noqa: BLE001
             return "ERR harness: " + traceback.format_exc()
