@@ -3,7 +3,8 @@
 //! The solver plays many fights at once. Every fight (a "root") repeatedly asks the policy for its likeliest actions, copies the fight
 //! `M x K` times (the `M` best actions, each on `K` determinized futures, see [`Combat::determinize`]), lets every copy play its action
 //! and then the policy's own moves to the end of the player turn, and plays the action whose copies got the best mean estimate
-//! (final reward if the fight ended, else the value network's opinion of the next turn's first state).
+//! (final reward if the fight ended, else the value network's opinion of the next turn's first state). That is the default root ([`RootMode::TopM`]);
+//! [`RootMode::Gumbel`] samples its candidates over every legal action instead and spends the futures by sequential halving ([`Halving`]).
 //!
 //! The simulator never calls a network. It stops wherever a decision is needed and hands out one observation row per request:
 //! policy rows (a root's decision or a play-out's next move) and value rows (a finished play-out). The caller evaluates the rows in one

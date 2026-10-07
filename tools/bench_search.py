@@ -2,8 +2,8 @@
 """Search-quality benchmark: which search setting picks the best action, judged by a Monte Carlo referee instead of another search.
 
   STS2_DEVICE=cuda python tools/bench_search.py [--states 150] [--out evals/bench_search.jsonl] [--configs live,w3,wide3,leaf2,leafend] [--strong 20]
-  STS2_DEVICE=cuda python tools/bench_search.py --from-scenarios data/bench/tail.json --states 150 --max-cands 12 \
-      --configs greedy,topm5x32,gumbel16x160,gumbel8x160,topm5x32x4,gumbel16x640 --out evals/bench_search_gumbel_tail.jsonl
+  STS2_DEVICE=cuda python tools/bench_search.py --from-scenarios data/bench/tail.json --states 150 --max-cands 16 \
+      --configs greedy,topm5x32,gumbel16x160,gumbel16x160_s03,gumbel16x160_s1,gumbel8x160,topm5x32x4,gumbel16x640 --out evals/bench_search_gumbel_tail.jsonl
 
 States, two sources:
 * default: decisions of recorded fights (`runs/*/fights/*.json`) replayed in the simulator (`agent.fight.Replayer`); only states whose replay is clean
@@ -25,7 +25,8 @@ Configurations (each picks one action per state): greedy (the policy's top optio
 stop), wide3 (8x512, 3 s), leaf2 (5x32, 3 s, play-outs 2 turns before the value net), leafend (5x32, 3 s, play-outs to the fight's end); equal-budget
 root comparisons at depth 2 (`docs/solver.md`, "Root modes"): topm5x32 (one round of the policy's 5 likeliest actions x 32 futures = 160 futures) against
 gumbel16x160 / gumbel8x160 (16 or 8 candidates sampled without replacement over every legal action, 160 futures by sequential halving), and topm5x32x4
-(4 rounds, 640 futures) against gumbel16x640.
+(4 rounds, 640 futures) against gumbel16x640. The sigma scale decides how much the estimates outweigh the prior in Gumbel's halving and final pick
+(c_scale 0.1: about 3.5 nats per unit of return at the end of 16x160, the prior often wins): gumbel16x160_s03 / _s1 use c_scale 0.3 / 1.0.
 Report per configuration: regret = referee value of the best action - referee value of the chosen action (also in win rate and HP); the paired regret
 difference of each top-M / Gumbel pair at equal budget (fight-clustered bootstrap); time and network rows per decision; and the rank of the referee's best
 action in the policy's prior (probabilities of duplicate actions summed): share at rank 1, in the top 5 (what topm5x32 can reach), the top 8, beyond.
@@ -244,9 +245,13 @@ CONFIGS = {
     "gumbel8x160": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=8, gn=160, **DEPTH2),
     "topm5x32x4": dict(M=5, K=32, budget=0.0, tol=0.0, rounds=4, **DEPTH2),
     "gumbel16x640": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=640, **DEPTH2),
+    # the sigma scale (c_scale; default 0.1): how much the estimates weigh against g + logits
+    "gumbel16x160_s03": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=160, c_scale=0.3, **DEPTH2),
+    "gumbel16x160_s1": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=160, c_scale=1.0, **DEPTH2),
 }
 # equal-budget pairs the report compares state by state (top-M, Gumbel)
-PAIRS = [("topm5x32", "gumbel16x160"), ("topm5x32", "gumbel8x160"), ("topm5x32x4", "gumbel16x640")]
+PAIRS = [("topm5x32", "gumbel16x160"), ("topm5x32", "gumbel16x160_s03"), ("topm5x32", "gumbel16x160_s1"), ("topm5x32", "gumbel8x160"),
+         ("topm5x32x4", "gumbel16x640")]
 
 
 def choose(eng, st, cfg):
@@ -254,6 +259,7 @@ def choose(eng, st, cfg):
     boss = st["kind"] == "boss" and "boss_leaf" in cfg
     eng.fs.leaf_turns, eng.fs.roll_cap = (cfg["boss_leaf"], cfg["boss_cap"]) if boss else (cfg["leaf"], cfg["cap"])
     eng.fs.root, eng.fs.gumbel_m, eng.fs.gumbel_n = cfg.get("root", "topm"), cfg.get("gm", 16), cfg.get("gn", 160)
+    eng.fs.c_visit, eng.fs.c_scale = cfg.get("c_visit", 50.0), cfg.get("c_scale", 0.1)
     try:
         d = eng.decide(st["scenario"], st["sim"], budget=cfg["budget"], tol_hp=cfg["tol"], rounds=cfg.get("rounds"))
     finally:
@@ -467,6 +473,9 @@ def report(path, names):
             if len(x):
                 print(f"  {label:10s} {np.mean(x == 1):.0%} / {np.mean(x <= 5):.0%} / {np.mean(x <= 8):.0%} / {np.mean(x > 8):.0%}   (n {len(x)}, mean distinct legal "
                       f"{np.mean([r.get('n_legal', len(r['prior'])) for r, _ in sub]):.1f})")
+        # the referee only knows the actions it played out: where it did not cover every distinct legal action the true best may be missing
+        full = np.mean([len(r["cands"]) >= r.get("n_legal", len(r["prior"])) for r, _ in rk])
+        print(f"  the referee played out every distinct legal action in {full:.0%} of these states (raise --max-cands if low)")
     rs = [r for r in recs if "ref_strong" in r]
     if rs:
         same = np.mean([max(r["ref"], key=lambda k: r["ref"][k]["v"]) == max(r["ref_strong"], key=lambda k: r["ref_strong"][k]["v"]) for r in rs])
