@@ -224,7 +224,7 @@ class Harness(Live):
             if not i and (before.startswith("ERR") or scr.busy(before)):
                 before = self.state()  # mid-transition: wait for it to settle
             kind = scr.kind(before)
-            if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2:
+            if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2 and scr.option_line(before, "0").startswith("0 new run"):
                 self._new_run()
             if i and self.gate:
                 refusal = self._skill_refusal(before)

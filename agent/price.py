@@ -6,7 +6,7 @@ the act horizon then still separates them, and the floors after it. Options per 
   CARD_REWARD  each card and skip
   RESTSITE     rest, and smith of each upgradable card
   SHOP         nothing, each affordable card / relic / potion, the removal of each distinct card
-  EVENT        each option of a catalogued event (`data/events.json`); an unmodelled effect is a no-op, flagged in the table
+  EVENT        each option of a catalogued event (`data/events.json`) or an ancient (`data/ancient_relics.json`: the relic plus its pickup effects); an unmodelled effect is a no-op
 Each option meets the same draws (common random numbers); the table prints each option's mean with its se and the paired difference to the best.
 """
 import os
@@ -81,6 +81,11 @@ def options(st, state_text):
         lines = state_text.split("\n")
         title = lines[2].split(":", 1)[0].strip() if len(lines) > 2 else ""
         entry = EV.get(title)
+        if entry is None:  # an ancient (Neow, Orobas, Darv ...): each option is a relic with its pickup effects (`data/ancient_relics.json`)
+            for _, label in scr.options(state_text):
+                rid, _eff = EV.ancient_option(label)
+                if rid:
+                    out.append((label.split(":", 1)[0][:34], lambda s, d, r=rid: EV.apply_ancient(s, r, d)))
         if entry:
             labels = [label for _, label in scr.options(state_text)]
             for label, o in zip(labels, EV.match(title, labels)):
