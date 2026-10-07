@@ -151,6 +151,7 @@ class RunState:
         self.potion_p, self.offset, self.unknown, self.removals = counters
         self.seen = {k: list(v) for k, v in (seen or {}).items()}
         self.bosses, self.frontier, self.nodes, self.monsters = list(bosses), frontier, nodes, monsters
+        self.floors, self.start_act, self.end = 0, act, None  # rooms entered in the rollout; where it ended: (act, kind, encounter)
 
     def copy(self):
         s = RunState.__new__(RunState)
@@ -265,6 +266,7 @@ def play(st, rng, pol, first=None):
                 st.relics.append(r)
 
     def room(t):
+        st.floors += 1
         if t == "?":
             u, st.unknown = dr.unknown(st.unknown)
             t = {"monster": "M", "treasure": "T", "shop": "$"}.get(u, "event")

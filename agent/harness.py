@@ -354,6 +354,25 @@ class Harness(Live):
         self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in macro.loggable(r).items()} for k, r in res.items()}, boss=hz["boss"])
         return text + f"\nskip is option {skip}; pick with `a <i> -- why`\n"
 
+    @_needs_run("no run in progress")
+    def price(self, argline):
+        """`price [n]`: the options of this screen priced by paired run-model rollouts (`agent/price.py`)."""
+        from agent import price as PR
+        from predictor import Predictor
+        from solver import DEFAULT_CKPT
+        if getattr(self, "_predictor", None) is None:
+            self._predictor = Predictor(DEFAULT_CKPT)
+        state = call("peek")
+        n = int(argline.split()[0]) if argline.split() and argline.split()[0].isdigit() else 128
+        st = PR.run_state(self._run(), self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
+        opts = PR.options(st, state)
+        if not opts:
+            return f"price: nothing to price on a {scr.kind(state)} screen (events are not modelled yet: decide by judgment and note the gap)\n"
+        res = PR.price(st, opts, self._predictor, n=n, seed=abs(hash(scr.floor_key(state) or "")) % 10_000)
+        self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts],
+                       result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})
+        return PR.table(res) + f"\n({n} rollouts per option, paired; run model `docs/rebuild.md` S5)\n"
+
     def brief(self):
         state = call("peek")
         try:
@@ -493,6 +512,12 @@ class Harness(Live):
                 return out
             if cmd == "brief":
                 return self.brief()
+            if cmd == "price":
+                return self.price(rest)
+            if cmd == "plans":
+                from agent import plans
+                ch = scr.character(call("peek"))
+                return "\n\n".join(plans.text(p) for p in plans.load() if not ch or p["character"] == ch) + "\n"
             if cmd == "relics":   # relic counters and saved state of the live fight (e.g. Pen Nib: attacks played so far, Book of Five Rings ...)
                 raw = call("snap").strip()
                 if raw == "null":

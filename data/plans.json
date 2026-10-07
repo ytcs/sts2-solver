@@ -1,0 +1,153 @@
+[
+ {
+  "id": "silent-poison",
+  "character": "SILENT",
+  "archetype": "poison engine",
+  "status": "measured",
+  "why": "poison ignores block and scales with turns; answers high-HP healers and long fights (Knowledge Demon heals and gains Strength)",
+  "threats": [
+   {
+    "id": "KNOWLEDGE_DEMON_BOSS",
+    "act": 1,
+    "hp": 70
+   },
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "act": 1,
+    "hp": 70
+   },
+   {
+    "id": "KAISER_CRAB_BOSS",
+    "act": 1,
+    "hp": 70
+   }
+  ],
+  "core": [
+   "NOXIOUS_FUMES",
+   "BOUNCING_FLASK",
+   "BOUNCING_FLASK",
+   "ACCELERANT"
+  ],
+  "support": [
+   "AFTERIMAGE",
+   "MALAISE",
+   "FOOTWORK",
+   "BACKFLIP"
+  ],
+  "drop": [
+   "STRIKE_SILENT",
+   "STRIKE_SILENT",
+   "STRIKE_SILENT",
+   "DEFEND_SILENT",
+   "DEFEND_SILENT"
+  ],
+  "measurements": [
+   {
+    "date": "2026-10-06",
+    "attempts": 96,
+    "rows": [
+     {
+      "threat": "KNOWLEDGE_DEMON_BOSS",
+      "act": 1,
+      "hp": 70,
+      "wins": {
+       "full": 1.0,
+       "core": 0.698,
+       "-NOXIOUS_FUMES": 0.885,
+       "-BOUNCING_FLASK": 1.0,
+       "-ACCELERANT": 0.625
+      },
+      "se": {
+       "full": 0.0,
+       "core": 0.047,
+       "-NOXIOUS_FUMES": 0.033,
+       "-BOUNCING_FLASK": 0.0,
+       "-ACCELERANT": 0.049
+      }
+     },
+     {
+      "threat": "THE_INSATIABLE_BOSS",
+      "act": 1,
+      "hp": 70,
+      "wins": {
+       "full": 0.646,
+       "core": 0.094,
+       "-NOXIOUS_FUMES": 0.396,
+       "-BOUNCING_FLASK": 0.406,
+       "-ACCELERANT": 0.073
+      },
+      "se": {
+       "full": 0.049,
+       "core": 0.03,
+       "-NOXIOUS_FUMES": 0.05,
+       "-BOUNCING_FLASK": 0.05,
+       "-ACCELERANT": 0.027
+      }
+     },
+     {
+      "threat": "KAISER_CRAB_BOSS",
+      "act": 1,
+      "hp": 70,
+      "wins": {
+       "full": 0.042,
+       "core": 0.0,
+       "-NOXIOUS_FUMES": 0.0,
+       "-BOUNCING_FLASK": 0.188,
+       "-ACCELERANT": 0.021
+      },
+      "se": {
+       "full": 0.02,
+       "core": 0.0,
+       "-NOXIOUS_FUMES": 0.0,
+       "-BOUNCING_FLASK": 0.04,
+       "-ACCELERANT": 0.015
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "silent-shiv",
+  "character": "SILENT",
+  "archetype": "shiv volume",
+  "status": "proposed",
+  "why": "many cheap hits scale with Accuracy and strip Slippery / Hard to Kill",
+  "threats": [
+   {
+    "id": "KNOWLEDGE_DEMON_BOSS",
+    "act": 1,
+    "hp": 70
+   },
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "act": 1,
+    "hp": 70
+   },
+   {
+    "id": "KAISER_CRAB_BOSS",
+    "act": 1,
+    "hp": 70
+   }
+  ],
+  "core": [
+   "INFINITE_BLADES",
+   "ACCURACY",
+   "ACCURACY",
+   "BLADE_SYMPHONY"
+  ],
+  "support": [
+   "AFTERIMAGE",
+   "STORM_OF_STEEL",
+   "FOOTWORK",
+   "BACKFLIP"
+  ],
+  "drop": [
+   "STRIKE_SILENT",
+   "STRIKE_SILENT",
+   "STRIKE_SILENT",
+   "DEFEND_SILENT",
+   "DEFEND_SILENT"
+  ]
+ }
+]
