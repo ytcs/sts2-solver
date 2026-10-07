@@ -32,6 +32,13 @@ Commands, batching, the solver commands (`adv`, `turn`, `combat`, `eval`, `route
 
 `adv` and `turn` refuse loudly when the simulator is out of sync with the game. A map click onto an elite or boss below 60% HP needs `!`.
 
+## Live dashboard (watch a run)
+```bash
+python tools/dashboard/extract_assets.py   # once per game update: card / relic / potion / power art and monster rigs from SlayTheSpire2.pck into target/dashboard/assets (needs Pillow)
+python tools/dashboard/serve.py            # then open http://localhost:8777  (--port, --runs DIR, --assets DIR)
+```
+A read-only page that follows `runs/CURRENT`: the header (act, floor, HP, gold, potions, relics, public odds), the screen (combat with enemy art, intents, powers, the multi-turn plan, hand, piles, orbs; the act map with the path taken and the priced offers; cards, relics and potions on reward, shop and event screens) and the decision feed (each macro choice with its options, the `-- why` and the `price` table; each fight with its prediction, every solver action with the alternatives and their q, potion checks and prices, the outcome against the predicted quantiles). It reads files only, never the bridge or the daemon: `runs/<id>/events.jsonl` (tailed by byte offset) and `runs/<id>/live.json`, which the harness writes after every command and every combat state it already fetched (`RunLog.live`; restart the daemon once to start it). It polls about once a second (every 5 s in a background tab); monsters are drawn once, as a still, in the browser. Without the art cache it falls back to text.
+
 ## How a decision is made
 * **Micro (every combat action).** The bridge exports the fight start (deck, relics, potions, HP, encounter) and the visible state after every action. `agent/fight.py` rebuilds the fight in the simulator: it replays the actions taken, resamples enemy turns until the intents match what the game shows, and aligns the visible state (hand, piles as multisets, HP, block, energy). Hidden information (draw order, RNG, random enemy branches) is the simulator's own random sample, never read from the game. The search tries the likeliest actions on determinized futures (about 10 ms per round; rounds repeat until the time budget or a clear winner) and the action is sent to the game.
 * **Macro (everything else).** The agent decides with the strategy book (`.claude/skills/sts2-*`, rooted at the `sts2` skill) and `eval`, which plays variants of the deck against the encounters ahead and reports win rate and HP lost with their margins. The act's encounter pools (weak / regular / elite / boss) are in `agent/pools.py`.
@@ -52,7 +59,7 @@ Every decision and fight is recorded in `runs/<id>/events.jsonl` (the solver's p
 | `crates/sts2py` | PyO3 bindings: `sts2.VecEnv`, `sts2.Sim` (one fight, steppable, alignable), the search engine |
 | `crates/sts2diff` | Differential tester: replays real-game traces in Rust and compares full state |
 | `oracle/`, `verify/` | The game's own combat code running headless; the scripts that diff the simulator against it |
-| `tools/` | Fuzzers (`fuzz_gen*.py`) and the scenario-set generator (`gen_train.py`) |
+| `tools/` | Fuzzers (`fuzz_gen*.py`), the scenario-set generator (`gen_train.py`), the live dashboard (`dashboard/`: `serve.py`, `index.html`, `extract_assets.py` + `pck.py`, the game-pack reader) |
 | `scripts/` | `pod_train.sh` (training on a GPU pod), `skill_gate.py` (hook entry), `porting/` (generators for the simulator's id and definition tables, rerun after a game update) |
 | `docs/` | `design.md`, `env-api.md`, `solver.md`, `oracle.md`, `porting-guide.md`, `relics.md`, `colorless.md`, `spec/` (engine semantics from the game source) |
 | `models/`, `data/` | Trained networks; `data/train/` fixed eval sets (`eval.json`, `mid.json`); `data/corpus` (written by `improve corpus`) |
