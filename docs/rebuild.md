@@ -153,6 +153,11 @@ Plan:
   - the act-boundary HP and the act reached by real runs fall inside the simulated distribution;
   - a decision's price is stable under fresh draws (se reported).
 
+**Shop and drafting requirements (user, 2026-10-07):**
+- Price bundles within the budget: a set of purchases can be positive while each part alone is negative.
+- Price saving gold against buying when the shop offers only small gains (the value of gold carried to the next shops).
+- Drafting and shopping invoke high-level reasoning: sometimes the right pick makes the deck worse now to open a high payoff later (speculative drafting). Greedy rollouts cannot see this; plans (S6) and the operator must.
+
 **S6. Plan library (codified high-level reasoning).** When the deck is far from what lies ahead, decisions come from game plans, not from greedy numbers. Plans must not drift between sessions, so they live in a versioned database (`data/plans/`), not in each agent's intuition.
 - **Entry:**
   - character;
