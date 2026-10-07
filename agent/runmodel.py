@@ -153,6 +153,7 @@ class RunState:
         self.seen = {k: list(v) for k, v in (seen or {}).items()}
         self.bosses, self.frontier, self.nodes, self.monsters = list(bosses), frontier, nodes, monsters
         self.floors, self.start_act, self.end = 0, act, None  # rooms entered in the rollout; where it ended: (act, kind, encounter)
+        self.ready = self.ready_worth = None  # next-act readiness at the rollout's first act transition (`readiness`); None: not reached
 
     def copy(self):
         s = RunState.__new__(RunState)
@@ -276,12 +277,47 @@ def worth(P, max_hp):
     return -P[..., 0] + (P[..., 1:] * (1 + 0.5 * np.minimum(c / max_hp, 1.0))).sum(-1)
 
 
+# next-act readiness: the weights of the next act's boss pool and elite pool (a judgment: the boss ends the act and decides the run; the elites are
+# where most mid-act deaths happen and the relics come from). Each term is a mean over its pool: the next boss is drawn at that act's start, so the
+# map cannot show it while this act is played.
+READY_W = {"boss": 0.5, "elite": 0.5}
+
+
+def readiness(st, pol):
+    """Next-act readiness of the state a rollout carries out of an act, as a generator (yields fight scenarios, receives the predictor's rows):
+    (P(win), expected worth), each READY_W-weighted over the mean against the boss pool and the mean against the elite pool of the act `st` is now
+    in, every fight at `st.hp` (the rollout's HP after the ancient's heal) with the belt the base policy allows there. Glory (A10 double boss): a boss
+    term is an ordered pair of distinct bosses, the second at the expected end HP of the first (given a win), without the potions the first was
+    allowed and with no heal between, as `play` does; the worth of a pair is -1 when the first is lost, else the second's worth.
+    Consumes no draws, so the paired rollouts keep the same random numbers."""
+    import predictor as PR
+    from agent import pools
+    bosses, elites = pools.pool(st.act_name, "boss"), pools.pool(st.act_name, "elite")
+    allowed = pol.potions(st, "boss")
+    P = yield [st.scenario(b, potions=allowed) for b in bosses] + [st.scenario(e, potions=pol.potions(st, "elite")) for e in elites]
+    Pb, Pe = P[:len(bosses)], P[len(bosses):]
+    pb, wb = PR.p_win(Pb), worth(Pb, st.max_hp)
+    if st.act == 2 and len(bosses) > 1:
+        pairs = [(i, j) for i in range(len(bosses)) for j in range(len(bosses)) if i != j]
+        h = PR.end_hp(Pb)
+        left = [p for p in st.potions if p not in allowed]
+        P2 = yield [st.scenario(bosses[j], hp=max(1, min(st.max_hp, round(float(h[i])))), potions=left) for i, j in pairs]
+        p1 = np.array([pb[i] for i, _ in pairs])
+        pb, wb = p1 * PR.p_win(P2), p1 * worth(P2, st.max_hp) - (1 - p1)
+    w = READY_W
+    return (float(w["boss"] * pb.mean() + w["elite"] * PR.p_win(Pe).mean()),
+            float(w["boss"] * wb.mean() + w["elite"] * worth(Pe, st.max_hp).mean()))
+
+
 def play(st, rng, pol, first=None):
     """One rollout as a generator: yields a list of fight scenarios and receives the predictor's [n, NC] for them; returns 1 for a won run, 0 for a
-    death. `first(st, draws)`: the priced choice, applied to the state before the rollout starts (it may return an event's result to play out)."""
+    death. `first(st, draws)`: the priced choice, applied to the state before the rollout starts (it may return an event's result to play out).
+    At the end of the act the rollout starts in, after the boss rewards and the ancient's heal, it records the next-act readiness of what it carries
+    (`readiness`) in `st.ready` / `st.ready_worth`; a rollout that dies in that act, or starts in the last act, leaves them None."""
     import predictor as PR
     from agent import events as EV, pools
     dr = Draws(rng, st.base["character"], st.act)
+    act0 = st.act
     pre = first(st, dr) if first else None  # the priced choice; an event option returns its fights and whether it killed me
 
     def fight(kind, encounter):
@@ -397,6 +433,8 @@ def play(st, rng, pol, first=None):
         st.hp += int(HEAL_ANCIENT * (st.max_hp - st.hp))
         st.unknown = dict(T.UNKNOWN_BASE)
         dr.act = st.act
+        if st.act == act0 + 1:  # what this act hands to the next one, after the heal
+            st.ready, st.ready_worth = yield from readiness(st, pol)
 
 
 class Rollouts:

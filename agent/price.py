@@ -1,7 +1,13 @@
 """`price`: every option of the current screen priced by paired rollouts of the run model (`agent/runmodel.py`, `docs/rebuild.md` S5).
 
-One currency at three horizons, longest first: P(win the run), P(clear this act), floors reached. A weak deck has P(win run) ~ 0 for every option;
-the act horizon then still separates them, and the floors after it. Options per screen:
+One currency at four horizons, longest first (the horizon ladder, `docs/rebuild.md`): P(win the run), P(clear this act), next-act readiness, floors
+reached. Next-act readiness is, per rollout that clears this act, P(win) of the state it carries into the next act (deck, relics, the belt the base
+policy left, HP after the ancient's heal of 80% of missing HP) against that act's boss pool (weight 0.5) and elite pool (0.5), each a mean over the
+pool (`runmodel.readiness`, `READY_W`; Glory: pairs of distinct bosses, the A10 double boss); a death in this act counts 0. Not estimable in the
+last act. The table ranks by the longest horizon that is estimable and not saturated (`ladder`): P(win run) when its spread is significant (the
+best option ahead of another by more than 2 paired se), else P(clear act) when its best is below ACT_SATURATED or its spread is significant, else
+next-act readiness, else floors; the later horizons break ties, and every column stays visible with its paired difference to the best.
+Options per screen:
   MAP          each node on offer
   CARD_REWARD  each card and skip
   RESTSITE     rest, and smith of each upgradable card
@@ -205,7 +211,8 @@ def bundles(st, items, predictor, keep=6, removals=2, top=8, shuffles=4):
 
 
 def price(st, opts, predictor, n=128, seed=0, shuffles=4):
-    """Rollouts per option with shared seeds: dict label -> arrays (win run, cleared this act, floors)."""
+    """Rollouts per option with shared seeds: dict label -> arrays per rollout: win (the run), act (cleared this act), ready and ready_worth (next-act
+    readiness P(win) and worth; 0 and -1 on a death in this act; absent in the last act, where it is not estimable), floors."""
     ro = R.Rollouts(predictor, shuffles)
     states, seeds, firsts, owner = [], [], [], []
     for oi, (_label, first) in enumerate(opts):
@@ -221,23 +228,71 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4):
         sel = owner == oi
         ss = [s for s, o in zip(states, owner) if o == oi]
         cleared = np.array([1.0 if (s.end is None or s.end[0] > st.act or s.end[1] == "won") else 0.0 for s in ss])
-        res[label] = dict(win=won[sel], act=cleared, floors=np.array([s.floors for s in ss], float))
+        r = dict(win=won[sel], act=cleared)
+        if st.act < 2:  # the last act has no next act: readiness is not estimable there
+            r["ready"] = np.array([0.0 if s.ready is None else s.ready for s in ss])
+            r["ready_worth"] = np.array([-1.0 if s.ready_worth is None else s.ready_worth for s in ss])
+        r["floors"] = np.array([s.floors for s in ss], float)
+        res[label] = r
     return res
 
 
-def table(res):
+HORIZONS = (("win", "P(win run)"), ("act", "P(clear act)"), ("ready", "next act ready"), ("floors", "floors"))  # the ladder, longest first
+ACT_SATURATED = 0.9  # P(clear act) at or above this (with no significant spread) no longer ranks: the ladder moves up to next-act readiness
+
+
+def _se(x):
+    return float(x.std(ddof=1) / len(x) ** 0.5) if len(x) > 1 else float("nan")
+
+
+def separates(res, k, z=2.0):
+    """Whether horizon `k` separates the options: the best option by it is ahead of some other by more than z paired se (paired: same draws)."""
     labels = list(res)
-    keys = (("win", "P(win run)"), ("act", "P(clear act)"), ("floors", "floors"))
-    best = max(labels, key=lambda lb: tuple(res[lb][k].mean() for k, _ in keys))
+    best = max(labels, key=lambda lb: res[lb][k].mean())
+    for lb in labels:
+        d = res[best][k] - res[lb][k]
+        if lb != best and d.mean() > 0 and d.mean() > z * _se(d):
+            return True
+    return False
+
+
+def ladder(res, saturated=ACT_SATURATED):
+    """(horizon key, why): the longest horizon that is estimable and not saturated (`docs/rebuild.md`, horizon ladder)."""
+    if separates(res, "win"):
+        return "win", "P(win run) separates the options (> 2 paired se)"
+    best = max(r["act"].mean() for r in res.values())
+    if best < saturated:
+        return "act", f"P(win run) flat; P(clear act) not saturated (best {best:.3f} < {saturated:g})"
+    if separates(res, "act"):
+        return "act", f"P(win run) flat; P(clear act) separates the options (> 2 paired se) at best {best:.3f}"
+    why = f"P(win run) flat; P(clear act) saturated (best {best:.3f} >= {saturated:g}, within 2 paired se)"
+    if all("ready" in r for r in res.values()):
+        return "ready", why
+    return "floors", why + "; next-act readiness not estimable in the last act"
+
+
+def table(res, saturated=ACT_SATURATED):
+    labels = list(res)
+    keys = [(k, t) for k, t in HORIZONS if all(k in r for r in res.values())]
+    main, why = ladder(res, saturated)
+    order = [main] + [k for k, _ in keys if k != main]  # the deciding horizon, then the others longest first as tiebreaks
+    best = max(labels, key=lambda lb: tuple(res[lb][k].mean() for k in order))
     W = min(64, max(34, *(len(lb) for lb in labels)))
-    lines = [f"{'option':{W}s} " + "  ".join(f"{t:>18s}" for _, t in keys) + "   vs best (paired)"]
-    for lb in sorted(labels, key=lambda lb: tuple(-res[lb][k].mean() for k, _ in keys)):
+    lines = [f"ranked by: {dict(HORIZONS)[main]} ({why})",
+             f"{'option':{W}s} " + "  ".join(f"{('*' if k == main else '') + t:>16s}" for k, t in keys) + "   vs best (paired)"]
+    for lb in sorted(labels, key=lambda lb: tuple(-res[lb][k].mean() for k in order)):
         cells = []
         for k, _ in keys:
             x = res[lb][k]
-            cells.append(f"{x.mean():8.3f} ±{x.std(ddof=1) / len(x) ** 0.5:.3f}".rjust(18))
-        d = res[lb]["act"] - res[best]["act"]
-        dfl = res[lb]["floors"] - res[best]["floors"]
-        vs = "" if lb == best else f"   act {d.mean():+.3f} ±{d.std(ddof=1) / len(d) ** 0.5:.3f}, floors {dfl.mean():+.1f} ±{dfl.std(ddof=1) / len(dfl) ** 0.5:.1f}"
+            nd = 1 if k == "floors" else 3
+            cells.append(f"{x.mean():.{nd}f} ±{_se(x):.{nd}f}".rjust(16))
+        vs = ""
+        if lb != best:
+            parts = []
+            for k, _ in keys:
+                d = res[lb][k] - res[best][k]
+                nd = 1 if k == "floors" else 3
+                parts.append(f"{'*' if k == main else ''}{k} {d.mean():+.{nd}f} ±{_se(d):.{nd}f}")
+            vs = "   " + ", ".join(parts)
         lines.append(f"{lb[:W]:{W}s} " + "  ".join(cells) + vs)
     return "\n".join(lines)
