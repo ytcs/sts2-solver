@@ -181,6 +181,11 @@ pub struct SearchCfg {
     /// the full scale, E9). `c_visit` 50 as in the paper, `c_scale` 0.1 as in mctx's `qtransform_completed_by_mix_value`.
     pub c_visit: f32,
     pub c_scale: f32,
+    /// **DIAGNOSTIC ONLY: SEES HIDDEN INFORMATION. NEVER SET FOR LIVE PLAY.** The `k` futures of a decision are NOT determinized: each is an exact copy of the
+    /// true current state (the same RNG streams and pile orders), so a play-out meets the real future the fight would meet under the same actions (they
+    /// still differ in the play-out policy's sampling stream, so `k` futures are `k` policy samples on the one true future). It gives an upper bound on how
+    /// winnable a fight set is (`tools/headroom.py`), not a player: the real game hides exactly what this reads. Default `false`; the live engine never sets it.
+    pub clairvoyant: bool,
 }
 
 impl Default for SearchCfg {
@@ -210,6 +215,7 @@ impl Default for SearchCfg {
             gn: 160,
             c_visit: 50.0,
             c_scale: 0.1,
+            clairvoyant: false,
         }
     }
 }
@@ -688,7 +694,7 @@ fn terminal(cx: &Combat, steps: u32, max_steps: u32, cfg: &SearchCfg) -> Option<
 
 /// The move that needs no decision: the only legal action, or confirming a selection that is full (picking another card at `max` only
 /// swaps the latest pick, which the policy could have chosen directly; a sampled policy otherwise wanders between picks for dozens of steps).
-fn forced_action(cx: &Combat, buf: &ActionBuf) -> Option<Action> {
+pub fn forced_action(cx: &Combat, buf: &ActionBuf) -> Option<Action> {
     if buf.len() == 1 {
         return Some(buf[0]);
     }
@@ -872,10 +878,14 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
     }
 }
 
-/// Determinizes `cx` as future `f` of the decision (`ks`: the decision's seeds); with `strat`, rotation `rot` of `n`.
+/// Determinizes `cx` as future `f` of the decision (`ks`: the decision's seeds); with `strat`, rotation `rot` of `n`. With `SearchCfg::clairvoyant`
+/// (diagnostic only) it leaves the copy of the true state as it is, so the play-out sees the true future.
 #[inline]
-fn det_future(cx: &mut Combat, ks: &[u64], f: usize, strat: bool, rot: usize, n: usize) {
-    if strat {
+fn det_future(cx: &mut Combat, cfg: &SearchCfg, ks: &[u64], f: usize, rot: usize, n: usize) {
+    if cfg.clairvoyant {
+        return;
+    }
+    if cfg.strat {
         cx.determinize_strat(ks[0], ks[f], rot, n);
     } else {
         cx.determinize(ks[f]);
@@ -1162,7 +1172,7 @@ impl Block {
             }
             let t0 = tsc();
             sim.cx.clone_from(&self.main);
-            det_future(&mut sim.cx, &self.ks, f0 + kk, cfg.strat, rot, rn);
+            det_future(&mut sim.cx, cfg, &self.ks, f0 + kk, rot, rn);
             self.stats.cy_fork += tsc() - t0;
             sim.start_turn = turn;
             sim.est = 0.0;
@@ -1404,7 +1414,7 @@ impl Block {
                     let (rot, rn) = self.rot(f0 + kk, cfg);
                     let sim = &mut self.sims[base + kk];
                     let t0 = tsc();
-                    det_future(&mut sim.cx, &self.ks, f0 + kk, cfg.strat, rot, rn);
+                    det_future(&mut sim.cx, cfg, &self.ks, f0 + kk, rot, rn);
                     self.stats.cy_fork += tsc() - t0;
                     self.stats.forks += 1;
                     sim.est = est;

@@ -239,15 +239,25 @@ class HostBuffers:
             pass
 
 
+def clairvoyant_supported():
+    """Does the loaded extension know the diagnostic `clairvoyant` flag (`FastSearch(clairvoyant=True)`)?"""
+    return "clairvoyant" in (getattr(sts2._SearchEngine, "__text_signature__", None) or "")
+
+
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, roll_cap=None, max_steps=300, hp_bonus=0.5, greedy_roll=False,
                  roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=None, dist=None, legacy_pad=False,
-                 root="topm", gumbel_m=16, gumbel_n=160, c_visit=50.0, c_scale=0.1):
+                 root="topm", gumbel_m=16, gumbel_n=160, c_visit=50.0, c_scale=0.1, clairvoyant=False):
         """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
         the play-outs only have to finish the turn plausibly); `value_nets`: extra networks whose value heads are averaged with `net`'s.
         `root`: "topm" (M options x K futures) or "gumbel" (`gumbel_m` sampled candidates, `gumbel_n` futures by sequential halving, sigma(q) =
         (c_visit + max visits) x c_scale x q scaled to [0, 1] by the return's range; `sts2env::search::SearchCfg`). K, carry and pmin do not apply to a
-        Gumbel root, and M is only the width of the policy answers."""
+        Gumbel root, and M is only the width of the policy answers.
+
+        `clairvoyant`: DIAGNOSTIC ONLY -- SEES HIDDEN INFORMATION (draw pile order, every RNG stream: the real future). The K futures of a decision are
+        copies of the true state instead of determinizations (`SearchCfg::clairvoyant`), so the search plays with knowledge it can never have in a real
+        game. It measures how winnable a fight set is (`tools/headroom.py`); it is not a player. Never set it for live play: `decide` (the live engine's
+        entry point) refuses it."""
         self.net, self.value_nets = net, value_nets or []
         self.roll_net = roll_net if roll_net is not None else net
         self.M, self.K, self.conf = M, K, conf
@@ -288,6 +298,9 @@ class FastSearch:
         self.value_amp = amp if value_amp is None else value_amp
         # padded batch sizes of the graphs (`GraphFn.plan`); `legacy_pad`: the buckets and padding before 2026-10-07 (bit-identical to older tables; ~15 % slower at 5x32)
         self.legacy_pad = legacy_pad
+        self.clairvoyant = bool(clairvoyant)  # DIAGNOSTIC ONLY: the futures are the true state (see the docstring); never for live play
+        if self.clairvoyant and not clairvoyant_supported():
+            raise RuntimeError("the sts2 extension predates the clairvoyant flag: rebuild it (README: maturin develop --release -m crates/sts2py/Cargo.toml)")
         self.buckets = ((1024, 2048, 4096, 8192, 16384) if legacy_pad else (256, 512, 1024, 2048, 4096, 8192, 16384)) if buckets is None else buckets
         self.dec_buckets = (64, 256, 1024, 4096)
         self.merge_dec = merge_dec  # one graph per head for rows with and without a pending selection (the candidate branch costs less than a second replay)
@@ -544,8 +557,10 @@ class FastSearch:
                 continue
             nb = min(max(1, self.roots // self.groups), len(idx))  # blocks of this engine: more threads than blocks only cost the pool's start (~1 ms of a live round)
             gumbel = self.root == "gumbel"
-            # the Gumbel arguments only when asked for: the top-M root keeps working with an extension built before them
+            # the Gumbel arguments and the diagnostic flag only when asked for: the top-M root keeps working with an extension built before them
             gkw = dict(root="gumbel", gm=self.gumbel_m, gn=self.gumbel_n, c_visit=self.c_visit, c_scale=self.c_scale) if gumbel else {}
+            if self.clairvoyant:
+                gkw["clairvoyant"] = True
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, 0.0, 0.0,
                                      self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, min(self.threads, nb), self.record, self.lead, self.carry, self.strat, starts,
                                      None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns, turn_cap=heads.TURN_CAP,
@@ -614,6 +629,8 @@ class FastSearch:
         (any valid scenario of the same content). The root's M likeliest actions are tried on K determinized futures each (hidden information resampled, everything
         visible kept). Returns dict(action, opts, p, q, legal): the action to play and, per option, its dense action index, the policy's probability and the estimated
         return (win = +1 plus half the HP fraction left, loss = -1; with `worth` (`worth_row`) the table's units); `q` is NaN for options that were not tried (a forced move is not searched)."""
+        if self.clairvoyant:
+            raise RuntimeError("FastSearch(clairvoyant=True) sees hidden information: diagnostic only, never a live decision")
         old = (self.max_steps, self.record)
         self.max_steps, self.record = 1, True
         try:

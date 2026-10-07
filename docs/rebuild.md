@@ -209,6 +209,12 @@ Plan:
 - The seed is shown on screen. Starting it through the bridge and replaying the transcribed decisions would let the game regenerate exact states (untested; the run shows 3 unidentified mods).
 - Next tooling: a decision-screen detector, OCR limited to catalog ids, caption alignment, then a seed-replay test. Later (user): identify encounters by matching enemy sprites from the game files (`SlayTheSpire2.pck`) against the frames, narrowed by the act pools and HP ranges.
 
+**Expert re-enactment (user idea, 2026-10-07; behind the current diagnostics).** A distance-to-expert metric and targeted training signal from NaveGreed's runs.
+- Start his seed (shown on screen; same build v0.111.0) in our game, follow his transcribed macro and combat actions so the RNG stays on his track, and export each fight's start state (it fixes every RNG stream; reading it is fine for analysis of a recorded run).
+- The undo is a simulator copy of that start state (bit-exact replay). His line = his transcribed actions replayed (gives his HP loss and checks the transcription). Our line = the solver from the same state (still searching over sampled futures, so the comparison is fair).
+- Per decision: compare his choice with the solver's and replay both to the fight's end on the same hidden state. That gives the divergence points and their cost.
+- Risks: one transcription error breaks every later fight (a correction loop against the video is needed); 3 unidentified mods.
+
 ## 5. What is retired
 - The potion machinery listed in S4.
 - `DRIVE` thresholds and the danger budget formula.

@@ -5,7 +5,10 @@ use sts2sim::ids;
 use sts2sim::observe::OBS_SIZE;
 use sts2sim::state::RngSet;
 use sts2sim::engine::ACTION_SPACE;
-use sts2sim::{DeckCard, RelicInit, Scenario, ScenarioExtras};
+use sts2sim::engine::ActionBuf;
+use sts2sim::state::Stage;
+use sts2sim::types::Outcome;
+use sts2sim::{Action, Combat, DeckCard, RelicInit, Scenario, ScenarioExtras};
 
 fn scenario(n_deck: usize, enc: u16) -> Scenario {
     let mut deck = vec![];
@@ -434,4 +437,156 @@ fn gumbel_mode_needs_the_root_logits() {
     assert!(eng.advance(Some(&pa), Some(&va), &mut po, &mut pm, &mut pk, &mut pu, &mut vo, &mut vk).is_err());
     let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
     assert!(SearchEngine::new(scen, vec![(0, 1)], 1, SearchCfg { gm: 1, ..gcfg() }, 1, false).is_err());
+}
+
+fn run_recorded(threads: usize, n_roots: usize, scen: Vec<(Scenario, ScenarioExtras)>, jobs: Vec<(u32, u64)>, cfg: SearchCfg) -> SearchEngine {
+    let mut eng = SearchEngine::new(scen, jobs, n_roots, cfg, threads, true).unwrap();
+    let (pc, vc) = eng.max_rows();
+    let (mut po, mut pm, mut pk, mut pu, mut vo, mut vk) = (vec![0f32; pc * OBS_SIZE], vec![0u8; pc * ACTION_SPACE], vec![0u8; pc], vec![0f32; pc], vec![0f32; vc * OBS_SIZE], vec![0u8; vc]);
+    let stride = 2 * cfg.m + 1;
+    let (mut pol, mut val) = (vec![0f32; pc * stride], vec![0f32; vc]);
+    let (mut np, mut nv) = eng.advance(None, None, &mut po, &mut pm, &mut pk, &mut pu, &mut vo, &mut vk).unwrap();
+    let mut cycles = 0;
+    while np + nv > 0 {
+        for r in 0..np {
+            answer(&po[r * OBS_SIZE..(r + 1) * OBS_SIZE], &pm[r * ACTION_SPACE..(r + 1) * ACTION_SPACE], cfg.m, &mut pol[r * stride..(r + 1) * stride]);
+        }
+        for r in 0..nv {
+            val[r] = (hash(&vo[r * OBS_SIZE..(r + 1) * OBS_SIZE]) % 1000) as f32 / 2000.0 - 0.25;
+        }
+        let pa = pol[..np * stride].to_vec();
+        let va = val[..nv].to_vec();
+        (np, nv) = eng.advance(Some(&pa), Some(&va), &mut po, &mut pm, &mut pk, &mut pu, &mut vo, &mut vk).unwrap();
+        cycles += 1;
+        assert!(cycles < 100_000, "the engine does not terminate");
+    }
+    assert!(eng.finished());
+    eng
+}
+
+/// The search's `terminal` reward of a finished fight (win 1 + 0.5 x HP fraction, loss -1; aborted 0), None while it runs.
+fn end_reward(cx: &Combat) -> Option<f32> {
+    if cx.missing.is_some() {
+        Some(0.0)
+    } else if sts2env::looped(cx) {
+        Some(-1.0)
+    } else if cx.overflow != 0 {
+        Some(0.0)
+    } else if cx.stage == Stage::Over {
+        let me = cx.cr(0);
+        Some(if cx.outcome == Outcome::Victory { 1.0 + 0.5 * (me.hp as f32 / me.max_hp.max(1) as f32) } else { -1.0 })
+    } else {
+        None
+    }
+}
+
+/// Plays `first` on `cx` and then the stand-in policy's play-out moves (`answer`: the hash of the observation the engine would write, among the legal
+/// actions in index order; forced moves as the engine plays them) to the end of the fight. Returns the final reward.
+fn continue_with_policy(mut cx: Combat, first: Action) -> f32 {
+    let mut act = first;
+    for _ in 0..100_000 {
+        assert!(cx.step(act), "an action from the legal set was refused");
+        if let Some(r) = end_reward(&cx) {
+            return r;
+        }
+        let mut buf = ActionBuf::new();
+        let mut playable = 0u16;
+        cx.legal_actions_ex(&mut buf, &mut playable);
+        assert!(!buf.is_empty());
+        if let Some(a) = forced_action(&cx, &buf) {
+            act = a;
+            continue;
+        }
+        let mut o = vec![0f32; OBS_SIZE];
+        cx.observe_ex(&mut o, Some(playable));
+        cx.sync_overflow();
+        let mut mask = vec![0u8; ACTION_SPACE];
+        for a in buf.iter() {
+            mask[a.index()] = 1;
+        }
+        let legal: Vec<usize> = (0..ACTION_SPACE).filter(|&a| mask[a] > 0).collect();
+        act = Action::from_index(legal[(hash(&o) % legal.len() as u64) as usize]).unwrap();
+    }
+    panic!("the continuation does not end");
+}
+
+/// Searches every job with one future per option played to the fight's end, then checks every tried option's estimate against the real fight's
+/// continuation (the true state at that decision, the option, then the same policy). Returns (options whose estimate equals it exactly, options tried).
+fn playouts_vs_true_future(clairvoyant: bool) -> (usize, usize) {
+    let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default()), (scenario(14, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
+    let jobs: Vec<(u32, u64)> = (0..8).map(|i| ((i % 2) as u32, 4200 + i as u64)).collect();
+    let mut c = cfg();
+    c.k = 1;
+    c.leaf_turns = u32::MAX;
+    c.roll_cap = 1_000_000;
+    c.max_steps = 100_000;
+    c.clairvoyant = clairvoyant;
+    let eng = run_recorded(3, 4, scen.clone(), jobs.clone(), c);
+    let (mut same, mut tried) = (0, 0);
+    for (j, &(si, seed)) in jobs.iter().enumerate() {
+        let (sc, ex) = &scen[si as usize];
+        let mut main = Combat::try_new_with(sc, ex).unwrap();
+        main.reset_validated(sc, ex, seed, RngSet::from_run_seed_fast(seed)).unwrap();
+        let moves = eng.moves(j);
+        assert!(!moves.is_empty());
+        for rec in moves {
+            let mut buf = ActionBuf::new();
+            let mut playable = 0u16;
+            main.legal_actions_ex(&mut buf, &mut playable);
+            if forced_action(&main, &buf).is_none() {
+                // the engine wrote this decision's policy row (observation, then the overflow sync) before playing it
+                main.sync_overflow();
+            }
+            if rec.searched {
+                for o in 0..c.m {
+                    if !rec.legal[o] {
+                        continue;
+                    }
+                    let truth = continue_with_policy(main.clone(), Action::from_index(rec.opts[o] as usize).unwrap());
+                    tried += 1;
+                    same += (truth.to_bits() == rec.q[o].to_bits()) as usize;
+                }
+            }
+            assert!(main.step(Action::from_index(rec.action as usize).unwrap()), "the recorded fight does not replay");
+        }
+    }
+    (same, tried)
+}
+
+#[test]
+fn clairvoyant_playout_is_the_real_continuation() {
+    // diagnostic flag: with one future that is a copy of the true state, every option's play-out IS the real fight's continuation under the same policy
+    let (same, tried) = playouts_vs_true_future(true);
+    assert!(tried > 20, "{tried} options tried");
+    assert_eq!(same, tried, "{} of {tried} play-outs differ from the real continuation", tried - same);
+    // the default (determinized futures) resamples the hidden information: the same check fails on some options
+    let (same0, tried0) = playouts_vs_true_future(false);
+    assert!(tried0 > 20 && same0 < tried0, "{same0} of {tried0} determinized play-outs equal the real continuation");
+}
+
+#[test]
+fn clairvoyant_search_finishes_reproducibly_and_changes_estimates() {
+    // with every other option on (shared prefix, carried lines, stratified futures)
+    let jobs: Vec<(u32, u64)> = (0..24).map(|i| ((i % 2) as u32, 700 + i as u64)).collect();
+    let mut c = cfg();
+    c.lead = true;
+    c.carry = true;
+    c.strat = true;
+    c.clairvoyant = true;
+    let (r1, s1) = run(2, 5, jobs.clone(), c);
+    let (r2, _) = run(1, 24, jobs.clone(), c);
+    assert!(r1.iter().all(|x| x.done && matches!(x.outcome, 1 | -1 | 2)));
+    assert_eq!(s1.illegal, 0);
+    assert!(s1.searched > 0 && s1.lead_branch > 0);
+    for i in 0..24 {
+        assert_eq!((r1[i].outcome, r1[i].len), (r2[i].outcome, r2[i].len), "job {i}");
+        assert_eq!(r1[i].hp_lost.to_bits(), r2[i].hp_lost.to_bits(), "job {i}");
+    }
+    // the first searched decision of a job stands at the same true state with or without the flag: its estimates differ only through the futures
+    let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default()), (scenario(14, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
+    let first_q = |e: &SearchEngine, j: usize| e.moves(j).iter().find(|m| m.searched).map(|m| m.q.map(f32::to_bits));
+    let e1 = run_recorded(2, 5, scen.clone(), jobs.clone(), c);
+    c.clairvoyant = false;
+    let e0 = run_recorded(2, 5, scen, jobs, c);
+    assert!((0..24).any(|j| first_q(&e0, j) != first_q(&e1, j)), "the flag changed no estimate");
 }

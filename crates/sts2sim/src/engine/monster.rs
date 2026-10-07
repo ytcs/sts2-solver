@@ -298,7 +298,11 @@ impl Combat {
                         return b.target;
                     }
                 }
-                panic!("RandomBranchState: no branch selected");
+                // f32 rounding: the draw is below the (double-accumulated) total, but subtracting the weights one by one in f32 can leave a tiny positive
+                // remainder. The game throws here (`RandomBranchState.GetNextState`, a crash that rare); a long search job must not abort, so the
+                // remainder goes to the last branch with positive weight (where it lies).
+                let last = (0..branches.len()).rev().find(|&i| ws[i] > 0.0).unwrap_or(branches.len() - 1);
+                branches[last].target
             }
             MonsterNode::Cond { arms, .. } => {
                 for (target, pred) in arms.iter() {
