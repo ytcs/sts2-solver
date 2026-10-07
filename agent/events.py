@@ -59,7 +59,9 @@ def match(event, labels):
     free, out = list(e["options"]), []
     for text in labels:
         head = text.split(":", 1)[0].strip()
-        o = next((o for o in free if _pattern(o["label"]).match(head) or _pattern(o["label"]).match(text.strip())), None)
+        hits = [o for o in free if _pattern(o["label"]).match(head) or _pattern(o["label"]).match(text.strip())]
+        # the most literal label wins: `Give {Gold} Gold` before `Give {Potion}` for "Give 100 Gold"
+        o = max(hits, key=lambda o: len(re.sub(r"\{\w+\}", "", o["label"]))) if hits else None
         if o is not None:
             free.remove(o)
         out.append(o)
@@ -83,7 +85,8 @@ def _basic(c):
 
 
 def allowed(event, st):
-    """`IsAllowed` on a RunState (act index 0-based, as the game's CurrentActIndex). Deck-enchantability is approximated as true."""
+    """`IsAllowed` on a RunState (act index 0-based, as the game's CurrentActIndex). Not enforced: deck-enchantability (approximated as true),
+    min_floor unless the state carries a `floor` (TotalFloor) attribute, and FakeMerchant's Foul Potion alternative to the gold."""
     e = get(event)
     if not e or not e.get("allowed", True):
         return False
@@ -318,8 +321,9 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
 def play_option(st, event, option, draws, choose=None, pick=None):
     """Apply one top-level option (index or label) of an event; a death ends the run at this event (`st.end`)."""
     e = get(event)
-    opts = e["options"]
-    o = opts[option] if isinstance(option, int) else next(x for x in opts if _pattern(x["label"]).match(option.split(":", 1)[0]))
+    o = e["options"][option] if isinstance(option, int) else match(event, [option])[0]
+    if o is None:
+        raise ValueError(f"{e['id']}: no option matches {option!r}")
     res = apply(st, o["effects"], draws, choose, pick)
     if res["dead"]:
         st.end = (st.act, "event", e["id"])

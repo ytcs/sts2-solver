@@ -59,6 +59,9 @@ def test_events_match_screen():
     assert [o["key"] for o in m] == ["TRUDGE_ON", "REST"]
     m = EV.match("RanwidTheElder", ["Give Fire Potion: lose it, gain a relic", "Give 100 Gold: ...", "Locked"])
     assert [o["key"] for o in m] == ["POTION", "GOLD", "POTION_LOCKED"]
+    m = EV.match("RanwidTheElder", ["Locked", "Give 100 Gold: lose it, gain a relic", "Give Anchor: two relics"])
+    assert [o["key"] for o in m] == ["POTION_LOCKED", "GOLD", "RELIC"]
+    assert EV.match("Wellspring", ["Dance"]) == [None]
 
 
 def test_events_apply():
