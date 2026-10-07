@@ -4,6 +4,27 @@ use pyo3::prelude::*;
 mod sim;
 use sts2env::{BatchEnv, PoolScenario, RewardConfig, RoundRobinScenario, StepOut};
 
+/// Scenario JSON strings to simulator scenarios, in parallel with the GIL released (`validate`: also refuse unported content). The first error
+/// in list order is reported, with the same message as a serial parse. A serial parse took ~30 us a scenario: most of the time of building a
+/// 4096-fight env for the predictor's fight starts (`rl/predictor.py`).
+fn parse_scenarios(py: Python<'_>, scenarios_json: &[String], validate: bool) -> PyResult<Vec<(sts2sim::Scenario, sts2sim::ScenarioExtras)>> {
+    use rayon::prelude::*;
+    let parsed: Vec<Result<(sts2sim::Scenario, sts2sim::ScenarioExtras), String>> = py.detach(|| {
+        scenarios_json
+            .par_iter()
+            .map(|s| {
+                let v: serde_json::Value = serde_json::from_str(s).map_err(|e| e.to_string())?;
+                let (sc, ex) = sts2diff::convert::scenario_ex(&v)?;
+                if validate {
+                    sc.validate().map_err(|e| format!("scenario uses unported content: {e:?}"))?;
+                }
+                Ok((sc, ex))
+            })
+            .collect()
+    });
+    parsed.into_iter().map(|r| r.map_err(PyValueError::new_err)).collect()
+}
+
 #[pyclass]
 struct BatchEnvPy {
     env: BatchEnv,
@@ -14,14 +35,8 @@ impl BatchEnvPy {
     #[new]
     #[pyo3(signature = (n_envs, scenarios_json, seed, max_steps, win, loss, hp_bonus, step_reward, round_robin=false, turn_cap=0))]
     #[allow(clippy::too_many_arguments)]
-    fn new(n_envs: usize, scenarios_json: Vec<String>, seed: u64, max_steps: u32, win: f32, loss: f32, hp_bonus: f32, step_reward: f32, round_robin: bool, turn_cap: u32) -> PyResult<Self> {
-        let mut scs = vec![];
-        for s in scenarios_json {
-            let v: serde_json::Value = serde_json::from_str(&s).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            let (sc, ex) = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
-            sc.validate().map_err(|e| PyValueError::new_err(format!("scenario uses unported content: {e:?}")))?;
-            scs.push((sc, ex));
-        }
+    fn new(py: Python<'_>, n_envs: usize, scenarios_json: Vec<String>, seed: u64, max_steps: u32, win: f32, loss: f32, hp_bonus: f32, step_reward: f32, round_robin: bool, turn_cap: u32) -> PyResult<Self> {
+        let scs = parse_scenarios(py, &scenarios_json, true)?;
         let cfg = RewardConfig { win, loss, hp_bonus, step: step_reward, turn_cap };
         if scs.is_empty() {
             return Err(PyValueError::new_err("no scenarios"));
@@ -130,6 +145,7 @@ impl SearchEnginePy {
     #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
+        py: Python<'_>,
         scenarios_json: Vec<String>,
         job_scen: PyReadonlyArray1<u32>,
         job_seed: PyReadonlyArray1<u64>,
@@ -156,13 +172,7 @@ impl SearchEnginePy {
         val_w: usize,
         worth: Option<PyReadonlyArray2<f32>>,
     ) -> PyResult<Self> {
-        let mut scs = vec![];
-        for s in scenarios_json {
-            let v: serde_json::Value = serde_json::from_str(&s).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            let (sc, ex) = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
-            sc.validate().map_err(|e| PyValueError::new_err(format!("scenario uses unported content: {e:?}")))?;
-            scs.push((sc, ex));
-        }
+        let scs = parse_scenarios(py, &scenarios_json, true)?;
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
         let mut ut = [0f32; 102];
@@ -391,13 +401,7 @@ fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, see
                     steps: Vec<u32>, soff: Vec<usize>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
     use numpy::{PyArray1, PyArrayMethods};
     use rayon::prelude::*;
-    let parsed: Vec<(sts2sim::scenario::Scenario, sts2sim::scenario::ScenarioExtras)> = scenarios
-        .iter()
-        .map(|s| {
-            let v: serde_json::Value = serde_json::from_str(s).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)
-        })
-        .collect::<PyResult<_>>()?;
+    let parsed = parse_scenarios(py, &scenarios, false)?;
     let acts: Vec<u16> = actions.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?.iter().map(|&a| a as u16).collect();
     let (o, a) = (sts2env::OBS, sts2env::ACTIONS);
     let parts: Vec<Result<(Vec<f32>, Vec<u8>), String>> = py.detach(|| {

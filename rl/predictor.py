@@ -5,6 +5,7 @@
 A fight-start prediction averages the head over sampled opening shuffles and starting rolls (`VecEnv` seeds): exact, since all of it is revealed
 before the first decision. The allowed potions are the belt the scenario carries. Classes and bins: `heads.py`.
 """
+import json
 import os
 import sys
 
@@ -28,11 +29,13 @@ class Predictor:
         P = np.zeros((len(scenarios), H.NC))
         if not scenarios:
             return P
+        sj = [json.dumps(s) for s in scenarios]  # once for every shuffle
         for s in range(shuffles):
-            env = sts2.VecEnv(len(scenarios), scenarios, seed=seed + s, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
-            o, m = env.reset()
-            for b in range(0, len(scenarios), self.batch):
-                _, _, ol = self.net(torch.from_numpy(o[b:b + self.batch].copy()).to(DEV), torch.from_numpy(m[b:b + self.batch].astype(np.int64)).to(DEV), outcome=True)
+            env = sts2.VecEnv(len(sj), sj, seed=seed + s, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
+            o, _ = env.reset()
+            for b in range(0, len(sj), self.batch):
+                # the outcome head only (`heads_out`: the same logits as the full pass, without the policy heads or the action mask)
+                ol, _ = self.net.heads_out(torch.from_numpy(o[b:b + self.batch].copy()).to(DEV))
                 P[b:b + self.batch] += torch.softmax(ol.float(), 1).cpu().numpy() / shuffles
         return P
 

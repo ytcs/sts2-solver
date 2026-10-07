@@ -37,7 +37,8 @@ class VecEnv:
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         self.n = n_envs
-        self._env = _BatchEnv(n_envs, [json.dumps(s) for s in scenarios], seed, max_steps, win, loss, hp_bonus, step_reward, round_robin, turn_cap)
+        # a str is taken as the scenario's JSON already (callers that build several envs over the same scenarios serialize them once)
+        self._env = _BatchEnv(n_envs, [s if isinstance(s, str) else json.dumps(s) for s in scenarios], seed, max_steps, win, loss, hp_bonus, step_reward, round_robin, turn_cap)
         self.obs = np.zeros((n_envs, OBS_SIZE), np.float32)
         self.mask = np.zeros((n_envs, ACTIONS), np.uint8)
         self.reward = np.zeros(n_envs, np.float32)
