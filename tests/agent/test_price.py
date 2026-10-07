@@ -125,3 +125,122 @@ def test_price_single_option_and_shop_bundles(monkeypatch, tmp_path):
     rows = [l for l in out.split("\n")[1:] if l and not l.startswith("(")]
     assert any(l.startswith("nothing ") for l in rows) and any(" + " in l for l in rows), out
     assert "4 rollouts per option" in out and "affordable bundles" in out
+    assert out.startswith("ranked by: ") and "next act ready" in out
+
+
+# ------------------------------------------------------------------------------------------------------------------- horizon ladder and readiness
+
+class ActPred:
+    """P(win) by encounter: every fight before act `nxt` is won with probability `act0` at end-HP class `b`; act `nxt`'s bosses and elites at `boss`
+    / `elite` (class `b2`), any other fight there is lost (the rollout ends at its first hallway fight). Records every scenario it is asked."""
+
+    def __init__(self, nxt, b=10, boss=0.4, elite=0.8, b2=20, act0=1.0):
+        from agent import pools
+        self.bosses, self.elites = set(pools.pool(nxt, "boss")), set(pools.pool(nxt, "elite"))
+        self.nxt_act = pools.ACTS[nxt]["act"]
+        self.b, self.boss, self.elite, self.b2, self.act0, self.asked = b, boss, elite, b2, act0, []
+
+    def fight_start(self, scenarios, shuffles=4):
+        import heads as H
+        P = np.zeros((len(scenarios), H.NC))
+        for k, sc in enumerate(scenarios):
+            self.asked.append(sc)
+            if sc["act"] < self.nxt_act:
+                p, b = self.act0, self.b
+            else:
+                p = self.boss if sc["encounter"] in self.bosses else self.elite if sc["encounter"] in self.elites else 0.0
+                b = self.b2
+            P[k, 0], P[k, b] = 1 - p, p
+        return P
+
+
+def _res(**cols):
+    """A synthetic `price` result: label -> dict of per-rollout arrays."""
+    labels = list(next(iter(cols.values())))
+    return {lb: {k: np.asarray(v[lb], float) for k, v in cols.items()} for lb in labels}
+
+
+def test_ladder_picks_the_longest_estimable_unsaturated_horizon():
+    rng = np.random.default_rng(0)
+    n = 64
+    zero = np.zeros(n)
+
+    def noise(p):
+        return (rng.random(n) < p).astype(float)
+    act_hi = noise(0.97)
+    floors = {"a": np.full(n, 30.0), "b": np.full(n, 30.0)}
+    # P(win run) separates (the paired difference is many se): it ranks, whatever the act says
+    w = _res(win={"a": np.r_[np.ones(20), np.zeros(n - 20)], "b": zero}, act={"a": act_hi, "b": act_hi}, ready={"a": zero, "b": zero}, floors=floors)
+    assert PR.ladder(w)[0] == "win"
+    # P(win run) flat at 0; P(clear act) below the threshold ranks even without a significant spread
+    act_mid = noise(0.6)
+    a = _res(win={"a": zero, "b": zero}, act={"a": act_mid, "b": act_mid}, ready={"a": zero, "b": zero + 0.1}, floors=floors)
+    assert PR.ladder(a)[0] == "act" and "not saturated" in PR.ladder(a)[1]
+    # saturated, but one option clears the act for sure where the other loses some: P(clear act) still separates
+    ones, sat = np.ones(n), np.r_[np.zeros(8), np.ones(n - 8)]
+    s = _res(win={"a": zero, "b": zero}, act={"a": ones, "b": sat}, ready={"a": zero + 0.2, "b": zero + 0.5}, floors=floors)
+    assert PR.ladder(s)[0] == "act" and "separates" in PR.ladder(s)[1]
+    # saturated and tied (same draws, same outcomes): next-act readiness ranks, the table says so and orders by it
+    r = _res(win={"a": zero, "b": zero}, act={"a": act_hi, "b": act_hi}, ready={"a": act_hi * 0.3, "b": act_hi * 0.5}, floors=floors)
+    assert PR.ladder(r)[0] == "ready"
+    out = PR.table(r)
+    head, cols, first, second = out.split("\n")[:4]
+    assert head.startswith("ranked by: next act ready (") and "saturated" in head
+    assert "*next act ready" in cols and "P(win run)" in cols and "P(clear act)" in cols and "floors" in cols
+    assert first.startswith("b ") and second.startswith("a ") and "*ready -0.19" in second and "win +0.000" in second and "act +0.000" in second
+    # the threshold is configurable: at 0.4 that act (best 0.48, no spread) is saturated, and readiness ranks
+    assert act_mid.mean() > 0.4 and PR.ladder(a, saturated=0.4)[0] == "ready"
+    # the last act: no readiness column, the floors break the tie
+    f = _res(win={"a": zero, "b": zero}, act={"a": act_hi, "b": act_hi}, floors={"a": np.full(n, 31.0), "b": np.full(n, 30.0)})
+    assert PR.ladder(f)[0] == "floors" and "not estimable" in PR.ladder(f)[1]
+    assert "next act ready" not in PR.table(f) and PR.table(f).split("\n")[2].startswith("a ")
+    # one rollout per option: no se, nothing separates (and nothing divides by zero)
+    one = _res(win={"a": [1.0], "b": [0.0]}, act={"a": [1.0], "b": [1.0]}, ready={"a": [0.4], "b": [0.3]}, floors={"a": [3.0], "b": [3.0]})
+    assert PR.ladder(one)[0] == "ready"
+
+
+def test_readiness_is_priced_after_the_ancient_heal():
+    """A rollout that clears Act 1 at a known low HP: the readiness fights (Act 2's boss pool and elite pool) are asked at the HP after the ancient's
+    heal (80% of missing HP), after the boss rewards, before any Act 2 room; the value is the 0.5 / 0.5 mix of the pool means."""
+    import heads as H
+    from agent import pools
+    pred = ActPred("Hive", b=10, boss=0.4, elite=0.8)
+    st = toy(gold=0)
+    won = RM.Rollouts(pred).run([st], [3])
+    end = int(H.centers()[10 - 1].item())  # the Act 1 boss leaves 19 HP
+    healed = end + int(RM.HEAL_ANCIENT * (st.max_hp - end))
+    assert healed == 67
+    hive = [sc for sc in pred.asked if sc["act"] == 1]
+    ready = hive[:len(pools.pool("Hive", "boss")) + len(pools.pool("Hive", "elite"))]
+    assert {sc["encounter"] for sc in ready} == set(pools.pool("Hive", "boss")) | set(pools.pool("Hive", "elite"))
+    assert {sc["hp"] for sc in ready} == {healed}  # not the 19 HP the boss left, not full HP
+    assert won[0] == 0 and st.end[0] == 1 and st.end[1] == "hallway"  # then the first Act 2 fight kills the rollout
+    assert abs(st.ready - (0.5 * 0.4 + 0.5 * 0.8)) < 1e-9
+    c = H.centers()[20 - 1].item()
+    w_boss, w_elite = 0.4 * (1 + 0.5 * c / 80) - 0.6, 0.8 * (1 + 0.5 * c / 80) - 0.2
+    assert abs(st.ready_worth - (0.5 * w_boss + 0.5 * w_elite)) < 1e-6
+    assert len(ready[0]["deck"]) == len(st.deck)  # the boss reward came before the snapshot (and nothing after it changed the deck)
+
+
+def test_readiness_glory_double_boss_and_deaths_count_zero():
+    import heads as H
+    from agent import pools
+    # Glory: ordered pairs of distinct bosses, the second at the first's expected end HP, without the potions the first was allowed
+    st = toy(potions=["FIRE_POTION"])
+    st.act, st.act_name, st.hp = 2, "Glory", 50
+    pred = ActPred("Glory", boss=0.5, elite=0.9, b2=15)
+    rdy, _w = drive(RM.readiness(st, RM.BasePolicy()), pred)
+    nb, ne = len(pools.pool("Glory", "boss")), len(pools.pool("Glory", "elite"))
+    second = pred.asked[nb + ne:]
+    assert len(second) == nb * (nb - 1) and {sc["hp"] for sc in second} == {round(H.centers()[14].item())}
+    assert all(not sc["potions"] for sc in second) and all(sc["potions"] for sc in pred.asked[:nb])
+    assert abs(rdy - (0.5 * 0.25 + 0.5 * 0.9)) < 1e-9
+    # every rollout dies in Act 1: readiness 0 (worth -1) for every option, P(clear act) 0
+    opts = [("rest", lambda s, _d: setattr(s, "hp", s.max_hp)), ("nothing", None)]
+    res = PR.price(toy(), opts, ActPred("Hive", act0=0.0), n=6)
+    assert all((r["ready"] == 0).all() and (r["ready_worth"] == -1).all() and (r["act"] == 0).all() for r in res.values())
+    # starting in the last act: no readiness column (not estimable)
+    g = toy()
+    g.act, g.act_name, g.bosses = 2, "Glory", []
+    res = PR.price(g, opts, ActPred("Glory", act0=0.0, boss=0.0, elite=0.0), n=3)
+    assert all("ready" not in r for r in res.values()) and "next act ready" not in PR.table(res)

@@ -609,27 +609,28 @@ function priceFor(price, label) {
   const key = price.options.find((o) => priceMatches(o, label));
   return key ? price.result[key] : null;
 }
-const priceTxt = (r) => (r ? `act ${pct(r.act)} · ${num(r.floors)} fl${r.win > 0 ? ` · run ${pct(r.win, 1)}` : ""}` : "");
+const priceTxt = (r) => (r ? `act ${pct(r.act)}${r.ready != null ? ` · ready ${pct(r.ready)}` : ""} · ${num(r.floors)} fl${r.win > 0 ? ` · run ${pct(r.win, 1)}` : ""}` : "");
 function optionsHTML(text, kind) {
   const opts = options(text), price = latestPrice(kind);
-  const best = price ? Math.max(...Object.values(price.result).map((r) => r.act)) : null;
+  const rk = (price && price.ranked_by) || "act";  // the horizon the ladder ranked by (agent/price.py `ladder`)
+  const best = price ? Math.max(...Object.values(price.result).map((r) => r[rk])) : null;
   const cards = [], rest = [];
   for (const o of opts) {
     const c = parseCardLabel(o.label), r = priceFor(price, o.label);
-    if (c) cards.push(`<div class="cardopt ${r && r.act === best ? "best" : ""}"><span class="n">${o.n}${c.price != null ? ` <span class="gold small">${c.price}g</span>` : ""}</span>${cardHTML(c.id, { upgrade: c.upgrade, cost: c.cost, star: c.star, desc: c.desc })}${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
+    if (c) cards.push(`<div class="cardopt ${r && r[rk] === best ? "best" : ""}"><span class="n">${o.n}${c.price != null ? ` <span class="gold small">${c.price}g</span>` : ""}</span>${cardHTML(c.id, { upgrade: c.upgrade, cost: c.cost, star: c.star, desc: c.desc })}${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
     else {
       let icon = "";
       const rm = /\brelic ([^:(]+?)(?::|\(|$)/.exec(o.label), pm = /\bpotion ([^:(]+?)(?::|\(|$)/.exec(o.label);
       if (rm && M.relicByTitle[rm[1].trim().toLowerCase()]) icon = iconHTML("relics", M.relicByTitle[rm[1].trim().toLowerCase()]);
       else if (pm && M.potionByTitle[pm[1].trim().toLowerCase()]) icon = iconHTML("potions", M.potionByTitle[pm[1].trim().toLowerCase()]);
       else { const cm = /card: (.+)$/.exec(o.label); if (cm) icon = cm[1].split(" | ").map((n) => cardIdByName(n)).filter(Boolean).map((id) => cardHTML(id, { mini: true })).join(""); }
-      rest.push(`<div class="opt ${r && r.act === best ? "best" : ""}"><span class="n">${o.n}</span>${icon ? `<span style="display:flex;gap:3px">${icon}</span>` : ""}<span>${esc(o.label)}</span>${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
+      rest.push(`<div class="opt ${r && r[rk] === best ? "best" : ""}"><span class="n">${o.n}</span>${icon ? `<span style="display:flex;gap:3px">${icon}</span>` : ""}<span>${esc(o.label)}</span>${r ? `<span class="price">${priceTxt(r)}</span>` : ""}</div>`);
     }
   }
   const prose = text.split("\n").slice(1).filter((l) => l && !/^\d+ /.test(l) && !HDR.test(l) && !/^(play:|answer:|full map:|public odds:|DRIVE:|SEARCH OBJECTIVE:)/.test(l) && !/^e\d+ /.test(l));
   return `${prose.length && kind !== "COMBAT" ? `<pre>${esc(prose.join("\n"))}</pre>` : ""}
     ${cards.length ? `<div class="cardrow" style="margin:6px 0">${cards.join("")}</div>` : ""}<div class="opts">${rest.join("")}</div>
-    ${price ? `<div class="dim small" style="margin-top:4px">priced ${ago(price.t)} (paired run-model rollouts): P(win run) | P(clear act) | floors reached</div>` : ""}`;
+    ${price ? `<div class="dim small" style="margin-top:4px">priced ${ago(price.t)} (paired run-model rollouts, ranked by ${esc(price.ranked_by || "act")}): P(clear act) | next act ready | floors reached | P(win run)</div>` : ""}`;
 }
 
 // ------------------------------------------------------------------ map
@@ -752,11 +753,13 @@ function priceTable(p, chosen) {
   const keys = p.options || Object.keys(p.result || {});
   const vals = keys.map((k) => p.result[k] || {});
   const best = (f) => Math.max(...vals.map((v) => v[f] ?? -1));
-  const bw = best("win"), ba = best("act"), bf = best("floors");
+  const bw = best("win"), ba = best("act"), br = best("ready"), bf = best("floors");
+  const hasReady = vals.some((v) => v.ready != null), rk = p.ranked_by;
+  const th = (key, t) => `<th>${rk === key ? `<b>${t}</b>` : t}</th>`;  // the horizon the ladder ranked by (agent/price.py `ladder`) in bold
   const isChosen = (k) => chosen && priceMatches(k, chosen);
-  return `<table class="pt"><tr><th>option</th><th>P(win run)</th><th>P(clear act)</th><th>floors</th></tr>${keys.map((k, i) => {
+  return `<table class="pt"><tr><th>option</th>${th("win", "P(win run)")}${th("act", "P(clear act)")}${hasReady ? th("ready", "next act ready") : ""}${th("floors", "floors")}</tr>${keys.map((k, i) => {
     const v = vals[i];
-    return `<tr class="${isChosen(k) ? "chosen" : ""}"><td>${prettyAction(k)}</td><td class="${v.win === bw && bw > 0 ? "best" : ""}">${pct(v.win, 1)}</td><td class="${v.act === ba ? "best" : ""}">${pct(v.act, 1)}</td><td class="${v.floors === bf ? "best" : ""}">${num(v.floors)}</td></tr>`;
+    return `<tr class="${isChosen(k) ? "chosen" : ""}"><td>${prettyAction(k)}</td><td class="${v.win === bw && bw > 0 ? "best" : ""}">${pct(v.win, 1)}</td><td class="${v.act === ba ? "best" : ""}">${pct(v.act, 1)}</td>${hasReady ? `<td class="${v.ready === br ? "best" : ""}">${pct(v.ready, 1)}</td>` : ""}<td class="${v.floors === bf ? "best" : ""}">${num(v.floors)}</td></tr>`;
   }).join("")}</table>`;
 }
 function det(k, summary, body, dflt) {

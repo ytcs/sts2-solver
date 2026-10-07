@@ -358,10 +358,13 @@ class Harness(Live):
 
     @_needs_run("no run in progress")
     def price(self, argline):
-        """`price [n]`: the options of this screen priced by paired run-model rollouts (`agent/price.py`); a shop by bundles within the budget."""
+        """`price [n] [--sat X]`: the options of this screen priced by paired run-model rollouts (`agent/price.py`); a shop by bundles within the
+        budget. Ranked by the horizon ladder; `--sat`: the P(clear act) at which the ranking moves up to next-act readiness (default 0.9)."""
         from agent import price as PR
         state = call("peek")
-        n = int(argline.split()[0]) if argline.split() and argline.split()[0].isdigit() else 128
+        args = argline.split()
+        n = int(args[0]) if args and args[0].isdigit() else 128
+        sat = float(args[args.index("--sat") + 1]) if "--sat" in args[:-1] else PR.ACT_SATURATED
         st = PR.run_state(self._run(), self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
         opts = PR.options(st, state)
         if not opts:
@@ -380,9 +383,12 @@ class Harness(Live):
             opts, note = PR.bundles(st, PR.shop_items(st, state, unpriced), self._predictor)
             note = f"; {note}" + (f"; not priced (no simulator id): {', '.join(unpriced)}" if unpriced else "")
         res = PR.price(st, opts, self._predictor, n=n, seed=abs(hash(scr.floor_key(state) or "")) % 10_000)
-        self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts],
+        ranked_by, _why = PR.ladder(res, sat)
+        self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by=ranked_by,
                        result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})
-        return PR.table(res) + f"\n({n} rollouts per option, paired; run model `docs/rebuild.md` S5{note})\n"
+        ready = ("; next act ready: P(win) after the ancient's heal vs the next act's bosses x0.5 and elites x0.5, 0 on a death in this act"
+                 if "ready" in next(iter(res.values())) else "")
+        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model `docs/rebuild.md` S5{ready}{note})\n"
 
     def brief(self):
         state = call("peek")
