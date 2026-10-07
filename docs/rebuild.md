@@ -107,7 +107,15 @@ Plan:
   - policy targets = Gumbel-style improved policy;
   - HL-Gauss categorical targets;
   - Reanalyse of stored fights.
-- Curriculum by learnability p(1-p) with a uniform share. Calibration measured on the natural distribution, with importance weights.
+- Curriculum by signal (user, 2026-10-07): saturated fights and fights lost under every line teach little; flippable near-misses teach the most. E14: in round 3, 44% of the fights sat at P(win) >= 0.97 and held 2% of the near-misses.
+  - **Pool:** each round draws fresh candidates (`tools/gen_curriculum.py` plus the corpus) and scores them at the fight start with the current predictor (200k in about 20 s). It samples `--anchor` 15% uniformly and the rest with weight p(1-p) (`tools/signal_pool.py`). Fights already saturated drop out and new samples replace them.
+    - Selection is on the configuration, before a seed is played, so outcome labels stay unbiased.
+    - The anchor keeps the outcome head calibrated on easy and hopeless fights, which the run model also prices.
+  - **Near-miss restarts:** for losses within one turn of a win, a heavier search runs from the true states at the last turn starts (`tools/nearmiss.py`, `exit.py collect --restarts`).
+    - Those futures were selected on a loss, so the parts are `policy_only`: no outcome loss. The policy target, from searches over determinized futures, is unaffected.
+    - Gate: the flip rate, i.e. whether heavier search from those states wins measurably more than live width.
+  - **Measured by A/B:** signal pool against a uniform pool of the same size from the same candidates, same init and recipe, play-checked on bench v2 (E15).
+  - Calibration is checked on the natural distribution (bench v2 score), not on the pool.
 - A privileged-input stage only if label noise proves to be the bottleneck.
 - *Gate:* calibration bias under search play below 0.02 in every decile; ranking accuracy no worse than h128; live-width win not lower on any set.
 

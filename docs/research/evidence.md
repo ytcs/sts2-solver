@@ -209,3 +209,38 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 
 - **What this shows:** calibrated on average (bias within 0.011), but the win estimate of a typical fight is off by 0.12-0.15. The search uses the same network to judge every leaf, which fits E8 (a bigger search with the same judge finds no more wins). Network judgment is the bottleneck to attack: capacity, PPO on hard fights, lower-variance value targets.
 - **Next diagnostics:** headroom (a search on the true future, as an upper bound) and whether the search's candidates miss the best action on tail states.
+
+## E13. Headroom on the tail: the gap is information, not search width; a third of tail fights are lost under every line
+- **Method:** `tools/headroom.py`, bench v2 tail (400 Act 2-3 elite/boss fights x 2 attempts, h128). Clairvoyant arms see the true future (diagnostic only).
+
+| arm | win | vs live (paired) |
+|---|---|---|
+| live 5x32 | 0.362 | |
+| clairvoyant 5x32 | 0.475 | +0.113 +- 0.014 |
+| clairvoyant 8x64 | 0.482 | +0.120 +- 0.014 |
+| policy sampling, clairvoyant, 100 tries | 0.381 | +0.019 +- 0.012 |
+
+- **What it shows:**
+  - Widening the search adds +0.007 even with perfect information, consistent with E8: width is not the lever.
+  - Most of the +0.11 is information a real player never has. It bounds what better judgment could recover; it is not a target.
+  - 37.5% of the tail fights are lost by every arm, clairvoyant included. They carry no policy signal for this player.
+
+## E14. Round 3 collected mostly low-signal fights
+- **Method:** the r3 pool (70.5k fights, one attempt each, armB 5x32) scored at the fight start by r3's outcome head (`rl/predictor.py`), against the realised results and the near-miss losses (`tools/nearmiss.py`: within one turn of a win or <= 20% enemy HP left; 2823 of 20.4k losses).
+
+| predicted P(win) | share of fights | realised win | share of near-misses | share of searched decisions |
+|---|---|---|---|---|
+| < 0.03 | 0.084 | 0.012 | 0.097 | 0.072 |
+| 0.03-0.10 | 0.058 | 0.078 | 0.101 | 0.065 |
+| 0.10-0.30 | 0.083 | 0.224 | 0.221 | 0.105 |
+| 0.30-0.70 | 0.135 | 0.544 | 0.351 | 0.171 |
+| 0.70-0.90 | 0.109 | 0.816 | 0.159 | 0.128 |
+| 0.90-0.97 | 0.094 | 0.944 | 0.049 | 0.102 |
+| >= 0.97 | 0.436 | 0.995 | 0.021 | 0.357 |
+
+- **What it shows:**
+  - The predictor is calibrated band by band.
+  - 44% of the fights, and 36% of the searched decisions, went to fights the player already wins 99.5% of the time. They hold 2% of the near-misses.
+  - The 0.1-0.9 band holds a third of the fights and 73% of the near-misses.
+- **Paired play-check (bench v2, h128 labels, same seeds):** r3 (trained on this data plus earlier rounds) vs armB_anchored (earlier rounds only): eval +0.007 vs +0.002, corpus +0.005 vs +0.004, mix -0.000 vs +0.001, tail +0.009 vs +0.012. These are within noise of each other, so the round did not measurably improve the player.
+- **Next:** a signal-weighted pool (E15, pending) against a uniform pool of the same size.
