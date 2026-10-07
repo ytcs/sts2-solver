@@ -115,3 +115,11 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 - **Ranking:** unchanged (worth sign agreement 0.796 for both, Spearman 0.53-0.54).
 - **S3 gate:** not fully met. Bias is within 0.02 on every set, but some deciles still miss by ~0.07 (eval 0.4-0.6: 0.51 → 0.58; mix 0.2-0.4: 0.29 → 0.36).
 - **Adopted** as the predictor (`models/current.json`); h128 stays the search policy.
+
+## E8. Large-budget search is not a better player (loop 2 pilot)
+- **Method:** `tools/frontier.py`, the first 200 bench tail fights (Act 3 elites and bosses, 28+ cards), h128, 2 attempts on the same seeds. Live width 5x32 with 2-turn play-outs (32 s) vs large 8x64 with 3-turn play-outs (114 s).
+- **Result:**
+  - win 0.330 for both ("any attempt wins" 0.425 for both);
+  - seeds won by large and lost by live: 6.2%; the reverse: 6.2%.
+- **What this shows:** on these fights, a 3.5x larger search with the same network is not a stronger player. The "frontier" (large wins where live loses) is symmetric noise, so distilling large-search decisions would add nothing. Improvement has to come from the networks (policy and value), or these fights are mostly unwinnable for any play.
+- **What it does not show:** whether a much deeper search (play-outs to the fight's end) or a different search would help; whether the fights are winnable (certification by any play has not been run).
