@@ -247,6 +247,44 @@ impl SearchEnginePy {
         py.detach(|| eng.advance(pa, va, po, pm, pk, pu, vo, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
+    /// Rows of the one request buffer `advance_shared` uses (`sts2env::search::SearchEngine::shared_rows`).
+    fn shared_rows(&self) -> usize {
+        self.eng.shared_rows()
+    }
+
+    /// `advance` with one observation buffer `obs` [shared_rows, OBS] for both kinds of rows: policy row r at row r, value row r at row
+    /// `shared_rows - 1 - r` (`sts2env::search::SearchEngine::advance_shared`); `mask`, `pol_kind`, `pol_u`, `val_kind` have `shared_rows` rows.
+    #[pyo3(signature = (obs, mask, pol_kind, pol_u, val_kind, pol=None, val=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn advance_shared(
+        &mut self,
+        py: Python<'_>,
+        mut obs: PyReadwriteArray2<f32>,
+        mut mask: PyReadwriteArray2<u8>,
+        mut pol_kind: PyReadwriteArray1<u8>,
+        mut pol_u: PyReadwriteArray1<f32>,
+        mut val_kind: PyReadwriteArray1<u8>,
+        pol: Option<PyReadonlyArray2<f32>>,
+        val: Option<PyReadonlyArray1<f32>>,
+    ) -> PyResult<(usize, usize)> {
+        let er = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
+        let o = obs.as_slice_mut().map_err(er)?;
+        let pm = mask.as_slice_mut().map_err(er)?;
+        let pk = pol_kind.as_slice_mut().map_err(er)?;
+        let pu = pol_u.as_slice_mut().map_err(er)?;
+        let vk = val_kind.as_slice_mut().map_err(er)?;
+        let pa = match &pol {
+            Some(p) => Some(p.as_slice().map_err(er)?),
+            None => None,
+        };
+        let va = match &val {
+            Some(v) => Some(v.as_slice().map_err(er)?),
+            None => None,
+        };
+        let eng = &mut self.eng;
+        py.detach(|| eng.advance_shared(pa, va, o, pm, pk, pu, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+
     /// `[n_jobs, 6..8]` f32: scenario index, outcome, HP lost fraction, HP left fraction, length, finished (1/0) (, end HP absolute, belt slots whose starting
     /// potion is still there at the end as bits).
     fn results(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {

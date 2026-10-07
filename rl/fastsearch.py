@@ -155,6 +155,64 @@ class GraphFn:
 
 
 
+class HostBuffers:
+    """The request / answer buffers of one engine group, kept for the life of the FastSearch and reused by every `run` (grown when a run needs more rows).
+
+    The arrays the GPU copies from or into (observations, masks, uniforms, answers) are page-locked at their exact size with `cudaHostRegister` on numpy
+    memory, so the copies stay asynchronous. Not `torch.empty(pin_memory=True)`: torch's pinned allocator rounds every block up to a power of two and
+    caches freed blocks for the life of the process (a 1.27 GB request commits 2.00 GB, measured), and a fresh set per run left the old size classes cached.
+    `pol_kind` / `val_kind` never leave the host and are not pinned."""
+
+    PINNED = ("pol_obs", "pol_mask", "pol_u", "val_obs", "pol_out", "val_out")
+
+    def __init__(self, pin):
+        self.pin = pin
+        self.a = {}  # name -> numpy array (registered when pinned)
+        self.t = {}  # name -> torch view of the same memory
+        self._reg = []  # registered base pointers
+
+    def ensure(self, pc, vc, pol_w, val_w, shared=False):
+        """Room for `pc` policy and `vc` value rows. `shared` (the engine's `advance_shared`): one observation buffer `pol_obs` of `pc` rows holds
+        both kinds (value rows from its end backwards) and there is no `val_obs`."""
+        want = {"pol_obs": (pc, OBS), "pol_mask": (pc, ACT), "pol_kind": (pc,), "pol_u": (pc,), "val_obs": (vc, OBS), "val_kind": (vc,),
+                "pol_out": (pc, pol_w), "val_out": (vc, val_w)}
+        if shared:
+            del want["val_obs"]
+            self._free("val_obs")
+        dts = {"pol_mask": np.uint8, "pol_kind": np.uint8, "val_kind": np.uint8}
+        for name, shape in want.items():
+            cur = self.a.get(name)
+            if cur is not None and cur.shape[0] >= shape[0] and cur.shape[1:] == shape[1:]:
+                continue
+            self._free(name)
+            arr = np.empty(shape, dts.get(name, np.float32))
+            if self.pin and name in self.PINNED and arr.nbytes:
+                err = torch.cuda.cudart().cudaHostRegister(arr.ctypes.data, arr.nbytes, 0)
+                if int(err) != 0:
+                    raise RuntimeError(f"cudaHostRegister failed for {name} ({arr.nbytes / 2**30:.2f} GB): {err}")
+                self._reg.append((name, arr.ctypes.data))
+            self.a[name], self.t[name] = arr, torch.from_numpy(arr)
+
+    def nbytes(self):
+        return sum(a.nbytes for a in self.a.values())
+
+    def _free(self, name):
+        for i, (n, ptr) in enumerate(self._reg):
+            if n == name:
+                torch.cuda.cudart().cudaHostUnregister(ptr)
+                del self._reg[i]
+                break
+        self.a.pop(name, None)
+        self.t.pop(name, None)
+
+    def __del__(self):
+        try:
+            for name in list(self.a):
+                self._free(name)
+        except Exception:  # interpreter shutdown: the process is going away with its memory
+            pass
+
+
 class FastSearch:
     def __init__(self, net, value_nets=None, M=3, K=8, conf=1.01, roll_cap=None, max_steps=300, hp_bonus=0.5, greedy_roll=False,
                  roots=512, groups=2, threads=None, roll_net=None, use_graphs=True, graph_E=8, buckets=None, amp=False, value_amp=None, record=False, profile_gpu=False, compile=True, lead=True, merge_dec=True, carry=True, strat=True, dist_head=None, leaf_turns=None, dist=None):
@@ -192,6 +250,7 @@ class FastSearch:
         self.util = None
         self._ufeat_t = torch.tensor(utility.LINEAR_FEATS, device=DEV)
         self._runs = []
+        self._bufs = []  # one HostBuffers per engine group, reused across runs
         self.amp = amp  # bf16 autocast inside the graphs (the networks are compute-bound there)
         self.value_amp = amp if value_amp is None else value_amp
         self.buckets = (1024, 2048, 4096, 8192, 16384) if buckets is None else buckets
@@ -325,7 +384,7 @@ class FastSearch:
                         res[idx] = fn(obs, mask, idx, u=u)
             G["pol_out_t"][:n_pol].copy_(res, non_blocking=True)
         if n_val:
-            vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
+            _, vo = self._val_obs(G, n_val)
             dec = (G["val_kind"][:n_val] & 2) != 0
             if self.merge_dec:
                 dec = np.ones_like(dec)
@@ -369,7 +428,7 @@ class FastSearch:
                     res[ir_t] = self._run(pol_fn(self.net), G["pol_obs"][ir], obs[ir_t], mask[ir_t], u[ir_t])
             G["pol_out_t"][:n_pol].copy_(res, non_blocking=True)
         if n_val:
-            vo = G["val_obs_t"][:n_val].to(DEV, non_blocking=True)
+            vo_np, vo = self._val_obs(G, n_val)
             def val(o, m, **shape):
                 if self.dist:
                     ol, pl = self.net.heads_out(o, ufeat=self._uf(o), **shape)
@@ -379,9 +438,23 @@ class FastSearch:
                 for n2 in self.value_nets:
                     v = v + n2(o, None, policy=False, ufeat=self._uf(o), **shape)[1]
                 return (v / (1 + len(self.value_nets))).unsqueeze(1)
-            G["val_out_t"][:n_val].copy_(self._run(val, G["val_obs"][:n_val], vo).view(n_val, self.val_w), non_blocking=True)
+            G["val_out_t"][:n_val].copy_(self._run(val, vo_np, vo).view(n_val, self.val_w), non_blocking=True)
         if self.cuda:
             G["event"].record()
+
+    @staticmethod
+    def _val_obs(G, n):
+        """The `n` value rows of group G in row order: (host view, device tensor). In the shared layout row r sits at `shared - 1 - r`."""
+        s = G["shared"]
+        if s:
+            return G["pol_obs"][s - n:s][::-1], G["pol_obs_t"][s - n:s].to(DEV, non_blocking=True).flip(0)
+        return G["val_obs"][:n], G["val_obs_t"][:n].to(DEV, non_blocking=True)
+
+    @staticmethod
+    def _advance(G, pol=None, val=None):
+        if G["shared"]:
+            return G["eng"].advance_shared(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_kind"], pol, val)
+        return G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_obs"], G["val_kind"], pol, val)
 
     def _collect(self, g):
         if self.cuda:
@@ -403,6 +476,9 @@ class FastSearch:
         nj = len(job_scen)
         sj = [json.dumps(s) for s in scenarios]
         groups = []
+        # the previous run's engines (kept for `moves`) hold every block's play-out combats (~19 KB each: 3 GB per group at 1024 blocks x 5x32): drop
+        # them before building new ones instead of holding two sets at the peak
+        self._runs = []
         t0 = time.perf_counter()
         for gi in range(self.groups):
             idx = np.arange(gi, nj, self.groups)  # interleaved jobs: every group sees the whole mix
@@ -412,37 +488,40 @@ class FastSearch:
                                      self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, self.threads, self.record, self.lead, self.carry, self.strat, starts,
                                      None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns, turn_cap=heads.TURN_CAP,
                                      val_w=self.val_w, worth=wt)
-            pc, vc = eng.max_rows()
-            pin = self.cuda
-            G = dict(eng=eng, idx=idx, n_pol=0, n_val=0)
-            for name, shape, dt in (("pol_obs", (pc, OBS), torch.float32), ("pol_mask", (pc, ACT), torch.uint8), ("pol_kind", (pc,), torch.uint8), ("pol_u", (pc,), torch.float32), ("val_obs", (vc, OBS), torch.float32), ("val_kind", (vc,), torch.uint8),
-                                    ("pol_out", (pc, 2 * self.M + 1), torch.float32), ("val_out", (vc, self.val_w), torch.float32)):
-                t = torch.empty(shape, dtype=dt, pin_memory=pin)
-                G[name + "_t"] = t
-                G[name] = t.numpy()
+            # one observation buffer for policy and value rows when the engine supports it (`advance_shared`: half the pinned memory); an older
+            # extension gets the two buffers of `max_rows`
+            shared = eng.shared_rows() if hasattr(eng, "advance_shared") else 0
+            pc, vc = (shared, shared) if shared else eng.max_rows()
+            while len(self._bufs) <= gi:
+                self._bufs.append(HostBuffers(self.cuda))
+            B = self._bufs[gi]
+            B.ensure(pc, vc, 2 * self.M + 1, self.val_w, shared=bool(shared))
+            G = dict(eng=eng, idx=idx, n_pol=0, n_val=0, shared=shared)
+            for name, arr in B.a.items():
+                G[name], G[name + "_t"] = arr, B.t[name]
             if self.cuda:
                 G["event"] = torch.cuda.Event()
             groups.append(G)
         self.timers["setup"] += time.perf_counter() - t0
         t0 = time.perf_counter()
         for G in groups:
-            G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_obs"], G["val_kind"])
+            G["n_pol"], G["n_val"] = self._advance(G)
             self._evaluate(G, G["n_pol"], G["n_val"])
         active = list(groups)
         cycles = rows = 0
+        peak_pol = peak_val = peak_rows = 0  # the most rows one group requested in one cycle (the buffers hold max_rows)
         while active:
             for G in list(active):
                 t = time.perf_counter()
                 self._collect(G)
                 self.timers["wait net"] += time.perf_counter() - t
                 t = time.perf_counter()
-                if not self.cuda:
-                    pass
                 npol, nval = G["n_pol"], G["n_val"]
-                G["n_pol"], G["n_val"] = G["eng"].advance(G["pol_obs"], G["pol_mask"], G["pol_kind"], G["pol_u"], G["val_obs"], G["val_kind"], G["pol_out"][:npol], G["val_out"][:nval].reshape(-1))
+                G["n_pol"], G["n_val"] = self._advance(G, G["pol_out"][:npol], G["val_out"][:nval].reshape(-1))
                 self.timers["engine"] += time.perf_counter() - t
                 cycles += 1
                 rows += G["n_pol"] + G["n_val"]
+                peak_pol, peak_val, peak_rows = max(peak_pol, G["n_pol"]), max(peak_val, G["n_val"]), max(peak_rows, G["n_pol"] + G["n_val"])
                 if G["n_pol"] == 0 and G["n_val"] == 0:
                     assert G["eng"].finished()
                     active.remove(G)
@@ -462,7 +541,8 @@ class FastSearch:
         tot = collections.Counter()
         for G in groups:
             tot.update(G["eng"].stats())
-        self.stats = dict(tot, cycles=cycles, rows_per_cycle=rows / max(cycles, 1))
+        self.stats = dict(tot, cycles=cycles, rows_per_cycle=rows / max(cycles, 1), peak_pol=peak_pol, peak_val=peak_val, peak_rows=peak_rows,
+                          cap_pol=max(G["eng"].max_rows()[0] for G in groups), cap_val=max(G["eng"].max_rows()[1] for G in groups))
         self.timers["run"] += time.perf_counter() - t0
         return out
 

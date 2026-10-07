@@ -96,6 +96,10 @@ def collect(a):
                         continue
                     D["fight"].append(f); D["step"].append(int(t))
                     D["opts"].append(np.where(ok, opts[t, :a.M], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :a.M], np.nan).astype(np.float32))
+        # the engines hold every block's play-out combats (~4 GB per group at 2048 roots x 5x32): a loop variable still naming one kept it alive
+        # through the next chunk's search
+        eng = None
+        fs._runs = []
         _save(f"{stem}_{k:03d}.npz", cs, F_, D)
         lens = res[:, 4]
         top = np.argsort(-lens)[:3]

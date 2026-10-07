@@ -342,6 +342,30 @@ struct Out {
     val_cap: usize,
     n_pol: AtomicUsize,
     n_val: AtomicUsize,
+    /// Shared layout ([`SearchEngine::advance_shared`]): `val_obs` is the policy observation buffer and value row `r` is written at row
+    /// `shared - 1 - r` (from the end backwards); `used` counts policy plus value rows, which may not pass `shared`. 0: separate buffers.
+    shared: usize,
+    used: AtomicUsize,
+}
+
+impl Out {
+    /// The observation row value row `r` is written to.
+    fn val_obs_row(&self, r: usize) -> usize {
+        if self.shared > 0 {
+            self.shared - 1 - r
+        } else {
+            r
+        }
+    }
+
+    /// Shared layout: one more row of the common capacity (the policy rows grow from the front, the value rows from the back: they meet only if
+    /// the total passes it).
+    fn take_shared(&self) {
+        if self.shared > 0 {
+            let u = self.used.fetch_add(1, Ordering::Relaxed);
+            assert!(u < self.shared, "shared request buffer too small");
+        }
+    }
 }
 
 /// The caller's answers to the previous call's requests.
@@ -441,6 +465,7 @@ fn write_row(cx: &mut Combat, buf: &ActionBuf, playable: Option<u16>, obs: SendP
 
 fn pol_row(out: &Out, sim: bool, cx: &Combat, u: f32) -> usize {
     let kind = sim as u8 | (cx.decision.is_some() as u8) << 1;
+    out.take_shared();
     let r = out.n_pol.fetch_add(1, Ordering::Relaxed);
     assert!(r < out.pol_cap, "policy request buffer too small");
     // SAFETY: row `r` is owned by the caller (unique counter value) and below the capacity.
@@ -460,6 +485,7 @@ fn unit(s: &mut u64) -> f32 {
 const ROLL_SALT: u64 = 0x5DEE_CE66_D1CE_4E5B;
 
 fn val_row(out: &Out, cx: &Combat) -> usize {
+    out.take_shared();
     let r = out.n_val.fetch_add(1, Ordering::Relaxed);
     assert!(r < out.val_cap, "value request buffer too small");
     // SAFETY: as in `pol_row`.
@@ -549,7 +575,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             let t0 = tsc();
             let row = val_row(out, &sim.cx);
             let buf = ActionBuf::new();
-            write_row(&mut sim.cx, &buf, None, out.val_obs, None, row);
+            write_row(&mut sim.cx, &buf, None, out.val_obs, None, out.val_obs_row(row));
             st.cy_obs += tsc() - t0;
             st.value_rows += 1;
             if at_leaf {
@@ -1166,16 +1192,6 @@ impl SearchEngine {
         if pol_obs.len() < pc * OBS_SIZE || pol_mask.len() < pc * ACTION_SPACE || pol_kind.len() < pc || pol_u.len() < pc || val_obs.len() < vc * OBS_SIZE || val_kind.len() < vc {
             return Err(EnvError::Buffer("request buffers too small, see SearchEngine::max_rows"));
         }
-        if let Some(v) = val {
-            if v.len() % self.cfg.val_w != 0 {
-                return Err(EnvError::Buffer("value answers are not a whole number of rows of val_w floats"));
-            }
-        }
-        let first = !self.started;
-        if !first && (pol.is_none() || val.is_none()) {
-            return Err(EnvError::Buffer("answers missing"));
-        }
-        self.started = true;
         let out = Out {
             pol_obs: SendPtr(pol_obs.as_mut_ptr()),
             pol_mask: SendPtr(pol_mask.as_mut_ptr()),
@@ -1187,7 +1203,55 @@ impl SearchEngine {
             val_cap: vc,
             n_pol: AtomicUsize::new(0),
             n_val: AtomicUsize::new(0),
+            shared: 0,
+            used: AtomicUsize::new(0),
         };
+        self.advance_out(pol, val, out)
+    }
+
+    /// Rows of the one observation buffer [`SearchEngine::advance_shared`] uses: policy plus value rows of one call never pass it (per block,
+    /// at most one row per play-out plus one root row). About half of `max_rows`' two buffers together.
+    pub fn shared_rows(&self) -> usize {
+        self.blocks.len() * (self.cfg.m * self.cfg.k + 1)
+    }
+
+    /// [`SearchEngine::advance`] with one observation buffer for both kinds of rows (`shared_rows` rows): policy row `r` at row `r` (as before),
+    /// value row `r` at row `shared_rows - 1 - r` (from the end backwards). `mask`, `pol_kind`, `pol_u` and `val_kind` are indexed by the row
+    /// number as before and hold `shared_rows` rows each. Same requests, answers and results as `advance`; half the observation memory.
+    pub fn advance_shared(&mut self, pol: Option<&[f32]>, val: Option<&[f32]>, obs: &mut [f32], mask: &mut [u8], pol_kind: &mut [u8], pol_u: &mut [f32], val_kind: &mut [u8]) -> Result<(usize, usize), EnvError> {
+        let cap = self.shared_rows();
+        if obs.len() < cap * OBS_SIZE || mask.len() < cap * ACTION_SPACE || pol_kind.len() < cap || pol_u.len() < cap || val_kind.len() < cap {
+            return Err(EnvError::Buffer("request buffers too small, see SearchEngine::shared_rows"));
+        }
+        let p = obs.as_mut_ptr();
+        let out = Out {
+            pol_obs: SendPtr(p),
+            pol_mask: SendPtr(mask.as_mut_ptr()),
+            pol_kind: SendPtr(pol_kind.as_mut_ptr()),
+            pol_u: SendPtr(pol_u.as_mut_ptr()),
+            val_obs: SendPtr(p),
+            val_kind: SendPtr(val_kind.as_mut_ptr()),
+            pol_cap: cap,
+            val_cap: cap,
+            n_pol: AtomicUsize::new(0),
+            n_val: AtomicUsize::new(0),
+            shared: cap,
+            used: AtomicUsize::new(0),
+        };
+        self.advance_out(pol, val, out)
+    }
+
+    fn advance_out(&mut self, pol: Option<&[f32]>, val: Option<&[f32]>, out: Out) -> Result<(usize, usize), EnvError> {
+        if let Some(v) = val {
+            if v.len() % self.cfg.val_w != 0 {
+                return Err(EnvError::Buffer("value answers are not a whole number of rows of val_w floats"));
+            }
+        }
+        let first = !self.started;
+        if !first && (pol.is_none() || val.is_none()) {
+            return Err(EnvError::Buffer("answers missing"));
+        }
+        self.started = true;
         let sh = Shared { cfg: self.cfg, scen: &self.scen, worth: &self.worth, starts: &self.starts, jobs: &self.jobs, next_job: AtomicUsize::new(self.next_job), results: SendPtr(self.results.as_mut_ptr()), logs: SendPtr(self.logs.as_mut_ptr()), record: self.record };
         let inp = if first { None } else { Some(Inputs { pol: pol.unwrap(), val: val.unwrap() }) };
         let blocks = &mut self.blocks;
