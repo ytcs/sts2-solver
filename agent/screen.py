@@ -80,7 +80,8 @@ def is_bare_number(step):
 def resolve(state, step):
     """`~text [args]` -> `<i> [args]` for the first option line whose label contains text (case-insensitive); text may be several words (args are `eN` or `!`).
     A label that STARTS with the text wins over one that only contains it (`~card` is the card reward, not a potion whose text mentions cards); identical
-    options (two copies of Strike) are the same action. Anything else is an `ERR ...` string."""
+    options (two copies of Strike) are the same action, and so are gold rewards (`9 Gold` / `25 Gold` with Amethyst Aubergine: every one is collected
+    anyway): the first is taken, and a second `~gold` takes the next. Anything else is an `ERR ...` string."""
     if not step.startswith("~"):
         return step
     words = step[1:].split()
@@ -91,7 +92,8 @@ def resolve(state, step):
     opts = [(n, t.lower()) for n, t in options(state)]
     starts = [n for n, t in opts if t.startswith(want)]
     hits = starts if len(starts) == 1 else [n for n, t in opts if want in t]
-    if len(hits) > 1 and len({t for n, t in opts if n in hits}) == 1:
+    same = {t for n, t in opts if n in hits}
+    if len(hits) > 1 and (len(same) == 1 or all(re.fullmatch(r"\d+ gold", t) for t in same)):
         hits = hits[:1]
     if len(hits) == 1:
         return " ".join([hits[0]] + args)
