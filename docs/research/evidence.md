@@ -92,6 +92,5 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 - **Round 2, first attempt:** one `FastSearch.run` over 64.5k fights at 5x32 ran 6.7 h without finishing, at 7 GB of memory. It was stopped.
 - **Round 2, chunked attempt:** 4,096-fight chunks in one process ran at 25-27 fights/s for 8 chunks (153-162 s each). Chunk 9 took 479 s and the watchdog (3x the median) ended the run.
 - **Bisection:** the same 4,096 scenarios, run in 256-fight pieces in a fresh process, finished in 4.7 min, with every piece at 14-22 s.
-- **What this shows:** the slowdown is process state that accumulates across search runs, not a pathological fight. Where it accumulates is not found yet.
-- **Fix:** `tools/collect.sh` runs `exit.py collect` 3 chunks per fresh process; finished parts are skipped on resume.
-- **Open:** the same accumulation may slow the live daemon over a long run. Measure decision latency over a run.
+- **Correction (later the same day): the process-state explanation did not hold.** A fresh process that started with chunk 9 also passed the watchdog limit (600 s), while the chunk's first 256 jobs, with their exact seeds, ran in 15 s in a fresh process. Cause unknown, still under investigation; chunking with resume plus the watchdog keeps a collection bounded meanwhile.
+- **Open:** find the cause; check whether the live daemon is affected (decision latency over a run).

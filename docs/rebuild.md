@@ -60,6 +60,16 @@ It predicts play under the best combat policy we have (search), not the raw netw
 - Known, predates the rebuild: the search's `carry` optimization never fires (`crates/sts2env/tests/search.rs::carried_lines_finish_and_save_searches`: 0 carried). This costs speed only (about 15% more network rows); results are unaffected.
 - *Gate:* a full act played with no false `DIFFERS`.
 
+**Caps that must not cut off combos (user).** "Infinite" combo turns, with many plays in one turn (e.g. a one-turn boss kill), are a legitimate expert strategy. Today a combo turn is capped like a stall in two places:
+- the play-out cap (60 steps per searched turn): a play-out is cut off and judged by the value network, so search undervalues the combo;
+- the fight cap (300 agent steps, counted as a loss).
+
+Plan:
+- turns are the stall bound (99);
+- the action cap rises far above any legitimate fight;
+- a play-out may continue while the turn makes progress (enemy HP falling, cards or energy generated);
+- the per-step loop guard (20,000 work units per action, observed max 174) stays.
+
 **S1. Observation and fidelity (forces a retrain, so it goes first).**
 - Look-ahead fixes (`game_code.md` A):
   - advance each monster's own state along every projected path (sleep and summon countdowns, spawns, buffs on itself);
