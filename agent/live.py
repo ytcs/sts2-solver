@@ -389,16 +389,36 @@ class Live:
 
     # ------------------------------------------------------------------ selections and the play loop
 
+    @staticmethod
+    def _base(name):
+        """A card's identity without the character suffix and the upgrade mark: 'Strike+' and STRIKE_SILENT -> 'STRIKE'."""
+        cid = re.sub(r"[^A-Z0-9]+", "_", name.strip().rstrip("+").upper().replace("'", "")).strip("_")
+        return re.sub(r"_(IRONCLAD|SILENT|DEFECT|REGENT|NECROBINDER)$", "", cid)
+
     def _choice_mismatch(self, screen):
         """None when the simulator's pending selection offers the same cards as the game's SELECT screen, else a description. Random offers (Colorless /
-        Attack / Skill / Power Potion, Discovery) roll differently in the simulator: its pick would name a card the game does not show."""
-        # starter cards share a display name across characters ("Strike" is STRIKE_SILENT, STRIKE_IRONCLAD, ...): compare without the character suffix
-        base = lambda cid: re.sub(r"_(IRONCLAD|SILENT|DEFECT|REGENT|NECROBINDER)$", "", cid)  # noqa: E731
-        game = sorted(base(macro.card_from_name(m.group(1))[0] or re.sub(r"[^A-Z0-9]+", "_", m.group(1).strip().rstrip("+").upper()).strip("_"))
-                      for _, label in scr.options(screen) for m in [re.match(r"(.+?)\(", label)] if m)
-        sim = sorted(base(m.group(1)) for _, t in self.rp.sim.legal() for m in [re.match(r"pick \d+ \((\w+)\)", t)] if m)
+        Attack / Skill / Power Potion, Discovery) roll differently in the simulator: its pick would name a card the game does not show. A prompt from the
+        hand after a draw (Survivor, Dagger Throw) is first re-synced: the simulator drew its own sample, the game's hand is visible."""
+        labels = [m.group(1) for _, label in scr.options(screen) for m in [re.match(r"(.+?)\(", label)] if m]
+        game = sorted(self._base(x) for x in labels)
+        sim_cands = lambda: sorted(self._base(m.group(1)) for _, t in self.rp.sim.legal() for m in [re.match(r"pick \d+ \((\w+)\)", t)] if m)  # noqa: E731
+        sim = sim_cands()
         if not game or not sim or game == sim:
             return None
+        real = (getattr(self, "_last_f", None) or {}).get("state") or {}
+        hand, used, opts = real.get("hand") or [], set(), []
+        for x in labels:
+            up = int(x.strip().endswith("+"))
+            j = next((j for j, c in enumerate(hand) if j not in used and self._base(c.get("id", "")) == self._base(x) and int(c.get("upgrade", 0) > 0) == up), None)
+            if j is None:
+                break
+            used.add(j)
+            opts.append((hand[j]["id"], int(hand[j].get("upgrade", 0))))
+        if len(opts) == len(labels) and self.rp.sim.sync_choice(json.dumps(real), opts):
+            sim = sim_cands()
+            if game == sim:
+                self.log.event("sync", what="selection re-synced to the game's hand")
+                return None
         self.log.event("divergence", what="selection options differ", game=game, sim=sim)
         return f"SIMULATOR CHOICE DIFFERS: the game offers {', '.join(game)}, the simulator {', '.join(sim)}. Answer by hand (`a <i>`); the solver's pick does not apply."
 

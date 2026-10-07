@@ -346,6 +346,46 @@ impl Sim {
         Ok(out)
     }
 
+    /// At a pending selection from the hand (a discard or exhaust prompt after a card drew), the simulator may hold a different hand than the game
+    /// (it drew its own sample). Puts the hand on the real one and rebuilds the prompt's candidates from `options`, the game's choices in the
+    /// game's order as `(card id, upgrade)`. False (nothing changed) when there is no such prompt or an option has no card in the real hand.
+    fn sync_choice(&mut self, real_json: &str, options: Vec<(String, u8)>) -> PyResult<bool> {
+        if self.cx.decision.is_none() || self.cx.replay.is_some() {
+            return Ok(false);
+        }
+        let real: Value = serde_json::from_str(real_json).map_err(err)?;
+        let hand: Vec<ObsCard> = real["hand"].as_array().map_or(vec![], |h| {
+            h.iter()
+                .filter_map(|c| card_ids(c["id"].as_str().unwrap_or("")).map(|id| ObsCard { id, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8, cost: c["cost"].as_i64().map(|x| x as i32) }))
+                .collect()
+        });
+        let mut want = vec![];
+        for (name, up) in &options {
+            match card_ids(name) {
+                Some(id) => want.push((id, *up)),
+                None => return Ok(false),
+            }
+        }
+        let fits = |cx: &Combat| {
+            let mut used = vec![false; cx.player.hand.len()];
+            let mut out = Pile::new();
+            for &(id, up) in &want {
+                let j = cx.player.hand.iter().enumerate().position(|(j, &c)| !used[j] && cx.cards[c as usize].id == id && cx.cards[c as usize].upgrade == up)?;
+                used[j] = true;
+                out.push(cx.player.hand.as_slice()[j]);
+            }
+            Some(out)
+        };
+        let mut trial = self.cx.clone();
+        trial.sync_hand(&hand);
+        let Some(cands) = fits(&trial) else { return Ok(false) };
+        let d = trial.decision.as_mut().expect("pending decision");
+        d.cands = cands;
+        d.selected.clear();
+        self.cx = trial;
+        Ok(true)
+    }
+
     /// Puts the visible state on the real one: the hand (cards, order, costs), energy, stars, HP / max HP / block of the player and the enemies
     /// (matched by list index). Returns a JSON report of what had to change.
     fn sync(&mut self, real_json: &str) -> PyResult<String> {
