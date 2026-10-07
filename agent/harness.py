@@ -154,6 +154,8 @@ class Harness(Live):
         raw = self._deck_raw()
         if raw == "null":
             raise runctx.NoRun()
+        if raw.startswith("ERR"):  # the bridge is down or busy: say so instead of failing to parse it
+            raise RuntimeError(raw.split("\n")[0])
         return json.loads(raw)
 
     def _cur_act(self, ctx):

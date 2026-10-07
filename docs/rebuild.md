@@ -132,6 +132,9 @@ It predicts play under the best combat policy we have (search), not the raw netw
   - shop: removal first, then the best predicted card within budget;
   - potions: allowed at elites and bosses when the predictor's win gain exceeds 0.05.
 - **Cost (measured):** about 10k fight builds per second plus 55k network evaluations per second on the local GPU, so about 8k fight-start predictions per second. A decision with 4 options x 64 rollouts x ~25 predictions each takes about 10-20 s.
+- **Route-dependent options** (user): a relic or card whose value depends on the route taken (Dowsing Rod; anything that rewards unknown rooms, treasure or elites) is undervalued while the base policy routes the same way whatever was taken. Two fixes:
+  - price (option, best route for it) pairs;
+  - a base policy whose route preferences read the deck and relics.
 - **Validation:**
   - the base policy's simulated run win rate is the baseline;
   - the act-boundary HP and the act reached by real runs fall inside the simulated distribution;
