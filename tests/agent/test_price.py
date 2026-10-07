@@ -132,17 +132,18 @@ def test_price_single_option_and_shop_bundles(monkeypatch, tmp_path):
 
 class ActPred:
     """P(win) by encounter: every fight before act `nxt` is won with probability `act0` at end-HP class `b`; act `nxt`'s bosses and elites at `boss`
-    / `elite` (class `b2`), any other fight there is lost (the rollout ends at its first hallway fight). Records every scenario it is asked."""
+    / `elite` (class `b2`), any other fight there is lost (the rollout ends at its first hallway fight). Records the scenarios asked (`asked`, `batches`)."""
 
     def __init__(self, nxt, b=10, boss=0.4, elite=0.8, b2=20, act0=1.0):
         from agent import pools
         self.bosses, self.elites = set(pools.pool(nxt, "boss")), set(pools.pool(nxt, "elite"))
         self.nxt_act = pools.ACTS[nxt]["act"]
-        self.b, self.boss, self.elite, self.b2, self.act0, self.asked = b, boss, elite, b2, act0, []
+        self.b, self.boss, self.elite, self.b2, self.act0, self.asked, self.batches = b, boss, elite, b2, act0, [], []
 
     def fight_start(self, scenarios, shuffles=4):
         import heads as H
         P = np.zeros((len(scenarios), H.NC))
+        self.batches.append(list(scenarios))
         for k, sc in enumerate(scenarios):
             self.asked.append(sc)
             if sc["act"] < self.nxt_act:
@@ -219,7 +220,8 @@ def test_readiness_is_priced_after_the_ancient_heal():
     c = H.centers()[20 - 1].item()
     w_boss, w_elite = 0.4 * (1 + 0.5 * c / 80) - 0.6, 0.8 * (1 + 0.5 * c / 80) - 0.2
     assert abs(st.ready_worth - (0.5 * w_boss + 0.5 * w_elite)) < 1e-6
-    assert len(ready[0]["deck"]) == len(st.deck)  # the boss reward came before the snapshot (and nothing after it changed the deck)
+    boss_fight = [b[0] for b in pred.batches if len(b) == 1 and b[0]["act"] == 0 and b[0]["encounter"] == "THE_KIN_BOSS"][-1]  # the fight itself
+    assert ready[0]["gold"] == boss_fight["gold"] + int(RM.GOLD["boss"][0] * RM.POVERTY)  # the boss reward came before the snapshot
 
 
 def test_readiness_glory_double_boss_and_deaths_count_zero():
