@@ -123,6 +123,13 @@ class Data:
             self.parts.append(dict(scen=scen, f_scen=z["f_scen"], f_seed=z["f_seed"], f_cls=z["f_cls"], f_off=z["f_off"], acts=z["acts"].astype(np.int32),
                                    d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], tgt=tgt[order]))
             self.parts[-1]["d_lo"] = np.searchsorted(self.parts[-1]["d_fight"], np.arange(len(z["f_cls"]) + 1))
+        # parts searched with different widths (3x8 vs 5x32) carry different option counts: pad to the widest, a padded option counts as not tried
+        m = max(p["d_opts"].shape[1] for p in self.parts)
+        for p in self.parts:
+            k = m - p["d_opts"].shape[1]
+            if k:
+                p["d_opts"] = np.pad(p["d_opts"], ((0, 0), (0, k)), constant_values=-1)
+                p["tgt"] = np.pad(p["tgt"], ((0, 0), (0, k)))
         self.index = [(pi, f) for pi, p in enumerate(self.parts) for f in range(len(p["f_cls"]))]
 
     def __len__(self):
