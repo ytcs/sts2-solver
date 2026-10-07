@@ -15,7 +15,8 @@ Status: draft, 2026-10-06. It becomes the operator skill once the predictor pass
 | Neow / ancient | Choose the run's or act's plan: `plans` for this character and the known boss. Price the options; for relics without a modelled macro effect, add their effect by judgment and log the gap. | `plans`, `price` |
 | Map | `price` at every fork; take the best option at the longest non-flat horizon. Re-price when HP, gold or the deck changed. | `price` |
 | Card reward | `price`; if every option is flat, take the card the chosen plan names, else skip. | `price`, `plans` |
-| Shop | `price` (singles); price the top two or three as a basket by buying one and re-pricing. | `price` |
+| Shop | `price`: "nothing" (the gold carries to the next shops, where the base policy spends it) vs the best affordable bundles of up to 3 purchases (cards, relics, potions, one removal), picked by a quick predictor screen. Buy the winning bundle; re-price if one part cannot be bought. | `price` |
+| Rewards | A potion offered to a full belt: `price` (leave it vs take it in place of each held potion). | `price` |
 | Rest | `price` (rest vs each smith). | `price` |
 | Event | Read the options in the catalog (`data/events.json`); `price` once events are wired. An unmodelled option: decide by judgment and log the gap. | `price` |
 | Combat | `combat` / `turn`. The solver plays and stops at a potion proposal (use now / keep / save, each priced). Commit a potion by hand (`a <i>`) or continue. `adv` on a pivotal turn. | `combat`, `turn`, `adv` |

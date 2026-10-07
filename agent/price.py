@@ -5,9 +5,11 @@ the act horizon then still separates them, and the floors after it. Options per 
   MAP          each node on offer
   CARD_REWARD  each card and skip
   RESTSITE     rest, and smith of each upgradable card
-  SHOP         nothing, each affordable card / relic / potion, the removal of each distinct card
+  SHOP         nothing (save the gold), and the best affordable bundles of up to 3 purchases (cards, relics, potions, one removal), chosen by a quick screen (`bundles`)
+  REWARDS      a potion offered to a full belt: leave it, or take it in place of each held potion
   EVENT        each option of a catalogued event (`data/events.json`) or an ancient (`data/ancient_relics.json`: the relic plus its pickup effects); an unmodelled effect is a no-op
 Each option meets the same draws (common random numbers); the table prints each option's mean with its se and the paired difference to the best.
+A screen with a single option is not priced.
 """
 import os
 import re
@@ -92,31 +94,109 @@ def options(st, state_text):
                 if o is not None and not o["key"].endswith("_LOCKED"):
                     idx = entry["options"].index(o)
                     out.append((label.split(":", 1)[0][:34], lambda s, d, i=idx, eid=entry["id"]: EV.play_option(s, eid, i, d)))
-    elif kind == "SHOP":
+    elif kind == "SHOP":  # singles; `bundles` prices sets of purchases within the budget
         out.append(("nothing", None))
+        out += [(f"{label} ({price}g)", first) for label, _what, price, first in shop_items(st, state_text)]
+    elif kind == "REWARDS":  # a potion offered to a full belt: leave it, or take it in place of each held potion
         for _, label in scr.options(state_text):
-            m = re.match(r"^(\d+)g (card|relic|potion) (.+?)(?:\(|:)", label)
-            if m and "can't afford" not in label:
-                price, what, name = int(m.group(1)), m.group(2), m.group(3).strip()
-                ident = re.sub(r"[^A-Z0-9]+", "_", name.upper()).strip("_")
-                if what == "card":
-                    cid, up = _card_id(name)
-                    if cid:
-                        out.append((f"{name} ({price}g)", lambda s, _d, c=cid, u=up, p=price: (s.deck.append({"id": c, "upgrade": u}), setattr(s, "gold", s.gold - p))))
-                elif what == "relic":
-                    out.append((f"{name} ({price}g)", lambda s, _d, r=ident, p=price: (s.relics.append(r), setattr(s, "gold", s.gold - p))))
-                elif len(st.potions) < st.slots:
-                    out.append((f"{name} ({price}g)", lambda s, _d, q=ident, p=price: (s.potions.append(q), setattr(s, "gold", s.gold - p))))
-            m = re.match(r"^(\d+)g remove a card", label)
-            if m and "can't afford" not in label:
-                price = int(m.group(1))
-                for cid in sorted({c["id"] for c in st.deck if c["id"] != "ASCENDERS_BANE"}):
-                    def rm(s, _d, cid=cid, p=price):
-                        s.deck.remove(next(c for c in s.deck if c["id"] == cid))
-                        s.gold -= p
-                        s.removals += 1
-                    out.append((f"remove {cid} ({price}g)", rm))
+            m = re.match(r"^potion (.+?):", label)
+            pid = _ident(m.group(1)) if m else None
+            if pid in _ids("potions") and len(st.potions) >= st.slots:
+                out.append((f"leave {m.group(1).strip()}", None))
+                for held in dict.fromkeys(st.potions):
+                    out.append((f"{m.group(1).strip()} for {held}", lambda s, _d, h=held, q=pid: s.potions.__setitem__(s.potions.index(h), q)))
+                break  # one potion reward at a time: price the next after taking or leaving this one
     return out
+
+
+def _ident(name):
+    return re.sub(r"[^A-Z0-9]+", "_", name.strip().upper()).strip("_")
+
+
+def _ids(kind):
+    return {r["id"] for rows in R.CAT[kind].values() for r in rows}
+
+
+def _short(cid):
+    return re.sub(r"_(IRONCLAD|SILENT|DEFECT|REGENT|NECROBINDER)$", "", cid)
+
+
+def shop_items(st, state_text):
+    """The affordable purchases of a SHOP screen: [(label, kind, price, first)], the removal once per distinct card (`first` applies the purchase and pays).
+    A relic or potion without a catalog id is left out (the simulator cannot price it)."""
+    out = []
+    for _, label in scr.options(state_text):
+        if "can't afford" in label:
+            continue
+        m = re.match(r"^(\d+)g (card|relic|potion) (.+?)(?:\(|:)", label)
+        if m:
+            price, what, name = int(m.group(1)), m.group(2), m.group(3).strip()
+            if what == "card":
+                cid, up = _card_id(name)
+                if cid:
+                    out.append((name, what, price, lambda s, _d, c=cid, u=up, p=price: (s.deck.append({"id": c, "upgrade": u}), setattr(s, "gold", s.gold - p))))
+            elif what == "relic" and _ident(name) in _ids("relics"):
+                out.append((name, what, price, lambda s, _d, r=_ident(name), p=price: (s.relics.append(r), setattr(s, "gold", s.gold - p))))
+            elif what == "potion" and _ident(name) in _ids("potions") and len(st.potions) < st.slots:
+                out.append((name, what, price, lambda s, _d, q=_ident(name), p=price: (s.potions.append(q), setattr(s, "gold", s.gold - p))))
+        m = re.match(r"^(\d+)g remove a card", label)
+        if m:
+            price = int(m.group(1))
+            for cid in sorted({c["id"] for c in st.deck if c["id"] != "ASCENDERS_BANE"}):
+                def rm(s, _d, cid=cid, p=price):
+                    s.deck.remove(next(c for c in s.deck if c["id"] == cid))
+                    s.gold -= p
+                    s.removals += 1
+                out.append((f"remove {_short(cid)}", "remove", price, rm))
+    return out
+
+
+def bundles(st, items, predictor, keep=6, removals=2, top=8, shuffles=4):
+    """The shop as a budget problem: "nothing" (the gold carries to the next shops) and the `top` affordable bundles of up to 3 purchases (total
+    price <= gold, one removal per visit, potions within the free slots), chosen by a quick screen: the worth of the deck after the bundle against
+    the act's reference fights (`runmodel.reference_fights`), each bundle screened as a whole (a set can be positive while each part alone is not).
+    Every single and every pair is screened (removals: the best `removals` cards only); triples are built from the `keep` purchases that did best
+    alone or in a pair. Returns ([(label, first)], note)."""
+    import itertools
+    import random
+    refs = R.reference_fights(st, random.Random(0))
+
+    def screen(groups):
+        sts = []
+        for g in groups:
+            s = st.copy()
+            for it in g:
+                it[3](s, None)
+            sts.append(s)
+        P = predictor.fight_start([s.scenario(e, hp) for s in sts for e, hp in refs], shuffles)
+        return R.worth(P, st.max_hp).reshape(len(groups), len(refs)).mean(1)
+
+    free = st.slots - len(st.potions)
+
+    def fits(c):
+        return sum(items[i][2] for i in c) <= st.gold and sum(items[i][1] == "remove" for i in c) <= 1 and sum(items[i][1] == "potion" for i in c) <= free
+
+    w = screen([()] + [(it,) for it in items])
+    gain = {(i,): g for i, g in enumerate(w[1:] - w[0]) if fits((i,))}
+    rank = sorted((c[0] for c in gain), key=lambda i: -gain[(i,)])
+    cand = sorted([i for i in rank if items[i][1] != "remove"] + [i for i in rank if items[i][1] == "remove"][:removals])
+    pairs = [c for c in itertools.combinations(cand, 2) if fits(c)]
+    if pairs:
+        gain.update(zip(pairs, screen([tuple(items[i] for i in c) for c in pairs]) - w[0]))
+    best_with = {i: max(g for c, g in gain.items() if i in c) for i in cand}
+    pool = sorted(sorted(cand, key=lambda i: -best_with[i])[:keep])
+    triples = [c for c in itertools.combinations(pool, 3) if fits(c)]
+    if triples:
+        gain.update(zip(triples, screen([tuple(items[i] for i in c) for c in triples]) - w[0]))
+    if not gain:
+        return [("nothing", None)], "nothing affordable"
+    best = sorted(gain, key=lambda c: -gain[c])[:top]
+    opts = [("nothing", None)]
+    for c in best:
+        label = " + ".join(items[i][0] for i in c) + f" ({sum(items[i][2] for i in c)}g)"
+        opts.append((label, lambda s, d, c=c: [items[i][3](s, d) for i in c]))
+    note = f"the best {len(best)} of {len(gain)} affordable bundles by a screen against " + " and ".join(f"{e} at {hp} HP" for e, hp in refs)
+    return opts, note
 
 
 def price(st, opts, predictor, n=128, seed=0, shuffles=4):
@@ -144,7 +224,8 @@ def table(res):
     labels = list(res)
     keys = (("win", "P(win run)"), ("act", "P(clear act)"), ("floors", "floors"))
     best = max(labels, key=lambda lb: tuple(res[lb][k].mean() for k, _ in keys))
-    lines = [f"{'option':34s} " + "  ".join(f"{t:>18s}" for _, t in keys) + "   vs best (paired)"]
+    W = min(64, max(34, *(len(lb) for lb in labels)))
+    lines = [f"{'option':{W}s} " + "  ".join(f"{t:>18s}" for _, t in keys) + "   vs best (paired)"]
     for lb in sorted(labels, key=lambda lb: tuple(-res[lb][k].mean() for k, _ in keys)):
         cells = []
         for k, _ in keys:
@@ -153,5 +234,5 @@ def table(res):
         d = res[lb]["act"] - res[best]["act"]
         dfl = res[lb]["floors"] - res[best]["floors"]
         vs = "" if lb == best else f"   act {d.mean():+.3f} ±{d.std(ddof=1) / len(d) ** 0.5:.3f}, floors {dfl.mean():+.1f} ±{dfl.std(ddof=1) / len(dfl) ** 0.5:.1f}"
-        lines.append(f"{lb[:34]:34s} " + "  ".join(cells) + vs)
+        lines.append(f"{lb[:W]:{W}s} " + "  ".join(cells) + vs)
     return "\n".join(lines)

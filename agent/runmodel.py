@@ -166,10 +166,10 @@ class RunState:
     def relic_ids(self):
         return tuple(r if isinstance(r, str) else r["id"] for r in self.relics)
 
-    def scenario(self, encounter, hp=None, deck=None, potions=None):
+    def scenario(self, encounter, hp=None, deck=None, potions=None, relics=None):
         pots = self.potions if potions is None else potions
         return dict(self.base, name=f"rm_{encounter}", encounter=encounter, act=self.act, hp=int(hp or self.hp), max_hp=self.max_hp, gold=self.gold,
-                    deck=deck or self.deck, relics=[r if isinstance(r, dict) else {"id": r} for r in self.relics],
+                    deck=deck or self.deck, relics=[r if isinstance(r, dict) else {"id": r} for r in (self.relics if relics is None else relics)],
                     potions=[{"id": p, "slot": i} for i, p in enumerate(pots)], max_potion_slots=self.slots)
 
     def draw_encounter(self, kind, rng):
@@ -241,13 +241,25 @@ class BasePolicy:
         return next((c for c in st.deck if not c.get("upgrade") and not c["id"].startswith(BASICS)), None) or \
             next((c for c in st.deck if not c.get("upgrade") and c["id"] != "ASCENDERS_BANE"), None)
 
-    def shop(self, st, items):
-        """The removal of a basic card when affordable."""
-        for kind, _id, price in items:
-            basic = next((c for c in st.deck if c["id"].startswith(BASICS[:2])), None)
-            if kind == "remove" and basic is not None and st.gold >= price:
-                return [(kind, basic, price)]
-        return []
+    def shop(self, st, items, rng):
+        """The purchases [(kind, item, price)] at a shop, as a generator (it yields the screen's fight scenarios and receives the predictor's rows):
+        the removal of a basic card when affordable, then the card or relic that most raises the worth against the act's reference fights
+        (`reference_fights`) within the gold left, or nothing when none raises it: the gold then carries to the next shop, which gives gold its value."""
+        buys, gold, deck = [], st.gold, list(st.deck)
+        refs = reference_fights(st, rng)  # drawn at every shop, bought or not: the paired rollouts keep the same draws
+        basic = next((c for c in deck if c["id"].startswith(BASICS[:2])), None)
+        rm = next((it for it in items if it[0] == "remove"), None)
+        if basic is not None and rm is not None and gold >= rm[2]:
+            buys.append(("remove", basic, rm[2]))
+            gold -= rm[2]
+            deck.remove(basic)
+        cands = [it for it in items if it[0] in ("card", "relic") and it[2] <= gold]
+        if not cands:
+            return buys
+        variants = [(deck, st.relics)] + [(deck + [{"id": i, "upgrade": 0}], st.relics) if k == "card" else (deck, st.relics + [i]) for k, i, _ in cands]
+        P = yield [st.scenario(e, hp, deck=d, potions=[], relics=r) for d, r in variants for e, hp in refs]
+        best = int(np.argmax(worth(P, st.max_hp).reshape(len(variants), len(refs)).mean(1)))
+        return buys + ([cands[best - 1]] if best else [])
 
 
 def reference_fights(st, rng):
@@ -341,11 +353,15 @@ def play(st, rng, pol, first=None):
                 if c is not None:
                     c["upgrade"] = 1
         elif t == "$":
-            for kind, card, price in pol.shop(st, dr.shop(st.offset, st.removals, st.relic_ids())):
+            for kind, item, price in (yield from pol.shop(st, dr.shop(st.offset, st.removals, st.relic_ids()), rng)):
                 st.gold -= price
                 if kind == "remove":
-                    st.deck.remove(card)
+                    st.deck.remove(item)
                     st.removals += 1
+                elif kind == "card":
+                    st.deck.append({"id": item, "upgrade": 0})
+                elif kind == "relic":
+                    st.relics.append(item)
         elif t == "T":
             st.gold += dr.gold("treasure")
             r = dr.relic(st.relic_ids())
