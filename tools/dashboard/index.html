@@ -239,7 +239,7 @@ table.pt td.best { color: var(--good); font-weight: 600; }
       <h2><span id="screenkind">Screen</span><span class="dim small" id="screensub"></span></h2>
       <div id="screen"><div class="empty">waiting for the harness (runs/CURRENT)</div></div>
     </section>
-    <section class="panel" id="mappanel" style="margin-top:10px" title="click: larger map"><h2>Map <span class="dim small" id="mapsub"></span><span class="faint small" style="margin-left:auto">click to enlarge</span></h2><div id="minimap" class="mapview"></div></section>
+    <section class="panel" id="mappanel" style="margin-top:10px" title="click: larger map"><h2>Map <span class="dim small" id="mapsub"></span></h2><div id="minimap" class="mapview"></div></section>
     <section class="panel" id="infopanel" style="margin-top:10px">
       <div class="sub" id="deckbox"><div class="shd"><span class="title">Deck</span> <span class="dim small" id="decksub"></span>
         <button type="button" id="deckorder" title="deck order: click to switch between alphabetical and the order the cards were added"></button></div>
@@ -523,10 +523,13 @@ function renderScreen() {
   const scr = currentScreen(), text = scr.text || "", kind = kindOf(text);
   $("mappanel").classList.toggle("hidden", kind === "MAP");  // the MAP screen draws the full map itself
   $("screenkind").textContent = kind ? titleCase(kind) : "Screen";
-  $("screensub").textContent = scr.t ? `${scr.live ? "live" : "from the record (no live.json yet: restart the daemon)"} - ${ago(scr.t)}` : "";
+  $("screensub").textContent = scr.t && !scr.live ? "from the record" : "";
+  $("screensub").title = scr.t && !scr.live ? "no live.json yet: restart the daemon" : "";
   $("screentext").textContent = text;
   $("reply").textContent = (S.live && S.live.reply) || "";
-  $("lastcmd").textContent = S.live && S.live.cmd ? `\`${S.live.cmd}\` ${ago(S.live.t)}` : "";
+  $("replybox").classList.toggle("hidden", !$("reply").textContent);
+  $("lastcmd").textContent = S.live && S.live.cmd ? S.live.cmd : "";
+  $("screenbox").classList.toggle("hidden", !text || text === $("reply").textContent);  // the same text twice when the last command was `s`
   const el = $("screen");
   const f = S.live && S.live.fight;
   if ((kind === "COMBAT" || kind === "SELECT") && f && f.state && f.state.combat_in_progress !== false && S.live.fight && kindOf(S.live.screen) === kind) el.innerHTML = combatHTML(f, text, kind);
@@ -543,7 +546,8 @@ S.deckOrder = "alpha";
 try { if (localStorage.getItem(DECK_ORDER_KEY) === "acq") S.deckOrder = "acq"; } catch (e) { /* no storage: default */ }
 function renderDeck() {
   const run = knownRun(), acq = S.deckOrder === "acq";
-  $("decksub").textContent = run.deck.length ? `${run.deck.length} cards (as of the last fight)` : "";
+  $("decksub").textContent = run.deck.length ? String(run.deck.length) : "";
+  $("decksub").title = "as of the last fight";
   $("deckorder").textContent = acq ? "order: as acquired" : "order: A–Z";
   const list = acq ? run.deck : [...run.deck].sort((a, b) => cardTitle(a.id).localeCompare(cardTitle(b.id)));
   $("deck").innerHTML = list.map((c) => cardHTML(c.id, { upgrade: c.upgrade, mini: true })).join("") || `<span class="faint small">no deck yet (known from the first fight)</span>`;
@@ -740,7 +744,7 @@ function mapSVG(m, o = {}) {  // o.compact: floors left to right (the map panel;
 }
 function mapHTML(text) {
   const m = mapModel();
-  if (!m) return `<div class="dim small">no act map in the record yet (logged at each fight start, or after \`m\`)</div>` + optionsHTML(text, "MAP");
+  if (!m) return `<div class="dim small">no map yet</div>` + optionsHTML(text, "MAP");
   const offers = options(text).map((o) => ({ n: o.n, coord: mapOptionCoord(o.label), label: o.label }));
   return `<div id="map">${mapSVG(m, { offers, price: latestPrice("MAP") })}</div>${optionsHTML(text, "MAP")}`;
 }
@@ -748,7 +752,7 @@ function renderMiniMap() {  // the map panel: redrawn only when the map, the pat
   const m = mapModel(), key = m ? m.key : "";
   if (key === S.mapKey) return;
   S.mapKey = key;
-  if (!m) { $("minimap").innerHTML = `<div class="dim small">no act map in the record yet (logged at each fight start, or after \`m\`)</div>`; $("mapsub").textContent = ""; if (!$("mappop").classList.contains("hidden")) renderBigMap(); return; }
+  if (!m) { $("minimap").innerHTML = `<div class="dim small">no map yet</div>`; $("mapsub").textContent = ""; if (!$("mappop").classList.contains("hidden")) renderBigMap(); return; }
   const bossIds = m.P.boss ? m.P.boss.ids : [];
   $("mapsub").textContent = [m.here ? `at r${m.here.r}c${m.here.c}` : "act start", m.route.length ? `planned ${m.route.join(" ")}` : "", bossIds.length ? "boss " + bossIds.map(encTitle).join(" + ") : ""].filter(Boolean).join(" · ");
   $("minimap").innerHTML = mapSVG(m, { compact: true });
@@ -757,7 +761,7 @@ function renderMiniMap() {  // the map panel: redrawn only when the map, the pat
 function renderBigMap() {  // the overlay: drawn when opened, and again only when the panel's map changes while it is open
   const m = mapModel();
   $("mappopsub").textContent = $("mapsub").textContent;
-  $("bigmap").innerHTML = m ? mapSVG(m, { compact: true, big: true }) : `<div class="dim small">no act map in the record yet</div>`;
+  $("bigmap").innerHTML = m ? mapSVG(m, { compact: true, big: true }) : `<div class="dim small">no map yet</div>`;
 }
 function closeMapPop() { const p = $("mappop"); p.classList.add("hidden"); $("bigmap").innerHTML = ""; }
 
@@ -817,14 +821,18 @@ function feedItems() {
   if (pendingPrice) items.push({ kind: "pending", e: pendingPrice, t: pendingPrice.t });
   return items;
 }
+const FEED_FLOOR = { last: null };  // renderFeed: the floor tag of the event above
 function macroHTML(it) {
   const e = it.e, h = header(e.state), label = chosenLabel(e.state, e.choice);
   const opts = options(e.state);
   const optsBody = `<div class="opts" style="margin-top:4px">${opts.map((o) => `<div class="opt small ${label === o.label ? "best" : ""}" style="${label === o.label ? "background:var(--chosen)" : ""}"><span class="n">${o.n}</span><span>${esc(o.label)}</span></div>`).join("")}</div>`;
   const card = parseCardLabel(label);
-  return `<div class="ev macro">${evHead(e.screen || "macro", "", `<span class="dim small">${h ? `A${h.act} F${h.floor}` : ""}</span>`, e.t)}
-    <div class="chose">${card ? cardHTML(card.id, { upgrade: card.upgrade, cost: card.cost, star: card.star, mini: true }) : ""}<div><span class="dim">chose</span> <span class="choice">${esc(label)}</span>${e.result ? ` <span class="faint small">&rarr; ${esc(e.result)}</span>` : ""}</div></div>
-    ${e.why ? `<div class="why">${esc(e.why)}</div>` : ""}
+  const fl = h ? `A${h.act} F${h.floor}` : "";
+  const showFl = fl && fl !== FEED_FLOOR.last;
+  if (fl) FEED_FLOOR.last = fl;
+  return `<div class="ev macro">${evHead(e.screen || "macro", "", showFl ? `<span class="dim small">${fl}</span>` : "", e.t)}
+    <div class="chose" ${e.result ? `title="${esc("then " + e.result)}"` : ""}>${card ? cardHTML(card.id, { upgrade: card.upgrade, cost: card.cost, star: card.star, mini: true }) : ""}<div><span class="choice">${esc(card ? (card.price != null ? card.price + "g " : "") + cardTitle(card.id) + (card.upgrade ? "+" : "") : label)}</span></div></div>
+    ${e.why && !(opts.length <= 1 && /^only option/i.test(e.why)) ? `<div class="why">${esc(e.why)}</div>` : ""}
     ${it.price ? priceTable(it.price, label) : ""}
     ${opts.length > 1 ? det("mo" + e.t, `<span class="dim small">${opts.length} options</span>`, optsBody, false) : ""}</div>`;
 }
@@ -904,10 +912,10 @@ function fightHTML(it, latest) {
   const quant = q ? lossHist(q, s ? s.hp : null, lost) : "";
   const acts = it.acts.filter((a) => a.kind !== "advice" || true);
   const head = `${icon ? `<img class="icon sm" src="${A(icon)}">` : ""}<span class="title">${esc(encTitle(enc))}</span>
-    ${s ? `<span class="small">HP ${s.hp}/${s.max_hp}</span>` : ""}${e && e.hp ? ` <span class="small">&rarr; ${e.hp[0]}/${e.hp[1]}</span>` : latest && !e ? ` <span class="chip good">in progress</span>` : ""}`;
-  const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span>HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b> <span class="faint">(${pct(p.hp_lost, 1)} of max)</span></span>
+    ${s ? `<span class="small dim">HP ${s.hp}${e && e.hp ? ` &rarr; ${e.hp[0]}` : ""}/${s.max_hp}</span>` : e && e.hp ? `<span class="small dim">HP ${e.hp[0]}/${e.hp[1]}</span>` : ""}${latest && !e ? ` <span class="chip good">in progress</span>` : ""}`;
+  const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span title="${esc(pct(p.hp_lost, 1) + " of max HP")}">HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b></span>
       ${lost != null ? `<span>actual lost <b class="${e.pit != null && e.pit > 0.9 ? "bad" : ""}">${lost}</b>${e.pit != null ? ` <span class="faint">(${pct(e.pit)} quantile)</span>` : ""}</span>` : ""}
-      ${s && s.drive ? `<span class="dim" title="${esc(s.drive[0] + ": " + s.drive[1])}">${esc(s.drive[0])}${/^predicted win/.test(s.drive[1] || "") ? "" : ": " + esc(s.drive[1])}</span>` : ""}${s && s.budget != null ? `<span class="faint">budget ${s.budget}s</span>` : ""}</div>${quant}
+      ${s && s.drive ? `<span class="faint" title="${esc(s.drive[0] + ": " + s.drive[1] + (s.budget != null ? `; search budget ${s.budget}s` : ""))}">${esc(s.drive[0])}</span>` : ""}</div>${quant}
     ${e && e.errors && e.errors.length ? `<div class="bad small">replay: ${esc(e.errors.join("; "))}</div>` : ""}
     ${det("fa" + (s ? s.t : e.t), `<span class="dim small">${acts.filter((a) => a.kind === "action").length} actions, ${acts.filter((a) => a.kind === "potion_proposal" || a.kind === "potion_check").length} potion checks</span>`,
       `<div style="margin-left:6px">${acts.slice(-150).map((a, i, arr) => actionHTML(a, i, arr.length)).join("")}</div>`, latest && !e)}`;
@@ -934,8 +942,9 @@ function renderFeed() {
   const items = feedItems();
   const lastFight = [...items].reverse().find((i) => i.kind === "fight");
   const shown = items.slice(-250).reverse();
+  FEED_FLOOR.last = null;
   $("feed").innerHTML = shown.map((it) => it.kind === "macro" ? macroHTML(it) : it.kind === "fight" ? fightHTML(it, it === lastFight) : looseHTML(it.e)).join("") || `<div class="empty">no decisions recorded yet</div>`;
-  $("feedsub").textContent = `${S.events.length} events${items.length > 250 ? ", latest 250 shown" : ""}`;
+  $("feedsub").textContent = items.length > 250 ? "latest 250" : "";
 }
 
 // ------------------------------------------------------------------ polling (files only, about once a second)
