@@ -66,6 +66,9 @@ It predicts play under the best combat policy we have (search), not the raw netw
   - add the other enemies' pending moves to the cache key;
   - add a probability-accuracy test;
   - extend the horizon to 4-5 turns.
+  - *Done:* the look-ahead plays the next turns on a projected copy of the combat (`docs/env-api.md`), `LOOK_H` = 4, pending node and
+    stored follow-up in the observation (`enemy_moves`), calibration tests in `tests/lookahead.rs` (passive play: 0 impossible moves,
+    every move count within 3 sigma). Cost: an env step on the training mix goes from 6.3 to 14.2 us (single thread, random play).
 - Cross-character cards in the fuzzers, and the `base_orb_slots` default fixed (`game_code.md` B).
 - *Gate:* fuzz rounds with 0 residual mismatches on the new mixes; the look-ahead's probability test within tolerance.
 

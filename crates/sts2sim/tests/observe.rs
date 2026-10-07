@@ -95,6 +95,21 @@ fn hidden_state_does_not_leak() {
     }
 }
 
+/// The enemy-move section (appended, S1): the pending move node of each enemy, and after a stun the node it resumes.
+#[test]
+fn enemy_moves_section_shows_the_pending_node() {
+    let (off, size) = observe::layout().iter().find(|s| s.0 == "enemy_moves").map(|s| (s.1, s.2)).unwrap();
+    assert_eq!(size, observe::ENEMY_MOVES_F);
+    let mut cx = Combat::new(&scenario(4));
+    let e = cx.enemies[0];
+    let v = obs(&cx);
+    let pending = cx.cr(e).monster.next_move;
+    assert_eq!((v[off], v[off + 1]), ((pending + 1) as f32, 0.0));
+    cx.stun(e, None, None);
+    let v = obs(&cx);
+    assert_eq!((v[off], v[off + 1]), (255.0, (pending + 1) as f32)); // stunned, then back to the interrupted move
+}
+
 #[test]
 fn visible_changes_do_change_the_observation() {
     let cx = midfight(3);

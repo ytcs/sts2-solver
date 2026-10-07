@@ -343,6 +343,13 @@ fn set_relic_mask(on: bool) -> bool {
     sts2sim::observe::MASK_RELICS.swap(on, std::sync::atomic::Ordering::Relaxed)
 }
 
+/// Whether the enemy look-ahead is the one from before S1 (`sts2sim::engine::LOOK_LEGACY`: each machine walked alone over 3 turns;
+/// off by default). For networks trained before and A/B tests. Returns the previous setting.
+#[pyfunction]
+fn set_look_legacy(on: bool) -> bool {
+    sts2sim::engine::LOOK_LEGACY.swap(on, std::sync::atomic::Ordering::Relaxed)
+}
+
 #[pyfunction]
 fn obs_size() -> usize {
     sts2env::OBS
@@ -407,6 +414,7 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("BatchEnv", m.getattr("BatchEnvPy")?)?;
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;
     m.add_function(wrap_pyfunction!(set_relic_mask, m)?)?;
+    m.add_function(wrap_pyfunction!(set_look_legacy, m)?)?;
     m.add_function(wrap_pyfunction!(replay, m)?)?;
     m.add_function(wrap_pyfunction!(action_space, m)?)?;
     m.add_function(wrap_pyfunction!(layout, m)?)?;

@@ -114,8 +114,8 @@ def test_advice(monkeypatch, tmp_path):
     h, fake, eng = setup(monkeypatch, tmp_path, lambda i, sim, kp: ("play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.5, "end turn": 0.2}))
     out = ok(h.handle("adv 2"))
     assert out.startswith(COMBAT.rstrip("\n") + "\n")
-    assert "\ne1 plan: +1 FABRICATE summon [summons 2] (50%) | FABRICATING_STRIKE 22 + summon [summons 1] (50%)" in out
-    assert "advice: play BOLAS #0 -> e1 q0.5   [alt: end turn q0.2; play BOLAS #0 -> e0 qNone]   (4 rounds, 0.1s)\noutlook (expected damage, next 3 turns): " in out
+    assert "\ne1 plan: +1 DISINTEGRATE 14  +2 DISINTEGRATE 14" in out  # the pending summon makes 4+ enemies: no fabricating after it
+    assert "advice: play BOLAS #0 -> e1 q0.5   [alt: end turn q0.2; play BOLAS #0 -> e0 qNone]   (4 rounds, 0.1s)\noutlook (expected damage, next 4 turns): " in out
     assert eng.decide_calls[-1]["budget"] == 2.0 and eng.decide_calls[-1]["tol_hp"] == 0.0
     assert fake.actions() == []
     adv = [e for e in events(h) if e["kind"] == "advice"][-1]

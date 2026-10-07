@@ -44,6 +44,11 @@ pub const ORBS_F: usize = MAX_ORBS * ORB_F + 1;
 /// of each move node and the expected total attack damage (see `Combat::lookahead`). The enemy's identity and node indices
 /// are in the enemy block, so the agent learns what each node means exactly as a player learns a monster.
 pub const LOOK_F: usize = OBS_MAX_ENEMIES * LOOK_H * (LOOK_NODES + 1);
+/// Where each enemy's move pattern stands (appended at the END of the vector, S1): per enemy slot, the pending move node + 1 (the
+/// intent block shows only its intent types; 255 = stunned) and the node it resumes after a stun / a stored follow-up + 1 (0 when
+/// none is pending), in the encoding of the performed-move history.
+pub const MOVE_STATE_F: usize = 2;
+pub const ENEMY_MOVES_F: usize = OBS_MAX_ENEMIES * MOVE_STATE_F;
 /// Total length of the flat observation vector.
 pub const OBS_SIZE: usize = GLOBAL_F
     + PLAYER_F
@@ -57,7 +62,8 @@ pub const OBS_SIZE: usize = GLOBAL_F
     + REGENT_F
     + OSTY_F
     + ORBS_F
-    + LOOK_F;
+    + LOOK_F
+    + ENEMY_MOVES_F;
 
 struct W<'a> {
     out: &'a mut [f32],
@@ -436,6 +442,22 @@ impl Combat {
             }
         }
         });
+        // ---- where each enemy's pattern stands (appended) ----
+        for k in 0..OBS_MAX_ENEMIES {
+            match self.enemies.get(k) {
+                Some(e) if self.cr(e).monster.next_move != NO => {
+                    let ms = &self.cr(e).monster;
+                    w.n(ms.next_move as i32 + 1);
+                    let stored = match content::monster_def(ms.id).nodes.get(ms.next_move as usize) {
+                        _ if ms.next_move == crate::engine::STUN_NODE => true,
+                        Some(MonsterNode::Move { follow_up, .. }) => *follow_up == FOLLOW_STORED,
+                        _ => false,
+                    };
+                    w.n(if stored && ms.stun_follow_up != NO { ms.stun_follow_up as i32 + 1 } else { 0 });
+                }
+                _ => w.zeros(MOVE_STATE_F),
+            }
+        }
         debug_assert_eq!(w.i, OBS_SIZE);
         OBS_SIZE
     }
@@ -443,7 +465,7 @@ impl Combat {
 
 /// The sections of the observation vector in order: `(name, offset, size)`. The sizes sum to `OBS_SIZE` (tested).
 pub fn layout() -> Vec<(&'static str, usize, usize)> {
-    let sizes: [(&'static str, usize); 16] = [
+    let sizes: [(&'static str, usize); 17] = [
         ("global", GLOBAL_F),
         ("player", PLAYER_F),
         ("relics", RELIC_F),
@@ -459,6 +481,7 @@ pub fn layout() -> Vec<(&'static str, usize, usize)> {
         ("osty", OSTY_F),
         ("orbs", ORBS_F),
         ("look", LOOK_F),
+        ("enemy_moves", ENEMY_MOVES_F),
         ("end", 0),
     ];
     let mut out = vec![];
@@ -494,6 +517,7 @@ pub fn layout_consts() -> Vec<(&'static str, usize)> {
         ("MAX_PICK", MAX_PICK),
         ("LOOK_H", LOOK_H),
         ("LOOK_NODES", LOOK_NODES),
+        ("MOVE_STATE_F", MOVE_STATE_F),
         ("N_CARDS", crate::ids::card::COUNT),
         ("N_POWERS", crate::ids::power::COUNT),
         ("N_RELICS", crate::ids::relic::COUNT),

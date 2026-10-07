@@ -450,39 +450,52 @@ impl Combat {
 // ---- Expert pattern knowledge: what an experienced player knows about the upcoming turns -------------------------------
 //
 // The game only shows the CURRENT intent, but experienced players know each monster's pattern by heart: the cycle of a
-// deterministic monster, and the possible moves (with their odds) at random branches. `lookahead` reproduces exactly that
-// knowledge by walking the monster's own state machine forward on a COPY of its state — no RNG is consumed, so the realized
-// random outcomes stay hidden. Random nodes branch by their current weights (repeat rules / cooldowns evaluated on the
-// hypothetical move log); conditional nodes and weight lambdas read the combat as it is now.
+// deterministic monster, the possible moves (with their odds) at random branches, and what the monster does to itself on the
+// way (falls asleep / wakes up, counts down to a summon, buffs itself). `lookahead` reproduces exactly that knowledge by playing
+// the next turns forward on a projected COPY of the combat (`look_turn`): the player passes, the engine runs each enemy turn
+// (moves performed, powers ticking, summons), and at every roll the monster's state machine branches into each possible move
+// with the game's odds, conditions and weights reading the projected combat. The copy's RNG streams are replaced by a fixed seed:
+// the real random state is never read (a random effect inside a projected move gets an arbitrary fixed outcome).
+//
+// Projections are per monster. The monster looked at branches; so do its peers when its odds read them (`LOOK_JOINT`: Two-Tailed
+// Rats read each other's pending summon and share a call count, so all rats branch jointly). Every other enemy takes its most
+// likely move at each roll, which keeps their deterministic patterns (summons, deaths) acting on the projected combat without
+// multiplying the paths.
 
 /// Future turns covered (turn +1 .. +LOOK_H after the one whose intent is shown).
-pub const LOOK_H: usize = 3;
+pub const LOOK_H: usize = 4;
 /// Move-node slots per horizon (nodes >= LOOK_NODES-1, and the synthetic STUNNED node, share the last slot).
 pub const LOOK_NODES: usize = 16;
+/// Projected combats kept per horizon after merging identical ones; beyond it the least likely are dropped (a row then sums
+/// to less than 1).
+const LOOK_PATHS: usize = 8;
+/// Monsters whose roll reads the pending moves / counters of the other enemies with the same id: they branch jointly.
+const LOOK_JOINT: &[u16] = &[crate::ids::monster::TWO_TAILED_RAT];
+/// Run seed of the projected combat's RNG streams.
+const LOOK_SEED: u64 = 0x10_0CA4_EAD;
+
+/// Use the look-ahead from before S1 (each monster's machine walked alone over 3 turns, conditions reading the current combat).
+/// Off by default; kept to reproduce observations of networks trained before (A/B tests, the compatibility check of `rl/model.py`).
+pub static LOOK_LEGACY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Per-horizon knowledge: probability of each move node being the monster's move, and the expected total attack damage
-/// (per-hit damage with the player's and monster's current modifiers x hits, probability-weighted).
+/// (per-hit damage as the intent would show it in the projected combat x hits, probability-weighted).
 #[derive(Clone, Copy)]
 pub struct LookRow {
     pub prob: [f32; LOOK_NODES],
     pub exp_damage: f32,
 }
 
-type Paths = crate::util::ArrayVec<(MonsterState, f32), 48>;
+const EMPTY_ROW: LookRow = LookRow { prob: [0.0; LOOK_NODES], exp_damage: 0.0 };
 
-fn same_machine_state(a: &MonsterState, b: &MonsterState) -> bool {
-    a.cur_state == b.cur_state
-        && a.log == b.log
-        && a.log_len == b.log_len
-        && a.ever_logged == b.ever_logged
-        && a.performed_once == b.performed_once
-        && a.stun_performed == b.stun_performed
-        && a.stun_follow_up == b.stun_follow_up
-}
+/// Outcomes of one roll: the monster's machine state after it, and the probability.
+type Outcomes = crate::util::ArrayVec<(MonsterState, f32), 48>;
+/// Per horizon: (move node, probability, probability x attack damage), one entry per node.
+type LookList = crate::util::ArrayVec<(u8, f32, f32), 20>;
 
 impl Combat {
     /// `RollMove` continued on a hypothetical state: leave `left`, enter `to`, and keep walking branch states until a move.
-    fn look_enter(&self, c: Cid, mut ms: MonsterState, left: u8, to: u8, first: u8, p: f32, out: &mut Paths) {
+    fn look_enter(&self, c: Cid, mut ms: MonsterState, left: u8, to: u8, first: u8, p: f32, out: &mut Outcomes) {
         if left == STUN_NODE {
             ms.stun_performed = false;
         } else {
@@ -537,54 +550,167 @@ impl Combat {
         }
     }
 
-    /// One turn forward: the pending move is performed in the enemy turn, then the next player turn rolls.
-    fn look_roll(&self, c: Cid, ms: &MonsterState, p: f32, out: &mut Paths) {
-        let mut ms = *ms;
-        ms.performed_first = true;
+    /// Every outcome of the roll monster `c` makes now (`roll_move` with each random branch taken), conditions and weights
+    /// reading this combat.
+    fn look_outcomes(&self, c: Cid, out: &mut Outcomes) {
+        let ms = self.cr(c).monster;
         let cur = ms.cur_state;
+        if !self.can_transition_away(c, cur) || (!ms.performed_first && self.node_is_move(c, cur)) {
+            out.push((MonsterState { next_move: cur, ..ms }, 1.0));
+            return;
+        }
         let def = content::monster_def(ms.id);
         let nxt = if cur == STUN_NODE {
-            ms.stun_performed = true;
             if ms.stun_follow_up == NO { def.initial } else { ms.stun_follow_up }
         } else {
-            ms.performed_once |= 1u64 << cur;
             match &def.nodes[cur as usize] {
-                MonsterNode::Move { follow_up, .. } => {
-                    if *follow_up == NO {
-                        def.initial
-                    } else if *follow_up == crate::defs::FOLLOW_STORED {
-                        ms.stun_follow_up
-                    } else {
-                        *follow_up
-                    }
-                }
-                _ => return,
+                MonsterNode::Move { follow_up, .. } if *follow_up == NO => def.initial,
+                MonsterNode::Move { follow_up, .. } if *follow_up == crate::defs::FOLLOW_STORED => ms.stun_follow_up,
+                MonsterNode::Move { follow_up, .. } => *follow_up,
+                // a monster that has not rolled yet (summoned during the enemy turn) starts its walk at its initial branch
+                _ => cur,
             }
         };
-        self.look_enter(c, ms, cur, nxt, NO, p, out);
+        self.look_enter(c, ms, cur, nxt, NO, 1.0, out);
     }
 
-    /// What a human reads off the move pattern: per future turn (+1 .. +LOOK_H after the shown intent), each possible move with its probability and a
-    /// short intent text ("30 + status", "7x2", "buff"), damage with the current modifiers. Same walk as `lookahead`; consumes no RNG.
+    /// Roll `i` of a projected turn: the `i`-th enemy of the list (as in `start_player_turn`) rolls on this combat. A forking
+    /// monster (`fork`) sends one combat per possible move to `out`, any other takes its most likely move. `random` collects the
+    /// monsters whose roll had more than one possible outcome.
+    fn look_roll_one(mut self: Box<Self>, i: usize, fork: &impl Fn(&Combat, Cid) -> bool, p: f32, out: &mut Vec<(Box<Combat>, f32)>, random: &mut u16) {
+        let Some(e) = self.enemies.get(i) else { return out.push((self, p)) };
+        let mut outs = Outcomes::new();
+        if self.cr(e).in_combat {
+            self.look_outcomes(e, &mut outs);
+        }
+        if outs.len() > 1 {
+            *random |= 1 << e;
+        }
+        if outs.len() <= 1 || !fork(&self, e) {
+            // the first most likely outcome
+            if let Some(best) = outs.iter().fold(None, |b: Option<(MonsterState, f32)>, &o| if b.is_some_and(|b| b.1 >= o.1) { b } else { Some(o) }) {
+                self.creatures[e as usize].monster = best.0;
+            }
+            return out.push((self, p));
+        }
+        let n = outs.len();
+        for &(m, q) in outs.iter().take(n - 1) {
+            let mut cx = look_box(&self);
+            cx.creatures[e as usize].monster = m;
+            out.push((cx, p * q));
+        }
+        self.creatures[e as usize].monster = outs[n - 1].0;
+        out.push((self, p * outs[n - 1].1));
+    }
+
+    /// Digest of what makes two combats different for the look-ahead (`look_digest_of`), with the player's relics.
+    fn look_digest(&self) -> u64 {
+        look_digest_of(self, false)
+    }
+
+    /// The projected moves of the enemies `who`: per enemy and future turn, each possible move node with its probability and
+    /// expected damage. `fork` says which monsters branch at their rolls (the others take their most likely move). Also returns
+    /// the set of monsters (bit = creature id) that had a choice at some roll.
+    fn look_project(&self, who: &[Cid], fork: impl Fn(&Combat, Cid) -> bool) -> (crate::util::ArrayVec<[LookList; LOOK_H], MAX_CREATURES>, u16) {
+        let mut random = 0u16;
+        let mut lists = crate::util::ArrayVec::<[LookList; LOOK_H], MAX_CREATURES>::new();
+        let mut ids = [0u16; MAX_CREATURES];
+        for (k, &c) in who.iter().enumerate() {
+            lists.push(core::array::from_fn(|_| LookList::new()));
+            ids[k] = self.cr(c).monster.id;
+        }
+        crate::util::quiet(|| {
+            let mut base = look_box(self);
+            base.rng = *look_rng();
+            base.auto_select = true;
+            base.replay = None;
+            // the player passes and is inert: no powers, relics, cards or block act in the projection, and it cannot die
+            base.player_hooks_active = false;
+            let pl = &mut base.creatures[PLAYER as usize];
+            (pl.hp, pl.max_hp, pl.block) = (1 << 24, 1 << 24, 0);
+            pl.powers.clear();
+            // path buffers, reused across turns and rolls
+            let (mut paths, mut next, mut rolled): (Vec<(Box<Combat>, f32)>, Vec<(Box<Combat>, f32)>, Vec<(Box<Combat>, f32)>) =
+                (Vec::with_capacity(4 * LOOK_PATHS), Vec::with_capacity(4 * LOOK_PATHS), Vec::with_capacity(4 * LOOK_PATHS));
+            paths.push((base, 1.0));
+            for h in 0..LOOK_H {
+                for (mut cx, p) in paths.drain(..) {
+                    if cx.look_turn() {
+                        next.push((cx, p));
+                    } else {
+                        look_free(cx);
+                    }
+                }
+                // the enemies roll one after the other (a roll can read the moves rolled before it); the paths are merged and
+                // capped once all have rolled, and in between when they outgrow the cap
+                let n_roll = next.iter().map(|(cx, _)| cx.enemies.len()).max().unwrap_or(0);
+                for i in 0..n_roll {
+                    for (cx, p) in next.drain(..) {
+                        cx.look_roll_one(i, &fork, p, &mut rolled, &mut random);
+                    }
+                    core::mem::swap(&mut next, &mut rolled);
+                    if next.len() > LOOK_PATHS || (i + 1 == n_roll && next.len() > 1) {
+                        look_merge(&mut next);
+                    }
+                }
+                for (cx, p) in next.iter_mut() {
+                    // the damage the intent would show: the projected monster against the player's current modifiers
+                    let inert = cx.creatures[PLAYER as usize].powers;
+                    cx.creatures[PLAYER as usize].powers = self.cr(PLAYER).powers;
+                    cx.player_hooks_active = self.player_hooks_active;
+                    for (k, &f) in who.iter().enumerate() {
+                        let cr = cx.cr(f);
+                        let node = cr.monster.next_move;
+                        if !cr.is_alive() || !cr.in_combat || cr.monster.id != ids[k] || node == NO {
+                            continue;
+                        }
+                        let pd = *p * cx.node_attack_damage(f, node);
+                        let list = &mut lists[k][h];
+                        match list.as_mut_slice().iter_mut().find(|e| e.0 == node) {
+                            Some(e) => {
+                                e.1 += *p;
+                                e.2 += pd;
+                            }
+                            None => list.push((node, *p, pd)),
+                        }
+                    }
+                    cx.creatures[PLAYER as usize].powers = inert;
+                    cx.player_hooks_active = false;
+                }
+                core::mem::swap(&mut paths, &mut next);
+                if paths.is_empty() {
+                    break;
+                }
+            }
+            for (cx, _) in paths {
+                look_free(cx);
+            }
+        });
+        (lists, random)
+    }
+
+    /// `look_project` of one monster: it branches (with its joint peers, `LOOK_JOINT`), the other enemies take their most likely moves.
+    fn look_project_one(&self, f: Cid) -> [LookList; LOOK_H] {
+        self.look_project(&[f], look_fork(self, f)).0[0]
+    }
+
+    /// What a human reads off the move pattern: per future turn (+1 .. +LOOK_H after the shown intent), each possible move with its
+    /// probability and a short intent text ("30 + status", "7x2", "buff"), damage with the current modifiers, followed by the projected
+    /// total when the projection changes it ("12 (projected 15)": Strength gained on the way, Weak expired). Same projection as
+    /// `lookahead`; consumes no RNG.
     pub fn intent_plan(&self, c: Cid) -> Vec<Vec<(String, f32, String)>> {
         let cr = self.cr(c);
         if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player {
             return Vec::new();
         }
         let def = content::monster_def(cr.monster.id);
-        self.look_paths(c)
+        self.look_project_one(c)
             .iter()
             .map(|list| {
-                let mut acc: Vec<(u8, f32)> = Vec::new();
-                for &(node, p) in list.iter() {
-                    match acc.iter_mut().find(|(n, _)| *n == node) {
-                        Some(e) => e.1 += p,
-                        None => acc.push((node, p)),
-                    }
-                }
+                let mut acc: Vec<(u8, f32, f32)> = list.iter().copied().collect();
                 acc.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
                 acc.into_iter()
-                    .map(|(node, p)| {
+                    .map(|(node, p, pd)| {
                         if node == STUN_NODE {
                             return ("STUNNED".to_string(), p, "stunned".to_string());
                         }
@@ -613,6 +739,10 @@ impl Combat {
                             })
                             .collect();
                         let mut text = parts.join(" + ");
+                        let projected = if p > 0.0 { pd / p } else { 0.0 };
+                        if (projected - self.node_attack_damage(c, node)).abs() >= 0.5 {
+                            text = format!("{text} (projected {projected:.0})");
+                        }
                         let fx = self.move_effects(c, node);
                         if !fx.is_empty() {
                             text = format!("{text} [{fx}]");
@@ -630,6 +760,7 @@ impl Combat {
     pub fn move_effects(&self, c: Cid, node: u8) -> String {
         use std::collections::BTreeMap;
         let mut cx = self.clone();
+        cx.rng = *look_rng();
         cx.creatures[PLAYER as usize].block = 1 << 20;
         cx.creatures[c as usize].monster.next_move = node;
         let powers = |cx: &Combat, who: Cid| -> BTreeMap<u16, i32> {
@@ -710,65 +841,17 @@ impl Combat {
         total as f32
     }
 
-    /// The (node, probability) pairs of the monster's possible moves, per horizon (`lookahead` turns them into rows). Depends on the monster's state machine
-    /// state and on what conditions / weights read (its own powers, the enemies standing), not on the player.
-    fn look_paths(&self, c: Cid) -> [LookList; LOOK_H] {
-        let mut out: [LookList; LOOK_H] = [LookList::new(), LookList::new(), LookList::new()];
-        let mut cur: Paths = crate::util::ArrayVec::new();
-        cur.push((self.cr(c).monster, 1.0));
-        for list in out.iter_mut() {
-            let mut next: Paths = crate::util::ArrayVec::new();
-            for (ms, p) in cur.iter() {
-                self.look_roll(c, ms, *p, &mut next);
-            }
-            // merge identical machine states reached through different branches
-            let mut merged: Paths = crate::util::ArrayVec::new();
-            for (ms, p) in next.iter() {
-                if let Some(e) = merged.as_mut_slice().iter_mut().find(|(m, _)| same_machine_state(m, ms)) {
-                    e.1 += *p;
-                } else {
-                    merged.push((*ms, *p));
-                }
-            }
-            for (ms, p) in merged.iter() {
-                list.push((ms.cur_state, *p));
-            }
-            cur = merged;
-            if cur.is_empty() {
-                break;
-            }
-        }
-        out
-    }
-
-    /// Digest of everything `look_paths(c)` reads: the monster's machine state, its powers, and the line-up of enemies.
+    /// Digest of everything `look_project(c)` reads: the whole projected world (`look_digest`), where the turn stands, and `c`.
     fn look_key(&self, c: Cid) -> u64 {
-        #[inline(always)]
-        fn mix(h: &mut u64, v: u64) {
-            *h = (*h ^ v).wrapping_mul(0x100000001b3).rotate_left(23);
-        }
-        let cr = self.cr(c);
-        let m = &cr.monster;
-        let mut h = 0xcbf29ce484222325u64;
-        mix(&mut h, m.id as u64 | (m.cur_state as u64) << 16 | (m.next_move as u64) << 24 | (m.performed_first as u64) << 32 | (m.spawned_this_turn as u64) << 33
-            | (m.is_performing as u64) << 34 | (m.stunned as u64) << 35 | (m.stun_performed as u64) << 36 | (m.stun_move.is_some() as u64) << 37 | (m.stun_follow_up as u64) << 40);
-        mix(&mut h, u64::from_le_bytes(m.log));
-        mix(&mut h, m.log_len as u64);
-        mix(&mut h, m.ever_logged);
-        mix(&mut h, m.performed_once);
-        mix(&mut h, u32::from_le_bytes(m.performed) as u64);
-        for v in m.vars {
-            mix(&mut h, v as u32 as u64);
-        }
-        for p in cr.powers.as_slice() {
-            mix(&mut h, (p.id as u64) << 32 | p.amount as u32 as u64);
-        }
-        mix(&mut h, cr.slot as u64 | (cr.hp as u64) << 8);
-        for &e in self.enemies.iter() {
-            let o = self.cr(e);
-            mix(&mut h, (o.monster.id as u64) | (o.slot as u64) << 16 | (o.is_alive() as u64) << 24 | (o.hp as u32 as u64) << 32);
-            mix(&mut h, e as u64);
-        }
+        let mut h = self.look_digest();
+        let v = c as u64
+            | (self.round as u32 as u64) << 8
+            | (self.player.turn_number as u32 as u64) << 24
+            | (self.side as u64) << 40
+            | (self.stage as u64) << 44
+            | (self.enemy_cont.is_some() as u64) << 50
+            | (LOOK_LEGACY.load(std::sync::atomic::Ordering::Relaxed) as u64) << 51;
+        h = (h ^ v).wrapping_mul(0x100000001b3).rotate_left(23);
         h
     }
 
@@ -783,55 +866,335 @@ impl Combat {
     }
 
     fn lookahead_with(&self, c: Cid, cached: bool) -> [LookRow; LOOK_H] {
-        let mut rows = [LookRow { prob: [0.0; LOOK_NODES], exp_damage: 0.0 }; LOOK_H];
         let cr = self.cr(c);
-        if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player {
-            return rows;
+        let legacy = LOOK_LEGACY.load(std::sync::atomic::Ordering::Relaxed);
+        if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player || (self.stage == Stage::Over && !legacy) {
+            return [EMPTY_ROW; LOOK_H];
         }
         #[cfg(feature = "obs_prof")]
         let t0 = unsafe { core::arch::x86_64::_rdtsc() };
-        let key = self.look_key(c);
+        let key = if cached { self.look_key(c) } else { 0 };
         #[cfg(feature = "obs_prof")]
         unsafe { crate::observe::OBS_PROF[10] += core::arch::x86_64::_rdtsc() - t0; }
         #[cfg(feature = "obs_prof")]
         let t1 = unsafe { core::arch::x86_64::_rdtsc() };
-        let lists = if !cached { self.look_paths(c) } else { LOOK_CACHE.with(|t| {
+        let rows = if !cached { self.look_rows(c, false) } else { LOOK_CACHE.with(|t| {
             let mut t = t.borrow_mut();
             let slot = (key as usize) & (LOOK_CACHE_SLOTS - 1);
-            if let Some((k, l)) = &t[slot] {
+            if let Some((k, r)) = &t[slot] {
                 if *k == key {
-                    return l.clone();
+                    return *r;
                 }
             }
-            let l = self.look_paths(c);
-            t[slot] = Some((key, l.clone()));
-            l
+            let r = self.look_rows(c, true);
+            t[slot] = Some((key, r));
+            r
         }) };
         #[cfg(feature = "obs_prof")]
         unsafe { crate::observe::OBS_PROF[11] += core::arch::x86_64::_rdtsc() - t1; }
-        // damage of a move node does not change within this call: compute it once per node (it runs the whole damage pipeline per intent)
-        let mut node_dmg = [-1f32; 256];
-        for (row, list) in rows.iter_mut().zip(lists.iter()) {
-            for &(node, p) in list.iter() {
-                let slot = if node == STUN_NODE || node as usize >= LOOK_NODES - 1 { LOOK_NODES - 1 } else { node as usize };
-                row.prob[slot] += p;
-                let n = node as usize;
-                if node_dmg[n] < 0.0 {
-                    node_dmg[n] = self.node_attack_damage(c, node);
+        rows
+    }
+
+    /// The enemies a projection reports on: those alive with a pending move.
+    fn look_who(&self) -> crate::util::ArrayVec<Cid, MAX_CREATURES> {
+        let mut v = crate::util::ArrayVec::new();
+        for &e in self.enemies.iter() {
+            let cr = self.cr(e);
+            if cr.is_alive() && cr.in_combat && cr.monster.next_move != NO {
+                v.push(e);
+            }
+        }
+        v
+    }
+
+    /// Rows of every enemy (by creature id) from a projection of `who`, and the set of monsters that had a choice at some roll.
+    fn look_project_rows(&self, who: &[Cid], fork: impl Fn(&Combat, Cid) -> bool) -> ([[LookRow; LOOK_H]; MAX_CREATURES], u16) {
+        let (lists, random) = self.look_project(who, fork);
+        let mut rows = [[EMPTY_ROW; LOOK_H]; MAX_CREATURES];
+        for (&e, l) in who.iter().zip(lists.iter()) {
+            rows[e as usize] = look_rows_of(l);
+        }
+        (rows, random)
+    }
+
+    /// Rows of monster `c`. A monster that never has a choice has the same rows in every projection in which it does not branch, so
+    /// one projection in which nobody branches (the "mode" projection) serves all of them; a monster with a choice gets its own.
+    /// `cached`: the mode projection of this combat is memoized (`LOOK_MODE`).
+    fn look_rows(&self, c: Cid, cached: bool) -> [LookRow; LOOK_H] {
+        if LOOK_LEGACY.load(std::sync::atomic::Ordering::Relaxed) {
+            return self.legacy_rows(c);
+        }
+        let key = if cached { self.look_key(NO) } else { 0 };
+        let memo = if cached { LOOK_MODE.with(|m| m.borrow().filter(|m| m.0 == key)) } else { None };
+        if let Some((_, rows, random)) = memo {
+            return if random >> c & 1 == 0 { rows[c as usize] } else { look_rows_of(&self.look_project_one(c)) };
+        }
+        // c's own projection, reported for every enemy: if c had no choice, it is the mode projection
+        let who = self.look_who();
+        let (rows, random) = self.look_project_rows(who.as_slice(), look_fork(self, c));
+        if random >> c & 1 == 0 && cached {
+            LOOK_MODE.with(|m| *m.borrow_mut() = Some((key, rows, random)));
+        }
+        rows[c as usize]
+    }
+}
+
+/// Which monsters branch in the projection of monster `f`: itself and its joint peers.
+fn look_fork(cx: &Combat, f: Cid) -> impl Fn(&Combat, Cid) -> bool {
+    let fid = cx.cr(f).monster.id;
+    let joint = LOOK_JOINT.contains(&fid);
+    move |cx: &Combat, e: Cid| e == f || (joint && cx.cr(e).monster.id == fid)
+}
+
+/// Observation rows of projected move lists.
+fn look_rows_of(lists: &[LookList; LOOK_H]) -> [LookRow; LOOK_H] {
+    let mut rows = [EMPTY_ROW; LOOK_H];
+    for (row, list) in rows.iter_mut().zip(lists.iter()) {
+        for &(node, p, pd) in list.iter() {
+            row.prob[look_slot(node)] += p;
+            row.exp_damage += pd;
+        }
+    }
+    rows
+}
+
+/// Digest of what makes two combats different for the look-ahead: every creature (machine state, powers, HP, block, presence;
+/// the inert projected player only by its powers) and the player's relics. `canon` (merging projected combats in
+/// `look_project`): no player, no relics, only the part of a monster's move log its rolls can read (`look_memory`), no power
+/// uids, no performed-move history; otherwise (the cache key) everything.
+fn look_digest_of(cx: &Combat, canon: bool) -> u64 {
+    #[inline(always)]
+    fn mix(h: &mut u64, v: u64) {
+        *h = (*h ^ v).wrapping_mul(0x100000001b3).rotate_left(23);
+    }
+    let mut h = 0xcbf29ce484222325u64;
+    for (i, cr) in cx.creatures.iter().enumerate() {
+        if !cr.active || (canon && cr.is_player) {
+            continue;
+        }
+        if !cr.is_player {
+            mix(&mut h, i as u64 | (cr.in_combat as u64) << 8 | (cr.slot as u64) << 16 | (cr.hp as u32 as u64) << 32);
+            mix(&mut h, cr.max_hp as u32 as u64 | (cr.block as u32 as u64) << 32);
+        }
+        for p in cr.powers.as_slice() {
+            mix(&mut h, (p.id as u64) << 48 | (if canon { 0 } else { p.uid as u64 }) << 32 | p.amount as u32 as u64);
+            mix(&mut h, p.aux as u32 as u64 | (p.applier as u64) << 32 | (p.skip_next_tick as u64) << 40);
+        }
+        if cr.is_player {
+            continue;
+        }
+        let m = &cr.monster;
+        mix(&mut h, m.id as u64 | (m.cur_state as u64) << 16 | (m.next_move as u64) << 24 | (m.performed_first as u64) << 32 | (m.spawned_this_turn as u64) << 33
+            | (m.is_performing as u64) << 34 | (m.stunned as u64) << 35 | (m.stun_performed as u64) << 36 | (m.stun_move.is_some() as u64) << 37 | (m.stun_follow_up as u64) << 40);
+        if canon {
+            let (w, once) = look_memory(m.id);
+            let n = (m.log_len as usize).min(w);
+            let mut last = 0u64;
+            for k in 0..n {
+                last = last << 8 | m.log[(m.log_len as usize - 1 - k) & 7] as u64;
+            }
+            mix(&mut h, last << 8 | n as u64);
+            mix(&mut h, m.ever_logged & once);
+        } else {
+            mix(&mut h, u64::from_le_bytes(m.log));
+            mix(&mut h, m.log_len as u64 | (u32::from_le_bytes(m.performed) as u64) << 16);
+            mix(&mut h, m.ever_logged);
+        }
+        mix(&mut h, m.performed_once);
+        for v in m.vars {
+            mix(&mut h, v as u32 as u64);
+        }
+    }
+    for &e in cx.enemies.iter() {
+        mix(&mut h, e as u64);
+    }
+    if !canon {
+        for r in cx.player.relics.iter() {
+            mix(&mut h, r.id as u64 | (r.counter as u32 as u64) << 16 | (r.flags as u64) << 48);
+            mix(&mut h, r.aux as u32 as u64);
+        }
+    }
+    h
+}
+
+/// Merges projected combats with equal canonical digests (probabilities add up, the first is kept) and keeps the `LOOK_PATHS`
+/// most likely (a stable sort: ties keep their order).
+fn look_merge(v: &mut Vec<(Box<Combat>, f32)>) {
+    let mut digests = crate::util::ArrayVec::<u64, 512>::new();
+    let mut k = 0;
+    for i in 0..v.len() {
+        let d = look_digest_of(&v[i].0, true);
+        match digests.iter().position(|&x| x == d) {
+            Some(j) if j < k => v[j].1 += v[i].1,
+            _ => {
+                digests.push(d);
+                v.swap(k, i);
+                k += 1;
+            }
+        }
+    }
+    for (cx, _) in v.drain(k..) {
+        look_free(cx);
+    }
+    if v.len() > LOOK_PATHS {
+        v.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
+        for (cx, _) in v.drain(LOOK_PATHS..) {
+            look_free(cx);
+        }
+    }
+}
+
+thread_local! {
+    /// Recycled boxes for projected combats (an 18.8 KB allocation per copy otherwise).
+    static LOOK_POOL: std::cell::RefCell<Vec<Box<Combat>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// A boxed copy of `src` (from the pool when possible).
+fn look_box(src: &Combat) -> Box<Combat> {
+    match LOOK_POOL.with(|p| p.borrow_mut().pop()) {
+        Some(mut b) => {
+            (*b).clone_from(src);
+            b
+        }
+        None => Box::new(src.clone()),
+    }
+}
+
+fn look_free(b: Box<Combat>) {
+    LOOK_POOL.with(|p| {
+        let mut p = p.borrow_mut();
+        if p.len() < 2 * LOOK_PATHS {
+            p.push(b);
+        }
+    });
+}
+
+/// What a monster's rolls read of its move log: the last `w` entries (repeat limits, cooldowns, `last_logged_move`; at least 1)
+/// and the use-once targets in `ever_logged`.
+fn look_memory(id: u16) -> (usize, u64) {
+    static T: std::sync::OnceLock<Vec<(usize, u64)>> = std::sync::OnceLock::new();
+    T.get_or_init(|| {
+        (0..crate::ids::monster::COUNT as u16)
+            .map(|id| {
+                let (mut w, mut once) = (1usize, 0u64);
+                if content::monster_implemented(id) {
+                    for n in content::monster_def(id).nodes.iter() {
+                        if let MonsterNode::Random { branches, .. } = n {
+                            for b in branches.iter() {
+                                match b.repeat {
+                                    Repeat::UseOnlyOnce => once |= 1u64 << (b.target & 63),
+                                    Repeat::CanRepeatXTimes(k) => w = w.max(k as usize),
+                                    Repeat::CanRepeatForever => {}
+                                }
+                                w = w.max(b.cooldown as usize);
+                            }
+                        }
+                    }
                 }
-                row.exp_damage += p * node_dmg[n];
+                (w.min(8), once)
+            })
+            .collect()
+    })[id as usize]
+}
+
+/// The observation slot of a move node.
+fn look_slot(node: u8) -> usize {
+    if node == STUN_NODE || node as usize >= LOOK_NODES - 1 { LOOK_NODES - 1 } else { node as usize }
+}
+
+fn look_rng() -> &'static RngSet {
+    static R: std::sync::OnceLock<RngSet> = std::sync::OnceLock::new();
+    R.get_or_init(|| RngSet::from_run_seed(LOOK_SEED))
+}
+
+const LOOK_CACHE_SLOTS: usize = 1024;
+thread_local! {
+    /// Direct-mapped cache of `look_rows` by `look_key` (a search simulates many copies of the same enemies).
+    static LOOK_CACHE: std::cell::RefCell<Vec<Option<(u64, [LookRow; LOOK_H])>>> = std::cell::RefCell::new(vec![None; LOOK_CACHE_SLOTS]);
+    /// The last `look_mode` result, by `look_key(NO)` (the enemies of one combat are looked at one after the other).
+    static LOOK_MODE: std::cell::RefCell<Option<(u64, [[LookRow; LOOK_H]; MAX_CREATURES], u16)>> = const { std::cell::RefCell::new(None) };
+}
+
+// ---- the look-ahead from before S1 (`LOOK_LEGACY`) ------------------------------------------------------------------------------
+
+const LEGACY_H: usize = 3;
+type LegacyPaths = Outcomes;
+
+fn same_machine_state(a: &MonsterState, b: &MonsterState) -> bool {
+    a.cur_state == b.cur_state
+        && a.log == b.log
+        && a.log_len == b.log_len
+        && a.ever_logged == b.ever_logged
+        && a.performed_once == b.performed_once
+        && a.stun_performed == b.stun_performed
+        && a.stun_follow_up == b.stun_follow_up
+}
+
+impl Combat {
+    /// One turn forward on the monster's machine alone: the pending move is performed, then the next player turn rolls.
+    fn legacy_roll(&self, c: Cid, ms: &MonsterState, p: f32, out: &mut LegacyPaths) {
+        let mut ms = *ms;
+        ms.performed_first = true;
+        let cur = ms.cur_state;
+        let def = content::monster_def(ms.id);
+        let nxt = if cur == STUN_NODE {
+            ms.stun_performed = true;
+            if ms.stun_follow_up == NO { def.initial } else { ms.stun_follow_up }
+        } else {
+            ms.performed_once |= 1u64 << cur;
+            match &def.nodes[cur as usize] {
+                MonsterNode::Move { follow_up, .. } => {
+                    if *follow_up == NO {
+                        def.initial
+                    } else if *follow_up == crate::defs::FOLLOW_STORED {
+                        ms.stun_follow_up
+                    } else {
+                        *follow_up
+                    }
+                }
+                _ => return,
+            }
+        };
+        self.look_enter(c, ms, cur, nxt, NO, p, out);
+    }
+
+    /// Rows of the legacy look-ahead: the machine walked on a copy of the monster state, conditions and weights reading the
+    /// current combat, damage with the current modifiers; turns past the third are empty.
+    fn legacy_rows(&self, c: Cid) -> [LookRow; LOOK_H] {
+        let mut rows = [EMPTY_ROW; LOOK_H];
+        let mut cur: LegacyPaths = crate::util::ArrayVec::new();
+        cur.push((self.cr(c).monster, 1.0));
+        let mut node_dmg = [-1f32; 256];
+        for row in rows.iter_mut().take(LEGACY_H) {
+            let mut next: LegacyPaths = crate::util::ArrayVec::new();
+            for (ms, p) in cur.iter() {
+                self.legacy_roll(c, ms, *p, &mut next);
+            }
+            let mut merged: LegacyPaths = crate::util::ArrayVec::new();
+            for (ms, p) in next.iter() {
+                if let Some(e) = merged.as_mut_slice().iter_mut().find(|(m, _)| same_machine_state(m, ms)) {
+                    e.1 += *p;
+                } else {
+                    merged.push((*ms, *p));
+                }
+            }
+            for (ms, p) in merged.iter() {
+                let node = ms.cur_state;
+                row.prob[look_slot(node)] += p;
+                if node_dmg[node as usize] < 0.0 {
+                    node_dmg[node as usize] = self.node_attack_damage(c, node);
+                }
+                row.exp_damage += p * node_dmg[node as usize];
+            }
+            cur = merged;
+            if cur.is_empty() {
+                break;
             }
         }
         rows
     }
 }
 
-type LookList = crate::util::ArrayVec<(u8, f32), 48>;
-const LOOK_CACHE_SLOTS: usize = 256;
-thread_local! {
-    /// Direct-mapped cache of `look_paths` by `look_key` (a search simulates many copies of the same enemies).
-    static LOOK_CACHE: std::cell::RefCell<Vec<Option<(u64, [LookList; LOOK_H])>>> = std::cell::RefCell::new(vec![None; LOOK_CACHE_SLOTS]);
-}
 
 // ---- provable bounds on enemy damage (used by `bounds`) -----------------------------------------------------------------------
 impl Combat {

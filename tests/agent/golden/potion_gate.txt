@@ -13,6 +13,6 @@ play: a <i> [e<target>]
 6 potion Strength Potion: Gain 2 Strength.
 7 end turn
 draw (0): 
-e0 plan: +1 GUARD block  +2 GUARD block  +3 GUARD block
-e1 plan: +1 FABRICATE summon [summons 2] (50%) | FABRICATING_STRIKE 22 + summon [summons 1] (50%)  +2 FABRICATE summon [summons 2] (50%) | FABRICATING_STRIKE 22 + summon [summons 1] (50%)  +3 FABRICATE summon [summons 2] (50%) | FABRICATING_STRIKE 22 + summon [summons 1] (50%)
-e2 plan: +1 STAB 13 + debuff [me: FRAIL +1]  +2 STAB 13 + debuff [me: FRAIL +1]  +3 STAB 13 + debuff [me: FRAIL +1]
+e0 plan: +1 GUARD block  +2 GUARD block  +3 GUARD block  +4 GUARD block
+e1 plan: +1 DISINTEGRATE 14  +2 DISINTEGRATE 14  +3 DISINTEGRATE 14  +4 DISINTEGRATE 14
+e2 plan: +1 STAB 13 + debuff [me: FRAIL +1]  +2 STAB 13 + debuff [me: FRAIL +1]  +3 STAB 13 + debuff [me: FRAIL +1]  +4 STAB 13 + debuff [me: FRAIL +1]

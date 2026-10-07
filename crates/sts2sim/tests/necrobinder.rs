@@ -182,7 +182,7 @@ fn observation_exposes_osty_in_its_appended_section() {
     set_hand(&mut cx, &[(ids::card::POKE, 0)]);
     let mut v = vec![0f32; observe::OBS_SIZE];
     cx.observe(&mut v);
-    let tail = observe::ORBS_F + observe::LOOK_F; // the orb and lookahead sections follow
+    let tail = observe::ORBS_F + observe::LOOK_F + observe::ENEMY_MOVES_F; // the orb, lookahead and enemy-move sections follow
     let osty = &v[observe::OBS_SIZE - tail - observe::OSTY_F..observe::OBS_SIZE - tail];
     assert_eq!(&osty[..4], &[1.0, 1.0, 6.0, 6.0]); // present, alive, hp, max hp
     let preview = osty[4 + 2 * observe::OBS_POWERS]; // first hand slot: Poke = 6 damage from Osty
