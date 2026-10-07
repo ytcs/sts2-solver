@@ -115,6 +115,8 @@ Plan:
 - Every turn, use now / keep in this fight / save, each priced by paired search play-outs on the same futures, with the predictor at the leaves (not two forward passes: a shared network understates the gap).
 - `turn` / `combat` stop on a proposal; the operator commits.
 - Remove `search_keep`, the alert thresholds, and keep / allow / deny / hold.
+- One potion per commit: the operator commits a single potion, and the next turn's proposal decides whether another is needed. `potion allow all` goes away (user: three potions at the Act 1 Kin, where one, Power Potion 0.4 -> 0.94 win, was enough).
+- Per-fight objective: an act boss followed by an ancient heal is priced and searched on P(win) alone (win-only worth table via the existing per-job `Worth` plumbing); HP matters only where it carries to later fights.
 - *Gate:* on the potion regression states, the proposals agree with large-budget references.
 
 **S5. Run model.**
