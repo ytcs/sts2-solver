@@ -41,6 +41,7 @@ It predicts play under the best combat policy we have (search), not the raw netw
   - the belt, the turn, the act and the encounter.
 - **Fight-start predictions** average f over sampled opening shuffles and starting rolls. This is exact, because those are revealed before the first decision.
 - **Every character and cross-character cards.** One network covers all of them.
+- **The allowed set is the belt the state carries.** A potion not allowed in this fight is removed from the state (`Sim.without_potions`), and the remaining belt is what the predictor sees. Belts of every size are in the training mix, so the allowed set needs no extra input and no masks.
 - **Auxiliary outputs** (not decision currencies): enemy HP left when a fight is lost, and turns survived. They are diagnostics, features for plan testing, and inputs to the run model's base policy. Decisions maximise V only.
 - **Never a clairvoyant target.** If a privileged model is trained on determinized states, it predicts the honest policy's outcome. Averaging such a model over sampled hidden states is then unbiased (Baisero & Amato 2022). The value of a clairvoyant player is optimistic and is never used.
 
@@ -90,7 +91,6 @@ It predicts play under the best combat policy we have (search), not the raw netw
 - Distillation / expert iteration:
   - value targets = realized outcomes, never the max of search Q values (winner's curse);
   - policy targets = Gumbel-style improved policy;
-  - allowed-potion masks sampled at random;
   - HL-Gauss categorical targets;
   - Reanalyse of stored fights.
 - Curriculum by learnability p(1-p) with a uniform share. Calibration measured on the natural distribution, with importance weights.
@@ -112,6 +112,29 @@ It predicts play under the best combat policy we have (search), not the raw netw
 - A base macro policy for the rollouts. Each operator decision is priced as V(option) by paired rollouts.
 - First output: the simulated run win rate of the base policy, the baseline every later macro change must beat.
 - *Gate:* real runs fall inside the simulated distribution (act reached, HP at each act boundary).
+
+**S5 design.** A macro decision is priced by paired rollouts: one step of policy improvement over a base policy, the same idea as the combat search one level up.
+- **Rollouts.** For each option, M continuations under a base policy, with common random numbers across options (the same map, the same reward and fight draws).
+- **What each rollout samples:**
+  - fights from the predictor's fight-start distribution (averaged over 4-8 opening shuffles);
+  - rewards at the coded odds, with the tracker's counters as the starting state (`game_code.md` C, `agent/tracker.py`);
+  - unknown rooms from their odds;
+  - events: catalogued ones from the catalog, unknown ones stubbed as nothing.
+- **Horizon.**
+  - The current act uses its real map.
+  - Later acts use a template act: their room counts and order distribution (C1), the known or sampled boss, and the ancient's 80% heal and a relic draw.
+  - The run ends with a win or a death, so V = P(win run) needs no hand-made terminal value.
+- **Base policy** (cheap, deterministic given the draws):
+  - path: the child whose subtree has the most rests before elites at low HP, else the most elites at high HP;
+  - card picks: greedy on the predictor against the act boss, restricted to the chosen plan's cards when a plan is set (S6);
+  - rest below 50% HP, otherwise smith the card with the best predicted gain;
+  - shop: removal first, then the best predicted card within budget;
+  - potions: allowed at elites and bosses when the predictor's win gain exceeds 0.05.
+- **Cost (measured):** about 10k fight builds per second plus 55k network evaluations per second on the local GPU, so about 8k fight-start predictions per second. A decision with 4 options x 64 rollouts x ~25 predictions each takes about 10-20 s.
+- **Validation:**
+  - the base policy's simulated run win rate is the baseline;
+  - the act-boundary HP and the act reached by real runs fall inside the simulated distribution;
+  - a decision's price is stable under fresh draws (se reported).
 
 **S6. Plan library (codified high-level reasoning).** When the deck is far from what lies ahead, decisions come from game plans, not from greedy numbers. Plans must not drift between sessions, so they live in a versioned database (`data/plans/`), not in each agent's intuition.
 - **Entry:**
@@ -143,3 +166,15 @@ It predicts play under the best combat policy we have (search), not the raw netw
 - Smooth score, buckets, the section-3 bar, pickplan's ρ, and the `routes` reward weights (all replaced by V).
 - The two route pricers and the two model gates (one of each remains).
 - The dormant HP-worth / `Worth` / `ucond` plumbing.
+
+## 6. Target layout (lean)
+Each stage lands in one place and deletes what it replaces.
+
+| Path | Keeps | Goes |
+|---|---|---|
+| `crates/` | sts2sim, sts2env, sts2py, sts2diff (the simulator, search, bindings, differential tester) | the `util` / `Worth` plumbing once S4 lands |
+| `rl/` | model, heads, fastsearch, solver, exit (training by expert iteration) | utility.py (HP-worth), dist.py (old end-HP head), pot_check, heads_check (folded into tools/bench), ppo.py once ExIt trains from h128 alone |
+| `agent/` | bridge, screen, fight (replay and sync), engine (search and predictor service), live (combat driver with proposals), tracker (public counters), runmodel (S5), plans (S6), harness + `__main__` (commands, daemon), runlog, review (S7), skillgate | guards, macro, routes, pickplan, potion_price, potions, deckstudy, card_tags, improve, autopilot, calibrate, fidelity_report / fidelity_trace (one fidelity tool stays), args |
+| `tools/` | bench, fuzz generators, gen_curriculum | one-off A/B and payoff scripts (results stay in `evals/` summaries) |
+| `.claude/skills/` | `sts2` (rules, information contract), operator protocol and gap logging, plan-library use, verified mechanics | procedures that existed only to feed the old calculators (buckets, smooth score, section-3 bar, guard fields) |
+| `data/` | catalog, pools, ancients, relic classes, `bench/`, `plans/`, training and eval sets | |
