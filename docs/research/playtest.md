@@ -59,3 +59,10 @@ A Silent A10 run played from the screen, ignoring the old calculators (the decis
   - Then "how far from beating the boss" becomes a smooth target for macro shaping, alongside P(win).
   - The old "smooth" objective (win averaged over 1-3x HP) was an indirect attempt at this.
 - Also needed: what each boss asks for (damage per turn needed, scaling, curse handling), derived from the source and the simulator, so Act 2 picks can be aimed at it.
+
+## Run 2 (Defect A10, `price`-driven, predictor_r1)
+- Neow: ancient options aren't priced (no pickup effects catalogued); an agent is building `data/ancient_relics.json`.
+- Map F1: `price` gave distinct P(clear act) per option (0.84 / 0.69 / 0.65 / 0.52, paired se ~0.05); P(win run) is 0 for every option under the base policy.
+- Card F2: the four options were within 1.5 paired se at 128 rollouts. Card effects need ~512 rollouts per option (~2 min for 4 options).
+- Fidelity bug (F3, slimes): Lightning orbs hit random enemies (hidden RNG), so the simulator's sample killed a different slime than the game. After the deaths, `Sim.sync` matched enemies by list position, giving `SIMULATOR DIFFERS: .enemies[0].id LEAF_SLIME_S vs TWIG_SLIME_M`, and the solver stalled. Fix: match enemies by identity and HP.
+- The old potion alerts stop hallway fights repeatedly (S4 removes them).

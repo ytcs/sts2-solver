@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Dev loop: close the game, rebuild + install the mod, relaunch through Steam, wait for the bridge.
+# Headless by default (no window, no rendering: the GPU stays free for training and search); `GUI=1 bash dev.sh` shows the game.
+# Runs started through the bridge do not persist across a restart (no run save is written): never restart mid-run.
 cd "$(dirname "$0")"
 taskkill //IM SlayTheSpire2.exe //F >/dev/null 2>&1 && sleep 2
 export DOTNET_ROOT=$HOME/.dotnet PATH=$HOME/.dotnet:$PATH
 out=$(dotnet build -c Release 2>&1)
 echo "$out" | grep -E " error |Build succeeded" | sed 's#.*AgentBridge.src.##; s# \[C:.*##' | sort -u
 echo "$out" | grep -q "Build succeeded" || exit 1
-cmd //c start "" "steam://rungameid/2868840"
-for i in $(seq 1 60); do sleep 2; (cd ../.. && python -m agent.bridge s) >/dev/null 2>&1 && { echo "bridge up after $((i*2))s"; exit 0; }; done
+if [ -n "$GUI" ]; then cmd //c start "" "steam://rungameid/2868840"; else "/c/Program Files (x86)/Steam/steam.exe" -applaunch 2868840 --headless & fi
+for i in $(seq 1 60); do sleep 2; (cd ../.. && python -m agent.bridge s 2>&1 | head -1 | grep -qv "^ERR") && { echo "bridge up after $((i*2))s"; exit 0; }; done
 echo "bridge did not come up"; exit 1
