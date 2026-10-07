@@ -486,6 +486,7 @@ function renderTop() {
 // ------------------------------------------------------------------ main screen
 function renderScreen() {
   const scr = currentScreen(), text = scr.text || "", kind = kindOf(text);
+  $("mappanel").classList.toggle("hidden", kind === "MAP");  // the MAP screen draws the full map itself
   $("screenkind").textContent = kind ? titleCase(kind) : "Screen";
   $("screensub").textContent = scr.t ? `${scr.live ? "live" : "from the record (no live.json yet: restart the daemon)"} - ${ago(scr.t)}` : "";
   $("screentext").textContent = text;
