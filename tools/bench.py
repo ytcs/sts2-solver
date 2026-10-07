@@ -8,7 +8,7 @@ Sets (`data/bench/<set>.json`: scenarios plus per-attempt labels):
   eval    the first 600 fights of data/train/eval.json (5 characters, 3 acts, generated decks)
   corpus  real-run fights (data/corpus/fights_holdout.json)
   mix     cross-character cards, ancient relics, belts up to 8 (tools/gen_curriculum.py, held-out seed)
-  tail    late game: Act 3 elites and bosses with decks of 28+ cards (tools/gen_curriculum.py, held-out seed)
+  tail    late game: Act 3 (act index 2) elites and bosses with decks of 28+ cards (tools/gen_curriculum.py, held-out seed)
   pairs   ranking: (base, variant) fights, the variant adds a pool card, removes a card, upgrades a card or drops a potion; labelled with
           common random numbers so the reference difference is paired
 
@@ -56,7 +56,7 @@ def scenarios(rng):
     mix = _curriculum(4000, 41)
     rng.shuffle(mix)
     s["mix"] = mix[:600]
-    tail = [x for x in _curriculum(20000, 43) if x["act"] == 3 and len(x["deck"]) >= 28 and x["encounter"].endswith(("_ELITE", "_BOSS"))]
+    tail = [x for x in _curriculum(20000, 43) if x["act"] == 2 and len(x["deck"]) >= 28 and x["encounter"].endswith(("_ELITE", "_BOSS"))]
     s["tail"] = tail[:400]
     return s
 
@@ -120,18 +120,10 @@ def build(a):
 
 # ---------------------------------------------------------------------------------------------------------------------------- scoring
 
-@torch.no_grad()
 def predict(net, scen, shuffles=SHUFFLES):
-    """Fight-start prediction averaged over opening shuffles: class probabilities [S, NC] (outcome-head networks)."""
-    import sts2, heads as H
-    from model import DEV
-    P = np.zeros((len(scen), H.NC))
-    for s in range(shuffles):
-        env = sts2.VecEnv(len(scen), scen, seed=1000 + s, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
-        o, m = env.reset()
-        _, _, ol = net(torch.from_numpy(o.copy()).to(DEV), torch.from_numpy(m.astype(np.int64)).to(DEV), outcome=True)
-        P += torch.softmax(ol.float(), 1).cpu().numpy() / shuffles
-    return P
+    """Fight-start prediction averaged over opening shuffles: class probabilities [S, NC] (`rl/predictor.py`)."""
+    from predictor import Predictor
+    return Predictor(net).fight_start(scen, shuffles)
 
 
 def _worth(P, max_hp):

@@ -9,6 +9,8 @@ import json
 import os
 import random
 
+import numpy as np
+
 from agent import tracker as T
 
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
@@ -128,3 +130,227 @@ class Draws:
                 break
         return rolled, {t: (T.UNKNOWN_BASE[t] if t == rolled else p + T.UNKNOWN_BASE[t]) for t, p in odds.items()}
 
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------- rollouts
+
+ACT_NAMES = {0: ("Overgrowth", "Underdocks"), 1: ("Hive",), 2: ("Glory",)}
+# a typical route of a later act (rooms before the boss), the map's room mix (`game_code.md` C1): 6-7 rests, ~11 unknowns, 3 shops, 5-8 elites per map
+TEMPLATE = {1: "M M ? M ? E R ? T M E ? $ R", 2: "M M ? M ? E R ? T M ? $ R"}
+BASICS = ("STRIKE_", "DEFEND_", "ASCENDERS_BANE")
+WEAK_FIGHTS = {0: 3, 1: 2, 2: 2}
+
+
+class RunState:
+    """What a rollout carries: the run's public state. `base` is a fight scenario template (character, ascension, max energy, orb slots ...)."""
+
+    def __init__(self, base, act, act_name, hp, max_hp, gold, deck, relics, potions, slots, counters, seen=None, bosses=(), frontier=None, nodes=None,
+                 monsters=0):
+        self.base, self.act, self.act_name, self.hp, self.max_hp, self.gold = base, act, act_name, hp, max_hp, gold
+        self.deck, self.relics, self.potions, self.slots = [dict(c) for c in deck], list(relics), list(potions), slots
+        self.potion_p, self.offset, self.unknown, self.removals = counters
+        self.seen = {k: list(v) for k, v in (seen or {}).items()}
+        self.bosses, self.frontier, self.nodes, self.monsters = list(bosses), frontier, nodes, monsters
+
+    def copy(self):
+        s = RunState.__new__(RunState)
+        s.__dict__.update({k: (v.copy() if isinstance(v, (list, dict)) else v) for k, v in self.__dict__.items()})
+        s.deck = [dict(c) for c in self.deck]
+        s.seen = {k: list(v) for k, v in self.seen.items()}
+        return s
+
+    def relic_ids(self):
+        return tuple(r if isinstance(r, str) else r["id"] for r in self.relics)
+
+    def scenario(self, encounter, hp=None, deck=None, potions=None):
+        pots = self.potions if potions is None else potions
+        return dict(self.base, name=f"rm_{encounter}", encounter=encounter, act=self.act, hp=int(hp or self.hp), max_hp=self.max_hp, gold=self.gold,
+                    deck=deck or self.deck, relics=[r if isinstance(r, dict) else {"id": r} for r in self.relics],
+                    potions=[{"id": p, "slot": i} for i, p in enumerate(pots)], max_potion_slots=self.slots)
+
+    def draw_encounter(self, kind, rng):
+        """The next fight of a pool: the game deals each pool from a bag without repeats until it empties (`sts2-acts`, `ActModel.GenerateRooms`)."""
+        from agent import pools
+        P = pools.pool(self.act_name, kind)
+        met = self.seen.setdefault(kind, [])
+        k = len(met) % len(P)
+        left = [e for e in P if e not in (met[-k:] if k else [])] or P
+        e = rng.choice(left)
+        met.append(e)
+        return e
+
+
+class BasePolicy:
+    """The cheap policy a rollout follows after the priced choice (`docs/rebuild.md` S5); deterministic given the draws."""
+
+    def node(self, st, options):
+        """options: [(key, room type)] -> key. Low HP: rest, avoid elites; high HP: elites first; else treasure, unknowns and hallways."""
+        f = st.hp / st.max_hp
+        if f < 0.45:
+            rank = {"R": 0, "?": 1, "T": 1, "$": 2, "M": 3, "E": 9}
+        elif f > 0.75:
+            rank = {"E": 0, "T": 1, "?": 2, "M": 3, "$": 4, "R": 5}
+        else:
+            rank = {"T": 0, "?": 1, "M": 2, "R": 3, "$": 4, "E": 6}
+        return min(options, key=lambda o: rank.get(o[1], 5))[0]
+
+    def potions(self, st, kind):
+        """The belt allowed in this fight: all of it at elites and bosses, none in hallways."""
+        return list(st.potions) if kind in ("elite", "boss") else []
+
+    def rest(self, st):
+        return "rest" if st.hp < 0.5 * st.max_hp else "smith"
+
+    def smith(self, st):
+        return next((c for c in st.deck if not c.get("upgrade") and not c["id"].startswith(BASICS)), None) or \
+            next((c for c in st.deck if not c.get("upgrade") and c["id"] != "ASCENDERS_BANE"), None)
+
+    def shop(self, st, items):
+        """The removal of a basic card when affordable."""
+        for kind, _id, price in items:
+            basic = next((c for c in st.deck if c["id"].startswith(BASICS[:2])), None)
+            if kind == "remove" and basic is not None and st.gold >= price:
+                return [(kind, basic, price)]
+        return []
+
+
+def reference_fights(st, rng):
+    """What a card pick is scored against: the act's boss at full HP and an elite of the act at 70%."""
+    from agent import pools
+    boss = st.bosses[0] if st.bosses else rng.choice(pools.pool(st.act_name, "boss"))
+    return [(boss, st.max_hp), (rng.choice(pools.pool(st.act_name, "elite")), int(0.7 * st.max_hp))]
+
+
+def worth(P, max_hp):
+    """The linear worth of an ending distribution (the search's objective): -1 for a loss, 1 + 0.5 x end HP / max HP for a win."""
+    import heads as H
+    c = H.centers().numpy()
+    return -P[..., 0] + (P[..., 1:] * (1 + 0.5 * np.minimum(c / max_hp, 1.0))).sum(-1)
+
+
+def play(st, rng, pol, first=None):
+    """One rollout as a generator: yields a list of fight scenarios and receives the predictor's [n, NC] for them; returns 1 for a won run, 0 for a
+    death. `first`: the priced choice, applied to the state before the rollout starts."""
+    import predictor as PR
+    from agent import pools
+    dr = Draws(rng, st.base["character"], st.act)
+    if first:
+        first(st)
+
+    def fight(kind, encounter):
+        allowed = pol.potions(st, kind)
+        P = yield [st.scenario(encounter, potions=allowed)]
+        end = float(PR.sample_end(P, np.random.default_rng(rng.randrange(1 << 30)))[0])
+        st.hp = int(min(end, st.max_hp))
+        st.potions = [p for p in st.potions if p not in allowed]  # a potion allowed in a fight counts as spent (a lower bound on what is left)
+        if end <= 0:
+            st.end = (st.act, kind, encounter)
+        return end > 0
+
+    def rewards(kind):
+        st.gold += dr.gold(kind)
+        dropped, st.potion_p = dr.potion_drop(st.potion_p, kind == "elite")
+        if dropped and len(st.potions) < st.slots:
+            st.potions.append(dr.potion())
+        cards, st.offset = dr.card_reward(kind, st.offset)
+        refs = reference_fights(st, rng)
+        decks = [st.deck] + [st.deck + [{"id": c, "upgrade": u}] for c, u in cards]
+        P = yield [st.scenario(e, hp, deck=d, potions=[]) for d in decks for e, hp in refs]
+        best = int(np.argmax(worth(P, st.max_hp).reshape(len(decks), len(refs)).mean(1)))
+        if best:
+            st.deck.append({"id": cards[best - 1][0], "upgrade": cards[best - 1][1]})
+        if kind == "elite":
+            r = dr.relic(st.relic_ids())
+            if r:
+                st.relics.append(r)
+
+    def room(t):
+        if t == "?":
+            u, st.unknown = dr.unknown(st.unknown)
+            t = {"monster": "M", "treasure": "T", "shop": "$"}.get(u, "event")
+        if t in ("M", "E"):
+            pool_kind = "elite" if t == "E" else ("weak" if st.monsters < WEAK_FIGHTS[st.act] else "regular")
+            st.monsters += t == "M"
+            kind = "elite" if t == "E" else "hallway"
+            if not (yield from fight(kind, st.draw_encounter(pool_kind, rng))):
+                return False
+            yield from rewards(kind)
+        elif t == "R":
+            if pol.rest(st) == "rest":
+                st.hp = min(st.max_hp, st.hp + int(HEAL_REST * st.max_hp))
+            else:
+                c = pol.smith(st)
+                if c is not None:
+                    c["upgrade"] = 1
+        elif t == "$":
+            for kind, card, price in pol.shop(st, dr.shop(st.offset, st.removals, st.relic_ids())):
+                st.gold -= price
+                if kind == "remove":
+                    st.deck.remove(card)
+                    st.removals += 1
+        elif t == "T":
+            st.gold += dr.gold("treasure")
+            r = dr.relic(st.relic_ids())
+            if r:
+                st.relics.append(r)
+        return True
+
+    while True:
+        if st.nodes is not None and st.frontier:  # the rest of this act on its real map
+            while st.frontier:
+                key = pol.node(st, [(k, st.nodes[k]["type"]) for k in st.frontier])
+                if not (yield from room(st.nodes[key]["type"])):
+                    return 0
+                st.frontier = [k for k in st.nodes[key]["children"] if k in st.nodes]
+        else:
+            for t in TEMPLATE.get(st.act, TEMPLATE[1]).split():
+                if not (yield from room(t)):
+                    return 0
+        bosses = st.bosses or [rng.choice(pools.pool(st.act_name, "boss"))]
+        if st.act == 2 and len(bosses) < 2:  # A10: a second boss from the same pool
+            bosses = bosses + [rng.choice([b for b in pools.pool(st.act_name, "boss") if b not in bosses])]
+        for b in bosses:
+            if not (yield from fight("boss", b)):
+                return 0
+        if st.act == 2:
+            st.end = (st.act, "won", None)
+            return 1
+        yield from rewards("boss")
+        st.act += 1
+        st.act_name, st.bosses, st.nodes, st.frontier, st.monsters, st.seen = ACT_NAMES[st.act][0], [], None, None, 0, {}
+        st.hp += int(HEAL_ANCIENT * (st.max_hp - st.hp))
+        st.unknown = dict(T.UNKNOWN_BASE)
+        dr.act = st.act
+
+
+class Rollouts:
+    """Many rollouts in lockstep: each step batches every live rollout's fights into one predictor call."""
+
+    def __init__(self, predictor, shuffles=4):
+        self.pred, self.shuffles = predictor, shuffles
+
+    def run(self, states, seeds, pol=None, firsts=None):
+        """P(win the run) per rollout (1 / 0)."""
+        pol = pol or BasePolicy()
+        gens = [play(s, random.Random(sd), pol, f) for s, sd, f in zip(states, seeds, firsts or [None] * len(states))]
+        out = np.full(len(gens), np.nan)
+        pending = {}
+        for i, g in enumerate(gens):
+            try:
+                pending[i] = next(g)
+            except StopIteration as e:
+                out[i] = e.value
+        while pending:
+            idx = list(pending)
+            flat = [sc for i in idx for sc in pending[i]]
+            P = self.pred.fight_start(flat, self.shuffles)
+            nxt, o = {}, 0
+            for i in idx:
+                n = len(pending[i])
+                try:
+                    nxt[i] = gens[i].send(P[o:o + n])
+                except StopIteration as e:
+                    out[i] = e.value
+                o += n
+            pending = nxt
+        return out
