@@ -301,3 +301,19 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - Holdout losses get worse in the first epoch and never beat the init, for either target. With a 10x policy weight, policy loss is still flat.
   - At 35-70k fights per round, fine-tuning a network trained on many millions of PPO steps only perturbs it. Neither the pool nor the target matters until the update itself can improve on the init.
 - **Implication:** pause ExIt rounds on h128-sized networks. The levers with measured effect are capacity (E17) and data at PPO scale. ExIt needs one of two things before it can help: far more fights per update (cheaper collection), or a base network that has not saturated what it is fed.
+
+## E19. ExIt on an unsaturated network: the policy does not move, the outcome head learns fast
+- **Method:** the d256 PPO checkpoint at 1600 iterations (greedy 0.696 on the PPO eval set; scalar value, no outcome head). A fresh outcome head was attached. ExIt trained it on all clean collected fights (198k: r1, r2, r2b, diag8, r3, r4s, r4u), anchored minmax c 2, 3 epochs. `bench.py screen`, 4 attempts per fight.
+
+| network | greedy win, paired with the d256 init (eval / corpus / mix / tail) | predictor Brier (eval / corpus / mix / tail) |
+|---|---|---|
+| d256 init | | 0.190 / 0.193 / 0.201 / 0.540 (fresh head) |
+| d256 + ExIt | -0.002 / +0.000 / -0.001 / +0.006 | 0.026 / 0.022 / 0.028 / 0.037 |
+| h128 | +0.005 / +0.010 / +0.003 / +0.017 | 0.042 / 0.034 / 0.072 / 0.102 |
+| r3 | +0.005 / +0.007 / +0.009 / +0.023 | 0.021 / 0.018 / 0.024 / 0.035 |
+
+- Holdout policy loss went from 0.588 to 0.605.
+- **What it shows:**
+  - The policy side of ExIt teaches nothing even to a network that is not saturated, so the target is the problem (E15), not saturation.
+  - The value side works: a fresh outcome head reaches nearly r3's calibration in 3 epochs, and r3 halves h128's Brier with no bias.
+  - ExIt's product today is the predictor. Policy improvement has to come from PPO (the A/B arms) or from a policy target that keeps only significant search preferences.
