@@ -11,8 +11,10 @@
 //! Past a limit, [`Combat::trip_loop`] sets `ov::LOOP` and puts the combat in the "combat ended" state the engine already unwinds
 //! from (`in_progress = false`: guarded passes, plays, attacks and draws stop), and every further unit fails (`work_limit = 0`), so
 //! the unguarded passes stop too. The rest of the call stack returns quickly; `step` then leaves the combat in `Stage::Over` with the
-//! flag set. Such a combat is NOT faithful and only safe to drop: `BatchEnv` and the search end the episode / play-out with
-//! `OUTCOME_OVERFLOW` like any capacity overflow.
+//! flag set. Such a combat is only safe to drop, not to continue. `BatchEnv` and the search score it as a LOSS (`sts2env::looped`), not as
+//! a neutral overflow: a chain that never ends is a fight the real game never finishes either (a soft-lock, e.g. Pillage + Hellraiser
+//! + Velvet Choker, `docs/research/evidence.md` E6), so a line into it must never look better than a loss. The limits therefore stay
+//! far above every finite chain (corpus max 174 work units): a false trip would be scored as a loss.
 //!
 //! Replayed steps (`engine/replay.rs`) get a fresh budget on every run of the action (each rerun restores the snapshot taken after
 //! `step` reset the counters); a loop in the thrown-away tail after a captured prompt is dropped with that tail, and trips again in

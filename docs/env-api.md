@@ -120,7 +120,7 @@ Not tracked: "known top card" information (after a put-on-top effect a human rem
 | -1 | `OUTCOME_LOSS` | `loss` | defeat |
 | 2 | `OUTCOME_TRUNCATED` | `step` only | hit `max_steps` |
 | 3 | `OUTCOME_UNIMPLEMENTED` | `step` only | the fight touched content that is not ported (`Combat::missing`) |
-| 4 | `OUTCOME_OVERFLOW` | `step` only | a fixed capacity of the simulator was exceeded and data was dropped, or a step ran away (`ov::LOOP`) and was cut short (`Combat::overflow`) |
+| 4 | `OUTCOME_OVERFLOW` | `step` only | a fixed capacity of the simulator was exceeded and data was dropped (`Combat::overflow`). Not a step that ran away (`ov::LOOP`): that one is `OUTCOME_LOSS` with the loss reward (a real-game soft-lock; `sts2env::looped`, counted by `BatchEnv::loops` / `VecEnv.loops()`) |
 
 Codes 2-4 are **truncations**: bootstrap from the value of the last state, never treat them as win/loss. 3 and 4 mean the fight can no longer be
 guaranteed faithful to the real game.
@@ -129,7 +129,7 @@ guaranteed faithful to the real game.
 Nothing in the simulator panics or silently drops data when a fixed-capacity container is full. A full `ArrayVec` ignores the push and raises a
 thread-local flag (`util::raise_overflow`); `Combat::step` (and `sync_overflow`, called by the env after `observe`) folds it into the sticky
 `Combat::overflow` bitset (`state::ov::*`: `CONTAINER`, `CARDS`, `CREATURES`, `HISTORY`, `COUNTER`, `SCENARIO`, `LOOP`). `sts2diff` reports it as a
-simulator error, `BatchEnv` as `OUTCOME_OVERFLOW`. Invalid scenarios are errors (`Combat::try_new`, `ScenarioError`), never panics.
+simulator error, `BatchEnv` as `OUTCOME_OVERFLOW` (`LOOP`: `OUTCOME_LOSS`, see above). Invalid scenarios are errors (`Combat::try_new`, `ScenarioError`), never panics.
 
 | resource | capacity | exceeded |
 |---|---|---|
@@ -146,7 +146,7 @@ simulator error, `BatchEnv` as `OUTCOME_OVERFLOW`. Invalid scenarios are errors 
 | selected cards of a decision / choice | 16 | `ov::CONTAINER` |
 | history ring (this-turn / last-turn queries) | 160 entries (`HIST_CAP`) of the queried kinds | `ov::HISTORY` when an entry of the current or previous player turn is overwritten |
 | whole-combat counters (`hist_total` ...) | 65535 | `ov::COUNTER` |
-| work inside one step / one look-ahead turn (hook passes, card plays, attack hits, monster transitions) | `WORK_LIMIT` = 20,000 (corpus max 174) | `ov::LOOP`, step cut short, combat `Over` |
+| work inside one step / one look-ahead turn (hook passes, card plays, attack hits, monster transitions) | `WORK_LIMIT` = 20,000 (corpus max 174) | `ov::LOOP`, step cut short, combat `Over`, scored as a loss |
 | hook passes nested inside each other (a trigger chain's recursion depth) | `HOOK_DEPTH_LIMIT` = 64 (corpus max 12) | `ov::LOOP` |
 | player turns started by one step (auto-ended turns) | `TURN_LIMIT` = 20 (corpus max 2) | `ov::LOOP` |
 
