@@ -166,6 +166,15 @@ class Live:
         stops once the expected regret is below `fight_tol` HP."""
         return 0.0 if (override is not None or self.budget is not None) else self.fight_tol
 
+    @staticmethod
+    def _foes(f):
+        """The enemies by target index (`-> eN` indexes the enemies still in combat): the dashboard names the targets."""
+        try:
+            es = [e for e in (f.get("state") or {}).get("enemies") or [] if e.get("alive", True)]
+            return [e.get("id") for e in sorted(es, key=lambda e: e.get("index", 0))]
+        except Exception:  # noqa: BLE001  never let bookkeeping break a fight
+            return None
+
     def _fight_end(self, text=None):
         """Record the end of the current fight. `text` = the screen right after it (HP is read from it); without it the HP is unknown."""
         if self.rp is None or self.fight_id in self._ended:
@@ -254,7 +263,7 @@ class Live:
         stop = self._proposal_check() if self.rp.sim.stage() == "play" else None
         fresh = None if stop or not self._proposal_table else "\n".join(self._proposal_table + ["no potion proposed this turn"])
         d = self._decide(self.rp.scenario, self.rp.sim, self._budget(budget), tol_hp=self._tol(budget))
-        self.log.event("advice", fight=self.fight_id, text=d["text"], options=[dict(text=o["text"], q=o["q"]) for o in d["options"][:6]], drive=getattr(self, "drive", None))  # manual fights: my choice (the next `macro` event) vs this
+        self.log.event("advice", fight=self.fight_id, text=d["text"], options=[dict(text=o["text"], q=o["q"]) for o in d["options"][:6]], drive=getattr(self, "drive", None), foes=self._foes(f))  # manual fights: my choice (the next `macro` event) vs this
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook() + (f"\n{stop}" if stop else "") + (f"\n{fresh}" if fresh else "")
 
     def _decide(self, scenario, sim, budget, **kw):
@@ -501,7 +510,7 @@ class Live:
                 if str(d["text"]).startswith("potion"):
                     self.potions_used += 1
                 self.fight_actions += 1
-                self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"])
+                self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"], foes=self._foes(f))
                 out.append("  " + self._advice_text(d))
                 t0 = T()
                 reply = self._send("do " + self._game_json(d["json"]))
