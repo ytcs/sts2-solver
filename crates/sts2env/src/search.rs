@@ -158,6 +158,11 @@ pub struct SearchCfg {
     /// Floats per value row the caller answers: 1 (a scalar value), `HEAD_NC` (the outcome head's class probabilities) or `HEAD_NC + POT` (and the potion-use
     /// head's per-slot probabilities). Rows wider than 1 are combined in Rust with the job's [`Worth`].
     pub val_w: usize,
+    /// **DIAGNOSTIC ONLY: SEES HIDDEN INFORMATION. NEVER SET FOR LIVE PLAY.** The `k` futures of a decision are NOT determinized: each is an exact copy of the
+    /// true current state (the same RNG streams and pile orders), so a play-out meets the real future the fight would meet under the same actions (they
+    /// still differ in the play-out policy's sampling stream, so `k` futures are `k` policy samples on the one true future). It gives an upper bound on how
+    /// winnable a fight set is (`tools/headroom.py`), not a player: the real game hides exactly what this reads. Default `false`; the live engine never sets it.
+    pub clairvoyant: bool,
 }
 
 /// What the engine reports per job (fight).
@@ -433,7 +438,7 @@ fn terminal(cx: &Combat, steps: u32, max_steps: u32, cfg: &SearchCfg) -> Option<
 
 /// The move that needs no decision: the only legal action, or confirming a selection that is full (picking another card at `max` only
 /// swaps the latest pick, which the policy could have chosen directly; a sampled policy otherwise wanders between picks for dozens of steps).
-fn forced_action(cx: &Combat, buf: &ActionBuf) -> Option<Action> {
+pub fn forced_action(cx: &Combat, buf: &ActionBuf) -> Option<Action> {
     if buf.len() == 1 {
         return Some(buf[0]);
     }
@@ -516,6 +521,20 @@ fn hidden_sig(cx: &Combat) -> (i64, u64) {
 /// Does the state show something that depends on the (hidden) order of the draw pile? A pending selection among cards of the draw pile does.
 fn shows_draw_pile(cx: &Combat) -> bool {
     matches!(&cx.decision, Some(d) if matches!(d.source, sts2sim::state::DecisionSource::Pile(sts2sim::types::PileType::Draw)))
+}
+
+/// Turns a play-out copy of the true state into future `kk` of `k`: resamples the hidden information (`Combat::determinize` / `determinize_strat`), or with
+/// `SearchCfg::clairvoyant` (diagnostic only) leaves the copy as it is, so the play-out sees the true future.
+#[inline]
+fn fork_future(cx: &mut Combat, cfg: &SearchCfg, ks: &[u64], kk: usize, k: usize) {
+    if cfg.clairvoyant {
+        return;
+    }
+    if cfg.strat {
+        cx.determinize_strat(ks[0], ks[kk], kk, k);
+    } else {
+        cx.determinize(ks[kk]);
+    }
 }
 
 /// Plays `act` on a play-out copy and then every forced move, until it needs the policy / the value network or ends.
@@ -828,7 +847,7 @@ impl Block {
                 }
                 let t0 = tsc();
                 sim.cx.clone_from(&self.main);
-                if cfg.strat { sim.cx.determinize_strat(self.ks[0], self.ks[kk], kk, k); } else { sim.cx.determinize(self.ks[kk]); }
+                fork_future(&mut sim.cx, cfg, &self.ks, kk, k);
                 self.stats.cy_fork += tsc() - t0;
                 sim.start_turn = turn;
                 sim.est = 0.0;
@@ -880,7 +899,7 @@ impl Block {
                 for kk in 0..k {
                     let sim = &mut self.sims[base + kk];
                     let t0 = tsc();
-                    if cfg.strat { sim.cx.determinize_strat(self.ks[0], self.ks[kk], kk, k); } else { sim.cx.determinize(self.ks[kk]); }
+                    fork_future(&mut sim.cx, cfg, &self.ks, kk, k);
                     self.stats.cy_fork += tsc() - t0;
                     self.stats.forks += 1;
                     sim.est = est;
