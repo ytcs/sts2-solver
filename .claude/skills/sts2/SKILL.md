@@ -8,7 +8,7 @@ description: Use at the start of any Slay the Spire 2 run or session: root of th
 Skill loading is enforced by hooks and the harness; the screen-to-skill table is in `CLAUDE.md`.
 
 ## Rules that never bend
-- No cheating in a scored run: no dev console or god mode, no hidden state (draw order, RNG streams, the pre-rolled encounter and elite order, the seed's future), no restarts or reloads. Dev console only for harness tests. Never look for or reconstruct SPIRECAST2 / NaveGreed material.
+- No cheating in a scored run: no dev console or god mode, no hidden state (draw order, RNG streams, the pre-rolled encounter and elite order, the seed's future), no restarts or reloads. Dev console only for harness tests.
 - Allowed information: the screen, public game knowledge (pools, card text, monster patterns), what I observed this run.
 - Goal: win the run; second, finish with the most HP.
 - **Skill files are a mutable set of rules, never a journal or a history.** Every entry is a rule, a mechanic or a test with its status tag; edit or delete it when it changes. No history at all: no runs, no "what happened", no past fights or picks as examples, no session logs or TODOs. Evidence and history live in `runs/<run>/` and `evals/`. Test before writing: does the line still read as a rule if every run so far were forgotten? If not, it does not belong in a skill.

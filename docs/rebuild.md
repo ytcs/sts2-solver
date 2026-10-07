@@ -160,6 +160,12 @@ It predicts play under the best combat policy we have (search), not the raw netw
 - Decision guards are replaced by prediction-vs-outcome logging.
 - Every gap is typed (fidelity / calibration slice / missing model / tool) and leads to a fix or an experiment, adopted only through the gate of its stage.
 
+**Expert data (queued).** Top players' recorded runs (NaveGreed, OpemSpire) are allowed (user, 2026-10-07).
+- Macro decisions (picks, paths, shops, rests, ancients, the plans they commit to) seed the plan library as `[expert]` entries, which the predictor then measures.
+- A few hundred pivotal combat decisions form a test set: where our search disagrees, replay both lines. Expert wins become loop-2 frontier targets.
+- Combat imitation training only if that test set shows gaps.
+- Pilot first: one video from a build close to v0.111.0, extracting its macro decisions and 2-3 full fights, with the hours spent and the extraction accuracy measured.
+
 ## 5. What is retired
 - The potion machinery listed in S4.
 - `DRIVE` thresholds and the danger budget formula.
