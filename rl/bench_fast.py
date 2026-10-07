@@ -55,7 +55,7 @@ for k, v in fs.stats.items():
     print(f"  {k:16s} {v:>14,.1f}  per fight {v / len(r):10.1f}")
 if a.profile_gpu:
     tot = 0
-    for k, (ms, n, rows) in sorted(fs.gpu_ms().items()):
+    for k, (ms, n, rows, padded) in sorted(fs.gpu_ms().items()):
         tot += ms
-        print(f"  GPU {k:14s} {ms / 1000:6.1f}s  {n:7d} replays  {rows / max(n, 1):7.0f} rows/replay  {ms / max(n, 1):5.2f} ms/replay  {1000 * ms / max(rows, 1):.2f} us/row")
+        print(f"  GPU {k:14s} {ms / 1000:6.1f}s  {n:7d} replays  {rows / max(n, 1):7.0f} rows/replay  {ms / max(n, 1):5.2f} ms/replay  {1000 * ms / max(rows, 1):.2f} us/row  padding {100 * (padded / max(rows, 1) - 1):.0f}%")
     print(f"  GPU total {tot / 1000:.1f}s of {dt:.1f}s")

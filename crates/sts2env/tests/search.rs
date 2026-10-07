@@ -146,3 +146,54 @@ fn carried_lines_finish_and_save_searches() {
     }
     assert!(s1.carried > 0 && s1.forks < s0.forks, "{} carried, forks {} vs {}", s1.carried, s1.forks, s0.forks);
 }
+
+/// `run` through `advance_shared`: one observation buffer, value rows written from its end backwards.
+fn run_shared(threads: usize, n_roots: usize, jobs: Vec<(u32, u64)>, cfg: SearchCfg) -> (Vec<JobResult>, SearchStats, usize) {
+    let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default()), (scenario(14, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
+    let mut eng = SearchEngine::new(scen, jobs, n_roots, cfg, threads, false).unwrap();
+    let cap = eng.shared_rows();
+    let (pc, vc) = eng.max_rows();
+    assert!(cap < pc + vc);
+    let (mut ob, mut pm, mut pk, mut pu, mut vk) = (vec![0f32; cap * OBS_SIZE], vec![0u8; cap * ACTION_SPACE], vec![0u8; cap], vec![0f32; cap], vec![0u8; cap]);
+    let stride = 2 * cfg.m + 1;
+    let (mut pol, mut val) = (vec![0f32; cap * stride], vec![0f32; cap]);
+    let (mut np, mut nv) = eng.advance_shared(None, None, &mut ob, &mut pm, &mut pk, &mut pu, &mut vk).unwrap();
+    let (mut cycles, mut peak) = (0, 0);
+    while np + nv > 0 {
+        assert!(np + nv <= cap);
+        peak = peak.max(np + nv);
+        for r in 0..np {
+            answer(&ob[r * OBS_SIZE..(r + 1) * OBS_SIZE], &pm[r * ACTION_SPACE..(r + 1) * ACTION_SPACE], cfg.m, &mut pol[r * stride..(r + 1) * stride]);
+        }
+        for r in 0..nv {
+            let row = cap - 1 - r;
+            val[r] = (hash(&ob[row * OBS_SIZE..(row + 1) * OBS_SIZE]) % 1000) as f32 / 2000.0 - 0.25;
+        }
+        let pa = pol[..np * stride].to_vec();
+        let va = val[..nv].to_vec();
+        (np, nv) = eng.advance_shared(Some(&pa), Some(&va), &mut ob, &mut pm, &mut pk, &mut pu, &mut vk).unwrap();
+        cycles += 1;
+        assert!(cycles < 100_000, "the engine does not terminate");
+    }
+    assert!(eng.finished());
+    (eng.results().to_vec(), eng.stats(), peak)
+}
+
+#[test]
+fn shared_request_buffer_matches_separate_buffers() {
+    let jobs: Vec<(u32, u64)> = (0..24).map(|i| ((i % 2) as u32, 900 + i as u64)).collect();
+    let mut c = cfg();
+    for (lead, carry, strat) in [(false, false, false), (true, true, true)] {
+        c.lead = lead;
+        c.carry = carry;
+        c.strat = strat;
+        let (r1, s1) = run(3, 6, jobs.clone(), c);
+        let (r2, s2, peak) = run_shared(3, 6, jobs.clone(), c);
+        assert!(peak > 0);
+        for i in 0..24 {
+            assert_eq!((r1[i].outcome, r1[i].len), (r2[i].outcome, r2[i].len), "job {i}");
+            assert_eq!(r1[i].hp_lost.to_bits(), r2[i].hp_lost.to_bits(), "job {i}");
+        }
+        assert_eq!((s1.policy_rows, s1.value_rows, s1.sim_steps, s1.searched), (s2.policy_rows, s2.value_rows, s2.sim_steps, s2.searched));
+    }
+}
