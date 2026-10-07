@@ -62,8 +62,8 @@ def match(event, labels):
         hits = [o for o in free if _pattern(o["label"]).match(head) or _pattern(o["label"]).match(text.strip())]
         # the most literal label wins: `Give {Gold} Gold` before `Give {Potion}` for "Give 100 Gold"
         o = max(hits, key=lambda o: len(re.sub(r"\{\w+\}", "", o["label"]))) if hits else None
-        if o is not None:
-            free.remove(o)
+        if o is not None:  # an option and its _LOCKED variant are one slot on the screen
+            free = [x for x in free if x is not o and {x["key"], o["key"]} != {o["key"].removesuffix("_LOCKED"), o["key"].removesuffix("_LOCKED") + "_LOCKED"}]
         out.append(o)
     return out
 
