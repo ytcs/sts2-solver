@@ -138,6 +138,7 @@ ACT_NAMES = {0: ("Overgrowth", "Underdocks"), 1: ("Hive",), 2: ("Glory",)}
 # a typical route of a later act (rooms before the boss), the map's room mix (`game_code.md` C1): 6-7 rests, ~11 unknowns, 3 shops, 5-8 elites per map
 TEMPLATE = {1: "M M ? M ? E R ? T M E ? $ R", 2: "M M ? M ? E R ? T M ? $ R"}
 BASICS = ("STRIKE_", "DEFEND_", "ASCENDERS_BANE")
+CURSES = {c["id"] for c in CAT["cards"].get("CURSE", [])}
 WEAK_FIGHTS = {0: 3, 1: 2, 2: 2}
 
 
@@ -158,6 +159,8 @@ class RunState:
         s.__dict__.update({k: (v.copy() if isinstance(v, (list, dict)) else v) for k, v in self.__dict__.items()})
         s.deck = [dict(c) for c in self.deck]
         s.seen = {k: list(v) for k, v in self.seen.items()}
+        if "events_seen" in self.__dict__:
+            s.events_seen = set(self.events_seen)
         return s
 
     def relic_ids(self):
@@ -195,6 +198,38 @@ class BasePolicy:
             rank = {"T": 0, "?": 1, "M": 2, "R": 3, "$": 4, "E": 6}
         return min(options, key=lambda o: rank.get(o[1], 5))[0]
 
+    def event(self, st, entry):
+        """An event option by a crude score of its effects (relics, removals, upgrades and max HP up; HP down weighs more at low HP; curses down)."""
+        lowhp = st.hp < 0.4 * st.max_hp
+
+        def score(effects):
+            v = 0.0
+            for e in effects:
+                k, x = next(iter(e.items()))
+                if k in ("relic", "relic_one_of", "relic_random"):
+                    v += 3
+                elif k == "card_remove":
+                    v += 1.5 * (x if isinstance(x, int) else x.get("n", 1))
+                elif k in ("card_upgrade", "card_upgrade_random"):
+                    v += 1.0 * (x if isinstance(x, int) else 3)
+                elif k == "max_hp":
+                    v += 0.1 * x
+                elif k in ("hp", "hp_frac"):
+                    hp = x * st.max_hp if k == "hp_frac" else x
+                    v += hp * (0.08 if lowhp else 0.03)
+                elif k == "gold":
+                    v += 0.01 * (sum(x) / 2 if isinstance(x, list) else x)
+                elif k == "card_add" and str(x).upper() in CURSES:
+                    v -= 2
+                elif k == "fight":
+                    v += -2 if lowhp else 0.5
+                elif k == "unmodelled":
+                    v -= 0.5
+            return v
+        opts = [o for o in entry["options"] if not o["key"].endswith("_LOCKED")]
+        best = max(opts, key=lambda o: score(o["effects"])) if opts else None
+        return entry["options"].index(best) if best else 0
+
     def potions(self, st, kind):
         """The belt allowed in this fight: all of it at elites and bosses, none in hallways."""
         return list(st.potions) if kind in ("elite", "boss") else []
@@ -231,12 +266,11 @@ def worth(P, max_hp):
 
 def play(st, rng, pol, first=None):
     """One rollout as a generator: yields a list of fight scenarios and receives the predictor's [n, NC] for them; returns 1 for a won run, 0 for a
-    death. `first`: the priced choice, applied to the state before the rollout starts."""
+    death. `first(st, draws)`: the priced choice, applied to the state before the rollout starts (it may return an event's result to play out)."""
     import predictor as PR
-    from agent import pools
+    from agent import events as EV, pools
     dr = Draws(rng, st.base["character"], st.act)
-    if first:
-        first(st)
+    pre = first(st, dr) if first else None  # the priced choice; an event option returns its fights and whether it killed me
 
     def fight(kind, encounter):
         allowed = pol.potions(st, kind)
@@ -265,11 +299,33 @@ def play(st, rng, pol, first=None):
             if r:
                 st.relics.append(r)
 
+    def event_result(res):
+        """The fights an event option started, with their rewards and follow-ups; False on a death."""
+        if res.get("dead"):
+            return False
+        for f in res.get("fights", []):
+            if not (yield from fight("hallway", f["fight"])):
+                return False
+            if f.get("rewards") == "hallway":
+                yield from rewards("hallway")
+            if EV.apply(st, f.get("extra", []), dr)["dead"]:
+                return False
+        return True
+
     def room(t):
         st.floors += 1
         if t == "?":
             u, st.unknown = dr.unknown(st.unknown)
             t = {"monster": "M", "treasure": "T", "shop": "$"}.get(u, "event")
+        if t == "event":
+            seen = st.__dict__.setdefault("events_seen", set())
+            cands = [e for e in EV.catalog().values() if (st.act_name in e["acts"] or "shared" in e["acts"]) and e["id"] not in seen and EV.allowed(e["id"], st)]
+            if cands:
+                e = rng.choice(cands)
+                seen.add(e["id"])
+                if not (yield from event_result(EV.play_option(st, e["id"], pol.event(st, e), dr))):
+                    return False
+            return True
         if t in ("M", "E"):
             pool_kind = "elite" if t == "E" else ("weak" if st.monsters < WEAK_FIGHTS[st.act] else "regular")
             st.monsters += t == "M"
@@ -297,6 +353,8 @@ def play(st, rng, pol, first=None):
                 st.relics.append(r)
         return True
 
+    if isinstance(pre, dict) and not (yield from event_result(pre)):
+        return 0
     while True:
         if st.nodes is not None and st.frontier:  # the rest of this act on its real map
             while st.frontier:

@@ -6,6 +6,7 @@ the act horizon then still separates them, and the floors after it. Options per 
   CARD_REWARD  each card and skip
   RESTSITE     rest, and smith of each upgradable card
   SHOP         nothing, each affordable card / relic / potion, the removal of each distinct card
+  EVENT        each option of a catalogued event (`data/events.json`); an unmodelled effect is a no-op, flagged in the table
 Each option meets the same draws (common random numbers); the table prints each option's mean with its se and the paired difference to the best.
 """
 import os
@@ -60,7 +61,7 @@ def options(st, state_text):
     out = []
     if kind == "MAP":
         for k in st.frontier or []:
-            out.append((f"{st.nodes[k]['type']} r{k[0]}c{k[1]}", lambda s, k=k: setattr(s, "frontier", [k])))
+            out.append((f"{st.nodes[k]['type']} r{k[0]}c{k[1]}", lambda s, _d, k=k: setattr(s, "frontier", [k])))
     elif kind == "CARD_REWARD":
         out.append(("skip", None))
         for _, label in scr.options(state_text):
@@ -68,13 +69,24 @@ def options(st, state_text):
             if m:
                 cid, up = _card_id(m.group(1))
                 if cid:
-                    out.append((m.group(1).strip(), lambda s, c=cid, u=up: s.deck.append({"id": c, "upgrade": u})))
+                    out.append((m.group(1).strip(), lambda s, _d, c=cid, u=up: s.deck.append({"id": c, "upgrade": u})))
     elif kind == "RESTSITE":
-        out.append(("rest", lambda s: setattr(s, "hp", min(s.max_hp, s.hp + int(R.HEAL_REST * s.max_hp)))))
+        out.append(("rest", lambda s, _d: setattr(s, "hp", min(s.max_hp, s.hp + int(R.HEAL_REST * s.max_hp)))))
         for cid in sorted({c["id"] for c in st.deck if not c.get("upgrade") and c["id"] != "ASCENDERS_BANE"}):
-            def smith(s, cid=cid):
+            def smith(s, _d, cid=cid):
                 next(c for c in s.deck if c["id"] == cid and not c.get("upgrade"))["upgrade"] = 1
             out.append((f"smith {cid}", smith))
+    elif kind == "EVENT":
+        from agent import events as EV
+        lines = state_text.split("\n")
+        title = lines[2].split(":", 1)[0].strip() if len(lines) > 2 else ""
+        entry = EV.get(title)
+        if entry:
+            labels = [label for _, label in scr.options(state_text)]
+            for label, o in zip(labels, EV.match(title, labels)):
+                if o is not None and not o["key"].endswith("_LOCKED"):
+                    idx = entry["options"].index(o)
+                    out.append((label.split(":", 1)[0][:34], lambda s, d, i=idx, eid=entry["id"]: EV.play_option(s, eid, i, d)))
     elif kind == "SHOP":
         out.append(("nothing", None))
         for _, label in scr.options(state_text):
@@ -85,16 +97,16 @@ def options(st, state_text):
                 if what == "card":
                     cid, up = _card_id(name)
                     if cid:
-                        out.append((f"{name} ({price}g)", lambda s, c=cid, u=up, p=price: (s.deck.append({"id": c, "upgrade": u}), setattr(s, "gold", s.gold - p))))
+                        out.append((f"{name} ({price}g)", lambda s, _d, c=cid, u=up, p=price: (s.deck.append({"id": c, "upgrade": u}), setattr(s, "gold", s.gold - p))))
                 elif what == "relic":
-                    out.append((f"{name} ({price}g)", lambda s, r=ident, p=price: (s.relics.append(r), setattr(s, "gold", s.gold - p))))
+                    out.append((f"{name} ({price}g)", lambda s, _d, r=ident, p=price: (s.relics.append(r), setattr(s, "gold", s.gold - p))))
                 elif len(st.potions) < st.slots:
-                    out.append((f"{name} ({price}g)", lambda s, q=ident, p=price: (s.potions.append(q), setattr(s, "gold", s.gold - p))))
+                    out.append((f"{name} ({price}g)", lambda s, _d, q=ident, p=price: (s.potions.append(q), setattr(s, "gold", s.gold - p))))
             m = re.match(r"^(\d+)g remove a card", label)
             if m and "can't afford" not in label:
                 price = int(m.group(1))
                 for cid in sorted({c["id"] for c in st.deck if c["id"] != "ASCENDERS_BANE"}):
-                    def rm(s, cid=cid, p=price):
+                    def rm(s, _d, cid=cid, p=price):
                         s.deck.remove(next(c for c in s.deck if c["id"] == cid))
                         s.gold -= p
                         s.removals += 1
