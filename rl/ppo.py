@@ -114,6 +114,12 @@ def main():
     ap.add_argument("--adaptive", type=int, default=0, help="every N iterations reweight the training fights (M3): fights the policy wins 20-80 %% weigh 1, the "
                     "others --adaptive-floor; win estimated per fight, shrunk toward its (encounter, act, character) group")
     ap.add_argument("--adaptive-floor", type=float, default=0.3)
+    ap.add_argument("--adaptive-mode", choices=["band", "signal"], default="band",
+                    help="band: the 20-80 %% rule above; signal: weight p(1 - p) (the variance of the fight's outcome: saturated and hopeless fights fade, "
+                    "contested ones dominate) plus --adaptive-anchor of the draws uniform (docs/rebuild.md S3, curriculum by signal)")
+    ap.add_argument("--adaptive-anchor", type=float, default=0.15, help="signal mode: share of the draws spread uniformly over every fight")
+    ap.add_argument("--adaptive-decay", type=float, default=1.0, help="per reweight, the per-fight counts are multiplied by this (< 1: recent "
+                    "episodes count more, so the estimates follow the improving policy)")
     ap.add_argument("--curriculum", default="", help="comma list of difficulty edges, e.g. 0.1,0.3,0.5,0.7,0.9,1: stage 0 = fights with meta.stage == easy, stage k = "
                     "certified fights (meta.cert.diff, tools/certify_fights.py) with difficulty up to edge k; every fight of the bands up to the stage weighs 1, the "
                     "stage's own band --cur-boost (cumulative: the last stage is nearly uniform over the certified pool); a stage advances when its band's mean "
@@ -245,9 +251,18 @@ def main():
             g_n, g_w = np.bincount(grp, s_n, len(gkey)), np.bincount(grp, s_w, len(gkey))
             pg = (g_w + 1) / (g_n + 2)
             ps = (s_w + 4 * pg[grp]) / (s_n + 4)
-            wts = np.where((ps >= 0.2) & (ps <= 0.8), 1.0, a.adaptive_floor)
+            if a.adaptive_mode == "signal":
+                v = ps * (1 - ps)
+                wts = (1 - a.adaptive_anchor) * v / v.sum() + a.adaptive_anchor / len(v)
+            else:
+                wts = np.where((ps >= 0.2) & (ps <= 0.8), 1.0, a.adaptive_floor)
             env.set_weights(wts)
-            adapt_rec = dict(share_mid=round(float(((ps >= 0.2) & (ps <= 0.8)).mean()), 3), seen=round(float((s_n > 0).mean()), 3))
+            q = wts / wts.sum()
+            adapt_rec = dict(share_mid=round(float(((ps >= 0.2) & (ps <= 0.8)).mean()), 3), seen=round(float((s_n > 0).mean()), 3),
+                             sat=round(float((ps > 0.95).mean()), 3), lost=round(float((ps < 0.05).mean()), 3),
+                             drawn_pq=round(float((q * ps * (1 - ps)).sum()), 4), uniform_pq=round(float((ps * (1 - ps)).mean()), 4))
+            s_n *= a.adaptive_decay
+            s_w *= a.adaptive_decay
         for g in (opt_w if warm else opt).param_groups:
             g["lr"] = lr
         # ---- rollout ----

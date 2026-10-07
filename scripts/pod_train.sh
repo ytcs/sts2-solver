@@ -15,6 +15,7 @@ WIDTH=${WIDTH:-128}
 HOLD=${HOLD:-0.2}
 ENERGY=${ENERGY:-0.15}   # share of scenarios with 4-7 energy a turn (the old training mix had almost none)
 THREADS=${THREADS:-$(nproc)}
+PPO_EXTRA=${PPO_EXTRA:-}   # more rl/ppo.py flags, e.g. "--adaptive 25 --adaptive-mode signal --adaptive-decay 0.8"
 
 if ! command -v cargo >/dev/null; then
   curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
@@ -32,5 +33,5 @@ mkdir -p target/train target/runs
 [ -f target/train/eval_energy.json ] || python tools/gen_train.py --n 600 --seed 23 --energy-prob 1.0 --out target/train/eval_energy.json  # held-out, every scenario 4-7 energy
 
 nohup python rl/ppo.py --train target/train/train.json --eval target/train/eval.json --out "target/runs/$RUN" \
-  --d "$WIDTH" --iters "$ITERS" --hold-prob "$HOLD" --threads "$THREADS" --eval-every 100 > "target/runs/$RUN.log" 2>&1 &
+  --d "$WIDTH" --iters "$ITERS" --hold-prob "$HOLD" --threads "$THREADS" --eval-every 100 $PPO_EXTRA > "target/runs/$RUN.log" 2>&1 &
 echo "training started: tail -f target/runs/$RUN.log   (checkpoints under target/runs/$RUN/)"
