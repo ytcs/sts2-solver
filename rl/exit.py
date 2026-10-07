@@ -147,7 +147,7 @@ POLICY_HEADS = {"u_card", "b_card", "v_tgt", "v_none", "u_pot", "b_pot", "disc_p
 class Data:
     """One or more `collect` files; `chunks` yields replayed rows (obs, mask, opts, policy target, outcome class) a chunk of fights at a time."""
 
-    def __init__(self, paths, tau, keep_mp=False):
+    def __init__(self, paths, tau, keep_mp=False, qnorm="minmax"):
         self.parts = []
         for p in paths:
             z = np.load(p)
@@ -159,6 +159,10 @@ class Data:
             lo, hi = np.nanmin(np.where(ok, q, np.nan), 1, keepdims=True), np.nanmax(np.where(ok, q, np.nan), 1, keepdims=True)
             qn = np.where(ok, (q - lo) / np.maximum(hi - lo, 1e-6), np.nan)  # each decision's tried options scaled to [0, 1] (Gumbel MuZero's normalisation)
             qn = np.where(ok, qn - np.nanmean(qn, 1, keepdims=True), 0.0).astype(np.float32)  # centred: untried actions keep their prior
+            if qnorm == "abs":
+                # the estimates in return units, centred: min-max stretches a noise-level gap to the full scale (most decisions are near-ties: the
+                # best of 5 options repeats across search seeds in 66% of states, a gap beyond 2 se in 8.5%; tools/target_noise.py), units keep it small
+                qn = np.where(ok, np.where(ok, q, 0.0) - np.nanmean(np.where(ok, q, np.nan), 1, keepdims=True), 0.0).astype(np.float32)
             order = np.argsort(z["d_fight"], kind="stable")
             # format 2 (a Gumbel root): the shift of pi' per candidate; None for format 1 (`--target gumbel` needs it)
             adv = np.nan_to_num(z["d_adv"].astype(np.float32))[order] if "d_adv" in z.files else None
@@ -236,7 +240,7 @@ def train(a):
     rng = np.random.default_rng(a.seed)
     net = load(a.init).train()
     assert net.heads, "an outcome-head network is needed (models/solver_h128.pt)"
-    data = Data(a.data, a.tau)
+    data = Data(a.data, a.tau, qnorm=a.qnorm)
     idx = np.array(data.index, dtype=object)
     perm = rng.permutation(len(idx))
     n_hold = max(1, int(len(idx) * a.holdout))
@@ -250,7 +254,7 @@ def train(a):
     prior = load(a.init).eval() if a.target in ("anchored", "gumbel") else None
     opt = torch.optim.AdamW([q for q in net.parameters() if q.requires_grad], lr=a.lr, weight_decay=1e-4)
     print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target {a.target}"
-          f"{' (c=%g)' % a.c if a.target == 'anchored' else ''}{', policy heads frozen' if a.freeze_policy else ''}", flush=True)
+          f"{' (c=%g, %s)' % (a.c, a.qnorm) if a.target == 'anchored' else ''}{', policy heads frozen' if a.freeze_policy else ''}", flush=True)
 
     def batch_loss(o, m, op, tg, cl, qn, adv, ow):
         o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m.astype(np.int64)).to(DEV)
@@ -346,7 +350,9 @@ def main():
     t.add_argument("--target", choices=["soft", "anchored", "gumbel"], default="anchored",
                    help="policy target: soft = softmax(q / tau) over the tried options (made the player worse, E9); anchored = prior + c x normalised q; "
                         "gumbel = Gumbel MuZero's pi' recorded by a --root gumbel collection")
-    t.add_argument("--c", type=float, default=2.0, help="anchored target: weight of the normalised search estimate")
+    t.add_argument("--c", type=float, default=2.0, help="anchored target: weight of the normalised search estimate (logits per unit of --qnorm)")
+    t.add_argument("--qnorm", choices=["minmax", "abs"], default="minmax", help="anchored target: each decision's estimates scaled to [0, 1] (minmax) or "
+                   "in return units (abs: a near-tie shifts the prior by almost nothing; c 4 turns a 2-se gap at 5x32, ~0.22, into ~0.9 logits)")
     t.add_argument("--freeze-policy", action="store_true", help="train the value side only (policy heads frozen)")
     t.add_argument("--holdout", type=float, default=0.05); t.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()

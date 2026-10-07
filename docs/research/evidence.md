@@ -244,3 +244,43 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - The 0.1-0.9 band holds a third of the fights and 73% of the near-misses.
 - **Paired play-check (bench v2, h128 labels, same seeds):** r3 (trained on this data plus earlier rounds) vs armB_anchored (earlier rounds only): eval +0.007 vs +0.002, corpus +0.005 vs +0.004, mix -0.000 vs +0.001, tail +0.009 vs +0.012. These are within noise of each other, so the round did not measurably improve the player.
 - **Next:** a signal-weighted pool (E15, pending) against a uniform pool of the same size.
+
+## E15. The anchored policy target is mostly noise: most decisions are near-ties
+- **Method:** `tools/target_noise.py`. 2000 searched decisions from the signal-pool collection (r4s), rebuilt from seed + prefix. Each was searched twice at 5x32 with fresh seeds, and once at 5x256 as a reference (r3 network).
+
+| measure | value |
+|---|---|
+| best option repeats across seeds | 0.663 |
+| best option = 5x256 reference best | 0.68 |
+| se of one option's estimate | 0.078 (return units) |
+| median gap, best vs second option | 0.005 |
+| states with a gap > 2 se | 0.085 |
+| regret of the 5x32 pick under the reference | mean 0.0098; > 0.05 in 5.7% |
+
+- **What it shows:**
+  - The anchored target normalises each decision's estimates by min-max, which stretches noise-sized gaps to the full scale. At c = 2 it pushes the prior toward a near-random tried option in most states.
+  - Training could not fit it. Holdout policy loss did not fall in r3 or r4s, nor with a 10x policy weight (0.5593 -> 0.5597). KL(target || net) rose from 0.0557 to 0.0588.
+- **Change:** `train --qnorm abs` shifts the prior by c x (q - mean q) in return units. A near-tie then moves the prior by about 0.02 logits; a 2-se gap at c = 4 moves it by about 0.9. A/B pending (r4s_abs4 vs r4s).
+
+## E16. Gumbel root vs top-M at equal futures (tail states, Monte Carlo referee)
+- **Method:** `tools/bench_search.py`, 150 states from 46 tail fights; regret against a referee that plays out every legal action.
+- **Result (regret difference, top-M minus Gumbel; > 0 means Gumbel is better):**
+  - 5x32 vs Gumbel 16x160: -0.0115 [-0.0235, -0.0007] at sigma scale 0.1, the default;
+  - at sigma scale 0.3: 0.0000 [-0.005, +0.007];
+  - at sigma scale 1.0: -0.0016 [-0.009, +0.006];
+  - 4x the futures: Gumbel no better (-0.0087 [-0.019, +0.000]), and top-M 5x32x4 no better than 5x32.
+  - The referee's best action is in the prior's top 5 in 91% of the states.
+- **What it shows:** candidate coverage is not the bottleneck for live picks, and Gumbel halving does not beat top-M there. Its use would be the training target, not live play.
+
+## E17. Network capacity: d = 256 learns faster than d = 128
+- **Method:** PPO from scratch, same recipe, one 5090 each. Greedy eval on the same 1500-fight eval set, 2048 episodes (se ~0.010). The learning-rate schedules differ: d128 decays over 6400 iterations, d256 over 1600.
+
+| network | win | HP lost (all) |
+|---|---|---|
+| d128, 1600 iterations | 0.664 (own log: 0.636) | 0.420 |
+| d256, 1600 iterations | 0.696 | 0.402 |
+| h128 (live, long training) | 0.704 | 0.388 |
+| r3 (h128 + ExIt) | 0.711 | 0.384 |
+
+- d256 led at every eval point from iteration 100 (0.602 vs 0.572), when the two learning rates were still close.
+- **Next:** a long d256 run (6400 iterations) to see whether it ends above h128.
