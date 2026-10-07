@@ -103,14 +103,17 @@ def options(st, state_text):
             pid = _ident(m.group(1)) if m else None
             if pid in _ids("potions") and len(st.potions) >= st.slots:
                 out.append((f"leave {m.group(1).strip()}", None))
+                belt = [_ident(b) for b in scr.belt(state_text)]
                 for held in dict.fromkeys(st.potions):
-                    out.append((f"{m.group(1).strip()} for {held}", lambda s, _d, h=held, q=pid: s.potions.__setitem__(s.potions.index(h), q)))
+                    slot = f" (a dp {belt.index(held)})" if held in belt else ""
+                    out.append((f"{m.group(1).strip()} for {held}{slot}", lambda s, _d, h=held, q=pid: s.potions.__setitem__(s.potions.index(h), q)))
                 break  # one potion reward at a time: price the next after taking or leaving this one
     return out
 
 
 def _ident(name):
-    return re.sub(r"[^A-Z0-9]+", "_", name.strip().upper()).strip("_")
+    """'Gambler's Brew' -> 'GAMBLERS_BREW' (the catalog's id)."""
+    return re.sub(r"[^A-Z0-9]+", "_", name.strip().upper().replace("'", "").replace("’", "")).strip("_")
 
 
 def _ids(kind):
@@ -121,9 +124,9 @@ def _short(cid):
     return re.sub(r"_(IRONCLAD|SILENT|DEFECT|REGENT|NECROBINDER)$", "", cid)
 
 
-def shop_items(st, state_text):
+def shop_items(st, state_text, unpriced=None):
     """The affordable purchases of a SHOP screen: [(label, kind, price, first)], the removal once per distinct card (`first` applies the purchase and pays).
-    A relic or potion without a catalog id is left out (the simulator cannot price it)."""
+    A card, relic or potion without a simulator / catalog id is left out (it cannot be priced) and its name added to `unpriced` when given."""
     out = []
     for _, label in scr.options(state_text):
         if "can't afford" in label:
@@ -131,14 +134,16 @@ def shop_items(st, state_text):
         m = re.match(r"^(\d+)g (card|relic|potion) (.+?)(?:\(|:)", label)
         if m:
             price, what, name = int(m.group(1)), m.group(2), m.group(3).strip()
-            if what == "card":
-                cid, up = _card_id(name)
-                if cid:
-                    out.append((name, what, price, lambda s, _d, c=cid, u=up, p=price: (s.deck.append({"id": c, "upgrade": u}), setattr(s, "gold", s.gold - p))))
-            elif what == "relic" and _ident(name) in _ids("relics"):
-                out.append((name, what, price, lambda s, _d, r=_ident(name), p=price: (s.relics.append(r), setattr(s, "gold", s.gold - p))))
-            elif what == "potion" and _ident(name) in _ids("potions") and len(st.potions) < st.slots:
-                out.append((name, what, price, lambda s, _d, q=_ident(name), p=price: (s.potions.append(q), setattr(s, "gold", s.gold - p))))
+            cid, up = _card_id(name) if what == "card" else (_ident(name), 0)
+            if what == "card" and cid:
+                out.append((name, what, price, lambda s, _d, c=cid, u=up, p=price: (s.deck.append({"id": c, "upgrade": u}), setattr(s, "gold", s.gold - p))))
+            elif what == "relic" and cid in _ids("relics"):
+                out.append((name, what, price, lambda s, _d, r=cid, p=price: (s.relics.append(r), setattr(s, "gold", s.gold - p))))
+            elif what == "potion" and cid in _ids("potions"):
+                if len(st.potions) < st.slots:
+                    out.append((name, what, price, lambda s, _d, q=cid, p=price: (s.potions.append(q), setattr(s, "gold", s.gold - p))))
+            elif unpriced is not None:
+                unpriced.append(name)
         m = re.match(r"^(\d+)g remove a card", label)
         if m:
             price = int(m.group(1))

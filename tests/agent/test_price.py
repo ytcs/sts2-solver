@@ -77,6 +77,9 @@ def test_shop_bundles_find_a_pair_no_single_shows():
     items = PR.shop_items(st, s)
     kinds = {k for _, k, _, _ in items}
     assert "potion" not in kinds and "relic" not in kinds and {"card", "remove"} <= kinds
+    rich, unpriced = s.replace("(can't afford)", "") + "15 90g relic Philosopher's Stone: Gain 1 energy.\n16 90g relic Made Up Relic: x.\n", []
+    names = [n for n, _, _, _ in PR.shop_items(toy(gold=999), rich, unpriced)]
+    assert "Philosopher's Stone" in names and "Gambling Chip" in names and unpriced == ["Made Up Relic"]
     pred = Pred(pair=("HEADBUTT", "HAVOC"), pair_bonus=0.3)  # each alone costs a little (one more card), the pair wins more
     opts, note = PR.bundles(st, items, pred)
     labels = [lb for lb, _ in opts]
@@ -101,7 +104,7 @@ def test_rewards_potion_swap_on_a_full_belt():
          "1 potion Strength Potion: Gain 2 Strength. (potion slots full: a dp <slot> first)\n2 proceed (skip the rest)\n"
     st = toy(potions=["FIRE_POTION", "BLOCK_POTION"])
     opts = PR.options(st, rw)
-    assert [lb for lb, _ in opts] == ["leave Strength Potion", "Strength Potion for FIRE_POTION", "Strength Potion for BLOCK_POTION"]
+    assert [lb for lb, _ in opts] == ["leave Strength Potion", "Strength Potion for FIRE_POTION (a dp 0)", "Strength Potion for BLOCK_POTION (a dp 1)"]
     s = st.copy()
     opts[2][1](s, None)
     assert s.potions == ["FIRE_POTION", "STRENGTH_POTION"] and st.potions == ["FIRE_POTION", "BLOCK_POTION"]

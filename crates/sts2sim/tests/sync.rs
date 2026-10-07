@@ -221,6 +221,14 @@ fn sync_enemies_pairs_by_identity_and_follows_the_game_order() {
         let after: Vec<Cid> = cx.enemies.iter().copied().collect();
         assert_eq!(after, before.iter().rev().copied().collect::<Vec<_>>(), "seed {seed}");
         assert_eq!(cx.cr(after[0]).block, 5);
+        // the game still lists a dead enemy the simulator removed: listed with 0 HP, never back in the fight
+        let gone = after[0];
+        cx.kill(&[gone]);
+        real[0].hp = 0;
+        real[0].alive = false;
+        let rep = cx.sync_enemies(&real);
+        assert_eq!(cx.enemies.iter().copied().collect::<Vec<_>>(), after, "seed {seed}");
+        assert!(!cx.cr(gone).in_combat && cx.cr(gone).hp == 0 && rep.revived == 0, "seed {seed}");
     }
 }
 

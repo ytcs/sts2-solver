@@ -376,8 +376,9 @@ class Harness(Live):
             self._predictor = Predictor(PREDICTOR_CKPT)
         note = ""
         if scr.kind(state) == "SHOP":
-            opts, note = PR.bundles(st, PR.shop_items(st, state), self._predictor)
-            note = f"; {note}"
+            unpriced = []
+            opts, note = PR.bundles(st, PR.shop_items(st, state, unpriced), self._predictor)
+            note = f"; {note}" + (f"; not priced (no simulator id): {', '.join(unpriced)}" if unpriced else "")
         res = PR.price(st, opts, self._predictor, n=n, seed=abs(hash(scr.floor_key(state) or "")) % 10_000)
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts],
                        result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})

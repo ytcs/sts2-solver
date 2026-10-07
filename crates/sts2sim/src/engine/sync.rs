@@ -336,7 +336,8 @@ impl Combat {
             if o.alive && (!cr.in_combat || cr.hp <= 0) {
                 rep.revived += 1;
             }
-            cr.in_combat = true;
+            // a corpse the game still lists (Fabricator's bots) is listed for the comparison but stays out of the fight (no second death)
+            cr.in_combat |= o.alive;
             cr.hp = o.hp;
             cr.max_hp = o.max_hp;
             cr.block = o.block;
