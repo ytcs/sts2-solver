@@ -243,7 +243,7 @@ def main():
                    "slows down chunk after chunk (round 2: chunk 9 took 3x the median; the same fights in a fresh process ran at full speed)")
     c.add_argument("--look-legacy", action="store_true", help="the enemy look-ahead from before S1 (per-monster pattern walk)")
     c.add_argument("--max-minutes", type=float, default=120, help="no new chunk starts after this")
-    c.add_argument("--chunk-timeout", type=float, default=3.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
+    c.add_argument("--chunk-timeout", type=float, default=5.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
     c.add_argument("--first-timeout", type=float, default=30.0, help="watchdog limit in minutes for the first two chunks")
     t = sub.add_parser("train")
     t.add_argument("--init", required=True); t.add_argument("--data", nargs="+", required=True); t.add_argument("--out", required=True)
