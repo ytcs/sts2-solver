@@ -160,3 +160,12 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 - **What this shows:** distilling the live search's decisions (softmax of the options' estimates at tau 0.02) into the policy makes the player worse, most on the tail. Adding the better-calibrated value to h128's is neutral.
 - **With E8:** neither a bigger search nor imitation of the live search improves the player.
 - **Hypothesis (untested):** the search samples its play-outs from the policy; a sharper policy gives less diverse play-outs and worse estimates.
+- **Follow-up (sharpness, 15.8k recorded 5x32 decisions):**
+
+| network | policy entropy | search's best = prior top-1 |
+|---|---|---|
+| h128 | 0.659 | 0.592 |
+| r1 | 1.164 | 0.530 |
+| r2 | 1.284 | 0.538 |
+
+  The distilled policies are flatter, not sharper. With estimate gaps of ~0.01 between top options and tau 0.02, the soft target is nearly uniform over the tried options and erases the prior's ranking. Next test: prior-anchored targets (`exit.py --target anchored`) and a value-only arm.
