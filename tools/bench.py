@@ -238,10 +238,15 @@ def play(ck, roots=None):
             continue
         rows = json.load(open(path))
         res = S.solve([r["scenario"] for r in rows], attempts=ATTEMPTS, seed=11)
-        d = np.array([np.mean([b - a for a, b in zip(r["wins"], x["wins"]) if a is not None and b is not None]) for r, x in zip(rows, res)])
-        hp = np.array([np.mean([(b or 0) - (a or 0) for a, b in zip(r["ends"], x["ends_abs"]) if a is not None and b is not None]) for r, x in zip(rows, res)])
+        # a fight with no attempt finished on both sides (an aborted play-out is None) has no paired difference: left out and counted
+        dw = [[b - a for a, b in zip(r["wins"], x["wins"]) if a is not None and b is not None] for r, x in zip(rows, res)]
+        dh = [[(b or 0) - (a or 0) for a, b in zip(r["ends"], x["ends_abs"]) if a is not None and b is not None] for r, x in zip(rows, res)]
+        d = np.array([np.mean(v) for v in dw if v])
+        hp = np.array([np.mean(v) for v in dh if v])
+        gone = sum(not v for v in dw)
         print(f"{name:7s} win {np.mean([x['win'] for x in res]):.3f} vs {np.mean([np.mean([w for w in r['wins'] if w is not None]) for r in rows]):.3f}: "
-              f"{d.mean():+.3f} +- {d.std(ddof=1) / len(d) ** 0.5:.3f}; end HP {hp.mean():+.2f} +- {hp.std(ddof=1) / len(hp) ** 0.5:.2f}", flush=True)
+              f"{d.mean():+.3f} +- {d.std(ddof=1) / len(d) ** 0.5:.3f}; end HP {hp.mean():+.2f} +- {hp.std(ddof=1) / len(hp) ** 0.5:.2f}"
+              f"{f' ({gone} fights unpaired)' if gone else ''}", flush=True)
 
 
 def main():
