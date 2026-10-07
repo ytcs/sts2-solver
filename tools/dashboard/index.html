@@ -190,8 +190,11 @@ table.pt td.best { color: var(--good); font-weight: 700; }
 .quantrow { display: flex; align-items: flex-end; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 .quantrow .qend { font: 600 11px var(--mono); color: var(--text); line-height: 1; }
 .quant { display: flex; height: 16px; align-items: flex-end; gap: 1px; }
-.quant i { width: 6px; background: #4a5568; display: block; }
+.quant i { width: 7px; background: #4a5568; display: block; }
 .quant i.hit { background: var(--bad); }
+.quant i.dead { background: #7a2e2e; }
+.quant i.dead.hit { background: var(--bad); }
+.quant .gap { width: 4px; }
 .small { font-size: 11px; }
 .hidden { display: none !important; }
 .empty { color: var(--faint); text-align: center; padding: 30px 0; font-family: Kreon, serif; font-size: 15px; }
@@ -828,14 +831,54 @@ function actionHTML(e, i, n) {
   const overrode = best && best.text !== e.text && e.kind === "action" ? ` <span class="faint">(best q: ${prettyAction(best.text)})</span>` : "";
   return det("a" + e.t + i, `${tag}${prettyAction(e.text)}${overrode} ${e.searched === false ? `<span class="faint">(forced)</span>` : ""}`, `<div style="margin:2px 0 4px 10px">${qRows(opts.slice(0, 8), e.text)}</div>`, i >= n - 1);
 }
+const HIST_BIN = 5;  // HP per bar of the simulated-results histogram
+function lossHist(q, hp0, lost) {
+  // q: 21 quantiles (0, 5, ..., 100%) of the HP lost over the simulated fights; 5% of the outcomes lie between two neighbours.
+  // Rebuilt as a histogram with fixed 5-HP bins (each 5% spread evenly over its interval, a tie is a point mass); losses of the whole
+  // starting HP are deaths and get their own bar. Approximate: the record keeps the quantiles, not every simulated fight.
+  const hpTxt = (x) => String(Math.round(x) || 0);  // -0 -> 0
+  const H = hp0 != null ? hp0 : Infinity, step = 1 / (q.length - 1);
+  const mass = {};
+  let dead = 0;
+  const add = (lo, hi, m) => {  // spread m over [lo, hi)
+    if (hi <= lo) { const b = Math.floor(lo / HIST_BIN); mass[b] = (mass[b] || 0) + m; return; }
+    for (let b = Math.floor(lo / HIST_BIN); b * HIST_BIN < hi; b++) {
+      const a = Math.max(lo, b * HIST_BIN), z = Math.min(hi, (b + 1) * HIST_BIN);
+      if (z > a) mass[b] = (mass[b] || 0) + (m * (z - a)) / (hi - lo);
+    }
+  };
+  for (let i = 1; i < q.length; i++) {
+    const a = q[i - 1], b = q[i];
+    if (a >= H) dead += step;
+    else if (b >= H && b > a) { add(a, H, (step * (H - a)) / (b - a)); dead += (step * (b - H)) / (b - a); }
+    else add(a, b, step);
+  }
+  const keys = Object.keys(mass).map(Number);
+  let lo = Math.min(...keys, Math.floor(q[0] / HIST_BIN)), hi = Math.max(...keys, Math.floor(Math.min(q[q.length - 1], H - 1e-9) / HIST_BIN));
+  const lostBin = lost != null && lost < H ? Math.floor(lost / HIST_BIN) : null;
+  if (lostBin != null) { lo = Math.min(lo, lostBin); hi = Math.max(hi, lostBin); }
+  const top = Math.max(dead, ...Object.values(mass), 1e-9);
+  const bar = (m, cls, tip) => {  // the real loss's bar stays visible (at least 6 px) even where no simulation landed
+    const h = m > 0 ? 2 + (14 * m) / top : 0;
+    return `<i class="${cls}" style="height:${/hit/.test(cls) ? Math.max(6, h) : h}px" title="${esc(tip)}"></i>`;
+  };
+  let bars = "";
+  for (let b = lo; b <= hi; b++) {
+    const m = mass[b] || 0;
+    bars += bar(m, b === lostBin ? "hit" : "", `${b * HIST_BIN} to ${b * HIST_BIN + HIST_BIN - 1} HP lost: ${pct(m)} of the simulations${b === lostBin ? ` (the real loss: ${lost})` : ""}`);
+  }
+  if (dead > 0.001) bars += `<b class="gap"></b>` + bar(dead, "dead" + (lost != null && lost >= H ? " hit" : ""), `died: ${pct(dead)} of the simulations`);
+  return `<div class="quantrow"><span class="faint small">simulated results</span><span class="qend" title="best case: HP lost in the best simulated outcome">${hpTxt(q[0])}</span>
+    <div class="quant" title="HP lost in the simulated fights: one bar per ${HIST_BIN} HP, height = share of the simulations${dead > 0.001 ? "; last bar = died" : ""}${lost != null ? "; red = where the real loss fell" : ""}">${bars}</div>
+    <span class="qend" title="worst case: HP lost in the worst simulated outcome">${hpTxt(q[q.length - 1])}</span><span class="faint small">HP lost${dead > 0.001 ? `, died ${pct(dead)}` : ""} · ${HIST_BIN} HP per bar</span></div>`;
+}
 function fightHTML(it, latest) {
   const s = it.start, e = it.end, p = (s && s.predicted) || {};
   const enc = s ? s.encounter : "fight";
   const icon = M.encounters[enc] && M.encounters[enc].icon;
   const lost = e && e.hp && e.hp_start ? e.hp_start[0] - e.hp[0] : null;
   const q = p.lost_q || (e && e.pred_lost_q);
-  const hpTxt = (x) => String(Math.round(x) || 0);  // -0 -> 0
-  const quant = q ? `<div class="quantrow"><span class="faint small">simulated results</span><span class="qend" title="best case: HP lost in the best simulated outcome">${hpTxt(q[0])}</span><div class="quant" title="HP lost in the simulated fights, sorted from best (left) to worst (right), 5% of outcomes per bar${lost != null ? "; red = where the real loss fell" : ""}">${q.map((x, i) => `<i class="${lost != null && i > 0 && lost <= x && lost > q[i - 1] ? "hit" : ""}" style="height:${2 + (14 * Math.max(0, x)) / Math.max(1, q[q.length - 1])}px"></i>`).join("")}</div><span class="qend" title="worst case: HP lost in the worst simulated outcome">${hpTxt(q[q.length - 1])}</span><span class="faint small">HP lost</span></div>` : "";
+  const quant = q ? lossHist(q, s ? s.hp : null, lost) : "";
   const acts = it.acts.filter((a) => a.kind !== "advice" || true);
   const head = `${icon ? `<img class="icon sm" src="${A(icon)}">` : ""}<span class="title">${esc(encTitle(enc))}</span>
     ${s ? `<span class="small">HP ${s.hp}/${s.max_hp}</span>` : ""}${e && e.hp ? ` <span class="small">&rarr; ${e.hp[0]}/${e.hp[1]}</span>` : latest && !e ? ` <span class="chip good">in progress</span>` : ""}`;
