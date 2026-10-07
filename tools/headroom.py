@@ -43,7 +43,8 @@ def parse_arm(spec, leaf_default):
 
 
 def play(net, fights, arm, attempts, seed, roots, threads):
-    """Wins and end HP of every (fight, attempt): ([S, attempts] bool, [S, attempts] end HP absolute), and the seconds it took."""
+    """Wins and end HP of every (fight, attempt): ([S, attempts] bool, [S, attempts] end HP absolute), the seconds it took, and the share of play-outs
+    that hit the step cap (`roll_cap`, scored 0 under the linear return: neither a win nor a loss; matters for the deep pi arm)."""
     from fastsearch import FastSearch
     fs = FastSearch(net, M=arm["M"], K=arm["K"], leaf_turns=arm["L"], roots=roots, amp=True, threads=threads, clairvoyant=arm["clairvoyant"])
     fs.warm()
@@ -53,8 +54,11 @@ def play(net, fights, arm, attempts, seed, roots, threads):
     t = time.time()
     r = fs.run(fights, js, jd)
     dt = time.time() - t
-    print(f"  {arm['label']}: {len(js)} fights {dt:.0f}s ({len(js) / max(dt, 1e-9):.1f}/s)", flush=True)
-    return (r[:, 1] == 1).reshape(attempts, S).T, r[:, 6].reshape(attempts, S).T, dt
+    st = fs.stats
+    ends = st.get("end_cap", 0) + st.get("end_term", 0) + st.get("end_turn", 0)
+    capped = st.get("end_cap", 0) / max(ends, 1)
+    print(f"  {arm['label']}: {len(js)} fights {dt:.0f}s ({len(js) / max(dt, 1e-9):.1f}/s), play-outs capped {capped:.4f} (roll_cap {fs.roll_cap})", flush=True)
+    return (r[:, 1] == 1).reshape(attempts, S).T, r[:, 6].reshape(attempts, S).T, dt, capped
 
 
 def paired(a, b):
@@ -96,8 +100,8 @@ def main():
     net = load(a.ckpt)
     res = []
     for arm in arms:
-        w, hp, dt = play(net, fights, arm, a.attempts, a.seed, a.roots, a.threads)
-        res.append(dict(arm=arm, wins=w, hp=hp, seconds=dt))
+        w, hp, dt, capped = play(net, fights, arm, a.attempts, a.seed, a.roots, a.threads)
+        res.append(dict(arm=arm, wins=w, hp=hp, seconds=dt, capped=capped))
 
     live = res[ref]["wins"]
     S = len(fights)
@@ -111,7 +115,7 @@ def main():
         lost = live.any(1) & ~w.any(1)
         row = dict(arm=r["arm"]["label"], kind=r["arm"]["kind"], win=float(w.mean()), any=float(w.any(1).mean()), d_win=d, d_se=se,
                    fights_gain=float(gain.mean()), fights_lost=float(lost.mean()), seeds_gain=float((w & ~live).mean()), seeds_lost=float((live & ~w).mean()),
-                   seconds=r["seconds"])
+                   seconds=r["seconds"], playouts_capped=r["capped"])
         summary.append(row)
         print(f"{row['arm']:<18} {row['win']:>6.3f} {row['any']:>6.3f} {d:>+8.3f} +- {se:<5.3f} {row['fights_gain']:>16.3f} {row['fights_lost']:>20.3f} "
               f"{row['seeds_gain']:>19.3f} {row['seeds_lost']:>8.3f}")
