@@ -45,7 +45,7 @@ img { image-rendering: auto; }
 #status select option { background: var(--panel2); color: var(--text); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block; }
 .dot.ok { background: var(--good); } .dot.stale { background: var(--gold); } .dot.err { background: var(--bad); }
-main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(360px, 1fr); gap: 0; padding: 0 0 0 20px; align-items: start; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) var(--feedw, minmax(360px, 40%)); gap: 0; padding: 0 0 0 20px; align-items: start; }
 main > div:first-child { padding: 16px 24px 32px 0; min-width: 0; }
 @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
 .panel { background: none; border: none; padding: 0; }
@@ -61,13 +61,16 @@ main > div:first-child { padding: 16px 24px 32px 0; min-width: 0; }
 #deckorder:hover { color: var(--text); }
 #side { position: sticky; top: 50px; height: calc(100vh - 50px); display: flex; flex-direction: column; min-width: 0; border-left: 1px solid var(--line); }
 #mappanel { cursor: zoom-in; }
+#feedgrip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 2; }
+#feedgrip:hover, #feedgrip.drag { background: linear-gradient(90deg, transparent 3px, var(--line2) 3px, var(--line2) 5px, transparent 5px); }
+body.resizing { cursor: col-resize; user-select: none; }
 #mappop { position: fixed; inset: 0; z-index: 50; background: #000c; display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
 #mappop .inner { width: min(1500px, 100%); max-height: 100%; overflow: auto; background: var(--bg); border-radius: 10px; padding: 16px 20px; box-shadow: 0 10px 40px #000a; }
 #mappop h2 { font: 600 10.5px "Segoe UI", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .09em; color: var(--dim); margin-bottom: 10px; display: flex; gap: 10px; align-items: baseline; }
 #mappop svg { max-width: none !important; }
 #feedwrap { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 20px 24px 22px; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
 #feedwrap > h2 { position: sticky; top: -16px; background: var(--bg); padding: 2px 0 8px; margin: 0; z-index: 1; }
-@media (max-width: 1000px) { main { padding: 0 16px; } main > div:first-child { padding-right: 0; } #side { position: static; height: auto; border-left: none; border-top: 1px solid var(--line); } #feedwrap { padding: 16px 0; } }
+@media (max-width: 1000px) { #feedgrip { display: none; } main { padding: 0 16px; grid-template-columns: 1fr !important; } main > div:first-child { padding-right: 0; } #side { position: static; height: auto; border-left: none; border-top: 1px solid var(--line); } #feedwrap { padding: 16px 0; } }
 
 /* combat */
 #enemies { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: flex-end; min-height: 120px; }
@@ -248,7 +251,7 @@ table.pt td.best { color: var(--good); font-weight: 600; }
       <div class="sub" id="screenbox"><div class="shd"><span class="title">Screen text</span></div><pre id="screentext"></pre></div>
     </section>
   </div>
-  <div id="side">
+  <div id="side"><div id="feedgrip" title="drag to resize the decision feed; double-click to reset"></div>
     <section class="panel" id="feedwrap">
       <h2>Decisions <span class="dim small" id="feedsub"></span></h2>
       <div id="feed"></div>
@@ -1008,6 +1011,25 @@ document.addEventListener("click", (ev) => {  // a card opens its full view; any
   if (ev.target.closest && ev.target.closest("#mappanel")) { $("mappop").classList.remove("hidden"); renderBigMap(); }
 });
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closeCardPop(); closeMapPop(); } });
+// the decision feed's width: drag its left edge (remembered in this browser; double-click resets)
+const FEEDW_KEY = "sts2dash.feedWidth";
+const setFeedW = (px) => { if (px) document.querySelector("main").style.setProperty("--feedw", px + "px"); else document.querySelector("main").style.removeProperty("--feedw"); };
+try { const w = +localStorage.getItem(FEEDW_KEY); if (w > 0) setFeedW(Math.min(w, innerWidth - 360)); } catch (e) { /* default width */ }
+$("feedgrip").addEventListener("mousedown", (ev) => {
+  ev.preventDefault();
+  const grip = $("feedgrip");
+  grip.classList.add("drag"); document.body.classList.add("resizing");
+  let w = null;
+  const right = document.querySelector("main").getBoundingClientRect().right;
+  const move = (e) => { w = Math.round(Math.max(280, Math.min(right - 380, right - e.clientX))); setFeedW(w); };
+  const up = () => {
+    grip.classList.remove("drag"); document.body.classList.remove("resizing");
+    removeEventListener("mousemove", move); removeEventListener("mouseup", up);
+    if (w) try { localStorage.setItem(FEEDW_KEY, String(w)); } catch (e) { /* not remembered */ }
+  };
+  addEventListener("mousemove", move); addEventListener("mouseup", up);
+});
+$("feedgrip").addEventListener("dblclick", () => { setFeedW(null); try { localStorage.removeItem(FEEDW_KEY); } catch (e) { /* nothing stored */ } });
 $("deckorder").addEventListener("click", () => {
   S.deckOrder = S.deckOrder === "acq" ? "alpha" : "acq";
   try { localStorage.setItem(DECK_ORDER_KEY, S.deckOrder); } catch (e) { /* not persisted: still switches */ }
