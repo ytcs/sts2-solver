@@ -172,6 +172,12 @@ It predicts play under the best combat policy we have (search), not the raw netw
 - Combat imitation training only if that test set shows gaps.
 - Pilot first: one video from a build close to v0.111.0, extracting its macro decisions and 2-3 full fights, with the hours spent and the extraction accuracy measured.
 
+**Expert pilot result (2026-10-07, `data/expert/navegreed_2026-10-07.md`):**
+- One A10 Ironclad win on v0.111.0 (our build) gave 41 macro decisions and 3 fights in ~55 min.
+- Accuracy: ~95% on choices with visible options, ~60% on guessed encounter names.
+- The seed is shown on screen. Starting it through the bridge and replaying the transcribed decisions would let the game regenerate exact states (untested; the run shows 3 unidentified mods).
+- Next tooling: a decision-screen detector, OCR limited to catalog ids, caption alignment, then a seed-replay test.
+
 ## 5. What is retired
 - The potion machinery listed in S4.
 - `DRIVE` thresholds and the danger budget formula.
