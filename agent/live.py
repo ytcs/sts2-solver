@@ -30,7 +30,9 @@ class Live:
     def state(self):
         self.last_state = call("s")
         if scr.kind(self.last_state) == "COMBAT":
-            return self.last_state.rstrip("\n") + "\n" + self._combat_info()
+            text = self.last_state.rstrip("\n") + "\n" + self._combat_info()
+            self.log.live(screen=text, fight=getattr(self, "_last_f", None))  # dashboard feed, every action of `turn` / `combat` (no bridge call)
+            return text
         return self.last_state
 
     def _combat_info(self):
