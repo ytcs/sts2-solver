@@ -188,3 +188,11 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - The effects are about one point of win, at the edge of significance.
   - It is one value of c and one round.
   - Adoption needs a stronger gate: more attempts on the tail, and the certified-winnable subset.
+
+## E11. Multiplayer-only cards in training and benchmark data
+- 37 cards are multiplayer-only (`CardMultiplayerConstraint.MultiplayerOnly`), never offered in single player. Nothing filtered them before 2026-10-07:
+  - 62% of the training mix (92.7k of 150k fights) held at least one;
+  - 63% of the round-2 pool (40.7k of 64.5k);
+  - 63% of bench eval (376 of 600) and 61% of bench mix (368 of 600).
+- Now flagged in data/catalog.json (`scripts/flag_multiplayer_cards.py`) and excluded everywhere. Training skips fights holding one.
+- E1-E10 were measured on data that includes them. Paired comparisons within that data remain valid. Absolute levels are not representative of single-player states, so the benchmark is to be regenerated without these cards.
