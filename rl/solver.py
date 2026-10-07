@@ -32,6 +32,8 @@ if os.path.exists(_CUR):
     _c = json.load(open(_CUR))
     _abs = lambda p: p if os.path.isabs(p) else os.path.join(_M, p)  # noqa: E731  names relative to models/
     DEFAULT_CKPT, DEFAULT_VALUE_CKPTS = _abs(_c["policy"]), [_abs(v) for v in _c["values"]]
+# the fight predictor for macro pricing (`rl/predictor.py`): adopted separately from the search's networks (it predicts their play)
+PREDICTOR_CKPT = _abs(_c["predictor"]) if os.path.exists(_CUR) and _c.get("predictor") else DEFAULT_CKPT
 
 
 class Solver:

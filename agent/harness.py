@@ -359,9 +359,9 @@ class Harness(Live):
         """`price [n]`: the options of this screen priced by paired run-model rollouts (`agent/price.py`)."""
         from agent import price as PR
         from predictor import Predictor
-        from solver import DEFAULT_CKPT
+        from solver import PREDICTOR_CKPT
         if getattr(self, "_predictor", None) is None:
-            self._predictor = Predictor(DEFAULT_CKPT)
+            self._predictor = Predictor(PREDICTOR_CKPT)
         state = call("peek")
         n = int(argline.split()[0]) if argline.split() and argline.split()[0].isdigit() else 128
         st = PR.run_state(self._run(), self._context(), os.path.join(self.log.dir, "events.jsonl"), state)

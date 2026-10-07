@@ -1,4 +1,5 @@
 {
  "policy": "solver_h128.pt",
- "values": []
+ "values": [],
+ "predictor": "predictor_r1.pt"
 }
