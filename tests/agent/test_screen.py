@@ -125,4 +125,7 @@ def test_resolve():
     assert r(shop, "~leave") == "14"
     assert r(rw, "~nothing here") == "ERR no option matching `nothing here`"
     assert r(rw, "~9") == "0"  # a lone number is the text itself: `9 Gold`
+    two = rw.replace("1 card:", "1 25 Gold\n3 card:")  # Amethyst Aubergine: a second gold reward; every one is collected, so `~gold` takes the first
+    assert r(two, "~gold") == "0" and r(two, "~25") == "1"
+    assert r(cmb.replace("1 Defend(1)", "1 Defend(0)"), "~defend").startswith("ERR")  # other options differing in a number stay ambiguous
     assert r(screen("map_a1"), "~r1c3") == "1"

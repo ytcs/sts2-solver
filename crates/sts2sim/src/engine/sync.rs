@@ -7,6 +7,7 @@
 
 use crate::state::*;
 use crate::dec::Dec;
+use crate::util::ArrayVec;
 use crate::types::*;
 
 /// One card of the observed hand.
@@ -279,4 +280,110 @@ impl Combat {
         self.player.energy = energy;
         self.player.stars = stars;
     }
+
+    /// Puts the enemy list on the observed one (the game's order) and returns, per observed enemy, the creature now standing for it (`None`: the
+    /// simulator has no creature left for it). Pairing is by identity: the same monster id with the same alive state first, then the nearest HP
+    /// (position only for an id the simulator never had). A random target (Lightning, Stampede) can kill a different enemy in the simulator than in the game; then the creature
+    /// the game still shows alive is re-attached (the simulator's dead copy, HP set by the caller) and the one the game no longer lists is detached.
+    /// No hooks fire (no death or spawn effects): like every sync, this aligns what the player sees.
+    pub fn sync_enemies(&mut self, obs: &[ObsEnemy]) -> EnemySync {
+        let mut rep = EnemySync::default();
+        // every enemy-side monster ever spawned: the list first (in order), then the detached ones
+        let mut pool: Vec<Cid> = self.enemies.iter().copied().collect();
+        for c in 1..MAX_CREATURES as Cid {
+            let cr = self.cr(c);
+            if cr.active && cr.side == Side::Enemy && !cr.is_player && !cr.is_pet && !pool.contains(&c) {
+                pool.push(c);
+            }
+        }
+        let mut used = vec![false; pool.len()];
+        for o in obs {
+            let listed = |c: Cid| self.enemies.contains(c);
+            let key = |j: usize| {
+                let c = pool[j];
+                let alive_now = listed(c) && self.cr(c).is_alive();
+                ((alive_now != o.alive) as u8, !listed(c) as u8, (self.cr(c).hp - o.hp).abs(), j)
+            };
+            let pick = (0..pool.len()).filter(|&j| !used[j] && self.cr(pool[j]).monster.id == o.monster).min_by_key(|&j| key(j));
+            if let Some(j) = pick {
+                used[j] = true;
+            }
+            rep.pairs.push(pick.map(|j| pool[j]));
+        }
+        // an id the simulator never had (a spawn it resolved differently): the listed creature at that position stands in, as the old positional sync did
+        let n_listed = self.enemies.len();
+        for (k, p) in rep.pairs.iter_mut().enumerate() {
+            if p.is_none() {
+                rep.missing += 1;
+                if let Some(j) = (k..n_listed).chain(0..k.min(n_listed)).find(|&j| !used[j]) {
+                    used[j] = true;
+                    *p = Some(pool[j]);
+                }
+            }
+        }
+        for (j, &c) in pool.iter().enumerate() {
+            if !used[j] && self.enemies.contains(c) {
+                self.detach_creature(c);
+                if self.cr(c).is_alive() {
+                    rep.removed += 1;
+                }
+            }
+        }
+        self.enemies.clear();
+        for (o, c) in obs.iter().zip(rep.pairs.iter()) {
+            let Some(c) = *c else { continue };
+            let cr = self.cr_mut(c);
+            if o.alive && (!cr.in_combat || cr.hp <= 0) {
+                rep.revived += 1;
+            }
+            // a corpse the game still lists (Fabricator's bots) is listed for the comparison but stays out of the fight (no second death)
+            cr.in_combat |= o.alive;
+            cr.hp = o.hp;
+            cr.max_hp = o.max_hp;
+            cr.block = o.block;
+            self.enemies.push(c);
+        }
+        rep
+    }
+
+    /// At a pending choose-a-card screen over generated cards (Attack / Skill / Power / Colorless Potion, Discovery), the simulator rolled its own
+    /// offer. Makes the game's offer (`want`: (card id, upgrade) in the game's order) the candidates. False (nothing changed) when no such prompt is pending.
+    pub fn sync_options(&mut self, want: &[(u16, u8)]) -> bool {
+        if !matches!(self.decision, Some(Decision { source: DecisionSource::Options, .. })) || self.replay.is_some() {
+            return false;
+        }
+        let mut cands: ArrayVec<CardIdx, MAX_CARDS> = ArrayVec::new();
+        for &(id, up) in want {
+            match self.new_card(id, up) {
+                Some(c) => cands.push(c),
+                None => return false,
+            }
+        }
+        let d = self.decision.as_mut().expect("pending decision");
+        d.cands = cands;
+        d.selected.clear();
+        true
+    }
+}
+
+/// One enemy of the observation (the game's enemy list, in order).
+#[derive(Clone, Copy, Debug)]
+pub struct ObsEnemy {
+    pub monster: u16,
+    pub hp: i32,
+    pub max_hp: i32,
+    pub block: i32,
+    pub alive: bool,
+}
+
+/// What `sync_enemies` did. `pairs[i]`: the creature for observed enemy i.
+#[derive(Clone, Debug, Default)]
+pub struct EnemySync {
+    pub pairs: Vec<Option<Cid>>,
+    /// Enemies the game shows alive that the simulator had killed (re-attached).
+    pub revived: u16,
+    /// Living simulated enemies the game does not list (detached).
+    pub removed: u16,
+    /// Observed enemies with no creature of that monster id (paired by position when a listed creature is left, else left out of the list).
+    pub missing: u16,
 }

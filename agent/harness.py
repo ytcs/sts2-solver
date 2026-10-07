@@ -358,22 +358,31 @@ class Harness(Live):
 
     @_needs_run("no run in progress")
     def price(self, argline):
-        """`price [n]`: the options of this screen priced by paired run-model rollouts (`agent/price.py`)."""
+        """`price [n]`: the options of this screen priced by paired run-model rollouts (`agent/price.py`); a shop by bundles within the budget."""
         from agent import price as PR
-        from predictor import Predictor
-        from solver import PREDICTOR_CKPT
-        if getattr(self, "_predictor", None) is None:
-            self._predictor = Predictor(PREDICTOR_CKPT)
         state = call("peek")
         n = int(argline.split()[0]) if argline.split() and argline.split()[0].isdigit() else 128
         st = PR.run_state(self._run(), self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
         opts = PR.options(st, state)
         if not opts:
-            return f"price: nothing to price on a {scr.kind(state)} screen (events are not modelled yet: decide by judgment and note the gap)\n"
+            why = " (this event is not catalogued: decide by judgment and note the gap)" if scr.kind(state) == "EVENT" else ""
+            return f"price: nothing to price on a {scr.kind(state)} screen{why}\n"
+        if len(opts) == 1:
+            self.log.event("price", screen=scr.kind(state), options=[opts[0][0]], result=None)
+            return f"price: one option on this screen ({opts[0][0]}): nothing to compare\n"
+        if getattr(self, "_predictor", None) is None:
+            from predictor import Predictor
+            from solver import PREDICTOR_CKPT
+            self._predictor = Predictor(PREDICTOR_CKPT)
+        note = ""
+        if scr.kind(state) == "SHOP":
+            unpriced = []
+            opts, note = PR.bundles(st, PR.shop_items(st, state, unpriced), self._predictor)
+            note = f"; {note}" + (f"; not priced (no simulator id): {', '.join(unpriced)}" if unpriced else "")
         res = PR.price(st, opts, self._predictor, n=n, seed=abs(hash(scr.floor_key(state) or "")) % 10_000)
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts],
                        result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})
-        return PR.table(res) + f"\n({n} rollouts per option, paired; run model `docs/rebuild.md` S5)\n"
+        return PR.table(res) + f"\n({n} rollouts per option, paired; run model `docs/rebuild.md` S5{note})\n"
 
     def brief(self):
         state = call("peek")

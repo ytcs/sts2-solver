@@ -142,7 +142,7 @@ Plan:
   - path: the child whose subtree has the most rests before elites at low HP, else the most elites at high HP;
   - card picks: greedy on the predictor against the act boss, restricted to the chosen plan's cards when a plan is set (S6);
   - rest below 50% HP, otherwise smith the card with the best predicted gain;
-  - shop: removal first, then the best predicted card within budget;
+  - shop: removal first, then the best predicted card or relic within budget, nothing when none raises the worth (the gold carries to the next shop);
   - potions: allowed at elites and bosses when the predictor's win gain exceeds 0.05.
 - **Cost (measured):** about 10k fight builds per second plus 55k network evaluations per second on the local GPU, so about 8k fight-start predictions per second. A decision with 4 options x 64 rollouts x ~25 predictions each takes about 10-20 s.
 - **Route-dependent options** (user): a relic or card whose value depends on the route taken (Dowsing Rod; anything that rewards unknown rooms, treasure or elites) is undervalued while the base policy routes the same way whatever was taken. Two fixes:

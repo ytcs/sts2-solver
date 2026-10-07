@@ -44,7 +44,7 @@ Target a run in 30 min, fights 1-2 min (`combat` takes 5-40 s). `combat` for eas
 ## Quirks `[code]`
 - `REFUSED: skills not loaded: X`: invoke X, read it, repeat (`CLAUDE.md`, Rule 0).
 - Never chain map or node choices. A click onto an elite or boss below 60% HP needs `!`.
-- Option numbers shift after every action. The harness refuses a bare `a <i>` after an earlier step in the same chain or batch, and `~text` prefers the one option that starts with the text and refuses when several still match: name options (`~gold`), or read `s` and send the number in its own call.
+- Option numbers shift after every action. The harness refuses a bare `a <i>` after an earlier step in the same chain or batch, and `~text` prefers the one option that starts with the text and refuses when several still match: name options (`~gold`), or read `s` and send the number in its own call. Exceptions, where any match is the same action: identical labels (two copies of a card) and gold rewards (two with Amethyst Aubergine: `~gold` takes the first, so `a ~gold; ~gold; ~card` collects both).
 - Crystal Sphere (event minigame, 121 cells): the bridge's generic overlay fallback lists only 40 controls, so the cells hide Proceed. `a 0 <x> <y>` / tool / proceed come from the `CrystalSphere` case in `mods/AgentBridge/src/Decisions.cs` (installed 2026-10-05; untested live). Never use the console. Play: `sts2-crystal-sphere`. `[code]`
 - `hold` is saved with the run record and survives a daemon restart (cleared on a new run); `status` lists what is held. Set it as soon as the boss potion is in the belt.
 - The solver never discards a potion (excluded in `engine.decide`; the bridge cannot).

@@ -267,3 +267,37 @@ def test_potion_keep(monkeypatch, tmp_path):
     assert h.handle("potion keep strength potion").startswith("kept this fight (alerts only if this fight's win is at stake): ['STRENGTH_POTION']")
     ok(h.handle("turn !"))
     assert seen == [["STRENGTH_POTION"]]
+
+
+def test_choice_resync_random_offer():
+    """A random offer (Power Potion): the game's SELECT cards are not in the hand, so the simulator's pending choice is re-synced to them by name
+    (`Sim.sync_choice` creates them); a hand prompt still goes through the hand (ids and upgrades from the real hand)."""
+    import types
+    from agent.live import Live
+
+    class Sim:
+        def __init__(self, cands):
+            self.cands, self.calls = cands, []
+
+        def legal(self):
+            return [(i, f"pick {i} ({c})") for i, c in enumerate(self.cands)] + [(9, "skip")]
+
+        def sync_choice(self, real, opts):
+            self.calls.append(opts)
+            self.cands = [c for c, _ in opts]
+            return True
+
+    def live(cands, hand):
+        lv = Live.__new__(Live)
+        lv.rp = types.SimpleNamespace(sim=Sim(cands))
+        lv._last_f = {"state": {"hand": hand}}
+        lv.log = types.SimpleNamespace(event=lambda *a, **k: None)
+        return lv
+    sel = "SELECT 1\nA1 F5 IRONCLAD A10 HP 50/80 G99 pots[-, -]\nChoose a card.\n0 Inflame(1) Gain 2 Strength.\n1 Demon Form+(3) At the start ...\n2 Barricade(3) Block stays.\n"
+    lv = live(["CORRUPTION", "JUGGERNAUT", "RUPTURE"], [{"id": "STRIKE_IRONCLAD", "upgrade": 0}])
+    assert lv._choice_mismatch(sel) is None
+    assert lv.rp.sim.calls == [[("INFLAME", 0), ("DEMON_FORM", 1), ("BARRICADE", 0)]]
+    hand = "SELECT 1\nA1 F5 IRONCLAD A10 HP 50/80 G99 pots[-, -]\nDiscard a card.\n0 Strike(1) Deal 6 damage.\n1 Defend+(1) Gain 8 Block.\n"
+    lv = live(["BASH", "ANGER"], [{"id": "DEFEND_IRONCLAD", "upgrade": 1}, {"id": "STRIKE_IRONCLAD", "upgrade": 0}])
+    assert lv._choice_mismatch(hand) is None
+    assert lv.rp.sim.calls == [[("STRIKE_IRONCLAD", 0), ("DEFEND_IRONCLAD", 1)]]

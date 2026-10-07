@@ -9,7 +9,7 @@ use numpy::{PyReadwriteArray1, PyArrayMethods};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::{json, Value};
-use sts2sim::engine::{ActionBuf, ObsCard, ACTION_SPACE};
+use sts2sim::engine::{ActionBuf, ObsCard, ObsEnemy, ACTION_SPACE};
 use sts2sim::observe::OBS_SIZE;
 use sts2sim::state::*;
 use sts2sim::types::*;
@@ -348,10 +348,22 @@ impl Sim {
 
     /// At a pending selection from the hand (a discard or exhaust prompt after a card drew), the simulator may hold a different hand than the game
     /// (it drew its own sample). Puts the hand on the real one and rebuilds the prompt's candidates from `options`, the game's choices in the
-    /// game's order as `(card id, upgrade)`. False (nothing changed) when there is no such prompt or an option has no card in the real hand.
+    /// game's order as `(card id, upgrade)`. At a choose-a-card screen over generated cards (Attack / Skill / Power / Colorless Potion, Discovery)
+    /// the offer was random: the game's offered cards are created as the candidates. False (nothing changed) when there is no such prompt, an option
+    /// names no known card, or (hand prompts) an option has no card in the real hand.
     fn sync_choice(&mut self, real_json: &str, options: Vec<(String, u8)>) -> PyResult<bool> {
         if self.cx.decision.is_none() || self.cx.replay.is_some() {
             return Ok(false);
+        }
+        if matches!(self.cx.decision, Some(sts2sim::state::Decision { source: DecisionSource::Options, .. })) {
+            let mut want = vec![];
+            for (name, up) in &options {
+                match card_ids(name) {
+                    Some(id) => want.push((id, *up)),
+                    None => return Ok(false),
+                }
+            }
+            return Ok(self.cx.sync_options(&want));
         }
         let real: Value = serde_json::from_str(real_json).map_err(err)?;
         let hand: Vec<ObsCard> = real["hand"].as_array().map_or(vec![], |h| {
@@ -387,7 +399,7 @@ impl Sim {
     }
 
     /// Puts the visible state on the real one: the hand (cards, order, costs), energy, stars, HP / max HP / block of the player and the enemies
-    /// (matched by list index). Returns a JSON report of what had to change.
+    /// (matched by identity, the list in the game's order). Returns a JSON report of what had to change.
     fn sync(&mut self, real_json: &str) -> PyResult<String> {
         let real: Value = serde_json::from_str(real_json).map_err(err)?;
         let mut notes: Vec<String> = vec![];
@@ -437,28 +449,29 @@ impl Sim {
             }
         }
         if let Some(es) = real["enemies"].as_array() {
-            let ids: Vec<Cid> = self.cx.enemies.iter().copied().collect();
-            if es.len() != ids.len() {
-                notes.push(format!("enemy count: simulator {} vs real {}", ids.len(), es.len()));
+            // Paired by identity (monster id, alive, nearest HP), never by position, and the list put in the game's order: a random target (Lightning,
+            // Stampede) can kill another enemy in the simulator than in the game, and one side can still list a dead minion the other removed
+            // (Fabricator's bots). The creature the game shows alive is re-attached, the one it no longer lists detached (`Combat::sync_enemies`).
+            let monster = |name: &str| sts2sim::ids::monster::NAMES.iter().position(|n| *n == name).map_or(u16::MAX, |i| i as u16);
+            let obs: Vec<ObsEnemy> = es
+                .iter()
+                .map(|e| ObsEnemy {
+                    monster: monster(e["id"].as_str().unwrap_or("")),
+                    hp: e["hp"].as_i64().unwrap_or(0) as i32,
+                    max_hp: e["max_hp"].as_i64().unwrap_or(1) as i32,
+                    block: e["block"].as_i64().unwrap_or(0) as i32,
+                    alive: e["alive"].as_bool().unwrap_or(true),
+                })
+                .collect();
+            let n_sim = self.cx.enemies.len();
+            let er = self.cx.sync_enemies(&obs);
+            if es.len() != n_sim {
+                notes.push(format!("enemy count: simulator {} vs real {}", n_sim, es.len()));
             }
-            // Pair by monster id in order, not by position: one side can still list a dead minion the other has already removed (Fabricator's bots), and
-            // a positional zip then writes a dead slot's 0 HP onto a living enemy (the simulator ended the fight early). Unmatched ids fall back to position.
-            let name = |c: Cid| sts2sim::ids::monster::NAMES[self.cx.cr(c).monster.id as usize];
-            let mut used = vec![false; ids.len()];
-            let mut pairs: Vec<(&Value, Cid)> = Vec::new();
-            for (k, e) in es.iter().enumerate() {
-                let want = e["id"].as_str().unwrap_or("");
-                let alive = e["alive"].as_bool().unwrap_or(true);
-                let pick = (0..ids.len()).find(|&j| !used[j] && name(ids[j]) == want && self.cx.cr(ids[j]).is_alive() == alive)
-                    .or_else(|| (0..ids.len()).find(|&j| !used[j] && name(ids[j]) == want))
-                    .or_else(|| if k < ids.len() && !used[k] { Some(k) } else { None });
-                if let Some(j) = pick {
-                    used[j] = true;
-                    pairs.push((e, ids[j]));
-                }
+            if er.revived + er.removed + er.missing > 0 {
+                notes.push(format!("enemies: {} re-attached, {} detached, {} with no simulated monster of that id", er.revived, er.removed, er.missing));
             }
-            for (e, cid) in pairs {
-                self.cx.sync_creature(cid, e["hp"].as_i64().unwrap_or(0) as i32, e["max_hp"].as_i64().unwrap_or(1) as i32, e["block"].as_i64().unwrap_or(0) as i32);
+            for (e, cid) in es.iter().zip(er.pairs.iter()).filter_map(|(e, c)| c.map(|c| (e, c))) {
                 if let Some(ob) = obs_powers(e) {
                     powers_changed += self.cx.sync_powers(cid, &ob) as u32;
                     if let Some(ts) = obs_powers_turn_start(e) {
