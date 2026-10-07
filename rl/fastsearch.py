@@ -566,7 +566,8 @@ class FastSearch:
         for G in groups:
             tot.update(G["eng"].stats())
         self.stats = dict(tot, cycles=cycles, rows_per_cycle=rows / max(cycles, 1), peak_pol=peak_pol, peak_val=peak_val, peak_rows=peak_rows,
-                          cap_pol=max(G["eng"].max_rows()[0] for G in groups), cap_val=max(G["eng"].max_rows()[1] for G in groups))
+                          cap_pol=max(G["eng"].max_rows()[0] for G in groups), cap_val=max(G["eng"].max_rows()[1] for G in groups),
+                          cap_shared=max(G["shared"] for G in groups))  # shared layout: policy + value rows of one cycle never pass cap_shared
         self.timers["run"] += time.perf_counter() - t0
         return out
 
