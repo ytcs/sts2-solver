@@ -295,7 +295,8 @@ impl Combat {
             let c = ctx.play.card;
             match ctx.step {
                 PlayStep::Before => {
-                    if self.is_over_or_ending() {
+                    // (`tick`: every play / replay of a card is a unit of the runaway-work safeguard, `engine/budget.rs`)
+                    if self.is_over_or_ending() || !self.tick() {
                         return self.finish_play(idx);
                     }
                     let p = ctx.play;

@@ -166,7 +166,16 @@ impl Combat {
     /// Guarded notification pass whose listeners may raise a decision (`Stage::AwaitChoice`, `hook_ctx` set): the pass stops
     /// right after such a listener and returns true; after the decision the same call continues with the listeners that
     /// follow it (`susp_after`). Used for the turn-start hooks (`BeforeHandDraw`, `AfterPlayerTurnStart`).
-    pub fn dispatch_resumable(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
+    pub fn dispatch_resumable(&mut self, bit: u32, f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
+        if !self.pass_enter() {
+            return false; // runaway-work safeguard tripped (`engine/budget.rs`)
+        }
+        let r = self.dispatch_resumable_in(bit, f);
+        self.pass_exit();
+        r
+    }
+
+    fn dispatch_resumable_in(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
         let resume = match self.susp.iter().position(|p| p.bit == bit) {
             Some(i) => Some(self.susp.remove(i)),
             None => None,
@@ -237,6 +246,9 @@ impl Combat {
     /// snapshot lives in this frame instead of in every caller's, so the many "nobody listens" call sites stay cheap.
     #[inline(never)]
     fn dispatch_slow(&mut self, bit: u32, f: &mut dyn FnMut(&mut Combat, Me, &'static dyn Listener)) {
+        if !self.pass_enter() {
+            return; // runaway-work safeguard tripped (`engine/budget.rs`)
+        }
         let mut snap = Snapshot::new();
         self.snapshot_into(Mask::bit(bit), &mut snap);
         for e in snap.iter() {
@@ -244,6 +256,7 @@ impl Combat {
                 f(self, e.me, content::listener(&e.me));
             }
         }
+        self.pass_exit();
     }
 
     pub fn is_primary_enemy(&self, c: Cid) -> bool {

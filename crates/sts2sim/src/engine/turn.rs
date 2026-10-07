@@ -91,6 +91,9 @@ impl Combat {
 
     /// `StartTurn(Player)` (spec 01 §6.1).
     pub(crate) fn start_player_turn(&mut self) {
+        if !self.turn_enter() {
+            return; // runaway-work safeguard tripped (`engine/budget.rs`)
+        }
         self.player.phase = Phase::None;
         let extra = self.extra_turn;
         // Extra turn: only the extra-turn players (the player creature) start the turn; pets do not.
@@ -389,6 +392,9 @@ impl Combat {
         if !(self.listen.has(hookbit::after_auto_post_play_phase_entered) && self.hooks_enabled()) {
             return true;
         }
+        if !self.tick() {
+            return true; // runaway-work safeguard tripped (`engine/budget.rs`)
+        }
         let mut snap = crate::engine::Snapshot::new();
         self.snapshot_into(Mask::bit(hookbit::after_auto_post_play_phase_entered), &mut snap);
         let mut started = resume.is_none();
@@ -647,6 +653,8 @@ impl Combat {
     /// cleared there too). Pending decisions are dropped (the copy auto-selects card choices). Returns false once the projected
     /// combat is over.
     pub(crate) fn look_turn(&mut self) -> bool {
+        // a fresh work budget per projected turn (a tripped turn ends with `in_progress` false: the path is dropped)
+        self.budget_reset();
         self.look_drop_decision();
         let mut snapshot = self.creatures_on(Side::Enemy);
         let mut from = 0;
@@ -778,11 +786,19 @@ impl Combat {
     ///
     /// Capacity overflows anywhere below (a full `ArrayVec`, card arena, history ring ...) are folded into
     /// [`Combat::overflow`] when the step returns; a non-zero flag means the fight is no longer faithful.
+    ///
+    /// The work done inside one step is bounded (`engine/budget.rs`): a runaway trigger chain is cut short, the step returns with
+    /// `ov::LOOP` set and the combat in `Stage::Over` (safe to drop, not to continue).
     pub fn step(&mut self, a: Action) -> bool {
         // (fold, never drop: bits raised by an `observe` / `legal_actions` call on this combat that nobody synced yet belong to it)
         self.sync_overflow();
+        self.budget_reset();
         let ok = if self.strat_possible { self.step_replayed(a) } else { self.step_inner(a) };
         self.sync_overflow();
+        if self.overflow & ov::LOOP != 0 {
+            // the unwinding tail may have reset the stage (a turn start sets `AwaitAction`): a tripped combat takes no more actions
+            self.stage = Stage::Over;
+        }
         ok
     }
 
