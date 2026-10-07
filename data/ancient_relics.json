@@ -1,0 +1,1554 @@
+{
+ "_conventions": {
+  "scope": "every relic an ancient can offer (the pools and relics of all 8 ancients in data/ancients.json, Neow and Darv included)",
+  "effects": "the relic's PICKUP effects (AfterObtained) in the agent/events.py vocabulary, applied in order after the relic is appended (agent.events.apply_ancient). The relic's combat effect is the simulator's and is not listed; [] = no pickup effect. An ongoing non-combat effect that the vocabulary cannot express is an 'unmodelled' note (a no-op that flags the rollout)",
+  "ascension": "no ancient relic reads the ascension level (none of the 102 classes references Ascension); the numbers hold at A10",
+  "placeholders": "card_add 'STRIKE_{character}' / 'DEFEND_{character}' name the run's character's basic card; card_add_random pool 'others' = each offered card from a different other character's pool, 'other' = one random other character's pool shared by every effect of the option",
+  "params": "card_transform {n ('all'), match (id prefix or list), basic, upgraded, to, map {card: card}}; card_enchant {id, n ('all'), amount, type, match, basic, random}; card_upgrade int or {n, match, basic}; card_add_random {..., rarity 'Ancient', exclude, upgraded}; card_add_one_of + n (distinct); relic_one_of + n (distinct, not owned) + pickup (each relic's own pickup effects); relic_replace {held: replacement}; potion_slots n (st.slots += n)",
+  "titles": "English titles from ancient option labels in runs/*/events.jsonl where seen, else the id in title case with possessives (Neow's, Pael's ...); Sea Glass's in-game title carries the character (SeaGlass.cs:25-35), matched by containment",
+  "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/<Class>.cs:<lines> (CanonicalVars and the pickup hook)"
+ },
+ "relics": {
+  "ALCHEMICAL_COFFER": {
+   "title": "Alchemical Coffer",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/AlchemicalCoffer.cs:18-30",
+   "effects": [
+    {
+     "potion_slots": 4
+    },
+    {
+     "potion_random": 4
+    }
+   ],
+   "note": "the new slots are filled with random potions"
+  },
+  "ARCANE_SCROLL": {
+   "title": "Arcane Scroll",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/ArcaneScroll.cs:17-27",
+   "effects": [
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 1,
+      "rarity": "Rare",
+      "odds": "uniform"
+     }
+    }
+   ]
+  },
+  "ARCHAIC_TOOTH": {
+   "title": "Archaic Tooth",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/ArchaicTooth.cs:26-48, 144-171",
+   "effects": [
+    {
+     "card_transform": {
+      "n": 1,
+      "map": {
+       "BASH": "BREAK",
+       "NEUTRALIZE": "SUPPRESS",
+       "UNLEASH": "PROTECTOR",
+       "FALLING_STAR": "METEOR_SHOWER",
+       "DUALCAST": "QUADCAST"
+      }
+     }
+    }
+   ],
+   "note": "the first transcendence starter card becomes its Ancient card, keeping upgrade and enchantment (offered only if the deck has one)"
+  },
+  "ASTROLABE": {
+   "title": "Astrolabe",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Astrolabe.cs:18-27",
+   "effects": [
+    {
+     "card_transform": {
+      "n": 3,
+      "upgraded": true
+     }
+    }
+   ],
+   "note": "3 chosen cards transform into random upgraded cards"
+  },
+  "BEAUTIFUL_BRACELET": {
+   "title": "Beautiful Bracelet",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/BeautifulBracelet.cs:23-44",
+   "effects": [
+    {
+     "card_enchant": {
+      "id": "SWIFT",
+      "n": 4,
+      "amount": 2,
+      "random": true
+     }
+    }
+   ],
+   "note": "4 random Swift-enchantable cards"
+  },
+  "BIIIG_HUG": {
+   "title": "Biiig Hug",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/BiiigHug.cs:22-27",
+   "effects": [
+    {
+     "card_remove": 4
+    }
+   ],
+   "note": "a Soot into the draw pile on every shuffle is combat (the simulator's)"
+  },
+  "BLACK_STAR": {
+   "title": "Black Star",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/BlackStar.cs:13-24",
+   "effects": [
+    {
+     "unmodelled": "elite fights drop an extra relic reward"
+    }
+   ]
+  },
+  "BLESSED_ANTLER": {
+   "title": "Blessed Antler",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/BlessedAntler.cs:36-56",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "BLOOD_SOAKED_ROSE": {
+   "title": "Blood Soaked Rose",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/BloodSoakedRose.cs:31-42",
+   "effects": [
+    {
+     "card_add": "ENTHRALLED"
+    }
+   ],
+   "note": "+1 energy is combat"
+  },
+  "BOOMING_CONCH": {
+   "title": "Booming Conch",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/BoomingConch.cs:27-53",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "BRILLIANT_SCARF": {
+   "title": "Brilliant Scarf",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/BrilliantScarf.cs:57-142",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "CALLING_BELL": {
+   "title": "Calling Bell",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/CallingBell.cs:23-63",
+   "effects": [
+    {
+     "card_add": "CURSE_OF_THE_BELL"
+    },
+    {
+     "relic_random": {
+      "rarity": "Common"
+     }
+    },
+    {
+     "relic_random": {
+      "rarity": "Uncommon"
+     }
+    },
+    {
+     "relic_random": {
+      "rarity": "Rare"
+     }
+    }
+   ],
+   "note": "a Common, an Uncommon and a Rare relic reward; their own pickups are not modelled"
+  },
+  "CHOICES_PARADOX": {
+   "title": "Choices Paradox",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/ChoicesParadox.cs:27-48",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "CLAWS": {
+   "title": "Claws",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Claws.cs:18-62",
+   "effects": [
+    {
+     "card_transform": {
+      "n": 6,
+      "to": "MAUL"
+     }
+    }
+   ],
+   "note": "up to 6 chosen cards (0-6) become Maul, keeping upgrade and enchantment; modelled as 6 by the default order (Strikes, then Defends), unupgraded"
+  },
+  "CROSSBOW": {
+   "title": "Crossbow",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Crossbow.cs:17-36",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "CURSED_PEARL": {
+   "title": "Cursed Pearl",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/CursedPearl.cs:17-22",
+   "effects": [
+    {
+     "card_add": "GREED"
+    },
+    {
+     "gold": 333
+    }
+   ]
+  },
+  "DELICATE_FROND": {
+   "title": "Delicate Frond",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/DelicateFrond.cs:12-20",
+   "effects": [],
+   "note": "combat: fills empty potion slots at the start of each combat (the simulator's)"
+  },
+  "DIAMOND_DIADEM": {
+   "title": "Diamond Diadem",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/DiamondDiadem.cs:24-30",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "DISTINGUISHED_CAPE": {
+   "title": "Distinguished Cape",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/DistinguishedCape.cs:24-53",
+   "effects": [
+    {
+     "card_add_one_of": [
+      "CLUMSY",
+      "DEBT",
+      "DECAY",
+      "DOUBT",
+      "GUILTY",
+      "INJURY",
+      "NORMALITY",
+      "REGRET",
+      "SHAME",
+      "WRITHE"
+     ],
+     "n": 2
+    },
+    {
+     "card_add": "APPARITION"
+    },
+    {
+     "card_add": "APPARITION"
+    },
+    {
+     "card_add": "APPARITION"
+    }
+   ],
+   "note": "2 distinct random curses: CurseCardPool.cs:22-39 minus CanBeGeneratedByModifiers => false (AscendersBane, BadLuck, CurseOfTheBell, Enthralled, Folly, Greed, PoorSleep, SporeMind)"
+  },
+  "DOWSING_ROD": {
+   "title": "Dowsing Rod",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/DowsingRod.cs:19-22",
+   "effects": [
+    {
+     "card_add": "DOWSING"
+    }
+   ]
+  },
+  "DRIFTWOOD": {
+   "title": "Driftwood",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Driftwood.cs:14-24",
+   "effects": [
+    {
+     "unmodelled": "card rewards can be rerolled"
+    }
+   ]
+  },
+  "DUSTY_TOME": {
+   "title": "Dusty Tome",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/DustyTome.cs:50-62",
+   "effects": [
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 1,
+      "rarity": "Ancient",
+      "odds": "uniform",
+      "upgraded": true,
+      "exclude": [
+       "BREAK",
+       "SUPPRESS",
+       "PROTECTOR",
+       "METEOR_SHOWER",
+       "QUADCAST"
+      ]
+     }
+    }
+   ],
+   "note": "an upgraded random Ancient card of the character, not a transcendence card; the game fixes it when the option is shown (SetupForPlayer) and the label names it"
+  },
+  "ECTOPLASM": {
+   "title": "Ectoplasm",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Ectoplasm.cs:18-39",
+   "effects": [
+    {
+     "unmodelled": "gold can no longer be gained"
+    }
+   ],
+   "note": "+1 energy is combat"
+  },
+  "ELECTRIC_SHRYMP": {
+   "title": "Electric Shrymp",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/ElectricShrymp.cs:19-26",
+   "effects": [
+    {
+     "card_enchant": {
+      "id": "IMBUED",
+      "n": 1,
+      "amount": 1,
+      "type": "Skill"
+     }
+    }
+   ],
+   "note": "a chosen Skill (Imbued.cs:15-17)"
+  },
+  "EMPTY_CAGE": {
+   "title": "Empty Cage",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/EmptyCage.cs:16-22",
+   "effects": [
+    {
+     "card_remove": 2
+    }
+   ]
+  },
+  "FIDDLE": {
+   "title": "Fiddle",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Fiddle.cs:15-44",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "FISHING_ROD": {
+   "title": "Fishing Rod",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/FishingRod.cs:40-59",
+   "effects": [
+    {
+     "unmodelled": "every 3rd monster fight upgrades a random deck card"
+    }
+   ]
+  },
+  "FUR_COAT": {
+   "title": "Fur Coat",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/FurCoat.cs:62-157",
+   "effects": [
+    {
+     "unmodelled": "marks 8 monster / elite rooms of the current act; their enemies start at 1 HP"
+    }
+   ]
+  },
+  "GLASS_EYE": {
+   "title": "Glass Eye",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/GlassEye.cs:15-32",
+   "effects": [
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 3,
+      "rarity": "Common",
+      "odds": "uniform"
+     }
+    },
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 3,
+      "rarity": "Common",
+      "odds": "uniform"
+     }
+    },
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 3,
+      "rarity": "Uncommon",
+      "odds": "uniform"
+     }
+    },
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 3,
+      "rarity": "Uncommon",
+      "odds": "uniform"
+     }
+    },
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 3,
+      "rarity": "Rare",
+      "odds": "uniform"
+     }
+    }
+   ],
+   "note": "5 card rewards of 3 cards (Common, Common, Uncommon, Uncommon, Rare)"
+  },
+  "GLITTER": {
+   "title": "Glitter",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Glitter.cs:18-35",
+   "effects": [
+    {
+     "unmodelled": "card reward cards come Glam-enchanted"
+    }
+   ]
+  },
+  "GOLDEN_COMPASS": {
+   "title": "Golden Compass",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/GoldenCompass.cs:33-54",
+   "effects": [
+    {
+     "unmodelled": "regenerates the current act's map as the Golden Path; its unknown rooms are all events"
+    }
+   ]
+  },
+  "GOLDEN_PEARL": {
+   "title": "Golden Pearl",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/GoldenPearl.cs:15-19",
+   "effects": [
+    {
+     "gold": 150
+    }
+   ]
+  },
+  "HEFTY_TABLET": {
+   "title": "Hefty Tablet",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/HeftyTablet.cs:23-38",
+   "effects": [
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 3,
+      "rarity": "Rare",
+      "odds": "uniform"
+     }
+    },
+    {
+     "card_add": "INJURY"
+    }
+   ],
+   "note": "choose 1 of 3 Rare cards (may skip), add Injury"
+  },
+  "IRON_CLUB": {
+   "title": "Iron Club",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/IronClub.cs:83-92",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "JEWELED_MASK": {
+   "title": "Jeweled Mask",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/JeweledMask.cs:17-35",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "JEWELRY_BOX": {
+   "title": "Jewelry Box",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/JewelryBox.cs:19-22",
+   "effects": [
+    {
+     "card_add": "APOTHEOSIS"
+    }
+   ]
+  },
+  "KALEIDOSCOPE": {
+   "title": "Kaleidoscope",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Kaleidoscope.cs:22-49",
+   "effects": [
+    {
+     "card_add_random": {
+      "pool": "others",
+      "pick": 1,
+      "of": 3
+     }
+    },
+    {
+     "card_add_random": {
+      "pool": "others",
+      "pick": 1,
+      "of": 3
+     }
+    }
+   ],
+   "note": "2 card rewards, each of 1 card from each of 3 other characters' pools at hallway odds (offered only with every pool unlocked)"
+  },
+  "LARGE_CAPSULE": {
+   "title": "Large Capsule",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/LargeCapsule.cs:21-53",
+   "effects": [
+    {
+     "relic_random": {}
+    },
+    {
+     "relic_random": {}
+    },
+    {
+     "card_add": "STRIKE_{character}"
+    },
+    {
+     "card_add": "DEFEND_{character}"
+    }
+   ],
+   "note": "2 relics from the front of the relic bag (modelled at the chest rarity odds; their own pickups are not modelled), a basic Strike and Defend"
+  },
+  "LAVA_ROCK": {
+   "title": "Lava Rock",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/LavaRock.cs:36-63",
+   "effects": [
+    {
+     "unmodelled": "the act 1 boss drops 2 extra relic rewards"
+    }
+   ]
+  },
+  "LEAD_PAPERWEIGHT": {
+   "title": "Lead Paperweight",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/LeadPaperweight.cs:19-33",
+   "effects": [
+    {
+     "card_add_random": {
+      "pool": "colorless",
+      "pick": 1,
+      "of": 2
+     }
+    }
+   ],
+   "note": "choose 1 of 2 colorless cards (may skip)"
+  },
+  "LEAFY_POULTICE": {
+   "title": "Leafy Poultice",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/LeafyPoultice.cs:17-37",
+   "effects": [
+    {
+     "max_hp": -12
+    },
+    {
+     "card_transform": {
+      "n": 1,
+      "match": "STRIKE_",
+      "basic": true
+     }
+    },
+    {
+     "card_transform": {
+      "n": 1,
+      "match": "DEFEND_",
+      "basic": true
+     }
+    }
+   ],
+   "note": "transforms the first basic Strike and Defend"
+  },
+  "LOOMING_FRUIT": {
+   "title": "Looming Fruit",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/LoomingFruit.cs:28-47",
+   "effects": [
+    {
+     "max_hp": 31
+    }
+   ]
+  },
+  "LORDS_PARASOL": {
+   "title": "Lord's Parasol",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/LordsParasol.cs:21-110",
+   "effects": [
+    {
+     "unmodelled": "entering a merchant buys its whole stock (cards, relics, potions, removal) for free"
+    }
+   ]
+  },
+  "LOST_COFFER": {
+   "title": "Lost Coffer",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/LostCoffer.cs:16-22",
+   "effects": [
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 3
+     }
+    },
+    {
+     "potion_random": 1
+    }
+   ],
+   "note": "a card reward (3 cards, hallway odds) and a potion reward"
+  },
+  "MASSIVE_SCROLL": {
+   "title": "Massive Scroll",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/MassiveScroll.cs:19-45",
+   "effects": [
+    {
+     "unmodelled": "multiplayer only: choose 1 of 3 multiplayer-only cards"
+    }
+   ],
+   "allowed": false,
+   "note": "IsAllowed: Players.Count > 1"
+  },
+  "MEAT_CLEAVER": {
+   "title": "Meat Cleaver",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/MeatCleaver.cs:15-22",
+   "effects": [
+    {
+     "unmodelled": "rest sites gain a Cook option"
+    }
+   ]
+  },
+  "MUSIC_BOX": {
+   "title": "Music Box",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/MusicBox.cs:51-101",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "NEOWS_BONES": {
+   "title": "Neow's Bones",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/NeowsBones.cs:31-57",
+   "effects": [
+    {
+     "relic_one_of": [
+      "ARCANE_SCROLL",
+      "BOOMING_CONCH",
+      "FISHING_ROD",
+      "GOLDEN_PEARL",
+      "KALEIDOSCOPE",
+      "LEAD_PAPERWEIGHT",
+      "LOST_COFFER",
+      "NEOWS_TORMENT",
+      "NEW_LEAF",
+      "PHIAL_HOLSTER",
+      "PRECISE_SCISSORS",
+      "SCROLL_BOXES",
+      "WINGED_BOOTS",
+      "LAVA_ROCK",
+      "SMALL_CAPSULE",
+      "NUTRITIOUS_OYSTER",
+      "STONE_HUMIDIFIER",
+      "NEOWS_TALISMAN",
+      "POMANDER",
+      "CURSED_PEARL",
+      "DOWSING_ROD",
+      "HEFTY_TABLET",
+      "LARGE_CAPSULE",
+      "LEAFY_POULTICE",
+      "NEOWS_SACRIFICE",
+      "PRECARIOUS_SHEARS",
+      "SILKEN_TRESS",
+      "SILVER_CRUCIBLE"
+     ],
+     "n": 2,
+     "pickup": true
+    },
+    {
+     "card_add_one_of": [
+      "CLUMSY",
+      "DEBT",
+      "DECAY",
+      "DOUBT",
+      "GUILTY",
+      "INJURY",
+      "NORMALITY",
+      "REGRET",
+      "SHAME",
+      "WRITHE"
+     ]
+    }
+   ],
+   "note": "2 relics of Neow's other options, each with its own pickup (Neow.cs:49-64 AllPossibleOptions, IsAllowedAtNeow: no Massive Scroll in single player), then 1 random curse: CurseCardPool.cs:22-39 minus CanBeGeneratedByModifiers => false (AscendersBane, BadLuck, CurseOfTheBell, Enthralled, Folly, Greed, PoorSleep, SporeMind)"
+  },
+  "NEOWS_SACRIFICE": {
+   "title": "Neow's Sacrifice",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/NeowsSacrifice.cs:29-33",
+   "effects": [
+    {
+     "potion": "AMBERGRIS"
+    },
+    {
+     "card_add": "GUILTY"
+    }
+   ]
+  },
+  "NEOWS_TALISMAN": {
+   "title": "Neow's Talisman",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/NeowsTalisman.cs:16-31",
+   "effects": [
+    {
+     "card_upgrade": {
+      "n": 1,
+      "match": "STRIKE_",
+      "basic": true
+     }
+    },
+    {
+     "card_upgrade": {
+      "n": 1,
+      "match": "DEFEND_",
+      "basic": true
+     }
+    }
+   ],
+   "note": "upgrades the last basic Strike and Defend"
+  },
+  "NEOWS_TORMENT": {
+   "title": "Neow's Torment",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/NeowsTorment.cs:19-22",
+   "effects": [
+    {
+     "card_add": "NEOWS_FURY"
+    }
+   ]
+  },
+  "NEW_LEAF": {
+   "title": "New Leaf",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/NewLeaf.cs:18-27",
+   "effects": [
+    {
+     "card_transform": 1
+    }
+   ]
+  },
+  "NUTRITIOUS_OYSTER": {
+   "title": "Nutritious Oyster",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/NutritiousOyster.cs:15-19",
+   "effects": [
+    {
+     "max_hp": 11
+    }
+   ]
+  },
+  "NUTRITIOUS_SOUP": {
+   "title": "Nutritious Soup",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/NutritiousSoup.cs:21-36",
+   "effects": [
+    {
+     "card_enchant": {
+      "id": "TEZCATARAS_EMBER",
+      "n": "all",
+      "amount": 1,
+      "match": "STRIKE_",
+      "basic": true
+     }
+    }
+   ],
+   "note": "Tezcatara's Ember on every basic Strike"
+  },
+  "PAELS_BLOOD": {
+   "title": "Pael's Blood",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsBlood.cs:14-20",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "PAELS_CLAW": {
+   "title": "Pael's Claw",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsClaw.cs:32-43",
+   "effects": [
+    {
+     "card_enchant": {
+      "id": "GOOPY",
+      "n": "all",
+      "amount": 1,
+      "match": "DEFEND_"
+     }
+    }
+   ],
+   "note": "Goopy on every Defend-tagged card (Goopy.cs:16-23), not just 3"
+  },
+  "PAELS_EYE": {
+   "title": "Pael's Eye",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsEye.cs:58-61",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "PAELS_FLESH": {
+   "title": "Pael's Flesh",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsFlesh.cs:37-47",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "PAELS_GROWTH": {
+   "title": "Pael's Growth",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsGrowth.cs:22-38",
+   "effects": [
+    {
+     "card_enchant": {
+      "id": "CLONE",
+      "n": 1,
+      "amount": 4
+     }
+    },
+    {
+     "unmodelled": "rest sites gain a Clone option"
+    }
+   ],
+   "note": "Clone 4 on a chosen card"
+  },
+  "PAELS_HORN": {
+   "title": "Pael's Horn",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsHorn.cs:17-25",
+   "effects": [
+    {
+     "card_add": "RELAX"
+    },
+    {
+     "card_add": "RELAX"
+    }
+   ]
+  },
+  "PAELS_LEGION": {
+   "title": "Pael's Legion",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsLegion.cs:120-125",
+   "effects": [],
+   "note": "combat only (a pet; the simulator's)"
+  },
+  "PAELS_TEARS": {
+   "title": "Pael's Tears",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsTears.cs:38-60",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "PAELS_TOOTH": {
+   "title": "Pael's Tooth",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsTooth.cs:81-112",
+   "effects": [
+    {
+     "card_upgrade": 5
+    },
+    {
+     "unmodelled": "the 5 chosen upgradable cards leave the deck and come back upgraded, one after each combat"
+    }
+   ],
+   "note": "modelled as its end state: 5 upgrades"
+  },
+  "PAELS_WING": {
+   "title": "Pael's Wing",
+   "ancients": [
+    "PAEL"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsWing.cs:73-90",
+   "effects": [
+    {
+     "unmodelled": "a card reward can be sacrificed instead; every 2nd sacrifice gives a relic"
+    }
+   ]
+  },
+  "PANDORAS_BOX": {
+   "title": "Pandora's Box",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PandorasBox.cs:21-28",
+   "effects": [
+    {
+     "card_transform": {
+      "n": "all",
+      "match": [
+       "STRIKE_",
+       "DEFEND_"
+      ],
+      "basic": true
+     }
+    }
+   ],
+   "note": "transforms every basic Strike and Defend"
+  },
+  "PHIAL_HOLSTER": {
+   "title": "Phial Holster",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PhialHolster.cs:26-34",
+   "effects": [
+    {
+     "potion_slots": 1
+    },
+    {
+     "potion_random": 2
+    }
+   ]
+  },
+  "PHILOSOPHERS_STONE": {
+   "title": "Philosopher's Stone",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PhilosophersStone.cs:32-59",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "POMANDER": {
+   "title": "Pomander",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Pomander.cs:17-22",
+   "effects": [
+    {
+     "card_upgrade": 1
+    }
+   ]
+  },
+  "PRECARIOUS_SHEARS": {
+   "title": "Precarious Shears",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PrecariousShears.cs:24-30",
+   "effects": [
+    {
+     "card_remove": 2
+    },
+    {
+     "hp": -16
+    }
+   ],
+   "note": "16 unpowered damage (can kill)"
+  },
+  "PRECISE_SCISSORS": {
+   "title": "Precise Scissors",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PreciseScissors.cs:18-22",
+   "effects": [
+    {
+     "card_remove": 1
+    }
+   ]
+  },
+  "PRESERVED_FOG": {
+   "title": "Preserved Fog",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PreservedFog.cs:20-26",
+   "effects": [
+    {
+     "card_remove": 3
+    },
+    {
+     "card_add": "FOLLY"
+    }
+   ]
+  },
+  "PRISMATIC_GEM": {
+   "title": "Prismatic Gem",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PrismaticGem.cs:19-46",
+   "effects": [
+    {
+     "unmodelled": "card rewards draw from every character's pool"
+    }
+   ],
+   "note": "+1 energy is combat"
+  },
+  "PUMPKIN_CANDLE": {
+   "title": "Pumpkin Candle",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PumpkinCandle.cs:52-90",
+   "effects": [
+    {
+     "unmodelled": "its +1 energy lasts 5 combats; rest sites gain a Kindle option that adds 5 more"
+    }
+   ]
+  },
+  "RADIANT_PEARL": {
+   "title": "Radiant Pearl",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/RadiantPearl.cs:32-41",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "RUNIC_PYRAMID": {
+   "title": "Runic Pyramid",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/RunicPyramid.cs:10-16",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "SAI": {
+   "title": "Sai",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Sai.cs:19-24",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "SAND_CASTLE": {
+   "title": "Sand Castle",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SandCastle.cs:22-31",
+   "effects": [
+    {
+     "card_upgrade_random": 6
+    }
+   ]
+  },
+  "SCROLL_BOXES": {
+   "title": "Scroll Boxes",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/ScrollBoxes.cs:32-103",
+   "effects": [
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 2,
+      "of": 2,
+      "rarity": "Common",
+      "odds": "uniform"
+     }
+    },
+    {
+     "card_add_random": {
+      "pool": "character",
+      "pick": 1,
+      "of": 1,
+      "rarity": "Uncommon",
+      "odds": "uniform"
+     }
+    }
+   ],
+   "note": "choose 1 of 2 bundles of 2 Commons + 1 Uncommon (6 distinct cards); modelled as one random bundle"
+  },
+  "SEAL_OF_GOLD": {
+   "title": "Seal of Gold",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SealOfGold.cs:25-31",
+   "effects": [
+    {
+     "unmodelled": "spends 3 gold at each turn start in combat (while gold >= 3) for 1 energy"
+    }
+   ]
+  },
+  "SEA_GLASS": {
+   "title": "Sea Glass",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SeaGlass.cs:74-91",
+   "effects": [
+    {
+     "card_add_random": {
+      "pool": "other",
+      "pick": 1,
+      "of": 5,
+      "rarity": "Common",
+      "odds": "uniform"
+     }
+    },
+    {
+     "card_add_random": {
+      "pool": "other",
+      "pick": 1,
+      "of": 5,
+      "rarity": "Uncommon",
+      "odds": "uniform"
+     }
+    },
+    {
+     "card_add_random": {
+      "pool": "other",
+      "pick": 1,
+      "of": 5,
+      "rarity": "Rare",
+      "odds": "uniform"
+     }
+    }
+   ],
+   "note": "take any number of 15 cards (5 per rarity) of one other character's pool; modelled as the best 1 of each rarity"
+  },
+  "SERE_TALON": {
+   "title": "Sere Talon",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SereTalon.cs:23-41",
+   "effects": [
+    {
+     "max_hp": -9
+    },
+    {
+     "card_add": "WISH"
+    },
+    {
+     "card_add": "WISH"
+    },
+    {
+     "card_add": "WISH"
+    }
+   ]
+  },
+  "SIGNET_RING": {
+   "title": "Signet Ring",
+   "ancients": [
+    "NONUPEIPE"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SignetRing.cs:13-17",
+   "effects": [
+    {
+     "gold": 888
+    }
+   ]
+  },
+  "SILKEN_TRESS": {
+   "title": "Silken Tress",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SilkenTress.cs:42-82",
+   "effects": [
+    {
+     "gold_set": 0
+    },
+    {
+     "unmodelled": "the next card reward's cards come Glam-enchanted"
+    }
+   ]
+  },
+  "SILVER_CRUCIBLE": {
+   "title": "Silver Crucible",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SilverCrucible.cs:94-146",
+   "effects": [
+    {
+     "unmodelled": "the next 3 card rewards come upgraded; the first treasure room holds no chest"
+    }
+   ],
+   "note": "single player only"
+  },
+  "SMALL_CAPSULE": {
+   "title": "Small Capsule",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SmallCapsule.cs:13-18",
+   "effects": [
+    {
+     "relic_random": {}
+    }
+   ],
+   "note": "a relic reward; its own pickup is not modelled"
+  },
+  "SNECKO_EYE": {
+   "title": "Snecko Eye",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SneckoEye.cs:25-49",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "SOZU": {
+   "title": "Sozu",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Sozu.cs:17-28",
+   "effects": [
+    {
+     "unmodelled": "potions can no longer be procured"
+    }
+   ],
+   "note": "+1 energy is combat"
+  },
+  "SPIKED_GAUNTLETS": {
+   "title": "Spiked Gauntlets",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/SpikedGauntlets.cs:18-39",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "STONE_HUMIDIFIER": {
+   "title": "Stone Humidifier",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/StoneHumidifier.cs:18-24",
+   "effects": [
+    {
+     "unmodelled": "resting at a rest site also raises max HP by 5"
+    }
+   ]
+  },
+  "STORYBOOK": {
+   "title": "Storybook",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/Storybook.cs:17-20",
+   "effects": [
+    {
+     "card_add": "BRIGHTEST_FLAME"
+    }
+   ]
+  },
+  "TANXS_WHISTLE": {
+   "title": "Tanx's Whistle",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/TanxsWhistle.cs:17-20",
+   "effects": [
+    {
+     "card_add": "WHISTLE"
+    }
+   ]
+  },
+  "THROWING_AXE": {
+   "title": "Throwing Axe",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/ThrowingAxe.cs:27-63",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "TOASTY_MITTENS": {
+   "title": "Toasty Mittens",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/ToastyMittens.cs:31-42",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "TOUCH_OF_OROBAS": {
+   "title": "Touch of Orobas",
+   "ancients": [
+    "OROBAS"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/TouchOfOrobas.cs:29-51, 154-160",
+   "effects": [
+    {
+     "relic_replace": {
+      "BURNING_BLOOD": "BLACK_BLOOD",
+      "RING_OF_THE_SNAKE": "RING_OF_THE_DRAKE",
+      "DIVINE_RIGHT": "DIVINE_DESTINY",
+      "BOUND_PHYLACTERY": "PHYLACTERY_UNBOUND",
+      "CRACKED_CORE": "INFUSED_CORE"
+     }
+    }
+   ],
+   "note": "replaces the starter relic with its upgrade (any other Starter becomes Circlet, not in the catalog)"
+  },
+  "TOY_BOX": {
+   "title": "Toy Box",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/ToyBox.cs:87-116",
+   "effects": [
+    {
+     "relic_random": {}
+    },
+    {
+     "relic_random": {}
+    },
+    {
+     "relic_random": {}
+    },
+    {
+     "relic_random": {}
+    },
+    {
+     "relic_random": {}
+    },
+    {
+     "unmodelled": "the 5 relics are wax: one melts after every 3rd combat (all gone after 15)"
+    }
+   ],
+   "note": "5 relics from the front of the relic bag (modelled at the chest rarity odds)"
+  },
+  "TRI_BOOMERANG": {
+   "title": "Tri Boomerang",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/TriBoomerang.cs:23-31",
+   "effects": [
+    {
+     "card_enchant": {
+      "id": "INSTINCT",
+      "n": 3,
+      "amount": 1,
+      "type": "Attack"
+     }
+    }
+   ],
+   "note": "3 chosen Attacks (Instinct.cs:8-10)"
+  },
+  "VELVET_CHOKER": {
+   "title": "Velvet Choker",
+   "ancients": [
+    "DARV"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/VelvetChoker.cs:46-100",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "VERY_HOT_COCOA": {
+   "title": "Very Hot Cocoa",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/VeryHotCocoa.cs:21-26",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "WAR_HAMMER": {
+   "title": "War Hammer",
+   "ancients": [
+    "TANX"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/WarHammer.cs:19-32",
+   "effects": [
+    {
+     "unmodelled": "each elite win upgrades 4 random deck cards"
+    }
+   ]
+  },
+  "WHISPERING_EARRING": {
+   "title": "Whispering Earring",
+   "ancients": [
+    "VAKUU"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/WhisperingEarring.cs:29-89",
+   "effects": [],
+   "note": "combat only (the simulator's)"
+  },
+  "WINGED_BOOTS": {
+   "title": "Winged Boots",
+   "ancients": [
+    "NEOW"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/WingedBoots.cs:47-92",
+   "effects": [
+    {
+     "unmodelled": "free travel: may ignore map paths 3 times"
+    }
+   ],
+   "note": "single player only"
+  },
+  "YUMMY_COOKIE": {
+   "title": "Yummy Cookie",
+   "ancients": [
+    "TEZCATARA"
+   ],
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/YummyCookie.cs:70-75",
+   "effects": [
+    {
+     "card_upgrade": 4
+    }
+   ]
+  }
+ }
+}
