@@ -98,7 +98,33 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - Alone it hung for minutes; its 15 neighbours took 0.2-1.2 s each.
   - On a build with the engine loop guard it finishes in 1.9 s.
   - So an infinite loop inside one engine step, reached in a search play-out, hung the search. Nothing bounded a single step before the guard.
-- **Open:** what loops in that fight: a simulator bug, or a legitimate combo that should count as progress rather than an overflow (combos are a real strategy, `docs/rebuild.md`).
+- **What loops (answered):** a real-game soft-lock, not a simulator bug and not a combo: Pillage + Hellraiser + Velvet Choker.
+  - **Method:** a scratch build that dumps the state before any step that trips `ov::LOOP` and replays it with a trace of every card play and hook call. Run in a separate package directory; the shared venv was not touched.
+  - **Reproduction:** on the current build the exact job seed no longer trips (0 trips in 1, 8 and 64 copies). Other seeds of the same scenario do: 12 trips over 64 seeds at 5x32. All 12 are the same cycle: Pillage in the play pile, the Choker at 6, Hellraiser on, the work budget exhausted at nesting depth 0.
+  - **The state:** turn 5-6 at 2-4 HP. Infernal Blade made a Pillage, and it is played while Hellraiser's power is on. Everything else is exhausted or in hand, so the draw and discard piles hold only Strike-tagged cards (Strike, Setup Strike).
+  - **The cycle:**
+    - Pillage draws until it draws a non-Attack.
+    - Hellraiser auto-plays each drawn Strike, which Velvet Choker counts.
+    - Pillage itself counts only after it resolves, so the Strikes land until the Choker has counted 6 plays.
+    - From then on every auto-play is refused, and the refused card goes to the discard unplayed.
+    - Pillage saw an Attack and the hand is not full, so it draws again. The empty draw pile reshuffles the same Strike back, and so on.
+    - Nothing changes: no damage, no hand growth, no end of combat.
+  - **Game source:**
+    - `Pillage.OnPlay`: `do { Draw } while (drawn is Attack && hand < MaxCardsInHand)`.
+    - `HellraiserPower.AfterCardDrawnEarly`: `CardCmd.AutoPlay`.
+    - `CardCmd.AutoPlay`: `!Hook.ShouldPlay` leads to `MoveToResultPileWithoutPlaying`, which goes to the discard.
+    - `VelvetChoker.ShouldPlay`: refuses at 6 plays this turn, auto-plays included, and `AfterCardPlayed` counts them.
+    - `CardPileCmd.DrawInternal`: returns the drawn card even after a hook has moved it out of the hand.
+    - `CardPileCmd.ShuffleIfNecessary` and `CheckIfDrawIsPossible...`: reshuffle whenever the draw pile is empty and the discard pile is not, with no per-draw limit.
+    - The game's only cap is `HellraiserPower._infiniteAutoPlayCap = 9`. It applies only when every hittable enemy shows infinite HP, and there a capped card stays in the hand, which fills it and ends Pillage. Here the game's action never completes.
+  - **Simulator:** faithful step for step (`ironclad_b1.rs` Pillage, `HellraiserPower`, `VelvetChoker`, `Combat::auto_play`). The guard is what ends the step. Tests in `crates/sts2sim/tests/loop_guard.rs`:
+    - with the Choker, the step trips;
+    - with the Choker closing mid-chain, exactly 6 Strikes land and then it trips;
+    - without the Choker, the same chain is a finite combo that wins the fight with no trip.
+  - **Implication (scoring, not yet changed):**
+    - `search.rs` `terminal` reports any overflow as `OUTCOME_OVERFLOW` with score 0. At 2 HP a soft-lock line (0) beats a likely loss (-1 linear, or `u[0]`), so the search is paid for finding it.
+    - In the real game, playing into it freezes the fight. `ov::LOOP` should score as a loss, in search and in `BatchEnv` rewards. Capacity overflows stay neutral.
+    - Cost: a guard false positive would then be scored as a loss, so the limits must stay far above every finite chain (corpus max 174 work units vs 20,000).
 
 ## E7. Round 2 (r2, from r1)
 - **Data:** about 157k search-played fights (r1's 88.6k at 3x8, plus 64.5k at the live 5x32 and 4k from the bisection), ~4.2M decisions; new look-ahead observations (S1).
