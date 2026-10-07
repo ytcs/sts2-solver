@@ -149,3 +149,14 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - seeds won by large and lost by live: 6.2%; the reverse: 6.2%.
 - **What this shows:** on these fights, a 3.5x larger search with the same network is not a stronger player. The "frontier" (large wins where live loses) is symmetric noise, so distilling large-search decisions would add nothing. Improvement has to come from the networks (policy and value), or these fights are mostly unwinnable for any play.
 - **What it does not show:** whether a much deeper search (play-outs to the fight's end) or a different search would help; whether the fights are winnable (certification by any play has not been run).
+
+## E9. Expert-iteration networks as players (paired with the labels, 5x32, 8 attempts)
+
+| player | eval win | mix win | tail win | corpus win | end HP eval / tail |
+|---|---|---|---|---|---|
+| r2 (policy and value from rounds 1-2) | -0.007 +- 0.004 | +0.004 +- 0.004 | -0.017 +- 0.006 | -0.005 +- 0.003 | -1.12 / -0.91 |
+| h128 policy, mean of h128 and r2 values | +0.003 +- 0.003 | +0.003 +- 0.003 | -0.001 +- 0.005 | +0.002 +- 0.002 | +0.09 / +0.06 |
+
+- **What this shows:** distilling the live search's decisions (softmax of the options' estimates at tau 0.02) into the policy makes the player worse, most on the tail. Adding the better-calibrated value to h128's is neutral.
+- **With E8:** neither a bigger search nor imitation of the live search improves the player.
+- **Hypothesis (untested):** the search samples its play-outs from the policy; a sharper policy gives less diverse play-outs and worse estimates.
