@@ -155,7 +155,7 @@ decision candidates (the decision header carries the true candidate count; `Pick
 has 39). Beyond that the extra entries are simply not visible to the agent (the simulation itself is unaffected).
 
 ## Resetting in place
-`Combat::reset(&Scenario)` / `reset_with` / `reset_validated` re-initialise an existing combat (no 18.8 KB construct-and-copy); `BatchEnv` resets finished
+`Combat::reset(&Scenario)` / `reset_with` / `reset_validated` re-initialise an existing combat (no 19 KB construct-and-copy); `BatchEnv` resets finished
 episodes through `reset_validated` with an allocation-free `ScenarioSource::pick`. A reset combat is bit-identical to `Combat::new` (tested, and
 replayed against the oracle with `STS2DIFF_REUSE=1`).
 
