@@ -159,6 +159,12 @@ Plan:
 - Need a non-flat V(act-start state) = P(win the rest of the run | deck, relics, potions, HP after the ancient heal).
 - Candidates: a stronger base policy (plan-directed) so run rollouts sometimes win; a learned value over act-start states trained on rollouts; or measured boss-pool win rates of the next acts as a proxy.
 
+**First principle (user, 2026-10-07):** the only true objective is P(clear run); HP lost is a useful sub-objective only through its effect on that.
+- Systematically, each fight ending is scored by the run value of the state it leaves: U(ending) = V(state after the fight).
+- The worth of HP is how much V changes per HP: near zero before an ancient heal, larger mid-act with elites ahead.
+- A potion's price is how much V drops without it.
+- The search already takes per-fight worth tables over end HP and potions left. The earlier route-DP worth failed its gate because that V was flat. This waits on the continuation value below; the win-only boss objective (S4) is its first hand-specified case.
+
 **Horizon ladder (user, 2026-10-07):** P(win run) is flat for any Act 1 deck, and P(clear act) saturates once the act is under control (late Act 1 shops and rests tied). Once P(clear act) passes a threshold (~0.9), `price` switches its main horizon to next-act readiness: P(win) against the next act's boss pool and elites (at full HP after the ancient heal) for the deck each rollout carries out of this act, with floors as the tiebreak.
 
 **Shop and drafting requirements (user, 2026-10-07):**
