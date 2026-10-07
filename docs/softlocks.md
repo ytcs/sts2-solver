@@ -114,4 +114,4 @@ Not in any pile:
 
 From here the three Strike-tagged cards (Strike, Strike, Setup Strike+) cycle forever: draw, refused, discarded, reshuffled. Nothing else changes.
 
-**Handling:** the search scores a loop as a loss (it would freeze the real game), so the solver never plays into it. Tests: `crates/sts2sim/tests/loop_guard.rs`.
+**Handling:** the search scores a loop as a loss (it would freeze the real game), so the solver never plays into it. Tests: `crates/sts2sim/tests/loop_guard.rs` (the simulator loops like the game), `crates/sts2env/tests/loop_loss.rs` (the search scores it as a loss and avoids it).
