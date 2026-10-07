@@ -73,3 +73,17 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 - **What it does not show:**
   - Ranking quality: the strong ranking reference is not built yet.
   - Whether r1 plays as well as h128 as the search's policy: that is the `play` check.
+
+## E5. Ranking against a strong reference (300 pairs, 256 paired attempts at 3x8 with h128)
+- The reference agrees with itself (split-half, 128 vs 128 attempts) on 79.4% of signs with |d| > 0.02 (141 pairs); Spearman 0.60.
+
+| predictor | worth sign agreement (137 pairs, \|d\|>0.02) | P(win) sign (44 significant) | Spearman worth | add / remove / upgrade / potion |
+|---|---|---|---|---|
+| h128 | 0.788 | 0.841 | 0.533 | 0.69 / 0.57 / 0.92 / 0.95 |
+| r1 | 0.796 | 0.864 | 0.526 | 0.69 / 0.63 / 0.88 / 0.95 |
+
+- **What this shows:** one forward pass of either predictor orders these deck changes about as well as 128 paired search play-outs do; r1 ranks no worse than h128.
+- **Weak spots:** card removals (0.57-0.63) and adds (0.69).
+- **What it does not show:**
+  - The split-half is a lower bound on the full reference's reliability, so the gap to the truth is unknown.
+  - The pairs are random variants of generated decks, not the choices a run actually offers.
