@@ -317,3 +317,16 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - The policy side of ExIt teaches nothing even to a network that is not saturated, so the target is the problem (E15), not saturation.
   - The value side works: a fresh outcome head reaches nearly r3's calibration in 3 epochs, and r3 halves h128's Brier with no bias.
   - ExIt's product today is the predictor. Policy improvement has to come from PPO (the A/B arms) or from a policy target that keeps only significant search preferences.
+
+## E20. Observation audit: visible information the network does not get
+- **Method:** an audit of `crates/sts2sim/src/observe.rs` against the game's UI code (`decomp/`), measured over all 34,967 r4s fights (1.25M states before an action; 137k selection decisions).
+- **Gaps, most frequent first:**
+  1. Calculated card numbers are encoded as 0: calculated damage (Body Slam, Perfected Strike, Gold Axe, Unleash, Murder...), calculated block, and calculated hit counts (Finisher, Barrage, ...). 23.8% of states; Necrobinder 35.6%, where Unleash alone appears in 15% of states.
+  2. A selection screen does not say what it is for (discard / exhaust / upgrade / copy ...; 26 sources share the pick-1-from-hand screen). 59.4% of decisions.
+  3. 13 powers show a second number that is not encoded (Surrounded facing, Withering Presence, Orbit, ...). Up to 16.3% of states.
+  4. Selection candidates are capped at 16 while all 64 stay pickable, and pile screens sort by rarity ascending, so Uncommon and Rare cards are the ones hidden. 4.2% of decisions.
+  5. Pile cards lose their enchantment, cost changes and counters. 68.7% of states; impact judged medium to low.
+  8. Wrong damage previews for status damage (Burn, Wither, Decay, ...: Strength added). 3.4% of states.
+  10. The 64-card pile cap truncates before sorting, which leaks a little hidden order. 0.04% of states.
+- **Encoded correctly:** powers (the simulator holds at most 16), relics, potions, enemy identity, intents, look-ahead, orbs, stars, Osty, hand order and costs.
+- **Implication:** every network so far was trained blind to gaps 1 and 2. Observation v2 (behind a version switch, so v1 networks keep working) goes into the next from-scratch run.
