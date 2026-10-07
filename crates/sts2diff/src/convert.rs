@@ -32,10 +32,26 @@ fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
                 continue; // fixed value, nothing to inject
             }
             let n = v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).ok_or_else(|| format!("relic prop {k}: expected int/bool"))?;
-            st.set(d.slot, n as i32);
+            st.set_prop(defs, k, n as i32);
         }
     }
     Ok(RelicInit { id, counter: st.counter, flags: st.flags, aux: st.aux })
+}
+
+/// The bridge state's `relics` (`[{id, props?, counter?}]`, the game's order) as the simulator's observation: unknown relic ids are left
+/// out (they are not in the simulated combat either), string / array properties dropped (cosmetic skins, not modelled).
+pub fn obs_relics(relics: &Value) -> Vec<sts2sim::engine::ObsRelic> {
+    let Some(a) = relics.as_array() else { return vec![] };
+    a.iter()
+        .filter_map(|r| {
+            let id = find(&ids::relic::NAMES, id_of(r), "relic").ok()?;
+            let props = r["props"]
+                .as_object()
+                .map(|o| o.iter().filter_map(|(k, v)| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).map(|n| (k.clone(), n as i32))).collect())
+                .unwrap_or_default();
+            Some(sts2sim::engine::ObsRelic { id, props, counter: r["counter"].as_i64().map(|c| c as i32) })
+        })
+        .collect()
 }
 
 pub fn scenario(v: &Value) -> Result<Scenario, String> {

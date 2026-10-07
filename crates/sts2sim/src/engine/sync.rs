@@ -387,3 +387,74 @@ pub struct EnemySync {
     /// Observed enemies with no creature of that monster id (paired by position when a listed creature is left, else left out of the list).
     pub missing: u16,
 }
+
+/// One relic of the observation (the game's relic list, in order): its `[SavedProperty]` int / bool values by C# property name
+/// (bools as 0/1; string / array properties left out) and `ShowCounter ? DisplayAmount` when the relic shows a counter.
+#[derive(Clone, Debug, Default)]
+pub struct ObsRelic {
+    pub id: u16,
+    pub props: Vec<(String, i32)>,
+    pub counter: Option<i32>,
+}
+
+/// What `sync_relics` did.
+#[derive(Clone, Debug, Default)]
+pub struct RelicSync {
+    /// Simulated relics whose state changed.
+    pub changed: u16,
+    /// Observed relics with no simulated relic of that id left to pair with.
+    pub unpaired: u16,
+    /// `RELIC.Prop` names the simulated relic does not model (ignored).
+    pub unknown_props: Vec<String>,
+    /// Relics without saved properties whose shown counter no simulated state reproduces (left unchanged).
+    pub counter_mismatch: Vec<u16>,
+}
+
+impl Combat {
+    /// Puts the relics' persistent state on the observed one. Pairing is by id in list order (the k-th observed relic of an id with the
+    /// k-th simulated one); relics are never added or removed. A relic that models `[SavedProperty]`s takes them from `props` (a missing
+    /// `SaveIfNotTypeDefault` property is the default 0, any other missing one stays) and its shown counter is ignored: `DisplayAmount` is
+    /// not always the state (Pen Nib shows 10 while it activates). A relic without saved properties (Kunai, Letter Opener, Ornamental Fan:
+    /// per-turn counts) takes the shown counter as `Relic::counter` when that reproduces the shown value, else it stays as it was.
+    /// No hooks fire.
+    pub fn sync_relics(&mut self, obs: &[ObsRelic]) -> RelicSync {
+        let mut rep = RelicSync::default();
+        let mut used = [false; MAX_RELICS];
+        for o in obs {
+            let Some(i) = (0..self.player.relics.len()).find(|&i| !used[i] && self.player.relics[i].id == o.id) else {
+                rep.unpaired += 1;
+                continue;
+            };
+            used[i] = true;
+            let l = crate::content::relic_listener(o.id);
+            let defs = l.meta_props();
+            let before = self.player.relics[i];
+            let mut r = before;
+            if defs.iter().any(|d| d.lit.is_empty()) {
+                for (name, v) in &o.props {
+                    if !r.set_prop(defs, name, *v) {
+                        rep.unknown_props.push(format!("{}.{name}", crate::ids::relic::NAMES[o.id as usize]));
+                    }
+                }
+                for d in defs.iter().filter(|d| d.lit.is_empty() && d.skip_default) {
+                    if !o.props.iter().any(|(n, _)| n == d.name) {
+                        r.set(d.slot, 0);
+                    }
+                }
+            } else if let Some(c) = o.counter {
+                if l.meta_display(self, &r) != Some(c) {
+                    r.counter = c;
+                    if l.meta_display(self, &r) != Some(c) {
+                        r = before;
+                        rep.counter_mismatch.push(o.id);
+                    }
+                }
+            }
+            if (r.counter, r.flags, r.aux) != (before.counter, before.flags, before.aux) {
+                self.player.relics[i] = r;
+                rep.changed += 1;
+            }
+        }
+        rep
+    }
+}

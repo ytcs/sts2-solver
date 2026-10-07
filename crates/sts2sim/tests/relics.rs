@@ -198,3 +198,73 @@ fn combat_state_stays_small() {
     let n = std::mem::size_of::<Combat>();
     assert!(n < 24 * 1024, "size_of::<Combat>() = {n}");
 }
+
+// ---- sync_relics: the observed relic state put on the simulated one ----
+
+fn obs(id: u16, props: &[(&str, i32)], counter: Option<i32>) -> engine::ObsRelic {
+    engine::ObsRelic { id, props: props.iter().map(|(k, v)| (k.to_string(), *v)).collect(), counter }
+}
+
+#[test]
+fn pen_nib_synced_to_nine_doubles_the_next_attack() {
+    let mut cx = with_relics(vec![relic(ids::relic::BURNING_BLOOD), relic(ids::relic::PEN_NIB)], 80);
+    assert_eq!(cx.player.relics[1].counter, 0);
+    let rep = cx.sync_relics(&[obs(ids::relic::BURNING_BLOOD, &[], None), obs(ids::relic::PEN_NIB, &[("AttacksPlayed", 9)], Some(9))]);
+    assert_eq!((rep.changed, rep.unpaired), (1, 0));
+    assert!(rep.unknown_props.is_empty() && rep.counter_mismatch.is_empty());
+    assert_eq!(cx.player.relics[1].counter, 9);
+    let e = cx.enemies[0];
+    let hp = cx.cr(e).hp;
+    assert!(play_first(&mut cx, ids::card::STRIKE_IRONCLAD));
+    assert_eq!(hp - cx.cr(e).hp, 12, "6 doubled");
+    assert_eq!(cx.player.relics[1].counter, 0);
+    let hp = cx.cr(e).hp;
+    assert!(play_first(&mut cx, ids::card::STRIKE_IRONCLAD));
+    assert_eq!(hp - cx.cr(e).hp, 6, "the count restarted");
+}
+
+#[test]
+fn saved_props_win_over_the_shown_counter() {
+    // Pen Nib shows 10 for a second while it activates; the state is AttacksPlayed (0)
+    let mut r = relic(ids::relic::PEN_NIB);
+    r.counter = 4;
+    let mut cx = with_relics(vec![r], 80);
+    let rep = cx.sync_relics(&[obs(ids::relic::PEN_NIB, &[("AttacksPlayed", 0)], Some(10))]);
+    assert_eq!(rep.changed, 1);
+    assert!(rep.counter_mismatch.is_empty());
+    assert_eq!(cx.player.relics[0].counter, 0);
+    // unknown property names and unknown relics are reported, never fatal
+    let rep = cx.sync_relics(&[obs(ids::relic::PEN_NIB, &[("NoSuchProp", 3)], None), obs(ids::relic::KUNAI, &[], Some(1))]);
+    assert_eq!((rep.changed, rep.unpaired), (0, 1));
+    assert_eq!(rep.unknown_props, vec!["PEN_NIB.NoSuchProp".to_string()]);
+}
+
+#[test]
+fn a_missing_skip_default_prop_is_zero() {
+    let mut r = relic(ids::relic::JOSS_PAPER);
+    r.counter = 3;
+    let mut cx = with_relics(vec![r], 80);
+    let rep = cx.sync_relics(&[obs(ids::relic::JOSS_PAPER, &[], Some(0))]);
+    assert_eq!(rep.changed, 1);
+    assert_eq!(cx.player.relics[0].counter, 0);
+}
+
+#[test]
+fn a_counter_only_relic_takes_the_shown_counter() {
+    // Letter Opener: skills played this turn (not saved), shown as count % 3; synced to 2, the next skill deals 5 to every enemy
+    let mut cx = with_relics(vec![relic(ids::relic::LETTER_OPENER)], 80);
+    let rep = cx.sync_relics(&[obs(ids::relic::LETTER_OPENER, &[], Some(2))]);
+    assert_eq!(rep.changed, 1);
+    assert_eq!(cx.player.relics[0].counter, 2);
+    cx.sync_hand(&[engine::ObsCard { id: ids::card::DEFEND_IRONCLAD, upgrade: 0, cost: None }]);
+    let e = cx.enemies[0];
+    let hp = cx.cr(e).hp;
+    assert!(play_first(&mut cx, ids::card::DEFEND_IRONCLAD));
+    assert_eq!(hp - cx.cr(e).hp, 5);
+    // a shown counter no state reproduces leaves the relic as it was
+    let before = cx.player.relics[0];
+    let rep = cx.sync_relics(&[obs(ids::relic::LETTER_OPENER, &[], Some(7))]);
+    assert_eq!(rep.changed, 0);
+    assert_eq!(rep.counter_mismatch, vec![ids::relic::LETTER_OPENER]);
+    assert_eq!(cx.player.relics[0].counter, before.counter);
+}
