@@ -187,7 +187,9 @@ table.pt td.best { color: var(--good); font-weight: 700; }
 .act { margin: 3px 0 0; }
 .act > summary { font-size: 12px; }
 .pred { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-top: 2px; }
-.quant { display: flex; height: 16px; align-items: flex-end; gap: 1px; margin-top: 3px; }
+.quantrow { display: flex; align-items: flex-end; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.quantrow .qend { font: 600 11px var(--mono); color: var(--text); line-height: 1; }
+.quant { display: flex; height: 16px; align-items: flex-end; gap: 1px; }
 .quant i { width: 6px; background: #4a5568; display: block; }
 .quant i.hit { background: var(--bad); }
 .small { font-size: 11px; }
@@ -832,14 +834,14 @@ function fightHTML(it, latest) {
   const icon = M.encounters[enc] && M.encounters[enc].icon;
   const lost = e && e.hp && e.hp_start ? e.hp_start[0] - e.hp[0] : null;
   const q = p.lost_q || (e && e.pred_lost_q);
-  const quant = q ? `<div class="quant" title="predicted HP lost (5% quantiles)${lost != null ? "; red = where the real loss fell" : ""}">${q.map((x, i) => `<i class="${lost != null && i > 0 && lost <= x && lost > q[i - 1] ? "hit" : ""}" style="height:${2 + (14 * Math.max(0, x)) / Math.max(1, q[q.length - 1])}px"></i>`).join("")}</div>` : "";
+  const hpTxt = (x) => String(Math.round(x) || 0);  // -0 -> 0
+  const quant = q ? `<div class="quantrow"><span class="faint small">simulated results</span><span class="qend" title="best case: HP lost in the best simulated outcome">${hpTxt(q[0])}</span><div class="quant" title="HP lost in the simulated fights, sorted from best (left) to worst (right), 5% of outcomes per bar${lost != null ? "; red = where the real loss fell" : ""}">${q.map((x, i) => `<i class="${lost != null && i > 0 && lost <= x && lost > q[i - 1] ? "hit" : ""}" style="height:${2 + (14 * Math.max(0, x)) / Math.max(1, q[q.length - 1])}px"></i>`).join("")}</div><span class="qend" title="worst case: HP lost in the worst simulated outcome">${hpTxt(q[q.length - 1])}</span><span class="faint small">HP lost</span></div>` : "";
   const acts = it.acts.filter((a) => a.kind !== "advice" || true);
   const head = `${icon ? `<img class="icon sm" src="${A(icon)}">` : ""}<span class="title">${esc(encTitle(enc))}</span>
     ${s ? `<span class="small">HP ${s.hp}/${s.max_hp}</span>` : ""}${e && e.hp ? ` <span class="small">&rarr; ${e.hp[0]}/${e.hp[1]}</span>` : latest && !e ? ` <span class="chip good">in progress</span>` : ""}`;
   const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span>HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b> <span class="faint">(${pct(p.hp_lost, 1)} of max)</span></span>
       ${lost != null ? `<span>actual lost <b class="${e.pit != null && e.pit > 0.9 ? "bad" : ""}">${lost}</b>${e.pit != null ? ` <span class="faint">(${pct(e.pit)} quantile)</span>` : ""}</span>` : ""}
       ${s && s.drive ? `<span class="dim">${esc(s.drive[0])}: ${esc(s.drive[1])}</span>` : ""}${s && s.budget != null ? `<span class="faint">budget ${s.budget}s</span>` : ""}</div>${quant}
-    ${s && (s.objective || s.util_why) ? `<div class="faint small">objective: ${esc(s.objective || s.util_why)}</div>` : ""}
     ${e && e.errors && e.errors.length ? `<div class="bad small">replay: ${esc(e.errors.join("; "))}</div>` : ""}
     ${det("fa" + (s ? s.t : e.t), `<span class="dim small">${acts.filter((a) => a.kind === "action").length} actions, ${acts.filter((a) => a.kind === "potion_proposal" || a.kind === "potion_check").length} potion checks</span>`,
       `<div style="margin-left:6px">${acts.slice(-150).map((a, i, arr) => actionHTML(a, i, arr.length)).join("")}</div>`, latest && !e)}`;
