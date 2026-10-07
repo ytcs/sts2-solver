@@ -284,3 +284,20 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 
 - d256 led at every eval point from iteration 100 (0.602 vs 0.572), when the two learning rates were still close.
 - **Next:** a long d256 run (6400 iterations) to see whether it ends above h128.
+
+## E18. Pool and target A/B: no difference; ExIt fine-tunes of this size do not move the player
+- **Method:** three arms trained from r3, 3 epochs, lr 1e-4, each on its own 35k fights (5x32, r3 player), then play-checked on bench v2 (paired with h128's labels).
+
+| arm | eval | corpus | mix | tail | holdout policy loss, before -> after |
+|---|---|---|---|---|---|
+| r4s: signal pool, anchored minmax c 2 | +0.006 | +0.004 | +0.003 | -0.000 | 0.559 -> 0.564 |
+| r4u: uniform pool, anchored minmax c 2 | +0.004 | +0.003 | +0.001 | +0.008 | 0.686 -> 0.690 |
+| r4s_abs4: signal pool, anchored abs c 4 | +0.005 | +0.004 | +0.001 | +0.008 | 0.556 -> 0.563 |
+| (r3 itself) | +0.007 | +0.005 | -0.000 | +0.009 | |
+
+- Paired se is 0.003-0.006 per cell.
+- **What it shows:**
+  - Every arm is within noise of r3 and of the others.
+  - Holdout losses get worse in the first epoch and never beat the init, for either target. With a 10x policy weight, policy loss is still flat.
+  - At 35-70k fights per round, fine-tuning a network trained on many millions of PPO steps only perturbs it. Neither the pool nor the target matters until the update itself can improve on the init.
+- **Implication:** pause ExIt rounds on h128-sized networks. The levers with measured effect are capacity (E17) and data at PPO scale. ExIt needs one of two things before it can help: far more fights per update (cheaper collection), or a base network that has not saturated what it is fed.

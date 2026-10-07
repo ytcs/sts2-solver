@@ -4,6 +4,8 @@
   tools/bench.py build                 # freeze the sets into data/bench/ and label them (search at live width, h128; ~1 h on one GPU)
   tools/bench.py score CKPT [CKPT ...] # calibration and ranking of each network's fight-start prediction
   tools/bench.py play CKPT             # the network as the search's policy: win and end HP paired with the labels (same seeds)
+  tools/bench.py screen BASE CKPT ...  # cheap screen (~1 min each): greedy-policy win per set, paired with BASE (same env seeds), and the predictor's
+                                       # bias / Brier; play only what the screen does not rule out (a play-check is ~10 min and its se ~0.004)
 
 Sets (`data/bench/<set>.json`: scenarios plus per-attempt labels):
   eval    600 generated fights (tools/gen_train.py seed 122: 5 characters, 3 acts)
@@ -227,6 +229,54 @@ def score_net(ck):
         print("        " + "  ".join(f"{k} {np.mean([np.sign(dwo[i]) == np.sign(ref_u[i]) for i in range(len(rows)) if rows[i]['kind'] == k and big_u[i]]):.2f}" for k in kinds))
 
 
+def _greedy(net, scen, per_env, seed):
+    """Greedy-policy fights (no search): every scenario `per_env` times on fixed env seeds (round robin); [S, per_env] win (1/0, NaN if aborted)."""
+    import sts2
+    import heads as H
+    from model import DEV
+    env = sts2.VecEnv(len(scen), [json.dumps(x) for x in scen], seed=seed, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
+    obs, mask = env.reset()
+    got = np.zeros(len(scen), np.int32)
+    out = np.full((len(scen), per_env), np.nan)
+    with torch.no_grad():
+        while got.min() < per_env:
+            lg, _ = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV))
+            obs, mask, _r, d, info = env.step(lg.argmax(1).cpu().numpy().astype(np.int32))
+            ei = None
+            for i in np.nonzero(d)[0]:
+                if got[i] < per_env:
+                    ei = env.episode_info() if ei is None else ei
+                    oc = int(info["outcome"][i])
+                    out[int(ei["scenario"][i]), got[i]] = 1.0 if oc == 1 else (0.0 if oc in (-1, 2) else np.nan)
+                    got[i] += 1
+    return out
+
+
+def screen(cks, per_env=8, seed=5):
+    """Greedy win per set for each checkpoint, paired with the first (same env seeds), plus the fight-start predictor's bias and Brier."""
+    from model import load
+    sets = {n: json.load(open(os.path.join(OUT, n + ".json"))) for n in SETS if os.path.exists(os.path.join(OUT, n + ".json"))}
+    base = {}
+    for k, ck in enumerate(cks):
+        net = load(ck).eval()
+        t0 = time.time()
+        line = []
+        for name, rows in sets.items():
+            scen = [r["scenario"] for r in rows]
+            w = _greedy(net, scen, per_env, seed)
+            P = predict(net, scen)
+            y = np.array([np.mean([x for x in r["wins"] if x is not None]) for r in rows])
+            pw = 1 - P[:, 0]
+            if k == 0:
+                base[name] = w
+                line.append(f"{name} greedy {np.nanmean(w):.3f} brier {np.mean((pw - y) ** 2):.4f} bias {pw.mean() - y.mean():+.3f}")
+            else:
+                d = np.nanmean(w - base[name], 1)
+                d = d[np.isfinite(d)]
+                line.append(f"{name} greedy {np.nanmean(w):.3f} ({d.mean():+.3f} +- {d.std(ddof=1) / len(d) ** 0.5:.3f}) brier {np.mean((pw - y) ** 2):.4f} bias {pw.mean() - y.mean():+.3f}")
+        print(f"{os.path.basename(ck):24s} ({time.time() - t0:.0f}s) " + " | ".join(line), flush=True)
+
+
 def play(ck, roots=None):
     """A network as the search's policy and evaluator at live width on the frozen sets, on the labels' seeds: win and end HP paired with the labels."""
     from solver import Solver
@@ -255,6 +305,8 @@ def main():
     b = sub.add_parser("build"); b.add_argument("--force", action="store_true"); b.add_argument("--pairs", type=int, default=300)
     s = sub.add_parser("score"); s.add_argument("ckpts", nargs="+")
     pl = sub.add_parser("play"); pl.add_argument("ckpts", nargs="+")
+    sc = sub.add_parser("screen"); sc.add_argument("ckpts", nargs="+", help="the first is the base the others are paired with")
+    sc.add_argument("--per-env", type=int, default=8)
     pl.add_argument("--roots", type=int, default=None, help="fights in flight (default 2048 on CUDA); fewer = less host and GPU memory")
     a = ap.parse_args()
     if a.cmd == "build":
@@ -262,6 +314,8 @@ def main():
     elif a.cmd == "play":
         for ck in a.ckpts:
             play(ck, a.roots)
+    elif a.cmd == "screen":
+        screen(a.ckpts, a.per_env)
     else:
         for ck in a.ckpts:
             score_net(ck)
