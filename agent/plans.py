@@ -7,7 +7,8 @@ A plan (`data/plans.json`): id, character, archetype, the threats it answers (en
 (what it wants next), the basics it drops, status (proposed -> measured -> demoted) and measurements. A measurement plays the plan's deck (the
 character's starter deck, minus the dropped basics, plus core, plus support) and its partial versions (core only; core minus each card) against each
 threat at a stated act and HP with the search (`Solver`, common random numbers across versions), and records the win rates with their se, the
-network that played, and the date. A plan changes only through a measurement, never on one run's anecdote.
+network that played, and the date. A measurement is a LOWER BOUND set by this solver and this exact deck: the solver may play the plan badly and
+the deck is one construction of the archetype. It never demotes a plan by itself, and a plan changes only through a measurement.
 """
 import argparse
 import datetime
@@ -58,8 +59,8 @@ def scenario(plan, threat, act, hp, version="full"):
 def measure(plan, attempts=96, engine=None):
     """Plays every version of the plan against each threat (search, common random numbers) and appends the measurement."""
     sys.path.insert(0, os.path.join(ROOT, "rl"))
+    from solver import DEFAULT_CKPT, DEFAULT_VALUE_CKPTS, Solver
     if engine is None:
-        from solver import DEFAULT_CKPT, DEFAULT_VALUE_CKPTS, Solver
         engine = Solver(DEFAULT_CKPT, M=5, K=32, value_ckpts=DEFAULT_VALUE_CKPTS)
     versions = ["full", "core"] + [f"-{c}" for c in plan["core"]]
     rows = []
@@ -69,7 +70,9 @@ def measure(plan, attempts=96, engine=None):
         res = engine.solve(scen, attempts=attempts, groups=[0] * len(scen))
         rows.append(dict(threat=t["id"], act=act, hp=hp, wins={v: round(r["win"], 3) for v, r in zip(versions, res)},
                          se={v: round(r["win_se"], 3) for v, r in zip(versions, res)}))
-    plan.setdefault("measurements", []).append(dict(date=datetime.date.today().isoformat(), attempts=attempts, rows=rows))
+    tested = dict(network=os.path.basename(DEFAULT_CKPT), values=[os.path.basename(v) for v in DEFAULT_VALUE_CKPTS], search="5x32", potions="none",
+                  decks={v: deck(plan, v) for v in versions}, relics=[STARTERS[plan["character"]][1]] + plan.get("relics", []))
+    plan.setdefault("measurements", []).append(dict(date=datetime.date.today().isoformat(), attempts=attempts, tested=tested, rows=rows))
     plan["status"] = "measured" if plan.get("status") in (None, "proposed", "measured") else plan["status"]
     return rows
 
@@ -82,6 +85,9 @@ def text(plan):
     for m in plan.get("measurements", [])[-1:]:
         for r in m["rows"]:
             out.append(f"  {r['threat']} (act {r['act'] + 1}, {r['hp']} HP, {m['attempts']} att, {m['date']}): " + "  ".join(f"{v} {w:.2f}" for v, w in r["wins"].items()))
+        t = m.get("tested", {})
+        out.append(f"  (solver lower bound: {t.get('network', '?')} search {t.get('search', '?')}, no potions, deck = starter - drop + core + support, {len(t.get('decks', {}).get('full', []))} cards; "
+                   "says how THIS solver does with THIS deck, not whether the plan works)")
     return "\n".join(out)
 
 

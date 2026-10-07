@@ -47,7 +47,7 @@ It predicts play under the best combat policy we have (search), not the raw netw
 
 ## 3. Evidence so far
 - **E1** (`evidence.md`): the h128 head predicts the raw policy (bias -0.001) but underestimates search play by 6.5 points overall and by 19-23 points in the 0.2-0.8 band. The predictor must be trained on search-played outcomes.
-- **E-KD:** the playtest deck had 0.00 against Knowledge Demon. Hand-built target decks score 1.00 (poison engine) and 0.98 (power scaling), while a shiv deck scores 0.22. So the solver can win this boss, and the problem was the deck. Operator plans tested by the predictor are the tool for this.
+- **E-KD (E2):** under h128 search, the playtest deck had 0.00 against Knowledge Demon, while two hand-built decks scored 1.00 (poison engine) and 0.98 (power scaling), and one shiv package 0.22. These are lower bounds under this solver, not verdicts on the decks; they show that whole-deck plans give a signal where single-pick pricing gives none.
 - **Playtest:** potion pricing in three units was unreadable. Fight-start numbers didn't say which potions they assumed. Event pricing needed the source. Shops are budget-basket problems. Mid-card selections desync the hand.
 
 ## 4. Stages

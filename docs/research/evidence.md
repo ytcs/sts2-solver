@@ -32,7 +32,24 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 | + power scaling (2x Noxious Fumes, Accelerant, Afterimage, Footwork, Well-Laid Plans, Burst, Corrosive Wave; -6 basics) | 0.98 |
 | + shiv package | 0.22 |
 
-- **Implication:**
-  - The solver can win this boss, so the 0% is the deck.
-  - Greedy pricing of single picks sees no gradient this far from the threshold. Target decks proposed by the operator and tested by the predictor do.
-  - The run model should price progress toward a chosen plan, for example P(the deck reaches the plan before the boss).
+- **What this shows:** under h128 search (5x32 via `eval`, 128 attempts, potions in the belt), the solver beat Knowledge Demon with the two hand-built decks above and never with the deck I played.
+- **What it does not show:**
+  - That the played deck is unwinnable: a stronger player might win with it.
+  - That the shiv idea is weak: the solver may play shiv lines badly, and one hand-built package is not the archetype.
+  - The results are lower bounds under this solver, not verdicts on decks or plans.
+- **Implication for the design:** greedy single-pick pricing gives no signal while every option scores 0 under the solver. Plans tested as whole decks give a signal, bounded by the solver's strength.
+
+## E3. Baseline benchmark (h128, labels from live-width search 5x32, `tools/bench.py`)
+
+| set | n | search win | predicted | bias | pred 0.4-0.6 → actual |
+|---|---|---|---|---|---|
+| eval | 600 | 0.753 | 0.663 | -0.090 | 0.50 → 0.79 |
+| corpus (real runs) | 192 | 0.783 | 0.764 | -0.019 | 0.47 → 0.88 |
+| mix (cross-character, big belts) | 600 | 0.720 | 0.594 | -0.126 | 0.51 → 0.78 |
+| tail (Act 3 elites/bosses, 28+ cards) | 400 | 0.299 | 0.155 | -0.144 | 0.49 → 0.78 |
+
+- **Ranking (550 pairs: add / remove / upgrade a card, drop a potion; 32 paired attempts):** predicted worth difference has the same sign as the reference on 63% of pairs with |d| > 0.02. By kind: add 0.52, remove 0.52, upgrade 0.66, potion 0.83.
+- **The reference is too noisy to judge card effects.** It agrees with itself on only 66% (split-half 16 vs 16 attempts, Spearman 0.35). Card effects are small (mean |Δworth| 0.04-0.09) against fight-to-fight variance.
+- **Implications:**
+  - The ranking benchmark needs about 256+ attempts per pair (at a cheaper search width) to have a ceiling worth measuring against.
+  - Single macro choices move outcomes by a few points, so pricing them by sampling fights needs hundreds of play-outs per option. A calibrated predictor that returns the expectation directly is the only affordable way to price them.

@@ -54,7 +54,7 @@ A Silent A10 run played from the screen, ignoring the old calculators (the decis
   - Act 2 elites: base 0.30; Choker 0.88, Ectoplasm 0.89, Snecko 0.83.
   - Knowledge Demon (Act 2 boss): 0.00 for every option (Snecko 0.03).
 - Economy side (Ectoplasm: no more gold) had to be weighed by feel.
-- **Key finding, sparse value:** this deck can't beat the act boss (399 HP, heals, Strength, curses), so P(win boss) is 0 for every card, relic and route option. Greedy pricing on P(win) has no gradient far from the threshold, and that is exactly when the deck most needs to be steered.
+- **Key finding, sparse value:** under h128 search this deck never beat the act boss (399 HP, heals, Strength, curses). That is a lower bound under this solver, not proof the deck can't win. So P(win boss) is 0 for every card, relic and route option. Greedy pricing on P(win) has no gradient far from the threshold, and that is exactly when the deck most needs to be steered.
   - The predictor should also output the shape of a loss: enemy HP remaining at death, turns survived, damage dealt.
   - Then "how far from beating the boss" becomes a smooth target for macro shaping, alongside P(win).
   - The old "smooth" objective (win averaged over 1-3x HP) was an indirect attempt at this.

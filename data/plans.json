@@ -103,7 +103,101 @@
        "-ACCELERANT": 0.015
       }
      }
-    ]
+    ],
+    "tested": {
+     "network": "solver_h128.pt",
+     "values": [],
+     "search": "5x32",
+     "potions": "none",
+     "decks": {
+      "full": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "NOXIOUS_FUMES",
+       "BOUNCING_FLASK",
+       "BOUNCING_FLASK",
+       "ACCELERANT",
+       "AFTERIMAGE",
+       "MALAISE",
+       "FOOTWORK",
+       "BACKFLIP"
+      ],
+      "core": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "NOXIOUS_FUMES",
+       "BOUNCING_FLASK",
+       "BOUNCING_FLASK",
+       "ACCELERANT"
+      ],
+      "-NOXIOUS_FUMES": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "BOUNCING_FLASK",
+       "BOUNCING_FLASK",
+       "ACCELERANT",
+       "AFTERIMAGE",
+       "MALAISE",
+       "FOOTWORK",
+       "BACKFLIP"
+      ],
+      "-BOUNCING_FLASK": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "NOXIOUS_FUMES",
+       "BOUNCING_FLASK",
+       "ACCELERANT",
+       "AFTERIMAGE",
+       "MALAISE",
+       "FOOTWORK",
+       "BACKFLIP"
+      ],
+      "-ACCELERANT": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "NOXIOUS_FUMES",
+       "BOUNCING_FLASK",
+       "BOUNCING_FLASK",
+       "AFTERIMAGE",
+       "MALAISE",
+       "FOOTWORK",
+       "BACKFLIP"
+      ]
+     },
+     "relics": [
+      "RING_OF_THE_SNAKE"
+     ]
+    }
    }
   ]
  },
@@ -211,7 +305,101 @@
        "-BLADE_SYMPHONY": 0.0
       }
      }
-    ]
+    ],
+    "tested": {
+     "network": "solver_h128.pt",
+     "values": [],
+     "search": "5x32",
+     "potions": "none",
+     "decks": {
+      "full": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "INFINITE_BLADES",
+       "ACCURACY",
+       "ACCURACY",
+       "BLADE_SYMPHONY",
+       "AFTERIMAGE",
+       "STORM_OF_STEEL",
+       "FOOTWORK",
+       "BACKFLIP"
+      ],
+      "core": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "INFINITE_BLADES",
+       "ACCURACY",
+       "ACCURACY",
+       "BLADE_SYMPHONY"
+      ],
+      "-INFINITE_BLADES": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "ACCURACY",
+       "ACCURACY",
+       "BLADE_SYMPHONY",
+       "AFTERIMAGE",
+       "STORM_OF_STEEL",
+       "FOOTWORK",
+       "BACKFLIP"
+      ],
+      "-ACCURACY": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "INFINITE_BLADES",
+       "ACCURACY",
+       "BLADE_SYMPHONY",
+       "AFTERIMAGE",
+       "STORM_OF_STEEL",
+       "FOOTWORK",
+       "BACKFLIP"
+      ],
+      "-BLADE_SYMPHONY": [
+       "STRIKE_SILENT",
+       "STRIKE_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "DEFEND_SILENT",
+       "NEUTRALIZE",
+       "SURVIVOR",
+       "ASCENDERS_BANE",
+       "INFINITE_BLADES",
+       "ACCURACY",
+       "ACCURACY",
+       "AFTERIMAGE",
+       "STORM_OF_STEEL",
+       "FOOTWORK",
+       "BACKFLIP"
+      ]
+     },
+     "relics": [
+      "RING_OF_THE_SNAKE"
+     ]
+    }
    }
   ]
  }
