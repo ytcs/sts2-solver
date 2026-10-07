@@ -174,3 +174,17 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 | r2 | 1.284 | 0.538 |
 
   The distilled policies are flatter, not sharper. With estimate gaps of ~0.01 between top options and tau 0.02, the soft target is nearly uniform over the tried options and erases the prior's ranking. Next test: prior-anchored targets (`exit.py --target anchored`) and a value-only arm.
+
+## E10. Prior-anchored policy targets and a value-only arm (from h128, the same ~157k fights as r2, 3 epochs; paired play vs labels at 5x32, 8 attempts, 1024 roots)
+
+| arm | eval win | corpus win | mix win | tail win | end HP eval / mix / tail |
+|---|---|---|---|---|---|
+| B anchored (c=2) | +0.002 +- 0.003 | -0.001 +- 0.004 | +0.005 +- 0.004 | +0.009 +- 0.005 | +0.05 / +0.38 +- 0.12 / +0.09 |
+| A value-only (policy heads frozen) | -0.001 +- 0.003 | -0.004 +- 0.003 | +0.003 +- 0.004 | +0.012 +- 0.006 | -0.29 / -0.08 / +0.12 |
+| r2 soft target (E9) | -0.007 | -0.005 | +0.004 | -0.017 | -1.12 / -0.53 / -0.91 |
+
+- **What this shows:** the soft target caused r2's regression. With the prior-anchored target, the first trained player shows no regression on any set: tail win +1.8 se, mix end HP +3 se.
+- **What it does not show:**
+  - The effects are about one point of win, at the edge of significance.
+  - It is one value of c and one round.
+  - Adoption needs a stronger gate: more attempts on the tail, and the certified-winnable subset.
