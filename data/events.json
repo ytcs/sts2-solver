@@ -1,0 +1,3614 @@
+{
+ "_conventions": {
+  "acts": "act names from the act lists (Overgrowth / Underdocks = act index 0, Hive = 1, Glory = 2) or 'shared' (Models/ModelDb.cs AllSharedEvents)",
+  "condition": "IsAllowed in machine form; act keys use the game's 0-based CurrentActIndex (min_act, max_act, act), min_gold, min_hp (current HP), max_hp_frac (current/max), min_floor (TotalFloor), min_potions, min_tradable_relics, min_removable, min_transformable, min_basic_strikes, min_basic_defends, has_basic, no_event_pet, deck_enchantable (an enchantment id; approximated as true)",
+  "effects": "applied in order; see agent/events.py VOCAB. gold [lo, hi] is an inclusive uniform integer range. Event gold is not scaled by Poverty (A3 scales only encounter and treasure gold); no event reads the ascension level",
+  "labels": "English option titles from localization/eng/events.json in SlayTheSpire2.pck; {Var} is filled at runtime (match as a wildcard)",
+  "excluded": "the 8 ancients (Darv, Neow, Nonupeipe, Orobas, Pael, Tanx, Tezcatara, Vakuu), TheArchitect (the final-act story event, in no pool), Deprecated*"
+ },
+ "events": [
+  {
+   "id": "AbyssalBaths",
+   "key": "ABYSSAL_BATHS",
+   "title": "Abyssal Baths",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:28"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/AbyssalBaths.cs:11-106",
+   "note": "max HP gain heals the same amount (CreatureCmd.GainMaxHp); damage starts at 3 and rises by 1 per immersion",
+   "options": [
+    {
+     "key": "IMMERSE",
+     "label": "Immerse",
+     "effects": [
+      {
+       "max_hp": 2
+      },
+      {
+       "hp": -3
+      },
+      {
+       "choice": [
+        {
+         "key": "LINGER",
+         "label": "Linger",
+         "effects": [
+          {
+           "max_hp": 2
+          },
+          {
+           "hp": -4
+          },
+          {
+           "unmodelled": "further lingers: +2 max HP and 1 more damage each (5, 6, ...)"
+          }
+         ]
+        },
+        {
+         "key": "EXIT_BATHS",
+         "label": "Exit Baths",
+         "effects": [],
+         "exit": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "ABSTAIN",
+     "label": "Abstain",
+     "effects": [
+      {
+       "hp": 10
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Amalgamator",
+   "key": "AMALGAMATOR",
+   "title": "Amalgamator",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:33"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_basic_strikes": 2,
+    "min_basic_defends": 2
+   },
+   "condition_src": "Amalgamator.cs:27-30: return runState.Players.All((Player p) => p.Deck.Cards.Count((CardModel c) => IsValid(CardTag.Strike, c)) >= 2 && p.Deck.Cards.Count((CardModel c) => IsValid(CardTag.Defend, c)) >= 2);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/Amalgamator.cs:19-81",
+   "options": [
+    {
+     "key": "COMBINE_STRIKES",
+     "label": "Combine Strikes",
+     "effects": [
+      {
+       "card_remove": {
+        "n": 2,
+        "match": "STRIKE_",
+        "basic": true
+       }
+      },
+      {
+       "card_add": "ULTIMATE_STRIKE"
+      }
+     ]
+    },
+    {
+     "key": "COMBINE_DEFENDS",
+     "label": "Combine Defends",
+     "effects": [
+      {
+       "card_remove": {
+        "n": 2,
+        "match": "DEFEND_",
+        "basic": true
+       }
+      },
+      {
+       "card_add": "ULTIMATE_DEFEND"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "AromaOfChaos",
+   "key": "AROMA_OF_CHAOS",
+   "title": "Aroma of Chaos",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:30"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/AromaOfChaos.cs:15-49",
+   "options": [
+    {
+     "key": "LET_GO",
+     "label": "Let Go",
+     "effects": [
+      {
+       "card_transform": 1
+      }
+     ]
+    },
+    {
+     "key": "MAINTAIN_CONTROL",
+     "label": "Maintain Control",
+     "effects": [
+      {
+       "card_upgrade": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "BattlewornDummy",
+   "key": "BATTLEWORN_DUMMY",
+   "title": "Battleworn Dummy",
+   "acts": [
+    "Glory"
+   ],
+   "acts_src": [
+    "Models.Acts/Glory.cs:32"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/BattlewornDummy.cs:20-119",
+   "options": [
+    {
+     "key": "SETTING_1",
+     "label": "Setting 1",
+     "effects": [
+      {
+       "fight": "BATTLEWORN_DUMMY_EVENT_V1_ENCOUNTER",
+       "rewards": "none",
+       "extra": [
+        {
+         "potion_random": 1
+        }
+       ]
+      },
+      {
+       "unmodelled": "turn-limited fight (BattleFriend): the reward comes only if it dies before time runs out (RanOutOfTime); no normal rewards"
+      }
+     ]
+    },
+    {
+     "key": "SETTING_2",
+     "label": "Setting 2",
+     "effects": [
+      {
+       "fight": "BATTLEWORN_DUMMY_EVENT_V2_ENCOUNTER",
+       "rewards": "none",
+       "extra": [
+        {
+         "card_upgrade_random": 2
+        }
+       ]
+      },
+      {
+       "unmodelled": "turn-limited fight (BattleFriend): the reward comes only if it dies before time runs out (RanOutOfTime); no normal rewards"
+      }
+     ]
+    },
+    {
+     "key": "SETTING_3",
+     "label": "Setting 3",
+     "effects": [
+      {
+       "fight": "BATTLEWORN_DUMMY_EVENT_V3_ENCOUNTER",
+       "rewards": "none",
+       "extra": [
+        {
+         "relic_random": {}
+        }
+       ]
+      },
+      {
+       "unmodelled": "turn-limited fight (BattleFriend): the reward comes only if it dies before time runs out (RanOutOfTime); no normal rewards"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "BrainLeech",
+   "key": "BRAIN_LEECH",
+   "title": "Brain Leech",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:159"
+   ],
+   "allowed": true,
+   "condition": {
+    "max_act": 1
+   },
+   "condition_src": "BrainLeech.cs:37-40: return runState.CurrentActIndex < 2;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/BrainLeech.cs:19-73",
+   "options": [
+    {
+     "key": "SHARE_KNOWLEDGE",
+     "label": "Share Knowledge",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "character",
+        "pick": 1,
+        "of": 5
+       }
+      }
+     ]
+    },
+    {
+     "key": "RIP",
+     "label": "Rip the Leech Off",
+     "effects": [
+      {
+       "hp": -5
+      },
+      {
+       "card_add_random": {
+        "pool": "colorless",
+        "pick": 1,
+        "of": 3
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Bugslayer",
+   "key": "BUGSLAYER",
+   "title": "Bugslayer",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:34"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/Bugslayer.cs:13-46",
+   "options": [
+    {
+     "key": "EXTERMINATION",
+     "label": "Learn Extermination Technique",
+     "effects": [
+      {
+       "card_add": "EXTERMINATE"
+      }
+     ]
+    },
+    {
+     "key": "SQUASH",
+     "label": "Learn Squash Technique",
+     "effects": [
+      {
+       "card_add": "SQUASH"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ByrdonisNest",
+   "key": "BYRDONIS_NEST",
+   "title": "Byrdonis Nest",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:31"
+   ],
+   "allowed": true,
+   "condition": {
+    "no_event_pet": true
+   },
+   "condition_src": "ByrdonisNest.cs:34-37: return runState.Players.All((Player p) => !p.HasEventPet());",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/ByrdonisNest.cs:15-51",
+   "options": [
+    {
+     "key": "EAT",
+     "label": "Eat the Egg",
+     "effects": [
+      {
+       "max_hp": 7
+      }
+     ]
+    },
+    {
+     "key": "TAKE",
+     "label": "Take the Egg",
+     "effects": [
+      {
+       "card_add": "BYRDONIS_EGG"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ColorfulPhilosophers",
+   "key": "COLORFUL_PHILOSOPHERS",
+   "title": "Colorful Philosophers",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:35"
+   ],
+   "allowed": true,
+   "condition": {},
+   "condition_src": "ColorfulPhilosophers.cs:29-32: return runState.Players.All((Player p) => p.UnlockState.CharacterCardPools.Count() > 1);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/ColorfulPhilosophers.cs:16-67",
+   "note": "one option per other character's colour; 3 of them at random are shown (fewer if fewer pools are unlocked)",
+   "options": [
+    {
+     "key": "NECROBINDER",
+     "label": "Pink",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "NECROBINDER",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Common",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "NECROBINDER",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Uncommon",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "NECROBINDER",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Rare",
+        "odds": "uniform"
+       }
+      }
+     ]
+    },
+    {
+     "key": "IRONCLAD",
+     "label": "Red",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "IRONCLAD",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Common",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "IRONCLAD",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Uncommon",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "IRONCLAD",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Rare",
+        "odds": "uniform"
+       }
+      }
+     ]
+    },
+    {
+     "key": "REGENT",
+     "label": "Orange",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "REGENT",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Common",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "REGENT",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Uncommon",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "REGENT",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Rare",
+        "odds": "uniform"
+       }
+      }
+     ]
+    },
+    {
+     "key": "SILENT",
+     "label": "Green",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "SILENT",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Common",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "SILENT",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Uncommon",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "SILENT",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Rare",
+        "odds": "uniform"
+       }
+      }
+     ]
+    },
+    {
+     "key": "DEFECT",
+     "label": "Blue",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "DEFECT",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Common",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "DEFECT",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Uncommon",
+        "odds": "uniform"
+       }
+      },
+      {
+       "card_add_random": {
+        "pool": "DEFECT",
+        "pick": 1,
+        "of": 3,
+        "rarity": "Rare",
+        "odds": "uniform"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ColossalFlower",
+   "key": "COLOSSAL_FLOWER",
+   "title": "Colossal Flower",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:36"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_hp": 19
+   },
+   "condition_src": "ColossalFlower.cs:46-49: return runState.Players.All((Player p) => p.Creature.CurrentHp >= 19);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/ColossalFlower.cs:16-111",
+   "options": [
+    {
+     "key": "EXTRACT_CURRENT_PRIZE_1",
+     "label": "Extract Nectar",
+     "effects": [
+      {
+       "gold": 35
+      }
+     ],
+     "exit": true
+    },
+    {
+     "key": "REACH_DEEPER_1",
+     "label": "Reach Deeper",
+     "effects": [
+      {
+       "hp": -5
+      },
+      {
+       "choice": [
+        {
+         "key": "EXTRACT_CURRENT_PRIZE_2",
+         "label": "Extract Nectar",
+         "effects": [
+          {
+           "gold": 75
+          }
+         ],
+         "exit": true
+        },
+        {
+         "key": "REACH_DEEPER_2",
+         "label": "Reach Deeper",
+         "effects": [
+          {
+           "hp": -6
+          },
+          {
+           "choice": [
+            {
+             "key": "EXTRACT_INSTEAD",
+             "label": "Extract Nectar",
+             "effects": [
+              {
+               "gold": 135
+              }
+             ],
+             "exit": true
+            },
+            {
+             "key": "POLLINOUS_CORE",
+             "label": "Enter the Center",
+             "effects": [
+              {
+               "hp": -7
+              },
+              {
+               "relic": "POLLINOUS_CORE"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "CrystalSphere",
+   "key": "CRYSTAL_SPHERE",
+   "title": "Crystal Sphere",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:160"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_act": 1,
+    "min_gold": 100
+   },
+   "condition_src": "CrystalSphere.cs:49-56: if (runState.Players.All((Player p) => p.Gold >= 100)) return runState.CurrentActIndex > 0; return false;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/CrystalSphere.cs:16-82",
+   "options": [
+    {
+     "key": "UNCOVER_FUTURE",
+     "label": "Uncover Future",
+     "effects": [
+      {
+       "gold": [
+        -99,
+        -51
+       ]
+      },
+      {
+       "unmodelled": "Crystal Sphere minigame with 3 tools"
+      }
+     ]
+    },
+    {
+     "key": "PAYMENT_PLAN",
+     "label": "Payment Plan",
+     "effects": [
+      {
+       "card_add": "DEBT"
+      },
+      {
+       "unmodelled": "Crystal Sphere minigame with 6 tools"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "DenseVegetation",
+   "key": "DENSE_VEGETATION",
+   "title": "Dense Vegetation",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:32"
+   ],
+   "allowed": true,
+   "condition": {},
+   "condition_src": "DenseVegetation.cs:41-55: if (runState.Players.Count == 1) return true; foreach (Player player in runState.Players) if ((decimal)player.Creature.CurrentHp <= base.DynamicVars.HpLoss.BaseValue) return false; return true;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/DenseVegetation.cs:24-107",
+   "note": "Rest heals the rest-site amount (30% of max HP before relic modifiers), then 'Fight!' (the only option) starts the Wrigglers with normal monster rewards",
+   "options": [
+    {
+     "key": "TRUDGE_ON",
+     "label": "Trudge On",
+     "effects": [
+      {
+       "hp": -8
+      },
+      {
+       "gold": [
+        61,
+        99
+       ]
+      }
+     ]
+    },
+    {
+     "key": "REST",
+     "label": "Rest",
+     "effects": [
+      {
+       "hp_frac": 0.3
+      },
+      {
+       "fight": "DENSE_VEGETATION_EVENT_ENCOUNTER",
+       "rewards": "hallway",
+       "extra": []
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "DollRoom",
+   "key": "DOLL_ROOM",
+   "title": "Doll Room",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:161"
+   ],
+   "allowed": true,
+   "condition": {
+    "act": 1
+   },
+   "condition_src": "DollRoom.cs:79-82: return runState.CurrentActIndex == 1;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/DollRoom.cs:21-173",
+   "options": [
+    {
+     "key": "RANDOM",
+     "label": "Pick at Random",
+     "effects": [
+      {
+       "relic_one_of": [
+        "DAUGHTER_OF_THE_WIND",
+        "MR_STRUGGLES",
+        "BING_BONG"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "TAKE_SOME_TIME",
+     "label": "Take Some Time",
+     "effects": [
+      {
+       "hp": -5
+      },
+      {
+       "choice": [
+        {
+         "key": "DAUGHTER_OF_THE_WIND",
+         "label": "Daughter of the Wind",
+         "effects": [
+          {
+           "relic": "DAUGHTER_OF_THE_WIND"
+          }
+         ]
+        },
+        {
+         "key": "MR_STRUGGLES",
+         "label": "Mr. Struggles",
+         "effects": [
+          {
+           "relic": "MR_STRUGGLES"
+          }
+         ]
+        },
+        {
+         "key": "BING_BONG",
+         "label": "Bing Bong",
+         "effects": [
+          {
+           "relic": "BING_BONG"
+          }
+         ]
+        }
+       ],
+       "offered": 2
+      }
+     ]
+    },
+    {
+     "key": "EXAMINE",
+     "label": "Examine Each and Make the Best Choice",
+     "effects": [
+      {
+       "hp": -15
+      },
+      {
+       "choice": [
+        {
+         "key": "DAUGHTER_OF_THE_WIND",
+         "label": "Daughter of the Wind",
+         "effects": [
+          {
+           "relic": "DAUGHTER_OF_THE_WIND"
+          }
+         ]
+        },
+        {
+         "key": "MR_STRUGGLES",
+         "label": "Mr. Struggles",
+         "effects": [
+          {
+           "relic": "MR_STRUGGLES"
+          }
+         ]
+        },
+        {
+         "key": "BING_BONG",
+         "label": "Bing Bong",
+         "effects": [
+          {
+           "relic": "BING_BONG"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "DoorsOfLightAndDark",
+   "key": "DOORS_OF_LIGHT_AND_DARK",
+   "title": "Doors of Light and Dark",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:35"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/DoorsOfLightAndDark.cs:13-44",
+   "options": [
+    {
+     "key": "LIGHT",
+     "label": "Light Door",
+     "effects": [
+      {
+       "card_upgrade_random": 2
+      }
+     ]
+    },
+    {
+     "key": "DARK",
+     "label": "Dark Door",
+     "effects": [
+      {
+       "card_remove": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "DrowningBeacon",
+   "key": "DROWNING_BEACON",
+   "title": "Drowning Beacon",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:29"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/DrowningBeacon.cs:14-57",
+   "options": [
+    {
+     "key": "BOTTLE",
+     "label": "Bottle",
+     "effects": [
+      {
+       "potion": "GLOWWATER_POTION"
+      }
+     ]
+    },
+    {
+     "key": "CLIMB",
+     "label": "Climb",
+     "effects": [
+      {
+       "max_hp": -13
+      },
+      {
+       "relic": "FRESNEL_LENS"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "EndlessConveyor",
+   "key": "ENDLESS_CONVEYOR",
+   "title": "Endless Conveyor",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:30"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_gold": 120
+   },
+   "condition_src": "EndlessConveyor.cs:104-107: return runState.Players.All((Player p) => p.Gold >= 120);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/EndlessConveyor.cs:25-289",
+   "note": "the first option is the rolled dish (weights Caviar 6, Clam Roll 6 if hurt, Spicy Snappy / Jelly Liver / Fried Eel 3, Suspicious Condiment 3 if a potion slot is free; Golden Fysh 1 from the second grab, free; every 5th grab is Seapunk Salad); each grab costs 40 gold",
+   "options": [
+    {
+     "key": "CAVIAR",
+     "label": "Grab Caviar off the Belt",
+     "effects": [
+      {
+       "gold": -40
+      },
+      {
+       "max_hp": 4
+      },
+      {
+       "choice": [
+        {
+         "key": "LEAVE",
+         "label": "Leave",
+         "effects": [],
+         "exit": true
+        },
+        {
+         "key": "GRAB_AGAIN",
+         "label": "Grab {Dish} off the Belt",
+         "effects": [
+          {
+           "unmodelled": "another grab: 40 gold for the next rolled dish"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "SPICY_SNAPPY",
+     "label": "Grab Spicy Snappy off the Belt",
+     "effects": [
+      {
+       "gold": -40
+      },
+      {
+       "card_upgrade_random": 1
+      },
+      {
+       "choice": [
+        {
+         "key": "LEAVE",
+         "label": "Leave",
+         "effects": [],
+         "exit": true
+        },
+        {
+         "key": "GRAB_AGAIN",
+         "label": "Grab {Dish} off the Belt",
+         "effects": [
+          {
+           "unmodelled": "another grab: 40 gold for the next rolled dish"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "JELLY_LIVER",
+     "label": "Grab Jelly Liver off the Belt",
+     "effects": [
+      {
+       "gold": -40
+      },
+      {
+       "card_transform": 1
+      },
+      {
+       "choice": [
+        {
+         "key": "LEAVE",
+         "label": "Leave",
+         "effects": [],
+         "exit": true
+        },
+        {
+         "key": "GRAB_AGAIN",
+         "label": "Grab {Dish} off the Belt",
+         "effects": [
+          {
+           "unmodelled": "another grab: 40 gold for the next rolled dish"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "FRIED_EEL",
+     "label": "Grab Fried Eel off the Belt",
+     "effects": [
+      {
+       "gold": -40
+      },
+      {
+       "card_add_random": {
+        "pool": "colorless",
+        "pick": 1,
+        "of": 1
+       }
+      },
+      {
+       "choice": [
+        {
+         "key": "LEAVE",
+         "label": "Leave",
+         "effects": [],
+         "exit": true
+        },
+        {
+         "key": "GRAB_AGAIN",
+         "label": "Grab {Dish} off the Belt",
+         "effects": [
+          {
+           "unmodelled": "another grab: 40 gold for the next rolled dish"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "SUSPICIOUS_CONDIMENT",
+     "label": "Grab Suspicious Condiment off the Belt",
+     "effects": [
+      {
+       "gold": -40
+      },
+      {
+       "potion_random": 1
+      },
+      {
+       "choice": [
+        {
+         "key": "LEAVE",
+         "label": "Leave",
+         "effects": [],
+         "exit": true
+        },
+        {
+         "key": "GRAB_AGAIN",
+         "label": "Grab {Dish} off the Belt",
+         "effects": [
+          {
+           "unmodelled": "another grab: 40 gold for the next rolled dish"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "CLAM_ROLL",
+     "label": "Grab Clam Roll off the Belt",
+     "effects": [
+      {
+       "gold": -40
+      },
+      {
+       "hp": 10
+      },
+      {
+       "choice": [
+        {
+         "key": "LEAVE",
+         "label": "Leave",
+         "effects": [],
+         "exit": true
+        },
+        {
+         "key": "GRAB_AGAIN",
+         "label": "Grab {Dish} off the Belt",
+         "effects": [
+          {
+           "unmodelled": "another grab: 40 gold for the next rolled dish"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "GOLDEN_FYSH",
+     "label": "Grab Golden Fysh off the Belt",
+     "effects": [
+      {
+       "gold": 75
+      },
+      {
+       "choice": [
+        {
+         "key": "LEAVE",
+         "label": "Leave",
+         "effects": [],
+         "exit": true
+        },
+        {
+         "key": "GRAB_AGAIN",
+         "label": "Grab {Dish} off the Belt",
+         "effects": [
+          {
+           "unmodelled": "another grab: 40 gold for the next rolled dish"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "SEAPUNK_SALAD",
+     "label": "Grab Seapunk Salad off the Belt",
+     "effects": [
+      {
+       "gold": -40
+      },
+      {
+       "card_add": "FEEDING_FRENZY"
+      },
+      {
+       "choice": [
+        {
+         "key": "LEAVE",
+         "label": "Leave",
+         "effects": [],
+         "exit": true
+        },
+        {
+         "key": "GRAB_AGAIN",
+         "label": "Grab {Dish} off the Belt",
+         "effects": [
+          {
+           "unmodelled": "another grab: 40 gold for the next rolled dish"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "LOCKED",
+     "label": "Broke",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "OBSERVE_CHEF",
+     "label": "Observe the Chef",
+     "effects": [
+      {
+       "card_upgrade_random": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "FakeMerchant",
+   "key": "FAKE_MERCHANT",
+   "title": "The Merchant???",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:162"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_act": 1,
+    "min_gold": 100
+   },
+   "condition_src": "FakeMerchant.cs:101-112: if (runState.CurrentActIndex < 1) return false; if (runState.Players.Count > 1) return false; return runState.Players.All((Player player) => player.Gold >= 100 || player.Potions.Any((PotionModel potion) => potion is FoulPotion));",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/FakeMerchant.cs:22-166",
+   "note": "also allowed below 100 gold with a Foul Potion; single player only; no event options (custom layout)",
+   "options": [
+    {
+     "key": "SHOP",
+     "label": "(merchant screen)",
+     "effects": [
+      {
+       "unmodelled": "custom shop: 6 of 9 fake relics at 50 gold each; throwing a Foul Potion starts FAKE_MERCHANT_EVENT_ENCOUNTER (300 gold, Fake Merchant's Rug and the unsold relics)"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "FieldOfManSizedHoles",
+   "key": "FIELD_OF_MAN_SIZED_HOLES",
+   "title": "Field of Man-Sized Holes",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:37"
+   ],
+   "allowed": true,
+   "condition": {
+    "deck_enchantable": "PERFECT_FIT"
+   },
+   "condition_src": "FieldOfManSizedHoles.cs:30-33: return runState.Players.All((Player p) => CardPile.Get(PileType.Deck, p).Cards.Any(ModelDb.Enchantment<PerfectFit>().CanEnchant));",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/FieldOfManSizedHoles.cs:20-66",
+   "options": [
+    {
+     "key": "RESIST",
+     "label": "Resist",
+     "effects": [
+      {
+       "card_remove": 2
+      },
+      {
+       "card_add": "NORMALITY"
+      }
+     ]
+    },
+    {
+     "key": "ENTER_YOUR_HOLE",
+     "label": "Enter Your Hole",
+     "effects": [
+      {
+       "card_enchant": {
+        "id": "PERFECT_FIT",
+        "n": 1,
+        "amount": 1
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "GraveOfTheForgotten",
+   "key": "GRAVE_OF_THE_FORGOTTEN",
+   "title": "Grave of the Forgotten",
+   "acts": [
+    "Glory"
+   ],
+   "acts_src": [
+    "Models.Acts/Glory.cs:33"
+   ],
+   "allowed": true,
+   "condition": {
+    "deck_enchantable": "SOULS_POWER"
+   },
+   "condition_src": "GraveOfTheForgotten.cs:36-39: return runState.Players.All(HasEnchantableCards);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/GraveOfTheForgotten.cs:21-78",
+   "options": [
+    {
+     "key": "CONFRONT",
+     "label": "Confront with Truth",
+     "effects": [
+      {
+       "card_add": "DECAY"
+      },
+      {
+       "card_enchant": {
+        "id": "SOULS_POWER",
+        "n": 1,
+        "amount": 1
+       }
+      }
+     ]
+    },
+    {
+     "key": "CONFRONT_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "ACCEPT",
+     "label": "Accept the {Relic}",
+     "effects": [
+      {
+       "relic": "FORGOTTEN_SOUL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "HungryForMushrooms",
+   "key": "HUNGRY_FOR_MUSHROOMS",
+   "title": "Hungry for Mushrooms",
+   "acts": [
+    "Glory"
+   ],
+   "acts_src": [
+    "Models.Acts/Glory.cs:34"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/HungryForMushrooms.cs:9-31",
+   "note": "the HP changes are the relics' AfterObtained (Relics/BigMushroom.cs:24-27 +20 max HP, Relics/FragrantMushroom.cs:29-31 15 damage)",
+   "options": [
+    {
+     "key": "BIG_MUSHROOM",
+     "label": "Big Mushroom",
+     "effects": [
+      {
+       "relic": "BIG_MUSHROOM"
+      },
+      {
+       "max_hp": 20
+      }
+     ]
+    },
+    {
+     "key": "FRAGRANT_MUSHROOM",
+     "label": "Fragrant Mushroom",
+     "effects": [
+      {
+       "relic": "FRAGRANT_MUSHROOM"
+      },
+      {
+       "hp": -15
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "InfestedAutomaton",
+   "key": "INFESTED_AUTOMATON",
+   "title": "Infested Automaton",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:38"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/InfestedAutomaton.cs:15-53",
+   "options": [
+    {
+     "key": "STUDY",
+     "label": "Study",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "character",
+        "pick": 1,
+        "of": 1,
+        "type": "Power"
+       }
+      }
+     ]
+    },
+    {
+     "key": "TOUCH_CORE",
+     "label": "Touch the Core",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "character",
+        "pick": 1,
+        "of": 1,
+        "cost0": true
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "JungleMazeAdventure",
+   "key": "JUNGLE_MAZE_ADVENTURE",
+   "title": "Jungle Maze Adventure",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:33"
+   ],
+   "allowed": true,
+   "condition": {},
+   "condition_src": "JungleMazeAdventure.cs:40-54: if (runState.Players.Count == 1) return true; foreach (Player player in runState.Players) if ((decimal)player.Creature.CurrentHp <= base.DynamicVars[\"SoloHp\"].BaseValue) return false; return true;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/JungleMazeAdventure.cs:21-114",
+   "options": [
+    {
+     "key": "SOLO_QUEST",
+     "label": "Solo Quest",
+     "effects": [
+      {
+       "hp": -18
+      },
+      {
+       "gold": [
+        135,
+        165
+       ]
+      }
+     ]
+    },
+    {
+     "key": "JOIN_FORCES",
+     "label": "Join Forces",
+     "effects": [
+      {
+       "gold": [
+        35,
+        65
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "LostWisp",
+   "key": "LOST_WISP",
+   "title": "The Lost Wisp",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:39"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/LostWisp.cs:13-59",
+   "options": [
+    {
+     "key": "CLAIM",
+     "label": "Capture the Wisp",
+     "effects": [
+      {
+       "card_add": "DECAY"
+      },
+      {
+       "relic": "LOST_WISP"
+      }
+     ]
+    },
+    {
+     "key": "SEARCH",
+     "label": "Search the Nearby Area",
+     "effects": [
+      {
+       "gold": [
+        45,
+        75
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "LuminousChoir",
+   "key": "LUMINOUS_CHOIR",
+   "title": "Luminous Choir",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:34"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_gold": 149
+   },
+   "condition_src": "LuminousChoir.cs:23-26: return runState.Players.All((Player p) => (decimal)p.Gold >= base.DynamicVars.Gold.BaseValue && p.RelicGrabBag.HasAvailableRelics(runState));",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/LuminousChoir.cs:19-68",
+   "note": "IsAllowed reads the canonical 149 before the roll; the price is 149 - U[0, 49]",
+   "options": [
+    {
+     "key": "REACH_INTO_THE_FLESH",
+     "label": "Reach into the Flesh",
+     "effects": [
+      {
+       "card_remove": 2
+      },
+      {
+       "card_add": "SPORE_MIND"
+      }
+     ]
+    },
+    {
+     "key": "OFFER_TRIBUTE",
+     "label": "Offer Tribute",
+     "effects": [
+      {
+       "gold": [
+        -149,
+        -100
+       ]
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    },
+    {
+     "key": "OFFER_TRIBUTE_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    }
+   ]
+  },
+  {
+   "id": "MorphicGrove",
+   "key": "MORPHIC_GROVE",
+   "title": "Morphic Grove",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:35"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_gold": 100,
+    "min_transformable": 2
+   },
+   "condition_src": "MorphicGrove.cs:24-27: return runState.Players.All((Player p) => p.Gold >= 100 && p.Deck.Cards.Count((CardModel c) => c.IsTransformable) >= 2);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/MorphicGrove.cs:16-54",
+   "options": [
+    {
+     "key": "GROUP",
+     "label": "Group",
+     "effects": [
+      {
+       "gold_set": 0
+      },
+      {
+       "card_transform": 2
+      }
+     ]
+    },
+    {
+     "key": "LONER",
+     "label": "Loner",
+     "effects": [
+      {
+       "max_hp": 5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PotionCourier",
+   "key": "POTION_COURIER",
+   "title": "Potion Courier",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:163"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_act": 1
+   },
+   "condition_src": "PotionCourier.cs:31-34: return runState.CurrentActIndex > 0;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/PotionCourier.cs:16-62",
+   "options": [
+    {
+     "key": "GRAB_POTIONS",
+     "label": "Grab Potions",
+     "effects": [
+      {
+       "potion": "FOUL_POTION"
+      },
+      {
+       "potion": "FOUL_POTION"
+      },
+      {
+       "potion": "FOUL_POTION"
+      }
+     ]
+    },
+    {
+     "key": "RANSACK",
+     "label": "Ransack",
+     "effects": [
+      {
+       "potion_random": {
+        "n": 1,
+        "rarity": "Uncommon"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "PunchOff",
+   "key": "PUNCH_OFF",
+   "title": "Punch Off",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:31"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_floor": 6
+   },
+   "condition_src": "PunchOff.cs:42-45: return runState.TotalFloor >= 6;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/PunchOff.cs:27-147",
+   "note": "'I Can Take Them' leads to a single 'Fight!' option",
+   "options": [
+    {
+     "key": "NAB",
+     "label": "Nab",
+     "effects": [
+      {
+       "card_add": "INJURY"
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    },
+    {
+     "key": "I_CAN_TAKE_THEM",
+     "label": "I Can Take Them",
+     "effects": [
+      {
+       "fight": "PUNCH_OFF_EVENT_ENCOUNTER",
+       "rewards": "hallway",
+       "extra": [
+        {
+         "relic_random": {}
+        },
+        {
+         "potion_random": 1
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "RanwidTheElder",
+   "key": "RANWID_THE_ELDER",
+   "title": "Ranwid the Elder",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:164"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_act": 1,
+    "min_gold": 100,
+    "min_potions": 1,
+    "min_tradable_relics": 1
+   },
+   "condition_src": "RanwidTheElder.cs:51-70: if (runState.CurrentActIndex == 0) return false; if (runState.Players.Any((Player p) => !GetValidRelics(p).Any())) return false; if (runState.Players.Any((Player p) => p.Gold < 100)) return false; if (runState.Players.Any((Player p) => !p.Potions.Any())) return false; return true;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/RanwidTheElder.cs:15-135",
+   "note": "the potion and relic asked for are drawn at random from the belt / tradable relics",
+   "options": [
+    {
+     "key": "POTION",
+     "label": "Give {Potion}",
+     "effects": [
+      {
+       "potion_remove": "random"
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    },
+    {
+     "key": "POTION_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "GOLD",
+     "label": "Give {Gold} Gold",
+     "effects": [
+      {
+       "gold": -100
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    },
+    {
+     "key": "RELIC",
+     "label": "Give {Relic}",
+     "effects": [
+      {
+       "relic_remove": "random_tradable"
+      },
+      {
+       "relic_random": {}
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    },
+    {
+     "key": "RELIC_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    }
+   ]
+  },
+  {
+   "id": "Reflections",
+   "key": "REFLECTIONS",
+   "title": "Reflections snoitcelfeR",
+   "acts": [
+    "Glory"
+   ],
+   "acts_src": [
+    "Models.Acts/Glory.cs:35"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/Reflections.cs:16-76",
+   "options": [
+    {
+     "key": "TOUCH_A_MIRROR",
+     "label": "Touch a Mirror",
+     "effects": [
+      {
+       "card_downgrade_random": 2
+      },
+      {
+       "card_upgrade_random": 4
+      }
+     ]
+    },
+    {
+     "key": "SHATTER",
+     "label": "Shatter",
+     "effects": [
+      {
+       "card_duplicate_all": true
+      },
+      {
+       "card_add": "BAD_LUCK"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "RelicTrader",
+   "key": "RELIC_TRADER",
+   "title": "Relic Trader",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:165"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_act": 1,
+    "min_tradable_relics": 5
+   },
+   "condition_src": "RelicTrader.cs:98-105: if (runState.CurrentActIndex == 0) return false; return runState.Players.All((Player p) => GetValidRelics(p).Count() >= 5);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/RelicTrader.cs:16-170",
+   "note": "each row trades one of 3 random tradable relics for a relic pulled from the bag",
+   "options": [
+    {
+     "key": "TOP",
+     "label": "Take the Top One",
+     "effects": [
+      {
+       "relic_remove": "random_tradable"
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    },
+    {
+     "key": "MIDDLE",
+     "label": "Take the Middle One",
+     "effects": [
+      {
+       "relic_remove": "random_tradable"
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    },
+    {
+     "key": "BOTTOM",
+     "label": "Take the Bottom One",
+     "effects": [
+      {
+       "relic_remove": "random_tradable"
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "RoomFullOfCheese",
+   "key": "ROOM_FULL_OF_CHEESE",
+   "title": "Room Full of Cheese",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:166"
+   ],
+   "allowed": true,
+   "condition": {
+    "max_act": 1
+   },
+   "condition_src": "RoomFullOfCheese.cs:23-26: return runState.CurrentActIndex < 2;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/RoomFullOfCheese.cs:19-53",
+   "options": [
+    {
+     "key": "GORGE",
+     "label": "Gorge",
+     "effects": [
+      {
+       "card_add_random": {
+        "pool": "character",
+        "pick": 2,
+        "of": 8,
+        "rarity": "Common",
+        "odds": "uniform"
+       }
+      }
+     ]
+    },
+    {
+     "key": "SEARCH",
+     "label": "Search",
+     "effects": [
+      {
+       "hp": -14
+      },
+      {
+       "relic": "CHOSEN_CHEESE"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "RoundTeaParty",
+   "key": "ROUND_TEA_PARTY",
+   "title": "The Round Tea Party",
+   "acts": [
+    "Glory"
+   ],
+   "acts_src": [
+    "Models.Acts/Glory.cs:36"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_hp": 12
+   },
+   "condition_src": "RoundTeaParty.cs:26-29: return runState.Players.All((Player p) => p.Creature.CurrentHp >= 12);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/RoundTeaParty.cs:18-60",
+   "note": "'Pick a Fight' leads to a single 'Continue' option that deals the 11 damage and gives the relic",
+   "options": [
+    {
+     "key": "ENJOY_TEA",
+     "label": "Enjoy Your Tea",
+     "effects": [
+      {
+       "relic": "ROYAL_POISON"
+      },
+      {
+       "hp_frac": 1.0
+      }
+     ]
+    },
+    {
+     "key": "PICK_FIGHT",
+     "label": "Pick a Fight",
+     "effects": [
+      {
+       "hp": -11
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SapphireSeed",
+   "key": "SAPPHIRE_SEED",
+   "title": "Sapphire Seed",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:36"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/SapphireSeed.cs:17-63",
+   "options": [
+    {
+     "key": "EAT",
+     "label": "Consume",
+     "effects": [
+      {
+       "hp": 9
+      },
+      {
+       "card_upgrade": 1
+      }
+     ]
+    },
+    {
+     "key": "PLANT",
+     "label": "Plant and Nourish",
+     "effects": [
+      {
+       "card_enchant": {
+        "id": "SOWN",
+        "n": 1,
+        "amount": 1
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SelfHelpBook",
+   "key": "SELF_HELP_BOOK",
+   "title": "Self-Help Book",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:167"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/SelfHelpBook.cs:19-141",
+   "options": [
+    {
+     "key": "READ_THE_BACK",
+     "label": "Read the Back",
+     "effects": [
+      {
+       "card_enchant": {
+        "id": "SHARP",
+        "n": 1,
+        "amount": 2,
+        "type": "Attack"
+       }
+      }
+     ]
+    },
+    {
+     "key": "READ_THE_BACK_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "READ_PASSAGE",
+     "label": "Read a Random Passage",
+     "effects": [
+      {
+       "card_enchant": {
+        "id": "NIMBLE",
+        "n": 1,
+        "amount": 2,
+        "type": "Skill"
+       }
+      }
+     ]
+    },
+    {
+     "key": "READ_PASSAGE_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "READ_ENTIRE_BOOK",
+     "label": "Read the Entire Book",
+     "effects": [
+      {
+       "card_enchant": {
+        "id": "SWIFT",
+        "n": 1,
+        "amount": 2,
+        "type": "Power"
+       }
+      }
+     ]
+    },
+    {
+     "key": "READ_ENTIRE_BOOK_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "NO_OPTIONS",
+     "label": "Move On",
+     "effects": [],
+     "exit": true
+    }
+   ]
+  },
+  {
+   "id": "SlipperyBridge",
+   "key": "SLIPPERY_BRIDGE",
+   "title": "Slippery Bridge",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:168"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_floor": 7,
+    "min_removable": 1
+   },
+   "condition_src": "SlipperyBridge.cs:82-89: if (runState.TotalFloor > 6) return runState.Players.All((Player p) => p.Deck.Cards.Any((CardModel c) => c.IsRemovable)); return false;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/SlipperyBridge.cs:19-162",
+   "note": "the first card offered is a random removable non-basic card; each hold-on rerolls it to a card of another type",
+   "options": [
+    {
+     "key": "OVERCOME",
+     "label": "Overcome",
+     "effects": [
+      {
+       "card_remove": {
+        "n": 1,
+        "random": "non_basic"
+       }
+      }
+     ]
+    },
+    {
+     "key": "HOLD_ON_0",
+     "label": "Hold On",
+     "effects": [
+      {
+       "hp": -3
+      },
+      {
+       "choice": [
+        {
+         "key": "OVERCOME",
+         "label": "Overcome",
+         "effects": [
+          {
+           "card_remove": {
+            "n": 1,
+            "random": "other"
+           }
+          }
+         ]
+        },
+        {
+         "key": "HOLD_ON_1",
+         "label": "Hold On",
+         "effects": [
+          {
+           "hp": -4
+          },
+          {
+           "unmodelled": "further hold-ons: 1 more damage each (5, 6, ...), a new random card each time"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SpiralingWhirlpool",
+   "key": "SPIRALING_WHIRLPOOL",
+   "title": "Spiraling Whirlpool",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:32"
+   ],
+   "allowed": true,
+   "condition": {
+    "deck_enchantable": "SPIRAL"
+   },
+   "condition_src": "SpiralingWhirlpool.cs:27-30: return runState.Players.All((Player p) => p.Deck.Cards.Any(ModelDb.Enchantment<Spiral>().CanEnchant));",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/SpiralingWhirlpool.cs:18-61",
+   "options": [
+    {
+     "key": "OBSERVE",
+     "label": "Observe",
+     "effects": [
+      {
+       "card_enchant": {
+        "id": "SPIRAL",
+        "n": 1,
+        "amount": 1
+       }
+      }
+     ]
+    },
+    {
+     "key": "DRINK",
+     "label": "Drink",
+     "effects": [
+      {
+       "hp_frac": 0.33
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SpiritGrafter",
+   "key": "SPIRIT_GRAFTER",
+   "title": "Spirit Grafter",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:40"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/SpiritGrafter.cs:16-55",
+   "options": [
+    {
+     "key": "LET_IT_IN",
+     "label": "Let It In",
+     "effects": [
+      {
+       "hp": 25
+      },
+      {
+       "card_add": "METAMORPHOSIS"
+      }
+     ]
+    },
+    {
+     "key": "REJECTION",
+     "label": "Rejection",
+     "effects": [
+      {
+       "card_upgrade": 1
+      },
+      {
+       "hp": -10
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "StoneOfAllTime",
+   "key": "STONE_OF_ALL_TIME",
+   "title": "Stone of All Time",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:169"
+   ],
+   "allowed": true,
+   "condition": {
+    "act": 1,
+    "min_potions": 1
+   },
+   "condition_src": "StoneOfAllTime.cs:55-62: if (runState.CurrentActIndex == 1) return runState.Players.All((Player player) => player.Potions.Any()); return false;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/StoneOfAllTime.cs:19-116",
+   "options": [
+    {
+     "key": "LIFT",
+     "label": "Drink and Lift",
+     "effects": [
+      {
+       "potion_remove": "random"
+      },
+      {
+       "max_hp": 10
+      }
+     ]
+    },
+    {
+     "key": "LIFT_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "PUSH",
+     "label": "Push",
+     "effects": [
+      {
+       "hp": -6
+      },
+      {
+       "card_enchant": {
+        "id": "VIGOROUS",
+        "n": 1,
+        "amount": 8
+       }
+      }
+     ]
+    },
+    {
+     "key": "PUSH_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    }
+   ]
+  },
+  {
+   "id": "SunkenStatue",
+   "key": "SUNKEN_STATUE",
+   "title": "The Sunken Statue",
+   "acts": [
+    "Overgrowth",
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:37",
+    "Models.Acts/Underdocks.cs:33"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/SunkenStatue.cs:13-54",
+   "options": [
+    {
+     "key": "GRAB_SWORD",
+     "label": "Grab the Sword",
+     "effects": [
+      {
+       "relic": "SWORD_OF_STONE"
+      }
+     ]
+    },
+    {
+     "key": "DIVE_INTO_WATER",
+     "label": "Dive into the Water",
+     "effects": [
+      {
+       "gold": [
+        101,
+        121
+       ]
+      },
+      {
+       "hp": -7
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SunkenTreasury",
+   "key": "SUNKEN_TREASURY",
+   "title": "Sunken Treasury",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:34"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/SunkenTreasury.cs:12-53",
+   "options": [
+    {
+     "key": "FIRST_CHEST",
+     "label": "First Chest",
+     "effects": [
+      {
+       "gold": [
+        52,
+        67
+       ]
+      }
+     ]
+    },
+    {
+     "key": "SECOND_CHEST",
+     "label": "Second Chest",
+     "effects": [
+      {
+       "gold": [
+        303,
+        363
+       ]
+      },
+      {
+       "card_add": "GREED"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Symbiote",
+   "key": "SYMBIOTE",
+   "title": "Symbiote",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:170"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_act": 1
+   },
+   "condition_src": "Symbiote.cs:31-34: return runState.CurrentActIndex > 0;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/Symbiote.cs:21-81",
+   "options": [
+    {
+     "key": "APPROACH",
+     "label": "Approach",
+     "effects": [
+      {
+       "card_enchant": {
+        "id": "CORRUPTED",
+        "n": 1,
+        "amount": 1
+       }
+      }
+     ]
+    },
+    {
+     "key": "APPROACH_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "KILL_WITH_FIRE",
+     "label": "Kill with Fire",
+     "effects": [
+      {
+       "card_transform": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "TabletOfTruth",
+   "key": "TABLET_OF_TRUTH",
+   "title": "Tablet of Truth",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:38"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/TabletOfTruth.cs:16-126",
+   "note": "decipher costs 3, 6, 12, 24 max HP, then max HP - 1 (upgrades every card); a cost >= max HP kills (TabletOfTruth.cs LoseMaxHpAndUpgrade)",
+   "options": [
+    {
+     "key": "DECIPHER_1",
+     "label": "Decipher",
+     "effects": [
+      {
+       "max_hp": -3
+      },
+      {
+       "card_upgrade_random": 1
+      },
+      {
+       "choice": [
+        {
+         "key": "DECIPHER",
+         "label": "Continue Deciphering",
+         "effects": [
+          {
+           "max_hp": -6
+          },
+          {
+           "card_upgrade_random": 1
+          },
+          {
+           "choice": [
+            {
+             "key": "DECIPHER",
+             "label": "Keep Deciphering",
+             "effects": [
+              {
+               "max_hp": -12
+              },
+              {
+               "card_upgrade_random": 1
+              },
+              {
+               "choice": [
+                {
+                 "key": "DECIPHER",
+                 "label": "KEEP DECIPHERING",
+                 "effects": [
+                  {
+                   "max_hp": -24
+                  },
+                  {
+                   "card_upgrade_random": 1
+                  },
+                  {
+                   "choice": [
+                    {
+                     "key": "DECIPHER",
+                     "label": "Lose Everything",
+                     "effects": [
+                      {
+                       "max_hp_set": 1
+                      },
+                      {
+                       "card_upgrade_random": "all"
+                      }
+                     ]
+                    },
+                    {
+                     "key": "GIVE_UP",
+                     "label": "Give Up",
+                     "effects": [],
+                     "exit": true
+                    }
+                   ]
+                  }
+                 ]
+                },
+                {
+                 "key": "GIVE_UP",
+                 "label": "Give Up",
+                 "effects": [],
+                 "exit": true
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "key": "GIVE_UP",
+             "label": "Give Up",
+             "effects": [],
+             "exit": true
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "key": "GIVE_UP",
+         "label": "Give Up",
+         "effects": [],
+         "exit": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "SMASH",
+     "label": "Smash",
+     "effects": [
+      {
+       "hp": 20
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "TeaMaster",
+   "key": "TEA_MASTER",
+   "title": "Tea Master",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:171"
+   ],
+   "allowed": true,
+   "condition": {
+    "max_act": 1,
+    "min_gold": 150
+   },
+   "condition_src": "TeaMaster.cs:34-41: if (runState.CurrentActIndex < 2) return runState.Players.All((Player p) => p.Gold >= 150); return false;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/TeaMaster.cs:15-85",
+   "options": [
+    {
+     "key": "BONE_TEA",
+     "label": "Bone Tea",
+     "effects": [
+      {
+       "gold": -50
+      },
+      {
+       "relic": "BONE_TEA"
+      }
+     ]
+    },
+    {
+     "key": "BONE_TEA_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "EMBER_TEA",
+     "label": "Ember Tea",
+     "effects": [
+      {
+       "gold": -150
+      },
+      {
+       "relic": "EMBER_TEA"
+      }
+     ]
+    },
+    {
+     "key": "EMBER_TEA_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "TEA_OF_DISCOURTESY",
+     "label": "Tea of Discourtesy",
+     "effects": [
+      {
+       "relic": "TEA_OF_DISCOURTESY"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "TheFutureOfPotions",
+   "key": "THE_FUTURE_OF_POTIONS",
+   "title": "The Future of Potions?",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:172"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_potions": 2
+   },
+   "condition_src": "TheFutureOfPotions.cs:85-88: return runState.Players.All((Player p) => p.Potions.Count() >= 2);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/TheFutureOfPotions.cs:18-163",
+   "note": "one option per potion in the first 3 slots: trade it for an upgraded card reward (3 cards) of the potion's rarity (Common/Token -> Common, Uncommon -> Uncommon, Rare/Event -> Rare) and a random type (no Power for a Common potion)",
+   "options": [
+    {
+     "key": "POTION",
+     "label": "Insert {Rarity} Potion",
+     "effects": [
+      {
+       "potion_remove": 0
+      },
+      {
+       "card_add_random": {
+        "pool": "character",
+        "pick": 1,
+        "of": 3,
+        "rarity": "potion",
+        "type": "random",
+        "upgraded": true,
+        "odds": "uniform"
+       }
+      }
+     ],
+     "slot": 0
+    },
+    {
+     "key": "POTION",
+     "label": "Insert {Rarity} Potion",
+     "effects": [
+      {
+       "potion_remove": 1
+      },
+      {
+       "card_add_random": {
+        "pool": "character",
+        "pick": 1,
+        "of": 3,
+        "rarity": "potion",
+        "type": "random",
+        "upgraded": true,
+        "odds": "uniform"
+       }
+      }
+     ],
+     "slot": 1
+    },
+    {
+     "key": "POTION",
+     "label": "Insert {Rarity} Potion",
+     "effects": [
+      {
+       "potion_remove": 2
+      },
+      {
+       "card_add_random": {
+        "pool": "character",
+        "pick": 1,
+        "of": 3,
+        "rarity": "potion",
+        "type": "random",
+        "upgraded": true,
+        "odds": "uniform"
+       }
+      }
+     ],
+     "slot": 2
+    }
+   ]
+  },
+  {
+   "id": "TheLanternKey",
+   "key": "THE_LANTERN_KEY",
+   "title": "The Lantern Key",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:41"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/TheLanternKey.cs:14-57",
+   "note": "'Keep the Key' leads to a single 'Fight!' option; holding Lantern Key turns the next event into War Historian Repy (ActModel ModifyNextEvent)",
+   "options": [
+    {
+     "key": "RETURN_THE_KEY",
+     "label": "Return the Key",
+     "effects": [
+      {
+       "gold": 100
+      }
+     ]
+    },
+    {
+     "key": "KEEP_THE_KEY",
+     "label": "Keep the Key",
+     "effects": [
+      {
+       "fight": "MYSTERIOUS_KNIGHT_EVENT_ENCOUNTER",
+       "rewards": "hallway",
+       "extra": [
+        {
+         "card_add": "LANTERN_KEY"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "TheLegendsWereTrue",
+   "key": "THE_LEGENDS_WERE_TRUE",
+   "title": "The Legends Were True",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:173"
+   ],
+   "allowed": true,
+   "condition": {
+    "act": 0,
+    "min_hp": 10
+   },
+   "condition_src": "TheLegendsWereTrue.cs:23-30: if (runState.CurrentActIndex == 0 && runState.Players.All((Player p) => p.Deck.Cards.Count > 0)) return runState.Players.All((Player p) => p.Creature.CurrentHp >= 10); return false;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/TheLegendsWereTrue.cs:19-63",
+   "options": [
+    {
+     "key": "NAB_THE_MAP",
+     "label": "Nab the Map",
+     "effects": [
+      {
+       "card_add": "SPOILS_MAP"
+      }
+     ]
+    },
+    {
+     "key": "SLOWLY_FIND_AN_EXIT",
+     "label": "Slowly Find an Exit",
+     "effects": [
+      {
+       "hp": -8
+      },
+      {
+       "potion_random": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ThisOrThat",
+   "key": "THIS_OR_THAT",
+   "title": "This or That?",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:174"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/ThisOrThat.cs:14-51",
+   "options": [
+    {
+     "key": "PLAIN",
+     "label": "This",
+     "effects": [
+      {
+       "hp": -6
+      },
+      {
+       "gold": [
+        41,
+        68
+       ]
+      }
+     ]
+    },
+    {
+     "key": "ORNATE",
+     "label": "That",
+     "effects": [
+      {
+       "relic_random": {}
+      },
+      {
+       "card_add": "CLUMSY"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "TinkerTime",
+   "key": "TINKER_TIME",
+   "title": "Tinker Time",
+   "acts": [
+    "Glory"
+   ],
+   "acts_src": [
+    "Models.Acts/Glory.cs:38"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/TinkerTime.cs:17-205",
+   "options": [
+    {
+     "key": "CHOOSE_CARD_TYPE",
+     "label": "Accept",
+     "effects": [
+      {
+       "card_add": "MAD_SCIENCE"
+      },
+      {
+       "unmodelled": "Mad Science's type (2 of Weapon / Protector / Gadget) and rider (2 of 3 per type) are card fields the deck format does not carry"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "TrashHeap",
+   "key": "TRASH_HEAP",
+   "title": "Trash Heap",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:36"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_hp": 6
+   },
+   "condition_src": "TrashHeap.cs:48-51: return runState.Players.All((Player player) => player.Creature.CurrentHp > 5);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/TrashHeap.cs:17-77",
+   "options": [
+    {
+     "key": "DIVE_IN",
+     "label": "Dive In",
+     "effects": [
+      {
+       "hp": -8
+      },
+      {
+       "relic_one_of": [
+        "DARKSTONE_PERIAPT",
+        "DREAM_CATCHER",
+        "HAND_DRILL",
+        "MAW_BANK",
+        "THE_BOOT"
+       ]
+      }
+     ]
+    },
+    {
+     "key": "GRAB",
+     "label": "Grab Random Junk",
+     "effects": [
+      {
+       "gold": 100
+      },
+      {
+       "card_add_one_of": [
+        "CALTROPS",
+        "CLASH",
+        "DISTRACTION",
+        "DUAL_WIELD",
+        "ENTRENCH",
+        "HELLO_WORLD",
+        "OUTMANEUVER",
+        "REBOUND",
+        "RIP_AND_TEAR",
+        "STACK"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Trial",
+   "key": "TRIAL",
+   "title": "The Trial",
+   "acts": [
+    "Glory"
+   ],
+   "acts_src": [
+    "Models.Acts/Glory.cs:37"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/Trial.cs:26-218",
+   "note": "the case (merchant / noble / nondescript) is drawn uniformly on accepting",
+   "options": [
+    {
+     "key": "ACCEPT",
+     "label": "Accept",
+     "effects": [
+      {
+       "chance": 0.333333,
+       "then": [
+        {
+         "choice": [
+          {
+           "key": "GUILTY",
+           "label": "DECIDE: Guilty",
+           "effects": [
+            {
+             "card_add": "REGRET"
+            },
+            {
+             "relic_random": {}
+            },
+            {
+             "relic_random": {}
+            }
+           ]
+          },
+          {
+           "key": "INNOCENT",
+           "label": "DECIDE: Innocent",
+           "effects": [
+            {
+             "card_add": "SHAME"
+            },
+            {
+             "card_upgrade": 2
+            }
+           ]
+          }
+         ]
+        }
+       ],
+       "else": [
+        {
+         "chance": 0.5,
+         "then": [
+          {
+           "choice": [
+            {
+             "key": "GUILTY",
+             "label": "DECIDE: Guilty",
+             "effects": [
+              {
+               "hp": 10
+              }
+             ]
+            },
+            {
+             "key": "INNOCENT",
+             "label": "DECIDE: Innocent",
+             "effects": [
+              {
+               "card_add": "REGRET"
+              },
+              {
+               "gold": 300
+              }
+             ]
+            }
+           ]
+          }
+         ],
+         "else": [
+          {
+           "choice": [
+            {
+             "key": "GUILTY",
+             "label": "DECIDE: Guilty",
+             "effects": [
+              {
+               "card_add": "DOUBT"
+              },
+              {
+               "card_add_random": {
+                "pool": "character",
+                "pick": 1,
+                "of": 3
+               }
+              },
+              {
+               "card_add_random": {
+                "pool": "character",
+                "pick": 1,
+                "of": 3
+               }
+              }
+             ]
+            },
+            {
+             "key": "INNOCENT",
+             "label": "DECIDE: Innocent",
+             "effects": [
+              {
+               "card_add": "DOUBT"
+              },
+              {
+               "card_transform": 2
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "REJECT",
+     "label": "Reject",
+     "effects": [
+      {
+       "choice": [
+        {
+         "key": "ACCEPT",
+         "label": "Accept",
+         "effects": [
+          {
+           "chance": 0.333333,
+           "then": [
+            {
+             "choice": [
+              {
+               "key": "GUILTY",
+               "label": "DECIDE: Guilty",
+               "effects": [
+                {
+                 "card_add": "REGRET"
+                },
+                {
+                 "relic_random": {}
+                },
+                {
+                 "relic_random": {}
+                }
+               ]
+              },
+              {
+               "key": "INNOCENT",
+               "label": "DECIDE: Innocent",
+               "effects": [
+                {
+                 "card_add": "SHAME"
+                },
+                {
+                 "card_upgrade": 2
+                }
+               ]
+              }
+             ]
+            }
+           ],
+           "else": [
+            {
+             "chance": 0.5,
+             "then": [
+              {
+               "choice": [
+                {
+                 "key": "GUILTY",
+                 "label": "DECIDE: Guilty",
+                 "effects": [
+                  {
+                   "hp": 10
+                  }
+                 ]
+                },
+                {
+                 "key": "INNOCENT",
+                 "label": "DECIDE: Innocent",
+                 "effects": [
+                  {
+                   "card_add": "REGRET"
+                  },
+                  {
+                   "gold": 300
+                  }
+                 ]
+                }
+               ]
+              }
+             ],
+             "else": [
+              {
+               "choice": [
+                {
+                 "key": "GUILTY",
+                 "label": "DECIDE: Guilty",
+                 "effects": [
+                  {
+                   "card_add": "DOUBT"
+                  },
+                  {
+                   "card_add_random": {
+                    "pool": "character",
+                    "pick": 1,
+                    "of": 3
+                   }
+                  },
+                  {
+                   "card_add_random": {
+                    "pool": "character",
+                    "pick": 1,
+                    "of": 3
+                   }
+                  }
+                 ]
+                },
+                {
+                 "key": "INNOCENT",
+                 "label": "DECIDE: Innocent",
+                 "effects": [
+                  {
+                   "card_add": "DOUBT"
+                  },
+                  {
+                   "card_transform": 2
+                  }
+                 ]
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "key": "DOUBLE_DOWN",
+         "label": "Double Down",
+         "effects": [
+          {
+           "unmodelled": "abandons the run (a loss)"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "UnrestSite",
+   "key": "UNREST_SITE",
+   "title": "Unrest Site",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:39"
+   ],
+   "allowed": true,
+   "condition": {
+    "max_hp_frac": 0.7
+   },
+   "condition_src": "UnrestSite.cs:26-29: return runState.Players.All((Player p) => (decimal)p.Creature.CurrentHp <= (decimal)p.Creature.MaxHp * 0.70m);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/UnrestSite.cs:16-59",
+   "options": [
+    {
+     "key": "REST",
+     "label": "Rest Anyways",
+     "effects": [
+      {
+       "hp_frac": 1.0
+      },
+      {
+       "card_add": "POOR_SLEEP"
+      }
+     ]
+    },
+    {
+     "key": "KILL",
+     "label": "Kill the Trees",
+     "effects": [
+      {
+       "max_hp": -8
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "WarHistorianRepy",
+   "key": "WAR_HISTORIAN_REPY",
+   "title": "War Historian, Repy",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:175"
+   ],
+   "allowed": false,
+   "condition": {},
+   "condition_src": "WarHistorianRepy.cs:30-33: return false;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/WarHistorianRepy.cs:14-133",
+   "note": "IsAllowed is false: only reached through Lantern Key (ActModel ModifyNextEvent); a second Lantern Key opens the other option too",
+   "options": [
+    {
+     "key": "UNLOCK_CAGE",
+     "label": "Unlock the Cage",
+     "effects": [
+      {
+       "card_remove": {
+        "n": 1,
+        "match": "LANTERN_KEY"
+       }
+      },
+      {
+       "relic": "HISTORY_COURSE"
+      }
+     ]
+    },
+    {
+     "key": "UNLOCK_CHEST",
+     "label": "Unlock the Chest",
+     "effects": [
+      {
+       "card_remove": {
+        "n": 1,
+        "match": "LANTERN_KEY"
+       }
+      },
+      {
+       "potion_random": 2
+      },
+      {
+       "relic_random": {}
+      },
+      {
+       "relic_random": {}
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "WaterloggedScriptorium",
+   "key": "WATERLOGGED_SCRIPTORIUM",
+   "title": "Waterlogged Scriptorium",
+   "acts": [
+    "Underdocks"
+   ],
+   "acts_src": [
+    "Models.Acts/Underdocks.cs:37"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_gold": 55
+   },
+   "condition_src": "WaterloggedScriptorium.cs:35-38: return runState.Players.All((Player p) => p.Gold >= 55);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/WaterloggedScriptorium.cs:21-106",
+   "options": [
+    {
+     "key": "BLOODY_INK",
+     "label": "Bloody Ink",
+     "effects": [
+      {
+       "max_hp": 6
+      }
+     ]
+    },
+    {
+     "key": "TENTACLE_QUILL",
+     "label": "Tentacle Quill",
+     "effects": [
+      {
+       "gold": -55
+      },
+      {
+       "card_enchant": {
+        "id": "STEADY",
+        "n": 1,
+        "amount": 1
+       }
+      }
+     ]
+    },
+    {
+     "key": "TENTACLE_QUILL_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "PRICKLY_SPONGE",
+     "label": "Prickly Sponge",
+     "effects": [
+      {
+       "gold": -99
+      },
+      {
+       "card_enchant": {
+        "id": "STEADY",
+        "n": 2,
+        "amount": 1
+       }
+      }
+     ]
+    },
+    {
+     "key": "PRICKLY_SPONGE_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    }
+   ]
+  },
+  {
+   "id": "WelcomeToWongos",
+   "key": "WELCOME_TO_WONGOS",
+   "title": "Welcome to Wongo's",
+   "acts": [
+    "shared"
+   ],
+   "acts_src": [
+    "Models/ModelDb.cs:176"
+   ],
+   "allowed": true,
+   "condition": {
+    "act": 1,
+    "min_gold": 100
+   },
+   "condition_src": "WelcomeToWongos.cs:68-75: if (runState.CurrentActIndex == 1) return runState.Players.All((Player p) => p.Gold >= 100); return false;",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/WelcomeToWongos.cs:18-167",
+   "note": "relics are shop-allowed ones; Wongo points toward the badge relic are profile progress (ignored)",
+   "options": [
+    {
+     "key": "BARGAIN_BIN",
+     "label": "Wongo's Bargain Bin",
+     "effects": [
+      {
+       "gold": -100
+      },
+      {
+       "relic_random": {
+        "rarity": "Common"
+       }
+      }
+     ]
+    },
+    {
+     "key": "BARGAIN_BIN_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "FEATURED_ITEM",
+     "label": "Wongo's Featured Item",
+     "effects": [
+      {
+       "gold": -200
+      },
+      {
+       "relic_random": {
+        "rarity": "Rare"
+       }
+      }
+     ]
+    },
+    {
+     "key": "FEATURED_ITEM_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "MYSTERY_BOX",
+     "label": "Wongo's Mystery Box",
+     "effects": [
+      {
+       "gold": -300
+      },
+      {
+       "relic": "WONGOS_MYSTERY_TICKET"
+      }
+     ]
+    },
+    {
+     "key": "MYSTERY_BOX_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "LEAVE",
+     "label": "Leave",
+     "effects": [
+      {
+       "card_downgrade_random": 1
+      }
+     ],
+     "exit": true
+    }
+   ]
+  },
+  {
+   "id": "Wellspring",
+   "key": "WELLSPRING",
+   "title": "Wellspring",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:40"
+   ],
+   "allowed": true,
+   "condition": {},
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/Wellspring.cs:15-56",
+   "options": [
+    {
+     "key": "BOTTLE",
+     "label": "Bottle",
+     "effects": [
+      {
+       "potion_random": 1
+      }
+     ]
+    },
+    {
+     "key": "BATHE",
+     "label": "Bathe",
+     "effects": [
+      {
+       "card_remove": 1
+      },
+      {
+       "card_add": "GUILTY"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "WhisperingHollow",
+   "key": "WHISPERING_HOLLOW",
+   "title": "Whispering Hollow",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:41"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_gold": 44
+   },
+   "condition_src": "WhisperingHollow.cs:31-34: return runState.Players.All((Player p) => p.Gold >= 44);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/WhisperingHollow.cs:19-71",
+   "options": [
+    {
+     "key": "GOLD",
+     "label": "Exchange Gold",
+     "effects": [
+      {
+       "gold": [
+        -44,
+        -26
+       ]
+      },
+      {
+       "potion_random": 2
+      }
+     ]
+    },
+    {
+     "key": "HUG",
+     "label": "Hug the Tree",
+     "effects": [
+      {
+       "card_transform": 1
+      },
+      {
+       "hp": -9
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "WoodCarvings",
+   "key": "WOOD_CARVINGS",
+   "title": "Wood Carvings",
+   "acts": [
+    "Overgrowth"
+   ],
+   "acts_src": [
+    "Models.Acts/Overgrowth.cs:42"
+   ],
+   "allowed": true,
+   "condition": {
+    "has_basic": true
+   },
+   "condition_src": "WoodCarvings.cs:36-39: return runState.Players.All((Player p) => CardPile.Get(PileType.Deck, p).Cards.Any((CardModel c) => c != null && c.Rarity == CardRarity.Basic && c.IsRemovable));",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/WoodCarvings.cs:21-87",
+   "options": [
+    {
+     "key": "BIRD",
+     "label": "Bird",
+     "effects": [
+      {
+       "card_transform": {
+        "n": 1,
+        "to": "PECK",
+        "basic": true
+       }
+      }
+     ]
+    },
+    {
+     "key": "SNAKE",
+     "label": "Snake",
+     "effects": [
+      {
+       "card_enchant": {
+        "id": "SLITHER",
+        "n": 1,
+        "amount": 1
+       }
+      }
+     ]
+    },
+    {
+     "key": "SNAKE_LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    },
+    {
+     "key": "TORUS",
+     "label": "Torus",
+     "effects": [
+      {
+       "card_transform": {
+        "n": 1,
+        "to": "TORIC_TOUGHNESS",
+        "basic": true
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ZenWeaver",
+   "key": "ZEN_WEAVER",
+   "title": "Zen Weaver",
+   "acts": [
+    "Hive"
+   ],
+   "acts_src": [
+    "Models.Acts/Hive.cs:42"
+   ],
+   "allowed": true,
+   "condition": {
+    "min_gold": 125
+   },
+   "condition_src": "ZenWeaver.cs:32-35: return runState.Players.All((Player p) => (decimal)p.Gold >= base.DynamicVars[\"EmotionalAwarenessCost\"].BaseValue);",
+   "src": "decomp/MegaCrit.Sts2.Core.Models.Events/ZenWeaver.cs:17-80",
+   "note": "each unaffordable option shows as 'Locked' in its place",
+   "options": [
+    {
+     "key": "BREATHING_TECHNIQUES",
+     "label": "Breathing Techniques",
+     "effects": [
+      {
+       "gold": -50
+      },
+      {
+       "card_add": "ENLIGHTENMENT"
+      },
+      {
+       "card_add": "ENLIGHTENMENT"
+      }
+     ]
+    },
+    {
+     "key": "EMOTIONAL_AWARENESS",
+     "label": "Emotional Awareness",
+     "effects": [
+      {
+       "card_remove": 1
+      },
+      {
+       "gold": -125
+      }
+     ]
+    },
+    {
+     "key": "ARACHNID_ACUPUNCTURE",
+     "label": "Arachnid Acupuncture",
+     "effects": [
+      {
+       "card_remove": 2
+      },
+      {
+       "gold": -250
+      }
+     ]
+    },
+    {
+     "key": "LOCKED",
+     "label": "Locked",
+     "effects": [],
+     "locked": true
+    }
+   ]
+  }
+ ]
+}
