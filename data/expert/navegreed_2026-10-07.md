@@ -42,7 +42,7 @@ Per-fight cost: ~3-4 min for a 13-turn boss fight. Hallway fights are cheaper.
 - 5 treasures, 2 act-boundary snapshots, the A10 double boss and the outcome.
 - HP and gold appear on most entries.
 
-**Combat: 3 fights, 27 turns, 104 actions.** Each fight has its start setup (deck, relics, potions, HP, enemy HP and powers). Each turn has the hand, energy, intents, the ordered plays with targets, and the result.
+**Combat: 3 fights, 27 turns, 103 actions.** Each fight has its start setup (deck, relics, potions, HP, enemy HP and powers). Each turn has the hand, energy, intents, the ordered plays with targets, and the result.
 - **A (F2, Corpse Slugs, weak):** partial, read from 2 s frames.
 - **B (F14, Terror Eel elite, 9 turns):** complete except Headbutt's top-deck choices.
 - **C (F17, Lagavulin Matriarch boss, 13 turns):** complete except some exhaust and top-deck choices.
@@ -50,7 +50,7 @@ Per-fight cost: ~3-4 min for a 13-turn boss fight. Hallway fights are cheaper.
 ## Hard or impossible fields
 - **Draw pile order:** never visible. Pile contents are visible only when the player opens the pile, which he did 3 times in fight C. Composition can be derived from deck minus hand minus discard, but order cannot.
 - **Choices inside a card:** Headbutt and Burning Pact targets, and the shop removal target, appear for under a second. They are often missed even at 1 fps.
-- **Relics from treasure, shop and some elites:** small icons with no name unless hovered. 5 relics are still `?`.
+- **Relics from treasure, shop and some elites:** small icons with no name unless hovered. 4 relics are still `?`; a fifth (F10 treasure) is inferred as BAG_OF_MARBLES?.
 - **Potion identity:** small icons; names were only readable on loot screens.
 - **Relic counters:** Ornamental Fan and Fishing Rod counters are tiny digits, readable only on full-res frames.
 - **Encounter ids:** a fight's name appears only when the cursor hovers the enemy. Eight hallway and elite encounters are inferred from enemy count, HP and art (marked `?`). The Act 1 elites are the weakest guesses.
@@ -60,7 +60,8 @@ Per-fight cost: ~3-4 min for a 13-turn boss fight. Hallway fights are cheaper.
 
 ## Accuracy (spot check)
 - I re-read 4 reward screens at full res for picks I had inferred from the deck or captions (F7, F8, F13, F23). All 4 picks were confirmed and the missing options filled in.
-- Fight C was cross-checked by HP arithmetic: damage per play against the boss HP bar, Weak and Vulnerable math, Ornamental Fan block. It was consistent turn by turn.
+- Fight C was cross-checked by HP arithmetic: damage per play against the boss HP bar, Weak and Vulnerable math, Ornamental Fan block. It was consistent turn by turn. A second pass over the player side (energy left, block amounts from Orichalcum and Ornamental Fan) corrected two plays in fight C and the Strike count (5, matching the HUD deck count of 21).
+- Start-of-combat effects help identify relics: every fight after F10 opens with all enemies Vulnerable, which points to BAG_OF_MARBLES for the unnamed F10 treasure.
 - Estimates:
   - Visible-option decisions (card rewards, ancients, events, rest targets): ~95% correct.
   - Encounter ids without a hover: ~60%.

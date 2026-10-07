@@ -165,7 +165,8 @@
    "floor": 10,
    "t": "8:36",
    "kind": "treasure",
-   "relic": "?"
+   "relic": "BAG_OF_MARBLES?",
+   "note": "brown bag icon; every later fight starts with all enemies Vulnerable"
   },
   {
    "floor": 11,
@@ -272,7 +273,7 @@
    "hp": "24/80",
    "gold": 129,
    "deck": [
-    "STRIKE_IRONCLAD x4",
+    "STRIKE_IRONCLAD x5",
     "DEFEND_IRONCLAD x3",
     "DEFEND_IRONCLAD+",
     "BASH+",
@@ -293,7 +294,7 @@
     "BURNING_BLOOD",
     "FISHING_ROD",
     "ORICHALCUM",
-    "?(F10 treasure)",
+    "BAG_OF_MARBLES?",
     "ORNAMENTAL_FAN",
     "BLOOD_VIAL"
    ],
@@ -867,14 +868,14 @@
      "BURNING_BLOOD",
      "FISHING_ROD",
      "ORICHALCUM",
-     "?(treasure)",
+     "BAG_OF_MARBLES?",
      "ORNAMENTAL_FAN"
     ],
     "potions": [
      "ATTACK_POTION?"
     ],
     "deck": [
-     "STRIKE_IRONCLAD x4",
+     "STRIKE_IRONCLAD x5",
      "DEFEND_IRONCLAD x3",
      "DEFEND_IRONCLAD+",
      "BASH+",
@@ -1099,7 +1100,7 @@
      "BURNING_BLOOD",
      "FISHING_ROD",
      "ORICHALCUM",
-     "?(treasure)",
+     "BAG_OF_MARBLES?",
      "ORNAMENTAL_FAN",
      "BLOOD_VIAL"
     ],
@@ -1108,7 +1109,7 @@
      "SKILL_POTION"
     ],
     "deck": [
-     "STRIKE_IRONCLAD x4",
+     "STRIKE_IRONCLAD x5",
      "DEFEND_IRONCLAD x3",
      "DEFEND_IRONCLAD+",
      "BASH+",
@@ -1148,10 +1149,9 @@
      ],
      "actions": [
       "BURNING_PACT (exhaust BREAKTHROUGH; draw UPPERCUT+, ASCENDERS_BANE)",
-      "DEFEND_IRONCLAD?",
       "end"
      ],
-     "after": "boss 233, Plating 12"
+     "after": "boss 233, Plating 12; 6 block from Orichalcum"
     },
     {
      "turn": 2,
@@ -1236,7 +1236,7 @@
      "actions": [
       "SHRUG_IT_OFF",
       "BURNING_PACT (exhaust ?; draw 2)",
-      "EVIL_EYE?",
+      "EVIL_EYE (8 + 8 after the exhaust)",
       "UPPERCUT+ -> boss",
       "end"
      ],
@@ -1259,10 +1259,10 @@
       "BASH+ -> boss",
       "HEADBUTT -> boss (top: ?)",
       "STRIKE_IRONCLAD -> boss",
-      "STRIKE_IRONCLAD? -> boss",
+      "DEFEND_IRONCLAD",
       "end"
      ],
-     "after": "boss 165; hp 33"
+     "after": "boss 165; 9 block (Defend 5 + Ornamental Fan 4); hp 33"
     },
     {
      "turn": 7,
