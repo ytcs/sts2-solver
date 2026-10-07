@@ -165,7 +165,7 @@ Plan:
 - A potion's price is how much V drops without it.
 - The search already takes per-fight worth tables over end HP and potions left. The earlier route-DP worth failed its gate because that V was flat. This waits on the continuation value below; the win-only boss objective (S4) is its first hand-specified case.
 
-**Horizon ladder (user, 2026-10-07):** P(win run) is flat for any Act 1 deck, and P(clear act) saturates once the act is under control (late Act 1 shops and rests tied). Once P(clear act) passes a threshold (~0.9), `price` switches its main horizon to next-act readiness: P(win) against the next act's boss pool and elites (at full HP after the ancient heal) for the deck each rollout carries out of this act, with floors as the tiebreak.
+**Horizon ladder (user, 2026-10-07):** use the longest objective that is both estimable and not saturated, moving up as each saturates: this fight, then clearing the act, then next-act readiness, ..., then clearing the run. Early in a run the long objectives are too hard to estimate, so intermediate ones carry the signal; as they saturate, the objective shifts toward clearing the run. P(win run) is flat for any Act 1 deck, and P(clear act) saturates once the act is under control (late Act 1 shops and rests tied). Once P(clear act) passes a threshold (~0.9), `price` switches its main horizon to next-act readiness: P(win) against the next act's boss pool and elites (at full HP after the ancient heal) for the deck each rollout carries out of this act, with floors as the tiebreak.
 
 **Shop and drafting requirements (user, 2026-10-07):**
 - Price bundles within the budget: a set of purchases can be positive while each part alone is negative.
