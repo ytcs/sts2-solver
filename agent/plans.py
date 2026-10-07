@@ -49,6 +49,14 @@ def deck(plan, version="full"):
     return d + cards
 
 
+def _check_single_player(plan):
+    cat = json.load(open(os.path.join(ROOT, "data", "catalog.json")))
+    mp = {c["id"] for pool in cat["cards"].values() for c in pool if c.get("multiplayer_only")}
+    bad = [c for c in plan["core"] + plan.get("support", []) if c in mp]
+    if bad:
+        raise ValueError(f"{plan['id']}: multiplayer-only cards are never offered in single player: {bad}")
+
+
 def scenario(plan, threat, act, hp, version="full"):
     starter, relic, max_hp = STARTERS[plan["character"]]
     return dict(name=f"{plan['id']}:{version}@{threat}", ascension=10, encounter=threat, character=plan["character"], hp=hp, max_hp=max_hp,
@@ -62,6 +70,7 @@ def measure(plan, attempts=96, engine=None):
     from solver import DEFAULT_CKPT, DEFAULT_VALUE_CKPTS, Solver
     if engine is None:
         engine = Solver(DEFAULT_CKPT, M=5, K=32, value_ckpts=DEFAULT_VALUE_CKPTS)
+    _check_single_player(plan)
     versions = ["full", "core"] + [f"-{c}" for c in plan["core"]]
     rows = []
     for t in plan["threats"]:

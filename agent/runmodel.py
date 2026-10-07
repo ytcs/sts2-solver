@@ -34,7 +34,7 @@ def pool(kind, character, rarity=None, types=None):
     rows = list(src.get(character, []))
     if kind in ("relics", "potions"):
         rows += src.get("SHARED", [])
-    return [r for r in rows if (rarity is None or r["rarity"] == rarity) and (types is None or r.get("type") in types)]
+    return [r for r in rows if (rarity is None or r["rarity"] == rarity) and (types is None or r.get("type") in types) and not r.get("multiplayer_only")]
 
 
 class Draws:
@@ -106,7 +106,7 @@ class Draws:
                     items.append(("card", cid, int(price)))
                     break
         for rr in ("Uncommon", "Rare"):
-            cands = [c["id"] for c in CAT["cards"].get("COLORLESS", []) if c["rarity"] == rr]
+            cands = [c["id"] for c in CAT["cards"].get("COLORLESS", []) if c["rarity"] == rr and not c.get("multiplayer_only")]
             if cands:
                 items.append(("card", self.rng.choice(cands), int(CARD_PRICE[rr] * 1.15 * self.rng.uniform(0.95, 1.05))))
         for rr in (self.relic_rarity(), self.relic_rarity(), "Shop"):

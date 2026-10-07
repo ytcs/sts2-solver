@@ -117,7 +117,7 @@ POLICY_HEADS = {"u_card", "b_card", "v_tgt", "v_none", "u_pot", "b_pot", "disc_p
 class Data:
     """One or more `collect` files; `chunks` yields replayed rows (obs, mask, opts, policy target, outcome class) a chunk of fights at a time."""
 
-    def __init__(self, paths, tau):
+    def __init__(self, paths, tau, keep_mp=False):
         self.parts = []
         for p in paths:
             z = np.load(p)
@@ -141,7 +141,12 @@ class Data:
                 p["d_opts"] = np.pad(p["d_opts"], ((0, 0), (0, k)), constant_values=-1)
                 p["tgt"] = np.pad(p["tgt"], ((0, 0), (0, k)))
                 p["qn"] = np.pad(p["qn"], ((0, 0), (0, k)))
-        self.index = [(pi, f) for pi, p in enumerate(self.parts) for f in range(len(p["f_cls"]))]
+        # fights whose deck holds a multiplayer-only card are left out (single-player runs never offer those cards; data/catalog.json flags them)
+        cat = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "catalog.json")))
+        mp = {c["id"] for pool in cat["cards"].values() for c in pool if c.get("multiplayer_only")}
+        has_mp = lambda sc: any((c if isinstance(c, str) else c["id"]) in mp for c in sc["deck"])  # noqa: E731
+        self.index = [(pi, f) for pi, p in enumerate(self.parts) for bad in [[has_mp(sc) for sc in p["scen"]] if not keep_mp else None]
+                      for f in range(len(p["f_cls"])) if keep_mp or not bad[p["f_scen"][f]]]
 
     def __len__(self):
         return len(self.index)

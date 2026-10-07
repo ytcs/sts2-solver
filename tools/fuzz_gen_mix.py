@@ -93,11 +93,19 @@ def implemented():
     return have, props
 
 
+def multiplayer_only():
+    cat = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "catalog.json")))
+    return {c["id"] for pool in cat["cards"].values() for c in pool if c.get("multiplayer_only")}
+
+
 class Gen:
     def __init__(self, catalog_path):
         self.cat = json.load(open(catalog_path))
         self.have, self.relic_props = implemented()
-        self.cards = {k: [c for c in v if c["id"] in self.have["card"]] for k, v in self.cat["cards"].items()}
+        # multiplayer-only cards never appear in a single-player run (`scripts/flag_multiplayer_cards.py` flags them in data/catalog.json, whatever
+        # catalog this generator was pointed at)
+        mp = multiplayer_only()
+        self.cards = {k: [c for c in v if c["id"] in self.have["card"] and c["id"] not in mp] for k, v in self.cat["cards"].items()}
         self.relics = {k: [r for r in v if r["id"] in self.have["relic"]] for k, v in self.cat["relics"].items()}
         self.potions = {k: [p for p in v if p["id"] in self.have["potion"]] for k, v in self.cat["potions"].items()}
         self.encs = [e for e in self.cat["encounters"] if e["id"] in self.have["encounter"]]

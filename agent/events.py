@@ -155,7 +155,7 @@ def _pool_cards(pool, rarity=None, type=None, cost0=False, exclude=()):
     from agent import runmodel as RM
     rows = RM.CAT["cards"].get(pool, [])
     return [r["id"] for r in rows if (r["rarity"] in CARD_RARITIES if rarity is None else r["rarity"] == rarity) and (type is None or r.get("type") == type)
-            and (not cost0 or (r.get("cost") == 0 and not r.get("x"))) and r["id"] not in exclude]
+            and (not cost0 or (r.get("cost") == 0 and not r.get("x"))) and r["id"] not in exclude and not r.get("multiplayer_only")]
 
 
 def _remove_targets(st, spec, rng):

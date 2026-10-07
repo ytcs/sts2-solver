@@ -205,7 +205,7 @@
   "id": "silent-shiv",
   "character": "SILENT",
   "archetype": "shiv volume",
-  "status": "measured",
+  "status": "proposed",
   "why": "many cheap hits scale with Accuracy and strip Slippery / Hard to Kill",
   "threats": [
    {
@@ -228,7 +228,7 @@
    "INFINITE_BLADES",
    "ACCURACY",
    "ACCURACY",
-   "BLADE_SYMPHONY"
+   "HIDDEN_DAGGERS"
   ],
   "support": [
    "AFTERIMAGE",
@@ -243,164 +243,7 @@
    "DEFEND_SILENT",
    "DEFEND_SILENT"
   ],
-  "measurements": [
-   {
-    "date": "2026-10-06",
-    "attempts": 96,
-    "rows": [
-     {
-      "threat": "KNOWLEDGE_DEMON_BOSS",
-      "act": 1,
-      "hp": 70,
-      "wins": {
-       "full": 0.0,
-       "core": 0.0,
-       "-INFINITE_BLADES": 0.0,
-       "-ACCURACY": 0.0,
-       "-BLADE_SYMPHONY": 0.0
-      },
-      "se": {
-       "full": 0.0,
-       "core": 0.0,
-       "-INFINITE_BLADES": 0.0,
-       "-ACCURACY": 0.0,
-       "-BLADE_SYMPHONY": 0.0
-      }
-     },
-     {
-      "threat": "THE_INSATIABLE_BOSS",
-      "act": 1,
-      "hp": 70,
-      "wins": {
-       "full": 0.0,
-       "core": 0.0,
-       "-INFINITE_BLADES": 0.0,
-       "-ACCURACY": 0.0,
-       "-BLADE_SYMPHONY": 0.0
-      },
-      "se": {
-       "full": 0.0,
-       "core": 0.0,
-       "-INFINITE_BLADES": 0.0,
-       "-ACCURACY": 0.0,
-       "-BLADE_SYMPHONY": 0.0
-      }
-     },
-     {
-      "threat": "KAISER_CRAB_BOSS",
-      "act": 1,
-      "hp": 70,
-      "wins": {
-       "full": 0.0,
-       "core": 0.0,
-       "-INFINITE_BLADES": 0.0,
-       "-ACCURACY": 0.0,
-       "-BLADE_SYMPHONY": 0.0
-      },
-      "se": {
-       "full": 0.0,
-       "core": 0.0,
-       "-INFINITE_BLADES": 0.0,
-       "-ACCURACY": 0.0,
-       "-BLADE_SYMPHONY": 0.0
-      }
-     }
-    ],
-    "tested": {
-     "network": "solver_h128.pt",
-     "values": [],
-     "search": "5x32",
-     "potions": "none",
-     "decks": {
-      "full": [
-       "STRIKE_SILENT",
-       "STRIKE_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "NEUTRALIZE",
-       "SURVIVOR",
-       "ASCENDERS_BANE",
-       "INFINITE_BLADES",
-       "ACCURACY",
-       "ACCURACY",
-       "BLADE_SYMPHONY",
-       "AFTERIMAGE",
-       "STORM_OF_STEEL",
-       "FOOTWORK",
-       "BACKFLIP"
-      ],
-      "core": [
-       "STRIKE_SILENT",
-       "STRIKE_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "NEUTRALIZE",
-       "SURVIVOR",
-       "ASCENDERS_BANE",
-       "INFINITE_BLADES",
-       "ACCURACY",
-       "ACCURACY",
-       "BLADE_SYMPHONY"
-      ],
-      "-INFINITE_BLADES": [
-       "STRIKE_SILENT",
-       "STRIKE_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "NEUTRALIZE",
-       "SURVIVOR",
-       "ASCENDERS_BANE",
-       "ACCURACY",
-       "ACCURACY",
-       "BLADE_SYMPHONY",
-       "AFTERIMAGE",
-       "STORM_OF_STEEL",
-       "FOOTWORK",
-       "BACKFLIP"
-      ],
-      "-ACCURACY": [
-       "STRIKE_SILENT",
-       "STRIKE_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "NEUTRALIZE",
-       "SURVIVOR",
-       "ASCENDERS_BANE",
-       "INFINITE_BLADES",
-       "ACCURACY",
-       "BLADE_SYMPHONY",
-       "AFTERIMAGE",
-       "STORM_OF_STEEL",
-       "FOOTWORK",
-       "BACKFLIP"
-      ],
-      "-BLADE_SYMPHONY": [
-       "STRIKE_SILENT",
-       "STRIKE_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "DEFEND_SILENT",
-       "NEUTRALIZE",
-       "SURVIVOR",
-       "ASCENDERS_BANE",
-       "INFINITE_BLADES",
-       "ACCURACY",
-       "ACCURACY",
-       "AFTERIMAGE",
-       "STORM_OF_STEEL",
-       "FOOTWORK",
-       "BACKFLIP"
-      ]
-     },
-     "relics": [
-      "RING_OF_THE_SNAKE"
-     ]
-    }
-   }
-  ]
+  "measurements": [],
+  "note": "core had BLADE_SYMPHONY, a multiplayer-only card (never offered in single player): replaced, earlier measurement dropped (2026-10-07)"
  }
 ]
