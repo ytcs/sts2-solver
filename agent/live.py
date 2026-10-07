@@ -392,8 +392,11 @@ class Live:
     def _choice_mismatch(self, screen):
         """None when the simulator's pending selection offers the same cards as the game's SELECT screen, else a description. Random offers (Colorless /
         Attack / Skill / Power Potion, Discovery) roll differently in the simulator: its pick would name a card the game does not show."""
-        game = sorted(macro.card_from_name(m.group(1))[0] or m.group(1).strip() for _, label in scr.options(screen) for m in [re.match(r"(.+?)\(", label)] if m)
-        sim = sorted(m.group(1) for _, t in self.rp.sim.legal() for m in [re.match(r"pick \d+ \((\w+)\)", t)] if m)
+        # starter cards share a display name across characters ("Strike" is STRIKE_SILENT, STRIKE_IRONCLAD, ...): compare without the character suffix
+        base = lambda cid: re.sub(r"_(IRONCLAD|SILENT|DEFECT|REGENT|NECROBINDER)$", "", cid)  # noqa: E731
+        game = sorted(base(macro.card_from_name(m.group(1))[0] or re.sub(r"[^A-Z0-9]+", "_", m.group(1).strip().rstrip("+").upper()).strip("_"))
+                      for _, label in scr.options(screen) for m in [re.match(r"(.+?)\(", label)] if m)
+        sim = sorted(base(m.group(1)) for _, t in self.rp.sim.legal() for m in [re.match(r"pick \d+ \((\w+)\)", t)] if m)
         if not game or not sim or game == sim:
             return None
         self.log.event("divergence", what="selection options differ", game=game, sim=sim)

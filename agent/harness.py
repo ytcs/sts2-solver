@@ -237,7 +237,7 @@ class Harness(Live):
             step = self._resolve(before, step)
             if step.startswith("ERR"):
                 return step + "\n" + before
-            guard = self._map_guard(before, step) or (self._decision_guard(before, step, why) if self.gate else None)
+            guard = self._map_guard(before, step) or (self._decision_guard(before, step, why) if self.gate and os.environ.get("STS2_DECISION_GUARDS", "").lower() != "off" else None)
             if guard:
                 return guard
             last_kind = kind
