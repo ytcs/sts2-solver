@@ -176,7 +176,7 @@ It predicts play under the best combat policy we have (search), not the raw netw
 - One A10 Ironclad win on v0.111.0 (our build) gave 41 macro decisions and 3 fights in ~55 min.
 - Accuracy: ~95% on choices with visible options, ~60% on guessed encounter names.
 - The seed is shown on screen. Starting it through the bridge and replaying the transcribed decisions would let the game regenerate exact states (untested; the run shows 3 unidentified mods).
-- Next tooling: a decision-screen detector, OCR limited to catalog ids, caption alignment, then a seed-replay test.
+- Next tooling: a decision-screen detector, OCR limited to catalog ids, caption alignment, then a seed-replay test. Later (user): identify encounters by matching enemy sprites from the game files (`SlayTheSpire2.pck`) against the frames, narrowed by the act pools and HP ranges.
 
 ## 5. What is retired
 - The potion machinery listed in S4.
