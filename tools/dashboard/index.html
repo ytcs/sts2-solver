@@ -101,7 +101,7 @@ main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr
 .card { width: 112px; border-radius: 8px; background: #2b2f39; border: 2px solid var(--status); position: relative; overflow: hidden; box-shadow: 0 2px 6px #0008; }
 .card.Attack { border-color: var(--attack); } .card.Skill { border-color: var(--skill); } .card.Power { border-color: var(--power); }
 .card.Curse { border-color: var(--curse); } .card.Status { border-color: var(--status); } .card.Quest { border-color: var(--quest); }
-.card .ct { font: 700 12px/1.1 Kreon, Georgia, serif; text-align: center; padding: 4px 4px 3px 18px; background: #0006; height: 34px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }  /* fixed two-line title, text at the bottom: the art starts at the same height on every card */
+.card .ct { font: 700 12px/1.1 Kreon, Georgia, serif; text-align: center; padding: 4px 4px 3px 18px; background: #0006; height: 34px; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; }  /* fixed two-line title, name at the top: the art starts at the same height on every card */
 .card .ct.up { color: var(--good); }
 .card .pt { height: 78px; background: #111 center/cover no-repeat; }
 .card .pt.none { display: flex; align-items: center; justify-content: center; color: var(--faint); font: 11px Kreon, serif; background: repeating-linear-gradient(45deg, #23262e, #23262e 6px, #262a33 6px, #262a33 12px); }
