@@ -65,7 +65,12 @@ class RunLog:
             p = os.path.join(self.dir, "live.json")
             with open(p + ".tmp", "w", encoding="utf-8") as f:
                 json.dump(live, f, default=str)
-            os.replace(p + ".tmp", p)  # Windows: fails while a reader holds the file open; the next write catches up
+            for i in range(5):  # Windows: the rename fails while the dashboard holds the file open (a read takes well under a millisecond)
+                try:
+                    os.replace(p + ".tmp", p)
+                    break
+                except PermissionError:
+                    time.sleep(0.01 * (i + 1))
         except Exception:  # noqa: BLE001  the dashboard feed must never break a command
             pass
 
