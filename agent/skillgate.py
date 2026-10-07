@@ -24,7 +24,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 STATE = os.path.join(ROOT, "target", "skill_state")
 SKILLS = os.path.join(ROOT, ".claude", "skills")
 CORE = ("sts2", "sts2-harness", "sts2-strategy")
-READ_ONLY = {"price", "plans", "s", "peek", "status", "brief", "m", "d", "p", "eval", "reward", "route", "routes", "rmcalc", "pickplan", "potions", "adv", "relics", "note", "budget", "hold", "quit", "mods", "snap", "fight", "deck.json", "newrun", ""}
+READ_ONLY = {"price", "plans", "s", "peek", "status", "brief", "m", "d", "p", "eval", "reward", "route", "routes", "rmcalc", "pickplan", "potions", "adv", "relics", "note", "budget", "quit", "mods", "snap", "fight", "deck.json", "newrun", ""}
 BRIDGE_READ_ONLY = {"s", "peek", "d", "p", "m", "fight", "snap", "deck.json", "mods", "f"}
 # screen kinds the bridge emits for deck decisions (Decisions.cs: reward screens, CHOOSE_*, and the room type for shop / rest site / treasure)
 DECK_SCREENS = {"CARD_REWARD", "REWARDS", "CHOOSE_CARD", "CHOOSE_RELIC", "CHOOSE_BUNDLE", "SHOP", "RESTSITE", "TREASURE"}

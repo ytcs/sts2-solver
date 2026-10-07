@@ -15,10 +15,9 @@ Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <
   routes [--attempts N] [--pf P]   survival of every route on the act map (exact DP over node x HP with the solver's fight outcomes): per option on offer, P(win boss) with at least k more elites, and the representative route per k (agent/routes.py)
   rmcalc [--attempts N] [--hp full|current|N]   every removable card priced as a removal (boss smooth, elites left, next act), ranked: use at a shop's removal, a removal event
   relics                relic counters in combat (Pen Nib, Book of Five Rings ...)
-  hold ID[,ID]          keep those potions out of the per-turn check, the search and every table (`hold none` releases)
-  potions               the per-turn potion check on demand: throw each potion now vs never this fight, and spend vs keep (agent.potion_price)
-  potion allow|deny|keep <name|all>   allow/deny: the potions the live search may use in this fight (default none: potions are my call; `turn` / `combat` stop on
-                        POTION ALERT); keep: no more alerts for it this fight unless this fight's win is at stake
+  potions               the turn's potion proposal on demand: each potion priced use now / keep (later this fight) / save, P(win) and end HP (agent.proposal)
+  potion use <name>     commit ONE potion now at the target the proposal priced (`turn` / `combat` stop with POTION PROPOSAL; the next turn re-prices the rest)
+  potion aside <name>[,name] | none   potions kept for the boss: outside boss fights they stop `turn` / `combat` only when the win is at stake
   note <text>           a free-text note in the run record
   newrun                start a new run record
   status                what the harness is holding (run id, fight, replay fidelity, engine)
@@ -28,7 +27,8 @@ Micro = `turn` / `combat`: the solver searches every action from a state rebuilt
 Macro = me, with `eval` for the combat side of a choice and the strategy book (`.claude/skills/sts2-*`) for everything else.
 
 Layout: this file dispatches commands and owns the state; `agent.live` (mixin) is the fight loop and the potion junctures, `agent.guards` the decision guards,
-`agent.screen` reads screen text, `agent.runctx` the run context the calculators price against, `agent.potions` the slot numbering and the potion policy.
+`agent.screen` reads screen text, `agent.runctx` the run context the calculators price against, `agent.potions` the slot numbering, `agent.proposal` the
+potion proposals and the per-fight objective.
 """
 import functools
 import json
@@ -38,7 +38,7 @@ import threading
 import traceback
 import zlib
 
-from agent import guards, macro, potions, runctx, skillgate, tracker
+from agent import guards, macro, runctx, skillgate, tracker
 from agent import screen as scr
 from agent.args import Args
 from agent.bridge import call
@@ -85,33 +85,32 @@ class Harness(Live):
         self._ended = set()
         self.budget = None  # fixed seconds of search per decision (`budget <s>`); None = auto from the fight's predicted danger (`budget auto`)
         self.fight_budget = 1.0
-        self._allowed = set()  # potions the live search may use in the current fight (`potion allow`, agent.live); none by default
         self._checked_turn = None
         self.potions_used = 0
         self._pred_q = None  # the predicted distribution of HP lost for this fight (calibration: where the real loss falls in it)
-        self.hold = self._load_hold()  # potion ids the solver may not use (kept for the boss): `hold ID,ID`, `hold none`; saved with the run record, so a daemon restart keeps it
+        self.aside = self._load_aside()  # potion ids kept for the boss (`potion aside`, agent.live): saved with the run record, so a daemon restart keeps it
         self.fight_tol = 1.0  # HP of expected regret the search may leave on the table per decision
         self._rc = None  # the run context of this command (`_context`), dropped when an action runs
 
     # ------------------------------------------------------------------ plumbing
 
-    def _hold_path(self):
-        return os.path.join(self.log.dir, "hold.json")
+    def _aside_path(self):
+        return os.path.join(self.log.dir, "potion_aside.json")
 
-    def _load_hold(self):
+    def _load_aside(self):
         try:
-            with open(self._hold_path(), encoding="utf-8") as f:
+            with open(self._aside_path(), encoding="utf-8") as f:
                 return set(json.load(f))
         except (OSError, ValueError):
             return set()
 
-    def _save_hold(self):
+    def _save_aside(self):
         try:
             os.makedirs(self.log.dir, exist_ok=True)
-            with open(self._hold_path(), "w", encoding="utf-8") as f:
-                json.dump(sorted(self.hold), f)
+            with open(self._aside_path(), "w", encoding="utf-8") as f:
+                json.dump(sorted(self.aside), f)
         except OSError as e:
-            self._bookkeeping_error("save hold", e)
+            self._bookkeeping_error("save potion aside", e)
 
     def _bookkeeping_error(self, where, e):
         """A failure that must not break the command, recorded in the run record instead of hidden."""
@@ -134,20 +133,17 @@ class Harness(Live):
         return call(line)
 
     def _new_run(self):
-        """A new run record (the narrowing of the encounter pools reads it) and every per-run memory cleared: holds, priced floors, the last reward table."""
+        """A new run record (the narrowing of the encounter pools reads it) and every per-run memory cleared: potions set aside, priced floors, the last reward table."""
         self.log.new_run()
-        self.hold = set()
+        self.aside = set()
         self.priced = {}
         self.reward_screen = None
 
     # ------------------------------------------------------------------ the run as the calculators see it
 
     def _deck_raw(self):
-        """The run snapshot every calculator prices (`deck.json`) as text, with the potions I `hold` taken out of the belt (`potions.priced_view`); "null" = no run."""
-        raw = call("deck.json").strip()
-        if raw == "null" or not self.hold:
-            return raw
-        return json.dumps(potions.priced_view(json.loads(raw), self.hold))
+        """The run snapshot every calculator prices (`deck.json`) as text; "null" = no run."""
+        return call("deck.json").strip()
 
     def _run(self):
         """The priced run snapshot as a dict; raises `runctx.NoRun` when no run is in progress."""
@@ -444,7 +440,7 @@ class Harness(Live):
         bad = {k: v for k, v in st.items() if k.startswith(REPLAY_BAD)}
         return (f"run {self.log.run_id}  engine {'loaded' if self.engine else 'not loaded'}  fight {self.fight_id}  actions {self.fight_actions}\n"
                 f"replay: {st.get('end_turn_matched', 0)} enemy turns matched, {st.get('end_turn_unmatched', 0)} unmatched; divergences: {bad or 'none'}\n"
-                f"potions held back from the solver: {sorted(self.hold) or 'none'}")
+                f"potions set aside for the boss: {sorted(self.aside) or 'none'}")
 
     def handle(self, line):
         self._rc = None  # every command reads the run afresh (the screen may have changed since the last one)
@@ -484,10 +480,6 @@ class Harness(Live):
             if cmd in ("", "s"):
                 return self._public(self.state())
             secs = float(rest) if cmd in ("adv", "turn", "combat", "budget") and rest.replace(".", "", 1).isdigit() else None
-            if cmd == "hold":
-                self.hold = potions.parse_hold(rest)
-                self._save_hold()
-                return f"held (out of the potion check, the search and every table): {sorted(self.hold) or 'nothing held'}\n"
             if cmd == "budget":
                 if secs is not None:
                     self.budget = secs
@@ -510,6 +502,8 @@ class Harness(Live):
                 return self.potions_now()
             if cmd == "potion":
                 return self.potion_cmd(rest)
+            if cmd == "hold":
+                return "REFUSED: `hold` is retired: potions are proposed every turn and committed one at a time; `potion aside <name>` keeps one for the boss.\n"
             if cmd == "a":
                 return self.act(rest)
             if cmd in PRICING:  # the decision guards ask which calculators ran on this floor
@@ -544,7 +538,7 @@ class Harness(Live):
             if cmd == "newrun":
                 self._new_run()
                 return f"run {self.log.run_id}\n"
-            if cmd == "do" and self.gate:  # a raw bridge action skips every guard (held potions, map, decision record): play through `a` / `turn` / `combat`
+            if cmd == "do" and self.gate:  # a raw bridge action skips every guard (map, decision record): play through `a` / `turn` / `combat`
                 return "REFUSED: `do` sends a raw action past the harness's guards; use `a <i>`, `turn` or `combat`.\n"
             if cmd == "draw":  # the planned route, for the dashboard's map (logged after the bridge drew it)
                 out = call(line)

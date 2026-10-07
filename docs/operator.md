@@ -19,7 +19,8 @@ Status: draft, 2026-10-06. It becomes the operator skill once the predictor pass
 | Rewards | A potion offered to a full belt: `price` (leave it vs take it in place of each held potion). | `price` |
 | Rest | `price` (rest vs each smith). | `price` |
 | Event | Read the options in the catalog (`data/events.json`); `price` once events are wired. An unmodelled option: decide by judgment and log the gap. | `price` |
-| Combat | `combat` / `turn`. The solver plays and stops at a potion proposal (use now / keep / save, each priced). Commit a potion by hand (`a <i>`) or continue. `adv` on a pivotal turn. | `combat`, `turn`, `adv` |
+| Combat | `combat` / `turn`. The solver plays without potions and stops at a potion proposal (`POTION PROPOSAL`): every turn each potion is priced use now / keep (later this fight) / save (not this fight) on the same futures, with P(win), the end-HP distribution and the fight-objective score per arm in one table. It stops when using one now beats keep and save beyond noise (2 paired se) or when the win is at stake. Commit ONE potion (`potion use <name>` at the priced target, or `a <i>`) or continue (`turn` / `combat`: no new proposal that turn); the next turn's proposal re-prices whether another is needed. `potion aside <name>` keeps one for the boss (it then stops non-boss fights only when the win is at stake). `potions` shows the table on demand, `adv` every turn; `adv` on a pivotal turn. | `combat`, `turn`, `adv`, `potions`, `potion use`, `potion aside` |
+| Fight objective | Printed as `SEARCH OBJECTIVE` at fight start. An act boss followed by the ancient's heal (Acts 1-2 bosses; in Act 3 the final boss, at A10 the second of the two) is searched, predicted and potion-priced on P(win) only (win-only table, a 1% end-HP tiebreak); every other fight on the linear return until a continuation value supplies per-fight tables. | |
 
 ## After a run
 `python -m agent.improve review` (S7 replaces it with the gap review):

@@ -772,7 +772,8 @@ function feedItems() {
     switch (e.kind) {
       case "fight_start": fight = { kind: "fight", start: e, acts: [], end: null, t: e.t }; items.push(fight); break;
       case "fight_end": if (fight && (fight.start.id === e.id || !fight.end)) { fight.end = e; fight.t = e.t; fight = null; } else items.push({ kind: "fight", start: null, acts: [], end: e, t: e.t }); break;
-      case "action": case "advice": case "potion_check": case "potion_price": case "potion_keep": case "potion_allow":
+      case "action": case "advice": case "potion_proposal": case "potion_commit": case "potion_aside":
+      case "potion_check": case "potion_price": case "potion_keep": case "potion_allow":  // retired kinds, still in older run records
         if (fight) { fight.acts.push(e); fight.t = e.t; } else items.push({ kind: "loose", e, t: e.t }); break;
       case "price": pendingPrice = e; break;
       case "macro": {
@@ -802,6 +803,13 @@ function macroHTML(it) {
 }
 function actionHTML(e, i, n) {
   if (e.kind === "macro") return `<div class="act small"><span class="k">by hand</span> ${esc(chosenLabel(e.state, e.choice))}${e.why ? `<div class="why">${esc(e.why)}</div>` : ""}</div>`;
+  if (e.kind === "potion_proposal") {
+    const rows = e.rows || [];
+    const arm = (r, k) => { const a = (r.arms || {})[k] || {}; return `${k} ${pct(a.win, 0)} win, ${num(a.hp)} HP`; };
+    return `<div class="act small"><span class="k" style="color:var(--accent)">potions</span> turn ${esc(e.turn)}: ${rows.map((r) => `${iconHTML("potions", r.id, "sm")} <span class="${e.proposed === r.id ? "bad" : "dim"}">${e.proposed === r.id ? "PROPOSED " : ""}${esc(r.verdict || "")}: ${["now", "keep", "save"].map((k) => arm(r, k)).join(" / ")}</span>`).join(" &middot; ")}</div>`;
+  }
+  if (e.kind === "potion_commit") return `<div class="act small"><span class="k" style="color:var(--accent)">potion</span> ${iconHTML("potions", e.id, "sm")} ${esc(e.text || "")}${e.verdict ? ` <span class="dim">(${esc(e.verdict)})</span>` : ""}</div>`;
+  if (e.kind === "potion_aside") return `<div class="act small"><span class="k" style="color:var(--accent)">aside for the boss</span> ${(e.aside || []).map((p) => iconHTML("potions", p, "sm")).join("") || "none"}</div>`;
   if (e.kind === "potion_check") {
     const rows = e.rows || [];
     return `<div class="act small"><span class="k" style="color:var(--accent)">potion check</span> turn ${esc(e.turn)}: ${rows.map((r) => `${iconHTML("potions", r.id, "sm")} <span class="${r.alert ? "bad" : "dim"}">${r.alert ? "ALERT " : ""}now vs hold: ${r.d_win ? (r.d_win > 0 ? "+" : "") + pct(r.d_win, 1) + " win, " : ""}${r.d_hp >= 0 ? "+" : ""}${num(r.d_hp)} HP &plusmn;${num(2 * (r.se_hp || 0))}</span>`).join(" &middot; ")}</div>`;
@@ -828,9 +836,9 @@ function fightHTML(it, latest) {
   const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span>HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b> <span class="faint">(${pct(p.hp_lost, 1)} of max)</span></span>
       ${lost != null ? `<span>actual lost <b class="${e.pit != null && e.pit > 0.9 ? "bad" : ""}">${lost}</b>${e.pit != null ? ` <span class="faint">(${pct(e.pit)} quantile)</span>` : ""}</span>` : ""}
       ${s && s.drive ? `<span class="dim">${esc(s.drive[0])}: ${esc(s.drive[1])}</span>` : ""}${s && s.budget != null ? `<span class="faint">budget ${s.budget}s</span>` : ""}</div>${quant}
-    ${s && s.util_why ? `<div class="faint small">objective: ${esc(s.util_why)}</div>` : ""}
+    ${s && (s.objective || s.util_why) ? `<div class="faint small">objective: ${esc(s.objective || s.util_why)}</div>` : ""}
     ${e && e.errors && e.errors.length ? `<div class="bad small">replay: ${esc(e.errors.join("; "))}</div>` : ""}
-    ${det("fa" + (s ? s.t : e.t), `<span class="dim small">${acts.filter((a) => a.kind === "action").length} actions, ${acts.filter((a) => a.kind === "potion_check").length} potion checks</span>`,
+    ${det("fa" + (s ? s.t : e.t), `<span class="dim small">${acts.filter((a) => a.kind === "action").length} actions, ${acts.filter((a) => a.kind === "potion_proposal" || a.kind === "potion_check").length} potion checks</span>`,
       `<div style="margin-left:6px">${acts.slice(-150).map((a, i, arr) => actionHTML(a, i, arr.length)).join("")}</div>`, latest && !e)}`;
   return `<div class="ev fight">${evHead("fight", "", head, (s || e).t)}${body}</div>`;
 }

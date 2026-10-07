@@ -1,3 +1,0 @@
-  STRENGTH_POTION: spend in this fight 0.179 vs keep 0.195 in P(win the act boss): -0.016 ±0.043 (paired, 16 futures) -> a tie within 2 se
-    this fight with it: win 0.69, end HP 38 on a win; without any potion: win 0.62, end HP 37
-    whether to spend it here, not when: timing within the fight is my call (a depth-2 tie on 'now' says nothing about timing)

@@ -1,4 +1,4 @@
-"""`a` chains, the map guard, the decision guards and the pick guard, the skill gate in `_handle`, PRICING bookkeeping, hold / held potions."""
+"""`a` chains, the map guard, the decision guards and the pick guard, the skill gate in `_handle`, PRICING bookkeeping, potions set aside."""
 import json
 import os
 
@@ -106,12 +106,12 @@ def test_menu_new_run_resets(monkeypatch, tmp_path):
     fake = FakeBridge(screen("menu"), on_action=[screen("event_neow")])
     h = make_harness(monkeypatch, tmp_path, fake)
     old = h.log.run_id
-    h.hold = {"FIRE_POTION"}
+    h.aside = {"FIRE_POTION"}
     h.priced = {"routes": "A1 F1"}
     h.reward_screen = ("A1 F2", ("X",))
     ok(h.handle("a 0 ironclad 10"))
     assert h.log.run_id != old
-    assert h.hold == set() and h.priced == {} and h.reward_screen is None
+    assert h.aside == set() and h.priced == {} and h.reward_screen is None
     fake = FakeBridge(screen("menu"), on_action=[screen("menu")])
     h = make_harness(monkeypatch, tmp_path, fake, run_id="r2")
     ok(h.handle("a 0"))  # a bare `a 0` on the menu (no character) is not a new run
@@ -317,42 +317,37 @@ def test_pricing_failures_real_methods(monkeypatch, tmp_path):
     assert h.priced == {}
 
 
-# ---------------------------------------------------------------------------------------------------------------- hold / held potions
+# ---------------------------------------------------------------------------------------------------------------- potions set aside
 
-def test_hold_and_held_potions(monkeypatch, tmp_path):
+def test_potion_aside_and_numbering(monkeypatch, tmp_path):
+    """`potion aside` (kept for the boss) is saved with the run record and survives a daemon restart; `hold` is retired and every table prices the real belt."""
     d = deck()
     d["potions"] = [dict(id="POWER_POTION", slot=0), dict(id="FIRE_POTION", slot=1)]
     fake = FakeBridge(screen("shop_a2"), deck_json=d)
     h = make_harness(monkeypatch, tmp_path, fake)
-    assert json.loads(h._deck_raw()) == d
-    assert h.handle("hold power potion, Fire_Potion") == "held (out of the potion check, the search and every table): ['FIRE_POTION', 'POWER_POTION']\n"
-    with open(os.path.join(h.log.dir, "hold.json"), encoding="utf-8") as f:
+    assert h.handle("potion aside power potion, Fire_Potion") == "set aside for the boss: ['FIRE_POTION', 'POWER_POTION']\n"
+    with open(os.path.join(h.log.dir, "potion_aside.json"), encoding="utf-8") as f:
         assert json.load(f) == ["FIRE_POTION", "POWER_POTION"]
-    h.handle("hold POWER_POTION")
-    assert [p["id"] for p in json.loads(h._deck_raw())["potions"]] == ["FIRE_POTION"]
-    assert {k: v for k, v in json.loads(h._deck_raw()).items() if k != "potions"} == {k: v for k, v in d.items() if k != "potions"}
-    assert h._kp() is True  # no fight: nothing to use
+    assert h.handle("potion") == "set aside for the boss: ['FIRE_POTION', 'POWER_POTION']\n"
+    assert json.loads(h._deck_raw()) == d  # no potion is hidden from the tables
+    assert h.status().endswith("potions set aside for the boss: ['FIRE_POTION', 'POWER_POTION']")
+    from agent.harness import Harness
+    assert Harness().aside == {"FIRE_POTION", "POWER_POTION"}  # a daemon restart keeps it
+    assert h.handle("potion aside none") == "set aside for the boss: nothing\n"
+    assert h.handle("potion use fire potion") == "ERR not in combat\n"
+    assert h.handle("potion allow all").startswith("usage: potion use <name>")  # `potion allow all` is gone
+    assert h.handle("hold FIRE_POTION").startswith("REFUSED: `hold` is retired")
+    assert [e["aside"] for e in events(h) if e["kind"] == "potion_aside"] == [["FIRE_POTION", "POWER_POTION"], []]
     from agent import potions
-    belt = ["POWER_POTION", "FIRE_POTION"]
-    assert potions.search_keep({"POWER_POTION"}, set(), belt) is True  # default: the search plans without potions
-    assert potions.search_keep({"POWER_POTION"}, {"FIRE_POTION", "POWER_POTION"}, belt) == {"POWER_POTION"}  # allowed, but a held one never
-    assert potions.search_keep(set(), set(belt), belt) == set()
 
     class Sim:  # slot 0 already thrown: the simulator's `potion N` keeps the fight's slot numbers
         def legal(self):
             return [(1, "potion 1"), (2, "discard potion 1"), (3, "end turn")]
     sc = dict(potions=[dict(id="WEAK_POTION", slot=0), dict(id="SPEED_POTION", slot=1)])
     assert potions.live_slots(sc, Sim()) == [(1, "SPEED_POTION")]
-    assert h.status().endswith("potions held back from the solver: ['POWER_POTION']")
-    from agent.harness import Harness
-    h2 = Harness()  # a daemon restart keeps the hold
-    assert h2.hold == {"POWER_POTION"}
-    assert h.handle("hold none") == "held (out of the potion check, the search and every table): nothing held\n"
-    assert h.handle("hold") == "held (out of the potion check, the search and every table): nothing held\n"
-    assert json.loads(h._deck_raw()) == d
+    assert potions.parse_names(" none ") == set() and potions.parse_names("block potion") == {"BLOCK_POTION"}
     fake.deck = None
     assert h._deck_raw() == "null"
-
 
 def test_misc_commands(monkeypatch, tmp_path):
     fake = FakeBridge(screen("shop"))
@@ -363,7 +358,7 @@ def test_misc_commands(monkeypatch, tmp_path):
     assert h.handle("note hello there") == "noted\n"
     assert events(h)[-1]["kind"] == "note" and events(h)[-1]["text"] == "hello there"
     assert h.handle("status") == (f"run {h.log.run_id}  engine loaded  fight None  actions 0\n"
-                                  "replay: 0 enemy turns matched, 0 unmatched; divergences: none\npotions held back from the solver: none\n")
+                                  "replay: 0 enemy turns matched, 0 unmatched; divergences: none\npotions set aside for the boss: none\n")
     fake.extra["snap"] = "null\n"
     assert h.handle("relics") == "not in combat\n"
     fake.extra["snap"] = json.dumps(dict(relics=[dict(id="PEN_NIB", counter=3), dict(id="ANCHOR"), dict(id="X", props={"a": 1})])) + "\n"

@@ -10,7 +10,7 @@ Pools: `sts2-acts`; Insatiable row, target deck, potion numbers: `encounters.md`
 ## HP economy `[sim]`
 - Hallways cost 20-40 HP, above the prediction (10-30; Act 1: 5-15) `[hyp]`; test: `review` loss pct on Act 2 hallways. Hive elites: 42-67% at 66 HP (mid deck), 94-99% at ~50% HP cost (Act 1 end deck), 99% at full HP.
 - Rest before every elite: 84% at 43 HP vs 99% at 67 HP. Test: `eval --elites --hp <now>` vs `<after rest>`.
-- The Insatiable: ~30-50% for an Act 1 end deck; potions decide it (`encounters.md`); `hold` them for it.
+- The Insatiable: ~30-50% for an Act 1 end deck; potions decide it (`encounters.md`); `potion aside` them for it.
 
 ## Items
 - Target deck for The Insatiable (97% at 80 HP): Primal Force x2 + Demon Form, Bag of Preparation, Bronze Scales (3 Thorns), Kusarigama, Pael's Legion `[hyp]`; test: `eval --boss --hp 80` of the deck.

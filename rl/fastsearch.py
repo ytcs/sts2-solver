@@ -571,20 +571,28 @@ class FastSearch:
         self.timers["run"] += time.perf_counter() - t0
         return out
 
-    def decide(self, scenario, sim, seed=0):
+    def decide(self, scenario, sim, seed=0, worth=None):
         """Search ONE decision of a fight in progress. `sim` is an `sts2.Sim` aligned with the real fight (`agent.fight.Replayer.sim`); `scenario` is the fight-start scenario
         (any valid scenario of the same content). The root's M likeliest actions are tried on K determinized futures each (hidden information resampled, everything
         visible kept). Returns dict(action, opts, p, q, legal): the action to play and, per option, its dense action index, the policy's probability and the estimated
-        return (win = +1 plus half the HP fraction left, loss = -1); `q` is NaN for options that were not tried (a forced move is not searched)."""
+        return (win = +1 plus half the HP fraction left, loss = -1; with `worth` (`worth_row`) the table's units); `q` is NaN for options that were not tried (a forced move is not searched)."""
         old = (self.max_steps, self.record)
         self.max_steps, self.record = 1, True
         try:
-            self.run([scenario], np.zeros(1, np.uint32), np.array([seed], np.uint64), starts=[sim])
+            self.run([scenario], np.zeros(1, np.uint32), np.array([seed], np.uint64), starts=[sim], worth=None if worth is None else [worth])
             acts, searched, opts, p, q, legal = self._runs[0][1].moves(0)
         finally:
             self.max_steps, self.record = old
         return dict(action=int(acts[0]), searched=bool(searched[0]), opts=opts[0, :self.M].tolist(), p=p[0, :self.M].tolist(), q=q[0, :self.M].tolist(),
                     legal=legal[0, :self.M].astype(bool).tolist())
+
+    def job_actions(self, j):
+        """With `record`: the dense actions job j of the last `run` took, in order (jobs are interleaved over the engine groups)."""
+        for idx, eng in self._runs:
+            k = int(np.searchsorted(idx, j))
+            if k < len(idx) and idx[k] == j:
+                return eng.moves(k)[0].tolist()
+        raise IndexError(j)
 
     def gpu_ms(self):
         """With `profile_gpu`: {label: (total ms, replays, rows, padded rows)} of the graph replays so far."""

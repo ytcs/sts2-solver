@@ -1,0 +1,22 @@
+POTIONS (turn 7; objective: linear (win +1 + 0.5 x end HP / max HP, loss -1): HP carries to the next fights; 32 paired futures per arm, each potion priced alone; end HP over all futures, a loss counts 0)
+  potion                arm    P(win)  HP mean  p10  p50  p90    score   vs save (paired)
+  STRENGTH_POTION       now      1.00     54.1   51   54   57   +1.375   +0.150 ±0.000
+  (potion 0)            keep     1.00     39.7   37   40   43   +1.275   +0.050 ±0.000
+                        save     1.00     32.5   30   32   36   +1.225   
+  -> USE NOW: now - keep +0.100 ±0.000; win: best of now/keep - save +0.00 ±0.00
+POTION PROPOSAL (turn 7): STRENGTH_POTION now (potion 0): using it now beats keep and save beyond noise.
+  HP 41/72 now; belt: Strength Potion, -; set aside for the boss: none
+Your call, ONE potion per commit (the next turn re-prices the rest): `potion use <name>` throws it at the priced target, or `a <i>` (its option on the screen); or go on without it (`turn` / `combat`: no new proposal this turn). `potion aside <name>` keeps it for the boss.
+COMBAT
+A3 F38 IRONCLAD A10 HP 41/72 G150 pots[Strength Potion, -]
+T6 E3/3 draw5 disc8 exh1
+you b0
+e0 Guardbot 18/18 b0 -> block
+play: a <i> [e<target>]
+0 Bolas(0) Deal 3 damage. ->e
+6 potion Strength Potion: Gain 2 Strength.
+7 end turn
+draw (0): 
+e0 plan: +1 GUARD block  +2 GUARD block  +3 GUARD block  +4 GUARD block
+e1 plan: +1 DISINTEGRATE 14  +2 DISINTEGRATE 14  +3 DISINTEGRATE 14  +4 DISINTEGRATE 14
+e2 plan: +1 STAB 13 + debuff [me: FRAIL +1]  +2 STAB 13 + debuff [me: FRAIL +1]  +3 STAB 13 + debuff [me: FRAIL +1]  +4 STAB 13 + debuff [me: FRAIL +1]

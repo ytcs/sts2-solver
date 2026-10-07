@@ -97,7 +97,7 @@ def start_daemon():
     raise SystemExit("the harness daemon did not start; see target/agent.log")
 
 
-STOP_LINES = ("ERR", "REFUSED", "SIMULATOR DESYNC", "SIMULATOR DIFFERS", "SIMULATOR CHOICE DIFFERS", "POTION ALERT")
+STOP_LINES = ("ERR", "REFUSED", "SIMULATOR DESYNC", "SIMULATOR DIFFERS", "SIMULATOR CHOICE DIFFERS", "POTION PROPOSAL")
 
 
 def _stops(out):
