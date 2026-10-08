@@ -15,6 +15,30 @@ def make_env(path, n, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
     return sts2.VecEnv(n, scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=hp_bonus, turn_cap=turn_cap), scen
 
 
+def rollout_graph(net, n, obs_size, kw):
+    """The rollout forward as one CUDA graph at the observation's full shapes (all enemy and pile slots, every row a decision row)."""
+    so = torch.zeros(n, obs_size, device=DEV)
+    sm = torch.zeros(n, sts2.ACTIONS, dtype=torch.uint8, device=DEV)
+    sm[:, 0] = 1
+    shp = dict(E=net.C["OBS_MAX_ENEMIES"], L=max(net.SEC[k][1] // 2 for k in ("draw", "discard", "exhaust")), has_dec=True)
+    st = torch.cuda.Stream()
+    st.wait_stream(torch.cuda.current_stream())
+    with torch.cuda.stream(st), torch.no_grad():
+        for _ in range(2):
+            net(so, sm, **kw, **shp)
+    torch.cuda.current_stream().wait_stream(st)
+    g = torch.cuda.CUDAGraph()
+    with torch.no_grad(), torch.cuda.graph(g):
+        out = net(so, sm, **kw, **shp)
+
+    def run(o, m):
+        so.copy_(o)
+        sm.copy_(m)
+        g.replay()
+        return out
+    return run
+
+
 def evaluate(policy, path, n_envs, per_env, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
     env, scen = make_env(path, n_envs, seed, max_steps, hp_bonus, turn_cap)
     obs, mask = env.reset()
@@ -99,6 +123,7 @@ def main():
     ap.add_argument("--resume", help="checkpoint to continue from (iteration count and lr schedule continue; --iters is the total)")
     ap.add_argument("--warm", action="store_true", help="with --resume: take the weights only (fresh optimizer, iteration 0)")
     ap.add_argument("--threads", type=int, default=12)
+    ap.add_argument("--graph-rollout", action=argparse.BooleanOptionalAction, default=True, help="CUDA: the rollout forward as one CUDA graph at full shapes")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     torch.set_num_threads(a.threads)
@@ -164,6 +189,16 @@ def main():
             err = torch.cuda.cudart().cudaHostRegister(arr.ctypes.data, arr.nbytes, 0)
             if int(err) != 0:
                 raise SystemExit(f"cudaHostRegister failed ({arr.nbytes} bytes): {err}")
+    kw = dict(outcome=a.heads, potuse=a.pot_head)
+    graph = rollout_graph(net, N, env.obs_size, kw) if a.graph_rollout and DEV.type == "cuda" else None
+
+    def roll_out(t, o, m, rows):
+        out = graph(o, m) if graph else net(o, m, **kw, **hs.of(*rows, DEV))
+        if a.heads:
+            b_pout_d[t] = torch.softmax(out[2], 1)
+        if a.pot_head:
+            b_ppot_d[t] = torch.sigmoid(out[3])
+        return out[0], out[1]
     rng = np.random.default_rng(a.seed + 7)
     POT = slice(net.C["OFF_POTION"], net.C["OFF_DISCARD"])
     hold_until = np.zeros(N, np.int32)
@@ -213,16 +248,7 @@ def main():
                 b_obs[t].copy_(torch.from_numpy(obs), non_blocking=True)
                 b_mask[t].copy_(torch.from_numpy(m_eff), non_blocking=m_eff is mask)
                 h_e[t], h_l[t], h_d[t] = hs.rows_info(obs)
-                shp = hs.of(h_e[t], h_l[t], h_d[t], DEV)
-                if a.pot_head:
-                    lg, v, ol, pl_ = net(b_obs[t], b_mask[t], outcome=True, potuse=True, **shp)
-                    b_pout_d[t] = torch.softmax(ol, 1)
-                    b_ppot_d[t] = torch.sigmoid(pl_)
-                elif a.heads:
-                    lg, v, ol = net(b_obs[t], b_mask[t], outcome=True, **shp)
-                    b_pout_d[t] = torch.softmax(ol, 1)
-                else:
-                    lg, v = net(b_obs[t], b_mask[t], **shp)
+                lg, v = roll_out(t, b_obs[t], b_mask[t], (h_e[t], h_l[t], h_d[t]))
                 logp = F.log_softmax(lg, 1)
                 act = torch.multinomial(logp.exp(), 1).squeeze(1)
                 b_act[t] = act
@@ -260,17 +286,7 @@ def main():
                             s_n[si] += 1
                             s_w[si] += oc[i] == 1
                 steps += N
-            shp = hs.of(*hs.rows_info(obs), DEV)
-            if a.pot_head:
-                _, last_v, last_ol, last_pl = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV), outcome=True, potuse=True, **shp)
-                b_pout_d[T] = torch.softmax(last_ol, 1)
-                b_ppot_d[T] = torch.sigmoid(last_pl)
-            elif a.heads:
-                _, last_v, last_ol = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV), outcome=True, **shp)
-                b_pout_d[T] = torch.softmax(last_ol, 1)
-            else:
-                _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV), **shp)
-            b_val_d[T] = last_v
+            _, b_val_d[T] = roll_out(T, torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV), hs.rows_info(obs))
             b_val = b_val_d.cpu()
             if a.heads:
                 b_pout = b_pout_d.cpu()
@@ -331,12 +347,12 @@ def main():
                 ih = perm_h[s:s + a.mb]
                 shp = hs.of(fe[ih], fl[ih], fd[ih], DEV)
                 mk = fm[ix]
+                out = net(fo[ix], mk, **kw, **shp)
+                lg, v = out[:2]
+                if a.heads:
+                    ol = out[2]
                 if a.pot_head:
-                    lg, v, ol, pl_ = net(fo[ix], mk, outcome=True, potuse=True, **shp)
-                elif a.heads:
-                    lg, v, ol = net(fo[ix], mk, outcome=True, **shp)
-                else:
-                    lg, v = net(fo[ix], mk, **shp)
+                    pl_ = out[3]
                 logp = F.log_softmax(lg, 1)
                 nlp = logp.gather(1, fa[ix, None]).squeeze(1)
                 ratio = (nlp - flp[ix]).exp()
