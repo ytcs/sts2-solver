@@ -79,6 +79,10 @@ def arm(spec, roots):
     return fs
 
 
+def spec_name(ck):
+    return os.path.basename(ck.split("@")[0]) + ck[len(ck.split("@")[0]):]
+
+
 def play(ck, rows, attempts, roots):
     """[F, attempts] wins of the arm's search (`arm`) from each row's state (its fight start, or `prefix` actions in), search seeds 0..attempts-1."""
     fs = arm(ck, roots)
@@ -91,7 +95,8 @@ def play(ck, rows, attempts, roots):
             for x in r.get("prefix", []):
                 sim.step(int(x))
             sims.append(sim)
-        res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims)
+        print(f"  {spec_name(ck)}: attempt {att + 1}/{attempts}, {F} fights (progress: fights done every 2000 cycles)", flush=True)
+        res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims, verbose=True)
         out[:, att] = res[:, 1] == 1
     return out
 
