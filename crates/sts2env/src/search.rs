@@ -972,7 +972,7 @@ impl Block {
         let (si, seed) = sh.jobs[j];
         let (sc, ex) = &sh.scen[si as usize];
         if let Some(Some(c)) = sh.starts.get(si as usize) {
-            self.main = c.clone();
+            self.main.clone_from(c);
         } else if self.main.reset_validated(sc, ex, seed, RngSet::from_run_seed_fast(seed)).is_err() {
             self.main.overflow |= sts2sim::state::ov::SCENARIO;
         }

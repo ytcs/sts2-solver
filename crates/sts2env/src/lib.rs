@@ -491,7 +491,7 @@ impl BatchEnv {
             }
             let from = &src.slots[si];
             let to = &mut self.slots[di];
-            to.cx = from.cx.clone();
+            to.cx.clone_from(&from.cx);
             to.cx.determinize(seeds[k]);
             to.steps = 0;
             to.scen = from.scen;
