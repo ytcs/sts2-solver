@@ -5,7 +5,7 @@ winning first move (exact value > 1 = a win); Phantasmal Gardeners #1 and Lagavu
 
 usage: python tools/exact_turn_check.py [--seeds 4]
 """
-import argparse, os, sys
+import argparse, os, sys, time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, ROOT)
@@ -37,14 +37,16 @@ def main():
         for s in range(a.seeds):
             for on in (False, True):
                 fs.exact = cfg if on else None
+                t = time.perf_counter()
                 r = fs.decide(sc, d["sim"].copy(), seed=1000 + s)
+                t = time.perf_counter() - t
                 q = {text[o]: round(v, 3) for o, v, lg in zip(r["opts"], r["q"], r["legal"]) if lg}
-                print(f"  seed {s} exact {'on ' if on else 'off'}: {text[r['action']]:30s} triggered={r['exact']}  {q}")
+                print(f"  seed {s} exact {'on ' if on else 'off'}: {text[r['action']]:30s} triggered={r['exact']} {t:.2f}s  {q}")
                 if on and must_win and not q.get(text[r["action"]], -9) > 1.0:
                     ok = False
         fs.exact = cfg
         r = eng.decide(sc, d["sim"].copy(), 2.0, tol_hp=0.5, keep_potions=True)
-        print(f"  live player (Engine.decide 2 s, exact on): {r['text']}  rounds {r['rounds']}  {[(o['text'], o['q']) for o in r['options']]}")
+        print(f"  live player (Engine.decide 2 s, exact on): {r['text']}  rounds {r['rounds']} in {r['seconds']}s  {[(o['text'], o['q']) for o in r['options']]}")
         if must_win and ("DEFEND" in r["text"] or r["text"] == "end turn"):
             ok = False
     print("\nPASS" if ok else "\nFAIL: Skulking Colony #18 did not play a winning first move")

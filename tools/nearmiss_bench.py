@@ -80,6 +80,9 @@ def play(ck, rows, attempts, roots):
         print(f"  {spec_name(ck)}: attempt {att + 1}/{attempts}, {F} fights", flush=True)
         res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims)
         out[:, att] = res[:, 1] == 1
+        if fs.exact:
+            st = fs.stats
+            print(f"    exact turn: {st['ex_triggered']} of {st['searched']} searched decisions, {st['ex_capped']} capped, {st['ex_changed']} changed", flush=True)
     release(fs)
     return out
 
