@@ -297,6 +297,9 @@ def main():
         if i % 10 == 0:
             print(f"  picks {i + 1}/{len(states)} ({time.time() - t0:.0f}s)", flush=True)
     del engines, net
+    import gc, torch
+    gc.collect()
+    torch.cuda.empty_cache()
     ref = Referee()
     strong = Referee(M=5, K=32) if a.strong else None
     with open(a.out, "w") as fo:
