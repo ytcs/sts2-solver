@@ -34,7 +34,7 @@ Channel: https://www.youtube.com/channel/UCYZwLfdwKJjIm_JFYCEWULw. A top StS pla
 ## Direct conflicts with current skill rules (highest value)
 - qQFyhWqhX9E C2: smithed Barrage+ at 13/75 at the last fire before Lagavulin Matriarch, won at 5/75 ("you definitely don't want to be resting here"). Conflicts with `sts2-pathing` "Rest before a boss or planned elite chain when HP binds" `[hyp]`. Cleanest sim state of the set.
 - Skip at 13-18 cards (recurring #1). Conflicts with the deckbuilding header "never skip unless all options are worse". The header's `[sim]` support (0.70 vs 0.31) compares smooth greedy with "best win now, skip on no gain" on a near horizon; it does not test horizon-motivated skipping.
-- qB32y8nhMlk: unknown room = 10% fight, +10% per non-fight unknown (panel claim). Our `routes` weight is "unknown = 15% regular fight" `[hyp]`. A mechanic: check in decomp (room-type odds in the map/unknown-room code).
+- qB32y8nhMlk: each unknown room has a 10% chance to be a fight, +10% for every event visited (panel claim: "10% chance increasing by 10% every time you go to an event"). Our `routes` weight is "unknown = 15% regular fight" `[hyp]`. A mechanic: check in decomp (room-type odds in the map/unknown-room code).
 - qB32y8nhMlk: Skulking Colony rewards block and does not fold to Vulnerable. encounters.md says "FD to break Hardened Shell" `[hyp]`.
 - bU-9JBsxQ_I / qB32y8nhMlk / 6T4bZkpdxbA: removal skepticism (recurring #5) vs deckbuilding 2.7(c) "removals before marginal cards".
 
