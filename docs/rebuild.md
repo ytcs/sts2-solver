@@ -37,10 +37,11 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 ## 4. Roadmap (current order; review at each gate)
 1. Done (E29): PPO signal sampler adopted; gen-2 base = d256 obs v2 signal run (greedy 0.714 vs live 0.700).
 2. Gen-2 model: gen-2 base + outcome head -> combat loop rounds (S3) on obs v2 (old collections replay to v2: actions are stored, not observations) -> promote when it beats solver_td08 on the promotion gate.
-3. S5 continuation value (top priority for run-level decisions; blocks S7): gate-array surrogate prototyped behind `price --cont` (E30); next: the S5 surrogate gate below, and a predictor check on engine/plan decks (E30 blind spot).
-4. Relabel the bench with the live player (labels are h128's play; the predictor's calibration target is its own player, E28); S4 gate (potion regression states).
-5. S7 operator protocol + retire the calculators (gated on S5).
-6. Expert re-enactment (queued); burn-off after a batch of stages (`burn-off` skill).
+3. Predictor on engine/plan decks (E30: Silent poison plan predicted 0.028 vs solver 0.97/0.81 at Knowledge Demon/Insatiable; enabler removal invisible to it). Every run-level price and plan choice inherits it. Steps: (a) bench slice `plans`: plan-library target decks (data/plans.json), recorded runs' act-start decks and expert decks vs their act's elites and bosses, labelled by the live player (16 attempts); measure predictor vs solver per deck for the live model and gen-2; (b) training coverage: plan-shaped decks (archetype cores from data/plans.json + random fill) as a share of the combat-loop pool; (c) until the slice passes, fight gates for plan decks come from short solver runs, not the predictor. Gate: slice |bias| < 0.05 and per-deck ranking (Spearman) >= 0.8.
+4. S5 continuation value (blocks S7): gate-array surrogate behind `price --cont` (E30) fails its gate (4 of 93 recorded screens significantly worse, mostly rests); next: tune the floor / compare `mean`, after item 3.
+5. Relabel the bench with the live player (labels are h128's play; the predictor's calibration target is its own player, E28); S4 gate (potion regression states).
+6. S7 operator protocol + retire the calculators (gated on S5 and item 3).
+7. Expert re-enactment (queued); burn-off after a batch of stages (`burn-off` skill).
 
 ## 5. Stages
 
