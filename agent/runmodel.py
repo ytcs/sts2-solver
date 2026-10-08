@@ -146,9 +146,9 @@ class RunState:
     def relic_ids(self):
         return tuple(r if isinstance(r, str) else r["id"] for r in self.relics)
 
-    def scenario(self, encounter, hp=None, deck=None, potions=None, relics=None):
+    def scenario(self, encounter, hp=None, deck=None, potions=None, relics=None, act=None):
         pots = self.potions if potions is None else potions
-        return dict(self.base, name=f"rm_{encounter}", encounter=encounter, act=self.act, hp=int(hp or self.hp), max_hp=self.max_hp, gold=self.gold,
+        return dict(self.base, name=f"rm_{encounter}", encounter=encounter, act=self.act if act is None else act, hp=int(hp or self.hp), max_hp=self.max_hp, gold=self.gold,
                     deck=deck or self.deck, relics=[r if isinstance(r, dict) else {"id": r} for r in (self.relics if relics is None else relics)],
                     potions=[{"id": p, "slot": i} for i, p in enumerate(pots)], max_potion_slots=self.slots)
 
@@ -164,6 +164,8 @@ class RunState:
 
 
 class BasePolicy:
+    gates = False
+
     def node(self, st, options):
         f = st.hp / st.max_hp
         if f < 0.45:
@@ -266,6 +268,51 @@ def readiness(st, pol):
     w = READY_W
     return (float(w["boss"] * pb.mean() + w["elite"] * PR.p_win(Pe).mean()),
             float(w["boss"] * wb.mean() + w["elite"] * worth(Pe, st.max_hp).mean()))
+
+
+LAST_ACT = max(ACT_NAMES)
+RULES = ("clip", "prod", "disc", "mean")
+FLOOR, DISCOUNT = 0.05, 0.5
+
+
+def gates(st, pol):
+    """(act, P(win) vs its elite pool, P(clear its boss gate)) for st.act and every later act, on st's deck: elites at the act's arrival HP
+    without potions, the belt at st.act's boss only, arrival HP of a later act = ancient heal of the expected HP after the previous boss"""
+    import predictor as PR
+    from agent import pools
+    out, hp = [], st.hp
+    for j in range(st.act, LAST_ACT + 1):
+        name = st.act_name if j == st.act else ACT_NAMES[j][0]
+        if j > st.act:
+            hp = min(st.max_hp, hp + int(HEAL_ANCIENT * (st.max_hp - hp)))
+        known = st.bosses if j == st.act else []
+        bosses, elites = list(known or pools.pool(name, "boss")), pools.pool(name, "elite")
+        belt = pol.potions(st, "boss") if j == st.act else []
+        double = j == LAST_ACT and len(bosses) > 1
+        pairs = ([(0, 1)] if len(known) > 1 else [(a, b) for a in range(len(bosses)) for b in range(len(bosses)) if a != b]) if double else []
+        firsts = sorted({a for a, _ in pairs}) if double else range(len(bosses))
+        P = yield [st.scenario(e, hp=hp, potions=[], act=j) for e in elites] + [st.scenario(bosses[i], hp=hp, potions=belt, act=j) for i in firsts]
+        pe, Pb = float(PR.p_win(P[:len(elites)]).mean()), P[len(elites):]
+        pb1, h1 = dict(zip(firsts, PR.p_win(Pb))), dict(zip(firsts, PR.end_hp(Pb)))
+        if double:
+            P2 = yield [st.scenario(bosses[b], hp=max(1, min(st.max_hp, round(float(h1[a])))), potions=[], act=j) for a, b in pairs]
+            pb = float(np.mean([pb1[a] * w for (a, _), w in zip(pairs, PR.p_win(P2))]))
+        else:
+            pb = float(np.mean(list(pb1.values())))
+            hp = max(1, round(float(np.mean(list(h1.values())))))
+        out.append((j, pe, pb))
+    return out
+
+
+def combine(g, rule="clip", floor=FLOOR):
+    """'clip': product of gate pass probabilities each floored at `floor`: gates the deck has passed (~1) or cannot pass yet (below the floor,
+    the predictor's unreliable tail on a deck that will change) drop out of comparisons; 'prod': unfloored; 'disc': gate k acts later weighted
+    DISCOUNT**k in log space; 'mean': average"""
+    p = np.array([x[1:] for x in g]).ravel()
+    if rule == "mean":
+        return float(p.mean())
+    w = np.repeat(DISCOUNT ** np.arange(len(g)) if rule == "disc" else np.ones(len(g)), 2)
+    return float(np.exp((w * np.log(np.maximum(p, floor if rule == "clip" else 1e-9))).sum()))
 
 
 def play(st, rng, pol, first=None):
@@ -389,16 +436,20 @@ def play(st, rng, pol, first=None):
         dr.act = st.act
         if st.act == act0 + 1:
             st.ready, st.ready_worth = yield from readiness(st, pol)
+            if pol.gates:
+                st.gates = yield from gates(st, pol)
 
 
 class Rollouts:
-    def __init__(self, predictor, shuffles=4):
-        self.pred, self.shuffles = predictor, shuffles
+    def __init__(self, predictor, shuffles=4, seed=1000):
+        self.pred, self.shuffles, self.seed = predictor, shuffles, seed
 
     def run(self, states, seeds, pol=None, firsts=None):
         pol = pol or BasePolicy()
-        gens = [play(s, random.Random(sd), pol, f) for s, sd, f in zip(states, seeds, firsts or [None] * len(states))]
-        out = np.full(len(gens), np.nan)
+        return self.drive([play(s, random.Random(sd), pol, f) for s, sd, f in zip(states, seeds, firsts or [None] * len(states))])
+
+    def drive(self, gens):
+        out = [None] * len(gens)
         pending = {}
         for i, g in enumerate(gens):
             try:
@@ -408,7 +459,7 @@ class Rollouts:
         while pending:
             idx = list(pending)
             flat = [sc for i in idx for sc in pending[i]]
-            P = self.pred.fight_start(flat, self.shuffles)
+            P = self.pred.fight_start(flat, self.shuffles, self.seed)
             nxt, o = {}, 0
             for i in idx:
                 n = len(pending[i])
@@ -418,4 +469,4 @@ class Rollouts:
                     out[i] = e.value
                 o += n
             pending = nxt
-        return out
+        return out if any(not isinstance(x, (int, float)) for x in out) else np.array(out, float)

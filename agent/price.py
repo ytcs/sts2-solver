@@ -181,8 +181,10 @@ def bundles(st, items, predictor, keep=6, removals=2, top=8, shuffles=4):
     return opts, note
 
 
-def price(st, opts, predictor, n=128, seed=0, shuffles=4):
+def price(st, opts, predictor, n=128, seed=0, shuffles=4, cont=None):
     ro = R.Rollouts(predictor, shuffles)
+    pol = R.BasePolicy()
+    pol.gates = cont is not None
     states, seeds, firsts, owner = [], [], [], []
     for oi, (_label, first) in enumerate(opts):
         for j in range(n):
@@ -190,7 +192,7 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4):
             seeds.append(seed * 100_003 + j)
             firsts.append(first)
             owner.append(oi)
-    won = ro.run(states, seeds, firsts=firsts)
+    won = ro.run(states, seeds, pol=pol, firsts=firsts)
     owner = np.array(owner)
     res = {}
     for oi, (label, _f) in enumerate(opts):
@@ -202,11 +204,46 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4):
             r["ready"] = np.array([0.0 if s.ready is None else s.ready for s in ss])
             r["ready_worth"] = np.array([-1.0 if s.ready_worth is None else s.ready_worth for s in ss])
         r["floors"] = np.array([s.floors for s in ss], float)
+        if cont is not None:
+            r["cont"] = np.array([w if st.act == R.LAST_ACT else c * R.combine(getattr(s, "gates", None) or [(0, 0.0, 0.0)], cont)
+                                  for w, c, s in zip(won[sel], cleared, ss)])
         res[label] = r
     return res
 
 
-HORIZONS = (("win", "P(win run)"), ("act", "P(clear act)"), ("ready", "next act ready"), ("floors", "floors"))
+def closed_gates(st, opts, predictor, seeds=range(1000, 1008)):
+    """gates() of each option's state right after it (no rollout; an event's fights are not played), one value per shuffle seed for paired se"""
+    import random
+    sts = []
+    for _label, first in opts:
+        s = st.copy()
+        if first is not None:
+            first(s, R.Draws(random.Random(0), st.base["character"], st.act))
+        sts.append(s)
+    pol = R.BasePolicy()
+    return [R.Rollouts(predictor, 1, sd).drive([R.gates(s, pol) for s in sts]) for sd in seeds]
+
+
+def gates_text(opts, G, rule):
+    labels = [lb for lb, _ in opts]
+    acts = [j for j, _, _ in G[0][0]]
+    E = np.array([[[x[1] for x in g] for g in Gs] for Gs in G])
+    B = np.array([[[x[2] for x in g] for g in Gs] for Gs in G])
+    V = np.array([[R.combine(g, rule) for g in Gs] for Gs in G])
+    best = int(V.mean(0).argmax())
+    W = min(40, max(16, *(len(lb) for lb in labels)))
+    head = "".join(f"{f'A{j + 1} elite':>9s}{f'A{j + 1} boss' + ('es' if j == R.LAST_ACT else ''):>11s}" for j in acts)
+    lines = [f"gates on each option's deck right after it (closed form, no rollout, {len(G)} shuffle seeds; scores the current deck: "
+             f"enablers that pay off after later picks are undervalued); V = {rule} combination",
+             f"{'option':{W}s}{head}{'V':>10s}   vs best (paired over seeds)"]
+    for i in np.argsort(-V.mean(0)):
+        cells = "".join(f"{E[:, i, k].mean():9.3f}{B[:, i, k].mean():11.4f}" for k in range(len(acts)))
+        d = V[:, i] - V[:, best]
+        lines.append(f"{labels[i][:W]:{W}s}{cells}{V[:, i].mean():10.5f}" + ("" if i == best else f"   {d.mean():+.5f} ±{_se(d):.5f}"))
+    return "\n".join(lines)
+
+
+HORIZONS = (("cont", "V gates"), ("win", "P(win run)"), ("act", "P(clear act)"), ("ready", "next act ready"), ("floors", "floors"))
 ACT_SATURATED = 0.9
 
 
@@ -225,6 +262,8 @@ def separates(res, k, z=2.0):
 
 
 def ladder(res, saturated=ACT_SATURATED):
+    if all("cont" in r for r in res.values()):
+        return "cont", "P(clear act) x the floored product of later acts' elite and boss gates on the deck at the act's end (S5 surrogate)"
     if separates(res, "win"):
         return "win", "P(win run) separates the options (> 2 paired se)"
     best = max(r["act"].mean() for r in res.values())
@@ -251,15 +290,133 @@ def table(res, saturated=ACT_SATURATED):
         cells = []
         for k, _ in keys:
             x = res[lb][k]
-            nd = 1 if k == "floors" else 3
+            nd = {"floors": 1, "cont": 5}.get(k, 3)
             cells.append(f"{x.mean():.{nd}f} ±{_se(x):.{nd}f}".rjust(16))
         vs = ""
         if lb != best:
             parts = []
             for k, _ in keys:
                 d = res[lb][k] - res[best][k]
-                nd = 1 if k == "floors" else 3
+                nd = {"floors": 1, "cont": 5}.get(k, 3)
                 parts.append(f"{'*' if k == main else ''}{k} {d.mean():+.{nd}f} ±{_se(d):.{nd}f}")
             vs = "   " + ", ".join(parts)
         lines.append(f"{lb[:W]:{W}s} " + "  ".join(cells) + vs)
     return "\n".join(lines)
+
+
+HEADER = re.compile(r"A(\d+) F(\d+) \w+ A\d+ HP (\d+)/(\d+) G(\d+)")
+
+
+def recorded_screens(events_path, kinds=("CARD_REWARD", "RESTSITE")):
+    """(floor, state text, RunState, recorded choice label, old calculator's best label or None) per decision screen of a recorded run;
+    deck = the last fight's deck plus the card picks since, the rest of the act from the template (no map)"""
+    import json
+    sc, picks, seen, bosses, old, act = None, [], [], [], None, None
+    for raw in open(events_path, encoding="utf-8"):
+        e = json.loads(raw)
+        k = e.get("kind")
+        if k == "fight_start":
+            sc, picks = e.get("scenario") or sc, []
+            if sc and sc.get("act") != act:
+                act, seen, bosses = sc.get("act"), [], []
+            seen.append(e["encounter"])
+        elif k == "reward_eval":
+            old = e
+            bosses = [b for b in (e.get("result", {}).get("boss", {}).get("0", {}).get("per") or {}) if b.endswith("_BOSS")] or bosses
+        elif k == "macro" and e.get("screen") in kinds and sc is not None:
+            state = e["state"]
+            m = HEADER.search(state)
+            labels = dict(scr.options(state))
+            if not m or any(v.startswith("proceed") for v in labels.values()):
+                continue
+            names = [n for n in pools.ACTS if pools.ACTS[n]["act"] == act]
+            name = next((n for n in names if any(x in pools.pool(n, kk) for x in seen for kk in ("weak", "regular", "elite", "boss"))), names[0])
+            seen_kind = {}
+            for x in seen:
+                kk = _kind_of(name, x)
+                if kk:
+                    seen_kind.setdefault(kk, []).append(x)
+            belt = [_ident(b) for b in scr.belt(state) if b != "-"]
+            deck = [dict(c) for c in sc["deck"]] + picks
+            relics = [r["id"] if isinstance(r, dict) else r for r in sc.get("relics", [])]
+            st = R.RunState(sc, act, name, int(m.group(3)), int(m.group(4)), int(m.group(5)), deck, relics, [p for p in belt if p in _ids("potions")],
+                            sc.get("max_potion_slots", 2), (tracker.POTION_START, tracker.OFFSET_START, dict(tracker.UNKNOWN_BASE), 0), seen_kind,
+                            bosses, None, None, len(seen_kind.get("weak", [])) + len(seen_kind.get("regular", [])))
+            choice = labels.get(e.get("choice", "").split(" ")[0], "")
+            best_old = None
+            if e["screen"] == "CARD_REWARD" and old is not None:
+                boss = old["result"].get("boss", {})
+                if boss:
+                    i = max(boss, key=lambda vi: boss[vi]["win"])
+                    best_old = "skip" if i == "0" else old["options"][int(i) - 1]
+            yield int(m.group(2)), state, st, choice, best_old
+            if e["screen"] == "CARD_REWARD":
+                cm = re.match(r"^(.+?)\(", choice)
+                cid, up = _card_id(cm.group(1)) if cm else (None, 0)
+                if cid:
+                    picks.append({"id": cid, "upgrade": up})
+                old = None
+
+
+def best(res, saturated=ACT_SATURATED):
+    main, _ = ladder(res, saturated)
+    order = [main] + [k for k, _ in HORIZONS if k != main and all(k in r for r in res.values())]
+    return max(res, key=lambda lb: tuple(res[lb][k].mean() for k in order)), main
+
+
+def _played(state, choice, opts):
+    if scr.kind(state) == "RESTSITE":
+        return "rest" if choice.lower().startswith("rest") else "smith"
+    name = choice.split("(")[0].strip().lower()
+    return next((lb for lb, _ in opts if lb.lower() == name), "skip" if name.startswith("skip") else name)
+
+
+def _family(label):
+    return "smith" if label.startswith("smith") else label
+
+
+def replay(run, n=128, cont="clip", kinds=("CARD_REWARD", "RESTSITE")):
+    from predictor import Predictor
+    from solver import PREDICTOR_CKPT
+    pred = Predictor(PREDICTOR_CKPT, batch=1024)
+    path = run if os.path.isfile(run) else os.path.join(ROOT, "runs", run, "events.jsonl")
+    rows = []
+    for floor, state, st, choice, old in recorded_screens(path, kinds):
+        opts = options(st, state)
+        if len(opts) < 2:
+            continue
+        res = price(st, opts, pred, n=n, seed=floor, cont=cont)
+        now, ranked = best({lb: {k: v for k, v in r.items() if k != "cont"} for lb, r in res.items()})
+        surr, _ = best(res)
+        G = closed_gates(st, opts, pred)
+        closed = opts[int(np.array([[R.combine(g, cont) for g in Gs] for Gs in G]).mean(0).argmax())][0]
+        row = dict(floor=floor, screen=scr.kind(state), played=_played(state, choice, opts), old=old, now=now, ranked=ranked, surrogate=surr,
+                   sep=separates(res, "cont"), closed=closed)
+        rows.append(row)
+        print(f"F{floor:<3d} {row['screen']:11s} {st.hp:3d}/{st.max_hp} | played {row['played'][:16]:16s} | old {str(old)[:16]:16s} | "
+              f"price[{ranked}] {now[:16]:16s} | S5 rollout {surr[:16]:16s}{'' if row['sep'] else ' (flat)':7s} | S5 closed {closed[:16]}", flush=True)
+    return rows
+
+
+def main():
+    import argparse
+    ap = argparse.ArgumentParser(description="replay a recorded run's decision screens: current price ladder vs the S5 gate surrogate")
+    ap.add_argument("run", help="runs/<run> name or an events.jsonl path")
+    ap.add_argument("--n", type=int, default=128)
+    ap.add_argument("--cont", default="clip", choices=R.RULES)
+    ap.add_argument("--screens", default="CARD_REWARD,RESTSITE")
+    a = ap.parse_args()
+    rows = replay(a.run, a.n, a.cont, tuple(a.screens.split(",")))
+    if not rows:
+        return print("no decision screens with two or more priced options")
+
+    def rate(x, y):
+        pairs = [(_family(r[x]), _family(r[y])) for r in rows if r[x] is not None and r[y] is not None]
+        return f"{np.mean([p == q for p, q in pairs]):.2f} of {len(pairs)}" if pairs else "n/a"
+    print(f"{len(rows)} screens; S5 rollout+gates vs price {rate('surrogate', 'now')}, vs S5 closed {rate('surrogate', 'closed')}, "
+          f"vs played {rate('surrogate', 'played')}, vs old calc {rate('surrogate', 'old')}; price vs played {rate('now', 'played')}, "
+          f"vs old calc {rate('now', 'old')}; S5 closed vs played {rate('closed', 'played')}")
+
+
+if __name__ == "__main__":
+    main()

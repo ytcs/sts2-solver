@@ -298,6 +298,9 @@ class Harness(Live):
         args = argline.split()
         n = int(args[0]) if args and args[0].isdigit() else 128
         sat = float(args[args.index("--sat") + 1]) if "--sat" in args[:-1] else PR.ACT_SATURATED
+        cont = args[args.index("--cont") + 1] if "--cont" in args[:-1] else os.environ.get("STS2_PRICE_CONT") or None
+        if cont is not None and cont not in PR.R.RULES:
+            return f"price: --cont takes one of {', '.join(PR.R.RULES)}\n"
         st = PR.run_state(self._run(), self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
         opts = PR.options(st, state)
         if not opts:
@@ -315,13 +318,14 @@ class Harness(Live):
             unpriced = []
             opts, note = PR.bundles(st, PR.shop_items(st, state, unpriced), self._predictor)
             note = f"; {note}" + (f"; not priced (no simulator id): {', '.join(unpriced)}" if unpriced else "")
-        res = PR.price(st, opts, self._predictor, n=n, seed=abs(hash(scr.floor_key(state) or "")) % 10_000)
+        res = PR.price(st, opts, self._predictor, n=n, seed=abs(hash(scr.floor_key(state) or "")) % 10_000, cont=cont)
+        gates = "" if cont is None else PR.gates_text(opts, PR.closed_gates(st, opts, self._predictor), cont) + "\n"
         ranked_by, _why = PR.ladder(res, sat)
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by=ranked_by,
                        result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})
         ready = ("; next act ready: P(win) after the ancient's heal vs the next act's bosses x0.5 and elites x0.5, 0 on a death in this act"
                  if "ready" in next(iter(res.values())) else "")
-        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model `docs/rebuild.md` S5{ready}{note})\n"
+        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model `docs/rebuild.md` S5{ready}{note})\n" + gates
 
     def brief(self):
         state = call("peek")
