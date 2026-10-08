@@ -1,6 +1,3 @@
-//! Pets granted by relics (`Byrdpip`, `PaelsLegion` monster models): 9999 HP, hidden health bar, one no-op move that loops.
-//! Added with `Combat::add_pet` by the relics' `BeforeCombatStart`.
-
 use crate::defs::*;
 use crate::ids;
 

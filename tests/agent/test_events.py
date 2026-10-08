@@ -1,5 +1,3 @@
-"""The event catalog (`data/events.json`) and `agent/events.py`: every entry parses, every effect is in the vocabulary and names real ids, and a few
-known events applied to a toy RunState do what the decompiled code does (no network, no GPU)."""
 import json
 import random
 
@@ -66,34 +64,34 @@ def test_events_match_screen():
 
 def test_events_apply():
     dr = RM.Draws(random.Random(1), "IRONCLAD")
-    st = toy()  # Wellspring 'Bathe': remove a card (a Strike first), add Guilty
+    st = toy()
     r = EV.play_option(st, "Wellspring", "Bathe", dr)
     assert len(st.deck) == len(DECK) and sum(c["id"] == "STRIKE_IRONCLAD" for c in st.deck) == 4 and st.deck[-1]["id"] == "GUILTY" and not r["fights"]
 
-    st = toy()  # Sapphire Seed 'Consume': heal 9, upgrade one card (the first non-basic)
+    st = toy()
     EV.play_option(st, "SapphireSeed", "Consume", dr)
     assert st.hp == 49 and [c["id"] for c in st.deck if c.get("upgrade")] == ["INFLAME"]
 
-    st = toy()  # Dense Vegetation 'Rest': heal 30% of max HP, then the Wrigglers with normal monster rewards
+    st = toy()
     r = EV.play_option(st, "DenseVegetation", 1, dr)
     assert st.hp == 64 and r["fights"] == [{"fight": "DENSE_VEGETATION_EVENT_ENCOUNTER", "rewards": "hallway", "extra": []}]
 
-    st = toy(hp=5)  # Trudge On can kill: the run ends at the event
+    st = toy(hp=5)
     r = EV.play_option(st, "DenseVegetation", "Trudge On", dr)
     assert r["dead"] and st.hp == 0 and st.end == (0, "event", "DenseVegetation")
 
-    st = toy()  # max HP gain heals as much; Tablet of Truth stops at the first Give Up
+    st = toy()
     EV.play_option(st, "ByrdonisNest", "Eat the Egg", dr)
     assert (st.hp, st.max_hp) == (47, 87)
     st = toy()
     EV.play_option(st, "TabletOfTruth", "Decipher", dr)
     assert st.max_hp == 77 and sum(c.get("upgrade", 0) for c in st.deck) == 1
 
-    st = toy()  # unmodelled effects are no-ops that set the flag
+    st = toy()
     r = EV.play_option(st, "CrystalSphere", "Payment Plan", dr)
     assert r["unmodelled"] and st.unmodelled and st.deck[-1]["id"] == "DEBT"
 
-    st = toy()  # deferred card offers come back to the caller
+    st = toy()
     r = EV.play_option(st, "BrainLeech", "Share Knowledge", dr, pick=EV.DEFER)
     assert len(r["offers"]) == 1 and len(r["offers"][0]["cards"]) == 5 and len(st.deck) == len(DECK)
     assert EV.allowed("UnrestSite", toy(hp=40)) and not EV.allowed("UnrestSite", toy(hp=70)) and not EV.allowed("CrystalSphere", toy(gold=500))
@@ -130,7 +128,6 @@ def test_ancient_relics_catalog():
                 assert v["id"] in enchantments, (rid, x)
             if kind == "card_add_random":
                 assert v["pool"] in ("character", "colorless", "other", "others") and set(v.get("exclude", ())) <= ids["cards"], (rid, x)
-    # every relic applies on every character without error
     for c in EV.CHARACTERS:
         for rid in cat:
             st = toy()
@@ -149,50 +146,50 @@ def test_ancient_option():
 
 def test_apply_ancient():
     dr = RM.Draws(random.Random(1), "IRONCLAD")
-    st = toy()  # Phial Holster: a 4th potion slot, 2 random potions
+    st = toy()
     r = EV.apply_ancient(st, "PHIAL_HOLSTER", dr)
     assert st.slots == 4 and len(st.potions) == 2 and st.relics[-1] == "PHIAL_HOLSTER" and not r["unmodelled"]
 
-    st = toy()  # Precarious Shears: remove 2 cards (Strikes first), take 16 damage
+    st = toy()
     EV.apply_ancient(st, "PRECARIOUS_SHEARS", dr)
     assert len(st.deck) == len(DECK) - 2 and st.hp == 24 and sum(c["id"] == "STRIKE_IRONCLAD" for c in st.deck) == 3
-    st = toy(hp=10)  # ... which can kill
+    st = toy(hp=10)
     r = EV.apply_ancient(st, "PRECARIOUS_SHEARS", dr)
     assert r["dead"] and st.end == (0, "ancient", "PRECARIOUS_SHEARS")
 
-    st = toy()  # Touch of Orobas: the starter becomes its upgrade
+    st = toy()
     EV.apply_ancient(st, "TOUCH_OF_OROBAS", dr)
     assert st.relics == ["BLACK_BLOOD", "TOUCH_OF_OROBAS"]
 
-    st = toy()  # Archaic Tooth: Bash -> Break; Large Capsule: the character's Strike and Defend plus 2 relics
+    st = toy()
     EV.apply_ancient(st, "ARCHAIC_TOOTH", dr)
     assert "BREAK" in [c["id"] for c in st.deck] and "BASH" not in [c["id"] for c in st.deck]
     st = toy()
     EV.apply_ancient(st, "LARGE_CAPSULE", dr)
     assert [c["id"] for c in st.deck[-2:]] == ["STRIKE_IRONCLAD", "DEFEND_IRONCLAD"] and len(st.relics) == 4
 
-    st = toy()  # Neow's Talisman upgrades a basic Strike and a basic Defend (not Inflame); Leafy Poultice transforms one of each, -12 max HP
+    st = toy()
     EV.apply_ancient(st, "NEOWS_TALISMAN", dr)
     assert sorted(c["id"] for c in st.deck if c.get("upgrade")) == ["DEFEND_IRONCLAD", "STRIKE_IRONCLAD"]
     st = toy()
     EV.apply_ancient(st, "LEAFY_POULTICE", dr)
     assert st.max_hp == 68 and sum(c["id"] == "STRIKE_IRONCLAD" for c in st.deck) == 4 and sum(c["id"] == "DEFEND_IRONCLAD" for c in st.deck) == 3
 
-    st = toy()  # Pandora's Box transforms every basic Strike and Defend (not Bash)
+    st = toy()
     EV.apply_ancient(st, "PANDORAS_BOX", dr)
     assert not any(c["id"].startswith(("STRIKE_", "DEFEND_")) for c in st.deck) and "BASH" in [c["id"] for c in st.deck]
 
-    st = toy()  # Kaleidoscope: 2 offers of 3 cards, each from a different other character's pool
+    st = toy()
     r = EV.apply_ancient(st, "KALEIDOSCOPE", dr, pick=EV.DEFER)
     pools = {r["id"]: p for p, rows in RM.CAT["cards"].items() for r in rows}
     assert len(r["offers"]) == 2 and all(len({pools[c] for c, _ in o["cards"]}) == 3 and "IRONCLAD" not in {pools[c] for c, _ in o["cards"]}
                                          for o in r["offers"])
 
-    st = toy()  # Neow's Bones: 2 more Neow relics (their pickups fire) and a curse
+    st = toy()
     EV.apply_ancient(st, "NEOWS_BONES", dr)
     curses = EV.ancient_relics()["NEOWS_BONES"]["effects"][1]["card_add_one_of"]
     assert len(st.relics) >= 4 and any(c["id"] in curses for c in st.deck)
 
-    st = toy()  # Dusty Tome: an upgraded non-transcendence Ancient card of the character
+    st = toy()
     EV.apply_ancient(st, "DUSTY_TOME", dr)
     assert st.deck[-1] == {"id": "CORRUPTION", "upgrade": 1}

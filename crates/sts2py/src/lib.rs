@@ -4,9 +4,6 @@ use pyo3::prelude::*;
 mod sim;
 use sts2env::{BatchEnv, PoolScenario, RewardConfig, RoundRobinScenario, StepOut};
 
-/// Scenario JSON strings to simulator scenarios, in parallel with the GIL released (`validate`: also refuse unported content). The first error
-/// in list order is reported, with the same message as a serial parse. A serial parse took ~30 us a scenario: most of the time of building a
-/// 4096-fight env for the predictor's fight starts (`rl/predictor.py`).
 fn parse_scenarios(py: Python<'_>, scenarios_json: &[String], validate: bool) -> PyResult<Vec<(sts2sim::Scenario, sts2sim::ScenarioExtras)>> {
     use rayon::prelude::*;
     let parsed: Vec<Result<(sts2sim::Scenario, sts2sim::ScenarioExtras), String>> = py.detach(|| {
@@ -50,12 +47,10 @@ impl BatchEnvPy {
         Ok(BatchEnvPy { env })
     }
 
-    /// The observation version this env writes.
     fn obs_version(&self) -> u8 {
         self.env.obs_version()
     }
 
-    /// Floats per observation row.
     fn obs_size(&self) -> usize {
         self.env.obs_size()
     }
@@ -96,23 +91,19 @@ impl BatchEnvPy {
         self.env.set_autoreset(on);
     }
 
-    /// Episodes the loop guard ended (`ov::LOOP`), over every env since creation; each was reported as `OUTCOME_LOSS`.
     fn loops(&self) -> u64 {
         self.env.loops()
     }
 
-    /// The player-turn cap from the next step on (0 = none).
     fn set_turn_cap(&mut self, cap: u32) {
         self.env.set_turn_cap(cap);
     }
 
-    /// Sampling weights of the scenarios (pool sources only): episodes starting from now draw scenario i with probability w_i / sum w.
     fn set_weights(&mut self, w: PyReadonlyArray1<f32>) -> PyResult<()> {
         let w = w.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?;
         if self.env.set_weights(w) { Ok(()) } else { Err(PyValueError::new_err("weights need a pool source with one weight per scenario")) }
     }
 
-    /// `[n]` u8: belt slots whose potion the latest step used up (bit k = slot k), measured before an auto-reset.
     fn potion_used(&self, mut out: PyReadwriteArray1<u8>) -> PyResult<()> {
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         if o.len() < self.env.len() {
@@ -122,15 +113,12 @@ impl BatchEnvPy {
         Ok(())
     }
 
-    /// Copy `src[src_idx[k]]` into this env's slot `dst_idx[k]`, resampling hidden state with `seeds[k]` (see `BatchEnv::fork_from`).
     fn fork_from(&mut self, src: PyRef<'_, BatchEnvPy>, src_idx: PyReadonlyArray1<u32>, dst_idx: PyReadonlyArray1<u32>, seeds: PyReadonlyArray1<u64>) -> PyResult<()> {
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         self.env.fork_from(&src.env, src_idx.as_slice().map_err(e)?, dst_idx.as_slice().map_err(e)?, seeds.as_slice().map_err(e)?)
             .map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
-    /// `[n, 7]` f32: scenario index, HP lost fraction, HP left fraction, episode length, HP left (absolute, 0 on a loss), max HP at the end, player turns
-    /// of the episode each env finished last.
     fn episode_info(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let n = self.env.len();
@@ -146,7 +134,6 @@ impl BatchEnvPy {
     }
 }
 
-/// The determinized play-out search as a continuous-batching state machine (`sts2env::search`): the caller only evaluates networks.
 #[pyclass]
 struct SearchEnginePy {
     eng: sts2env::search::SearchEngine,
@@ -155,7 +142,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, root="topm", gm=16, gn=160, c_visit=50.0, c_scale=0.1, clairvoyant=false, obs_version=None))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, clairvoyant=false, obs_version=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -166,8 +153,6 @@ impl SearchEnginePy {
         m: usize,
         k: usize,
         conf: f32,
-        pmin: f32,
-        margin: f32,
         roll_cap: u32,
         max_steps: u32,
         win: f32,
@@ -179,39 +164,18 @@ impl SearchEnginePy {
         carry: bool,
         strat: bool,
         starts: Option<Vec<Option<PyRef<'_, sim::Sim>>>>,
-        util: Option<Vec<f32>>,
         leaf_turns: u32,
         turn_cap: u32,
         val_w: usize,
         worth: Option<PyReadonlyArray2<f32>>,
-        root: &str,
-        gm: usize,
-        gn: usize,
-        c_visit: f32,
-        c_scale: f32,
-        // DIAGNOSTIC ONLY (sees hidden information): futures are copies of the true state, not determinized (`SearchCfg::clairvoyant`); never for live play
+        // DIAGNOSTIC ONLY: sees hidden information; never for live play.
         clairvoyant: bool,
-        // the observation version of the request rows (default: the process-wide one)
         obs_version: Option<u8>,
     ) -> PyResult<Self> {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
-        let mut ut = [0f32; 102];
-        let use_util = match &util {
-            Some(u) if u.len() == 102 => {
-                ut.copy_from_slice(u);
-                true
-            }
-            Some(u) => return Err(PyValueError::new_err(format!("util must have 102 entries (loss, then wins at 0..100 % HP), got {}", u.len()))),
-            None => false,
-        };
-        let root = match root {
-            "topm" => sts2env::search::RootMode::TopM,
-            "gumbel" => sts2env::search::RootMode::Gumbel,
-            r => return Err(PyValueError::new_err(format!("root must be \"topm\" or \"gumbel\", got {r:?}"))),
-        };
-        let cfg = sts2env::search::SearchCfg { m, k, conf, pmin, margin, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, util: ut, use_util, turn_cap, val_w, root, gm, gn, c_visit, c_scale, clairvoyant };
+        let cfg = sts2env::search::SearchCfg { m, k, conf, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, turn_cap, val_w, clairvoyant };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let n_scen = scs.len();
         let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
@@ -219,20 +183,18 @@ impl SearchEnginePy {
             eng.set_obs_version(v).map_err(|_| PyValueError::new_err(format!("unknown observation version {v}")))?;
         }
         if let Some(wa) = worth {
-            // [n_scen, 1 + HEAD_NC + POT]: table flag (0 = linear), the worth of each class, the price of each belt slot's potion
-            use sts2env::search::{Worth, HEAD_NC, POT};
+            use sts2env::search::{Worth, HEAD_NC};
             let w = wa.as_slice().map_err(e)?;
-            let width = 1 + HEAD_NC + POT;
+            let width = 1 + HEAD_NC;
             if w.len() != n_scen * width {
-                return Err(PyValueError::new_err(format!("worth must be [n_scenarios, {width}] (flag, {HEAD_NC} class worths, {POT} potion prices)")));
+                return Err(PyValueError::new_err(format!("worth must be [n_scenarios, {width}] (flag, {HEAD_NC} class worths)")));
             }
             let ws = (0..n_scen)
                 .map(|i| {
                     let r = &w[i * width..(i + 1) * width];
                     let mut x = Worth::linear();
                     x.table = r[0] != 0.0;
-                    x.u.copy_from_slice(&r[1..1 + HEAD_NC]);
-                    x.price.copy_from_slice(&r[1 + HEAD_NC..]);
+                    x.u.copy_from_slice(&r[1..]);
                     x
                 })
                 .collect();
@@ -241,77 +203,23 @@ impl SearchEnginePy {
         Ok(SearchEnginePy { eng })
     }
 
-    /// `(max policy rows, max value rows)` one `advance` can request: the sizes of the request buffers.
-    fn max_rows(&self) -> (usize, usize) {
-        self.eng.max_rows()
-    }
-
-    /// The observation version of the request rows.
     fn obs_version(&self) -> u8 {
         self.eng.obs_version()
     }
 
-    /// Floats per observation row of the request buffers.
     fn obs_size(&self) -> usize {
         self.eng.obs_size()
-    }
-
-    fn n_roots(&self) -> usize {
-        self.eng.n_roots()
     }
 
     fn finished(&self) -> bool {
         self.eng.finished()
     }
 
-    /// One cycle (see `sts2env::search::SearchEngine::advance`); the first call passes `pol = val = None`. Gumbel mode (`root="gumbel"`) also needs
-    /// `root` = `[real-fight policy rows of the previous call (pol_kind & 1 == 0), ACTIONS]` logits in row order (`SearchEngine::advance_root`).
-    #[pyo3(signature = (pol_obs, pol_mask, pol_kind, pol_u, val_obs, val_kind, pol=None, val=None, root=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn advance(
-        &mut self,
-        py: Python<'_>,
-        mut pol_obs: PyReadwriteArray2<f32>,
-        mut pol_mask: PyReadwriteArray2<u8>,
-        mut pol_kind: PyReadwriteArray1<u8>,
-        mut pol_u: PyReadwriteArray1<f32>,
-        mut val_obs: PyReadwriteArray2<f32>,
-        mut val_kind: PyReadwriteArray1<u8>,
-        pol: Option<PyReadonlyArray2<f32>>,
-        val: Option<PyReadonlyArray1<f32>>,
-        root: Option<PyReadonlyArray2<f32>>,
-    ) -> PyResult<(usize, usize)> {
-        let er = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
-        let ra = match &root {
-            Some(r) => Some(r.as_slice().map_err(er)?),
-            None => None,
-        };
-        let po = pol_obs.as_slice_mut().map_err(er)?;
-        let pm = pol_mask.as_slice_mut().map_err(er)?;
-        let pk = pol_kind.as_slice_mut().map_err(er)?;
-        let pu = pol_u.as_slice_mut().map_err(er)?;
-        let vo = val_obs.as_slice_mut().map_err(er)?;
-        let vk = val_kind.as_slice_mut().map_err(er)?;
-        let pa = match &pol {
-            Some(p) => Some(p.as_slice().map_err(er)?),
-            None => None,
-        };
-        let va = match &val {
-            Some(v) => Some(v.as_slice().map_err(er)?),
-            None => None,
-        };
-        let eng = &mut self.eng;
-        py.detach(|| eng.advance_root(pa, va, ra, po, pm, pk, pu, vo, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
-    }
-
-    /// Rows of the one request buffer `advance_shared` uses (`sts2env::search::SearchEngine::shared_rows`).
     fn shared_rows(&self) -> usize {
         self.eng.shared_rows()
     }
 
-    /// `advance` with one observation buffer `obs` [shared_rows, OBS] for both kinds of rows: policy row r at row r, value row r at row
-    /// `shared_rows - 1 - r` (`sts2env::search::SearchEngine::advance_shared`); `mask`, `pol_kind`, `pol_u`, `val_kind` have `shared_rows` rows.
-    #[pyo3(signature = (obs, mask, pol_kind, pol_u, val_kind, pol=None, val=None, root=None))]
+    #[pyo3(signature = (obs, mask, pol_kind, pol_u, val_kind, pol=None, val=None))]
     #[allow(clippy::too_many_arguments)]
     fn advance_shared(
         &mut self,
@@ -323,13 +231,8 @@ impl SearchEnginePy {
         mut val_kind: PyReadwriteArray1<u8>,
         pol: Option<PyReadonlyArray2<f32>>,
         val: Option<PyReadonlyArray1<f32>>,
-        root: Option<PyReadonlyArray2<f32>>,
     ) -> PyResult<(usize, usize)> {
         let er = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
-        let ra = match &root {
-            Some(r) => Some(r.as_slice().map_err(er)?),
-            None => None,
-        };
         let o = obs.as_slice_mut().map_err(er)?;
         let pm = mask.as_slice_mut().map_err(er)?;
         let pk = pol_kind.as_slice_mut().map_err(er)?;
@@ -344,11 +247,9 @@ impl SearchEnginePy {
             None => None,
         };
         let eng = &mut self.eng;
-        py.detach(|| eng.advance_shared_root(pa, va, ra, o, pm, pk, pu, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+        py.detach(|| eng.advance_shared(pa, va, o, pm, pk, pu, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
-    /// `[n_jobs, 6..8]` f32: scenario index, outcome, HP lost fraction, HP left fraction, length, finished (1/0) (, end HP absolute, belt slots whose starting
-    /// potion is still there at the end as bits).
     fn results(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {
         let w = out.as_array().ncols();
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -363,12 +264,6 @@ impl SearchEnginePy {
         Ok(())
     }
 
-    /// Floats per value row this engine expects.
-    fn val_w(&self) -> usize {
-        self.eng.val_w()
-    }
-
-    /// Recorded moves of a finished job: `(actions [n] i32, searched [n] u8, options [n, M] i32, probabilities [n, M] f32, estimates [n, M] f32 (NaN: not tried), legal [n, M] u8)`.
     #[allow(clippy::type_complexity)]
     fn moves<'py>(&self, py: Python<'py>, job: usize) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
         use numpy::{PyArray1, PyArrayMethods};
@@ -393,41 +288,6 @@ impl SearchEnginePy {
             ],
         )?;
         Ok(t)
-    }
-
-    /// The Gumbel part of the recorded moves of a finished job (`sts2env::search::MoveRec`): `(gumbel [n] u8, futures [n, M] i32, pi [n, M] f32 (the improved
-    /// policy pi' of each candidate), adv [n, M] f32 (sigma(q) - sigma(v): pi' = softmax(prior logits + adv), adv = 0 off the candidates), v [n] f32 (the completed
-    /// Q of the actions not sampled))`; columns line up with `moves`' options.
-    #[allow(clippy::type_complexity)]
-    fn moves_gumbel<'py>(&self, py: Python<'py>, job: usize) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
-        use numpy::{PyArray1, PyArrayMethods};
-        let mv = self.eng.moves(job);
-        let m = sts2env::search::MAX_M;
-        let n = mv.len();
-        let g: Vec<u8> = mv.iter().map(|x| x.gumbel as u8).collect();
-        let cnt: Vec<i32> = mv.iter().flat_map(|x| x.n.iter().map(|&c| c as i32)).collect();
-        let pi: Vec<f32> = mv.iter().flat_map(|x| x.pi.iter().copied()).collect();
-        let adv: Vec<f32> = mv.iter().flat_map(|x| x.adv.iter().copied()).collect();
-        let v: Vec<f32> = mv.iter().map(|x| x.v).collect();
-        let t = pyo3::types::PyTuple::new(
-            py,
-            [
-                PyArray1::from_vec(py, g).into_any(),
-                PyArray1::from_vec(py, cnt).reshape([n, m])?.into_any(),
-                PyArray1::from_vec(py, pi).reshape([n, m])?.into_any(),
-                PyArray1::from_vec(py, adv).reshape([n, m])?.into_any(),
-                PyArray1::from_vec(py, v).into_any(),
-            ],
-        )?;
-        Ok(t)
-    }
-
-    /// "topm" or "gumbel".
-    fn root_mode(&self) -> &'static str {
-        match self.eng.root_mode() {
-            sts2env::search::RootMode::TopM => "topm",
-            sts2env::search::RootMode::Gumbel => "gumbel",
-        }
     }
 
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
@@ -461,16 +321,10 @@ impl SearchEnginePy {
         d.set_item("cy_main", s.cy_main)?;
         d.set_item("cy_endturn", s.cy_endturn)?;
         d.set_item("n_endturn", s.n_endturn)?;
-        d.set_item("g_cand", s.g_cand)?;
-        d.set_item("g_rank1", s.g_rank[0])?;
-        d.set_item("g_rank2_5", s.g_rank[1])?;
-        d.set_item("g_rank6_8", s.g_rank[2])?;
-        d.set_item("g_rank9", s.g_rank[3])?;
         Ok(d)
     }
 }
 
-/// The observation version `v` (default: the process-wide one) and its row length; an error for an unknown version.
 fn version_size(v: Option<u8>) -> PyResult<(u8, usize)> {
     let v = v.unwrap_or_else(sts2sim::observe::obs_version);
     match sts2sim::observe::obs_size(v) {
@@ -479,7 +333,6 @@ fn version_size(v: Option<u8>) -> PyResult<(u8, usize)> {
     }
 }
 
-/// Replays a recorded fight (`SearchEnginePy.moves`): `(obs [n + 1, OBS], mask [n + 1, ACTIONS])` before every action and after the last one.
 #[pyfunction]
 #[pyo3(signature = (scenario_json, seed, actions, obs_version=None))]
 fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReadonlyArray1<i32>, obs_version: Option<u8>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
@@ -491,13 +344,10 @@ fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReado
     let n = acts.len() + 1;
     let mut obs = vec![0f32; n * osz];
     let mut mask = vec![0u8; n * sts2env::ACTIONS];
-    sts2env::search::replay_v(&scen, seed, &acts, &mut obs, &mut mask, ver).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
+    sts2env::search::replay(&scen, seed, &acts, &mut obs, &mut mask, ver).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
     Ok((PyArray1::from_vec(py, obs).reshape([n, osz])?, PyArray1::from_vec(py, mask).reshape([n, sts2env::ACTIONS])?))
 }
 
-/// Many recorded fights at once, in parallel: fight i replays `actions[off[i]..off[i + 1]]` from `scenarios[scen[i]]` with `seeds[i]` and returns
-/// the observation and mask before each of its `steps[soff[i]..soff[i + 1]]` (indices into its own steps), all fights' rows concatenated in order.
-/// What `rl/exit.py` trains on: the decisions the search made, rebuilt from the compact record.
 #[pyfunction]
 #[pyo3(signature = (scenarios, scen, seeds, actions, off, steps, soff, obs_version=None))]
 #[allow(clippy::too_many_arguments)]
@@ -513,7 +363,6 @@ fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, see
     if scen.len() < n || off.len() <= n || soff.len() <= n || soff[n] > steps.len() || off[n] > acts.len() || scen.iter().take(n).any(|&s| s as usize >= parsed.len()) {
         return Err(PyValueError::new_err("replay_rows: scen / off / soff do not match the fights"));
     }
-    // the rows are written straight into the output arrays (each fight into its own rows, in parallel); only the requested states are observed
     let r = soff[n] - soff[0];
     let obs_arr = numpy::PyArray2::<f32>::zeros(py, [r, o], false);
     let mask_arr = numpy::PyArray2::<u8>::zeros(py, [r, a], false);
@@ -532,7 +381,7 @@ fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, see
         let res: Result<(), String> = py.detach(|| {
             parts.into_par_iter().try_for_each(|(i, ho, hm)| {
                 let fa = acts.get(off[i]..off[i + 1]).ok_or_else(|| format!("fight {i}: bad action offsets"))?;
-                sts2env::search::replay_steps_v(&parsed[scen[i] as usize], seeds[i], fa, &steps[soff[i]..soff[i + 1]], ho, hm, ver).map_err(|e| format!("fight {i}: {e:?}"))
+                sts2env::search::replay_steps(&parsed[scen[i] as usize], seeds[i], fa, &steps[soff[i]..soff[i + 1]], ho, hm, ver).map_err(|e| format!("fight {i}: {e:?}"))
             })
         });
         res.map_err(PyValueError::new_err)?;
@@ -540,34 +389,22 @@ fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, see
     Ok((obs_arr, mask_arr))
 }
 
-/// Whether observations leave out relics with no combat effect (`sts2sim::relic_mask`; on by default). Returns the previous setting.
 #[pyfunction]
 fn set_relic_mask(on: bool) -> bool {
     sts2sim::observe::MASK_RELICS.swap(on, std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Whether the enemy look-ahead is the one from before S1 (`sts2sim::engine::LOOK_LEGACY`: each machine walked alone over 3 turns;
-/// off by default). For networks trained before and A/B tests. Returns the previous setting.
-#[pyfunction]
-fn set_look_legacy(on: bool) -> bool {
-    sts2sim::engine::LOOK_LEGACY.swap(on, std::sync::atomic::Ordering::Relaxed)
-}
-
-/// Floats per observation row of version `version` (default: the process-wide version).
 #[pyfunction]
 #[pyo3(signature = (version=None))]
 fn obs_size(version: Option<u8>) -> PyResult<usize> {
     Ok(version_size(version)?.1)
 }
 
-/// The process-wide observation version (1 by default): what `VecEnv`, the search engine, `replay`, `Sim.observe` and `layout` use when no
-/// version is given. Each env / engine keeps the version it was created with.
 #[pyfunction]
 fn obs_version() -> u8 {
     sts2sim::observe::obs_version()
 }
 
-/// Sets the process-wide observation version (1 or 2); returns the previous one.
 #[pyfunction]
 fn set_obs_version(version: u8) -> PyResult<u8> {
     sts2sim::observe::set_obs_version(version).ok_or_else(|| PyValueError::new_err(format!("unknown observation version {version}")))
@@ -578,7 +415,6 @@ fn action_space() -> usize {
     sts2env::ACTIONS
 }
 
-/// `None` when nothing is proven; otherwise a sentence explaining why the fight cannot be won (see `sts2sim::bounds`).
 #[pyfunction]
 fn provably_unwinnable(scenario_json: &str) -> PyResult<Option<String>> {
     let v: serde_json::Value = serde_json::from_str(scenario_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -586,14 +422,12 @@ fn provably_unwinnable(scenario_json: &str) -> PyResult<Option<String>> {
     Ok(sts2sim::bounds::provably_unwinnable(&sc, &ex).map(|p| p.describe()))
 }
 
-/// Display names (SCREAMING_SNAKE ids) of cards, powers, relics, potions, monsters, encounters, enchantments, afflictions, orbs, indexed by id.
 #[pyfunction]
 fn names(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
     use sts2sim::ids;
     let d = pyo3::types::PyDict::new(py);
     d.set_item("head_nc", sts2env::search::HEAD_NC)?;
     d.set_item("head_bin", sts2env::search::HEAD_BIN)?;
-    d.set_item("pot", sts2env::search::POT)?;
     d.set_item("card", ids::card::NAMES.to_vec())?;
     d.set_item("power", ids::power::NAMES.to_vec())?;
     d.set_item("relic", ids::relic::NAMES.to_vec())?;
@@ -606,8 +440,6 @@ fn names(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
     Ok(d)
 }
 
-/// Observation layout and action-space constants of `version` (default: the process-wide version):
-/// `{"sections": [(name, offset, size)], "consts": {name: value}}`.
 #[pyfunction]
 #[pyo3(signature = (version=None))]
 fn layout(py: Python<'_>, version: Option<u8>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
@@ -637,14 +469,12 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(obs_version, m)?)?;
     m.add_function(wrap_pyfunction!(set_obs_version, m)?)?;
     m.add_function(wrap_pyfunction!(set_relic_mask, m)?)?;
-    m.add_function(wrap_pyfunction!(set_look_legacy, m)?)?;
     m.add_function(wrap_pyfunction!(replay, m)?)?;
     m.add_function(wrap_pyfunction!(replay_rows, m)?)?;
     m.add_function(wrap_pyfunction!(action_space, m)?)?;
     m.add_function(wrap_pyfunction!(layout, m)?)?;
     m.add_function(wrap_pyfunction!(names, m)?)?;
     m.add_function(wrap_pyfunction!(provably_unwinnable, m)?)?;
-    // `outcome` codes of `step` (set when `done`)
     m.add("OUTCOME_ONGOING", sts2env::OUTCOME_ONGOING)?;
     m.add("OUTCOME_WIN", sts2env::OUTCOME_WIN)?;
     m.add("OUTCOME_LOSS", sts2env::OUTCOME_LOSS)?;

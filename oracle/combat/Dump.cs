@@ -30,8 +30,6 @@ public static class Dump
         return o;
     }
 
-    // Non-hand piles: id, upgrade, keywords (local + global sources: a stray Ethereal on a drawn card must be seen when it happens, not
-    // many steps later when the card is drawn) and the enchantment.
     public static JsonObject CardBrief(CardModel c)
     {
         var o = new JsonObject { ["id"] = c.Id.Entry, ["upgrade"] = c.CurrentUpgradeLevel };
@@ -53,8 +51,6 @@ public static class Dump
         return o.Count == 0 ? null : o;
     }
 
-    /// <summary>Debug aid: the combat-history entries added since the previous record (`log`), e.g. "play CATASTROPHE", "play* HIBERNATE" (auto-play), "draw X".
-    /// Not compared by sts2diff; use tools/fuzz_show.py to see which nested plays / draws the real game did inside one action.</summary>
     public static JsonArray Log(ref int idx)
     {
         var a = new JsonArray();

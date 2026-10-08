@@ -1,5 +1,3 @@
-//! Defect attack cards that do not (only) touch orbs.
-
 use super::defect_util::*;
 use crate::defs::VarKind;
 use crate::engine::{Attack, HKind, RunResult, Targeting};
@@ -9,7 +7,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// Damage, then a copy that costs 0 for the rest of the combat goes to the discard pile.
 listener!(AdaptiveStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -21,7 +18,6 @@ listener!(AdaptiveStrike {
     }
 });
 
-// Damage, then every 0-cost (non-X) Attack/Skill/Power in the discard pile returns to hand.
 listener!(AllForOne {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -49,7 +45,6 @@ listener!(BeamCell {
     }
 });
 
-// Damage (`Damage` var + the growth every Claw has accumulated), then every Claw in the combat piles gains `Increase`.
 listener!(Claw {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -72,12 +67,9 @@ listener!(FocusedStrike {
     }
 });
 
-// Damage, then draw a card if fewer than `PlayMax` cards have finished playing this turn.
 listener!(Ftl {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
-        // `CardPlaysFinished` this turn = plays started this turn minus the ones still resolving (the play stack: this card
-        // and any auto-play parents; their `CardPlayFinishedEntry` is only written after `OnPlay`).
         let finished = cx.plays_this_turn(|_| true) as i32 - cx.play_stack.len() as i32;
         if finished < cx.card_var(p.card, VarKind::Named) {
             let n = cx.card_var(p.card, VarKind::Cards);
@@ -87,7 +79,6 @@ listener!(Ftl {
     }
 });
 
-// Damage, then Weak if the target intends to attack.
 listener!(GoForTheEyes {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -99,7 +90,6 @@ listener!(GoForTheEyes {
     }
 });
 
-// `Repeat` hits, then a Slimed goes to the discard pile.
 listener!(GunkUp {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Repeat);
@@ -109,7 +99,6 @@ listener!(GunkUp {
     }
 });
 
-// Hits = CalculationBase (0) + CalculationExtra (1) x energy spent this turn (not counting this card's own cost).
 listener!(HelixDrill {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut spent: i32 = cx.hist_log.iter().filter(|e| e.kind == HKind::EnergySpent && cx.hist_this_turn(e)).map(|e| e.val as i32).sum();
@@ -130,7 +119,6 @@ listener!(HelixDrill {
     }
 });
 
-// Damage all enemies, then -Focus until the end of the turn.
 listener!(Hyperbeam {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack_all(cx, p);
@@ -140,7 +128,6 @@ listener!(Hyperbeam {
     }
 });
 
-// Damage, then this card costs 0 for the rest of the combat.
 listener!(MomentumStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -149,7 +136,6 @@ listener!(MomentumStrike {
     }
 });
 
-// Damage, draw; whenever the owner generates a Status card this card costs 1 less until played.
 listener!(RocketPunch {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -165,11 +151,10 @@ listener!(RocketPunch {
     }
 });
 
-// Damage, draw `Cards`, discard the drawn cards that do not cost 0 (X-cost cards count as non-zero).
 listener!(Scrape {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         if phase != 0 {
-            return Flow::Done; // the Sly auto-play of a discarded card finished
+            return Flow::Done;
         }
         attack(cx, p);
         let n = cx.card_var(p.card, VarKind::Cards);
@@ -180,7 +165,6 @@ listener!(Scrape {
                 discard.push(c);
             }
         }
-        // CardCmd.Discard(cards) = DiscardAndDraw(cards, 0): each card moves + fires AfterCardDiscarded, then the Sly ones auto-play.
         if cx.discard_cards(discard.as_slice(), 0) == crate::engine::RunResult::Suspended {
             return Flow::Suspend(1);
         }
@@ -188,7 +172,6 @@ listener!(Scrape {
     }
 });
 
-// Damage; if it killed the target gain `Energy`.
 listener!(Sunder {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let results = attack(cx, p);
@@ -209,7 +192,6 @@ listener!(SweepingBeam {
     }
 });
 
-// Damage, then the next Power card played this turn is free.
 listener!(Synthesis {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -218,14 +200,11 @@ listener!(Synthesis {
     }
 });
 
-/// `list.StableShuffle(Rng.Shuffle).FirstOrDefault()`.
 fn stable_shuffle_first(cx: &mut Combat, mut list: crate::util::ArrayVec<CardIdx, MAX_CARDS>) -> Option<CardIdx> {
     cx.stable_shuffle_cards(list.as_mut_slice(), RngStream::Shuffle);
     list.first()
 }
 
-// Two hits, then auto-play a random Attack from the draw pile (playable ones first; an unplayable Attack only if no
-// playable one exists, in which case it just goes to its result pile). Phase 1 = the nested play finished after a decision.
 listener!(Uproar {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         if phase != 0 {
@@ -257,8 +236,6 @@ listener!(Uproar {
     }
 });
 
-// Exhaust every Status card in the combat piles (not already exhausted), then hit a random enemy once per status
-// (the count is taken before exhausting).
 listener!(FlakCannon {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut statuses: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();

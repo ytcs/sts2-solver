@@ -1,5 +1,3 @@
-//! Damage pipeline (spec 02 §3): `Hook.ModifyDamage` → `CreatureCmd.Damage` → `AttackCommand`.
-
 use super::creature::DamageResult;
 use crate::content;
 use crate::engine::HKind;
@@ -11,18 +9,15 @@ use crate::types::*;
 use crate::util::ArrayVec;
 
 pub type Mods = ArrayVec<Me, 24>;
-// 64: multi-hit attacks keep one result per hit, two when Osty absorbs a hit (DieForYou redirect).
 pub type Results = ArrayVec<DamageResult, 64>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Targeting {
     Single(Cid),
     AllOpponents,
-    /// Random opponent per hit (`Rng.CombatTargets`).
     Random,
 }
 
-/// `DamageCmd.Attack(...)` builder state.
 #[derive(Clone, Copy, Debug)]
 pub struct Attack {
     pub dealer: Cid,
@@ -31,21 +26,16 @@ pub struct Attack {
     pub hits: i32,
     pub props: ValueProp,
     pub targeting: Targeting,
-    /// `CalculatedDamageVar` multiplier (`WithMultiplier`), evaluated per hit as `CalcBase + ExtraDamage * f(card, singleTarget)`;
-    /// the target is `NO` when the hit has several targets. When set, `damage` is ignored.
     pub calc_mult: Option<fn(&Combat, CardIdx, Cid) -> i32>,
 }
 
 impl Attack {
-    /// Monster move attack: `DamageCmd.Attack(n).FromMonster(m)` targeting the player(s).
     pub fn from_monster(dealer: Cid, damage: i32) -> Attack {
         Attack { dealer, card: NO, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting: Targeting::AllOpponents, calc_mult: None }
     }
-    /// Card attack: `DamageCmd.Attack(n).FromCard(card, play).Targeting(t)`.
     pub fn from_card(dealer: Cid, card: CardIdx, damage: i32, targeting: Targeting) -> Attack {
         Attack { dealer, card, damage: Dec::int(damage as i64), hits: 1, props: ValueProp::MOVE, targeting, calc_mult: None }
     }
-    /// Card attack with a `CalculatedDamageVar` (Ashen Strike, Body Slam, Bully, Perfected Strike, ...).
     pub fn from_card_calc(dealer: Cid, card: CardIdx, targeting: Targeting, mult: fn(&Combat, CardIdx, Cid) -> i32) -> Attack {
         Attack { dealer, card, damage: Dec::ZERO, hits: 1, props: ValueProp::MOVE, targeting, calc_mult: Some(mult) }
     }
@@ -63,35 +53,29 @@ impl Attack {
     }
 }
 
-/// `CalculatedVar.Calculate`: `CalculationBase + ExtraDamage * multiplier` (the multiplier only while the combat is in progress).
 pub fn calc_with(cx: &Combat, card: CardIdx, mult: i32) -> Dec {
     let m = if cx.in_progress { mult } else { 0 };
     Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * m as i64)
 }
 
-/// `CalculatedVar.Calculate` of a var whose extra part is `CalculationExtra` (block, hits, cards ...): `CalculationBase + CalculationExtra * multiplier`
-/// (the multiplier only while the combat is in progress).
 pub fn calc_extra_with(cx: &Combat, card: CardIdx, mult: i32) -> Dec {
     let m = if cx.in_progress { mult } else { 0 };
     Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::CalcExtra) as i64 * m as i64)
 }
 
 impl Combat {
-    /// `Hook.ModifyDamage` (spec 02 §3.2): additive pass, multiplicative pass, cap pass, floor at 0. No rounding.
     pub fn modify_damage(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, Mods) {
         let mut mods = Mods::new();
         let v = self.modify_damage_into(target, dealer, amount, props, card, &mut mods);
         (v, mods)
     }
 
-    /// `modify_damage` when the modifier list is not needed (previews).
     #[inline]
     pub fn modify_damage_value(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
         let mut mods = Mods::new();
         self.modify_damage_into(target, dealer, amount, props, card, &mut mods)
     }
 
-    /// [`Combat::modify_damage`] with the list of modifiers appended to a caller-owned `mods` (no 300-byte copy per call).
     pub fn modify_damage_into(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut Mods) -> Dec {
         let m = (Mask::bit(hookbit::modify_damage_additive))
             | (Mask::bit(hookbit::modify_damage_multiplicative))
@@ -99,8 +83,6 @@ impl Combat {
         let mut snap = crate::engine::Snapshot::new();
         self.snapshot_into(m, &mut snap);
         let mut v = amount;
-        // card.Enchantment.EnchantDamageAdditive then ...Multiplicative (before every listener pass; each enchantment
-        // checks the damage props itself).
         if card != NO && self.cards[card as usize].enchant != 0 {
             let me = self.enchantment_me(card);
             let l = content::listener(&me);
@@ -144,7 +126,6 @@ impl Combat {
         v.max(Dec::ZERO)
     }
 
-    /// `Hook.ModifyHpLost` for one phase pair (spec 02 §3.4). `after_osty=false` runs the BeforeOsty passes.
     fn modify_hp_lost(&self, target: Cid, amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, after_osty: bool, mods: &mut Mods) -> Dec {
         let (b1, b2) = if after_osty {
             (hookbit::modify_hp_lost_after_osty, hookbit::modify_hp_lost_after_osty_late)
@@ -182,7 +163,6 @@ impl Combat {
         }
     }
 
-    /// `Hook.ModifyUnblockedDamageTarget` (unguarded, threaded): DieForYou redirects the HP loss to Osty.
     fn modify_unblocked_damage_target(&self, target: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
         if !self.listen.has(hookbit::modify_unblocked_damage_target) {
             return target;
@@ -198,7 +178,6 @@ impl Combat {
         t
     }
 
-    /// `CreatureCmd.Damage` (spec 02 §3.3).
     #[inline(always)]
     pub fn damage(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx) -> Results {
         let mut results = Results::new();
@@ -206,7 +185,6 @@ impl Combat {
         results
     }
 
-    /// [`Combat::damage`] writing into a caller-owned (empty) result list: the 1.3 KB list is not copied on return.
     pub fn damage_into(&mut self, targets: &[Cid], amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx, results: &mut Results) {
         if dealer != NO && self.cr(dealer).is_dead() {
             return;
@@ -218,12 +196,10 @@ impl Combat {
             let mut mods = Mods::new();
             let modified = self.modify_damage_into(t, dealer, amount, props, card, &mut mods);
             self.dispatch_modifiers(false, hookbit::after_modifying_damage_amount, &mods, |cx, me, l| l.after_modifying_damage_amount(cx, me, card));
-            // (every listener call re-sets the side channel: a listener's own nested damage call overwrites it)
             self.dispatch_u(hookbit::before_damage_received, |cx, me, l| {
                 cx.dmg_card = card;
                 l.before_damage_received(cx, me, t, modified, props, dealer)
             });
-            // Pet quirk: damage to Osty is absorbed by its owner's block.
             let block_owner = if self.cr(t).is_pet && self.cr(t).owner != NO { self.cr(t).owner } else { t };
             let blocked = self.damage_block_internal(block_owner, modified, props);
             mods.clear();
@@ -244,8 +220,6 @@ impl Combat {
                 results.push(res);
                 self.hist_damage_received(res, dealer, card, props);
             } else {
-                // Redirected (Osty took the hit): the overkill is re-run through ModifyHpLost(AfterOsty) against the
-                // original target.
                 results.push(res);
                 self.hist_damage_received(res, dealer, card, props);
                 mods.clear();
@@ -260,13 +234,10 @@ impl Combat {
             }
         }
 
-        // ---- post-hooks run after ALL targets resolved ----
         let mut killed: ArrayVec<Cid, 32> = ArrayVec::new();
         for i in 0..results.len() {
             let r = results[i];
             let t = r.receiver;
-            // (the side channel `dmg_card` / `dmg_result` is rewritten before each listener call: a nested damage call made
-            // by a listener would overwrite it for the listeners after it)
             if r.block_broken && self.listen.has(hookbit::after_block_broken) {
                 self.dispatch_u(hookbit::after_block_broken, |cx, me, l| {
                     cx.dmg_card = card;
@@ -312,7 +283,6 @@ impl Combat {
         }
     }
 
-    /// `History.DamageReceived` — only while the combat is live (in progress and not ending).
     fn hist_damage_received(&mut self, r: DamageResult, dealer: Cid, card: CardIdx, props: ValueProp) {
         if self.in_progress && !self.is_ending() {
             let flags = r.fully_blocked as u8 | (r.block_broken as u8) << 1 | (r.killed as u8) << 2;
@@ -323,7 +293,6 @@ impl Combat {
         }
     }
 
-    /// `Hook.ModifyAttackHitCount` (guarded, threaded int).
     fn modify_attack_hit_count(&self, a: &Attack) -> i32 {
         let mut hits = a.hits;
         if self.listen.has(hookbit::modify_attack_hit_count) && self.hooks_enabled() {
@@ -338,9 +307,6 @@ impl Combat {
         hits
     }
 
-    /// `Hook.AfterAttack` for an attack whose per-hit results are `all`: publishes them in `attack_results` (what
-    /// `AttackCommand.Results` gives the listeners) and dispatches. Also the `AttackContext` disposal of cards that drive
-    /// their own context (Echoing Slash, Omnislice), which skips the `CreatureAttacked` history entry.
     pub fn dispatch_after_attack(&mut self, a: &Attack, all: &Results) {
         if self.listen.has(hookbit::after_attack) {
             self.attack_results.clear();
@@ -353,7 +319,6 @@ impl Combat {
         self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
     }
 
-    /// `AttackCommand.Execute` (spec 02 §3.1).
     #[inline(always)]
     pub fn execute_attack(&mut self, a: &Attack) -> Results {
         let mut all = Results::new();
@@ -361,7 +326,6 @@ impl Combat {
         all
     }
 
-    /// [`Combat::execute_attack`] writing into a caller-owned (empty) result list (most callers ignore the results: no copy).
     pub fn execute_attack_into(&mut self, a: &Attack, all: &mut Results) {
         if self.is_over_or_ending() || a.dealer == NO || self.cr(a.dealer).is_dead() {
             return;
@@ -375,7 +339,6 @@ impl Combat {
             if self.cr(a.dealer).is_dead() || !self.tick() {
                 break;
             }
-            // possibleTargets, recomputed every hit; IsAlive (not IsHittable).
             let mut valid: ArrayVec<Cid, MAX_CREATURES> = ArrayVec::new();
             match a.targeting {
                 Targeting::Single(t) => {
@@ -406,7 +369,6 @@ impl Combat {
             let amount = match a.calc_mult {
                 None => a.damage,
                 Some(f) => {
-                    // `Calculate(singleTarget)`: base + extra * multiplier (0 when combat is not in progress).
                     let single = if hit.len() == 1 { hit[0] } else { NO };
                     let m = if self.in_progress { f(self, a.card, single) } else { 0 };
                     Dec::int(self.card_var(a.card, VarKind::CalcBase) as i64 + self.card_var(a.card, VarKind::ExtraDamage) as i64 * m as i64)
@@ -431,13 +393,8 @@ impl Combat {
         self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
     }
 
-    /// Fills the `AfterAttack` side channel (C# `command.Results`): `all` = the results of every hit in order, `sizes` =
-    /// how many of them belong to each hit. Cards that drive an `AttackContext` by hand (Omnislice, Echoing Slash) call
-    /// this right before dispatching `after_attack` themselves.
     pub fn set_attack_results(&mut self, all: &[DamageResult], sizes: &[u8]) {
         self.attack_results.clear();
-        // Only the first 16 results / hits are kept (a Tear Asunder with 50 hits against one target: the listeners that read the list
-        // look for the receiver or count; the counters below always cover the whole attack). Not an overflow.
         for x in all.iter().take(16) {
             self.attack_results.push(*x);
         }

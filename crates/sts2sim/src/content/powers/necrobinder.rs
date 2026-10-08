@@ -1,5 +1,3 @@
-//! Necrobinder powers (Osty / Doom / Souls / Ethereal).
-
 use crate::dec::Dec;
 use crate::engine::is_temporary_power;
 use crate::hooks::*;
@@ -18,10 +16,6 @@ fn amount_of(cx: &Combat, me: Me) -> i32 {
     cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).map_or(me.amount, |p| p.amount)
 }
 
-// ---- Osty -----------------------------------------------------------------------------------------------------------
-
-// Osty's permanent power: the owner's powered attacks hit Osty first. It survives Osty's death (and revival), and a dead
-// Osty (hp 0) is not hittable / cannot receive powers.
 listener!(DieForYouPower {
     fn modify_unblocked_damage_target(&self, cx: &Combat, me: Me, target: Cid, _amount: Dec, props: ValueProp, _dealer: Cid) -> Cid {
         if target != cx.cr(me.owner).owner {
@@ -43,7 +37,6 @@ listener!(DieForYouPower {
     }
 });
 
-// Osty's attacks deal +Amount damage.
 listener!(CalcifyPower {
     fn modify_damage_additive(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.dealer == NO || !cx.cr(q.dealer).is_pet || cx.cr(q.dealer).monster.id != ids::monster::OSTY {
@@ -56,7 +49,6 @@ listener!(CalcifyPower {
     }
 });
 
-// Whenever Osty loses HP, every hittable enemy takes that much x Amount (unblockable, unpowered).
 listener!(NecroMasteryPower {
     fn after_current_hp_changed(&self, cx: &mut Combat, me: Me, creature: Cid, delta: i32) {
         if delta >= 0 || !cx.cr(creature).is_pet || cx.cr(creature).monster.id != ids::monster::OSTY || cx.cr(creature).owner != me.owner {
@@ -68,7 +60,6 @@ listener!(NecroMasteryPower {
     }
 });
 
-// Next turn: summon (Invoke). `AmountOnTurnStart != 0` guards against powers applied during the turn-start itself.
 listener!(SummonNextTurnPower {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
         let Some(p) = cx.cr(me.owner).powers.iter().find(|p| p.uid == me.idx).copied() else { return };
@@ -79,7 +70,6 @@ listener!(SummonNextTurnPower {
     }
 });
 
-// Enemy debuff: when the player's Osty hits this enemy, summon (Amount); expires at the end of the enemy turn.
 listener!(SicEmPower {
     fn after_damage_given(&self, cx: &mut Combat, me: Me, dealer: Cid, target: Cid, _unblocked: i32, _props: ValueProp) {
         if dealer == NO || !cx.cr(dealer).is_pet || cx.cr(dealer).monster.id != ids::monster::OSTY || target != me.owner {
@@ -97,16 +87,12 @@ listener!(SicEmPower {
     }
 });
 
-// ---- Energy / draw ----------------------------------------------------------------------------------------------------
-
-// +Amount max energy for the rest of the combat (Friendship).
 listener!(FriendshipPower {
     fn modify_max_energy(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount + Dec::int(amount_of(cx, me) as i64)
     }
 });
 
-// +Amount max energy and +Amount cards drawn per turn (Demesne).
 listener!(DemesnePower {
     fn modify_hand_draw(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount + Dec::int(amount_of(cx, me) as i64)
@@ -116,7 +102,6 @@ listener!(DemesnePower {
     }
 });
 
-// Cards cost +Amount this turn (Borrowed Time).
 listener!(BorrowedTimePower {
     fn try_modify_energy_cost_in_combat(&self, cx: &Combat, me: Me, _card: CardIdx, cost: Dec) -> Option<Dec> {
         Some(cost + Dec::int(amount_of(cx, me) as i64))
@@ -128,7 +113,6 @@ listener!(BorrowedTimePower {
     }
 });
 
-// Gain Block when playing a card that costs >= 2 (the power's own EnergyVar(2)).
 listener!(DanseMacabrePower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let c = play.card;
@@ -140,7 +124,6 @@ listener!(DanseMacabrePower {
     }
 });
 
-// Draw Amount cards whenever an Ethereal card is drawn.
 listener!(PagestormPower {
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, card: CardIdx, _from_hand_draw: bool) {
         if cx.card_keywords(card) & kw::ETHEREAL != 0 {
@@ -150,7 +133,6 @@ listener!(PagestormPower {
     }
 });
 
-// Block when playing an Ethereal card.
 listener!(SpiritOfAshPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_keywords(play.card) & kw::ETHEREAL != 0 {
@@ -160,7 +142,6 @@ listener!(SpiritOfAshPower {
     }
 });
 
-// The next Amount Ethereal cards cost 0 (Veilpiercer).
 listener!(VeilpiercerPower {
     fn try_modify_energy_cost_in_combat_late(&self, cx: &Combat, _me: Me, card: CardIdx, _cost: Dec) -> Option<Dec> {
         if cx.card_keywords(card) & kw::ETHEREAL == 0 {
@@ -181,7 +162,6 @@ listener!(VeilpiercerPower {
     }
 });
 
-// Before the hand draw: add Amount random Ethereal cards from the character's pool to the hand (Call of the Void).
 listener!(CallOfTheVoidPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         let pool = cx.character_pool();
@@ -200,7 +180,6 @@ listener!(CallOfTheVoidPower {
     }
 });
 
-// Before the hand draw: add Amount Sweeping Gaze to the hand (Sentry Mode).
 listener!(SentryModePower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         let n = amount_of(cx, me);
@@ -212,8 +191,6 @@ listener!(SentryModePower {
     }
 });
 
-// ---- Doom -----------------------------------------------------------------------------------------------------------
-
 fn doom_triggers(cx: &Combat, me: Me, side: Side) -> bool {
     if cx.is_over_or_ending() {
         return false;
@@ -224,8 +201,6 @@ fn doom_triggers(cx: &Combat, me: Me, side: Side) -> bool {
     cx.doomed_on_side(side).first() == Some(me.owner)
 }
 
-// Doom: kills the creature at the end of its side's turn once its HP <= Amount. Only the first doomed creature of a side
-// triggers; it kills every doomed creature of the side at once.
 listener!(DoomPower {
     fn before_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side != Side::Player && doom_triggers(cx, me, side) {
@@ -241,7 +216,6 @@ listener!(DoomPower {
     }
 });
 
-// Start of your turn: Doom on a random hittable enemy.
 listener!(CountdownPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if !on_side(cx, me.owner, side) {
@@ -254,7 +228,6 @@ listener!(CountdownPower {
     }
 });
 
-// Start of your turn: you gain Doom (Neurosurge).
 listener!(NeurosurgePower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if on_side(cx, me.owner, side) {
@@ -264,10 +237,9 @@ listener!(NeurosurgePower {
     }
 });
 
-// Whenever you / Osty deal powered damage, apply that much x Amount Doom to the target.
 listener!(ReaperFormPower {
     fn after_damage_given(&self, cx: &mut Combat, me: Me, dealer: Cid, _target: Cid, _unblocked: i32, props: ValueProp) {
-        let res = &cx.dmg_result; // the whole `DamageResult` (TotalDamage = blocked + unblocked)
+        let res = &cx.dmg_result;
         if dealer == NO || !(dealer == me.owner || (cx.cr(dealer).is_pet && cx.cr(dealer).owner == me.owner)) {
             return;
         }
@@ -280,7 +252,6 @@ listener!(ReaperFormPower {
     }
 });
 
-// Gain Block whenever you apply Doom.
 listener!(ShroudPower {
     fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
         if ch.applier == me.owner && ch.power_id == ids::power::DOOM_POWER {
@@ -290,7 +261,6 @@ listener!(ShroudPower {
     }
 });
 
-// Whenever you apply a debuff to an enemy (other than a temporary one) it takes Amount damage.
 listener!(SleightOfFleshPower {
     fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
         let (power_id, target, delta, applier) = (ch.power_id, ch.target, ch.amount, ch.applier);
@@ -305,8 +275,6 @@ listener!(SleightOfFleshPower {
     }
 });
 
-// Enemy debuff: the player's cards played from now on (this turn) apply Doom(Amount) to this enemy afterwards. Expires at end of turn.
-// The amount recorded when each card play starts is the C# `amountsForPlayedCards` dictionary (`play_amount_*`).
 listener!(OblivionPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let amt = amount_of(cx, me);
@@ -325,9 +293,6 @@ listener!(OblivionPower {
     }
 });
 
-// ---- Souls -----------------------------------------------------------------------------------------------------------
-
-// Playing a Soul summons Osty (Amount).
 listener!(DevourLifePower {
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.is_card(play.card, ids::card::SOUL) {
@@ -337,7 +302,6 @@ listener!(DevourLifePower {
     }
 });
 
-// Playing a Soul deals Amount unblockable unpowered damage to a random enemy.
 listener!(HauntPower {
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if !cx.is_card(play.card, ids::card::SOUL) {
@@ -353,9 +317,6 @@ listener!(HauntPower {
     }
 });
 
-// ---- Attack modifiers --------------------------------------------------------------------------------------------------
-
-// The Hang card deals x Amount damage to this enemy.
 listener!(HangPower {
     fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.target != me.owner || !cx.is_card(q.card, ids::card::HANG) {
@@ -365,7 +326,6 @@ listener!(HangPower {
     }
 });
 
-// Your first attack each turn deals +Amount% damage.
 listener!(LethalityPower {
     fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if !q.props.is_powered() || q.card == NO || me.owner != PLAYER {
@@ -387,8 +347,6 @@ listener!(LethalityPower {
     }
 });
 
-// Debuff on the owner: Vulnerable (to the owner) / Weak (from the owner) are doubled; ticks down at the end of its side's turn.
-// (The multiplier change itself lives in `VulnerablePower` / `WeakPower`.)
 listener!(DebilitatePower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if on_side(cx, me.owner, side) {
@@ -397,9 +355,6 @@ listener!(DebilitatePower {
     }
 });
 
-// ---- Temporary Strength (Enfeebling Touch) ------------------------------------------------------------------------------
-// `TemporaryStrengthPower` with `IsPositive = false`: applying it applies -Amount Strength; it removes itself (and restores
-// the Strength) at the end of its owner's side turn.
 listener!(EnfeeblingTouchPower {
     fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
         cx.apply_power(ids::power::STRENGTH_POWER, target, -amount, applier, card);
@@ -424,13 +379,8 @@ listener!(EnfeeblingTouchPower {
     }
 });
 
-// ---- Misc ---------------------------------------------------------------------------------------------------------------
-
 listener!(ForbiddenGrimoirePower {});
 
-// ---- multiplayer-only cards' powers (single-player reductions) ---------------------------------------------------------------
-
-// Every 33 cards drawn: Amount damage (unpowered, dealer = you) to a random enemy. `aux` = cards drawn since the last trigger.
 listener!(CacophonyPower {
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, _card: CardIdx, _from_hand_draw: bool) {
         let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
@@ -445,7 +395,6 @@ listener!(CacophonyPower {
     }
 });
 
-// Whenever you create a Soul, add Amount more Souls to the draw pile (not recursively).
 listener!(SoulboundPower {
     fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx, added_by_player: bool) {
         if !added_by_player || !cx.is_card(card, ids::card::SOUL) {
@@ -464,7 +413,6 @@ listener!(SoulboundPower {
     }
 });
 
-// Damage dealt by your allies (not Osty) applies Doom x Amount; expires at the end of the enemy turn.
 listener!(UnderworldPower {
     fn after_damage_given(&self, cx: &mut Combat, me: Me, dealer: Cid, _target: Cid, _unblocked: i32, props: ValueProp) {
         let res = &cx.dmg_result;

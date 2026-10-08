@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 
 namespace AgentBridge;
 
-/// <summary>Runs work on the Godot main thread (drained every frame), so game code and its async continuations stay on that thread.</summary>
 public static class MainThread
 {
     private static readonly ConcurrentQueue<Action> _queue = new();
@@ -31,7 +30,6 @@ public static class MainThread
         }
     }
 
-    /// <summary>Runs <paramref name="f"/> on the main thread and returns its result to the calling (server) thread.</summary>
     public static Task<T> Run<T>(Func<T> f)
     {
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -43,7 +41,6 @@ public static class MainThread
         return tcs.Task;
     }
 
-    /// <summary>Main-thread only: completes on the first frame where <paramref name="done"/> holds, or after the timeout.</summary>
     public static Task Until(Func<bool> done, int timeoutMs)
     {
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

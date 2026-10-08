@@ -1,6 +1,3 @@
-//! Remaining combat-relevant shared / event / pool relics: stars, combat-end counters, energy tricks, saved-state-only
-//! relics (their `[SavedProperty]` values are dumped even when the relic does nothing in combat).
-
 use crate::content::gen_relics as g;
 use crate::dec::Dec;
 use crate::hooks::*;
@@ -15,8 +12,6 @@ fn self_power(cx: &mut Combat, id: u16, n: i32) {
 fn relic_block(cx: &mut Combat, n: i32) {
     cx.gain_block(PLAYER, Dec::int(n as i64), ValueProp::UNPOWERED, NO);
 }
-
-// ---- stars (Regent) ------------------------------------------------------------------------------------------------------------
 
 listener!(DivineRight {
     fn after_room_entered(&self, cx: &mut Combat, _me: Me) {
@@ -40,13 +35,11 @@ listener!(LunarPastry {
     }
 });
 
-// counter = `StarsSpent` (saved); ShowCounter; DisplayAmount = counter % STARS.
 listener!(GalacticDust {
     fn after_stars_spent(&self, cx: &mut Combat, me: Me, amount: i32) {
         cx.rel_mut(me).counter += amount;
         let n = g::galactic_dust::STARS;
         if cx.rel(me).counter >= n {
-            // Mathf.FloorToInt(StarsSpent / Stars) * Block
             let blocks = cx.rel(me).counter / n;
             relic_block(cx, blocks * g::galactic_dust::BLOCK);
             cx.rel_mut(me).counter %= n;
@@ -60,7 +53,6 @@ listener!(GalacticDust {
     }
 });
 
-// flag 0 = `UsedThisTurn` (not saved).
 listener!(MiniRegent {
     fn after_stars_spent(&self, cx: &mut Combat, me: Me, _amount: i32) {
         if !cx.rel(me).flag(0) {
@@ -78,8 +70,6 @@ listener!(MiniRegent {
     }
 });
 
-// counter = `CardsPlayedThisTurn` (not saved): the CARDS-th card of the turn costs nothing (energy and stars).
-// ShowCounter == IsInProgress && counter < CARDS; DisplayAmount = counter.
 fn brilliant_scarf_applies(cx: &Combat, me: Me, card: CardIdx) -> bool {
     cx.in_progress
         && cx.rel(me).counter == g::brilliant_scarf::CARDS - 1
@@ -110,9 +100,6 @@ listener!(BrilliantScarf {
     }
 });
 
-// ---- energy tricks ---------------------------------------------------------------------------------------------------------------
-
-// flag 0 = `HadLeftoverEnergy` (not saved).
 listener!(PaelsTears {
     fn before_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player {
@@ -130,7 +117,6 @@ listener!(PaelsTears {
     }
 });
 
-// flag 0 = Status == Active (turn >= 3 reached this combat). ShowCounter == IsInProgress && Status == Normal; DisplayAmount = turn.
 listener!(PaelsFlesh {
     fn modify_max_energy(&self, cx: &Combat, _me: Me, amount: Dec) -> Dec {
         if cx.turn_number() < 3 {
@@ -151,7 +137,6 @@ listener!(PaelsFlesh {
     }
 });
 
-// counter = `KindleCount` (saved): +1 max energy while > 0; one kindle is used up per combat. ShowCounter.
 listener!(PumpkinCandle {
     fn modify_max_energy(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         if cx.rel(me).counter <= 0 {
@@ -171,7 +156,6 @@ listener!(PumpkinCandle {
     }
 });
 
-// flag 0 = `GainEnergyInNextCombat` (saved): +energy once at the first turn.
 listener!(VenerableTeaSet {
     fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
         if cx.rel(me).flag(0) {
@@ -196,16 +180,12 @@ listener!(FakeVenerableTeaSet {
     }
 });
 
-// ---- combat-end bookkeeping ----------------------------------------------------------------------------------------------------
-
-// +`MaxHp` max HP (and current HP) after every combat.
 listener!(ChosenCheese {
     fn after_combat_end(&self, cx: &mut Combat, _me: Me) {
         cx.gain_max_hp(PLAYER, Dec::int(g::chosen_cheese::MAX_HP as i64));
     }
 });
 
-// counter = `CombatsFinished` (saved), aux/flag 0 = `GaveRelic` (saved). ShowCounter == DisplayAmount > 0 (5 - CombatsFinished).
 listener!(WongosMysteryTicket {
     fn after_combat_end(&self, cx: &mut Combat, me: Me) {
         cx.rel_mut(me).counter += 1;
@@ -219,8 +199,6 @@ listener!(WongosMysteryTicket {
     }
 });
 
-// counter = `CombatsSeen` (saved); ShowCounter == !IsUsedUp (CombatsSeen >= Combats * Relics); DisplayAmount = counter % Combats.
-// (Melting a wax relic every `Combats` combats is not modelled: no wax relics.)
 listener!(ToyBox {
     fn after_combat_end(&self, cx: &mut Combat, me: Me) {
         if cx.rel(me).counter < g::toy_box::COMBATS * g::toy_box::RELICS {
@@ -235,8 +213,6 @@ listener!(ToyBox {
     }
 });
 
-// counter = `CombatsSeen` (saved); ShowCounter; DisplayAmount = counter % Combats. Normal (Monster) rooms only; every
-// `Combats`-th one upgrades a random upgradable deck card (`Rng.Niche.NextItem`).
 listener!(FishingRod {
     fn after_combat_end(&self, cx: &mut Combat, me: Me) {
         if cx.room_type != 0 {
@@ -258,7 +234,6 @@ listener!(FishingRod {
     }
 });
 
-// After an Elite victory: `Cards` random upgradable deck cards are upgraded (`StableShuffle(Rng.Niche)`: n - 1 draws).
 listener!(WarHammer {
     fn after_combat_victory(&self, cx: &mut Combat, _me: Me) {
         if cx.room_type != 1 {
@@ -270,7 +245,6 @@ listener!(WarHammer {
     }
 });
 
-// counter = `ElitesDefeated` (saved); ShowCounter. After `Elites` elites it turns into Sword of Jade (same slot).
 listener!(SwordOfStone {
     fn after_combat_victory(&self, cx: &mut Combat, me: Me) {
         if cx.room_type != 1 {
@@ -290,7 +264,6 @@ listener!(SwordOfStone {
     }
 });
 
-// flag 0 = `TookDamageThisCombat` (saved).
 listener!(LavaLamp {
     fn after_room_entered(&self, cx: &mut Combat, me: Me) {
         cx.rel_mut(me).set_flag(0, false);
@@ -305,8 +278,6 @@ listener!(LavaLamp {
     }
 });
 
-// Heals `Heal` for every creature (not the owner) Doom kills, unless one of its powers keeps the kill from counting
-// (`ShouldOwnerDeathTriggerFatal`).
 listener!(BookRepairKnife {
     fn after_died_to_doom(&self, cx: &mut Combat, _me: Me, creatures: &[Cid]) {
         let n = creatures.iter().filter(|&&c| c != PLAYER && cx.all_powers_trigger_fatal(c)).count() as i32;
@@ -316,16 +287,12 @@ listener!(BookRepairKnife {
     }
 });
 
-// +25% gold from every source.
 listener!(BowlerHat {
     fn modify_gold_gained(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount * g::bowler_hat::GOLD_INCREASE
     }
 });
 
-// ---- saved state only (run-level behaviour) ---------------------------------------------------------------------------------
-
-// counter = `CardsAdded` (saved); ShowCounter; DisplayAmount = counter % Cards. (Deck additions do not happen in combat.)
 listener!(BookOfFiveRings {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::int("CardsAdded", Slot::Counter)]
@@ -335,7 +302,6 @@ listener!(BookOfFiveRings {
     }
 });
 
-// counter = `CombatRewardsSeen` (saved); ShowCounter; DisplayAmount = counter % 2.
 listener!(LastingCandy {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::int("CombatRewardsSeen", Slot::Counter)]
@@ -345,7 +311,6 @@ listener!(LastingCandy {
     }
 });
 
-// counter = `TimesUsed` (saved); ShowCounter == !IsUsedUp (TimesUsed < 3); DisplayAmount = 3 - TimesUsed.
 listener!(WingedBoots {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::int("TimesUsed", Slot::Counter)]
@@ -355,7 +320,6 @@ listener!(WingedBoots {
     }
 });
 
-// counter = `TimesUsed`, aux = `TreasureRoomsEntered` (both saved); ShowCounter == TimesUsed < Cards; DisplayAmount = Cards - TimesUsed.
 listener!(SilverCrucible {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::int("TimesUsed", Slot::Counter), PropDef::int("TreasureRoomsEntered", Slot::Aux)]
@@ -365,7 +329,6 @@ listener!(SilverCrucible {
     }
 });
 
-// counter = `RewardsSacrificed` (saved); ShowCounter; DisplayAmount = counter % Sacrifices.
 listener!(PaelsWing {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::int("RewardsSacrificed", Slot::Counter)]
@@ -375,7 +338,6 @@ listener!(PaelsWing {
     }
 });
 
-// flag 0 = `HasItemBeenBought` (saved): +Gold on entering the room until something is bought in a shop.
 listener!(MawBank {
     fn after_room_entered(&self, cx: &mut Combat, me: Me) {
         if !cx.rel(me).flag(0) {
@@ -399,7 +361,6 @@ listener!(SilkenTress {
     }
 });
 
-// counter = `GoldenPathAct` (saved, initialiser -1).
 listener!(GoldenCompass {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::int("GoldenPathAct", Slot::Counter)]
@@ -409,8 +370,6 @@ listener!(GoldenCompass {
     }
 });
 
-// counter = `FurCoatActIndex` (saved, initialiser -1); the coordinate arrays are saved even when empty. With no marked map
-// coordinates (`FurCoatCoordsSet == false`) the relic does nothing in combat.
 listener!(FurCoat {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![

@@ -1,24 +1,4 @@
 #!/usr/bin/env python3
-"""Headroom of a fight set (DIAGNOSTIC ONLY): an upper bound on how winnable the fights are, from searches that see the true future.
-
-The clairvoyant arms run `FastSearch(clairvoyant=True)`: the K futures of every decision are copies of the true state (the real draw pile order and
-RNG streams) instead of determinizations, so the play-outs meet the future the real fight would meet under the same moves. That reads hidden
-information the real game never shows: these arms are not players and nothing here may feed live play. Every arm plays the same job seeds (common
-random numbers: a (fight, attempt) pair is the same real fight in every arm), so per-seed differences come from the search alone.
-
-  STS2_DEVICE=cuda python tools/headroom.py --fights data/bench/tail.json [--ckpt models/solver_h128.pt] [--attempts 2] [--limit N] \
-      [--arms live:5x32,cv:5x32,cv:8x64,pi:8x1x100] [--out target/headroom/tail.json]
-
-Arms `kind:MxK[xL]` (options x futures x play-out depth in player turns, default L = the live depth `fastsearch.LEAF_TURNS`):
-  live  the normal search (determinized futures), the reference;
-  cv    clairvoyant at the same shape: what knowing the future buys with the same networks judging the leaves (bounds information, not judgment);
-  pi    "perfect information": clairvoyant with one future per option played to the fight's end (L >= 100: no value network at the leaves, so it
-        also removes the value net's judgment; the play-outs are still sampled from the policy).
-`--fights`: a list of scenarios, or the bench format (`[{scenario, wins, ends}]`, `tools/bench.py`; its labels are reported for reference).
-
-Prints per arm: win rate, "any attempt wins", the paired win difference vs live (fight-clustered se); the headroom = share of fights some
-clairvoyant arm wins on an attempt where live never wins (and the reverse, the noise floor of E8). Writes the per-fight win matrices to `--out`.
-"""
 import argparse, json, os, sys, time
 import numpy as np
 
@@ -43,14 +23,12 @@ def parse_arm(spec, leaf_default):
 
 
 def play(net, fights, arm, attempts, seed, roots, threads):
-    """Wins and end HP of every (fight, attempt): ([S, attempts] bool, [S, attempts] end HP absolute), the seconds it took, and the share of play-outs
-    that hit the step cap (`roll_cap`, scored 0 under the linear return: neither a win nor a loss; matters for the deep pi arm)."""
     from fastsearch import FastSearch
     fs = FastSearch(net, M=arm["M"], K=arm["K"], leaf_turns=arm["L"], roots=roots, amp=True, threads=threads, clairvoyant=arm["clairvoyant"])
     fs.warm()
     S = len(fights)
     js = np.tile(np.arange(S, dtype=np.uint32), attempts)
-    jd = np.uint64(seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)  # the seed scheme of tools/frontier.py
+    jd = np.uint64(seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
     t = time.time()
     r = fs.run(fights, js, jd)
     dt = time.time() - t
@@ -62,13 +40,12 @@ def play(net, fights, arm, attempts, seed, roots, threads):
 
 
 def paired(a, b):
-    """Mean and fight-clustered se of the per-fight win-rate difference a - b ([S, attempts] each)."""
     d = a.mean(1) - b.mean(1)
     return float(d.mean()), float(d.std(ddof=1) / np.sqrt(len(d))) if len(d) > 1 else float("nan")
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description="Headroom of a fight set (DIAGNOSTIC ONLY: cv / pi arms see hidden information). Arms kind:MxK[xL], kind in live / cv / pi.")
     ap.add_argument("--fights", required=True, help="scenario list, or the bench format [{scenario, wins, ends}]")
     ap.add_argument("--ckpt", default=os.path.join(ROOT, "models", "solver_h128.pt"))
     ap.add_argument("--arms", default="live:5x32,cv:5x32,cv:8x64,pi:8x1x100", help="comma-separated kind:MxK[xL]; the first live arm is the reference")
@@ -79,7 +56,7 @@ def main():
     ap.add_argument("--threads", type=int, default=None)
     ap.add_argument("--out", default=os.path.join(ROOT, "target", "headroom", "headroom.json"))
     a = ap.parse_args()
-    from fastsearch import LEAF_TURNS, clairvoyant_supported
+    from fastsearch import LEAF_TURNS
     from model import load
 
     raw = json.load(open(a.fights))
@@ -87,14 +64,11 @@ def main():
         raw = raw[:a.limit]
     bench = bool(raw) and isinstance(raw[0], dict) and "scenario" in raw[0]
     fights = [x["scenario"] for x in raw] if bench else raw
-    # per fight: the labels' win rate over their finished attempts (an unfinished attempt is None)
     labels = np.array([np.mean([w for w in x["wins"] if w is not None] or [0.0]) for x in raw]) if bench and all(x.get("wins") for x in raw) else None
     arms = [parse_arm(s.strip(), LEAF_TURNS) for s in a.arms.split(",") if s.strip()]
     ref = next((i for i, x in enumerate(arms) if x["kind"] == "live"), None)
     if ref is None:
         raise SystemExit("--arms needs a live arm (the reference)")
-    if any(x["clairvoyant"] for x in arms) and not clairvoyant_supported():
-        raise SystemExit("the sts2 extension predates the clairvoyant flag: rebuild it (README: maturin develop --release -m crates/sts2py/Cargo.toml)")
     print(f"headroom: {len(fights)} fights from {a.fights} x {a.attempts} attempts, seed {a.seed}, {a.ckpt}; arms: {', '.join(x['label'] for x in arms)}", flush=True)
     print("  (cv / pi arms are DIAGNOSTIC ONLY: they see hidden information)", flush=True)
     net = load(a.ckpt)

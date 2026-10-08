@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-"""Training / evaluation fights for the M3 network (`docs/rl_redesign.md` M3): the fuzz generator's decks (`tools/fuzz_gen_mix.py`) with the relic,
-potion and HP settings of a real run.
-
-  tools/gen_curriculum.py --n 120000 --seed 31 --out target/m3/train.json [--stage full|easy] [--potions-max 8]
-
-Per fight (A10):
-- Character: Ironclad 30 %, each other character 17.5 %. Act 1-3; encounter weights weak 1, regular 3, elite 4, boss 4 (the act's pools).
-- Relics, by act like a real run, drawn from the FULL pools and then filtered: the starter relic (85 %), one Neow relic (Act 1+), the Act 2 ancient's
-  relic (Act 2+) and the Act 3 ancient's (Act 3), each ancient chosen with the game's weights (`data/ancients.json`; Darv at most once; Touch of Orobas
-  upgrades the starter relic), plus act-scaled shared / character / event relics (Act 1: 0-3, Act 2: 2-6, Act 3: 4-9). Of what was drawn, the fight keeps
-  the relics the network observes (combat class, `data/relic_classes.json`) and the potion-linked ones (belt size, potion generation); macro-only and
-  card-only relics change nothing in a fight (M2 mask). Filtering after the draw keeps the share of combat relics what a run gives (Neow offers one).
-  Fur Coat is left out (the simulator does not model it).
-- Potions: belt 2 slots (A10) plus belt relics, sometimes up to `--potions-max` (coverage of big belts); 0..slots potions, more likely full than empty.
-- Start HP: uniform 20-100 % of max HP (arrival HP at elites and bosses spans that range); max HP grows with the act.
-- Deck: starter + act-scaled picks from the character's pool, colorless, event, curse, status, a share of other characters' cards, upgrades, enchantments.
-`--stage easy`: weak / regular fights, Act 1, no potions, starter relic only, 75-100 % HP, decks with a few adds (the curriculum's first stage).
-"""
 import argparse, json, os, random, sys
 from collections import Counter
 
@@ -25,7 +7,7 @@ import fuzz_gen_mix as fg  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 CHAR_W = {"IRONCLAD": 30, "SILENT": 17.5, "DEFECT": 17.5, "NECROBINDER": 17.5, "REGENT": 17.5}
-BELT_RELICS = {"POTION_BELT": 2}  # extra potion slots (decomp: PotionBelt +2); other potion-linked relics fill the belt during a fight
+BELT_RELICS = {"POTION_BELT": 2}
 
 
 UNMODELLED = {"FUR_COAT"}
@@ -63,7 +45,7 @@ class Curriculum:
             return [starter] if has_starter and starter in self.g.have["relic"] else []
         drawn = []
         darv = False
-        for a in range(1, act + 2):  # Neow (act 1), the Act 2 and Act 3 ancients
+        for a in range(1, act + 2):
             if a == 1:
                 drawn.append(r.choice(self.by_act[1]))
                 continue
@@ -102,7 +84,7 @@ class Curriculum:
             return [], 2
         slots = 2 + sum(BELT_RELICS.get(x, 0) for x in relic_ids)
         if r.random() < 0.1:
-            slots = r.randint(slots, pmax)  # coverage of big belts
+            slots = r.randint(slots, pmax)
         slots = min(slots, pmax)
         n = r.choices(range(slots + 1), [1] + [1.5] * (slots - 1) + [3])[0]
         pool = [p for p in self.g.potions[ch] + self.g.potions["SHARED"] if p["usage"] in ("CombatOnly", "AnyTime")]
@@ -120,12 +102,11 @@ class Curriculum:
         enc = r.choices(encs, w)[0]
         _, _, hp0, energy, orbs = fg.STARTERS[ch]
         max_hp = hp0 + act * r.randint(5, 25) + r.randint(0, 15)
-        ns = argparse.Namespace(focus=None)
         focus = r.choices(["mix", "colorless", "junk", "gen", "turn"], [55, 15, 8, 12, 10])[0]
         deck = self.g.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act], enchant_p=0.03)
         if easy:
             deck = deck[:len(fg.STARTERS[ch][0]) + r.randint(0, 4)]
-        elif r.random() < 0.3:  # other characters' cards (Kaleidoscope, Sea Glass, transforms of colorless)
+        elif r.random() < 0.3:
             other = r.choice([c for c in CHAR_W if c != ch])
             for _ in range(r.randint(1, 3)):
                 c = self.g.pick_card(r, [x for x in self.g.cards[other] if x["rarity"] in ("Common", "Uncommon", "Rare")])
@@ -153,7 +134,7 @@ def main():
     C = Curriculum(a.catalog)
     out, i, bad = [], 0, Counter()
 
-    def valid(chunk):  # the env validates every scenario (unported content, capacities): one env per chunk, bisect on failure
+    def valid(chunk):
         try:
             sts2.VecEnv(1, chunk, seed=0)
             return chunk

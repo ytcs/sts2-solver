@@ -1,4 +1,3 @@
-"""`a` chains, the map guard, the decision guards and the pick guard, the skill gate in `_handle`, PRICING bookkeeping, potions set aside."""
 import json
 import os
 
@@ -16,8 +15,6 @@ def no_header(text):
     lines = text.split("\n")
     return "\n".join([lines[0]] + lines[2:])
 
-
-# ---------------------------------------------------------------------------------------------------------------- chains
 
 def test_single_step_logs_macro(monkeypatch, tmp_path):
     fake = FakeBridge(screen("rewards"), on_action=[screen("card_reward")])
@@ -62,7 +59,7 @@ def test_chain_stops_at_combat_select_menu(monkeypatch, tmp_path):
     fake.fight = None
     h = make_harness(monkeypatch, tmp_path, fake)
     out = h.handle("a 0")
-    assert bare(out) == screen("combat")  # no fight export: no drive line, no combat info
+    assert bare(out) == screen("combat")
     fake = FakeBridge(screen("rewards"), on_action=[screen("combat")])
     h = make_harness(monkeypatch, tmp_path, fake)
     out = h.handle("a 0; ~strike")
@@ -73,7 +70,7 @@ def test_chain_stops_at_combat_select_menu(monkeypatch, tmp_path):
     assert bare(out) == screen("select") + "[chain stopped before `0`: SELECT]\n"
     fake = FakeBridge(screen("restsite"), on_action=[screen("select"), screen("restsite")])
     h = make_harness(monkeypatch, tmp_path, fake)
-    out = ok(h.handle("a 1; ~pommel"))  # a selection step named by text goes through
+    out = ok(h.handle("a 1; ~pommel"))
     assert fake.actions() == ["a 1", "a 0"]
     fake = FakeBridge(screen("game_over"), on_action=[screen("menu")])
     h = make_harness(monkeypatch, tmp_path, fake)
@@ -114,34 +111,30 @@ def test_menu_new_run_resets(monkeypatch, tmp_path):
     assert h.aside == set() and h.priced == {} and h.reward_screen is None
     fake = FakeBridge(screen("menu"), on_action=[screen("menu")])
     h = make_harness(monkeypatch, tmp_path, fake, run_id="r2")
-    ok(h.handle("a 0"))  # a bare `a 0` on the menu (no character) is not a new run
+    ok(h.handle("a 0"))
     assert h.log.run_id == "r2"
 
-
-# ---------------------------------------------------------------------------------------------------------------- the map guard
 
 def test_map_guard(monkeypatch, tmp_path):
     fake = FakeBridge(screen("map_elite"), on_action=[screen("combat")])
     h = make_harness(monkeypatch, tmp_path, fake)
     st = low_hp(screen("map_elite"))
-    assert h._map_guard(screen("map_elite"), "1") is None  # 78/80
+    assert h._map_guard(screen("map_elite"), "1") is None
     assert h._map_guard(st, "1") == "REFUSED: `1 Elite r6c2 -> $c2` at 40/80 HP. Heal first, or confirm with `a 1 !` if this is deliberate (check `route` first).\n" + st
     assert h._map_guard(st, "1 !") is None
     assert h._map_guard(st, "0") is None
-    assert h._map_guard(low_hp(screen("map_elite"), "48/80"), "1") is None  # 60% exactly is fine
+    assert h._map_guard(low_hp(screen("map_elite"), "48/80"), "1") is None
     assert h._map_guard(low_hp(screen("map_elite"), "47/80"), "1") is not None
     boss = "MAP\nA1 F16 IRONCLAD A10 HP 30/80 G10 pots[-, -]\nfull map: m\n0 Boss r16c3 -> \n"
     assert h._map_guard(boss, "0").startswith("REFUSED: `0 Boss r16c3 -> ` at 30/80 HP.")
     assert h._map_guard(screen("shop"), "1") is None
-    assert h._map_guard(st, "~elite") is None  # unresolved text is not a number
+    assert h._map_guard(st, "~elite") is None
     fake.screen = st
     assert h.handle("a 1").startswith("REFUSED: `1 Elite")
     assert fake.actions() == []
     ok(h.handle("a 1 !"))
     assert fake.actions() == ["a 1 !"]
 
-
-# ---------------------------------------------------------------------------------------------------------------- decision guards
 
 def gated(monkeypatch, tmp_path, fake, **kw):
     h = make_harness(monkeypatch, tmp_path, fake, **kw)
@@ -155,6 +148,7 @@ ROUTES_REFUSAL = "REFUSED: run `routes` on this floor before a fork choice (sts2
 NEOW_REFUSAL = "REFUSED: run `routes` on this floor before a Neow / ancient choice (sts2-pathing procedure, sts2-harness: routes at every fork).\n"
 REST_REFUSAL = ("REFUSED: rest or smith is priced over the rest of the act (sts2-deckbuilding section 6): `routes --hp <HP after the rest>` and `routes` at "
                 "the HP now, plus `eval --smooth --boss --next` upgrade variants, on this floor.\n")
+
 WHY_REFUSAL = "REFUSED: the `-- why` records the decision: numbers: <what the calculators said> ; judgment: <what decided it>. Missing: "
 
 
@@ -163,18 +157,18 @@ def test_decision_guard_map_and_neow(monkeypatch, tmp_path):
     m = screen("map_a1")
     assert h._decision_guard(m, "1", None) == ROUTES_REFUSAL + m
     h.priced = {"routes": "A1 F2"}
-    assert h._decision_guard(m, "1", None) == ROUTES_REFUSAL + m  # priced on another floor
+    assert h._decision_guard(m, "1", None) == ROUTES_REFUSAL + m
     h.priced = {"routes": "A1 F1"}
     assert h._decision_guard(m, "1", None) is None
     h.priced = {"route": "A1 F1"}
     assert h._decision_guard(m, "1", None) is None
     h.priced = {"eval": "A1 F1"}
     assert h._decision_guard(m, "1", None) == ROUTES_REFUSAL + m
-    assert h._decision_guard(screen("map_single"), "0", None) is None  # no fork
+    assert h._decision_guard(screen("map_single"), "0", None) is None
     assert h._decision_guard(m, "~monster", None) is None
     nh = no_header(m)
     h.priced = {"routes": "A1 F1"}
-    assert h._decision_guard(nh, "1", None) == ROUTES_REFUSAL + nh  # no header: nothing counts as priced
+    assert h._decision_guard(nh, "1", None) == ROUTES_REFUSAL + nh
     n = screen("event_neow")
     h.priced = {}
     assert h._decision_guard(n, "2", None) == NEOW_REFUSAL + n
@@ -205,7 +199,7 @@ def test_decision_guard_shop(monkeypatch, tmp_path):
     s = screen("shop")
     want = "REFUSED: price this shop decision first (`eval` variants, `rmcalc`, `routes`; sts2-deckbuilding section 1 / 6), on this floor.\n" + s
     assert h._decision_guard(s, "4", "numbers: a; judgment: b") == want
-    assert h._decision_guard(s, "14", None) is None  # leave shop
+    assert h._decision_guard(s, "14", None) is None
     for calc in ("eval", "rmcalc", "routes", "pickplan"):
         h.priced = {calc: "A1 F3"}
         assert h._decision_guard(s, "4", "numbers: a; judgment: b") is None, calc
@@ -222,12 +216,12 @@ def test_pick_guard(monkeypatch, tmp_path):
     assert h._decision_guard(c, "2", full) == need
     assert h._pick_guard(c, "2", full) == need
     h.reward_screen = ("A1 F3", ("Armaments", "Headbutt", "Perfected Strike"))
-    assert h._pick_guard(c, "2", full) == need  # a table of another floor
+    assert h._pick_guard(c, "2", full) == need
     h.reward_screen = ("A1 F2", ("Armaments", "Headbutt", "Bash"))
-    assert h._pick_guard(c, "2", full) == need  # another screen's cards
+    assert h._pick_guard(c, "2", full) == need
     h.reward_screen = ("A1 F2", ("Armaments", "Headbutt", "Perfected Strike"))
     assert h._pick_guard(c, "2", full) is None
-    assert h._pick_guard(c, "3", full) is None  # skip needs the same record
+    assert h._pick_guard(c, "3", full) is None
     rec = ("REFUSED: the `-- why` of a card pick records each input of the decision (sts2-deckbuilding section 1): buckets: <five-bucket line, which are open>; "
            "weakest: <weakest fight and what it asks>; numbers: <table: best option and gain, the chosen card's section-3 bar status>; "
            "judgment: <plan fit, density, future problems, synergies: why this choice>. Missing: ")
@@ -235,7 +229,7 @@ def test_pick_guard(monkeypatch, tmp_path):
     assert h._pick_guard(c, "3", "buckets: x; numbers: y") == rec + "weakest:, judgment:.\n"
     assert h._pick_guard(c, "~armaments", None) is None
     assert h._pick_guard(screen("shop"), "1", None) is None
-    assert h._pick_guard("CARD_REWARD\nA1 F2 X\n0 Skip\n", "0", None) is None  # no card on the screen
+    assert h._pick_guard("CARD_REWARD\nA1 F2 X\n0 Skip\n", "0", None) is None
 
 
 def test_guards_through_act(monkeypatch, tmp_path):
@@ -247,7 +241,7 @@ def test_guards_through_act(monkeypatch, tmp_path):
     ok(h.handle("a ~r1c3 -- numbers: x"))
     assert fake.actions() == ["a 1"]
     h = make_harness(monkeypatch, tmp_path, FakeBridge(screen("map_a1"), on_action=[screen("combat")]), run_id="ungated")
-    ok(h.handle("a 1"))  # gate off (bare Harness): the decision guards do not apply
+    ok(h.handle("a 1"))
 
 
 def test_skill_gate_in_handle(monkeypatch, tmp_path):
@@ -260,7 +254,7 @@ def test_skill_gate_in_handle(monkeypatch, tmp_path):
     assert h.handle("a 0") == "REFUSED: " + msgs["REWARDS"] + "\n"
     assert h.handle("turn") == "REFUSED: " + msgs["REWARDS"] + "\n"
     assert fake.actions() == []
-    assert bare(h.handle("s")) == screen("rewards")  # read-only
+    assert bare(h.handle("s")) == screen("rewards")
     fake.screen = screen("treasure")
     msgs["CARD_REWARD"] = "skills not loaded in this session: sts2-x. Invoke them with the Skill tool and read them, then repeat the command. No game action happens before that."
     h.priced["routes"] = "A1 F2"
@@ -269,8 +263,6 @@ def test_skill_gate_in_handle(monkeypatch, tmp_path):
     fake.screen = screen("shop")
     assert h.handle("do {\"end_turn\":true}") == "REFUSED: `do` sends a raw action past the harness's guards; use `a <i>`, `turn` or `combat`.\n"
 
-
-# ---------------------------------------------------------------------------------------------------------------- PRICING bookkeeping
 
 def test_pricing_records_floor(monkeypatch, tmp_path):
     fake = FakeBridge(screen("shop_a2"), deck_json=None)
@@ -290,11 +282,11 @@ def test_pricing_records_floor(monkeypatch, tmp_path):
         assert h.priced["eval"] == "A2 F23", bad
     monkeypatch.setattr(h, "routes", lambda rest: "routes: no node left before the boss: the next fight is the boss")
     h.handle("routes")
-    assert h.priced["routes"] == "A1 F11"  # that one did price
+    assert h.priced["routes"] == "A1 F11"
     fake.screen = no_header(screen("shop"))
     monkeypatch.setattr(h, "rmcalc", lambda rest: "table\n")
     h.handle("rmcalc")
-    assert h.priced["rmcalc"] == "A2 F23"  # no header: not priced
+    assert h.priced["rmcalc"] == "A2 F23"
 
 
 def test_pricing_failures_real_methods(monkeypatch, tmp_path):
@@ -317,10 +309,7 @@ def test_pricing_failures_real_methods(monkeypatch, tmp_path):
     assert h.priced == {}
 
 
-# ---------------------------------------------------------------------------------------------------------------- potions set aside
-
 def test_potion_aside_and_numbering(monkeypatch, tmp_path):
-    """`potion aside` (kept for the boss) is saved with the run record and survives a daemon restart; `hold` is retired and every table prices the real belt."""
     d = deck()
     d["potions"] = [dict(id="POWER_POTION", slot=0), dict(id="FIRE_POTION", slot=1)]
     fake = FakeBridge(screen("shop_a2"), deck_json=d)
@@ -329,18 +318,18 @@ def test_potion_aside_and_numbering(monkeypatch, tmp_path):
     with open(os.path.join(h.log.dir, "potion_aside.json"), encoding="utf-8") as f:
         assert json.load(f) == ["FIRE_POTION", "POWER_POTION"]
     assert h.handle("potion") == "set aside for the boss: ['FIRE_POTION', 'POWER_POTION']\n"
-    assert json.loads(h._deck_raw()) == d  # no potion is hidden from the tables
+    assert json.loads(h._deck_raw()) == d
     assert h.status().endswith("potions set aside for the boss: ['FIRE_POTION', 'POWER_POTION']")
     from agent.harness import Harness
-    assert Harness().aside == {"FIRE_POTION", "POWER_POTION"}  # a daemon restart keeps it
+    assert Harness().aside == {"FIRE_POTION", "POWER_POTION"}
     assert h.handle("potion aside none") == "set aside for the boss: nothing\n"
     assert h.handle("potion use fire potion") == "ERR not in combat\n"
-    assert h.handle("potion allow all").startswith("usage: potion use <name>")  # `potion allow all` is gone
+    assert h.handle("potion allow all").startswith("usage: potion use <name>")
     assert h.handle("hold FIRE_POTION").startswith("REFUSED: `hold` is retired")
     assert [e["aside"] for e in events(h) if e["kind"] == "potion_aside"] == [["FIRE_POTION", "POWER_POTION"], []]
     from agent import potions
 
-    class Sim:  # slot 0 already thrown: the simulator's `potion N` keeps the fight's slot numbers
+    class Sim:
         def legal(self):
             return [(1, "potion 1"), (2, "discard potion 1"), (3, "end turn")]
     sc = dict(potions=[dict(id="WEAK_POTION", slot=0), dict(id="SPEED_POTION", slot=1)])

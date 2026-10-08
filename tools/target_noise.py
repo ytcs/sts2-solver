@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""How much of the search's policy target is noise: the same decision states searched again with fresh seeds.
-
-  STS2_DEVICE=cuda python tools/target_noise.py target/exit/r4s_00*.npz --ckpt target/exit/r3.pt [--states 2000] [--M 5 --K 32] [--repeats 2] [--ref-K 256]
-
-Samples searched decisions from `rl/exit.py collect` parts, rebuilds each state (`sts2.Sim` from the scenario and the job seed, then the recorded action
-prefix) and searches it `--repeats` times at the collection width with different search seeds (one decision each: `max_steps` 1). With `--ref-K`, a
-reference search with many more futures per option judges which option is best. Reports:
-  - how often the repeats pick the same best option, and how often each matches the reference's best;
-  - the run-to-run spread of an option's estimate against the gap between options (signal to noise);
-  - the anchored target's view: min-max normalised estimates (what `train --target anchored` uses) correlated across repeats.
-"""
 import argparse, glob, json, os, sys, time
 
 import numpy as np
@@ -20,7 +9,6 @@ import sts2  # noqa: E402
 
 
 def sample_states(files, n, rng):
-    """(scenario, seed, prefix) of n searched decisions drawn uniformly from the parts."""
     parts = [np.load(f, allow_pickle=True) for f in files]
     sizes = np.array([len(z["d_fight"]) for z in parts])
     picks = rng.choice(sizes.sum(), n, replace=False)
@@ -37,7 +25,6 @@ def sample_states(files, n, rng):
 
 
 def search(fs, states, seed):
-    """Root options and estimates of every state: opts [S, W], q [S, W] (NaN where not tried)."""
     sims = []
     for s in states:
         sim = sts2.Sim(json.dumps(s["scenario"]), s["seed"])
@@ -108,8 +95,8 @@ def main():
     print(f"\n{ok.sum()} of {len(states)} states searched with the same options in every run")
     b0, b1 = np.nanargmax(q0, 1), np.nanargmax(q1, 1)
     print(f"best option repeats across seeds: {np.mean(b0 == b1):.3f}")
-    d = q0 - q1  # an option's estimate, run to run (same options, fresh futures)
-    noise = np.nanstd(d) / np.sqrt(2)  # se of one run's estimate
+    d = q0 - q1
+    noise = np.nanstd(d) / np.sqrt(2)
     srt = -np.sort(-np.where(np.isfinite(q0), (q0 + q1) / 2, -np.inf), 1)
     gap = srt[:, 0] - srt[:, 1]
     print(f"se of one option's estimate: {noise:.4f} (linear return units; win = +1 + 0.5 x HP fraction, loss = -1)")

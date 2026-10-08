@@ -1,35 +1,3 @@
-"""The self-play harness: one long-lived object that holds the game connection, the solver and the aligned simulator of the current fight.
-
-Commands (`Harness.handle(line)`, reachable from the shell as `python -m agent <command>`):
-  s                     the game state (numbered options), as the bridge renders it
-  adv [secs]            the state plus the solver's advice for the next combat action and the enemies' expected damage over the next turns (nothing is played)
-  turn [secs]           play the current combat turn with the solver; combat [secs] plays the whole fight. secs = search budget per decision (default auto: the cap is set at fight start from the
-                        solver's predicted danger, 1-15 s; `budget <s>` fixes it, `budget auto` restores). Search stops early on a clear winner or a tie
-  a <i> [target] [-- why]   (chain steps with `;`, `~text` picks the option containing text: `a ~gold; ~card; ~proceed`; stops on error / combat, map click last)
-                        take option i of the screen (macro and everything else); `-- why` is stored with the decision. A map click onto an elite or boss
-                        below 60% HP is refused unless confirmed with `a <i> !`
-  reward [--attempts N] [--hp full]   on a card reward screen: every option and skip priced against the boss (smooth), the elites left and the next act, in one table
-  brief                 the run at a glance: header, deck, buckets and gaps, relics, potions, the known boss and the elites that can still appear
-  eval {json} | eval [--all] [--smooth] (--enc IDS | --pool Act:kind[:n] | --future | --boss | --elites | --next) --v "name|add=A,B|upgrade=C|remove=D" ...   combat value of variants of the current deck against encounter pools
-  route <M E R S B ...> [--hp N] [--act Hive] [--exclude IDS]   HP budget (pools narrowed to what can still appear: not the encounters already met this act, only the known boss) along a planned route (fights played at the HP I would arrive with, rests heal 30%)
-  routes [--attempts N] [--pf P]   survival of every route on the act map (exact DP over node x HP with the solver's fight outcomes): per option on offer, P(win boss) with at least k more elites, and the representative route per k (agent/routes.py)
-  rmcalc [--attempts N] [--hp full|current|N]   every removable card priced as a removal (boss smooth, elites left, next act), ranked: use at a shop's removal, a removal event
-  relics                relic counters in combat (Pen Nib, Book of Five Rings ...)
-  potions               the turn's potion proposal on demand: each potion priced use now / keep (later this fight) / save, P(win) and end HP (agent.proposal)
-  potion use <name>     commit ONE potion now at the target the proposal priced (`turn` / `combat` stop with POTION PROPOSAL; the next turn re-prices the rest)
-  potion aside <name>[,name] | none   potions kept for the boss: outside boss fights they stop `turn` / `combat` only when the win is at stake
-  note <text>           a free-text note in the run record
-  newrun                start a new run record
-  status                what the harness is holding (run id, fight, replay fidelity, engine)
-  d | p draw | m | draw r1c6 r2c6 ... | x ... | f ...   straight to the bridge (deck, piles, map, draw a route on the map, dev console, fast mode)
-
-Micro = `turn` / `combat`: the solver searches every action from a state rebuilt out of observations only (`agent.fight`), then the action is sent to the game.
-Macro = me, with `eval` for the combat side of a choice and the strategy book (`.claude/skills/sts2-*`) for everything else.
-
-Layout: this file dispatches commands and owns the state; `agent.live` (mixin) is the fight loop and the potion junctures, `agent.guards` the decision guards,
-`agent.screen` reads screen text, `agent.runctx` the run context the calculators price against, `agent.potions` the slot numbering, `agent.proposal` the
-potion proposals and the per-fight objective.
-"""
 import functools
 import json
 import os
@@ -47,16 +15,13 @@ from agent.runlog import RunLog
 
 PICK_RECORD = guards.PICK_RECORD
 
-# calculator outputs that priced nothing (a guard must not count them as the procedure having run); "routes: no node left before the boss" did price
 PRICING_FAILED = ("ERR", "REFUSED", "reward: not", "no run", "need --enc", "routes: no act map", "routes: boss unknown", "eval: ")
 PRICING = {"eval": "evaluate", "reward": "reward", "route": "route", "routes": "routes", "rmcalc": "rmcalc", "pickplan": "pickplan"}
 
-# screen readers under their old names (agent.screen has the rules)
 _floor, _kind, _act_index, _hp = scr.floor_key, scr.kind, scr.act_index, scr.hp
 
 
 def _needs_run(reply):
-    """A calculator that prices the run snapshot: `reply` is what it prints when there is no run (`runctx.NoRun` from `_run`)."""
     def deco(fn):
         @functools.wraps(fn)
         def wrapped(self, *a, **kw):
@@ -76,23 +41,22 @@ class Harness(Live):
         self.fight_id = None
         self.log = RunLog()
         self.last_state = ""
-        self.priced = {}  # calculator -> floor ('A1 F5') it last ran on: the decision guards (`_decision_guard`) read it
-        self.table_seed = 0  # seed of the tables on this screen (set per pricing call from the floor, `--seed N` adds N): `Engine.table_seed`
-        self.reward_screen = None  # (floor, card names) of the card reward last priced with `reward` (the pick guard needs it)
-        self.gate = False  # the daemon turns the skill gate on (`agent.skillgate`): no game action before the governing skills are loaded; tests build a bare Harness
+        self.priced = {}
+        self.table_seed = 0
+        self.reward_screen = None
+        self.gate = False
         self.fight_hp0 = None
         self.fight_actions = 0
         self._ended = set()
-        self.budget = None  # fixed seconds of search per decision (`budget <s>`); None = auto from the fight's predicted danger (`budget auto`)
+        self.budget = None
         self.fight_budget = 1.0
         self._checked_turn = None
         self.potions_used = 0
-        self._pred_q = None  # the predicted distribution of HP lost for this fight (calibration: where the real loss falls in it)
-        self.aside = self._load_aside()  # potion ids kept for the boss (`potion aside`, agent.live): saved with the run record, so a daemon restart keeps it
-        self.fight_tol = 1.0  # HP of expected regret the search may leave on the table per decision
-        self._rc = None  # the run context of this command (`_context`), dropped when an action runs
+        self._pred_q = None
+        self.aside = self._load_aside()
+        self.fight_tol = 1.0
+        self._rc = None
 
-    # ------------------------------------------------------------------ plumbing
 
     def _aside_path(self):
         return os.path.join(self.log.dir, "potion_aside.json")
@@ -113,10 +77,9 @@ class Harness(Live):
             self._bookkeeping_error("save potion aside", e)
 
     def _bookkeeping_error(self, where, e):
-        """A failure that must not break the command, recorded in the run record instead of hidden."""
         try:
             self.log.event("harness_error", where=where, error=f"{type(e).__name__}: {e}"[:300])
-        except Exception:  # noqa: BLE001  the record itself is what failed
+        except Exception:  # noqa: BLE001
             pass
 
     def eng(self):
@@ -128,35 +91,28 @@ class Harness(Live):
             return self.engine
 
     def _send(self, line):
-        """Every game action (`a ...`, `do ...`) goes through here: the screen changes, so the run context of this command is stale."""
         self._rc = None
         return call(line)
 
     def _new_run(self):
-        """A new run record (the narrowing of the encounter pools reads it) and every per-run memory cleared: potions set aside, priced floors, the last reward table."""
         self.log.new_run()
         self.aside = set()
         self.priced = {}
         self.reward_screen = None
 
-    # ------------------------------------------------------------------ the run as the calculators see it
 
     def _deck_raw(self):
-        """The run snapshot every calculator prices (`deck.json`) as text; "null" = no run."""
         return call("deck.json").strip()
 
     def _run(self):
-        """The priced run snapshot as a dict; raises `runctx.NoRun` when no run is in progress."""
         raw = self._deck_raw()
         if raw == "null":
             raise runctx.NoRun()
-        if raw.startswith("ERR"):  # the bridge is down or busy: say so instead of failing to parse it
+        if raw.startswith("ERR"):
             raise RuntimeError(raw.split("\n")[0])
         return json.loads(raw)
 
     def _cur_act(self, ctx):
-        """0-based act for the pools. The act the map's boss belongs to wins over the state header: `peek` does not wait for the screen to settle and can come back
-        without a header (right after a fight or an act change), which used to fall back to act 0 and price Act 1 bosses in Act 2."""
         act = runctx.act_of_bosses(ctx["bosses"])
         if act is not None:
             return act
@@ -168,19 +124,17 @@ class Harness(Live):
                 return act
             if s.startswith("ERR"):
                 errs.append(s.split("\n")[0])
-        if errs:  # act 0 because the bridge failed, not because the screen has no header: the pools may be the wrong act's
+        if errs:
             self._bookkeeping_error("context: act", RuntimeError(errs[-1]))
         return 0
 
     def _context(self):
-        """The run context (`runctx.RunContext`) of this command: the map's boss(es), the act, the encounters met this act (read from this run's record).
-        Built once per command and dropped when an action runs; a failure to read the map or the record is logged and leaves that part empty."""
         if self._rc is not None:
             return self._rc
         bosses, map_text, seen = [], "", []
         try:
             map_text = call("m")
-            if map_text.startswith("ERR"):  # the bridge reports its failures as text: no boss known, but say why in the record
+            if map_text.startswith("ERR"):
                 self._bookkeeping_error("context: map", RuntimeError(map_text.split("\n")[0]))
             bosses = runctx.bosses_from_map(map_text)
         except Exception as e:  # noqa: BLE001
@@ -195,7 +149,6 @@ class Harness(Live):
         return self._rc
 
     def _ctx(self):
-        """What narrows the encounter pools (see `macro.narrow`): dict(seen=encounters met this act in order, bosses=the act's boss(es) in fight order)."""
         return self._context().ctx
 
     def _horizon(self):
@@ -204,21 +157,17 @@ class Harness(Live):
     def _future_encounters(self):
         return self._context().future()
 
-    # ------------------------------------------------------------------ macro
 
     def act(self, argline):
-        """`a <i> [target] [-- why]`, or a chain `a 0; ~gold; ~card 1; ~proceed -- why`: steps run one after the other, each against the screen the previous one left.
-        A step is an option number (+ args) or `~text` = the first option whose label contains text. The chain stops at the first error or refusal and when a combat
-        starts; a map choice must be the last step (never chain map clicks)."""
         why = None
         if " -- " in argline:
             argline, why = argline.split(" -- ", 1)
         steps = [t.strip() for t in argline.split(";") if t.strip()]
         reply, last_kind = "", None
         for i, step in enumerate(steps):
-            before = self.last_state if i else call("peek")  # after a step the reply is already the settled state
+            before = self.last_state if i else call("peek")
             if not i and (before.startswith("ERR") or scr.busy(before)):
-                before = self.state()  # mid-transition: wait for it to settle
+                before = self.state()
             kind = scr.kind(before)
             if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2 and scr.option_line(before, "0").startswith("0 new run"):
                 self._new_run()
@@ -245,29 +194,25 @@ class Harness(Live):
             if reply.startswith("ERR"):
                 return reply
         if last_kind in ("COMBAT", "SELECT") and scr.kind(reply) not in ("COMBAT", "SELECT") and self.rp is not None:
-            # a fight I finished by hand (manual drive, the killing blow, or my death): record its end NOW with the screen it left, not at the next sync (which read the HP
-            # after a rest, and never came after a death: the game keeps exporting the finished fight on the GAME_OVER screen)
             try:
                 self._fight_end(reply)
-            except Exception as e:  # noqa: BLE001  never let bookkeeping break a command
+            except Exception as e:  # noqa: BLE001
                 self._bookkeeping_error("fight end", e)
-        if scr.kind(reply) == "COMBAT" and last_kind not in ("COMBAT", "SELECT"):  # a fight just started: decide auto or manual for it now
+        if scr.kind(reply) == "COMBAT" and last_kind not in ("COMBAT", "SELECT"):
             try:
                 self.sync()
                 reply = reply.rstrip("\n") + "\n" + self._drive_line()
-            except Exception as e:  # noqa: BLE001  never let bookkeeping break a command
+            except Exception as e:  # noqa: BLE001
                 self._bookkeeping_error("fight start", e)
         if scr.kind(reply) == "COMBAT":
             reply = reply.rstrip("\n") + "\n" + self._combat_info()
         return self._public(reply, fight_start=scr.kind(reply) == "COMBAT" and last_kind not in ("COMBAT", "SELECT"))
 
     def _public(self, reply, fight_start=False):
-        """Adds the public run counters (`agent/tracker.py`: potion drop chance, rare offset, unknown-room odds, removal price) to the screens where they
-        bear on a choice: map, rewards, shop, event, treasure, rest, and the start of a fight (a potion spent now vs the chance of another after it)."""
         if scr.kind(reply) in ("MAP", "REWARDS", "CARD_REWARD", "SHOP", "EVENT", "TREASURE", "RESTSITE") or fight_start:
             try:
                 return reply.rstrip("\n") + "\n" + tracker.from_record(os.path.join(self.log.dir, "events.jsonl")).line() + "\n"
-            except Exception as e:  # noqa: BLE001  never let bookkeeping break a command
+            except Exception as e:  # noqa: BLE001
                 self._bookkeeping_error("tracker", e)
         return reply
 
@@ -282,11 +227,9 @@ class Harness(Live):
     def _pick_guard(self, state, step, why):
         return guards.pick_guard(state, step, why, self.reward_screen)
 
-    # ------------------------------------------------------------------ calculators (the decision guards ask which ran on this floor: PRICING)
 
     @_needs_run("no run in progress")
     def route(self, argline):
-        """route <tokens> [--hp N] [--act Overgrowth] [--exclude ID,ID] [--attempts N]: HP budget along a planned route (see agent.macro.route_budget)."""
         a = Args(argline, valued=("--hp", "--act", "--exclude", "--attempts"))
         hp = a.get("--hp", None, int)
         excl = a.get("--exclude").split(",") if a.has("--exclude") else []
@@ -297,13 +240,12 @@ class Harness(Live):
 
     @_needs_run("no run in progress")
     def routes(self, argline):
-        """routes [--attempts N] [--pf P] [--w E=4,M=1] [--hp N]: survival of every route on the act map and the price of each extra elite (agent.routes)."""
         from agent import routes
         a = Args(argline, valued=("--attempts", "--pf", "--w", "--hp"))
         deck = self._run()
         rc = self._context()
         state = call("peek")
-        if a.has("--hp"):  # what-if start HP (rest vs smith: the HP after the rest vs now)
+        if a.has("--hp"):
             state = re.sub(r"HP \d+/", f"HP {a.get('--hp', cast=int)}/", state, count=1)
         text = routes.analyse(self.eng(), deck, rc.map_text, state, rc.ctx, rc.names[0], a.get("--attempts", 24, int), a.get("--pf", 0.15, float), weights=a.weights())
         self.log.event("routes", text=text)
@@ -311,17 +253,15 @@ class Harness(Live):
 
     @_needs_run("no run in progress\n")
     def rmcalc(self, argline):
-        """rmcalc [--attempts N] [--hp full|current|N]: every removable card priced as a removal (boss smooth, elites, next act), ranked (macro.removal_report)."""
         a = Args(argline, valued=("--attempts", "--hp"))
         att, hp = a.get("--attempts", 64, int), a.hp()
-        deck = self._run()  # before the engine: no run, no network loading
+        deck = self._run()
         text, res = macro.removal_report(self.eng(), deck, self._horizon(), att, hp, "all")
         self.log.event("rmcalc", text=text)
         return text + "\n"
 
     @_needs_run("no run in progress\n")
     def pickplan(self, argline):
-        """pickplan [--screens K] [--elites E] [--shops S] [--slots N] [--rho R] [--attempts N]: how picky to be at a card reward given the offers still to come (agent.pickplan)."""
         from agent import pickplan
         a = Args(argline, valued=("--screens", "--elites", "--shops", "--slots", "--rho", "--attempts"))
         deck = self._run()
@@ -338,7 +278,6 @@ class Harness(Live):
 
     @_needs_run("no run in progress\n")
     def reward(self, argline):
-        """reward [--attempts N] [--hp full|current|N]: the card reward on screen, every option and skip priced in one call (boss smooth, elites, next act)."""
         state = call("peek")
         if scr.kind(state) != "CARD_REWARD":
             return f"reward: not a card reward screen ({scr.kind(state)}); use eval\n"
@@ -354,8 +293,6 @@ class Harness(Live):
 
     @_needs_run("no run in progress")
     def price(self, argline):
-        """`price [n] [--sat X]`: the options of this screen priced by paired run-model rollouts (`agent/price.py`); a shop by bundles within the
-        budget. Ranked by the horizon ladder; `--sat`: the P(clear act) at which the ranking moves up to next-act readiness (default 0.9)."""
         from agent import price as PR
         state = call("peek")
         args = argline.split()
@@ -410,13 +347,13 @@ class Harness(Live):
                 elif t == "--pool":
                     a, kind, *n = val.split(":")
                     spec["encounters"] = dict(act=a, kind=kind, n=int(n[0]) if n else 0)
-                elif t in ("--boss", "--elites", "--next"):  # the horizon sets (see runctx.RunContext.horizon): the known boss, the elites that can still appear, the next act's elites + bosses
+                elif t in ("--boss", "--elites", "--next"):
                     spec["encounters"] = self._horizon()[t[2:]]
-                elif t == "--all":  # do not narrow the pool to the fights that can still appear
+                elif t == "--all":
                     spec["all"] = True
-                elif t == "--future":  # eval: the boss and elite pools of this act and every later act (horizon check)
+                elif t == "--future":
                     spec["encounters"] = self._future_encounters()
-                elif t == "--smooth":  # the deck-choice objective: win rate averaged over start HP x1 / 1.5 / 2 / 3 (macro.evaluate_smooth)
+                elif t == "--smooth":
                     spec["smooth"] = True
                 elif t == "--attempts":
                     spec["attempts"] = int(val)
@@ -427,11 +364,11 @@ class Harness(Live):
                     v = dict(name=parts[0])
                     for p in parts[1:]:
                         k, x = p.split("=", 1)
-                        v[k] = int(x) if k == "hp" else [y for y in x.split(",") if y]  # `potions=` (empty) = no potions
+                        v[k] = int(x) if k == "hp" else [y for y in x.split(",") if y]
                     spec["variants"].append(v)
         if "encounters" not in spec:
             return "need --enc IDS or --pool Act:kind[:n]"
-        spec.setdefault("hold", "all")  # non-boss fights are priced without potions (a lower bound: I spend one only when it is worth it); the boss with them
+        spec.setdefault("hold", "all")
         if not spec.pop("all", False):
             spec["_ctx"] = self._ctx()
         deck = self._run()
@@ -439,7 +376,6 @@ class Harness(Live):
         self.log.event("eval", spec=spec, result=macro.loggable(summary))
         return text
 
-    # ------------------------------------------------------------------ dispatch
 
     def status(self):
         st = dict(self.rp.stats) if self.rp else {}
@@ -449,14 +385,13 @@ class Harness(Live):
                 f"potions set aside for the boss: {sorted(self.aside) or 'none'}")
 
     def handle(self, line):
-        self._rc = None  # every command reads the run afresh (the screen may have changed since the last one)
+        self._rc = None
         out = self._handle(line)
         self._watch_run_end(out)
-        self.log.live(cmd=line, reply=out, screen=self.last_state, fight=getattr(self, "_last_f", None) if self.rp is not None else None)  # dashboard feed (no bridge call)
+        self.log.live(cmd=line, reply=out, screen=self.last_state, fight=getattr(self, "_last_f", None) if self.rp is not None else None)
         return out
 
     def _watch_run_end(self, out):
-        """Record how a run ended (once per run record): the screen after the last fight, the floor, the encounter that ended it. `improve review` reads it."""
         try:
             kind = scr.kind(out)
             first = out.splitlines()[0].lower() if out else ""
@@ -466,11 +401,10 @@ class Harness(Live):
                 return
             self._run_end_logged = self.log.run_id
             self.log.event("run_end", screen=kind, header=scr.header_line(out, ""), last_encounter=getattr(self, "last_enc", None), text=out[:400])
-        except Exception as e:  # noqa: BLE001  never let bookkeeping break a command
+        except Exception as e:  # noqa: BLE001
             self._bookkeeping_error("run end", e)
 
     def _skill_refusal(self, state_text):
-        """None, or why this game action may not happen yet (skills of the ACTIVE session not loaded). Off for a bare Harness (tests) and with STS2_SKILL_GATE=off."""
         if not self.gate:
             return None
         return skillgate.gate_message(skillgate.active(), state_text)
@@ -512,9 +446,9 @@ class Harness(Live):
                 return "REFUSED: `hold` is retired: potions are proposed every turn and committed one at a time; `potion aside <name>` keeps one for the boss.\n"
             if cmd == "a":
                 return self.act(rest)
-            if cmd in PRICING:  # the decision guards ask which calculators ran on this floor
-                here = scr.floor_key(call("peek"))  # the floor the calculator priced (read before it runs: the screen it saw)
-                m = re.search(r"(?:^|\s)--seed\s+(\d+)", rest)  # `--seed N`: fresh draws on this screen (a re-run without it repeats the same ones)
+            if cmd in PRICING:
+                here = scr.floor_key(call("peek"))
+                m = re.search(r"(?:^|\s)--seed\s+(\d+)", rest)
                 if m:
                     rest = rest[:m.start()] + rest[m.end():]
                 self.table_seed = zlib.crc32((here or "").encode()) % 100_000 * 100 + (int(m.group(1)) if m else 0)
@@ -530,7 +464,7 @@ class Harness(Live):
                 from agent import plans
                 ch = scr.character(call("peek"))
                 return "\n\n".join(plans.text(p) for p in plans.load() if not ch or p["character"] == ch) + "\n"
-            if cmd == "relics":   # relic counters and saved state of the live fight (e.g. Pen Nib: attacks played so far, Book of Five Rings ...)
+            if cmd == "relics":
                 raw = call("snap").strip()
                 if raw == "null":
                     return "not in combat\n"
@@ -544,13 +478,13 @@ class Harness(Live):
             if cmd == "newrun":
                 self._new_run()
                 return f"run {self.log.run_id}\n"
-            if cmd == "do" and self.gate:  # a raw bridge action skips every guard (map, decision record): play through `a` / `turn` / `combat`
+            if cmd == "do" and self.gate:
                 return "REFUSED: `do` sends a raw action past the harness's guards; use `a <i>`, `turn` or `combat`.\n"
-            if cmd == "draw":  # the planned route, for the dashboard's map (logged after the bridge drew it)
+            if cmd == "draw":
                 out = call(line)
                 try:
                     self.log.event("route_plan", nodes=re.findall(r"r\d+c\d+", rest))
-                except Exception as e:  # noqa: BLE001  never let bookkeeping break a command
+                except Exception as e:  # noqa: BLE001
                     self._bookkeeping_error("route plan", e)
                 return out
             return call(line)

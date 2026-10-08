@@ -1,13 +1,3 @@
-//! Generates the content registry: scans `src/content/{cards,powers,relics,potions,monsters,encounters}/*.rs` and wires every
-//! item into the id-indexed registries, so adding content never edits a shared file.
-//!
-//! Conventions (class names are the game's C# class names, so ids resolve through the same slug rule as `ids.rs`):
-//! * cards/powers/relics/potions: `listener!(ClassName { ... });` (use `{}` for no hooks) — registers the item.
-//!   Card/power stat tables come from `gen_*.rs`.
-//! * monsters: `pub static <SLUG>_DEF: MonsterDef = ...;` registers the monster definition; an optional
-//!   `listener!(ClassName { ... });` supplies monster-model hooks (`AfterDeath`, ...).
-//! * encounters: `pub fn spawn_<slug_lower>(rng: &mut Rng, ascension: u8) -> Spawns` registers an encounter composition.
-
 use std::fmt::Write as _;
 use std::{env, fs, path::Path};
 
@@ -45,7 +35,6 @@ fn files(dir: &Path) -> Vec<String> {
 }
 
 fn scan(src: &str, prefix: &str, suffix: &str) -> Vec<String> {
-    // find `prefix IDENT suffix` occurrences (very small hand-rolled scanner; no regex dependency)
     let mut out = vec![];
     let mut rest = src;
     while let Some(p) = rest.find(prefix) {
@@ -65,8 +54,7 @@ fn main() {
     let content = Path::new(&root).join("src/content");
     println!("cargo:rerun-if-changed=src/content");
     let mut out = String::new();
-    // module declarations (absolute paths: robust to where the generated file is included from)
-    let mut cat_items: Vec<(String, Vec<(String, String)>)> = vec![]; // category -> (item, module path)
+    let mut cat_items: Vec<(String, Vec<(String, String)>)> = vec![];
     let mut mon_defs: Vec<(String, String)> = vec![];
     let mut mon_listeners: Vec<(String, String)> = vec![];
     let mut enc: Vec<(String, String)> = vec![];
@@ -113,7 +101,6 @@ fn main() {
             }
         }
     };
-    // Representative entities kept in `engine_core*` files yield to a real port of the same class (instead of a build error).
     let cat_items: Vec<(String, Vec<(String, String)>)> = cat_items
         .into_iter()
         .map(|(cat, items)| {
@@ -154,7 +141,6 @@ fn main() {
         writeln!(out, "registry!({m}_listener, {m}_mask, {m}, &NO_LISTENER;\n{ents});").unwrap();
         writeln!(out, "registry!(impl {m}_implemented, {m};\n{ents});").unwrap();
     }
-    // monsters
     let ents: String = mon_listeners.iter().map(|(id, p)| format!("    {id} => {p},\n")).collect();
     writeln!(out, "registry!(monster_listener, monster_mask, monster, &NO_LISTENER;\n{ents});").unwrap();
     writeln!(out, "pub fn monster_def(id: u16) -> &'static MonsterDef {{\n    match id {{").unwrap();
@@ -163,7 +149,6 @@ fn main() {
     }
     writeln!(out, "        _ => panic!(\"unimplemented monster {{}}\", ids::monster::NAMES[id as usize]),\n    }}\n}}").unwrap();
     writeln!(out, "pub fn monster_implemented(id: u16) -> bool {{\n    matches!(id, {})\n}}", if mon_defs.is_empty() { "_ if false".to_string() } else { mon_defs.iter().map(|(i, _)| format!("ids::monster::{i}")).collect::<Vec<_>>().join(" | ") }).unwrap();
-    // encounters
     writeln!(out, "pub fn encounter_spawns(id: u16, rng: &mut crate::rng::Rng, ascension: u8) -> Option<Spawns> {{\n    match id {{").unwrap();
     for (id, p) in &enc {
         writeln!(out, "        ids::encounter::{id} => Some({p}(rng, ascension)),").unwrap();

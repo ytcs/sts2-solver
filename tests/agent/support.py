@@ -1,8 +1,3 @@
-"""Offline fakes for the harness tests: a scripted bridge, a deterministic engine, a pytest-like monkeypatch, golden files.
-
-Nothing here may reach the live game (bridge :15555) or the harness daemon (:15556): the fake bridge raises on any command it has no reply for, the bridge
-socket is patched to raise, and every file the harness writes (run records, evals, skill state) is redirected under a temporary directory.
-"""
 import hashlib
 import json
 import os
@@ -18,7 +13,7 @@ if ROOT not in sys.path:
 
 
 def screen(name):
-    with open(os.path.join(FIX, "screens", name + ".txt"), encoding="utf-8") as f:  # universal newlines: a CRLF checkout (core.autocrlf) reads the same
+    with open(os.path.join(FIX, "screens", name + ".txt"), encoding="utf-8") as f:
         return f.read()
 
 
@@ -31,7 +26,6 @@ def deck():
     return fixture_json("deck.json")
 
 
-# a synthesized Act 2 (Hive) map in the bridge's `m` format (mods/AgentBridge/src/Decisions.cs FullMap): I stand on r1c1
 MAP_A2 = """rows bottom->top; point = <type>c<col>><child cols>; * = visited
 r0: *Ac3>1,3,5
 r1: *Mc1>0,2 Mc3>3 Mc5>6
@@ -52,11 +46,7 @@ full map: m
 """
 
 
-# ---------------------------------------------------------------------------------------------------------------- monkeypatch
-
 class MonkeyPatch:
-    """The part of pytest's `monkeypatch` the tests use (setattr, setitem, setenv, delenv, undo)."""
-
     _MISSING = object()
 
     def __init__(self):
@@ -85,12 +75,7 @@ class MonkeyPatch:
             self._undo.pop()()
 
 
-# ---------------------------------------------------------------------------------------------------------------- the bridge
-
 class FakeBridge:
-    """Canned replies by command. `screen` is what `s` / `peek` show; `a <...>` replies come from `on_action` (a function of the command, or a list
-    consumed in order); `m`, `deck.json`, `fight`, `p draw` and `snap` from attributes. Any other command fails the test."""
-
     def __init__(self, screen_text="", deck_json=None, map_text="no map\n", fight=None, on_action=None, draw="draw (0):\n"):
         self.screen = screen_text
         self.deck = deck_json
@@ -135,15 +120,14 @@ class FakeBridge:
 
 
 def patch_bridge(mp, fake):
-    """Replace `call` everywhere it was imported by name (agent.harness and any module split out of it later), and make the socket path raise."""
     import agent.bridge as bridge
-    import agent.harness  # noqa: F401  imported first, so its modules bind the real `call` that is replaced below (a cold import after patching would keep a fake)
+    import agent.harness  # noqa: F401
     real = bridge.call
     for name, mod in list(sys.modules.items()):
         c = getattr(mod, "call", None) if mod is not None and (name == "agent" or name.startswith("agent.")) else None
-        if c is not None and (c is real or isinstance(c, FakeBridge)):  # a second harness in the same test replaces the first one's fake
+        if c is not None and (c is real or isinstance(c, FakeBridge)):
             mp.setattr(mod, "call", fake)
-    for name in ("agent.bridge", "agent.harness", "agent.live"):  # (agent.live: after the refactor)
+    for name in ("agent.bridge", "agent.harness", "agent.live"):
         assert name not in sys.modules or sys.modules[name].call is fake, name
 
     def no_socket(*a, **kw):
@@ -152,17 +136,12 @@ def patch_bridge(mp, fake):
     return fake
 
 
-# ---------------------------------------------------------------------------------------------------------------- the engine
-
 def _h(*parts):
     return int(hashlib.sha1(json.dumps(parts, sort_keys=True, default=str).encode()).hexdigest()[:12], 16)
 
 
 class FakeEngine:
-    """Deterministic stand-in for `agent.engine.Engine`: every result is a function of the scenario's content (never of its position in the batch),
-    so the same pricing request gives the same numbers before and after a refactor. `log` records every solve call (attempts + scenario keys)."""
-
-    worth_ok = True  # the per-fight objective tables (`agent.proposal.fight_objective`) are available
+    worth_ok = True
 
     def __init__(self, decide=None):
         self.log = []
@@ -175,8 +154,8 @@ class FakeEngine:
                 sorted((c["id"], c.get("upgrade", 0), json.dumps(c.get("enchantment"), sort_keys=True)) for c in sc.get("deck", [])),
                 sorted(r["id"] for r in sc.get("relics", [])), [p["id"] for p in sc.get("potions", [])])
 
-    def solve(self, scenarios, attempts=64, seed=None, util=None, groups=None, worth=None):
-        self.log.append(dict(attempts=attempts, util=util is not None, **({"worth": worth.get("kind", "table")} if worth is not None else {}), scen=[[sc.get("name"), sc.get("encounter"), sc.get("hp"), [p["id"] for p in sc.get("potions", [])]] for sc in scenarios]))
+    def solve(self, scenarios, attempts=64, seed=None, groups=None, worth=None):
+        self.log.append(dict(attempts=attempts, **({"worth": worth.get("kind", "table")} if worth is not None else {}), scen=[[sc.get("name"), sc.get("encounter"), sc.get("hp"), [p["id"] for p in sc.get("potions", [])]] for sc in scenarios]))
         out = []
         for sc in scenarios:
             rng = random.Random(_h(self._key(sc), attempts))
@@ -192,26 +171,22 @@ class FakeEngine:
 
     @staticmethod
     def arm_key(sim):
-        """What a play-out start shows of the potion arms: (potions in the belt, the player's Strength, the turn)."""
         sn = json.loads(sim.snapshot())
         st = sum(p.get("amount", 0) for p in sn.get("player", {}).get("powers", []) if p.get("id") == "STRENGTH_POWER")
         return len(sn.get("potions", [])), st, sn.get("turn")
 
     def outcome(self, key, sd):
-        """(won, end HP fraction) of one play-out: a function of the seed alone (every potion arm ties, so nothing is proposed); the proposal tests
-        override it with arm-dependent outcomes (`arm_key`)."""
         rng = random.Random(_h(str(sd)))
         return (1, 0.2 + 0.5 * rng.random()) if rng.random() < 0.6 else (-1, 0.0)
 
     def play_on(self, scenario, starts, seeds, worth=None, record=False):
-        """Deterministic stand-in for the batch solver continuing a live fight (`outcome`); `record`: each job's actions are its start's end turn."""
         self.log.append(dict(play_on=len(starts), worth=(worth or {}).get("kind", "linear"), potions=[len(json.loads(s.snapshot()).get("potions", [])) for s in starts[:1]]))
         mx = scenario.get("max_hp", 80)
         out = []
         for s, sd in zip(starts, seeds):
             oc, fr = self.outcome(self.arm_key(s), sd)
             row = (oc, fr, round(fr * mx) if oc == 1 else 0.0)
-            if record:  # the turn ended at once, then the first option of every selection that asks
+            if record:
                 c, acts = s.copy(), [a for a, t in s.legal() if t == "end turn"][:1]
                 for a in acts[:1]:
                     c.step(a)
@@ -222,17 +197,14 @@ class FakeEngine:
             out.append(row)
         return out
 
-    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, util=None, worth=None):
+    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, worth=None):
         self.decide_calls.append(dict(budget=budget, tol_hp=tol_hp, keep_potions=keep_potions, worth=(worth or {}).get("kind", "linear")))
         if self._decide is not None:
             return self._decide(scenario, sim, budget, keep_potions)
         raise AssertionError("FakeEngine.decide called without a scripted decision")
 
 
-# ---------------------------------------------------------------------------------------------------------------- the harness
-
 def isolate(mp, tmp):
-    """Every file a test could write goes under `tmp`; the per-process caches start empty."""
     from agent import improve, pickplan, routes, runlog, skillgate
     mp.setattr(runlog, "ROOT", os.path.join(str(tmp), "runs"))
     mp.setattr(improve, "EVALS", os.path.join(str(tmp), "evals"))
@@ -242,7 +214,6 @@ def isolate(mp, tmp):
 
 
 def make_harness(mp, tmp, fake, events=(), run_id="testrun", engine=None):
-    """A bare Harness (skill gate off) on the fake bridge, its run record under tmp/runs/<run_id> pre-filled with `events` (dicts)."""
     isolate(mp, tmp)
     from agent import runlog
     d = os.path.join(runlog.ROOT, run_id)
@@ -261,7 +232,6 @@ def make_harness(mp, tmp, fake, events=(), run_id="testrun", engine=None):
 
 
 def fight_starts(upto=None):
-    """The fight_start events of the recorded run (id, encounter, scenario.act), up to fight id `upto`."""
     out = []
     with open(os.path.join(FIX, "fight_starts.jsonl"), encoding="utf-8") as f:
         for l in f:
@@ -280,7 +250,6 @@ def events(h):
 
 
 def golden(name, text):
-    """Compare with tests/agent/golden/<name>; STS2_UPDATE_GOLDEN=1 rewrites it."""
     p = os.path.join(GOLD, name)
     if os.environ.get("STS2_UPDATE_GOLDEN") == "1" or not os.path.exists(p):
         os.makedirs(GOLD, exist_ok=True)
@@ -296,7 +265,7 @@ def golden(name, text):
 
 
 class Skip(Exception):
-    """A skipped test (tests/agent/run.py counts it); under pytest, pytest.skip."""
+    pass
 
 
 def skip(why):
@@ -308,11 +277,9 @@ def skip(why):
 
 
 def ok(out):
-    """A command's output that must not be the harness's exception text."""
     assert not out.startswith("ERR harness"), out
     return out
 
 
 def bare(out):
-    """A reply without the public-odds line (`agent/tracker.py`) the harness adds to decision screens."""
     return "".join(x for x in out.splitlines(keepends=True) if not x.startswith("public odds:"))

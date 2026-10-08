@@ -1,5 +1,3 @@
-//! Library half of `sts2diff`: oracle-scenario conversion, state snapshots and the replay/compare engine.
-
 pub mod convert;
 pub mod diff;
 pub mod snapshot;

@@ -18,7 +18,6 @@ debug = false
 inherits = "release"
 debug = true
 
-# Fast-iteration profile for instruction-count profiling (callgrind): optimised, parallel codegen, symbols.
 [profile.prof]
 inherits = "release"
 lto = "off"

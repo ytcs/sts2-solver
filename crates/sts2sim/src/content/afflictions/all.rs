@@ -1,6 +1,3 @@
-//! The 7 afflictions (`Models/Afflictions/*.cs`). Almost all of their logic lives in the powers that apply them
-//! (ChainsOfBinding, Tangled, Galvanic, Hex, Ringing, Smoggy, Tainted).
-
 use crate::hooks::*;
 use crate::listener;
 use crate::state::*;
@@ -13,7 +10,6 @@ listener!(Galvanized {
         true
     }
 });
-// Hexed: if the owner has no Hex power when the card (re-)enters combat, the affliction clears itself.
 listener!(Hexed {
     fn after_card_entered_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {
         if card as u16 != me.idx {

@@ -1,11 +1,8 @@
-//! Defect potions that need the orb subsystem.
-
 use crate::hooks::*;
 use crate::ids;
 use crate::listener;
 use crate::state::*;
 
-// Channel one Dark orb per orb slot (the slot count is read once; a full queue keeps evoking its front orb).
 listener!(EssenceOfDarkness {
     fn on_use_potion(&self, cx: &mut Combat, _potion: u16, _target: Cid, _phase: u8) -> Flow {
         let n = cx.player.orb_slots;

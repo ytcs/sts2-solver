@@ -1,5 +1,3 @@
-//! Necrobinder Doom cards (and the Doom-flavoured powers' cards).
-
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -10,7 +8,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `PowerCmd.Apply<T>(Owner.Creature, amount, Owner.Creature, card)`.
 fn apply_self(cx: &mut Combat, power: u16, amount: i32, p: &CardPlay) {
     cx.apply_power(power, PLAYER, Dec::int(amount as i64), PLAYER, p.card);
 }
@@ -24,7 +21,6 @@ fn attack(cx: &mut Combat, p: &CardPlay, t: Targeting) -> crate::engine::Results
     cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, t))
 }
 
-// Deal damage; apply Doom equal to the (blocked + unblocked) damage dealt.
 listener!(BlightStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let results = attack(cx, p, Targeting::Single(p.target));
@@ -34,7 +30,6 @@ listener!(BlightStrike {
     }
 });
 
-// Doom then Weak on every hittable enemy.
 listener!(Deathbringer {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let doom = cx.card_power_var(p.card, ids::power::DOOM_POWER);
@@ -45,7 +40,6 @@ listener!(Deathbringer {
     }
 });
 
-// Block; again (Repeat) if you applied Doom this turn.
 listener!(DeathsDoor {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut gains = 1;
@@ -60,7 +54,6 @@ listener!(DeathsDoor {
     }
 });
 
-// Doom on every hittable enemy, then kill every doomed hittable enemy.
 listener!(EndOfDays {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let doom = cx.card_power_var(p.card, ids::power::DOOM_POWER);
@@ -92,7 +85,6 @@ listener!(NegativePulse {
     }
 });
 
-// Doom = CalcBase + CalcExtra x floor(target's Doom / DoomThreshold).
 listener!(NoEscape {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let have = cx.power_amount(p.target, ids::power::DOOM_POWER);
@@ -103,7 +95,6 @@ listener!(NoEscape {
         Flow::Done
     }
     fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
-        // `floor(target?.Doom ?? 0 / DoomThreshold)`
         let have = if target == NO { 0 } else { cx.power_amount(target, ids::power::DOOM_POWER) };
         Some(crate::engine::calc_extra_with(cx, card, have / cx.card_named_var(card, var_name::DOOM_THRESHOLD).max(1)))
     }
@@ -127,7 +118,6 @@ listener!(Scourge {
     }
 });
 
-// Damage = target's Doom amount.
 listener!(TimesUp {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let doom = cx.power_amount(p.target, ids::power::DOOM_POWER);
@@ -136,7 +126,6 @@ listener!(TimesUp {
         Flow::Done
     }
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
-        // `target?.GetPowerAmount<DoomPower>() ?? 0`
         let doom = if target == NO { 0 } else { cx.power_amount(target, ids::power::DOOM_POWER) };
         Some(crate::engine::calc_with(cx, card, doom))
     }
@@ -150,7 +139,6 @@ listener!(Countdown {
     }
 });
 
-// Gain energy, draw, then gain the Neurosurge debuff (Doom on yourself each turn).
 listener!(Neurosurge {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let e = cx.card_var(p.card, VarKind::Energy);
@@ -187,7 +175,6 @@ listener!(Debilitate {
     }
 });
 
-// Powers whose card applies a single self-power.
 listener!(Calcify {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_power_var(p.card, ids::power::CALCIFY_POWER);
@@ -283,7 +270,6 @@ listener!(ForbiddenGrimoire {
     }
 });
 
-// Lose Strength, gain max energy.
 listener!(Friendship {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let s = cx.card_power_var(p.card, ids::power::STRENGTH_POWER);

@@ -1,4 +1,3 @@
-// Emits golden RNG vectors from the game's own Rng/StringHelper so the Rust port can be checked bit-for-bit.
 using System.Text.Json;
 using MegaCrit.Sts2.Core.Extensions;
 using MegaCrit.Sts2.Core.Helpers;

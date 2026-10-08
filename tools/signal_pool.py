@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""A collection pool weighted by training signal (the user's curriculum idea): fights the player already saturates, or loses whatever it plays,
-teach little; fights near the middle teach the most.
-
-  STS2_DEVICE=cuda tools/signal_pool.py --ckpt target/exit/r3.pt --cands target/exit/cand_r4.json --n 35000 --out target/exit/pool_r4s.json \
-      [--uniform-out target/exit/pool_r4u.json] [--anchor 0.15] [--seed 0]
-
-Every candidate (multiplayer-only cards left out) is scored with the predictor (`rl/predictor.py`, the outcome head at the fight start; calibrated per
-band on round 3: predicted 0.51 vs real 0.54 in [0.3, 0.7), 0.995 vs 0.995 above 0.97). The pool draws `--anchor` of its fights uniformly (the outcome
-head still sees every kind of fight: the run model prices easy and hopeless ones too) and the rest without replacement with weight p(1 - p), the
-variance of the fight's outcome (round 3: the 0.1-0.9 band held 33 % of the fights and 73 % of the near-miss losses; the >= 0.97 band 44 % and 2 %).
-Selection is on the fight's configuration, before any seed is played: the outcome labels of the collected fights stay unbiased.
-`--uniform-out`: a uniform pool of the same size from the same candidates (the control arm).
-"""
 import argparse, json, os, sys, time
 
 import numpy as np

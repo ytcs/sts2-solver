@@ -1,10 +1,3 @@
-//! Bit-exact port of the game's RNG stack (`MegaCrit.Sts2.Core.Random.{MegaRandom,Rng}`).
-//!
-//! * `MegaRandom` is xoshiro256** seeded through splitmix64.
-//! * `Rng` wraps it with a call counter (used by saves) and name-derived seeding:
-//!   `seed + xxHash64(utf8(name))` (wrapping).
-
-/// xxHash64 (seed 0) of a byte slice; the game hashes stream names with it.
 pub fn xxh64(data: &[u8], seed: u64) -> u64 {
     const P1: u64 = 0x9E3779B185EBCA87;
     const P2: u64 = 0xC2B2AE3D27D4EB4F;
@@ -75,7 +68,6 @@ pub fn xxh64(data: &[u8], seed: u64) -> u64 {
     h ^ (h >> 32)
 }
 
-/// `StringHelper.GetDeterministicHashCode`.
 #[inline]
 pub fn deterministic_hash(s: &str) -> u64 {
     xxh64(s.as_bytes(), 0)
@@ -90,7 +82,6 @@ fn splitmix64(x: &mut u64) -> u64 {
     z ^ (z >> 31)
 }
 
-/// One game RNG stream (`Rng`): xoshiro256** plus the call counter the game persists.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rng {
     s: [u64; 4],
@@ -98,24 +89,20 @@ pub struct Rng {
 }
 
 impl Rng {
-    /// `new Rng(seed)`.
     pub fn new(seed: u64) -> Self {
         let mut x = seed;
         let s = [splitmix64(&mut x), splitmix64(&mut x), splitmix64(&mut x), splitmix64(&mut x)];
         Rng { s, counter: 0 }
     }
 
-    /// Raw xoshiro state words (for traces / save-compat).
     pub fn state(&self) -> [u64; 4] {
         self.s
     }
 
-    /// Restores a saved stream (`SerializableRng`: counter + 4 words).
     pub fn from_state(counter: i32, s: [u64; 4]) -> Self {
         Rng { s, counter }
     }
 
-    /// `new Rng(seed, name)`: `seed + xxHash64(name)`.
     pub fn named(seed: u64, name: &str) -> Self {
         Self::new(seed.wrapping_add(deterministic_hash(name)))
     }
@@ -140,7 +127,6 @@ impl Rng {
         (self.next_u64_inner() >> 11) as f64 * 1.1102230246251565e-16
     }
 
-    /// `Rng.NextInt(maxExclusive)`; `max` must be >= 1.
     #[inline]
     pub fn next_int(&mut self, max_exclusive: i32) -> i32 {
         debug_assert!(max_exclusive >= 1);
@@ -148,7 +134,6 @@ impl Rng {
         (self.unit_f64() * max_exclusive as f64) as i32
     }
 
-    /// `Rng.NextInt(minInclusive, maxExclusive)`.
     #[inline]
     pub fn next_int_range(&mut self, min_inclusive: i32, max_exclusive: i32) -> i32 {
         debug_assert!(min_inclusive < max_exclusive);
@@ -161,42 +146,36 @@ impl Rng {
         }
     }
 
-    /// `Rng.NextBool()` — note: goes through `Next(2) == 0`, not the raw top bit.
     #[inline]
     pub fn next_bool(&mut self) -> bool {
         self.counter = self.counter.wrapping_add(1);
         (self.unit_f64() * 2.0) as i32 == 0
     }
 
-    /// `Rng.NextDouble()`.
     #[inline]
     pub fn next_double(&mut self) -> f64 {
         self.counter = self.counter.wrapping_add(1);
         self.unit_f64()
     }
 
-    /// `Rng.NextFloat()` (max 1): `(float)(NextDouble() * (max-min) + min)`.
     #[inline]
     pub fn next_float(&mut self) -> f32 {
         self.counter = self.counter.wrapping_add(1);
         (self.unit_f64() * 1.0f64) as f32
     }
 
-    /// `Rng.NextFloat(max)` = `(float)(NextDouble() * (double)max)`.
     #[inline]
     pub fn next_float_max(&mut self, max: f32) -> f32 {
         self.counter = self.counter.wrapping_add(1);
         (self.unit_f64() * max as f64) as f32
     }
 
-    /// `Rng.NextUnsignedLong()`.
     #[inline]
     pub fn next_u64(&mut self) -> u64 {
         self.counter = self.counter.wrapping_add(1);
         self.next_u64_inner()
     }
 
-    /// `Rng.NextUnsignedLong(maxExclusive)`.
     #[inline]
     pub fn next_u64_below(&mut self, max_exclusive: u64) -> u64 {
         if max_exclusive == u64::MAX {
@@ -206,7 +185,6 @@ impl Rng {
         (self.unit_f64() * max_exclusive as f64) as u64
     }
 
-    /// `Rng.Shuffle` / `UnstableShuffle` (identical swap sequence): Fisher–Yates from the back.
     pub fn shuffle<T>(&mut self, list: &mut [T]) {
         let mut i = list.len();
         while i > 1 {
@@ -216,17 +194,12 @@ impl Rng {
         }
     }
 
-    /// `Rng.WeightedNextItem(items, weight)`: one `NextFloat()` draw, walk subtracting weights.
-    /// Returns the index of the chosen item, or `None` (fallback) if every weight is exhausted.
     pub fn weighted_index(&mut self, weights: &[f32]) -> Option<usize> {
         let r = self.next_float();
         Self::weighted_index_with(r, weights)
     }
 
-    /// `Rng.WeightedNextItem(randInput, ...)` with an explicit uniform input. Float math mirrors
-    /// the game: sum in f32, then subtract f32 weights in order.
     pub fn weighted_index_with(rand_input: f32, weights: &[f32]) -> Option<usize> {
-        // LINQ `Sum(IEnumerable<float>)` accumulates in double and casts at the end.
         let mut total = 0f64;
         for &w in weights {
             total += w as f64;

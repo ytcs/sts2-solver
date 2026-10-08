@@ -1,20 +1,3 @@
-"""Pick planner: how picky to be at a card reward when more offers are still coming (optimal stopping on a stream of offers with a limited number of deck slots).
-
-`python -m agent pickplan [--screens K] [--elites E] [--shops S] [--slots N] [--rho R]` (read-only).
-
-Why: a pick that is positive now can still be a mistake when the next K reward screens and the shops will offer cards worth more for the same deck slot. The pools and the
-odds are known (`[code]` CardRarityOdds.cs: A10 Scarcity: regular 61.5% common / 37% uncommon / 1.49% + offset rare, offset starts at -5%, +0.5% per card rolled, reset by a
-rare; elite 54.9 / 40 / 5% + offset; shop 58.5 / 37 / 4.5%, the offset is not changed by shops; MerchantInventory.cs: 5 class cards (types Attack, Attack, Skill, Skill, Power) +
-2 colorless (Uncommon, Rare); a reward screen = 3 distinct cards of the class pool).
-
-Method:
-1. Gain of every pool card for the CURRENT deck: the need-weighted gain over the boss, the elites to come and the next act (`macro.need_view`: each fight weighted by how
-   unsolved it is), one simulator evaluation per card.
-2. Monte Carlo of the offer stream: K regular reward screens (+ E elite screens, + S shops), each card's gain drawn from the table by its rarity / type.
-3. A threshold policy: take an offered card when its gain >= tau and a slot is free; the m-th card taken counts rho**m of its gain (a card added to a bigger deck is worth less:
-   density, `sts2-deckbuilding` blind spot 7). Search tau for the best expected total. The current screen: take the options with gain >= tau (best first), skip the rest.
-`[hyp]`: rho and the slot count are judgments (defaults rho 0.85, slots 6); the gains of different cards are treated as additive.
-"""
 import os
 import re
 
@@ -25,7 +8,7 @@ from agent import macro
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 RUST = os.path.join(ROOT, "crates", "sts2sim", "src", "content")
 
-REGULAR = dict(common=0.615, uncommon=0.37, rare=0.0149)  # A10 (Scarcity)
+REGULAR = dict(common=0.615, uncommon=0.37, rare=0.0149)
 ELITE = dict(common=0.549, uncommon=0.40, rare=0.05)
 SHOP = dict(common=0.585, uncommon=0.37, rare=0.045)
 GROWTH, OFFSET0, OFFSET_MAX = 0.005, -0.05, 0.4
@@ -43,7 +26,6 @@ def _pool(name):
 
 
 def card_table():
-    """{ID: (rarity, type)} for the Ironclad and colorless pools, parsed from the generated card definitions."""
     src = _read("gen_cards.rs")
     info = {}
     for m in re.finditer(r"CardDef::new\(ids::card::(\w+), -?\d+, CardType::(\w+), CardRarity::(\w+),", src):
@@ -58,11 +40,10 @@ def pools():
     return cls, col
 
 
-_GAINS = {}  # (deck, relics, fights, attempts) -> gains: repeated calls at the same deck are free
+_GAINS = {}
 
 
 def _gains(engine, deck_json, hz, batch, attempts, smooth, hold):
-    """{ID: need-weighted gain over the current deck} for the cards in `batch` (one evaluation; a card the simulator cannot run is dropped by bisection)."""
     out = {}
 
     def run(b):
@@ -78,7 +59,7 @@ def _gains(engine, deck_json, hz, batch, attempts, smooth, hold):
             return
         try:
             run(b)
-        except Exception:  # noqa: BLE001  unported content: split until the culprit is alone
+        except Exception:  # noqa: BLE001
             if len(b) == 1:
                 return
             mid = len(b) // 2
@@ -90,15 +71,12 @@ def _gains(engine, deck_json, hz, batch, attempts, smooth, hold):
 
 
 def card_gains(engine, deck_json, hz, ids, attempts=32, hold=(), top=40):
-    """Need-weighted gain of every pool card for the current deck, in two stages: a cheap screen of all cards (a quarter of the attempts, the boss without the HP-smooth
-    average), then the `top` best re-priced properly (smooth boss, full attempts). Cards that did not make the second stage keep half their (clipped) screening gain."""
     key = (tuple(sorted((c["id"], c.get("upgrade", 0)) for c in deck_json["deck"])), tuple(r["id"] for r in deck_json.get("relics", [])), tuple(p["id"] for p in deck_json.get("potions", [])),
            tuple(hz["boss"]), tuple(hz["elites"]), tuple(hz["next"]), attempts, top)
     if key in _GAINS:
         return dict(_GAINS[key])
     coarse = _gains(engine, deck_json, hz, ids, max(8, attempts // 4), False, hold)
     best = [c for c, _ in sorted(coarse.items(), key=lambda kv: -kv[1])[:top]]
-    # fresh draws for the second stage: the luck that promoted a card in the screen must not carry into its proper price
     s0 = getattr(engine, "table_seed", 0)
     engine.table_seed = s0 + 7_777
     try:
@@ -124,8 +102,6 @@ def _rarity(rng, odds, offset):
 
 
 def simulate(gains, cls, col, screens, elites, shops, offset, slots, rho, taus, trials=4000, seed=1):
-    """Expected total value of a threshold policy for each tau in `taus` (+ the greedy policy 'take any positive gain' = tau just above 0)."""
-    rng = np.random.default_rng(seed)
     import random
     r = random.Random(seed)
     by_r = {k: [c for c in cls if cls[c][0] == k and c in gains] for k in ("common", "uncommon", "rare")}
@@ -133,7 +109,7 @@ def simulate(gains, cls, col, screens, elites, shops, offset, slots, rho, taus, 
     colr = {k: [c for c in col if col[c][0] == k and c in gains] for k in ("uncommon", "rare")}
     totals = np.zeros(len(taus))
     for _ in range(trials):
-        stream = []  # list of lists of gains (one list per screen / shop)
+        stream = []
         off = offset
         order = ["reg"] * screens + ["elite"] * elites
         r.shuffle(order)
@@ -177,8 +153,6 @@ def simulate(gains, cls, col, screens, elites, shops, offset, slots, rho, taus, 
 
 
 def analyse(engine, deck_json, hz, offer=None, screens=3, elites=0, shops=0, slots=6, rho=0.85, offset=OFFSET0, attempts=32, hold=()):
-    """The planner's report; `offer` = the card reward on screen ({display name: card id}): each option is judged against tau* (a card outside the
-    priced pools has no gain: `nan`, skip)."""
     cls, col = pools()
     ids = [c for c in list(cls) + list(col)]
     gains = card_gains(engine, deck_json, hz, ids, attempts, hold)

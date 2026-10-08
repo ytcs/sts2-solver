@@ -8,7 +8,6 @@ using MegaCrit.Sts2.Core.Rooms;
 
 namespace OracleCombat;
 
-/// <summary>Random scenario generator for fuzzing: character starter + random extra cards/relics/potions.</summary>
 public static class Fuzz
 {
     public static IEnumerable<string> AllEncounterIds() =>
@@ -69,7 +68,6 @@ public static class Fuzz
 
     public static int StableHash(string s) { int h = 17; foreach (var c in s) h = unchecked(h * 31 + c); return h & 0x7fffffff; }
 
-    /// <summary>Metadata for external scenario generators (tools/fuzz_gen_orb_pet.py): encounters, card/relic/potion pools.</summary>
     public static JsonObject ListMeta()
     {
         var o = new JsonObject();

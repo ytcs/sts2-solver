@@ -1,14 +1,3 @@
-"""The solver as a service for the harness.
-
-  eng = Engine()                                  # loads the networks once (STS2_DEVICE=cuda for the GPU; about a minute incl. graph capture)
-  d = eng.decide(scenario, sim, budget=1.0)       # micro: best next action of a fight in progress, within a time budget (seconds)
-  r = eng.solve(scenarios, attempts=64)           # macro / prediction: win rate and HP lost of fights played from their start
-
-`decide` conditions on what a player can observe (hand, piles as multisets, HP / block / energy, powers, relic counters, potions, the enemies' intents and
-known patterns) and resamples hidden information (draw order, enemy random branches, RNG) for every future. One round tries the policy's 5 likeliest
-actions on 32 futures each (~10 ms); rounds repeat with fresh futures until the budget is spent or the best action is clearly ahead, so an obvious turn
-costs a fraction of a second and a high-stakes turn can be given more time. `budget=0` is a single round.
-"""
 import json
 import math
 import os
@@ -30,9 +19,6 @@ MAX_ROUNDS = 400
 
 
 def _opportunity_loss(acc):
-    """Expected regret of stopping now (Bayesian expected opportunity loss, as in ranking-and-selection): the largest, over the other options, of
-    E[max(0, mu_other - mu_best)] with the means' standard errors from the round means (at least 4 rounds each). It is ~0 both when one option is clearly ahead
-    and when the options tie (all lines cost the same), and large only when thinking can still change the outcome. Units: return (1 HP = 0.5 / max HP)."""
     ranked = sorted(((np.mean(v), np.var(v, ddof=1) / len(v)) for v in acc.values() if len(v) >= 4), reverse=True)
     if len(ranked) < 2:
         return 0.0 if len(acc) <= 1 else math.inf
@@ -48,46 +34,29 @@ def _opportunity_loss(acc):
 
 
 class Engine:
-    def __init__(self, M=5, K=32, ckpt=None, value_ckpts="default", root="topm", gumbel_m=16, gumbel_n=160):
-        """`ckpt` / `value_ckpts`: other networks than the adopted ones (a gate or an A/B). `root="gumbel"`: `decide` runs one Gumbel search of
-        `gumbel_n` futures over `gumbel_m` sampled candidates instead of rounds of M x K (`rl/fastsearch.py`; benchmarks only, live play stays top-M);
-        `fs.root`, `fs.gumbel_m`, `fs.gumbel_n` can also be switched between calls."""
-        self.solver = Solver() if ckpt is None else Solver(ckpt, value_ckpts=value_ckpts)
+    def __init__(self, M=5, K=32, ckpt=None):
+        self.solver = Solver() if ckpt is None else Solver(ckpt)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        self.fs = FastSearch(self.solver.net, self.solver.value_nets, M, K, conf=1.01, roots=1, groups=1, amp=cuda, root=root, gumbel_m=gumbel_m, gumbel_n=gumbel_n)
-        # a per-fight objective table (`worth`, `agent.proposal.fight_objective`) needs the outcome head's value rows in both searches
+        self.fs = FastSearch(self.solver.net, M, K, conf=1.01, roots=1, groups=1, amp=cuda)
         self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
         assert (proposal.HEAD_BIN, proposal.HEAD_NC) == (heads.BIN, heads.NC), "agent/proposal.py and rl/heads.py disagree on the outcome classes"
         self.fs.warm()
         self.seed = 0
-        # seed of the tables (`solve` without a seed): the harness sets it per screen, so a re-run on the same screen repeats the same draws (and every variant
-        # of one call shares them: common random numbers) while the next screen, or `--seed N`, draws fresh ones
         self.table_seed = 0
 
-    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, util=None, worth=None, rounds=None):
-        """Best next action for the fight in `sim`. Returns dict(action, json, text, searched, rounds, seconds, rows, options=[dict(action, text, p, q)]);
-        `rows` = (policy rows, value rows) the search asked for (its network cost). `rounds`: exactly that many rounds (budget and tolerance ignored).
-        A Gumbel root (`fs.root == "gumbel"`) is one search whose own choice is played (budget, tolerance and `rounds` ignored); its options also carry the
-        futures `n` and the improved policy `pi` of each candidate.
-        Search stops at `budget` seconds or when the expected regret of the leading action is below `tol_hp` HP; `json` is the oracle-script form of the action (sent to the bridge's `do`); a selection is answered pick by pick (see `agent.harness`).
-        `worth`: the fight's objective as a table over the outcome head's classes (`agent.proposal.win_only_worth`; None = the linear return); the q values are
-        then in the table's units and the tolerance is scaled by the table's span (a win-only table: `tol_hp` HP of the linear return = the same share of a win)."""
+    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, worth=None, rounds=None):
         t0 = time.perf_counter()
-        tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)  # the return counts half the HP fraction left
-        if worth is not None:  # the linear return spans loss -1 .. win at full HP +1.5; a table spans its own range
+        tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)
+        if worth is not None:
             u = np.asarray(worth["u"], np.float64)
             tol *= float(u.max() - u[0]) / 2.5
-        # `util`: the fight's HP-worth curve (101 floats, `rl/utility.py`) = what each ending is worth for the rest of the act; None = the linear return
-        self.fs.set_util(util)
         n_rounds, acc, first, rounds = rounds, {}, None, 0
-        # simulator slots of the potions held back (`agent.potions`): the scenario's order (a thrown potion leaves its slot empty; the slots do not shift)
         held = potions.held_indices(scenario, keep_potions)
         def _held(t):
             return t.startswith("potion") and (keep_potions is True or potions.text_index(t) in held)
-        skip = {a for a, t in sim.legal() if t.startswith("discard potion") or _held(t)}  # the bridge cannot discard a potion, and a tie must never throw one away
-        # held potions leave the searched copy entirely: filtering only the first action still let deeper lines of the tree throw them (and value those lines)
+        skip = {a for a, t in sim.legal() if t.startswith("discard potion") or _held(t)}
+        # held potions leave the searched copy, so no line of the search can throw them
         search = sim.without_potions(held) if held else sim
-        gumbel = getattr(self.fs, "root", "topm") == "gumbel"
         n_rows = [0, 0]
         while True:
             self.seed += 1
@@ -98,8 +67,8 @@ class Engine:
             rounds += 1
             if first is None:
                 first = r
-            if not r["searched"] or gumbel:
-                break  # a forced move: nothing to refine; a Gumbel search is one search
+            if not r["searched"]:
+                break
             for a, q, ok in zip(r["opts"], r["q"], r["legal"]):
                 if ok and a not in skip and not np.isnan(q):
                     acc.setdefault(a, []).append(float(q))
@@ -110,42 +79,20 @@ class Engine:
                 break
         text = dict(sim.legal())
         opts = []
-        if gumbel:
-            for i, (a, p, q, ok) in enumerate(zip(first["opts"], first["p"], first["q"], first["legal"])):
-                if ok:
-                    o = dict(action=a, text=text.get(a, f"#{a}"), p=round(float(p), 3), q=None if np.isnan(q) else round(float(q), 3))
-                    if "n" in first:
-                        o.update(n=int(first["n"][i]), pi=round(float(first["pi"][i]), 3))
-                    opts.append(o)
-            a = first["action"]
-            if a in skip:  # the engine knows nothing of held potions: fall back to the best other candidate by its estimate
-                a = max((o for o in opts if o["action"] not in skip and o["q"] is not None), key=lambda o: o["q"], default={"action": a})["action"]
-        else:
-            for a, p, ok in zip(first["opts"], first["p"], first["legal"]):
-                if ok:
-                    q = float(np.mean(acc[a])) if a in acc else None
-                    opts.append(dict(action=a, text=text.get(a, f"#{a}"), p=round(float(p), 3), q=None if q is None else round(q, 3)))
-            best = max((o for o in opts if o["q"] is not None), key=lambda o: o["q"], default=None)
-            a = best["action"] if best else first["action"]
-        self.fs.set_util(None)
+        for a, p, ok in zip(first["opts"], first["p"], first["legal"]):
+            if ok:
+                q = float(np.mean(acc[a])) if a in acc else None
+                opts.append(dict(action=a, text=text.get(a, f"#{a}"), p=round(float(p), 3), q=None if q is None else round(q, 3)))
+        best = max((o for o in opts if o["q"] is not None), key=lambda o: o["q"], default=None)
+        a = best["action"] if best else first["action"]
         return dict(action=a, json=sim.action_json(a), text=text.get(a, f"#{a}"), searched=first["searched"], rounds=rounds,
                     seconds=round(time.perf_counter() - t0, 2), rows=tuple(n_rows), options=opts)
 
-    def solve(self, scenarios, attempts=64, seed=None, util=None, groups=None, worth=None):
-        """Fights played from their start by the batch solver: one dict per scenario (win, win_se, hp_lost, hp_left_on_win, attempts, aborted).
-        `util`: play them under this HP-worth curve (scalar value networks only); `worth`: under this class table (outcome-head networks, the same for every
-        scenario); None = the linear return. The results stay raw outcomes."""
-        self.solver.fs.set_util(util)
-        try:
-            return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,
-                                     worth=None if worth is None else [worth] * len(scenarios))
-        finally:
-            self.solver.fs.set_util(None)
+    def solve(self, scenarios, attempts=64, seed=None, groups=None, worth=None):
+        return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,
+                                 worth=None if worth is None else [worth] * len(scenarios))
 
     def play_on(self, scenario, starts, seeds, worth=None, record=False):
-        """Fights continued from the simulators `starts` (one per job, e.g. determinized copies of a live fight) by the batch solver with job seeds `seeds`,
-        searched under `worth` (None = linear): one (outcome, end HP fraction, end HP) per job (outcome 1 = win). `record`: also the actions each job took,
-        [(outcome, fraction, hp, actions)]."""
         fs = self.solver.fs
         old = fs.record
         fs.record = record
@@ -160,14 +107,13 @@ class Engine:
         return out
 
 
-def play_fight(eng, scenario, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False, util=None, worth=None):
-    """One fight in the simulator from its start, every decision by `Engine.decide` at the given time cap. Returns (outcome, HP lost, steps)."""
+def play_fight(eng, scenario, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False, worth=None):
     import sts2
     sim = sts2.Sim(json.dumps(scenario), seed)
     hp0 = json.loads(sim.snapshot())["player"]["hp"]
     steps = 0
     while sim.outcome() == 0 and steps < max_steps and sim.stage() != "over":
-        d = eng.decide(scenario, sim, 0.3 if sim.stage() == "choice" else budget, tol_hp=tol_hp, keep_potions=keep_potions, util=util, worth=worth)
+        d = eng.decide(scenario, sim, 0.3 if sim.stage() == "choice" else budget, tol_hp=tol_hp, keep_potions=keep_potions, worth=worth)
         sim.step(d["action"])
         steps += 1
     hp1 = json.loads(sim.snapshot())["player"]["hp"]

@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""Generates `crates/sts2sim/src/relic_mask.rs` from `data/relic_classes.json` (`docs/rl_redesign.md` M2): which relics the network observes.
-
-A relic is observed when it acts in combat (class `combat`, or `combat` among its secondary classes); macro-only relics and potion / card-linked relics
-without a combat effect of their own are left out of the observation (their effect, if any, is the potions or cards the scenario carries).
-
-  python tools/gen_relic_mask.py        # rewrite the Rust table (run after editing data/relic_classes.json, then rebuild)
-"""
 import json, os, sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))

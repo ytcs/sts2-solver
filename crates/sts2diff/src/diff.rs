@@ -1,5 +1,3 @@
-//! Replay + compare.
-
 use crate::{convert, load_jsonl, snapshot::snapshot};
 use serde_json::Value;
 use sts2sim::engine::ActionBuf;
@@ -7,14 +5,12 @@ use sts2sim::state::*;
 use sts2sim::types::*;
 use sts2sim::*;
 
-/// Every key of `rust` must be present and equal in `oracle`; arrays must match element-wise (and in length).
 pub fn compare(path: &str, rust: &Value, oracle: &Value, out: &mut Vec<String>) {
     match (rust, oracle) {
         (Value::Object(r), Value::Object(o)) => {
             for (k, rv) in r {
                 match o.get(k) {
                     Some(ov) => compare(&format!("{path}.{k}"), rv, ov, out),
-                    // Older recordings (oracle/regression, samples) carry no keywords / enchantment for the non-hand piles.
                     None if (k == "keywords" || k == "enchantment") && [".draw[", ".discard[", ".exhaust[", ".play_pile["].iter().any(|p| path.starts_with(p)) => {}
                     None => out.push(format!("{path}.{k}: missing in oracle (rust = {rv})")),
                 }
@@ -68,12 +64,10 @@ fn to_action(cx: &Combat, a: &Value) -> Result<Action, String> {
     Err(format!("unsupported action {a}"))
 }
 
-/// Replays one trace.
 #[derive(PartialEq, Eq, Debug)]
 pub enum Verdict {
     Match,
     Mismatch,
-    /// The simulator used content that has no Rust implementation yet (the name is printed).
     Unimplemented,
 }
 
@@ -97,8 +91,7 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
     sc.validate().map_err(|e| format!("not implemented in the simulator: {e:?}"))?;
     let trace = load_jsonl(trace_path)?;
     let mut cx = if std::env::var("STS2DIFF_REUSE").is_ok() {
-        // Exercise the in-place reset: dirty a combat by playing the same scenario under another seed (first legal action,
-        // random-ish but cheap), then `reset_with` the real scenario into it. It must replay exactly like a fresh `new`.
+        // An in-place reset must replay exactly like a fresh `new`.
         let mut dirty_sc = sc.clone();
         dirty_sc.rng = sts2sim::state::RngSet::from_run_seed(sc.run_seed ^ 0x5DEECE66D);
         dirty_sc.run_seed ^= 0x5DEECE66D;
@@ -138,8 +131,6 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                 return Ok(mismatch_or_missing(&cx, i));
             }
         }
-        // Prompts raised while executing the action (record 0: while the combat was set up / the first turn started, e.g.
-        // by relics such as Toolbox or Gambling Chip).
         {
             let choices: Vec<&Value> = rec["choices"].as_array().map(|a| a.iter().collect()).unwrap_or_default();
             let mut ci = 0;
@@ -167,7 +158,6 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                         println!("step {i}: pick {p} rejected (simulator decision: {})", d.map_or("none".to_string(), |d| format!("purpose {} min {} max {} {} cands {:?}; hand {:?}; draw {} discard {}", d.purpose, d.min, d.max, d.cands.len(), d.cands.iter().take(12).map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.hand.iter().map(|&c| sts2sim::ids::card::NAMES[cx.cards[c as usize].id as usize]).collect::<Vec<_>>(), cx.player.draw.len(), cx.player.discard.len())));
                         return Ok(mismatch_or_missing(&cx, i));
                     }
-                    // finished (or replaced by the NEXT decision of the same effect)
                     if cx.stage != Stage::AwaitChoice || cx.decision_seq != seq {
                         break;
                     }
@@ -184,7 +174,6 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
                     return Ok(mismatch_or_missing(&cx, i));
                 }
             }
-            // Prompts the real game raised that the simulator never asked (a flagged-missing effect explains it).
             if ci < choices.len() {
                 if let Some(m) = missing_name(&cx) {
                     println!("UNIMPLEMENTED {m} (step {i}; the oracle raised {} more decision(s))", choices.len() - ci);
@@ -195,9 +184,6 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             }
         }
         if let Some(m) = missing_name(&cx) {
-            // STS2DIFF_LENIENT=1: unported *cards* (e.g. offered by a card-generating potion) do not stop the replay;
-            // every step up to and including the one that generated them is still compared, and a divergence on a
-            // later step is reported as UNIMPLEMENTED (the unported card's own effect) instead of a mismatch.
             if lenient && m.starts_with("card ") {
                 if first_missing.is_none() {
                     first_missing = Some((i, m));
@@ -212,7 +198,6 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
         }
         let mut diffs = vec![];
         let snap = snapshot(&cx);
-        // Debug aid: STS2DIFF_DUMP=N prints the simulator's snapshot at record N (and the oracle's, for a side-by-side `diff`).
         if std::env::var("STS2DIFF_DUMP").ok().and_then(|v| v.parse::<usize>().ok()) == Some(i) {
             println!("RUST {snap}\nORACLE {rec}");
             if std::env::var("STS2DIFF_HIST").is_ok() {
@@ -239,7 +224,7 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
             }
             reported += 1;
             if reported >= 1 {
-                break; // later steps are meaningless once state has diverged
+                break;
             }
         }
     }
@@ -249,8 +234,6 @@ pub fn replay(scenario_path: &str, trace_path: &str, max_report: usize, quiet: b
     Ok(if ok { Verdict::Match } else { Verdict::Mismatch })
 }
 
-/// A replay that diverged structurally (illegal action, rejected pick, unexpected decision) while the simulator had
-/// already flagged unported content is an UNIMPLEMENTED hit, not a mismatch.
 fn mismatch_or_missing(cx: &Combat, step: usize) -> Verdict {
     if let Some(m) = missing_name(cx) {
         println!("UNIMPLEMENTED {m} (step {step}; replay diverged)");

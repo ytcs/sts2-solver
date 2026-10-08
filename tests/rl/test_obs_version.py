@@ -1,13 +1,3 @@
-"""Observation versions (`sts2.set_obs_version`, `crates/sts2sim/src/observe.rs`).
-
-  python tests/rl/test_obs_version.py          (or pytest)
-
-* v1 is bit-identical to the observation every network before v2 was trained on: `fixtures/obs_v1.npz` holds recorded fights (search-played,
-  `target/exit/r4s_*.npz`) and a hash of every observation + mask row the v1 encoder produced for them, from the replay path (`sts2.replay`, what
-  `VecEnv`, the search engine and `rl/exit.py` share) and from `Sim.observe`. Regenerate it only for an intended change of the simulator:
-  `python tests/rl/test_obs_version.py --regen-v1 target/exit/r4s_000.npz ...` (with a build whose v1 output is the reference).
-* v2 carries the visible information v1 left out (calculated card numbers, the selection screen's source, power display numbers, 64 candidates).
-"""
 import argparse
 import hashlib
 import json
@@ -30,7 +20,6 @@ def row_hash(o, m):
 
 
 def _fights(parts):
-    """(scenario, seed, actions) of every fight of recorded ExIt parts (`rl/exit.py` `_save`)."""
     for p in parts:
         z = np.load(p)
         scen = json.loads(str(z["scenarios"]))
@@ -58,8 +47,6 @@ def _sim_hashes(scen, seed, acts, **kw):
 
 
 def regen_v1(parts, per_char=50, longest=50):
-    """The fixture: `per_char` fights of each character from the first part, plus the `longest` longest fights of all parts (big piles, long
-    selections), with the hashes of the current build's (default, v1) observations."""
     all_f = list(_fights(parts))
     first = list(_fights(parts[:1]))
     pick, seen, per = [], set(), {}
@@ -99,7 +86,6 @@ def _fixture():
 
 
 def test_v1_is_bit_identical():
-    """Every v1 row of the fixture fights, through every producer: the default (process version 1), an explicit version 1, and `Sim.observe`."""
     fights, size = _fixture()
     assert sts2.obs_size(1) == size == sts2.OBS_SIZE
     for i, (sc, seed, ac, want) in enumerate(fights):
@@ -115,7 +101,6 @@ def _sec(v):
 
 
 def test_every_producer_writes_v2():
-    """VecEnv, replay, replay_rows and Sim.observe give the same v2 rows (2997 floats), and the process-wide default stays 1."""
     assert sts2.obs_version() == 1
     assert sts2.obs_size(2) == sts2.layout(2)["consts"]["OBS_SIZE"] > sts2.obs_size(1)
     fights, _ = _fixture()
@@ -129,19 +114,16 @@ def test_every_producer_writes_v2():
     env = sts2.VecEnv(4, [fights[0][0]], seed=1, obs_version=2)
     obs, mask = env.reset()
     assert env.obs_version == 2 and obs.shape == (4, sts2.obs_size(2))
-    assert sts2.VecEnv(2, [fights[0][0]], seed=1).obs.shape == (2, sts2.obs_size(1))  # default: the process-wide version (1)
+    assert sts2.VecEnv(2, [fights[0][0]], seed=1).obs.shape == (2, sts2.obs_size(1))
     obs, mask, *_ = env.step(np.flatnonzero(mask[0])[:1].repeat(4).astype(np.int32))
     assert obs.shape == (4, sts2.obs_size(2))
 
 
 def test_v2_shows_what_v1_hid_on_recorded_fights():
-    """Over the fixture fights: every selection row names its source, selections asked by a card show that card in play, candidates past 16
-    are present, and calculated card numbers are non-zero where v1 has 0."""
     fights, _ = _fixture()
     s1, c1 = _sec(1)
     s2, c2 = _sec(2)
     CF1, CF2 = c1["CARD_F"], c2["CARD_F"]
-    # cards whose only numbers are calculated (no plain damage / block var): v1 shows 0 for every one of them
     calc = {i for i, n in enumerate(sts2.names()["card"]) if n in ("BODY_SLAM", "PERFECTED_STRIKE", "GOLD_AXE", "REND", "UNLEASH", "MURDER", "BULLY",
                                                                    "STACK", "EXPECT_A_FIGHT", "MIRAGE", "NORMALITY", "ASHEN_STRIKE", "DEATH_MARCH")}
     n_dec = n_src = n_played = n_wide = n_calc = n_calc_v1 = 0
@@ -167,8 +149,6 @@ def test_v2_shows_what_v1_hid_on_recorded_fights():
 
 
 def test_v2_hides_what_a_player_cannot_see_on_recorded_fights():
-    """Every state of the fixture fights (all five characters, recorded selections): resampling the hidden state (pile orders, every RNG stream:
-    `Sim.determinize`) leaves the v2 observation unchanged."""
     fights, _ = _fixture()
     n2 = sts2.obs_size(2)
     ob, ob2 = np.zeros(n2, np.float32), np.zeros(n2, np.float32)
@@ -179,7 +159,7 @@ def test_v2_hides_what_a_player_cannot_see_on_recorded_fights():
         for t in range(len(ac) + 1):
             s.observe(ob, mk, version=2)
             d = s.copy()
-            if d.determinize(1000 * i + t):  # (False while a prompt replay is on screen: nothing is resampled)
+            if d.determinize(1000 * i + t):
                 d.observe(ob2, mk2, version=2)
                 assert np.array_equal(ob, ob2) and np.array_equal(mk, mk2), f"fight {i} step {t}: hidden state changed the v2 observation"
                 checked += 1
@@ -190,8 +170,6 @@ def test_v2_hides_what_a_player_cannot_see_on_recorded_fights():
 
 
 def test_network_reads_its_checkpoints_version():
-    """A v2 network: built, saved, loaded back with its version; it refuses v1 rows (and a v1 network v2 rows) with a clear error; `load` will not
-    set a second process-wide version."""
     import tempfile
     import torch
     import model as M
@@ -231,7 +209,6 @@ def test_network_reads_its_checkpoints_version():
 
 
 def test_search_runs_a_v2_network():
-    """The search engine writes rows of its network's version (a fresh v2 network on the CPU, a few fights)."""
     import torch
     import model as M
     from fastsearch import FastSearch

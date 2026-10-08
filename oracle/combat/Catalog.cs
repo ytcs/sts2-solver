@@ -6,7 +6,6 @@ using MegaCrit.Sts2.Core.Models.RelicPools;
 
 namespace OracleCombat;
 
-/// <summary>`catalog`: dumps pools (cards/relics/potions per pool) and encounters per act as JSON for the fuzz generator.</summary>
 public static class Catalog
 {
     public static JsonObject Build()

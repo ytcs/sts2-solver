@@ -1,6 +1,3 @@
-//! Replays every committed fuzz regression (`oracle/regression/NAME.scenario.json` + `NAME.jsonl`, recorded from the real game by
-//! the oracle; see `tools/fuzz_keep.py`) and requires a perfect state match at every step.
-
 use std::path::PathBuf;
 use sts2diff::diff::{replay, Verdict};
 

@@ -1,6 +1,4 @@
-//! Soul / Sweeping Gaze tokens (needed by the Necrobinder cards). The colorless/status/token branch also ports them in
-//! `cards/tokens.rs`: whoever merges that branch must keep exactly one `listener!` per class.
-
+// Exactly one `listener!` per class (cards/tokens.rs ports the same tokens).
 use crate::defs::VarKind;
 use crate::engine::{Attack, Targeting};
 use crate::hooks::*;

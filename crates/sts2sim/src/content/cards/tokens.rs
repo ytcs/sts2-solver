@@ -1,16 +1,10 @@
-//! TOKEN pool cards (Shiv, Soul, Fuel, ...). The four `KnowledgeDemon.IChoosable` status cards (Disintegration,
-//! Mind Rot, Sloth, Waste Away) only act through `OnChosen` in the Knowledge Demon event (outside combat), so
-//! inside a combat they are inert.
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Attack, Targeting};
 use crate::hooks::*;
-use crate::ids;
 use crate::listener;
 use crate::state::*;
 use crate::types::*;
-
 
 listener!(Fuel {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -53,4 +47,3 @@ listener!(MinionStrike {
         Flow::Done
     }
 });
-

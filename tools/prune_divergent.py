@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""Recorded fights that no longer replay under the current simulator, found and removed from the collected parts for good.
-
-  tools/prune_divergent.py target/exit/*.npz [--dry-run] [--backup target/exit/pruned_backup]
-
-A collected fight is its scenario, job seed and action sequence (`rl/exit.py` `_save`); training replays it (`sts2.replay_rows`). When the simulator
-is corrected after a collection (a card or power that now behaves as the game does), a fight that met the corrected behaviour can stop replaying.
-Rule: run this after every simulator behaviour change. A few divergent fights are dropped here; if a part loses more than `--max-share` of its fights,
-the tool stops and says so: regenerate that collection instead (`rl/exit.py collect` on the same pool), so the training mix keeps its shape.
-Each rewritten part keeps every array consistent (fights, action offsets, searched decisions and their fight indices, format-2 arrays); the
-original goes to `--backup`. `rl/exit.py` `Data` still skips a divergent fight at training time, with a warning, as a backstop.
-"""
 import argparse, glob, json, os, shutil, sys, time
 
 import numpy as np
@@ -21,7 +10,6 @@ D_KEYS = ("d_fight", "d_step", "d_opts", "d_q", "d_n", "d_pi", "d_adv", "d_v")
 
 
 def divergent(z, scen):
-    """Indices of the fights of part `z` that no longer replay to their last action (batch replay, bisected on failure)."""
     A, O, FS, SD = z["acts"], z["f_off"], z["f_scen"], z["f_seed"]
 
     def ok(g):
@@ -45,8 +33,7 @@ def divergent(z, scen):
 
 
 def pruned(z, drop):
-    """The part's arrays without the fights in `drop` (decisions re-indexed to the kept fights)."""
-    out = {k: z[k] for k in z.files}  # every array read once (an NpzFile re-reads an array from disk at each access)
+    out = {k: z[k] for k in z.files}
     n = len(out["f_cls"])
     keep = np.setdiff1d(np.arange(n), drop)
     new_idx = np.full(n, -1, np.int64)

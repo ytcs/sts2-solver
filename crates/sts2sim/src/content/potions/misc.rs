@@ -1,6 +1,3 @@
-//! Heal / max-HP / energy / generation-of-potions potions and the automatic Fairy in a Bottle.
-//!
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::hooks::*;
@@ -10,14 +7,12 @@ use crate::state::*;
 use crate::types::*;
 use crate::util::ArrayVec;
 
-/// `Heal(target, MaxHp * HealPercent / 100)` as an exact decimal.
 fn heal_percent(cx: &mut Combat, potion: u16, target: Cid) {
     let pct = cx.potion_named_var(potion, crate::content::gen_cards::var_name::HEAL_PERCENT) as i64;
     let amount = Dec::frac(cx.cr(target).max_hp as i64 * pct, 2);
     cx.heal(target, amount);
 }
 
-// Heal 20% of max HP (usable any time).
 listener!(BloodPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         heal_percent(cx, potion, target);
@@ -25,7 +20,6 @@ listener!(BloodPotion {
     }
 });
 
-// Heal 50% of max HP, then (in combat) AmbergrisPower (an extra player turn).
 listener!(Ambergris {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         heal_percent(cx, potion, target);
@@ -36,7 +30,6 @@ listener!(Ambergris {
     }
 });
 
-// +5 max HP (and the same amount healed).
 listener!(FruitJuice {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::MaxHp);
@@ -45,7 +38,6 @@ listener!(FruitJuice {
     }
 });
 
-// Doubles the current Block (integer math, unpowered).
 listener!(Fortifier {
     fn on_use_potion(&self, cx: &mut Combat, _potion: u16, target: Cid, _phase: u8) -> Flow {
         let b = cx.cr(target).block() as i64 * 2;
@@ -54,7 +46,6 @@ listener!(Fortifier {
     }
 });
 
-// +1 energy and draw 2.
 listener!(CureAll {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let e = cx.potion_var(potion, VarKind::Energy);
@@ -65,7 +56,6 @@ listener!(CureAll {
     }
 });
 
-// +3 stars.
 listener!(StarPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Stars);
@@ -74,7 +64,6 @@ listener!(StarPotion {
     }
 });
 
-// +2 orb slots (`OrbCmd.AddSlots`: capped at 10 in total).
 listener!(PotionOfCapacity {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Repeat);
@@ -83,7 +72,6 @@ listener!(PotionOfCapacity {
     }
 });
 
-// Summon 15 (`OstyCmd.Summon`).
 listener!(BoneBrew {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Summon);
@@ -92,7 +80,6 @@ listener!(BoneBrew {
     }
 });
 
-// Forge 15 (`ForgeCmd.Forge`).
 listener!(KingsCourage {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Forge);
@@ -101,7 +88,6 @@ listener!(KingsCourage {
     }
 });
 
-// Auto-play `Repeat` cards from the top of the draw pile (no forced exhaust). Phase 1 = resume after a nested decision.
 listener!(DistilledChaos {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, phase: u8) -> Flow {
         if phase == 0 {
@@ -114,8 +100,6 @@ listener!(DistilledChaos {
     }
 });
 
-// Fill every open potion slot with a random potion: the OUT-of-combat generator (no `CanBeGeneratedInCombat` filter),
-// drawing from the `combat_potion_generation` stream. Stops when the belt is full or procuring fails (Sozu).
 listener!(EntropicBrew {
     fn on_use_potion(&self, cx: &mut Combat, _potion: u16, _target: Cid, _phase: u8) -> Flow {
         while cx.has_open_potion_slots() {
@@ -128,11 +112,8 @@ listener!(EntropicBrew {
     }
 });
 
-// Automatic: when the player would die, heal max(30% of max HP, 1) instead. `Usage == Automatic`, so it is never a legal
-// manual action; the death sequence (`Combat::kill_ex`) drives `should_die` / `after_preventing_death`.
 listener!(FairyInABottle {
     fn on_use_potion(&self, cx: &mut Combat, _potion: u16, target: Cid, _phase: u8) -> Flow {
-        // Math.Max(MaxHp * 0.3m, 1m)
         let amount = Dec::frac(cx.cr(target).max_hp as i64 * 3, 1).max(Dec::ONE);
         cx.heal(target, amount);
         Flow::Done
@@ -145,8 +126,6 @@ listener!(FairyInABottle {
     }
 });
 
-// In combat: 12 unpowered damage to every non-pet creature, the player included. (Out of combat it pays gold at a
-// merchant; not applicable here.) Dynamic target type: `AllEnemies` in combat, so the use needs no target.
 listener!(FoulPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         if !cx.in_progress {
@@ -164,7 +143,6 @@ listener!(FoulPotion {
     }
 });
 
-// Token potion: 15 unpowered damage to one enemy.
 listener!(PotionShapedRock {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let d = cx.potion_var(potion, VarKind::Damage);
@@ -172,4 +150,3 @@ listener!(PotionShapedRock {
         Flow::Done
     }
 });
-

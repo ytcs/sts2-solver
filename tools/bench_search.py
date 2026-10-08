@@ -1,36 +1,4 @@
 #!/usr/bin/env python3
-"""Search-quality benchmark: which search setting picks the best action, judged by a Monte Carlo referee instead of another search.
-
-  STS2_DEVICE=cuda python tools/bench_search.py [--states 150] [--out evals/bench_search.jsonl] [--configs live,w3,wide3,leaf2,leafend] [--strong 20]
-  STS2_DEVICE=cuda python tools/bench_search.py --from-scenarios data/bench/tail.json --states 150 --max-cands 16 \
-      --configs greedy,topm5x32,gumbel16x160,gumbel16x160_s03,gumbel16x160_s1,gumbel8x160,topm5x32x4,gumbel16x640 --out evals/bench_search_gumbel_tail.jsonl
-
-States, two sources:
-* default: decisions of recorded fights (`runs/*/fights/*.json`) replayed in the simulator (`agent.fight.Replayer`); only states whose replay is clean
-  (no errors, no residual divergence at that point) with 3+ distinct legal actions. Fights recorded under a since-fixed simulator bug are excluded.
-* `--from-scenarios F`: fights of a scenario file (a list of scenarios, or of `{"scenario": ...}` rows as in `data/bench/*.json`) played from their start
-  by the batch solver (3 x 8, the default depth) with the actions recorded, then replayed action by action: `sts2.replay` gives the legal set before every
-  action and an `sts2.Sim` stepped through the same actions must show the same set (a fight whose replay diverges is cut there). Decisions in play (not a
-  selection screen) with 3+ distinct legal actions. `--fights` sets how many fights are played (default 2 x states / 6, drawn with `--seed`).
-Both: at most 6 states per fight, then quotas of 40 % boss / 33 % elite / 27 % hallway (filled from the rest when a kind runs short).
-
-Referee: every distinct legal action (two copies of the same card on the same target count once; the first `--max-cands` in legal order, default 8, plus
-any action a configuration picked) is played out to the end of the fight by the batch solver (`rl/solver.py`, 3 options x 8 futures per decision),
-from futures that resample the hidden information (draw order, RNG; the visible state is kept). Common random numbers: repetition k of every action uses
-the same resampled future and the same continuation seed. Repetitions are added (32 at a time, up to `--max-reps`) while the top two actions are not yet
-separated; actions clearly behind are dropped. Value of an action = mean of (+1 + 0.5 x HP fraction left) for a win, -1 for a loss, the search's own
-scale. `--strong N` re-referees N states with a stronger continuation (5 x 32) to check the ranking does not depend on the referee.
-
-Configurations (each picks one action per state): greedy (the policy's top option), live (5x32, 1 s, early stop at 0.6 HP), w3 (5x32, 3 s, no early
-stop), wide3 (8x512, 3 s), leaf2 (5x32, 3 s, play-outs 2 turns before the value net), leafend (5x32, 3 s, play-outs to the fight's end); equal-budget
-root comparisons at depth 2 (`docs/solver.md`, "Root modes"): topm5x32 (one round of the policy's 5 likeliest actions x 32 futures = 160 futures) against
-gumbel16x160 / gumbel8x160 (16 or 8 candidates sampled without replacement over every legal action, 160 futures by sequential halving), and topm5x32x4
-(4 rounds, 640 futures) against gumbel16x640. The sigma scale decides how much the estimates outweigh the prior in Gumbel's halving and final pick
-(c_scale 0.1: about 3.5 nats per unit of return at the end of 16x160, the prior often wins): gumbel16x160_s03 / _s1 use c_scale 0.3 / 1.0.
-Report per configuration: regret = referee value of the best action - referee value of the chosen action (also in win rate and HP); the paired regret
-difference of each top-M / Gumbel pair at equal budget (fight-clustered bootstrap); time and network rows per decision; and the rank of the referee's best
-action in the policy's prior (probabilities of duplicate actions summed): share at rank 1, in the top 5 (what topm5x32 can reach), the top 8, beyond.
-"""
 import argparse, glob, json, os, random, sys, time
 import numpy as np
 
@@ -39,7 +7,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "rl"))
 import sts2  # noqa: E402
 
-EXCLUDE = {("20261005-201805", "19_KNOWLEDGE_DEMON_BOSS")}  # recorded while the simulator let the curse be skipped
+EXCLUDE = {("20261005-201805", "19_KNOWLEDGE_DEMON_BOSS")}
 
 
 def kind_of(enc):
@@ -47,7 +15,6 @@ def kind_of(enc):
 
 
 def act_key(text):
-    """Distinct actions: `play STRIKE_IRONCLAD #2 -> e0` and `#3 -> e0` are the same move."""
     parts = text.split()
     if parts[0] == "play" and len(parts) >= 3:
         return " ".join([parts[0], parts[1]] + parts[3:])
@@ -55,7 +22,6 @@ def act_key(text):
 
 
 def distinct_actions(sim):
-    """{key: (action, text)} of the legal actions in legal order, one per distinct move, potion discards left out."""
     keys = {}
     for a, t in sim.legal():
         if not t.startswith("discard potion"):
@@ -86,7 +52,7 @@ def collect_states(max_states, seed, max_cands=8):
             if r.advance(view) is False or r.errors:
                 break
             if sum(v for k, v in r.stats.items() if k.startswith("residual")) > before:
-                continue  # misaligned here: the referee would score another fight
+                continue
             sim = r.sim
             if sim.stage() != "play":
                 continue
@@ -100,8 +66,6 @@ def collect_states(max_states, seed, max_cands=8):
 
 
 def collect_states_scen(path, max_states, seed, max_cands=8, n_fights=None, M=3, K=8):
-    """Decision states of search-played fights of a scenario file (module docstring): the fights are played with the actions recorded, then every one is
-    replayed with `sts2.replay` (the legal set before each action) and an `sts2.Sim` stepped through the same actions (the state itself)."""
     from solver import Solver
     data = json.load(open(path))
     scens = [d["scenario"] if isinstance(d, dict) and "scenario" in d else d for d in data]
@@ -142,7 +106,6 @@ def collect_states_scen(path, max_states, seed, max_cands=8, n_fights=None, M=3,
 
 
 def stratify(out, max_states):
-    """At most PER_FIGHT states per fight (decisions of one fight are correlated), then quotas per kind (40 % boss, 33 % elite, 27 % hallway)."""
     per, kept = {}, []
     for s in out:
         if per.get(s["file"], 0) < PER_FIGHT:
@@ -160,7 +123,7 @@ def stratify(out, max_states):
 PER_FIGHT = 6
 
 
-REFEREE_LEAF = 1  # the referee's continuation depth, pinned: rounds 1-2 (evals/bench_search*.jsonl) were refereed at depth 1, whatever the search default is
+REFEREE_LEAF = 1
 
 
 class Referee:
@@ -170,7 +133,6 @@ class Referee:
         self.solver.fs.leaf_turns, self.solver.fs.roll_cap = leaf, 60 * leaf
 
     def play(self, st, cand_idx, reps, rep0):
-        """Values (and wins, HP fractions) of candidates `cand_idx` over repetitions rep0..rep0+reps-1 (common random numbers across candidates)."""
         scen, starts, jobs, done = [], [], [], {}
         for r in range(rep0, rep0 + reps):
             base = st["sim"].copy()
@@ -210,7 +172,7 @@ def referee_state(ref, st, max_reps, step=32):
         ses = {ci: np.std([v[0] for v in vals[ci]], ddof=1) / len(vals[ci]) ** 0.5 for ci in alive}
         order = sorted(alive, key=lambda c: -means[c])
         best = order[0]
-        alive = [c for c in alive if means[c] + 2 * ses[c] >= means[best] - 2 * ses[best]]  # drop the ones clearly behind
+        alive = [c for c in alive if means[c] + 2 * ses[c] >= means[best] - 2 * ses[best]]
         if len(alive) <= 1:
             break
         second = sorted(alive, key=lambda c: -means[c])[1]
@@ -232,38 +194,21 @@ CONFIGS = {
     "wide3": dict(M=8, K=512, budget=3.0, tol=0.0, leaf=1, cap=60),
     "leaf2": dict(M=5, K=32, budget=3.0, tol=0.0, leaf=2, cap=120),
     "leafend": dict(M=5, K=32, budget=3.0, tol=0.0, leaf=10_000, cap=400),
-    # round 2: depth at the live budget, depth per fight kind, depth plus width
     "leaf2_1s": dict(M=5, K=32, budget=1.0, tol=0.0, leaf=2, cap=120),
     "leaf2_live": dict(M=5, K=32, budget=1.0, tol=0.6, leaf=2, cap=120),
     "leaf3_3s": dict(M=5, K=32, budget=3.0, tol=0.0, leaf=3, cap=180),
     "mixed_3s": dict(M=5, K=32, budget=3.0, tol=0.0, leaf=2, cap=120, boss_leaf=10_000, boss_cap=400),
     "mixed_1s": dict(M=5, K=32, budget=1.0, tol=0.0, leaf=2, cap=120, boss_leaf=10_000, boss_cap=400),
     "leaf2_wide1s": dict(M=8, K=128, budget=1.0, tol=0.0, leaf=2, cap=120),
-    # root modes at equal budget (futures per decision), depth 2: the policy's top 5 x 32 futures vs Gumbel candidates over every legal action
     "topm5x32": dict(M=5, K=32, budget=0.0, tol=0.0, rounds=1, **DEPTH2),
-    "gumbel16x160": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=160, **DEPTH2),
-    "gumbel8x160": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=8, gn=160, **DEPTH2),
     "topm5x32x4": dict(M=5, K=32, budget=0.0, tol=0.0, rounds=4, **DEPTH2),
-    "gumbel16x640": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=640, **DEPTH2),
-    # the sigma scale (c_scale; default 0.1): how much the estimates weigh against g + logits
-    "gumbel16x160_s03": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=160, c_scale=0.3, **DEPTH2),
-    "gumbel16x160_s1": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=160, c_scale=1.0, **DEPTH2),
 }
-# equal-budget pairs the report compares state by state (top-M, Gumbel)
-PAIRS = [("topm5x32", "gumbel16x160"), ("topm5x32", "gumbel16x160_s03"), ("topm5x32", "gumbel16x160_s1"), ("topm5x32", "gumbel8x160"),
-         ("topm5x32x4", "gumbel16x640")]
 
 
 def choose(eng, st, cfg):
-    """The configuration's pick for the state: (text, seconds, (policy rows, value rows))."""
     boss = st["kind"] == "boss" and "boss_leaf" in cfg
     eng.fs.leaf_turns, eng.fs.roll_cap = (cfg["boss_leaf"], cfg["boss_cap"]) if boss else (cfg["leaf"], cfg["cap"])
-    eng.fs.root, eng.fs.gumbel_m, eng.fs.gumbel_n = cfg.get("root", "topm"), cfg.get("gm", 16), cfg.get("gn", 160)
-    eng.fs.c_visit, eng.fs.c_scale = cfg.get("c_visit", 50.0), cfg.get("c_scale", 0.1)
-    try:
-        d = eng.decide(st["scenario"], st["sim"], budget=cfg["budget"], tol_hp=cfg["tol"], rounds=cfg.get("rounds"))
-    finally:
-        eng.fs.root = "topm"
+    d = eng.decide(st["scenario"], st["sim"], budget=cfg["budget"], tol_hp=cfg["tol"], rounds=cfg.get("rounds"))
     if cfg.get("greedy"):
         opts = [o for o in d["options"]]
         top = max(opts, key=lambda o: o["p"]) if opts else None
@@ -274,7 +219,6 @@ def choose(eng, st, cfg):
 
 
 def prior_of(net, st):
-    """The policy's probabilities at the state, summed over duplicate actions: {key: p} for every distinct legal action."""
     import torch
     from model import DEV
     v = getattr(net, "obs_version", 1)
@@ -295,7 +239,7 @@ def prior_of(net, st):
 def make_engines(names):
     from agent.engine import Engine
     engines = {}
-    for n in names:  # one engine per (M, K): the networks are loaded once per shape; the root mode is switched per configuration
+    for n in names:
         c = CONFIGS[n]
         if (c["M"], c["K"]) not in engines:
             engines[(c["M"], c["K"])] = Engine(M=c["M"], K=c["K"])
@@ -303,7 +247,6 @@ def make_engines(names):
 
 
 def add_cands(st, keys):
-    """Adds the picked actions the referee does not cover yet (beyond `--max-cands`) to the state's candidates."""
     have = {act_key(t) for _, t in st["cands"]}
     for k in keys:
         if k not in have and k in st["keys"]:
@@ -367,8 +310,6 @@ def main():
 
 
 def add_picks(a, states, t0):
-    """The picks of new configurations on the states an earlier run refereed (matched by fight file and step). A pick outside the earlier referee's
-    candidates has no regret (counted as missing in the report)."""
     old = {(r["file"], r["step"]): r for r in (json.loads(l) for l in open(a.reuse))}
     names = a.configs.split(",")
     engines = make_engines(names)
@@ -403,7 +344,6 @@ def regret(rec, n, field="v"):
 
 
 def prior_rank(rec):
-    """Rank (1 = the policy's favourite) of the referee's best action in the prior over distinct actions; None without a prior."""
     pr = rec.get("prior")
     if not pr:
         return None
@@ -425,7 +365,7 @@ def report(path, names):
     subsets = {"all": recs, "contested": [r for r in recs if contested(r)], "boss": [r for r in recs if r["kind"] == "boss"],
                "elite": [r for r in recs if r["kind"] == "elite"], "hallway": [r for r in recs if r["kind"] == "hallway"],
                "potion states": [r for r in recs if r["potion"]]}
-    print(f"\nregret vs the Monte Carlo referee (value = +1 + 0.5 HP fraction / -1; 0.1 ~ 5% win or ~16 HP at 80 max HP); n states per subset")
+    print("\nregret vs the Monte Carlo referee (value = +1 + 0.5 HP fraction / -1; 0.1 ~ 5% win or ~16 HP at 80 max HP); n states per subset")
     print(f"{'config':12s} " + " ".join(f"{k:>22s}" for k in subsets))
     for n in names:
         cells = []
@@ -438,7 +378,6 @@ def report(path, names):
             agree = np.mean([regret(r, n) == 0 for r in rs if regret(r, n) is not None])
             cells.append(f"{x.mean():.4f}+-{np.std(boot):.4f} {agree:.0%} n{len(x)}".rjust(22))
         print(f"{n:12s} " + " ".join(cells))
-    # cost per decision
     cost = [(n, [r["secs"][n] for r in recs if n in r.get("secs", {})], [r["rows"][n] for r in recs if n in r.get("rows", {})]) for n in names]
     if any(s for _, s, _ in cost):
         print("\ncost per decision: seconds, policy rows, value rows (means)")
@@ -446,25 +385,6 @@ def report(path, names):
             if s:
                 rw = np.array(rw, float).reshape(-1, 2) if rw else np.zeros((1, 2))
                 print(f"  {n:12s} {np.mean(s):6.2f} s  {rw[:, 0].mean():9.0f}  {rw[:, 1].mean():9.0f}")
-    # top-M vs Gumbel at equal budget, state by state (bootstrap over fights: decisions of one fight are correlated)
-    pairs = [(x, y) for x, y in PAIRS if x in names and y in names and any(x in r["picks"] and y in r["picks"] for r in recs)]
-    if pairs:
-        print("\nregret difference at equal budget (top-M - Gumbel; > 0: Gumbel better), 95% CI over fights")
-        for x, y in pairs:
-            d = [(r["file"], regret(r, x) - regret(r, y)) for r in recs if regret(r, x) is not None and regret(r, y) is not None]
-            if not d:
-                continue
-            files = sorted({f for f, _ in d})
-            by = {f: [v for g, v in d if g == f] for f in files}
-            boot = []
-            for _ in range(2000):
-                fs = rng.choice(len(files), len(files))
-                vals = [v for i in fs for v in by[files[i]]]
-                boot.append(np.mean(vals))
-            lo, hi = np.percentile(boot, [2.5, 97.5])
-            same = np.mean([r["picks"][x] == r["picks"][y] for r in recs if x in r["picks"] and y in r["picks"]])
-            print(f"  {x} - {y}: {np.mean([v for _, v in d]):+.4f} [{lo:+.4f}, {hi:+.4f}]  (n {len(d)} states, {len(files)} fights; same pick {same:.0%})")
-    # can the policy's top options reach the referee's best action at all?
     rk = [(r, prior_rank(r)) for r in recs]
     rk = [(r, x) for r, x in rk if x is not None]
     if rk:
@@ -474,7 +394,6 @@ def report(path, names):
             if len(x):
                 print(f"  {label:10s} {np.mean(x == 1):.0%} / {np.mean(x <= 5):.0%} / {np.mean(x <= 8):.0%} / {np.mean(x > 8):.0%}   (n {len(x)}, mean distinct legal "
                       f"{np.mean([r.get('n_legal', len(r['prior'])) for r, _ in sub]):.1f})")
-        # the referee only knows the actions it played out: where it did not cover every distinct legal action the true best may be missing
         full = np.mean([len(r["cands"]) >= r.get("n_legal", len(r["prior"])) for r, _ in rk])
         print(f"  the referee played out every distinct legal action in {full:.0%} of these states (raise --max-cands if low)")
     rs = [r for r in recs if "ref_strong" in r]

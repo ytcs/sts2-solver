@@ -1,6 +1,3 @@
-//! Act 2 "Hive" elites and bosses (hive_b slice): Decimillipede segments, Entomancer, Infested Prism, Kaiser Crab
-//! (Crusher + Rocket), Knowledge Demon, The Insatiable. Spec 04 §3.3.
-
 use super::ovg_util::*;
 use crate::content::powers::hive_b::do_reattach;
 use crate::defs::*;
@@ -11,14 +8,11 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// ---- DecimillipedeSegment{Front,Middle,Back} (DecimillipedeElite, slots segment1..3 = 0..2) --------------------------------
-// vars[0] = StarterMoveIdx. Nodes: 0 WRITHE, 1 BULK, 2 CONSTRICT, 3 DEAD_MOVE, 4 REATTACH_MOVE, 5 RAND, 6 INIT (initial).
 pub const SEGMENT_SLOT_FRONT: u8 = 0;
 pub const SEGMENT_SLOT_MIDDLE: u8 = 1;
 pub const SEGMENT_SLOT_BACK: u8 = 2;
 
 fn segment_spawn(cx: &mut Combat, me: Cid) {
-    // AfterAddedToRoom: even max HP, distinct from every other segment (+2 steps, wrapping to Min once Max is exceeded).
     let (lo, hi) = hp(cx.ascension, (46, 52), (40, 46));
     let mut max = cx.cr(me).max_hp;
     if max % 2 == 1 {
@@ -109,7 +103,6 @@ listener!(DecimillipedeSegmentFront {});
 listener!(DecimillipedeSegmentMiddle {});
 listener!(DecimillipedeSegmentBack {});
 
-// ---- Entomancer: BEES -> SPEAR -> PHEROMONE_SPIT -> BEES ... ---------------------------------------------------------------------
 fn bees_damage(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 3, 3)
 }
@@ -119,7 +112,6 @@ fn bees_repeat(cx: &Combat, _: Cid) -> i32 {
 fn spear_damage(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 20, 18)
 }
-// 0 PHEROMONE_SPIT_MOVE, 1 BEES_MOVE (initial), 2 SPEAR_MOVE
 pub static ENTOMANCER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::ENTOMANCER,
     hp: |a| hp(a, (165, 165), (145, 145)),
@@ -160,7 +152,6 @@ pub static ENTOMANCER_DEF: MonsterDef = MonsterDef {
 };
 listener!(Entomancer {});
 
-// ---- InfestedPrism: JAB -> RADIATE -> WHIRLWIND -> PULSATE -> JAB ... --------------------------------------------------------------
 fn prism_jab(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 17, 15)
 }
@@ -231,7 +222,6 @@ pub static INFESTED_PRISM_DEF: MonsterDef = MonsterDef {
 };
 listener!(InfestedPrism {});
 
-// ---- KaiserCrab: Crusher (slot 0) + Rocket (slot 1) ------------------------------------------------------------------------------------
 pub const SLOT_CRUSHER: u8 = 0;
 pub const SLOT_ROCKET: u8 = 1;
 
@@ -244,7 +234,6 @@ fn crusher_sting(cx: &Combat, _: Cid) -> i32 {
 fn crusher_guarded(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 14, 12)
 }
-// 0 THRASH, 1 ENLARGING_STRIKE, 2 BUG_STING, 3 ADAPT, 4 GUARDED_STRIKE
 pub static CRUSHER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::CRUSHER,
     hp: |a| hp(a, (219, 219), (209, 209)),
@@ -307,13 +296,11 @@ fn rocket_beam(cx: &Combat, _: Cid) -> i32 {
 fn rocket_laser(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 35, 31)
 }
-// 0 TARGETING_RETICLE, 1 PRECISION_BEAM, 2 CHARGE_UP, 3 LASER, 4 RECHARGE
 pub static ROCKET_DEF: MonsterDef = MonsterDef {
     id: ids::monster::ROCKET,
     hp: |a| hp(a, (209, 209), (199, 199)),
     initial: 0,
     on_spawn: Some(|cx, me| {
-        // SurroundedPower on every opponent (the player and its pets), applied by the Rocket.
         let targets = cx.allies;
         for &t in targets.iter() {
             cx.apply_power(ids::power::SURROUNDED_POWER, t, crate::dec::Dec::ONE, me, NO);
@@ -363,8 +350,6 @@ pub static ROCKET_DEF: MonsterDef = MonsterDef {
 };
 listener!(Rocket {});
 
-// ---- KnowledgeDemon (vars[0] = CurseOfKnowledgeCounter) ---------------------------------------------------------------------------------
-// 0 CURSE_OF_KNOWLEDGE, 1 SLAP, 2 KNOWLEDGE_OVERWHELMING, 3 PONDER, 4 CurseOfKnowledgeBranch (cond)
 const DISINTEGRATION_DAMAGE: [i32; 3] = [6, 7, 8];
 const CURSE_PARTNERS: [u16; 3] = [ids::card::MIND_ROT, ids::card::SLOTH, ids::card::WASTE_AWAY];
 
@@ -378,8 +363,6 @@ fn ponder_damage(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 13, 11)
 }
 
-/// `CurseOfKnowledgeMove` for the (single) player: `CardSelectCmd.FromChooseACardScreen` over [Disintegration, partner];
-/// the chosen card's `OnChosen` applies its power. The move suspends on the decision (`resume_hook`).
 fn curse_of_knowledge(cx: &mut Combat, me: Cid) {
     let counter = cx.cr(me).monster.vars[0] as usize;
     if cx.cr(PLAYER).is_alive() {
@@ -461,8 +444,6 @@ pub static KNOWLEDGE_DEMON_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- TheInsatiable: LIQUIFY_GROUND -> THRASH -> LUNGING_BITE -> SALIVATE -> THRASH_2 -> THRASH ... -----------------------------------
-// 0 LIQUIFY_GROUND, 1 LUNGING_BITE, 2 THRASH, 3 THRASH_2, 4 SALIVATE
 fn insatiable_thrash(cx: &Combat, _: Cid) -> i32 {
     a9(cx, 9, 8)
 }
@@ -474,11 +455,9 @@ fn thrash_move(cx: &mut Combat, me: Cid) {
     atk_n(cx, me, d, 2)
 }
 fn liquify_ground(cx: &mut Combat, me: Cid) {
-    // SandpitPower(4) applied to the Insatiable itself, targeting the player.
     if let Some(uid) = cx.apply_power(ids::power::SANDPIT_POWER, me, crate::dec::Dec::int(4), me, NO) {
         cx.set_power_aux(me, uid, PLAYER as i32);
     }
-    // 6 FranticEscape: the first 3 into the draw pile, the last 3 into the discard pile, each at a random position.
     for i in 0..6 {
         if let Some(c) = cx.new_card(ids::card::FRANTIC_ESCAPE, 0) {
             let pile = if i < 3 { PileType::Draw } else { PileType::Discard };

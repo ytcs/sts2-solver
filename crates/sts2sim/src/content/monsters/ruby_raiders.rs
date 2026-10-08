@@ -1,11 +1,8 @@
-//! Ruby Raiders (RubyRaidersNormal): Assassin, Axe, Brute, Crossbow, Tracker. Spec 04 §3.1.
-
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
 use crate::state::*;
 
-// ---- AssassinRubyRaider: KILLSHOT_MOVE loop ----------------------------------------------------------------------
 pub static ASSASSIN_RUBY_RAIDER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::ASSASSIN_RUBY_RAIDER,
     hp: |a| hp(a, (19, 24), (18, 23)),
@@ -22,7 +19,6 @@ pub static ASSASSIN_RUBY_RAIDER_DEF: MonsterDef = MonsterDef {
     )],
 };
 
-// ---- AxeRubyRaider: SWING_1 -> SWING_2 -> BIG_SWING -> SWING_1 ---------------------------------------------------------
 fn axe_swing(cx: &mut Combat, me: Cid) {
     let d = a9(cx, 6, 5);
     atk(cx, me, d);
@@ -49,7 +45,6 @@ pub static AXE_RUBY_RAIDER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- BruteRubyRaider: BEAT_MOVE <-> ROAR_MOVE ----------------------------------------------------------------------
 pub static BRUTE_RUBY_RAIDER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::BRUTE_RUBY_RAIDER,
     hp: |a| hp(a, (31, 34), (30, 33)),
@@ -69,7 +64,6 @@ pub static BRUTE_RUBY_RAIDER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- CrossbowRubyRaider: RELOAD_MOVE <-> FIRE_MOVE (initial RELOAD) ----------------------------------------------------
 pub static CROSSBOW_RUBY_RAIDER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::CROSSBOW_RUBY_RAIDER,
     hp: |a| hp(a, (19, 22), (18, 21)),
@@ -89,7 +83,6 @@ pub static CROSSBOW_RUBY_RAIDER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- TrackerRubyRaider: TRACK_MOVE (Frail 2) -> HOUNDS_MOVE loop ---------------------------------------------------------
 pub static TRACKER_RUBY_RAIDER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::TRACKER_RUBY_RAIDER,
     hp: |a| hp(a, (22, 26), (21, 25)),

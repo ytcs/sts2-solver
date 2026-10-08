@@ -1,4 +1,4 @@
-solve attempts=4 util=False n=459 sha=cb7593a38f38
+solve attempts=4 n=459 sha=cb7593a38f38
   BOWLBUGS_NORMAL [] x9
   BOWLBUGS_WEAK [] x18
   CHOMPERS_NORMAL [] x9

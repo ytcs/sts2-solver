@@ -1,6 +1,3 @@
-//! Regent powers (stars / Forge / Sovereign Blade) and the shared "next turn" powers Regent cards apply.
-//! Bodies follow the decompiled `Models/Powers/*.cs`.
-
 use crate::dec::Dec;
 use crate::engine::Ask;
 use crate::hooks::*;
@@ -9,9 +6,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// ---- helpers --------------------------------------------------------------------------------------------------------
-
-/// `PowerModel.Aux` of the instance `me`.
 fn aux(cx: &Combat, me: &Me) -> i32 {
     cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].aux)
 }
@@ -24,17 +18,14 @@ fn amount(cx: &Combat, me: &Me) -> i32 {
     cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount)
 }
 
-/// `TemporaryStrengthPower.BeforeApplied`: the Strength change arrives with the power.
 fn temp_strength_before_applied(cx: &mut Combat, sign: i64, target: Cid, amt: Dec, applier: Cid, card: CardIdx) {
     cx.apply_power(ids::power::STRENGTH_POWER, target, Dec::int(sign) * amt, applier, card);
 }
-/// `TemporaryStrengthPower.AfterPowerAmountChanged`: stacking adds the same sign * delta of Strength.
 fn temp_strength_after_changed(cx: &mut Combat, me: Me, sign: i64, ch: &PowerChange) {
     if ch.target == me.owner && ch.uid == me.idx && ch.amount != amount(cx, &me) {
         cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(sign * ch.amount as i64), ch.applier, NO);
     }
 }
-/// `TemporaryStrengthPower.AfterSideTurnEnd`: remove the power and undo the Strength.
 fn temp_strength_side_end(cx: &mut Combat, me: Me, sign: i64, side: Side) {
     if cx.cr(me.owner).side == side {
         let a = amount(cx, &me);
@@ -43,9 +34,6 @@ fn temp_strength_side_end(cx: &mut Combat, me: Me, sign: i64, side: Side) {
     }
 }
 
-// ---- temporary Strength family ------------------------------------------------------------------------------------
-
-// CrushUnderPower (`IsPositive => false`): enemies lose Strength until the end of their turn.
 listener!(CrushUnderPower {
     fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
         temp_strength_before_applied(cx, -1, target, amount, applier, card);
@@ -82,9 +70,6 @@ listener!(MonarchsGazeStrengthDownPower {
     }
 });
 
-// ---- stars ---------------------------------------------------------------------------------------------------------
-
-// StarNextTurnPower: gain Amount stars after the next energy reset.
 listener!(StarNextTurnPower {
     fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
         let a = amount(cx, &me);
@@ -93,7 +78,6 @@ listener!(StarNextTurnPower {
     }
 });
 
-// GenesisPower: +Amount stars every turn after the energy reset.
 listener!(GenesisPower {
     fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
         let a = amount(cx, &me);
@@ -101,7 +85,6 @@ listener!(GenesisPower {
     }
 });
 
-// ChildOfTheStarsPower: spending stars gives Amount * stars spent unpowered block.
 listener!(ChildOfTheStarsPower {
     fn after_stars_spent(&self, cx: &mut Combat, me: Me, spent: i32) {
         if spent > 0 {
@@ -111,7 +94,6 @@ listener!(ChildOfTheStarsPower {
     }
 });
 
-// TheSealedThronePower: playing a card gives Amount stars (BeforeCardPlayed).
 listener!(TheSealedThronePower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
         let a = amount(cx, &me);
@@ -119,7 +101,6 @@ listener!(TheSealedThronePower {
     }
 });
 
-// BlackHolePower: damage to all enemies whenever stars are spent on a card (after its last play) or gained.
 fn black_hole_hit(cx: &mut Combat, me: Me) {
     let a = amount(cx, &me);
     let targets = cx.hittable_enemies();
@@ -138,9 +119,6 @@ listener!(BlackHolePower {
     }
 });
 
-// ---- Forge ---------------------------------------------------------------------------------------------------------
-
-// FurnacePower: Forge Amount at the start of the owner's turn.
 listener!(FurnacePower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player {
@@ -150,13 +128,10 @@ listener!(FurnacePower {
     }
 });
 
-// HammerTimePower: forges for the other players (multiplayer only): nothing in single player.
 listener!(HammerTimePower {});
-// ParryPower / SeekingEdgePower do nothing themselves: Sovereign Blade reads them.
 listener!(ParryPower {});
 listener!(SeekingEdgePower {});
 
-// ConquerorPower: Sovereign Blade deals double damage to the owner; decrements at the end of its turn.
 listener!(ConquerorPower {
     fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.card == NO || cx.cards[q.card as usize].id != ids::card::SOVEREIGN_BLADE || !q.props.is_powered() || q.target != me.owner {
@@ -171,7 +146,6 @@ listener!(ConquerorPower {
     }
 });
 
-// SwordSagePower: every Sovereign Blade replays Amount more times.
 fn add_blade_replays(cx: &mut Combat, c: CardIdx, n: i32) {
     if cx.cards[c as usize].id == ids::card::SOVEREIGN_BLADE {
         let r = &mut cx.cards[c as usize].base_replay;
@@ -190,7 +164,7 @@ listener!(SwordSagePower {
     }
     fn after_card_entered_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {
         if cx.cards[card as usize].flags & cflag::IS_CLONE != 0 {
-            return; // `card.IsClone`: a clone / dupe already carries the original's replays
+            return;
         }
         let a = amount(cx, &me);
         add_blade_replays(cx, card, a);
@@ -203,9 +177,6 @@ listener!(SwordSagePower {
     }
 });
 
-// ---- generated-card powers -----------------------------------------------------------------------------------------
-
-// ArsenalPower: +Amount Strength whenever the owner generates a card.
 listener!(ArsenalPower {
     fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, _card: CardIdx, added_by_player: bool) {
         if added_by_player {
@@ -215,7 +186,6 @@ listener!(ArsenalPower {
     }
 });
 
-// PillarOfCreationPower: Amount unpowered block whenever the owner generates a card.
 listener!(PillarOfCreationPower {
     fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, _card: CardIdx, added_by_player: bool) {
         if added_by_player {
@@ -225,7 +195,6 @@ listener!(PillarOfCreationPower {
     }
 });
 
-// SpectrumShiftPower: Amount random colorless cards at the start of each turn's draw.
 listener!(SpectrumShiftPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         let a = amount(cx, &me);
@@ -237,16 +206,12 @@ listener!(SpectrumShiftPower {
     }
 });
 
-// ---- draw / energy / misc ------------------------------------------------------------------------------------------
-
-// ForegoneConclusionPower: before the next draw, pick Amount cards from the draw pile into the hand (then removed).
 listener!(ForegoneConclusionPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         cx.hook_shuffle = true;
         cx.shuffle_if_necessary();
         cx.hook_shuffle = false;
         if cx.stage == Stage::AwaitChoice {
-            // An `AfterShuffle` listener (Stratagem) asked for a decision: the pick from the draw pile follows it (`resume_hook` phase 2).
             cx.hook_after = Some((me, 2));
             return;
         }
@@ -266,7 +231,6 @@ listener!(ForegoneConclusionPower {
     }
     fn resume_hook(&self, cx: &mut Combat, me: Me, phase: u8) {
         if phase == 2 {
-            // The shuffle's `AfterShuffle` decision is done: now the pick itself.
             let a = amount(cx, &me).clamp(0, 255) as u8;
             match cx.ask_pile(ids::card::FOREGONE_CONCLUSION, PileType::Draw, a, a, |_, _| true) {
                 Ask::Resolved(cards) => {
@@ -290,7 +254,6 @@ listener!(ForegoneConclusionPower {
     }
 });
 
-// TyrannyPower: +Amount cards drawn each turn, then exhaust Amount cards from the hand.
 listener!(TyrannyPower {
     fn modify_hand_draw(&self, cx: &Combat, me: Me, count: Dec) -> Dec {
         count + Dec::int(cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount) as i64)
@@ -317,7 +280,6 @@ listener!(TyrannyPower {
     }
 });
 
-// MonarchsGazePower: the owner's powered attacks make the target lose Strength until its turn ends.
 listener!(MonarchsGazePower {
     fn after_damage_given(&self, cx: &mut Combat, me: Me, dealer: Cid, target: Cid, _unblocked: i32, props: ValueProp) {
         if dealer == me.owner && props.is_powered() {
@@ -327,7 +289,6 @@ listener!(MonarchsGazePower {
     }
 });
 
-// ReflectPower: blocked powered-attack damage is dealt back to the attacker; decrements at the owner's turn start.
 listener!(ReflectPower {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, _unblocked: i32, props: ValueProp, dealer: Cid) {
         let blocked = cx.dmg_result.blocked;
@@ -342,10 +303,8 @@ listener!(ReflectPower {
     }
 });
 
-// RoyaltiesPower: only adds a gold reward after combat (run-level, not modelled).
 listener!(RoyaltiesPower {});
 
-// OrbitPower (instanced): every 4 energy spent on cards gives Amount energy. `aux` = energy spent so far.
 listener!(OrbitPower {
     fn after_energy_spent(&self, cx: &mut Combat, me: Me, _card: CardIdx, spent: i32) {
         if spent > 0 {
@@ -361,7 +320,6 @@ listener!(OrbitPower {
     }
 });
 
-// PaleBlueDotPower: after the 5th card played in a turn, draw Amount extra cards next turn. `aux` = activated this turn.
 listener!(PaleBlueDotPower {
     fn after_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
         if aux(cx, &me) == 0 && cx.hist.cards_finished_this_turn >= 5 {
@@ -377,8 +335,6 @@ listener!(PaleBlueDotPower {
     }
 });
 
-// MonologuePower (instanced; the card sets its Strength var to 1): every card played while it exists gives +1 Strength
-// after the play; everything is undone at the end of the turn. `aux` = StrengthApplied | (plays in flight << 16).
 const MONOLOGUE_STRENGTH: i32 = 1;
 listener!(MonologuePower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
@@ -400,4 +356,3 @@ listener!(MonologuePower {
         }
     }
 });
-

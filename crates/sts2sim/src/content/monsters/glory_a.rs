@@ -1,11 +1,3 @@
-//! Act 3 "Glory" weak + normal monsters (spec 04 §3.4): Axebot, DevotedSculptor, ScrollOfBiting, LivingShield, TurretOperator,
-//! Fabricator (+ Guardbot, Noisebot, Zapbot, Stabbot), FrogKnight, GlobeHead, OwlMagistrate, SlimedBerserker, TheLost,
-//! TheForgotten, PunchConstruct (ConstructMenagerieNormal; self-contained copy).
-//!
-//! Monsters whose C# initial state depends on a model field (`StarterMoveIdx`, `StockOverride`, `StartsWithFastPunch`) use an
-//! initial `Cond` node over `vars`: its first walk draws nothing and logs the chosen move exactly like the C# machine that
-//! is constructed with that move as `initialState`.
-
 use super::ovg_util::*;
 use crate::dec::Dec;
 use crate::defs::*;
@@ -13,22 +5,17 @@ use crate::ids;
 use crate::state::*;
 use crate::types::*;
 
-// ---- Axebot (AxebotsNormal, slot `front`) ------------------------------------------------------------------------------
-// vars[0] = StockAmount + 1 for a respawned Axebot (`_stockOverrideAmount`), 0 for the original (StockAmount 2).
 fn axebot_stock(cx: &Combat, me: Cid) -> i32 {
     let v = cx.cr(me).monster.vars[0];
     if v == 0 { 2 } else { v - 1 }
 }
-/// `RespawnCount = 2 - StockAmount`.
 fn axebot_respawns(cx: &Combat, me: Cid) -> i32 {
     2 - axebot_stock(cx, me)
 }
-/// `RespawnMaxHpBonus` (+10 max HP per respawn) for the HP range of a monster created with these vars.
 pub fn axebot_hp_bonus(vars: [i32; 2]) -> i32 {
     if vars[0] == 0 { 0 } else { 10 * (2 - (vars[0] - 1)) }
 }
 
-// 0 BOOT_UP_MOVE, 1 ONE_TWO_MOVE, 2 HAMMER_UPPERCUT_MOVE, 3 START (respawn -> BOOT_UP else HAMMER_UPPERCUT)
 pub static AXEBOT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::AXEBOT,
     hp: |a| hp(a, (76, 86), (70, 78)),
@@ -36,7 +23,6 @@ pub static AXEBOT_DEF: MonsterDef = MonsterDef {
     on_spawn: Some(|cx, me| {
         let stock = axebot_stock(cx, me);
         if stock > 0 {
-            // PowerCmd.Apply<StockPower>(Creature, StockAmount, null, null)
             cx.apply_power(ids::power::STOCK_POWER, me, Dec::int(stock as i64), NO, NO);
         }
     }),
@@ -76,8 +62,6 @@ pub static AXEBOT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- DevotedSculptor (DevotedSculptorWeak) ------------------------------------------------------------------------------
-// 0 FORBIDDEN_INCANTATION_MOVE, 1 SAVAGE_MOVE
 pub static DEVOTED_SCULPTOR_DEF: MonsterDef = MonsterDef {
     id: ids::monster::DEVOTED_SCULPTOR,
     hp: |a| hp(a, (172, 172), (162, 162)),
@@ -87,7 +71,6 @@ pub static DEVOTED_SCULPTOR_DEF: MonsterDef = MonsterDef {
         mv(
             "FORBIDDEN_INCANTATION_MOVE",
             |cx, me| {
-                // Ritual 9, applier null
                 cx.apply_power(ids::power::RITUAL_POWER, me, Dec::int(9), NO, NO);
             },
             &[Intent::Buff],
@@ -105,8 +88,6 @@ pub static DEVOTED_SCULPTOR_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- ScrollOfBiting (ScrollsOfBitingWeak / Normal): vars[0] = StarterMoveIdx -----------------------------------------------
-// 0 CHOMP, 1 CHEW, 2 MORE_TEETH, 3 rand, 4 START
 pub static SCROLL_OF_BITING_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SCROLL_OF_BITING,
     hp: |a| hp(a, (33, 39), (30, 37)),
@@ -144,12 +125,10 @@ pub static SCROLL_OF_BITING_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- LivingShield + TurretOperator (TurretOperatorWeak) -----------------------------------------------------------------
 fn living_allies(cx: &Combat, me: Cid) -> usize {
     cx.enemies.iter().filter(|&&e| e != me && !cx.cr(e).is_dead()).count()
 }
 
-// 0 SHIELD_SLAM_MOVE, 1 SMASH_MOVE, 2 SHIELD_SLAM_BRANCH
 pub static LIVING_SHIELD_DEF: MonsterDef = MonsterDef {
     id: ids::monster::LIVING_SHIELD,
     hp: |a| hp(a, (65, 65), (55, 55)),
@@ -176,7 +155,6 @@ fn unload(cx: &mut Combat, me: Cid) {
     atk_n(cx, me, d, 5);
 }
 
-// 0 UNLOAD_MOVE, 1 UNLOAD_MOVE_2, 2 RELOAD_MOVE
 pub static TURRET_OPERATOR_DEF: MonsterDef = MonsterDef {
     id: ids::monster::TURRET_OPERATOR,
     hp: |a| hp(a, (51, 51), (41, 41)),
@@ -189,8 +167,6 @@ pub static TURRET_OPERATOR_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Fabricator (FabricatorNormal) and the bots it builds --------------------------------------------------------------------
-/// Encounter slot table [bot1, bot2, fabricator, bot3, bot4].
 pub const FABRICATOR_SLOTS: u8 = 5;
 pub const SLOT_FABRICATOR: u8 = 2;
 
@@ -198,7 +174,6 @@ fn can_fabricate(cx: &Combat, _me: Cid) -> bool {
     cx.enemies.iter().filter(|&&e| !cx.cr(e).is_dead()).count() < 4
 }
 
-/// `Fabricator.SpawnBot(options)`; `_lastSpawned` lives in `vars[0]` (monster id + 1, 0 = none).
 fn spawn_bot(cx: &mut Combat, me: Cid, options: [u16; 2]) {
     let last = cx.cr(me).monster.vars[0];
     let mut items = [0u16; 2];
@@ -209,12 +184,10 @@ fn spawn_bot(cx: &mut Combat, me: Cid, options: [u16; 2]) {
             n += 1;
         }
     }
-    // RunRng.MonsterAi.NextItem(items): one draw even for a single candidate
     let pick = items[cx.rng.monster_ai.next_int(n as i32) as usize];
     cx.creatures[me as usize].monster.vars[0] = pick as i32 + 1;
     let slot = cx.next_free_slot(FABRICATOR_SLOTS);
     if let Some(bot) = cx.summon_enemy(pick, slot, [0, 0]) {
-        // PowerCmd.Apply<MinionPower>(target, 1, Creature)
         cx.apply_power(ids::power::MINION_POWER, bot, Dec::ONE, me, NO);
     }
 }
@@ -225,7 +198,6 @@ fn spawn_aggro(cx: &mut Combat, me: Cid) {
     spawn_bot(cx, me, [ids::monster::ZAPBOT, ids::monster::STABBOT]);
 }
 
-// 0 FABRICATE_MOVE, 1 FABRICATING_STRIKE_MOVE, 2 DISINTEGRATE_MOVE, 3 fabricateBranch (initial), 4 RAND
 pub static FABRICATOR_DEF: MonsterDef = MonsterDef {
     id: ids::monster::FABRICATOR,
     hp: |a| hp(a, (155, 155), (150, 150)),
@@ -265,7 +237,6 @@ pub static FABRICATOR_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-/// `Guardbot.GuardMove`: 15 Unpowered block to every Fabricator.
 pub static GUARDBOT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::GUARDBOT,
     hp: |a| hp(a, (17, 21), (16, 20)),
@@ -292,7 +263,6 @@ pub static GUARDBOT_DEF: MonsterDef = MonsterDef {
     )],
 };
 
-/// `Noisebot.NoiseMove`: one Dazed to the discard pile, one to a random draw-pile position.
 pub static NOISEBOT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::NOISEBOT,
     hp: |a| hp(a, (19, 24), (18, 23)),
@@ -342,8 +312,6 @@ pub static STABBOT_DEF: MonsterDef = MonsterDef {
     )],
 };
 
-// ---- FrogKnight (FrogKnightNormal): vars[0] = HasBeetleCharged ---------------------------------------------------------------
-// 0 HALF_HEALTH, 1 FOR_THE_QUEEN, 2 STRIKE_DOWN_EVIL, 3 TONGUE_LASH (initial), 4 BEETLE_CHARGE
 pub static FROG_KNIGHT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::FROG_KNIGHT,
     hp: |a| hp(a, (199, 199), (191, 191)),
@@ -394,8 +362,6 @@ pub static FROG_KNIGHT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- GlobeHead (GlobeHeadNormal) ---------------------------------------------------------------------------------------------
-// 0 SHOCKING_SLAP (initial), 1 THUNDER_STRIKE, 2 GALVANIC_BURST
 pub static GLOBE_HEAD_DEF: MonsterDef = MonsterDef {
     id: ids::monster::GLOBE_HEAD,
     hp: |a| hp(a, (158, 158), (148, 148)),
@@ -437,8 +403,6 @@ pub static GLOBE_HEAD_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- OwlMagistrate (OwlMagistrateNormal) -------------------------------------------------------------------------------------
-// 0 MAGISTRATE_SCRUTINY, 1 PECK_ASSAULT, 2 JUDICIAL_FLIGHT, 3 VERDICT
 pub static OWL_MAGISTRATE_DEF: MonsterDef = MonsterDef {
     id: ids::monster::OWL_MAGISTRATE,
     hp: |a| hp(a, (247, 247), (231, 231)),
@@ -478,8 +442,6 @@ pub static OWL_MAGISTRATE_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- SlimedBerserker (SlimedBerserkerNormal) ---------------------------------------------------------------------------------
-// 0 VOMIT_ICHOR_MOVE, 1 SMOTHER_MOVE, 2 LEECHING_HUG_MOVE, 3 FURIOUS_PUMMELING_MOVE
 pub static SLIMED_BERSERKER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SLIMED_BERSERKER,
     hp: |a| hp(a, (281, 281), (261, 261)),
@@ -499,7 +461,6 @@ pub static SLIMED_BERSERKER_DEF: MonsterDef = MonsterDef {
         mv(
             "LEECHING_HUG_MOVE",
             |cx, me| {
-                // Weak 3 on the player with applier null, Strength +3 on itself
                 cx.apply_power(ids::power::WEAK_POWER, PLAYER, Dec::int(3), NO, NO);
                 power_self(cx, me, ids::power::STRENGTH_POWER, 3);
             },
@@ -518,8 +479,6 @@ pub static SLIMED_BERSERKER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- TheLost + TheForgotten (TheLostAndForgottenNormal) ------------------------------------------------------------------------
-// 0 DEBILITATING_SMOG, 1 EYE_LASERS
 pub static THE_LOST_DEF: MonsterDef = MonsterDef {
     id: ids::monster::THE_LOST,
     hp: |a| hp(a, (99, 99), (93, 93)),
@@ -549,12 +508,10 @@ pub static THE_LOST_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-/// `TheForgotten.DreadDamage`: base + the monster's own Dexterity.
 fn dread_damage(cx: &Combat, me: Cid) -> i32 {
     a9(cx, 15, 13) + cx.cr(me).power_amount(ids::power::DEXTERITY_POWER)
 }
 
-// 0 MIASMA, 1 DREAD
 pub static THE_FORGOTTEN_DEF: MonsterDef = MonsterDef {
     id: ids::monster::THE_FORGOTTEN,
     hp: |a| hp(a, (111, 111), (106, 106)),
@@ -585,8 +542,6 @@ pub static THE_FORGOTTEN_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- PunchConstruct (ConstructMenagerieNormal): vars[0] = StartsWithFastPunch, vars[1] = StartingHpReduction -----------------------
-// 0 READY_MOVE, 1 FAST_PUNCH_MOVE, 2 STRONG_PUNCH_MOVE, 3 START
 pub static PUNCH_CONSTRUCT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::PUNCH_CONSTRUCT,
     hp: |a| hp(a, (60, 60), (55, 55)),

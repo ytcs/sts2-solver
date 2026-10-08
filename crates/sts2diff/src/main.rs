@@ -1,11 +1,3 @@
-//! `sts2diff` — differential test of the Rust simulator against traces recorded from the real game.
-//!
-//!   sts2diff run <scenario.json> <trace.jsonl> [--max N] [--quiet]   replay one trace, report the first mismatches
-//!   sts2diff dir <dir>                                                 every `*.scenario.json` + matching `*.jsonl`
-//!
-//! The comparison walks the Rust snapshot (`snapshot::snapshot`) and requires every field it contains to equal the
-//! oracle's, so fields the simulator does not model yet are simply absent from the comparison.
-
 use sts2diff::diff;
 
 use std::process::ExitCode;
@@ -26,7 +18,6 @@ fn main() -> ExitCode {
                 }
             }
         }
-        // Debug aid: the simulator's snapshot right after `Combat::new` (a decision pending at setup is listed).
         Some("show") if args.len() >= 3 => {
             let sv: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&args[2]).unwrap()).unwrap();
             let sc = sts2diff::convert::scenario(&sv).unwrap();
@@ -63,4 +54,3 @@ fn main() -> ExitCode {
         }
     }
 }
-

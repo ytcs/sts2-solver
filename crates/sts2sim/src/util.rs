@@ -1,24 +1,12 @@
-//! Tiny fixed-capacity containers (no heap, `Copy`/memcpy-clonable) used by the combat state.
-//!
-//! Storage is `MaybeUninit`: creating an `ArrayVec` is free (no zero-fill of the capacity), which matters because
-//! the engine creates small temporary lists (listener snapshots, damage results) on every hook dispatch.
-//! Only `[0, len)` is ever read.
-
 use core::cell::Cell;
 use core::mem::MaybeUninit;
 
-/// Overflow bit raised by a full [`ArrayVec`].
 pub const OV_CONTAINER: u32 = 1;
 
 thread_local! {
-    /// Capacity overflows seen on this thread since the last [`take_overflow`] (see below). `const`-initialised: reading
-    /// or writing it is a plain thread-pointer-relative access, and it is only written on the (cold) overflow path.
     static OVERFLOW: Cell<u32> = const { Cell::new(0) };
 }
 
-/// Sticky "a fixed-capacity container dropped data" signal. A full [`ArrayVec`] never panics or writes out of bounds: the
-/// push is dropped and this thread-local flag is raised so the owner of the simulation (`Combat::step` / `observe` in the
-/// env wrappers) can mark the episode as overflowed instead of silently diverging from the real game.
 #[cold]
 #[inline(never)]
 pub fn raise_overflow(bit: u32) {
@@ -35,8 +23,6 @@ thread_local! {
     static QUIET: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Runs `f` with overflows ignored: for throwaway copies of a combat (the enemy look-ahead's projection), whose overflows say
-/// nothing about the fight being simulated.
 pub fn quiet<R>(f: impl FnOnce() -> R) -> R {
     let was = QUIET.with(|q| q.replace(true));
     let r = f();
@@ -44,7 +30,6 @@ pub fn quiet<R>(f: impl FnOnce() -> R) -> R {
     r
 }
 
-/// Returns and clears the overflow bits raised on this thread (`0` = nothing was dropped).
 #[inline]
 pub fn take_overflow() -> u32 {
     OVERFLOW.with(|c| c.replace(0))
@@ -106,7 +91,6 @@ macro_rules! fixed_vec {
                     raise_overflow(OV_CONTAINER);
                 }
             }
-            /// `List<T>.Insert(index, v)`.
             pub fn insert(&mut self, index: usize, v: T) {
                 let n = self.len as usize;
                 if n >= N {
@@ -124,7 +108,6 @@ macro_rules! fixed_vec {
                 self.items[index] = MaybeUninit::new(v);
                 self.len += 1;
             }
-            /// `List<T>.RemoveAt(index)` — preserves order.
             pub fn remove(&mut self, index: usize) -> T {
                 let n = self.len as usize;
                 assert!(index < n);
@@ -140,7 +123,6 @@ macro_rules! fixed_vec {
                 self.len -= 1;
                 v
             }
-            /// `List<T>.RemoveAt(Count - 1)`.
             pub fn pop(&mut self) -> Option<T> {
                 if self.len == 0 {
                     return None;
@@ -152,7 +134,6 @@ macro_rules! fixed_vec {
             pub fn clear(&mut self) {
                 self.len = 0;
             }
-            /// `*self = *src` copying only the live items (the storage past `len` is uninitialised: nobody reads it).
             #[inline(always)]
             pub fn copy_from(&mut self, src: &Self) {
                 let n = src.len as usize;
@@ -189,7 +170,6 @@ macro_rules! fixed_vec {
             pub fn contains(&self, v: T) -> bool {
                 self.position(v).is_some()
             }
-            /// Removes the first occurrence of `v` (order-preserving); returns whether it was present.
             pub fn remove_value(&mut self, v: T) -> bool {
                 if let Some(i) = self.position(v) {
                     self.remove(i);
@@ -223,13 +203,9 @@ macro_rules! fixed_vec {
 }
 
 fixed_vec!(
-    /// Ordered fixed-capacity vector (`u16` length: up to 65535 elements). Overflow never panics (so a pathological fight can
-    /// never abort a whole batch process, and is never UB): the offending push/insert is dropped and [`raise_overflow`]
-    /// records it, which `Combat` turns into its `overflow` flag. Capacities are sized so realistic fights cannot hit it.
     ArrayVec, u16, u16::MAX as usize
 );
 
 fixed_vec!(
-    /// [`ArrayVec`] with a `u8` length (capacity <= 255): for the tiny per-card lists that are repeated 160 times in the state.
     SmallVec, u8, u8::MAX as usize
 );

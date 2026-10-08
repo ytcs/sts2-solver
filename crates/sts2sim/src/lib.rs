@@ -1,9 +1,4 @@
 #![recursion_limit = "512"]
-//! Slay the Spire 2 combat simulator core.
-//!
-//! Design goals, in priority order: bit-exact fidelity with the game's combat rules, then raw
-//! throughput and memory efficiency. All simulation state is plain data (`Clone` is a memcpy,
-//! no heap allocation on the hot path) so tens of thousands of fights can run in parallel.
 
 pub mod bounds;
 pub mod content;

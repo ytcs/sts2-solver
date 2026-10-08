@@ -1,16 +1,3 @@
-"""Macro evaluation: what does a choice do to the fights ahead?
-
-A choice (add / remove / upgrade a card, take or skip a relic, buy a potion, rest vs smith ...) is a *variant* of the current run state. Every variant is
-played by the solver against the same set of encounters; the difference in win rate and HP lost is the choice's value for those fights. This prices the
-combat side of a decision only: gold, future upgrades and route value are not in it, they stay my judgment (see `.claude/skills/sts2-strategy`).
-
-  spec = dict(encounters=["NIBBITS_WEAK", ...] | dict(act="Hive", kind="regular", n=4),
-              variants=[dict(name="skip"), dict(name="+Anger", add=["ANGER"]), dict(name="smith pommel", upgrade=["POMMEL_STRIKE"])],
-              attempts=64, hp="current" | "full" | int)
-  evaluate(engine, deck_json, spec) -> text table
-
-Card names: `ID` or `ID+` (upgraded). Variant keys: add, remove, upgrade, relics_add, relics_remove, potions, hp (override).
-"""
 import copy
 
 import numpy as np
@@ -31,7 +18,7 @@ def apply_variant(base, v):
     for c in v.get("remove", []):
         want = _card(c)
         for i, d in enumerate(deck):
-            exact = isinstance(c, dict) or c.endswith("+")  # "ID" removes the first copy whatever its upgrade; "ID+" or a dict only that upgrade
+            exact = isinstance(c, dict) or c.endswith("+")
             if d["id"] == want["id"] and (not exact or d.get("upgrade", 0) == want.get("upgrade", 0)):
                 deck.pop(i)
                 break
@@ -40,7 +27,7 @@ def apply_variant(base, v):
             if d["id"] == _card(c)["id"] and d.get("upgrade", 0) == 0:
                 d["upgrade"] = 1
                 break
-    for e in v.get("enchant", []):  # ["OFFERING:IMBUED", ...] or [("OFFERING", "IMBUED")]: the first copy of the card without an enchantment gets it (ancient / event enchants)
+    for e in v.get("enchant", []):
         cid, ench = e.split(":") if isinstance(e, str) else e
         for d in deck:
             if d["id"] == cid and not d.get("enchantment"):
@@ -53,19 +40,13 @@ def apply_variant(base, v):
         s["relics"].append({"id": r} if isinstance(r, str) else r)
     if "potions" in v:
         s["potions"] = [{"id": p, "slot": i} for i, p in enumerate(v["potions"])]
-        s["max_potion_slots"] = max(s.get("max_potion_slots", 2), len(v["potions"]))  # a variant with more potions than slots (Alchemical Coffer) widens the belt
+        s["max_potion_slots"] = max(s.get("max_potion_slots", 2), len(v["potions"]))
     if "hp" in v:
         s["hp"] = int(v["hp"])
     return s
 
 
 def narrow(ids, kind, ctx):
-    """The encounters of `kind` that can still appear next, following the game's own draw (ActModel.GenerateRooms, AddWithoutRepeatingTags `[code]`).
-    ctx = dict(seen=encounters met this act in order, bosses=[boss, second boss] in fight order, or empty when unknown).
-    Weak, regular and elite encounters come from a bag per kind that is refilled with the whole pool whenever it is empty: after n met of a pool of P, the
-    current bag has had n mod P of them removed, so the next one is among the rest. When a new bag starts (n mod P == 0, e.g. the 4th elite of 3) the whole pool is
-    possible again except the encounter just met (a draw avoids repeating the previous entry unless nothing else is left). A boss pool shrinks to the act's
-    known boss(es) not yet fought, in order (a second boss at A10 comes after the first)."""
     if not ctx:
         return ids
     seen = [x for x in ctx.get("seen", []) if x in ids]
@@ -80,7 +61,7 @@ def narrow(ids, kind, ctx):
     if k:
         consumed = set(seen[n - k:])
         return [i for i in ids if i not in consumed] or ids
-    if seen:  # a fresh bag: anything but the entry just met
+    if seen:
         return [i for i in ids if i != seen[-1]] or ids
     return ids
 
@@ -100,14 +81,11 @@ SMOOTH_MULTS = (1.0, 1.5, 2.0, 3.0)
 
 
 def _pooled_se(ses):
-    """Standard error of a mean of independent estimates with these standard errors."""
     ses = list(ses)
     return (sum(s ** 2 for s in ses) ** 0.5) / len(ses)
 
 
 def _vs(summary, vi, key="win"):
-    """(difference, its standard error) of variant vi against the baseline (variant 0). The se is the paired one when the evaluation kept the attempts
-    (`dse`: variants share seeds per encounter, so their luck cancels), else the two variants' se combined as if independent."""
     d = summary[vi][key] - summary[0][key]
     if key == "win" and summary[vi].get("dse") is not None:
         return d, summary[vi]["dse"]
@@ -115,13 +93,10 @@ def _vs(summary, vi, key="win"):
 
 
 def loggable(summary):
-    """An evaluation summary without the per-attempt arrays (for the run log)."""
     return {vi: {k: v for k, v in s.items() if k != "diffs"} for vi, s in summary.items()}
 
 
 def _paired_se(diffs):
-    """Standard error of the mean over encounters of per-attempt win differences ({encounter: [attempt diffs, nan = an aborted attempt]}); None if any
-    encounter has fewer than 2 paired attempts."""
     ses = []
     for x in diffs.values():
         x = np.asarray(x, float)
@@ -133,7 +108,6 @@ def _paired_se(diffs):
 
 
 def _diffs(rows, rows0):
-    """Per encounter, the per-attempt win differences of a variant's results against the baseline's (None without per-attempt wins)."""
     out = {}
     for (e, r), (e0, r0) in zip(rows, rows0):
         if e != e0 or r.get("wins") is None or r0.get("wins") is None or len(r["wins"]) != len(r0["wins"]):
@@ -143,8 +117,6 @@ def _diffs(rows, rows0):
 
 
 def evaluate_smooth(engine, deck_json, spec):
-    """The graded objective for deck choices (`sts2-deckbuilding`, study `agent.deckstudy`): the win rate averaged over start HP x1 / 1.5 / 2 / 3. A deck far
-    from beating the fight still wins with enough HP, so the average does not go flat when every option loses; what picks reduce is the HP a fight needs."""
     hp = spec.get("hp", "current")
     h0 = deck_json["max_hp"] if hp == "full" else (deck_json["hp"] if hp == "current" else hp)
     sub = dict(spec, smooth=False)
@@ -158,7 +130,6 @@ def evaluate_smooth(engine, deck_json, spec):
         wins = [p[1][vi]["win"] for p in parts]
         se = _pooled_se(p[1][vi]["se"] for p in parts)
         per = {e: sum(p[1][vi]["per"][e] for p in parts) / len(parts) for e in parts[0][1][vi]["per"]}
-        # paired: per encounter and attempt, the difference averaged over the HP levels (the levels share seeds, so they are not independent)
         dl = [p[1][vi].get("diffs") for p in parts]
         diffs = {e: np.mean([d[e] for d in dl], axis=0) for e in dl[0]} if all(d is not None for d in dl) else None
         summary[vi] = dict(win=sum(wins) / len(wins), se=se, diffs=diffs, dse=_paired_se(diffs) if vi and diffs is not None else None, hp_lost=sum(p[1][vi]["hp_lost"] for p in parts) / len(parts), by_hp=wins, per=per)
@@ -187,12 +158,11 @@ def evaluate(engine, deck_json, spec):
     for vi, v in enumerate(variants):
         sv = apply_variant(base, v)
         for e in encs:
-            sc = dict(sv, name=f"{v.get('name', vi)}@{e}", encounter=e, seed=f"macro{encs.index(e)}")  # seeded by encounter, not variant: common random numbers
-            if (hold or drop_all) and not e.endswith("_BOSS"):  # potions are spent only when worth it and kept for the boss, so every other fight is priced without them (a lower bound)
+            sc = dict(sv, name=f"{v.get('name', vi)}@{e}", encounter=e, seed=f"macro{encs.index(e)}")
+            if (hold or drop_all) and not e.endswith("_BOSS"):
                 sc["potions"] = [] if drop_all else [p for p in sc.get("potions", []) if p["id"] not in hold]
             scen.append(sc)
             index.append((vi, e))
-    # every variant of one encounter gets the same seeds per attempt (common random numbers): variant differences are not luck
     res = engine.solve(scen, attempts=spec.get("attempts", 64), groups=[encs.index(e) for _, e in index])
     by = {}
     for (vi, e), r in zip(index, res):
@@ -205,9 +175,9 @@ def evaluate(engine, deck_json, spec):
         se = _pooled_se(r["win_se"] for _, r in rows)
         hpl = sum((r["hp_lost"] or 0) for _, r in rows) / len(rows)
         lost = np.concatenate([base["hp"] - np.array(r["ends"]) for _, r in rows if r.get("ends")]) if any(r.get("ends") for _, r in rows) else np.zeros(1)
-        lq = [float(x) for x in np.percentile(lost, [10, 50, 90, 97.5])]  # the distribution of HP lost (a loss counts as the whole start HP), pooled over the encounters
+        lq = [float(x) for x in np.percentile(lost, [10, 50, 90, 97.5])]
         diffs = _diffs(rows, by[0])
-        summary[vi] = dict(win=win, se=se, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows},  # per-encounter win: the weakest-fight views need it
+        summary[vi] = dict(win=win, se=se, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows},
                            diffs=diffs, dse=_paired_se(diffs) if vi and diffs is not None else None)
         lines.append(f"{v.get('name', vi):24s} win {win:.3f} ±{se:.3f}  HP lost {100 * hpl:4.1f}% (q10/50/90/97.5: {lq[0]:.0f}/{lq[1]:.0f}/{lq[2]:.0f}/{lq[3]:.0f} HP)  | " + " ".join(f"{e.split('_')[0][:8]}:{r['win']:.2f}" for e, r in rows))
     for vi in range(1, len(variants)):
@@ -216,16 +186,7 @@ def evaluate(engine, deck_json, spec):
     return "\n".join(lines), summary
 
 
-# ----------------------------------------------------------------------------------------------------------------------------- route HP budget
-
 def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), attempts=48, ctx=None):
-    """Walk a planned route and chain the solver's results: every fight node is played at the HP I would arrive with, a rest heals 30% of max HP.
-
-    nodes: tokens M (regular monster), W (weak monster), E (elite), B (boss), R (rest), S (smith instead of rest), ? $ T (no fight assumed).
-    Pools: the act's pool for the token's kind minus `exclude` (encounters already seen: the bag does not repeat them until it empties).
-    Prints win probability per node, expected HP after the node (conditional on winning, Burning Blood included) and the route's win probability.
-    Potions: only a B node is solved with the belt (a potion is thrown once); every other node without potions, a lower bound.
-    """
     base = dict(deck_json)
     maxhp = base["max_hp"]
     kind = dict(M="regular", W="weak", E="elite", B="boss")
@@ -242,7 +203,7 @@ def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), att
             lines.append(f"{i + 1:2d} {t}  (no fight assumed)  HP {cur:5.1f}")
             continue
         encs = narrow([e for e in pools.pool(act, kind[t]) if e not in set(exclude)], kind[t], ctx)
-        pots = base.get("potions", []) if t == "B" else []  # a potion is thrown once: only the boss node gets the belt (every node used to get all of it: the same potion counted in every fight of the route)
+        pots = base.get("potions", []) if t == "B" else []
         scen = [dict(base, hp=max(1, int(round(cur))), potions=pots, name=f"{t}@{e}", encounter=e, seed=f"route{i}") for e in encs]
         res = engine.solve(scen, attempts=attempts)
         w = sum(r["win"] for r in res) / len(res)
@@ -256,13 +217,10 @@ def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), att
     return "\n".join(lines)
 
 
-# ----------------------------------------------------------------------------------------------------------------------------- one-call reports for the agent
-
 _CARD_IDS = None
 
 
 def card_id_set():
-    """Every card id of the simulator (parsed from its card table once)."""
     global _CARD_IDS
     if _CARD_IDS is None:
         import os
@@ -274,7 +232,6 @@ def card_id_set():
 
 
 def card_from_name(name):
-    """'Setup Strike' / 'Ashen Strike+' -> ('SETUP_STRIKE', 0|1), or (None, 0) when the display name does not map to a simulator id."""
     import re
     up = 1 if name.strip().endswith("+") else 0
     cid = re.sub(r"[^A-Z0-9]+", "_", name.strip().rstrip("+").upper().replace("'", "")).strip("_")
@@ -282,12 +239,11 @@ def card_from_name(name):
 
 
 def parse_card_options(state):
-    """The options of a CARD_REWARD screen: [(index, display name, card id or None, upgrade)] and the index of Skip (or None)."""
     import re
     from agent import screen
     opts, skip = [], None
     for num, label in screen.options(state):
-        m = re.match(r"^(.+?)\(([^()]*)\) ", label)  # cost: 1, X, -, or energy/star like `1/2*` (Regent cards: Resonance): any cost text, else the card vanished from the table
+        m = re.match(r"^(.+?)\(([^()]*)\) ", label)
         if m:
             cid, up = card_from_name(m.group(1))
             opts.append((int(num), m.group(1).strip(), cid, up))
@@ -297,10 +253,6 @@ def parse_card_options(state):
 
 
 def need_view(res, nvar, names=None):
-    """The weakest-link view of a pick table. `res` = {set name: {variant index: summary with per-encounter wins}}; variant 0 is the baseline (skip / keep).
-    For every variant: the weakest upcoming fight (the lowest win over the boss and the elites still to come) and the need-weighted gain: the mean change in win over all
-    listed fights, each weighted by how unsolved it is for the baseline (1 - baseline win), so a fight the baseline already wins counts ~0 and an unsolved one counts in full.
-    Returns (rows, solved) with rows[vi] = (weakest id, weakest win, need gain) and solved True when every fight is solved by the baseline (the gain is then n/a)."""
     fights = []
     for key in ("boss", "elites", "next act"):
         for e in res.get(key, {}).get(0, {}).get("per", {}):
@@ -319,8 +271,6 @@ def need_view(res, nvar, names=None):
 
 
 def price_horizon(engine, deck_json, variants, hz, hp, hold, boss_attempts, other_attempts, next_attempts=None, smooth_boss=True):
-    """Every variant against the three horizon sets of a pick (`sts2-deckbuilding` section 4): the known boss (smooth objective unless `smooth_boss` is off),
-    the elites still to come and the next act's elites and bosses (plain win rate / HP lost at `hp`). Returns {set name: evaluate summary}; an empty set is left out."""
     sets = (("boss", hz["boss"], smooth_boss, boss_attempts), ("elites", hz["elites"], False, other_attempts),
             ("next act", hz["next"], False, other_attempts if next_attempts is None else next_attempts))
     res = {}
@@ -334,8 +284,6 @@ HORIZON_HEAD = f"{'boss smooth':>16s} {'boss@full':>9s} {'elites win/HP':>14s} {
 
 
 def horizon_cells(res, vi):
-    """The four cells of variant vi in a `price_horizon` table: boss smooth (and its gain over variant 0), boss win at the HP I arrive with, elites and next
-    act win / HP lost; `-` where the set was empty."""
     base, b = res.get("boss", {}).get(0), res.get("boss", {}).get(vi)
     cells = [(f"{b['win']:.3f}" + (f" ({b['win'] - base['win']:+.3f})" if vi and base else "")) if b else "-", f"{b['by_hp'][0]:.2f}" if b else "-"]
     for key in ("elites", "next act"):
@@ -345,8 +293,6 @@ def horizon_cells(res, vi):
 
 
 def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full", hold=()):
-    """One table for a card reward: every option (and skip) against the known boss (smooth objective), the elites still to come and the next act's elites and
-    bosses (plain win rate / HP lost at `hp`). Prices only the combat side; gold, route and the plan stay my judgment."""
     from agent import card_tags
     variants = [dict(name="skip")] + [dict(name=n, add=[(cid + "+") if u else cid]) for _, n, cid, u in opts if cid]
     res = price_horizon(engine, deck_json, variants, hz, hp, hold, attempts, max(48, attempts * 2 // 3))
@@ -381,8 +327,6 @@ def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full", hold=()):
 
 
 def _bar_verdict(variants, res, tags, gaps, nv):
-    """`sts2-deckbuilding` section 3 applied to the table: a card that fills no open bucket must clearly beat skip (boss smooth gain well beyond 2 se: > max(3 se,
-    0.05), or +0.10 on the weakest fight); otherwise the default is skip. One input of the pick: the judgment pass weighs it with the plan, density and future problems."""
     boss = res.get("boss", {})
     if 0 not in boss:
         return []
@@ -396,7 +340,7 @@ def _bar_verdict(variants, res, tags, gaps, nv):
         opens = [b for b in bk if b in gaps]
         d, se = _vs(boss, vi)
         dw = (nv[vi][1] - w0) if nv and w0 is not None else 0.0
-        if boss[vi].get("by_hp") and boss[0].get("by_hp"):  # the smooth average saturates at x1.5+; the weakest fight is judged at the HP I arrive with too
+        if boss[vi].get("by_hp") and boss[0].get("by_hp"):
             dw = max(dw, boss[vi]["by_hp"][0] - boss[0]["by_hp"][0])
         bar = max(3 * se, 0.05)
         clear = d > bar or dw >= 0.10
@@ -410,13 +354,10 @@ def _bar_verdict(variants, res, tags, gaps, nv):
     return out
 
 
-ETERNAL = {"ASCENDERS_BANE", "GREED"}  # cannot be removed
+ETERNAL = {"ASCENDERS_BANE", "GREED"}
 
 
 def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
-    """One table for a card removal (shop service, event, Peace Pipe ...): every distinct removable card of the deck against the known boss (smooth objective), the
-    elites still to come and the next act's elites and bosses, sorted by the boss smooth score. Prices the combat side only: what the removal costs (shop price rises per
-    use), the card's role in a plan the simulator cannot see (enablers whose partner is not yet in the deck, relic synergies it does model) stay my judgment."""
     seen, variants = set(), [dict(name="keep all")]
     for d in deck_json["deck"]:
         key = (d["id"], d.get("upgrade", 0))
@@ -433,7 +374,6 @@ def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
         e = res.get("elites", {}).get(vi)
         x = res.get("next act", {}).get(vi)
         rows.append((vi, v["name"], b, e, x))
-    # the boss smooth score first (a 0.02 band is a tie), then the next act's win rate, then the HP the elites cost: a saturated boss must not leave the order arbitrary
     order = [rows[0]] + sorted(rows[1:], key=lambda r: (-round((r[2]["win"] if r[2] else 0) / 0.02), -(r[4]["win"] if r[4] else 0), (r[3]["hp_lost"] if r[3] else 1)))
     lines = [f"card removal vs boss {','.join(hz['boss']) or '?'} (smooth), {len(hz['elites'])} elites left, {len(hz['next'])} next-act fights; deck {n} removable cards; {attempts} attempts"]
     lines.append(f"{'remove':24s} {HORIZON_HEAD}")
@@ -442,7 +382,7 @@ def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
     if base:
         best = order[1][2]
 
-        def se_vs_best(b):  # paired when the attempts were kept: both differences against the baseline share its draws
+        def se_vs_best(b):
             if b is best:
                 return 0.0
             if b.get("diffs") is not None and best.get("diffs") is not None:
@@ -456,7 +396,6 @@ def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
 
 
 def brief_text(state, deck_json, hz):
-    """The run at a glance in one call: header, deck by card, buckets, relics, potions, what the pools can still throw at me."""
     import collections
     from agent import card_tags, screen
     head = screen.header_line(state, state.split("\n")[0])

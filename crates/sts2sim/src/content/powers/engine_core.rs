@@ -1,11 +1,8 @@
-//! Representative powers that exercise engine mechanisms (kept in an `engine_*` file; a content owner may replace them).
-
 use crate::hooks::*;
 use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// Rebound: the next card(s) played go to the top of the draw pile instead of the discard pile.
 listener!(ReboundPower {
     fn modify_card_play_result_location(&self, _cx: &Combat, me: Me, _card: CardIdx, _is_auto: bool, _energy_spent: i32, loc: CardLocation) -> CardLocation {
         if me.owner != PLAYER || loc.pile != PileType::Discard {
@@ -25,7 +22,6 @@ listener!(ReboundPower {
     }
 });
 
-// Ambergris: an extra player turn (spec 01 §9.2) for each stack; consumed in `AfterTakingExtraTurn`. Invisible.
 listener!(AmbergrisPower {
     fn should_take_extra_turn(&self, cx: &Combat, me: Me) -> bool {
         cx.power_amount(me.owner, me.id) > 0 && me.owner == PLAYER
@@ -37,8 +33,6 @@ listener!(AmbergrisPower {
     }
 });
 
-// Void Form: after the turn it is played, the first `Amount` cards played each turn cost 0 (energy and stars, applied in
-// the LATE cost pass). `Power::aux` = cards played this turn (starts "maxed" so the effect begins next turn).
 listener!(VoidFormPower {
     fn initial_power_aux(&self) -> i32 {
         999_999_999

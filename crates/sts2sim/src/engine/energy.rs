@@ -1,5 +1,3 @@
-//! Energy / stars commands (`PlayerCmd.GainEnergy` ...), X values, star costs and the "after modifying" dispatch helper.
-
 use super::damage::Mods;
 use crate::content;
 use crate::dec::Dec;
@@ -9,9 +7,6 @@ use crate::state::*;
 use crate::types::*;
 
 impl Combat {
-    /// `Hook.After*Modifying*(…, modifiers)` pattern: re-enumerates the listeners of the hook (fresh snapshot) and
-    /// calls `f` only for the models recorded in `mods` — in listener order, once per model even if it was recorded
-    /// by several passes (spec 02 §0).
     #[inline(always)]
     pub fn dispatch_modifiers(&mut self, guarded: bool, bit: u32, mods: &Mods, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if mods.is_empty() || !self.listen.has(bit) || (guarded && !self.hooks_enabled()) {
@@ -23,7 +18,7 @@ impl Combat {
     #[inline(never)]
     fn dispatch_modifiers_slow(&mut self, bit: u32, mods: &Mods, f: &mut dyn FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if !self.pass_enter() {
-            return; // runaway-work safeguard tripped (`engine/budget.rs`)
+            return;
         }
         let mut snap = crate::engine::Snapshot::new();
         self.snapshot_into(Mask::bit(bit), &mut snap);
@@ -35,9 +30,6 @@ impl Combat {
         self.pass_exit();
     }
 
-    // ---- energy ----------------------------------------------------------------------------------------------------
-
-    /// `Hook.ModifyEnergyGain` (guarded, threaded): the models whose `(int)` value changed are recorded.
     fn modify_energy_gain(&self, amount: Dec) -> (Dec, Mods) {
         let mut v = amount;
         let mut mods = Mods::new();
@@ -57,7 +49,6 @@ impl Combat {
         (v, mods)
     }
 
-    /// `PlayerCmd.GainEnergy(amount)`.
     pub fn gain_energy(&mut self, n: i32) {
         self.gain_energy_dec(Dec::int(n as i64));
     }
@@ -73,7 +64,6 @@ impl Combat {
         }
     }
 
-    /// `PlayerCmd.LoseEnergy(amount)`.
     pub fn lose_energy(&mut self, n: i32) {
         if n <= 0 || self.is_ending() {
             return;
@@ -81,7 +71,6 @@ impl Combat {
         self.player.energy = (self.player.energy - n).clamp(0, 999_999_999);
     }
 
-    /// `PlayerCmd.SetEnergy(amount)`: gain / lose the difference.
     pub fn set_energy(&mut self, n: i32) {
         if self.is_ending() {
             return;
@@ -94,9 +83,6 @@ impl Combat {
         }
     }
 
-    // ---- stars -----------------------------------------------------------------------------------------------------
-
-    /// `PlayerCmd.GainStars` (`ShouldGainStars` AND, then `AfterStarsGained`).
     pub fn gain_stars(&mut self, n: i32) {
         if self.is_ending() {
             return;
@@ -113,7 +99,6 @@ impl Combat {
         self.dispatch_g(hookbit::after_stars_gained, |cx, me, l| l.after_stars_gained(cx, me, n));
     }
 
-    /// `PlayerCmd.LoseStars`.
     pub fn lose_stars(&mut self, n: i32) {
         if n <= 0 || self.is_ending() {
             return;
@@ -126,7 +111,6 @@ impl Combat {
         }
     }
 
-    /// `PlayerCmd.SetStars`.
     pub fn set_stars(&mut self, n: i32) {
         if self.is_ending() {
             return;
@@ -139,9 +123,6 @@ impl Combat {
         }
     }
 
-    // ---- star costs (`CardModel.*StarCost*`) -------------------------------------------------------------------------
-
-    /// `CanonicalStarCost` marker for `HasStarCostX` cards (see `tools/gen_defs.py`).
     pub const STAR_COST_X: i8 = -2;
 
     #[inline]
@@ -149,7 +130,6 @@ impl Combat {
         self.card_def(c).star_cost == Self::STAR_COST_X
     }
 
-    /// `CardModel.BaseStarCost` (-1 = none; star-X cards have canonical cost -1): canonical + upgrade delta.
     #[inline]
     pub fn card_base_star_cost(&self, c: CardIdx) -> i32 {
         let d = self.card_def(c);
@@ -160,8 +140,6 @@ impl Combat {
         }
     }
 
-    /// `CardModel.CurrentStarCost`: the last temporary star cost, except that a temporary 0 never gives a card
-    /// without a star cost one.
     pub fn card_current_star_cost(&self, c: CardIdx) -> i32 {
         let base = self.card_base_star_cost(c);
         match self.cards[c as usize].star_mods.last() {
@@ -176,8 +154,6 @@ impl Combat {
         }
     }
 
-    /// `CardModel.GetStarCostWithModifiers()`: X cards cost all current stars; otherwise the current cost through
-    /// `Hook.ModifyStarCost` (guarded, threaded; skipped for negative costs) while in a combat pile. -1 = no star cost.
     #[inline(always)]
     pub fn card_star_cost(&self, c: CardIdx) -> i32 {
         let d = self.card_def(c);
@@ -218,20 +194,16 @@ impl Combat {
         mods.push(m);
     }
 
-    /// `CardModel.SetStarCostUntilPlayed`.
     pub fn set_star_cost_until_played(&mut self, c: CardIdx, cost: i32) {
         self.add_temp_star_cost(c, cost, EXPIRE_WHEN_PLAYED);
     }
-    /// `CardModel.SetStarCostThisTurn` (cleared at end of turn and when played).
     pub fn set_star_cost_this_turn(&mut self, c: CardIdx, cost: i32) {
         self.add_temp_star_cost(c, cost, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED);
     }
-    /// `CardModel.SetStarCostThisCombat`.
     pub fn set_star_cost_this_combat(&mut self, c: CardIdx, cost: i32) {
         self.add_temp_star_cost(c, cost, 0);
     }
 
-    /// Drops temporary star costs flagged `flag` (`EXPIRE_END_OF_TURN` / `EXPIRE_WHEN_PLAYED`).
     pub(crate) fn clear_star_mods(&mut self, c: CardIdx, flag: u8) {
         let card = &mut self.cards[c as usize];
         if card.star_mods.is_empty() {
@@ -246,23 +218,17 @@ impl Combat {
         card.star_mods = kept;
     }
 
-    /// `CardModel.ResolveStarXValue`: the captured star X (all stars at play time).
     pub fn resolve_star_x_value(&self, c: CardIdx) -> i32 {
         if !self.card_has_star_cost_x(c) {
             return 0;
         }
-        // `Hook.ModifyXValue(CombatState, this, LastStarsSpent)` (ChemicalX also applies to star X costs)
         self.x_value(c)
     }
 
-    /// Sum of the positive `StarsModifiedEntry` amounts of this turn (Radiate).
     pub fn stars_gained_this_turn(&self) -> i32 {
         self.hist_log.iter().filter(|e| e.kind == HKind::StarsModified && self.hist_this_turn(e) && e.val > 0).map(|e| e.val as i32).sum()
     }
 
-    // ---- X cost -----------------------------------------------------------------------------------------------------
-
-    /// `CardModel.ResolveEnergyXValue()`: the captured X through `Hook.ModifyXValue` (ChemicalX).
     pub fn x_value(&self, c: CardIdx) -> i32 {
         let mut v = self.cards[c as usize].x_value as i32;
         if self.listen.has(hookbit::modify_x_value) && self.hooks_enabled() {

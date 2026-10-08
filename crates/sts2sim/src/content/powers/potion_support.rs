@@ -1,7 +1,3 @@
-//! Powers that potions apply (ported so the potion sweeps can exercise them). Hook bodies follow the decompiled
-//! `Models/Powers/*.cs`; powers needing a subsystem the engine lacks (Ambergris/extra turns) are NOT registered
-//! here, so using them is flagged as unimplemented at runtime.
-
 use crate::dec::Dec;
 use crate::engine::Attack;
 use crate::hooks::*;
@@ -10,7 +6,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// ClarityPower: +1 card draw each turn for `Amount` turns.
 listener!(ClarityPower {
     fn modify_hand_draw(&self, _cx: &Combat, me: Me, amount: Dec) -> Dec {
         if me.owner != PLAYER {
@@ -25,7 +20,6 @@ listener!(ClarityPower {
     }
 });
 
-// IntangiblePower: every HP loss is capped at 1; decrements after the enemy turn.
 listener!(IntangiblePower {
     fn modify_hp_lost_after_osty(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, _props: ValueProp, _dealer: Cid, _card: CardIdx) -> Dec {
         if !cx.in_progress || target != me.owner || amount < Dec::ONE {
@@ -46,7 +40,6 @@ listener!(IntangiblePower {
     }
 });
 
-// BufferPower: prevents the next HP loss.
 listener!(BufferPower {
     fn modify_hp_lost_after_osty_late(&self, _cx: &Combat, me: Me, target: Cid, amount: Dec, _props: ValueProp, _dealer: Cid, _card: CardIdx) -> Dec {
         if target != me.owner {
@@ -59,8 +52,6 @@ listener!(BufferPower {
     }
 });
 
-// RitualPower: +Strength at the end of the owner's turn (an enemy-applied ritual skips its first tick).
-// `aux` = `_wasJustAppliedByEnemy`.
 listener!(RitualPower {
     fn after_applied(&self, cx: &mut Combat, me: Me) {
         if cx.cr(me.owner).side == Side::Enemy {
@@ -83,7 +74,6 @@ listener!(RitualPower {
     }
 });
 
-// RegenPower: heal `Amount` before the owner's turn ends, then decrement.
 listener!(RegenPower {
     fn before_side_turn_end_early(&self, cx: &mut Combat, me: Me, side: Side) {
         if cx.cr(me.owner).side == side && !cx.cr(me.owner).is_dead() {
@@ -94,7 +84,6 @@ listener!(RegenPower {
     }
 });
 
-// RadiancePower: +1 energy after each energy reset, `Amount` times.
 listener!(RadiancePower {
     fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
         if me.owner == PLAYER {
@@ -104,7 +93,6 @@ listener!(RadiancePower {
     }
 });
 
-// RetainHandPower: the hand is not discarded at end of turn; decrements after the owner's turn.
 listener!(RetainHandPower {
     fn should_flush(&self, _cx: &Combat, me: Me) -> bool {
         me.owner != PLAYER
@@ -116,7 +104,6 @@ listener!(RetainHandPower {
     }
 });
 
-// DuplicationPower: the next card(s) are played one extra time; expires at end of turn.
 listener!(DuplicationPower {
     fn modify_card_play_count(&self, _cx: &Combat, me: Me, _card: CardIdx, _target: Cid, count: i32) -> i32 {
         if me.owner != PLAYER {
@@ -134,7 +121,6 @@ listener!(DuplicationPower {
     }
 });
 
-// DemisePower: unblockable damage at the end of the owner's turn.
 listener!(DemisePower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if cx.cr(me.owner).side == side {
@@ -144,13 +130,12 @@ listener!(DemisePower {
     }
 });
 
-// ShrinkPower: the owner's powered attacks deal 30% less; ticks down at the end of its turn (negative = infinite).
 listener!(ShrinkPower {
     fn modify_damage_multiplicative(&self, _cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if me.owner != q.dealer || !q.props.is_powered() {
             return Dec::ONE;
         }
-        Dec::frac(7, 1) // (100 - 30) / 100
+        Dec::frac(7, 1)
     }
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if cx.is_turn_participant(side, me.owner) && cx.power_amount(me.owner, me.id) >= 0 {
@@ -165,7 +150,6 @@ listener!(ShrinkPower {
     }
 });
 
-// GigantificationPower: the next powered card attack deals triple damage. `aux` = (attack source card + 1) while in flight.
 listener!(GigantificationPower {
     fn before_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
         if attack.card == NO || me.owner != PLAYER || !attack.props.is_powered() {
@@ -198,4 +182,3 @@ listener!(GigantificationPower {
         }
     }
 });
-

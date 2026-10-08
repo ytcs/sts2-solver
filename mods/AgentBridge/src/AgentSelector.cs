@@ -5,10 +5,6 @@ using MegaCrit.Sts2.Core.TestSupport;
 
 namespace AgentBridge;
 
-/// <summary>
-/// Every card choice the game routes through <c>CardSelectCmd</c> (hand picks, deck upgrade / transform / enchant / remove, grids)
-/// becomes a pending decision answered by the agent (`a pick i j ...`) instead of a UI screen.
-/// </summary>
 public sealed class AgentSelector : MegaCrit.Sts2.Core.TestSupport.ICardSelector
 {
     public static readonly AgentSelector Instance = new();
@@ -27,7 +23,7 @@ public sealed class AgentSelector : MegaCrit.Sts2.Core.TestSupport.ICardSelector
     {
         var list = options.ToList();
         if (list.Count == 0) return Task.FromResult<IEnumerable<CardModel>>(Array.Empty<CardModel>());
-        int min = Math.Max(minSelect, PromptPatch.NextMin ?? 0);  // a human cannot skip where the game's screen forbids it
+        int min = Math.Max(minSelect, PromptPatch.NextMin ?? 0);
         var p = new Pending { Options = list, Min = Math.Min(min, list.Count), Max = Math.Min(Math.Max(maxSelect, min), list.Count), Tcs = new(TaskCreationOptions.RunContinuationsAsynchronously), Prompt = PromptPatch.Next };
         PromptPatch.Next = null;
         PromptPatch.NextMin = null;
@@ -35,7 +31,6 @@ public sealed class AgentSelector : MegaCrit.Sts2.Core.TestSupport.ICardSelector
         return p.Tcs.Task;
     }
 
-    /// <summary>Only reached when the game shows no card-reward screen (never in normal play); take the first card.</summary>
     public CardRewardSelection GetSelectedCardReward(IReadOnlyList<CardCreationResult> options, IReadOnlyList<CardRewardAlternative> alternatives)
         => new CardRewardSelection { card = options.Count > 0 ? options[0].Card : null, alternative = null };
 

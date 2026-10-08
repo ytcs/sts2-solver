@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
-"""Client for the AgentBridge mod (mods/AgentBridge): one command per call, plain-text reply.
-
-  python -m agent.bridge s              current state + numbered legal actions
-  python -m agent.bridge a 3            take action 3, wait for the game to settle, print the new state
-  python -m agent.bridge a 3 1          action 3 aimed at target 1 (combat: enemy index)
-  python -m agent.bridge a pick 0 2     answer a card-choice prompt with options 0 and 2
-  python -m agent.bridge d | p draw | m full deck / a pile / the whole map
-  python -m agent.bridge x fight CULTISTS_NORMAL   dev-console command
-"""
 import os, socket, sys, time
 
 from agent.skillgate import BRIDGE_READ_ONLY
 
 PORT = int(os.environ.get("STS2_BRIDGE_PORT", 15555))
-# commands that are safe to repeat when the connection drops (one list with the skill gate's hook; `f` (fast mode) is idempotent, though the harness gate counts it as an action)
 READ_ONLY = tuple(sorted(BRIDGE_READ_ONLY))
 
 
@@ -30,8 +20,6 @@ def _once(line, port, timeout):
 
 
 def call(line, port=PORT, timeout=120):
-    """One bridge command. A refused connection (the game is starting, loading a scene or briefly stuck) is retried for ~20 s; a dropped connection is retried only for
-    read-only commands (an action may already have been applied). Failures come back as an `ERR bridge ...` reply instead of a traceback."""
     read_only = (line.split() or ["s"])[0] in READ_ONLY
     deadline = time.time() + 20
     while True:

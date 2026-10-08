@@ -1,5 +1,3 @@
-//! Defect cards that channel / evoke / read orbs (ported from the decompiled `OnPlay` bodies).
-
 use super::defect_util::*;
 use crate::defs::VarKind;
 use crate::engine::{Attack, Targeting, VALID_ORBS};
@@ -15,7 +13,6 @@ fn channel_n(cx: &mut Combat, kind: u16, n: i32) {
     }
 }
 
-// Damage, then channel a Lightning.
 listener!(BallLightning {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -24,7 +21,6 @@ listener!(BallLightning {
     }
 });
 
-// Hits = CalculationBase (0) + CalculationExtra (1) x orbs in the queue.
 listener!(Barrage {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
@@ -38,7 +34,6 @@ listener!(Barrage {
     }
 });
 
-// Remove orb slots, then +Strength, +Dexterity.
 listener!(BulkUp {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let slots = cx.card_var(p.card, VarKind::Named);
@@ -59,7 +54,6 @@ listener!(Capacitor {
     }
 });
 
-// Channel `Repeat` random orbs (`combat_orbs` stream, `_validOrbs` order).
 listener!(Chaos {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Repeat);
@@ -71,7 +65,6 @@ listener!(Chaos {
     }
 });
 
-// One Frost per hittable enemy (counted once, before channeling).
 listener!(Chill {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.hittable_enemies().len() as i32;
@@ -88,7 +81,6 @@ listener!(ColdSnap {
     }
 });
 
-// Damage, then draw CalculationBase (0) + CalculationExtra (1) x distinct orb types.
 listener!(CompileDriver {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -111,7 +103,6 @@ listener!(Coolheaded {
     }
 });
 
-// Channel Dark, then trigger the passive of every Dark orb (1x, or 2x upgraded) directly (no trigger-count hooks).
 listener!(Darkness {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         cx.channel_orb(ids::orb::DARK_ORB);
@@ -158,7 +149,6 @@ listener!(IceLance {
     }
 });
 
-// Multiplayer-only (targets an ally): channel Plasma for the target player (== the owner in single player).
 listener!(Ignition {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         cx.channel_orb(ids::orb::PLASMA_ORB);
@@ -174,7 +164,6 @@ listener!(MeteorStrike {
     }
 });
 
-// Add orb slots, draw, then the card costs 1 more for the rest of the combat.
 listener!(Modded {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let slots = cx.card_var(p.card, VarKind::Repeat);
@@ -186,7 +175,6 @@ listener!(Modded {
     }
 });
 
-// X-cost: evoke the front orb X (+1 upgraded) times; only the last evoke removes the orb.
 listener!(MultiCast {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut n = x_value(cx, p.card);
@@ -210,7 +198,6 @@ listener!(Null {
     }
 });
 
-// If any orb: evoke the front orb `Repeat` times, removing it only on the last evoke.
 listener!(Quadcast {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         if cx.orb_count() <= 0 {
@@ -233,7 +220,6 @@ listener!(Rainbow {
     }
 });
 
-// Two hits, then channel `Repeat` Glass.
 listener!(Refract {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
@@ -252,7 +238,6 @@ listener!(ShadowShield {
     }
 });
 
-// Damage all, then for each orb (counted once): evoke the front orb without dequeuing, then again dequeuing.
 listener!(Shatter {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
@@ -266,7 +251,6 @@ listener!(Shatter {
     }
 });
 
-// Focus (until end of turn) = CalculationBase (0) + CalculationExtra x distinct orb types.
 listener!(Synchronize {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.distinct_orb_types();
@@ -279,7 +263,6 @@ listener!(Synchronize {
     }
 });
 
-// X-cost: channel X (+1 upgraded) Lightning.
 listener!(Tempest {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut n = x_value(cx, p.card);
@@ -291,7 +274,6 @@ listener!(Tempest {
     }
 });
 
-// Damage, then trigger each Lightning orb's passive (1x, 2x upgraded) at the played card's target.
 listener!(TeslaCoil {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p);
@@ -306,7 +288,6 @@ listener!(TeslaCoil {
     }
 });
 
-// Channel as many Lightning as were channeled this combat (`OrbChanneledEntry` history).
 listener!(Voltaic {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.hist_log.lightning_channeled as i32;
@@ -329,7 +310,6 @@ listener!(ConsumingShadow {
     }
 });
 
-// Multiplayer-only: Hibernate power (1), then `Repeat` Frost.
 listener!(Hibernate {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         cx.apply_power(ids::power::HIBERNATE_POWER, PLAYER, d(1), PLAYER, p.card);
@@ -339,7 +319,6 @@ listener!(Hibernate {
     }
 });
 
-// Upgraded: channel a Glass first; then the Spinner power.
 listener!(Spinner {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         if cx.cards[p.card as usize].upgrade > 0 {

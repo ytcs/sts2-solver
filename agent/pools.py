@@ -1,7 +1,3 @@
-"""Encounter pools per act, from the game's act classes (MegaCrit.Sts2.Core.Models.Acts.*.GenerateAllEncounters) and the room-generation rules
-(ActModel.GenerateRooms): the first `weak` monster fights of an act come from the weak pool, the rest of its rooms from the regular pool, elites from
-the elite pool, one boss from the boss pool. See `.claude/skills/sts2-acts`. Public knowledge a player has: which fight comes next is not.
-"""
 import re
 
 import sts2
@@ -50,10 +46,8 @@ POOLS = {act: {k: (_ids(v) if k in ("weak", "regular", "elite", "boss") else v) 
 
 
 def pool(act_name, kind):
-    """Encounter ids of `kind` (weak / regular / elite / boss) in the act (Overgrowth, Underdocks, Hive, Glory)."""
     return list(POOLS[act_name][kind])
 
 
 def act_names(act_index):
-    """Act names for the run's act index (0 = Overgrowth or Underdocks, 1 = Hive, 2 = Glory)."""
     return [n for n, d in ACTS.items() if d["act"] == act_index]

@@ -1,5 +1,3 @@
-//! The observation must contain exactly what a human can see: perturbing hidden state must not change it. Every check runs for each
-//! observation version (`VERSIONS`), through `observe_v` (tests run in parallel: none of them touches the process-wide version).
 use sts2sim::ids;
 use sts2sim::observe::{obs_size, OBS_SIZE};
 use sts2sim::rng::Rng;
@@ -51,7 +49,6 @@ fn obs_v(cx: &Combat, ver: u8) -> Vec<f32> {
     v
 }
 
-/// Plays a few real turns with a simple policy, returning a mid-fight state.
 fn midfight(seed: u64) -> Combat {
     let mut cx = Combat::new(&scenario(seed));
     let mut buf = engine::ActionBuf::new();
@@ -60,7 +57,6 @@ fn midfight(seed: u64) -> Combat {
             break;
         }
         cx.legal_actions(&mut buf);
-        // prefer playing cards over ending the turn; for decisions take the first pick / confirm
         let a = buf.iter().copied().find(|a| !matches!(a, Action::EndTurn | Action::DiscardPotion { .. })).unwrap_or(Action::EndTurn);
         assert!(cx.step(a));
     }
@@ -83,24 +79,20 @@ fn hidden_state_does_not_leak_v(ver: u8) {
         }
         let base = obs(&cx);
 
-        // 1. permute the draw-pile order
         let mut a = cx.clone();
         let mut rng = Rng::new(seed ^ 0xABCD);
         rng.shuffle(a.player.draw.as_mut_slice());
         assert!(obs(&a) == base, "draw order leaked (seed {seed}, v{ver})");
 
-        // 1b. permute the discard and exhaust orders (a player only knows what is in the piles, not their order)
         let mut a2 = cx.clone();
         rng.shuffle(a2.player.discard.as_mut_slice());
         rng.shuffle(a2.player.exhaust.as_mut_slice());
         assert!(obs(&a2) == base, "discard/exhaust order leaked (seed {seed}, v{ver})");
 
-        // 2. rewrite every RNG stream
         let mut b = cx.clone();
         b.rng = RngSet::from_run_seed(seed.wrapping_add(777));
         assert!(obs(&b) == base, "RNG state leaked (seed {seed}, v{ver})");
 
-        // 3. hidden monster AI internals (current node / log) other than the visible intent + performed history
         let mut c = cx.clone();
         for &e in cx.enemies.iter() {
             c.creatures[e as usize].monster.ever_logged = !0;
@@ -111,8 +103,6 @@ fn hidden_state_does_not_leak_v(ver: u8) {
     }
 }
 
-/// A pile of more than `OBS_MAX_PILE` cards: v2 sorts the whole pile before the cap, so the hidden order of a big pile does not decide which
-/// cards are shown (v1 cuts first, in pile order; kept for the networks trained on it).
 #[test]
 fn big_pile_order_does_not_leak_in_v2() {
     let mut cx = midfight(5);
@@ -134,7 +124,6 @@ fn big_pile_order_does_not_leak_in_v2() {
     assert!(v1_differs, "v1 truncates before sorting (the leak v2 fixes)");
 }
 
-/// The enemy-move section (appended, S1): the pending move node of each enemy, and after a stun the node it resumes.
 #[test]
 fn enemy_moves_section_shows_the_pending_node() {
     let (off, size) = observe::layout().iter().find(|s| s.0 == "enemy_moves").map(|s| (s.1, s.2)).unwrap();
@@ -146,7 +135,7 @@ fn enemy_moves_section_shows_the_pending_node() {
     assert_eq!((v[off], v[off + 1]), ((pending + 1) as f32, 0.0));
     cx.stun(e, None, None);
     let v = obs(&cx);
-    assert_eq!((v[off], v[off + 1]), (255.0, (pending + 1) as f32)); // stunned, then back to the interrupted move
+    assert_eq!((v[off], v[off + 1]), (255.0, (pending + 1) as f32));
 }
 
 #[test]
@@ -181,18 +170,15 @@ fn intent_damage_reflects_modifiers() {
     let base = cx.intent_damage(e, 12);
     assert_eq!(base, 12);
     cx.apply_power(ids::power::VULNERABLE_POWER, PLAYER, sts2sim::dec::Dec::int(1), e, NO);
-    assert_eq!(cx.intent_damage(e, 12), 18); // 12 * 1.5
+    assert_eq!(cx.intent_damage(e, 12), 18);
     cx.apply_power(ids::power::STRENGTH_POWER, e, sts2sim::dec::Dec::int(2), e, NO);
-    assert_eq!(cx.intent_damage(e, 12), 21); // (12+2) * 1.5
+    assert_eq!(cx.intent_damage(e, 12), 21);
 }
 
-/// A pile-selection screen must not reveal the pile order: two states that differ only in the (hidden) order of the
-/// discard pile present the same candidates, and clicking the same displayed position picks an equivalent card.
 #[test]
 fn pile_selection_screen_does_not_reveal_pile_order() {
     use sts2sim::engine::Ask;
     let mut cx = Combat::new(&scenario(3));
-    // fill the discard pile with distinguishable cards in a known order
     let old = cx.player.hand;
     for &c in old.iter() {
         cx.move_card(c, PileType::Discard, CardPilePosition::Bottom);
@@ -212,7 +198,6 @@ fn pile_selection_screen_does_not_reveal_pile_order() {
     for ver in VERSIONS {
         assert!(obs_v(&a, ver) == obs_v(&b, ver), "pile screen leaked the pile order (v{ver})");
     }
-    // the displayed list is sorted by what is visible, not by pile order
     let ids_a: Vec<u16> = {
         let d = a.decision.unwrap();
         let view = a.decision_view(&d);
@@ -238,7 +223,6 @@ fn layout_sections_tile_the_observation() {
         assert_eq!(c["OBS_VERSION"], ver as usize);
         assert_eq!(c["ACTION_SPACE"], sts2sim::engine::ACTION_SPACE);
         assert_eq!(c["OFF_CONFIRM"] + 1, c["ACTION_SPACE"]);
-        // a version-`ver` observation fills exactly its own length, whatever the buffer
         let cx = midfight(2);
         let mut big = vec![7f32; observe::OBS_SIZE_MAX + 5];
         assert_eq!(cx.observe_v(&mut big, None, ver), obs_size(ver));
@@ -267,7 +251,6 @@ fn determinize_changes_only_hidden_state() {
         cx.legal_actions(&mut acts);
         a.legal_actions(&mut acts_a);
         assert!(acts.as_slice() == acts_a.as_slice(), "legal actions changed (seed {seed})");
-        // it really resamples (checked over all seeds below) and the clone still plays on
         changed += (0..cx.player.draw.len()).any(|k| a.player.draw[k] != cx.player.draw[k]) as u32;
         for _ in 0..30 {
             let mut v = sts2sim::engine::ActionBuf::new();

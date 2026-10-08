@@ -1,8 +1,3 @@
-//! Ironclad relic pool (`IroncladRelicPool`): BlackBlood, Brimstone, CharonsAshes, DemonTongue, PaperPhrog, RedSkull,
-//! RuinedHelmet, SelfFormingClay. (BurningBlood lives in `basic.rs`.)
-//!
-//! Relic state conventions: see `docs/porting-guide.md` and `Listener::meta_*` (flags = booleans, counter/aux = ints).
-
 use crate::content::gen_relics as g;
 use crate::dec::Dec;
 use crate::hooks::*;
@@ -25,7 +20,6 @@ listener!(Brimstone {
             return;
         }
         cx.apply_power(ids::power::STRENGTH_POWER, PLAYER, Dec::int(g::brimstone::SELF_STRENGTH as i64), PLAYER, NO);
-        // `GetOpponentsOf(owner).Where(IsAlive)`, applier = null.
         let targets = cx.alive_enemies();
         for &t in targets.iter() {
             cx.apply_power(ids::power::STRENGTH_POWER, t, Dec::int(g::brimstone::ENEMY_STRENGTH as i64), NO, NO);
@@ -39,7 +33,6 @@ listener!(CharonsAshes {
     }
 });
 
-// flag 0 = `_triggeredThisTurn` (not saved).
 listener!(DemonTongue {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
         if cx.side == Side::Player && target == PLAYER && unblocked > 0 && !cx.rel(me).flag(0) {
@@ -54,10 +47,8 @@ listener!(DemonTongue {
     }
 });
 
-// Vulnerable (x1.75 for enemies hit by the owner) is implemented by `VulnerablePower` checking for this relic.
 listener!(PaperPhrog {});
 
-// flag 0 = `StrengthApplied` (not saved).
 fn red_skull_update(cx: &mut Combat, me: Me) {
     let hp = Dec::int(cx.cr(PLAYER).hp() as i64);
     let thr = Dec::int(cx.cr(PLAYER).max_hp as i64) * Dec::frac(g::red_skull::HP_THRESHOLD as i64, 2);
@@ -86,7 +77,6 @@ listener!(RedSkull {
     }
 });
 
-// flag 0 = `UsedThisCombat` (not saved).
 listener!(RuinedHelmet {
     fn try_modify_power_amount_received(&self, cx: &Combat, me: Me, power_id: u16, target: Cid, amount: Dec, _applier: Cid) -> Option<Dec> {
         if power_id != ids::power::STRENGTH_POWER || target != PLAYER || amount <= Dec::ZERO || cx.rel(me).flag(0) {

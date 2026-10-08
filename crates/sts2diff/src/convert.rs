@@ -1,5 +1,3 @@
-//! Oracle scenario JSON -> `sts2sim::Scenario`.
-
 use serde_json::Value;
 use sts2sim::ids;
 use sts2sim::rng::{deterministic_hash, Rng};
@@ -18,8 +16,6 @@ fn id_of(v: &Value) -> &str {
     v.as_str().or_else(|| v["id"].as_str()).unwrap_or("")
 }
 
-/// A relic at combat entry: the class' field initialisers (`meta_initial`), then the scenario `props` (the relic's
-/// `[SavedProperty]` values, injected by the oracle through `SavedProperties.Fill`) mapped onto `Relic` slots.
 fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
     let l = sts2sim::content::relic_listener(id);
     let (counter, flags, aux) = l.meta_initial();
@@ -29,7 +25,7 @@ fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
         for (k, v) in obj {
             let d = defs.iter().find(|d| d.name == k).ok_or_else(|| format!("relic {} has no modelled saved property {k}", ids::relic::NAMES[id as usize]))?;
             if !d.lit.is_empty() {
-                continue; // fixed value, nothing to inject
+                continue;
             }
             let n = v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).ok_or_else(|| format!("relic prop {k}: expected int/bool"))?;
             st.set_prop(defs, k, n as i32);
@@ -38,8 +34,6 @@ fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
     Ok(RelicInit { id, counter: st.counter, flags: st.flags, aux: st.aux })
 }
 
-/// The bridge state's `relics` (`[{id, props?, counter?}]`, the game's order) as the simulator's observation: unknown relic ids are left
-/// out (they are not in the simulated combat either), string / array properties dropped (cosmetic skins, not modelled).
 pub fn obs_relics(relics: &Value) -> Vec<sts2sim::engine::ObsRelic> {
     let Some(a) = relics.as_array() else { return vec![] };
     a.iter()
@@ -58,7 +52,6 @@ pub fn scenario(v: &Value) -> Result<Scenario, String> {
     scenario_ex(v).map(|(s, _)| s)
 }
 
-/// The scenario plus the optional per-card inputs (enchantments, saved properties).
 pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
     let character = match v["character"].as_str().unwrap_or("IRONCLAD") {
         "IRONCLAD" => 0,
@@ -128,7 +121,6 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
         max_hp: v["max_hp"].as_i64().map(|x| x as i32).unwrap_or(hp),
         hp,
         max_energy: v["max_energy"].as_i64().unwrap_or(3) as i32,
-        // Missing = the character's `BaseOrbSlotCount` (Defect 3, others 0), as the oracle's template player has it.
         orb_slots: v["base_orb_slots"].as_u64().unwrap_or(if character == 2 { 3 } else { 0 }) as u8,
         potion_slots: v["max_potion_slots"].as_u64().unwrap_or(3) as u8,
         deck,

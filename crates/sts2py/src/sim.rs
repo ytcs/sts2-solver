@@ -1,11 +1,5 @@
-//! `sts2.Sim`: one simulated combat that Python can step, copy, snapshot and align with an observation of the real game.
-//!
-//! This is the replay path for the live game: build the fight from the fight-start scenario, replay the player's actions in the oracle's script
-//! vocabulary (`play` / `use_potion` / `end_turn` / `choose`), and after each step `sync` the visible state (hand, HP, block, energy) to what the
-//! bridge reported. Hidden information (draw / discard / exhaust order, every RNG stream) is the simulator's own random sample; nothing of it is
-//! taken from the real game.
-
-use numpy::{PyReadwriteArray1, PyArrayMethods};
+// Contract: hidden information (pile order, RNG) is the simulator's own sample; nothing hidden is taken from the real game.
+use numpy::PyReadwriteArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::{json, Value};
@@ -25,11 +19,9 @@ fn err<E: std::fmt::Debug>(e: E) -> PyErr {
     PyValueError::new_err(format!("{e:?}"))
 }
 
-/// The snapshot minus everything hidden: no RNG, and the draw pile as a sorted multiset.
 fn visible(mut v: Value) -> Value {
     if let Some(o) = v.as_object_mut() {
         o.remove("rng");
-        // the draw pile's order is hidden; the discard / exhaust orders carry no information a player can act on: compare them as multisets
         for pile in ["draw", "discard", "exhaust"] {
             if let Some(Value::Array(cards)) = o.get_mut(pile) {
                 cards.sort_by(|a, b| {
@@ -46,13 +38,11 @@ fn power_ids(name: &str) -> Option<u16> {
     sts2sim::ids::power::NAMES.iter().position(|n| *n == name).map(|i| i as u16)
 }
 
-/// The observed powers of a creature as (id, amount); `None` when the observation has no power list. A power the simulator does not know is skipped.
 fn obs_powers(v: &Value) -> Option<Vec<(u16, i32)>> {
     let a = v["powers"].as_array()?;
     Some(a.iter().filter_map(|p| power_ids(p["id"].as_str()?).map(|id| (id, p["amount"].as_i64().unwrap_or(0) as i32))).collect())
 }
 
-/// The observed `amount_on_turn_start` of a creature's powers as (id, value); the game exports the field only when it differs from `amount`, so it defaults to it.
 fn obs_powers_turn_start(v: &Value) -> Option<Vec<(u16, i32)>> {
     let a = v["powers"].as_array()?;
     Some(a.iter().filter_map(|p| power_ids(p["id"].as_str()?).map(|id| (id, p["amount_on_turn_start"].as_i64().or_else(|| p["amount"].as_i64()).unwrap_or(0) as i32))).collect())
@@ -63,7 +53,6 @@ fn card_ids(name: &str) -> Option<u16> {
 }
 
 impl Sim {
-    /// Name of the card at displayed position `display` of the pending selection.
     fn pick_card_name(&self, display: usize) -> Option<&'static str> {
         let d = self.cx.decision.as_ref()?;
         let g = self.cx.decision_view(d).get(display)? as usize;
@@ -90,7 +79,6 @@ impl Sim {
 
 #[pymethods]
 impl Sim {
-    /// `Sim(scenario_json, seed)`: the fight at its start. `seed` seeds every hidden stream (use a fresh random one).
     #[new]
     fn new(scenario_json: &str, seed: u64) -> PyResult<Self> {
         let v: Value = serde_json::from_str(scenario_json).map_err(err)?;
@@ -105,8 +93,6 @@ impl Sim {
         self.clone()
     }
 
-    /// A copy whose belt lacks the potions in `slots` (the potions held back from the search: no line in the search tree may use them; the slots stay, so
-    /// every other action keeps its index).
     fn without_potions(&self, slots: Vec<usize>) -> Sim {
         let mut s = self.clone();
         for i in slots {
@@ -117,12 +103,10 @@ impl Sim {
         s
     }
 
-    /// Resamples the hidden state (the three pile orders and all RNG streams). False while a prompt replay is on screen.
     fn determinize(&mut self, seed: u64) -> bool {
         self.cx.determinize(seed)
     }
 
-    /// "play" (awaiting an action), "choice" (a card selection is pending) or "over".
     fn stage(&self) -> &'static str {
         match self.cx.stage {
             Stage::AwaitAction => "play",
@@ -131,7 +115,6 @@ impl Sim {
         }
     }
 
-    /// 0 ongoing, 1 win, -1 loss.
     fn outcome(&self) -> i32 {
         match self.cx.outcome {
             Outcome::Victory => 1,
@@ -140,7 +123,6 @@ impl Sim {
         }
     }
 
-    /// Names of unported content the fight touched, if any (the fight is then not faithful).
     fn missing(&self) -> Option<String> {
         self.cx.missing.map(|(k, id)| format!("{k:?} {id}"))
     }
@@ -148,8 +130,6 @@ impl Sim {
     fn overflow(&self) -> u32 {
         self.cx.overflow as u32
     }
-
-    // ------------------------------------------------------------------ actions (oracle vocabulary)
 
     #[pyo3(signature = (hand_pos, target=None))]
     fn play(&mut self, hand_pos: usize, target: Option<usize>) -> PyResult<()> {
@@ -173,7 +153,6 @@ impl Sim {
         self.do_step(Action::EndTurn)
     }
 
-    /// Answers the pending selection with indices into the option list as the game hands it to the selector (the oracle's `choose`).
     fn choose(&mut self, picks: Vec<usize>) -> PyResult<()> {
         if self.cx.stage != Stage::AwaitChoice {
             return Err(PyValueError::new_err("no selection is pending"));
@@ -193,7 +172,6 @@ impl Sim {
         Ok(())
     }
 
-    /// Applies one oracle-script action given as JSON: {"play":{"hand_pos":i,"target":e}}, {"use_potion":{...}}, {"end_turn":true}, {"choose":[...]}.
     fn apply(&mut self, action_json: &str) -> PyResult<()> {
         let a: Value = serde_json::from_str(action_json).map_err(err)?;
         if a.get("end_turn").is_some() {
@@ -212,9 +190,6 @@ impl Sim {
         Err(PyValueError::new_err(format!("unsupported action {a}")))
     }
 
-    // ------------------------------------------------------------------ dense actions (for the network / search)
-
-    /// Legal actions as `(dense index, text)`.
     fn legal(&self) -> Vec<(usize, String)> {
         let mut buf = ActionBuf::new();
         self.cx.legal_actions(&mut buf);
@@ -247,7 +222,6 @@ impl Sim {
             .collect()
     }
 
-    /// The oracle-script JSON of dense action `idx` ({"play":{"hand_pos","target"}}, {"use_potion":...}, {"end_turn":true}; selections: {"pick":display_idx} / {"confirm":true}).
     fn action_json(&self, idx: usize) -> PyResult<String> {
         let a = Action::from_index(idx).ok_or_else(|| PyValueError::new_err("bad action index"))?;
         let enemy_idx = |t: Cid| self.cx.enemies.iter().position(|&e| e == t);
@@ -274,14 +248,11 @@ impl Sim {
         Ok(v.to_string())
     }
 
-    /// For a pending selection: the game's own option index of the candidate shown at position `display`.
     fn pick_game_index(&self, display: usize) -> Option<usize> {
         let d = self.cx.decision.as_ref()?;
         self.cx.decision_view(d).get(display).map(|g| g as usize)
     }
 
-    /// Per living enemy `(index, [expected attack damage of each of the next turns after the shown intent])`: the move pattern a veteran knows by heart
-    /// (exact for deterministic cycles, probability-weighted at random branches).
     fn lookahead(&self) -> Vec<(usize, Vec<f32>)> {
         self.cx
             .enemies
@@ -292,7 +263,6 @@ impl Sim {
             .collect()
     }
 
-    /// Per living enemy (index): per future turn after the shown intent, [(move, probability, intent text)] (`Combat::intent_plan`).
     fn intent_plan(&self) -> Vec<(usize, Vec<Vec<(String, f32, String)>>)> {
         self.cx
             .enemies
@@ -303,7 +273,6 @@ impl Sim {
             .collect()
     }
 
-    /// Plays dense action `idx`. False if it is not legal.
     fn step(&mut self, idx: usize) -> bool {
         match Action::from_index(idx) {
             Some(a) => self.do_step(a).is_ok(),
@@ -311,8 +280,6 @@ impl Sim {
         }
     }
 
-    /// Observation row and legal-action mask for the network (`obs_size(version)`, `ACTION_SPACE`); `version`: the observation version,
-    /// default the process-wide one (`sts2.set_obs_version`).
     #[pyo3(signature = (obs, mask, version=None))]
     fn observe(&mut self, mut obs: PyReadwriteArray1<f32>, mut mask: PyReadwriteArray1<u8>, version: Option<u8>) -> PyResult<()> {
         let ver = version.unwrap_or_else(obs_version);
@@ -336,14 +303,10 @@ impl Sim {
         Ok(())
     }
 
-    // ------------------------------------------------------------------ the visible state and its alignment with the real game
-
-    /// The oracle-schema snapshot of everything a human could see.
     fn snapshot(&self) -> String {
         visible(sts2diff::snapshot::snapshot(&self.cx)).to_string()
     }
 
-    /// Differences between this fight's visible state and a snapshot of the real game (`Snap.State()` of the bridge). Empty = they agree.
     fn diff(&self, real_json: &str) -> PyResult<Vec<String>> {
         let real = visible(serde_json::from_str(real_json).map_err(err)?);
         let mine = visible(sts2diff::snapshot::snapshot(&self.cx));
@@ -353,11 +316,6 @@ impl Sim {
         Ok(out)
     }
 
-    /// At a pending selection from the hand (a discard or exhaust prompt after a card drew), the simulator may hold a different hand than the game
-    /// (it drew its own sample). Puts the hand on the real one and rebuilds the prompt's candidates from `options`, the game's choices in the
-    /// game's order as `(card id, upgrade)`. At a choose-a-card screen over generated cards (Attack / Skill / Power / Colorless Potion, Discovery)
-    /// the offer was random: the game's offered cards are created as the candidates. False (nothing changed) when there is no such prompt, an option
-    /// names no known card, or (hand prompts) an option has no card in the real hand.
     fn sync_choice(&mut self, real_json: &str, options: Vec<(String, u8)>) -> PyResult<bool> {
         if self.cx.decision.is_none() || self.cx.replay.is_some() {
             return Ok(false);
@@ -405,8 +363,6 @@ impl Sim {
         Ok(true)
     }
 
-    /// Puts the visible state on the real one: the hand (cards, order, costs), energy, stars, HP / max HP / block of the player and the enemies
-    /// (matched by identity, the list in the game's order), the relics' counters and saved properties. Returns a JSON report of what had to change.
     fn sync(&mut self, real_json: &str) -> PyResult<String> {
         let real: Value = serde_json::from_str(real_json).map_err(err)?;
         let mut notes: Vec<String> = vec![];
@@ -436,7 +392,6 @@ impl Sim {
                 notes.push(format!("{key}: {} cards created", r.created));
             }
         }
-        // (a card still resolving sits in the play pile, in no visible pile: the sim may hold it elsewhere, so the draw pile is not reconciled then)
         let playing = real["play_pile"].as_array().map_or(false, |a| !a.is_empty());
         if let (Some(a), false) = (real["draw"].as_array(), playing) {
             let cards: Vec<ObsCard> = a.iter().filter_map(|c| card_ids(c["id"].as_str().unwrap_or("")).map(|id| ObsCard { id, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8, cost: None })).collect();
@@ -456,9 +411,6 @@ impl Sim {
             }
         }
         if let Some(es) = real["enemies"].as_array() {
-            // Paired by identity (monster id, alive, nearest HP), never by position, and the list put in the game's order: a random target (Lightning,
-            // Stampede) can kill another enemy in the simulator than in the game, and one side can still list a dead minion the other removed
-            // (Fabricator's bots). The creature the game shows alive is re-attached, the one it no longer lists detached (`Combat::sync_enemies`).
             let monster = |name: &str| sts2sim::ids::monster::NAMES.iter().position(|n| *n == name).map_or(u16::MAX, |i| i as u16);
             let obs: Vec<ObsEnemy> = es
                 .iter()
@@ -487,7 +439,6 @@ impl Sim {
                 }
             }
         }
-        // relic counters / saved properties (Pen Nib's attacks, Joss Paper's exhausts, Kunai's attacks this turn ...)
         let mut relics_changed = 0u32;
         if real.get("relics").is_some() {
             let rr = self.cx.sync_relics(&sts2diff::convert::obs_relics(&real["relics"]));

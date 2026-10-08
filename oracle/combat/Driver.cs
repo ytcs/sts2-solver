@@ -14,15 +14,13 @@ using MegaCrit.Sts2.Core.TestSupport;
 
 namespace OracleCombat;
 
-/// <summary>ICardSelector fed by the script's `choose` entries (or the random policy); records every prompt.</summary>
 public sealed class ChoiceSelector : ICardSelector
 {
     public Queue<int[]> Scripted = new();
-    public Random RandomPolicy;           // non-null in random mode
+    public Random RandomPolicy;
     public JsonArray Prompts = new();
     public List<ActionSpec> RecordedChoices = new();
 
-    /// <summary>Set by a Harmony prefix around `FromChooseACardScreen(canSkip: false)`: the prompt must pick exactly one card.</summary>
     public static bool ChooseACardMustPick;
 
     public Task<IEnumerable<CardModel>> GetSelectedCards(IEnumerable<CardModel> options, int minSelect, int maxSelect)
@@ -77,11 +75,9 @@ public sealed class Driver
     public readonly List<ActionSpec> Recorded = new();
     public int MaxSteps = 400;
     public int MaxRounds = 60;
-    public Random RandomDriver;          // random mode
-    // Policy weights for the random driver (relative to 1.0 per legal action): `end_turn`, attack-card plays, potion uses.
-    // endw = 0 means "never end the turn while anything else is legal" (long fights); atkw < 1 stalls (prefers skills/powers).
+    public Random RandomDriver;
     public double EndWeight = 1, AttackWeight = 1, PotionWeight = 1;
-    public double PlayBias;              // random mode: probability of dropping `end_turn` from the legal set when anything else is legal
+    public double PlayBias;
     public string Result = "unfinished";
 
     public Driver(Scenario sc, TextWriter @out, Pump pump) { _sc = sc; _out = @out; _pump = pump; }
@@ -107,7 +103,6 @@ public sealed class Driver
         if (Fatal.IsSet && !Fatal.Lenient) throw new OracleException(Fatal.Message);
     }
 
-    /// <summary>Pump until the game is waiting for player input again (or combat ended).</summary>
     private void Settle(int? turnMustExceed = null)
     {
         _pump.RunUntil(() =>
@@ -147,7 +142,6 @@ public sealed class Driver
 
     private IDisposable _selScope;
 
-    /// <summary>Tear down the run so another scenario can be executed in the same process.</summary>
     public void Dispose()
     {
         _selScope?.Dispose(); _selScope = null;
@@ -162,7 +156,6 @@ public sealed class Driver
         var (player, run) = Setup.BuildRun(_sc);
         _player = player; _run = run;
         _selScope = CardSelectCmd.PushSelector(_sel);
-        // leading `choose` entries answer prompts raised during combat setup (e.g. Toolbox at turn 1)
         int start = 0;
         while (start < _sc.Script.Count && _sc.Script[start].Kind == "choose") _sel.Scripted.Enqueue(_sc.Script[start++].Choose);
         _sel.RandomPolicy = RandomDriver;
@@ -213,7 +206,7 @@ public sealed class Driver
                 double W(ActionSpec x) => x.Kind == "end_turn" ? EndWeight : x.Kind == "use_potion" ? PotionWeight
                     : hand[x.HandPos].Type == MegaCrit.Sts2.Core.Entities.Cards.CardType.Attack ? AttackWeight : 1.0;
                 double tot = legal.Sum(W);
-                a = legal[legal.Count - 1]; // end_turn is always last (the only action left when every other weight is 0)
+                a = legal[legal.Count - 1];
                 if (tot > 0)
                 {
                     double r = RandomDriver.NextDouble() * tot;
@@ -227,9 +220,6 @@ public sealed class Driver
         _sel.RandomPolicy = null;
     }
 
-    /// <summary>Policy: random = uniform over legal actions; playall = end the turn only when nothing else is legal
-    /// (potions at 1/4 weight); stall = like playall but never plays an attack card (drags fights out to reach deep
-    /// turns and the scaling behaviour of enemies).</summary>
     public static string PolicyKind = "random";
     private ActionSpec PickAction(List<ActionSpec> legal)
     {

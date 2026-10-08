@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""Does a network's own policy pick what a strong search picks? The gate for policy learning (advisor, 2026-10-07: holdout policy CE on a target that
-is mostly prior + noise has a high floor and cannot show progress).
-
-  STS2_DEVICE=cuda tools/policy_agree.py build target/exit/r4u_0*.npz --ckpt target/exit/r3.pt --out target/agree/ref.npz [--states 4000] [--K 256]
-  STS2_DEVICE=cuda tools/policy_agree.py eval target/agree/ref.npz CKPT [CKPT ...]
-
-`build` samples searched decisions from collected parts (`tools/target_noise.py` sample_states), searches each once at 5xK (the reference: the
-best of the --ckpt prior's 5 likeliest actions by K futures each; at K = 256 one option's se is ~0.028) and once at the live 5x32, and saves them.
-`eval` replays each state to its observation (`sts2.replay`) and takes each network's greedy action (argmax over the legal actions). Reported:
-agreement with the reference's best on the states where the reference's best beats its second by more than 2 paired se (the decisions with a real
-answer; near-ties have none), on all states, and the regret of the greedy action under the reference estimates (0 when the greedy action is not
-among the reference's options is not counted: those are reported as the share off the reference's options). The live 5x32 search's own agreement
-is printed at build time, the level a policy that distilled the search perfectly would reach.
-"""
 import argparse, glob, json, os, sys, time
 
 import numpy as np
@@ -24,7 +10,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import sts2  # noqa: E402
 from target_noise import sample_states, search  # noqa: E402
 
-SE32 = 0.078  # se of one option's estimate at K = 32 (tools/target_noise.py on r4s states)
+SE32 = 0.078
 
 
 def build(a):
@@ -79,7 +65,6 @@ def evaluate(a):
         g = np.concatenate(acts)
         on = (opts == g[:, None])
         inopt = on.any(1)
-        qg = np.where(on, np.where(np.isfinite(q), q, np.nan), np.nan)
         reg = np.nanmax(np.where(np.isfinite(q), q, -np.inf), 1) - np.nansum(np.where(on, np.nan_to_num(q), 0.0), 1)
         m = ok & inopt
         print(f"{os.path.basename(ck):26s} agree: significant {np.mean(g[sig] == best[sig]):.3f}  all {np.mean(g[ok] == best[ok]):.3f}  | "

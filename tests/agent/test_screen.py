@@ -1,4 +1,3 @@
-"""Screen-text parsing: kind, act / floor, HP, gold, belt, option lines, card options, map offers, `~text` resolution."""
 from support import MAP_A2, MAP_SCREEN_A2, FakeBridge, make_harness, screen
 
 from agent import harness, macro, routes, skillgate
@@ -73,7 +72,7 @@ def test_map_offers_and_parse():
     assert routes.offered(screen("shop")) == []
     nodes, boss_row = routes.parse_map(MAP_A2)
     assert boss_row == 8
-    assert (0, 3) not in nodes  # the ancient (A) is not a priced node
+    assert (0, 3) not in nodes
     assert nodes[(1, 1)] == dict(type="M", children=[(2, 0), (2, 2)], visited=True)
     assert nodes[(2, 3)] == dict(type="$", children=[(3, 4)], visited=False)
     assert nodes[(7, 2)] == dict(type="R", children=[], visited=False)
@@ -106,15 +105,15 @@ def test_skillgate_screen_skills(monkeypatch):
 def test_resolve():
     r = harness.Harness._resolve
     rw, rest, sel, cmb, shop = screen("rewards"), screen("restsite"), screen("select"), screen("combat"), screen("shop")
-    assert r(rw, "3 e1") == "3 e1"  # not a `~` step: unchanged
+    assert r(rw, "3 e1") == "3 e1"
     assert r(rw, "~gold") == "0"
-    assert r(rw, "~card") == "1"  # the line that starts with `card`
+    assert r(rw, "~card") == "1"
     assert r(rw, "~proceed") == "2"
     assert r(rw, "~PROCEED") == "2"
     assert r(rest, "~rest") == "0"
     assert r(rest, "~smith") == "1"
     assert r(rest, "~upgrade a card") == "1"
-    assert r(sel, "~pommel") == "0"  # identical options: either is the same action
+    assert r(sel, "~pommel") == "0"
     assert r(cmb, "~defend") == "1"
     assert r(cmb, "~strike e0") == "4 e0"
     assert r(cmb, "~potion blood !") == "6 !"
@@ -124,8 +123,8 @@ def test_resolve():
     assert r(shop, "~stampede") == "4"
     assert r(shop, "~leave") == "14"
     assert r(rw, "~nothing here") == "ERR no option matching `nothing here`"
-    assert r(rw, "~9") == "0"  # a lone number is the text itself: `9 Gold`
-    two = rw.replace("1 card:", "1 25 Gold\n3 card:")  # Amethyst Aubergine: a second gold reward; every one is collected, so `~gold` takes the first
+    assert r(rw, "~9") == "0"
+    two = rw.replace("1 card:", "1 25 Gold\n3 card:")
     assert r(two, "~gold") == "0" and r(two, "~25") == "1"
-    assert r(cmb.replace("1 Defend(1)", "1 Defend(0)"), "~defend").startswith("ERR")  # other options differing in a number stay ambiguous
+    assert r(cmb.replace("1 Defend(1)", "1 Defend(0)"), "~defend").startswith("ERR")
     assert r(screen("map_a1"), "~r1c3") == "1"

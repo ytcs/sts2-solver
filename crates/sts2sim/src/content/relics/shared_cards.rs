@@ -1,5 +1,3 @@
-//! Relics that generate / move / modify cards at combat start and during turns.
-
 use crate::content::gen_pools;
 use crate::content::gen_relics as g;
 use crate::dec::Dec;
@@ -14,14 +12,12 @@ fn self_power(cx: &mut Combat, id: u16, n: i32) {
     cx.apply_power(id, PLAYER, Dec::int(n as i64), PLAYER, NO);
 }
 
-/// `CardPileCmd.AddGeneratedCardsToCombat(cards, pile, owner[, position])` for freshly created cards, in order.
 fn add_generated(cx: &mut Combat, cards: &[CardIdx], pile: PileType, pos: CardPilePosition) {
     for &c in cards {
         cx.add_generated_card(c, pile, pos);
     }
 }
 
-/// `n` fresh copies of card `id` (`CombatState.CreateCard<T>(owner)`).
 fn create_cards(cx: &mut Combat, id: u16, n: i32) -> ArrayVec<CardIdx, 16> {
     let mut v = ArrayVec::new();
     for _ in 0..n {
@@ -32,9 +28,6 @@ fn create_cards(cx: &mut Combat, id: u16, n: i32) -> ArrayVec<CardIdx, 16> {
     v
 }
 
-// ---- random generation ------------------------------------------------------------------------------------------------------
-
-// Ethereal cards of the character's pool: two random ones into the hand on turn 1.
 listener!(BigHat {
     fn after_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
         if side != Side::Player || cx.turn_number() > 1 {
@@ -49,7 +42,6 @@ listener!(BigHat {
     }
 });
 
-// One free random Attack of the character's pool into the hand every turn.
 listener!(Crossbow {
     fn after_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
         if side != Side::Player {
@@ -76,7 +68,6 @@ listener!(OrangeDough {
     }
 });
 
-// A free random card of the character's pool into the hand (after the turn-1 draw).
 listener!(VexingPuzzlebox {
     fn after_player_turn_start(&self, cx: &mut Combat, _me: Me) {
         if cx.turn_number() != 1 {
@@ -90,8 +81,6 @@ listener!(VexingPuzzlebox {
         }
     }
 });
-
-// ---- fixed generated cards -------------------------------------------------------------------------------------------------
 
 listener!(FuneraryMask {
     fn before_hand_draw(&self, cx: &mut Combat, _me: Me) {
@@ -134,7 +123,6 @@ listener!(RadiantPearl {
     }
 });
 
-// counter = `CombatsLeft` (saved, initialiser 1); ShowCounter is false.
 listener!(TeaOfDiscourtesy {
     fn before_combat_start(&self, cx: &mut Combat, me: Me) {
         if cx.rel(me).counter > 0 {
@@ -153,7 +141,6 @@ listener!(TeaOfDiscourtesy {
     }
 });
 
-// A Soot into the draw pile (random position) after every shuffle.
 listener!(BiiigHug {
     fn after_shuffle(&self, cx: &mut Combat, _me: Me) {
         let cards = create_cards(cx, ids::card::SOOT, 1);
@@ -161,7 +148,6 @@ listener!(BiiigHug {
     }
 });
 
-// Shivs played give a (temporary) Dexterity.
 listener!(HelicalDart {
     fn after_card_played(&self, cx: &mut Combat, _me: Me, play: &CardPlay) {
         if cx.card_def(play.card).tags & tag::SHIV != 0 {
@@ -170,9 +156,6 @@ listener!(HelicalDart {
     }
 });
 
-// ---- moving / upgrading cards of the draw pile ----------------------------------------------------------------------------------
-
-// Turn 1: one random Power card of the draw pile (non-Innate preferred) is made free and moved to the hand.
 listener!(JeweledMask {
     fn before_hand_draw(&self, cx: &mut Combat, _me: Me) {
         if cx.turn_number() > 1 {
@@ -202,7 +185,6 @@ listener!(JeweledMask {
     }
 });
 
-// Turn 1: up to `Cards` zero-cost (non-X) cards of the draw pile are moved to the hand (selection via StableShuffle).
 listener!(PowerCell {
     fn before_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
         if side != Side::Player || cx.turn_number() > 1 {
@@ -222,7 +204,6 @@ listener!(PowerCell {
     }
 });
 
-// Upgrades up to `Cards` upgradable cards of the draw pile when the combat is entered.
 listener!(StoneCracker {
     fn after_room_entered(&self, cx: &mut Combat, _me: Me) {
         let draw = cx.player.draw;
@@ -243,7 +224,6 @@ fn ghost_seed_can_affect(cx: &Combat, c: CardIdx) -> bool {
     let d = cx.card_def(c);
     d.rarity == CardRarity::Basic && d.tags & (tag::STRIKE | tag::DEFEND) != 0 && cx.card_keywords_local(c) & kw::ETHEREAL == 0
 }
-// Basic Strikes / Defends become Ethereal.
 listener!(GhostSeed {
     fn after_card_entered_combat(&self, cx: &mut Combat, _me: Me, card: CardIdx) {
         if ghost_seed_can_affect(cx, card) {
@@ -260,14 +240,12 @@ listener!(GhostSeed {
     }
 });
 
-// Adds a Potion-Shaped Rock after the other combat-start effects.
 listener!(PetrifiedToad {
     fn before_combat_start_late(&self, cx: &mut Combat, _me: Me) {
         cx.try_procure_potion(ids::potion::POTION_SHAPED_ROCK);
     }
 });
 
-// Fills every open potion slot with a random potion (`PotionFactory.CreateRandomPotionOutOfCombat`, `CombatPotionGeneration`).
 listener!(DelicateFrond {
     fn before_combat_start(&self, cx: &mut Combat, _me: Me) {
         while cx.has_open_potion_slots() {

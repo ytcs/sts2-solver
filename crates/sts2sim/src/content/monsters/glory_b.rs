@@ -1,7 +1,3 @@
-//! Act 3 "Glory" elites and bosses (slice glory-b): KnightsElite (FlailKnight, SpectralKnight, MagiKnight),
-//! MechaKnightElite, SoulNexusElite, QueenBoss (TorchHeadAmalgam + Queen), TestSubjectBoss, AeonglassBoss, plus the
-//! unreachable TheAdversaryMk1-3. Spec 04 §3.4.
-
 use super::ovg_util::*;
 use crate::content::powers::glory_b::dampen_add_caster;
 use crate::defs::*;
@@ -10,8 +6,6 @@ use crate::ids;
 use crate::state::*;
 use crate::types::*;
 
-// ---- FlailKnight (KnightsElite, creation order 0) ---------------------------------------------------------------------
-// 0 WAR_CHANT, 1 FLAIL_MOVE, 2 RAM_MOVE, 3 RAND. INIT = RAM.
 pub static FLAIL_KNIGHT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::FLAIL_KNIGHT,
     hp: |a| hp(a, (108, 108), (101, 101)),
@@ -41,8 +35,6 @@ pub static FLAIL_KNIGHT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- SpectralKnight -----------------------------------------------------------------------------------------------------
-// 0 HEX, 1 SOUL_SLASH, 2 SOUL_FLAME, 3 RAND. INIT = HEX.
 pub static SPECTRAL_KNIGHT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SPECTRAL_KNIGHT,
     hp: |a| hp(a, (97, 97), (93, 93)),
@@ -72,8 +64,6 @@ pub static SPECTRAL_KNIGHT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- MagiKnight -----------------------------------------------------------------------------------------------------------
-// 0 POWER_SHIELD_MOVE, 1 DAMPEN_MOVE, 2 RAM_MOVE (spear), 3 PREP_MOVE, 4 MAGIC_BOMB. INIT = POWER_SHIELD.
 fn magi_block(cx: &Combat) -> i32 {
     a8(cx, 9, 5)
 }
@@ -135,8 +125,6 @@ pub static MAGI_KNIGHT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- MechaKnight (MechaKnightElite) --------------------------------------------------------------------------------------------
-// 0 CHARGE_MOVE, 1 HEAVY_CLEAVE_MOVE, 2 WINDUP_MOVE, 3 FLAMETHROWER_MOVE. INIT = CHARGE.
 pub static MECHA_KNIGHT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::MECHA_KNIGHT,
     hp: |a| hp(a, (320, 320), (300, 300)),
@@ -183,8 +171,6 @@ pub static MECHA_KNIGHT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- SoulNexus (SoulNexusElite) ------------------------------------------------------------------------------------------------
-// 0 SOUL_BURN_MOVE, 1 MAELSTROM_MOVE, 2 DRAIN_LIFE_MOVE, 3 RAND. INIT = SOUL_BURN.
 pub static SOUL_NEXUS_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SOUL_NEXUS,
     hp: |a| hp(a, (254, 254), (234, 234)),
@@ -224,8 +210,6 @@ pub static SOUL_NEXUS_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- TorchHeadAmalgam (QueenBoss, slot `amalgam` = 0) ----------------------------------------------------------------------------
-// 0 STRONG_TACKLE, 1 TACKLE_2, 2 BEAM, 3 TACKLE_3, 4 TACKLE_4. INIT = STRONG_TACKLE.
 fn weak_tackle(cx: &mut Combat, me: Cid) {
     let d = a9(cx, 16, 14);
     atk(cx, me, d)
@@ -260,10 +244,6 @@ pub static TORCH_HEAD_AMALGAM_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Queen (QueenBoss, slot `queen` = 1) ------------------------------------------------------------------------------------------------
-// vars[0] = HasAmalgamDied.
-// 0 PUPPET_STRINGS_MOVE, 1 YOU_ARE_MINE_MOVE, 2 BURN_BRIGHT_FOR_ME_MOVE, 3 BURN_BRIGHT_FOR_ME_BRANCH,
-// 4 YOURE_MINE_NOW_BRANCH, 5 OFF_WITH_YOUR_HEAD_MOVE, 6 EXECUTION_MOVE, 7 ENRAGE_MOVE. INIT = PUPPET_STRINGS.
 const Q_BURN_BRIGHT: u8 = 2;
 const Q_ENRAGE: u8 = 7;
 fn amalgam_alive(cx: &Combat, me: Cid) -> bool {
@@ -289,7 +269,6 @@ pub static QUEEN_DEF: MonsterDef = MonsterDef {
         mv(
             "BURN_BRIGHT_FOR_ME_MOVE",
             |cx, me| {
-                // every teammate except the Queen (`CombatState.GetTeammatesOf` = the enemies list)
                 let mates = cx.enemies.clone();
                 for &t in mates.iter() {
                     if t != me {
@@ -325,12 +304,10 @@ pub static QUEEN_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-/// `PowerCmd.Apply<T>(target, amount, source)` with an explicit target.
 fn power_self_to(cx: &mut Combat, src: Cid, target: Cid, power: u16, amount: i32) {
     cx.apply_power(power, target, crate::dec::Dec::int(amount as i64), src, NO);
 }
 
-// Queen.AfterDeath: when the Amalgam dies the Queen enrages (a pending BURN_BRIGHT is replaced by ENRAGE).
 crate::listener!(Queen {
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, _was_removal_prevented: bool) {
         if cx.cr(creature).monster.id == ids::monster::TORCH_HEAD_AMALGAM && cx.cr(me.owner).is_alive() {
@@ -342,14 +319,9 @@ crate::listener!(Queen {
     }
 });
 
-// ---- TestSubject (TestSubjectBoss) --------------------------------------------------------------------------------------------------
-// vars[0] = Respawns, vars[1] = ExtraMultiClawCount.
-// 0 RESPAWN_MOVE (MustPerformOnce), 1 BITE_MOVE, 2 SKULL_BASH_MOVE, 3 MULTI_CLAW_MOVE, 4 PHASE3_LACERATE_MOVE, 5 BIG_POUNCE,
-// 6 BURNING_GROWL_MOVE, 7 REVIVE_BRANCH. INIT = BITE.
 fn ts_respawn(cx: &mut Combat, me: Cid) {
     cx.creatures[me as usize].monster.vars[0] += 1;
     let respawns = cx.cr(me).monster.vars[0];
-    // `AdaptablePower.DoRevive()`
     if let Some(p) = cx.cr(me).power(ids::power::ADAPTABLE_POWER) {
         let uid = p.uid;
         if let Some(i) = cx.power_idx(me, uid) {
@@ -449,13 +421,9 @@ pub static TEST_SUBJECT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Aeonglass (AeonglassBoss) ---------------------------------------------------------------------------------------------------------
-// vars[0] = AdditionalStrength, vars[1] = WitherUpgradeCount.
-// 0 EBB_MOVE, 1 EYE_LASERS_MOVE, 2 INCREASING_INTENSITY_MOVE. INIT = EBB.
 fn wither_amount(cx: &Combat) -> i32 {
     a9(cx, 2, 1)
 }
-/// `Wither.FakeUpgrade()`: `DynamicVars.Damage.UpgradeValueBy(3)`.
 fn fake_upgrade(cx: &mut Combat, card: CardIdx) {
     cx.cards[card as usize].dmg_bonus += 3 * 10_000;
 }
@@ -464,7 +432,6 @@ pub static AEONGLASS_DEF: MonsterDef = MonsterDef {
     hp: |a| hp(a, (535, 535), (512, 512)),
     initial: 0,
     on_spawn: Some(|cx, me| {
-        // one WitheringPresencePower (instanced, Target = the player) per opponent, then Artifact 3
         power_self(cx, me, ids::power::WITHERING_PRESENCE_POWER, 6);
         power_self(cx, me, ids::power::ARTIFACT_POWER, 3);
     }),
@@ -510,7 +477,6 @@ pub static AEONGLASS_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// Aeonglass.AfterCardGeneratedForCombat: newly generated Withers match the current upgrade count.
 crate::listener!(Aeonglass {
     fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx, _added_by_player: bool) {
         if cx.cards[card as usize].id != ids::card::WITHER {
@@ -522,8 +488,6 @@ crate::listener!(Aeonglass {
     }
 });
 
-// ---- TheAdversaryMkOne / Two / Three (referenced by no encounter) ---------------------------------------------------------------------------
-// 0 attack A, 1 attack B, 2 BARRAGE_MOVE. INIT = 0.
 fn barrage(cx: &mut Combat, me: Cid, d: i32, str_gain: i32) {
     atk_n(cx, me, d, 2);
     power_self(cx, me, ids::power::STRENGTH_POWER, str_gain);

@@ -1,19 +1,3 @@
-//! `BatchEnv`: thousands of independent fights stepped in parallel, writing observations / action masks / rewards
-//! into flat, caller-owned buffers (zero-copy friendly for NumPy/PyTorch).
-//!
-//! Semantics follow the usual vector-env contract: `step` applies one action per env; envs whose episode ended are
-//! automatically reset and `done[i] = 1` flags that the *returned* `reward[i]`/`outcome[i]` belong to the finished
-//! episode while `obs`/`mask` already describe the first state of the new one.
-//!
-//! Episodes whose fight can no longer be guaranteed faithful are aborted instead of continued: `OUTCOME_UNIMPLEMENTED`
-//! (content that is not ported) and `OUTCOME_OVERFLOW` (a fixed capacity of the simulator was exceeded, see
-//! `Combat::overflow`). Both end with reward 0 (+ the step reward); training code should treat them as truncations.
-//!
-//! Except the loop guard (`ov::LOOP`, `sts2sim` `engine/budget.rs`): a step whose trigger chain never ends is a fight the real game
-//! never finishes either (it soft-locks: Pillage + Hellraiser + Velvet Choker, `docs/research/evidence.md` E6), so it ends as
-//! `OUTCOME_LOSS` with the loss reward, here and in the search (a play-out into it scores as a loss), whatever capacity bits the
-//! runaway chain raised on the way. [`looped`] tells such a loss from an ordinary one; `BatchEnv::loops` and the search stats count them.
-
 pub mod search;
 
 use rayon::prelude::*;
@@ -25,46 +9,33 @@ use sts2sim::types::Outcome;
 use sts2sim::{Action, Combat, Scenario};
 
 pub use sts2sim::engine::ACTION_SPACE as ACTIONS;
-/// The version-1 observation length (see [`BatchEnv::obs_size`] / `sts2sim::observe::obs_size` for the length of a given version).
 pub use sts2sim::observe::OBS_SIZE as OBS;
 pub use sts2sim::scenario::ScenarioError;
 
-/// Produces the scenario of an episode (encounter, deck, relics, ...). `episode_seed` is unique per episode and
-/// should drive every random choice (including the run-level RNG streams) so episodes are reproducible.
 pub trait ScenarioSource: Send + Sync {
     fn sample(&self, env: usize, episode_seed: u64) -> Scenario;
 
-    /// Allocation-free variant for sources whose episodes differ from a stored scenario only by the seed (`run_seed` and the
-    /// RNG streams, which the env derives from `episode_seed` itself): return that stored scenario. `None` (the default)
-    /// makes the env call [`ScenarioSource::sample`] each episode.
     fn pick(&self, _env: usize, _episode_seed: u64) -> Option<&Scenario> {
         None
     }
 
-    /// Optional per-card inputs (enchantments, saved properties) of the scenario `pick` returns for the same episode.
     fn extras(&self, _env: usize, _episode_seed: u64) -> Option<&ScenarioExtras> {
         None
     }
 
-    /// Index of the scenario an episode runs (for per-scenario statistics); 0 for sources with a single scenario.
     fn index(&self, _env: usize, _episode_seed: u64) -> u32 {
         0
     }
 
-    /// Checks every scenario the source can produce (`BatchEnv::try_new` calls it once, so the per-episode reset can skip
-    /// validation). The default accepts everything: sources built on `sample` are validated per episode instead.
     fn validate(&self) -> Result<(), ScenarioError> {
         Ok(())
     }
 
-    /// Sampling weights of the scenarios (one per scenario; the next episodes draw scenario i with probability w_i / sum w). Returns false when the
-    /// source does not sample from a list (the weights are ignored).
     fn set_weights(&mut self, _w: &[f32]) -> bool {
         false
     }
 }
 
-/// Same scenario every episode; only the RNG streams change.
 pub struct FixedScenario(pub Scenario);
 impl ScenarioSource for FixedScenario {
     fn sample(&self, _env: usize, episode_seed: u64) -> Scenario {
@@ -81,7 +52,6 @@ impl ScenarioSource for FixedScenario {
     }
 }
 
-/// Uniform choice among several scenarios per episode (e.g. different encounters / decks).
 pub struct PoolScenario(Vec<Scenario>, Vec<ScenarioExtras>, Option<Vec<f64>>);
 impl PoolScenario {
     pub fn new(v: Vec<Scenario>) -> PoolScenario {
@@ -90,14 +60,12 @@ impl PoolScenario {
         PoolScenario(v, ex, None)
     }
 
-    /// Scenarios with their deck enchantments / saved card properties (what the oracle JSON can carry).
     pub fn with_extras(v: Vec<(Scenario, ScenarioExtras)>) -> PoolScenario {
         assert!(!v.is_empty());
         let (s, e) = v.into_iter().unzip();
         PoolScenario(s, e, None)
     }
 
-    /// The scenario of an episode: uniform, or by the cumulative weights (`set_weights`).
     fn idx(&self, episode_seed: u64) -> usize {
         match &self.2 {
             None => (episode_seed >> 17) as usize % self.0.len(),
@@ -141,7 +109,6 @@ impl ScenarioSource for PoolScenario {
     }
 }
 
-/// Env `i` always plays scenario `i % len` (every episode, only the RNG streams change): `n_envs = n x len` gives `n` attempts of every scenario.
 pub struct RoundRobinScenario(Vec<Scenario>, Vec<ScenarioExtras>);
 impl RoundRobinScenario {
     pub fn with_extras(v: Vec<(Scenario, ScenarioExtras)>) -> RoundRobinScenario {
@@ -175,11 +142,8 @@ impl ScenarioSource for RoundRobinScenario {
 pub struct RewardConfig {
     pub win: f32,
     pub loss: f32,
-    /// Extra reward on victory: `hp_bonus * final_hp / max_hp`.
     pub hp_bonus: f32,
-    /// Per-step reward (usually 0 or slightly negative).
     pub step: f32,
-    /// A fight still running after this many player turns ends as a loss (0 = no cap). Stalls are losses, as in the search (`SearchCfg::turn_cap`).
     pub turn_cap: u32,
 }
 
@@ -189,21 +153,13 @@ impl Default for RewardConfig {
     }
 }
 
-/// Episode outcome codes written to `outcome` when `done`.
 pub const OUTCOME_ONGOING: i8 = 0;
 pub const OUTCOME_WIN: i8 = 1;
 pub const OUTCOME_LOSS: i8 = -1;
-/// Episode aborted because it hit `max_steps`.
 pub const OUTCOME_TRUNCATED: i8 = 2;
-/// Episode aborted because it touched content that is not ported (the fight would not be faithful).
 pub const OUTCOME_UNIMPLEMENTED: i8 = 3;
-/// Episode aborted because a fixed capacity of the simulator was exceeded (card arena, power list, history ring, decision
-/// candidates, ... see `Combat::overflow` / `sts2sim::state::ov`): data was dropped, so the fight is no longer faithful.
-/// (Not the loop guard: a tripped `ov::LOOP` ends as `OUTCOME_LOSS`, see [`looped`].)
 pub const OUTCOME_OVERFLOW: i8 = 4;
 
-/// The loop guard ended this fight (`ov::LOOP`): the real game would never finish the step (a soft-lock), so the env and the search
-/// score it as a loss (`OUTCOME_LOSS`, loss reward), taking precedence over the capacity bits the runaway chain may have raised.
 #[inline]
 pub fn looped(cx: &Combat) -> bool {
     cx.overflow & sts2sim::state::ov::LOOP != 0
@@ -213,21 +169,14 @@ struct Slot {
     cx: Combat,
     steps: u32,
     episode: u64,
-    /// Scenario index and starting HP fraction of the running episode.
     scen: u32,
     hp0: f32,
-    /// Summary of the episode that ended last.
     last: EpisodeInfo,
-    /// Set when the episode ended and the env does not auto-reset (`BatchEnv::set_autoreset(false)`): the outcome code.
     frozen: Option<i8>,
-    /// Belt slots whose potion the latest step used up or lost (bit k = slot k; thrown, discarded or consumed by a relic / power such as Fairy in a Bottle),
-    /// computed before an auto-reset: the potion-use head's target (`docs/rl_redesign.md` 3.3).
     pot_used: u8,
-    /// Episodes of this env that the loop guard ended (scored as losses), since the env was created.
     loops: u64,
 }
 
-/// Potion id per belt slot (`u16::MAX` = empty).
 fn belt(cx: &Combat) -> [u16; sts2sim::state::MAX_POTIONS] {
     let mut o = [u16::MAX; sts2sim::state::MAX_POTIONS];
     for (k, p) in cx.player.potions.iter().enumerate() {
@@ -238,31 +187,21 @@ fn belt(cx: &Combat) -> [u16; sts2sim::state::MAX_POTIONS] {
     o
 }
 
-/// What `BatchEnv::episode_info` reports per env about the episode that ended most recently.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct EpisodeInfo {
-    /// Index of the scenario in the source.
     pub scen: u32,
-    /// Player HP lost during the fight as a fraction of max HP (a loss counts the HP the player had left as lost).
     pub hp_lost: f32,
-    /// HP left at the end as a fraction of max HP (0 on a loss).
     pub hp_end: f32,
-    /// Agent steps the episode took.
     pub len: u32,
-    /// HP left at the end (absolute; 0 on a loss), the max HP at the end, and the player turns the fight took.
     pub hp_end_abs: i32,
     pub max_hp_end: i32,
     pub turns: i32,
 }
 
-/// Why a `BatchEnv` call failed (always a caller / scenario error: stepping itself never fails or panics).
 #[derive(Debug)]
 pub enum EnvError {
-    /// A scenario of the source cannot be started (unported content, does not fit the fixed capacities, ...).
     Scenario(ScenarioError),
-    /// The worker thread pool could not be created.
     Pool(String),
-    /// An output / input buffer is shorter than `n_envs` rows.
     Buffer(&'static str),
 }
 impl From<ScenarioError> for EnvError {
@@ -271,9 +210,6 @@ impl From<ScenarioError> for EnvError {
     }
 }
 
-/// Stack size of the env worker threads. The per-env work (a full `Combat::step` + observation, with hooks calling hooks)
-/// is a deep call tree with kilobyte frames; rayon nests such tasks on the stack while it work-steals, which overflowed the
-/// 2 MB default of the global pool now and then. (Virtual memory only: pages are committed when touched.)
 const WORKER_STACK: usize = 32 << 20;
 
 pub struct BatchEnv {
@@ -283,26 +219,19 @@ pub struct BatchEnv {
     max_steps: u32,
     base_seed: u64,
     pool: rayon::ThreadPool,
-    /// Finished episodes restart on the next scenario (default). Search environments turn this off: a finished slot keeps its final
-    /// state, reports `done` with the same outcome every step and ignores actions.
     autoreset: bool,
-    /// The observation version written (`sts2sim::observe`): the process-wide version when the env was created, see `set_obs_version`.
     obs_version: u8,
 }
 
-/// Per-step outputs (all slices have one entry per env; `obs` and `mask` are row-major `[n, OBS_SIZE]`/`[n, ACTION_SPACE]`).
 pub struct StepOut<'a> {
     pub obs: &'a mut [f32],
     pub mask: &'a mut [u8],
     pub reward: &'a mut [f32],
     pub done: &'a mut [u8],
     pub outcome: &'a mut [i8],
-    /// Number of illegal actions received (state unchanged for those envs).
     pub illegal: &'a mut [u8],
 }
 
-/// (Re)starts `cx` on the scenario of `episode_seed`. Never panics: a scenario that cannot be started leaves the combat
-/// flagged (`overflow`) so the env reports `OUTCOME_OVERFLOW` for it instead of aborting the process.
 fn start_episode(source: &dyn ScenarioSource, env: usize, episode_seed: u64, cx: &mut Combat) {
     let default_ex = sts2sim::ScenarioExtras::default();
     let ex = source.extras(env, episode_seed).unwrap_or(&default_ex);
@@ -321,8 +250,6 @@ fn start_episode(source: &dyn ScenarioSource, env: usize, episode_seed: u64, cx:
     }
 }
 
-/// One env, one step. Deliberately NOT inlined into the rayon closure: the engine inlined here has a frame of many kilobytes,
-/// and rayon's recursive splitting would otherwise stack one such frame per recursion level.
 #[inline(never)]
 #[allow(clippy::too_many_arguments)]
 fn step_one(
@@ -348,7 +275,6 @@ fn step_one(
     *illegal = 0;
     slot.pot_used = 0;
     if let Some(oc) = slot.frozen {
-        // a finished search slot: nothing happens, the outcome is reported again
         *done = 1;
         *outcome = oc;
         *reward = 0.0;
@@ -375,7 +301,6 @@ fn step_one(
     if slot.cx.missing.is_some() {
         end = Some((OUTCOME_UNIMPLEMENTED, 0.0));
     } else if looped(&slot.cx) {
-        // a real-game soft-lock: a loss (module doc)
         slot.loops += 1;
         end = Some((OUTCOME_LOSS, cfg.loss));
     } else if slot.cx.overflow != 0 {
@@ -416,12 +341,10 @@ fn step_one(
 }
 
 impl BatchEnv {
-    /// Panics if the env cannot be created (construction time only); see [`BatchEnv::try_new`].
     pub fn new(n: usize, source: Box<dyn ScenarioSource>, reward_cfg: RewardConfig, max_steps: u32, base_seed: u64) -> BatchEnv {
         Self::try_new(n, source, reward_cfg, max_steps, base_seed).expect("cannot create the batch env")
     }
 
-    /// Builds `n` envs; fails (instead of panicking later) if the first scenario of any env cannot be started.
     pub fn try_new(n: usize, source: Box<dyn ScenarioSource>, reward_cfg: RewardConfig, max_steps: u32, base_seed: u64) -> Result<BatchEnv, EnvError> {
         source.validate()?;
         let pool = rayon::ThreadPoolBuilder::new()
@@ -447,7 +370,6 @@ impl BatchEnv {
 
     #[inline]
     fn episode_seed(base: u64, env: usize, episode: u64) -> u64 {
-        // splitmix-style mixing so neighbouring envs/episodes get unrelated run seeds
         let mut z = base ^ (env as u64).wrapping_mul(0x9E3779B97F4A7C15) ^ episode.wrapping_mul(0xBF58476D1CE4E5B9);
         z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
         z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
@@ -462,24 +384,18 @@ impl BatchEnv {
         self.slots.is_empty()
     }
 
-    /// The player-turn cap (a fight still running after it ends as a loss; 0 = none) from the next step on: a curriculum relaxes it stage by stage.
     pub fn set_turn_cap(&mut self, cap: u32) {
         self.reward_cfg.turn_cap = cap;
     }
 
-    /// Sampling weights of the source's scenarios for the episodes that start from now on (see `ScenarioSource::set_weights`).
     pub fn set_weights(&mut self, w: &[f32]) -> bool {
         self.source.set_weights(w)
     }
 
-    /// Finished episodes restart on the next scenario (`true`, the default) or stay finished (`false`, for search).
     pub fn set_autoreset(&mut self, on: bool) {
         self.autoreset = on;
     }
 
-    /// Copies the combat of `src` slot `src_idx[k]` into this env's slot `dst_idx[k]` and resamples everything a player cannot see
-    /// (`Combat::determinize(seeds[k])`: pile orders and RNG streams). The copy continues as a fresh episode of the same scenario
-    /// (step counter restarts, finished state is cleared). Used to evaluate actions by simulated play-outs.
     pub fn fork_from(&mut self, src: &BatchEnv, src_idx: &[u32], dst_idx: &[u32], seeds: &[u64]) -> Result<(), EnvError> {
         if src_idx.len() != dst_idx.len() || seeds.len() != dst_idx.len() {
             return Err(EnvError::Buffer("src / dst / seeds lengths differ"));
@@ -501,36 +417,30 @@ impl BatchEnv {
         Ok(())
     }
 
-    /// Per env, the belt slots whose potion the latest `step` used up (bit k = slot k), measured before an auto-reset.
     pub fn potion_used(&self, out: &mut [u8]) {
         for (o, s) in out.iter_mut().zip(self.slots.iter()) {
             *o = s.pot_used;
         }
     }
 
-    /// Episodes the loop guard ended, over every env since creation (each reported as `OUTCOME_LOSS`, see [`looped`]).
     pub fn loops(&self) -> u64 {
         self.slots.iter().map(|s| s.loops).sum()
     }
 
-    /// Summary of the episode each env finished last (valid where `done` was set by the latest `step`).
     pub fn episode_info(&self, out: &mut [EpisodeInfo]) {
         for (o, s) in out.iter_mut().zip(self.slots.iter()) {
             *o = s.last;
         }
     }
 
-    /// The observation version this env writes.
     pub fn obs_version(&self) -> u8 {
         self.obs_version
     }
 
-    /// Length of one observation row of this env (`obs_size(obs_version)`).
     pub fn obs_size(&self) -> usize {
         obs_size(self.obs_version)
     }
 
-    /// Switches the observation version this env writes (1 or 2); the buffers passed afterwards must have rows of the new length.
     pub fn set_obs_version(&mut self, version: u8) -> Result<(), EnvError> {
         if obs_size(version) == 0 {
             return Err(EnvError::Buffer("unknown observation version"));
@@ -539,7 +449,6 @@ impl BatchEnv {
         Ok(())
     }
 
-    /// Writes the current observation / mask of every env (e.g. after construction).
     pub fn observe_all(&mut self, obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
         let n = self.slots.len();
         let (ver, osz) = (self.obs_version, self.obs_size());
@@ -560,7 +469,6 @@ impl BatchEnv {
         Ok(())
     }
 
-    /// Applies one action per env (`actions[i]` is a dense action index), auto-resetting finished episodes.
     pub fn step(&mut self, actions: &[i32], out: StepOut) -> Result<(), EnvError> {
         let n = self.slots.len();
         if actions.len() < n {
@@ -606,8 +514,6 @@ fn observe_one(s: &mut Slot, obs: &mut [f32], mask: &mut [u8], ver: u8) {
     write_obs_mask(&mut s.cx, obs, mask, ver);
 }
 
-/// Observation + action mask of one env. `can_play` of the hand is evaluated once (by `legal_actions_ex`) and shared with the
-/// observation. Temporaries of both can overflow too: a flag raised here ends the episode on the next step. `ver`: the observation version.
 pub(crate) fn write_obs_mask(cx: &mut Combat, obs: &mut [f32], mask: &mut [u8], ver: u8) {
     let mut buf = sts2sim::engine::ActionBuf::new();
     let mut playable = 0u16;
@@ -628,7 +534,6 @@ mod tests {
     use sts2sim::types::{CardPilePosition, PileType, NO};
     use sts2sim::{ids, DeckCard, RelicInit};
 
-    /// Pillage + Hellraiser + Velvet Choker at 5 plays, only Strikes to draw (`crates/sts2sim/tests/loop_guard.rs`): playing Pillage loops.
     fn scenario() -> Scenario {
         Scenario {
             run_seed: 3,

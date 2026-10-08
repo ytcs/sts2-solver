@@ -3,7 +3,6 @@ using MegaCrit.Sts2.Core.Logging;
 
 namespace OracleCombat;
 
-/// <summary>Harmony patches that replace the few Godot-native-backed helpers the combat logic touches.</summary>
 public static class Patches
 {
     public static bool VerboseLog = false;
@@ -47,7 +46,6 @@ public static class Patches
     [HarmonyPatch(typeof(Godot.Time), nameof(Godot.Time.GetTicksUsec))]
     static class P_Usec { static bool Prefix(ref ulong __result) { __result = (ulong)Environment.TickCount64 * 1000UL; return false; } }
 
-    // No localization tables are loaded (they live in the .pck): text is never gameplay-relevant, return the key.
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Localization.LocString), nameof(MegaCrit.Sts2.Core.Localization.LocString.GetFormattedText))]
     static class P_LocFmt { static bool Prefix(MegaCrit.Sts2.Core.Localization.LocString __instance, ref string __result) { __result = __instance.LocTable + "." + __instance.LocEntryKey; return false; } }
 
@@ -69,8 +67,6 @@ public static class Patches
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Saves.SaveManager), nameof(MegaCrit.Sts2.Core.Saves.SaveManager.SaveProgressFile))]
     static class P_ProgressFile { static bool Prefix() => false; }
 
-    // Generic fallback: any Godot engine singleton (ResourceLoader, Input, DisplayServer, ...) becomes an uninitialised
-    // managed peer whose native calls hit the no-op stub table (GodotStub).
     [HarmonyPatch]
     static class P_Singleton
     {
@@ -84,7 +80,6 @@ public static class Patches
         }
     }
 
-    // abstract engine singletons cannot be faked as above; the only one reached in combat is ResourceLoader (cosmetic textures)
     [HarmonyPatch]
     static class P_ResLoad {
         static System.Reflection.MethodBase TargetMethod() => typeof(Godot.ResourceLoader).GetMethods().First(m => m.Name == "Load" && !m.IsGenericMethod && m.GetParameters().Length == 3); static bool Prefix(ref Godot.Resource __result) { __result = null; return false; } }
@@ -95,8 +90,6 @@ public static class Patches
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.FakeMerchantMonster), "GetLinesForMove")]
     static class P_FakeMerchantLines { static bool Prefix(ref IEnumerable<MegaCrit.Sts2.Core.Localization.LocString> __result) { __result = Array.Empty<MegaCrit.Sts2.Core.Localization.LocString>(); return false; } }
 
-    // Music-only hooks of the Act 2 bosses (`NRunMusicController.Instance?.UpdateMusicParameter`) throw a NullReferenceException
-    // in this headless process; they have no gameplay effect (hive_b slice).
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.Crusher), nameof(MegaCrit.Sts2.Core.Models.Monsters.Crusher.BeforeDeath))]
     static class P_CrusherDeath { static bool Prefix(ref Task __result) { __result = Task.CompletedTask; return false; } }
 
@@ -109,16 +102,12 @@ public static class Patches
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.TheInsatiable), nameof(MegaCrit.Sts2.Core.Models.Monsters.TheInsatiable.AfterDeath))]
     static class P_InsatiableDeath { static bool Prefix(ref Task __result) { __result = Task.CompletedTask; return false; } }
 
-    // `CardSelectCmd.FromChooseACardScreen(ctx, cards, player, canSkip)` hands the selector (0,1) even when `canSkip` is false (the real
-    // screen then cannot be dismissed without a pick). Record `canSkip` so the oracle's selector enforces min = 1 in that case.
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Commands.CardSelectCmd), nameof(MegaCrit.Sts2.Core.Commands.CardSelectCmd.FromChooseACardScreen))]
     static class P_ChooseACardSkip
     {
         static void Prefix(bool canSkip) { ChoiceSelector.ChooseACardMustPick = !canSkip; }
         static void Postfix() { ChoiceSelector.ChooseACardMustPick = false; }
     }
-    // SoulNexus.AfterDeath (private, subscribed to Creature.Died) only resets a spine animation but dereferences
-    // NCombatRoom.Instance without a null check -> NRE when the Soul Nexus dies in the headless oracle. Visual only.
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Monsters.SoulNexus), "AfterDeath")]
     static class P_SoulNexusDeath { static bool Prefix() => false; }
 

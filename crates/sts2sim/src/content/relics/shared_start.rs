@@ -1,6 +1,3 @@
-//! Shared / event relics that act at combat start or at the start / end of the player's turns (no card-play tracking).
-//! `participants.Contains(Owner.Creature)` in the C# hooks == `side == Side::Player` here.
-
 use crate::content::gen_relics as g;
 use crate::dec::Dec;
 use crate::hooks::*;
@@ -11,17 +8,13 @@ use crate::types::*;
 
 const UNPOWERED: ValueProp = ValueProp::UNPOWERED;
 
-/// `PowerCmd.Apply<T>(ctx, owner, n, owner, null)`.
 fn self_power(cx: &mut Combat, id: u16, n: i32) {
     cx.apply_power(id, PLAYER, Dec::int(n as i64), PLAYER, NO);
 }
 
-/// `CreatureCmd.GainBlock(owner, n, Unpowered, null)`.
 fn relic_block(cx: &mut Combat, n: i32) {
     cx.gain_block(PLAYER, Dec::int(n as i64), UNPOWERED, NO);
 }
-
-// ---- start of combat / first turn -------------------------------------------------------------------------------------
 
 listener!(Akabeko {
     fn after_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
@@ -149,8 +142,6 @@ listener!(DiamondDiadem {
     }
 });
 
-// ---- AfterRoomEntered (combat rooms only: this simulator only runs combats) -------------------------------------------
-
 listener!(Vajra {
     fn after_room_entered(&self, cx: &mut Combat, _me: Me) {
         self_power(cx, ids::power::STRENGTH_POWER, g::vajra::STRENGTH_POWER);
@@ -189,14 +180,12 @@ listener!(SlingOfCourage {
     }
 });
 
-// applier = null
 listener!(SwordOfJade {
     fn after_room_entered(&self, cx: &mut Combat, _me: Me) {
         cx.apply_power(ids::power::STRENGTH_POWER, PLAYER, Dec::int(g::sword_of_jade::STRENGTH_POWER as i64), NO, NO);
     }
 });
 
-// counter = `CombatsLeft` (saved, field initialiser 5); ShowCounter => DisplayAmount = max(0, CombatsLeft).
 listener!(EmberTea {
     fn after_room_entered(&self, cx: &mut Combat, me: Me) {
         if cx.rel(me).counter > 0 {
@@ -215,7 +204,6 @@ listener!(EmberTea {
     }
 });
 
-// counter = `TimesLifted` (saved); ShowCounter.
 listener!(Girya {
     fn after_room_entered(&self, cx: &mut Combat, me: Me) {
         let n = cx.rel(me).counter;
@@ -231,7 +219,6 @@ listener!(Girya {
     }
 });
 
-// applier = null for the strength given to the opponents.
 listener!(PhilosophersStone {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount + Dec::int(g::philosophers_stone::ENERGY as i64)
@@ -257,7 +244,6 @@ listener!(Pantograph {
     }
 });
 
-// `HpThreshold` percent of max HP (truncated), compared with `<=` once the combat is won.
 listener!(MeatOnTheBone {
     fn after_combat_victory_early(&self, cx: &mut Combat, _me: Me) {
         if cx.cr(PLAYER).is_alive() {
@@ -268,8 +254,6 @@ listener!(MeatOnTheBone {
         }
     }
 });
-
-// ---- damage at the start of turns --------------------------------------------------------------------------------------
 
 listener!(FestivePopper {
     fn after_player_turn_start(&self, cx: &mut Combat, _me: Me) {
@@ -292,7 +276,6 @@ listener!(MrStruggles {
     }
 });
 
-// `CreatureCmd.Damage(owner, 4, Unblockable | Unpowered, null, null)`: the owner hurts itself.
 listener!(RoyalPoison {
     fn after_player_turn_start(&self, cx: &mut Combat, _me: Me) {
         if cx.turn_number() <= 1 {
@@ -312,8 +295,6 @@ listener!(TwistedFunnel {
     }
 });
 
-// ---- first-turn hand upgrades ------------------------------------------------------------------------------------------
-
 listener!(Bellows {
     fn after_player_turn_start(&self, cx: &mut Combat, _me: Me) {
         if cx.turn_number() <= 1 {
@@ -325,7 +306,6 @@ listener!(Bellows {
     }
 });
 
-// counter = `CombatsLeft` (saved, initialiser 1); ShowCounter is false.
 listener!(BoneTea {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
         if cx.rel(me).counter <= 0 || cx.turn_number() > 1 {
@@ -344,8 +324,6 @@ listener!(BoneTea {
         (1, 0, 0)
     }
 });
-
-// ---- energy / draw shape -----------------------------------------------------------------------------------------------
 
 listener!(BoomingConch {
     fn modify_hand_draw(&self, cx: &Combat, _me: Me, count: Dec) -> Dec {
@@ -385,7 +363,6 @@ listener!(Ectoplasm {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount + Dec::int(g::ectoplasm::ENERGY as i64)
     }
-    // No gold from any source.
     fn modify_gold_gained(&self, _cx: &Combat, _me: Me, _amount: Dec) -> Dec {
         Dec::ZERO
     }
@@ -436,7 +413,6 @@ listener!(SpikedGauntlets {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount + Dec::int(g::spiked_gauntlets::ENERGY as i64)
     }
-    // Power cards cost 1 more.
     fn try_modify_energy_cost_in_combat(&self, cx: &Combat, _me: Me, card: CardIdx, cost: Dec) -> Option<Dec> {
         if cx.card_def(card).ctype != CardType::Power {
             return None;
@@ -502,7 +478,6 @@ listener!(BigMushroom {
     }
 });
 
-// `ShouldDraw`: only the start-of-turn hand draw is allowed while it is the player's turn.
 listener!(Fiddle {
     fn modify_hand_draw(&self, _cx: &Combat, _me: Me, count: Dec) -> Dec {
         count + Dec::int(g::fiddle::CARDS as i64)
@@ -524,9 +499,6 @@ listener!(RunicPyramid {
     }
 });
 
-// ---- block / hp ---------------------------------------------------------------------------------------------------------
-
-// Block carries over, capped at `BLOCK` (`LoseBlock(block - 10)` when above it).
 listener!(SturdyClamp {
     fn should_clear_block(&self, _cx: &Combat, _me: Me, creature: Cid) -> bool {
         creature != PLAYER
@@ -542,7 +514,6 @@ listener!(SturdyClamp {
     }
 });
 
-// flag 0 = `ShouldTrigger` (not saved).
 listener!(Orichalcum {
     fn before_side_turn_end_very_early(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player && cx.cr(PLAYER).block() <= 0 {
@@ -581,7 +552,6 @@ listener!(FakeOrichalcum {
     }
 });
 
-// `Math.Max(0, amount - HpLossReduction)` on every HP-loss the owner takes after the Osty redirect.
 listener!(TungstenRod {
     fn modify_hp_lost_after_osty(&self, _cx: &Combat, _me: Me, target: Cid, amount: Dec, _props: ValueProp, _dealer: Cid, _card: CardIdx) -> Dec {
         if target != PLAYER {
@@ -591,7 +561,6 @@ listener!(TungstenRod {
     }
 });
 
-// The first hit of a turn each time HP loss exceeds `MaxHpLoss` total (damage received this turn tracked in `aux`).
 listener!(BeatingRemnant {
     fn modify_hp_lost_after_osty(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, _props: ValueProp, _dealer: Cid, _card: CardIdx) -> Dec {
         if !cx.in_progress || target != PLAYER {
@@ -611,7 +580,6 @@ listener!(BeatingRemnant {
     }
 });
 
-// Minimum 5 damage on any powered attack of the owner that would deal 1..4.
 listener!(TheBoot {
     fn modify_hp_lost_after_osty_late(&self, cx: &Combat, _me: Me, target: Cid, amount: Dec, props: ValueProp, dealer: Cid, _card: CardIdx) -> Dec {
         if !cx.is_owner_or_osty(dealer) || target == PLAYER || !props.is_powered() {

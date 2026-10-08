@@ -1,21 +1,9 @@
-"""Was a costly fight bad luck, or did the solver play a clearly worse line?
-
-    python -m agent.hindsight runs/<run>/fights/<id>_<ENCOUNTER>.json [--budget 20] [--replays 40] [--replay-budget 1] [--min-gap 2] [--max-decisions 80] [--no-luck] [--log]
-
-The harness keeps the export of every fight that lost >= 30% of max HP (or was lost) under `runs/<run>/fights/`. Two checks:
-1. Luck: the fight is replayed from its start `--replays` times with the live decision procedure; the percentile of the real HP loss in that distribution (>= 90th = unlucky,
-   else the deck simply loses that much there).
-2. Play by play: at each decision the simulator is rebuilt from the observations, `Engine.decide` runs for `--budget` seconds, and decisions where its best option beats the played
-   one by >= `--min-gap` HP are listed. A pattern (same card, same kind of turn) is a solver gap; scattered small gaps are search noise. Realized draws are not used.
-`--log` appends the verdict to evals/gaps.jsonl (`python -m agent.improve gaps`). The log may end one action before the last (the final sync precedes the killing blow).
-"""
 import argparse
 import json
 import os
 import sys
 
 import numpy as np
-import sts2
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from agent.fight import Replayer  # noqa: E402
@@ -34,7 +22,6 @@ def percentile_of_real(eng, scenario, real_lost, replays, budget):
 
 
 def decisions(fight):
-    """Yield (index, truncated fight export) for every action of the log: the state before action `index` is what the replayer holds after the truncated log."""
     log, states = fight["log"], fight.get("states")
     for i in range(len(log)):
         cut = dict(fight, log=log[:i], states=(states[: i + 1] if states else None), state=(states[i] if states and states[i] else fight["state"]))
@@ -59,7 +46,7 @@ def review(eng, export, budget, min_gap, max_decisions):
         act = fight["log"][i] if isinstance(fight["log"][i], str) else json.dumps(fight["log"][i])
         legal = sim.legal()
         if len(legal) < 2:
-            continue  # nothing to decide
+            continue
         d = eng.decide(sc, sim, budget, tol_hp=0.0)
         if not d.get("searched"):
             continue

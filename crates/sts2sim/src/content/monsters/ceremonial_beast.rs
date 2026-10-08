@@ -1,7 +1,3 @@
-//! Ceremonial Beast (boss, CeremonialBeastBoss). Spec 04 §3.1.
-//! Phase 1: STAMP (Plow power on itself) -> PLOW_MOVE loop. When PlowPower sees HP <= Amount the Beast is stunned into
-//! phase 2: STUNNED -> BEAST_CRY -> STOMP -> CRUSH -> BEAST_CRY ...
-
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
@@ -9,13 +5,12 @@ use crate::state::*;
 
 const PLOW: u8 = 0;
 const STAMP: u8 = 1;
-#[allow(dead_code)] // the engine STUN_NODE replaces the monster-defined state (kept so node indices stay stable)
+#[allow(dead_code)]
 const STUNNED: u8 = 2;
 const BEAST_CRY: u8 = 3;
 const STOMP: u8 = 4;
 const CRUSH: u8 = 5;
 
-/// `CeremonialBeast.SetStunned` + `CreatureCmd.Stun(Owner, StunnedMove, BeastCryState.StateId)`.
 pub fn stun_into_phase_two(cx: &mut Combat, beast: Cid) {
     cx.stun(beast, None, Some(BEAST_CRY));
 }
@@ -45,7 +40,6 @@ pub static CEREMONIAL_BEAST_DEF: MonsterDef = MonsterDef {
             &[Intent::Buff],
             PLOW,
         ),
-        // The dynamically created `STUNNED` state (follow-up = BEAST_CRY_MOVE, MustPerformOnce).
         mv_once("STUNNED", nothing, &[Intent::Stun], BEAST_CRY),
         mv("BEAST_CRY_MOVE", |cx, me| power_player(cx, me, ids::power::RINGING_POWER, 1), &[Intent::Debuff], STOMP),
         mv(

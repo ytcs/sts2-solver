@@ -1,7 +1,3 @@
-"""The calculators end to end on a deterministic fake engine: printed tables and what was asked of the engine (golden files).
-
-The run: Act 2 (Hive), boss Knowledge Demon on the map, five Act 2 fights met (from the recorded run), Power Potion in the belt.
-"""
 import collections
 import hashlib
 import json
@@ -10,11 +6,10 @@ from support import MAP_A2, MAP_SCREEN_A2, FakeBridge, FakeEngine, deck, events,
 
 
 def engine_digest(eng):
-    """Per solve call: attempts, number of scenarios, (encounter, potions) counts, and a hash of the full request (names, HP, potions in order)."""
     out = []
     for c in eng.log:
         cnt = collections.Counter((s[1], ",".join(s[3])) for s in c["scen"])
-        out.append(f"solve attempts={c['attempts']} util={c['util']} n={len(c['scen'])} sha={hashlib.sha1(json.dumps(c['scen']).encode()).hexdigest()[:12]}")
+        out.append(f"solve attempts={c['attempts']} n={len(c['scen'])} sha={hashlib.sha1(json.dumps(c['scen']).encode()).hexdigest()[:12]}")
         out += [f"  {e} [{p}] x{n}" for (e, p), n in sorted(cnt.items())]
     return "\n".join(out) + "\n"
 
@@ -57,7 +52,6 @@ def test_eval_variants(monkeypatch, tmp_path):
 
 
 def test_table_seed(monkeypatch, tmp_path):
-    """Tables are seeded per screen: a re-run on the same floor repeats the draws, `--seed N` draws fresh ones (and is not passed on to the command)."""
     h, out, fake = run(monkeypatch, tmp_path, screen("shop_a2"), "eval --boss --attempts 8", "eval_seed0")
     s0 = h.engine.table_seed
     ok(h.handle("eval --boss --attempts 8"))
@@ -86,11 +80,11 @@ def test_routes(monkeypatch, tmp_path):
     h, out, fake = run(monkeypatch, tmp_path, MAP_SCREEN_A2, "routes --attempts 8", "routes")
     assert h.priced["routes"] == "A2 F16"
     run(monkeypatch, tmp_path, MAP_SCREEN_A2, "routes --attempts 8 --hp 70 --pf 0.3 --w E=4,M=1.5", "routes_whatif")
-    run(monkeypatch, tmp_path, screen("shop_a2"), "routes --attempts 8", "routes_offscreen")  # not on the map: the children of the visited node
+    run(monkeypatch, tmp_path, screen("shop_a2"), "routes --attempts 8", "routes_offscreen")
 
 
 def test_pickplan(monkeypatch, tmp_path):
-    s = screen("card_reward_a2").replace("1 Cruelty(1)", "1 Mystery Card(1)").replace("2 Stone Armor(1)", "2 Bash(2)")  # unmapped; mapped but not in the pools
+    s = screen("card_reward_a2").replace("1 Cruelty(1)", "1 Mystery Card(1)").replace("2 Stone Armor(1)", "2 Bash(2)")
     h, out, fake = run(monkeypatch, tmp_path, s, "pickplan --attempts 8 --screens 2 --slots 4", "pickplan")
     assert "Bash +nan skip" in out
 
@@ -100,7 +94,6 @@ def test_brief(monkeypatch, tmp_path):
 
 
 def test_context_read_once_per_command(monkeypatch, tmp_path):
-    """The map and the run record are read once per command (not once per horizon set), afresh for the next command, and dropped when an action runs."""
     from agent import runctx
     reads = []
     real = runctx.encounters_met
@@ -118,14 +111,13 @@ def test_context_read_once_per_command(monkeypatch, tmp_path):
 
 
 def test_context_logs_bridge_errors(monkeypatch, tmp_path):
-    """A bridge failure while building the context reads as `no boss known` (same tables as without a map) and is recorded as a harness_error event."""
     outs = []
     for i, m in enumerate(("no map\n", "ERR bridge down: the game is not running or the mod is not loaded\n")):
         fake = FakeBridge(screen("shop_a2"), deck_json=deck(), map_text=m)
         h = make_harness(monkeypatch, tmp_path, fake, events=fight_starts(upto=18), run_id=f"r{i}")
         outs.append((ok(h.handle("brief")), ok(h.handle("eval --boss --attempts 4"))))
         errs = [e for e in events(h) if e["kind"] == "harness_error"]
-        assert len(errs) == 2 * i, errs  # one per command
+        assert len(errs) == 2 * i, errs
     assert outs[0] == outs[1]
     assert errs[0]["where"] == "context: map" and "ERR bridge down" in errs[0]["error"]
     fake = FakeBridge("ERR bridge connection lost (OSError)\n", deck_json=deck(), map_text="no map\n")
@@ -135,9 +127,8 @@ def test_context_logs_bridge_errors(monkeypatch, tmp_path):
 
 
 def test_context_from_record(monkeypatch, tmp_path):
-    """The narrowing context: encounters met this act in order (from the run record, one per fight id), the boss(es) from the map."""
     fake = FakeBridge(screen("shop_a2"), deck_json=deck(), map_text=MAP_A2.replace("KNOWLEDGE_DEMON_BOSS", "KNOWLEDGE_DEMON_BOSS + KAISER_CRAB_BOSS"))
-    evs = fight_starts(upto=18) + fight_starts(upto=15)[-1:]  # a repeated fight id counts once
+    evs = fight_starts(upto=18) + fight_starts(upto=15)[-1:]
     h = make_harness(monkeypatch, tmp_path, fake, events=evs)
     ctx = h._ctx()
     assert ctx == dict(seen=["TUNNELER_WEAK", "EXOSKELETONS_WEAK", "OVICOPTER_NORMAL", "MYTES_NORMAL", "LOUSE_PROGENITOR_NORMAL"], bosses=["KNOWLEDGE_DEMON_BOSS", "KAISER_CRAB_BOSS"])
@@ -146,7 +137,7 @@ def test_context_from_record(monkeypatch, tmp_path):
     assert sorted(hz["elites"]) == ["DECIMILLIPEDE_ELITE", "ENTOMANCER_ELITE", "INFESTED_PRISMS_ELITE"]
     assert hz["next"] == ["KNIGHTS_ELITE", "MECHA_KNIGHT_ELITE", "SOUL_NEXUS_ELITE", "QUEEN_BOSS", "TEST_SUBJECT_BOSS", "AEONGLASS_BOSS"]
     fake.map = "no map\n"
-    fake.screen = screen("shop")  # Act 1 header, no boss known: both Act 1 variants
+    fake.screen = screen("shop")
     h2 = make_harness(monkeypatch, tmp_path, fake, events=fight_starts(upto=8), run_id="a1")
     hz = h2._horizon()
     assert hz["ctx"] == dict(seen=["NIBBITS_WEAK", "SHRINKER_BEETLE_WEAK", "FUZZY_WURM_CRAWLER_WEAK", "PHROG_PARASITE_ELITE", "BYRDONIS_ELITE"], bosses=[])
@@ -158,8 +149,8 @@ def test_context_from_record(monkeypatch, tmp_path):
     fake.map = "boss: 16 VANTOM_BOSS\n"
     h3 = make_harness(monkeypatch, tmp_path, fake, events=fight_starts(upto=8), run_id="a1b")
     hz = h3._horizon()
-    assert hz["boss"] == ["VANTOM_BOSS"] and sorted(hz["elites"]) == ["BYGONE_EFFIGY_ELITE"]  # the bag after Phrog, Byrdonis
-    fake.screen = "REWARDS\n0 proceed\n"  # no header; the map's boss decides the act
+    assert hz["boss"] == ["VANTOM_BOSS"] and sorted(hz["elites"]) == ["BYGONE_EFFIGY_ELITE"]
+    fake.screen = "REWARDS\n0 proceed\n"
     fake.map = MAP_A2
     h4 = make_harness(monkeypatch, tmp_path, fake, events=fight_starts(upto=18), run_id="a2")
     assert h4._cur_act(dict(bosses=["KNOWLEDGE_DEMON_BOSS"])) == 1

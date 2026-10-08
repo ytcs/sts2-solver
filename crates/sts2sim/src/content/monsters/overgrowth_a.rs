@@ -1,6 +1,3 @@
-//! Act 1a Overgrowth monsters without summons: Fuzzy Wurm Crawler, Shrinker Beetle, Flyconid, Inklet, Mawler,
-//! Slithering Strangler, Snapping Jaxfruit, Vine Shambler, Cubex Construct, Vantom. Spec 04 §3.1.
-
 use super::ovg_util::*;
 use crate::dec::Dec;
 use crate::defs::*;
@@ -8,7 +5,6 @@ use crate::ids;
 use crate::state::*;
 use crate::types::*;
 
-// ---- FuzzyWurmCrawler: FIRST_ACID_GOOP -> INHALE -> ACID_GOOP -> FIRST_ACID_GOOP ------------------------------------------
 fn acid_goop(cx: &mut Combat, me: Cid) {
     let d = a9(cx, 6, 4);
     atk(cx, me, d);
@@ -25,7 +21,6 @@ pub static FUZZY_WURM_CRAWLER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- ShrinkerBeetle: SHRINKER_MOVE -> CHOMP_MOVE -> STOMP_MOVE -> CHOMP_MOVE ... ------------------------------------------
 pub static SHRINKER_BEETLE_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SHRINKER_BEETLE,
     hp: |a| hp(a, (40, 42), (38, 40)),
@@ -54,8 +49,6 @@ pub static SHRINKER_BEETLE_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Flyconid ------------------------------------------------------------------------------------------------------
-// 0 VULNERABLE_SPORES, 1 FRAIL_SPORES, 2 SMASH, 3 RAND, 4 INITIAL (initial)
 pub static FLYCONID_DEF: MonsterDef = MonsterDef {
     id: ids::monster::FLYCONID,
     hp: |a| hp(a, (51, 53), (47, 49)),
@@ -90,8 +83,6 @@ pub static FLYCONID_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Inklet (vars[0] = MiddleInklet) -----------------------------------------------------------------------------------
-// 0 JAB, 1 PIERCING_GAZE, 2 WHIRLWIND, 3 RAND, 4 START (initial: middle -> WHIRLWIND else JAB)
 pub static INKLET_DEF: MonsterDef = MonsterDef {
     id: ids::monster::INKLET,
     hp: |a| hp(a, (12, 18), (11, 17)),
@@ -130,7 +121,6 @@ pub static INKLET_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Mawler: CLAW first, then RAND{RIP_AND_TEAR:CNR, ROAR:ONCE, CLAW:CNR} -------------------------------------------------
 pub static MAWLER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::MAWLER,
     hp: |a| hp(a, (76, 76), (72, 72)),
@@ -160,7 +150,6 @@ pub static MAWLER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- SlitheringStrangler: CONSTRICT -> RAND{THWACK, LASH} -> CONSTRICT ... ---------------------------------------------------
 pub static SLITHERING_STRANGLER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SLITHERING_STRANGLER,
     hp: |a| hp(a, (54, 56), (53, 55)),
@@ -191,7 +180,6 @@ pub static SLITHERING_STRANGLER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- SnappingJaxfruit: ENERGY_ORB_MOVE loop ----------------------------------------------------------------------------------
 pub static SNAPPING_JAXFRUIT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SNAPPING_JAXFRUIT,
     hp: |a| hp(a, (34, 36), (31, 33)),
@@ -209,8 +197,6 @@ pub static SNAPPING_JAXFRUIT_DEF: MonsterDef = MonsterDef {
     )],
 };
 
-// ---- VineShambler: SWIPE -> GRASPING_VINES -> CHOMP -> SWIPE ... ---------------------------------------------------------------
-// 0 GRASPING_VINES, 1 SWIPE (initial), 2 CHOMP
 pub static VINE_SHAMBLER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::VINE_SHAMBLER,
     hp: |a| hp(a, (64, 64), (61, 61)),
@@ -248,7 +234,6 @@ pub static VINE_SHAMBLER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- CubexConstruct: spawns with 13 block + Artifact 1 ---------------------------------------------------------------------------
 fn repeater_blast(cx: &mut Combat, me: Cid) {
     let d = a9(cx, 8, 7);
     atk(cx, me, d);
@@ -278,7 +263,6 @@ pub static CUBEX_CONSTRUCT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Vantom (boss): INK_BLOT -> INKY_LANCE -> DISMEMBER -> PREPARE -> INK_BLOT ... ----------------------------------------------
 pub static VANTOM_DEF: MonsterDef = MonsterDef {
     id: ids::monster::VANTOM,
     hp: |a| hp(a, (183, 183), (173, 173)),

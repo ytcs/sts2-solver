@@ -4,25 +4,12 @@ using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace AgentBridge;
 
-/// <summary>
-/// Exports the live combat in the solver's oracle schema (docs/oracle.md): the fight-start scenario, a snapshot of what a human can see, and the actions taken so far
-/// in the oracle's script format. The solver rebuilds the fight from these without ever seeing hidden information: the snapshot has the draw pile as a sorted
-/// multiset (no order) and no RNG state.
-/// </summary>
 public static class Snap
 {
-    /// <summary>Scenario JSON captured when the combat is set up (before any start-of-combat effect), null outside combat.</summary>
     public static string? Scenario;
-    /// <summary>Counts combats (new id at every SetUpCombat).</summary>
-    // Unique across game restarts: the counter starts from the launch time (minutes since 2026) times 1000, so a relaunched game never reuses an id
-    // the harness has already recorded (fight ends, met encounters and fight files are keyed by it).
     public static int FightId = (int)((DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 1767225600) / 60) * 1000;
-    /// <summary>Actions of this combat so far, each one a JSON object: {"play":{"hand_pos":i,"target":e}}, {"use_potion":{"slot":s,"target":e}}, {"end_turn":true}, {"choose":[...]}.</summary>
     public static readonly List<string> Log = new();
-    /// <summary>Visible state observed after `n` logged actions (key n; 0 = the start of the fight). Lets the solver rebuild the fight statelessly.</summary>
     public static readonly Dictionary<int, string> Obs = new();
-
-    // ------------------------------------------------------------------ capture
 
     [HarmonyPatch(typeof(CombatManager), nameof(CombatManager.SetUpCombat))]
     public static class SetUpPatch
@@ -75,7 +62,8 @@ public static class Snap
             ["gold"] = sp.Gold,
             ["max_potion_slots"] = sp.MaxPotionSlotCount,
             ["base_orb_slots"] = sp.BaseOrbSlotCount,
-            ["seed"] = "placeholder",   // the real run seed is not exported: it would determine the hidden shuffles
+            // the real run seed is never exported: it determines the hidden shuffles
+            ["seed"] = "placeholder",
             ["total_floor"] = rs.TotalFloor,
             ["act"] = rs.CurrentActIndex,
         };
@@ -96,8 +84,6 @@ public static class Snap
         return o.ToJsonString();
     }
 
-    /// <summary>The player's relics in order as [{id, props?, counter?}]: props = the [SavedProperty] values (the simulator's relic state),
-    /// counter = DisplayAmount when the relic shows one. Shared by the fight-start scenario and every observed state.</summary>
     private static JsonArray Relics(Player me)
     {
         var relics = new JsonArray();
@@ -111,11 +97,8 @@ public static class Snap
         return relics;
     }
 
-    // ------------------------------------------------------------------ action log
-
     public static int HandPos(CardModel card) => Me()?.PlayerCombatState?.Hand.Cards.ToList().IndexOf(card) ?? -1;
 
-    /// <summary>Index of the target in the enemy list (e) or the ally list (a), -1 when none. Take it BEFORE the action resolves: a killed enemy leaves the list.</summary>
     public static (int e, int a) TargetOf(Creature? t)
     {
         var me = Me(); var cs = CombatManager.Instance.DebugOnlyGetState();
@@ -154,8 +137,6 @@ public static class Snap
         if (!CombatManager.Instance.IsInProgress) return;
         Log.Add(new JsonObject { ["choose"] = new JsonArray(idx.Select(i => (JsonNode)i).ToArray()) }.ToJsonString());
     }
-
-    // ------------------------------------------------------------------ visible snapshot
 
     private static JsonObject Card(CardModel c, bool brief)
     {
@@ -237,7 +218,6 @@ public static class Snap
         return o;
     }
 
-    /// <summary>The state a human sees, in the oracle schema. No RNG, and the draw pile is a sorted multiset.</summary>
     public static string? State()
     {
         var me = Me();
@@ -287,7 +267,6 @@ public static class Snap
         return o.ToJsonString();
     }
 
-    /// <summary>Records the visible state after the actions logged so far (call when the game is at a decision).</summary>
     public static void Observe()
     {
         if (!CombatManager.Instance.IsInProgress) return;
@@ -295,7 +274,6 @@ public static class Snap
         if (s != null) Obs[Log.Count] = s;
     }
 
-    /// <summary>{"scenario":..., "log":[...], "states":[start, after action 0, ...], "state":current} for the current combat, or null.</summary>
     public static string? Fight()
     {
         var state = State();
@@ -305,7 +283,6 @@ public static class Snap
         return "{\"id\":" + FightId + ",\"scenario\":" + Scenario + ",\"log\":[" + string.Join(",", Log) + "],\"states\":[" + string.Join(",", states) + "],\"state\":" + state + "}";
     }
 
-    /// <summary>The player's run state outside combat as a scenario skeleton (no encounter): deck, relics, potions, HP, floor. Macro evaluation fills in encounters.</summary>
     public static string? DeckJson()
     {
         var rs = RunManager.Instance.DebugOnlyGetState();

@@ -1,5 +1,3 @@
-//! Power definitions and behaviour.
-
 use crate::dec::Dec;
 use crate::defs::*;
 use crate::hooks::*;
@@ -22,7 +20,6 @@ listener!(StrengthPower {
 
 listener!(DexterityPower {
     fn modify_block_additive(&self, cx: &Combat, me: Me, q: &BlockQ) -> Dec {
-        // card source: the card's owner must be the power owner; otherwise the block target must be.
         if q.card != NO {
             if me.owner != PLAYER {
                 return Dec::ZERO;
@@ -43,12 +40,9 @@ listener!(VulnerablePower {
             return Dec::ONE;
         }
         let mut mult = Dec::frac(15, 1);
-        // The dealer's Paper Phrog: +0.25 (only when the target is not the relic owner).
         if q.dealer == PLAYER && q.target != PLAYER && cx.has_relic(crate::ids::relic::PAPER_PHROG) {
             mult += Dec::frac(25, 2);
         }
-        // The dealer's Cruelty power (or its pet owner's, for Osty) adds Amount/100 (`CrueltyPower.ModifyVulnerableMultiplier`;
-        // a Cruelty owner never boosts damage against itself).
         if q.dealer != NO {
             let mut holder = q.dealer;
             if cx.power_amount(holder, crate::ids::power::CRUELTY_POWER) == 0 && cx.cr(q.dealer).is_pet {
@@ -59,7 +53,6 @@ listener!(VulnerablePower {
                 mult += Dec::frac(cruelty as i64, 2);
             }
         }
-        // `DebilitatePower.ModifyVulnerableMultiplier`: `amount + (amount - 1)` on the target's own Debilitate.
         if cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
             mult = mult + (mult - Dec::ONE);
         }
@@ -78,11 +71,9 @@ listener!(WeakPower {
             return Dec::ONE;
         }
         let mut num = Dec::frac(75, 2);
-        // The target's Paper Krane: -0.15 when the relic owner is the one being hit.
         if q.target == PLAYER && cx.has_relic(crate::ids::relic::PAPER_KRANE) {
             num -= Dec::frac(15, 2);
         }
-        // DebilitatePower.ModifyWeakMultiplier: `amount - (1 - amount)` on the dealer's own Debilitate.
         if cx.has_power(me.owner, crate::ids::power::DEBILITATE_POWER) {
             num = num - (Dec::ONE - num);
         }

@@ -1,7 +1,3 @@
-//! Powers of the Act 2 "Hive" elites / bosses (hive_b slice): PersonalHive (Entomancer), Reattach (Decimillipede segments),
-//! VitalSpark + Tainted (Infested Prism), CrabRage / Surrounded / BackAttackLeft / BackAttackRight (Kaiser Crab),
-//! Sandpit (The Insatiable), Disintegration / MindRot / Sloth / WasteAway (Knowledge Demon's Curse of Knowledge).
-
 use crate::dec::Dec;
 use crate::hooks::*;
 use crate::ids;
@@ -9,25 +5,21 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `participants.Contains(Owner)` for a side-turn notification.
 #[inline]
 fn owner_side(cx: &Combat, me: Me, side: Side) -> bool {
     cx.cr(me.owner).side == side
 }
 
-// ---- PersonalHivePower (Entomancer): each powered attack it takes adds `Amount` Dazed to the draw pile (random positions) ----
 listener!(PersonalHivePower {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, _unblocked: i32, props: ValueProp, dealer: Cid) {
         if target != me.owner || dealer == NO || !props.is_powered() {
             return;
         }
-        // (an Osty dealer is redirected to its owner: single player => the same card owner)
         let n = cx.power_amount(me.owner, me.id);
-        cx.add_status_cards_as(ids::card::DAZED, PileType::Draw, n, CardPilePosition::Random, false); // creator == null
+        cx.add_status_cards_as(ids::card::DAZED, PileType::Draw, n, CardPilePosition::Random, false);
     }
 });
 
-// ---- ReattachPower (Decimillipede segments). aux = isReviving ----------------------------------------------------------
 fn other_segments_all_dead(cx: &Combat, owner: Cid) -> bool {
     cx.enemies.iter().all(|&e| e == owner || !cx.has_power(e, ids::power::REATTACH_POWER) || cx.cr(e).is_dead())
 }
@@ -39,7 +31,6 @@ listener!(ReattachPower {
         }
         if !other_segments_all_dead(cx, me.owner) || !cx.cr(me.owner).is_dead() {
             cx.set_power_aux(me.owner, me.idx, 1);
-            // SetMoveImmediate(DeadState) WITHOUT force (an un-performed STUNNED state would swallow it).
             let mid = cx.cr(me.owner).monster.id;
             if let Some(node) = crate::content::node_by_name(mid, "DEAD_MOVE") {
                 cx.set_move_immediate(me.owner, node, false);
@@ -63,8 +54,6 @@ listener!(ReattachPower {
     }
 });
 
-/// `ReattachPower.DoReattach` (called by the segment's REATTACH_MOVE): unless every other segment is dead, the segment
-/// stops reviving and heals `Amount`.
 pub fn do_reattach(cx: &mut Combat, owner: Cid) {
     let Some(p) = cx.cr(owner).power(ids::power::REATTACH_POWER) else { return };
     let (uid, amount) = (p.uid, p.amount);
@@ -74,7 +63,6 @@ pub fn do_reattach(cx: &mut Combat, owner: Cid) {
     }
 }
 
-// ---- VitalSparkPower (Infested Prism): the player's Skill cards are Tainted ---------------------------------------------
 fn tainted_cards_matching(cx: &Combat, tainted: bool) -> crate::util::ArrayVec<CardIdx, MAX_CARDS> {
     let mut o = crate::util::ArrayVec::new();
     for c in cx.all_combat_cards().iter().copied() {
@@ -124,7 +112,6 @@ listener!(VitalSparkPower {
     }
 });
 
-// ---- TaintedPower (player debuff): +Amount damage from powered attacks until the end of the enemy turn ---------------------
 listener!(TaintedPower {
     fn modify_damage_additive(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.target != me.owner || !q.props.is_powered() {
@@ -139,12 +126,9 @@ listener!(TaintedPower {
     }
 });
 
-// ---- Kaiser Crab ----------------------------------------------------------------------------------------------------------
-// BackAttackLeft / BackAttackRight are marker powers read by SurroundedPower.
 listener!(BackAttackLeftPower {});
 listener!(BackAttackRightPower {});
 
-// CrabRage: when a teammate dies the owner gains Strength 6 and 99 (unpowered) block, then the power is removed.
 listener!(CrabRagePower {
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, _was_removal_prevented: bool) {
         if creature != me.owner && cx.cr(creature).side == cx.cr(me.owner).side {
@@ -155,8 +139,6 @@ listener!(CrabRagePower {
     }
 });
 
-// Surrounded (player debuff). aux = facing (0 = Right, 1 = Left). Damage dealt to the owner by the crab standing BEHIND
-// it (`BackAttackLeft` while facing right, `BackAttackRight` while facing left) is x1.5.
 listener!(SurroundedPower {
     fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.dealer == NO || q.target != me.owner {
@@ -203,9 +185,6 @@ fn surrounded_update_direction(cx: &mut Combat, me: Me, target: Cid) {
     }
 }
 
-// ---- SandpitPower (The Insatiable; Instanced). aux = the targeted creature -------------------------------------------------
-// Counts down at the start of every enemy turn; when it is removed (0) while both are alive, the target (player + Osty)
-// is killed.
 listener!(SandpitPower {
     fn after_side_turn_start_late(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Enemy {
@@ -213,7 +192,6 @@ listener!(SandpitPower {
         }
     }
     fn after_removed(&self, cx: &mut Combat, _me: Me, old_owner: Cid) {
-        // `SandpitPower.Target` is the (single) player; aux (set by the Insatiable) only records it.
         if cx.cr(old_owner).is_dead() || cx.cr(PLAYER).is_dead() {
             return;
         }
@@ -228,7 +206,6 @@ listener!(SandpitPower {
     }
 });
 
-// ---- Curse of Knowledge powers (applied by the chosen card to the player) -------------------------------------------------------
 listener!(DisintegrationPower {
     fn after_side_turn_end_late(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_side(cx, me, side) {
@@ -247,7 +224,6 @@ listener!(MindRotPower {
     }
 });
 
-// Sloth: aux = cards played this turn; cards are unplayable once `aux >= Amount`.
 listener!(SlothPower {
     fn should_play(&self, cx: &Combat, me: Me, _card: CardIdx) -> bool {
         cx.power_aux(me.owner, me.idx) < cx.power_amount(me.owner, me.id)

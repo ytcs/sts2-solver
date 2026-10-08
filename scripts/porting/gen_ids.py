@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Generate crates/sts2sim/src/ids.rs from the decompiled game source.
-
-Ids are dense u16 indices assigned in ordinal order of the game's ModelId entry (the slugified class
-name), so comparing ids == comparing ModelIds (the game sorts cards by ModelId on reshuffle).
-Usage: scripts/porting/gen_ids.py [decomp_root] > crates/sts2sim/src/ids.rs
-"""
 import glob, os, re, sys
 
 ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "decomp")
@@ -12,17 +6,14 @@ MODELS = os.path.join(ROOT, "MegaCrit/Sts2/Core/Models")
 
 
 def slugify(name: str) -> str:
-    """StringHelper.Slugify: Regex.Replace(name, @"([A-Za-z0-9]|\\G(?!^))([A-Z])", "$1_$2") then upper."""
     out, i, n = [], 0, len(name)
-    last_end = -1  # end of previous match (for \G)
+    last_end = -1
     while i < n:
-        # alternative 1: [A-Za-z0-9] followed by [A-Z]
         if i + 1 < n and name[i].isascii() and name[i].isalnum() and "A" <= name[i + 1] <= "Z":
             out.append(f"{name[i]}_{name[i+1]}")
             i += 2
             last_end = i
             continue
-        # alternative 2: \G(?!^) then [A-Z]
         if i == last_end and i != 0 and "A" <= name[i] <= "Z":
             out.append(f"_{name[i]}")
             i += 1

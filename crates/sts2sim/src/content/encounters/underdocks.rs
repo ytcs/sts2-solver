@@ -1,7 +1,3 @@
-//! Act 1b "Underdocks" encounter compositions (spec 04 §4.2). Monsters in creation order; `slot` is the index into the
-//! encounter's `Slots` list (`NO` for encounters without one). Encounter-local RNG draws use `rng` (seed already
-//! combines run seed, floor and encounter id).
-
 use crate::content::{Spawn, Spawns};
 use crate::ids;
 use crate::rng::Rng;
@@ -13,7 +9,6 @@ fn one(monster: u16) -> Spawns {
     s
 }
 
-/// `CorpseSlug.EnsureCorpseSlugsStartWithDifferentMoves`: `n = NextInt(3)`, slug k starts with move `(n + k) % 3`.
 fn slugs(rng: &mut Rng, count: usize) -> Spawns {
     let mut n = rng.next_int(3);
     let mut s = Spawns::new();
@@ -38,7 +33,7 @@ pub fn spawn_sludge_spinner_weak(_rng: &mut Rng, _ascension: u8) -> Spawns {
 }
 pub fn spawn_toadpoles_weak(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
-    s.push(Spawn { monster: ids::monster::TOADPOLE, slot: NO, vars: [1, 0] }); // IsFront
+    s.push(Spawn { monster: ids::monster::TOADPOLE, slot: NO, vars: [1, 0] });
     s.push(Spawn { monster: ids::monster::TOADPOLE, slot: NO, vars: [0, 0] });
     s
 }
@@ -52,7 +47,6 @@ pub fn spawn_fossil_stalker_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::FOSSIL_STALKER)
 }
 pub fn spawn_gremlin_merc_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
-    // slot "merc" (the encounter has no `Slots` list, so it never reorders anything)
     one(ids::monster::GREMLIN_MERC)
 }
 pub fn spawn_haunted_ship_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
@@ -60,7 +54,7 @@ pub fn spawn_haunted_ship_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
 }
 pub fn spawn_living_fog_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
-    s.push(Spawn { monster: ids::monster::LIVING_FOG, slot: 5, vars: [0, 0] }); // "livingFog"
+    s.push(Spawn { monster: ids::monster::LIVING_FOG, slot: 5, vars: [0, 0] });
     s
 }
 pub fn spawn_punch_construct_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
@@ -79,7 +73,6 @@ pub fn spawn_two_tailed_rats_normal(rng: &mut Rng, _ascension: u8) -> Spawns {
     let n = rng.next_int(3);
     let mut s = Spawns::new();
     for k in 0..3 {
-        // slots third, fourth, fifth; StarterMoveIndex = (n + k) % 3
         s.push(Spawn { monster: ids::monster::TWO_TAILED_RAT, slot: 2 + k as u8, vars: [(n + k) % 3, 0] });
     }
     s

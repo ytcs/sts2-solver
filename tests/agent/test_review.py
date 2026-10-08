@@ -1,4 +1,3 @@
-"""`improve.review`: which run it reads, what it reports for fights and card picks, what it appends to evals/."""
 import json
 import os
 import time
@@ -32,13 +31,13 @@ def test_run_selection(monkeypatch, tmp_path):
     assert improve.review() == "no runs recorded"
     now = time.time()
     write_run(runlog.ROOT, "20261001-000000", fight("1", "NIBBITS_WEAK", 70, 80, 60, 0.9), mtime=now - 300)
-    write_run(runlog.ROOT, "shakedown-1", fight("1", "CULTISTS_NORMAL", 70, 80, 65, 0.95), mtime=now - 100)  # newest with fights (ids are not all timestamps)
-    write_run(runlog.ROOT, "20261009-000000", [dict(t=1, kind="note", text="x")], mtime=now)  # newest, no fight
+    write_run(runlog.ROOT, "shakedown-1", fight("1", "CULTISTS_NORMAL", 70, 80, 65, 0.95), mtime=now - 100)
+    write_run(runlog.ROOT, "20261009-000000", [dict(t=1, kind="note", text="x")], mtime=now)
     assert improve.review().startswith("run shakedown-1: 1 fights")
     assert improve.review("20261001-000000").startswith("run 20261001-000000: 1 fights")
     assert improve.review("runs/20261001-000000").startswith("run 20261001-000000:")
     assert improve.review("20261009-000000").startswith("run 20261009-000000: 0 fights")
-    assert improve.review("2026100") == "no run named 2026100"  # exact name only
+    assert improve.review("2026100") == "no run named 2026100"
     with open(os.path.join(runlog.ROOT, "shakedown-1", "review.md"), encoding="utf-8") as f:
         assert f.read().startswith("run shakedown-1: 1 fights")
 
@@ -78,11 +77,10 @@ def read_lines(path):
 
 
 def test_review_appends_once(monkeypatch, tmp_path):
-    """Bug fix: every `review` of a run appended its surprises, fidelity counts and judgments again (evals/ held up to 3 copies of a line)."""
     isolate(monkeypatch, tmp_path)
     evs = fight("5", "PHROG_PARASITE_ELITE", 60, 80, 0, 0.95, replay={"diff .enemies[0].hp": 3})
     evs += [dict(t=5, kind="macro", screen="SHOP A1 F3", choice="14", why="numbers: n; judgment: keep the gold", result="MAP"),
-            dict(t=6, kind="macro", screen="SHOP A1 F9", choice="14", why="numbers: n; judgment: keep the gold", result="MAP")]  # the same record twice: both are kept
+            dict(t=6, kind="macro", screen="SHOP A1 F9", choice="14", why="numbers: n; judgment: keep the gold", result="MAP")]
     write_run(runlog.ROOT, "r1", evs)
     gp, jp = os.path.join(improve.EVALS, "gaps.jsonl"), os.path.join(improve.EVALS, "judgments.jsonl")
     os.makedirs(improve.EVALS, exist_ok=True)
@@ -95,22 +93,21 @@ def test_review_appends_once(monkeypatch, tmp_path):
     assert read_lines(gp) == g1 and read_lines(jp) == j1
     write_run(runlog.ROOT, "r2", evs)
     improve.review("r2")
-    assert len(read_lines(gp)) == 5 and len(read_lines(jp)) == 4  # another run's records are new
+    assert len(read_lines(gp)) == 5 and len(read_lines(jp)) == 4
 
 
 def test_pick_audit_maps_variants(monkeypatch, tmp_path):
-    """Bug fix: `reward` prices only the cards with a simulator id, so an unmapped option shifts the variants; the audit took option i as variant i + 1."""
     isolate(monkeypatch, tmp_path)
-    res = dict(boss={"0": dict(win=0.10), "1": dict(win=0.20), "2": dict(win=0.60)})  # 0 skip, 1 Armaments, 2 Headbutt (Mystery Card not evaluated)
+    res = dict(boss={"0": dict(win=0.10), "1": dict(win=0.20), "2": dict(win=0.60)})
     names = ["Armaments", "Mystery Card", "Headbutt"]
     evs = [dict(t=1, kind="reward_eval", options=names, result=res),
-           dict(t=2, kind="macro", screen="CARD_REWARD A1 F2", choice="2", why="w1", result="REWARDS"),  # Headbutt = variant 2: the best
+           dict(t=2, kind="macro", screen="CARD_REWARD A1 F2", choice="2", why="w1", result="REWARDS"),
            dict(t=3, kind="reward_eval", options=names, result=res),
-           dict(t=4, kind="macro", screen="CARD_REWARD A1 F5", choice="0", why="w2", result="REWARDS"),  # Armaments = variant 1
+           dict(t=4, kind="macro", screen="CARD_REWARD A1 F5", choice="0", why="w2", result="REWARDS"),
            dict(t=5, kind="reward_eval", options=names, result=res),
-           dict(t=6, kind="macro", screen="CARD_REWARD A1 F8", choice="1", why="w3", result="REWARDS"),  # the unevaluated card: not in the tally
+           dict(t=6, kind="macro", screen="CARD_REWARD A1 F8", choice="1", why="w3", result="REWARDS"),
            dict(t=7, kind="reward_eval", options=names, result=res),
-           dict(t=8, kind="macro", screen="CARD_REWARD A1 F9", choice="3", why="w4", result="REWARDS")]  # skip
+           dict(t=8, kind="macro", screen="CARD_REWARD A1 F9", choice="3", why="w4", result="REWARDS")]
     write_run(runlog.ROOT, "r1", evs)
     lines = improve.review("r1").split("\n")
     assert "card picks: 3 priced by `reward`, followed the best smooth boss score (within 0.02) in 1; 0 not priced" in lines

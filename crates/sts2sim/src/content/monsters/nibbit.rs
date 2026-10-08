@@ -1,5 +1,3 @@
-//! Monster definitions: move state machines and behaviour (spec 04).
-
 use crate::dec::Dec;
 use crate::defs::*;
 use crate::engine::Attack;
@@ -9,8 +7,6 @@ use crate::types::*;
 
 crate::listener!(Nibbit {});
 
-// ---- Nibbit ----------------------------------------------------------------------------------------------------
-// vars[0] = IsAlone, vars[1] = IsFront (set by the encounter).
 mod nibbit {
     use super::*;
     pub fn butt_damage(cx: &Combat) -> i32 {
@@ -41,7 +37,6 @@ mod nibbit {
     }
 }
 
-// node indices: 0 = INIT_MOVE (conditional), 1 = BUTT, 2 = SLICE, 3 = HISS
 pub static NIBBIT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::NIBBIT,
     hp: |a| if a >= asc::TOUGH_ENEMIES { (44, 48) } else { (42, 46) },
@@ -51,9 +46,9 @@ pub static NIBBIT_DEF: MonsterDef = MonsterDef {
         MonsterNode::Cond {
             id: "INIT_MOVE",
             arms: &[
-                (1, |cx, c| cx.cr(c).monster.vars[0] != 0),                          // alone -> BUTT
-                (3, |cx, c| cx.cr(c).monster.vars[0] == 0 && cx.cr(c).monster.vars[1] == 0), // back -> HISS
-                (2, |cx, c| cx.cr(c).monster.vars[0] == 0 && cx.cr(c).monster.vars[1] != 0), // front -> SLICE
+                (1, |cx, c| cx.cr(c).monster.vars[0] != 0),
+                (3, |cx, c| cx.cr(c).monster.vars[0] == 0 && cx.cr(c).monster.vars[1] == 0),
+                (2, |cx, c| cx.cr(c).monster.vars[0] == 0 && cx.cr(c).monster.vars[1] != 0),
             ],
         },
         MonsterNode::Move {

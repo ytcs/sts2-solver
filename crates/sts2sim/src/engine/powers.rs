@@ -1,5 +1,3 @@
-//! Power application / stacking / removal (spec 02 §6).
-
 use super::damage::Mods;
 use crate::content;
 use crate::dec::Dec;
@@ -14,12 +12,10 @@ impl Combat {
         self.cr(c).powers.iter().position(|p| p.uid == uid)
     }
 
-    /// Mutable access to a live power instance by uid (private `aux` state).
     pub fn power_mut(&mut self, c: Cid, uid: u16) -> Option<&mut Power> {
         self.cr_mut(c).powers.as_mut_slice().iter_mut().find(|p| p.uid == uid)
     }
 
-    /// The private state word of power instance `uid` (`PowerModel.InternalData`).
     pub fn power_aux(&self, c: Cid, uid: u16) -> i32 {
         self.power_idx(c, uid).map_or(0, |i| self.cr(c).powers[i].aux)
     }
@@ -30,7 +26,6 @@ impl Combat {
         }
     }
 
-    /// Current amount of the creature's power `id` (0 if absent).
     #[inline]
     pub fn power_amount(&self, c: Cid, id: u16) -> i32 {
         self.cr(c).power_amount(id)
@@ -41,12 +36,10 @@ impl Combat {
         self.cr(c).power(id).is_some()
     }
 
-    /// `Creature.CanReceivePowers`: attached to the combat and `ShouldAllowHitting` (AND over listeners).
     pub fn can_receive_powers(&self, c: Cid) -> bool {
         self.cr(c).in_combat && self.should_allow_hitting(c)
     }
 
-    /// `Hook.ShouldAllowHitting` — AND over guarded listeners (every creature is hittable once combat is ending).
     pub fn should_allow_hitting(&self, c: Cid) -> bool {
         if !self.hooks_enabled() {
             return true;
@@ -61,7 +54,6 @@ impl Combat {
         true
     }
 
-    /// `PowerModel.GetTypeForAmount`.
     pub fn power_type_for_amount(id: u16, amount: i32) -> PowerType {
         let d = content::power_def(id);
         if d.counter && d.allow_negative && amount < 0 {
@@ -82,7 +74,6 @@ impl Combat {
         }
     }
 
-    /// `PowerCmd.Apply<T>`. Returns the power uid if the power exists afterwards (stacked or new).
     pub fn apply_power(&mut self, id: u16, target: Cid, amount: Dec, applier: Cid, card: CardIdx) -> Option<u16> {
         if self.is_ending() {
             return None;
@@ -110,14 +101,13 @@ impl Combat {
         let uid = self.next_power_uid;
         let (next, wrapped) = self.next_power_uid.overflowing_add(1);
         if wrapped {
-            crate::util::raise_overflow(ov::COUNTER as u32); // a power uid is reused: instances could be confused
+            crate::util::raise_overflow(ov::COUNTER as u32);
         }
         self.next_power_uid = next;
         self.listen |= content::power_mask(id);
         if !content::power_implemented(id) {
             self.flag_missing(Kind::Power, id);
         }
-        // Not yet attached: a stand-in `Me` for the not-yet-existing power.
         let me = Me { kind: Kind::Power, owner: target, idx: uid, id, amount: 0 };
         self.cur_power_card = card;
         self.dispatch_g(hookbit::before_power_amount_changed, |cx, m, l| l.before_power_amount_changed(cx, m, id, amount, target, applier));
@@ -162,7 +152,6 @@ impl Combat {
         None
     }
 
-    /// `ModifyPowerAmountGiven`: additive pass then multiplicative pass (SneckoSkull / UnsettlingLamp).
     fn modify_power_amount_given(&self, id: u16, giver: Cid, amount: Dec, target: Cid, card: CardIdx) -> (Dec, Mods) {
         let m = (Mask::bit(hookbit::modify_power_amount_given_additive)) | (Mask::bit(hookbit::modify_power_amount_given_multiplicative));
         let mut snap = crate::engine::Snapshot::new();
@@ -190,7 +179,6 @@ impl Combat {
         (v, mods)
     }
 
-    /// `ModifyPowerAmountReceived`: threaded TRY hooks (Artifact, RuinedHelmet).
     fn modify_power_amount_received(&self, id: u16, target: Cid, amount: Dec, applier: Cid) -> (Dec, Mods) {
         let mut snap = crate::engine::Snapshot::new();
         self.snapshot_into(Mask::bit(hookbit::try_modify_power_amount_received), &mut snap);
@@ -210,7 +198,6 @@ impl Combat {
         (v, mods)
     }
 
-    /// `PowerCmd.ModifyAmount` — the stacking / decrement path. Returns the new amount.
     pub fn modify_power_amount(&mut self, c: Cid, uid: u16, offset: Dec, applier: Cid, card: CardIdx) -> i32 {
         if self.is_ending() {
             return 0;
@@ -252,14 +239,12 @@ impl Combat {
         new_amount
     }
 
-    /// Recomputes `Creature::secondary` after the power list of `c` changed.
     #[inline]
     pub(crate) fn sync_secondary(&mut self, c: Cid) {
         let cr = self.cr_mut(c);
         cr.secondary = cr.powers.iter().any(|p| content::power_def(p.id).secondary_enemy);
     }
 
-    /// `PowerCmd.Remove`: list removal then `AfterRemoved` (no amount hooks).
     pub fn remove_power(&mut self, c: Cid, uid: u16) {
         if let Some(i) = self.power_idx(c, uid) {
             let p = self.cr_mut(c).powers.remove(i);
@@ -269,12 +254,10 @@ impl Combat {
         }
     }
 
-    /// `PowerCmd.Decrement(power)` = `ModifyAmount(-1, null, null)`.
     pub fn decrement_power(&mut self, c: Cid, uid: u16) {
         self.modify_power_amount(c, uid, Dec::int(-1), NO, NO);
     }
 
-    /// `PowerCmd.TickDownDuration`.
     pub fn tick_down_power(&mut self, c: Cid, uid: u16) {
         if let Some(i) = self.power_idx(c, uid) {
             if self.cr(c).powers[i].skip_next_tick {

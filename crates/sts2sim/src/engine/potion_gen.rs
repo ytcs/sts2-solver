@@ -1,6 +1,3 @@
-//! Potion belt, potion generation (`PotionFactory`, `PotionCmd.TryToProcure`), death prevention (`Hook.ShouldDie` /
-//! `AfterPreventingDeath`, Fairy in a Bottle) and the small card/HP commands the potions need.
-
 use crate::content;
 use crate::defs::*;
 use crate::hooks::*;
@@ -9,7 +6,6 @@ use crate::state::*;
 use crate::types::*;
 use crate::util::ArrayVec;
 
-/// Character potion pools (`<Character>PotionPool.GetUnlockedPotions` with every epoch revealed), in epoch order.
 fn character_potions(character: u8) -> &'static [u16] {
     use ids::potion as p;
     static IRONCLAD: [u16; 3] = [p::BLOOD_POTION, p::SOLDIERS_STEW, p::ASHWATER];
@@ -26,8 +22,6 @@ fn character_potions(character: u8) -> &'static [u16] {
     }
 }
 
-/// `SharedPotionPool.GenerateAllPotions` (array order; the Potion1/Potion2 epoch potions are included because
-/// the oracle's `UnlockState.all` reveals every epoch).
 static SHARED_POTIONS: [u16; 45] = {
     use ids::potion as p;
     [
@@ -80,14 +74,10 @@ static SHARED_POTIONS: [u16; 45] = {
 };
 
 impl Combat {
-    // ---- belt ---------------------------------------------------------------------------------------------------
-
-    /// `Player.HasOpenPotionSlots`.
     pub fn has_open_potion_slots(&self) -> bool {
         (0..self.player.potion_slots as usize).any(|i| self.player.potions[i].is_none())
     }
 
-    /// `Player.AddPotionInternal(potion, -1)`: first empty slot below the slot count.
     pub fn add_potion_internal(&mut self, id: u16) -> bool {
         for i in 0..(self.player.potion_slots as usize).min(MAX_POTIONS) {
             if self.player.potions[i].is_none() {
@@ -102,7 +92,6 @@ impl Combat {
         false
     }
 
-    /// `PotionCmd.TryToProcure`: `Hook.ShouldProcurePotion` (AND), add to the first free slot, `AfterPotionProcured`.
     pub fn try_procure_potion(&mut self, id: u16) -> bool {
         if self.listen.has(hookbit::should_procure_potion) {
             let mut snap = crate::engine::Snapshot::new();
@@ -120,10 +109,6 @@ impl Combat {
         true
     }
 
-    // ---- PotionFactory --------------------------------------------------------------------------------------------
-
-    /// `PotionFactory.GetPotionOptions` (character pool ++ shared pool), optionally restricted to potions that can be
-    /// generated in combat.
     pub fn potion_options(&self, in_combat: bool) -> ArrayVec<u16, 64> {
         let mut v = ArrayVec::new();
         for &p in character_potions(self.character).iter().chain(SHARED_POTIONS.iter()) {
@@ -134,8 +119,6 @@ impl Combat {
         v
     }
 
-    /// `PotionFactory.CreateRandomPotion{In,OutOf}Combat` with the `CombatPotionGeneration` stream: one float picks the
-    /// rarity bucket, one `NextItem` over the options of that rarity picks the potion.
     pub fn create_random_potion(&mut self, in_combat: bool) -> Option<u16> {
         let options = self.potion_options(in_combat);
         let f = self.rng.combat_potion_generation.next_float();
@@ -153,17 +136,12 @@ impl Combat {
             }
         }
         if bucket.is_empty() {
-            return None; // NextItem on an empty set draws nothing
+            return None;
         }
         let i = self.rng.combat_potion_generation.next_int_range(0, bucket.len() as i32) as usize;
         Some(bucket[i])
     }
 
-    // ---- potion use (automatic path) ---------------------------------------------------------------------------------
-
-    // ---- small commands --------------------------------------------------------------------------------------------
-
-    /// `CardModel.SetToFreeThisCombat`: energy cost 0 for the rest of the combat, and `SetStarCostThisCombat(0)`.
     pub fn set_to_free_this_combat(&mut self, c: CardIdx) {
         if self.card_def(c).cost >= 0 {
             self.cards[c as usize].mods.push(CostMod::new(0, false, false, 0));
@@ -171,8 +149,6 @@ impl Combat {
         self.set_star_cost_this_combat(c, 0);
     }
 
-    /// `CardPileCmd.Add(IEnumerable<CardModel>, PileType, position)`: every card is moved first (hand-full redirect
-    /// evaluated per card), then `AfterCardChangedPiles` fires for each moved card.
     pub fn add_cards_to_pile(&mut self, cards: &[CardIdx], pile: PileType, pos: CardPilePosition) {
         if cards.is_empty() || self.is_ending() {
             return;
@@ -210,7 +186,6 @@ impl Combat {
         }
     }
 
-    /// `CardPileCmd.AddGeneratedCardsToCombat`: per card `Add` + `AfterCardGeneratedForCombat`.
     pub fn add_generated_cards(&mut self, cards: &[CardIdx], pile: PileType, pos: CardPilePosition) {
         for &c in cards {
             self.add_generated_card(c, pile, pos);
@@ -218,21 +193,11 @@ impl Combat {
     }
 }
 
-// ---- Temporary{Strength,Dexterity,Focus}Power family (`ITemporaryPower`) -----------------------------------------------
-//
-// The three C# base classes are identical up to the inner power and the sign; a derived power (FlexPotionPower,
-// SpeedPotionPower, ShacklingPotionPower, card powers, ...) just forwards its three hooks here:
-//   before_applied                  -> `temp_before_applied`
-//   after_power_amount_changed -> `temp_after_amount_changed`
-//   after_side_turn_end             -> `temp_after_side_turn_end`
 impl Combat {
-    /// `BeforeApplied`: apply `sign * amount` of the inner power right away.
     pub fn temp_before_applied(&mut self, inner: u16, sign: i32, target: Cid, amount: crate::dec::Dec, applier: Cid, card: CardIdx) {
         self.apply_power(inner, target, crate::dec::Dec::int(sign as i64) * amount, applier, card);
     }
 
-    /// `AfterPowerAmountChanged`: when this very power's amount changed by something other than its creation
-    /// (`delta != Amount`), forward `sign * delta` to the inner power.
     pub fn temp_after_amount_changed(&mut self, me: Me, inner: u16, sign: i32, ch: &PowerChange) {
         if ch.target != me.owner || ch.uid != me.idx {
             return;
@@ -243,7 +208,6 @@ impl Combat {
         self.apply_power(inner, me.owner, crate::dec::Dec::int((sign * ch.amount) as i64), ch.applier, ch.card);
     }
 
-    /// `AfterSideTurnEnd`: at the end of the owner's side, remove the power, then take the inner power back.
     pub fn temp_after_side_turn_end(&mut self, me: Me, inner: u16, sign: i32, side: Side) {
         if self.cr(me.owner).side != side {
             return;

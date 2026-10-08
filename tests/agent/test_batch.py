@@ -1,4 +1,3 @@
-"""Batch mode (`python -m agent - <<EOF`): stop rules, the bare-number refusal, read-only commands; the read-only command lists."""
 import contextlib
 import io
 
@@ -26,7 +25,7 @@ def test_stops():
     assert cli._stops("ERR x")
     assert cli._stops("  play\nREFUSED: y")
     assert cli._stops("  Strike\nPOTION PROPOSAL (turn 2): FIRE_POTION now")
-    assert not cli._stops("  Strike\nPOTION ALERT (turn 2): throwing now")  # the retired alert
+    assert not cli._stops("  Strike\nPOTION ALERT (turn 2): throwing now")
     assert cli._stops("x\nSIMULATOR DESYNC (e)")
     assert cli._stops("x\nSIMULATOR DIFFERS FROM THE GAME: y")
     assert cli._stops("x\nSIMULATOR CHOICE DIFFERS: z")
@@ -55,15 +54,15 @@ def test_batch_bare_number_after_action(monkeypatch):
     assert out == (">>> a ~gold\nSHOP\n>>> a 3 -- why\nREFUSED: a numbered option after an earlier action in the same batch: the screen has changed and the number may now be another "
                    "option. Use `a ~text`, or send it in its own call after reading the screen.\n>>> batch stopped here\n")
     sent, out = run_batch(monkeypatch, {"s": "S\n", "eval": "table\n", "a": "SHOP\n"}, ["s", "eval --boss", "a 3"])
-    assert sent == ["s", "eval --boss", "a 3"]  # read-only commands do not count as an action
+    assert sent == ["s", "eval --boss", "a 3"]
     sent, out = run_batch(monkeypatch, {"a": "REFUSED: x\n"}, ["a 2", "a 3"], keep_going=True)
-    assert sent == ["a 2", "a 3"]  # a refused action changed nothing
+    assert sent == ["a 2", "a 3"]
     sent, out = run_batch(monkeypatch, {"a": "SHOP\n", "potions": "table\n"}, ["potions", "a 3", "a ~x", "a 1"])
     assert sent == ["potions", "a 3", "a ~x"]
     sent, out = run_batch(monkeypatch, {"a": "SHOP\n", "combat": "played\n"}, ["combat", "a 3"])
     assert sent == ["combat"]
     sent, out = run_batch(monkeypatch, {"a": "SHOP\n"}, ["a ~x", "a ~y; 3", "a 12x"])
-    assert sent == ["a ~x", "a ~y; 3", "a 12x"]  # a later step of a chain is the harness's check; `12x` is not a bare number
+    assert sent == ["a ~x", "a ~y; 3", "a 12x"]
 
 
 def test_read_only_lists():
@@ -73,7 +72,7 @@ def test_read_only_lists():
         assert c in skillgate.READ_ONLY, c
     for c in ("a", "turn", "combat", "x", "draw", "f", "do", "potion", "hold"):
         assert c not in skillgate.READ_ONLY, c
-    assert "f" in bridge.READ_ONLY  # safe to resend after a dropped connection; still an action for the skill gate
+    assert "f" in bridge.READ_ONLY
 
 
 def test_classify():

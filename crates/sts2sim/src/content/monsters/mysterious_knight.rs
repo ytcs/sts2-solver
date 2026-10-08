@@ -1,11 +1,7 @@
-//! MysteriousKnight (The Lantern Key event): `FlailKnight` (KnightsElite, ported in `glory_b.rs`) plus +6 Strength and +6 Plating
-//! on spawn. The move table is a copy of FlailKnight's (a separate static so this file does not depend on the Glory slice).
-
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
 
-// 0 WAR_CHANT, 1 FLAIL_MOVE, 2 RAM_MOVE, 3 RAND; initial RAM
 const FLAIL_KNIGHT_NODES: &[MonsterNode] = &[
     mv("WAR_CHANT", |cx, me| power_self(cx, me, ids::power::STRENGTH_POWER, 3), &[Intent::Buff], 3),
     mv(

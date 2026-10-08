@@ -1,8 +1,3 @@
-"""Runs the harness tests without pytest: `python tests/agent/run.py [-k substring] [-x]`.
-
-Discovers `test_*` functions in `tests/agent/test_*.py` and passes the fixtures they name: `monkeypatch` (support.MonkeyPatch, undone after the test) and
-`tmp_path` (a fresh pathlib directory). The same files run under pytest unchanged.
-"""
 import importlib
 import inspect
 import os

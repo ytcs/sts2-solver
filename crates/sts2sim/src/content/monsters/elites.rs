@@ -1,11 +1,7 @@
-//! Overgrowth elites without summons: Bygone Effigy, Byrdonis. Spec 04 §3.1.
-
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
 
-// ---- BygoneEffigy: SLEEP -> WAKE (Str+10) -> SLASHES loop; spawns with Slow 1 --------------------------------------------------
-// 0 SLEEP_MOVE, 1 WAKE_MOVE, 2 SLEEP_MOVE_2 (unreachable), 3 SLASHES_MOVE
 pub static BYGONE_EFFIGY_DEF: MonsterDef = MonsterDef {
     id: ids::monster::BYGONE_EFFIGY,
     hp: |a| hp(a, (132, 132), (127, 127)),
@@ -27,8 +23,6 @@ pub static BYGONE_EFFIGY_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Byrdonis: SWOOP <-> PECK (initial SWOOP); spawns with Territorial 1 -------------------------------------------------------
-// 0 SWOOP_MOVE, 1 PECK_MOVE
 pub static BYRDONIS_DEF: MonsterDef = MonsterDef {
     id: ids::monster::BYRDONIS,
     hp: |a| hp(a, (90, 90), (81, 84)),

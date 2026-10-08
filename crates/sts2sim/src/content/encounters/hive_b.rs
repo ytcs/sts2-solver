@@ -1,5 +1,3 @@
-//! Act 2 "Hive" elite and boss encounters (hive_b slice, spec 04 §4.2). `rng` = the encounter-local RNG.
-
 use crate::content::monsters::hive_b::*;
 use crate::content::{Spawn, Spawns};
 use crate::ids;
@@ -12,7 +10,6 @@ fn one(m: u16) -> Spawns {
     s
 }
 
-/// Front@segment1, Middle@segment2, Back@segment3; `StarterMoveIdx` = `n = NextInt(3)`, `n + 1`, `n + 2` (mod 3).
 pub fn spawn_decimillipede_elite(rng: &mut Rng, _ascension: u8) -> Spawns {
     let n = rng.next_int(3);
     let mut s = Spawns::new();
@@ -30,7 +27,6 @@ pub fn spawn_infested_prisms_elite(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::INFESTED_PRISM)
 }
 
-/// Crusher@crusher, Rocket@rocket (Slots [crusher, rocket]).
 pub fn spawn_kaiser_crab_boss(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster: ids::monster::CRUSHER, slot: SLOT_CRUSHER, vars: [0, 0] });

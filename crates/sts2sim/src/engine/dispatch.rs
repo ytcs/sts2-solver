@@ -1,38 +1,26 @@
-//! Hook listener enumeration with the game's exact semantics (spec 02 §1): snapshot at the start of each pass,
-//! liveness re-checked when each item is reached, "guarded" passes silent once combat is ending.
-
 use crate::content;
 use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
 use crate::util::ArrayVec;
 
-/// One listener of a snapshot. (It used to carry the listener's 32-byte hook mask; the few multi-bit passes query it
-/// through [`Combat::has_hook`] instead, which keeps a snapshot at 12 bytes per listener.)
 #[derive(Clone, Copy, Default)]
 pub struct Entry {
     pub me: Me,
 }
 
-/// Worst case a hook can have this many listeners: every card instance of the arena with a listener plus its affliction /
-/// enchantment, powers, relics, potions, monsters. Realistic fights stay far below; a fuller snapshot drops the surplus
-/// listeners and raises the overflow flag (`ArrayVec`).
 pub const SNAPSHOT_CAP: usize = 256;
 pub type Snapshot = ArrayVec<Entry, SNAPSHOT_CAP>;
 
 impl Combat {
-    /// `L_combat` restricted to listeners whose hook mask intersects `m`, in the game's order (spec 02 §1.1).
     pub fn snapshot(&self, m: Mask) -> Snapshot {
         let mut s = Snapshot::new();
         self.snapshot_into(m, &mut s);
         s
     }
 
-    /// [`Combat::snapshot`] into a caller-owned (empty) list. Hot paths use this: returning the 3 KB list by value makes the
-    /// compiler copy it whole on every call, even when it is empty.
     #[inline(always)]
     pub fn snapshot_into(&self, m: Mask, s: &mut Snapshot) {
-        // the "nobody listens" test inline at the call site (about half of the calls stop here), the scan out of line
         if self.listen.intersects(m) {
             self.snapshot_scan(m, s);
         }
@@ -79,7 +67,6 @@ impl Combat {
                         if mask.intersects(m) {
                             s.push(Entry { me: Me { kind: Kind::Card, owner: ci, idx: c as u16, id: card.id, amount: 0 } });
                         }
-                        // card.Affliction (BEFORE the enchantment), then card.Enchantment (spec 02 §1.1)
                         if card.affliction != 0 {
                             let aid = (card.affliction - 1) as u16;
                             let mask = content::affliction_mask(aid);
@@ -100,7 +87,6 @@ impl Combat {
         }
     }
 
-    /// Whether the listener `me` overrides hook `bit` (its static hook mask).
     #[inline]
     pub fn has_hook(&self, me: &Me, bit: u32) -> bool {
         let m = match me.kind {
@@ -116,11 +102,9 @@ impl Combat {
         m.has(bit)
     }
 
-    /// `CombatState.Contains(item)` evaluated when the item is reached.
     #[inline]
     pub fn still_live(&self, me: &Me) -> bool {
         match me.kind {
-            // PowerModel: owner in a combat and (owner not a player or the player is active); MonsterModel: attached.
             Kind::Power => {
                 let o = &self.creatures[me.owner as usize];
                 o.in_combat && (!o.is_player || self.player_hooks_active)
@@ -133,7 +117,6 @@ impl Combat {
         }
     }
 
-    /// `CombatManager.IsEnding` — a live predicate, not a flag (spec 02 §1.2).
     pub fn is_ending(&self) -> bool {
         if !self.in_progress {
             return false;
@@ -154,13 +137,11 @@ impl Combat {
         !self.in_progress || self.is_ending()
     }
 
-    /// `Hook.IterateCombatHookListeners` guard: yields nothing once combat is over/ending (unless starting).
     #[inline]
     pub fn hooks_enabled(&self) -> bool {
         self.is_starting || !self.is_over_or_ending()
     }
 
-    /// Notification pass over the guarded iterator.
     #[inline(always)]
     pub fn dispatch_g(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if !self.listen.has(bit) || !self.hooks_enabled() {
@@ -169,12 +150,9 @@ impl Combat {
         self.dispatch_slow(bit, &mut f);
     }
 
-    /// Guarded notification pass whose listeners may raise a decision (`Stage::AwaitChoice`, `hook_ctx` set): the pass stops
-    /// right after such a listener and returns true; after the decision the same call continues with the listeners that
-    /// follow it (`susp_after`). Used for the turn-start hooks (`BeforeHandDraw`, `AfterPlayerTurnStart`).
     pub fn dispatch_resumable(&mut self, bit: u32, f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) -> bool {
         if !self.pass_enter() {
-            return false; // runaway-work safeguard tripped (`engine/budget.rs`)
+            return false;
         }
         let r = self.dispatch_resumable_in(bit, f);
         self.pass_exit();
@@ -190,7 +168,6 @@ impl Combat {
             return false;
         }
         if let Some(p) = resume.filter(|p| p.full) {
-            // Continue with the listeners that were still to come when the pass suspended (the list built at its start).
             for (k, me) in p.rest.iter().enumerate() {
                 if self.still_live(me) {
                     f(self, *me, content::listener(me));
@@ -205,7 +182,6 @@ impl Combat {
         let snap = self.snapshot(Mask::bit(bit));
         let mut start = 0;
         if let Some(p) = resume {
-            // The suspended listener may have removed itself (a power): then the next one now sits at its old index.
             let last = p.me;
             start = match snap.iter().position(|e| e.me.kind == last.kind && e.me.idx == last.idx && e.me.owner == last.owner && e.me.id == last.id) {
                 Some(i) => i + 1,
@@ -239,7 +215,6 @@ impl Combat {
         self.susp.push(p);
     }
 
-    /// Notification pass over the unguarded iterator (hooks that are part of the kill/death sequence).
     #[inline(always)]
     pub fn dispatch_u(&mut self, bit: u32, mut f: impl FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if !self.listen.has(bit) {
@@ -248,12 +223,10 @@ impl Combat {
         self.dispatch_slow(bit, &mut f);
     }
 
-    /// The part of a notification pass that runs only when some model listens. Out of line (and `dyn`) on purpose: the 3 KB
-    /// snapshot lives in this frame instead of in every caller's, so the many "nobody listens" call sites stay cheap.
     #[inline(never)]
     fn dispatch_slow(&mut self, bit: u32, f: &mut dyn FnMut(&mut Combat, Me, &'static dyn Listener)) {
         if !self.pass_enter() {
-            return; // runaway-work safeguard tripped (`engine/budget.rs`)
+            return;
         }
         let mut snap = Snapshot::new();
         self.snapshot_into(Mask::bit(bit), &mut snap);
@@ -271,7 +244,6 @@ impl Combat {
         cr.side == Side::Enemy && !cr.secondary
     }
 
-    /// OR over `ShouldStopCombatFromEnding` (Adaptable, Infested, SteamEruption, Stock, Surprise); unguarded.
     pub fn should_stop_combat_from_ending(&self) -> bool {
         if !self.listen.has(hookbit::should_stop_combat_from_ending) {
             return false;
@@ -279,7 +251,6 @@ impl Combat {
         self.any_true(hookbit::should_stop_combat_from_ending, |cx, me, l| l.should_stop_combat_from_ending(cx, me))
     }
 
-    /// OR over a predicate hook on the unguarded iterator (`ShouldTakeExtraTurn` etc. use `any_true_g`).
     #[inline(always)]
     pub fn any_true(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
         if !self.listen.has(bit) {
@@ -300,12 +271,10 @@ impl Combat {
         false
     }
 
-    /// OR over a predicate hook on the guarded iterator.
     pub fn any_true_g(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> bool {
         self.listen.has(bit) && self.hooks_enabled() && self.any_true(bit, f)
     }
 
-    /// AND over a predicate hook (unguarded): the first model answering `false` — the "preventer" — is returned.
     #[inline(always)]
     pub fn first_veto(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
         if !self.listen.has(bit) {
@@ -326,7 +295,6 @@ impl Combat {
         None
     }
 
-    /// AND over a predicate hook on the guarded iterator (every dispatch is a no-op, i.e. `None`, once combat is ending).
     pub fn first_veto_g(&self, bit: u32, f: impl Fn(&Combat, Me, &'static dyn Listener) -> bool) -> Option<Me> {
         if !self.listen.has(bit) || !self.hooks_enabled() {
             return None;
@@ -334,8 +302,6 @@ impl Combat {
         self.first_veto(bit, f)
     }
 
-    /// `participants.Contains(creature)` of the side-turn hooks: on the player side only the player creature (pets are not
-    /// participants of the turn-end hooks), on the enemy side every enemy.
     pub fn is_turn_participant(&self, side: Side, c: Cid) -> bool {
         match side {
             Side::Player => c == PLAYER,
@@ -343,7 +309,6 @@ impl Combat {
         }
     }
 
-    /// Calls `f` on `me`'s listener if it is still a listener (`Hook.After*(…, modifier)` for a single model).
     pub fn notify_one(&mut self, me: Me, f: impl FnOnce(&mut Combat, Me, &'static dyn Listener)) {
         if self.still_live(&me) {
             f(self, me, content::listener(&me));

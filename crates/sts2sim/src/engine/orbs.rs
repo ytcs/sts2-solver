@@ -1,9 +1,3 @@
-//! Defect orb subsystem (spec 05 §5): `OrbQueue`, `OrbCmd`, the five orbs' passive/evoke effects.
-//!
-//! Orbs live in `PlayerState::orbs` (front = next to evoke) with a slot capacity. They carry identity (`Orb::uid`) because the
-//! game works by object reference (`Remove(orb)`, `orb == Orbs[0]`, TeslaCoil's snapshot of Lightning orbs).
-//! Orb values go through `Hook.ModifyOrbValue` (guarded iterator: once the combat is over/ending nothing modifies them).
-
 use crate::content;
 use crate::dec::Dec;
 use crate::engine::HKind;
@@ -15,15 +9,11 @@ use crate::util::ArrayVec;
 
 pub const MAX_ORB_SLOTS: i32 = 10;
 
-/// `OrbModel._validOrbs` order (NOT the id order): Lightning, Frost, Dark, Plasma, Glass.
 pub const VALID_ORBS: [u16; 5] = [ids::orb::LIGHTNING_ORB, ids::orb::FROST_ORB, ids::orb::DARK_ORB, ids::orb::PLASMA_ORB, ids::orb::GLASS_ORB];
 
 type Targets = ArrayVec<Cid, MAX_CREATURES>;
 
 impl Combat {
-    // ---- values ----------------------------------------------------------------------------------------------------
-
-    /// `Hook.ModifyOrbValue(orb, v)`: threaded fold over the guarded listener list.
     pub fn modify_orb_value(&self, orb: &Orb, v: Dec) -> Dec {
         let mut v = v;
         if self.hooks_enabled() {
@@ -38,29 +28,26 @@ impl Combat {
         v
     }
 
-    /// `OrbModel.PassiveVal`.
     pub fn orb_passive_val(&self, orb: &Orb) -> Dec {
         match orb.kind {
             ids::orb::LIGHTNING_ORB => self.modify_orb_value(orb, Dec::int(3)),
             ids::orb::FROST_ORB => self.modify_orb_value(orb, Dec::int(2)),
             ids::orb::DARK_ORB => self.modify_orb_value(orb, Dec::int(6)),
             ids::orb::GLASS_ORB => self.modify_orb_value(orb, Dec::int(orb.val as i64)),
-            _ => Dec::ONE, // Plasma
+            _ => Dec::ONE,
         }
     }
 
-    /// `OrbModel.EvokeVal`.
     pub fn orb_evoke_val(&self, orb: &Orb) -> Dec {
         match orb.kind {
             ids::orb::LIGHTNING_ORB => self.modify_orb_value(orb, Dec::int(8)),
             ids::orb::FROST_ORB => self.modify_orb_value(orb, Dec::int(5)),
             ids::orb::DARK_ORB => Dec::int(orb.val as i64),
             ids::orb::GLASS_ORB => self.orb_passive_val(orb) * Dec::int(2),
-            _ => Dec::int(2), // Plasma
+            _ => Dec::int(2),
         }
     }
 
-    /// A fresh mutable orb (`ModelDb.Orb<T>().ToMutable()`).
     pub fn new_orb(&mut self, kind: u16) -> Orb {
         let uid = self.player.next_orb_uid;
         let (next, wrapped) = uid.overflowing_add(1);
@@ -76,7 +63,6 @@ impl Combat {
         Orb { kind, uid, val }
     }
 
-    /// Number of distinct orb types in the queue (`group by orb.Id`).
     pub fn distinct_orb_types(&self) -> i32 {
         let mut seen = 0u32;
         for o in self.player.orbs.iter() {
@@ -89,7 +75,6 @@ impl Combat {
         self.player.orbs.iter().position(|o| o.uid == uid)
     }
 
-    /// The live version of an orb (its state may have changed since the caller copied it).
     fn live_orb(&self, orb: &Orb) -> Orb {
         self.orb_index(orb.uid).map_or(*orb, |i| self.player.orbs[i])
     }
@@ -100,9 +85,6 @@ impl Combat {
         }
     }
 
-    // ---- slots -----------------------------------------------------------------------------------------------------
-
-    /// `OrbCmd.AddSlots`.
     pub fn add_orb_slots(&mut self, n: i32) {
         if self.is_over_or_ending() {
             return;
@@ -111,7 +93,6 @@ impl Combat {
         self.player.orb_slots = (self.player.orb_slots as i32 + n).max(0) as u8;
     }
 
-    /// `OrbCmd.RemoveSlots`: slots go from the back; orbs beyond the capacity are dropped silently (no evoke, no hook).
     pub fn remove_orb_slots(&mut self, n: i32) {
         if self.is_over_or_ending() {
             return;
@@ -125,20 +106,15 @@ impl Combat {
         }
     }
 
-    /// `Player.Character.BaseOrbSlotCount` (a character constant, unlike the scenario's `BaseOrbSlotCount`).
     fn character_base_orb_slots(&self) -> i32 {
         if self.character == 2 { 3 } else { 0 }
     }
 
-    // ---- channel / evoke -------------------------------------------------------------------------------------------
-
-    /// `OrbCmd.Channel<T>`.
     pub fn channel_orb(&mut self, kind: u16) {
         let orb = self.new_orb(kind);
         self.channel(orb);
     }
 
-    /// `OrbCmd.Channel(orb)`.
     pub fn channel(&mut self, orb: Orb) {
         if self.is_over_or_ending() {
             return;
@@ -149,40 +125,36 @@ impl Combat {
         if self.player.orbs.len() >= self.player.orb_slots as usize {
             self.evoke_next(true);
         }
-        // OrbQueue.TryEnqueue: false iff capacity == 0 (the orb is lost); "full" can only happen through re-entrancy.
         if self.player.orb_slots == 0 || self.player.orbs.len() >= self.player.orb_slots as usize {
             return;
         }
         self.player.orbs.push(orb);
-        self.hist_push(HKind::OrbChanneled, PLAYER, NO, orb.kind, NO, 0, 0, 0, 0); // CombatHistory.OrbChanneled
+        self.hist_push(HKind::OrbChanneled, PLAYER, NO, orb.kind, NO, 0, 0, 0, 0);
         if orb.kind == ids::orb::LIGHTNING_ORB {
             crate::engine::history::bump(&mut self.hist_log.lightning_channeled);
         }
         self.dispatch_g(hookbit::after_orb_channeled, |cx, me, l| l.after_orb_channeled(cx, me, &orb));
     }
 
-    /// `OrbCmd.EvokeNext`.
     pub fn evoke_next(&mut self, dequeue: bool) {
         if let Some(orb) = self.player.orbs.first() {
             self.evoke_orb(orb, dequeue);
         }
     }
 
-    /// `OrbCmd.EvokeLast`.
     pub fn evoke_last(&mut self, dequeue: bool) {
         if let Some(orb) = self.player.orbs.last() {
             self.evoke_orb(orb, dequeue);
         }
     }
 
-    /// `OrbCmd.Evoke` (private in the game).
     fn evoke_orb(&mut self, orb: Orb, dequeue: bool) {
         if self.is_over_or_ending() || self.player.orbs.is_empty() {
             return;
         }
         if dequeue {
             if let Some(i) = self.orb_index(orb.uid) {
-                self.player.orbs.remove(i); // removal happens BEFORE the effect
+                self.player.orbs.remove(i);
             }
         }
         let targets = self.orb_evoke_effect(&orb);
@@ -191,7 +163,6 @@ impl Combat {
         }
     }
 
-    /// `OrbModel.Evoke`: the effect; returns the creatures the orb reports as targets.
     fn orb_evoke_effect(&mut self, orb: &Orb) -> Targets {
         let mut out = Targets::new();
         match orb.kind {
@@ -209,7 +180,6 @@ impl Combat {
                 if hittable.is_empty() {
                     return out;
                 }
-                // MinBy(CurrentHp): first minimal in list order.
                 let mut weakest = hittable[0];
                 for &e in hittable.iter() {
                     if self.cr(e).hp() < self.cr(weakest).hp() {
@@ -226,7 +196,6 @@ impl Combat {
                 out.push(PLAYER);
             }
             _ => {
-                // Glass
                 let enemies = self.hittable_enemies();
                 let v = self.orb_evoke_val(orb);
                 if v <= Dec::ZERO {
@@ -239,8 +208,6 @@ impl Combat {
         out
     }
 
-    /// `LightningOrb.ApplyLightningDamage`: one random hittable opponent (one `combat_targets` draw even for a single
-    /// enemy) unless `target` is given.
     fn lightning_damage(&mut self, value: Dec, target: Cid) -> Targets {
         let mut out = Targets::new();
         let opps = self.hittable_enemies();
@@ -253,9 +220,6 @@ impl Combat {
         out
     }
 
-    // ---- passives --------------------------------------------------------------------------------------------------
-
-    /// `OrbCmd.Passive(orb, target, countAffectedByHooks)`.
     pub fn orb_passive(&mut self, orb: Orb, target: Cid, count_affected_by_hooks: bool) {
         if self.is_over_or_ending() {
             return;
@@ -267,7 +231,6 @@ impl Combat {
         }
     }
 
-    /// `OrbModel.TriggerPassive`: trigger count through `ModifyOrbPassiveTriggerCount`, then that many passives.
     pub fn trigger_orb_passive(&mut self, orb: Orb, target: Cid) {
         let mut count = 1;
         let mut mods: ArrayVec<Me, 24> = ArrayVec::new();
@@ -298,7 +261,6 @@ impl Combat {
         }
     }
 
-    /// `OrbModel.Passive` (skips the trigger-count hooks).
     fn orb_passive_once(&mut self, orb: Orb, target: Cid) {
         let orb = self.live_orb(&orb);
         match orb.kind {
@@ -319,7 +281,6 @@ impl Combat {
                 self.gain_energy(v.trunc());
             }
             _ => {
-                // Glass: targets are computed before the value; the base decrements before the damage is dealt.
                 let targets = self.hittable_enemies();
                 let v = self.orb_passive_val(&orb);
                 if v > Dec::ZERO {
@@ -330,9 +291,6 @@ impl Combat {
         }
     }
 
-    // ---- turn triggers ---------------------------------------------------------------------------------------------
-
-    /// `OrbQueue.AfterTurnStart`: Plasma triggers (front to back over a snapshot of the queue).
     pub fn orbs_after_turn_start(&mut self) {
         let snapshot = self.player.orbs;
         for o in snapshot.iter() {
@@ -345,7 +303,6 @@ impl Combat {
         }
     }
 
-    /// `OrbQueue.BeforeTurnEnd`: Lightning / Frost / Dark / Glass trigger (front to back over a snapshot).
     pub fn orbs_before_turn_end(&mut self) {
         let snapshot = self.player.orbs;
         for o in snapshot.iter() {
@@ -359,21 +316,18 @@ impl Combat {
     }
 }
 
-// ---- small helpers shared by the Defect cards -----------------------------------------------------------------------
 impl Combat {
     #[inline]
     pub fn orb_count(&self) -> i32 {
         self.player.orbs.len() as i32
     }
 
-    /// `combatState.CreateCard<T>(owner)` + `CardPileCmd.AddGeneratedCardToCombat(card, pile, Owner)`.
     pub fn create_card_for_player(&mut self, id: u16, upgrade: u8, pile: PileType, pos: CardPilePosition) -> Option<CardIdx> {
         let c = self.new_card(id, upgrade)?;
         self.add_generated_card(c, pile, pos);
         Some(c)
     }
 
-    /// Cards in the combat piles in `PlayerCombatState.AllCards` order (hand, draw, discard, exhaust, play).
     pub fn combat_cards_in_pile_order(&self) -> ArrayVec<CardIdx, MAX_CARDS> {
         let mut v = ArrayVec::new();
         for pile in [&self.player.hand, &self.player.draw, &self.player.discard, &self.player.exhaust, &self.player.play] {
@@ -384,18 +338,14 @@ impl Combat {
         v
     }
 
-    /// `Monster.IntendsToAttack`: the monster's pending move has an attack intent.
     pub fn intends_to_attack(&self, e: Cid) -> bool {
         use crate::defs::Intent;
-        // (`move_view` also covers the synthetic STUNNED move, whose intent is Stun)
         match self.move_view(e) {
             Some((_, intents)) => intents.iter().any(|i| matches!(i, Intent::Attack { .. } | Intent::DeathBlow | Intent::DeathBlowAttack { .. })),
             None => false,
         }
     }
 
-    /// Per-instance growth the card's logic adds to a dynamic var's base value (`DynamicVars.X.BaseValue += ...`):
-    /// Claw's accumulated damage and Genetic Algorithm's block (`CurrentBlock = 1 + IncreasedBlock`), both in `counter[0]`.
     #[inline]
     pub fn card_var_extra(&self, c: CardIdx, kind: crate::defs::VarKind) -> i32 {
         use crate::defs::VarKind;

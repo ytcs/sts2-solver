@@ -1,4 +1,3 @@
-// Game namespaces used across the bridge.
 global using MegaCrit.Sts2.Core.Assets;
 global using MegaCrit.Sts2.Core.AutoSlay;
 global using MegaCrit.Sts2.Core.AutoSlay.Handlers;

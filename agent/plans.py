@@ -1,15 +1,3 @@
-"""The plan library (`docs/rebuild.md` S6): game plans that hold when greedy numbers are flat, kept as data so they do not drift between sessions.
-
-  python -m agent.plans list [CHARACTER]                    # plans with their measured tables
-  python -m agent.plans measure PLAN_ID [--attempts 96]     # fill a plan's table with the search against each threat
-
-A plan (`data/plans.json`): id, character, archetype, the threats it answers (encounter ids), the core cards (what makes it work), support cards
-(what it wants next), the basics it drops, status (proposed -> measured -> demoted) and measurements. A measurement plays the plan's deck (the
-character's starter deck, minus the dropped basics, plus core, plus support) and its partial versions (core only; core minus each card) against each
-threat at a stated act and HP with the search (`Solver`, common random numbers across versions), and records the win rates with their se, the
-network that played, and the date. A measurement is a LOWER BOUND set by this solver and this exact deck: the solver may play the plan badly and
-the deck is one construction of the archetype. It never demotes a plan by itself, and a plan changes only through a measurement.
-"""
 import argparse
 import datetime
 import json
@@ -18,7 +6,7 @@ import sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 PATH = os.path.join(ROOT, "data", "plans.json")
-STARTERS = {  # A10 starter decks and relics (`docs/spec/05-characters-and-inputs.md` section 4); Ascender's Bane from A5
+STARTERS = {
     "IRONCLAD": (["STRIKE_IRONCLAD"] * 5 + ["DEFEND_IRONCLAD"] * 4 + ["BASH"], "BURNING_BLOOD", 80),
     "SILENT": (["STRIKE_SILENT"] * 5 + ["DEFEND_SILENT"] * 5 + ["NEUTRALIZE", "SURVIVOR"], "RING_OF_THE_SNAKE", 70),
     "DEFECT": (["STRIKE_DEFECT"] * 4 + ["DEFEND_DEFECT"] * 4 + ["ZAP", "DUALCAST"], "CRACKED_CORE", 75),
@@ -37,7 +25,6 @@ def save(plans):
 
 
 def deck(plan, version="full"):
-    """The plan's deck for a version: full, core (no support), or `-CARD` (full minus one core card)."""
     starter, _relic, _hp = STARTERS[plan["character"]]
     d = list(starter) + ["ASCENDERS_BANE"]
     for c in plan.get("drop", []):
@@ -65,11 +52,10 @@ def scenario(plan, threat, act, hp, version="full"):
 
 
 def measure(plan, attempts=96, engine=None):
-    """Plays every version of the plan against each threat (search, common random numbers) and appends the measurement."""
     sys.path.insert(0, os.path.join(ROOT, "rl"))
-    from solver import DEFAULT_CKPT, DEFAULT_VALUE_CKPTS, Solver
+    from solver import DEFAULT_CKPT, Solver
     if engine is None:
-        engine = Solver(DEFAULT_CKPT, M=5, K=32, value_ckpts=DEFAULT_VALUE_CKPTS)
+        engine = Solver(DEFAULT_CKPT, M=5, K=32)
     _check_single_player(plan)
     versions = ["full", "core"] + [f"-{c}" for c in plan["core"]]
     rows = []
@@ -79,7 +65,7 @@ def measure(plan, attempts=96, engine=None):
         res = engine.solve(scen, attempts=attempts, groups=[0] * len(scen))
         rows.append(dict(threat=t["id"], act=act, hp=hp, wins={v: round(r["win"], 3) for v, r in zip(versions, res)},
                          se={v: round(r["win_se"], 3) for v, r in zip(versions, res)}))
-    tested = dict(network=os.path.basename(DEFAULT_CKPT), values=[os.path.basename(v) for v in DEFAULT_VALUE_CKPTS], search="5x32", potions="none",
+    tested = dict(network=os.path.basename(DEFAULT_CKPT), search="5x32", potions="none",
                   decks={v: deck(plan, v) for v in versions}, relics=[STARTERS[plan["character"]][1]] + plan.get("relics", []))
     plan.setdefault("measurements", []).append(dict(date=datetime.date.today().isoformat(), attempts=attempts, tested=tested, rows=rows))
     plan["status"] = "measured" if plan.get("status") in (None, "proposed", "measured") else plan["status"]

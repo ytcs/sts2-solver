@@ -1,6 +1,3 @@
-//! COLORLESS pool cards, part A: attacks, blocks, draw/energy, simple power cards. (Cards needing deeper engine support
-//! live in `colorless_b.rs`.)
-
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::{CardDef, VarKind};
@@ -11,9 +8,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// ---- helpers ----------------------------------------------------------------------------------------------------------
-
-/// `DamageCmd.Attack(card damage var).FromCard(card, play)`.
 fn atk(cx: &Combat, p: &CardPlay, t: Targeting) -> Attack {
     Attack::from_card(PLAYER, p.card, cx.card_var(p.card, VarKind::Damage), t)
 }
@@ -23,13 +17,11 @@ fn single(cx: &mut Combat, p: &CardPlay) -> crate::engine::Results {
     cx.execute_attack(&a)
 }
 
-/// `CreatureCmd.GainBlock(Owner.Creature, DynamicVars.Block, cardPlay)`.
 fn block(cx: &mut Combat, p: &CardPlay) {
     let b = cx.card_var(p.card, VarKind::Block);
     cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::MOVE, p.card);
 }
 
-/// `PowerCmd.Apply<T>(ctx, Owner.Creature, amount, Owner.Creature, this)`.
 fn apply_self(cx: &mut Combat, power: u16, amount: i32, p: &CardPlay) -> Option<u16> {
     cx.apply_power(power, PLAYER, Dec::int(amount as i64), PLAYER, p.card)
 }
@@ -39,7 +31,6 @@ fn draw(cx: &mut Combat, p: &CardPlay) {
     cx.draw_cards(n, false);
 }
 
-// ---- Anointed: pull Rare cards from the draw pile into the hand ----------------------------------------------------------
 listener!(Anointed {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let room = MAX_HAND as i32 - cx.player.hand.len() as i32;
@@ -49,7 +40,6 @@ listener!(Anointed {
                 rares.push(c);
             }
         }
-        // `TakeRandom(count, CombatCardSelection)` = UnstableShuffle, then Take.
         cx.unstable_shuffle_cards(rares.as_mut_slice(), RngStream::CombatCardSelection);
         let n = room.max(0) as usize;
         let picked: crate::util::ArrayVec<CardIdx, MAX_CARDS> = {
@@ -72,7 +62,6 @@ listener!(Automation {
     }
 });
 
-// Multiplayer only: shares block with the other players (none in single player).
 listener!(BeaconOfHope {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         apply_self(cx, ids::power::BEACON_OF_HOPE_POWER, 1, p);
@@ -80,7 +69,6 @@ listener!(BeaconOfHope {
     }
 });
 
-// Multiplayer only (AnyAlly): gives the target player energy.
 listener!(BelieveInYou {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let e = cx.card_var(p.card, VarKind::Energy);
@@ -89,9 +77,6 @@ listener!(BelieveInYou {
     }
 });
 
-// Bolas returns to the hand at the start of the next turn if it was played last player turn
-// (`CardPlaysFinished.Any(e => e.HappenedLastPlayerTurn && e.CardPlay.Card == this)`; the canonical history logs the
-// play start, which only differs for a play that never finished).
 fn return_if_played_last_turn(cx: &mut Combat, me: Me) {
     let c = me.idx as CardIdx;
     if cx.hist_any_last_player_turn(HKind::CardPlayStarted, |e| e.card == c) && cx.card_pile_type(c) != PileType::Hand {
@@ -116,7 +101,6 @@ listener!(Calamity {
     }
 });
 
-// Multiplayer only (AnyAlly).
 listener!(Coordinate {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_power_var(p.card, ids::power::STRENGTH_POWER);
@@ -175,7 +159,6 @@ listener!(Finesse {
     }
 });
 
-// Block equal to the damage dealt (blocked + unblocked + overkill).
 listener!(Fisticuffs {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let results = single(cx, p);
@@ -193,7 +176,6 @@ listener!(FlashOfSteel {
     }
 });
 
-// Multiplayer only (AllAllies): block for every living player (just the user in single player).
 listener!(Rally {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
@@ -201,8 +183,6 @@ listener!(Rally {
     }
 });
 
-// Multiplayer only. Calculated damage: 5 + 5 per hit the target took this turn from another ally's powered attack
-// (no allies in single player -> 0; damage history from pets is not tracked).
 fn calc_gang_up(cx: &Combat, card: CardIdx, _target: Cid) -> Dec {
     let base = cx.card_var(card, VarKind::CalcBase);
     Dec::int(base as i64)
@@ -221,7 +201,6 @@ listener!(GangUp {
     }
 });
 
-// 0 + 1 * (card plays finished so far this combat); Retain when upgraded (stat table).
 fn calc_gold_axe(cx: &Combat, card: CardIdx, _target: Cid) -> Dec {
     let base = cx.card_var(card, VarKind::CalcBase) as i64;
     let extra = cx.card_var(card, VarKind::ExtraDamage) as i64;
@@ -242,7 +221,6 @@ listener!(GoldAxe {
     }
 });
 
-// Gold when the attack kills (unless a Minion/Reattach-style power says the death is not "fatal").
 listener!(HandOfGreed {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let fatal_ok = cx.all_powers_trigger_fatal(p.target);
@@ -255,7 +233,6 @@ listener!(HandOfGreed {
     }
 });
 
-// Pick a random draw-pile card (preferring Attack/Skill/Power) that has no replay yet and give it +Replay plays.
 listener!(HiddenGem {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         if cx.player.draw.is_empty() {
@@ -286,7 +263,6 @@ listener!(HiddenGem {
     }
 });
 
-// Multiplayer only (AllAllies): each living player draws.
 listener!(HuddleUp {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         draw(cx, p);
@@ -304,7 +280,6 @@ listener!(Impatience {
     }
 });
 
-// Multiplayer only (AnyAlly): block for the user + Covered on the ally.
 listener!(Intercept {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
@@ -315,7 +290,6 @@ listener!(Intercept {
     }
 });
 
-// Generate `Cards` distinct colorless cards (never another Jack of All Trades) into the hand.
 listener!(JackOfAllTrades {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards) as usize;
@@ -327,7 +301,6 @@ listener!(JackOfAllTrades {
     }
 });
 
-// Attack, then generate `Cards` cost-0 non-X cards of the character's pool (with replacement), upgraded if this card is.
 listener!(Jackpot {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
@@ -345,7 +318,6 @@ listener!(Jackpot {
     }
 });
 
-// Multiplayer only.
 listener!(Knockdown {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
@@ -355,7 +327,6 @@ listener!(Knockdown {
     }
 });
 
-// Multiplayer only (AnyAlly): block for the target player.
 listener!(Lift {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let b = cx.card_var(p.card, VarKind::Block);
@@ -372,7 +343,6 @@ listener!(MasterOfStrategy {
     }
 });
 
-// Multiplayer only (AnyAlly): block equal to the target's block.
 listener!(Mimic {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let t = if p.target == NO { PLAYER } else { p.target };
@@ -383,12 +353,10 @@ listener!(Mimic {
         Flow::Done
     }
     fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
-        // `target?.Block ?? 0`
         Some(crate::engine::calc_extra_with(cx, card, if target == NO { 0 } else { cx.cr(target).block() }))
     }
 });
 
-// Calculated damage: 0 + 1 per card in the draw pile.
 fn calc_mind_blast(cx: &Combat, card: CardIdx, _target: Cid) -> Dec {
     let base = cx.card_var(card, VarKind::CalcBase) as i64;
     let extra = cx.card_var(card, VarKind::ExtraDamage) as i64;
@@ -416,8 +384,6 @@ listener!(Nostalgia {
     }
 });
 
-// One AttackContext (BeforeAttack/AfterAttack once) with two hits: the target, then every other hittable enemy for the
-// total damage dealt to the target (`TotalDamage + OverkillDamage`, unpowered).
 listener!(Omnislice {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let ctx_attack = Attack::from_card(PLAYER, p.card, 0, Targeting::AllOpponents);
@@ -487,7 +453,6 @@ listener!(Production {
     }
 });
 
-// Block equal to the current block as Block Next Turn.
 listener!(Prolong {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let b = cx.cr(PLAYER).block();
@@ -506,7 +471,6 @@ listener!(Prowess {
     }
 });
 
-// Exhaust up to `Cards` cards from the hand.
 listener!(Purity {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -533,7 +497,6 @@ listener!(Purity {
     }
 });
 
-// Powers that are always-damage-all-enemies etc. are in the power file.
 fn is_temporary_power(id: u16) -> bool {
     use ids::power as p;
     matches!(
@@ -564,7 +527,6 @@ fn is_temporary_power(id: u16) -> bool {
     )
 }
 
-// Calculated damage: 10 + 5 per debuff on the target (temporary-power debuffs do not count).
 fn calc_rend(cx: &Combat, card: CardIdx, target: Cid) -> Dec {
     let base = cx.card_var(card, VarKind::CalcBase) as i64;
     let extra = cx.card_var(card, VarKind::ExtraDamage) as i64;
@@ -593,7 +555,6 @@ listener!(Rend {
     }
 });
 
-// Only does something if it is the only card in the hand: draw one card at a time, then gain energy.
 listener!(Restlessness {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let only = cx.player.hand.iter().all(|&c| c == p.card);
@@ -625,7 +586,6 @@ listener!(Salvo {
     }
 });
 
-// Draw as many cards as fit in the hand.
 listener!(Scrawl {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let n = MAX_HAND as i32 - cx.player.hand.len() as i32;
@@ -634,7 +594,6 @@ listener!(Scrawl {
     }
 });
 
-// Choose a Skill from the draw pile and put it in the hand.
 listener!(SecretTechnique {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -679,7 +638,6 @@ listener!(SecretWeapon {
     }
 });
 
-// Attack, then choose 1 of 3 random draw-pile cards to put in the hand.
 listener!(SeekerStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -715,7 +673,6 @@ listener!(SeekerStrike {
     }
 });
 
-// Weak then Vulnerable on each hittable enemy, enemy by enemy.
 listener!(Shockwave {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_named_var(p.card, var_name::POWER);
@@ -728,12 +685,10 @@ listener!(Shockwave {
     }
 });
 
-// Choose 1 of 3 attacks from the OTHER characters' pools (upgraded if Splash is), free this turn.
 listener!(Splash {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
             0 => {
-                // `UnlockState.CharacterCardPools` order: Ironclad, Silent, Regent, Necrobinder, Defect; minus the own pool.
                 use crate::content::gen_pools as gp;
                 let pools: [(u8, &[u16]); 5] = [(0, &gp::IRONCLAD), (1, &gp::SILENT), (4, &gp::REGENT), (3, &gp::NECROBINDER), (2, &gp::DEFECT)];
                 let mut all: crate::util::ArrayVec<u16, 512> = crate::util::ArrayVec::new();
@@ -752,7 +707,6 @@ listener!(Splash {
                 }
                 match cx.ask_options(ids::card::SPLASH, cards.as_slice(), true) {
                     Ask::Resolved(cards) => {
-                        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
                         cx.choice.cards = cards;
                         self.on_play(cx, p, 1)
                     }
@@ -777,7 +731,6 @@ listener!(Stratagem {
     }
 });
 
-// Multiplayer only.
 listener!(TagTeam {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
@@ -786,7 +739,6 @@ listener!(TagTeam {
     }
 });
 
-// Multiplayer only: grows by `Increase` every play (`ExtraDamageFromPlays` lives in `counter[0]`).
 listener!(TheBall {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage) + cx.cards[p.card as usize].counter[0] as i32;
@@ -802,7 +754,6 @@ listener!(TheBomb {
         let turns = cx.card_named_var(p.card, var_name::TURNS);
         let dmg = cx.card_named_var(p.card, var_name::BOMB_DAMAGE);
         if let Some(uid) = apply_self(cx, ids::power::THE_BOMB_POWER, turns, p) {
-            // `SetDamage`: the instance's damage lives in `aux` (Amount counts the turns left).
             if let Some(i) = cx.power_idx(PLAYER, uid) {
                 cx.cr_mut(PLAYER).powers[i].aux = dmg;
             }
@@ -819,13 +770,12 @@ listener!(TheGambit {
     }
 });
 
-// Draw, then put a hand card back on top of the draw pile.
 listener!(ThinkingAhead {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
             0 => {
                 let n = cx.card_var(p.card, VarKind::Cards);
-                cx.draw_cards_nosuspend(n, false); // a decision follows: a Stratagem pick cannot be paused here
+                cx.draw_cards_nosuspend(n, false);
                 match cx.ask_hand(ids::card::THINKING_AHEAD, 1, 1, |_, _| true) {
                     Ask::Resolved(cards) => {
                         if let Some(c) = cards.first() {
@@ -846,7 +796,6 @@ listener!(ThinkingAhead {
     }
 });
 
-// Returns to the hand at the start of the next turn if it was played this one (see Bolas).
 listener!(ThrummingHatchet {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
@@ -871,7 +820,6 @@ listener!(UltimateStrike {
     }
 });
 
-// X-cost: hits `X` times at random enemies.
 listener!(Volley {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let x = cx.x_value(p.card);

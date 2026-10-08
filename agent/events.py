@@ -1,14 +1,3 @@
-"""The event catalog (`data/events.json`) for the run model (`docs/rebuild.md` S5): every non-ancient event of the act and shared lists, its `IsAllowed`
-condition and its options as effects in a small vocabulary, read from the decompiled game (`decomp/MegaCrit.Sts2.Core.Models.Events`, cited per entry).
-
-`apply` plays an option's effects on a `runmodel.RunState` with simple rules for the choices the game leaves to the player (which card is removed,
-upgraded, transformed or enchanted). Fights are not played here: they come back as requests the rollout plays through the predictor, then it applies
-the request's `extra` effects (and the hallway rewards when `rewards == "hallway"`). Unmodelled effects (minigames, open-ended loops) are no-ops that
-set a flag.
-
-The ancient relics (`data/ancient_relics.json`, every relic of the 8 ancients' pools) use the same vocabulary for their pickup effects
-(`decomp/MegaCrit.Sts2.Core.Models.Relics`, `AfterObtained`): `ancient_option` reads a screen option, `apply_ancient` takes the relic.
-"""
 import json
 import os
 import re
@@ -18,18 +7,17 @@ ANCIENT_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ancient_re
 VOCAB = {"hp", "hp_frac", "max_hp", "max_hp_set", "gold", "gold_set", "card_add", "card_add_one_of", "card_add_random", "card_remove", "card_upgrade",
          "card_upgrade_random", "card_downgrade_random", "card_transform", "card_enchant", "card_duplicate_all", "relic", "relic_one_of", "relic_random",
          "relic_remove", "relic_replace", "potion", "potion_random", "potion_remove", "potion_slots", "fight", "choice", "chance", "unmodelled"}
-# extra keys an effect of that kind carries
+
 PARAMS = {"fight": {"rewards", "extra"}, "choice": {"offered"}, "chance": {"then", "else"}, "card_add_one_of": {"n"}, "relic_one_of": {"n", "pickup"}}
 CHARACTERS = ("IRONCLAD", "SILENT", "DEFECT", "NECROBINDER", "REGENT")
 CARD_RARITIES = ("Common", "Uncommon", "Rare")
-POTION_TO_CARD = {"Common": "Common", "Token": "Common", "Uncommon": "Uncommon", "Rare": "Rare", "Event": "Rare"}  # TheFutureOfPotions.cs:147-160
+POTION_TO_CARD = {"Common": "Common", "Token": "Common", "Uncommon": "Uncommon", "Rare": "Rare", "Event": "Rare"}
 UNREMOVABLE = ("ASCENDERS_BANE",)
 _CAT = None
 _ANC = None
 
 
 def catalog():
-    """{id: entry}, loaded once."""
     global _CAT
     if _CAT is None:
         with open(PATH, encoding="utf-8") as f:
@@ -38,7 +26,6 @@ def catalog():
 
 
 def get(event):
-    """An entry by class id (`DenseVegetation`), loc key (`DENSE_VEGETATION`) or English title (`Dense Vegetation`), else None."""
     cat = catalog()
     if event in cat:
         return cat[event]
@@ -47,7 +34,6 @@ def get(event):
 
 
 def options(event):
-    """The top-level option labels, in the game's order ({Var} placeholders are filled at runtime)."""
     e = get(event)
     return [o["label"] for o in e["options"]] if e else []
 
@@ -58,8 +44,6 @@ def _pattern(label):
 
 
 def match(event, labels):
-    """Screen option texts (`Trudge On: Gain 90 Gold. Lose 8 HP.` or just the title) -> the catalog options, in screen order (None where nothing
-    matches). Each catalog option is used once, so repeated labels (`Locked`) pair up in order."""
     e = get(event)
     if not e:
         return [None] * len(labels)
@@ -67,18 +51,14 @@ def match(event, labels):
     for text in labels:
         head = text.split(":", 1)[0].strip()
         hits = [o for o in free if _pattern(o["label"]).match(head) or _pattern(o["label"]).match(text.strip())]
-        # the most literal label wins: `Give {Gold} Gold` before `Give {Potion}` for "Give 100 Gold"
         o = max(hits, key=lambda o: len(re.sub(r"\{\w+\}", "", o["label"]))) if hits else None
-        if o is not None:  # an option and its _LOCKED variant are one slot on the screen
+        if o is not None:
             free = [x for x in free if x is not o and {x["key"], o["key"]} != {o["key"].removesuffix("_LOCKED"), o["key"].removesuffix("_LOCKED") + "_LOCKED"}]
         out.append(o)
     return out
 
 
-# ------------------------------------------------------------------------------------------------------------------------------------- conditions
-
 def _card(cid):
-    """The catalog row of a card id (any pool), or {}."""
     from agent import runmodel as RM
     for rows in RM.CAT["cards"].values():
         for r in rows:
@@ -92,13 +72,11 @@ def _basic(c):
 
 
 def allowed(event, st):
-    """`IsAllowed` on a RunState (act index 0-based, as the game's CurrentActIndex). Not enforced: deck-enchantability (approximated as true),
-    min_floor unless the state carries a `floor` (TotalFloor) attribute, and FakeMerchant's Foul Potion alternative to the gold."""
     e = get(event)
     if not e or not e.get("allowed", True):
         return False
     c, deck = e["condition"], st.deck
-    tradable = len(st.relics) - 1  # the starter relic is not tradable
+    tradable = len(st.relics) - 1
     checks = {
         "min_act": lambda v: st.act >= v, "max_act": lambda v: st.act <= v, "act": lambda v: st.act == v,
         "min_gold": lambda v: st.gold >= v, "min_hp": lambda v: st.hp >= v, "max_hp_frac": lambda v: st.hp <= v * st.max_hp,
@@ -113,20 +91,15 @@ def allowed(event, st):
     return all(checks[k](v) for k, v in c.items() if k in checks)
 
 
-# ------------------------------------------------------------------------------------------------------------------------------------- effects
-
 def DEFER(st, cards, k):
-    """A `pick` that hands card offers back to the caller (result["offers"]) instead of adding them."""
     return None
 
 
 def first(st, cards, k):
-    """The default `pick`: the first k offered (the offer is a random draw, so this is a random pick)."""
     return cards[:k]
 
 
 def default_choose(st, opts):
-    """A sub-choice: leave when the page has a way out (Give Up, Exit, Leave, Extract), else the first option that is fully modelled."""
     ex = next((i for i, o in enumerate(opts) if o.get("exit")), None)
     if ex is not None:
         return ex
@@ -134,7 +107,6 @@ def default_choose(st, opts):
 
 
 def unmodelled(effects):
-    """True if any effect (at any depth) is unmodelled."""
     for e in effects:
         if "unmodelled" in e:
             return True
@@ -159,7 +131,6 @@ def _pool_cards(pool, rarity=None, type=None, cost0=False, exclude=()):
 
 
 def _remove_targets(st, spec, rng):
-    """Which cards a removal takes: curses first, then Strikes, then Defends, then the first card (a player's usual order)."""
     if isinstance(spec, int):
         spec = {"n": spec}
     deck = [c for c in st.deck if c["id"] not in UNREMOVABLE]
@@ -175,7 +146,6 @@ def _remove_targets(st, spec, rng):
 
 
 def _matches(c, spec):
-    """A card against a spec's optional `match` (an id prefix or a list of them) and `basic` (Basic rarity only)."""
     m = spec.get("match")
     if m is not None and not c["id"].startswith(tuple(m) if isinstance(m, list) else m):
         return False
@@ -187,15 +157,12 @@ def _count(st, n):
 
 
 def _transform_targets(st, n):
-    """Basic Strikes, then Defends, then other basics, then the first non-curse card."""
     rank = lambda c: (0 if c["id"].startswith("STRIKE_") else 1 if c["id"].startswith("DEFEND_") else 2 if _basic(c) else 3)
     deck = [c for c in st.deck if c["id"] not in UNREMOVABLE and _card(c["id"]).get("rarity") not in ("Curse", "Status")]
     return sorted(deck, key=rank)[:n]
 
 
 def _offer(st, draws, spec, pool):
-    """`of` distinct cards [(id, upgrade)] for a card_add_random (default odds: the hallway rarity odds at the current offset, which an event does not
-    move; `CardCreationOptions.cs:116-129`). `pool` is one pool id or a list of them, one per offered card."""
     out = []
     for i in range(spec["of"]):
         p = pool[i % len(pool)] if isinstance(pool, list) else pool
@@ -213,10 +180,6 @@ def _offer(st, draws, spec, pool):
 
 
 def apply(st, effects, draws, choose=None, pick=None):
-    """Apply effects to `st` in place. `draws`: a `runmodel.Draws` (its rng drives every random outcome). `choose(st, options) -> index` for sub-choices
-    (default `default_choose`); `pick(st, cards, k) -> chosen` for card offers (default `first`; `DEFER` returns them in result["offers"]).
-
-    Returns {"fights": [{"fight", "rewards", "extra"}], "offers": [{"cards", "pick"}], "unmodelled": [text], "dead": bool}."""
     choose, pick = choose or default_choose, pick or first
     res = {"fights": [], "offers": [], "unmodelled": [], "dead": False}
     _apply(st, effects, draws, choose, pick, res, {})
@@ -231,18 +194,18 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
     for e in effects:
         if res["dead"]:
             return
-        k = next(iter(e))  # the effect's kind is its first key; the rest are its PARAMS
+        k = next(iter(e))
         v = e[k]
         if k == "hp":
             st.hp = max(0, min(st.max_hp, st.hp + v))
         elif k == "hp_frac":
             st.hp = min(st.max_hp, st.hp + int(v * st.max_hp))
         elif k == "max_hp":
-            if st.max_hp + v < 1:  # a max HP loss that reaches 0 kills (TabletOfTruth.cs LoseMaxHpAndUpgrade)
+            if st.max_hp + v < 1:
                 st.hp = 0
             else:
                 st.max_hp += v
-                st.hp = min(st.max_hp, st.hp + v) if v > 0 else min(st.hp, st.max_hp)  # a gain heals as much (CreatureCmd.cs:847-853)
+                st.hp = min(st.max_hp, st.hp + v) if v > 0 else min(st.hp, st.max_hp)
         elif k == "max_hp_set":
             st.max_hp, st.hp = v, min(st.hp, v)
         elif k == "gold":
@@ -250,17 +213,17 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
         elif k == "gold_set":
             st.gold = v
         elif k == "card_add":
-            st.deck.append({"id": v.replace("{character}", draws.character), "upgrade": 0})  # `{character}`: the run's character (STRIKE_{character})
+            st.deck.append({"id": v.replace("{character}", draws.character), "upgrade": 0})
         elif k == "card_add_one_of":
-            if "n" in e:  # n distinct cards of the list
+            if "n" in e:
                 st.deck += [{"id": c, "upgrade": 0} for c in rng.sample(v, min(e["n"], len(v)))]
             else:
                 st.deck.append({"id": rng.choice(v), "upgrade": 0})
         elif k == "card_add_random":
             others = [c for c in CHARACTERS if c != draws.character]
-            if v["pool"] == "others":  # each offered card from a different other character's pool (Kaleidoscope.cs:40-45)
+            if v["pool"] == "others":
                 pool = rng.sample(others, min(v["of"], len(others)))
-            elif v["pool"] == "other":  # one random other character's pool, the same for every effect of this apply (SeaGlass.cs:74-88)
+            elif v["pool"] == "other":
                 pool = ctx.setdefault("other_pool", rng.choice(others))
             else:
                 pool = {"character": draws.character, "colorless": "COLORLESS"}.get(v["pool"], v["pool"])
@@ -277,7 +240,7 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
         elif k == "card_upgrade":
             spec = v if isinstance(v, dict) else {"n": v}
             for _ in range(spec["n"]):
-                if "match" in spec or spec.get("basic"):  # the last matching card (NeowsTalisman.cs:18-23 LastOrDefault)
+                if "match" in spec or spec.get("basic"):
                     c = next((c for c in reversed(st.deck) if _upgradable(c) and _matches(c, spec)), None)
                 else:
                     c = next((c for c in st.deck if _upgradable(c) and not _basic(c)), None) or next((c for c in st.deck if _upgradable(c)), None)
@@ -293,7 +256,7 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
                 c["upgrade"] = 0
         elif k == "card_transform":
             spec = v if isinstance(v, dict) else {"n": v}
-            if "map" in spec:  # a fixed card -> card table, the first deck card found; upgrade and enchantment carry over (ArchaicTooth.cs:149-171)
+            if "map" in spec:
                 for c in [c for c in st.deck if c["id"] in spec["map"]][:spec["n"]]:
                     st.deck[st.deck.index(c)] = dict(c, id=spec["map"][c["id"]])
                 continue
@@ -305,7 +268,6 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
                 if spec.get("basic"):
                     targets = [c for c in targets if _basic(c)]
             for c in targets:
-                # a card transforms into a random Common / Uncommon / Rare card of its own pool, never itself (`CardFactory.cs:168-200`)
                 to = spec.get("to") or rng.choice(_pool_cards(draws.character, exclude=(c["id"],)))
                 st.deck[st.deck.index(c)] = {"id": to, "upgrade": int(bool(spec.get("upgraded")))}
         elif k == "card_enchant":
@@ -325,7 +287,7 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
         elif k == "relic_one_of":
             if "n" not in e and not e.get("pickup"):
                 st.relics.append(rng.choice(v))
-            else:  # n distinct relics not owned; `pickup`: each one's own pickup effects fire (an ancient relic's, from data/ancient_relics.json)
+            else:
                 cands = [r for r in v if r not in st.relic_ids()]
                 for r in rng.sample(cands, min(e.get("n", 1), len(cands))):
                     st.relics.append(r)
@@ -335,14 +297,14 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
             r = draws.relic(st.relic_ids(), v.get("rarity"))
             if r:
                 st.relics.append(r)
-        elif k == "relic_replace":  # {held relic: its replacement}, the first held one found (TouchOfOrobas.cs:154-160)
+        elif k == "relic_replace":
             for i, r in enumerate(st.relics):
                 if (r if isinstance(r, str) else r["id"]) in v:
                     st.relics[i] = v[r if isinstance(r, str) else r["id"]]
                     break
         elif k == "relic_remove":
             if len(st.relics) > 1:
-                st.relics.pop(rng.randrange(1, len(st.relics)))  # any but the starter
+                st.relics.pop(rng.randrange(1, len(st.relics)))
         elif k == "potion":
             if len(st.potions) < st.slots:
                 st.potions.append(v)
@@ -377,7 +339,6 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
 
 
 def play_option(st, event, option, draws, choose=None, pick=None):
-    """Apply one top-level option (index or label) of an event; a death ends the run at this event (`st.end`)."""
     e = get(event)
     o = e["options"][option] if isinstance(option, int) else match(event, [option])[0]
     if o is None:
@@ -388,10 +349,7 @@ def play_option(st, event, option, draws, choose=None, pick=None):
     return res
 
 
-# ------------------------------------------------------------------------------------------------------------------------------------- ancients
-
 def ancient_relics():
-    """{relic id: entry} of `data/ancient_relics.json`: every relic an ancient can offer, with its pickup effects (`AfterObtained`), loaded once."""
     global _ANC
     if _ANC is None:
         with open(ANCIENT_PATH, encoding="utf-8") as f:
@@ -404,9 +362,6 @@ def _norm(text):
 
 
 def ancient_option(label):
-    """An ancient screen option (`Phial Holster: Gain 1 potion slot and procure 2 random Potions.` or just the title) -> (relic id, pickup effects),
-    by the relic's English title (or its id); (None, None) when no relic matches (`Proceed`). Sea Glass's title carries the character, so a title
-    contained in the label's head also matches (the longest wins)."""
     head = _norm(str(label).split(":", 1)[0])
     if not head:
         return None, None
@@ -419,8 +374,6 @@ def ancient_option(label):
 
 
 def apply_ancient(st, relic_id, draws, choose=None, pick=None):
-    """Take an ancient's relic: append it to `st.relics`, then play its pickup effects (`apply`'s arguments and result). The relic's combat effect
-    is the simulator's; a death (Precarious Shears) ends the run at the ancient (`st.end`)."""
     e = ancient_relics()[relic_id]
     st.relics.append(relic_id)
     res = apply(st, e["effects"], draws, choose, pick)

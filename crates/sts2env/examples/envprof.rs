@@ -1,11 +1,3 @@
-//! Throughput of the PPO env (`BatchEnv::step`: one simulator step + observation + mask per env) on a scenario pool, with a stand-in policy whose
-//! choice depends only on the observation row (a hash picks a legal action), so a run is reproducible whatever the thread count.
-//!
-//!   cargo run --release -p sts2env --example envprof -- target/train/train.json [envs 1024] [steps 200] [obs version 1] [scenarios 4000]
-//!
-//! Prints the time inside `step` (steps/s) and a checksum over every observation, mask, reward and outcome: an optimisation of the env, the
-//! simulator or the observation that keeps the env identical keeps the checksum. Threads: `RAYON_NUM_THREADS` (default: all cores).
-//! With `--features sts2sim/obs_prof` (and `RAYON_NUM_THREADS=1`) it also splits the observation and counts look-ahead cache lookups / misses.
 use std::time::Instant;
 use sts2env::*;
 use sts2sim::engine::ACTION_SPACE;
@@ -22,7 +14,6 @@ fn hash(o: &[f32]) -> u64 {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    // STS2_LOOK_VERIFY=1: every look-ahead cache hit is checked against a fresh projection (slow; panics on a difference)
     let verify = std::env::var("STS2_LOOK_VERIFY").is_ok_and(|v| v == "1");
     sts2sim::engine::LOOK_VERIFY.store(verify, std::sync::atomic::Ordering::Relaxed);
     let path = args.get(1).expect("scenario json (a list of scenarios)");
@@ -48,7 +39,7 @@ fn main() {
     env.observe_all(&mut obs, &mut mask).unwrap();
     let mut acts = vec![0i32; n];
     let mut h = 0xcbf29ce484222325u64;
-    let mut mix = |h: &mut u64, x: u64| *h = (*h ^ x).wrapping_mul(0x100000001b3);
+    let mix = |h: &mut u64, x: u64| *h = (*h ^ x).wrapping_mul(0x100000001b3);
     let (mut t_step, mut eps, mut wins) = (0.0, 0u64, 0u64);
     for _ in 0..steps {
         for i in 0..n {
@@ -57,7 +48,6 @@ fn main() {
             mix(&mut h, hr);
             let legal: Vec<usize> = (0..ACTION_SPACE).filter(|&a| m[a] > 0).collect();
             mix(&mut h, legal.len() as u64 ^ (legal.iter().fold(0u64, |s, &a| s.wrapping_mul(31).wrapping_add(a as u64)) << 8));
-            // no legal action (a finished or broken fight): the env counts the step as illegal and ends the episode
             acts[i] = if legal.is_empty() { 0 } else { legal[((hr >> 17) % legal.len() as u64) as usize] as i32 };
         }
         let t = Instant::now();
