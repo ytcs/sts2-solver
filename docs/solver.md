@@ -16,7 +16,7 @@ Metrics: `win`; `hp_lost_all` = mean max-HP fraction lost, loss/stall charged th
 | `tools/gen_train.py` | A10 scenario sets (`--seed`: disjoint sets; `--energy-prob P`; `--drop-unwinnable`) |
 | `tools/bench_search.py` | search-quality bench vs a Monte Carlo referee (regret per config) |
 
-Networks: `models/current.json` (written by `python -m agent.improve adopt`) names `policy` (solver_h128.pt, outcome head, no extra value nets) and `predictor` (predictor_r2.pt). Sets: `data/train/eval.json` (1,500 held-out fights, 5 chars, 3 acts); `data/bench/*.json` (mix, tail, nearmiss, corpus, pairs, eval).
+Networks: `models/current.json` (edited by hand) names `policy` (solver_h128.pt, outcome head, no extra value nets) and `predictor` (predictor_r2.pt). Sets: `data/train/eval.json` (1,500 held-out fights, 5 chars, 3 acts); `data/bench/*.json` (mix, tail, nearmiss, corpus, pairs, eval).
 
 ## Search
 - At each decision: policy's top-M legal actions x K determinized futures (`VecEnv.fork_from` + `Combat::determinize`: piles' orders and all 9 RNG streams resampled, visible state unchanged). A future plays the policy for `LEAF_TURNS`=2 player turns (`rl/fastsearch.py`), then the value head (or the terminal reward). Root plays the best mean q.
