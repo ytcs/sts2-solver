@@ -182,3 +182,13 @@ Slice `data/bench/plans.json` (`tools/bench.py build-plans`; `score` reports it)
   - solver_td08 stays the predictor until the bench is relabelled with the live player and both are scored against it.
   - A v2 player and a v1 predictor coexist in one process (smoke-tested).
 - **Cost note:** a d256 cover arm at 1024 roots fills the 12 GB card and ~20 GB of host RAM. Use 512 roots for d256 cover runs on this machine.
+
+## E33. Gen-2 adopted as the predictor too (bench relabelled by the live player)
+- **Labels:** gen-2 5x32 cover, 8 attempts, seed 11 (plans 16): win eval 0.783, corpus 0.789, mix 0.760, tail 0.406, plans 0.510 (1505 fights). `evals/relabel_gen2.log`.
+- **Score** (`evals/score_relabel_gen2.log`), td08 vs gen-2:
+  - Brier eval 0.0242 / 0.0243, corpus 0.0171 / 0.0219, mix 0.0237 / 0.0292, tail 0.0442 / 0.0492; bias mix -0.029 / -0.035, tail -0.053 / -0.059 (both fail the 0.02 decile-bias bar there).
+  - Plans: Brier 0.137 / 0.104, bias -0.171 / -0.068 (plan decks -0.196 / -0.081); deck Spearman (>= 3 fights) 0.728 / 0.747.
+  - Deck-change pairs: P(win) sign agreement 0.846 / 0.897, worth sign 0.726 / 0.786, worth Spearman 0.421 / 0.513; remove 0.65 / 0.77, upgrade 0.61 / 0.74.
+  - Enabler-removal pairs (plan): solver d -0.109, predicted -0.026 for both; Spearman 0.06 / 0.13. Still blind.
+  - Worst plan archetypes for gen-2: doom -0.38, souls -0.26, poison engine -0.23, osty attacks -0.21, lightning evoke -0.21.
+- **Adopted:** `price` compares options, so ranking decides: `models/current.json` predictor = `solver_gen2.pt` (one v2 model as player and predictor). Calibration on the standard sets is the combat-loop round's job (r5).
