@@ -1,4 +1,4 @@
 {
- "policy": "solver_td08.pt",
+ "policy": "solver_gen2.pt",
  "predictor": "solver_td08.pt"
 }

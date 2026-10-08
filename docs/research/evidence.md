@@ -170,3 +170,15 @@ Slice `data/bench/plans.json` (`tools/bench.py build-plans`; `score` reports it)
 - **Enabler sensitivity is near zero on plan decks:** removing a core card costs the solver 0.12 on average, the predictor 0.02; Accelerant removal is predicted +0.06 (solver -0.19 full, -0.21 core). On recorded decks the sign is right (12 of 12 significant) but the size halved (Primal Force on an act-1 start: solver -0.57, pred -0.11).
 - **Recorded act starts are close in acts 2-3** (bias +0.00 / -0.00 td08) and low in act 1 (-0.085; Bygone Effigy -0.21, Phrog Parasite -0.13). Big late decks at bosses are underpredicted: Test Subject 0.88 vs 0.21 / 0.06 (35 cards, act 3), Knowledge Demon 0.94 vs 0.49 / 0.39 (29 cards).
 - **Confound for 3(b):** plan decks are 16 unupgraded cards with one relic and no potions at act 2, so the state is out of distribution as a whole, not only by its engine. The training share should include thin act-2 decks with and without an archetype core, so a re-run of this slice can separate the two.
+
+## E32. Gen-2 promoted as the live player (d256, obs v2, PPO signal base + 2 value passes)
+- **Model:** the E29 signal base plus a fresh outcome head. One realized-target pass, then one TD(0.8) pass, over 163k stored fights replayed to obs v2; about 8 min per pass after the perf passes.
+- **Greedy:** 0.718 (base 0.714, solver_td08 0.700).
+- **Bench v2 play with cover**, paired with h128's labels: +0.016 / +0.001 / +0.015 / +0.030 (eval / corpus / mix / tail). solver_td08 + cover: +0.005 / +0.004 / +0.003 / +0.024.
+- **Near-miss bench**, 4 attempts, paired with r3: gen-2 + cover +0.069 +- 0.009 L->W and -0.027 +- 0.008 W->L. solver_td08 + cover: +0.032 / -0.011.
+- **Predictor:** gen-2 ranks better (deck-change pairs: worth sign agreement 0.786 vs 0.726, Spearman 0.513 vs 0.421) but calibrates worse (Brier 0.0223 / 0.0221 / 0.0272 / 0.0372 vs 0.0206 / 0.0183 / 0.0228 / 0.0327).
+- **Adopted:**
+  - `models/solver_gen2.pt` is the policy (live player, cover).
+  - solver_td08 stays the predictor until the bench is relabelled with the live player and both are scored against it.
+  - A v2 player and a v1 predictor coexist in one process (smoke-tested).
+- **Cost note:** a d256 cover arm at 1024 roots fills the 12 GB card and ~20 GB of host RAM. Use 512 roots for d256 cover runs on this machine.
