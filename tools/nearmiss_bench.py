@@ -2,7 +2,10 @@
 """The near-miss benchmark (user's key metric): how many fights the previous player narrowly lost does a new network now win, and how many narrow
 wins does it now lose.
 
-  tools/nearmiss_bench.py build target/exit/r4s_*.npz --near target/exit/nm_r4s.json --out data/bench/nearmiss.json [--n 1500] [--close 0.10]
+  tools/nearmiss_bench.py build target/exit/r4u_*.npz --near target/exit/nm_r4u.json --out data/bench/nearmiss.json [--n 1500] [--close 0.10]
+
+The set must come from fights NO candidate trained on: data/bench/nearmiss.json is built from the r4u collection (uniform pool, player r3), held out
+from every arm trained on r4s data; data/bench/nearmiss_r4s.json (from r4s) is contaminated for those arms (they trained on its exact fights).
   STS2_DEVICE=cuda tools/nearmiss_bench.py eval BASE CKPT [CKPT ...] [--attempts 2]
 
 `build` takes near-miss losses (`tools/nearmiss.py`: within one turn of a win or <= 20% enemy HP left) and close wins (won with at most `--close` of max

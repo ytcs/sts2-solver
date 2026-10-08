@@ -330,3 +330,21 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   10. The 64-card pile cap truncates before sorting, which leaks a little hidden order. 0.04% of states.
 - **Encoded correctly:** powers (the simulator holds at most 16), relics, potions, enemy identity, intents, look-ahead, orbs, stars, Osty, hand order and costs.
 - **Implication:** every network so far was trained blind to gaps 1 and 2. Observation v2 (behind a version switch, so v1 networks keep working) goes into the next from-scratch run.
+
+## E21. Near-miss benchmark: a sensitive metric, but the first set was contaminated
+- **Method:** `tools/nearmiss_bench.py` replays fights from their start with the original fight seed and varies only the search seed (5x32, 2 attempts), against the player that collected them (r3, the luck baseline). First set: 1500 near-miss losses and 1500 close wins (<= 10% HP left) from r4s.
+
+| network | near-miss losses won | close wins lost |
+|---|---|---|
+| r3 (baseline) | 0.335 | 0.292 |
+| h128 | +0.002 +- 0.009 | +0.006 +- 0.009 |
+| r4s* | +0.014 +- 0.009 | -0.019 +- 0.009 |
+| r4s_abs4* | +0.002 +- 0.009 | -0.013 +- 0.008 |
+| d256_exit* | -0.010 +- 0.011 | +0.038 +- 0.010 |
+
+  \* trained on these exact fights, so contaminated.
+- **What it shows:**
+  - These fights are close to coin flips: the same player on fresh search seeds wins a third of its own near-miss losses.
+  - The paired se (~0.009) is much tighter than the bench-wide play-check, so the metric can resolve small policy changes.
+  - The contaminated rows cannot be read as gains.
+- **Fix:** `data/bench/nearmiss.json` is rebuilt from the r4u collection (1230 near-miss losses, 1500 close wins), held out from every r4s-trained arm. The r4s set is kept as `nearmiss_r4s.json`.
