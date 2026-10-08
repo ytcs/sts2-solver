@@ -276,13 +276,10 @@ class FastSearch:
     def warm(self):
         if not self.use_graphs:
             return
-        for net in {id(self.net): self.net, id(self.roll_net): self.roll_net}.values():
-            fn = self._pol_graph(net)
+        fns = [self._pol_graph(net) for net in {id(self.net): self.net, id(self.roll_net): self.roll_net}.values()] + [self._val_graph()]
+        for fn in fns + [f.full for f in fns if f.full is not None]:
             for B in fn.buckets:
                 fn._capture(B)
-        fn = self._val_graph()
-        for B in fn.buckets:
-            fn._capture(B)
         torch.cuda.synchronize()
 
     def _pol_graph(self, net):
