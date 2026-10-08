@@ -13,6 +13,23 @@ def multiplayer_free(fights):
     return [f for f in fights if not any((c if isinstance(c, str) else c["id"]) in mp for c in f["deck"])]
 
 
+def score(ckpt, scenarios, shuffles, batch=20000):
+    from predictor import Predictor, p_win
+    P = Predictor(ckpt)
+    return np.concatenate([p_win(P.fight_start(scenarios[i:i + batch], shuffles=shuffles)) for i in range(0, len(scenarios), batch)]) if scenarios else np.zeros(0)
+
+
+def pick(p, n, anchor, rng):
+    """n indices: a uniform anchor share, the rest drawn without replacement by p(1-p)"""
+    n_anchor = int(round(n * anchor))
+    sel = rng.choice(len(p), n_anchor, replace=False).tolist()
+    w = p * (1 - p)
+    w[sel] = 0.0
+    sel = np.array(sorted(sel) + rng.choice(len(p), n - n_anchor, replace=False, p=w / w.sum()).tolist())
+    rng.shuffle(sel)
+    return sel
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", required=True)
@@ -24,24 +41,17 @@ def main():
     ap.add_argument("--shuffles", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
-    from predictor import Predictor, p_win
     cands = multiplayer_free([f for fn in a.cands for f in json.load(open(fn))])
     t = time.time()
-    p = p_win(Predictor(a.ckpt).fight_start(cands, shuffles=a.shuffles))
+    p = score(a.ckpt, cands, a.shuffles)
     print(f"{len(cands)} candidates scored in {time.time() - t:.0f}s")
     rng = np.random.default_rng(a.seed)
-    n_anchor = int(round(a.n * a.anchor))
-    pick = set(rng.choice(len(cands), n_anchor, replace=False).tolist())
-    w = p * (1 - p)
-    w[list(pick)] = 0.0
-    rest = rng.choice(len(cands), a.n - n_anchor, replace=False, p=w / w.sum())
-    sel = np.array(sorted(pick) + rest.tolist())
-    rng.shuffle(sel)
+    sel = pick(p, a.n, a.anchor, rng)
     bands = [0, .03, .1, .3, .7, .9, .97, 1.01]
 
     def show(name, ix):
         h = np.histogram(p[ix], bands)[0] / len(ix)
-        print(f"{name:8s} n {len(ix)} mean p {p[ix].mean():.3f} mean p(1-p) {w[ix].mean() if name == 'x' else (p[ix] * (1 - p[ix])).mean():.3f} | "
+        print(f"{name:8s} n {len(ix)} mean p {p[ix].mean():.3f} mean p(1-p) {(p[ix] * (1 - p[ix])).mean():.3f} | "
               + " ".join(f"[{lo:.2f},{hi:.2f}) {x:.3f}" for lo, hi, x in zip(bands, bands[1:], h)))
     show("cands", np.arange(len(cands)))
     show("signal", sel)

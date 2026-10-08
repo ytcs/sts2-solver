@@ -10,8 +10,8 @@ import sts2  # noqa: E402
 import heads as H  # noqa: E402
 
 
-def _save(path, scen, F_, D, policy_only=False):
-    extra = {"policy_only": np.array(1)} if policy_only else {}
+def _save(path, scen, F_, D, policy_only=False, cover=False):
+    extra = ({"policy_only": np.array(1)} if policy_only else {}) | ({"cover": np.array(1)} if cover else {})
     np.savez_compressed(path, scenarios=np.array(json.dumps(scen)), f_scen=np.array(F_["scen"], np.int32), f_seed=np.array(F_["seed"], np.uint64),
                         f_cls=np.array(F_["cls"], np.int16), f_off=np.array(F_["off"], np.int64), acts=np.array(F_["acts"], np.int16),
                         d_fight=np.array(D["fight"], np.int32), d_step=np.array(D["step"], np.int32), d_opts=np.array(D["opts"], np.int16), d_q=np.array(D["q"], np.float32),
@@ -24,8 +24,8 @@ def collect(a):
     from model import load
     rs = json.load(open(a.restarts))["restarts"] if getattr(a, "restarts", None) else None
     scen = [r["scenario"] for r in rs] if rs else [s for f in a.fights for s in json.load(open(f))]
-    fs = FastSearch(load(a.ckpt), M=a.M, K=a.K, record=True, roots=a.roots, amp=True)
-    W = a.M
+    fs = FastSearch(load(a.ckpt), M=a.M, K=a.K, record=True, roots=a.roots, amp=True, cover=a.cover, futures=a.futures)
+    W = fs.M
     fs.warm()
     jobs = [(i, att) for att in range(a.attempts) for i in range(len(scen))]
     stem = a.out[:-4] if a.out.endswith(".npz") else a.out
@@ -49,7 +49,7 @@ def collect(a):
     n_chunks = (len(jobs) + a.chunk - 1) // a.chunk
     ran = 0
     for k in range(n_chunks):
-        if os.path.exists(f"{stem}_{k:03d}.npz"):
+        if os.path.exists(f"{stem}_{k:03d}.npz") or (a.skip_stuck and os.path.exists(f"{stem}_stuck_{k:03d}.json")):
             continue
         if ran >= a.chunks_per_process:
             print(f"{n_chunks - k} chunks left: exiting for a fresh process (exit code 3)", flush=True)
@@ -95,7 +95,7 @@ def collect(a):
                     D["opts"].append(np.where(ok, opts[t, :W], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :W], np.nan).astype(np.float32))
         eng = None
         fs._runs = []
-        _save(f"{stem}_{k:03d}.npz", cs, F_, D, policy_only=bool(rs))
+        _save(f"{stem}_{k:03d}.npz", cs, F_, D, policy_only=bool(rs), cover=a.cover)
         lens = res[:, 4]
         top = np.argsort(-lens)[:3]
         rate = len(cs) / dt
@@ -246,7 +246,8 @@ def train(a):
         with torch.no_grad():
             pl0 = prior(o, m, value=False)[0].float()
             sh = a.c * torch.from_numpy(qn).to(DEV)
-            shift = torch.zeros_like(pl0).scatter_(1, op.clamp(min=0), torch.where(op >= 0, sh, 0.0))
+            # scatter_add: padded slots (-1 -> 0) add nothing instead of overwriting a real option at action 0
+            shift = torch.zeros_like(pl0).scatter_add_(1, op.clamp(min=0), torch.where(op >= 0, sh, 0.0))
             t = torch.softmax(pl0 + shift, 1)
         pl = -(t * F.log_softmax(lg.float(), 1).clamp(min=-30)).sum(1).mean()
         ow = torch.from_numpy(ow).to(DEV)
@@ -312,6 +313,8 @@ def main():
     c = sub.add_parser("collect")
     c.add_argument("--ckpt", required=True); c.add_argument("--fights", nargs="+"); c.add_argument("--out", required=True)
     c.add_argument("--M", type=int, default=3); c.add_argument("--K", type=int, default=8); c.add_argument("--attempts", type=int, default=2)
+    c.add_argument("--cover", action="store_true", help="every distinct legal action is a candidate (the live player's search); records 16 options per decision")
+    c.add_argument("--futures", type=int, default=0, help="--cover: futures per decision in total (0 = K per candidate)")
     c.add_argument("--roots", type=int, default=2048); c.add_argument("--seed", type=int, default=101)
     c.add_argument("--chunk", type=int, default=2048, help="fights per saved part")
     c.add_argument("--chunks-per-process", type=int, default=3, help="chunks before exiting with code 3 for a fresh process: a long-lived search process "
@@ -320,6 +323,7 @@ def main():
     c.add_argument("--restarts", help="search from the restart states of `tools/nearmiss.py` (true states inside near-miss losses) instead of --fights; "
                    "parts are marked policy_only")
     c.add_argument("--chunk-timeout", type=float, default=5.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
+    c.add_argument("--skip-stuck", action="store_true", help="skip chunks the watchdog has already ended once (their _stuck_ file exists)")
     c.add_argument("--first-timeout", type=float, default=30.0, help="watchdog limit in minutes for the first two chunks")
     t = sub.add_parser("train")
     t.add_argument("--init", required=True); t.add_argument("--data", nargs="+", required=True); t.add_argument("--out", required=True)
