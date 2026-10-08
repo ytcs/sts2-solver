@@ -422,9 +422,9 @@ def main():
                    "in return units (abs: a near-tie shifts the prior by almost nothing; c 4 turns a 2-se gap at 5x32, ~0.22, into ~0.9 logits)")
     t.add_argument("--qse", type=float, default=0.078, help="--qnorm cmpo: noise se of one option's estimate (0.078 at 5x32, tools/target_noise.py)")
     t.add_argument("--vw", type=float, default=1.0, help="weight of the outcome loss (0: policy only, no interference through the shared trunk)")
-    t.add_argument("--value-target", choices=["realized", "td"], default="realized", help="outcome target: the fight's realized ending, or "
+    t.add_argument("--value-target", choices=["realized", "td"], default="td", help="outcome target: the fight's realized ending, or "
                    "TD(lambda) over the fight's searched decisions with the init network's predictions (lower variance; holdout still scores realized)")
-    t.add_argument("--lam", type=float, default=0.9, help="--value-target td: lambda (1 = realized ending)")
+    t.add_argument("--lam", type=float, default=0.8, help="--value-target td: lambda (1 = realized ending)")
     t.add_argument("--freeze-policy", action="store_true", help="train the value side only (policy heads frozen)")
     t.add_argument("--holdout", type=float, default=0.05); t.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()

@@ -430,7 +430,18 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - TD avoids the first-epoch damage the realized target causes. It is the only arm whose holdout loss on true endings beats the init.
   - It is the best calibrated on the tail.
   - With it as the search's judge, close wins are lost less often (about 1.75 se), so the combined near-miss effect is about +0.02 (~2 se).
-- **Not yet shown:** a lambda sweep (0.8, 0.95) and more attempts on the near-miss bench.
+- **Lambda sweep (4 attempts, se ~0.006):**
+
+| arm | near-miss losses won | close wins lost | tail Brier |
+|---|---|---|---|
+| realized | +0.011 | +0.000 | 0.0343 |
+| TD 0.8 | +0.023 | -0.014 | 0.0327 |
+| TD 0.9 | +0.015 | -0.012 | 0.0319 |
+| TD 0.95 | +0.014 | -0.012 | 0.0319 |
+
+  - Every TD arm saves close wins (-0.012 to -0.014); the realized target does not.
+  - TD 0.8 recovers +0.023 of near-miss losses, about as much as 8x the search (E25).
+- **Adopted:** `--value-target td --lam 0.8` as the outcome target.
 
 ## E25. Optimality bracket on near-miss fights
 - **Method:** `tools/nearmiss_bench.py eval`, held-out r4u set: 1230 near-miss losses and 1500 close wins, from the fight start, original fight seeds, 1 attempt per arm. Each arm is paired with r3 at live width (the luck baseline).
