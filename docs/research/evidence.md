@@ -348,3 +348,31 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - The paired se (~0.009) is much tighter than the bench-wide play-check, so the metric can resolve small policy changes.
   - The contaminated rows cannot be read as gains.
 - **Fix:** `data/bench/nearmiss.json` is rebuilt from the r4u collection (1230 near-miss losses, 1500 close wins), held out from every r4s-trained arm. The r4s set is kept as `nearmiss_r4s.json`.
+
+## E22. No policy target closes the gap between the network and its own search
+- **Method:** `tools/policy_agree.py`. 4000 held-out decision states (from the r4u collection), each searched once at 5x256 as the reference (r3's options). 349 states have a significant reference gap (> 2 paired se, 0.078). Agreement = the network's greedy action equals the reference's best. Four arms from r3, each trained on the r4s data (35k fights, 3 epochs, lr 1e-4).
+
+| policy | agreement, significant states | agreement, all states | greedy win (screen) vs r3 |
+|---|---|---|---|
+| live 5x32 search (the ceiling) | 0.903 | 0.665 | |
+| h128 | 0.630 | 0.534 | |
+| r3 | 0.650 | 0.561 | |
+| A: hard target (the search's move), policy loss only | 0.662 | 0.538 | -0.004 / -0.009 / +0.008 / +0.014 |
+| B: hard target, both losses | 0.645 | 0.541 | +0.003 / +0.001 / +0.004 / +0.006 |
+| C: anchored minmax c 2, policy loss only | 0.653 | 0.560 | -0.001 / -0.001 / +0.003 / -0.001 |
+| D: CMPO (advantage / 0.078, clipped to [-1, 1]), policy loss only | 0.648 | 0.562 | +0.000 / -0.001 / +0.004 / -0.003 |
+
+- The hard target is learnable: training CE fell from 2.41 to 1.16. But agreement on significant states moved only +0.012, and on all states it fell, because the network learned which near-tie the search happened to pick.
+- **Not the observation gap (E20):** on significant states with a calculated-number card in hand, r3 agrees 0.674 (n 86), against 0.643 without (n 263).
+- **Breakdown by the reference's best action** (significant states):
+
+| best action | n | r3 agrees | live 5x32 agrees |
+|---|---|---|---|
+| play a card | 244 | 0.680 | 0.893 |
+| pick | 60 | 0.633 | 0.933 |
+| end turn | 35 | 0.543 | 0.943 |
+| use a potion | 9 | 0.333 | 0.778 |
+
+  The disagreements are spread across decision types. The most common are play vs play (67), pick vs pick (22), and playing on instead of ending the turn (12).
+- **Policy-only training breaks the outcome head** (arm A: Brier 0.19), because the trunk moves under an untrained head.
+- **What it shows:** the policy target was not the main obstacle. On clear decisions the network does not learn what its search knows, at least from ~1M rows. Open: data-limited or representation-limited (next: the same target on 5x the data).
