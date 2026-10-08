@@ -9,9 +9,9 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// Decision purpose tag of a potion (card purposes are `ids::card::*`, potions set the high bit).
+/// Decision purpose tag of a potion (`state::purpose`: card purposes are `ids::card::*`, potions set the high bit).
 const fn purpose(potion: u16) -> u16 {
-    0x8000 | potion
+    crate::state::purpose::potion(potion)
 }
 
 /// Shared body of Attack/Skill/Power/ColorlessPotion: `GetDistinctForCombat(pool.Where(filter), 3)` ->

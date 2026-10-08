@@ -333,6 +333,10 @@ listener!(Stack {
         cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::MOVE, p.card);
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.pile(PileType::Discard).len() as i32))
+    }
 });
 
 // ---- Toric Toughness: Block now, and the same amount again at the start of each of the next Turns turns ------------------------------

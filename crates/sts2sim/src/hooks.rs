@@ -374,6 +374,13 @@ pub trait Listener: Sync {
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         None
     }
+    /// `CalculatedVar.Calculate(target)` of a card's other calculated var (`None` = the card has none): its `CalculatedBlockVar`, or a plain
+    /// `CalculatedVar` whose value the card text shows in place of a number (`CalculatedHits`, `CalculatedCards`, `CalculatedDoom`, `CalculatedForge`,
+    /// `CalculatedFocus`, `CalculatedShivs`, `CalculatedChannels`). The raw value: block still goes through `Hook.ModifyBlock` for the preview.
+    /// Read by the observation (`Combat::card_preview`), not by the cards' own effects.
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
+        None
+    }
     /// [R] `ModifyGoldGained` (threaded, run-level) -- Ectoplasm (`PlayerCmd.GainGold`).
     fn modify_gold_gained(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
@@ -748,6 +755,7 @@ pub mod hookbit {
         resume_hook,
         modify_gold_gained,
         after_gold_gained,
+        calculated_value,
     );
     // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
     // They sit at the very top of the 256-bit mask; real hooks must stay below them.

@@ -78,6 +78,10 @@ listener!(Normality {
         }
         cx.plays_this_turn(|_| true) < 3
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, (cx.plays_this_turn(|_| true) as i32).min(3)))
+    }
 });
 
 listener!(PoorSleep {});

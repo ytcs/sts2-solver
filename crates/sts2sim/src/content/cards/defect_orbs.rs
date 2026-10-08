@@ -32,6 +32,10 @@ listener!(Barrage {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)).hits(hits));
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.orb_count()))
+    }
 });
 
 // Remove orb slots, then +Strength, +Dexterity.
@@ -91,6 +95,10 @@ listener!(CompileDriver {
         let n = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.distinct_orb_types();
         cx.draw_cards(n, false);
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.distinct_orb_types()))
     }
 });
 
@@ -265,6 +273,10 @@ listener!(Synchronize {
         cx.apply_power(ids::power::SYNCHRONIZE_POWER, PLAYER, d(n), PLAYER, p.card);
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.distinct_orb_types()))
+    }
 });
 
 // X-cost: channel X (+1 upgraded) Lightning.
@@ -300,6 +312,10 @@ listener!(Voltaic {
         let n = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.hist_log.lightning_channeled as i32;
         channel_n(cx, ids::orb::LIGHTNING_ORB, n);
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.hist_log.lightning_channeled as i32))
     }
 });
 

@@ -27,4 +27,8 @@ listener!(SovereignBlade {
         }
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.power_amount(PLAYER, ids::power::PARRY_POWER)))
+    }
 });

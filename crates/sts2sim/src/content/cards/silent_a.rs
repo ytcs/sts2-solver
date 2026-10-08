@@ -481,6 +481,10 @@ listener!(Finisher {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)).hits(hits));
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, finished_attacks_this_turn(cx)))
+    }
 });
 
 // Multiplayer only constraint, but playable in single player (AnyEnemy): applies FlankingPower (x2 damage for every
@@ -505,6 +509,11 @@ listener!(Flechettes {
         let hits = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * skills;
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)).hits(hits));
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let skills = cx.player.hand.iter().filter(|&&c| cx.card_def(c).ctype == CardType::Skill).count() as i32;
+        Some(crate::engine::calc_extra_with(cx, card, skills))
     }
 });
 
