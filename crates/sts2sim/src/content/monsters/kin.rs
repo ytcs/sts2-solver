@@ -1,6 +1,3 @@
-//! The Kin (TheKinBoss): two Kin Followers (minions) and the Kin Priest. Spec 04 §3.1.
-//! Encounter slots: [slot1, slot2, leaderSlot] -> slot indices 0, 1, 2.
-
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
@@ -9,8 +6,6 @@ pub const SLOT_1: u8 = 0;
 pub const SLOT_2: u8 = 1;
 pub const SLOT_LEADER: u8 = 2;
 
-// KinFollower: vars[0] = StartsWithDance.
-// 0 QUICK_SLASH_MOVE, 1 BOOMERANG_MOVE, 2 POWER_DANCE_MOVE, 3 START (initial)
 pub static KIN_FOLLOWER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::KIN_FOLLOWER,
     hp: |a| hp(a, (62, 63), (58, 59)),
@@ -32,7 +27,6 @@ pub static KIN_FOLLOWER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// KinPriest: ORB_OF_FRAILTY -> ORB_OF_WEAKNESS -> BEAM -> RITUAL -> ...
 pub static KIN_PRIEST_DEF: MonsterDef = MonsterDef {
     id: ids::monster::KIN_PRIEST,
     hp: |a| hp(a, (199, 199), (190, 190)),

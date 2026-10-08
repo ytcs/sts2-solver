@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Dev loop: close the game, rebuild + install the mod, relaunch through Steam, wait for the bridge.
-# Headless by default (no window, no rendering: the GPU stays free for training and search); `GUI=1 bash dev.sh` shows the game.
+# Usage: [GUI=1] bash dev.sh  (rebuild + install the mod, relaunch the game headless, wait for the bridge)
 cd "$(dirname "$0")"
 taskkill //IM SlayTheSpire2.exe //F >/dev/null 2>&1 && sleep 2
 export DOTNET_ROOT=$HOME/.dotnet PATH=$HOME/.dotnet:$PATH

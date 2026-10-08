@@ -1,11 +1,8 @@
-//! Rust combat state -> JSON in the oracle's trace schema (only fields the simulator models).
-
 use serde_json::{json, Map, Value};
 use sts2sim::defs::Intent;
 use sts2sim::ids;
 use sts2sim::state::*;
 use sts2sim::types::*;
-
 
 fn phase(p: Phase) -> &'static str {
     match p {
@@ -42,9 +39,7 @@ fn card(cx: &Combat, c: CardIdx, with_cost: bool) -> Value {
     m.insert("id".into(), json!(ids::card::NAMES[k.id as usize]));
     m.insert("upgrade".into(), json!(k.upgrade));
     if with_cost {
-        // the oracle reports -1 for X-cost cards
         m.insert("cost".into(), json!(if cx.card_def(c).x_cost { -1 } else { cx.card_cost(c, true).max(0) }));
-        // keywords (local + global), sorted by name like the oracle
         let kws = cx.card_keywords(c);
         let mut names: Vec<&str> = vec![];
         for (bit, n) in [(kw::EXHAUST, "Exhaust"), (kw::ETHEREAL, "Ethereal"), (kw::INNATE, "Innate"), (kw::UNPLAYABLE, "Unplayable"), (kw::RETAIN, "Retain"), (kw::SLY, "Sly"), (kw::ETERNAL, "Eternal")] {
@@ -124,8 +119,6 @@ fn enemy(cx: &Combat, e: Cid) -> Value {
     Value::Object(m)
 }
 
-/// `{id, props?, counter?}` like the oracle's `Dump.cs`: `props` = the `[SavedProperty]` values, `counter` = `DisplayAmount` when
-/// the relic shows a counter.
 fn relic(cx: &Combat, r: &Relic) -> Value {
     let l = sts2sim::content::relic_listener(r.id);
     let mut m = Map::new();
@@ -166,7 +159,6 @@ pub fn snapshot(cx: &Combat) -> Value {
     o.insert("combat_in_progress".into(), json!(cx.in_progress));
     o.insert("combat_over".into(), json!(over));
     o.insert("player".into(), json!({"hp": me.hp, "max_hp": me.max_hp, "block": me.block, "alive": me.is_alive(), "powers": powers(cx, PLAYER)}));
-    // Pets (Osty): `Player.PlayerCombatState.Pets`; cleared by `PlayerCombatState.AfterCombatEnd` (victory only; a defeat keeps the dead Osty).
     o.insert(
         "pets".into(),
         Value::Array(
@@ -184,7 +176,6 @@ pub fn snapshot(cx: &Combat) -> Value {
     );
     o.insert("enemies".into(), Value::Array(cx.enemies.iter().map(|&e| enemy(cx, e)).collect()));
     if !over {
-        // Orbs: `{id, passive, evoke}` front first (numbers as integers: orb values are whole numbers).
         o.insert(
             "orbs".into(),
             Value::Array(

@@ -1,5 +1,3 @@
-"""`agent.fight.Replayer` on a recorded fight: Fabricator (run 20261005-201805) after 34 actions. Stampede's random target once killed the 8-HP Fabricator in
-the simulator while the game went on; a resample that ends the fight while the game fights on must be rejected."""
 import json
 
 from support import fixture_json
@@ -41,7 +39,7 @@ def test_map_potion():
     assert json.loads(r._map_potion('{"use_potion": {"slot": 1}}')) == {"use_potion": {"slot": 0}}
     r.scenario = dict(r.scenario, potions=[dict(id="A", slot=0), dict(id="B", slot=2)])
     assert json.loads(r._map_potion('{"use_potion": {"slot": 2, "target": 1}}')) == {"use_potion": {"slot": 1, "target": 1}}
-    assert json.loads(r._map_potion('{"use_potion": {"slot": 1}}')) == {"use_potion": {"slot": 1}}  # an unknown slot is left alone
+    assert json.loads(r._map_potion('{"use_potion": {"slot": 1}}')) == {"use_potion": {"slot": 1}}
     assert r._map_potion('{"end_turn": true}') == '{"end_turn": true}'
     r.scenario = dict(r.scenario, potions=[dict(id="A"), dict(id="B")])
     assert json.loads(r._map_potion('{"use_potion": {"slot": 1}}')) == {"use_potion": {"slot": 1}}

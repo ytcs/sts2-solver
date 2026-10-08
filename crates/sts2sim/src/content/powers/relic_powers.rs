@@ -1,6 +1,3 @@
-//! Powers that exist only for relics: SelfFormingClayPower, HelicalDartPower, ReptileTrinketPower, ConfusedPower
-//! (Snecko Eye).
-
 use crate::dec::Dec;
 use crate::hooks::*;
 use crate::ids;
@@ -8,7 +5,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// Counter power: gain `Amount` block (unpowered) when the owner's block is cleared next turn, then remove itself.
 listener!(SelfFormingClayPower {
     fn after_block_cleared(&self, cx: &mut Combat, me: Me, creature: Cid) {
         if creature == me.owner {
@@ -19,8 +15,6 @@ listener!(SelfFormingClayPower {
     }
 });
 
-// `TemporaryDexterityPower` family: grants Dexterity immediately (BeforeApplied / on every stack change) and takes it back
-// at the end of the owner's turn.
 fn temp_before_applied(cx: &mut Combat, base: u16, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
     cx.apply_power(base, target, amount, applier, card);
 }
@@ -61,10 +55,8 @@ listener!(ReptileTrinketPower {
     }
 });
 
-// Every drawn card with a cost gets a random cost 0..=3 for the rest of the combat (`Rng.CombatEnergyCosts.NextInt(4)`).
 listener!(ConfusedPower {
     fn after_card_drawn(&self, cx: &mut Combat, _me: Me, card: CardIdx, _from_hand_draw: bool) {
-        // `EnergyCost.Canonical < 0`: curses / statuses (an X-cost card's canonical cost is 0).
         let d = cx.card_def(card);
         if !d.x_cost && d.cost < 0 {
             return;

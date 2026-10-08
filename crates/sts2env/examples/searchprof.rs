@@ -1,11 +1,3 @@
-//! CPU cost of the search engine (`sts2env::search`) without a network: the collection's search shape (top-M root 5 x 32, play-outs of 2 player turns,
-//! `lead`, `strat`, `carry`, outcome-head value rows, `record`) on real scenarios, with a stand-in network whose answers depend only on the request (a hash
-//! of the observation picks the play-out move, ranks the options and sets the value), so the run is reproducible whatever the thread count.
-//!
-//!   cargo run --release -p sts2env --example searchprof -- data/bench/mix.json [fights 128] [threads 1] [roots 64] [m 5] [k 32] [obs version 1]
-//!
-//! Prints the time inside `advance` (the engine), the engine's cycle counters, and a checksum over the results and every recorded move: an optimisation
-//! of the engine or the simulator that keeps the search identical keeps the checksum. With `--features sts2sim/obs_prof` it also splits `observe_ex`.
 use std::time::Instant;
 use sts2env::search::*;
 use sts2sim::engine::ACTION_SPACE;
@@ -20,7 +12,6 @@ fn hash(o: &[f32]) -> u64 {
     h ^ (h >> 29)
 }
 
-/// A policy row: the legal actions ranked by a hash of (observation, action), probabilities from that rank, a play-out move picked by the row's uniform.
 fn answer(obs: &[f32], mask: &[u8], u: f32, m: usize, out: &mut [f32]) {
     let h = hash(obs);
     let mut legal: Vec<(u64, usize)> = (0..ACTION_SPACE).filter(|&a| mask[a] > 0).map(|a| ((h ^ a as u64).wrapping_mul(0x9E3779B97F4A7C15) >> 16, a)).collect();
@@ -46,7 +37,6 @@ fn answer(obs: &[f32], mask: &[u8], u: f32, m: usize, out: &mut [f32]) {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    // STS2_LOOK_VERIFY=1: every look-ahead cache hit is checked against a fresh projection (slow; panics on a difference)
     let verify = std::env::var("STS2_LOOK_VERIFY").is_ok_and(|v| v == "1");
     sts2sim::engine::LOOK_VERIFY.store(verify, std::sync::atomic::Ordering::Relaxed);
     let path = args.get(1).expect("scenario json (a list of scenarios or of {scenario: ...})");
@@ -87,7 +77,6 @@ fn main() {
         for r in 0..nv {
             let row = cap - 1 - r;
             let h = hash(&obs[row * OBS_SIZE..(row + 1) * OBS_SIZE]);
-            // a distribution over the outcome classes: loss with probability from the hash, the rest spread over a few win bins
             let pl = (h % 1000) as f32 / 1000.0;
             let p = &mut val[r * HEAD_NC..(r + 1) * HEAD_NC];
             p.fill(0.0);

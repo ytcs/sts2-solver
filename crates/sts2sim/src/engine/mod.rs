@@ -1,5 +1,3 @@
-//! The combat engine: `impl Combat` blocks split by subsystem.
-
 mod action;
 mod autoplay;
 mod budget;

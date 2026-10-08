@@ -1,14 +1,8 @@
-//! Event-only combatants (spec 04 §3.5): BattleFriendV1-3 (Battleworn Dummy), FakeMerchantMonster and Architect. None of
-//! them is in an act pool; the events only choose the encounter, so the combat itself needs no run-level state.
-//! (FlailKnight / MysteriousKnight live in `flail_knight.rs`.)
-
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
 
-// ---- BattleFriendV1/V2/V3: NOTHING_MOVE (no intents) forever; the time-limit power makes them escape -----------------------------
 fn friend_spawn(cx: &mut crate::state::Combat, me: u8) {
-    // `PowerCmd.Apply<BattlewornDummyTimeLimitPower>(Creature, 3m, null, null)` (no applier)
     cx.apply_power(ids::power::BATTLEWORN_DUMMY_TIME_LIMIT_POWER, me, crate::dec::Dec::int(3), crate::types::NO, crate::types::NO);
 }
 
@@ -34,7 +28,6 @@ pub static BATTLE_FRIEND_V3_DEF: MonsterDef = MonsterDef {
     nodes: &[mv("NOTHING_MOVE", nothing, &[], 0)],
 };
 
-// ---- Architect: 9999 HP dummy, hidden intent ------------------------------------------------------------------------------------
 pub static ARCHITECT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::ARCHITECT,
     hp: |_| (9999, 9999),
@@ -43,8 +36,6 @@ pub static ARCHITECT_DEF: MonsterDef = MonsterDef {
     nodes: &[mv("NOTHING", nothing, &[Intent::Hidden], 0)],
 };
 
-// ---- FakeMerchantMonster ---------------------------------------------------------------------------------------------------------
-// 0 SWIPE, 1 SPEW_COINS, 2 THROW_RELIC, 3 ENRAGE, 4 RAND_MOVE, 5 RAND_ATTACK_MOVE; initial SWIPE.
 pub static FAKE_MERCHANT_MONSTER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::FAKE_MERCHANT_MONSTER,
     hp: |a| hp(a, (175, 175), (165, 165)),

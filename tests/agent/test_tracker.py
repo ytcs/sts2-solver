@@ -1,4 +1,3 @@
-"""Public run counters (`agent/tracker.py`) follow the game's code rules."""
 from agent import tracker
 
 H = "A1 F2 SILENT A10 HP 56/70 G99 pots[-, -]"
@@ -16,7 +15,7 @@ def test_potion_odds_and_elite_bonus():
     assert abs(t.potion - 0.30) < 1e-9
     t.fight_start("BYRDONIS_ELITE")
     step(t, "REWARDS", ["0 29 Gold", "1 relic Nunchaku: ..."])
-    step(t, "REWARDS", ["0 29 Gold"])  # the same screen again after a pickup: counted once
+    step(t, "REWARDS", ["0 29 Gold"])
     assert abs(t.potion - 0.40) < 1e-9
     assert "elite 52%" in t.line() or "elite 53%" in t.line()
 
@@ -30,7 +29,7 @@ def test_rare_offset_steps_and_resets():
     t.fight_start("THE_KIN_BOSS")
     step(t, "REWARDS", ["0 75 Gold", "1 card: Adrenaline | D | E"])
     step(t, "CARD_REWARD", ["0 D(1) x", "1 Adrenaline(0) y", "2 E(1) z", "3 Skip"])
-    assert abs(t.offset - (-0.05 + 0.005)) < 1e-9  # D steps, the rare resets, E steps
+    assert abs(t.offset - (-0.05 + 0.005)) < 1e-9
 
 
 def test_unknown_room_odds():

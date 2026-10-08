@@ -1,7 +1,3 @@
-//! Act 1b "Underdocks" monsters, part A: the normal / weak-pool monsters (spec 04 §3.2).
-//! Node indices are per-monster; `follow_up` / branch targets refer to them. All ascension values come from the
-//! monster properties via `asc::val` (A8 = tough enemies, A9 = deadly enemies).
-
 use crate::dec::Dec;
 use crate::defs::*;
 use crate::engine::Attack;
@@ -9,10 +5,6 @@ use crate::ids;
 use crate::state::*;
 use crate::types::*;
 
-// ---- shared helpers ------------------------------------------------------------------------------------------------
-
-/// `Encounter.GetNextSlot` (`last == false`: first free slot) / `Slots.LastOrDefault(free)` (`last == true`) over the
-/// encounter's `n` slots; `NO` if none is free. (Only TwoTailedRatsNormal (5 slots) and LivingFogNormal (6) summon.)
 pub fn free_slot(cx: &Combat, n: u8, last: bool) -> u8 {
     if last {
         (0..n).rev().find(|&s| !cx.enemies.iter().any(|&e| cx.cr(e).slot == s)).unwrap_or(NO)
@@ -29,15 +21,12 @@ fn deadly(cx: &Combat, asc9: i32, base: i32) -> i32 {
 fn tough(cx: &Combat, asc8: i32, base: i32) -> i32 {
     asc::val(asc::TOUGH_ENEMIES, cx.ascension, asc8, base)
 }
-/// `DamageCmd.Attack(dmg).WithHitCount(n).FromMonster(me)` against the player.
 fn hits(cx: &mut Combat, me: Cid, dmg: i32, n: i32) {
     cx.execute_attack(&Attack::from_monster(me, dmg).hits(n));
 }
-/// `PowerCmd.Apply<T>(player, amount, me, null)`.
 fn debuff(cx: &mut Combat, power: u16, amount: i32, me: Cid) {
     cx.apply_power(power, PLAYER, Dec::int(amount as i64), me, NO);
 }
-/// `PowerCmd.Apply<T>(me, amount, me, null)`.
 fn buff(cx: &mut Combat, power: u16, amount: i32, me: Cid) {
     cx.apply_power(power, me, Dec::int(amount as i64), me, NO);
 }
@@ -47,7 +36,6 @@ macro_rules! mv {
         MonsterNode::Move { id: $id, perform: $perform, intents: &[$($intent),*], follow_up: $follow, must_perform_once: false }
     };
 }
-/// Single-hit attack intent whose damage is `$f(cx)`.
 macro_rules! atk {
     ($f:path) => {
         Intent::Attack { damage: |cx, _| $f(cx), hits: |_, _| 1 }
@@ -62,15 +50,12 @@ macro_rules! hp {
     };
 }
 
-// ---- cultists ---------------------------------------------------------------------------------------------------------
-
 mod calcified_cultist {
     use super::*;
     pub fn dark_strike(cx: &Combat) -> i32 {
         deadly(cx, 11, 9)
     }
 }
-// nodes: 0 INCANTATION, 1 DARK_STRIKE
 pub static CALCIFIED_CULTIST_DEF: MonsterDef = MonsterDef {
     id: ids::monster::CALCIFIED_CULTIST,
     hp: hp!(38, 41, 39, 42),
@@ -102,8 +87,6 @@ pub static DAMP_CULTIST_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Seapunk -----------------------------------------------------------------------------------------------------------
-
 mod seapunk {
     use super::*;
     pub fn sea_kick(cx: &Combat) -> i32 {
@@ -119,7 +102,6 @@ mod seapunk {
         2
     }
 }
-// nodes: 0 SEA_KICK, 1 SPINNING_KICK, 2 BUBBLE_BURP
 pub static SEAPUNK_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SEAPUNK,
     hp: hp!(44, 46, 47, 49),
@@ -142,8 +124,6 @@ pub static SEAPUNK_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- SludgeSpinner -----------------------------------------------------------------------------------------------------
-
 mod sludge_spinner {
     use super::*;
     pub fn oil_spray(cx: &Combat) -> i32 {
@@ -156,7 +136,6 @@ mod sludge_spinner {
         deadly(cx, 7, 6)
     }
 }
-// nodes: 0 RAND, 1 OIL_SPRAY, 2 SLAM, 3 RAGE; INIT = OIL_SPRAY
 pub static SLUDGE_SPINNER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SLUDGE_SPINNER,
     hp: hp!(37, 39, 41, 42),
@@ -189,8 +168,6 @@ pub static SLUDGE_SPINNER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- HauntedShip -------------------------------------------------------------------------------------------------------
-
 mod haunted_ship {
     use super::*;
     pub fn swipe(cx: &Combat) -> i32 {
@@ -200,7 +177,6 @@ mod haunted_ship {
         deadly(cx, 5, 4)
     }
 }
-// nodes: 0 SWIPE, 1 STOMP, 2 HAUNT (INIT, once)
 pub static HAUNTED_SHIP_DEF: MonsterDef = MonsterDef {
     id: ids::monster::HAUNTED_SHIP,
     hp: hp!(63, 63, 67, 67),
@@ -213,7 +189,6 @@ pub static HAUNTED_SHIP_DEF: MonsterDef = MonsterDef {
             "HAUNT_MOVE",
             |cx, me| {
                 debuff(cx, ids::power::WEAK_POWER, 3, me);
-                // CardPileCmd.AddToCombatAndPreview<Dazed>(player, Discard, 5)
                 if cx.cr(PLAYER).is_alive() {
                     for _ in 0..5 {
                         if let Some(c) = cx.new_card(ids::card::DAZED, 0) {
@@ -228,10 +203,6 @@ pub static HAUNTED_SHIP_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// (PunchConstruct lives in glory_a.rs.)
-
-// ---- SewerClam ---------------------------------------------------------------------------------------------------------
-
 mod sewer_clam {
     use super::*;
     pub fn jet(cx: &Combat) -> i32 {
@@ -242,7 +213,6 @@ mod sewer_clam {
         buff(cx, ids::power::PLATING_POWER, p, me);
     }
 }
-// nodes: 0 PRESSURIZE, 1 JET (INIT)
 pub static SEWER_CLAM_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SEWER_CLAM,
     hp: hp!(56, 56, 58, 58),
@@ -253,8 +223,6 @@ pub static SEWER_CLAM_DEF: MonsterDef = MonsterDef {
         mv!("JET_MOVE", |cx, me| hits(cx, me, sewer_clam::jet(cx), 1), [atk!(sewer_clam::jet)], 0),
     ],
 };
-
-// ---- FossilStalker -----------------------------------------------------------------------------------------------------
 
 mod fossil_stalker {
     use super::*;
@@ -271,7 +239,6 @@ mod fossil_stalker {
         buff(cx, ids::power::SUCK_POWER, 3, me);
     }
 }
-// nodes: 0 RAND, 1 TACKLE, 2 LATCH (INIT), 3 LASH
 pub static FOSSIL_STALKER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::FOSSIL_STALKER,
     hp: hp!(51, 53, 54, 56),
@@ -293,8 +260,6 @@ pub static FOSSIL_STALKER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Toadpole ----------------------------------------------------------------------------------------------------------
-
 mod toadpole {
     use super::*;
     pub fn spit(cx: &Combat) -> i32 {
@@ -304,7 +269,6 @@ mod toadpole {
         deadly(cx, 8, 7)
     }
 }
-// vars[0] = IsFront. nodes: 0 INIT (cond), 1 SPIKEN, 2 SPIKE_SPIT, 3 WHIRL
 pub static TOADPOLE_DEF: MonsterDef = MonsterDef {
     id: ids::monster::TOADPOLE,
     hp: hp!(21, 25, 22, 26),
@@ -326,8 +290,6 @@ pub static TOADPOLE_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- CorpseSlug --------------------------------------------------------------------------------------------------------
-
 mod corpse_slug {
     use super::*;
     pub fn glomp(cx: &Combat) -> i32 {
@@ -341,7 +303,6 @@ mod corpse_slug {
         buff(cx, ids::power::RAVENOUS_POWER, s, me);
     }
 }
-// vars[0] = StarterMoveIdx. nodes: 0 INIT (cond), 1 WHIP_SLAP, 2 GLOMP, 3 GOOP
 pub static CORPSE_SLUG_DEF: MonsterDef = MonsterDef {
     id: ids::monster::CORPSE_SLUG,
     hp: hp!(25, 27, 27, 29),
@@ -358,8 +319,6 @@ pub static CORPSE_SLUG_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- TwoTailedRat ------------------------------------------------------------------------------------------------------
-
 mod two_tailed_rat {
     use super::*;
     pub const CALL_FOR_BACKUP: u8 = 4;
@@ -370,7 +329,6 @@ mod two_tailed_rat {
     pub fn bite(cx: &Combat) -> i32 {
         deadly(cx, 7, 6)
     }
-    /// `CanSummon()`. vars[2] = non-summon moves performed (`_turnsUntilSummonable = 2 - vars[2]`), vars[3] = CallForBackupCount.
     pub fn can_summon(cx: &Combat, me: Cid) -> bool {
         let ms = &cx.cr(me).monster;
         if 2 - ms.vars[2] > 0 || ms.vars[3] >= 3 {
@@ -410,8 +368,6 @@ mod two_tailed_rat {
         let _ = me;
     }
 }
-// vars[0] = StarterMoveIndex (-1 = random start), vars[2], vars[3] (see `can_summon`).
-// nodes: 0 INIT (cond), 1 RAND, 2 SCRATCH, 3 DISEASE_BITE, 4 CALL_FOR_BACKUP (index fixed by `CALL_FOR_BACKUP`), 5 SCREECH
 pub static TWO_TAILED_RAT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::TWO_TAILED_RAT,
     hp: hp!(17, 21, 18, 22),
@@ -467,8 +423,6 @@ pub static TWO_TAILED_RAT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- GremlinMerc / FatGremlin / SneakyGremlin ----------------------------------------------------------------------------
-
 mod gremlin_merc {
     use super::*;
     pub fn gimme(cx: &Combat) -> i32 {
@@ -482,9 +436,8 @@ mod gremlin_merc {
     }
     pub fn on_spawn(cx: &mut Combat, me: Cid) {
         buff(cx, ids::power::SURPRISE_POWER, 1, me);
-        buff(cx, ids::power::THIEVERY_POWER, 20, me); // one instance per player
+        buff(cx, ids::power::THIEVERY_POWER, 20, me);
     }
-    /// `foreach ThieveryPower: Steal()`: takes up to Amount gold from the player; `aux` accumulates the loot.
     pub fn steal(cx: &mut Combat, me: Cid) {
         let uids: crate::util::ArrayVec<u16, MAX_POWERS> = {
             let mut v = crate::util::ArrayVec::new();
@@ -507,7 +460,6 @@ mod gremlin_merc {
         }
     }
 }
-// nodes: 0 GIMME, 1 DOUBLE_SMASH, 2 HEHE
 pub static GREMLIN_MERC_DEF: MonsterDef = MonsterDef {
     id: ids::monster::GREMLIN_MERC,
     hp: hp!(47, 49, 51, 53),
@@ -546,7 +498,6 @@ pub static GREMLIN_MERC_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// nodes: 0 SPAWNED, 1 FLEE
 pub static FAT_GREMLIN_DEF: MonsterDef = MonsterDef {
     id: ids::monster::FAT_GREMLIN,
     hp: hp!(13, 17, 14, 18),
@@ -561,7 +512,6 @@ mod sneaky_gremlin {
         deadly(cx, 10, 9)
     }
 }
-// nodes: 0 SPAWNED, 1 TACKLE
 pub static SNEAKY_GREMLIN_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SNEAKY_GREMLIN,
     hp: hp!(10, 14, 11, 15),
@@ -572,8 +522,6 @@ pub static SNEAKY_GREMLIN_DEF: MonsterDef = MonsterDef {
         mv!("TACKLE_MOVE", |cx, me| hits(cx, me, sneaky_gremlin::tackle(cx), 1), [atk!(sneaky_gremlin::tackle)], 1),
     ],
 };
-
-// ---- LivingFog / GasBomb -------------------------------------------------------------------------------------------------
 
 mod living_fog {
     use super::*;
@@ -587,7 +535,6 @@ mod living_fog {
         deadly(cx, 9, 8)
     }
 }
-// nodes: 0 ADVANCED_GAS, 1 BLOAT, 2 SUPER_GAS_BLAST
 pub static LIVING_FOG_DEF: MonsterDef = MonsterDef {
     id: ids::monster::LIVING_FOG,
     hp: hp!(80, 80, 82, 82),
@@ -606,8 +553,7 @@ pub static LIVING_FOG_DEF: MonsterDef = MonsterDef {
         mv!(
             "BLOAT_MOVE",
             |cx, me| {
-                // BloatAmount = 1 GasBomb into the first free slot, then the attack
-                let slot = free_slot(cx, 6, false); // slots bomb1..bomb5, livingFog
+                let slot = free_slot(cx, 6, false);
                 if slot != NO {
                     cx.summon_enemy(ids::monster::GAS_BOMB, slot, [0, 0]);
                 }
@@ -629,7 +575,6 @@ mod gas_bomb {
         buff(cx, ids::power::MINION_POWER, 1, me);
     }
 }
-// nodes: 0 EXPLODE (attack, then the bomb kills itself)
 pub static GAS_BOMB_DEF: MonsterDef = MonsterDef {
     id: ids::monster::GAS_BOMB,
     hp: hp!(7, 7, 8, 8),

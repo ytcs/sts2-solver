@@ -5,11 +5,11 @@ namespace OracleCombat;
 
 public sealed class CardSpec
 {
-    public string Id;               // e.g. STRIKE_IRONCLAD
+    public string Id;
     public int Upgrade;
-    public string Enchantment;      // e.g. ENCHANTMENT.SHARP (optional)
+    public string Enchantment;
     public int EnchantAmount = 1;
-    public JsonObject Props;        // optional saved-properties dict {name: int|bool|string}
+    public JsonObject Props;
     public int? FloorAdded;
 }
 
@@ -20,12 +20,12 @@ public sealed class RngSpec { public int Counter; public ulong S0, S1, S2, S3; }
 
 public sealed class ActionSpec
 {
-    public string Kind;            // play | end_turn | use_potion | choose
-    public int HandPos;            // play
-    public int? Target;            // enemy index (play, use_potion)
-    public int? TargetAlly;        // ally index (Allies list, player is 0) for AnyAlly targets
-    public int Slot;               // use_potion
-    public int[] Choose;           // choose
+    public string Kind;
+    public int HandPos;
+    public int? Target;
+    public int? TargetAlly;
+    public int Slot;
+    public int[] Choose;
 }
 
 public sealed class Scenario
@@ -43,7 +43,7 @@ public sealed class Scenario
     public int TotalFloor = 1;
     public int Act = 0;
     public bool ApplyAscensionEffects = false;
-    public bool UseCharacterStarter = false;  // if deck/relics omitted -> character's starting deck/relics
+    public bool UseCharacterStarter = false;
     public List<ActionSpec> Script = new();
     public JsonObject Raw;
 

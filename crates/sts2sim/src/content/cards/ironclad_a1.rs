@@ -1,5 +1,3 @@
-//! Ironclad cards, batch a1: pool positions [0,45) of the Ironclad pool (Aggression .. Impervious) that are not in basic.rs.
-
 use crate::engine::calc_with;
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -10,7 +8,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `CreatureCmd.Damage(owner, HpLoss, Unblockable | Unpowered | Move, this, cardPlay)` — card self-damage.
 fn lose_hp(cx: &mut Combat, card: CardIdx, n: i32) {
     cx.damage(&[PLAYER], Dec::int(n as i64), ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED).or(ValueProp::MOVE), PLAYER, card);
 }
@@ -24,8 +21,6 @@ fn attack(cx: &mut Combat, p: &CardPlay, hits: i32) {
     let dmg = cx.card_var(p.card, VarKind::Damage);
     cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)).hits(hits));
 }
-
-// ---- powers (apply-only cards) ---------------------------------------------------------------------------------------
 
 listener!(Aggression {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -53,7 +48,6 @@ listener!(CrimsonMantle {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_power_var(p.card, ids::power::CRIMSON_MANTLE_POWER);
         if let Some(uid) = cx.apply_power(ids::power::CRIMSON_MANTLE_POWER, PLAYER, Dec::int(v as i64), PLAYER, p.card) {
-            // IncrementSelfDamage
             if let Some(pw) = cx.power_mut(PLAYER, uid) {
                 pw.aux += 1;
             }
@@ -93,8 +87,6 @@ listener!(FeelNoPain {
     }
 });
 
-// ---- skills ---------------------------------------------------------------------------------------------------------
-
 listener!(BattleTrance {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
@@ -104,7 +96,6 @@ listener!(BattleTrance {
     }
 });
 
-// Multiplayer-only (AnyAlly target: never playable in single player).
 listener!(Blaze {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_power_var(p.card, ids::power::STRENGTH_POWER);
@@ -122,7 +113,6 @@ listener!(BloodWall {
     }
 });
 
-// HP loss, exhaust a card from hand (chosen), gain Strength.
 listener!(Brand {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         let finish = |cx: &mut Combat, p: &CardPlay| {
@@ -164,7 +154,6 @@ listener!(Colossus {
     }
 });
 
-// Multiplayer-only.
 listener!(DemonicShield {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let loss = cx.card_var(p.card, VarKind::HpLoss);
@@ -179,7 +168,6 @@ listener!(DemonicShield {
     }
 });
 
-// Apply Vulnerable, then gain Strength equal to the target's resulting Vulnerable amount.
 listener!(Dominate {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_power_var(p.card, ids::power::VULNERABLE_POWER);
@@ -190,7 +178,6 @@ listener!(Dominate {
     }
 });
 
-// Draw; when this card is exhausted, gain Energy (once per play count, like a replay).
 listener!(DrumOfBattle {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
@@ -209,7 +196,6 @@ listener!(DrumOfBattle {
     }
 });
 
-// Block twice if a card was exhausted this turn.
 listener!(EvilEye {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let times = if cx.hist_count_this_turn(HKind::CardExhausted, |_| true) > 0 { 2 } else { 1 };
@@ -220,7 +206,6 @@ listener!(EvilEye {
     }
 });
 
-// Block = CalcBase + CalcExtra * max(0, Strength).
 listener!(ExpectAFight {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let str = cx.power_amount(PLAYER, ids::power::STRENGTH_POWER).max(0);
@@ -258,11 +243,8 @@ listener!(Impervious {
     }
 });
 
-// ---- attacks --------------------------------------------------------------------------------------------------------
-
 listener!(AshenStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        // multiplier = number of cards in the exhaust pile
         let a = Attack::from_card_calc(PLAYER, p.card, Targeting::Single(p.target), |cx, _, _| cx.player.exhaust.len() as i32);
         cx.execute_attack(&a);
         Flow::Done
@@ -280,7 +262,6 @@ listener!(Bludgeon {
     }
 });
 
-// multiplier = owner's current Block
 listener!(BodySlam {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let a = Attack::from_card_calc(PLAYER, p.card, Targeting::Single(p.target), |cx, _, _| cx.cr(PLAYER).block());
@@ -312,7 +293,6 @@ listener!(Breakthrough {
     }
 });
 
-// multiplier = the target's Vulnerable amount
 listener!(Bully {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let a = Attack::from_card_calc(PLAYER, p.card, Targeting::Single(p.target), |cx, _, t| {
@@ -335,7 +315,6 @@ listener!(Conflagration {
     }
 });
 
-// Two hits against a Vulnerable target (decided before the attack).
 listener!(Dismantle {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let hits = if cx.has_power(p.target, ids::power::VULNERABLE_POWER) { 2 } else { 1 };
@@ -344,7 +323,6 @@ listener!(Dismantle {
     }
 });
 
-// Gain max HP when the attack kills (unless the target does not trigger Fatal).
 listener!(Feed {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let fatal = cx.all_powers_trigger_fatal(p.target);
@@ -358,7 +336,6 @@ listener!(Feed {
     }
 });
 
-// Exhaust the whole hand, then one hit per card exhausted.
 listener!(FiendFire {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let hand = cx.player.hand;
@@ -392,9 +369,6 @@ listener!(Hemokinesis {
     }
 });
 
-// ---- auto-play -------------------------------------------------------------------------------------------------------
-
-// Auto-play the top card of the draw pile, exhausting it. Phase 1 = resume after a nested decision.
 listener!(Havoc {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
         if phase == 0 && cx.auto_play_from_draw_pile(1, CardPilePosition::Top, true) == RunResult::Suspended {
@@ -404,7 +378,6 @@ listener!(Havoc {
     }
 });
 
-// X (+1 if upgraded) cards from the top of the draw pile are auto-played (without forced exhaust).
 listener!(Cascade {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         if phase == 0 {
@@ -420,7 +393,6 @@ listener!(Cascade {
     }
 });
 
-// All-enemies attack; when it sits in the exhaust pile at the start of the post-play phase it plays itself.
 listener!(HowlFromBeyond {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);

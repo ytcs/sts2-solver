@@ -1,12 +1,3 @@
-//! A sampling profiler for Windows without admin rights (no ETW): a thread of this process suspends every other thread about once a
-//! millisecond, reads its instruction pointer and resumes it; the samples are symbolized with dbghelp (build with debug info: the `prof`
-//! profile) and printed as a flat profile by function (self time), plus the top source lines.
-//!
-//!   cargo build --profile prof -p sts2env --example sampleprof
-//!   RAYON_NUM_THREADS=1 target/prof/examples/sampleprof.exe env target/train/train.json [envs 256] [steps 200] [obs version 1]
-//!   target/prof/examples/sampleprof.exe search data/bench/mix.json [fights 32] [roots 16] [obs version 1]
-//!
-//! `env`: the PPO env's step (as `envprof`), `search`: the 5x32 collection search with a stand-in network (as `searchprof`, 1 thread).
 #[cfg(not(windows))]
 fn main() {
     eprintln!("sampleprof is Windows only (use perf / callgrind elsewhere)");
@@ -123,7 +114,6 @@ mod win {
         v
     }
 
-    /// Samples every thread but its own until `stop`; returns the instruction pointers.
     fn sampler(stop: Arc<AtomicBool>) -> Vec<u64> {
         let me = unsafe { GetCurrentThreadId() };
         let mut out = vec![];
@@ -265,8 +255,7 @@ mod win {
         println!("{mode}: {:.2}s, {} samples", t0.elapsed().as_secs_f64(), samples.len());
         let proc_ = unsafe { GetCurrentProcess() };
         unsafe {
-            SymSetOptions(0x2 | 0x10); // SYMOPT_UNDNAME | SYMOPT_LOAD_LINES
-            // the exe's own PDB sits next to it
+            SymSetOptions(0x2 | 0x10);
             let dir = std::env::current_exe().unwrap().parent().unwrap().to_string_lossy().into_owned() + " ";
             SymInitialize(proc_, dir.as_ptr(), 1);
         }
@@ -304,7 +293,6 @@ mod win {
             }
             *by_fn.entry(f).or_default() += 1;
         }
-        // a thread waiting in the kernel (idle pool workers, the sampler's own sleeps) is not work
         let idle: u64 = by_fn.iter().filter(|(f, _)| f.contains("Wait") || f.contains("NtDelayExecution") || f.contains("ZwDelayExecution")).map(|(_, n)| *n).sum();
         by_fn.retain(|f, _| !(f.contains("Wait") || f.contains("NtDelayExecution") || f.contains("ZwDelayExecution")));
         let tot = (samples.len() as u64 - idle).max(1) as f64;

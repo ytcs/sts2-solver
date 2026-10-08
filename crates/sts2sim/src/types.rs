@@ -1,6 +1,3 @@
-//! Small shared enums / flag types mirroring the game's own (values match the C# enums where they are observable).
-
-/// No-object sentinel for `u8` handles (card idx / creature idx / relic idx ...).
 pub const NO: u8 = 0xFF;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -21,7 +18,6 @@ impl Side {
     }
 }
 
-/// `PileType` (values match the game's enum).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(u8)]
 pub enum PileType {
@@ -43,7 +39,6 @@ pub enum CardPilePosition {
     Random = 3,
 }
 
-/// `PlayerTurnPhase`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(u8)]
 pub enum Phase {
@@ -102,7 +97,6 @@ pub enum TargetType {
     Osty = 9,
 }
 
-/// `CardKeyword` as a bitset (bit = enum value - 1).
 pub mod kw {
     pub const EXHAUST: u8 = 1 << 0;
     pub const ETHEREAL: u8 = 1 << 1;
@@ -113,7 +107,6 @@ pub mod kw {
     pub const ETERNAL: u8 = 1 << 6;
 }
 
-/// `CardTag` bitset.
 pub mod tag {
     pub const STRIKE: u8 = 1 << 0;
     pub const DEFEND: u8 = 1 << 1;
@@ -122,7 +115,6 @@ pub mod tag {
     pub const SHIV: u8 = 1 << 4;
 }
 
-/// `ValueProp` flags.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct ValueProp(pub u8);
 
@@ -145,7 +137,6 @@ impl ValueProp {
     pub const fn unblockable(self) -> bool {
         self.0 & 2 != 0
     }
-    /// `IsPoweredAttack()` / `IsPoweredCardOrMonsterMoveBlock()`: `Move && !Unpowered`.
     #[inline(always)]
     pub const fn is_powered(self) -> bool {
         self.0 & 8 != 0 && self.0 & 4 == 0
@@ -168,22 +159,15 @@ pub enum PowerType {
     None = 2,
 }
 
-/// Power application stacking key (`PowerModel.InstanceType`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(u8)]
 pub enum InstanceType {
-    /// One instance per power id per creature (stacks amount).
     #[default]
     Single = 0,
-    /// Always a new instance.
     Instanced = 1,
-    /// Stacks only with an instance of the same applier.
     PerApplier = 2,
 }
 
-// ---- engine-core additions -------------------------------------------------------------------------------------
-
-/// `AutoPlayType`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(u8)]
 pub enum AutoPlayType {
@@ -193,8 +177,6 @@ pub enum AutoPlayType {
     SlyDiscard = 2,
 }
 
-/// `CardLocation` (`ModifyCardPlayResultLocation`): pile (+ position) a played card goes to. `PileType::None` =
-/// removed from combat.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct CardLocation {
     pub pile: PileType,

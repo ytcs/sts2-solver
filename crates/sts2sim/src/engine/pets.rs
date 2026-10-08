@@ -1,9 +1,3 @@
-//! Pets (Osty): creation, summon / revive, max-HP primitives (spec 05 §6, `OstyCmd`, `PlayerCmd.AddPet`).
-//!
-//! Osty is an ally-side `Creature` (`is_pet`, `owner = PLAYER`) whose monster model is `Osty`. It is never removed from
-//! the combat when it dies (`DieForYouPower.ShouldCreatureBeRemovedFromCombatAfterDeath`), so a dead Osty stays in
-//! `allies` and is revived in place by the next `summon`.
-
 use crate::content;
 use crate::dec::Dec;
 use crate::hooks::*;
@@ -12,7 +6,6 @@ use crate::state::*;
 use crate::types::*;
 
 impl Combat {
-    /// `Player.Osty`: the player's Osty creature, alive or dead (`None` if never summoned this combat).
     #[inline]
     pub fn osty(&self) -> Option<Cid> {
         self.allies
@@ -21,19 +14,16 @@ impl Combat {
             .find(|&c| self.cr(c).is_pet && self.cr(c).owner == PLAYER && self.cr(c).monster.id == ids::monster::OSTY)
     }
 
-    /// `Player.IsOstyAlive`.
     #[inline]
     pub fn is_osty_alive(&self) -> bool {
         self.osty().map_or(false, |o| self.cr(o).is_alive())
     }
 
-    /// `Player.IsOstyMissing`.
     #[inline]
     pub fn is_osty_missing(&self) -> bool {
         !self.is_osty_alive()
     }
 
-    /// Living Osty or `NO`.
     #[inline]
     pub fn living_osty(&self) -> Cid {
         match self.osty() {
@@ -42,7 +32,6 @@ impl Combat {
         }
     }
 
-    /// `PlayerCmd.AddPet<T>`: creates the pet creature on the player side (no `niche` draw: only enemies roll HP).
     pub fn add_pet(&mut self, monster: u16, hp: i32) -> Option<Cid> {
         let cid = (1..MAX_CREATURES as u8).find(|&i| !self.cr(i).in_combat)?;
         self.listen |= content::monster_mask(monster);
@@ -60,12 +49,10 @@ impl Combat {
         Some(cid)
     }
 
-    /// `PlayerCmd.AddPet<Osty>`: HP 1/1 (set by the following `Summon`).
     fn add_osty_creature(&mut self) -> Option<Cid> {
         self.add_pet(ids::monster::OSTY, 1)
     }
 
-    /// `OstyCmd.Summon` (spec 05 §6.2): `Hook.ModifySummonAmount` (threaded), then summon / grow Osty.
     pub fn summon(&mut self, amount: i32) {
         let mut amt = Dec::int(amount as i64);
         if self.listen.has(hookbit::modify_summon_amount) && self.hooks_enabled() {

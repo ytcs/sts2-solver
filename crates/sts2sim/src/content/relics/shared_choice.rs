@@ -1,7 +1,3 @@
-//! Relics whose hooks raise player decisions (hand / option screens) or auto-play cards. Their hooks suspend through the
-//! canonical `Combat::hook_ctx = Some((me, phase))` and continue in `resume_hook` (the turn start that raised them resumes
-//! afterwards through `Combat::turn_cont`).
-
 use crate::content::gen_pools;
 use crate::content::gen_relics as g;
 use crate::dec::Dec;
@@ -13,11 +9,7 @@ use crate::state::*;
 use crate::types::*;
 use crate::util::ArrayVec;
 
-// ---- Gambling Chip: discard any cards from the opening hand, draw as many ------------------------------------------------------
-
 fn gambling_chip_finish(cx: &mut Combat, cards: &ArrayVec<CardIdx, 16>) {
-    // CardCmd.DiscardAndDraw: every discard (with its hooks), then the draw, then the Sly cards auto-play (a decision they raise
-    // leaves the turn start suspended: `resume_after_decision` continues it).
     cx.discard_cards(cards.as_slice(), cards.len() as i32);
 }
 listener!(GamblingChip {
@@ -25,7 +17,6 @@ listener!(GamblingChip {
         if cx.turn_number() > 1 {
             return;
         }
-        // CardSelectorPrefs(prompt, 0, 999999999)
         match cx.ask_hand(purpose::relic(ids::relic::GAMBLING_CHIP), 0, u8::MAX, |_, _| true) {
             Ask::Resolved(cards) => gambling_chip_finish(cx, &cards),
             Ask::Pending => {
@@ -39,8 +30,6 @@ listener!(GamblingChip {
         gambling_chip_finish(cx, &cards);
     }
 });
-
-// ---- Toasty Mittens: exhaust a card from the hand every turn, then +Strength ----------------------------------------------------
 
 fn toasty_mittens_finish(cx: &mut Combat, cards: &ArrayVec<CardIdx, 16>) {
     for &c in cards.iter() {
@@ -64,8 +53,6 @@ listener!(ToastyMittens {
     }
 });
 
-// ---- Toolbox: pick one of three colorless cards before the first draw ---------------------------------------------------------------
-
 fn toolbox_finish(cx: &mut Combat, cards: &ArrayVec<CardIdx, 16>) {
     if let Some(&c) = cards.first().as_ref() {
         cx.add_generated_card(c, PileType::Hand, CardPilePosition::Bottom);
@@ -77,7 +64,6 @@ listener!(Toolbox {
             return;
         }
         let cards = cx.get_distinct_for_combat(&gen_pools::COLORLESS, g::toolbox::CARDS as usize, |_| true);
-        // `FromChooseACardScreen(...)`: the oracle's selector may also pick nothing (min 0), like Discovery.
         match cx.ask_options(purpose::relic(ids::relic::TOOLBOX), cards.as_slice(), false) {
             Ask::Resolved(picked) => toolbox_finish(cx, &picked),
             Ask::Pending => {
@@ -91,8 +77,6 @@ listener!(Toolbox {
         toolbox_finish(cx, &cards);
     }
 });
-
-// ---- Choices Paradox: pick one of five Retain cards of the character's pool --------------------------------------------------------
 
 fn choices_paradox_finish(cx: &mut Combat, cards: &ArrayVec<CardIdx, 16>) {
     for &c in cards.iter() {
@@ -126,17 +110,12 @@ listener!(ChoicesParadox {
     }
 });
 
-// ---- Whispering Earring: the first hand is played automatically (up to 13 cards) ---------------------------------------------------
-
 const EARRING_MAX_CARDS: i32 = 13;
 
 listener!(WhisperingEarring {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount + Dec::int(g::whispering_earring::ENERGY as i64)
     }
-    // Plays the first playable card of the hand (resources spent like a manual play, then `AutoPlay`) until nothing is
-    // playable. The relic pushes `VakuuCardSelector` while it does so: card-selection screens resolve to the first
-    // candidates (`Combat::auto_select`), so no decision is ever raised.
     fn after_auto_pre_play_phase_entered_late(&self, cx: &mut Combat, _me: Me) {
         if cx.turn_number() > 1 {
             return;
@@ -148,7 +127,6 @@ listener!(WhisperingEarring {
             if cx.is_over_or_ending() || cx.player.turn_number != 1 {
                 break;
             }
-            // `IsPlayerReadyToEndTurn(player)`: a played Void Form asked to end the turn
             if cx.end_turn_requested {
                 break;
             }
@@ -167,9 +145,6 @@ listener!(WhisperingEarring {
     }
 });
 
-// ---- History Course: replay (as a dupe) the last Attack of the previous turn at the start of each turn ----------------------------
-
-// counter = last Attack played this turn + 1 (0 = none), aux = last Attack played last turn + 1 (neither saved).
 listener!(HistoryCourse {
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_def(play.card).ctype == CardType::Attack && cx.cards[play.card as usize].flags & cflag::IS_DUPE == 0 {

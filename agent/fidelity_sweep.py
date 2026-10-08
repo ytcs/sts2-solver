@@ -1,21 +1,3 @@
-"""Simulator fidelity sweep (a harness test, never a scored run; uses the dev console).
-
-Every case starts a FRESH run (so no relic cooldown, counter or custom card carries over), gives it a loadout through the dev console, jumps to an encounter and
-plays the fight with the harness solver, ignoring the desync stop so that play continues. The harness records every place where the simulator's prediction of the
-next state differed from the game's (`Replayer` stats and examples, with the card played). Bugs found here are bugs in the networks' training data: fix them first.
-
-Modes (`--mode`):
-  cards     each card of each character (`--chars`), three copies in an otherwise starting deck
-  relics    each relic that has no pickup effect, alone
-  potions   each potion, alone
-  fuzz      random decks (14-22 cards of the character's pool and colorless), 3-8 relics, 0-2 potions, random encounters
-  recorded  the relic / deck sets recorded in earlier runs (Ironclad)
-
-    python -m agent.fidelity_sweep --mode cards --chars ironclad,silent --out evals/fid_cards.jsonl [--limit N] [--resume]
-
-One JSON line per case: label, encounter, non-benign divergence categories with counts and examples. `evals/fidelity_fights/` keeps the game's own log for cases with
-state divergences (replay them with `python -m agent.fidelity_trace`).
-"""
 import argparse
 import collections
 import glob
@@ -33,14 +15,15 @@ from agent.harness import Harness  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 def _decomp_relics():
-    """The decompiled relic sources (a relic with an AfterObtained effect cannot be added through the console). `STS2_DECOMP` or ./decomp, either layout."""
     base = os.environ.get("STS2_DECOMP") or os.path.join(ROOT, "decomp")
     for sub in ("MegaCrit.Sts2.Core.Models.Relics", os.path.join("MegaCrit", "Sts2", "Core", "Models", "Relics")):
         if os.path.isdir(os.path.join(base, sub)):
             return os.path.join(base, sub)
     raise SystemExit(f"decompiled relics not found under {base}: set STS2_DECOMP to the decompile directory")
+
 ENCOUNTERS = ["SLIMES_NORMAL", "FLYCONID_NORMAL", "INKLETS_NORMAL", "CUBEX_CONSTRUCT_NORMAL", "KNIGHTS_ELITE", "DECIMILLIPEDE_ELITE", "BYGONE_EFFIGY_ELITE",
               "CORPSE_SLUGS_NORMAL", "HAUNTED_SHIP_NORMAL", "EXOSKELETONS_NORMAL", "ENTOMANCER_ELITE", "SOUL_NEXUS_ELITE"]
+
 BENIGN_PREFIX = ("random", "residual .phase", "start_tries", "end_turn", "sync from_discard", "sync from_exhaust", "sync created", "sync powers")
 
 
@@ -55,7 +38,6 @@ def camel(snake):
 
 
 def relic_ids():
-    """Implemented relics without an AfterObtained effect (a pickup effect opens a selection screen when the console adds the relic)."""
     src = open(os.path.join(ROOT, "crates", "sts2sim", "src", "content", "gen_relics.rs"), encoding="utf-8").read()
     out = []
     decomp = _decomp_relics()
@@ -77,7 +59,6 @@ def state_kind(txt):
 
 
 def fresh_run(h, character, tries=14):
-    """A brand-new run of the character at its first screen (the current run abandoned with the dev console `die`)."""
     for _ in range(tries):
         k = state_kind(call("s"))
         if k == "MENU":
@@ -87,7 +68,7 @@ def fresh_run(h, character, tries=14):
             h.handle("a 0")
             continue
         if k == "SELECT":
-            h.handle("a 0")  # a selection that needs a pick (Decisions, Decisions ...); `a -` is refused then
+            h.handle("a 0")
             if state_kind(call("s")) == "SELECT":
                 h.handle("a -")
             continue
@@ -97,18 +78,16 @@ def fresh_run(h, character, tries=14):
 
 
 STARTER = collections.Counter({"STRIKE_IRONCLAD": 5, "DEFEND_IRONCLAD": 4, "BASH": 1, "ASCENDERS_BANE": 1})
-PICKUP = {"HEFTY_TABLET", "ARCANE_SCROLL", "YUMMY_COOKIE", "CLAWS", "WAR_PAINT", "CURSED_PEARL", "MAD_SCIENCE"}  # open a selection screen when the console adds them
+PICKUP = {"HEFTY_TABLET", "ARCANE_SCROLL", "YUMMY_COOKIE", "CLAWS", "WAR_PAINT", "CURSED_PEARL", "MAD_SCIENCE"}
 
 
 def console_loadout(sc, allowed_relics=None):
-    """Dev-console commands that rebuild a recorded scenario's relics and added cards on a fresh Ironclad run. Returns (commands, relic ids applied, added cards as a Counter)."""
     relics = [r["id"] for r in sc["relics"] if r["id"] != "BURNING_BLOOD" and r["id"] not in PICKUP and (allowed_relics is None or r["id"] in allowed_relics)]
     need = collections.Counter(c["id"] for c in sc["deck"] if c["id"] not in PICKUP) - STARTER
     return [f"x relic add {r}" for r in relics] + [f"x card {c} Deck" for c, k in need.items() for _ in range(k)], relics, need
 
 
 def console_fight(h, character, cmds, enc, rounds=25):
-    """Fresh run, loadout, full heal, console fight, then the solver plays it. Returns None when the fight was played, else why not."""
     if not fresh_run(h, character):
         return "no fresh run"
     for c in cmds:
@@ -180,7 +159,7 @@ def main():
     os.makedirs(os.path.join(ROOT, "evals", "fidelity_fights"), exist_ok=True)
     h = Harness()
     h._sync_problem = lambda f: None
-    h.handle("budget 0.25")  # validation needs plausible play, not strong play
+    h.handle("budget 0.25")
     keep = {}
     orig_sync = h.sync
 
@@ -212,7 +191,7 @@ def main():
                            examples={k: v[:3] for k, v in ex.items() if not k.startswith(BENIGN_PREFIX) and not (k.endswith(".relics") and all("props.Skin" in t for t in v))},
                            created=stats.get("sync created", 0), errors=keep.get("errors", [])[:2])
                 bad = any(k.startswith(("diff .energy", "diff .player", "action failed")) or "intents" in k for k in res["stats"]) or res["stats"].get("residual .draw", 0) >= 5
-                if bad and keep.get("f"):  # keep the game's own log for `agent.fidelity_trace`
+                if bad and keep.get("f"):
                     name = re.sub(r"[^A-Za-z0-9_.-]", "_", case["label"]) + ".json"
                     json.dump(dict(label=case["label"], enc=case["enc"], scenario=keep["scenario"], fight=keep["f"]), open(os.path.join(ROOT, "evals", "fidelity_fights", name), "w"))
         except Exception as ex:  # noqa: BLE001

@@ -1,6 +1,3 @@
-//! Silent cards, first half of the `SILENT` pool array (ABRASIVE .. HIDDEN_DAGGERS) plus the Silent starter cards.
-//! Ported from the decompiled `OnPlay` bodies; stats come from `gen_cards.rs`.
-
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -11,9 +8,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// ---- shared helpers -----------------------------------------------------------------------------------------------------
-
-/// Phase that simply finishes (used after a discard whose Sly auto-play suspended).
 const DONE: u8 = 99;
 
 fn block_from_var(cx: &mut Combat, p: &CardPlay) -> Dec {
@@ -36,7 +30,6 @@ fn apply_power_var(cx: &mut Combat, p: &CardPlay, power: u16, target: Cid) {
     cx.apply_power(power, target, Dec::int(v as i64), PLAYER, p.card);
 }
 
-/// `Rng.CombatTargets.NextItem(CombatState.HittableEnemies)`.
 fn random_hittable_enemy(cx: &mut Combat) -> Option<Cid> {
     let h = cx.hittable_enemies();
     if h.is_empty() {
@@ -46,7 +39,6 @@ fn random_hittable_enemy(cx: &mut Combat) -> Option<Cid> {
     Some(h[i])
 }
 
-/// `CardCmd.Discard(cards)` then continue at `after` if a Sly auto-play suspended.
 fn discard_then(cx: &mut Combat, cards: &[CardIdx], after: u8) -> Flow {
     if cx.discard_cards(cards, 0) == RunResult::Suspended {
         Flow::Suspend(after)
@@ -55,7 +47,6 @@ fn discard_then(cx: &mut Combat, cards: &[CardIdx], after: u8) -> Flow {
     }
 }
 
-/// `FromHandForDiscard(prefs(.., n))` + `CardCmd.Discard`, the last effect of a card. Phase `1` handles the answer.
 fn ask_discard_last(cx: &mut Combat, purpose: u16, n: u8) -> Flow {
     match cx.ask_hand(purpose, n, n, |_, _| true) {
         Ask::Resolved(cards) => discard_then(cx, cards.as_slice(), DONE),
@@ -68,13 +59,9 @@ fn answer_discard_last(cx: &mut Combat) -> Flow {
     discard_then(cx, cards.as_slice(), DONE)
 }
 
-/// `CardPlaysFinished.Count(HappenedThisTurn && Type == Attack && Player == owner)`. (With the history-log port this is
-/// `hist_count_this_turn(HKind::CardPlayFinished, |e| card_def(e.id).ctype == CardType::Attack)`.)
 fn finished_attacks_this_turn(cx: &Combat) -> i32 {
     cx.hist.attacks_finished_this_turn as i32
 }
-
-// ---- starters ------------------------------------------------------------------------------------------------------------
 
 listener!(StrikeSilent {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -111,8 +98,6 @@ listener!(Survivor {
     }
 });
 
-// ---- A ---------------------------------------------------------------------------------------------------------------------
-
 listener!(Abrasive {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         apply_power_var(cx, p, ids::power::DEXTERITY_POWER, PLAYER);
@@ -136,7 +121,6 @@ listener!(Accuracy {
     }
 });
 
-// Draw, then discard a card (Sly cards auto-play).
 listener!(Acrobatics {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -184,8 +168,6 @@ listener!(Assassinate {
     }
 });
 
-// ---- B ---------------------------------------------------------------------------------------------------------------------
-
 listener!(Backflip {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block_from_var(cx, p);
@@ -202,7 +184,6 @@ listener!(Backstab {
     }
 });
 
-// Creates Shivs (all at once) and enchants each with Inky (Weak on play).
 listener!(BladeOfInk {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
@@ -224,7 +205,6 @@ listener!(BladeDance {
     }
 });
 
-// Multiplayer only (AllAllies); single-player teammates = just the owner.
 listener!(BladeSymphony {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
@@ -264,7 +244,6 @@ listener!(BubbleBubble {
     }
 });
 
-// Every non-X card in hand becomes free this turn; then NoDraw.
 listener!(BulletTime {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let hand = cx.player.hand;
@@ -286,9 +265,6 @@ listener!(Burst {
     }
 });
 
-// ---- C ---------------------------------------------------------------------------------------------------------------------
-
-// Discard the whole hand and draw that many cards (discard hooks / Sly wait until after the draw).
 listener!(CalculatedGamble {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -325,10 +301,7 @@ listener!(CorrosiveWave {
     }
 });
 
-// Multiplayer only (AnyAlly): can never be played in single player.
 listener!(Concoct {});
-
-// ---- D ---------------------------------------------------------------------------------------------------------------------
 
 listener!(DaggerSpray {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -376,16 +349,12 @@ listener!(Deflect {
 
 listener!(DodgeAndRoll {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        // The power amount is the block actually gained (after Dexterity / Frail), not the raw var.
         let gained = block_from_var(cx, p);
         cx.apply_power(ids::power::BLOCK_NEXT_TURN_POWER, PLAYER, gained, PLAYER, p.card);
         Flow::Done
     }
 });
 
-// ---- E ---------------------------------------------------------------------------------------------------------------------
-
-// `AttackCommand.CreateContextAsync` + raw `CreatureCmd.Damage` per round; each kill adds one more round.
 listener!(EchoingSlash {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
@@ -433,7 +402,6 @@ listener!(EscapePlan {
     }
 });
 
-// Draw, and the drawn cards Retain this turn.
 listener!(Expertise {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
@@ -456,15 +424,11 @@ listener!(Expose {
     }
 });
 
-// ---- F ---------------------------------------------------------------------------------------------------------------------
-
-// Multiplayer only (AnyAlly): can never be played in single player.
 listener!(Fade {});
 
 listener!(FanOfKnives {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         cx.apply_power(ids::power::FAN_OF_KNIVES_POWER, PLAYER, Dec::ONE, PLAYER, p.card);
-        // `CardsVar("Shivs", 4)`: a Named var (`DynamicVars["Shivs"]`), one `CreateInHand` call each.
         let n = cx.card_named_var(p.card, var_name::SHIVS);
         for _ in 0..n {
             cx.create_shivs_in_hand(1);
@@ -473,7 +437,6 @@ listener!(FanOfKnives {
     }
 });
 
-// Hits = number of Attack plays finished this turn (the current play has not finished yet).
 listener!(Finisher {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
@@ -487,8 +450,6 @@ listener!(Finisher {
     }
 });
 
-// Multiplayer only constraint, but playable in single player (AnyEnemy): applies FlankingPower (x2 damage for every
-// other player than the applier, i.e. no effect solo).
 listener!(Flanking {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         cx.apply_power(ids::power::FLANKING_POWER, p.target, Dec::int(2), PLAYER, p.card);
@@ -496,7 +457,6 @@ listener!(Flanking {
     }
 });
 
-// Hits = number of Skills in hand.
 listener!(Flechettes {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
@@ -539,8 +499,6 @@ listener!(Footwork {
     }
 });
 
-// ---- G / H -----------------------------------------------------------------------------------------------------------------
-
 listener!(GrandFinale {
     fn is_playable(&self, cx: &Combat, _card: CardIdx) -> bool {
         cx.player.draw.is_empty()
@@ -551,7 +509,6 @@ listener!(GrandFinale {
     }
 });
 
-// Block, then make a non-Sly Skill in hand Sly this turn.
 listener!(HandTrick {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -587,7 +544,6 @@ listener!(Haze {
     }
 });
 
-// Discard 2 cards (Sly ones auto-play), then create Shivs (upgraded when this card is).
 listener!(HiddenDaggers {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {

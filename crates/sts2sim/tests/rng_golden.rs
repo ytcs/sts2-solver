@@ -1,4 +1,3 @@
-//! Differential test: Rust RNG vs vectors emitted by the game's own C# `Rng` (oracle/RngGolden).
 use serde_json::Value;
 use sts2sim::rng::{deterministic_hash, Rng};
 

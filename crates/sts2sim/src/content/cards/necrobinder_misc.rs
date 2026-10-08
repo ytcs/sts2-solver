@@ -1,5 +1,3 @@
-//! Remaining Necrobinder cards (plain attacks / skills, discard-pile manipulation, copies, multiplayer-only cards).
-
 use crate::engine::calc_with;
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
@@ -11,7 +9,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `PowerCmd.Apply<T>(Owner.Creature, amount, Owner.Creature, card)`.
 fn apply_self(cx: &mut Combat, power: u16, amount: i32, p: &CardPlay) {
     cx.apply_power(power, PLAYER, Dec::int(amount as i64), PLAYER, p.card);
 }
@@ -20,8 +17,6 @@ fn attack(cx: &mut Combat, p: &CardPlay, t: Targeting) -> crate::engine::Results
     let d = cx.card_var(p.card, VarKind::Damage);
     cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, t))
 }
-
-// ---- plain attacks -----------------------------------------------------------------------------------------------------
 
 listener!(Bury {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -44,7 +39,6 @@ listener!(Sow {
     }
 });
 
-// X-cost: Damage x X hits.
 listener!(Eradicate {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let x = cx.x_value(p.card);
@@ -54,7 +48,6 @@ listener!(Eradicate {
     }
 });
 
-// 8 (+1) + 4 (+2) x (cards drawn this turn outside the hand draw).
 listener!(DeathMarch {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.hist_count_this_turn(HKind::CardDrawn, |e| e.flags & 1 == 0) as i32;
@@ -68,7 +61,6 @@ listener!(DeathMarch {
     }
 });
 
-// Attack, then upgrade random upgradable cards in the discard pile.
 listener!(DrainPower {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p, Targeting::Single(p.target));
@@ -78,7 +70,6 @@ listener!(DrainPower {
                 list.push(c);
             }
         }
-        // TakeRandom(n): UnstableShuffle of the whole filtered list (len - 1 draws), then the first n.
         cx.rng.combat_card_selection.shuffle(list.as_mut_slice());
         let n = cx.card_var(p.card, VarKind::Cards).max(0) as usize;
         for &c in list.iter().take(n) {
@@ -88,7 +79,6 @@ listener!(DrainPower {
     }
 });
 
-// Attack, then choose a card from the discard pile to put in hand (upgrade removes Exhaust).
 listener!(Graveblast {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -114,7 +104,6 @@ listener!(Graveblast {
     }
 });
 
-// Attack, then (re)apply Hang: its amount at least doubles each time (min 2).
 listener!(Hang {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p, Targeting::Single(p.target));
@@ -128,18 +117,14 @@ listener!(Hang {
     }
 });
 
-// Attack; copy the target's debuffs onto every other hittable enemy.
 listener!(Misery {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        // debuffAmounts: (power id, amount, applier) of every debuff the target has now (insertion order).
-        // (the 4th field is the clone's `AmountOnTurnStart`: `ClonePreservingMutability` copies it)
         let mut list: crate::util::ArrayVec<(u16, i32, Cid, i32), MAX_POWERS> = crate::util::ArrayVec::new();
         for pw in cx.cr(p.target).powers.iter() {
             if Combat::power_type_for_amount(pw.id, pw.amount) == PowerType::Debuff {
                 list.push((pw.id, pw.amount, pw.applier, pw.amount_on_turn_start));
             }
         }
-        // A temporary power adds its amount to the matching internally-applied power's entry (they cancel out).
         let snapshot = list;
         for &(id, amt, _, _) in snapshot.iter() {
             if let Some(inner) = crate::engine::temporary_inner_power(id) {
@@ -171,13 +156,10 @@ listener!(Misery {
     }
 });
 
-// ---- skills ----------------------------------------------------------------------------------------------------------------
-
 listener!(BorrowedTime {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let e = cx.card_var(p.card, VarKind::Energy);
         cx.gain_energy(e);
-        // "ExtraCost" EnergyVar(1): every card costs 1 more for the rest of this turn.
         apply_self(cx, ids::power::BORROWED_TIME_POWER, 1, p);
         Flow::Done
     }
@@ -193,7 +175,6 @@ listener!(Delay {
     }
 });
 
-// Choose up to Cards cards from the discard pile into the hand (limited by hand space).
 listener!(Dredge {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -224,7 +205,6 @@ listener!(Dredge {
     }
 });
 
-// Whenever a creature dies this card costs Energy less for the rest of the combat.
 listener!(Melancholy {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let b = cx.card_var(p.card, VarKind::Block);
@@ -250,7 +230,6 @@ listener!(Putrefy {
     }
 });
 
-// -Strength for both you and the target.
 listener!(SharedFate {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mine = cx.card_named_var(p.card, var_name::PLAYER_STRENGTH_LOSS);
@@ -261,7 +240,6 @@ listener!(SharedFate {
     }
 });
 
-// Choose a card in hand: +1 cost for the combat and one extra play.
 listener!(Transfigure {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -291,7 +269,6 @@ fn transfigure(cx: &mut Combat, cards: &[CardIdx]) {
     }
 }
 
-// Block; add a copy of this card to the discard pile.
 listener!(Undeath {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let b = cx.card_var(p.card, VarKind::Block);
@@ -311,7 +288,6 @@ listener!(Wisp {
     }
 });
 
-// 13 + (permanent bonus): each play adds Increase to this card (and its deck copy).
 listener!(TheScythe {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = 13 + cx.cards[p.card as usize].counter[0] as i32;
@@ -323,9 +299,6 @@ listener!(TheScythe {
     }
 });
 
-// ---- multiplayer-only cards (single-player reductions) ------------------------------------------------------------------------
-
-// Power: every 33 cards drawn, deal Damage (the power amount) to a random enemy.
 listener!(Cacophony {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = cx.card_var(p.card, VarKind::Damage);
@@ -334,7 +307,6 @@ listener!(Cacophony {
     }
 });
 
-// Souls for every living teammate (only you in single player).
 listener!(GlimpseBeyond {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         if cx.cr(PLAYER).is_alive() {
@@ -355,7 +327,6 @@ listener!(LegionOfBone {
     }
 });
 
-// Targets an ally: never playable in single player.
 listener!(Soulbound {});
 
 listener!(Underworld {

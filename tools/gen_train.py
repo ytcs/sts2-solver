@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""Training / evaluation scenario sets for the combat solver: realistic Ascension-10 fights as a JSON list.
-
-  tools/gen_train.py --n 4000 --seed 1 --out target/train/train.json [--character IRONCLAD,SILENT] [--act 0,1,2]
-                     [--room monster,elite,boss] [--exclude-seed-set other.json] [--relics 2-7]
-
-Built on the fuzz generator's deck / relic / potion builders (tools/fuzz_gen_mix.py) with the settings of a real run:
-realistic HP, starter deck + act-scaled additions, the character's own pool + colorless, a few relics, 0-2 potions. The oracle
-trace fields (`policy`) are dropped. Needs the catalog (`oracle/combat/oracle.sh catalog --out target/train/catalog.json`).
-Two sets with different `--seed` never share a scenario name, so a held-out set is just another seed.
-"""
 import argparse, json, os, random, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -48,7 +38,7 @@ def main():
         ns.act = r.choice(acts)
         try:
             s = g.scenario(i, a.seed, ns)
-        except IndexError:  # no encounter of that act / room
+        except IndexError:
             i += 1
             continue
         i += 1

@@ -1,6 +1,3 @@
-//! Powers applied by the second half of the Silent card pool (INFINITE_BLADES .. WRAITH_FORM), ported from the decompiled
-//! power classes. Poison/Accuracy/Thorns/Envenom/... live in `silent_a.rs`, Intangible in the potion/underdocks files.
-
 use crate::dec::Dec;
 use crate::engine::Ask;
 use crate::hooks::*;
@@ -9,12 +6,10 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `participants.Contains(Owner)` for a side-turn hook: the power owner is on the side whose turn it is.
 fn owner_on(cx: &Combat, me: Me, side: Side) -> bool {
     cx.cr(me.owner).side == side
 }
 
-/// `dealer == Owner || Owner.Pets.Contains(dealer)`.
 fn is_owner_or_pet(cx: &Combat, me: Me, dealer: Cid) -> bool {
     dealer != NO && (dealer == me.owner || (cx.cr(dealer).is_pet && cx.cr(dealer).owner == me.owner))
 }
@@ -25,9 +20,6 @@ fn add_keyword(cx: &mut Combat, c: CardIdx, k: u8) {
     card.kw_remove &= !k;
 }
 
-// ---- Shiv generators ---------------------------------------------------------------------------------------------------
-
-// Before every hand draw: `Amount` Shivs into the hand.
 listener!(InfiniteBladesPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         let amt = cx.power_amount(me.owner, me.id);
@@ -35,7 +27,6 @@ listener!(InfiniteBladesPower {
     }
 });
 
-// Shivs enter the combat with Retain; the first Shiv played each turn deals `Amount` more damage.
 listener!(PhantomBladesPower {
     fn after_card_entered_combat(&self, cx: &mut Combat, _me: Me, card: CardIdx) {
         if cx.card_def(card).tags & tag::SHIV != 0 {
@@ -43,7 +34,6 @@ listener!(PhantomBladesPower {
         }
     }
     fn after_applied(&self, cx: &mut Combat, _me: Me) {
-        // PlayerCombatState.AllCards: every card currently in a combat pile.
         for i in 0..cx.n_cards as usize {
             let p = cx.cards[i].pile;
             if (1..=5).contains(&p) && cx.card_def(i as CardIdx).tags & tag::SHIV != 0 {
@@ -62,10 +52,6 @@ listener!(PhantomBladesPower {
     }
 });
 
-// ---- Draw / energy ----------------------------------------------------------------------------------------------------
-
-// Draw `Amount` more cards each turn, then discard `Amount` cards from the hand (a choice raised inside the
-// `AfterPlayerTurnStart` hook, resumed through `resume_hook`).
 listener!(ToolsOfTheTradePower {
     fn modify_hand_draw(&self, cx: &Combat, me: Me, count: Dec) -> Dec {
         count + Dec::int(cx.power_amount(me.owner, me.id) as i64)
@@ -92,9 +78,6 @@ listener!(ToolsOfTheTradePower {
     }
 });
 
-// ---- Skills ------------------------------------------------------------------------------------------------------------
-
-// The next `Amount` Skills played from hand cost 0.
 listener!(FreeSkillPower {
     fn try_modify_energy_cost_in_combat_late(&self, cx: &Combat, _me: Me, card: CardIdx, _cost: Dec) -> Option<Dec> {
         if cx.card_def(card).ctype != CardType::Skill {
@@ -112,7 +95,6 @@ listener!(FreeSkillPower {
     }
 });
 
-// Every Skill played becomes Sly.
 listener!(MasterPlannerPower {
     fn after_card_played(&self, cx: &mut Combat, _me: Me, play: &CardPlay) {
         if cx.card_def(play.card).ctype == CardType::Skill {
@@ -121,7 +103,6 @@ listener!(MasterPlannerPower {
     }
 });
 
-// Remembers the chosen card (a clone parked in the arena, in no pile) in `aux`; at the next hand draw adds `Amount` clones.
 listener!(NightmarePower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
@@ -138,9 +119,6 @@ listener!(NightmarePower {
     }
 });
 
-// ---- Serpent Form / Strangle / Speedster ----------------------------------------------------------------------------------------
-
-// Records the power amount when a card starts to play; after the play, deals that much unpowered damage to a random enemy.
 listener!(SerpentFormPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let amount = cx.power_amount(me.owner, me.id);
@@ -159,7 +137,6 @@ listener!(SerpentFormPower {
     }
 });
 
-// While Strangle is on an enemy, every card the applier plays hurts it for the amount it had when the play started.
 listener!(StranglePower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let Some(i) = cx.power_idx(me.owner, me.idx) else { return };
@@ -181,7 +158,6 @@ listener!(StranglePower {
     }
 });
 
-// Every card drawn outside the hand draw, during the owner's own turn, hits all enemies for `Amount` (unpowered).
 listener!(SpeedsterPower {
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, _card: CardIdx, from_hand_draw: bool) {
         if !from_hand_draw && cx.side == cx.cr(me.owner).side {
@@ -192,9 +168,6 @@ listener!(SpeedsterPower {
     }
 });
 
-// ---- Poison / debuffs ---------------------------------------------------------------------------------------------------------
-
-// Start of the owner's turn: `Amount` Poison on every hittable enemy.
 listener!(NoxiousFumesPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_on(cx, me, side) {
@@ -204,7 +177,6 @@ listener!(NoxiousFumesPower {
     }
 });
 
-// TemporaryStrengthPower with `IsPositive => false`: Strength down now, restored at the end of the owner's turn.
 listener!(PiercingWailPower {
     fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
         cx.temp_before_applied(ids::power::STRENGTH_POWER, -1, target, amount, applier, card);
@@ -217,9 +189,6 @@ listener!(PiercingWailPower {
     }
 });
 
-// ---- Damage / block modifiers -------------------------------------------------------------------------------------------------
-
-// Damage dealt by cards is multiplied by (1 + Amount/100) against Weak targets.
 listener!(TrackingPower {
     fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if !q.props.is_powered() || q.card == NO || !is_owner_or_pet(cx, me, q.dealer) {
@@ -232,7 +201,6 @@ listener!(TrackingPower {
     }
 });
 
-// Card attacks deal double damage; ticks down at the end of the owner's turn.
 listener!(DoubleDamagePower {
     fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if !is_owner_or_pet(cx, me, q.dealer) || !q.props.is_powered() || q.card == NO {
@@ -247,7 +215,6 @@ listener!(DoubleDamagePower {
     }
 });
 
-// At the start of the next turn: gain Double Damage (Amount), then remove self.
 listener!(ShadowStepPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_on(cx, me, side) {
@@ -258,7 +225,6 @@ listener!(ShadowStepPower {
     }
 });
 
-// Block gained this turn is multiplied by 2^Amount; removed at the end of the owner's turn.
 listener!(ShadowmeldPower {
     fn modify_block_multiplicative(&self, cx: &Combat, me: Me, q: &BlockQ) -> Dec {
         if q.target != me.owner {
@@ -273,7 +239,6 @@ listener!(ShadowmeldPower {
     }
 });
 
-// Wraith Form: lose `Amount` Dexterity at the start of every turn.
 listener!(WraithFormPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_on(cx, me, side) {
@@ -283,21 +248,16 @@ listener!(WraithFormPower {
     }
 });
 
-// Well-Laid Plans: `ShouldFlush` is false for the owner, so the hand is never flushed at end of turn.
 listener!(WellLaidPlansPower {
     fn should_flush(&self, _cx: &Combat, _me: Me) -> bool {
         false
     }
 });
 
-// Visual marker only (the effect lives in the card).
 listener!(TheHuntPower {});
 
-// Multiplayer-only: triggers on OTHER creatures' cards, never in single player.
 listener!(SneakyPower {});
 
-// Draw `Amount` extra cards at the start of the next turn (only if it was already present when this turn began).
-// (Shared by Silent / Necrobinder / Regent cards: the single `DrawCardsNextTurnPower` registration lives here.)
 fn amount_on_turn_start(cx: &Combat, me: Me) -> i32 {
     cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].amount_on_turn_start)
 }

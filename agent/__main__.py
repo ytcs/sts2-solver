@@ -1,8 +1,3 @@
-"""`python -m agent <command>`: the client of the harness daemon (starts it when it is not running); `python -m agent serve` runs the daemon.
-
-The daemon keeps the networks and the aligned simulator in memory, so each command is quick once it is up (loading takes about a minute).
-Commands: see `agent/harness.py`.
-"""
 import os
 import socket
 import subprocess
@@ -19,19 +14,19 @@ PORT = int(os.environ.get("STS2_AGENT_PORT", 15556))
 def serve():
     from agent.harness import Harness
     h = Harness()
-    h.gate = os.environ.get("STS2_SKILL_GATE", "").lower() != "off"  # no game action before the governing skills are loaded (agent/skillgate.py)
+    h.gate = os.environ.get("STS2_SKILL_GATE", "").lower() != "off"
     lock = threading.Lock()
     srv = socket.socket()
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind(("127.0.0.1", PORT))
     srv.listen(4)
-    threading.Thread(target=h.eng, daemon=True).start()  # load the networks while the first decisions are made
+    threading.Thread(target=h.eng, daemon=True).start()
     print(f"agent harness on 127.0.0.1:{PORT}", flush=True)
 
     def conn(c):
         try:
             _conn(c)
-        except Exception as e:  # noqa: BLE001  one bad request must not take the daemon down
+        except Exception as e:  # noqa: BLE001
             try:
                 c.sendall(f"ERR daemon: {type(e).__name__}: {e}\n".encode())
             except OSError:
@@ -83,7 +78,6 @@ def start_daemon():
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     os.makedirs(os.path.join(root, "target"), exist_ok=True)
     log = open(os.path.join(root, "target", "agent.log"), "a")
-    # no console window: run under pythonw.exe (when present) with CREATE_NO_WINDOW; output goes to target/agent.log
     exe = sys.executable
     pw = os.path.join(os.path.dirname(exe), "pythonw.exe")
     if os.name == "nt" and os.path.exists(pw):
@@ -101,17 +95,13 @@ STOP_LINES = ("ERR", "REFUSED", "SIMULATOR DESYNC", "SIMULATOR DIFFERS", "SIMULA
 
 
 def _stops(out):
-    """A line inside the output that needs me before anything else runs (`combat` / `turn` print it after the actions they played)."""
     return any(l.startswith(STOP_LINES) for l in out.splitlines())
 
 
 def batch(lines, keep_going=False):
-    """`python -m agent - <<'EOF' ... EOF`: one command per line, run in order, each output printed under `>>> command`. Blank lines and `#` comments are skipped.
-    A line whose output starts with ERR / REFUSED / `[chain stopped` ends the batch (the later lines assumed the screen it was meant to leave), unless --keep-going.
-    The text is literal, so `-- why` needs no shell quoting; read-only commands (`s`, `eval`, `brief` ...) can share one call with the decision that follows them."""
     if not up():
         start_daemon()
-    acted = False  # an action ran in this batch: a later bare option number could hit a shifted list
+    acted = False
     for raw in lines:
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -148,7 +138,6 @@ def main():
         if line == "quit":
             print("bye")
             return
-        # the daemon died under this command: restart it; repeat only commands that change nothing in the game
         if line.split()[0] in READ_ONLY:
             start_daemon()
             print(ask(line), end="")

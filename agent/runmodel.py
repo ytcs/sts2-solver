@@ -1,10 +1,3 @@
-"""The run model (`docs/rebuild.md` S5): what the rest of a run can hand out, sampled at the game's coded odds, so a macro choice is priced by paired
-rollouts in one currency, P(win the run).
-
-This module is the sampling layer: rewards, shops, potions, relics, unknown rooms and gold, each with its source in the decompiled game (`decomp/`,
-summarised with citations in `docs/research/game_code.md` C). The public counters it starts from (potion chance, rare offset, unknown-room odds, removal
-price) are `agent/tracker.py`'s. Exact pool order and per-relic `IsAllowed` checks are approximated: the draws have the game's distribution, not its seed.
-"""
 import json
 import os
 import random
@@ -15,21 +8,19 @@ from agent import tracker as T
 
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
 RARITIES = ("Common", "Uncommon", "Rare")
-# card rarity per source at A7+ (Scarcity): rare base, uncommon base; the offset is added to the rare chance (`Odds/CardRarityOdds.cs:13-41, 96-111`)
 CARD_ODDS = {"hallway": (0.0149, 0.37), "elite": (0.05, 0.40), "shop": (0.045, 0.37), "boss": (1.0, 0.0)}
-UPGRADE_PER_ACT = 0.125  # non-rare reward cards upgrade with chance act index x 0.125 at A7+ (`Factories/CardFactory.cs:23, 283-305`)
-GOLD = {"hallway": (10, 20), "elite": (35, 45), "boss": (100, 100), "treasure": (42, 52)}  # x0.75 at A3 Poverty (`Models/EncounterModel.cs:64-99`)
+UPGRADE_PER_ACT = 0.125
+GOLD = {"hallway": (10, 20), "elite": (35, 45), "boss": (100, 100), "treasure": (42, 52)}
 POVERTY = 0.75
-RELIC_ODDS = (0.50, 0.33, 0.17)  # common / uncommon / rare for elites, chests and shops (`Factories/RelicFactory.cs:80-94`)
-RELIC_PRICE = {"Common": 175, "Uncommon": 225, "Rare": 275, "Shop": 200}  # x U(0.85, 1.15) (`Models/RelicModel.cs:304-315`)
-CARD_PRICE = {"Common": 50, "Uncommon": 75, "Rare": 150}  # x U(0.95, 1.05), colorless x1.15, one class card at half (`MerchantCardEntry.cs:38-51`)
+RELIC_ODDS = (0.50, 0.33, 0.17)
+RELIC_PRICE = {"Common": 175, "Uncommon": 225, "Rare": 275, "Shop": 200}
+CARD_PRICE = {"Common": 50, "Uncommon": 75, "Rare": 150}
 POTION_PRICE = {"Common": 50, "Uncommon": 75, "Rare": 100}
-POTION_RARITY = ((0.10, "Rare"), (0.35, "Uncommon"), (1.0, "Common"))  # cumulative (`Factories/PotionFactory.cs:76-95`)
-HEAL_REST, HEAL_ANCIENT = 0.30, 0.80  # rest: 30% of max HP; an ancient: 80% of missing HP at A2+ (`AncientEventModel.cs:170-190`)
+POTION_RARITY = ((0.10, "Rare"), (0.35, "Uncommon"), (1.0, "Common"))
+HEAL_REST, HEAL_ANCIENT = 0.30, 0.80
 
 
 def pool(kind, character, rarity=None, types=None):
-    """Card / relic / potion entries of a character's pool plus the shared one where the game adds it (relics and potions)."""
     src = CAT[kind]
     rows = list(src.get(character, []))
     if kind in ("relics", "potions"):
@@ -38,13 +29,10 @@ def pool(kind, character, rarity=None, types=None):
 
 
 class Draws:
-    """Samplers at the coded odds. `rng`: a `random.Random` (paired rollouts share one seed per option)."""
-
     def __init__(self, rng, character, act=0):
         self.rng, self.character, self.act = rng, character, act
 
     def card_rarity(self, source, offset):
-        """(rarity, offset after this card). Only fight rewards move the offset; shops read it (`CardFactory.cs:50, 244-260`)."""
         rare, unc = CARD_ODDS[source]
         u = self.rng.random()
         r = "Rare" if u < rare + (offset if source != "boss" else 0) else "Uncommon" if u < rare + offset + unc else "Common"
@@ -53,7 +41,6 @@ class Draws:
         return r, offset
 
     def card_reward(self, source, offset, n=3, exclude=()):
-        """n distinct cards [(id, upgrade)] and the new offset. An empty rarity falls to the next (`CardFactory.cs:263-281`)."""
         out, seen = [], set(exclude)
         for _ in range(n):
             r, offset = self.card_rarity(source, offset)
@@ -72,7 +59,6 @@ class Draws:
         return int(self.rng.randint(lo, hi) * POVERTY)
 
     def potion_drop(self, chance, elite):
-        """(dropped, chance after) (`Odds/PotionRewardOdds.cs:54-72`)."""
         dropped = self.rng.random() < chance + (T.POTION_ELITE if elite else 0)
         return dropped, chance + (-T.POTION_STEP if dropped else T.POTION_STEP)
 
@@ -91,8 +77,6 @@ class Draws:
         return self.rng.choice(cands) if cands else None
 
     def shop(self, offset, removals, owned=()):
-        """The stock [(kind, id, price)] (`Entities.Merchant/MerchantInventory.cs`): Attack, Attack, Skill, Skill, Power at shop odds (one at half
-        price), a colorless Uncommon and Rare, three relics (two by rarity, one Shop tier), three potions, the removal."""
         items, seen = [], set()
         sale = self.rng.randrange(5)
         for i, ty in enumerate(("Attack", "Attack", "Skill", "Skill", "Power")):
@@ -121,7 +105,6 @@ class Draws:
         return items
 
     def unknown(self, odds):
-        """(room type, odds after) (`Odds/UnknownMapPointOdds.cs:140-175`): monster / treasure / shop, else an event."""
         u, acc, rolled = self.rng.random(), 0.0, "event"
         for t, p in odds.items():
             acc += p
@@ -131,11 +114,7 @@ class Draws:
         return rolled, {t: (T.UNKNOWN_BASE[t] if t == rolled else p + T.UNKNOWN_BASE[t]) for t, p in odds.items()}
 
 
-
-# ------------------------------------------------------------------------------------------------------------------------------------- rollouts
-
 ACT_NAMES = {0: ("Overgrowth", "Underdocks"), 1: ("Hive",), 2: ("Glory",)}
-# a typical route of a later act (rooms before the boss), the map's room mix (`game_code.md` C1): 6-7 rests, ~11 unknowns, 3 shops, 5-8 elites per map
 TEMPLATE = {1: "M M ? M ? E R ? T M E ? $ R", 2: "M M ? M ? E R ? T M ? $ R"}
 BASICS = ("STRIKE_", "DEFEND_", "ASCENDERS_BANE")
 CURSES = {c["id"] for c in CAT["cards"].get("CURSE", [])}
@@ -143,8 +122,6 @@ WEAK_FIGHTS = {0: 3, 1: 2, 2: 2}
 
 
 class RunState:
-    """What a rollout carries: the run's public state. `base` is a fight scenario template (character, ascension, max energy, orb slots ...)."""
-
     def __init__(self, base, act, act_name, hp, max_hp, gold, deck, relics, potions, slots, counters, seen=None, bosses=(), frontier=None, nodes=None,
                  monsters=0):
         self.base, self.act, self.act_name, self.hp, self.max_hp, self.gold = base, act, act_name, hp, max_hp, gold
@@ -152,8 +129,8 @@ class RunState:
         self.potion_p, self.offset, self.unknown, self.removals = counters
         self.seen = {k: list(v) for k, v in (seen or {}).items()}
         self.bosses, self.frontier, self.nodes, self.monsters = list(bosses), frontier, nodes, monsters
-        self.floors, self.start_act, self.end = 0, act, None  # rooms entered in the rollout; where it ended: (act, kind, encounter)
-        self.ready = self.ready_worth = None  # next-act readiness at the rollout's first act transition (`readiness`); None: not reached
+        self.floors, self.start_act, self.end = 0, act, None
+        self.ready = self.ready_worth = None
 
     def copy(self):
         s = RunState.__new__(RunState)
@@ -174,7 +151,6 @@ class RunState:
                     potions=[{"id": p, "slot": i} for i, p in enumerate(pots)], max_potion_slots=self.slots)
 
     def draw_encounter(self, kind, rng):
-        """The next fight of a pool: the game deals each pool from a bag without repeats until it empties (`sts2-acts`, `ActModel.GenerateRooms`)."""
         from agent import pools
         P = pools.pool(self.act_name, kind)
         met = self.seen.setdefault(kind, [])
@@ -186,10 +162,7 @@ class RunState:
 
 
 class BasePolicy:
-    """The cheap policy a rollout follows after the priced choice (`docs/rebuild.md` S5); deterministic given the draws."""
-
     def node(self, st, options):
-        """options: [(key, room type)] -> key. Low HP: rest, avoid elites; high HP: elites first; else treasure, unknowns and hallways."""
         f = st.hp / st.max_hp
         if f < 0.45:
             rank = {"R": 0, "?": 1, "T": 1, "$": 2, "M": 3, "E": 9}
@@ -200,7 +173,6 @@ class BasePolicy:
         return min(options, key=lambda o: rank.get(o[1], 5))[0]
 
     def event(self, st, entry):
-        """An event option by a crude score of its effects (relics, removals, upgrades and max HP up; HP down weighs more at low HP; curses down)."""
         lowhp = st.hp < 0.4 * st.max_hp
 
         def score(effects):
@@ -232,7 +204,6 @@ class BasePolicy:
         return entry["options"].index(best) if best else 0
 
     def potions(self, st, kind):
-        """The belt allowed in this fight: all of it at elites and bosses, none in hallways."""
         return list(st.potions) if kind in ("elite", "boss") else []
 
     def rest(self, st):
@@ -243,11 +214,8 @@ class BasePolicy:
             next((c for c in st.deck if not c.get("upgrade") and c["id"] != "ASCENDERS_BANE"), None)
 
     def shop(self, st, items, rng):
-        """The purchases [(kind, item, price)] at a shop, as a generator (it yields the screen's fight scenarios and receives the predictor's rows):
-        the removal of a basic card when affordable, then the card or relic that most raises the worth against the act's reference fights
-        (`reference_fights`) within the gold left, or nothing when none raises it: the gold then carries to the next shop, which gives gold its value."""
         buys, gold, deck = [], st.gold, list(st.deck)
-        refs = reference_fights(st, rng)  # drawn at every shop, bought or not: the paired rollouts keep the same draws
+        refs = reference_fights(st, rng)
         basic = next((c for c in deck if c["id"].startswith(BASICS[:2])), None)
         rm = next((it for it in items if it[0] == "remove"), None)
         if basic is not None and rm is not None and gold >= rm[2]:
@@ -264,32 +232,21 @@ class BasePolicy:
 
 
 def reference_fights(st, rng):
-    """What a card pick is scored against: the act's boss at full HP and an elite of the act at 70%."""
     from agent import pools
     boss = st.bosses[0] if st.bosses else rng.choice(pools.pool(st.act_name, "boss"))
     return [(boss, st.max_hp), (rng.choice(pools.pool(st.act_name, "elite")), int(0.7 * st.max_hp))]
 
 
 def worth(P, max_hp):
-    """The linear worth of an ending distribution (the search's objective): -1 for a loss, 1 + 0.5 x end HP / max HP for a win."""
     import heads as H
     c = H.centers().numpy()
     return -P[..., 0] + (P[..., 1:] * (1 + 0.5 * np.minimum(c / max_hp, 1.0))).sum(-1)
 
 
-# next-act readiness: the weights of the next act's boss pool and elite pool (a judgment: the boss ends the act and decides the run; the elites are
-# where most mid-act deaths happen and the relics come from). Each term is a mean over its pool: the next boss is drawn at that act's start, so the
-# map cannot show it while this act is played.
 READY_W = {"boss": 0.5, "elite": 0.5}
 
 
 def readiness(st, pol):
-    """Next-act readiness of the state a rollout carries out of an act, as a generator (yields fight scenarios, receives the predictor's rows):
-    (P(win), expected worth), each READY_W-weighted over the mean against the boss pool and the mean against the elite pool of the act `st` is now
-    in, every fight at `st.hp` (the rollout's HP after the ancient's heal) with the belt the base policy allows there. Glory (A10 double boss): a boss
-    term is an ordered pair of distinct bosses, the second at the expected end HP of the first (given a win), without the potions the first was
-    allowed and with no heal between, as `play` does; the worth of a pair is -1 when the first is lost, else the second's worth.
-    Consumes no draws, so the paired rollouts keep the same random numbers."""
     import predictor as PR
     from agent import pools
     bosses, elites = pools.pool(st.act_name, "boss"), pools.pool(st.act_name, "elite")
@@ -310,22 +267,18 @@ def readiness(st, pol):
 
 
 def play(st, rng, pol, first=None):
-    """One rollout as a generator: yields a list of fight scenarios and receives the predictor's [n, NC] for them; returns 1 for a won run, 0 for a
-    death. `first(st, draws)`: the priced choice, applied to the state before the rollout starts (it may return an event's result to play out).
-    At the end of the act the rollout starts in, after the boss rewards and the ancient's heal, it records the next-act readiness of what it carries
-    (`readiness`) in `st.ready` / `st.ready_worth`; a rollout that dies in that act, or starts in the last act, leaves them None."""
     import predictor as PR
     from agent import events as EV, pools
     dr = Draws(rng, st.base["character"], st.act)
     act0 = st.act
-    pre = first(st, dr) if first else None  # the priced choice; an event option returns its fights and whether it killed me
+    pre = first(st, dr) if first else None
 
     def fight(kind, encounter):
         allowed = pol.potions(st, kind)
         P = yield [st.scenario(encounter, potions=allowed)]
         end = float(PR.sample_end(P, np.random.default_rng(rng.randrange(1 << 30)))[0])
         st.hp = int(min(end, st.max_hp))
-        st.potions = [p for p in st.potions if p not in allowed]  # a potion allowed in a fight counts as spent (a lower bound on what is left)
+        st.potions = [p for p in st.potions if p not in allowed]
         if end <= 0:
             st.end = (st.act, kind, encounter)
         return end > 0
@@ -348,7 +301,6 @@ def play(st, rng, pol, first=None):
                 st.relics.append(r)
 
     def event_result(res):
-        """The fights an event option started, with their rewards and follow-ups; False on a death."""
         if res.get("dead"):
             return False
         for f in res.get("fights", []):
@@ -408,7 +360,7 @@ def play(st, rng, pol, first=None):
     if isinstance(pre, dict) and not (yield from event_result(pre)):
         return 0
     while True:
-        if st.nodes is not None and st.frontier:  # the rest of this act on its real map
+        if st.nodes is not None and st.frontier:
             while st.frontier:
                 key = pol.node(st, [(k, st.nodes[k]["type"]) for k in st.frontier])
                 if not (yield from room(st.nodes[key]["type"])):
@@ -419,7 +371,7 @@ def play(st, rng, pol, first=None):
                 if not (yield from room(t)):
                     return 0
         bosses = st.bosses or [rng.choice(pools.pool(st.act_name, "boss"))]
-        if st.act == 2 and len(bosses) < 2:  # A10: a second boss from the same pool
+        if st.act == 2 and len(bosses) < 2:
             bosses = bosses + [rng.choice([b for b in pools.pool(st.act_name, "boss") if b not in bosses])]
         for b in bosses:
             if not (yield from fight("boss", b)):
@@ -433,18 +385,15 @@ def play(st, rng, pol, first=None):
         st.hp += int(HEAL_ANCIENT * (st.max_hp - st.hp))
         st.unknown = dict(T.UNKNOWN_BASE)
         dr.act = st.act
-        if st.act == act0 + 1:  # what this act hands to the next one, after the heal
+        if st.act == act0 + 1:
             st.ready, st.ready_worth = yield from readiness(st, pol)
 
 
 class Rollouts:
-    """Many rollouts in lockstep: each step batches every live rollout's fights into one predictor call."""
-
     def __init__(self, predictor, shuffles=4):
         self.pred, self.shuffles = predictor, shuffles
 
     def run(self, states, seeds, pol=None, firsts=None):
-        """P(win the run) per rollout (1 / 0)."""
         pol = pol or BasePolicy()
         gens = [play(s, random.Random(sd), pol, f) for s, sd, f in zip(states, seeds, firsts or [None] * len(states))]
         out = np.full(len(gens), np.nan)

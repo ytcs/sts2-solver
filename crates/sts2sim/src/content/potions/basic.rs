@@ -1,5 +1,3 @@
-//! Potion behaviour (ported from the decompiled `OnUse` bodies).
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::hooks::*;

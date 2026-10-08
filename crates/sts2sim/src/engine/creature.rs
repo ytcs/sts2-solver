@@ -1,5 +1,3 @@
-//! Creature lifecycle, HP / block primitives and death handling (spec 02 §4-5, spec 01 §13).
-
 use crate::content;
 use crate::dec::Dec;
 use crate::hooks::*;
@@ -8,7 +6,6 @@ use crate::types::*;
 
 const MAX_STAT: i32 = 999_999_999;
 
-/// `DamageResult`.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct DamageResult {
     pub receiver: Cid,
@@ -18,13 +15,10 @@ pub struct DamageResult {
     pub blocked: i32,
     pub block_broken: bool,
     pub fully_blocked: bool,
-    /// Index of the attack hit this result belongs to (`AttackCommand.Results` is a list of per-hit lists; a hit that Osty
-    /// absorbed has two results). Set by `execute_attack`.
     pub hit: u8,
 }
 
 impl DamageResult {
-    /// `DamageResult.TotalDamage` = `BlockedDamage + UnblockedDamage` (overkill excluded).
     #[inline]
     pub fn total(&self) -> i32 {
         self.blocked + self.unblocked
@@ -33,7 +27,6 @@ impl DamageResult {
 
 impl Combat {
     pub fn alloc_creature(&mut self) -> Option<Cid> {
-        // Slot 0 is the player; recycle freed slots.
         (1..MAX_CREATURES).find(|&i| !self.creatures[i].active).map(|i| i as Cid)
     }
 
@@ -46,9 +39,6 @@ impl Combat {
         &mut self.creatures[c as usize]
     }
 
-    // ---- primitives (Creature.*Internal) -------------------------------------------------------------------
-
-    /// `Creature.DamageBlockInternal`: returns the (fractional) blocked amount; `Block -= (int)blocked`.
     pub fn damage_block_internal(&mut self, c: Cid, amount: Dec, props: ValueProp) -> Dec {
         let cr = self.cr_mut(c);
         let blocked = if props.unblockable() { Dec::ZERO } else { Dec::int(cr.block() as i64).min(amount) };
@@ -56,7 +46,6 @@ impl Combat {
         blocked
     }
 
-    /// `Creature.LoseHpInternal`.
     pub fn lose_hp_internal(&mut self, c: Cid, amount: Dec) -> DamageResult {
         let cr = self.cr_mut(c);
         let before = cr.hp();
@@ -72,22 +61,17 @@ impl Combat {
         }
     }
 
-    /// `Creature.GainBlockInternal`: `Block = (int)min(Block + amount, 999_999_999)`.
     pub fn gain_block_internal(&mut self, c: Cid, amount: Dec) {
         let cr = self.cr_mut(c);
         let v = (Dec::int(cr.block() as i64) + amount).min(Dec::int(MAX_STAT as i64));
         cr.set_block(v.trunc());
     }
 
-    /// `Creature.SetCurrentHpInternal`: `CurrentHp = (int)min(amount, MaxHp)`.
     pub fn set_current_hp_internal(&mut self, c: Cid, amount: Dec) {
         let cr = self.cr_mut(c);
         cr.set_hp(amount.min(Dec::int(cr.max_hp as i64)).trunc().max(0));
     }
 
-    // ---- commands --------------------------------------------------------------------------------------------
-
-    /// `CreatureCmd.GainBlock` (spec 02 §4.1). Returns the (modified) amount applied.
     pub fn gain_block(&mut self, c: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
         if self.is_over_or_ending() || self.cr(c).is_dead() {
             return Dec::ZERO;
@@ -99,27 +83,23 @@ impl Combat {
         self.dispatch_modifiers(true, hookbit::after_modifying_block_amount, &mods, |cx, me, l| l.after_modifying_block_amount(cx, me, v, card));
         if v > Dec::ZERO {
             self.gain_block_internal(c, v);
-            // History.BlockGained (`id` = identity of the card play it came from, for "another play" queries)
             self.hist_push(crate::engine::HKind::BlockGained, c, NO, self.play_serial, card, v.trunc(), (card != NO) as u8, props.0, 0);
         }
         self.dispatch_g(hookbit::after_block_gained, |cx, me, l| l.after_block_gained(cx, me, c, v));
         v
     }
 
-    /// `Hook.ModifyBlock` (spec 02 §4.1): enchantment add/mul, additive pass, multiplicative pass, floor at 0.
     pub fn modify_block(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
         let mut mods = super::Mods::new();
         self.modify_block_into(target, amount, props, card, &mut mods)
     }
 
-    /// `Hook.ModifyBlock` with the list of models that changed the value (non-zero adders, non-1 multipliers).
     pub fn modify_block_ex(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, super::Mods) {
         let mut mods = super::Mods::new();
         let v = self.modify_block_into(target, amount, props, card, &mut mods);
         (v, mods)
     }
 
-    /// [`Combat::modify_block_ex`] appending the modifiers to a caller-owned list (no copy of the list on return).
     pub fn modify_block_into(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut super::Mods) -> Dec {
         let m = (Mask::bit(hookbit::modify_block_additive)) | (Mask::bit(hookbit::modify_block_multiplicative));
         let mut v = amount;
@@ -154,8 +134,6 @@ impl Combat {
         v.max(Dec::ZERO)
     }
 
-    /// `CreatureCmd.LoseBlock(target, amount, remover)`: no-op when combat is over / ending, the target is dead or
-    /// `amount <= 0`; `Block = max(Block - amount, 0)` (truncated); `AfterBlockBroken` if the block reached 0.
     pub fn lose_block(&mut self, c: Cid, amount: Dec, remover: Cid) {
         if self.is_over_or_ending() || self.cr(c).is_dead() || amount <= Dec::ZERO {
             return;
@@ -167,9 +145,6 @@ impl Combat {
         }
     }
 
-    /// `CreatureCmd.Heal(creature, amount)`: no-op for non-players once combat is ending; `(int)min(hp + amount, max)`;
-    /// healing a dead player revives it (hooks re-activate); `AfterCurrentHpChanged(amount)` fires with the REQUESTED
-    /// amount if `amount > 0` (spec 02 §5.2).
     pub fn heal(&mut self, c: Cid, amount: Dec) {
         if !self.cr(c).is_player && self.is_ending() {
             return;
@@ -186,7 +161,6 @@ impl Combat {
         }
     }
 
-    /// `CreatureCmd.SetCurrentHp`: hook delta if the value changed; kills if the creature ends up dead.
     pub fn set_current_hp(&mut self, c: Cid, amount: Dec) {
         let old = self.cr(c).hp();
         self.set_current_hp_internal(c, amount);
@@ -199,7 +173,6 @@ impl Combat {
         }
     }
 
-    /// `CreatureCmd.SetMaxHp`: returns the change; max HP <= 0 kills.
     pub fn set_max_hp(&mut self, c: Cid, amount: Dec) -> i32 {
         let old = self.cr(c).max_hp;
         let n = amount.max(Dec::ZERO).min(Dec::int(MAX_STAT as i64)).trunc();
@@ -212,15 +185,12 @@ impl Combat {
         self.cr(c).max_hp - old
     }
 
-    /// `CreatureCmd.GainMaxHp`: raise max HP, then heal by the change.
     pub fn gain_max_hp(&mut self, c: Cid, amount: Dec) {
         let cur = Dec::int(self.cr(c).max_hp as i64);
         let delta = self.set_max_hp(c, cur + amount);
         self.heal(c, Dec::int(delta as i64));
     }
 
-    /// `CreatureCmd.LoseMaxHp`: if the new max is below the current HP, a full `Damage` call (Unblockable | Unpowered
-    /// [| Move]) removes the excess first; then max HP becomes `max(1, new)`.
     pub fn lose_max_hp(&mut self, c: Cid, amount: Dec, is_from_card: bool) {
         let new_max = Dec::int(self.cr(c).max_hp as i64) - amount;
         let hp = Dec::int(self.cr(c).hp() as i64);
@@ -234,10 +204,6 @@ impl Combat {
         self.set_max_hp(c, new_max.max(Dec::ONE));
     }
 
-    // ---- death: see `death.rs` ----
-
-    /// `CombatManager.RemoveCreature` + `CombatState.RemoveCreature`: leaves hooks / the enemy list. A monster that
-    /// dies during its own move stays attached until the move finishes (handled by `perform_move`).
     pub fn remove_creature(&mut self, c: Cid) {
         if self.cr(c).monster.is_performing {
             return;

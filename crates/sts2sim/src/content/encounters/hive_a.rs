@@ -1,6 +1,3 @@
-//! Act 2 "Hive" weak + normal encounters (spec 04 §4.2). Monsters in creation order; `rng` = the encounter-local RNG.
-//! Slot indices follow each encounter's `Slots` list; encounters without a `Slots` list use `NO` (creation order).
-
 use crate::content::monsters::hive_a as hive;
 use crate::content::{Spawn, Spawns};
 use crate::ids;
@@ -17,7 +14,6 @@ fn one(m: u16) -> Spawns {
     s
 }
 
-/// BowlbugRock@odd, `NextItem([BowlbugEgg, BowlbugNectar])`@even (no `Slots` list).
 pub fn spawn_bowlbugs_weak(rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     push(&mut s, ids::monster::BOWLBUG_ROCK, NO, [0, 0]);
@@ -27,7 +23,6 @@ pub fn spawn_bowlbugs_weak(rng: &mut Rng, _ascension: u8) -> Spawns {
     s
 }
 
-/// 3x Exoskeleton in slots first, second, third.
 pub fn spawn_exoskeletons_weak(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     for i in 0..3 {
@@ -44,8 +39,6 @@ pub fn spawn_tunneler_weak(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::TUNNELER)
 }
 
-/// BowlbugRock@first, then two picks from {Egg, Silk, Nectar} without repeating a type
-/// (`NextItem(types with count < 1)` twice; dictionary insertion order) @middle, @last (no `Slots` list).
 pub fn spawn_bowlbugs_normal(rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     push(&mut s, ids::monster::BOWLBUG_ROCK, NO, [0, 0]);
@@ -62,7 +55,6 @@ pub fn spawn_bowlbugs_normal(rng: &mut Rng, _ascension: u8) -> Spawns {
     s
 }
 
-/// Chomper, Chomper(`ScreamFirst`) (vars[0]).
 pub fn spawn_chompers_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     push(&mut s, ids::monster::CHOMPER, NO, [0, 0]);
@@ -70,7 +62,6 @@ pub fn spawn_chompers_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     s
 }
 
-/// 4x Exoskeleton in slots first..fourth.
 pub fn spawn_exoskeletons_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     for i in 0..4 {
@@ -87,7 +78,6 @@ pub fn spawn_louse_progenitor_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::LOUSE_PROGENITOR)
 }
 
-/// Myte@first, Myte@second; Slots [first, second].
 pub fn spawn_mytes_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     push(&mut s, ids::monster::MYTE, hive::SLOT_MYTE_FIRST, [0, 0]);
@@ -95,14 +85,12 @@ pub fn spawn_mytes_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     s
 }
 
-/// Ovicopter@ovicopter; Slots [egg1..egg5, ovicopter].
 pub fn spawn_ovicopter_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     push(&mut s, ids::monster::OVICOPTER, hive::SLOT_OVICOPTER, [0, 0]);
     s
 }
 
-/// BowlbugRock@first, BowlbugSilk@second, SlumberingBeetle@third (no `Slots` list).
 pub fn spawn_slumbering_beetle_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     push(&mut s, ids::monster::BOWLBUG_ROCK, NO, [0, 0]);
@@ -115,7 +103,6 @@ pub fn spawn_spiny_toad_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::SPINY_TOAD)
 }
 
-/// TheObscura@obscura; Slots [illusion, obscura] (Parafright later fills `illusion`).
 pub fn spawn_the_obscura_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     push(&mut s, ids::monster::THE_OBSCURA, hive::SLOT_OBSCURA, [0, 0]);

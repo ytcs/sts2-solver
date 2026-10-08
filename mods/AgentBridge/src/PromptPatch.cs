@@ -4,14 +4,10 @@ using MegaCrit.Sts2.Core.CardSelection;
 
 namespace AgentBridge;
 
-/// <summary>Records why the game is asking for cards (the prompt and the card / relic / power that asked) before a CardSelectCmd prompt reaches <see cref="AgentSelector"/>.</summary>
 [HarmonyPatch]
 public static class PromptPatch
 {
     public static string? Next;
-    /// <summary>The minimum pick a human has on the next screen when the game's call passes a looser one to a custom selector:
-    /// `FromChooseACardScreen` always calls `Selector.GetSelectedCards(cards, 0, 1)`, but its screen allows skipping only with `canSkip`
-    /// (Knowledge Demon's Curse of Knowledge and Toolbox pass false: a human must pick one).</summary>
     public static int? NextMin;
 
     static IEnumerable<MethodBase> TargetMethods() =>
@@ -39,7 +35,7 @@ public static class PromptPatch
             NextMin = null;
             if (__originalMethod.Name == "FromChooseACardScreen")
             {
-                bool canSkip = false;  // the parameter's default
+                bool canSkip = false;
                 var ps = __originalMethod.GetParameters();
                 for (int i = 0; i < ps.Length && i < __args.Length; i++)
                     if (ps[i].Name == "canSkip" && __args[i] is bool b) canSkip = b;

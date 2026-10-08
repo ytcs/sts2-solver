@@ -1,6 +1,3 @@
-//! Auto-play (`CardCmd.AutoPlay`, `CardPileCmd.AutoPlayFromDrawPile`), discard with Sly, dupes, transform
-//! (spec 03 §5.2-5.4, §6.6, §1.3).
-
 use super::play::RunResult;
 use crate::content;
 use crate::engine::HKind;
@@ -10,8 +7,6 @@ use crate::types::*;
 use crate::util::ArrayVec;
 
 impl Combat {
-    /// `CardModel.MoveToResultPileWithoutPlaying` as called by `CardCmd` (`Add(card, Play)` first, then dupe ->
-    /// removed, Exhaust / ExhaustOnNextPlay -> exhaust, else Discard bottom; Power cards go to DISCARD).
     pub fn move_to_result_pile_without_playing(&mut self, c: CardIdx) {
         self.move_card(c, PileType::Play, CardPilePosition::Bottom);
         if self.card_pile_type(c) != PileType::Play {
@@ -27,9 +22,6 @@ impl Combat {
         }
     }
 
-    /// `CardCmd.AutoPlay(card, target, type, skipXCapture)`. Returns `Suspended` if the played card (or a nested
-    /// auto-play) is waiting for a decision: the caller's `on_play` must then return `Flow::Suspend(next)` and treat
-    /// phase `next` as "the auto-play has finished".
     pub fn auto_play(&mut self, c: CardIdx, target: Cid, kind: AutoPlayType, skip_x_capture: bool) -> RunResult {
         if self.is_over_or_ending() || self.cr(PLAYER).is_dead() {
             return RunResult::Finished;
@@ -57,7 +49,6 @@ impl Combat {
                 }
             }
             TargetType::AnyAlly => {
-                // single player: no other living player => NextItem(empty) draws nothing
                 self.move_to_result_pile_without_playing(c);
                 return RunResult::Finished;
             }
@@ -65,12 +56,10 @@ impl Combat {
         }
         let d = self.card_def(c);
         if d.x_cost && !skip_x_capture {
-            // takes ALL the energy value but does NOT spend it
             self.cards[c as usize].x_value = self.player.energy as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
         if !skip_x_capture && self.card_has_star_cost_x(c) {
-            // LastStarsSpent = all current stars (not spent); skipped when the caller already spent the resources (Earring)
             self.cards[c as usize].x_value = self.player.stars as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
@@ -93,9 +82,6 @@ impl Combat {
         self.begin_play(play)
     }
 
-    /// `CardPileCmd.AutoPlayFromDrawPile(count, position, forceExhaust)` (spec 03 §5.3). All cards are moved to the
-    /// Play pile first, then auto-played in order; a decision inside one of them suspends the rest of the queue
-    /// (continued by `run_play_stack`).
     pub fn auto_play_from_draw_pile(&mut self, count: i32, pos: CardPilePosition, force_exhaust: bool) -> RunResult {
         if self.is_over_or_ending() {
             return RunResult::Finished;
@@ -127,13 +113,10 @@ impl Combat {
         self.drain_top_queue()
     }
 
-    /// `foreach (card in cards) await CardCmd.AutoPlay(card, null)`: the cards are played in order; a decision inside one of
-    /// them suspends the rest of the list (continued by `resume_queues` once that play finished). The caller's `on_play`
-    /// must return `Flow::Suspend(next)` on `Suspended`, like for `auto_play`.
     pub fn auto_play_list(&mut self, cards: &[CardIdx]) -> RunResult {
         let mut q: ArrayVec<CardIdx, AUTOPLAY_MAX> = ArrayVec::new();
         if cards.len() > AUTOPLAY_MAX {
-            crate::util::raise_overflow(crate::util::OV_CONTAINER); // longer lists are not modelled (never silently)
+            crate::util::raise_overflow(crate::util::OV_CONTAINER);
         }
         for &c in cards.iter().take(AUTOPLAY_MAX) {
             q.push(c);
@@ -143,7 +126,6 @@ impl Combat {
         self.drain_top_queue()
     }
 
-    /// Auto-plays the cards of the innermost queue until it is empty (then it is popped) or a play suspends.
     pub(crate) fn drain_top_queue(&mut self) -> RunResult {
         loop {
             let Some(q) = self.autoplay_stack.as_mut_slice().last_mut() else { return RunResult::Finished };
@@ -175,8 +157,6 @@ impl Combat {
         }
     }
 
-    /// Called after a card play finished and was popped from `play_stack`: continues the queue started by the play that
-    /// is now on top (before that play resumes), dropping stale queues.
     pub(crate) fn resume_queues(&mut self) -> RunResult {
         loop {
             let Some(q) = self.autoplay_stack.last() else { return RunResult::Finished };
@@ -193,9 +173,6 @@ impl Combat {
         }
     }
 
-    /// `CardCmd.Discard(cards)` / `CardCmd.DiscardAndDraw(cards, draw)`: every card is discarded (hooks per card), then
-    /// the draw happens, THEN each Sly card (in the original order) is auto-played with `AutoPlayType.SlyDiscard`.
-    /// Returns `Suspended` if a Sly card's play asks for a decision (the remaining Sly cards are queued).
     pub fn discard_cards(&mut self, cards: &[CardIdx], cards_to_draw: i32) -> RunResult {
         if self.is_over_or_ending() || cards.is_empty() {
             return RunResult::Finished;
@@ -222,18 +199,14 @@ impl Combat {
         self.drain_top_queue()
     }
 
-    /// `CardModel.IsSlyThisTurn`: the Sly keyword (incl. global) or the single-turn flag.
     pub fn is_sly_this_turn(&self, c: CardIdx) -> bool {
         self.card_keywords(c) & kw::SLY != 0 || self.cards[c as usize].flags & cflag::SINGLE_TURN_SLY != 0
     }
 
-    /// `CardModel.ShouldRetainThisTurn`.
     pub fn should_retain_this_turn(&self, c: CardIdx) -> bool {
         self.card_keywords(c) & kw::RETAIN != 0 || self.cards[c as usize].flags & cflag::SINGLE_TURN_RETAIN != 0
     }
 
-    /// `CardModel.CreateDupe`: a clone flagged as a dupe without Exhaust; a dupe of a dupe dupes the original.
-    /// The dupe is in no pile; add it with `add_generated_card`.
     pub fn create_dupe(&mut self, c: CardIdx) -> Option<CardIdx> {
         if self.cards[c as usize].flags & cflag::IS_DUPE != 0 {
             let orig = self.cards[c as usize].dupe_of;
@@ -250,7 +223,6 @@ impl Combat {
         Some(n)
     }
 
-    /// The card pool a card belongs to (`CardModel.Pool`), by searching the generated pool tables.
     pub fn pool_of(card_id: u16) -> &'static [u16] {
         use crate::content::gen_pools as p;
         for pool in [&p::IRONCLAD[..], &p::SILENT[..], &p::DEFECT[..], &p::NECROBINDER[..], &p::REGENT[..], &p::COLORLESS[..], &p::CURSE[..], &p::STATUS[..], &p::TOKEN[..], &p::EVENT[..], &p::QUEST[..]] {
@@ -261,7 +233,6 @@ impl Combat {
         &[]
     }
 
-    /// `CardFactory.CreateRandomCardForTransform` candidate list (spec 03 §6.6), in pool order.
     pub fn transform_options(&self, original: CardIdx) -> ArrayVec<u16, 128> {
         let d = self.card_def(original);
         let pool: &[u16] = if d.ctype == CardType::Quest || matches!(d.rarity, CardRarity::Event | CardRarity::Ancient | CardRarity::Token) {
@@ -280,15 +251,11 @@ impl Combat {
         out
     }
 
-    /// `CardCmd.Transform` in combat for a set of cards: each original is replaced by `replacement` (or a random
-    /// option via the `combat_card_selection` stream when `None`: exactly one `NextItem` draw), at the SAME index of
-    /// the SAME pile. The replacement is a fresh, un-upgraded card. Returns the replacements.
     pub fn transform_cards(&mut self, originals: &[CardIdx], replacements: &[Option<(u16, u8)>]) -> ArrayVec<CardIdx, 10> {
         let mut out: ArrayVec<CardIdx, 10> = ArrayVec::new();
         if self.is_ending() || originals.is_empty() {
             return out;
         }
-        // (pile type, index in pile, original, replacement id)
         let mut work: ArrayVec<(u8, u8, CardIdx, u16, u8), 10> = ArrayVec::new();
         for (i, &o) in originals.iter().enumerate().take(10) {
             let pile = self.card_pile_type(o);
@@ -301,11 +268,9 @@ impl Combat {
                     (opts[self.rng.combat_card_selection.next_int_range(0, opts.len() as i32) as usize], 0)
                 }
             };
-            // originals are all removed from their piles first
             self.pile_mut(pile).remove_value(o);
             work.push((pile as u8, idx as u8, o, rid, rup));
         }
-        // sort by (pile type, original index) ascending so re-inserts keep relative order (insertion sort: stable)
         let sl = work.as_mut_slice();
         for i in 1..sl.len() {
             let x = sl[i];
@@ -331,7 +296,6 @@ impl Combat {
             self.cards[n as usize].pile = pt as u8;
             self.hist_card_generated(n, true);
             self.dispatch_g(hookbit::after_card_entered_combat, |cx, me, l| l.after_card_entered_combat(cx, me, n));
-            // transform passes the replacement's own pile type as `oldPile`
             self.fire_card_changed_piles(n, pt);
             out.push(n);
         }

@@ -1,5 +1,3 @@
-//! Necrobinder starter cards.
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Attack, Targeting};
@@ -24,7 +22,6 @@ listener!(DefendNecrobinder {
     }
 });
 
-// Summon 5 (7).
 listener!(Bodyguard {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Summon);
@@ -33,7 +30,6 @@ listener!(Bodyguard {
     }
 });
 
-// Osty attacks: CalculationBase + ExtraDamage x Osty's current HP (0 if Osty is dead -> the card does nothing).
 listener!(Unleash {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();

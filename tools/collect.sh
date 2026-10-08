@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# Runs `rl/exit.py collect` in fresh processes until every chunk is saved (it exits with 3 while chunks remain). A watchdog kill (exit 2) is retried
-# from the saved parts up to 3 times (transient machine load slows a chunk now and then; a real hang repeats); any other exit code stops.
-# Usage: tools/collect.sh <rl/exit.py collect arguments>
+# Usage: tools/collect.sh <rl/exit.py collect arguments>  (reruns on exit 3, retries a watchdog kill up to 3 times)
 retries=0
-PY=.venv/Scripts/python.exe; [ -x "$PY" ] || PY=.venv/bin/python   # Windows or Linux (pods) venv
+PY=.venv/Scripts/python.exe; [ -x "$PY" ] || PY=.venv/bin/python
 while true; do
   "$PY" rl/exit.py collect "$@"
   rc=$?
   if [ $rc -eq 2 ] && [ $retries -lt 3 ]; then
     retries=$((retries + 1)); echo "watchdog kill: retry $retries of 3"
-    tasklist //FO CSV //NH 2>/dev/null | sort -t, -k5 -r | head -5   # what else was running
+    tasklist //FO CSV //NH 2>/dev/null | sort -t, -k5 -r | head -5
     continue
   fi
   [ $rc -eq 3 ] || exit $rc

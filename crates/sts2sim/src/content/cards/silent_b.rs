@@ -1,9 +1,3 @@
-//! Silent cards, second half of the `SILENT` pool array (INFINITE_BLADES .. WRAITH_FORM). Ported from the decompiled
-//! `OnPlay` / hook bodies; stats come from `gen_cards.rs`.
-//!
-//! NOT in this file (ported by the first-half Silent file because the starter deck needs them): `StrikeSilent`,
-//! `Neutralize`, `Survivor`.
-
 use crate::engine::calc_with;
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
@@ -15,9 +9,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// ---- shared helpers -----------------------------------------------------------------------------------------------------
-
-/// Phase that simply finishes (used after a discard whose Sly auto-play suspended).
 const DONE: u8 = 99;
 
 fn block_from_var(cx: &mut Combat, p: &CardPlay) -> Dec {
@@ -35,18 +26,14 @@ fn apply_power_var(cx: &mut Combat, p: &CardPlay, power: u16, target: Cid) {
     cx.apply_power(power, target, Dec::int(v as i64), PLAYER, p.card);
 }
 
-/// `CalculatedDamageVar.Calculate` / `CalculatedBlockVar.Calculate`: `CalculationBase + CalculationExtra * multiplier`.
 fn calculated(cx: &Combat, c: CardIdx, extra: VarKind, multiplier: i32) -> i32 {
     cx.card_var(c, VarKind::CalcBase) + cx.card_var(c, extra) * multiplier
 }
 
-/// `CardCmd.Discard(cards)`: true if a Sly auto-play it triggered suspended on a decision (the one place that adapts to
-/// the engine's `discard_cards` return convention).
 pub(crate) fn discard_suspended(cx: &mut Combat, cards: &[CardIdx]) -> bool {
     cx.discard_cards(cards, 0) == RunResult::Suspended
 }
 
-/// `CardCmd.Discard(cards)` then continue at `after` if a Sly auto-play suspended.
 fn discard_then(cx: &mut Combat, cards: &[CardIdx], after: u8) -> Flow {
     if discard_suspended(cx, cards) {
         Flow::Suspend(after)
@@ -54,8 +41,6 @@ fn discard_then(cx: &mut Combat, cards: &[CardIdx], after: u8) -> Flow {
         Flow::Done
     }
 }
-
-// ---- A: powers that just apply a power --------------------------------------------------------------------------------------
 
 listener!(InfiniteBlades {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -144,8 +129,6 @@ listener!(WraithForm {
     }
 });
 
-// ---- B: simple attacks -----------------------------------------------------------------------------------------------------
-
 listener!(Slice {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack_single(cx, p);
@@ -158,7 +141,6 @@ listener!(Pinpoint {
         attack_single(cx, p);
         Flow::Done
     }
-    // Entering combat (not as a clone): costs 1 less this turn for every Skill already played this turn.
     fn after_card_entered_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {
         if card as u16 != me.idx || cx.cards[card as usize].flags & cflag::IS_CLONE != 0 {
             return;
@@ -166,7 +148,6 @@ listener!(Pinpoint {
         let n = cx.hist.skills_finished_this_turn as i32;
         cx.add_cost_this_turn(card, -n, false);
     }
-    // Every Skill played makes it 1 cheaper this turn.
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.card_def(play.card).ctype == CardType::Skill {
             cx.add_cost_this_turn(me.idx as CardIdx, -1, false);
@@ -222,7 +203,6 @@ listener!(Strangle {
     }
 });
 
-// X hits.
 listener!(Skewer {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
@@ -232,7 +212,6 @@ listener!(Skewer {
     }
 });
 
-// Random enemy per hit.
 listener!(Ricochet {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
@@ -242,10 +221,8 @@ listener!(Ricochet {
     }
 });
 
-// 13 (+3) damage, minus 2 for every other card in hand.
 listener!(PreciseCut {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        // The card sits in the Play pile, so the whole hand counts.
         let mut in_hand = cx.player.hand.len() as i32;
         if cx.card_pile_type(p.card) == PileType::Hand {
             in_hand -= 1;
@@ -264,7 +241,6 @@ listener!(PreciseCut {
     }
 });
 
-// Base + extra per card discarded this turn.
 listener!(MementoMori {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.hist_count_this_turn(HKind::CardDiscarded, |_| true) as i32;
@@ -278,7 +254,6 @@ listener!(MementoMori {
     }
 });
 
-// Base + extra per card drawn this combat.
 listener!(Murder {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.hist_total(HKind::CardDrawn) as i32;
@@ -292,7 +267,6 @@ listener!(Murder {
     }
 });
 
-// Attack, then (if it killed a creature that triggers Fatal) a card reward + a marker power (the reward is outside combat).
 listener!(TheHunt {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let dmg = cx.card_var(p.card, VarKind::Damage);
@@ -305,7 +279,6 @@ listener!(TheHunt {
     }
 });
 
-// Attack, then `CardsVar("Shivs", 2)` Shivs into the hand (one `CreateInHand` call each).
 listener!(LeadingStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack_single(cx, p);
@@ -316,8 +289,6 @@ listener!(LeadingStrike {
         Flow::Done
     }
 });
-
-// ---- C: skills with a target -------------------------------------------------------------------------------------------------
 
 listener!(LegSweep {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -334,7 +305,6 @@ listener!(Snakebite {
     }
 });
 
-// X: -X Strength and +X Weak on the target (+1 when upgraded).
 listener!(Malaise {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut x = cx.x_value(p.card);
@@ -347,7 +317,6 @@ listener!(Malaise {
     }
 });
 
-// Auto-play every Shiv in the exhaust pile (upgrading them first when upgraded) at the target.
 listener!(KnifeTrap {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut shivs: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();
@@ -361,7 +330,6 @@ listener!(KnifeTrap {
             if upgraded {
                 cx.upgrade_in_combat(c);
             }
-            // (Shivs never raise a decision, so the nested play never suspends.)
             let _ = cx.auto_play(c, p.target, AutoPlayType::Default, false);
         }
         Flow::Done
@@ -372,8 +340,6 @@ listener!(KnifeTrap {
         Some(crate::engine::calc_extra_with(cx, card, shivs))
     }
 });
-
-// ---- D: block / draw / energy skills ----------------------------------------------------------------------------------------
 
 listener!(Untouchable {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -398,7 +364,6 @@ listener!(Tactician {
     }
 });
 
-// Block = base (0) + extra (1) * total Poison on living enemies.
 listener!(Mirage {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut poison = 0;
@@ -418,7 +383,6 @@ listener!(Mirage {
     }
 });
 
-// Poison on every hittable enemy, then trigger each enemy's Poison once.
 listener!(Outbreak {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_power_var(p.card, ids::power::POISON_POWER);
@@ -436,8 +400,6 @@ listener!(Outbreak {
     }
 });
 
-/// `PoisonPower.Trigger()`: `min(Amount, 1 + Accelerant of living opponents)` ticks of (current amount) unblockable damage,
-/// each followed by a decrement while the owner lives.
 fn poison_trigger(cx: &mut Combat, owner: Cid, uid: u16) {
     let Some(i) = cx.power_idx(owner, uid) else { return };
     let amount = cx.cr(owner).powers[i].amount;
@@ -460,7 +422,6 @@ fn poison_trigger(cx: &mut Combat, owner: Cid, uid: u16) {
     }
 }
 
-// Strength loss (temporary) on every hittable enemy.
 listener!(PiercingWail {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_named_var(p.card, var_name::STRENGTH_LOSS);
@@ -472,9 +433,6 @@ listener!(PiercingWail {
     }
 });
 
-// ---- E: card-pile effects ------------------------------------------------------------------------------------------------------
-
-// Draw, then discard the same number of cards (choice).
 listener!(Prepared {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -495,7 +453,6 @@ listener!(Prepared {
     }
 });
 
-// Choose a card from the hand: it is duplicated into the hand at the start of the next turn (Nightmare power, 3 copies).
 listener!(Nightmare {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         let selected = match phase {
@@ -507,7 +464,6 @@ listener!(Nightmare {
         };
         if let Some(sel) = selected {
             if let Some(uid) = cx.apply_power(ids::power::NIGHTMARE_POWER, PLAYER, Dec::int(3), PLAYER, p.card) {
-                // NightmarePower.SetSelectedCard: a clone with its affliction cleared, parked in the arena (no pile).
                 if let Some(clone) = cx.clone_card(sel) {
                     cx.cards[clone as usize].affliction = 0;
                     cx.cards[clone as usize].affliction_amount = 0;
@@ -521,7 +477,6 @@ listener!(Nightmare {
     }
 });
 
-// Discard the whole hand, then Double Damage at the start of the next turn.
 listener!(ShadowStep {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -542,8 +497,6 @@ listener!(ShadowStep {
     }
 });
 
-// Discard the whole hand, then create that many Shivs (upgraded when this card is).
-// `counter[0]` carries the hand size across a Sly-triggered suspension.
 listener!(StormOfSteel {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         let n;
@@ -570,7 +523,6 @@ listener!(StormOfSteel {
     }
 });
 
-// Create Shivs; every play makes this card 1 cheaper for the rest of the combat.
 listener!(UpMySleeve {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);

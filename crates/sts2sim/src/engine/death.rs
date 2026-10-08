@@ -1,6 +1,3 @@
-//! Death / kill sequence (spec 02 §5.3, spec 01 §13.4): `CreatureCmd.Kill`, death preventers (Fairy in a Bottle, Lizard
-//! Tail), removal rules, minions, player death, escape.
-
 use crate::content;
 use crate::dec::Dec;
 use crate::hooks::*;
@@ -9,19 +6,16 @@ use crate::types::*;
 use crate::util::ArrayVec;
 
 impl Combat {
-    /// `CombatManager.LoseCombat`: marks the combat as pending loss; processed at the next `CheckWinCondition`.
     pub fn lose_combat(&mut self) {
         if self.in_progress && !self.pending_loss {
             self.pending_loss = true;
         }
     }
 
-    /// `CreatureCmd.Kill(creatures)`.
     pub fn kill(&mut self, victims: &[Cid]) {
         self.kill_ex(victims, false);
     }
 
-    /// `CreatureCmd.Kill(creatures, force)`. `force` bypasses death preventers (Fairy in a Bottle ...).
     pub fn kill_ex(&mut self, victims: &[Cid], force: bool) {
         if victims.is_empty() {
             return;
@@ -33,13 +27,11 @@ impl Combat {
         for &v in list.iter() {
             self.kill_without_check(v, force, 0);
         }
-        // Single player: every player dead => the combat is lost (applied at the next `CheckWinCondition`).
         if self.cr(PLAYER).is_dead() && self.in_progress {
             self.lose_combat();
         }
     }
 
-    /// `KillWithoutCheckingWinCondition`.
     fn kill_without_check(&mut self, c: Cid, force: bool, recursion: u8) {
         if !self.cr(c).in_combat && c != PLAYER {
             return;
@@ -59,7 +51,6 @@ impl Combat {
             let should_remove = self.cr(c).in_combat && self.should_creature_be_removed_after_death(c);
             self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c, false));
             let side = self.cr(c).side;
-            // teammates (alive, same side) evaluated after AfterDeath
             let mut teammates: ArrayVec<Cid, MAX_CREATURES> = ArrayVec::new();
             let pool: ArrayVec<Cid, MAX_CREATURES> = {
                 let mut p = ArrayVec::new();
@@ -78,7 +69,6 @@ impl Combat {
                 self.remove_creature_from_combat(c);
             }
             let is_primary = self.is_primary_enemy(c);
-            // RemoveAllPowersAfterDeath + AfterRemoved on each removed power.
             let removed = self.remove_all_powers_after_death(c);
             for p in removed.iter() {
                 let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
@@ -89,8 +79,6 @@ impl Combat {
                     self.kill(teammates.as_slice());
                 }
             } else if c == PLAYER {
-                // OrbQueue.Clear() (orbs gone, capacity zeroed); `if (player.IsOstyAlive) Kill(Osty)`; DeactivateHooks;
-                // HandlePlayerDeath (single player: nothing — the combat is lost by the caller).
                 self.player.orbs.clear();
                 self.player.orb_slots = 0;
                 if let Some(o) = self.osty() {
@@ -104,7 +92,6 @@ impl Combat {
             assert!(recursion < 10, "Combat is ending, but something is continually preventing the last creature from being killed!");
             self.dispatch_u(hookbit::after_death, |cx, me, l| l.after_death(cx, me, c, true));
             if let Some(p) = preventer {
-                // Hook.AfterPreventingDeath: only if the preventer is still a listener.
                 if self.still_live(&p) {
                     content::listener(&p).after_preventing_death(self, p, c);
                 }
@@ -115,7 +102,6 @@ impl Combat {
         }
     }
 
-    /// `Hook.ShouldDie`: pass 1 `ShouldDie`, pass 2 `ShouldDieLate` (AND; the first `false` is the preventer).
     fn find_death_preventer(&self, c: Cid) -> Option<Me> {
         if !self.listen.has(hookbit::should_die) && !self.listen.has(hookbit::should_die_late) {
             return None;
@@ -140,7 +126,6 @@ impl Combat {
         None
     }
 
-    /// `Hook.ShouldCreatureBeRemovedFromCombatAfterDeath` (unguarded, AND).
     pub fn should_creature_be_removed_after_death(&self, c: Cid) -> bool {
         if !self.listen.has(hookbit::should_creature_be_removed_from_combat_after_death) {
             return true;
@@ -155,7 +140,6 @@ impl Combat {
         true
     }
 
-    /// `Hook.ShouldPowerBeRemovedOnDeath` (unguarded, AND).
     fn should_power_be_removed_on_death(&self, owner: Cid, power_id: u16) -> bool {
         if !self.listen.has(hookbit::should_power_be_removed_on_death) {
             return true;
@@ -170,8 +154,6 @@ impl Combat {
         true
     }
 
-    /// `Creature.RemoveAllPowersAfterDeath`: strips every power except those that veto
-    /// (`!ShouldPowerBeRemovedAfterOwnerDeath() || !Hook.ShouldPowerBeRemovedOnDeath(p)`); returns the removed ones.
     fn remove_all_powers_after_death(&mut self, c: Cid) -> ArrayVec<Power, MAX_POWERS> {
         let mut removed: ArrayVec<Power, MAX_POWERS> = ArrayVec::new();
         let mut kept: ArrayVec<Power, MAX_POWERS> = ArrayVec::new();
@@ -190,9 +172,6 @@ impl Combat {
         removed
     }
 
-    /// `CombatManager.RemoveCreature` + `CombatState.RemoveCreature` for a dead / escaped enemy: the monster leaves
-    /// the enemy list and stops listening. A monster that is mid-move is only detached when its move finishes
-    /// (`perform_move`).
     pub fn remove_creature_from_combat(&mut self, c: Cid) {
         if !self.cr(c).is_player && self.cr(c).side == Side::Enemy {
             let me = Me { kind: Kind::Monster, owner: c, idx: 0, id: self.cr(c).monster.id, amount: 0 };
@@ -204,7 +183,6 @@ impl Combat {
         self.detach_creature(c);
     }
 
-    /// `Hook.AfterDiedToDoom(creatures)` (unguarded): called by the Doom power after its `Kill`.
     pub fn after_died_to_doom(&mut self, creatures: &[Cid]) {
         if !self.listen.has(hookbit::after_died_to_doom) {
             return;
@@ -218,8 +196,6 @@ impl Combat {
         }
     }
 
-    /// Whether every power of `c` answers `ShouldOwnerDeathTriggerFatal() == true` (Feed / Hand of Greed / The Hunt ask
-    /// this about the creature they killed; Minion and Reattach answer false).
     pub fn all_powers_trigger_fatal(&self, c: Cid) -> bool {
         self.cr(c).powers.iter().all(|p| {
             let me = Me { kind: Kind::Power, owner: c, idx: p.uid, id: p.id, amount: p.amount };
@@ -227,19 +203,16 @@ impl Combat {
         })
     }
 
-    /// `Hook.ShouldAllowTargeting` (guarded AND). UI-only in the game (no shipped model overrides it).
     pub fn should_allow_targeting(&self, c: Cid) -> bool {
         self.first_veto_g(hookbit::should_allow_targeting, |cx, me, l| l.should_allow_targeting(cx, me, c)).is_none()
     }
 
-    /// `CreatureCmd.Escape`: the creature leaves the combat without dying (powers stripped silently).
     pub fn escape(&mut self, c: Cid) {
         if self.cr(c).is_dead() || !self.cr(c).in_combat || !self.in_progress {
             return;
         }
         self.cr_mut(c).powers.clear();
         self.sync_secondary(c);
-        // CombatManager.RemoveCreature (BeforeRemovedFromRoom) then CombatState.CreatureEscaped.
         let me = Me { kind: Kind::Monster, owner: c, idx: 0, id: self.cr(c).monster.id, amount: 0 };
         content::listener(&me).before_removed_from_room(self, me);
         self.escaped += 1;

@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-"""PPO for the STS2 combat environment (CPU).
-
-  .venv/bin/python rl/ppo.py --train target/train/train.json --eval target/train/eval.json --out target/runs/a --iters 500
-
-Reward: +1 for a win (+ `--hp-bonus` x HP fraction left), -1 for a loss, for stalling past `--max-steps` or for still fighting after `--turn-cap`
-player turns; aborted episodes (unported content / capacity overflow) end with reward 0 and are counted separately.
-
-`--heads` (`docs/rl_redesign.md` M1): the value is the expected worth of the fight-outcome distribution (`rl/heads.py`), trained by cross-entropy on
-lambda-returns of the distribution itself (`--lam-head`); `--head-warmup K` first trains that head alone for K iterations (policy and trunk frozen).
-`--pot-head` (M1b): the potion-use head, P(the potion in belt slot k is used before the fight ends), binary cross-entropy against lambda-mixed targets
-(1 when the env reports the slot's potion used at this step, 0 when the fight ends with it, else the next state's prediction); empty slots masked.
-`--warm-prefix pot_use.` with `--head-warmup K` trains that head alone on a frozen network.
-`--obs-version 2` trains on observation v2 (`crates/sts2sim/src/observe.rs`; from scratch: a v1 checkpoint cannot be resumed into it); the checkpoint
-records it (`args["obs_version"]`) and `rl/model.py` `load` reads it back.
-"""
 import argparse, json, os, sys, time
 import numpy as np
 import torch
@@ -31,7 +16,6 @@ def make_env(path, n, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
 
 
 def evaluate(policy, path, n_envs, per_env, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
-    """First `per_env` finished episodes of every env (no short-fight bias). `policy(obs, mask) -> int32 actions`. Returns a stats dict."""
     env, scen = make_env(path, n_envs, seed, max_steps, hp_bonus, turn_cap)
     obs, mask = env.reset()
     got = np.zeros(n_envs, np.int32)
@@ -49,8 +33,6 @@ def evaluate(policy, path, n_envs, per_env, seed, max_steps, hp_bonus, turn_cap=
 
 
 def summarize(rec, scen):
-    """`hp_lost_all` (primary with `win`): mean fraction of max HP lost over every valid fight; a loss (or a stall) is charged all the HP the
-    player had at the start, which is what a run-level optimizer pays for it."""
     rec = np.array(rec, dtype=np.float64)
     out = rec[:, 1]
     valid = (out == 1) | (out == -1) | (out == 2)
@@ -67,7 +49,7 @@ def summarize(rec, scen):
             if sel.any():
                 g[k] = [round(float((out[sel] == 1).mean()), 3), round(float(rec[sel, 2].mean()), 3)]
         by[key] = g
-    res["by"] = by  # [win rate, mean HP lost]
+    res["by"] = by
     return res
 
 
@@ -124,13 +106,13 @@ def main():
     if a.pot_head and not a.heads:
         raise SystemExit("--pot-head needs --heads")
     net = Net(d=a.d, rounds=a.rounds, heads=a.heads, pot=a.pot_head, obs_version=a.obs_version).to(DEV)
-    claim_obs_version(a.obs_version)  # the training and evaluation envs write this version
+    claim_obs_version(a.obs_version)
     opt = torch.optim.Adam(net.parameters(), lr=a.lr, eps=1e-5)
     allow = ("ucond.", "outcome.") if a.heads else ("ucond.",)
     if a.pot_head:
         allow = allow + ("pot_use.",)
     it0, steps = 0, 0
-    if a.resume:  # a full checkpoint (net + optimizer + progress) or a bare state dict (weights only: warm start)
+    if a.resume:
         ck = torch.load(a.resume, map_location="cpu")
         rv = int(ck.get("args", {}).get("obs_version", 1) or 1) if "net" in ck else a.obs_version
         if rv != a.obs_version:
@@ -145,22 +127,18 @@ def main():
     print("params", n_params(net), "resuming at iteration", it0, flush=True)
     env, scen = make_env(a.train, a.envs, a.seed + 1000, a.max_steps, a.hp_bonus, a.turn_cap)
     adapt_rec = None
-    if a.adaptive:  # per-fight and per-group win counts from the training episodes
+    if a.adaptive:
         gkey = {}
         grp = np.array([gkey.setdefault((s.get("encounter"), s.get("act"), s.get("character")), len(gkey)) for s in scen])
         s_n, s_w = np.zeros(len(scen)), np.zeros(len(scen))
-    # the outcome head alone first: its own optimizer, the rest of the network untouched
     prefixes = tuple(p for p in a.warm_prefix.split(",") if p)
     warm_params = [p for n, p in net.named_parameters() if n.startswith(prefixes)]
     opt_w = torch.optim.Adam(warm_params, lr=a.lr, eps=1e-5) if a.heads and a.head_warmup > 0 else None
     if opt_w is not None and not warm_params:
         raise SystemExit(f"--warm-prefix {a.warm_prefix}: no parameters")
-    it_warm = it0 + (a.head_warmup if opt_w is not None else 0)  # iterations up to this one only train the outcome head
+    it_warm = it0 + (a.head_warmup if opt_w is not None else 0)
     N, T = a.envs, a.horizon
     A = sts2.ACTIONS
-    # What the network reads and writes during the rollout stays on its device (observations, masks, actions, log-probabilities, values, head
-    # outputs): the update gathers its minibatches there instead of on the host (a 31 MB gather and copy per minibatch), and a rollout step syncs
-    # once (the actions the env needs). Rewards, dones and the targets' bookkeeping stay on the host.
     b_obs = torch.zeros(T, N, env.obs_size, device=DEV)
     b_mask = torch.zeros(T, N, A, dtype=torch.uint8, device=DEV)
     b_act = torch.zeros(T, N, dtype=torch.long, device=DEV)
@@ -169,30 +147,26 @@ def main():
     b_rew = torch.zeros(T, N)
     b_done = torch.zeros(T, N)
     if a.heads:
-        b_pout_d = torch.zeros(T + 1, N, H.NC, device=DEV)  # the outcome head's distribution at every observation (and the one after the horizon)
-        b_term = torch.full((T, N), -1, dtype=torch.long)  # at an episode's last step: its ending class; -2 = aborted (no target); -1 = not done
+        b_pout_d = torch.zeros(T + 1, N, H.NC, device=DEV)
+        b_term = torch.full((T, N), -1, dtype=torch.long)
     KP = net.C["MAX_POTIONS"]
     _po = net.SEC["potions"][0]
     if a.pot_head:
-        b_ppot_d = torch.zeros(T + 1, N, KP, device=DEV)  # the potion-use head's probabilities at every observation
-        b_pused = torch.zeros(T, N, KP)  # slot k's potion used up at this step (env)
-    # The shapes `Net.encode` would derive from each batch on the device (enemy slots, pile entries, rows with a pending selection) are taken from
-    # the host's copy of the observations instead (`HostShape`: the same values), so neither the rollout's forward nor the update's minibatches
-    # wait for the device in the middle of a pass.
+        b_ppot_d = torch.zeros(T + 1, N, KP, device=DEV)
+        b_pused = torch.zeros(T, N, KP)
     hs = HostShape(a.obs_version)
     h_e = np.zeros((T, N), np.int16)
     h_l = np.zeros((T, N, 3), np.int16)
     h_d = np.zeros((T, N), bool)
     obs, mask = env.reset()
     if DEV.type == "cuda":
-        # the env writes every step's observations into the same arrays: page-locked, their copies to the device run asynchronously
         for arr in (env.obs, env.mask):
             err = torch.cuda.cudart().cudaHostRegister(arr.ctypes.data, arr.nbytes, 0)
             if int(err) != 0:
                 raise SystemExit(f"cudaHostRegister failed ({arr.nbytes} bytes): {err}")
     rng = np.random.default_rng(a.seed + 7)
     POT = slice(net.C["OFF_POTION"], net.C["OFF_DISCARD"])
-    hold_until = np.zeros(N, np.int32)  # 0 = free, k = no potion before turn k, 99 = never
+    hold_until = np.zeros(N, np.int32)
     def draw_rules(idx):
         use = rng.random(len(idx)) < a.hold_prob
         t = rng.choice([2, 3, 4, 5, 99], size=len(idx))
@@ -204,7 +178,7 @@ def main():
     ep_stats = []
     for it in range(it0 + 1, a.iters + 1 + (it_warm - it0)):
         warm = it <= it_warm
-        lr = a.lr * max(a.lr_floor, 1 - (max(it - (it_warm - it0), 1) - 1) / max(a.iters, 1))  # warm-up iterations do not advance the schedule
+        lr = a.lr * max(a.lr_floor, 1 - (max(it - (it_warm - it0), 1) - 1) / max(a.iters, 1))
         if a.adaptive and it % a.adaptive == 0 and s_n.sum() > 0:
             g_n, g_w = np.bincount(grp, s_n, len(gkey)), np.bincount(grp, s_w, len(gkey))
             pg = (g_w + 1) / (g_n + 2)
@@ -223,10 +197,9 @@ def main():
             s_w *= a.adaptive_decay
         for g in (opt_w if warm else opt).param_groups:
             g["lr"] = lr
-        # ---- rollout ----
         net.eval()
         t_roll = time.time()
-        t_env = t_net = 0.0  # inside the rollout: env.step, and copies + forward + sampling up to the actions on the host
+        t_env = t_net = 0.0
         with torch.inference_mode():
             for t in range(T):
                 t_a = time.perf_counter()
@@ -237,7 +210,7 @@ def main():
                     m_eff[bad, POT] = 0
                     empty = m_eff.sum(1) == 0
                     m_eff[empty] = mask[empty]
-                b_obs[t].copy_(torch.from_numpy(obs), non_blocking=True)  # complete before `env.step` rewrites `obs`: `act.cpu()` waits for it
+                b_obs[t].copy_(torch.from_numpy(obs), non_blocking=True)
                 b_mask[t].copy_(torch.from_numpy(m_eff), non_blocking=m_eff is mask)
                 h_e[t], h_l[t], h_d[t] = hs.rows_info(obs)
                 shp = hs.of(h_e[t], h_l[t], h_d[t], DEV)
@@ -266,7 +239,7 @@ def main():
                     b_pused[t] = torch.from_numpy(((pu[:, None] >> np.arange(KP)) & 1).astype(np.float32))
                 r = rew.copy()
                 oc = info["outcome"]
-                r[oc == 2] = -1.0  # stalled out
+                r[oc == 2] = -1.0
                 if done.any():
                     ei = env.episode_info()
                 b_rew[t] = torch.from_numpy(r)
@@ -275,7 +248,7 @@ def main():
                     b_term[t] = -1
                     if done.any():
                         cls = H.end_class(oc == 1, ei["hp_end_abs"])
-                        cls = np.where((oc == 3) | (oc == 4), -2, cls)  # aborted: no ending to learn from
+                        cls = np.where((oc == 3) | (oc == 4), -2, cls)
                         b_term[t] = torch.from_numpy(np.where(done, cls, -1).astype(np.int64))
                 if done.any():
                     if a.hold_prob > 0:
@@ -298,14 +271,12 @@ def main():
             else:
                 _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV), **shp)
             b_val_d[T] = last_v
-            # the host's copies for the returns and the heads' targets
             b_val = b_val_d.cpu()
             if a.heads:
                 b_pout = b_pout_d.cpu()
             if a.pot_head:
                 b_ppot = b_ppot_d.cpu()
         t_roll = time.time() - t_roll
-        # ---- GAE ----
         adv = torch.zeros(T, N)
         last = torch.zeros(N)
         for t in reversed(range(T)):
@@ -314,7 +285,7 @@ def main():
             last = delta + a.gamma * a.lam * nd * last
             adv[t] = last
         ret = adv + b_val[:T]
-        if a.heads:  # the outcome head's targets: lambda-mix of the next state's prediction and the one-hot ending, backwards through the rollout
+        if a.heads:
             tgt = torch.zeros(T, N, H.NC)
             wt = torch.ones(T, N)
             y = b_pout[T].clone()
@@ -325,10 +296,10 @@ def main():
                 ended = term >= 0
                 aborted = term == -2
                 y = torch.where(ended.unsqueeze(1), eye[term.clamp(min=0)], boot)
-                y = torch.where(aborted.unsqueeze(1), b_pout[t], y)  # no target: its own prediction, weight 0
+                y = torch.where(aborted.unsqueeze(1), b_pout[t], y)
                 wt[t] = (~aborted).float()
                 tgt[t] = y
-        if a.pot_head:  # potion-use targets: 1 when used at this step, 0 when the fight ends with it, else lambda-mix of the next prediction and the next target
+        if a.pot_head:
             ptgt = torch.zeros(T, N, KP)
             yp = b_ppot[T].clone()
             for t in reversed(range(T)):
@@ -336,16 +307,14 @@ def main():
                 boot = (1 - a.lam_head) * b_ppot[t + 1] + a.lam_head * yp
                 yp = torch.where(b_pused[t] > 0, torch.ones_like(boot), torch.where(done_t, torch.zeros_like(boot), boot))
                 ptgt[t] = yp
-            pocc = (b_obs[:, :, _po:_po + 2 * KP:2] > 0).float().cpu()  # slots holding a potion at each observation
-            pw_ = pocc * wt.unsqueeze(-1)  # aborted episodes weigh 0
-        # ---- update ----
+            pocc = (b_obs[:, :, _po:_po + 2 * KP:2] > 0).float().cpu()
+            pw_ = pocc * wt.unsqueeze(-1)
         net.train()
         t_upd = time.time()
         fo, fm = b_obs.view(T * N, -1), b_mask.view(T * N, -1)
         fa, flp, fadv, fret = b_act.view(-1), b_lp.view(-1), adv.view(-1).to(DEV), ret.view(-1).to(DEV)
         if a.heads:
             ftgt, fwt = tgt.view(T * N, -1).to(DEV), wt.view(-1).to(DEV)
-        # the statistics are summed on the device (float64) and read once after the update: no host sync per minibatch
         zero = lambda: torch.zeros((), dtype=torch.float64, device=DEV)  # noqa: E731
         stats = {"pl": zero(), "vl": zero(), "ent": zero(), "kl": zero(), "clip": zero()}
         if a.pot_head:
@@ -361,7 +330,7 @@ def main():
                 ix = perm_d[s:s + a.mb]
                 ih = perm_h[s:s + a.mb]
                 shp = hs.of(fe[ih], fl[ih], fd[ih], DEV)
-                mk = fm[ix]  # the uint8 mask: the network and the entropy compare it with 0
+                mk = fm[ix]
                 if a.pot_head:
                     lg, v, ol, pl_ = net(fo[ix], mk, outcome=True, potuse=True, **shp)
                 elif a.heads:
@@ -374,7 +343,7 @@ def main():
                 ad = fadv[ix]
                 ad = (ad - ad.mean()) / (ad.std() + 1e-8)
                 pl = -torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad).mean()
-                if a.heads:  # cross-entropy against the lambda-targets (aborted endings weigh 0)
+                if a.heads:
                     w_ = fwt[ix]
                     vl = (-(ftgt[ix] * F.log_softmax(ol, 1)).sum(1) * w_).sum() / w_.sum().clamp(min=1)
                 else:
@@ -394,7 +363,7 @@ def main():
                 o_.zero_grad(set_to_none=True)
                 net.zero_grad(set_to_none=True)
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_([q for g in o_.param_groups for q in g["params"]], 0.5)  # the norm of what this optimizer steps
+                torch.nn.utils.clip_grad_norm_([q for g in o_.param_groups for q in g["params"]], 0.5)
                 o_.step()
                 with torch.no_grad():
                     stats["pl"] += pl.detach(); stats["vl"] += vl.detach(); stats["ent"] += ent.detach()

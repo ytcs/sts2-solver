@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""The solver's search, driven by the Rust state machine (`sts2env::search`): this file only evaluates networks.
-
-The engine plays many fights at once, each at its own pace. Whenever a fight (or one of its play-outs) needs a decision the engine writes
-one observation row into a request buffer; this driver runs the policy on all policy rows and the value head on all value rows in one batch
-and hands the answers back. Two engines (`groups`) alternate so the CPU simulates one while the GPU evaluates the other.
-
-  fs = FastSearch(net, M=3, K=8)
-  rows = fs.run(scenario_dicts, job_scen, job_seed)      # [n_jobs, 8]: scenario, outcome, hp_lost, hp_end, length, finished, end HP (absolute), potions kept (bits)
-
-With an outcome-head network (`rl/heads.py`), value rows come back as the head's class probabilities and Rust combines them with each job's worth
-(`run(..., worth=)`: per scenario None = the linear return, or a table over the classes).
-"""
 import json, os, sys, collections
 import numpy as np
 import torch
@@ -20,7 +8,7 @@ import sts2
 import heads
 from model import DEV, layout, obs_version_of
 
-OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS  # OBS: the version-1 row length (a `FastSearch` uses its network's: `self.OBS`)
+OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS
 NC = sts2.names()["head_nc"]
 assert NC == heads.NC and sts2.names()["head_bin"] == heads.BIN, "rl/heads.py and the Rust search disagree on the outcome classes"
 WORTH_W = 1 + NC
@@ -29,7 +17,6 @@ GRAPH_E = 8
 
 
 def worth_row(w):
-    """One scenario's worth for the engine: None = linear; else dict(u=[NC] class worths)."""
     r = np.zeros(WORTH_W, np.float32)
     if w is None:
         return r
@@ -38,16 +25,13 @@ def worth_row(w):
     r[0] = 1.0
     r[1:] = u
     return r
-# Play-out depth in player turns before the value network takes over. 2 since 2026-10-06: decision regret vs a Monte Carlo referee 0.0038 vs 0.0099 at
-# depth 1 (150 recorded states, `tools/bench_search.py`, paired fight-clustered CI of the difference excludes 0); whole fights with the live search shape
-# (5x32, 1200 eval fights x 4) win +0.88 % +- 0.37 %, HP lost -1.1 % of max +- 0.15 % (`tools/ab_leaf.py`, evals/ab_leaf_5x32.json). Costs ~2x per decision.
+
 LEAF_TURNS = 2
 
 _SHAPE_CONSTS = {}
 
 
 def _shape_consts(width):
-    """(enemies offset, ENEMY_F, OBS_MAX_ENEMIES, pile offsets, decision offset) of the observation version whose rows have `width` floats."""
     if width not in _SHAPE_CONSTS:
         v = obs_version_of(width)
         if v is None:
@@ -55,14 +39,13 @@ def _shape_consts(width):
         c, sec = layout(v)
         _SHAPE_CONSTS[width] = (sec["enemies"][0], c["ENEMY_F"], c["OBS_MAX_ENEMIES"], [sec[n][0] for n in ("draw", "discard", "exhaust")], sec["decision"][0])
     return _SHAPE_CONSTS[width]
+
 if DEV.type == "cuda":
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
 
 def available_cpus():
-    """CPUs this process may really use: the affinity mask, capped by the container's CPU quota (cgroup v2 `cpu.max` or v1 `cfs_quota_us`):
-    `os.cpu_count()` reports the host's cores, which oversubscribes a container (threads fighting for a 10-CPU quota ran 2x slower)."""
     n = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 8)
     try:
         if os.path.exists("/sys/fs/cgroup/cpu.max"):
@@ -79,8 +62,6 @@ def available_cpus():
 
 
 def host_shapes(obs):
-    """Shapes the network needs for this batch, from the host-side observation (no device syncs): occupied enemy slots, longest pile list,
-    and the rows that have a pending card selection. The observation version is told by the row length."""
     _E0, _ES, _EN, _PILES, _DEC = _shape_consts(obs.shape[1])
     occ = (obs[:, _E0:_E0 + _EN * _ES:_ES] > 0.5).any(0)
     E = int(np.nonzero(occ)[0].max()) + 1 if occ.any() else 1
@@ -90,27 +71,24 @@ def host_shapes(obs):
     return E, L, obs[:, _DEC] > 0.5
 
 
+# play-out moves use the engine's uniform, never torch's RNG: the same job seeds give the same play-outs
 def _sample(pr, u):
-    """One action per row of the probabilities `pr` [B, ACT], by inverse CDF with the engine's uniform `u` [B]: the job seed, not the GPU's random state,
-    decides every play-out move, so two variants of a deck evaluated with the same seeds meet the same play-out luck (common random numbers)."""
     c = pr.cumsum(1)
     return (c < u.unsqueeze(1) * c[:, -1:]).sum(1).clamp_max(pr.shape[1] - 1)
 
 
 class GraphFn:
-    """`fn(obs [B, OBS], mask [B, ACT] | None[, u [B]]) -> [B, ...]` replayed as a CUDA graph per padded batch size: one replay instead of several hundred
-    kernel launches (the network is launch-bound at the batch sizes the search produces). `with_u`: a per-row uniform (`_sample`) is a third input."""
-
     def __init__(self, fn, with_mask, pool, with_u=False, obs_size=OBS):
         self.fn, self.buckets, self.with_mask, self.pool, self.with_u = fn, BUCKETS, with_mask, pool, with_u
-        self.obs_size = obs_size  # floats per observation row (the network's observation version)
+        self.obs_size = obs_size
         self.graphs = {}
 
     def _capture(self, B):
         sobs = torch.zeros(B, self.obs_size, device=DEV)
         smask = torch.zeros(B, ACT, dtype=torch.uint8, device=DEV) if self.with_mask else None
         if smask is not None:
-            smask[:, 0] = 1  # every padded row has a legal action (no NaN in the softmax of rows that are ignored)
+            # padded rows need a legal action (no NaN softmax)
+            smask[:, 0] = 1
         su = torch.full((B,), 0.5, device=DEV) if self.with_u else None
         args = (sobs, smask) + ((su,) if self.with_u else ())
         st = torch.cuda.Stream()
@@ -126,7 +104,6 @@ class GraphFn:
 
     @torch.no_grad()
     def __call__(self, obs, mask, idx=None, u=None):
-        """Rows `idx` (a device index tensor) of obs / mask (/ u), or all of them; returns a fresh [rows, ...] tensor."""
         n = len(obs) if idx is None else len(idx)
         outs = []
         a = 0
@@ -153,9 +130,6 @@ class GraphFn:
         return outs[0] if len(outs) == 1 else torch.cat(outs)
 
     def plan(self, n):
-        """(rows, padded batch) per replay covering `n` rows: whole top buckets, then the remainder in the bucket that holds it when that pads by at
-        most the smallest bucket, else the largest bucket below it, and again. Padding the remainder to the next bucket wasted 22 % of the policy
-        rows and 77 % of the value rows (5x32, roots 1024); the network's time is close to proportional to the padded batch."""
         bs, out = self.buckets, []
         while n > 0:
             if n >= bs[-1]:
@@ -172,26 +146,17 @@ class GraphFn:
         return out
 
 
-
 class HostBuffers:
-    """The request / answer buffers of one engine group, kept for the life of the FastSearch and reused by every `run` (grown when a run needs more rows).
-
-    The arrays the GPU copies from or into (observations, masks, uniforms, answers) are page-locked at their exact size with `cudaHostRegister` on numpy
-    memory, so the copies stay asynchronous. Not `torch.empty(pin_memory=True)`: torch's pinned allocator rounds every block up to a power of two and
-    caches freed blocks for the life of the process (a 1.27 GB request commits 2.00 GB, measured), and a fresh set per run left the old size classes cached.
-    `pol_kind` / `val_kind` never leave the host and are not pinned."""
-
     PINNED = ("obs", "pol_mask", "pol_u", "pol_out", "val_out")
 
     def __init__(self, pin, obs_size=OBS):
         self.pin = pin
-        self.obs_size = obs_size  # floats per observation row
-        self.a = {}  # name -> numpy array (registered when pinned)
-        self.t = {}  # name -> torch view of the same memory
-        self._reg = []  # registered base pointers
+        self.obs_size = obs_size
+        self.a = {}
+        self.t = {}
+        self._reg = []
 
     def ensure(self, rows, pol_w, val_w):
-        """Room for `rows` rows of the engine's shared layout: policy rows from the front of `obs`, value rows from its end backwards."""
         want = {"obs": (rows, self.obs_size), "pol_mask": (rows, ACT), "pol_kind": (rows,), "pol_u": (rows,), "val_kind": (rows,),
                 "pol_out": (rows, pol_w), "val_out": (rows, val_w)}
         dts = {"pol_mask": np.uint8, "pol_kind": np.uint8, "val_kind": np.uint8}
@@ -221,53 +186,42 @@ class HostBuffers:
         try:
             for name in list(self.a):
                 self._free(name)
-        except Exception:  # interpreter shutdown: the process is going away with its memory
+        except Exception:
             pass
 
 
 class FastSearch:
     def __init__(self, net, M=3, K=8, conf=1.01, max_steps=300, roots=512, groups=2, threads=None, roll_net=None, amp=False, record=False,
                  leaf_turns=None, clairvoyant=False):
-        """`net`: ranks the options of the real fight's decisions; `roll_net` (default: `net`): plays the play-outs (a cheaper network is fine:
-        the play-outs only have to finish the turn plausibly).
-
-        `clairvoyant`: DIAGNOSTIC ONLY -- SEES HIDDEN INFORMATION (draw pile order, every RNG stream: the real future). The K futures of a decision are
-        copies of the true state instead of determinizations (`SearchCfg::clairvoyant`), so the search plays with knowledge it can never have in a real
-        game. It measures how winnable a fight set is (`tools/headroom.py`); it is not a player. Never set it for live play: `decide` (the live engine's
-        entry point) refuses it."""
         self.net = net
         self.roll_net = roll_net if roll_net is not None else net
-        # the observation version the networks read (their checkpoints'): the engines write rows of that version
         vs = {getattr(n, "obs_version", 1) for n in [self.net, self.roll_net]}
         if len(vs) > 1:
             raise ValueError(f"the search's networks read different observation versions {sorted(vs)}")
         self.obs_version = vs.pop()
         self.OBS = sts2.obs_size(self.obs_version)
         self.M, self.K, self.conf = M, K, conf
-        # play-out depth: the ONE default for live play and every batch table (agent.engine, rl/solver.py; evals/bench_search*.jsonl, evals/ab_leaf_5x32.json)
-        self.leaf_turns = LEAF_TURNS if leaf_turns is None else leaf_turns  # player turns a play-out runs before the value network (1 = this turn; large = to the fight's end)
-        self.roll_cap = 60 * self.leaf_turns if self.leaf_turns < 100 else 400  # step cap of a play-out, scaled with its depth
+        self.leaf_turns = LEAF_TURNS if leaf_turns is None else leaf_turns
+        self.roll_cap = 60 * self.leaf_turns if self.leaf_turns < 100 else 400
         self.max_steps = max_steps
         self.roots, self.groups = roots, groups
         self.threads = threads or max(2, available_cpus() - 1)
         self.stats = {}
         self.cuda = DEV.type == "cuda"
-        self.compile = self.cuda  # torch.compile (inductor fusion, dynamic batch) inside the CUDA graphs: about 1.7x faster networks
-        self.record = record  # keep the moves of every fight (`moves`, `replay`): play-by-play traces
-        # value rows as the outcome head's class probabilities, combined in Rust per job; a scalar value otherwise
+        self.compile = self.cuda
+        self.record = record
         self.dist = bool(getattr(net, "heads", False))
         self.val_w = NC if self.dist else 1
         self._runs = []
-        self._bufs = []  # one HostBuffers per engine group, reused across runs
-        self.amp = amp  # bf16 autocast inside the graphs (the networks are compute-bound there)
-        self.clairvoyant = bool(clairvoyant)  # DIAGNOSTIC ONLY: the futures are the true state (see the docstring); never for live play
+        self._bufs = []
+        self.amp = amp
+        # DIAGNOSTIC ONLY: clairvoyant futures see hidden information; decide() refuses it
+        self.clairvoyant = bool(clairvoyant)
         self._graphs = {}
         self._pool = torch.cuda.graph_pool_handle() if self.cuda else None
         self.use_graphs = self.cuda
 
-    # ---- network side ----
     def _run(self, fn, obs_np, obs_t, mask_t=None, u_t=None):
-        """`fn(obs, mask, [u=,] **shape)` on the rows of `obs_t` (device) split into rows without / with a pending card selection (each static in shape)."""
         E, L, dec = host_shapes(obs_np)
         nd = int(dec.sum())
         uk = lambda i: {} if u_t is None else {"u": u_t if i is None else u_t[i]}
@@ -285,7 +239,6 @@ class FastSearch:
         return out
 
     def warm(self):
-        """Captures every graph up front (a few seconds) so a timed run does not pay for it."""
         if not self.use_graphs:
             return
         for net in {id(self.net): self.net, id(self.roll_net): self.roll_net}.values():
@@ -343,7 +296,6 @@ class FastSearch:
             u = G["pol_u_t"][:n_pol].to(DEV, non_blocking=True)
             res = torch.empty(n_pol, 2 * M + 1, device=DEV)
             split = self.roll_net is not self.net
-            # with a separate play-out network the real fight's decisions go to the main network
             for use_main in ((False, True) if split else (None,)):
                 sel = np.ones(n_pol, bool) if use_main is None else (sim != use_main)
                 k = int(sel.sum())
@@ -363,7 +315,6 @@ class FastSearch:
 
     @torch.no_grad()
     def _evaluate(self, G, n_pol, n_val):
-        """Launches the networks on group G's requests; the answers land in the group's host buffers (call `_collect` before reading)."""
         if self.use_graphs:
             return self._evaluate_graphs(G, n_pol, n_val)
         M = self.M
@@ -380,7 +331,7 @@ class FastSearch:
                     return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
                 return pol
             res = self._run(pol_fn(self.roll_net), G["obs"][:n_pol], obs, mask, u)
-            if self.roll_net is not self.net:  # decisions of the real fight go to the (stronger) main network
+            if self.roll_net is not self.net:
                 ir = np.flatnonzero(G["pol_kind"][:n_pol] == 0)
                 if len(ir):
                     ir_t = torch.from_numpy(ir).to(DEV)
@@ -398,8 +349,8 @@ class FastSearch:
 
     @staticmethod
     def _val_obs(G, n):
-        """The `n` value rows of group G in row order: (host view, device tensor). Row r sits at `shared - 1 - r`."""
         s = G["shared"]
+        # value row r sits at shared - 1 - r
         return G["obs"][s - n:s][::-1], G["obs_t"][s - n:s].to(DEV, non_blocking=True).flip(0)
 
     @staticmethod
@@ -410,9 +361,7 @@ class FastSearch:
         if self.cuda:
             g["event"].synchronize()
 
-    # ---- driver ----
     def run(self, scenarios, job_scen, job_seed, starts=None, worth=None):
-        """`worth`: per scenario None (linear) or dict(u=[NC]) (`worth_row`); needs dist value rows."""
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         wt = None
@@ -426,14 +375,12 @@ class FastSearch:
         nj = len(job_scen)
         sj = [json.dumps(s) for s in scenarios]
         groups = []
-        # the previous run's engines (kept for `moves`) hold every block's play-out combats (~19 KB each: 3 GB per group at 1024 blocks x 5x32): drop
-        # them before building new ones instead of holding two sets at the peak
         self._runs = []
         for gi in range(self.groups):
-            idx = np.arange(gi, nj, self.groups)  # interleaved jobs: every group sees the whole mix
+            idx = np.arange(gi, nj, self.groups)
             if len(idx) == 0:
                 continue
-            nb = min(max(1, self.roots // self.groups), len(idx))  # blocks of this engine: more threads than blocks only cost the pool's start (~1 ms of a live round)
+            nb = min(max(1, self.roots // self.groups), len(idx))
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], n_roots=max(1, self.roots // self.groups), m=self.M, k=self.K, conf=self.conf,
                                      roll_cap=self.roll_cap, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, threads=min(self.threads, nb),
                                      record=self.record, lead=True, carry=True, strat=True, starts=starts, leaf_turns=self.leaf_turns,
@@ -476,10 +423,6 @@ class FastSearch:
         return out
 
     def decide(self, scenario, sim, seed=0, worth=None):
-        """Search ONE decision of a fight in progress. `sim` is an `sts2.Sim` aligned with the real fight (`agent.fight.Replayer.sim`); `scenario` is the fight-start scenario
-        (any valid scenario of the same content). The root's M likeliest actions are tried on K determinized futures each (hidden information resampled, everything
-        visible kept). Returns dict(action, opts, p, q, legal): the action to play and, per option, its dense action index, the policy's probability and the estimated
-        return (win = +1 plus half the HP fraction left, loss = -1; with `worth` (`worth_row`) the table's units); `q` is NaN for options that were not tried (a forced move is not searched)."""
         if self.clairvoyant:
             raise RuntimeError("FastSearch(clairvoyant=True) sees hidden information: diagnostic only, never a live decision")
         old = (self.max_steps, self.record)
@@ -494,7 +437,6 @@ class FastSearch:
                     legal=legal[0, :W].astype(bool).tolist())
 
     def job_actions(self, j):
-        """With `record`: the dense actions job j of the last `run` took, in order (jobs are interleaved over the engine groups)."""
         for idx, eng in self._runs:
             k = int(np.searchsorted(idx, j))
             if k < len(idx) and idx[k] == j:

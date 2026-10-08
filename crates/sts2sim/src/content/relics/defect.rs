@@ -1,5 +1,3 @@
-//! Defect relics.
-
 use crate::dec::Dec;
 use crate::engine::HKind;
 use crate::hooks::*;
@@ -8,7 +6,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// BeforeSideTurnStart: on the player's first turn channel `Lightning` (DynamicVar = 1) orbs, before energy reset / draw.
 listener!(CrackedCore {
     fn before_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
         if side == Side::Player && cx.player.turn_number <= 1 {
@@ -17,9 +14,6 @@ listener!(CrackedCore {
     }
 });
 
-// ---- relics that read / feed the orb queue (hooks live in engine/orbs.rs) -----------------------------------------------
-
-// ModifyOrbPassiveTriggerCounts: the FRONT orb's passive triggers one extra time.
 listener!(GoldPlatedCables {
     fn modify_orb_passive_trigger_counts(&self, cx: &Combat, _me: Me, orb: &Orb, count: i32) -> i32 {
         match cx.player.orbs.first() {
@@ -29,7 +23,6 @@ listener!(GoldPlatedCables {
     }
 });
 
-// Starter-relic alternative: 3 Lightning on turn 1 (after the turn-start hooks) and +1 to Lightning orb values.
 listener!(InfusedCore {
     fn after_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
         if side == Side::Player && cx.player.turn_number <= 1 {
@@ -47,7 +40,6 @@ listener!(InfusedCore {
     }
 });
 
-// +3 orb slots on turn 1.
 listener!(RunicCapacitor {
     fn after_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
         if side == Side::Player && cx.player.turn_number <= 1 {
@@ -56,7 +48,6 @@ listener!(RunicCapacitor {
     }
 });
 
-// 1 Dark orb on turn 1.
 listener!(SymbioticVirus {
     fn after_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
         if side == Side::Player && cx.player.turn_number <= 1 {
@@ -65,7 +56,6 @@ listener!(SymbioticVirus {
     }
 });
 
-// Counts channeled orbs (`Relic::counter`, reset by the combat); the 7th channel deals 30 Unpowered to all enemies.
 listener!(Metronome {
     fn after_orb_channeled(&self, cx: &mut Combat, me: Me, _orb: &Orb) {
         let i = me.idx as usize;
@@ -77,11 +67,8 @@ listener!(Metronome {
     }
 });
 
-// Emotion Chip: at the start of the player's turn, if the player took damage that was not fully blocked during the
-// previous turn (player or enemy side), trigger every orb's passive (counted through the trigger-count hooks).
 listener!(EmotionChip {
     fn after_player_turn_start(&self, cx: &mut Combat, _me: Me) {
-        // LostHpInPreviousTurn: a `DamageReceivedEntry` on the player that was not fully blocked (flags & 1) last player turn.
         if !cx.hist_any_last_player_turn(HKind::DamageReceived, |e| e.actor == PLAYER && e.flags & 1 == 0) {
             return;
         }

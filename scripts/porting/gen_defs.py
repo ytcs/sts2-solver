@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Generate static card / power definition tables from the decompiled game source.
-
-Usage: scripts/porting/gen_defs.py  (writes crates/sts2sim/src/content/gen_cards.rs and gen_powers.rs, prints a report)
-
-Card stat tables (cost, type, rarity, target, keywords, tags, dynamic vars with per-upgrade deltas, upgrade cost /
-keyword edits) are extracted mechanically so no number is ever transcribed by hand. Anything the extractor cannot
-express is listed in the report and flagged `custom_upgrade` so the card's Rust implementation must handle it.
-"""
 import glob, os, re, sys, importlib.util
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +7,6 @@ MODELS = os.path.join(ROOT, "decomp/MegaCrit/Sts2/Core/Models")
 OUT = os.path.join(ROOT, "crates/sts2sim/src/content")
 
 spec = importlib.util.spec_from_file_location("gen_ids", os.path.join(HERE, "gen_ids.py"))
-# gen_ids runs at import (prints); reuse only slugify by exec of the function source
 src = open(os.path.join(HERE, "gen_ids.py")).read()
 ns = {}
 exec(src[src.index("def slugify"):src.index("def classes")], {"re": re, "os": os}, ns)
@@ -46,8 +37,10 @@ CARD_TYPE = {"None", "Attack", "Skill", "Power", "Status", "Curse", "Quest"}
 TARGET = {"None": "None", "Self": "Self_", "AnyEnemy": "AnyEnemy", "AllEnemies": "AllEnemies", "RandomEnemy": "RandomEnemy",
           "AnyPlayer": "AnyPlayer", "AnyAlly": "AnyAlly", "AllAllies": "AllAllies", "TargetedNoCreature": "TargetedNoCreature",
           "Osty": "Osty"}
+
 KW = {"Exhaust": "kw::EXHAUST", "Ethereal": "kw::ETHEREAL", "Innate": "kw::INNATE", "Unplayable": "kw::UNPLAYABLE",
       "Retain": "kw::RETAIN", "Sly": "kw::SLY", "Eternal": "kw::ETERNAL"}
+
 TAG = {"Strike": "tag::STRIKE", "Defend": "tag::DEFEND", "Minion": "tag::MINION", "OstyAttack": "tag::OSTY_ATTACK", "Shiv": "tag::SHIV"}
 PROP = {"Unblockable": 2, "Unpowered": 4, "Move": 8, "SkipHurtAnim": 0x10}
 VAR_KIND = {"DamageVar": "Damage", "BlockVar": "Block", "CardsVar": "Cards", "EnergyVar": "Energy", "StarsVar": "Stars",
@@ -55,6 +48,7 @@ VAR_KIND = {"DamageVar": "Damage", "BlockVar": "Block", "CardsVar": "Cards", "En
             "OstyDamageVar": "OstyDamage", "ExtraDamageVar": "ExtraDamage", "CalculationBaseVar": "CalcBase",
             "CalculationExtraVar": "CalcExtra", "GoldVar": "Gold", "MaxHpVar": "MaxHp", "CalculatedDamageVar": "CalcDamage",
             "CalculatedBlockVar": "CalcBlock"}
+
 PROP_NAME = {"Damage": "Damage", "Block": "Block", "Cards": "Cards", "Energy": "Energy", "Stars": "Stars", "Repeat": "Repeat",
              "HpLoss": "HpLoss", "Heal": "Heal", "Summon": "Summon", "Forge": "Forge", "OstyDamage": "OstyDamage",
              "ExtraDamage": "ExtraDamage", "CalculationBase": "CalcBase", "CalculationExtra": "CalcExtra", "Gold": "Gold", "MaxHp": "MaxHp"}
@@ -74,7 +68,6 @@ def parse_props(expr):
 
 
 def find_news(body):
-    """Yield (type, generic_arg, args_text) for every `new T<G>(args)` in `body`, including nested ones."""
     for m in re.finditer(r"new\s+(\w+)(?:<(\w+)>)?\(", body):
         i = m.end()
         depth = 1
@@ -97,7 +90,6 @@ def main():
     report = []
     var_names = {}
 
-    # ---- cards ----
     rows = []
     for cls, (base, s) in cards.items():
         if base != "CardModel":
@@ -114,7 +106,7 @@ def main():
         sm = re.search(r"CanonicalStarCost\s*=>\s*(-?\d+)", s)
         star_cost = int(sm.group(1)) if sm else -1
         if star_x:
-            star_cost = -2  # X star cost
+            star_cost = -2
         kws = []
         km = re.search(r"CanonicalKeywords\s*=>(.*?);", s, flags=re.S)
         if km:
@@ -128,8 +120,7 @@ def main():
         turn_end = bool(re.search(r"HasTurnEndInHandEffect\s*=>\s*true", s))
         no_gen = bool(re.search(r"CanBeGeneratedInCombat\s*=>\s*false", s))
         mp_only = bool(re.search(r"MultiplayerConstraint\s*=>\s*CardMultiplayerConstraint\.MultiplayerOnly", s))
-        # vars
-        vars_ = []  # (kind, arg, base, up, props)
+        vars_ = []
         vm = re.search(r"CanonicalVars\s*=>(.*?);\s*\n", s, flags=re.S)
         if vm:
             body = vm.group(1)
@@ -146,7 +137,6 @@ def main():
                 elif name == "PowerVar":
                     nm = re.match(r'\s*"(\w+)"\s*,\s*([-\d.]+)m?', args)
                     if nm:
-                        # `new PowerVar<WeakPower>("SappingWeak", 2m)`: read as `DynamicVars["SappingWeak"]` -> Named var.
                         var_names.setdefault(nm.group(1), len(var_names))
                         vars_.append(("Named", var_names[nm.group(1)], num(nm.group(2)), 0, 0, nm.group(1)))
                         continue
@@ -162,9 +152,6 @@ def main():
                 elif name in VAR_KIND:
                     nm = re.match(r'\s*"(\w+)"\s*,\s*([-\d.]+)m?', args)
                     if nm:
-                        # Typed var with an explicit name (`new CardsVar("Shivs", 3)`, `new EnergyVar("ExtraCost", 1)`,
-                        # `new BlockVar("BlockNextTurn", 5m, ..)`): the game reads it as `DynamicVars["Shivs"]`, never through the typed
-                        # property (`DynamicVars.Cards`), so it is a Named var (props, if any, are irrelevant to the lookup).
                         var_names.setdefault(nm.group(1), len(var_names))
                         vars_.append(("Named", var_names[nm.group(1)], num(nm.group(2)), 0, 0, nm.group(1)))
                         continue
@@ -174,7 +161,6 @@ def main():
                     vars_.append((VAR_KIND[name], 0, base_v, 0, props, None))
                 else:
                     flags.append(f"var {name}")
-        # upgrade body
         up_cost, up_add, up_rem, up_star = 0, [], [], 0
         custom = False
         um = re.search(r"override\s+void\s+OnUpgrade\(\)\s*\{(.*?)\n\t\}", s, flags=re.S)
@@ -280,7 +266,6 @@ def main():
     cards_out = out
     report += nonint
 
-    # ---- powers ----
     prow = []
     def resolve(cls, pattern, group=1):
         seen = 0
@@ -333,7 +318,6 @@ def main():
     open(os.path.join(OUT, "gen_powers.rs"), "w").write("\n".join(out))
 
 
-    # ---- card pools (array order matters: it is the RNG source order) ----
     pools_out = ["// @generated by scripts/porting/gen_defs.py from the decompiled game source. Do not edit.",
                  "// Card pools in the game's `GenerateAllCards` array order (the order combat generation draws from).",
                  "use crate::ids;", ""]
@@ -350,7 +334,6 @@ def main():
         pools_out.append("];\n")
     open(os.path.join(OUT, "gen_pools.rs"), "w").write("\n".join(pools_out))
 
-    # ---- potions ----
     pots = read_dir("Potions")
     pr = []
     for cls, (base, src) in pots.items():

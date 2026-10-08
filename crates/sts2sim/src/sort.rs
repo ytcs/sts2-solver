@@ -1,11 +1,3 @@
-//! Exact port of .NET `List<T>.Sort()` (`ArraySortHelper<T>.IntrospectiveSort`, .NET 9).
-//!
-//! The game reshuffles with `StableShuffle`, which sorts the cards (unstable!) by `(ModelId, upgrade level)` and
-//! then Fisher-Yates shuffles. Cards that compare equal are *permuted* by the sort, so to reproduce draw
-//! order bit-for-bit we must run the same algorithm. Verified in `docs/spec/03-cards-piles.md` §7.3 against the
-//! real runtime.
-
-/// Sorts `keys` ascending with `cmp` exactly like .NET's introsort.
 pub fn intro_sort<T: Copy>(keys: &mut [T], cmp: impl Fn(&T, &T) -> i32) {
     let n = keys.len();
     if n < 2 {
@@ -136,8 +128,6 @@ mod tests {
 
     #[test]
     fn equal_keys_are_permuted_not_stable() {
-        // (key, tag): three equal keys. The 3-element network swaps (lo,hi-1) etc. only when strictly greater, so
-        // equal items stay put for n<=3; for n>=17 partitioning moves them. Just assert multiset preserved.
         let mut v: Vec<(i32, i32)> = (0..40).map(|i| (i % 3, i)).collect();
         intro_sort(&mut v, |a, b| (a.0 > b.0) as i32 - (a.0 < b.0) as i32);
         assert!(v.windows(2).all(|w| w[0].0 <= w[1].0));

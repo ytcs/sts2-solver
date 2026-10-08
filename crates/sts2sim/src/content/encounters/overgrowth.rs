@@ -1,6 +1,3 @@
-//! Act 1a "Overgrowth" encounters (spec 04 §4.2). Monsters in creation order; `rng` = the encounter-local RNG.
-//! (`NibbitsWeak` lives in basic.rs.)
-
 use crate::content::monsters::{fogmog, kin, phrog};
 use crate::content::{Spawn, Spawns};
 use crate::ids;
@@ -20,7 +17,6 @@ fn push(s: &mut Spawns, m: u16) {
 const SMALL_SLIMES: [u16; 2] = [ids::monster::LEAF_SLIME_S, ids::monster::TWIG_SLIME_S];
 const MEDIUM_SLIMES: [u16; 2] = [ids::monster::LEAF_SLIME_M, ids::monster::TWIG_SLIME_M];
 
-/// `Rng.NextItem(list)` on an array.
 fn next_item(rng: &mut Rng, items: &[u16]) -> u16 {
     items[rng.next_int(items.len() as i32) as usize]
 }
@@ -33,7 +29,6 @@ pub fn spawn_shrinker_beetle_weak(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::SHRINKER_BEETLE)
 }
 
-/// [small1, medium, small2]; draws: small1 (n=2), small2 (n=1), medium (n=2).
 pub fn spawn_slimes_weak(rng: &mut Rng, _ascension: u8) -> Spawns {
     let small1_i = rng.next_int(2) as usize;
     let small1 = SMALL_SLIMES[small1_i];
@@ -59,14 +54,12 @@ pub fn spawn_flyconid_normal(rng: &mut Rng, _ascension: u8) -> Spawns {
     s
 }
 
-/// Slots [illusion, fogmog]; Fogmog sits in `fogmog`.
 pub fn spawn_fogmog_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster: ids::monster::FOGMOG, slot: fogmog::SLOT_FOGMOG, vars: [0, 0] });
     s
 }
 
-/// Three Inklets, the middle one with `MiddleInklet = true` (vars[0]).
 pub fn spawn_inklets_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     push(&mut s, ids::monster::INKLET);
@@ -79,7 +72,6 @@ pub fn spawn_mawler_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::MAWLER)
 }
 
-/// Slots [front, back] -> indices 0 / 1; the front Nibbit has `IsFront` (vars[1]); vars[0] = IsAlone = false.
 pub fn spawn_nibbits_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster: ids::monster::NIBBIT, slot: 0, vars: [0, 1] });
@@ -94,7 +86,6 @@ pub fn spawn_overgrowth_crawlers(_rng: &mut Rng, _ascension: u8) -> Spawns {
     s
 }
 
-/// Three distinct raiders: `NextItem(types not yet used)` x3, key order Axe, Assassin, Brute, Crossbow, Tracker.
 pub fn spawn_ruby_raiders_normal(rng: &mut Rng, _ascension: u8) -> Spawns {
     let all = [
         ids::monster::AXE_RUBY_RAIDER,
@@ -123,7 +114,6 @@ pub fn spawn_ruby_raiders_normal(rng: &mut Rng, _ascension: u8) -> Spawns {
     s
 }
 
-/// [TwigSlimeM, LeafSlimeM, a, b], `flag = NextBool()`: a = flag ? LeafSlimeS : TwigSlimeS, b = the other.
 pub fn spawn_slimes_normal(rng: &mut Rng, _ascension: u8) -> Spawns {
     let flag = rng.next_bool();
     let (a, b) = if flag {
@@ -139,7 +129,6 @@ pub fn spawn_slimes_normal(rng: &mut Rng, _ascension: u8) -> Spawns {
     s
 }
 
-/// `NextItem({SnappingJaxfruit, MediumSlime, SmallSlimes})` then its own draws; the Strangler is added last.
 pub fn spawn_slithering_strangler_normal(rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     match rng.next_int(3) {
@@ -178,7 +167,6 @@ pub fn spawn_byrdonis_elite(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::BYRDONIS)
 }
 
-/// Slots [phrog, wriggler1..4]; the Phrog sits in `phrog`.
 pub fn spawn_phrog_parasite_elite(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster: ids::monster::PHROG_PARASITE, slot: phrog::SLOT_PHROG, vars: [0, 0] });
@@ -189,7 +177,6 @@ pub fn spawn_ceremonial_beast_boss(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::CEREMONIAL_BEAST)
 }
 
-/// KinFollower(StartsWithDance)@slot1, KinFollower@slot2, KinPriest@leaderSlot.
 pub fn spawn_the_kin_boss(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster: ids::monster::KIN_FOLLOWER, slot: kin::SLOT_1, vars: [1, 0] });

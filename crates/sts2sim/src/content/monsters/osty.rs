@@ -1,5 +1,3 @@
-//! Osty (Necrobinder pet). Never acts on its own: a single no-op move that loops on itself. Its HP is set by `Summon`.
-
 use crate::defs::*;
 use crate::ids;
 

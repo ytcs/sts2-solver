@@ -1,6 +1,3 @@
-//! Powers owned or applied by the Act 3 "Glory" weak / normal monsters (spec 04 §3.4; C# `Models/Powers/*`).
-//! Plating / Artifact / Minion / Ritual / Strength / Weak / Frail / Vulnerable live in their shared files.
-
 use crate::dec::Dec;
 use crate::hooks::*;
 use crate::ids;
@@ -8,14 +5,11 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `participants.Contains(Owner)` for a side-turn notification.
 #[inline]
 fn owner_side(cx: &Combat, me: Me, side: Side) -> bool {
     cx.cr(me.owner).side == side
 }
 
-// ---- StockPower (Axebot): on death spawns a replacement Axebot (StockAmount - 1, +10 max HP per respawn) ---------------
-// The replacement's private `vars[0]` is `StockAmount + 1` (0 = the original, un-overridden Axebot).
 listener!(StockPower {
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {
         if was_removal_prevented || creature != me.owner {
@@ -24,7 +18,6 @@ listener!(StockPower {
         let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
         if amount > 0 {
             let slot = cx.cr(me.owner).slot;
-            // `CreatureCmd.Add(axebot, CombatState, Owner.Side, Owner.SlotName)`; axebot.StockAmount = Amount - 1.
             cx.summon_enemy(ids::monster::AXEBOT, slot, [amount, 0]);
         }
     }
@@ -33,7 +26,6 @@ listener!(StockPower {
     }
 });
 
-// ---- RampartPower (Living Shield): at the start of the player's turn every Turret Operator gains Amount block --------
 listener!(RampartPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if side != Side::Player || cx.extra_turn {
@@ -55,7 +47,6 @@ listener!(RampartPower {
     }
 });
 
-// ---- PaperCutsPower (Scroll of Biting): unblocked powered-attack damage to the player also removes Amount max HP -----
 listener!(PaperCutsPower {
     fn after_damage_given(&self, cx: &mut Combat, me: Me, dealer: Cid, target: Cid, unblocked: i32, props: ValueProp) {
         if dealer == me.owner && cx.cr(target).is_player && props.is_powered() && unblocked > 0 {
@@ -65,7 +56,6 @@ listener!(PaperCutsPower {
     }
 });
 
-// ---- GalvanicPower (Globe Head): the player's Power cards are Galvanized (damage the player Amount when played) ---------
 listener!(GalvanicPower {
     fn before_combat_start(&self, cx: &mut Combat, me: Me) {
         let amount = cx.cr(me.owner).power(me.id).map_or(me.amount, |p| p.amount);
@@ -90,7 +80,6 @@ listener!(GalvanicPower {
     }
 });
 
-// ---- SoarPower (Owl Magistrate): powered attacks against the owner deal 50% (DamageDecrease / 100) ---------------------
 listener!(SoarPower {
     fn modify_damage_multiplicative(&self, _cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if q.target != me.owner || !q.props.is_powered() {
@@ -100,8 +89,6 @@ listener!(SoarPower {
     }
 });
 
-// ---- PossessStrengthPower (The Lost): Strength it takes from the player (applier == owner) comes back when it dies -------
-// aux = the (negative) total stolen from the player (`stolenStrength[player]`).
 listener!(PossessStrengthPower {
     fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
         if ch.applier != me.owner || !cx.cr(ch.target).is_player || ch.power_id != ids::power::STRENGTH_POWER || ch.amount >= 0 {
@@ -122,7 +109,6 @@ listener!(PossessStrengthPower {
     }
 });
 
-// ---- PossessSpeedPower (The Forgotten): same for Dexterity ----------------------------------------------------------------
 listener!(PossessSpeedPower {
     fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {
         if ch.applier != me.owner || !cx.cr(ch.target).is_player || ch.power_id != ids::power::DEXTERITY_POWER || ch.amount >= 0 {
@@ -143,7 +129,6 @@ listener!(PossessSpeedPower {
     }
 });
 
-// ---- HighVoltagePower (Zapbot): at the end of its side's turn the owner gains Amount Strength -------------------------------
 listener!(HighVoltagePower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if owner_side(cx, me, side) {

@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Claude Code hook entry for the skill gate (logic and rationale: agent/skillgate.py). Stdlib only; reads the hook JSON from stdin.
-
-    skill_gate.py record   PostToolUse (Skill)   remember that this session loaded the skill
-    skill_gate.py check    PreToolUse (Bash|Write|Edit)   exit 2 + message (shown to the agent) when the call must not happen yet
-    skill_gate.py start    SessionStart          remind what to load; forget the record after a compaction / clear
-"""
 import importlib.util
 import json
 import os
@@ -36,7 +30,6 @@ def main():
               "harness action commands until they are loaded in this session" + (" (the record was reset: load them again)" if d.get("source") in ("compact", "clear") else "") +
               ". Screen skills (`sts2-pathing`, `sts2-deckbuilding`, the character and act skills) are demanded by the harness when a screen needs them.")
         return 0
-    # check
     tool = d.get("tool_name", "")
     if tool in ("Write", "Edit", "NotebookEdit"):
         p = (ti.get("file_path") or ti.get("notebook_path") or "").replace("\\", "/")
@@ -53,7 +46,7 @@ def main():
     kind = sg.classify(cmd)
     if kind == "none":
         return 0
-    sg.set_active(session)  # the daemon attributes the next command to this session
+    sg.set_active(session)
     if kind == "act":
         miss = sg.missing_core(session)
         if miss:

@@ -1,19 +1,3 @@
-"""Route survival calculator: the whole act map priced with the solver, so a route's risk is one number and its price in rewards is visible.
-
-`python -m agent routes [--attempts N] [--pf P]` (read-only). What it does:
-1. Reads the act map (`m`) and the nodes on offer now (the MAP screen).
-2. Plays the current deck + relics from a grid of start HPs against the encounters that can still appear, per fight kind (weak / regular / elite / boss), and keeps the
-   end HP of every attempt (death = 0): a transition matrix T[hp, hp'] over the whole HP range, interpolated between the grid points. The belt is a BUDGET: every non-boss
-   kind gets a table with no potion and one per potion (that potion alone available), the boss one per subset of the belt.
-3. Exact backward dynamic programming over (node, monsters met, elites still required, potions still unspent, HP): F = probability of winning the act boss, assuming I choose
-   the best child at every node with the HP I then have (I do re-plan at every node) and, at every fight, whether to throw one of the remaining potions: a potion counts at the
-   fight where it helps most (an elite or the boss) and only once along a route. A potion chosen for a fight is assumed spent (the table was played with it available; the solver
-   may not have needed it, so what is left for later is a lower bound). A rest heals 30% of max HP; shop / treasure change nothing; an unknown room is a regular fight with
-   probability `pf` (default 0.15 `[hyp]`), played without a potion, else nothing. Events that cost HP or give HP are NOT modelled.
-4. The price of rewards: the best survival with at least k more elites (k = 0 .. elites on the map), per option on offer, and for each k the representative route (following
-   the policy at the expected HP) with its fixed-path stats: P(reach the boss alive), expected HP on arrival, P(win the boss), counts of fights / elites / rests / shops /
-   unknowns, and the potion plan. Risk against reward stays a judgment: an elite is a relic plus rare odds (`sts2-pathing`), a rest is HP, a shop needs gold.
-"""
 import json
 import re
 from itertools import combinations
@@ -22,30 +6,18 @@ import numpy as np
 
 from agent import macro, pools, screen
 
-GRID = 9  # start-HP grid points per fight kind
+GRID = 9
 KINDS = ("weak", "regular", "elite", "boss")
 HEAL = 0.3
-MAX_BELT = 3  # potions priced as a budget (the belt has 2-3 slots; the boss tables grow as 2^n)
-# Reward value of a node, in "one monster's card reward" units (a judgment `[hyp]`, override with --w E=4,M=1,...): an elite is a relic, a rare chance and gold (~4 cards),
-# a treasure a relic, a shop buys cards / relics / a removal with the gold in hand, a rest is HP (counted low: the DP already prices HP), an unknown is an event or a fight.
-# An elite: a relic (3.5) + a card reward with ~3x the rare odds (~1.3) = 5 (its gold is counted through the shops below); a treasure: a relic. "$" is a MULTIPLIER on the
-# shop's value, which is what the gold I arrive with buys (`shop_buy`).
+MAX_BELT = 3
 WEIGHTS = {"M": 1.0, "E": 5.0, "T": 3.5, "$": 1.0, "?": 1.2, "R": 0.3}
 NONE = frozenset()
-# Gold on the way `[code]` (A10 Poverty x0.75): monster 7-15 (EncounterModel.MinGoldReward/MaxGoldReward 10-20), elite 26-33 (35-45), treasure 31-39
-# (OneOffSynchronizer.DoTreasureRoomRewards 42-52); unknowns `[hyp]` ~10.
 GOLD_GAIN = {"M": 11, "E": 30, "?": 10, "T": 35, "R": 0, "$": 0}
 GOLD_STEP, GOLD_CAP = 10, 600
-# What a shop sells `[code]` (MerchantInventory, MerchantCardEntry, MerchantRelicEntry, MerchantPotionEntry, MerchantCardRemovalEntry): 5 class cards at 50 / 75 / 150
-# (common / uncommon / rare, x0.95-1.05, one of them on sale at half), 2 colorless (x1.15), 3 relics at 175 / 225 / 275 (x0.85-1.15), 3 potions at 50 / 75 / 100, a removal
-# at 100 (+50 per removal bought, A10 Inflation). Value per item in card-reward units `[hyp]`: the best card of the 7 ~1.0 (about 60 gold with the sale), a second card 0.6,
-# a removal 0.8, a relic 3.5 (~225), a potion 0.4.
 SHOP_ITEMS = (("card", 60, 1.0), ("card2", 75, 0.6), ("removal", 100, 0.8), ("relic", 225, 3.5), ("potion", 60, 0.4))
 
 
 def shop_buy(g):
-    """(value, gold spent) of the best basket a shop sells for g gold (exact over the 32 baskets of SHOP_ITEMS): below ~60 gold a shop buys nothing, 60-160 one or two cheap
-    items, ~225 a relic."""
     best = (0.0, 0)
     n = len(SHOP_ITEMS)
     for m in range(1 << n):
@@ -58,7 +30,6 @@ def shop_buy(g):
 
 
 def parse_map(text):
-    """nodes[(row, col)] = dict(type, children=[(row+1, col')], visited); boss_row. Types M E R $ ? T."""
     nodes, boss_row = {}, None
     for line in text.splitlines():
         m = re.match(r"^r(\d+):\s*(.*)$", line)
@@ -77,7 +48,6 @@ def parse_map(text):
 
 
 def offered(state_text):
-    """Node coordinates on offer on the MAP screen: lines like `0 Monster r7c5 -> Rc4,Mc6`."""
     return [(int(m.group(1)), int(m.group(2))) for _, label in screen.options(state_text) for m in [re.match(r"\w+ r(\d+)c(\d+)", label)] if m]
 
 
@@ -93,7 +63,6 @@ def _hist(ends, maxhp):
 
 
 def _matrix(hists, grid, maxhp):
-    """T[hp, hp'] from the end-HP histograms at the grid start HPs (linear interpolation between grid points)."""
     T = np.zeros((maxhp + 1, maxhp + 1))
     T[0, 0] = 1.0
     for hp in range(1, maxhp + 1):
@@ -108,8 +77,8 @@ def _matrix(hists, grid, maxhp):
     return T
 
 
-UNIT = 4  # attempts per scenario in the one big batch: a table that wants more attempts gets replicated scenarios (the solver's job ids differ, so the replicas are independent)
-_CACHE = {}  # signature -> tables: they depend on the deck, relics, belt and what can still appear, not on my HP, so repeated `routes` calls at the same deck cost nothing
+UNIT = 4
+_CACHE = {}
 
 
 def _signature(deck_json, act, ctx, attempts):
@@ -120,8 +89,6 @@ def _signature(deck_json, act, ctx, attempts):
 
 
 def build_tables(engine, deck_json, act, ctx, attempts):
-    """tabs[(kind, S)] = transition matrix with the potions S (a frozenset of belt indices) available; tabs["_belt"] = the potion ids. One batched solver call for every table.
-    Potion variants exist for elites and the boss only: a potion thrown in a hallway fight is not what the route decision is about."""
     key = _signature(deck_json, act, ctx, attempts)
     if key in _CACHE:
         return _CACHE[key]
@@ -165,7 +132,7 @@ def build_tables(engine, deck_json, act, ctx, attempts):
 class Calc:
     def __init__(self, nodes, boss_row, tabs, maxhp, weak_fights, pf=0.15, goal="win"):
         self.weights = dict(WEIGHTS)
-        self.goal = goal  # "win": P(win the boss); "reach": P(alive on arrival), when the boss is out of reach for the deck and the rewards on the way must close the gap
+        self.goal = goal
         self.nodes, self.boss_row, self.tabs, self.H, self.weak_fights, self.pf = nodes, boss_row, tabs, maxhp, weak_fights, pf
         self.belt = tabs.get("_belt", [])
         self.full = frozenset(range(len(self.belt)))
@@ -203,7 +170,6 @@ class Calc:
         return "weak" if w < self.weak_fights and self.has("weak") else "regular"
 
     def _options(self, fk, S):
-        """The ways to play a fight of kind fk with the potions S still unspent: (None, S) = no potion, (i, S - {i}) = throw potion i."""
         opts = [(None, S)]
         for i in sorted(S):
             if (fk, frozenset({i})) in self.tabs:
@@ -211,7 +177,6 @@ class Calc:
         return opts
 
     def F(self, key, w, k, S=None):
-        """Vector over HP: P(win the boss) when about to enter `key` with `w` monsters met, `k` more elites required and the potions S unspent (default: the whole belt)."""
         S = self.full if S is None else S
         if key == "BOSS":
             return self._terminal(S) if k == 0 else np.zeros(self.H + 1)
@@ -223,7 +188,7 @@ class Calc:
         w2 = min(w + 1, self.weak_fights) if t == "M" else w
         k2 = max(0, k - 1) if t == "E" else k
 
-        def G(w_, k_, S_):  # best child with the HP I then have
+        def G(w_, k_, S_):
             vs = [self.F(c, w_, k_, S_) for c in self.kids(key)]
             return np.max(vs, axis=0) if vs else np.zeros(self.H + 1)
 
@@ -233,7 +198,7 @@ class Calc:
                 g = G(w2, k2, S2).copy()
                 g[0] = 0.0
                 v = self.T(fk, NONE if i is None else frozenset({i})) @ g
-                out = v if out is None else np.maximum(out, v)  # the best way to play this fight, chosen with the HP I arrive with
+                out = v if out is None else np.maximum(out, v)
         elif t == "R":
             g = G(w, k, S)
             idx = np.minimum(np.arange(self.H + 1) + self.heal, self.H)
@@ -252,13 +217,10 @@ class Calc:
 
     @staticmethod
     def _gold_after(t, g):
-        """Gold leaving a node of type t entered with g (expected income; a shop spends what its best basket costs), on the GOLD_STEP grid."""
         g = g - shop_buy(g)[1] if t == "$" else g + GOLD_GAIN.get(t, 0)
         return min(GOLD_CAP, int(round(g / GOLD_STEP)) * GOLD_STEP)
 
     def Rw(self, key, w, g=0):
-        """Vector over HP: expected reward collected from `key` onward (rewards count only while alive), the best child at every node, every fight played without a potion. Boss = 0.
-        g = gold on entering `key`: a shop's weight is scaled by shop_scale(g)."""
         if key == "BOSS":
             return np.zeros(self.H + 1)
         g = min(GOLD_CAP, int(round(g / GOLD_STEP)) * GOLD_STEP)
@@ -296,7 +258,6 @@ class Calc:
         return out
 
     def reward_path(self, start, w, hp, g=0):
-        """Follow the best child of the reward DP at the expected HP (and the expected gold)."""
         path, key, cur = [], start, float(hp)
         while key != "BOSS":
             path.append(key)
@@ -315,10 +276,7 @@ class Calc:
             key = max(kids, key=lambda c: self.Rw(c, w, g)[hp_i]) if kids else "BOSS"
         return path
 
-    # ------------------------------------------------------------------------------------------------------------ fixed path statistics
     def policy_path(self, start, w, k, hp):
-        """Follow the DP at the expected HP: the best child and, at every fight, the best way to play it (a potion or none). Returns (nodes from `start` to the last node before
-        the boss, plan = {node: potion index thrown there}); the potions left over go to the boss."""
         path, plan, key, cur, S = [], {}, start, float(hp), self.full
         while key != "BOSS":
             path.append(key)
@@ -352,12 +310,11 @@ class Calc:
         return path, plan
 
     def path_stats(self, path, w, hp, plan=None):
-        """Fixed path (and potion plan): P(reach the boss alive), E[HP on arrival | alive], P(win the boss), HP quantiles on arrival. Without a plan no potion is thrown before the boss."""
         plan = plan or {}
         d = np.zeros(self.H + 1)
         d[max(1, min(self.H, int(hp)))] = 1.0
         counts = dict(M=0, E=0, R=0, **{"$": 0, "?": 0, "T": 0})
-        elites = []  # (node, P(alive on arrival), mean HP, q10 HP) at every elite on the path: two elites without a rest between them show up as a falling mean
+        elites = []
         used = set()
         for key in path:
             t = self.nodes[key]["type"]
@@ -387,7 +344,7 @@ class Calc:
         cdf = np.cumsum(d[1:]) / max(alive, 1e-9)
         q = lambda p: int(np.searchsorted(cdf, p) + 1)
         S_boss = self.full - used
-        pwin = float(d @ self.T("boss", S_boss)[:, 1:].sum(axis=1))  # the boss win probability whatever the goal, with the potions left
+        pwin = float(d @ self.T("boss", S_boss)[:, 1:].sum(axis=1))
         return dict(alive=float(alive), mean_hp=mean, q10=q(0.1), q50=q(0.5), win=pwin, counts=counts, elites=elites, boss_potions=sorted(S_boss))
 
 
@@ -419,7 +376,7 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
     calc.weights.update(weights or {})
     note = ""
     starts = [k for k in offered(state_text) if k in nodes]
-    if not starts:  # not on a map screen: every unvisited node of the first unvisited row that is reachable from the visited ones
+    if not starts:
         vis = [k for k, v in nodes.items() if v["visited"]]
         cur = max(vis, default=None)
         starts = [c for c in (nodes[cur]["children"] if cur else []) if c in nodes] if cur else [k for k in nodes if k[0] == min(r for r, _ in nodes)]
@@ -432,7 +389,6 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
         calc.weights.update(weights or {})
         note = "BOSS OUT OF REACH for this deck (best route < 0.05 win): F below is P(reach the boss alive); the win column is the real boss win. Rewards on the way must close the gap."
     max_e = 0
-    # most elites on any path (upper bound for k): count elite nodes ahead
     for k in range(0, 5):
         if max(calc.F(s, w0, k)[hp_now] for s in starts) > 0:
             max_e = k

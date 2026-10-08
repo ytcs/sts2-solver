@@ -1,5 +1,3 @@
-"""The live combat loop on a recorded fight (Fabricator, 34 actions in): `turn` / `combat`, `adv`, slot translation (potion proposals: test_proposal.py).
-The engine's decisions are scripted (FakeEngine.decide); the simulator is the real one, aligned by the Replayer."""
 import json
 
 import support
@@ -24,7 +22,6 @@ def live_fight():
 
 
 def decision(sim, chosen, qs):
-    """A decide() result choosing the legal action whose text is `chosen`, with the given q per action text (others unsearched)."""
     legal = dict((t, a) for a, t in sim.legal())
     opts = [dict(action=a, text=t, p=0.1, q=qs.get(t)) for a, t in sim.legal()]
     a = legal[chosen]
@@ -32,7 +29,6 @@ def decision(sim, chosen, qs):
 
 
 def setup(monkeypatch, tmp_path, script, fight=None, screen_text=COMBAT):
-    """script(call_no, sim, keep_potions) -> (chosen text, {text: q})."""
     n = [0]
 
     def decide(scenario, sim, budget, keep_potions):
@@ -58,7 +54,7 @@ def test_turn_plays_until_end_turn(monkeypatch, tmp_path):
     out = ok(h.handle("turn !"))
     assert out == "  play BOLAS #0 -> e1 q0.5   [alt: play SQUASH #2 -> e0 q0.3; end turn q0.2]\n  end turn q0.4   [alt: play BOLAS #0 -> e1 q0.1; play BOLAS #0 -> e0 qNone]\n" + COMBAT
     assert fake.actions() == ['do {"play":{"hand_pos":0,"target":1}}', 'do {"end_turn":true}']
-    assert [c["keep_potions"] for c in eng.decide_calls] == [True, True]  # the search plans without potions: they are proposed, and I commit them
+    assert [c["keep_potions"] for c in eng.decide_calls] == [True, True]
     assert [c["worth"] for c in eng.decide_calls] == ["linear", "linear"]
     ev = events(h)
     st = [e for e in ev if e["kind"] == "fight_start"][-1]
@@ -74,7 +70,7 @@ def test_advice(monkeypatch, tmp_path):
     h, fake, eng = setup(monkeypatch, tmp_path, lambda i, sim, kp: ("play BOLAS #0 -> e1", {"play BOLAS #0 -> e1": 0.5, "end turn": 0.2}))
     out = ok(h.handle("adv 2"))
     assert out.startswith(COMBAT.rstrip("\n") + "\n")
-    assert "\ne1 plan: +1 DISINTEGRATE 14  +2 DISINTEGRATE 14" in out  # the pending summon makes 4+ enemies: no fabricating after it
+    assert "\ne1 plan: +1 DISINTEGRATE 14  +2 DISINTEGRATE 14" in out
     assert "advice: play BOLAS #0 -> e1 q0.5   [alt: end turn q0.2; play BOLAS #0 -> e0 qNone]   (4 rounds, 0.1s)\noutlook (expected damage, next 4 turns): " in out
     assert eng.decide_calls[-1]["budget"] == 2.0 and eng.decide_calls[-1]["tol_hp"] == 0.0
     assert fake.actions() == []
@@ -94,8 +90,6 @@ def test_game_json_slots(monkeypatch, tmp_path):
 
 
 def test_choice_resync_random_offer():
-    """A random offer (Power Potion): the game's SELECT cards are not in the hand, so the simulator's pending choice is re-synced to them by name
-    (`Sim.sync_choice` creates them); a hand prompt still goes through the hand (ids and upgrades from the real hand)."""
     import types
     from agent.live import Live
 

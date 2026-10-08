@@ -1,16 +1,9 @@
-//! Card play pipeline (spec 03 §4-5): playability, resource spend, `OnPlayWrapper`, result piles.
-//!
-//! Plays are resumable and nestable: `Combat::play_stack` holds the in-flight plays (innermost last). A card's
-//! `on_play` may start an auto-play (`Combat::auto_play`), which pushes a nested play; if that one asks for a decision
-//! the whole chain unwinds with `Flow::Suspend` and is resumed bottom-up by `resume_after_decision`.
-
 use crate::content;
 use crate::engine::HKind;
 use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
 
-/// Outcome of running one in-flight play.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RunResult {
     Finished,
@@ -18,7 +11,6 @@ pub enum RunResult {
 }
 
 impl Combat {
-    /// `CardModel.TargetType` with dynamic overrides: Shiv hits all enemies under Fan of Knives, Sovereign Blade under Seeking Edge.
     pub fn card_target_type(&self, c: CardIdx) -> TargetType {
         let d = self.card_def(c);
         if d.id == crate::ids::card::SHIV && self.has_power(PLAYER, crate::ids::power::FAN_OF_KNIVES_POWER) {
@@ -30,7 +22,6 @@ impl Combat {
         }
     }
 
-    /// `CardModel.IsValidTarget`.
     pub fn is_valid_target(&self, c: CardIdx, t: Cid) -> bool {
         let tt = self.card_target_type(c);
         if t == NO {
@@ -47,7 +38,6 @@ impl Combat {
         }
     }
 
-    /// `Hook.ShouldPlay` (guarded, AND): the first vetoing model is the preventer.
     #[inline]
     pub fn should_play_preventer(&self, c: CardIdx, kind: AutoPlayType) -> Option<Me> {
         if !self.listen.intersects(Mask::bit(hookbit::should_play) | Mask::bit(hookbit::should_play_kind)) {
@@ -76,7 +66,6 @@ impl Combat {
         None
     }
 
-    /// `PlayerCombatState.HasEnoughResourcesFor` (spec 03 §2.5).
     pub fn has_enough_resources_for(&self, c: CardIdx) -> bool {
         let mut e = self.card_cost(c, true).max(0);
         let mut s = self.card_star_cost(c).max(0);
@@ -87,7 +76,6 @@ impl Combat {
         !(e > self.player.energy || s > self.player.stars)
     }
 
-    /// `CardModel.CanPlay` (spec 03 §4).
     pub fn can_play(&self, c: CardIdx) -> bool {
         let kws = self.card_keywords(c);
         if kws & kw::UNPLAYABLE != 0 {
@@ -101,7 +89,7 @@ impl Combat {
             return false;
         }
         if self.card_target_type(c) == TargetType::AnyAlly {
-            return false; // single-player: NoLivingAllies
+            return false;
         }
         if self.should_play_preventer(c, AutoPlayType::None).is_some() {
             return false;
@@ -109,8 +97,6 @@ impl Combat {
         content::listener(&Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 }).is_playable(self, c)
     }
 
-    /// `CardModel.SpendResources`: captures X, spends the energy and stars (`AfterEnergySpent` / `AfterStarsSpent`).
-    /// Returns `(energy, stars)` spent. The card is not moved.
     pub fn spend_resources(&mut self, c: CardIdx) -> (i32, i32) {
         let d = self.card_def(c);
         let energy_to_spend = if d.x_cost { self.player.energy } else { self.card_cost(c, true).max(0) };
@@ -120,7 +106,6 @@ impl Combat {
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
         if self.card_has_star_cost_x(c) {
-            // star X: `LastStarsSpent` = all stars (ResolveStarXValue)
             self.cards[c as usize].x_value = stars_to_spend as i16;
             self.cards[c as usize].flags |= cflag::X_CAPTURED;
         }
@@ -136,7 +121,6 @@ impl Combat {
         (energy_to_spend, stars_to_spend)
     }
 
-    /// Manual play of the hand card at `hand_pos` (`PlayCardAction.ExecuteAction`). Returns false if illegal.
     pub fn play_card(&mut self, hand_pos: usize, target: Cid) -> bool {
         if self.stage != Stage::AwaitAction || self.player.phase != Phase::Play {
             return false;
@@ -145,7 +129,6 @@ impl Combat {
         if !self.can_play(c) || !self.is_valid_target(c, target) {
             return false;
         }
-        // ---- SpendResources: card is still in hand ----
         let (energy_to_spend, stars_to_spend) = self.spend_resources(c);
         let play = CardPlay {
             card: c,
@@ -162,7 +145,6 @@ impl Combat {
         true
     }
 
-    /// `CardModel.GetResultLocationForCardPlay` (base rule; cards may override via the listener).
     fn default_result_location(&mut self, c: CardIdx) -> CardLocation {
         let kws = self.card_keywords(c);
         let flags = self.cards[c as usize].flags;
@@ -178,7 +160,6 @@ impl Combat {
         content::listener(&me).get_result_location_for_card_play(self, me, c, base)
     }
 
-    /// `Hook.ModifyCardPlayResultLocation` (guarded, threaded) + `AfterModifyingCardPlayResultLocation`.
     fn modify_result_location(&mut self, c: CardIdx, is_auto: bool, energy_value: i32, mut loc: CardLocation) -> CardLocation {
         if !self.listen.has(hookbit::modify_card_play_result_location) || !self.hooks_enabled() {
             return loc;
@@ -200,7 +181,6 @@ impl Combat {
         loc
     }
 
-    /// `CardModel.GetEnchantedReplayCount`: `Enchantment?.EnchantPlayCount(BaseReplayCount) ?? BaseReplayCount`.
     pub fn enchanted_replay_count(&self, c: CardIdx) -> i32 {
         let base = self.cards[c as usize].base_replay as i32;
         if self.cards[c as usize].enchant != 0 {
@@ -211,7 +191,6 @@ impl Combat {
         }
     }
 
-    /// `GeneratePlayCount`: `(EnchantedReplayCount + 1)` through `Hook.ModifyCardPlayCount` (+ `AfterModifying...`).
     pub fn generate_play_count(&mut self, c: CardIdx, target: Cid) -> i32 {
         let mut count = self.enchanted_replay_count(c) + 1;
         if self.listen.has(hookbit::modify_card_play_count) && self.hooks_enabled() {
@@ -232,13 +211,9 @@ impl Combat {
         count
     }
 
-    /// `CardModel.OnPlayWrapper` steps 1-8 (spec 03 §5.1), then runs the replay loop. Returns `Suspended` if the play
-    /// is waiting for a decision.
     pub(crate) fn begin_play(&mut self, mut play: CardPlay) -> RunResult {
         let c = play.card;
-        // 2. move to the Play pile
         if !play.is_auto {
-            // AddDuringManualCardPlay: remove from Hand, append to Play, then AfterCardChangedPiles(oldPile = Hand).
             self.player.hand.remove_value(c);
             self.player.play.push(c);
             self.cards[c as usize].pile = PileType::Play as u8;
@@ -246,25 +221,18 @@ impl Combat {
         } else {
             self.move_card(c, PileType::Play, CardPilePosition::Bottom);
         }
-        // 3. `CombatState == null`: the card left the combat / the combat ended.
         if self.cards[c as usize].flags & cflag::REMOVED != 0 || !self.in_progress {
             return RunResult::Finished;
         }
-        // 4-5. result location
         let loc = self.default_result_location(c);
         let loc = self.modify_result_location(c, play.is_auto, play.energy_value, loc);
-        // 6. play count
         let count = self.generate_play_count(c, play.target);
-        // 7. owner dead
         if self.cr(PLAYER).is_dead() {
             return RunResult::Finished;
         }
         play.result_pile = loc.pile;
         play.play_count = count.clamp(0, 255) as u8;
-        // 8. BeginCardOrPotionEffect
         if self.play_stack.len() >= 6 {
-            // plays started inside plays (Uproar auto-playing another Uproar from the draw pile ...) are nested deeper than the fixed play stack: the fight is no longer
-            // faithful (`overflow`), and the play is dropped instead of indexing past the stack
             crate::util::raise_overflow(crate::util::OV_CONTAINER);
             return RunResult::Finished;
         }
@@ -274,28 +242,24 @@ impl Combat {
         self.run_play_at(idx)
     }
 
-    /// Runs / resumes the innermost play and everything below it until the stack is empty or a decision is pending.
     pub fn run_play_stack(&mut self) {
         while !self.play_stack.is_empty() {
             let idx = self.play_stack.len() - 1;
             if self.run_play_at(idx) == RunResult::Suspended {
                 return;
             }
-            // The play at `idx` finished (popped). An `AutoPlayFromDrawPile` call in progress continues first.
             if self.resume_queues() == RunResult::Suspended {
                 return;
             }
         }
     }
 
-    /// Advances the play at stack index `idx` (which must be the top, or the parent of a just-finished play).
     fn run_play_at(&mut self, idx: usize) -> RunResult {
         loop {
             let mut ctx = self.play_stack[idx];
             let c = ctx.play.card;
             match ctx.step {
                 PlayStep::Before => {
-                    // (`tick`: every play / replay of a card is a unit of the runaway-work safeguard, `engine/budget.rs`)
                     if self.is_over_or_ending() || !self.tick() {
                         return self.finish_play(idx);
                     }
@@ -323,8 +287,6 @@ impl Combat {
                         Flow::Done => {
                             self.play_stack[idx].step = PlayStep::After;
                             if self.play_stack.len() > idx + 1 {
-                                // a play started by a hook inside this effect (Hellraiser auto-playing a drawn card ...) is still
-                                // waiting for a decision: this play waits for it (the game's `await` blocks it)
                                 return RunResult::Suspended;
                             }
                         }
@@ -342,7 +304,6 @@ impl Combat {
                         return self.finish_play(idx);
                     }
                     let p = ctx.play;
-                    // Enchantment.OnPlay, then Affliction.OnPlay (each followed by an owner-dead check)
                     if self.cards[c as usize].enchant != 0 {
                         let me = self.enchantment_me(c);
                         content::listener(&me).on_play_enchantment(self, me, &p);
@@ -392,8 +353,6 @@ impl Combat {
         }
     }
 
-    /// Steps 10-12 of `OnPlayWrapper`: depth--, move the card to its result pile, hand-empty check, clean up the
-    /// "until played" cost modifiers. Pops the play at `idx` (always the top).
     fn finish_play(&mut self, idx: usize) -> RunResult {
         debug_assert_eq!(idx + 1, self.play_stack.len());
         let ctx = self.play_stack.pop().unwrap();
@@ -412,7 +371,6 @@ impl Combat {
             }
         }
         self.check_for_empty_hand();
-        // 12. remove WhenPlayed local cost modifiers (after the card has moved).
         let card = &mut self.cards[c as usize];
         let mut kept: crate::engine::CostMods = crate::util::SmallVec::new();
         for m in card.mods.iter() {

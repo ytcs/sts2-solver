@@ -1,5 +1,3 @@
-//! Potion use (`UsePotionAction` / `PotionModel.OnUseWrapper`), discard and procure (`PotionCmd`).
-
 use crate::content;
 use crate::defs::*;
 use crate::engine::HKind;
@@ -8,7 +6,6 @@ use crate::state::*;
 use crate::types::*;
 
 impl Combat {
-    /// `PotionModel` dynamic var by kind.
     pub fn potion_var(&self, potion: u16, kind: VarKind) -> i32 {
         for v in content::potion_def(potion).vars {
             if v.kind == kind && v.kind != VarKind::Power {
@@ -18,7 +15,6 @@ impl Combat {
         0
     }
 
-    /// Generic named potion var (`DynamicVar("Name", v)`), by `gen_cards::var_name::*`.
     pub fn potion_named_var(&self, potion: u16, name: u16) -> i32 {
         for v in content::potion_def(potion).vars {
             if v.kind == VarKind::Named && v.arg == name {
@@ -37,7 +33,6 @@ impl Combat {
         0
     }
 
-    /// `PotionCmd.Discard`: the potion leaves the slot (no effect), then `Hook.AfterPotionDiscarded`.
     pub fn discard_potion(&mut self, slot: usize) -> bool {
         if self.player.phase != Phase::Play || slot >= MAX_POTIONS || self.player.potions[slot].is_none() {
             return false;
@@ -48,8 +43,6 @@ impl Combat {
         true
     }
 
-    /// `PotionCmd.TryToProcure`: `ShouldProcurePotion` (AND) veto, first free slot, `AfterPotionProcured`.
-    /// Returns the slot of the new potion.
     pub fn try_to_procure_potion(&mut self, potion: u16) -> Option<usize> {
         if self.first_veto(hookbit::should_procure_potion, |cx, me, l| l.should_procure_potion(cx, me, potion)).is_some() {
             return None;
@@ -64,7 +57,6 @@ impl Combat {
         Some(slot)
     }
 
-    /// Manual use of the potion in `slot`.
     pub fn use_potion(&mut self, slot: usize, mut target: Cid) -> bool {
         if self.stage != Stage::AwaitAction || self.player.phase != Phase::Play || slot >= MAX_POTIONS {
             return false;
@@ -74,7 +66,6 @@ impl Combat {
         if d.usage == PotionUsage::Automatic || d.usage == PotionUsage::None {
             return false;
         }
-        // EnqueueManualUse: a null target for a potion that may target the owner defaults to the owner.
         match d.target {
             TargetType::AnyEnemy => {
                 if target == NO || !self.cr(target).in_combat || self.cr(target).is_dead() || self.cr(target).side != Side::Enemy {
@@ -84,7 +75,6 @@ impl Combat {
             TargetType::AnyPlayer | TargetType::Self_ => target = PLAYER,
             _ => target = NO,
         }
-        // OnUseWrapper: RemoveBeforeUse; BeforePotionUsed; effect (depth++); AfterPotionUsed.
         self.player.potions[slot] = None;
         let pid = p.id;
         self.dispatch_u(hookbit::before_potion_used, |cx, me, l| l.before_potion_used(cx, me, pid, target));
@@ -94,9 +84,6 @@ impl Combat {
         true
     }
 
-    /// `PotionModel.OnUseWrapper` run to completion without ever suspending (potions triggered by hooks, e.g. Fairy in
-    /// a Bottle from `AfterPreventingDeath`): the potion leaves its slot first, then BeforePotionUsed, OnUse,
-    /// AfterPotionUsed. Does not touch the in-flight potion context.
     pub fn use_potion_now(&mut self, slot: usize, target: Cid) {
         let Some(p) = self.player.potions[slot] else { return };
         self.player.potions[slot] = None;
@@ -113,7 +100,6 @@ impl Combat {
         }
     }
 
-    /// Runs / resumes the in-flight potion effect.
     pub fn run_potion(&mut self) {
         let Some(ctx) = self.potion_ctx else { return };
         let l = content::potion_listener(ctx.potion);

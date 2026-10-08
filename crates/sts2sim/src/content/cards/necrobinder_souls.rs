@@ -1,5 +1,3 @@
-//! Necrobinder cards that create / consume Souls, plus Ethereal-theme and misc cards.
-
 use crate::content::gen_cards::var_name;
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -10,7 +8,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `PowerCmd.Apply<T>(Owner.Creature, amount, Owner.Creature, card)`.
 fn apply_self(cx: &mut Combat, power: u16, amount: i32, p: &CardPlay) {
     cx.apply_power(power, PLAYER, Dec::int(amount as i64), PLAYER, p.card);
 }
@@ -25,9 +22,6 @@ fn block(cx: &mut Combat, p: &CardPlay) {
     cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::MOVE, p.card);
 }
 
-// ---- Souls -----------------------------------------------------------------------------------------------------------
-
-// Unblockable unpowered damage (dealer = you), then Souls into the draw pile.
 listener!(CaptureSpirit {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = cx.card_var(p.card, VarKind::Damage);
@@ -49,7 +43,6 @@ listener!(Reave {
     }
 });
 
-// Three Souls: one to the draw pile (random position), one to the discard pile, one to the hand.
 listener!(Severance {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p, Targeting::Single(p.target));
@@ -78,7 +71,6 @@ listener!(GraveWarden {
     }
 });
 
-// Transform a chosen card of the draw pile into a Soul.
 listener!(Seance {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards).max(0) as u8;
@@ -105,7 +97,6 @@ fn transform_to_souls(cx: &mut Combat, cards: &[CardIdx]) {
     }
 }
 
-// 9 (+2 upgrade) + 4 (+2) x Souls in the exhaust pile.
 listener!(SoulStorm {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let souls = cx.player.exhaust.iter().filter(|&&c| cx.cards[c as usize].id == ids::card::SOUL).count() as i32;
@@ -119,8 +110,6 @@ listener!(SoulStorm {
         Some(crate::engine::calc_with(cx, card, souls))
     }
 });
-
-// ---- Ethereal / draw theme ----------------------------------------------------------------------------------------------
 
 listener!(Defile {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -163,7 +152,6 @@ listener!(Veilpiercer {
     }
 });
 
-// Hits = number of Ethereal cards you have played this combat.
 listener!(PullFromBelow {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let hits = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.hist_log.ethereal_finished as i32;
@@ -177,7 +165,6 @@ listener!(PullFromBelow {
     }
 });
 
-// Costs 2 less (this combat) for each Ethereal card played so far, and 2 less after each one you play.
 listener!(BansheesCry {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         attack(cx, p, Targeting::AllOpponents);
@@ -201,7 +188,6 @@ listener!(BansheesCry {
     }
 });
 
-// Auto-play every Ethereal, playable card in the exhaust pile.
 listener!(Eidolon {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
         if phase != 0 {
@@ -215,7 +201,6 @@ listener!(Eidolon {
                 todo.push(c);
             }
         }
-        // (a nested play that asks for a decision suspends the rest of the list)
         if cx.auto_play_list(todo.as_slice()) == crate::engine::RunResult::Suspended {
             return Flow::Suspend(1);
         }
@@ -223,7 +208,6 @@ listener!(Eidolon {
     }
 });
 
-// Strength loss for the enemy (temporary).
 listener!(EnfeeblingTouch {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_named_var(p.card, var_name::STRENGTH_LOSS);
@@ -232,7 +216,6 @@ listener!(EnfeeblingTouch {
     }
 });
 
-// Attack, then give a non-Ethereal card in hand Ethereal.
 listener!(SculptingStrike {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {

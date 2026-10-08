@@ -1,5 +1,3 @@
-//! Potions that apply powers (to the player, one enemy, or all hittable enemies) and the other simple effects.
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::hooks::*;
@@ -8,14 +6,11 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `PowerCmd.Apply<Power>(target, PowerVar<Power>.BaseValue, Owner.Creature, null)`.
 fn apply_var_power(cx: &mut Combat, potion: u16, power: u16, target: Cid) {
     let v = cx.potion_power_var(potion, power);
     cx.apply_power(power, target, Dec::int(v as i64), PLAYER, NO);
 }
 
-// Potions whose whole effect is `PowerCmd.Apply<T>(target, PowerVar<T>)` (DEX, Focus, Intangible, Gigantification, Plating,
-// Thorns, Buffer, Ritual, Poison, Doom, Regen).
 listener!(DexterityPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         apply_var_power(cx, potion, ids::power::DEXTERITY_POWER, target);
@@ -93,10 +88,6 @@ listener!(RegenPotion {
     }
 });
 
-
-
-// Temporary Strength / Dexterity: the potion's var is the inner power's (Strength 5 / Dexterity 5), the applied power is
-// the potion's own temporary power.
 listener!(FlexPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let v = cx.potion_power_var(potion, ids::power::STRENGTH_POWER);
@@ -113,7 +104,6 @@ listener!(SpeedPotion {
     }
 });
 
-// Strength and Dexterity (+1 each).
 listener!(FyshOil {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         apply_var_power(cx, potion, ids::power::STRENGTH_POWER, target);
@@ -122,7 +112,6 @@ listener!(FyshOil {
     }
 });
 
-// Draw 1, then +3 Clarity.
 listener!(Clarity {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Cards);
@@ -132,7 +121,6 @@ listener!(Clarity {
     }
 });
 
-// +1 energy, then 3 Radiance.
 listener!(RadiantTincture {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Energy);
@@ -142,7 +130,6 @@ listener!(RadiantTincture {
     }
 });
 
-// Block now and the same block next turn.
 listener!(ShipInABottle {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let b = cx.potion_var(potion, VarKind::Block);
@@ -152,7 +139,6 @@ listener!(ShipInABottle {
     }
 });
 
-// The next card(s) are played twice (applied by the player to themselves).
 listener!(Duplicator {
     fn on_use_potion(&self, cx: &mut Combat, _potion: u16, target: Cid, _phase: u8) -> Flow {
         cx.apply_power(ids::power::DUPLICATION_POWER, target, Dec::ONE, target, NO);
@@ -160,7 +146,6 @@ listener!(Duplicator {
     }
 });
 
-// Retain the hand for `Repeat` turns.
 listener!(StableSerum {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Repeat);
@@ -169,7 +154,6 @@ listener!(StableSerum {
     }
 });
 
-// 4 Shrink (the DamageDecrease var is the power's own constant).
 listener!(BeetleJuice {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let n = cx.potion_var(potion, VarKind::Repeat);
@@ -178,7 +162,6 @@ listener!(BeetleJuice {
     }
 });
 
-// Demise (Named var `Demise`, id `NAMED_DEMISE`).
 listener!(PowderedDemise {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, _phase: u8) -> Flow {
         let v = cx.potion_named_var(potion, crate::content::gen_cards::var_name::DEMISE);
@@ -187,7 +170,6 @@ listener!(PowderedDemise {
     }
 });
 
-// All hittable enemies: Weak, then Vulnerable. (The C# reads the two vars swapped; both are 1.)
 listener!(PotionOfBinding {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let vuln = cx.potion_power_var(potion, ids::power::VULNERABLE_POWER);
@@ -198,7 +180,6 @@ listener!(PotionOfBinding {
     }
 });
 
-// Temporary -7 Strength on every hittable enemy.
 listener!(ShacklingPotion {
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, _target: Cid, _phase: u8) -> Flow {
         let v = cx.potion_power_var(potion, ids::power::STRENGTH_POWER);

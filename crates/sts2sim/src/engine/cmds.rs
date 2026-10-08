@@ -1,27 +1,21 @@
-//! The command toolbox card / relic / power code is written against (`CardCmd`, `PlayerCmd`, `PowerCmd` wrappers).
-
 use crate::dec::Dec;
 use crate::hooks::*;
 use crate::state::*;
 use crate::types::*;
 use crate::util::ArrayVec;
 
-/// Result of requesting a decision: either already resolved (empty / forced choice) or pending (the effect must
-/// return `Flow::Suspend` and read `cx.choice` when resumed).
 pub enum Ask {
     Resolved(ArrayVec<CardIdx, 16>),
     Pending,
 }
 
 impl Combat {
-    /// Records that unported content was used (keeps the first).
     pub fn flag_missing(&mut self, kind: Kind, id: u16) {
         if self.missing.is_none() {
             self.missing = Some((kind, id));
         }
     }
 
-    /// The character's card pool (`Owner.Character.CardPool`), in the game's array order.
     pub fn character_pool(&self) -> &'static [u16] {
         use crate::content::gen_pools as p;
         match self.character {
@@ -33,11 +27,8 @@ impl Combat {
         }
     }
 
-    /// `CardFactory.GetDistinctForCombat` (spec 03 §10.2): filter (generatable, not Basic/Ancient/Event, single-player),
-    /// then a FULL `UnstableShuffle` of the candidates with `CombatCardGeneration` (n-1 draws regardless of `count`),
-    /// take the first `count`, and instantiate them. `extra` is the call site's own `Where` filter.
     pub fn get_distinct_for_combat(&mut self, pool: &[u16], count: usize, extra: impl Fn(&crate::defs::CardDef) -> bool) -> ArrayVec<CardIdx, 16> {
-        let mut list: ArrayVec<u16, 256> = ArrayVec::new(); // (256: Splash concatenates four character pools)
+        let mut list: ArrayVec<u16, 256> = ArrayVec::new();
         for &id in pool {
             let d = crate::content::card_def(id);
             if !d.multiplayer_only && extra(d) && d.can_be_generated_in_combat
@@ -56,27 +47,22 @@ impl Combat {
         out
     }
 
-    /// `ListExtensions.UnstableShuffle(list, rng)` over cards with the given stream (Fisher-Yates, `n - 1` draws).
     pub fn unstable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
         self.rng_stream_mut(stream).shuffle(list);
     }
 
-    /// `ListExtensions.StableShuffle(list, rng)`: sorts with `CardModel.CompareTo` (.NET introsort: ties are permuted),
-    /// then `UnstableShuffle`.
     pub fn stable_shuffle_cards(&mut self, list: &mut [CardIdx], stream: crate::state::RngStream) {
         let cards = &self.cards;
         crate::sort::intro_sort(list, |a, b| Combat::card_cmp(cards, a, b));
         self.rng_stream_mut(stream).shuffle(list);
     }
 
-    /// `CardFactory.GetForCombat` (`rng.NextItem` per card, with replacement) over the generatable cards of `pool`.
     pub fn get_for_combat(&mut self, pool: &[u16], count: usize) -> ArrayVec<CardIdx, 16> {
         self.get_for_combat_where(pool, count, |_| true)
     }
 
-    /// `CardFactory.GetForCombat` over `pool.Where(extra)` (the call site's own filter, e.g. Metamorphosis: Attacks).
     pub fn get_for_combat_where(&mut self, pool: &[u16], count: usize, extra: impl Fn(&crate::defs::CardDef) -> bool) -> ArrayVec<CardIdx, 16> {
-        let mut list: ArrayVec<u16, 256> = ArrayVec::new(); // 256: Splash concatenates four character pools
+        let mut list: ArrayVec<u16, 256> = ArrayVec::new();
         for &id in pool {
             let d = crate::content::card_def(id);
             if !d.multiplayer_only && extra(d) && d.can_be_generated_in_combat && !matches!(d.rarity, CardRarity::Basic | CardRarity::Ancient | CardRarity::Event) {
@@ -96,7 +82,6 @@ impl Combat {
         out
     }
 
-    /// `CardModel.SetToFreeThisTurn` (energy part): cost 0 until played or end of turn.
     pub fn set_to_free_this_turn(&mut self, c: CardIdx) {
         let canonical = self.card_def(c).cost;
         if canonical >= 0 {
@@ -106,8 +91,6 @@ impl Combat {
         self.set_star_cost_this_turn(c, 0);
     }
 
-    /// `PlayerCmd.GainGold`: `Hook.ModifyGoldGained` (threaded over the run-level listeners), then `Gold += (int)amount`
-    /// when positive.
     pub fn gain_gold(&mut self, n: i32) {
         let mut v = Dec::int(n as i64);
         if self.listen.has(hookbit::modify_gold_gained) {
@@ -125,14 +108,12 @@ impl Combat {
         }
     }
 
-    /// Loses up to `n` gold; returns the amount actually lost (Debt, Thievery: `min(n, gold)`).
     pub fn lose_gold(&mut self, n: i32) -> i32 {
         let l = n.clamp(0, self.gold);
         self.gold -= l;
         l
     }
 
-    /// `CombatState.HittableEnemies`: alive, attached, and `ShouldAllowHitting`.
     pub fn hittable_enemies(&self) -> ArrayVec<Cid, MAX_CREATURES> {
         let mut o = ArrayVec::new();
         for &e in self.enemies.iter() {
@@ -143,7 +124,6 @@ impl Combat {
         o
     }
 
-    /// `PowerCmd.Apply<T>` to every hittable enemy, sequentially in list order.
     pub fn apply_power_to_hittable_enemies(&mut self, id: u16, amount: Dec, applier: Cid, card: CardIdx) {
         let targets = self.hittable_enemies();
         for &t in targets.iter() {
@@ -151,7 +131,6 @@ impl Combat {
         }
     }
 
-    /// `Rng.CombatCardSelection.NextItem(hand)`: one draw, even for a single card; none for an empty hand.
     pub fn random_hand_card(&mut self) -> Option<CardIdx> {
         let n = self.player.hand.len();
         if n == 0 {
@@ -161,15 +140,12 @@ impl Combat {
         Some(self.player.hand[i])
     }
 
-    /// `CardCmd.Upgrade` in combat: only the combat card changes (no hooks).
     pub fn upgrade_in_combat(&mut self, c: CardIdx) {
         if self.cards[c as usize].upgrade < self.card_def(c).max_upgrade {
             self.upgrade_card(c);
         }
     }
 
-    /// Number of upgradable cards of the run deck (`PileType.Deck ... IsUpgradable`), through the deck-level upgrades made during
-    /// the combat (Improvement at combat end).
     pub fn deck_upgradable_count(&self) -> usize {
         (0..self.deck_len as usize).filter(|&i| self.deck_upgrade[i] < crate::content::card_def(self.cards[i].id).max_upgrade).count()
     }
@@ -178,7 +154,6 @@ impl Combat {
         self.cards[c as usize].upgrade < self.card_def(c).max_upgrade
     }
 
-    /// `CardModel.CreateClone` + registration: copies live state (including active cost modifiers).
     pub fn clone_card(&mut self, c: CardIdx) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
             return None;
@@ -189,40 +164,31 @@ impl Combat {
         copy.pile = PileType::None as u8;
         copy.flags &= !(cflag::EXHAUST_ON_NEXT_PLAY | cflag::REMOVED);
         copy.flags |= cflag::IS_CLONE;
-        copy.dampen_saved = 0; // the C# `downgradedCardsToOldUpgradeLevels` dictionary is keyed by the original instance only
+        copy.dampen_saved = 0;
         copy.deck_idx = NO;
-        copy.dampen_saved = 0; // the Dampen dictionary is keyed by card object: a clone is not restored when Dampen ends
+        copy.dampen_saved = 0;
         self.cards[idx as usize] = copy;
         self.listen |= crate::content::card_mask(copy.id);
         self.listen_cards |= crate::content::card_mask(copy.id);
         Some(idx)
     }
 
-    /// `CardPileCmd.AddGeneratedCardToCombat`: a brand-new card enters `pile` (hand-full redirect applies).
     pub fn add_generated_card(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition) -> bool {
-        // CardGeneratedEntry(creator): cards generated by the player's own cards/relics/potions (player side) have the
-        // player as creator. Generators that pass `creator: null` (monsters, enemy powers that fire during the player's
-        // turn) use `add_generated_card_by(.., false)`.
         let by_player = self.side == Side::Player;
         self.add_generated_card_by(c, pile, pos, by_player)
     }
 
-    /// `amountsForPlayedCards.Add(card, amount)` of the power instance `uid`. Real dictionary semantics (several entries
-    /// can be outstanding at once: a card auto-played from inside another card's play, e.g. Uproar), unlike a single
-    /// `aux` slot.
     pub fn play_amount_add(&mut self, uid: u16, card: CardIdx, amount: i32) {
         if self.hist.play_amounts.len() < 32 {
             self.hist.play_amounts.push(PlayAmount { uid, card, amount });
         }
     }
 
-    /// `amountsForPlayedCards.Remove(card, out value)`.
     pub fn play_amount_take(&mut self, uid: u16, card: CardIdx) -> Option<i32> {
         let pos = self.hist.play_amounts.as_slice().iter().rposition(|e| e.uid == uid && e.card == card)?;
         Some(self.hist.play_amounts.remove(pos).amount)
     }
 
-    /// `CardPileCmd.AddGeneratedCardToCombat(card, pile, creator, pos)`; `by_player` = `creator != null`.
     pub fn add_generated_card_by(&mut self, c: CardIdx, pile: PileType, pos: CardPilePosition, by_player: bool) -> bool {
         self.hist_card_generated(c, by_player);
         let ok = self.move_card(c, pile, pos);
@@ -232,11 +198,6 @@ impl Combat {
         ok
     }
 
-    // (`CardCmd.Discard` / `DiscardAndDraw`, including the Sly auto-plays, is `Combat::discard_cards` in `autoplay.rs`.)
-
-    // ---- ironclad_b1 helpers ----------------------------------------------------------------------------------
-
-    /// Value of the card's named dynamic var (`DynamicVar(\"Name\", v)`), `name` = `gen_cards::var_name::*`.
     pub fn card_named_var(&self, c: CardIdx, name: u16) -> i32 {
         let card = &self.cards[c as usize];
         for v in crate::content::card_def(card.id).vars {
@@ -247,7 +208,6 @@ impl Combat {
         0
     }
 
-    /// Exact (decimal) value of the card's Damage var including permanent growth (`dmg_bonus`).
     pub fn card_damage_dec(&self, c: CardIdx) -> Dec {
         let card = &self.cards[c as usize];
         let mut v = Dec::int(0);
@@ -259,22 +219,16 @@ impl Combat {
         v + Dec::frac(card.dmg_bonus as i64, 4)
     }
 
-    /// Adds `amount` (decimal) to the card's Damage var permanently (`DynamicVars.Damage.BaseValue += amount`).
     pub fn add_card_damage(&mut self, c: CardIdx, amount: Dec) {
         let milli = (amount * Dec::int(10_000)).trunc();
         let card = &mut self.cards[c as usize];
         card.dmg_bonus = card.dmg_bonus.saturating_add(milli);
     }
 
-    /// `CardPileCmd.Draw(ctx, player)` for a single card: the drawn card, or `None` (empty piles / full hand / ending).
     pub fn draw_one(&mut self) -> Option<CardIdx> {
-        // The drawn card even when an `AfterCardDrawn` listener (Hellraiser) moved it out of the hand again.
         self.draw_cards_list_nosuspend(1, false).first()
     }
 
-    // ---- decisions ---------------------------------------------------------------------------------------------
-
-    /// `CardSelectCmd.FromHand*` (spec 03 §9.2): candidates in hand order; auto-resolves forced choices.
     pub fn ask_hand(&mut self, purpose: u16, min: u8, max: u8, filter: impl Fn(&Combat, CardIdx) -> bool) -> Ask {
         let mut cands: ArrayVec<CardIdx, MAX_CARDS> = ArrayVec::new();
         for &c in self.player.hand.iter() {
@@ -285,8 +239,6 @@ impl Combat {
         self.raise(DecisionSource::Hand, purpose, min, max, cands, false)
     }
 
-    /// `CardSelectCmd.FromCombatPile`: candidates in pile order, except the draw pile which is presented sorted by
-    /// (rarity, id) — a stable sort — so its real order stays hidden (spec 03 §9.3).
     pub fn ask_pile(&mut self, purpose: u16, pile: PileType, min: u8, max: u8, filter: impl Fn(&Combat, CardIdx) -> bool) -> Ask {
         let mut cands: ArrayVec<CardIdx, MAX_CARDS> = ArrayVec::new();
         for &c in self.pile(pile).iter() {
@@ -294,8 +246,6 @@ impl Combat {
                 cands.push(c);
             }
         }
-        // A forced selection (`!RequireManualConfirmation && |L| <= min`) returns the pile's own order; only the screen
-        // shown to the player sorts the draw pile.
         let forced = min == max && cands.len() <= min as usize;
         if pile == PileType::Draw && !forced {
             let cards = &self.cards;
@@ -303,7 +253,6 @@ impl Combat {
                 let id = cards[*c as usize].id;
                 (crate::content::card_def(id).rarity, id)
             };
-            // stable insertion sort (List.OrderBy is stable)
             let sl = cands.as_mut_slice();
             for i in 1..sl.len() {
                 let x = sl[i];
@@ -319,7 +268,6 @@ impl Combat {
         self.raise(DecisionSource::Pile(pile), purpose, min, max, cands, false)
     }
 
-    /// `CardSelectCmd.FromChooseACardScreen`: pick one of the (already generated) cards, optionally skip.
     pub fn ask_options(&mut self, purpose: u16, options: &[CardIdx], can_skip: bool) -> Ask {
         let mut cands: ArrayVec<CardIdx, MAX_CARDS> = ArrayVec::new();
         for &c in options {
@@ -335,18 +283,14 @@ impl Combat {
         Ask::Pending
     }
 
-    /// `VakuuCardSelector.GetSelectedCards`: `options.Take(maxSelect)` (the selector Whispering Earring pushes while it
-    /// auto-plays the hand; `Combat::auto_select`).
     fn auto_selected(&self, cands: &ArrayVec<CardIdx, MAX_CARDS>, max: usize) -> ArrayVec<CardIdx, 16> {
         let mut v = ArrayVec::new();
         for &c in cands.iter().take(max) {
-            v.push(c); // (a full list flags the overflow)
+            v.push(c);
         }
         v
     }
 
-    /// Shared decision entry for `FromHand`/`FromCombatPile`: `RequireManualConfirmation = (min != max)`;
-    /// `!manual && |L| <= min` auto-resolves with all candidates (no decision).
     fn raise(&mut self, source: DecisionSource, purpose: u16, min: u8, max: u8, cands: ArrayVec<CardIdx, MAX_CARDS>, can_skip: bool) -> Ask {
         if self.is_over_or_ending() || cands.is_empty() {
             return Ask::Resolved(ArrayVec::new());
@@ -355,7 +299,7 @@ impl Combat {
         if !manual && cands.len() <= min as usize {
             let mut all = ArrayVec::new();
             for &c in cands.iter() {
-                all.push(c); // (a full list flags the overflow)
+                all.push(c);
             }
             return Ask::Resolved(all);
         }
@@ -371,10 +315,6 @@ impl Combat {
         self.decision = Some(Decision { source, min, max, cands, selected: ArrayVec::new(), confirm_required, can_skip, purpose });
     }
 
-    /// The order the AGENT sees the candidates in: position `k` of the displayed list is `cands[view[k]]`. Hand and
-    /// choose-a-card screens are shown in game order (identity); pile screens are sorted by what a player can see of each
-    /// card (rarity, id, upgrade, cost, enchantment, affliction), ties by game order — a canonical order that carries no
-    /// information about the pile order. A pure function of the candidates, so nothing extra is stored in the state.
     pub fn decision_view(&self, d: &Decision) -> ArrayVec<u8, MAX_CARDS> {
         let mut view: ArrayVec<u8, MAX_CARDS> = ArrayVec::new();
         for k in 0..d.cands.len() {
@@ -399,7 +339,6 @@ impl Combat {
         view
     }
 
-    /// Everything a player can see of a card in a pile (used to give pile screens a canonical, order-free presentation).
     pub fn visible_key(&self, c: CardIdx) -> u64 {
         let card = &self.cards[c as usize];
         let d = crate::content::card_def(card.id);
@@ -411,7 +350,6 @@ impl Combat {
             | (card.affliction as u64) << 8
     }
 
-    /// Agent-facing click: `i` is a position of the DISPLAYED list (`Decision::view`).
     pub(crate) fn decision_pick(&mut self, i: u8) -> bool {
         let Some(d) = self.decision.as_ref() else { return false };
         let view = self.decision_view(d);
@@ -419,18 +357,16 @@ impl Combat {
         self.decision_pick_game(true_idx)
     }
 
-    /// Applies a click on candidate `i` in GAME order (`Decision::cands`). Returns false if illegal. The differential
-    /// harness uses this (the real game's selector indexes the game's order); agents use `decision_pick`.
     pub(crate) fn decision_pick_game(&mut self, i: u8) -> bool {
         let Some(d) = self.decision.as_mut() else { return false };
         if i as usize >= d.cands.len() {
             return false;
         }
         if let Some(pos) = d.selected.position(i) {
-            d.selected.remove(pos); // clicking a selected card deselects it
+            d.selected.remove(pos);
         } else {
             if d.selected.len() >= d.max as usize {
-                d.selected.truncate(d.selected.len().saturating_sub(1)); // at max: most recent selection is replaced
+                d.selected.truncate(d.selected.len().saturating_sub(1));
             }
             d.selected.push(i);
         }
@@ -441,7 +377,6 @@ impl Combat {
         true
     }
 
-    /// `Confirm` (or skip when nothing is selected and skipping is allowed).
     pub(crate) fn decision_confirm(&mut self) -> bool {
         let Some(d) = self.decision.as_ref() else { return false };
         let n = d.selected.len();
@@ -454,7 +389,7 @@ impl Combat {
 
     fn finish_decision(&mut self) {
         if let Some(rp) = self.replay.as_mut().filter(|r| r.at_prompt) {
-            rp.done = true; // a replayed prompt: `step` re-runs the action with this answer (the state stays as shown)
+            rp.done = true;
             return;
         }
         let d = self.decision.take().unwrap();
@@ -468,27 +403,21 @@ impl Combat {
     }
 }
 
-// ---- Silent slice helpers ------------------------------------------------------------------------------------------------
 impl Combat {
-
-    /// `CardCmd.ApplySingleTurnSly`.
     pub fn apply_single_turn_sly(&mut self, c: CardIdx) {
         self.cards[c as usize].flags |= cflag::SINGLE_TURN_SLY;
     }
 
-    /// `CardCmd.ApplySingleTurnRetain`.
     pub fn apply_single_turn_retain(&mut self, c: CardIdx) {
         self.cards[c as usize].flags |= cflag::SINGLE_TURN_RETAIN;
     }
 
-    /// `PowerCmd.Remove<T>(creature)`: removes the creature's power `id` if present.
     pub fn remove_power_by_id(&mut self, c: Cid, id: u16) {
         if let Some(uid) = self.cr(c).power(id).map(|p| p.uid) {
             self.remove_power(c, uid);
         }
     }
 
-    /// `Shiv.CreateInHand(owner, count, combatState)`: creates all cards first, then adds them one by one.
     pub fn create_shivs_in_hand(&mut self, count: i32) -> ArrayVec<CardIdx, MAX_HAND> {
         let mut shivs: ArrayVec<CardIdx, MAX_HAND> = ArrayVec::new();
         if count <= 0 || self.is_over_or_ending() {
@@ -507,7 +436,5 @@ impl Combat {
     }
 }
 
-// ---- Enchantments (Silent slice: only what Blade of Ink needs) ------------------------------------------------------------
 impl Combat {
-
 }

@@ -1,6 +1,3 @@
-//! Fogmog + the Eye With Teeth it summons (FogmogNormal). Spec 04 §3.1.
-//! Encounter slots: [illusion, fogmog] -> slot indices 0 / 1.
-
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
@@ -15,7 +12,6 @@ fn swipe(cx: &mut Combat, me: Cid) {
     power_self(cx, me, ids::power::STRENGTH_POWER, 1);
 }
 
-// 0 ILLUSION_MOVE, 1 SWIPE_MOVE, 2 SWIPE_RANDOM_MOVE, 3 BRANCH, 4 HEADBUTT_MOVE
 pub static FOGMOG_DEF: MonsterDef = MonsterDef {
     id: ids::monster::FOGMOG,
     hp: |a| hp(a, (78, 78), (74, 74)),
@@ -47,7 +43,6 @@ pub static FOGMOG_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// 0 DISTRACT_MOVE, 1 REVIVE_MOVE (stored follow-up = last rolled move)
 pub static EYE_WITH_TEETH_DEF: MonsterDef = MonsterDef {
     id: ids::monster::EYE_WITH_TEETH,
     hp: |_| (6, 6),

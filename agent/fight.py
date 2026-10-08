@@ -1,20 +1,9 @@
-"""Follow a live fight in the simulator (the micro layer's view of the game).
-
-`Replayer` builds `sts2.Sim` from the bridge's fight-start scenario, applies the actions the bridge logged (oracle script vocabulary) and after each one
-puts the simulator's *visible* state on the observed one (`Sim.sync`). Hidden information is the simulator's own random sample (it never sees the real
-shuffle or RNG); enemy turns are resampled until the enemies' announced intents match what the game shows, which is observed information.
-
-  r = Replayer(fight)            # fight = json.loads(bridge "fight") at the start of a combat
-  r.advance(fight)               # after every real action
-  r.sim                          # the aligned simulator state; r.stats / r.examples = how often the prediction was wrong
-"""
 import collections, json, random
 
 import sts2
 
 from agent import potions
 
-# pre-sync differences under these prefixes are expected whenever cards were drawn (the simulator drew other cards than the real game)
 RANDOM_PREFIXES = (".hand", ".draw", ".discard", ".exhaust")
 
 
@@ -23,7 +12,6 @@ def _alive(enemies):
 
 
 def intents_of(state):
-    """What the game announces for the enemies' next moves: (move id, intents) per living enemy."""
     out = []
     for e in _alive(state["enemies"]):
         its = tuple((i["type"], i.get("damage"), i.get("hits")) for i in e.get("intents", []))
@@ -32,7 +20,6 @@ def intents_of(state):
 
 
 def category(line):
-    """First path components of a diff line, e.g. '.enemies[0].hp'."""
     path = line.split(":", 1)[0]
     parts = []
     for tok in path.replace("[", ".[").split("."):
@@ -54,7 +41,6 @@ class Replayer:
         self.stats = collections.Counter()
         self.examples = collections.defaultdict(list)
         self.errors = []
-        # The spawn variants and the opening moves are random rolls the screen shows: resample the fight start until it agrees with what is visible.
         state = (fight.get("states") or [None])[0] or (fight["state"] if not fight["log"] else None)
         if state is None:
             raise ValueError("the fight's opening state was not observed (the bridge records it when the first state is read)")
@@ -82,7 +68,6 @@ class Replayer:
         self.scenario = fight["scenario"]
         self._sync(state, None)
 
-    # ------------------------------------------------------------------ bookkeeping
 
     def _note(self, key, text):
         self.stats[key] += 1
@@ -90,7 +75,6 @@ class Replayer:
             self.examples[key].append(text)
 
     def _compare_and_sync(self, state, action):
-        """Pre-sync diff (what the simulator predicted wrongly), then align."""
         if self.sim.stage() != "play":
             return
         pre = self.sim.diff(json.dumps(state))
@@ -115,7 +99,6 @@ class Replayer:
         if self.sim.missing():
             self._note("missing content", self.sim.missing())
 
-    # ------------------------------------------------------------------ actions
 
     def _end_turn(self, state):
         act = '{"end_turn":true}'
@@ -133,8 +116,8 @@ class Replayer:
             except Exception as e:  # noqa: BLE001
                 self.errors.append(f"end_turn: {e}")
                 continue
-            if s.stage() == "over":  # only a resample whose fight also ended in the game: an "over" sample while the game goes on is a wrong roll
-                if not state.get("combat_in_progress", True):  # (Stampede's random target killed the 8-HP Fabricator in the sim, a bot in the game)
+            if s.stage() == "over":
+                if not state.get("combat_in_progress", True):
                     self.sim = s
                     return
                 self.stats["end_turn_over_rejected"] += 1
@@ -154,7 +137,6 @@ class Replayer:
             self.sim = first
 
     def _card_at(self, act):
-        """Id of the card a `play` action plays (read from the simulator's hand before the action), for the divergence notes."""
         a = json.loads(act)
         if "play" not in a:
             return ""
@@ -164,12 +146,9 @@ class Replayer:
             return ""
 
     def _map_potion(self, act):
-        """A logged `use_potion` names the game slot; the simulator packs the belt into 0..n-1 (`agent.potions`)."""
         return potions.to_sim_action(self.scenario, act)
 
     def _map_choose(self, act, before):
-        """A logged `choose` over the hand (Entropy, Survivor ...) names a position in the GAME's hand; the simulator's hand holds the same multiset only when
-        its draw matched (and not even then: a random transform rolled differently). Translate to the simulator's option showing the same card (`before` = the game state observed before the action)."""
         import re
         a = json.loads(act)
         if "choose" not in a or len(a["choose"]) != 1 or not before or self.sim.stage() != "choice":
@@ -190,8 +169,6 @@ class Replayer:
         return json.dumps(a)
 
     def _repair_target(self, act, state):
-        """A logged `play` without a target (the bridge could not find the enemy any more, e.g. it died from the very hit): try every legal target of that
-        card and keep the one whose result matches the observed state best. Returns True if the action was applied."""
         import re
         a = json.loads(act)
         if "play" not in a or "target" in a["play"] or state is None:
@@ -215,9 +192,6 @@ class Replayer:
         return True
 
     def resolve_phantom_choice(self, state=None, why="phantom choice"):
-        """The simulator waits on a card selection the game never opened: a hidden draw resolved differently (Havoc played the sim's own random top card, say
-        Headbutt, while the game's top card opened nothing). Settle it with any legal answer (confirm if offered, else the first pick), then re-align the piles
-        to the game's observation. Without this the replay never syncs again and the live loop sends `pick` actions the game rejects (a stalled fight)."""
         n = 0
         while self.sim.stage() == "choice" and n < 40:
             legal = self.sim.legal()
@@ -239,12 +213,11 @@ class Replayer:
             i = self.applied
             act = log[i] if isinstance(log[i], str) else json.dumps(log[i])
             last = i == len(log) - 1
-            # the state observed after this action (the bridge records one after every action it settles); the current one for the latest
             state = states[i + 1] if states and states[i + 1] is not None else (fight["state"] if last else None)
-            if '"choose"' not in act and self.sim.stage() == "choice":  # the game moved on without the selection the simulator expects
+            if '"choose"' not in act and self.sim.stage() == "choice":
                 self.resolve_phantom_choice(states[i] if states else None, "phantom choice before a logged action")
-            if '"choose"' in act and self.sim.stage() != "choice":  # the reverse: the game asked for a selection the simulator never opened; the
-                self._note("game-only selection", f"{act} [{getattr(self, '_played', '')}]")  # answer changed only piles, which the sync below restores
+            if '"choose"' in act and self.sim.stage() != "choice":
+                self._note("game-only selection", f"{act} [{getattr(self, '_played', '')}]")
                 self.applied += 1
                 if state is not None:
                     self._sync(state, act)

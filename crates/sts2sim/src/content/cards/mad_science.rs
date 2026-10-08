@@ -1,10 +1,3 @@
-//! Mad Science (the TinkerTime event card): its card type (Attack / Skill / Power), target and effect are per-instance
-//! `[SavedProperty]` values (`TinkerTimeType`, `TinkerTimeRider`).
-//!
-//! Scenario props are read in the sorted key order of the JSON object (`TinkerTimeRider`, `TinkerTimeType`), i.e. `Card::counter`
-//! = `[rider, type]`; with a single prop (`TinkerTimeRider` omitted = `None`) `counter[0]` is the type. See `decode`.
-//! `Combat::card_def` returns `variant(..)` for this card so every `ctype` / `target` query sees the instance's type.
-
 use crate::dec::Dec;
 use crate::defs::{CardDef, VarKind};
 use crate::content::gen_cards::var_name;
@@ -16,7 +9,6 @@ use crate::state::*;
 use crate::types::*;
 use std::sync::LazyLock;
 
-// `TinkerTime.RiderEffect`
 const SAPPING: i16 = 1;
 const VIOLENCE: i16 = 2;
 const CHOKING: i16 = 3;
@@ -27,7 +19,6 @@ const EXPERTISE: i16 = 7;
 const CURIOUS: i16 = 8;
 const IMPROVEMENT: i16 = 9;
 
-/// `(TinkerTimeType as CardType, TinkerTimeRider)` from the card's saved props.
 pub fn decode(counter: [i16; 2]) -> (i16, i16) {
     if counter[1] != 0 { (counter[1], counter[0]) } else { (counter[0], 0) }
 }
@@ -46,7 +37,6 @@ static VARIANTS: LazyLock<[CardDef; 3]> = LazyLock::new(|| {
     [attack, skill, power]
 });
 
-/// The card definition for a Mad Science with these saved props (`Type` / `TargetType` follow `TinkerTimeType`).
 pub fn variant(counter: [i16; 2]) -> &'static CardDef {
     match decode(counter).0 {
         2 => &VARIANTS[1],
@@ -88,7 +78,6 @@ listener!(MadScience {
             },
             _ => {}
         }
-        // `Sapping || Choking..Chaos` riders run after the main effect (Violence is handled by the hit count above).
         if rider == SAPPING || (CHOKING..=CHAOS).contains(&rider) {
             match rider {
                 SAPPING => {
@@ -110,7 +99,6 @@ listener!(MadScience {
                     cx.draw_cards(n, false);
                 }
                 _ => {
-                    // Chaos: one random card from the whole character pool, free this turn, into the hand
                     let pool = cx.character_pool();
                     let cards = cx.get_distinct_for_combat(pool, 1, |_| true);
                     if let Some(c) = cards.first() {

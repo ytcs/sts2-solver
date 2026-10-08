@@ -1,5 +1,3 @@
-//! Powers applied by the `EventCardPool` cards (`cards/event_pool.rs`).
-
 use crate::dec::Dec;
 use crate::hooks::*;
 use crate::ids;
@@ -7,7 +5,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// ---- FeedingFrenzyPower (card Feeding Frenzy): `TemporaryStrengthPower`, +Strength until the end of this turn -------------------------
 listener!(FeedingFrenzyPower {
     fn before_applied(&self, cx: &mut Combat, _me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
         cx.temp_before_applied(ids::power::STRENGTH_POWER, 1, target, amount, applier, card);
@@ -20,7 +17,6 @@ listener!(FeedingFrenzyPower {
     }
 });
 
-// ---- HelloWorldPower: before each hand draw, add AmountOnTurnStart random Common cards from the pool to the hand ----------------------
 listener!(HelloWorldPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         let n = cx.power_idx(me.owner, me.idx).map_or(0, |i| cx.cr(me.owner).powers[i].amount_on_turn_start);
@@ -35,8 +31,6 @@ listener!(HelloWorldPower {
     }
 });
 
-// ---- ToricToughnessPower (Instanced; Amount = turns left, `aux` = Block per trigger in 1/10000): after the owner's Block is
-// cleared at the start of its turn, gain that Block (Unpowered) and count down ---------------------------------------------------------------
 listener!(ToricToughnessPower {
     fn after_block_cleared(&self, cx: &mut Combat, me: Me, creature: Cid) {
         if creature != me.owner {
@@ -48,7 +42,6 @@ listener!(ToricToughnessPower {
     }
 });
 
-// ---- CuriousPower (Mad Science rider): Power cards cost Amount less (never below 0; free cards stay free) --------------------------
 listener!(CuriousPower {
     fn try_modify_energy_cost_in_combat(&self, cx: &Combat, me: Me, card: CardIdx, cost: Dec) -> Option<Dec> {
         if cx.card_def(card).ctype != CardType::Power || cost <= Dec::ZERO {
@@ -58,8 +51,6 @@ listener!(CuriousPower {
     }
 });
 
-// ---- ImprovementPower (Mad Science rider): at combat end upgrade Amount random upgradable cards of the run deck ---------------------
-// (`Rng.CombatCardSelection.NextItem` over the deck in order, without replacement; levels live in `Combat::deck_upgrade`.)
 listener!(ImprovementPower {
     fn after_combat_end(&self, cx: &mut Combat, me: Me) {
         let amount = cx.power_amount(me.owner, me.id);

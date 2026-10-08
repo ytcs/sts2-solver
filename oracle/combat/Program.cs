@@ -51,7 +51,6 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
         }
         if (cmd == "dump-rng")
         {
-            // fresh nine run RNG streams for a seed string (RunRngSet(seed)); usable as the scenario "rng" field
             var set = new MegaCrit.Sts2.Core.Runs.RunRngSet(positional);
             var o = new JsonObject { ["seed"] = positional, ["seed_u64"] = set.Seed, ["rng"] = new JsonObject() };
             foreach (var (name, type) in Setup.Streams) o["rng"][name] = Dump.RngState(set.GetRng(type));
@@ -60,7 +59,6 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
         }
         if (cmd == "check-shuffle")
         {
-            // independent sanity check: opening hand+draw order == UnstableShuffle(deck) with Rng(hash(seed),"shuffle")
             var sc = Scenario.Load(positional);
             var rec = JsonNode.Parse(File.ReadLines(kv["trace"]).First()).AsObject();
             var deck = sc.Deck.Select(c => c.Id).ToList();
@@ -94,8 +92,6 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
         {
             if (kv.ContainsKey("list"))
             {
-            // batch --list FILE --policy-base N: FILE has one scenario path per line (BASE.scenario.json); for each, run the random
-            // policy (seed = policy-base + line index) and write BASE.jsonl; one process for all (no per-fight JIT). Errors go to BASE.err.
             var paths = File.ReadAllLines(kv["list"]).Where(l => l.Trim().Length > 0).ToList();
             int pb = int.Parse(kv.GetValueOrDefault("policy-base", "0"));
             PlayBiasArg = double.Parse(kv.GetValueOrDefault("play-bias", "0"), System.Globalization.CultureInfo.InvariantCulture);
@@ -118,7 +114,6 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             }
             else
             {
-            // batch FILE: one scenario path per line; trace -> <scenario base>.jsonl, failure -> <base>.error.txt (one process, ~50 ms/fight)
             foreach (var line in File.ReadLines(positional))
             {
                 var path = line.Trim();
@@ -131,7 +126,7 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
                     using (var w = new StreamWriter(bas + ".jsonl", false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" })
                         res = RunOne(sc, w, pump, null, maxSteps, maxRounds);
                     if (res.Error != null) File.WriteAllText(bas + ".error.txt", res.Error);
-                    File.WriteAllText(bas + ".done", res.Result);  // marks a completed run (a process crash leaves no .done)
+                    File.WriteAllText(bas + ".done", res.Result);
                     Console.WriteLine($"{(res.Error == null ? "ok " : "ERR")} {path} {res.Result} {res.Recorded.Count}");
                 }
                 catch (Exception e) { File.WriteAllText(bas + ".error.txt", e.ToString()); File.WriteAllText(bas + ".done", "error"); Console.WriteLine("ERR " + path); }
@@ -169,9 +164,6 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
         return new RunResult(driver.Result, driver.Recorded, err);
     }
 
-    /// <summary>`batch DIR`: run every DIR/*.scenario.json in this process (skipping ones that already have .jsonl/.err).
-    /// Scenario key `policy` = {"kind":"random|playall|stall","seed":N,"max_steps":N,"max_rounds":N}.
-    /// Writes DIR/NAME.jsonl, NAME.res ("result nactions") or NAME.err on oracle error.</summary>
     static int DoBatch(string dir, Dictionary<string, string> kv, Pump pump, int maxSteps, int maxRounds)
     {
         var files = Directory.GetFiles(dir, "*.scenario.json").OrderBy(f => f, StringComparer.Ordinal).ToList();
@@ -185,7 +177,7 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             {
                 var sc = Scenario.Load(f);
                 var pol = sc.Raw["policy"]?.AsObject();
-                int? seed = pol == null ? null : (pol["seed"]?.GetValue<int>() ?? 1);   // no policy: scripted replay only
+                int? seed = pol == null ? null : (pol["seed"]?.GetValue<int>() ?? 1);
                 Driver.PolicyKind = (string)pol?["kind"] ?? "random";
                 int ms = pol?["max_steps"]?.GetValue<int>() ?? maxSteps;
                 int mr = pol?["max_rounds"]?.GetValue<int>() ?? maxRounds;

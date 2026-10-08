@@ -51,12 +51,10 @@ public static class Setup
 
     public static ModelId Id(string cat, string entry) => new ModelId(cat, Scenario.StripCat(entry).ToUpperInvariant());
 
-    /// <summary>Build player + run state from the scenario, using the game's own save-load path (Player.FromSerializable).</summary>
     public static (Player player, RunState run) BuildRun(Scenario sc)
     {
         var charId = Id("CHARACTER", sc.Character);
         var character = ModelDb.GetById<CharacterModel>(charId);
-        // template: gives us valid default Rng/Odds/UnlockState/etc and the character's starting inventory
         var template = Player.CreateForNewRun(character, UnlockState.all, 1UL);
         var sp = template.ToSerializable();
         sp.NetId = 1UL;
@@ -92,7 +90,6 @@ public static class Setup
         if (sc.Act != 0) run.CurrentActIndex = sc.Act;
         run.Map = new MockSinglePointActMap();
 
-        // explicit RNG stream states
         foreach (var kv in sc.Rng)
         {
             var st = Streams.FirstOrDefault(s => s.name == kv.Key);
@@ -102,7 +99,6 @@ public static class Setup
                 counter = kv.Value.Counter, state0 = kv.Value.S0, state1 = kv.Value.S1, state2 = kv.Value.S2, state3 = kv.Value.S3
             });
         }
-        // floor bookkeeping: EnterRoomDebug appends the current floor itself
         for (int i = 1; i < sc.TotalFloor; i++)
             run.AppendToMapPointHistory(MapPointType.Monster, RoomType.Monster, null);
         return (player, run);

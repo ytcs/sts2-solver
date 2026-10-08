@@ -13,16 +13,13 @@ using MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen;
 
 namespace AgentBridge;
 
-/// <summary>One legal action: a label, and what it does given the extra arguments (returns an error message or null).</summary>
 public sealed record Opt(string Label, Func<string[], string?> Run);
 
-/// <summary>The current decision point: what kind of screen, context lines, numbered options.</summary>
 public sealed class Decision
 {
     public string Kind = "?";
     public readonly StringBuilder Info = new();
     public readonly List<Opt> Opts = new();
-    /// <summary>True while the game is animating / resolving: no decision yet.</summary>
     public bool Busy;
 
     public void Add(string label, Func<string[], string?> run) => Opts.Add(new Opt(label, run));
@@ -38,7 +35,6 @@ public sealed class Decision
         return sb.ToString();
     }
 
-    /// <summary>Signature used to decide that the screen has settled.</summary>
     public string Sig() => Kind + Busy + Info + string.Join("|", Opts.Select(o => o.Label));
 }
 
@@ -70,13 +66,11 @@ public static class Decisions
             Buttons(d, modal);
             return d;
         }
-        // proceeding from rewards opens the map over the (still stacked) rewards screen: the map wins
         if (rs != null && NOverlayStack.Instance?.Peek() is NRewardsScreen && NMapScreen.Instance is { IsOpen: true } m1 && Map(d, m1, rs)) return d;
         if (NOverlayStack.Instance?.Peek() is Node top && GodotObject.IsInstanceValid(top))
         {
             Overlay(d, top, me);
             if (d.Opts.Count > 0 || d.Busy) return d;
-            // a finished screen (e.g. rewards after proceed) can stay on the stack while the map is already open
             if (rs != null && NMapScreen.Instance is { IsOpen: true } m0 && Map(d, m0, rs)) return d;
             d.Busy = true;
             return d;
@@ -96,8 +90,6 @@ public static class Decisions
         return d;
     }
 
-    // ---------------------------------------------------------------- header
-
     private static void Header(Decision d, RunState rs, Player me)
     {
         var cr = me.Creature;
@@ -107,8 +99,6 @@ public static class Decisions
             pots.Add(me.PotionSlots[i] is { } p ? Text.Loc(p.Title) : "-");
         d.Info.Append(" pots[").Append(string.Join(", ", pots)).Append("]\n");
     }
-
-    // ---------------------------------------------------------------- combat
 
     private static void Combat(Decision d, Player me)
     {
@@ -131,7 +121,6 @@ public static class Decisions
         {
             var e = enemies[i];
             bool hittable = cs.HittableEnemies.Contains(e);
-            // dead enemies that stay in the fight (e.g. Test Subject between phases) are shown but cannot be targeted
             if (!e.IsAlive && e.Monster?.NextMove == null) continue;
             d.Info.Append($"e{i} {e.Name} {e.CurrentHp}/{e.MaxHp} b{e.Block}{(hittable ? "" : " [untargetable]")} -> {Text.Intent(e, players)}{Text.Powers(e)}\n");
         }
@@ -177,7 +166,6 @@ public static class Decisions
         });
     }
 
-    /// <summary>Executes one action given in the oracle script vocabulary: {"play":{"hand_pos":i,"target":e}}, {"use_potion":{"slot":s,"target":e}}, {"end_turn":true}, {"choose":[...]}.</summary>
     public static string? DoJson(string json)
     {
         Main.EnsureSelector();
@@ -263,8 +251,6 @@ public static class Decisions
         return null;
     }
 
-    // ---------------------------------------------------------------- overlays
-
     private static void Overlay(Decision d, Node top, Player? me)
     {
         d.Kind = top.GetType().Name.TrimStart('N').ToUpperInvariant();
@@ -272,7 +258,7 @@ public static class Decisions
         {
             case NRewardsScreen s:
                 d.Kind = "REWARDS";
-                if (s._disableProceedForever) { d.Busy = true; return; }  // boss rewards done: the act transition is running
+                if (s._disableProceedForever) { d.Busy = true; return; }
                 foreach (var b in UiHelper.FindAll<NRewardButton>(s).Where(b => b.IsEnabled && b.IsVisibleInTree()))
                 {
                     string label = RewardLabel(b.Reward);
@@ -324,11 +310,6 @@ public static class Decisions
         }
     }
 
-    /// <summary>
-    /// The Crystal Sphere event minigame: an 11x11 fog grid; each divination clears the 3x3 block around a cell (big tool) or one cell (small tool); a hidden item pays out when every
-    /// cell it covers is clear. The text shows what the screen shows: hidden cells as #, cleared cells as . or, where an item shows through, its kind (R relic, P potion, C card,
-    /// X curse, g gold). Hidden cells never reveal their contents. (The generic fallback listed only the first 40 of 121 cells and hid the Proceed button.)
-    /// </summary>
     private static void CrystalSphere(Decision d, NCrystalSphereScreen s)
     {
         d.Kind = "CRYSTAL_SPHERE";
@@ -408,17 +389,14 @@ public static class Decisions
 
     public static string Relic(RelicModel? r) => r == null ? "?" : $"{Text.Loc(r.Title)}: {Text.Loc(r.DynamicDescription)}";
 
-    /// <summary>Fallback: every visible, enabled button under a node.</summary>
     private static void Buttons(Decision d, Node n)
     {
         foreach (var b in UiHelper.FindAll<NClickableControl>(n).Where(b => b.IsEnabled && b.IsVisibleInTree()).Take(40))
             d.Click($"[{b.GetType().Name.TrimStart('N')}] {Text.NodeLabel(b)}", b);
-        // plain Godot buttons (some popups use them)
         foreach (var b in UiHelper.FindAll<BaseButton>(n).Where(b => !b.Disabled && b.IsVisibleInTree()).Take(20))
             d.Add($"[{b.GetType().Name}] {Text.NodeLabel(b)}", _ => { b.EmitSignal(BaseButton.SignalName.Pressed); return null; });
     }
 
-    /// <summary>`a dp <slot>`: discard the potion in a slot (e.g. to make room for a potion reward).</summary>
     public static string? DiscardPotion(string? slotArg)
     {
         var rs = RunManager.Instance.DebugOnlyGetState();
@@ -429,8 +407,6 @@ public static class Decisions
         RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(new DiscardPotionGameAction(me, (uint)slot, CombatManager.Instance.IsInProgress));
         return null;
     }
-
-    // ---------------------------------------------------------------- map
 
     private static bool Map(Decision d, NMapScreen map, RunState rs)
     {
@@ -467,20 +443,17 @@ public static class Decisions
                   .Append('>').Append(string.Join(",", p.Children.OrderBy(c => c.coord.col).Select(c => c.coord.col)));
             sb.Append('\n');
         }
-        // the act's boss(es) are shown on the map screen (top-bar icon), so they are public information
         sb.Append($"boss: {rs.Map.BossMapPoint?.coord.row} {rs.Act.BossEncounter?.Id.Entry}");
         if (rs.Act.HasSecondBoss) sb.Append($" + {rs.Act.SecondBossEncounter?.Id.Entry}");
         sb.Append('\n');
         return sb.ToString();
     }
 
-    // ---------------------------------------------------------------- rooms
-
     private static void Room(Decision d, RunState rs, Player me)
     {
         var room = rs.CurrentRoom;
         d.Kind = room?.RoomType.ToString().ToUpperInvariant() ?? "ROOM";
-        if (room == null || room.RoomType is RoomType.Unassigned or RoomType.Map) { d.Busy = true; return; }  // between rooms / acts
+        if (room == null || room.RoomType is RoomType.Unassigned or RoomType.Map) { d.Busy = true; return; }
         switch (room?.RoomType)
         {
             case RoomType.Event: Event(d, me); break;
@@ -488,12 +461,10 @@ public static class Decisions
             case RoomType.Shop: Shop(d, me); break;
             case RoomType.Treasure: Treasure(d); break;
             case RoomType.Monster or RoomType.Elite or RoomType.Boss:
-                // between the last kill and the rewards screen: wait
                 if (NCombatRoom.Instance is { } cr) ProceedOpt(d, cr);
                 if (d.Opts.Count == 0) { d.Busy = true; return; }
                 break;
         }
-        // potions usable outside combat
         for (int i = 0; i < me.PotionSlots.Count; i++)
             if (me.PotionSlots[i] is { Usage: PotionUsage.AnyTime } p && d.Opts.Count > 0)
                 d.Add($"potion {Text.Loc(p.Title)}: {Text.Loc(p.DynamicDescription)}", a => UsePotion(p, me, null, a));
@@ -554,8 +525,6 @@ public static class Decisions
         Inventory(d, me, room.Inventory, room.OpenInventory, room, room.ProceedButton, "leave shop");
     }
 
-    /// <summary>A merchant inventory as options: the shop room and the Fake Merchant event (`FakeMerchant.cs`, a custom event layout with the same
-    /// `NMerchantInventory`; throwing a Foul Potion at it starts a fight, which the generic potion option covers).</summary>
     private static void Inventory(Decision d, Player me, NMerchantInventory inv, Action open, Node root, NProceedButton? proceed, string leave)
     {
         foreach (var slot in inv.GetAllSlots().Where(s => s.Entry.IsStocked))
@@ -602,8 +571,6 @@ public static class Decisions
         if (room.ProceedButton is { IsEnabled: true } p && p.IsVisibleInTree()) d.Click("proceed", p);
     }
 
-    // ---------------------------------------------------------------- main menu
-
     private static void MainMenu(Decision d)
     {
         d.Kind = "MENU";
@@ -613,7 +580,7 @@ public static class Decisions
         var ab = menu.GetNodeOrNull<NButton>("MainMenuTextButtons/AbandonRunButton");
         var sp = menu.GetNodeOrNull<NButton>("MainMenuTextButtons/SingleplayerButton");
         bool Shown(NButton? b) => b != null && b.Visible && b.IsEnabled;
-        if (!Shown(cont) && !Shown(sp)) { d.Busy = true; return; }  // a run is loading / a submenu is open
+        if (!Shown(cont) && !Shown(sp)) { d.Busy = true; return; }
         if (Shown(cont)) d.Click("continue run", cont!);
         if (Shown(ab)) d.Click("abandon run", ab!);
         if (Shown(sp))
@@ -632,7 +599,6 @@ public static class Decisions
         }
     }
 
-    /// <summary>A run started from the Custom Run screen (the only way to enter a seed like a human does): character, ascension, seed, modifiers.</summary>
     private static async Task NewCustomRun(Control menu, string character, int? ascension, string? seed, string[] modifiers)
     {
         Main.Log.Info($"AgentBridge: custom run {character} asc={ascension} seed={seed} mods={string.Join(",", modifiers)}", 0);

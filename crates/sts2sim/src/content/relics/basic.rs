@@ -1,5 +1,3 @@
-//! Relic behaviour.
-
 use crate::dec::Dec;
 use crate::hooks::*;
 use crate::listener;

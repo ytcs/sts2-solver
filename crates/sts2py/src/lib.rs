@@ -4,9 +4,6 @@ use pyo3::prelude::*;
 mod sim;
 use sts2env::{BatchEnv, PoolScenario, RewardConfig, RoundRobinScenario, StepOut};
 
-/// Scenario JSON strings to simulator scenarios, in parallel with the GIL released (`validate`: also refuse unported content). The first error
-/// in list order is reported, with the same message as a serial parse. A serial parse took ~30 us a scenario: most of the time of building a
-/// 4096-fight env for the predictor's fight starts (`rl/predictor.py`).
 fn parse_scenarios(py: Python<'_>, scenarios_json: &[String], validate: bool) -> PyResult<Vec<(sts2sim::Scenario, sts2sim::ScenarioExtras)>> {
     use rayon::prelude::*;
     let parsed: Vec<Result<(sts2sim::Scenario, sts2sim::ScenarioExtras), String>> = py.detach(|| {
@@ -50,12 +47,10 @@ impl BatchEnvPy {
         Ok(BatchEnvPy { env })
     }
 
-    /// The observation version this env writes.
     fn obs_version(&self) -> u8 {
         self.env.obs_version()
     }
 
-    /// Floats per observation row.
     fn obs_size(&self) -> usize {
         self.env.obs_size()
     }
@@ -96,23 +91,19 @@ impl BatchEnvPy {
         self.env.set_autoreset(on);
     }
 
-    /// Episodes the loop guard ended (`ov::LOOP`), over every env since creation; each was reported as `OUTCOME_LOSS`.
     fn loops(&self) -> u64 {
         self.env.loops()
     }
 
-    /// The player-turn cap from the next step on (0 = none).
     fn set_turn_cap(&mut self, cap: u32) {
         self.env.set_turn_cap(cap);
     }
 
-    /// Sampling weights of the scenarios (pool sources only): episodes starting from now draw scenario i with probability w_i / sum w.
     fn set_weights(&mut self, w: PyReadonlyArray1<f32>) -> PyResult<()> {
         let w = w.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?;
         if self.env.set_weights(w) { Ok(()) } else { Err(PyValueError::new_err("weights need a pool source with one weight per scenario")) }
     }
 
-    /// `[n]` u8: belt slots whose potion the latest step used up (bit k = slot k), measured before an auto-reset.
     fn potion_used(&self, mut out: PyReadwriteArray1<u8>) -> PyResult<()> {
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         if o.len() < self.env.len() {
@@ -122,15 +113,12 @@ impl BatchEnvPy {
         Ok(())
     }
 
-    /// Copy `src[src_idx[k]]` into this env's slot `dst_idx[k]`, resampling hidden state with `seeds[k]` (see `BatchEnv::fork_from`).
     fn fork_from(&mut self, src: PyRef<'_, BatchEnvPy>, src_idx: PyReadonlyArray1<u32>, dst_idx: PyReadonlyArray1<u32>, seeds: PyReadonlyArray1<u64>) -> PyResult<()> {
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         self.env.fork_from(&src.env, src_idx.as_slice().map_err(e)?, dst_idx.as_slice().map_err(e)?, seeds.as_slice().map_err(e)?)
             .map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
-    /// `[n, 7]` f32: scenario index, HP lost fraction, HP left fraction, episode length, HP left (absolute, 0 on a loss), max HP at the end, player turns
-    /// of the episode each env finished last.
     fn episode_info(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let n = self.env.len();
@@ -146,7 +134,6 @@ impl BatchEnvPy {
     }
 }
 
-/// The determinized play-out search as a continuous-batching state machine (`sts2env::search`): the caller only evaluates networks.
 #[pyclass]
 struct SearchEnginePy {
     eng: sts2env::search::SearchEngine,
@@ -181,9 +168,8 @@ impl SearchEnginePy {
         turn_cap: u32,
         val_w: usize,
         worth: Option<PyReadonlyArray2<f32>>,
-        // DIAGNOSTIC ONLY (sees hidden information): futures are copies of the true state, not determinized (`SearchCfg::clairvoyant`); never for live play
+        // DIAGNOSTIC ONLY: sees hidden information; never for live play.
         clairvoyant: bool,
-        // the observation version of the request rows (default: the process-wide one)
         obs_version: Option<u8>,
     ) -> PyResult<Self> {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
@@ -197,7 +183,6 @@ impl SearchEnginePy {
             eng.set_obs_version(v).map_err(|_| PyValueError::new_err(format!("unknown observation version {v}")))?;
         }
         if let Some(wa) = worth {
-            // [n_scen, 1 + HEAD_NC]: table flag (0 = linear), the worth of each class
             use sts2env::search::{Worth, HEAD_NC};
             let w = wa.as_slice().map_err(e)?;
             let width = 1 + HEAD_NC;
@@ -218,12 +203,10 @@ impl SearchEnginePy {
         Ok(SearchEnginePy { eng })
     }
 
-    /// The observation version of the request rows.
     fn obs_version(&self) -> u8 {
         self.eng.obs_version()
     }
 
-    /// Floats per observation row of the request buffers.
     fn obs_size(&self) -> usize {
         self.eng.obs_size()
     }
@@ -232,13 +215,10 @@ impl SearchEnginePy {
         self.eng.finished()
     }
 
-    /// Rows of the one request buffer `advance_shared` uses (`sts2env::search::SearchEngine::shared_rows`).
     fn shared_rows(&self) -> usize {
         self.eng.shared_rows()
     }
 
-    /// `advance` with one observation buffer `obs` [shared_rows, OBS] for both kinds of rows: policy row r at row r, value row r at row
-    /// `shared_rows - 1 - r` (`sts2env::search::SearchEngine::advance_shared`); `mask`, `pol_kind`, `pol_u`, `val_kind` have `shared_rows` rows.
     #[pyo3(signature = (obs, mask, pol_kind, pol_u, val_kind, pol=None, val=None))]
     #[allow(clippy::too_many_arguments)]
     fn advance_shared(
@@ -270,8 +250,6 @@ impl SearchEnginePy {
         py.detach(|| eng.advance_shared(pa, va, o, pm, pk, pu, vk)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
     }
 
-    /// `[n_jobs, 6..8]` f32: scenario index, outcome, HP lost fraction, HP left fraction, length, finished (1/0) (, end HP absolute, belt slots whose starting
-    /// potion is still there at the end as bits).
     fn results(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {
         let w = out.as_array().ncols();
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -286,7 +264,6 @@ impl SearchEnginePy {
         Ok(())
     }
 
-    /// Recorded moves of a finished job: `(actions [n] i32, searched [n] u8, options [n, M] i32, probabilities [n, M] f32, estimates [n, M] f32 (NaN: not tried), legal [n, M] u8)`.
     #[allow(clippy::type_complexity)]
     fn moves<'py>(&self, py: Python<'py>, job: usize) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
         use numpy::{PyArray1, PyArrayMethods};
@@ -348,7 +325,6 @@ impl SearchEnginePy {
     }
 }
 
-/// The observation version `v` (default: the process-wide one) and its row length; an error for an unknown version.
 fn version_size(v: Option<u8>) -> PyResult<(u8, usize)> {
     let v = v.unwrap_or_else(sts2sim::observe::obs_version);
     match sts2sim::observe::obs_size(v) {
@@ -357,7 +333,6 @@ fn version_size(v: Option<u8>) -> PyResult<(u8, usize)> {
     }
 }
 
-/// Replays a recorded fight (`SearchEnginePy.moves`): `(obs [n + 1, OBS], mask [n + 1, ACTIONS])` before every action and after the last one.
 #[pyfunction]
 #[pyo3(signature = (scenario_json, seed, actions, obs_version=None))]
 fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReadonlyArray1<i32>, obs_version: Option<u8>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
@@ -373,9 +348,6 @@ fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReado
     Ok((PyArray1::from_vec(py, obs).reshape([n, osz])?, PyArray1::from_vec(py, mask).reshape([n, sts2env::ACTIONS])?))
 }
 
-/// Many recorded fights at once, in parallel: fight i replays `actions[off[i]..off[i + 1]]` from `scenarios[scen[i]]` with `seeds[i]` and returns
-/// the observation and mask before each of its `steps[soff[i]..soff[i + 1]]` (indices into its own steps), all fights' rows concatenated in order.
-/// What `rl/exit.py` trains on: the decisions the search made, rebuilt from the compact record.
 #[pyfunction]
 #[pyo3(signature = (scenarios, scen, seeds, actions, off, steps, soff, obs_version=None))]
 #[allow(clippy::too_many_arguments)]
@@ -391,7 +363,6 @@ fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, see
     if scen.len() < n || off.len() <= n || soff.len() <= n || soff[n] > steps.len() || off[n] > acts.len() || scen.iter().take(n).any(|&s| s as usize >= parsed.len()) {
         return Err(PyValueError::new_err("replay_rows: scen / off / soff do not match the fights"));
     }
-    // the rows are written straight into the output arrays (each fight into its own rows, in parallel); only the requested states are observed
     let r = soff[n] - soff[0];
     let obs_arr = numpy::PyArray2::<f32>::zeros(py, [r, o], false);
     let mask_arr = numpy::PyArray2::<u8>::zeros(py, [r, a], false);
@@ -418,27 +389,22 @@ fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, see
     Ok((obs_arr, mask_arr))
 }
 
-/// Whether observations leave out relics with no combat effect (`sts2sim::relic_mask`; on by default). Returns the previous setting.
 #[pyfunction]
 fn set_relic_mask(on: bool) -> bool {
     sts2sim::observe::MASK_RELICS.swap(on, std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Floats per observation row of version `version` (default: the process-wide version).
 #[pyfunction]
 #[pyo3(signature = (version=None))]
 fn obs_size(version: Option<u8>) -> PyResult<usize> {
     Ok(version_size(version)?.1)
 }
 
-/// The process-wide observation version (1 by default): what `VecEnv`, the search engine, `replay`, `Sim.observe` and `layout` use when no
-/// version is given. Each env / engine keeps the version it was created with.
 #[pyfunction]
 fn obs_version() -> u8 {
     sts2sim::observe::obs_version()
 }
 
-/// Sets the process-wide observation version (1 or 2); returns the previous one.
 #[pyfunction]
 fn set_obs_version(version: u8) -> PyResult<u8> {
     sts2sim::observe::set_obs_version(version).ok_or_else(|| PyValueError::new_err(format!("unknown observation version {version}")))
@@ -449,7 +415,6 @@ fn action_space() -> usize {
     sts2env::ACTIONS
 }
 
-/// `None` when nothing is proven; otherwise a sentence explaining why the fight cannot be won (see `sts2sim::bounds`).
 #[pyfunction]
 fn provably_unwinnable(scenario_json: &str) -> PyResult<Option<String>> {
     let v: serde_json::Value = serde_json::from_str(scenario_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -457,7 +422,6 @@ fn provably_unwinnable(scenario_json: &str) -> PyResult<Option<String>> {
     Ok(sts2sim::bounds::provably_unwinnable(&sc, &ex).map(|p| p.describe()))
 }
 
-/// Display names (SCREAMING_SNAKE ids) of cards, powers, relics, potions, monsters, encounters, enchantments, afflictions, orbs, indexed by id.
 #[pyfunction]
 fn names(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
     use sts2sim::ids;
@@ -476,8 +440,6 @@ fn names(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
     Ok(d)
 }
 
-/// Observation layout and action-space constants of `version` (default: the process-wide version):
-/// `{"sections": [(name, offset, size)], "consts": {name: value}}`.
 #[pyfunction]
 #[pyo3(signature = (version=None))]
 fn layout(py: Python<'_>, version: Option<u8>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
@@ -513,7 +475,6 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(layout, m)?)?;
     m.add_function(wrap_pyfunction!(names, m)?)?;
     m.add_function(wrap_pyfunction!(provably_unwinnable, m)?)?;
-    // `outcome` codes of `step` (set when `done`)
     m.add("OUTCOME_ONGOING", sts2env::OUTCOME_ONGOING)?;
     m.add("OUTCOME_WIN", sts2env::OUTCOME_WIN)?;
     m.add("OUTCOME_LOSS", sts2env::OUTCOME_LOSS)?;

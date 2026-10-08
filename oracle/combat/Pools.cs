@@ -5,7 +5,6 @@ using MegaCrit.Sts2.Core.Rooms;
 
 namespace OracleCombat;
 
-/// <summary>`dump-pools`: card / relic / potion pools and encounters (with act + room type) for tools/fuzz_gen.py.</summary>
 public static class Pools
 {
     public static JsonObject Dump()

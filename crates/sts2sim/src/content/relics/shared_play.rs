@@ -1,8 +1,3 @@
-//! Relics driven by card plays / exhausts / discards / draws and the counters they keep.
-//!
-//! State: `Relic::counter` / `aux` / `flags` as documented per relic (`meta_props` lists the `[SavedProperty]`s the
-//! oracle dumps; `meta_display` is `ShowCounter ? DisplayAmount`).
-
 use crate::content::gen_relics as g;
 use crate::dec::Dec;
 use crate::hooks::*;
@@ -22,9 +17,6 @@ fn relic_block(cx: &mut Combat, n: i32) {
 fn ctype(cx: &Combat, c: CardIdx) -> CardType {
     cx.card_def(c).ctype
 }
-
-// ---- "every N attacks / skills this turn" -----------------------------------------------------------------------------
-// counter = plays this turn (not saved); ShowCounter == IsInProgress; DisplayAmount = counter % N.
 
 listener!(Kunai {
     fn before_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
@@ -92,7 +84,6 @@ listener!(OrnamentalFan {
     }
 });
 
-// Reset at combat start and at the end of each player turn; hits one random hittable enemy.
 listener!(Kusarigama {
     fn before_combat_start(&self, cx: &mut Combat, me: Me) {
         cx.rel_mut(me).counter = 0;
@@ -116,7 +107,6 @@ listener!(Kusarigama {
     }
 });
 
-// Skills this turn; reset at combat start and every player turn after the first.
 listener!(LetterOpener {
     fn before_combat_start(&self, cx: &mut Combat, me: Me) {
         cx.rel_mut(me).counter = 0;
@@ -139,9 +129,6 @@ listener!(LetterOpener {
     }
 });
 
-// ---- saved "every N" counters (carried across combats) ----------------------------------------------------------------
-
-// counter = `AttacksPlayed` (saved); ShowCounter; DisplayAmount = counter % CARDS.
 listener!(Nunchaku {
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if ctype(cx, play.card) == CardType::Attack {
@@ -159,7 +146,6 @@ listener!(Nunchaku {
     }
 });
 
-// counter = `CardsPlayed` (saved); ShowCounter; DisplayAmount = counter % CARDS.
 listener!(IronClub {
     fn after_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
         cx.rel_mut(me).counter += 1;
@@ -175,7 +161,6 @@ listener!(IronClub {
     }
 });
 
-// counter = `SkillsPlayed` (saved); ShowCounter; DisplayAmount = counter.
 listener!(TuningFork {
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if ctype(cx, play.card) == CardType::Skill {
@@ -194,7 +179,6 @@ listener!(TuningFork {
     }
 });
 
-// counter = `CardsExhausted` (saved only when non-zero), aux = `_etherealCount`; ShowCounter; DisplayAmount = counter.
 fn joss_paper_draw(cx: &mut Combat, me: Me) {
     let n = g::joss_paper::EXHAUST_AMOUNT;
     if cx.rel(me).counter < n {
@@ -233,7 +217,6 @@ listener!(JossPaper {
     }
 });
 
-// counter = `TurnsSeen` (saved); ShowCounter; DisplayAmount = counter.
 listener!(HappyFlower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player {
@@ -272,7 +255,6 @@ listener!(FakeHappyFlower {
     }
 });
 
-// counter = `TurnsSeen` (saved): +1 draw every TURNS-th turn.
 listener!(Pendulum {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         let t = g::pendulum::TURNS;
@@ -293,7 +275,6 @@ listener!(Pendulum {
     }
 });
 
-// counter = `TurnsSeen` (saved): after TURNS turns the next hand draw is bigger and the counter resets.
 listener!(PollinousCore {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         cx.rel_mut(me).counter += 1;
@@ -315,7 +296,6 @@ listener!(PollinousCore {
     }
 });
 
-// counter = cards played this turn, aux = cards played last turn (neither saved). ShowCounter == IsInProgress.
 listener!(Pocketwatch {
     fn after_card_played(&self, cx: &mut Combat, me: Me, _play: &CardPlay) {
         if cx.in_progress {
@@ -345,7 +325,6 @@ listener!(Pocketwatch {
     }
 });
 
-// counter = cards played this turn; stops card plays at CARDS. ShowCounter == IsInProgress; DisplayAmount = counter.
 listener!(VelvetChoker {
     fn modify_max_energy(&self, _cx: &Combat, _me: Me, amount: Dec) -> Dec {
         amount + Dec::int(g::velvet_choker::ENERGY as i64)
@@ -372,9 +351,6 @@ listener!(VelvetChoker {
     }
 });
 
-// ---- first-card / first-power style one-shots ----------------------------------------------------------------------------
-
-// flags: bit0 = `AnyAttacksPlayedLastTurn`, bit1 = `AnyAttacksPlayedThisTurn` (not saved).
 listener!(ArtOfWar {
     fn after_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         if cx.in_progress && ctype(cx, play.card) == CardType::Attack && !cx.rel(me).flag(0) {
@@ -406,7 +382,6 @@ listener!(ArtOfWar {
     }
 });
 
-// flag 0 = `ActivatedThisCombat` (not saved).
 listener!(Permafrost {
     fn after_room_entered(&self, cx: &mut Combat, me: Me) {
         cx.rel_mut(me).set_flag(0, false);
@@ -459,7 +434,6 @@ listener!(IvoryTile {
     }
 });
 
-// Attacks and skills are upgraded after being played.
 listener!(RazorTooth {
     fn after_card_played(&self, cx: &mut Combat, _me: Me, play: &CardPlay) {
         if matches!(ctype(cx, play.card), CardType::Attack | CardType::Skill) && cx.is_upgradable(play.card) {
@@ -468,7 +442,6 @@ listener!(RazorTooth {
     }
 });
 
-// flags: bit0 attack seen, bit1 skill seen, bit2 power seen, bit3 activated this turn (none saved).
 listener!(RainbowRing {
     fn before_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player {
@@ -500,7 +473,6 @@ listener!(RainbowRing {
     }
 });
 
-// counter = `AttacksPlayed % 10` (saved), aux = `AttackToDouble` card + 1 (0 = none). ShowCounter; DisplayAmount = counter.
 listener!(PenNib {
     fn modify_damage_multiplicative(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if !q.props.is_powered() || q.card == NO || !cx.is_owner_or_osty(q.dealer) {
@@ -542,14 +514,12 @@ listener!(PenNib {
     }
 });
 
-// X-cost cards (energy or star X) count `Increase` higher; read through `Combat::resolve_x_value`.
 listener!(ChemicalX {
     fn modify_x_value(&self, _cx: &Combat, _me: Me, _card: CardIdx, value: i32) -> i32 {
         value + g::chemical_x::INCREASE
     }
 });
 
-// flag 0 = `UsedThisCombat` (not saved): the first card played each combat is played twice.
 listener!(ThrowingAxe {
     fn after_room_entered(&self, cx: &mut Combat, me: Me) {
         cx.rel_mut(me).set_flag(0, false);
@@ -568,7 +538,6 @@ listener!(ThrowingAxe {
     }
 });
 
-// flag 0 = `WasUsedThisTurn`, aux = `CardBeingPlayed` card + 1 (0 = none); neither saved.
 listener!(MusicBox {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         let r = cx.rel(me);
@@ -603,7 +572,6 @@ listener!(MusicBox {
     }
 });
 
-// flag 0 = `WasUsedThisCombat`: the first exhausted Skill each combat is copied into the hand.
 listener!(BurningSticks {
     fn after_room_entered(&self, cx: &mut Combat, me: Me) {
         cx.rel_mut(me).set_flag(0, false);
@@ -621,14 +589,12 @@ listener!(BurningSticks {
     }
 });
 
-// Picks (with `Rng.CombatCardSelection`) a hand card to make free this turn after each Power card.
 listener!(MummifiedHand {
     fn after_card_played(&self, cx: &mut Combat, _me: Me, play: &CardPlay) {
         if !cx.in_progress || ctype(cx, play.card) != CardType::Power {
             return;
         }
         let hand = cx.player.hand;
-        // list = cards with a base energy cost > 0 or a base star cost > 0
         let mut list: crate::util::ArrayVec<CardIdx, MAX_HAND> = crate::util::ArrayVec::new();
         for &c in hand.iter() {
             let base = cx.cards[c as usize].cost_base;
@@ -662,7 +628,6 @@ listener!(MummifiedHand {
     }
 });
 
-// After the hand is flushed the retained cards are exactly the hand: one random card that still costs energy gets -1 until played.
 listener!(Bookmark {
     fn after_flush(&self, cx: &mut Combat, _me: Me) {
         let hand = cx.player.hand;
@@ -678,9 +643,6 @@ listener!(Bookmark {
     }
 });
 
-// ---- damage taken / cards drawn / discarded ---------------------------------------------------------------------------------
-
-// flag 0 = `_usedThisCombat` (not saved).
 listener!(CentennialPuzzle {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
         if cx.in_progress && target == PLAYER && unblocked > 0 && !cx.rel(me).flag(0) {
@@ -734,7 +696,6 @@ listener!(ToughBandages {
     }
 });
 
-// flag 0 = `UsedThisTurn` (not saved); only blocks for cards the player generated.
 listener!(Regalite {
     fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, _card: CardIdx, added_by_player: bool) {
         if added_by_player && !cx.rel(me).flag(0) {
@@ -751,8 +712,6 @@ listener!(Regalite {
         cx.rel_mut(me).set_flag(0, false);
     }
 });
-
-// ---- end of turn ---------------------------------------------------------------------------------------------------------
 
 listener!(CloakClasp {
     fn before_side_turn_end(&self, cx: &mut Combat, _me: Me, side: Side) {
@@ -781,8 +740,6 @@ listener!(RippleBasin {
     }
 });
 
-// Deals `Damage` to every hittable enemy once, on the player's turn `DamageTurn` (before block / flush).
-// ShowCounter == DisplayAmount > -1 where DisplayAmount = turn number while the turn is below DamageTurn, else -1.
 listener!(StoneCalendar {
     fn before_side_turn_end(&self, cx: &mut Combat, _me: Me, side: Side) {
         if side == Side::Player && cx.turn_number() == g::stone_calendar::DAMAGE_TURN {
@@ -797,9 +754,6 @@ listener!(StoneCalendar {
     }
 });
 
-// ---- potions ------------------------------------------------------------------------------------------------------------------
-
-// flag 0 = `DexterityApplied` (not saved).
 fn belt_buckle_apply(cx: &mut Combat, me: Me) {
     if !cx.rel(me).flag(0) {
         cx.rel_mut(me).set_flag(0, true);
@@ -847,7 +801,6 @@ listener!(ReptileTrinket {
     }
 });
 
-// Vulnerable on enemies whose block the owner breaks.
 listener!(HandDrill {
     fn after_block_broken(&self, cx: &mut Combat, _me: Me, target: Cid, breaker: Cid) {
         if cx.is_owner_or_osty(breaker) && !cx.cr(target).is_player {
@@ -856,7 +809,6 @@ listener!(HandDrill {
     }
 });
 
-// flag 0 = `WasUsed` (saved); the first lethal hit leaves the owner at `Heal`% of max HP (min 1).
 listener!(LizardTail {
     fn should_die_late(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
         creature != PLAYER || cx.rel(me).flag(0)

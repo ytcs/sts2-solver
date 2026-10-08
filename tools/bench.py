@@ -1,28 +1,4 @@
 #!/usr/bin/env python3
-"""The predictor benchmark (`docs/rebuild.md` S2): frozen fight sets labelled by search play, and the scores of a predictor on them.
-
-  tools/bench.py build                 # freeze the sets into data/bench/ and label them (search at live width, h128; ~1 h on one GPU)
-  tools/bench.py score CKPT [CKPT ...] # calibration and ranking of each network's fight-start prediction
-  tools/bench.py play CKPT             # the network as the search's policy: win and end HP paired with the labels (same seeds)
-  tools/bench.py screen BASE CKPT ...  # cheap screen (~1 min each): greedy-policy win per set, paired with BASE (same env seeds), and the predictor's
-                                       # bias / Brier; play only what the screen does not rule out (a play-check is ~10 min and its se ~0.004)
-
-Sets (`data/bench/<set>.json`: scenarios plus per-attempt labels):
-  eval    600 generated fights (tools/gen_train.py seed 122: 5 characters, 3 acts)
-  corpus  real-run fights (data/corpus/fights_holdout.json)
-  mix     cross-character cards, ancient relics, belts up to 8 (tools/gen_curriculum.py, held-out seed)
-  tail    late game: Act 3 (act index 2) elites and bosses with decks of 28+ cards (tools/gen_curriculum.py, held-out seed)
-  pairs   ranking: (base, variant) fights, the variant adds a pool card, removes a card, upgrades a card or drops a potion; labelled with
-          common random numbers so the reference difference is paired, 256 attempts at search width 3x8 (32 attempts left the reference agreeing
-          with itself on only 66% of signs: E3)
-
-Labels: `Solver(h128, M=5, K=32)`, the search's live width without adaptive rounds; potions are free to use (the allowed set is the whole belt).
-Scores of a predictor's fight-start prediction (the outcome head averaged over SHUFFLES opening shuffles):
-  calibration  bias and Brier of P(win) against the label mean, a reliability table, the ranked probability score of the end distribution (loss,
-               then 2-HP end bins) against each labelled attempt, per set and per character
-  ranking      on pairs whose reference difference exceeds 2 paired se: share where the predicted difference has the same sign (P(win), and the
-               linear worth the search maximises), and the Spearman correlation of predicted vs reference differences
-"""
 import argparse, json, os, random, sys, time
 
 import numpy as np
@@ -73,8 +49,6 @@ def _gen_train(n, seed):
 
 
 def scenarios(rng):
-    """The frozen scenario sets (deterministic given the seeds). v2 (2026-10-07): no multiplayer-only card anywhere (single-player runs never
-    offer them; v1 had them in ~62% of fights, E11)."""
     mp = _multiplayer_only()
     clean = lambda xs: [x for x in xs if not any(_cid(c) in mp for c in x["deck"])]  # noqa: E731
     s = {"eval": clean(_gen_train(800, 122))[:600], "corpus": clean(_load("data/corpus/fights_holdout.json"))}
@@ -87,7 +61,6 @@ def scenarios(rng):
 
 
 def pairs(base, rng):
-    """(base, variant, kind) triples: one variant of each base fight."""
     cat = _load("data/catalog.json")["cards"]
     out = []
     for sc in base:
@@ -132,9 +105,8 @@ def build(a):
         base = sets["eval"][:200] + sets["mix"][:150] + sets["tail"][:100] + sets["corpus"][:100]
         tri = pairs(base, rng)[:a.pairs]
         flat = [x for b, v, _ in tri for x in (b, v)]
-        groups = [i // 2 for i in range(len(flat))]  # base and variant share the RNG streams and search seeds of every attempt
+        groups = [i // 2 for i in range(len(flat))]
         t0 = time.time()
-        # card effects are a few points against fight-to-fight variance: the reference needs many paired attempts at a cheaper width (E3)
         res = Solver(LABEL_CKPT, M=3, K=8).solve(flat, attempts=PAIR_ATTEMPTS, seed=13, groups=groups)
         rows = []
         for i, (b, v, kind) in enumerate(tri):
@@ -144,10 +116,7 @@ def build(a):
         print(f"pairs: {len(rows)} x 2 x {PAIR_ATTEMPTS} in {time.time() - t0:.0f}s", flush=True)
 
 
-# ---------------------------------------------------------------------------------------------------------------------------- scoring
-
 def predict(net, scen, shuffles=SHUFFLES):
-    """Fight-start prediction averaged over opening shuffles: class probabilities [S, NC] (`rl/predictor.py`)."""
     from predictor import Predictor
     return Predictor(net).fight_start(scen, shuffles)
 
@@ -160,7 +129,6 @@ def _worth(P, max_hp):
 
 
 def _rps(P, wins, ends):
-    """Mean ranked probability score of the ordinal end distribution (loss < end HP bins) against each labelled attempt."""
     import heads as H
     cdf = np.cumsum(P)
     out = []
@@ -174,13 +142,13 @@ def _rps(P, wins, ends):
 
 
 def _spearman(a, b):
-    r = lambda x: np.argsort(np.argsort(x)).astype(float)  # noqa: E731  (ties broken by order: fine for continuous differences)
+    r = lambda x: np.argsort(np.argsort(x)).astype(float)  # noqa: E731
     return float(np.corrcoef(r(a), r(b))[0, 1])
 
 
 def score_net(ck):
     from model import load
-    net = load(ck, set_version=False)  # the envs take the network's observation version: checkpoints of both versions score in one run
+    net = load(ck, set_version=False)
     print(f"\n== {os.path.basename(ck)}")
     for name in SETS:
         path = os.path.join(OUT, name + ".json")
@@ -230,7 +198,6 @@ def score_net(ck):
 
 
 def _greedy(net, scen, per_env, seed):
-    """Greedy-policy fights (no search): every scenario `per_env` times on fixed env seeds (round robin); [S, per_env] win (1/0, NaN if aborted)."""
     import sts2
     import heads as H
     from model import DEV
@@ -254,12 +221,11 @@ def _greedy(net, scen, per_env, seed):
 
 
 def screen(cks, per_env=4, seed=5):
-    """Greedy win per set for each checkpoint, paired with the first (same env seeds), plus the fight-start predictor's bias and Brier."""
     from model import load
     sets = {n: json.load(open(os.path.join(OUT, n + ".json"))) for n in SETS if os.path.exists(os.path.join(OUT, n + ".json"))}
     base = {}
     for k, ck in enumerate(cks):
-        net = load(ck, set_version=False).eval()  # each env takes its network's observation version: v1 and v2 checkpoints pair in one run
+        net = load(ck, set_version=False).eval()
         t0 = time.time()
         line = []
         for name, rows in sets.items():
@@ -279,7 +245,6 @@ def screen(cks, per_env=4, seed=5):
 
 
 def play(ck, roots=None):
-    """A network as the search's policy and evaluator at live width on the frozen sets, on the labels' seeds: win and end HP paired with the labels."""
     from solver import Solver
     S = Solver(ck, M=5, K=32, roots=roots)
     print(f"\n== play {os.path.basename(ck)} (search 5x32 vs the labels' h128 5x32, same seeds)")
@@ -289,7 +254,6 @@ def play(ck, roots=None):
             continue
         rows = json.load(open(path))
         res = S.solve([r["scenario"] for r in rows], attempts=ATTEMPTS, seed=11)
-        # a fight with no attempt finished on both sides (an aborted play-out is None) has no paired difference: left out and counted
         dw = [[b - a for a, b in zip(r["wins"], x["wins"]) if a is not None and b is not None] for r, x in zip(rows, res)]
         dh = [[(b or 0) - (a or 0) for a, b in zip(r["ends"], x["ends_abs"]) if a is not None and b is not None] for r, x in zip(rows, res)]
         d = np.array([np.mean(v) for v in dw if v])

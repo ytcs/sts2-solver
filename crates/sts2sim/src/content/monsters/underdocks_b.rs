@@ -1,5 +1,3 @@
-//! Act 1b "Underdocks" monsters, part B: elites and bosses (spec 04 §3.2).
-
 use crate::dec::Dec;
 use crate::defs::*;
 use crate::engine::Attack;
@@ -44,8 +42,6 @@ macro_rules! hp {
     };
 }
 
-// ---- PhantasmalGardener (elite, x4 in slots first..fourth) ----------------------------------------------------------------
-
 mod gardener {
     use super::*;
     pub fn bite(_cx: &Combat) -> i32 {
@@ -65,7 +61,6 @@ mod gardener {
         buff(cx, ids::power::SKITTISH_POWER, a, me);
     }
 }
-// slots: first=0 second=1 third=2 fourth=3. nodes: 0 INIT (cond on slot), 1 BITE, 2 LASH, 3 ENLARGE, 4 FLAIL
 pub static PHANTASMAL_GARDENER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::PHANTASMAL_GARDENER,
     hp: hp!(26, 31, 27, 32),
@@ -83,7 +78,7 @@ pub static PHANTASMAL_GARDENER_DEF: MonsterDef = MonsterDef {
             |cx, me| {
                 let s = gardener::enlarge(cx);
                 buff(cx, ids::power::STRENGTH_POWER, s, me);
-                cx.cr_mut(me).monster.vars[2] += 1; // EnlargeTriggers (cosmetic scale only)
+                cx.cr_mut(me).monster.vars[2] += 1;
             },
             [Intent::Buff],
             1
@@ -91,8 +86,6 @@ pub static PHANTASMAL_GARDENER_DEF: MonsterDef = MonsterDef {
         mv!("FLAIL_MOVE", |cx, me| hits(cx, me, 1, 3), [atk!(gardener::flail, 3)], 3),
     ],
 };
-
-// ---- SkulkingColony (elite) ----------------------------------------------------------------------------------------------
 
 mod colony {
     use super::*;
@@ -112,7 +105,6 @@ mod colony {
         buff(cx, ids::power::HARDENED_SHELL_POWER, 20, me);
     }
 }
-// nodes: 0 ZOOM, 1 ZOOM_2, 2 INERTIA, 3 PIERCING_STABS
 pub static SKULKING_COLONY_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SKULKING_COLONY,
     hp: hp!(75, 75, 80, 80),
@@ -135,8 +127,6 @@ pub static SKULKING_COLONY_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- TerrorEel (elite) ---------------------------------------------------------------------------------------------------
-
 pub mod eel {
     use super::*;
     pub const TERROR: u8 = 2;
@@ -151,7 +141,6 @@ pub mod eel {
         buff(cx, ids::power::SHRIEK_POWER, a, me);
     }
 }
-// nodes: 0 CRASH, 1 THRASH, 2 TERROR (reached only through Shriek's stun; follow-up CRASH)
 pub static TERROR_EEL_DEF: MonsterDef = MonsterDef {
     id: ids::monster::TERROR_EEL,
     hp: hp!(140, 140, 150, 150),
@@ -172,8 +161,6 @@ pub static TERROR_EEL_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- LagavulinMatriarch (boss) -------------------------------------------------------------------------------------------
-
 pub mod matriarch {
     use super::*;
     pub const SLASH: u8 = 2;
@@ -190,12 +177,10 @@ pub mod matriarch {
         deadly(cx, 10, 9)
     }
     pub fn on_spawn(cx: &mut Combat, me: Cid) {
-        // Sleep(): Plating 12, then Asleep 3
         buff(cx, ids::power::PLATING_POWER, 12, me);
         buff(cx, ids::power::ASLEEP_POWER, 3, me);
     }
 }
-// nodes: 0 SLEEP_BRANCH, 1 SLEEP (INIT), 2 SLASH, 3 DISEMBOWEL, 4 SLASH2, 5 SOUL_SIPHON
 pub static LAGAVULIN_MATRIARCH_DEF: MonsterDef = MonsterDef {
     id: ids::monster::LAGAVULIN_MATRIARCH,
     hp: hp!(222, 222, 233, 233),
@@ -232,8 +217,6 @@ pub static LAGAVULIN_MATRIARCH_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- SoulFysh (boss) -----------------------------------------------------------------------------------------------------
-
 mod fysh {
     use super::*;
     pub fn de_gas(cx: &Combat) -> i32 {
@@ -251,7 +234,6 @@ mod fysh {
         }
     }
     pub fn beckon_move(cx: &mut Combat, _me: Cid) {
-        // 1 Beckon to the draw pile (random position), 1 to the discard pile
         beckon(cx, PileType::Draw, CardPilePosition::Random);
         beckon(cx, PileType::Discard, CardPilePosition::Bottom);
     }
@@ -261,7 +243,6 @@ mod fysh {
         beckon(cx, PileType::Discard, CardPilePosition::Bottom);
     }
 }
-// nodes: 0 BECKON, 1 DE_GAS, 2 GAZE, 3 FADE, 4 SCREAM
 pub static SOUL_FYSH_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SOUL_FYSH,
     hp: hp!(211, 211, 221, 221),
@@ -284,8 +265,6 @@ pub static SOUL_FYSH_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- WaterfallGiant (boss) -----------------------------------------------------------------------------------------------
-
 pub mod giant {
     use super::*;
     pub const ABOUT_TO_BLOW: u8 = 7;
@@ -305,7 +284,6 @@ pub mod giant {
         buff(cx, ids::power::STEAM_ERUPTION_POWER, n, me);
     }
     pub fn on_spawn(cx: &mut Combat, me: Cid) {
-        // vars[0] = CurrentPressureGunDamage, vars[1] = SteamEruptionDamage
         cx.cr_mut(me).monster.vars[0] = deadly(cx, 23, 20);
     }
     pub fn pressurize(cx: &mut Combat, me: Cid) {
@@ -349,7 +327,6 @@ pub mod giant {
         cx.kill(&[me]);
     }
 }
-// nodes: 0 PRESSURIZE, 1 STOMP, 2 RAM, 3 SIPHON, 4 PRESSURE_GUN, 5 PRESSURE_UP, 6 EXPLODE, 7 ABOUT_TO_BLOW (must perform once)
 pub static WATERFALL_GIANT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::WATERFALL_GIANT,
     hp: hp!(240, 240, 250, 250),

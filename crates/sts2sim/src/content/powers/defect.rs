@@ -1,5 +1,3 @@
-//! Defect powers.
-
 use crate::dec::Dec;
 use crate::engine::{HKind, VALID_ORBS};
 use crate::hooks::*;
@@ -8,9 +6,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// ---- Focus family ----------------------------------------------------------------------------------------------------
-
-// FocusPower.ModifyOrbValue: `max(value + Amount, 0)` for the owner's orbs.
 listener!(FocusPower {
     fn modify_orb_value(&self, cx: &Combat, me: Me, _orb: &Orb, value: Dec) -> Dec {
         if me.owner != PLAYER {
@@ -20,16 +15,11 @@ listener!(FocusPower {
     }
 });
 
-// `TemporaryFocusPower` (sign +1 for Focused Strike / Hotfix / Synchronize, -1 for Hyperbeam):
-//  * BeforeApplied: apply `sign * amount` Focus.
-//  * AfterPowerAmountChanged (this power, and the change is not the initial application): apply `sign * delta` Focus.
-//  * AfterSideTurnEnd: remove itself, then apply `-sign * Amount` Focus.
 fn temp_before_applied(cx: &mut Combat, sign: i32, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {
     cx.apply_power(ids::power::FOCUS_POWER, target, Dec::int(sign as i64) * amount, applier, card);
 }
 
 fn temp_after_changed(cx: &mut Combat, me: Me, sign: i32, ch: &PowerChange) {
-    // `power == this` (identified by target + uid) and not the initial application (`amount == Amount`).
     if ch.uid != me.idx || ch.target != me.owner || ch.amount == cx.power_amount(me.owner, me.id) {
         return;
     }
@@ -93,7 +83,6 @@ listener!(HyperbeamFocusDownPower {
     }
 });
 
-// BiasedCognitionPower: at the start of the owner's turn, lose `Amount` Focus.
 listener!(BiasedCognitionPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player {
@@ -103,9 +92,6 @@ listener!(BiasedCognitionPower {
     }
 });
 
-// ---- orb powers -------------------------------------------------------------------------------------------------------
-
-// Lightning Rod: after the energy reset, channel a Lightning, then decrement.
 listener!(LightningRodPower {
     fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
         cx.channel_orb(ids::orb::LIGHTNING_ORB);
@@ -113,7 +99,6 @@ listener!(LightningRodPower {
     }
 });
 
-// Loop: after the player's turn start, trigger the FRONT orb's passive `Amount` times (no trigger-count hooks).
 listener!(LoopPower {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
         if cx.orb_count() == 0 {
@@ -128,7 +113,6 @@ listener!(LoopPower {
     }
 });
 
-// Coolant: at the start of the turn gain `distinct orb types x Amount` block (Unpowered).
 listener!(CoolantPower {
     fn after_side_turn_start(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player {
@@ -138,7 +122,6 @@ listener!(CoolantPower {
     }
 });
 
-// Consuming Shadow: at the end of the turn evoke the LAST orb `Amount` times.
 listener!(ConsumingShadowPower {
     fn after_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side == Side::Player && cx.orb_count() != 0 {
@@ -150,7 +133,6 @@ listener!(ConsumingShadowPower {
     }
 });
 
-// Hailstorm: before the turn ends, if enough Frost orbs (the `FrostOrbs` var = 1) are channeled, damage all enemies.
 listener!(HailstormPower {
     fn before_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side != Side::Player {
@@ -165,14 +147,12 @@ listener!(HailstormPower {
     }
 });
 
-// Hibernate (multiplayer card): decrements at the start of the owner's turn; Frost orbs read it for other players.
 listener!(HibernatePower {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
         cx.decrement_power(me.owner, me.idx);
     }
 });
 
-// Spinner: after the energy reset, channel `Amount` Glass.
 listener!(SpinnerPower {
     fn after_energy_reset(&self, cx: &mut Combat, me: Me) {
         let n = cx.power_amount(me.owner, me.id);
@@ -182,7 +162,6 @@ listener!(SpinnerPower {
     }
 });
 
-// Thunder: whenever one of the owner's Lightning orbs is evoked, deal `Amount` to the (living) targets it hit.
 listener!(ThunderPower {
     fn after_orb_evoked(&self, cx: &mut Combat, me: Me, orb: &Orb, targets: &[Cid]) {
         if orb.kind != ids::orb::LIGHTNING_ORB {
@@ -199,7 +178,6 @@ listener!(ThunderPower {
     }
 });
 
-// Trash to Treasure / Smokestack: react to Status cards the owner's own effects generate (`creator == owner`).
 listener!(TrashToTreasurePower {
     fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx, added_by_player: bool) {
         if cx.card_def(card).ctype == CardType::Status && added_by_player && me.owner == PLAYER {
@@ -222,10 +200,6 @@ listener!(SmokestackPower {
     }
 });
 
-// ---- card-play powers --------------------------------------------------------------------------------------------------
-
-/// Storm / Subroutine remember `(power card being played, Amount at that moment)` between `BeforeCardPlayed` and
-/// `AfterCardPlayed` (the game keeps a `Dictionary<CardModel, int>`; here `play_amount_*`, which supports nested plays).
 fn remember_power_card_play(cx: &mut Combat, me: Me, play: &CardPlay) {
     if cx.card_def(play.card).ctype != CardType::Power {
         return;
@@ -234,12 +208,10 @@ fn remember_power_card_play(cx: &mut Combat, me: Me, play: &CardPlay) {
     cx.play_amount_add(me.idx, play.card, amount);
 }
 
-/// Pops the remembered amount for `play.card` (0 if it was not remembered).
 fn take_power_card_play(cx: &mut Combat, me: Me, play: &CardPlay) -> i32 {
     cx.play_amount_take(me.idx, play.card).unwrap_or(0)
 }
 
-// Storm: whenever the owner plays a Power card, channel (Amount at the time it started playing) Lightning.
 listener!(StormPower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         remember_power_card_play(cx, me, play);
@@ -252,7 +224,6 @@ listener!(StormPower {
     }
 });
 
-// Subroutine: whenever the owner plays a Power card, gain (Amount at the time it started playing) energy.
 listener!(SubroutinePower {
     fn before_card_played(&self, cx: &mut Combat, me: Me, play: &CardPlay) {
         remember_power_card_play(cx, me, play);
@@ -265,7 +236,6 @@ listener!(SubroutinePower {
     }
 });
 
-// Synthesis: the next Power card played this turn costs 0 (in hand or being played), then the power decrements.
 fn power_card_in_play_zone(cx: &Combat, card: CardIdx) -> bool {
     cx.card_def(card).ctype == CardType::Power && matches!(cx.card_pile_type(card), PileType::Hand | PileType::Play)
 }
@@ -285,14 +255,12 @@ listener!(FreePowerPower {
     }
 });
 
-// Machine Learning: draw `Amount` extra cards at the start of each turn.
 listener!(MachineLearningPower {
     fn modify_hand_draw(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount + Dec::int(cx.power_amount(me.owner, me.id) as i64)
     }
 });
 
-// Iteration: the first Status card drawn each turn draws `Amount` more cards.
 listener!(IterationPower {
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, card: CardIdx, _from_hand_draw: bool) {
         if cx.card_def(card).ctype == CardType::Status
@@ -303,7 +271,6 @@ listener!(IterationPower {
     }
 });
 
-// Creative AI: before the hand is drawn, generate `Amount` random Power cards from the Defect pool into hand.
 listener!(CreativeAiPower {
     fn before_hand_draw(&self, cx: &mut Combat, me: Me) {
         let n = cx.power_amount(me.owner, me.id);
@@ -317,7 +284,6 @@ listener!(CreativeAiPower {
     }
 });
 
-// One For All (multiplayer card): +Amount damage on the owner's 0-energy-spent, non-X attacks.
 listener!(OneForAllPower {
     fn modify_damage_additive(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         if !q.props.is_powered() || q.card == NO || me.owner != PLAYER {
@@ -327,7 +293,6 @@ listener!(OneForAllPower {
         if d.x_cost {
             return Dec::ZERO;
         }
-        // cardPlay == null path: current cost; cardPlay path: energy actually spent (identical while the card is in play).
         let spent = match cx.play_stack.iter().rev().find(|ctx| ctx.play.card == q.card) {
             Some(ctx) => ctx.play.energy_spent,
             None => cx.card_cost(q.card, true),
@@ -339,10 +304,9 @@ listener!(OneForAllPower {
     }
 });
 
-// Echo Form: the first `Amount` cards the owner plays each turn are played twice.
 listener!(EchoFormPower {
     fn modify_card_play_count(&self, cx: &Combat, me: Me, _card: CardIdx, _target: Cid, count: i32) -> i32 {
-        let first_series = cx.hist_count_this_turn(HKind::CardPlayStarted, |e| e.flags & 2 != 0) as i32; // IsFirstInSeries
+        let first_series = cx.hist_count_this_turn(HKind::CardPlayStarted, |e| e.flags & 2 != 0) as i32;
         if first_series >= cx.power_amount(me.owner, me.id) {
             count
         } else {
@@ -351,7 +315,6 @@ listener!(EchoFormPower {
     }
 });
 
-// Signal Boost: the owner's next Power card is played twice (the power then decrements).
 listener!(SignalBoostPower {
     fn modify_card_play_count(&self, cx: &Combat, _me: Me, card: CardIdx, _target: Cid, count: i32) -> i32 {
         if cx.card_def(card).ctype != CardType::Power {
@@ -364,8 +327,6 @@ listener!(SignalBoostPower {
     }
 });
 
-// Feral: the first `Amount` Attacks played for 0 energy each turn return to the top of the hand instead of the discard
-// pile. `Power::aux` = zero-cost attacks played so far this turn (`Data.zeroCostAttacksPlayed`).
 listener!(FeralPower {
     fn after_applied(&self, cx: &mut Combat, me: Me) {
         let n = cx.hist_count_this_turn(HKind::CardPlayStarted, |e| e.aux == 0 && cx.card_def(e.card).ctype == CardType::Attack) as i32;
@@ -397,5 +358,4 @@ listener!(FeralPower {
     }
 });
 
-// Multiplayer-only (Imitation Learning is an ally-targeted card): never applied in single player.
 listener!(ImitationLearningPower {});

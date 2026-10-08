@@ -1,10 +1,3 @@
-//! Ironclad cards Infernal Blade .. Whirlwind (alphabetical slice [45, 90) of the pool), except the ones in `basic.rs`.
-//!
-//! Conventions used here:
-//! * Cards whose Damage var grows permanently (Rampage, Thrash) keep the growth in `Card::dmg_bonus` (1/10000 units);
-//!   read the current damage with `Combat::card_damage_dec`.
-//! * `calculated_damage` is implemented by cards whose damage is a `CalculatedDamageVar` (Perfected Strike).
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::content::gen_cards::var_name;
@@ -15,19 +8,16 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `DamageCmd.Attack(card damage var).FromCard(...)` with the exact decimal damage (includes permanent growth).
 fn card_attack(cx: &Combat, p: &CardPlay, targeting: Targeting) -> Attack {
     let mut a = Attack::from_card(PLAYER, p.card, 0, targeting);
     a.damage = cx.card_damage_dec(p.card);
     a
 }
 
-/// `PowerCmd.Apply<T>(Owner.Creature, amount, Owner.Creature, card)`.
 fn apply_self(cx: &mut Combat, power: u16, amount: i32, p: &CardPlay) -> Option<u16> {
     cx.apply_power(power, PLAYER, Dec::int(amount as i64), PLAYER, p.card)
 }
 
-// ---- Infernal Blade: add a random Attack from the character's pool, free this turn, to hand ---------------------------------------
 listener!(InfernalBlade {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let pool = cx.character_pool();
@@ -40,12 +30,10 @@ listener!(InfernalBlade {
     }
 });
 
-// ---- Inferno ---------------------------------------------------------------------------------------------------------------------
 listener!(Inferno {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_power_var(p.card, ids::power::INFERNO_POWER);
         if let Some(uid) = apply_self(cx, ids::power::INFERNO_POWER, v, p) {
-            // InfernoPower.IncrementSelfDamage()
             if let Some(i) = cx.power_idx(PLAYER, uid) {
                 cx.cr_mut(PLAYER).powers[i].aux += 1;
             }
@@ -62,7 +50,6 @@ listener!(Juggernaut {
     }
 });
 
-// Upgrade (Innate) comes from the generated stat table.
 listener!(Juggling {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         apply_self(cx, ids::power::JUGGLING_POWER, 1, p);
@@ -80,7 +67,6 @@ listener!(Mangle {
     }
 });
 
-// Cost drops by 1 (this combat) for every card exhausted so far, including those exhausted before it entered combat.
 listener!(Midnight {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let a = card_attack(cx, p, Targeting::Single(p.target));
@@ -139,7 +125,6 @@ listener!(OneTwoPunch {
     }
 });
 
-// Multiplayer-only in the real game; the clone goes to the discard pile.
 listener!(Outrage {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let a = card_attack(cx, p, Targeting::Single(p.target));
@@ -164,7 +149,6 @@ listener!(PactsEnd {
     }
 });
 
-/// `PlayerCombatState.AllCards.Count(c => c.Tags.Contains(Strike))`.
 fn strike_count(cx: &Combat) -> i32 {
     let pl = &cx.player;
     let mut n = 0;
@@ -189,7 +173,6 @@ listener!(PerfectedStrike {
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, _target: Cid) -> Option<Dec> {
         let base = cx.card_var(card, VarKind::CalcBase);
         let extra = cx.card_var(card, VarKind::ExtraDamage);
-        // `CombatManager.IsInProgress` gates the multiplier.
         let mult = if cx.in_progress { strike_count(cx) } else { 0 };
         Some(Dec::int(base as i64 + extra as i64 * mult as i64))
     }
@@ -199,7 +182,6 @@ listener!(Pillage {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let a = card_attack(cx, p, Targeting::Single(p.target));
         cx.execute_attack(&a);
-        // Draw until a non-Attack is drawn (or nothing could be drawn / the hand is full).
         loop {
             let drawn = cx.draw_one();
             match drawn {
@@ -211,7 +193,6 @@ listener!(Pillage {
     }
 });
 
-// Token: transforms every Attack in hand into Giant Rock (upgraded when this card is).
 listener!(GiantRock {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let a = card_attack(cx, p, Targeting::Single(p.target));
@@ -230,7 +211,6 @@ listener!(PrimalForce {
         }
         let up = cx.cards[p.card as usize].upgrade;
         for &c in attacks.iter() {
-            // one `CardCmd.Transform` per attack (an un-upgraded Giant Rock, upgraded when this card is)
             cx.transform_cards(&[c], &[Some((ids::card::GIANT_ROCK, up.min(1)))]);
         }
         Flow::Done
@@ -271,7 +251,6 @@ listener!(Rupture {
     }
 });
 
-// Exhaust every non-Attack card in hand, gaining block for each.
 listener!(SecondWind {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let mut cards: crate::util::ArrayVec<CardIdx, MAX_HAND> = crate::util::ArrayVec::new();
@@ -316,7 +295,6 @@ listener!(Stampede {
     }
 });
 
-// Exhaust the whole hand, then add that many random cards (upgraded when this card is) to the hand.
 listener!(Stoke {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let hand = cx.player.hand;
@@ -338,7 +316,6 @@ listener!(Stoke {
     }
 });
 
-// Costs 1 less this turn for every Attack played this turn (including those played before it was created).
 listener!(Stomp {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let a = card_attack(cx, p, Targeting::AllOpponents);
@@ -367,7 +344,6 @@ listener!(StoneArmor {
     }
 });
 
-// Multiplayer-only.
 listener!(Tank {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         apply_self(cx, ids::power::TANK_POWER, 1, p);
@@ -385,7 +361,6 @@ listener!(Taunt {
     }
 });
 
-// Hit count = 1 + the number of times the player has lost HP this combat.
 listener!(TearAsunder {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let base = cx.card_var(p.card, VarKind::CalcBase);
@@ -401,7 +376,6 @@ listener!(TearAsunder {
     }
 });
 
-// Two hits; then exhaust a random Attack from hand and add its (modified) damage to this card permanently.
 listener!(Thrash {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let a = card_attack(cx, p, Targeting::Single(p.target)).hits(2);
@@ -421,7 +395,6 @@ listener!(Thrash {
         let base = match crate::content::listener(&me).calculated_damage(cx, other, NO) {
             Some(d) => d,
             None => {
-                // `ContainsKey("Damage")` else `ContainsKey("OstyDamage")` (Osty attacks: Rattle, Sic 'Em ...)
                 let d = crate::content::card_def(cx.cards[other as usize].id);
                 if d.vars.iter().any(|v| v.kind == VarKind::Damage) || !d.vars.iter().any(|v| v.kind == VarKind::OstyDamage) {
                     cx.card_damage_dec(other)
@@ -480,7 +453,6 @@ listener!(Vicious {
     }
 });
 
-// X cost: hits all enemies X times.
 listener!(Whirlwind {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let x = cx.x_value(p.card);

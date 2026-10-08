@@ -1,9 +1,3 @@
-//! Necrobinder cards that summon / use Osty.
-//!
-//! Osty attacks: `DamageCmd.Attack(x).FromOsty(Owner.Osty, card, play)` — the dealer is Osty's creature, so the player's
-//! Strength / Weak do not apply (they key on `dealer == Owner`). Every Osty attack is guarded by
-//! `Osty.CheckMissingWithAnim(Owner)` = "Osty is dead or missing": the whole effect is skipped (the card is still paid).
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Ask, Attack, Targeting};
@@ -13,12 +7,10 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `PowerCmd.Apply<T>(Owner.Creature, amount, Owner.Creature, card)`.
 fn apply_self(cx: &mut Combat, power: u16, amount: i32, p: &CardPlay) {
     cx.apply_power(power, PLAYER, Dec::int(amount as i64), PLAYER, p.card);
 }
 
-// Summon (Summon var).
 listener!(Afterlife {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Summon);
@@ -35,7 +27,6 @@ listener!(Reanimate {
     }
 });
 
-// Summon, then exhaust a card of your choice from the draw pile.
 listener!(Cleanse {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -62,7 +53,6 @@ listener!(Cleanse {
     }
 });
 
-// X cost: Summon X times, add X Souls (upgraded if this card is) to the draw pile at random positions.
 listener!(Dirge {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let x = cx.x_value(p.card);
@@ -76,7 +66,6 @@ listener!(Dirge {
     }
 });
 
-// Next turn: summon + energy.
 listener!(Invoke {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let s = cx.card_var(p.card, VarKind::Summon);
@@ -106,7 +95,6 @@ listener!(NecroMastery {
     }
 });
 
-// Summon, then heal Osty.
 listener!(Spur {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Summon);
@@ -119,8 +107,6 @@ listener!(Spur {
     }
 });
 
-// ---- Osty attacks -----------------------------------------------------------------------------------------------------
-
 listener!(Poke {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();
@@ -132,7 +118,6 @@ listener!(Poke {
     }
 });
 
-// Osty attacks, then choose a card in hand without Retain to give it Retain.
 listener!(Snap {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -162,7 +147,6 @@ listener!(Snap {
     }
 });
 
-// Costs 0 this turn once Osty has attacked this turn.
 fn flatten_reduce_cost(cx: &mut Combat, c: CardIdx) {
     let card = &mut cx.cards[c as usize];
     if let Some(last) = card.mods.last() {
@@ -196,7 +180,6 @@ listener!(Flatten {
     }
 });
 
-// Osty attacks; if this card has not been played yet this turn, draw.
 listener!(Fetch {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();
@@ -213,7 +196,6 @@ listener!(Fetch {
     }
 });
 
-// Osty attacks 1 + (Osty attacks this turn) times.
 listener!(Rattle {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();
@@ -230,7 +212,6 @@ listener!(Rattle {
     }
 });
 
-// Osty attacks, then apply Sic 'Em (Osty hits on this enemy summon).
 listener!(SicEm {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();
@@ -244,7 +225,6 @@ listener!(SicEm {
     }
 });
 
-// Unplayable without Osty. Osty attacks all enemies, then Vulnerable to all.
 listener!(HighFive {
     fn is_playable(&self, cx: &Combat, _card: CardIdx) -> bool {
         !cx.is_osty_missing()
@@ -262,7 +242,6 @@ listener!(HighFive {
     }
 });
 
-// Osty attacks all enemies, you gain Block, then Osty dies.
 listener!(BoneShards {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();
@@ -281,7 +260,6 @@ listener!(BoneShards {
     }
 });
 
-// Osty attacks; when you play a card that spent >= 2 energy this returns from the discard pile to your hand.
 listener!(RightHandHand {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();
@@ -300,7 +278,6 @@ listener!(RightHandHand {
     }
 });
 
-// 25 (+5) + 5 x (other Osty Attack cards in all your piles).
 listener!(Squeeze {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();
@@ -329,7 +306,6 @@ listener!(Squeeze {
     }
 });
 
-// 10 (+5) + 1 x Osty's max HP.
 listener!(Protector {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();
@@ -347,14 +323,12 @@ listener!(Protector {
     }
 });
 
-// Kill Osty; gain Block equal to 3 x its max HP.
 listener!(Sacrifice {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let osty = cx.living_osty();
         if osty == NO {
             return Flow::Done;
         }
-        // CalculatedBlockVar: base 0 + extra 1 x (Osty alive ? MaxHp * 3 : 0), computed before Osty dies.
         let block = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * (cx.cr(osty).max_hp * 3);
         cx.kill(&[osty]);
         cx.gain_block(PLAYER, Dec::int(block as i64), ValueProp::MOVE, p.card);

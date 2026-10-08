@@ -1,6 +1,3 @@
-//! VigorPower (player + monster flavour, spec 02 §6.6): the complete card-sourced + monster-sourced version (the single
-//! registration; other branches' copies were dropped).
-
 use crate::dec::Dec;
 use crate::engine::Attack;
 use crate::hooks::*;
@@ -20,11 +17,6 @@ fn amount(cx: &Combat, me: &Me) -> i32 {
     cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount)
 }
 
-// VigorPower (player + monster flavour, spec 02 §6.6): +Amount damage to the next powered attack, consumed after it.
-// `aux` = 0 (no attack claimed yet) or claim | (amount when the attack started << 16), where claim = card index + 1 for a
-// card attack and 0x8000 for a monster attack (`ModelSource == null`; oracle-verified: TerrorEel's Vigor IS consumed by
-// its next attack). `commandToModify` is never cleared in C#; here the claim of a monster attack matches any later
-// attack of the owner without a card (only differs if Vigor survives its consumption, which never happens for the Eel).
 fn claim_of(card: CardIdx) -> i32 {
     if card == NO { 0x8000 } else { card as i32 + 1 }
 }

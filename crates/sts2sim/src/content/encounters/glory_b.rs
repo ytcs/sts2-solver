@@ -1,5 +1,3 @@
-//! Act 3 "Glory" elite / boss encounters (slice glory-b; spec 04 §4.2).
-
 use crate::content::{Spawn, Spawns};
 use crate::ids;
 use crate::rng::Rng;
@@ -11,7 +9,6 @@ fn one(m: u16) -> Spawns {
     s
 }
 
-/// FlailKnight@first, SpectralKnight@second, MagiKnight@third. No `Slots` list: creation order is turn order.
 pub fn spawn_knights_elite(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster: ids::monster::FLAIL_KNIGHT, slot: NO, vars: [0, 0] });
@@ -32,7 +29,6 @@ pub fn spawn_aeonglass_boss(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::AEONGLASS)
 }
 
-/// Slots [amalgam, queen] -> indices 0 / 1; the Amalgam (created first) acts first.
 pub fn spawn_queen_boss(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster: ids::monster::TORCH_HEAD_AMALGAM, slot: 0, vars: [0, 0] });

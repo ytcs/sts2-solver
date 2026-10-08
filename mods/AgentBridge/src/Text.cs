@@ -9,7 +9,6 @@ using MegaCrit.Sts2.Core.MonsterMoves.Intents;
 
 namespace AgentBridge;
 
-/// <summary>Compact plain-text renderings of game objects (no BBCode, icons as E / *).</summary>
 public static partial class Text
 {
     [GeneratedRegex(@"(\d ?)?((?:\[img\][^\[]*energy_icon[^\[]*\[/img\])+)")] private static partial Regex EnergyIcon();
@@ -21,7 +20,6 @@ public static partial class Text
     public static string Clean(string? s)
     {
         if (string.IsNullOrEmpty(s)) return "";
-        // energy shows as N repeated icons (1-3) or as "N" + one icon: both become "NE"
         s = EnergyIcon().Replace(s, m => m.Groups[1].Value.Length > 0 ? m.Groups[1].Value.Trim() + "E" : Regex.Matches(m.Groups[2].Value, @"\[img\]").Count + "E");
         s = StarIcon().Replace(s, "*");
         s = AnyImg().Replace(s, "");
@@ -57,7 +55,6 @@ public static partial class Text
         catch { return ""; }
     }
 
-    /// <summary>`Name(cost) description`.</summary>
     public static string Card(CardModel c, bool desc = true, bool inHand = false)
         => desc ? $"{c.Title}({Cost(c)}) {CardDesc(c, null, inHand)}" : $"{c.Title}({Cost(c)})";
 
@@ -84,7 +81,6 @@ public static partial class Text
         return string.Join("+", parts);
     }
 
-    /// <summary>First label text under a node (for generic buttons).</summary>
     public static string NodeLabel(Node n)
     {
         foreach (var c in Walk(n))

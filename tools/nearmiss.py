@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Near-miss losses of collected fights, and restart states inside them (the user's idea: spend search compute where a different line could flip a loss).
-
-  tools/nearmiss.py target/exit/r3_*.npz --out target/exit/nm_r3.json [--turns 3] [--frac 0.2]
-
-Replays every lost fight of the `rl/exit.py collect` parts (`sts2.Sim` from the scenario and the job seed, then the recorded actions; exact) and keeps a
-loss as a near-miss when the enemies' HP + block left at the end is within one turn of the damage I was dealing (`rem <= mean HP the enemies lost per
-turn over the last 3 turns`) or at most `--frac` of their max HP. For each near-miss it writes restart states at the start of each of the last `--turns`
-player turns (the turn's hand drawn, `Play` phase): the scenario, the original job seed and the action prefix that reaches the state.
-
-`rl/exit.py collect --restarts` searches from these TRUE states (the real RNG continues: replayable from seed + prefix + new actions). The real future
-of a restart is the one that produced a loss (the states were selected on it), so their outcome labels are pessimistic: collect marks such parts
-`policy_only` and `train` leaves them out of the outcome loss; the policy target (search estimates over determinized futures) is unaffected.
-"""
 import argparse, glob, json, os, sys, time
 
 import numpy as np
@@ -21,13 +8,10 @@ import sts2  # noqa: E402
 
 
 def enemy_hp(sn):
-    """HP + block of the living enemies, and their max HP (all enemies, summons included)."""
     return sum(e["hp"] + e["block"] for e in sn["enemies"] if e["alive"]), sum(e["max_hp"] for e in sn["enemies"])
 
 
 def scan_fight(sj, seed, acts):
-    """Replays one fight: (enemy HP left at the end, the largest enemy max HP seen, mean enemy HP lost per turn over the last 3 turns,
-    [(prefix length, turn)] at every player turn start, outcome)."""
     s = sts2.Sim(sj, int(seed))
     sn = json.loads(s.snapshot())
     h, m = enemy_hp(sn)

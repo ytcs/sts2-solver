@@ -1,6 +1,3 @@
-//! Relics with no combat behaviour: registered hook-less so scenarios containing them are accepted (their hooks are
-//! run-level only: rewards, shops, rest sites, map, deck changes, pick-up effects).
-
 use crate::dec::Dec;
 use crate::hooks::*;
 use crate::listener;
@@ -25,7 +22,6 @@ listener!(DingyRug {});
 listener!(DistinguishedCape {});
 listener!(DollysMirror {});
 listener!(DowsingRod {});
-// `AfterGoldGained`: +1 max HP (also reachable in combat: Hand of Greed, Maw Bank).
 listener!(DragonFruit {
     fn after_gold_gained(&self, cx: &mut Combat, _me: Me) {
         cx.gain_max_hp(PLAYER, Dec::int(crate::content::gen_relics::dragon_fruit::MAX_HP as i64));

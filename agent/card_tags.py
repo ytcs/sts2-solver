@@ -1,11 +1,3 @@
-"""Bucket tags for the cards of a character (the expert's five-bucket model, see `sts2-deckbuilding`): front-loaded damage (FD), scaling damage (SD), front-loaded
-block (FB), scaling block (SB), acceleration (ACC; energy, draw, cycling). A card can have several tags. The tags come from measurements in the simulator
-(one play of the card from sampled hands, and for powers three enemy turns afterwards), with a small override table for cards whose effect depends on state
-the probe cannot create (Inferno, Barricade, Feel No Pain ...).
-
-    python -m agent.card_tags              # writes data/card_buckets_ironclad.json
-    from agent.card_tags import load, deck_line, deficiencies, candidates
-"""
 import collections
 import json
 import os
@@ -17,7 +9,6 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 OUT = os.path.join(ROOT, "data", "card_buckets_ironclad.json")
 DUMMY = "WATERFALL_GIANT_BOSS"
 
-# effect depends on state the probe cannot create: tags set by hand with the reason
 OVERRIDE = {
     "INFERNO": ["SD"], "RUPTURE": ["SD"], "JUGGERNAUT": ["SD", "SB"], "FEED": ["SD", "FD"], "DEMON_FORM": ["SD"], "COMBUST": ["SD"], "BRUTALITY": ["ACC"],
     "BARRICADE": ["SB", "ACC"], "FEEL_NO_PAIN": ["SB"], "METALLICIZE": ["SB"], "DARK_EMBRACE": ["ACC", "SB"], "CORRUPTION": ["ACC", "SB"], "STONE_ARMOR": ["SB"],
@@ -44,7 +35,6 @@ def _scenario(card_id, upgrade):
 
 
 def measure(card_id, upgrade=0, seeds=(1, 2, 3)):
-    """One play of the card: damage, block, energy, draw, Strength, Dexterity, cost, exhaust, debuffs, per-turn effects of a power."""
     best = None
     for seed in seeds:
         try:
@@ -106,7 +96,7 @@ def tags_from(m, card_id):
     if m["energy"] > 0 or m["draw"] > 0 or any(p.get("energy", 0) > 0 or p.get("hand", 0) > 0 for p in m.get("per_turn", [])):
         t.add("ACC")
     if m["powers"] and not t:
-        t.add("SD")  # an unclassified power: scaling of some kind, refine by hand in OVERRIDE
+        t.add("SD")
     t |= set(OVERRIDE.get(card_id, []))
     return sorted(t)
 
@@ -129,7 +119,6 @@ def load(path=OUT):
 
 
 def deck_line(deck, tags):
-    """Count of cards per bucket in a deck (list of card ids or {'id':..} dicts); a card with several tags counts in each."""
     c = collections.Counter()
     for card in deck:
         cid = card["id"] if isinstance(card, dict) else card
@@ -139,13 +128,11 @@ def deck_line(deck, tags):
 
 
 def deficiencies(line, targets=None):
-    """Buckets below a minimum share of the deck (default minimums for a 20-25 card deck: FD 5, SD 2, FB 4, SB 1, ACC 3)."""
     targets = targets or dict(FD=5, SD=2, FB=4, SB=1, ACC=3)
     return {b: targets[b] - line[b] for b in targets if line[b] < targets[b]}
 
 
 def candidates(tags, bucket, exclude=()):
-    """Cards that carry the bucket, best first (cheap and strong: damage/cost or block/cost for FD/FB)."""
     cs = [(cid, v) for cid, v in tags.items() if bucket in v["buckets"] and cid not in exclude]
     key = {"FD": lambda v: -(v.get("damage", 0) / max(1, v.get("cost", 1))), "FB": lambda v: -(v.get("block", 0) / max(1, v.get("cost", 1)))}.get(bucket, lambda v: v.get("cost", 1))
     return [cid for cid, v in sorted(cs, key=lambda x: key(x[1]))]

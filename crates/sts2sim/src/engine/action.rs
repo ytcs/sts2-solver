@@ -1,39 +1,30 @@
-//! The agent's action space and legal-action enumeration. Mirrors what a human can do at each moment.
-
 use crate::defs::*;
 use crate::state::*;
 use crate::types::*;
 use crate::util::ArrayVec;
 
-/// An agent action.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Action {
-    /// Play the hand card at `hand_pos`; `target` is a creature id for single-target cards, `NO` otherwise.
     PlayCard { hand_pos: u8, target: Cid },
-    /// Use the potion in `slot`; `target` is an enemy for enemy-targeted potions, `NO` otherwise (self/AoE).
     UsePotion { slot: u8, target: Cid },
     DiscardPotion { slot: u8 },
     EndTurn,
-    /// Decision UI: click candidate `idx` (toggles; at `max` the latest selection is replaced).
     Pick { idx: u8 },
-    /// Decision UI: confirm the selection (or skip when nothing is selected and skipping is allowed).
     Confirm,
 }
 
-const T: usize = MAX_CREATURES + 1; // target slots: creature id 0..MAX_CREATURES, plus "no target"
+const T: usize = MAX_CREATURES + 1;
 pub const MAX_PICK: usize = 64;
 const OFF_PLAY: usize = 1;
 const OFF_POTION: usize = OFF_PLAY + MAX_HAND * T;
 const OFF_DISCARD: usize = OFF_POTION + MAX_POTIONS * T;
 const OFF_PICK: usize = OFF_DISCARD + MAX_POTIONS;
 const OFF_CONFIRM: usize = OFF_PICK + MAX_PICK;
-/// Size of the dense, fixed action space: `EndTurn`, `PlayCard`, `UsePotion`, `DiscardPotion`, `Pick`, `Confirm`.
 pub const ACTION_SPACE: usize = OFF_CONFIRM + 1;
 
 pub type ActionBuf = ArrayVec<Action, 256>;
 
 impl Action {
-    /// Dense index in `0..ACTION_SPACE` (for policy heads / masks).
     pub fn index(self) -> usize {
         let t = |t: Cid| if t == NO { MAX_CREATURES } else { t as usize };
         match self {
@@ -69,14 +60,11 @@ impl Action {
 }
 
 impl Combat {
-    /// Every action a human could take right now.
     pub fn legal_actions(&self, out: &mut ActionBuf) {
         let mut playable = 0;
         self.legal_actions_ex(out, &mut playable);
     }
 
-    /// `legal_actions` that also reports which hand cards can be played: bit `k` of `hand_playable` = `can_play(hand[k])` (0 outside
-    /// the play phase). Feed it to `observe_ex` so the observation does not evaluate `can_play` a second time.
     pub fn legal_actions_ex(&self, out: &mut ActionBuf, hand_playable: &mut u16) {
         *hand_playable = 0;
         out.clear();
@@ -85,7 +73,6 @@ impl Combat {
             Stage::AwaitChoice => {
                 if let Some(d) = &self.decision {
                     if d.cands.len() > MAX_PICK {
-                        // More candidates than the dense action space can address: the surplus cannot be picked.
                         crate::util::raise_overflow(crate::util::OV_CONTAINER);
                     }
                     for i in 0..d.cands.len().min(MAX_PICK) {
@@ -137,7 +124,6 @@ impl Combat {
         }
     }
 
-    /// Fills a boolean mask over the dense action space (`mask.len() >= ACTION_SPACE`).
     pub fn action_mask(&self, mask: &mut [bool]) {
         for m in mask[..ACTION_SPACE].iter_mut() {
             *m = false;

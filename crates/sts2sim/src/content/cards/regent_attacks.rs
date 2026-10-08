@@ -1,5 +1,3 @@
-//! Regent attack cards (bodies follow the decompiled `Models/Cards/<Class>.cs` `OnPlay`).
-
 use crate::engine::calc_with;
 use crate::dec::Dec;
 use crate::defs::VarKind;
@@ -13,12 +11,10 @@ use crate::types::*;
 fn dmg(cx: &Combat, c: CardIdx) -> i32 {
     cx.card_base_damage(c)
 }
-/// `DamageCmd.Attack(Damage).FromCard(card).Targeting(target)`.
 fn single(cx: &mut Combat, p: &CardPlay) -> Results {
     let d = dmg(cx, p.card);
     cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)))
 }
-/// `...TargetingAllOpponents(CombatState)`.
 fn all(cx: &mut Combat, p: &CardPlay) -> Results {
     let d = dmg(cx, p.card);
     cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::AllOpponents))
@@ -35,7 +31,6 @@ listener!(StrikeRegent {
     }
 });
 
-// Weak then Vulnerable on the target after the hit.
 listener!(FallingStar {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
@@ -107,7 +102,6 @@ listener!(SevenStars {
     }
 });
 
-// Draws Cards next turn after the hit.
 listener!(GuidingStar {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
@@ -133,13 +127,11 @@ listener!(ShiningStrike {
         cx.gain_stars(n);
         Flow::Done
     }
-    // A played Shining Strike goes to the TOP of the draw pile instead of the discard pile.
     fn get_result_location_for_card_play(&self, _cx: &Combat, _me: Me, _card: CardIdx, base: CardLocation) -> CardLocation {
         if base.pile == PileType::Discard { CardLocation::new(PileType::Draw, CardPilePosition::Top) } else { base }
     }
 });
 
-// Gains Stars if the hit killed the target.
 listener!(KnockoutBlow {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let r = single(cx, p);
@@ -160,7 +152,6 @@ listener!(Hegemony {
     }
 });
 
-// Each time it is drawn its cost drops by 1 for the rest of the combat.
 listener!(KinglyKick {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
@@ -168,13 +159,11 @@ listener!(KinglyKick {
     }
     fn after_card_drawn(&self, cx: &mut Combat, me: Me, card: CardIdx, _from_hand_draw: bool) {
         if card as u16 == me.idx {
-            // EnergyCost.AddThisCombat(-1): a combat-long relative modifier (merged / evicted by push_cost_mod).
             cx.push_cost_mod(card, CostMod::new(-1, true, false, 0));
         }
     }
 });
 
-// Each time it is drawn its damage grows by Increase (kept in `counter[0]`).
 listener!(KinglyPunch {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
@@ -188,7 +177,6 @@ listener!(KinglyPunch {
     }
 });
 
-// Exhausted copies replay themselves at the start of every turn.
 listener!(Bombardment {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         single(cx, p);
@@ -219,7 +207,6 @@ listener!(CrashLanding {
     }
 });
 
-// 5 + Extra * (cards with a star cost anywhere in the player's combat piles, itself included).
 listener!(CrescentSpear {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let base = cx.card_var(p.card, VarKind::CalcBase);
@@ -236,7 +223,6 @@ listener!(CrescentSpear {
     }
 });
 
-// 5 + Extra * (cards the player has generated this combat).
 listener!(Supermassive {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let base = cx.card_var(p.card, VarKind::CalcBase);
@@ -251,11 +237,9 @@ listener!(Supermassive {
     }
 });
 
-// Hits = Skills played this turn.
 listener!(LunarBlast {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = dmg(cx, p.card);
-        // CardPlaysFinished (Skill, this turn): a nested play (Beat Down) is not finished yet
         let hits = cx.hist.skills_finished_this_turn as i32;
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)).hits(hits));
         Flow::Done
@@ -266,7 +250,6 @@ listener!(LunarBlast {
     }
 });
 
-// Hits = stars gained this turn.
 listener!(Radiate {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = dmg(cx, p.card);
@@ -280,7 +263,6 @@ listener!(Radiate {
     }
 });
 
-// X-star cost: random targets, one hit per star spent.
 listener!(Stardust {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = dmg(cx, p.card);
@@ -290,7 +272,6 @@ listener!(Stardust {
     }
 });
 
-// X-cost: hits = X (doubled when X >= Energy var).
 listener!(HeavenlyDrill {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = dmg(cx, p.card);
@@ -303,7 +284,6 @@ listener!(HeavenlyDrill {
     }
 });
 
-// Hit, then a colorless card in hand is cloned Repeat times into the hand.
 listener!(HeirloomHammer {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -327,9 +307,6 @@ listener!(HeirloomHammer {
     }
 });
 
-// `CardModel.VisualCardPool.IsColorless`: the Colorless, Event and Token pools, except the Event cards that override
-// `VisualCardPool` to look like a character's card (Caltrops, Clash, Dual Wield, Distraction, Hello World, Entrench, Rip and Tear,
-// Rebound, Stack, Outmaneuver).
 fn is_colorless(id: u16) -> bool {
     use crate::content::gen_pools as p;
     use crate::ids::card as c;
@@ -352,20 +329,17 @@ fn clone_selection(cx: &mut Combat, p: &CardPlay, sel: Option<CardIdx>) {
     }
 }
 
-// Forge amount grows with the player's earlier powered hits on the target this turn.
 listener!(BeatIntoShape {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let r = single(cx, p);
         let base = cx.card_var(p.card, VarKind::CalcBase);
         let extra = cx.card_var(p.card, VarKind::CalcExtra);
         let total_hits = cx.hist_count_this_turn(HKind::DamageReceived, |e| e.actor == p.target && e.other == PLAYER && ValueProp(e.props).is_powered()) as i32;
-        // CalculatedForge = base + extra * total hits; then minus extra * this attack's own results.
         let amount = base + extra * total_hits - r.len() as i32 * extra;
         cx.forge(amount);
         Flow::Done
     }
     fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
-        // `e.Receiver == target`: no target, no entry
         let hits = if target == NO { 0 } else { cx.hist_count_this_turn(HKind::DamageReceived, |e| e.actor == target && e.other == PLAYER && ValueProp(e.props).is_powered()) as i32 };
         Some(crate::engine::calc_extra_with(cx, card, hits))
     }
@@ -380,7 +354,6 @@ listener!(WroughtInWar {
     }
 });
 
-// Strength loss until end of turn on every enemy that was hittable before the attack.
 listener!(CrushUnder {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let enemies = cx.hittable_enemies();

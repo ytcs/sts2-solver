@@ -1,27 +1,15 @@
 #!/usr/bin/env python3
-"""Randomized differential fuzzing (generator + runner): realistic random A10 runs -> oracle traces -> Rust replay.
-
-  tools/fuzz_gen_mix.py --n 500 --seed 1 --out DIR [--jobs 6] [--character REGENT] [--act 2] [--encounter X] [--focus colorless]
-                        [--mode deep|stall|uniform|greedy] [--relics 3-8] [--keep-ok]
-
-Each scenario is a random A10 run state: character (Regent-heavy), deck = starter + act-scaled picks from the character pool,
-colorless / event / curse / status cards, random upgrades; 3-8 random relics (own pool + shared + a few event/foreign ones, counters
-injected through `relics[].props`), 0-2 potions, any implemented encounter, random policy (weights end_turn / attacks / potions,
-`deep` = huge HP + never end turn early so fights reach deep turns). The oracle runs scenarios in `batch` mode (one process per
-chunk) and `sts2diff run` compares. Mismatching / oracle-error scenarios stay in DIR as NAME.scenario.json (+ .jsonl, .error.txt).
-Needs the catalog: `oracle/combat/oracle.sh catalog --out DIR/catalog.json` (done automatically when missing).
-"""
 import argparse, glob, json, os, random, re, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-# oracle.sh is a bash wrapper around `dotnet OracleCombat.dll`; on Windows call dotnet directly
 ORACLE = (["dotnet", os.path.join(ROOT, "oracle/combat/bin/Release/net9.0/OracleCombat.dll")] if os.name == "nt"
           else [os.path.join(ROOT, "oracle/combat/oracle.sh")])
+
 DIFF = os.environ.get("STS2DIFF") or os.path.join(ROOT, "target/debug/sts2diff" + (".exe" if os.name == "nt" else ""))
 SRC = os.path.join(ROOT, "crates/sts2sim/src")
 
-STARTERS = {  # character -> (starter deck, starter relic, hp, energy, orb slots)
+STARTERS = {
     "IRONCLAD": (["STRIKE_IRONCLAD"] * 5 + ["DEFEND_IRONCLAD"] * 4 + ["BASH"], "BURNING_BLOOD", 80, 3, 0),
     "SILENT": (["STRIKE_SILENT"] * 5 + ["DEFEND_SILENT"] * 5 + ["NEUTRALIZE", "SURVIVOR"], "RING_OF_THE_SNAKE", 70, 3, 0),
     "DEFECT": (["STRIKE_DEFECT"] * 4 + ["DEFEND_DEFECT"] * 4 + ["ZAP", "DUALCAST"], "CRACKED_CORE", 75, 3, 3),
@@ -31,7 +19,6 @@ STARTERS = {  # character -> (starter deck, starter relic, hp, energy, orb slots
 ATTACK_ENCH = ["SHARP", "VIGOROUS", "INSTINCT", "MOMENTUM", "SWIFT", "STEADY", "ADROIT", "GLAM", "PERFECT_FIT", "SOWN", "TEZCATARAS_EMBER", "SLUMBERING_ESSENCE", "CLONE"]
 SKILL_ENCH = ["IMBUED", "IMBUED", "SWIFT", "STEADY", "ADROIT", "GLAM", "PERFECT_FIT", "SOWN", "TEZCATARAS_EMBER", "SLUMBERING_ESSENCE", "CLONE"]
 CHAR_W = {"REGENT": 40, "IRONCLAD": 15, "SILENT": 15, "DEFECT": 15, "NECROBINDER": 15}
-# --focus cross: one character's mechanic on another character (docs/research/game_code.md B). Theme -> (owner, cards, potions).
 CROSS_THEMES = {
     "orb": ("DEFECT", ["BALL_LIGHTNING", "BIASED_COGNITION", "BULK_UP", "CAPACITOR", "CHAOS", "CHILL", "COLD_SNAP", "CONSUMING_SHADOW",
                        "COOLHEADED", "DARKNESS", "DEFRAGMENT", "DUALCAST", "FOCUSED_STRIKE", "FUSION", "GLACIER", "GLASSWORK", "HIBERNATE",
@@ -56,10 +43,10 @@ CROSS_THEMES = {
                         "PHANTOM_BLADES", "REFLEX", "RICOCHET", "SNEAKY", "STORM_OF_STEEL", "TACTICIAN", "UNTOUCHABLE", "UP_MY_SLEEVE",
                         "SURVIVOR", "ACROBATICS", "PREPARED", "CALCULATED_GAMBLE", "DAGGER_THROW"], []),
 }
-STAR_SOURCES = ["VENERATE", "GLOW", "GATHER_LIGHT"]  # star-cost cards on a non-Regent need stars to become playable
+STAR_SOURCES = ["VENERATE", "GLOW", "GATHER_LIGHT"]
 
 
-def slugify(name):  # same as scripts/porting
+def slugify(name):
     out, i, last = [], 0, -1
     while i < len(name):
         if i + 1 < len(name) and name[i].isascii() and name[i].isalnum() and "A" <= name[i + 1] <= "Z":
@@ -71,7 +58,6 @@ def slugify(name):  # same as scripts/porting
 
 
 def implemented():
-    """(set of implemented ids per category, relic -> [(prop, kind)] from relic_props!)."""
     def scan(cat, pat):
         found = set()
         for f in glob.glob(os.path.join(SRC, "content", cat, "*.rs")):
@@ -102,8 +88,6 @@ class Gen:
     def __init__(self, catalog_path):
         self.cat = json.load(open(catalog_path))
         self.have, self.relic_props = implemented()
-        # multiplayer-only cards never appear in a single-player run (`scripts/flag_multiplayer_cards.py` flags them in data/catalog.json, whatever
-        # catalog this generator was pointed at)
         mp = multiplayer_only()
         self.cards = {k: [c for c in v if c["id"] in self.have["card"] and c["id"] not in mp] for k, v in self.cat["cards"].items()}
         self.relics = {k: [r for r in v if r["id"] in self.have["relic"]] for k, v in self.cat["relics"].items()}
@@ -111,7 +95,6 @@ class Gen:
         self.encs = [e for e in self.cat["encounters"] if e["id"] in self.have["encounter"]]
         self.ctypes = {c["id"]: c["type"] for pool in self.cat["cards"].values() for c in pool}
 
-    # ---- deck -----------------------------------------------------------------------------------------------------
     def pick_card(self, r, pool, rarity_w=(("Common", 5), ("Uncommon", 4), ("Rare", 2))):
         cards = [c for c in pool if c["rarity"] in dict(rarity_w)]
         if not cards:
@@ -122,15 +105,14 @@ class Gen:
     def make_deck(self, r, ch, act, focus, upg_p, enchant_p=0.04, cross_p=0.0):
         starter = list(STARTERS[ch][0])
         n_add = {0: r.randint(4, 14), 1: r.randint(10, 22), 2: r.randint(14, 30)}[act]
-        # composition weights: own pool, colorless, event, curse, status/token (focus shifts them)
         w = {"own": 60, "colorless": 20, "event": 8, "curse": 6, "status": 4, "dupe": 8}
         if focus == "colorless":
             w = {"own": 20, "colorless": 50, "event": 12, "curse": 8, "status": 6, "dupe": 4}
         elif focus == "junk":
             w = {"own": 25, "colorless": 20, "event": 20, "curse": 20, "status": 15, "dupe": 0}
-        elif focus == "gen":  # card generation / auto-play heavy
+        elif focus == "gen":
             w = {"own": 40, "colorless": 45, "event": 5, "curse": 2, "status": 2, "dupe": 6}
-        elif focus == "turn":  # turn-start auto-play / decisions: Mayhem, Stratagem, auto-play cards, choice cards (+ Imbued)
+        elif focus == "turn":
             w = {"own": 40, "colorless": 25, "event": 5, "curse": 3, "status": 3, "dupe": 4, "autoplay": 20}
         gen_ids = ["DISCOVERY", "ENTROPY", "MAYHEM", "STRATAGEM", "BEAT_DOWN", "JACK_OF_ALL_TRADES", "MASTER_OF_STRATEGY", "ALCHEMIZE",
                    "HAND_OF_GREED", "TRANSFORM", "CATASTROPHE", "DRAMATIC_ENTRANCE", "NOSTALGIA", "MIMIC", "PRODUCTION", "BELIEVE_IN_YOU",
@@ -171,7 +153,7 @@ class Gen:
                 pool = [c for c in self.cards[ch] + self.cards["COLORLESS"] if c["id"] in autoplay_ids]
                 if pool:
                     added.append(r.choice(pool))
-        if cross_p and r.random() < cross_p:  # other characters' cards, drawn as tools/gen_curriculum.py does (Kaleidoscope, Sea Glass...)
+        if cross_p and r.random() < cross_p:
             other = r.choice([c for c in STARTERS if c != ch])
             for _ in range(r.randint(1, 4)):
                 added.append(self.pick_card(r, [x for x in self.cards[other] if x["rarity"] in ("Common", "Uncommon", "Rare")]))
@@ -189,18 +171,16 @@ class Gen:
             if ctype in ("Attack", "Skill") and r.random() < enchant_p and cid != "MAD_SCIENCE":
                 pool = ATTACK_ENCH if ctype == "Attack" else SKILL_ENCH
                 c = {"id": cid, "upgrade": up, "enchantment": {"id": r.choice(pool), "amount": 1}}
-            if cid == "MAD_SCIENCE":  # per-instance type (1 attack / 2 skill / 3 power) + rider (1-9), saved props
-                ty = r.randint(1, 3)  # riders: attack 1-3, skill 4-6, power 7-9 (TinkerTime.ChooseRiderEffect)
+            if cid == "MAD_SCIENCE":
+                ty = r.randint(1, 3)
                 c = {"id": cid, "upgrade": up, "props": {"TinkerTimeRider": 3 * (ty - 1) + r.randint(1, 3), "TinkerTimeType": ty}}
             out.append(c)
-        # the game removes/transforms: occasionally drop a random starter strike/defend
         for _ in range(r.randint(0, 2)):
             i = r.randrange(len(out))
             if (out[i] if isinstance(out[i], str) else out[i]["id"]).startswith(("STRIKE_", "DEFEND_")):
                 out.pop(i)
         return out
 
-    # ---- relics ---------------------------------------------------------------------------------------------------
     def make_relics(self, r, ch, lo, hi):
         starter_id = STARTERS[ch][1]
         pools = self.relics[ch] + self.relics["SHARED"]
@@ -229,19 +209,17 @@ class Gen:
             if props and r.random() < 0.6:
                 p = {}
                 for name, kind in props:
-                    p[name] = (r.random() < 0.5) if kind == "flag" else r.choice([0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])  # < 10: some setters take `value % 10`
+                    p[name] = (r.random() < 0.5) if kind == "flag" else r.choice([0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
                 out.append({"id": rid, "props": p})
             else:
                 out.append(rid)
-        r.shuffle(out)  # hook order = list order; the starter relic is usually first in a real run, keep it so 70% of the time
+        r.shuffle(out)
         if ids and ids[0] == starter_id and r.random() < 0.7:
             i = next(i for i, x in enumerate(out) if (x if isinstance(x, str) else x["id"]) == starter_id)
             out.insert(0, out.pop(i))
         return out
 
     def cross_focus(self, r, ch, deck, relics, potions):
-        """A themed slice of another character's mechanic (orbs / stars and Forge / Osty, Summon and Doom / Shiv and Sly), with the
-        potions and star sources that reach it in a real run (Prismatic Gem, Kaleidoscope, Splash, transforms, foreign potions)."""
         theme = r.choice([t for t, (owner, _, _) in CROSS_THEMES.items() if owner != ch])
         _, ids, pots = CROSS_THEMES[theme]
         ids = [i for i in ids if i in self.have["card"] and i in self.ctypes]
@@ -263,7 +241,6 @@ class Gen:
         n = r.choices([0, 1, 2], [1, 4, 5])[0]
         return [r.choice(pool)["id"] for _ in range(n)] if pool else []
 
-    # ---- scenario ---------------------------------------------------------------------------------------------------
     def scenario(self, idx, seed, a):
         r = random.Random(f"{seed}/{idx}")
         ch = a.character or r.choices(list(CHAR_W), list(CHAR_W.values()))[0]
@@ -275,7 +252,6 @@ class Gen:
             encs = [e for e in encs if e["act"] in ai or (e["event"] and a.act == 0)]
         if a.room:
             encs = [e for e in encs if e["room"].lower() in a.room.split(",")]
-        # elites/bosses/multi-enemy are the interesting ones: weight non-weak normal 3, elite 4, boss 4, weak 1
         w = [1 if e["weak"] else 4 if e["room"] in ("Elite", "Boss") else 3 for e in encs]
         enc = r.choices(encs, w)[0]
         act = {0: 0, 1: 0, 2: 1, 3: 2, -1: r.randint(0, 2)}[enc["act"]]
@@ -319,13 +295,12 @@ class Gen:
 
 
 def run_chunk(args):
-    """One oracle process for a chunk of scenario paths, then replay each in Rust."""
     paths, keep_ok = args
     listf = paths[0].replace(".scenario.json", ".list")
     open(listf, "w").write("\n".join(paths) + "\n")
     crashed = {}
     pending = list(paths)
-    while pending:  # a process crash (stack overflow, OOM kill...) leaves no .done marker: isolate the culprit, rerun the rest
+    while pending:
         open(listf, "w").write("\n".join(pending) + "\n")
         subprocess.run(ORACLE + ["batch", listf], capture_output=True, text=True)
         pending = [p for p in pending if not os.path.exists(p[: -len(".scenario.json")] + ".done")]
@@ -361,7 +336,7 @@ def run_chunk(args):
             msg = (out or d.stderr)[-700:]
             kind = "mismatch" if d.returncode == 1 else "sim-error"
             if "capacity overflow" in (d.stdout + d.stderr):
-                kind = "arena-full"  # a fixed capacity (cards / powers) overflowed: flagged, documented, not a mismatch
+                kind = "arena-full"
             res.append((base, kind, msg))
     for p in paths:
         try: os.remove(p[: -len(".scenario.json")] + ".done")

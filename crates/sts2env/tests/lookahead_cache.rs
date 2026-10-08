@@ -1,6 +1,3 @@
-//! The lookahead cache must never change an observation: over many mid-fight states of the training mix, cached == fresh for every enemy,
-//! including states reached after the cache was filled by other (similar) states, and states that differ from cached ones only in the enemies'
-//! HP and block (the relaxed key of a projection that read neither, `Creature::pristine`).
 use std::sync::atomic::Ordering;
 use sts2sim::engine::{ActionBuf, LOOK_VERIFIED, LOOK_VERIFY};
 use sts2sim::rng::Rng;
@@ -45,7 +42,6 @@ fn cached_lookahead_equals_fresh() {
     assert_eq!(diffs, 0, "{diffs} of {checked} lookahead rows differ");
 }
 
-/// Mid-fight states of a scenario list (random play), `per` states per fight.
 fn states(path: &str, n: usize, per: usize, seed: u64) -> Vec<Combat> {
     let Ok(txt) = std::fs::read_to_string(path) else { return Vec::new() };
     let v: serde_json::Value = serde_json::from_str(&txt).unwrap();
@@ -78,15 +74,12 @@ fn states(path: &str, n: usize, per: usize, seed: u64) -> Vec<Combat> {
 
 #[test]
 fn relaxed_key_cache_is_exact() {
-    // one test (LOOK_VERIFY is global): the cache's relaxed hits under perturbed HP / block, then inside the search's own workload
     relaxed_key_hits_equal_fresh_under_other_hp_and_block();
     search_with_every_relaxed_hit_verified(1);
-    // observation v2 previews calculated card numbers, power display numbers etc. outside the projection: the cached rows must stay exact
     search_with_every_relaxed_hit_verified(2);
 }
 
 fn relaxed_key_hits_equal_fresh_under_other_hp_and_block() {
-    // fill the cache from a state, then change every living enemy's HP (alive stays alive) and block: a relaxed hit must equal the fresh rows
     let mut rng = Rng::new(17);
     let (mut checked, mut diffs) = (0u64, 0u64);
     LOOK_VERIFY.store(true, Ordering::Relaxed);
@@ -125,7 +118,6 @@ fn relaxed_key_hits_equal_fresh_under_other_hp_and_block() {
 }
 
 fn search_with_every_relaxed_hit_verified(ver: u8) {
-    // the search's own workload (play-outs of 5 options x 8 futures) with every relaxed-key hit recomputed fresh (`LOOK_VERIFY` panics on a difference)
     use sts2env::search::*;
     use sts2sim::engine::ACTION_SPACE;
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../data/bench/mix.json");

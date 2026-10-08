@@ -1,22 +1,3 @@
-"""`price`: every option of the current screen priced by paired rollouts of the run model (`agent/runmodel.py`, `docs/rebuild.md` S5).
-
-One currency at four horizons, longest first (the horizon ladder, `docs/rebuild.md`): P(win the run), P(clear this act), next-act readiness, floors
-reached. Next-act readiness is, per rollout that clears this act, P(win) of the state it carries into the next act (deck, relics, the belt the base
-policy left, HP after the ancient's heal of 80% of missing HP) against that act's boss pool (weight 0.5) and elite pool (0.5), each a mean over the
-pool (`runmodel.readiness`, `READY_W`; Glory: pairs of distinct bosses, the A10 double boss); a death in this act counts 0. Not estimable in the
-last act. The table ranks by the longest horizon that is estimable and not saturated (`ladder`): P(win run) when its spread is significant (the
-best option ahead of another by more than 2 paired se), else P(clear act) when its best is below ACT_SATURATED or its spread is significant, else
-next-act readiness, else floors; the later horizons break ties, and every column stays visible with its paired difference to the best.
-Options per screen:
-  MAP          each node on offer
-  CARD_REWARD  each card and skip
-  RESTSITE     rest, and smith of each upgradable card
-  SHOP         nothing (save the gold), and the best affordable bundles of up to 3 purchases (cards, relics, potions, one removal), chosen by a quick screen (`bundles`)
-  REWARDS      a potion offered to a full belt: leave it, or take it in place of each held potion
-  EVENT        each option of a catalogued event (`data/events.json`) or an ancient (`data/ancient_relics.json`: the relic plus its pickup effects); an unmodelled effect is a no-op
-Each option meets the same draws (common random numbers); the table prints each option's mean with its se and the paired difference to the best.
-A screen with a single option is not priced.
-"""
 import os
 import re
 import sys
@@ -37,7 +18,6 @@ def _kind_of(act_name, enc):
 
 
 def run_state(deck, ctx, events_path, state_text):
-    """The live run as a `RunState`: deck.json, the act context (boss, encounters met, map), the public counters, the map position."""
     t = tracker.from_record(events_path)
     act_name = ctx.names[0]
     seen = {}
@@ -48,7 +28,7 @@ def run_state(deck, ctx, events_path, state_text):
     nodes, _ = routes.parse_map(ctx.map_text)
     if scr.kind(state_text) == "MAP":
         frontier = routes.offered(state_text)
-    else:  # inside a room: the rest of the act starts from the children of the room I am in (the visited node of the highest row)
+    else:
         here = max((k for k, n in nodes.items() if n["visited"]), default=None)
         frontier = [k for k in nodes[here]["children"] if k in nodes] if here else None
     relics = [r["id"] if isinstance(r, dict) else r for r in deck.get("relics", [])]
@@ -64,7 +44,6 @@ def _card_id(name):
 
 
 def options(st, state_text):
-    """[(label, first)] for the screen: `first` applies the option to a rollout's copy of the state."""
     kind = scr.kind(state_text)
     out = []
     if kind == "MAP":
@@ -89,7 +68,7 @@ def options(st, state_text):
         lines = state_text.split("\n")
         title = lines[2].split(":", 1)[0].strip() if len(lines) > 2 else ""
         entry = EV.get(title)
-        if entry is None:  # an ancient (Neow, Orobas, Darv ...): each option is a relic with its pickup effects (`data/ancient_relics.json`)
+        if entry is None:
             for _, label in scr.options(state_text):
                 rid, _eff = EV.ancient_option(label)
                 if rid:
@@ -100,10 +79,10 @@ def options(st, state_text):
                 if o is not None and not o["key"].endswith("_LOCKED"):
                     idx = entry["options"].index(o)
                     out.append((label.split(":", 1)[0][:34], lambda s, d, i=idx, eid=entry["id"]: EV.play_option(s, eid, i, d)))
-    elif kind == "SHOP":  # singles; `bundles` prices sets of purchases within the budget
+    elif kind == "SHOP":
         out.append(("nothing", None))
         out += [(f"{label} ({price}g)", first) for label, _what, price, first in shop_items(st, state_text)]
-    elif kind == "REWARDS":  # a potion offered to a full belt: leave it, or take it in place of each held potion
+    elif kind == "REWARDS":
         for _, label in scr.options(state_text):
             m = re.match(r"^potion (.+?):", label)
             pid = _ident(m.group(1)) if m else None
@@ -113,12 +92,11 @@ def options(st, state_text):
                 for held in dict.fromkeys(st.potions):
                     slot = f" (a dp {belt.index(held)})" if held in belt else ""
                     out.append((f"{m.group(1).strip()} for {held}{slot}", lambda s, _d, h=held, q=pid: s.potions.__setitem__(s.potions.index(h), q)))
-                break  # one potion reward at a time: price the next after taking or leaving this one
+                break
     return out
 
 
 def _ident(name):
-    """'Gambler's Brew' -> 'GAMBLERS_BREW' (the catalog's id)."""
     return re.sub(r"[^A-Z0-9]+", "_", name.strip().upper().replace("'", "").replace("’", "")).strip("_")
 
 
@@ -131,8 +109,6 @@ def _short(cid):
 
 
 def shop_items(st, state_text, unpriced=None):
-    """The affordable purchases of a SHOP screen: [(label, kind, price, first)], the removal once per distinct card (`first` applies the purchase and pays).
-    A card, relic or potion without a simulator / catalog id is left out (it cannot be priced) and its name added to `unpriced` when given."""
     out = []
     for _, label in scr.options(state_text):
         if "can't afford" in label:
@@ -163,11 +139,6 @@ def shop_items(st, state_text, unpriced=None):
 
 
 def bundles(st, items, predictor, keep=6, removals=2, top=8, shuffles=4):
-    """The shop as a budget problem: "nothing" (the gold carries to the next shops) and the `top` affordable bundles of up to 3 purchases (total
-    price <= gold, one removal per visit, potions within the free slots), chosen by a quick screen: the worth of the deck after the bundle against
-    the act's reference fights (`runmodel.reference_fights`), each bundle screened as a whole (a set can be positive while each part alone is not).
-    Every single and every pair is screened (removals: the best `removals` cards only); triples are built from the `keep` purchases that did best
-    alone or in a pair. Returns ([(label, first)], note)."""
     import itertools
     import random
     refs = R.reference_fights(st, random.Random(0))
@@ -211,14 +182,12 @@ def bundles(st, items, predictor, keep=6, removals=2, top=8, shuffles=4):
 
 
 def price(st, opts, predictor, n=128, seed=0, shuffles=4):
-    """Rollouts per option with shared seeds: dict label -> arrays per rollout: win (the run), act (cleared this act), ready and ready_worth (next-act
-    readiness P(win) and worth; 0 and -1 on a death in this act; absent in the last act, where it is not estimable), floors."""
     ro = R.Rollouts(predictor, shuffles)
     states, seeds, firsts, owner = [], [], [], []
     for oi, (_label, first) in enumerate(opts):
         for j in range(n):
             states.append(st.copy())
-            seeds.append(seed * 100_003 + j)  # the option never enters the seed: paired draws
+            seeds.append(seed * 100_003 + j)
             firsts.append(first)
             owner.append(oi)
     won = ro.run(states, seeds, firsts=firsts)
@@ -229,7 +198,7 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4):
         ss = [s for s, o in zip(states, owner) if o == oi]
         cleared = np.array([1.0 if (s.end is None or s.end[0] > st.act or s.end[1] == "won") else 0.0 for s in ss])
         r = dict(win=won[sel], act=cleared)
-        if st.act < 2:  # the last act has no next act: readiness is not estimable there
+        if st.act < 2:
             r["ready"] = np.array([0.0 if s.ready is None else s.ready for s in ss])
             r["ready_worth"] = np.array([-1.0 if s.ready_worth is None else s.ready_worth for s in ss])
         r["floors"] = np.array([s.floors for s in ss], float)
@@ -237,8 +206,8 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4):
     return res
 
 
-HORIZONS = (("win", "P(win run)"), ("act", "P(clear act)"), ("ready", "next act ready"), ("floors", "floors"))  # the ladder, longest first
-ACT_SATURATED = 0.9  # P(clear act) at or above this (with no significant spread) no longer ranks: the ladder moves up to next-act readiness
+HORIZONS = (("win", "P(win run)"), ("act", "P(clear act)"), ("ready", "next act ready"), ("floors", "floors"))
+ACT_SATURATED = 0.9
 
 
 def _se(x):
@@ -246,7 +215,6 @@ def _se(x):
 
 
 def separates(res, k, z=2.0):
-    """Whether horizon `k` separates the options: the best option by it is ahead of some other by more than z paired se (paired: same draws)."""
     labels = list(res)
     best = max(labels, key=lambda lb: res[lb][k].mean())
     for lb in labels:
@@ -257,7 +225,6 @@ def separates(res, k, z=2.0):
 
 
 def ladder(res, saturated=ACT_SATURATED):
-    """(horizon key, why): the longest horizon that is estimable and not saturated (`docs/rebuild.md`, horizon ladder)."""
     if separates(res, "win"):
         return "win", "P(win run) separates the options (> 2 paired se)"
     best = max(r["act"].mean() for r in res.values())
@@ -275,7 +242,7 @@ def table(res, saturated=ACT_SATURATED):
     labels = list(res)
     keys = [(k, t) for k, t in HORIZONS if all(k in r for r in res.values())]
     main, why = ladder(res, saturated)
-    order = [main] + [k for k, _ in keys if k != main]  # the deciding horizon, then the others longest first as tiebreaks
+    order = [main] + [k for k, _ in keys if k != main]
     best = max(labels, key=lambda lb: tuple(res[lb][k].mean() for k in order))
     W = min(64, max(34, *(len(lb) for lb in labels)))
     lines = [f"ranked by: {dict(HORIZONS)[main]} ({why})",

@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""The outer loop: turn experience into improvements, and adopt an improvement only when it measurably helps.
-
-  python -m agent.improve review [run-id]       report on a run: fights (predicted vs actual), search-vs-policy disagreement, simulator fidelity, macro decisions
-  python -m agent.improve lessons               the strategy book's open hypotheses (`[hyp]`) = the experiment backlog
-  python -m agent.improve gaps                  surprising fights, fidelity divergences and hindsight verdicts recorded so far (evals/gaps.jsonl)
-  python -m agent.improve corpus                collect the fights of all runs into data/corpus (train / held-out split by run)
-
-Two kinds of things get improved, each with its own gate:
-  strategy (the skills in .claude/skills): a lesson moves from `[hyp]` to `[sim]` only with a measurement behind it (a macro `eval`, a solver A/B).
-  model / search: a checkpoint or a search setting is adopted only if it beats the current one on the held-out fights (corpus holdout and the fixed eval set) with
-  paired seeds; the result is in evals/ledger.jsonl.
-Triggers for a fine-tune (from `review`): fights lost or surprising against the solver's own prediction, concentrated in some encounters / card kinds; a high
-rate of search overriding the policy there (the policy is poor in that region); simulator fidelity is fine (otherwise fix the simulator first).
-"""
 import argparse
 import collections
 import glob
@@ -28,7 +14,7 @@ CORPUS = os.path.join(ROOT, "data", "corpus")
 
 
 def _runs():
-    return sorted(glob.glob(os.path.join(runlog.ROOT, "*", "events.jsonl")), key=os.path.getmtime)  # oldest first by last write: run ids are not all timestamps (shakedown-1)
+    return sorted(glob.glob(os.path.join(runlog.ROOT, "*", "events.jsonl")), key=os.path.getmtime)
 
 
 def _append(path, obj):
@@ -47,15 +33,13 @@ def _dump(obj, path, **kw):
         json.dump(obj, f, **kw)
 
 
-# ---------------------------------------------------------------------------------------------------------------- review
-
 def review(run_id=None):
     paths = _runs()
     if not paths:
         return "no runs recorded"
     def has_fights(x):
         return any(e["kind"] == "fight_start" for e in runlog.read(os.path.dirname(x)))
-    want = os.path.basename(os.path.normpath(run_id)) if run_id else None  # `runs/<id>` or `<id>`: the run folder's name, matched exactly
+    want = os.path.basename(os.path.normpath(run_id)) if run_id else None
     p = next((x for x in paths if want and os.path.basename(os.path.dirname(x)) == want), None) if want else None
     if want and p is None:
         return f"no run named {want}"
@@ -77,7 +61,7 @@ def review(run_id=None):
     for fid_, f in fights.items():
         s, en = f["start"], f["end"]
         if en is None or not en.get("hp"):
-            continue  # the end of the fight was not observed on the screen right after it
+            continue
         hp_end = en["hp"][0]
         lost = hp_end is not None and hp_end <= 0
         maxhp = s["max_hp"]
@@ -91,7 +75,7 @@ def review(run_id=None):
                 fid[k] += v
         for a in f["acts"]:
             if a.get("searched") and a.get("options"):
-                cands = [o for o in a["options"] if o.get("q") is not None] or a["options"]  # a held potion has p but was never searched: not the policy's choice
+                cands = [o for o in a["options"] if o.get("q") is not None] or a["options"]
                 top_p = max(cands, key=lambda o: o["p"])
                 act_total += 1
                 dis_by_enc[s["encounter"]][1] += 1
@@ -148,7 +132,6 @@ def review(run_id=None):
 
 
 def _run_outcome(ev):
-    """How the run ended and what ended it (the `run_end` event the harness writes on the game-over / victory screen)."""
     ends = [e for e in ev if e["kind"] == "run_end"]
     if not ends:
         return ["outcome: run not finished (no game-over screen seen)"]
@@ -157,9 +140,6 @@ def _run_outcome(ev):
 
 
 def _macro_decisions(ev, run):
-    """Non-combat decisions and their inputs: for every card reward priced by `reward`, where the pick sits against the best smooth boss score (skip = option 0;
-    the table is one input, not the answer). Every `-- why` with a `judgment:` field (older runs: `override`) is listed with that field and appended to
-    evals/judgments.jsonl: the tally the deck-building rules are judged by after the run (held / failed). Returns (lines, judgments, picks nobody priced)."""
     lines, overrides = [], []
     pending, priced, followed, unpriced, off = None, 0, 0, 0, []
     for e in ev:
@@ -184,7 +164,7 @@ def _macro_decisions(ev, run):
                     cards = _variant_options(names)
                     vi = _pick_variant(int(pick), names, cards)
                     wins = {int(k): v["win"] for k, v in res.items()}
-                    if wins and vi is not None:  # vi None: the pick was a card the table did not evaluate (no simulator id)
+                    if wins and vi is not None:
                         best = max(wins, key=wins.get)
                         priced += 1
                         if wins.get(vi, 0) >= wins[best] - 0.02:
@@ -203,27 +183,21 @@ def _macro_decisions(ev, run):
 
 
 def _variant_options(names):
-    """Which screen options a `reward` table priced, in variant order (variant 0 = skip, then these): `macro.reward_report` evaluates only the cards whose
-    display name maps to a simulator id, so an unmapped card shifts every later variant."""
     from agent.macro import card_from_name
     return [i for i, n in enumerate(names) if card_from_name(n)[0]]
 
 
 def _pick_variant(pick, names, cards):
-    """The table's variant of the option picked on screen: 0 for skip (past the cards), None for a card the table did not evaluate."""
     if pick >= len(names):
         return 0
     return cards.index(pick) + 1 if pick in cards else None
 
 
-GAP_KEY = ("kind", "run", "fight", "what")  # one surprise per fight, one fidelity count per divergence kind and run
+GAP_KEY = ("kind", "run", "fight", "what")
 JUDGMENT_KEY = ("run", "screen", "choice", "why")
 
 
 def _append_new(path, objs, key):
-    """Append the records the file does not hold yet: a record whose identity (`key` fields) is in the file n times is written only from its (n+1)-th
-    occurrence in `objs` on. Re-running `review` on a run adds nothing, and lines already there (a tally may annotate them) are never rewritten; a later
-    review of a run still in progress keeps the first counts."""
     def ident(o):
         return tuple(json.dumps(o.get(k), sort_keys=True, default=str) for k in key)
     have = collections.Counter()
@@ -242,13 +216,10 @@ def _append_new(path, objs, key):
             _append(path, o)
 
 
-# ---------------------------------------------------------------------------------------------------------------- strategy backlog
-
 NL = chr(10)
 
 
 def lessons():
-    """The experiment backlog: every `[hyp]` bullet in the strategy book, including the bullets under a `[hyp]` heading."""
     out = []
     for p in sorted(glob.glob(os.path.join(ROOT, ".claude", "skills", "*", "*.md"))):
         name = os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p)
@@ -263,7 +234,6 @@ def lessons():
 
 
 def gaps():
-    """What `review` and `hindsight --log` recorded in evals/gaps.jsonl: surprising fights, fidelity divergences, hindsight verdicts, counted by kind and encounter."""
     p = os.path.join(EVALS, "gaps.jsonl")
     if not os.path.exists(p):
         return "no gaps recorded"
@@ -271,8 +241,6 @@ def gaps():
     by = collections.Counter((r.get("kind"), r.get("encounter") or r.get("what", "")) for r in rows)
     return f"{len(rows)} records" + NL + NL.join(f"  {k[0]:10s} {k[1]:40s} {n}" for k, n in by.most_common(25))
 
-
-# ---------------------------------------------------------------------------------------------------------------- corpus / fine-tune / gate
 
 def corpus():
     os.makedirs(CORPUS, exist_ok=True)
@@ -289,7 +257,6 @@ def corpus():
             seen.add(key)
             sc["name"] = f"corpus_{run}_{e['id']}"
             sc["seed"] = key
-            # the split is by run, so held-out fights come from runs the network was never fine-tuned on
             (hold if int(hashlib.sha1(run.encode()).hexdigest(), 16) % 5 == 0 else train).append(sc)
     _dump(train, os.path.join(CORPUS, "fights_train.json"))
     _dump(hold, os.path.join(CORPUS, "fights_holdout.json"))

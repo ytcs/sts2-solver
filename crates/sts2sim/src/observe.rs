@@ -1,24 +1,4 @@
-//! The agent's observation: exactly the information a human player has — no more, no less.
-//!
-//! Visible: HP/block/energy/powers, relics + counters, potions, the hand in order, the draw pile as an *unordered*
-//! multiset (the game's own pile screen sorts it by rarity then id), discard and exhaust in pile order, every enemy's
-//! HP/block/powers/current intent (type, per-hit damage as the UI computes it, hit count) and the moves it has already
-//! performed, and any pending decision's candidates.
-//! Hidden: draw-pile order, every RNG stream, enemies' future moves beyond the displayed intent.
-//! `tests/observe.rs` perturbs the hidden state and asserts the observation is unchanged.
-//!
-//! Two versions of the vector exist (`OBS_VERSION`, `observe_v`). Version 1 is what every network before v2 was trained on and stays
-//! bit-identical (`tests/rl/test_obs_version.py`). Version 2 adds the visible information v1 leaves out:
-//! * per card (`CARD_F_V2` = 15): the numbers the card text shows for calculated damage / block (Body Slam, Perfected Strike, Unleash,
-//!   Expect a Fight ...) in the existing damage / block fields, a `count` field for the other calculated numbers (Finisher's hits, No Escape's
-//!   Doom, Normality's cards left ...), the affliction amount and the replay count; each damage / block var previewed with its own `ValueProp`
-//!   (status damage gets no Strength); single-turn Retain / Sly set the keyword bits. Every preview is `Calculate(target = none)`: the number the
-//!   card shows at rest (target-dependent cards such as Time's Up show their base).
-//! * per power (`POWER_F_V2` = 3): the number the power icon displays when it is not the amount (`PowerModel.DisplayAmount`; Surrounded's facing).
-//! * the pending selection: up to 64 candidates (all pickable ones), what asked for it (`dec_source`: card / potion / relic / monster id) and
-//!   the card being played (`played`).
-//! * piles: sorted before the 64-entry cap is applied (v1 truncates first, which leaks a little of the hidden order of a big pile).
-
+// Contract: exactly what a human player sees; hidden state (pile order, RNG streams) never reaches the observation (tests/observe.rs).
 use crate::content;
 use crate::dec::Dec;
 use crate::defs::*;
@@ -30,55 +10,31 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 pub const OBS_MAX_ENEMIES: usize = 8;
 pub const OBS_MAX_PILE: usize = 64;
-/// Selection candidates shown, v1 (v2: `OBS_MAX_CANDS_V2`).
 pub const OBS_MAX_CANDS: usize = 16;
-/// v2: every candidate that can be picked (`engine::MAX_PICK`).
 pub const OBS_MAX_CANDS_V2: usize = 64;
 pub const OBS_POWERS: usize = 16;
 pub const OBS_INTENTS: usize = 3;
 
-/// Per-card features (`CARD_F` floats), v1.
 pub const CARD_F: usize = 12;
-/// v2: v1's twelve, then the calculated count, the affliction amount and the replay count.
 pub const CARD_F_V2: usize = 15;
-/// Floats per power slot: (id + 1, amount), v2 also the displayed number.
 pub const POWER_F: usize = 2;
 pub const POWER_F_V2: usize = 3;
-/// Per-enemy features (`ENEMY_F` floats), v1.
 pub const ENEMY_F: usize = 8 + OBS_POWERS * 2 + OBS_INTENTS * 3 + 4;
 const GLOBAL_F: usize = 10;
 const PLAYER_F: usize = 8 + OBS_POWERS * 2;
 const RELIC_F: usize = OBS_RELICS * 2;
 const POTION_F: usize = MAX_POTIONS * 2;
-/// Regent block (appended at the END of the vector): current star cost of each hand card (-1 = none, X = all stars is
-/// reported as -2) and of each decision candidate. Stars themselves are in the player block.
 const REGENT_F: usize = MAX_HAND + OBS_MAX_CANDS;
 const DECISION_F: usize = 8 + OBS_MAX_CANDS * (CARD_F + 1);
-/// Osty block (appended at the END of the vector): present, alive, hp, max_hp, powers (id+1, amount) x `OBS_POWERS`,
-/// then per hand slot the damage preview of an Osty attack card (what the card text shows), 0 otherwise. (v1 sizes.)
 pub const OSTY_F: usize = 4 + OBS_POWERS * 2 + MAX_HAND;
-/// Per-orb features: (kind + 1, passive value, evoke value).
 pub const ORB_F: usize = 3;
-/// Orb block (appended at the end of the vector): `MAX_ORBS` orb entries front first (the slot count is the
-/// `orb_slots` field of the player block), then the number of Lightning orbs channeled this combat (Voltaic's text).
 pub const ORBS_F: usize = MAX_ORBS * ORB_F + 1;
-/// Expert pattern knowledge (appended at the END of the vector): per enemy slot and per future turn (`LOOK_H`), the probability
-/// of each move node and the expected total attack damage (see `Combat::lookahead`). The enemy's identity and node indices
-/// are in the enemy block, so the agent learns what each node means exactly as a player learns a monster.
 pub const LOOK_F: usize = OBS_MAX_ENEMIES * LOOK_H * (LOOK_NODES + 1);
-/// Where each enemy's move pattern stands (appended at the END of the vector, S1): per enemy slot, the pending move node + 1 (the
-/// intent block shows only its intent types; 255 = stunned) and the node it resumes after a stun / a stored follow-up + 1 (0 when
-/// none is pending), in the encoding of the performed-move history.
 pub const MOVE_STATE_F: usize = 2;
 pub const ENEMY_MOVES_F: usize = OBS_MAX_ENEMIES * MOVE_STATE_F;
-/// v2, appended: what asked for the pending selection, `(kind, id + 1)`; kind 1 card, 2 potion, 3 relic, 4 monster (`purpose`), zeros
-/// without a selection.
 pub const DEC_SOURCE_F: usize = 2;
-/// v2, appended: the card being played (the innermost play in flight: the card whose effect asked for the selection), a card entry
-/// (`CARD_F_V2`) then its star cost and Osty damage preview; zeros when no card is being played.
 pub const PLAYED_F: usize = CARD_F_V2 + 2;
 
-/// The sizes of one version's vector.
 #[derive(Clone, Copy, Debug)]
 pub struct Dims {
     pub version: u8,
@@ -95,7 +51,6 @@ pub struct Dims {
     pub size: usize,
 }
 
-/// The sizes of observation version `version` (1 or 2).
 pub const fn dims(version: u8) -> Dims {
     let v2 = version >= 2;
     let card_f = if v2 { CARD_F_V2 } else { CARD_F };
@@ -113,8 +68,8 @@ pub const fn dims(version: u8) -> Dims {
         + RELIC_F
         + POTION_F
         + MAX_HAND * card_f
-        + OBS_MAX_PILE * 2 * 3 // draw multiset, discard, exhaust: (id+1, upgrade) per slot
-        + 3 // pile sizes
+        + OBS_MAX_PILE * 2 * 3
+        + 3
         + OBS_MAX_ENEMIES * enemy_f
         + decision_f
         + regent_f
@@ -127,28 +82,20 @@ pub const fn dims(version: u8) -> Dims {
     Dims { version, card_f, cands, power_f, player_f, enemy_f, decision_f, regent_f, osty_f, dec_source_f, played_f, size }
 }
 
-/// Total length of the flat observation vector, version 1.
 pub const OBS_SIZE: usize = dims(1).size;
-/// Total length, version 2.
 pub const OBS_SIZE_V2: usize = dims(2).size;
-/// The longest vector of any version (buffers that must hold every version).
 pub const OBS_SIZE_MAX: usize = OBS_SIZE_V2;
-/// The newest observation version.
 pub const OBS_VERSION_MAX: u8 = 2;
 
 const _: () = assert!(dims(1).player_f == PLAYER_F && dims(1).enemy_f == ENEMY_F && dims(1).decision_f == DECISION_F);
 const _: () = assert!(dims(1).regent_f == REGENT_F && dims(1).osty_f == OSTY_F && OBS_MAX_CANDS_V2 == crate::engine::MAX_PICK);
 
-/// The process-wide observation version: what `observe` / `observe_ex` write and what an environment, search engine or replay created
-/// without an explicit version uses. 1 by default (every network trained before v2).
 pub static OBS_VERSION: AtomicU8 = AtomicU8::new(1);
 
-/// The process-wide observation version.
 pub fn obs_version() -> u8 {
     OBS_VERSION.load(Ordering::Relaxed)
 }
 
-/// Sets the process-wide observation version (1 or 2); returns the previous one, `None` (unchanged) for an unknown version.
 pub fn set_obs_version(version: u8) -> Option<u8> {
     if !(1..=OBS_VERSION_MAX).contains(&version) {
         return None;
@@ -156,7 +103,6 @@ pub fn set_obs_version(version: u8) -> Option<u8> {
     Some(OBS_VERSION.swap(version, Ordering::Relaxed))
 }
 
-/// Length of the observation vector of `version` (0 for an unknown version).
 pub const fn obs_size(version: u8) -> usize {
     match version {
         1 | 2 => dims(version).size,
@@ -168,8 +114,6 @@ struct W<'a> {
     out: &'a mut [f32],
     i: usize,
 }
-/// Observation leaves out relics without a combat effect (`relic_mask::OBSERVED`). On by default; off reproduces observations from before M2
-/// (networks trained before the mask, A/B tests).
 pub static MASK_RELICS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 impl W<'_> {
@@ -182,14 +126,12 @@ impl W<'_> {
     fn n(&mut self, v: i32) {
         self.f(v as f32)
     }
-    /// `n` zero floats. The whole vector is zero-filled once up front (one memset) so skipping is enough.
     #[inline(always)]
     fn zeros(&mut self, n: usize) {
         self.i += n;
     }
 }
 
-/// Cycle counters per section of `observe_ex` (feature `obs_prof`; not thread safe, diagnostics only).
 #[cfg(feature = "obs_prof")]
 pub static mut OBS_PROF: [u64; 32] = [0; 32];
 #[cfg(feature = "obs_prof")]
@@ -210,20 +152,14 @@ macro_rules! prof {
     }};
 }
 
-/// The numbers a card's text shows (v2 observation): see [`Combat::card_preview`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CardPreview {
-    /// Damage dealt by the player: a `DamageVar` or a `CalculatedDamageVar` not from Osty, through `Hook.ModifyDamage`; 0 when none.
     pub damage: i32,
-    /// Block: a `BlockVar` or a `CalculatedBlockVar`, through `Hook.ModifyBlock`; 0 when none.
     pub block: i32,
-    /// Another calculated number (`CalculatedHits`, `CalculatedCards`, `CalculatedDoom` ...); 0 when none.
     pub count: i32,
-    /// Damage dealt by Osty (`OstyDamageVar` / a `CalculatedDamageVar.FromOsty`); `None` when the card has none or Osty was never summoned.
     pub osty_damage: Option<i32>,
 }
 
-/// Kind codes of `dec_source` (v2).
 pub mod source_kind {
     pub const CARD: i32 = 1;
     pub const POTION: i32 = 2;
@@ -232,12 +168,10 @@ pub mod source_kind {
 }
 
 impl Combat {
-    /// Intent damage as the UI computes it: `Hook.ModifyDamage(dealer = monster, target = player, Move)` floored at 0.
     pub fn intent_damage(&self, monster: Cid, base: i32) -> i32 {
         self.modify_damage_value(PLAYER, monster, Dec::int(base as i64), ValueProp::MOVE, NO).trunc().max(0)
     }
 
-    /// Star cost as shown on the card: -1 none, -2 X (all stars), else the current cost with modifiers.
     fn obs_star_cost(&self, c: CardIdx) -> i32 {
         if self.card_has_star_cost_x(c) {
             -2
@@ -248,10 +182,6 @@ impl Combat {
         }
     }
 
-    /// The numbers the card shows with no target selected (`DynamicVar.UpdateCardPreview(target = null, runGlobalHooks)`): each damage /
-    /// block var through the damage / block hooks with its own `ValueProp`; calculated vars from the card's `calculated_damage` /
-    /// `calculated_value` hooks (`CalculatedVar.Calculate(null)`; damage floored at 0). A card from Osty (`OSTY_ATTACK` tag: Unleash, Squeeze,
-    /// Protector, Rattle ...) reports its damage as `osty_damage` with Osty as the dealer.
     pub fn card_preview(&self, c: CardIdx) -> CardPreview {
         let d = self.card_def(c);
         let mut p = CardPreview::default();
@@ -294,8 +224,6 @@ impl Combat {
         p
     }
 
-    /// The number a power's icon shows when it is not the amount (`PowerModel.DisplayAmount` overrides, shown for `Counter` powers), and
-    /// Surrounded's facing (1 right, 2 left; drawn as the player's orientation). 0 for every other power.
     pub fn power_display(&self, p: &Power) -> i32 {
         use crate::ids::power as pw;
         let aux = p.aux;
@@ -315,8 +243,6 @@ impl Combat {
         }
     }
 
-    /// `playable`: the already computed `can_play` of a hand card (see `observe_ex`), `None` = compute it here. `pre` (v2): the card's
-    /// `card_preview` when the caller already has it.
     fn write_card(&self, w: &mut W, c: CardIdx, playable: Option<bool>, v2: bool, pre: Option<CardPreview>) {
         let card = &self.cards[c as usize];
         let d = content::card_def(card.id);
@@ -398,7 +324,6 @@ impl Combat {
         w.n(card.affliction as i32);
     }
 
-    /// `(id + 1, amount)` of the first `OBS_POWERS` powers (v2: also the displayed number), zeros for the rest.
     #[inline(always)]
     fn write_powers(&self, w: &mut W, cr: &Creature, v2: bool) {
         let n = cr.powers.len().min(OBS_POWERS);
@@ -412,13 +337,9 @@ impl Combat {
         w.zeros((OBS_POWERS - n) * if v2 { POWER_F_V2 } else { POWER_F });
     }
 
-    /// v1 caps the pile at `OBS_MAX_PILE` cards in pile order and then sorts (the cut follows the hidden order); v2 sorts the whole pile
-    /// and shows its first `OBS_MAX_PILE` entries.
     fn write_pile_list(&self, w: &mut W, pile: &[CardIdx], sorted_multiset: bool, v2: bool) {
         let n = pile.len().min(OBS_MAX_PILE);
         if sorted_multiset {
-            // order-free view: sort by (rarity, id, upgrade) — what the pile screen shows. The sort key is packed into one u32
-            // (equal keys are identical entries, so an unstable sort of keys gives the same vector as a stable sort of cards).
             let mut keys = [0u32; MAX_CARDS];
             let m = if v2 { pile.len().min(MAX_CARDS) } else { n };
             for (k, &c) in pile.iter().take(m).enumerate() {
@@ -439,7 +360,6 @@ impl Combat {
         w.zeros((OBS_MAX_PILE - n) * 2);
     }
 
-    /// What asked for a decision: `(kind, id)` from its `purpose` (`purpose::*` flags; a plain id is a card).
     pub fn decision_source(d: &Decision) -> (i32, i32) {
         let id = (d.purpose & purpose::ID) as i32;
         if d.purpose & purpose::POTION != 0 {
@@ -453,29 +373,24 @@ impl Combat {
         }
     }
 
-    /// Writes the flat observation of the process-wide version (`OBS_VERSION`) into `out` (`out.len() >= obs_size(version)`). Returns its length.
     pub fn observe(&self, out: &mut [f32]) -> usize {
         self.observe_ex(out, None)
     }
 
-    /// `observe` with the playability of the hand cards precomputed: bit `k` of `hand_playable` = `can_play(hand[k])` (as
-    /// produced by `legal_actions_ex`), so a batch env that also needs the legal actions evaluates each hand card once.
     pub fn observe_ex(&self, out: &mut [f32], hand_playable: Option<u16>) -> usize {
         self.observe_v(out, hand_playable, obs_version())
     }
 
-    /// `observe_ex` of an explicit version (1 or 2; anything else is taken as 1). Returns `obs_size(version)`.
     pub fn observe_v(&self, out: &mut [f32], hand_playable: Option<u16>, version: u8) -> usize {
         let v2 = version == 2;
         let dm = dims(if v2 { 2 } else { 1 });
         let size = dm.size;
         let out = &mut out[..size];
-        // SAFETY: `out` has exactly `size` f32s; all-zero bytes are +0.0. (`fill(0.0)` compiled to a store loop.)
+        // SAFETY: `out` has exactly `size` f32s; all-zero bytes are +0.0.
         unsafe { core::ptr::write_bytes(out.as_mut_ptr(), 0, size) };
         let mut w = W { out, i: 0 };
         let hand_ok = self.stage == Stage::AwaitAction && self.player.phase == Phase::Play;
         let me = self.cr(PLAYER);
-        // ---- global ----
         w.n(self.round);
         w.n(self.player.turn_number);
         w.n((self.stage == Stage::AwaitAction) as i32);
@@ -486,7 +401,6 @@ impl Combat {
         w.n(self.hist.attacks_played_this_turn as i32);
         w.n(self.hist.skills_played_this_turn as i32);
         w.n(self.ascension as i32);
-        // ---- player ----
         prof!(5, t5, {
         w.n(me.hp);
         w.n(me.max_hp);
@@ -497,13 +411,11 @@ impl Combat {
         w.n(self.player.orb_slots as i32);
         w.n(self.player.potion_slots as i32);
         self.write_powers(&mut w, me, v2);
-        // relics with no combat effect are not shown (`relic_mask`, `docs/rl_redesign.md` M2) unless the mask is switched off
         let mask = MASK_RELICS.load(std::sync::atomic::Ordering::Relaxed);
         let mut n_relics = 0;
         for r in self.player.relics.as_slice().iter().filter(|r| !mask || crate::relic_mask::OBSERVED.get(r.id as usize).copied().unwrap_or(true)).take(OBS_RELICS) {
             n_relics += 1;
             w.n(r.id as i32 + 1);
-            // The counter a player can see on the relic (`ShowCounter ? DisplayAmount`), not the raw state slot.
             w.n(crate::content::relic_listener(r.id).meta_display(self, r).unwrap_or(0));
         }
         w.zeros((OBS_RELICS - n_relics) * 2);
@@ -517,8 +429,6 @@ impl Combat {
                 None => w.zeros(2),
             }
         }
-        // ---- hand (ordered) ----
-        // v2: each hand card's preview once (the hand entry and the Osty section both read it)
         let mut hand_pre = [CardPreview::default(); MAX_HAND];
         prof!(1, t1, {
         if v2 {
@@ -536,7 +446,6 @@ impl Combat {
             }
         }
         });
-        // ---- piles ----
         prof!(2, t2, {
         self.write_pile_list(&mut w, self.player.draw.as_slice(), true, v2);
         self.write_pile_list(&mut w, self.player.discard.as_slice(), true, v2);
@@ -545,7 +454,6 @@ impl Combat {
         w.n(self.player.draw.len() as i32);
         w.n(self.player.discard.len() as i32);
         w.n(self.player.exhaust.len() as i32);
-        // ---- enemies (list order) ----
         prof!(3, t3, {
         for k in 0..OBS_MAX_ENEMIES {
             let Some(e) = self.enemies.get(k) else {
@@ -563,7 +471,6 @@ impl Combat {
             w.n(cr.is_alive() as i32);
             w.n(self.is_stunned(e) as i32);
             self.write_powers(&mut w, cr, v2);
-            // current intent(s)
             let mut n_int = 0;
             if ms.next_move != NO {
                 if let Some((_, intents)) = self.move_view(e) {
@@ -598,8 +505,6 @@ impl Combat {
             }
         }
         });
-        // ---- pending decision ----
-        // the displayed order of the candidates (`decision_view`), shared by the candidate block and their star costs
         let star_view = self.decision.as_ref().map(|d| self.decision_view(d));
         match &self.decision {
             Some(d) => {
@@ -617,7 +522,6 @@ impl Combat {
                 w.n(d.cands.len() as i32);
                 let view = star_view.as_ref().expect("a view of the pending decision");
                 for k in 0..dm.cands {
-                    // displayed order (`view`), never the game's pile order
                     match view.get(k).map(|vi| (vi, d.cands[vi as usize])) {
                         Some((vi, c)) => {
                             self.write_card(&mut w, c, None, v2, None);
@@ -629,7 +533,6 @@ impl Combat {
             }
             None => w.zeros(dm.decision_f),
         }
-        // ---- Regent: star costs (appended) ----
         for k in 0..MAX_HAND {
             match self.player.hand.get(k) {
                 Some(c) => w.n(self.obs_star_cost(c)),
@@ -642,7 +545,6 @@ impl Combat {
                 None => w.f(0.0),
             }
         }
-        // ---- Osty (visible to the player: portrait, HP bar, powers; block is the owner's) ----
         match self.osty() {
             Some(o) => {
                 let cr = self.cr(o);
@@ -656,7 +558,6 @@ impl Combat {
         }
         for k in 0..MAX_HAND {
             if v2 {
-                // every Osty damage number the card shows: `OstyDamageVar` and calculated damage from Osty (Unleash, Squeeze, Protector)
                 match self.player.hand.get(k) {
                     Some(_) => w.n(hand_pre[k].osty_damage.unwrap_or(0)),
                     None => w.f(0.0),
@@ -672,7 +573,6 @@ impl Combat {
                 _ => w.f(0.0),
             }
         }
-        // ---- Defect: orbs (appended; visible to the player: each orb with its current passive / evoke value) ----
         for k in 0..MAX_ORBS {
             match self.player.orbs.get(k) {
                 Some(o) => {
@@ -684,7 +584,6 @@ impl Combat {
             }
         }
         w.n(self.hist_log.lightning_channeled as i32);
-        // ---- expert pattern knowledge about upcoming enemy turns (appended) ----
         prof!(4, t4, {
         let mut dig = crate::engine::LookDigests::default();
         for k in 0..OBS_MAX_ENEMIES {
@@ -701,7 +600,6 @@ impl Combat {
             }
         }
         });
-        // ---- where each enemy's pattern stands (appended) ----
         for k in 0..OBS_MAX_ENEMIES {
             match self.enemies.get(k) {
                 Some(e) if self.cr(e).monster.next_move != NO => {
@@ -718,7 +616,6 @@ impl Combat {
             }
         }
         if v2 {
-            // ---- v2: what asked for the selection, and the card being played (appended) ----
             match &self.decision {
                 Some(d) => {
                     let (kind, id) = Self::decision_source(d);
@@ -742,13 +639,10 @@ impl Combat {
     }
 }
 
-/// The sections of the process-wide version's vector (`layout_v`).
 pub fn layout() -> Vec<(&'static str, usize, usize)> {
     layout_v(obs_version())
 }
 
-/// The sections of the observation vector of `version` in order: `(name, offset, size)`. The sizes sum to `obs_size(version)` (tested).
-/// v2 has the same sections (resized: cards, powers, candidates) plus `dec_source` and `played` before `end`.
 pub fn layout_v(version: u8) -> Vec<(&'static str, usize, usize)> {
     let dm = dims(if version == 2 { 2 } else { 1 });
     let mut sizes: Vec<(&'static str, usize)> = vec![
@@ -783,12 +677,10 @@ pub fn layout_v(version: u8) -> Vec<(&'static str, usize, usize)> {
     out
 }
 
-/// Constants of the process-wide version (`layout_consts_v`).
 pub fn layout_consts() -> Vec<(&'static str, usize)> {
     layout_consts_v(obs_version())
 }
 
-/// Constants a consumer of the observation / action space needs (strides, capacities, vocabulary sizes, action offsets) for `version`.
 pub fn layout_consts_v(version: u8) -> Vec<(&'static str, usize)> {
     use crate::engine::{ACTION_SPACE, MAX_PICK};
     let dm = dims(if version == 2 { 2 } else { 1 });

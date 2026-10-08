@@ -1,5 +1,3 @@
-//! Defect skills and power cards (ported from the decompiled `OnPlay` bodies).
-
 use super::defect_util::*;
 use crate::defs::VarKind;
 use crate::engine::Ask;
@@ -9,9 +7,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// ---- skills --------------------------------------------------------------------------------------------------------
-
-// Block, then a Dazed goes to the discard pile.
 listener!(BoostAway {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
@@ -27,7 +22,6 @@ listener!(BootSequence {
     }
 });
 
-// Block, then `Energy` extra energy next turn.
 listener!(ChargeBattery {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
@@ -37,7 +31,6 @@ listener!(ChargeBattery {
     }
 });
 
-// Block, then every Status card in hand becomes a Fuel (upgraded if this card is).
 listener!(Compact {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
@@ -56,7 +49,6 @@ listener!(Compact {
     }
 });
 
-// Gain as much energy as you currently have.
 listener!(DoubleEnergy {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let e = cx.player.energy;
@@ -65,7 +57,6 @@ listener!(DoubleEnergy {
     }
 });
 
-// Multiplayer-only (targets all allies): `Energy` for every living player.
 listener!(EnergySurge {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         if cx.cr(PLAYER).is_alive() {
@@ -76,7 +67,6 @@ listener!(EnergySurge {
     }
 });
 
-// Block, then two Wounds go to the discard pile.
 listener!(FightThrough {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
@@ -87,7 +77,6 @@ listener!(FightThrough {
     }
 });
 
-// Block (1 + everything gained so far), then this card (and its deck version) gains `Increase` block permanently.
 listener!(GeneticAlgorithm {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
@@ -97,7 +86,6 @@ listener!(GeneticAlgorithm {
     }
 });
 
-// Block, then choose a card from the discard pile and put it into hand.
 listener!(Hologram {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -123,7 +111,6 @@ listener!(Hologram {
     }
 });
 
-// +Focus (`Focus` var) until the end of the turn.
 listener!(Hotfix {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_power_var(p.card, ids::power::FOCUS_POWER);
@@ -148,7 +135,6 @@ listener!(LightningRod {
     }
 });
 
-// Draw `Cards`, then a Burn goes to the discard pile.
 listener!(Overclock {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);
@@ -158,7 +144,6 @@ listener!(Overclock {
     }
 });
 
-// Put the whole hand on the bottom of the draw pile, shuffle the discard + draw piles together, draw `Cards`.
 listener!(Reboot {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let hand = cx.player.hand;
@@ -172,7 +157,6 @@ listener!(Reboot {
     }
 });
 
-// Choose a card in hand to exhaust, then `Energy` extra energy next turn.
 listener!(Scavenge {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -215,7 +199,6 @@ listener!(Supercritical {
     }
 });
 
-// Gain `Energy`, then a Void goes to the discard pile.
 listener!(Turbo {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let e = cx.card_var(p.card, VarKind::Energy);
@@ -225,7 +208,6 @@ listener!(Turbo {
     }
 });
 
-// A random Power card from the owner's character pool (`Owner.Character.CardPool`) joins the hand, free this turn.
 listener!(WhiteNoise {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let pool = cx.character_pool();
@@ -238,12 +220,8 @@ listener!(WhiteNoise {
     }
 });
 
-// Multiplayer-only (targets an ally): never playable in single player; copies another player's Power plays.
 listener!(ImitationLearning {});
 
-// ---- power cards ---------------------------------------------------------------------------------------------------
-
-// Power cards whose only effect is `PowerCmd.Apply<T>(owner, T-var)`.
 listener!(Buffer {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_power_var(p.card, ids::power::BUFFER_POWER);
@@ -316,7 +294,6 @@ listener!(OneForAll {
     }
 });
 
-// Focus +5 and Biased Cognition (lose 1 Focus every turn).
 listener!(BiasedCognition {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let f = cx.card_power_var(p.card, ids::power::FOCUS_POWER);
@@ -327,7 +304,6 @@ listener!(BiasedCognition {
     }
 });
 
-// Named-var powers: `DynamicVars["Loop"]`, `["CreativeAi"]`.
 listener!(Loop {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_var(p.card, VarKind::Named);
@@ -344,7 +320,6 @@ listener!(CreativeAi {
     }
 });
 
-// `CardsVar` is the power's amount.
 listener!(MachineLearning {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_var(p.card, VarKind::Cards);

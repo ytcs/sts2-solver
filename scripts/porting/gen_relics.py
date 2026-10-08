@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""Generate relic constants (CanonicalVars: DynamicVars with their base values) from the decompiled source.
-
-Usage: scripts/porting/gen_relics.py   (writes crates/sts2sim/src/content/gen_relics.rs)
-
-Each relic with literal-valued `CanonicalVars` becomes `pub mod <slug> { pub const <VAR_NAME>: i32 = n; }` (decimals become
-`pub const <VAR_NAME>: Dec`). The var name is the C# `DynamicVars["Name"]` key: `Damage`, `Block`, `Cards`, `Energy`,
-`StrengthPower` (for `PowerVar<StrengthPower>`), or the explicit name string. Non-literal values (e.g. counters derived
-from state) are skipped. Relic code uses `gen_relics::kunai::CARDS` so no number is transcribed by hand.
-"""
 import glob, os, re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -15,6 +6,7 @@ ROOT = os.path.join(HERE, "..")
 DECOMP = os.environ.get("DECOMP", os.path.join(ROOT, "decomp"))
 if not os.path.isdir(DECOMP):
     DECOMP = "/home/ytc/Projects/sts2-solver/decomp"
+
 RELICS = os.path.join(DECOMP, "MegaCrit/Sts2/Core/Models/Relics")
 OUT = os.path.join(ROOT, "crates/sts2sim/src/content/gen_relics.rs")
 
@@ -65,14 +57,13 @@ def split_args(a):
 
 
 def screaming(name):
-    return slugify(name).replace("-", "_")  # slugify gives UPPER_SNAKE
+    return slugify(name).replace("-", "_")
 
 
 def parse_vars(body):
     m = re.search(r"CanonicalVars\s*=>", body)
     if not m:
         return []
-    # expression extends to the matching end: take until the first ';' at nesting depth 0
     i, d = m.end(), 0
     j = i
     while j < len(body):

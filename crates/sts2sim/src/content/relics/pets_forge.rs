@@ -1,7 +1,3 @@
-//! Relics that need the pet / Forge / extra-turn systems: Bone Flute, Byrdpip, Fencing Manual, Pael's Eye, Pael's Legion.
-//!
-//! Relic state conventions: flags = booleans, counter/aux = ints (see `Listener::meta_*`).
-
 use crate::content::gen_relics as g;
 use crate::dec::Dec;
 use crate::engine::Attack;
@@ -11,8 +7,6 @@ use crate::engine::HKind;
 use crate::{listener, relic_props};
 use crate::state::*;
 use crate::types::*;
-
-// ---- Bone Flute: every attack by the owner's Osty gives `Block` (unpowered) ------------------------------------------------------
 
 listener!(BoneFlute {
     fn after_attack(&self, cx: &mut Combat, _me: Me, attack: &Attack) {
@@ -26,8 +20,6 @@ listener!(BoneFlute {
     }
 });
 
-// ---- Byrdpip: a (do-nothing) pet joins every combat -------------------------------------------------------------------------------
-
 listener!(Byrdpip {
     fn before_combat_start(&self, cx: &mut Combat, _me: Me) {
         cx.add_pet(ids::monster::BYRDPIP, 9999);
@@ -37,8 +29,6 @@ listener!(Byrdpip {
     }
 });
 
-// ---- Fencing Manual: Forge on the first turn --------------------------------------------------------------------------------------
-
 listener!(FencingManual {
     fn after_side_turn_start(&self, cx: &mut Combat, _me: Me, side: Side) {
         if side == Side::Player && cx.turn_number() <= 1 {
@@ -47,15 +37,11 @@ listener!(FencingManual {
     }
 });
 
-// ---- Pael's Eye: an empty turn is skipped for an extra turn (once per combat) --------------------------------------------------------
-
-// flag 0 = `UsedThisCombat`, flag 1 = `WasOwnerPartOfLastPlayerTurn` (starts true); neither is saved.
 fn paels_eye_ready(cx: &Combat, me: Me) -> bool {
     let r = cx.rel(me);
     if r.flag(0) || !r.flag(1) {
         return false;
     }
-    // `AnyCardsPlayedThisTurn`: Whispering Earring's turn-1 auto-plays count; otherwise any manual play this turn.
     if cx.turn_number() == 1 && cx.has_relic(ids::relic::WHISPERING_EARRING) {
         return false;
     }
@@ -90,10 +76,6 @@ listener!(PaelsEye {
     }
 });
 
-// ---- Pael's Legion: card block is doubled, then goes on cooldown for `Turns` turns ---------------------------------------------------
-
-// counter = `Cooldown` (decremented every turn start, may go negative), flag 0 = `TriggeredBlockLastTurn`,
-// aux = `AffectedCardPlay` identity (card + 1, play index; 0 = none). Only `Skin` is saved.
 fn play_ident(card: CardIdx, play_index: u8) -> i32 {
     ((card as i32 + 1) << 8) | play_index as i32
 }
@@ -111,7 +93,6 @@ listener!(PaelsLegion {
         if modified <= Dec::ZERO || card == NO {
             return;
         }
-        // The `CardPlay` the block came from: the innermost play of that card on the play stack.
         let Some(ctx) = cx.play_stack.iter().rev().find(|c| c.play.card == card) else { return };
         let id = play_ident(card, ctx.play.play_index);
         let r = cx.rel_mut(me);
@@ -144,7 +125,6 @@ listener!(PaelsLegion {
     fn meta_props(&self) -> &'static [PropDef] {
         relic_props![PropDef::constant("Skin", "\"eyes\"")]
     }
-    // `DisplayAmount`: -1 when no combat is in progress or the cooldown is spent.
     fn meta_display(&self, cx: &Combat, r: &Relic) -> Option<i32> {
         if cx.in_progress && r.counter > 0 { Some(r.counter) } else { None }
     }

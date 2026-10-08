@@ -1,5 +1,3 @@
-//! CURSE pool cards (Ascender's Bane lives in `curses.rs`).
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::hooks::*;
@@ -12,7 +10,6 @@ fn in_hand(cx: &Combat, c: CardIdx) -> bool {
     cx.cards[c as usize].pile == PileType::Hand as u8
 }
 
-// 13 unblockable HP loss at turn end.
 listener!(BadLuck {
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {
         let n = cx.card_var(card, VarKind::HpLoss);
@@ -23,7 +20,6 @@ listener!(BadLuck {
 listener!(Clumsy {});
 listener!(CurseOfTheBell {});
 
-// Lose `min(10, gold)` gold at turn end.
 listener!(Debt {
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {
         let n = cx.card_var(card, VarKind::Gold).min(cx.gold);
@@ -39,7 +35,6 @@ listener!(Decay {
     }
 });
 
-// 1 Weak at turn end; a freshly applied Weak skips its first tick.
 listener!(Doubt {
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {
         let already = cx.has_power(PLAYER, ids::power::WEAK_POWER);
@@ -54,7 +49,6 @@ listener!(Doubt {
     }
 });
 
-// While in hand, no other card can be played manually (auto-plays and other Enthralleds are exempt).
 listener!(Enthralled {
     fn should_play_kind(&self, cx: &Combat, me: Me, card: CardIdx, kind: AutoPlayType) -> bool {
         if !in_hand(cx, me.idx as CardIdx) || kind != AutoPlayType::None {
@@ -66,11 +60,9 @@ listener!(Enthralled {
 
 listener!(Folly {});
 listener!(Greed {});
-// Deck-only `AfterCombatEnd` bookkeeping (CombatsSeen) - nothing happens inside a combat.
 listener!(Guilty {});
 listener!(Injury {});
 
-// After three cards were played this turn no card in hand can be played.
 listener!(Normality {
     fn should_play(&self, cx: &Combat, me: Me, _card: CardIdx) -> bool {
         if !in_hand(cx, me.idx as CardIdx) {
@@ -86,7 +78,6 @@ listener!(Normality {
 
 listener!(PoorSleep {});
 
-// BeforeSideTurnEnd (player side): remember the hand size; OnTurnEndInHand: that much unblockable damage.
 listener!(Regret {
     fn before_side_turn_end(&self, cx: &mut Combat, me: Me, side: Side) {
         if side != Side::Player || !in_hand(cx, me.idx as CardIdx) {
@@ -115,6 +106,5 @@ listener!(Shame {
     }
 });
 
-// Costs 1, exhausts, does nothing.
 listener!(SporeMind {});
 listener!(Writhe {});

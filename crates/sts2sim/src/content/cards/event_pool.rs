@@ -1,9 +1,3 @@
-//! `EventCardPool` cards (gained from events / Ancients; Ancient and Event rarities) and the Quest cards.
-//! Spec 03 for the generation helpers. Mad Science (per-instance type) lives in `mad_science.rs`.
-//!
-//! The Quest cards (Lantern Key, Spoils Map, Byrdonis Egg, Dowsing) are Unplayable and every override they have is run-level
-//! (map generation, rest sites, room entry), so in combat they are inert deck clutter.
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Ask, Attack, Targeting};
@@ -13,25 +7,21 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `DamageCmd.Attack(Damage var).FromCard(...)`, with the exact decimal value (permanent growth included).
 fn card_attack(cx: &Combat, p: &CardPlay, targeting: Targeting) -> Attack {
     let mut a = Attack::from_card(PLAYER, p.card, 0, targeting);
     a.damage = cx.card_damage_dec(p.card);
     a
 }
 
-/// `PowerCmd.Apply<T>(Owner.Creature, amount, Owner.Creature, card)`.
 fn apply_self(cx: &mut Combat, power: u16, amount: i32, p: &CardPlay) -> Option<u16> {
     cx.apply_power(power, PLAYER, Dec::int(amount as i64), PLAYER, p.card)
 }
 
-// ---- Quest cards: unplayable, no combat behaviour -------------------------------------------------------------------------------
 listener!(LanternKey {});
 listener!(SpoilsMap {});
 listener!(ByrdonisEgg {});
 listener!(Dowsing {});
 
-// ---- Abundance: choose 1 of 3 upgraded Power cards from the pool; it enters the hand free this turn ------------------------------
 listener!(Abundance {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -43,7 +33,6 @@ listener!(Abundance {
                 }
                 match cx.ask_options(ids::card::ABUNDANCE, cards.as_slice(), false) {
                     Ask::Resolved(cards) => {
-                        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
                         cx.choice.cards = cards;
                         self.on_play(cx, _p, 1)
                     }
@@ -61,7 +50,6 @@ listener!(Abundance {
     }
 });
 
-// ---- Apotheosis: upgrade every other upgradable card in combat ----------------------------------------------------------------------
 listener!(Apotheosis {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let cards = cx.all_combat_cards();
@@ -82,7 +70,6 @@ listener!(Apparition {
     }
 });
 
-// ---- Brightest Flame: +Energy, draw, lose max HP (in that order) ---------------------------------------------------------------------
 listener!(BrightestFlame {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let e = cx.card_var(p.card, VarKind::Energy);
@@ -111,7 +98,6 @@ listener!(Caltrops {
     }
 });
 
-// ---- Clash: only playable while every card in hand is an Attack ----------------------------------------------------------------------
 listener!(Clash {
     fn is_playable(&self, cx: &Combat, _card: CardIdx) -> bool {
         cx.player.hand.iter().all(|&c| cx.card_def(c).ctype == CardType::Attack)
@@ -123,7 +109,6 @@ listener!(Clash {
     }
 });
 
-// ---- Distraction: a random Skill from the pool, free this turn, into the hand --------------------------------------------------------
 listener!(Distraction {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         let pool = cx.character_pool();
@@ -136,7 +121,6 @@ listener!(Distraction {
     }
 });
 
-// ---- Dual Wield: pick an Attack/Power in hand, add Cards copies of it to the hand -----------------------------------------------------
 listener!(DualWield {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -168,7 +152,6 @@ fn copies(cx: &mut Combat, p: &CardPlay, selection: CardIdx) {
     }
 }
 
-// ---- Enlightenment: every card in hand costs at most 1 (this turn / until played; upgraded: for the combat) --------------------------
 listener!(Enlightenment {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let upgraded = cx.cards[p.card as usize].upgrade > 0;
@@ -184,7 +167,6 @@ listener!(Enlightenment {
     }
 });
 
-// ---- Entrench: double the current Block (Unpowered) ------------------------------------------------------------------------------------
 listener!(Entrench {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let b = cx.cr(PLAYER).block();
@@ -202,7 +184,6 @@ listener!(Exterminate {
     }
 });
 
-// FeedingFrenzyPower (a `TemporaryStrengthPower`) lives in `powers/event_only.rs`.
 listener!(FeedingFrenzy {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let v = cx.card_power_var(p.card, ids::power::STRENGTH_POWER);
@@ -218,7 +199,6 @@ listener!(HelloWorld {
     }
 });
 
-// ---- Maul: 2 hits; every Maul in the combat (this one included) permanently gains Increase damage -------------------------------------
 listener!(Maul {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let a = card_attack(cx, p, Targeting::Single(p.target)).hits(2);
@@ -234,7 +214,6 @@ listener!(Maul {
     }
 });
 
-// ---- Metamorphosis: Cards random Attacks (with replacement), free this combat, shuffled into the draw pile --------------------------------
 listener!(Metamorphosis {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards).max(0) as usize;
@@ -248,7 +227,6 @@ listener!(Metamorphosis {
     }
 });
 
-// ---- Neow's Fury: attack, then return up to Cards cards from the discard pile to the hand --------------------------------------------
 listener!(NeowsFury {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -325,7 +303,6 @@ listener!(Squash {
     }
 });
 
-// ---- Stack: Block = CalcBase + CalcExtra * (cards in the discard pile) ---------------------------------------------------------------
 listener!(Stack {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.pile(PileType::Discard).len() as i32;
@@ -339,8 +316,6 @@ listener!(Stack {
     }
 });
 
-// ---- Toric Toughness: Block now, and the same amount again at the start of each of the next Turns turns ------------------------------
-// (`ToricToughnessPower.SetBlock(blockAmount)`: the power instance stores the Block that was actually gained, in `aux` as 1/10000.)
 listener!(ToricToughness {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let b = cx.card_var(p.card, VarKind::Block);
@@ -355,7 +330,6 @@ listener!(ToricToughness {
     }
 });
 
-// ---- Wish: pick a card from the draw pile into the hand -----------------------------------------------------------------------------
 listener!(Wish {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, phase: u8) -> Flow {
         match phase {

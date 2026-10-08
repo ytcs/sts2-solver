@@ -1,16 +1,8 @@
-//! Hook interface. Every card / relic / power / potion / monster / enchantment is a `Listener`: a zero-sized type
-//! overriding only the hooks it uses. The `listener!` macro derives the static hook mask from the overridden
-//! methods, so dispatch can skip non-listeners with one bit test (most hooks have no listener in a given fight).
-//!
-//! Hook names, signatures and aggregation follow `docs/spec/02-hooks-damage-powers.md` §2.
-
 use crate::dec::Dec;
 use crate::engine::Attack;
 use crate::state::*;
 use crate::types::*;
 
-
-/// Hook-presence bitset (256 hooks max).
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct Mask(pub [u64; 4]);
 
@@ -49,17 +41,12 @@ impl core::ops::BitOrAssign for Mask {
     }
 }
 
-/// Identity of the listening model (what the C# code calls `this`).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Me {
     pub kind: Kind,
-    /// Creature that owns it (powers / monsters) — `PLAYER` for relics, potions, cards, orbs.
     pub owner: Cid,
-    /// Power `uid` / relic index / potion slot / card index / orb index.
     pub idx: u16,
-    /// Content id (`ids::power::*`, `ids::relic::*`, ...).
     pub id: u16,
-    /// Power amount at snapshot time (fallback if the power is removed mid-dispatch).
     pub amount: i32,
 }
 
@@ -76,18 +63,15 @@ pub enum Kind {
     Orb,
 }
 
-/// Arguments of a damage query (`Hook.ModifyDamage*`).
 #[derive(Clone, Copy, Debug)]
 pub struct DmgQ {
     pub target: Cid,
     pub dealer: Cid,
     pub card: CardIdx,
     pub props: ValueProp,
-    /// Running value at the time this listener is consulted.
     pub amount: Dec,
 }
 
-/// Arguments of a block query (`Hook.ModifyBlock*`).
 #[derive(Clone, Copy, Debug)]
 pub struct BlockQ {
     pub target: Cid,
@@ -96,7 +80,6 @@ pub struct BlockQ {
     pub amount: Dec,
 }
 
-/// `CardPlay`.
 #[derive(Clone, Copy, Debug)]
 pub struct CardPlay {
     pub card: CardIdx,
@@ -107,21 +90,17 @@ pub struct CardPlay {
     pub result_pile: PileType,
     pub energy_spent: i32,
     pub stars_spent: i32,
-    /// `Resources.EnergyValue` (`GetAmountToSpend()`: what the play would cost / the captured X; not spent for auto-play).
     pub energy_value: i32,
 }
 
-/// Result of resumable effect code (`on_play`): finished, or suspended waiting for a decision.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Flow {
     Done,
-    /// Waiting for a choice; resume the same function with this phase afterwards.
     Suspend(u8),
 }
 
 #[allow(unused_variables)]
 pub trait Listener: Sync {
-    // ---- queries (aggregated) --------------------------------------------------------------------------
     fn modify_damage_additive(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec {
         Dec::ZERO
     }
@@ -137,7 +116,6 @@ pub trait Listener: Sync {
     fn modify_block_multiplicative(&self, cx: &Combat, me: Me, q: &BlockQ) -> Dec {
         Dec::ONE
     }
-    /// HP-loss passes (threaded): BeforeOsty{,Late}, AfterOsty{,Late}.
     fn modify_hp_lost_before_osty(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx) -> Dec {
         amount
     }
@@ -150,58 +128,46 @@ pub trait Listener: Sync {
     fn modify_hp_lost_after_osty_late(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, props: ValueProp, dealer: Cid, card: CardIdx) -> Dec {
         amount
     }
-    /// `ShouldClearBlock` — AND over listeners.
     fn should_clear_block(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
         true
     }
-    /// `ShouldAllowHitting` — AND.
     fn should_allow_hitting(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
         true
     }
-    /// `ModifyMaxEnergy` (threaded).
     fn modify_max_energy(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
     }
-    /// `ModifyHandDraw` (threaded).
     fn modify_hand_draw(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
     }
-    /// `ShouldPlayerResetEnergy` — AND.
     fn should_player_reset_energy(&self, cx: &Combat, me: Me) -> bool {
         true
     }
-    /// `ShouldFlush` — AND.
     fn should_flush(&self, cx: &Combat, me: Me) -> bool {
         true
     }
-    /// `ShouldPlay` — AND.
     fn should_play(&self, cx: &Combat, me: Me, card: CardIdx) -> bool {
         true
     }
-    /// `TryModifyEnergyCostInCombat` pass 1 / pass 2 ("Late": free-cost effects). `None` = unchanged.
     fn try_modify_energy_cost_in_combat(&self, cx: &Combat, me: Me, card: CardIdx, cost: Dec) -> Option<Dec> {
         None
     }
     fn try_modify_energy_cost_in_combat_late(&self, cx: &Combat, me: Me, card: CardIdx, cost: Dec) -> Option<Dec> {
         None
     }
-    /// `ModifyPowerAmountGiven` additive / multiplicative passes.
     fn modify_power_amount_given_additive(&self, cx: &Combat, me: Me, power_id: u16, giver: Cid, amount: Dec, target: Cid, card: CardIdx) -> Dec {
         Dec::ZERO
     }
     fn modify_power_amount_given_multiplicative(&self, cx: &Combat, me: Me, power_id: u16, giver: Cid, amount: Dec, target: Cid, card: CardIdx) -> Dec {
         Dec::ONE
     }
-    /// `TryModifyPowerAmountReceived` (threaded): `Some(new)` = this listener modified the amount.
     fn try_modify_power_amount_received(&self, cx: &Combat, me: Me, power_id: u16, target: Cid, amount: Dec, applier: Cid) -> Option<Dec> {
         None
     }
-    /// Card logic: `IsPlayable`.
     fn is_playable(&self, cx: &Combat, card: CardIdx) -> bool {
         true
     }
 
-    // ---- notifications ---------------------------------------------------------------------------------
     fn before_combat_start(&self, cx: &mut Combat, me: Me) {}
     fn before_combat_start_late(&self, cx: &mut Combat, me: Me) {}
     fn after_combat_end(&self, cx: &mut Combat, me: Me) {}
@@ -236,8 +202,6 @@ pub trait Listener: Sync {
     fn after_card_discarded(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
     fn before_potion_used(&self, cx: &mut Combat, me: Me, potion: u16, target: Cid) {}
     fn after_potion_used(&self, cx: &mut Combat, me: Me, potion: u16, target: Cid) {}
-    /// `AfterCardGeneratedForCombat(card, creator)`: `added_by_player` = `creator != null` (everything generated during
-    /// the player's side; monster status cards are generated on the enemy side with no creator).
     fn after_card_generated_for_combat(&self, cx: &mut Combat, me: Me, card: CardIdx, added_by_player: bool) {}
     fn after_card_entered_combat(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
     fn after_card_changed_piles(&self, cx: &mut Combat, me: Me, card: CardIdx, old: PileType) {}
@@ -252,292 +216,192 @@ pub trait Listener: Sync {
     fn after_modifying_hp_lost_before_osty(&self, cx: &mut Combat, me: Me) {}
     fn after_modifying_hp_lost_after_osty(&self, cx: &mut Combat, me: Me) {}
     fn before_power_amount_changed(&self, cx: &mut Combat, me: Me, power_id: u16, amount: Dec, target: Cid, applier: Cid) {}
-    /// `AfterPowerAmountChanged(power, amount, applier, cardSource)`.
     fn after_power_amount_changed(&self, cx: &mut Combat, me: Me, ch: &PowerChange) {}
     fn after_modifying_power_amount_given(&self, cx: &mut Combat, me: Me, power_id: u16) {}
     fn after_modifying_power_amount_received(&self, cx: &mut Combat, me: Me, power_id: u16) {}
-    /// Called on the power itself before it is attached.
     fn before_applied(&self, cx: &mut Combat, me: Me, target: Cid, amount: Dec, applier: Cid, card: CardIdx) {}
     fn after_applied(&self, cx: &mut Combat, me: Me) {}
     fn after_removed(&self, cx: &mut Combat, me: Me, old_owner: Cid) {}
-    /// `AfterDeath(creature, wasRemovalPrevented, deathAnimLength)`: `was_removal_prevented` is true when `ShouldDie`
-    /// vetoed the death (Fairy in a Bottle ...), false for a real death (spec 02 §5.3).
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {}
 
-    // ---- card logic ------------------------------------------------------------------------------------
-    /// `CardModel.OnPlay`. Resumable: called with `phase = 0`, and again with the returned phase after a decision.
     fn on_play(&self, cx: &mut Combat, play: &CardPlay, phase: u8) -> Flow {
         Flow::Done
     }
-    /// `PotionModel.OnUse` (resumable like `on_play`). `target` is the chosen creature (the player for self-targeted
-    /// potions, `NO` for AoE).
     fn on_use_potion(&self, cx: &mut Combat, potion: u16, target: Cid, phase: u8) -> Flow {
         Flow::Done
     }
-    /// `CardModel.OnTurnEndInHand`.
     fn on_turn_end_in_hand(&self, cx: &mut Combat, card: CardIdx) {}
 
-    // ---- orbs (appended by the Defect port) -------------------------------------------------------------------
-    /// `ModifyOrbValue` (threaded decimal, guarded iterator). `orb` is the orb whose value is being computed.
     fn modify_orb_value(&self, cx: &Combat, me: Me, orb: &Orb, value: Dec) -> Dec {
         value
     }
-    /// `ModifyOrbPassiveTriggerCounts` (threaded int; listeners that changed the count are the "modifiers").
     fn modify_orb_passive_trigger_counts(&self, cx: &Combat, me: Me, orb: &Orb, count: i32) -> i32 {
         count
     }
     fn after_modifying_orb_passive_trigger_count(&self, cx: &mut Combat, me: Me, orb: &Orb) {}
-    /// `AfterOrbChanneled` (the orb is already in the queue).
     fn after_orb_channeled(&self, cx: &mut Combat, me: Me, orb: &Orb) {}
-    /// `AfterOrbEvoked`; `targets` are what the orb's `Evoke` returned (may include creatures that died since).
     fn after_orb_evoked(&self, cx: &mut Combat, me: Me, orb: &Orb, targets: &[Cid]) {}
 
-    // ---- engine-core additions (new hooks are appended here; spec 02 §2 / Appendix A) ------------------------------
-    // Dispatch class in brackets: G = guarded iterator (silent once combat is ending), C = unguarded, R = run-level
-    // iterator (== unguarded here: deck copies never listen in combat).
-
-    // notifications
-    /// [G] `BeforeBlockGained` — RAW amount (before modifiers).
     fn before_block_gained(&self, cx: &mut Combat, me: Me, creature: Cid, amount: Dec, props: ValueProp, card: CardIdx) {}
-    /// [G] `AfterModifyingBlockAmount` — only models that changed the block value in `ModifyBlock`.
     fn after_modifying_block_amount(&self, cx: &mut Combat, me: Me, modified: Dec, card: CardIdx) {}
-    /// [G] `BeforeCardAutoPlayed`.
     fn before_card_auto_played(&self, cx: &mut Combat, me: Me, card: CardIdx, target: Cid, kind: AutoPlayType) {}
-    /// [G] first pass of `AfterCardDrawn` (Hellraiser); `after_card_drawn` is the second pass.
     fn after_card_drawn_early(&self, cx: &mut Combat, me: Me, card: CardIdx, from_hand_draw: bool) {}
-    /// [C] second pass of `AfterCardPlayed`.
     fn after_card_played_late(&self, cx: &mut Combat, me: Me, play: &CardPlay) {}
-    /// [R] second pass of `AfterCardChangedPiles`.
     fn after_card_changed_piles_late(&self, cx: &mut Combat, me: Me, card: CardIdx, old: PileType) {}
-    /// [C] `AfterCreatureAddedToCombat` (summons).
     fn after_creature_added_to_combat(&self, cx: &mut Combat, me: Me, creature: Cid) {}
-    /// [C] `AfterDiedToDoom`.
     fn after_died_to_doom(&self, cx: &mut Combat, me: Me, creatures: &[Cid]) {}
-    /// [G] second pass of `AfterEnergyReset`.
     fn after_energy_reset_late(&self, cx: &mut Combat, me: Me) {}
-    /// [G] second pass of `BeforeHandDraw`.
     fn before_hand_draw_late(&self, cx: &mut Combat, me: Me) {}
-    /// [G] `AfterPlayerTurnStart` first / third pass.
     fn after_player_turn_start_early(&self, cx: &mut Combat, me: Me) {}
     fn after_player_turn_start_late(&self, cx: &mut Combat, me: Me) {}
-    /// [G] `AfterAutoPrePlayPhaseEntered` first / third pass.
     fn after_auto_pre_play_phase_entered_early(&self, cx: &mut Combat, me: Me) {}
     fn after_auto_pre_play_phase_entered_late(&self, cx: &mut Combat, me: Me) {}
-    /// [G] `AfterPreventingDraw` — called on the single modifier returned by `ShouldDraw`.
     fn after_preventing_draw(&self, cx: &mut Combat, me: Me) {}
-    /// [R] `BeforeDeath` — fires even if the death will be prevented.
     fn before_death(&self, cx: &mut Combat, me: Me, creature: Cid) {}
-    /// [R] `AfterPreventingDeath` — only the preventer (Fairy in a Bottle, Lizard Tail heal here).
     fn after_preventing_death(&self, cx: &mut Combat, me: Me, creature: Cid) {}
-    /// [G] `AfterTakingExtraTurn`.
     fn after_taking_extra_turn(&self, cx: &mut Combat, me: Me) {}
-    /// [R] `AfterRoomEntered` — combat start, before the enemies' initial `RollMove` (spec 01 §3.5).
     fn after_room_entered(&self, cx: &mut Combat, me: Me) {}
-    /// [R] `AfterPotionDiscarded` / `AfterPotionProcured`.
     fn after_potion_discarded(&self, cx: &mut Combat, me: Me, potion: u16) {}
     fn after_potion_procured(&self, cx: &mut Combat, me: Me, potion: u16) {}
-    /// [G] `AfterModifyingCardPlayCount` / `...ResultLocation` — only the models that modified the value.
     fn after_modifying_card_play_count(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
     fn after_modifying_card_play_result_location(&self, cx: &mut Combat, me: Me, card: CardIdx, loc: CardLocation) {}
-    /// [G] `AfterModifyingEnergyGain` / `AfterModifyingHandDraw` — only the models that changed the (int) value.
     fn after_modifying_energy_gain(&self, cx: &mut Combat, me: Me) {}
     fn after_modifying_hand_draw(&self, cx: &mut Combat, me: Me) {}
-    /// [R] second pass of `AfterDamageReceived`.
     fn after_damage_received_late(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, props: ValueProp, dealer: Cid) {}
-    /// [G] stars: `AfterStarsGained` / `AfterStarsSpent`.
     fn after_stars_gained(&self, cx: &mut Combat, me: Me, amount: i32) {}
     fn after_stars_spent(&self, cx: &mut Combat, me: Me, amount: i32) {}
-    /// [G] Regent / Necrobinder command hooks (declared for the character subsystems; the engine core does
-    /// not dispatch them yet): `AfterForge`, `AfterSummon`, `AfterOstyRevived`, `AfterOrbChanneled`, `AfterOrbEvoked`,
-    /// `AfterModifyingOrbPassiveTriggerCount`.
     fn after_forge(&self, cx: &mut Combat, me: Me, amount: Dec) {}
     fn after_summon(&self, cx: &mut Combat, me: Me, amount: Dec) {}
     fn after_osty_revived(&self, cx: &mut Combat, me: Me, osty: Cid) {}
 
-    // value hooks
-    /// [G] `ModifyAttackHitCount` (threaded int). No shipped model overrides it.
     fn modify_attack_hit_count(&self, cx: &Combat, me: Me, attack: &Attack, hits: i32) -> i32 {
         hits
     }
-    /// [G] `ModifyCardPlayCount` (threaded int; recorded when changed).
     fn modify_card_play_count(&self, cx: &Combat, me: Me, card: CardIdx, target: Cid, count: i32) -> i32 {
         count
     }
-    /// [G] `ModifyCardPlayResultLocation` (threaded; recorded when changed). `energy_value` = `ResourceInfo.EnergyValue`
-    /// (the play's cost / captured X, also for auto-plays that spend nothing; FeralPower tests `energy_value > 0`).
     fn modify_card_play_result_location(&self, cx: &Combat, me: Me, card: CardIdx, is_auto: bool, energy_value: i32, loc: CardLocation) -> CardLocation {
         loc
     }
-    /// `CalculatedDamageVar.Calculate(target)` of a card (`None` = the card has no calculated damage). Called directly
-    /// on the card's listener (not a snapshot hook): cards whose damage is a `CalculatedDamageVar` should implement it so
-    /// effects that read it generically (Thrash) agree with the card's own attack.
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         None
     }
-    /// `CalculatedVar.Calculate(target)` of a card's other calculated var (`None` = the card has none): its `CalculatedBlockVar`, or a plain
-    /// `CalculatedVar` whose value the card text shows in place of a number (`CalculatedHits`, `CalculatedCards`, `CalculatedDoom`, `CalculatedForge`,
-    /// `CalculatedFocus`, `CalculatedShivs`, `CalculatedChannels`). The raw value: block still goes through `Hook.ModifyBlock` for the preview.
-    /// Read by the observation (`Combat::card_preview`), not by the cards' own effects.
     fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         None
     }
-    /// [R] `ModifyGoldGained` (threaded, run-level) -- Ectoplasm (`PlayerCmd.GainGold`).
     fn modify_gold_gained(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
     }
-    /// [U] `AfterGoldGained` (`PlayerCmd.GainGold`, after the gold was added): Dragon Fruit.
-    /// [R] `AfterGoldGained(player)` -- DragonFruit (`PlayerCmd.GainGold`, after the gold was added).
     fn after_gold_gained(&self, cx: &mut Combat, me: Me) {}
-    // ---- relic state metadata (static dispatch by relic id; NOT hooks, no mask bit that is ever dispatched) ----
-    /// The relic's `[SavedProperty]` list: how the oracle dumps / injects its persistent state (`Relic::{counter,aux,flags}`).
     fn meta_props(&self) -> &'static [PropDef] {
         &[]
     }
-    /// `ShowCounter ? DisplayAmount : none` evaluated in the current combat state (the oracle dumps it as `counter`).
     fn meta_display(&self, cx: &Combat, r: &Relic) -> Option<i32> {
         None
     }
-    /// Fresh relic instance state (C# field initialisers that are not zero / false), applied before injecting props.
     fn meta_initial(&self) -> (i32, u8, i32) {
         (0, 0, 0)
     }
-    /// Resumes a hook that raised a decision (`Combat::hook_ctx = Some((me, phase))`) once the choice is in `cx.choice`.
     fn resume_hook(&self, cx: &mut Combat, me: Me, phase: u8) {}
-    /// [C] `TryModifyKeywordsInCombat`: returns the new keyword set (threaded).
     fn try_modify_keywords_in_combat(&self, cx: &Combat, me: Me, card: CardIdx, keywords: u8) -> u8 {
         keywords
     }
-    /// [G] `ModifyEnergyGain` (threaded).
     fn modify_energy_gain(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
     }
-    /// [G] `ModifyHandDrawLate` (threaded).
     fn modify_hand_draw_late(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
     }
-    /// [G, exempt while starting] `ModifyShuffleOrder` — mutates the shuffled list in place.
     fn modify_shuffle_order(&self, cx: &Combat, me: Me, cards: &mut [CardIdx], is_initial_shuffle: bool) {}
-    /// [C] `ModifyUnblockedDamageTarget` (threaded; DieForYou redirects to Osty).
     fn modify_unblocked_damage_target(&self, cx: &Combat, me: Me, target: Cid, amount: Dec, props: ValueProp, dealer: Cid) -> Cid {
         target
     }
-    /// [G] `ModifyXValue` (threaded int).
     fn modify_x_value(&self, cx: &Combat, me: Me, card: CardIdx, value: i32) -> i32 {
         value
     }
-    /// [G] `TryModifyStarCost` (threaded; skipped when the cost is negative).
     fn try_modify_star_cost(&self, cx: &Combat, me: Me, card: CardIdx, cost: Dec) -> Option<Dec> {
         None
     }
-    /// [G] `ModifySummonAmount` / `ModifyOrbValue` / `ModifyOrbPassiveTriggerCounts` (threaded).
     fn modify_summon_amount(&self, cx: &Combat, me: Me, amount: Dec) -> Dec {
         amount
     }
 
-    // predicates
-    /// [G] `ShouldAfflict` — AND.
     fn should_afflict(&self, cx: &Combat, me: Me, card: CardIdx, affliction: u8) -> bool {
         true
     }
-    /// [G] `ShouldAllowTargeting` — AND.
     fn should_allow_targeting(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
         true
     }
-    /// [R] `ShouldDie` pass 1 / `ShouldDieLate` pass 2 — AND, first `false` is the preventer.
     fn should_die(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
         true
     }
     fn should_die_late(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
         true
     }
-    /// [C] `ShouldCreatureBeRemovedFromCombatAfterDeath` — AND.
     fn should_creature_be_removed_from_combat_after_death(&self, cx: &Combat, me: Me, creature: Cid) -> bool {
         true
     }
-    /// [C] `ShouldPowerBeRemovedOnDeath` — AND (Illusion).
     fn should_power_be_removed_on_death(&self, cx: &Combat, me: Me, owner: Cid, power_id: u16) -> bool {
         true
     }
-    /// [G] `ShouldDraw` — AND, the vetoing model gets `after_preventing_draw`.
     fn should_draw(&self, cx: &Combat, me: Me, from_hand_draw: bool) -> bool {
         true
     }
-    /// [G] `ShouldEtherealTrigger` — AND.
     fn should_ethereal_trigger(&self, cx: &Combat, me: Me, card: CardIdx) -> bool {
         true
     }
-    /// [G] `ShouldGainStars` — AND.
     fn should_gain_stars(&self, cx: &Combat, me: Me, amount: Dec) -> bool {
         true
     }
-    /// [G] `ShouldPayExcessEnergyCostWithStars` — OR (default false).
     fn should_pay_excess_energy_cost_with_stars(&self, cx: &Combat, me: Me) -> bool {
         false
     }
-    /// [R] `ShouldProcurePotion` — AND.
     fn should_procure_potion(&self, cx: &Combat, me: Me, potion: u16) -> bool {
         true
     }
-    /// [C] `ShouldStopCombatFromEnding` — OR (Adaptable, Infested, SteamEruption, Stock, Surprise).
     fn should_stop_combat_from_ending(&self, cx: &Combat, me: Me) -> bool {
         false
     }
-    /// [G] `ShouldTakeExtraTurn` — OR.
     fn should_take_extra_turn(&self, cx: &Combat, me: Me) -> bool {
         false
     }
 
-    // ---- non-hook virtuals of the model base classes (called directly by the engine) --------------------------------
-    /// `PowerModel.ShouldPowerBeRemovedAfterOwnerDeath` (default true).
     fn should_power_be_removed_after_owner_death(&self, cx: &Combat, me: Me) -> bool {
         true
     }
-    /// `PowerModel.ShouldOwnerDeathTriggerFatal` (default true; false for Minion / Reattach).
     fn should_owner_death_trigger_fatal(&self, cx: &Combat, me: Me) -> bool {
         true
     }
-    /// `MonsterModel.BeforeRemovedFromRoom`.
     fn before_removed_from_room(&self, cx: &mut Combat, me: Me) {}
-    /// `MonsterModel.OnDieToDoom`.
     fn on_die_to_doom(&self, cx: &mut Combat, me: Me) {}
 
-    // ---- enchantment / affliction virtuals (called directly by the engine, not hook dispatchers) -------------------
-    /// `EnchantmentModel.EnchantDamageAdditive/Multiplicative(original, props)`.
     fn enchant_damage_additive(&self, cx: &Combat, me: Me, original: Dec, props: ValueProp) -> Dec {
         Dec::ZERO
     }
     fn enchant_damage_multiplicative(&self, cx: &Combat, me: Me, original: Dec, props: ValueProp) -> Dec {
         Dec::ONE
     }
-    /// `EnchantBlockAdditive/Multiplicative(original)`.
     fn enchant_block_additive(&self, cx: &Combat, me: Me, original: Dec) -> Dec {
         Dec::ZERO
     }
     fn enchant_block_multiplicative(&self, cx: &Combat, me: Me, original: Dec) -> Dec {
         Dec::ONE
     }
-    /// `EnchantmentModel.EnchantPlayCount(base)`.
     fn enchant_play_count(&self, cx: &Combat, me: Me, base: i32) -> i32 {
         base
     }
-    /// `EnchantmentModel.ShouldStartAtBottomOfDrawPile` (Imbued).
     fn should_start_at_bottom_of_draw_pile(&self, cx: &Combat, me: Me) -> bool {
         false
     }
-    /// `EnchantmentModel.OnEnchant` (card = the enchanted card).
     fn on_enchant(&self, cx: &mut Combat, me: Me, card: CardIdx) {}
-    /// `EnchantmentModel.OnPlay` / `AfflictionModel.OnPlay` — run in the replay loop after the card's `OnPlay`.
     fn on_play_enchantment(&self, cx: &mut Combat, me: Me, play: &CardPlay) {}
     fn on_play_affliction(&self, cx: &mut Combat, me: Me, play: &CardPlay) {}
-    /// `EnchantmentModel.CanEnchantCardType` / `CanEnchant` (default: the base rule + the type check).
     fn can_enchant_card_type(&self, card_type: CardType) -> bool {
         true
     }
     fn can_enchant(&self, cx: &Combat, me: Me, card: CardIdx) -> bool {
         cx.base_can_enchant(card, self.can_enchant_card_type(cx.card_def(card).ctype))
     }
-    /// `AfflictionModel.CanAfflictCardType` / `CanAfflictUnplayableCards` / `IsStackable` / `CanAfflict(card)`.
-    /// `PowerModel.InitInternalData()` as the initial value of `Power::aux` (per-instance private state; default 0).
     fn initial_power_aux(&self) -> i32 {
         0
     }
@@ -554,36 +418,28 @@ pub trait Listener: Sync {
         cx.base_can_afflict(me, card)
     }
 
-    /// [G] `ShouldPlay` with the auto-play type (`AutoPlayType.None` for manual plays / `CanPlay`). Content that only
-    /// vetoes manual plays (Enthralled) overrides this instead of `should_play`; both are AND-ed.
     fn should_play_kind(&self, cx: &Combat, me: Me, card: CardIdx, kind: AutoPlayType) -> bool {
         true
     }
-    /// `CardModel.GetResultLocationForCardPlay` override (ParticleWall, ShiningStrike, TheBall): receives the result of
-    /// the base rule (`base.GetResultLocationForCardPlay()`) and returns the final location.
     fn get_result_location_for_card_play(&self, cx: &Combat, me: Me, card: CardIdx, base: CardLocation) -> CardLocation {
         base
     }
 }
 
-/// The arguments of `AfterPowerAmountChanged`: `power` is identified by (`target`, `uid`).
 #[derive(Clone, Copy, Debug)]
 pub struct PowerChange {
     pub power_id: u16,
     pub target: Cid,
     pub uid: u16,
-    /// The change (delta), not the new total.
     pub amount: i32,
     pub applier: Cid,
     pub card: CardIdx,
 }
 
-/// Statically derived hook mask of a listener type.
 pub trait HasMask {
     const MASK: Mask;
 }
 
-/// Bit index of every hook (must list every `Listener` method that content may override).
 #[allow(non_upper_case_globals)]
 pub mod hookbit {
     macro_rules! bits { ($($n:ident),* $(,)?) => { bits!(@ 0u32; $($n),*); }; (@ $i:expr; $h:ident $(, $t:ident)*) => { pub const $h: u32 = $i; bits!(@ $i + 1; $($t),*); }; (@ $i:expr;) => { pub const COUNT: u32 = $i; }; }
@@ -673,7 +529,6 @@ pub mod hookbit {
         after_modifying_orb_passive_trigger_count,
         after_orb_channeled,
         after_orb_evoked,
-        // ---- engine-core additions ----
         before_block_gained,
         after_modifying_block_amount,
         before_card_auto_played,
@@ -757,23 +612,13 @@ pub mod hookbit {
         after_gold_gained,
         calculated_value,
     );
-    // `Listener::meta_*` are static metadata, not hooks: they only need a (never dispatched) bit so `listener!` can name them.
-    // They sit at the very top of the 256-bit mask; real hooks must stay below them.
     const _: () = assert!(COUNT <= 253, "too many hooks: the `meta_*` pseudo bits start at 253");
     pub const meta_initial: u32 = 253;
     pub const meta_display: u32 = 254;
     pub const meta_props: u32 = 255;
-    // The mask has 256 bits.
     const _: () = assert!(get_result_location_for_card_play < 256);
 }
 
-/// Declares a listener: a unit struct implementing `Listener` for just the listed hooks and deriving its mask.
-///
-/// ```ignore
-/// listener!(StrengthPower {
-///     fn modify_damage_additive(&self, cx: &Combat, me: Me, q: &DmgQ) -> Dec { ... }
-/// });
-/// ```
 #[macro_export]
 macro_rules! listener {
     ($name:ident { $( fn $f:ident ( $($args:tt)* ) $(-> $ret:ty)? $body:block )* }) => {
@@ -787,7 +632,6 @@ macro_rules! listener {
     };
 }
 
-/// `fn meta_props(&self) -> &'static [PropDef] { relic_props![PropDef::int("TurnsSeen", Slot::Counter)] }`
 #[macro_export]
 macro_rules! relic_props {
     ($($e:expr),* $(,)?) => {{

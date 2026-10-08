@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""The combat solver: trained network + determinized play-out search, for many fights at once.
-
-  Python:   from solver import Solver
-            S = Solver()                                  # the policy of models/current.json, search 3 options x 8 futures
-            res = S.solve(scenarios, attempts=32)         # list of scenario dicts (deck variants ...) -> one result per scenario
-  CLI:      .venv/bin/python rl/solver.py --scenarios variants.json --attempts 32 [--no-search] [--out results.json]
-
-Every (scenario, attempt) is one fight; all of them are searched together in one big pool (`fastsearch.FastSearch`: the search runs as a Rust state machine,
-Python only evaluates the networks). `solve` returns, per scenario, the win rate with its standard error, the mean fraction of max HP lost over all fights
-(a loss or stall is charged the full starting HP), the mean HP left on wins and the outcome counts. Attempts differ in the random streams only
-(shuffles, random enemy choices); the solver plays each of them as a player would, seeing only what a player sees.
-"""
 import argparse, json, os, sys, time
 import numpy as np
 import torch
@@ -29,21 +17,17 @@ PREDICTOR_CKPT = os.path.join(_M, _c["predictor"])
 
 class Solver:
     def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None, threads=None):
-        """Defaults: 3 options x 8 futures per decision (best cost / quality). `roots`: fights in flight (default 2048 on CUDA, 256 on the CPU);
-        `amp`: bf16 inside CUDA graphs (default on CUDA)."""
         if threads:
             torch.set_num_threads(threads)
-        self.net = load(ckpt, set_version=False)  # the search and the envs take the network's observation version
+        self.net = load(ckpt, set_version=False)
         self.max_steps = max_steps
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        # a big pool of fights in flight keeps the network batches large (2048 roots x 24 play-outs); bf16 inside CUDA graphs is free (docs/solver.md)
         self.fs = FastSearch(self.net, M, K, conf=conf, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
                              roll_net=load(roll_ckpt, set_version=False) if roll_ckpt else None, amp=cuda if amp is None else amp)
         self.fs.warm()
 
     def _greedy(self, scenarios, attempts, seed):
-        """The network alone (its most probable action every time): rows (outcome, hp_lost, length, hp_end)."""
-        flat = [scenarios[i] for _ in range(attempts) for i in range(len(scenarios))]  # attempt-major
+        flat = [scenarios[i] for _ in range(attempts) for i in range(len(scenarios))]
         env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=heads.TURN_CAP,
                           obs_version=getattr(self.net, "obs_version", 1))
         pol = net_policy(self.net)
@@ -61,15 +45,12 @@ class Solver:
         return out
 
     def solve(self, scenarios, attempts=32, search=True, seed=0, verbose=False, groups=None, worth=None):
-        """One result dict per scenario (same order). `groups`: one id per scenario; scenarios with the same id get the same seed for every attempt
-        (common random numbers: deck variants of one encounter meet the same RNG streams and search seeds, so their difference is not luck).
-        `worth`: per scenario None (linear) or dict(u=[classes]): what the search maximises (`fastsearch.worth_row`); results stay raw outcomes."""
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         S = len(scenarios)
         t0 = time.time()
         if search:
-            js = np.tile(np.arange(S, dtype=np.uint32), attempts)  # attempt-major: the pool is always spread over the scenarios
+            js = np.tile(np.arange(S, dtype=np.uint32), attempts)
             if groups is None:
                 jd = np.uint64(seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
             else:
@@ -92,9 +73,9 @@ class Solver:
             res.append(dict(win=float(p), win_se=float((p * (1 - p) / max(n, 1)) ** 0.5), hp_lost=float(r[valid, 1].mean()) if n else None,
                             hp_lost_se=float(r[valid, 1].std(ddof=1) / n ** 0.5) if n > 1 else None,
                             hp_left_on_win=float(r[win, 3].mean() * scenarios[i]["max_hp"]) if win.any() else 0.0, attempts=n, aborted=int((~valid).sum()),
-                            ends=np.where(win, r[:, 3] * scenarios[i]["max_hp"], 0.0)[valid].tolist(),  # end HP per attempt, 0 when lost (agent.routes)
-                            ends_abs=[float(x) if ok else None for x, ok in zip(r[:, 4], valid)] if r.shape[1] > 4 else None,  # absolute end HP per attempt in order (0: lost)
-                            wins=[float(w) if ok else None for w, ok in zip(win, valid)]))  # every attempt in order (None: aborted): paired differences under `groups`
+                            ends=np.where(win, r[:, 3] * scenarios[i]["max_hp"], 0.0)[valid].tolist(),
+                            ends_abs=[float(x) if ok else None for x, ok in zip(r[:, 4], valid)] if r.shape[1] > 4 else None,
+                            wins=[float(w) if ok else None for w, ok in zip(win, valid)]))
         return res
 
 

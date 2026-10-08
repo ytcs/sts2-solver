@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Expert iteration (`docs/rebuild.md` S3): the search plays fights, the network learns to predict how the SEARCH's fights end and to choose like it.
-
-  rl/exit.py collect --ckpt models/solver_h128.pt --fights F.json [F2.json ...] --out target/exit/r1.npz [--M 3 --K 8] [--attempts 2] [--max-minutes 120]
-  rl/exit.py train   --init models/solver_h128.pt --data target/exit/r1_*.npz --out target/exit/r1.pt [--epochs 4]
-
-`collect` stores fights compactly (scenario, seed, the action sequence, the outcome class, and per searched decision the options tried with their
-search estimates); `train` replays the actions to observations (`sts2.replay_rows`, deterministic, in parallel) chunk by chunk, so millions of rows need no disk or RAM.
-Targets per searched decision:
-  policy   the init network's prior shifted by c x the decision's centred min-max-normalised estimates on the options tried
-  outcome  the class of how that fight really ended (loss, or the 2-HP end bin) under search play, HL-Gauss-smoothed over neighbouring win bins
-           (Farebrother et al. 2024); realized outcomes, never the max of the search's estimates (winner's curse)
-"""
 import argparse, concurrent.futures, json, os, sys, time
 
 import numpy as np
@@ -23,7 +11,6 @@ import heads as H  # noqa: E402
 
 
 def _save(path, scen, F_, D, policy_only=False):
-    """`policy_only` (restart parts, `--restarts`): `train` leaves their fights out of the outcome loss."""
     extra = {"policy_only": np.array(1)} if policy_only else {}
     np.savez_compressed(path, scenarios=np.array(json.dumps(scen)), f_scen=np.array(F_["scen"], np.int32), f_seed=np.array(F_["seed"], np.uint64),
                         f_cls=np.array(F_["cls"], np.int16), f_off=np.array(F_["off"], np.int64), acts=np.array(F_["acts"], np.int16),
@@ -32,17 +19,13 @@ def _save(path, scen, F_, D, policy_only=False):
 
 
 def collect(a):
-    """Search-played fights, a chunk at a time: each chunk is saved as its own part (`<out>_NNN.npz`, train takes them all), reports its rate, an ETA
-    and its longest fights; nothing starts after `--max-minutes`; a watchdog ends the process if a chunk runs longer than `--chunk-timeout` x the
-    median chunk (the chunk's scenarios are dumped next to the output for diagnosis)."""
     import threading
     from fastsearch import FastSearch
     from model import load
-    # restarts (`tools/nearmiss.py`): search from the true state the prefix reaches; a fight is stored as the original seed + prefix + new actions
     rs = json.load(open(a.restarts))["restarts"] if getattr(a, "restarts", None) else None
     scen = [r["scenario"] for r in rs] if rs else [s for f in a.fights for s in json.load(open(f))]
     fs = FastSearch(load(a.ckpt), M=a.M, K=a.K, record=True, roots=a.roots, amp=True)
-    W = a.M  # options recorded per decision
+    W = a.M
     fs.warm()
     jobs = [(i, att) for att in range(a.attempts) for i in range(len(scen))]
     stem = a.out[:-4] if a.out.endswith(".npz") else a.out
@@ -66,7 +49,7 @@ def collect(a):
     n_chunks = (len(jobs) + a.chunk - 1) // a.chunk
     ran = 0
     for k in range(n_chunks):
-        if os.path.exists(f"{stem}_{k:03d}.npz"):  # done by an earlier process (a long-lived process slows down: fresh ones resume here)
+        if os.path.exists(f"{stem}_{k:03d}.npz"):
             continue
         if ran >= a.chunks_per_process:
             print(f"{n_chunks - k} chunks left: exiting for a fresh process (exit code 3)", flush=True)
@@ -97,7 +80,7 @@ def collect(a):
         for idx, eng in fs._runs:
             for jl, j in enumerate(idx):
                 oc, hp_end = res[j, 1], res[j, 6]
-                if oc not in (1, -1, 2):  # (a fight the loop guard ended is already -1: a real-game soft-lock is a loss, `sts2env::looped`)
+                if oc not in (1, -1, 2):
                     continue
                 acts, searched, opts, _p, q, legal = eng.moves(jl)
                 f = len(F_["scen"])
@@ -110,8 +93,6 @@ def collect(a):
                         continue
                     D["fight"].append(f); D["step"].append(len(pre) + int(t))
                     D["opts"].append(np.where(ok, opts[t, :W], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :W], np.nan).astype(np.float32))
-        # the engines hold every block's play-out combats (~4 GB per group at 2048 roots x 5x32): a loop variable still naming one kept it alive
-        # through the next chunk's search
         eng = None
         fs._runs = []
         _save(f"{stem}_{k:03d}.npz", cs, F_, D, policy_only=bool(rs))
@@ -126,33 +107,29 @@ def collect(a):
 
 
 class Data:
-    """One or more `collect` files; `rows` replays the training rows of a set of fights."""
-
     def __init__(self, paths, keep_mp=False, obs_version=1):
-        self.obs_version = obs_version  # rows are replayed as observations of this version (the trained network's)
+        self.obs_version = obs_version
         self.parts = []
-        self.bad = set()  # (part, fight) pairs that no longer replay (`_replayable`)
+        self.bad = set()
         for p in paths:
             z = np.load(p)
             scen = json.loads(str(z["scenarios"]))
             q = z["d_q"].astype(np.float64)
             ok = np.isfinite(q)
             lo, hi = np.nanmin(np.where(ok, q, np.nan), 1, keepdims=True), np.nanmax(np.where(ok, q, np.nan), 1, keepdims=True)
-            qn = np.where(ok, (q - lo) / np.maximum(hi - lo, 1e-6), np.nan)  # each decision's tried options scaled to [0, 1] (Gumbel MuZero's normalisation)
-            qn = np.where(ok, qn - np.nanmean(qn, 1, keepdims=True), 0.0).astype(np.float32)  # centred: untried actions keep their prior
+            qn = np.where(ok, (q - lo) / np.maximum(hi - lo, 1e-6), np.nan)
+            qn = np.where(ok, qn - np.nanmean(qn, 1, keepdims=True), 0.0).astype(np.float32)
             order = np.argsort(z["d_fight"], kind="stable")
             self.parts.append(dict(scen=scen, f_scen=z["f_scen"], f_seed=z["f_seed"], f_cls=z["f_cls"], f_off=z["f_off"], acts=z["acts"].astype(np.int32),
                                    d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], qn=qn[order]))
             self.parts[-1]["policy_only"] = bool(z["policy_only"]) if "policy_only" in z.files else False
             self.parts[-1]["d_lo"] = np.searchsorted(self.parts[-1]["d_fight"], np.arange(len(z["f_cls"]) + 1))
-        # parts searched with different widths (3x8 vs 5x32) carry different option counts: pad to the widest, a padded option counts as not tried
         m = max(p["d_opts"].shape[1] for p in self.parts)
         for p in self.parts:
             k = m - p["d_opts"].shape[1]
             if k:
                 p["d_opts"] = np.pad(p["d_opts"], ((0, 0), (0, k)), constant_values=-1)
                 p["qn"] = np.pad(p["qn"], ((0, 0), (0, k)))
-        # fights whose deck holds a multiplayer-only card are left out (single-player runs never offer those cards; data/catalog.json flags them)
         cat = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "catalog.json")))
         mp = {c["id"] for pool in cat["cards"].values() for c in pool if c.get("multiplayer_only")}
         has_mp = lambda sc: any((c if isinstance(c, str) else c["id"]) in mp for c in sc["deck"])  # noqa: E731
@@ -174,7 +151,6 @@ class Data:
         return o, m, np.concatenate(sel), soff
 
     def _replayable(self, pi, p, fs):
-        """The fights of `fs` that still replay; the others go to `self.bad` (skipped from then on) and are reported once."""
         good, stack = [], [list(fs)]
         while stack:
             g = stack.pop()
@@ -191,8 +167,6 @@ class Data:
         return sorted(good)
 
     def rows(self, fights):
-        """The training rows of these fights, replayed in parallel (`sts2.replay_rows`): obs, mask, options, outcome class, normalised estimates,
-        outcome weight (0 for the rows of `policy_only` parts: restarts selected on a lost future), last searched decision of its fight."""
         out = [[], [], [], [], [], [], []]
         by = {}
         for pi, f in fights:
@@ -205,8 +179,6 @@ class Data:
             try:
                 o, m, sel, soff = self._replay(p, fs)
             except ValueError:
-                # a recorded fight that no longer replays (the simulator was corrected after it was collected: e.g. Thrash reading calculated
-                # damage, 1 of ~298k fights): bisect, drop the divergent fights for good, replay the rest
                 fs = self._replayable(pi, p, fs)
                 if not fs:
                     continue
@@ -216,13 +188,12 @@ class Data:
             out[4].append(p["qn"][sel])
             out[5].append(np.full(len(sel), 0.0 if p["policy_only"] else 1.0, np.float32))
             last = np.zeros(len(sel), bool)
-            last[np.asarray(soff[1:]) - 1] = True  # the fight's last searched decision (its rows are contiguous, in step order)
+            last[np.asarray(soff[1:]) - 1] = True
             out[6].append(last)
         return [np.concatenate(x) for x in out]
 
 
 def hl_gauss(cls, sigma):
-    """[B, NC] targets: a loss stays one-hot; a win spreads a Gaussian of width `sigma` bins over the win bins around its bin."""
     t = torch.zeros(len(cls), H.NC, device=cls.device)
     win = cls > 0
     t[~win, 0] = 1.0
@@ -248,9 +219,6 @@ def train(a):
 
     @torch.no_grad()
     def td_targets(r):
-        """TD(lambda) outcome targets [rows, NC]: a fight's last searched decision gets its realized ending (HL-Gauss); every earlier one
-        (1 - lambda) x the init network's outcome distribution at the next searched decision + lambda x that decision's target. Lower variance
-        than the single realized ending; the bias is the frozen init network's (the same construction as ppo.py --lam-head)."""
         o, cl, last = r[0], r[3], r[6]
         P = np.concatenate([torch.softmax(prior.heads_out(torch.from_numpy(o[b:b + 4096]).to(DEV))[0].float(), 1).cpu().numpy() for b in range(0, len(o), 4096)])
         T = hl_gauss(torch.from_numpy(cl.astype(np.int64)), a.sigma).numpy()
@@ -262,10 +230,9 @@ def train(a):
     print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target anchored (c={a.c:g}, minmax)", flush=True)
 
     def batch_loss(o, m, op, cl, qn, ow, last, vt=None):
-        o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m).to(DEV).long()  # the mask crosses as bytes, widened on the device
+        o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m).to(DEV).long()
         op, cl = torch.from_numpy(op.astype(np.int64)).to(DEV), torch.from_numpy(cl.astype(np.int64)).to(DEV)
         lg, _, ol = net(o, m, outcome=True)[:3]
-        # the init network's prior, shifted by c x the centred normalised search estimate on the options the search tried; untried actions keep the prior
         with torch.no_grad():
             pl0 = prior(o, m, value=False)[0].float()
             sh = a.c * torch.from_numpy(qn).to(DEV)
@@ -292,7 +259,6 @@ def train(a):
 
     print("holdout before: policy %.4f outcome %.4f" % evaluate(), flush=True)
     it, n_chunks = 0, a.epochs * ((len(tr) + a.chunk - 1) // a.chunk)
-    # the next chunk's rows are replayed while this one trains (`sts2.replay_rows` releases the GIL): the replay was ~25% of a chunk
     pool = concurrent.futures.ThreadPoolExecutor(1)
     for ep in range(a.epochs):
         order = rng.permutation(len(tr))
@@ -303,7 +269,8 @@ def train(a):
             r = nxt.result()
             if ci + 1 < len(starts):
                 nxt = pool.submit(data.rows, [tr[i] for i in order[starts[ci + 1]:starts[ci + 1] + a.chunk]])
-            if a.value_target == "td":  # computed before the shuffle: a fight's rows are still contiguous (the shuffle only gathers minibatches)
+            # before the shuffle: td_targets needs each fight's rows contiguous and in step order
+            if a.value_target == "td":
                 r.append(td_targets(r))
             sh = rng.permutation(len(r[0]))
             lr = a.lr * max(a.lr_floor, 1 - it / n_chunks)
@@ -312,7 +279,7 @@ def train(a):
             st = np.zeros(2)
             nb = 0
             for b in range(0, len(r[0]), a.mb):
-                ib = sh[b:b + a.mb]  # the minibatches of the shuffled chunk, gathered one at a time (no shuffled copy of the whole chunk)
+                ib = sh[b:b + a.mb]
                 pl, vl = batch_loss(*(x[ib] for x in r))
                 loss = a.pol * pl + vl
                 opt.zero_grad(set_to_none=True)

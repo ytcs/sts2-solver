@@ -1,5 +1,3 @@
-//! Regent skill and power cards (bodies follow the decompiled `Models/Cards/<Class>.cs` `OnPlay`).
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Ask, Attack, RunResult, Targeting};
@@ -14,7 +12,6 @@ fn block(cx: &mut Combat, p: &CardPlay) {
     let b = cx.card_var(p.card, VarKind::Block);
     cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::MOVE, p.card);
 }
-/// `PowerCmd.Apply<T>(owner, <card power var T>)`.
 fn self_power(cx: &mut Combat, p: &CardPlay, power: u16) {
     let n = cx.card_power_var(p.card, power);
     cx.apply_power(power, PLAYER, Dec::int(n as i64), PLAYER, p.card);
@@ -25,8 +22,6 @@ fn self_power_n(cx: &mut Combat, p: &CardPlay, power: u16, n: i32) {
 fn upgraded(cx: &Combat, p: &CardPlay) -> u8 {
     (cx.cards[p.card as usize].upgrade > 0) as u8
 }
-
-// ---- starter / star generators -----------------------------------------------------------------------------------
 
 listener!(DefendRegent {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -120,8 +115,6 @@ listener!(BigBang {
     }
 });
 
-// ---- block / buff skills ------------------------------------------------------------------------------------------
-
 listener!(Reflect {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
@@ -130,7 +123,6 @@ listener!(Reflect {
     }
 });
 
-// After a play the card returns to the hand instead of the discard pile.
 listener!(ParticleWall {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         block(cx, p);
@@ -156,7 +148,6 @@ listener!(Terraforming {
     }
 });
 
-// +Strength for the player, -1 Strength on every enemy.
 listener!(Resonance {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         self_power(cx, p, ids::power::STRENGTH_POWER);
@@ -178,7 +169,6 @@ listener!(KnowThyPlace {
     }
 });
 
-// Block now and `BlockVar("BlockNextTurn", 5)` (modified by block hooks now) next turn.
 listener!(Glitterstream {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let next = cx.card_named_var(p.card, var_name::BLOCK_NEXT_TURN) as i64;
@@ -194,7 +184,6 @@ listener!(IAmInvincible {
         block(cx, p);
         Flow::Done
     }
-    // At the end of the turn, if this card is on top of the draw pile it plays itself.
     fn after_auto_post_play_phase_entered(&self, cx: &mut Combat, me: Me) {
         if cx.player.draw.first() == Some(me.idx as CardIdx) {
             let _ = cx.auto_play_from_draw_pile(1, CardPilePosition::Top, false);
@@ -209,8 +198,6 @@ listener!(Prophesize {
         Flow::Done
     }
 });
-
-// ---- card generation / selection ---------------------------------------------------------------------------------------
 
 fn colorless(cx: &mut Combat, n: usize) -> crate::util::ArrayVec<CardIdx, 16> {
     let pool = &crate::content::gen_pools::COLORLESS;
@@ -242,7 +229,6 @@ listener!(BundleOfJoy {
     }
 });
 
-// Three colorless cards (upgraded when this is), choose one (or none) for the hand.
 listener!(Quasar {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -255,7 +241,6 @@ listener!(Quasar {
                 }
                 match cx.ask_options(ids::card::QUASAR, cards.as_slice(), true) {
                     Ask::Resolved(cards) => {
-                        // synchronous answer (Whispering Earring's selector, empty option list): same continuation as the resumed phase
                         cx.choice.cards = cards;
                         self.on_play(cx, p, 1)
                     }
@@ -272,7 +257,6 @@ listener!(Quasar {
     }
 });
 
-// Draw, then put Cards-var... cards from the hand back on top of the draw pile.
 fn put_back_on_top(cx: &mut Combat, cards: crate::util::ArrayVec<CardIdx, 16>) {
     for &c in cards.iter() {
         cx.move_card(c, PileType::Draw, CardPilePosition::Top);
@@ -329,7 +313,6 @@ listener!(PhotonCut {
     }
 });
 
-// Block, then move a discard-pile card to the top of the draw pile.
 listener!(CosmicIndifference {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         match phase {
@@ -360,7 +343,6 @@ fn top_if_in_draw_or_discard(cx: &mut Combat, c: Option<CardIdx>) {
     }
 }
 
-// Choose a hand card to transform into Minion Strike.
 listener!(Begone {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         let up = upgraded(cx, p);
@@ -384,7 +366,6 @@ listener!(Begone {
     }
 });
 
-// Choose Cards cards from the draw pile and transform them into Minion Dive Bomb.
 listener!(Charge {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         let up = upgraded(cx, p);
@@ -412,7 +393,6 @@ listener!(Charge {
     }
 });
 
-// Choose any number of hand cards and transform each into Minion Sacrifice.
 listener!(Guards {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
         let up = upgraded(cx, p);
@@ -437,8 +417,6 @@ listener!(Guards {
     }
 });
 
-// Draw, choose a playable Skill in hand and auto-play it Repeat times. The chosen card is kept in `counter[0]` (+1) so the
-// repeat loop can resume after a nested decision; phase 10 + k = "k plays done".
 fn decisions_filter(cx: &Combat, c: CardIdx) -> bool {
     cx.card_def(c).ctype == CardType::Skill && cx.card_keywords(c) & kw::UNPLAYABLE == 0
 }
@@ -478,7 +456,6 @@ listener!(DecisionsDecisions {
     }
 });
 
-// A card that replays itself into the hand every Cards-th Skill played in a turn (while outside the hand).
 listener!(MakeItSo {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let d = cx.card_base_damage(p.card);
@@ -496,8 +473,6 @@ listener!(MakeItSo {
         }
     }
 });
-
-// ---- Forge skills ------------------------------------------------------------------------------------------------------
 
 listener!(Bulwark {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -545,7 +520,6 @@ listener!(TheSmith {
     }
 });
 
-// Every Sovereign Blade outside the hand returns to it, then Forge.
 listener!(SummonForth {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let all = cx.player_combat_cards();
@@ -559,8 +533,6 @@ listener!(SummonForth {
         Flow::Done
     }
 });
-
-// ---- powers -------------------------------------------------------------------------------------------------------------
 
 listener!(Arsenal {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
@@ -602,7 +574,6 @@ listener!(MonarchsGaze {
         Flow::Done
     }
 });
-// The card's `Power` var (1) becomes the power's Strength var; the power itself is applied with amount 1.
 listener!(Monologue {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         self_power_n(cx, p, ids::power::MONOLOGUE_POWER, 1);
@@ -689,7 +660,6 @@ listener!(ForegoneConclusion {
         Flow::Done
     }
 });
-// Applies the power, then ends the turn once this action has finished (`PlayerCmd.EndTurn`).
 listener!(VoidForm {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         self_power(cx, p, ids::power::VOID_FORM_POWER);
@@ -697,7 +667,6 @@ listener!(VoidForm {
         Flow::Done
     }
 });
-// MultiplayerOnly cards: single player has no allies, so the AnyAlly ones are never playable (spec 03 §4).
 listener!(HammerTime {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         self_power_n(cx, p, ids::power::HAMMER_TIME_POWER, 1);

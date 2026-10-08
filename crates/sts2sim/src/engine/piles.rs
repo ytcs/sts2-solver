@@ -1,5 +1,3 @@
-//! Card instances, costs, piles, draw, shuffle (spec 03 §1-2, §6-7).
-
 use crate::content;
 use crate::defs::*;
 use crate::dec::Dec;
@@ -11,18 +9,12 @@ use crate::state::*;
 use crate::types::*;
 
 impl Combat {
-    // ---- card instances ----------------------------------------------------------------------------------------
-
-    /// `CombatState.CreateCard` / `CloneCard`: allocates a card instance in the arena (in no pile).
     pub fn new_card(&mut self, id: u16, upgrade: u8) -> Option<CardIdx> {
         self.new_card_ex(id, upgrade, 0, 0)
     }
 
-    /// Like `new_card` for a saved card (`CardModel.FromSerializable`): the enchantment (`enchant` = id + 1, 0 = none) is
-    /// applied FIRST (`OnEnchant` runs on the un-upgraded card), then the upgrades.
     pub fn new_card_ex(&mut self, id: u16, upgrade: u8, enchant: u8, enchant_amount: i16) -> Option<CardIdx> {
         if self.n_cards as usize >= MAX_CARDS {
-            // Arena full: the card cannot be created (the real game has no such limit) -> flag the combat.
             self.overflow |= ov::CARDS;
             return None;
         }
@@ -59,15 +51,12 @@ impl Combat {
     #[inline(always)]
     pub fn card_def(&self, c: CardIdx) -> &'static CardDef {
         let card = &self.cards[c as usize];
-        // Mad Science's type / target are per-instance saved properties (`TinkerTimeType`): every other card is static.
         if card.id == crate::ids::card::MAD_SCIENCE {
             return content::cards::mad_science::variant(card.counter);
         }
         content::card_def(card.id)
     }
 
-    /// `CardModel.UpgradeInternal` (stats only): +1 level, `UpgradeBy` on cost, keyword edits. Var deltas are
-    /// applied lazily from `VarDef::up * level`.
     pub fn upgrade_card(&mut self, c: CardIdx) {
         let d = self.card_def(c);
         let card = &mut self.cards[c as usize];
@@ -93,11 +82,6 @@ impl Combat {
         card.kw_remove &= !d.up_add_kw;
     }
 
-    /// `CardModel.DowngradeInternal`: back to the canonical (un-upgraded) form — upgrade level 0, base energy cost reset,
-    /// local keyword edits dropped. The dynamic vars are re-cloned from the canonical model, but every card whose Damage
-    /// var grows during combat (Rampage, Thrash, Claw, Maul, Kingly Punch, The Ball) re-applies its accumulated growth in
-    /// `AfterDowngraded`, so `dmg_bonus` is kept. (Cost modifiers, enchantment and affliction are kept; their
-    /// `ModifyCard` / `AfterApplied` re-runs are no-ops for every ported entity.)
     pub fn downgrade_card(&mut self, c: CardIdx) {
         let d = self.card_def(c);
         let card = &mut self.cards[c as usize];
@@ -105,21 +89,19 @@ impl Combat {
         card.cost_base = if d.x_cost { 0 } else { d.cost };
         card.kw_add = 0;
         card.kw_remove = 0;
-        // `Enchantment?.ModifyCard()` re-runs `OnEnchant` (Tezcatara's Ember: cost 0 + Eternal again; Goopy / Slither keywords).
         if self.cards[c as usize].enchant != 0 {
             let me = self.enchantment_me(c);
             content::listener(&me).on_enchant(self, me, c);
         }
     }
 
-    /// Value of the card's dynamic var of `kind` (`DynamicVars.X.BaseValue` as int).
     pub fn card_var(&self, c: CardIdx, kind: VarKind) -> i32 {
         let card = &self.cards[c as usize];
         for v in content::card_def(card.id).vars {
             if v.kind == kind && v.kind != VarKind::Power {
                 let mut x = v.base as i32 + v.up as i32 * card.upgrade as i32;
                 if kind == VarKind::Damage {
-                    x += card.dmg_bonus / 10_000; // Rampage / Thrash growth
+                    x += card.dmg_bonus / 10_000;
                 }
                 return x + self.card_var_extra(c, kind);
             }
@@ -127,7 +109,6 @@ impl Combat {
         0
     }
 
-    /// `PowerVar<T>` value.
     pub fn card_power_var(&self, c: CardIdx, power: u16) -> i32 {
         let card = &self.cards[c as usize];
         for v in content::card_def(card.id).vars {
@@ -138,15 +119,12 @@ impl Combat {
         0
     }
 
-    /// Local keywords only (`CardModel.GetKeywordsWithSources(Local)`).
     #[inline]
     pub fn card_keywords_local(&self, c: CardIdx) -> u8 {
         let card = &self.cards[c as usize];
         (self.card_def(c).keywords | card.kw_add) & !card.kw_remove
     }
 
-    /// `CardModel.Keywords`: the local keyword set plus the global keywords of `Hook.ModifyKeywordsInCombat`
-    /// (unguarded; only for cards in a combat pile; HexPower adds Ethereal).
     #[inline(always)]
     pub fn card_keywords(&self, c: CardIdx) -> u8 {
         let local = self.card_keywords_local(c);
@@ -172,7 +150,6 @@ impl Combat {
         k
     }
 
-    /// `CardEnergyCost.GetWithModifiers` (spec 03 §2.3).
     pub fn card_cost(&self, c: CardIdx, global: bool) -> i32 {
         let card = &self.cards[c as usize];
         let d = self.card_def(c);
@@ -195,10 +172,8 @@ impl Combat {
         n.max(0)
     }
 
-    /// `Hook.ModifyEnergyCostInCombat`: pass 1 then pass 2 ("Late" = free-cost effects); skipped if cost < 0.
     #[inline(always)]
     fn modify_energy_cost_in_combat(&self, c: CardIdx, cost: i32) -> i32 {
-        // (no listener = the cost is returned unchanged; checked first because `hooks_enabled` scans the enemies)
         if cost < 0 || !self.listen.intersects(Mask::bit(hookbit::try_modify_energy_cost_in_combat) | Mask::bit(hookbit::try_modify_energy_cost_in_combat_late)) {
             return cost;
         }
@@ -236,8 +211,6 @@ impl Combat {
         (1..=5).contains(&p)
     }
 
-    // ---- piles ----------------------------------------------------------------------------------------------------
-
     pub fn pile(&self, p: PileType) -> &Pile {
         match p {
             PileType::Draw => &self.player.draw,
@@ -273,8 +246,6 @@ impl Combat {
         }
     }
 
-    /// `CardPileCmd.Add` for one card (spec 03 §6.2): hand-full redirect, removal from the old pile, positioned
-    /// insert, `AfterCardEnteredCombat` for brand-new cards, `AfterCardChangedPiles` when the pile *type* changes.
     pub fn move_card(&mut self, c: CardIdx, to: PileType, pos: CardPilePosition) -> bool {
         if self.cards[c as usize].flags & cflag::REMOVED != 0 {
             return false;
@@ -310,7 +281,6 @@ impl Combat {
         true
     }
 
-    /// `Hook.AfterCardChangedPiles`: two full passes (`AfterCardChangedPiles`, then `...Late`) over the run-level iterator.
     #[inline(always)]
     pub fn fire_card_changed_piles(&mut self, c: CardIdx, old: PileType) {
         if !self.listen.has(hookbit::after_card_changed_piles) && !self.listen.has(hookbit::after_card_changed_piles_late) {
@@ -325,23 +295,18 @@ impl Combat {
         self.dispatch_u(hookbit::after_card_changed_piles_late, |cx, me, l| l.after_card_changed_piles_late(cx, me, c, old));
     }
 
-    /// `CardPileCmd.RemoveFromCombat`: the card leaves combat for good.
     pub fn remove_card_from_combat(&mut self, c: CardIdx) {
         let old = self.card_pile_type(c);
         if old != PileType::None {
             self.pile_mut(old).remove_value(c);
         }
         self.cards[c as usize].pile = PileType::None as u8;
-        // Hook.AfterCardChangedPiles(card, oldPile, newPile = None) — before `RemoveFromState`
         if old != PileType::None {
             self.fire_card_changed_piles(c, old);
         }
         self.cards[c as usize].flags |= cflag::REMOVED;
     }
 
-    // ---- shuffle / draw -----------------------------------------------------------------------------------------
-
-    /// Total order the game sorts cards by: ModelId ordinal (== our dense id) then upgrade level.
     #[inline]
     pub(crate) fn card_cmp(cards: &[Card; MAX_CARDS], a: &CardIdx, b: &CardIdx) -> i32 {
         let (ca, cb) = (&cards[*a as usize], &cards[*b as usize]);
@@ -351,17 +316,14 @@ impl Combat {
         (ca.upgrade as i32 - cb.upgrade as i32).signum()
     }
 
-    /// Initial combat shuffle: `UnstableShuffle` of the (deck-ordered) draw pile — NO sort (spec 03 §7.2).
     pub fn initial_shuffle(&mut self) {
         let rng: &mut Rng = &mut self.rng.shuffle;
         rng.shuffle(self.player.draw.as_mut_slice());
-        // Hook.ModifyShuffleOrder(isInitial = true) (exempt from the combat-ending guard: the combat is starting).
         let mut list = self.player.draw;
         self.modify_shuffle_order(list.as_mut_slice(), true);
         self.player.draw = list;
     }
 
-    /// `Hook.ModifyShuffleOrder` (guarded, exempt while starting): every listener may reorder the list in place.
     pub fn modify_shuffle_order(&self, list: &mut [CardIdx], is_initial: bool) {
         if !self.listen.has(hookbit::modify_shuffle_order) || !self.hooks_enabled() {
             return;
@@ -375,7 +337,6 @@ impl Combat {
         }
     }
 
-    /// `CardPileCmd.Shuffle` (spec 03 §7.3): discard ++ draw → `StableShuffle` → draw pile.
     pub fn shuffle_discard_into_draw(&mut self) {
         if self.is_over_or_ending() {
             return;
@@ -402,8 +363,6 @@ impl Combat {
             self.fire_card_changed_piles(c, PileType::Discard);
         }
         if self.draw_decision_resumable() {
-            // During the turn-start hand draw / a suspendable effect draw a listener (Stratagem) may raise a decision: the listeners after it (Biiig Hug's
-            // Soot, ...) run once it is answered (`draw_pass` 2, resumed by `setup_player_turn`).
             if self.dispatch_resumable(hookbit::after_shuffle, |cx, me, l| l.after_shuffle(cx, me)) {
                 self.draw_pass = Some((NO, 2));
             }
@@ -419,20 +378,14 @@ impl Combat {
         }
     }
 
-    /// `CardPileCmd.Draw` (spec 03 §6.3). Returns the number of cards drawn.
     pub fn draw_cards(&mut self, count: i32, from_hand_draw: bool) -> usize {
         self.draw_cards_list(count, from_hand_draw).len()
     }
 
-    /// Whether an `AfterShuffle` decision raised by the draw that is running now can be paused in place: the turn-start hand draw
-    /// (`draw_resume` / `turn_cont` 4) and Foregone Conclusion's own shuffle (`hook_after`). Every other draw cannot suspend; a
-    /// Stratagem prompt there is answered by re-running the step (`engine/replay.rs`).
     pub fn draw_decision_resumable(&self) -> bool {
         self.hook_shuffle || (self.drawing_hand && self.draw_nosuspend == 0 && self.draw_depth == 1)
     }
 
-    /// `draw_cards` for call sites that read the drawn cards or ask for a decision right afterwards: a Stratagem pick
-    /// raised by the shuffle cannot be paused there.
     pub fn draw_cards_nosuspend(&mut self, count: i32, from_hand_draw: bool) -> usize {
         self.draw_nosuspend += 1;
         let n = self.draw_cards(count, from_hand_draw);
@@ -440,7 +393,6 @@ impl Combat {
         n
     }
 
-    /// `draw_cards_list` counterpart of `draw_cards_nosuspend`.
     pub fn draw_cards_list_nosuspend(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, 32> {
         self.draw_nosuspend += 1;
         let out = self.draw_cards_list(count, from_hand_draw);
@@ -448,7 +400,6 @@ impl Combat {
         out
     }
 
-    /// `CardPileCmd.Draw` returning the drawn cards in draw order (Expertise, Escape Plan, ...).
     pub fn draw_cards_list(&mut self, count: i32, from_hand_draw: bool) -> crate::util::ArrayVec<CardIdx, 32> {
         self.draw_depth = self.draw_depth.saturating_add(1);
         let out = self.draw_cards_inner(count, from_hand_draw);
@@ -461,7 +412,6 @@ impl Combat {
         if self.is_over_or_ending() {
             return out;
         }
-        // Hook.ShouldDraw (guarded AND): the vetoing model (NoDraw) is told via AfterPreventingDraw.
         if let Some(m) = self.first_veto_g(hookbit::should_draw, |cx, me, l| l.should_draw(cx, me, from_hand_draw)) {
             if self.hooks_enabled() {
                 self.notify_one(m, |cx, me, l| l.after_preventing_draw(cx, me));
@@ -484,8 +434,6 @@ impl Combat {
             }
             self.shuffle_if_necessary();
             if self.stage == Stage::AwaitChoice && self.hook_ctx.is_some() {
-                // An `AfterShuffle` listener (Stratagem) asked for a decision (only when `draw_decision_resumable`): the
-                // turn-start draw resumes afterwards.
                 self.draw_resume = Some((count - i, from_hand_draw));
                 break;
             }
@@ -501,8 +449,6 @@ impl Combat {
             let id = self.cards[card as usize].id;
             self.hist_push(HKind::CardDrawn, PLAYER, NO, id, card, 0, from_hand_draw as u8, 0, 0);
             if self.drawn_hooks(card, from_hand_draw, 0) {
-                // A decision raised by an `AfterCardDrawn` listener (Hellraiser auto-playing a Seeker Strike ...) during the turn-start
-                // hand draw: the rest of the pass and then the rest of the draw continue after it (`turn_cont` 4).
                 self.draw_resume = Some((count - i - 1, from_hand_draw));
                 break;
             }
@@ -511,8 +457,6 @@ impl Combat {
         out
     }
 
-    /// `Hook.AfterCardDrawnEarly` then `Hook.AfterCardDrawn` for one drawn card (`start_phase` 1 skips the early pass: resuming).
-    /// During the turn-start hand draw the passes are resumable; returns true when one suspended on a decision (`draw_pass` says where).
     pub(crate) fn drawn_hooks(&mut self, card: CardIdx, from_hand_draw: bool, start_phase: u8) -> bool {
         if !(self.drawing_hand && self.draw_depth <= 1) {
             if start_phase == 0 {
@@ -532,7 +476,6 @@ impl Combat {
         false
     }
 
-    /// `CardCmd.Exhaust`.
     pub fn exhaust_card(&mut self, c: CardIdx, caused_by_ethereal: bool) {
         if self.is_over_or_ending() {
             return;

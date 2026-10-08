@@ -1,6 +1,3 @@
-//! COLORLESS pool cards, part B: cards that need the engine extensions in `engine/autoplay.rs` (nested auto-play, potion
-//! generation, hook-raised decisions via their powers).
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::RunResult;
@@ -10,7 +7,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-// Procure a random potion (`PotionFactory.CreateRandomPotionInCombat` + `PotionCmd.TryToProcure`).
 listener!(Alchemize {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         if let Some(pot) = cx.create_random_potion(true) {
@@ -20,9 +16,6 @@ listener!(Alchemize {
     }
 });
 
-// Auto-play `Cards` random Attacks from the discard pile (`StableShuffle` with the SHUFFLE stream, then take).
-// The picked cards are parked in the card's two counters (4 x u8, stored as index + 1, 0 = none); the resume phase is
-// `index + 1` of the pick whose auto-play suspended on a decision.
 fn beat_down_run(cx: &mut Combat, p: &CardPlay, start: usize) -> Flow {
     let (c0, c1) = (cx.cards[p.card as usize].counter[0] as u16, cx.cards[p.card as usize].counter[1] as u16);
     let slots = [(c0 & 0xFF) as u8, (c0 >> 8) as u8, (c1 & 0xFF) as u8, (c1 >> 8) as u8];
@@ -31,8 +24,6 @@ fn beat_down_run(cx: &mut Combat, p: &CardPlay, start: usize) -> Flow {
             break;
         }
         let item = slots[i] - 1;
-        // The card itself picks the target (`NextItem(HittableEnemies)`, one `CombatTargets` draw) BEFORE calling
-        // `AutoPlay(item, target)` -- so the draw happens even when AutoPlay then refuses to play the card (Sloth, ...).
         let mut target = NO;
         if cx.card_target_type(item) == TargetType::AnyEnemy {
             let h = cx.hittable_enemies();
@@ -70,11 +61,8 @@ listener!(BeatDown {
     }
 });
 
-// `Cards` times: auto-play a random playable card of the draw pile (any card if none is playable); each pick is a
-// `StableShuffle` of the pile with the SHUFFLE stream. The resume phase is `iteration + 1`.
 listener!(Catastrophe {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, phase: u8) -> Flow {
-        // (C# `i < DynamicVars.Cards.IntValue`: the bound is re-read every pass; an Apotheosis played by the loop upgrades this card)
         let mut i = phase as usize;
         while i < cx.card_var(p.card, VarKind::Cards) as usize {
             let mut playable: crate::util::ArrayVec<CardIdx, MAX_CARDS> = crate::util::ArrayVec::new();

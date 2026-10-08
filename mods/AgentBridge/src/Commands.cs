@@ -15,7 +15,7 @@ public static class Commands
             case "s":
                 await Settle(0, null);
                 return await MainThread.Run(() => { Main.EnsureSelector(); Snap.Observe(); return Decisions.Build().Render(); });
-            case "peek":   // the state as it is now, without waiting for the screen to settle (for reading the screen right after an action that already settled)
+            case "peek":
                 return await MainThread.Run(() => { Main.EnsureSelector(); return Decisions.Build().Render(); });
             case "a":
             {
@@ -25,7 +25,7 @@ public static class Commands
                 await Settle(4, before);
                 return await MainThread.Run(() => { Snap.Observe(); return Decisions.Build().Render(); });
             }
-            case "do":   // one action in the oracle script vocabulary (JSON), then the new state like `a`
+            case "do":
             {
                 string before = await MainThread.Run(() => Decisions.Build().Sig());
                 string? err = await MainThread.Run(() => Decisions.DoJson(string.Join(' ', args)));
@@ -33,9 +33,9 @@ public static class Commands
                 await Settle(4, before);
                 return await MainThread.Run(() => { Snap.Observe(); return Decisions.Build().Render(); });
             }
-            case "draw":   // draw a route on the in-game map: draw r1c6 r2c6 r3c6 ... | draw clear
+            case "draw":
                 return await MainThread.Run(() => DrawRoute(args));
-            case "mods":   // run modifiers selectable on the Custom Run screen
+            case "mods":
                 return await MainThread.Run(() =>
                 {
                     string T(ModifierModel m) { try { return Text.Loc(m.Title); } catch { return ""; } }
@@ -43,7 +43,7 @@ public static class Commands
                         .Concat(ModelDb.BadModifiers.Select(m => "bad " + m.Id.Entry + ": " + T(m)))) + "\n";
                 });
             case "deck.json": return await MainThread.Run(() => (Snap.DeckJson() ?? "null") + "\n");
-            case "fight":   // JSON {scenario, log, state} of the current combat for the solver (visible information only)
+            case "fight":
                 await Settle(0, null);
                 return await MainThread.Run(() => (Snap.Fight() ?? "null") + "\n");
             case "snap":
@@ -79,7 +79,6 @@ public static class Commands
         }
     }
 
-    /// <summary>Draws a polyline through the given map points (r&lt;row&gt;c&lt;col&gt;) on the map screen's drawing layer, so a human reviewer sees the planned route.</summary>
     private static string DrawRoute(string[] args)
     {
         var screen = NMapScreen.Instance;
@@ -130,10 +129,6 @@ public static class Commands
         return d.Opts[n].Run(args.Skip(1).ToArray());
     }
 
-    /// <summary>
-    /// Waits (main thread, frame by frame) until the game is at a decision: a pending card choice, a ready combat turn, or any other screen
-    /// whose options stay unchanged for ~8 frames. Gives up after 30 s and returns whatever is there.
-    /// </summary>
     private static Task Settle(int minFrames, string? before)
     {
         return MainThread.Run(() =>
@@ -150,7 +145,6 @@ public static class Commands
                 var d = Decisions.Build();
                 if (!changed)
                 {
-                    // the action must visibly change the screen first (loads and transitions keep the old screen up for a while)
                     if (d.Sig() == before && Environment.TickCount64 < changeDeadline) return false;
                     changed = true;
                 }

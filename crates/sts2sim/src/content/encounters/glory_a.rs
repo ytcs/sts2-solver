@@ -1,5 +1,3 @@
-//! Act 3 "Glory" weak + normal encounters (spec 04 §4.2). Monsters in creation order; `rng` = the encounter-local RNG.
-
 use crate::content::monsters::glory_a::SLOT_FABRICATOR;
 use crate::content::{Spawn, Spawns};
 use crate::ids;
@@ -20,7 +18,6 @@ pub fn spawn_devoted_sculptor_weak(_rng: &mut Rng, _ascension: u8) -> Spawns {
     one(ids::monster::DEVOTED_SCULPTOR)
 }
 
-/// `n = Rng.NextInt(3)`; scroll k gets `StarterMoveIdx = (n + k) % 3` (vars[0]); the Normal encounter's 4th scroll has idx 2.
 fn scrolls(rng: &mut Rng, count: usize) -> Spawns {
     let n = rng.next_int(3);
     let mut s = Spawns::new();
@@ -46,7 +43,6 @@ pub fn spawn_turret_operator_weak(_rng: &mut Rng, _ascension: u8) -> Spawns {
     s
 }
 
-/// Slots [front]: the Axebot sits in `front` (index 0).
 pub fn spawn_axebots_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster: ids::monster::AXEBOT, slot: 0, vars: [0, 0] });
@@ -61,7 +57,6 @@ pub fn spawn_construct_menagerie_normal(_rng: &mut Rng, _ascension: u8) -> Spawn
     s
 }
 
-/// Slots [bot1, bot2, fabricator, bot3, bot4]: the Fabricator sits in `fabricator` (index 2).
 pub fn spawn_fabricator_normal(_rng: &mut Rng, _ascension: u8) -> Spawns {
     let mut s = Spawns::new();
     s.push(Spawn { monster: ids::monster::FABRICATOR, slot: SLOT_FABRICATOR, vars: [0, 0] });

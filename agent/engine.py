@@ -1,14 +1,3 @@
-"""The solver as a service for the harness.
-
-  eng = Engine()                                  # loads the networks once (STS2_DEVICE=cuda for the GPU; about a minute incl. graph capture)
-  d = eng.decide(scenario, sim, budget=1.0)       # micro: best next action of a fight in progress, within a time budget (seconds)
-  r = eng.solve(scenarios, attempts=64)           # macro / prediction: win rate and HP lost of fights played from their start
-
-`decide` conditions on what a player can observe (hand, piles as multisets, HP / block / energy, powers, relic counters, potions, the enemies' intents and
-known patterns) and resamples hidden information (draw order, enemy random branches, RNG) for every future. One round tries the policy's 5 likeliest
-actions on 32 futures each (~10 ms); rounds repeat with fresh futures until the budget is spent or the best action is clearly ahead, so an obvious turn
-costs a fraction of a second and a high-stakes turn can be given more time. `budget=0` is a single round.
-"""
 import json
 import math
 import os
@@ -30,9 +19,6 @@ MAX_ROUNDS = 400
 
 
 def _opportunity_loss(acc):
-    """Expected regret of stopping now (Bayesian expected opportunity loss, as in ranking-and-selection): the largest, over the other options, of
-    E[max(0, mu_other - mu_best)] with the means' standard errors from the round means (at least 4 rounds each). It is ~0 both when one option is clearly ahead
-    and when the options tie (all lines cost the same), and large only when thinking can still change the outcome. Units: return (1 HP = 0.5 / max HP)."""
     ranked = sorted(((np.mean(v), np.var(v, ddof=1) / len(v)) for v in acc.values() if len(v) >= 4), reverse=True)
     if len(ranked) < 2:
         return 0.0 if len(acc) <= 1 else math.inf
@@ -49,37 +35,27 @@ def _opportunity_loss(acc):
 
 class Engine:
     def __init__(self, M=5, K=32, ckpt=None):
-        """`ckpt`: another network than the adopted one (a gate or an A/B)."""
         self.solver = Solver() if ckpt is None else Solver(ckpt)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         self.fs = FastSearch(self.solver.net, M, K, conf=1.01, roots=1, groups=1, amp=cuda)
-        # a per-fight objective table (`worth`, `agent.proposal.fight_objective`) needs the outcome head's value rows in both searches
         self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
         assert (proposal.HEAD_BIN, proposal.HEAD_NC) == (heads.BIN, heads.NC), "agent/proposal.py and rl/heads.py disagree on the outcome classes"
         self.fs.warm()
         self.seed = 0
-        # seed of the tables (`solve` without a seed): the harness sets it per screen, so a re-run on the same screen repeats the same draws (and every variant
-        # of one call shares them: common random numbers) while the next screen, or `--seed N`, draws fresh ones
         self.table_seed = 0
 
     def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, worth=None, rounds=None):
-        """Best next action for the fight in `sim`. Returns dict(action, json, text, searched, rounds, seconds, rows, options=[dict(action, text, p, q)]);
-        `rows` = (policy rows, value rows) the search asked for (its network cost). `rounds`: exactly that many rounds (budget and tolerance ignored).
-        Search stops at `budget` seconds or when the expected regret of the leading action is below `tol_hp` HP; `json` is the oracle-script form of the action (sent to the bridge's `do`); a selection is answered pick by pick (see `agent.harness`).
-        `worth`: the fight's objective as a table over the outcome head's classes (`agent.proposal.win_only_worth`; None = the linear return); the q values are
-        then in the table's units and the tolerance is scaled by the table's span (a win-only table: `tol_hp` HP of the linear return = the same share of a win)."""
         t0 = time.perf_counter()
-        tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)  # the return counts half the HP fraction left
-        if worth is not None:  # the linear return spans loss -1 .. win at full HP +1.5; a table spans its own range
+        tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)
+        if worth is not None:
             u = np.asarray(worth["u"], np.float64)
             tol *= float(u.max() - u[0]) / 2.5
         n_rounds, acc, first, rounds = rounds, {}, None, 0
-        # simulator slots of the potions held back (`agent.potions`): the scenario's order (a thrown potion leaves its slot empty; the slots do not shift)
         held = potions.held_indices(scenario, keep_potions)
         def _held(t):
             return t.startswith("potion") and (keep_potions is True or potions.text_index(t) in held)
-        skip = {a for a, t in sim.legal() if t.startswith("discard potion") or _held(t)}  # the bridge cannot discard a potion, and a tie must never throw one away
-        # held potions leave the searched copy entirely: filtering only the first action still let deeper lines of the tree throw them (and value those lines)
+        skip = {a for a, t in sim.legal() if t.startswith("discard potion") or _held(t)}
+        # held potions leave the searched copy, so no line of the search can throw them
         search = sim.without_potions(held) if held else sim
         n_rows = [0, 0]
         while True:
@@ -92,7 +68,7 @@ class Engine:
             if first is None:
                 first = r
             if not r["searched"]:
-                break  # a forced move: nothing to refine
+                break
             for a, q, ok in zip(r["opts"], r["q"], r["legal"]):
                 if ok and a not in skip and not np.isnan(q):
                     acc.setdefault(a, []).append(float(q))
@@ -113,15 +89,10 @@ class Engine:
                     seconds=round(time.perf_counter() - t0, 2), rows=tuple(n_rows), options=opts)
 
     def solve(self, scenarios, attempts=64, seed=None, groups=None, worth=None):
-        """Fights played from their start by the batch solver: one dict per scenario (win, win_se, hp_lost, hp_left_on_win, attempts, aborted).
-        `worth`: under this class table (outcome-head networks, the same for every scenario); None = the linear return. The results stay raw outcomes."""
         return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,
                                  worth=None if worth is None else [worth] * len(scenarios))
 
     def play_on(self, scenario, starts, seeds, worth=None, record=False):
-        """Fights continued from the simulators `starts` (one per job, e.g. determinized copies of a live fight) by the batch solver with job seeds `seeds`,
-        searched under `worth` (None = linear): one (outcome, end HP fraction, end HP) per job (outcome 1 = win). `record`: also the actions each job took,
-        [(outcome, fraction, hp, actions)]."""
         fs = self.solver.fs
         old = fs.record
         fs.record = record
@@ -137,7 +108,6 @@ class Engine:
 
 
 def play_fight(eng, scenario, seed, budget, tol_hp=0.25, max_steps=400, keep_potions=False, worth=None):
-    """One fight in the simulator from its start, every decision by `Engine.decide` at the given time cap. Returns (outcome, HP lost, steps)."""
     import sts2
     sim = sts2.Sim(json.dumps(scenario), seed)
     hp0 = json.loads(sim.snapshot())["player"]["hp"]

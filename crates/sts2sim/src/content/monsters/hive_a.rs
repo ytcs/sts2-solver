@@ -1,10 +1,3 @@
-//! Act 2 "Hive" weak / normal monsters (spec 04 §3.3): the Bowlbugs, Chomper, Tunneler, Exoskeleton, HunterKiller,
-//! LouseProgenitor, Myte, Ovicopter + ToughEgg, SlumberingBeetle, SpinyToad, TheObscura + Parafright, ThievingHopper.
-//!
-//! Encounter slot indices (positions in the encounter's `Slots` list; `NO` where the encounter has no `Slots` list):
-//! Exoskeletons first..fourth = 0..3; Mytes first/second = 0/1; TheObscura illusion/obscura = 0/1;
-//! Ovicopter egg1..egg5 = 0..4, ovicopter = 5.
-
 use super::ovg_util::*;
 use crate::dec::Dec;
 use crate::defs::*;
@@ -19,9 +12,6 @@ pub const SLOT_OBSCURA: u8 = 1;
 pub const SLOT_MYTE_FIRST: u8 = 0;
 pub const SLOT_MYTE_SECOND: u8 = 1;
 
-// ---- Bowlbugs ----------------------------------------------------------------------------------------------------------
-
-// 0 BITE_MOVE (self loop)
 pub static BOWLBUG_EGG_DEF: MonsterDef = MonsterDef {
     id: ids::monster::BOWLBUG_EGG,
     hp: |a| hp(a, (23, 24), (21, 22)),
@@ -40,7 +30,6 @@ pub static BOWLBUG_EGG_DEF: MonsterDef = MonsterDef {
     )],
 };
 
-// 0 THRASH_MOVE -> 1 BUFF_MOVE -> 2 THRASH2_MOVE (loop)
 fn nectar_thrash(cx: &mut Combat, me: Cid) {
     atk(cx, me, 3);
 }
@@ -64,8 +53,6 @@ pub static BOWLBUG_NECTAR_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// BowlbugRock: vars[0] = IsOffBalance.
-// 0 HEADBUTT_MOVE -> 1 POST_HEADBUTT {DIZZY if off balance else HEADBUTT}; 2 DIZZY_MOVE -> HEADBUTT
 fn rock_dizzy(cx: &mut Combat, me: Cid) {
     cx.creatures[me as usize].monster.vars[0] = 0;
 }
@@ -81,7 +68,6 @@ pub static BOWLBUG_ROCK_DEF: MonsterDef = MonsterDef {
                 let d = a9(cx, 16, 15);
                 atk(cx, me, d);
                 if cx.cr(me).monster.vars[0] != 0 {
-                    // Stun(): CreatureCmd.Stun(Creature, DizzyMove) — next = last logged move
                     cx.stun(me, Some(rock_dizzy), None);
                 }
             },
@@ -93,7 +79,6 @@ pub static BOWLBUG_ROCK_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// 0 THRASH_MOVE <-> 1 TOXIC_SPIT_MOVE; initial TOXIC_SPIT
 pub static BOWLBUG_SILK_DEF: MonsterDef = MonsterDef {
     id: ids::monster::BOWLBUG_SILK,
     hp: |a| hp(a, (41, 44), (40, 43)),
@@ -113,9 +98,6 @@ pub static BOWLBUG_SILK_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Chomper -----------------------------------------------------------------------------------------------------------
-
-// vars[0] = ScreamFirst. 0 CLAMP_MOVE <-> 1 SCREECH_MOVE; 2 INIT (initial state = screamFirst ? SCREECH : CLAMP)
 pub static CHOMPER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::CHOMPER,
     hp: |a| hp(a, (63, 67), (60, 64)),
@@ -136,19 +118,14 @@ pub static CHOMPER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Tunneler ----------------------------------------------------------------------------------------------------------
-
 const TUNNELER_BITE: u8 = 0;
 
-/// `Tunneler.StillDizzyMove` (`IsStunned = false`): no combat-visible effect.
 fn tunneler_still_dizzy(_cx: &mut Combat, _me: Cid) {}
 
-/// `BurrowedPower.AfterBlockBroken`: `GetStunned()` (`IsStunned = true`) then `Stun(StillDizzyMove, "BITE_MOVE")`.
 pub fn tunneler_get_stunned(cx: &mut Combat, me: Cid) {
     cx.stun(me, Some(tunneler_still_dizzy), Some(TUNNELER_BITE));
 }
 
-// 0 BITE -> 1 BURROW -> 2 BELOW (loop); 3 DIZZY (stun, -> BITE; only used through `Stun`)
 pub static TUNNELER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::TUNNELER,
     hp: |a| hp(a, (92, 92), (87, 87)),
@@ -187,9 +164,6 @@ pub static TUNNELER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Exoskeleton -------------------------------------------------------------------------------------------------------
-
-// 0 INIT_MOVE (slot cond), 1 RAND {SKITTER:CNR, MANDIBLES:CNR}, 2 SKITTER -> RAND, 3 MANDIBLES -> ENRAGE, 4 ENRAGE -> RAND
 pub static EXOSKELETON_DEF: MonsterDef = MonsterDef {
     id: ids::monster::EXOSKELETON,
     hp: |a| hp(a, (26, 30), (24, 28)),
@@ -228,9 +202,6 @@ pub static EXOSKELETON_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- HunterKiller ------------------------------------------------------------------------------------------------------
-
-// 0 TENDERIZING_GOOP, 1 BITE, 2 PUNCTURE, 3 RAND {BITE:CNR, PUNCTURE:x2}; all -> RAND
 pub static HUNTER_KILLER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::HUNTER_KILLER,
     hp: |a| hp(a, (126, 126), (121, 121)),
@@ -260,9 +231,6 @@ pub static HUNTER_KILLER_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- LouseProgenitor ---------------------------------------------------------------------------------------------------
-
-// vars[0] = Curled (cosmetic). 0 WEB_CANNON -> 1 CURL_AND_GROW -> 2 POUNCE -> WEB_CANNON
 pub static LOUSE_PROGENITOR_DEF: MonsterDef = MonsterDef {
     id: ids::monster::LOUSE_PROGENITOR,
     hp: |a| hp(a, (138, 141), (134, 136)),
@@ -308,9 +276,6 @@ pub static LOUSE_PROGENITOR_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Myte --------------------------------------------------------------------------------------------------------------
-
-// 0 TOXIC -> 1 BITE -> 2 SUCK -> TOXIC; 3 INIT_MOVE by slot (first: TOXIC, second: SUCK)
 pub static MYTE_DEF: MonsterDef = MonsterDef {
     id: ids::monster::MYTE,
     hp: |a| hp(a, (64, 69), (61, 67)),
@@ -352,14 +317,10 @@ pub static MYTE_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- Ovicopter + ToughEgg ----------------------------------------------------------------------------------------------
-
-/// `CanLay`: at most 3 living teammates (itself included).
 fn ovicopter_can_lay(cx: &Combat, _c: Cid) -> bool {
     cx.enemies.iter().filter(|&&e| cx.cr(e).is_alive()).count() <= 3
 }
 
-// 0 LAY_EGGS -> 1 SMASH -> 2 TENDERIZER -> 3 SUMMON_BRANCH {LAY_EGGS if CanLay else NUTRITIONAL_PASTE}; 4 NUTRITIONAL_PASTE -> SMASH
 pub static OVICOPTER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::OVICOPTER,
     hp: |a| hp(a, (126, 132), (124, 130)),
@@ -370,7 +331,6 @@ pub static OVICOPTER_DEF: MonsterDef = MonsterDef {
             "LAY_EGGS_MOVE",
             |cx, me| {
                 for _ in 0..3 {
-                    // Slots.LastOrDefault(s => Enemies.All(c => c.SlotName != s))
                     let slot = cx.last_free_slot(OVICOPTER_SLOTS);
                     if slot == NO {
                         continue;
@@ -416,7 +376,6 @@ pub static OVICOPTER_DEF: MonsterDef = MonsterDef {
 };
 
 fn tough_egg_hatch(cx: &mut Combat, me: Cid) {
-    // `PowerCmd.Remove<HatchPower>`, then every power that is not a MinionPower (list order), then the hatchling HP.
     cx.remove_power_by_id(me, ids::power::HATCH_POWER);
     let mut uids: crate::util::ArrayVec<u16, MAX_POWERS> = crate::util::ArrayVec::new();
     for p in cx.cr(me).powers.iter() {
@@ -434,13 +393,11 @@ fn tough_egg_hatch(cx: &mut Combat, me: Cid) {
     cx.set_current_hp(me, Dec::int(hp as i64));
 }
 
-// 0 HATCH_MOVE -> 1 NIBBLE_MOVE (loop)
 pub static TOUGH_EGG_DEF: MonsterDef = MonsterDef {
     id: ids::monster::TOUGH_EGG,
     hp: |a| hp(a, (15, 19), (14, 18)),
     initial: 0,
     on_spawn: Some(|cx, me| {
-        // `IsHatched` is false for every egg this port creates
         let n = if cx.side != Side::Enemy { 1 } else { 2 };
         power_self(cx, me, ids::power::HATCH_POWER, n);
     }),
@@ -458,23 +415,18 @@ pub static TOUGH_EGG_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- SlumberingBeetle --------------------------------------------------------------------------------------------------
-
 const BEETLE_ROLL_OUT: u8 = 2;
 
-/// `SlumberingBeetle.WakeUpMove`: `IsAwake = true`, strip the Plating.
 pub fn beetle_wake_up(cx: &mut Combat, me: Cid) {
     cx.remove_power_by_id(me, ids::power::PLATING_POWER);
 }
 fn beetle_wake_up_move(cx: &mut Combat, me: Cid) {
     beetle_wake_up(cx, me)
 }
-/// `SlumberPower`: `CreatureCmd.Stun(Owner, WakeUpMove, "ROLL_OUT_MOVE")`.
 pub fn beetle_wake_up_stun(cx: &mut Combat, me: Cid) {
     cx.stun(me, Some(beetle_wake_up_move), Some(BEETLE_ROLL_OUT));
 }
 
-// 0 SNORE_MOVE -> 1 SNORE_NEXT {SNORE while Slumber else ROLL_OUT}; 2 ROLL_OUT_MOVE (loop)
 pub static SLUMBERING_BEETLE_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SLUMBERING_BEETLE,
     hp: |a| hp(a, (89, 89), (86, 86)),
@@ -506,9 +458,6 @@ pub static SLUMBERING_BEETLE_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- SpinyToad ---------------------------------------------------------------------------------------------------------
-
-// vars[0] = IsSpiny (cosmetic). 0 PROTRUDING_SPIKES -> 1 SPIKE_EXPLOSION -> 2 TONGUE_LASH -> PROTRUDING_SPIKES
 pub static SPINY_TOAD_DEF: MonsterDef = MonsterDef {
     id: ids::monster::SPINY_TOAD,
     hp: |a| hp(a, (121, 124), (116, 119)),
@@ -547,9 +496,6 @@ pub static SPINY_TOAD_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- TheObscura + Parafright -------------------------------------------------------------------------------------------
-
-// 0 ILLUSION_MOVE -> RAND; 1 RAND {PIERCING_GAZE:CNR, SAIL:CNR, HARDENING_STRIKE:CNR}; 2 PIERCING_GAZE, 3 SAIL, 4 HARDENING_STRIKE
 pub static THE_OBSCURA_DEF: MonsterDef = MonsterDef {
     id: ids::monster::THE_OBSCURA,
     hp: |a| hp(a, (129, 129), (123, 123)),
@@ -579,7 +525,6 @@ pub static THE_OBSCURA_DEF: MonsterDef = MonsterDef {
         mv(
             "SAIL_MOVE",
             |cx, me| {
-                // PowerCmd.Apply<StrengthPower>(CombatState.GetTeammatesOf(Creature), 3m, Creature): every enemy, list order
                 let team = cx.enemies.clone();
                 for &t in team.iter() {
                     cx.apply_power(ids::power::STRENGTH_POWER, t, Dec::int(3), me, NO);
@@ -602,7 +547,6 @@ pub static THE_OBSCURA_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// 0 SLAM_MOVE (loop), 1 REVIVE_MOVE (IllusionPower; successor stored at runtime)
 pub static PARAFRIGHT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::PARAFRIGHT,
     hp: |_| (21, 21),
@@ -622,9 +566,6 @@ pub static PARAFRIGHT_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- ThievingHopper ----------------------------------------------------------------------------------------------------
-
-/// `ThievingHopper._stealPriorities[tier]` on a combat card with a deck version.
 fn steal_tier_matches(cx: &Combat, tier: usize, c: CardIdx) -> bool {
     let card = &cx.cards[c as usize];
     let imbued = card.enchant != 0 && (card.enchant - 1) as u16 == ids::enchantment::IMBUED;
@@ -637,9 +578,6 @@ fn steal_tier_matches(cx: &Combat, tier: usize, c: CardIdx) -> bool {
     }
 }
 
-/// `ThievingHopper.ThieveryMove`: steal a card of the first non-empty priority tier from Draw + Discard (only cards
-/// with a deck version), then attack. The card leaves the combat; the run-level deck / reward bookkeeping of
-/// `SwipePower` is not modelled (the oracle trace only shows the combat piles).
 fn hopper_thievery(cx: &mut Combat, me: Cid) {
     let mut stolen: crate::util::ArrayVec<CardIdx, 2> = crate::util::ArrayVec::new();
     if !cx.cr(PLAYER).is_dead() {
@@ -679,7 +617,6 @@ fn hopper_thievery(cx: &mut Combat, me: Cid) {
     atk(cx, me, d);
 }
 
-// 0 THIEVERY -> 1 FLUTTER -> 2 HAT_TRICK -> 3 NAB -> 4 ESCAPE (loop)
 pub static THIEVING_HOPPER_DEF: MonsterDef = MonsterDef {
     id: ids::monster::THIEVING_HOPPER,
     hp: |a| hp(a, (84, 84), (79, 79)),

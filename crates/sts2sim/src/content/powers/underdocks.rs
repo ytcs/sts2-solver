@@ -1,7 +1,3 @@
-//! Powers owned or applied by the Act 1b (Underdocks) monsters. Stats come from `gen_powers.rs`.
-//!
-//! Per-power private state lives in `Power::aux` (see `aux`/`set_aux`).
-
 use crate::dec::Dec;
 use crate::engine::Attack;
 use crate::hooks::*;
@@ -22,15 +18,11 @@ fn amount(cx: &Combat, me: &Me) -> i32 {
     cx.power_idx(me.owner, me.idx).map_or(me.amount, |i| cx.cr(me.owner).powers[i].amount)
 }
 
-// SuckPower: +Amount Strength per hit of the owner's powered attack that dealt unblocked damage.
 listener!(SuckPower {
     fn after_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
         if attack.dealer != me.owner || !attack.props.is_powered() {
             return;
         }
-        // C# groups the results per hit; in a hit that damaged a pet (Osty took the damage) the owner's own result is dropped
-        // (`RemoveAll(r => r.Receiver == petHit.Receiver.PetOwner.Creature)`), and the hit counts when any remaining
-        // result has unblocked damage.
         let mut n = 0;
         let mut at = 0usize;
         for &sz in cx.attack_hit_sizes.iter() {
@@ -49,7 +41,6 @@ listener!(SuckPower {
     }
 });
 
-// HardenedShellPower: the owner can lose at most Amount HP per turn (aux = HP lost so far this turn).
 listener!(HardenedShellPower {
     fn modify_hp_lost_before_osty_late(&self, cx: &Combat, me: Me, target: Cid, amt: Dec, _props: ValueProp, _dealer: Cid, _card: CardIdx) -> Dec {
         if target != me.owner || amt.is_zero() {
@@ -69,7 +60,6 @@ listener!(HardenedShellPower {
     }
 });
 
-// SkittishPower: the first powered card attack that damages the owner each turn gives it Amount block.
 listener!(SkittishPower {
     fn after_attack(&self, cx: &mut Combat, me: Me, attack: &Attack) {
         if aux(cx, &me) != 0 || !attack.props.has(ValueProp::MOVE) || attack.card == NO {
@@ -91,8 +81,6 @@ listener!(SkittishPower {
     }
 });
 
-// RavenousPower (CorpseSlug): when another creature on its side dies it is stunned (pending move delayed a turn) and
-// gains Strength.
 listener!(RavenousPower {
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {
         if was_removal_prevented || creature == me.owner || cx.cr(creature).side != cx.cr(me.owner).side || cx.cr(me.owner).is_dead() {
@@ -104,18 +92,14 @@ listener!(RavenousPower {
     }
 });
 
-// ThieveryPower (GremlinMerc): `aux` = gold stolen so far (`DynamicVars.Gold`). Stealing is done by the monster's moves.
 listener!(ThieveryPower {});
-// HeistPower: only returns stolen gold as a reward when its owner dies (run-level, not modelled).
 listener!(HeistPower {});
 
-// SurprisePower (GremlinMerc): on its owner's death spawn Sneaky + Fat Gremlins (spec 04 §3.2) and keep combat open.
 listener!(SurprisePower {
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {
         if was_removal_prevented || creature != me.owner {
             return;
         }
-        // CreateCreature(FatGremlin): HP draw #1, not yet in `enemies`.
         let Some(fat) = cx.create_enemy(ids::monster::FAT_GREMLIN, NO) else { return };
         let thieves: crate::util::ArrayVec<u16, MAX_POWERS> = {
             let mut v = crate::util::ArrayVec::new();
@@ -128,7 +112,6 @@ listener!(SurprisePower {
         };
         for &uid in thieves.iter() {
             let stolen = cx.power_idx(me.owner, uid).map_or(0, |i| cx.cr(me.owner).powers[i].aux);
-            // `MarkGoldStolen` only feeds the gold reward proportion (run-level).
             cx.apply_power(ids::power::HEIST_POWER, fat, Dec::int(stolen as i64), me.owner, NO);
         }
         cx.summon_enemy(ids::monster::SNEAKY_GREMLIN, NO, [0, 0]);
@@ -140,8 +123,6 @@ listener!(SurprisePower {
     }
 });
 
-// SmoggyPower (player debuff from LivingFog): after a Skill is played, every Skill card in the combat piles gets the Smog
-// affliction (unplayable) until the end of the player's turn. Smog has no logic of its own.
 fn smog_card(cx: &mut Combat, i: usize) {
     if cx.cards[i].affliction == 0 && cx.card_def(i as CardIdx).ctype == CardType::Skill {
         cx.afflict_card(i as CardIdx, ids::affliction::SMOG, 1);
@@ -165,7 +146,6 @@ listener!(SmoggyPower {
         if me.owner != PLAYER || cx.cards[card as usize].affliction != 0 || cx.card_def(card).ctype != CardType::Skill {
             return;
         }
-        // CardPlaysStarted.Any(this turn, Skill, player)
         let skill_played = cx.plays_this_turn(|e| cx.card_def(e.card).ctype == CardType::Skill) > 0;
         if skill_played {
             smog_card(cx, card as usize);
@@ -186,7 +166,6 @@ listener!(SmoggyPower {
     }
 });
 
-// ShriekPower (TerrorEel): below Amount HP the Eel is stunned into TERROR_MOVE, once.
 listener!(ShriekPower {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
         if target == me.owner && unblocked > 0 && cx.cr(target).hp() <= amount(cx, &me) {
@@ -196,7 +175,6 @@ listener!(ShriekPower {
     }
 });
 
-// AsleepPower (LagavulinMatriarch): damage wakes it (stun into SLASH); otherwise it sleeps Amount enemy turns.
 listener!(AsleepPower {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
         if target != me.owner || unblocked == 0 {
@@ -223,13 +201,11 @@ listener!(AsleepPower {
     }
 });
 
-// SteamEruptionPower (WaterfallGiant): when the Giant "dies" it is revived at 999999999 HP into ABOUT_TO_BLOW.
 listener!(SteamEruptionPower {
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, was_removal_prevented: bool) {
         if was_removal_prevented || creature != me.owner {
             return;
         }
-        // TriggerAboutToBlowState: SetMaxAndCurrentHp(999999999), SetMoveImmediate(ABOUT_TO_BLOW, force)
         cx.set_max_hp(me.owner, Dec::int(999_999_999));
         cx.set_current_hp(me.owner, Dec::int(999_999_999));
         cx.set_move_immediate(me.owner, crate::content::monsters::underdocks_b::giant::ABOUT_TO_BLOW, true);

@@ -1,6 +1,3 @@
-//! Relics that modify damage / block / power amounts, plus the Silent / Necrobinder / Regent pool relics that are pure
-//! modifiers.
-
 use crate::content::gen_relics as g;
 use crate::dec::Dec;
 use crate::hooks::*;
@@ -9,7 +6,6 @@ use crate::listener;
 use crate::state::*;
 use crate::types::*;
 
-/// `props.IsPoweredAttack()` with a card source whose owner / dealer is the relic owner.
 fn powered_card_attack(cx: &Combat, q: &DmgQ) -> bool {
     let _ = cx;
     q.props.is_powered() && q.card != NO
@@ -51,7 +47,6 @@ listener!(MysticLighter {
     }
 });
 
-// Attacks (not the owner's) from a creature that is about to die to Doom are halved.
 listener!(UndyingSigil {
     fn modify_damage_multiplicative(&self, cx: &Combat, _me: Me, q: &DmgQ) -> Dec {
         if q.dealer == NO || !q.props.is_powered() || q.target != PLAYER || q.dealer == PLAYER {
@@ -64,7 +59,6 @@ listener!(UndyingSigil {
     }
 });
 
-// Minion cards deal / gain double.
 listener!(VitruvianMinion {
     fn modify_damage_multiplicative(&self, cx: &Combat, _me: Me, q: &DmgQ) -> Dec {
         if q.card == NO || cx.card_def(q.card).tags & tag::MINION == 0 {
@@ -80,7 +74,6 @@ listener!(VitruvianMinion {
     }
 });
 
-// Poison applied by the owner gets +`Poison`.
 listener!(SneckoSkull {
     fn modify_power_amount_given_additive(&self, _cx: &Combat, _me: Me, power_id: u16, giver: Cid, _amount: Dec, _target: Cid, _card: CardIdx) -> Dec {
         if power_id != ids::power::POISON_POWER || giver != PLAYER {
@@ -90,7 +83,6 @@ listener!(SneckoSkull {
     }
 });
 
-// flag 0 = `BlockGainedThisCombat`, aux = `TriggeringCard` + 1 (0 = none); neither saved. The first card block of a combat is doubled.
 listener!(Vambrace {
     fn before_combat_start(&self, cx: &mut Combat, me: Me) {
         let r = cx.rel_mut(me);
@@ -130,9 +122,6 @@ listener!(Vambrace {
     }
 });
 
-// ---- Unsettling Lamp --------------------------------------------------------------------------------------------------------
-
-/// `ITemporaryPower` classes and the power each one applies internally (0 Strength, 1 Dexterity, 2 Focus).
 fn temporary_kind(id: u16) -> Option<u8> {
     use ids::power as p;
     Some(match id {
@@ -153,9 +142,6 @@ fn internal_kind(id: u16) -> Option<u8> {
     }
 }
 
-// aux = `TriggeringCard` + 1 (0 = none), flag 0 = `IsFinishedTriggering`, counter bits = kinds of the temporary powers in
-// `DoubledPowers` (only the first debuff of a card can be recorded). Debuffs the owner applies with the first card that
-// applies one are doubled (unless blocked by Artifact).
 listener!(UnsettlingLamp {
     fn before_combat_start(&self, cx: &mut Combat, me: Me) {
         let r = cx.rel_mut(me);

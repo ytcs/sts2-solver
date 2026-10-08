@@ -1,11 +1,7 @@
-//! Overgrowth slimes: LeafSlimeS, TwigSlimeS, LeafSlimeM, TwigSlimeM. Spec 04 §3.1.
-
 use super::ovg_util::*;
 use crate::defs::*;
 use crate::ids;
 
-// ---- LeafSlimeS: RAND{TACKLE:CNR, GOOP:CNR} (initial is the branch: one AI draw at the first roll) ----------------------------
-// 0 TACKLE, 1 GOOP, 2 RAND (initial)
 pub static LEAF_SLIME_S_DEF: MonsterDef = MonsterDef {
     id: ids::monster::LEAF_SLIME_S,
     hp: |a| hp(a, (12, 16), (11, 15)),
@@ -26,7 +22,6 @@ pub static LEAF_SLIME_S_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- TwigSlimeS: TACKLE loop ------------------------------------------------------------------------------------------------
 pub static TWIG_SLIME_S_DEF: MonsterDef = MonsterDef {
     id: ids::monster::TWIG_SLIME_S,
     hp: |a| hp(a, (8, 12), (7, 11)),
@@ -43,7 +38,6 @@ pub static TWIG_SLIME_S_DEF: MonsterDef = MonsterDef {
     )],
 };
 
-// ---- LeafSlimeM: STICKY_SHOT <-> CLUMP_SHOT (initial STICKY_SHOT) ------------------------------------------------------------------
 pub static LEAF_SLIME_M_DEF: MonsterDef = MonsterDef {
     id: ids::monster::LEAF_SLIME_M,
     hp: |a| hp(a, (33, 36), (32, 35)),
@@ -63,8 +57,6 @@ pub static LEAF_SLIME_M_DEF: MonsterDef = MonsterDef {
     ],
 };
 
-// ---- TwigSlimeM: STICKY_SHOT_MOVE -> RAND{POKEY_POUNCE:x2, STICKY_SHOT:CNR} -----------------------------------------------------------
-// 0 POKEY_POUNCE, 1 STICKY_SHOT (initial), 2 RAND
 pub static TWIG_SLIME_M_DEF: MonsterDef = MonsterDef {
     id: ids::monster::TWIG_SLIME_M,
     hp: |a| hp(a, (27, 29), (26, 28)),

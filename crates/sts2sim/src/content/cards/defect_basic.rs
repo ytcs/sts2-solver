@@ -1,5 +1,3 @@
-//! Defect starter cards.
-
 use crate::dec::Dec;
 use crate::defs::VarKind;
 use crate::engine::{Attack, Targeting};
@@ -32,7 +30,6 @@ listener!(Zap {
     }
 });
 
-// If any orb: evoke the front orb without dequeuing, then evoke the front orb again (dequeuing).
 listener!(Dualcast {
     fn on_play(&self, cx: &mut Combat, _p: &CardPlay, _phase: u8) -> Flow {
         if !cx.player.orbs.is_empty() {

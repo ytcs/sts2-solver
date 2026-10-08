@@ -4,11 +4,6 @@ using System.Text;
 
 namespace AgentBridge;
 
-/// <summary>
-/// One request per connection: the client sends one line (a command), the server answers with plain text and closes.
-/// Commands: `s` (state), `a <args>` (act, then wait until the game settles and return the new state), `d` (deck),
-/// `p <pile>` (draw|discard|exhaust), `m` (full map), `x <cmd>` (dev console command).
-/// </summary>
 public static class Server
 {
     public static void Start(int port)

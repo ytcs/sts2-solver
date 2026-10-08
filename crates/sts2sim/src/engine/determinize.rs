@@ -1,18 +1,8 @@
-//! Determinization: resampling the part of the state a player cannot see, for search over the player's belief.
-//!
-//! The observation hides the order of the draw / discard / exhaust piles and every RNG stream (`observe::hidden_state_does_not_leak`).
-//! A search that copies a state (`Clone`) and plays forward would otherwise "know" the true shuffle and the true future random
-//! outcomes. `determinize` replaces exactly that hidden information by a fresh sample: the three piles are permuted uniformly
-//! and all nine RNG streams are re-seeded. Everything visible (and therefore the observation and the legal actions) is unchanged.
-
+// Resamples exactly the hidden state (pile order, RNG streams); everything visible, hence the observation and legal actions, stays unchanged.
 use crate::rng::Rng;
 use crate::state::*;
 
 impl Combat {
-    /// Resamples the hidden state from `seed`. Returns false (and does nothing) while a replayed Stratagem prompt is on screen: that
-    /// state is a view of a step in progress, determinize the state before the action instead.
-    ///
-    /// Not tracked: a human remembers which card is on top after a put-on-top effect; the shuffle forgets it.
     pub fn determinize(&mut self, seed: u64) -> bool {
         if self.replay.is_some() {
             return false;
@@ -25,9 +15,6 @@ impl Combat {
         true
     }
 
-    /// Stratified determinization of future `i` of `k` that share `shuffle_seed`: the piles get the same uniform shuffle in every future and future `i`
-    /// then rotates the draw pile by `i / k` of its length, so the hands the futures draw next are disjoint parts of one shuffle (each future is still
-    /// uniform on its own, the set of them covers the pile evenly: less variance in the mean over the futures). The RNG streams are seeded per future.
     pub fn determinize_strat(&mut self, shuffle_seed: u64, rng_seed: u64, i: usize, k: usize) -> bool {
         if self.replay.is_some() {
             return false;
