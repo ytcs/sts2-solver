@@ -37,7 +37,7 @@ def search(fs, states, seed):
     opts, q = np.full((S, W), -1, np.int64), np.full((S, W), np.nan)
     for idx, eng in fs._runs:
         for jl, j in enumerate(idx):
-            acts, searched, o, _p, qq, legal = eng.moves(jl)
+            acts, searched, o, _p, qq, legal, _x = eng.moves(jl)
             if len(acts) and searched[0]:
                 ok = legal[0, :W].astype(bool) & np.isfinite(qq[0, :W])
                 opts[j] = np.where(ok, o[0, :W], -1)

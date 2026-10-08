@@ -44,17 +44,20 @@ def arm(spec, roots):
     from model import load
     parts = spec.split("@")
     pr, _, roll = parts[0].partition("+")
-    M, K, cv, cover, futures = 5, 32, False, False, 0
+    M, K, cv, cover, futures, exact = 5, 32, False, False, 0, None
     for t in parts[1:]:
         if t == "cv":
             cv = True
+        elif t == "x":
+            exact = True
         elif t == "cover":
             cover = True
         elif t.startswith("t"):
             futures = K = int(t[1:])
         else:
             M, K = (int(x) for x in t.split("x"))
-    fs = FastSearch(load(pr, set_version=False), M=M, K=K, roots=roots, amp=True, roll_net=load(roll, set_version=False) if roll else None, clairvoyant=cv, cover=cover, futures=futures)
+    fs = FastSearch(load(pr, set_version=False), M=M, K=K, roots=roots, amp=True, roll_net=load(roll, set_version=False) if roll else None, clairvoyant=cv, cover=cover, futures=futures,
+                    exact_turn=exact)
     fs.warm()
     return fs
 
@@ -148,7 +151,8 @@ def main():
     b.add_argument("--n", type=int, default=1500); b.add_argument("--close", type=float, default=0.10); b.add_argument("--seed", type=int, default=0)
     e = sub.add_parser("eval"); e.add_argument("ckpts", nargs="+", help="the first is the player that collected the set (the luck baseline); "
                                                "PRIOR+ROLL plays PRIOR's search with ROLL's policy in the play-outs; suffixes @MxK, @cv (clairvoyant), "
-                                               "@cover (every distinct legal action), @tN (N futures per decision split over the candidates)")
+                                               "@cover (every distinct legal action), @tN (N futures per decision split over the candidates), "
+                                               "@x (exact turn search when the search is blind)")
     e.add_argument("--bench", default=os.path.join(ROOT, "data", "bench", "nearmiss.json")); e.add_argument("--attempts", type=int, default=2)
     e.add_argument("--roots", type=int, default=1024)
     t = sub.add_parser("turns"); t.add_argument("ckpts", nargs="+", help="arm specs; the first is the luck baseline")

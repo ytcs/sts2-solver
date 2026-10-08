@@ -168,7 +168,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, clairvoyant=false, obs_version=None, cover=false, futures=0))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, clairvoyant=false, obs_version=None, cover=false, futures=0, exact=false, ex_loss=-0.9, ex_tie=0.0, ex_dets=8, ex_cap=5000, ex_potions=true))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -199,11 +199,17 @@ impl SearchEnginePy {
         obs_version: Option<u8>,
         cover: bool,
         futures: usize,
+        exact: bool,
+        ex_loss: f32,
+        ex_tie: f32,
+        ex_dets: usize,
+        ex_cap: usize,
+        ex_potions: bool,
     ) -> PyResult<Self> {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
-        let cfg = sts2env::search::SearchCfg { m, k, conf, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, turn_cap, val_w, cover, futures, clairvoyant };
+        let cfg = sts2env::search::SearchCfg { m, k, conf, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, turn_cap, val_w, cover, futures, clairvoyant, exact: sts2env::search::ExactCfg { on: exact, loss: ex_loss, tie: ex_tie, dets: ex_dets, cap: ex_cap, potions: ex_potions } };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let n_scen = scs.len();
         let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
@@ -303,6 +309,7 @@ impl SearchEnginePy {
         let p: Vec<f32> = mv.iter().flat_map(|x| x.p.iter().copied()).collect();
         let q: Vec<f32> = mv.iter().flat_map(|x| x.q.iter().copied()).collect();
         let lg: Vec<u8> = mv.iter().flat_map(|x| x.legal.iter().map(|&b| b as u8)).collect();
+        let ex: Vec<u8> = mv.iter().map(|x| x.exact as u8).collect();
         let n = mv.len();
         let t = pyo3::types::PyTuple::new(
             py,
@@ -313,6 +320,7 @@ impl SearchEnginePy {
                 PyArray1::from_vec(py, p).reshape([n, m])?.into_any(),
                 PyArray1::from_vec(py, q).reshape([n, m])?.into_any(),
                 PyArray1::from_vec(py, lg).reshape([n, m])?.into_any(),
+                PyArray1::from_vec(py, ex).into_any(),
             ],
         )?;
         Ok(t)
@@ -352,6 +360,13 @@ impl SearchEnginePy {
         d.set_item("cover_actions", s.cover_actions)?;
         d.set_item("cover_classes", s.cover_classes)?;
         d.set_item("cover_capped", s.cover_capped)?;
+        d.set_item("ex_triggered", s.ex_triggered)?;
+        d.set_item("ex_done", s.ex_done)?;
+        d.set_item("ex_capped", s.ex_capped)?;
+        d.set_item("ex_changed", s.ex_changed)?;
+        d.set_item("ex_states", s.ex_states)?;
+        d.set_item("ex_rows", s.ex_rows)?;
+        d.set_item("cy_exact", s.cy_exact)?;
         Ok(d)
     }
 }

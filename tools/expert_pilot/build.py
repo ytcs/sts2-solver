@@ -4,12 +4,13 @@ usage: python build.py spec_module out.json
 The spec's observations are synced into the simulator; before each sync the simulator's own prediction is diffed
 against the observation, and those diffs are the reconstruction report (written next to the record as .report.txt).
 """
-import importlib.util, json, random, sys, copy
+import importlib.util, json, os, random, sys, copy
 
-sys.path.insert(0, r"C:\Users\steve\sts2\sts2-solver")
+ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+sys.path.insert(0, ROOT)
 import sts2  # noqa: E402
 
-CAT = json.load(open(r"C:\Users\steve\sts2\sts2-solver\data\catalog.json"))
+CAT = json.load(open(os.path.join(ROOT, "data", "catalog.json")))
 COST = {c["id"]: c["cost"] for pool in CAT["cards"].values() for c in pool}
 
 

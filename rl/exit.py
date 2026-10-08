@@ -82,7 +82,7 @@ def collect(a):
                 oc, hp_end = res[j, 1], res[j, 6]
                 if oc not in (1, -1, 2):
                     continue
-                acts, searched, opts, _p, q, legal = eng.moves(jl)
+                acts, searched, opts, _p, q, legal, _x = eng.moves(jl)
                 f = len(F_["scen"])
                 pre = rs[part[j][0]]["prefix"] if rs else []
                 F_["scen"].append(int(js[j])); F_["seed"].append(int(rs[part[j][0]]["seed"]) if rs else int(jd[j])); F_["cls"].append(int(H.end_class(oc == 1, hp_end)))

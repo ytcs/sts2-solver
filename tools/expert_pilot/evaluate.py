@@ -8,7 +8,7 @@ q per legal action; his-vs-best gaps are paired over seeds.
 import argparse, importlib.util, json, math, os, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, r"C:\Users\steve\sts2\sts2-solver")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")))
 import numpy as np  # noqa: E402
 from build import Builder  # noqa: E402
 

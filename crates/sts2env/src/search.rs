@@ -1,4 +1,5 @@
 use rayon::prelude::*;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use sts2sim::engine::{with_look_cache, ActionBuf, LookCache, ACTION_SPACE, LOOK_CACHE_ENTRIES};
 use sts2sim::observe::{obs_size, obs_version};
@@ -54,7 +55,7 @@ fn end_score(cx: &Combat, oc: i8, r: f32, w: &Worth) -> f32 {
     }
 }
 
-fn leaf_value(r: &[f32], cx: &Combat, cfg: &SearchCfg, w: &Worth) -> f32 {
+fn leaf_value(r: &[f32], max_hp: i32, cfg: &SearchCfg, w: &Worth) -> f32 {
     if r.len() == 1 {
         return r[0];
     }
@@ -66,7 +67,7 @@ fn leaf_value(r: &[f32], cx: &Combat, cfg: &SearchCfg, w: &Worth) -> f32 {
         }
         v
     } else {
-        let mx = cx.cr(0).max_hp.max(1) as f32;
+        let mx = max_hp.max(1) as f32;
         let half = (HEAD_BIN as f32 - 1.0) / 2.0;
         let mut v = p[0] * cfg.loss;
         for (b, &pb) in p.iter().enumerate().skip(1) {
@@ -98,6 +99,26 @@ pub struct SearchCfg {
     pub futures: usize,
     // DIAGNOSTIC ONLY: futures copy the true state (hidden information); never set for live play.
     pub clairvoyant: bool,
+    pub exact: ExactCfg,
+}
+
+// Exact turn search: when the searched values are blind (best <= loss, or best - second <= tie; linear units, rescaled under a worth
+// table), every distinct line to the end of the turn is enumerated and its end state valued (value net after the enemy turn, `dets`
+// paired determinizations); the best line's first move is played. Over `cap` states or `MAX_DEPTH` moves: the searched move.
+#[derive(Clone, Copy, Debug)]
+pub struct ExactCfg {
+    pub on: bool,
+    pub loss: f32,
+    pub tie: f32,
+    pub dets: usize,
+    pub cap: usize,
+    pub potions: bool,
+}
+
+impl Default for ExactCfg {
+    fn default() -> ExactCfg {
+        ExactCfg { on: false, loss: -0.9, tie: 0.0, dets: 8, cap: 5000, potions: true }
+    }
 }
 
 impl Default for SearchCfg {
@@ -120,6 +141,7 @@ impl Default for SearchCfg {
             cover: false,
             futures: 0,
             clairvoyant: false,
+            exact: ExactCfg::default(),
         }
     }
 }
@@ -144,11 +166,12 @@ pub struct MoveRec {
     pub p: [f32; MAX_M],
     pub q: [f32; MAX_M],
     pub legal: [bool; MAX_M],
+    pub exact: bool,
 }
 
 impl MoveRec {
     fn forced(action: u16) -> MoveRec {
-        MoveRec { action, searched: false, opts: [0; MAX_M], p: [0.0; MAX_M], q: [0.0; MAX_M], legal: [false; MAX_M] }
+        MoveRec { action, searched: false, opts: [0; MAX_M], p: [0.0; MAX_M], q: [0.0; MAX_M], legal: [false; MAX_M], exact: false }
     }
 }
 
@@ -185,6 +208,13 @@ pub struct SearchStats {
     pub cover_actions: u64,
     pub cover_classes: u64,
     pub cover_capped: u64,
+    pub ex_triggered: u64,
+    pub ex_done: u64,
+    pub ex_capped: u64,
+    pub ex_changed: u64,
+    pub ex_states: u64,
+    pub ex_rows: u64,
+    pub cy_exact: u64,
 }
 
 #[inline(always)]
@@ -222,6 +252,7 @@ enum RootSt {
     Idle,
     Pol(u32),
     Searching,
+    Exact,
 }
 
 struct Block {
@@ -248,6 +279,7 @@ struct Block {
     log: Vec<MoveRec>,
     stats: SearchStats,
     look: Option<Box<LookCache>>,
+    ex: Option<Box<Exact>>,
 }
 
 struct SendPtr<T>(*mut T);
@@ -300,6 +332,15 @@ struct Shared<'a> {
     results: SendPtr<JobResult>,
     logs: SendPtr<Vec<MoveRec>>,
     record: bool,
+}
+
+fn slots(cfg: &SearchCfg) -> usize {
+    let mk = cfg.m * cfg.k;
+    if cfg.futures > 0 {
+        mk.min(cfg.futures.max(cfg.m))
+    } else {
+        mk
+    }
 }
 
 fn splitmix(s: &mut u64) -> u64 {
@@ -549,6 +590,7 @@ impl Block {
             log: Vec::new(),
             stats: SearchStats::default(),
             look: Some(Box::new(LookCache::new(LOOK_CACHE_ENTRIES))),
+            ex: None,
         })
     }
 
@@ -900,11 +942,23 @@ impl Block {
         for s in self.sims.iter_mut() {
             s.st = SimSt::Idle;
         }
+        if cfg.exact.on && self.blind(best, &sh.cfg, &sh.worth[self.scen as usize]) {
+            self.ex_start(best, sh, out);
+            return;
+        }
+        self.play_searched(best, sh, out);
+    }
+
+    fn play_searched(&mut self, best: usize, sh: &Shared, out: &Out) {
         let rec = self.move_rec(self.opts[best], true, sh);
-        if cfg.carry && !self.known[best] {
+        if sh.cfg.carry && !self.known[best] {
             self.carry = if self.lead_acts[best].first() == Some(&(self.opts[best] as u16)) { Some((std::mem::take(&mut self.lead_acts[best]), self.qs[best])) } else { None };
         }
-        let finished = match Action::from_index(self.opts[best] as usize) {
+        self.play_root(Action::from_index(self.opts[best] as usize), rec, sh, out);
+    }
+
+    fn play_root(&mut self, act: Option<Action>, rec: Option<MoveRec>, sh: &Shared, out: &Out) {
+        let finished = match act {
             Some(a) => self.main_act(a, sh, rec),
             None => {
                 self.stats.illegal += 1;
@@ -929,6 +983,7 @@ impl Block {
             s.st = SimSt::Idle;
         }
         self.lead = [false; MAX_M];
+        self.ex = None;
         if self.job != NONE {
             self.record(sh, OUTCOME_OVERFLOW);
             self.job = NONE;
@@ -986,7 +1041,7 @@ impl Block {
                         SimSt::Val(row) => {
                             let sim = &mut self.sims[idx];
                             let r = row as usize * vw;
-                            sim.est += leaf_value(&inp.val[r..r + vw], &sim.cx, &cfg, w);
+                            sim.est += leaf_value(&inp.val[r..r + vw], sim.cx.cr(0).max_hp, &cfg, w);
                             sim.st = SimSt::Done;
                             let j = idx / k;
                             if self.lead[j] && idx == j * k {
@@ -999,7 +1054,393 @@ impl Block {
                 self.todo = todo;
                 self.try_finish_search(sh, out);
             }
+            RootSt::Exact => {
+                if let Some(inp) = inp {
+                    self.ex_answer(inp, sh);
+                    self.ex_continue(sh, out);
+                }
+            }
         }
+    }
+}
+
+const MAX_DEPTH: usize = 64;
+const EXACT_SALT: u64 = 0x3C6E_F372_FE94_F82B;
+const X_LEAF: u8 = 0;
+const X_INNER: u8 = 1;
+const X_CHANCE: u8 = 2;
+
+// Leaf: v sums n samples. Inner: max over kids. Chance (a move that reveals hidden information): mean over the determinized worlds.
+struct XNode {
+    kind: u8,
+    v: f32,
+    n: u32,
+    kids: Vec<u32>,
+}
+
+struct XFrame {
+    node: u32,
+    world: u32,
+    cx: Combat,
+    acts: Vec<Action>,
+    next: usize,
+}
+
+#[derive(Default)]
+struct Exact {
+    nodes: Vec<XNode>,
+    index: HashMap<u64, u32>,
+    stack: Vec<XFrame>,
+    pending: Vec<(u32, u32, i32)>,
+    root: Vec<(Action, u32)>,
+    ks: Vec<u64>,
+    obs: Vec<f32>,
+    turn: i32,
+    best: usize,
+}
+
+struct Fx(u64);
+
+impl Fx {
+    fn add(&mut self, x: u64) {
+        self.0 = (self.0.rotate_left(5) ^ x).wrapping_mul(0x517C_C1B7_2722_0A95);
+    }
+}
+
+fn det_world(ks: &[u64], cx: &mut Combat, cfg: &SearchCfg, d: usize) {
+    if cfg.clairvoyant {
+        return;
+    }
+    if cfg.strat {
+        cx.determinize_strat(ks[0], ks[d], d, ks.len());
+    } else {
+        cx.determinize(ks[d]);
+    }
+}
+
+impl Exact {
+    fn reset(&mut self) {
+        self.nodes.clear();
+        self.index.clear();
+        self.stack.clear();
+        self.pending.clear();
+        self.root.clear();
+        self.ks.clear();
+    }
+
+    fn leaf(&mut self, v: f32, n: u32) -> u32 {
+        self.nodes.push(XNode { kind: X_LEAF, v, n, kids: Vec::new() });
+        (self.nodes.len() - 1) as u32
+    }
+
+    fn score(&mut self, node: u32, cx: &mut Combat, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) {
+        if let Some((oc, r)) = terminal(cx, 0, u32::MAX, cfg) {
+            self.nodes[node as usize].v += end_score(cx, oc, r, w);
+            return;
+        }
+        let row = val_row(out, cx);
+        write_row(cx, &ActionBuf::new(), None, out.obs, None, out.val_obs_row(row), out.ver);
+        self.pending.push((row as u32, node, cx.cr(0).max_hp));
+        st.value_rows += 1;
+        st.ex_rows += 1;
+    }
+
+    fn end_turn(&mut self, node: u32, mut cx: Combat, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) {
+        if cx.step(Action::EndTurn) {
+            self.score(node, &mut cx, cfg, w, out, st);
+        } else {
+            st.illegal += 1;
+            self.nodes[node as usize].v += if w.table { w.u[0] } else { cfg.loss };
+        }
+    }
+
+    fn key(&mut self, cx: &Combat, world: u32, ver: u8) -> u64 {
+        cx.observe_v(&mut self.obs, None, ver);
+        let mut h = Fx(world as u64);
+        for x in self.obs.iter() {
+            h.add(x.to_bits() as u64);
+        }
+        let (c, d) = hidden_sig(cx);
+        h.add(c as u64);
+        h.add(d);
+        let t = &cx.hist;
+        for x in [t.cards_played_this_turn, t.attacks_played_this_turn, t.skills_played_this_turn, t.cards_exhausted_this_turn, t.cards_finished_this_turn, t.attacks_finished_this_turn, t.skills_finished_this_turn, t.shivs_finished_this_turn] {
+            h.add(x as u16 as u64);
+        }
+        let mut fin = 0u64;
+        for (w, &bits) in t.finished_cards.iter().enumerate() {
+            let mut b = bits;
+            while b != 0 {
+                let k = &cx.cards[w * 64 + b.trailing_zeros() as usize];
+                b &= b - 1;
+                let mut s = k.id as u64 | (k.pile as u64) << 16 | (k.upgrade as u64) << 24 | (k.enchant as u64) << 32 | (k.flags as u64) << 40;
+                fin = fin.wrapping_add(splitmix(&mut s));
+            }
+        }
+        h.add(fin);
+        for e in t.play_amounts.as_slice() {
+            h.add(e.uid as u64 | (e.card as u64) << 16 | (e.amount as u32 as u64) << 32);
+        }
+        let l = &cx.hist_log;
+        for x in l.total {
+            h.add(x as u64);
+        }
+        h.add(l.ethereal_finished as u64 | (l.player_hits_taken as u64) << 16 | (l.generated_by_player as u64) << 32 | (l.lightning_channeled as u64) << 48);
+        if let Some(dc) = &cx.decision {
+            h.add(0xDEC0 | (dc.min as u64) << 16 | (dc.max as u64) << 24);
+            for &x in dc.selected.as_slice() {
+                h.add(x as u64);
+            }
+            h.add(u64::MAX);
+            for &x in dc.cands.as_slice() {
+                h.add(x as u64);
+            }
+        }
+        h.0
+    }
+
+    // None: over the state cap or the depth cap.
+    fn add(&mut self, mut cx: Combat, world: u32, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) -> Option<u32> {
+        if terminal(&cx, 0, u32::MAX, cfg).is_some() || cx.player.turn_number != self.turn {
+            let id = self.leaf(0.0, 1);
+            self.score(id, &mut cx, cfg, w, out, st);
+            return Some(id);
+        }
+        let k = self.key(&cx, world, out.ver);
+        if let Some(&id) = self.index.get(&k) {
+            return Some(id);
+        }
+        if self.index.len() >= cfg.exact.cap || self.stack.len() >= MAX_DEPTH {
+            return None;
+        }
+        let mut buf = ActionBuf::new();
+        cx.legal_actions(&mut buf);
+        let view = cx.decision.as_ref().map(|d| (cx.decision_view(d), d));
+        // A selection is enumerated as a set: picks only add candidates, in increasing order.
+        let adds = |idx: u8| {
+            view.as_ref().is_none_or(|(v, d)| v.get(idx as usize).is_some_and(|i| d.selected.len() < d.max as usize && d.selected.iter().all(|&s| s < i)))
+        };
+        let mut acts: Vec<Action> = Vec::new();
+        for &a in buf.iter() {
+            let skip = match a {
+                Action::DiscardPotion { .. } => true,
+                Action::UsePotion { .. } => !cfg.exact.potions,
+                Action::Pick { idx } => !adds(idx),
+                _ => false,
+            };
+            if !skip && !acts.iter().any(|&b| cx.interchangeable(b, a)) {
+                acts.push(a);
+            }
+        }
+        let id = self.nodes.len() as u32;
+        self.index.insert(k, id);
+        st.ex_states += 1;
+        if acts.is_empty() && !buf.is_empty() {
+            self.nodes.push(XNode { kind: X_INNER, v: f32::NEG_INFINITY, n: 0, kids: Vec::new() });
+        } else if acts.is_empty() {
+            self.nodes.push(XNode { kind: X_LEAF, v: 0.0, n: 1, kids: Vec::new() });
+        } else {
+            self.nodes.push(XNode { kind: X_INNER, v: f32::NEG_INFINITY, n: 0, kids: Vec::new() });
+            self.stack.push(XFrame { node: id, world, cx, acts, next: 0 });
+        }
+        Some(id)
+    }
+
+    // Some(true): every line enumerated; Some(false): paused at the row budget; None: capped.
+    fn run(&mut self, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats, budget: usize) -> Option<bool> {
+        let dets = self.ks.len();
+        loop {
+            let Some(f) = self.stack.last_mut() else { return Some(true) };
+            let chance = self.nodes[f.node as usize].kind == X_CHANCE;
+            if f.next == if chance { dets } else { f.acts.len() } {
+                self.stack.pop();
+                continue;
+            }
+            if self.pending.len() + dets > budget {
+                return Some(false);
+            }
+            let (node, world, i) = (f.node, f.world, f.next);
+            f.next += 1;
+            let a = f.acts[if chance { 0 } else { i }];
+            let mut c = f.cx.clone();
+            if chance {
+                det_world(&self.ks, &mut c, cfg, i);
+                if c.step(a) {
+                    let kid = self.add(c, i as u32, cfg, w, out, st)?;
+                    self.nodes[node as usize].kids.push(kid);
+                }
+                continue;
+            }
+            let kid = if matches!(a, Action::EndTurn) {
+                let leaf = self.leaf(0.0, if world == NONE { dets as u32 } else { 1 });
+                if world == NONE {
+                    for d in 0..dets {
+                        let mut e = c.clone();
+                        det_world(&self.ks, &mut e, cfg, d);
+                        self.end_turn(leaf, e, cfg, w, out, st);
+                    }
+                } else {
+                    self.end_turn(leaf, c, cfg, w, out, st);
+                }
+                leaf
+            } else {
+                let sig = hidden_sig(&c);
+                if !c.step(a) {
+                    continue;
+                }
+                if world == NONE && (hidden_sig(&c) != sig || shows_draw_pile(&c)) {
+                    let id = self.nodes.len() as u32;
+                    self.nodes.push(XNode { kind: X_CHANCE, v: f32::NEG_INFINITY, n: 0, kids: Vec::new() });
+                    let pre = self.stack.last().expect("the expanding frame").cx.clone();
+                    self.stack.push(XFrame { node: id, world: NONE, cx: pre, acts: vec![a], next: 0 });
+                    id
+                } else {
+                    self.add(c, world, cfg, w, out, st)?
+                }
+            };
+            self.nodes[node as usize].kids.push(kid);
+            if node == 0 {
+                self.root.push((a, kid));
+            }
+        }
+    }
+
+    fn values(&mut self) {
+        for n in self.nodes.iter_mut().filter(|n| n.kind == X_LEAF) {
+            n.v /= n.n.max(1) as f32;
+        }
+        for _ in 0..=self.nodes.len() {
+            let mut changed = false;
+            for i in (0..self.nodes.len()).rev() {
+                let n = &self.nodes[i];
+                if n.kind == X_LEAF || n.kids.is_empty() {
+                    continue;
+                }
+                let it = n.kids.iter().map(|&k| self.nodes[k as usize].v);
+                let v = if n.kind == X_INNER { it.fold(f32::NEG_INFINITY, f32::max) } else { it.sum::<f32>() / n.kids.len() as f32 };
+                if v > self.nodes[i].v {
+                    self.nodes[i].v = v;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+    }
+}
+
+impl Block {
+    fn blind(&self, best: usize, cfg: &SearchCfg, w: &Worth) -> bool {
+        let (b, mut second, mut n) = (self.qs[best], f32::NEG_INFINITY, 0);
+        for j in (0..cfg.m).filter(|&j| self.ok[j]) {
+            n += 1;
+            if j != best {
+                second = second.max(self.qs[j]);
+            }
+        }
+        let (lo, scale) = if w.table {
+            let mx = w.u.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+            (w.u[0], (mx - w.u[0]) / (cfg.win + cfg.hp_bonus - cfg.loss))
+        } else {
+            (cfg.loss, 1.0)
+        };
+        n >= 2 && (b <= lo + (cfg.exact.loss - cfg.loss) * scale || b - second <= cfg.exact.tie * scale)
+    }
+
+    fn ex_start(&mut self, best: usize, sh: &Shared, out: &Out) {
+        let t0 = tsc();
+        let cfg = &sh.cfg;
+        self.stats.ex_triggered += 1;
+        let mut ex = self.ex.take().unwrap_or_default();
+        ex.reset();
+        let mut s = self.ks.first().copied().unwrap_or(self.rng) ^ EXACT_SALT;
+        let dets = cfg.exact.dets.clamp(1, slots(cfg));
+        ex.ks.extend((0..dets).map(|_| splitmix(&mut s)));
+        ex.obs.resize(obs_size(out.ver), 0.0);
+        ex.turn = self.main.player.turn_number;
+        ex.best = best;
+        let root = self.main.clone();
+        let ok = ex.add(root, NONE, cfg, &sh.worth[self.scen as usize], out, &mut self.stats) == Some(0);
+        self.stats.cy_exact += tsc() - t0;
+        self.ex = Some(ex);
+        if !ok {
+            self.stats.ex_capped += 1;
+            self.play_searched(best, sh, out);
+            return;
+        }
+        self.st = RootSt::Exact;
+        self.ex_continue(sh, out);
+    }
+
+    fn ex_answer(&mut self, inp: &Inputs, sh: &Shared) {
+        let Some(ex) = self.ex.as_mut() else { return };
+        let (vw, w) = (sh.cfg.val_w, &sh.worth[self.scen as usize]);
+        for &(row, node, max_hp) in ex.pending.iter() {
+            let r = row as usize * vw;
+            ex.nodes[node as usize].v += leaf_value(&inp.val[r..r + vw], max_hp, &sh.cfg, w);
+        }
+        ex.pending.clear();
+    }
+
+    fn ex_continue(&mut self, sh: &Shared, out: &Out) {
+        let t0 = tsc();
+        let cfg = &sh.cfg;
+        let mut ex = self.ex.take().expect("exact search state");
+        let r = ex.run(cfg, &sh.worth[self.scen as usize], out, &mut self.stats, slots(cfg));
+        if r == Some(false) || (r == Some(true) && !ex.pending.is_empty()) {
+            self.stats.cy_exact += tsc() - t0;
+            self.ex = Some(ex);
+            return;
+        }
+        let best = ex.best;
+        let pick = if r.is_some() { self.ex_pick(&mut ex, best, cfg.m) } else { None };
+        ex.pending.clear();
+        self.stats.cy_exact += tsc() - t0;
+        self.ex = Some(ex);
+        let Some((a, v, rank)) = pick else {
+            self.stats.ex_capped += 1;
+            self.play_searched(best, sh, out);
+            return;
+        };
+        self.stats.ex_done += 1;
+        self.stats.ex_changed += (rank != 0) as u64;
+        if rank > MAX_M {
+            let j = (0..cfg.m).find(|&j| !self.ok[j]).unwrap_or(cfg.m - 1);
+            self.opts[j] = a.index() as i32;
+            self.ok[j] = true;
+            self.probs[j] = 0.0;
+            self.qs[j] = v;
+        }
+        let rec = self.move_rec(a.index() as i32, true, sh).map(|mut r| {
+            r.exact = true;
+            r
+        });
+        self.carry = None;
+        self.play_root(Some(a), rec, sh, out);
+    }
+
+    // The best first move (ties: the searched choice, then the candidates' order); writes each candidate's exact value into `qs`.
+    fn ex_pick(&mut self, ex: &mut Exact, best: usize, m: usize) -> Option<(Action, f32, usize)> {
+        ex.values();
+        let main = &self.main;
+        let opt = |j: usize| if self.ok[j] { Action::from_index(self.opts[j] as usize) } else { None };
+        let same = |j: usize, a: Action| opt(j).is_some_and(|o| main.interchangeable(o, a));
+        let rank = |a: Action| if same(best, a) { 0 } else { (0..m).find(|&j| same(j, a)).map_or(MAX_M + 1, |j| j + 1) };
+        let mut pick: Option<(Action, f32, usize)> = None;
+        for &(a, k) in ex.root.iter() {
+            let (v, r) = (ex.nodes[k as usize].v, rank(a));
+            if pick.is_none_or(|(_, pv, pr)| v > pv || (v == pv && r < pr)) {
+                pick = Some((a, v, r));
+            }
+        }
+        let qs: Vec<f32> = (0..m).map(|j| ex.root.iter().find(|&&(a, _)| same(j, a)).map_or(f32::NAN, |&(_, k)| ex.nodes[k as usize].v)).collect();
+        for (j, q) in qs.into_iter().enumerate() {
+            if self.ok[j] {
+                self.qs[j] = q;
+            }
+        }
+        pick
     }
 }
 
@@ -1121,6 +1562,13 @@ impl SearchEngine {
             t.cover_actions += s.cover_actions;
             t.cover_classes += s.cover_classes;
             t.cover_capped += s.cover_capped;
+            t.ex_triggered += s.ex_triggered;
+            t.ex_done += s.ex_done;
+            t.ex_capped += s.ex_capped;
+            t.ex_changed += s.ex_changed;
+            t.ex_states += s.ex_states;
+            t.ex_rows += s.ex_rows;
+            t.cy_exact += s.cy_exact;
         }
         t
     }
@@ -1130,9 +1578,7 @@ impl SearchEngine {
     }
 
     pub fn shared_rows(&self) -> usize {
-        let mk = self.cfg.m * self.cfg.k;
-        let slots = if self.cfg.futures > 0 { mk.min(self.cfg.futures.max(self.cfg.m)) } else { mk };
-        self.blocks.len() * (slots + 1)
+        self.blocks.len() * (slots(&self.cfg) + 1)
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -55,7 +55,9 @@ fn main() {
         }
     }
     let jobs: Vec<(u32, u64)> = (0..scen.len()).map(|i| (i as u32, 101 * 1_000_003 + i as u64)).collect();
-    let cfg = SearchCfg { m, k, roll_cap: 120, leaf_turns: 2, turn_cap: 30, val_w: HEAD_NC, ..SearchCfg::default() };
+    let tie = std::env::var("STS2_EXACT").ok().and_then(|v| v.parse::<f32>().ok());
+    let exact = ExactCfg { on: tie.is_some(), tie: tie.unwrap_or(0.0), ..ExactCfg::default() };
+    let cfg = SearchCfg { m, k, roll_cap: 120, leaf_turns: 2, turn_cap: 30, val_w: HEAD_NC, exact, ..SearchCfg::default() };
     let mut eng = SearchEngine::new(scen, jobs.clone(), roots, cfg, threads, true).unwrap();
     eng.set_obs_version(ver).expect("observation version 1 or 2");
     #[allow(non_snake_case)]
@@ -126,6 +128,10 @@ fn main() {
         st.lead_clean,
         t_eng * threads as f64 / st.policy_rows.max(1) as f64 * 1e6
     );
+    if exact.on {
+        println!("  exact: searched {}, triggered {}, done {}, capped {}, changed {}, states {}, rows {}, cycles {:.1}% of the engine's",
+            st.searched, st.ex_triggered, st.ex_done, st.ex_capped, st.ex_changed, st.ex_states, st.ex_rows, 100.0 * st.cy_exact as f64 / tot);
+    }
     if verify {
         println!("  verified {} look-ahead cache hits against fresh projections", sts2sim::engine::LOOK_VERIFIED.load(std::sync::atomic::Ordering::Relaxed));
     }

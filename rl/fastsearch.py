@@ -27,6 +27,7 @@ def worth_row(w):
     return r
 
 LEAF_TURNS = 2
+EXACT_TURN = dict(loss=-0.9, tie=0.0, dets=8, cap=5000, potions=True)
 
 _SHAPE_CONSTS = {}
 
@@ -225,7 +226,7 @@ class HostBuffers:
 
 class FastSearch:
     def __init__(self, net, M=3, K=8, conf=1.01, max_steps=300, roots=512, groups=2, threads=None, roll_net=None, amp=False, record=False,
-                 leaf_turns=None, clairvoyant=False, dec_rows=True, cover=False, futures=0):
+                 leaf_turns=None, clairvoyant=False, dec_rows=True, cover=False, futures=0, exact_turn=None):
         self.net = net
         self.roll_net = roll_net if roll_net is not None else net
         vs = {getattr(n, "obs_version", 1) for n in [self.net, self.roll_net]}
@@ -235,6 +236,8 @@ class FastSearch:
         self.OBS = sts2.obs_size(self.obs_version)
         # cover: every distinct legal action is a candidate (up to max_m, by prior); futures: total per decision, 0 = K per candidate
         self.cover, self.futures = bool(cover), int(futures)
+        # exact_turn: True or overrides of EXACT_TURN; enumerates the turn when the searched values are blind (crates/sts2env ExactCfg)
+        self.exact = None if not exact_turn else {**EXACT_TURN, **(exact_turn if isinstance(exact_turn, dict) else {})}
         self.M, self.K, self.conf = (sts2.names()["max_m"] if self.cover else M), K, conf
         self.leaf_turns = LEAF_TURNS if leaf_turns is None else leaf_turns
         self.roll_cap = 60 * self.leaf_turns if self.leaf_turns < 100 else 400
@@ -456,7 +459,8 @@ class FastSearch:
                                      roll_cap=self.roll_cap, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, threads=min(self.threads, nb),
                                      record=self.record, lead=True, carry=True, strat=True, starts=starts, leaf_turns=self.leaf_turns,
                                      turn_cap=heads.TURN_CAP, val_w=self.val_w, worth=wt, clairvoyant=self.clairvoyant, obs_version=self.obs_version,
-                                     cover=self.cover, futures=self.futures)
+                                     cover=self.cover, futures=self.futures,
+                                     **({} if self.exact is None else {"exact": True, **{"ex_" + k: v for k, v in self.exact.items()}}))
             shared = eng.shared_rows()
             while len(self._bufs) <= gi:
                 self._bufs.append(HostBuffers(self.cuda, self.OBS))
@@ -501,12 +505,12 @@ class FastSearch:
         self.max_steps, self.record = 1, True
         try:
             self.run([scenario], np.zeros(1, np.uint32), np.array([seed], np.uint64), starts=[sim], worth=None if worth is None else [worth])
-            acts, searched, opts, p, q, legal = self._runs[0][1].moves(0)
+            acts, searched, opts, p, q, legal, exact = self._runs[0][1].moves(0)
         finally:
             self.max_steps, self.record = old
         W = self.M
         return dict(action=int(acts[0]), searched=bool(searched[0]), opts=opts[0, :W].tolist(), p=p[0, :W].tolist(), q=q[0, :W].tolist(),
-                    legal=legal[0, :W].astype(bool).tolist())
+                    legal=legal[0, :W].astype(bool).tolist(), exact=bool(exact[0]))
 
     def job_actions(self, j):
         for idx, eng in self._runs:
