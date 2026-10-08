@@ -208,7 +208,7 @@ class Data:
     def rows(self, fights):
         """The training rows of these fights, replayed in parallel (`sts2.replay_rows`): obs, mask, options, soft target, outcome class, normalised
         estimates, Gumbel shift (zeros for format 1), outcome weight (0 for the rows of `policy_only` parts: restarts selected on a lost future)."""
-        out = [[], [], [], [], [], [], [], []]
+        out = [[], [], [], [], [], [], [], [], []]
         by = {}
         for pi, f in fights:
             by.setdefault(pi, []).append(f)
@@ -230,6 +230,9 @@ class Data:
             out[5].append(p["qn"][sel])
             out[6].append(p["adv"][sel] if p["adv"] is not None else np.zeros_like(p["qn"][sel]))
             out[7].append(np.full(len(sel), 0.0 if p["policy_only"] else 1.0, np.float32))
+            last = np.zeros(len(sel), bool)
+            last[np.asarray(soff[1:]) - 1] = True  # the fight's last searched decision (its rows are contiguous, in step order)
+            out[8].append(last)
         return [np.concatenate(x) for x in out]
 
 
@@ -262,12 +265,25 @@ def train(a):
                 prm.requires_grad_(False)
     if a.target == "gumbel" and not data.has_gumbel():
         raise SystemExit("--target gumbel needs parts collected with --root gumbel (format 2: d_adv)")
-    prior = load(a.init).eval() if a.target in ("anchored", "gumbel") else None
+    prior = load(a.init).eval() if a.target in ("anchored", "gumbel") or a.value_target == "td" else None
+
+    @torch.no_grad()
+    def td_targets(r):
+        """TD(lambda) outcome targets [rows, NC]: a fight's last searched decision gets its realized ending (HL-Gauss); every earlier one
+        (1 - lambda) x the init network's outcome distribution at the next searched decision + lambda x that decision's target. Lower variance
+        than the single realized ending; the bias is the frozen init network's (the same construction as ppo.py --lam-head)."""
+        o, m, cl, last = r[0], r[1], r[4], r[8]
+        P = np.concatenate([torch.softmax(prior.heads_out(torch.from_numpy(o[b:b + 4096]).to(DEV))[0].float(), 1).cpu().numpy() for b in range(0, len(o), 4096)])
+        T = hl_gauss(torch.from_numpy(cl.astype(np.int64)), a.sigma).numpy()
+        for i in range(len(o) - 2, -1, -1):
+            if not last[i]:
+                T[i] = (1 - a.lam) * P[i + 1] + a.lam * T[i + 1]
+        return T.astype(np.float32)
     opt = torch.optim.AdamW([q for q in net.parameters() if q.requires_grad], lr=a.lr, weight_decay=1e-4)
     print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target {a.target}"
           f"{' (c=%g, %s)' % (a.c, a.qnorm) if a.target == 'anchored' else ''}{', policy heads frozen' if a.freeze_policy else ''}", flush=True)
 
-    def batch_loss(o, m, op, tg, cl, qn, adv, ow):
+    def batch_loss(o, m, op, tg, cl, qn, adv, ow, last, vt=None):
         o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m.astype(np.int64)).to(DEV)
         op, tg, cl = torch.from_numpy(op.astype(np.int64)).to(DEV), torch.from_numpy(tg).to(DEV), torch.from_numpy(cl.astype(np.int64)).to(DEV)
         lg, _, ol = net(o, m, outcome=True)[:3]
@@ -285,7 +301,8 @@ def train(a):
             lp = F.log_softmax(lg.float(), 1).gather(1, op.clamp(min=0))
             pl = -(tg * torch.where(op >= 0, lp, torch.zeros_like(lp))).sum(1).mean()
         ow = torch.from_numpy(ow).to(DEV)
-        vl = (-(hl_gauss(cl, a.sigma) * F.log_softmax(ol.float(), 1)).sum(1) * ow).sum() / ow.sum().clamp(min=1.0)
+        tv = hl_gauss(cl, a.sigma) if vt is None else torch.from_numpy(vt).to(DEV)
+        vl = (-(tv * F.log_softmax(ol.float(), 1)).sum(1) * ow).sum() / ow.sum().clamp(min=1.0)
         return pl, vl
 
     @torch.no_grad()
@@ -308,6 +325,8 @@ def train(a):
         for c in range(0, len(tr), a.chunk):
             t0 = time.time()
             r = data.rows([tr[i] for i in order[c:c + a.chunk]])
+            if a.value_target == "td":  # computed before the shuffle: a fight's rows are still contiguous
+                r.append(td_targets(r))
             sh = rng.permutation(len(r[0]))
             r = [x[sh] for x in r]
             lr = a.lr * max(a.lr_floor, 1 - it / n_chunks)
@@ -366,6 +385,9 @@ def main():
                    "in return units (abs: a near-tie shifts the prior by almost nothing; c 4 turns a 2-se gap at 5x32, ~0.22, into ~0.9 logits)")
     t.add_argument("--qse", type=float, default=0.078, help="--qnorm cmpo: noise se of one option's estimate (0.078 at 5x32, tools/target_noise.py)")
     t.add_argument("--vw", type=float, default=1.0, help="weight of the outcome loss (0: policy only, no interference through the shared trunk)")
+    t.add_argument("--value-target", choices=["realized", "td"], default="realized", help="outcome target: the fight's realized ending, or "
+                   "TD(lambda) over the fight's searched decisions with the init network's predictions (lower variance; holdout still scores realized)")
+    t.add_argument("--lam", type=float, default=0.9, help="--value-target td: lambda (1 = realized ending)")
     t.add_argument("--freeze-policy", action="store_true", help="train the value side only (policy heads frozen)")
     t.add_argument("--holdout", type=float, default=0.05); t.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
