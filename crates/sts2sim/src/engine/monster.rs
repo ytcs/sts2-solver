@@ -633,11 +633,6 @@ impl Combat {
         out.push((self, p * outs[n - 1].1));
     }
 
-    /// Digest of what makes two combats different for the look-ahead (`look_digest_of`), with the player's relics.
-    fn look_digest(&self) -> u64 {
-        look_digest_of(self, Digest::Key)
-    }
-
     /// The projected moves of the enemies `who`: per enemy and future turn, each possible move node with its probability and
     /// expected damage. `fork` says which monsters branch at their rolls (the others take their most likely move). Also returns
     /// the set of monsters (bit = creature id) that had a choice at some roll.
@@ -667,9 +662,8 @@ impl Combat {
             for cr in base.creatures.iter_mut().filter(|cr| cr.active && !cr.is_player) {
                 cr.pristine = PRISTINE_HP | PRISTINE_BLOCK;
             }
-            // path buffers, reused across turns and rolls
-            let (mut paths, mut next, mut rolled): (Vec<(Box<Combat>, f32)>, Vec<(Box<Combat>, f32)>, Vec<(Box<Combat>, f32)>) =
-                (Vec::with_capacity(4 * LOOK_PATHS), Vec::with_capacity(4 * LOOK_PATHS), Vec::with_capacity(4 * LOOK_PATHS));
+            // path buffers, reused across turns and rolls (and across projections: the thread's `LOOK_VECS`)
+            let [mut paths, mut next, mut rolled] = LOOK_VECS.with(|v| core::mem::take(&mut *v.borrow_mut()));
             paths.push((base, 1.0));
             for h in 0..LOOK_H {
                 lcount!(21, paths.len());
@@ -694,8 +688,9 @@ impl Combat {
                 }
                 lprof!(18, for (cx, p) in next.iter_mut() {
                     // the damage the intent would show: the projected monster against the player's current modifiers
-                    let inert = cx.creatures[PLAYER as usize].powers;
-                    cx.creatures[PLAYER as usize].powers = self.cr(PLAYER).powers;
+                    let mut inert = crate::util::ArrayVec::new();
+                    inert.copy_from(&cx.creatures[PLAYER as usize].powers);
+                    cx.creatures[PLAYER as usize].powers.copy_from(&self.cr(PLAYER).powers);
                     cx.player_hooks_active = self.player_hooks_active;
                     for (k, &f) in who.iter().enumerate() {
                         let cr = cx.cr(f);
@@ -713,7 +708,7 @@ impl Combat {
                             None => list.push((node, *p, pd)),
                         }
                     }
-                    cx.creatures[PLAYER as usize].powers = inert;
+                    cx.creatures[PLAYER as usize].powers.copy_from(&inert);
                     cx.player_hooks_active = false;
                 });
                 core::mem::swap(&mut paths, &mut next);
@@ -721,9 +716,13 @@ impl Combat {
                     break;
                 }
             }
-            for (cx, _) in paths {
+            for (cx, _) in paths.drain(..) {
                 look_free(cx);
             }
+            for (cx, _) in next.drain(..).chain(rolled.drain(..)) {
+                look_free(cx);
+            }
+            LOOK_VECS.with(|v| *v.borrow_mut() = [paths, next, rolled]);
         });
         (lists, random)
     }
@@ -881,16 +880,7 @@ impl Combat {
         total as f32
     }
 
-    /// Digest of everything `look_project(c)` reads: the whole projected world (`look_digest`), where the turn stands, and `c`.
-    fn look_key(&self, c: Cid) -> u64 {
-        self.look_key_of(c, self.look_digest())
-    }
-
-    /// `look_key` with the enemies' HP reduced to alive / dead and without their block: the key of a projection that read neither.
-    fn look_key_relaxed(&self, c: Cid) -> u64 {
-        self.look_key_of(c, look_digest_of(self, Digest::Relaxed))
-    }
-
+    /// The cache key of `look_project(c)` from a digest of this combat (`LookDigests`): the whole projected world, where the turn stands, and `c`.
     fn look_key_of(&self, c: Cid, digest: u64) -> u64 {
         let mut h = digest;
         let v = c as u64
@@ -906,15 +896,20 @@ impl Combat {
 
     /// The monster's move distribution for the next `LOOK_H` turns after the current intent (see the section comment).
     pub fn lookahead(&self, c: Cid) -> [LookRow; LOOK_H] {
-        self.lookahead_with(c, true)
+        self.lookahead_with(c, true, &mut LookDigests::default())
+    }
+
+    /// `lookahead` of several enemies of this (unchanged) combat: `d` keeps the digests the keys are made of, computed once for all of them.
+    pub fn lookahead_shared(&self, c: Cid, d: &mut LookDigests) -> [LookRow; LOOK_H] {
+        self.lookahead_with(c, true, d)
     }
 
     /// `lookahead` without the cache (tests compare the two).
     pub fn lookahead_fresh(&self, c: Cid) -> [LookRow; LOOK_H] {
-        self.lookahead_with(c, false)
+        self.lookahead_with(c, false, &mut LookDigests::default())
     }
 
-    fn lookahead_with(&self, c: Cid, cached: bool) -> [LookRow; LOOK_H] {
+    fn lookahead_with(&self, c: Cid, cached: bool, d: &mut LookDigests) -> [LookRow; LOOK_H] {
         let cr = self.cr(c);
         let legacy = LOOK_LEGACY.load(std::sync::atomic::Ordering::Relaxed);
         if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player || (self.stage == Stage::Over && !legacy) {
@@ -925,12 +920,12 @@ impl Combat {
         // read, so its rows hold for all of them: in a 5x32 search 60% of the states the exact key misses differ from a cached one only there.
         #[cfg(feature = "obs_prof")]
         let t0 = unsafe { core::arch::x86_64::_rdtsc() };
-        let rkey = if cached && !legacy { self.look_key_relaxed(c) } else { 0 };
+        let rkey = if cached && !legacy { self.look_key_of(c, d.relaxed(self)) } else { 0 };
         #[cfg(feature = "obs_prof")]
         unsafe { crate::observe::OBS_PROF[10] += core::arch::x86_64::_rdtsc() - t0; }
         #[cfg(feature = "obs_prof")]
         let t1 = unsafe { core::arch::x86_64::_rdtsc() };
-        let rows = if !cached { self.look_rows(c, false) } else { LOOK_CACHE.with(|t| {
+        let rows = if !cached { self.look_rows(c, false, d) } else { LOOK_CACHE.with(|t| {
             let mut t = t.borrow_mut();
             #[cfg(feature = "obs_prof")]
             unsafe { crate::observe::OBS_PROF[12] += 1; }
@@ -942,14 +937,14 @@ impl Combat {
                     return r;
                 }
             }
-            let key = self.look_key(c);
+            let key = self.look_key_of(c, d.key(self));
             if let Some(r) = t.get(key) {
                 return r;
             }
             #[cfg(feature = "obs_prof")]
             unsafe { crate::observe::OBS_PROF[13] += 1; }
             let outer = LOOK_DEP.with(|d| d.replace(false));
-            let r = self.look_rows(c, true);
+            let r = self.look_rows(c, true, d);
             let dep = LOOK_DEP.with(|d| d.replace(outer || d.get()));
             t.put(key, r);
             if !dep && !legacy {
@@ -987,11 +982,11 @@ impl Combat {
     /// Rows of monster `c`. A monster that never has a choice has the same rows in every projection in which it does not branch, so
     /// one projection in which nobody branches (the "mode" projection) serves all of them; a monster with a choice gets its own.
     /// `cached`: the mode projection of this combat is memoized (`LOOK_MODE`).
-    fn look_rows(&self, c: Cid, cached: bool) -> [LookRow; LOOK_H] {
+    fn look_rows(&self, c: Cid, cached: bool, d: &mut LookDigests) -> [LookRow; LOOK_H] {
         if LOOK_LEGACY.load(std::sync::atomic::Ordering::Relaxed) {
             return self.legacy_rows(c);
         }
-        let key = if cached { self.look_key(NO) } else { 0 };
+        let key = if cached { self.look_key_of(NO, d.key(self)) } else { 0 };
         let memo = if cached { LOOK_MODE.with(|m| m.borrow().filter(|m| m.0 == key)) } else { None };
         if let Some((_, rows, random, dep)) = memo {
             if dep {
@@ -1028,6 +1023,25 @@ fn look_rows_of(lists: &[LookList; LOOK_H]) -> [LookRow; LOOK_H] {
         }
     }
     rows
+}
+
+/// The two digests of a combat the look-ahead cache keys are made of (`look_key_of`), each computed when first needed: the enemies of one
+/// observation look ahead on the same combat and share them (`Combat::lookahead_shared`). Only valid for one unchanged combat.
+#[derive(Default)]
+pub struct LookDigests {
+    relaxed: Option<u64>,
+    key: Option<u64>,
+}
+
+impl LookDigests {
+    #[inline]
+    fn relaxed(&mut self, cx: &Combat) -> u64 {
+        *self.relaxed.get_or_insert_with(|| look_digest_of(cx, Digest::Relaxed))
+    }
+    #[inline]
+    fn key(&mut self, cx: &Combat) -> u64 {
+        *self.key.get_or_insert_with(|| look_digest_of(cx, Digest::Key))
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -1148,6 +1162,8 @@ fn look_merge(v: &mut Vec<(Box<Combat>, f32)>) {
 }
 
 thread_local! {
+    /// The path buffers of `look_project` (three allocations per projection otherwise).
+    static LOOK_VECS: std::cell::RefCell<[Vec<(Box<Combat>, f32)>; 3]> = const { std::cell::RefCell::new([Vec::new(), Vec::new(), Vec::new()]) };
     /// Recycled boxes for projected combats (an 18.8 KB allocation per copy otherwise).
     static LOOK_POOL: std::cell::RefCell<Vec<Box<Combat>>> = const { std::cell::RefCell::new(Vec::new()) };
 }
@@ -1277,7 +1293,7 @@ pub static LOOK_VERIFIED: std::sync::atomic::AtomicU64 = std::sync::atomic::Atom
 #[cold]
 fn look_verify(cx: &Combat, c: Cid, r: &[LookRow; LOOK_H]) {
     let outer = LOOK_DEP.with(|d| d.get());
-    let f = cx.look_rows(c, false);
+    let f = cx.look_rows(c, false, &mut LookDigests::default());
     LOOK_DEP.with(|d| d.set(outer));
     let same = r.iter().zip(f.iter()).all(|(a, b)| a.exp_damage.to_bits() == b.exp_damage.to_bits() && a.prob.iter().zip(b.prob.iter()).all(|(x, y)| x.to_bits() == y.to_bits()));
     assert!(same, "look-ahead: a relaxed-key cache hit differs from the fresh rows (monster {}, creature {c})", crate::ids::monster::NAMES[cx.cr(c).monster.id as usize]);

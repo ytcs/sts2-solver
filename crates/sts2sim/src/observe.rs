@@ -599,6 +599,8 @@ impl Combat {
         }
         });
         // ---- pending decision ----
+        // the displayed order of the candidates (`decision_view`), shared by the candidate block and their star costs
+        let star_view = self.decision.as_ref().map(|d| self.decision_view(d));
         match &self.decision {
             Some(d) => {
                 w.n(1);
@@ -613,7 +615,7 @@ impl Combat {
                 w.n(d.confirm_required as i32);
                 w.n(d.can_skip as i32);
                 w.n(d.cands.len() as i32);
-                let view = self.decision_view(d);
+                let view = star_view.as_ref().expect("a view of the pending decision");
                 for k in 0..dm.cands {
                     // displayed order (`view`), never the game's pile order
                     match view.get(k).map(|vi| (vi, d.cands[vi as usize])) {
@@ -634,7 +636,6 @@ impl Combat {
                 None => w.f(0.0),
             }
         }
-        let star_view = self.decision.as_ref().map(|d| self.decision_view(d));
         for k in 0..dm.cands {
             match self.decision.as_ref().and_then(|d| star_view.as_ref().and_then(|v| v.get(k)).map(|vi| d.cands[vi as usize])) {
                 Some(c) => w.n(self.obs_star_cost(c)),
@@ -685,10 +686,11 @@ impl Combat {
         w.n(self.hist_log.lightning_channeled as i32);
         // ---- expert pattern knowledge about upcoming enemy turns (appended) ----
         prof!(4, t4, {
+        let mut dig = crate::engine::LookDigests::default();
         for k in 0..OBS_MAX_ENEMIES {
             match self.enemies.get(k) {
                 Some(e) if self.cr(e).is_alive() => {
-                    for row in self.lookahead(e).iter() {
+                    for row in self.lookahead_shared(e, &mut dig).iter() {
                         for &p in row.prob.iter() {
                             w.f(p);
                         }
