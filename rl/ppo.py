@@ -11,6 +11,8 @@ lambda-returns of the distribution itself (`--lam-head`); `--head-warmup K` firs
 `--pot-head` (M1b): the potion-use head, P(the potion in belt slot k is used before the fight ends), binary cross-entropy against lambda-mixed targets
 (1 when the env reports the slot's potion used at this step, 0 when the fight ends with it, else the next state's prediction); empty slots masked.
 `--warm-prefix pot_use.` with `--head-warmup K` trains that head alone on a frozen network.
+`--obs-version 2` trains on observation v2 (`crates/sts2sim/src/observe.rs`; from scratch: a v1 checkpoint cannot be resumed into it); the checkpoint
+records it (`args["obs_version"]`) and `rl/model.py` `load` reads it back.
 """
 import argparse, json, os, sys, time
 import numpy as np
@@ -21,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
 import utility
 import heads as H
-from model import Net, n_params, DEV, load_weights
+from model import Net, n_params, DEV, load_weights, claim_obs_version
 
 
 def make_env(path, n, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
@@ -101,6 +103,7 @@ def main():
     ap.add_argument("--eval-envs", type=int, default=1024)
     ap.add_argument("--eval-per-env", type=int, default=2)
     ap.add_argument("--d", type=int, default=64)
+    ap.add_argument("--obs-version", type=int, default=1, choices=(1, 2), help="observation version the network reads (2: the visible information v1 leaves out)")
     ap.add_argument("--rounds", type=int, default=2)
     ap.add_argument("--hold-prob", type=float, default=0.0, help="fraction of episodes that run under a random 'no potion before turn T' rule (T in 2..5, or never): states that hold a resource then show up in the data")
     ap.add_argument("--util-prob", type=float, default=0.0, help="share of episodes whose win reward follows a random HP-worth curve (rl/utility.py) instead of the linear return; the network reads the curve as an input")
@@ -147,7 +150,8 @@ def main():
         raise SystemExit("--heads uses today's linear worth of the ending (rl/heads.py): no --util-prob")
     if a.pot_head and not a.heads:
         raise SystemExit("--pot-head needs --heads")
-    net = Net(d=a.d, rounds=a.rounds, heads=a.heads, pot=a.pot_head).to(DEV)
+    net = Net(d=a.d, rounds=a.rounds, heads=a.heads, pot=a.pot_head, obs_version=a.obs_version).to(DEV)
+    claim_obs_version(a.obs_version)  # the training and evaluation envs write this version
     opt = torch.optim.Adam(net.parameters(), lr=a.lr, eps=1e-5)
     allow = ("ucond.", "outcome.") if a.heads else ("ucond.",)
     if a.pot_head:
@@ -155,6 +159,9 @@ def main():
     it0, steps = 0, 0
     if a.resume:  # a full checkpoint (net + optimizer + progress) or a bare state dict (weights only: warm start)
         ck = torch.load(a.resume, map_location="cpu")
+        rv = int(ck.get("args", {}).get("obs_version", 1) or 1) if "net" in ck else a.obs_version
+        if rv != a.obs_version:
+            raise SystemExit(f"--resume {a.resume} reads observation version {rv}, not --obs-version {a.obs_version}")
         if "net" in ck:
             load_weights(net, ck["net"], allow)
             if not a.warm:
@@ -194,6 +201,8 @@ def main():
     if a.distill:
         parts = [np.load(p) for p in a.distill.split(",")]
         dist_d = {k: torch.from_numpy(np.concatenate([q[k] for q in parts])) for k in ("obs", "mask", "opts", "tgt", "cls")}
+        if dist_d["obs"].shape[1] != env.obs_size:
+            raise SystemExit(f"--distill rows have {dist_d['obs'].shape[1]} floats, observation version {a.obs_version} has {env.obs_size}")
         print("distillation rows", len(dist_d["cls"]), flush=True)
     prefixes = tuple(p for p in a.warm_prefix.split(",") if p)
     warm_params = [p for n, p in net.named_parameters() if n.startswith(prefixes)]
@@ -203,7 +212,7 @@ def main():
     it_warm = it0 + (a.head_warmup if opt_w is not None else 0)  # iterations up to this one only train the outcome head
     N, T = a.envs, a.horizon
     A = sts2.ACTIONS
-    b_obs = torch.zeros(T, N, sts2.OBS_SIZE)
+    b_obs = torch.zeros(T, N, env.obs_size)
     b_mask = torch.zeros(T, N, A, dtype=torch.uint8)
     b_act = torch.zeros(T, N, dtype=torch.long)
     b_lp = torch.zeros(T, N)
@@ -214,8 +223,8 @@ def main():
     if a.heads:
         b_pout = torch.zeros(T + 1, N, H.NC)  # the outcome head's distribution at every observation (and the one after the horizon)
         b_term = torch.full((T, N), -1, dtype=torch.long)  # at an episode's last step: its ending class; -2 = aborted (no target); -1 = not done
-    KP = sts2.layout()["consts"]["MAX_POTIONS"]
-    _po = {n: o for n, o, s in sts2.layout()["sections"]}["potions"]
+    KP = net.C["MAX_POTIONS"]
+    _po = net.SEC["potions"][0]
     if a.pot_head:
         b_ppot = torch.zeros(T + 1, N, KP)  # the potion-use head's probabilities at every observation
         b_pused = torch.zeros(T, N, KP)  # slot k's potion used up at this step (env)
@@ -233,7 +242,7 @@ def main():
             feat[i] = utility.feats(u)
     draw_curves(np.arange(N))
     inv_err = [0.0, 0]  # max |overridden - env reward| on linear-curve wins, and how many were checked
-    POT = slice(sts2.layout()["consts"]["OFF_POTION"], sts2.layout()["consts"]["OFF_DISCARD"])
+    POT = slice(net.C["OFF_POTION"], net.C["OFF_DISCARD"])
     hold_until = np.zeros(N, np.int32)  # 0 = free, k = no potion before turn k, 99 = never
     def draw_rules(idx):
         use = rng.random(len(idx)) < a.hold_prob

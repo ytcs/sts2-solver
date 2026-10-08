@@ -234,7 +234,8 @@ def _greedy(net, scen, per_env, seed):
     import sts2
     import heads as H
     from model import DEV
-    env = sts2.VecEnv(len(scen), [json.dumps(x) for x in scen], seed=seed, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
+    env = sts2.VecEnv(len(scen), [json.dumps(x) for x in scen], seed=seed, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP,
+                      obs_version=getattr(net, "obs_version", 1))
     obs, mask = env.reset()
     got = np.zeros(len(scen), np.int32)
     out = np.full((len(scen), per_env), np.nan)

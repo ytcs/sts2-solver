@@ -58,7 +58,8 @@ class Solver:
     def _greedy(self, scenarios, attempts, seed):
         """The network alone (its most probable action every time): rows (outcome, hp_lost, length, hp_end)."""
         flat = [scenarios[i] for _ in range(attempts) for i in range(len(scenarios))]  # attempt-major
-        env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=heads.TURN_CAP)
+        env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=heads.TURN_CAP,
+                          obs_version=getattr(self.net, "obs_version", 1))
         pol = net_policy(self.net)
         obs, mask = env.reset()
         got = np.zeros(len(flat), bool)

@@ -117,11 +117,11 @@ def test_exit_collects_and_loads_the_gumbel_target():
     if skip_without_gumbel():
         return
     import exit as X
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:  # (Windows: `Data` keeps the part open)
         fights = os.path.join(tmp, "f.json")
         json.dump(scenarios(2), open(fights, "w"))
         a = argparse.Namespace(fights=[fights], look_legacy=False, ckpt=CKPT, M=3, K=4, roots=4, attempts=1, out=os.path.join(tmp, "g.npz"), first_timeout=30.0,
-                               chunk_timeout=50.0, chunk=2, chunks_per_process=5, max_minutes=30, seed=101, root="gumbel", gumbel_m=8, gumbel_n=24)
+                               chunk_timeout=50.0, chunk=2, chunks_per_process=5, max_minutes=30, seed=101, root="gumbel", gumbel_m=8, gumbel_n=24, restarts=None)
         X.collect(a)
         part = os.path.join(tmp, "g_000.npz")
         z = np.load(part)
@@ -130,7 +130,7 @@ def test_exit_collects_and_loads_the_gumbel_target():
         data = X.Data([part], tau=0.02, keep_mp=True)
         assert data.has_gumbel()
         rows = data.rows(data.index)
-        assert len(rows) == 7 and rows[6].shape == rows[2].shape
+        assert len(rows) == 8 and rows[6].shape == rows[2].shape  # (..., Gumbel shift, outcome weight)
         assert np.all((rows[2] >= 0) | (rows[6] == 0))  # no shift on padded / untried slots
         assert np.abs(rows[6]).sum() > 0
         z.close()

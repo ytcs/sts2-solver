@@ -110,6 +110,119 @@ def test_v1_is_bit_identical():
             assert _sim_hashes(sc, seed, ac, version=1) == list(want), f"fight {i}: Sim.observe(version=1) differs from v1"
 
 
+def _sec(v):
+    return {n: (o, s) for n, o, s in sts2.layout(v)["sections"]}, sts2.layout(v)["consts"]
+
+
+def test_every_producer_writes_v2():
+    """VecEnv, replay, replay_rows and Sim.observe give the same v2 rows (2997 floats), and the process-wide default stays 1."""
+    assert sts2.obs_version() == 1
+    assert sts2.obs_size(2) == sts2.layout(2)["consts"]["OBS_SIZE"] > sts2.obs_size(1)
+    fights, _ = _fixture()
+    for sc, seed, ac, _h in fights[:12]:
+        o, m = sts2.replay(sc, seed, ac, obs_version=2)
+        assert o.shape == (len(ac) + 1, sts2.obs_size(2))
+        assert _sim_hashes(sc, seed, ac, version=2, size=sts2.obs_size(2)) == [row_hash(o[t], m[t]) for t in range(len(o))]
+        steps = np.array([0, len(ac) // 2, len(ac)], np.uint32)
+        ro, rm = sts2.replay_rows([sc], [0], [seed], ac, [0, len(ac)], steps, [0, 3], obs_version=2)
+        assert np.array_equal(ro, o[steps]) and np.array_equal(rm, m[steps])
+    env = sts2.VecEnv(4, [fights[0][0]], seed=1, obs_version=2)
+    obs, mask = env.reset()
+    assert env.obs_version == 2 and obs.shape == (4, sts2.obs_size(2))
+    assert sts2.VecEnv(2, [fights[0][0]], seed=1).obs.shape == (2, sts2.obs_size(1))  # default: the process-wide version (1)
+    obs, mask, *_ = env.step(np.flatnonzero(mask[0])[:1].repeat(4).astype(np.int32))
+    assert obs.shape == (4, sts2.obs_size(2))
+
+
+def test_v2_shows_what_v1_hid_on_recorded_fights():
+    """Over the fixture fights: every selection row names its source, selections asked by a card show that card in play, candidates past 16
+    are present, and calculated card numbers are non-zero where v1 has 0."""
+    fights, _ = _fixture()
+    s1, c1 = _sec(1)
+    s2, c2 = _sec(2)
+    CF1, CF2 = c1["CARD_F"], c2["CARD_F"]
+    calc = {i for i, n in enumerate(sts2.names()["card"]) if n in ("BODY_SLAM", "PERFECTED_STRIKE", "GOLD_AXE", "REND", "UNLEASH", "MURDER", "BULLY",
+                                                                   "FINISHER", "FLECHETTES", "STACK", "EXPECT_A_FIGHT", "MIRAGE", "NORMALITY", "ASHEN_STRIKE")}
+    n_dec = n_src = n_played = n_wide = n_calc = n_calc_v1 = 0
+    for sc, seed, ac, _h in fights:
+        o1, _ = sts2.replay(sc, seed, ac, obs_version=1)
+        o2, _ = sts2.replay(sc, seed, ac, obs_version=2)
+        dec = o2[:, s2["decision"][0]] > 0.5
+        n_dec += int(dec.sum())
+        n_src += int((o2[dec, s2["dec_source"][0]] > 0).sum())
+        n_played += int((o2[dec, s2["played"][0]] > 0).sum())
+        n_wide += int((o2[dec, s2["decision"][0] + 8 + 16 * (CF2 + 1)] > 0).sum())
+        for k in range(c1["MAX_HAND"]):
+            cid = o2[:, s2["hand"][0] + k * CF2] - 1
+            sel = np.isin(cid, list(calc))
+            v2 = o2[sel, s2["hand"][0] + k * CF2 + 6: s2["hand"][0] + k * CF2 + 8].sum(1) + o2[sel, s2["hand"][0] + k * CF2 + 12]
+            v2 = v2 + o2[sel, s2["osty"][0] + 4 + 3 * c2["OBS_POWERS"] + k]
+            v1 = o1[sel, s1["hand"][0] + k * CF1 + 6: s1["hand"][0] + k * CF1 + 8].sum(1)
+            n_calc += int((v2 != 0).sum())
+            n_calc_v1 += int((v1 != 0).sum())
+    print(f"  selections {n_dec}: source {n_src}, card in play {n_played}, > 16 candidates {n_wide}; calculated numbers shown v2 {n_calc} vs v1 {n_calc_v1}")
+    assert n_dec > 100 and n_src == n_dec and n_played > 0 and n_calc > 10 * max(n_calc_v1, 1)
+
+
+def test_network_reads_its_checkpoints_version():
+    """A v2 network: built, saved, loaded back with its version; it refuses v1 rows (and a v1 network v2 rows) with a clear error; `load` will not
+    set a second process-wide version."""
+    import tempfile
+    import torch
+    import model as M
+    net = M.Net(d=32, heads=True, pot=True, obs_version=2)
+    with tempfile.TemporaryDirectory() as tmp:
+        p = os.path.join(tmp, "v2.pt")
+        torch.save({"net": net.state_dict(), "args": {"d": 32, "heads": True, "pot_head": True, "obs_version": 2}}, p)
+        n2 = M.load(p, set_version=False)
+        assert n2.obs_version == 2 and sts2.obs_version() == 1
+        fights, _ = _fixture()
+        sc, seed, ac, _h = fights[1]
+        o2, m2 = sts2.replay(sc, seed, ac, obs_version=2)
+        o1, m1 = sts2.replay(sc, seed, ac, obs_version=1)
+        with torch.no_grad():
+            a = n2(torch.from_numpy(o2), torch.from_numpy(m2.astype(np.int64)))
+            b = net.eval()(torch.from_numpy(o2), torch.from_numpy(m2.astype(np.int64)))
+        assert torch.equal(a[0], b[0])
+        for nn_, o, m in ((n2, o1, m1), (M.Net(d=32), o2, m2)):
+            try:
+                nn_(torch.from_numpy(o), torch.from_numpy(m.astype(np.int64)))
+                raise AssertionError("a row of the other observation version was accepted")
+            except ValueError as e:
+                assert "observation version" in str(e)
+        old = set(M._CLAIMED)
+        try:
+            M._CLAIMED.clear()
+            M._CLAIMED.add(1)
+            try:
+                M.load(p)
+                raise AssertionError("load set a second process-wide version")
+            except RuntimeError:
+                pass
+        finally:
+            M._CLAIMED.clear()
+            M._CLAIMED.update(old)
+            sts2.set_obs_version(1)
+
+
+def test_search_runs_a_v2_network():
+    """The search engine writes rows of its network's version (a fresh v2 network on the CPU, a few fights)."""
+    import torch
+    import model as M
+    from fastsearch import FastSearch
+    torch.manual_seed(0)
+    net = M.Net(d=32, heads=True, pot=True, obs_version=2).eval()
+    fights, _ = _fixture()
+    sc = [f[0] for f in fights[:2]]
+    fs = FastSearch(net, M=2, K=2, roots=2, groups=1, threads=2, record=True, max_steps=60)
+    assert fs.OBS == sts2.obs_size(2)
+    r = fs.run(sc, np.arange(2, dtype=np.uint32), np.array([3, 4], np.uint64))
+    assert fs.stats["searched"] > 0 and r.shape[0] == 2
+    acts = fs._runs[0][1].moves(0)[0]
+    o, _ = sts2.replay(sc[0], 3, acts, obs_version=2)
+    assert o.shape[1] == sts2.obs_size(2)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--regen-v1", nargs="+", metavar="PART", help="rebuild fixtures/obs_v1.npz from these recorded parts with this build")

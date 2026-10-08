@@ -35,7 +35,7 @@ def collect(net, fights, M, K, attempts, seed, tau, roots=1024):
             acts, searched, opts, p, q, legal = eng.moves(j_local)
             if not searched.any():
                 continue
-            obs, mask = sts2.replay(fights[js[j]], int(jd[j]), acts)
+            obs, mask = sts2.replay(fights[js[j]], int(jd[j]), acts, obs_version=getattr(net, "obs_version", 1))
             for t in np.nonzero(searched)[0]:
                 ok = legal[t, :M].astype(bool) & np.isfinite(q[t, :M])
                 if ok.sum() < 2:

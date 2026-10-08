@@ -277,9 +277,10 @@ def prior_of(net, st):
     """The policy's probabilities at the state, summed over duplicate actions: {key: p} for every distinct legal action."""
     import torch
     from model import DEV
-    obs, mask = np.zeros(sts2.OBS_SIZE, np.float32), np.zeros(sts2.ACTIONS, np.uint8)
+    v = getattr(net, "obs_version", 1)
+    obs, mask = np.zeros(sts2.obs_size(v), np.float32), np.zeros(sts2.ACTIONS, np.uint8)
     sim = st["sim"].copy()
-    sim.observe(obs, mask)
+    sim.observe(obs, mask, version=v)
     with torch.no_grad():
         lg = net(torch.from_numpy(obs).unsqueeze(0).to(DEV), torch.from_numpy(mask).unsqueeze(0).to(DEV), value=False)[0].float()
         p = torch.softmax(lg, 1)[0].cpu().numpy()

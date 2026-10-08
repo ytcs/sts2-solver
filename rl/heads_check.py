@@ -20,7 +20,8 @@ from model import DEV, load
 
 @torch.no_grad()
 def collect(net, scen, seed=5, max_steps=600, sample=False):
-    env = sts2.VecEnv(len(scen), scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
+    env = sts2.VecEnv(len(scen), scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP,
+                      obs_version=getattr(net, "obs_version", 1))
     obs, mask = env.reset()
     n = len(scen)
     live = np.ones(n, bool)
