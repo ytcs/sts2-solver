@@ -150,6 +150,7 @@ class Data:
     def __init__(self, paths, tau, keep_mp=False, qnorm="minmax", qse=0.078, hard=False, obs_version=1):
         self.obs_version = obs_version  # rows are replayed as observations of this version (the trained network's)
         self.parts = []
+        self.bad = set()  # (part, fight) pairs that no longer replay (`_replayable`)
         for p in paths:
             z = np.load(p)
             scen = json.loads(str(z["scenarios"]))
@@ -206,6 +207,33 @@ class Data:
         """Every part carries the Gumbel improved policy (format 2)."""
         return all(p["adv"] is not None for p in self.parts)
 
+    def _replay(self, p, fs):
+        uniq, inv = np.unique(p["f_scen"][fs], return_inverse=True)
+        acts, off, steps, soff, sel = [], [0], [], [0], []
+        for f in fs:
+            acts.append(p["acts"][p["f_off"][f]:p["f_off"][f + 1]]); off.append(off[-1] + len(acts[-1]))
+            lo, hi = p["d_lo"][f], p["d_lo"][f + 1]
+            steps.append(p["d_step"][lo:hi]); soff.append(soff[-1] + hi - lo); sel.append(np.arange(lo, hi))
+        o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff,
+                               obs_version=self.obs_version)
+        return o, m, np.concatenate(sel), soff
+
+    def _replayable(self, pi, p, fs):
+        """The fights of `fs` that still replay; the others go to `self.bad` (skipped from then on) and are reported once."""
+        good, stack = [], [list(fs)]
+        while stack:
+            g = stack.pop()
+            try:
+                self._replay(p, g)
+                good += g
+            except ValueError:
+                if len(g) == 1:
+                    self.bad.add((pi, g[0]))
+                    print(f"  dropped a fight that no longer replays: part {pi} fight {g[0]} ({len(self.bad)} so far)", flush=True)
+                else:
+                    stack += [g[:len(g) // 2], g[len(g) // 2:]]
+        return sorted(good)
+
     def rows(self, fights):
         """The training rows of these fights, replayed in parallel (`sts2.replay_rows`): obs, mask, options, soft target, outcome class, normalised
         estimates, Gumbel shift (zeros for format 1), outcome weight (0 for the rows of `policy_only` parts: restarts selected on a lost future)."""
@@ -215,18 +243,18 @@ class Data:
             by.setdefault(pi, []).append(f)
         for pi, fs in by.items():
             p = self.parts[pi]
-            fs = [f for f in fs if p["d_lo"][f] < p["d_lo"][f + 1]]
+            fs = [f for f in fs if p["d_lo"][f] < p["d_lo"][f + 1] and (pi, f) not in self.bad]
             if not fs:
                 continue
-            uniq, inv = np.unique(p["f_scen"][fs], return_inverse=True)
-            acts, off, steps, soff, sel = [], [0], [], [0], []
-            for f in fs:
-                acts.append(p["acts"][p["f_off"][f]:p["f_off"][f + 1]]); off.append(off[-1] + len(acts[-1]))
-                lo, hi = p["d_lo"][f], p["d_lo"][f + 1]
-                steps.append(p["d_step"][lo:hi]); soff.append(soff[-1] + hi - lo); sel.append(np.arange(lo, hi))
-            o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff,
-                                   obs_version=self.obs_version)
-            sel = np.concatenate(sel)
+            try:
+                o, m, sel, soff = self._replay(p, fs)
+            except ValueError:
+                # a recorded fight that no longer replays (the simulator was corrected after it was collected: e.g. Thrash reading calculated
+                # damage, 1 of ~298k fights): bisect, drop the divergent fights for good, replay the rest
+                fs = self._replayable(pi, p, fs)
+                if not fs:
+                    continue
+                o, m, sel, soff = self._replay(p, fs)
             out[0].append(o); out[1].append(m); out[2].append(p["d_opts"][sel]); out[3].append(p["tgt"][sel])
             out[4].append(np.repeat(p["f_cls"][fs], np.diff(soff)))
             out[5].append(p["qn"][sel])
