@@ -192,3 +192,11 @@ Slice `data/bench/plans.json` (`tools/bench.py build-plans`; `score` reports it)
   - Enabler-removal pairs (plan): solver d -0.109, predicted -0.026 for both; Spearman 0.06 / 0.13. Still blind.
   - Worst plan archetypes for gen-2: doom -0.38, souls -0.26, poison engine -0.23, osty attacks -0.21, lightning evoke -0.21.
 - **Adopted:** `price` compares options, so ranking decides: `models/current.json` predictor = `solver_gen2.pt` (one v2 model as player and predictor). Calibration on the standard sets is the combat-loop round's job (r5).
+
+## E34. Expert pilot: Baalorlord A10 Silent, Act 1 (hMrQSndDvPc, v0.111.0, seed YMY1KELG18SC)
+- **Setup:** 5 fights reconstructed from frames as harness fight records (`data/expert/baalorlord/`), 98 decisions vs the live player (gen-2, 2 s CPU stand-in). References: K=256 search, exact turn enumeration (every distinct line to end of turn, weak leaf), paired full-fight playouts. Precedence: exact > powered playouts > turn check; K=256 never decides alone; a verdict needs > 2 se and >= 1 HP.
+- **Agreement:** same first action 71/98; 88/98 counting ties and gaps < 1 HP.
+- **Solver gaps (3):** Skulking Colony #18, forced lethal under a 20-damage cap (Pen Nib Strike + Shivs + Snakebite, poison finishes): live player Defends and loses; K=256 scores every option as a loss (certain). Phantasmal Gardeners #1: Outbreak into four attackers vs block first, +8.7 HP (+0.062, se 0.005, 16 seeds). Lagavulin Matriarch #0: Dagger Spray wakes the sleeping boss vs Fumes/Neutralize setup, turn check +0.16 (se 0.05), playouts same sign, underpowered.
+- **Expert error (1):** Terror Eel #11, Survivor vs Strike, ~1.5 HP (2.1 se).
+- **Reference finding:** K=256 search misranks order-dependent turns with small se (forced win scored -1.03, Gardeners sign wrong); line comparisons need exact enumeration plus playouts.
+- **Fidelity found:** sync pairs identical monsters by nearest HP (Replayer / hindsight mis-slot enemy moves on Gardeners); hand sync ignores enchantments.
