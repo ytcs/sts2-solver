@@ -244,10 +244,10 @@ def screen(cks, per_env=4, seed=5):
         print(f"{os.path.basename(ck):24s} ({time.time() - t0:.0f}s) " + " | ".join(line), flush=True)
 
 
-def play(ck, roots=None):
+def play(ck, roots=None, cover=False):
     from solver import Solver
-    S = Solver(ck, M=5, K=32, roots=roots)
-    print(f"\n== play {os.path.basename(ck)} (search 5x32 vs the labels' h128 5x32, same seeds)")
+    S = Solver(ck, M=5, K=32, roots=roots, cover=cover)
+    print(f"\n== play {os.path.basename(ck)}{' cover' if cover else ''} (vs the labels' h128 5x32, same seeds)")
     for name in SETS:
         path = os.path.join(OUT, name + ".json")
         if not os.path.exists(path):
