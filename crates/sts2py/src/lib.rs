@@ -463,40 +463,40 @@ fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReado
 #[allow(clippy::too_many_arguments)]
 fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, seeds: Vec<u64>, actions: PyReadonlyArray1<i32>, off: Vec<usize>,
                     steps: Vec<u32>, soff: Vec<usize>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
-    use numpy::{PyArray1, PyArrayMethods};
+    use numpy::PyArrayMethods;
     use rayon::prelude::*;
     let parsed = parse_scenarios(py, &scenarios, false)?;
     let acts: Vec<u16> = actions.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?.iter().map(|&a| a as u16).collect();
     let (o, a) = (sts2env::OBS, sts2env::ACTIONS);
-    let parts: Vec<Result<(Vec<f32>, Vec<u8>), String>> = py.detach(|| {
-        (0..seeds.len())
-            .into_par_iter()
-            .map(|i| {
-                let fa = &acts[off[i]..off[i + 1]];
-                let n = fa.len() + 1;
-                let mut obs = vec![0f32; n * o];
-                let mut mask = vec![0u8; n * a];
-                sts2env::search::replay(&parsed[scen[i] as usize], seeds[i], fa, &mut obs, &mut mask).map_err(|e| format!("fight {i}: {e:?}"))?;
-                let st = &steps[soff[i]..soff[i + 1]];
-                let mut ro = Vec::with_capacity(st.len() * o);
-                let mut rm = Vec::with_capacity(st.len() * a);
-                for &t in st {
-                    let t = t as usize;
-                    ro.extend_from_slice(&obs[t * o..(t + 1) * o]);
-                    rm.extend_from_slice(&mask[t * a..(t + 1) * a]);
-                }
-                Ok((ro, rm))
-            })
-            .collect()
-    });
-    let (mut obs, mut mask) = (Vec::new(), Vec::new());
-    for p in parts {
-        let (ro, rm) = p.map_err(PyValueError::new_err)?;
-        obs.extend(ro);
-        mask.extend(rm);
+    let n = seeds.len();
+    if scen.len() < n || off.len() <= n || soff.len() <= n || soff[n] > steps.len() || off[n] > acts.len() || scen.iter().take(n).any(|&s| s as usize >= parsed.len()) {
+        return Err(PyValueError::new_err("replay_rows: scen / off / soff do not match the fights"));
     }
-    let r = obs.len() / o;
-    Ok((PyArray1::from_vec(py, obs).reshape([r, o])?, PyArray1::from_vec(py, mask).reshape([r, a])?))
+    // the rows are written straight into the output arrays (each fight into its own rows, in parallel); only the requested states are observed
+    let r = soff[n] - soff[0];
+    let obs_arr = numpy::PyArray2::<f32>::zeros(py, [r, o], false);
+    let mask_arr = numpy::PyArray2::<u8>::zeros(py, [r, a], false);
+    {
+        // SAFETY: both arrays were just created here and are not shared with Python code while it runs
+        let (obs, mask) = unsafe { (obs_arr.as_slice_mut().expect("contiguous"), mask_arr.as_slice_mut().expect("contiguous")) };
+        let mut parts = Vec::with_capacity(n);
+        let (mut ro, mut rm) = (obs, mask);
+        for i in 0..n {
+            let k = soff[i + 1].checked_sub(soff[i]).ok_or_else(|| PyValueError::new_err("replay_rows: soff must not decrease"))?;
+            let (ho, to) = std::mem::take(&mut ro).split_at_mut(k * o);
+            let (hm, tm) = std::mem::take(&mut rm).split_at_mut(k * a);
+            (ro, rm) = (to, tm);
+            parts.push((i, ho, hm));
+        }
+        let res: Result<(), String> = py.detach(|| {
+            parts.into_par_iter().try_for_each(|(i, ho, hm)| {
+                let fa = acts.get(off[i]..off[i + 1]).ok_or_else(|| format!("fight {i}: bad action offsets"))?;
+                sts2env::search::replay_steps(&parsed[scen[i] as usize], seeds[i], fa, &steps[soff[i]..soff[i + 1]], ho, hm).map_err(|e| format!("fight {i}: {e:?}"))
+            })
+        });
+        res.map_err(PyValueError::new_err)?;
+    }
+    Ok((obs_arr, mask_arr))
 }
 
 /// Whether observations leave out relics with no combat effect (`sts2sim::relic_mask`; on by default). Returns the previous setting.

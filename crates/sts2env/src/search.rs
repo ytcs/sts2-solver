@@ -1877,3 +1877,35 @@ pub fn replay(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], obs
     }
     Ok(n)
 }
+
+/// [`replay`] that writes only the rows of `steps` (indices into the fight's `actions.len() + 1` states, any order, repeats allowed): row `k` of `obs` /
+/// `mask` is the state before action `steps[k]`. The observations of the other states are never computed (the state only depends on the actions:
+/// observing does not change it), and every action is still played and checked.
+pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
+    if obs.len() < steps.len() * OBS_SIZE || mask.len() < steps.len() * ACTION_SPACE {
+        return Err(EnvError::Buffer("replay buffers too small"));
+    }
+    if steps.iter().any(|&t| t as usize > actions.len()) {
+        return Err(EnvError::Buffer("a requested step is past the fight's end"));
+    }
+    scen.0.validate()?;
+    let mut cx = Combat::try_new_with(&scen.0, &scen.1)?;
+    cx.reset_validated(&scen.0, &scen.1, seed, RngSet::from_run_seed_fast(seed)).map_err(EnvError::Scenario)?;
+    let mut order: Vec<usize> = (0..steps.len()).collect();
+    order.sort_by_key(|&k| steps[k]);
+    let mut next = 0;
+    for i in 0..=actions.len() {
+        while next < order.len() && steps[order[next]] as usize == i {
+            let k = order[next];
+            crate::write_obs_mask(&mut cx, &mut obs[k * OBS_SIZE..(k + 1) * OBS_SIZE], &mut mask[k * ACTION_SPACE..(k + 1) * ACTION_SPACE]);
+            next += 1;
+        }
+        if i < actions.len() {
+            match Action::from_index(actions[i] as usize) {
+                Some(a) if cx.step(a) => {}
+                _ => return Err(EnvError::Buffer("the recorded action is not legal: the replay diverged")),
+            }
+        }
+    }
+    Ok(())
+}
