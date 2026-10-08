@@ -106,6 +106,7 @@ Plan:
   - So the stack must not depend on policy quality.
   - The policy's two remaining roles are the search's candidate list (top-5 coverage 91%; to be replaced by every distinct legal action, about 6 on average) and its play-out policy (kept fixed: a policy change is a gated experiment, never a side effect of training).
   - Training effort goes to the judge: value resolution (E12) and lower-variance value targets (`exit.py --value-target td`).
+- **Data hygiene after a simulator change:** collected fights that no longer replay under the corrected simulator are dropped for good with `tools/prune_divergent.py`, which keeps a backup. If a part would lose more than 1% of its fights, that collection is regenerated on the same pool instead. Training also skips a divergent fight with a warning, but only as a backstop.
 - Distillation / expert iteration:
   - value targets = realized outcomes, never the max of search Q values (winner's curse);
   - policy targets = Gumbel-style improved policy;
