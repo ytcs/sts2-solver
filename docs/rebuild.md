@@ -32,6 +32,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 - Near-miss bench (`tools/nearmiss_bench.py`, `data/bench/nearmiss.json`, held out from r4s-trained arms): near-miss losses won / close wins lost, paired with the collecting player (E21). User's key metric.
 - Optimality bracket (E25): honest 5x256 flips = lower bound on avoidable losses, clairvoyant = upper bound; avoidable share in [~0.02, ~0.19]; 48% of near-miss losses unwinnable with perfect information. Avoidable errors are spread over setup turns (E26): sharpen the judge, not depth.
 - Predictor bench (`tools/bench.py`): calibration (reliability, log loss/CRPS, PIT), ranking vs large-budget reference.
+- Promotion gate (a new live model, E27): `bench.py play` no set worse than the live player (paired with labels); near-miss bench not worse; `bench.py score` Brier no worse on most sets; S3 decile bias < 0.02 (not yet run for solver_td08).
 
 ## 4. Stages
 
@@ -45,10 +46,10 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 
 **S2. Benchmark before training.** Status: done (`tools/bench.py`, near-miss bench). Frozen sets with search labels at live width (5x32): eval, high energy, real-run corpus, cross-character/big belt, per-character. Local RTX 4070 Super: 100k labelled fights ~2.5 h (no pod needed). Gate: re-runs within se.
 
-**S3. Predictor trained on search play.** Status: r2 adopted as predictor (E7); TD(λ=0.8) value targets adopted (`rl/exit.py train --value-target td --lam 0.8`, E24).
+**S3. Predictor trained on search play.** Status: live predictor + player `models/solver_td08.pt` (TD(λ=0.8) value targets, E24; with cover search, E27); passes the promotion gate except the decile-bias check (open).
 - ExIt: value targets = realized/TD outcomes, never max of search Q (winner's curse); HL-Gauss categorical targets; Reanalyse of stored fights. No policy distillation target (E15, E22).
-- Curriculum by signal: each round draws fresh candidates (`tools/gen_curriculum.py` + corpus), scores at fight start with the current predictor, samples 15% uniform anchor + rest by p(1-p) (`tools/signal_pool.py`); selection before a seed is played (labels unbiased). Measured by A/B vs a uniform pool, calibration on the natural distribution.
-- Near-miss restarts: heavier search from true last-turn states of losses within one turn of a win (`tools/nearmiss.py`, `exit.py collect --restarts`); parts `policy_only` (selected on a loss). Gate: flip rate vs live width.
+- Curriculum by signal: each round draws fresh candidates (`tools/gen_curriculum.py` + corpus), scores at fight start with the current predictor, samples 15% uniform anchor + rest by p(1-p) (`tools/signal_pool.py`); selection before a seed is played (labels unbiased). Measured by A/B vs a uniform pool, calibration on the natural distribution. ExIt pool A/B (E18) inconclusive: run under the policy-target bottleneck; re-test for value-only training.
+- Near-miss restarts (`tools/nearmiss.py`, `exit.py collect --restarts`, parts `policy_only`): deprioritized: stronger honest search flips only 2-4 points and avoidable errors are spread over setup turns (E25, E26).
 - Data hygiene after a simulator change: `tools/prune_divergent.py` drops fights that no longer replay (backup kept); a part losing > 1% is regenerated instead.
 - Privileged inputs only if label noise proves the bottleneck.
 - Open data source: snapshots of deck/relics/potions at each fight from the game's AutoSlay mode (god mode, random choices; `decomp/MegaCrit.Sts2.Core.AutoSlay*`) as realistic setups alongside the generated mix.
