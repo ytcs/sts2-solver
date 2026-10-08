@@ -180,7 +180,7 @@ def _spearman(a, b):
 
 def score_net(ck):
     from model import load
-    net = load(ck)
+    net = load(ck, set_version=False)  # the envs take the network's observation version: checkpoints of both versions score in one run
     print(f"\n== {os.path.basename(ck)}")
     for name in SETS:
         path = os.path.join(OUT, name + ".json")
@@ -259,7 +259,7 @@ def screen(cks, per_env=4, seed=5):
     sets = {n: json.load(open(os.path.join(OUT, n + ".json"))) for n in SETS if os.path.exists(os.path.join(OUT, n + ".json"))}
     base = {}
     for k, ck in enumerate(cks):
-        net = load(ck).eval()
+        net = load(ck, set_version=False).eval()  # each env takes its network's observation version: v1 and v2 checkpoints pair in one run
         t0 = time.time()
         line = []
         for name, rows in sets.items():
