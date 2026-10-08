@@ -1,6 +1,0 @@
-{"label": "aeon:0", "enc": "AEONGLASS_BOSS", "ok": true, "stats": {"diff .player.powers[0]": 1, "sync note": 1, "residual .hand[1].cost": 1}, "examples": {"diff .player.powers[0]": ["{\"play\": {\"hand_pos\": 2}} [HAVOC]: .player.powers[0].id: rust \"CORRUPTION_POWER\" vs oracle \"DARK_EMBRACE_POWER\""], "sync note": ["draw: 1 cards created"], "residual .hand[1].cost": ["{\"play\": {\"hand_pos\": 2}} [HAVOC]: .hand[1].cost: rust 2 vs oracle 1"]}, "created": 0, "errors": []}
-{"label": "aeon:1", "enc": "AEONGLASS_BOSS", "ok": true, "stats": {}, "examples": {}, "created": 0, "errors": []}
-{"label": "aeon:2", "enc": "AEONGLASS_BOSS", "ok": true, "stats": {}, "examples": {}, "created": 1, "errors": []}
-{"label": "aeon:3", "enc": "AEONGLASS_BOSS", "ok": true, "stats": {}, "examples": {}, "created": 1, "errors": []}
-{"label": "aeon:4", "enc": "AEONGLASS_BOSS", "ok": true, "stats": {}, "examples": {}, "created": 1, "errors": []}
-{"label": "aeon:5", "enc": "AEONGLASS_BOSS", "ok": true, "stats": {}, "examples": {}, "created": 1, "errors": []}
