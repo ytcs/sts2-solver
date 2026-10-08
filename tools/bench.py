@@ -308,6 +308,24 @@ def build_plans(a):
           f"win {np.mean([np.mean([w for w in r['wins'] if w is not None]) for r in labels]):.3f}", flush=True)
 
 
+def relabel(a):
+    from solver import DEFAULT_CKPT, Solver
+    S = Solver(DEFAULT_CKPT, M=5, K=32, cover=True, roots=a.roots)
+    meta_path = os.path.join(OUT, "labels.json")
+    meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+    for name in a.sets:
+        path = os.path.join(OUT, name + ".json")
+        rows = json.load(open(path))
+        attempts = PLANS_ATTEMPTS if name == "plans" else ATTEMPTS
+        t0 = time.time()
+        res = S.solve([r["scenario"] for r in rows], attempts=attempts, seed=11)
+        json.dump([dict(scenario=r["scenario"], wins=x["wins"], ends=x["ends_abs"]) for r, x in zip(rows, res)], open(path, "w"))
+        meta[name] = dict(labeler=os.path.basename(DEFAULT_CKPT), search="5x32 cover", attempts=attempts, seed=11)
+        json.dump(meta, open(meta_path, "w"), indent=1)
+        print(f"{name}: {len(rows)} fights x {attempts} by {os.path.basename(DEFAULT_CKPT)} in {time.time() - t0:.0f}s, "
+              f"win {np.mean([x['win'] for x in res]):.3f}", flush=True)
+
+
 def build(a):
     from solver import Solver
     rng = random.Random(7)
@@ -511,7 +529,7 @@ def screen(cks, per_env=4, seed=5):
 def play(ck, roots=None, cover=False):
     from solver import Solver
     S = Solver(ck, M=5, K=32, roots=roots, cover=cover)
-    print(f"\n== play {os.path.basename(ck)}{' cover' if cover else ''} (vs the labels' h128 5x32, same seeds)")
+    print(f"\n== play {os.path.basename(ck)}{' cover' if cover else ''} (vs the labels, same seeds: data/bench/labels.json)")
     for name in H128_SETS:
         path = os.path.join(OUT, name + ".json")
         if not os.path.exists(path):
@@ -538,6 +556,7 @@ def main():
     bp.add_argument("--chunk", type=int, default=32, help="fights per solve call; finished chunks resume from target/bench/plans_partial.json")
     s = sub.add_parser("score"); s.add_argument("ckpts", nargs="+")
     pl = sub.add_parser("play"); pl.add_argument("ckpts", nargs="+"); pl.add_argument("--cover", action="store_true")
+    rl_ = sub.add_parser("relabel"); rl_.add_argument("--sets", nargs="+", default=list(SETS)); rl_.add_argument("--roots", type=int, default=512)
     sc = sub.add_parser("screen"); sc.add_argument("ckpts", nargs="+", help="the first is the base the others are paired with")
     sc.add_argument("--per-env", type=int, default=4)
     pl.add_argument("--roots", type=int, default=None, help="fights in flight (default 2048 on CUDA); fewer = less host and GPU memory")
@@ -551,6 +570,8 @@ def main():
             play(ck, a.roots, a.cover)
     elif a.cmd == "screen":
         screen(a.ckpts, a.per_env)
+    elif a.cmd == "relabel":
+        relabel(a)
     else:
         for ck in a.ckpts:
             score_net(ck)
