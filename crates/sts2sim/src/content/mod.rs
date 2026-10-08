@@ -21,21 +21,70 @@ static NO_LISTENER: NoListener = NoListener;
 
 macro_rules! registry {
     ($lfn:ident, $mfn:ident, $ids:ident, $default:expr; $($id:ident => $ty:path),* $(,)?) => {
+        /// The listener of `id`, from a table built at compile time.
         #[inline]
         pub fn $lfn(id: u16) -> &'static dyn Listener {
-            match id { $( ids::$ids::$id => &$ty, )* _ => $default }
+            const fn listener_of(id: u16) -> &'static dyn Listener {
+                match id { $( ids::$ids::$id => &$ty, )* _ => $default }
+            }
+            static TABLE: [&'static dyn Listener; ids::$ids::COUNT] = {
+                let mut t: [&'static dyn Listener; ids::$ids::COUNT] = [$default; ids::$ids::COUNT];
+                let mut i = 0;
+                while i < ids::$ids::COUNT {
+                    t[i] = listener_of(i as u16);
+                    i += 1;
+                }
+                t
+            };
+            match TABLE.get(id as usize) {
+                Some(l) => *l,
+                None => listener_of(id),
+            }
         }
+        /// The hook mask of `id`, from a table built at compile time (a `match` over hundreds of 32-byte constants compiled to a jump per lookup).
         #[inline]
         pub fn $mfn(id: u16) -> Mask {
-            match id { $( ids::$ids::$id => <$ty as HasMask>::MASK, )* _ => Mask::EMPTY }
+            const fn mask_of(id: u16) -> Mask {
+                match id { $( ids::$ids::$id => <$ty as HasMask>::MASK, )* _ => Mask::EMPTY }
+            }
+            static TABLE: [Mask; ids::$ids::COUNT] = {
+                let mut t = [Mask::EMPTY; ids::$ids::COUNT];
+                let mut i = 0;
+                while i < ids::$ids::COUNT {
+                    t[i] = mask_of(i as u16);
+                    i += 1;
+                }
+                t
+            };
+            match TABLE.get(id as usize) {
+                Some(m) => *m,
+                None => mask_of(id),
+            }
         }
     };
     (impl $ifn:ident, $ids:ident; $($id:ident => $ty:path),* $(,)?) => {
+        /// Whether `id` has a Rust implementation, from a table built at compile time.
+        #[inline]
         pub fn $ifn(id: u16) -> bool {
-            // (robust for an empty list: a category with nothing ported yet)
-            $( if id == ids::$ids::$id { return true; } )*
-            let _ = id;
-            false
+            const fn implemented(id: u16) -> bool {
+                // (robust for an empty list: a category with nothing ported yet)
+                $( if id == ids::$ids::$id { return true; } )*
+                let _ = id;
+                false
+            }
+            static TABLE: [bool; ids::$ids::COUNT] = {
+                let mut t = [false; ids::$ids::COUNT];
+                let mut i = 0;
+                while i < ids::$ids::COUNT {
+                    t[i] = implemented(i as u16);
+                    i += 1;
+                }
+                t
+            };
+            match TABLE.get(id as usize) {
+                Some(b) => *b,
+                None => implemented(id),
+            }
         }
     };
 }
