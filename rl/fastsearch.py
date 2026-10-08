@@ -219,6 +219,7 @@ class FastSearch:
         self.clairvoyant = bool(clairvoyant)
         self._graphs = {}
         self._pool = torch.cuda.graph_pool_handle() if self.cuda else None
+        self._copy = torch.cuda.Stream() if self.cuda else None
         self.use_graphs = self.cuda
 
     def _run(self, fn, obs_np, obs_t, mask_t=None, u_t=None):
@@ -286,14 +287,24 @@ class FastSearch:
             self._graphs[key] = GraphFn(fn, False, self._pool, obs_size=self.OBS)
         return self._graphs[key]
 
+    def _upload(self, G, n_pol, n_val):
+        main = torch.cuda.current_stream()
+        with torch.cuda.stream(self._copy):
+            up = [G[k][:n_pol].to(DEV, non_blocking=True) for k in ("obs_t", "pol_mask_t", "pol_u_t")] if n_pol else [None] * 3
+            s = G["shared"]
+            up.append(G["obs_t"][s - n_val:s].to(DEV, non_blocking=True) if n_val else None)
+        main.wait_stream(self._copy)
+        for t in up:
+            if t is not None:
+                t.record_stream(main)
+        return up
+
     @torch.no_grad()
     def _evaluate_graphs(self, G, n_pol, n_val):
         M = self.M
+        obs, mask, u, vrows = self._upload(G, n_pol, n_val)
         if n_pol:
-            obs = G["obs_t"][:n_pol].to(DEV, non_blocking=True)
-            mask = G["pol_mask_t"][:n_pol].to(DEV, non_blocking=True)
             sim = (G["pol_kind"][:n_pol] & 1) != 0
-            u = G["pol_u_t"][:n_pol].to(DEV, non_blocking=True)
             res = torch.empty(n_pol, 2 * M + 1, device=DEV)
             split = self.roll_net is not self.net
             for use_main in ((False, True) if split else (None,)):
@@ -309,8 +320,7 @@ class FastSearch:
                     res[idx] = fn(obs, mask, idx, u=u)
             G["pol_out_t"][:n_pol].copy_(res, non_blocking=True)
         if n_val:
-            _, vo = self._val_obs(G, n_val)
-            G["val_out_t"][:n_val].copy_(self._val_graph()(vo, None).view(n_val, self.val_w), non_blocking=True)
+            G["val_out_t"][:n_val].copy_(self._val_graph()(vrows.flip(0), None).view(n_val, self.val_w), non_blocking=True)
         G["event"].record()
 
     @torch.no_grad()
