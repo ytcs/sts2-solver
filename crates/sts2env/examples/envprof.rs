@@ -75,10 +75,16 @@ fn main() {
     #[cfg(feature = "obs_prof")]
     unsafe {
         let p = sts2sim::observe::OBS_PROF;
-        let tot: u64 = p.iter().sum();
+        let tot: u64 = p[1..=5].iter().sum();
         for (name, k) in [("hand cards", 1), ("piles", 2), ("enemies (intents)", 3), ("lookahead", 4), ("player+relics", 5), ("  look key", 10), ("  look paths/cache", 11)] {
             println!("  {name:<20} {:8.0} cycles/row  {:5.1}% of the profiled sections", p[k] as f64 / total, 100.0 * p[k] as f64 / tot as f64);
         }
         println!("  look-ahead cache: {} lookups, {} misses", p[12], p[13]);
+        let np = p[19].max(1) as f64;
+        println!("  per projection ({} projections, {:.2} turned paths, {:.2} forked boxes each):", p[19], p[21] as f64 / np, p[20] as f64 / np);
+        for (name, k) in [("base copy", 14), ("look_turn", 15), ("  player end + enemy start", 22), ("  enemy moves", 23), ("  enemy turn end", 24),
+                          ("  next player turn start", 25), ("rolls (+fork copies)", 16), ("merge", 17), ("intent damage", 18)] {
+            println!("    {name:<22} {:8.0} cycles", p[k] as f64 / np);
+        }
     }
 }

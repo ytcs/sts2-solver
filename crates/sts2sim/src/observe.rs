@@ -191,7 +191,7 @@ impl W<'_> {
 
 /// Cycle counters per section of `observe_ex` (feature `obs_prof`; not thread safe, diagnostics only).
 #[cfg(feature = "obs_prof")]
-pub static mut OBS_PROF: [u64; 16] = [0; 16];
+pub static mut OBS_PROF: [u64; 32] = [0; 32];
 #[cfg(feature = "obs_prof")]
 #[inline(always)]
 fn tsc() -> u64 {

@@ -500,6 +500,28 @@ type Outcomes = crate::util::ArrayVec<(MonsterState, f32), 48>;
 /// Per horizon: (move node, probability, probability x attack damage), one entry per node.
 type LookList = crate::util::ArrayVec<(u8, f32, f32), 20>;
 
+/// Cycle counters of the look-ahead's projection phases (feature `obs_prof`, `observe::OBS_PROF[14..]`; not thread safe, diagnostics only).
+macro_rules! lprof {
+    ($k:expr, $body:expr) => {{
+        #[cfg(feature = "obs_prof")]
+        let t = unsafe { core::arch::x86_64::_rdtsc() };
+        let r = $body;
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            crate::observe::OBS_PROF[$k] += core::arch::x86_64::_rdtsc() - t;
+        }
+        r
+    }};
+}
+macro_rules! lcount {
+    ($k:expr, $n:expr) => {{
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            crate::observe::OBS_PROF[$k] += $n as u64;
+        }
+    }};
+}
+
 impl Combat {
     /// `RollMove` continued on a hypothetical state: leave `left`, enter `to`, and keep walking branch states until a move.
     fn look_enter(&self, c: Cid, mut ms: MonsterState, left: u8, to: u8, first: u8, p: f32, out: &mut Outcomes) {
@@ -601,6 +623,7 @@ impl Combat {
             return out.push((self, p));
         }
         let n = outs.len();
+        lcount!(20, n - 1);
         for &(m, q) in outs.iter().take(n - 1) {
             let mut cx = look_box(&self);
             cx.creatures[e as usize].monster = m;
@@ -626,8 +649,9 @@ impl Combat {
             lists.push(core::array::from_fn(|_| LookList::new()));
             ids[k] = self.cr(c).monster.id;
         }
+        lcount!(19, 1);
         crate::util::quiet(|| {
-            let mut base = look_box(self);
+            let mut base = lprof!(14, look_box(self));
             base.rng = *look_rng();
             base.auto_select = true;
             base.replay = None;
@@ -648,26 +672,27 @@ impl Combat {
                 (Vec::with_capacity(4 * LOOK_PATHS), Vec::with_capacity(4 * LOOK_PATHS), Vec::with_capacity(4 * LOOK_PATHS));
             paths.push((base, 1.0));
             for h in 0..LOOK_H {
-                for (mut cx, p) in paths.drain(..) {
+                lcount!(21, paths.len());
+                lprof!(15, for (mut cx, p) in paths.drain(..) {
                     if cx.look_turn() {
                         next.push((cx, p));
                     } else {
                         look_free(cx);
                     }
-                }
+                });
                 // the enemies roll one after the other (a roll can read the moves rolled before it); the paths are merged and
                 // capped once all have rolled, and in between when they outgrow the cap
                 let n_roll = next.iter().map(|(cx, _)| cx.enemies.len()).max().unwrap_or(0);
                 for i in 0..n_roll {
-                    for (cx, p) in next.drain(..) {
+                    lprof!(16, for (cx, p) in next.drain(..) {
                         cx.look_roll_one(i, &fork, p, &mut rolled, &mut random);
-                    }
+                    });
                     core::mem::swap(&mut next, &mut rolled);
                     if next.len() > LOOK_PATHS || (i + 1 == n_roll && next.len() > 1) {
-                        look_merge(&mut next);
+                        lprof!(17, look_merge(&mut next));
                     }
                 }
-                for (cx, p) in next.iter_mut() {
+                lprof!(18, for (cx, p) in next.iter_mut() {
                     // the damage the intent would show: the projected monster against the player's current modifiers
                     let inert = cx.creatures[PLAYER as usize].powers;
                     cx.creatures[PLAYER as usize].powers = self.cr(PLAYER).powers;
@@ -690,7 +715,7 @@ impl Combat {
                     }
                     cx.creatures[PLAYER as usize].powers = inert;
                     cx.player_hooks_active = false;
-                }
+                });
                 core::mem::swap(&mut paths, &mut next);
                 if paths.is_empty() {
                     break;
