@@ -1,0 +1,13 @@
+objective: win only (act 2 boss, the ancient's heal follows; end HP only a 1% tiebreak)
+0 T1.1 p NF @14:37 live(win-only): play DAGGER_SPRAY #6 DISAGREE
+1 T1.2 p N @14:38 live(win-only): play DAGGER_SPRAY #5 DISAGREE
+2 T1.3 e  @14:40 live(win-only): play DAGGER_SPRAY #4 DISAGREE
+3 T2.1 p SB+ @14:49 live(win-only): play STRIKE_SILENT #3 -> e0 DISAGREE
+4 T2.2 p S @14:51 live(win-only): play STRIKE_SILENT #3 -> e0 agree
+5 T2.3 e  @14:52 live(win-only): end turn agree
+6 T3.1 p OB @15:00 live(win-only): play OUTBREAK #3 agree
+7 T3.2 p HD @15:02 live(win-only): play HIDDEN_DAGGERS #1 agree
+8 T3.3 c S @15:03 live(win-only): pick 1 (OUTBREAK) agree
+9 T3.4 p SH @15:04 live(win-only): play SHIV #1 -> e0 agree
+10 T3.5 p SH @15:06 live(win-only): play SHIV #1 -> e0 agree
+11 T3.6 e  @15:07 live(win-only): end turn agree

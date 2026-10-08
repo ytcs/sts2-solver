@@ -1,0 +1,24 @@
+0 T1.1 p NF @14:37 his ['play NOXIOUS_FUMES #4'] live play DAGGER_SPRAY #6 agree False 2.1s
+1 T1.2 p N @14:38 his ['play NEUTRALIZE #2 -> e0'] live end turn agree False 2.2s
+2 T1.3 e  @14:40 his ['end turn'] live end turn agree True 2.2s
+3 T2.1 p SB+ @14:49 his ['play SNAKEBITE #4 -> e0'] live play STRIKE_SILENT #3 -> e0 agree False 1.2s
+4 T2.2 p S @14:51 his ['play STRIKE_SILENT #3 -> e0'] live play STRIKE_SILENT #3 -> e0 agree True 0.9s
+5 T2.3 e  @14:52 his ['end turn'] live end turn agree True 0.0s
+6 T3.1 p OB @15:00 his ['play OUTBREAK #0'] live play OUTBREAK #3 agree True 2.3s
+7 T3.2 p HD @15:02 his ['play HIDDEN_DAGGERS #1'] live play HIDDEN_DAGGERS #1 agree True 0.9s
+8 T3.3 c S @15:03 his ['pick 0 (STRIKE_SILENT)', 'pick 1 (OUTBREAK)'] live pick 1 (OUTBREAK) agree True 0.9s
+9 T3.4 p SH @15:04 his ['play SHIV #1 -> e0'] live play SHIV #1 -> e0 agree True 0.8s
+10 T3.5 p SH @15:06 his ['play SHIV #1 -> e0'] live play SHIV #1 -> e0 agree True 0.8s
+11 T3.6 e  @15:07 his ['end turn'] live end turn agree True 0.0s
+0 T1.1 p NF @14:37 his play NOXIOUS_FUMES #4 live play DAGGER_SPRAY #6 ref best play DAGGER_SPRAY #6 his-live -0.0058+-0.0040 best-his(split) +0.0000+-0.0000 34.6s
+1 T1.2 p N @14:38 his play NEUTRALIZE #2 -> e0 live end turn ref best play DAGGER_SPRAY #5 his-live +0.0482+-0.0115 best-his(split) +0.0000+-0.0000 26.3s
+2 T1.3 e  @14:40 his end turn live end turn ref best play DAGGER_SPRAY #4 his-live +0.0000+-0.0000 best-his(split) +0.0362+-0.0148 23.3s
+3 T2.1 p SB+ @14:49 his play SNAKEBITE #4 -> e0 live play STRIKE_SILENT #3 -> e0 ref best play STRIKE_SILENT #3 -> e0 his-live -0.0003+-0.0002 best-his(split) +0.0003+-0.0003 26.6s
+4 T2.2 p S @14:51 his play STRIKE_SILENT #3 -> e0 live play STRIKE_SILENT #3 -> e0 ref best play STRIKE_SILENT #3 -> e0 his-live +0.0000+-0.0000 best-his(split) +0.0000+-0.0000 21.4s
+5 T2.3 e  @14:52 his end turn live end turn ref best end turn his-live +0.0000+-0.0000 best-his(split) +0.0000+-0.0000 9.0s
+6 T3.1 p OB @15:00 his play OUTBREAK #0 live play OUTBREAK #3 ref best play STRIKE_SILENT #1 -> e0 his-live +0.0000+-0.0000 best-his(split) +0.0000+-0.0004 27.7s
+7 T3.2 p HD @15:02 his play HIDDEN_DAGGERS #1 live play HIDDEN_DAGGERS #1 ref best potion 0 his-live +0.0000+-0.0000 best-his(split) +0.0122+-0.0041 13.3s
+8 T3.3 c S @15:03 his pick 0 (STRIKE_SILENT) live pick 1 (OUTBREAK) ref best pick 1 (OUTBREAK) his-live +0.0000+-0.0000 best-his(split) +0.0000+-0.0000 10.5s
+9 T3.4 p SH @15:04 his play SHIV #2 -> e0 live play SHIV #1 -> e0 ref best end turn his-live +0.0000+-0.0000 best-his(split) +0.0019+-0.0013 14.1s
+10 T3.5 p SH @15:06 his play SHIV #1 -> e0 live play SHIV #1 -> e0 ref best end turn his-live +0.0000+-0.0000 best-his(split) +0.0113+-0.0013 14.1s
+11 T3.6 e  @15:07 his end turn live end turn ref best end turn his-live +0.0000+-0.0000 best-his(split) +0.0000+-0.0000 10.8s
