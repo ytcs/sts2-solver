@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
 import utility
 import heads as H
-from model import Net, n_params, DEV, load_weights, claim_obs_version
+from model import Net, n_params, DEV, load_weights, claim_obs_version, HostShape
 
 
 def make_env(path, n, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
@@ -231,7 +231,20 @@ def main():
     if a.pot_head:
         b_ppot_d = torch.zeros(T + 1, N, KP, device=DEV)  # the potion-use head's probabilities at every observation
         b_pused = torch.zeros(T, N, KP)  # slot k's potion used up at this step (env)
+    # The shapes `Net.encode` would derive from each batch on the device (enemy slots, pile entries, rows with a pending selection) are taken from
+    # the host's copy of the observations instead (`HostShape`: the same values), so neither the rollout's forward nor the update's minibatches
+    # wait for the device in the middle of a pass.
+    hs = HostShape(a.obs_version)
+    h_e = np.zeros((T, N), np.int16)
+    h_l = np.zeros((T, N, 3), np.int16)
+    h_d = np.zeros((T, N), bool)
     obs, mask = env.reset()
+    if DEV.type == "cuda":
+        # the env writes every step's observations into the same arrays: page-locked, their copies to the device run asynchronously
+        for arr in (env.obs, env.mask):
+            err = torch.cuda.cudart().cudaHostRegister(arr.ctypes.data, arr.nbytes, 0)
+            if int(err) != 0:
+                raise SystemExit(f"cudaHostRegister failed ({arr.nbytes} bytes): {err}")
     rng = np.random.default_rng(a.seed + 7)
     # one HP-worth curve per running episode (redrawn when it ends): the win reward and the network's input
     curves = np.tile(utility.linear(), (N, 1))
@@ -280,8 +293,10 @@ def main():
         # ---- rollout ----
         net.eval()
         t_roll = time.time()
+        t_env = t_net = 0.0  # inside the rollout: env.step, and copies + forward + sampling up to the actions on the host
         with torch.inference_mode():
             for t in range(T):
+                t_a = time.perf_counter()
                 m_eff = mask
                 if a.hold_prob > 0:
                     m_eff = mask.copy()
@@ -289,24 +304,31 @@ def main():
                     m_eff[bad, POT] = 0
                     empty = m_eff.sum(1) == 0
                     m_eff[empty] = mask[empty]
-                b_obs[t].copy_(torch.from_numpy(obs))
-                b_mask[t].copy_(torch.from_numpy(m_eff))
+                b_obs[t].copy_(torch.from_numpy(obs), non_blocking=True)  # complete before `env.step` rewrites `obs`: `act.cpu()` waits for it
+                b_mask[t].copy_(torch.from_numpy(m_eff), non_blocking=m_eff is mask)
                 b_feat[t].copy_(torch.from_numpy(feat))
+                h_e[t], h_l[t], h_d[t] = hs.rows_info(obs)
+                shp = hs.of(h_e[t], h_l[t], h_d[t], DEV)
                 if a.pot_head:
-                    lg, v, ol, pl_ = net(b_obs[t], b_mask[t].long(), ufeat=b_feat[t], outcome=True, potuse=True)
+                    lg, v, ol, pl_ = net(b_obs[t], b_mask[t].long(), ufeat=b_feat[t], outcome=True, potuse=True, **shp)
                     b_pout_d[t] = torch.softmax(ol, 1)
                     b_ppot_d[t] = torch.sigmoid(pl_)
                 elif a.heads:
-                    lg, v, ol = net(b_obs[t], b_mask[t].long(), ufeat=b_feat[t], outcome=True)
+                    lg, v, ol = net(b_obs[t], b_mask[t].long(), ufeat=b_feat[t], outcome=True, **shp)
                     b_pout_d[t] = torch.softmax(ol, 1)
                 else:
-                    lg, v = net(b_obs[t], b_mask[t].long(), ufeat=b_feat[t])
+                    lg, v = net(b_obs[t], b_mask[t].long(), ufeat=b_feat[t], **shp)
                 logp = F.log_softmax(lg, 1)
                 act = torch.multinomial(logp.exp(), 1).squeeze(1)
                 b_act[t] = act
                 b_lp[t] = logp.gather(1, act[:, None]).squeeze(1)
                 b_val_d[t] = v
-                obs, mask, rew, done, info = env.step(act.cpu().numpy().astype(np.int32))
+                act_h = act.cpu().numpy().astype(np.int32)
+                t_b = time.perf_counter()
+                obs, mask, rew, done, info = env.step(act_h)
+                t_c = time.perf_counter()
+                t_net += t_b - t_a
+                t_env += t_c - t_b
                 if a.pot_head:
                     pu = info["pot_used"]
                     b_pused[t] = torch.from_numpy(((pu[:, None] >> np.arange(KP)) & 1).astype(np.float32))
@@ -348,15 +370,16 @@ def main():
                             s_n[si] += 1
                             s_w[si] += oc[i] == 1
                 steps += N
+            shp = hs.of(*hs.rows_info(obs), DEV)
             if a.pot_head:
-                _, last_v, last_ol, last_pl = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV).long(), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True, potuse=True)
+                _, last_v, last_ol, last_pl = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV).long(), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True, potuse=True, **shp)
                 b_pout_d[T] = torch.softmax(last_ol, 1)
                 b_ppot_d[T] = torch.sigmoid(last_pl)
             elif a.heads:
-                _, last_v, last_ol = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV).long(), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True)
+                _, last_v, last_ol = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV).long(), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True, **shp)
                 b_pout_d[T] = torch.softmax(last_ol, 1)
             else:
-                _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV).long(), ufeat=torch.from_numpy(feat.copy()).to(DEV))
+                _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV).long(), ufeat=torch.from_numpy(feat.copy()).to(DEV), **shp)
             b_val_d[T] = last_v
             # the host's copies for the returns and the heads' targets
             b_val = b_val_d.cpu()
@@ -407,22 +430,28 @@ def main():
         fa, flp, fadv, fret = b_act.view(-1), b_lp.view(-1), adv.view(-1).to(DEV), ret.view(-1).to(DEV)
         if a.heads:
             ftgt, fwt = tgt.view(T * N, -1).to(DEV), wt.view(-1).to(DEV)
-        stats = {"pl": 0.0, "vl": 0.0, "ent": 0.0, "kl": 0.0, "clip": 0.0}
+        # the statistics are summed on the device (float64) and read once after the update: no host sync per minibatch
+        zero = lambda: torch.zeros((), dtype=torch.float64, device=DEV)  # noqa: E731
+        stats = {"pl": zero(), "vl": zero(), "ent": zero(), "kl": zero(), "clip": zero()}
         if a.pot_head:
             fptgt, fpw = ptgt.view(T * N, KP).to(DEV), pw_.view(T * N, KP).to(DEV)
-            stats.update(potl=0.0, pot_brier=0.0, pot_base=0.0)
+            stats.update(potl=zero(), pot_brier=zero(), pot_base=zero())
+        fe, fl, fd = h_e.reshape(-1), h_l.reshape(-1, 3), h_d.reshape(-1)
         nb = 0
         for ep in range(a.epochs):
             perm = torch.randperm(T * N)
             perm_d = perm.to(DEV)
+            perm_h = perm.numpy()
             for s in range(0, T * N, a.mb):
                 ix = perm_d[s:s + a.mb]
+                ih = perm_h[s:s + a.mb]
+                shp = hs.of(fe[ih], fl[ih], fd[ih], DEV)
                 if a.pot_head:
-                    lg, v, ol, pl_ = net(fo[ix], fm[ix].long(), ufeat=ff[ix], outcome=True, potuse=True)
+                    lg, v, ol, pl_ = net(fo[ix], fm[ix].long(), ufeat=ff[ix], outcome=True, potuse=True, **shp)
                 elif a.heads:
-                    lg, v, ol = net(fo[ix], fm[ix].long(), ufeat=ff[ix], outcome=True)
+                    lg, v, ol = net(fo[ix], fm[ix].long(), ufeat=ff[ix], outcome=True, **shp)
                 else:
-                    lg, v = net(fo[ix], fm[ix].long(), ufeat=ff[ix])
+                    lg, v = net(fo[ix], fm[ix].long(), ufeat=ff[ix], **shp)
                 logp = F.log_softmax(lg, 1)
                 nlp = logp.gather(1, fa[ix, None]).squeeze(1)
                 ratio = (nlp - flp[ix]).exp()
@@ -450,27 +479,29 @@ def main():
                     dpl = -(d_tgt * torch.where(d_opts >= 0, dlp, torch.zeros_like(dlp))).sum(1).mean()
                     dvl = F.cross_entropy(dol.float()[d_cls >= 0], d_cls[d_cls >= 0]) if a.heads and (d_cls >= 0).any() else torch.zeros((), device=DEV)
                     loss = loss + a.distill_coef * (dpl + a.vf * dvl)
-                    stats["dpl"] = stats.get("dpl", 0.0) + dpl.item()
-                    stats["dvl"] = stats.get("dvl", 0.0) + dvl.item()
+                    stats["dpl"] = stats.get("dpl", zero()) + dpl.detach()
+                    stats["dvl"] = stats.get("dvl", zero()) + dvl.detach()
                 if a.pot_head:
                     yt, ww = fptgt[ix], fpw[ix]
                     potl = (F.binary_cross_entropy_with_logits(pl_, yt, reduction="none") * ww).sum() / ww.sum().clamp(min=1)
                     loss = loss + a.pot_coef * potl
                     with torch.no_grad():
-                        stats["potl"] += potl.item()
-                        stats["pot_brier"] += ((torch.sigmoid(pl_) - yt) ** 2 * ww).sum().item() / max(ww.sum().item(), 1)
-                        stats["pot_base"] += ((yt - (yt * ww).sum() / ww.sum().clamp(min=1)) ** 2 * ww).sum().item() / max(ww.sum().item(), 1)
+                        stats["potl"] += potl.detach()
+                        stats["pot_brier"] += ((torch.sigmoid(pl_) - yt) ** 2 * ww).sum().double() / ww.sum().double().clamp(min=1)
+                        stats["pot_base"] += ((yt - (yt * ww).sum() / ww.sum().clamp(min=1)) ** 2 * ww).sum().double() / ww.sum().double().clamp(min=1)
                 o_.zero_grad(set_to_none=True)
                 net.zero_grad(set_to_none=True)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_([q for g in o_.param_groups for q in g["params"]], 0.5)  # the norm of what this optimizer steps
                 o_.step()
-                stats["pl"] += pl.item(); stats["vl"] += vl.item(); stats["ent"] += ent.item()
-                stats["kl"] += ((ratio - 1) - (nlp - flp[ix])).mean().item()
-                stats["clip"] += ((ratio - 1).abs() > a.clip).float().mean().item()
+                with torch.no_grad():
+                    stats["pl"] += pl.detach(); stats["vl"] += vl.detach(); stats["ent"] += ent.detach()
+                    stats["kl"] += ((ratio - 1) - (nlp - flp[ix])).mean()
+                    stats["clip"] += ((ratio - 1).abs() > a.clip).float().mean()
                 nb += 1
+        stats = {k: float(v) for k, v in stats.items()}
         t_upd = time.time() - t_upd
-        rec = {"inv": [round(inv_err[0], 6), inv_err[1]], "it": it, "warm": warm, "steps": steps, "sps": int((steps - steps0) / (time.time() - t0)), "t_roll": round(t_roll, 1), "t_upd": round(t_upd, 1), "lr": lr}
+        rec = {"inv": [round(inv_err[0], 6), inv_err[1]], "it": it, "warm": warm, "steps": steps, "sps": int((steps - steps0) / (time.time() - t0)), "t_roll": round(t_roll, 2), "t_env": round(t_env, 2), "t_net": round(t_net, 2), "t_upd": round(t_upd, 2), "lr": lr}
         rec.update({k: round(v / nb, 4) for k, v in stats.items()})
         if adapt_rec:
             rec["adaptive"] = adapt_rec

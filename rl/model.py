@@ -200,9 +200,11 @@ class Net(nn.Module):
         nn.init.zeros_(self.ucond.bias)
         self.register_buffer("lin_feats", torch.tensor([0.12, 0.25, 0.37, 0.50, 0.62, 0.75, 0.87, 1.00]), persistent=False)
 
-    def encode(self, obs, E=None, L=None, has_dec=None):
-        """`E` (enemy slots), `L` (pile entries) and `has_dec` (every row has a pending card selection / none has) fix the shapes: no device-to-host
-        syncs, so the caller (which knows the batch from the host-side observation) can run it without stalls. None: derived from the batch."""
+    def encode(self, obs, E=None, L=None, has_dec=None, rows=None):
+        """`E` (enemy slots), `L` (pile entries: one for the three piles, or a (draw, discard, exhaust) tuple) and `has_dec` (every row has a pending
+        card selection / none has) or `rows` (the indices of the rows that have one, a long tensor on the network's device) fix the shapes: no
+        device-to-host syncs, so the caller (which knows the batch from the host-side observation) can run it without stalls. None: derived from the
+        batch (`host_shape` computes exactly those values from the host's copy)."""
         B = obs.shape[0]
         C, SEC = self.C, self.SEC
         sl = lambda o, name: o[:, SEC[name][0]:SEC[name][0] + SEC[name][1]]  # noqa: E731
@@ -264,7 +266,9 @@ class Net(nn.Module):
         pot_t = self.potion_enc(torch.cat([self.potion(pid), potions[..., 1:2]], -1))
         pot_p = pid > 0
         # ---- decision: candidates only for the envs that have a pending selection ----
-        if has_dec is None:
+        if rows is not None:
+            pass
+        elif has_dec is None:
             rows = (dec[:, 0] > 0.5).nonzero().squeeze(1)
         else:
             rows = torch.arange(B, device=dev) if has_dec else torch.zeros(0, dtype=torch.long, device=dev)
@@ -288,7 +292,7 @@ class Net(nn.Module):
         piles = []
         for k, nm in enumerate(["draw", "discard", "exhaust"]):
             pv_ = sl(obs, nm).view(B, -1, 2)
-            Lk = L if L is not None else max(1, int((pv_[..., 0] > 0).sum(1).max().item()))
+            Lk = (L[k] if isinstance(L, (tuple, list)) else L) if L is not None else max(1, int((pv_[..., 0] > 0).sum(1).max().item()))
             pv_ = pv_[:, :Lk]
             ids = pv_[..., 0].long().clamp(0, C["N_CARDS"])
             up = (pv_[..., 1] > 0).float()
@@ -417,6 +421,31 @@ class Ensemble(nn.Module):
             lg = torch.stack([F.log_softmax(o[0], 1) for o in outs]).mean(0)
         v = torch.stack([o[1] for o in outs]).mean(0) if value else None
         return lg, v
+
+
+class HostShape:
+    """What `Net.encode` derives from a batch when no shape is given (the enemy slots in use, the pile entries in use, the rows with a pending
+    selection), per row from the host's copy of the observations, so a batch's shapes are known without reading the device: `of(idx)` gives the
+    `E` / `L` / `rows` that `encode` would derive from the rows `idx` (exactly: same values, same kernels)."""
+
+    def __init__(self, version=1):
+        self.C, self.SEC = layout(version)
+
+    def rows_info(self, obs):
+        """obs [B, OBS_SIZE] numpy -> (enemy slots needed [B] int16, pile entries [B, 3] int16, pending selection [B] bool)."""
+        C, SEC = self.C, self.SEC
+        o, s = SEC["enemies"]
+        occ = obs[:, o:o + s].reshape(len(obs), C["OBS_MAX_ENEMIES"], C["ENEMY_F"])[..., 0] > 0.5
+        e = np.where(occ.any(1), C["OBS_MAX_ENEMIES"] - np.argmax(occ[:, ::-1], 1), 0).astype(np.int16)
+        piles = np.stack([(obs[:, SEC[nm][0]:SEC[nm][0] + SEC[nm][1]:2] > 0).sum(1) for nm in ("draw", "discard", "exhaust")], 1).astype(np.int16)
+        dec = obs[:, SEC["decision"][0]] > 0.5
+        return e, piles, dec
+
+    @staticmethod
+    def of(e, piles, dec, device):
+        """Shape keywords of `Net.forward` for rows whose `rows_info` parts are given (already indexed)."""
+        return dict(E=max(1, int(e.max())), L=tuple(max(1, int(x)) for x in piles.max(0)),
+                    rows=torch.from_numpy(np.flatnonzero(dec)).to(device, non_blocking=True))
 
 
 def n_params(m):
