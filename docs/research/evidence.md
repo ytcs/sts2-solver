@@ -377,3 +377,28 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 - **Policy-only training breaks the outcome head** (arm A: Brier 0.19), because the trunk moves under an untrained head.
 - **Data scaling:** the hard target with both losses on 5x the data (163k fights: r1-r4s; r4u held out for the reference) gives agreement 0.650 on significant states (r3 0.650; the 35k-fight arm 0.645). Holdout CE 2.10 -> 1.13.
 - **What it shows:** the policy target was not the main obstacle, and neither is data volume at this scale. On clear decisions the d128 network does not learn what its search knows. Open: capacity (a d256 distillation) or knowledge only the look-ahead provides.
+
+## E23. The policy-search gap on clear decisions is real and survives capacity
+- **Capacity:** the hard target on all data (163k fights) into the d256 network (from d256_exit) raised its agreement on significant states from 0.593 to 0.662. That is the d128 level (r3 0.650; d128 on the same data 0.650), not beyond it.
+- **Reference noise check:** a second 5x256 reference with a fresh seed.
+  - On the first reference's 349 significant states, the two references agree on the best action in 92.6%.
+  - 276 states are significant in both. There the references agree 98.6% and the live 5x32 search agrees 95.3%.
+- **Agreement on the 276 robust states:**
+
+| policy | agreement |
+|---|---|
+| live 5x32 search | 0.953 |
+| h128 | 0.674 |
+| r3 | 0.692 |
+| d128, hard target on 35k fights, policy loss only | 0.710 |
+| d128, hard target on 163k fights | 0.692 |
+| d256, hard target on 163k fights | 0.714 |
+
+- **What it shows:**
+  - The ~25-point gap between the network's greedy policy and its own search is not reference noise.
+  - Target, data volume (5x) and width (2x) move agreement by at most ~2 points.
+  - On clear decisions the search's edge comes from what its look-ahead computes, which one forward pass of these networks does not recover. This is the raw-policy vs search gap known from AlphaZero-style systems.
+- **Consequence:**
+  - The live player is the search. The greedy policy matters as its candidate generator (top-5 coverage 91%) and as its rollout policy. The rollout check is pending.
+  - The lever the evidence points to is the search's judge: value resolution (E12), with lower-variance value targets.
+  - Further policy-distillation arms are not planned.
