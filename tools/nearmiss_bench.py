@@ -77,7 +77,17 @@ def play(ck, rows, attempts, roots):
         print(f"  {spec_name(ck)}: attempt {att + 1}/{attempts}, {F} fights", flush=True)
         res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims)
         out[:, att] = res[:, 1] == 1
+    release(fs)
     return out
+
+
+def release(fs):
+    import gc
+    import torch
+    fs._runs = []
+    del fs
+    gc.collect()
+    torch.cuda.empty_cache()
 
 
 def evaluate(a):
