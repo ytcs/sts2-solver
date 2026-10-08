@@ -412,3 +412,22 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 | d128, hard target, all data | -0.002 +- 0.010 | +0.016 +- 0.009 |
 
   Sharper distilled policies make worse play-outs: close wins are lost more often, consistent with E9's hypothesis. Policy distillation does not reach the player this way either.
+
+## E24. Lower-variance value targets: TD(lambda) helps a little; first training change to move the player
+- **Method:** two arms from r3, identical except for the outcome target. Data: 163k fights (r1-r4s; r4u held out for the near-miss bench). Anchored policy target (c 2), 3 epochs.
+  - realized: the fight's realized ending;
+  - TD(0.9): (1 - lambda) x the frozen init network's outcome distribution at the next searched decision, plus lambda x that decision's target, ending in the realized result (`exit.py --value-target td`).
+- **Scoring:** holdout loss against the realized ending; predictor scores on bench v2; the held-out near-miss bench with each network as the search's prior, judge and play-out policy (5x32, 2 attempts, paired with r3).
+
+| | r3 | realized | TD(0.9) |
+|---|---|---|---|
+| holdout outcome loss (realized) | 1.885 | 1.888 | 1.876 |
+| Brier eval / corpus / mix / tail | 0.0205 / 0.0175 / 0.0237 / 0.0348 | 0.0214 / 0.0188 / 0.0220 / 0.0343 | 0.0206 / 0.0181 / 0.0225 / 0.0319 |
+| near-miss losses won | 0.319 | +0.002 +- 0.009 | +0.007 +- 0.009 |
+| close wins lost | 0.256 | -0.002 +- 0.008 | -0.014 +- 0.008 |
+
+- **What it shows:**
+  - TD avoids the first-epoch damage the realized target causes. It is the only arm whose holdout loss on true endings beats the init.
+  - It is the best calibrated on the tail.
+  - With it as the search's judge, close wins are lost less often (about 1.75 se), so the combined near-miss effect is about +0.02 (~2 se).
+- **Not yet shown:** a lambda sweep (0.8, 0.95) and more attempts on the near-miss bench.
