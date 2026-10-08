@@ -51,7 +51,6 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 - re-sync hand from screen before answering a mid-card selection (Survivor, Dagger Throw); card text on rewards screen; fight-start predictions state assumed potions.
 - search `carry` never fires (speed only, ~15% more network rows).
 - Caps must not cut combos (user): turns are the stall bound (99); action cap far above any legitimate fight; a play-out continues while the turn makes progress (enemy HP falling, cards/energy generated); per-step loop guard (20,000 work units, observed max 174) stays.
-- Sync: identical monsters paired by nearest HP mis-slot enemy moves (E34, Gardeners); hand sync ignores enchantments.
 - Gate: a full act with no false `DIFFERS`.
 
 **S1. Observation and fidelity.** Status: done. Look-ahead plays the next turns on a projected copy (`LOOK_H` = 4, joint encounter projection, pending node + stored follow-up in `enemy_moves`); cross-character cards in fuzzers. Observation v2 (calculated card numbers, affliction amounts, selection purpose, power secondary numbers, 64 candidates; E20) is used by the live player (gen-2); v1 networks keep working, bit-identical (gate). Gate: fuzz 0 residual mismatches; look-ahead probability test within tolerance.
