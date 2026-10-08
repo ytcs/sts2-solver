@@ -35,13 +35,13 @@ def p_win(P):
 
 
 def end_hp(P):
-    c = H.centers().numpy()
+    c = H.CENTERS
     w = P[..., 1:].sum(-1)
     return np.where(w > 0, (P[..., 1:] * c).sum(-1) / np.maximum(w, 1e-12), 0.0)
 
 
 def sample_end(P, rng):
-    c = np.concatenate([[0.0], H.centers().numpy()])
+    c = H.CENTERS0
     cum = np.cumsum(P, -1)
     u = rng.random(len(P))[:, None]
     return c[np.minimum((u > cum).sum(-1), H.NC - 1)]

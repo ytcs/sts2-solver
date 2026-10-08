@@ -26,3 +26,8 @@ def utility(max_hp, win=WIN, loss=LOSS, hp_bonus=HP_BONUS):
 def value(logits, max_hp):
     p = torch.softmax(logits.float(), 1)
     return (p * utility(max_hp)).sum(1)
+
+
+CENTERS = centers().numpy()
+CENTERS0 = np.concatenate([[0.0], CENTERS])
+CENTERS.flags.writeable = CENTERS0.flags.writeable = False

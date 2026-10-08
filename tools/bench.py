@@ -123,7 +123,7 @@ def predict(net, scen, shuffles=SHUFFLES):
 
 def _worth(P, max_hp):
     import heads as H
-    c = H.centers().numpy()
+    c = H.CENTERS
     u = np.concatenate([np.full((len(P), 1), H.LOSS), H.WIN + H.HP_BONUS * np.minimum(c[None, :] / np.asarray(max_hp, float)[:, None], 1.0)], 1)
     return (P * u).sum(1)
 

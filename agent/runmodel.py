@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 import random
@@ -20,12 +21,13 @@ POTION_RARITY = ((0.10, "Rare"), (0.35, "Uncommon"), (1.0, "Common"))
 HEAL_REST, HEAL_ANCIENT = 0.30, 0.80
 
 
+@functools.cache
 def pool(kind, character, rarity=None, types=None):
     src = CAT[kind]
     rows = list(src.get(character, []))
     if kind in ("relics", "potions"):
         rows += src.get("SHARED", [])
-    return [r for r in rows if (rarity is None or r["rarity"] == rarity) and (types is None or r.get("type") in types) and not r.get("multiplayer_only")]
+    return tuple(r for r in rows if (rarity is None or r["rarity"] == rarity) and (types is None or r.get("type") in types) and not r.get("multiplayer_only"))
 
 
 class Draws:
@@ -239,7 +241,7 @@ def reference_fights(st, rng):
 
 def worth(P, max_hp):
     import heads as H
-    c = H.centers().numpy()
+    c = H.CENTERS
     return -P[..., 0] + (P[..., 1:] * (1 + 0.5 * np.minimum(c / max_hp, 1.0))).sum(-1)
 
 
