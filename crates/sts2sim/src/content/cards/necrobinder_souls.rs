@@ -113,6 +113,11 @@ listener!(SoulStorm {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
         Flow::Done
     }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let souls = cx.player.exhaust.iter().filter(|&&c| cx.cards[c as usize].id == ids::card::SOUL).count() as i32;
+        Some(crate::engine::calc_with(cx, card, souls))
+    }
 });
 
 // ---- Ethereal / draw theme ----------------------------------------------------------------------------------------------
@@ -165,6 +170,10 @@ listener!(PullFromBelow {
         let d = cx.card_var(p.card, VarKind::Damage);
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)).hits(hits));
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.hist_log.ethereal_finished as i32))
     }
 });
 

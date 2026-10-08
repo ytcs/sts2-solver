@@ -260,6 +260,10 @@ listener!(LunarBlast {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)).hits(hits));
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.hist.skills_finished_this_turn as i32))
+    }
 });
 
 // Hits = stars gained this turn.
@@ -269,6 +273,10 @@ listener!(Radiate {
         let hits = cx.stars_gained_this_turn();
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::AllOpponents).hits(hits));
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.stars_gained_this_turn()))
     }
 });
 
@@ -355,6 +363,11 @@ listener!(BeatIntoShape {
         let amount = base + extra * total_hits - r.len() as i32 * extra;
         cx.forge(amount);
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        // `e.Receiver == target`: no target, no entry
+        let hits = if target == NO { 0 } else { cx.hist_count_this_turn(HKind::DamageReceived, |e| e.actor == target && e.other == PLAYER && ValueProp(e.props).is_powered()) as i32 };
+        Some(crate::engine::calc_extra_with(cx, card, hits))
     }
 });
 

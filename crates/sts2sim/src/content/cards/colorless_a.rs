@@ -382,6 +382,10 @@ listener!(Mimic {
         cx.gain_block(PLAYER, Dec::int(b), ValueProp::MOVE, p.card);
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        // `target?.Block ?? 0`
+        Some(crate::engine::calc_extra_with(cx, card, if target == NO { 0 } else { cx.cr(target).block() }))
+    }
 });
 
 // Calculated damage: 0 + 1 per card in the draw pile.

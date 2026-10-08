@@ -69,6 +69,13 @@ pub fn calc_with(cx: &Combat, card: CardIdx, mult: i32) -> Dec {
     Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::ExtraDamage) as i64 * m as i64)
 }
 
+/// `CalculatedVar.Calculate` of a var whose extra part is `CalculationExtra` (block, hits, cards ...): `CalculationBase + CalculationExtra * multiplier`
+/// (the multiplier only while the combat is in progress).
+pub fn calc_extra_with(cx: &Combat, card: CardIdx, mult: i32) -> Dec {
+    let m = if cx.in_progress { mult } else { 0 };
+    Dec::int(cx.card_var(card, VarKind::CalcBase) as i64 + cx.card_var(card, VarKind::CalcExtra) as i64 * m as i64)
+}
+
 impl Combat {
     /// `Hook.ModifyDamage` (spec 02 §3.2): additive pass, multiplicative pass, cap pass, floor at 0. No rounding.
     pub fn modify_damage(&self, target: Cid, dealer: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, Mods) {

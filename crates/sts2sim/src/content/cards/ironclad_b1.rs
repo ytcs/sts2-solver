@@ -395,6 +395,10 @@ listener!(TearAsunder {
         cx.execute_attack(&a);
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, 1 + cx.hist_log.player_hits_taken as i32))
+    }
 });
 
 // Two hits; then exhaust a random Attack from hand and add its (modified) damage to this card permanently.

@@ -173,6 +173,10 @@ listener!(DemonicShield {
         cx.gain_block(p.target, Dec::int(amt as i64), ValueProp::MOVE, p.card);
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.cr(PLAYER).block()))
+    }
 });
 
 // Apply Vulnerable, then gain Strength equal to the target's resulting Vulnerable amount.
@@ -223,6 +227,10 @@ listener!(ExpectAFight {
         let amt = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * str;
         cx.gain_block(PLAYER, Dec::int(amt as i64), ValueProp::MOVE, p.card);
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.power_amount(PLAYER, ids::power::STRENGTH_POWER).max(0)))
     }
 });
 

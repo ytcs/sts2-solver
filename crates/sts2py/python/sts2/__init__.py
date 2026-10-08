@@ -13,16 +13,22 @@ the search; `VecEnv.loops()` and the search stats (`end_loop` play-outs, `fight_
 
 With `round_robin=True` env `i` always plays `scenarios[i % len(scenarios)]` (n_envs = k x len gives k attempts of each).
 Scenarios use the oracle JSON format (see docs/oracle.md, tools/mk_scenario.py); every episode redraws all RNG streams.
+
+Observation versions (`crates/sts2sim/src/observe.rs`): 1 (default; every network trained before v2) and 2 (the visible information v1 leaves
+out). `set_obs_version(v)` sets the process-wide version that a `VecEnv`, a search engine, `replay`, `Sim.observe` and `layout()` use when no
+version is given; each env / engine keeps the version it was created with (`obs_version=`), and its rows have `obs_size(v)` floats.
+`OBS_SIZE` is the version-1 length: size buffers with `obs_size()` / `VecEnv.obs_size`. `rl/model.py` `load` sets the version of the checkpoint.
 """
 import json
 import numpy as np
 
 from ._sts2 import Sim, replay as _replay, replay_rows as _replay_rows, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable, set_relic_mask, set_look_legacy  # noqa: F401
+from ._sts2 import obs_version, set_obs_version  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )
 
-OBS_SIZE = obs_size()
+OBS_SIZE = obs_size(1)  # the version-1 length; `obs_size()` is the length of the process-wide version
 ACTIONS = action_space()
 
 
@@ -33,13 +39,17 @@ def provably_unwinnable(scenario):
 
 
 class VecEnv:
-    def __init__(self, n_envs, scenarios, seed=0, max_steps=2000, win=1.0, loss=-1.0, hp_bonus=0.0, step_reward=0.0, round_robin=False, turn_cap=0):
+    def __init__(self, n_envs, scenarios, seed=0, max_steps=2000, win=1.0, loss=-1.0, hp_bonus=0.0, step_reward=0.0, round_robin=False, turn_cap=0,
+                 obs_version=None):
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         self.n = n_envs
         # a str is taken as the scenario's JSON already (callers that build several envs over the same scenarios serialize them once)
-        self._env = _BatchEnv(n_envs, [s if isinstance(s, str) else json.dumps(s) for s in scenarios], seed, max_steps, win, loss, hp_bonus, step_reward, round_robin, turn_cap)
-        self.obs = np.zeros((n_envs, OBS_SIZE), np.float32)
+        self._env = _BatchEnv(n_envs, [s if isinstance(s, str) else json.dumps(s) for s in scenarios], seed, max_steps, win, loss, hp_bonus, step_reward, round_robin, turn_cap,
+                              obs_version)
+        self.obs_version = self._env.obs_version()  # what this env writes (obs_version=None: the process-wide version at creation)
+        self.obs_size = self._env.obs_size()
+        self.obs = np.zeros((n_envs, self.obs_size), np.float32)
         self.mask = np.zeros((n_envs, ACTIONS), np.uint8)
         self.reward = np.zeros(n_envs, np.float32)
         self.done = np.zeros(n_envs, np.uint8)
@@ -92,14 +102,15 @@ class VecEnv:
                 "hp_end_abs": e[:, 4].astype(np.int32), "max_hp_end": e[:, 5].astype(np.int32), "turns": e[:, 6].astype(np.int32)}
 
 
-def replay(scenario, seed, actions):
-    """Replays a fight recorded by the search engine (`SearchEngine.moves`): `(obs [n + 1, OBS_SIZE], mask [n + 1, ACTIONS])` before every action
-    and after the last one. `seed` is the job seed of the fight; the real fight depends on nothing else."""
-    return _replay(json.dumps(scenario), int(seed), np.ascontiguousarray(actions, np.int32))
+def replay(scenario, seed, actions, obs_version=None):
+    """Replays a fight recorded by the search engine (`SearchEngine.moves`): `(obs [n + 1, obs_size], mask [n + 1, ACTIONS])` before every action
+    and after the last one. `seed` is the job seed of the fight; the real fight depends on nothing else. `obs_version`: default the process-wide one."""
+    return _replay(json.dumps(scenario), int(seed), np.ascontiguousarray(actions, np.int32), obs_version)
 
 
-def replay_rows(scenarios, scen, seeds, actions, off, steps, soff):
+def replay_rows(scenarios, scen, seeds, actions, off, steps, soff, obs_version=None):
     """Many recorded fights in parallel (`rl/exit.py`): fight i replays `actions[off[i]:off[i + 1]]` from `scenarios[scen[i]]` with `seeds[i]`;
-    returns `(obs [R, OBS_SIZE], mask [R, ACTIONS])` before each of its `steps[soff[i]:soff[i + 1]]`, all fights' rows concatenated."""
+    returns `(obs [R, obs_size], mask [R, ACTIONS])` before each of its `steps[soff[i]:soff[i + 1]]`, all fights' rows concatenated.
+    `obs_version`: default the process-wide one."""
     return _replay_rows([json.dumps(s) for s in scenarios], [int(x) for x in scen], [int(x) for x in seeds], np.ascontiguousarray(actions, np.int32),
-                        [int(x) for x in off], [int(x) for x in steps], [int(x) for x in soff])
+                        [int(x) for x in off], [int(x) for x in steps], [int(x) for x in soff], obs_version)

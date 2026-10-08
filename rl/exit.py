@@ -147,7 +147,8 @@ POLICY_HEADS = {"u_card", "b_card", "v_tgt", "v_none", "u_pot", "b_pot", "disc_p
 class Data:
     """One or more `collect` files; `chunks` yields replayed rows (obs, mask, opts, policy target, outcome class) a chunk of fights at a time."""
 
-    def __init__(self, paths, tau, keep_mp=False, qnorm="minmax", qse=0.078, hard=False):
+    def __init__(self, paths, tau, keep_mp=False, qnorm="minmax", qse=0.078, hard=False, obs_version=1):
+        self.obs_version = obs_version  # rows are replayed as observations of this version (the trained network's)
         self.parts = []
         for p in paths:
             z = np.load(p)
@@ -223,7 +224,8 @@ class Data:
                 acts.append(p["acts"][p["f_off"][f]:p["f_off"][f + 1]]); off.append(off[-1] + len(acts[-1]))
                 lo, hi = p["d_lo"][f], p["d_lo"][f + 1]
                 steps.append(p["d_step"][lo:hi]); soff.append(soff[-1] + hi - lo); sel.append(np.arange(lo, hi))
-            o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff)
+            o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff,
+                                   obs_version=self.obs_version)
             sel = np.concatenate(sel)
             out[0].append(o); out[1].append(m); out[2].append(p["d_opts"][sel]); out[3].append(p["tgt"][sel])
             out[4].append(np.repeat(p["f_cls"][fs], np.diff(soff)))
@@ -254,7 +256,7 @@ def train(a):
     rng = np.random.default_rng(a.seed)
     net = load(a.init).train()
     assert net.heads, "an outcome-head network is needed (models/solver_h128.pt)"
-    data = Data(a.data, a.tau, qnorm=a.qnorm, qse=a.qse, hard=a.target == "hard")
+    data = Data(a.data, a.tau, qnorm=a.qnorm, qse=a.qse, hard=a.target == "hard", obs_version=net.obs_version)
     idx = np.array(data.index, dtype=object)
     perm = rng.permutation(len(idx))
     n_hold = max(1, int(len(idx) * a.holdout))
@@ -353,7 +355,7 @@ def train(a):
             print(f"ep {ep} chunk {it}/{n_chunks} rows {len(r[0])} policy {st[0] / nb:.4f} outcome {st[1] / nb:.4f} lr {lr:.2e} ({time.time() - t0:.0f}s)", flush=True)
         print(f"holdout after epoch {ep}: policy %.4f outcome %.4f" % evaluate(), flush=True)
         ck = torch.load(a.init, map_location="cpu")
-        torch.save({"net": net.state_dict(), "args": ck.get("args", {}), "exit": vars(a) | {"epoch": ep}}, a.out)
+        torch.save({"net": net.state_dict(), "args": ck.get("args", {}) | {"obs_version": net.obs_version}, "exit": vars(a) | {"epoch": ep}}, a.out)
     print(f"-> {a.out}", flush=True)
 
 
