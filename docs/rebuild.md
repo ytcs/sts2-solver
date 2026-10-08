@@ -101,6 +101,11 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 - Open solver-gap tests: early-stop on ties in manual fights (`agent.hindsight` large budget vs the plan in the why); missed lethal (states where a 1-2 card line kills the last enemy: solver's first choice should reach lethal ~100%).
 - Open: harness refactor + bug sweep of `agent/` after the RL work.
 
+**Expert claims backlog** (`data/expert/japaneseexport/`: 11 coaching videos, 170 [expert] claims with tests; transcripts/frames local, git-ignored). Claims are hypotheses until a test decides. Verdicts so far: unknown-room fight odds 10% +10%/non-fight unknown (supported `[code]` C5). Open, highest value (they contradict a current skill rule):
+  - pre-boss smith at very low HP (Defect vs Lagavulin Matriarch at 13/75; boss opening harmless): solver/predictor test smith vs rest at arrival HP; ties to S5's rest-vs-smith misses (E30).
+  - skip cards in 13-18-card decks once the plan works (9 videos): run-model rollouts of a skip-off-plan policy vs smooth greedy on P(clear 2 acts); the current-deck proxy bias (E30) pushes the other way.
+  - Skulking Colony rewards block rather than front-loaded damage; removal value (his videos split 3/3); ancients: immediate power over long-term access.
+  - 30 reconstructable fight/screen states: compare his line with the live solver's on the same state.
 **Expert data (queued).** Top players' runs (NaveGreed, OpemSpire) allowed. Macro decisions seed the plan library as `[expert]`; a few hundred pivotal combat decisions form a test set (replay both lines where search disagrees); imitation only if that set shows gaps. Pilot (`data/expert/navegreed_2026-10-07.md`): one A10 Ironclad win on v0.111.0 -> 41 macro decisions + 3 fights in ~55 min; accuracy ~95% visible choices, ~60% encounter names. Next: decision-screen detector, OCR limited to catalog ids, caption alignment, seed-replay test; encounter id by sprite matching (`SlayTheSpire2.pck`). Re-enactment: start his seed, replay his transcribed actions, export each fight start, compare his line with the solver's on the same hidden state per decision (risks: one transcription error breaks later fights; 3 unidentified mods).
 
 ## 6. Retired / live / kept
