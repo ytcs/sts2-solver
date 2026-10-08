@@ -379,7 +379,7 @@ def _family(label):
     return "smith" if label.startswith("smith") else label
 
 
-def replay(run, n=128, cont="clip", kinds=("CARD_REWARD", "RESTSITE")):
+def replay(run, n=128, cont="late", kinds=("CARD_REWARD", "RESTSITE")):
     from predictor import Predictor
     from solver import PREDICTOR_CKPT
     pred = Predictor(PREDICTOR_CKPT, batch=1024)
@@ -407,7 +407,7 @@ def main():
     ap = argparse.ArgumentParser(description="replay a recorded run's decision screens: current price ladder vs the S5 gate surrogate")
     ap.add_argument("run", help="runs/<run> name or an events.jsonl path")
     ap.add_argument("--n", type=int, default=128)
-    ap.add_argument("--cont", default="clip", choices=R.RULES)
+    ap.add_argument("--cont", default="late", choices=R.RULES)
     ap.add_argument("--screens", default="CARD_REWARD,RESTSITE")
     a = ap.parse_args()
     rows = replay(a.run, a.n, a.cont, tuple(a.screens.split(",")))

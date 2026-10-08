@@ -271,7 +271,7 @@ def readiness(st, pol):
 
 
 LAST_ACT = max(ACT_NAMES)
-RULES = ("clip", "prod", "disc", "mean")
+RULES = ("late", "clip", "prod", "disc", "mean")
 FLOOR, DISCOUNT = 0.05, 0.5
 
 
@@ -304,15 +304,18 @@ def gates(st, pol):
     return out
 
 
-def combine(g, rule="clip", floor=FLOOR):
-    """'clip': product of gate pass probabilities each floored at `floor`: gates the deck has passed (~1) or cannot pass yet (below the floor,
-    the predictor's unreliable tail on a deck that will change) drop out of comparisons; 'prod': unfloored; 'disc': gate k acts later weighted
-    DISCOUNT**k in log space; 'mean': average"""
+def combine(g, rule="late", floor=FLOOR):
+    """product of gate pass probabilities; 'late': gates of later acts floored at `floor` (a later gate the current deck cannot pass is the
+    predictor's tail on a deck that will change: it drops out of comparisons), the first act's gates unfloored; 'clip': every gate floored;
+    'prod': unfloored; 'disc': gate k acts later weighted DISCOUNT**k in log space; 'mean': average gate"""
     p = np.array([x[1:] for x in g]).ravel()
     if rule == "mean":
         return float(p.mean())
+    lo = np.full(len(p), floor if rule in ("late", "clip") else 1e-9)
+    if rule == "late":
+        lo[:2] = 1e-9
     w = np.repeat(DISCOUNT ** np.arange(len(g)) if rule == "disc" else np.ones(len(g)), 2)
-    return float(np.exp((w * np.log(np.maximum(p, floor if rule == "clip" else 1e-9))).sum()))
+    return float(np.exp((w * np.log(np.maximum(p, lo))).sum()))
 
 
 def play(st, rng, pol, first=None):
