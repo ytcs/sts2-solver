@@ -1,165 +1,65 @@
-# Combat solver (`rl/`)
+# Combat solver (`rl/`, `crates/sts2env/src/search.rs`)
 
-Input: a deck, relics, potions, HP and an encounter (Ascension 10). Output: a play that wins the fight first and loses as little HP as possible.
-
-Metrics:
-* `win`: fraction of fights won.
-* `hp_lost_all`: mean fraction of max HP lost over all fights; a loss or a stall past `max_steps` is charged all the HP the player started with.
-
-Training reward: +1 for a win (+ `0.5 x HP fraction left`), -1 for a loss or stall, 0 for aborted episodes (unported content, capacity overflow).
+In: deck, relics, potions, HP, encounter (A10). Out: play maximising the fight objective (default linear: win +1 + 0.5 x HP fraction left, loss/stall -1; aborted episode 0).
+Metrics: `win`; `hp_lost_all` = mean max-HP fraction lost, loss/stall charged the full start HP.
 
 ## Components
 | file | role |
 |---|---|
-| `tools/gen_train.py` | realistic A10 scenario sets (starter deck + act-scaled picks, relics, potions, every encounter); a different `--seed` gives a disjoint set; `--energy-prob P` makes a share P of scenarios 4-7 energy; `--drop-unwinnable` filters fights the prover (below) rejects |
-| `rl/model.py` | policy/value network: entity encoders (player, enemies with intents and expert look-ahead, hand, potions, pending-selection candidates, pile multisets as card-embedding bags), pooled context, 2 message-passing rounds, pointer action head scoring the env's dense action space. Re-clicking a selected card is masked. Features are signed-log scaled (`sign(x) log(1+|x|)`): HP, damage and power amounts are unbounded |
-| `rl/ppo.py` | PPO, resumable checkpoints, held-out evaluation every N iterations |
-| `rl/fastsearch.py`, `crates/sts2env/src/search.rs` | the search: a Rust state machine plus the Python driver that evaluates networks |
-| `rl/solver.py` | `Solver`, the batch solver |
-| `rl/bench_fast.py` | throughput / strength of the search on a scenario set (default `data/train/eval.json`) |
-| `agent/engine.py` | `Engine`, the harness's solver service (one live decision, or a batch) |
-| `scripts/pod_train.sh` | fresh training on a GPU pod |
+| `rl/model.py` | policy/value net (entity encoders, 2 message-passing rounds, pointer head over the dense action space, signed-log features); `Net(obs_version=)` per-checkpoint layout v1/v2 |
+| `rl/heads.py` | fight-outcome head: categorical over loss / win x end-HP bin (`NC`, `BIN` must match Rust: asserted) |
+| `rl/fastsearch.py` | `FastSearch`: evaluates networks for the Rust state machine; CUDA graphs per padded batch (`GraphFn.plan`), `torch.compile`, bf16 |
+| `rl/solver.py` | `Solver`: batch solver; CLI |
+| `rl/predictor.py` | fight predictor for macro pricing (outcome distribution) |
+| `rl/exit.py`, `rl/ppo.py` | training (expert iteration, PPO) |
+| `agent/engine.py` | `Engine`: harness service (live decision, tables) |
+| `tools/gen_train.py` | A10 scenario sets (`--seed`: disjoint sets; `--energy-prob P`; `--drop-unwinnable`) |
+| `tools/bench_search.py` | search-quality bench vs a Monte Carlo referee (regret per config) |
 
-### Scenario sets
-`tools/gen_train.py` seeds: 1 = training, 22 = held-out eval (base mix, 3 energy), 23 = held-out high-energy eval (`--energy-prob 1.0`, 600 scenarios). `python -m agent.improve gate` and `scripts/pod_train.sh` generate them into `target/train/` on first use. `data/train/` holds committed copies: `eval.json` (the seed-22 set, 1,500 fights, 5 characters, 3 acts) and `mid.json` (786 mid-difficulty scenarios, where the greedy network wins 15-85%). Every table below uses `eval.json` unless it says "mid".
+Networks: `models/current.json` (written by `python -m agent.improve adopt`) names `policy` (solver_h128.pt, outcome head, no extra value nets) and `predictor` (predictor_r2.pt). Sets: `data/train/eval.json` (1,500 held-out fights, 5 chars, 3 acts); `data/bench/*.json` (mix, tail, nearmiss, corpus, pairs, eval).
 
 ## Search
-`VecEnv.fork_from` copies a fight and `Combat::determinize` resamples draw / discard / exhaust orders and all nine RNG streams; everything the player can see is unchanged (tested). At each decision the policy's top-M legal actions are each played on K determinized futures. A future follows the policy to the end of the current player turn (the enemy turn included) and is scored by the final reward (fight over) or the value head at the start of the next turn. The root plays the best mean. This is one step of policy improvement over the base policy; it needs no extra training.
+- At each decision: policy's top-M legal actions x K determinized futures (`VecEnv.fork_from` + `Combat::determinize`: piles' orders and all 9 RNG streams resampled, visible state unchanged). A future plays the policy for `LEAF_TURNS`=2 player turns (`rl/fastsearch.py`), then the value head (or the terminal reward). Root plays the best mean q.
+- State machine: each fight is a root with M x K copies; engine runs to the next network request on rayon, one row per request; Python batches rows; `groups=2` alternates CPU sim / GPU eval. Results reproducible per job, independent of pool size and threads (gate checksums).
+- On by default: `lead` (an option's in-turn play simulated once; futures branch at the first step touching hidden info), `strat` (futures share one shuffle, rotated: disjoint next hands), `carry` (chosen line's prefix reused next decision; known: rarely fires, speed only), auto-Confirm of a full selection.
+- Worth: `run(..., worth=)` / `solve(worth=)` / `decide(worth=)`: per scenario None = linear, or dict(u=[NC class worths], price=[per belt slot]) combined in Rust with the outcome head's class probabilities (needs the head and no extra value nets: `Engine.worth_ok`). Win-only act-boss table: `agent.proposal.win_only_worth`.
+- A panic aborts only that fight (stderr, `panics`); overflow -> `OUTCOME_OVERFLOW`.
 
-Engine mechanics (all on by default):
-* **State machine.** Each fight is a root with its own `M x K` copies. The engine runs everything up to the next network request on the rayon pool (forced moves, simulation, forks, scoring, starting the next queued fight) and writes one observation row per request. Python only evaluates the networks on pending rows, so batches stay large whatever the fight lengths. Two engines alternate (`groups=2`) so CPU simulation overlaps GPU evaluation. Results are reproducible per job and independent of pool size and thread count (`crates/sts2env/tests/search.rs`).
-* **Selection screens.** A full selection with `Confirm` legal is confirmed automatically (a swap of the last pick could have been the last pick directly). Without it, sampled policies loop between picks and 7% of play-outs hit the 60-step cap.
-* **`lead`.** Only 27% of actions touch hidden information (EndTurn 86%, a Strike 3-7%). An option's in-turn play is simulated once on a scratch copy; the K futures branch at the first step that touches hidden information. Policy rows -42%, simulator steps -30%, forks -75%, about 0.3 points of win rate.
-* **`strat`** (`Combat::determinize_strat`). The futures of a decision share one uniform shuffle; future i rotates the draw pile by a different fraction, so the next hands are disjoint parts of one shuffle. +0.2-0.3 points at every K at no cost.
-* **`carry`.** The chosen option keeps its shared prefix and estimate; at the next decision the candidate equal to the line's next action is not simulated again (15% fewer rows). Valid because the prefix touched no hidden information.
-* **Lookahead path cache** (thread-local, keyed by monster state machine, powers and enemy line-up; `tests/lookahead_cache.rs` checks cached == fresh on 40k rows): observation cost -6%.
-* **Failure handling.** A panic in any fight is caught: job / scenario / seed go to stderr, only that fight aborts, `panics` counts them. Capacity overflow reports `OUTCOME_OVERFLOW`.
-* **GPU path** (`GraphFn`, `compile=True`, `amp=True` on CUDA): policy and value (the 3-network ensemble in one graph) are captured as CUDA graphs per padded batch size (static shapes, no host syncs), with `torch.compile` fusion and bf16 autocast inside the graphs (no change in strength). Compiled graphs are cached on disk after the first run (about 2 minutes). Thread counts follow the cgroup CPU quota (`fastsearch.available_cpus`), not `os.cpu_count()`.
-
-### Root modes
-`SearchCfg::root` / `FastSearch(root=...)`. Default `"topm"` (above; live play and every table). E8-E12 found that a larger search with the same top-M restriction wins no more: the root only tries what the prior already ranks high and the play-outs follow the same policy, so a large budget cannot find an action the prior ranks low.
-
-`"gumbel"` (Gumbel MuZero's root, Danihelka et al. 2022; `gumbel_m` candidates, `gumbel_n` futures):
-* **Candidates.** Gumbel-top-k over every legal action except potion discards: `gumbel_m` actions sampled without replacement from the prior (`g + log p`, one Gumbel per action from the job's stream, so a job seed fixes the sample). The root's logits over the whole action space come back with the policy answers (`advance_root`; `FastSearch` evaluates the root rows once more, eager, outside the graphs).
-* **Sequential halving.** `ceil(log2 m)` phases; each phase plays every surviving candidate on `n / (phases x survivors)` fresh futures (the last phase also takes the rounding remainder), the same futures for every candidate (common random numbers), and keeps the better half by `g + log p + sigma(completed Q)`. Completed Q = the mean of all of a candidate's futures so far. The action played is the best survivor by the same score.
-* **sigma** = `(c_visit + max visits) x c_scale x qn`, `qn` = Q scaled to [0, 1] by the return's known range (linear `loss .. win + hp_bonus`, the HP-worth curve's or the worth table's range), not by the decision's own min-max: that stretches noise-level gaps (~0.01) to the full scale (E9). `c_visit` 50 (paper), `c_scale` 0.1 (mctx's default; tunable).
-* **Improved policy** recorded per searched decision (`MoveRec`, `moves_gumbel`, `decide(...)["pi"]`): pi' = softmax(logits + sigma(completed Q)), where an action not sampled has completed Q = v_mix (the root state's value from one extra value row, mixed with the prior-weighted mean Q of the candidates, the paper's eq. 33). Stored sparsely as `adv = sigma(q) - sigma(v_mix)` per candidate (0 elsewhere) and pi' per candidate; `rl/exit.py collect --root gumbel` saves it (format 2) and `train --target gumbel` rebuilds pi' on the init network's logits.
-* `carry` and `pmin` / `margin` do not apply; `lead` and `strat` work per phase (`strat` rotations in van der Corput order, so any prefix of the futures is spread). Slots per root: the largest phase (`SearchCfg::slots`), e.g. 160 at 16 x 160. Not handled: duplicate actions (two identical cards) are separate candidates, as in top-M.
-* Benchmark: `tools/bench_search.py --from-scenarios data/bench/tail.json --configs topm5x32,gumbel16x160,...` (equal budget: 160 futures per decision).
+## Root modes
+`SearchCfg::root` / `FastSearch(root=)`. Current: `topm` only (live play, every table, collection). A bigger budget under top-M wins no more (E8-E12: root tries only what the prior ranks high; play-outs follow the same policy). Planned replacement of the candidate list: every distinct legal action (~6 avg; top-5 coverage 91%).
 
 ## API
 ```python
-from solver import Solver                    # rl/solver.py
-S = Solver()                                  # defaults below
-res = S.solve(scenarios, attempts=32)         # one dict per scenario: win, win_se, hp_lost, hp_lost_se, hp_left_on_win, attempts, aborted
+from solver import Solver                     # rl/solver.py
+S = Solver()                                  # current.json networks, 3 options x 8 futures
+res = S.solve(scenarios, attempts=32)         # per scenario: win, win_se, hp_lost, hp_lost_se, hp_left_on_win, attempts, aborted
 ```
-* `Solver(ckpt, M=3, K=8, pmin=0.0, margin=0.0, max_steps=300, value_ckpts="default", roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None, threads=None)`. `roots` defaults to 2,048 on CUDA, 256 on CPU. `solve(..., search=False)` plays the network greedily. `conf=1.01` means no decision is skipped for confidence. Attempts of a scenario differ only in random streams. CLI: `python rl/solver.py --scenarios F.json --attempts 32 [--no-search]`.
-* Defaults: policy `models/solver_b128.pt`; value = mean of b128, c128, d128 (three 128-wide networks, different seeds, 314M PPO steps each, 65-66% greedy on `eval.json`). `models/current.json`, written by `python -m agent.improve adopt`, overrides both.
-* `FastSearch(net, value_nets, M, K, conf, roots, groups, threads, roll_net, use_graphs, amp, compile, lead, merge_dec, carry, strat, force_end_turn, ...)`: `run(scenarios, job_scen, job_seed)` plays many fights; `decide(scenario, sim, seed)` searches one decision of a live fight (`sim` is an aligned `sts2.Sim`).
-* `Engine` (`agent/engine.py`): `decide(scenario, sim, budget)` is the harness's micro decision, M=5 options x K=32 futures per round (about 10 ms a round, `roots=1`), repeating rounds with fresh futures until the budget is spent or the expected regret of the leading action falls below 1 HP. `solve(scenarios, attempts=64)` wraps `Solver.solve` for macro evaluation.
-* Precision: 100 decks x 32 attempts give +-5.3 points per deck; +-2.5 needs about 150 attempts per deck.
+- `Solver(ckpt, M=3, K=8, max_steps=300, roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None, threads=None)`; roots default 2048 CUDA / 256 CPU. `solve(scenarios, attempts, search=True, seed=0, groups=None, worth=None)`: `search=False` = greedy net; same `groups` id = same seeds per attempt (common random numbers across deck variants). CLI `python rl/solver.py --scenarios F.json --attempts 32 [--no-search] [--out F]`.
+- `FastSearch.run(scenarios, job_scen, job_seed, worth=)` -> rows [scenario, outcome, hp_lost, hp_end, length, finished, end HP abs, potions-kept bits]; `decide(scenario, sim, seed, worth=)` one live decision (`sim` = aligned `sts2.Sim`).
+- `Engine(M=5, K=32, ckpt=None)`: `decide(scenario, sim, budget, seed, tol_hp=1.0, keep_potions, worth, rounds)` repeats 5x32 rounds (~10 ms each) until budget or expected regret of the leader < `tol_hp` HP (min 4 rounds; tolerance scaled by the worth table's span); held potions removed via `sim.without_potions`, potion discards never chosen. `solve(scenarios, attempts=64, seed, groups, worth)` for tables (seeded per screen: `table_seed`). `play_on(scenario, starts, seeds, worth)`.
+- Precision: 32 attempts/deck ~ +-5.3 win pts. Strength (`eval.json`, 1,500 x 4, 3x8, depth 2, h128): win 74.4-75.0%, hp_lost_all 0.348 (greedy ~65.5%).
 
-## Results
-### Networks (greedy, `eval.json`)
-| policy | win | hp_lost_all |
-|---|---|---|
-| random | 0.145 | 0.686 |
-| untrained network | 0.031 | 0.725 |
-| scripted heuristic | 0.363 | 0.572 |
-| 64-wide, PPO 60M steps (`solver_base.pt`) | 0.630 | 0.443 |
-| 64-wide, +66M steps on 30,000 scenarios with potion-hold randomization | 0.638 | 0.436 |
-| **128-wide, 314M steps (`solver_b128.pt`)** | **0.658** | **0.423** |
+## Performance invariants (a perf change must keep all)
+- **Bit identity.** `bash tools/gate.sh` must pass unchanged: `searchprof` checksums v1/v2 (search results + moves), `envprof` checksums v1/v2 (obs, masks, rewards, outcomes), cargo tests `sts2diff/regression`, `sts2sim/{observe,rng_golden,sync}`, `sts2env/lookahead_cache`, `tests/rl/test_obs_version.py`. A deliberate behaviour change updates the checksums in `tools/gate.sh` in the same commit, stated as such. Net-side speedups must be bitwise on CPU and CUDA fp32/bf16 and through `torch.compile`; non-identical speedups (rollout forward as one fixed-shape CUDA graph 2.5x, bf16 update 1.13-1.2x) are not adopted.
+- **Look-ahead cache key exactness** (`crates/sts2sim/src/engine/monster.rs`). Cache: 8-way set-associative LRU, one per search root (`with_look_cache`). Exact key = digest of every creature (machine state, powers, HP, block, presence) + turn position (`look_key_of`). Relaxed key = the same with enemy HP reduced to alive/dead and no block; valid only for projections that read no enemy starting HP/block (`Creature::pristine`, `look_dep` records reads). Player powers/relics enter the key only if they can reach the rows: a hook in `LOOK_PLAYER_HOOKS` (modify_damage additive / multiplicative / cap), `LOOK_READ_POWERS` (Debilitate), `LOOK_READ_RELICS` (Paper Krane, Paper Phrog, Whispering Earring). Any new read of state inside a projection (new hook, `has_relic`/power-by-id read, starting-HP read) must extend these or record a `look_dep`. Check: `STS2_LOOK_VERIFY=1` with `envprof`/`searchprof` (every hit recomputed fresh, panics on a difference) and `tests/lookahead_cache.rs`.
+- **`Combat::clone_from` copies only live state** (`crates/sts2sim/src/state.rs`): `cards[..n_cards]`, live entries of fixed-capacity lists (`ArrayVec::copy_from`), written history-ring entries (`HistLog::copy_from`). Slots beyond are stale: never read past `n_cards`/`len`; a newly allocated slot must be fully written.
+- **Hook snapshots** (`dispatch.rs` `snapshot_into`): "nobody listens" test inline, scan out of line; listener order must stay the game's order bit-exactly (do not cache snapshots across state changes; a per-observation memo and per-category masks gave nothing).
+- Content registry tables (hook masks, listeners, implemented flags) are compile-time; keep new content in the same `const fn` match.
 
-PPO runs at about 50k samples/s on an RTX 4090 (laptop CPU: 3-4k).
-
-### Search on mid (300 paired fights, +-2.4; 5 options x 8 futures)
-| network | greedy | search |
-|---|---|---|
-| 64-wide | 55.9% | 81.3% |
-| 128-wide (b128) | 64.0% | 79.3% (0.459 HP lost) |
-
-### Search budget and evaluator (mid, 600 paired fights, +-1.6; b128; s/fight = first, Python search)
-| setting | win | HP lost | s / fight |
-|---|---|---|---|
-| greedy network | 65.3% | 0.546 | - |
-| 5 x 8 | 80.8% | 0.453 | 0.67 |
-| 5 x 24 | 81.0% | 0.446 | 1.16 |
-| 8 x 16 | 81.0% | 0.452 | 1.23 |
-| 5 x 8, full-fight play-outs, no value head | 75.3% | 0.487 | 2.79 |
-| 3 x 8 | 80.2-81.3% | 0.460 | 0.54 |
-| 3 x 4 / 2 x 8 | 78.2% / 77.0% | 0.462 / 0.476 | 0.46 / 0.47 |
-
-Search saturates near 81% on this set. Averaging value heads helps (3 x 8):
-| evaluator | win | HP lost | s / fight |
-|---|---|---|---|
-| b128 alone | 80.2% | 0.456 | 0.54 |
-| **b128 policy, value = mean(b128, c128, d128) (default)** | **82.8%** | 0.444 | 0.56 |
-| b128 policy, value = mean(b128, a64) | 83.7% | 0.446 | 0.55 |
-| ensemble of 3 (policy and value averaged) | 81.5% | 0.442 | 1.22 |
-| ensemble of 4 | 82.0% | 0.444 | 1.57 |
-
-### Default solver on `eval.json`
-**Since 2026-10-06: `solver_h128` (fight-outcome head, `docs/rl_redesign.md` M1a), no extra value nets, search depth 2: 74.4-75.0% win, 0.348 of max HP lost** (`tools/gate_m1.py`, 1,500 fights x 4 attempts, 3 options x 8 futures; the same run gives b128 + c/d 74.0-74.5% / 0.360). Paired vs b128 + c/d: win +0.005 +- 0.003, HP lost -0.012 +- 0.0015 (`evals/gate_m1_full2.json`).
-
-Before (b128 + c128/d128 values, depth 1): **73.7-73.9% win (+-0.33), 0.362 of max HP lost** (12-18k fights, pod C below). The same network greedy: 65.5% / 0.424.
-
-By character and act, from the Python-search run (72.6% overall, 0.360; the Rust default is about 1 point higher):
-| | Ironclad | Regent | Defect | Silent | Necrobinder | act 1 | act 2 | act 3 |
-|---|---|---|---|---|---|---|---|---|
-| win | 0.757 | 0.746 | 0.735 | 0.697 | 0.692 | 0.886 | 0.745 | 0.569 |
-| HP lost | 0.318 | 0.356 | 0.360 | 0.378 | 0.392 | 0.197 | 0.374 | 0.488 |
-
-A large part of act 2-3 losses are fights no policy wins.
-
-## Throughput
-Pods: A = RTX 4090, 16 vCPU; B = RTX 4090, 10.2-CPU quota; C = 13.6-CPU quota. Fights/s compare only within a pod. Strength is on `eval.json` (A: 6,000-12,000 fights, +-0.4; B and C: 12-18k fights, +-0.33).
-
-| change | pod | fights/s | win | HP lost |
-|---|---|---|---|---|
-| Rust state machine instead of Python search (512 roots, eager fp32) | A | 4.4 -> 27.8 | 72.6% -> 73.9% | 0.360 |
-| 2,048 roots (at 512 the network is launch-bound: ~3.5 ms per call) | A | 27.8 -> 71 | 73.9% -> 74.3% | - |
-| CUDA graphs | A | 71 -> 129 | 74.3% -> 73.9% | - |
-| bf16 autocast in the graphs | A | 129 -> 191-196 | 73.9% -> 74.0% | 0.359 |
-| `torch.compile` fusion in the graphs | B | 221 -> 348 | 73.8% -> 73.9% | 0.360 |
-| `lead` (K=8) | B | 379 -> 536 | 73.9% -> 73.6% | 0.359 -> 0.3627 |
-| `strat` | C | 390-465 -> 433 | 73.7% -> 74.0% | 0.3625 -> 0.3615 |
-| `carry` (= default) | C | 433 -> 464-545 | 74.0% -> 73.7-73.9% | 0.362 |
-| K sweep of the default: K=8 / 6 / 4 / 3 / 2 | C | 464-545 / 584 / 854-874 / 896-1041 / 1153 | 73.7-73.9 / 73.4 / 73.1-73.2 / 72.8 / 72.2% | 0.362 / 0.365 / 0.366 / 0.3685 / 0.372 |
-| without `lead` (K=8, with `strat`), for reference | C | 319 | 74.3% | 0.358 |
-
-Other measured settings (pod A, 1,500 x 2 fights, +-0.8, bf16 graphs without `lead`): K=4 173 fights/s, 73.7% / 0.364; the full `Solver.solve` protocol with fp32 graphs 126 fights/s, 74.2% / 0.358; 2 value networks with K=6 278 fights/s, 73.5% / 0.364 (8,000 fights); 100 decks x 64 attempts (6,400 fights of mid) take 43 s.
-
-Where the time goes: the network is memory-bound (pod B: matmuls 16% of a forward; a 64-wide network is barely faster than 128-wide); inductor fusion gives 1.6-2x per forward (max-autotune: +12% for 2 minutes of compile). The CPU engine is the bottleneck (pod B): simulator steps 46% of cycles (turn-ending steps half of that), observation rows 41% (lookahead 37% of an observation, hand cards 28%, piles 13%, intents 11%), forks 5%, legal actions 4%. Profiles: `crates/sts2env/examples/{hiddenprof,obsprof,endturnprof}.rs` (`obsprof` needs feature `obs_prof`). In the turn-ending step (callgrind, pod C) `snapshot_into` is about 9% inclusive; hook listener order must stay bit-exact, so it is not cached. About 1,000 fights/s costs about 1 point of win rate.
-
-Local RTX 4070 Super at 5x32, depth 2 (h128, bf16, `profile_gpu`, 2,048 eval fights, roots 1,024; 2026-10-07): the GPU is the bottleneck, not the engine. Graph replays 58.8 s of a 73.4 s run with the engine's 47.7 s hidden behind them; replay time is proportional to the padded batch (1.26 us per policy row, no fixed cost), so padding by at most the smallest bucket (`GraphFn.plan`, buckets from 256) took it to 47 s of 62 s (+17 % fights/s). Host-to-device observation copies are 283 GB per 2,048 fights (~11 s at 25 GB/s); a second CUDA stream for them gave nothing on this Windows (WDDM) machine. Rows are 94 % zeros. Host memory at roots 2,048: ~5 GB of play-out combats per engine group (1,024 blocks x 160 sims), 2.5 GB of request buffers, 4.3 GB of process base (torch import 1.3 GB, graph capture 2.5 GB); roots 1,024 is as fast at 5x32 (28.4 vs 29.6 fights/s before the padding change) for 7 GB less.
-
-Engine CPU at 5x32, depth 2 (2026-10-07, `crates/sts2env/examples/searchprof.rs`: the engine without a network, a checksum over results and moves): observation rows were 83 % of the engine's cycles and the enemy look-ahead's projections 90 % of an observation. Two exact caches cut the projections: one 8-way look-ahead cache per search root (the direct-mapped thread cache missed 60 % of lookups; per root 36 %, of which 34 points are keys never seen), and a relaxed key for projections that read no enemy's starting HP or block (`Creature::pristine`, dependency tracking; 60 % of the remaining misses differ from a cached state only there). Engine 2.27x faster at 8 threads (128 mix fights), same checksum; in `tools/perf_collect.py` (512 mix fights, roots 256) the engine timer went from ~25 s to ~16.5 s. The look-ahead is still ~60 % of an observation; `Combat` clones (19 KB, `clone_from` builds a temporary then moves it: 1.55x a memcpy) are ~30 % of a projection.
-
-Second CPU pass (2026-10-08, all exact: same `searchprof` checksums v1 17264c97764b59ec / v2 effb395521d20429, same `envprof` checksums, identical PPO checkpoints on the CPU): `Combat::clone_from` copies only the live state in place (cards `[..n_cards]`, the live entries of every fixed-capacity list, the history ring's written entries); the content registry's hook masks, listeners and implemented flags are compile-time tables; a snapshot's "nobody listens" test is inline at each call site; an observation computes the cache keys' digests once for all its enemies; the cache keys hold only the player's powers and relics that can reach the rows (the three modify_damage hooks, Debilitate, Paper Krane / Phrog, Whispering Earring: the projection clears the player's powers and runs with its hooks inactive), which cut the misses by ~37 % in a 5x32 search and in the PPO env. Engine 1.47-1.57x faster at 8 threads (128 mix fights), PPO env step 1.53x (1 thread). `LOOK_VERIFY` checks every cache hit (`STS2_LOOK_VERIFY=1` in `envprof` / `searchprof`). Where an env step goes now (1 thread, v1, 7.9 us): the look-ahead ~52 % (a projection ~34k cycles: enemy moves 12k, rolls 7k, intent damage 4k, enemy turn start 4k), hook snapshots ~15 % of all cycles (a 5x32 search takes ~57 per observation row, `crates/sts2env/examples/sampleprof.rs`). Net side (exact, bitwise on CPU and CUDA fp32 / bf16 and through the search's `torch.compile`): `Net.encode` applies `S()` to the whole row once and scales feature blocks with one division (the reciprocal multiplication ATen's CUDA scalar division does), ppo.py takes the network's shapes from the host's observations (no device syncs mid-pass) and page-locks the env's arrays: PPO 23.2k -> 30.0k steps/s at d128 v1, 17.6k -> 20.7k at d256 v1, 19.2k -> 23.3k / 15.5k -> 17.4k at v2 (RTX 4070 Super, 1,024 envs x 48). Measured, not adopted (not bit-identical): the rollout forward as one CUDA graph at fixed shapes 2.5x (bf16 4x) per forward, bf16 autocast in the update 1.13-1.2x per minibatch, fused Adam none. Tried, no gain: a per-category listener mask (powers / relics) to skip parts of a snapshot, a per-observation snapshot memo (14 % of scans replayed), a per-env look-ahead cache (a 1M-entry cache only takes the env's misses from 54 % to 49 %).
-
-## Tried and rejected
-* int8 dynamic quantization: slower, changes decisions.
-* Forcing extra candidates (end turn, likeliest potion): broad set 65% vs 69%, mid 75.5% vs 75.0%.
-* Full-fight play-outs instead of end-of-turn + value head: 75.3% vs 80.8% (mid), 4x slower.
-* More options or futures than 3 x 8: saturates near 81%. M=2: 71.8% (1,500 x 2).
-* Skipping search where the policy is >= 95% sure: 206 fights/s, 71.9% (vs 74.0%).
-* Dropping candidates below 3% / 8% policy probability: -3.7 / -4.5 points.
-* Value network on the state where the policy ends its turn, without simulating the enemy turn: +27% speed, -2.8 points.
-* Play-outs cut after d policy decisions with a mid-turn value: d=2 -1.4, d=3 -0.6 points, +10% speed.
-* Fewer futures for options needing hidden information at their first action: K=4/3/2 -0.5/-1.0/-1.6 points.
-* Greedy shared prefix: no gain, loops. Adaptive futures (3-4 first, more only for options within z standard errors of the best): lands on the line between K=4 and K=8.
-* More fights in flight (4,096 roots), 3 pipeline groups, separate graphs for rows with a pending selection: no gain.
-* 64-wide play-out network: 146 vs 124 fights/s (fp32), 73.6%: not worth it.
-* Distilling the search into the network, three variants (mid, 300 fights unless noted): 6,072 confirmed single-state disagreements (64-wide, 3,144 episodes) 60.8% vs 60.1% base, within noise; policy distillation with soft targets over every searched option (217k decisions) 65.7% greedy / 79.0% search vs 64.0% / 79.3% base, and agreement with the search's best option fell 61% -> 50% (option values come from 8 futures; most differences are noise); value-only fit to search-played results 73.7% search vs 79.3% (search compares candidate states that search-play never visits). More PPO steps, bigger networks and search on top work.
-
-Open ideas: sharing the enemy turn between futures (needs a pause point between enemy phase and draw in `Combat::step`), sequential / adaptive K, one value head distilled from the three (GPU -30%).
+## Where time goes (current)
+| scope | split |
+|---|---|
+| live 5x32 depth 2, local RTX 4070 Super | GPU-bound: graph replay ~47 of 62 s (2,048 eval fights, roots 1,024), engine hidden behind it; replay cost ~1.26 us/policy row, proportional to padded batch; H2D obs copies ~283 GB/2,048 fights (rows 94% zeros) |
+| PPO env step (1 thread, v1, 7.9 us) | look-ahead ~52% (projection ~34k cycles: enemy moves 12k, rolls 7k, intent damage 4k, enemy turn start 4k); hook snapshots ~15% |
+| 5x32 search engine | ~57 snapshots per observation row; look-ahead the largest share of an observation; `Combat` clones ~30% of a projection |
+| PPO (d128 v1 / d256 v1 / v2) | 30.0k / 20.7k / 23.3k steps/s (1,024 envs x 48) |
+Profilers: `crates/sts2env/examples/searchprof.rs` (engine without network, stand-in answers), `envprof.rs` (PPO env step), `sampleprof.rs` (sampling profiler, Windows, no admin); feature `obs_prof` for per-section observation cycles; `FastSearch(profile_gpu=True)`.
+Do not retry: int8 quantization (slower, changes decisions); skip search when policy >= 95% (-2 pts); dropping low-prior candidates (-3.7 pts); value net without simulating the enemy turn (-2.8 pts); full-fight play-outs without value head (-5.5 pts, 4x slower); more roots/groups than 2,048/2; per-env look-ahead cache.
 
 ## Provably unwinnable fights (`sts2sim::bounds`, `sts2.provably_unwinnable`)
-Many generated fights cannot be won by anyone (a starter deck against a boss). `provably_unwinnable(scenario_json)` returns a sentence proving it, or `None` (nothing proven). It relaxes the game in the player's favour and checks that the enemy still cannot be killed before the player dies:
-
-* Every card must be **pure**: probing in the simulator (five situations, the same card twice, a Vulnerable enemy) shows it only spends its energy, deals fixed damage / gains fixed block (+ Vulnerable / Weak), moves cards between piles and changes nothing else (no energy, powers, upgrades, cost changes, extra plays, growth). 28 Ironclad and 28 Silent cards qualify; Defect, Necrobinder and Regent are not covered.
-* Relics must only hook things that cannot matter in a fight (144 of 300); no potions, starting powers or enchantments.
-* One enemy that cannot react to damage (no stun / sleep / flee intents, no damage-reactive start powers), with behaviour bounded from below by the cheapest damage over every state its move machine can be in each turn.
-* Per turn the player may play any subset of its deck (hand size and draw order ignored) whose cost fits the energy, i.e. a damage / block frontier; block does not carry over. A DP over turns (state = HP lost, value = damage dealt) shows whether the enemy's HP is reachable.
-
-`crates/sts2sim/tests/bounds.rs` covers purity, the not-proven cases (potions, unknown relics, impure cards) and a coverage report. Soundness was measured once with decks of pure cards against every encounter: no policy (random, scripted, the network sampled and greedy) won a flagged fight (3 seeds x ~530 flagged fights x 20k episodes per policy; that sweep script is not in the repo). Coverage on the random-deck training distribution is small (decks nearly always contain a card, relic or potion the prover cannot vouch for), so `gen_train.py --drop-unwinnable` filters little there; the verdict is a cheap "do not simulate this" for starter-deck-like cases.
+`provably_unwinnable(scenario_json)` -> proof sentence or None. Relaxes the game in the player's favour, proves the enemy still cannot die first:
+- Every card **pure** (probed: only spends energy, fixed damage/block (+Vulnerable/Weak), moves cards; nothing else). Covered: 28 Ironclad, 28 Silent cards.
+- Relics only from the fight-irrelevant set (144/300); no potions, starting powers, enchantments.
+- One enemy that cannot react to damage (no stun/sleep/flee intents, no damage-reactive start powers); its damage bounded below over every move-machine state.
+- Per turn any affordable subset of the deck (hand size, draw order ignored), block not carried; DP over turns (HP lost -> damage dealt).
+Code `crates/sts2sim/src/bounds.rs` (no test in the gate). Soundness `[sim]`: no policy won a flagged fight (3 seeds x ~530 flagged x 20k episodes). Coverage on random training decks is small; `gen_train.py --drop-unwinnable` filters little.
