@@ -30,9 +30,10 @@ def deck(plan, version="full"):
     for c in plan.get("drop", []):
         if c in d:
             d.remove(c)
-    cards = list(plan["core"]) + ([] if version == "core" else list(plan.get("support", [])))
-    if version.startswith("-") and version[1:] in cards:
-        cards.remove(version[1:])
+    cards = list(plan["core"]) + ([] if version.startswith("core") else list(plan.get("support", [])))
+    minus = version.partition("-")[2]
+    if minus in cards:
+        cards.remove(minus)
     return d + cards
 
 
