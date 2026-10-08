@@ -21,3 +21,5 @@ evals/fidelity_fights/
 # expert video transcripts (creator content; notes only are committed)
 data/expert/japaneseexport/transcripts/
 data/expert/japaneseexport/frames/
+data/expert/baalorlord/transcripts/
+data/expert/baalorlord/frames/
