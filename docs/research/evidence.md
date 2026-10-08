@@ -375,4 +375,5 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
 
   The disagreements are spread across decision types. The most common are play vs play (67), pick vs pick (22), and playing on instead of ending the turn (12).
 - **Policy-only training breaks the outcome head** (arm A: Brier 0.19), because the trunk moves under an untrained head.
-- **What it shows:** the policy target was not the main obstacle. On clear decisions the network does not learn what its search knows, at least from ~1M rows. Open: data-limited or representation-limited (next: the same target on 5x the data).
+- **Data scaling:** the hard target with both losses on 5x the data (163k fights: r1-r4s; r4u held out for the reference) gives agreement 0.650 on significant states (r3 0.650; the 35k-fight arm 0.645). Holdout CE 2.10 -> 1.13.
+- **What it shows:** the policy target was not the main obstacle, and neither is data volume at this scale. On clear decisions the d128 network does not learn what its search knows. Open: capacity (a d256 distillation) or knowledge only the look-ahead provides.
