@@ -41,7 +41,8 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 4. S5 continuation value (blocks S7): gate-array surrogate behind `price --cont` (E30) fails its gate (4 of 93 recorded screens significantly worse, mostly rests); next: tune the floor / compare `mean`, after item 3.
 5. Relabel the bench with the live player (labels are h128's play; the predictor's calibration target is its own player, E28); S4 gate (potion regression states).
 6. S7 operator protocol + retire the calculators (gated on S5 and item 3).
-7. Expert re-enactment (queued); burn-off after a batch of stages (`burn-off` skill).
+7. Expert re-enactment pipeline (user request; design from the Baalorlord pilot, `data/expert/baalorlord/`): YouTube run video -> fetch (yt-dlp, transcript + frames git-ignored) -> segment every decision (combat turns, rewards, map, shop, rest, events, ancient) -> transcribe each to the harness's run-record format (visible state + action) -> validate by replaying through the simulator (sync per observed state) -> compare: combat vs live player + large-budget reference, macro vs `price` -> per-divergence verdict (our gap / expert error / tie, with se) -> committed notes + records. Seed visible -> replay on the identical hidden state. Deliverable: tooling + a terse `expert-reenact` skill.
+8. Burn-off after a batch of stages (`burn-off` skill).
 
 ## 5. Stages
 
