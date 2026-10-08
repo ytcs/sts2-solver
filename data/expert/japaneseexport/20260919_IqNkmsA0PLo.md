@@ -1,0 +1,31 @@
+# The hidden win conditions that most players miss | Slay the Spire 2
+- url: https://www.youtube.com/watch?v=IqNkmsA0PLo | uploaded: 2026-09-19 | version: not stated, no build string on screen (pinned build v0.111.0 = 2026-08-14; this upload is after it) | char: Ironclad (played by The Crimson Blur; JapaneseExport analyses) | asc: A10 | format: coaching review (essay over another player's stream)
+- source: en auto-captions + frames (frames/IqNkmsA0PLo/, git-ignored); @ = paragraph start (30 s) or frame time; caption fixes: Loga/Log A/Laga -> LAGAVULIN_MATRIARCH (frame shows 233 HP sleeping crab = Act 1 Underdocks boss), Ripple Base in -> Ripple Basin, Blurry -> Blur; [frame?] = hard to read.
+
+Fight state (frames 1:40-2:10, 5:35-5:45, 8:15-8:35): F17 (Act 1 boss), 64/80 HP, 85 gold, 21 cards, belt 2x Potion-Shaped Rock. Relics: Burning Blood, Oddly Smooth Stone, Petrified Toad, Shuriken, Ripple Basin, Reptile Trinket, Pantograph (stated), 2 unidentified [frame?]. Non-starter cards: True Grit+, Tremble, Anger, Taunt, Feel No Pain, Iron Wave, Barricade+, Shrug It Off; rest Strikes/Defends/Bash/Ascender's Bane. Enemy 233/233, asleep. Outcome as played: died (2/80 vs 73/233 at turn 16).
+
+## Claims
+C1 `five-buckets` [expert] @0:02:41 Evaluate a deck in five buckets: front damage, scaling damage, front block, scaling block, acceleration; check them against what upcoming fights ask (bosses/elites first, then hallways). ctx: general framework, shown on Blur's deck (5:35 overlay). q: "front-loaded damage, scaling damage, front-loaded block, scaling block, and acceleration"
+- assess: consistent - sts2-deckbuilding s3 uses the same five buckets (FD/SD/FB/SB/ACC) and s1 "name the weakest upcoming fight". evidence.md density note ("bucket counts showed no gap") shows bucket counts alone can miss things.
+- test: none needed (already adopted as the audit). Its value as a predictor: correlate `brief` bucket gaps with `eval --boss` gain of picks that fill them over recorded screens; supports if gap-filling picks gain more than solved-bucket picks.
+
+C2 `barricade-is-acceleration` [expert] @0:05:55 Barricade is acceleration, not block: it adds no block, it stops block from turns that did not need it going to waste (like energy/draw, a consistency card). ctx: Blur's deck vs Lagavulin Matriarch. q: "Barricade is not actually a block card."
+- assess: consistent - sts2-deckbuilding s3 lists Barricade under ACC; s2.1 lists it as an enabler dead until partners.
+- test: none needed (classification).
+
+C3 `boss-specific-prep` [expert] @0:04:51 Lagavulin Matriarch asks only scaling (and speed of scaling): its free opening turns remove front block and front damage requirements. ctx: Act 1 Underdocks boss. q: "So, what does Lagavulin ask us? It's mostly a question of scaling."
+- assess: consistent - encounters.md "Lagavulin Matriarch: SD + Vulnerable; early turns harmless" [sim] (Inflame + Tremble 0.4% -> 74%).
+- test: `eval --enc LAGAVULIN_MATRIARCH --hp 64 --attempts 256` on a mid-act deck with two equal-size variants: `--v "fd|add=TWIN_STRIKE,add=POMMEL_STRIKE"` vs `--v "sd|add=INFLAME,add=DEMON_FORM"`; supports if SD variant wins clearly (> 2 paired se); refutes if FD >= SD.
+
+C4 `plan-and-switch` [expert] @0:07:31 When the opening draws bury the plan's key powers (Barricade+ and Feel No Pain bottom-decked), abandon the plan by turn 2 and switch to the deck's other win condition, here Shuriken procs (3 Attacks per turn). ctx: T2, 64/80, hand Strike / Anger / Ascender's Bane / Defend, 1 of 3 energy left after the first plays, Shuriken counter 1, enemy 233/233 asleep with block [frame?]; Blur played Bash over Anger; replay with Anger played "looking way better ... ahead of the strength battle" (@0:10:16, one replay). q: "when turn two happens and no powers are anywhere to be seen, it's time to abandon the initial plan"
+- assess: consistent - sts2-deckbuilding s5 "after T1-2 switch if the draw killed it" [hyp]; sts2-strategy "plan 2-3 turns" [hyp].
+- test: rebuild the T2 state (sim state below) and run `adv` (5x32, cover) for the Anger and Bash lines, 64+ paired futures; supports if the Anger line has higher P(win) / lower HP lost; refutes if Bash >= Anger. Second test: `python -m agent.hindsight` style replay from the T2 state with the draw order unknown.
+- sim state: Ironclad A10, HP 64/80, relics as above (Shuriken counter 1, Ripple Basin, Smooth Stone, Reptile Trinket, Petrified Toad, Pantograph), potions 2x POTION_SHAPED_ROCK, deck 21 (listed above + Strikes/Defends/Bash/Ascender's Bane; exact basic counts [frame?]), enemy LAGAVULIN_MATRIARCH 233/233 asleep, turn 2, hand STRIKE, ANGER, ASCENDERS_BANE, DEFEND, 1 energy; draw pile at that point (rarity-sorted view): DEFEND, STRIKE, STRIKE, TREMBLE, FEEL_NO_PAIN, BARRICADE+.
+
+C5 `scaling-condition` [expert] @0:06:59 Know the exact condition your damage scaling hinges on and play toward it even at a block cost; here Shuriken needs 3 Attacks in one turn, so 0-cost Attacks (Anger, which copies itself) let you block and still meet it; Bash (2 energy) over Anger breaks it. ctx: same fight; deck's only damage scaling was Shuriken. q: "We need to make sure we are able to play three attacks in one turn specifically."
+- assess: not covered - no skill rule on relic-condition counting (sts2-mechanics covers counter relics Pen Nib/Nunchaku only); the solver does see Shuriken in search, so this is a solver-play check.
+- test: (a) same T2 state as C4, `adv` choice Anger vs Bash; (b) deck-level: `eval --enc LAGAVULIN_MATRIARCH --hp 64 --v "noanger|remove=ANGER" --v "plusanger|add=ANGER"` with Shuriken in relics; supports if Anger count moves win rate more than its raw damage suggests (compare with the same variants with `relics` minus Shuriken); refutes if no interaction.
+
+C6 `deck-audit-each-floor` [expert] @0:09:42 Re-audit how (not just whether) the deck checks each bucket throughout the run, especially after a new synergy you have not seen fail before; know how each plan goes wrong. ctx: closing advice. q: "updating yourself on how well your deck is able to check the boxes on the five buckets throughout your runs"
+- assess: consistent - sts2-deckbuilding s1 (`brief` each reward), s2.1 (enabler interim survival), s5.
+- test: none needed (process rule).

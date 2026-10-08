@@ -17,3 +17,7 @@ evals/*.log
 evals/*.out
 evals/_*
 evals/fidelity_fights/
+
+# expert video transcripts (creator content; notes only are committed)
+data/expert/japaneseexport/transcripts/
+data/expert/japaneseexport/frames/
