@@ -245,5 +245,1139 @@
   ],
   "measurements": [],
   "note": "core had BLADE_SYMPHONY, a multiplayer-only card (never offered in single player): replaced, earlier measurement dropped (2026-10-07)"
+ },
+ {
+  "id": "ironclad-strength",
+  "character": "IRONCLAD",
+  "archetype": "strength scaling",
+  "status": "proposed",
+  "source": [
+   "[expert] 6T4bZkpdxbA (feed the strength: 2nd Inflame, Anger + Volley+)",
+   "sts2-acts encounters.md Insatiable target deck"
+  ],
+  "why": "Strength multiplies every hit; multi-hit payoffs turn it into the ~65/turn The Insatiable asks; Whirlwind spreads it over multi-enemy fights",
+  "act": 1,
+  "threats": [
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "act": 1,
+    "hp": 80
+   }
+  ],
+  "struggles": [
+   {
+    "id": "KAISER_CRAB_BOSS",
+    "why": "Laser 35 / Guarded Strike turns need front block the plan does not bring"
+   },
+   {
+    "id": "VANTOM_BOSS",
+    "why": "Slippery caps each hit: Strength on few big hits is wasted"
+   }
+  ],
+  "core": [
+   "DEMON_FORM",
+   "INFLAME",
+   "TWIN_STRIKE",
+   "WHIRLWIND"
+  ],
+  "enablers": [
+   "DEMON_FORM",
+   "INFLAME"
+  ],
+  "payoffs": [
+   "TWIN_STRIKE",
+   "WHIRLWIND"
+  ],
+  "support": [
+   "TREMBLE",
+   "SHRUG_IT_OFF",
+   "POMMEL_STRIKE",
+   "OFFERING"
+  ],
+  "substitutes": {
+   "DEMON_FORM": [
+    "INFLAME",
+    "FIGHT_ME",
+    "RUPTURE"
+   ],
+   "INFLAME": [
+    "SETUP_STRIKE",
+    "FIGHT_ME",
+    "BRAND"
+   ],
+   "TWIN_STRIKE": [
+    "SWORD_BOOMERANG",
+    "DISMANTLE",
+    "VOLLEY"
+   ],
+   "WHIRLWIND": [
+    "CONFLAGRATION",
+    "SWORD_BOOMERANG",
+    "VOLLEY"
+   ]
+  },
+  "typical_relics": [
+   "GIRYA",
+   "SHURIKEN",
+   "AKABEKO"
+  ],
+  "drop": [
+   "STRIKE_IRONCLAD",
+   "STRIKE_IRONCLAD",
+   "STRIKE_IRONCLAD",
+   "DEFEND_IRONCLAD",
+   "DEFEND_IRONCLAD"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "ironclad-exhaust",
+  "character": "IRONCLAD",
+  "archetype": "exhaust engine",
+  "status": "proposed",
+  "source": [
+   "[expert] XGHSM0CVibo (exhaust down to the 4-5 cards that win alone)",
+   "[expert] 6T4bZkpdxbA C13 (Second Wind exhaust loop)"
+  ],
+  "why": "Feel No Pain and Dark Embrace turn every exhausted card into block and draw; exhausting starters and enemy statuses (Wounds, Infections) thins the deck mid-fight; Ashen Strike scales with the pile",
+  "act": 0,
+  "threats": [
+   {
+    "id": "VANTOM_BOSS",
+    "act": 0,
+    "hp": 80
+   },
+   {
+    "id": "PHROG_PARASITE_ELITE",
+    "act": 0,
+    "hp": 80
+   }
+  ],
+  "struggles": [
+   {
+    "id": "AEONGLASS_BOSS",
+    "why": "sts2-acts: exhaust decks trail the self-damage Strength deck vs Aeonglass [sim]"
+   },
+   {
+    "id": "CEREMONIAL_BEAST_BOSS",
+    "why": "little front damage to break Plow in two turns"
+   }
+  ],
+  "core": [
+   "FEEL_NO_PAIN",
+   "DARK_EMBRACE",
+   "BURNING_PACT",
+   "ASHEN_STRIKE"
+  ],
+  "enablers": [
+   "FEEL_NO_PAIN",
+   "DARK_EMBRACE",
+   "BURNING_PACT"
+  ],
+  "payoffs": [
+   "ASHEN_STRIKE"
+  ],
+  "support": [
+   "SECOND_WIND",
+   "TRUE_GRIT",
+   "EVIL_EYE",
+   "SHRUG_IT_OFF"
+  ],
+  "substitutes": {
+   "FEEL_NO_PAIN": [
+    "EVIL_EYE"
+   ],
+   "DARK_EMBRACE": [
+    "DRUM_OF_BATTLE",
+    "BATTLE_TRANCE"
+   ],
+   "BURNING_PACT": [
+    "SECOND_WIND",
+    "TRUE_GRIT",
+    "FIEND_FIRE"
+   ],
+   "ASHEN_STRIKE": [
+    "PACTS_END",
+    "FIEND_FIRE"
+   ]
+  },
+  "typical_relics": [
+   "CHARONS_ASHES"
+  ],
+  "drop": [
+   "STRIKE_IRONCLAD",
+   "STRIKE_IRONCLAD",
+   "DEFEND_IRONCLAD"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "ironclad-selfdamage",
+  "character": "IRONCLAD",
+  "archetype": "self-damage strength",
+  "status": "proposed",
+  "source": [
+   "sts2-acts encounters.md Aeonglass target deck (Inferno, Rupture, Demon Form, Fight Me, Spite, Stone Armor, Crimson Mantle)",
+   "first-principles"
+  ],
+  "why": "Inferno and Crimson Mantle lose HP every turn: each loss feeds Rupture Strength and Inferno AoE without spending cards; Spite and Tear Asunder pay off lost HP",
+  "act": 2,
+  "threats": [
+   {
+    "id": "AEONGLASS_BOSS",
+    "act": 2,
+    "hp": 80
+   }
+  ],
+  "struggles": [
+   {
+    "id": "QUEEN_BOSS",
+    "why": "the HP drain over a long fight at low entry HP [hyp]"
+   }
+  ],
+  "core": [
+   "RUPTURE",
+   "INFERNO",
+   "CRIMSON_MANTLE",
+   "SPITE"
+  ],
+  "enablers": [
+   "RUPTURE",
+   "INFERNO",
+   "CRIMSON_MANTLE"
+  ],
+  "payoffs": [
+   "SPITE"
+  ],
+  "support": [
+   "DEMON_FORM",
+   "FIGHT_ME",
+   "STONE_ARMOR",
+   "HEMOKINESIS"
+  ],
+  "substitutes": {
+   "RUPTURE": [
+    "DEMON_FORM",
+    "INFLAME"
+   ],
+   "INFERNO": [
+    "BLOODLETTING",
+    "HEMOKINESIS",
+    "BREAKTHROUGH"
+   ],
+   "CRIMSON_MANTLE": [
+    "STONE_ARMOR",
+    "BLOOD_WALL"
+   ],
+   "SPITE": [
+    "TEAR_ASUNDER",
+    "HEMOKINESIS"
+   ]
+  },
+  "typical_relics": [
+   "SELF_FORMING_CLAY",
+   "RED_SKULL"
+  ],
+  "drop": [
+   "STRIKE_IRONCLAD",
+   "STRIKE_IRONCLAD",
+   "STRIKE_IRONCLAD",
+   "DEFEND_IRONCLAD",
+   "DEFEND_IRONCLAD"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "ironclad-block",
+  "character": "IRONCLAD",
+  "archetype": "barricade block",
+  "status": "proposed",
+  "source": [
+   "[expert] IqNkmsA0PLo (Barricade+ / Feel No Pain vs Lagavulin Matriarch; Barricade is acceleration)",
+   "first-principles"
+  ],
+  "why": "Barricade keeps block across turns, so block from quiet turns banks; Body Slam converts the bank into damage; answers bosses with harmless opening turns",
+  "act": 0,
+  "threats": [
+   {
+    "id": "LAGAVULIN_MATRIARCH_BOSS",
+    "act": 0,
+    "hp": 80
+   },
+   {
+    "id": "WATERFALL_GIANT_BOSS",
+    "act": 0,
+    "hp": 80
+   }
+  ],
+  "struggles": [
+   {
+    "id": "PHROG_PARASITE_ELITE",
+    "why": "no area damage"
+   },
+   {
+    "id": "SKULKING_COLONY_ELITE",
+    "why": "Body Slam is one hit per card vs a per-hit shell [hyp]"
+   }
+  ],
+  "core": [
+   "BARRICADE",
+   "BODY_SLAM",
+   "BODY_SLAM",
+   "FLAME_BARRIER"
+  ],
+  "enablers": [
+   "BARRICADE"
+  ],
+  "payoffs": [
+   "BODY_SLAM"
+  ],
+  "support": [
+   "SHRUG_IT_OFF",
+   "BLOOD_WALL",
+   "IRON_WAVE",
+   "TAUNT"
+  ],
+  "substitutes": {
+   "BARRICADE": [
+    "UNMOVABLE",
+    "STONE_ARMOR"
+   ],
+   "BODY_SLAM": [
+    "JUGGERNAUT"
+   ],
+   "FLAME_BARRIER": [
+    "BLOOD_WALL",
+    "IMPERVIOUS",
+    "SHRUG_IT_OFF"
+   ]
+  },
+  "typical_relics": [
+   "ANCHOR",
+   "ORICHALCUM"
+  ],
+  "drop": [
+   "STRIKE_IRONCLAD",
+   "STRIKE_IRONCLAD",
+   "STRIKE_IRONCLAD"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "silent-sly",
+  "character": "SILENT",
+  "archetype": "sly discard",
+  "status": "proposed",
+  "source": [
+   "first-principles (Sly: a discarded Sly card is played free)",
+   "[expert] qB32y8nhMlk C11 (Silent needs AoE before Phrog Parasite)"
+  ],
+  "why": "discard outlets play Sly cards for free: Reflex draws, Flick-Flack hits all, Untouchable blocks, Tactician refunds; the extra free plays are the acceleration",
+  "act": 0,
+  "threats": [
+   {
+    "id": "PHROG_PARASITE_ELITE",
+    "act": 0,
+    "hp": 70
+   },
+   {
+    "id": "PHANTASMAL_GARDENERS_ELITE",
+    "act": 0,
+    "hp": 70
+   }
+  ],
+  "struggles": [
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "why": "no damage scaling: Sly payoffs are flat"
+   },
+   {
+    "id": "CEREMONIAL_BEAST_BOSS",
+    "why": "flat 7s do not break Plow in two turns"
+   }
+  ],
+  "core": [
+   "TOOLS_OF_THE_TRADE",
+   "ACROBATICS",
+   "REFLEX",
+   "FLICK_FLACK"
+  ],
+  "enablers": [
+   "TOOLS_OF_THE_TRADE",
+   "ACROBATICS"
+  ],
+  "payoffs": [
+   "REFLEX",
+   "FLICK_FLACK"
+  ],
+  "support": [
+   "UNTOUCHABLE",
+   "TACTICIAN",
+   "PREPARED",
+   "DAGGER_THROW"
+  ],
+  "substitutes": {
+   "TOOLS_OF_THE_TRADE": [
+    "PREPARED",
+    "CALCULATED_GAMBLE",
+    "HAND_TRICK"
+   ],
+   "ACROBATICS": [
+    "DAGGER_THROW",
+    "PREPARED",
+    "HIDDEN_DAGGERS"
+   ],
+   "REFLEX": [
+    "TACTICIAN",
+    "MASTER_PLANNER"
+   ],
+   "FLICK_FLACK": [
+    "RICOCHET",
+    "MEMENTO_MORI"
+   ]
+  },
+  "typical_relics": [
+   "TINGSHA",
+   "TOUGH_BANDAGES"
+  ],
+  "drop": [
+   "STRIKE_SILENT",
+   "STRIKE_SILENT",
+   "STRIKE_SILENT",
+   "DEFEND_SILENT",
+   "DEFEND_SILENT"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "defect-frost",
+  "character": "DEFECT",
+  "archetype": "frost focus",
+  "status": "proposed",
+  "source": [
+   "[expert] qQFyhWqhX9E (Anchor + Frost orbs vs Lagavulin Matriarch; Coolheaded, Cold Snap, Darkness)",
+   "[expert] qB32y8nhMlk C14 (early turns are Defect's problem; one Darkness is enough damage)"
+  ],
+  "why": "Frost passives block every turn and Focus scales them; Hailstorm turns held Frost into area damage; covers the set-up turns that cost Defect HP",
+  "act": 0,
+  "threats": [
+   {
+    "id": "LAGAVULIN_MATRIARCH_BOSS",
+    "act": 0,
+    "hp": 75
+   },
+   {
+    "id": "TERROR_EEL_ELITE",
+    "act": 0,
+    "hp": 75
+   }
+  ],
+  "struggles": [
+   {
+    "id": "CEREMONIAL_BEAST_BOSS",
+    "why": "little front damage to break Plow"
+   },
+   {
+    "id": "SOUL_FYSH_BOSS",
+    "why": "221 HP in ~3 non-Intangible turns per cycle asks more damage than Hailstorm"
+   }
+  ],
+  "core": [
+   "DEFRAGMENT",
+   "GLACIER",
+   "COOLHEADED",
+   "HAILSTORM"
+  ],
+  "enablers": [
+   "DEFRAGMENT",
+   "GLACIER",
+   "COOLHEADED"
+  ],
+  "payoffs": [
+   "HAILSTORM"
+  ],
+  "support": [
+   "COLD_SNAP",
+   "CHILL",
+   "DARKNESS",
+   "CAPACITOR"
+  ],
+  "substitutes": {
+   "DEFRAGMENT": [
+    "BIASED_COGNITION",
+    "HOTFIX",
+    "SYNCHRONIZE"
+   ],
+   "GLACIER": [
+    "CHILL",
+    "COLD_SNAP",
+    "ICE_LANCE"
+   ],
+   "COOLHEADED": [
+    "COLD_SNAP"
+   ],
+   "HAILSTORM": [
+    "DARKNESS",
+    "COOLANT"
+   ]
+  },
+  "typical_relics": [
+   "ANCHOR",
+   "DATA_DISK",
+   "GOLD_PLATED_CABLES"
+  ],
+  "drop": [
+   "STRIKE_DEFECT",
+   "STRIKE_DEFECT",
+   "STRIKE_DEFECT",
+   "DEFEND_DEFECT",
+   "DEFEND_DEFECT"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "defect-lightning",
+  "character": "DEFECT",
+  "archetype": "lightning evoke",
+  "status": "proposed",
+  "source": [
+   "first-principles"
+  ],
+  "why": "Lightning channels on cheap attacks; overflow and Dualcast evoke it and Thunder adds damage to every evoke; Focus scales passives and evokes; random targets spread over multi-enemy fights",
+  "act": 1,
+  "threats": [
+   {
+    "id": "KAISER_CRAB_BOSS",
+    "act": 1,
+    "hp": 75
+   },
+   {
+    "id": "ENTOMANCER_ELITE",
+    "act": 1,
+    "hp": 75
+   }
+  ],
+  "struggles": [
+   {
+    "id": "INFESTED_PRISMS_ELITE",
+    "why": "Zap, Lightning Rod and Coolheaded are Skills (Tainted)"
+   },
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "why": "random targets and flat passives may fall short of ~65/turn [hyp]"
+   }
+  ],
+  "core": [
+   "THUNDER",
+   "BALL_LIGHTNING",
+   "LIGHTNING_ROD",
+   "DEFRAGMENT"
+  ],
+  "enablers": [
+   "BALL_LIGHTNING",
+   "LIGHTNING_ROD",
+   "DEFRAGMENT"
+  ],
+  "payoffs": [
+   "THUNDER"
+  ],
+  "support": [
+   "SWEEPING_BEAM",
+   "COOLHEADED",
+   "TESLA_COIL",
+   "CAPACITOR"
+  ],
+  "substitutes": {
+   "THUNDER": [
+    "TESLA_COIL",
+    "MULTI_CAST"
+   ],
+   "BALL_LIGHTNING": [
+    "TEMPEST",
+    "STORM"
+   ],
+   "LIGHTNING_ROD": [
+    "TEMPEST",
+    "VOLTAIC"
+   ],
+   "DEFRAGMENT": [
+    "BIASED_COGNITION",
+    "FOCUSED_STRIKE",
+    "LOOP"
+   ]
+  },
+  "typical_relics": [
+   "DATA_DISK",
+   "GOLD_PLATED_CABLES"
+  ],
+  "drop": [
+   "STRIKE_DEFECT",
+   "STRIKE_DEFECT",
+   "STRIKE_DEFECT",
+   "DEFEND_DEFECT",
+   "DEFEND_DEFECT"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "defect-zero",
+  "character": "DEFECT",
+  "archetype": "zero-cost claw",
+  "status": "proposed",
+  "source": [
+   "first-principles"
+  ],
+  "why": "Claw grows every Claw each play; 0-cost cards cost no energy, so Scrape and All For One redraw them and a turn plays many; damage scales with plays per fight",
+  "act": 1,
+  "threats": [
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "act": 1,
+    "hp": 75
+   },
+   {
+    "id": "KNOWLEDGE_DEMON_BOSS",
+    "act": 1,
+    "hp": 75
+   }
+  ],
+  "struggles": [
+   {
+    "id": "KAISER_CRAB_BOSS",
+    "why": "single-target: ~430 HP over two bodies"
+   }
+  ],
+  "core": [
+   "CLAW",
+   "CLAW",
+   "ALL_FOR_ONE",
+   "SCRAPE"
+  ],
+  "enablers": [
+   "SCRAPE",
+   "ALL_FOR_ONE"
+  ],
+  "payoffs": [
+   "CLAW"
+  ],
+  "support": [
+   "FTL",
+   "BEAM_CELL",
+   "GO_FOR_THE_EYES",
+   "TURBO"
+  ],
+  "substitutes": {
+   "CLAW": [
+    "MOMENTUM_STRIKE",
+    "FTL"
+   ],
+   "ALL_FOR_ONE": [
+    "FERAL",
+    "HOLOGRAM"
+   ],
+   "SCRAPE": [
+    "SKIM",
+    "FTL",
+    "COMPILE_DRIVER"
+   ]
+  },
+  "typical_relics": [
+   "SHURIKEN",
+   "KUNAI"
+  ],
+  "drop": [
+   "STRIKE_DEFECT",
+   "STRIKE_DEFECT",
+   "STRIKE_DEFECT",
+   "DEFEND_DEFECT",
+   "DEFEND_DEFECT"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "necrobinder-doom",
+  "character": "NECROBINDER",
+  "archetype": "doom",
+  "status": "proposed",
+  "source": [
+   "first-principles",
+   "[expert] qB32y8nhMlk C10 (a passive Doom deck fails Ceremonial Beast phase 1)"
+  ],
+  "why": "Doom kills once it reaches the enemy's HP, so it meets damage in the middle and ignores block; Countdown applies it every turn, No Escape compounds, Times Up cashes it as damage",
+  "act": 1,
+  "threats": [
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "act": 1,
+    "hp": 66
+   },
+   {
+    "id": "KNOWLEDGE_DEMON_BOSS",
+    "act": 1,
+    "hp": 66
+   }
+  ],
+  "struggles": [
+   {
+    "id": "CEREMONIAL_BEAST_BOSS",
+    "why": "[expert] Plow grows each turn; phase 1 needs real damage"
+   },
+   {
+    "id": "KAISER_CRAB_BOSS",
+    "why": "single-target Doom vs two bodies; Crab Rage on the first kill"
+   }
+  ],
+  "core": [
+   "COUNTDOWN",
+   "SCOURGE",
+   "NO_ESCAPE",
+   "TIMES_UP"
+  ],
+  "enablers": [
+   "COUNTDOWN",
+   "SCOURGE",
+   "NO_ESCAPE"
+  ],
+  "payoffs": [
+   "TIMES_UP"
+  ],
+  "support": [
+   "SHROUD",
+   "DEATHS_DOOR",
+   "NEGATIVE_PULSE",
+   "DEATHBRINGER"
+  ],
+  "substitutes": {
+   "COUNTDOWN": [
+    "REAPER_FORM",
+    "OBLIVION"
+   ],
+   "SCOURGE": [
+    "NEGATIVE_PULSE",
+    "BLIGHT_STRIKE"
+   ],
+   "NO_ESCAPE": [
+    "DEATHBRINGER",
+    "END_OF_DAYS"
+   ],
+   "TIMES_UP": [
+    "END_OF_DAYS"
+   ]
+  },
+  "typical_relics": [
+   "BOOK_REPAIR_KNIFE"
+  ],
+  "drop": [
+   "STRIKE_NECROBINDER",
+   "STRIKE_NECROBINDER",
+   "STRIKE_NECROBINDER",
+   "DEFEND_NECROBINDER",
+   "DEFEND_NECROBINDER"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "necrobinder-osty",
+  "character": "NECROBINDER",
+  "archetype": "osty attacks",
+  "status": "proposed",
+  "source": [
+   "first-principles",
+   "[expert] p_pImjcVpug C1 (High Five, Poke picks)"
+  ],
+  "why": "Calcify adds damage to every Osty hit; Fetch and Poke are free Osty attacks that make Rattle hit more times and Flatten cost 0; summons keep Osty alive",
+  "act": 0,
+  "threats": [
+   {
+    "id": "TERROR_EEL_ELITE",
+    "act": 0,
+    "hp": 66
+   },
+   {
+    "id": "SOUL_FYSH_BOSS",
+    "act": 0,
+    "hp": 66
+   }
+  ],
+  "struggles": [
+   {
+    "id": "PHROG_PARASITE_ELITE",
+    "why": "Osty attacks are single-target vs four Wrigglers"
+   }
+  ],
+  "core": [
+   "CALCIFY",
+   "RATTLE",
+   "FETCH",
+   "FLATTEN"
+  ],
+  "enablers": [
+   "CALCIFY"
+  ],
+  "payoffs": [
+   "RATTLE",
+   "FLATTEN",
+   "FETCH"
+  ],
+  "support": [
+   "POKE",
+   "SPUR",
+   "PULL_AGGRO",
+   "HIGH_FIVE"
+  ],
+  "substitutes": {
+   "CALCIFY": [
+    "SQUEEZE"
+   ],
+   "RATTLE": [
+    "SQUEEZE",
+    "SIC_EM"
+   ],
+   "FETCH": [
+    "POKE",
+    "SNAP",
+    "RIGHT_HAND_HAND"
+   ],
+   "FLATTEN": [
+    "HIGH_FIVE",
+    "PROTECTOR"
+   ]
+  },
+  "typical_relics": [
+   "BONE_FLUTE"
+  ],
+  "drop": [
+   "STRIKE_NECROBINDER",
+   "STRIKE_NECROBINDER",
+   "STRIKE_NECROBINDER",
+   "DEFEND_NECROBINDER",
+   "DEFEND_NECROBINDER"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "necrobinder-souls",
+  "character": "NECROBINDER",
+  "archetype": "souls",
+  "status": "proposed",
+  "source": [
+   "[expert] p_pImjcVpug (Capture Spirit, Grave Warden, Dirge+ souls; beat Infested Prisms and The Insatiable)",
+   "first-principles"
+  ],
+  "why": "Soul cards are 0-cost draw 2 + exhaust: card makers seed the draw pile, Haunt makes every Soul a hit and Soul Storm grows with exhausted Souls; the deck cycles itself; Infested Prisms: [expert] fine despite Souls being Skills (Tainted), untested",
+  "act": 1,
+  "threats": [
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "act": 1,
+    "hp": 66
+   },
+   {
+    "id": "INFESTED_PRISMS_ELITE",
+    "act": 1,
+    "hp": 66
+   }
+  ],
+  "struggles": [
+   {
+    "id": "KAISER_CRAB_BOSS",
+    "why": "Haunt hits a random enemy; Crab Rage on uneven kills [hyp]"
+   }
+  ],
+  "core": [
+   "CAPTURE_SPIRIT",
+   "GRAVE_WARDEN",
+   "HAUNT",
+   "SOUL_STORM"
+  ],
+  "enablers": [
+   "CAPTURE_SPIRIT",
+   "GRAVE_WARDEN"
+  ],
+  "payoffs": [
+   "HAUNT",
+   "SOUL_STORM"
+  ],
+  "support": [
+   "DIRGE",
+   "REAVE",
+   "FRIENDSHIP",
+   "SEVERANCE"
+  ],
+  "substitutes": {
+   "CAPTURE_SPIRIT": [
+    "DIRGE",
+    "SEVERANCE",
+    "SEANCE"
+   ],
+   "GRAVE_WARDEN": [
+    "REAVE",
+    "DIRGE"
+   ],
+   "HAUNT": [
+    "DEVOUR_LIFE"
+   ],
+   "SOUL_STORM": [
+    "DEATH_MARCH"
+   ]
+  },
+  "typical_relics": [
+   "FUNERARY_MASK"
+  ],
+  "drop": [
+   "STRIKE_NECROBINDER",
+   "STRIKE_NECROBINDER",
+   "STRIKE_NECROBINDER",
+   "DEFEND_NECROBINDER",
+   "DEFEND_NECROBINDER"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "regent-forge",
+  "character": "REGENT",
+  "archetype": "sovereign blade forge",
+  "status": "proposed",
+  "source": [
+   "[expert] 1MCm0JnR98g (Summon Forth / retained Sovereign Blade lethal setups)",
+   "first-principles"
+  ],
+  "why": "Forge stacks damage on one retained Sovereign Blade; Furnace forges every turn, Summon Forth fetches it, Conqueror doubles it: one big hit breaks thresholds (Plow at 160)",
+  "act": 0,
+  "threats": [
+   {
+    "id": "CEREMONIAL_BEAST_BOSS",
+    "act": 0,
+    "hp": 75
+   },
+   {
+    "id": "BYRDONIS_ELITE",
+    "act": 0,
+    "hp": 75
+   }
+  ],
+  "struggles": [
+   {
+    "id": "PHROG_PARASITE_ELITE",
+    "why": "Blade is single-target without Seeking Edge"
+   },
+   {
+    "id": "VANTOM_BOSS",
+    "why": "Slippery caps the big hit"
+   }
+  ],
+  "core": [
+   "FURNACE",
+   "REFINE_BLADE",
+   "SUMMON_FORTH",
+   "CONQUEROR"
+  ],
+  "enablers": [
+   "FURNACE",
+   "REFINE_BLADE"
+  ],
+  "payoffs": [
+   "SUMMON_FORTH",
+   "CONQUEROR"
+  ],
+  "support": [
+   "WROUGHT_IN_WAR",
+   "BULWARK",
+   "SPOILS_OF_BATTLE",
+   "PARRY"
+  ],
+  "substitutes": {
+   "FURNACE": [
+    "THE_SMITH",
+    "BEAT_INTO_SHAPE"
+   ],
+   "REFINE_BLADE": [
+    "WROUGHT_IN_WAR",
+    "SPOILS_OF_BATTLE",
+    "BULWARK"
+   ],
+   "SUMMON_FORTH": [
+    "SWORD_SAGE"
+   ],
+   "CONQUEROR": [
+    "SWORD_SAGE",
+    "SEEKING_EDGE"
+   ]
+  },
+  "typical_relics": [
+   "FENCING_MANUAL"
+  ],
+  "drop": [
+   "STRIKE_REGENT",
+   "STRIKE_REGENT",
+   "STRIKE_REGENT",
+   "DEFEND_REGENT",
+   "DEFEND_REGENT"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "regent-stars",
+  "character": "REGENT",
+  "archetype": "star engine",
+  "status": "proposed",
+  "source": [
+   "[expert] qB32y8nhMlk C12 (snap-take Child of the Stars)",
+   "[expert] bU-9JBsxQ_I C1 (star-heavy Regent deck)",
+   "first-principles"
+  ],
+  "why": "star makers feed two payoffs at once: Black Hole hits all enemies on every star gained or spent and Child of the Stars blocks per star spent; Gamma Blast spends them",
+  "act": 1,
+  "threats": [
+   {
+    "id": "KAISER_CRAB_BOSS",
+    "act": 1,
+    "hp": 75
+   },
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "act": 1,
+    "hp": 75
+   }
+  ],
+  "struggles": [
+   {
+    "id": "INFESTED_PRISMS_ELITE",
+    "why": "star makers are mostly Skills (Tainted)"
+   }
+  ],
+  "core": [
+   "CHILD_OF_THE_STARS",
+   "BLACK_HOLE",
+   "HIDDEN_CACHE",
+   "GAMMA_BLAST"
+  ],
+  "enablers": [
+   "HIDDEN_CACHE"
+  ],
+  "payoffs": [
+   "BLACK_HOLE",
+   "CHILD_OF_THE_STARS",
+   "GAMMA_BLAST"
+  ],
+  "support": [
+   "GLOW",
+   "GATHER_LIGHT",
+   "ASTRAL_PULSE",
+   "SOLAR_STRIKE"
+  ],
+  "substitutes": {
+   "CHILD_OF_THE_STARS": [
+    "GATHER_LIGHT"
+   ],
+   "BLACK_HOLE": [
+    "RADIATE"
+   ],
+   "HIDDEN_CACHE": [
+    "GENESIS",
+    "GLOW",
+    "SHINING_STRIKE",
+    "ROYAL_GAMBLE"
+   ],
+   "GAMMA_BLAST": [
+    "COMET",
+    "ASTRAL_PULSE",
+    "DEVASTATE"
+   ]
+  },
+  "typical_relics": [
+   "GALACTIC_DUST",
+   "MINI_REGENT",
+   "LUNAR_PASTRY"
+  ],
+  "drop": [
+   "STRIKE_REGENT",
+   "STRIKE_REGENT",
+   "STRIKE_REGENT",
+   "DEFEND_REGENT",
+   "DEFEND_REGENT"
+  ],
+  "measurements": []
+ },
+ {
+  "id": "regent-create",
+  "character": "REGENT",
+  "archetype": "card creation",
+  "status": "proposed",
+  "source": [
+   "[expert] qB32y8nhMlk C12 (snap-take Pillar of Creation)",
+   "first-principles"
+  ],
+  "why": "every generated card (Debris, Colorless picks) gives Pillar of Creation block and Arsenal Strength; Collision Course and Quasar create at 0 cost",
+  "act": 1,
+  "threats": [
+   {
+    "id": "THE_INSATIABLE_BOSS",
+    "act": 1,
+    "hp": 75
+   },
+   {
+    "id": "KNOWLEDGE_DEMON_BOSS",
+    "act": 1,
+    "hp": 75
+   }
+  ],
+  "struggles": [
+   {
+    "id": "KAISER_CRAB_BOSS",
+    "why": "mostly single-target damage"
+   },
+   {
+    "id": "INFESTED_PRISMS_ELITE",
+    "why": "Quasar and Manifest Authority are Skills (Tainted)"
+   }
+  ],
+  "core": [
+   "PILLAR_OF_CREATION",
+   "ARSENAL",
+   "COLLISION_COURSE",
+   "QUASAR"
+  ],
+  "enablers": [
+   "COLLISION_COURSE",
+   "QUASAR"
+  ],
+  "payoffs": [
+   "PILLAR_OF_CREATION",
+   "ARSENAL"
+  ],
+  "support": [
+   "SUPERMASSIVE",
+   "MANIFEST_AUTHORITY",
+   "CRASH_LANDING",
+   "BUNDLE_OF_JOY"
+  ],
+  "substitutes": {
+   "PILLAR_OF_CREATION": [],
+   "ARSENAL": [
+    "SUPERMASSIVE"
+   ],
+   "COLLISION_COURSE": [
+    "CRASH_LANDING",
+    "MANIFEST_AUTHORITY"
+   ],
+   "QUASAR": [
+    "MANIFEST_AUTHORITY",
+    "BUNDLE_OF_JOY",
+    "SPECTRUM_SHIFT"
+   ]
+  },
+  "typical_relics": [
+   "REGALITE",
+   "ORANGE_DOUGH"
+  ],
+  "drop": [
+   "STRIKE_REGENT",
+   "STRIKE_REGENT",
+   "STRIKE_REGENT",
+   "DEFEND_REGENT",
+   "DEFEND_REGENT"
+  ],
+  "measurements": []
  }
 ]

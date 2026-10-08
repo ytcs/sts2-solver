@@ -87,7 +87,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 - Open (shop/draft): bundles within budget; saving gold vs small gains; speculative drafting is for plans (S6) and the operator.
 - Gate: real runs fall inside the simulated distribution (act reached, HP at act boundaries); a price is stable under fresh draws (se reported).
 
-**S6. Plan library.** Status: started (`data/plans.json`, `agent/plans.py`, `plans`).
+**S6. Plan library.** Status: started (`data/plans.json`, `agent/plans.py`, `plans`; `plans check` validates entries). 16 entries, 2-4 per character (silent-poison measured, the rest proposed, unmeasured); with them the plans slice dry-runs at 1505 fights (plan 1260) vs 341 before.
 - Entry: character, archetype, threats answered (bosses, elites, mechanics), core cards/relics, enablers/payoffs, substitutes, predictor-measured win of full and partial plans vs each threat at stated HP/act, status `proposed`/`measured`/`demoted` with sample sizes.
 - Use: at each ancient and whenever the boss is far out of reach, pick the plan with best V = P(reach) x P(win | it); the run model prices picks/shops/routes by progress toward it via the partial-version table.
 - Learning: operator proposes (first principles, source, `[expert]` runs); measured before use; demoted only by measurement, never one run.

@@ -45,6 +45,27 @@ def _check_single_player(plan):
         raise ValueError(f"{plan['id']}: multiplayer-only cards are never offered in single player: {bad}")
 
 
+def check(plan):
+    """problems with a plan entry: deck cards must be offerable (own pool or colorless, not basic/ancient/token, single player),
+    substitutes offerable, drop from the starter, enablers/payoffs from core, threat and struggle ids real encounters"""
+    import sts2
+    cat = json.load(open(os.path.join(ROOT, "data", "catalog.json")))["cards"]
+    pool = {c["id"]: c for k in (plan["character"], "COLORLESS") for c in cat[k] if not c.get("multiplayer_only")}
+    offer = {i for i, c in pool.items() if c["rarity"] in ("Common", "Uncommon", "Rare")}
+    encs = set(sts2.names()["encounter"])
+    starter = STARTERS[plan["character"]][0]
+    out = [f"deck card not offerable: {c}" for c in dict.fromkeys(plan["core"] + plan.get("support", [])) if c not in offer]
+    out += [f"substitute not in pool: {c}" for k, v in plan.get("substitutes", {}).items() for c in [k] + v if c not in pool]
+    out += [f"drop not in starter: {c}" for c in dict.fromkeys(plan.get("drop", [])) if plan["drop"].count(c) > starter.count(c)]
+    out += [f"{k} not in core: {c}" for k in ("enablers", "payoffs") for c in plan.get(k, []) if c not in plan["core"]]
+    out += [f"unknown encounter: {t['id']}" for t in plan["threats"] + plan.get("struggles", []) if t["id"] not in encs]
+    out += [f"threat without act: {t['id']}" for t in plan["threats"] if "act" not in t]
+    for b in ("full", "core"):
+        n = len(deck(plan, b))
+        out += [f"version {b}-{c} does not remove one card" for c in dict.fromkeys(plan["core"]) if len(deck(plan, f"{'' if b == 'full' else b}-{c}")) != n - 1]
+    return out
+
+
 def scenario(plan, threat, act, hp, version="full"):
     starter, relic, max_hp = STARTERS[plan["character"]]
     return dict(name=f"{plan['id']}:{version}@{threat}", ascension=10, encounter=threat, character=plan["character"], hp=hp, max_hp=max_hp,
@@ -78,6 +99,13 @@ def text(plan):
            + (f"; support {', '.join(plan.get('support', []))}" if plan.get("support") else "") + (f"; drop {', '.join(plan['drop'])}" if plan.get("drop") else "")]
     if plan.get("why"):
         out.append(f"  why: {plan['why']}")
+    if plan.get("enablers") or plan.get("payoffs"):
+        out.append(f"  enablers {', '.join(plan.get('enablers', []))}; payoffs {', '.join(plan.get('payoffs', []))}")
+    if plan.get("threats"):
+        out.append(f"  answers (act {plan['threats'][0].get('act', 1) + 1}): {', '.join(t['id'] for t in plan['threats'])}"
+                   + "".join(f"; struggles {t['id']} ({t['why']})" for t in plan.get("struggles", [])))
+    if plan.get("source"):
+        out.append(f"  source: {'; '.join(plan['source'])}")
     for m in plan.get("measurements", [])[-1:]:
         for r in m["rows"]:
             out.append(f"  {r['threat']} (act {r['act'] + 1}, {r['hp']} HP, {m['attempts']} att, {m['date']}): " + "  ".join(f"{v} {w:.2f}" for v, w in r["wins"].items()))
@@ -92,12 +120,18 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     ls = sub.add_parser("list"); ls.add_argument("character", nargs="?")
     me = sub.add_parser("measure"); me.add_argument("plan"); me.add_argument("--attempts", type=int, default=96)
+    sub.add_parser("check")
     a = ap.parse_args()
     plans = load()
     if a.cmd == "list":
         for p in plans:
             if not a.character or p["character"] == a.character.upper():
                 print(text(p) + "\n")
+    elif a.cmd == "check":
+        bad = {p["id"]: check(p) for p in plans}
+        for i, b in bad.items():
+            print(f"{i}: {'ok' if not b else '; '.join(b)}")
+        sys.exit(1 if any(bad.values()) else 0)
     else:
         p = next(p for p in plans if p["id"] == a.plan)
         measure(p, a.attempts)
