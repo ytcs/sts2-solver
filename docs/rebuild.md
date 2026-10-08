@@ -1,249 +1,107 @@
 # Rebuild plan
+Single plan, current state. Evidence: `docs/research/evidence.md` (E#). Game-code facts: `docs/research/game_code.md`. Each stage: goal / status / gate. A stage failing its gate is not adopted; nothing builds on it. Simulator/search/env changes pass `bash tools/gate.sh` unchanged (deliberate behaviour change: update its checksum in the same commit).
 
-Status: plan, 2026-10-06. Direction from the user; methods chosen from the literature (`docs/research/literature.md`), the game code (`docs/research/game_code.md`), a playtest (`docs/research/playtest.md`) and measurements (`docs/research/evidence.md`). Each stage has a gate. A stage that fails its gate is not adopted, and nothing is built on top of it.
+## 1. Goal, contracts, principles
+- Goal: win A10 runs with all five characters; end HP only breaks ties.
+- Information contract: only the exact random state is hidden. Public and tracked as state: enemy move patterns + odds at random branches, potion-drop chance, card-rarity offset, unknown-room odds, encounter-bag narrowing, shop prices, removal cost. The operator may read the game source.
+- Layers:
 
-## 1. Goal and contracts
-
-**Goal.** Win A10 runs with all five characters. Ending HP only breaks ties.
-
-**Information contract.** The only hidden information is the exact random state. Anything that follows from the game source plus what has been observed is public and is tracked as state:
-- enemy move patterns, with the odds at random branches;
-- the potion-drop chance of this fight;
-- the card-rarity offset;
-- unknown-room odds;
-- the narrowing of the encounter bag;
-- shop prices and removal cost.
-
-The operator may read the game source.
-
-**Layers.**
-
-| Layer | Who | Job |
+| layer | who | job |
 |---|---|---|
-| Predictor | network (+ search for action choice) | P(win) and the end-HP distribution (with potions left) of a fight, conditioned on the full visible state and an explicit set of allowed potions |
-| Combat play | search with the predictor at the leaves | picks card plays. It sees every potion and PROPOSES potion use (use now / keep / save, each priced); it never commits one |
-| Run model | simulator over the act, with the deck changing | V = P(win the run), chained at act boundaries (ancients heal 80% of missing HP at A2+). Prices routes, picks, shops, rests and potion keep/spend in one currency |
-| Operator (LLM) | Claude | High-level decisions, and game plans where numbers are flat: when the deck is far from beating what lies ahead, greedy pricing has no gradient, so the operator proposes target decks and plans from first principles and the predictor tests them. Commits potions. Collects gaps: fidelity, calibration slices, missing models, tool friction |
+| Predictor | network (+ search) | P(win) and end-HP distribution (with potions left) of a fight, given full visible state and the allowed belt |
+| Combat play | search, predictor at leaves | card plays; sees every potion, PROPOSES potion use (now / keep / save, priced), never commits |
+| Run model | act simulator, deck changing | V = P(win run), chained at act boundaries (ancient heals 80% of missing HP at A2+); prices routes, picks, shops, rests, potions in one currency |
+| Operator | Claude | high-level decisions, plans where numbers are flat, commits potions, logs gaps |
+
+- Principles:
+  - The stack must not depend on policy quality (E22, E23): search finds the line; the predictor learns how search play ends. Policy roles left: the search's candidate list (top-5 coverage 91%; to become every distinct legal action, ~6 avg) and the play-out policy (fixed; a change is a gated experiment, never a training side effect). Training effort goes to the judge (E12, E26).
+  - Only true objective: P(clear run). HP matters only through V: U(ending) = V(state after the fight); worth of HP = dV/dHP (≈0 before an ancient heal); a potion's price = V drop without it. Price choices as P(win fight) x V(next act), never the myopic fight delta.
+  - Horizon ladder: use the longest objective that is estimable and not saturated: fight -> clear act -> next-act readiness -> ... -> clear run.
+  - Claims: solver results are lower bounds under the stated solver, never verdicts on plans; state exactly what was tested.
 
 ## 2. Predictor contract
+f(state, allowed potions) -> joint distribution over outcome (loss = death or turn cap; win with end-HP bin) and which allowed potions are used, under the best combat policy (search), not the raw network.
+- Inputs: everything visible: enemies (powers, intents, multi-turn look-ahead), character (HP, block, energy, Stars, orbs, Osty), relics + counters, hand + draw/discard/exhaust multisets, belt, turn, act, encounter.
+- Fight-start predictions average f over sampled opening shuffles/rolls (exact: revealed before the first decision).
+- One network for every character and cross-character cards.
+- Allowed set = the belt the state carries (`Sim.without_potions` removes the rest); all belt sizes in training; no masks.
+- Auxiliary outputs (enemy HP left on a loss, turns survived): diagnostics/features only; decisions maximise V.
+- Never a clairvoyant target: a privileged model must predict the honest policy's outcome (Baisero & Amato 2022).
 
-f(state, allowed potions) → a joint distribution over:
-- outcome: a loss (death or the turn cap), or a win with an end-HP bin;
-- which allowed potions are used.
-
-It predicts play under the best combat policy we have (search), not the raw network.
-
-- **Inputs:** everything visible:
-  - enemies with powers, intents and the multi-turn pattern look-ahead;
-  - the character: HP, block, energy, Stars, orbs, Osty;
-  - relics and their counters;
-  - hand, and the draw, discard and exhaust piles as multisets;
-  - the belt, the turn, the act and the encounter.
-- **Fight-start predictions** average f over sampled opening shuffles and starting rolls. This is exact, because those are revealed before the first decision.
-- **Every character and cross-character cards.** One network covers all of them.
-- **The allowed set is the belt the state carries.** A potion not allowed in this fight is removed from the state (`Sim.without_potions`), and the remaining belt is what the predictor sees. Belts of every size are in the training mix, so the allowed set needs no extra input and no masks.
-- **Auxiliary outputs** (not decision currencies): enemy HP left when a fight is lost, and turns survived. They are diagnostics, features for plan testing, and inputs to the run model's base policy. Decisions maximise V only.
-- **Never a clairvoyant target.** If a privileged model is trained on determinized states, it predicts the honest policy's outcome. Averaging such a model over sampled hidden states is then unbiased (Baisero & Amato 2022). The value of a clairvoyant player is optimistic and is never used.
-
-## 3. Evidence so far
-- **E1** (`evidence.md`): the h128 head predicts the raw policy (bias -0.001) but underestimates search play by 6.5 points overall and by 19-23 points in the 0.2-0.8 band. The predictor must be trained on search-played outcomes.
-- **E-KD (E2):** under h128 search, the playtest deck had 0.00 against Knowledge Demon, while two hand-built decks scored 1.00 (poison engine) and 0.98 (power scaling), and one shiv package 0.22. These are lower bounds under this solver, not verdicts on the decks; they show that whole-deck plans give a signal where single-pick pricing gives none.
-- **Playtest:** potion pricing in three units was unreadable. Fight-start numbers didn't say which potions they assumed. Event pricing needed the source. Shops are budget-basket problems. Mid-card selections desync the hand.
+## 3. Metrics
+- Near-miss bench (`tools/nearmiss_bench.py`, `data/bench/nearmiss.json`, held out from r4s-trained arms): near-miss losses won / close wins lost, paired with the collecting player (E21). User's key metric.
+- Optimality bracket (E25): honest 5x256 flips = lower bound on avoidable losses, clairvoyant = upper bound; avoidable share in [~0.02, ~0.19]; 48% of near-miss losses unwinnable with perfect information. Avoidable errors are spread over setup turns (E26): sharpen the judge, not depth.
+- Predictor bench (`tools/bench.py`): calibration (reliability, log loss/CRPS, PIT), ranking vs large-budget reference.
 
 ## 4. Stages
 
-**S0. Hygiene (no retrain).**
-- Re-sync the hand from the screen before answering a mid-card selection (Survivor, Dagger Throw).
-- Starter-card name matching (done, `agent/live.py`).
-- Fight-start predictions state which potions they assume.
-- Card text on the rewards screen.
-- Known, predates the rebuild: the search's `carry` optimization never fires (`crates/sts2env/tests/search.rs::carried_lines_finish_and_save_searches`: 0 carried). This costs speed only (about 15% more network rows); results are unaffected.
-- *Gate:* a full act played with no false `DIFFERS`.
+**S0. Hygiene.** Status: open items:
+- re-sync hand from screen before answering a mid-card selection (Survivor, Dagger Throw); card text on rewards screen; fight-start predictions state assumed potions.
+- search `carry` never fires (speed only, ~15% more network rows).
+- Caps must not cut combos (user): turns are the stall bound (99); action cap far above any legitimate fight; a play-out continues while the turn makes progress (enemy HP falling, cards/energy generated); per-step loop guard (20,000 work units, observed max 174) stays.
+- Gate: a full act with no false `DIFFERS`.
 
-**Caps that must not cut off combos (user).** "Infinite" combo turns, with many plays in one turn (e.g. a one-turn boss kill), are a legitimate expert strategy. Today a combo turn is capped like a stall in two places:
-- the play-out cap (60 steps per searched turn): a play-out is cut off and judged by the value network, so search undervalues the combo;
-- the fight cap (300 agent steps, counted as a loss).
+**S1. Observation and fidelity.** Status: done. Look-ahead plays the next turns on a projected copy (`LOOK_H` = 4, joint encounter projection, pending node + stored follow-up in `enemy_moves`); cross-character cards in fuzzers. Observation v2 (calculated card numbers, affliction amounts, selection purpose, power secondary numbers, 64 candidates; E20) exists behind the version switch for the next from-scratch run; v1 bit-identical (gate). Gate: fuzz 0 residual mismatches; look-ahead probability test within tolerance.
 
-Plan:
-- turns are the stall bound (99);
-- the action cap rises far above any legitimate fight;
-- a play-out may continue while the turn makes progress (enemy HP falling, cards or energy generated);
-- the per-step loop guard (20,000 work units per action, observed max 174) stays.
+**S2. Benchmark before training.** Status: done (`tools/bench.py`, near-miss bench). Frozen sets with search labels at live width (5x32): eval, high energy, real-run corpus, cross-character/big belt, per-character. Local RTX 4070 Super: 100k labelled fights ~2.5 h (no pod needed). Gate: re-runs within se.
 
-**S1. Observation and fidelity (forces a retrain, so it goes first).**
-- Look-ahead fixes (`game_code.md` A):
-  - advance each monster's own state along every projected path (sleep and summon countdowns, spawns, buffs on itself);
-  - project the encounter jointly;
-  - put the current state-machine node in the observation;
-  - add the other enemies' pending moves to the cache key;
-  - add a probability-accuracy test;
-  - extend the horizon to 4-5 turns.
-  - *Done:* the look-ahead plays the next turns on a projected copy of the combat (`docs/env-api.md`), `LOOK_H` = 4, pending node and
-    stored follow-up in the observation (`enemy_moves`), calibration tests in `tests/lookahead.rs` (passive play: 0 impossible moves,
-    every move count within 3 sigma). Cost: an env step on the training mix goes from 6.3 to 14.2 us (single thread, random play).
-- Cross-character cards in the fuzzers, and the `base_orb_slots` default fixed (`game_code.md` B).
-- *Gate:* fuzz rounds with 0 residual mismatches on the new mixes; the look-ahead's probability test within tolerance.
+**S3. Predictor trained on search play.** Status: r2 adopted as predictor (E7); TD(λ=0.8) value targets adopted (`rl/exit.py train --value-target td --lam 0.8`, E24).
+- ExIt: value targets = realized/TD outcomes, never max of search Q (winner's curse); HL-Gauss categorical targets; Reanalyse of stored fights. No policy distillation target (E15, E22).
+- Curriculum by signal: each round draws fresh candidates (`tools/gen_curriculum.py` + corpus), scores at fight start with the current predictor, samples 15% uniform anchor + rest by p(1-p) (`tools/signal_pool.py`); selection before a seed is played (labels unbiased). Measured by A/B vs a uniform pool, calibration on the natural distribution.
+- Near-miss restarts: heavier search from true last-turn states of losses within one turn of a win (`tools/nearmiss.py`, `exit.py collect --restarts`); parts `policy_only` (selected on a loss). Gate: flip rate vs live width.
+- Data hygiene after a simulator change: `tools/prune_divergent.py` drops fights that no longer replay (backup kept); a part losing > 1% is regenerated instead.
+- Privileged inputs only if label noise proves the bottleneck.
+- Open data source: snapshots of deck/relics/potions at each fight from the game's AutoSlay mode (god mode, random choices; `decomp/MegaCrit.Sts2.Core.AutoSlay*`) as realistic setups alongside the generated mix.
+- Gate: calibration bias under search play < 0.02 in every decile; ranking no worse than h128; live-width win not lower on any set; near-miss bench not worse.
 
-**S2. Benchmark before training.**
-- Frozen sets with search-played labels at live width (5x32 adaptive), covering:
-  - eval;
-  - high energy;
-  - real-run corpus fights;
-  - a cross-character and big-belt set;
-  - per-character slices.
-- Metrics:
-  - calibration: P(win) reliability, end-HP log loss / CRPS, PIT;
-  - ranking accuracy against a large-budget reference, on deck-variant pairs, potion use-now / keep / save triples, and action pairs.
-- **Compute (measured):** local RTX 4070 Super, `rl/bench_fast.py`, 200 eval fights:
-  - 3x8: 39 fights/s (about 140k per hour), win 0.740;
-  - 5x32: 12 fights/s (about 44k per hour), win 0.745.
+**S4. Potion flow.** Status: done, gate pending (`agent/proposal.py`).
+- Per turn, per potion, on the same futures and job seeds, other potions out of every arm: now (best target chosen on other futures) / keep (usable from next turn) / save (`without_potions`). Stop iff now beats keep and save by > 2 paired se in the fight's score, or the better of now/keep wins more than save by > 2 paired se. Live card search plans without potions. One potion per commit (`potion use`); `potion aside` keeps one for the boss.
+- Per-fight objective via the live per-job `Worth` plumbing (`rl/fastsearch.py` `worth_row`, `search.rs` `Worth`): act boss followed by an ancient heal = win-only table (1% end-HP tiebreak), for fight-start prediction, `Engine.decide` and proposal play-outs; other fights linear.
+- Open tests: self-damaging potions (Foul Potion: per potion id, boss fight with only it vs none; below "none" = misuse); potion timing before scheduled big hits (Vantom Dismember, Kaiser Laser, Byrdonis: training coverage of potion x big-hit pairs; value of use-now vs hold vs long-search truth two turns before).
+- Gate: on the potion regression states (recorded run 20261005-201805: Vantom T1 Weak+Speed, Soul Nexus T4 Strength+Colorless), proposals agree with large-budget references.
 
-  A 100k-fight label set at live width takes about 2.5 h locally, so RunPod is not needed.
-- *Gate:* the benchmark is reproducible (re-runs within se).
+**S5. Run model.** Status: implemented (`agent/runmodel.py`, `agent/price.py`, `agent/tracker.py`, `agent/events.py`); `price` live.
+- Paired rollouts per option under a base policy with common random numbers: fights from the predictor's fight-start distribution (4-8 opening shuffles), rewards/shops/potions/unknown rooms at coded odds from the tracker's counters (`game_code.md` C), events from `data/events.json` (unknown stubbed). Current act on its real map; later acts from a template (room counts C1, known or sampled boss, ancient 80% heal + relic). V needs no terminal value.
+- Base policy: path by rests-before-elites at low HP / elites at high HP; picks greedy on the predictor vs the act boss (plan cards when a plan is set); rest below 50% HP else smith best gain; shop removal first then best item within budget, else carry gold; potions at elites/bosses when win gain > 0.05.
+- Encounter draws: weak pool first 3/2/2, bag per pool (`runmodel.draw_encounter`). Open: the tag rule (`AddWithoutRepeatingTags`; needs pool tags from decomp).
+- Horizon ladder in `price`: significance 2 paired se; P(clear act) >= `ACT_SATURATED` 0.9 (`price --sat`) -> next-act readiness (`runmodel.readiness`: P(win) vs next act's boss pool 0.5 + elite pool 0.5 at HP after the ancient heal; Glory as pairs of distinct bosses), floors tiebreak.
+- Cost: ~8k fight-start predictions/s; 4 options x 64 rollouts x ~25 predictions ≈ 10-20 s.
+- Open (priority): continuation value. P(win run) is flat under the base policy, so `price` falls back to act/fight horizons (myopic). Need a non-flat V(act-start state): plan-directed base policy, a learned value over act-start states, or measured next-act boss-pool win rates as proxy. Per-fight worth tables U(ending) = V(state after) wait on it.
+- Open: route-dependent options (Dowsing Rod, unknown/treasure/elite rewards) undervalued while the base policy routes the same: price (option, best route) pairs or deck-aware route preferences.
+- Open (shop/draft): bundles within budget; saving gold vs small gains; speculative drafting is for plans (S6) and the operator.
+- Gate: real runs fall inside the simulated distribution (act reached, HP at act boundaries); a price is stable under fresh draws (se reported).
 
-**S3. Predictor trained on search play.**
-- **Principle (2026-10-07, E22-E23):** the search finds the line, and the predictor learns how search play ends. The greedy policy cannot be distilled toward its own search: on clear decisions it agrees 0.67-0.71 against the search's 0.95, whatever the target, data volume or width. Sharper distilled policies also make worse play-outs.
-  - So the stack must not depend on policy quality.
-  - The policy's two remaining roles are the search's candidate list (top-5 coverage 91%; to be replaced by every distinct legal action, about 6 on average) and its play-out policy (kept fixed: a policy change is a gated experiment, never a side effect of training).
-  - Training effort goes to the judge: value resolution (E12) and lower-variance value targets (`exit.py --value-target td`).
-- **Data hygiene after a simulator change:** collected fights that no longer replay under the corrected simulator are dropped for good with `tools/prune_divergent.py`, which keeps a backup. If a part would lose more than 1% of its fights, that collection is regenerated on the same pool instead. Training also skips a divergent fight with a warning, but only as a backstop.
-- Distillation / expert iteration:
-  - value targets = realized outcomes, never the max of search Q values (winner's curse);
-  - policy targets = Gumbel-style improved policy;
-  - HL-Gauss categorical targets;
-  - Reanalyse of stored fights.
-- Curriculum by signal (user, 2026-10-07): saturated fights and fights lost under every line teach little; flippable near-misses teach the most. E14: in round 3, 44% of the fights sat at P(win) >= 0.97 and held 2% of the near-misses.
-  - **Pool:** each round draws fresh candidates (`tools/gen_curriculum.py` plus the corpus) and scores them at the fight start with the current predictor (200k in about 20 s). It samples `--anchor` 15% uniformly and the rest with weight p(1-p) (`tools/signal_pool.py`). Fights already saturated drop out and new samples replace them.
-    - Selection is on the configuration, before a seed is played, so outcome labels stay unbiased.
-    - The anchor keeps the outcome head calibrated on easy and hopeless fights, which the run model also prices.
-  - **Near-miss restarts:** for losses within one turn of a win, a heavier search runs from the true states at the last turn starts (`tools/nearmiss.py`, `exit.py collect --restarts`).
-    - Those futures were selected on a loss, so the parts are `policy_only`: no outcome loss. The policy target, from searches over determinized futures, is unaffected.
-    - Gate: the flip rate, i.e. whether heavier search from those states wins measurably more than live width.
-  - **Measured by A/B:** signal pool against a uniform pool of the same size from the same candidates, same init and recipe, play-checked on bench v2 (E15).
-  - Calibration is checked on the natural distribution (bench v2 score), not on the pool.
-- A privileged-input stage only if label noise proves to be the bottleneck.
-- *Gate:* calibration bias under search play below 0.02 in every decile; ranking accuracy no worse than h128; live-width win not lower on any set.
+**S6. Plan library.** Status: started (`data/plans.json`, `agent/plans.py`, `plans`).
+- Entry: character, archetype, threats answered (bosses, elites, mechanics), core cards/relics, enablers/payoffs, substitutes, predictor-measured win of full and partial plans vs each threat at stated HP/act, status `proposed`/`measured`/`demoted` with sample sizes.
+- Use: at each ancient and whenever the boss is far out of reach, pick the plan with best V = P(reach) x P(win | it); the run model prices picks/shops/routes by progress toward it via the partial-version table.
+- Learning: operator proposes (first principles, source, `[expert]` runs); measured before use; demoted only by measurement, never one run.
+- Gate: every plan used live is `measured`; plan choice logged with V and checked in review.
 
-**S4. Potion flow.**
-- Every turn, use now / keep in this fight / save, each priced by paired search play-outs on the same futures, with the predictor at the leaves (not two forward passes: a shared network understates the gap).
-- `turn` / `combat` stop on a proposal; the operator commits.
-- Remove `search_keep`, the alert thresholds, and keep / allow / deny / hold.
-- One potion per commit: the operator commits a single potion, and the next turn's proposal decides whether another is needed. `potion allow all` goes away (user: three potions at the Act 1 Kin, where one, Power Potion 0.4 -> 0.94 win, was enough).
-- Per-fight objective: an act boss followed by an ancient heal is priced and searched on P(win) alone (win-only worth table via the existing per-job `Worth` plumbing); HP matters only where it carries to later fights.
-- *Gate:* on the potion regression states, the proposals agree with large-budget references.
-- *Done (2026-10-07, gate pending):* `agent/proposal.py`. Arms per potion on the same futures and job seeds, the other potions out of every arm: now (best target chosen on other futures), keep (this turn played as in the save arm, replayed on a copy that holds the potion; usable from the next turn), save (`without_potions`). Stop when now beats keep and save by more than 2 paired se in the fight's score, or when the better of now / keep wins more often than save by more than 2 paired se; nothing else. The live card search plans without potions. `potion use <name>` commits one; `potion aside <name>` keeps one for the boss (it then stops a non-boss fight only when the win is at stake). The win-only table goes to the fight-start prediction, `Engine.decide` and the proposal's play-outs. Python only: no Rust change.
+**S7. Operator and self-improvement.** Status: draft protocol below; becomes the operator skill once S3 passes. Until then the current skills + calculators govern live play.
+- Principles: one currency (P(win run); flat -> next horizon -> a measured plan; never unmeasured intuition). The predictor is the authority on fights: question it only for a reason the model cannot see, logged as a gap. Every disagreement or tail outcome is a typed gap (fidelity / calibration slice / missing model / tool) -> fix or experiment through its stage's gate.
+- Per screen: Neow/ancient `plans` + `price` (unmodelled relic effects by judgment, logged); map `price` at every fork; card reward `price`, flat -> the plan's card else skip; shop `price` (nothing vs best affordable bundles of <= 3 purchases); full belt + potion offer `price`; rest `price` (rest vs each smith); event `data/events.json` + `price`, unmodelled -> judgment + gap; combat `combat`/`turn`, potions per S4.
+- Skills shrink to: operator protocol, gap taxonomy, verified mechanics, plan reasoning with predictor-tested target decks. Decision guards replaced by prediction-vs-outcome logging. `improve review` becomes the gap review (predicted vs real fights, `price` decisions vs outcomes, plan choices vs tables, gap list).
+- Open: auto-combat hands back to manual before damage lands (next enemy turn's predicted loss beyond the fight-start q90 pace, or predicted win drop > X); design on `runs/*/fights/` costly fights.
+- Open solver-gap tests: early-stop on ties in manual fights (`agent.hindsight` large budget vs the plan in the why); missed lethal (states where a 1-2 card line kills the last enemy: solver's first choice should reach lethal ~100%).
+- Open: harness refactor + bug sweep of `agent/` after the RL work.
 
-**S5. Run model.**
-- An act simulator in which the deck changes:
-  - map;
-  - rewards, shops, potions and unknown rooms at the coded odds (`game_code.md` C);
-  - events from a catalog generated from the decomp, with unknown ones stubbed;
-  - fights through the predictor.
-- A base macro policy for the rollouts. Each operator decision is priced as V(option) by paired rollouts.
-- First output: the simulated run win rate of the base policy, the baseline every later macro change must beat.
-- *Gate:* real runs fall inside the simulated distribution (act reached, HP at each act boundary).
+**Expert data (queued).** Top players' runs (NaveGreed, OpemSpire) allowed. Macro decisions seed the plan library as `[expert]`; a few hundred pivotal combat decisions form a test set (replay both lines where search disagrees); imitation only if that set shows gaps. Pilot (`data/expert/navegreed_2026-10-07.md`): one A10 Ironclad win on v0.111.0 -> 41 macro decisions + 3 fights in ~55 min; accuracy ~95% visible choices, ~60% encounter names. Next: decision-screen detector, OCR limited to catalog ids, caption alignment, seed-replay test; encounter id by sprite matching (`SlayTheSpire2.pck`). Re-enactment: start his seed, replay his transcribed actions, export each fight start, compare his line with the solver's on the same hidden state per decision (risks: one transcription error breaks later fights; 3 unidentified mods).
 
-**S5 design.** A macro decision is priced by paired rollouts: one step of policy improvement over a base policy, the same idea as the combat search one level up.
-- **Rollouts.** For each option, M continuations under a base policy, with common random numbers across options (the same map, the same reward and fight draws).
-- **What each rollout samples:**
-  - fights from the predictor's fight-start distribution (averaged over 4-8 opening shuffles);
-  - rewards at the coded odds, with the tracker's counters as the starting state (`game_code.md` C, `agent/tracker.py`);
-  - unknown rooms from their odds;
-  - events: catalogued ones from the catalog, unknown ones stubbed as nothing.
-- **Horizon.**
-  - The current act uses its real map.
-  - Later acts use a template act: their room counts and order distribution (C1), the known or sampled boss, and the ancient's 80% heal and a relic draw.
-  - The run ends with a win or a death, so V = P(win run) needs no hand-made terminal value.
-- **Base policy** (cheap, deterministic given the draws):
-  - path: the child whose subtree has the most rests before elites at low HP, else the most elites at high HP;
-  - card picks: greedy on the predictor against the act boss, restricted to the chosen plan's cards when a plan is set (S6);
-  - rest below 50% HP, otherwise smith the card with the best predicted gain;
-  - shop: removal first, then the best predicted card or relic within budget, nothing when none raises the worth (the gold carries to the next shop);
-  - potions: allowed at elites and bosses when the predictor's win gain exceeds 0.05.
-- **Cost (measured):** about 10k fight builds per second plus 55k network evaluations per second on the local GPU, so about 8k fight-start predictions per second. A decision with 4 options x 64 rollouts x ~25 predictions each takes about 10-20 s.
-- **Encounter draws:** the weak pool for the first 3/2/2 monster fights, and each pool dealt as a bag without repeats per cycle (implemented, `runmodel.draw_encounter`). Not yet: the game's tag rule (`AddWithoutRepeatingTags`: no encounter sharing a tag with the previous one). Needs the pools' tags from decomp.
-- **Route-dependent options** (user): a relic or card whose value depends on the route taken (Dowsing Rod; anything that rewards unknown rooms, treasure or elites) is undervalued while the base policy routes the same way whatever was taken. Two fixes:
-  - price (option, best route for it) pairs;
-  - a base policy whose route preferences read the deck and relics.
-- **Validation:**
-  - the base policy's simulated run win rate is the baseline;
-  - the act-boundary HP and the act reached by real runs fall inside the simulated distribution;
-  - a decision's price is stable under fresh draws (se reported).
+## 5. Retired / live / kept
+- Retired: potion `search_keep`, alert thresholds, keep/allow/deny/hold; the HP-worth util curve (failed its gate: curve vs linear E[U] -0.000 +- 0.002); Gumbel root (E16); value ensembles; policy distillation targets (E15, E22); duplicate route pricers and model gates.
+- Live: per-job `Worth` (win-only act-boss objective, S4).
+- Kept until `price`/`plans` replace them (then delete with their skill sections): calculators `reward`, `routes`, `eval`, `rmcalc`, `pickplan`, `brief`, `potions`; `DRIVE` AUTO/MANUAL thresholds; decision guards (`agent/guards.py`; `STS2_DECISION_GUARDS=off` disables); smooth score, buckets, section-3 bar, pickplan ρ, `routes` reward weights. Open calculator items while kept:
+  - CRN coupling weak for card/potion variants (paired se vs independent: upgrade 2.0x smaller, removal 1.3x, added card 1.0x, belt 1.0-1.7x). Candidates: future keys from (job seed, turn, decision index); eval-only shuffle by per-card-instance random keys.
+  - Table depth: depth 2 tables 2.3x slower than depth 1; depth 1 picks within 2 paired se of depth 2's best on 30/30 screens (same best 77%). Missing baseline: depth 2 vs depth 2 with fresh seeds.
+  - Live stopping rule (`engine._opportunity_loss`): paired regret test may stop earlier; measure rounds-to-stop.
+  - Upgrade debt: rank deck cards by upgrade gain / draw frequency; rest-vs-smith may need to compare against summed debt.
 
-**Continuation value (priority, user 2026-10-07).** The run horizon of `price` is flat (P(win run) = 0 for every option under the base policy), so choices fall back to the act or fight horizon. That is myopic: rest at boss win 0.996 vs smith at 0.94 should compare 0.996 x V(next act | no upgrade) vs 0.94 x V(next act | upgrade).
-- Need a non-flat V(act-start state) = P(win the rest of the run | deck, relics, potions, HP after the ancient heal).
-- Candidates: a stronger base policy (plan-directed) so run rollouts sometimes win; a learned value over act-start states trained on rollouts; or measured boss-pool win rates of the next acts as a proxy.
-
-**First principle (user, 2026-10-07):** the only true objective is P(clear run); HP lost is a useful sub-objective only through its effect on that.
-- Systematically, each fight ending is scored by the run value of the state it leaves: U(ending) = V(state after the fight).
-- The worth of HP is how much V changes per HP: near zero before an ancient heal, larger mid-act with elites ahead.
-- A potion's price is how much V drops without it.
-- The search already takes per-fight worth tables over end HP and potions left. The earlier route-DP worth failed its gate because that V was flat. This waits on the continuation value below; the win-only boss objective (S4) is its first hand-specified case.
-
-**Horizon ladder (user, 2026-10-07):** use the longest objective that is both estimable and not saturated, moving up as each saturates: this fight, then clearing the act, then next-act readiness, ..., then clearing the run. Early in a run the long objectives are too hard to estimate, so intermediate ones carry the signal; as they saturate, the objective shifts toward clearing the run. P(win run) is flat for any Act 1 deck, and P(clear act) saturates once the act is under control (late Act 1 shops and rests tied). Once P(clear act) passes a threshold (~0.9), `price` switches its main horizon to next-act readiness: P(win) against the next act's boss pool and elites for the deck each rollout carries out of this act, at that rollout's HP after the ancient's heal (80% of missing HP at A2+, not full; `runmodel.HEAL_ANCIENT`, `AncientEventModel.cs`), with floors as the tiebreak. *Implemented:* `agent/price.py` `ladder` (significance = 2 paired se, `ACT_SATURATED` 0.9, `price --sat`), `runmodel.readiness` (boss pool 0.5, elite pool 0.5; Glory as pairs of distinct bosses).
-
-**Shop and drafting requirements (user, 2026-10-07):**
-- Price bundles within the budget: a set of purchases can be positive while each part alone is negative.
-- Price saving gold against buying when the shop offers only small gains (the value of gold carried to the next shops).
-- Drafting and shopping invoke high-level reasoning: sometimes the right pick makes the deck worse now to open a high payoff later (speculative drafting). Greedy rollouts cannot see this; plans (S6) and the operator must.
-
-**S6. Plan library (codified high-level reasoning).** When the deck is far from what lies ahead, decisions come from game plans, not from greedy numbers. Plans must not drift between sessions, so they live in a versioned database (`data/plans/`), not in each agent's intuition.
-- **Entry:**
-  - character;
-  - archetype (poison engine, power scaling, ...);
-  - the threats it answers: bosses, elites, mechanics such as heal-and-Strength races, curses, Artifact;
-  - core cards and relics;
-  - enablers and payoffs;
-  - acceptable substitutes;
-  - the predictor-measured win rate of the full plan and of partial versions (core only, core plus one) against each threat at stated HP and act;
-  - status (`proposed` / `measured` / `demoted`) with dates and sample sizes.
-- **Use:** at each act start (the ancient), and whenever the boss is far out of reach, the operator picks the plan with the best V (P(reach it) x P(win | it)) for this character, deck and known boss, and records the choice. The run model then prices picks, shops and routes by progress toward the chosen plan, with the plan's partial-version table as the bridge between where the deck is and where it needs to be.
-- **Learning loop:** new archetypes are proposed by the operator (from first principles or the game source) and enter as `proposed`, becoming `measured` once the predictor's table is filled. After each run, the review compares chosen plans with outcomes; plans that fail their tables are re-measured or demoted. A plan changes only through a measurement, never on one run's anecdote.
-- *Gate:* every plan used in live play is `measured`; the operator's plan choice is logged with V and checked in review.
-
-**S7. Operator and self-improvement.**
-- Skills shrink to:
-  - the operator protocol;
-  - the gap taxonomy;
-  - verified mechanics;
-  - game-plan reasoning, with target decks tested by the predictor.
-- Decision guards are replaced by prediction-vs-outcome logging.
-- Every gap is typed (fidelity / calibration slice / missing model / tool) and leads to a fix or an experiment, adopted only through the gate of its stage.
-
-**Expert data (queued).** Top players' recorded runs (NaveGreed, OpemSpire) are allowed (user, 2026-10-07).
-- Macro decisions (picks, paths, shops, rests, ancients, the plans they commit to) seed the plan library as `[expert]` entries, which the predictor then measures.
-- A few hundred pivotal combat decisions form a test set: where our search disagrees, replay both lines. Expert wins become loop-2 frontier targets.
-- Combat imitation training only if that test set shows gaps.
-- Pilot first: one video from a build close to v0.111.0, extracting its macro decisions and 2-3 full fights, with the hours spent and the extraction accuracy measured.
-
-**Expert pilot result (2026-10-07, `data/expert/navegreed_2026-10-07.md`):**
-- One A10 Ironclad win on v0.111.0 (our build) gave 41 macro decisions and 3 fights in ~55 min.
-- Accuracy: ~95% on choices with visible options, ~60% on guessed encounter names.
-- The seed is shown on screen. Starting it through the bridge and replaying the transcribed decisions would let the game regenerate exact states (untested; the run shows 3 unidentified mods).
-- Next tooling: a decision-screen detector, OCR limited to catalog ids, caption alignment, then a seed-replay test. Later (user): identify encounters by matching enemy sprites from the game files (`SlayTheSpire2.pck`) against the frames, narrowed by the act pools and HP ranges.
-
-**Expert re-enactment (user idea, 2026-10-07; behind the current diagnostics).** A distance-to-expert metric and targeted training signal from NaveGreed's runs.
-- Start his seed (shown on screen; same build v0.111.0) in our game, follow his transcribed macro and combat actions so the RNG stays on his track, and export each fight's start state (it fixes every RNG stream; reading it is fine for analysis of a recorded run).
-- The undo is a simulator copy of that start state (bit-exact replay). His line = his transcribed actions replayed (gives his HP loss and checks the transcription). Our line = the solver from the same state (still searching over sampled futures, so the comparison is fair).
-- Per decision: compare his choice with the solver's and replay both to the fight's end on the same hidden state. That gives the divergence points and their cost.
-- Risks: one transcription error breaks every later fight (a correction loop against the video is needed); 3 unidentified mods.
-
-## 5. What is retired
-- The potion machinery listed in S4.
-- `DRIVE` thresholds and the danger budget formula.
-- The decision guards (`agent/guards.py` decision/pick guards; for now `STS2_DECISION_GUARDS=off` switches them off).
-- Smooth score, buckets, the section-3 bar, pickplan's ρ, and the `routes` reward weights (all replaced by V).
-- The two route pricers and the two model gates (one of each remains).
-- The dormant HP-worth / `Worth` / `ucond` plumbing.
-
-## 6. Target layout (lean)
-Each stage lands in one place and deletes what it replaces.
-
-| Path | Keeps | Goes |
+## 6. Target layout
+| path | keeps | goes |
 |---|---|---|
-| `crates/` | sts2sim, sts2env, sts2py, sts2diff (the simulator, search, bindings, differential tester) | the `util` / `Worth` plumbing once S4 lands |
-| `rl/` | model, heads, fastsearch, solver, exit (training by expert iteration) | utility.py (HP-worth), dist.py (old end-HP head), pot_check, heads_check (folded into tools/bench), ppo.py once ExIt trains from h128 alone |
-| `agent/` | bridge, screen, fight (replay and sync), engine (search and predictor service), live (combat driver with proposals), tracker (public counters), runmodel (S5), plans (S6), harness + `__main__` (commands, daemon), runlog, review (S7), skillgate | guards, macro, routes, pickplan, potion_price, potions, deckstudy, card_tags, improve, autopilot, calibrate, fidelity_report / fidelity_trace (one fidelity tool stays), args |
-| `tools/` | bench, fuzz generators, gen_curriculum | one-off A/B and payoff scripts (results stay in `evals/` summaries) |
-| `.claude/skills/` | `sts2` (rules, information contract), operator protocol and gap logging, plan-library use, verified mechanics | procedures that existed only to feed the old calculators (buckets, smooth score, section-3 bar, guard fields) |
-| `data/` | catalog, pools, ancients, relic classes, `bench/`, `plans/`, training and eval sets | |
+| `crates/` | sts2sim, sts2env, sts2py, sts2diff | |
+| `rl/` | model, heads, fastsearch, solver, exit, ppo, predictor | |
+| `agent/` | bridge, screen, fight, engine, live, proposal, tracker, runmodel, price, events, plans, harness + `__main__`, runlog, improve + hindsight (review), fidelity_sweep (only fidelity tool), skillgate | guards, macro, routes, pickplan, potions, card_tags once price/plans replace them |
+| `tools/` | gate.sh, bench, bench_search, nearmiss_bench, nearmiss, signal_pool, gen_curriculum, gen_train, fuzz_gen_mix, prune_divergent, collect.sh, dashboard | one-off A/B scripts (results go to `evidence.md`) |
+| `.claude/skills/` | `sts2` (rules, information contract), operator protocol + gap logging, plan-library use, verified mechanics | procedures that only feed the old calculators (buckets, smooth score, section-3 bar, guard fields) |
+| `data/` | catalog, pools, ancients, events, relic classes, `bench/`, `plans.json`, train/eval sets | |
