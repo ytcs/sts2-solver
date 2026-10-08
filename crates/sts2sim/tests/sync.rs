@@ -84,6 +84,10 @@ fn sync_hand_pairs_cards_by_enchantment() {
         assert_eq!(cx.cards[hand[0] as usize].enchant, 0, "seed {seed}: the plain Defend took the enchanted one");
         assert_eq!(hand[1], spiral, "seed {seed}");
         assert_eq!((rep.created, total(&cx)), (0, before), "seed {seed}");
+        let strike = ObsCard { id: ids::card::STRIKE_IRONCLAD, upgrade: 0, enchant: ids::enchantment::SPIRAL as u8 + 1, enchant_amount: 1, ..Default::default() };
+        let rep = cx.sync_hand(&[strike]);
+        let c = cx.player.hand.as_slice()[0] as usize;
+        assert_eq!((rep.created, total(&cx), cx.cards[c].id, cx.cards[c].enchant), (0, before, strike.id, strike.enchant), "seed {seed}: an enchantment the simulator lacks goes on an existing copy");
     }
 }
 

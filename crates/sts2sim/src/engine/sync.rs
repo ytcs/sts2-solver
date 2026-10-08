@@ -56,18 +56,26 @@ impl Combat {
         for i in missing {
             let o = obs[i];
             let mut found: Option<CardIdx> = None;
-            for (pile, counter) in [(PileType::Draw, 0u8), (PileType::Discard, 1), (PileType::Exhaust, 2)] {
-                let p = self.pile(pile);
-                let cand = p.iter().copied().find(|&c| same(self, c, &o));
-                if let Some(c) = cand {
-                    self.pile_mut(pile).remove_value(c);
-                    match counter {
-                        0 => rep.from_draw += 1,
-                        1 => rep.from_discard += 1,
-                        _ => rep.from_exhaust += 1,
+            'search: for exact in [true, false] {
+                for (pile, counter) in [(PileType::Draw, 0u8), (PileType::Discard, 1), (PileType::Exhaust, 2)] {
+                    let p = self.pile(pile);
+                    let cand = p.iter().copied().find(|&c| same(self, c, &o) || !exact && (self.cards[c as usize].id, self.cards[c as usize].upgrade) == (o.id, o.upgrade));
+                    if let Some(c) = cand {
+                        self.pile_mut(pile).remove_value(c);
+                        match counter {
+                            0 => rep.from_draw += 1,
+                            1 => rep.from_discard += 1,
+                            _ => rep.from_exhaust += 1,
+                        }
+                        if !exact {
+                            self.clear_enchantment(c);
+                            if o.enchant != 0 {
+                                self.enchant_unchecked(c, (o.enchant - 1) as u16, o.enchant_amount as i32);
+                            }
+                        }
+                        found = Some(c);
+                        break 'search;
                     }
-                    found = Some(c);
-                    break;
                 }
             }
             if found.is_none() {
