@@ -46,6 +46,9 @@ fn answer(obs: &[f32], mask: &[u8], u: f32, m: usize, out: &mut [f32]) {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    // STS2_LOOK_VERIFY=1: every look-ahead cache hit is checked against a fresh projection (slow; panics on a difference)
+    let verify = std::env::var("STS2_LOOK_VERIFY").is_ok_and(|v| v == "1");
+    sts2sim::engine::LOOK_VERIFY.store(verify, std::sync::atomic::Ordering::Relaxed);
     let path = args.get(1).expect("scenario json (a list of scenarios or of {scenario: ...})");
     let arg = |i: usize, d: usize| args.get(i).and_then(|s| s.parse().ok()).unwrap_or(d);
     let (n_fights, threads, roots, m, k, ver) = (arg(2, 128), arg(3, 1), arg(4, 64), arg(5, 5), arg(6, 32), arg(7, 1) as u8);
@@ -134,6 +137,9 @@ fn main() {
         st.lead_clean,
         t_eng * threads as f64 / st.policy_rows.max(1) as f64 * 1e6
     );
+    if verify {
+        println!("  verified {} look-ahead cache hits against fresh projections", sts2sim::engine::LOOK_VERIFIED.load(std::sync::atomic::Ordering::Relaxed));
+    }
     #[cfg(feature = "obs_prof")]
     unsafe {
         let p = sts2sim::observe::OBS_PROF;

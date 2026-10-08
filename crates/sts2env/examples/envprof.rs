@@ -22,6 +22,9 @@ fn hash(o: &[f32]) -> u64 {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    // STS2_LOOK_VERIFY=1: every look-ahead cache hit is checked against a fresh projection (slow; panics on a difference)
+    let verify = std::env::var("STS2_LOOK_VERIFY").is_ok_and(|v| v == "1");
+    sts2sim::engine::LOOK_VERIFY.store(verify, std::sync::atomic::Ordering::Relaxed);
     let path = args.get(1).expect("scenario json (a list of scenarios)");
     let arg = |i: usize, d: usize| args.get(i).and_then(|s| s.parse().ok()).unwrap_or(d);
     let (n, steps, ver, n_scen) = (arg(2, 1024), arg(3, 200), arg(4, 1) as u8, arg(5, 4000));
@@ -54,7 +57,8 @@ fn main() {
             mix(&mut h, hr);
             let legal: Vec<usize> = (0..ACTION_SPACE).filter(|&a| m[a] > 0).collect();
             mix(&mut h, legal.len() as u64 ^ (legal.iter().fold(0u64, |s, &a| s.wrapping_mul(31).wrapping_add(a as u64)) << 8));
-            acts[i] = legal[((hr >> 17) % legal.len() as u64) as usize] as i32;
+            // no legal action (a finished or broken fight): the env counts the step as illegal and ends the episode
+            acts[i] = if legal.is_empty() { 0 } else { legal[((hr >> 17) % legal.len() as u64) as usize] as i32 };
         }
         let t = Instant::now();
         env.step(&acts, StepOut { obs: &mut obs, mask: &mut mask, reward: &mut rew, done: &mut done, outcome: &mut oc, illegal: &mut ill }).unwrap();
@@ -72,6 +76,9 @@ fn main() {
         total / t_step,
         t_step * rayon::current_num_threads() as f64 / total * 1e6
     );
+    if verify {
+        println!("  verified {} look-ahead cache hits against fresh projections", sts2sim::engine::LOOK_VERIFIED.load(std::sync::atomic::Ordering::Relaxed));
+    }
     #[cfg(feature = "obs_prof")]
     unsafe {
         let p = sts2sim::observe::OBS_PROF;
