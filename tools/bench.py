@@ -120,6 +120,19 @@ def _without(sc, card):
     return dict(sc, deck=sc["deck"][:i] + sc["deck"][i + 1:])
 
 
+def plan_targets(p):
+    """{(act, hp): encounters}: each threat's act and HP, against the threat and that act's elites and bosses"""
+    from agent import plans, pools
+    targets = {}
+    for t in p["threats"]:
+        act, hp = t.get("act", 1), t.get("hp") or plans.STARTERS[p["character"]][2]
+        encs = targets.setdefault((act, hp), [])
+        for e in [t["id"]] + [e for n in pools.act_names(act) for e in _gate_encounters(n)]:
+            if e not in encs:
+                encs.append(e)
+    return targets
+
+
 def plan_slice():
     from agent import plans, pools
     mp = _multiplayer_only()
@@ -129,14 +142,7 @@ def plan_slice():
             continue
         cores = list(dict.fromkeys(p["core"]))
         versions = [("full", None, None), ("core", None, None)] + [(f"-{c}", "full", c) for c in cores] + [(f"core-{c}", "core", c) for c in cores]
-        targets = {}
-        for t in p["threats"]:
-            act, hp = t.get("act", 1), t.get("hp") or plans.STARTERS[p["character"]][2]
-            encs = targets.setdefault((act, hp), [])
-            for e in [t["id"]] + [e for n in pools.act_names(act) for e in _gate_encounters(n)]:
-                if e not in encs:
-                    encs.append(e)
-        for (act, hp), encs in targets.items():
+        for (act, hp), encs in plan_targets(p).items():
             for v, base, card in versions:
                 for e in encs:
                     out.append(_tag(plans.scenario(p, e, act, hp, v), f"plan:{p['id']}:{v}@{e}", source="plan", character=p["character"], archetype=p["archetype"],

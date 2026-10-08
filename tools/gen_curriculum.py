@@ -90,20 +90,22 @@ class Curriculum:
         pool = [p for p in self.g.potions[ch] + self.g.potions["SHARED"] if p["usage"] in ("CombatOnly", "AnyTime")]
         return [{"id": r.choice(pool)["id"], "slot": i} for i in range(n)], slots
 
-    def scenario(self, i, seed, stage, pmax):
+    def scenario(self, i, seed, stage, pmax, character=None, act=None, rooms=None, n_add=None):
         r = random.Random(f"m3/{seed}/{i}")
         easy = stage == "easy"
-        ch = r.choices(list(CHAR_W), list(CHAR_W.values()))[0]
-        act = 0 if easy else r.choice([0, 1, 2])
+        ch = character or r.choices(list(CHAR_W), list(CHAR_W.values()))[0]
+        act = (0 if easy else r.choice([0, 1, 2])) if act is None else act
         encs = self.encs[act]
         if easy:
             encs = [e for e in encs if e["room"] not in ("Elite", "Boss")]
+        if rooms:
+            encs = [e for e in encs if e["room"] in rooms]
         w = [1 if e["weak"] else 4 if e["room"] in ("Elite", "Boss") else 3 for e in encs]
         enc = r.choices(encs, w)[0]
         _, _, hp0, energy, orbs = fg.STARTERS[ch]
         max_hp = hp0 + act * r.randint(5, 25) + r.randint(0, 15)
         focus = r.choices(["mix", "colorless", "junk", "gen", "turn"], [55, 15, 8, 12, 10])[0]
-        deck = self.g.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act], enchant_p=0.03)
+        deck = self.g.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act], enchant_p=0.03, n_add=n_add)
         if easy:
             deck = deck[:len(fg.STARTERS[ch][0]) + r.randint(0, 4)]
         elif r.random() < 0.3:

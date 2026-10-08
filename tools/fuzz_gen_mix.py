@@ -102,9 +102,9 @@ class Gen:
         w = [dict(rarity_w).get(c["rarity"], 1) for c in cards]
         return r.choices(cards, w)[0]
 
-    def make_deck(self, r, ch, act, focus, upg_p, enchant_p=0.04, cross_p=0.0):
+    def make_deck(self, r, ch, act, focus, upg_p, enchant_p=0.04, cross_p=0.0, n_add=None):
         starter = list(STARTERS[ch][0])
-        n_add = {0: r.randint(4, 14), 1: r.randint(10, 22), 2: r.randint(14, 30)}[act]
+        n_add = {0: r.randint(4, 14), 1: r.randint(10, 22), 2: r.randint(14, 30)}[act] if n_add is None else n_add
         w = {"own": 60, "colorless": 20, "event": 8, "curse": 6, "status": 4, "dupe": 8}
         if focus == "colorless":
             w = {"own": 20, "colorless": 50, "event": 12, "curse": 8, "status": 6, "dupe": 4}
