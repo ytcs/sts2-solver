@@ -62,6 +62,7 @@ public static class Snap
             ["gold"] = sp.Gold,
             ["max_potion_slots"] = sp.MaxPotionSlotCount,
             ["base_orb_slots"] = sp.BaseOrbSlotCount,
+            // the real run seed is never exported: it determines the hidden shuffles
             ["seed"] = "placeholder",
             ["total_floor"] = rs.TotalFloor,
             ["act"] = rs.CurrentActIndex,

@@ -13,8 +13,8 @@ public static unsafe class GodotStub
     public static void Install()
     {
         IntPtr page = OperatingSystem.IsWindows()
-            ? VirtualAlloc(IntPtr.Zero, 4096, 0x3000 , 0x40 )
-            : mmap(IntPtr.Zero, 4096, 7 , 0x22 , -1, 0);
+            ? VirtualAlloc(IntPtr.Zero, 4096, 0x3000, 0x40)
+            : mmap(IntPtr.Zero, 4096, 7, 0x22, -1, 0);
         if (page == new IntPtr(-1) || page == IntPtr.Zero) throw new Exception("mmap failed");
         byte* p = (byte*)page;
         p[0] = 0x48; p[1] = 0xB8; *(long*)(p + 2) = (long)page; p[10] = 0xC3;
