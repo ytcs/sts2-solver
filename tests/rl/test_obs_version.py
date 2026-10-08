@@ -141,8 +141,9 @@ def test_v2_shows_what_v1_hid_on_recorded_fights():
     s1, c1 = _sec(1)
     s2, c2 = _sec(2)
     CF1, CF2 = c1["CARD_F"], c2["CARD_F"]
+    # cards whose only numbers are calculated (no plain damage / block var): v1 shows 0 for every one of them
     calc = {i for i, n in enumerate(sts2.names()["card"]) if n in ("BODY_SLAM", "PERFECTED_STRIKE", "GOLD_AXE", "REND", "UNLEASH", "MURDER", "BULLY",
-                                                                   "FINISHER", "FLECHETTES", "STACK", "EXPECT_A_FIGHT", "MIRAGE", "NORMALITY", "ASHEN_STRIKE")}
+                                                                   "STACK", "EXPECT_A_FIGHT", "MIRAGE", "NORMALITY", "ASHEN_STRIKE", "DEATH_MARCH")}
     n_dec = n_src = n_played = n_wide = n_calc = n_calc_v1 = 0
     for sc, seed, ac, _h in fights:
         o1, _ = sts2.replay(sc, seed, ac, obs_version=1)
@@ -161,7 +162,31 @@ def test_v2_shows_what_v1_hid_on_recorded_fights():
             n_calc += int((v2 != 0).sum())
             n_calc_v1 += int((v1 != 0).sum())
     print(f"  selections {n_dec}: source {n_src}, card in play {n_played}, > 16 candidates {n_wide}; calculated numbers shown v2 {n_calc} vs v1 {n_calc_v1}")
-    assert n_dec > 100 and n_src == n_dec and n_played > 0 and n_calc > 10 * max(n_calc_v1, 1)
+    assert n_dec > 100 and n_src == n_dec and n_played > 0 and n_wide > 0
+    assert n_calc_v1 == 0 and n_calc > 200
+
+
+def test_v2_hides_what_a_player_cannot_see_on_recorded_fights():
+    """Every state of the fixture fights (all five characters, recorded selections): resampling the hidden state (pile orders, every RNG stream:
+    `Sim.determinize`) leaves the v2 observation unchanged."""
+    fights, _ = _fixture()
+    n2 = sts2.obs_size(2)
+    ob, ob2 = np.zeros(n2, np.float32), np.zeros(n2, np.float32)
+    mk, mk2 = np.zeros(sts2.ACTIONS, np.uint8), np.zeros(sts2.ACTIONS, np.uint8)
+    checked = 0
+    for i, (sc, seed, ac, _h) in enumerate(fights):
+        s = sts2.Sim(json.dumps(sc), seed)
+        for t in range(len(ac) + 1):
+            s.observe(ob, mk, version=2)
+            d = s.copy()
+            if d.determinize(1000 * i + t):  # (False while a prompt replay is on screen: nothing is resampled)
+                d.observe(ob2, mk2, version=2)
+                assert np.array_equal(ob, ob2) and np.array_equal(mk, mk2), f"fight {i} step {t}: hidden state changed the v2 observation"
+                checked += 1
+            if t < len(ac):
+                s.step(int(ac[t]))
+    print(f"  {checked} states determinized, v2 observation unchanged")
+    assert checked > 10000
 
 
 def test_network_reads_its_checkpoints_version():

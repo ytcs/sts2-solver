@@ -315,8 +315,9 @@ impl Combat {
         }
     }
 
-    /// `playable`: the already computed `can_play` of a hand card (see `observe_ex`), `None` = compute it here.
-    fn write_card(&self, w: &mut W, c: CardIdx, playable: Option<bool>, v2: bool) {
+    /// `playable`: the already computed `can_play` of a hand card (see `observe_ex`), `None` = compute it here. `pre` (v2): the card's
+    /// `card_preview` when the caller already has it.
+    fn write_card(&self, w: &mut W, c: CardIdx, playable: Option<bool>, v2: bool, pre: Option<CardPreview>) {
         let card = &self.cards[c as usize];
         let d = content::card_def(card.id);
         let playable = match playable {
@@ -324,7 +325,7 @@ impl Combat {
             None => (self.stage == Stage::AwaitAction && self.player.phase == Phase::Play && self.card_pile_type(c) == PileType::Hand && self.can_play(c)) as i32,
         };
         if v2 {
-            let p = self.card_preview(c);
+            let p = pre.unwrap_or_else(|| self.card_preview(c));
             let mut kw = self.card_keywords(c);
             if card.flags & cflag::SINGLE_TURN_RETAIN != 0 {
                 kw |= kw::RETAIN;
@@ -517,12 +518,19 @@ impl Combat {
             }
         }
         // ---- hand (ordered) ----
+        // v2: each hand card's preview once (the hand entry and the Osty section both read it)
+        let mut hand_pre = [CardPreview::default(); MAX_HAND];
+        if v2 {
+            for (k, c) in self.player.hand.iter().enumerate().take(MAX_HAND) {
+                hand_pre[k] = self.card_preview(*c);
+            }
+        }
         prof!(1, t1, {
         for k in 0..MAX_HAND {
             match self.player.hand.get(k) {
                 Some(c) => {
                     let pre = hand_playable.map(|m| hand_ok && m >> k & 1 != 0);
-                    self.write_card(&mut w, c, pre, v2)
+                    self.write_card(&mut w, c, pre, v2, if v2 { Some(hand_pre[k]) } else { None })
                 }
                 None => w.zeros(dm.card_f),
             }
@@ -610,7 +618,7 @@ impl Combat {
                     // displayed order (`view`), never the game's pile order
                     match view.get(k).map(|vi| (vi, d.cands[vi as usize])) {
                         Some((vi, c)) => {
-                            self.write_card(&mut w, c, None, v2);
+                            self.write_card(&mut w, c, None, v2, None);
                             w.n(d.selected.contains(vi) as i32);
                         }
                         None => w.zeros(dm.card_f + 1),
@@ -649,7 +657,7 @@ impl Combat {
             if v2 {
                 // every Osty damage number the card shows: `OstyDamageVar` and calculated damage from Osty (Unleash, Squeeze, Protector)
                 match self.player.hand.get(k) {
-                    Some(c) => w.n(self.card_preview(c).osty_damage.unwrap_or(0)),
+                    Some(_) => w.n(hand_pre[k].osty_damage.unwrap_or(0)),
                     None => w.f(0.0),
                 }
                 continue;
@@ -719,9 +727,10 @@ impl Combat {
             }
             match self.play_stack.last().map(|p| p.play.card).filter(|&c| c != NO) {
                 Some(c) => {
-                    self.write_card(&mut w, c, Some(false), true);
+                    let p = self.card_preview(c);
+                    self.write_card(&mut w, c, Some(false), true, Some(p));
                     w.n(self.obs_star_cost(c));
-                    w.n(self.card_preview(c).osty_damage.unwrap_or(0));
+                    w.n(p.osty_damage.unwrap_or(0));
                 }
                 None => w.zeros(PLAYED_F),
             }
