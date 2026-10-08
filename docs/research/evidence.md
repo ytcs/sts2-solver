@@ -147,8 +147,8 @@ Predictor `solver_td08` (8 shuffles unless stated), run model with its base poli
 |---|---|---|---|---|---|
 | `clip`, rollouts to the boss + gates | 0.73 (cards 0.64, rests 0.86) | 0.52 | 0.45 | 0.83 | |
 | `clip`, closed form | 0.59 | 0.60 | 0.36 | 0.85 | |
-| `late`, rollouts to the boss + gates | 0.70 (cards 0.64, rests 0.78) | 0.48 | 0.45 | 0.81 | 4 of 93 (mean -0.009; -0.034 where it changes the choice) |
+| `late`, rollouts to the boss + gates, price's ladder where flat | 0.81 (cards 0.79, rests 0.84) | 0.49 | 0.50 | 0.81 | 4 of 93 (mean -0.008) |
 | `late`, closed form | 0.57 | 0.62 | 0.36 | 0.83 | 9 of 93 (mean -0.013) |
 | (price itself) | | 0.52 | 0.45 | | |
 
-  The rollout surrogate (`late`) changes price's choice on 28 of 93 screens: 8 rests where it smiths instead of resting (the operator rested on 6; the current boss gate moves little with HP while later gates move with the deck), Demon Form over Tear Asunder / Expect a Fight on two screens (the operator played Demon Form on one), Mangle over Tear Asunder (played Mangle). It fails the S5 surrogate gate as written (4 screens significantly worse on P(clear act) while that act is unsaturated).
+  The rollout surrogate (`late`, falling back to the ladder when it does not separate) changes price's choice on 18 of 93 screens: rests where it smiths instead of resting, Demon Form over Tear Asunder (played Tear Asunder), Mangle over Tear Asunder (played Mangle), Cold Snap over Charge Battery (played Cold Snap). It fails the S5 surrogate gate as written: 4 screens significantly worse on P(clear act), 3 of them rests where smithing costs 0.11-0.14 of P(clear act) (the operator rested on 2); likely a relative gain on a contested later gate outweighing the gain in surviving this act (not decomposed per gate). The floor (0.05) decides how far down such gates still count; it was not tuned.

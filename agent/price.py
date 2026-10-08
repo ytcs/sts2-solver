@@ -266,8 +266,8 @@ def separates(res, k, z=2.0):
 
 
 def ladder(res, saturated=ACT_SATURATED):
-    if all("cont" in r for r in res.values()):
-        return "cont", "rollouts to this act's boss, then its boss gate x every later act's elite and boss gates on the deck at arrival (S5 surrogate)"
+    if all("cont" in r for r in res.values()) and separates(res, "cont"):
+        return "cont", "S5 surrogate separates the options: rollouts to this act's boss, then its boss gate x every later act's gates on the deck at arrival"
     if separates(res, "win"):
         return "win", "P(win run) separates the options (> 2 paired se)"
     best = max(r["act"].mean() for r in res.values())
