@@ -14,7 +14,7 @@ def engine_digest(eng):
     out = []
     for c in eng.log:
         cnt = collections.Counter((s[1], ",".join(s[3])) for s in c["scen"])
-        out.append(f"solve attempts={c['attempts']} util={c['util']} n={len(c['scen'])} sha={hashlib.sha1(json.dumps(c['scen']).encode()).hexdigest()[:12]}")
+        out.append(f"solve attempts={c['attempts']} n={len(c['scen'])} sha={hashlib.sha1(json.dumps(c['scen']).encode()).hexdigest()[:12]}")
         out += [f"  {e} [{p}] x{n}" for (e, p), n in sorted(cnt.items())]
     return "\n".join(out) + "\n"
 

@@ -120,7 +120,6 @@ class Curriculum:
         enc = r.choices(encs, w)[0]
         _, _, hp0, energy, orbs = fg.STARTERS[ch]
         max_hp = hp0 + act * r.randint(5, 25) + r.randint(0, 15)
-        ns = argparse.Namespace(focus=None)
         focus = r.choices(["mix", "colorless", "junk", "gen", "turn"], [55, 15, 8, 12, 10])[0]
         deck = self.g.make_deck(r, ch, act, focus, upg_p=[0.15, 0.35, 0.5][act], enchant_p=0.03)
         if easy:

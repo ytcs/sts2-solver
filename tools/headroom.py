@@ -79,7 +79,7 @@ def main():
     ap.add_argument("--threads", type=int, default=None)
     ap.add_argument("--out", default=os.path.join(ROOT, "target", "headroom", "headroom.json"))
     a = ap.parse_args()
-    from fastsearch import LEAF_TURNS, clairvoyant_supported
+    from fastsearch import LEAF_TURNS
     from model import load
 
     raw = json.load(open(a.fights))
@@ -93,8 +93,6 @@ def main():
     ref = next((i for i, x in enumerate(arms) if x["kind"] == "live"), None)
     if ref is None:
         raise SystemExit("--arms needs a live arm (the reference)")
-    if any(x["clairvoyant"] for x in arms) and not clairvoyant_supported():
-        raise SystemExit("the sts2 extension predates the clairvoyant flag: rebuild it (README: maturin develop --release -m crates/sts2py/Cargo.toml)")
     print(f"headroom: {len(fights)} fights from {a.fights} x {a.attempts} attempts, seed {a.seed}, {a.ckpt}; arms: {', '.join(x['label'] for x in arms)}", flush=True)
     print("  (cv / pi arms are DIAGNOSTIC ONLY: they see hidden information)", flush=True)
     net = load(a.ckpt)

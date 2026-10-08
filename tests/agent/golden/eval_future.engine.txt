@@ -1,4 +1,4 @@
-solve attempts=8 util=False n=10 sha=52480c8074ac
+solve attempts=8 n=10 sha=52480c8074ac
   AEONGLASS_BOSS [POWER_POTION] x1
   DECIMILLIPEDE_ELITE [] x1
   ENTOMANCER_ELITE [] x1

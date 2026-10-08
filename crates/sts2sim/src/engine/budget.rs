@@ -21,7 +21,6 @@
 //! the rerun if the real line reaches it.
 
 use crate::state::*;
-use crate::types::*;
 
 impl Combat {
     /// Starts a fresh budget (`step`, a look-ahead turn). `work_limit` is left alone: 0 after a trip, so a tripped combat stays dead.

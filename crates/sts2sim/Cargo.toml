@@ -6,7 +6,7 @@ version.workspace = true
 license.workspace = true
 
 [features]
-# per-section cycle counters of `Combat::observe_ex` (single-threaded diagnostics: `crates/sts2env/examples/obsprof.rs`)
+# per-section cycle counters of `Combat::observe_ex` (envprof / searchprof)
 obs_prof = []
 
 [dependencies]

@@ -48,7 +48,7 @@ fn main() {
     env.observe_all(&mut obs, &mut mask).unwrap();
     let mut acts = vec![0i32; n];
     let mut h = 0xcbf29ce484222325u64;
-    let mut mix = |h: &mut u64, x: u64| *h = (*h ^ x).wrapping_mul(0x100000001b3);
+    let mix = |h: &mut u64, x: u64| *h = (*h ^ x).wrapping_mul(0x100000001b3);
     let (mut t_step, mut eps, mut wins) = (0.0, 0u64, 0u64);
     for _ in 0..steps {
         for i in 0..n {

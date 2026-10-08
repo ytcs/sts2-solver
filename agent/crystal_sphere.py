@@ -204,7 +204,7 @@ def sample_placements(hidden, kinds, K, rng, pf=0.6):
         let = (~hidden) & (kinds == code)
         A = _wall((base_free[None] & ~occ), iw, ih).reshape(K, -1)
         C = _wall((allowed[None] & ~occ), iw, ih).reshape(K, -1)
-        nx, ny = W - iw + 1, W - ih + 1
+        ny = W - ih + 1
         nA, nC = A.sum(1), C.sum(1)
         if let.any():
             F = C & _wany((let[None] & ~occ), iw, ih).reshape(K, -1)
@@ -630,7 +630,6 @@ def _work(args):
     pol = blind_policy(_G["clicks"][name]) if name in _G["clicks"] else make_policy(name, n, cache=_G["cache"])
     out = np.zeros((hi - lo, NI), np.int16)
     passes = np.zeros(hi - lo, np.int8)
-    ess = 0.0
     for i in range(lo, hi):
         g = Game(np.random.default_rng([seed, i]))
         out[i - lo] = play(g, pol, n, np.random.default_rng([seed, i, 1]))

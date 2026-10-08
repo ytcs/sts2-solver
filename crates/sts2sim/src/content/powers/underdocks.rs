@@ -2,7 +2,6 @@
 //!
 //! Per-power private state lives in `Power::aux` (see `aux`/`set_aux`).
 
-use crate::content;
 use crate::dec::Dec;
 use crate::engine::Attack;
 use crate::hooks::*;

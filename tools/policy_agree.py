@@ -79,7 +79,6 @@ def evaluate(a):
         g = np.concatenate(acts)
         on = (opts == g[:, None])
         inopt = on.any(1)
-        qg = np.where(on, np.where(np.isfinite(q), q, np.nan), np.nan)
         reg = np.nanmax(np.where(np.isfinite(q), q, -np.inf), 1) - np.nansum(np.where(on, np.nan_to_num(q), 0.0), 1)
         m = ok & inopt
         print(f"{os.path.basename(ck):26s} agree: significant {np.mean(g[sig] == best[sig]):.3f}  all {np.mean(g[ok] == best[ok]):.3f}  | "

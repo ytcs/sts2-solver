@@ -2,7 +2,7 @@
 """The combat solver: trained network + determinized play-out search, for many fights at once.
 
   Python:   from solver import Solver
-            S = Solver()                                  # models/solver_b128.pt, search 3 options x 8 futures
+            S = Solver()                                  # the policy of models/current.json, search 3 options x 8 futures
             res = S.solve(scenarios, attempts=32)         # list of scenario dicts (deck variants ...) -> one result per scenario
   CLI:      .venv/bin/python rl/solver.py --scenarios variants.json --attempts 32 [--no-search] [--out results.json]
 
@@ -17,42 +17,28 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
-from model import load
+from model import load, net_policy
 from fastsearch import FastSearch
 import heads
-from ppo import net_policy
 
 _M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
-DEFAULT_CKPT = os.path.join(_M, "solver_b128.pt")
-# value heads averaged into the search's evaluation (policy stays b128's): +2.5 points of win rate at no extra cost (docs/solver.md)
-DEFAULT_VALUE_CKPTS = [os.path.join(_M, "solver_c128.pt"), os.path.join(_M, "solver_d128.pt")]
-# a checkpoint adopted through `python -m agent.improve adopt` (after it passed the gate) replaces the defaults
-_CUR = os.path.join(_M, "current.json")
-if os.path.exists(_CUR):
-    _c = json.load(open(_CUR))
-    _abs = lambda p: p if os.path.isabs(p) else os.path.join(_M, p)  # noqa: E731  names relative to models/
-    DEFAULT_CKPT, DEFAULT_VALUE_CKPTS = _abs(_c["policy"]), [_abs(v) for v in _c["values"]]
-# the fight predictor for macro pricing (`rl/predictor.py`): adopted separately from the search's networks (it predicts their play)
-PREDICTOR_CKPT = _abs(_c["predictor"]) if os.path.exists(_CUR) and _c.get("predictor") else DEFAULT_CKPT
+_c = json.load(open(os.path.join(_M, "current.json")))
+DEFAULT_CKPT = os.path.join(_M, _c["policy"])
+PREDICTOR_CKPT = os.path.join(_M, _c["predictor"])
 
 
 class Solver:
-    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, value_ckpts="default", roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None,
-                 threads=None, dist=None):
-        """`ckpt`: a checkpoint path, or several (comma-separated string / list) = an ensemble for both policy and value; `value_ckpts`: extra networks
-        whose value heads are averaged in while the policy stays the first network's. Defaults: 3 options x 8 futures per decision (best cost / quality).
-        `roots`: fights in flight (default 2048 on CUDA, 256 on the CPU); `amp`: bf16 inside CUDA graphs (default on CUDA)."""
+    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None, threads=None):
+        """Defaults: 3 options x 8 futures per decision (best cost / quality). `roots`: fights in flight (default 2048 on CUDA, 256 on the CPU);
+        `amp`: bf16 inside CUDA graphs (default on CUDA)."""
         if threads:
             torch.set_num_threads(threads)
         self.net = load(ckpt, set_version=False)  # the search and the envs take the network's observation version
-        if value_ckpts == "default":
-            value_ckpts = DEFAULT_VALUE_CKPTS if ckpt == DEFAULT_CKPT else None
-        self.value_nets = [load(c, set_version=False) for c in value_ckpts] if value_ckpts else []
         self.max_steps = max_steps
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         # a big pool of fights in flight keeps the network batches large (2048 roots x 24 play-outs); bf16 inside CUDA graphs is free (docs/solver.md)
-        self.fs = FastSearch(self.net, self.value_nets, M, K, conf=conf, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
-                             roll_net=load(roll_ckpt, set_version=False) if roll_ckpt else None, amp=cuda if amp is None else amp, dist=dist)
+        self.fs = FastSearch(self.net, M, K, conf=conf, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
+                             roll_net=load(roll_ckpt, set_version=False) if roll_ckpt else None, amp=cuda if amp is None else amp)
         self.fs.warm()
 
     def _greedy(self, scenarios, attempts, seed):
@@ -77,7 +63,7 @@ class Solver:
     def solve(self, scenarios, attempts=32, search=True, seed=0, verbose=False, groups=None, worth=None):
         """One result dict per scenario (same order). `groups`: one id per scenario; scenarios with the same id get the same seed for every attempt
         (common random numbers: deck variants of one encounter meet the same RNG streams and search seeds, so their difference is not luck).
-        `worth`: per scenario None (linear) or dict(u=[classes], price=[slots]): what the search maximises (`fastsearch.worth_row`); results stay raw outcomes."""
+        `worth`: per scenario None (linear) or dict(u=[classes]): what the search maximises (`fastsearch.worth_row`); results stay raw outcomes."""
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         S = len(scenarios)
@@ -118,7 +104,6 @@ def main():
     ap.add_argument("--attempts", type=int, default=32)
     ap.add_argument("--ckpt", default=DEFAULT_CKPT)
     ap.add_argument("--M", type=int, default=3); ap.add_argument("--K", type=int, default=8)
-    ap.add_argument("--value-extra", nargs="*", default=[], help="extra checkpoints whose value heads are averaged in")
     ap.add_argument("--no-search", action="store_true", help="the network alone (greedy)")
     ap.add_argument("--roots", type=int, default=None); ap.add_argument("--groups", type=int, default=2)
     ap.add_argument("--conf", type=float, default=1.01); ap.add_argument("--roll-ckpt")
@@ -127,8 +112,7 @@ def main():
     scen = json.load(open(a.scenarios))
     if isinstance(scen, dict):
         scen = [scen]
-    S = Solver(a.ckpt, a.M, a.K, value_ckpts=(a.value_extra or None) if a.value_extra or a.ckpt != DEFAULT_CKPT else "default", roots=a.roots, groups=a.groups, conf=a.conf,
-               roll_ckpt=a.roll_ckpt)
+    S = Solver(a.ckpt, a.M, a.K, roots=a.roots, groups=a.groups, conf=a.conf, roll_ckpt=a.roll_ckpt)
     res = S.solve(scen, a.attempts, search=not a.no_search, seed=a.seed, verbose=True)
     for sc, r in zip(scen, res):
         print(f"{sc.get('name', '?'):28s} win {r['win']:.3f} ±{r['win_se']:.3f}  HP lost {100 * (r['hp_lost'] or 0):.0f}%  HP left on win {r['hp_left_on_win']:.0f}")

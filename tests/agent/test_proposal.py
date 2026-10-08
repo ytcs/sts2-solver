@@ -242,9 +242,6 @@ def test_engine_worth_and_potions():
         def __init__(self):
             self.seen = []
 
-        def set_util(self, u):
-            pass
-
         def decide(self, scenario, sim, seed, worth=None):
             self.seen.append((sim.dropped, worth))
             return dict(searched=True, opts=[0, 5, 6, 7, 9], q=[0.1, 0.9, 0.8, 0.95, 0.2], legal=[True] * 5, p=[0.2] * 5, action=5)

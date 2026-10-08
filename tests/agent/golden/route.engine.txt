@@ -1,4 +1,4 @@
-solve attempts=8 util=False n=7 sha=58435a7f618c
+solve attempts=8 n=7 sha=58435a7f618c
   BOWLBUGS_NORMAL [] x1
   CHOMPERS_NORMAL [] x1
   EXOSKELETONS_NORMAL [] x1
@@ -6,9 +6,9 @@ solve attempts=8 util=False n=7 sha=58435a7f618c
   SLUMBERING_BEETLE_NORMAL [] x1
   SPINY_TOAD_NORMAL [] x1
   THE_OBSCURA_NORMAL [] x1
-solve attempts=8 util=False n=3 sha=a115c30dc9db
+solve attempts=8 n=3 sha=a115c30dc9db
   DECIMILLIPEDE_ELITE [] x1
   ENTOMANCER_ELITE [] x1
   INFESTED_PRISMS_ELITE [] x1
-solve attempts=8 util=False n=1 sha=03f431705836
+solve attempts=8 n=1 sha=03f431705836
   KNOWLEDGE_DEMON_BOSS [POWER_POTION] x1

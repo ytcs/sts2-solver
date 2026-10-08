@@ -125,7 +125,6 @@ def _rarity(rng, odds, offset):
 
 def simulate(gains, cls, col, screens, elites, shops, offset, slots, rho, taus, trials=4000, seed=1):
     """Expected total value of a threshold policy for each tau in `taus` (+ the greedy policy 'take any positive gain' = tau just above 0)."""
-    rng = np.random.default_rng(seed)
     import random
     r = random.Random(seed)
     by_r = {k: [c for c in cls if cls[c][0] == k and c in gains] for k in ("common", "uncommon", "rare")}

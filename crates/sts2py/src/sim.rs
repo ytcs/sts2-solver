@@ -5,7 +5,7 @@
 //! bridge reported. Hidden information (draw / discard / exhaust order, every RNG stream) is the simulator's own random sample; nothing of it is
 //! taken from the real game.
 
-use numpy::{PyReadwriteArray1, PyArrayMethods};
+use numpy::PyReadwriteArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::{json, Value};

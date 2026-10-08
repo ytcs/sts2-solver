@@ -1,16 +1,16 @@
-solve attempts=16 util=False n=4 sha=1ebeb78528b2
+solve attempts=16 n=4 sha=1ebeb78528b2
   KNOWLEDGE_DEMON_BOSS [POWER_POTION] x4
-solve attempts=16 util=False n=4 sha=e57a11d0a85c
+solve attempts=16 n=4 sha=e57a11d0a85c
   KNOWLEDGE_DEMON_BOSS [POWER_POTION] x4
-solve attempts=16 util=False n=4 sha=d470c879aaac
+solve attempts=16 n=4 sha=d470c879aaac
   KNOWLEDGE_DEMON_BOSS [POWER_POTION] x4
-solve attempts=16 util=False n=4 sha=5e82d343da81
+solve attempts=16 n=4 sha=5e82d343da81
   KNOWLEDGE_DEMON_BOSS [POWER_POTION] x4
-solve attempts=48 util=False n=12 sha=1eb36db00ae4
+solve attempts=48 n=12 sha=1eb36db00ae4
   DECIMILLIPEDE_ELITE [] x4
   ENTOMANCER_ELITE [] x4
   INFESTED_PRISMS_ELITE [] x4
-solve attempts=48 util=False n=24 sha=fa901d42b3e7
+solve attempts=48 n=24 sha=fa901d42b3e7
   AEONGLASS_BOSS [POWER_POTION] x4
   KNIGHTS_ELITE [] x4
   MECHA_KNIGHT_ELITE [] x4

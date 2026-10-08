@@ -175,8 +175,8 @@ class FakeEngine:
                 sorted((c["id"], c.get("upgrade", 0), json.dumps(c.get("enchantment"), sort_keys=True)) for c in sc.get("deck", [])),
                 sorted(r["id"] for r in sc.get("relics", [])), [p["id"] for p in sc.get("potions", [])])
 
-    def solve(self, scenarios, attempts=64, seed=None, util=None, groups=None, worth=None):
-        self.log.append(dict(attempts=attempts, util=util is not None, **({"worth": worth.get("kind", "table")} if worth is not None else {}), scen=[[sc.get("name"), sc.get("encounter"), sc.get("hp"), [p["id"] for p in sc.get("potions", [])]] for sc in scenarios]))
+    def solve(self, scenarios, attempts=64, seed=None, groups=None, worth=None):
+        self.log.append(dict(attempts=attempts, **({"worth": worth.get("kind", "table")} if worth is not None else {}), scen=[[sc.get("name"), sc.get("encounter"), sc.get("hp"), [p["id"] for p in sc.get("potions", [])]] for sc in scenarios]))
         out = []
         for sc in scenarios:
             rng = random.Random(_h(self._key(sc), attempts))
@@ -222,7 +222,7 @@ class FakeEngine:
             out.append(row)
         return out
 
-    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, util=None, worth=None):
+    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, worth=None):
         self.decide_calls.append(dict(budget=budget, tol_hp=tol_hp, keep_potions=keep_potions, worth=(worth or {}).get("kind", "linear")))
         if self._decide is not None:
             return self._decide(scenario, sim, budget, keep_potions)

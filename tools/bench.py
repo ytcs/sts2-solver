@@ -117,7 +117,7 @@ def build(a):
     from solver import Solver
     rng = random.Random(7)
     os.makedirs(OUT, exist_ok=True)
-    S = Solver(LABEL_CKPT, M=5, K=32, value_ckpts=[])
+    S = Solver(LABEL_CKPT, M=5, K=32)
     sets = scenarios(rng)
     for name, scen in sets.items():
         path = os.path.join(OUT, name + ".json")
@@ -135,7 +135,7 @@ def build(a):
         groups = [i // 2 for i in range(len(flat))]  # base and variant share the RNG streams and search seeds of every attempt
         t0 = time.time()
         # card effects are a few points against fight-to-fight variance: the reference needs many paired attempts at a cheaper width (E3)
-        res = Solver(LABEL_CKPT, M=3, K=8, value_ckpts=[]).solve(flat, attempts=PAIR_ATTEMPTS, seed=13, groups=groups)
+        res = Solver(LABEL_CKPT, M=3, K=8).solve(flat, attempts=PAIR_ATTEMPTS, seed=13, groups=groups)
         rows = []
         for i, (b, v, kind) in enumerate(tri):
             rb, rv = res[2 * i], res[2 * i + 1]
@@ -281,7 +281,7 @@ def screen(cks, per_env=4, seed=5):
 def play(ck, roots=None):
     """A network as the search's policy and evaluator at live width on the frozen sets, on the labels' seeds: win and end HP paired with the labels."""
     from solver import Solver
-    S = Solver(ck, M=5, K=32, value_ckpts=[], roots=roots)
+    S = Solver(ck, M=5, K=32, roots=roots)
     print(f"\n== play {os.path.basename(ck)} (search 5x32 vs the labels' h128 5x32, same seeds)")
     for name in SETS:
         path = os.path.join(OUT, name + ".json")

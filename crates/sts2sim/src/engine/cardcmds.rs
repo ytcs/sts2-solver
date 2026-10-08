@@ -6,7 +6,6 @@ use crate::dec::Dec;
 use crate::defs::*;
 use crate::state::*;
 use crate::types::*;
-use crate::util::ArrayVec;
 
 impl Combat {
     /// `ValueProp` flags of the card's first dynamic var of `kind` (`DamageVar.Props` / `BlockVar.Props`).

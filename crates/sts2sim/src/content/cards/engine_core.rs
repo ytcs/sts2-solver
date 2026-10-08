@@ -7,7 +7,6 @@ use crate::hooks::*;
 use crate::ids;
 use crate::listener;
 use crate::state::*;
-use crate::types::*;
 
 // Whistle: damage, then `CreatureCmd.Stun(target)` (the STUNNED interrupt of spec 04 §1.8).
 listener!(Whistle {

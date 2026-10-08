@@ -2,8 +2,7 @@
 """Search-quality benchmark: which search setting picks the best action, judged by a Monte Carlo referee instead of another search.
 
   STS2_DEVICE=cuda python tools/bench_search.py [--states 150] [--out evals/bench_search.jsonl] [--configs live,w3,wide3,leaf2,leafend] [--strong 20]
-  STS2_DEVICE=cuda python tools/bench_search.py --from-scenarios data/bench/tail.json --states 150 --max-cands 16 \
-      --configs greedy,topm5x32,gumbel16x160,gumbel16x160_s03,gumbel16x160_s1,gumbel8x160,topm5x32x4,gumbel16x640 --out evals/bench_search_gumbel_tail.jsonl
+  STS2_DEVICE=cuda python tools/bench_search.py --from-scenarios data/bench/tail.json --states 150 --max-cands 16 --configs greedy,topm5x32,topm5x32x4
 
 States, two sources:
 * default: decisions of recorded fights (`runs/*/fights/*.json`) replayed in the simulator (`agent.fight.Replayer`); only states whose replay is clean
@@ -22,13 +21,10 @@ separated; actions clearly behind are dropped. Value of an action = mean of (+1 
 scale. `--strong N` re-referees N states with a stronger continuation (5 x 32) to check the ranking does not depend on the referee.
 
 Configurations (each picks one action per state): greedy (the policy's top option), live (5x32, 1 s, early stop at 0.6 HP), w3 (5x32, 3 s, no early
-stop), wide3 (8x512, 3 s), leaf2 (5x32, 3 s, play-outs 2 turns before the value net), leafend (5x32, 3 s, play-outs to the fight's end); equal-budget
-root comparisons at depth 2 (`docs/solver.md`, "Root modes"): topm5x32 (one round of the policy's 5 likeliest actions x 32 futures = 160 futures) against
-gumbel16x160 / gumbel8x160 (16 or 8 candidates sampled without replacement over every legal action, 160 futures by sequential halving), and topm5x32x4
-(4 rounds, 640 futures) against gumbel16x640. The sigma scale decides how much the estimates outweigh the prior in Gumbel's halving and final pick
-(c_scale 0.1: about 3.5 nats per unit of return at the end of 16x160, the prior often wins): gumbel16x160_s03 / _s1 use c_scale 0.3 / 1.0.
-Report per configuration: regret = referee value of the best action - referee value of the chosen action (also in win rate and HP); the paired regret
-difference of each top-M / Gumbel pair at equal budget (fight-clustered bootstrap); time and network rows per decision; and the rank of the referee's best
+stop), wide3 (8x512, 3 s), leaf2 (5x32, 3 s, play-outs 2 turns before the value net), leafend (5x32, 3 s, play-outs to the fight's end); fixed
+budgets at depth 2: topm5x32 (one round of the policy's 5 likeliest actions x 32 futures), topm5x32x4 (4 rounds).
+Report per configuration: regret = referee value of the best action - referee value of the chosen action (also in win rate and HP); time and network
+rows per decision; and the rank of the referee's best
 action in the policy's prior (probabilities of duplicate actions summed): share at rank 1, in the top 5 (what topm5x32 can reach), the top 8, beyond.
 """
 import argparse, glob, json, os, random, sys, time
@@ -239,31 +235,16 @@ CONFIGS = {
     "mixed_3s": dict(M=5, K=32, budget=3.0, tol=0.0, leaf=2, cap=120, boss_leaf=10_000, boss_cap=400),
     "mixed_1s": dict(M=5, K=32, budget=1.0, tol=0.0, leaf=2, cap=120, boss_leaf=10_000, boss_cap=400),
     "leaf2_wide1s": dict(M=8, K=128, budget=1.0, tol=0.0, leaf=2, cap=120),
-    # root modes at equal budget (futures per decision), depth 2: the policy's top 5 x 32 futures vs Gumbel candidates over every legal action
     "topm5x32": dict(M=5, K=32, budget=0.0, tol=0.0, rounds=1, **DEPTH2),
-    "gumbel16x160": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=160, **DEPTH2),
-    "gumbel8x160": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=8, gn=160, **DEPTH2),
     "topm5x32x4": dict(M=5, K=32, budget=0.0, tol=0.0, rounds=4, **DEPTH2),
-    "gumbel16x640": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=640, **DEPTH2),
-    # the sigma scale (c_scale; default 0.1): how much the estimates weigh against g + logits
-    "gumbel16x160_s03": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=160, c_scale=0.3, **DEPTH2),
-    "gumbel16x160_s1": dict(M=5, K=32, budget=0.0, tol=0.0, root="gumbel", gm=16, gn=160, c_scale=1.0, **DEPTH2),
 }
-# equal-budget pairs the report compares state by state (top-M, Gumbel)
-PAIRS = [("topm5x32", "gumbel16x160"), ("topm5x32", "gumbel16x160_s03"), ("topm5x32", "gumbel16x160_s1"), ("topm5x32", "gumbel8x160"),
-         ("topm5x32x4", "gumbel16x640")]
 
 
 def choose(eng, st, cfg):
     """The configuration's pick for the state: (text, seconds, (policy rows, value rows))."""
     boss = st["kind"] == "boss" and "boss_leaf" in cfg
     eng.fs.leaf_turns, eng.fs.roll_cap = (cfg["boss_leaf"], cfg["boss_cap"]) if boss else (cfg["leaf"], cfg["cap"])
-    eng.fs.root, eng.fs.gumbel_m, eng.fs.gumbel_n = cfg.get("root", "topm"), cfg.get("gm", 16), cfg.get("gn", 160)
-    eng.fs.c_visit, eng.fs.c_scale = cfg.get("c_visit", 50.0), cfg.get("c_scale", 0.1)
-    try:
-        d = eng.decide(st["scenario"], st["sim"], budget=cfg["budget"], tol_hp=cfg["tol"], rounds=cfg.get("rounds"))
-    finally:
-        eng.fs.root = "topm"
+    d = eng.decide(st["scenario"], st["sim"], budget=cfg["budget"], tol_hp=cfg["tol"], rounds=cfg.get("rounds"))
     if cfg.get("greedy"):
         opts = [o for o in d["options"]]
         top = max(opts, key=lambda o: o["p"]) if opts else None
@@ -295,7 +276,7 @@ def prior_of(net, st):
 def make_engines(names):
     from agent.engine import Engine
     engines = {}
-    for n in names:  # one engine per (M, K): the networks are loaded once per shape; the root mode is switched per configuration
+    for n in names:  # one engine per (M, K): the networks are loaded once per shape
         c = CONFIGS[n]
         if (c["M"], c["K"]) not in engines:
             engines[(c["M"], c["K"])] = Engine(M=c["M"], K=c["K"])
@@ -425,7 +406,7 @@ def report(path, names):
     subsets = {"all": recs, "contested": [r for r in recs if contested(r)], "boss": [r for r in recs if r["kind"] == "boss"],
                "elite": [r for r in recs if r["kind"] == "elite"], "hallway": [r for r in recs if r["kind"] == "hallway"],
                "potion states": [r for r in recs if r["potion"]]}
-    print(f"\nregret vs the Monte Carlo referee (value = +1 + 0.5 HP fraction / -1; 0.1 ~ 5% win or ~16 HP at 80 max HP); n states per subset")
+    print("\nregret vs the Monte Carlo referee (value = +1 + 0.5 HP fraction / -1; 0.1 ~ 5% win or ~16 HP at 80 max HP); n states per subset")
     print(f"{'config':12s} " + " ".join(f"{k:>22s}" for k in subsets))
     for n in names:
         cells = []
@@ -446,24 +427,6 @@ def report(path, names):
             if s:
                 rw = np.array(rw, float).reshape(-1, 2) if rw else np.zeros((1, 2))
                 print(f"  {n:12s} {np.mean(s):6.2f} s  {rw[:, 0].mean():9.0f}  {rw[:, 1].mean():9.0f}")
-    # top-M vs Gumbel at equal budget, state by state (bootstrap over fights: decisions of one fight are correlated)
-    pairs = [(x, y) for x, y in PAIRS if x in names and y in names and any(x in r["picks"] and y in r["picks"] for r in recs)]
-    if pairs:
-        print("\nregret difference at equal budget (top-M - Gumbel; > 0: Gumbel better), 95% CI over fights")
-        for x, y in pairs:
-            d = [(r["file"], regret(r, x) - regret(r, y)) for r in recs if regret(r, x) is not None and regret(r, y) is not None]
-            if not d:
-                continue
-            files = sorted({f for f, _ in d})
-            by = {f: [v for g, v in d if g == f] for f in files}
-            boot = []
-            for _ in range(2000):
-                fs = rng.choice(len(files), len(files))
-                vals = [v for i in fs for v in by[files[i]]]
-                boot.append(np.mean(vals))
-            lo, hi = np.percentile(boot, [2.5, 97.5])
-            same = np.mean([r["picks"][x] == r["picks"][y] for r in recs if x in r["picks"] and y in r["picks"]])
-            print(f"  {x} - {y}: {np.mean([v for _, v in d]):+.4f} [{lo:+.4f}, {hi:+.4f}]  (n {len(d)} states, {len(files)} fights; same pick {same:.0%})")
     # can the policy's top options reach the referee's best action at all?
     rk = [(r, prior_rank(r)) for r in recs]
     rk = [(r, x) for r, x in rk if x is not None]

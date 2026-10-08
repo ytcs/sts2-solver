@@ -481,10 +481,6 @@ const LOOK_JOINT: &[u16] = &[crate::ids::monster::TWO_TAILED_RAT];
 /// Run seed of the projected combat's RNG streams.
 const LOOK_SEED: u64 = 0x10_0CA4_EAD;
 
-/// Use the look-ahead from before S1 (each monster's machine walked alone over 3 turns, conditions reading the current combat).
-/// Off by default; kept to reproduce observations of networks trained before (A/B tests, the compatibility check of `rl/model.py`).
-pub static LOOK_LEGACY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
 /// Per-horizon knowledge: probability of each move node being the monster's move, and the expected total attack damage
 /// (per-hit damage as the intent would show it in the projected combat x hits, probability-weighted).
 #[derive(Clone, Copy)]
@@ -888,8 +884,7 @@ impl Combat {
             | (self.player.turn_number as u32 as u64) << 24
             | (self.side as u64) << 40
             | (self.stage as u64) << 44
-            | (self.enemy_cont.is_some() as u64) << 50
-            | (LOOK_LEGACY.load(std::sync::atomic::Ordering::Relaxed) as u64) << 51;
+            | (self.enemy_cont.is_some() as u64) << 50;
         h = (h ^ v).wrapping_mul(0x100000001b3).rotate_left(23);
         h
     }
@@ -911,8 +906,7 @@ impl Combat {
 
     fn lookahead_with(&self, c: Cid, cached: bool, d: &mut LookDigests) -> [LookRow; LOOK_H] {
         let cr = self.cr(c);
-        let legacy = LOOK_LEGACY.load(std::sync::atomic::Ordering::Relaxed);
-        if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player || (self.stage == Stage::Over && !legacy) {
+        if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player || self.stage == Stage::Over {
             return [EMPTY_ROW; LOOK_H];
         }
         // Two keys: the exact one, and (not for the legacy look-ahead, which reads the live combat) the relaxed one of a projection that read no
@@ -920,7 +914,7 @@ impl Combat {
         // read, so its rows hold for all of them: in a 5x32 search 60% of the states the exact key misses differ from a cached one only there.
         #[cfg(feature = "obs_prof")]
         let t0 = unsafe { core::arch::x86_64::_rdtsc() };
-        let rkey = if cached && !legacy { self.look_key_of(c, d.relaxed(self)) } else { 0 };
+        let rkey = if cached { self.look_key_of(c, d.relaxed(self)) } else { 0 };
         #[cfg(feature = "obs_prof")]
         unsafe { crate::observe::OBS_PROF[10] += core::arch::x86_64::_rdtsc() - t0; }
         #[cfg(feature = "obs_prof")]
@@ -929,13 +923,11 @@ impl Combat {
             let mut t = t.borrow_mut();
             #[cfg(feature = "obs_prof")]
             unsafe { crate::observe::OBS_PROF[12] += 1; }
-            if !legacy {
-                if let Some(r) = t.get(rkey) {
-                    if LOOK_VERIFY.load(std::sync::atomic::Ordering::Relaxed) {
-                        look_verify(self, c, &r);
-                    }
-                    return r;
+            if let Some(r) = t.get(rkey) {
+                if LOOK_VERIFY.load(std::sync::atomic::Ordering::Relaxed) {
+                    look_verify(self, c, &r);
                 }
+                return r;
             }
             let key = self.look_key_of(c, d.key(self));
             if let Some(r) = t.get(key) {
@@ -950,7 +942,7 @@ impl Combat {
             let r = self.look_rows(c, true, d);
             let dep = LOOK_DEP.with(|d| d.replace(outer || d.get()));
             t.put(key, r);
-            if !dep && !legacy {
+            if !dep {
                 t.put(rkey, r);
             }
             r
@@ -986,9 +978,6 @@ impl Combat {
     /// one projection in which nobody branches (the "mode" projection) serves all of them; a monster with a choice gets its own.
     /// `cached`: the mode projection of this combat is memoized (`LOOK_MODE`).
     fn look_rows(&self, c: Cid, cached: bool, d: &mut LookDigests) -> [LookRow; LOOK_H] {
-        if LOOK_LEGACY.load(std::sync::atomic::Ordering::Relaxed) {
-            return self.legacy_rows(c);
-        }
         let key = if cached { self.look_key_of(NO, d.key(self)) } else { 0 };
         let memo = if cached { LOOK_MODE.with(|m| m.borrow().filter(|m| m.0 == key)) } else { None };
         if let Some((_, rows, random, dep)) = memo {
@@ -1346,87 +1335,6 @@ thread_local! {
     /// The projection running on this thread read an enemy's starting HP or block (`Creature::pristine`).
     static LOOK_DEP: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
-
-// ---- the look-ahead from before S1 (`LOOK_LEGACY`) ------------------------------------------------------------------------------
-
-const LEGACY_H: usize = 3;
-type LegacyPaths = Outcomes;
-
-fn same_machine_state(a: &MonsterState, b: &MonsterState) -> bool {
-    a.cur_state == b.cur_state
-        && a.log == b.log
-        && a.log_len == b.log_len
-        && a.ever_logged == b.ever_logged
-        && a.performed_once == b.performed_once
-        && a.stun_performed == b.stun_performed
-        && a.stun_follow_up == b.stun_follow_up
-}
-
-impl Combat {
-    /// One turn forward on the monster's machine alone: the pending move is performed, then the next player turn rolls.
-    fn legacy_roll(&self, c: Cid, ms: &MonsterState, p: f32, out: &mut LegacyPaths) {
-        let mut ms = *ms;
-        ms.performed_first = true;
-        let cur = ms.cur_state;
-        let def = content::monster_def(ms.id);
-        let nxt = if cur == STUN_NODE {
-            ms.stun_performed = true;
-            if ms.stun_follow_up == NO { def.initial } else { ms.stun_follow_up }
-        } else {
-            ms.performed_once |= 1u64 << cur;
-            match &def.nodes[cur as usize] {
-                MonsterNode::Move { follow_up, .. } => {
-                    if *follow_up == NO {
-                        def.initial
-                    } else if *follow_up == crate::defs::FOLLOW_STORED {
-                        ms.stun_follow_up
-                    } else {
-                        *follow_up
-                    }
-                }
-                _ => return,
-            }
-        };
-        self.look_enter(c, ms, cur, nxt, NO, p, out);
-    }
-
-    /// Rows of the legacy look-ahead: the machine walked on a copy of the monster state, conditions and weights reading the
-    /// current combat, damage with the current modifiers; turns past the third are empty.
-    fn legacy_rows(&self, c: Cid) -> [LookRow; LOOK_H] {
-        let mut rows = [EMPTY_ROW; LOOK_H];
-        let mut cur: LegacyPaths = crate::util::ArrayVec::new();
-        cur.push((self.cr(c).monster, 1.0));
-        let mut node_dmg = [-1f32; 256];
-        for row in rows.iter_mut().take(LEGACY_H) {
-            let mut next: LegacyPaths = crate::util::ArrayVec::new();
-            for (ms, p) in cur.iter() {
-                self.legacy_roll(c, ms, *p, &mut next);
-            }
-            let mut merged: LegacyPaths = crate::util::ArrayVec::new();
-            for (ms, p) in next.iter() {
-                if let Some(e) = merged.as_mut_slice().iter_mut().find(|(m, _)| same_machine_state(m, ms)) {
-                    e.1 += *p;
-                } else {
-                    merged.push((*ms, *p));
-                }
-            }
-            for (ms, p) in merged.iter() {
-                let node = ms.cur_state;
-                row.prob[look_slot(node)] += p;
-                if node_dmg[node as usize] < 0.0 {
-                    node_dmg[node as usize] = self.node_attack_damage(c, node);
-                }
-                row.exp_damage += p * node_dmg[node as usize];
-            }
-            cur = merged;
-            if cur.is_empty() {
-                break;
-            }
-        }
-        rows
-    }
-}
-
 
 // ---- provable bounds on enemy damage (used by `bounds`) -----------------------------------------------------------------------
 impl Combat {

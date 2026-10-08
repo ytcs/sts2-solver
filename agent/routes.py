@@ -324,7 +324,6 @@ class Calc:
             path.append(key)
             t = self.nodes[key]["type"]
             fk = self.kind_of(key, w)
-            w_in = w
             if t == "M":
                 w = min(w + 1, self.weak_fights)
             if t == "E":
@@ -404,55 +403,6 @@ def _fmt_plan(calc, plan):
     if left:
         parts.append(f"{', '.join(left)} at the boss")
     return "; ".join(parts) or "no potion thrown"
-
-
-def continuation_values(engine, deck_json, map_text, ctx, act, attempts=24, pf=0.15, spend=((),)):
-    """V(hp) over integer HP 0..max = P(win the act boss | leave the current map node with hp), best child, at least 0 more elites, once per entry of
-    `spend` (potion ids already spent: those leave the route DP's budget, the rest are thrown where they help most); P(reach the boss alive) when the boss is
-    out of reach for the deck. Returns ([V per entry], goal) or (None, why)."""
-    nodes, boss_row = parse_map(map_text)
-    vis = [k for k, v in nodes.items() if v["visited"]]
-    if not nodes or boss_row is None or not vis:
-        return None, "no map position"
-    cur = max(vis)
-    tabs = build_tables(engine, deck_json, act, ctx, attempts)
-    if ("boss", NONE) not in tabs:
-        return None, "boss unknown"
-    maxhp = deck_json["max_hp"]
-    not_monster = set(pools.pool(act, "elite")) | set(pools.pool(act, "boss"))
-    w0 = min(sum(1 for e in ctx.get("seen", []) if e not in not_monster), pools.ACTS[act]["weak_fights"])
-    belt = [p["id"] if isinstance(p, dict) else p for p in tabs.get("_belt", [])]
-
-    def unspent(ids):
-        S, left = set(range(len(belt))), list(ids)
-        for i, pid in enumerate(belt):
-            if pid in left:
-                S.discard(i)
-                left.remove(pid)
-        return frozenset(S)
-    goal, Vs = "win", None
-    for goal in ("win", "reach"):
-        calc = Calc(nodes, boss_row, tabs, maxhp, pools.ACTS[act]["weak_fights"], pf, goal=goal)
-        kids = calc.kids(cur)
-        Vs = [np.max([calc.F(c, w0, 0, unspent(ids)) for c in kids], axis=0) if kids else np.zeros(maxhp + 1) for ids in spend]
-        if Vs[0][maxhp] >= 0.05:
-            break
-    return Vs, goal
-
-
-def continuation_util(engine, deck_json, map_text, ctx, act, attempts=24, pf=0.15):
-    """What each ending of the fight at the current map node is worth for the rest of the act: the HP-worth curve (`rl/utility.py`, 101 floats over the HP
-    fraction) of V(hp) from `continuation_values`. Returns (curve or None, one-line description)."""
-    import utility  # rl/ (on the path through agent.engine)
-    Vs, goal = continuation_values(engine, deck_json, map_text, ctx, act, attempts, pf)
-    if Vs is None:
-        return None, goal
-    V = Vs[0]
-    if V.max() <= 1e-6:
-        return None, "no continuation value"
-    u = utility.from_values(V)
-    pts = " ".join(f"{p}%:{u[p]:.2f}" for p in (10, 25, 50, 75, 100))
-    return u, f"HP worth = P({goal} the act boss) from the next node, relative to full HP: {pts}"
 
 
 def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, tabs=None, weights=None):

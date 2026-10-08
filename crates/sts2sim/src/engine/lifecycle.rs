@@ -25,7 +25,7 @@ impl Combat {
     }
 
     /// Same with an explicit `creator != null` (`false` for the `null`-creator calls of enemy powers / moves).
-    pub fn add_status_cards_as(&mut self, card_id: u16, pile: PileType, count: i32, pos: CardPilePosition, by_player: bool) {
+    pub fn add_status_cards_as(&mut self, card_id: u16, pile: PileType, count: i32, pos: CardPilePosition, _by_player: bool) {
         if self.cr(PLAYER).is_dead() {
             return;
         }

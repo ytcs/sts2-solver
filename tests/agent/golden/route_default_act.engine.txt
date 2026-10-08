@@ -1,8 +1,8 @@
-solve attempts=8 util=False n=3 sha=ea83467c6940
+solve attempts=8 n=3 sha=ea83467c6940
   FUZZY_WURM_CRAWLER_WEAK [] x1
   SHRINKER_BEETLE_WEAK [] x1
   SLIMES_WEAK [] x1
-solve attempts=8 util=False n=12 sha=0415af673cc0
+solve attempts=8 n=12 sha=0415af673cc0
   CUBEX_CONSTRUCT_NORMAL [] x1
   FLYCONID_NORMAL [] x1
   FOGMOG_NORMAL [] x1

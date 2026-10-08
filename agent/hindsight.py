@@ -15,7 +15,6 @@ import os
 import sys
 
 import numpy as np
-import sts2
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from agent.fight import Replayer  # noqa: E402

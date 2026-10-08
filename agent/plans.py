@@ -67,9 +67,9 @@ def scenario(plan, threat, act, hp, version="full"):
 def measure(plan, attempts=96, engine=None):
     """Plays every version of the plan against each threat (search, common random numbers) and appends the measurement."""
     sys.path.insert(0, os.path.join(ROOT, "rl"))
-    from solver import DEFAULT_CKPT, DEFAULT_VALUE_CKPTS, Solver
+    from solver import DEFAULT_CKPT, Solver
     if engine is None:
-        engine = Solver(DEFAULT_CKPT, M=5, K=32, value_ckpts=DEFAULT_VALUE_CKPTS)
+        engine = Solver(DEFAULT_CKPT, M=5, K=32)
     _check_single_player(plan)
     versions = ["full", "core"] + [f"-{c}" for c in plan["core"]]
     rows = []
@@ -79,7 +79,7 @@ def measure(plan, attempts=96, engine=None):
         res = engine.solve(scen, attempts=attempts, groups=[0] * len(scen))
         rows.append(dict(threat=t["id"], act=act, hp=hp, wins={v: round(r["win"], 3) for v, r in zip(versions, res)},
                          se={v: round(r["win_se"], 3) for v, r in zip(versions, res)}))
-    tested = dict(network=os.path.basename(DEFAULT_CKPT), values=[os.path.basename(v) for v in DEFAULT_VALUE_CKPTS], search="5x32", potions="none",
+    tested = dict(network=os.path.basename(DEFAULT_CKPT), search="5x32", potions="none",
                   decks={v: deck(plan, v) for v in versions}, relics=[STARTERS[plan["character"]][1]] + plan.get("relics", []))
     plan.setdefault("measurements", []).append(dict(date=datetime.date.today().isoformat(), attempts=attempts, tested=tested, rows=rows))
     plan["status"] = "measured" if plan.get("status") in (None, "proposed", "measured") else plan["status"]

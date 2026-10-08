@@ -1,4 +1,4 @@
-solve attempts=8 util=False n=3 sha=000c30c79e96
+solve attempts=8 n=3 sha=000c30c79e96
   DECIMILLIPEDE_ELITE [] x1
   ENTOMANCER_ELITE [] x1
   INFESTED_PRISMS_ELITE [] x1

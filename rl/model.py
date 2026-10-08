@@ -164,7 +164,6 @@ class Net(nn.Module):
         self.heads = heads
         # `pot`: the potion-use head, P(the potion in belt slot k is used before the fight ends) per slot (`docs/rl_redesign.md` 3.1)
         self.pot = pot
-        P = C["OBS_POWERS"]
         self.rounds = rounds
         self.pp = PowerPool(C["N_POWERS"], e, v2)
         self.card = CardEnc(d, e, v2)
@@ -338,16 +337,11 @@ class Net(nn.Module):
         return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
                     cand_p=cand_p, cid=cid, rows=rows, cand_sel=cands[..., C["CARD_F"]] > 0.5)
 
-    def trunk(self, obs, ufeat=None, **shape):
-        """The pooled context the value head reads (`gctx` [B, 2d]): encoders + message passing. Heads trained on a frozen network
-        (`rl/dist.py`, the end-HP distribution) use it."""
-        return self.forward(obs, None, policy=False, value=False, _gctx=True, ufeat=ufeat, **shape)
-
-    def heads_out(self, obs, ufeat=None, **shape):
+    def heads_out(self, obs, **shape):
         """(outcome logits [B, NC] fp32, potion-use logits [B, MAX_POTIONS] fp32 or None) without the policy: the search's value rows."""
-        return self.forward(obs, None, policy=False, value=False, _heads=True, ufeat=ufeat, **shape)
+        return self.forward(obs, None, policy=False, value=False, _heads=True, **shape)
 
-    def forward(self, obs, mask, policy=True, value=True, _gctx=False, ufeat=None, outcome=False, potuse=False, _heads=False, **shape):
+    def forward(self, obs, mask, policy=True, value=True, outcome=False, potuse=False, _heads=False, **shape):
         """Returns (masked logits [B, ACTION_SPACE], value [B]); `policy=False` / `value=False` skips that head (None) and its cost.
         `outcome` (a `heads` network): returns (logits, value, outcome logits [B, NC]) from one pass; with `potuse` also the potion-use logits [B, MAX_POTIONS]
         (a `pot` network) as a fourth element. `shape`: E / L / has_dec of `encode`."""
@@ -363,8 +357,7 @@ class Net(nn.Module):
         T = C["MAX_CREATURES"]
         z = self.encode(obs, **shape)
         player, enemy, hand, pot, cand = z["player"], z["enemy"], z["hand"], z["potion"], z["cand"]
-        uf = self.lin_feats.to(player.dtype).expand(B, 8) if ufeat is None else ufeat.to(player.dtype)
-        player = player + self.ucond(uf)
+        player = player + self.ucond(self.lin_feats.to(player.dtype).expand(B, 8))
         ep, hp_, pot_p, cand_p = z["ep"].unsqueeze(-1), z["hp"].unsqueeze(-1), z["pot_p"].unsqueeze(-1), z["cand_p"].unsqueeze(-1)
         rows = z["rows"]
         E = enemy.shape[1]
@@ -382,8 +375,6 @@ class Net(nn.Module):
             if len(rows):
                 cand = cand + u["cand"](cand, ctx[rows])
         gctx = torch.cat([player, ctx], 1)
-        if _gctx:
-            return gctx
         if _heads:
             return self.outcome_logits(gctx), (self.pot_logits(pot, gctx) if self.pot else None)
         if not policy:
@@ -440,26 +431,6 @@ class Net(nn.Module):
         return H.value(self.outcome_logits(gctx), sl(obs, "player", self.SEC)[:, 1])  # raw max HP of the observation
 
 
-class Ensemble(nn.Module):
-    """Several networks seen as one: the policy is the geometric mean of the members' policies (mean of log-probabilities), the value the mean of their values."""
-
-    def __init__(self, nets):
-        super().__init__()
-        self.nets = nn.ModuleList(nets)
-        vs = {getattr(n, "obs_version", 1) for n in nets}
-        if len(vs) > 1:
-            raise ValueError(f"an ensemble of networks that read different observation versions {sorted(vs)}")
-        self.obs_version = vs.pop()
-
-    def forward(self, obs, mask, policy=True, value=True, ufeat=None, **shape):
-        outs = [n(obs, mask, policy=policy, value=value, ufeat=ufeat, **shape) for n in self.nets]
-        lg = None
-        if policy:
-            lg = torch.stack([F.log_softmax(o[0], 1) for o in outs]).mean(0)
-        v = torch.stack([o[1] for o in outs]).mean(0) if value else None
-        return lg, v
-
-
 class HostShape:
     """What `Net.encode` derives from a batch when no shape is given (the enemy slots in use, the pile entries in use, the rows with a pending
     selection), per row from the host's copy of the observations, so a batch's shapes are known without reading the device: `of(idx)` gives the
@@ -504,12 +475,8 @@ def claim_obs_version(v):
 
 
 def load(path, set_version=True):
-    """A checkpoint, or several joined by commas (an `Ensemble`: mean policy log-probabilities, mean value), on `DEV` in eval mode.
-    The network reads the observation version of its checkpoint (`args["obs_version"]`, 1 when absent); `set_version` also makes it the
-    process-wide version (`claim_obs_version`)."""
-    if isinstance(path, (list, tuple)) or "," in path:
-        parts = list(path) if isinstance(path, (list, tuple)) else path.split(",")
-        return Ensemble([load(p, set_version) for p in parts]).to(DEV).eval()
+    """A checkpoint on `DEV` in eval mode. The network reads the observation version of its checkpoint (`args["obs_version"]`, 1 when absent);
+    `set_version` also makes it the process-wide version (`claim_obs_version`)."""
     ck = torch.load(path, map_location="cpu")
     args = ck.get("args", {})
     v = int(args.get("obs_version", 1) or 1)
@@ -520,10 +487,20 @@ def load(path, set_version=True):
     return net.to(DEV).eval()
 
 
+def net_policy(net, greedy=True):
+    """`act(obs, mask) -> int32 actions` of the network alone: its most probable action, or a sample."""
+    @torch.no_grad()
+    def act(obs, mask):
+        lg, _ = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV))
+        a = lg.argmax(1) if greedy else torch.distributions.Categorical(logits=lg).sample()
+        return a.cpu().numpy().astype(np.int32)
+    return act
+
+
 def load_weights(net, sd, allow_missing=("ucond.",)):
     """A state dict into `net`; a checkpoint from before the HP-worth input (`ucond`) loads with that input at zero (identical behaviour).
     A checkpoint from before S1 (3 look-ahead turns, no pending-move inputs) gets zero weights for the enemy inputs added since, which all
-    come after its own: it computes exactly what it did on the inputs it knew (with `sts2.set_look_legacy(True)` those are the same values).
+    come after its own: it computes exactly what it did on the inputs it knew.
     `allow_missing`: more parameter prefixes the checkpoint may lack (a warm start of the `outcome` head from a scalar-value network)."""
     sd = dict(sd)
     w, w_new = sd.get("enemy.0.weight"), net.enemy[0].weight

@@ -5,10 +5,6 @@
   python -m agent.improve lessons               the strategy book's open hypotheses (`[hyp]`) = the experiment backlog
   python -m agent.improve gaps                  surprising fights, fidelity divergences and hindsight verdicts recorded so far (evals/gaps.jsonl)
   python -m agent.improve corpus                collect the fights of all runs into data/corpus (train / held-out split by run)
-  python -m agent.improve finetune [--iters N]  fine-tune the current network on corpus + base distribution (PPO, `rl/ppo.py`), in the background
-  python -m agent.improve gate CKPT [--vs CKPT] compare a candidate with the current network on fixed held-out sets; writes evals/ledger.jsonl
-  python -m agent.improve adopt CKPT --as NAME  make a checkpoint the default policy (models/current.json) after it passed the gate
-  python -m agent.improve ledger                what was tried and decided
 
 Two kinds of things get improved, each with its own gate:
   strategy (the skills in .claude/skills): a lesson moves from `[hyp]` to `[sim]` only with a measurement behind it (a macro `eval`, a solver A/B).
@@ -23,17 +19,12 @@ import glob
 import hashlib
 import json
 import os
-import shutil
-import subprocess
-import sys
-import time
 
 from agent import runlog
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 EVALS = os.path.join(ROOT, "evals")
 CORPUS = os.path.join(ROOT, "data", "corpus")
-MODELS = os.path.join(ROOT, "models")
 
 
 def _runs():
@@ -139,7 +130,7 @@ def review(run_id=None):
     if unpriced:
         follow.append(f"{unpriced} card pick(s) were not priced by `reward` / `eval` first: the rule is numbers first, then judgment")
     if fid or div:
-        follow.append("simulator fidelity first: reproduce the divergence (agent.fidelity_sweep, agent.fidelity_trace) and fix the simulator before trusting any model comparison")
+        follow.append("simulator fidelity first: reproduce the divergence (agent.fidelity_sweep) and fix the simulator before trusting any model comparison")
     if surprises:
         follow.append(f"{len(surprises)} fight(s) far from the prediction: add them to the corpus and look for a pattern (encounter, card type, relic); a pattern justifies a fine-tune; "
                       "write what the fight asked into `sts2-acts/encounters.md` (and `sts2-mechanics` for a new power) as a rule tagged `[code]` / `[sim]` or `[hyp]` with its test, no run history")
@@ -305,111 +296,12 @@ def corpus():
     return f"corpus: {len(train)} train fights, {len(hold)} held-out fights in {CORPUS}"
 
 
-def finetune(iters=200, name=None):
-    train_json = os.path.join(CORPUS, "fights_train.json")
-    if not os.path.exists(train_json) or not _load(train_json):
-        return "no corpus yet: play runs, then `corpus`"
-    base_train = _train_set("train", 30000, 1, 0.15)
-    base = _load(base_train)
-    mine = _load(train_json)
-    reps = max(1, len(base) // (4 * max(len(mine), 1)))  # the corpus makes up about a fifth of the mix
-    mix = os.path.join(ROOT, "target", "train", "mix.json")
-    _dump(base + mine * reps, mix)
-    name = name or time.strftime("ft%Y%m%d-%H%M")
-    out = os.path.join(ROOT, "target", "runs", name)
-    cur = _current()
-    cmd = [sys.executable, os.path.join(ROOT, "rl", "ppo.py"), "--train", mix, "--eval", _train_set("eval", 1500, 22, 0.0), "--out", out, "--resume", cur["policy"],
-           "--warm", "--iters", str(iters), "--d", "128", "--hold-prob", "0.15"]
-    os.makedirs(out, exist_ok=True)
-    log = open(os.path.join(out, "train.log"), "w")
-    subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=log, env=dict(os.environ, STS2_DEVICE=os.environ.get("STS2_DEVICE", "cuda")))
-    _append(os.path.join(EVALS, "ledger.jsonl"), dict(t=time.time(), kind="finetune_started", name=name, base=cur["policy"], corpus=len(mine), reps=reps, iters=iters))
-    return f"fine-tune started: {out} (log: train.log); when it has produced a checkpoint run `gate {out}/ckpt.pt`"
-
-
-def _train_set(name, n, seed, energy_prob):
-    """A scenario set from `tools/gen_train.py` (realistic A10 fights; `energy_prob` = share with 4-7 energy), generated once into target/train/. Different seeds are
-    disjoint, so the held-out sets (seeds 22, 23) never overlap the training set (seed 1)."""
-    path = os.path.join(ROOT, "target", "train", f"{name}.json")
-    if not os.path.exists(path):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        subprocess.check_call([sys.executable, os.path.join(ROOT, "tools", "gen_train.py"), "--n", str(n), "--seed", str(seed), "--energy-prob", str(energy_prob), "--out", path],
-                              cwd=ROOT, stdout=subprocess.DEVNULL)
-    return path
-
-
-def _current():
-    p = os.path.join(MODELS, "current.json")
-    if os.path.exists(p):
-        c = _load(p)
-        return dict(policy=os.path.join(MODELS, c["policy"]), values=[os.path.join(MODELS, v) for v in c["values"]])
-    return dict(policy=os.path.join(MODELS, "solver_b128.pt"), values=[os.path.join(MODELS, "solver_c128.pt"), os.path.join(MODELS, "solver_d128.pt")])
-
-
-def gate(candidate, vs=None, attempts=2, n_eval=600):
-    sys.path.insert(0, os.path.join(ROOT, "rl"))
-    from solver import Solver
-    cur = _current()
-    vs = vs or cur["policy"]
-    sets = {}
-    hold = os.path.join(CORPUS, "fights_holdout.json")
-    if not os.path.exists(hold) or not _load(hold):
-        return "gate: FAIL (no corpus holdout: play runs and run `corpus` first; a candidate must gain on fights it was not trained on)"
-    sets["corpus_holdout"] = _load(hold)
-    sets["eval"] = _load(_train_set("eval", 1500, 22, 0.0))[:n_eval]
-    sets["eval_energy"] = _load(_train_set("eval_energy", 600, 23, 1.0))[:n_eval]  # every scenario at 4-7 energy: the old mix had almost none
-    res = {}
-    for label, ck, vals in (("candidate", candidate, None), ("current", vs, cur["values"] if vs == cur["policy"] else None)):
-        S = Solver(ckpt=ck, value_ckpts=vals if vals else None)
-        for sname, scen in sets.items():
-            r = S.solve(scen, attempts=attempts, seed=7)
-            w = sum(x["win"] for x in r) / len(r)
-            h = sum((x["hp_lost"] or 0) for x in r) / len(r)
-            se = (sum(x["win_se"] ** 2 for x in r) ** 0.5) / len(r)
-            res[(label, sname)] = (w, h, se)
-    lines, ok = [], True
-    for sname in sets:
-        (cw, ch, cse), (bw, bh, bse) = res[("candidate", sname)], res[("current", sname)]
-        d, sd = cw - bw, (cse ** 2 + bse ** 2) ** 0.5
-        lines.append(f"{sname:16s} candidate win {cw:.3f} HP lost {100 * ch:.1f}%   current win {bw:.3f} HP lost {100 * bh:.1f}%   diff {d:+.3f} (±{sd:.3f})")
-        ok &= (d >= 0.01 if sname == "corpus_holdout" else d >= -0.01)
-    verdict = "PASS" if ok else "FAIL"
-    lines.append(f"gate: {verdict} (candidate must gain >= 1 point on the corpus holdout and lose <= 1 point on the fixed eval set)")
-    _append(os.path.join(EVALS, "ledger.jsonl"), dict(t=time.time(), kind="gate", candidate=candidate, vs=vs, verdict=verdict, results={f"{a}/{b}": v for (a, b), v in res.items()}))
-    return "\n".join(lines)
-
-
-def adopt(ckpt, as_name, values=None):
-    """Install `ckpt` as the default policy (weights and args only, no optimizer state). `values`: the extra value nets averaged into the search,
-    "none" for the network's own value alone, default: keep the current ones."""
-    import torch
-    dst = os.path.join(MODELS, as_name)
-    ck = torch.load(ckpt, map_location="cpu")
-    torch.save({"net": ck["net"] if "net" in ck else ck, "args": ck.get("args", {})}, dst)
-    cur = _current()
-    vals = cur["values"] if values is None else ([] if values == "none" else values.split(","))
-    vals = [os.path.basename(v) for v in vals]  # names relative to models/ (rl/solver.py resolves them): the file works on any machine
-    _dump(dict(policy=as_name, values=vals), os.path.join(MODELS, "current.json"), indent=1)
-    _append(os.path.join(EVALS, "ledger.jsonl"), dict(t=time.time(), kind="adopt", ckpt=dst, values=vals))
-    return f"adopted {dst} as the default policy (restart the harness daemon to load it)"
-
-
-def ledger():
-    p = os.path.join(EVALS, "ledger.jsonl")
-    return "".join(l for l in open(p, encoding="utf-8")) if os.path.exists(p) else "empty"
-
-
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["review", "lessons", "gaps", "corpus", "finetune", "gate", "adopt", "ledger"])
+    ap.add_argument("cmd", choices=["review", "lessons", "gaps", "corpus"])
     ap.add_argument("arg", nargs="?")
-    ap.add_argument("--vs")
-    ap.add_argument("--iters", type=int, default=200)
-    ap.add_argument("--as", dest="as_name")
-    ap.add_argument("--values", help="adopt: extra value nets (comma list in models/) or none")
     a = ap.parse_args()
-    out = dict(review=lambda: review(a.arg), lessons=lessons, gaps=gaps, corpus=corpus, finetune=lambda: finetune(a.iters), gate=lambda: gate(a.arg, a.vs),
-               adopt=lambda: adopt(a.arg, a.as_name, a.values), ledger=ledger)[a.cmd]()
+    out = dict(review=lambda: review(a.arg), lessons=lessons, gaps=gaps, corpus=corpus)[a.cmd]()
     print(out)
 
 
