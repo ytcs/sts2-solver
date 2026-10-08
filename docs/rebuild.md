@@ -34,7 +34,15 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 - Predictor bench (`tools/bench.py`): calibration (reliability, log loss/CRPS, PIT), ranking vs large-budget reference.
 - Promotion gate (a new live model, E27): `bench.py play` no set worse than the live player (paired with labels); near-miss bench not worse; `bench.py score` Brier no worse on most sets; S3 decile bias < 0.02 (not yet run for solver_td08).
 
-## 4. Stages
+## 4. Roadmap (current order; review at each gate)
+1. PPO sampler A/B (uniform vs p(1-p) signal; d256, obs v2, 3200 it, from scratch): pick the sampler by eval curve at matched iterations + greedy eval; the winner is the gen-2 base.
+2. Gen-2 model: gen-2 base + outcome head -> combat loop rounds (S3) on obs v2 (old collections replay to v2: actions are stored, not observations) -> promote when it beats solver_td08 on the promotion gate.
+3. S5 continuation value (top priority for run-level decisions; blocks S7): a non-flat V(act-start state).
+4. S4 gate (potion regression states), S3 decile-bias check for the live model.
+5. S7 operator protocol + retire the calculators (gated on S5).
+6. Expert re-enactment (queued); burn-off after a batch of stages (`burn-off` skill).
+
+## 5. Stages
 
 **S0. Hygiene.** Status: open items:
 - re-sync hand from screen before answering a mid-card selection (Survivor, Dagger Throw); card text on rewards screen; fight-start predictions state assumed potions.
@@ -47,7 +55,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 **S2. Benchmark before training.** Status: done (`tools/bench.py`, near-miss bench). Frozen sets with search labels at live width (5x32): eval, high energy, real-run corpus, cross-character/big belt, per-character. Local RTX 4070 Super: 100k labelled fights ~2.5 h (no pod needed). Gate: re-runs within se.
 
 **S3. Predictor trained on search play.** Status: live predictor + player `models/solver_td08.pt` (TD(λ=0.8) value targets, E24; with cover search, E27); passes the promotion gate except the decile-bias check (open).
-- ExIt: value targets = realized/TD outcomes, never max of search Q (winner's curse); HL-Gauss categorical targets; Reanalyse of stored fights. No policy distillation target (E15, E22).
+- Combat loop (the engine of combat improvement): each round collects with the live player (its own cover search) on a signal-weighted pool, trains value with TD(0.8) from the live model, then applies the promotion gate; promote on pass. Policy stays fixed except via a new PPO base (no policy distillation target: E15, E22). Value targets are realized/TD outcomes, never max of search Q (winner's curse); HL-Gauss categorical targets; Reanalyse of stored fights.
 - Curriculum by signal: each round draws fresh candidates (`tools/gen_curriculum.py` + corpus), scores at fight start with the current predictor, samples 15% uniform anchor + rest by p(1-p) (`tools/signal_pool.py`); selection before a seed is played (labels unbiased). Measured by A/B vs a uniform pool, calibration on the natural distribution. ExIt pool A/B (E18) inconclusive: run under the policy-target bottleneck; re-test for value-only training.
 - Near-miss restarts (`tools/nearmiss.py`, `exit.py collect --restarts`, parts `policy_only`): deprioritized: stronger honest search flips only 2-4 points and avoidable errors are spread over setup turns (E25, E26).
 - Data hygiene after a simulator change: `tools/prune_divergent.py` drops fights that no longer replay (backup kept); a part losing > 1% is regenerated instead.
@@ -78,7 +86,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 - Learning: operator proposes (first principles, source, `[expert]` runs); measured before use; demoted only by measurement, never one run.
 - Gate: every plan used live is `measured`; plan choice logged with V and checked in review.
 
-**S7. Operator and self-improvement.** Status: draft protocol below; becomes the operator skill once S3 passes. Until then the current skills + calculators govern live play.
+**S7. Operator and self-improvement.** Status: draft protocol below; becomes the operator skill once S5 passes (S3 is effectively passing; S5's flat V is the blocker). Until then the current skills + calculators govern live play.
 - Principles: one currency (P(win run); flat -> next horizon -> a measured plan; never unmeasured intuition). The predictor is the authority on fights: question it only for a reason the model cannot see, logged as a gap. Every disagreement or tail outcome is a typed gap (fidelity / calibration slice / missing model / tool) -> fix or experiment through its stage's gate.
 - Per screen: Neow/ancient `plans` + `price` (unmodelled relic effects by judgment, logged); map `price` at every fork; card reward `price`, flat -> the plan's card else skip; shop `price` (nothing vs best affordable bundles of <= 3 purchases); full belt + potion offer `price`; rest `price` (rest vs each smith); event `data/events.json` + `price`, unmodelled -> judgment + gap; combat `combat`/`turn`, potions per S4.
 - Skills shrink to: operator protocol, gap taxonomy, verified mechanics, plan reasoning with predictor-tested target decks. Decision guards replaced by prediction-vs-outcome logging. `improve review` becomes the gap review (predicted vs real fights, `price` decisions vs outcomes, plan choices vs tables, gap list).
@@ -88,7 +96,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 
 **Expert data (queued).** Top players' runs (NaveGreed, OpemSpire) allowed. Macro decisions seed the plan library as `[expert]`; a few hundred pivotal combat decisions form a test set (replay both lines where search disagrees); imitation only if that set shows gaps. Pilot (`data/expert/navegreed_2026-10-07.md`): one A10 Ironclad win on v0.111.0 -> 41 macro decisions + 3 fights in ~55 min; accuracy ~95% visible choices, ~60% encounter names. Next: decision-screen detector, OCR limited to catalog ids, caption alignment, seed-replay test; encounter id by sprite matching (`SlayTheSpire2.pck`). Re-enactment: start his seed, replay his transcribed actions, export each fight start, compare his line with the solver's on the same hidden state per decision (risks: one transcription error breaks later fights; 3 unidentified mods).
 
-## 5. Retired / live / kept
+## 6. Retired / live / kept
 - Retired: potion `search_keep`, alert thresholds, keep/allow/deny/hold; the HP-worth util curve (failed its gate: curve vs linear E[U] -0.000 +- 0.002); Gumbel root (E16); value ensembles; policy distillation targets (E15, E22); duplicate route pricers and model gates.
 - Live: per-job `Worth` (win-only act-boss objective, S4).
 - Kept until `price`/`plans` replace them (then delete with their skill sections): calculators `reward`, `routes`, `eval`, `rmcalc`, `pickplan`, `brief`, `potions`; `DRIVE` AUTO/MANUAL thresholds; decision guards (`agent/guards.py`; `STS2_DECISION_GUARDS=off` disables); smooth score, buckets, section-3 bar, pickplan ρ, `routes` reward weights. Open calculator items while kept:
@@ -97,12 +105,12 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
   - Live stopping rule (`engine._opportunity_loss`): paired regret test may stop earlier; measure rounds-to-stop.
   - Upgrade debt: rank deck cards by upgrade gain / draw frequency; rest-vs-smith may need to compare against summed debt.
 
-## 6. Target layout
+## 7. Target layout
 | path | keeps | goes |
 |---|---|---|
 | `crates/` | sts2sim, sts2env, sts2py, sts2diff | |
 | `rl/` | model, heads, fastsearch, solver, exit, ppo, predictor | |
 | `agent/` | bridge, screen, fight, engine, live, proposal, tracker, runmodel, price, events, plans, harness + `__main__`, runlog, improve + hindsight (review), fidelity_sweep (only fidelity tool), skillgate | guards, macro, routes, pickplan, potions, card_tags once price/plans replace them |
-| `tools/` | gate.sh, bench, bench_search, nearmiss_bench, nearmiss, signal_pool, gen_curriculum, gen_train, fuzz_gen_mix, prune_divergent, collect.sh, dashboard | one-off A/B scripts (results go to `evidence.md`) |
+| `tools/` | gate.sh, bench, bench_search, nearmiss_bench, nearmiss, signal_pool, gen_curriculum, gen_train, fuzz_gen_mix, prune_divergent, collect.sh, headroom, dashboard | one-off A/B scripts (results go to `evidence.md`); next burn-off: policy_agree, target_noise (policy study closed) |
 | `.claude/skills/` | `sts2` (rules, information contract), operator protocol + gap logging, plan-library use, verified mechanics | procedures that only feed the old calculators (buckets, smooth score, section-3 bar, guard fields) |
 | `data/` | catalog, pools, ancients, events, relic classes, `bench/`, `plans.json`, train/eval sets | |
