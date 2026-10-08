@@ -102,6 +102,10 @@ Plan:
 - *Gate:* the benchmark is reproducible (re-runs within se).
 
 **S3. Predictor trained on search play.**
+- **Principle (2026-10-07, E22-E23):** the search finds the line, and the predictor learns how search play ends. The greedy policy cannot be distilled toward its own search: on clear decisions it agrees 0.67-0.71 against the search's 0.95, whatever the target, data volume or width. Sharper distilled policies also make worse play-outs.
+  - So the stack must not depend on policy quality.
+  - The policy's two remaining roles are the search's candidate list (top-5 coverage 91%; to be replaced by every distinct legal action, about 6 on average) and its play-out policy (kept fixed: a policy change is a gated experiment, never a side effect of training).
+  - Training effort goes to the judge: value resolution (E12) and lower-variance value targets (`exit.py --value-target td`).
 - Distillation / expert iteration:
   - value targets = realized outcomes, never the max of search Q values (winner's curse);
   - policy targets = Gumbel-style improved policy;

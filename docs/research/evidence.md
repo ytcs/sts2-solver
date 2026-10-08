@@ -402,3 +402,13 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - The live player is the search. The greedy policy matters as its candidate generator (top-5 coverage 91%) and as its rollout policy. The rollout check is pending.
   - The lever the evidence points to is the search's judge: value resolution (E12), with lower-variance value targets.
   - Further policy-distillation arms are not planned.
+- **Rollout check** (`tools/nearmiss_bench.py`, held-out r4u set; r3 as the search's prior and value, only the play-out policy swapped):
+
+| rollout policy | near-miss losses won | close wins lost |
+|---|---|---|
+| r3 (baseline) | 0.323 | 0.251 |
+| d128, hard target, policy loss only | +0.012 +- 0.011 | +0.025 +- 0.009 |
+| d256, hard target, all data | -0.002 +- 0.010 | +0.028 +- 0.009 |
+| d128, hard target, all data | -0.002 +- 0.010 | +0.016 +- 0.009 |
+
+  Sharper distilled policies make worse play-outs: close wins are lost more often, consistent with E9's hypothesis. Policy distillation does not reach the player this way either.
