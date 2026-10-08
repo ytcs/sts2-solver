@@ -7,6 +7,11 @@ wins does it now lose.
 The set must come from fights NO candidate trained on: data/bench/nearmiss.json is built from the r4u collection (uniform pool, player r3), held out
 from every arm trained on r4s data; data/bench/nearmiss_r4s.json (from r4s) is contaminated for those arms (they trained on its exact fights).
   STS2_DEVICE=cuda tools/nearmiss_bench.py eval BASE CKPT [CKPT ...] [--attempts 2]
+  STS2_DEVICE=cuda tools/nearmiss_bench.py turns BASE ARM ... --near target/exit/nm_r4u.json [--limit 600]   # where the avoidable mistake was
+
+Arm specs: CKPT[+ROLL][@MxK][@cv]. Optimality bracket on the near-miss losses: an arm with a much stronger honest search (r3.pt@5x256) flips
+losses beyond the luck baseline only where the solver left a win on the table (a lower bound on avoidable losses); the clairvoyant arm (r3.pt@cv,
+diagnostic only) flips every loss any line could have won on that fight's realization (an upper bound).
 
 `build` takes near-miss losses (`tools/nearmiss.py`: within one turn of a win or <= 20% enemy HP left) and close wins (won with at most `--close` of max
 HP left) of one collection, each as its fight start with the ORIGINAL job seed: the fight's own randomness (draws, enemy rolls) is fixed.
@@ -56,18 +61,36 @@ def build(a):
           f"(of {len(close)}) -> {a.out}")
 
 
-def play(ck, rows, attempts, roots):
-    """[F, attempts] wins of the live search (5x32) from each fight's start, search seeds 0..attempts-1."""
+def arm(spec, roots):
+    """A search from an arm spec "CKPT[+ROLL][@MxK][@cv]": the root prior and value from CKPT, the play-outs from ROLL, width MxK (default the
+    live 5x32), `cv` = clairvoyant (DIAGNOSTIC ONLY: the futures are the true state, an upper bound on what any line achieves)."""
     from fastsearch import FastSearch
     from model import load
-    # "PRIOR+ROLL": the search's root prior and value from PRIOR, its play-outs from ROLL (the rollout policy alone)
-    pr, _, roll = ck.partition("+")
-    fs = FastSearch(load(pr), M=5, K=32, roots=roots, amp=True, roll_net=load(roll) if roll else None)
+    parts = spec.split("@")
+    pr, _, roll = parts[0].partition("+")
+    M, K, cv = 5, 32, False
+    for t in parts[1:]:
+        if t == "cv":
+            cv = True
+        else:
+            M, K = (int(x) for x in t.split("x"))
+    fs = FastSearch(load(pr), M=M, K=K, roots=roots, amp=True, roll_net=load(roll) if roll else None, clairvoyant=cv)
     fs.warm()
+    return fs
+
+
+def play(ck, rows, attempts, roots):
+    """[F, attempts] wins of the arm's search (`arm`) from each row's state (its fight start, or `prefix` actions in), search seeds 0..attempts-1."""
+    fs = arm(ck, roots)
     F = len(rows)
     out = np.zeros((F, attempts))
     for att in range(attempts):
-        sims = [sts2.Sim(json.dumps(r["scenario"]), r["seed"]) for r in rows]
+        sims = []
+        for r in rows:
+            sim = sts2.Sim(json.dumps(r["scenario"]), r["seed"])
+            for x in r.get("prefix", []):
+                sim.step(int(x))
+            sims.append(sim)
         res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims)
         out[:, att] = res[:, 1] == 1
     return out
@@ -94,6 +117,39 @@ def evaluate(a):
         print(f"{os.path.basename(ck):24s} ({time.time() - t:.0f}s) " + " | ".join(line), flush=True)
 
 
+def turns(a):
+    """Where was the decisive mistake: each near-miss loss of the set restarted at the start of each of its last turns (the true state: the fight
+    keeps its RNG), the BASE arm (the player that lost, the luck baseline) against each other arm on the same restarts and search seeds. A
+    stronger honest arm winning from turn k but no better from turn k+1 puts the avoidable error in turn k."""
+    near = json.load(open(a.near))
+    rows = [r for r in near["restarts"]]
+    back = np.zeros(len(rows), int)  # 0 = the last turn's start, 1 = one turn earlier, ...
+    by = {}
+    for i, r in enumerate(rows):
+        by.setdefault(r["near"], []).append(i)
+    for idx in by.values():
+        for k, i in enumerate(sorted(idx, key=lambda i: -len(rows[i]["prefix"]))):
+            back[i] = k
+    if a.limit:
+        keep = sorted({n for n in by})[:a.limit]
+        sel = np.array(sorted(i for n in keep for i in by[n]))
+        rows, back = [rows[i] for i in sel], back[sel]
+    base = None
+    for ck in a.ckpts:
+        t = time.time()
+        w = play(ck, rows, a.attempts, a.roots).mean(1)
+        line = []
+        for k in range(back.max() + 1):
+            m = back == k
+            if base is None:
+                line.append(f"turn -{k}: won {w[m].mean():.3f} (n {m.sum()})")
+            else:
+                d = w[m] - base[m]
+                line.append(f"turn -{k}: won {w[m].mean():.3f} ({d.mean():+.3f} +- {d.std(ddof=1) / max(m.sum(), 2) ** 0.5:.3f})")
+        base = w if base is None else base
+        print(f"{ck:40s} ({time.time() - t:.0f}s) " + " | ".join(line), flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -103,8 +159,11 @@ def main():
                                                "PRIOR+ROLL plays PRIOR's search with ROLL's policy in the play-outs")
     e.add_argument("--bench", default=os.path.join(ROOT, "data", "bench", "nearmiss.json")); e.add_argument("--attempts", type=int, default=2)
     e.add_argument("--roots", type=int, default=1024)
+    t = sub.add_parser("turns"); t.add_argument("ckpts", nargs="+", help="arm specs; the first is the luck baseline")
+    t.add_argument("--near", required=True, help="tools/nearmiss.py output whose restarts to use (held out: target/exit/nm_r4u.json)")
+    t.add_argument("--attempts", type=int, default=2); t.add_argument("--roots", type=int, default=1024); t.add_argument("--limit", type=int, default=0)
     a = ap.parse_args()
-    build(a) if a.cmd == "build" else evaluate(a)
+    {"build": build, "eval": evaluate, "turns": turns}[a.cmd](a)
 
 
 if __name__ == "__main__":
