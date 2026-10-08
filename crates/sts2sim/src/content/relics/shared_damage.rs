@@ -57,7 +57,7 @@ listener!(UndyingSigil {
         if q.dealer == NO || !q.props.is_powered() || q.target != PLAYER || q.dealer == PLAYER {
             return Dec::ONE;
         }
-        if cx.cr(q.dealer).hp > cx.power_amount(q.dealer, ids::power::DOOM_POWER) {
+        if cx.cr(q.dealer).hp() > cx.power_amount(q.dealer, ids::power::DOOM_POWER) {
             return Dec::ONE;
         }
         g::undying_sigil::DAMAGE_DECREASE

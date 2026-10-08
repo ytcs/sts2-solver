@@ -51,21 +51,21 @@ impl Combat {
     /// `Creature.DamageBlockInternal`: returns the (fractional) blocked amount; `Block -= (int)blocked`.
     pub fn damage_block_internal(&mut self, c: Cid, amount: Dec, props: ValueProp) -> Dec {
         let cr = self.cr_mut(c);
-        let blocked = if props.unblockable() { Dec::ZERO } else { Dec::int(cr.block as i64).min(amount) };
-        cr.block -= blocked.trunc();
+        let blocked = if props.unblockable() { Dec::ZERO } else { Dec::int(cr.block() as i64).min(amount) };
+        cr.set_block(cr.block() - blocked.trunc());
         blocked
     }
 
     /// `Creature.LoseHpInternal`.
     pub fn lose_hp_internal(&mut self, c: Cid, amount: Dec) -> DamageResult {
         let cr = self.cr_mut(c);
-        let killed = cr.hp > 0 && amount >= Dec::int(cr.hp as i64);
-        let before = cr.hp;
+        let before = cr.hp();
+        let killed = before > 0 && amount >= Dec::int(before as i64);
         let n = amount.max(Dec::ZERO).min(Dec::int(MAX_STAT as i64)).trunc();
-        cr.hp = (cr.hp - n).max(0);
+        cr.set_hp((before - n).max(0));
         DamageResult {
             receiver: c,
-            unblocked: before - cr.hp,
+            unblocked: before - cr.hp(),
             overkill: if killed { (n - before).max(0) } else { 0 },
             killed,
             ..Default::default()
@@ -75,14 +75,14 @@ impl Combat {
     /// `Creature.GainBlockInternal`: `Block = (int)min(Block + amount, 999_999_999)`.
     pub fn gain_block_internal(&mut self, c: Cid, amount: Dec) {
         let cr = self.cr_mut(c);
-        let v = (Dec::int(cr.block as i64) + amount).min(Dec::int(MAX_STAT as i64));
-        cr.block = v.trunc();
+        let v = (Dec::int(cr.block() as i64) + amount).min(Dec::int(MAX_STAT as i64));
+        cr.set_block(v.trunc());
     }
 
     /// `Creature.SetCurrentHpInternal`: `CurrentHp = (int)min(amount, MaxHp)`.
     pub fn set_current_hp_internal(&mut self, c: Cid, amount: Dec) {
         let cr = self.cr_mut(c);
-        cr.hp = amount.min(Dec::int(cr.max_hp as i64)).trunc().max(0);
+        cr.set_hp(amount.min(Dec::int(cr.max_hp as i64)).trunc().max(0));
     }
 
     // ---- commands --------------------------------------------------------------------------------------------
@@ -160,9 +160,9 @@ impl Combat {
         if self.is_over_or_ending() || self.cr(c).is_dead() || amount <= Dec::ZERO {
             return;
         }
-        let before = self.cr(c).block;
-        self.cr_mut(c).block = (Dec::int(before as i64) - amount).max(Dec::ZERO).trunc();
-        if before > 0 && self.cr(c).block <= 0 {
+        let before = self.cr(c).block();
+        self.cr_mut(c).set_block((Dec::int(before as i64) - amount).max(Dec::ZERO).trunc());
+        if before > 0 && self.cr(c).block() <= 0 {
             self.dispatch_u(hookbit::after_block_broken, |cx, me, l| l.after_block_broken(cx, me, c, remover));
         }
     }
@@ -175,7 +175,7 @@ impl Combat {
             return;
         }
         let was_dead = self.cr(c).is_dead();
-        let cur = Dec::int(self.cr(c).hp as i64);
+        let cur = Dec::int(self.cr(c).hp() as i64);
         self.set_current_hp_internal(c, cur + amount);
         if was_dead && self.cr(c).is_alive() && c == PLAYER {
             self.player_hooks_active = true;
@@ -188,9 +188,9 @@ impl Combat {
 
     /// `CreatureCmd.SetCurrentHp`: hook delta if the value changed; kills if the creature ends up dead.
     pub fn set_current_hp(&mut self, c: Cid, amount: Dec) {
-        let old = self.cr(c).hp;
+        let old = self.cr(c).hp();
         self.set_current_hp_internal(c, amount);
-        if self.cr(c).hp != old || amount != Dec::int(old as i64) {
+        if self.cr(c).hp() != old || amount != Dec::int(old as i64) {
             let d = amount.trunc() - old;
             self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, d));
         }
@@ -205,7 +205,7 @@ impl Combat {
         let n = amount.max(Dec::ZERO).min(Dec::int(MAX_STAT as i64)).trunc();
         let cr = self.cr_mut(c);
         cr.max_hp = n;
-        cr.hp = cr.hp.min(n);
+        cr.set_hp(cr.hp().min(n));
         if self.cr(c).max_hp <= 0 {
             self.kill(&[c]);
         }
@@ -223,7 +223,7 @@ impl Combat {
     /// [| Move]) removes the excess first; then max HP becomes `max(1, new)`.
     pub fn lose_max_hp(&mut self, c: Cid, amount: Dec, is_from_card: bool) {
         let new_max = Dec::int(self.cr(c).max_hp as i64) - amount;
-        let hp = Dec::int(self.cr(c).hp as i64);
+        let hp = Dec::int(self.cr(c).hp() as i64);
         if new_max < hp {
             let mut props = ValueProp::UNBLOCKABLE.or(ValueProp::UNPOWERED);
             if is_from_card {

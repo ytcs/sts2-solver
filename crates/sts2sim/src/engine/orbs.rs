@@ -212,7 +212,7 @@ impl Combat {
                 // MinBy(CurrentHp): first minimal in list order.
                 let mut weakest = hittable[0];
                 for &e in hittable.iter() {
-                    if self.cr(e).hp < self.cr(weakest).hp {
+                    if self.cr(e).hp() < self.cr(weakest).hp() {
                         weakest = e;
                     }
                 }

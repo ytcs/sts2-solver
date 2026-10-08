@@ -190,7 +190,7 @@ listener!(SmoggyPower {
 // ShriekPower (TerrorEel): below Amount HP the Eel is stunned into TERROR_MOVE, once.
 listener!(ShriekPower {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
-        if target == me.owner && unblocked > 0 && cx.cr(target).hp <= amount(cx, &me) {
+        if target == me.owner && unblocked > 0 && cx.cr(target).hp() <= amount(cx, &me) {
             cx.stun(me.owner, None, Some(crate::content::monsters::underdocks_b::eel::TERROR));
             cx.remove_power(me.owner, me.idx);
         }

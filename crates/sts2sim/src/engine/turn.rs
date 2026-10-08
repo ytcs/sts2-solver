@@ -80,7 +80,7 @@ impl Combat {
             }
         }
         match preventer {
-            None => self.cr_mut(c).block = 0,
+            None => self.cr_mut(c).set_block(0),
             Some(m) => {
                 if self.still_live(&m) {
                     content::listener(&m).after_preventing_block_clear(self, m, c);
@@ -767,7 +767,7 @@ impl Combat {
         // Player.AfterCombatEnd: powers (no hooks), combat piles, block.
         self.cr_mut(PLAYER).powers.clear();
         self.sync_secondary(PLAYER);
-        self.cr_mut(PLAYER).block = 0;
+        self.cr_mut(PLAYER).set_block(0);
         self.player.hand.clear();
         self.player.draw.clear();
         self.player.discard.clear();

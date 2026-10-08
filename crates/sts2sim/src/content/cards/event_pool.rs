@@ -187,7 +187,7 @@ listener!(Enlightenment {
 // ---- Entrench: double the current Block (Unpowered) ------------------------------------------------------------------------------------
 listener!(Entrench {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let b = cx.cr(PLAYER).block;
+        let b = cx.cr(PLAYER).block();
         cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), p.card);
         Flow::Done
     }

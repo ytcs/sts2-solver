@@ -171,7 +171,7 @@ listener!(InfestedPower {
 // ---- PlowPower (Ceremonial Beast): at HP <= Amount the Beast loses its strength and is stunned into phase 2 ---------
 listener!(PlowPower {
     fn after_damage_received(&self, cx: &mut Combat, me: Me, target: Cid, unblocked: i32, _props: ValueProp, _dealer: Cid) {
-        if target != me.owner || unblocked <= 0 || cx.cr(target).hp > cx.power_amount(me.owner, me.id) {
+        if target != me.owner || unblocked <= 0 || cx.cr(target).hp() > cx.power_amount(me.owner, me.id) {
             return;
         }
         // TemporaryStrength instances, then Strength itself.
@@ -259,6 +259,6 @@ pub fn illusion_revive(cx: &mut Combat, me: Cid) {
             cx.cr_mut(me).powers[i].aux = 0;
         }
     }
-    let missing = cx.cr(me).max_hp - cx.cr(me).hp;
+    let missing = cx.cr(me).max_hp - cx.cr(me).hp();
     cx.heal(me, Dec::int(missing as i64));
 }

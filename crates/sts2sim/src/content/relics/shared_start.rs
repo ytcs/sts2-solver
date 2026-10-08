@@ -262,7 +262,7 @@ listener!(MeatOnTheBone {
     fn after_combat_victory_early(&self, cx: &mut Combat, _me: Me) {
         if cx.cr(PLAYER).is_alive() {
             let thr = (Dec::int(cx.cr(PLAYER).max_hp as i64) * Dec::frac(g::meat_on_the_bone::HP_THRESHOLD as i64, 2)).trunc();
-            if cx.cr(PLAYER).hp <= thr {
+            if cx.cr(PLAYER).hp() <= thr {
                 cx.heal(PLAYER, Dec::int(g::meat_on_the_bone::HEAL as i64));
             }
         }
@@ -402,7 +402,7 @@ listener!(SealOfGold {
 
 listener!(ParryingShield {
     fn after_side_turn_end(&self, cx: &mut Combat, _me: Me, side: Side) {
-        if side == Side::Player && cx.cr(PLAYER).block >= g::parrying_shield::BLOCK {
+        if side == Side::Player && cx.cr(PLAYER).block() >= g::parrying_shield::BLOCK {
             cx.damage_random_hittable_enemy(g::parrying_shield::DAMAGE, UNPOWERED);
         }
     }
@@ -535,7 +535,7 @@ listener!(SturdyClamp {
         if creature != PLAYER {
             return;
         }
-        let block = cx.cr(PLAYER).block;
+        let block = cx.cr(PLAYER).block();
         if block > g::sturdy_clamp::BLOCK {
             cx.lose_block(PLAYER, Dec::int((block - g::sturdy_clamp::BLOCK) as i64), NO);
         }
@@ -545,7 +545,7 @@ listener!(SturdyClamp {
 // flag 0 = `ShouldTrigger` (not saved).
 listener!(Orichalcum {
     fn before_side_turn_end_very_early(&self, cx: &mut Combat, me: Me, side: Side) {
-        if side == Side::Player && cx.cr(PLAYER).block <= 0 {
+        if side == Side::Player && cx.cr(PLAYER).block() <= 0 {
             cx.rel_mut(me).set_flag(0, true);
         }
     }
@@ -564,7 +564,7 @@ listener!(Orichalcum {
 
 listener!(FakeOrichalcum {
     fn before_side_turn_end_very_early(&self, cx: &mut Combat, me: Me, side: Side) {
-        if side == Side::Player && cx.cr(PLAYER).block <= 0 {
+        if side == Side::Player && cx.cr(PLAYER).block() <= 0 {
             cx.rel_mut(me).set_flag(0, true);
         }
     }

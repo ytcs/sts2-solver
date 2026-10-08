@@ -38,7 +38,7 @@ pub use cmds::Ask;
 pub use replay::ReplayAnswer;
 pub use action::{Action, ActionBuf, ACTION_SPACE, MAX_PICK};
 pub use monster::{STUN_INTENTS, STUN_NODE};
-pub use monster::{with_look_cache, LookCache, LookRow, LOOK_CACHE_ENTRIES, LOOK_H, LOOK_LEGACY, LOOK_NODES};
+pub use monster::{look_dep, with_look_cache, LookCache, LookRow, LOOK_CACHE_ENTRIES, LOOK_H, LOOK_LEGACY, LOOK_NODES, LOOK_VERIFIED, LOOK_VERIFY};
 pub use turn::BASE_HAND_DRAW;
 pub use cost::CostMods;
 pub use sync::{EnemySync, HandSync, ObsCard, ObsEnemy, ObsRelic, RelicSync};

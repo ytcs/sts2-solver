@@ -44,7 +44,7 @@ impl Combat {
         if !self.cr(c).in_combat && c != PLAYER {
             return;
         }
-        let hp = self.cr(c).hp;
+        let hp = self.cr(c).hp();
         if hp > 0 {
             self.lose_hp_internal(c, Dec::int(hp as i64));
             self.dispatch_u(hookbit::after_current_hp_changed, |cx, me, l| l.after_current_hp_changed(cx, me, c, -hp));
