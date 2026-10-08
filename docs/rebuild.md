@@ -14,7 +14,7 @@ Single plan, current state. Evidence: `docs/research/evidence.md` (E#). Game-cod
 | Operator | Claude | high-level decisions, plans where numbers are flat, commits potions, logs gaps |
 
 - Principles:
-  - The stack must not depend on policy quality (E22, E23): search finds the line; the predictor learns how search play ends. Policy roles left: the search's candidate list (top-5 coverage 91%; to become every distinct legal action, ~6 avg) and the play-out policy (fixed; a change is a gated experiment, never a training side effect). Training effort goes to the judge (E12, E26).
+  - The stack must not depend on policy quality (E22, E23): search finds the line; the predictor learns how search play ends. Policy roles left: candidate order (live Engine searches every distinct legal action, `cover=True`, E27) and the play-out policy (fixed; a change is a gated experiment, never a training side effect). Live model: `models/solver_td08.pt` (TD(0.8) targets; policy + predictor; E27). Training effort goes to the judge (E12, E26).
   - Only true objective: P(clear run). HP matters only through V: U(ending) = V(state after the fight); worth of HP = dV/dHP (≈0 before an ancient heal); a potion's price = V drop without it. Price choices as P(win fight) x V(next act), never the myopic fight delta.
   - Horizon ladder: use the longest objective that is estimable and not saturated: fight -> clear act -> next-act readiness -> ... -> clear run.
   - Claims: solver results are lower bounds under the stated solver, never verdicts on plans; state exactly what was tested.
