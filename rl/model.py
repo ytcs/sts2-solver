@@ -187,7 +187,7 @@ class Net(nn.Module):
         for k in ("sc", "esc", "inum"):
             self.register_buffer(f"{k}_rec", getattr(self, f"{k}_div").reciprocal(), persistent=False)
 
-    def encode(self, obs, E=None, L=None, has_dec=None, rows=None):
+    def encode(self, obs, E=None, L=None, has_dec=None, rows=None, rows_w=None):
         B = obs.shape[0]
         C, SEC = self.C, self.SEC
         sl = lambda o, name: o[:, SEC[name][0]:SEC[name][0] + SEC[name][1]]  # noqa: E731
@@ -286,7 +286,7 @@ class Net(nn.Module):
             w = torch.stack([1.0 - up, up], -1) / 4.0
             piles.append(self.pile_enc[k](torch.cat([self.pile(ids, w), sizes[:, k:k + 1]], 1)))
         return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
-                    cand_p=cand_p, cid=cid, rows=rows, cand_sel=cands[..., C["CARD_F"]] > 0.5)
+                    cand_p=cand_p, cid=cid, rows=rows, rows_w=rows_w, cand_sel=cands[..., C["CARD_F"]] > 0.5)
 
     def heads_out(self, obs, **shape):
         return self.forward(obs, None, policy=False, value=False, _heads=True, **shape)
@@ -306,13 +306,18 @@ class Net(nn.Module):
         player, enemy, hand, pot, cand = z["player"], z["enemy"], z["hand"], z["potion"], z["cand"]
         player = player + self.ucond(self.lin_feats.to(player.dtype).expand(B, 8))
         ep, hp_, pot_p, cand_p = z["ep"].unsqueeze(-1), z["hp"].unsqueeze(-1), z["pot_p"].unsqueeze(-1), z["cand_p"].unsqueeze(-1)
-        rows = z["rows"]
+        rows, rw = z["rows"], z["rows_w"]
+        if rw is None:
+            put = lambda base, x: base.index_copy(0, rows, x.to(base.dtype))  # noqa: E731
+        else:
+            # fixed-size row list padded with weight-0 entries (graphs): the padding adds exact zeros
+            put = lambda base, x: base.index_add(0, rows, (x * rw.view(-1, *[1] * (x.dim() - 1)).to(x.dtype)).to(base.dtype))  # noqa: E731
         E = enemy.shape[1]
         zeros_c = torch.zeros(B, d, device=obs.device, dtype=player.dtype)
         pile_cat = torch.cat(z["piles"], 1)
         dec = z["dec"]
         for r in range(self.rounds):
-            ctx = self.ctx[r](torch.cat([player, (enemy * ep).sum(1), (hand * hp_).sum(1), (pot * pot_p).sum(1), zeros_c.index_copy(0, rows, ((cand * cand_p).sum(1) / 4.0).to(zeros_c.dtype)),
+            ctx = self.ctx[r](torch.cat([player, (enemy * ep).sum(1), (hand * hp_).sum(1), (pot * pot_p).sum(1), put(zeros_c, (cand * cand_p).sum(1) / 4.0),
                                          pile_cat[:, :d], pile_cat[:, d:2 * d], pile_cat[:, 2 * d:], dec], 1))
             u = self.upd[r]
             player = player + u["player"](player.unsqueeze(1), ctx).squeeze(1)
@@ -337,13 +342,16 @@ class Net(nn.Module):
         pick = torch.zeros(B, C["MAX_PICK"], device=obs.device)
         if len(rows):
             pv_ = self.pick(torch.cat([cand, dec[rows].unsqueeze(1).expand(-1, Q, -1)], -1)).squeeze(-1)
-            pick = pick.index_copy(0, rows, F.pad(pv_, (0, C["MAX_PICK"] - Q)).to(pick.dtype))
+            pick = put(pick, F.pad(pv_, (0, C["MAX_PICK"] - Q)))
         confirm = self.confirm(torch.cat([dec, player], 1))
         end = self.end(gctx)
         logits = torch.cat([end, play.flatten(1), pot_l.flatten(1), disc, pick, confirm], 1)
         if len(rows):
-            undo = torch.zeros(B, C["MAX_PICK"], dtype=torch.bool, device=obs.device)
-            undo[rows, :Q] = z["cand_sel"]
+            if rw is None:
+                undo = torch.zeros(B, C["MAX_PICK"], dtype=torch.bool, device=obs.device)
+                undo[rows, :Q] = z["cand_sel"]
+            else:
+                undo = put(torch.zeros(B, C["MAX_PICK"], device=obs.device), F.pad(z["cand_sel"].float(), (0, C["MAX_PICK"] - Q))) > 0
             m = (mask > 0)
             m_pick = m[:, C["OFF_PICK"]:C["OFF_PICK"] + C["MAX_PICK"]] & ~undo
             m2 = torch.cat([m[:, :C["OFF_PICK"]], m_pick, m[:, C["OFF_PICK"] + C["MAX_PICK"]:]], 1)
