@@ -204,6 +204,19 @@ def hl_gauss(cls, sigma):
     return t
 
 
+def td_backup(T, P, last, lam):
+    """T[i] = (1 - lam) P[i+1] + lam T[i+1] backwards within each fight (rows contiguous, `last` closes a fight), one row-distance at a time."""
+    n = len(T)
+    ends = np.flatnonzero(np.r_[last[:-1], True]) if n else np.zeros(0, np.int64)
+    d = ends[np.searchsorted(ends, np.arange(n))] - np.arange(n)
+    order = np.argsort(d, kind="stable")
+    cut = np.searchsorted(d[order], np.arange(1, int(d.max(initial=0)) + 2))
+    for k in range(len(cut) - 1):
+        i = order[cut[k]:cut[k + 1]]
+        T[i] = (1 - lam) * P[i + 1] + lam * T[i + 1]
+    return T.astype(np.float32)
+
+
 def train(a):
     from model import DEV, load
     torch.manual_seed(a.seed)
@@ -222,10 +235,7 @@ def train(a):
         o, cl, last = r[0], r[3], r[6]
         P = np.concatenate([torch.softmax(prior.heads_out(torch.from_numpy(o[b:b + 4096]).to(DEV))[0].float(), 1).cpu().numpy() for b in range(0, len(o), 4096)])
         T = hl_gauss(torch.from_numpy(cl.astype(np.int64)), a.sigma).numpy()
-        for i in range(len(o) - 2, -1, -1):
-            if not last[i]:
-                T[i] = (1 - a.lam) * P[i + 1] + a.lam * T[i + 1]
-        return T.astype(np.float32)
+        return td_backup(T, P, last, a.lam)
     opt = torch.optim.AdamW([q for q in net.parameters() if q.requires_grad], lr=a.lr, weight_decay=1e-4)
     print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target anchored (c={a.c:g}, minmax)", flush=True)
 
