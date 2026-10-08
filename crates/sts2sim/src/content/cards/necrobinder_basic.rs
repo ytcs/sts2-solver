@@ -40,8 +40,13 @@ listener!(Unleash {
         if osty == NO {
             return Flow::Done;
         }
-        let dmg = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::ExtraDamage) * cx.cr(osty).hp;
+        let dmg = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::ExtraDamage) * cx.cr(osty).hp();
         cx.execute_attack(&Attack::from_card(osty, p.card, dmg, Targeting::Single(p.target)));
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let osty = cx.living_osty();
+        Some(crate::engine::calc_with(cx, card, if osty == NO { 0 } else { cx.cr(osty).hp() }))
     }
 });

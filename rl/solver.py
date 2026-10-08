@@ -44,21 +44,22 @@ class Solver:
         `roots`: fights in flight (default 2048 on CUDA, 256 on the CPU); `amp`: bf16 inside CUDA graphs (default on CUDA)."""
         if threads:
             torch.set_num_threads(threads)
-        self.net = load(ckpt)
+        self.net = load(ckpt, set_version=False)  # the search and the envs take the network's observation version
         if value_ckpts == "default":
             value_ckpts = DEFAULT_VALUE_CKPTS if ckpt == DEFAULT_CKPT else None
-        self.value_nets = [load(c) for c in value_ckpts] if value_ckpts else []
+        self.value_nets = [load(c, set_version=False) for c in value_ckpts] if value_ckpts else []
         self.max_steps = max_steps
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         # a big pool of fights in flight keeps the network batches large (2048 roots x 24 play-outs); bf16 inside CUDA graphs is free (docs/solver.md)
         self.fs = FastSearch(self.net, self.value_nets, M, K, conf=conf, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
-                             roll_net=load(roll_ckpt) if roll_ckpt else None, amp=cuda if amp is None else amp, dist=dist)
+                             roll_net=load(roll_ckpt, set_version=False) if roll_ckpt else None, amp=cuda if amp is None else amp, dist=dist)
         self.fs.warm()
 
     def _greedy(self, scenarios, attempts, seed):
         """The network alone (its most probable action every time): rows (outcome, hp_lost, length, hp_end)."""
         flat = [scenarios[i] for _ in range(attempts) for i in range(len(scenarios))]  # attempt-major
-        env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=heads.TURN_CAP)
+        env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=heads.TURN_CAP,
+                          obs_version=getattr(self.net, "obs_version", 1))
         pol = net_policy(self.net)
         obs, mask = env.reset()
         got = np.zeros(len(flat), bool)

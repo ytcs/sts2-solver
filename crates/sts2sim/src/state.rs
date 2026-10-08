@@ -263,7 +263,15 @@ pub struct Creature {
     /// makes it not count for `is_ending`. Maintained by `Combat::sync_secondary` at every power-list mutation.
     pub secondary: bool,
     pub monster: MonsterState,
+    /// Look-ahead bookkeeping (`Combat::lookahead`): bit `PRISTINE_HP` / `PRISTINE_BLOCK` = `hp` / `block` still holds the value the projected
+    /// combat started from. Set only on the projection's copies of the enemies; a read through [`Creature::hp`] / [`Creature::block`] of such a
+    /// value is recorded, a write through [`Creature::set_hp`] / [`Creature::set_block`] clears the bit. Always 0 outside a projection.
+    pub pristine: u8,
 }
+
+/// `Creature::pristine` bits.
+pub const PRISTINE_HP: u8 = 1;
+pub const PRISTINE_BLOCK: u8 = 2;
 
 impl Default for Creature {
     fn default() -> Self {
@@ -281,11 +289,39 @@ impl Default for Creature {
             powers: ArrayVec::new(),
             secondary: false,
             monster: MonsterState::default(),
+            pristine: 0,
         }
     }
 }
 
 impl Creature {
+    /// HP, as engine code reads it: inside a look-ahead projection a read of the starting value is recorded (`pristine`). (Alive / dead
+    /// only reads `hp > 0`, which the look-ahead's cache key holds, so `is_alive` / `is_dead` read the field directly.)
+    #[inline(always)]
+    pub fn hp(&self) -> i32 {
+        if self.pristine & PRISTINE_HP != 0 {
+            crate::engine::look_dep();
+        }
+        self.hp
+    }
+    #[inline(always)]
+    pub fn set_hp(&mut self, v: i32) {
+        self.pristine &= !PRISTINE_HP;
+        self.hp = v;
+    }
+    /// Block, as engine code reads it (see [`Creature::hp`]).
+    #[inline(always)]
+    pub fn block(&self) -> i32 {
+        if self.pristine & PRISTINE_BLOCK != 0 {
+            crate::engine::look_dep();
+        }
+        self.block
+    }
+    #[inline(always)]
+    pub fn set_block(&mut self, v: i32) {
+        self.pristine &= !PRISTINE_BLOCK;
+        self.block = v;
+    }
     #[inline(always)]
     pub fn is_alive(&self) -> bool {
         self.hp > 0
@@ -429,8 +465,28 @@ pub struct Decision {
     pub confirm_required: bool,
     /// May finish with nothing selected (skippable choose-a-card screens).
     pub can_skip: bool,
-    /// Content-defined purpose tag (which card/relic/potion asked).
+    /// What asked for the selection (`purpose::*`): a card id, or a potion / relic / monster id with its flag.
     pub purpose: u16,
+}
+
+/// `Decision::purpose` tags: a plain value is a card id (`ids::card::*`, also for decisions a card's power raises); potions, relics and
+/// monsters set a flag over their id (every id space is below `ID + 1`). Only diagnostics and the observation (v2 `dec_source`) read it.
+pub mod purpose {
+    pub const POTION: u16 = 0x8000;
+    pub const RELIC: u16 = 0x4000;
+    pub const MONSTER: u16 = 0x2000;
+    pub const ID: u16 = 0x1FFF;
+    const _: () = assert!(crate::ids::card::COUNT <= ID as usize && crate::ids::potion::COUNT <= ID as usize);
+    const _: () = assert!(crate::ids::relic::COUNT <= ID as usize && crate::ids::monster::COUNT <= ID as usize);
+    pub const fn potion(id: u16) -> u16 {
+        POTION | id
+    }
+    pub const fn relic(id: u16) -> u16 {
+        RELIC | id
+    }
+    pub const fn monster(id: u16) -> u16 {
+        MONSTER | id
+    }
 }
 
 /// A step re-run from its starting state so a decision raised somewhere the engine cannot suspend (a draw's reshuffle in the

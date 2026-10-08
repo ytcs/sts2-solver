@@ -366,6 +366,11 @@ listener!(KnifeTrap {
         }
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let shivs = cx.player.exhaust.iter().filter(|&&c| cx.card_def(c).tags & tag::SHIV != 0).count() as i32;
+        Some(crate::engine::calc_extra_with(cx, card, shivs))
+    }
 });
 
 // ---- D: block / draw / energy skills ----------------------------------------------------------------------------------------
@@ -405,6 +410,11 @@ listener!(Mirage {
         let block = calculated(cx, p.card, VarKind::CalcExtra, poison);
         cx.gain_block(PLAYER, Dec::int(block as i64), ValueProp::MOVE, p.card);
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let poison: i32 = cx.enemies.iter().filter(|&&e| cx.cr(e).is_alive()).map(|&e| cx.power_amount(e, ids::power::POISON_POWER)).sum();
+        Some(crate::engine::calc_extra_with(cx, card, poison))
     }
 });
 

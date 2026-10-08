@@ -31,7 +31,8 @@ class Predictor:
             return P
         sj = [json.dumps(s) for s in scenarios]  # once for every shuffle
         for s in range(shuffles):
-            env = sts2.VecEnv(len(sj), sj, seed=seed + s, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
+            env = sts2.VecEnv(len(sj), sj, seed=seed + s, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP,
+                              obs_version=getattr(self.net, "obs_version", 1))
             o, _ = env.reset()
             for b in range(0, len(sj), self.batch):
                 # the outcome head only (`heads_out`: the same logits as the full pass, without the policy heads or the action mask)

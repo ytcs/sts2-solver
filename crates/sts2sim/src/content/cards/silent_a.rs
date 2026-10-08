@@ -448,7 +448,7 @@ listener!(Expertise {
 listener!(Expose {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let amount = cx.card_named_var(p.card, var_name::POWER);
-        let block = cx.cr(p.target).block;
+        let block = cx.cr(p.target).block();
         cx.lose_block(p.target, Dec::int(block as i64), PLAYER);
         cx.remove_power_by_id(p.target, ids::power::ARTIFACT_POWER);
         cx.apply_power(ids::power::VULNERABLE_POWER, p.target, Dec::int(amount as i64), PLAYER, p.card);
@@ -481,6 +481,10 @@ listener!(Finisher {
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)).hits(hits));
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, finished_attacks_this_turn(cx)))
+    }
 });
 
 // Multiplayer only constraint, but playable in single player (AnyEnemy): applies FlankingPower (x2 damage for every
@@ -505,6 +509,11 @@ listener!(Flechettes {
         let hits = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * skills;
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Single(p.target)).hits(hits));
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let skills = cx.player.hand.iter().filter(|&&c| cx.card_def(c).ctype == CardType::Skill).count() as i32;
+        Some(crate::engine::calc_extra_with(cx, card, skills))
     }
 });
 

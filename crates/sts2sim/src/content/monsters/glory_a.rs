@@ -357,8 +357,8 @@ pub static FROG_KNIGHT_DEF: MonsterDef = MonsterDef {
         cond(
             "HALF_HEALTH",
             &[
-                (3, |cx, c| cx.cr(c).monster.vars[0] != 0 || cx.cr(c).hp >= cx.cr(c).max_hp / 2),
-                (4, |cx, c| cx.cr(c).monster.vars[0] == 0 && cx.cr(c).hp < cx.cr(c).max_hp / 2),
+                (3, |cx, c| cx.cr(c).monster.vars[0] != 0 || cx.cr(c).hp() >= cx.cr(c).max_hp / 2),
+                (4, |cx, c| cx.cr(c).monster.vars[0] == 0 && cx.cr(c).hp() < cx.cr(c).max_hp / 2),
             ],
         ),
         mv("FOR_THE_QUEEN", |cx, me| power_self(cx, me, ids::power::STRENGTH_POWER, 5), &[Intent::Buff], 0),
@@ -595,7 +595,7 @@ pub static PUNCH_CONSTRUCT_DEF: MonsterDef = MonsterDef {
         power_self(cx, me, ids::power::ARTIFACT_POWER, 1);
         let red = cx.cr(me).monster.vars[1];
         if red > 0 {
-            let hp = (cx.cr(me).hp - red).max(1);
+            let hp = (cx.cr(me).hp() - red).max(1);
             cx.set_current_hp_internal(me, Dec::int(hp as i64));
         }
     }),

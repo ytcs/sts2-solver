@@ -26,7 +26,7 @@ listener!(GamblingChip {
             return;
         }
         // CardSelectorPrefs(prompt, 0, 999999999)
-        match cx.ask_hand(ids::relic::GAMBLING_CHIP, 0, u8::MAX, |_, _| true) {
+        match cx.ask_hand(purpose::relic(ids::relic::GAMBLING_CHIP), 0, u8::MAX, |_, _| true) {
             Ask::Resolved(cards) => gambling_chip_finish(cx, &cards),
             Ask::Pending => {
                 cx.hook_ctx = Some((me, 0));
@@ -50,7 +50,7 @@ fn toasty_mittens_finish(cx: &mut Combat, cards: &ArrayVec<CardIdx, 16>) {
 }
 listener!(ToastyMittens {
     fn after_player_turn_start(&self, cx: &mut Combat, me: Me) {
-        match cx.ask_hand(ids::relic::TOASTY_MITTENS, 1, 1, |_, _| true) {
+        match cx.ask_hand(purpose::relic(ids::relic::TOASTY_MITTENS), 1, 1, |_, _| true) {
             Ask::Resolved(cards) => toasty_mittens_finish(cx, &cards),
             Ask::Pending => {
                 cx.hook_ctx = Some((me, 0));
@@ -78,7 +78,7 @@ listener!(Toolbox {
         }
         let cards = cx.get_distinct_for_combat(&gen_pools::COLORLESS, g::toolbox::CARDS as usize, |_| true);
         // `FromChooseACardScreen(...)`: the oracle's selector may also pick nothing (min 0), like Discovery.
-        match cx.ask_options(ids::relic::TOOLBOX, cards.as_slice(), false) {
+        match cx.ask_options(purpose::relic(ids::relic::TOOLBOX), cards.as_slice(), false) {
             Ask::Resolved(picked) => toolbox_finish(cx, &picked),
             Ask::Pending => {
                 cx.hook_ctx = Some((me, 0));
@@ -112,7 +112,7 @@ listener!(ChoicesParadox {
         for &c in cards.iter() {
             cx.apply_keyword(c, kw::RETAIN);
         }
-        match cx.ask_options(ids::relic::CHOICES_PARADOX, cards.as_slice(), false) {
+        match cx.ask_options(purpose::relic(ids::relic::CHOICES_PARADOX), cards.as_slice(), false) {
             Ask::Resolved(picked) => choices_paradox_finish(cx, &picked),
             Ask::Pending => {
                 cx.hook_ctx = Some((me, 0));

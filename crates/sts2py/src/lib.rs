@@ -33,18 +33,31 @@ struct BatchEnvPy {
 #[pymethods]
 impl BatchEnvPy {
     #[new]
-    #[pyo3(signature = (n_envs, scenarios_json, seed, max_steps, win, loss, hp_bonus, step_reward, round_robin=false, turn_cap=0))]
+    #[pyo3(signature = (n_envs, scenarios_json, seed, max_steps, win, loss, hp_bonus, step_reward, round_robin=false, turn_cap=0, obs_version=None))]
     #[allow(clippy::too_many_arguments)]
-    fn new(py: Python<'_>, n_envs: usize, scenarios_json: Vec<String>, seed: u64, max_steps: u32, win: f32, loss: f32, hp_bonus: f32, step_reward: f32, round_robin: bool, turn_cap: u32) -> PyResult<Self> {
+    fn new(py: Python<'_>, n_envs: usize, scenarios_json: Vec<String>, seed: u64, max_steps: u32, win: f32, loss: f32, hp_bonus: f32, step_reward: f32, round_robin: bool, turn_cap: u32, obs_version: Option<u8>) -> PyResult<Self> {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
         let cfg = RewardConfig { win, loss, hp_bonus, step: step_reward, turn_cap };
         if scs.is_empty() {
             return Err(PyValueError::new_err("no scenarios"));
         }
         let source: Box<dyn sts2env::ScenarioSource> = if round_robin { Box::new(RoundRobinScenario::with_extras(scs)) } else { Box::new(PoolScenario::with_extras(scs)) };
-        let env = BatchEnv::try_new(n_envs, source, cfg, max_steps, seed)
+        let mut env = BatchEnv::try_new(n_envs, source, cfg, max_steps, seed)
             .map_err(|e| PyValueError::new_err(format!("cannot create the env: {e:?}")))?;
+        if let Some(v) = obs_version {
+            env.set_obs_version(v).map_err(|_| PyValueError::new_err(format!("unknown observation version {v}")))?;
+        }
         Ok(BatchEnvPy { env })
+    }
+
+    /// The observation version this env writes.
+    fn obs_version(&self) -> u8 {
+        self.env.obs_version()
+    }
+
+    /// Floats per observation row.
+    fn obs_size(&self) -> usize {
+        self.env.obs_size()
     }
 
     fn observe_all(&mut self, py: Python<'_>, mut obs: PyReadwriteArray2<f32>, mut mask: PyReadwriteArray2<u8>) -> PyResult<()> {
@@ -142,7 +155,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, root="topm", gm=16, gn=160, c_visit=50.0, c_scale=0.1, clairvoyant=false))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, pmin, margin, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, util=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, root="topm", gm=16, gn=160, c_visit=50.0, c_scale=0.1, clairvoyant=false, obs_version=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -178,6 +191,8 @@ impl SearchEnginePy {
         c_scale: f32,
         // DIAGNOSTIC ONLY (sees hidden information): futures are copies of the true state, not determinized (`SearchCfg::clairvoyant`); never for live play
         clairvoyant: bool,
+        // the observation version of the request rows (default: the process-wide one)
+        obs_version: Option<u8>,
     ) -> PyResult<Self> {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
@@ -200,6 +215,9 @@ impl SearchEnginePy {
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let n_scen = scs.len();
         let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
+        if let Some(v) = obs_version {
+            eng.set_obs_version(v).map_err(|_| PyValueError::new_err(format!("unknown observation version {v}")))?;
+        }
         if let Some(wa) = worth {
             // [n_scen, 1 + HEAD_NC + POT]: table flag (0 = linear), the worth of each class, the price of each belt slot's potion
             use sts2env::search::{Worth, HEAD_NC, POT};
@@ -226,6 +244,16 @@ impl SearchEnginePy {
     /// `(max policy rows, max value rows)` one `advance` can request: the sizes of the request buffers.
     fn max_rows(&self) -> (usize, usize) {
         self.eng.max_rows()
+    }
+
+    /// The observation version of the request rows.
+    fn obs_version(&self) -> u8 {
+        self.eng.obs_version()
+    }
+
+    /// Floats per observation row of the request buffers.
+    fn obs_size(&self) -> usize {
+        self.eng.obs_size()
     }
 
     fn n_roots(&self) -> usize {
@@ -442,61 +470,74 @@ impl SearchEnginePy {
     }
 }
 
+/// The observation version `v` (default: the process-wide one) and its row length; an error for an unknown version.
+fn version_size(v: Option<u8>) -> PyResult<(u8, usize)> {
+    let v = v.unwrap_or_else(sts2sim::observe::obs_version);
+    match sts2sim::observe::obs_size(v) {
+        0 => Err(PyValueError::new_err(format!("unknown observation version {v}"))),
+        n => Ok((v, n)),
+    }
+}
+
 /// Replays a recorded fight (`SearchEnginePy.moves`): `(obs [n + 1, OBS], mask [n + 1, ACTIONS])` before every action and after the last one.
 #[pyfunction]
-fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReadonlyArray1<i32>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
+#[pyo3(signature = (scenario_json, seed, actions, obs_version=None))]
+fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReadonlyArray1<i32>, obs_version: Option<u8>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
     use numpy::{PyArray1, PyArrayMethods};
+    let (ver, osz) = version_size(obs_version)?;
     let v: serde_json::Value = serde_json::from_str(scenario_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
     let scen = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
     let acts: Vec<u16> = actions.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?.iter().map(|&a| a as u16).collect();
     let n = acts.len() + 1;
-    let mut obs = vec![0f32; n * sts2env::OBS];
+    let mut obs = vec![0f32; n * osz];
     let mut mask = vec![0u8; n * sts2env::ACTIONS];
-    sts2env::search::replay(&scen, seed, &acts, &mut obs, &mut mask).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
-    Ok((PyArray1::from_vec(py, obs).reshape([n, sts2env::OBS])?, PyArray1::from_vec(py, mask).reshape([n, sts2env::ACTIONS])?))
+    sts2env::search::replay_v(&scen, seed, &acts, &mut obs, &mut mask, ver).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
+    Ok((PyArray1::from_vec(py, obs).reshape([n, osz])?, PyArray1::from_vec(py, mask).reshape([n, sts2env::ACTIONS])?))
 }
 
 /// Many recorded fights at once, in parallel: fight i replays `actions[off[i]..off[i + 1]]` from `scenarios[scen[i]]` with `seeds[i]` and returns
 /// the observation and mask before each of its `steps[soff[i]..soff[i + 1]]` (indices into its own steps), all fights' rows concatenated in order.
 /// What `rl/exit.py` trains on: the decisions the search made, rebuilt from the compact record.
 #[pyfunction]
+#[pyo3(signature = (scenarios, scen, seeds, actions, off, steps, soff, obs_version=None))]
 #[allow(clippy::too_many_arguments)]
 fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, seeds: Vec<u64>, actions: PyReadonlyArray1<i32>, off: Vec<usize>,
-                    steps: Vec<u32>, soff: Vec<usize>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
-    use numpy::{PyArray1, PyArrayMethods};
+                    steps: Vec<u32>, soff: Vec<usize>, obs_version: Option<u8>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
+    use numpy::PyArrayMethods;
     use rayon::prelude::*;
+    let (ver, o) = version_size(obs_version)?;
     let parsed = parse_scenarios(py, &scenarios, false)?;
     let acts: Vec<u16> = actions.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?.iter().map(|&a| a as u16).collect();
-    let (o, a) = (sts2env::OBS, sts2env::ACTIONS);
-    let parts: Vec<Result<(Vec<f32>, Vec<u8>), String>> = py.detach(|| {
-        (0..seeds.len())
-            .into_par_iter()
-            .map(|i| {
-                let fa = &acts[off[i]..off[i + 1]];
-                let n = fa.len() + 1;
-                let mut obs = vec![0f32; n * o];
-                let mut mask = vec![0u8; n * a];
-                sts2env::search::replay(&parsed[scen[i] as usize], seeds[i], fa, &mut obs, &mut mask).map_err(|e| format!("fight {i}: {e:?}"))?;
-                let st = &steps[soff[i]..soff[i + 1]];
-                let mut ro = Vec::with_capacity(st.len() * o);
-                let mut rm = Vec::with_capacity(st.len() * a);
-                for &t in st {
-                    let t = t as usize;
-                    ro.extend_from_slice(&obs[t * o..(t + 1) * o]);
-                    rm.extend_from_slice(&mask[t * a..(t + 1) * a]);
-                }
-                Ok((ro, rm))
-            })
-            .collect()
-    });
-    let (mut obs, mut mask) = (Vec::new(), Vec::new());
-    for p in parts {
-        let (ro, rm) = p.map_err(PyValueError::new_err)?;
-        obs.extend(ro);
-        mask.extend(rm);
+    let a = sts2env::ACTIONS;
+    let n = seeds.len();
+    if scen.len() < n || off.len() <= n || soff.len() <= n || soff[n] > steps.len() || off[n] > acts.len() || scen.iter().take(n).any(|&s| s as usize >= parsed.len()) {
+        return Err(PyValueError::new_err("replay_rows: scen / off / soff do not match the fights"));
     }
-    let r = obs.len() / o;
-    Ok((PyArray1::from_vec(py, obs).reshape([r, o])?, PyArray1::from_vec(py, mask).reshape([r, a])?))
+    // the rows are written straight into the output arrays (each fight into its own rows, in parallel); only the requested states are observed
+    let r = soff[n] - soff[0];
+    let obs_arr = numpy::PyArray2::<f32>::zeros(py, [r, o], false);
+    let mask_arr = numpy::PyArray2::<u8>::zeros(py, [r, a], false);
+    {
+        // SAFETY: both arrays were just created here and are not shared with Python code while it runs
+        let (obs, mask) = unsafe { (obs_arr.as_slice_mut().expect("contiguous"), mask_arr.as_slice_mut().expect("contiguous")) };
+        let mut parts = Vec::with_capacity(n);
+        let (mut ro, mut rm) = (obs, mask);
+        for i in 0..n {
+            let k = soff[i + 1].checked_sub(soff[i]).ok_or_else(|| PyValueError::new_err("replay_rows: soff must not decrease"))?;
+            let (ho, to) = std::mem::take(&mut ro).split_at_mut(k * o);
+            let (hm, tm) = std::mem::take(&mut rm).split_at_mut(k * a);
+            (ro, rm) = (to, tm);
+            parts.push((i, ho, hm));
+        }
+        let res: Result<(), String> = py.detach(|| {
+            parts.into_par_iter().try_for_each(|(i, ho, hm)| {
+                let fa = acts.get(off[i]..off[i + 1]).ok_or_else(|| format!("fight {i}: bad action offsets"))?;
+                sts2env::search::replay_steps_v(&parsed[scen[i] as usize], seeds[i], fa, &steps[soff[i]..soff[i + 1]], ho, hm, ver).map_err(|e| format!("fight {i}: {e:?}"))
+            })
+        });
+        res.map_err(PyValueError::new_err)?;
+    }
+    Ok((obs_arr, mask_arr))
 }
 
 /// Whether observations leave out relics with no combat effect (`sts2sim::relic_mask`; on by default). Returns the previous setting.
@@ -512,9 +553,24 @@ fn set_look_legacy(on: bool) -> bool {
     sts2sim::engine::LOOK_LEGACY.swap(on, std::sync::atomic::Ordering::Relaxed)
 }
 
+/// Floats per observation row of version `version` (default: the process-wide version).
 #[pyfunction]
-fn obs_size() -> usize {
-    sts2env::OBS
+#[pyo3(signature = (version=None))]
+fn obs_size(version: Option<u8>) -> PyResult<usize> {
+    Ok(version_size(version)?.1)
+}
+
+/// The process-wide observation version (1 by default): what `VecEnv`, the search engine, `replay`, `Sim.observe` and `layout` use when no
+/// version is given. Each env / engine keeps the version it was created with.
+#[pyfunction]
+fn obs_version() -> u8 {
+    sts2sim::observe::obs_version()
+}
+
+/// Sets the process-wide observation version (1 or 2); returns the previous one.
+#[pyfunction]
+fn set_obs_version(version: u8) -> PyResult<u8> {
+    sts2sim::observe::set_obs_version(version).ok_or_else(|| PyValueError::new_err(format!("unknown observation version {version}")))
 }
 
 #[pyfunction]
@@ -550,18 +606,21 @@ fn names(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
     Ok(d)
 }
 
-/// Observation layout and action-space constants: `{"sections": [(name, offset, size)], "consts": {name: value}}`.
+/// Observation layout and action-space constants of `version` (default: the process-wide version):
+/// `{"sections": [(name, offset, size)], "consts": {name: value}}`.
 #[pyfunction]
-fn layout(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
+#[pyo3(signature = (version=None))]
+fn layout(py: Python<'_>, version: Option<u8>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
     use pyo3::types::{PyDict, PyList};
+    let (ver, _) = version_size(version)?;
     let d = PyDict::new(py);
     let secs = PyList::empty(py);
-    for (name, off, size) in sts2sim::observe::layout() {
+    for (name, off, size) in sts2sim::observe::layout_v(ver) {
         secs.append((name, off, size))?;
     }
     d.set_item("sections", secs)?;
     let c = PyDict::new(py);
-    for (name, v) in sts2sim::observe::layout_consts() {
+    for (name, v) in sts2sim::observe::layout_consts_v(ver) {
         c.set_item(name, v)?;
     }
     d.set_item("consts", c)?;
@@ -575,6 +634,8 @@ fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<sim::Sim>()?;
     m.add("BatchEnv", m.getattr("BatchEnvPy")?)?;
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;
+    m.add_function(wrap_pyfunction!(obs_version, m)?)?;
+    m.add_function(wrap_pyfunction!(set_obs_version, m)?)?;
     m.add_function(wrap_pyfunction!(set_relic_mask, m)?)?;
     m.add_function(wrap_pyfunction!(set_look_legacy, m)?)?;
     m.add_function(wrap_pyfunction!(replay, m)?)?;

@@ -102,6 +102,11 @@ listener!(NoEscape {
         apply_doom(cx, p.target, amt, p);
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        // `floor(target?.Doom ?? 0 / DoomThreshold)`
+        let have = if target == NO { 0 } else { cx.power_amount(target, ids::power::DOOM_POWER) };
+        Some(crate::engine::calc_extra_with(cx, card, have / cx.card_named_var(card, var_name::DOOM_THRESHOLD).max(1)))
+    }
 });
 
 listener!(Oblivion {
@@ -129,6 +134,11 @@ listener!(TimesUp {
         let d = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::ExtraDamage) * doom;
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, d, Targeting::Single(p.target)));
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        // `target?.GetPowerAmount<DoomPower>() ?? 0`
+        let doom = if target == NO { 0 } else { cx.power_amount(target, ids::power::DOOM_POWER) };
+        Some(crate::engine::calc_with(cx, card, doom))
     }
 });
 

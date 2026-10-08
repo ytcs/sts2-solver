@@ -348,3 +348,53 @@ fn cached_lookahead_equals_fresh_every_encounter() {
     assert!(checked > 5_000, "only {checked} look-aheads checked");
     assert!(diffs.is_empty(), "{} of {checked} cached look-aheads differ: {:?}", diffs.len(), &diffs[..diffs.len().min(10)]);
 }
+
+#[test]
+fn engine_reads_hp_and_block_through_the_tracked_accessors() {
+    // the look-ahead's relaxed cache key (`Creature::pristine`) is only exact if every read of a creature's HP or block in code that can run inside a
+    // projection goes through `Creature::hp()` / `block()` and every write through `set_hp` / `set_block`. Allowed direct uses: the accessors and
+    // alive / dead (state.rs), digests (`mix(&mut h, ...)`), observation, sync with the real game, scenario setup and the unwinnability bounds.
+    let src = concat!(env!("CARGO_MANIFEST_DIR"), "/src");
+    let allowed = ["state.rs", "observe.rs", "sync.rs", "scenario.rs", "bounds.rs"];
+    let mut bad = Vec::new();
+    let mut stack = vec![std::path::PathBuf::from(src)];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                stack.push(p);
+                continue;
+            }
+            let name = p.file_name().unwrap().to_string_lossy().to_string();
+            if !name.ends_with(".rs") || allowed.contains(&name.as_str()) {
+                continue;
+            }
+            for (i, line) in std::fs::read_to_string(&p).unwrap().lines().enumerate() {
+                if line.contains("mix(&mut h") || line.trim_start().starts_with("//") {
+                    continue;
+                }
+                // `cr(..).hp`, `cr.hp`, `pl.block`, `creatures[..].hp` ... not followed by `(` (a method call)
+                let b = line.as_bytes();
+                for field in [".hp", ".block"] {
+                    let mut from = 0;
+                    while let Some(k) = line[from..].find(field) {
+                        let at = from + k;
+                        let end = at + field.len();
+                        from = end;
+                        let next = b.get(end).copied().unwrap_or(b' ');
+                        if next.is_ascii_alphanumeric() || next == b'_' || next == b'(' {
+                            continue;
+                        }
+                        let recv = &line[..at];
+                        let creature = recv.ends_with(')') && (recv.contains("cr(") || recv.contains("cr_mut(")) || recv.ends_with(" cr") || recv.ends_with("(cr")
+                            || recv.ends_with(" pl") || recv.ends_with(']') && recv.contains("creatures[");
+                        if creature {
+                            bad.push(format!("{}:{}: {}", p.display(), i + 1, line.trim()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "direct HP / block field access in engine code:\n{}", bad.join("\n"));
+}

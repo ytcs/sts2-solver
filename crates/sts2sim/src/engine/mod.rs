@@ -32,13 +32,13 @@ mod turn;
 
 pub use creature::DamageResult;
 pub use necro::{is_temporary_power, temporary_inner_power};
-pub use damage::{calc_with, Attack, Mods, Results, Targeting};
+pub use damage::{calc_extra_with, calc_with, Attack, Mods, Results, Targeting};
 pub use dispatch::*;
 pub use cmds::Ask;
 pub use replay::ReplayAnswer;
 pub use action::{Action, ActionBuf, ACTION_SPACE, MAX_PICK};
 pub use monster::{STUN_INTENTS, STUN_NODE};
-pub use monster::{LookRow, LOOK_H, LOOK_LEGACY, LOOK_NODES};
+pub use monster::{look_dep, with_look_cache, LookCache, LookRow, LOOK_CACHE_ENTRIES, LOOK_H, LOOK_LEGACY, LOOK_NODES, LOOK_VERIFIED, LOOK_VERIFY};
 pub use turn::BASE_HAND_DRAW;
 pub use cost::CostMods;
 pub use sync::{EnemySync, HandSync, ObsCard, ObsEnemy, ObsRelic, RelicSync};

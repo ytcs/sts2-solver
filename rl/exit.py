@@ -15,7 +15,7 @@ Targets per searched decision:
   outcome  the class of how that fight really ended (loss, or the 2-HP end bin) under search play, HL-Gauss-smoothed over neighbouring win bins
            (Farebrother et al. 2024); realized outcomes, never the max of the search's estimates (winner's curse)
 """
-import argparse, json, os, sys, time
+import argparse, concurrent.futures, json, os, sys, time
 
 import numpy as np
 import torch
@@ -147,7 +147,8 @@ POLICY_HEADS = {"u_card", "b_card", "v_tgt", "v_none", "u_pot", "b_pot", "disc_p
 class Data:
     """One or more `collect` files; `chunks` yields replayed rows (obs, mask, opts, policy target, outcome class) a chunk of fights at a time."""
 
-    def __init__(self, paths, tau, keep_mp=False, qnorm="minmax", qse=0.078, hard=False):
+    def __init__(self, paths, tau, keep_mp=False, qnorm="minmax", qse=0.078, hard=False, obs_version=1):
+        self.obs_version = obs_version  # rows are replayed as observations of this version (the trained network's)
         self.parts = []
         for p in paths:
             z = np.load(p)
@@ -223,7 +224,8 @@ class Data:
                 acts.append(p["acts"][p["f_off"][f]:p["f_off"][f + 1]]); off.append(off[-1] + len(acts[-1]))
                 lo, hi = p["d_lo"][f], p["d_lo"][f + 1]
                 steps.append(p["d_step"][lo:hi]); soff.append(soff[-1] + hi - lo); sel.append(np.arange(lo, hi))
-            o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff)
+            o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff,
+                                   obs_version=self.obs_version)
             sel = np.concatenate(sel)
             out[0].append(o); out[1].append(m); out[2].append(p["d_opts"][sel]); out[3].append(p["tgt"][sel])
             out[4].append(np.repeat(p["f_cls"][fs], np.diff(soff)))
@@ -254,7 +256,7 @@ def train(a):
     rng = np.random.default_rng(a.seed)
     net = load(a.init).train()
     assert net.heads, "an outcome-head network is needed (models/solver_h128.pt)"
-    data = Data(a.data, a.tau, qnorm=a.qnorm, qse=a.qse, hard=a.target == "hard")
+    data = Data(a.data, a.tau, qnorm=a.qnorm, qse=a.qse, hard=a.target == "hard", obs_version=net.obs_version)
     idx = np.array(data.index, dtype=object)
     perm = rng.permutation(len(idx))
     n_hold = max(1, int(len(idx) * a.holdout))
@@ -284,7 +286,7 @@ def train(a):
           f"{' (c=%g, %s)' % (a.c, a.qnorm) if a.target == 'anchored' else ''}{', policy heads frozen' if a.freeze_policy else ''}", flush=True)
 
     def batch_loss(o, m, op, tg, cl, qn, adv, ow, last, vt=None):
-        o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m.astype(np.int64)).to(DEV)
+        o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m).to(DEV).long()  # the mask crosses as bytes, widened on the device
         op, tg, cl = torch.from_numpy(op.astype(np.int64)).to(DEV), torch.from_numpy(tg).to(DEV), torch.from_numpy(cl.astype(np.int64)).to(DEV)
         lg, _, ol = net(o, m, outcome=True)[:3]
         if prior is not None:
@@ -320,22 +322,28 @@ def train(a):
 
     print("holdout before: policy %.4f outcome %.4f" % evaluate(), flush=True)
     it, n_chunks = 0, a.epochs * ((len(tr) + a.chunk - 1) // a.chunk)
+    # the next chunk's rows are replayed while this one trains (`sts2.replay_rows` releases the GIL): the replay was ~25% of a chunk
+    pool = concurrent.futures.ThreadPoolExecutor(1)
     for ep in range(a.epochs):
         order = rng.permutation(len(tr))
-        for c in range(0, len(tr), a.chunk):
+        starts = list(range(0, len(tr), a.chunk))
+        nxt = pool.submit(data.rows, [tr[i] for i in order[starts[0]:starts[0] + a.chunk]])
+        for ci in range(len(starts)):
             t0 = time.time()
-            r = data.rows([tr[i] for i in order[c:c + a.chunk]])
-            if a.value_target == "td":  # computed before the shuffle: a fight's rows are still contiguous
+            r = nxt.result()
+            if ci + 1 < len(starts):
+                nxt = pool.submit(data.rows, [tr[i] for i in order[starts[ci + 1]:starts[ci + 1] + a.chunk]])
+            if a.value_target == "td":  # computed before the shuffle: a fight's rows are still contiguous (the shuffle only gathers minibatches)
                 r.append(td_targets(r))
             sh = rng.permutation(len(r[0]))
-            r = [x[sh] for x in r]
             lr = a.lr * max(a.lr_floor, 1 - it / n_chunks)
             for g in opt.param_groups:
                 g["lr"] = lr
             st = np.zeros(2)
             nb = 0
             for b in range(0, len(r[0]), a.mb):
-                pl, vl = batch_loss(*(x[b:b + a.mb] for x in r))
+                ib = sh[b:b + a.mb]  # the minibatches of the shuffled chunk, gathered one at a time (no shuffled copy of the whole chunk)
+                pl, vl = batch_loss(*(x[ib] for x in r))
                 loss = a.pol * pl + a.vw * vl
                 opt.zero_grad(set_to_none=True)
                 loss.backward()
@@ -347,7 +355,7 @@ def train(a):
             print(f"ep {ep} chunk {it}/{n_chunks} rows {len(r[0])} policy {st[0] / nb:.4f} outcome {st[1] / nb:.4f} lr {lr:.2e} ({time.time() - t0:.0f}s)", flush=True)
         print(f"holdout after epoch {ep}: policy %.4f outcome %.4f" % evaluate(), flush=True)
         ck = torch.load(a.init, map_location="cpu")
-        torch.save({"net": net.state_dict(), "args": ck.get("args", {}), "exit": vars(a) | {"epoch": ep}}, a.out)
+        torch.save({"net": net.state_dict(), "args": ck.get("args", {}) | {"obs_version": net.obs_version}, "exit": vars(a) | {"epoch": ep}}, a.out)
     print(f"-> {a.out}", flush=True)
 
 

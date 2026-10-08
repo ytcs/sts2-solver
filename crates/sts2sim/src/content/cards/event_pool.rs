@@ -187,7 +187,7 @@ listener!(Enlightenment {
 // ---- Entrench: double the current Block (Unpowered) ------------------------------------------------------------------------------------
 listener!(Entrench {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let b = cx.cr(PLAYER).block;
+        let b = cx.cr(PLAYER).block();
         cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::UNPOWERED.or(ValueProp::MOVE), p.card);
         Flow::Done
     }
@@ -332,6 +332,10 @@ listener!(Stack {
         let b = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * n;
         cx.gain_block(PLAYER, Dec::int(b as i64), ValueProp::MOVE, p.card);
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.pile(PileType::Discard).len() as i32))
     }
 });
 

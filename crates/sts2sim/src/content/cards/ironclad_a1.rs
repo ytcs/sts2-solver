@@ -169,9 +169,13 @@ listener!(DemonicShield {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let loss = cx.card_var(p.card, VarKind::HpLoss);
         lose_hp(cx, p.card, loss);
-        let amt = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.cr(PLAYER).block;
+        let amt = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::CalcExtra) * cx.cr(PLAYER).block();
         cx.gain_block(p.target, Dec::int(amt as i64), ValueProp::MOVE, p.card);
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.cr(PLAYER).block()))
     }
 });
 
@@ -224,6 +228,10 @@ listener!(ExpectAFight {
         cx.gain_block(PLAYER, Dec::int(amt as i64), ValueProp::MOVE, p.card);
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, cx.power_amount(PLAYER, ids::power::STRENGTH_POWER).max(0)))
+    }
 });
 
 listener!(FlameBarrier {
@@ -275,13 +283,13 @@ listener!(Bludgeon {
 // multiplier = owner's current Block
 listener!(BodySlam {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let a = Attack::from_card_calc(PLAYER, p.card, Targeting::Single(p.target), |cx, _, _| cx.cr(PLAYER).block);
+        let a = Attack::from_card_calc(PLAYER, p.card, Targeting::Single(p.target), |cx, _, _| cx.cr(PLAYER).block());
         cx.execute_attack(&a);
         Flow::Done
     }
     fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<Dec> {
         let _ = target;
-        Some(calc_with(cx, card, cx.cr(PLAYER).block))
+        Some(calc_with(cx, card, cx.cr(PLAYER).block()))
     }
 });
 

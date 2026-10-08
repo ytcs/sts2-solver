@@ -15,13 +15,14 @@ import sts2
 import heads as H
 from model import DEV, load
 
-KP = sts2.layout()["consts"]["MAX_POTIONS"]
-PO = {n: o for n, o, s in sts2.layout()["sections"]}["potions"]
+KP = sts2.layout(1)["consts"]["MAX_POTIONS"]
 
 
 @torch.no_grad()
 def collect(net, scen, seed=5, max_steps=600):
-    env = sts2.VecEnv(len(scen), scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
+    env = sts2.VecEnv(len(scen), scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP,
+                      obs_version=net.obs_version)
+    PO = net.SEC["potions"][0]  # the potion section of the network's observation version
     obs, mask = env.reset()
     n = len(scen)
     live = np.ones(n, bool)

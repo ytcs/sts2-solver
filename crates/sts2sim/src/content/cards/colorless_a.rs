@@ -378,9 +378,13 @@ listener!(Mimic {
         let t = if p.target == NO { PLAYER } else { p.target };
         let base = cx.card_var(p.card, VarKind::CalcBase) as i64;
         let extra = cx.card_var(p.card, VarKind::CalcExtra) as i64;
-        let b = base + extra * cx.cr(t).block as i64;
+        let b = base + extra * cx.cr(t).block() as i64;
         cx.gain_block(PLAYER, Dec::int(b), ValueProp::MOVE, p.card);
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        // `target?.Block ?? 0`
+        Some(crate::engine::calc_extra_with(cx, card, if target == NO { 0 } else { cx.cr(target).block() }))
     }
 });
 
@@ -486,7 +490,7 @@ listener!(Production {
 // Block equal to the current block as Block Next Turn.
 listener!(Prolong {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
-        let b = cx.cr(PLAYER).block;
+        let b = cx.cr(PLAYER).block();
         apply_self(cx, ids::power::BLOCK_NEXT_TURN_POWER, b, p);
         Flow::Done
     }

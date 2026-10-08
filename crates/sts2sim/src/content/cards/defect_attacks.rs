@@ -120,6 +120,14 @@ listener!(HelixDrill {
         attack_hits(cx, p, hits);
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let mut spent: i32 = cx.hist_log.iter().filter(|e| e.kind == HKind::EnergySpent && cx.hist_this_turn(e)).map(|e| e.val as i32).sum();
+        if cx.card_pile_type(card) == PileType::Play {
+        spent -= cx.card_cost(card, true);
+        }
+        Some(crate::engine::calc_extra_with(cx, card, spent))
+    }
 });
 
 // Damage all enemies, then -Focus until the end of the turn.
@@ -266,5 +274,10 @@ listener!(FlakCannon {
         let dmg = cx.card_var(p.card, VarKind::Damage);
         cx.execute_attack(&Attack::from_card(PLAYER, p.card, dmg, Targeting::Random).hits(hits));
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let n = cx.combat_cards_in_pile_order().iter().filter(|&&c| cx.card_def(c).ctype == CardType::Status && cx.card_pile_type(c) != PileType::Exhaust).count() as i32;
+        Some(crate::engine::calc_extra_with(cx, card, n))
     }
 });

@@ -25,9 +25,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
 import utility
 import heads
-from model import DEV, SEC, C
+from model import DEV, layout, obs_version_of
 
-OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS
+OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS  # OBS: the version-1 row length (a `FastSearch` uses its network's: `self.OBS`)
 _NAMES = sts2.names()
 NC, POT = _NAMES["head_nc"], _NAMES["pot"]
 assert NC == heads.NC and _NAMES["head_bin"] == heads.BIN, "rl/heads.py and the Rust search disagree on the outcome classes"
@@ -46,14 +46,23 @@ def worth_row(w):
     pr = np.asarray(w.get("price", np.zeros(POT)), np.float32)
     r[1 + NC:1 + NC + len(pr)] = pr
     return r
-_E0, _ES, _EN = SEC["enemies"][0], C["ENEMY_F"], C["OBS_MAX_ENEMIES"]
 # Play-out depth in player turns before the value network takes over. 2 since 2026-10-06: decision regret vs a Monte Carlo referee 0.0038 vs 0.0099 at
 # depth 1 (150 recorded states, `tools/bench_search.py`, paired fight-clustered CI of the difference excludes 0); whole fights with the live search shape
 # (5x32, 1200 eval fights x 4) win +0.88 % +- 0.37 %, HP lost -1.1 % of max +- 0.15 % (`tools/ab_leaf.py`, evals/ab_leaf_5x32.json). Costs ~2x per decision.
 LEAF_TURNS = 2
 
-_PILES = [SEC[n][0] for n in ("draw", "discard", "exhaust")]
-_DEC = SEC["decision"][0]
+_SHAPE_CONSTS = {}
+
+
+def _shape_consts(width):
+    """(enemies offset, ENEMY_F, OBS_MAX_ENEMIES, pile offsets, decision offset) of the observation version whose rows have `width` floats."""
+    if width not in _SHAPE_CONSTS:
+        v = obs_version_of(width)
+        if v is None:
+            raise ValueError(f"no observation version has rows of {width} floats")
+        c, sec = layout(v)
+        _SHAPE_CONSTS[width] = (sec["enemies"][0], c["ENEMY_F"], c["OBS_MAX_ENEMIES"], [sec[n][0] for n in ("draw", "discard", "exhaust")], sec["decision"][0])
+    return _SHAPE_CONSTS[width]
 if DEV.type == "cuda":
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
@@ -79,7 +88,8 @@ def available_cpus():
 
 def host_shapes(obs):
     """Shapes the network needs for this batch, from the host-side observation (no device syncs): occupied enemy slots, longest pile list,
-    and the rows that have a pending card selection."""
+    and the rows that have a pending card selection. The observation version is told by the row length."""
+    _E0, _ES, _EN, _PILES, _DEC = _shape_consts(obs.shape[1])
     occ = (obs[:, _E0:_E0 + _EN * _ES:_ES] > 0.5).any(0)
     E = int(np.nonzero(occ)[0].max()) + 1 if occ.any() else 1
     L = 1
@@ -99,14 +109,15 @@ class GraphFn:
     """`fn(obs [B, OBS], mask [B, ACT] | None[, u [B]]) -> [B, ...]` replayed as a CUDA graph per padded batch size: one replay instead of several hundred
     kernel launches (the network is launch-bound at the batch sizes the search produces). `with_u`: a per-row uniform (`_sample`) is a third input."""
 
-    def __init__(self, fn, buckets, with_mask, pool, label="", events=None, with_u=False, legacy_pad=False):
+    def __init__(self, fn, buckets, with_mask, pool, label="", events=None, with_u=False, legacy_pad=False, obs_size=OBS):
         self.fn, self.buckets, self.with_mask, self.pool, self.with_u = fn, tuple(sorted(buckets)), with_mask, pool, with_u
+        self.obs_size = obs_size  # floats per observation row (the network's observation version)
         self.legacy_pad = legacy_pad  # pad every remainder to the next bucket (the plan before 2026-10-07: reproduces older tables bit for bit)
         self.graphs = {}
         self.label, self.events = label, events  # events: a list collecting (cuda event pair, rows) per replay when profiling
 
     def _capture(self, B):
-        sobs = torch.zeros(B, OBS, device=DEV)
+        sobs = torch.zeros(B, self.obs_size, device=DEV)
         smask = torch.zeros(B, ACT, dtype=torch.uint8, device=DEV) if self.with_mask else None
         if smask is not None:
             smask[:, 0] = 1  # every padded row has a legal action (no NaN in the softmax of rows that are ignored)
@@ -191,8 +202,9 @@ class HostBuffers:
 
     PINNED = ("pol_obs", "pol_mask", "pol_u", "val_obs", "pol_out", "val_out", "root_out")
 
-    def __init__(self, pin):
+    def __init__(self, pin, obs_size=OBS):
         self.pin = pin
+        self.obs_size = obs_size  # floats per observation row
         self.a = {}  # name -> numpy array (registered when pinned)
         self.t = {}  # name -> torch view of the same memory
         self._reg = []  # registered base pointers
@@ -200,6 +212,7 @@ class HostBuffers:
     def ensure(self, pc, vc, pol_w, val_w, shared=False, root_rows=0):
         """Room for `pc` policy and `vc` value rows. `shared` (the engine's `advance_shared`): one observation buffer `pol_obs` of `pc` rows holds
         both kinds (value rows from its end backwards) and there is no `val_obs`. `root_rows` (Gumbel mode): the root logits answer, one row per block."""
+        OBS = self.obs_size
         want = {"pol_obs": (pc, OBS), "pol_mask": (pc, ACT), "pol_kind": (pc,), "pol_u": (pc,), "val_obs": (vc, OBS), "val_kind": (vc,),
                 "pol_out": (pc, pol_w), "val_out": (vc, val_w), "root_out": (root_rows, ACT)}
         if shared:
@@ -260,6 +273,12 @@ class FastSearch:
         entry point) refuses it."""
         self.net, self.value_nets = net, value_nets or []
         self.roll_net = roll_net if roll_net is not None else net
+        # the observation version the networks read (their checkpoints'): the engines write rows of that version
+        vs = {getattr(n, "obs_version", 1) for n in [self.net, self.roll_net] + self.value_nets}
+        if len(vs) > 1:
+            raise ValueError(f"the search's networks read different observation versions {sorted(vs)}")
+        self.obs_version = vs.pop()
+        self.OBS = sts2.obs_size(self.obs_version)
         self.M, self.K, self.conf = M, K, conf
         if root not in ("topm", "gumbel"):
             raise ValueError(f"root must be 'topm' or 'gumbel', got {root!r}")
@@ -375,7 +394,7 @@ class FastSearch:
                 act = pr.argmax(1) if greedy else _sample(pr, u)
                 tp, ti = pr.topk(M, 1)
                 return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
-            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None, with_u=True, legacy_pad=self.legacy_pad)
+            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), True, self._pool, f"pol dec={has_dec}", self._ev[f"pol dec={has_dec}"] if self.profile_gpu else None, with_u=True, legacy_pad=self.legacy_pad, obs_size=self.OBS)
         return self._graphs[key]
 
     def _val_graph(self, has_dec):
@@ -400,7 +419,7 @@ class FastSearch:
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
                     v = ens(o)
                 return v.float() if self.dist else (v / len(nets)).unsqueeze(1)
-            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None, legacy_pad=self.legacy_pad)
+            self._graphs[key] = GraphFn(fn, self.buckets if (has_dec and self.merge_dec) else (self.dec_buckets if has_dec else self.buckets), False, self._pool, f"val dec={has_dec}", self._ev[f"val dec={has_dec}"] if self.profile_gpu else None, legacy_pad=self.legacy_pad, obs_size=self.OBS)
         return self._graphs[key]
 
     @torch.no_grad()
@@ -561,6 +580,8 @@ class FastSearch:
             gkw = dict(root="gumbel", gm=self.gumbel_m, gn=self.gumbel_n, c_visit=self.c_visit, c_scale=self.c_scale) if gumbel else {}
             if self.clairvoyant:
                 gkw["clairvoyant"] = True
+            if self.obs_version != 1 or sts2.obs_version() != 1:  # (an extension built before observation versions takes no `obs_version`)
+                gkw["obs_version"] = self.obs_version
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], max(1, self.roots // self.groups), self.M, self.K, self.conf, 0.0, 0.0,
                                      self.roll_cap, self.max_steps, 1.0, -1.0, self.hp_bonus, min(self.threads, nb), self.record, self.lead, self.carry, self.strat, starts,
                                      None if self.util is None else [float(x) for x in self.util], leaf_turns=self.leaf_turns, turn_cap=heads.TURN_CAP,
@@ -570,7 +591,7 @@ class FastSearch:
             shared = eng.shared_rows() if hasattr(eng, "advance_shared") else 0
             pc, vc = (shared, shared) if shared else eng.max_rows()
             while len(self._bufs) <= gi:
-                self._bufs.append(HostBuffers(self.cuda))
+                self._bufs.append(HostBuffers(self.cuda, self.OBS))
             B = self._bufs[gi]
             B.ensure(pc, vc, 2 * self.M + 1, self.val_w, shared=bool(shared), root_rows=eng.n_roots() if gumbel else 0)
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0, shared=shared, gumbel=gumbel, n_root=0)

@@ -224,6 +224,10 @@ listener!(Rattle {
         }
         Flow::Done
     }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        Some(crate::engine::calc_extra_with(cx, card, 1 + cx.osty_attacks_this_turn() as i32))
+    }
 });
 
 // Osty attacks, then apply Sic 'Em (Osty hits on this enemy summon).
@@ -315,6 +319,14 @@ listener!(Squeeze {
         cx.execute_attack(&Attack::from_card(osty, p.card, d, Targeting::Single(p.target)));
         Flow::Done
     }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let mut n = 0;
+        for pile in [PileType::Hand, PileType::Draw, PileType::Discard, PileType::Exhaust, PileType::Play] {
+        n += cx.pile(pile).iter().filter(|&&c| c != card && cx.card_def(c).tags & tag::OSTY_ATTACK != 0).count() as i32;
+        }
+        Some(crate::engine::calc_with(cx, card, n))
+    }
 });
 
 // 10 (+5) + 1 x Osty's max HP.
@@ -327,6 +339,11 @@ listener!(Protector {
         let d = cx.card_var(p.card, VarKind::CalcBase) + cx.card_var(p.card, VarKind::ExtraDamage) * cx.cr(osty).max_hp;
         cx.execute_attack(&Attack::from_card(osty, p.card, d, Targeting::Single(p.target)));
         Flow::Done
+    }
+    fn calculated_damage(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let osty = cx.living_osty();
+        Some(crate::engine::calc_with(cx, card, if osty == NO { 0 } else { cx.cr(osty).max_hp }))
     }
 });
 
@@ -342,5 +359,10 @@ listener!(Sacrifice {
         cx.kill(&[osty]);
         cx.gain_block(PLAYER, Dec::int(block as i64), ValueProp::MOVE, p.card);
         Flow::Done
+    }
+    fn calculated_value(&self, cx: &Combat, card: CardIdx, target: Cid) -> Option<crate::dec::Dec> {
+        let _ = target;
+        let osty = cx.living_osty();
+        Some(crate::engine::calc_extra_with(cx, card, if osty == NO { 0 } else { cx.cr(osty).max_hp * 3 }))
     }
 });

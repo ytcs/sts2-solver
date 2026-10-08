@@ -79,7 +79,7 @@ impl Combat {
         cr.active = true;
         cr.in_combat = true;
         cr.side = Side::Enemy;
-        cr.hp = hp;
+        cr.set_hp(hp);
         cr.max_hp = hp;
         cr.slot = slot;
         cr.monster = ms;
@@ -612,7 +612,7 @@ impl Combat {
 
     /// Digest of what makes two combats different for the look-ahead (`look_digest_of`), with the player's relics.
     fn look_digest(&self) -> u64 {
-        look_digest_of(self, false)
+        look_digest_of(self, Digest::Key)
     }
 
     /// The projected moves of the enemies `who`: per enemy and future turn, each possible move node with its probability and
@@ -634,8 +634,15 @@ impl Combat {
             // the player passes and is inert: no powers, relics, cards or block act in the projection, and it cannot die
             base.player_hooks_active = false;
             let pl = &mut base.creatures[PLAYER as usize];
-            (pl.hp, pl.max_hp, pl.block) = (1 << 24, 1 << 24, 0);
+            pl.set_hp(1 << 24);
+            pl.max_hp = 1 << 24;
+            pl.set_block(0);
             pl.powers.clear();
+            // the enemies' HP and block start out pristine: a read of a starting value is recorded (`look_dep`), so a projection that reads
+            // none is cached for every HP and block (`lookahead_with`)
+            for cr in base.creatures.iter_mut().filter(|cr| cr.active && !cr.is_player) {
+                cr.pristine = PRISTINE_HP | PRISTINE_BLOCK;
+            }
             // path buffers, reused across turns and rolls
             let (mut paths, mut next, mut rolled): (Vec<(Box<Combat>, f32)>, Vec<(Box<Combat>, f32)>, Vec<(Box<Combat>, f32)>) =
                 (Vec::with_capacity(4 * LOOK_PATHS), Vec::with_capacity(4 * LOOK_PATHS), Vec::with_capacity(4 * LOOK_PATHS));
@@ -769,7 +776,7 @@ impl Combat {
         let mut cx = self.clone();
         cx.budget_reset();
         cx.rng = *look_rng();
-        cx.creatures[PLAYER as usize].block = 1 << 20;
+        cx.creatures[PLAYER as usize].set_block(1 << 20);
         cx.creatures[c as usize].monster.next_move = node;
         let powers = |cx: &Combat, who: Cid| -> BTreeMap<u16, i32> {
             let mut m = BTreeMap::new();
@@ -787,10 +794,10 @@ impl Combat {
             }
             out
         };
-        let (me0, self0, piles0, blk0) = (powers(&cx, PLAYER), powers(&cx, c), piles(&cx), cx.cr(c).block);
+        let (me0, self0, piles0, blk0) = (powers(&cx, PLAYER), powers(&cx, c), piles(&cx), cx.cr(c).block());
         let alive0 = cx.enemies.iter().filter(|&&e| cx.cr(e).is_alive()).count();
         let _ = cx.perform_move(c);
-        let (me1, self1, piles1, blk1) = (powers(&cx, PLAYER), powers(&cx, c), piles(&cx), cx.cr(c).block);
+        let (me1, self1, piles1, blk1) = (powers(&cx, PLAYER), powers(&cx, c), piles(&cx), cx.cr(c).block());
         let alive1 = cx.enemies.iter().filter(|&&e| cx.cr(e).is_alive()).count();
         let pdiff = |a: &BTreeMap<u16, i32>, b: &BTreeMap<u16, i32>| -> Vec<String> {
             let keys: std::collections::BTreeSet<u16> = a.keys().chain(b.keys()).copied().collect();
@@ -851,7 +858,16 @@ impl Combat {
 
     /// Digest of everything `look_project(c)` reads: the whole projected world (`look_digest`), where the turn stands, and `c`.
     fn look_key(&self, c: Cid) -> u64 {
-        let mut h = self.look_digest();
+        self.look_key_of(c, self.look_digest())
+    }
+
+    /// `look_key` with the enemies' HP reduced to alive / dead and without their block: the key of a projection that read neither.
+    fn look_key_relaxed(&self, c: Cid) -> u64 {
+        self.look_key_of(c, look_digest_of(self, Digest::Relaxed))
+    }
+
+    fn look_key_of(&self, c: Cid, digest: u64) -> u64 {
+        let mut h = digest;
         let v = c as u64
             | (self.round as u32 as u64) << 8
             | (self.player.turn_number as u32 as u64) << 24
@@ -879,23 +895,41 @@ impl Combat {
         if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player || (self.stage == Stage::Over && !legacy) {
             return [EMPTY_ROW; LOOK_H];
         }
+        // Two keys: the exact one, and (not for the legacy look-ahead, which reads the live combat) the relaxed one of a projection that read no
+        // enemy's starting HP or block beyond alive / dead (`Creature::pristine`). A projection runs the same steps for every HP and block it does not
+        // read, so its rows hold for all of them: in a 5x32 search 60% of the states the exact key misses differ from a cached one only there.
         #[cfg(feature = "obs_prof")]
         let t0 = unsafe { core::arch::x86_64::_rdtsc() };
-        let key = if cached { self.look_key(c) } else { 0 };
+        let rkey = if cached && !legacy { self.look_key_relaxed(c) } else { 0 };
         #[cfg(feature = "obs_prof")]
         unsafe { crate::observe::OBS_PROF[10] += core::arch::x86_64::_rdtsc() - t0; }
         #[cfg(feature = "obs_prof")]
         let t1 = unsafe { core::arch::x86_64::_rdtsc() };
         let rows = if !cached { self.look_rows(c, false) } else { LOOK_CACHE.with(|t| {
             let mut t = t.borrow_mut();
-            let slot = (key as usize) & (LOOK_CACHE_SLOTS - 1);
-            if let Some((k, r)) = &t[slot] {
-                if *k == key {
-                    return *r;
+            #[cfg(feature = "obs_prof")]
+            unsafe { crate::observe::OBS_PROF[12] += 1; }
+            if !legacy {
+                if let Some(r) = t.get(rkey) {
+                    if LOOK_VERIFY.load(std::sync::atomic::Ordering::Relaxed) {
+                        look_verify(self, c, &r);
+                    }
+                    return r;
                 }
             }
+            let key = self.look_key(c);
+            if let Some(r) = t.get(key) {
+                return r;
+            }
+            #[cfg(feature = "obs_prof")]
+            unsafe { crate::observe::OBS_PROF[13] += 1; }
+            let outer = LOOK_DEP.with(|d| d.replace(false));
             let r = self.look_rows(c, true);
-            t[slot] = Some((key, r));
+            let dep = LOOK_DEP.with(|d| d.replace(outer || d.get()));
+            t.put(key, r);
+            if !dep && !legacy {
+                t.put(rkey, r);
+            }
             r
         }) };
         #[cfg(feature = "obs_prof")]
@@ -934,14 +968,19 @@ impl Combat {
         }
         let key = if cached { self.look_key(NO) } else { 0 };
         let memo = if cached { LOOK_MODE.with(|m| m.borrow().filter(|m| m.0 == key)) } else { None };
-        if let Some((_, rows, random)) = memo {
+        if let Some((_, rows, random, dep)) = memo {
+            if dep {
+                look_dep(); // the memoized projection read a starting HP or block
+            }
             return if random >> c & 1 == 0 { rows[c as usize] } else { look_rows_of(&self.look_project_one(c)) };
         }
         // c's own projection, reported for every enemy: if c had no choice, it is the mode projection
         let who = self.look_who();
+        let outer = LOOK_DEP.with(|d| d.replace(false));
         let (rows, random) = self.look_project_rows(who.as_slice(), look_fork(self, c));
+        let dep = LOOK_DEP.with(|d| d.replace(outer || d.get()));
         if random >> c & 1 == 0 && cached {
-            LOOK_MODE.with(|m| *m.borrow_mut() = Some((key, rows, random)));
+            LOOK_MODE.with(|m| *m.borrow_mut() = Some((key, rows, random, dep)));
         }
         rows[c as usize]
     }
@@ -966,23 +1005,39 @@ fn look_rows_of(lists: &[LookList; LOOK_H]) -> [LookRow; LOOK_H] {
     rows
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Digest {
+    /// the cache key: everything
+    Key,
+    /// merging projected combats in `look_project`: no player, no relics, only the part of a monster's move log its rolls can read
+    /// (`look_memory`), no power uids, no performed-move history
+    Canon,
+    /// the relaxed cache key: `Key` with the enemies' HP reduced to alive / dead and without their block
+    Relaxed,
+}
+
 /// Digest of what makes two combats different for the look-ahead: every creature (machine state, powers, HP, block, presence;
-/// the inert projected player only by its powers) and the player's relics. `canon` (merging projected combats in
-/// `look_project`): no player, no relics, only the part of a monster's move log its rolls can read (`look_memory`), no power
-/// uids, no performed-move history; otherwise (the cache key) everything.
-fn look_digest_of(cx: &Combat, canon: bool) -> u64 {
+/// the inert projected player only by its powers) and the player's relics; less for `Digest::Canon` / `Relaxed`. (It reads HP and block
+/// directly: a digest is not a read the projection's result depends on, see `look_merge`.)
+fn look_digest_of(cx: &Combat, mode: Digest) -> u64 {
     #[inline(always)]
     fn mix(h: &mut u64, v: u64) {
         *h = (*h ^ v).wrapping_mul(0x100000001b3).rotate_left(23);
     }
-    let mut h = 0xcbf29ce484222325u64;
+    let canon = mode == Digest::Canon;
+    let mut h = if mode == Digest::Relaxed { 0x84222325cbf29ce4u64 } else { 0xcbf29ce484222325u64 };
     for (i, cr) in cx.creatures.iter().enumerate() {
         if !cr.active || (canon && cr.is_player) {
             continue;
         }
         if !cr.is_player {
-            mix(&mut h, i as u64 | (cr.in_combat as u64) << 8 | (cr.slot as u64) << 16 | (cr.hp as u32 as u64) << 32);
-            mix(&mut h, cr.max_hp as u32 as u64 | (cr.block as u32 as u64) << 32);
+            if mode == Digest::Relaxed {
+                mix(&mut h, i as u64 | (cr.in_combat as u64) << 8 | (cr.slot as u64) << 16 | ((cr.hp > 0) as u64) << 32);
+                mix(&mut h, cr.max_hp as u32 as u64);
+            } else {
+                mix(&mut h, i as u64 | (cr.in_combat as u64) << 8 | (cr.slot as u64) << 16 | (cr.hp as u32 as u64) << 32);
+                mix(&mut h, cr.max_hp as u32 as u64 | (cr.block as u32 as u64) << 32);
+            }
         }
         for p in cr.powers.as_slice() {
             mix(&mut h, (p.id as u64) << 48 | (if canon { 0 } else { p.uid as u64 }) << 32 | p.amount as u32 as u64);
@@ -1028,10 +1083,25 @@ fn look_digest_of(cx: &Combat, canon: bool) -> u64 {
 /// Merges projected combats with equal canonical digests (probabilities add up, the first is kept) and keeps the `LOOK_PATHS`
 /// most likely (a stable sort: ties keep their order).
 fn look_merge(v: &mut Vec<(Box<Combat>, f32)>) {
+    // The digests compare the paths' HP and block. Where a value is pristine on every path it is the starting value everywhere, and where it was
+    // written on every path it no longer is: either way which paths merge does not depend on the starting values. A value pristine on some paths
+    // only does (a written value may equal the starting one), so the projection then counts as having read it.
+    let (mut any, mut all) = ([0u8; MAX_CREATURES], [u8::MAX; MAX_CREATURES]);
+    for (cx, _) in v.iter() {
+        for (k, cr) in cx.creatures.iter().enumerate() {
+            if cr.active && !cr.is_player {
+                any[k] |= cr.pristine;
+                all[k] &= cr.pristine;
+            }
+        }
+    }
+    if (0..MAX_CREATURES).any(|k| any[k] & !all[k] != 0) {
+        look_dep();
+    }
     let mut digests = crate::util::ArrayVec::<u64, 512>::new();
     let mut k = 0;
     for i in 0..v.len() {
-        let d = look_digest_of(&v[i].0, true);
+        let d = look_digest_of(&v[i].0, Digest::Canon);
         match digests.iter().position(|&x| x == d) {
             Some(j) if j < k => v[j].1 += v[i].1,
             _ => {
@@ -1115,12 +1185,102 @@ fn look_rng() -> &'static RngSet {
     R.get_or_init(|| RngSet::from_run_seed(LOOK_SEED))
 }
 
-const LOOK_CACHE_SLOTS: usize = 1024;
+/// Entries of a look-ahead cache (`LOOK_WAYS`-way set associative, the least recently used entry of a set is replaced; ~290 B each): the
+/// thread's own (`LOOK_CACHE`), or one installed for a while with [`with_look_cache`] (the search gives each root its own: a root's
+/// play-outs repeat each other's states, and the thread pool hands a root to any thread). The direct-mapped 1,024-entry thread cache of
+/// before missed 60% of the lookups of a 5x32 search where a cache per root misses 36% (34% of the lookups are keys never seen before).
+pub const LOOK_CACHE_ENTRIES: usize = 1024;
+const LOOK_WAYS: usize = 8;
+
+/// `look_rows` by `look_key`: per set the keys and their last use (0 = empty), then the rows.
+pub struct LookCache {
+    keys: Vec<[u64; LOOK_WAYS]>,
+    used: Vec<[u32; LOOK_WAYS]>,
+    rows: Vec<[LookRow; LOOK_H]>,
+    clock: u32,
+}
+
+impl LookCache {
+    /// `entries`: a power of two, at least `LOOK_WAYS`.
+    pub fn new(entries: usize) -> LookCache {
+        assert!(entries.is_power_of_two() && entries >= LOOK_WAYS, "look-ahead cache entries must be a power of two >= {LOOK_WAYS}");
+        let sets = entries / LOOK_WAYS;
+        LookCache { keys: vec![[0; LOOK_WAYS]; sets], used: vec![[0; LOOK_WAYS]; sets], rows: vec![[EMPTY_ROW; LOOK_H]; entries], clock: 0 }
+    }
+
+    #[inline]
+    fn tick(&mut self) -> u32 {
+        if self.clock == u32::MAX {
+            // after 4 billion uses: start over (every entry empty)
+            self.used.iter_mut().for_each(|u| *u = [0; LOOK_WAYS]);
+            self.clock = 0;
+        }
+        self.clock += 1;
+        self.clock
+    }
+
+    #[inline]
+    fn get(&mut self, key: u64) -> Option<[LookRow; LOOK_H]> {
+        let set = (key as usize) & (self.keys.len() - 1);
+        let w = (0..LOOK_WAYS).find(|&w| self.keys[set][w] == key && self.used[set][w] != 0)?;
+        self.used[set][w] = self.tick();
+        Some(self.rows[set * LOOK_WAYS + w])
+    }
+
+    fn put(&mut self, key: u64, r: [LookRow; LOOK_H]) {
+        let set = (key as usize) & (self.keys.len() - 1);
+        let w = (0..LOOK_WAYS).min_by_key(|&w| self.used[set][w]).unwrap_or(0);
+        self.keys[set][w] = key;
+        self.used[set][w] = self.tick();
+        self.rows[set * LOOK_WAYS + w] = r;
+    }
+}
+
+/// Records that the running projection read an enemy's starting HP or block (`Creature::hp` / `block` of a pristine value): its rows are only
+/// cached under the exact key.
+#[cold]
+#[inline(never)]
+pub fn look_dep() {
+    LOOK_DEP.with(|d| d.set(true));
+}
+
+/// Check every relaxed-key hit of the look-ahead cache against a fresh projection (panics on a difference; `LOOK_VERIFIED` counts the checks):
+/// tests and diagnostics only.
+pub static LOOK_VERIFY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static LOOK_VERIFIED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+#[cold]
+fn look_verify(cx: &Combat, c: Cid, r: &[LookRow; LOOK_H]) {
+    let outer = LOOK_DEP.with(|d| d.get());
+    let f = cx.look_rows(c, false);
+    LOOK_DEP.with(|d| d.set(outer));
+    let same = r.iter().zip(f.iter()).all(|(a, b)| a.exp_damage.to_bits() == b.exp_damage.to_bits() && a.prob.iter().zip(b.prob.iter()).all(|(x, y)| x.to_bits() == y.to_bits()));
+    assert!(same, "look-ahead: a relaxed-key cache hit differs from the fresh rows (monster {}, creature {c})", crate::ids::monster::NAMES[cx.cr(c).monster.id as usize]);
+    LOOK_VERIFIED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Runs `f` with `cache` as this thread's look-ahead cache (the thread's own comes back afterwards, also when `f` unwinds). The cache only
+/// saves work: what `lookahead` returns does not depend on which cache is installed.
+pub fn with_look_cache<R>(cache: &mut Box<LookCache>, f: impl FnOnce() -> R) -> R {
+    struct Restore<'a>(&'a mut Box<LookCache>);
+    impl Drop for Restore<'_> {
+        fn drop(&mut self) {
+            LOOK_CACHE.with(|t| std::mem::swap(&mut *t.borrow_mut(), self.0));
+        }
+    }
+    LOOK_CACHE.with(|t| std::mem::swap(&mut *t.borrow_mut(), cache));
+    let _restore = Restore(cache);
+    f()
+}
+
 thread_local! {
-    /// Direct-mapped cache of `look_rows` by `look_key` (a search simulates many copies of the same enemies).
-    static LOOK_CACHE: std::cell::RefCell<Vec<Option<(u64, [LookRow; LOOK_H])>>> = std::cell::RefCell::new(vec![None; LOOK_CACHE_SLOTS]);
+    /// `look_rows` by `look_key` (a search simulates many copies of the same enemies), allocated on a thread's first look-ahead.
+    static LOOK_CACHE: std::cell::RefCell<Box<LookCache>> = std::cell::RefCell::new(Box::new(LookCache::new(LOOK_CACHE_ENTRIES)));
     /// The last `look_mode` result, by `look_key(NO)` (the enemies of one combat are looked at one after the other).
-    static LOOK_MODE: std::cell::RefCell<Option<(u64, [[LookRow; LOOK_H]; MAX_CREATURES], u16)>> = const { std::cell::RefCell::new(None) };
+    /// (and whether that projection read a starting HP or block)
+    static LOOK_MODE: std::cell::RefCell<Option<(u64, [[LookRow; LOOK_H]; MAX_CREATURES], u16, bool)>> = const { std::cell::RefCell::new(None) };
+    /// The projection running on this thread read an enemy's starting HP or block (`Creature::pristine`).
+    static LOOK_DEP: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 // ---- the look-ahead from before S1 (`LOOK_LEGACY`) ------------------------------------------------------------------------------

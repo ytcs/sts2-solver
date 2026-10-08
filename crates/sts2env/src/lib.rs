@@ -18,13 +18,14 @@ pub mod search;
 
 use rayon::prelude::*;
 use sts2sim::engine::ACTION_SPACE;
-use sts2sim::observe::OBS_SIZE;
+use sts2sim::observe::{obs_size, obs_version};
 use sts2sim::state::{RngSet, Stage};
 use sts2sim::ScenarioExtras;
 use sts2sim::types::Outcome;
 use sts2sim::{Action, Combat, Scenario};
 
 pub use sts2sim::engine::ACTION_SPACE as ACTIONS;
+/// The version-1 observation length (see [`BatchEnv::obs_size`] / `sts2sim::observe::obs_size` for the length of a given version).
 pub use sts2sim::observe::OBS_SIZE as OBS;
 pub use sts2sim::scenario::ScenarioError;
 
@@ -285,6 +286,8 @@ pub struct BatchEnv {
     /// Finished episodes restart on the next scenario (default). Search environments turn this off: a finished slot keeps its final
     /// state, reports `done` with the same outcome every step and ignores actions.
     autoreset: bool,
+    /// The observation version written (`sts2sim::observe`): the process-wide version when the env was created, see `set_obs_version`.
+    obs_version: u8,
 }
 
 /// Per-step outputs (all slices have one entry per env; `obs` and `mask` are row-major `[n, OBS_SIZE]`/`[n, ACTION_SPACE]`).
@@ -337,6 +340,7 @@ fn step_one(
     done: &mut u8,
     outcome: &mut i8,
     illegal: &mut u8,
+    ver: u8,
 ) {
     *reward = cfg.step;
     *done = 0;
@@ -348,7 +352,7 @@ fn step_one(
         *done = 1;
         *outcome = oc;
         *reward = 0.0;
-        write_obs_mask(&mut slot.cx, obs, mask);
+        write_obs_mask(&mut slot.cx, obs, mask, ver);
         return;
     }
     let before = belt(&slot.cx);
@@ -398,7 +402,7 @@ fn step_one(
                                   max_hp_end: me.max_hp, turns: slot.cx.player.turn_number };
         if !autoreset {
             slot.frozen = Some(oc);
-            write_obs_mask(&mut slot.cx, obs, mask);
+            write_obs_mask(&mut slot.cx, obs, mask, ver);
             return;
         }
         slot.episode += 1;
@@ -408,7 +412,7 @@ fn step_one(
         slot.scen = source.index(env, seed);
         slot.hp0 = slot.cx.cr(0).hp as f32 / slot.cx.cr(0).max_hp.max(1) as f32;
     }
-    write_obs_mask(&mut slot.cx, obs, mask);
+    write_obs_mask(&mut slot.cx, obs, mask, ver);
 }
 
 impl BatchEnv {
@@ -438,7 +442,7 @@ impl BatchEnv {
                 })
                 .collect()
         });
-        Ok(BatchEnv { slots: slots?, source, reward_cfg, max_steps, base_seed, pool, autoreset: true })
+        Ok(BatchEnv { slots: slots?, source, reward_cfg, max_steps, base_seed, pool, autoreset: true, obs_version: obs_version() })
     }
 
     #[inline]
@@ -516,11 +520,31 @@ impl BatchEnv {
         }
     }
 
+    /// The observation version this env writes.
+    pub fn obs_version(&self) -> u8 {
+        self.obs_version
+    }
+
+    /// Length of one observation row of this env (`obs_size(obs_version)`).
+    pub fn obs_size(&self) -> usize {
+        obs_size(self.obs_version)
+    }
+
+    /// Switches the observation version this env writes (1 or 2); the buffers passed afterwards must have rows of the new length.
+    pub fn set_obs_version(&mut self, version: u8) -> Result<(), EnvError> {
+        if obs_size(version) == 0 {
+            return Err(EnvError::Buffer("unknown observation version"));
+        }
+        self.obs_version = version;
+        Ok(())
+    }
+
     /// Writes the current observation / mask of every env (e.g. after construction).
     pub fn observe_all(&mut self, obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
         let n = self.slots.len();
-        if obs.len() < n * OBS_SIZE {
-            return Err(EnvError::Buffer("obs buffer shorter than n_envs * OBS_SIZE"));
+        let (ver, osz) = (self.obs_version, self.obs_size());
+        if obs.len() < n * osz {
+            return Err(EnvError::Buffer("obs buffer shorter than n_envs * obs_size"));
         }
         if mask.len() < n * ACTION_SPACE {
             return Err(EnvError::Buffer("mask buffer shorter than n_envs * ACTION_SPACE"));
@@ -529,9 +553,9 @@ impl BatchEnv {
         self.pool.install(|| {
             slots
                 .par_iter_mut()
-                .zip(obs[..n * OBS_SIZE].par_chunks_mut(OBS_SIZE))
+                .zip(obs[..n * osz].par_chunks_mut(osz))
                 .zip(mask[..n * ACTION_SPACE].par_chunks_mut(ACTION_SPACE))
-                .for_each(|((s, o), m)| observe_one(s, o, m));
+                .for_each(|((s, o), m)| observe_one(s, o, m, ver));
         });
         Ok(())
     }
@@ -542,8 +566,9 @@ impl BatchEnv {
         if actions.len() < n {
             return Err(EnvError::Buffer("actions shorter than n_envs"));
         }
-        if out.obs.len() < n * OBS_SIZE {
-            return Err(EnvError::Buffer("obs buffer shorter than n_envs * OBS_SIZE"));
+        let (ver, osz) = (self.obs_version, self.obs_size());
+        if out.obs.len() < n * osz {
+            return Err(EnvError::Buffer("obs buffer shorter than n_envs * obs_size"));
         }
         if out.mask.len() < n * ACTION_SPACE {
             return Err(EnvError::Buffer("mask buffer shorter than n_envs * ACTION_SPACE"));
@@ -562,14 +587,14 @@ impl BatchEnv {
                 .par_iter_mut()
                 .enumerate()
                 .zip(actions[..n].par_iter())
-                .zip(out.obs[..n * OBS_SIZE].par_chunks_mut(OBS_SIZE))
+                .zip(out.obs[..n * osz].par_chunks_mut(osz))
                 .zip(out.mask[..n * ACTION_SPACE].par_chunks_mut(ACTION_SPACE))
                 .zip(out.reward[..n].par_iter_mut())
                 .zip(out.done[..n].par_iter_mut())
                 .zip(out.outcome[..n].par_iter_mut())
                 .zip(out.illegal[..n].par_iter_mut())
                 .for_each(|((((((((env, slot), &a), obs), mask), reward), done), outcome), illegal)| {
-                    step_one(cfg, max_steps, base, autoreset, source, env, slot, a, obs, mask, reward, done, outcome, illegal)
+                    step_one(cfg, max_steps, base, autoreset, source, env, slot, a, obs, mask, reward, done, outcome, illegal, ver)
                 });
         });
         Ok(())
@@ -577,17 +602,17 @@ impl BatchEnv {
 }
 
 #[inline(never)]
-fn observe_one(s: &mut Slot, obs: &mut [f32], mask: &mut [u8]) {
-    write_obs_mask(&mut s.cx, obs, mask);
+fn observe_one(s: &mut Slot, obs: &mut [f32], mask: &mut [u8], ver: u8) {
+    write_obs_mask(&mut s.cx, obs, mask, ver);
 }
 
 /// Observation + action mask of one env. `can_play` of the hand is evaluated once (by `legal_actions_ex`) and shared with the
-/// observation. Temporaries of both can overflow too: a flag raised here ends the episode on the next step.
-pub(crate) fn write_obs_mask(cx: &mut Combat, obs: &mut [f32], mask: &mut [u8]) {
+/// observation. Temporaries of both can overflow too: a flag raised here ends the episode on the next step. `ver`: the observation version.
+pub(crate) fn write_obs_mask(cx: &mut Combat, obs: &mut [f32], mask: &mut [u8], ver: u8) {
     let mut buf = sts2sim::engine::ActionBuf::new();
     let mut playable = 0u16;
     cx.legal_actions_ex(&mut buf, &mut playable);
-    cx.observe_ex(obs, Some(playable));
+    cx.observe_v(obs, Some(playable), ver);
     mask[..ACTION_SPACE].fill(0);
     for a in buf.iter() {
         mask[a.index()] = 1;
@@ -643,7 +668,7 @@ mod tests {
         let mut env = BatchEnv::new(1, Box::new(PoolScenario::new(vec![scenario()])), cfg, 1000, 5);
         arm(&mut env.slots[0].cx);
         let e = env.slots[0].cx.enemies[0];
-        let (mut obs, mut mask) = (vec![0f32; OBS_SIZE], vec![0u8; ACTION_SPACE]);
+        let (mut obs, mut mask) = (vec![0f32; OBS], vec![0u8; ACTION_SPACE]);
         let (mut reward, mut done, mut outcome, mut illegal) = ([0f32], [0u8], [0i8], [0u8]);
         let a = [Action::PlayCard { hand_pos: 0, target: e }.index() as i32];
         env.step(&a, StepOut { obs: &mut obs, mask: &mut mask, reward: &mut reward, done: &mut done, outcome: &mut outcome, illegal: &mut illegal }).unwrap();
