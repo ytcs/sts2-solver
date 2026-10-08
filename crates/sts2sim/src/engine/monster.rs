@@ -939,6 +939,9 @@ impl Combat {
             }
             let key = self.look_key_of(c, d.key(self));
             if let Some(r) = t.get(key) {
+                if LOOK_VERIFY.load(std::sync::atomic::Ordering::Relaxed) {
+                    look_verify(self, c, &r);
+                }
                 return r;
             }
             #[cfg(feature = "obs_prof")]
@@ -1044,6 +1047,20 @@ impl LookDigests {
     }
 }
 
+/// The hooks through which the player's powers and relics reach a look-ahead's rows. The projection itself runs with the player's powers cleared
+/// and its hooks inactive (`look_project`: relics, potions and cards do not listen), so only the intent damage reads them
+/// (`node_attack_damage` -> `intent_damage` -> `modify_damage_value`: the listeners of these three hooks; the monsters' damage and hit-count
+/// functions read the ascension and the monster's own state only). The cache keys hold the player's powers and relics that have one of these
+/// hooks, the player powers such a hook reads by id (`LOOK_READ_POWERS`) and the relics the engine reads by id (`LOOK_READ_RELICS`); no other
+/// power or relic of the player can change the rows.
+const LOOK_PLAYER_HOOKS: crate::hooks::Mask = crate::hooks::Mask::bit(crate::hooks::hookbit::modify_damage_additive)
+    .or(crate::hooks::Mask::bit(crate::hooks::hookbit::modify_damage_multiplicative))
+    .or(crate::hooks::Mask::bit(crate::hooks::hookbit::modify_damage_cap));
+/// Player powers a damage hook reads by id: Debilitate (Vulnerable's multiplier on its own owner).
+const LOOK_READ_POWERS: [u16; 1] = [crate::ids::power::DEBILITATE_POWER];
+/// Relics read with `has_relic` (Paper Krane and Paper Phrog by Weak / Vulnerable, Whispering Earring at turn 1), whatever their hooks.
+const LOOK_READ_RELICS: [u16; 3] = [crate::ids::relic::PAPER_KRANE, crate::ids::relic::PAPER_PHROG, crate::ids::relic::WHISPERING_EARRING];
+
 #[derive(Clone, Copy, PartialEq)]
 enum Digest {
     /// the cache key: everything
@@ -1079,6 +1096,9 @@ fn look_digest_of(cx: &Combat, mode: Digest) -> u64 {
             }
         }
         for p in cr.powers.as_slice() {
+            if cr.is_player && !content::power_mask(p.id).intersects(LOOK_PLAYER_HOOKS) && !LOOK_READ_POWERS.contains(&p.id) {
+                continue; // a player power the look-ahead cannot read (`LOOK_PLAYER_HOOKS`)
+            }
             mix(&mut h, (p.id as u64) << 48 | (if canon { 0 } else { p.uid as u64 }) << 32 | p.amount as u32 as u64);
             mix(&mut h, p.aux as u32 as u64 | (p.applier as u64) << 32 | (p.skip_next_tick as u64) << 40);
         }
@@ -1112,6 +1132,9 @@ fn look_digest_of(cx: &Combat, mode: Digest) -> u64 {
     }
     if !canon {
         for r in cx.player.relics.iter() {
+            if !content::relic_mask(r.id).intersects(LOOK_PLAYER_HOOKS) && !LOOK_READ_RELICS.contains(&r.id) {
+                continue; // a relic the look-ahead cannot read (`LOOK_PLAYER_HOOKS`)
+            }
             mix(&mut h, r.id as u64 | (r.counter as u32 as u64) << 16 | (r.flags as u64) << 48);
             mix(&mut h, r.aux as u32 as u64);
         }
@@ -1285,8 +1308,8 @@ pub fn look_dep() {
     LOOK_DEP.with(|d| d.set(true));
 }
 
-/// Check every relaxed-key hit of the look-ahead cache against a fresh projection (panics on a difference; `LOOK_VERIFIED` counts the checks):
-/// tests and diagnostics only.
+/// Check every hit of the look-ahead cache (relaxed and exact key) against a fresh projection (panics on a difference; `LOOK_VERIFIED` counts the
+/// checks): tests and diagnostics only.
 pub static LOOK_VERIFY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 pub static LOOK_VERIFIED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -1296,7 +1319,7 @@ fn look_verify(cx: &Combat, c: Cid, r: &[LookRow; LOOK_H]) {
     let f = cx.look_rows(c, false, &mut LookDigests::default());
     LOOK_DEP.with(|d| d.set(outer));
     let same = r.iter().zip(f.iter()).all(|(a, b)| a.exp_damage.to_bits() == b.exp_damage.to_bits() && a.prob.iter().zip(b.prob.iter()).all(|(x, y)| x.to_bits() == y.to_bits()));
-    assert!(same, "look-ahead: a relaxed-key cache hit differs from the fresh rows (monster {}, creature {c})", crate::ids::monster::NAMES[cx.cr(c).monster.id as usize]);
+    assert!(same, "look-ahead: a cache hit differs from the fresh rows (monster {}, creature {c})", crate::ids::monster::NAMES[cx.cr(c).monster.id as usize]);
     LOOK_VERIFIED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
