@@ -450,3 +450,17 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - For scale, the TD value target (E24) moved these numbers about a third as much as 8x search.
 - **Cost:** the 5x256 arm took 96 min (whole fights at 8x the live cost).
 - **Next:** turn restarts (`turns`), to locate where the avoidable errors are.
+
+## E26. Where avoidable near-miss errors are: spread over the setup turns, not the last turn
+- **Method:** `tools/nearmiss_bench.py turns`, 300 held-out near-miss losses (r4u). Each was restarted from the true state at the start of its last, second-to-last and third-to-last turn. 2 attempts per arm, paired with r3 at live width.
+
+| restart point | live 5x32 wins | 5x256 (honest) | clairvoyant |
+|---|---|---|---|
+| last turn | 0.100 (n 300) | +0.002 +- 0.012 | +0.070 +- 0.014 |
+| 1 turn earlier | 0.122 (n 258) | +0.008 +- 0.014 | +0.128 +- 0.020 |
+| 2 turns earlier | 0.176 (n 244) | +0.016 +- 0.019 | +0.176 +- 0.023 |
+
+- **What it shows:**
+  - At the last turn these fights are decided. Even perfect information wins only 17%, and stronger honest search adds nothing.
+  - Honest gains grow the earlier the restart, so avoidable errors are small misjudgements spread over earlier turns (setup, resources). That is the drift a sharper value judge should reduce, not a final-turn blunder a deeper search would catch.
+  - The value of information grows with the turns left.
