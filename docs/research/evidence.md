@@ -118,3 +118,9 @@ Last turn is already decided; avoidable errors are small misjudgements spread ov
 - **Caveats:**
   - The labels are h128's play, weaker than the live player (E27). The calibration target should be the live player's own outcomes, so the bench needs relabelling.
   - The fix path: combat-loop rounds on signal pools (data concentrated in that band), or a post-hoc calibration layer fitted on held-out labelled play.
+
+## E29. PPO sampler A/B: the p(1-p) signal sampler wins; d256 + obs v2 from scratch beats every earlier network
+- **Method:** d256, obs v2, 3200 iterations from scratch, same generated sets (train seed 1, eval seed 22). Uniform arm on an L40S pod; signal arm locally (`--adaptive 25 --adaptive-mode signal --adaptive-decay 0.8`).
+- **Eval curves (every 100 iterations):** signal ahead at 27 of 32 points, mean +0.011 (+0.012 from iteration 1600); final 0.714 vs 0.696.
+- **Greedy eval, 12k episodes, same env seeds:** signal 0.7142, uniform 0.7094, solver_td08 0.6996, h128 0.6981. Act 3: 0.524 / 0.522 / 0.503 / 0.504.
+- **Adopted:** the signal sampler for PPO. The signal checkpoint (`target/runs/v2_signal/ckpt.pt`) is the gen-2 base.

@@ -35,7 +35,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 - Promotion gate (a new live model, E27): `bench.py play` no set worse than the live player (paired with labels); near-miss bench not worse; `bench.py score` Brier no worse on most sets; S3 decile bias < 0.02 (not yet run for solver_td08).
 
 ## 4. Roadmap (current order; review at each gate)
-1. PPO sampler A/B (uniform vs p(1-p) signal; d256, obs v2, 3200 it, from scratch): pick the sampler by eval curve at matched iterations + greedy eval; the winner is the gen-2 base.
+1. Done (E29): PPO signal sampler adopted; gen-2 base = d256 obs v2 signal run (greedy 0.714 vs live 0.700).
 2. Gen-2 model: gen-2 base + outcome head -> combat loop rounds (S3) on obs v2 (old collections replay to v2: actions are stored, not observations) -> promote when it beats solver_td08 on the promotion gate.
 3. S5 continuation value (top priority for run-level decisions; blocks S7): a non-flat V(act-start state).
 4. Relabel the bench with the live player (labels are h128's play; the predictor's calibration target is its own player, E28); S4 gate (potion regression states).

@@ -109,14 +109,14 @@ def main():
     ap.add_argument("--pot-head", action="store_true", help="with --heads: the potion-use head (per belt slot)")
     ap.add_argument("--pot-coef", type=float, default=0.5, help="weight of the potion-use head's loss")
     ap.add_argument("--warm-prefix", default="outcome.", help="comma-separated parameter-name prefixes the --head-warmup iterations train (the rest frozen)")
-    ap.add_argument("--adaptive", type=int, default=0, help="every N iterations reweight the training fights (M3): fights the policy wins 20-80 %% weigh 1, the "
+    ap.add_argument("--adaptive", type=int, default=25, help="every N iterations reweight the training fights (M3): fights the policy wins 20-80 %% weigh 1, the "
                     "others --adaptive-floor; win estimated per fight, shrunk toward its (encounter, act, character) group")
     ap.add_argument("--adaptive-floor", type=float, default=0.3)
-    ap.add_argument("--adaptive-mode", choices=["band", "signal"], default="band",
+    ap.add_argument("--adaptive-mode", choices=["band", "signal"], default="signal",
                     help="band: the 20-80 %% rule above; signal: weight p(1 - p) (the variance of the fight's outcome: saturated and hopeless fights fade, "
                     "contested ones dominate) plus --adaptive-anchor of the draws uniform (docs/rebuild.md S3, curriculum by signal)")
     ap.add_argument("--adaptive-anchor", type=float, default=0.15, help="signal mode: share of the draws spread uniformly over every fight")
-    ap.add_argument("--adaptive-decay", type=float, default=1.0, help="per reweight, the per-fight counts are multiplied by this (< 1: recent "
+    ap.add_argument("--adaptive-decay", type=float, default=0.8, help="per reweight, the per-fight counts are multiplied by this (< 1: recent "
                     "episodes count more, so the estimates follow the improving policy)")
     ap.add_argument("--lr-floor", type=float, default=0.05, help="the lr decays linearly to this fraction of --lr")
     ap.add_argument("--seed", type=int, default=0)
