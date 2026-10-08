@@ -70,7 +70,14 @@ class Bag(nn.Module):
         ids = ids.reshape(-1, L)
         w = w.reshape(-1, L, self.k)
         full = (ids.unsqueeze(-1) + self.offs * (ids > 0).unsqueeze(-1)).reshape(-1, L * self.k)
-        out = F.embedding_bag(full, self.emb.weight, per_sample_weights=w.reshape(-1, L * self.k) * (ids > 0).repeat_interleave(self.k, 1), mode="sum", padding_idx=0)
+        psw = w.reshape(-1, L * self.k) * (ids > 0).repeat_interleave(self.k, 1)
+        if torch.is_grad_enabled() and self.emb.weight.requires_grad:
+            # same sums in the same order without the padding entries: the backward's cost follows the index count
+            keep = full > 0
+            n = keep.sum(1)
+            out = F.embedding_bag(full[keep], self.emb.weight, n.cumsum(0) - n, mode="sum", per_sample_weights=psw[keep], padding_idx=0)
+        else:
+            out = F.embedding_bag(full, self.emb.weight, per_sample_weights=psw, mode="sum", padding_idx=0)
         return out.view(*lead, -1)
 
 
