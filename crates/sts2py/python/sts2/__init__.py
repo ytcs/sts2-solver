@@ -1,14 +1,15 @@
 import json
 import numpy as np
 
-from ._sts2 import Sim, replay as _replay, replay_rows as _replay_rows, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable, set_relic_mask  # noqa: F401
-from ._sts2 import obs_version, set_obs_version  # noqa: F401
+from ._sts2 import Sim, replay as _replay, replay_rows as _replay_rows, SearchEnginePy as _SearchEngine, BatchEnv as _BatchEnv, FightStartsPy as _FightStarts, obs_size, action_space, layout, names, provably_unwinnable as _provably_unwinnable, set_relic_mask  # noqa: F401
+from ._sts2 import obs_version, obs_version as _default_obs_version, set_obs_version  # noqa: F401
 from ._sts2 import (  # noqa: F401
     OUTCOME_ONGOING, OUTCOME_WIN, OUTCOME_LOSS, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_OVERFLOW,
 )
 
 OBS_SIZE = obs_size(1)
 ACTIONS = action_space()
+_ENC = json.JSONEncoder(check_circular=False, separators=(",", ":"))
 
 
 def provably_unwinnable(scenario):
@@ -65,6 +66,21 @@ class VecEnv:
         e = self._ep
         return {"scenario": e[:, 0].astype(np.int32), "hp_lost": e[:, 1], "hp_end": e[:, 2], "length": e[:, 3].astype(np.int32),
                 "hp_end_abs": e[:, 4].astype(np.int32), "max_hp_end": e[:, 5].astype(np.int32), "turns": e[:, 6].astype(np.int32)}
+
+
+class FightStarts:
+    """First observations of scenarios parsed once: observe(seed) equals VecEnv(len, scenarios, seed, round_robin=True).reset()."""
+
+    def __init__(self, scenarios, obs_version=None):
+        self._st = _FightStarts([s if isinstance(s, str) else _ENC.encode(s) for s in scenarios])
+        self.n = len(self._st)
+        self.obs_version = _default_obs_version() if obs_version is None else obs_version
+        self.obs = np.zeros((self.n, obs_size(self.obs_version)), np.float32)
+        self.mask = np.zeros((self.n, ACTIONS), np.uint8)
+
+    def observe(self, seed):
+        self._st.observe(int(seed), self.obs_version, self.obs, self.mask)
+        return self.obs, self.mask
 
 
 def replay(scenario, seed, actions, obs_version=None):

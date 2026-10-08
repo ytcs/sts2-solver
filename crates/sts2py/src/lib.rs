@@ -135,6 +135,32 @@ impl BatchEnvPy {
 }
 
 #[pyclass]
+struct FightStartsPy {
+    starts: sts2env::FightStarts,
+}
+
+#[pymethods]
+impl FightStartsPy {
+    #[new]
+    fn new(py: Python<'_>, scenarios_json: Vec<String>) -> PyResult<Self> {
+        let scs = parse_scenarios(py, &scenarios_json, true)?;
+        let starts = sts2env::FightStarts::try_new(scs).map_err(|e| PyValueError::new_err(format!("cannot create the fight starts: {e:?}")))?;
+        Ok(FightStartsPy { starts })
+    }
+
+    fn __len__(&self) -> usize {
+        self.starts.len()
+    }
+
+    fn observe(&self, py: Python<'_>, seed: u64, obs_version: u8, mut obs: PyReadwriteArray2<f32>, mut mask: PyReadwriteArray2<u8>) -> PyResult<()> {
+        let o = obs.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let m = mask.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let st = &self.starts;
+        py.detach(|| st.observe(seed, obs_version, o, m)).map_err(|e| PyValueError::new_err(format!("{e:?}")))
+    }
+}
+
+#[pyclass]
 struct SearchEnginePy {
     eng: sts2env::search::SearchEngine,
 }
@@ -463,6 +489,7 @@ fn layout(py: Python<'_>, version: Option<u8>) -> PyResult<Bound<'_, pyo3::types
 fn _sts2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BatchEnvPy>()?;
     m.add_class::<SearchEnginePy>()?;
+    m.add_class::<FightStartsPy>()?;
     m.add_class::<sim::Sim>()?;
     m.add("BatchEnv", m.getattr("BatchEnvPy")?)?;
     m.add_function(wrap_pyfunction!(obs_size, m)?)?;

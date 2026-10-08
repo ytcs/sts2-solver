@@ -509,6 +509,65 @@ impl BatchEnv {
     }
 }
 
+/// The first observation of every scenario under a seed, equal to `BatchEnv` with a round-robin source of n = len envs, then `observe_all`.
+pub struct FightStarts {
+    source: RoundRobinScenario,
+    n: usize,
+    pool: &'static rayon::ThreadPool,
+}
+
+static STARTS_POOL: std::sync::OnceLock<Result<rayon::ThreadPool, String>> = std::sync::OnceLock::new();
+
+impl FightStarts {
+    pub fn try_new(scs: Vec<(Scenario, ScenarioExtras)>) -> Result<FightStarts, EnvError> {
+        if scs.is_empty() {
+            return Err(EnvError::Buffer("no scenarios"));
+        }
+        let n = scs.len();
+        let source = RoundRobinScenario::with_extras(scs);
+        source.validate()?;
+        let pool = STARTS_POOL
+            .get_or_init(|| {
+                rayon::ThreadPoolBuilder::new().stack_size(WORKER_STACK).thread_name(|i| format!("sts2-starts-{i}")).build().map_err(|e| e.to_string())
+            })
+            .as_ref()
+            .map_err(|e| EnvError::Pool(e.clone()))?;
+        Ok(FightStarts { source, n, pool })
+    }
+
+    pub fn len(&self) -> usize {
+        self.n
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.n == 0
+    }
+
+    pub fn observe(&self, seed: u64, ver: u8, obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
+        let (n, osz) = (self.n, obs_size(ver));
+        if osz == 0 {
+            return Err(EnvError::Buffer("unknown observation version"));
+        }
+        if obs.len() < n * osz || mask.len() < n * ACTION_SPACE {
+            return Err(EnvError::Buffer("obs / mask buffer shorter than n * size"));
+        }
+        let source = &self.source;
+        self.pool.install(|| {
+            obs[..n * osz]
+                .par_chunks_mut(osz)
+                .zip(mask[..n * ACTION_SPACE].par_chunks_mut(ACTION_SPACE))
+                .enumerate()
+                .try_for_each(|(i, (o, m))| {
+                    let episode = BatchEnv::episode_seed(seed, i, 0);
+                    let sc = source.sample(i, episode);
+                    let mut cx = Combat::try_new_with(&sc, &source.1[i])?;
+                    write_obs_mask(&mut cx, o, m, ver);
+                    Ok(())
+                })
+        })
+    }
+}
+
 #[inline(never)]
 fn observe_one(s: &mut Slot, obs: &mut [f32], mask: &mut [u8], ver: u8) {
     write_obs_mask(&mut s.cx, obs, mask, ver);
