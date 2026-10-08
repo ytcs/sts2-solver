@@ -229,7 +229,8 @@ class Data:
             except ValueError:
                 if len(g) == 1:
                     self.bad.add((pi, g[0]))
-                    print(f"  dropped a fight that no longer replays: part {pi} fight {g[0]} ({len(self.bad)} so far)", flush=True)
+                    print(f"  WARNING: dropped a fight that no longer replays: part {pi} fight {g[0]} ({len(self.bad)} so far); prune the data for good: "
+                          f"tools/prune_divergent.py", flush=True)
                 else:
                     stack += [g[:len(g) // 2], g[len(g) // 2:]]
         return sorted(good)
