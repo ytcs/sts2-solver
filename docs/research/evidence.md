@@ -111,3 +111,10 @@ Last turn is already decided; avoidable errors are small misjudgements spread ov
 
 - **Predictor Brier** (eval / corpus / mix / tail), TD(0.8) vs predictor_r2: 0.0206 / 0.0183 / 0.0228 / 0.0327 against 0.0193 / 0.0199 / 0.0249 / 0.0370. Tail bias -0.013 against -0.043.
 - **Adopted:** `models/solver_td08.pt` as policy and predictor; the live `Engine` searches with `cover=True`. The harness tables keep top-5 for their time budgets.
+
+## E28. S3 decile bias for solver_td08: pessimistic by ~0.03 in the contested band
+- **Method:** fight-start P(win) (8 shuffles) on the 1770 bench v2 fights against h128's 8-attempt labels, in deciles of prediction.
+- **Result:** bias +0.027 / +0.036 / +0.027 (se 0.019-0.025) in the deciles with predictions 0.27 / 0.54 / 0.81; |bias| <= 0.008 elsewhere. Max 0.036 > the 0.02 gate. The contested band together is about +0.03 at ~2.3 se.
+- **Caveats:**
+  - The labels are h128's play, weaker than the live player (E27). The calibration target should be the live player's own outcomes, so the bench needs relabelling.
+  - The fix path: combat-loop rounds on signal pools (data concentrated in that band), or a post-hoc calibration layer fitted on held-out labelled play.

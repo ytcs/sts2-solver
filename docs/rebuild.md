@@ -38,7 +38,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 1. PPO sampler A/B (uniform vs p(1-p) signal; d256, obs v2, 3200 it, from scratch): pick the sampler by eval curve at matched iterations + greedy eval; the winner is the gen-2 base.
 2. Gen-2 model: gen-2 base + outcome head -> combat loop rounds (S3) on obs v2 (old collections replay to v2: actions are stored, not observations) -> promote when it beats solver_td08 on the promotion gate.
 3. S5 continuation value (top priority for run-level decisions; blocks S7): a non-flat V(act-start state).
-4. S4 gate (potion regression states), S3 decile-bias check for the live model.
+4. Relabel the bench with the live player (labels are h128's play; the predictor's calibration target is its own player, E28); S4 gate (potion regression states).
 5. S7 operator protocol + retire the calculators (gated on S5).
 6. Expert re-enactment (queued); burn-off after a batch of stages (`burn-off` skill).
 
@@ -54,7 +54,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 
 **S2. Benchmark before training.** Status: done (`tools/bench.py`, near-miss bench). Frozen sets with search labels at live width (5x32): eval, high energy, real-run corpus, cross-character/big belt, per-character. Local RTX 4070 Super: 100k labelled fights ~2.5 h (no pod needed). Gate: re-runs within se.
 
-**S3. Predictor trained on search play.** Status: live predictor + player `models/solver_td08.pt` (TD(λ=0.8) value targets, E24; with cover search, E27); passes the promotion gate except the decile-bias check (open).
+**S3. Predictor trained on search play.** Status: live predictor + player `models/solver_td08.pt` (TD(λ=0.8) value targets, E24; with cover search, E27); passes the promotion gate except decile bias: +0.03 pessimistic at P(win) 0.27-0.81 vs h128's labels (E28).
 - Combat loop (the engine of combat improvement): each round collects with the live player (its own cover search) on a signal-weighted pool, trains value with TD(0.8) from the live model, then applies the promotion gate; promote on pass. Policy stays fixed except via a new PPO base (no policy distillation target: E15, E22). Value targets are realized/TD outcomes, never max of search Q (winner's curse); HL-Gauss categorical targets; Reanalyse of stored fights.
 - Curriculum by signal: each round draws fresh candidates (`tools/gen_curriculum.py` + corpus), scores at fight start with the current predictor, samples 15% uniform anchor + rest by p(1-p) (`tools/signal_pool.py`); selection before a seed is played (labels unbiased). Measured by A/B vs a uniform pool, calibration on the natural distribution. ExIt pool A/B (E18) inconclusive: run under the policy-target bottleneck; re-test for value-only training.
 - Near-miss restarts (`tools/nearmiss.py`, `exit.py collect --restarts`, parts `policy_only`): deprioritized: stronger honest search flips only 2-4 points and avoidable errors are spread over setup turns (E25, E26).
