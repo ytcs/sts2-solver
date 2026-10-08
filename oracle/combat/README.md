@@ -1,43 +1,26 @@
-# OracleCombat: real STS2 combat from the game's own code, with full state traces
+# OracleCombat: real STS2 combat from the game's own code, full state traces
 
-Runs the real `sts2.dll` combat logic in a plain `dotnet` process (no Godot runtime, no Steam, no mod loader).
-Design notes, stubbing details, trace schema and gotchas: `docs/oracle.md`.
+Runs the real `sts2.dll` combat logic in a plain `dotnet` process (no Godot runtime, Steam or mod loader; nothing in the game dir is modified). Stubs, scenario schema, trace, gotchas: `docs/simulator.md` "Oracle".
 
 ## Build
 ```
-cd oracle/combat
-dotnet build -c Release            # needs the game install; override with -p:GameDir=/path/to/data_sts2_linuxbsd_x86_64
+cd oracle/combat && dotnet build -c Release    # .NET 9 SDK, x86-64; -p:GameDir=<data_sts2_* dir> to override
 ```
-Default `GameDir` = `~/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_x86_64` (same as `oracle/RngGolden`).
-Requires .NET 9 SDK, x86-64 (the Godot stub is raw x86-64 machine code, allocated with `mmap` on Linux and `VirtualAlloc` on Windows). On Windows `GameDir` defaults to the Steam `data_sts2_windows_x86_64` folder; `oracle.sh` needs bash, so `tools/fuzz_gen_mix.py` calls `dotnet bin/Release/net9.0/OracleCombat.dll` directly there (`dotnet` on `PATH`). Nothing in the game directory is modified. A harmless
-`SentryGodotInitializer: ...` line is printed to stdout at start-up by the game assembly; always use `--out`.
+`GameDir` defaults to the Steam `data_sts2_windows_x86_64` (Windows) or `~/.local/share/Steam/.../data_sts2_linuxbsd_x86_64` (Linux). `oracle.sh` needs bash; on Windows call `dotnet bin/Release/net9.0/OracleCombat.dll <cmd>` (what `tools/fuzz_gen_mix.py` does). A `SentryGodotInitializer` line goes to stdout at start-up: always use `--out`.
 
-## Run
-```
-./oracle.sh run SCENARIO.json --out trace.jsonl                       # scripted: scenario["script"] drives the fight
-./oracle.sh run SCENARIO.json --random SEED --out trace.jsonl --record replayable.scenario.json
-        # random legal-action driver (seeded System.Random). --record writes the scenario + the exact chosen script
-        # (including `choose` answers), which replays to a byte-identical trace.
-./oracle.sh fuzz --character IRONCLAD --encounters ALL --seeds 1-20 --out-dir /tmp/fz [--keep-all] [--ascension N]
-        # many random scenarios (starter + random cards/relics/potions, random hp/floor) in ONE process (~50 ms each);
-        # failing runs leave NAME.scenario.json (+ error) and NAME.jsonl in --out-dir. python3 fuzzsum.py DIR groups errors.
-./oracle.sh batch DIR [--max-steps N --max-rounds N]
-        # run every DIR/*.scenario.json in ONE process (~10 ms/fight); scenario key "policy": {"kind":"random|playall|stall","seed":N,
-        # "max_steps":N,"max_rounds":N}; writes NAME.jsonl + NAME.res ("result nactions") or NAME.err. Without "policy" the scenario's
-        # own "script" is replayed (regression scenarios, oracle/regression/). Driven by tools/fuzz_gen*.py (randomised differential fuzzing).
-./oracle.sh catalog --out catalog.json     # pools and encounters for the generators (`tools/gen_train.py`, `tools/fuzz_gen_mix.py`)
-./oracle.sh list-meta --out meta.json      # pools / encounters metadata for `tools/fuzz_gen_orb_pet.py`
-./oracle.sh dump-pools --out pools.json    # card / relic / potion pools, encounters (act, room type), enchantment applicability
-./oracle.sh dump-rng SEED_STRING --out rng.json      # fresh nine streams {counter,s0..s3} for RunRngSet(seed)
-./oracle.sh check-shuffle SCENARIO.json --trace trace.jsonl   # opening hand+draw == UnstableShuffle(deck, Rng(hash(seed),"shuffle"))
-```
-`run` also takes `--policy random|playall|stall` (with `--random SEED`): `random` = uniform over legal actions, `playall` = end the turn
-only when nothing else is legal, `stall` = never plays an Attack (reaches deep turns).
-Options: `--max-steps N` (random driver, default 400), `--max-rounds N` (default 60), `--lenient` (do not abort on game `Log.Error`),
-`--verbose` (print game Info/Debug logs to stderr). Exit code 1 on oracle error (message on stderr).
+## Commands (`./oracle.sh <cmd>`)
+| cmd | what |
+|---|---|
+| `run S.json --out T.jsonl` | scripted fight (`script` drives it) |
+| `run S.json --random SEED [--policy random\|playall\|stall] --out T.jsonl --record R.json` | random legal-action driver; `--record` writes a scenario + exact script that replays byte-identically |
+| `batch DIR [--max-steps N --max-rounds N]` | every `DIR/*.scenario.json` in one process (~10 ms/fight): `policy` key or the scenario's `script`; writes `NAME.jsonl` + `NAME.res` or `NAME.err` (used by `tools/fuzz_gen_mix.py`) |
+| `fuzz --character C --encounters ALL --seeds 1-20 --out-dir D` | random scenarios in one process; failures leave scenario + trace |
+| `catalog --out F` | pools and encounters (input of `tools/gen_train.py`, `tools/fuzz_gen_mix.py`; copy in `data/catalog.json`) |
+| `dump-pools --out F` / `list-meta --out F` | pools, encounters (act, room), enchantment applicability |
+| `dump-rng SEED --out F` | the nine fresh streams for a seed string |
+| `check-shuffle S.json --trace T.jsonl` | opening hand + draw == `UnstableShuffle(deck)` |
+
+Options: `--max-steps` (default 400), `--max-rounds` (60), `--lenient` (do not abort on game `Log.Error`), `--verbose`. Exit 1 on oracle error (stderr).
 
 ## Files
-`Program.cs` CLI, `Boot.cs` init sequence, `GodotStub.cs` + `Patches.cs` Godot/engine stubbing, `Pump.cs` single-thread
-scheduler, `Scenario.cs` input schema, `Setup.cs` scenario -> Player/RunState/combat, `Driver.cs` stepper + choice selector
-+ legal-action enumeration, `Dump.cs` trace schema, `Fuzz.cs` random scenario generator.
-Samples: `oracle/samples/`, example scenarios: `oracle/scenarios/`.
+`Program.cs` CLI, `Boot.cs` init, `GodotStub.cs` + `Patches.cs` stubs, `Pump.cs` single-thread scheduler, `Scenario.cs` input, `Setup.cs` scenario -> run/combat, `Driver.cs` stepper + selector + legal actions, `Dump.cs` trace schema, `Fuzz.cs`, `Catalog.cs`, `Pools.cs`. Recorded regression traces: `oracle/regression/` (replayed by `cargo test -p sts2diff --test regression`).

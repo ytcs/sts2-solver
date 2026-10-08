@@ -4,61 +4,61 @@ description: Use before the first action of a run and whenever unsure how to dri
 ---
 
 # Harness operation
-
-Run as `.venv/Scripts/python.exe -m agent <cmd>` with `STS2_DEVICE=cuda` (`agent/harness.py`, `README.md`). Quote `-- why` in double quotes (parentheses and semicolons break the shell); batch mode needs none.
+`.venv/Scripts/python.exe -m agent <cmd>`, `STS2_DEVICE=cuda` (`agent/harness.py`). Double-quote `-- why` (`;`/parens break the shell); batch mode needs none.
 
 ## Commands
-- **Look (always allowed):** `s` state; `d` deck/relics; `p draw|discard|exhaust`; `m` map (`boss: <row> <ID> [+ <ID>]`); `relics` counters; `status` (run, fight, replay fidelity, engine); `brief`, `reward`: `sts2-deckbuilding` section 1.
-- **Act:** `a <i> [target] [-- why]` (always give the reason). Chain with `;`, options by label: `a ~gold; ~card; ~skip; ~proceed -- why`. `~text` matches option text case-insensitively (avoid words in card names, e.g. `end`). A chain stops on error or combat, a map click must be last, and it passes through a selection screen when the next step names its option (`a ~smith; ~Bash`).
-- **Route:** `draw r1c6 ...` draws the route; `route M E R ... --hp N` prices fights and rests along one hand-written route; `note`, `newrun`.
-- **Whole map:** `routes [--attempts N] [--pf P] [--w E=4,M=1] [--hp N]` (`--hp`: a what-if start HP, e.g. after a rest) prices every route on the act map (exact DP over node x HP with the solver's fight outcomes, adaptive): per option on offer the boss win (or survival to the boss when the boss is out of reach) with at least k more elites, the representative route per k, and a reward-weighted ranking (weights are a judgment `[hyp]`: elite 5 = relic + ~3x rare odds, treasure 3.5; unknowns are a 15% regular fight; events and treasure are not simulated). A shop is worth what the gold I arrive with buys: the reward DP carries my gold (A10 income `[code]`: monster ~11, elite ~30, treasure ~35) and prices each shop as the best basket of a typical A10 shop at code prices (card ~60 with the sale, removal 100 +50 per use, relic ~225): 0 under ~60 gold, ~1 card-reward at 100, a relic at 225 (`routes.py` `shop_buy`). Potions are a budget in the route DP: each potion is thrown at most once along a route, at the elite or boss fight where it helps most (the DP chooses with the HP I arrive with, the boss keeps what is left; hallway fights are priced without potions), and every representative route prints its `potion plan`. `rmcalc [--attempts N]` prices every removable card as a removal (boss smooth, elites, next act), ranked.
-- **Solver:** `adv [secs]` advice plus expected enemy damage (`adv 20` when one turn is pivotal); `turn` / `combat` play a turn / the fight, only in an AUTO fight (`DRIVE:` line at fight start; `combat !` overrides a MANUAL one; rule: `sts2-strategy`). Every `adv` is logged so the review can compare my choice with the solver's. Search depth `[sim]`: every search (live and every table) plays each option through 2 player turns before the value network judges the position (`rl/fastsearch.py` `LEAF_TURNS`): fewer wrong choices than the 1-turn search (regret vs a Monte Carlo referee 0.0038 vs 0.0099, `tools/bench_search.py`) and whole fights win +0.9 % / lose 1.1 % of max HP less (`tools/ab_leaf.py`). More futures or more time at the same depth add almost nothing; depth is what helps. `SEARCH OBJECTIVE`: below (the route-DP HP-worth objective failed its gate, `evals/gate_util_full.json`). `budget <s>` fixes search time and searches it in full (default auto, 1-15 s, stops when expected regret < ~1 HP; an explicit `adv N` also searches all N s). `SIMULATOR DESYNC` or `DIFFERS` voids the advice: play by hand, run `status`.
-- **Potions: the solver proposes, I commit, one potion per commit** (`agent/proposal.py`). The live search plans WITHOUT potions and never throws one. At the start of every player turn each potion is priced three ways on the same 32 futures (paired), each played to the fight's end by the search under the fight's objective, the other potions out of every arm: **now** (thrown now at its best target, the target chosen on other futures), **keep** (this turn played without it, usable from the next turn on), **save** (not used this fight). One table per potion, the same units in every row: `P(win)`, end HP mean and p10 / p50 / p90 over all futures (a loss counts 0), `score` in the fight's objective, and each arm's paired difference to save. `turn` / `combat` STOP with `POTION PROPOSAL` when using one now beats keep AND save beyond noise (both paired score differences > 2 se), or when the win is at stake (the better of now / keep wins more often than save, > 2 se); no other thresholds. `adv` prints the table every turn, `potions` on demand. Answers: `potion use <name>` throws that ONE potion at the priced target (or `a <i>`, its option on the screen); or `turn` / `combat` again (no new proposal that turn). After a commit the next turn's proposal re-prices whether another is needed: never throw a second one on the same proposal. `potion aside <name>[, name]` keeps a potion for the boss (outside boss fights it stops `turn` / `combat` only when the win is at stake; `potion aside none` releases; `potion` shows the list). The verdict line per potion: USE NOW / KEEP (worth using later this fight) / SAVE (no gain here beyond noise). Keep and save are priced within this fight only (a potion's worth in later fights is not in the score): weigh SAVE against the boss yourself. Every table (`eval`, `reward`, `rmcalc`, `routes`, `pickplan`) prices NON-boss fights without potions (a lower bound) and the boss with them. `[hyp]` that the proposals order potions well; test (S4 gate): the potion regression states against large-budget references (`evals/solver_gaps.md`).
-- **Per-fight objective (`SEARCH OBJECTIVE`, `proposal.fight_objective`):** an act boss followed by the ancient's heal (Acts 1-2 bosses; in Act 3 the final boss, at A10 the second of the two since HP carries from the first) is searched, predicted and potion-priced on P(win) only (win-only table: loss 0, a win 1 plus a 1% end-HP tiebreak); its search `q` values are then P(win) (plus the tiebreak) and the potion arms are scored on P(win) alone, so an HP gain never stops a boss fight. Every other fight: linear (win +1 + 0.5 x end HP / max HP, loss -1). The same objective drives the fight-start prediction, the live search and the potion arms.
-- **Eval:** `eval --pool <Act>:<regular|elite|boss> --hp full --attempts 256 --v "name|add=ID|remove=ID|upgrade=ID|relics_add=ID"` is the combat value of deck variants (ids upper-case snake: HEMOKINESIS). `--boss`, `--elites`, `--next` replace `--pool` (known boss; elites left; next act's elites and bosses; narrowing: `sts2-acts`); `--all` whole pool; `--future` all horizons; `--smooth` averages win rate over start HP x1/1.5/2/3 (4x the cost; the pick objective).
+- Look (always allowed): `s`; `d` deck/relics; `p draw|discard|exhaust`; `m` map (`boss: <row> <ID> [+ <ID>]`); `relics`; `status` (run, fight, fidelity, engine, aside); `brief`, `reward` (`sts2-deckbuilding` section 1); `plans`; `price [n] [--sat X]` (screen options by paired run-model rollouts; shop = bundles in budget; horizon ladder P(win run) -> P(clear act) -> next-act readiness once P(clear act) >= 0.9 -> floors).
+- Act: `a <i> [target] [-- why]` (always a why). Chain `a ~gold; ~card; ~skip; ~proceed -- why`; `~text` case-insensitive (avoid words inside card names, e.g. `end`); stops on error/combat; map click last; passes a selection when the next step names it (`a ~smith; ~Bash`).
+- Route: `draw r1c6 ...`; `route M E R ... --hp N [--act A] [--exclude IDS]` (one route, fights + rests); `note <text>`; `newrun`.
+- `routes [--attempts N] [--pf P] [--w E=4,M=1] [--hp N]`: whole act map, exact DP node x HP on solver outcomes. Per option: boss win (or survival) with >= k more elites, route per k, reward ranking (weights `[hyp]`: elite 5, treasure 3.5; unknown = 15% regular fight; events/treasure unsimulated). Gold carried (A10 `[code]` monster ~11, elite ~30, treasure ~35); shop = best basket (card ~60, removal 100 +50/use, relic ~225). Each potion thrown at most once at its best elite/boss (hallways without); prints `potion plan` + elite arrival HP (alive, mean, q10). `--hp` = what-if HP.
+- `rmcalc [--attempts N] [--hp full|current|N]`: each removable card as a removal, ranked.
+- `pickplan [--screens K] [--shops S]`: take-threshold (`sts2-deckbuilding` section 1).
+- `eval --pool <Act>:<regular|elite|boss> | --boss | --elites | --next | --enc IDS [--all] [--future] [--smooth] [--hp full|N] [--attempts N] [--seed N] --v "name|add=ID|remove=ID|upgrade=ID|relics_add=ID|potions=IDS|enchant=ID:ENCH"` (ids upper snake). `--next` = next act elites+bosses; `--future` all horizons; `--smooth` win over start HP x1/1.5/2/3 (4x cost).
+- Solver: `adv [secs]` (+ expected enemy damage; `adv 20` pivotal turn); `turn`/`combat` only in AUTO fights (`combat !` overrides MANUAL; `sts2-strategy`). `budget <s>` fixed, searched in full; `budget auto` 1-15 s by danger, stops at regret < ~1 HP. Search plays 2 player turns then value net `[sim]`; more futures/time at same depth ~nothing. `SIMULATOR DESYNC`/`DIFFERS` voids advice: play by hand, `status`.
+- `routes` at every fork; `pickplan` once per act + after a shop.
 
-## Combat display `[code]` (`Harness._combat_info`, `Combat::intent_plan`)
-Every COMBAT screen prints two more lines from the synced simulator:
-- `draw (N): ...`: the draw pile as a multiset.
-- `eN plan: +1 ... +2 ... +3 ...`: each enemy's possible moves for the next 3 turns after the shown intent, with odds when random. Each move shows its damage at today's modifiers and what else it does, found by performing it on a copy of the fight: `[me: VULNERABLE +3]`, `[discard: +3 WOUND]`, `[self: STRENGTH +2, block +18]`, `summons`.
-The odds per turn are marginal: with a cannot-repeat branch, the realized move narrows the next turn (Inklet: Gaze now means Whirlwind next).
+## Potions `[code]` (`agent/proposal.py`): solver proposes, I commit one per commit
+- Live search plans without potions, never throws.
+- Each turn, each potion on the same 32 futures to fight end, other potions out: now (best target) / keep (from next turn) / save. Table: P(win), end HP mean p10/p50/p90 (loss 0), score, paired diff to save; verdict USE NOW / KEEP / SAVE.
+- `turn`/`combat` stop with `POTION PROPOSAL` iff now > keep AND save by 2 paired se in score, or win at stake (max(now, keep) wins more than save, > 2 se).
+- Answer `potion use <name>` / `a <i>`, or `turn`/`combat` (no new proposal that turn). Next turn re-prices; never a second throw on one proposal.
+- `potion aside <name>[, name]` = keep for boss (elsewhere stops only when win at stake); `potion aside none`; `potion` lists; `potions` table; `adv` prints it.
+- keep/save priced within this fight: weigh SAVE vs the boss yourself. Tables price non-boss fights without potions (lower bound), boss with.
+- `[hyp]` proposals order potions well. Test (S4 gate): regression states vs large-budget references.
 
-## Decision guards `[code]` (`Harness._decision_guard`)
-The skills are what the outer loop learns, so the harness checks that each decision executed its skill's procedure. It never checks which option was chosen.
-- Card reward: `reward` on this screen, and a `-- why` with `buckets:`, `weakest:`, `numbers:`, `judgment:` (`sts2-deckbuilding` section 1).
-- Map fork and Neow / ancient: `routes` (or `route`) on this floor.
-- Shop purchase: `eval` / `rmcalc` / `routes` / `pickplan` on this floor; rest site: `routes` (with `--hp <after the rest>`) and an `eval` upgrade variant on this floor. Both need `numbers:` + `judgment:` in the `-- why`.
-A refusal names what is missing: run it, write the record, repeat.
+## Fight objective `[code]` (`SEARCH OBJECTIVE`)
+Act boss before an ancient heal (Acts 1-2; Act 3 final, A10 the second): P(win) only (+1% end-HP tiebreak) in prediction, search, potion arms. Others linear: win +1 + 0.5 x HP fraction, loss -1.
 
-## Batch mode `[code]`
-`python -m agent - <<'EOF'` with one command per line runs them in order, output under `>>> command`; text is literal (no quoting). It stops at the first `ERR` / `REFUSED` / `[chain stopped` (`--keep-going` after `-` continues). E.g. `brief` + `reward` in one call, then the pick.
+## Combat display `[code]`
+`draw (N)` multiset; `eN plan: +1 .. +2 .. +3 ..` moves for 3 turns after the intent, odds, damage at today's modifiers, effects (`[me: VULNERABLE +3]`, `[discard: +3 WOUND]`, `[self: ...]`, `summons`); odds marginal per turn.
 
-## Cost of the calculators (warm daemon) `[hyp]` (test: time them on a warm daemon)
-Act 2 deck with every horizon (`tools/time_tables.py`, search depth 2, `solver_h128`): `reward` ~27 s, `routes` ~19 s (0 s again at the same deck: the tables are cached by deck, relics, belt and encounters left), `rmcalc` ~57 s, 1-variant `eval --smooth --boss` ~11 s, `eval --elites` ~2 s, `pickplan` ~145 s (under 1 s again: gains cached; a cheap screen of all cards, then the top 40 priced properly). A cold daemon costs ~20 s (networks and CUDA): do not `quit` it unless code changed. Run `pickplan` once per act and after a shop, `routes` at every fork.
+## Decision guards `[code]` (`agent/guards.py`; never judge the choice)
+- Card reward: `reward` this screen + why with `buckets:`, `weakest:`, `numbers:`, `judgment:`.
+- Map fork, Neow/ancient: `routes`/`route` this floor.
+- Shop buy: `eval`/`rmcalc`/`routes`/`pickplan` this floor. Rest: `routes --hp <after rest>` + `routes` + `eval` upgrade variant this floor. Both: `numbers:` + `judgment:`.
+- Elite/boss click below 60% HP: `a <i> !`. Refusal names what is missing: run it, repeat.
 
-## Draws of the tables `[code]`
-Every variant of one call meets the same fights (common random numbers): a `vs` line marked `paired` has the se of the difference itself, smaller than the two rows' se combined (about 2x for an upgrade, little for an added card or a belt change). The draws are seeded per screen: a re-run on the same screen repeats them exactly and confirms nothing; `--seed N` on any calculator draws fresh ones, more `--attempts` adds more.
+## Batch `[code]`
+`python -m agent - <<'EOF'` one command per line, literal text, output under `>>> cmd`; stops at `ERR`/`REFUSED`/`[chain stopped` unless `- --keep-going`.
 
-## Speed `[hyp]` (test: run and fight durations in `review`)
-Target a run in 30 min, fights 1-2 min (`combat` takes 5-40 s). `combat` for easy fights, `turn` / `adv` when the stakes are real; short reasons; no re-reading unchanged state; a reward screen in one chained `a`.
+## Tables `[code]`
+Variants of one call share fights: a `paired` `vs` line = se of the difference. Draws seeded per screen (re-run repeats; `--seed N` fresh). `eval` prints HP-lost q10/50/90/97.5 (loss = start HP); decide on q90 + death tail. Warm-daemon cost `[hyp]` (Act 2 deck): `reward` ~27 s, `routes` ~19 s (cached), `rmcalc` ~57 s, `eval --smooth --boss` ~11 s/variant, `pickplan` ~145 s; cold daemon +20 s: never `quit` unless code changed.
 
 ## Quirks `[code]`
-- `REFUSED: skills not loaded: X`: invoke X, read it, repeat (`CLAUDE.md`, Rule 0).
-- Never chain map or node choices. A click onto an elite or boss below 60% HP needs `!`.
-- Option numbers shift after every action. The harness refuses a bare `a <i>` after an earlier step in the same chain or batch, and `~text` prefers the one option that starts with the text and refuses when several still match: name options (`~gold`), or read `s` and send the number in its own call. Exceptions, where any match is the same action: identical labels (two copies of a card) and gold rewards (two with Amethyst Aubergine: `~gold` takes the first, so `a ~gold; ~gold; ~card` collects both).
-- Crystal Sphere (event minigame, 121 cells): the bridge's generic overlay fallback lists only 40 controls, so the cells hide Proceed. `a 0 <x> <y>` / tool / proceed come from the `CrystalSphere` case in `mods/AgentBridge/src/Decisions.cs` (installed 2026-10-05; untested live). Never use the console. Play: `sts2-crystal-sphere`. `[code]`
-- `potion aside` is saved with the run record and survives a daemon restart (cleared on a new run); `status` lists it. `hold`, `potion allow / deny / keep` and `POTION ALERT` are retired.
-- The solver never throws or discards a potion in live play (only `potion use` / `a <i>` do; the bridge cannot discard).
-- The fight-start prediction is made at the HP before Pantograph's heal: judge a boss with `eval --hp <HP on entry>`.
-- If `combat` returns without playing, run `s`; an `ERR` line says why.
-- Relic state is synced from the game `[code]`: saved properties (Pen Nib, Nunchaku, Joss Paper, Iron Club, Book of Five Rings, Happy Flower ...) at fight start and after every action; relics without them (Kunai, Shuriken, Letter Opener, Ornamental Fan, Pael's Legion's cooldown) from the shown counter (untested live). Not synced `[code]`: relic state that neither reveals (Pen Nib's attack being doubled mid-play, a counter the game hides); a sim-created card has none of the real card's keywords until played. Sync, fidelity, calibration results: `sts2-deckbuilding/evidence.md`. Energy-heavy evals need no extra discount `[sim]`.
+- Option numbers shift after each action: bare `a <i>` after an earlier chain/batch step refused; ambiguous `~text` refused. Exceptions: identical labels; gold (`a ~gold; ~gold; ~card`).
+- Never chain map choices. `do` refused. `hold`, `potion allow/deny/keep` retired.
+- Crystal Sphere: `a 0 <x> <y>`, tool, proceed (`Decisions.cs` `CrystalSphere`); `sts2-crystal-sphere`.
+- `potion aside` survives daemon restart. Solver never throws/discards live.
+- Fight-start prediction is before Pantograph's heal: `eval --hp <entry HP>`.
+- `combat` returned without playing: `s`; `ERR` says why.
+- Relic state synced (saved props each action; counters from display). Not synced: state neither reveals; sim-created cards lack real keywords until played.
 
-## Distributions, not means `[code]`
-`eval` prints the HP-lost quantiles (q10 / 50 / 90 / 97.5, a loss counts as the whole start HP); `routes` propagates the whole HP distribution; the review prints, per fight, where the real loss fell in the predicted distribution (`loss pct`, 0.50 if calibrated) and the share of fights in the worst 10% (expected 10%): the check that the simulator and the game agree. Decide on q90 and the death tail, not the mean: the spread of one elite is ~30 HP.
+## Speed `[hyp]` (test: durations in `review`)
+Run ~30 min, fight 1-2 min; `combat` for easy fights; short whys; no re-reading unchanged state; reward screen in one chain.
 
 ## Review loop (after each run)
-1. `python -m agent.improve review` (writes `runs/<run>/review.md`): outcome; predicted vs actual per fight (Brier, HP); search overrides of the policy; fidelity divergences; card picks vs the best smooth boss score; every recorded `judgment:`; costly fights in `runs/<run>/fights/`.
-2. **Fidelity first**: reproduce a divergence (`python -m agent.fidelity_sweep --mode recorded`, `agent.fidelity_trace`, `agent.calibrate`) and fix it before any model comparison.
-3. **Costly fights** (lost >= 30% max HP, or lost): `python -m agent.hindsight <file> --log` says luck (percentile of the real loss among simulator replays) or solver gap (decisions where a large-budget search prefers another line by >= 2 HP). Gap patterns go to the corpus / fine-tune; encounter patterns to `sts2-acts/encounters.md`.
-4. **Judgments**: did each recorded `judgment:` hold in the fights that followed? Edit the rules it relied on in `sts2-deckbuilding` (narrow, tighten the test, delete) and tag the claim `[sim]` once measured, else `[hyp]` with its test; tally in `evals/judgments.jsonl`. `python -m agent.improve lessons` lists every open `[hyp]`: the experiment backlog.
-5. **Model changes** only when 2-3 runs show a pattern: `corpus` -> `finetune` -> `gate` (candidate gains >= 1 point on the corpus holdout and loses <= 1 on the fixed eval and the 4-7-energy eval) -> `adopt`; every step in `evals/ledger.jsonl`. Strategy changes go through the book, model changes through the gate; neither on a single run.
+1. `python -m agent.improve review` -> `runs/<run>/review.md` (predicted vs actual, overrides, fidelity, picks vs best, judgments, costly fights).
+2. Fidelity first: `python -m agent.fidelity_sweep --mode recorded`; fix before model comparisons; sim changes pass `bash tools/gate.sh`.
+3. Costly fights (lost >= 30% max HP, or lost): `python -m agent.hindsight <file> --log` -> luck vs solver gap (large search better by >= 2 HP). Gaps -> corpus; encounter patterns -> `sts2-acts/encounters.md`.
+4. Judgments: edit the `sts2-deckbuilding` rules each `judgment:` relied on; `[sim]` once measured else `[hyp]` + test; tally `evals/judgments.jsonl`; `python -m agent.improve lessons` = backlog.
+5. Model change only on a 2-3 run pattern: `improve corpus` -> `finetune` -> `gate` (>= +1 point corpus holdout, <= -1 on fixed and 4-7-energy evals) -> `adopt`; `evals/ledger.jsonl`.
