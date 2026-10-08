@@ -3397,5 +3397,7 @@
    "residual .hand[3].enchantment": 1,
    "residual .hand[0].enchantment": 3
   }
- }
+ },
+ "truncated": true,
+ "truncated_note": "video cut inside turn 4; fight won off-screen at 15:21; hp_end is the turn-4 start, not the fight result"
 }

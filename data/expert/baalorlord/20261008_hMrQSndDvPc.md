@@ -13,7 +13,7 @@
 - **R1: K=256 search** (`FastSearch`, cover, 16 seeds, common random numbers per seed): q per action class (identical cards merged). his-live = paired mean over seeds, se over seeds. Weakness found here: the rest of the current turn after the candidate is played by the rollout policy, so a line that needs exact sequencing can score as a loss (fight C T4).
 - **R2: turn-exhaustive check** (`turncheck`): enumerates every distinct line to end of turn (choices included), values each end-of-turn state by terminal utility or by a K=8 search at the next decision (2 determinizations to select the best line per first action, 8 fresh determinizations to re-value it; paired se vs his line). Exact on current-turn sequencing; leaf values are a weak search.
 - **R3: paired full-fight playouts** (`playout`): his action vs the live player's, then the live player (0.3 s/decision for A, 0.15 s for D/E; potions free) finishes the fight; paired determinization seeds (n per row: 24 / 16 / 12, limited by CPU on a shared box).
-- units: q = win (+1 + 0.5 x end HP/max HP) or loss (-1). 1 HP at 70 max = 0.0071 q. **Verdict rule:** a disagreement is called only when the decisive reference shows |gap| > 2 se **and** >= 1 HP-eq (0.0071); "tie (order only)" = exactly equal q under common random numbers (commuting card orders reach the same end-of-turn state).
+- units: q = win (+1 + 0.5 x end HP/max HP) or loss (-1). 1 HP at 70 max = 0.0071 q. **Verdict rule:** a disagreement is called only when the decisive reference shows |gap| > 2 se **and** >= 1 HP-eq (0.0071); Which reference decides: an exact (terminal) enumeration overrides everything; otherwise R3 when it was run with se below ~0.005 (resolves 1 HP-eq); otherwise R2; R1 never decides alone. "tie (order only)" = exactly equal q under common random numbers (commuting card orders reach the same end-of-turn state).
 
 ## Act 1 macro (transcribed; floor = in-game floor counter)
 | floor | room | state | options seen | his pick (@time, reason) |
@@ -95,7 +95,7 @@ Card codes: S Strike, D Defend (D* = Spiral Defend), N Neutralize, SV Survivor, 
 
 | # | t | his | live | R1 his-live (se) | R2 (turn-exhaustive) | R3 playouts | verdict |
 |---|---|---|---|---|---|---|---|
-| 0 | 14:37 | NF | **DS+** | -0.0058 (0.0040) | **his +0.1607 (0.0506)** over the best DS+-first line (attacking wakes the boss early) | his +0.185 (0.178), n 12; win 92% vs 83%, end HP 19.3 vs 16.7 | **solver gap**: R2 at 3.2 se; R3 same sign, noisy (n 12). Moderate confidence |
+| 0 | 14:37 | NF | **DS+** | -0.0058 (0.0040) | **his +0.1607 (0.0506)** over the best DS+-first line (attacking wakes the boss early) | his +0.185 (0.178), n 12; win 92% vs 83%, end HP 19.3 vs 16.7 | **solver gap on R2 alone** (3.2 se) plus the win-only rerun (DS+ at #0, #1, #2); R3 under-powered (n 12, 1.0 se, same sign). Moderate confidence |
 | 1 | 14:38 | N | end turn | **+0.0482 (0.0115)** | his +0.0018 (0.0003) (0.25 HP) | not run | immaterial by R2 (0.25 HP-eq; R1's 6.7 HP-eq not confirmed) |
 | 3 | 14:49 | SB+ | S | -0.0003 (0.0002) | tie: SB+-first = S-first | - | tie (order only) |
 - live player with the harness boss objective (win only): `proposal.fight_objective` -> win only. The live player then plays **DS+ at #0, #1 and #2** (attacks the sleeping boss on turn 1 whatever he has already played) and S before SB+ at #3 (order only); 8/12 agree. Same finding as #0.
@@ -131,7 +131,7 @@ Card codes: S Strike, D Defend (D* = Spiral Defend), N Neutralize, SV Survivor, 
 - Live-player column is a 2 s CPU proxy for the harness player (see Method); R1-R3 are lower bounds on line values, not verdicts on plans (claims discipline).
 
 ## Appendix: every decision (live player vs his action; R1 his-live where they differ; R1 best)
-Columns: log index | video time | his action (spec code) | live player | agree | R1 his-live (se) | R1 best class. "forced" = one legal action.
+Columns: log index | video time | his action (p play, c choose/discard, pot potion slot, e end turn; card codes as above) | live player | agree | R1 his-live (se) | R1 best class. "forced" = one legal action.
 ```
 a_terror_eel: i | t | his | live | ag | K256 his-live (se) | K256 best
 0 | 5:20 | pot 0 | NEUTRALIZE>e0 | N | +0.0000 (0.0000) | DEFEND
