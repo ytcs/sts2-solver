@@ -52,7 +52,7 @@ impl Combat {
         cr.side = Side::Player;
         cr.is_pet = true;
         cr.owner = PLAYER;
-        cr.hp = hp;
+        cr.set_hp(hp);
         cr.max_hp = hp;
         cr.monster = MonsterState { id: monster, ..Default::default() };
         self.creatures[cid as usize] = cr;

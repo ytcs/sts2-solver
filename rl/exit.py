@@ -15,7 +15,7 @@ Targets per searched decision:
   outcome  the class of how that fight really ended (loss, or the 2-HP end bin) under search play, HL-Gauss-smoothed over neighbouring win bins
            (Farebrother et al. 2024); realized outcomes, never the max of the search's estimates (winner's curse)
 """
-import argparse, json, os, sys, time
+import argparse, concurrent.futures, json, os, sys, time
 
 import numpy as np
 import torch
@@ -284,7 +284,7 @@ def train(a):
           f"{' (c=%g, %s)' % (a.c, a.qnorm) if a.target == 'anchored' else ''}{', policy heads frozen' if a.freeze_policy else ''}", flush=True)
 
     def batch_loss(o, m, op, tg, cl, qn, adv, ow, last, vt=None):
-        o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m.astype(np.int64)).to(DEV)
+        o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m).to(DEV).long()  # the mask crosses as bytes, widened on the device
         op, tg, cl = torch.from_numpy(op.astype(np.int64)).to(DEV), torch.from_numpy(tg).to(DEV), torch.from_numpy(cl.astype(np.int64)).to(DEV)
         lg, _, ol = net(o, m, outcome=True)[:3]
         if prior is not None:
@@ -320,22 +320,28 @@ def train(a):
 
     print("holdout before: policy %.4f outcome %.4f" % evaluate(), flush=True)
     it, n_chunks = 0, a.epochs * ((len(tr) + a.chunk - 1) // a.chunk)
+    # the next chunk's rows are replayed while this one trains (`sts2.replay_rows` releases the GIL): the replay was ~25% of a chunk
+    pool = concurrent.futures.ThreadPoolExecutor(1)
     for ep in range(a.epochs):
         order = rng.permutation(len(tr))
-        for c in range(0, len(tr), a.chunk):
+        starts = list(range(0, len(tr), a.chunk))
+        nxt = pool.submit(data.rows, [tr[i] for i in order[starts[0]:starts[0] + a.chunk]])
+        for ci in range(len(starts)):
             t0 = time.time()
-            r = data.rows([tr[i] for i in order[c:c + a.chunk]])
-            if a.value_target == "td":  # computed before the shuffle: a fight's rows are still contiguous
+            r = nxt.result()
+            if ci + 1 < len(starts):
+                nxt = pool.submit(data.rows, [tr[i] for i in order[starts[ci + 1]:starts[ci + 1] + a.chunk]])
+            if a.value_target == "td":  # computed before the shuffle: a fight's rows are still contiguous (the shuffle only gathers minibatches)
                 r.append(td_targets(r))
             sh = rng.permutation(len(r[0]))
-            r = [x[sh] for x in r]
             lr = a.lr * max(a.lr_floor, 1 - it / n_chunks)
             for g in opt.param_groups:
                 g["lr"] = lr
             st = np.zeros(2)
             nb = 0
             for b in range(0, len(r[0]), a.mb):
-                pl, vl = batch_loss(*(x[b:b + a.mb] for x in r))
+                ib = sh[b:b + a.mb]  # the minibatches of the shuffled chunk, gathered one at a time (no shuffled copy of the whole chunk)
+                pl, vl = batch_loss(*(x[ib] for x in r))
                 loss = a.pol * pl + a.vw * vl
                 opt.zero_grad(set_to_none=True)
                 loss.backward()

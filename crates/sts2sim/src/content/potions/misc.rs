@@ -48,7 +48,7 @@ listener!(FruitJuice {
 // Doubles the current Block (integer math, unpowered).
 listener!(Fortifier {
     fn on_use_potion(&self, cx: &mut Combat, _potion: u16, target: Cid, _phase: u8) -> Flow {
-        let b = cx.cr(target).block as i64 * 2;
+        let b = cx.cr(target).block() as i64 * 2;
         cx.gain_block(target, Dec::int(b), ValueProp::UNPOWERED, NO);
         Flow::Done
     }

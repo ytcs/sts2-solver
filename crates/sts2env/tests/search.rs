@@ -590,3 +590,26 @@ fn clairvoyant_search_finishes_reproducibly_and_changes_estimates() {
     let e0 = run_recorded(2, 5, scen, jobs, c);
     assert!((0..24).any(|j| first_q(&e0, j) != first_q(&e1, j)), "the flag changed no estimate");
 }
+
+#[test]
+fn replay_steps_matches_the_rows_of_replay() {
+    // the rows `rl/exit.py` trains on: only the requested states are observed, in any order, and they equal the full replay's rows
+    let scen = vec![(scenario(10, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default()), (scenario(14, ids::encounter::NIBBITS_WEAK), ScenarioExtras::default())];
+    let jobs: Vec<(u32, u64)> = (0..6).map(|i| ((i % 2) as u32, 900 + i as u64)).collect();
+    let eng = run_recorded(2, 3, scen.clone(), jobs.clone(), cfg());
+    for (j, &(si, seed)) in jobs.iter().enumerate() {
+        let acts: Vec<u16> = eng.moves(j).iter().map(|m| m.action).collect();
+        let n = acts.len() + 1;
+        let (mut obs, mut mask) = (vec![0f32; n * OBS_SIZE], vec![0u8; n * ACTION_SPACE]);
+        replay(&scen[si as usize], seed, &acts, &mut obs, &mut mask).unwrap();
+        let steps: Vec<u32> = vec![(n - 1) as u32, 0, (n / 2) as u32, 1, (n / 2) as u32];
+        let (mut so, mut sm) = (vec![1f32; steps.len() * OBS_SIZE], vec![1u8; steps.len() * ACTION_SPACE]);
+        replay_steps(&scen[si as usize], seed, &acts, &steps, &mut so, &mut sm).unwrap();
+        for (k, &t) in steps.iter().enumerate() {
+            let t = t as usize;
+            assert!(so[k * OBS_SIZE..(k + 1) * OBS_SIZE].iter().zip(&obs[t * OBS_SIZE..(t + 1) * OBS_SIZE]).all(|(a, b)| a.to_bits() == b.to_bits()), "observation of step {t}");
+            assert_eq!(sm[k * ACTION_SPACE..(k + 1) * ACTION_SPACE], mask[t * ACTION_SPACE..(t + 1) * ACTION_SPACE], "mask of step {t}");
+        }
+        assert!(replay_steps(&scen[si as usize], seed, &acts, &[n as u32], &mut so, &mut sm).is_err(), "a step past the end");
+    }
+}

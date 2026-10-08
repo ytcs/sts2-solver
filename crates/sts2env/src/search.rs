@@ -15,7 +15,7 @@
 
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use sts2sim::engine::{ActionBuf, ACTION_SPACE};
+use sts2sim::engine::{with_look_cache, ActionBuf, LookCache, ACTION_SPACE, LOOK_CACHE_ENTRIES};
 use sts2sim::observe::OBS_SIZE;
 use sts2sim::state::{RngSet, Stage};
 use sts2sim::types::Outcome;
@@ -564,6 +564,8 @@ struct Block {
     todo: Vec<(usize, SimSt)>,
     log: Vec<MoveRec>,
     stats: SearchStats,
+    /// this root's look-ahead cache, installed while the root advances (`sts2sim::engine::with_look_cache`)
+    look: Option<Box<LookCache>>,
 }
 
 struct SendPtr<T>(*mut T);
@@ -942,6 +944,7 @@ impl Block {
             todo: Vec::new(),
             log: Vec::new(),
             stats: SearchStats::default(),
+            look: Some(Box::new(LookCache::new(LOOK_CACHE_ENTRIES))),
         })
     }
 
@@ -1836,10 +1839,16 @@ impl SearchEngine {
         let blocks = &mut self.blocks;
         self.pool.install(|| {
             blocks.par_iter_mut().for_each(|b| {
-                // a simulator bug in one fight must not take the whole batch down: abort that fight (reported on stderr) and go on with the next job
-                if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| b.advance(inp.as_ref(), &sh, &out))).is_err() {
-                    b.recover(&sh, &out);
-                }
+                // the root's own look-ahead cache: its play-outs repeat each other's enemy states, whichever thread runs it (a thread's cache
+                // shared by the roots it happens to run missed 1.3x as often at 8 threads)
+                let mut look = b.look.take().expect("the root's look-ahead cache");
+                with_look_cache(&mut look, || {
+                    // a simulator bug in one fight must not take the whole batch down: abort that fight (reported on stderr) and go on with the next job
+                    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| b.advance(inp.as_ref(), &sh, &out))).is_err() {
+                        b.recover(&sh, &out);
+                    }
+                });
+                b.look = Some(look);
             });
         });
         self.next_job = sh.next_job.load(Ordering::Relaxed).min(self.jobs.len());
@@ -1867,4 +1876,36 @@ pub fn replay(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], obs
         }
     }
     Ok(n)
+}
+
+/// [`replay`] that writes only the rows of `steps` (indices into the fight's `actions.len() + 1` states, any order, repeats allowed): row `k` of `obs` /
+/// `mask` is the state before action `steps[k]`. The observations of the other states are never computed (the state only depends on the actions:
+/// observing does not change it), and every action is still played and checked.
+pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
+    if obs.len() < steps.len() * OBS_SIZE || mask.len() < steps.len() * ACTION_SPACE {
+        return Err(EnvError::Buffer("replay buffers too small"));
+    }
+    if steps.iter().any(|&t| t as usize > actions.len()) {
+        return Err(EnvError::Buffer("a requested step is past the fight's end"));
+    }
+    scen.0.validate()?;
+    let mut cx = Combat::try_new_with(&scen.0, &scen.1)?;
+    cx.reset_validated(&scen.0, &scen.1, seed, RngSet::from_run_seed_fast(seed)).map_err(EnvError::Scenario)?;
+    let mut order: Vec<usize> = (0..steps.len()).collect();
+    order.sort_by_key(|&k| steps[k]);
+    let mut next = 0;
+    for i in 0..=actions.len() {
+        while next < order.len() && steps[order[next]] as usize == i {
+            let k = order[next];
+            crate::write_obs_mask(&mut cx, &mut obs[k * OBS_SIZE..(k + 1) * OBS_SIZE], &mut mask[k * ACTION_SPACE..(k + 1) * ACTION_SPACE]);
+            next += 1;
+        }
+        if i < actions.len() {
+            match Action::from_index(actions[i] as usize) {
+                Some(a) if cx.step(a) => {}
+                _ => return Err(EnvError::Buffer("the recorded action is not legal: the replay diverged")),
+            }
+        }
+    }
+    Ok(())
 }

@@ -448,7 +448,7 @@ listener!(Expertise {
 listener!(Expose {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let amount = cx.card_named_var(p.card, var_name::POWER);
-        let block = cx.cr(p.target).block;
+        let block = cx.cr(p.target).block();
         cx.lose_block(p.target, Dec::int(block as i64), PLAYER);
         cx.remove_power_by_id(p.target, ids::power::ARTIFACT_POWER);
         cx.apply_power(ids::power::VULNERABLE_POWER, p.target, Dec::int(amount as i64), PLAYER, p.card);

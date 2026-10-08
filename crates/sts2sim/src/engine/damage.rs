@@ -227,7 +227,7 @@ impl Combat {
             let unblocked = self.modify_hp_lost(hp_target, unblocked, props, dealer, card, true, &mut mods);
             self.after_modifying_hp_lost(&mods, true);
             let mut res = self.lose_hp_internal(hp_target, unblocked);
-            let block_left = self.cr(t).block;
+            let block_left = self.cr(t).block();
             let was_block_broken = block_left <= 0 && blocked > Dec::ZERO;
             let was_fully_blocked = !props.unblockable() && (blocked > Dec::ZERO || block_left > 0) && unblocked.trunc() == 0;
             if hp_target == t {

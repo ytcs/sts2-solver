@@ -79,7 +79,7 @@ impl Combat {
     /// `DoomPower.IsOwnerDoomed`: `Owner.CurrentHp <= Amount` (false when the creature has no Doom).
     pub fn is_doomed(&self, c: Cid) -> bool {
         match self.cr(c).power(ids::power::DOOM_POWER) {
-            Some(p) => self.cr(c).hp <= p.amount,
+            Some(p) => self.cr(c).hp() <= p.amount,
             None => false,
         }
     }

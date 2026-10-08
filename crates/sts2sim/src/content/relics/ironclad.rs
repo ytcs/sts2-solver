@@ -59,7 +59,7 @@ listener!(PaperPhrog {});
 
 // flag 0 = `StrengthApplied` (not saved).
 fn red_skull_update(cx: &mut Combat, me: Me) {
-    let hp = Dec::int(cx.cr(PLAYER).hp as i64);
+    let hp = Dec::int(cx.cr(PLAYER).hp() as i64);
     let thr = Dec::int(cx.cr(PLAYER).max_hp as i64) * Dec::frac(g::red_skull::HP_THRESHOLD as i64, 2);
     let above = hp > thr;
     let amt = g::red_skull::STRENGTH_POWER as i64;
