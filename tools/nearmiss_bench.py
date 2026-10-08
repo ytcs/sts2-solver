@@ -54,7 +54,7 @@ def arm(spec, roots):
             futures = K = int(t[1:])
         else:
             M, K = (int(x) for x in t.split("x"))
-    fs = FastSearch(load(pr), M=M, K=K, roots=roots, amp=True, roll_net=load(roll) if roll else None, clairvoyant=cv, cover=cover, futures=futures)
+    fs = FastSearch(load(pr, set_version=False), M=M, K=K, roots=roots, amp=True, roll_net=load(roll, set_version=False) if roll else None, clairvoyant=cv, cover=cover, futures=futures)
     fs.warm()
     return fs
 
