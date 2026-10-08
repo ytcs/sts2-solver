@@ -17,7 +17,6 @@ SEED=${SEED:-105}
 EPOCHS=${EPOCHS:-3}
 LAM=${LAM:-0.8}
 TRAIN_CHUNK=${TRAIN_CHUNK:-2048}
-CHUNKS_PER_PROCESS=${CHUNKS_PER_PROCESS:-8}
 COLLECT_TRIES=${COLLECT_TRIES:-3}
 export STS2_DEVICE=cuda
 echo "== $(date -u +%FT%TZ) pod_round $RUN start"
@@ -43,19 +42,25 @@ OUT_CKPT=${OUT_CKPT:-target/round/gen2_$RUN.pt}
 
 gpu_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1)
 ram_gb=$(free -g | awk '/^Mem:/{print $2}')
-lim=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo max)
+lim=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo max)
 if [[ $lim =~ ^[0-9]+$ ]] && [ $((lim >> 30)) -lt "$ram_gb" ]; then ram_gb=$((lim >> 30)); fi
 # E32: a d256 cover search at 1024 roots takes ~12 GB of GPU memory and ~20 GB of host RAM; past 2048 roots there is no gain (docs/solver.md)
 if [ -z "${ROOTS:-}" ]; then
-  if [ "$gpu_mb" -ge 30000 ] && [ "$ram_gb" -ge 48 ]; then ROOTS=2048
+  if [ "$gpu_mb" -ge 30000 ] && [ "$ram_gb" -ge 56 ]; then ROOTS=2048
   elif [ "$gpu_mb" -ge 11000 ] && [ "$ram_gb" -ge 24 ]; then ROOTS=1024
   else ROOTS=512; fi
 fi
-# a chunk caps the live roots (one engine per group gets chunk / 2 jobs); a chunk above the roots refills slots as fights end
-CHUNK=${CHUNK:-$((2 * ROOTS))}
 n_fights=$(python -c "import json, sys; print(len(json.load(open(sys.argv[1]))))" "$POOL")
-n_parts=$(( (n_fights * ATTEMPTS + CHUNK - 1) / CHUNK ))
-echo "inputs: pool $POOL ($n_fights fights), init $CKPT, extra [${EXTRA}]; GPU ${gpu_mb} MB, RAM ${ram_gb} GB, $(nproc) CPUs -> roots $ROOTS, chunk $CHUNK, $n_parts parts; search cover K=$K futures=$FUTURES"
+# a chunk caps the live roots (one engine per group gets chunk / 2 jobs); a chunk above the roots refills slots as fights end.
+# Fresh process every ~12k fights: E6 saw a long-lived search process slow down 3x after ~9k.
+sizes() {
+  CHUNK=${CHUNK_SET:-$((2 * ROOTS))}
+  CPP=${CHUNKS_PER_PROCESS:-$(( 12288 / CHUNK > 0 ? 12288 / CHUNK : 1 ))}
+  n_parts=$(( (n_fights * ATTEMPTS + CHUNK - 1) / CHUNK ))
+}
+CHUNK_SET=${CHUNK:-}
+sizes
+echo "inputs: pool $POOL ($n_fights fights), init $CKPT, extra [${EXTRA}]; GPU ${gpu_mb} MB, RAM ${ram_gb} GB, $(nproc) CPUs -> roots $ROOTS, chunk $CHUNK, $n_parts parts, $CPP chunks per process; search cover K=$K futures=$FUTURES"
 
 parts() { find target/round -maxdepth 1 -name "${RUN}_[0-9][0-9][0-9].npz" | wc -l; }
 for try in $(seq 1 "$COLLECT_TRIES"); do
@@ -64,8 +69,12 @@ for try in $(seq 1 "$COLLECT_TRIES"); do
   rc=0
   skip=$([ "$try" -gt 1 ] && echo --skip-stuck || true)
   bash tools/collect.sh --ckpt "$CKPT" --fights "$POOL" --out "target/round/$RUN.npz" --cover --K "$K" --futures "$FUTURES" --attempts "$ATTEMPTS" \
-    --chunk "$CHUNK" --roots "$ROOTS" --chunks-per-process "$CHUNKS_PER_PROCESS" --max-minutes 100000 --seed "$SEED" $skip >>target/round/collect.log 2>&1 || rc=$?
+    --chunk "$CHUNK" --roots "$ROOTS" --chunks-per-process "$CPP" --chunk-timeout "${CHUNK_TIMEOUT:-3}" --max-minutes 100000 --seed "$SEED" $skip >>target/round/collect.log 2>&1 || rc=$?
   echo "collect exit $rc"
+  if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ] && [ "$rc" -ne 3 ] && [ "$(parts)" -eq 0 ] && [ "$ROOTS" -gt 256 ]; then
+    ROOTS=$((ROOTS / 2)); CHUNK_SET=${CHUNK_SET:+$((CHUNK_SET / 2))}; sizes
+    echo "no part saved (out of memory?): retrying at roots $ROOTS, chunk $CHUNK, $n_parts parts"
+  fi
 done
 have=$(parts)
 status=complete

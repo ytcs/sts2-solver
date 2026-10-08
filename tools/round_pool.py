@@ -58,7 +58,9 @@ class Builder:
         (act, _hp), encs = self.r.choice(self.targets[p["id"]])
         version, deck = self.plan_deck(p, kind, act)
         sc = self.loadout(character=p["character"], act=act)
-        return dict(sc, encounter=self.r.choice(encs), deck=deck, meta=dict(source="plan", plan=p["id"], version=version))
+        have = {bench._cid(x) for x in sc["relics"]}
+        relics = sc["relics"] + [x for x in p.get("relics", []) if x not in have]
+        return dict(sc, encounter=self.r.choice(encs), deck=deck, relics=relics, meta=dict(source="plan", plan=p["id"], version=version))
 
     def plan_variant(self, i):
         p = self.plans[i % len(self.plans)]
