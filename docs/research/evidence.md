@@ -141,4 +141,14 @@ Predictor `solver_td08` (8 shuffles unless stated), run model with its base poli
 - Unfloored product: act-3 double-boss gates of 1e-11 to 1e-6 (shuffle sd of log10 0.2-0.45) carry 82% of a rare's log-gain on act-1 states. Floored at 0.05: 66% from the current act, the rest from contested later gates.
 - **Enabler bias:** on the predictor's numbers Accelerant is negative even inside the full poison plan (current-act gate -0.15 +- 0.03), so the current-deck bias cannot be separated from the blind spot above; Noxious Fumes and Bouncing Flask gain more on the starter (+0.16 / +0.14) than as the last card of the plan (+0.08 / +0.05).
 - **Cost:** closed-form gates 0.1-0.5 s per screen (8-16 seeds); `price --cont clip` (rollouts + gates at the act's end) costs the same as `price` (9-23 s at 128 rollouts, shared GPU).
-- **Recorded screens** (93 card rewards and rests, 5 runs): closed-form `clip` separates the best option on 85% (mean 90%), same best on a fresh seed set 69% (mean 80%).
+- **Recorded screens** (`python -m agent.price <events.jsonl>`: 56 card rewards + 37 rests from 5 runs, deck = the last fight's deck plus picks since, rest of the act from the template, 128 rollouts per option). The current ladder ranked by P(clear act) on 83 of 93 (never saturated), P(win run) on 7, readiness on 3. "old" = the option with the best boss smooth win in the recorded `reward_eval` (22 screens), not the old calculators' full verdict.
+
+| surrogate | agrees with price | with played | with old | best separated | worse than price's choice on P(clear act) by > 2 paired se |
+|---|---|---|---|---|---|
+| `clip`, rollouts to the boss + gates | 0.73 (cards 0.64, rests 0.86) | 0.52 | 0.45 | 0.83 | |
+| `clip`, closed form | 0.59 | 0.60 | 0.36 | 0.85 | |
+| `late`, rollouts to the boss + gates | 0.70 (cards 0.64, rests 0.78) | 0.48 | 0.45 | 0.81 | 4 of 93 (mean -0.009; -0.034 where it changes the choice) |
+| `late`, closed form | 0.57 | 0.62 | 0.36 | 0.83 | 9 of 93 (mean -0.013) |
+| (price itself) | | 0.52 | 0.45 | | |
+
+  The rollout surrogate (`late`) changes price's choice on 28 of 93 screens: 8 rests where it smiths instead of resting (the operator rested on 6; the current boss gate moves little with HP while later gates move with the deck), Demon Form over Tear Asunder / Expect a Fight on two screens (the operator played Demon Form on one), Mangle over Tear Asunder (played Mangle). It fails the S5 surrogate gate as written (4 screens significantly worse on P(clear act) while that act is unsaturated).
