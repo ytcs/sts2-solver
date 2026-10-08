@@ -152,6 +152,13 @@ macro_rules! fixed_vec {
             pub fn clear(&mut self) {
                 self.len = 0;
             }
+            /// `*self = *src` copying only the live items (the storage past `len` is uninitialised: nobody reads it).
+            #[inline(always)]
+            pub fn copy_from(&mut self, src: &Self) {
+                let n = src.len as usize;
+                self.items[..n].copy_from_slice(&src.items[..n]);
+                self.len = src.len;
+            }
             pub fn truncate(&mut self, n: usize) {
                 if n < self.len as usize {
                     self.len = n as $len;

@@ -653,6 +653,9 @@ impl Combat {
     /// cleared there too). Pending decisions are dropped (the copy auto-selects card choices). Returns false once the projected
     /// combat is over.
     pub(crate) fn look_turn(&mut self) -> bool {
+        #[cfg(feature = "obs_prof")]
+        #[allow(unused_assignments)]
+        let mut _t = unsafe { core::arch::x86_64::_rdtsc() };
         // a fresh work budget per projected turn (a tripped turn ends with `in_progress` false: the path is dropped)
         self.budget_reset();
         self.look_drop_decision();
@@ -677,6 +680,12 @@ impl Combat {
             }
             snapshot = self.creatures_on(Side::Enemy);
         }
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            let n = core::arch::x86_64::_rdtsc();
+            crate::observe::OBS_PROF[22] += n - _t;
+            _t = n;
+        }
         for &e in snapshot.iter().skip(from) {
             if !self.enemies.contains(e) || self.cr(e).monster.spawned_this_turn || self.cr(e).monster.next_move == NO {
                 continue;
@@ -689,9 +698,22 @@ impl Combat {
                 return false;
             }
         }
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            let n = core::arch::x86_64::_rdtsc();
+            crate::observe::OBS_PROF[23] += n - _t;
+            _t = n;
+        }
         if self.end_enemy_turn(false) {
             return false;
         }
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            let n = core::arch::x86_64::_rdtsc();
+            crate::observe::OBS_PROF[24] += n - _t;
+            _t = n;
+        }
+
         self.look_drop_decision();
         self.flip_sides();
         let list = self.creatures_on(Side::Player);
@@ -702,6 +724,12 @@ impl Combat {
             self.clear_block(c);
         }
         self.look_drop_decision();
+        #[cfg(feature = "obs_prof")]
+        unsafe {
+            let n = core::arch::x86_64::_rdtsc();
+            crate::observe::OBS_PROF[25] += n - _t;
+            _t = n;
+        }
         self.in_progress && !self.is_ending()
     }
 

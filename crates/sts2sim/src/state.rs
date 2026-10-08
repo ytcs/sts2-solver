@@ -625,7 +625,8 @@ pub struct PlayAmount {
     pub amount: i32,
 }
 
-#[derive(Clone)]
+/// `Clone` is written out (see the impl below): `clone_from` copies only the live part of the state (the used cards, powers, pile and list
+/// entries, history ring entries) into the existing allocation instead of building a 19 KB temporary and moving it.
 pub struct Combat {
     pub character: u8,
     pub ascension: u8,
@@ -765,6 +766,227 @@ pub struct Combat {
     /// An automated card selector is active (Whispering Earring pushes `VakuuCardSelector`): card-selection screens
     /// resolve to the first `max` candidates instead of raising a decision.
     pub auto_select: bool,
+}
+
+impl Creature {
+    /// `*self = *src` with only the live powers copied.
+    #[inline]
+    pub fn copy_from(&mut self, src: &Creature) {
+        // Every field is named so that adding one without deciding how it is copied is a compile error.
+        let Creature { active, side, is_player, is_pet, in_combat, hp, max_hp, block, owner, slot, powers, secondary, monster, pristine } = self;
+        *active = src.active;
+        *side = src.side;
+        *is_player = src.is_player;
+        *is_pet = src.is_pet;
+        *in_combat = src.in_combat;
+        *hp = src.hp;
+        *max_hp = src.max_hp;
+        *block = src.block;
+        *owner = src.owner;
+        *slot = src.slot;
+        powers.copy_from(&src.powers);
+        *secondary = src.secondary;
+        *monster = src.monster;
+        *pristine = src.pristine;
+    }
+}
+
+impl PlayerState {
+    /// `*self = *src` with only the live pile entries, relics and orbs copied.
+    #[inline]
+    pub fn copy_from(&mut self, src: &PlayerState) {
+        // Every field is named so that adding one without deciding how it is copied is a compile error.
+        let PlayerState { energy, max_energy, stars, turn_number, phase, hand, draw, discard, exhaust, play, relics, potions, potion_slots, orbs, orb_slots, next_orb_uid, effect_depth } = self;
+        *energy = src.energy;
+        *max_energy = src.max_energy;
+        *stars = src.stars;
+        *turn_number = src.turn_number;
+        *phase = src.phase;
+        hand.copy_from(&src.hand);
+        draw.copy_from(&src.draw);
+        discard.copy_from(&src.discard);
+        exhaust.copy_from(&src.exhaust);
+        play.copy_from(&src.play);
+        relics.copy_from(&src.relics);
+        *potions = src.potions;
+        *potion_slots = src.potion_slots;
+        orbs.copy_from(&src.orbs);
+        *orb_slots = src.orb_slots;
+        *next_orb_uid = src.next_orb_uid;
+        *effect_depth = src.effect_depth;
+    }
+}
+
+impl Clone for Combat {
+    fn clone(&self) -> Combat {
+        // SAFETY: `replay` is the only field that owns memory (`clone_from` below assigns every other field by copy, so a field that is not
+        // `Copy` fails to compile there): the bitwise copy shares `self.replay`'s box, which is overwritten without being dropped.
+        unsafe {
+            let mut c = core::mem::MaybeUninit::<Combat>::uninit();
+            core::ptr::copy_nonoverlapping(self as *const Combat, c.as_mut_ptr(), 1);
+            core::ptr::write(core::ptr::addr_of_mut!((*c.as_mut_ptr()).replay), self.replay.clone());
+            c.assume_init()
+        }
+    }
+
+    /// `*self = src.clone()` in place, copying only what can be read: `cards[..n_cards]` (a card slot is fully written when allocated), the live
+    /// entries of every fixed-capacity list (`ArrayVec::copy_from`) and the history ring's written entries (`HistLog::copy_from`). The result
+    /// reads the same as a full copy.
+    fn clone_from(&mut self, src: &Combat) {
+        // Every field is named so that adding one to `Combat` without deciding how it is copied is a compile error.
+        let Combat {
+            character,
+            ascension,
+            rng,
+            round,
+            side,
+            in_progress,
+            is_starting,
+            pending_loss,
+            stage,
+            outcome,
+            creatures,
+            allies,
+            enemies,
+            next_power_uid,
+            listen,
+            listen_cards,
+            player,
+            cards,
+            n_cards,
+            hist,
+            play_stack,
+            potion_ctx,
+            decision,
+            choice,
+            hook_ctx,
+            draw_resume,
+            drawing_hand,
+            draw_depth,
+            draw_nosuspend,
+            hook_shuffle,
+            strat_possible,
+            replay,
+            hook_after,
+            turn_cont,
+            susp,
+            draw_pass,
+            enemy_cont,
+            end_turn_resume,
+            missing,
+            overflow,
+            work,
+            work_limit,
+            hook_depth,
+            step_turns,
+            player_hooks_active,
+            escaped,
+            extra_turn,
+            dmg_card,
+            dmg_result,
+            attack_results,
+            attack_hit_sizes,
+            attack_unblocked_hits,
+            attack_player_hits,
+            autoplay_stack,
+            hist_log,
+            decision_seq,
+            deck_enchant_inc,
+            deck_upgrade,
+            deck_len,
+            play_serial,
+            gold,
+            act,
+            end_turn_requested,
+            room_type,
+            deck_upgradable,
+            cur_power_card,
+            auto_select,
+        } = self;
+        *character = src.character;
+        *ascension = src.ascension;
+        *rng = src.rng;
+        *round = src.round;
+        *side = src.side;
+        *in_progress = src.in_progress;
+        *is_starting = src.is_starting;
+        *pending_loss = src.pending_loss;
+        *stage = src.stage;
+        *outcome = src.outcome;
+        for (d, s) in creatures.iter_mut().zip(src.creatures.iter()) {
+            d.copy_from(s);
+        }
+        allies.copy_from(&src.allies);
+        enemies.copy_from(&src.enemies);
+        *next_power_uid = src.next_power_uid;
+        *listen = src.listen;
+        *listen_cards = src.listen_cards;
+        player.copy_from(&src.player);
+        let n = src.n_cards as usize;
+        cards[..n].copy_from_slice(&src.cards[..n]);
+        *n_cards = src.n_cards;
+        *hist = src.hist;
+        play_stack.copy_from(&src.play_stack);
+        *potion_ctx = src.potion_ctx;
+        match (decision.as_mut(), src.decision.as_ref()) {
+            (Some(d), Some(s)) => {
+                let Decision { source, min, max, cands, selected, confirm_required, can_skip, purpose } = d;
+                *source = s.source;
+                *min = s.min;
+                *max = s.max;
+                cands.copy_from(&s.cands);
+                selected.copy_from(&s.selected);
+                *confirm_required = s.confirm_required;
+                *can_skip = s.can_skip;
+                *purpose = s.purpose;
+            }
+            _ => *decision = src.decision,
+        }
+        choice.cards.copy_from(&src.choice.cards);
+        *hook_ctx = src.hook_ctx;
+        *draw_resume = src.draw_resume;
+        *drawing_hand = src.drawing_hand;
+        *draw_depth = src.draw_depth;
+        *draw_nosuspend = src.draw_nosuspend;
+        *hook_shuffle = src.hook_shuffle;
+        *strat_possible = src.strat_possible;
+        replay.clone_from(&src.replay);
+        *hook_after = src.hook_after;
+        *turn_cont = src.turn_cont;
+        *susp = src.susp;
+        *draw_pass = src.draw_pass;
+        *enemy_cont = src.enemy_cont;
+        *end_turn_resume = src.end_turn_resume;
+        *missing = src.missing;
+        *overflow = src.overflow;
+        *work = src.work;
+        *work_limit = src.work_limit;
+        *hook_depth = src.hook_depth;
+        *step_turns = src.step_turns;
+        *player_hooks_active = src.player_hooks_active;
+        *escaped = src.escaped;
+        *extra_turn = src.extra_turn;
+        *dmg_card = src.dmg_card;
+        *dmg_result = src.dmg_result;
+        attack_results.copy_from(&src.attack_results);
+        attack_hit_sizes.copy_from(&src.attack_hit_sizes);
+        *attack_unblocked_hits = src.attack_unblocked_hits;
+        *attack_player_hits = src.attack_player_hits;
+        autoplay_stack.copy_from(&src.autoplay_stack);
+        hist_log.copy_from(&src.hist_log);
+        *decision_seq = src.decision_seq;
+        *deck_enchant_inc = src.deck_enchant_inc;
+        *deck_upgrade = src.deck_upgrade;
+        *deck_len = src.deck_len;
+        *play_serial = src.play_serial;
+        *gold = src.gold;
+        *act = src.act;
+        *end_turn_requested = src.end_turn_requested;
+        *room_type = src.room_type;
+        *deck_upgradable = src.deck_upgradable;
+        *cur_power_card = src.cur_power_card;
+        *auto_select = src.auto_select;
+    }
 }
 
 // ---- relic persistent state description (see `Listener::meta_*` and content/relics) ------------------------------------

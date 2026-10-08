@@ -118,6 +118,21 @@ impl Default for HistLog {
 }
 
 impl HistLog {
+    /// `*self = *src` with only the ring entries a query can read (`iter` reads `[n - min(n, CAP), n)`; `hist_push` reads an old entry only
+    /// once the ring is full).
+    #[inline]
+    pub fn copy_from(&mut self, src: &HistLog) {
+        let HistLog { entries, n, total, ethereal_finished, player_hits_taken, generated_by_player, lightning_channeled } = self;
+        let m = (src.n as usize).min(HIST_CAP);
+        entries[..m].copy_from_slice(&src.entries[..m]);
+        *n = src.n;
+        *total = src.total;
+        *ethereal_finished = src.ethereal_finished;
+        *player_hits_taken = src.player_hits_taken;
+        *generated_by_player = src.generated_by_player;
+        *lightning_channeled = src.lightning_channeled;
+    }
+
     /// `History.Clear()`: forgets everything. The ring is not zeroed: `iter()` only reads `[n - min(n, CAP), n)`.
     #[inline]
     pub fn clear(&mut self) {

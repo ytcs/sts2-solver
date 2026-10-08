@@ -49,6 +49,12 @@ def S(x):
     return torch.sign(x) * torch.log1p(x.abs())
 
 
+def scale(x, div, rec):
+    """`x / div` per column as the scalar divisions it replaces compute it: true division on the CPU; on CUDA a division by a CPU scalar is a
+    multiplication by its float reciprocal (ATen's div_true_kernel_cuda), so the column scales are `rec` = 1 / div there (x * 1.0 == x)."""
+    return x * rec if x.is_cuda else x / div
+
+
 def sl(obs, name, sec=SEC):
     o, s = sec[name]
     return obs[:, o:o + s]
@@ -78,6 +84,7 @@ class Bag(nn.Module):
         super().__init__()
         self.n, self.k = n + 1, channels
         self.emb = nn.Embedding(self.k * self.n, e, padding_idx=0)
+        self.register_buffer("offs", torch.arange(self.k).view(1, 1, -1) * self.n, persistent=False)
 
     def forward(self, ids, w):
         """ids [..., L] long (0 = empty), w [..., L, k] float -> [..., e]"""
@@ -85,8 +92,7 @@ class Bag(nn.Module):
         L = ids.shape[-1]
         ids = ids.reshape(-1, L)
         w = w.reshape(-1, L, self.k)
-        offs = torch.arange(self.k, device=ids.device).view(1, 1, -1) * self.n
-        full = (ids.unsqueeze(-1) + offs * (ids > 0).unsqueeze(-1)).reshape(-1, L * self.k)
+        full = (ids.unsqueeze(-1) + self.offs * (ids > 0).unsqueeze(-1)).reshape(-1, L * self.k)
         out = F.embedding_bag(full, self.emb.weight, per_sample_weights=w.reshape(-1, L * self.k) * (ids > 0).repeat_interleave(self.k, 1), mode="sum", padding_idx=0)
         return out.view(*lead, -1)
 
@@ -99,10 +105,12 @@ class PowerPool(nn.Module):
         self.v2 = v2
         self.bag = Bag(n_powers, e, 4 if v2 else 3)
 
-    def forward(self, pw):  # pw [..., P, 2] (id+1, amount); v2 [..., P, 3] (id+1, amount, displayed number)
+    def forward(self, pw, spw=None):  # pw [..., P, 2] (id+1, amount); v2 [..., P, 3] (id+1, amount, displayed number); spw: S(pw) when the caller has it
         pid = pw[..., 0].long().clamp(0, self.bag.n - 1)
         a = pw[..., 1]
-        f = [torch.ones_like(a), S(a) / 2.0, a.clamp(-10, 10) / 10.0] + ([S(pw[..., 2]) / 2.0] if self.v2 else [])
+        if spw is None:
+            spw = S(pw)
+        f = [torch.ones_like(a), spw[..., 1] / 2.0, a.clamp(-10, 10) / 10.0] + ([spw[..., 2] / 2.0] if self.v2 else [])
         return self.bag(pid, torch.stack(f, -1))
 
 
@@ -117,16 +125,26 @@ class CardEnc(nn.Module):
         self.ench = nn.Embedding(C["N_ENCHANTMENTS"] + 1, 8)
         self.aff = nn.Embedding(C["N_AFFLICTIONS"] + 1, 8)
         self.net = mlp(e + 24 + 8 + 13 + (3 if v2 else 0), 2 * d, d)
+        self.register_buffer("bit_idx", torch.arange(8), persistent=False)
+        # the numeric block: [S(cost), playable, S(dmg..ench_amt) (5), id > 0, S(star), S(osty), cost < 0, sign(dmg), selected (, S(count), S(aff_amt), S(replay))]
+        # divided by these (x / 1.0 == x: every column is what the per-column expression gave)
+        self.register_buffer("num_div", torch.tensor([1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0] + ([2.0, 2.0, 1.0] if v2 else [])), persistent=False)
+        self.register_buffer("num_rec", self.num_div.reciprocal(), persistent=False)
 
-    def forward(self, f, extra):
+    def forward(self, f, extra, sf=None, sextra=None):
         """f [..., 12] = id+1, upgrade, cost, playable, keywords, enchant, dmg, blk, c0, c1, ench_amt, afflic (v2 [..., 15]: then the calculated count,
-        affliction amount, replay count); extra [..., 3] = star cost, osty dmg, selected."""
+        affliction amount, replay count); extra [..., 3] = star cost, osty dmg, selected. sf / sextra: S(f) / S(extra[..., :2]) when the caller has them."""
         cid = f[..., 0].long().clamp(0, self.card.num_embeddings - 1)
         kw = f[..., 4].long().unsqueeze(-1)
-        bits = ((kw >> torch.arange(8, device=f.device)) & 1).float()
-        num = torch.stack([S(f[..., 2]), f[..., 3], S(f[..., 6]) / 2.0, S(f[..., 7]) / 2.0, S(f[..., 8]) / 2.0, S(f[..., 9]) / 2.0,
-                           S(f[..., 10]) / 2.0, (f[..., 0] > 0).float(), S(extra[..., 0]), S(extra[..., 1]) / 2.0, (f[..., 2] < 0).float(),
-                           torch.sign(f[..., 6]), extra[..., 2]] + ([S(f[..., 12]) / 2.0, S(f[..., 13]) / 2.0, S(f[..., 14])] if self.v2 else []), -1)
+        bits = ((kw >> self.bit_idx) & 1).float()
+        if sf is None:
+            sf = S(f)
+        if sextra is None:
+            sextra = S(extra[..., :2])
+        parts = [sf[..., 2:3], f[..., 3:4], sf[..., 6:11], (f[..., 0:1] > 0).float(), sextra, (f[..., 2:3] < 0).float(), torch.sign(f[..., 6:7]), extra[..., 2:3]]
+        if self.v2:
+            parts.append(sf[..., 12:15])
+        num = scale(torch.cat(parts, -1), self.num_div, self.num_rec)
         x = torch.cat([self.card(cid), self.upg(f[..., 1].long().clamp(0, 3)), self.ench(f[..., 5].long().clamp(0, self.ench.num_embeddings - 1)),
                        self.aff(f[..., 11].long().clamp(0, self.aff.num_embeddings - 1)), bits, num], -1)
         return self.net(x)
@@ -199,16 +217,26 @@ class Net(nn.Module):
         nn.init.zeros_(self.ucond.weight)
         nn.init.zeros_(self.ucond.bias)
         self.register_buffer("lin_feats", torch.tensor([0.12, 0.25, 0.37, 0.50, 0.62, 0.75, 0.87, 1.00]), persistent=False)
+        # `encode`'s per-feature divisors (x / 1.0 == x): player scalars, enemy scalars, intent numbers
+        self.register_buffer("sc_div", torch.tensor([3.0, 1.0, 3.0, 1.0, 1.0, 1.0, 1.0, 1.0]), persistent=False)
+        self.register_buffer("esc_div", torch.tensor([3.0, 1.0, 3.0, 3.0, 1.0, 1.0, 1.0]), persistent=False)
+        self.register_buffer("inum_div", torch.tensor([2.0, 1.0]), persistent=False)
+        for k in ("sc", "esc", "inum"):
+            self.register_buffer(f"{k}_rec", getattr(self, f"{k}_div").reciprocal(), persistent=False)
 
-    def encode(self, obs, E=None, L=None, has_dec=None):
-        """`E` (enemy slots), `L` (pile entries) and `has_dec` (every row has a pending card selection / none has) fix the shapes: no device-to-host
-        syncs, so the caller (which knows the batch from the host-side observation) can run it without stalls. None: derived from the batch."""
+    def encode(self, obs, E=None, L=None, has_dec=None, rows=None):
+        """`E` (enemy slots), `L` (pile entries: one for the three piles, or a (draw, discard, exhaust) tuple) and `has_dec` (every row has a pending
+        card selection / none has) or `rows` (the indices of the rows that have one, a long tensor on the network's device) fix the shapes: no
+        device-to-host syncs, so the caller (which knows the batch from the host-side observation) can run it without stalls. None: derived from the
+        batch (`host_shape` computes exactly those values from the host's copy)."""
         B = obs.shape[0]
         C, SEC = self.C, self.SEC
         sl = lambda o, name: o[:, SEC[name][0]:SEC[name][0] + SEC[name][1]]  # noqa: E731
         H, E, K, Q = C["MAX_HAND"], C["OBS_MAX_ENEMIES"], C["MAX_POTIONS"], C["OBS_MAX_CANDS"]
         P, PF = C["OBS_POWERS"], C["POWER_F"]
         dev = obs.device
+        # S() of every float of the row in one elementwise pass: a column of So is S of that column (the encoders read their S'd features from it)
+        So = S(obs)
         g = sl(obs, "global")
         pl = sl(obs, "player")
         relics = sl(obs, "relics").view(B, -1, 2)
@@ -227,52 +255,63 @@ class Net(nn.Module):
         enemies, look, moves = enemies[:, :E], look[:, :E], moves[:, :E]
         # ---- player ----
         stage = g[:, 2:5]
-        gsc = torch.stack([S(g[:, 0]) / 2.0, S(g[:, 1]) / 2.0, S(g[:, 6]) / 2.0, S(g[:, 7]) / 2.0, S(g[:, 8]) / 2.0], -1)
-        sc = torch.stack([S(pl[:, 0]) / 3.0, pl[:, 0] / pl[:, 1].clamp(min=1), S(pl[:, 2]) / 3.0, S(pl[:, 3]), S(pl[:, 4]), S(pl[:, 5]),
-                          S(pl[:, 6]), S(pl[:, 7])], -1)
+        sg, spl, senemies, sosty, sorbs = sl(So, "global"), sl(So, "player"), sl(So, "enemies").view(B, -1, C["ENEMY_F"])[:, :E], sl(So, "osty"), sl(So, "orbs")
+        gsc = torch.cat([sg[:, 0:2], sg[:, 6:9]], 1) / 2.0
+        sc = scale(torch.cat([spl[:, 0:1], (pl[:, 0] / pl[:, 1].clamp(min=1)).unsqueeze(1), spl[:, 2:8]], 1), self.sc_div, self.sc_rec)
         # all creatures' power lists in one pass: player, the 8 enemies, Osty
         pw = torch.cat([pl[:, 8:8 + PF * P].view(B, 1, P, PF), enemies[..., 8:8 + PF * P].reshape(B, E, P, PF), osty[:, 4:4 + PF * P].view(B, 1, P, PF)], 1)
-        pv = self.pp(pw)  # [B, 1 + E + 1, e]
+        spw = torch.cat([spl[:, 8:8 + PF * P].view(B, 1, P, PF), senemies[..., 8:8 + PF * P].reshape(B, E, P, PF), sosty[:, 4:4 + PF * P].view(B, 1, P, PF)], 1)
+        pv = self.pp(pw, spw)  # [B, 1 + E + 1, e]
         ppow, epow, opow = pv[:, 0], pv[:, 1:1 + E], pv[:, -1]
         rid = relics[..., 0].long().clamp(0, C["N_RELICS"])
-        rb = self.relic(rid, torch.stack([torch.ones_like(relics[..., 1]), S(relics[..., 1]) / 2.0], -1))
+        rb = self.relic(rid, torch.stack([torch.ones_like(relics[..., 1]), sl(So, "relics").view(B, -1, 2)[..., 1] / 2.0], -1))
         pid = potions[..., 0].long().clamp(0, C["N_POTIONS"])
         pb = self.potion(pid).sum(1)
         orb_kind = orbs[:, :C["MAX_ORBS"] * 3].view(B, C["MAX_ORBS"], 3)
         orb_e = self.orb(orb_kind[..., 0].long().clamp(0, C["N_ORBS"] + 1)).flatten(1)
-        orb_v = torch.cat([S(orb_kind[..., 1:3].flatten(1)) / 2.0, S(orbs[:, -1:])], 1)
-        osty_f = torch.cat([osty[:, :2], S(osty[:, 2:4]) / 3.0, opow], 1)
+        orb_v = torch.cat([sorbs[:, :C["MAX_ORBS"] * 3].view(B, C["MAX_ORBS"], 3)[..., 1:3].flatten(1) / 2.0, sorbs[:, -1:]], 1)
+        osty_f = torch.cat([osty[:, :2], sosty[:, 2:4] / 3.0, opow], 1)
         player = self.player(torch.cat([sc, gsc, stage, ppow, rb, pb, orb_e, orb_v, osty_f], 1))
         # ---- enemies ----
         ep = enemies[..., 0] > 0.5
         mon = self.mon(enemies[..., 2].long().clamp(0, C["N_MONSTERS"]))
-        esc = torch.stack([S(enemies[..., 3]) / 3.0, enemies[..., 3] / enemies[..., 4].clamp(min=1), S(enemies[..., 5]) / 3.0, S(enemies[..., 4]) / 3.0,
-                           enemies[..., 6], enemies[..., 7], ep.float()], -1)
+        esc = scale(torch.cat([senemies[..., 3:4], (enemies[..., 3] / enemies[..., 4].clamp(min=1)).unsqueeze(-1), senemies[..., 5:6], senemies[..., 4:5],
+                         enemies[..., 6:8], ep.float().unsqueeze(-1)], -1), self.esc_div, self.esc_rec)
         iv = enemies[..., 8 + PF * P:8 + PF * P + 9].reshape(B, E, 3, 3)
+        siv = senemies[..., 8 + PF * P:8 + PF * P + 9].reshape(B, E, 3, 3)
         ie = self.kind(iv[..., 0].long().clamp(0, 15))
-        inum = torch.stack([S(iv[..., 1]) / 2.0, S(iv[..., 2]), S(iv[..., 1] * iv[..., 2]) / 3.0], -1)
+        inum = torch.cat([scale(siv[..., 1:3], self.inum_div, self.inum_rec), (S(iv[..., 1] * iv[..., 2]) / 3.0).unsqueeze(-1)], -1)
         perf = enemies[..., 8 + PF * P + 9:8 + PF * P + 13].long().clamp(0, C["LOOK_NODES"] + 7)
         pe = self.node(perf).flatten(2)
-        lk = torch.cat([look[..., :-1], S(look[..., -1:]) / 3.0], -1).flatten(2)
+        slook = sl(So, "look").view(B, C["OBS_MAX_ENEMIES"], C["LOOK_H"], C["LOOK_NODES"] + 1)[:, :E]
+        lk = torch.cat([look[..., :-1], slook[..., -1:] / 3.0], -1).flatten(2)
         me = self.node(moves.long().clamp(0, C["LOOK_NODES"] + 7)).flatten(2)
         enemy = self.enemy(torch.cat([mon, epow, esc, torch.cat([ie, inum], -1).flatten(2), pe, lk, me], -1))
         cid = enemies[..., 1].long().clamp(0, C["MAX_CREATURES"] - 1)
         # ---- hand ----
         hp_ = hand[..., 0] > 0
-        hand_t = self.card(hand, torch.stack([regent[:, :H], osty[:, -H:], torch.zeros_like(osty[:, -H:])], -1))
+        sregent = sl(So, "regent")
+        hand_t = self.card(hand, torch.stack([regent[:, :H], osty[:, -H:], torch.zeros_like(osty[:, -H:])], -1), sl(So, "hand").view(B, H, C["CARD_F"]),
+                           torch.stack([sregent[:, :H], sosty[:, -H:]], -1))
         # ---- potions ----
         pot_t = self.potion_enc(torch.cat([self.potion(pid), potions[..., 1:2]], -1))
         pot_p = pid > 0
         # ---- decision: candidates only for the envs that have a pending selection ----
-        if has_dec is None:
+        if rows is not None:
+            pass
+        elif has_dec is None:
             rows = (dec[:, 0] > 0.5).nonzero().squeeze(1)
         else:
             rows = torch.arange(B, device=dev) if has_dec else torch.zeros(0, dtype=torch.long, device=dev)
         cands = dec[rows, 8:].view(len(rows), Q, C["CARD_F"] + 1)
         rg = regent[rows, H:H + Q]
-        cand_t = self.card(cands[..., :C["CARD_F"]], torch.stack([rg, torch.zeros_like(rg), cands[..., C["CARD_F"]]], -1))
+        sdec = sl(So, "decision")
+        scands = sdec[rows, 8:].view(len(rows), Q, C["CARD_F"] + 1)
+        srg = sregent[rows, H:H + Q]
+        cand_t = self.card(cands[..., :C["CARD_F"]], torch.stack([rg, torch.zeros_like(rg), cands[..., C["CARD_F"]]], -1), scands[..., :C["CARD_F"]],
+                           torch.stack([srg, torch.zeros_like(srg)], -1))
         cand_p = cands[..., 0] > 0
-        dh = [self.dec_src(dec[:, 1].long().clamp(0, 9)), dec[:, 0:1], S(dec[:, 2:3]), S(dec[:, 3:4]), S(dec[:, 4:5]), dec[:, 5:6], dec[:, 6:7], S(dec[:, 7:8])]
+        dh = [self.dec_src(dec[:, 1].long().clamp(0, 9)), dec[:, 0:1], sdec[:, 2:5], dec[:, 5:7], sdec[:, 7:8]]
         if self.obs_version >= 2:
             src = sl(obs, "dec_source")
             kind = src[:, 0].long().clamp(0, 4)
@@ -280,20 +319,22 @@ class Net(nn.Module):
         dec_t = self.dec(torch.cat(dh, 1))
         if self.obs_version >= 2:
             pc = sl(obs, "played")
+            spc = sl(So, "played")
             CF = C["CARD_F"]
-            pt = self.card(pc[:, None, :CF], torch.stack([pc[:, CF], pc[:, CF + 1], torch.zeros_like(pc[:, CF])], -1)[:, None]).squeeze(1)
+            pt = self.card(pc[:, None, :CF], torch.stack([pc[:, CF], pc[:, CF + 1], torch.zeros_like(pc[:, CF])], -1)[:, None], spc[:, None, :CF],
+                           spc[:, None, CF:CF + 2]).squeeze(1)
             dec_t = dec_t + self.played(pt) * (pc[:, :1] > 0).to(pt.dtype)
         # ---- piles: multiset of cards = bag of (plain / upgraded) card embeddings ----
-        sizes = sl(obs, "pile_sizes")
+        sizes = sl(So, "pile_sizes") / 3.0
         piles = []
         for k, nm in enumerate(["draw", "discard", "exhaust"]):
             pv_ = sl(obs, nm).view(B, -1, 2)
-            Lk = L if L is not None else max(1, int((pv_[..., 0] > 0).sum(1).max().item()))
+            Lk = (L[k] if isinstance(L, (tuple, list)) else L) if L is not None else max(1, int((pv_[..., 0] > 0).sum(1).max().item()))
             pv_ = pv_[:, :Lk]
             ids = pv_[..., 0].long().clamp(0, C["N_CARDS"])
             up = (pv_[..., 1] > 0).float()
             w = torch.stack([1.0 - up, up], -1) / 4.0
-            piles.append(self.pile_enc[k](torch.cat([self.pile(ids, w), S(sizes[:, k:k + 1]) / 3.0], 1)))
+            piles.append(self.pile_enc[k](torch.cat([self.pile(ids, w), sizes[:, k:k + 1]], 1)))
         return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
                     cand_p=cand_p, cid=cid, rows=rows, cand_sel=cands[..., C["CARD_F"]] > 0.5)
 
@@ -417,6 +458,31 @@ class Ensemble(nn.Module):
             lg = torch.stack([F.log_softmax(o[0], 1) for o in outs]).mean(0)
         v = torch.stack([o[1] for o in outs]).mean(0) if value else None
         return lg, v
+
+
+class HostShape:
+    """What `Net.encode` derives from a batch when no shape is given (the enemy slots in use, the pile entries in use, the rows with a pending
+    selection), per row from the host's copy of the observations, so a batch's shapes are known without reading the device: `of(idx)` gives the
+    `E` / `L` / `rows` that `encode` would derive from the rows `idx` (exactly: same values, same kernels)."""
+
+    def __init__(self, version=1):
+        self.C, self.SEC = layout(version)
+
+    def rows_info(self, obs):
+        """obs [B, OBS_SIZE] numpy -> (enemy slots needed [B] int16, pile entries [B, 3] int16, pending selection [B] bool)."""
+        C, SEC = self.C, self.SEC
+        o, s = SEC["enemies"]
+        occ = obs[:, o:o + s].reshape(len(obs), C["OBS_MAX_ENEMIES"], C["ENEMY_F"])[..., 0] > 0.5
+        e = np.where(occ.any(1), C["OBS_MAX_ENEMIES"] - np.argmax(occ[:, ::-1], 1), 0).astype(np.int16)
+        piles = np.stack([(obs[:, SEC[nm][0]:SEC[nm][0] + SEC[nm][1]:2] > 0).sum(1) for nm in ("draw", "discard", "exhaust")], 1).astype(np.int16)
+        dec = obs[:, SEC["decision"][0]] > 0.5
+        return e, piles, dec
+
+    @staticmethod
+    def of(e, piles, dec, device):
+        """Shape keywords of `Net.forward` for rows whose `rows_info` parts are given (already indexed)."""
+        return dict(E=max(1, int(e.max())), L=tuple(max(1, int(x)) for x in piles.max(0)),
+                    rows=torch.from_numpy(np.flatnonzero(dec)).to(device, non_blocking=True))
 
 
 def n_params(m):

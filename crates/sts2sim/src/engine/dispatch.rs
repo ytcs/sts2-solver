@@ -30,10 +30,16 @@ impl Combat {
 
     /// [`Combat::snapshot`] into a caller-owned (empty) list. Hot paths use this: returning the 3 KB list by value makes the
     /// compiler copy it whole on every call, even when it is empty.
+    #[inline(always)]
     pub fn snapshot_into(&self, m: Mask, s: &mut Snapshot) {
-        if !self.listen.intersects(m) {
-            return;
+        // the "nobody listens" test inline at the call site (about half of the calls stop here), the scan out of line
+        if self.listen.intersects(m) {
+            self.snapshot_scan(m, s);
         }
+    }
+
+    #[inline(never)]
+    fn snapshot_scan(&self, m: Mask, s: &mut Snapshot) {
         for &ci in self.allies.iter().chain(self.enemies.iter()) {
             let cr = &self.creatures[ci as usize];
             for p in cr.powers.iter() {
