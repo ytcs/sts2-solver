@@ -60,7 +60,9 @@ def play(ck, rows, attempts, roots):
     """[F, attempts] wins of the live search (5x32) from each fight's start, search seeds 0..attempts-1."""
     from fastsearch import FastSearch
     from model import load
-    fs = FastSearch(load(ck), M=5, K=32, roots=roots, amp=True)
+    # "PRIOR+ROLL": the search's root prior and value from PRIOR, its play-outs from ROLL (the rollout policy alone)
+    pr, _, roll = ck.partition("+")
+    fs = FastSearch(load(pr), M=5, K=32, roots=roots, amp=True, roll_net=load(roll) if roll else None)
     fs.warm()
     F = len(rows)
     out = np.zeros((F, attempts))
@@ -97,7 +99,8 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build"); b.add_argument("parts", nargs="+"); b.add_argument("--near", required=True); b.add_argument("--out", required=True)
     b.add_argument("--n", type=int, default=1500); b.add_argument("--close", type=float, default=0.10); b.add_argument("--seed", type=int, default=0)
-    e = sub.add_parser("eval"); e.add_argument("ckpts", nargs="+", help="the first is the player that collected the set (the luck baseline)")
+    e = sub.add_parser("eval"); e.add_argument("ckpts", nargs="+", help="the first is the player that collected the set (the luck baseline); "
+                                               "PRIOR+ROLL plays PRIOR's search with ROLL's policy in the play-outs")
     e.add_argument("--bench", default=os.path.join(ROOT, "data", "bench", "nearmiss.json")); e.add_argument("--attempts", type=int, default=2)
     e.add_argument("--roots", type=int, default=1024)
     a = ap.parse_args()

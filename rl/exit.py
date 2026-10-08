@@ -48,7 +48,7 @@ def collect(a):
     from fastsearch import FastSearch
     from model import load
     # restarts (`tools/nearmiss.py`): search from the true state the prefix reaches; a fight is stored as the original seed + prefix + new actions
-    rs = json.load(open(a.restarts))["restarts"] if a.restarts else None
+    rs = json.load(open(a.restarts))["restarts"] if getattr(a, "restarts", None) else None
     scen = [r["scenario"] for r in rs] if rs else [s for f in a.fights for s in json.load(open(f))]
     sts2.set_look_legacy(a.look_legacy)
     gumbel = a.root == "gumbel"
