@@ -93,6 +93,17 @@ block preview, counter[0], counter[1], enchantment amount, affliction id`.
 Appended sections never move earlier ones: new characters/mechanics add a section at the END and a row here (keep `OBS_SIZE`
 and the `debug_assert_eq!(w.i, OBS_SIZE)` consistent; `tests/observe.rs` checks hidden-information safety).
 
+**Observation versions.** The table above is version 1 (1924 floats), what every network before v2 was trained on; it stays
+bit-identical (`tests/rl/test_obs_version.py`, a fixture of recorded fights hashed row by row). Version 2 (2997 floats, `observe_v(.., 2)`)
+has the same sections, resized, plus two appended ones, and carries what v1 leaves out (audit E20, `docs/research/evidence.md`):
+`CARD_F` = 15 (v1's 12, then the calculated count, the affliction amount, the replay count; damage / block show calculated values,
+each var previewed with its own `ValueProp`; single-turn Retain / Sly set the keyword bits), 3 floats per power (`id+1, amount,
+displayed number`: `PowerModel.DisplayAmount` overrides, Surrounded's facing), 64 decision candidates, `dec_source` (kind 1 card / 2
+potion / 3 relic / 4 monster, id + 1: what asked for the selection), `played` (the card being played, a card entry + star cost +
+Osty damage), and piles sorted before the 64-entry cap. The process-wide version (`observe::OBS_VERSION`, `sts2.set_obs_version`,
+default 1) is what `observe` writes and what a `BatchEnv` / `SearchEngine` takes at creation (or `obs_version=`); `replay(_rows)`,
+`Sim.observe`, `layout` and `obs_size` take an optional version. Networks store theirs in the checkpoint (`args["obs_version"]`).
+
 Regent block (`REGENT_F` floats): the current star cost of each hand card (`-1` none, `-2` X = all stars, otherwise the cost
 with temporary / `Hook.ModifyStarCost` modifiers) and of each decision candidate. The player's stars are in the player block;
 a Sovereign Blade's / Kingly Punch's grown damage is already in the per-card damage preview.
@@ -151,7 +162,7 @@ simulator error, `BatchEnv` as `OUTCOME_OVERFLOW` (`LOOP`: `OUTCOME_LOSS`, see a
 | player turns started by one step (auto-ended turns) | `TURN_LIMIT` = 20 (corpus max 2) | `ov::LOOP` |
 
 Observation limits (the observation is a fixed-size window, not a state copy): 8 enemies, 16 powers per creature, 64 cards per pile list, 16
-decision candidates (the decision header carries the true candidate count; `Pick{i}` can address up to 64; a Phrog Parasite prompt in the corpus
+(v2: 64) decision candidates (the decision header carries the true candidate count; `Pick{i}` can address up to 64; a Phrog Parasite prompt in the corpus
 has 39). Beyond that the extra entries are simply not visible to the agent (the simulation itself is unaffected).
 
 ## Resetting in place
