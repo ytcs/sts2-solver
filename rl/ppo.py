@@ -310,14 +310,14 @@ def main():
                 h_e[t], h_l[t], h_d[t] = hs.rows_info(obs)
                 shp = hs.of(h_e[t], h_l[t], h_d[t], DEV)
                 if a.pot_head:
-                    lg, v, ol, pl_ = net(b_obs[t], b_mask[t].long(), ufeat=b_feat[t], outcome=True, potuse=True, **shp)
+                    lg, v, ol, pl_ = net(b_obs[t], b_mask[t], ufeat=b_feat[t], outcome=True, potuse=True, **shp)
                     b_pout_d[t] = torch.softmax(ol, 1)
                     b_ppot_d[t] = torch.sigmoid(pl_)
                 elif a.heads:
-                    lg, v, ol = net(b_obs[t], b_mask[t].long(), ufeat=b_feat[t], outcome=True, **shp)
+                    lg, v, ol = net(b_obs[t], b_mask[t], ufeat=b_feat[t], outcome=True, **shp)
                     b_pout_d[t] = torch.softmax(ol, 1)
                 else:
-                    lg, v = net(b_obs[t], b_mask[t].long(), ufeat=b_feat[t], **shp)
+                    lg, v = net(b_obs[t], b_mask[t], ufeat=b_feat[t], **shp)
                 logp = F.log_softmax(lg, 1)
                 act = torch.multinomial(logp.exp(), 1).squeeze(1)
                 b_act[t] = act
@@ -372,14 +372,14 @@ def main():
                 steps += N
             shp = hs.of(*hs.rows_info(obs), DEV)
             if a.pot_head:
-                _, last_v, last_ol, last_pl = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV).long(), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True, potuse=True, **shp)
+                _, last_v, last_ol, last_pl = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True, potuse=True, **shp)
                 b_pout_d[T] = torch.softmax(last_ol, 1)
                 b_ppot_d[T] = torch.sigmoid(last_pl)
             elif a.heads:
-                _, last_v, last_ol = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV).long(), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True, **shp)
+                _, last_v, last_ol = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV), outcome=True, **shp)
                 b_pout_d[T] = torch.softmax(last_ol, 1)
             else:
-                _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV).long(), ufeat=torch.from_numpy(feat.copy()).to(DEV), **shp)
+                _, last_v = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask).to(DEV), ufeat=torch.from_numpy(feat.copy()).to(DEV), **shp)
             b_val_d[T] = last_v
             # the host's copies for the returns and the heads' targets
             b_val = b_val_d.cpu()
@@ -446,12 +446,13 @@ def main():
                 ix = perm_d[s:s + a.mb]
                 ih = perm_h[s:s + a.mb]
                 shp = hs.of(fe[ih], fl[ih], fd[ih], DEV)
+                mk = fm[ix]  # the uint8 mask: the network and the entropy compare it with 0
                 if a.pot_head:
-                    lg, v, ol, pl_ = net(fo[ix], fm[ix].long(), ufeat=ff[ix], outcome=True, potuse=True, **shp)
+                    lg, v, ol, pl_ = net(fo[ix], mk, ufeat=ff[ix], outcome=True, potuse=True, **shp)
                 elif a.heads:
-                    lg, v, ol = net(fo[ix], fm[ix].long(), ufeat=ff[ix], outcome=True, **shp)
+                    lg, v, ol = net(fo[ix], mk, ufeat=ff[ix], outcome=True, **shp)
                 else:
-                    lg, v = net(fo[ix], fm[ix].long(), ufeat=ff[ix], **shp)
+                    lg, v = net(fo[ix], mk, ufeat=ff[ix], **shp)
                 logp = F.log_softmax(lg, 1)
                 nlp = logp.gather(1, fa[ix, None]).squeeze(1)
                 ratio = (nlp - flp[ix]).exp()
@@ -464,7 +465,7 @@ def main():
                 else:
                     vl = F.smooth_l1_loss(v, fret[ix])
                 p = logp.exp()
-                ent = -(p * logp.clamp(min=-30) * (fm[ix] > 0)).sum(1).mean()
+                ent = -(p * logp.clamp(min=-30) * (mk > 0)).sum(1).mean()
                 o_ = opt_w if warm else opt
                 loss = a.vf * vl if warm else pl + a.vf * vl - a.ent * ent
                 if dist_d is not None and not warm:
