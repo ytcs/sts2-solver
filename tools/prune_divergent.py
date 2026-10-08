@@ -46,21 +46,22 @@ def divergent(z, scen):
 
 def pruned(z, drop):
     """The part's arrays without the fights in `drop` (decisions re-indexed to the kept fights)."""
-    n = len(z["f_cls"])
+    out = {k: z[k] for k in z.files}  # every array read once (an NpzFile re-reads an array from disk at each access)
+    n = len(out["f_cls"])
     keep = np.setdiff1d(np.arange(n), drop)
     new_idx = np.full(n, -1, np.int64)
     new_idx[keep] = np.arange(len(keep))
-    out = {k: z[k] for k in z.files}
-    O = z["f_off"]
-    out["acts"] = np.concatenate([z["acts"][O[f]:O[f + 1]] for f in keep]).astype(z["acts"].dtype)
+    A, O = out["acts"], out["f_off"]
+    out["acts"] = np.concatenate([A[O[f]:O[f + 1]] for f in keep]).astype(A.dtype)
     out["f_off"] = np.concatenate([[0], np.cumsum([O[f + 1] - O[f] for f in keep])]).astype(O.dtype)
     for k in ("f_scen", "f_seed", "f_cls"):
-        out[k] = z[k][keep]
-    dsel = np.isin(z["d_fight"], keep)
+        out[k] = out[k][keep]
+    df = out["d_fight"]
+    dsel = np.isin(df, keep)
     for k in D_KEYS:
-        if k in z.files:
-            out[k] = z[k][dsel]
-    out["d_fight"] = new_idx[z["d_fight"][dsel]].astype(z["d_fight"].dtype)
+        if k in out:
+            out[k] = out[k][dsel]
+    out["d_fight"] = new_idx[df[dsel]].astype(df.dtype)
     return out
 
 
