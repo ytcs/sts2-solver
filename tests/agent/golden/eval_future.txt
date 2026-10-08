@@ -1,2 +1,0 @@
-1 variants x 10 encounters x 8 attempts, start HP 71/80
-baseline                 win 0.588 ±0.048  HP lost 58.3% (q10/50/90/97.5: 11/46/71/71 HP)  | DECIMILL:0.38 ENTOMANC:0.75 INFESTED:0.62 KNOWLEDG:0.50 KNIGHTS:0.88 MECHA:1.00 SOUL:0.62 QUEEN:0.25 TEST:0.62 AEONGLAS:0.25

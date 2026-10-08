@@ -1,4 +1,0 @@
-GAME_OVER
-A3 F48 IRONCLAD A10 HP 0/72 G125 pots[-, -]
-Epoch Unlocked!
-0 continue

@@ -1,6 +1,0 @@
-SELECT 1
-A1 F9 IRONCLAD A10 HP 44/80 G12 pots[-, -]
-Choose a card to put on top of your Draw Pile.
-answer: a <i> [<j> ...]  (a - for none)
-0 Pommel Strike(1) Deal 9 damage. Draw 1 card.
-1 Pommel Strike(1) Deal 9 damage. Draw 1 card.

@@ -1,6 +1,0 @@
-MAP
-A1 F6 IRONCLAD A10 HP 78/80 G35 pots[Explosive Ampoule, Blood Potion]
-full map: m
-0 Unknown r6c1 -> $c2
-1 Elite r6c2 -> $c2
-2 Monster r6c3 -> Mc3

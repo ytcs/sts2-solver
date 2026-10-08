@@ -1,4 +1,0 @@
-RESTSITE
-A1 F11 IRONCLAD A10 HP 29/80 G72 pots[Weak Potion, -]
-0 Rest: Heal for 30% of your Max HP (24).
-1 Smith: Upgrade a card in your Deck.

@@ -1,6 +1,0 @@
-MAP
-A1 F1 IRONCLAD A10 HP 64/80 G99 pots[-, -]
-full map: m
-0 Monster r1c1 -> Mc0,Mc2
-1 Monster r1c3 -> $c3
-2 Monster r1c5 -> Mc6

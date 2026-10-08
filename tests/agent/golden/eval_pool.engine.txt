@@ -1,4 +1,0 @@
-solve attempts=8 n=3 sha=5c4b127e4e67
-  BOWLBUGS_NORMAL [] x1
-  CHOMPERS_NORMAL [] x1
-  EXOSKELETONS_NORMAL [] x1

@@ -1,6 +1,0 @@
-CARD_REWARD
-A1 F2 IRONCLAD A10 HP 68/80 G108 pots[-, -]
-0 Armaments(1) Gain 5 Block. Upgrade a card in your Hand.
-1 Headbutt(1) Deal 9 damage. Put a card from your Discard Pile on top of your Draw Pile.
-2 Perfected Strike(2) Deal 6 damage. Deals 2 additional damage for ALL your cards containing “Strike”.
-3 Skip

@@ -1,2 +1,0 @@
-solve attempts=8 n=1 sha=571dfa08e22c
-  MYTES_NORMAL [] x1

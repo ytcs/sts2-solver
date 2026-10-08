@@ -1,6 +1,0 @@
-EVENT
-A1 F1 IRONCLAD A10 HP 64/80 G99 pots[-, -]
-Neow: 
-0 Arcane Scroll: Obtain a random Rare Card.
-1 Lead Paperweight: Choose 1 of 2 Colorless cards to add to your Deck.
-2 Large Capsule: Obtain 2 random Relics. Add an additional Strike and Defend to your Deck.

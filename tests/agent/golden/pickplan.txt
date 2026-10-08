@@ -1,6 +1,0 @@
-pick planner: 2 regular + 0 elite reward screens and 0 shops ahead, 4 deck slots, rho 0.85, rarity offset -0.050; 150 pool cards priced (need-weighted gain over the current deck: boss KNOWLEDGE_DEMON_BOSS, elites to come, next act)
-expected total gain: take anything positive 0.429; threshold policy tau* = 0.045 -> 0.456
-best cards for this deck: SETUP_STRIKE +0.363, NOT_YET +0.361, INFERNAL_BLADE +0.350, JACKPOT +0.343, CONFLAGRATION +0.339, MIMIC +0.330, SECOND_WIND +0.324, BLOOD_WALL +0.295, FINESSE +0.293, HEADBUTT +0.280, WHIRLWIND +0.277, BLAZE +0.252
-share of pool cards with gain >= tau*: 65%
-runway curve (regular reward screens left before the dangerous fight, no shop): tau* = 0: 0.000, 1: 0.000, 2: 0.045, 3: 0.075, 4: 0.095, 6: 0.100, 8: 0.215  (the closer the fight, the less picky)
-this screen (take iff gain >= tau* = 0.045): Hemokinesis +0.056 TAKE; Bash +nan skip

@@ -1,2 +1,0 @@
-1 variants x 1 encounters x 8 attempts, start HP 71/80
-b                        win 0.125 ±0.117  HP lost 85.8% (q10/50/90/97.5: 65/71/71/71 HP)  | MYTES:0.12

@@ -1,3 +1,0 @@
-TREASURE
-A1 F10 IRONCLAD A10 HP 29/80 G38 pots[Weak Potion, -]
-0 open chest

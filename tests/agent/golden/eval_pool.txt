@@ -1,2 +1,0 @@
-1 variants x 3 encounters x 8 attempts, start HP 40/80
-baseline                 win 0.333 ±0.091  HP lost 39.4% (q10/50/90/97.5: 10/40/40/40 HP)  | BOWLBUGS:0.38 CHOMPERS:0.12 EXOSKELE:0.50
