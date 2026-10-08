@@ -269,7 +269,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build"); b.add_argument("--force", action="store_true"); b.add_argument("--pairs", type=int, default=300)
     s = sub.add_parser("score"); s.add_argument("ckpts", nargs="+")
-    pl = sub.add_parser("play"); pl.add_argument("ckpts", nargs="+")
+    pl = sub.add_parser("play"); pl.add_argument("ckpts", nargs="+"); pl.add_argument("--cover", action="store_true")
     sc = sub.add_parser("screen"); sc.add_argument("ckpts", nargs="+", help="the first is the base the others are paired with")
     sc.add_argument("--per-env", type=int, default=4)
     pl.add_argument("--roots", type=int, default=None, help="fights in flight (default 2048 on CUDA); fewer = less host and GPU memory")
@@ -278,7 +278,7 @@ def main():
         build(a)
     elif a.cmd == "play":
         for ck in a.ckpts:
-            play(ck, a.roots)
+            play(ck, a.roots, a.cover)
     elif a.cmd == "screen":
         screen(a.ckpts, a.per_env)
     else:

@@ -16,14 +16,14 @@ PREDICTOR_CKPT = os.path.join(_M, _c["predictor"])
 
 
 class Solver:
-    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None, threads=None):
+    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None, threads=None, cover=False):
         if threads:
             torch.set_num_threads(threads)
         self.net = load(ckpt, set_version=False)
         self.max_steps = max_steps
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         self.fs = FastSearch(self.net, M, K, conf=conf, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
-                             roll_net=load(roll_ckpt, set_version=False) if roll_ckpt else None, amp=cuda if amp is None else amp)
+                             roll_net=load(roll_ckpt, set_version=False) if roll_ckpt else None, amp=cuda if amp is None else amp, cover=cover)
         self.fs.warm()
 
     def _greedy(self, scenarios, attempts, seed):
