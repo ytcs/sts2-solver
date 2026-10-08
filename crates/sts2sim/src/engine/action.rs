@@ -124,6 +124,44 @@ impl Combat {
         }
     }
 
+    pub fn interchangeable(&self, a: Action, b: Action) -> bool {
+        let pot = |s: u8| self.player.potions.get(s as usize).copied().flatten().map(|p| p.id);
+        match (a, b) {
+            _ if a == b => true,
+            (Action::PlayCard { hand_pos: x, target: s }, Action::PlayCard { hand_pos: y, target: t }) => {
+                s == t && matches!((self.player.hand.get(x as usize), self.player.hand.get(y as usize)), (Some(c), Some(d)) if self.same_card(c, d))
+            }
+            (Action::UsePotion { slot: x, target: s }, Action::UsePotion { slot: y, target: t }) => s == t && pot(x).is_some() && pot(x) == pot(y),
+            (Action::DiscardPotion { slot: x }, Action::DiscardPotion { slot: y }) => pot(x).is_some() && pot(x) == pot(y),
+            (Action::Pick { idx: x }, Action::Pick { idx: y }) => {
+                let Some(d) = &self.decision else { return false };
+                let v = self.decision_view(d);
+                match (v.get(x as usize), v.get(y as usize)) {
+                    (Some(i), Some(j)) => d.selected.contains(i) == d.selected.contains(j) && self.same_card(d.cands[i as usize], d.cands[j as usize]),
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    // deck_idx only matters as deck card vs generated card inside a fight; play_amounts and finished bits are per-card state outside Card.
+    pub fn same_card(&self, x: CardIdx, y: CardIdx) -> bool {
+        if x == y {
+            return true;
+        }
+        let b = &self.cards[y as usize];
+        let Card { id, pile, upgrade, flags, kw_add, kw_remove, enchant, enchant_amount, enchant_status, enchant_aux, affliction, affliction_amount, base_replay, cost_base, x_value, mods, star_mods, counter, dmg_bonus, deck_idx, dupe_of, dampen_saved } =
+            &self.cards[x as usize];
+        (*id, *pile, *upgrade, *flags, *kw_add, *kw_remove, *enchant, *enchant_amount, *enchant_status, *enchant_aux) == (b.id, b.pile, b.upgrade, b.flags, b.kw_add, b.kw_remove, b.enchant, b.enchant_amount, b.enchant_status, b.enchant_aux)
+            && (*affliction, *affliction_amount, *base_replay, *cost_base, *x_value, *counter, *dmg_bonus, *dupe_of, *dampen_saved) == (b.affliction, b.affliction_amount, b.base_replay, b.cost_base, b.x_value, b.counter, b.dmg_bonus, b.dupe_of, b.dampen_saved)
+            && mods.as_slice() == b.mods.as_slice()
+            && star_mods.as_slice() == b.star_mods.as_slice()
+            && (*deck_idx == NO) == (b.deck_idx == NO)
+            && self.hist.finished(x) == self.hist.finished(y)
+            && !self.hist.play_amounts.iter().any(|e| e.card == x || e.card == y)
+    }
+
     pub fn action_mask(&self, mask: &mut [bool]) {
         for m in mask[..ACTION_SPACE].iter_mut() {
             *m = false;

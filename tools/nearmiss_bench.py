@@ -44,13 +44,17 @@ def arm(spec, roots):
     from model import load
     parts = spec.split("@")
     pr, _, roll = parts[0].partition("+")
-    M, K, cv = 5, 32, False
+    M, K, cv, cover, futures = 5, 32, False, False, 0
     for t in parts[1:]:
         if t == "cv":
             cv = True
+        elif t == "cover":
+            cover = True
+        elif t.startswith("t"):
+            futures = K = int(t[1:])
         else:
             M, K = (int(x) for x in t.split("x"))
-    fs = FastSearch(load(pr), M=M, K=K, roots=roots, amp=True, roll_net=load(roll) if roll else None, clairvoyant=cv)
+    fs = FastSearch(load(pr), M=M, K=K, roots=roots, amp=True, roll_net=load(roll) if roll else None, clairvoyant=cv, cover=cover, futures=futures)
     fs.warm()
     return fs
 
@@ -70,8 +74,8 @@ def play(ck, rows, attempts, roots):
             for x in r.get("prefix", []):
                 sim.step(int(x))
             sims.append(sim)
-        print(f"  {spec_name(ck)}: attempt {att + 1}/{attempts}, {F} fights (progress: fights done every 2000 cycles)", flush=True)
-        res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims, verbose=True)
+        print(f"  {spec_name(ck)}: attempt {att + 1}/{attempts}, {F} fights", flush=True)
+        res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims)
         out[:, att] = res[:, 1] == 1
     return out
 
@@ -133,7 +137,8 @@ def main():
     b = sub.add_parser("build"); b.add_argument("parts", nargs="+"); b.add_argument("--near", required=True); b.add_argument("--out", required=True)
     b.add_argument("--n", type=int, default=1500); b.add_argument("--close", type=float, default=0.10); b.add_argument("--seed", type=int, default=0)
     e = sub.add_parser("eval"); e.add_argument("ckpts", nargs="+", help="the first is the player that collected the set (the luck baseline); "
-                                               "PRIOR+ROLL plays PRIOR's search with ROLL's policy in the play-outs")
+                                               "PRIOR+ROLL plays PRIOR's search with ROLL's policy in the play-outs; suffixes @MxK, @cv (clairvoyant), "
+                                               "@cover (every distinct legal action), @tN (N futures per decision split over the candidates)")
     e.add_argument("--bench", default=os.path.join(ROOT, "data", "bench", "nearmiss.json")); e.add_argument("--attempts", type=int, default=2)
     e.add_argument("--roots", type=int, default=1024)
     t = sub.add_parser("turns"); t.add_argument("ckpts", nargs="+", help="arm specs; the first is the luck baseline")

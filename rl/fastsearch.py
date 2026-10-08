@@ -225,7 +225,7 @@ class HostBuffers:
 
 class FastSearch:
     def __init__(self, net, M=3, K=8, conf=1.01, max_steps=300, roots=512, groups=2, threads=None, roll_net=None, amp=False, record=False,
-                 leaf_turns=None, clairvoyant=False, dec_rows=True):
+                 leaf_turns=None, clairvoyant=False, dec_rows=True, cover=False, futures=0):
         self.net = net
         self.roll_net = roll_net if roll_net is not None else net
         vs = {getattr(n, "obs_version", 1) for n in [self.net, self.roll_net]}
@@ -233,7 +233,9 @@ class FastSearch:
             raise ValueError(f"the search's networks read different observation versions {sorted(vs)}")
         self.obs_version = vs.pop()
         self.OBS = sts2.obs_size(self.obs_version)
-        self.M, self.K, self.conf = M, K, conf
+        # cover: every distinct legal action is a candidate (up to max_m, by prior); futures: total per decision, 0 = K per candidate
+        self.cover, self.futures = bool(cover), int(futures)
+        self.M, self.K, self.conf = (sts2.names()["max_m"] if self.cover else M), K, conf
         self.leaf_turns = LEAF_TURNS if leaf_turns is None else leaf_turns
         self.roll_cap = 60 * self.leaf_turns if self.leaf_turns < 100 else 400
         self.max_steps = max_steps
@@ -453,7 +455,8 @@ class FastSearch:
             eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], n_roots=max(1, self.roots // self.groups), m=self.M, k=self.K, conf=self.conf,
                                      roll_cap=self.roll_cap, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, threads=min(self.threads, nb),
                                      record=self.record, lead=True, carry=True, strat=True, starts=starts, leaf_turns=self.leaf_turns,
-                                     turn_cap=heads.TURN_CAP, val_w=self.val_w, worth=wt, clairvoyant=self.clairvoyant, obs_version=self.obs_version)
+                                     turn_cap=heads.TURN_CAP, val_w=self.val_w, worth=wt, clairvoyant=self.clairvoyant, obs_version=self.obs_version,
+                                     cover=self.cover, futures=self.futures)
             shared = eng.shared_rows()
             while len(self._bufs) <= gi:
                 self._bufs.append(HostBuffers(self.cuda, self.OBS))

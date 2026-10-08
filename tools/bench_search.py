@@ -202,7 +202,13 @@ CONFIGS = {
     "leaf2_wide1s": dict(M=8, K=128, budget=1.0, tol=0.0, leaf=2, cap=120),
     "topm5x32": dict(M=5, K=32, budget=0.0, tol=0.0, rounds=1, **DEPTH2),
     "topm5x32x4": dict(M=5, K=32, budget=0.0, tol=0.0, rounds=4, **DEPTH2),
+    "cover32": dict(M=16, K=32, cover=True, budget=0.0, tol=0.0, rounds=1, **DEPTH2),
+    "cover_t160": dict(M=16, K=160, cover=True, futures=160, budget=0.0, tol=0.0, rounds=1, **DEPTH2),
 }
+
+
+def engine_key(c):
+    return c["M"], c["K"], c.get("cover", False), c.get("futures", 0)
 
 
 def choose(eng, st, cfg):
@@ -215,7 +221,7 @@ def choose(eng, st, cfg):
         text = top["text"] if top else d["text"]
     else:
         text = d["text"]
-    return text, d["seconds"], list(d.get("rows", (0, 0)))
+    return text, d["seconds"], list(d.get("rows", (0, 0))), [act_key(o["text"]) for o in d["options"]]
 
 
 def prior_of(net, st):
@@ -240,9 +246,9 @@ def make_engines(names):
     from agent.engine import Engine
     engines = {}
     for n in names:
-        c = CONFIGS[n]
-        if (c["M"], c["K"]) not in engines:
-            engines[(c["M"], c["K"])] = Engine(M=c["M"], K=c["K"])
+        k = engine_key(CONFIGS[n])
+        if k not in engines:
+            engines[k] = Engine(M=k[0], K=k[1], cover=k[2], futures=k[3])
     return engines
 
 
@@ -280,14 +286,14 @@ def main():
     net = next(iter(engines.values())).fs.net
     picks, extra = [], []
     for i, st in enumerate(states):
-        row, secs, rows = {}, {}, {}
+        row, secs, rows, searched = {}, {}, {}, {}
         for n in names:
             c = CONFIGS[n]
-            text, secs[n], rows[n] = choose(engines[(c["M"], c["K"])], st, c)
+            text, secs[n], rows[n], searched[n] = choose(engines[engine_key(c)], st, c)
             row[n] = act_key(text)
         add_cands(st, row.values())
         picks.append(row)
-        extra.append(dict(secs=secs, rows=rows, prior=prior_of(net, st)))
+        extra.append(dict(secs=secs, rows=rows, searched=searched, prior=prior_of(net, st)))
         if i % 10 == 0:
             print(f"  picks {i + 1}/{len(states)} ({time.time() - t0:.0f}s)", flush=True)
     del engines, net
@@ -322,10 +328,11 @@ def add_picks(a, states, t0):
             continue
         for n in names:
             c = CONFIGS[n]
-            text, s, rw = choose(engines[(c["M"], c["K"])], st, c)
+            text, s, rw, sr = choose(engines[engine_key(c)], st, c)
             rec["picks"][n] = act_key(text)
             rec.setdefault("secs", {})[n] = s
             rec.setdefault("rows", {})[n] = rw
+            rec.setdefault("searched", {})[n] = sr
         rec.setdefault("prior", prior_of(net, st))
         out.append(rec)
         if i % 10 == 0:
@@ -396,6 +403,14 @@ def report(path, names):
                       f"{np.mean([r.get('n_legal', len(r['prior'])) for r, _ in sub]):.1f})")
         full = np.mean([len(r["cands"]) >= r.get("n_legal", len(r["prior"])) for r, _ in rk])
         print(f"  the referee played out every distinct legal action in {full:.0%} of these states (raise --max-cands if low)")
+        best = lambda r: max((k for k, x in r["ref"].items() if x["n"]), key=lambda k: r["ref"][k]["v"])  # noqa: E731
+        print("share of states whose referee-best action the config searched: all / referee best outside the prior's top 5")
+        for n in names:
+            sub = [(r, x) for r, x in rk if n in r.get("searched", {})]
+            if sub:
+                hit = np.array([best(r) in r["searched"][n] for r, _ in sub])
+                out5 = np.array([x > 5 for _, x in sub])
+                print(f"  {n:12s} {hit.mean():.0%} / {hit[out5].mean() if out5.any() else float('nan'):.0%} (n {len(sub)}, {out5.sum()} outside top 5)")
     rs = [r for r in recs if "ref_strong" in r]
     if rs:
         same = np.mean([max(r["ref"], key=lambda k: r["ref"][k]["v"]) == max(r["ref_strong"], key=lambda k: r["ref_strong"][k]["v"]) for r in rs])

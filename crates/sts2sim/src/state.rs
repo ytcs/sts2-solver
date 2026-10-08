@@ -44,7 +44,7 @@ pub struct Power {
     pub skip_next_tick: bool,
 }
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct CostMod {
     pub amount: i8,
     bits: u8,

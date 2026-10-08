@@ -4,6 +4,7 @@ use sts2sim::engine::{with_look_cache, ActionBuf, LookCache, ACTION_SPACE, LOOK_
 use sts2sim::observe::{obs_size, obs_version};
 use sts2sim::state::{RngSet, Stage};
 use sts2sim::types::Outcome;
+use sts2sim::util::ArrayVec;
 use sts2sim::{Action, Combat, Scenario, ScenarioExtras};
 
 use crate::{EnvError, OUTCOME_LOSS, OUTCOME_OVERFLOW, OUTCOME_TRUNCATED, OUTCOME_UNIMPLEMENTED, OUTCOME_WIN, WORKER_STACK};
@@ -92,6 +93,9 @@ pub struct SearchCfg {
     pub hp_bonus: f32,
     pub turn_cap: u32,
     pub val_w: usize,
+    pub cover: bool,
+    // Total futures per searched decision, split evenly over the candidates and capped at k each; 0 = k per candidate.
+    pub futures: usize,
     // DIAGNOSTIC ONLY: futures copy the true state (hidden information); never set for live play.
     pub clairvoyant: bool,
 }
@@ -113,6 +117,8 @@ impl Default for SearchCfg {
             hp_bonus: 0.5,
             turn_cap: 0,
             val_w: 1,
+            cover: false,
+            futures: 0,
             clairvoyant: false,
         }
     }
@@ -176,6 +182,9 @@ pub struct SearchStats {
     pub cy_main: u64,
     pub cy_endturn: u64,
     pub n_endturn: u64,
+    pub cover_actions: u64,
+    pub cover_classes: u64,
+    pub cover_capped: u64,
 }
 
 #[inline(always)]
@@ -233,6 +242,7 @@ struct Block {
     lead_acts: [Vec<u16>; MAX_M],
     carry: Option<(Vec<u16>, f32)>,
     known: [bool; MAX_M],
+    kc: usize,
     ks: Vec<u64>,
     todo: Vec<(usize, SimSt)>,
     log: Vec<MoveRec>,
@@ -494,13 +504,17 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
     }
 }
 
+fn idle_sim(cx: &Combat) -> Sim {
+    Sim { cx: cx.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0 }
+}
+
 #[inline]
 fn det_future(cx: &mut Combat, cfg: &SearchCfg, ks: &[u64], f: usize) {
     if cfg.clairvoyant {
         return;
     }
     if cfg.strat {
-        cx.determinize_strat(ks[0], ks[f], f, cfg.k);
+        cx.determinize_strat(ks[0], ks[f], f, ks.len());
     } else {
         cx.determinize(ks[f]);
     }
@@ -509,7 +523,8 @@ fn det_future(cx: &mut Combat, cfg: &SearchCfg, ks: &[u64], f: usize) {
 impl Block {
     fn new(sc: &Scenario, ex: &ScenarioExtras, cfg: &SearchCfg) -> Result<Block, EnvError> {
         let main = Combat::try_new_with(sc, ex)?;
-        let sims = (0..cfg.m * cfg.k).map(|_| Sim { cx: main.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0 }).collect();
+        let eager = if cfg.cover || cfg.futures > 0 { 0 } else { cfg.m * cfg.k };
+        let sims = (0..eager).map(|_| idle_sim(&main)).collect();
         Ok(Block {
             main,
             sims,
@@ -528,6 +543,7 @@ impl Block {
             lead_acts: Default::default(),
             carry: None,
             known: [false; MAX_M],
+            kc: cfg.k,
             ks: Vec::new(),
             todo: Vec::new(),
             log: Vec::new(),
@@ -657,19 +673,24 @@ impl Block {
 
     fn on_root_policy(&mut self, inp: &Inputs, row: usize, sh: &Shared, out: &Out) {
         let cfg = &sh.cfg;
-        let (m, k) = (cfg.m, cfg.k);
+        let m = cfg.m;
         let stride = 2 * m + 1;
         let r = &inp.pol[row * stride..(row + 1) * stride];
-        let mut n_legal = 0;
-        for j in 0..m {
-            self.opts[j] = r[j] as i32;
-            let p = r[m + j];
-            self.probs[j] = p;
-            self.ok[j] = p > 0.0;
-            n_legal += self.ok[j] as usize;
-        }
+        let n_legal = if cfg.cover {
+            self.cover_opts(r, m)
+        } else {
+            let mut n = 0;
+            for j in 0..m {
+                self.opts[j] = r[j] as i32;
+                let p = r[m + j];
+                self.probs[j] = p;
+                self.ok[j] = p > 0.0;
+                n += self.ok[j] as usize;
+            }
+            n
+        };
         self.stats.root_decisions += 1;
-        if n_legal <= 1 || r[m] >= cfg.conf {
+        if n_legal <= 1 || self.probs[0] >= cfg.conf {
             let a = Action::from_index(self.opts[0] as usize);
             let rec = self.move_rec(self.opts[0], false, sh);
             let finished = match a {
@@ -688,6 +709,12 @@ impl Block {
             return;
         }
         self.stats.searched += 1;
+        let k = if cfg.futures > 0 { (cfg.futures / n_legal).clamp(1, cfg.k) } else { cfg.k };
+        self.kc = k;
+        let need = (0..m).filter(|&j| self.ok[j]).last().map_or(0, |j| j + 1) * k;
+        while self.sims.len() < need {
+            self.sims.push(idle_sim(&self.main));
+        }
         self.ks.clear();
         for _ in 0..k {
             let x = splitmix(&mut self.rng);
@@ -710,8 +737,8 @@ impl Block {
                 }
             }
             if !self.ok[j] || self.known[j] {
-                for kk in 0..k {
-                    self.sims[j * k + kk].st = SimSt::Idle;
+                for s in self.sims.iter_mut().skip(j * k).take(k) {
+                    s.st = SimSt::Idle;
                 }
                 continue;
             }
@@ -729,9 +756,38 @@ impl Block {
         self.try_finish_search(sh, out);
     }
 
+    fn cover_opts(&mut self, r: &[f32], m: usize) -> usize {
+        let mut buf = ActionBuf::new();
+        self.main.legal_actions(&mut buf);
+        let ranked = (0..m).filter(|&j| r[m + j] > 0.0).filter_map(|j| Action::from_index(r[j] as usize).map(|a| (a, r[m + j])));
+        let mut cls: ArrayVec<(Action, f32), 256> = ArrayVec::new();
+        // Discarding is never a candidate: live play never discards a potion in combat.
+        for (a, p) in ranked.chain(buf.iter().map(|&a| (a, 0.0))) {
+            if matches!(a, Action::DiscardPotion { .. }) || !buf.contains(a) {
+                continue;
+            }
+            match cls.as_mut_slice().iter_mut().find(|c| self.main.interchangeable(c.0, a)) {
+                Some(c) => c.1 += p,
+                None => cls.push((a, p)),
+            }
+        }
+        cls.as_mut_slice().sort_by(|x, y| y.1.total_cmp(&x.1));
+        self.stats.cover_actions += buf.iter().filter(|a| !matches!(a, Action::DiscardPotion { .. })).count() as u64;
+        self.stats.cover_classes += cls.len() as u64;
+        self.stats.cover_capped += (cls.len() > m) as u64;
+        let n = cls.len().min(m);
+        for j in 0..m {
+            let (a, p) = if j < n { (cls[j].0.index() as i32, cls[j].1) } else { (0, 0.0) };
+            self.opts[j] = a;
+            self.probs[j] = p;
+            self.ok[j] = j < n;
+        }
+        n
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn start_option(&mut self, j: usize, first: Action, lead: bool, cfg: &SearchCfg, w: &Worth, out: &Out, turn: i32) {
-        let (base, c) = (j * cfg.k, cfg.k);
+        let (base, c) = (j * self.kc, self.kc);
         let n_now = if lead { 1 } else { c };
         for kk in 0..c {
             let sim = &mut self.sims[base + kk];
@@ -760,7 +816,7 @@ impl Block {
     }
 
     fn lead_run(&mut self, j: usize, act: Action, cfg: &SearchCfg, w: &Worth, out: &Out) {
-        let (base, k) = (j * cfg.k, cfg.k);
+        let (base, k) = (j * self.kc, self.kc);
         let branch = {
             let (head, tail) = self.sims.split_at_mut(base + k - 1);
             let scratch = &mut tail[0];
@@ -820,7 +876,7 @@ impl Block {
         if self.sims.iter().any(|s| matches!(s.st, SimSt::Pol(_) | SimSt::Val(_))) {
             return;
         }
-        let (m, k) = (cfg.m, cfg.k);
+        let (m, k) = (cfg.m, self.kc);
         let mut best = 0usize;
         let mut best_q = f32::NEG_INFINITY;
         let mut q0 = 0.0f32;
@@ -841,7 +897,7 @@ impl Block {
         if best != 0 && best_q - q0 <= 0.0 {
             best = 0;
         }
-        for s in self.sims[..m * k].iter_mut() {
+        for s in self.sims.iter_mut() {
             s.st = SimSt::Idle;
         }
         let rec = self.move_rec(self.opts[best], true, sh);
@@ -902,7 +958,7 @@ impl Block {
                 let Some(inp) = inp else { return };
                 let cfg = sh.cfg;
                 let w = &sh.worth[self.scen as usize];
-                let (vw, k) = (cfg.val_w, cfg.k);
+                let (vw, k) = (cfg.val_w, self.kc);
                 let mut todo = std::mem::take(&mut self.todo);
                 todo.clear();
                 todo.extend((0..self.sims.len()).filter(|&i| matches!(self.sims[i].st, SimSt::Pol(_) | SimSt::Val(_))).map(|i| (i, self.sims[i].st)));
@@ -1062,6 +1118,9 @@ impl SearchEngine {
             t.cy_main += s.cy_main;
             t.cy_endturn += s.cy_endturn;
             t.n_endturn += s.n_endturn;
+            t.cover_actions += s.cover_actions;
+            t.cover_classes += s.cover_classes;
+            t.cover_capped += s.cover_capped;
         }
         t
     }
@@ -1071,7 +1130,9 @@ impl SearchEngine {
     }
 
     pub fn shared_rows(&self) -> usize {
-        self.blocks.len() * (self.cfg.m * self.cfg.k + 1)
+        let mk = self.cfg.m * self.cfg.k;
+        let slots = if self.cfg.futures > 0 { mk.min(self.cfg.futures.max(self.cfg.m)) } else { mk };
+        self.blocks.len() * (slots + 1)
     }
 
     #[allow(clippy::too_many_arguments)]

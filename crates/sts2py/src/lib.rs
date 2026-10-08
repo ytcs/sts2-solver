@@ -168,7 +168,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, clairvoyant=false, obs_version=None))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, conf, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, lead=false, carry=false, strat=false, starts=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, clairvoyant=false, obs_version=None, cover=false, futures=0))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -197,11 +197,13 @@ impl SearchEnginePy {
         // DIAGNOSTIC ONLY: sees hidden information; never for live play.
         clairvoyant: bool,
         obs_version: Option<u8>,
+        cover: bool,
+        futures: usize,
     ) -> PyResult<Self> {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
-        let cfg = sts2env::search::SearchCfg { m, k, conf, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, turn_cap, val_w, clairvoyant };
+        let cfg = sts2env::search::SearchCfg { m, k, conf, roll_cap, leaf_turns, lead, strat, carry, max_steps, win, loss, hp_bonus, turn_cap, val_w, cover, futures, clairvoyant };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let n_scen = scs.len();
         let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
@@ -347,6 +349,9 @@ impl SearchEnginePy {
         d.set_item("cy_main", s.cy_main)?;
         d.set_item("cy_endturn", s.cy_endturn)?;
         d.set_item("n_endturn", s.n_endturn)?;
+        d.set_item("cover_actions", s.cover_actions)?;
+        d.set_item("cover_classes", s.cover_classes)?;
+        d.set_item("cover_capped", s.cover_capped)?;
         Ok(d)
     }
 }
@@ -454,6 +459,7 @@ fn names(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
     let d = pyo3::types::PyDict::new(py);
     d.set_item("head_nc", sts2env::search::HEAD_NC)?;
     d.set_item("head_bin", sts2env::search::HEAD_BIN)?;
+    d.set_item("max_m", sts2env::search::MAX_M)?;
     d.set_item("card", ids::card::NAMES.to_vec())?;
     d.set_item("power", ids::power::NAMES.to_vec())?;
     d.set_item("relic", ids::relic::NAMES.to_vec())?;
