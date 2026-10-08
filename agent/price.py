@@ -396,9 +396,14 @@ def replay(run, n=128, cont="late", kinds=("CARD_REWARD", "RESTSITE")):
         closed = opts[int(V.mean(0).argmax())][0]
         row = dict(floor=floor, screen=scr.kind(state), played=_played(state, choice, opts), old=old, now=now, ranked=ranked, surrogate=surr,
                    sep=separates(res, "cont"), closed=closed, closed_sep=separates({lb: {"v": V[:, i]} for i, (lb, _) in enumerate(opts)}, "v"))
+        for who in ("surrogate", "closed"):
+            d = res[row[who]][ranked] - res[now][ranked]
+            row[f"{who}_cost"] = (float(d.mean()), _se(d))
         rows.append(row)
         print(f"F{floor:<3d} {row['screen']:11s} {st.hp:3d}/{st.max_hp} | played {row['played'][:16]:16s} | old {str(old)[:16]:16s} | "
-              f"price[{ranked}] {now[:16]:16s} | S5 rollout {surr[:16]:16s}{'' if row['sep'] else ' (flat)':7s} | S5 closed {closed[:16]}{'' if row['closed_sep'] else ' (flat)'}", flush=True)
+              f"price[{ranked}] {now[:16]:16s} | S5 rollout {surr[:16]:16s}{'' if row['sep'] else ' (flat)':7s} | "
+              f"S5 closed {closed[:16]:16s}{'' if row['closed_sep'] else ' (flat)':7s} | "
+              f"on {ranked}: S5 rollout {row['surrogate_cost'][0]:+.3f}, closed {row['closed_cost'][0]:+.3f}", flush=True)
     return rows
 
 
@@ -420,7 +425,9 @@ def main():
     print(f"{len(rows)} screens; S5 rollout+gates vs price {rate('surrogate', 'now')}, vs S5 closed {rate('surrogate', 'closed')}, "
           f"vs played {rate('surrogate', 'played')}, vs old calc {rate('surrogate', 'old')}; price vs played {rate('now', 'played')}, "
           f"vs old calc {rate('now', 'old')}; S5 closed vs played {rate('closed', 'played')}; separated by > 2 paired se: S5 rollout "
-          f"{np.mean([r['sep'] for r in rows]):.2f}, S5 closed {np.mean([r['closed_sep'] for r in rows]):.2f}")
+          f"{np.mean([r['sep'] for r in rows]):.2f}, S5 closed {np.mean([r['closed_sep'] for r in rows]):.2f}; worse than price's choice by > 2 paired se on "
+          f"price's own horizon: S5 rollout {sum(r['surrogate_cost'][0] < -2 * r['surrogate_cost'][1] for r in rows)}, "
+          f"S5 closed {sum(r['closed_cost'][0] < -2 * r['closed_cost'][1] for r in rows)} of {len(rows)}")
 
 
 if __name__ == "__main__":
