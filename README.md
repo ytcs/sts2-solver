@@ -33,7 +33,7 @@ Dashboard (read-only, follows `runs/CURRENT`): `python tools/dashboard/extract_a
 ## Training and evaluation
 - Expert iteration: `tools/collect.sh <rl/exit.py collect args>` (`--ckpt --fights --out [--M --K]`), `rl/exit.py train --init --data --out [--value-target td --lam 0.8]`. Pools: `tools/gen_curriculum.py`, `tools/signal_pool.py`, `tools/gen_train.py`. After a simulator change: `tools/prune_divergent.py`.
 - PPO: `rl/ppo.py`. GPU pod: `scripts/pod_train.sh` (local GPU by default).
-- Benchmarks: `tools/bench.py build|score|play|screen`, `tools/nearmiss_bench.py build|eval|turns` (near-miss flips; optimality bracket), `tools/bench_search.py`.
+- Benchmarks: `tools/bench.py build|build-plans|score|play|screen`, `tools/nearmiss_bench.py build|eval|turns` (near-miss flips; optimality bracket), `tools/bench_search.py`.
 - Current networks: `models/current.json`.
 
 ## Accuracy gate
