@@ -96,3 +96,18 @@ Adopted: `--value-target td --lam 0.8`.
 | 2 turns earlier | 0.176 | +0.016 +- 0.019 | +0.176 +- 0.023 |
 
 Last turn is already decided; avoidable errors are small misjudgements spread over setup turns -> sharper value judge, not deeper search.
+
+## E27. Promotion: TD(0.8) + cover is the first player measurably better than h128
+- **Near-miss bench (held-out, 4 attempts, paired with r3):**
+  - cover: +0.009 L->W, +0.001 W->L;
+  - TD(0.8): +0.016 / -0.009;
+  - TD(0.8) + cover: +0.031 +- 0.007 / -0.009 +- 0.006.
+- **Bench v2 play (paired with h128's labels; h128 replaying itself gives <= +-0.001):**
+
+| player | eval | corpus | mix | tail | end HP |
+|---|---|---|---|---|---|
+| TD(0.8) | +0.008 | +0.005 | +0.005 | +0.012 | +0.4..+0.85 |
+| TD(0.8) + cover | +0.005 | +0.004 | +0.003 | +0.024 +- 0.007 | +0.5..+1.1 |
+
+- **Predictor Brier** (eval / corpus / mix / tail), TD(0.8) vs predictor_r2: 0.0206 / 0.0183 / 0.0228 / 0.0327 against 0.0193 / 0.0199 / 0.0249 / 0.0370. Tail bias -0.013 against -0.043.
+- **Adopted:** `models/solver_td08.pt` as policy and predictor; the live `Engine` searches with `cover=True`. The harness tables keep top-5 for their time budgets.

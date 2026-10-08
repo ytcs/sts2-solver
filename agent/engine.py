@@ -34,7 +34,7 @@ def _opportunity_loss(acc):
 
 
 class Engine:
-    def __init__(self, M=5, K=32, ckpt=None, cover=False, futures=0):
+    def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0):
         self.solver = Solver() if ckpt is None else Solver(ckpt)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         self.fs = FastSearch(self.solver.net, M, K, conf=1.01, roots=1, groups=1, amp=cuda, cover=cover, futures=futures)

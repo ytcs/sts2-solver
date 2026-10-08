@@ -1,4 +1,4 @@
 {
- "policy": "solver_h128.pt",
- "predictor": "predictor_r2.pt"
+ "policy": "solver_td08.pt",
+ "predictor": "solver_td08.pt"
 }
