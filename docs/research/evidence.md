@@ -118,3 +118,25 @@ Last turn is already decided; avoidable errors are small misjudgements spread ov
 - **Caveats:**
   - The labels are h128's play, weaker than the live player (E27). The calibration target should be the live player's own outcomes, so the bench needs relabelling.
   - The fix path: combat-loop rounds on signal pools (data concentrated in that band), or a post-hoc calibration layer fitted on held-out labelled play.
+
+## E29. S5: P(win run) is flat, and a floored gate array can stand in for it
+Predictor `solver_td08` (8 shuffles unless stated), run model with its base policy. States: 5 starters (A10), 17 recorded Ironclad act starts (first fight of each act in `runs/*`: 7 act 1, 7 act 2, 3 act 3), 16 generated decks of 25-35 cards (4 characters, act 1).
+- **Flatness (rollouts, 256 per state):** P(win run) 0 on every starter and every recorded act-1/act-2 start (two at 0.004-0.008); 33 generated decks 0-0.06 (one 0.20). Known-ranking variants (+2 strong rares, -Strike, +Injury, +Strike, -20 HP; 512 paired rollouts per option): P(win run) separates 1 of 266 pairs; P(clear act) 102; P(clear the next act too) 42.
+- **Where runs die:** starters at act-1 elites and boss (Ironclad 87 + 80 of 256); recorded act-2 starts at act-2 elites (120-170 of 256); recorded act-3 starts at the act-3 bosses or hallways; generated decks at the act-2 elites and the act-3 bosses.
+- **Genuine or policy:** predictor vs live solver (5x32 cover, 16 attempts) on 68 gate fights from these states: by predicted bin 0.018 / 0.33 / 0.72 / 0.99 against solver 0.005 / 0.39 / 0.72 / 1.00, corr 0.90; the act-3 bosses with the three decks that reached them: solver 0/16 to 0/32 (predictor 0.00-0.06); Knowledge Demon 0/16 for 6 of 9 decks. The far gates of a current deck are genuinely ~0 under this solver. Policy: no potions drops a starter Ironclad's P(clear act 1) 0.31 -> 0.11, potions at bosses only 0.20; no variant lifts the next act above 0.012. The model is pessimistic against real play at fixed decks: from the same recorded starts it clears act 1 at 0.15-0.56 (real: 7 of 9 Ironclad runs) and act 2 at 0.00-0.28 (real: 3 of 7).
+- **Predictor blind spot:** silent-poison plan deck (act 2, 70 HP): predictor 0.028 / 0.028 vs Knowledge Demon / Insatiable, solver 0.97 / 0.81; without Accelerant predictor 0.025 / 0.029, solver 0.84 / 0.09. Engine decks are outside the predictor's distribution, and every run-level price inherits it.
+- **Gate array** (`runmodel.gates`): per remaining act, P(win) vs the elite pool and P(clear the boss gate) (pool average; act 3 = ordered pairs of distinct bosses, the second at the first's end HP), arrival HP chained through the ancient heal, belt at the current boss only. Rules: `clip` = product with each gate floored at 0.05, `prod` unfloored, `disc` = log weight 0.5^k for k acts later, `mean`. Closed form on 38 states x 8 variants, 16 shuffle seeds paired (stability: a fresh 16):
+
+| rule | +rare right / wrong of 76 | -20 HP of 38 | +Injury right / wrong of 38 | sign vs rollout P(clear act), 102 pairs | vs P(clear 2 acts), 42 pairs |
+|---|---|---|---|---|---|
+| current-act gate only | 57 / 1 | 38 | 16 / 2 | 0.91 | 0.95 |
+| clip | 63 / 0 | 31 | 16 / 2 | 0.93 (0.99 when both significant) | 0.95 |
+| prod | 41 / 0 | 9 | 9 / 0 | 0.42 | 0.67 |
+| disc | 68 / 1 | 28 | 12 / 5 | 0.86 | 0.90 |
+| mean | 62 / 0 | 37 | 19 / 2 | 0.93 | 0.93 |
+
+- -Strike and +Strike are mostly not significant under any rule (9 / 3 and 8 / 1 of 38): not a usable ranking test.
+- Unfloored product: act-3 double-boss gates of 1e-11 to 1e-6 (shuffle sd of log10 0.2-0.45) carry 82% of a rare's log-gain on act-1 states. Floored at 0.05: 66% from the current act, the rest from contested later gates.
+- **Enabler bias:** on the predictor's numbers Accelerant is negative even inside the full poison plan (current-act gate -0.15 +- 0.03), so the current-deck bias cannot be separated from the blind spot above; Noxious Fumes and Bouncing Flask gain more on the starter (+0.16 / +0.14) than as the last card of the plan (+0.08 / +0.05).
+- **Cost:** closed-form gates 0.1-0.5 s per screen (8-16 seeds); `price --cont clip` (rollouts + gates at the act's end) costs the same as `price` (9-23 s at 128 rollouts, shared GPU).
+- **Recorded screens** (93 card rewards and rests, 5 runs): closed-form `clip` separates the best option on 85% (mean 90%), same best on a fresh seed set 69% (mean 80%).

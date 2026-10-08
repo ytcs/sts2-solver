@@ -419,6 +419,8 @@ def play(st, rng, pol, first=None):
             for t in TEMPLATE.get(st.act, TEMPLATE[1]).split():
                 if not (yield from room(t)):
                     return 0
+        if pol.gates and st.act == act0:
+            st.gates = yield from gates(st, pol)
         bosses = st.bosses or [rng.choice(pools.pool(st.act_name, "boss"))]
         if st.act == 2 and len(bosses) < 2:
             bosses = bosses + [rng.choice([b for b in pools.pool(st.act_name, "boss") if b not in bosses])]
@@ -436,8 +438,6 @@ def play(st, rng, pol, first=None):
         dr.act = st.act
         if st.act == act0 + 1:
             st.ready, st.ready_worth = yield from readiness(st, pol)
-            if pol.gates:
-                st.gates = yield from gates(st, pol)
 
 
 class Rollouts:

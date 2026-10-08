@@ -205,10 +205,14 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4, cont=None):
             r["ready_worth"] = np.array([-1.0 if s.ready_worth is None else s.ready_worth for s in ss])
         r["floors"] = np.array([s.floors for s in ss], float)
         if cont is not None:
-            r["cont"] = np.array([w if st.act == R.LAST_ACT else c * R.combine(getattr(s, "gates", None) or [(0, 0.0, 0.0)], cont)
-                                  for w, c, s in zip(won[sel], cleared, ss)])
+            r["cont"] = np.array([arrival(s.gates, cont) if getattr(s, "gates", None) else 0.0 for s in ss])
         res[label] = r
     return res
+
+
+def arrival(g, rule):
+    """V at the current act's boss: its boss gate times every later gate (the current act's elites are behind)"""
+    return R.combine([(g[0][0], 1.0, g[0][2])] + list(g[1:]), rule)
 
 
 def closed_gates(st, opts, predictor, seeds=range(1000, 1008)):
@@ -263,7 +267,7 @@ def separates(res, k, z=2.0):
 
 def ladder(res, saturated=ACT_SATURATED):
     if all("cont" in r for r in res.values()):
-        return "cont", "P(clear act) x the floored product of later acts' elite and boss gates on the deck at the act's end (S5 surrogate)"
+        return "cont", "rollouts to this act's boss, then its boss gate x every later act's elite and boss gates on the deck at arrival (S5 surrogate)"
     if separates(res, "win"):
         return "win", "P(win run) separates the options (> 2 paired se)"
     best = max(r["act"].mean() for r in res.values())
@@ -388,13 +392,13 @@ def replay(run, n=128, cont="clip", kinds=("CARD_REWARD", "RESTSITE")):
         res = price(st, opts, pred, n=n, seed=floor, cont=cont)
         now, ranked = best({lb: {k: v for k, v in r.items() if k != "cont"} for lb, r in res.items()})
         surr, _ = best(res)
-        G = closed_gates(st, opts, pred)
-        closed = opts[int(np.array([[R.combine(g, cont) for g in Gs] for Gs in G]).mean(0).argmax())][0]
+        V = np.array([[R.combine(g, cont) for g in Gs] for Gs in closed_gates(st, opts, pred)])
+        closed = opts[int(V.mean(0).argmax())][0]
         row = dict(floor=floor, screen=scr.kind(state), played=_played(state, choice, opts), old=old, now=now, ranked=ranked, surrogate=surr,
-                   sep=separates(res, "cont"), closed=closed)
+                   sep=separates(res, "cont"), closed=closed, closed_sep=separates({lb: {"v": V[:, i]} for i, (lb, _) in enumerate(opts)}, "v"))
         rows.append(row)
         print(f"F{floor:<3d} {row['screen']:11s} {st.hp:3d}/{st.max_hp} | played {row['played'][:16]:16s} | old {str(old)[:16]:16s} | "
-              f"price[{ranked}] {now[:16]:16s} | S5 rollout {surr[:16]:16s}{'' if row['sep'] else ' (flat)':7s} | S5 closed {closed[:16]}", flush=True)
+              f"price[{ranked}] {now[:16]:16s} | S5 rollout {surr[:16]:16s}{'' if row['sep'] else ' (flat)':7s} | S5 closed {closed[:16]}{'' if row['closed_sep'] else ' (flat)'}", flush=True)
     return rows
 
 
@@ -415,7 +419,8 @@ def main():
         return f"{np.mean([p == q for p, q in pairs]):.2f} of {len(pairs)}" if pairs else "n/a"
     print(f"{len(rows)} screens; S5 rollout+gates vs price {rate('surrogate', 'now')}, vs S5 closed {rate('surrogate', 'closed')}, "
           f"vs played {rate('surrogate', 'played')}, vs old calc {rate('surrogate', 'old')}; price vs played {rate('now', 'played')}, "
-          f"vs old calc {rate('now', 'old')}; S5 closed vs played {rate('closed', 'played')}")
+          f"vs old calc {rate('now', 'old')}; S5 closed vs played {rate('closed', 'played')}; separated by > 2 paired se: S5 rollout "
+          f"{np.mean([r['sep'] for r in rows]):.2f}, S5 closed {np.mean([r['closed_sep'] for r in rows]):.2f}")
 
 
 if __name__ == "__main__":
