@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::LazyLock;
+
 use serde_json::Value;
 use sts2sim::ids;
 use sts2sim::rng::{deterministic_hash, Rng};
@@ -8,8 +11,24 @@ fn strip(id: &str) -> &str {
     id.split_once('.').map_or(id, |(_, r)| r)
 }
 
-fn find(names: &[&str], id: &str, what: &str) -> Result<u16, String> {
-    names.iter().position(|n| *n == strip(id)).map(|i| i as u16).ok_or_else(|| format!("unknown {what} id {id}"))
+type Index = LazyLock<HashMap<&'static str, u16>>;
+
+fn index(names: &'static [&'static str]) -> HashMap<&'static str, u16> {
+    let mut m = HashMap::with_capacity(names.len());
+    for (i, n) in names.iter().enumerate() {
+        m.entry(*n).or_insert(i as u16);
+    }
+    m
+}
+
+static IDX_CARD: Index = LazyLock::new(|| index(&ids::card::NAMES));
+static IDX_RELIC: Index = LazyLock::new(|| index(&ids::relic::NAMES));
+static IDX_POTION: Index = LazyLock::new(|| index(&ids::potion::NAMES));
+static IDX_ENCOUNTER: Index = LazyLock::new(|| index(&ids::encounter::NAMES));
+static IDX_ENCHANTMENT: Index = LazyLock::new(|| index(&ids::enchantment::NAMES));
+
+fn find(names: &Index, id: &str, what: &str) -> Result<u16, String> {
+    names.get(strip(id)).copied().ok_or_else(|| format!("unknown {what} id {id}"))
 }
 
 fn id_of(v: &Value) -> &str {
@@ -38,7 +57,7 @@ pub fn obs_relics(relics: &Value) -> Vec<sts2sim::engine::ObsRelic> {
     let Some(a) = relics.as_array() else { return vec![] };
     a.iter()
         .filter_map(|r| {
-            let id = find(&ids::relic::NAMES, id_of(r), "relic").ok()?;
+            let id = find(&IDX_RELIC, id_of(r), "relic").ok()?;
             let props = r["props"]
                 .as_object()
                 .map(|o| o.iter().filter_map(|(k, v)| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).map(|n| (k.clone(), n as i32))).collect())
@@ -92,7 +111,7 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
         let mut x = DeckExtra::default();
         if let Some(e) = c.get("enchantment") {
             let eid = if e.is_string() { e.as_str().unwrap() } else { e["id"].as_str().unwrap_or("") };
-            x.enchant = find(&ids::enchantment::NAMES, eid, "enchantment")? as u8 + 1;
+            x.enchant = find(&IDX_ENCHANTMENT, eid, "enchantment")? as u8 + 1;
             x.enchant_amount = e["amount"].as_i64().unwrap_or(1) as i16;
         }
         if let Some(p) = c["props"].as_object() {
@@ -101,15 +120,15 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
             }
         }
         extras.deck.push(x);
-        deck.push(DeckCard { id: find(&ids::card::NAMES, id_of(c), "card")?, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8 });
+        deck.push(DeckCard { id: find(&IDX_CARD, id_of(c), "card")?, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8 });
     }
     let mut relics = vec![];
     for r in v["relics"].as_array().unwrap_or(&vec![]) {
-        relics.push(relic_init(find(&ids::relic::NAMES, id_of(r), "relic")?, &r["props"])?);
+        relics.push(relic_init(find(&IDX_RELIC, id_of(r), "relic")?, &r["props"])?);
     }
     let mut potions = vec![];
     for p in v["potions"].as_array().unwrap_or(&vec![]) {
-        potions.push(find(&ids::potion::NAMES, id_of(p), "potion")?);
+        potions.push(find(&IDX_POTION, id_of(p), "potion")?);
     }
     let hp = v["hp"].as_i64().unwrap_or(80) as i32;
     Ok((Scenario {
@@ -117,7 +136,7 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
         total_floor: v["total_floor"].as_i64().unwrap_or(1) as i32,
         character,
         ascension: v["ascension"].as_u64().unwrap_or(0) as u8,
-        encounter: find(&ids::encounter::NAMES, v["encounter"].as_str().ok_or("encounter missing")?, "encounter")?,
+        encounter: find(&IDX_ENCOUNTER, v["encounter"].as_str().ok_or("encounter missing")?, "encounter")?,
         max_hp: v["max_hp"].as_i64().map(|x| x as i32).unwrap_or(hp),
         hp,
         max_energy: v["max_energy"].as_i64().unwrap_or(3) as i32,
