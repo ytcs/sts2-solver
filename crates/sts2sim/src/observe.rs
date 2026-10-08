@@ -520,12 +520,12 @@ impl Combat {
         // ---- hand (ordered) ----
         // v2: each hand card's preview once (the hand entry and the Osty section both read it)
         let mut hand_pre = [CardPreview::default(); MAX_HAND];
+        prof!(1, t1, {
         if v2 {
             for (k, c) in self.player.hand.iter().enumerate().take(MAX_HAND) {
                 hand_pre[k] = self.card_preview(*c);
             }
         }
-        prof!(1, t1, {
         for k in 0..MAX_HAND {
             match self.player.hand.get(k) {
                 Some(c) => {

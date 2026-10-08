@@ -2,14 +2,13 @@
 //! `lead`, `strat`, `carry`, outcome-head value rows, `record`) on real scenarios, with a stand-in network whose answers depend only on the request (a hash
 //! of the observation picks the play-out move, ranks the options and sets the value), so the run is reproducible whatever the thread count.
 //!
-//!   cargo run --release -p sts2env --example searchprof -- data/bench/mix.json [fights 128] [threads 1] [roots 64] [m 5] [k 32]
+//!   cargo run --release -p sts2env --example searchprof -- data/bench/mix.json [fights 128] [threads 1] [roots 64] [m 5] [k 32] [obs version 1]
 //!
 //! Prints the time inside `advance` (the engine), the engine's cycle counters, and a checksum over the results and every recorded move: an optimisation
 //! of the engine or the simulator that keeps the search identical keeps the checksum. With `--features sts2sim/obs_prof` it also splits `observe_ex`.
 use std::time::Instant;
 use sts2env::search::*;
 use sts2sim::engine::ACTION_SPACE;
-use sts2sim::observe::OBS_SIZE;
 
 fn hash(o: &[f32]) -> u64 {
     let mut h = 0xcbf29ce484222325u64;
@@ -49,7 +48,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let path = args.get(1).expect("scenario json (a list of scenarios or of {scenario: ...})");
     let arg = |i: usize, d: usize| args.get(i).and_then(|s| s.parse().ok()).unwrap_or(d);
-    let (n_fights, threads, roots, m, k) = (arg(2, 128), arg(3, 1), arg(4, 64), arg(5, 5), arg(6, 32));
+    let (n_fights, threads, roots, m, k, ver) = (arg(2, 128), arg(3, 1), arg(4, 64), arg(5, 5), arg(6, 32), arg(7, 1) as u8);
     let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let mut scen = vec![];
     for sj in v.as_array().unwrap() {
@@ -65,6 +64,9 @@ fn main() {
     let jobs: Vec<(u32, u64)> = (0..scen.len()).map(|i| (i as u32, 101 * 1_000_003 + i as u64)).collect();
     let cfg = SearchCfg { m, k, roll_cap: 120, leaf_turns: 2, turn_cap: 30, val_w: HEAD_NC, ..SearchCfg::default() };
     let mut eng = SearchEngine::new(scen, jobs.clone(), roots, cfg, threads, true).unwrap();
+    eng.set_obs_version(ver).expect("observation version 1 or 2");
+    #[allow(non_snake_case)]
+    let OBS_SIZE = eng.obs_size();
     let cap = eng.shared_rows();
     let (mut obs, mut mask, mut pk, mut pu, mut vk) = (vec![0f32; cap * OBS_SIZE], vec![0u8; cap * ACTION_SPACE], vec![0u8; cap], vec![0f32; cap], vec![0u8; cap]);
     let stride = 2 * m + 1;
@@ -112,7 +114,7 @@ fn main() {
     }
     let st = eng.stats();
     let tot = (st.cy_step + st.cy_obs + st.cy_fork + st.cy_legal + st.cy_main).max(1) as f64;
-    println!("{} fights, {threads} threads, {roots} roots, {m}x{k}: engine {t_eng:.2}s of {wall:.2}s ({cycles} cycles); wins {wins}; checksum {h:016x}", jobs.len());
+    println!("{} fights, {threads} threads, {roots} roots, {m}x{k}, obs v{ver}: engine {t_eng:.2}s of {wall:.2}s ({cycles} cycles); wins {wins}; checksum {h:016x}", jobs.len());
     println!(
         "  cycles: step {:.1}% (end turn {:.1}%), obs {:.1}%, fork {:.1}%, legal {:.1}%, main {:.1}%",
         100.0 * st.cy_step as f64 / tot,
