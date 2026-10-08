@@ -431,3 +431,22 @@ Measurements taken while planning the rebuild (2026-10-06 onward). Each entry: q
   - It is the best calibrated on the tail.
   - With it as the search's judge, close wins are lost less often (about 1.75 se), so the combined near-miss effect is about +0.02 (~2 se).
 - **Not yet shown:** a lambda sweep (0.8, 0.95) and more attempts on the near-miss bench.
+
+## E25. Optimality bracket on near-miss fights
+- **Method:** `tools/nearmiss_bench.py eval`, held-out r4u set: 1230 near-miss losses and 1500 close wins, from the fight start, original fight seeds, 1 attempt per arm. Each arm is paired with r3 at live width (the luck baseline).
+
+| arm | near-miss losses won | close wins lost |
+|---|---|---|
+| r3, 5x32 (live; luck baseline) | 0.328 | 0.247 |
+| r3, 5x256 (8x the futures, honest) | 0.352 (+0.024 +- 0.014) | 0.209 (-0.039 +- 0.012) |
+| r3, clairvoyant 5x32 (sees the true future) | 0.516 (+0.189 +- 0.015) | 0.129 (-0.119 +- 0.012) |
+
+- **What it shows:**
+  - About half of the near-miss losses (48%) are lost even when every future draw and roll is known. On that realization they are effectively unwinnable.
+  - The avoidable share of near-miss losses lies between ~0.02 and ~0.19:
+    - the lower bound: what a much stronger honest search recovers beyond luck;
+    - the upper bound: what perfect information recovers, mostly unattainable by any real player.
+  - Since 8x search recovers little, the live solver sits close to the honest frontier that its own judge allows.
+  - For scale, the TD value target (E24) moved these numbers about a third as much as 8x search.
+- **Cost:** the 5x256 arm took 96 min (whole fights at 8x the live cost).
+- **Next:** turn restarts (`turns`), to locate where the avoidable errors are.
