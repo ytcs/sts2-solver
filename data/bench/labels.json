@@ -1,0 +1,26 @@
+{
+ "eval": {
+  "labeler": "solver_gen2.pt",
+  "search": "5x32 cover",
+  "attempts": 8,
+  "seed": 11
+ },
+ "corpus": {
+  "labeler": "solver_gen2.pt",
+  "search": "5x32 cover",
+  "attempts": 8,
+  "seed": 11
+ },
+ "mix": {
+  "labeler": "solver_gen2.pt",
+  "search": "5x32 cover",
+  "attempts": 8,
+  "seed": 11
+ },
+ "tail": {
+  "labeler": "solver_gen2.pt",
+  "search": "5x32 cover",
+  "attempts": 8,
+  "seed": 11
+ }
+}
