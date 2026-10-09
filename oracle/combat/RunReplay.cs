@@ -447,6 +447,7 @@ public sealed class RunReplay
             PotionReward pr => p == "potion" || NameToId(pick) == pr.Potion?.Id.Entry,
             CardReward c => p == "card" || c.Cards.Any(x => x.Id.Entry == NameToId(pick)),
             RelicReward rr => p == "relic" || NameToId(pick) == rr.Relic?.Id.Entry,
+            SpecialCardReward sc => p == "special card" || NameToId(pick) == sc.ToSerializable().SpecialCard?.Id?.Entry,
             _ => false,
         };
     }
@@ -457,6 +458,7 @@ public sealed class RunReplay
         PotionReward p => new JsonObject { ["type"] = "potion", ["id"] = p.Potion?.Id.Entry },
         CardReward c => new JsonObject { ["type"] = "card", ["cards"] = new JsonArray(c.Cards.Select(x => (JsonNode)Dump.CardBrief(x)).ToArray()) },
         RelicReward rr => new JsonObject { ["type"] = "relic", ["id"] = rr.Relic?.Id.Entry },
+        SpecialCardReward sc => new JsonObject { ["type"] = "special card", ["id"] = sc.ToSerializable().SpecialCard?.Id?.Entry },
         _ => new JsonObject { ["type"] = r.GetType().Name },
     };
 
