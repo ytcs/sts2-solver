@@ -90,7 +90,7 @@ class Curriculum:
         pool = [p for p in self.g.potions[ch] + self.g.potions["SHARED"] if p["usage"] in ("CombatOnly", "AnyTime")]
         return [{"id": r.choice(pool)["id"], "slot": i} for i in range(n)], slots
 
-    def scenario(self, i, seed, stage, pmax, character=None, act=None, rooms=None, n_add=None):
+    def scenario(self, i, seed, stage, pmax, character=None, act=None, rooms=None, n_add=None, force_cards=(), force_potions=()):
         r = random.Random(f"m3/{seed}/{i}")
         easy = stage == "easy"
         ch = character or r.choices(list(CHAR_W), list(CHAR_W.values()))[0]
@@ -118,6 +118,11 @@ class Curriculum:
         potions, slots = self.potions(r, ch, rids, pmax, easy)
         hp = int(round(max_hp * (r.uniform(0.75, 1.0) if easy else r.uniform(0.2, 1.0)))) or 1
         floor = {0: r.randint(1, 16), 1: r.randint(18, 33), 2: r.randint(35, 50)}[act]
+        for cid in force_cards:
+            deck.append({"id": cid, "upgrade": 1} if self.g.max_upgrade.get(cid, 0) > 0 and r.random() < [0.15, 0.35, 0.5][act] else cid)
+        if force_potions:
+            slots = max(slots, len(force_potions))
+            potions = [{"id": p, "slot": k} for k, p in enumerate(force_potions)] + [dict(x, slot=len(force_potions) + k) for k, x in enumerate(potions[:slots - len(force_potions)])]
         return {"name": f"m3_{seed}_{i}", "ascension": 10, "encounter": enc["id"], "character": ch, "hp": hp, "max_hp": max_hp, "max_energy": energy,
                 "base_orb_slots": orbs, "max_potion_slots": slots, "gold": r.choice([0, 50, 99, 150, 300]), "seed": f"m3{seed}-{i}", "total_floor": floor,
                 "act": act, "deck": deck, "relics": relics, "potions": potions, "meta": {"stage": stage, "focus": focus}}

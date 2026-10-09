@@ -44,6 +44,8 @@ CROSS_THEMES = {
                         "SURVIVOR", "ACROBATICS", "PREPARED", "CALCULATED_GAMBLE", "DAGGER_THROW"], []),
 }
 STAR_SOURCES = ["VENERATE", "GLOW", "GATHER_LIGHT"]
+TRANSCEND = {"BASH": "BREAK", "NEUTRALIZE": "SUPPRESS", "UNLEASH": "PROTECTOR", "FALLING_STAR": "METEOR_SHOWER", "DUALCAST": "QUADCAST"}
+ANCIENT_OFFER = {1: (0.146, 0.0625), 2: (0.146, 0.094)}  # (Archaic Tooth, Dusty Tome) offered by this act: game_code.md C8
 
 
 def slugify(name):
@@ -94,6 +96,8 @@ class Gen:
         self.potions = {k: [p for p in v if p["id"] in self.have["potion"]] for k, v in self.cat["potions"].items()}
         self.encs = [e for e in self.cat["encounters"] if e["id"] in self.have["encounter"]]
         self.ctypes = {c["id"]: c["type"] for pool in self.cat["cards"].values() for c in pool}
+        self.max_upgrade = {c["id"]: c.get("max_upgrade", 0) for pool in self.cat["cards"].values() for c in pool}
+        self.tome = {ch: [c["id"] for c in self.cards[ch] if c["rarity"] == "Ancient" and c["id"] not in TRANSCEND.values()] for ch in STARTERS}
 
     def pick_card(self, r, pool, rarity_w=(("Common", 5), ("Uncommon", 4), ("Rare", 2))):
         cards = [c for c in pool if c["rarity"] in dict(rarity_w)]
@@ -179,6 +183,18 @@ class Gen:
             i = r.randrange(len(out))
             if (out[i] if isinstance(out[i], str) else out[i]["id"]).startswith(("STRIKE_", "DEFEND_")):
                 out.pop(i)
+        return self.ancient(random.Random(hash(r.getstate()[1])), ch, act, out)
+
+    def ancient(self, r, ch, act, out):
+        tooth, tome = ANCIENT_OFFER.get(act, (0, 0))
+        if r.random() < tooth:
+            for i, c in enumerate(out):
+                cid = c if isinstance(c, str) else c["id"]
+                if cid in TRANSCEND:
+                    out[i] = TRANSCEND[cid] if isinstance(c, str) else dict(c, id=TRANSCEND[cid])
+                    break
+        if r.random() < tome and self.tome[ch]:
+            out.append({"id": r.choice(self.tome[ch]), "upgrade": 1})
         return out
 
     def make_relics(self, r, ch, lo, hi):

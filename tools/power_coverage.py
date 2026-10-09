@@ -24,6 +24,8 @@ PID = {n: i for i, n in enumerate(PNAME)}
 P, PF, EF, CF, E = C["OBS_POWERS"], C["POWER_F"], C["ENEMY_F"], C["CARD_F"], C["OBS_MAX_ENEMIES"]
 CAT = json.load(open(os.path.join(ROOT, "data", "catalog.json")))
 CTYPE = {c["id"]: c["type"] for pool in CAT["cards"].values() for c in pool}
+ANCIENT = {c["id"] for k, pool in CAT["cards"].items() if k != "EVENT" for c in pool if c["rarity"] == "Ancient"}
+INTANGIBLE_SRC = {"WRAITH_FORM", "APPARITION", "GHOST_IN_A_JAR"}
 IS_POWER_CARD = np.array([CTYPE.get(n) == "Power" for n in CNAME] + [False])
 DEBUFF = {"WEAK_POWER", "VULNERABLE_POWER", "FRAIL_POWER", "POISON_POWER", "DOOM_POWER", "CONSTRICT_POWER", "TANGLED_POWER", "NO_DRAW_POWER",
           "NO_BLOCK_POWER", "CONFUSED_POWER", "HEX_POWER", "SHRINK_POWER", "CHAINS_OF_BINDING_POWER", "NO_ENERGY_GAIN_POWER", "DEBILITATE_POWER",
@@ -186,19 +188,24 @@ def stats_play(path, groups, ckpt, n_max, seeds, label, full_only=False):
         env = sts2.VecEnv(len(scs), scs, seed=1000 + seed, round_robin=True, max_steps=600)
         obs, mask = env.reset()
         live = np.ones(len(scs), bool)
-        rows = [[] for _ in scs]
+        steps = []
         while live.any():
-            for i in np.flatnonzero(live):
-                rows[i].append(obs[i].copy())
+            idx = np.flatnonzero(live)
+            steps.append((idx, {k: v.copy() for k, v in decode(obs[idx]).items()}))
             with torch.no_grad():
                 a = act(obs, mask)
             obs, mask, _, done, _ = env.step(a)
             live &= ~done.astype(bool)
+        fid = np.concatenate([i for i, _ in steps])
+        D = {k: np.concatenate([d[k] for _, d in steps]) for k in steps[0][1]}
+        del steps
+        order = np.argsort(fid, kind="stable")
+        lo = np.searchsorted(fid[order], np.arange(len(scs) + 1))
         for i, sc in enumerate(scs):
-            d = decode(np.stack(rows[i]))
-            for key in (f"{label}:ALL", f"{label}:{sc['character']}"):
-                acc_for(groups, key).add(d, deck_pc(sc["deck"]))
-        print(f"{label} seed {seed}: {sum(map(len, rows))} states", file=sys.stderr, flush=True)
+            rows = order[lo[i]:lo[i + 1]]
+            for key in (f"{label}:ALL", f"{label}:{sc['character']}", f"{label}:src:{sc.get('meta', {}).get('source', '?')}"):
+                acc_for(groups, key).add({k: v[rows] for k, v in D.items()}, deck_pc(sc["deck"]))
+        print(f"{label} seed {seed}: {len(fid)} states", file=sys.stderr, flush=True)
 
 
 def json_state(st, deck):
@@ -252,8 +259,11 @@ def deck_only(path, groups, label, by_source=True):
             a.fights += 1
             a.fdeck_n.append(len(dpc))
             a.f["deck_size"] += len(sc["deck"])
-            for c in set(dpc):
+            ids = {cid(c) for c in sc["deck"]}
+            for c in ids:
                 a.fdeck[c] += 1
+            a.f["deck_char_ancient>=1"] += bool(ANCIENT & ids)
+            a.f["intangible_source"] += bool(INTANGIBLE_SRC & (ids | {cid(p) for p in sc.get("potions", [])}))
             a.f["deck_pc>=1"] += len(dpc) >= 1
             a.f["deck_pc>=3"] += len(dpc) >= 3
             a.f["deck_pc>=5"] += len(dpc) >= 5

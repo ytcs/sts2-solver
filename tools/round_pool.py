@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""One combat-loop round's fight list: a signal pool, plan-shaped decks, enabler pairs and big late-act decks at bosses."""
+"""One combat-loop round's fight list: a signal pool, plan-shaped decks, enabler pairs, big late-act decks at bosses, and forced-source slices
+(player Intangible sources, expert/plan core cards, long Silent poison fights)."""
 import argparse, json, os, random, sys, time
 from collections import Counter
 
@@ -15,6 +16,9 @@ from agent import plans  # noqa: E402
 UPGRADE_P = (0.15, 0.35, 0.5)
 OFFERED = ("Common", "Uncommon", "Rare")
 SHAPED_HP = (0.45, 1.0)
+CORE = {"NOXIOUS_FUMES": "SILENT", "PYRE": "IRONCLAD", "CRUELTY": "IRONCLAD", "SERPENT_FORM": "SILENT", "BURST": "SILENT", "BULLET_TIME": "SILENT",
+        "CALCIFY": "NECROBINDER", "FURNACE": "REGENT", "DEFRAGMENT": "DEFECT"}
+POISON = ["DEADLY_POISON", "POISONED_STAB", "BOUNCING_FLASK", "SNAKEBITE", "HAZE", "OUTBREAK", "BUBBLE_BUBBLE", "MIRAGE", "ACCELERANT"]
 
 
 class Builder:
@@ -23,7 +27,7 @@ class Builder:
         self.seed, self.pmax = seed, potions_max
         self.r = random.Random(f"round/{seed}")
         self.n = 0
-        self.max_upgrade = {c["id"]: c.get("max_upgrade", 0) for pool in self.C.g.cat["cards"].values() for c in pool}
+        self.max_upgrade = self.C.g.max_upgrade
         self.offered = {ch: [c for c in self.C.g.cards[ch] if c["rarity"] in OFFERED] for ch in gc.CHAR_W}
         self.plans = [p for p in plans.load() if sp.multiplayer_free([{"deck": p["core"] + p.get("support", [])}])]
         self.targets = {p["id"]: list(bench.plan_targets(p).items()) for p in self.plans}
@@ -99,6 +103,20 @@ class Builder:
         deck = self.fill(deck, ch, size - len(deck))
         return [dict(sc, name=f"round{self.seed}:late:{i}", deck=deck, meta=dict(source="late", size=size, focus=sc["meta"]["focus"]))]
 
+    def forced(self, kind, i):
+        r = self.r
+        if kind == "intangible":
+            src = r.choices(["WRAITH_FORM", "APPARITION", "GHOST_IN_A_JAR"], [3, 1, 1])[0]
+            kw = dict(force_potions=[src]) if src == "GHOST_IN_A_JAR" else dict(force_cards=[src] * r.choice([1, 1, 2] if src == "WRAITH_FORM" else [1, 2, 3]))
+            sc, meta = self.generated(character="SILENT" if src == "WRAITH_FORM" and r.random() < 0.5 else None, **kw), dict(card=src)
+        elif kind == "core":
+            card = list(CORE)[i % len(CORE)]
+            sc, meta = self.generated(character=CORE[card], force_cards=[card] * r.choice([1, 1, 2])), dict(card=card)
+        else:
+            cards = (["NOXIOUS_FUMES"] if r.random() < 0.8 else []) + [r.choice(POISON) for _ in range(r.randint(3, 6))]
+            sc, meta = self.loadout(character="SILENT", act=r.choice([1, 2]), rooms=("Elite", "Boss"), force_cards=cards), dict(cards=len(cards))
+        return [dict(sc, name=f"round{self.seed}:{kind}:{i}", meta=dict(meta, source=kind, focus=sc["meta"]["focus"]))]
+
 
 def constructs(sc, why):
     import sts2
@@ -134,6 +152,9 @@ def main():
     ap.add_argument("--pairs", type=int, default=8000, help="enabler pairs (2 fights each)")
     ap.add_argument("--late", type=int, default=14000, help="big decks at act 2-3 bosses")
     ap.add_argument("--late-size", type=int, nargs=2, default=[29, 35])
+    ap.add_argument("--intangible", type=int, default=9000, help="decks carrying a player Intangible source (Wraith Form, Apparition, Ghost in a Jar)")
+    ap.add_argument("--core", type=int, default=18000, help="normal decks of the card's character plus 1-2 copies of an expert/plan core card (CORE)")
+    ap.add_argument("--poison", type=int, default=8000, help="Silent decks with 3-7 poison cards at act 2-3 elites and bosses, shaped HP")
     ap.add_argument("--anchor", type=float, default=0.15)
     ap.add_argument("--shuffles", type=int, default=4)
     ap.add_argument("--potions-max", type=int, default=8)
@@ -148,7 +169,8 @@ def main():
     for fn in a.cands:
         cands += [sc for sc in sp.multiplayer_free(json.load(open(fn))) if constructs(sc, why)]
     slices = dict(plans=build(B.plan_variant, a.plans, why), pairs=build(B.pair, 2 * a.pairs, why),
-                  late=build(lambda i: B.late(i, *a.late_size), a.late, why))
+                  late=build(lambda i: B.late(i, *a.late_size), a.late, why),
+                  **{k: build(lambda i, k=k: B.forced(k, i), getattr(a, k), why) for k in ("intangible", "core", "poison")})
     print(f"{len(cands)} candidates, {sum(map(len, slices.values()))} shaped fights built in {time.time() - t0:.0f}s; scoring with {os.path.basename(a.ckpt)}", flush=True)
     rest = [sc for s in slices.values() for sc in s]
     p = sp.score(a.ckpt, cands + rest, a.shuffles)
