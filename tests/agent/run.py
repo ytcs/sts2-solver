@@ -20,7 +20,7 @@ def main(argv):
     pat = argv[argv.index("-k") + 1] if "-k" in argv else None
     first_fail = "-x" in argv
     mods = sorted(f[:-3] for f in os.listdir(HERE) if f.startswith("test_") and f.endswith(".py"))
-    passed, failed, skipped = 0, [], 0
+    passed, failed = 0, []
     t_all = time.time()
     for m in mods:
         mod = importlib.import_module(m)
@@ -43,13 +43,9 @@ def main(argv):
                 fn(**kw)
                 passed += 1
                 print(f"PASS {label} ({time.time() - t0:.1f}s)")
-            except Exception as e:  # noqa: BLE001
-                if type(e).__name__ in ("Skip", "Skipped"):
-                    skipped += 1
-                    print(f"SKIP {label}: {e}")
-                else:
-                    failed.append(label)
-                    print(f"FAIL {label}\n" + traceback.format_exc())
+            except Exception:  # noqa: BLE001
+                failed.append(label)
+                print(f"FAIL {label}\n" + traceback.format_exc())
             finally:
                 mp.undo()
                 shutil.rmtree(tmp, ignore_errors=True)
@@ -57,7 +53,7 @@ def main(argv):
                 break
         if failed and first_fail:
             break
-    print(f"\n{passed} passed, {len(failed)} failed, {skipped} skipped in {time.time() - t_all:.0f}s")
+    print(f"\n{passed} passed, {len(failed)} failed in {time.time() - t_all:.0f}s")
     for f in failed:
         print("  failed:", f)
     return 1 if failed else 0

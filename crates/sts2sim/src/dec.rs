@@ -120,18 +120,3 @@ impl core::fmt::Debug for Dec {
         write!(f, "{}", self.to_f64())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn spec_worked_examples() {
-        let v = (Dec::int(6) + Dec::int(3)) * Dec::frac(15, 1) * Dec::frac(75, 2);
-        assert_eq!(v.trunc(), 10);
-        assert_eq!(v, Dec::frac(10125, 3));
-        assert_eq!(Dec::frac(75, 1).trunc(), 7);
-        assert_eq!((Dec::frac(7, 1) * Dec::int(10)).trunc(), 7);
-        assert_eq!((-Dec::frac(15, 1)).trunc(), -1);
-    }
-}

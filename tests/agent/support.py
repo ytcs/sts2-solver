@@ -7,7 +7,6 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 FIX = os.path.join(HERE, "fixtures")
-GOLD = os.path.join(HERE, "golden")
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
@@ -15,35 +14,6 @@ if ROOT not in sys.path:
 def screen(name):
     with open(os.path.join(FIX, "screens", name + ".txt"), encoding="utf-8") as f:
         return f.read()
-
-
-def fixture_json(name):
-    with open(os.path.join(FIX, name), encoding="utf-8") as f:
-        return json.load(f)
-
-
-def deck():
-    return fixture_json("deck.json")
-
-
-MAP_A2 = """rows bottom->top; point = <type>c<col>><child cols>; * = visited
-r0: *Ac3>1,3,5
-r1: *Mc1>0,2 Mc3>3 Mc5>6
-r2: Mc0>1 Mc2>1,2 $c3>4 Mc6>5
-r3: ?c1>1 Ec2>2 Mc4>4 Mc5>5
-r4: Rc1>2 Ec2>2,3 Mc4>3 ?c5>4
-r5: Mc2>2 Tc3>3 Mc4>3
-r6: Ec2>2 Rc3>2,3
-r7: Rc2> Rc3>
-boss: 8 KNOWLEDGE_DEMON_BOSS
-"""
-
-MAP_SCREEN_A2 = """MAP
-A2 F16 IRONCLAD A10 HP 52/80 G180 pots[Power Potion, -]
-full map: m
-0 Monster r2c0 -> ?c1
-1 Monster r2c2 -> ?c1,Ec2
-"""
 
 
 class MonkeyPatch:
@@ -231,55 +201,6 @@ def make_harness(mp, tmp, fake, events=(), run_id="testrun", engine=None):
     return h
 
 
-def fight_starts(upto=None):
-    out = []
-    with open(os.path.join(FIX, "fight_starts.jsonl"), encoding="utf-8") as f:
-        for l in f:
-            e = json.loads(l)
-            if upto is None or int(e["id"]) <= upto:
-                out.append(e)
-    return out
-
-
-def events(h):
-    p = os.path.join(h.log.dir, "events.jsonl")
-    if not os.path.exists(p):
-        return []
-    with open(p, encoding="utf-8") as f:
-        return [json.loads(l) for l in f]
-
-
-def golden(name, text):
-    p = os.path.join(GOLD, name)
-    if os.environ.get("STS2_UPDATE_GOLDEN") == "1" or not os.path.exists(p):
-        os.makedirs(GOLD, exist_ok=True)
-        with open(p, "w", encoding="utf-8", newline="") as f:
-            f.write(text)
-        return
-    with open(p, encoding="utf-8") as f:
-        want = f.read()
-    if want != text:
-        import difflib
-        diff = "".join(list(difflib.unified_diff(want.splitlines(True), text.splitlines(True), "golden", "now"))[:60])
-        raise AssertionError(f"golden {name} differs:\n{diff}")
-
-
-class Skip(Exception):
-    pass
-
-
-def skip(why):
-    try:
-        import pytest
-    except ImportError:
-        raise Skip(why) from None
-    pytest.skip(why)
-
-
 def ok(out):
     assert not out.startswith("ERR harness"), out
     return out
-
-
-def bare(out):
-    return "".join(x for x in out.splitlines(keepends=True) if not x.startswith("public odds:"))

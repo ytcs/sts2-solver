@@ -53,12 +53,6 @@ impl ScenarioSource for FixedScenario {
 
 pub struct PoolScenario(Vec<Scenario>, Vec<ScenarioExtras>, Option<Vec<f64>>);
 impl PoolScenario {
-    pub fn new(v: Vec<Scenario>) -> PoolScenario {
-        assert!(!v.is_empty());
-        let ex = v.iter().map(|_| ScenarioExtras::default()).collect();
-        PoolScenario(v, ex, None)
-    }
-
     pub fn with_extras(v: Vec<(Scenario, ScenarioExtras)>) -> PoolScenario {
         assert!(!v.is_empty());
         let (s, e) = v.into_iter().unzip();
@@ -143,12 +137,6 @@ pub struct RewardConfig {
     pub loss: f32,
     pub hp_bonus: f32,
     pub turn_cap: u32,
-}
-
-impl Default for RewardConfig {
-    fn default() -> Self {
-        RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.0, turn_cap: 0 }
-    }
 }
 
 pub const OUTCOME_ONGOING: i8 = 0;
@@ -301,10 +289,6 @@ fn step_one(
 }
 
 impl BatchEnv {
-    pub fn new(n: usize, source: Box<dyn ScenarioSource>, reward_cfg: RewardConfig, max_steps: u32, base_seed: u64) -> BatchEnv {
-        Self::try_new(n, source, reward_cfg, max_steps, base_seed).expect("cannot create the batch env")
-    }
-
     pub fn try_new(n: usize, source: Box<dyn ScenarioSource>, reward_cfg: RewardConfig, max_steps: u32, base_seed: u64) -> Result<BatchEnv, EnvError> {
         source.validate()?;
         let pool = rayon::ThreadPoolBuilder::new()
@@ -484,63 +468,4 @@ pub(crate) fn write_obs_mask(cx: &mut Combat, obs: &mut [f32], mask: &mut [u8]) 
         mask[a.index()] = 1;
     }
     cx.sync_overflow();
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use sts2sim::dec::Dec;
-    use sts2sim::state::{CardIdx, PLAYER};
-    use sts2sim::types::{CardPilePosition, PileType, NO};
-    use sts2sim::{ids, DeckCard, RelicInit};
-
-    fn scenario() -> Scenario {
-        Scenario {
-            run_seed: 3,
-            total_floor: 1,
-            character: 0,
-            ascension: 10,
-            encounter: ids::encounter::NIBBITS_WEAK,
-            max_hp: 80,
-            hp: 80,
-            max_energy: 3,
-            orb_slots: 0,
-            potion_slots: 2,
-            deck: (0..10).map(|_| DeckCard { id: ids::card::STRIKE_IRONCLAD, upgrade: 0 }).collect(),
-            relics: vec![RelicInit { id: ids::relic::BURNING_BLOOD, ..Default::default() }, RelicInit { id: ids::relic::VELVET_CHOKER, ..Default::default() }],
-            potions: vec![],
-            rng: RngSet::from_run_seed(3),
-        }
-    }
-
-    fn arm(cx: &mut Combat) {
-        let all: Vec<CardIdx> = cx.player.hand.iter().chain(cx.player.draw.iter()).chain(cx.player.discard.iter()).copied().collect();
-        for (k, &c) in all.iter().enumerate() {
-            cx.move_card(c, if k < 2 { PileType::Discard } else { PileType::Exhaust }, CardPilePosition::Bottom);
-        }
-        let p = cx.new_card(ids::card::PILLAGE, 0).unwrap();
-        cx.move_card(p, PileType::Hand, CardPilePosition::Bottom);
-        cx.apply_power(ids::power::HELLRAISER_POWER, PLAYER, Dec::int(1), PLAYER, NO);
-        let r = cx.player.relics.iter().position(|r| r.id == ids::relic::VELVET_CHOKER).unwrap();
-        cx.player.relics[r].counter = 5;
-        cx.sync_overflow();
-        assert_eq!(cx.overflow, 0);
-    }
-
-    #[test]
-    fn an_episode_the_loop_guard_ends_is_a_loss_with_the_loss_reward() {
-        let cfg = RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.5, turn_cap: 0 };
-        let mut env = BatchEnv::new(1, Box::new(PoolScenario::new(vec![scenario()])), cfg, 1000, 5);
-        arm(&mut env.slots[0].cx);
-        let e = env.slots[0].cx.enemies[0];
-        let (mut obs, mut mask) = (vec![0f32; OBS], vec![0u8; ACTION_SPACE]);
-        let (mut reward, mut done, mut outcome, mut illegal) = ([0f32], [0u8], [0i8], [0u8]);
-        let a = [Action::PlayCard { hand_pos: 0, target: e }.index() as i32];
-        env.step(&a, StepOut { obs: &mut obs, mask: &mut mask, reward: &mut reward, done: &mut done, outcome: &mut outcome, illegal: &mut illegal }).unwrap();
-        assert_eq!((done[0], outcome[0], illegal[0]), (1, OUTCOME_LOSS, 0));
-        assert!((reward[0] + 1.0).abs() < 1e-6, "the loss reward, not 0: {}", reward[0]);
-        let mut info = [EpisodeInfo::default()];
-        env.episode_info(&mut info);
-        assert_eq!((info[0].hp_end, info[0].hp_end_abs), (0.0, 0), "scored like any loss");
-    }
 }

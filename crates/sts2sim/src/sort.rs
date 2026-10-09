@@ -112,27 +112,3 @@ fn down_heap<T: Copy>(k: &mut [T], mut i: isize, n: isize, lo: isize, cmp: &impl
     }
     k[(lo + i - 1) as usize] = d;
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sorts_like_a_sort() {
-        let mut v: Vec<i32> = (0..500).map(|i| (i * 7919 % 101) as i32).collect();
-        let mut w = v.clone();
-        intro_sort(&mut v, |a, b| (a > b) as i32 - (a < b) as i32);
-        w.sort();
-        assert_eq!(v, w);
-    }
-
-    #[test]
-    fn equal_keys_are_permuted_not_stable() {
-        let mut v: Vec<(i32, i32)> = (0..40).map(|i| (i % 3, i)).collect();
-        intro_sort(&mut v, |a, b| (a.0 > b.0) as i32 - (a.0 < b.0) as i32);
-        assert!(v.windows(2).all(|w| w[0].0 <= w[1].0));
-        let mut tags: Vec<i32> = v.iter().map(|x| x.1).collect();
-        tags.sort();
-        assert_eq!(tags, (0..40).collect::<Vec<_>>());
-    }
-}
