@@ -13,11 +13,11 @@ Offline `tools/expert.py`; live `python -m agent seedcheck|replay` (`agent/reena
 4. `tools/expert.py build <record>` -> `fights/<fight id>.json` (simulator synced to every observation; the printed report = sim-vs-frame diffs, each a transcription or fidelity question). `validate <record>` exits 0.
 5. Live, game up, at the main menu with no run in progress, through the harness only:
    - `python -m agent seedcheck <record>`: starts the seeded standard run (`--custom`: custom run), checks Neow `seen`, map boss + paths consistent with the record's rooms by floor, the first fight's opening; stops. An ambiguous map node is guessed and logged; `replay` then refuses that run: abandon it by hand, rerun from the menu.
-   - `python -m agent replay <record> [--steps N] [--until FLOOR]`: resumes from its log. Stops at a gap, a screen not offering the recorded action (`seen` mismatch = seed or transcription diverged), a game rejection (transcription error), a skill refusal (load the skill, rerun).
+   - `python -m agent replay <record> [--steps N] [--until F]`: resumes from its log; `--until F` stops before the map pick into floor F. Stops at a gap, a screen not offering the recorded action (`seen` mismatch: seeding path (standard vs custom), profile unlocks, or transcription), a game rejection (transcription error), a skill refusal (load the skill, rerun).
    - Screens demand `sts2-pathing`, `sts2-deckbuilding`, `sts2-mechanics` besides the core three. Decision guards do not apply (the expert decided); the skill gate does.
    - Logs: `replay/<id>.jsonl` (true screen, deck, fight state per decision), `replay/<id>/<fight>.json`, `runs/<run>/events.jsonl`.
    - Offline preview: `tools/expert.py seedcheck|replay <record> --dry-run [--all]`.
-6. `tools/expert.py compare <record> [--replay] [--macro]` -> `<id>.divergences.json`; `report <record> [--out f.md]` -> tables. Notes `data/expert/<creator>/<date>_<id>.md`, template `data/expert/baalorlord/20261008_hMrQSndDvPc.md`: header (url, build, seed, sources), method, macro table, per fight: state, his line, his words, verdict table; solver gaps as bench states; caveats.
+6. `tools/expert.py compare <record> [--replay] [--macro]` -> `<id>.divergences.json` (`--fights NONE --macro` adds macro rows to an existing output); `report <record> [--out f.md]` -> tables. Notes `data/expert/<creator>/<date>_<id>.md`, template `data/expert/baalorlord/20261008_hMrQSndDvPc.md`: header (url, build, seed, sources), method, macro table, per fight: state, his line, his words, verdict table; solver gaps as bench states; caveats.
 
 ## Run record
 - Top: `video{id,url,creator,channel,title,uploaded}`, `seed`, `build`, `build_hash`, `modded`, `character`, `ascension`, `boss`, `aliases` (card tokens), `steps`.
