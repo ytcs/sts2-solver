@@ -266,7 +266,7 @@ def separates(res, k, z=2.0):
 
 def ladder(res, saturated=ACT_SATURATED):
     if all("cont" in r for r in res.values()) and separates(res, "cont"):
-        return "cont", "S5 surrogate separates the options: rollouts to this act's boss, then its boss gate x every later act's gates on the deck at arrival"
+        return "cont", "gate surrogate separates the options: rollouts to this act's boss, then its boss gate x every later act's gates on the deck at arrival"
     if separates(res, "win"):
         return "win", "P(win run) separates the options (> 2 paired se)"
     best = max(r["act"].mean() for r in res.values())
@@ -399,15 +399,15 @@ def replay(run, n=128, cont="late", kinds=("CARD_REWARD", "RESTSITE")):
             row[f"{who}_cost"] = (float(d.mean()), _se(d))
         rows.append(row)
         print(f"F{floor:<3d} {row['screen']:11s} {st.hp:3d}/{st.max_hp} | played {row['played'][:16]:16s} | old {str(old)[:16]:16s} | "
-              f"price[{ranked}] {now[:16]:16s} | S5 rollout {surr[:16]:16s}{'' if row['sep'] else ' (flat)':7s} | "
-              f"S5 closed {closed[:16]:16s}{'' if row['closed_sep'] else ' (flat)':7s} | "
-              f"on {ranked}: S5 rollout {row['surrogate_cost'][0]:+.3f}, closed {row['closed_cost'][0]:+.3f}", flush=True)
+              f"price[{ranked}] {now[:16]:16s} | surrogate {surr[:16]:16s}{'' if row['sep'] else ' (flat)':7s} | "
+              f"closed {closed[:16]:16s}{'' if row['closed_sep'] else ' (flat)':7s} | "
+              f"on {ranked}: surrogate {row['surrogate_cost'][0]:+.3f}, closed {row['closed_cost'][0]:+.3f}", flush=True)
     return rows
 
 
 def main():
     import argparse
-    ap = argparse.ArgumentParser(description="replay a recorded run's decision screens: current price ladder vs the S5 gate surrogate")
+    ap = argparse.ArgumentParser(description="replay a recorded run's decision screens: current price ladder vs the gate surrogate")
     ap.add_argument("run", help="runs/<run> name or an events.jsonl path")
     ap.add_argument("--n", type=int, default=128)
     ap.add_argument("--cont", default="late", choices=R.RULES)
@@ -420,12 +420,12 @@ def main():
     def rate(x, y):
         pairs = [(_family(r[x]), _family(r[y])) for r in rows if r[x] is not None and r[y] is not None]
         return f"{np.mean([p == q for p, q in pairs]):.2f} of {len(pairs)}" if pairs else "n/a"
-    print(f"{len(rows)} screens; S5 rollout+gates vs price {rate('surrogate', 'now')}, vs S5 closed {rate('surrogate', 'closed')}, "
+    print(f"{len(rows)} screens; surrogate vs price {rate('surrogate', 'now')}, vs closed {rate('surrogate', 'closed')}, "
           f"vs played {rate('surrogate', 'played')}, vs old calc {rate('surrogate', 'old')}; price vs played {rate('now', 'played')}, "
-          f"vs old calc {rate('now', 'old')}; S5 closed vs played {rate('closed', 'played')}; separated by > 2 paired se: S5 rollout "
-          f"{np.mean([r['sep'] for r in rows]):.2f}, S5 closed {np.mean([r['closed_sep'] for r in rows]):.2f}; worse than price's choice by > 2 paired se on "
-          f"price's own horizon: S5 rollout {sum(r['surrogate_cost'][0] < -2 * r['surrogate_cost'][1] for r in rows)}, "
-          f"S5 closed {sum(r['closed_cost'][0] < -2 * r['closed_cost'][1] for r in rows)} of {len(rows)}")
+          f"vs old calc {rate('now', 'old')}; closed vs played {rate('closed', 'played')}; separated by > 2 paired se: surrogate "
+          f"{np.mean([r['sep'] for r in rows]):.2f}, closed {np.mean([r['closed_sep'] for r in rows]):.2f}; worse than price's choice by > 2 paired se on "
+          f"price's own horizon: surrogate {sum(r['surrogate_cost'][0] < -2 * r['surrogate_cost'][1] for r in rows)}, "
+          f"closed {sum(r['closed_cost'][0] < -2 * r['closed_cost'][1] for r in rows)} of {len(rows)}")
 
 
 if __name__ == "__main__":
