@@ -613,7 +613,6 @@ impl Combat {
         if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player {
             return Vec::new();
         }
-        let def = content::monster_def(cr.monster.id);
         self.look_project_one(c)
             .iter()
             .map(|list| {
@@ -621,47 +620,62 @@ impl Combat {
                 acc.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
                 acc.into_iter()
                     .map(|(node, p, pd)| {
-                        if node == STUN_NODE {
-                            return ("STUNNED".to_string(), p, "stunned".to_string());
-                        }
-                        let MonsterNode::Move { id, intents, .. } = &def.nodes[node as usize] else { return ("?".to_string(), p, String::new()) };
-                        let parts: Vec<String> = intents
-                            .iter()
-                            .map(|it| match it {
-                                Intent::Attack { damage, hits } => {
-                                    let (d, h) = (self.intent_damage(c, damage(self, c)), hits(self, c));
-                                    if h > 1 { format!("{d}x{h}") } else { format!("{d}") }
-                                }
-                                Intent::DeathBlowAttack { damage } => format!("{} (dies)", self.intent_damage(c, damage(self, c))),
-                                Intent::StatusCard => "status".into(),
-                                Intent::CardDebuff => "card debuff".into(),
-                                Intent::Buff => "buff".into(),
-                                Intent::Debuff => "debuff".into(),
-                                Intent::DebuffStrong => "strong debuff".into(),
-                                Intent::Defend => "block".into(),
-                                Intent::Escape => "escape".into(),
-                                Intent::Heal => "heal".into(),
-                                Intent::Hidden => "hidden".into(),
-                                Intent::Summon => "summon".into(),
-                                Intent::Sleep => "sleep".into(),
-                                Intent::Stun => "stun".into(),
-                                Intent::DeathBlow => "death blow".into(),
-                            })
-                            .collect();
-                        let mut text = parts.join(" + ");
-                        let projected = if p > 0.0 { pd / p } else { 0.0 };
-                        if (projected - self.node_attack_damage(c, node)).abs() >= 0.5 {
-                            text = format!("{text} (projected {projected:.0})");
-                        }
-                        let fx = self.move_effects(c, node);
-                        if !fx.is_empty() {
-                            text = format!("{text} [{fx}]");
-                        }
-                        (id.trim_end_matches("_MOVE").to_string(), p, text)
+                        let (id, text) = self.move_text(c, node, Some(if p > 0.0 { pd / p } else { 0.0 }));
+                        (id, p, text)
                     })
                     .collect()
             })
             .collect()
+    }
+
+    pub fn intent_now(&self, c: Cid) -> Option<(String, String)> {
+        let cr = self.cr(c);
+        if !cr.is_alive() || !cr.in_combat || cr.monster.next_move == NO || cr.is_player {
+            return None;
+        }
+        Some(self.move_text(c, cr.monster.next_move, None))
+    }
+
+    fn move_text(&self, c: Cid, node: u8, projected: Option<f32>) -> (String, String) {
+        if node == STUN_NODE {
+            return ("STUNNED".to_string(), "stunned".to_string());
+        }
+        let def = content::monster_def(self.cr(c).monster.id);
+        let MonsterNode::Move { id, intents, .. } = &def.nodes[node as usize] else { return ("?".to_string(), String::new()) };
+        let parts: Vec<String> = intents
+            .iter()
+            .map(|it| match it {
+                Intent::Attack { damage, hits } => {
+                    let (d, h) = (self.intent_damage(c, damage(self, c)), hits(self, c));
+                    if h > 1 { format!("{d}x{h}") } else { format!("{d}") }
+                }
+                Intent::DeathBlowAttack { damage } => format!("{} (dies)", self.intent_damage(c, damage(self, c))),
+                Intent::StatusCard => "status".into(),
+                Intent::CardDebuff => "card debuff".into(),
+                Intent::Buff => "buff".into(),
+                Intent::Debuff => "debuff".into(),
+                Intent::DebuffStrong => "strong debuff".into(),
+                Intent::Defend => "block".into(),
+                Intent::Escape => "escape".into(),
+                Intent::Heal => "heal".into(),
+                Intent::Hidden => "hidden".into(),
+                Intent::Summon => "summon".into(),
+                Intent::Sleep => "sleep".into(),
+                Intent::Stun => "stun".into(),
+                Intent::DeathBlow => "death blow".into(),
+            })
+            .collect();
+        let mut text = parts.join(" + ");
+        if let Some(projected) = projected {
+            if (projected - self.node_attack_damage(c, node)).abs() >= 0.5 {
+                text = format!("{text} (projected {projected:.0})");
+            }
+        }
+        let fx = self.move_effects(c, node);
+        if !fx.is_empty() {
+            text = format!("{text} [{fx}]");
+        }
+        (id.trim_end_matches("_MOVE").to_string(), text)
     }
 
     pub fn move_effects(&self, c: Cid, node: u8) -> String {

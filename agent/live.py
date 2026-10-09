@@ -36,6 +36,8 @@ class Live:
             draw = call("p draw").strip().split("\n")
             if draw and draw[0].startswith("draw"):
                 lines.append(draw[0].rstrip(":") + ": " + ", ".join(l.strip() for l in draw[1:] if l.strip()))
+            for i, move, text in self.rp.sim.intent_now():
+                lines.append(f"e{i} now: {move} {text}")
             for i, rows in self.rp.sim.intent_plan():
                 turns = ["+%d %s" % (h + 1, " | ".join(f"{n} {t}" + (f" ({p:.0%})" if p < 0.995 else "") for n, p, t in r)) for h, r in enumerate(rows)]
                 lines.append(f"e{i} plan: " + "  ".join(turns))

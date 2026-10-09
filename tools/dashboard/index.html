@@ -565,7 +565,7 @@ function renderDeck() {
   const list = acq ? run.deck : [...run.deck].sort((a, b) => cardTitle(a.id).localeCompare(cardTitle(b.id)));
   $("deck").innerHTML = list.map((c) => cardHTML(c.id, { upgrade: c.upgrade, mini: true })).join("") || `<span class="faint small">no deck yet (known from the first fight)</span>`;
 }
-function intentHTML(it) {
+function intentHTML(it, tip) {
   const t = it.type || "?";
   let key = "intent_" + t.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/_strong$/, "");
   let label = "";
@@ -575,7 +575,7 @@ function intentHTML(it) {
     label = `${d}${(it.hits || 1) > 1 ? "x" + it.hits : ""}`;
   }
   const img = M.intents[key];
-  return `<span class="intent" title="${esc(t)}">${img ? `<img src="${A(img)}" alt="${esc(t)}">` : `<span class="chip">${esc(t)}</span>`}${label ? `<b class="bad">${esc(label)}</b>` : ""}</span>`;
+  return `<span class="intent" title="${esc(tip || t)}">${img ? `<img src="${A(img)}" alt="${esc(t)}">` : `<span class="chip">${esc(t)}</span>`}${label ? `<b class="bad">${esc(label)}</b>` : ""}</span>`;
 }
 const PLAN_KINDS = { "status": "intent_status_card", "card debuff": "intent_card_debuff", "buff": "intent_buff", "debuff": "intent_debuff", "strong debuff": "intent_debuff",
   "block": "intent_defend", "escape": "intent_escape", "heal": "intent_heal", "hidden": "intent_hidden", "summon": "intent_summon", "sleep": "intent_sleep",
@@ -607,18 +607,23 @@ function planLines(text) {
   for (const l of text.split("\n")) { const m = /^e(\d+) plan: (.*)$/.exec(l); if (m) plan[+m[1]] = m[2].split(/\s{2,}(?=\+\d)/); }
   return plan;
 }
+function nowLines(text) {  // "e0 now: MOVE 9 + debuff [me: WEAK +1]" -> {0: "Move\n9 + debuff [me: WEAK +1]"}
+  const now = {};
+  for (const l of text.split("\n")) { const m = /^e(\d+) now: (\S+) ?(.*)$/.exec(l); if (m) now[+m[1]] = `${titleCase(m[2])}\n${m[3]}`; }
+  return now;
+}
 function hpLine(hp, max, block) {
   const w = max ? Math.max(0, Math.min(100, (100 * hp) / max)) : 0;
   return `<div class="hpline">${block ? `<span class="blk">${block}</span>` : ""}<div class="bar"><i style="width:${w}%"></i><span>${hp} / ${max}</span></div></div>`;
 }
 function combatHTML(f, text, kind) {
-  const st = f.state, plan = planLines(text);
+  const st = f.state, plan = planLines(text), now = nowLines(text);
   const alive = st.enemies.filter((e) => e.alive !== false);
   const enemies = st.enemies.map((e) => {
     const i = e.index ?? alive.indexOf(e);
     const p = plan[i];
     return `<div class="creature ${e.alive === false ? "dead" : ""}">
-      <div class="intent-row">${(e.intents || []).map(intentHTML).join("")}</div>
+      <div class="intent-row">${(e.intents || []).map((it) => intentHTML(it, now[i])).join("")}</div>
       <div class="art" data-creature="${esc(e.id)}"><div class="ph">${esc(creatureTitle(e.id))}</div></div>
       <div class="name">${esc(creatureTitle(e.id))} <span class="faint small">e${i}</span></div>
       ${hpLine(e.hp, e.max_hp, e.block)}
@@ -649,7 +654,7 @@ function combatHTML(f, text, kind) {
     <div id="hand">${hand || `<span class="faint">empty hand</span>`}</div>`;
 }
 function combatFromText(text) {  // no fight export (no live.json yet): the screen's own enemy lines
-  const rows = text.split("\n").filter((l) => /^e\d+ /.test(l) && !/ plan: /.test(l));
+  const rows = text.split("\n").filter((l) => /^e\d+ /.test(l) && !/ (plan|now): /.test(l));
   return `<div class="opts">${rows.map((r) => `<div class="opt">${esc(r)}</div>`).join("")}</div>` + optionsHTML(text, "COMBAT");
 }
 function latestPrice(kind, floorKey) {
