@@ -524,6 +524,9 @@ class Reenactor:
         opts = scr.options(screen)
         if len(opts) == 1 and (opts[0][1].lower() in AUTO or scr.kind(screen) == "MAP"):
             return f"a {opts[0][0]}"
+        hit = _find(screen, lambda lb: lb.lower() in ("open chest", "continue dialogue"))
+        if hit:
+            return f"a {hit[0]}"
         if scr.kind(screen) in ("REWARDS", "RESTSITE", "TREASURE", "SHOP") and (a or {}).get("screen") not in (scr.kind(screen), "CARD_REWARD"):
             hit = _find(screen, lambda lb: lb.lower().startswith(("proceed", "leave")))
             return f"a {hit[0]}" if hit else None
