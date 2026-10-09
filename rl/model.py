@@ -88,7 +88,7 @@ class Bag(nn.Module):
             out = F.embedding_bag(full[keep], self.emb.weight, n.cumsum(0) - n, mode="sum", per_sample_weights=psw[keep], padding_idx=0)
         else:
             out = F.embedding_bag(full, self.emb.weight, per_sample_weights=psw, mode="sum", padding_idx=0)
-        return out.view(*lead, -1)
+        return out.view(*lead, self.emb.embedding_dim)
 
 
 class PowerPool(nn.Module):
@@ -287,7 +287,7 @@ class Net(nn.Module):
             tgt_f = torch.stack([S(big) / 2.0, S(small) / 2.0], -1)
             tgt = (tgt, hand[..., 6], alive)
         hand_t = self.card(hand, torch.stack([regent[:, :H], osty[:, -H:], torch.zeros_like(osty[:, -H:])], -1), sl(So, "hand").view(B, H, C["CARD_F"]),
-                           torch.stack([sregent[:, :H], sosty[:, -H:]], -1), xin=None if self.obs == 2 else self.v3_cards(sl(obs, "hand_x").view(B, H, -1), tgt_f))
+                           torch.stack([sregent[:, :H], sosty[:, -H:]], -1), xin=None if self.obs == 2 else self.v3_cards(sl(obs, "hand_x").view(B, H, C["CARDX_F"]), tgt_f))
         pot_t = self.potion_enc(torch.cat([self.potion(pid), potions[..., 1:2]], -1))
         pot_p = pid > 0
         if rows is not None:
@@ -303,7 +303,7 @@ class Net(nn.Module):
         srg = sregent[rows, H:H + Q]
         cand_t = self.card(cands[..., :C["CARD_F"]], torch.stack([rg, torch.zeros_like(rg), cands[..., C["CARD_F"]]], -1), scands[..., :C["CARD_F"]],
                            torch.stack([srg, torch.zeros_like(srg)], -1),
-                           xin=None if self.obs == 2 else self.v3_cards(sl(obs, "cand_x")[rows].view(len(rows), Q, -1)))
+                           xin=None if self.obs == 2 else self.v3_cards(sl(obs, "cand_x")[rows].view(len(rows), Q, C["CARDX_F"])))
         cand_p = cands[..., 0] > 0
         src = sl(obs, "dec_source")
         kind = src[:, 0].long().clamp(0, 4)
