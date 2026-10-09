@@ -9,7 +9,7 @@ from agent import reenact as RE
 REC = os.path.join(ROOT, "data", "expert", "baalorlord", "hMrQSndDvPc.json")
 TARGETED = {"STRIKE_SILENT", "NEUTRALIZE", "DASH", "SNAKEBITE", "SHIV", "STRANGLE"}
 HEAD = "A1 F9 SILENT A10 HP 35/70 G79 pots[Dexterity Potion, Cunning Potion]"
-NACTS = 465
+NACTS = 473
 
 
 def _expert():
@@ -189,9 +189,12 @@ def test_pilot_record_translates_to_bridge_actions():
 
 def test_record_validates():
     ex = _expert()
-    errs, warns = ex.check_record(RE.load(REC))
-    assert errs == [], errs
-    assert any("gap" in w for w in warns)
+    rec = RE.load(REC)
+    errs, warns = ex.check_record(rec)
+    assert errs == [] and not any("gap" in w for w in warns), (errs, warns)
+    rec["steps"].insert(3, {"floor": 2, "screen": "COMBAT", "gap": "test gap"})
+    errs, warns = ex.check_record(rec)
+    assert errs == [] and any("gap" in w and "step 3" in w for w in warns), warns
     bad = json.loads(open(REC, encoding="utf-8").read())
     bad["seed"] = "YMY1KELG18SO"
     bad["steps"][1]["pick"] = "somewhere"
@@ -308,7 +311,8 @@ class FightGame(FakeHarness):
 def test_replay_drives_a_recorded_fight(monkeypatch, tmp_path):
     rec = RE.load(REC)
     k = next(i for i, st in enumerate(rec["steps"]) if st.get("fight", {}).get("id", "").endswith("LAGAVULIN_MATRIARCH_BOSS"))
-    rec["steps"] = rec["steps"][k:k + 2]
+    assert rec["steps"][k + 1]["fight"]["id"].endswith("LAGAVULIN_MATRIARCH_BOSS_b")
+    rec["steps"] = rec["steps"][k:k + 1]
     p = tmp_path / "rec.json"
     p.write_text(json.dumps(rec), encoding="utf-8")
     built = RE.built_record(rec, rec["steps"][0]["fight"]["id"])
@@ -318,7 +322,7 @@ def test_replay_drives_a_recorded_fight(monkeypatch, tmp_path):
     monkeypatch.setattr(RE, "call", lambda cmd: "null" if cmd in ("deck.json", "fight", "m") else h.screen)
     out = RE.Reenactor(h, str(p)).run()
     assert "opening of hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS (floor 17): matches the record" in out, out
-    assert "record gap: stream dropped" in out and h.ended
+    assert "record replayed to its end" in out and h.ended, out
     assert len(h.sent) == 1 + len(acts)
     assert [RE.to_bridge(a, c)["play"]["hand_pos"] for a, c in zip(acts, h.sent[1:]) if a["kind"] == "play"][:2] == [4, 2]
     saved = RE.load(str(tmp_path / "replay" / "hMrQSndDvPc" / (acts[0]["fight"] + ".json")))
