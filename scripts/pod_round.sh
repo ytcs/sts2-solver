@@ -18,20 +18,9 @@ EPOCHS=${EPOCHS:-3}
 LAM=${LAM:-0.8}
 TRAIN_CHUNK=${TRAIN_CHUNK:-2048}
 COLLECT_TRIES=${COLLECT_TRIES:-3}
-export STS2_DEVICE=cuda
 echo "== $(date -u +%FT%TZ) pod_round $RUN start"
 
-if ! command -v cargo >/dev/null; then
-  [ -f "$HOME/.cargo/env" ] || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-  . "$HOME/.cargo/env"
-fi
-[ -d .venv ] || python -m venv .venv --system-site-packages
-. .venv/bin/activate
-if ! python -c "import sts2" 2>/dev/null; then
-  pip install -q maturin numpy
-  maturin develop --release -m crates/sts2py/Cargo.toml
-fi
-python -c "import sts2, torch; print('sts2 ok; torch', torch.__version__, 'cuda', torch.cuda.is_available()); assert torch.cuda.is_available()"
+. scripts/pod_setup.sh
 
 echo "waiting for $INPUTS/READY"
 until [ -f "$INPUTS/READY" ]; do sleep 30; done
