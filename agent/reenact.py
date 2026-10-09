@@ -271,7 +271,7 @@ def macro_command(step, screen):
         return None, f"pick {pick!r}: a label substring is needed on a {kind} screen"
     labels = scr.options(screen)
     hit = [int(n) for n, lb in labels if lb.lower().startswith(pick.lower())] or [int(n) for n, lb in labels if pick.lower() in lb.lower()]
-    if len(hit) == 1 or (hit and len({_label(screen, h) for h in hit}) == 1):
+    if len(hit) == 1 or (hit and (len({_label(screen, h) for h in hit}) == 1 or (kind == "REWARDS" and pick.lower() == "card"))):
         return f"a {hit[0]}", None
     return None, f"pick {pick!r} matches {len(hit)} options on {kind}"
 
@@ -467,7 +467,7 @@ class Reenactor:
             cmd, err = macro_command(a, screen) if a["kind"] == "macro" else (
                 combat_command(a, f.get("state") or {}, screen) if f is not None else (None, f"record expects combat ({describe(a)}), the screen is {kind}"))
             if err and autos < 6:
-                auto = self._auto(screen)
+                auto = self._auto(screen, a)
                 if auto:
                     autos += 1
                     screen = self.h._send(auto)
@@ -505,11 +505,11 @@ class Reenactor:
         out.append(f"cursor {k}/{len(self.flat)}; log {os.path.relpath(self.log_path, ROOT)}")
         return "\n".join(out) + "\n" + screen
 
-    def _auto(self, screen):
+    def _auto(self, screen, a=None):
         opts = scr.options(screen)
         if len(opts) == 1 and (opts[0][1].lower() in AUTO or scr.kind(screen) == "MAP"):
             return f"a {opts[0][0]}"
-        if scr.kind(screen) == "REWARDS":
+        if scr.kind(screen) == "REWARDS" and (a or {}).get("screen") not in ("REWARDS", "CARD_REWARD"):
             hit = _find(screen, lambda lb: lb.lower().startswith("proceed"))
             return f"a {hit[0]}" if hit else None
         return None
