@@ -507,7 +507,12 @@ class Reenactor:
 
     def _auto(self, screen):
         opts = scr.options(screen)
-        return f"a {opts[0][0]}" if len(opts) == 1 and (opts[0][1].lower() in AUTO or scr.kind(screen) == "MAP") else None
+        if len(opts) == 1 and (opts[0][1].lower() in AUTO or scr.kind(screen) == "MAP"):
+            return f"a {opts[0][0]}"
+        if scr.kind(screen) == "REWARDS":
+            hit = _find(screen, lambda lb: lb.lower().startswith("proceed"))
+            return f"a {hit[0]}" if hit else None
+        return None
 
     def _opening(self, a, f):
         spec = next((st["fight"] for st in self.rec["steps"] if st.get("fight") and st["fight"]["id"] == a.get("fight")), None)
