@@ -6,7 +6,8 @@ Never the real game: the bridge never falls back to it while OVERRIDE is set.
 
 Combat: the live player (`Harness.play`), a fixed number of search rounds per decision (--rounds, not seconds); potions only when the
 proposal rule fires (`potion use` the proposed one, one per commit). No fight-start predictions, no DRIVE thresholds. A DIFFERS line does
-not stop play (counted); a DESYNC re-syncs once, then ends the turn (run tagged `desync`).
+not stop play (counted; a potion-belt DIFFERS, e.g. Entropic Brew's random potions, turns proposals off for that fight); a DESYNC
+re-syncs once, then ends the turn (run tagged `desync`); a combat selection the game rejects is answered by the macro SELECT rule.
 Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens (no price/reward/routes calls):
   map BasePolicy.node; card reward / card offers: predictor screen of each deck vs the act boss at max HP and a random elite at 70% (argmax
   of runmodel.worth, skip included); rest: rest below 50% HP else smith BasePolicy.smith order; shop: remove a card if affordable, then the
@@ -56,7 +57,7 @@ class BaselineHarness(Harness):
     def __init__(self, log, engine, rounds, seed):
         super().__init__(log=log)
         self.engine, self.rounds, self._seed = engine, rounds, zlib.crc32(seed.encode()) * 1000
-        self.stats = dict(decisions=0, decide_s=0.0, proposals_s=0.0, differs=0, desync=0)
+        self.stats = dict(decisions=0, decide_s=0.0, proposals_s=0.0, differs=0, desync=0, select_fallback=0)
 
     def _decide(self, scenario, sim, budget, **kw):
         e = self.eng()
@@ -68,6 +69,8 @@ class BaselineHarness(Harness):
         return d
 
     def _proposal_check(self, force=False):
+        if getattr(self, "_belt_off", None) == self.fight_id:
+            return None
         t0 = time.perf_counter()
         try:
             return super()._proposal_check(force)
@@ -89,6 +92,8 @@ class BaselineHarness(Harness):
         if bad and "DIFFERS" in bad and not self.rp.errors:
             self.stats["differs"] += 1
             self.log.event("divergence", what=bad[:200])
+            if ".potions" in bad:
+                self._belt_off = self.fight_id
             return None
         return bad
 
@@ -421,6 +426,10 @@ class Game:
         if out.startswith(("ERR", "REFUSED")) or "\nERR" in out:
             self.errors += 1
             h.log.event("baseline_error", reply=out[-600:])
+            s = bridge.call("s")
+            if scr.kind(s) == "SELECT":
+                h.stats["select_fallback"] += 1
+                h.handle("a " + self.macro.select(s, [(int(n), t) for n, t in scr.options(s)]))
             if self.errors > 50:
                 self.tags.add("errors")
                 return True
@@ -465,7 +474,7 @@ class Game:
                     hp_lost=sum(f["lost"] for f in fights), potions=self.potions, tags=sorted(self.tags), victory=self.macro.won,
                     final_screen=(self.final or "")[:400], wall_s=round(time.time() - self.t0, 1), own_s=round(self.own, 1), steps=self.steps,
                     decisions=st["decisions"], decide_s=round(st["decide_s"], 1), proposals_s=round(st["proposals_s"], 1), differs=st["differs"],
-                    desync=st["desync"], errors=self.errors)
+                    desync=st["desync"], select_fallback=st["select_fallback"], errors=self.errors)
 
 
 class GpuSampler(threading.Thread):
