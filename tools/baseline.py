@@ -395,7 +395,11 @@ class PriceMacro(Macro):
     def map(self, s, lab):
         if len(lab) < 2:
             return super().map(s, lab)
-        best = self.price(s, PR.options(self.st(s), s))
+        try:
+            best = self.price(s, PR.options(self.st(s), s))
+        except Exception:  # noqa: BLE001
+            self.h.log.event("price_error", screen=s[:800], tb=traceback.format_exc()[-1500:])
+            best = None
         m = re.search(r"r(\d+)c(\d+)", best or "")
         hit = next((i for i, t in lab if m and re.search(rf"\br{m.group(1)}c{m.group(2)}\b", t)), None)
         return str(hit) if hit is not None else super().map(s, lab)
@@ -605,12 +609,13 @@ class Game:
         fm = re.search(r"F(\d+)", hdr)
         floor = int(m.group(1)) if m else (int(fm.group(1)) if fm else None)
         act = max([int(x) for x in re.findall(r"A(\d+) F", " ".join([hdr] + [f["floor"] or "" for f in fights]))] or [1])
-        died = None
+        died = kind = None
         if not won:
             last = fights[-1] if fights else None
             lc = getattr(self, "last_combat", None)
             if last and last["hp1"] <= 0:
                 died = last["enc"]
+                kind = "boss" if died.endswith("_BOSS") else "elite" if died.endswith("_ELITE") else "hallway"
             elif lc and lc[0] == scr.floor_key(hdr) and (not last or last["floor"] != lc[0]):
                 died = "unplayable fight: " + ",".join(lc[1])
             elif self.final is None:
@@ -629,18 +634,21 @@ class Game:
                     decisions=st["decisions"], decide_s=round(st["decide_s"], 1), proposals_s=round(st["proposals_s"], 1), differs=st["differs"],
                     desync=st["desync"], select_fallback=st["select_fallback"],
                     fallback_actions=st["fallback_actions"], errors=self.errors, act=act, price_calls=st["price_calls"], price_s=round(st["price_s"], 1),
-                    **self.setting)
+                    death_kind=kind, **self.setting)
 
 
 class GpuSampler(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True)
         self.util, self.mem, self.p = [], [], None
-
-    def run(self):
         try:
             self.p = subprocess.Popen(["nvidia-smi", "--query-gpu=utilization.gpu,memory.used", "--format=csv,noheader,nounits", "-l", "1"],
                                       stdout=subprocess.PIPE, text=True)
+        except OSError:
+            pass
+
+    def run(self):
+        try:
             for line in self.p.stdout:
                 u, m = (float(x) for x in line.split(","))
                 self.util.append(u)
@@ -671,7 +679,7 @@ def summary(rows, gpu=None):
         kinds = {}
         for r in dead:
             d = str(r["died_at"] or "")
-            k = next((v for s, v in (("_BOSS", "boss"), ("_ELITE", "elite"), ("_NORMAL", "hallway"), ("_WEAK", "hallway")) if d.endswith(s)), None) or \
+            k = r.get("death_kind") or next((v for s, v in (("_BOSS", "boss"), ("_ELITE", "elite"), ("_NORMAL", "hallway"), ("_WEAK", "hallway")) if d.endswith(s)), None) or \
                 ("unplayable" if d.startswith("unplayable") else "aborted" if d.startswith("aborted") else "other")
             kinds[k] = kinds.get(k, 0) + 1
         pc = sum(r.get("price_calls", 0) for r in rows)
