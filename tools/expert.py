@@ -267,7 +267,7 @@ class Builder:
             cid, up, ench, _p = RE.token(tok, self.al)
             same = [c for c in deck if c["id"] == cid and c.get("upgrade", 0) == up]
             ench = ench or bool(same) and all(c.get("enchantment") for c in same)
-            j = next((j for j, c in enumerate(pool) if c["id"] == cid and c["upgrade"] == up and (not ench or c.get("enchantment"))), None)
+            j = next((j for j, c in enumerate(pool) if c["id"] == cid and c["upgrade"] == up and bool(c.get("enchantment")) == ench), None)
             if j is not None:
                 out.append(pool.pop(j))
                 continue

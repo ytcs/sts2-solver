@@ -447,6 +447,10 @@
      },
      {
       "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -459,10 +463,6 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -658,6 +658,10 @@
      },
      {
       "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -670,10 +674,6 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -879,16 +879,16 @@
      },
      {
       "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -2936,6 +2936,12 @@
       "upgrade": 0
      },
      {
+      "cost": 2,
+      "id": "DASH",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
       "cost": 0,
       "id": "ASCENDERS_BANE",
       "keywords": [
@@ -2947,19 +2953,7 @@
      },
      {
       "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
       "id": "STRANGLE",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 2,
-      "id": "DASH",
       "keywords": [],
       "upgrade": 0
      },
@@ -2970,18 +2964,24 @@
       "upgrade": 0
      },
      {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
       "cost": 2,
       "id": "SNAKEBITE",
       "keywords": [
        "Retain"
       ],
       "upgrade": 1
-     },
-     {
-      "cost": 3,
-      "id": "OUTBREAK",
-      "keywords": [],
-      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -3084,7 +3084,7 @@
       "upgrade": 0
      },
      {
-      "id": "STRIKE_SILENT",
+      "id": "OUTBREAK",
       "upgrade": 0
      },
      {
@@ -3158,6 +3158,12 @@
      "upgrade": 0
     },
     {
+     "cost": 2,
+     "id": "DASH",
+     "keywords": [],
+     "upgrade": 0
+    },
+    {
      "cost": 0,
      "id": "ASCENDERS_BANE",
      "keywords": [
@@ -3169,19 +3175,7 @@
     },
     {
      "cost": 1,
-     "id": "STRIKE_SILENT",
-     "keywords": [],
-     "upgrade": 0
-    },
-    {
-     "cost": 1,
      "id": "STRANGLE",
-     "keywords": [],
-     "upgrade": 0
-    },
-    {
-     "cost": 2,
-     "id": "DASH",
      "keywords": [],
      "upgrade": 0
     },
@@ -3192,18 +3186,24 @@
      "upgrade": 0
     },
     {
+     "cost": 1,
+     "id": "STRIKE_SILENT",
+     "keywords": [],
+     "upgrade": 0
+    },
+    {
+     "cost": 1,
+     "id": "STRIKE_SILENT",
+     "keywords": [],
+     "upgrade": 0
+    },
+    {
      "cost": 2,
      "id": "SNAKEBITE",
      "keywords": [
       "Retain"
      ],
      "upgrade": 1
-    },
-    {
-     "cost": 3,
-     "id": "OUTBREAK",
-     "keywords": [],
-     "upgrade": 0
     }
    ],
    "max_energy": 3,
@@ -3306,7 +3306,7 @@
      "upgrade": 0
     },
     {
-     "id": "STRIKE_SILENT",
+     "id": "OUTBREAK",
      "upgrade": 0
     },
     {
@@ -3395,7 +3395,7 @@
    "sync relics": 1,
    "end_turn_tries": 3,
    "end_turn_matched": 3,
-   "random_pile_diffs": 53
+   "random_pile_diffs": 57
   }
  }
 }
