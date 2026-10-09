@@ -21,7 +21,7 @@ In: deck, relics, potions, HP, encounter (A10). Out: play maximising the fight o
 - Built-in: an option's in-turn play simulated once, futures branch at the first hidden-info step; futures share one rotated shuffle (disjoint next hands); the chosen line's prefix is reused next decision (rarely fires); a full selection auto-confirms.
 - Worth: `worth=` per scenario: None = linear, or dict(u=[NC class worths], price=[per belt slot]) combined in Rust with the outcome head (`Engine.worth_ok`). Win-only boss table: `agent.proposal.win_only_worth`.
 - A panic aborts only that fight; overflow -> `OUTCOME_OVERFLOW`.
-- A bigger top-M budget wins no more (E8-E12); cover adds the actions the prior ranks low (E27).
+- A bigger top-M budget wins no more (E8); cover adds the actions the prior ranks low (E27).
 
 ## API
 - `Solver(ckpt, M=3, K=8, max_steps=300, roots=None, groups=2, roll_ckpt=None, amp=None, threads=None, cover=False)`; roots default 2048 CUDA / 256 CPU. `solve(scenarios, attempts=32, search=True, seed=0, groups=None, worth=None)` -> per scenario win, win_se, hp_lost, hp_lost_se, hp_left_on_win, attempts, aborted; same `groups` id = common random numbers across variants. CLI `python rl/solver.py --scenarios F.json --attempts 32 [--no-search] [--out F]`.
