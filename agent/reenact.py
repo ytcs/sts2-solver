@@ -284,6 +284,8 @@ def macro_command(step, screen):
         return None, f"pick {pick!r}: a label substring is needed on a {kind} screen"
     labels = scr.options(screen)
     hit = [int(n) for n, lb in labels if lb.lower().startswith(pick.lower())] or [int(n) for n, lb in labels if pick.lower() in lb.lower()]
+    if not hit and kind == "REWARDS":
+        hit = [int(n) for n, lb in labels if lb.lower().startswith("take your stolen card")]
     if len(hit) == 1 or (hit and (len({_label(screen, h) for h in hit}) == 1 or (kind == "REWARDS" and pick.lower() == "card"))):
         return f"a {hit[0]}", None
     return None, f"pick {pick!r} matches {len(hit)} options on {kind}"
