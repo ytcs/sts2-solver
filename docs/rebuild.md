@@ -33,7 +33,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 ## 4. Roadmap (current order; review at each gate)
 1. Done (E29): PPO signal sampler; gen-2 base.
 2. Combat loop (S3): r5 live (E35). Next: round r6 from r5 on a pod (`scripts/pod_round.sh`, pool `tools/round_pool.py` scored by r5), then the promotion gate on a pod.
-3. Predictor on engine/plan decks (E30, E31); every run-level price inherits it. (a) bench slice `plans`: done; (b) plan-shaped decks (archetype cores + fill, thin act-2 decks with and without a core) in the round pool: r5, continues in r6; (c) until the slice passes, plan-deck fight gates come from short solver runs: open. Gate: slice |bias| < 0.05 and deck Spearman >= 0.8. Status (r5): bias -0.040 passes; Spearman 0.768 fails; enabler-removal pairs blind (0.10); worst archetypes doom -0.35, souls -0.25, osty -0.18, poison -0.18.
+3. Predictor on engine/plan decks (E30, E31); every run-level price inherits it. (a) bench slice `plans`: done; (b) plan-shaped decks (archetype cores + fill, thin act-2 decks with and without a core) in the round pool: r5, continues in r6; (c) solver-run fallback for plan-deck gates: deprioritized (user): the search plays plan decks well (E30); the predictor gap closes through the rounds' plan-deck share, not a patch. Gate: slice |bias| < 0.05 and deck Spearman >= 0.8. Status (r5): bias -0.040 passes; Spearman 0.768 fails; enabler-removal pairs blind (0.10); worst archetypes doom -0.35, souls -0.25, osty -0.18, poison -0.18.
 4. S5 continuation value (blocks S7): `price --cont` surrogate fails its gate (E30); next: tune the floor / compare `mean`, after item 3.
 5. S4 gate (potion regression states).
 6. S7 operator protocol + retire the calculators (after S5 and item 3).
