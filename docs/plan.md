@@ -17,12 +17,12 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 ## 3. Stages, in order
 
 **1. Expert learning** (skill `expert-reenact`; `tools/expert.py`, `agent/reenact.py`; E34, E38-E40). Goal (user): reach expert human level in minimum wall time; experts are probes for weakness classes, the simulator supplies volume. Preferred sources: Baalorlord (commentary explains choices), NaveGreed.
-- Gap decomposition: whole-run combat swap on the Baalorlord record (each fight from its restored start, live player vs his end HP) splits the gap into combat vs macro. Running.
+- Gap decomposition (E43): with his macro fixed, our combat is near parity on average (HP lost 268 vs 264 over 25 fights) but has a fatter tail (one death, two near-deaths), weaker early elites and Act 3 hallway leaks, stronger bosses; potion proposals rarely fire (2 of his 8 uses). Macro side: needs our own full runs (headless server).
 - Full reconstructions = calibration, one per character/archetype: Baalorlord Silent done (compact record replays end to end; E39 verdicts; E40 fixes); NaveGreed Ironclad (rxMGDepYyy8, pilot data exists) in progress.
 - Macro-only extraction at scale: picks, paths, rests, shops, events (~40 screens per run, state visible, no combat transcription, no replay) from many Baalorlord/NaveGreed runs; validates `price` and feeds the run-model surrogate and the plan library (21 of 38 Baalorlord screens were `price` ties: the run model is flat where experts decide).
 - Gate: per video, the compact record replays end to end in the real game; macro corpus large enough to rank `price` variants.
 
-**2. Solver strength: setup turns.** Order-dependent setup turns are misranked (Gardeners #1, Lagavulin #0, E34; errors spread over setup turns, E26); exact turn search fixed only blind-turn lethal (E36).
+**2. Solver strength: setup turns and the loss tail.** E43: the gap that matters is the tail (death at 17 HP in an elite he won), weak-fight HP leaks and potions not thrown. Order-dependent setup turns are misranked (Gardeners #1, Lagavulin #0, E34; errors spread over setup turns, E26); exact turn search fixed only blind-turn lethal (E36).
 - Measured on real states (E39): 10 confirmed expert gaps, 6 of them setup/power across the turn boundary; `tools/exact_turn_check.py` is the fixed check.
 - HP cap (`hp_cap`, nearmiss suffix `@cap`, default off; E42): leaf win mass above the HP ceiling (leaf HP + `Combat::hp_gain_bound`) is valued at the ceiling, so no leaf beats winning now. Next: near-miss paired with live.
 - Candidates: deeper leaf on close calls; exact turn search with a two-turn leaf; value targets from deeper search.
