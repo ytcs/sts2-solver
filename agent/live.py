@@ -390,14 +390,23 @@ class Live:
         bad = self._choice_mismatch(screen)
         if bad:
             return "ERR " + bad
+        m = re.match(r"SELECT (\d+)(?:-(\d+))?", screen)
+        hi = int(m.group(2) or m.group(1)) if m else 99
         s2, picks = sim.copy(), []
+        cands = lambda: [t for _, t in s2.legal() if t.startswith("pick")]  # noqa: E731
+        prompt = cands()
+        def gi(a):
+            aj = json.loads(s2.action_json(a))
+            return s2.pick_game_index(aj["pick"]) if "pick" in aj else None
         for _ in range(40):
             d = self._decide(self.rp.scenario, s2, min(self._budget(), 0.3))
-            aj = json.loads(d["json"])
-            if "pick" in aj:
-                picks.append(s2.pick_game_index(aj["pick"]))
-                s2.step(d["action"])
-            else:
+            fresh = [o["action"] for o in sorted(d["options"], key=lambda o: -(o["q"] if o["q"] is not None else -9)) if gi(o["action"]) not in picks]
+            a = d["action"] if gi(d["action"]) not in picks else next(iter(fresh), None)
+            if a is None or gi(a) is None:
+                break
+            picks.append(gi(a))
+            s2.step(a)
+            if s2.stage() != "choice" or len(picks) >= hi or cands() != prompt:
                 break
         self.log.event("action", kind_="choose", picks=picks, text=f"choose {picks}")
         return self._send("do " + json.dumps({"choose": picks}))

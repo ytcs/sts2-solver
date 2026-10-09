@@ -15,17 +15,21 @@ Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens
   of runmodel.worth, skip included); rest: rest below 50% HP else smith BasePolicy.smith order; shop: remove a card if affordable, then the
   best affordable card/relic by the same screen; catalogued events: BasePolicy.event on the first page, follow-up pages as rollouts resolve
   them (events.default_choose: the exit option, else the first modelled); Neow/ancients: the predictor screen of each option
-  applied (events.apply_ancient), fights at min(reference HP, HP after the option); removals/transforms: curses, Strikes, Defends first;
+  applied (events.apply_ancient), fights at min(reference HP, HP after the option), SIM_UNMODELLED relics never taken; removals/transforms: curses, Strikes, Defends first;
   upgrades BasePolicy.smith order; other selections the first k; rewards: gold, relics, cards, potions only into a free slot; treasure:
   open, take; bundle: the first; Crystal Sphere: tools/serve_harness_run heuristic. No potion use outside combat.
   Unknown events (not in data/events.json): the first option starting Leave/Exit/Decline/Ignore/Abstain/Give Up/Proceed/Continue/Skip, else 0.
+--price N: PriceMacro (`price`, N paired rollouts per option) on map forks, card rewards, rest sites, shops, catalogued events' first
+  pages and ancients; the rules above elsewhere. --seconds S: S s of search per combat decision instead of --rounds.
 Win = the EVENT "The Architect" is reached (the GAME_OVER page is never read for the result); its pages and GAME_OVER are logged.
 
-usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16] [--port 15820] [--tag NAME] [--character ironclad]
+usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--price N] [--port 15820] [--tag NAME] [--character ironclad]
 Seeds: BASE0001..BASE0020 by default. Per game: target/baseline/<tag>/<seed>/ (events.jsonl, server log); per run one JSON line in
 evals/baseline/<tag>.jsonl (re-running skips seeds already there); summary table at the end. Builds Harness() directly (no skill gate).
 """
 import json, os, random, re, socket, subprocess, sys, threading, time, traceback, zlib
+
+import numpy as np
 
 os.environ.setdefault("STS2_DEVICE", "cuda")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +47,7 @@ LEAVE = ("leave", "exit", "decline", "ignore", "abstain", "give up", "proceed", 
 MAP_TYPE = {"Monster": "M", "Elite": "E", "Unknown": "?", "Rest": "R", "RestSite": "R", "Shop": "$", "Merchant": "$", "Treasure": "T"}
 CURSES = {c["id"] for c in R.CAT["cards"].get("CURSE", [])}
 SHUFFLES, PSEED = 4, 1000
+SIM_UNMODELLED = {"TOUCH_OF_OROBAS"}
 
 
 class GameLog(RunLog):
@@ -56,15 +61,17 @@ class GameLog(RunLog):
 
 
 class BaselineHarness(Harness):
-    def __init__(self, log, engine, rounds, seed):
+    def __init__(self, log, engine, rounds, seed, seconds=None):
         super().__init__(log=log)
         self.engine, self.rounds, self._seed = engine, rounds, zlib.crc32(seed.encode()) * 1000
-        self.stats = dict(decisions=0, decide_s=0.0, proposals_s=0.0, differs=0, desync=0, select_fallback=0, fallback_actions=0)
+        self.budget = seconds
+        self.stats = dict(decisions=0, decide_s=0.0, proposals_s=0.0, differs=0, desync=0, select_fallback=0, fallback_actions=0, price_calls=0, price_s=0.0)
 
     def _decide(self, scenario, sim, budget, **kw):
         e = self.eng()
         e.seed, t0 = self._seed, time.perf_counter()
-        d = e.decide(scenario, sim, budget, keep_potions=True, worth=getattr(self, "fight_worth", None), rounds=self.rounds)
+        d = e.decide(scenario, sim, budget, keep_potions=True, worth=getattr(self, "fight_worth", None), rounds=None if self.budget else self.rounds,
+                     tol_hp=kw.get("tol_hp", 1.0))
         self._seed = e.seed
         self.stats["decisions"] += 1
         self.stats["decide_s"] += time.perf_counter() - t0
@@ -87,7 +94,7 @@ class BaselineHarness(Harness):
         self.drive = ("auto", "baseline: no fight-start prediction")
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], act=sc.get("act"),
                        floor=scr.floor_key(bridge.call("peek")), deck=len(sc["deck"]), relics=[r["id"] for r in sc["relics"]],
-                       potions=[p["id"] for p in sc["potions"]], objective=self.fight_objective)
+                       potions=[p["id"] for p in sc["potions"]], objective=self.fight_objective, scenario=sc)
 
     def _sync_problem(self, f):
         bad = super()._sync_problem(f)
@@ -133,7 +140,7 @@ class Macro:
 
     def __init__(self, h, predictor, seed):
         self.h, self.pred, self.seed, self.pol = h, predictor, seed, R.BasePolicy()
-        self.declined, self.opened, self.shop_plan, self.won = set(), None, {}, None
+        self.declined, self.opened, self.shop_plan, self.won, self.pending = set(), None, {}, None, None
 
     def rng(self, s, what):
         return random.Random(zlib.crc32(f"{self.seed}|{scr.floor_key(s)}|{what}".encode()))
@@ -260,26 +267,31 @@ class Macro:
                 if "can't afford" in t:
                     continue
                 if k == "remove" and re.match(r"^\d+g remove a card", t):
+                    self.pending = ("remove", iid) if isinstance(iid, str) else None
                     return str(i)
-                m = re.match(r"^\d+g (card|relic) (.+?)(?:\(|:)", t)
+                m = re.match(r"^\d+g (card|relic|potion) (.+?)(?:\(|:)", t)
                 if m and m.group(1) == k and (PR._card_id(m.group(2).strip())[0] if k == "card" else PR._ident(m.group(2))) == iid:
                     return str(i)
         leave = next((i for i, t in lab if t == "leave shop"), lab[-1][0])
         return str(leave)
 
-    def event(self, s, lab):
+    def title(self, s):
         lines = s.split("\n")
         title = lines[2].split(":", 1)[0].strip() if len(lines) > 2 else ""
         if title == "The Architect" and self.won is None:
             self.won = dict(floor=scr.floor_key(s), hp=scr.hp(s))
             self.h.log.event("victory", screen=s[:1500])
+        return title
+
+    def event(self, s, lab):
+        title = self.title(s)
         if len(lab) == 1:
             return str(lab[0][0])
         labels = [t for _, t in lab]
         anc = [(i, EV.ancient_option(t)[0]) for i, t in lab]
         if any(r for _, r in anc) and EV.get(title) is None:
             st = self.st(s)
-            ok = [(i, r) for i, r in anc if r]
+            ok = [(i, r) for i, r in anc if r and r not in SIM_UNMODELLED]
             variants, keep = [], []
             for i, r in ok:
                 def f(x, r=r):
@@ -316,6 +328,11 @@ class Macro:
         k = max(lo, 1)
         prompt = (lines[2] if len(lines) > 2 else "").lower()
         names = [(i, _name(t)) for i, t in lab]
+        want, self.pending = self.pending, None
+        if want and want[0] in prompt and k == 1:
+            hit = next((i for i, n in names if PR._ident(n.rstrip("+")) == PR._short(want[1]) and (want[0] == "remove" or not n.endswith("+"))), None)
+            if hit is not None:
+                return str(hit)
         if "remove" in prompt or "transform" in prompt:
             rank = lambda n: 0 if PR._ident(n) in CURSES else 1 if n == "Strike" else 2 if n == "Defend" else 9  # noqa: E731
             order = sorted(names, key=lambda x: rank(x[1]))
@@ -339,8 +356,111 @@ class Macro:
         return "-" if lo == 0 and not names else " ".join(str(i) for i, _ in lab[:k])
 
 
+class PriceMacro(Macro):
+    """`price` (paired run-model rollouts, PR.best ladder) on map forks, card rewards, rest sites (rest + the SMITHS best smiths by the
+    predictor screen), shops (PR.bundles), catalogued events' first pages and ancients; Macro wherever price has fewer than two options."""
+    SMITHS = 3
+
+    def __init__(self, h, predictor, seed, n):
+        super().__init__(h, predictor, seed)
+        self.n = n
+
+    def price(self, s, opts):
+        if len(opts) < 2:
+            return None
+        st, t0 = self.st(s), time.perf_counter()
+        res = PR.price(st, opts, self.pred, n=self.n, seed=zlib.crc32(f"{self.seed}|{scr.floor_key(s)}".encode()) % 10_000)
+        best, ranked = PR.best(res)
+        dt = time.perf_counter() - t0
+        self.h.stats["price_calls"] += 1
+        self.h.stats["price_s"] += dt
+        self.h.log.event("price", screen=scr.kind(s), options=[o[0] for o in opts], ranked_by=ranked, best=best, seconds=round(dt, 2), n=self.n,
+                         result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})
+        return best
+
+    def decide(self, s, opts):
+        kind = scr.kind(s)
+        lab = [(int(n), t) for n, t in opts]
+        try:
+            if kind == "MAP" and len(lab) > 1:
+                return self.map(s, lab) + " !"
+            if kind in ("CARD_REWARD", "RESTSITE", "SHOP", "EVENT"):
+                got = getattr(self, "p_" + kind.lower())(s, lab)
+                if got is not None:
+                    return got
+        except Exception:  # noqa: BLE001
+            self.h.log.event("price_error", screen=s[:800], tb=traceback.format_exc()[-1500:])
+        return super().decide(s, opts)
+
+    def map(self, s, lab):
+        if len(lab) < 2:
+            return super().map(s, lab)
+        try:
+            best = self.price(s, PR.options(self.st(s), s))
+        except Exception:  # noqa: BLE001
+            self.h.log.event("price_error", screen=s[:800], tb=traceback.format_exc()[-1500:])
+            best = None
+        m = re.search(r"r(\d+)c(\d+)", best or "")
+        hit = next((i for i, t in lab if m and re.search(rf"\br{m.group(1)}c{m.group(2)}\b", t)), None)
+        return str(hit) if hit is not None else super().map(s, lab)
+
+    def p_card_reward(self, s, lab):
+        best = self.price(s, PR.options(self.st(s), s))
+        if best is None:
+            return None
+        skip = next((i for i, t in lab if t.startswith("Skip")), None)
+        choice = skip if best == "skip" else next((i for i, t in lab if "(" in t and _name(t) == best), None)
+        if choice == skip and self.opened:
+            self.declined.add(self.opened)
+        return None if choice is None else str(choice)
+
+    def p_restsite(self, s, lab):
+        if not any(t.lower().startswith("smith") for _, t in lab):
+            return None
+        st = self.st(s)
+        opts = PR.options(st, s)
+        smiths = [o for o in opts if o[0].startswith("smith ")]
+        if len(smiths) > self.SMITHS:
+            w = self.screen(st, [lambda x, f=f: f(x, None) for _, f in smiths], self.rng(s, "smith"))
+            smiths = [smiths[j] for j in sorted(np.argsort(-w)[:self.SMITHS])]
+        best = self.price(s, [o for o in opts if o[0] == "rest" and any(t.lower().startswith("rest") for _, t in lab)] + smiths)
+        if best is None:
+            return None
+        want = "rest" if best == "rest" else "smith"
+        i = next((i for i, t in lab if t.lower().startswith(want)), None)
+        if i is not None and want == "smith":
+            self.pending = ("upgrade", best.split(" ", 1)[1])
+        return None if i is None else str(i)
+
+    def p_shop(self, s, lab):
+        fk = scr.floor_key(s)
+        if fk not in self.shop_plan:
+            st = self.st(s)
+            items = PR.shop_items(st, s)
+            opts, _note = PR.bundles(st, items, self.pred)
+            best = self.price(s, opts) or "nothing"
+            plan = []
+            for name in ([] if best == "nothing" else re.sub(r" \(\d+g\)$", "", best).split(" + ")):
+                it = next(it for it in items if it[0] == name)
+                if it[1] == "remove":
+                    cid = next(c["id"] for c in st.deck if PR._short(c["id"]) == name[len("remove "):])
+                    plan.append(("remove", cid))
+                else:
+                    plan.append((it[1], PR._card_id(name)[0] if it[1] == "card" else PR._ident(name)))
+            self.shop_plan[fk] = plan
+        return super().shop(s, lab)
+
+    def p_event(self, s, lab):
+        self.title(s)
+        if len(lab) == 1:
+            return None
+        bad = {t.split(":", 1)[0][:34] for _, t in lab if EV.ancient_option(t)[0] in SIM_UNMODELLED}
+        best = self.price(s, [o for o in PR.options(self.st(s), s) if o[0] not in bad])
+        return None if best is None else next((str(i) for i, t in lab if t.split(":", 1)[0][:34] == best), None)
+
+
 class Game:
-    def __init__(self, seed, port, out, engine, predictor, rounds, character):
+    def __init__(self, seed, port, out, engine, predictor, rounds, character, seconds=None, price_n=0):
         self.seed, self.port, self.ep = seed, port, f"127.0.0.1:{port}"
         self.dir = os.path.join(out, seed)
         os.makedirs(self.dir, exist_ok=True)
@@ -363,8 +483,9 @@ class Game:
                 time.sleep(0.1)
         else:
             raise RuntimeError(f"server on {port} did not start")
-        self.h = BaselineHarness(GameLog(self.dir), engine, rounds, seed)
-        self.macro = Macro(self.h, predictor, seed)
+        self.h = BaselineHarness(GameLog(self.dir), engine, rounds, seed, seconds)
+        self.macro = PriceMacro(self.h, predictor, seed, price_n) if price_n else Macro(self.h, predictor, seed)
+        self.setting = dict(macro=f"price n{price_n}" if price_n else "base", budget=f"{seconds}s" if seconds else f"{rounds} rounds")
         self.t0, self.own, self.steps, self.errors, self.stuck = time.time(), 0.0, 0, 0, 0
         self.bad, self.last, self.final, self.tags = {}, None, None, set()
         self.potions, self.desync_turn = 0, None
@@ -487,12 +608,14 @@ class Game:
         m = re.search(r"Floors Climbed: (\d+)", self.final or "")
         fm = re.search(r"F(\d+)", hdr)
         floor = int(m.group(1)) if m else (int(fm.group(1)) if fm else None)
-        died = None
+        act = max([int(x) for x in re.findall(r"A(\d+) F", " ".join([hdr] + [f["floor"] or "" for f in fights]))] or [1])
+        died = kind = None
         if not won:
             last = fights[-1] if fights else None
             lc = getattr(self, "last_combat", None)
             if last and last["hp1"] <= 0:
                 died = last["enc"]
+                kind = "boss" if died.endswith("_BOSS") else "elite" if died.endswith("_ELITE") else "hallway"
             elif lc and lc[0] == scr.floor_key(hdr) and (not last or last["floor"] != lc[0]):
                 died = "unplayable fight: " + ",".join(lc[1])
             elif self.final is None:
@@ -510,18 +633,22 @@ class Game:
                     final_screen=(self.final or "")[:400], wall_s=round(time.time() - self.t0, 1), own_s=round(self.own, 1), steps=self.steps,
                     decisions=st["decisions"], decide_s=round(st["decide_s"], 1), proposals_s=round(st["proposals_s"], 1), differs=st["differs"],
                     desync=st["desync"], select_fallback=st["select_fallback"],
-                    fallback_actions=st["fallback_actions"], errors=self.errors)
+                    fallback_actions=st["fallback_actions"], errors=self.errors, act=act, price_calls=st["price_calls"], price_s=round(st["price_s"], 1),
+                    death_kind=kind, **self.setting)
 
 
 class GpuSampler(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True)
         self.util, self.mem, self.p = [], [], None
-
-    def run(self):
         try:
             self.p = subprocess.Popen(["nvidia-smi", "--query-gpu=utilization.gpu,memory.used", "--format=csv,noheader,nounits", "-l", "1"],
                                       stdout=subprocess.PIPE, text=True)
+        except OSError:
+            pass
+
+    def run(self):
+        try:
             for line in self.p.stdout:
                 u, m = (float(x) for x in line.split(","))
                 self.util.append(u)
@@ -546,6 +673,19 @@ def summary(rows, gpu=None):
         p = sum(r["result"] == "win" for r in rows) / n
         out.append(f"win rate {p:.3f} +- {math.sqrt(p * (1 - p) / n):.3f} (n {n}); mean floor {sum(r['floor'] or 0 for r in rows) / n:.1f}; "
                    f"own time per run {sum(r['own_s'] for r in rows) / n / 60:.1f} min; decide {sum(r['decide_s'] for r in rows) / max(1, sum(r['decisions'] for r in rows)):.3f} s/decision")
+        act = [r.get("act") or min(3, 1 + sum(h > 0 for h in r["act_end_hp"].values())) for r in rows]
+        a1 = sum((r["act_end_hp"].get("1") or 0) > 0 for r in rows) / n
+        dead = [r for r in rows if r["result"] != "win"]
+        kinds = {}
+        for r in dead:
+            d = str(r["died_at"] or "")
+            k = r.get("death_kind") or next((v for s, v in (("_BOSS", "boss"), ("_ELITE", "elite"), ("_NORMAL", "hallway"), ("_WEAK", "hallway")) if d.endswith(s)), None) or \
+                ("unplayable" if d.startswith("unplayable") else "aborted" if d.startswith("aborted") else "other")
+            kinds[k] = kinds.get(k, 0) + 1
+        pc = sum(r.get("price_calls", 0) for r in rows)
+        out.append(f"act-1 boss passed {a1:.3f} +- {math.sqrt(a1 * (1 - a1) / n):.3f}; act reached 1/2/3: {'/'.join(str(act.count(j)) for j in (1, 2, 3))}; "
+                   f"mean death floor {sum(r['floor'] or 0 for r in dead) / max(1, len(dead)):.1f}; deaths {kinds}"
+                   + (f"; price {pc / n:.1f} calls/run, {sum(r['price_s'] for r in rows) / max(1, pc):.1f} s/call" if pc else ""))
     if gpu and gpu.util:
         out.append(f"GPU utilisation mean {sum(gpu.util) / len(gpu.util):.0f}% (samples {len(gpu.util)}), memory max {max(gpu.mem):.0f} MiB")
     return "\n".join(out)
@@ -555,9 +695,10 @@ def main():
     a = sys.argv[1:]
     get = lambda k, d: a[a.index(k) + 1] if k in a else d  # noqa: E731
     n, games, rounds, base = int(get("--n", 20)), int(get("--games", 2)), int(get("--rounds", 16)), int(get("--port", 15820))
+    seconds, price_n = float(get("--seconds", 0)) or None, int(get("--price", 0))
     character = get("--character", "ironclad")
     seeds = get("--seeds", ",".join(f"BASE{i:04d}" for i in range(1, n + 1))).split(",")
-    tag = get("--tag", f"r{rounds}")
+    tag = get("--tag", (f"s{seconds:g}" if seconds else f"r{rounds}") + (f"_price{price_n}" if price_n else ""))
     out = os.path.join(ROOT, "target", "baseline", tag)
     res_path = os.path.join(ROOT, "evals", "baseline", f"{tag}.jsonl")
     os.makedirs(os.path.dirname(res_path), exist_ok=True)
@@ -571,13 +712,14 @@ def main():
     gpu = GpuSampler()
     gpu.start()
     slots = [None] * games
-    print(f"baseline {tag}: {len(pending)} runs pending of {len(seeds)}, {games} games round-robin, {rounds} rounds per decision", flush=True)
+    print(f"baseline {tag}: {len(pending)} runs pending of {len(seeds)}, {games} games round-robin, "
+          f"{f'{seconds:g} s' if seconds else f'{rounds} rounds'} per decision, macro {f'price n {price_n}' if price_n else 'base'}", flush=True)
     try:
         while pending or any(slots):
             for i in range(games):
                 if slots[i] is None and pending:
                     bridge.OVERRIDE = f"127.0.0.1:{base + i}"
-                    slots[i] = Game(pending.pop(0), base + i, out, engine, predictor, rounds, character)
+                    slots[i] = Game(pending.pop(0), base + i, out, engine, predictor, rounds, character, seconds, price_n)
                 g = slots[i]
                 if g is None:
                     continue

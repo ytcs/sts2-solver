@@ -174,7 +174,11 @@ class BasePolicy:
             rank = {"E": 0, "T": 1, "?": 2, "M": 3, "$": 4, "R": 5}
         else:
             rank = {"T": 0, "?": 1, "M": 2, "R": 3, "$": 4, "E": 6}
-        return min(options, key=lambda o: rank.get(o[1], 5))[0]
+        fights = {"M", "E"} if f > 0.75 else {"M"} if f >= 0.45 else set()
+        row = min(k[0] for k, _ in options) if all(isinstance(k, tuple) for k, _ in options) else 0
+        due = sum(t in "ME" for t in TEMPLATE.get(st.act, TEMPLATE[1]).split()[:row])
+        behind = st.monsters + len(st.seen.get("elite", [])) < due
+        return min(options, key=lambda o: (not (behind and o[1] in fights), rank.get(o[1], 5)))[0]
 
     def event(self, st, entry):
         lowhp = st.hp < 0.4 * st.max_hp
