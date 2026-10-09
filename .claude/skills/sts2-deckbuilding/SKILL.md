@@ -21,7 +21,7 @@ Smooth greedy (best smooth score; skip only if every option is worse) beat "best
 4. "Worse now" only if the boss-gate HP is still reached. `[hyp]` test: `route`, `eval --boss --hp <arrival>`.
 5. Prefer picks surviving a bad draw. `[hyp]`
 6. Engines the network may undervalue (exhaust, Strength stacking): more attempts, `adv 20`. Energy itself is no gap `[sim]`.
-7. Density `[sim]` (28-card act-2 deck vs Kaiser Crab): remove 8 starters +0.20, 5 fillers +0.05. Past ~20 cards skip ties; `rmcalc` every few picks; removals before marginal cards. `[hyp]` test: 22- vs 28-card runs.
+7. Density `[sim]` (28-card act-2 deck vs Kaiser Crab): remove 8 starters +0.20, 5 fillers +0.05. (a) past ~20 cards skip ties; (b) `rmcalc` every few picks; (c) removals before marginal cards. `[hyp]` test: 22- vs 28-card runs.
 8. Economy (gold, max HP, slots, curses) is not in `eval`: price in HP/gold. `[code]`
 9. Enchants: `--v "x|enchant=ID:ENCH"`. Elites at arrival HP (`reward --hp <q50>`; full HP saturates ~0.97). HP-cliff bosses: re-price with `--seed 1`. `[sim]` Rules buckets hide (Slippery, Artifact, Thorns, Hard to Kill): boss-alone `eval`. `[code]`
 10. Boss > ~85% or after act 1: later horizons decide (`reward` next-act column, `eval --future`). `[hyp]`

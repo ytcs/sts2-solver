@@ -12,7 +12,7 @@ For `sts2-deckbuilding` section 4 (buckets FD SD FB SB ACC). Test any line: `eva
 - Aeonglass (535 HP) `[code]`: Artifact 3, Wither card every 6 cards played, Ebb 26 + 33 block.
 - Queen (419 HP) `[code]`: kill Torch Head Amalgam first.
 - Test Subject: forms 111 -> 212 -> 313 HP `[hyp]`; test: decomp.
-- Act 3 `[sim]` (act-2-clear deck, 80 HP): ~0% vs Aeonglass and Queen; no single Ironclad card or relic adds > +4; Glory elites 83-98%.
+- Act 3 sweeps `[sim]` (act-2-clear deck, 80 HP): ~0% vs Aeonglass and Queen; no single Ironclad card or relic adds > +4; Glory elites 83-98%.
 
 ## Elites and hallways
 - Infested Prisms (171 HP) `[code]`: each Skill played gives you Tainted 3 vs its 9x3: win with Attacks/Powers/potions.

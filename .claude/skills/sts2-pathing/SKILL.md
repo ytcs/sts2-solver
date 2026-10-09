@@ -18,8 +18,11 @@ Work back from the shown boss(es): `eval --boss --hp 34/45/60/80`. Steep = HP-ga
 
 ## Rules `[hyp]` (test: `routes` + `eval --boss --hp <arrival>`; outcome in `review`)
 - Prefer lanes that keep a fork in the next 2-3 nodes; commit late.
-- Elite = relic + ~3x rare odds `[code]` (`docs/research/game_code.md` C2): take extra elites while `routes` shows boss win >= ~0.9; never two without a rest between (second arrival < ~50% = missing rest); read q10 arrival HP.
 - Rest before a boss or elite chain when HP binds; else smith.
 - Shop only when gold buys something priced worth it.
 - Forced lane: price its closing elite at arrival HP after the chain and HP events; < ~60% win -> other lane.
 - Neow/ancient: the option moving boss-pool win or route budget most; a curse = one slot.
+
+## Risk budget `[hyp]` (same test)
+- Elite = relic + ~3x rare odds `[code]` (`docs/research/game_code.md` C2): take extra elites while `routes` shows boss win >= ~0.9.
+- Never two elites without a rest between (second arrival < ~50% = missing rest); read q10 arrival HP.

@@ -1,5 +1,5 @@
 # Combat solver (`rl/`, `crates/sts2env/src/search.rs`)
-In: deck, relics, potions, HP, encounter (A10). Out: play maximising the fight objective (default linear: win +1 + 0.5 x HP fraction left, loss/stall -1; aborted 0). Networks: `models/current.json` (`policy`, `predictor`; both `solver_r5.pt`). Sets: `data/train/eval.json` (1,500 held-out fights), `data/bench/*.json`.
+In: deck, relics, potions, HP, encounter (A10). Out: play maximising the fight objective (default linear: win +1 + 0.5 x HP fraction left, loss/stall -1; aborted 0). Networks: `models/current.json` (`policy`, `predictor`). Sets: `data/train/eval.json` (1,500 held-out fights), `data/bench/*.json`.
 
 | file | role |
 |---|---|
