@@ -332,6 +332,41 @@ impl Sim {
         Ok(self.cx.cr(cid).power_amount(id) == amount)
     }
 
+    /// Diagnostics (observation audits): pile cards with their counters / enchant / affliction, power counts, decision source, relic display.
+    fn diag(&self) -> String {
+        let cx = &self.cx;
+        let card = |c: &CardIdx| {
+            let k = &cx.cards[*c as usize];
+            json!([k.id, k.upgrade, k.counter[0], k.counter[1], k.enchant, k.enchant_amount, k.affliction, k.affliction_amount])
+        };
+        let creatures: Vec<usize> = std::iter::once(PLAYER).chain(cx.enemies.iter().copied()).chain(cx.osty()).map(|c| cx.cr(c).powers.len()).collect();
+        let dec = cx.decision.as_ref().map(|d| {
+            let (kind, id) = Combat::decision_source(d);
+            json!([kind, id, d.cands.len(), d.min, d.max])
+        });
+        let relics: Vec<Value> = cx
+            .player
+            .relics
+            .as_slice()
+            .iter()
+            .map(|r| {
+                let l = sts2sim::content::relic_listener(r.id);
+                let props: Vec<(&str, i32)> = l.meta_props().iter().filter(|d| d.lit.is_empty()).map(|d| (d.name, r.get(d.slot))).collect();
+                json!([r.id, sts2sim::relic_mask::OBSERVED.get(r.id as usize).copied().unwrap_or(true), l.meta_display(cx, r), props])
+            })
+            .collect();
+        json!({
+            "draw": cx.player.draw.iter().map(card).collect::<Vec<_>>(),
+            "discard": cx.player.discard.iter().map(card).collect::<Vec<_>>(),
+            "exhaust": cx.player.exhaust.iter().map(card).collect::<Vec<_>>(),
+            "hand": cx.player.hand.iter().map(card).collect::<Vec<_>>(),
+            "powers": creatures,
+            "decision": dec,
+            "relics": relics,
+        })
+        .to_string()
+    }
+
     fn snapshot(&self) -> String {
         visible(sts2diff::snapshot::snapshot(&self.cx)).to_string()
     }
