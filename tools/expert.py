@@ -222,6 +222,11 @@ def _intents_ok(got, want):
     return True
 
 
+def _enemies_ok(sim, obs_e):
+    es = [e for e in json.loads(sim.snapshot())["enemies"] if e.get("alive", True)]
+    return len(es) == len(obs_e) and all(all(e[k] == o[k] for k in ("hp", "block") if k in o) for e, o in zip(es, obs_e))
+
+
 class Builder:
     def __init__(self, spec, aliases, seed_tries=40000):
         import sts2
@@ -399,6 +404,16 @@ class Builder:
                     self.sim = s
                 else:
                     self.report.append(f"{where}: no determinization offers {want} after the potion")
+            elif kind in ("p", "pot") and next_obs and "e" in next_obs and not _enemies_ok(self.sim, next_obs["e"]):
+                for k in range(300):
+                    s = base.copy()
+                    s.determinize(self.rng.randrange(1 << 62))
+                    s.apply(json.dumps(sj))
+                    if _enemies_ok(s, next_obs["e"]):
+                        self.sim = s
+                        break
+                else:
+                    self.report.append(f"{where}: no determinization of the play's random effects reproduces the enemies shown")
         self.log.append(j)
         snap = json.loads(self.sim.snapshot())
         st = self._patch(snap, next_obs or {}, where)
