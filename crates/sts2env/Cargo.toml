@@ -15,3 +15,4 @@ serde_json = "1"
 
 [features]
 obs_prof = ["sts2sim/obs_prof"]
+obs_v3 = ["sts2sim/obs_v3"]

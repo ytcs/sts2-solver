@@ -152,7 +152,7 @@ impl Combat {
         None
     }
 
-    fn modify_power_amount_given(&self, id: u16, giver: Cid, amount: Dec, target: Cid, card: CardIdx) -> (Dec, Mods) {
+    pub(crate) fn modify_power_amount_given(&self, id: u16, giver: Cid, amount: Dec, target: Cid, card: CardIdx) -> (Dec, Mods) {
         let m = (Mask::bit(hookbit::modify_power_amount_given_additive)) | (Mask::bit(hookbit::modify_power_amount_given_multiplicative));
         let mut snap = crate::engine::Snapshot::new();
         self.snapshot_into(m, &mut snap);

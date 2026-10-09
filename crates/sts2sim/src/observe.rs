@@ -31,7 +31,39 @@ pub const ENEMY_MOVES_F: usize = OBS_MAX_ENEMIES * MOVE_STATE_F;
 pub const DEC_SOURCE_F: usize = 2;
 pub const PLAYED_F: usize = CARD_F + 2;
 
-pub const OBS_SIZE: usize = GLOBAL_F
+// v3 (feature `obs_v3`) = the v2 bytes unchanged + a tail: per creature (player, enemies, Osty) the powers' hidden second numbers, a stored-card
+// reference and derived threats (doom, poison projection, visible-intent lethal); per card (hand, candidates, played) type, rarity and the powers
+// playing it applies (`card_powers.rs`).
+pub const CX_DERIVED: usize = 10;
+
+/// Visible incoming attack hits on the player this enemy turn, one entry per hit (the last entry absorbs any overflow).
+pub struct Hits {
+    pub d: [i32; 64],
+    pub n: usize,
+}
+
+impl Hits {
+    pub fn push(&mut self, x: i32) {
+        if self.n < self.d.len() {
+            self.d[self.n] = x;
+            self.n += 1;
+        } else {
+            self.d[self.n - 1] = self.d[self.n - 1].saturating_add(x);
+        }
+    }
+}
+pub const CX_F: usize = OBS_POWERS + 2 + CX_DERIVED;
+pub const OBS_CREATURES: usize = 1 + OBS_MAX_ENEMIES + 1;
+pub const CARDX_F: usize = 2 + 2 * 3;
+pub const HAND_TGT_F: usize = MAX_HAND * OBS_MAX_ENEMIES;
+pub const V3_TAIL: usize = OBS_CREATURES * CX_F + (MAX_HAND + OBS_MAX_CANDS + 1) * CARDX_F + HAND_TGT_F;
+#[cfg(feature = "obs_v3")]
+pub const OBS_VERSION: usize = 3;
+#[cfg(not(feature = "obs_v3"))]
+pub const OBS_VERSION: usize = 2;
+pub const OBS_SIZE: usize = OBS_SIZE_V2 + if OBS_VERSION == 3 { V3_TAIL } else { 0 };
+
+pub const OBS_SIZE_V2: usize = GLOBAL_F
     + PLAYER_F
     + RELIC_F
     + POTION_F
@@ -163,6 +195,34 @@ impl Combat {
         p
     }
 
+    /// The card's damage preview against target `t` (its Vulnerable, Intangible, ... apply); 0 for a card without a damage number.
+    pub fn card_damage_vs(&self, c: CardIdx, t: Cid) -> i32 {
+        let d = self.card_def(c);
+        let me = Me { kind: Kind::Card, owner: PLAYER, idx: c as u16, id: self.cards[c as usize].id, amount: 0 };
+        let li = content::listener(&me);
+        let mut out = 0;
+        for v in d.vars.iter() {
+            let props = ValueProp(v.props);
+            match v.kind {
+                VarKind::Damage => out = self.modify_damage_value(t, PLAYER, Dec::int(self.card_base_damage(c) as i64), props, c).trunc(),
+                VarKind::OstyDamage => {
+                    if let Some(o) = self.osty() {
+                        out = self.modify_damage_value(t, o, Dec::int(self.card_var(c, VarKind::OstyDamage) as i64), props, c).trunc();
+                    }
+                }
+                VarKind::CalcDamage => {
+                    let Some(base) = li.calculated_damage(self, c, t) else { continue };
+                    let dealer = if d.tags & tag::OSTY_ATTACK != 0 { self.osty() } else { Some(PLAYER) };
+                    if let Some(dl) = dealer {
+                        out = self.modify_damage_value(t, dl, base, props, c).trunc().max(0);
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
     pub fn power_display(&self, p: &Power) -> i32 {
         use crate::ids::power as pw;
         let aux = p.aux;
@@ -260,7 +320,17 @@ impl Combat {
     }
 
     pub fn observe_ex(&self, out: &mut [f32], hand_playable: Option<u16>) -> usize {
-        let size = OBS_SIZE;
+        self.observe_impl(out, hand_playable, OBS_VERSION == 3)
+    }
+
+    /// The v2 bytes only (search keys: the same under both builds).
+    pub fn observe_v2(&self, out: &mut [f32], hand_playable: Option<u16>) -> usize {
+        self.observe_impl(out, hand_playable, false)
+    }
+
+    #[cfg_attr(not(feature = "obs_v3"), allow(unused_variables))]
+    fn observe_impl(&self, out: &mut [f32], hand_playable: Option<u16>, tail: bool) -> usize {
+        let size = if tail { OBS_SIZE } else { OBS_SIZE_V2 };
         let out = &mut out[..size];
         // SAFETY: `out` has exactly `size` f32s; all-zero bytes are +0.0.
         unsafe { core::ptr::write_bytes(out.as_mut_ptr(), 0, size) };
@@ -327,6 +397,8 @@ impl Combat {
         w.n(self.player.draw.len() as i32);
         w.n(self.player.discard.len() as i32);
         w.n(self.player.exhaust.len() as i32);
+        #[cfg(feature = "obs_v3")]
+        let mut incoming = Hits { d: [0; 64], n: 0 };
         prof!(3, t3, {
         for k in 0..OBS_MAX_ENEMIES {
             let Some(e) = self.enemies.get(k) else {
@@ -368,6 +440,12 @@ impl Combat {
                         w.n(kind);
                         w.n(dmg);
                         w.n(hits);
+                        #[cfg(feature = "obs_v3")]
+                        if cr.is_alive() {
+                            for _ in 0..hits.max(0) {
+                                incoming.push(dmg.max(0));
+                            }
+                        }
                         n_int += 1;
                     }
                 }
@@ -494,8 +572,198 @@ impl Combat {
             }
             None => w.zeros(PLAYED_F),
         }
+        debug_assert_eq!(w.i, OBS_SIZE_V2);
+        #[cfg(feature = "obs_v3")]
+        if tail {
+            self.write_creature_x(&mut w, Some(PLAYER), &incoming);
+            let none = Hits { d: [0; 64], n: 0 };
+            for k in 0..OBS_MAX_ENEMIES {
+                self.write_creature_x(&mut w, self.enemies.get(k), &none);
+            }
+            self.write_creature_x(&mut w, self.osty(), &none);
+            for k in 0..MAX_HAND {
+                match self.player.hand.get(k) {
+                    Some(c) => self.write_card_x(&mut w, c),
+                    None => w.zeros(CARDX_F),
+                }
+            }
+            for k in 0..OBS_MAX_CANDS {
+                match self.decision.as_ref().and_then(|d| star_view.as_ref().and_then(|v| v.get(k)).map(|vi| d.cands[vi as usize])) {
+                    Some(c) => self.write_card_x(&mut w, c),
+                    None => w.zeros(CARDX_F),
+                }
+            }
+            match self.play_stack.last().map(|p| p.play.card).filter(|&c| c != NO) {
+                Some(c) => self.write_card_x(&mut w, c),
+                None => w.zeros(CARDX_F),
+            }
+            for k in 0..MAX_HAND {
+                let c = self.player.hand.get(k);
+                for j in 0..OBS_MAX_ENEMIES {
+                    match (c, self.enemies.get(j)) {
+                        (Some(c), Some(e)) if hand_pre[k].damage != 0 || hand_pre[k].osty_damage.is_some_and(|x| x != 0) => {
+                            if self.cr(e).is_alive() {
+                                w.n(self.card_damage_vs(c, e))
+                            } else {
+                                w.f(0.0)
+                            }
+                        }
+                        _ => w.f(0.0),
+                    }
+                }
+            }
+        }
         debug_assert_eq!(w.i, size);
         size
+    }
+
+    /// A power's second number the v2 observation does not show (`power_display` covers others), and a stored card (id + 1, upgrade).
+    pub fn power_aux2(&self, p: &Power) -> (f32, (i32, i32)) {
+        use crate::ids::power as pw;
+        let a = p.aux;
+        match p.id {
+            pw::THE_BOMB_POWER | pw::CRIMSON_MANTLE_POWER | pw::INFERNO_POWER | pw::THIEVERY_POWER | pw::DARK_EMBRACE_POWER | pw::JUGGLING_POWER
+            | pw::STAMPEDE_POWER => (a as f32, (0, 0)),
+            pw::TORIC_TOUGHNESS_POWER => (a as f32 / 4.0, (0, 0)),
+            pw::POSSESS_STRENGTH_POWER | pw::POSSESS_SPEED_POWER => (-(a as f32), (0, 0)),
+            pw::VOID_FORM_POWER => ((p.amount as i64 - a as i64).max(0) as f32, (0, 0)),
+            pw::NEMESIS_POWER | pw::SKITTISH_POWER | pw::CURL_UP_POWER | pw::REATTACH_POWER | pw::RITUAL_POWER | pw::SOULBOUND_POWER | pw::ILLUSION_POWER
+            | pw::ADAPTABLE_POWER | pw::CHAINS_OF_BINDING_POWER => ((a != 0) as i32 as f32, (0, 0)),
+            pw::NIGHTMARE_POWER if a > 0 && ((a - 1) as usize) < self.cards.len() => {
+                let c = &self.cards[(a - 1) as usize];
+                (0.0, (c.id as i32 + 1, c.upgrade as i32))
+            }
+            _ => (0.0, (0, 0)),
+        }
+    }
+
+    /// Poison damage at the creature's next tick and over its next three ticks (Accelerant of the other side, Noxious Fumes of the other side
+    /// between ticks, Intangible caps each hit at 1 while it lasts).
+    pub fn poison_projection(&self, c: Cid) -> (i32, i32) {
+        use crate::ids::power as pw;
+        let cr = self.cr(c);
+        let mut cur = cr.power_amount(pw::POISON_POWER);
+        let (mut acc, mut fumes) = (0, 0);
+        for k in 0..MAX_CREATURES {
+            let o = self.cr(k as Cid);
+            if o.in_combat && o.is_alive() && o.side != cr.side {
+                acc += o.power_amount(pw::ACCELERANT_POWER);
+                fumes += o.power_amount(pw::NOXIOUS_FUMES_POWER);
+            }
+        }
+        if cur <= 0 && fumes <= 0 {
+            return (0, 0);
+        }
+        let intang = cr.power_amount(pw::INTANGIBLE_POWER);
+        let player_side = cr.side == Side::Player;
+        let (mut first, mut total) = (0, 0);
+        for k in 0..3 {
+            if player_side {
+                cur += fumes;
+            }
+            let capped = intang >= k + 1 + player_side as i32;
+            let it = cur.min(1 + acc).max(0);
+            let d: i32 = (0..it).map(|i| if capped { 1 } else { cur - i }).sum();
+            cur -= it;
+            if k == 0 {
+                first = d;
+            }
+            total += d;
+            if !player_side {
+                cur += fumes;
+            }
+        }
+        (first, total)
+    }
+
+    #[cfg(feature = "obs_v3")]
+    fn write_creature_x(&self, w: &mut W, c: Option<Cid>, incoming: &Hits) {
+        let Some(c) = c else {
+            w.zeros(CX_F);
+            return;
+        };
+        let cr = self.cr(c);
+        let n = cr.powers.len().min(OBS_POWERS);
+        let mut card_ref = (0, 0);
+        for p in &cr.powers.as_slice()[..n] {
+            let (v, r) = self.power_aux2(p);
+            w.f(v);
+            if r.0 != 0 {
+                card_ref = r;
+            }
+        }
+        w.zeros(OBS_POWERS - n);
+        w.n(card_ref.0);
+        w.n(card_ref.1);
+        if !cr.is_alive() {
+            w.zeros(CX_DERIVED);
+            return;
+        }
+        let d = self.derived(c, incoming);
+        for v in d {
+            w.n(v);
+        }
+    }
+
+    /// [doom - hp, doomed, poison next tick, poison over 3 ticks, tick lethal, 3-tick lethal, margin, incoming, hp lost to it, dies without a card].
+    /// Enemy margin = hp - poison tick - doom (both ignore block; doom checks after the tick). Player: incoming = visible attack intents after
+    /// modifiers (Intangible caps via `intent_damage`), hp lost = after block, then Buffer per hit; margin = hp - hp lost; dies = lost >= hp or doomed.
+    pub fn derived(&self, c: Cid, incoming: &Hits) -> [i32; CX_DERIVED] {
+        let cr = self.cr(c);
+        let hp = cr.hp;
+        let doom = cr.power_amount(crate::ids::power::DOOM_POWER);
+        let (tick, three) = self.poison_projection(c);
+        let doomed = doom > 0 && hp <= doom;
+        let mut d = [if doom > 0 { doom - hp } else { 0 }, doomed as i32, tick, three, (tick > 0 && tick >= hp) as i32, (three > 0 && three >= hp) as i32, 0, 0, 0, 0];
+        if c == PLAYER {
+            let (mut block, mut buffer) = (cr.block, cr.power_amount(crate::ids::power::BUFFER_POWER));
+            let (mut total, mut lost) = (0i64, 0i64);
+            for &h in &incoming.d[..incoming.n] {
+                total += h as i64;
+                let a = h.min(block);
+                block -= a;
+                let mut x = h - a;
+                if x > 0 && buffer > 0 {
+                    buffer -= 1;
+                    x = 0;
+                }
+                lost += x as i64;
+            }
+            let lost = lost.min(i32::MAX as i64) as i32;
+            d[6] = hp - lost;
+            d[7] = total.min(i32::MAX as i64) as i32;
+            d[8] = lost;
+            d[9] = (lost >= hp || doomed) as i32;
+        } else {
+            let m = hp - tick - doom;
+            d[6] = m;
+            d[9] = (m <= 0 && (doom > 0 || tick > 0)) as i32;
+        }
+        d
+    }
+
+    #[cfg(feature = "obs_v3")]
+    fn write_card_x(&self, w: &mut W, c: CardIdx) {
+        let card = &self.cards[c as usize];
+        let d = content::card_def(card.id);
+        w.n(d.ctype as i32);
+        w.n(d.rarity as i32);
+        let enemy = (0..self.enemies.len()).filter_map(|k| self.enemies.get(k)).find(|&e| self.cr(e).is_alive());
+        for &(p1, tgt, a0, a1) in crate::card_powers::CARD_POWERS[card.id as usize].iter() {
+            if p1 == 0 {
+                w.zeros(3);
+                continue;
+            }
+            let base = a0 as i32 + (a1 as i32 - a0 as i32) * card.upgrade as i32;
+            let target = if tgt == 1 { Some(PLAYER) } else { enemy };
+            let amount = match target {
+                Some(t) => self.modify_power_amount_given(p1 - 1, PLAYER, Dec::int(base as i64), t, c).0.trunc(),
+                None => base,
+            };
+            w.n(p1 as i32);
+            w.n(amount);
+            w.n(tgt as i32);
+        }
     }
 }
 
@@ -519,14 +787,22 @@ pub fn layout() -> Vec<(&'static str, usize, usize)> {
         ("enemy_moves", ENEMY_MOVES_F),
         ("dec_source", DEC_SOURCE_F),
         ("played", PLAYED_F),
-        ("end", 0),
+        ("creature_x", OBS_CREATURES * CX_F),
+        ("hand_x", MAX_HAND * CARDX_F),
+        ("cand_x", OBS_MAX_CANDS * CARDX_F),
+        ("played_x", CARDX_F),
+        ("hand_tgt", HAND_TGT_F),
     ];
     let mut out = vec![];
     let mut off = 0;
     for (n, sz) in sizes {
+        if off >= OBS_SIZE {
+            break;
+        }
         out.push((n, off, sz));
         off += sz;
     }
+    out.push(("end", off, 0));
     out
 }
 
@@ -534,6 +810,12 @@ pub fn layout_consts() -> Vec<(&'static str, usize)> {
     use crate::engine::{ACTION_SPACE, MAX_PICK};
     vec![
         ("OBS_SIZE", OBS_SIZE),
+        ("OBS_SIZE_V2", OBS_SIZE_V2),
+        ("OBS_VERSION", OBS_VERSION),
+        ("CX_F", CX_F),
+        ("CX_DERIVED", CX_DERIVED),
+        ("CARDX_F", CARDX_F),
+        ("OBS_CREATURES", OBS_CREATURES),
         ("ACTION_SPACE", ACTION_SPACE),
         ("CARD_F", CARD_F),
         ("POWER_F", POWER_F),

@@ -1150,7 +1150,7 @@ impl Exact {
     }
 
     fn key(&mut self, cx: &Combat, world: u32) -> u64 {
-        cx.observe_ex(&mut self.obs, None);
+        cx.observe_v2(&mut self.obs, None);
         let mut h = Fx(world as u64);
         for x in self.obs.iter() {
             h.add(x.to_bits() as u64);
@@ -1351,7 +1351,7 @@ impl Block {
         let mut s = self.ks.first().copied().unwrap_or(self.rng) ^ EXACT_SALT;
         let dets = cfg.exact.dets.clamp(1, slots(cfg));
         ex.ks.extend((0..dets).map(|_| splitmix(&mut s)));
-        ex.obs.resize(OBS_SIZE, 0.0);
+        ex.obs.resize(sts2sim::observe::OBS_SIZE_V2, 0.0);
         ex.turn = self.main.player.turn_number;
         ex.best = best;
         ex.gain = self.gain;

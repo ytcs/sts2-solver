@@ -228,3 +228,160 @@ fn determinize_changes_only_hidden_state() {
     }
     assert!(changed > 10, "the draw order was resampled in only {changed} of 40 fights");
 }
+
+#[cfg(feature = "obs_v3")]
+mod v3 {
+    use super::*;
+    use sts2sim::dec::Dec;
+    use sts2sim::observe::{CARDX_F, CX_DERIVED, CX_F, OBS_POWERS, OBS_SIZE_V2};
+
+    fn sec(name: &str) -> usize {
+        observe::layout().iter().find(|s| s.0 == name).unwrap().1
+    }
+
+    /// creature block k: 0 player, 1 + i enemy i, 9 Osty
+    fn cx_block(v: &[f32], k: usize) -> &[f32] {
+        &v[sec("creature_x") + k * CX_F..sec("creature_x") + (k + 1) * CX_F]
+    }
+
+    fn derived(v: &[f32], k: usize) -> Vec<i32> {
+        cx_block(v, k)[OBS_POWERS + 2..OBS_POWERS + 2 + CX_DERIVED].iter().map(|&x| x as i32).collect()
+    }
+
+    fn silent(deck: &[u16], relics: &[u16]) -> Combat {
+        let mut sc = scenario(7);
+        sc.character = 1;
+        sc.deck = deck.iter().map(|&id| DeckCard { id, upgrade: 0 }).collect();
+        sc.relics = relics.iter().map(|&id| RelicInit { id, ..Default::default() }).collect();
+        sc.potions = vec![];
+        Combat::new(&sc)
+    }
+
+    #[test]
+    fn v2_prefix_is_the_v2_observation() {
+        for seed in 0..20 {
+            let cx = midfight(seed);
+            let full = obs(&cx);
+            let mut v2 = vec![0f32; OBS_SIZE_V2];
+            assert_eq!(cx.observe_v2(&mut v2, None), OBS_SIZE_V2);
+            assert!(full[..OBS_SIZE_V2] == v2[..], "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn doom_threshold_is_explicit() {
+        let mut cx = Combat::new(&scenario(1));
+        let e = cx.enemies[0];
+        let hp = cx.cr(e).hp;
+        let mut a = cx.clone();
+        a.apply_power(ids::power::DOOM_POWER, e, Dec::int(hp as i64 - 1), PLAYER, NO);
+        let d = derived(&obs(&a), 1);
+        assert_eq!((d[0], d[1], d[6], d[9]), (-1, 0, 1, 0), "doom hp-1: {d:?}");
+        cx.apply_power(ids::power::DOOM_POWER, e, Dec::int(hp as i64), PLAYER, NO);
+        let d = derived(&obs(&cx), 1);
+        assert_eq!((d[0], d[1], d[6], d[9]), (0, 1, 0, 1), "doom = hp: {d:?}");
+    }
+
+    #[test]
+    fn poison_projection_counts_accelerant_and_fumes() {
+        let mut cx = silent(&[ids::card::DEADLY_POISON; 6], &[]);
+        let e = cx.enemies[0];
+        cx.apply_power(ids::power::POISON_POWER, e, Dec::int(10), PLAYER, NO);
+        let d = derived(&obs(&cx), 1);
+        assert_eq!((d[2], d[3]), (10, 10 + 9 + 8), "poison 10: {d:?}");
+        cx.apply_power(ids::power::ACCELERANT_POWER, PLAYER, Dec::int(1), PLAYER, NO);
+        let d = derived(&obs(&cx), 1);
+        assert_eq!((d[2], d[3]), (10 + 9, 19 + 8 + 7 + 6 + 5), "poison 10 + accelerant 1: {d:?}");
+        cx.apply_power(ids::power::ACCELERANT_POWER, PLAYER, Dec::int(1), PLAYER, NO);
+        let d = derived(&obs(&cx), 1);
+        assert_eq!(d[2], 10 + 9 + 8, "accelerant 2: {d:?}");
+        cx.apply_power(ids::power::NOXIOUS_FUMES_POWER, PLAYER, Dec::int(2), PLAYER, NO);
+        let d = derived(&obs(&cx), 1);
+        // ticks: 10 9 8 -> 7 (+2 = 9): 9 8 7 -> 6 (+2 = 8): 8 7 6
+        assert_eq!((d[2], d[3]), (27, 27 + 24 + 21), "accelerant 2 + fumes 2: {d:?}");
+        let hp = cx.cr(e).hp;
+        assert_eq!(d[4], (27 >= hp) as i32);
+        assert_eq!(d[6], hp - 27);
+    }
+
+    #[test]
+    fn intangible_lands_on_its_side_and_caps_damage() {
+        let cx = Combat::new(&scenario(2));
+        let e = cx.enemies[0];
+        let base = obs(&cx);
+        let hits = {
+            let o = sec("enemies");
+            let ef = observe::ENEMY_F;
+            (0..cx.enemies.len())
+                .flat_map(|k| (0..3).map(move |j| (k, j)))
+                .map(|(k, j)| {
+                    let b = o + k * ef + 8 + OBS_POWERS * 3 + j * 3;
+                    if base[b] == 1.0 && base[o + k * ef + 6] == 1.0 { base[b + 2] as i32 } else { 0 }
+                })
+                .sum::<i32>()
+        };
+        let mut p = cx.clone();
+        p.apply_power(ids::power::INTANGIBLE_POWER, PLAYER, Dec::int(1), PLAYER, NO);
+        let d = derived(&obs(&p), 0);
+        assert_eq!(d[7], hits, "player intangible: incoming = one per hit");
+        let bomb_hand = {
+            let h = sec("hand_tgt");
+            base[h..h + observe::OBS_MAX_ENEMIES].to_vec()
+        };
+        let mut q = cx.clone();
+        q.apply_power(ids::power::INTANGIBLE_POWER, e, Dec::int(1), e, NO);
+        let v = obs(&q);
+        let h = sec("hand_tgt");
+        for k in 0..sts2sim::state::MAX_HAND {
+            let x = v[h + k * observe::OBS_MAX_ENEMIES];
+            assert!(x <= 1.0, "enemy intangible caps the per-target preview of hand card {k}: {x}");
+        }
+        assert!(bomb_hand.iter().any(|&x| x > 1.0) || cx.player.hand.iter().all(|&c| cx.card_preview(c).damage == 0));
+        // the player block shows no intangible-specific change from an enemy's intangible
+        assert_eq!(derived(&v, 0), derived(&base, 0));
+    }
+
+    #[test]
+    fn vulnerable_target_shows_in_the_per_target_preview() {
+        let mut cx = Combat::new(&scenario(2));
+        let e = cx.enemies[0];
+        let Some(k) = (0..cx.player.hand.len()).find(|&k| cx.card_preview(cx.player.hand[k]).damage > 0) else { return };
+        let h = sec("hand_tgt") + k * observe::OBS_MAX_ENEMIES;
+        let before = obs(&cx)[h];
+        cx.apply_power(ids::power::VULNERABLE_POWER, e, Dec::int(2), PLAYER, NO);
+        let after = obs(&cx)[h];
+        assert_eq!(after, (before * 1.5).floor(), "vulnerable x1.5 on the target");
+    }
+
+    #[test]
+    fn hidden_second_numbers_show() {
+        let mut cx = Combat::new(&scenario(3));
+        let uid = cx.apply_power(ids::power::THE_BOMB_POWER, PLAYER, Dec::int(3), PLAYER, NO).unwrap();
+        cx.power_mut(PLAYER, uid).unwrap().aux = 40;
+        let v = obs(&cx);
+        let i = cx.cr(PLAYER).powers.iter().position(|p| p.id == ids::power::THE_BOMB_POWER).unwrap();
+        assert_eq!(cx_block(&v, 0)[i], 40.0, "The Bomb's damage");
+        let c = cx.player.hand[0];
+        let uid = cx.apply_power(ids::power::NIGHTMARE_POWER, PLAYER, Dec::int(3), PLAYER, NO).unwrap();
+        cx.power_mut(PLAYER, uid).unwrap().aux = c as i32 + 1;
+        let v = obs(&cx);
+        let b = cx_block(&v, 0);
+        assert_eq!((b[OBS_POWERS] as u16, b[OBS_POWERS + 1] as u8), (cx.cards[c as usize].id + 1, cx.cards[c as usize].upgrade), "Nightmare's card");
+    }
+
+    #[test]
+    fn card_effects_name_the_power_and_its_amount() {
+        let cx = silent(&[ids::card::DEADLY_POISON; 6], &[]);
+        let v = obs(&cx);
+        let x = &v[sec("hand_x")..sec("hand_x") + CARDX_F];
+        assert_eq!(x[..5].iter().map(|&f| f as i32).collect::<Vec<_>>(), vec![2, 2, ids::power::POISON_POWER as i32 + 1, 5, 2], "Deadly Poison: skill, common, poison 5 on one enemy");
+        let cx = silent(&[ids::card::DEADLY_POISON; 6], &[ids::relic::SNECKO_SKULL]);
+        let v = obs(&cx);
+        assert_eq!(v[sec("hand_x") + 3], 6.0, "Snecko Skull: poison given +1");
+        let cx = silent(&[ids::card::WRAITH_FORM; 6], &[]);
+        let v = obs(&cx);
+        let x: Vec<i32> = v[sec("hand_x")..sec("hand_x") + CARDX_F].iter().map(|&f| f as i32).collect();
+        let effs = [(x[2], x[3], x[4]), (x[5], x[6], x[7])];
+        assert!(effs.contains(&(ids::power::INTANGIBLE_POWER as i32 + 1, 2, 1)) && effs.contains(&(ids::power::WRAITH_FORM_POWER as i32 + 1, 1, 1)), "{effs:?}");
+    }
+}

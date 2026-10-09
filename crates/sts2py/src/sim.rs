@@ -315,6 +315,23 @@ impl Sim {
         Ok(())
     }
 
+    /// Probe edit (value-response tests): set `power` to `amount` on the player / enemy `index` / Osty (0 removes it); returns false if refused.
+    fn set_power(&mut self, side: &str, index: usize, power: &str, amount: i32) -> PyResult<bool> {
+        let cid = match side {
+            "player" => PLAYER,
+            "enemy" => self.enemy_cid(index)?,
+            "osty" => self.cx.osty().ok_or_else(|| PyValueError::new_err("no Osty"))?,
+            _ => return Err(PyValueError::new_err(format!("side {side}: want player / enemy / osty"))),
+        };
+        let id = power_ids(power).ok_or_else(|| PyValueError::new_err(format!("unknown power {power}")))?;
+        let mut want: Vec<(u16, i32)> = self.cx.cr(cid).powers.iter().map(|p| (p.id, p.amount)).filter(|p| p.0 != id).collect();
+        if amount != 0 {
+            want.push((id, amount));
+        }
+        self.cx.sync_powers(cid, &want);
+        Ok(self.cx.cr(cid).power_amount(id) == amount)
+    }
+
     fn snapshot(&self) -> String {
         visible(sts2diff::snapshot::snapshot(&self.cx)).to_string()
     }

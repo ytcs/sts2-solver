@@ -5,6 +5,8 @@ from ._sts2 import Sim, replay as _replay, replay_rows as _replay_rows, SearchEn
 
 OBS_SIZE = obs_size()
 ACTIONS = action_space()
+OBS_VERSION = layout()["consts"]["OBS_VERSION"]
+OBS_SIZE_V2 = layout()["consts"]["OBS_SIZE_V2"]
 _ENC = json.JSONEncoder(check_circular=False, separators=(",", ":"))
 
 
