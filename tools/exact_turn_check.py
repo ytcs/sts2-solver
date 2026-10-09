@@ -5,7 +5,7 @@ winning first move (exact value > 1 = a win); Phantasmal Gardeners #1 and Lagavu
 
 usage: python tools/exact_turn_check.py [--seeds 4]
 """
-import argparse, json, os, sys, time
+import argparse, json, os, re, sys, time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, ROOT)
@@ -43,7 +43,7 @@ def main():
                 t = time.perf_counter() - t
                 q = {text[o]: round(v, 3) for o, v, lg in zip(r["opts"], r["q"], r["legal"]) if lg}
                 print(f"  seed {s} exact {'on ' if on else 'off'}: {text[r['action']]:30s} triggered={r['exact']} {t:.2f}s  {q}")
-                if on and must_win and not q.get(text[r["action"]], -9) > 1.0:
+                if on and must_win and not max(v for k, v in q.items() if re.sub(r" #\d+", "", k) == re.sub(r" #\d+", "", text[r["action"]])) > 1.0:
                     ok = False
         fs.exact = cfg
         r = eng.decide(sc, d["sim"].copy(), 2.0, tol_hp=0.5, keep_potions=True)
