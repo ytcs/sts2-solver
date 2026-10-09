@@ -13,7 +13,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 - Venue (user): a win on the headless server (`OracleCombat serve`, E44) is a real win once the server is mechanically indistinguishable from the real game; parity is shown on full runs our own agent plays (victory screen, Crystal Sphere, bundle choice, Calling Bell, Cauldron still to compare live). R&D and evaluation run headless; the real game stays the dashboard venue.
 - `models/solver_r6.pt` is player and predictor (`models/current.json`, E37); the live `Engine` searches every distinct legal action (cover, E27) with exact turn search on (E36).
 - Instruments: near-miss bench (`tools/nearmiss_bench.py`, `data/bench/nearmiss.json`; candidate paired directly with the live player; user's key metric; optimality bracket E25: avoidable share of near-miss losses in [~0.02, ~0.19]); predictor bench (`tools/bench.py`: play, score incl. the `plans` slice, `relabel`); expert gap states (`tools/exact_turn_check.py`, `data/expert/`); combat-loop round (`tools/round_pool.py`, `scripts/pod_round.sh`, `rl/exit.py`); pods (`scripts/pod_job.sh`).
-- Promotion gate (new live model): `bench.py play` no set worse (paired); near-miss not worse (paired with live); `bench.py score` Brier no worse on most sets; decile bias < 0.02 (fails for r5/r6: mix -0.030, tail -0.047).
+- Promotion gate (new live model): `bench.py play` no set worse (paired); near-miss not worse (paired with live); `bench.py score` Brier no worse on most sets; decile bias < 0.02 (fails for r5/r6: mix -0.030, tail -0.047); an observation-v3 checkpoint also passes the sign gate (`tools/power_coverage.py gate`, E47; r6 fails it).
 
 ## 3. Stages, in order
 
@@ -32,6 +32,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 
 **3. Combat-loop round with a new lever.** Same-recipe rounds are flattening (r5 +0.013, r6 +0.006 L->W, E37).
 - Round: collect with the live player (cover search) on a pool from `tools/round_pool.py` (signal 90k by p(1-p) + 15% uniform, plan decks 30k, enabler pairs 16k, late decks 14k); train policy (anchored c=2, E10) + value (TD(0.8), HL-Gauss, E24) from the live model (`rl/exit.py train`); promotion gate. Value targets are realized/TD outcomes, never max of search Q. 5090 pod: ~2 h + ~10 min, ~$3. After a simulator change `tools/prune_divergent.py`.
+- Lever ready: observation v3 (E47; `docs/simulator.md`): round from `tools/obs_v3_init.py init` (r6 -> `solver_r6_v3init.pt`, bitwise r6) with `STS2_OBS=3` on the pod; data side open: generators deal no Ancient cards and little player Intangible (0.35% of rows).
 - Levers: collection with the stage-2 search; pool weighted to near-miss / setup-turn / expert-gap-like states; hard-fight calibration (mix -0.030, tail -0.047); enabler-removal pairs (blind, Spearman 0.135). Plans slice nearly passing (r6 bias -0.013, deck Spearman 0.791).
 - Gate: decile bias < 0.02; plans slice |bias| < 0.05 and deck Spearman >= 0.8; ranking no worse than live; play and near-miss not worse.
 
