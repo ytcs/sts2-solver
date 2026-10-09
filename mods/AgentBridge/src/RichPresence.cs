@@ -6,7 +6,7 @@ namespace AgentBridge;
 [HarmonyPatch(typeof(PlatformUtil), nameof(PlatformUtil.SetRichPresenceValue))]
 public static class RichPresenceLabel
 {
-    public const string Label = "I Self-Play";
+    public const string Label = "I [Claude]";
 
     static void Prefix(string key, ref string? value)
     {
