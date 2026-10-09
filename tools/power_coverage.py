@@ -483,6 +483,62 @@ def calib(a):
         print(f"{k:48s} n {v['n']:8d}  p {v['p']:.3f}  won {v['won']:.3f}  bias {v['bias']:+.3f}  brier {v['brier']:.4f}")
 
 
+def tdcal(a):
+    """bias of --ckpt vs the realized win and vs the TD(lambda) target exit.py trains on (bootstrapped from --prior), per group, fight-clustered se"""
+    import model as M
+    net, prior = M.load(a.ckpt), M.load(a.prior)
+    cols = defaultdict(list)
+    fid0 = 0
+    for pi, path in enumerate(sorted(glob.glob(a.parts))):
+        if pi % a.every:
+            continue
+        o, _, dfi, scen, z = part_rows(path)  # rows sorted by fight, steps in order within a fight (exit.py's td_targets order)
+        d = decode(o)
+        F = row_features(o, d)
+        p, q = p_win(net, o), p_win(prior, o)
+        del o
+        y = (z["f_cls"][dfi] > 0).astype(np.float64)
+        last = np.r_[dfi[1:] != dfi[:-1], True]
+        T = y.copy()  # exit.td_backup on the win mass: 1 - T[:, 0] is linear in T
+        for i in range(len(T) - 2, -1, -1):
+            if not last[i]:
+                T[i] = (1 - a.lam) * q[i + 1] + a.lam * T[i + 1]
+        src = np.array([scen[z["f_scen"][f]].get("meta", {}).get("source", "?") for f in range(len(z["f_scen"]))])[dfi]
+        pid = d["pid"]
+        g = {"all": np.ones(len(p), bool), "plan source": src == "plan",
+             "enemy doom > 0": F["doom"] > 0, "enemy doom >= hp": F["doom_lethal"],
+             "enemy poison >= 10": F["poison"] >= 10, "enemy poison >= 20": F["poison"] >= 20,
+             "player intangible": (pid == PID["INTANGIBLE_POWER"]).any(1)}
+        for n in ("HAUNT", "AFTERIMAGE", "FURNACE", "COUNTDOWN", "ACCELERANT"):
+            g[f"player {n.lower()}"] = F["named"][n + "_POWER"]
+        for k, v in dict(p=p, y=y, t=T, fid=dfi + fid0, **{f"g:{k}": m for k, m in g.items()}).items():
+            cols[k].append(v)
+        fid0 += len(z["f_scen"])
+        print(f"{os.path.basename(path)} {len(p)} rows", file=sys.stderr, flush=True)
+    c = {k: np.concatenate(v) for k, v in cols.items()}
+
+    def bias_se(r, fid):
+        """mean of r with an se clustered by fight"""
+        u, inv = np.unique(fid, return_inverse=True)
+        s, n = np.bincount(inv, r), np.bincount(inv)
+        b = s.sum() / n.sum()
+        return b, np.sqrt(((s - b * n) ** 2).sum()) / n.sum()
+
+    out = {}
+    for k in [k for k in c if k.startswith("g:")]:
+        m = c[k]
+        if not m.any():
+            continue
+        p, y, t, fid = c["p"][m], c["y"][m], c["t"][m], c["fid"][m]
+        out[k[2:]] = dict(n=int(m.sum()), fights=int(len(np.unique(fid))), p=float(p.mean()), won=float(y.mean()), td=float(t.mean()),
+                          bias_realized=bias_se(p - y, fid), bias_td=bias_se(p - t, fid), td_minus_realized=bias_se(t - y, fid))
+    json.dump(out, open(a.out, "w"), indent=1)
+    for k, v in out.items():
+        br, bt, tr = v["bias_realized"], v["bias_td"], v["td_minus_realized"]
+        print(f"{k:22s} n {v['n']:7d} fights {v['fights']:6d}  p {v['p']:.3f} won {v['won']:.3f} td {v['td']:.3f}  "
+              f"p-won {br[0]:+.3f}+-{br[1]:.3f}  p-td {bt[0]:+.3f}+-{bt[1]:.3f}  td-won {tr[0]:+.3f}+-{tr[1]:.3f}")
+
+
 def set_power(obs, base, pid, amount):
     """write power `pid` x `amount` into the power block at `base` (replace it or take the first empty slot); amount 0 removes it"""
     blk = obs[:, base:base + P * PF].reshape(len(obs), P, PF).copy()
@@ -610,7 +666,16 @@ def main():
     v.add_argument("--ckpt", required=True)
     v.add_argument("--n", type=int, default=4000)
     v.add_argument("--out", required=True)
+    t = sp.add_parser("tdcal")
+    t.add_argument("--parts", required=True)
+    t.add_argument("--every", type=int, default=10)
+    t.add_argument("--ckpt", required=True, help="network scored")
+    t.add_argument("--prior", required=True, help="network the TD targets bootstrap from (exit.py train --init)")
+    t.add_argument("--lam", type=float, default=0.8)
+    t.add_argument("--out", required=True)
     a = ap.parse_args()
+    if a.cmd == "tdcal":
+        return tdcal(a)
     if a.cmd == "calib":
         return calib(a)
     if a.cmd == "sens":
