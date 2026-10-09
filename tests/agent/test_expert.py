@@ -9,6 +9,7 @@ from agent import reenact as RE
 REC = os.path.join(ROOT, "data", "expert", "baalorlord", "hMrQSndDvPc.json")
 TARGETED = {"STRIKE_SILENT", "NEUTRALIZE", "DASH", "SNAKEBITE", "SHIV", "STRANGLE"}
 HEAD = "A1 F9 SILENT A10 HP 35/70 G79 pots[Dexterity Potion, Cunning Potion]"
+NACTS = 465
 
 
 def _expert():
@@ -157,6 +158,14 @@ def test_pilot_record_translates_to_bridge_actions():
         assert len(acts) == len(log), fid
         for a, want in zip(acts, log):
             st = states[a["i"]]
+            offer = a["kind"] == "choose" and a["i"] and log[a["i"] - 1].get("use_potion") and not any(
+                c["id"] == a["cards"][0][0] for c in st["hand"])
+            if offer:
+                opts = [{"id": "FOOTWORK", "upgrade": 0}, {"id": "AFTERIMAGE", "upgrade": 0}, {"id": a["cards"][0][0], "upgrade": a["cards"][0][1]}]
+                cmd, err = RE.combat_command(a, st, select_screen(opts, 1).replace("Choose a card to discard.", "Choose a card."))
+                assert err is None and RE.to_bridge(a, cmd) == {"choose": [2]}, (fid, a["i"], err, cmd)
+                n += 1
+                continue
             if a["kind"] == "choose":
                 scr = select_screen(st["hand"], len(a["cards"]))
             else:
@@ -175,7 +184,7 @@ def test_pilot_record_translates_to_bridge_actions():
             else:
                 assert got == want
             n += 1
-    assert n == 107
+    assert n == NACTS
 
 
 def test_record_validates():
@@ -192,7 +201,9 @@ def test_record_validates():
 
 MENU = "MENU\n0 new run  (a <i> <character> [ascension] [seed]; characters: ironclad silent defect regent necrobinder)\n1 custom run  (a <i> ...)\n"
 MAP_TEXT = "rows bottom->top; point = <type>c<col>><child cols>; * = visited\nr1: Mc1> ?c3> Ec5>\nboss: 16 LAGAVULIN_MATRIARCH_BOSS\n"
-FIGHT = dict(id=1, scenario=dict(encounter="SLUDGE_SPINNER_WEAK"), log=[], state=dict(enemies=[dict(id="SLUDGE_SPINNER", hp=40, max_hp=40, index=0)], hand=[]))
+FIGHT = dict(id=1, scenario=dict(encounter="SLUDGE_SPINNER_WEAK"), log=[], state=dict(
+    player=dict(hp=56), enemies=[dict(id="SLUDGE_SPINNER", hp=41, max_hp=41, index=0, intents=[dict(type="Attack", damage=9, hits=1), dict(type="Debuff")])],
+    hand=[{"id": c, "upgrade": 0} for c in ("STRIKE_SILENT", "DEFEND_SILENT", "DEFEND_SILENT", "STRIKE_SILENT", "STRIKE_SILENT", "DEFEND_SILENT", "DEFEND_SILENT")]))
 COMBAT_SCREEN = "COMBAT\nA1 F2 SILENT A10 HP 56/70 G0 pots[-, -]\nT1 E3/3 draw10 disc0 exh0\nyou b0\ne0 Sludge Spinner 40/40 b0 -> atk 5\nplay: a <i> [e<target>]\n0 end turn\n"
 
 
@@ -228,16 +239,26 @@ class FakeHarness:
         return None
 
 
+def _unread_map(tmp_path):
+    rec = RE.load(REC)
+    assert rec["steps"][1]["screen"] == "MAP" and rec["steps"][2]["fight"]["encounter"] == "SLUDGE_SPINNER_WEAK"
+    rec["steps"][1]["pick"] = {}
+    p = tmp_path / "unread_map.json"
+    p.write_text(json.dumps(rec), encoding="utf-8")
+    return rec, str(p)
+
+
 def test_seedcheck_flow_then_replay_refuses_guessed_run(monkeypatch, tmp_path):
     h = FakeHarness()
     monkeypatch.setattr(RE, "creator_dir", lambda rec: str(tmp_path))
     monkeypatch.setattr(RE, "call", lambda cmd: MAP_TEXT if cmd == "m" else ("null" if cmd in ("deck.json", "fight") else h.screen))
-    out = RE.Reenactor(h, REC).run(seedcheck=True)
+    _rec, path = _unread_map(tmp_path)
+    out = RE.Reenactor(h, path).run(seedcheck=True)
     assert h.sent[:2] == ["a 0 silent 10 YMY1KELG18SC", "a 2"], h.sent
     assert h.sent[2] in ("a 0", "a 1"), h.sent
     assert "boss LAGAVULIN_MATRIARCH_BOSS (record LAGAVULIN_MATRIARCH_BOSS: ok)" in out
-    assert "opening of SLUDGE_SPINNER_WEAK (floor 2): matches the record" in out
-    out = RE.Reenactor(h, REC).run()
+    assert "opening of hMrQSndDvPc_F02_SLUDGE_SPINNER_WEAK (floor 2): matches the record" in out, out
+    out = RE.Reenactor(h, path).run()
     assert out.startswith("REFUSED: seedcheck walked this run with a guessed map node")
     rows = [json.loads(x) for x in open(tmp_path / "replay" / "hMrQSndDvPc.jsonl", encoding="utf-8")]
     assert [r["event"] for r in rows if r["event"] in ("start", "guess", "opening")] == ["start", "guess", "opening"]
@@ -247,11 +268,12 @@ def test_replay_stops_on_ambiguous_map_and_at_gaps(monkeypatch, tmp_path):
     h = FakeHarness()
     monkeypatch.setattr(RE, "creator_dir", lambda rec: str(tmp_path))
     monkeypatch.setattr(RE, "call", lambda cmd: MAP_TEXT if cmd == "m" else ("null" if cmd in ("deck.json", "fight") else h.screen))
-    out = RE.Reenactor(h, REC).run()
+    rec, path = _unread_map(tmp_path)
+    out = RE.Reenactor(h, path).run()
     assert "STOP at step 1" in out and "Monster r1c1" in out and "Unknown r1c3" in out and "read the map frame" in out
     assert h.sent == ["a 0 silent 10 YMY1KELG18SC", "a 2"]
-    rec = RE.load(REC)
     rec["steps"][1]["pick"] = "r1c3"
+    rec["steps"][2] = {"floor": 2, "screen": "COMBAT", "encounter": "SLUDGE_SPINNER_WEAK", "gap": "test gap"}
     p = tmp_path / "rec.json"
     p.write_text(json.dumps(rec), encoding="utf-8")
     out = RE.Reenactor(h, str(p)).run()
@@ -296,7 +318,7 @@ def test_replay_drives_a_recorded_fight(monkeypatch, tmp_path):
     monkeypatch.setattr(RE, "call", lambda cmd: "null" if cmd in ("deck.json", "fight", "m") else h.screen)
     out = RE.Reenactor(h, str(p)).run()
     assert "opening of hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS (floor 17): matches the record" in out, out
-    assert "record gap: boss turn 4" in out and h.ended
+    assert "record gap: stream dropped" in out and h.ended
     assert len(h.sent) == 1 + len(acts)
     assert [RE.to_bridge(a, c)["play"]["hand_pos"] for a, c in zip(acts, h.sent[1:]) if a["kind"] == "play"][:2] == [4, 2]
     saved = RE.load(str(tmp_path / "replay" / "hMrQSndDvPc" / (acts[0]["fight"] + ".json")))
@@ -325,3 +347,6 @@ def test_verdict_rule_reproduces_pilot_calls():
     assert v({"r2": dict(d=0.0018, se=0.0003), "r1": dict(d=0.0482, se=0.0115)}, m)[:2] == ("tie", "r2")
     assert v({"r2": dict(d=0.0, se=0.0)}, m)[0] == "tie"
     assert v({"r1": dict(d=0.0066, se=0.0181)}, m)[0] == "unresolved"
+    win_now = dict(his_lb=1.3714, his_ub=1.3714, live_lb=1.3714, live_ub=None)
+    assert v({"exact": win_now, "r2": dict(d=-0.0170, se=0.0011), "cap": 1.3714}, m)[:2] == ("tie", "exact")
+    assert v({"exact": dict(win_now, live_lb=None), "r2": dict(d=-0.0170, se=0.0011), "cap": 1.3714}, m)[:2] == ("unresolved", "exact")
