@@ -229,6 +229,9 @@ def select_command(names, ups, screen):
     for name, up in zip(names, ups):
         j = next((n for n, (b, u) in opts if n not in used and b == base(name) and u == up), None)
         if j is None:
+            same = [n for n, (b, u) in opts if n not in used and b == base(name)]
+            j = same[0] if len(same) == 1 else None
+        if j is None:
             return None, f"selection: {name}{'+' if up else ''} not offered ({[b for _, (b, _) in opts]})"
         used.add(j)
         idx.append(j)
