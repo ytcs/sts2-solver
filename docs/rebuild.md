@@ -44,6 +44,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 ## 5. Stages
 
 **S0. Hygiene.** Goal: the live sim never diverges silently. Open:
+- Harness daemon grows to ~10-11 GB resident over a replay of ~200 steps (2026-10-09): find what accumulates (sync/Replayer copies, CUDA host buffers, caches); until fixed, restart it between replay batches.
 - re-sync hand from screen before a mid-card selection (Survivor, Dagger Throw); card text on the rewards screen; fight-start predictions state assumed potions.
 - the search's chosen-line prefix reuse rarely fires (speed only, ~15% more network rows).
 - caps must not cut combos (user): turns are the stall bound (99); action cap far above any legitimate fight; a play-out continues while the turn makes progress; per-step loop guard (20,000 units, max seen 174) stays.
