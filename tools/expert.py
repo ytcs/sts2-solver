@@ -222,6 +222,11 @@ def _intents_ok(got, want):
     return True
 
 
+def _enemies_ok(sim, obs_e):
+    es = [e for e in json.loads(sim.snapshot())["enemies"] if e.get("alive", True)]
+    return len(es) == len(obs_e) and all(all(e[k] == o[k] for k in ("hp", "block") if k in o) for e, o in zip(es, obs_e))
+
+
 class Builder:
     def __init__(self, spec, aliases, seed_tries=40000):
         import sts2
@@ -262,10 +267,20 @@ class Builder:
 
     def _hand_cards(self, toks, snap_hand):
         pool, out = list(snap_hand), []
+        deck = self.scenario.get("deck", [])
         for tok in toks:
-            cid, up = _card(tok, self.al)
-            j = next((j for j, c in enumerate(pool) if c["id"] == cid and c["upgrade"] == up), None)
-            out.append(pool.pop(j) if j is not None else {"id": cid, "upgrade": up, "cost": self.cost.get(cid, 0), "keywords": []})
+            cid, up, ench, _p = RE.token(tok, self.al)
+            same = [c for c in deck if c["id"] == cid and c.get("upgrade", 0) == up]
+            ench = ench or bool(same) and all(c.get("enchantment") for c in same)
+            j = next((j for j, c in enumerate(pool) if c["id"] == cid and c["upgrade"] == up and bool(c.get("enchantment")) == ench), None)
+            if j is not None:
+                out.append(pool.pop(j))
+                continue
+            card = {"id": cid, "upgrade": up, "cost": self.cost.get(cid, 0), "keywords": []}
+            src = next((c for c in same if bool(c.get("enchantment")) == ench), None)
+            if src and src.get("enchantment"):
+                card["enchantment"] = dict(src["enchantment"])
+            out.append(card)
         return out
 
     def _patch(self, snap, obs, where):
@@ -325,7 +340,7 @@ class Builder:
             self.report.append(f"{where}: sync notes {rep['notes']}")
         snap = json.loads(self.sim.snapshot())
         for k in ("hand", "draw", "discard", "exhaust"):
-            st[k] = snap[k]
+            st[k] = snap.get(k, [])
         post = self.sim.diff(json.dumps(st))
         if post:
             self.report.append(f"{where}: residual after sync: " + " | ".join(ln[:160] for ln in post[:12]))
@@ -357,10 +372,14 @@ class Builder:
                 j["use_potion"]["target_ally"] = 0
         elif kind == "c":
             hand = json.loads(self.sim.snapshot())["hand"]
+            offered = {int(m.group(1)): m.group(2) for _i, t in self.sim.legal() for m in [re.match(r"pick (\d+) \((\w+)\)", t)] if m}
             idx = []
             for tok in a[1:]:
                 cid, up = _card(tok, self.al)
-                idx.append(next(k for k, c in enumerate(hand) if k not in idx and c["id"] == cid and c["upgrade"] == up))
+                k = next((k for k, c in enumerate(hand) if k not in idx and c["id"] == cid and c["upgrade"] == up), None)
+                if k is None:
+                    k = next(k for k, t in sorted(offered.items()) if k not in idx and RE.base(t) == RE.base(cid))
+                idx.append(k)
             j = {"choose": idx}
         elif kind == "e":
             j = {"end_turn": True}
@@ -372,7 +391,29 @@ class Builder:
             sj = copy.deepcopy(j)
             if kind == "pot":
                 sj["use_potion"]["slot"] = next(i for i, p in enumerate(self.spec["scenario"]["potions"]) if p["slot"] == a[1])
+            base = self.sim.copy()
             self.sim.apply(json.dumps(sj))
+            want = getattr(self, "next_choice", None)
+            if kind == "pot" and want and self.sim.stage() == "choice":
+                for k in range(600):
+                    if any(t.startswith("pick") and RE.base(t.split("(")[-1].rstrip(")")) == RE.base(want) for _i, t in self.sim.legal()):
+                        break
+                    s = base.copy()
+                    s.determinize(self.rng.randrange(1 << 62))
+                    s.apply(json.dumps(sj))
+                    self.sim = s
+                else:
+                    self.report.append(f"{where}: no determinization offers {want} after the potion")
+            elif kind in ("p", "pot") and next_obs and "e" in next_obs and not _enemies_ok(self.sim, next_obs["e"]):
+                for k in range(300):
+                    s = base.copy()
+                    s.determinize(self.rng.randrange(1 << 62))
+                    s.apply(json.dumps(sj))
+                    if _enemies_ok(s, next_obs["e"]):
+                        self.sim = s
+                        break
+                else:
+                    self.report.append(f"{where}: no determinization of the play's random effects reproduces the enemies shown")
         self.log.append(j)
         snap = json.loads(self.sim.snapshot())
         st = self._patch(snap, next_obs or {}, where)
@@ -383,9 +424,27 @@ class Builder:
         self.states.append(st)
         self.observed.append(sorted(next_obs or {}))
 
+    def _plays_ok(self, s, obs, acts):
+        saved = (self.sim, self.log, self.states, self.observed, self.times, len(self.report), getattr(self, "next_choice", None))
+        self.sim, self.log, self.states, self.observed, self.next_choice = s.copy(), [], [], [], None
+        try:
+            st = self._patch(json.loads(self.sim.snapshot()), obs, "probe")
+            self.sim.sync(json.dumps(st))
+            for a in acts:
+                if a[0] == "e":
+                    break
+                self.act([x for x in a if not isinstance(x, dict)], None, "probe")
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+        finally:
+            self.sim, self.log, self.states, self.observed, self.times, n, self.next_choice = saved
+            del self.report[n:]
+
     def _end_turn(self, obs, where):
         want = [_want(e) for e in obs.get("e", [])] if obs else None
-        first = None
+        acts = getattr(self, "next_acts", None)
+        first = fallback = None
         for k in range(600):
             s = self.sim.copy()
             if k:
@@ -395,8 +454,14 @@ class Builder:
             if s.stage() == "over" or not want:
                 break
             if _intents_ok([_intents(e) for e in json.loads(s.snapshot())["enemies"] if e.get("alive", True)], want):
-                self.sim = s
-                return
+                if not acts or "hand" not in obs or self._plays_ok(s, obs, acts):
+                    self.sim = s
+                    return
+                fallback = fallback or s
+        if fallback is not None:
+            self.report.append(f"{where}: end turn: no determinization lets the next turn's plays apply (hidden per-draw state, e.g. Bound)")
+            self.sim = fallback
+            return
         if want:
             self.report.append(f"{where}: end turn: no determinization reproduces intents {want}")
         self.sim = first
@@ -409,9 +474,12 @@ class Builder:
                 where = f"T{ti + 1}.{ai + 1} {a[0]} {a[1] if len(a) > 1 and not isinstance(a[1], dict) else ''} @{when or ''}"
                 if a[0] == "e":
                     nxt = turns[ti + 1]["obs"] if ti + 1 < len(turns) else t.get("end_obs")
+                    self.next_acts = turns[ti + 1]["acts"] if ti + 1 < len(turns) else None
                 else:
                     nxt = a[-1] if isinstance(a[-1], dict) else None
                     a = a[:-1] if isinstance(a[-1], dict) else a
+                after = t["acts"][ai + 1] if ai + 1 < len(t["acts"]) else None
+                self.next_choice = _card(after[1], self.al)[0] if after and after[0] == "c" else None
                 self.act(a, nxt, where)
                 self.times.append(when)
                 if self.sim.stage() == "over":
@@ -501,6 +569,9 @@ def check_record(rec):
             errs.append(f"{where}: map pick must be {{room?, col?, row?}} or 'r<row>c<col>'")
         elif st["screen"] == "SELECT" and not isinstance(st["pick"], list):
             errs.append(f"{where}: SELECT pick must be a list of card names")
+        elif isinstance(st["pick"], dict) and "discard_potion" in st["pick"]:
+            if not isinstance(st["pick"]["discard_potion"], int):
+                errs.append(f"{where}: discard_potion must be a slot index")
         elif st["screen"] == "REWARDS" and not isinstance(st["pick"], (list, str)):
             errs.append(f"{where}: REWARDS pick must be a label or a list of labels")
     gaps = [i for i, st in enumerate(rec["steps"]) if "gap" in st]
@@ -839,6 +910,16 @@ def verdict(refs, max_hp):
             return "expert error", "exact", f"the live class reaches {ex['live_lb']:+.4f}; every line of his class ends at most {ex['his_ub']:+.4f}"
         if None not in (ex.get("his_ub"), ex.get("live_ub")) and ex["his_ub"] == ex["his_lb"] and ex["live_ub"] == ex["live_lb"] and abs(ex["his_ub"] - ex["live_ub"]) < hp_eq:
             return "tie", "exact", f"both classes end exactly at {ex['his_ub']:+.4f} / {ex['live_ub']:+.4f}"
+    cap = refs.get("cap")
+    if ex and cap is not None:
+        for who, other in (("his", "live"), ("live", "his")):
+            if ex.get(f"{who}_lb") is not None and ex[f"{who}_lb"] >= cap - 1e-9 and ex.get(f"{other}_lb") is not None and ex[f"{other}_lb"] >= cap - 1e-9:
+                return "tie", "exact", f"both classes contain a line that wins this turn losing no HP ({cap:+.4f}, the maximum)"
+            if ex.get(f"{who}_lb") is not None and ex[f"{who}_lb"] >= cap - 1e-9:
+                if who == "his" and (significant(r3, hp_eq) or significant(r2, hp_eq)) and ((r3 or r2)["d"] < 0):
+                    return "unresolved", "exact", f"his class wins this turn losing no HP ({cap:+.4f}, the maximum); the sampled reference that favours the live class over-values a non-terminal leaf"
+                if who == "live" and (significant(r3, hp_eq) or significant(r2, hp_eq)) and ((r3 or r2)["d"] > 0):
+                    return "unresolved", "exact", f"the live class wins this turn losing no HP ({cap:+.4f}, the maximum); the sampled reference that favours his class over-values a non-terminal leaf"
     if significant(r3, hp_eq):
         return side(r3["d"]), "r3", f"paired playouts {r3['d']:+.4f} ({r3['se']:.4f}), n {r3.get('n')}"
     if significant(r2, hp_eq):
@@ -922,7 +1003,7 @@ def compare(a):
             elif "use_potion" in j:
                 row["verdict"], row["why"] = "held", "potions are the operator's call: the live player holds them by design"
             else:
-                refs = {}
+                refs = {"cap": WIN + HPB * min(json.loads(sim.snapshot())["player"]["hp"] / sc["max_hp"], 1.0)}
                 if ref is not None:
                     refs["r1"] = k_search(ref, sc, sim, his_k, live_k, a.ref_seeds)
                 if a.tc_dets:
@@ -1004,11 +1085,19 @@ def compare_macro(rec, a):
 
 
 def synthetic_screens(rec):
+    from agent import pools
     from agent import price as PR
     from agent import runmodel as R
     from agent import tracker
     steps = rec["steps"]
     sc = deck = hp = None
+    bosses = {}
+    for st in steps:
+        enc = (st.get("fight") or {}).get("encounter", "")
+        if enc.endswith("_BOSS") and enc not in bosses.setdefault(st.get("act", 0), []):
+            bosses[st.get("act", 0)].append(enc)
+    act_name = lambda a, enc: next((n for n in pools.act_names(a) if any(enc in pools.pool(n, kd) for kd in ("weak", "regular", "elite", "boss"))),  # noqa: E731
+                                   pools.act_names(a)[0])
     for k, st in enumerate(steps):
         if st.get("fight"):
             sc = st["fight"]["scenario"]
@@ -1022,7 +1111,8 @@ def synthetic_screens(rec):
                 c["upgrade"] = 1
         if sc is None or hp is None or "gap" in st or st.get("screen") not in ("CARD_REWARD", "RESTSITE"):
             continue
-        header = f"A1 F{st['floor']} {rec['character']} A{rec['ascension']} HP {hp}/{sc['max_hp']} G{sc.get('gold', 0)} pots[-]"
+        act = sc.get("act", 0)
+        header = f"A{act + 1} F{st['floor']} {rec['character']} A{rec['ascension']} HP {hp}/{sc['max_hp']} G{sc.get('gold', 0)} pots[-]"
         if st["screen"] == "CARD_REWARD":
             opts = [f"{i} {name}(1) ." for i, name in enumerate(st.get("seen") or [])] + [f"{len(st.get('seen') or [])} Skip"]
             played = st["pick"] if st.get("pick") else "skip"
@@ -1036,9 +1126,9 @@ def synthetic_screens(rec):
             played = "rest" if rest else (f"smith {cid}" if cid else "smith")
             shown = "rest" if rest else f"smith {target}"
         state = f"{st['screen']}\n{header}\n" + "\n".join(opts) + "\n"
-        rs = R.RunState(sc, 0, "Underdocks", hp, sc["max_hp"], sc.get("gold", 0), [dict(c) for c in deck], [r["id"] for r in sc.get("relics", [])], [],
+        rs = R.RunState(sc, act, act_name(act, sc["encounter"]), hp, sc["max_hp"], sc.get("gold", 0), [dict(c) for c in deck], [r["id"] for r in sc.get("relics", [])], [],
                         sc.get("max_potion_slots", 2), (tracker.POTION_START, tracker.OFFSET_START, dict(tracker.UNKNOWN_BASE), 0), {},
-                        [rec["boss"]] if rec.get("boss") else [], None, None, 0)
+                        bosses.get(act, []), None, None, 0)
         yield st["floor"], state, rs, played, shown
         if st["screen"] == "CARD_REWARD" and st.get("pick"):
             cid, up = PR._card_id(st["pick"])

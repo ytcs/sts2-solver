@@ -1,0 +1,3865 @@
+{
+ "id": "hMrQSndDvPc_F31_OVICOPTER_NORMAL",
+ "encounter": "OVICOPTER_NORMAL",
+ "hp_start": [
+  41,
+  77
+ ],
+ "hp_end": [
+  41,
+  77
+ ],
+ "source": {
+  "video": "https://youtu.be/hMrQSndDvPc",
+  "channel": "Baalorlord",
+  "uploaded": "2026-10-08",
+  "title": "New Poison Deck!",
+  "run_seed": "YMY1KELG18SC",
+  "build": "v0.111.0 (2026.08.14)",
+  "build_hash": "1568834832",
+  "modded": "MODDED (2)",
+  "character": "SILENT",
+  "ascension": 10,
+  "floor": 31,
+  "video_span": "25:53-26:18"
+ },
+ "scenario": {
+  "name": "baalorlord",
+  "ascension": 10,
+  "encounter": "OVICOPTER_NORMAL",
+  "character": "SILENT",
+  "hp": 41,
+  "max_hp": 77,
+  "max_energy": 3,
+  "gold": 150,
+  "max_potion_slots": 2,
+  "base_orb_slots": 0,
+  "seed": "placeholder",
+  "total_floor": 31,
+  "act": 1,
+  "deck": [
+   {
+    "id": "STRIKE_SILENT",
+    "upgrade": 0
+   },
+   {
+    "id": "STRIKE_SILENT",
+    "upgrade": 0
+   },
+   {
+    "id": "STRIKE_SILENT",
+    "upgrade": 0
+   },
+   {
+    "id": "STRIKE_SILENT",
+    "upgrade": 0
+   },
+   {
+    "id": "DEFEND_SILENT",
+    "upgrade": 0,
+    "enchantment": {
+     "id": "SPIRAL",
+     "amount": 1
+    }
+   },
+   {
+    "id": "DEFEND_SILENT",
+    "upgrade": 0
+   },
+   {
+    "id": "DEFEND_SILENT",
+    "upgrade": 0
+   },
+   {
+    "id": "DEFEND_SILENT",
+    "upgrade": 0
+   },
+   {
+    "id": "DEFEND_SILENT",
+    "upgrade": 0
+   },
+   {
+    "id": "NEUTRALIZE",
+    "upgrade": 0
+   },
+   {
+    "id": "SURVIVOR",
+    "upgrade": 0
+   },
+   {
+    "id": "ASCENDERS_BANE",
+    "upgrade": 0
+   },
+   {
+    "id": "DAGGER_SPRAY",
+    "upgrade": 1,
+    "enchantment": {
+     "id": "GLAM",
+     "amount": 1
+    }
+   },
+   {
+    "id": "DASH",
+    "upgrade": 0
+   },
+   {
+    "id": "HIDDEN_DAGGERS",
+    "upgrade": 0
+   },
+   {
+    "id": "CLUMSY",
+    "upgrade": 0
+   },
+   {
+    "id": "SNAKEBITE",
+    "upgrade": 1
+   },
+   {
+    "id": "STRANGLE",
+    "upgrade": 0
+   },
+   {
+    "id": "NOXIOUS_FUMES",
+    "upgrade": 0
+   },
+   {
+    "id": "OUTBREAK",
+    "upgrade": 1,
+    "enchantment": {
+     "id": "IMBUED",
+     "amount": 1
+    }
+   },
+   {
+    "id": "DEFLECT",
+    "upgrade": 0
+   },
+   {
+    "id": "OUTBREAK",
+    "upgrade": 1
+   },
+   {
+    "id": "BURST",
+    "upgrade": 0
+   },
+   {
+    "id": "ANTICIPATE",
+    "upgrade": 1
+   },
+   {
+    "id": "FOOTWORK",
+    "upgrade": 0
+   },
+   {
+    "id": "BULLET_TIME",
+    "upgrade": 0
+   },
+   {
+    "id": "BACKFLIP",
+    "upgrade": 0
+   },
+   {
+    "id": "OUTBREAK",
+    "upgrade": 0
+   },
+   {
+    "id": "INFINITE_BLADES",
+    "upgrade": 0
+   },
+   {
+    "id": "ACCELERANT",
+    "upgrade": 0
+   }
+  ],
+  "relics": [
+   {
+    "id": "RING_OF_THE_SNAKE"
+   },
+   {
+    "id": "SILKEN_TRESS",
+    "props": {
+     "IsUsed": true
+    }
+   },
+   {
+    "id": "CENTENNIAL_PUZZLE"
+   },
+   {
+    "id": "PEN_NIB",
+    "counter": 7,
+    "props": {
+     "AttacksPlayed": 7
+    }
+   },
+   {
+    "id": "WHITE_STAR"
+   },
+   {
+    "id": "PANTOGRAPH"
+   },
+   {
+    "id": "LASTING_CANDY",
+    "counter": 0,
+    "props": {
+     "CombatRewardsSeen": 0
+    }
+   },
+   {
+    "id": "FESTIVE_POPPER"
+   },
+   {
+    "id": "ELECTRIC_SHRYMP"
+   },
+   {
+    "id": "HAPPY_FLOWER",
+    "counter": 1,
+    "props": {
+     "TurnsSeen": 1
+    }
+   },
+   {
+    "id": "VAJRA"
+   },
+   {
+    "id": "MOLTEN_EGG"
+   },
+   {
+    "id": "MERCURY_HOURGLASS"
+   },
+   {
+    "id": "STRAWBERRY"
+   }
+  ],
+  "potions": [
+   {
+    "id": "BLOCK_POTION",
+    "slot": 0
+   }
+  ],
+  "run_seed": "YMY1KELG18SC",
+  "game_build": "v0.111.0 (2026.08.14)",
+  "build_hash": "1568834832",
+  "modded": "MODDED (2)",
+  "video": "https://youtu.be/hMrQSndDvPc",
+  "video_span": "25:53-26:18"
+ },
+ "fight": {
+  "scenario": {
+   "name": "baalorlord",
+   "ascension": 10,
+   "encounter": "OVICOPTER_NORMAL",
+   "character": "SILENT",
+   "hp": 41,
+   "max_hp": 77,
+   "max_energy": 3,
+   "gold": 150,
+   "max_potion_slots": 2,
+   "base_orb_slots": 0,
+   "seed": "placeholder",
+   "total_floor": 31,
+   "act": 1,
+   "deck": [
+    {
+     "id": "STRIKE_SILENT",
+     "upgrade": 0
+    },
+    {
+     "id": "STRIKE_SILENT",
+     "upgrade": 0
+    },
+    {
+     "id": "STRIKE_SILENT",
+     "upgrade": 0
+    },
+    {
+     "id": "STRIKE_SILENT",
+     "upgrade": 0
+    },
+    {
+     "id": "DEFEND_SILENT",
+     "upgrade": 0,
+     "enchantment": {
+      "id": "SPIRAL",
+      "amount": 1
+     }
+    },
+    {
+     "id": "DEFEND_SILENT",
+     "upgrade": 0
+    },
+    {
+     "id": "DEFEND_SILENT",
+     "upgrade": 0
+    },
+    {
+     "id": "DEFEND_SILENT",
+     "upgrade": 0
+    },
+    {
+     "id": "DEFEND_SILENT",
+     "upgrade": 0
+    },
+    {
+     "id": "NEUTRALIZE",
+     "upgrade": 0
+    },
+    {
+     "id": "SURVIVOR",
+     "upgrade": 0
+    },
+    {
+     "id": "ASCENDERS_BANE",
+     "upgrade": 0
+    },
+    {
+     "id": "DAGGER_SPRAY",
+     "upgrade": 1,
+     "enchantment": {
+      "id": "GLAM",
+      "amount": 1
+     }
+    },
+    {
+     "id": "DASH",
+     "upgrade": 0
+    },
+    {
+     "id": "HIDDEN_DAGGERS",
+     "upgrade": 0
+    },
+    {
+     "id": "CLUMSY",
+     "upgrade": 0
+    },
+    {
+     "id": "SNAKEBITE",
+     "upgrade": 1
+    },
+    {
+     "id": "STRANGLE",
+     "upgrade": 0
+    },
+    {
+     "id": "NOXIOUS_FUMES",
+     "upgrade": 0
+    },
+    {
+     "id": "OUTBREAK",
+     "upgrade": 1,
+     "enchantment": {
+      "id": "IMBUED",
+      "amount": 1
+     }
+    },
+    {
+     "id": "DEFLECT",
+     "upgrade": 0
+    },
+    {
+     "id": "OUTBREAK",
+     "upgrade": 1
+    },
+    {
+     "id": "BURST",
+     "upgrade": 0
+    },
+    {
+     "id": "ANTICIPATE",
+     "upgrade": 1
+    },
+    {
+     "id": "FOOTWORK",
+     "upgrade": 0
+    },
+    {
+     "id": "BULLET_TIME",
+     "upgrade": 0
+    },
+    {
+     "id": "BACKFLIP",
+     "upgrade": 0
+    },
+    {
+     "id": "OUTBREAK",
+     "upgrade": 0
+    },
+    {
+     "id": "INFINITE_BLADES",
+     "upgrade": 0
+    },
+    {
+     "id": "ACCELERANT",
+     "upgrade": 0
+    }
+   ],
+   "relics": [
+    {
+     "id": "RING_OF_THE_SNAKE"
+    },
+    {
+     "id": "SILKEN_TRESS",
+     "props": {
+      "IsUsed": true
+     }
+    },
+    {
+     "id": "CENTENNIAL_PUZZLE"
+    },
+    {
+     "id": "PEN_NIB",
+     "counter": 7,
+     "props": {
+      "AttacksPlayed": 7
+     }
+    },
+    {
+     "id": "WHITE_STAR"
+    },
+    {
+     "id": "PANTOGRAPH"
+    },
+    {
+     "id": "LASTING_CANDY",
+     "counter": 0,
+     "props": {
+      "CombatRewardsSeen": 0
+     }
+    },
+    {
+     "id": "FESTIVE_POPPER"
+    },
+    {
+     "id": "ELECTRIC_SHRYMP"
+    },
+    {
+     "id": "HAPPY_FLOWER",
+     "counter": 1,
+     "props": {
+      "TurnsSeen": 1
+     }
+    },
+    {
+     "id": "VAJRA"
+    },
+    {
+     "id": "MOLTEN_EGG"
+    },
+    {
+     "id": "MERCURY_HOURGLASS"
+    },
+    {
+     "id": "STRAWBERRY"
+    }
+   ],
+   "potions": [
+    {
+     "id": "BLOCK_POTION",
+     "slot": 0
+    }
+   ],
+   "run_seed": "YMY1KELG18SC",
+   "game_build": "v0.111.0 (2026.08.14)",
+   "build_hash": "1568834832",
+   "modded": "MODDED (2)",
+   "video": "https://youtu.be/hMrQSndDvPc",
+   "video_span": "25:53-26:18"
+  },
+  "log": [
+   {
+    "play": {
+     "hand_pos": 5
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 5,
+     "target": 0
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 4,
+     "target": 0
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 2
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 2,
+     "target": 0
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 0
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 0
+    }
+   },
+   {
+    "end_turn": true
+   },
+   {
+    "play": {
+     "hand_pos": 1
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 1,
+     "target": 3
+    }
+   },
+   {
+    "end_turn": true
+   }
+  ],
+  "states": [
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 104,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "LAY_EGGS_MOVE",
+      "powers": [
+       {
+        "id": "POISON_POWER",
+        "amount": 11
+       }
+      ]
+     }
+    ],
+    "energy": 3,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "SURVIVOR",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "NEUTRALIZE",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 3,
+      "id": "BULLET_TIME",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRANGLE",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "id": "STRENGTH_POWER",
+       "amount": 1
+      }
+     ]
+    },
+    "potions": [
+     {
+      "slot": 0,
+      "id": "BLOCK_POTION"
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 7,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 7
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "INFINITE_BLADES",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "SNAKEBITE",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 104,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "LAY_EGGS_MOVE",
+      "powers": [
+       {
+        "amount": 11,
+        "id": "POISON_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 0,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "SURVIVOR",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "NEUTRALIZE",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "STRANGLE",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 1,
+       "amount_on_turn_start": 0,
+       "id": "NO_DRAW_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 7,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 7
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "INFINITE_BLADES",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "SNAKEBITE",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 95,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "LAY_EGGS_MOVE",
+      "powers": [
+       {
+        "amount": 11,
+        "id": "POISON_POWER"
+       },
+       {
+        "amount": 2,
+        "amount_on_turn_start": 0,
+        "id": "STRANGLE_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 0,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "SURVIVOR",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "NEUTRALIZE",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 1,
+       "amount_on_turn_start": 0,
+       "id": "NO_DRAW_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 8,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 8
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "INFINITE_BLADES",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "SNAKEBITE",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 86,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "LAY_EGGS_MOVE",
+      "powers": [
+       {
+        "amount": 11,
+        "id": "POISON_POWER"
+       },
+       {
+        "amount": 2,
+        "amount_on_turn_start": 0,
+        "id": "STRANGLE_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 0,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "SURVIVOR",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "NEUTRALIZE",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 1,
+       "amount_on_turn_start": 0,
+       "id": "NO_DRAW_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 9,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 9
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "INFINITE_BLADES",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "SNAKEBITE",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 40,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "LAY_EGGS_MOVE",
+      "powers": [
+       {
+        "amount": 11,
+        "id": "POISON_POWER"
+       },
+       {
+        "amount": 2,
+        "amount_on_turn_start": 0,
+        "id": "STRANGLE_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 0,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "SURVIVOR",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "NEUTRALIZE",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 1,
+       "amount_on_turn_start": 0,
+       "id": "NO_DRAW_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 1,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 1
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "INFINITE_BLADES",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "SNAKEBITE",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 34,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "LAY_EGGS_MOVE",
+      "powers": [
+       {
+        "amount": 11,
+        "id": "POISON_POWER"
+       },
+       {
+        "amount": 2,
+        "amount_on_turn_start": 0,
+        "id": "STRANGLE_POWER"
+       },
+       {
+        "amount": 1,
+        "amount_on_turn_start": 0,
+        "id": "WEAK_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 0,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "SURVIVOR",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 1,
+       "amount_on_turn_start": 0,
+       "id": "NO_DRAW_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 2,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 2
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "INFINITE_BLADES",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "SNAKEBITE",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 32,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "LAY_EGGS_MOVE",
+      "powers": [
+       {
+        "amount": 11,
+        "id": "POISON_POWER"
+       },
+       {
+        "amount": 2,
+        "amount_on_turn_start": 0,
+        "id": "STRANGLE_POWER"
+       },
+       {
+        "amount": 1,
+        "amount_on_turn_start": 0,
+        "id": "WEAK_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 0,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "SURVIVOR",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 5,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 1,
+       "amount_on_turn_start": 0,
+       "id": "NO_DRAW_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 2,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 2
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "INFINITE_BLADES",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "SNAKEBITE",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 30,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "LAY_EGGS_MOVE",
+      "powers": [
+       {
+        "amount": 11,
+        "id": "POISON_POWER"
+       },
+       {
+        "amount": 2,
+        "amount_on_turn_start": 0,
+        "id": "STRANGLE_POWER"
+       },
+       {
+        "amount": 1,
+        "amount_on_turn_start": 0,
+        "id": "WEAK_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 0,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 13,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 1,
+       "amount_on_turn_start": 0,
+       "id": "NO_DRAW_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 2,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 2
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "INFINITE_BLADES",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "SNAKEBITE",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 12,
+      "id": "TOUGH_EGG",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 15,
+      "next_move": "HATCH_MOVE",
+      "powers": [
+       {
+        "id": "HATCH_POWER",
+        "amount": 1
+       },
+       {
+        "id": "MINION_POWER",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 13,
+      "id": "TOUGH_EGG",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 16,
+      "next_move": "HATCH_MOVE",
+      "powers": [
+       {
+        "id": "HATCH_POWER",
+        "amount": 1
+       },
+       {
+        "id": "MINION_POWER",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 16,
+      "id": "TOUGH_EGG",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 19,
+      "next_move": "HATCH_MOVE",
+      "powers": [
+       {
+        "id": "HATCH_POWER",
+        "amount": 1
+       },
+       {
+        "id": "MINION_POWER",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 16,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "damage": 17,
+        "hits": 1,
+        "total_damage": 17,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "SMASH_MOVE",
+      "powers": [
+       {
+        "id": "POISON_POWER",
+        "amount": 10
+       }
+      ]
+     }
+    ],
+    "energy": 4,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 1,
+      "id": "INFINITE_BLADES",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "BACKFLIP",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "CLUMSY",
+      "keywords": [
+       "Ethereal",
+       "Unplayable"
+      ],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "id": "STRENGTH_POWER",
+       "amount": 1
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 2,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 2
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 2,
+    "side": "player",
+    "stars": 0,
+    "turn": 2,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 12,
+      "id": "TOUGH_EGG",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 15,
+      "next_move": "HATCH_MOVE",
+      "powers": [
+       {
+        "amount": 1,
+        "id": "HATCH_POWER"
+       },
+       {
+        "amount": 1,
+        "id": "MINION_POWER"
+       }
+      ]
+     },
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 13,
+      "id": "TOUGH_EGG",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 16,
+      "next_move": "HATCH_MOVE",
+      "powers": [
+       {
+        "amount": 1,
+        "id": "HATCH_POWER"
+       },
+       {
+        "amount": 1,
+        "id": "MINION_POWER"
+       }
+      ]
+     },
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 16,
+      "id": "TOUGH_EGG",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 19,
+      "next_move": "HATCH_MOVE",
+      "powers": [
+       {
+        "amount": 1,
+        "id": "HATCH_POWER"
+       },
+       {
+        "amount": 1,
+        "id": "MINION_POWER"
+       }
+      ]
+     },
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 16,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "damage": 17,
+        "hits": 1,
+        "total_damage": 17,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "SMASH_MOVE",
+      "powers": [
+       {
+        "amount": 10,
+        "id": "POISON_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 3,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 1,
+      "id": "INFINITE_BLADES",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "CLUMSY",
+      "keywords": [
+       "Ethereal",
+       "Unplayable"
+      ],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 5,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 2,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 2
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 2,
+    "side": "player",
+    "stars": 0,
+    "turn": 2,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 12,
+      "id": "TOUGH_EGG",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 15,
+      "next_move": "HATCH_MOVE",
+      "powers": [
+       {
+        "amount": 1,
+        "id": "HATCH_POWER"
+       },
+       {
+        "amount": 1,
+        "id": "MINION_POWER"
+       }
+      ]
+     },
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 13,
+      "id": "TOUGH_EGG",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 16,
+      "next_move": "HATCH_MOVE",
+      "powers": [
+       {
+        "amount": 1,
+        "id": "HATCH_POWER"
+       },
+       {
+        "amount": 1,
+        "id": "MINION_POWER"
+       }
+      ]
+     },
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 16,
+      "id": "TOUGH_EGG",
+      "intents": [
+       {
+        "type": "Summon"
+       }
+      ],
+      "max_hp": 19,
+      "next_move": "HATCH_MOVE",
+      "powers": [
+       {
+        "amount": 1,
+        "id": "HATCH_POWER"
+       },
+       {
+        "amount": 1,
+        "id": "MINION_POWER"
+       }
+      ]
+     },
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 9,
+      "id": "OVICOPTER",
+      "intents": [
+       {
+        "damage": 17,
+        "hits": 1,
+        "total_damage": 17,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 128,
+      "next_move": "SMASH_MOVE",
+      "powers": [
+       {
+        "amount": 10,
+        "id": "POISON_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 2,
+    "exhaust": [],
+    "gold": 150,
+    "hand": [
+     {
+      "cost": 1,
+      "id": "INFINITE_BLADES",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "CLUMSY",
+      "keywords": [
+       "Ethereal",
+       "Unplayable"
+      ],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 5,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 3,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 3
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 2,
+    "side": "player",
+    "stars": 0,
+    "turn": 2,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ACCELERANT",
+      "upgrade": 0
+     },
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "NOXIOUS_FUMES",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": false,
+    "enemies": [],
+    "energy": 2,
+    "gold": 150,
+    "max_energy": 3,
+    "pets": [],
+    "phase": "None",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 41,
+     "max_hp": 77,
+     "powers": []
+    },
+    "potions": [
+     {
+      "id": "BLOCK_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 3,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 3
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     },
+     {
+      "id": "MERCURY_HOURGLASS"
+     },
+     {
+      "id": "STRAWBERRY"
+     }
+    ],
+    "round": 2,
+    "side": "enemy",
+    "stars": 0,
+    "turn": 2,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": []
+   }
+  ],
+  "state": {
+   "combat_in_progress": false,
+   "enemies": [],
+   "energy": 2,
+   "gold": 150,
+   "max_energy": 3,
+   "pets": [],
+   "phase": "None",
+   "player": {
+    "alive": true,
+    "block": 0,
+    "hp": 41,
+    "max_hp": 77,
+    "powers": []
+   },
+   "potions": [
+    {
+     "id": "BLOCK_POTION",
+     "slot": 0
+    }
+   ],
+   "relics": [
+    {
+     "id": "RING_OF_THE_SNAKE"
+    },
+    {
+     "id": "SILKEN_TRESS",
+     "props": {
+      "IsUsed": true
+     }
+    },
+    {
+     "id": "CENTENNIAL_PUZZLE"
+    },
+    {
+     "counter": 3,
+     "id": "PEN_NIB",
+     "props": {
+      "AttacksPlayed": 3
+     }
+    },
+    {
+     "id": "WHITE_STAR"
+    },
+    {
+     "id": "PANTOGRAPH"
+    },
+    {
+     "counter": 0,
+     "id": "LASTING_CANDY",
+     "props": {
+      "CombatRewardsSeen": 0
+     }
+    },
+    {
+     "id": "FESTIVE_POPPER"
+    },
+    {
+     "id": "ELECTRIC_SHRYMP"
+    },
+    {
+     "counter": 0,
+     "id": "HAPPY_FLOWER",
+     "props": {
+      "TurnsSeen": 0
+     }
+    },
+    {
+     "id": "VAJRA"
+    },
+    {
+     "id": "MOLTEN_EGG"
+    },
+    {
+     "id": "MERCURY_HOURGLASS"
+    },
+    {
+     "id": "STRAWBERRY"
+    }
+   ],
+   "round": 2,
+   "side": "enemy",
+   "stars": 0,
+   "turn": 2,
+   "play_pile": [],
+   "potion_slots": 2,
+   "draw": []
+  }
+ },
+ "times": [
+  "26:01",
+  "26:02",
+  "26:03",
+  "26:04",
+  "26:05",
+  "26:06",
+  "26:06",
+  "26:08",
+  "26:15",
+  "26:16",
+  "26:17"
+ ],
+ "observed": [
+  [
+   "block",
+   "discard_n",
+   "draw_n",
+   "e",
+   "energy",
+   "hand",
+   "hp",
+   "potions",
+   "pp",
+   "relics"
+  ],
+  [],
+  [
+   "e"
+  ],
+  [
+   "e"
+  ],
+  [
+   "e"
+  ],
+  [
+   "e"
+  ],
+  [
+   "block",
+   "e"
+  ],
+  [
+   "block",
+   "e"
+  ],
+  [
+   "block",
+   "discard_n",
+   "draw_n",
+   "e",
+   "energy",
+   "hand",
+   "hp",
+   "pp",
+   "relics"
+  ],
+  [
+   "block"
+  ],
+  [
+   "e"
+  ],
+  []
+ ],
+ "outcome": 1,
+ "report": [
+  "start: sim vs frames before sync: .enemies[0].hp: rust 107 vs oracle 104 | .enemies[0].max_hp: rust 131 vs oracle 128",
+  "T1.8 e  @26:08: sim vs frames before sync: .enemies[0].hp: rust 14 vs oracle 12 | .enemies[0].max_hp: rust 17 vs oracle 15 | .enemies[1].hp: rust 15 vs oracle 13 | .enemies[1].max_hp: rust 18 vs oracle 16"
+ ],
+ "replay_check": {
+  "ok": true,
+  "outcome": 1,
+  "stats": {
+   "start_tries": 1,
+   "end_turn_tries": 1,
+   "end_turn_matched": 1,
+   "random_pile_diffs": 30,
+   "diff .enemies[0].powers": 2,
+   "diff .enemies[1].hp": 1,
+   "diff .enemies[1].max_hp": 1,
+   "diff .enemies[1].powers": 2,
+   "diff .enemies[2].hp": 1,
+   "diff .enemies[2].max_hp": 1,
+   "diff .enemies[2].powers": 2,
+   "diff .enemies[3].powers": 1
+  }
+ }
+}

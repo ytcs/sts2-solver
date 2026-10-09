@@ -1,12 +1,12 @@
 {
- "id": "hMrQSndDvPc_F15_PHANTASMAL_GARDENERS_ELITE",
- "encounter": "PHANTASMAL_GARDENERS_ELITE",
+ "id": "hMrQSndDvPc_F27_INFESTED_PRISMS_ELITE",
+ "encounter": "INFESTED_PRISMS_ELITE",
  "hp_start": [
-  30,
+  32,
   70
  ],
  "hp_end": [
-  28,
+  13,
   70
  ],
  "source": {
@@ -20,23 +20,23 @@
   "modded": "MODDED (2)",
   "character": "SILENT",
   "ascension": 10,
-  "floor": 15,
-  "video_span": "11:07-13:41"
+  "floor": 27,
+  "video_span": "22:05-23:50"
  },
  "scenario": {
   "name": "baalorlord",
   "ascension": 10,
-  "encounter": "PHANTASMAL_GARDENERS_ELITE",
+  "encounter": "INFESTED_PRISMS_ELITE",
   "character": "SILENT",
-  "hp": 30,
+  "hp": 32,
   "max_hp": 70,
   "max_energy": 3,
-  "gold": 177,
+  "gold": 91,
   "max_potion_slots": 2,
   "base_orb_slots": 0,
   "seed": "placeholder",
-  "total_floor": 15,
-  "act": 0,
+  "total_floor": 27,
+  "act": 1,
   "deck": [
    {
     "id": "STRIKE_SILENT",
@@ -55,8 +55,12 @@
     "upgrade": 0
    },
    {
-    "id": "STRIKE_SILENT",
-    "upgrade": 0
+    "id": "DEFEND_SILENT",
+    "upgrade": 0,
+    "enchantment": {
+     "id": "SPIRAL",
+     "amount": 1
+    }
    },
    {
     "id": "DEFEND_SILENT",
@@ -108,7 +112,7 @@
    },
    {
     "id": "SNAKEBITE",
-    "upgrade": 0
+    "upgrade": 1
    },
    {
     "id": "STRANGLE",
@@ -120,19 +124,39 @@
    },
    {
     "id": "OUTBREAK",
-    "upgrade": 0
+    "upgrade": 1,
+    "enchantment": {
+     "id": "IMBUED",
+     "amount": 1
+    }
    },
    {
     "id": "DEFLECT",
     "upgrade": 0
    },
    {
-    "id": "DEFEND_SILENT",
-    "upgrade": 0,
-    "enchantment": {
-     "id": "SPIRAL",
-     "amount": 1
-    }
+    "id": "OUTBREAK",
+    "upgrade": 1
+   },
+   {
+    "id": "BURST",
+    "upgrade": 0
+   },
+   {
+    "id": "ANTICIPATE",
+    "upgrade": 1
+   },
+   {
+    "id": "FOOTWORK",
+    "upgrade": 0
+   },
+   {
+    "id": "BULLET_TIME",
+    "upgrade": 0
+   },
+   {
+    "id": "BACKFLIP",
+    "upgrade": 0
    }
   ],
   "relics": [
@@ -150,7 +174,10 @@
    },
    {
     "id": "PEN_NIB",
-    "counter": 1
+    "counter": 5,
+    "props": {
+     "AttacksPlayed": 5
+    }
    },
    {
     "id": "WHITE_STAR"
@@ -161,31 +188,55 @@
    {
     "id": "LASTING_CANDY",
     "counter": 0
+   },
+   {
+    "id": "FESTIVE_POPPER"
+   },
+   {
+    "id": "ELECTRIC_SHRYMP"
+   },
+   {
+    "id": "HAPPY_FLOWER",
+    "counter": 2,
+    "props": {
+     "TurnsSeen": 2
+    }
+   },
+   {
+    "id": "VAJRA"
+   },
+   {
+    "id": "MOLTEN_EGG"
    }
   ],
-  "potions": [],
+  "potions": [
+   {
+    "id": "ENERGY_POTION",
+    "slot": 0
+   }
+  ],
   "run_seed": "YMY1KELG18SC",
   "game_build": "v0.111.0 (2026.08.14)",
   "build_hash": "1568834832",
   "modded": "MODDED (2)",
   "video": "https://youtu.be/hMrQSndDvPc",
-  "video_span": "11:07-13:41"
+  "video_span": "22:05-23:50"
  },
  "fight": {
   "scenario": {
    "name": "baalorlord",
    "ascension": 10,
-   "encounter": "PHANTASMAL_GARDENERS_ELITE",
+   "encounter": "INFESTED_PRISMS_ELITE",
    "character": "SILENT",
-   "hp": 30,
+   "hp": 32,
    "max_hp": 70,
    "max_energy": 3,
-   "gold": 177,
+   "gold": 91,
    "max_potion_slots": 2,
    "base_orb_slots": 0,
    "seed": "placeholder",
-   "total_floor": 15,
-   "act": 0,
+   "total_floor": 27,
+   "act": 1,
    "deck": [
     {
      "id": "STRIKE_SILENT",
@@ -204,8 +255,12 @@
      "upgrade": 0
     },
     {
-     "id": "STRIKE_SILENT",
-     "upgrade": 0
+     "id": "DEFEND_SILENT",
+     "upgrade": 0,
+     "enchantment": {
+      "id": "SPIRAL",
+      "amount": 1
+     }
     },
     {
      "id": "DEFEND_SILENT",
@@ -257,7 +312,7 @@
     },
     {
      "id": "SNAKEBITE",
-     "upgrade": 0
+     "upgrade": 1
     },
     {
      "id": "STRANGLE",
@@ -269,19 +324,39 @@
     },
     {
      "id": "OUTBREAK",
-     "upgrade": 0
+     "upgrade": 1,
+     "enchantment": {
+      "id": "IMBUED",
+      "amount": 1
+     }
     },
     {
      "id": "DEFLECT",
      "upgrade": 0
     },
     {
-     "id": "DEFEND_SILENT",
-     "upgrade": 0,
-     "enchantment": {
-      "id": "SPIRAL",
-      "amount": 1
-     }
+     "id": "OUTBREAK",
+     "upgrade": 1
+    },
+    {
+     "id": "BURST",
+     "upgrade": 0
+    },
+    {
+     "id": "ANTICIPATE",
+     "upgrade": 1
+    },
+    {
+     "id": "FOOTWORK",
+     "upgrade": 0
+    },
+    {
+     "id": "BULLET_TIME",
+     "upgrade": 0
+    },
+    {
+     "id": "BACKFLIP",
+     "upgrade": 0
     }
    ],
    "relics": [
@@ -299,7 +374,10 @@
     },
     {
      "id": "PEN_NIB",
-     "counter": 1
+     "counter": 5,
+     "props": {
+      "AttacksPlayed": 5
+     }
     },
     {
      "id": "WHITE_STAR"
@@ -310,20 +388,102 @@
     {
      "id": "LASTING_CANDY",
      "counter": 0
+    },
+    {
+     "id": "FESTIVE_POPPER"
+    },
+    {
+     "id": "ELECTRIC_SHRYMP"
+    },
+    {
+     "id": "HAPPY_FLOWER",
+     "counter": 2,
+     "props": {
+      "TurnsSeen": 2
+     }
+    },
+    {
+     "id": "VAJRA"
+    },
+    {
+     "id": "MOLTEN_EGG"
     }
    ],
-   "potions": [],
+   "potions": [
+    {
+     "id": "ENERGY_POTION",
+     "slot": 0
+    }
+   ],
    "run_seed": "YMY1KELG18SC",
    "game_build": "v0.111.0 (2026.08.14)",
    "build_hash": "1568834832",
    "modded": "MODDED (2)",
    "video": "https://youtu.be/hMrQSndDvPc",
-   "video_span": "11:07-13:41"
+   "video_span": "22:05-23:50"
   },
   "log": [
    {
     "play": {
-     "hand_pos": 5
+     "hand_pos": 3
+    }
+   },
+   {
+    "use_potion": {
+     "slot": 0,
+     "target_ally": 0
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 4
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 1
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 1
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 2
+    }
+   },
+   {
+    "end_turn": true
+   },
+   {
+    "play": {
+     "hand_pos": 2,
+     "target": 0
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 3
+    }
+   },
+   {
+    "choose": [
+     2,
+     3
+    ]
+   },
+   {
+    "play": {
+     "hand_pos": 5,
+     "target": 0
+    }
+   },
+   {
+    "play": {
+     "hand_pos": 5,
+     "target": 0
     }
    },
    {
@@ -333,25 +493,22 @@
    },
    {
     "play": {
-     "hand_pos": 1,
-     "target": 3
+     "hand_pos": 1
+    }
+   },
+   {
+    "end_turn": true
+   },
+   {
+    "play": {
+     "hand_pos": 5,
+     "target": 0
     }
    },
    {
     "play": {
-     "hand_pos": 0
-    }
-   },
-   {
-    "choose": [
-     0,
-     2
-    ]
-   },
-   {
-    "play": {
      "hand_pos": 1,
-     "target": 3
+     "target": 0
     }
    },
    {
@@ -362,2295 +519,558 @@
    },
    {
     "end_turn": true
-   },
-   {
-    "play": {
-     "hand_pos": 3,
-     "target": 3
-    }
-   },
-   {
-    "play": {
-     "hand_pos": 4,
-     "target": 3
-    }
-   },
-   {
-    "play": {
-     "hand_pos": 3,
-     "target": 0
-    }
-   },
-   {
-    "end_turn": true
-   },
-   {
-    "play": {
-     "hand_pos": 0
-    }
-   },
-   {
-    "play": {
-     "hand_pos": 0
-    }
-   },
-   {
-    "play": {
-     "hand_pos": 0,
-     "target": 0
-    }
-   },
-   {
-    "end_turn": true
-   },
-   {
-    "play": {
-     "hand_pos": 2,
-     "target": 2
-    }
-   },
-   {
-    "play": {
-     "hand_pos": 0
-    }
-   },
-   {
-    "end_turn": true
-   },
-   {
-    "play": {
-     "hand_pos": 0,
-     "target": 0
-    }
    }
   ],
   "states": [
    {
     "combat_in_progress": true,
-    "discard": [],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 29,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "id": "SKITTISH_POWER",
-        "amount": 7
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 5,
-        "hits": 1,
-        "total_damage": 5,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "id": "SKITTISH_POWER",
-        "amount": 7
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "id": "SKITTISH_POWER",
-        "amount": 7
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 32,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "id": "SKITTISH_POWER",
-        "amount": 7
-       }
-      ]
-     }
-    ],
-    "energy": 3,
-    "exhaust": [],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 0,
-      "id": "HIDDEN_DAGGERS",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 2,
-      "id": "SNAKEBITE",
-      "keywords": [
-       "Retain"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 3,
-      "id": "OUTBREAK",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "ASCENDERS_BANE",
-      "keywords": [
-       "Eternal",
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "DEFLECT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 0,
-     "hp": 30,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 1,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 1
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 1,
-    "side": "player",
-    "stars": 0,
-    "turn": 1,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
     "discard": [
      {
-      "id": "DEFLECT",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 29,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 5,
-        "hits": 1,
-        "total_damage": 5,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 32,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 3,
-    "exhaust": [],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 0,
-      "id": "HIDDEN_DAGGERS",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 2,
-      "id": "SNAKEBITE",
-      "keywords": [
-       "Retain"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 3,
       "id": "OUTBREAK",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "ASCENDERS_BANE",
-      "keywords": [
-       "Eternal",
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 4,
-     "hp": 30,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 1,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 1
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 1,
-    "side": "player",
-    "stars": 0,
-    "turn": 1,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "DAGGER_SPRAY",
       "upgrade": 1
-     },
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
      }
     ],
     "enemies": [
      {
       "alive": true,
       "block": 0,
-      "hp": 29,
-      "id": "PHANTASMAL_GARDENER",
+      "hp": 150,
+      "id": "INFESTED_PRISM",
       "intents": [
        {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 5,
+        "damage": 20,
         "hits": 1,
-        "total_damage": 5,
+        "total_damage": 20,
         "type": "Attack"
        }
       ],
-      "max_hp": 31,
-      "next_move": "BITE_MOVE",
+      "max_hp": 171,
+      "next_move": "JAB_MOVE",
       "powers": [
        {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 32,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 2,
-    "exhaust": [],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 0,
-      "id": "HIDDEN_DAGGERS",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 2,
-      "id": "SNAKEBITE",
-      "keywords": [
-       "Retain"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 3,
-      "id": "OUTBREAK",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "ASCENDERS_BANE",
-      "keywords": [
-       "Eternal",
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 14,
-     "hp": 30,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 1,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 1
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 1,
-    "side": "player",
-    "stars": 0,
-    "turn": 1,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 29,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 5,
-        "hits": 1,
-        "total_damage": 5,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 32,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 7,
-        "amount_on_turn_start": 0,
-        "id": "POISON_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 0,
-    "exhaust": [],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 0,
-      "id": "HIDDEN_DAGGERS",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 3,
-      "id": "OUTBREAK",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "ASCENDERS_BANE",
-      "keywords": [
-       "Eternal",
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 14,
-     "hp": 30,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 1,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 1
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 1,
-    "side": "player",
-    "stars": 0,
-    "turn": 1,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 29,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 5,
-        "hits": 1,
-        "total_damage": 5,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 32,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 7,
-        "amount_on_turn_start": 0,
-        "id": "POISON_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 0,
-    "exhaust": [],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 3,
-      "id": "OUTBREAK",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "ASCENDERS_BANE",
-      "keywords": [
-       "Eternal",
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 14,
-     "hp": 30,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 1,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 1
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 1,
-    "side": "player",
-    "stars": 0,
-    "turn": 1,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 29,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 5,
-        "hits": 1,
-        "total_damage": 5,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 32,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 7,
-        "amount_on_turn_start": 0,
-        "id": "POISON_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 0,
-    "exhaust": [],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 0,
-      "id": "ASCENDERS_BANE",
-      "keywords": [
-       "Eternal",
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "SHIV",
-      "keywords": [
-       "Exhaust"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "SHIV",
-      "keywords": [
-       "Exhaust"
-      ],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 14,
-     "hp": 30,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 1,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 1
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 1,
-    "side": "player",
-    "stars": 0,
-    "turn": 1,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 29,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 5,
-        "hits": 1,
-        "total_damage": 5,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 7,
-      "hp": 28,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 7,
-        "amount_on_turn_start": 0,
-        "id": "POISON_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 0,
-    "exhaust": [
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 0,
-      "id": "ASCENDERS_BANE",
-      "keywords": [
-       "Eternal",
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "SHIV",
-      "keywords": [
-       "Exhaust"
-      ],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 14,
-     "hp": 30,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 2,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 2
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 1,
-    "side": "player",
-    "stars": 0,
-    "turn": 1,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 7,
-      "hp": 25,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 5,
-        "hits": 1,
-        "total_damage": 5,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 7,
-      "hp": 28,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 7,
-        "amount_on_turn_start": 0,
-        "id": "POISON_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 0,
-    "exhaust": [
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 0,
-      "id": "ASCENDERS_BANE",
-      "keywords": [
-       "Eternal",
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 14,
-     "hp": 30,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 3,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 3
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 1,
-    "side": "player",
-    "stars": 0,
-    "turn": 1,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 25,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 21,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 8,
-        "hits": 1,
-        "total_damage": 8,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "id": "SKITTISH_POWER",
-        "amount": 7
+        "id": "VITAL_SPARK_POWER",
+        "amount": 3
        },
        {
         "id": "POISON_POWER",
-        "amount": 6
+        "amount": 11
+       }
+      ]
+     }
+    ],
+    "energy": 4,
+    "exhaust": [],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "CLUMSY",
+      "keywords": [
+       "Ethereal",
+       "Unplayable"
+      ],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 3,
+      "id": "OUTBREAK",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "ANTICIPATE",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "NOXIOUS_FUMES",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 32,
+     "max_hp": 70,
+     "powers": [
+      {
+       "id": "STRENGTH_POWER",
+       "amount": 1
+      },
+      {
+       "id": "TAINTED_POWER",
+       "amount": 3
+      }
+     ]
+    },
+    "potions": [
+     {
+      "slot": 0,
+      "id": "ENERGY_POTION"
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 5,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 5
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 127,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 23,
+        "hits": 1,
+        "total_damage": 23,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "JAB_MOVE",
+      "powers": [
+       {
+        "id": "VITAL_SPARK_POWER",
+        "amount": 3
        },
        {
-        "id": "STRENGTH_POWER",
-        "amount": 3
+        "id": "POISON_POWER",
+        "amount": 22
+       }
+      ]
+     }
+    ],
+    "energy": 1,
+    "exhaust": [],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "CLUMSY",
+      "keywords": [
+       "Ethereal",
+       "Unplayable"
+      ],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "ANTICIPATE",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "NOXIOUS_FUMES",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 32,
+     "max_hp": 70,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 6,
+       "amount_on_turn_start": 3,
+       "id": "TAINTED_POWER"
+      }
+     ]
+    },
+    "potions": [
+     {
+      "id": "ENERGY_POTION",
+      "slot": 0
+     }
+    ],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 5,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 5
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 127,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 23,
+        "hits": 1,
+        "total_damage": 23,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "JAB_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 22,
+        "id": "POISON_POWER"
        }
       ]
      }
     ],
     "energy": 3,
-    "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
+    "exhaust": [],
+    "gold": 91,
     "hand": [
-     {
-      "cost": 1,
-      "id": "SURVIVOR",
-      "keywords": [],
-      "upgrade": 0
-     },
      {
       "cost": 0,
       "id": "CLUMSY",
@@ -2662,31 +1082,33 @@
      },
      {
       "cost": 1,
-      "id": "STRIKE_SILENT",
+      "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
      },
      {
       "cost": 1,
-      "id": "STRANGLE",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "NEUTRALIZE",
+      "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
      },
      {
       "cost": 2,
-      "id": "DASH",
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "ANTICIPATE",
       "keywords": [],
-      "upgrade": 0
+      "upgrade": 1
      },
      {
       "cost": 1,
-      "id": "STRIKE_SILENT",
+      "id": "NOXIOUS_FUMES",
       "keywords": [],
       "upgrade": 0
      }
@@ -2699,561 +1121,19 @@
     "player": {
      "alive": true,
      "block": 0,
-     "hp": 29,
+     "hp": 32,
      "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 6,
+       "amount_on_turn_start": 3,
+       "id": "TAINTED_POWER"
       }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 3,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 3
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 2,
-    "side": "player",
-    "stars": 0,
-    "turn": 2,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 25,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 7,
-      "hp": 13,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 8,
-        "hits": 1,
-        "total_damage": 8,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 6,
-        "id": "POISON_POWER"
-       },
-       {
-        "amount": 3,
-        "id": "STRENGTH_POWER"
-       },
-       {
-        "amount": 2,
-        "amount_on_turn_start": 0,
-        "id": "STRANGLE_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 2,
-    "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 1,
-      "id": "SURVIVOR",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "CLUMSY",
-      "keywords": [
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "NEUTRALIZE",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 2,
-      "id": "DASH",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 0,
-     "hp": 29,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 4,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 4
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 2,
-    "side": "player",
-    "stars": 0,
-    "turn": 2,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 25,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 7,
-        "hits": 1,
-        "total_damage": 7,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 8,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 8,
-        "hits": 1,
-        "total_damage": 8,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 6,
-        "id": "POISON_POWER"
-       },
-       {
-        "amount": 3,
-        "id": "STRENGTH_POWER"
-       },
-       {
-        "amount": 2,
-        "amount_on_turn_start": 0,
-        "id": "STRANGLE_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 0,
-    "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 1,
-      "id": "SURVIVOR",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "CLUMSY",
-      "keywords": [
-       "Ethereal",
-       "Unplayable"
-      ],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "NEUTRALIZE",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 10,
-     "hp": 29,
-     "max_hp": 70,
-     "powers": []
+     ]
     },
     "potions": [],
     "relics": [
@@ -3288,54 +1168,60 @@
       "props": {
        "CombatRewardsSeen": 0
       }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
      }
     ],
-    "round": 2,
+    "round": 1,
     "side": "player",
     "stars": 0,
-    "turn": 2,
+    "turn": 1,
     "play_pile": [],
     "potion_slots": 2,
     "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
      {
       "id": "DAGGER_SPRAY",
       "upgrade": 1
      },
      {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
       "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
       "upgrade": 0
      },
      {
@@ -3351,6 +1237,10 @@
       "upgrade": 0
      },
      {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
       "id": "HIDDEN_DAGGERS",
       "upgrade": 0
      },
@@ -3359,146 +1249,79 @@
       "upgrade": 0
      },
      {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     },
-     {
       "id": "STRANGLE",
       "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
      }
     ],
     "enemies": [
      {
       "alive": true,
-      "block": 7,
-      "hp": 22,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 1,
-        "amount_on_turn_start": 0,
-        "id": "WEAK_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
       "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
+      "hp": 127,
+      "id": "INFESTED_PRISM",
       "intents": [
        {
-        "damage": 7,
+        "damage": 26,
         "hits": 1,
-        "total_damage": 7,
+        "total_damage": 26,
         "type": "Attack"
        }
       ],
-      "max_hp": 31,
-      "next_move": "LASH_MOVE",
+      "max_hp": 171,
+      "next_move": "JAB_MOVE",
       "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 6,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 8,
-        "hits": 1,
-        "total_damage": 8,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 32,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 6,
-        "id": "POISON_POWER"
-       },
        {
         "amount": 3,
-        "id": "STRENGTH_POWER"
+        "id": "VITAL_SPARK_POWER"
        },
        {
-        "amount": 2,
-        "amount_on_turn_start": 0,
-        "id": "STRANGLE_POWER"
+        "amount": 22,
+        "id": "POISON_POWER"
        }
       ]
      }
     ],
-    "energy": 0,
-    "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
+    "energy": 3,
+    "exhaust": [],
+    "gold": 91,
     "hand": [
-     {
-      "cost": 1,
-      "id": "SURVIVOR",
-      "keywords": [],
-      "upgrade": 0
-     },
      {
       "cost": 0,
       "id": "CLUMSY",
@@ -3510,13 +1333,1336 @@
      },
      {
       "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "NOXIOUS_FUMES",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 32,
+     "max_hp": 70,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 9,
+       "amount_on_turn_start": 3,
+       "id": "TAINTED_POWER"
+      },
+      {
+       "amount": 4,
+       "amount_on_turn_start": 0,
+       "id": "DEXTERITY_POWER"
+      },
+      {
+       "amount": 4,
+       "amount_on_turn_start": 0,
+       "id": "ANTICIPATE_POWER"
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 5,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 5
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
       "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 127,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 29,
+        "hits": 1,
+        "total_damage": 29,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "JAB_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 22,
+        "id": "POISON_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 2,
+    "exhaust": [],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "CLUMSY",
+      "keywords": [
+       "Ethereal",
+       "Unplayable"
+      ],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "NOXIOUS_FUMES",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 9,
+     "hp": 32,
+     "max_hp": 70,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 12,
+       "amount_on_turn_start": 3,
+       "id": "TAINTED_POWER"
+      },
+      {
+       "amount": 4,
+       "amount_on_turn_start": 0,
+       "id": "DEXTERITY_POWER"
+      },
+      {
+       "amount": 4,
+       "amount_on_turn_start": 0,
+       "id": "ANTICIPATE_POWER"
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 5,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 5
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 127,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 32,
+        "hits": 1,
+        "total_damage": 32,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "JAB_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 22,
+        "id": "POISON_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 1,
+    "exhaust": [],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "CLUMSY",
+      "keywords": [
+       "Ethereal",
+       "Unplayable"
+      ],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "NOXIOUS_FUMES",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 18,
+     "hp": 32,
+     "max_hp": 70,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 15,
+       "amount_on_turn_start": 3,
+       "id": "TAINTED_POWER"
+      },
+      {
+       "amount": 4,
+       "amount_on_turn_start": 0,
+       "id": "DEXTERITY_POWER"
+      },
+      {
+       "amount": 4,
+       "amount_on_turn_start": 0,
+       "id": "ANTICIPATE_POWER"
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 5,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 5
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 127,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 32,
+        "hits": 1,
+        "total_damage": 32,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "JAB_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 22,
+        "id": "POISON_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 0,
+    "exhaust": [],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 0,
+      "id": "CLUMSY",
+      "keywords": [
+       "Ethereal",
+       "Unplayable"
+      ],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 18,
+     "hp": 32,
+     "max_hp": 70,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 15,
+       "amount_on_turn_start": 3,
+       "id": "TAINTED_POWER"
+      },
+      {
+       "amount": 4,
+       "amount_on_turn_start": 0,
+       "id": "DEXTERITY_POWER"
+      },
+      {
+       "amount": 4,
+       "amount_on_turn_start": 0,
+       "id": "ANTICIPATE_POWER"
+      },
+      {
+       "amount": 2,
+       "amount_on_turn_start": 0,
+       "id": "NOXIOUS_FUMES_POWER"
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 5,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 5
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 0,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 0
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 1,
+    "side": "player",
+    "stars": 0,
+    "turn": 1,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     }
+    ],
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 105,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 13,
+        "hits": 1,
+        "total_damage": 13,
+        "type": "Attack"
+       },
+       {
+        "type": "Defend"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "RADIATE_MOVE",
+      "powers": [
+       {
+        "id": "VITAL_SPARK_POWER",
+        "amount": 3
+       },
+       {
+        "id": "POISON_POWER",
+        "amount": 23
+       }
+      ]
+     }
+    ],
+    "energy": 3,
+    "exhaust": [
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     }
+    ],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "DEFLECT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "DASH",
       "keywords": [],
       "upgrade": 0
      },
      {
       "cost": 1,
       "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "HIDDEN_DAGGERS",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "FOOTWORK",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 18,
+     "max_hp": 70,
+     "powers": [
+      {
+       "id": "STRENGTH_POWER",
+       "amount": 1
+      },
+      {
+       "id": "NOXIOUS_FUMES_POWER",
+       "amount": 2
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 5,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 5
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 1,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 1
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 2,
+    "side": "player",
+    "stars": 0,
+    "turn": 2,
+    "play_pile": [],
+    "potion_slots": 2
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 94,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 13,
+        "hits": 1,
+        "total_damage": 13,
+        "type": "Attack"
+       },
+       {
+        "type": "Defend"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "RADIATE_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 23,
+        "id": "POISON_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 1,
+    "exhaust": [
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     }
+    ],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "DEFLECT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "HIDDEN_DAGGERS",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "FOOTWORK",
       "keywords": [],
       "upgrade": 0
      }
@@ -3529,9 +2675,18 @@
     "player": {
      "alive": true,
      "block": 10,
-     "hp": 29,
+     "hp": 18,
      "max_hp": 70,
-     "powers": []
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
+      }
+     ]
     },
     "potions": [],
     "relics": [
@@ -3566,6 +2721,25 @@
       "props": {
        "CombatRewardsSeen": 0
       }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 1,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 1
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
      }
     ],
     "round": 2,
@@ -3576,11 +2750,19 @@
     "potion_slots": 2,
     "draw": [
      {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
      },
      {
-      "id": "DEFEND_SILENT",
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
       "upgrade": 0
      },
      {
@@ -3588,11 +2770,11 @@
       "upgrade": 0
      },
      {
-      "id": "DEFEND_SILENT",
+      "id": "NEUTRALIZE",
       "upgrade": 0
      },
      {
-      "id": "NOXIOUS_FUMES",
+      "id": "STRANGLE",
       "upgrade": 0
      },
      {
@@ -3605,6 +2787,10 @@
      },
      {
       "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
       "upgrade": 0
      }
     ]
@@ -3613,244 +2799,10 @@
     "combat_in_progress": true,
     "discard": [
      {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ],
-    "draw": [
-     {
-      "id": "DAGGER_SPRAY",
+      "id": "ANTICIPATE",
       "upgrade": 1
      },
      {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 22,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 8,
-        "hits": 1,
-        "total_damage": 8,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 3,
-        "amount_on_turn_start": 0,
-        "id": "STRENGTH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 3,
-    "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "NOXIOUS_FUMES",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 0,
-     "hp": 29,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 6,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 6
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 3,
-    "side": "player",
-    "stars": 0,
-    "turn": 3,
-    "play_pile": [],
-    "potion_slots": 2
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
       "id": "DASH",
       "upgrade": 0
      },
@@ -3863,352 +2815,41 @@
       "upgrade": 0
      },
      {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
       "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 22,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 8,
-        "hits": 1,
-        "total_damage": 8,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 3,
-        "amount_on_turn_start": 0,
-        "id": "STRENGTH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 2,
-    "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "NOXIOUS_FUMES",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 5,
-     "hp": 29,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 6,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 6
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 3,
-    "side": "player",
-    "stars": 0,
-    "turn": 3,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "DAGGER_SPRAY",
       "upgrade": 1
      },
      {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
       "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
+      "upgrade": 1
      }
     ],
     "enemies": [
      {
       "alive": true,
       "block": 0,
-      "hp": 22,
-      "id": "PHANTASMAL_GARDENER",
+      "hp": 94,
+      "id": "INFESTED_PRISM",
       "intents": [
        {
-        "damage": 8,
+        "damage": 13,
         "hits": 1,
-        "total_damage": 8,
+        "total_damage": 13,
         "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
        },
        {
+        "type": "Defend"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "RADIATE_MOVE",
+      "powers": [
+       {
         "amount": 3,
-        "amount_on_turn_start": 0,
-        "id": "STRENGTH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
+        "id": "VITAL_SPARK_POWER"
+       },
        {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
+        "amount": 23,
+        "id": "POISON_POWER"
        }
       ]
      }
@@ -4216,27 +2857,23 @@
     "energy": 1,
     "exhaust": [
      {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
-     {
       "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
       "upgrade": 0
      }
     ],
-    "gold": 177,
+    "gold": 91,
     "hand": [
      {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "DEFLECT",
       "keywords": [],
       "upgrade": 0
      },
@@ -4248,7 +2885,33 @@
      },
      {
       "cost": 1,
-      "id": "NOXIOUS_FUMES",
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "FOOTWORK",
       "keywords": [],
       "upgrade": 0
      }
@@ -4261,9 +2924,18 @@
     "player": {
      "alive": true,
      "block": 10,
-     "hp": 29,
+     "hp": 18,
      "max_hp": 70,
-     "powers": []
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
+      }
+     ]
     },
     "potions": [],
     "relics": [
@@ -4298,66 +2970,56 @@
       "props": {
        "CombatRewardsSeen": 0
       }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 1,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 1
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
      }
     ],
-    "round": 3,
+    "round": 2,
     "side": "player",
     "stars": 0,
-    "turn": 3,
+    "turn": 2,
     "play_pile": [],
     "potion_slots": 2,
     "draw": [
      {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "DASH",
+      "id": "ASCENDERS_BANE",
       "upgrade": 0
      },
      {
-      "id": "DEFEND_SILENT",
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
       "upgrade": 0
      },
      {
       "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFLECT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
       "upgrade": 0
      },
      {
       "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
       "upgrade": 0
      },
      {
@@ -4380,83 +3042,617 @@
       "id": "SURVIVOR",
       "upgrade": 0
      }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
     ],
     "enemies": [
      {
       "alive": true,
-      "block": 7,
-      "hp": 16,
-      "id": "PHANTASMAL_GARDENER",
+      "block": 0,
+      "hp": 94,
+      "id": "INFESTED_PRISM",
       "intents": [
        {
-        "damage": 8,
+        "damage": 16,
         "hits": 1,
-        "total_damage": 8,
+        "total_damage": 16,
         "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
        },
        {
+        "type": "Defend"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "RADIATE_MOVE",
+      "powers": [
+       {
         "amount": 3,
-        "amount_on_turn_start": 0,
-        "id": "STRENGTH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
+        "id": "VITAL_SPARK_POWER"
+       },
        {
-        "damage": 1,
-        "hits": 3,
-        "total_damage": 3,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "FLAIL_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
+        "amount": 23,
+        "id": "POISON_POWER"
        }
       ]
      }
     ],
-    "energy": 0,
+    "energy": 1,
     "exhaust": [
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     }
+    ],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "DEFLECT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "FOOTWORK",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "SHIV",
+      "keywords": [
+       "Exhaust"
+      ],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "SHIV",
+      "keywords": [
+       "Exhaust"
+      ],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 10,
+     "hp": 18,
+     "max_hp": 70,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
+      },
+      {
+       "amount": 3,
+       "amount_on_turn_start": 0,
+       "id": "TAINTED_POWER"
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 6,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 6
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 1,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 1
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 2,
+    "side": "player",
+    "stars": 0,
+    "turn": 2,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
      {
       "id": "ASCENDERS_BANE",
       "upgrade": 0
      },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 89,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 16,
+        "hits": 1,
+        "total_damage": 16,
+        "type": "Attack"
+       },
+       {
+        "type": "Defend"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "RADIATE_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 23,
+        "id": "POISON_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 1,
+    "exhaust": [
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "SHIV",
+      "upgrade": 0
+     }
+    ],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "DEFLECT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "FOOTWORK",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 0,
+      "id": "SHIV",
+      "keywords": [
+       "Exhaust"
+      ],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 10,
+     "hp": 18,
+     "max_hp": 70,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
+      },
+      {
+       "amount": 3,
+       "amount_on_turn_start": 0,
+       "id": "TAINTED_POWER"
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 7,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 7
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 1,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 1
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 2,
+    "side": "player",
+    "stars": 0,
+    "turn": 2,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 84,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 16,
+        "hits": 1,
+        "total_damage": 16,
+        "type": "Attack"
+       },
+       {
+        "type": "Defend"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "RADIATE_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 23,
+        "id": "POISON_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 1,
+    "exhaust": [
      {
       "id": "CLUMSY",
       "upgrade": 0
@@ -4470,17 +3666,45 @@
       "upgrade": 0
      }
     ],
-    "gold": 177,
+    "gold": 91,
     "hand": [
      {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 0,
+      "id": "DEFLECT",
       "keywords": [],
       "upgrade": 0
      },
      {
       "cost": 1,
-      "id": "NOXIOUS_FUMES",
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "GLAM"
+      },
+      "id": "DAGGER_SPRAY",
+      "keywords": [],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "FOOTWORK",
       "keywords": [],
       "upgrade": 0
      }
@@ -4493,450 +3717,23 @@
     "player": {
      "alive": true,
      "block": 10,
-     "hp": 29,
+     "hp": 18,
      "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 7,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 7
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 3,
-    "side": "player",
-    "stars": 0,
-    "turn": 3,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "DAGGER_SPRAY",
-      "upgrade": 1
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 16,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 10,
-        "hits": 1,
-        "total_damage": 10,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 3,
-        "id": "STRENGTH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 30,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 8,
-        "hits": 1,
-        "total_damage": 8,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 3,
-        "amount_on_turn_start": 0,
-        "id": "STRENGTH_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 3,
-    "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 1,
-      "enchantment": {
+     "powers": [
+      {
        "amount": 1,
-       "id": "GLAM"
+       "id": "STRENGTH_POWER"
       },
-      "id": "DAGGER_SPRAY",
-      "keywords": [],
-      "upgrade": 1
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "DEFLECT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 0,
-     "hp": 28,
-     "max_hp": 70,
-     "powers": []
-    },
-    "potions": [],
-    "relics": [
-     {
-      "id": "RING_OF_THE_SNAKE"
-     },
-     {
-      "id": "SILKEN_TRESS",
-      "props": {
-       "IsUsed": true
-      }
-     },
-     {
-      "id": "CENTENNIAL_PUZZLE"
-     },
-     {
-      "counter": 7,
-      "id": "PEN_NIB",
-      "props": {
-       "AttacksPlayed": 7
-      }
-     },
-     {
-      "id": "WHITE_STAR"
-     },
-     {
-      "id": "PANTOGRAPH"
-     },
-     {
-      "counter": 0,
-      "id": "LASTING_CANDY",
-      "props": {
-       "CombatRewardsSeen": 0
-      }
-     }
-    ],
-    "round": 4,
-    "side": "player",
-    "stars": 0,
-    "turn": 4,
-    "play_pile": [],
-    "potion_slots": 2,
-    "draw": [
-     {
-      "id": "DASH",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
-      "upgrade": 0
-     },
-     {
-      "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "SURVIVOR",
-      "upgrade": 0
-     }
-    ]
-   },
-   {
-    "combat_in_progress": true,
-    "discard": [
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
-     }
-    ],
-    "enemies": [
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 16,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 10,
-        "hits": 1,
-        "total_damage": 10,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 29,
-      "next_move": "LASH_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 3,
-        "id": "STRENGTH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 0,
-      "hp": 31,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "type": "Buff"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "ENLARGE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       }
-      ]
-     },
-     {
-      "alive": true,
-      "block": 7,
-      "hp": 24,
-      "id": "PHANTASMAL_GARDENER",
-      "intents": [
-       {
-        "damage": 8,
-        "hits": 1,
-        "total_damage": 8,
-        "type": "Attack"
-       }
-      ],
-      "max_hp": 30,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
-       },
-       {
-        "amount": 3,
-        "amount_on_turn_start": 0,
-        "id": "STRENGTH_POWER"
-       }
-      ]
-     }
-    ],
-    "energy": 2,
-    "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
-     {
-      "id": "CLUMSY",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     },
-     {
-      "id": "SHIV",
-      "upgrade": 0
-     }
-    ],
-    "gold": 177,
-    "hand": [
-     {
-      "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "GLAM"
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
       },
-      "id": "DAGGER_SPRAY",
-      "keywords": [],
-      "upgrade": 1
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 0,
-      "id": "DEFLECT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     }
-    ],
-    "max_energy": 3,
-    "orb_capacity": 0,
-    "orbs": [],
-    "pets": [],
-    "phase": "Play",
-    "player": {
-     "alive": true,
-     "block": 0,
-     "hp": 28,
-     "max_hp": 70,
-     "powers": []
+      {
+       "amount": 3,
+       "amount_on_turn_start": 0,
+       "id": "TAINTED_POWER"
+      }
+     ]
     },
     "potions": [],
     "relics": [
@@ -4971,49 +3768,56 @@
       "props": {
        "CombatRewardsSeen": 0
       }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 1,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 1
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
      }
     ],
-    "round": 4,
+    "round": 2,
     "side": "player",
     "stars": 0,
-    "turn": 4,
+    "turn": 2,
     "play_pile": [],
     "potion_slots": 2,
     "draw": [
      {
-      "id": "DASH",
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
       "upgrade": 0
      },
      {
       "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
       "upgrade": 0
      },
      {
       "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
       "upgrade": 0
      },
      {
@@ -5042,7 +3846,39 @@
     "combat_in_progress": true,
     "discard": [
      {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
       "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
       "upgrade": 1
      },
      {
@@ -5054,29 +3890,35 @@
      {
       "alive": true,
       "block": 0,
-      "hp": 2,
-      "id": "PHANTASMAL_GARDENER",
+      "hp": 42,
+      "id": "INFESTED_PRISM",
       "intents": [
        {
-        "type": "Buff"
+        "damage": 16,
+        "hits": 1,
+        "total_damage": 16,
+        "type": "Attack"
+       },
+       {
+        "type": "Defend"
        }
       ],
-      "max_hp": 31,
-      "next_move": "ENLARGE_MOVE",
+      "max_hp": 171,
+      "next_move": "RADIATE_MOVE",
       "powers": [
        {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 23,
+        "id": "POISON_POWER"
        }
       ]
      }
     ],
-    "energy": 1,
+    "energy": 0,
     "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
      {
       "id": "CLUMSY",
       "upgrade": 0
@@ -5090,13 +3932,15 @@
       "upgrade": 0
      }
     ],
-    "gold": 177,
+    "gold": 91,
     "hand": [
      {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
      },
      {
       "cost": 0,
@@ -5106,7 +3950,17 @@
      },
      {
       "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
       "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "FOOTWORK",
       "keywords": [],
       "upgrade": 0
      }
@@ -5118,10 +3972,24 @@
     "phase": "Play",
     "player": {
      "alive": true,
-     "block": 0,
-     "hp": 28,
+     "block": 10,
+     "hp": 18,
      "max_hp": 70,
-     "powers": []
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
+      },
+      {
+       "amount": 3,
+       "amount_on_turn_start": 0,
+       "id": "TAINTED_POWER"
+      }
+     ]
     },
     "potions": [],
     "relics": [
@@ -5156,49 +4024,56 @@
       "props": {
        "CombatRewardsSeen": 0
       }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 1,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 1
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
      }
     ],
-    "round": 4,
+    "round": 2,
     "side": "player",
     "stars": 0,
-    "turn": 4,
+    "turn": 2,
     "play_pile": [],
     "potion_slots": 2,
     "draw": [
      {
-      "id": "DASH",
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
       "upgrade": 0
      },
      {
       "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     },
-     {
-      "id": "HIDDEN_DAGGERS",
       "upgrade": 0
      },
      {
       "id": "NEUTRALIZE",
-      "upgrade": 0
-     },
-     {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "SNAKEBITE",
       "upgrade": 0
      },
      {
@@ -5227,8 +4102,20 @@
     "combat_in_progress": true,
     "discard": [
      {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
       "id": "DAGGER_SPRAY",
       "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
      },
      {
       "id": "DEFEND_SILENT",
@@ -5243,6 +4130,18 @@
       "upgrade": 0
      },
      {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
       "id": "STRIKE_SILENT",
       "upgrade": 0
      }
@@ -5251,37 +4150,35 @@
      {
       "alive": true,
       "block": 0,
-      "hp": 2,
-      "id": "PHANTASMAL_GARDENER",
+      "hp": 42,
+      "id": "INFESTED_PRISM",
       "intents": [
        {
-        "damage": 8,
+        "damage": 19,
         "hits": 1,
-        "total_damage": 8,
+        "total_damage": 19,
         "type": "Attack"
-       }
-      ],
-      "max_hp": 31,
-      "next_move": "BITE_MOVE",
-      "powers": [
-       {
-        "amount": 7,
-        "id": "SKITTISH_POWER"
        },
        {
+        "type": "Defend"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "RADIATE_MOVE",
+      "powers": [
+       {
         "amount": 3,
-        "amount_on_turn_start": 0,
-        "id": "STRENGTH_POWER"
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 23,
+        "id": "POISON_POWER"
        }
       ]
      }
     ],
-    "energy": 3,
+    "energy": 0,
     "exhaust": [
-     {
-      "id": "ASCENDERS_BANE",
-      "upgrade": 0
-     },
      {
       "id": "CLUMSY",
       "upgrade": 0
@@ -5295,38 +4192,30 @@
       "upgrade": 0
      }
     ],
-    "gold": 177,
+    "gold": 91,
     "hand": [
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
      {
       "cost": 2,
       "id": "SNAKEBITE",
       "keywords": [
        "Retain"
       ],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "FOOTWORK",
+      "keywords": [],
       "upgrade": 0
      }
     ],
@@ -5337,10 +4226,24 @@
     "phase": "Play",
     "player": {
      "alive": true,
-     "block": 0,
-     "hp": 28,
+     "block": 14,
+     "hp": 18,
      "max_hp": 70,
-     "powers": []
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
+      },
+      {
+       "amount": 6,
+       "amount_on_turn_start": 0,
+       "id": "TAINTED_POWER"
+      }
+     ]
     },
     "potions": [],
     "relics": [
@@ -5375,15 +4278,91 @@
       "props": {
        "CombatRewardsSeen": 0
       }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 1,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 1
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
      }
     ],
-    "round": 5,
+    "round": 2,
     "side": "player",
     "stars": 0,
-    "turn": 5,
+    "turn": 2,
     "play_pile": [],
     "potion_slots": 2,
     "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BACKFLIP",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
      {
       "id": "DASH",
       "upgrade": 0
@@ -5397,7 +4376,214 @@
       "upgrade": 0
      },
      {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
       "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 13,
+      "hp": 19,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 6,
+        "hits": 3,
+        "total_damage": 18,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "WHIRLWIND_MOVE",
+      "powers": [
+       {
+        "id": "VITAL_SPARK_POWER",
+        "amount": 3
+       },
+       {
+        "id": "POISON_POWER",
+        "amount": 24
+       }
+      ]
+     }
+    ],
+    "energy": 3,
+    "exhaust": [
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "SHIV",
+      "upgrade": 0
+     },
+     {
+      "id": "SHIV",
+      "upgrade": 0
+     }
+    ],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "BACKFLIP",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRANGLE",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 13,
+     "max_hp": 70,
+     "powers": [
+      {
+       "id": "STRENGTH_POWER",
+       "amount": 1
+      },
+      {
+       "id": "NOXIOUS_FUMES_POWER",
+       "amount": 2
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 0,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 0
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 3,
+    "side": "player",
+    "stars": 0,
+    "turn": 3,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
       "upgrade": 0
      },
      {
@@ -5405,15 +4591,7 @@
       "upgrade": 0
      },
      {
-      "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "OUTBREAK",
-      "upgrade": 0
-     },
-     {
-      "id": "STRANGLE",
+      "id": "STRIKE_SILENT",
       "upgrade": 0
      },
      {
@@ -5423,19 +4601,168 @@
     ]
    },
    {
-    "combat_in_progress": false,
-    "enemies": [],
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 4,
+      "hp": 19,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 6,
+        "hits": 3,
+        "total_damage": 18,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "WHIRLWIND_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 24,
+        "id": "POISON_POWER"
+       },
+       {
+        "amount": 2,
+        "amount_on_turn_start": 0,
+        "id": "STRANGLE_POWER"
+       }
+      ]
+     }
+    ],
     "energy": 2,
-    "gold": 177,
+    "exhaust": [
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "SHIV",
+      "upgrade": 0
+     },
+     {
+      "id": "SHIV",
+      "upgrade": 0
+     }
+    ],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "BACKFLIP",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
     "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
     "pets": [],
-    "phase": "None",
+    "phase": "Play",
     "player": {
      "alive": true,
      "block": 0,
-     "hp": 28,
+     "hp": 13,
      "max_hp": 70,
-     "powers": []
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
+      }
+     ]
     },
     "potions": [],
     "relics": [
@@ -5470,12 +4797,629 @@
       "props": {
        "CombatRewardsSeen": 0
       }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
      }
     ],
-    "round": 5,
+    "round": 3,
     "side": "player",
     "stars": 0,
-    "turn": 5,
+    "turn": 3,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 14,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 6,
+        "hits": 3,
+        "total_damage": 18,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "WHIRLWIND_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 24,
+        "id": "POISON_POWER"
+       },
+       {
+        "amount": 2,
+        "amount_on_turn_start": 0,
+        "id": "STRANGLE_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 1,
+    "exhaust": [
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "SHIV",
+      "upgrade": 0
+     },
+     {
+      "id": "SHIV",
+      "upgrade": 0
+     }
+    ],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "BACKFLIP",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 13,
+     "max_hp": 70,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 2,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 2
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 3,
+    "side": "player",
+    "stars": 0,
+    "turn": 3,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": true,
+    "discard": [
+     {
+      "id": "ANTICIPATE",
+      "upgrade": 1
+     },
+     {
+      "id": "DAGGER_SPRAY",
+      "upgrade": 1
+     },
+     {
+      "id": "DASH",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFEND_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "DEFLECT",
+      "upgrade": 0
+     },
+     {
+      "id": "FOOTWORK",
+      "upgrade": 0
+     },
+     {
+      "id": "HIDDEN_DAGGERS",
+      "upgrade": 0
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "OUTBREAK",
+      "upgrade": 1
+     },
+     {
+      "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     }
+    ],
+    "enemies": [
+     {
+      "alive": true,
+      "block": 0,
+      "hp": 5,
+      "id": "INFESTED_PRISM",
+      "intents": [
+       {
+        "damage": 6,
+        "hits": 3,
+        "total_damage": 18,
+        "type": "Attack"
+       }
+      ],
+      "max_hp": 171,
+      "next_move": "WHIRLWIND_MOVE",
+      "powers": [
+       {
+        "amount": 3,
+        "id": "VITAL_SPARK_POWER"
+       },
+       {
+        "amount": 24,
+        "id": "POISON_POWER"
+       },
+       {
+        "amount": 2,
+        "amount_on_turn_start": 0,
+        "id": "STRANGLE_POWER"
+       }
+      ]
+     }
+    ],
+    "energy": 0,
+    "exhaust": [
+     {
+      "id": "CLUMSY",
+      "upgrade": 0
+     },
+     {
+      "id": "SHIV",
+      "upgrade": 0
+     },
+     {
+      "id": "SHIV",
+      "upgrade": 0
+     }
+    ],
+    "gold": 91,
+    "hand": [
+     {
+      "cost": 2,
+      "id": "SNAKEBITE",
+      "keywords": [
+       "Retain"
+      ],
+      "upgrade": 1
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "BACKFLIP",
+      "keywords": [],
+      "upgrade": 0
+     }
+    ],
+    "max_energy": 3,
+    "orb_capacity": 0,
+    "orbs": [],
+    "pets": [],
+    "phase": "Play",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 13,
+     "max_hp": 70,
+     "powers": [
+      {
+       "amount": 1,
+       "id": "STRENGTH_POWER"
+      },
+      {
+       "amount": 2,
+       "id": "NOXIOUS_FUMES_POWER"
+      }
+     ]
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 3,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 3
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 3,
+    "side": "player",
+    "stars": 0,
+    "turn": 3,
+    "play_pile": [],
+    "potion_slots": 2,
+    "draw": [
+     {
+      "id": "ASCENDERS_BANE",
+      "upgrade": 0
+     },
+     {
+      "id": "BULLET_TIME",
+      "upgrade": 0
+     },
+     {
+      "id": "BURST",
+      "upgrade": 0
+     },
+     {
+      "id": "NEUTRALIZE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
+      "id": "SURVIVOR",
+      "upgrade": 0
+     }
+    ]
+   },
+   {
+    "combat_in_progress": false,
+    "enemies": [],
+    "energy": 0,
+    "gold": 91,
+    "max_energy": 3,
+    "pets": [],
+    "phase": "None",
+    "player": {
+     "alive": true,
+     "block": 0,
+     "hp": 13,
+     "max_hp": 70,
+     "powers": []
+    },
+    "potions": [],
+    "relics": [
+     {
+      "id": "RING_OF_THE_SNAKE"
+     },
+     {
+      "id": "SILKEN_TRESS",
+      "props": {
+       "IsUsed": true
+      }
+     },
+     {
+      "id": "CENTENNIAL_PUZZLE"
+     },
+     {
+      "counter": 3,
+      "id": "PEN_NIB",
+      "props": {
+       "AttacksPlayed": 3
+      }
+     },
+     {
+      "id": "WHITE_STAR"
+     },
+     {
+      "id": "PANTOGRAPH"
+     },
+     {
+      "counter": 0,
+      "id": "LASTING_CANDY",
+      "props": {
+       "CombatRewardsSeen": 0
+      }
+     },
+     {
+      "id": "FESTIVE_POPPER"
+     },
+     {
+      "id": "ELECTRIC_SHRYMP"
+     },
+     {
+      "counter": 2,
+      "id": "HAPPY_FLOWER",
+      "props": {
+       "TurnsSeen": 2
+      }
+     },
+     {
+      "id": "VAJRA"
+     },
+     {
+      "id": "MOLTEN_EGG"
+     }
+    ],
+    "round": 3,
+    "side": "enemy",
+    "stars": 0,
+    "turn": 3,
     "play_pile": [],
     "potion_slots": 2,
     "draw": []
@@ -5484,15 +5428,15 @@
   "state": {
    "combat_in_progress": false,
    "enemies": [],
-   "energy": 2,
-   "gold": 177,
+   "energy": 0,
+   "gold": 91,
    "max_energy": 3,
    "pets": [],
    "phase": "None",
    "player": {
     "alive": true,
     "block": 0,
-    "hp": 28,
+    "hp": 13,
     "max_hp": 70,
     "powers": []
    },
@@ -5511,10 +5455,10 @@
      "id": "CENTENNIAL_PUZZLE"
     },
     {
-     "counter": 1,
+     "counter": 3,
      "id": "PEN_NIB",
      "props": {
-      "AttacksPlayed": 1
+      "AttacksPlayed": 3
      }
     },
     {
@@ -5529,64 +5473,58 @@
      "props": {
       "CombatRewardsSeen": 0
      }
+    },
+    {
+     "id": "FESTIVE_POPPER"
+    },
+    {
+     "id": "ELECTRIC_SHRYMP"
+    },
+    {
+     "counter": 2,
+     "id": "HAPPY_FLOWER",
+     "props": {
+      "TurnsSeen": 2
+     }
+    },
+    {
+     "id": "VAJRA"
+    },
+    {
+     "id": "MOLTEN_EGG"
     }
    ],
-   "round": 5,
-   "side": "player",
+   "round": 3,
+   "side": "enemy",
    "stars": 0,
-   "turn": 5,
+   "turn": 3,
    "play_pile": [],
    "potion_slots": 2,
    "draw": []
   }
  },
  "times": [
-  "11:16",
-  "11:43",
-  "11:47",
-  "11:49",
-  "11:50",
-  "11:52",
-  "11:54",
-  "11:55",
-  "12:29",
-  "12:31",
-  "12:42",
-  "12:44",
-  "12:50",
-  "12:52",
-  "13:04",
-  "13:06",
-  "13:35",
-  "13:36",
-  "13:40",
-  "13:43"
+  "22:16",
+  "22:35",
+  "22:36",
+  "22:37",
+  "22:38",
+  "22:38",
+  "22:40",
+  "23:28",
+  "23:30",
+  "23:33",
+  "23:35",
+  "23:35",
+  "23:36",
+  "23:40",
+  "23:41",
+  "23:46",
+  "23:47",
+  "23:48",
+  "23:49"
  ],
  "observed": [
-  [
-   "block",
-   "draw_n",
-   "e",
-   "energy",
-   "hand",
-   "hp",
-   "relics"
-  ],
-  [
-   "block"
-  ],
-  [
-   "block"
-  ],
-  [],
-  [],
-  [],
-  [
-   "e"
-  ],
-  [
-   "e"
-  ],
   [
    "block",
    "discard_n",
@@ -5595,43 +5533,61 @@
    "energy",
    "hand",
    "hp",
+   "potions",
+   "pp",
    "relics"
   ],
   [
    "e"
   ],
   [
-   "block",
-   "e"
+   "energy"
+  ],
+  [],
+  [
+   "block"
   ],
   [
-   "e"
+   "block"
   ],
+  [],
   [
    "block",
+   "discard_n",
    "draw",
    "e",
    "energy",
    "hand",
    "hp",
+   "potions",
+   "pp",
    "relics"
   ],
   [
-   "block"
+   "block",
+   "e"
   ],
+  [],
+  [],
   [
-   "block"
+   "e"
   ],
   [
    "e"
   ],
   [
+   "e"
+  ],
+  [],
+  [
    "block",
+   "discard_n",
    "draw_n",
    "e",
    "energy",
    "hand",
    "hp",
+   "pp",
    "relics"
   ],
   [
@@ -5641,30 +5597,21 @@
    "e"
   ],
   [
-   "block",
-   "e",
-   "energy",
-   "hand",
-   "hp",
-   "relics"
+   "e"
   ],
   []
  ],
  "outcome": 1,
- "report": [
-  "start: sim vs frames before sync: .relics[3].counter: rust 0 vs oracle 1 | .relics[3].props.AttacksPlayed: rust 0 vs oracle 1",
-  "T3.4 e  @13:06: draw count (sim, before sync) 14 vs shown 15"
- ],
+ "report": [],
  "replay_check": {
   "ok": true,
   "outcome": 1,
   "stats": {
    "start_tries": 1,
-   "sync relics": 1,
-   "end_turn_tries": 4,
-   "end_turn_matched": 4,
-   "random_pile_diffs": 29,
-   "diff .enemies[3].powers": 2
+   "diff .enemies[0].powers": 3,
+   "end_turn_tries": 2,
+   "end_turn_matched": 2,
+   "random_pile_diffs": 30
   }
  }
 }
