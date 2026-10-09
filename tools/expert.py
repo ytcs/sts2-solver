@@ -960,6 +960,10 @@ def verdict(refs, max_hp):
         r3, r2, r1 = (None if drop(r) else r for r in (r3, r2, r1))
     if significant(r3, hp_eq):
         return side(r3["d"]), "r3", f"paired playouts {r3['d']:+.4f} ({r3['se']:.4f}), n {r3.get('n')}"
+    if r3 is not None and not (bounded(r3, hp_eq) or (r3["d"] == 0 and r3["se"] == 0)):
+        return "unresolved", "r3", f"paired playouts {r3['d']:+.4f} ({r3['se']:.4f}), n {r3.get('n')} neither resolve 1 HP-eq nor bound it (they outrank the turn check)"
+    if r3 is not None:
+        return "tie", "r3", f"{'identical outcomes' if r3['d'] == 0 and r3['se'] == 0 else 'immaterial'}: {r3['d']:+.4f} ({r3['se']:.4f}) < 1 HP-eq"
     if significant(r2, hp_eq):
         if r1 is not None and r1["d"] * r2["d"] < 0 and abs(r1["d"]) > 2 * r1["se"]:
             return "unresolved", "r2", f"turn check {r2['d']:+.4f} ({r2['se']:.4f}) and K search {r1['d']:+.4f} ({r1['se']:.4f}) disagree in sign: needs powered playouts"
@@ -1053,7 +1057,8 @@ def compare(a):
                         row.update(tc_lines=tc["lines"], tc_capped=tc["capped"], his_line=tc["his_line"], live_line=tc["live_line"])
                     except MemoryError as e:
                         row["tc_error"] = str(e)
-                if a.playouts and verdict(refs, sc["max_hp"])[0] == "unresolved":
+                v0 = verdict(refs, sc["max_hp"])
+                if a.playouts and (v0[0] == "unresolved" or (a.force_r3 and v0[1] == "r2")):
                     refs["r3"] = playouts(live, sc, sim, mine[0], d["action"], a.playouts, a.playout_rounds)
                 row["verdict"], row["by"], row["why"] = verdict(refs, sc["max_hp"])
                 row["refs"] = refs
@@ -1335,6 +1340,7 @@ def main():
     p.add_argument("--tc-revalue", type=int, default=8)
     p.add_argument("--playouts", type=int, default=12)
     p.add_argument("--playout-rounds", type=int, default=1)
+    p.add_argument("--force-r3", action="store_true", help="also run the playouts when the turn check alone decides")
     p.add_argument("--macro", action="store_true", help="also price the card rewards and rests (run model, `agent/price.py`)")
     p.add_argument("--macro-n", type=int, default=32)
     p.add_argument("--out")

@@ -1,56 +1,69 @@
 #!/usr/bin/env python3
-"""Fixed check of the exact turn search (FastSearch exact_turn) on the three E34 pilot states: Skulking Colony #18 must play a
-winning first move (exact value > 1 = a win); Phantasmal Gardeners #1 and Lagavulin Matriarch #0 are reported. The live player's search
-(Engine: models/current.json, M=5 K=32 cover) decides each state with exact_turn off and on, one round per seed, then Engine.decide (2 s).
+"""Fixed expert-gap check: the live player (Engine: models/current.json, cover, exact turn search on; Engine.decide at the live 2 s
+budget) on the game states where the expert's move beat it (hMrQSndDvPc divergences, confirmed by paired playouts or an exact
+enumeration). States come from the replay log by compact index k (`tools/expert.py build <compact>` writes them). Per state and seed:
+the move, and whether it falls in the expert's action class (gap closed). FAIL only when a must-win state does not play a winning
+first move (exact value > 1).
 
-usage: python tools/exact_turn_check.py [--seeds 4]
+usage: python tools/exact_turn_check.py [--seeds 4] [--budget 2.0]
 """
-import argparse, json, os, re, sys, time
+import argparse, os, re, sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import torch  # noqa: E402
-import sts2  # noqa: E402
-from expert import decision_states  # noqa: E402
+import expert as X  # noqa: E402
+from agent import reenact as RE  # noqa: E402
 
-FIGHTS = os.path.join(ROOT, "data", "expert", "baalorlord", "fights")
-STATES = (("hMrQSndDvPc_F12_SKULKING_COLONY_ELITE.json", 18, True), ("hMrQSndDvPc_F15_PHANTASMAL_GARDENERS_ELITE.json", 1, False),
-          ("hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS.json", 0, False))
+RECORD = os.path.join(ROOT, "data", "expert", "baalorlord", "hMrQSndDvPc.compact.jsonl")
+# (k, must): "win" = must play a winning first move; "gap" = confirmed our gap, reported
+STATES = ((184, "win"), (204, "gap"), (438, "gap"), (460, "gap"), (477, "gap"), (479, "gap"), (517, "gap"), (626, "gap"), (627, "gap"), (640, "gap"),
+          (659, "gap"))
+
+
+def state_at(rec, k):
+    x = RE.flatten(rec, built=None)[k]
+    built = RE.built_record(rec, x["fight"])
+    if built is None:
+        X.build_from_replay(rec, x["fight"])
+        built = RE.built_record(rec, x["fight"])
+    fight = built["fight"]
+    sim, j = next((sim, j) for i, sim, j in X.decision_states(fight) if i == x["i"])
+    return x, fight["scenario"], sim, j
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=4)
+    ap.add_argument("--budget", type=float, default=2.0)
     a = ap.parse_args()
     torch.set_num_threads(4)
     from agent.engine import Engine
-    print("sts2:", sts2.__file__)
     eng = Engine(exact_turn=True)
-    fs, cfg = eng.fs, eng.fs.exact
-    ok = True
-    for name, i, must_win in STATES:
-        fight = json.load(open(os.path.join(FIGHTS, name)))["fight"]
-        sc = fight["scenario"]
-        d = dict(sim=next(sim for k, sim, _j in decision_states(fight) if k == i))
-        text = dict(d["sim"].legal())
-        print(f"\n{name} #{i}")
+    rec = RE.load(RECORD)
+    ok, closed = True, 0
+    for k, must in STATES:
+        x, sc, sim, j = state_at(rec, k)
+        cls = X.classes(sim)
+        his = {cls[m] for m in X.match(sim, j)}
+        text = dict(sim.legal())
+        print(f"\nk{k} {x['fight'][12:]} #{x['i']} ({x.get('t')}): his {RE.describe(x)}")
+        hits = 0
         for s in range(a.seeds):
-            for on in (False, True):
-                fs.exact = cfg if on else None
-                t = time.perf_counter()
-                r = fs.decide(sc, d["sim"].copy(), seed=1000 + s)
-                t = time.perf_counter() - t
-                q = {text[o]: round(v, 3) for o, v, lg in zip(r["opts"], r["q"], r["legal"]) if lg}
-                print(f"  seed {s} exact {'on ' if on else 'off'}: {text[r['action']]:30s} triggered={r['exact']} {t:.2f}s  {q}")
-                if on and must_win and not max(v for k, v in q.items() if re.sub(r" #\d+", "", k) == re.sub(r" #\d+", "", text[r["action"]])) > 1.0:
+            r = eng.decide(sc, sim.copy(), a.budget, seed=1000 + s, tol_hp=0.5, keep_potions=True)
+            q = {o["text"]: o["q"] for o in r["options"]}
+            mine = cls.get(r["action"]) in his
+            hits += mine
+            print(f"  seed {s}: {r['text']:28s} {'= his class' if mine else ''} rounds {r['rounds']} {r['seconds']}s  {q}")
+            if must == "win":
+                same = [v for t_, v in q.items() if v is not None and re.sub(r" #\d+", "", t_) == re.sub(r" #\d+", "", text[r["action"]])]
+                if not (same and max(same) > 1.0):
                     ok = False
-        fs.exact = cfg
-        r = eng.decide(sc, d["sim"].copy(), 2.0, tol_hp=0.5, keep_potions=True)
-        print(f"  live player (Engine.decide 2 s, exact on): {r['text']}  rounds {r['rounds']} in {r['seconds']}s  {[(o['text'], o['q']) for o in r['options']]}")
-        if must_win and ("DEFEND" in r["text"] or r["text"] == "end turn"):
-            ok = False
-    print("\nPASS" if ok else "\nFAIL: Skulking Colony #18 did not play a winning first move")
+        closed += hits == a.seeds
+        print(f"  his class on {hits}/{a.seeds} seeds")
+    print(f"\n{closed}/{len(STATES)} states play his class on every seed")
+    print("PASS" if ok else "FAIL: a must-win state did not play a winning first move")
     sys.exit(0 if ok else 1)
 
 

@@ -343,7 +343,7 @@ def test_verdict_rule_reproduces_pilot_calls():
     assert v({"exact": dict(his_lb=1.0643, his_ub=1.0643, live_lb=1.0643, live_ub=1.0643), "r1": dict(d=-1.0321, se=0.2665)}, m)[:2] == ("tie", "exact")
     assert v({"exact": dict(his_lb=1.0643, his_ub=None, live_lb=-1.0, live_ub=-1.0), "r1": dict(d=0.0, se=0.0)}, m)[:2] == ("our gap", "exact")
     assert v({"r3": dict(d=0.0620, se=0.0048, n=16), "r2": dict(d=0.0387, se=0.0181), "r1": dict(d=-0.0183, se=0.0064)}, m)[:2] == ("our gap", "r3")
-    assert v({"r3": dict(d=0.185, se=0.178, n=12), "r2": dict(d=0.1607, se=0.0506), "r1": dict(d=-0.0058, se=0.0040)}, m)[:2] == ("our gap", "r2")
+    assert v({"r3": dict(d=0.185, se=0.178, n=12), "r2": dict(d=0.1607, se=0.0506), "r1": dict(d=-0.0058, se=0.0040)}, m)[:2] == ("unresolved", "r3")
     assert v({"r2": dict(d=-0.0035, se=0.0013), "r1": dict(d=-0.0082, se=0.0008)}, m)[:2] == ("tie", "r2")
     assert v({"r2": dict(d=0.0018, se=0.0003), "r1": dict(d=0.0482, se=0.0115)}, m)[:2] == ("tie", "r2")
     assert v({"r2": dict(d=0.0, se=0.0)}, m)[0] == "tie"
