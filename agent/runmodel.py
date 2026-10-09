@@ -408,7 +408,7 @@ def play(st, rng, pol, first=None):
     if isinstance(pre, dict) and not (yield from event_result(pre)):
         return 0
     while True:
-        if st.nodes is not None and st.frontier:
+        if st.nodes is not None and st.frontier is not None:
             while st.frontier:
                 key = pol.node(st, [(k, st.nodes[k]["type"]) for k in st.frontier])
                 if not (yield from room(st.nodes[key]["type"])):
