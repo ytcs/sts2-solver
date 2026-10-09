@@ -43,9 +43,13 @@ public sealed class ChoiceSelector : ICardSelector
         {
             var want = ScriptedIds.Dequeue();
             var used = new HashSet<int>();
-            picked = want.Select(id =>
+            picked = want.Select(tok =>
             {
-                int k = Enumerable.Range(0, n).FirstOrDefault(i => !used.Contains(i) && opts[i].Id.Entry == id, -1);
+                // "ID+" = the upgraded copy, "ID" = an unupgraded one (the live harness matches the upgrade); either copy as fallback
+                bool up = tok.EndsWith("+");
+                string id = tok.TrimEnd('+');
+                int k = Enumerable.Range(0, n).FirstOrDefault(i => !used.Contains(i) && opts[i].Id.Entry == id && (opts[i].CurrentUpgradeLevel > 0) == up, -1);
+                if (k < 0) k = Enumerable.Range(0, n).FirstOrDefault(i => !used.Contains(i) && opts[i].Id.Entry == id, -1);
                 if (k < 0) k = Enumerable.Range(0, n).FirstOrDefault(i => !used.Contains(i) && opts[i].Id.Entry.StartsWith(id + "_"), -1);
                 if (k < 0) throw new OracleException($"scripted choice {id} not among options: " + string.Join(", ", opts.Select(c => c.Id.Entry)));
                 used.Add(k); return k;

@@ -85,9 +85,15 @@ public sealed class RunReplay
             var st = _steps[i];
             string screen = (string)st["screen"];
             if (st["pick"] is JsonObject pu && pu["potion"] != null) { DrinkPotion(st, (int)pu["potion"]); i++; continue; }
+            if (screen == "MAP" && st["pick"] is JsonObject pd && pd["discard_potion"] != null)
+            {
+                Wait(PotionCmd.Discard(_player.PotionSlots[(int)pd["discard_potion"]]), "discard potion");
+                Emit("discard_potion", new JsonObject { ["floor"] = (int)st["floor"], ["slot"] = (int)pd["discard_potion"], ["state"] = State() });
+                i++; continue;
+            }
             switch (screen)
             {
-                case "EVENT": i = QueueSelects(i); DoEvent(st); break;
+                case "EVENT": i = QueueSelects(i); i = QueueEventCardRewards(i); DoEvent(st); break;
                 case "RESTSITE": i = QueueSelects(i); DoRest(st); break;
                 case "TREASURE": DoTreasure(st); i++; break;
                 case "SHOP": i = QueueSelects(i); DoShop(st); break;
@@ -117,6 +123,8 @@ public sealed class RunReplay
         return _alias.TryGetValue(s, out var id) ? id : NameToId(s);
     }
 
+    private string CardIdUp(string tok) => CardId(tok) + (tok.Trim().EndsWith("+") ? "+" : "");
+
     private JsonObject State() => Dump.State(_player, _run, CombatManager.Instance.DebugOnlyGetState());
 
     private void DoEvent(JsonObject st)
@@ -139,10 +147,37 @@ public sealed class RunReplay
         if (idx < 0 && EventLabels().TryGetValue((ev.Id.Entry, ((string)st["pick"]).Trim()), out var key))
             for (int k = 0; k < opts.Count; k++)
                 if (opts[k].TextKey.Split('.').Last() == key) { idx = k; want = key; break; }
+        if (idx < 0 && ev.Id.Entry == "THE_FUTURE_OF_POTIONS" && want.StartsWith("LOSE_"))
+        {
+            // one POTION option per potion, in slot order; the record names the potion it gives up ("Lose Block Potion")
+            var pots = _player.PotionSlots.Where(p => p != null).Take(opts.Count).ToList();
+            int k = pots.FindIndex(p => p.Id.Entry == want[5..]);
+            if (k >= 0 && opts[k].TextKey.EndsWith(".POTION")) idx = k;
+        }
         if (idx < 0) throw new OracleException($"event pick {want} not among options: " + string.Join(", ", opts.Select(o => o.TextKey)));
-        RunManager.Instance.EventSynchronizer.ChooseLocalOption(idx);
-        _pump.Drain();
-        Wait(RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks(), "event option");
+        var picks = _eventPicks;
+        if (picks != null)
+            RewardsSet.testSelector = async set =>
+            {
+                set.ThrowInTestIfRewardsNotTaken = false;
+                var taken = new HashSet<Reward>();
+                foreach (var pk in picks)
+                {
+                    if (pk == "proceed") continue;
+                    var r = set.Rewards.FirstOrDefault(x => !taken.Contains(x) && Matches(x, pk))
+                        ?? throw new OracleException($"event reward pick {pk} not offered");
+                    taken.Add(r);
+                    await RunManager.Instance.RewardsSetSynchronizer.SelectLocalReward(r);
+                }
+                if (!RunManager.Instance.RewardsSetSynchronizer.IsRewardsSetCompleted(set)) RunManager.Instance.RewardsSetSynchronizer.SkipLocalRewardsSet();
+            };
+        try
+        {
+            RunManager.Instance.EventSynchronizer.ChooseLocalOption(idx);
+            _pump.Drain();
+            Wait(RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks(), "event option");
+        }
+        finally { if (picks != null) RewardsSet.testSelector = null; _eventPicks = null; }
         CheckSelectsUsed("event " + want);
         Emit("event", new JsonObject { ["floor"] = (int)st["floor"], ["pick"] = want, ["before"] = before, ["after"] = RoomInfo(), ["choices"] = _sel.Prompts.DeepClone(), ["state"] = State() });
         _sel.Prompts.Clear();
@@ -154,7 +189,24 @@ public sealed class RunReplay
         _sel.ScriptedIds.Clear();
         int j = i + 1;
         for (; j < _steps.Count && (string)_steps[j]["screen"] == "SELECT"; j++)
-            _sel.ScriptedIds.Enqueue(_steps[j]["pick"].AsArray().Select(x => CardId((string)x)).ToArray());
+            _sel.ScriptedIds.Enqueue(_steps[j]["pick"].AsArray().Select(x => CardIdUp((string)x)).ToArray());
+        return j;
+    }
+
+    // An event option that offers rewards (The Future of Potions: a card reward) opens them inside the option: the REWARDS /
+    // CARD_REWARD steps right after the event script them; returns the next step index.
+    private List<string> _eventPicks;
+    private int QueueEventCardRewards(int j)
+    {
+        _eventPicks = null;
+        for (; j < _steps.Count && (string)_steps[j]["screen"] is "REWARDS" or "CARD_REWARD"; j++)
+        {
+            _eventPicks ??= new List<string>();
+            var pk = _steps[j]["pick"];
+            if ((string)_steps[j]["screen"] == "CARD_REWARD") _sel.ScriptedCardReward.Enqueue(pk is JsonValue v ? CardId((string)v) : null);
+            else if (pk is JsonArray arr) _eventPicks.AddRange(arr.Select(x => (string)x));
+            else if (pk is JsonValue) _eventPicks.Add((string)pk);
+        }
         return j;
     }
 
@@ -358,7 +410,7 @@ public sealed class RunReplay
                 while (k + 1 < acts.Count && (string)acts[k + 1][0] == "c")
                 {
                     k++;
-                    _sel.ScriptedIds.Enqueue(acts[k].AsArray().Skip(1).Select(x => CardId((string)x)).ToArray());
+                    _sel.ScriptedIds.Enqueue(acts[k].AsArray().Skip(1).Select(x => CardIdUp((string)x)).ToArray());
                 }
                 ActionSpec spec;
                 switch (kind)
@@ -401,6 +453,7 @@ public sealed class RunReplay
     {
         var picks = new List<string>();
         var cardPicks = new Queue<string>();
+        var drinks = new List<JsonObject>();  // AnyTime potions drunk on the rewards screen: applied after the selection
         int j = i;
         for (; j < _steps.Count; j++)
         {
@@ -412,6 +465,7 @@ public sealed class RunReplay
             if (pk is JsonArray arr) picks.AddRange(arr.Select(x => (string)x));
             else if (pk is JsonValue) picks.Add((string)pk);
             else if (pk is JsonObject po && po["discard_potion"] != null) picks.Add("dp:" + (int)po["discard_potion"]);
+            else if (pk is JsonObject pu && pu["potion"] != null) drinks.Add(st);
             else throw new OracleException("unsupported rewards pick " + pk.ToJsonString());
         }
         var room = _run.CurrentRoom as CombatRoom ?? throw new OracleException("rewards outside a combat room: " + _run.CurrentRoom?.GetType().Name);
@@ -444,6 +498,7 @@ public sealed class RunReplay
             Wait(done.Task, "select rewards");
         }
         finally { RewardsSet.testSelector = null; }
+        foreach (var d in drinks) DrinkPotion(d, (int)d["pick"]["potion"]);
         Emit("rewards", new JsonObject { ["floor"] = (int)_steps[i]["floor"], ["offered"] = offered, ["picks"] = new JsonArray(picks.Select(x => (JsonNode)x).ToArray()), ["choices"] = _sel.Prompts.DeepClone(), ["state"] = State() });
         _sel.Prompts.Clear();
         return j;

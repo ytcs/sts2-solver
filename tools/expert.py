@@ -613,6 +613,9 @@ def check_record(rec):
         elif isinstance(st["pick"], dict) and "discard_potion" in st["pick"]:
             if not isinstance(st["pick"]["discard_potion"], int):
                 errs.append(f"{where}: discard_potion must be a slot index")
+        elif isinstance(st["pick"], dict) and "potion" in st["pick"]:
+            if not isinstance(st["pick"]["potion"], int) or not st["pick"].get("id"):
+                errs.append(f"{where}: an out-of-combat potion pick is {{potion: slot, id}}")
         elif st["screen"] == "REWARDS" and not isinstance(st["pick"], (list, str)):
             errs.append(f"{where}: REWARDS pick must be a label or a list of labels")
     gaps = [i for i, st in enumerate(rec["steps"]) if "gap" in st]
