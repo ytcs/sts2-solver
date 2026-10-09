@@ -350,4 +350,5 @@ def test_verdict_rule_reproduces_pilot_calls():
     assert v({"r1": dict(d=0.0066, se=0.0181)}, m)[0] == "unresolved"
     win_now = dict(his_lb=1.3714, his_ub=1.3714, live_lb=1.3714, live_ub=None)
     assert v({"exact": win_now, "r2": dict(d=-0.0170, se=0.0011), "cap": 1.3714}, m)[:2] == ("tie", "exact")
-    assert v({"exact": dict(win_now, live_lb=None), "r2": dict(d=-0.0170, se=0.0011), "cap": 1.3714}, m)[:2] == ("unresolved", "exact")
+    assert v({"exact": dict(win_now, live_lb=None), "r2": dict(d=-0.0170, se=0.0011), "cap": 1.3714}, m)[0] == "unresolved"
+    assert v({"exact": dict(win_now, live_lb=None), "r2": dict(d=-0.0499, se=0.0003), "r3": dict(d=0.0, se=0.0, n=12), "cap": 1.3714}, m)[:2] == ("tie", "r3")

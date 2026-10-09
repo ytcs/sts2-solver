@@ -33,7 +33,7 @@ WIN, HPB = 1.0, 0.5
 SCREENS = {"EVENT", "MAP", "COMBAT", "SELECT", "REWARDS", "CARD_REWARD", "CHOOSE_CARD", "CHOOSE_RELIC", "CHOOSE_BUNDLE", "SHOP", "RESTSITE", "TREASURE"}
 ACTS = {"p": (2, 3), "c": (2, 9), "pot": (2, 4), "e": (1, 1)}
 CAP = 4000
-MAX_RSS, MIN_FREE = 6e9, 8e9
+MAX_RSS, MIN_FREE = float(os.environ.get("EXPERT_MAX_RSS_GB", 6)) * 1e9, 8e9
 
 
 class _MS(ctypes.Structure):
@@ -60,7 +60,7 @@ def memory():
     k32.GetCurrentProcess.restype = ctypes.c_void_p
     psapi.GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.POINTER(_PMC), ctypes.c_ulong]
     psapi.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb)
-    return float(max(pmc.WorkingSetSize, pmc.PagefileUsage)), float(ms.ullAvailPhys)
+    return float(pmc.WorkingSetSize), float(ms.ullAvailPhys)
 
 
 def watchdog():
@@ -952,14 +952,12 @@ def verdict(refs, max_hp):
             return "tie", "exact", f"both classes end exactly at {ex['his_ub']:+.4f} / {ex['live_ub']:+.4f}"
     cap = refs.get("cap")
     if ex and cap is not None:
-        for who, other in (("his", "live"), ("live", "his")):
-            if ex.get(f"{who}_lb") is not None and ex[f"{who}_lb"] >= cap - 1e-9 and ex.get(f"{other}_lb") is not None and ex[f"{other}_lb"] >= cap - 1e-9:
-                return "tie", "exact", f"both classes contain a line that wins this turn losing no HP ({cap:+.4f}, the maximum)"
-            if ex.get(f"{who}_lb") is not None and ex[f"{who}_lb"] >= cap - 1e-9:
-                if who == "his" and (significant(r3, hp_eq) or significant(r2, hp_eq)) and ((r3 or r2)["d"] < 0):
-                    return "unresolved", "exact", f"his class wins this turn losing no HP ({cap:+.4f}, the maximum); the sampled reference that favours the live class over-values a non-terminal leaf"
-                if who == "live" and (significant(r3, hp_eq) or significant(r2, hp_eq)) and ((r3 or r2)["d"] > 0):
-                    return "unresolved", "exact", f"the live class wins this turn losing no HP ({cap:+.4f}, the maximum); the sampled reference that favours his class over-values a non-terminal leaf"
+        top = {w: ex.get(f"{w}_lb") is not None and ex[f"{w}_lb"] >= cap - 1e-9 for w in ("his", "live")}
+        if top["his"] and top["live"]:
+            return "tie", "exact", f"both classes contain a line that wins this turn losing no HP ({cap:+.4f}, the maximum)"
+        # a class that wins this turn losing no HP is optimal: a sampled reference ranking the other class above it over-values a leaf
+        drop = (lambda r: r is not None and r["d"] < 0) if top["his"] else (lambda r: r is not None and r["d"] > 0) if top["live"] else (lambda r: False)
+        r3, r2, r1 = (None if drop(r) else r for r in (r3, r2, r1))
     if significant(r3, hp_eq):
         return side(r3["d"]), "r3", f"paired playouts {r3['d']:+.4f} ({r3['se']:.4f}), n {r3.get('n')}"
     if significant(r2, hp_eq):
@@ -1275,7 +1273,7 @@ def report(a):
     for f, c in per.items():
         n = sum(c.values())
         lines.append(f"| {f} | {n} ({c['forced']}) | {c['agree']} | {c['tie']} | {c['held']} | {c['our gap']} | {c['expert error']} | {c['unresolved']} |")
-    lines += ["", "## Divergences", "| fight | # | t | his | live | R1 his-live (se) | R2 | R3 | exact | verdict |", "|---|---|---|---|---|---|---|---|---|---|"]
+    lines += ["", "## Divergences", "| k | fight | # | t | his | live | R1 his-live (se) | R2 | R3 | exact | verdict |", "|---|---|---|---|---|---|---|---|---|---|---|"]
     fmt = lambda r: "" if not r else f"{r['d']:+.4f} ({r['se']:.4f})" + (f" n {r['n']}" if "n" in r else "")  # noqa: E731
     for r in data["rows"]:
         if r["verdict"] in ("agree", "forced"):
@@ -1284,12 +1282,12 @@ def report(a):
         ex = refs.get("exact") or {}
         f4 = lambda x: "?" if x is None else f"{x:+.4f}"  # noqa: E731
         ex_s = "" if not any(v is not None for v in ex.values()) else f"his [{f4(ex.get('his_lb'))}, {f4(ex.get('his_ub'))}] live [{f4(ex.get('live_lb'))}, {f4(ex.get('live_ub'))}]"
-        lines.append(f"| {r['fight'].split('_', 1)[-1]} | {r['i']} | {r.get('t') or ''} | {r['his']} | {r['live']} | {fmt(refs.get('r1'))} | {fmt(refs.get('r2'))} | "
+        lines.append(f"| {r.get('k', '')} | {r['fight'].split('_', 1)[-1]} | {r['i']} | {r.get('t') or ''} | {r['his']} | {r['live']} | {fmt(refs.get('r1'))} | {fmt(refs.get('r2'))} | "
                      f"{fmt(refs.get('r3'))} | {ex_s} | **{r['verdict']}** ({r.get('by') or '-'}) |")
     if data.get("macro"):
-        lines += ["", "## Macro vs `price`", "| floor | screen | played | price best | horizon | d (se) | verdict |", "|---|---|---|---|---|---|---|"]
+        lines += ["", "## Macro vs `price`", "| k | floor | screen | played | price best | horizon | d (se) | verdict |", "|---|---|---|---|---|---|---|---|"]
         for m in data["macro"]:
-            lines.append(f"| {m['floor']} | {m['screen']} | {m['played']} | {m['price_best']} | {m['horizon']} | {fmt(m) if 'd' in m else ''} | {m['verdict']} |")
+            lines.append(f"| {m.get('k', '')} | {m['floor']} | {m['screen']} | {str(m['played']).split('(')[0].split(':')[0]} | {m['price_best']} | {m['horizon']} | {fmt(m) if 'd' in m else ''} | {m['verdict']} |")
     text = "\n".join(lines) + "\n"
     out = a.out
     if out:
