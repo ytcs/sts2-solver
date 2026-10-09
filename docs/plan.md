@@ -23,7 +23,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 
 **2. Solver strength: setup turns.** Order-dependent setup turns are misranked (Gardeners #1, Lagavulin #0, E34; errors spread over setup turns, E26); exact turn search fixed only blind-turn lethal (E36).
 - Measured on real states (E39): 10 confirmed expert gaps, 6 of them setup/power across the turn boundary; `tools/exact_turn_check.py` is the fixed check.
-- HP cap (`hp_cap`, nearmiss suffix `@cap`, default off): leaf win mass above the current HP + `Combat::hp_gain_bound` is valued at that ceiling, so no leaf beats winning now; expert states 2 closed (k438, k479), k184 kept; cost within noise; near-miss pending.
+- HP cap (`hp_cap`, nearmiss suffix `@cap`, default off; E41): leaf win mass above the HP ceiling (leaf HP + `Combat::hp_gain_bound`) is valued at the ceiling, so no leaf beats winning now. Next: near-miss paired with live.
 - Candidates: deeper leaf on close calls; exact turn search with a two-turn leaf; value targets from deeper search.
 - Gate: near-miss L->W up with W->L not worse, paired with live; more of the expert gap states solved (none lost: k184 keeps its win); live decision time within budget.
 

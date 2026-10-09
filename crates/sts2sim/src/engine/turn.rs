@@ -752,7 +752,7 @@ impl Combat {
         }
         let mut won = self.clone();
         won.cr_mut(PLAYER).set_hp(1);
-        won.end_combat_victory();
+        crate::util::quiet(|| won.end_combat_victory());
         Some(gain + won.cr(PLAYER).hp() - 1)
     }
 

@@ -134,6 +134,9 @@ fn main() {
     if hp_cap {
         println!("  hp cap: searched {}, capped roots {}, skipped (unbounded healing) {}", st.searched, st.cap_roots, st.cap_skipped);
     }
+    if st.panics > 0 || st.illegal > 0 {
+        println!("  panics {}, illegal {}", st.panics, st.illegal);
+    }
     if verify {
         println!("  verified {} look-ahead cache hits against fresh projections", sts2sim::engine::LOOK_VERIFIED.load(std::sync::atomic::Ordering::Relaxed));
     }
