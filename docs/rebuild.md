@@ -32,7 +32,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 
 ## 4. Roadmap (current order; review at each gate)
 1. Done (E29): PPO signal sampler; gen-2 base.
-2. Combat loop (S3): r5 live (E35). Next: round r6 from r5 on a pod (`scripts/pod_round.sh`, pool `tools/round_pool.py` scored by r5), then the promotion gate on a pod.
+2. Combat loop (S3): r6 live (E37: +0.006 L->W over r5; gains shrinking: r5 +0.013). Next round only with a new lever (pool targeted at near-miss/setup-turn states, or more search in collection), not more of the same.
 3. Predictor on engine/plan decks (E30, E31); every run-level price inherits it. (a) bench slice `plans`: done; (b) plan-shaped decks (archetype cores + fill, thin act-2 decks with and without a core) in the round pool: r5, continues in r6; (c) solver-run fallback for plan-deck gates: deprioritized (user): the search plays plan decks well (E30); the predictor gap closes through the rounds' plan-deck share, not a patch. Gate: slice |bias| < 0.05 and deck Spearman >= 0.8. Status (r5): bias -0.040 passes; Spearman 0.768 fails; enabler-removal pairs blind (0.10); worst archetypes doom -0.35, souls -0.25, osty -0.18, poison -0.18.
 4. S5 continuation value (blocks S7): `price --cont` surrogate fails its gate (E30); next: tune the floor / compare `mean`, after item 3.
 5. S4 gate (potion regression states).
@@ -54,7 +54,7 @@ Gate: a full act with no false `DIFFERS`.
 
 **S2. Benchmark before training.** Done (`tools/bench.py`, near-miss bench). Frozen sets (eval, high energy, corpus, cross-character/big belt, per-character, plans) labelled by gen-2 5x32 cover (E33; `bench.py relabel` relabels with the live model). Local RTX 4070 Super: 100k labelled fights ~2.5 h. Gate: re-runs within se.
 
-**S3. Predictor trained on search play.** Status: r5 player and predictor (E35). Open: underprediction on hard fights (bias -0.035 mix, -0.056 tail; decile gate fails); enabler-removal pairs blind.
+**S3. Predictor trained on search play.** Status: `models/solver_r6.pt` is player and predictor (E37). Open: underprediction on hard fights (bias -0.030 mix, -0.047 tail; decile gate fails); enabler-removal pairs blind.
 - Combat loop: each round collects with the live player (its cover search) on a signal-weighted pool (`tools/round_pool.py`), trains from the live model the policy (anchored c=2 target, E10) and the value (TD(0.8), E24) (`rl/exit.py train`), then applies the promotion gate. Value targets are realized/TD outcomes, never max of search Q; HL-Gauss categorical targets.
 - Curriculum: fresh candidates (`tools/gen_curriculum.py` + corpus) scored by the current predictor; 15% uniform + rest by p(1-p) (`tools/signal_pool.py`), chosen before play. Open: A/B vs a uniform pool under the current recipe (E18 inconclusive).
 - After a simulator change `tools/prune_divergent.py`; a part losing > 1% is regenerated.
