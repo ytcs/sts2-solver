@@ -4,6 +4,7 @@
 probe:  observation vs simulator powers on replayed fights; scripted power states; encoding channels; unported power ids
 embed:  PowerPool / card embedding rows the r5 -> r6 training never moved
 stats:  power coverage of decision states: collection parts (trained rows), greedy play on scenario files, expert replay logs
+holdcal: calibration of several nets on exit.py train's holdout fights, paired
 """
 import argparse, glob, json, os, sys
 from collections import Counter, defaultdict
@@ -526,14 +527,6 @@ def tdcal(a):
         fid0 += len(z["f_scen"])
         print(f"{os.path.basename(path)} {len(p)} rows", file=sys.stderr, flush=True)
     c = {k: np.concatenate(v) for k, v in cols.items()}
-
-    def bias_se(r, fid):
-        """mean of r with an se clustered by fight"""
-        u, inv = np.unique(fid, return_inverse=True)
-        s, n = np.bincount(inv, r), np.bincount(inv)
-        b = s.sum() / n.sum()
-        return b, np.sqrt(((s - b * n) ** 2).sum()) / n.sum()
-
     out = {}
     for k in [k for k in c if k.startswith("g:")]:
         m = c[k]
@@ -547,6 +540,83 @@ def tdcal(a):
         br, bt, tr = v["bias_realized"], v["bias_td"], v["td_minus_realized"]
         print(f"{k:22s} n {v['n']:7d} fights {v['fights']:6d}  p {v['p']:.3f} won {v['won']:.3f} td {v['td']:.3f}  "
               f"p-won {br[0]:+.3f}+-{br[1]:.3f}  p-td {bt[0]:+.3f}+-{bt[1]:.3f}  td-won {tr[0]:+.3f}+-{tr[1]:.3f}")
+
+
+def bias_se(r, fid):
+    """mean of r with an se clustered by fight"""
+    _, inv = np.unique(fid, return_inverse=True)
+    s, n = np.bincount(inv, r), np.bincount(inv)
+    b = s.sum() / n.sum()
+    return float(b), float(np.sqrt(((s - b * n) ** 2).sum()) / n.sum())
+
+
+def holdcal(a):
+    """calibration vs the realized win on exit.py train's holdout fights (same parts, seed, fraction), several nets paired on the same rows"""
+    import torch
+    import model as M
+    import exit as X
+    nets = {lab: M.load(path) for lab, path in (s.split("=", 1) for s in a.ckpts)}
+    data = X.Data(sorted(glob.glob(a.parts)))
+    idx = np.array(data.index, dtype=object)
+    hold = idx[np.random.default_rng(a.seed).permutation(len(idx))[:max(1, int(len(idx) * a.holdout))]]
+    by = defaultdict(list)
+    for pi, f in hold:
+        by[pi].append(f)
+    cols = defaultdict(list)
+    for pi in sorted(by):
+        p = data.parts[pi]
+        fs = sorted(f for f in by[pi] if p["d_lo"][f] < p["d_lo"][f + 1])
+        try:
+            o, _, _, soff = data._replay(p, fs)
+        except ValueError:
+            fs = data._replayable(pi, p, fs)
+            o, _, _, soff = data._replay(p, fs)
+        rf = np.repeat(np.asarray(fs), np.diff(soff))
+        d = decode(o)
+        F = row_features(o, d)
+        src = np.array([p["scen"][p["f_scen"][f]].get("meta", {}).get("source", "?") for f in rf])
+        g = {"all": np.ones(len(o), bool), "plan source": src == "plan", "enemy doom > 0": F["doom"] > 0, "enemy doom >= hp": F["doom_lethal"],
+             "enemy poison >= 10": F["poison"] >= 10, "enemy poison >= 20": F["poison"] >= 20,
+             "player intangible": (d["pid"] == PID["INTANGIBLE_POWER"]).any(1)}
+        for n in ("HAUNT", "AFTERIMAGE", "FURNACE", "COUNTDOWN", "ACCELERANT"):
+            g[f"player {n.lower()}"] = F["named"][n + "_POWER"]
+        with torch.no_grad():
+            for lab, net in nets.items():
+                cols["p:" + lab].append(np.concatenate([1 - torch.softmax(net.heads_out(torch.from_numpy(o[i:i + 4096]).to(M.DEV)).float(), 1)[:, 0].cpu().numpy()
+                                                        for i in range(0, len(o), 4096)]))
+        cols["y"].append((p["f_cls"][rf] > 0).astype(np.float64))
+        cols["fid"].append(pi * 10 ** 6 + rf)
+        for k, m in g.items():
+            cols["g:" + k].append(m)
+        print(f"part {pi}: {len(fs)} fights {len(o)} rows", file=sys.stderr, flush=True)
+    c = {k: np.concatenate(v) for k, v in cols.items()}
+    y, fid = c["y"], c["fid"]
+    same = np.r_[fid[1:] == fid[:-1], False]
+    out = {}
+    for k in [k for k in c if k.startswith("g:")]:
+        m = c[k]
+        if not m.any():
+            continue
+        r = dict(n=int(m.sum()), fights=int(len(np.unique(fid[m]))), won=float(y[m].mean()))
+        for lab in nets:
+            pv = c["p:" + lab]
+            r[lab] = dict(p=float(pv[m].mean()), bias=bias_se(pv[m] - y[m], fid[m]), brier=bias_se((pv[m] - y[m]) ** 2, fid[m]))
+            if lab != a.ref:
+                pr = c["p:" + a.ref]
+                r[lab]["minus_ref"] = bias_se(pv[m] - pr[m], fid[m])
+                r[lab]["brier_minus_ref"] = bias_se((pv[m] - y[m]) ** 2 - (pr[m] - y[m]) ** 2, fid[m])
+            if k == "g:all":
+                r[lab]["step_jitter"] = float(np.abs(pv[1:] - pv[:-1])[same[:-1]].mean())
+        out[k[2:]] = r
+    json.dump(out, open(a.out, "w"), indent=1)
+    for k, r in out.items():
+        print(f"{k:20s} n {r['n']:7d} fights {r['fights']:5d} won {r['won']:.3f}  " + "  ".join(
+            f"{lab} {r[lab]['bias'][0]:+.3f}+-{r[lab]['bias'][1]:.3f}" + (f" (d {r[lab]['minus_ref'][0]:+.3f}+-{r[lab]['minus_ref'][1]:.3f})" if lab != a.ref else "")
+            for lab in nets))
+    for lab in nets:
+        b = out["all"][lab]
+        print(f"{lab}: brier {b['brier'][0]:.4f}" + (f" ({b['brier_minus_ref'][0]:+.4f}+-{b['brier_minus_ref'][1]:.4f} vs {a.ref})" if lab != a.ref else "")
+              + f", step jitter {b['step_jitter']:.4f}")
 
 
 def set_power(obs, base, pid, amount):
@@ -945,7 +1015,16 @@ def main():
     u.add_argument("--ckpt")
     u.add_argument("--expert", help="dir of expert replay-log fight JSONs")
     u.add_argument("--out", required=True)
+    h = sp.add_parser("holdcal")
+    h.add_argument("--parts", required=True, help="glob of the parts exit.py train was given (same order: sorted)")
+    h.add_argument("--ckpts", nargs="+", required=True, help="label=path")
+    h.add_argument("--ref", required=True, help="label the others are paired with")
+    h.add_argument("--seed", type=int, default=0)
+    h.add_argument("--holdout", type=float, default=0.05)
+    h.add_argument("--out", required=True)
     a = ap.parse_args()
+    if a.cmd == "holdcal":
+        return holdcal(a)
     if a.cmd == "tdcal":
         return tdcal(a)
     if a.cmd == "gate":
