@@ -58,7 +58,8 @@ fn main() {
     let jobs: Vec<(u32, u64)> = (0..scen.len()).map(|i| (i as u32, 101 * 1_000_003 + i as u64)).collect();
     let tie = std::env::var("STS2_EXACT").ok().and_then(|v| v.parse::<f32>().ok());
     let exact = ExactCfg { on: tie.is_some(), tie: tie.unwrap_or(0.0), ..ExactCfg::default() };
-    let cfg = SearchCfg { m, k, roll_cap: 120, leaf_turns: 2, turn_cap: 30, val_w: HEAD_NC, exact, ..SearchCfg::default() };
+    let hp_cap = std::env::var("STS2_HP_CAP").is_ok_and(|v| v == "1");
+    let cfg = SearchCfg { m, k, roll_cap: 120, leaf_turns: 2, turn_cap: 30, val_w: HEAD_NC, exact, hp_cap, ..SearchCfg::default() };
     let mut eng = SearchEngine::new(scen, jobs.clone(), roots, cfg, threads, true).unwrap();
     let cap = eng.shared_rows();
     let (mut obs, mut mask, mut pk, mut pu, mut vk) = (vec![0f32; cap * OBS_SIZE], vec![0u8; cap * ACTION_SPACE], vec![0u8; cap], vec![0f32; cap], vec![0u8; cap]);
@@ -129,6 +130,9 @@ fn main() {
     if exact.on {
         println!("  exact: searched {}, triggered {}, done {}, capped {}, changed {}, states {}, rows {}, cycles {:.1}% of the engine's",
             st.searched, st.ex_triggered, st.ex_done, st.ex_capped, st.ex_changed, st.ex_states, st.ex_rows, 100.0 * st.cy_exact as f64 / tot);
+    }
+    if hp_cap {
+        println!("  hp cap: searched {}, capped roots {}, skipped (unbounded healing) {}", st.searched, st.cap_roots, st.cap_skipped);
     }
     if verify {
         println!("  verified {} look-ahead cache hits against fresh projections", sts2sim::engine::LOOK_VERIFIED.load(std::sync::atomic::Ordering::Relaxed));
