@@ -2689,6 +2689,12 @@
       "id": "STRIKE_SILENT",
       "keywords": [],
       "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -2763,10 +2769,6 @@
      },
      {
       "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
       "upgrade": 0
      },
      {
@@ -2966,6 +2968,12 @@
       "id": "STRIKE_SILENT",
       "keywords": [],
       "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -3040,10 +3048,6 @@
      },
      {
       "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
       "upgrade": 0
      },
      {
@@ -3241,6 +3245,12 @@
       "id": "STRIKE_SILENT",
       "keywords": [],
       "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -3315,10 +3325,6 @@
      },
      {
       "id": "NOXIOUS_FUMES",
-      "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
       "upgrade": 0
      },
      {
@@ -3519,6 +3525,12 @@
       "id": "STRIKE_SILENT",
       "keywords": [],
       "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -3602,10 +3614,6 @@
      {
       "id": "STRIKE_SILENT",
       "upgrade": 0
-     },
-     {
-      "id": "STRIKE_SILENT",
-      "upgrade": 0
      }
     ]
    },
@@ -3646,6 +3654,10 @@
      },
      {
       "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
       "upgrade": 0
      },
      {
@@ -3899,6 +3911,10 @@
       "upgrade": 0
      },
      {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
       "id": "SURVIVOR",
       "upgrade": 0
      }
@@ -4139,6 +4155,10 @@
       "upgrade": 0
      },
      {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
       "id": "SURVIVOR",
       "upgrade": 0
      }
@@ -4362,6 +4382,10 @@
      },
      {
       "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
       "upgrade": 0
      },
      {
@@ -4789,6 +4813,10 @@
       "upgrade": 0
      },
      {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
       "id": "SURVIVOR",
       "upgrade": 0
      }
@@ -5033,6 +5061,10 @@
       "upgrade": 0
      },
      {
+      "id": "STRIKE_SILENT",
+      "upgrade": 0
+     },
+     {
       "id": "SURVIVOR",
       "upgrade": 0
      }
@@ -5203,6 +5235,10 @@
      },
      {
       "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
       "upgrade": 0
      },
      {
@@ -5414,6 +5450,10 @@
      },
      {
       "id": "STRANGLE",
+      "upgrade": 0
+     },
+     {
+      "id": "STRIKE_SILENT",
       "upgrade": 0
      },
      {
@@ -5652,8 +5692,7 @@
  ],
  "outcome": 1,
  "report": [
-  "start: sim vs frames before sync: .relics[3].counter: rust 0 vs oracle 1 | .relics[3].props.AttacksPlayed: rust 0 vs oracle 1",
-  "T3.4 e  @13:06: draw count (sim, before sync) 14 vs shown 15"
+  "start: sim vs frames before sync: .relics[3].counter: rust 0 vs oracle 1 | .relics[3].props.AttacksPlayed: rust 0 vs oracle 1"
  ],
  "replay_check": {
   "ok": true,
@@ -5663,7 +5702,7 @@
    "sync relics": 1,
    "end_turn_tries": 4,
    "end_turn_matched": 4,
-   "random_pile_diffs": 29,
+   "random_pile_diffs": 56,
    "diff .enemies[3].powers": 2
   }
  }
