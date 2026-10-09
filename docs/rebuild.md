@@ -48,7 +48,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 - re-sync hand from screen before a mid-card selection (Survivor, Dagger Throw); card text on the rewards screen; fight-start predictions state assumed potions.
 - the search's chosen-line prefix reuse rarely fires (speed only, ~15% more network rows).
 - caps must not cut combos (user): turns are the stall bound (99); action cap far above any legitimate fight; a play-out continues while the turn makes progress; per-step loop guard (20,000 units, max seen 174) stays.
-- same-id enemies pair in list order (summons unverified; the bridge's `combat_id` is the robust key); discard/exhaust/draw and hand sync ignore enchantments; sync pairs identical monsters by nearest HP (E34).
+- same-id enemies pair in list order (summons unverified; the bridge's `combat_id` is the robust key); discard/exhaust/draw sync ignore enchantments (hand sync and identical-monster slots fixed, E34).
 Gate: a full act with no false `DIFFERS`.
 
 **S1. Observation and fidelity.** Done. Look-ahead projects the next turns on a copy (`LOOK_H` = 4, joint encounter projection, `enemy_moves`); observation v2 (E20) is the only observation. Gate: fuzz 0 residual mismatches; look-ahead probability test within tolerance.
