@@ -474,7 +474,7 @@
   }},
   {"floor": 45, "act": 2, "screen": "REWARDS", "t": "37:36", "pick": ["Gold", "potion", "relic"], "note": "30 Gold (145 -> 175), Swift Potion (slot 1), Akabeko"},
   {"floor": 45, "act": 2, "screen": "REWARDS", "t": "37:39", "pick": ["card"]},
-  {"floor": 45, "act": 2, "screen": "CARD_REWARD", "t": "37:42", "seen": ["Anticipate+", "Prepared", "Deadly Poison", "Infinite Blades"], "pick": "Anticipate", "note": "4 cards offered, all Glam (Glitter); taken Anticipate+ (Glam)"},
+  {"floor": 45, "act": 2, "screen": "CARD_REWARD", "t": "37:42", "seen": ["Anticipate+", "Prepared", "Deadly Poison", "Infinite Blades"], "pick": "Anticipate+", "note": "4 cards offered, all Glam (Glitter); taken Anticipate+ (Glam)"},
   {"floor": 45, "act": 2, "screen": "REWARDS", "t": "37:44", "pick": ["card"]},
   {"floor": 45, "act": 2, "screen": "CARD_REWARD", "t": "37:46", "seen": ["Envenom", "Well-Laid Plans", "Tracking"], "pick": "Well-Laid Plans", "note": "Glam"},
   {"floor": 46, "act": 2, "screen": "MAP", "t": "38:01", "pick": {"room": "Shop"}, "note": "col not read"},

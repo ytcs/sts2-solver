@@ -1085,11 +1085,19 @@ def compare_macro(rec, a):
 
 
 def synthetic_screens(rec):
+    from agent import pools
     from agent import price as PR
     from agent import runmodel as R
     from agent import tracker
     steps = rec["steps"]
     sc = deck = hp = None
+    bosses = {}
+    for st in steps:
+        enc = (st.get("fight") or {}).get("encounter", "")
+        if enc.endswith("_BOSS") and enc not in bosses.setdefault(st.get("act", 0), []):
+            bosses[st.get("act", 0)].append(enc)
+    act_name = lambda a, enc: next((n for n in pools.act_names(a) if any(enc in pools.pool(n, kd) for kd in ("weak", "regular", "elite", "boss"))),  # noqa: E731
+                                   pools.act_names(a)[0])
     for k, st in enumerate(steps):
         if st.get("fight"):
             sc = st["fight"]["scenario"]
@@ -1103,7 +1111,8 @@ def synthetic_screens(rec):
                 c["upgrade"] = 1
         if sc is None or hp is None or "gap" in st or st.get("screen") not in ("CARD_REWARD", "RESTSITE"):
             continue
-        header = f"A1 F{st['floor']} {rec['character']} A{rec['ascension']} HP {hp}/{sc['max_hp']} G{sc.get('gold', 0)} pots[-]"
+        act = sc.get("act", 0)
+        header = f"A{act + 1} F{st['floor']} {rec['character']} A{rec['ascension']} HP {hp}/{sc['max_hp']} G{sc.get('gold', 0)} pots[-]"
         if st["screen"] == "CARD_REWARD":
             opts = [f"{i} {name}(1) ." for i, name in enumerate(st.get("seen") or [])] + [f"{len(st.get('seen') or [])} Skip"]
             played = st["pick"] if st.get("pick") else "skip"
@@ -1117,9 +1126,9 @@ def synthetic_screens(rec):
             played = "rest" if rest else (f"smith {cid}" if cid else "smith")
             shown = "rest" if rest else f"smith {target}"
         state = f"{st['screen']}\n{header}\n" + "\n".join(opts) + "\n"
-        rs = R.RunState(sc, 0, "Underdocks", hp, sc["max_hp"], sc.get("gold", 0), [dict(c) for c in deck], [r["id"] for r in sc.get("relics", [])], [],
+        rs = R.RunState(sc, act, act_name(act, sc["encounter"]), hp, sc["max_hp"], sc.get("gold", 0), [dict(c) for c in deck], [r["id"] for r in sc.get("relics", [])], [],
                         sc.get("max_potion_slots", 2), (tracker.POTION_START, tracker.OFFSET_START, dict(tracker.UNKNOWN_BASE), 0), {},
-                        [rec["boss"]] if rec.get("boss") else [], None, None, 0)
+                        bosses.get(act, []), None, None, 0)
         yield st["floor"], state, rs, played, shown
         if st["screen"] == "CARD_REWARD" and st.get("pick"):
             cid, up = PR._card_id(st["pick"])
