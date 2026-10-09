@@ -1,6 +1,6 @@
 ---
 name: burn-off
-description: Repo burn-off procedure. Behaviour-preserving purge of everything not load-bearing, to minimise codebase entropy and token spend. Use when the user asks for a burn-off, or after a batch of rebuild stages lands.
+description: Repo burn-off procedure. Behaviour-preserving purge of everything not load-bearing, to minimise codebase entropy and token spend. Use when the user asks for a burn-off, or after a batch of plan stages lands.
 ---
 
 # burn-off

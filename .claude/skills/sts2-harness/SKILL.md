@@ -44,4 +44,4 @@ Run ~30 min, fight 1-2 min; `combat` for easy fights; short whys.
 2. Fidelity first: `python -m agent.fidelity_sweep --mode recorded`; sim fixes pass `bash tools/gate.sh`.
 3. Costly fights (lost, or >= 30% max HP): `python -m agent.hindsight <file> --log` -> luck vs solver gap; patterns -> `sts2-acts/encounters.md`.
 4. Each `judgment:` -> edit the `sts2-deckbuilding` rule it used; `evals/judgments.jsonl`; `improve lessons` = backlog.
-5. Model change only on a 2-3 run pattern: `improve corpus`, then a combat-loop round through the promotion gate (`docs/rebuild.md` S3).
+5. Model change only on a 2-3 run pattern: `improve corpus`, then a combat-loop round through the promotion gate (`docs/plan.md` S3).

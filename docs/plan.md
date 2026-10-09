@@ -1,0 +1,72 @@
+# Plan
+Single plan, current state, forward only. Evidence `docs/research/evidence.md` (E#); game facts `docs/research/game_code.md`. Each stage: goal / status / gate. A stage failing its gate is not adopted. Simulator/search/env changes pass `bash tools/gate.sh` unchanged (a deliberate behaviour change updates its checksum in the same commit).
+
+## 1. Goal and principles
+- Goal: win A10 runs with all five characters; end HP breaks ties.
+- Information contract: only the exact random state is hidden. Public and tracked: enemy move patterns + branch odds, potion-drop chance, card-rarity offset, unknown-room odds, encounter-bag narrowing, shop prices, removal cost. The operator may read the game source.
+- Layers: predictor (network: P(win) + end-HP distribution of a fight under search play) / combat play (search, predictor at leaves; proposes potions, never commits) / run model (`price`: P(win run) by paired rollouts) / operator (Claude: high-level decisions, commits potions, logs gaps).
+- Solver strength is the root lever (user): a strong search + judge finds plan-deck lines and their value without ad hoc patches; fix the judge, not the symptoms. The stack must not depend on policy quality (E22, E23): search finds the line, the predictor learns how search play ends (E12, E26).
+- Only objective: P(clear run); price choices as P(win fight) x V(next act), never the myopic fight delta. Horizon ladder: the longest objective that is estimable and not saturated (fight -> clear act -> next-act readiness -> run).
+- Claims: solver results are lower bounds under the stated solver; expert choices are evidence to adjudicate, never rules; no blanket bans on idea categories.
+
+## 2. Live state
+- `models/solver_r6.pt` is player and predictor (`models/current.json`, E37); the live `Engine` searches every distinct legal action (cover, E27) with exact turn search on (E36).
+- Instruments: near-miss bench (`tools/nearmiss_bench.py`, `data/bench/nearmiss.json`; candidate paired directly with the live player; user's key metric; optimality bracket E25: avoidable share of near-miss losses in [~0.02, ~0.19]); predictor bench (`tools/bench.py`: play, score incl. the `plans` slice, `relabel`); expert gap states (`tools/exact_turn_check.py`, `data/expert/`); combat-loop round (`tools/round_pool.py`, `scripts/pod_round.sh`, `rl/exit.py`); pods (`scripts/pod_job.sh`).
+- Promotion gate (new live model): `bench.py play` no set worse (paired); near-miss not worse (paired with live); `bench.py score` Brier no worse on most sets; decile bias < 0.02 (fails for r5/r6: mix -0.030, tail -0.047).
+
+## 3. Forward order
+1. **S8 expert learning.** Finish the Baalorlord end-to-end real-game record (612/661 steps; find the Shuffle-stream drift by pile counters, fix the record, full rerun); compact record format (one line per decision: state digest, options, his choice, our choice + values; states regenerated from seed + actions). Then decide with the user how expert divergences feed play (combat gap states as a fixed bench + training targets; macro divergences as `price` validation; unpriceable choices as model gaps). More videos after the method is settled.
+2. **S9 solver strength: setup turns.** The known weakness: order-dependent setup turns misranked (Gardeners #1, Lagavulin #0, E34; E26 errors spread over setup turns); exact turn search fixed only blind-turn lethal (E36). Candidates: deeper leaf on close calls, exact turn search with a two-turn leaf, value targets from deeper search. Gate: near-miss L->W up with W->L not worse, paired with live; the expert gap states solved; live decision time within budget.
+3. **S3 next combat-loop round, new lever only** (r5 +0.013, r6 +0.006 L->W: same-recipe rounds are flattening). Levers: collection with the stronger S9 search; pool weighted to near-miss / setup-turn / expert-gap-like states; hard-fight calibration (decile bias, tail underprediction); enabler-removal pairs (blind: Spearman 0.135). Plans slice nearly passing (r6 bias -0.013, deck Spearman 0.791 vs 0.8).
+4. **S4 potion gate.**
+5. **S5 run-model continuation value** (`price --cont` surrogate fails its gate, E30): tune the floor / compare `mean`; expert macro decisions as validation cases.
+6. **S7 operator protocol + retire the calculators** (after S5 passes and the plans slice passes).
+7. **S6 plan-library self-improvement** (after S7 needs it).
+8. S0 hygiene as items come up; burn-off after a batch of stages (`burn-off` skill).
+
+## 4. Stages
+
+**S0. Hygiene.** Goal: the live sim never diverges silently. Open:
+- re-sync hand from screen before a mid-card selection (Survivor, Dagger Throw); card text on the rewards screen; fight-start predictions state assumed potions.
+- same-id enemies pair in list order (summons unverified; the bridge's `combat_id` is the robust key); discard/exhaust/draw sync ignore enchantments.
+- hindsight matches duplicate cards by hand index (unscored "outside top options" rows).
+- the search's chosen-line prefix reuse rarely fires (speed only).
+- caps must not cut combos (user): turns are the stall bound (99); a play-out continues while the turn makes progress; per-step loop guard (20,000 units) stays.
+Gate: a full act with no false `DIFFERS`.
+
+**S3. Predictor trained on search play.**
+- Round: collect with the live player (its cover search) on a pool from `tools/round_pool.py` (signal 90k by p(1-p) + 15% uniform, plan decks 30k, enabler pairs 16k, late decks 14k); train policy (anchored c=2, E10) + value (TD(0.8), HL-Gauss, E24) from the live model (`rl/exit.py train`); promotion gate. Value targets are realized/TD outcomes, never max of search Q. On a 5090 pod: ~2 h collection + ~10 min training, ~$3.
+- After a simulator change `tools/prune_divergent.py`; a part losing > 1% is regenerated.
+- Gate: decile bias < 0.02; plans slice |bias| < 0.05 and deck Spearman >= 0.8; ranking no worse than live; play and near-miss not worse.
+
+**S4. Potion flow.** Implemented (`agent/proposal.py`), gate pending.
+- Per turn, per potion, shared futures: now / keep / save; stop iff now beats keep and save by > 2 paired se, or win at stake; one potion per commit. Act boss before an ancient heal = win-only worth (1% end-HP tiebreak).
+- Open tests: self-damaging potions (Foul Potion); timing before scheduled big hits (Vantom Dismember, Kaiser Laser, Byrdonis).
+- Gate: on the potion regression states (run 20261005-201805: Vantom T1 Weak+Speed, Soul Nexus T4 Strength+Colorless) proposals agree with large-budget references.
+
+**S5. Run model.** `price` live (`agent/runmodel.py`, `price.py`, `tracker.py`, `events.py`).
+- Paired rollouts per option; fights from the predictor's fight-start distribution; rewards/shops/potions/unknowns at coded odds; real current map, template later acts. Ladder: 2 paired se; P(clear act) >= 0.9 -> next-act readiness -> floors.
+- Continuation value: P(win run) is flat (E30); surrogate `runmodel.gates` + `combine` (`late`, floor 0.05) behind `price --cont`; `python -m agent.price <events.jsonl>` replays recorded screens. Fails its gate (4 of 93 screens significantly worse, mostly rests).
+- Open: the tag rule (`AddWithoutRepeatingTags`); route-dependent options (price option + best route); shop bundles vs saving gold.
+- Gate: never significantly worse than the ladder on its horizon while unsaturated, separates the best on most screens, stable under fresh seeds; real runs inside the simulated distribution.
+
+**S6. Plan library.** `data/plans.json` (16 entries; silent-poison measured), `agent/plans.py`, `python -m agent.plans check`. Use: at each ancient or when the boss is out of reach, max P(reach) x P(win | plan). Self-improvement: auto-measure proposed entries (`bench.py build-plans` machinery), mine entries from solver wins and remove-one ablation. Gate: every plan used live is measured.
+
+**S7. Operator and self-improvement.** Becomes the operator skill once S5 and the plans slice pass; until then the current skills + calculators govern live play.
+- One currency; the predictor is the authority on fights except for a reason it cannot see, logged as a typed gap. Per screen `plans` + `price`; combat `combat`/`turn`; potions per S4. Skills shrink to protocol, gap taxonomy, mechanics, plan reasoning; `improve review` becomes the gap review.
+- Calculators retired then (with their skill sections): `reward`, `routes`, `eval`, `rmcalc`, `pickplan`, `brief`, the `potions` command, `DRIVE` thresholds, decision guards (`agent/guards.py`), smooth score, buckets, section-3 bar; `agent/macro.py` helpers used by `price`/`tracker`/`live` move first.
+
+**S8. Expert learning** (skill `expert-reenact`; `tools/expert.py`, `agent/reenact.py`; E34). Video -> run record -> real-game replay on the seed (build v0.111.0; `MODDED` fine) -> per-decision verdicts vs the live player and `price` (exact enumeration > paired playouts > turn check; K=256 never decides). Transcription and replay run as a pipeline; gaps recovered by lookahead. Baalorlord hMrQSndDvPc: full transcription (201 steps, 661 actions), live replay to F48 T5 (seedcheck, the F17 stream drop bridged by hand); F48 opening shuffle differs: one run-level Shuffle stream (`RunState.Rng.Shuffle`) drifted between F45 and F48. Gate: a video replays end to end in the real game; verdicts reproducible.
+
+**S9. Solver strength: setup turns.** See section 3 item 2.
+
+## 5. Target layout
+| path | keeps | goes |
+|---|---|---|
+| `crates/` | sts2sim, sts2env, sts2py, sts2diff | |
+| `rl/` | model, heads, fastsearch, solver, exit, ppo, predictor | |
+| `agent/` | bridge, screen, args, fight, engine, live, potions, proposal, tracker, runmodel, runctx, pools, price, events, plans, crystal_sphere, harness + `__main__`, reenact, runlog, improve + hindsight, fidelity_sweep, skillgate | guards, macro, routes, pickplan, card_tags, the `potions` command (`live.potions_now`) at S7 |
+| `tools/` | gate.sh, bench, bench_search, nearmiss_bench, nearmiss, exact_turn_check, signal_pool, round_pool, gen_curriculum, gen_train, gen_relic_mask, fuzz_gen_mix, prune_divergent, collect.sh, headroom, dashboard, expert | one-off A/B scripts |
+| `scripts/` | pod_*.sh, skill_gate.py, porting/ | |
+| `.claude/skills/` | `sts2`, operator protocol + gap logging, plan-library use, mechanics, `expert-reenact` | procedures feeding only the old calculators (at S7) |
+| `data/` | catalog, pools, ancients, events, relic classes, `bench/`, `plans.json`, train/eval sets, `expert/` | |

@@ -4,7 +4,7 @@ description: Expert re-enactment: YouTube run video -> run record -> real-game r
 ---
 
 # Expert re-enactment
-Offline `tools/expert.py`; live `python -m agent seedcheck|replay` (`agent/reenact.py`). Plan item 7; method E34.
+Offline `tools/expert.py`; live `python -m agent seedcheck|replay` (`agent/reenact.py`). Plan S8; method E34.
 
 ## Steps
 1. `tools/expert.py fetch <url> [--creator X] [--fps 1]` -> `data/expert/<creator>/frames/<id>/`, `transcripts/` (git-ignored). Subtitles 429: `--transcript-only` with youtube-transcript-api.

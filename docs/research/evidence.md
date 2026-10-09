@@ -1,5 +1,5 @@
 # Rebuild evidence (claims record)
-Measured results behind `docs/rebuild.md`. Lower bounds under the stated solver; never verdicts on plans. Paired = same fight seeds. MxK = M candidates x K futures. Model names (h128, r1-r3, td08, gen-2, r5) label experiments; the live model is in `models/current.json`. E6-E10 data include multiplayer-only cards (since excluded from training): paired comparisons valid, levels not.
+Measured results behind `docs/plan.md`. Lower bounds under the stated solver; never verdicts on plans. Paired = same fight seeds. MxK = M candidates x K futures. Model names (h128, r1-r3, td08, gen-2, r5) label experiments; the live model is in `models/current.json`. E6-E10 data include multiplayer-only cards (since excluded from training): paired comparisons valid, levels not.
 
 - **E6. Runaway step.** Real-game soft-lock (Pillage + Hellraiser + Velvet Choker, `docs/game-bugs.md` 1). Per-step guard (20,000 work units, corpus max 174) cuts it; `ov::LOOP` scores as a loss.
 - **E8. Large search is not a better player.** 200 tail fights: 5x32/2-turn vs 8x64/3-turn (3.5x time) both 0.330.
