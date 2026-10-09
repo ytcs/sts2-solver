@@ -17,7 +17,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 ## 3. Stages, in order
 
 **1. Expert learning** (skill `expert-reenact`; `tools/expert.py`, `agent/reenact.py`; E34). Video -> run record -> real-game replay on the seed (build v0.111.0; `MODDED` fine) -> per-decision verdicts vs the live player and `price` (exact enumeration > paired playouts > turn check; K=256 never decides). Transcription and replay run as a pipeline; gaps recovered by lookahead.
-- Status: Baalorlord hMrQSndDvPc fully transcribed (668 actions; the F17 stream drop filled by an inferred, game-verified line). Replayed end to end in the real game (2026-10-09, 661/661 actions, win at 23/77; 25 fight openings matched; the F48 split was the F45 reward order, since deck order feeds the opening shuffle).
+- Status: Baalorlord hMrQSndDvPc fully transcribed (668 actions; the F17 stream drop filled by an inferred, game-verified line). The 28 KB compact record (`hMrQSndDvPc.compact.jsonl`, actions only) replays unattended end to end in the real game (668/668, win at 23/77); verdicts in E39. Gate met for this video.
 - Next: compact record (one line per decision: state digest, options, his choice, our choice + values; states regenerated from seed + actions); then decide with the user how divergences feed play (combat gap states as a fixed bench + training targets; macro divergences as `price` validation; unpriceable choices as model gaps). More videos after the method is settled.
 - Gate: a video replays end to end in the real game; verdicts reproducible.
 
