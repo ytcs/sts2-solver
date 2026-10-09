@@ -666,6 +666,7 @@ def sens_state(a):
         gate.append(dict(check=label, delta=round(mean, 4), se=round(se, 4), passed=bool(ok)))
     Y = sim_states(paths, a.n, True, seed=1)
     if Y:
+        run(Y, "end-turn-only: baseline", [])
         d9 = run(Y, "end-turn-only: enemy doom hp-1", [("enemy", "DOOM_POWER", lambda s: max(1, hp(s) - 1))])
         d0 = run(Y, "end-turn-only: enemy doom = hp", [("enemy", "DOOM_POWER", hp)])
         dlt = d0 - d9
@@ -714,7 +715,6 @@ class Audit:
         for rid, observed, disp, props in g["relics"]:
             used = [p for p in props if p[1]]
             if observed and disp is None and props:
-                self.c["relic_state_hidden_rows"] += 0  # counted per relic below
                 self.relic_hidden[NM["relic"][rid]] += 1
                 if used:
                     self.c["relic_state_nonzero_hidden"] += 1
