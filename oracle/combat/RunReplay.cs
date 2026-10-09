@@ -19,6 +19,7 @@ public sealed class RunReplay
 {
     private readonly Pump _pump;
     private readonly TextWriter _out;
+    private readonly string _compactPath;
     private readonly JsonObject _head;
     private readonly List<JsonObject> _steps;
     private Player _player;
@@ -28,7 +29,7 @@ public sealed class RunReplay
 
     public RunReplay(string compactPath, TextWriter @out, Pump pump)
     {
-        _pump = pump; _out = @out;
+        _pump = pump; _out = @out; _compactPath = compactPath;
         var lines = File.ReadLines(compactPath).Where(l => l.Trim().Length > 0).Select(l => JsonNode.Parse(l).AsObject()).ToList();
         _head = lines[0]; _steps = lines.Skip(1).ToList();
     }
@@ -118,12 +119,31 @@ public sealed class RunReplay
         int idx = -1;
         for (int k = 0; k < opts.Count; k++)
             if (opts[k].TextKey.Split('.').Last().ToUpperInvariant() == want) { idx = k; break; }
+        if (idx < 0 && EventLabels().TryGetValue((ev.Id.Entry, ((string)st["pick"]).Trim()), out var key))
+            for (int k = 0; k < opts.Count; k++)
+                if (opts[k].TextKey.Split('.').Last() == key) { idx = k; want = key; break; }
         if (idx < 0) throw new OracleException($"event pick {want} not among options: " + string.Join(", ", opts.Select(o => o.TextKey)));
         RunManager.Instance.EventSynchronizer.ChooseLocalOption(idx);
         _pump.Drain();
         Wait(RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks(), "event option");
         Emit("event", new JsonObject { ["floor"] = (int)st["floor"], ["pick"] = want, ["before"] = before, ["after"] = RoomInfo(), ["choices"] = _sel.Prompts.DeepClone(), ["state"] = State() });
         _sel.Prompts.Clear();
+    }
+
+    private Dictionary<(string, string), string> _labels;
+
+    // English option titles -> option keys, from data/events.json (initial pages of non-ancient events).
+    private Dictionary<(string, string), string> EventLabels()
+    {
+        if (_labels != null) return _labels;
+        _labels = new();
+        var dir = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(_compactPath)));
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "data", "events.json"))) dir = dir.Parent;
+        if (dir == null) return _labels;
+        foreach (var e in JsonNode.Parse(File.ReadAllText(Path.Combine(dir.FullName, "data", "events.json")))["events"].AsArray())
+            foreach (var o in e["options"].AsArray())
+                if (o["label"] != null) _labels.TryAdd(((string)e["key"], (string)o["label"]), (string)o["key"]);
+        return _labels;
     }
 
     private void DoMap(JsonObject st)
