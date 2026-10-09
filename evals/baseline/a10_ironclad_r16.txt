@@ -20,7 +20,7 @@ BASE0018   loss      21 unplayable fight: Hunter Killer    19/-/-              6
 BASE0019   loss      17 CEREMONIAL_BEAST_BOSS              0/-/-               64      8    3     1.3      1.6 
 BASE0020   loss      17 WATERFALL_GIANT_BOSS               0/-/-              135      8    3     1.1      1.6 
 win rate 0.000 +- 0.000 (n 20); mean floor 24.6; own time per run 2.9 min; decide 0.423 s/decision
-GPU (main batch, 18 runs): utilisation mean 70% (2971 1-s samples), memory max 6734 MiB; 2 games round-robin, one process
+GPU (resumed batch, 16 runs): utilisation mean 70% (2971 1-s samples), memory max 6734 MiB; 2 games round-robin, one process
 deaths by room: {'hallway': 4, 'boss': 9, 'elite': 6, 'other': 1}; act reached: {1: 7, 2: 10, 3: 3}
 bosses fought (won/fought): CEREMONIAL_BEAST_BOSS 4/5, KNOWLEDGE_DEMON_BOSS 3/5, LAGAVULIN_MATRIARCH_BOSS 1/1, SOUL_FYSH_BOSS 4/4, TEST_SUBJECT_BOSS 0/1, THE_KIN_BOSS 2/3, VANTOM_BOSS 0/1, WATERFALL_GIANT_BOSS 2/5
 elites fought (won/fought): BYGONE_EFFIGY_ELITE 4/4, BYRDONIS_ELITE 7/7, DECIMILLIPEDE_ELITE 2/3, ENTOMANCER_ELITE 4/5, INFESTED_PRISMS_ELITE 2/3, KNIGHTS_ELITE 0/2, PHANTASMAL_GARDENERS_ELITE 5/6, PHROG_PARASITE_ELITE 5/5, SKULKING_COLONY_ELITE 5/5, SOUL_NEXUS_ELITE 1/1, TERROR_EEL_ELITE 4/4

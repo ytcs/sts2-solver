@@ -21,7 +21,7 @@ Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens
   Unknown events (not in data/events.json): the first option starting Leave/Exit/Decline/Ignore/Abstain/Give Up/Proceed/Continue/Skip, else 0.
 Win = the EVENT "The Architect" is reached (the GAME_OVER page is never read for the result); its pages and GAME_OVER are logged.
 
-usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 8] [--port 15820] [--tag NAME] [--character ironclad]
+usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16] [--port 15820] [--tag NAME] [--character ironclad]
 Seeds: BASE0001..BASE0020 by default. Per game: target/baseline/<tag>/<seed>/ (events.jsonl, server log); per run one JSON line in
 evals/baseline/<tag>.jsonl (re-running skips seeds already there); summary table at the end. Builds Harness() directly (no skill gate).
 """
@@ -554,7 +554,7 @@ def summary(rows, gpu=None):
 def main():
     a = sys.argv[1:]
     get = lambda k, d: a[a.index(k) + 1] if k in a else d  # noqa: E731
-    n, games, rounds, base = int(get("--n", 20)), int(get("--games", 2)), int(get("--rounds", 8)), int(get("--port", 15820))
+    n, games, rounds, base = int(get("--n", 20)), int(get("--games", 2)), int(get("--rounds", 16)), int(get("--port", 15820))
     character = get("--character", "ironclad")
     seeds = get("--seeds", ",".join(f"BASE{i:04d}" for i in range(1, n + 1))).split(",")
     tag = get("--tag", f"r{rounds}")
