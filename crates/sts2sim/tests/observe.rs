@@ -370,6 +370,34 @@ mod v3 {
     }
 
     #[test]
+    fn pile_extras_and_relic_state_show_without_leaking_order() {
+        let mut cx = midfight(5);
+        for k in 0..6 {
+            let c = cx.new_card(ids::card::BASH, (k % 2) as u8).unwrap();
+            cx.cards[c as usize].counter[0] = k as i16 + 1;
+            cx.move_card(c, PileType::Discard, CardPilePosition::Bottom);
+        }
+        let v = obs(&cx);
+        let x = &v[sec("discard_x")..sec("discard_x") + observe::PILEX_N * observe::PILEX_F];
+        let shown: Vec<i32> = x.chunks(observe::PILEX_F).filter(|r| r[0] > 0.0).map(|r| r[6] as i32).collect();
+        assert_eq!(shown, vec![1, 3, 5, 2, 4, 6], "sorted by (id, upgrade, ..., counter)");
+        let mut rng = Rng::new(3);
+        let mut a = cx.clone();
+        rng.shuffle(a.player.discard.as_mut_slice());
+        assert!(obs(&a) == v, "pile extras leaked the order");
+
+        let mut sc = scenario(1);
+        sc.relics.push(RelicInit { id: ids::relic::LIZARD_TAIL, ..Default::default() });
+        let mut cx = Combat::new(&sc);
+        let i = cx.player.relics.as_slice().iter().filter(|r| sts2sim::relic_mask::OBSERVED[r.id as usize]).position(|r| r.id == ids::relic::LIZARD_TAIL).unwrap();
+        let at = sec("relic_x") + i * observe::RELICX_F;
+        assert_eq!(obs(&cx)[at], 0.0);
+        let j = cx.player.relics.as_slice().iter().position(|r| r.id == ids::relic::LIZARD_TAIL).unwrap();
+        cx.player.relics.as_mut_slice()[j].set_flag(0, true);
+        assert_eq!(obs(&cx)[at], 1.0, "Lizard Tail used");
+    }
+
+    #[test]
     fn card_effects_name_the_power_and_its_amount() {
         let cx = silent(&[ids::card::DEADLY_POISON; 6], &[]);
         let v = obs(&cx);

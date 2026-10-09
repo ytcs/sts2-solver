@@ -56,7 +56,11 @@ pub const CX_F: usize = OBS_POWERS + 2 + CX_DERIVED;
 pub const OBS_CREATURES: usize = 1 + OBS_MAX_ENEMIES + 1;
 pub const CARDX_F: usize = 2 + 2 * 3;
 pub const HAND_TGT_F: usize = MAX_HAND * OBS_MAX_ENEMIES;
-pub const V3_TAIL: usize = OBS_CREATURES * CX_F + (MAX_HAND + OBS_MAX_CANDS + 1) * CARDX_F + HAND_TGT_F;
+pub const PILEX_N: usize = 32;
+pub const PILEX_F: usize = 9;
+pub const RELICX_F: usize = 2;
+pub const V3_TAIL: usize =
+    OBS_CREATURES * CX_F + (MAX_HAND + OBS_MAX_CANDS + 1) * CARDX_F + HAND_TGT_F + 3 * PILEX_N * PILEX_F + OBS_RELICS * RELICX_F;
 #[cfg(feature = "obs_v3")]
 pub const OBS_VERSION: usize = 3;
 #[cfg(not(feature = "obs_v3"))]
@@ -612,6 +616,20 @@ impl Combat {
                     }
                 }
             }
+            self.write_pile_x(&mut w, self.player.draw.as_slice());
+            self.write_pile_x(&mut w, self.player.discard.as_slice());
+            self.write_pile_x(&mut w, self.player.exhaust.as_slice());
+            let mut n_relics = 0;
+            for r in self.player.relics.as_slice().iter().filter(|r| crate::relic_mask::OBSERVED.get(r.id as usize).copied().unwrap_or(true)).take(OBS_RELICS) {
+                n_relics += 1;
+                let mut k = 0;
+                for d in content::relic_listener(r.id).meta_props().iter().filter(|d| d.lit.is_empty()).take(RELICX_F) {
+                    w.n(r.get(d.slot));
+                    k += 1;
+                }
+                w.zeros(RELICX_F - k);
+            }
+            w.zeros((OBS_RELICS - n_relics) * RELICX_F);
         }
         debug_assert_eq!(w.i, size);
         size
@@ -742,6 +760,33 @@ impl Combat {
         d
     }
 
+    /// Pile cards whose counters / enchantment / affliction / damage bonus are non-zero (the v2 pile list drops them), sorted over the whole pile
+    /// by the full key (the pile order stays hidden), the first `PILEX_N`: [id + 1, upgrade, enchant, amount, affliction, amount, counter 0, counter 1,
+    /// damage bonus].
+    #[cfg(feature = "obs_v3")]
+    fn write_pile_x(&self, w: &mut W, pile: &[CardIdx]) {
+        let mut keys = [[0i32; PILEX_F]; MAX_CARDS];
+        let mut m = 0;
+        for &c in pile.iter().take(MAX_CARDS) {
+            let k = &self.cards[c as usize];
+            let bonus = k.dmg_bonus / 10_000;
+            if k.enchant == 0 && k.affliction == 0 && k.counter == [0, 0] && bonus == 0 {
+                continue;
+            }
+            keys[m] = [k.id as i32 + 1, k.upgrade as i32, k.enchant as i32, k.enchant_amount as i32, k.affliction as i32, k.affliction_amount as i32,
+                       k.counter[0] as i32, k.counter[1] as i32, bonus];
+            m += 1;
+        }
+        keys[..m].sort_unstable();
+        let n = m.min(PILEX_N);
+        for key in &keys[..n] {
+            for &v in key {
+                w.n(v);
+            }
+        }
+        w.zeros((PILEX_N - n) * PILEX_F);
+    }
+
     #[cfg(feature = "obs_v3")]
     fn write_card_x(&self, w: &mut W, c: CardIdx) {
         let card = &self.cards[c as usize];
@@ -792,6 +837,10 @@ pub fn layout() -> Vec<(&'static str, usize, usize)> {
         ("cand_x", OBS_MAX_CANDS * CARDX_F),
         ("played_x", CARDX_F),
         ("hand_tgt", HAND_TGT_F),
+        ("draw_x", PILEX_N * PILEX_F),
+        ("discard_x", PILEX_N * PILEX_F),
+        ("exhaust_x", PILEX_N * PILEX_F),
+        ("relic_x", OBS_RELICS * RELICX_F),
     ];
     let mut out = vec![];
     let mut off = 0;

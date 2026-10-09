@@ -52,6 +52,7 @@ def lethal_scale(d):
 DERIVED_FLAG = [1, 4, 5, 9]
 DERIVED_NUM = [0, 2, 3, 6, 7, 8]
 X_POW, X_PILE = 24, 40  # v3 extra widths of the power bags (24 -> 48) and the pile bag (24 -> 64)
+X_PILEX, X_REL = 32, 16  # pile cards with counters / enchantments / afflictions; relic state
 N_CTYPE, N_RARITY = 7, 11
 
 
@@ -154,11 +155,13 @@ class Net(nn.Module):
             # v3 tail: the powers again with the hidden second number and an unsaturated amount, per side; derived threats; a stored card
             self.px_player, self.px_enemy, self.px_osty = (Bag(C["N_POWERS"], X_POW, 4) for _ in range(3))
             cx = X_POW + 2 * len(DERIVED_NUM) + len(DERIVED_FLAG) + e + 1
-            self.x_player = zlin(2 * cx, 2 * d)
+            self.relic_x = Bag(C["N_RELICS"], X_REL, 2)
+            self.x_player = zlin(2 * cx + X_REL, 2 * d)
             self.x_enemy = zlin(cx, d)
             self.x_tgt = zlin(2, 1)
             self.pile_x = Bag(C["N_CARDS"], X_PILE, 2)
-            self.x_pile = nn.ModuleList([zlin(X_PILE, d) for _ in range(3)])
+            self.pilex = nn.Linear(e + 8 + 8 + 6, X_PILEX)
+            self.x_pile = nn.ModuleList([zlin(X_PILE + X_PILEX, d) for _ in range(3)])
         self.card = CardEnc(d, e, nx=0 if obs == 2 else N_CTYPE + N_RARITY + 2 * (e + 3 + 2) + 2)
         self.mon = nn.Embedding(C["N_MONSTERS"] + 1, e, padding_idx=0)
         self.kind = nn.Embedding(16, 8)
@@ -251,7 +254,12 @@ class Net(nn.Module):
         orb_v = torch.cat([sorbs[:, :C["MAX_ORBS"] * 3].view(B, C["MAX_ORBS"], 3)[..., 1:3].flatten(1) / 2.0, sorbs[:, -1:]], 1)
         osty_f = torch.cat([osty[:, :2], sosty[:, 2:4] / 3.0, opow], 1)
         player_in = torch.cat([sc, gsc, stage, ppow, rb, pb, orb_e, orb_v, osty_f], 1)
-        player = self.player(player_in) if self.obs == 2 else mlp_x(self.player, player_in, self.x_player(xs["player"]))
+        if self.obs == 2:
+            player = self.player(player_in)
+        else:
+            rx = sl(obs, "relic_x").view(B, -1, 2)
+            rxb = self.relic_x(rid, S(rx) / 2.0)
+            player = mlp_x(self.player, player_in, self.x_player(torch.cat([xs["player"], rxb], -1)))
         ep = enemies[..., 0] > 0.5
         mon = self.mon(enemies[..., 2].long().clamp(0, C["N_MONSTERS"]))
         esc = scale(torch.cat([senemies[..., 3:4], (enemies[..., 3] / enemies[..., 4].clamp(min=1)).unsqueeze(-1), senemies[..., 5:6], senemies[..., 4:5],
@@ -318,7 +326,10 @@ class Net(nn.Module):
             up = (pv_[..., 1] > 0).float()
             w = torch.stack([1.0 - up, up], -1) / 4.0
             pile_in = torch.cat([self.pile(ids, w), sizes[:, k:k + 1]], 1)
-            piles.append(self.pile_enc[k](pile_in) if self.obs == 2 else mlp_x(self.pile_enc[k], pile_in, self.x_pile[k](self.pile_x(ids, w))))
+            if self.obs == 2:
+                piles.append(self.pile_enc[k](pile_in))
+            else:
+                piles.append(mlp_x(self.pile_enc[k], pile_in, self.x_pile[k](torch.cat([self.pile_x(ids, w), self.v3_pile_extras(sl(obs, nm + "_x"))], -1))))
         return dict(player=player, enemy=enemy, hand=hand_t, potion=pot_t, cand=cand_t, piles=piles, dec=dec_t, ep=ep, hp=hp_, pot_p=pot_p,
                     cand_p=cand_p, cid=cid, rows=rows, rows_w=rows_w, cand_sel=cands[..., C["CARD_F"]] > 0.5, tgt=tgt)
 
@@ -337,6 +348,14 @@ class Net(nn.Module):
         cr = self.card.card(cx[..., P].long().clamp(0, self.C["N_CARDS"]))
         per = torch.cat([torch.cat([xp, xe, xo], 1), dv, cr, cx[..., P + 1:P + 2]], -1)
         return dict(player=torch.cat([per[:, 0], per[:, -1]], -1), enemy=per[:, 1:1 + E])
+
+    def v3_pile_extras(self, px):
+        """pile cards with counters / enchantment / affliction / damage bonus: a summed per-card encoding"""
+        px = px.view(px.shape[0], -1, 9)
+        ce = self.card
+        f = torch.cat([ce.card(px[..., 0].long().clamp(0, self.C["N_CARDS"])), ce.ench(px[..., 2].long().clamp(0, ce.ench.num_embeddings - 1)),
+                       ce.aff(px[..., 4].long().clamp(0, ce.aff.num_embeddings - 1)), px[..., 1:2], S(px[..., [3, 5, 6, 7, 8]]) / 2.0], -1)
+        return (F.relu(self.pilex(f)) * (px[..., :1] > 0).to(f.dtype)).sum(1)
 
     def v3_cards(self, xc, tgt_f=None):
         """v3 card tail: type, rarity, and per applied power its embedding in the target side's table, the target and the amount"""

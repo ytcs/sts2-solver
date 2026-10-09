@@ -18,7 +18,7 @@ import sts2  # noqa: E402
 import model as M  # noqa: E402
 
 NM = sts2.names()
-NEW = ("pp_player.", "pp_enemy.", "pp_osty.", "px_", "x_", "pile_x.", "card.x.")
+NEW = ("pp_player.", "pp_enemy.", "pp_osty.", "px_", "x_", "pile_x.", "pilex.", "relic_x.", "card.x.")
 
 
 def ancient_rows(old, new):
