@@ -12,6 +12,7 @@ Offline `tools/expert.py`; live `python -m agent seedcheck|replay` (`agent/reena
 3. Transcribe every decision in order into `data/expert/<creator>/<id>.json`. Unknown -> `gap` step; never guess.
 4. `build <record>` -> `fights/*.json` + sim-vs-frame diffs (each a transcription or fidelity question); `validate <record>` exits 0.
 5. Live, main menu, no run in progress, harness only: `python -m agent seedcheck <record> [--custom]` (Neow, map, first fight consistent; stops), then `replay <record> [--steps N] [--until F]` (stops at a gap, a missing recorded action, a game rejection = transcription error, or a skill refusal). Skill gate applies, decision guards do not. Preview offline: `tools/expert.py seedcheck|replay <record> --dry-run`.
+   - Gap or rejection: recover by lookahead, not a guess. The missing action must produce the next recorded state (frames: hand, piles, HP, enemy HP/intent, next screen). Enumerate candidates on the synced simulator (`enumerate_turn`, map/reward options), keep those matching the next observation, and apply the unique match in the game; several matches -> re-read frames; none -> a fidelity question. Record the fix in the record with `note: inferred by lookahead`. `[hyp]` test: share of gaps resolved uniquely per video.
 6. `compare <record> [--replay] [--macro] [--fights IDS]` -> `<id>.divergences.json`; `report <record>` -> tables. Notes `data/expert/<creator>/<date>_<id>.md` (template `data/expert/baalorlord/20261008_hMrQSndDvPc.md`).
 
 ## Run record
