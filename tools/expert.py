@@ -511,6 +511,9 @@ def check_record(rec):
             errs.append(f"{where}: map pick must be {{room?, col?, row?}} or 'r<row>c<col>'")
         elif st["screen"] == "SELECT" and not isinstance(st["pick"], list):
             errs.append(f"{where}: SELECT pick must be a list of card names")
+        elif isinstance(st["pick"], dict) and "discard_potion" in st["pick"]:
+            if not isinstance(st["pick"]["discard_potion"], int):
+                errs.append(f"{where}: discard_potion must be a slot index")
         elif st["screen"] == "REWARDS" and not isinstance(st["pick"], (list, str)):
             errs.append(f"{where}: REWARDS pick must be a label or a list of labels")
     gaps = [i for i, st in enumerate(rec["steps"]) if "gap" in st]
@@ -849,6 +852,16 @@ def verdict(refs, max_hp):
             return "expert error", "exact", f"the live class reaches {ex['live_lb']:+.4f}; every line of his class ends at most {ex['his_ub']:+.4f}"
         if None not in (ex.get("his_ub"), ex.get("live_ub")) and ex["his_ub"] == ex["his_lb"] and ex["live_ub"] == ex["live_lb"] and abs(ex["his_ub"] - ex["live_ub"]) < hp_eq:
             return "tie", "exact", f"both classes end exactly at {ex['his_ub']:+.4f} / {ex['live_ub']:+.4f}"
+    cap = refs.get("cap")
+    if ex and cap is not None:
+        for who, other in (("his", "live"), ("live", "his")):
+            if ex.get(f"{who}_lb") is not None and ex[f"{who}_lb"] >= cap - 1e-9 and ex.get(f"{other}_lb") is not None and ex[f"{other}_lb"] >= cap - 1e-9:
+                return "tie", "exact", f"both classes contain a line that wins this turn losing no HP ({cap:+.4f}, the maximum)"
+            if ex.get(f"{who}_lb") is not None and ex[f"{who}_lb"] >= cap - 1e-9:
+                if who == "his" and (significant(r3, hp_eq) or significant(r2, hp_eq)) and ((r3 or r2)["d"] < 0):
+                    return "unresolved", "exact", f"his class wins this turn losing no HP ({cap:+.4f}, the maximum); the sampled reference that favours the live class over-values a non-terminal leaf"
+                if who == "live" and (significant(r3, hp_eq) or significant(r2, hp_eq)) and ((r3 or r2)["d"] > 0):
+                    return "unresolved", "exact", f"the live class wins this turn losing no HP ({cap:+.4f}, the maximum); the sampled reference that favours his class over-values a non-terminal leaf"
     if significant(r3, hp_eq):
         return side(r3["d"]), "r3", f"paired playouts {r3['d']:+.4f} ({r3['se']:.4f}), n {r3.get('n')}"
     if significant(r2, hp_eq):
@@ -932,7 +945,7 @@ def compare(a):
             elif "use_potion" in j:
                 row["verdict"], row["why"] = "held", "potions are the operator's call: the live player holds them by design"
             else:
-                refs = {}
+                refs = {"cap": WIN + HPB * min(json.loads(sim.snapshot())["player"]["hp"] / sc["max_hp"], 1.0)}
                 if ref is not None:
                     refs["r1"] = k_search(ref, sc, sim, his_k, live_k, a.ref_seeds)
                 if a.tc_dets:

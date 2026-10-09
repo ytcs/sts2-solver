@@ -246,6 +246,8 @@ def macro_command(step, screen):
     if bad:
         return None, bad
     pick = step.get("pick")
+    if isinstance(pick, dict) and "discard_potion" in pick:
+        return f"a dp {pick['discard_potion']}", None
     if kind == "MAP":
         if isinstance(pick, str):
             m = re.fullmatch(r"r(\d+)c(\d+)", pick)
@@ -290,11 +292,13 @@ def parse_map(text):
 
 
 def floor_rooms(rec, act=0):
+    steps = [st for st in rec["steps"] if st.get("floor") is not None and st.get("act", 0) == act]
+    first = min((st["floor"] for st in steps), default=1)
     rooms = {}
-    for st in rec["steps"]:
+    for st in steps:
         room = room_of(st)
-        if st.get("floor") is not None and room and st.get("act", 0) == act:
-            rooms[st["floor"]] = room
+        if room:
+            rooms[st["floor"] - first + 1] = room
     return rooms
 
 
@@ -521,7 +525,7 @@ class Reenactor:
 
     def _map_by_rooms(self, a, screen, err, seedcheck):
         nodes, _ = parse_map(call("m"))
-        rooms = floor_rooms(self.rec)
+        rooms = floor_rooms(self.rec, a.get("act", 0))
         pick = a.get("pick") if isinstance(a.get("pick"), dict) else {}
         opts = [o for o in map_options(screen) if pick.get("room") in (None, o[1]) and consistent_from(nodes, rooms, o[2], o[3])]
         if len(opts) == 1:
