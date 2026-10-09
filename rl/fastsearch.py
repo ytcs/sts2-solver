@@ -262,9 +262,12 @@ class FastSearch:
         if not self.use_graphs:
             return
         fns = [self._pol_graph(net) for net in {id(self.net): self.net, id(self.roll_net): self.roll_net}.values()] + [self._val_graph()]
+        rows = self.roots * (16 if self.cover else self.M) * max(self.K, self.futures)
+        top = next((B for B in BUCKETS if B >= rows), BUCKETS[-1])
         for fn in fns + [f.full for f in fns if f.full is not None]:
             for B in fn.buckets:
-                fn._capture(B)
+                if B <= top:
+                    fn._capture(B)
         torch.cuda.synchronize()
 
     def _pol_graph(self, net):

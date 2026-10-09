@@ -282,6 +282,15 @@ impl Sim {
             .collect()
     }
 
+    fn intent_now(&self) -> Vec<(usize, String, String)> {
+        self.cx
+            .enemies
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &c)| self.cx.intent_now(c).map(|(id, text)| (i, id, text)))
+            .collect()
+    }
+
     fn step(&mut self, idx: usize) -> bool {
         match Action::from_index(idx) {
             Some(a) => self.do_step(a).is_ok(),

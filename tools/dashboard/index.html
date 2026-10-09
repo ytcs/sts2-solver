@@ -93,8 +93,16 @@ body.resizing { cursor: col-resize; user-select: none; }
 .pw.txt { font-size: 10px; background: var(--panel2); border-radius: 4px; padding: 1px 4px; }
 .intent { display: flex; align-items: center; gap: 3px; font-family: Kreon, serif; font-size: 16px; min-height: 30px; }
 .intent img { width: 34px; height: 34px; }
-.plan { font-size: 11px; color: var(--dim); margin-top: 3px; width: 100%; }
-.plan div { border-left: 2px solid var(--line2); padding-left: 6px; margin-top: 2px; }
+.plan { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 3px; margin-top: 4px; width: 100%; font-family: Kreon, serif; font-size: 12px; }
+.pturn { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line2); border-radius: 6px; padding: 1px 4px; }
+.pturn > .k { color: var(--dim); font-size: 10px; margin-right: 1px; }
+.parrow { color: var(--dim); font-size: 11px; }
+.popt { display: inline-flex; align-items: center; gap: 1px; cursor: help; }
+.popt + .popt { border-left: 1px dashed var(--line2); padding-left: 3px; margin-left: 1px; }
+.popt img { width: 22px; height: 22px; }
+.popt b { font-size: 11px; }
+.popt i { font-style: normal; font-size: 9px; color: var(--dim); }
+.popt.fx::after { content: "\2726"; font-size: 8px; color: var(--accent); margin-left: 1px; }
 #player { display: grid; grid-template-columns: auto 1fr; gap: 14px; margin-top: 12px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
 #player .me { display: flex; flex-direction: column; align-items: center; width: 170px; }
 #player .me .art img { max-height: 130px; max-width: 165px; }
@@ -557,7 +565,7 @@ function renderDeck() {
   const list = acq ? run.deck : [...run.deck].sort((a, b) => cardTitle(a.id).localeCompare(cardTitle(b.id)));
   $("deck").innerHTML = list.map((c) => cardHTML(c.id, { upgrade: c.upgrade, mini: true })).join("") || `<span class="faint small">no deck yet (known from the first fight)</span>`;
 }
-function intentHTML(it) {
+function intentHTML(it, tip) {
   const t = it.type || "?";
   let key = "intent_" + t.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/_strong$/, "");
   let label = "";
@@ -567,30 +575,60 @@ function intentHTML(it) {
     label = `${d}${(it.hits || 1) > 1 ? "x" + it.hits : ""}`;
   }
   const img = M.intents[key];
-  return `<span class="intent" title="${esc(t)}">${img ? `<img src="${A(img)}" alt="${esc(t)}">` : `<span class="chip">${esc(t)}</span>`}${label ? `<b class="bad">${esc(label)}</b>` : ""}</span>`;
+  return `<span class="intent" title="${esc(tip || t)}">${img ? `<img src="${A(img)}" alt="${esc(t)}">` : `<span class="chip">${esc(t)}</span>`}${label ? `<b class="bad">${esc(label)}</b>` : ""}</span>`;
+}
+const PLAN_KINDS = { "status": "intent_status_card", "card debuff": "intent_card_debuff", "buff": "intent_buff", "debuff": "intent_debuff", "strong debuff": "intent_debuff",
+  "block": "intent_defend", "escape": "intent_escape", "heal": "intent_heal", "hidden": "intent_hidden", "summon": "intent_summon", "sleep": "intent_sleep",
+  "stun": "intent_stun", "stunned": "intent_stun", "death blow": "intent_death_blow" };
+function attackKey(tot) { return "intent_attack_" + (tot < 6 ? 1 : tot < 11 ? 2 : tot < 20 ? 3 : tot < 30 ? 4 : 5); }
+function parsePlanTurn(turn) {  // "+2 MOVE 9x2 + debuff [me: WEAK +1] (60%) | MOVE2 block (40%)"
+  const m = /^\+(\d+) (.*)$/.exec(turn.trim());
+  if (!m) return null;
+  return { k: +m[1], opts: m[2].split(" | ").map((o) => {
+    const pm = /^(.*) \((\d+)%\)$/.exec(o);
+    const body = pm ? pm[1] : o, p = pm ? +pm[2] : 100;
+    const sp = body.indexOf(" "), move = sp < 0 ? body : body.slice(0, sp), rest = sp < 0 ? "" : body.slice(sp + 1);
+    const fxm = /^(.*?) \[(.*)\]$/.exec(rest), main = fxm ? fxm[1] : rest;
+    const parts = main.replace(/ \(projected \d+\)/, "").replace(/ \(dies\)/, "").split(" + ").map((x) => {
+      const a = /^(\d+)(?:x(\d+))?$/.exec(x.trim());
+      if (a) { const d = +a[1], h = +(a[2] || 1); return { key: attackKey(d * h), label: h > 1 ? `${d}x${h}` : `${d}` }; }
+      return { key: PLAN_KINDS[x.trim()] || "intent_unknown", label: "" };
+    });
+    return { move: titleCase(move), p, parts, fx: !!fxm, text: rest };
+  }) };
+}
+function planHTML(turns) {
+  return turns.map(parsePlanTurn).filter(Boolean).map((t) => `<span class="pturn"><span class="k">+${t.k}</span>${t.opts.map((o) =>
+    `<span class="popt ${o.fx ? "fx" : ""}" title="${esc(`${o.move}${o.p < 100 ? ` (${o.p}%)` : ""}\n${o.text}`)}">${o.parts.map((x) =>
+      `${M.intents[x.key] ? `<img src="${A(M.intents[x.key])}" alt="">` : ""}${x.label ? `<b class="bad">${esc(x.label)}</b>` : ""}`).join("")}${o.p < 100 ? `<i>${o.p}%</i>` : ""}</span>`).join("")}</span>`).join(`<span class="parrow">›</span>`);
 }
 function planLines(text) {
   const plan = {};
   for (const l of text.split("\n")) { const m = /^e(\d+) plan: (.*)$/.exec(l); if (m) plan[+m[1]] = m[2].split(/\s{2,}(?=\+\d)/); }
   return plan;
 }
+function nowLines(text) {  // "e0 now: MOVE 9 + debuff [me: WEAK +1]" -> {0: "Move\n9 + debuff [me: WEAK +1]"}
+  const now = {};
+  for (const l of text.split("\n")) { const m = /^e(\d+) now: (\S+) ?(.*)$/.exec(l); if (m) now[+m[1]] = `${titleCase(m[2])}\n${m[3]}`; }
+  return now;
+}
 function hpLine(hp, max, block) {
   const w = max ? Math.max(0, Math.min(100, (100 * hp) / max)) : 0;
   return `<div class="hpline">${block ? `<span class="blk">${block}</span>` : ""}<div class="bar"><i style="width:${w}%"></i><span>${hp} / ${max}</span></div></div>`;
 }
 function combatHTML(f, text, kind) {
-  const st = f.state, plan = planLines(text);
+  const st = f.state, plan = planLines(text), now = nowLines(text);
   const alive = st.enemies.filter((e) => e.alive !== false);
   const enemies = st.enemies.map((e) => {
     const i = e.index ?? alive.indexOf(e);
     const p = plan[i];
     return `<div class="creature ${e.alive === false ? "dead" : ""}">
-      <div class="intent-row">${(e.intents || []).map(intentHTML).join("")}</div>
+      <div class="intent-row">${(e.intents || []).map((it) => intentHTML(it, now[i])).join("")}</div>
       <div class="art" data-creature="${esc(e.id)}"><div class="ph">${esc(creatureTitle(e.id))}</div></div>
       <div class="name">${esc(creatureTitle(e.id))} <span class="faint small">e${i}</span></div>
       ${hpLine(e.hp, e.max_hp, e.block)}
       ${powersHTML(e.powers)}
-      ${p ? `<div class="plan">${p.map((x) => `<div>${esc(x)}</div>`).join("")}</div>` : ""}</div>`;
+      ${p ? `<div class="plan">${planHTML(p)}</div>` : ""}</div>`;
   }).join("");
   const pl = st.player || {};
   const me = CHAR || (f.scenario && f.scenario.character) || "";
@@ -616,7 +654,7 @@ function combatHTML(f, text, kind) {
     <div id="hand">${hand || `<span class="faint">empty hand</span>`}</div>`;
 }
 function combatFromText(text) {  // no fight export (no live.json yet): the screen's own enemy lines
-  const rows = text.split("\n").filter((l) => /^e\d+ /.test(l) && !/ plan: /.test(l));
+  const rows = text.split("\n").filter((l) => /^e\d+ /.test(l) && !/ (plan|now): /.test(l));
   return `<div class="opts">${rows.map((r) => `<div class="opt">${esc(r)}</div>`).join("")}</div>` + optionsHTML(text, "COMBAT");
 }
 function latestPrice(kind, floorKey) {
@@ -966,7 +1004,7 @@ function fightHTML(it, latest) {
   const acts = it.acts.filter((a) => a.kind !== "advice" || true);
   const head = `${icon ? `<img class="icon sm" src="${A(icon)}">` : ""}<span class="title">${esc(encTitle(enc))}</span>
     ${s ? `<span class="small dim">HP ${s.hp}${e && e.hp ? ` &rarr; ${e.hp[0]}` : ""}/${s.max_hp}</span>` : e && e.hp ? `<span class="small dim">HP ${e.hp[0]}/${e.hp[1]}</span>` : ""}${latest && !e ? ` <span class="chip good">in progress</span>` : ""}`;
-  const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span title="${esc(pct(p.hp_lost, 1) + " of max HP")}">HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b></span>
+  const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span title="${esc(pct(p.hp_lost, 1) + " of max HP")}">est. HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b></span>
       ${lost != null ? `<span>actual lost <b class="${e.pit != null && e.pit > 0.9 ? "bad" : ""}">${lost}</b>${e.pit != null ? ` <span class="faint">(${pct(e.pit)} quantile)</span>` : ""}</span>` : ""}
       ${s && s.drive ? `<span class="faint" title="${esc(s.drive[0] + ": " + s.drive[1] + (s.budget != null ? `; search budget ${s.budget}s` : ""))}">${esc(s.drive[0])}</span>` : ""}</div>${quant}
     ${e && e.errors && e.errors.length ? `<div class="bad small">replay: ${esc(e.errors.join("; "))}</div>` : ""}

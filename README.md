@@ -1,5 +1,5 @@
 # STS2 self-play harness
-Claude plays Slay the Spire 2 (v0.111.0, A10) in the real game: Rust combat simulator + search for combat, run model and calculators for macro, an outer loop for skills and networks. Goal: win the run; tiebreak end HP. Plan: `docs/rebuild.md`.
+Claude plays Slay the Spire 2 (v0.111.0, A10) in the real game: Rust combat simulator + search for combat, run model and calculators for macro, an outer loop for skills and networks. Goal: win the run; tiebreak end HP. Plan: `docs/plan.md`.
 
 ```
 game + mods/AgentBridge :15555  <-  agent daemon :15556 (python -m agent <cmd>)  <-  Claude
@@ -42,6 +42,6 @@ Dashboard: `python tools/dashboard/extract_assets.py` (once per game update), th
 | `tools/` | gate, benches, pool generators, dashboard, expert pipeline |
 | `scripts/` | pod scripts, `skill_gate.py` (hook), `porting/` (rerun after a game update: `gen_defs.py`, `gen_ids.py`, `gen_relics.py`, `flag_multiplayer_cards.py`) |
 | `tests/` | `agent/test_expert.py`, `agent/test_dashboard.py`, harness tests (`python tests/agent/run.py`) |
-| `docs/` | `rebuild.md`, `simulator.md`, `solver.md`, `game-bugs.md`, `research/` (`evidence.md`, `game_code.md`) |
+| `docs/` | `plan.md`, `simulator.md`, `solver.md`, `game-bugs.md`, `research/` (`evidence.md`, `game_code.md`) |
 | `data/`, `models/` | catalogs, pools, plans, bench/train sets, expert records; networks |
 | `runs/`, `evals/` | run records; gaps, judgments |

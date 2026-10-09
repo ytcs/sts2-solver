@@ -18,13 +18,13 @@ description: Use before the first action of a run and whenever unsure how to dri
 - Live search never throws potions. Each turn each potion: now / keep / save on 32 shared futures; `POTION PROPOSAL` stops `turn`/`combat` iff now beats keep and save by 2 paired se, or win at stake.
 - Commit one per proposal: `potion use <name>` or `a <i>`; `turn`/`combat` declines. Next turn re-prices.
 - `potion aside <name>[, name]|none` keeps for the boss (survives restart); bare `potion` lists set-aside potions; `potions` prints the table.
-- keep/save priced within this fight: weigh the boss yourself. `[hyp]` proposals order potions well; test: S4 gate.
+- keep/save priced within this fight: weigh the boss yourself. `[hyp]` proposals order potions well; test: the potion regression states (`docs/plan.md`).
 
 ## Fight objective (`SEARCH OBJECTIVE`)
 Act boss before an ancient heal (and the final boss): P(win) only, 1% end-HP tiebreak. Others: win +1 + 0.5 x HP fraction, loss -1.
 
 ## Display
-`eN plan: +1 .. +3` = moves for 3 turns after the intent, odds marginal per turn, damage at today's modifiers.
+`eN now:` = the shown intent's move with its exact effects (`[me: ...]`, `[self: ...]`); `eN plan: +1 .. +3` = moves for 3 turns after it, odds marginal per turn, damage at today's modifiers. `[code]`
 
 ## Decision guards (`agent/guards.py`)
 Card reward: `reward` + why fields `buckets:` `weakest:` `numbers:` `judgment:`. Map fork / Neow: `routes` this floor. Shop: a pricing call this floor; rest: `routes --hp <after>` + `routes` + upgrade `eval`. Elite/boss below 60% HP: `a <i> !`.
@@ -44,4 +44,4 @@ Run ~30 min, fight 1-2 min; `combat` for easy fights; short whys.
 2. Fidelity first: `python -m agent.fidelity_sweep --mode recorded`; sim fixes pass `bash tools/gate.sh`.
 3. Costly fights (lost, or >= 30% max HP): `python -m agent.hindsight <file> --log` -> luck vs solver gap; patterns -> `sts2-acts/encounters.md`.
 4. Each `judgment:` -> edit the `sts2-deckbuilding` rule it used; `evals/judgments.jsonl`; `improve lessons` = backlog.
-5. Model change only on a 2-3 run pattern: `improve corpus`, then a combat-loop round through the promotion gate (`docs/rebuild.md` S3).
+5. Model change only on a 2-3 run pattern: `improve corpus`, then a combat-loop round through the promotion gate (`docs/plan.md`).

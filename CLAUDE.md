@@ -22,8 +22,8 @@ More specific skill wins; lessons for every character/act go to `sts2-strategy`.
 ## Meta rules
 - Never use SKILL files as a journal: a skill is mutable rules/mechanics/tests with status tags; no runs, fights, play examples, logs, TODOs. Evidence/history -> `runs/<run>/`, `evals/`, git (details: `sts2` "Rules that never bend").
 - Docs and skills are written for AI readers: minimal tokens, current state only, no explanation the code or the rule already conveys.
-- Plan: `docs/rebuild.md`. Accuracy gate for simulator/search changes: `bash tools/gate.sh`.
-- Burn-off procedure -> skill `burn-off` (after a batch of rebuild stages lands, or when the user asks).
+- Plan: `docs/plan.md`. Accuracy gate for simulator/search changes: `bash tools/gate.sh`.
+- Burn-off procedure -> skill `burn-off` (after a batch of plan stages lands, or when the user asks).
 
 ## Humans and tests
 Gate off: daemon started with `STS2_SKILL_GATE=off` (own terminal, never an agent session), and scripts building `Harness()` directly (sweeps, benches). Design: `agent/skillgate.py`.

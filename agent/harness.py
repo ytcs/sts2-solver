@@ -322,7 +322,7 @@ class Harness(Live):
                        result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})
         ready = ("; next act ready: P(win) after the ancient's heal vs the next act's bosses x0.5 and elites x0.5, 0 on a death in this act"
                  if "ready" in next(iter(res.values())) else "")
-        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model `docs/rebuild.md` S5{ready}{note})\n" + gates
+        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates
 
     def brief(self):
         state = call("peek")

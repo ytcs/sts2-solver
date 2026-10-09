@@ -271,7 +271,7 @@ def macro_command(step, screen):
         return None, f"pick {pick!r}: a label substring is needed on a {kind} screen"
     labels = scr.options(screen)
     hit = [int(n) for n, lb in labels if lb.lower().startswith(pick.lower())] or [int(n) for n, lb in labels if pick.lower() in lb.lower()]
-    if len(hit) == 1 or (hit and len({_label(screen, h) for h in hit}) == 1):
+    if len(hit) == 1 or (hit and (len({_label(screen, h) for h in hit}) == 1 or (kind == "REWARDS" and pick.lower() == "card"))):
         return f"a {hit[0]}", None
     return None, f"pick {pick!r} matches {len(hit)} options on {kind}"
 
@@ -385,17 +385,17 @@ class Reenactor:
             f.write(json.dumps(row) + "\n")
 
     def cursor(self):
-        n, guessed = 0, False
+        n, guessed, started = 0, False, False
         if os.path.exists(self.log_path):
             for line in open(self.log_path, encoding="utf-8"):
                 r = json.loads(line)
                 if r.get("event") == "start":
-                    n, guessed = 0, False
+                    n, guessed, started = 0, False, True
                 elif r.get("event") == "done":
                     n = r["k"] + 1
                 elif r.get("event") == "guess":
                     guessed = True
-        return n, guessed
+        return n, guessed, started
 
     def _screen(self):
         s = call("s")
@@ -428,7 +428,7 @@ class Reenactor:
     def run(self, max_steps=None, until=None, seedcheck=False):
         if not build_ok(self.rec):
             return f"REFUSED: record build {self.rec.get('build')!r} is not the pinned {PINNED_BUILD}: no re-enactment (frame-based notes only)\n"
-        k, guessed = self.cursor()
+        k, guessed, started = self.cursor()
         if guessed and not seedcheck:
             return "REFUSED: seedcheck walked this run with a guessed map node: abandon it and start a fresh run for the replay\n"
         screen, out = self._screen(), []
@@ -438,9 +438,9 @@ class Reenactor:
                 return "REFUSED: " + err + "\n"
             k, screen = 0, self._screen()
             out.append(f"started {self.rec['character']} A{self.rec['ascension']} seed {self.rec['seed']} ({'custom' if self.custom else 'standard'} run)")
-        elif k == 0:
+        elif k == 0 and not started:
             return f"REFUSED: the replay log has no progress and the game is on {scr.kind(screen)}, not the main menu\n"
-        map_checked, opened, done, autos = False, set(), 0, 0
+        map_checked, opened, done, autos = set(), set(), 0, 0
         while k < len(self.flat):
             a = self.flat[k]
             if (until and a.get("floor") is not None and a["floor"] >= until) or (max_steps is not None and done >= max_steps):
@@ -450,9 +450,9 @@ class Reenactor:
                 out.append(f"REFUSED before step {k} ({describe(a)}): {refusal}")
                 break
             kind = scr.kind(screen)
-            if kind == "MAP" and not map_checked:
-                out.append(self._map_check())
-                map_checked = True
+            if kind == "MAP" and a.get("act", 0) not in map_checked:
+                out.append(self._map_check(a.get("act", 0)))
+                map_checked.add(a.get("act", 0))
             f = self.h.sync() if kind in ("COMBAT", "SELECT") else None
             key = a.get("fight") or (a["step"] if a["kind"] == "gap" and a.get("encounter") else None)
             if f is not None and key is not None and key not in opened and a.get("i", 0) == 0:
@@ -467,7 +467,7 @@ class Reenactor:
             cmd, err = macro_command(a, screen) if a["kind"] == "macro" else (
                 combat_command(a, f.get("state") or {}, screen) if f is not None else (None, f"record expects combat ({describe(a)}), the screen is {kind}"))
             if err and autos < 6:
-                auto = self._auto(screen)
+                auto = self._auto(screen, a)
                 if auto:
                     autos += 1
                     screen = self.h._send(auto)
@@ -492,8 +492,11 @@ class Reenactor:
             if a["kind"] == "macro":
                 self.h.log.event("macro", screen=screen.split("\n")[0], state=screen[:1500], choice=cmd[2:],
                                  why=f"reenact {self.rec['video']['id']} step {a['step']}", result=reply.split("\n")[0])
-            elif scr.kind(reply) not in ("COMBAT", "SELECT"):
-                self._fight_over(a, reply)
+            else:
+                self.h.log.event("action", fight=getattr(self.h, "fight_id", None), text=describe(a), json=cmd,
+                                 why=f"reenact {self.rec['video']['id']} step {a['step']}")
+                if scr.kind(reply) not in ("COMBAT", "SELECT"):
+                    self._fight_over(a, reply)
             self._log(event="done", k=k)
             done, autos, k = done + 1, 0, k + 1
             screen = self._screen() if scr.busy(reply) else reply
@@ -502,9 +505,14 @@ class Reenactor:
         out.append(f"cursor {k}/{len(self.flat)}; log {os.path.relpath(self.log_path, ROOT)}")
         return "\n".join(out) + "\n" + screen
 
-    def _auto(self, screen):
+    def _auto(self, screen, a=None):
         opts = scr.options(screen)
-        return f"a {opts[0][0]}" if len(opts) == 1 and opts[0][1].lower() in AUTO else None
+        if len(opts) == 1 and (opts[0][1].lower() in AUTO or scr.kind(screen) == "MAP"):
+            return f"a {opts[0][0]}"
+        if scr.kind(screen) == "REWARDS" and (a or {}).get("screen") not in ("REWARDS", "CARD_REWARD"):
+            hit = _find(screen, lambda lb: lb.lower().startswith("proceed"))
+            return f"a {hit[0]}" if hit else None
+        return None
 
     def _opening(self, a, f):
         spec = next((st["fight"] for st in self.rec["steps"] if st.get("fight") and st["fight"]["id"] == a.get("fight")), None)
@@ -513,10 +521,10 @@ class Reenactor:
         self._log(event="opening", k=a.get("step"), encounter=(f.get("scenario") or {}).get("encounter"), diff=diff, scenario=f.get("scenario"), state=f.get("state"))
         return f"opening of {a.get('fight') or a.get('encounter')} (floor {a.get('floor')}): " + ("matches the record" if not diff else "DIFFERS: " + "; ".join(diff))
 
-    def _map_check(self):
+    def _map_check(self, act=0):
         text = call("m")
-        paths, boss = map_paths(text, floor_rooms(self.rec))
-        want = self.rec.get("boss")
+        paths, boss = map_paths(text, floor_rooms(self.rec, act))
+        want = self.rec.get("boss") if act == 0 else (self.rec.get("bosses") or {}).get(str(act))
         lines = [f"map: boss {' + '.join(boss[1]) if boss else '?'}" + ("" if not want else f" (record {want}: {'ok' if boss and want in boss[1] else 'DIFFERS'})"),
                  f"paths consistent with the record's rooms by floor: {len(paths)}" + ("" if paths else " -> the map or the record's floor numbering differs")]
         lines += ["  " + path_text(p, text) for p in paths[:6]]
