@@ -201,3 +201,10 @@ Slice `data/bench/plans.json` (`tools/bench.py build-plans`; `score` reports it)
 - **Reference finding:** K=256 search misranks order-dependent turns with small se (forced win scored -1.03, Gardeners sign wrong); line comparisons need exact enumeration plus playouts.
 - **Fidelity found:** sync pairs identical monsters by nearest HP (Replayer / hindsight mis-slot enemy moves on Gardeners); hand sync ignores enchantments.
 - **Pipeline re-run** (item 7, `tools/expert.py compare`, CPU; live 8 rounds, harness objective; R3 n 12-24 at 1 round): C#17 tie, C#18 and D#1 (R2 +0.062 (0.012)) and E#0 (R2 +0.21 (0.06)) solver gaps reproduce; A#11 does not (R3 +0.008 (0.006) n 24, opposite sign): unresolved, the pilot's 2.1 se call was playout noise; new B#0 solver gap (T1 Strike vs his Defend at 18 HP, R2 +0.032 (0.003)). Macro, 7 card-reward/rest screens vs `price` (n 32): 2 agree, 5 ties.
+
+## E35. Round r5 promoted (gen-2's first combat-loop round)
+- **Data:** 149,830 fights (`tools/round_pool.py`: signal 90k, plan decks 30k, enabler pairs 16k, late 14k), gen-2 cover 5x32 at roots 512, local, ~5 h. TD(0.8) 3 epochs from gen-2: holdout outcome 2.271 -> 2.200, policy 0.500 -> 0.502.
+- **Bench play** (paired with gen-2's labels, 5090 pod): r5 -0.001 / +0.006 / -0.001 / +0.007 (eval / corpus / mix / tail); gen-2 replaying its own labels +0.004 / 0.000 / +0.001 / -0.010 (the replay noise floor).
+- **Near-miss** (4 attempts, paired with r3): r5 + cover +0.072 +- 0.009 L->W, -0.037 +- 0.007 W->L; gen-2 + cover +0.059 / -0.032 in the same run.
+- **Predictor** (vs E33's gen-2): Brier eval 0.0241 / 0.0243, corpus 0.0241 / 0.0219, mix 0.0283 / 0.0292, tail 0.0479 / 0.0492, plans 0.0884 / 0.1042; plans bias -0.040 / -0.068, deck Spearman 0.768 / 0.747; deck-change pairs worth Spearman 0.486 / 0.513, add 0.38 / 0.50, remove 0.77 / 0.77. Bias still -0.035 mix, -0.056 tail (decile gate fails, as for gen-2). Enabler-removal pairs still blind (Spearman 0.10).
+- **Adopted:** `models/solver_r5.pt` as player and predictor.
