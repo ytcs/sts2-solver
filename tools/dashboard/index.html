@@ -1004,7 +1004,7 @@ function fightHTML(it, latest) {
   const acts = it.acts.filter((a) => a.kind !== "advice" || true);
   const head = `${icon ? `<img class="icon sm" src="${A(icon)}">` : ""}<span class="title">${esc(encTitle(enc))}</span>
     ${s ? `<span class="small dim">HP ${s.hp}${e && e.hp ? ` &rarr; ${e.hp[0]}` : ""}/${s.max_hp}</span>` : e && e.hp ? `<span class="small dim">HP ${e.hp[0]}/${e.hp[1]}</span>` : ""}${latest && !e ? ` <span class="chip good">in progress</span>` : ""}`;
-  const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span title="${esc(pct(p.hp_lost, 1) + " of max HP")}">HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b></span>
+  const body = `<div class="pred"><span>predicted win <b>${pct(p.win, 1)}</b></span><span title="${esc(pct(p.hp_lost, 1) + " of max HP")}">est. HP lost <b>${p.hp_lost != null && s ? num(p.hp_lost * s.max_hp, 0) : "?"}</b></span>
       ${lost != null ? `<span>actual lost <b class="${e.pit != null && e.pit > 0.9 ? "bad" : ""}">${lost}</b>${e.pit != null ? ` <span class="faint">(${pct(e.pit)} quantile)</span>` : ""}</span>` : ""}
       ${s && s.drive ? `<span class="faint" title="${esc(s.drive[0] + ": " + s.drive[1] + (s.budget != null ? `; search budget ${s.budget}s` : ""))}">${esc(s.drive[0])}</span>` : ""}</div>${quant}
     ${e && e.errors && e.errors.length ? `<div class="bad small">replay: ${esc(e.errors.join("; "))}</div>` : ""}
