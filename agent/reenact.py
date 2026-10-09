@@ -440,7 +440,7 @@ class Reenactor:
             out.append(f"started {self.rec['character']} A{self.rec['ascension']} seed {self.rec['seed']} ({'custom' if self.custom else 'standard'} run)")
         elif k == 0 and not started:
             return f"REFUSED: the replay log has no progress and the game is on {scr.kind(screen)}, not the main menu\n"
-        map_checked, opened, done, autos = False, set(), 0, 0
+        map_checked, opened, done, autos = set(), set(), 0, 0
         while k < len(self.flat):
             a = self.flat[k]
             if (until and a.get("floor") is not None and a["floor"] >= until) or (max_steps is not None and done >= max_steps):
@@ -450,9 +450,9 @@ class Reenactor:
                 out.append(f"REFUSED before step {k} ({describe(a)}): {refusal}")
                 break
             kind = scr.kind(screen)
-            if kind == "MAP" and not map_checked:
-                out.append(self._map_check())
-                map_checked = True
+            if kind == "MAP" and a.get("act", 0) not in map_checked:
+                out.append(self._map_check(a.get("act", 0)))
+                map_checked.add(a.get("act", 0))
             f = self.h.sync() if kind in ("COMBAT", "SELECT") else None
             key = a.get("fight") or (a["step"] if a["kind"] == "gap" and a.get("encounter") else None)
             if f is not None and key is not None and key not in opened and a.get("i", 0) == 0:
@@ -507,7 +507,7 @@ class Reenactor:
 
     def _auto(self, screen):
         opts = scr.options(screen)
-        return f"a {opts[0][0]}" if len(opts) == 1 and opts[0][1].lower() in AUTO else None
+        return f"a {opts[0][0]}" if len(opts) == 1 and (opts[0][1].lower() in AUTO or scr.kind(screen) == "MAP") else None
 
     def _opening(self, a, f):
         spec = next((st["fight"] for st in self.rec["steps"] if st.get("fight") and st["fight"]["id"] == a.get("fight")), None)
@@ -516,10 +516,10 @@ class Reenactor:
         self._log(event="opening", k=a.get("step"), encounter=(f.get("scenario") or {}).get("encounter"), diff=diff, scenario=f.get("scenario"), state=f.get("state"))
         return f"opening of {a.get('fight') or a.get('encounter')} (floor {a.get('floor')}): " + ("matches the record" if not diff else "DIFFERS: " + "; ".join(diff))
 
-    def _map_check(self):
+    def _map_check(self, act=0):
         text = call("m")
-        paths, boss = map_paths(text, floor_rooms(self.rec))
-        want = self.rec.get("boss")
+        paths, boss = map_paths(text, floor_rooms(self.rec, act))
+        want = self.rec.get("boss") if act == 0 else (self.rec.get("bosses") or {}).get(str(act))
         lines = [f"map: boss {' + '.join(boss[1]) if boss else '?'}" + ("" if not want else f" (record {want}: {'ok' if boss and want in boss[1] else 'DIFFERS'})"),
                  f"paths consistent with the record's rooms by floor: {len(paths)}" + ("" if paths else " -> the map or the record's floor numbering differs")]
         lines += ["  " + path_text(p, text) for p in paths[:6]]
