@@ -34,10 +34,11 @@ def _opportunity_loss(acc):
 
 
 class Engine:
-    def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0, exact_turn=True):
+    def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0, exact_turn=True, hp_cap=False):
         self.solver = Solver() if ckpt is None else Solver(ckpt)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        self.fs = FastSearch(self.solver.net, M, K, roots=1, groups=1, amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn)
+        self.fs = FastSearch(self.solver.net, M, K, roots=1, groups=1, amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn,
+                             hp_cap=hp_cap)
         self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
         assert (proposal.HEAD_BIN, proposal.HEAD_NC) == (heads.BIN, heads.NC), "agent/proposal.py and rl/heads.py disagree on the outcome classes"
         self.fs.warm()

@@ -55,23 +55,30 @@ fn end_score(cx: &Combat, oc: i8, r: f32, w: &Worth) -> f32 {
     }
 }
 
-fn leaf_value(r: &[f32], max_hp: i32, cfg: &SearchCfg, w: &Worth) -> f32 {
+// A won fight cannot end above `ceiling` HP: win mass above it is valued at the ceiling, so no leaf beats winning now.
+fn hp_ceiling(cx: &Combat, gain: Option<i32>) -> i32 {
+    gain.map_or(i32::MAX, |g| cx.cr(0).hp.saturating_add(g))
+}
+
+fn leaf_value(r: &[f32], max_hp: i32, ceiling: i32, cfg: &SearchCfg, w: &Worth) -> f32 {
     if r.len() == 1 {
         return r[0];
     }
     let p = &r[..HEAD_NC];
     if w.table {
+        let top = if ceiling == i32::MAX { HEAD_NB } else { end_class(ceiling) };
         let mut v = 0.0f32;
         for b in 0..HEAD_NC {
-            v += p[b] * w.u[b];
+            v += p[b] * w.u[b.min(top)];
         }
         v
     } else {
         let mx = max_hp.max(1) as f32;
         let half = (HEAD_BIN as f32 - 1.0) / 2.0;
+        let top = ceiling as f32;
         let mut v = p[0] * cfg.loss;
         for (b, &pb) in p.iter().enumerate().skip(1) {
-            let c = b as f32 * HEAD_BIN as f32 - half;
+            let c = (b as f32 * HEAD_BIN as f32 - half).min(top);
             v += pb * (cfg.win + cfg.hp_bonus * (c / mx).min(1.0));
         }
         v
@@ -95,6 +102,7 @@ pub struct SearchCfg {
     // DIAGNOSTIC ONLY: futures copy the true state (hidden information); never set for live play.
     pub clairvoyant: bool,
     pub exact: ExactCfg,
+    pub hp_cap: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -129,6 +137,7 @@ impl Default for SearchCfg {
             futures: 0,
             clairvoyant: false,
             exact: ExactCfg::default(),
+            hp_cap: false,
         }
     }
 }
@@ -202,6 +211,8 @@ pub struct SearchStats {
     pub ex_states: u64,
     pub ex_rows: u64,
     pub cy_exact: u64,
+    pub cap_roots: u64,
+    pub cap_skipped: u64,
 }
 
 #[inline(always)]
@@ -267,6 +278,7 @@ struct Block {
     stats: SearchStats,
     look: Option<Box<LookCache>>,
     ex: Option<Box<Exact>>,
+    gain: Option<i32>,
 }
 
 struct SendPtr<T>(*mut T);
@@ -572,6 +584,7 @@ impl Block {
             stats: SearchStats::default(),
             look: Some(Box::new(LookCache::new(LOOK_CACHE_ENTRIES))),
             ex: None,
+            gain: None,
         })
     }
 
@@ -732,6 +745,11 @@ impl Block {
             return;
         }
         self.stats.searched += 1;
+        self.gain = if cfg.hp_cap { self.main.hp_gain_bound() } else { None };
+        if cfg.hp_cap {
+            self.stats.cap_roots += self.gain.is_some() as u64;
+            self.stats.cap_skipped += self.gain.is_none() as u64;
+        }
         let k = if cfg.futures > 0 { (cfg.futures / n_legal).clamp(1, cfg.k) } else { cfg.k };
         self.kc = k;
         let need = (0..m).filter(|&j| self.ok[j]).last().map_or(0, |j| j + 1) * k;
@@ -993,7 +1011,7 @@ impl Block {
                 let Some(inp) = inp else { return };
                 let cfg = sh.cfg;
                 let w = &sh.worth[self.scen as usize];
-                let (vw, k) = (cfg.val_w, self.kc);
+                let (vw, k, gain) = (cfg.val_w, self.kc, self.gain);
                 let mut todo = std::mem::take(&mut self.todo);
                 todo.clear();
                 todo.extend((0..self.sims.len()).filter(|&i| matches!(self.sims[i].st, SimSt::Pol(_) | SimSt::Val(_))).map(|i| (i, self.sims[i].st)));
@@ -1021,7 +1039,7 @@ impl Block {
                         SimSt::Val(row) => {
                             let sim = &mut self.sims[idx];
                             let r = row as usize * vw;
-                            sim.est += leaf_value(&inp.val[r..r + vw], sim.cx.cr(0).max_hp, &cfg, w);
+                            sim.est += leaf_value(&inp.val[r..r + vw], sim.cx.cr(0).max_hp, hp_ceiling(&sim.cx, gain), &cfg, w);
                             sim.st = SimSt::Done;
                             let j = idx / k;
                             if self.lead[j] && idx == j * k {
@@ -1071,12 +1089,13 @@ struct Exact {
     nodes: Vec<XNode>,
     index: HashMap<u64, u32>,
     stack: Vec<XFrame>,
-    pending: Vec<(u32, u32, i32)>,
+    pending: Vec<(u32, u32, i32, i32)>,
     root: Vec<(Action, u32)>,
     ks: Vec<u64>,
     obs: Vec<f32>,
     turn: i32,
     best: usize,
+    gain: Option<i32>,
 }
 
 struct Fx(u64);
@@ -1116,7 +1135,7 @@ impl Exact {
         }
         let row = val_row(out, cx);
         write_row(cx, &ActionBuf::new(), None, out.obs, None, out.val_obs_row(row));
-        self.pending.push((row as u32, node, cx.cr(0).max_hp));
+        self.pending.push((row as u32, node, cx.cr(0).max_hp, hp_ceiling(cx, self.gain)));
         st.value_rows += 1;
         st.ex_rows += 1;
     }
@@ -1335,6 +1354,7 @@ impl Block {
         ex.obs.resize(OBS_SIZE, 0.0);
         ex.turn = self.main.player.turn_number;
         ex.best = best;
+        ex.gain = self.gain;
         let root = self.main.clone();
         let ok = ex.add(root, NONE, cfg, &sh.worth[self.scen as usize], out, &mut self.stats) == Some(0);
         self.stats.cy_exact += tsc() - t0;
@@ -1351,9 +1371,9 @@ impl Block {
     fn ex_answer(&mut self, inp: &Inputs, sh: &Shared) {
         let Some(ex) = self.ex.as_mut() else { return };
         let (vw, w) = (sh.cfg.val_w, &sh.worth[self.scen as usize]);
-        for &(row, node, max_hp) in ex.pending.iter() {
+        for &(row, node, max_hp, ceiling) in ex.pending.iter() {
             let r = row as usize * vw;
-            ex.nodes[node as usize].v += leaf_value(&inp.val[r..r + vw], max_hp, &sh.cfg, w);
+            ex.nodes[node as usize].v += leaf_value(&inp.val[r..r + vw], max_hp, ceiling, &sh.cfg, w);
         }
         ex.pending.clear();
     }
@@ -1527,6 +1547,8 @@ impl SearchEngine {
             t.ex_states += s.ex_states;
             t.ex_rows += s.ex_rows;
             t.cy_exact += s.cy_exact;
+            t.cap_roots += s.cap_roots;
+            t.cap_skipped += s.cap_skipped;
         }
         t
     }

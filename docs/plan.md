@@ -24,7 +24,8 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 
 **2. Solver strength: setup turns.** Order-dependent setup turns are misranked (Gardeners #1, Lagavulin #0, E34; errors spread over setup turns, E26); exact turn search fixed only blind-turn lethal (E36).
 - Measured on real states (E39): 10 confirmed expert gaps, 6 of them setup/power across the turn boundary; `tools/exact_turn_check.py` is the fixed check.
-- Candidates: truncate the leaf's end-HP distribution at current HP (caps non-terminal values at the win-now value; k438: end turn 1.453 > win-this-turn 1.435; in progress); deeper leaf on close calls; exact turn search with a two-turn leaf; value targets from deeper search.
+- HP cap (`hp_cap`, nearmiss suffix `@cap`, default off; E42): leaf win mass above the HP ceiling (leaf HP + `Combat::hp_gain_bound`) is valued at the ceiling, so no leaf beats winning now. Next: near-miss paired with live.
+- Candidates: deeper leaf on close calls; exact turn search with a two-turn leaf; value targets from deeper search.
 - Scale: a generator of states of the expert-found classes (setup/power across the turn boundary, scheduled big hits, combos) labelled by the honest references, gated by cheap detectors (leaf above the win-now ceiling, fast-vs-deep disagreement, setup card at a close call); the same verdict miner over our own near-miss and costly fights.
 - Gate: near-miss L->W up with W->L not worse, paired with live; more of the expert gap states solved (none lost: k184 keeps its win); live decision time within budget.
 
