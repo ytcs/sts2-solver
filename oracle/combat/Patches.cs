@@ -11,7 +11,8 @@ public static class Patches
     public static void Apply()
     {
         var h = new Harmony("oracle.combat");
-        h.PatchAll(typeof(Patches).Assembly);
+        foreach (var t in AccessTools.GetTypesFromAssembly(typeof(Patches).Assembly).Where(t => t.Namespace == "OracleCombat"))
+            h.CreateClassProcessor(t).Patch();
     }
 
     [HarmonyPatch(typeof(Logger), "GetIsRunningFromGodotEditor")]
@@ -47,13 +48,13 @@ public static class Patches
     static class P_Usec { static bool Prefix(ref ulong __result) { __result = (ulong)Environment.TickCount64 * 1000UL; return false; } }
 
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Localization.LocString), nameof(MegaCrit.Sts2.Core.Localization.LocString.GetFormattedText))]
-    static class P_LocFmt { static bool Prefix(MegaCrit.Sts2.Core.Localization.LocString __instance, ref string __result) { __result = __instance.LocTable + "." + __instance.LocEntryKey; return false; } }
+    static class P_LocFmt { static bool Prefix(MegaCrit.Sts2.Core.Localization.LocString __instance, ref string __result) { __result = Loc.Real ? Loc.Format(__instance) : __instance.LocTable + "." + __instance.LocEntryKey; return false; } }
 
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Localization.LocString), nameof(MegaCrit.Sts2.Core.Localization.LocString.GetRawText))]
-    static class P_LocRaw { static bool Prefix(MegaCrit.Sts2.Core.Localization.LocString __instance, ref string __result) { __result = __instance.LocTable + "." + __instance.LocEntryKey; return false; } }
+    static class P_LocRaw { static bool Prefix(MegaCrit.Sts2.Core.Localization.LocString __instance, ref string __result) { if (Loc.Real) return true; __result = __instance.LocTable + "." + __instance.LocEntryKey; return false; } }
 
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Localization.LocString), nameof(MegaCrit.Sts2.Core.Localization.LocString.Exists), new[] { typeof(string), typeof(string) })]
-    static class P_LocExists { static bool Prefix(ref bool __result) { __result = true; return false; } }
+    static class P_LocExists { static bool Prefix(ref bool __result) { if (Loc.Real) return true; __result = true; return false; } }
 
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Runs.RunManager), nameof(MegaCrit.Sts2.Core.Runs.RunManager.WriteReplay))]
     static class P_Replay { static bool Prefix() => false; }
@@ -93,6 +94,61 @@ public static class Patches
             var player = t.Field("_player").GetValue<MegaCrit.Sts2.Core.Entities.Players.Player>();
             int cost = t.Field("_cost").GetValue<int>();
             t.Field("_cost").SetValue((int)Godot.Mathf.Round((float)cost * player.PlayerRng.Shops.NextFloat(0.95f, 1.05f)));
+        }
+    }
+
+    // Calling Bell / Cauldron: the shipped game's random rewards, not TestMode's fixed relics and potions
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Relics.CallingBell), "GenerateRewards")]
+    static class P_CallingBell
+    {
+        static bool Prefix(MegaCrit.Sts2.Core.Models.Relics.CallingBell __instance, ref List<MegaCrit.Sts2.Core.Rewards.Reward> __result)
+        {
+            if (!RealRunRng) return true;
+            __result = new List<MegaCrit.Sts2.Core.Rewards.Reward>
+            {
+                new MegaCrit.Sts2.Core.Rewards.RelicReward(MegaCrit.Sts2.Core.Entities.Relics.RelicRarity.Common, __instance.Owner),
+                new MegaCrit.Sts2.Core.Rewards.RelicReward(MegaCrit.Sts2.Core.Entities.Relics.RelicRarity.Uncommon, __instance.Owner),
+                new MegaCrit.Sts2.Core.Rewards.RelicReward(MegaCrit.Sts2.Core.Entities.Relics.RelicRarity.Rare, __instance.Owner),
+            };
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Relics.Cauldron), "GenerateRewards")]
+    static class P_Cauldron
+    {
+        static bool Prefix(MegaCrit.Sts2.Core.Models.Relics.Cauldron __instance, ref List<MegaCrit.Sts2.Core.Rewards.Reward> __result)
+        {
+            if (!RealRunRng) return true;
+            __result = Enumerable.Range(0, __instance.DynamicVars["Potions"].IntValue).Select(_ => (MegaCrit.Sts2.Core.Rewards.Reward)new MegaCrit.Sts2.Core.Rewards.PotionReward(__instance.Owner)).ToList();
+            return false;
+        }
+    }
+
+    // event options that reach node singletons without a null check (audio, screen rumble): the same model steps without them
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Events.JungleMazeAdventure), "SafetyInNumbers")]
+    static class P_JungleMazeJoin
+    {
+        static bool Prefix(MegaCrit.Sts2.Core.Models.Events.JungleMazeAdventure __instance, ref Task __result) { __result = Run(__instance); return false; }
+        static async Task Run(MegaCrit.Sts2.Core.Models.Events.JungleMazeAdventure ev)
+        {
+            await MegaCrit.Sts2.Core.Commands.Cmd.CustomScaledWait(0f, 0.2f);
+            await MegaCrit.Sts2.Core.Commands.PlayerCmd.GainGold(ev.DynamicVars["JoinForcesGold"].BaseValue, ev.Owner);
+            ev.SetEventFinished(ev.L10NLookup("JUNGLE_MAZE_ADVENTURE.pages.JOIN_FORCES.description"));
+        }
+    }
+
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Events.DenseVegetation), "Rest")]
+    static class P_DenseVegetationRest
+    {
+        static bool Prefix(MegaCrit.Sts2.Core.Models.Events.DenseVegetation __instance, ref Task __result) { __result = Run(__instance); return false; }
+        static async Task Run(MegaCrit.Sts2.Core.Models.Events.DenseVegetation ev)
+        {
+            await MegaCrit.Sts2.Core.Commands.PlayerCmd.MimicRestSiteHeal(ev.Owner, playSfx: false);
+            if (MegaCrit.Sts2.Core.Context.LocalContext.IsMe(ev.Owner)) await MegaCrit.Sts2.Core.Commands.Cmd.CustomScaledWait(0.7f, 1.5f);
+            var fight = (Func<Task>)AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.DenseVegetation), "Fight").CreateDelegate(typeof(Func<Task>), ev);
+            ev.SetEventState(ev.L10NLookup("DENSE_VEGETATION.pages.REST.description"),
+                new[] { new MegaCrit.Sts2.Core.Events.EventOption(ev, fight, "DENSE_VEGETATION.pages.REST.options.FIGHT") });
         }
     }
 

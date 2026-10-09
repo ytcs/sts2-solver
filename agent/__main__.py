@@ -8,7 +8,15 @@ import time
 from agent.screen import is_bare_number
 from agent.skillgate import READ_ONLY
 
-PORT = int(os.environ.get("STS2_AGENT_PORT", 15556))
+def _agent_port():
+    # a harness on a headless server (STS2_BRIDGE=host:port) never shares the real game's daemon: default port = bridge port + 1
+    if os.environ.get("STS2_AGENT_PORT"):
+        return int(os.environ["STS2_AGENT_PORT"])
+    ep = os.environ.get("STS2_BRIDGE", "").strip()
+    return int(ep.rpartition(":")[2]) + 1 if ep else 15556
+
+
+PORT = _agent_port()
 
 
 def serve():

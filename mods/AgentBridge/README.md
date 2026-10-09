@@ -26,5 +26,8 @@ Screens (first word): `MENU EVENT MAP COMBAT SELECT REWARDS CARD_REWARD CHOOSE_C
 - Everything else uses the AutoSlay bot's calls (`ForceClick`, card holder `Pressed`, `CardModel.TryManualPlay`, `PotionModel.EnqueueManualUse`, `EndPlayerTurnAction`, `MerchantEntry.OnTryPurchaseWrapper`). Screen cases: `src/Decisions.cs`.
 - Settling: wait for a screen change, then a ready combat turn, a pending choice, or options unchanged for 15 frames. Tutorials off. Mods use a separate `modded/` save profile.
 
+## Headless twin
+`oracle/combat` `serve` speaks this protocol on the game's own code without Godot (one process per game, `STS2_BRIDGE=127.0.0.1:N` for the harness; `oracle/combat/README.md`). It compiles `src/Text.cs`, `Snap.cs`, `AgentSelector.cs`, `PromptPatch.cs` in, and ports `Decisions.cs`/`Commands.cs` (`oracle/combat/Ui.cs`): a change to the screens here needs the same change there.
+
 ## Build
 .NET 9 SDK. `dotnet build -c Release` copies `AgentBridge.dll` + `AgentBridge.json` into `<game>/mods/AgentBridge/`. `./dev.sh`: close the game, rebuild, relaunch through Steam, wait for the bridge.

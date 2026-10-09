@@ -44,6 +44,13 @@ public sealed class Pump : SynchronizationContext
         return n;
     }
 
+    public bool RunOne(int timeoutMs)
+    {
+        if (!_q.TryTake(out var item, timeoutMs)) return false;
+        item.cb(item.state);
+        return true;
+    }
+
     public void RunUntil(Func<bool> done, Func<string> describeStuck, int timeoutMs = 20000)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
