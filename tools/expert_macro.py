@@ -22,7 +22,7 @@ FORMAT = ("macro record: header, then one decision per line in game order. decis
           "(ancient|event|map|card|rest|shop|potion), screen (harness screen text at the decision, pre-decision values), pick "
           "(card name|null; 'r<row>c<col>'; 'Rest'|'Smith'; option head; shop: bought labels in order; potion: {take, discard_slot}|'leave'), "
           "then (follow-up selections: smith target, removal target, event card choices), state {hp, max_hp, gold, deck[{id, upgrade, enchantment?}], "
-          "relics[{id, props?}], potions[id|null by slot], slots, max_energy, act_name, bosses, pos ('r<row>c<col>' last node visited this act, null before "
+          "relics[{id, props?}], potions[name|null by slot], slots, max_energy, act_name, bosses, pos ('r<row>c<col>' last node visited this act, null before "
           "the first), seen {weak, regular, elite: encounter ids this act}, monsters, removals, potion_p, offset}, checks (validation notes). "
           "header.maps[act] = the act map in `routes.parse_map` text (absent when not transcribed)")
 TYPES = ("ancient", "event", "map", "card", "rest", "shop", "potion")
