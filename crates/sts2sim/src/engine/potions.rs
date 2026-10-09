@@ -43,20 +43,6 @@ impl Combat {
         true
     }
 
-    pub fn try_to_procure_potion(&mut self, potion: u16) -> Option<usize> {
-        if self.first_veto(hookbit::should_procure_potion, |cx, me, l| l.should_procure_potion(cx, me, potion)).is_some() {
-            return None;
-        }
-        let slot = (0..self.player.potion_slots as usize).find(|&i| self.player.potions[i].is_none())?;
-        if !content::potion_implemented(potion) {
-            self.flag_missing(Kind::Potion, potion);
-        }
-        self.listen |= content::potion_mask(potion);
-        self.player.potions[slot] = Some(Potion { id: potion });
-        self.dispatch_u(hookbit::after_potion_procured, |cx, me, l| l.after_potion_procured(cx, me, potion));
-        Some(slot)
-    }
-
     pub fn use_potion(&mut self, slot: usize, mut target: Cid) -> bool {
         if self.stage != Stage::AwaitAction || self.player.phase != Phase::Play || slot >= MAX_POTIONS {
             return false;

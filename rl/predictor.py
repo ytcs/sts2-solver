@@ -21,11 +21,11 @@ class Predictor:
         P = np.zeros((len(scenarios), H.NC))
         if not scenarios:
             return P
-        starts = sts2.FightStarts(scenarios, obs_version=getattr(self.net, "obs_version", 1))
+        starts = sts2.FightStarts(scenarios)
         for s in range(shuffles):
             o, _ = starts.observe(seed + s)
             for b in range(0, len(scenarios), self.batch):
-                ol, _ = self.net.heads_out(torch.from_numpy(o[b:b + self.batch].copy()).to(DEV))
+                ol = self.net.heads_out(torch.from_numpy(o[b:b + self.batch].copy()).to(DEV))
                 P[b:b + self.batch] += torch.softmax(ol.float(), 1).cpu().numpy() / shuffles
         return P
 

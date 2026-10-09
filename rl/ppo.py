@@ -7,7 +7,7 @@ import torch.nn.functional as F
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
 import heads as H
-from model import Net, n_params, DEV, load_weights, claim_obs_version, HostShape, net_policy
+from model import Net, n_params, DEV, load_weights, HostShape, net_policy
 
 
 def make_env(path, n, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
@@ -15,9 +15,9 @@ def make_env(path, n, seed, max_steps, hp_bonus, turn_cap=H.TURN_CAP):
     return sts2.VecEnv(n, scen, seed=seed, max_steps=max_steps, win=1.0, loss=-1.0, hp_bonus=hp_bonus, turn_cap=turn_cap), scen
 
 
-def rollout_graph(net, n, obs_size, kw):
+def rollout_graph(net, n, kw):
     """The rollout forward as one CUDA graph at the observation's full shapes (all enemy and pile slots, every row a decision row)."""
-    so = torch.zeros(n, obs_size, device=DEV)
+    so = torch.zeros(n, sts2.OBS_SIZE, device=DEV)
     sm = torch.zeros(n, sts2.ACTIONS, dtype=torch.uint8, device=DEV)
     sm[:, 0] = 1
     shp = dict(E=net.C["OBS_MAX_ENEMIES"], L=max(net.SEC[k][1] // 2 for k in ("draw", "discard", "exhaust")), has_dec=True)
@@ -99,23 +99,16 @@ def main():
     ap.add_argument("--eval-envs", type=int, default=1024)
     ap.add_argument("--eval-per-env", type=int, default=2)
     ap.add_argument("--d", type=int, default=64)
-    ap.add_argument("--obs-version", type=int, default=1, choices=(1, 2), help="observation version the network reads (2: the visible information v1 leaves out)")
     ap.add_argument("--rounds", type=int, default=2)
     ap.add_argument("--hold-prob", type=float, default=0.0, help="fraction of episodes that run under a random 'no potion before turn T' rule (T in 2..5, or never): states that hold a resource then show up in the data")
     ap.add_argument("--heads", action="store_true", help="value = expected worth of the fight-outcome head (rl/heads.py) instead of the scalar value head")
     ap.add_argument("--head-warmup", type=int, default=0, help="with --heads: first train the outcome head alone for this many iterations (policy and trunk frozen)")
     ap.add_argument("--lam-head", type=float, default=0.95, help="lambda of the outcome head's targets (1 = Monte Carlo endings, 0 = next state's prediction)")
     ap.add_argument("--turn-cap", type=int, default=H.TURN_CAP, help="a fight still running after this many player turns is a loss (0 = no cap)")
-    ap.add_argument("--pot-head", action="store_true", help="with --heads: the potion-use head (per belt slot)")
-    ap.add_argument("--pot-coef", type=float, default=0.5, help="weight of the potion-use head's loss")
     ap.add_argument("--warm-prefix", default="outcome.", help="comma-separated parameter-name prefixes the --head-warmup iterations train (the rest frozen)")
-    ap.add_argument("--adaptive", type=int, default=25, help="every N iterations reweight the training fights (M3): fights the policy wins 20-80 %% weigh 1, the "
-                    "others --adaptive-floor; win estimated per fight, shrunk toward its (encounter, act, character) group")
-    ap.add_argument("--adaptive-floor", type=float, default=0.3)
-    ap.add_argument("--adaptive-mode", choices=["band", "signal"], default="signal",
-                    help="band: the 20-80 %% rule above; signal: weight p(1 - p) (the variance of the fight's outcome: saturated and hopeless fights fade, "
-                    "contested ones dominate) plus --adaptive-anchor of the draws uniform (docs/rebuild.md S3, curriculum by signal)")
-    ap.add_argument("--adaptive-anchor", type=float, default=0.15, help="signal mode: share of the draws spread uniformly over every fight")
+    ap.add_argument("--adaptive", type=int, default=25, help="every N iterations reweight the training fights by p(1 - p), p the policy's win rate per fight "
+                    "shrunk toward its (encounter, act, character) group, plus --adaptive-anchor of the draws uniform")
+    ap.add_argument("--adaptive-anchor", type=float, default=0.15, help="share of the draws spread uniformly over every fight")
     ap.add_argument("--adaptive-decay", type=float, default=0.8, help="per reweight, the per-fight counts are multiplied by this (< 1: recent "
                     "episodes count more, so the estimates follow the improving policy)")
     ap.add_argument("--lr-floor", type=float, default=0.05, help="the lr decays linearly to this fraction of --lr")
@@ -128,20 +121,12 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     torch.set_num_threads(a.threads)
     torch.manual_seed(a.seed)
-    if a.pot_head and not a.heads:
-        raise SystemExit("--pot-head needs --heads")
-    net = Net(d=a.d, rounds=a.rounds, heads=a.heads, pot=a.pot_head, obs_version=a.obs_version).to(DEV)
-    claim_obs_version(a.obs_version)
+    net = Net(d=a.d, rounds=a.rounds, heads=a.heads).to(DEV)
     opt = torch.optim.Adam(net.parameters(), lr=a.lr, eps=1e-5)
-    allow = ("ucond.", "outcome.") if a.heads else ("ucond.",)
-    if a.pot_head:
-        allow = allow + ("pot_use.",)
+    allow = ("outcome.",) if a.heads else ()
     it0, steps = 0, 0
     if a.resume:
         ck = torch.load(a.resume, map_location="cpu")
-        rv = int(ck.get("args", {}).get("obs_version", 1) or 1) if "net" in ck else a.obs_version
-        if rv != a.obs_version:
-            raise SystemExit(f"--resume {a.resume} reads observation version {rv}, not --obs-version {a.obs_version}")
         if "net" in ck:
             load_weights(net, ck["net"], allow)
             if not a.warm:
@@ -164,7 +149,7 @@ def main():
     it_warm = it0 + (a.head_warmup if opt_w is not None else 0)
     N, T = a.envs, a.horizon
     A = sts2.ACTIONS
-    b_obs = torch.zeros(T, N, env.obs_size, device=DEV)
+    b_obs = torch.zeros(T, N, sts2.OBS_SIZE, device=DEV)
     b_mask = torch.zeros(T, N, A, dtype=torch.uint8, device=DEV)
     b_act = torch.zeros(T, N, dtype=torch.long, device=DEV)
     b_lp = torch.zeros(T, N, device=DEV)
@@ -174,12 +159,7 @@ def main():
     if a.heads:
         b_pout_d = torch.zeros(T + 1, N, H.NC, device=DEV)
         b_term = torch.full((T, N), -1, dtype=torch.long)
-    KP = net.C["MAX_POTIONS"]
-    _po = net.SEC["potions"][0]
-    if a.pot_head:
-        b_ppot_d = torch.zeros(T + 1, N, KP, device=DEV)
-        b_pused = torch.zeros(T, N, KP)
-    hs = HostShape(a.obs_version)
+    hs = HostShape()
     h_e = np.zeros((T, N), np.int16)
     h_l = np.zeros((T, N, 3), np.int16)
     h_d = np.zeros((T, N), bool)
@@ -189,15 +169,13 @@ def main():
             err = torch.cuda.cudart().cudaHostRegister(arr.ctypes.data, arr.nbytes, 0)
             if int(err) != 0:
                 raise SystemExit(f"cudaHostRegister failed ({arr.nbytes} bytes): {err}")
-    kw = dict(outcome=a.heads, potuse=a.pot_head)
-    graph = rollout_graph(net, N, env.obs_size, kw) if a.graph_rollout and DEV.type == "cuda" else None
+    kw = dict(outcome=a.heads)
+    graph = rollout_graph(net, N, kw) if a.graph_rollout and DEV.type == "cuda" else None
 
     def roll_out(t, o, m, rows):
         out = graph(o, m) if graph else net(o, m, **kw, **hs.of(*rows, DEV))
         if a.heads:
             b_pout_d[t] = torch.softmax(out[2], 1)
-        if a.pot_head:
-            b_ppot_d[t] = torch.sigmoid(out[3])
         return out[0], out[1]
     rng = np.random.default_rng(a.seed + 7)
     POT = slice(net.C["OFF_POTION"], net.C["OFF_DISCARD"])
@@ -218,11 +196,8 @@ def main():
             g_n, g_w = np.bincount(grp, s_n, len(gkey)), np.bincount(grp, s_w, len(gkey))
             pg = (g_w + 1) / (g_n + 2)
             ps = (s_w + 4 * pg[grp]) / (s_n + 4)
-            if a.adaptive_mode == "signal":
-                v = ps * (1 - ps)
-                wts = (1 - a.adaptive_anchor) * v / v.sum() + a.adaptive_anchor / len(v)
-            else:
-                wts = np.where((ps >= 0.2) & (ps <= 0.8), 1.0, a.adaptive_floor)
+            v = ps * (1 - ps)
+            wts = (1 - a.adaptive_anchor) * v / v.sum() + a.adaptive_anchor / len(v)
             env.set_weights(wts)
             q = wts / wts.sum()
             adapt_rec = dict(share_mid=round(float(((ps >= 0.2) & (ps <= 0.8)).mean()), 3), seen=round(float((s_n > 0).mean()), 3),
@@ -260,9 +235,6 @@ def main():
                 t_c = time.perf_counter()
                 t_net += t_b - t_a
                 t_env += t_c - t_b
-                if a.pot_head:
-                    pu = info["pot_used"]
-                    b_pused[t] = torch.from_numpy(((pu[:, None] >> np.arange(KP)) & 1).astype(np.float32))
                 r = rew.copy()
                 oc = info["outcome"]
                 r[oc == 2] = -1.0
@@ -290,8 +262,6 @@ def main():
             b_val = b_val_d.cpu()
             if a.heads:
                 b_pout = b_pout_d.cpu()
-            if a.pot_head:
-                b_ppot = b_ppot_d.cpu()
         t_roll = time.time() - t_roll
         adv = torch.zeros(T, N)
         last = torch.zeros(N)
@@ -315,16 +285,6 @@ def main():
                 y = torch.where(aborted.unsqueeze(1), b_pout[t], y)
                 wt[t] = (~aborted).float()
                 tgt[t] = y
-        if a.pot_head:
-            ptgt = torch.zeros(T, N, KP)
-            yp = b_ppot[T].clone()
-            for t in reversed(range(T)):
-                done_t = b_done[t].unsqueeze(1) > 0
-                boot = (1 - a.lam_head) * b_ppot[t + 1] + a.lam_head * yp
-                yp = torch.where(b_pused[t] > 0, torch.ones_like(boot), torch.where(done_t, torch.zeros_like(boot), boot))
-                ptgt[t] = yp
-            pocc = (b_obs[:, :, _po:_po + 2 * KP:2] > 0).float().cpu()
-            pw_ = pocc * wt.unsqueeze(-1)
         net.train()
         t_upd = time.time()
         fo, fm = b_obs.view(T * N, -1), b_mask.view(T * N, -1)
@@ -333,9 +293,6 @@ def main():
             ftgt, fwt = tgt.view(T * N, -1).to(DEV), wt.view(-1).to(DEV)
         zero = lambda: torch.zeros((), dtype=torch.float64, device=DEV)  # noqa: E731
         stats = {"pl": zero(), "vl": zero(), "ent": zero(), "kl": zero(), "clip": zero()}
-        if a.pot_head:
-            fptgt, fpw = ptgt.view(T * N, KP).to(DEV), pw_.view(T * N, KP).to(DEV)
-            stats.update(potl=zero(), pot_brier=zero(), pot_base=zero())
         fe, fl, fd = h_e.reshape(-1), h_l.reshape(-1, 3), h_d.reshape(-1)
         nb = 0
         for ep in range(a.epochs):
@@ -351,8 +308,6 @@ def main():
                 lg, v = out[:2]
                 if a.heads:
                     ol = out[2]
-                if a.pot_head:
-                    pl_ = out[3]
                 logp = F.log_softmax(lg, 1)
                 nlp = logp.gather(1, fa[ix, None]).squeeze(1)
                 ratio = (nlp - flp[ix]).exp()
@@ -368,14 +323,6 @@ def main():
                 ent = -(p * logp.clamp(min=-30) * (mk > 0)).sum(1).mean()
                 o_ = opt_w if warm else opt
                 loss = a.vf * vl if warm else pl + a.vf * vl - a.ent * ent
-                if a.pot_head:
-                    yt, ww = fptgt[ix], fpw[ix]
-                    potl = (F.binary_cross_entropy_with_logits(pl_, yt, reduction="none") * ww).sum() / ww.sum().clamp(min=1)
-                    loss = loss + a.pot_coef * potl
-                    with torch.no_grad():
-                        stats["potl"] += potl.detach()
-                        stats["pot_brier"] += ((torch.sigmoid(pl_) - yt) ** 2 * ww).sum().double() / ww.sum().double().clamp(min=1)
-                        stats["pot_base"] += ((yt - (yt * ww).sum() / ww.sum().clamp(min=1)) ** 2 * ww).sum().double() / ww.sum().double().clamp(min=1)
                 o_.zero_grad(set_to_none=True)
                 net.zero_grad(set_to_none=True)
                 loss.backward()

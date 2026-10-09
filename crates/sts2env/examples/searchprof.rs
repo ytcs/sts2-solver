@@ -1,6 +1,7 @@
 use std::time::Instant;
 use sts2env::search::*;
 use sts2sim::engine::ACTION_SPACE;
+use sts2sim::observe::OBS_SIZE;
 
 fn hash(o: &[f32]) -> u64 {
     let mut h = 0xcbf29ce484222325u64;
@@ -41,7 +42,7 @@ fn main() {
     sts2sim::engine::LOOK_VERIFY.store(verify, std::sync::atomic::Ordering::Relaxed);
     let path = args.get(1).expect("scenario json (a list of scenarios or of {scenario: ...})");
     let arg = |i: usize, d: usize| args.get(i).and_then(|s| s.parse().ok()).unwrap_or(d);
-    let (n_fights, threads, roots, m, k, ver) = (arg(2, 128), arg(3, 1), arg(4, 64), arg(5, 5), arg(6, 32), arg(7, 1) as u8);
+    let (n_fights, threads, roots, m, k) = (arg(2, 128), arg(3, 1), arg(4, 64), arg(5, 5), arg(6, 32));
     let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let mut scen = vec![];
     for sj in v.as_array().unwrap() {
@@ -59,9 +60,6 @@ fn main() {
     let exact = ExactCfg { on: tie.is_some(), tie: tie.unwrap_or(0.0), ..ExactCfg::default() };
     let cfg = SearchCfg { m, k, roll_cap: 120, leaf_turns: 2, turn_cap: 30, val_w: HEAD_NC, exact, ..SearchCfg::default() };
     let mut eng = SearchEngine::new(scen, jobs.clone(), roots, cfg, threads, true).unwrap();
-    eng.set_obs_version(ver).expect("observation version 1 or 2");
-    #[allow(non_snake_case)]
-    let OBS_SIZE = eng.obs_size();
     let cap = eng.shared_rows();
     let (mut obs, mut mask, mut pk, mut pu, mut vk) = (vec![0f32; cap * OBS_SIZE], vec![0u8; cap * ACTION_SPACE], vec![0u8; cap], vec![0f32; cap], vec![0u8; cap]);
     let stride = 2 * m + 1;
@@ -108,7 +106,7 @@ fn main() {
     }
     let st = eng.stats();
     let tot = (st.cy_step + st.cy_obs + st.cy_fork + st.cy_legal + st.cy_main).max(1) as f64;
-    println!("{} fights, {threads} threads, {roots} roots, {m}x{k}, obs v{ver}: engine {t_eng:.2}s of {wall:.2}s ({cycles} cycles); wins {wins}; checksum {h:016x}", jobs.len());
+    println!("{} fights, {threads} threads, {roots} roots, {m}x{k}: engine {t_eng:.2}s of {wall:.2}s ({cycles} cycles); wins {wins}; checksum {h:016x}", jobs.len());
     println!(
         "  cycles: step {:.1}% (end turn {:.1}%), obs {:.1}%, fork {:.1}%, legal {:.1}%, main {:.1}%",
         100.0 * st.cy_step as f64 / tot,

@@ -4,11 +4,6 @@ import re
 
 PATH = os.path.join(os.path.dirname(__file__), "..", "data", "events.json")
 ANCIENT_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ancient_relics.json")
-VOCAB = {"hp", "hp_frac", "max_hp", "max_hp_set", "gold", "gold_set", "card_add", "card_add_one_of", "card_add_random", "card_remove", "card_upgrade",
-         "card_upgrade_random", "card_downgrade_random", "card_transform", "card_enchant", "card_duplicate_all", "relic", "relic_one_of", "relic_random",
-         "relic_remove", "relic_replace", "potion", "potion_random", "potion_remove", "potion_slots", "fight", "choice", "chance", "unmodelled"}
-
-PARAMS = {"fight": {"rewards", "extra"}, "choice": {"offered"}, "chance": {"then", "else"}, "card_add_one_of": {"n"}, "relic_one_of": {"n", "pickup"}}
 CHARACTERS = ("IRONCLAD", "SILENT", "DEFECT", "NECROBINDER", "REGENT")
 CARD_RARITIES = ("Common", "Uncommon", "Rare")
 POTION_TO_CARD = {"Common": "Common", "Token": "Common", "Uncommon": "Uncommon", "Rare": "Rare", "Event": "Rare"}
@@ -89,10 +84,6 @@ def allowed(event, st):
         "no_event_pet": lambda v: (not any(x["id"] == "BYRDONIS_EGG" for x in deck)) == v,
     }
     return all(checks[k](v) for k, v in c.items() if k in checks)
-
-
-def DEFER(st, cards, k):
-    return None
 
 
 def first(st, cards, k):

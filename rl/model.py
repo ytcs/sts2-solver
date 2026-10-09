@@ -9,24 +9,9 @@ import sts2
 import heads as H
 
 DEV = torch.device(os.environ.get("STS2_DEVICE", "cpu"))
-LAY = sts2.layout(1)
+LAY = sts2.layout()
 C = LAY["consts"]
 SEC = {n: (o, s) for n, o, s in LAY["sections"]}
-_LAYOUTS = {}
-
-
-def layout(version):
-    if version not in _LAYOUTS:
-        lay = sts2.layout(version)
-        _LAYOUTS[version] = (lay["consts"], {n: (o, s) for n, o, s in lay["sections"]})
-    return _LAYOUTS[version]
-
-
-def obs_version_of(width):
-    for v in (1, 2):
-        if layout(v)[0]["OBS_SIZE"] == width:
-            return v
-    return None
 
 
 def S(x):
@@ -82,31 +67,29 @@ class Bag(nn.Module):
 
 
 class PowerPool(nn.Module):
-    def __init__(self, n_powers, e, v2=False):
+    def __init__(self, n_powers, e):
         super().__init__()
-        self.v2 = v2
-        self.bag = Bag(n_powers, e, 4 if v2 else 3)
+        self.bag = Bag(n_powers, e, 4)
 
     def forward(self, pw, spw=None):
         pid = pw[..., 0].long().clamp(0, self.bag.n - 1)
         a = pw[..., 1]
         if spw is None:
             spw = S(pw)
-        f = [torch.ones_like(a), spw[..., 1] / 2.0, a.clamp(-10, 10) / 10.0] + ([spw[..., 2] / 2.0] if self.v2 else [])
+        f = [torch.ones_like(a), spw[..., 1] / 2.0, a.clamp(-10, 10) / 10.0, spw[..., 2] / 2.0]
         return self.bag(pid, torch.stack(f, -1))
 
 
 class CardEnc(nn.Module):
-    def __init__(self, d, e, v2=False):
+    def __init__(self, d, e):
         super().__init__()
-        self.v2 = v2
         self.card = nn.Embedding(C["N_CARDS"] + 1, e, padding_idx=0)
         self.upg = nn.Embedding(4, 8)
         self.ench = nn.Embedding(C["N_ENCHANTMENTS"] + 1, 8)
         self.aff = nn.Embedding(C["N_AFFLICTIONS"] + 1, 8)
-        self.net = mlp(e + 24 + 8 + 13 + (3 if v2 else 0), 2 * d, d)
+        self.net = mlp(e + 24 + 8 + 16, 2 * d, d)
         self.register_buffer("bit_idx", torch.arange(8), persistent=False)
-        self.register_buffer("num_div", torch.tensor([1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0] + ([2.0, 2.0, 1.0] if v2 else [])), persistent=False)
+        self.register_buffer("num_div", torch.tensor([1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 2.0, 2.0, 1.0]), persistent=False)
         self.register_buffer("num_rec", self.num_div.reciprocal(), persistent=False)
 
     def forward(self, f, extra, sf=None, sextra=None):
@@ -117,9 +100,8 @@ class CardEnc(nn.Module):
             sf = S(f)
         if sextra is None:
             sextra = S(extra[..., :2])
-        parts = [sf[..., 2:3], f[..., 3:4], sf[..., 6:11], (f[..., 0:1] > 0).float(), sextra, (f[..., 2:3] < 0).float(), torch.sign(f[..., 6:7]), extra[..., 2:3]]
-        if self.v2:
-            parts.append(sf[..., 12:15])
+        parts = [sf[..., 2:3], f[..., 3:4], sf[..., 6:11], (f[..., 0:1] > 0).float(), sextra, (f[..., 2:3] < 0).float(), torch.sign(f[..., 6:7]), extra[..., 2:3],
+                 sf[..., 12:15]]
         num = scale(torch.cat(parts, -1), self.num_div, self.num_rec)
         x = torch.cat([self.card(cid), self.upg(f[..., 1].long().clamp(0, 3)), self.ench(f[..., 5].long().clamp(0, self.ench.num_embeddings - 1)),
                        self.aff(f[..., 11].long().clamp(0, self.aff.num_embeddings - 1)), bits, num], -1)
@@ -127,21 +109,17 @@ class CardEnc(nn.Module):
 
 
 class Net(nn.Module):
-    def __init__(self, d=64, e=24, rounds=2, heads=False, pot=False, obs_version=1):
+    def __init__(self, d=64, e=24, rounds=2, heads=False):
         super().__init__()
         self.d = d
-        self.obs_version = int(obs_version)
-        self.C, self.SEC = layout(self.obs_version)
-        v2 = self.obs_version >= 2
+        self.C, self.SEC = C, SEC
         self.heads = heads
-        self.pot = pot
         self.rounds = rounds
-        self.pp = PowerPool(C["N_POWERS"], e, v2)
-        self.card = CardEnc(d, e, v2)
+        self.pp = PowerPool(C["N_POWERS"], e)
+        self.card = CardEnc(d, e)
         self.mon = nn.Embedding(C["N_MONSTERS"] + 1, e, padding_idx=0)
         self.kind = nn.Embedding(16, 8)
         self.node = nn.Embedding(C["LOOK_NODES"] + 8, 8, padding_idx=0)
-        # new enemy inputs go last: load_weights zero-pads older checkpoints (solver_h128)
         n_enemy_in = e + e + 7 + 3 * (8 + 3) + 4 * 8 + C["LOOK_H"] * (C["LOOK_NODES"] + 1) + C["MOVE_STATE_F"] * 8
         self.enemy = mlp(n_enemy_in, d, d)
         self.relic = Bag(C["N_RELICS"], e, 2)
@@ -153,12 +131,11 @@ class Net(nn.Module):
         n_player_in = 8 + 5 + 3 + 3 * e + C["MAX_ORBS"] * 4 + C["MAX_ORBS"] * 2 + 1 + 4 + e
         self.player = mlp(n_player_in, 2 * d, d)
         self.dec_src = nn.Embedding(10, 8)
-        if v2:
-            base = [0, 0, C["N_CARDS"], C["N_CARDS"] + C["N_POTIONS"], C["N_CARDS"] + C["N_POTIONS"] + C["N_RELICS"]]
-            self.register_buffer("src_base", torch.tensor(base), persistent=False)
-            self.src_id = nn.Embedding(base[-1] + C["N_MONSTERS"] + 1, 8, padding_idx=0)
-            self.played = nn.Linear(d, d)
-        self.dec = mlp(8 + 7 + (8 if v2 else 0), d, d)
+        base = [0, 0, C["N_CARDS"], C["N_CARDS"] + C["N_POTIONS"], C["N_CARDS"] + C["N_POTIONS"] + C["N_RELICS"]]
+        self.register_buffer("src_base", torch.tensor(base), persistent=False)
+        self.src_id = nn.Embedding(base[-1] + C["N_MONSTERS"] + 1, 8, padding_idx=0)
+        self.played = nn.Linear(d, d)
+        self.dec = mlp(8 + 7 + 8, d, d)
         self.ctx = nn.ModuleList([mlp(d * 9, d, d) for _ in range(rounds)])
         self.upd = nn.ModuleList([nn.ModuleDict({k: CtxMLP(d, d, d) for k in ("player", "enemy", "hand", "potion", "cand")}) for _ in range(rounds)])
         self.u_card = mlp(d, d, d)
@@ -174,8 +151,6 @@ class Net(nn.Module):
         self.value = mlp(2 * d, 2 * d, 1)
         if heads:
             self.outcome = mlp(2 * d, 2 * d, H.NC)
-        if pot:
-            self.pot_use = mlp(3 * d, d, 1)
         # trained checkpoints carry non-zero ucond weights: ucond(lin_feats) is a constant input
         self.ucond = nn.Linear(8, d)
         nn.init.zeros_(self.ucond.weight)
@@ -262,19 +237,17 @@ class Net(nn.Module):
         cand_t = self.card(cands[..., :C["CARD_F"]], torch.stack([rg, torch.zeros_like(rg), cands[..., C["CARD_F"]]], -1), scands[..., :C["CARD_F"]],
                            torch.stack([srg, torch.zeros_like(srg)], -1))
         cand_p = cands[..., 0] > 0
-        dh = [self.dec_src(dec[:, 1].long().clamp(0, 9)), dec[:, 0:1], sdec[:, 2:5], dec[:, 5:7], sdec[:, 7:8]]
-        if self.obs_version >= 2:
-            src = sl(obs, "dec_source")
-            kind = src[:, 0].long().clamp(0, 4)
-            dh.append(self.src_id(((self.src_base[kind] + src[:, 1].long()) * (kind > 0)).clamp(0, self.src_id.num_embeddings - 1)))
+        src = sl(obs, "dec_source")
+        kind = src[:, 0].long().clamp(0, 4)
+        dh = [self.dec_src(dec[:, 1].long().clamp(0, 9)), dec[:, 0:1], sdec[:, 2:5], dec[:, 5:7], sdec[:, 7:8],
+              self.src_id(((self.src_base[kind] + src[:, 1].long()) * (kind > 0)).clamp(0, self.src_id.num_embeddings - 1))]
         dec_t = self.dec(torch.cat(dh, 1))
-        if self.obs_version >= 2:
-            pc = sl(obs, "played")
-            spc = sl(So, "played")
-            CF = C["CARD_F"]
-            pt = self.card(pc[:, None, :CF], torch.stack([pc[:, CF], pc[:, CF + 1], torch.zeros_like(pc[:, CF])], -1)[:, None], spc[:, None, :CF],
-                           spc[:, None, CF:CF + 2]).squeeze(1)
-            dec_t = dec_t + self.played(pt) * (pc[:, :1] > 0).to(pt.dtype)
+        pc = sl(obs, "played")
+        spc = sl(So, "played")
+        CF = C["CARD_F"]
+        pt = self.card(pc[:, None, :CF], torch.stack([pc[:, CF], pc[:, CF + 1], torch.zeros_like(pc[:, CF])], -1)[:, None], spc[:, None, :CF],
+                       spc[:, None, CF:CF + 2]).squeeze(1)
+        dec_t = dec_t + self.played(pt) * (pc[:, :1] > 0).to(pt.dtype)
         sizes = sl(So, "pile_sizes") / 3.0
         piles = []
         for k, nm in enumerate(["draw", "discard", "exhaust"]):
@@ -291,15 +264,12 @@ class Net(nn.Module):
     def heads_out(self, obs, **shape):
         return self.forward(obs, None, policy=False, value=False, _heads=True, **shape)
 
-    def forward(self, obs, mask, policy=True, value=True, outcome=False, potuse=False, _heads=False, **shape):
+    def forward(self, obs, mask, policy=True, value=True, outcome=False, _heads=False, **shape):
         B = obs.shape[0]
         d = self.d
         C = self.C
         if obs.shape[1] != C["OBS_SIZE"]:
-            got = obs_version_of(obs.shape[1])
-            raise ValueError(f"this network reads observation version {self.obs_version} ({C['OBS_SIZE']} floats) but got rows of {obs.shape[1]} floats"
-                             f"{f' (version {got})' if got else ''}: build the env / search / replay with obs_version={self.obs_version} "
-                             f"(sts2.set_obs_version({self.obs_version}); rl/model.py `load` does it)")
+            raise ValueError(f"observation rows of {obs.shape[1]} floats, want {C['OBS_SIZE']}")
         E, Q = C["OBS_MAX_ENEMIES"], C["OBS_MAX_CANDS"]
         T = C["MAX_CREATURES"]
         z = self.encode(obs, **shape)
@@ -328,7 +298,7 @@ class Net(nn.Module):
                 cand = cand + u["cand"](cand, ctx[rows])
         gctx = torch.cat([player, ctx], 1)
         if _heads:
-            return self.outcome_logits(gctx), (self.pot_logits(pot, gctx) if self.pot else None)
+            return self.outcome_logits(gctx)
         if not policy:
             return None, self._value(gctx, obs)
         v = self.v_tgt(enemy) * ep
@@ -361,15 +331,8 @@ class Net(nn.Module):
         logits = logits.masked_fill(~m, -1e9)
         if outcome:
             ol = self.outcome_logits(gctx)
-            if potuse:
-                return logits, H.value(ol, sl(obs, "player", self.SEC)[:, 1]), ol, self.pot_logits(pot, gctx)
             return logits, H.value(ol, sl(obs, "player", self.SEC)[:, 1]), ol
         return logits, (self._value(gctx, obs) if value else None)
-
-    def pot_logits(self, pot, gctx):
-        with torch.autocast(gctx.device.type, enabled=False):
-            x = torch.cat([pot.float(), gctx.float().unsqueeze(1).expand(-1, pot.shape[1], -1)], -1)
-            return self.pot_use(x).squeeze(-1)
 
     def outcome_logits(self, gctx):
         with torch.autocast(gctx.device.type, enabled=False):
@@ -382,11 +345,8 @@ class Net(nn.Module):
 
 
 class HostShape:
-    def __init__(self, version=1):
-        self.C, self.SEC = layout(version)
-
-    def rows_info(self, obs):
-        C, SEC = self.C, self.SEC
+    @staticmethod
+    def rows_info(obs):
         o, s = SEC["enemies"]
         occ = obs[:, o:o + s].reshape(len(obs), C["OBS_MAX_ENEMIES"], C["ENEMY_F"])[..., 0] > 0.5
         e = np.where(occ.any(1), C["OBS_MAX_ENEMIES"] - np.argmax(occ[:, ::-1], 1), 0).astype(np.int16)
@@ -404,25 +364,11 @@ def n_params(m):
     return sum(p.numel() for p in m.parameters())
 
 
-_CLAIMED = set()
-
-
-def claim_obs_version(v):
-    if _CLAIMED and v not in _CLAIMED:
-        raise RuntimeError(f"a network reading observation version {v} after one reading version {sorted(_CLAIMED)[0]}: the process-wide version "
-                           f"cannot serve both; load with set_version=False and pass obs_version=net.obs_version to each env / search / replay")
-    _CLAIMED.add(v)
-    sts2.set_obs_version(v)
-
-
-def load(path, set_version=True):
+def load(path):
     ck = torch.load(path, map_location="cpu")
     args = ck.get("args", {})
-    v = int(args.get("obs_version", 1) or 1)
-    net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2), heads=bool(args.get("heads", False)), pot=bool(args.get("pot_head", False)), obs_version=v)
+    net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2), heads=bool(args.get("heads", False)))
     load_weights(net, ck["net"] if "net" in ck else ck)
-    if set_version:
-        claim_obs_version(v)
     return net.to(DEV).eval()
 
 
@@ -435,11 +381,7 @@ def net_policy(net, greedy=True):
     return act
 
 
-def load_weights(net, sd, allow_missing=("ucond.",)):
-    sd = dict(sd)
-    w, w_new = sd.get("enemy.0.weight"), net.enemy[0].weight
-    if w is not None and w.shape[1] < w_new.shape[1] and w.shape[0] == w_new.shape[0]:
-        sd["enemy.0.weight"] = torch.cat([w, w.new_zeros(w.shape[0], w_new.shape[1] - w.shape[1])], 1)
+def load_weights(net, sd, allow_missing=()):
     missing, unexpected = net.load_state_dict(sd, strict=False)
     bad = [k for k in missing if not k.startswith(tuple(allow_missing))] + list(unexpected)
     if bad:

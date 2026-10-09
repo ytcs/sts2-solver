@@ -1,4 +1,3 @@
-use crate::dec::Dec;
 use crate::hooks::*;
 use crate::ids;
 use crate::state::*;
@@ -110,16 +109,6 @@ impl Combat {
                 self.add_generated_card(c, PileType::Draw, CardPilePosition::Random);
             }
         }
-    }
-
-    #[inline]
-    pub fn dint(v: i32) -> Dec {
-        Dec::int(v as i64)
-    }
-
-    #[inline]
-    pub fn power_uid(&self, c: Cid, id: u16) -> Option<u16> {
-        self.cr(c).power(id).map(|p| p.uid)
     }
 
     #[inline]

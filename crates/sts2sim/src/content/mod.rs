@@ -117,10 +117,6 @@ pub type Spawns = crate::util::ArrayVec<Spawn, 16>;
 
 include!(concat!(env!("OUT_DIR"), "/registry.rs"));
 
-pub fn relic_def_exists(_id: u16) -> bool {
-    true
-}
-
 pub fn monster_hp_bonus(id: u16, vars: [i32; 2]) -> i32 {
     if id == ids::monster::AXEBOT {
         return monsters::glory_a::axebot_hp_bonus(vars);

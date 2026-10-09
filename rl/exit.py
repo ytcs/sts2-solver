@@ -10,8 +10,8 @@ import sts2  # noqa: E402
 import heads as H  # noqa: E402
 
 
-def _save(path, scen, F_, D, policy_only=False, cover=False):
-    extra = ({"policy_only": np.array(1)} if policy_only else {}) | ({"cover": np.array(1)} if cover else {})
+def _save(path, scen, F_, D, cover=False):
+    extra = {"cover": np.array(1)} if cover else {}
     np.savez_compressed(path, scenarios=np.array(json.dumps(scen)), f_scen=np.array(F_["scen"], np.int32), f_seed=np.array(F_["seed"], np.uint64),
                         f_cls=np.array(F_["cls"], np.int16), f_off=np.array(F_["off"], np.int64), acts=np.array(F_["acts"], np.int16),
                         d_fight=np.array(D["fight"], np.int32), d_step=np.array(D["step"], np.int32), d_opts=np.array(D["opts"], np.int16), d_q=np.array(D["q"], np.float32),
@@ -22,8 +22,7 @@ def collect(a):
     import threading
     from fastsearch import FastSearch
     from model import load
-    rs = json.load(open(a.restarts))["restarts"] if getattr(a, "restarts", None) else None
-    scen = [r["scenario"] for r in rs] if rs else [s for f in a.fights for s in json.load(open(f))]
+    scen = [s for f in a.fights for s in json.load(open(f))]
     fs = FastSearch(load(a.ckpt), M=a.M, K=a.K, record=True, roots=a.roots, amp=True, cover=a.cover, futures=a.futures)
     W = fs.M
     fs.warm()
@@ -63,15 +62,7 @@ def collect(a):
         js = np.arange(len(cs), dtype=np.uint32)
         jd = np.array([np.uint64(a.seed) * np.uint64(1_000_003) + np.uint64(att * len(scen) + i) for i, att in part], dtype=np.uint64)
         state.update(start=time.time(), chunk=k, scen=cs)
-        starts = None
-        if rs:
-            starts = []
-            for i, _ in part:
-                sim = sts2.Sim(json.dumps(rs[i]["scenario"]), int(rs[i]["seed"]))
-                for x in rs[i]["prefix"]:
-                    sim.step(int(x))
-                starts.append(sim)
-        res = fs.run(cs, js, jd, starts=starts)
+        res = fs.run(cs, js, jd)
         dt = time.time() - state["start"]
         state["start"] = None
         times.append(dt)
@@ -84,18 +75,17 @@ def collect(a):
                     continue
                 acts, searched, opts, _p, q, legal, _x = eng.moves(jl)
                 f = len(F_["scen"])
-                pre = rs[part[j][0]]["prefix"] if rs else []
-                F_["scen"].append(int(js[j])); F_["seed"].append(int(rs[part[j][0]]["seed"]) if rs else int(jd[j])); F_["cls"].append(int(H.end_class(oc == 1, hp_end)))
-                F_["acts"].extend(int(x) for x in pre); F_["acts"].extend(int(x) for x in acts); F_["off"].append(len(F_["acts"]))
+                F_["scen"].append(int(js[j])); F_["seed"].append(int(jd[j])); F_["cls"].append(int(H.end_class(oc == 1, hp_end)))
+                F_["acts"].extend(int(x) for x in acts); F_["off"].append(len(F_["acts"]))
                 for t in np.nonzero(searched)[0]:
                     ok = legal[t, :W].astype(bool) & np.isfinite(q[t, :W])
                     if ok.sum() < 2:
                         continue
-                    D["fight"].append(f); D["step"].append(len(pre) + int(t))
+                    D["fight"].append(f); D["step"].append(int(t))
                     D["opts"].append(np.where(ok, opts[t, :W], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :W], np.nan).astype(np.float32))
         eng = None
         fs._runs = []
-        _save(f"{stem}_{k:03d}.npz", cs, F_, D, policy_only=bool(rs), cover=a.cover)
+        _save(f"{stem}_{k:03d}.npz", cs, F_, D, cover=a.cover)
         lens = res[:, 4]
         top = np.argsort(-lens)[:3]
         rate = len(cs) / dt
@@ -107,8 +97,7 @@ def collect(a):
 
 
 class Data:
-    def __init__(self, paths, keep_mp=False, obs_version=1):
-        self.obs_version = obs_version
+    def __init__(self, paths):
         self.parts = []
         self.bad = set()
         for p in paths:
@@ -122,7 +111,6 @@ class Data:
             order = np.argsort(z["d_fight"], kind="stable")
             self.parts.append(dict(scen=scen, f_scen=z["f_scen"], f_seed=z["f_seed"], f_cls=z["f_cls"], f_off=z["f_off"], acts=z["acts"].astype(np.int32),
                                    d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], qn=qn[order]))
-            self.parts[-1]["policy_only"] = bool(z["policy_only"]) if "policy_only" in z.files else False
             self.parts[-1]["d_lo"] = np.searchsorted(self.parts[-1]["d_fight"], np.arange(len(z["f_cls"]) + 1))
         m = max(p["d_opts"].shape[1] for p in self.parts)
         for p in self.parts:
@@ -133,8 +121,8 @@ class Data:
         cat = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "catalog.json")))
         mp = {c["id"] for pool in cat["cards"].values() for c in pool if c.get("multiplayer_only")}
         has_mp = lambda sc: any((c if isinstance(c, str) else c["id"]) in mp for c in sc["deck"])  # noqa: E731
-        self.index = [(pi, f) for pi, p in enumerate(self.parts) for bad in [[has_mp(sc) for sc in p["scen"]] if not keep_mp else None]
-                      for f in range(len(p["f_cls"])) if keep_mp or not bad[p["f_scen"][f]]]
+        self.index = [(pi, f) for pi, p in enumerate(self.parts) for bad in [[has_mp(sc) for sc in p["scen"]]]
+                      for f in range(len(p["f_cls"])) if not bad[p["f_scen"][f]]]
 
     def __len__(self):
         return len(self.index)
@@ -146,8 +134,7 @@ class Data:
             acts.append(p["acts"][p["f_off"][f]:p["f_off"][f + 1]]); off.append(off[-1] + len(acts[-1]))
             lo, hi = p["d_lo"][f], p["d_lo"][f + 1]
             steps.append(p["d_step"][lo:hi]); soff.append(soff[-1] + hi - lo); sel.append(np.arange(lo, hi))
-        o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff,
-                               obs_version=self.obs_version)
+        o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff)
         return o, m, np.concatenate(sel), soff
 
     def _replayable(self, pi, p, fs):
@@ -167,7 +154,7 @@ class Data:
         return sorted(good)
 
     def rows(self, fights):
-        out = [[], [], [], [], [], [], []]
+        out = [[], [], [], [], [], []]
         by = {}
         for pi, f in fights:
             by.setdefault(pi, []).append(f)
@@ -186,10 +173,9 @@ class Data:
             out[0].append(o); out[1].append(m); out[2].append(p["d_opts"][sel])
             out[3].append(np.repeat(p["f_cls"][fs], np.diff(soff)))
             out[4].append(p["qn"][sel])
-            out[5].append(np.full(len(sel), 0.0 if p["policy_only"] else 1.0, np.float32))
             last = np.zeros(len(sel), bool)
             last[np.asarray(soff[1:]) - 1] = True
-            out[6].append(last)
+            out[5].append(last)
         return [np.concatenate(x) for x in out]
 
 
@@ -222,8 +208,8 @@ def train(a):
     torch.manual_seed(a.seed)
     rng = np.random.default_rng(a.seed)
     net = load(a.init).train()
-    assert net.heads, "an outcome-head network is needed (models/solver_h128.pt)"
-    data = Data(a.data, obs_version=net.obs_version)
+    assert net.heads, "an outcome-head network is needed"
+    data = Data(a.data)
     idx = np.array(data.index, dtype=object)
     perm = rng.permutation(len(idx))
     n_hold = max(1, int(len(idx) * a.holdout))
@@ -232,14 +218,14 @@ def train(a):
 
     @torch.no_grad()
     def td_targets(r):
-        o, cl, last = r[0], r[3], r[6]
-        P = np.concatenate([torch.softmax(prior.heads_out(torch.from_numpy(o[b:b + 4096]).to(DEV))[0].float(), 1).cpu().numpy() for b in range(0, len(o), 4096)])
+        o, cl, last = r[0], r[3], r[5]
+        P = np.concatenate([torch.softmax(prior.heads_out(torch.from_numpy(o[b:b + 4096]).to(DEV)).float(), 1).cpu().numpy() for b in range(0, len(o), 4096)])
         T = hl_gauss(torch.from_numpy(cl.astype(np.int64)), a.sigma).numpy()
         return td_backup(T, P, last, a.lam)
     opt = torch.optim.AdamW([q for q in net.parameters() if q.requires_grad], lr=a.lr, weight_decay=1e-4)
     print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target anchored (c={a.c:g}, minmax)", flush=True)
 
-    def batch_loss(o, m, op, cl, qn, ow, last, vt=None):
+    def batch_loss(o, m, op, cl, qn, last, vt=None):
         o, m = torch.from_numpy(o).to(DEV), torch.from_numpy(m).to(DEV).long()
         op, cl = torch.from_numpy(op.astype(np.int64)).to(DEV), torch.from_numpy(cl.astype(np.int64)).to(DEV)
         lg, _, ol = net(o, m, outcome=True)[:3]
@@ -250,9 +236,8 @@ def train(a):
             shift = torch.zeros_like(pl0).scatter_add_(1, op.clamp(min=0), torch.where(op >= 0, sh, 0.0))
             t = torch.softmax(pl0 + shift, 1)
         pl = -(t * F.log_softmax(lg.float(), 1).clamp(min=-30)).sum(1).mean()
-        ow = torch.from_numpy(ow).to(DEV)
         tv = hl_gauss(cl, a.sigma) if vt is None else torch.from_numpy(vt).to(DEV)
-        vl = (-(tv * F.log_softmax(ol.float(), 1)).sum(1) * ow).sum() / ow.sum().clamp(min=1.0)
+        vl = -(tv * F.log_softmax(ol.float(), 1)).sum(1).mean()
         return pl, vl
 
     @torch.no_grad()
@@ -303,7 +288,7 @@ def train(a):
             print(f"ep {ep} chunk {it}/{n_chunks} rows {len(r[0])} policy {st[0] / nb:.4f} outcome {st[1] / nb:.4f} lr {lr:.2e} ({time.time() - t0:.0f}s)", flush=True)
         print(f"holdout after epoch {ep}: policy %.4f outcome %.4f" % evaluate(), flush=True)
         ck = torch.load(a.init, map_location="cpu")
-        torch.save({"net": net.state_dict(), "args": ck.get("args", {}) | {"obs_version": net.obs_version}, "exit": vars(a) | {"epoch": ep}}, a.out)
+        torch.save({"net": net.state_dict(), "args": ck.get("args", {}), "exit": vars(a) | {"epoch": ep}}, a.out)
     print(f"-> {a.out}", flush=True)
 
 
@@ -311,7 +296,7 @@ def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("collect")
-    c.add_argument("--ckpt", required=True); c.add_argument("--fights", nargs="+"); c.add_argument("--out", required=True)
+    c.add_argument("--ckpt", required=True); c.add_argument("--fights", nargs="+", required=True); c.add_argument("--out", required=True)
     c.add_argument("--M", type=int, default=3); c.add_argument("--K", type=int, default=8); c.add_argument("--attempts", type=int, default=2)
     c.add_argument("--cover", action="store_true", help="every distinct legal action is a candidate (the live player's search); records 16 options per decision")
     c.add_argument("--futures", type=int, default=0, help="--cover: futures per decision in total (0 = K per candidate)")
@@ -320,8 +305,6 @@ def main():
     c.add_argument("--chunks-per-process", type=int, default=3, help="chunks before exiting with code 3 for a fresh process: a long-lived search process "
                    "slows down chunk after chunk (round 2: chunk 9 took 3x the median; the same fights in a fresh process ran at full speed)")
     c.add_argument("--max-minutes", type=float, default=120, help="no new chunk starts after this")
-    c.add_argument("--restarts", help="search from the restart states of `tools/nearmiss.py` (true states inside near-miss losses) instead of --fights; "
-                   "parts are marked policy_only")
     c.add_argument("--chunk-timeout", type=float, default=5.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
     c.add_argument("--skip-stuck", action="store_true", help="skip chunks the watchdog has already ended once (their _stuck_ file exists)")
     c.add_argument("--first-timeout", type=float, default=30.0, help="watchdog limit in minutes for the first two chunks")

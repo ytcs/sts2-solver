@@ -2,7 +2,7 @@
 import glob, os, re, sys, importlib.util
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.join(HERE, "..")
+ROOT = os.path.join(HERE, "..", "..")
 MODELS = os.path.join(ROOT, "decomp/MegaCrit/Sts2/Core/Models")
 OUT = os.path.join(ROOT, "crates/sts2sim/src/content")
 

@@ -2,7 +2,6 @@ pub mod search;
 
 use rayon::prelude::*;
 use sts2sim::engine::ACTION_SPACE;
-use sts2sim::observe::{obs_size, obs_version};
 use sts2sim::state::{RngSet, Stage};
 use sts2sim::ScenarioExtras;
 use sts2sim::types::Outcome;
@@ -143,13 +142,12 @@ pub struct RewardConfig {
     pub win: f32,
     pub loss: f32,
     pub hp_bonus: f32,
-    pub step: f32,
     pub turn_cap: u32,
 }
 
 impl Default for RewardConfig {
     fn default() -> Self {
-        RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.0, step: 0.0, turn_cap: 0 }
+        RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.0, turn_cap: 0 }
     }
 }
 
@@ -172,19 +170,6 @@ struct Slot {
     scen: u32,
     hp0: f32,
     last: EpisodeInfo,
-    frozen: Option<i8>,
-    pot_used: u8,
-    loops: u64,
-}
-
-fn belt(cx: &Combat) -> [u16; sts2sim::state::MAX_POTIONS] {
-    let mut o = [u16::MAX; sts2sim::state::MAX_POTIONS];
-    for (k, p) in cx.player.potions.iter().enumerate() {
-        if let Some(p) = p {
-            o[k] = p.id;
-        }
-    }
-    o
 }
 
 #[derive(Clone, Copy, Default, Debug)]
@@ -219,8 +204,6 @@ pub struct BatchEnv {
     max_steps: u32,
     base_seed: u64,
     pool: rayon::ThreadPool,
-    autoreset: bool,
-    obs_version: u8,
 }
 
 pub struct StepOut<'a> {
@@ -256,7 +239,6 @@ fn step_one(
     cfg: RewardConfig,
     max_steps: u32,
     base: u64,
-    autoreset: bool,
     source: &dyn ScenarioSource,
     env: usize,
     slot: &mut Slot,
@@ -267,21 +249,11 @@ fn step_one(
     done: &mut u8,
     outcome: &mut i8,
     illegal: &mut u8,
-    ver: u8,
 ) {
-    *reward = cfg.step;
+    *reward = 0.0;
     *done = 0;
     *outcome = OUTCOME_ONGOING;
     *illegal = 0;
-    slot.pot_used = 0;
-    if let Some(oc) = slot.frozen {
-        *done = 1;
-        *outcome = oc;
-        *reward = 0.0;
-        write_obs_mask(&mut slot.cx, obs, mask, ver);
-        return;
-    }
-    let before = belt(&slot.cx);
     let ok = match Action::from_index(a as usize) {
         Some(act) => slot.cx.step(act),
         None => false,
@@ -290,18 +262,11 @@ fn step_one(
         *illegal = 1;
     } else {
         slot.steps += 1;
-        let after = belt(&slot.cx);
-        for k in 0..before.len() {
-            if before[k] != u16::MAX && after[k] != before[k] {
-                slot.pot_used |= 1 << k;
-            }
-        }
     }
     let mut end = None;
     if slot.cx.missing.is_some() {
         end = Some((OUTCOME_UNIMPLEMENTED, 0.0));
     } else if looped(&slot.cx) {
-        slot.loops += 1;
         end = Some((OUTCOME_LOSS, cfg.loss));
     } else if slot.cx.overflow != 0 {
         end = Some((OUTCOME_OVERFLOW, 0.0));
@@ -325,11 +290,6 @@ fn step_one(
         let end_frac = if oc == OUTCOME_WIN { me.hp as f32 / me.max_hp.max(1) as f32 } else { 0.0 };
         slot.last = EpisodeInfo { scen: slot.scen, hp_lost: slot.hp0 - end_frac, hp_end: end_frac, len: slot.steps, hp_end_abs: if oc == OUTCOME_WIN { me.hp } else { 0 },
                                   max_hp_end: me.max_hp, turns: slot.cx.player.turn_number };
-        if !autoreset {
-            slot.frozen = Some(oc);
-            write_obs_mask(&mut slot.cx, obs, mask, ver);
-            return;
-        }
         slot.episode += 1;
         slot.steps = 0;
         let seed = BatchEnv::episode_seed(base, env, slot.episode);
@@ -337,7 +297,7 @@ fn step_one(
         slot.scen = source.index(env, seed);
         slot.hp0 = slot.cx.cr(0).hp as f32 / slot.cx.cr(0).max_hp.max(1) as f32;
     }
-    write_obs_mask(&mut slot.cx, obs, mask, ver);
+    write_obs_mask(&mut slot.cx, obs, mask);
 }
 
 impl BatchEnv {
@@ -361,11 +321,11 @@ impl BatchEnv {
                     let default_ex = ScenarioExtras::default();
                     let cx = Combat::try_new_with(&sc, source.extras(i, episode).unwrap_or(&default_ex))?;
                     let hp0 = cx.cr(0).hp as f32 / cx.cr(0).max_hp.max(1) as f32;
-                    Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default(), frozen: None, pot_used: 0, loops: 0 })
+                    Ok(Slot { cx, steps: 0, episode: 0, scen: source.index(i, episode), hp0, last: EpisodeInfo::default() })
                 })
                 .collect()
         });
-        Ok(BatchEnv { slots: slots?, source, reward_cfg, max_steps, base_seed, pool, autoreset: true, obs_version: obs_version() })
+        Ok(BatchEnv { slots: slots?, source, reward_cfg, max_steps, base_seed, pool })
     }
 
     #[inline]
@@ -384,47 +344,8 @@ impl BatchEnv {
         self.slots.is_empty()
     }
 
-    pub fn set_turn_cap(&mut self, cap: u32) {
-        self.reward_cfg.turn_cap = cap;
-    }
-
     pub fn set_weights(&mut self, w: &[f32]) -> bool {
         self.source.set_weights(w)
-    }
-
-    pub fn set_autoreset(&mut self, on: bool) {
-        self.autoreset = on;
-    }
-
-    pub fn fork_from(&mut self, src: &BatchEnv, src_idx: &[u32], dst_idx: &[u32], seeds: &[u64]) -> Result<(), EnvError> {
-        if src_idx.len() != dst_idx.len() || seeds.len() != dst_idx.len() {
-            return Err(EnvError::Buffer("src / dst / seeds lengths differ"));
-        }
-        for k in 0..dst_idx.len() {
-            let (si, di) = (src_idx[k] as usize, dst_idx[k] as usize);
-            if si >= src.slots.len() || di >= self.slots.len() {
-                return Err(EnvError::Buffer("slot index out of range"));
-            }
-            let from = &src.slots[si];
-            let to = &mut self.slots[di];
-            to.cx.clone_from(&from.cx);
-            to.cx.determinize(seeds[k]);
-            to.steps = 0;
-            to.scen = from.scen;
-            to.hp0 = from.hp0;
-            to.frozen = None;
-        }
-        Ok(())
-    }
-
-    pub fn potion_used(&self, out: &mut [u8]) {
-        for (o, s) in out.iter_mut().zip(self.slots.iter()) {
-            *o = s.pot_used;
-        }
-    }
-
-    pub fn loops(&self) -> u64 {
-        self.slots.iter().map(|s| s.loops).sum()
     }
 
     pub fn episode_info(&self, out: &mut [EpisodeInfo]) {
@@ -433,25 +354,9 @@ impl BatchEnv {
         }
     }
 
-    pub fn obs_version(&self) -> u8 {
-        self.obs_version
-    }
-
-    pub fn obs_size(&self) -> usize {
-        obs_size(self.obs_version)
-    }
-
-    pub fn set_obs_version(&mut self, version: u8) -> Result<(), EnvError> {
-        if obs_size(version) == 0 {
-            return Err(EnvError::Buffer("unknown observation version"));
-        }
-        self.obs_version = version;
-        Ok(())
-    }
-
     pub fn observe_all(&mut self, obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
         let n = self.slots.len();
-        let (ver, osz) = (self.obs_version, self.obs_size());
+        let osz = OBS;
         if obs.len() < n * osz {
             return Err(EnvError::Buffer("obs buffer shorter than n_envs * obs_size"));
         }
@@ -464,7 +369,7 @@ impl BatchEnv {
                 .par_iter_mut()
                 .zip(obs[..n * osz].par_chunks_mut(osz))
                 .zip(mask[..n * ACTION_SPACE].par_chunks_mut(ACTION_SPACE))
-                .for_each(|((s, o), m)| observe_one(s, o, m, ver));
+                .for_each(|((s, o), m)| observe_one(s, o, m));
         });
         Ok(())
     }
@@ -474,7 +379,7 @@ impl BatchEnv {
         if actions.len() < n {
             return Err(EnvError::Buffer("actions shorter than n_envs"));
         }
-        let (ver, osz) = (self.obs_version, self.obs_size());
+        let osz = OBS;
         if out.obs.len() < n * osz {
             return Err(EnvError::Buffer("obs buffer shorter than n_envs * obs_size"));
         }
@@ -487,7 +392,6 @@ impl BatchEnv {
         let cfg = self.reward_cfg;
         let max_steps = self.max_steps;
         let base = self.base_seed;
-        let autoreset = self.autoreset;
         let source = &*self.source;
         let slots = &mut self.slots;
         self.pool.install(|| {
@@ -502,7 +406,7 @@ impl BatchEnv {
                 .zip(out.outcome[..n].par_iter_mut())
                 .zip(out.illegal[..n].par_iter_mut())
                 .for_each(|((((((((env, slot), &a), obs), mask), reward), done), outcome), illegal)| {
-                    step_one(cfg, max_steps, base, autoreset, source, env, slot, a, obs, mask, reward, done, outcome, illegal, ver)
+                    step_one(cfg, max_steps, base, source, env, slot, a, obs, mask, reward, done, outcome, illegal)
                 });
         });
         Ok(())
@@ -543,11 +447,8 @@ impl FightStarts {
         self.n == 0
     }
 
-    pub fn observe(&self, seed: u64, ver: u8, obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
-        let (n, osz) = (self.n, obs_size(ver));
-        if osz == 0 {
-            return Err(EnvError::Buffer("unknown observation version"));
-        }
+    pub fn observe(&self, seed: u64, obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
+        let (n, osz) = (self.n, OBS);
         if obs.len() < n * osz || mask.len() < n * ACTION_SPACE {
             return Err(EnvError::Buffer("obs / mask buffer shorter than n * size"));
         }
@@ -561,7 +462,7 @@ impl FightStarts {
                     let episode = BatchEnv::episode_seed(seed, i, 0);
                     let sc = source.sample(i, episode);
                     let mut cx = Combat::try_new_with(&sc, &source.1[i])?;
-                    write_obs_mask(&mut cx, o, m, ver);
+                    write_obs_mask(&mut cx, o, m);
                     Ok(())
                 })
         })
@@ -569,15 +470,15 @@ impl FightStarts {
 }
 
 #[inline(never)]
-fn observe_one(s: &mut Slot, obs: &mut [f32], mask: &mut [u8], ver: u8) {
-    write_obs_mask(&mut s.cx, obs, mask, ver);
+fn observe_one(s: &mut Slot, obs: &mut [f32], mask: &mut [u8]) {
+    write_obs_mask(&mut s.cx, obs, mask);
 }
 
-pub(crate) fn write_obs_mask(cx: &mut Combat, obs: &mut [f32], mask: &mut [u8], ver: u8) {
+pub(crate) fn write_obs_mask(cx: &mut Combat, obs: &mut [f32], mask: &mut [u8]) {
     let mut buf = sts2sim::engine::ActionBuf::new();
     let mut playable = 0u16;
     cx.legal_actions_ex(&mut buf, &mut playable);
-    cx.observe_v(obs, Some(playable), ver);
+    cx.observe_ex(obs, Some(playable));
     mask[..ACTION_SPACE].fill(0);
     for a in buf.iter() {
         mask[a.index()] = 1;
@@ -628,7 +529,7 @@ mod tests {
 
     #[test]
     fn an_episode_the_loop_guard_ends_is_a_loss_with_the_loss_reward() {
-        let cfg = RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.5, step: -0.01, turn_cap: 0 };
+        let cfg = RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.5, turn_cap: 0 };
         let mut env = BatchEnv::new(1, Box::new(PoolScenario::new(vec![scenario()])), cfg, 1000, 5);
         arm(&mut env.slots[0].cx);
         let e = env.slots[0].cx.enemies[0];
@@ -637,8 +538,7 @@ mod tests {
         let a = [Action::PlayCard { hand_pos: 0, target: e }.index() as i32];
         env.step(&a, StepOut { obs: &mut obs, mask: &mut mask, reward: &mut reward, done: &mut done, outcome: &mut outcome, illegal: &mut illegal }).unwrap();
         assert_eq!((done[0], outcome[0], illegal[0]), (1, OUTCOME_LOSS, 0));
-        assert!((reward[0] - (-1.0 - 0.01)).abs() < 1e-6, "the loss reward (+ the step reward), not 0: {}", reward[0]);
-        assert_eq!(env.loops(), 1);
+        assert!((reward[0] + 1.0).abs() < 1e-6, "the loss reward, not 0: {}", reward[0]);
         let mut info = [EpisodeInfo::default()];
         env.episode_info(&mut info);
         assert_eq!((info[0].hp_end, info[0].hp_end_abs), (0.0, 0), "scored like any loss");

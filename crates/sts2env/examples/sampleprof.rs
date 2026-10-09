@@ -159,7 +159,7 @@ mod win {
         h ^ (h >> 29)
     }
 
-    fn env_work(path: &str, n: usize, steps: usize, ver: u8) {
+    fn env_work(path: &str, n: usize, steps: usize) {
         let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         let mut scen = vec![];
         for sj in v.as_array().unwrap().iter().take(4000) {
@@ -168,10 +168,9 @@ mod win {
                 scen.push((sc, ex));
             }
         }
-        let cfg = RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.5, step: 0.0, turn_cap: 30 };
+        let cfg = RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.5, turn_cap: 30 };
         let mut env = BatchEnv::try_new(n, Box::new(PoolScenario::with_extras(scen)), cfg, 600, 1000).unwrap();
-        env.set_obs_version(ver).unwrap();
-        let osz = env.obs_size();
+        let osz = OBS;
         let (mut obs, mut mask) = (vec![0f32; n * osz], vec![0u8; n * ACTION_SPACE]);
         let (mut rew, mut done, mut oc, mut ill) = (vec![0f32; n], vec![0u8; n], vec![0i8; n], vec![0u8; n]);
         env.observe_all(&mut obs, &mut mask).unwrap();
@@ -187,7 +186,7 @@ mod win {
         }
     }
 
-    fn search_work(path: &str, n_fights: usize, roots: usize, ver: u8) {
+    fn search_work(path: &str, n_fights: usize, roots: usize) {
         let (m, k) = (5, 32);
         let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         let mut scen = vec![];
@@ -204,8 +203,7 @@ mod win {
         let jobs: Vec<(u32, u64)> = (0..scen.len()).map(|i| (i as u32, 101 * 1_000_003 + i as u64)).collect();
         let cfg = SearchCfg { m, k, roll_cap: 120, leaf_turns: 2, turn_cap: 30, val_w: HEAD_NC, ..SearchCfg::default() };
         let mut eng = SearchEngine::new(scen, jobs, roots, cfg, 1, true).unwrap();
-        eng.set_obs_version(ver).unwrap();
-        let osz = eng.obs_size();
+        let osz = OBS;
         let cap = eng.shared_rows();
         let (mut obs, mut mask, mut pk, mut pu, mut vk) = (vec![0f32; cap * osz], vec![0u8; cap * ACTION_SPACE], vec![0u8; cap], vec![0f32; cap], vec![0u8; cap]);
         let stride = 2 * m + 1;
@@ -246,9 +244,9 @@ mod win {
         let t = std::thread::spawn(move || sampler(s2));
         let t0 = std::time::Instant::now();
         if mode == "env" {
-            env_work(&path, arg(3, 256), arg(4, 200), arg(5, 1) as u8);
+            env_work(&path, arg(3, 256), arg(4, 200));
         } else {
-            search_work(&path, arg(3, 32), arg(4, 16), arg(5, 1) as u8);
+            search_work(&path, arg(3, 32), arg(4, 16));
         }
         stop.store(true, Ordering::Relaxed);
         let samples = t.join().unwrap();

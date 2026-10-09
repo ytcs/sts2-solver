@@ -107,9 +107,4 @@ impl Combat {
         c.affliction = 0;
         c.affliction_amount = 0;
     }
-
-    #[inline]
-    pub fn enchant_disabled(&self, card: CardIdx) -> bool {
-        self.cards[card as usize].enchant_status != 0
-    }
 }

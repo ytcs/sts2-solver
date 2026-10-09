@@ -10,10 +10,9 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "rl"))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 OUT = os.path.join(ROOT, "data", "bench")
-LABEL_CKPT = os.path.join(ROOT, "models", "solver_h128.pt")
 ATTEMPTS, PAIR_ATTEMPTS, SHUFFLES = 8, 256, 8
-H128_SETS = ("eval", "corpus", "mix", "tail")
-SETS = H128_SETS + ("plans",)
+BENCH_SETS = ("eval", "corpus", "mix", "tail")
+SETS = BENCH_SETS + ("plans",)
 PLANS_ATTEMPTS = 16
 ACT_FIRST_FLOOR = (2, 19, 35)
 POOL_KINDS = ("weak", "regular", "elite", "boss")
@@ -336,7 +335,7 @@ def build(a):
     from solver import Solver
     rng = random.Random(7)
     os.makedirs(OUT, exist_ok=True)
-    S = Solver(LABEL_CKPT, M=5, K=32)
+    S = Solver(M=5, K=32)
     sets = scenarios(rng)
     for name, scen in sets.items():
         path = os.path.join(OUT, name + ".json")
@@ -353,7 +352,7 @@ def build(a):
         flat = [x for b, v, _ in tri for x in (b, v)]
         groups = [i // 2 for i in range(len(flat))]
         t0 = time.time()
-        res = Solver(LABEL_CKPT, M=3, K=8).solve(flat, attempts=PAIR_ATTEMPTS, seed=13, groups=groups)
+        res = Solver(M=3, K=8).solve(flat, attempts=PAIR_ATTEMPTS, seed=13, groups=groups)
         rows = []
         for i, (b, v, kind) in enumerate(tri):
             rb, rv = res[2 * i], res[2 * i + 1]
@@ -434,7 +433,7 @@ def _plans_report(rows, pw, y, worst=10):
 
 def score_net(ck):
     from model import load
-    net = load(ck, set_version=False)
+    net = load(ck)
     print(f"\n== {os.path.basename(ck)}")
     for name in SETS:
         path = os.path.join(OUT, name + ".json")
@@ -489,8 +488,7 @@ def _greedy(net, scen, per_env, seed):
     import sts2
     import heads as H
     from model import DEV
-    env = sts2.VecEnv(len(scen), [json.dumps(x) for x in scen], seed=seed, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP,
-                      obs_version=getattr(net, "obs_version", 1))
+    env = sts2.VecEnv(len(scen), [json.dumps(x) for x in scen], seed=seed, max_steps=600, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=H.TURN_CAP)
     obs, mask = env.reset()
     got = np.zeros(len(scen), np.int32)
     out = np.full((len(scen), per_env), np.nan)
@@ -513,7 +511,7 @@ def screen(cks, per_env=4, seed=5):
     sets = {n: json.load(open(os.path.join(OUT, n + ".json"))) for n in SETS if os.path.exists(os.path.join(OUT, n + ".json"))}
     base = {}
     for k, ck in enumerate(cks):
-        net = load(ck, set_version=False).eval()
+        net = load(ck).eval()
         t0 = time.time()
         line = []
         for name, rows in sets.items():
@@ -536,7 +534,7 @@ def play(ck, roots=None, cover=False):
     from solver import Solver
     S = Solver(ck, M=5, K=32, roots=roots, cover=cover)
     print(f"\n== play {os.path.basename(ck)}{' cover' if cover else ''} (vs the labels, same seeds: data/bench/labels.json)")
-    for name in H128_SETS:
+    for name in BENCH_SETS:
         path = os.path.join(OUT, name + ".json")
         if not os.path.exists(path):
             continue

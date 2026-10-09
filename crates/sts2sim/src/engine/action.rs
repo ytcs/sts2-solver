@@ -161,15 +161,4 @@ impl Combat {
             && self.hist.finished(x) == self.hist.finished(y)
             && !self.hist.play_amounts.iter().any(|e| e.card == x || e.card == y)
     }
-
-    pub fn action_mask(&self, mask: &mut [bool]) {
-        for m in mask[..ACTION_SPACE].iter_mut() {
-            *m = false;
-        }
-        let mut buf = ActionBuf::new();
-        self.legal_actions(&mut buf);
-        for a in buf.iter() {
-            mask[a.index()] = true;
-        }
-    }
 }

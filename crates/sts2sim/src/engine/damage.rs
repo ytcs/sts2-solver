@@ -43,10 +43,6 @@ impl Attack {
         self.hits = n;
         self
     }
-    pub fn unpowered(mut self) -> Attack {
-        self.props = self.props.or(ValueProp::UNPOWERED);
-        self
-    }
     pub fn targeting(mut self, t: Targeting) -> Attack {
         self.targeting = t;
         self
@@ -305,18 +301,6 @@ impl Combat {
             }
         }
         hits
-    }
-
-    pub fn dispatch_after_attack(&mut self, a: &Attack, all: &Results) {
-        if self.listen.has(hookbit::after_attack) {
-            self.attack_results.clear();
-            for x in all.iter().take(16) {
-                self.attack_results.push(*x);
-            }
-            self.attack_unblocked_hits = all.iter().filter(|r| r.unblocked > 0).count() as u8;
-            self.attack_player_hits = all.iter().filter(|r| r.unblocked > 0 && r.receiver == PLAYER).count() as u8;
-        }
-        self.dispatch_g(hookbit::after_attack, |cx, me, l| l.after_attack(cx, me, a));
     }
 
     #[inline(always)]

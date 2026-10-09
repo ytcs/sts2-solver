@@ -6,7 +6,7 @@ import torch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2
 import heads
-from model import DEV, layout, obs_version_of
+from model import C, DEV, SEC
 
 OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS
 NC = sts2.names()["head_nc"]
@@ -27,19 +27,9 @@ def worth_row(w):
     return r
 
 LEAF_TURNS = 2
-EXACT_TURN = dict(loss=-0.9, tie=0.0, dets=8, cap=5000, potions=True)
+EXACT_TURN = dict(loss=-0.9, tie=0.0, dets=8, cap=5000)
 
-_SHAPE_CONSTS = {}
-
-
-def _shape_consts(width):
-    if width not in _SHAPE_CONSTS:
-        v = obs_version_of(width)
-        if v is None:
-            raise ValueError(f"no observation version has rows of {width} floats")
-        c, sec = layout(v)
-        _SHAPE_CONSTS[width] = (sec["enemies"][0], c["ENEMY_F"], c["OBS_MAX_ENEMIES"], [sec[n][0] for n in ("draw", "discard", "exhaust")], sec["decision"][0])
-    return _SHAPE_CONSTS[width]
+DEC = SEC["decision"][0]
 
 if DEV.type == "cuda":
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -63,13 +53,13 @@ def available_cpus():
 
 
 def host_shapes(obs):
-    _E0, _ES, _EN, _PILES, _DEC = _shape_consts(obs.shape[1])
-    occ = (obs[:, _E0:_E0 + _EN * _ES:_ES] > 0.5).any(0)
+    e0, es = SEC["enemies"][0], C["ENEMY_F"]
+    occ = (obs[:, e0:e0 + C["OBS_MAX_ENEMIES"] * es:es] > 0.5).any(0)
     E = int(np.nonzero(occ)[0].max()) + 1 if occ.any() else 1
     L = 1
-    for o in _PILES:
+    for o in (SEC[n][0] for n in ("draw", "discard", "exhaust")):
         L = max(L, int((obs[:, o:o + 128:2] > 0).sum(1).max()))
-    return E, L, obs[:, _DEC] > 0.5
+    return E, L, obs[:, DEC] > 0.5
 
 
 # play-out moves use the engine's uniform, never torch's RNG: the same job seeds give the same play-outs
@@ -82,9 +72,8 @@ class GraphFn:
     """CUDA graphs of fn per padded batch size. With `full` (the same network evaluated on every row as a decision row) fn also takes a fixed-size
     list of decision rows (-1 = padding, a quarter of the batch); a batch with more decision rows replays `full`."""
 
-    def __init__(self, fn, with_mask, pool, with_u=False, obs_size=OBS, full=None):
+    def __init__(self, fn, with_mask, pool, with_u=False, full=None):
         self.fn, self.buckets, self.with_mask, self.pool, self.with_u = fn, BUCKETS, with_mask, pool, with_u
-        self.obs_size = obs_size
         self.full = full
         self.graphs = {}
 
@@ -93,7 +82,7 @@ class GraphFn:
         return max(1, B // 4)
 
     def _capture(self, B):
-        sobs = torch.zeros(B, self.obs_size, device=DEV)
+        sobs = torch.zeros(B, OBS, device=DEV)
         smask = torch.zeros(B, ACT, dtype=torch.uint8, device=DEV) if self.with_mask else None
         if smask is not None:
             # padded rows need a legal action (no NaN softmax)
@@ -183,15 +172,14 @@ class GraphFn:
 class HostBuffers:
     PINNED = ("obs", "pol_mask", "pol_u", "pol_out", "val_out", "ix")
 
-    def __init__(self, pin, obs_size=OBS):
+    def __init__(self, pin):
         self.pin = pin
-        self.obs_size = obs_size
         self.a = {}
         self.t = {}
         self._reg = []
 
     def ensure(self, rows, pol_w, val_w):
-        want = {"obs": (rows, self.obs_size), "pol_mask": (rows, ACT), "pol_kind": (rows,), "pol_u": (rows,), "val_kind": (rows,),
+        want = {"obs": (rows, OBS), "pol_mask": (rows, ACT), "pol_kind": (rows,), "pol_u": (rows,), "val_kind": (rows,),
                 "pol_out": (rows, pol_w), "val_out": (rows, val_w), "ix": (rows + 1024,)}
         dts = {"pol_mask": np.uint8, "pol_kind": np.uint8, "val_kind": np.uint8, "ix": np.int64}
         for name, shape in want.items():
@@ -225,20 +213,15 @@ class HostBuffers:
 
 
 class FastSearch:
-    def __init__(self, net, M=3, K=8, conf=1.01, max_steps=300, roots=512, groups=2, threads=None, roll_net=None, amp=False, record=False,
-                 leaf_turns=None, clairvoyant=False, dec_rows=True, cover=False, futures=0, exact_turn=None):
+    def __init__(self, net, M=3, K=8, max_steps=300, roots=512, groups=2, threads=None, roll_net=None, amp=False, record=False,
+                 leaf_turns=None, clairvoyant=False, cover=False, futures=0, exact_turn=None):
         self.net = net
         self.roll_net = roll_net if roll_net is not None else net
-        vs = {getattr(n, "obs_version", 1) for n in [self.net, self.roll_net]}
-        if len(vs) > 1:
-            raise ValueError(f"the search's networks read different observation versions {sorted(vs)}")
-        self.obs_version = vs.pop()
-        self.OBS = sts2.obs_size(self.obs_version)
         # cover: every distinct legal action is a candidate (up to max_m, by prior); futures: total per decision, 0 = K per candidate
         self.cover, self.futures = bool(cover), int(futures)
         # exact_turn: True or overrides of EXACT_TURN; enumerates the turn when the searched values are blind (crates/sts2env ExactCfg)
         self.exact = None if not exact_turn else {**EXACT_TURN, **(exact_turn if isinstance(exact_turn, dict) else {})}
-        self.M, self.K, self.conf = (sts2.names()["max_m"] if self.cover else M), K, conf
+        self.M, self.K = (sts2.names()["max_m"] if self.cover else M), K
         self.leaf_turns = LEAF_TURNS if leaf_turns is None else leaf_turns
         self.roll_cap = 60 * self.leaf_turns if self.leaf_turns < 100 else 400
         self.max_steps = max_steps
@@ -259,7 +242,6 @@ class FastSearch:
         self._pool = torch.cuda.graph_pool_handle() if self.cuda else None
         self._copy = torch.cuda.Stream() if self.cuda else None
         self.use_graphs = self.cuda
-        self.dec_rows = dec_rows
 
     def _run(self, fn, obs_np, obs_t, mask_t=None, u_t=None):
         E, L, dec = host_shapes(obs_np)
@@ -305,8 +287,7 @@ class FastSearch:
                 act = _sample(pr, u)
                 tp, ti = pr.topk(M, 1)
                 return torch.cat([ti.float(), tp, act.float().unsqueeze(1)], 1)
-            full = GraphFn(fn, True, self._pool, with_u=True, obs_size=self.OBS)
-            self._graphs[key] = GraphFn(fn, True, self._pool, with_u=True, obs_size=self.OBS, full=full) if self.dec_rows else full
+            self._graphs[key] = GraphFn(fn, True, self._pool, with_u=True, full=GraphFn(fn, True, self._pool, with_u=True))
         return self._graphs[key]
 
     def _val_graph(self):
@@ -317,7 +298,7 @@ class FastSearch:
             def val(o, rows=None):
                 shp = dict(has_dec=True) if rows is None else dict(rows=rows.clamp(min=0), rows_w=(rows >= 0).float())
                 if self.dist:
-                    return torch.softmax(net.heads_out(o, E=GRAPH_E, L=64, **shp)[0], 1)
+                    return torch.softmax(net.heads_out(o, E=GRAPH_E, L=64, **shp), 1)
                 return net(o, None, policy=False, E=GRAPH_E, L=64, **shp)[1].float()
             if self.compile:
                 val = torch.compile(val, dynamic=True)
@@ -326,8 +307,7 @@ class FastSearch:
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
                     v = val(o, rows)
                 return v.float() if self.dist else v.unsqueeze(1)
-            full = GraphFn(fn, False, self._pool, obs_size=self.OBS)
-            self._graphs[key] = GraphFn(fn, False, self._pool, obs_size=self.OBS, full=full) if self.dec_rows else full
+            self._graphs[key] = GraphFn(fn, False, self._pool, full=GraphFn(fn, False, self._pool))
         return self._graphs[key]
 
     def _upload(self, G, n_pol, n_val, plans):
@@ -358,7 +338,6 @@ class FastSearch:
     @torch.no_grad()
     def _evaluate_graphs(self, G, n_pol, n_val):
         M = self.M
-        DEC = _shape_consts(self.OBS)[4]
         calls = []
         if n_pol:
             sim = (G["pol_kind"][:n_pol] & 1) != 0
@@ -415,7 +394,7 @@ class FastSearch:
             vo_np, vo = self._val_obs(G, n_val)
             def val(o, m, **shape):
                 if self.dist:
-                    return torch.softmax(self.net.heads_out(o, **shape)[0], 1)
+                    return torch.softmax(self.net.heads_out(o, **shape), 1)
                 return self.net(o, None, policy=False, **shape)[1].unsqueeze(1)
             G["val_out_t"][:n_val].copy_(self._run(val, vo_np, vo).view(n_val, self.val_w), non_blocking=True)
         if self.cuda:
@@ -455,15 +434,15 @@ class FastSearch:
             if len(idx) == 0:
                 continue
             nb = min(max(1, self.roots // self.groups), len(idx))
-            eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], n_roots=max(1, self.roots // self.groups), m=self.M, k=self.K, conf=self.conf,
+            eng = sts2._SearchEngine(sj, job_scen[idx], job_seed[idx], n_roots=max(1, self.roots // self.groups), m=self.M, k=self.K,
                                      roll_cap=self.roll_cap, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, threads=min(self.threads, nb),
-                                     record=self.record, lead=True, carry=True, strat=True, starts=starts, leaf_turns=self.leaf_turns,
-                                     turn_cap=heads.TURN_CAP, val_w=self.val_w, worth=wt, clairvoyant=self.clairvoyant, obs_version=self.obs_version,
+                                     record=self.record, starts=starts, leaf_turns=self.leaf_turns,
+                                     turn_cap=heads.TURN_CAP, val_w=self.val_w, worth=wt, clairvoyant=self.clairvoyant,
                                      cover=self.cover, futures=self.futures,
                                      **({} if self.exact is None else {"exact": True, **{"ex_" + k: v for k, v in self.exact.items()}}))
             shared = eng.shared_rows()
             while len(self._bufs) <= gi:
-                self._bufs.append(HostBuffers(self.cuda, self.OBS))
+                self._bufs.append(HostBuffers(self.cuda))
             B = self._bufs[gi]
             B.ensure(shared, 2 * self.M + 1, self.val_w)
             G = dict(eng=eng, idx=idx, n_pol=0, n_val=0, shared=shared)

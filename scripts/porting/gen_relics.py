@@ -2,10 +2,8 @@
 import glob, os, re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.join(HERE, "..")
+ROOT = os.path.join(HERE, "..", "..")
 DECOMP = os.environ.get("DECOMP", os.path.join(ROOT, "decomp"))
-if not os.path.isdir(DECOMP):
-    DECOMP = "/home/ytc/Projects/sts2-solver/decomp"
 
 RELICS = os.path.join(DECOMP, "MegaCrit/Sts2/Core/Models/Relics")
 OUT = os.path.join(ROOT, "crates/sts2sim/src/content/gen_relics.rs")

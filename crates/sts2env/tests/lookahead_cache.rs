@@ -75,8 +75,7 @@ fn states(path: &str, n: usize, per: usize, seed: u64) -> Vec<Combat> {
 #[test]
 fn relaxed_key_cache_is_exact() {
     relaxed_key_hits_equal_fresh_under_other_hp_and_block();
-    search_with_every_relaxed_hit_verified(1);
-    search_with_every_relaxed_hit_verified(2);
+    search_with_every_relaxed_hit_verified();
 }
 
 fn relaxed_key_hits_equal_fresh_under_other_hp_and_block() {
@@ -117,7 +116,7 @@ fn relaxed_key_hits_equal_fresh_under_other_hp_and_block() {
     assert!(n > 1_000, "only {n} relaxed hits");
 }
 
-fn search_with_every_relaxed_hit_verified(ver: u8) {
+fn search_with_every_relaxed_hit_verified() {
     use sts2env::search::*;
     use sts2sim::engine::ACTION_SPACE;
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../data/bench/mix.json");
@@ -129,9 +128,8 @@ fn search_with_every_relaxed_hit_verified(ver: u8) {
     LOOK_VERIFY.store(true, Ordering::Relaxed);
     let v0 = LOOK_VERIFIED.load(Ordering::Relaxed);
     let mut eng = SearchEngine::new(scen, jobs, 12, cfg, 3, false).unwrap();
-    eng.set_obs_version(ver).unwrap();
     let cap = eng.shared_rows();
-    let (mut obs, mut mask, mut pk, mut pu, mut vk) = (vec![0f32; cap * eng.obs_size()], vec![0u8; cap * ACTION_SPACE], vec![0u8; cap], vec![0f32; cap], vec![0u8; cap]);
+    let (mut obs, mut mask, mut pk, mut pu, mut vk) = (vec![0f32; cap * sts2sim::observe::OBS_SIZE], vec![0u8; cap * ACTION_SPACE], vec![0u8; cap], vec![0f32; cap], vec![0u8; cap]);
     let stride = 2 * cfg.m + 1;
     let (mut pol, mut val) = (vec![0f32; cap * stride], vec![0f32; cap]);
     let (mut np, mut nv) = eng.advance_shared(None, None, &mut obs, &mut mask, &mut pk, &mut pu, &mut vk).unwrap();
@@ -153,5 +151,5 @@ fn search_with_every_relaxed_hit_verified(ver: u8) {
     LOOK_VERIFY.store(false, Ordering::Relaxed);
     assert!(eng.results().iter().all(|r| r.done));
     let n = LOOK_VERIFIED.load(Ordering::Relaxed) - v0;
-    assert!(n > 1_000, "only {n} relaxed hits verified (observation v{ver})");
+    assert!(n > 1_000, "only {n} relaxed hits verified");
 }

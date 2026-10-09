@@ -18,7 +18,7 @@ fn main() {
     sts2sim::engine::LOOK_VERIFY.store(verify, std::sync::atomic::Ordering::Relaxed);
     let path = args.get(1).expect("scenario json (a list of scenarios)");
     let arg = |i: usize, d: usize| args.get(i).and_then(|s| s.parse().ok()).unwrap_or(d);
-    let (n, steps, ver, n_scen) = (arg(2, 1024), arg(3, 200), arg(4, 1) as u8, arg(5, 4000));
+    let (n, steps, n_scen) = (arg(2, 1024), arg(3, 200), arg(4, 4000));
     let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let mut scen = vec![];
     for sj in v.as_array().unwrap() {
@@ -30,10 +30,9 @@ fn main() {
             break;
         }
     }
-    let cfg = RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.5, step: 0.0, turn_cap: 30 };
+    let cfg = RewardConfig { win: 1.0, loss: -1.0, hp_bonus: 0.5, turn_cap: 30 };
     let mut env = BatchEnv::try_new(n, Box::new(PoolScenario::with_extras(scen)), cfg, 600, 1000).unwrap();
-    env.set_obs_version(ver).expect("observation version 1 or 2");
-    let osz = env.obs_size();
+    let osz = OBS;
     let (mut obs, mut mask) = (vec![0f32; n * osz], vec![0u8; n * ACTION_SPACE]);
     let (mut rew, mut done, mut oc, mut ill) = (vec![0f32; n], vec![0u8; n], vec![0i8; n], vec![0u8; n]);
     env.observe_all(&mut obs, &mut mask).unwrap();
@@ -61,7 +60,7 @@ fn main() {
     }
     let total = (n * steps) as f64;
     println!(
-        "{n} envs x {steps} steps, obs v{ver}, {} threads: step {t_step:.2}s = {:.0} steps/s ({:.2} us per env step x threads); episodes {eps}, wins {wins}; checksum {h:016x}",
+        "{n} envs x {steps} steps, {} threads: step {t_step:.2}s = {:.0} steps/s ({:.2} us per env step x threads); episodes {eps}, wins {wins}; checksum {h:016x}",
         rayon::current_num_threads(),
         total / t_step,
         t_step * rayon::current_num_threads() as f64 / total * 1e6

@@ -35,12 +35,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("parts", nargs="+")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--turns", type=int, default=3, help="restart states at the start of each of the last N player turns")
     ap.add_argument("--frac", type=float, default=0.2, help="also a near-miss: enemy HP left <= this share of their max HP")
     ap.add_argument("--limit", type=int, default=0, help="at most this many near-misses (0: all)")
     a = ap.parse_args()
     files = sorted(f for p in a.parts for f in glob.glob(p))
-    t0, n_loss, bad, near, restarts = time.time(), 0, 0, [], []
+    t0, n_loss, bad, near = time.time(), 0, 0, []
     for fn in files:
         z = np.load(fn, allow_pickle=True)
         scen = json.loads(str(z["scenarios"]))
@@ -57,16 +56,14 @@ def main():
             if not (one_turn or rem <= a.frac * max(mx, 1)):
                 continue
             near.append(dict(part=fn, fight=int(i), encounter=scen[si].get("encounter"), rem=rem, max_hp=mx, dpt=dpt, one_turn=bool(one_turn), turns=starts[-1][1]))
-            for plen, turn in starts[-a.turns:]:
-                restarts.append(dict(scenario=scen[si], seed=seed, prefix=[int(x) for x in acts[:plen]], turn=turn, near=len(near) - 1))
             if a.limit and len(near) >= a.limit:
                 break
         if a.limit and len(near) >= a.limit:
             break
     one = sum(r["one_turn"] for r in near)
-    print(f"{n_loss} losses in {len(files)} parts ({time.time() - t0:.0f}s): {len(near)} near-misses ({len(near) / max(n_loss, 1):.3f}; {one} within one turn), "
-          f"{len(restarts)} restart states; replay mismatches {bad}")
-    json.dump(dict(near=near, restarts=restarts), open(a.out, "w"))
+    print(f"{n_loss} losses in {len(files)} parts ({time.time() - t0:.0f}s): {len(near)} near-misses ({len(near) / max(n_loss, 1):.3f}; {one} within one turn); "
+          f"replay mismatches {bad}")
+    json.dump(dict(near=near), open(a.out, "w"))
     print(f"-> {a.out}")
 
 

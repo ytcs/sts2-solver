@@ -56,7 +56,7 @@ def arm(spec, roots):
             futures = K = int(t[1:])
         else:
             M, K = (int(x) for x in t.split("x"))
-    fs = FastSearch(load(pr, set_version=False), M=M, K=K, roots=roots, amp=True, roll_net=load(roll, set_version=False) if roll else None, clairvoyant=cv, cover=cover, futures=futures,
+    fs = FastSearch(load(pr), M=M, K=K, roots=roots, amp=True, roll_net=load(roll) if roll else None, clairvoyant=cv, cover=cover, futures=futures,
                     exact_turn=exact)
     fs.warm()
     return fs
@@ -71,12 +71,7 @@ def play(ck, rows, attempts, roots):
     F = len(rows)
     out = np.zeros((F, attempts))
     for att in range(attempts):
-        sims = []
-        for r in rows:
-            sim = sts2.Sim(json.dumps(r["scenario"]), r["seed"])
-            for x in r.get("prefix", []):
-                sim.step(int(x))
-            sims.append(sim)
+        sims = [sts2.Sim(json.dumps(r["scenario"]), r["seed"]) for r in rows]
         print(f"  {spec_name(ck)}: attempt {att + 1}/{attempts}, {F} fights", flush=True)
         res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims)
         out[:, att] = res[:, 1] == 1
@@ -117,36 +112,6 @@ def evaluate(a):
         print(f"{os.path.basename(ck):24s} ({time.time() - t:.0f}s) " + " | ".join(line), flush=True)
 
 
-def turns(a):
-    near = json.load(open(a.near))
-    rows = [r for r in near["restarts"]]
-    back = np.zeros(len(rows), int)
-    by = {}
-    for i, r in enumerate(rows):
-        by.setdefault(r["near"], []).append(i)
-    for idx in by.values():
-        for k, i in enumerate(sorted(idx, key=lambda i: -len(rows[i]["prefix"]))):
-            back[i] = k
-    if a.limit:
-        keep = sorted({n for n in by})[:a.limit]
-        sel = np.array(sorted(i for n in keep for i in by[n]))
-        rows, back = [rows[i] for i in sel], back[sel]
-    base = None
-    for ck in a.ckpts:
-        t = time.time()
-        w = play(ck, rows, a.attempts, a.roots).mean(1)
-        line = []
-        for k in range(back.max() + 1):
-            m = back == k
-            if base is None:
-                line.append(f"turn -{k}: won {w[m].mean():.3f} (n {m.sum()})")
-            else:
-                d = w[m] - base[m]
-                line.append(f"turn -{k}: won {w[m].mean():.3f} ({d.mean():+.3f} +- {d.std(ddof=1) / max(m.sum(), 2) ** 0.5:.3f})")
-        base = w if base is None else base
-        print(f"{ck:40s} ({time.time() - t:.0f}s) " + " | ".join(line), flush=True)
-
-
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -158,11 +123,8 @@ def main():
                                                "@x (exact turn search when the search is blind)")
     e.add_argument("--bench", default=os.path.join(ROOT, "data", "bench", "nearmiss.json")); e.add_argument("--attempts", type=int, default=2)
     e.add_argument("--roots", type=int, default=1024)
-    t = sub.add_parser("turns"); t.add_argument("ckpts", nargs="+", help="arm specs; the first is the luck baseline")
-    t.add_argument("--near", required=True, help="tools/nearmiss.py output whose restarts to use (held out: target/exit/nm_r4u.json)")
-    t.add_argument("--attempts", type=int, default=2); t.add_argument("--roots", type=int, default=1024); t.add_argument("--limit", type=int, default=0)
     a = ap.parse_args()
-    {"build": build, "eval": evaluate, "turns": turns}[a.cmd](a)
+    {"build": build, "eval": evaluate}[a.cmd](a)
 
 
 if __name__ == "__main__":

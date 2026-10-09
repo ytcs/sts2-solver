@@ -1,6 +1,6 @@
 {
  "version": 1,
- "source": "M2 relic mask (docs/rl_redesign.md): every relic in sts2.names()[\"relic\"] classified from decomp/MegaCrit.Sts2.Core.Models.Relics/*.cs override hooks and crates/sts2sim/src/content/relics/*.rs. hooks = decomp override methods (IsAllowed/AfterCloned dropped).",
+ "source": "M2 relic mask: every relic in sts2.names()[\"relic\"] classified from decomp/MegaCrit.Sts2.Core.Models.Relics/*.cs override hooks and crates/sts2sim/src/content/relics/*.rs. hooks = decomp override methods (IsAllowed/AfterCloned dropped).",
  "classes": {
   "combat": "has an effect inside a fight (incl. end-of-fight heals / max HP)",
   "macro_only": "no effect inside a fight; the network should not see it",

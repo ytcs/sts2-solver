@@ -47,7 +47,7 @@ def paired(a, b):
 def main():
     ap = argparse.ArgumentParser(description="Headroom of a fight set (DIAGNOSTIC ONLY: cv / pi arms see hidden information). Arms kind:MxK[xL], kind in live / cv / pi.")
     ap.add_argument("--fights", required=True, help="scenario list, or the bench format [{scenario, wins, ends}]")
-    ap.add_argument("--ckpt", default=os.path.join(ROOT, "models", "solver_h128.pt"))
+    ap.add_argument("--ckpt", default=os.path.join(ROOT, "models", json.load(open(os.path.join(ROOT, "models", "current.json")))["policy"]))
     ap.add_argument("--arms", default="live:5x32,cv:5x32,cv:8x64,pi:8x1x100", help="comma-separated kind:MxK[xL]; the first live arm is the reference")
     ap.add_argument("--attempts", type=int, default=2)
     ap.add_argument("--seed", type=int, default=91)

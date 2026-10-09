@@ -29,21 +29,9 @@ impl Combat {
         amount != 0 || self.card_def(c).cost >= 0
     }
 
-    pub fn set_cost_until_played(&mut self, c: CardIdx, amount: i32, reduce_only: bool) {
-        if self.cost_guard_set(c, amount) {
-            self.push_cost_mod(c, CostMod::new(amount as i8, false, reduce_only, EXPIRE_WHEN_PLAYED));
-        }
-    }
-
     pub fn set_cost_this_turn_or_until_played(&mut self, c: CardIdx, amount: i32, reduce_only: bool) {
         if self.cost_guard_set(c, amount) {
             self.push_cost_mod(c, CostMod::new(amount as i8, false, reduce_only, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED));
-        }
-    }
-
-    pub fn set_cost_this_turn(&mut self, c: CardIdx, amount: i32, reduce_only: bool) {
-        if self.cost_guard_set(c, amount) {
-            self.push_cost_mod(c, CostMod::new(amount as i8, false, reduce_only, EXPIRE_END_OF_TURN));
         }
     }
 
@@ -56,11 +44,6 @@ impl Combat {
     pub fn add_cost_until_played(&mut self, c: CardIdx, delta: i32, reduce_only: bool) {
         if delta != 0 {
             self.push_cost_mod(c, CostMod::new(delta as i8, true, reduce_only, EXPIRE_WHEN_PLAYED));
-        }
-    }
-    pub fn add_cost_this_turn_or_until_played(&mut self, c: CardIdx, delta: i32, reduce_only: bool) {
-        if delta != 0 {
-            self.push_cost_mod(c, CostMod::new(delta as i8, true, reduce_only, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED));
         }
     }
     pub fn add_cost_this_turn(&mut self, c: CardIdx, delta: i32, reduce_only: bool) {

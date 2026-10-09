@@ -71,18 +71,6 @@ impl Combat {
         self.player.energy = (self.player.energy - n).clamp(0, 999_999_999);
     }
 
-    pub fn set_energy(&mut self, n: i32) {
-        if self.is_ending() {
-            return;
-        }
-        let e = self.player.energy;
-        if e < n {
-            self.gain_energy(n - e);
-        } else if e > n {
-            self.lose_energy(e - n);
-        }
-    }
-
     pub fn gain_stars(&mut self, n: i32) {
         if self.is_ending() {
             return;
@@ -108,18 +96,6 @@ impl Combat {
         let delta = self.player.stars - old;
         if delta != 0 {
             self.hist_push(HKind::StarsModified, PLAYER, NO, 0, NO, delta, 0, 0, 0);
-        }
-    }
-
-    pub fn set_stars(&mut self, n: i32) {
-        if self.is_ending() {
-            return;
-        }
-        let s = self.player.stars;
-        if s < n {
-            self.gain_stars(n - s);
-        } else if s > n {
-            self.lose_stars(s - n);
         }
     }
 
@@ -194,9 +170,6 @@ impl Combat {
         mods.push(m);
     }
 
-    pub fn set_star_cost_until_played(&mut self, c: CardIdx, cost: i32) {
-        self.add_temp_star_cost(c, cost, EXPIRE_WHEN_PLAYED);
-    }
     pub fn set_star_cost_this_turn(&mut self, c: CardIdx, cost: i32) {
         self.add_temp_star_cost(c, cost, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED);
     }

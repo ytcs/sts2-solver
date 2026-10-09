@@ -13,10 +13,6 @@ impl Combat {
         (1..MAX_CREATURES as u8).find(|&i| !self.cr(i).active).or_else(|| (1..MAX_CREATURES as u8).find(|&i| !self.cr(i).in_combat))
     }
 
-    pub fn add_enemy(&mut self, monster_id: u16, slot: u8) -> Option<Cid> {
-        self.add_enemy_v(monster_id, slot, [0, 0])
-    }
-
     pub fn add_enemy_v(&mut self, monster_id: u16, slot: u8, vars: [i32; 2]) -> Option<Cid> {
         let cid = self.create_enemy_v(monster_id, slot, vars)?;
         self.attach_enemy(cid);

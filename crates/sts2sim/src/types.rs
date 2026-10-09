@@ -8,16 +8,6 @@ pub enum Side {
     Enemy = 1,
 }
 
-impl Side {
-    #[inline(always)]
-    pub fn opposite(self) -> Side {
-        match self {
-            Side::Player => Side::Enemy,
-            Side::Enemy => Side::Player,
-        }
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(u8)]
 pub enum PileType {

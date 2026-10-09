@@ -16,20 +16,19 @@ PREDICTOR_CKPT = os.path.join(_M, _c["predictor"])
 
 
 class Solver:
-    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, roots=None, groups=2, conf=1.01, roll_ckpt=None, amp=None, threads=None, cover=False):
+    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, roots=None, groups=2, roll_ckpt=None, amp=None, threads=None, cover=False):
         if threads:
             torch.set_num_threads(threads)
-        self.net = load(ckpt, set_version=False)
+        self.net = load(ckpt)
         self.max_steps = max_steps
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        self.fs = FastSearch(self.net, M, K, conf=conf, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
-                             roll_net=load(roll_ckpt, set_version=False) if roll_ckpt else None, amp=cuda if amp is None else amp, cover=cover)
+        self.fs = FastSearch(self.net, M, K, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
+                             roll_net=load(roll_ckpt) if roll_ckpt else None, amp=cuda if amp is None else amp, cover=cover)
         self.fs.warm()
 
     def _greedy(self, scenarios, attempts, seed):
         flat = [scenarios[i] for _ in range(attempts) for i in range(len(scenarios))]
-        env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=heads.TURN_CAP,
-                          obs_version=getattr(self.net, "obs_version", 1))
+        env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=heads.TURN_CAP)
         pol = net_policy(self.net)
         obs, mask = env.reset()
         got = np.zeros(len(flat), bool)
@@ -87,13 +86,13 @@ def main():
     ap.add_argument("--M", type=int, default=3); ap.add_argument("--K", type=int, default=8)
     ap.add_argument("--no-search", action="store_true", help="the network alone (greedy)")
     ap.add_argument("--roots", type=int, default=None); ap.add_argument("--groups", type=int, default=2)
-    ap.add_argument("--conf", type=float, default=1.01); ap.add_argument("--roll-ckpt")
+    ap.add_argument("--roll-ckpt")
     ap.add_argument("--out"); ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     scen = json.load(open(a.scenarios))
     if isinstance(scen, dict):
         scen = [scen]
-    S = Solver(a.ckpt, a.M, a.K, roots=a.roots, groups=a.groups, conf=a.conf, roll_ckpt=a.roll_ckpt)
+    S = Solver(a.ckpt, a.M, a.K, roots=a.roots, groups=a.groups, roll_ckpt=a.roll_ckpt)
     res = S.solve(scen, a.attempts, search=not a.no_search, seed=a.seed, verbose=True)
     for sc, r in zip(scen, res):
         print(f"{sc.get('name', '?'):28s} win {r['win']:.3f} ±{r['win_se']:.3f}  HP lost {100 * (r['hp_lost'] or 0):.0f}%  HP left on win {r['hp_left_on_win']:.0f}")

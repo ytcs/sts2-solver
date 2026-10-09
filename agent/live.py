@@ -256,13 +256,6 @@ class Live:
     def _belt(self):
         return scr.belt(call("peek"))
 
-    def _potion_name(self, text):
-        i = potions.text_index(text)
-        if i is not None and self.rp is not None:
-            i = potions.game_slot(self.rp.scenario, i)
-        belt = self._belt()
-        return belt[i] if i is not None and i < len(belt) else "?"
-
     def _is_boss(self):
         return self.rp is not None and str(self.rp.scenario.get("encounter", "")).endswith("_BOSS")
 

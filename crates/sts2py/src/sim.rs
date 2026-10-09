@@ -4,7 +4,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::{json, Value};
 use sts2sim::engine::{ActionBuf, ObsCard, ObsEnemy, ACTION_SPACE};
-use sts2sim::observe::{obs_size, obs_version};
+use sts2sim::observe::OBS_SIZE;
 use sts2sim::state::*;
 use sts2sim::types::*;
 use sts2sim::{Action, Combat};
@@ -138,10 +138,6 @@ impl Sim {
 
     fn missing(&self) -> Option<String> {
         self.cx.missing.map(|(k, id)| format!("{k:?} {id}"))
-    }
-
-    fn overflow(&self) -> u32 {
-        self.cx.overflow as u32
     }
 
     #[pyo3(signature = (hand_pos, target=None))]
@@ -293,22 +289,16 @@ impl Sim {
         }
     }
 
-    #[pyo3(signature = (obs, mask, version=None))]
-    fn observe(&mut self, mut obs: PyReadwriteArray1<f32>, mut mask: PyReadwriteArray1<u8>, version: Option<u8>) -> PyResult<()> {
-        let ver = version.unwrap_or_else(obs_version);
-        let osz = obs_size(ver);
-        if osz == 0 {
-            return Err(PyValueError::new_err(format!("unknown observation version {ver}")));
-        }
+    fn observe(&mut self, mut obs: PyReadwriteArray1<f32>, mut mask: PyReadwriteArray1<u8>) -> PyResult<()> {
         let o = obs.as_slice_mut().map_err(err)?;
         let m = mask.as_slice_mut().map_err(err)?;
-        if o.len() < osz || m.len() < ACTION_SPACE {
-            return Err(PyValueError::new_err(format!("buffers too small (observation version {ver} has {osz} floats)")));
+        if o.len() < OBS_SIZE || m.len() < ACTION_SPACE {
+            return Err(PyValueError::new_err(format!("buffers too small (an observation has {OBS_SIZE} floats)")));
         }
         let mut buf = ActionBuf::new();
         let mut playable = 0u16;
         self.cx.legal_actions_ex(&mut buf, &mut playable);
-        self.cx.observe_v(&mut o[..osz], Some(playable), ver);
+        self.cx.observe_ex(&mut o[..OBS_SIZE], Some(playable));
         m[..ACTION_SPACE].fill(0);
         for a in buf.iter() {
             m[a.index()] = 1;

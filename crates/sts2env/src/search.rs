@@ -2,7 +2,7 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use sts2sim::engine::{with_look_cache, ActionBuf, LookCache, ACTION_SPACE, LOOK_CACHE_ENTRIES};
-use sts2sim::observe::{obs_size, obs_version};
+use sts2sim::observe::OBS_SIZE;
 use sts2sim::state::{RngSet, Stage};
 use sts2sim::types::Outcome;
 use sts2sim::util::ArrayVec;
@@ -82,12 +82,8 @@ fn leaf_value(r: &[f32], max_hp: i32, cfg: &SearchCfg, w: &Worth) -> f32 {
 pub struct SearchCfg {
     pub m: usize,
     pub k: usize,
-    pub conf: f32,
     pub roll_cap: u32,
     pub leaf_turns: u32,
-    pub lead: bool,
-    pub strat: bool,
-    pub carry: bool,
     pub max_steps: u32,
     pub win: f32,
     pub loss: f32,
@@ -112,12 +108,11 @@ pub struct ExactCfg {
     pub tie: f32,
     pub dets: usize,
     pub cap: usize,
-    pub potions: bool,
 }
 
 impl Default for ExactCfg {
     fn default() -> ExactCfg {
-        ExactCfg { on: false, loss: -0.9, tie: 0.0, dets: 8, cap: 5000, potions: true }
+        ExactCfg { on: false, loss: -0.9, tie: 0.0, dets: 8, cap: 5000 }
     }
 }
 
@@ -126,12 +121,8 @@ impl Default for SearchCfg {
         SearchCfg {
             m: 3,
             k: 8,
-            conf: 1.01,
             roll_cap: 120,
             leaf_turns: 2,
-            lead: true,
-            strat: true,
-            carry: true,
             max_steps: 300,
             win: 1.0,
             loss: -1.0,
@@ -303,7 +294,6 @@ struct Out {
     n_val: AtomicUsize,
     shared: usize,
     used: AtomicUsize,
-    ver: u8,
 }
 
 impl Out {
@@ -391,11 +381,10 @@ pub fn forced_action(cx: &Combat, buf: &ActionBuf) -> Option<Action> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn write_row(cx: &mut Combat, buf: &ActionBuf, playable: Option<u16>, obs: SendPtr<f32>, mask: Option<SendPtr<u8>>, row: usize, ver: u8) {
-    // SAFETY: `row` is unique (atomic counter) and below capacity; rows hold `obs_size(ver)` / `ACTION_SPACE` entries.
-    let osz = obs_size(ver);
-    let o = unsafe { std::slice::from_raw_parts_mut(obs.0.add(row * osz), osz) };
-    cx.observe_v(o, playable, ver);
+fn write_row(cx: &mut Combat, buf: &ActionBuf, playable: Option<u16>, obs: SendPtr<f32>, mask: Option<SendPtr<u8>>, row: usize) {
+    // SAFETY: `row` is unique (atomic counter) and below capacity; rows hold `OBS_SIZE` / `ACTION_SPACE` entries.
+    let o = unsafe { std::slice::from_raw_parts_mut(obs.0.add(row * OBS_SIZE), OBS_SIZE) };
+    cx.observe_ex(o, playable);
     if let Some(m) = mask {
         let m = unsafe { std::slice::from_raw_parts_mut(m.0.add(row * ACTION_SPACE), ACTION_SPACE) };
         m.fill(0);
@@ -503,7 +492,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             let t0 = tsc();
             let row = val_row(out, &sim.cx);
             let buf = ActionBuf::new();
-            write_row(&mut sim.cx, &buf, None, out.obs, None, out.val_obs_row(row), out.ver);
+            write_row(&mut sim.cx, &buf, None, out.obs, None, out.val_obs_row(row));
             st.cy_obs += tsc() - t0;
             st.value_rows += 1;
             if at_leaf {
@@ -536,7 +525,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             let t0 = tsc();
             let u = unit(&mut sim.rng);
             let row = pol_row(out, true, &sim.cx, u);
-            write_row(&mut sim.cx, &buf, Some(playable), out.obs, Some(out.pol_mask), row, out.ver);
+            write_row(&mut sim.cx, &buf, Some(playable), out.obs, Some(out.pol_mask), row);
             st.cy_obs += tsc() - t0;
             st.policy_rows += 1;
             sim.st = SimSt::Pol(row as u32);
@@ -554,11 +543,7 @@ fn det_future(cx: &mut Combat, cfg: &SearchCfg, ks: &[u64], f: usize) {
     if cfg.clairvoyant {
         return;
     }
-    if cfg.strat {
-        cx.determinize_strat(ks[0], ks[f], f, ks.len());
-    } else {
-        cx.determinize(ks[f]);
-    }
+    cx.determinize_strat(ks[0], ks[f], f, ks.len());
 }
 
 impl Block {
@@ -690,7 +675,7 @@ impl Block {
                 }
             } else {
                 let row = pol_row(out, false, &self.main, 0.5);
-                write_row(&mut self.main, &buf, Some(playable), out.obs, Some(out.pol_mask), row, out.ver);
+                write_row(&mut self.main, &buf, Some(playable), out.obs, Some(out.pol_mask), row);
                 self.stats.policy_rows += 1;
                 self.st = RootSt::Pol(row as u32);
                 return;
@@ -732,7 +717,7 @@ impl Block {
             n
         };
         self.stats.root_decisions += 1;
-        if n_legal <= 1 || self.probs[0] >= cfg.conf {
+        if n_legal <= 1 {
             let a = Action::from_index(self.opts[0] as usize);
             let rec = self.move_rec(self.opts[0], false, sh);
             let finished = match a {
@@ -763,13 +748,13 @@ impl Block {
             self.ks.push(x);
         }
         let turn = self.main.player.turn_number;
-        let lead = cfg.lead && k >= 2;
+        let lead = k >= 2;
         let w = &sh.worth[self.scen as usize];
         for j in 0..m {
             self.lead[j] = false;
             self.known[j] = false;
             self.lead_acts[j].clear();
-            if cfg.carry && self.ok[j] {
+            if self.ok[j] {
                 if let Some((v, q)) = &self.carry {
                     if v.first() == Some(&(self.opts[j] as u16)) {
                         self.known[j] = true;
@@ -951,7 +936,7 @@ impl Block {
 
     fn play_searched(&mut self, best: usize, sh: &Shared, out: &Out) {
         let rec = self.move_rec(self.opts[best], true, sh);
-        if sh.cfg.carry && !self.known[best] {
+        if !self.known[best] {
             self.carry = if self.lead_acts[best].first() == Some(&(self.opts[best] as u16)) { Some((std::mem::take(&mut self.lead_acts[best]), self.qs[best])) } else { None };
         }
         self.play_root(Action::from_index(self.opts[best] as usize), rec, sh, out);
@@ -1111,11 +1096,7 @@ fn det_world(ks: &[u64], cx: &mut Combat, cfg: &SearchCfg, d: usize) {
     if cfg.clairvoyant {
         return;
     }
-    if cfg.strat {
-        cx.determinize_strat(ks[0], ks[d], d, ks.len());
-    } else {
-        cx.determinize(ks[d]);
-    }
+    cx.determinize_strat(ks[0], ks[d], d, ks.len());
 }
 
 impl Exact {
@@ -1139,7 +1120,7 @@ impl Exact {
             return;
         }
         let row = val_row(out, cx);
-        write_row(cx, &ActionBuf::new(), None, out.obs, None, out.val_obs_row(row), out.ver);
+        write_row(cx, &ActionBuf::new(), None, out.obs, None, out.val_obs_row(row));
         self.pending.push((row as u32, node, cx.cr(0).max_hp));
         st.value_rows += 1;
         st.ex_rows += 1;
@@ -1154,8 +1135,8 @@ impl Exact {
         }
     }
 
-    fn key(&mut self, cx: &Combat, world: u32, ver: u8) -> u64 {
-        cx.observe_v(&mut self.obs, None, ver);
+    fn key(&mut self, cx: &Combat, world: u32) -> u64 {
+        cx.observe_ex(&mut self.obs, None);
         let mut h = Fx(world as u64);
         for x in self.obs.iter() {
             h.add(x.to_bits() as u64);
@@ -1206,7 +1187,7 @@ impl Exact {
             self.score(id, &mut cx, cfg, w, out, st);
             return Some(id);
         }
-        let k = self.key(&cx, world, out.ver);
+        let k = self.key(&cx, world);
         if let Some(&id) = self.index.get(&k) {
             return Some(id);
         }
@@ -1224,7 +1205,6 @@ impl Exact {
         for &a in buf.iter() {
             let skip = match a {
                 Action::DiscardPotion { .. } => true,
-                Action::UsePotion { .. } => !cfg.exact.potions,
                 Action::Pick { idx } => !adds(idx),
                 _ => false,
             };
@@ -1357,7 +1337,7 @@ impl Block {
         let mut s = self.ks.first().copied().unwrap_or(self.rng) ^ EXACT_SALT;
         let dets = cfg.exact.dets.clamp(1, slots(cfg));
         ex.ks.extend((0..dets).map(|_| splitmix(&mut s)));
-        ex.obs.resize(obs_size(out.ver), 0.0);
+        ex.obs.resize(OBS_SIZE, 0.0);
         ex.turn = self.main.player.turn_number;
         ex.best = best;
         let root = self.main.clone();
@@ -1457,7 +1437,6 @@ pub struct SearchEngine {
     next_job: usize,
     pool: rayon::ThreadPool,
     started: bool,
-    obs_version: u8,
 }
 
 impl SearchEngine {
@@ -1486,7 +1465,7 @@ impl SearchEngine {
         let results = vec![JobResult::default(); jobs.len()];
         let logs = if record { vec![Vec::new(); jobs.len()] } else { Vec::new() };
         let worth = vec![Worth::linear(); scen.len()];
-        Ok(SearchEngine { cfg, scen, worth, starts, jobs, blocks: blocks?, results, logs, record, next_job: 0, pool, started: false, obs_version: obs_version() })
+        Ok(SearchEngine { cfg, scen, worth, starts, jobs, blocks: blocks?, results, logs, record, next_job: 0, pool, started: false })
     }
 
     pub fn set_worth(&mut self, worth: Vec<Worth>) -> Result<(), EnvError> {
@@ -1500,22 +1479,6 @@ impl SearchEngine {
             return Err(EnvError::Buffer("a worth table needs the outcome head's value rows (val_w > 1)"));
         }
         self.worth = worth;
-        Ok(())
-    }
-
-    pub fn obs_version(&self) -> u8 {
-        self.obs_version
-    }
-
-    pub fn obs_size(&self) -> usize {
-        obs_size(self.obs_version)
-    }
-
-    pub fn set_obs_version(&mut self, version: u8) -> Result<(), EnvError> {
-        if obs_size(version) == 0 || self.started {
-            return Err(EnvError::Buffer("unknown observation version, or the search has started"));
-        }
-        self.obs_version = version;
         Ok(())
     }
 
@@ -1584,7 +1547,7 @@ impl SearchEngine {
     #[allow(clippy::too_many_arguments)]
     pub fn advance_shared(&mut self, pol: Option<&[f32]>, val: Option<&[f32]>, obs: &mut [f32], mask: &mut [u8], pol_kind: &mut [u8], pol_u: &mut [f32], val_kind: &mut [u8]) -> Result<(usize, usize), EnvError> {
         let cap = self.shared_rows();
-        if obs.len() < cap * self.obs_size() || mask.len() < cap * ACTION_SPACE || pol_kind.len() < cap || pol_u.len() < cap || val_kind.len() < cap {
+        if obs.len() < cap * OBS_SIZE || mask.len() < cap * ACTION_SPACE || pol_kind.len() < cap || pol_u.len() < cap || val_kind.len() < cap {
             return Err(EnvError::Buffer("request buffers too small, see SearchEngine::shared_rows"));
         }
         let out = Out {
@@ -1597,7 +1560,6 @@ impl SearchEngine {
             n_val: AtomicUsize::new(0),
             shared: cap,
             used: AtomicUsize::new(0),
-            ver: self.obs_version,
         };
         if let Some(v) = val {
             if v.len() % self.cfg.val_w != 0 {
@@ -1628,11 +1590,8 @@ impl SearchEngine {
     }
 }
 
-pub fn replay(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], obs: &mut [f32], mask: &mut [u8], ver: u8) -> Result<usize, EnvError> {
-    let osz = obs_size(ver);
-    if osz == 0 {
-        return Err(EnvError::Buffer("unknown observation version"));
-    }
+pub fn replay(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], obs: &mut [f32], mask: &mut [u8]) -> Result<usize, EnvError> {
+    let osz = OBS_SIZE;
     scen.0.validate()?;
     let mut cx = Combat::try_new_with(&scen.0, &scen.1)?;
     cx.reset_validated(&scen.0, &scen.1, seed, RngSet::from_run_seed_fast(seed)).map_err(EnvError::Scenario)?;
@@ -1641,7 +1600,7 @@ pub fn replay(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], obs
         return Err(EnvError::Buffer("replay buffers too small"));
     }
     for i in 0..n {
-        crate::write_obs_mask(&mut cx, &mut obs[i * osz..(i + 1) * osz], &mut mask[i * ACTION_SPACE..(i + 1) * ACTION_SPACE], ver);
+        crate::write_obs_mask(&mut cx, &mut obs[i * osz..(i + 1) * osz], &mut mask[i * ACTION_SPACE..(i + 1) * ACTION_SPACE]);
         if i < actions.len() {
             match Action::from_index(actions[i] as usize) {
                 Some(a) if cx.step(a) => {}
@@ -1652,11 +1611,8 @@ pub fn replay(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], obs
     Ok(n)
 }
 
-pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8], ver: u8) -> Result<(), EnvError> {
-    let osz = obs_size(ver);
-    if osz == 0 {
-        return Err(EnvError::Buffer("unknown observation version"));
-    }
+pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
+    let osz = OBS_SIZE;
     if obs.len() < steps.len() * osz || mask.len() < steps.len() * ACTION_SPACE {
         return Err(EnvError::Buffer("replay buffers too small"));
     }
@@ -1672,7 +1628,7 @@ pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16
     for i in 0..=actions.len() {
         while next < order.len() && steps[order[next]] as usize == i {
             let k = order[next];
-            crate::write_obs_mask(&mut cx, &mut obs[k * osz..(k + 1) * osz], &mut mask[k * ACTION_SPACE..(k + 1) * ACTION_SPACE], ver);
+            crate::write_obs_mask(&mut cx, &mut obs[k * osz..(k + 1) * osz], &mut mask[k * ACTION_SPACE..(k + 1) * ACTION_SPACE]);
             next += 1;
         }
         if i < actions.len() {

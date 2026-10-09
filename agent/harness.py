@@ -224,9 +224,6 @@ class Harness(Live):
     def _decision_guard(self, state, step, why):
         return guards.decision_guard(state, step, why, self.priced, self.reward_screen)
 
-    def _pick_guard(self, state, step, why):
-        return guards.pick_guard(state, step, why, self.reward_screen)
-
 
     @_needs_run("no run in progress")
     def route(self, argline):
@@ -453,8 +450,6 @@ class Harness(Live):
                 return self.potions_now()
             if cmd == "potion":
                 return self.potion_cmd(rest)
-            if cmd == "hold":
-                return "REFUSED: `hold` is retired: potions are proposed every turn and committed one at a time; `potion aside <name>` keeps one for the boss.\n"
             if cmd == "a":
                 return self.act(rest)
             if cmd in ("replay", "seedcheck"):

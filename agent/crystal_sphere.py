@@ -13,7 +13,6 @@ import numpy as np
 W = 11
 NC = W * W
 KIND = {"R": 1, "P": 2, "C": 3, "X": 4, "g": 5}
-LETTER = {v: k for k, v in KIND.items()}
 ITEMS = (
     [("relic", "R", 4, 4)]
     + [("potion_c", "P", 1, 3)] * 2
@@ -28,7 +27,6 @@ CURSE_I = 7
 KIND_OF = np.array([KIND[k] for _, k, _, _ in ITEMS])
 
 VALUES = np.array([208.5, 50, 50, 100, 50, 75, 150, -100] + [10] * 5 + [30] * 2, dtype=np.float64)
-DEBT_COST = {"shop_ahead": 30.0, "no_shop": 130.0}
 
 
 def _expand_clear():

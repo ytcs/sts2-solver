@@ -1,5 +1,5 @@
 use sts2sim::ids;
-use sts2sim::observe::{obs_size, OBS_SIZE};
+use sts2sim::observe::OBS_SIZE;
 use sts2sim::rng::Rng;
 use sts2sim::state::*;
 use sts2sim::types::*;
@@ -35,17 +35,9 @@ fn scenario(seed: u64) -> Scenario {
     }
 }
 
-const VERSIONS: [u8; 2] = [1, 2];
-
 fn obs(cx: &Combat) -> Vec<f32> {
     let mut v = vec![0f32; OBS_SIZE];
     assert_eq!(cx.observe(&mut v), OBS_SIZE);
-    v
-}
-
-fn obs_v(cx: &Combat, ver: u8) -> Vec<f32> {
-    let mut v = vec![0f32; obs_size(ver)];
-    assert_eq!(cx.observe_v(&mut v, None, ver), obs_size(ver));
     v
 }
 
@@ -65,13 +57,6 @@ fn midfight(seed: u64) -> Combat {
 
 #[test]
 fn hidden_state_does_not_leak() {
-    for ver in VERSIONS {
-        hidden_state_does_not_leak_v(ver);
-    }
-}
-
-fn hidden_state_does_not_leak_v(ver: u8) {
-    let obs = |cx: &Combat| obs_v(cx, ver);
     for seed in 0..40 {
         let cx = midfight(seed);
         if cx.stage == Stage::Over {
@@ -82,16 +67,16 @@ fn hidden_state_does_not_leak_v(ver: u8) {
         let mut a = cx.clone();
         let mut rng = Rng::new(seed ^ 0xABCD);
         rng.shuffle(a.player.draw.as_mut_slice());
-        assert!(obs(&a) == base, "draw order leaked (seed {seed}, v{ver})");
+        assert!(obs(&a) == base, "draw order leaked (seed {seed})");
 
         let mut a2 = cx.clone();
         rng.shuffle(a2.player.discard.as_mut_slice());
         rng.shuffle(a2.player.exhaust.as_mut_slice());
-        assert!(obs(&a2) == base, "discard/exhaust order leaked (seed {seed}, v{ver})");
+        assert!(obs(&a2) == base, "discard/exhaust order leaked (seed {seed})");
 
         let mut b = cx.clone();
         b.rng = RngSet::from_run_seed(seed.wrapping_add(777));
-        assert!(obs(&b) == base, "RNG state leaked (seed {seed}, v{ver})");
+        assert!(obs(&b) == base, "RNG state leaked (seed {seed})");
 
         let mut c = cx.clone();
         for &e in cx.enemies.iter() {
@@ -99,12 +84,12 @@ fn hidden_state_does_not_leak_v(ver: u8) {
             c.creatures[e as usize].monster.log = [3; 8];
             c.creatures[e as usize].monster.log_len = 99;
         }
-        assert!(obs(&c) == base, "monster log leaked (seed {seed}, v{ver})");
+        assert!(obs(&c) == base, "monster log leaked (seed {seed})");
     }
 }
 
 #[test]
-fn big_pile_order_does_not_leak_in_v2() {
+fn big_pile_order_does_not_leak() {
     let mut cx = midfight(5);
     let ids_ = [ids::card::BASH, ids::card::TWIN_STRIKE, ids::card::SHRUG_IT_OFF, ids::card::ARMAMENTS, ids::card::POMMEL_STRIKE];
     for k in 0..80 {
@@ -112,16 +97,13 @@ fn big_pile_order_does_not_leak_in_v2() {
         cx.move_card(c, PileType::Discard, CardPilePosition::Bottom);
     }
     assert!(cx.player.discard.len() > observe::OBS_MAX_PILE);
-    let base = obs_v(&cx, 2);
+    let base = obs(&cx);
     let mut rng = Rng::new(17);
-    let mut v1_differs = false;
     for _ in 0..20 {
         let mut a = cx.clone();
         rng.shuffle(a.player.discard.as_mut_slice());
-        assert!(obs_v(&a, 2) == base, "v2 shows a big pile's hidden order");
-        v1_differs |= obs_v(&a, 1) != obs_v(&cx, 1);
+        assert!(obs(&a) == base, "a big pile's hidden order leaked");
     }
-    assert!(v1_differs, "v1 truncates before sorting (the leak v2 fixes)");
 }
 
 #[test]
@@ -140,13 +122,6 @@ fn enemy_moves_section_shows_the_pending_node() {
 
 #[test]
 fn visible_changes_do_change_the_observation() {
-    for ver in VERSIONS {
-        visible_changes_do_change_the_observation_v(ver);
-    }
-}
-
-fn visible_changes_do_change_the_observation_v(ver: u8) {
-    let obs = |cx: &Combat| obs_v(cx, ver);
     let cx = midfight(3);
     let base = obs(&cx);
     let mut a = cx.clone();
@@ -195,9 +170,7 @@ fn pile_selection_screen_does_not_reveal_pile_order() {
         assert!(matches!(c.ask_pile(0, PileType::Discard, 1, 1, |_, _| true), Ask::Pending));
         c.stage = Stage::AwaitChoice;
     }
-    for ver in VERSIONS {
-        assert!(obs_v(&a, ver) == obs_v(&b, ver), "pile screen leaked the pile order (v{ver})");
-    }
+    assert!(obs(&a) == obs(&b), "pile screen leaked the pile order");
     let ids_a: Vec<u16> = {
         let d = a.decision.unwrap();
         let view = a.decision_view(&d);
@@ -210,26 +183,20 @@ fn pile_selection_screen_does_not_reveal_pile_order() {
 
 #[test]
 fn layout_sections_tile_the_observation() {
-    for ver in VERSIONS {
-        let l = observe::layout_v(ver);
-        let mut off = 0;
-        for (name, o, sz) in l.iter() {
-            assert_eq!(*o, off, "section {name} starts where the previous one ended (v{ver})");
-            off += sz;
-        }
-        assert_eq!(off, obs_size(ver));
-        let c: std::collections::HashMap<_, _> = observe::layout_consts_v(ver).into_iter().collect();
-        assert_eq!(c["OBS_SIZE"], obs_size(ver));
-        assert_eq!(c["OBS_VERSION"], ver as usize);
-        assert_eq!(c["ACTION_SPACE"], sts2sim::engine::ACTION_SPACE);
-        assert_eq!(c["OFF_CONFIRM"] + 1, c["ACTION_SPACE"]);
-        let cx = midfight(2);
-        let mut big = vec![7f32; observe::OBS_SIZE_MAX + 5];
-        assert_eq!(cx.observe_v(&mut big, None, ver), obs_size(ver));
-        assert!(big[obs_size(ver)..].iter().all(|&x| x == 7.0));
+    let mut off = 0;
+    for (name, o, sz) in observe::layout().iter() {
+        assert_eq!(*o, off, "section {name} starts where the previous one ended");
+        off += sz;
     }
-    assert_eq!(obs_size(1), OBS_SIZE);
-    assert_eq!(observe::layout(), observe::layout_v(1), "the process-wide version is 1 by default");
+    assert_eq!(off, OBS_SIZE);
+    let c: std::collections::HashMap<_, _> = observe::layout_consts().into_iter().collect();
+    assert_eq!(c["OBS_SIZE"], OBS_SIZE);
+    assert_eq!(c["ACTION_SPACE"], sts2sim::engine::ACTION_SPACE);
+    assert_eq!(c["OFF_CONFIRM"] + 1, c["ACTION_SPACE"]);
+    let cx = midfight(2);
+    let mut big = vec![7f32; OBS_SIZE + 5];
+    assert_eq!(cx.observe(&mut big), OBS_SIZE);
+    assert!(big[OBS_SIZE..].iter().all(|&x| x == 7.0));
 }
 
 #[test]
@@ -240,12 +207,10 @@ fn determinize_changes_only_hidden_state() {
         if cx.stage == Stage::Over {
             continue;
         }
-        let base: Vec<Vec<f32>> = VERSIONS.iter().map(|&v| obs_v(&cx, v)).collect();
+        let base = obs(&cx);
         let mut a = cx.clone();
         assert!(a.determinize(seed + 1));
-        for (k, &v) in VERSIONS.iter().enumerate() {
-            assert!(obs_v(&a, v) == base[k], "determinize changed what the agent sees (seed {seed}, v{v})");
-        }
+        assert!(obs(&a) == base, "determinize changed what the agent sees (seed {seed})");
         let mut acts = sts2sim::engine::ActionBuf::new();
         let mut acts_a = sts2sim::engine::ActionBuf::new();
         cx.legal_actions(&mut acts);

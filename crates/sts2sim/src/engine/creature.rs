@@ -26,10 +26,6 @@ impl DamageResult {
 }
 
 impl Combat {
-    pub fn alloc_creature(&mut self) -> Option<Cid> {
-        (1..MAX_CREATURES).find(|&i| !self.creatures[i].active).map(|i| i as Cid)
-    }
-
     #[inline(always)]
     pub fn cr(&self, c: Cid) -> &Creature {
         &self.creatures[c as usize]
@@ -92,12 +88,6 @@ impl Combat {
     pub fn modify_block(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> Dec {
         let mut mods = super::Mods::new();
         self.modify_block_into(target, amount, props, card, &mut mods)
-    }
-
-    pub fn modify_block_ex(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx) -> (Dec, super::Mods) {
-        let mut mods = super::Mods::new();
-        let v = self.modify_block_into(target, amount, props, card, &mut mods);
-        (v, mods)
     }
 
     pub fn modify_block_into(&self, target: Cid, amount: Dec, props: ValueProp, card: CardIdx, mods: &mut super::Mods) -> Dec {
@@ -202,13 +192,6 @@ impl Combat {
             self.damage(&[c], hp - new_max, props, NO, NO);
         }
         self.set_max_hp(c, new_max.max(Dec::ONE));
-    }
-
-    pub fn remove_creature(&mut self, c: Cid) {
-        if self.cr(c).monster.is_performing {
-            return;
-        }
-        self.detach_creature(c);
     }
 
     pub fn detach_creature(&mut self, c: Cid) {
