@@ -367,10 +367,14 @@ class Builder:
                 j["use_potion"]["target_ally"] = 0
         elif kind == "c":
             hand = json.loads(self.sim.snapshot())["hand"]
+            offered = {int(m.group(1)): m.group(2) for _i, t in self.sim.legal() for m in [re.match(r"pick (\d+) \((\w+)\)", t)] if m}
             idx = []
             for tok in a[1:]:
                 cid, up = _card(tok, self.al)
-                idx.append(next(k for k, c in enumerate(hand) if k not in idx and c["id"] == cid and c["upgrade"] == up))
+                k = next((k for k, c in enumerate(hand) if k not in idx and c["id"] == cid and c["upgrade"] == up), None)
+                if k is None:
+                    k = next(k for k, t in sorted(offered.items()) if k not in idx and RE.base(t) == RE.base(cid))
+                idx.append(k)
             j = {"choose": idx}
         elif kind == "e":
             j = {"end_turn": True}
@@ -382,7 +386,19 @@ class Builder:
             sj = copy.deepcopy(j)
             if kind == "pot":
                 sj["use_potion"]["slot"] = next(i for i, p in enumerate(self.spec["scenario"]["potions"]) if p["slot"] == a[1])
+            base = self.sim.copy()
             self.sim.apply(json.dumps(sj))
+            want = getattr(self, "next_choice", None)
+            if kind == "pot" and want and self.sim.stage() == "choice":
+                for k in range(600):
+                    if any(t.startswith("pick") and RE.base(t.split("(")[-1].rstrip(")")) == RE.base(want) for _i, t in self.sim.legal()):
+                        break
+                    s = base.copy()
+                    s.determinize(self.rng.randrange(1 << 62))
+                    s.apply(json.dumps(sj))
+                    self.sim = s
+                else:
+                    self.report.append(f"{where}: no determinization offers {want} after the potion")
         self.log.append(j)
         snap = json.loads(self.sim.snapshot())
         st = self._patch(snap, next_obs or {}, where)
@@ -422,6 +438,8 @@ class Builder:
                 else:
                     nxt = a[-1] if isinstance(a[-1], dict) else None
                     a = a[:-1] if isinstance(a[-1], dict) else a
+                after = t["acts"][ai + 1] if ai + 1 < len(t["acts"]) else None
+                self.next_choice = _card(after[1], self.al)[0] if after and after[0] == "c" else None
                 self.act(a, nxt, where)
                 self.times.append(when)
                 if self.sim.stage() == "over":
