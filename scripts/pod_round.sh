@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Combat-loop round on a fresh pod, from the repo root: nohup bash scripts/pod_round.sh >/dev/null 2>&1 &
 # Builds, then waits for $INPUTS/READY (upload pool.json, one init .pt, optional extra .npz parts, then touch READY),
-# collects with the cover search, trains value TD(lam) from the init checkpoint. Logs and the DONE / FAILED flag in target/round/.
+# collects with the cover search, trains policy and value TD(lam) from the init checkpoint. Logs and the DONE / FAILED flag in target/round/.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p target/round
@@ -33,7 +33,7 @@ gpu_mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | hea
 ram_gb=$(free -g | awk '/^Mem:/{print $2}')
 lim=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo max)
 if [[ $lim =~ ^[0-9]+$ ]] && [ $((lim >> 30)) -lt "$ram_gb" ]; then ram_gb=$((lim >> 30)); fi
-# E32: a d256 cover search at 1024 roots takes ~12 GB of GPU memory and ~20 GB of host RAM; past 2048 roots there is no gain (docs/solver.md)
+# a d256 cover search at 1024 roots takes ~12 GB of GPU memory and ~20 GB of host RAM; past 2048 roots there is no gain
 if [ -z "${ROOTS:-}" ]; then
   if [ "$gpu_mb" -ge 30000 ] && [ "$ram_gb" -ge 56 ]; then ROOTS=2048
   elif [ "$gpu_mb" -ge 11000 ] && [ "$ram_gb" -ge 24 ]; then ROOTS=1024
@@ -41,7 +41,7 @@ if [ -z "${ROOTS:-}" ]; then
 fi
 n_fights=$(python -c "import json, sys; print(len(json.load(open(sys.argv[1]))))" "$POOL")
 # a chunk caps the live roots (one engine per group gets chunk / 2 jobs); a chunk above the roots refills slots as fights end.
-# Fresh process every ~12k fights: E6 saw a long-lived search process slow down 3x after ~9k.
+# Fresh process every ~12k fights: a long-lived search process slows down 3x after ~9k.
 sizes() {
   CHUNK=${CHUNK_SET:-$((2 * ROOTS))}
   CPP=${CHUNKS_PER_PROCESS:-$(( 12288 / CHUNK > 0 ? 12288 / CHUNK : 1 ))}

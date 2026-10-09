@@ -46,8 +46,6 @@ def _check_single_player(plan):
 
 
 def check(plan):
-    """problems with a plan entry: deck cards must be offerable (own pool or colorless, not basic/ancient/token, single player),
-    substitutes offerable, drop from the starter, enablers/payoffs from core, threat and struggle ids real encounters"""
     import sts2
     cat = json.load(open(os.path.join(ROOT, "data", "catalog.json")))["cards"]
     pool = {c["id"]: c for k in (plan["character"], "COLORLESS") for c in cat[k] if not c.get("multiplayer_only")}

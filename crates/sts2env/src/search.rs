@@ -91,16 +91,12 @@ pub struct SearchCfg {
     pub turn_cap: u32,
     pub val_w: usize,
     pub cover: bool,
-    // Total futures per searched decision, split evenly over the candidates and capped at k each; 0 = k per candidate.
     pub futures: usize,
     // DIAGNOSTIC ONLY: futures copy the true state (hidden information); never set for live play.
     pub clairvoyant: bool,
     pub exact: ExactCfg,
 }
 
-// Exact turn search: when the searched values are blind (best <= loss, or best - second <= tie; linear units, rescaled under a worth
-// table), every distinct line to the end of the turn is enumerated and its end state valued (value net after the enemy turn, `dets`
-// paired determinizations); the best line's first move is played. Over `cap` states or `MAX_DEPTH` moves: the searched move.
 #[derive(Clone, Copy, Debug)]
 pub struct ExactCfg {
     pub on: bool,
@@ -788,7 +784,6 @@ impl Block {
         self.main.legal_actions(&mut buf);
         let ranked = (0..m).filter(|&j| r[m + j] > 0.0).filter_map(|j| Action::from_index(r[j] as usize).map(|a| (a, r[m + j])));
         let mut cls: ArrayVec<(Action, f32), 256> = ArrayVec::new();
-        // Discarding is never a candidate: live play never discards a potion in combat.
         for (a, p) in ranked.chain(buf.iter().map(|&a| (a, 0.0))) {
             if matches!(a, Action::DiscardPotion { .. }) || !buf.contains(a) {
                 continue;

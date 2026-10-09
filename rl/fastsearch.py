@@ -217,9 +217,7 @@ class FastSearch:
                  leaf_turns=None, clairvoyant=False, cover=False, futures=0, exact_turn=None):
         self.net = net
         self.roll_net = roll_net if roll_net is not None else net
-        # cover: every distinct legal action is a candidate (up to max_m, by prior); futures: total per decision, 0 = K per candidate
         self.cover, self.futures = bool(cover), int(futures)
-        # exact_turn: True or overrides of EXACT_TURN; enumerates the turn when the searched values are blind (crates/sts2env ExactCfg)
         self.exact = None if not exact_turn else {**EXACT_TURN, **(exact_turn if isinstance(exact_turn, dict) else {})}
         self.M, self.K = (sts2.names()["max_m"] if self.cover else M), K
         self.leaf_turns = LEAF_TURNS if leaf_turns is None else leaf_turns

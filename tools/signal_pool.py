@@ -20,7 +20,6 @@ def score(ckpt, scenarios, shuffles, batch=20000):
 
 
 def pick(p, n, anchor, rng):
-    """n indices: a uniform anchor share, the rest drawn without replacement by p(1-p)"""
     n_anchor = int(round(n * anchor))
     sel = rng.choice(len(p), n_anchor, replace=False).tolist()
     w = p * (1 - p)

@@ -1,4 +1,4 @@
-"""Expert re-enactment pipeline (docs/rebuild.md roadmap item 7; procedure: skill `expert-reenact`).
+"""Expert re-enactment pipeline (procedure: skill `expert-reenact`).
 
 fetch URL                     video -> frames + transcript (git-ignored), video deleted
 build RECORD [--out DIR]      fight transcriptions -> fight records (simulator synced to every observation)
@@ -79,9 +79,6 @@ def watchdog():
 
 def record_path(p):
     return p if os.path.isabs(p) else os.path.join(ROOT, p)
-
-
-# ---------- fetch
 
 
 def slug(s):
@@ -192,9 +189,6 @@ def fetch(a):
         print(f"frames: {n} in {fdir}; video deleted")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-
-
-# ---------- build (fight transcription -> fight record)
 
 
 def _catalog_cost():
@@ -469,9 +463,6 @@ def build(a):
             print("   ", line)
 
 
-# ---------- validate
-
-
 def check_record(rec):
     errs, warns = [], []
     for k in ("seed", "build", "character", "ascension", "video", "steps"):
@@ -585,9 +576,6 @@ def validate(a):
     sys.exit(1 if bad else 0)
 
 
-# ---------- dry runs
-
-
 def dry_run(a, seedcheck):
     rec = RE.load(record_path(a.record))
     if not RE.build_ok(rec):
@@ -629,9 +617,6 @@ def recorded_screen(x, st, scenario):
     opts = [f"{title(c)}(1) ." + (tgt if x["kind"] == "play" and RE.base(c["id"]) == RE.base(x["card"]) else "") for c in st.get("hand", [])]
     opts += [f"potion {p['id'].replace('_', ' ').title()}: ." + (tgt if x["kind"] == "potion" and p["id"] == x.get("potion") else "") for p in scenario.get("potions", [])]
     return "\n".join(lines + [f"{i} {o}" for i, o in enumerate(opts + ["end turn"])]) + "\n"
-
-
-# ---------- references
 
 
 def classes(sim):
@@ -681,8 +666,6 @@ def utility(sim, max_hp):
 
 
 def enumerate_turn(sim, potions=False, cap=CAP, roots=None):
-    """every distinct line to the end of the current turn, optionally only those starting with an action in `roots`
-    (python reference enumerator; roadmap item 8 replaces it)"""
     n, seen, stack = 0, set(), [(sim, [])]
     enumerate_turn.capped = False
     while stack:
@@ -846,8 +829,7 @@ def side(d):
 
 
 def verdict(refs, max_hp):
-    """E34 precedence: exact turn enumeration > powered paired playouts (R3) > turn check (R2); the K search (R1) never decides alone.
-    A verdict needs > 2 se and >= 1 HP-eq. refs values are his - live in linear q units (win 1 + 0.5 hp/max, loss -1)."""
+    """refs: his - live in linear q units (win 1 + 0.5 hp/max, loss -1)"""
     hp_eq = HPB / max_hp
     ex, r3, r2, r1 = (refs.get(k) for k in ("exact", "r3", "r2", "r1"))
     if ex:
@@ -867,9 +849,6 @@ def verdict(refs, max_hp):
         if r is not None and (bounded(r, hp_eq) or (r["d"] == 0 and r["se"] == 0)):
             return "tie", name, f"{('order only' if name == 'r2' else 'identical outcomes') if r['d'] == 0 and r['se'] == 0 else 'immaterial'}: {r['d']:+.4f} ({r['se']:.4f}) < 1 HP-eq"
     return "unresolved", None, "no reference resolves 1 HP-eq"
-
-
-# ---------- compare
 
 
 def decision_states(fight):
@@ -989,9 +968,6 @@ def summary(data):
             print(f"  {r['fight'][12:]} #{r['i']} {r.get('t')}: his {r['his']} | live {r['live']} -> {r['verdict']} ({r.get('by')}: {r.get('why')})")
 
 
-# ---------- macro (price)
-
-
 def compare_macro(rec, a):
     from agent import price as PR
     from predictor import Predictor
@@ -1070,9 +1046,6 @@ def synthetic_screens(rec):
                 deck.append({"id": cid, "upgrade": up})
         elif played == "rest":
             hp = min(sc["max_hp"], hp + int(R.HEAL_REST * sc["max_hp"]))
-
-
-# ---------- report
 
 
 def report(a):

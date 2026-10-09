@@ -276,8 +276,7 @@ FLOOR, DISCOUNT = 0.05, 0.5
 
 
 def gates(st, pol):
-    """(act, P(win) vs its elite pool, P(clear its boss gate)) for st.act and every later act, on st's deck: elites at the act's arrival HP
-    without potions, the belt at st.act's boss only, arrival HP of a later act = ancient heal of the expected HP after the previous boss"""
+    """(act, P(win) vs its elite pool, P(clear its boss gate)) for st.act and every later act"""
     import predictor as PR
     from agent import pools
     out, hp = [], st.hp
@@ -305,9 +304,6 @@ def gates(st, pol):
 
 
 def combine(g, rule="late", floor=FLOOR):
-    """product of gate pass probabilities; 'late': gates of later acts floored at `floor` (a later gate the current deck cannot pass is the
-    predictor's tail on a deck that will change: it drops out of comparisons), the first act's gates unfloored; 'clip': every gate floored;
-    'prod': unfloored; 'disc': gate k acts later weighted DISCOUNT**k in log space; 'mean': average gate"""
     p = np.array([x[1:] for x in g]).ravel()
     if rule == "mean":
         return float(p.mean())

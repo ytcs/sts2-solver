@@ -68,8 +68,6 @@ class Builder:
         return [dict(sc, name=f"round{self.seed}:plan:{i}")]
 
     def pair(self, i):
-        """a deck and its twin without one key card, same loadout and encounter: half plan decks (minus a plan enabler), half generated
-        elite/boss fights (minus the deck's top Power or scaling card)"""
         r = self.r
         if i % 2 == 0:
             p = self.plans[(i // 2) % len(self.plans)]
@@ -113,7 +111,7 @@ def constructs(sc, why):
 
 
 def build(make, n, why):
-    """n fights from make(i) -> a group (a pair stays whole or is dropped whole); every fight multiplayer-free and constructible"""
+    """a pair stays whole or is dropped whole"""
     out, i, tries = [], 0, 0
     while len(out) < n and tries < 20 * n + 100:
         group = make(i)

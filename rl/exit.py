@@ -303,7 +303,7 @@ def main():
     c.add_argument("--roots", type=int, default=2048); c.add_argument("--seed", type=int, default=101)
     c.add_argument("--chunk", type=int, default=2048, help="fights per saved part")
     c.add_argument("--chunks-per-process", type=int, default=3, help="chunks before exiting with code 3 for a fresh process: a long-lived search process "
-                   "slows down chunk after chunk (round 2: chunk 9 took 3x the median; the same fights in a fresh process ran at full speed)")
+                   "slows down chunk after chunk")
     c.add_argument("--max-minutes", type=float, default=120, help="no new chunk starts after this")
     c.add_argument("--chunk-timeout", type=float, default=5.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
     c.add_argument("--skip-stuck", action="store_true", help="skip chunks the watchdog has already ended once (their _stuck_ file exists)")

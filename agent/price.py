@@ -211,12 +211,11 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4, cont=None):
 
 
 def arrival(g, rule):
-    """V at the current act's boss: its boss gate times every later gate (the current act's elites are behind)"""
     return R.combine([(g[0][0], 1.0, g[0][2])] + list(g[1:]), rule)
 
 
 def closed_gates(st, opts, predictor, seeds=range(1000, 1008)):
-    """gates() of each option's state right after it (no rollout; an event's fights are not played), one value per shuffle seed for paired se"""
+    """per option: gates() of the state right after it, one per shuffle seed"""
     import random
     sts = []
     for _label, first in opts:
@@ -312,8 +311,7 @@ HEADER = re.compile(r"A(\d+) F(\d+) \w+ A\d+ HP (\d+)/(\d+) G(\d+)")
 
 
 def recorded_screens(events_path, kinds=("CARD_REWARD", "RESTSITE")):
-    """(floor, state text, RunState, recorded choice label, old calculator's best label or None) per decision screen of a recorded run;
-    deck = the last fight's deck plus the card picks since, the rest of the act from the template (no map)"""
+    """(floor, state text, RunState, recorded choice label, old calculator's best label or None) per decision screen"""
     import json
     sc, picks, seen, bosses, old, act = None, [], [], [], None, None
     for raw in open(events_path, encoding="utf-8"):

@@ -120,7 +120,7 @@ def _without(sc, card):
 
 
 def plan_targets(p):
-    """{(act, hp): encounters}: each threat's act and HP, against the threat and that act's elites and bosses"""
+    """{(act, hp): encounters}"""
     from agent import plans, pools
     targets = {}
     for t in p["threats"]:
@@ -161,9 +161,6 @@ def _plausible_start(sc, prev_act):
 
 
 def recorded_slice(runs_dir):
-    """act-start decks (first fight of an act) vs their act's elites and bosses, with a minus-enabler twin when the deck has a Power or a
-    scaling card; plus every elite and boss fight as recorded, on the same plausible sequence (floors rising, encounters in the act's pools).
-    Only runs played on the map: harness test fixtures start in combat"""
     starts, fights = {}, {}
     for path in sorted(glob.glob(os.path.join(runs_dir, "*", "events.jsonl"))):
         run = os.path.basename(os.path.dirname(path))
@@ -222,7 +219,6 @@ def _hp(s):
 
 
 def expert_slice():
-    """the act boundaries that list a deck (next act's start: + the ancient's relic, at the ancient's HP) and the fights with a full deck"""
     import sts2
     from agent import pools
     out = []
@@ -396,8 +392,6 @@ def _pearson(a, b):
 
 
 def _plans_report(rows, pw, y, worst=10):
-    """per group and per deck (mean over its fights): solver vs predicted P(win); gate = |bias| < 0.05 and deck Spearman >= 0.8. Pairs: deck
-    vs the same deck minus one enabler at the same encounter (shared seeds), solver difference vs predicted difference"""
     meta = [r["scenario"]["meta"] for r in rows]
     enc = [r["scenario"]["encounter"] for r in rows]
     for key in ("source", "archetype"):
