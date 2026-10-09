@@ -49,6 +49,15 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
             Console.Error.WriteLine($"result={res.Result} actions={res.Recorded.Count}" + (res.Error != null ? " ERROR: " + res.Error : ""));
             return res.Error == null ? 0 : 1;
         }
+        if (cmd == "run-replay")
+        {
+            string outPath = kv.GetValueOrDefault("out");
+            using var w = outPath != null ? new StreamWriter(outPath, false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" } : new StreamWriter(Console.OpenStandardOutput()) { NewLine = "\n" };
+            var rr = new RunReplay(positional, w, pump);
+            try { rr.Run(); }
+            catch (Exception e) { w.Flush(); Console.Error.WriteLine("ERROR: " + (e is OracleException ? e.Message : e.ToString())); return 1; }
+            return 0;
+        }
         if (cmd == "dump-rng")
         {
             var set = new MegaCrit.Sts2.Core.Runs.RunRngSet(positional);

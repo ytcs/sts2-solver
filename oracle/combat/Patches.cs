@@ -80,6 +80,9 @@ public static class Patches
         }
     }
 
+    [HarmonyPatch(typeof(Godot.ResourceLoader), nameof(Godot.ResourceLoader.Exists))]
+    static class P_ResExists { static bool Prefix(ref bool __result) { __result = false; return false; } }
+
     [HarmonyPatch]
     static class P_ResLoad {
         static System.Reflection.MethodBase TargetMethod() => typeof(Godot.ResourceLoader).GetMethods().First(m => m.Name == "Load" && !m.IsGenericMethod && m.GetParameters().Length == 3); static bool Prefix(ref Godot.Resource __result) { __result = null; return false; } }
