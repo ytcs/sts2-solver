@@ -521,15 +521,20 @@ def compare(a):
     rows = []
     types = set(a.types.split(",")) if a.types else None
     t_all = time.time()
+    redo = {int(x) for x in (a.redo or "").split(",") if x}
     for d in decs:
         if types and d["type"] not in types:
+            if d["k"] in prev:
+                rows.append(prev[d["k"]])
             continue
-        if d["k"] in prev and prev[d["k"]].get("n") == a.n and prev[d["k"]]["verdict"] != "unpriced":
+        if d["k"] in prev and prev[d["k"]].get("n") == a.n and prev[d["k"]]["verdict"] != "unpriced" and d["k"] not in redo:
             rows.append(prev[d["k"]])
             continue
         t0 = time.time()
         row = dict(k=d["k"], floor=d["floor"], type=d["type"], played=d.get("pick"), then=d.get("then"), n=a.n)
         try:
+            if d["state"].get("post_boss") and d["act"] >= 2:
+                raise ValueError("between the final two bosses: not modelled by the run model")
             st = run_state(head, d)
             opts, mine, err = options_for(head, d, st)
         except ValueError as e:
@@ -608,17 +613,85 @@ def add_parsers(sub):
     p.add_argument("log")
     p.add_argument("--compact", required=True)
     p.add_argument("--out")
+    p = sub.add_parser("macro-summary", help="agree/tie/disagree by decision type over verdict files")
+    p.add_argument("verdicts", nargs="+")
+    p = sub.add_parser("macro-diff", help="transcription accuracy of record A against reference record B of the same run")
+    p.add_argument("a")
+    p.add_argument("b")
     p = sub.add_parser("macro-compare")
     p.add_argument("record")
     p.add_argument("--n", type=int, default=32)
     p.add_argument("--types", help="comma-separated decision types only")
     p.add_argument("--device", default="auto", help="auto = cuda only while nvidia-smi shows < 50%% use")
     p.add_argument("--fresh", action="store_true", help="ignore rows already in the verdict file")
+    p.add_argument("--redo", help="comma-separated k to recompute")
     p.add_argument("--out")
 
 
 def run(a):
-    return {"macro": macro, "macro-scan": scan, "macro-crop": crop, "macro-build": build, "macro-replay": from_replay, "macro-compare": compare}[a.cmd](a)
+    return {"macro": macro, "macro-scan": scan, "macro-crop": crop, "macro-build": build, "macro-replay": from_replay, "macro-compare": compare,
+            "macro-diff": diff, "macro-summary": lambda a: summary_all(a.verdicts)}[a.cmd](a)
+
+
+def summary_all(paths):
+    rows = []
+    for p in paths:
+        v = json.load(open(record_path_(p), encoding="utf-8"))
+        print(f"{v['video']} {v['character']}: {len(v['rows'])} decisions, n {v['settings']['n']}")
+        rows += [dict(r, video=v["video"]) for r in v["rows"]]
+    summarize(rows)
+
+
+def _opts(d):
+    from agent import screen as scr
+    out = []
+    for _, lb in scr.options(d["screen"]):
+        if lb.startswith(("Skip", "leave shop", "proceed", "full map")):
+            continue
+        out.append(ident(re.split(r"[(:]| -> ", re.sub(r"^\d+g (card|relic|potion) ", "", lb))[0]).removesuffix("_IRONCLAD"))
+    return sorted(out)
+
+
+def diff(a):
+    """transcription accuracy: a frames record (A) against a reference record of the same run (B, e.g. from the replay log)"""
+    from collections import Counter
+    _, da = load_record(record_path_(a.a))
+    _, db = load_record(record_path_(a.b))
+    key = lambda d: (d["floor"], d["type"])  # noqa: E731
+    pool = {}
+    for d in db:
+        pool.setdefault(key(d), []).append(d)
+    c, rows = Counter(), []
+    norm = lambda p: json.dumps(p, sort_keys=True).lower().replace("+", "")  # noqa: E731
+    for d in da:
+        ref = (pool.get(key(d)) or [None]).pop(0) if pool.get(key(d)) else None
+        if ref is None:
+            c["extra (not in reference)"] += 1
+            rows.append((d["floor"], d["type"], "extra", d.get("pick"), None))
+            continue
+        c["matched"] += 1
+        sa, sb = d["state"], ref["state"]
+        checks = dict(pick=norm(d.get("pick")) == norm(ref.get("pick")) or (d["type"] == "rest" and norm(d.get("then")) == norm(ref.get("then"))),
+                      options=_opts(d) == _opts(ref) if d["type"] != "map" else True,
+                      hp=sa["hp"] == sb["hp"], gold=sa["gold"] == sb["gold"],
+                      deck=Counter((x["id"], x.get("upgrade", 0)) for x in sa["deck"]) == Counter((x["id"], x.get("upgrade", 0)) for x in sb["deck"]),
+                      relics=len(sa["relics"]) == len(sb["relics"]))
+        for k, ok in checks.items():
+            c[f"{k} ok"] += ok
+        bad = [k for k, ok in checks.items() if not ok]
+        if bad:
+            rows.append((d["floor"], d["type"], ",".join(bad), d.get("pick"), ref.get("pick")))
+    missed = [d for v in pool.values() for d in v]
+    c["missed (in reference only)"] = len(missed)
+    print(f"A {len(da)} decisions, B {len(db)}: " + ", ".join(f"{k} {v}" for k, v in c.items()))
+    for r in rows:
+        print("  F{} {} {}: A {} | B {}".format(*r))
+    for d in missed:
+        print(f"  missed F{d['floor']} {d['type']} pick {d.get('pick')}")
+
+
+def record_path_(p):
+    return p if os.path.isabs(p) else os.path.join(ROOT, p)
 
 
 REGIONS = dict(full=(0, 0, 1920, 1080), top=(0, 0, 1920, 64), cards=(440, 380, 1480, 820), center=(240, 100, 1680, 1000), relics=(0, 60, 1920, 110),
@@ -1037,8 +1110,8 @@ def build(a):
     out = a.out or os.path.join(ROOT, "data", "expert", w["video"]["creator"], f"{w['video']['id']}.macro.jsonl")
     if tr.errors and not a.allow:
         raise SystemExit(f"{len(tr.errors)} validation errors: fix the work file (or --allow to record them in each decision's checks)")
-    if tr.errors:
-        head["checks"] = tr.errors
+    if tr.errors or w.get("checks"):
+        head["checks"] = list(w.get("checks", [])) + tr.errors
     write_record(out, head, decisions)
 
 

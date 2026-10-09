@@ -29,7 +29,7 @@
     "Neow's Bones": 0.2812
    },
    "verdict": "agree",
-   "secs": 4.3
+   "secs": 3.9
   },
   {
    "k": 1,
@@ -71,7 +71,7 @@
    "d": -0.0234,
    "se": 0.0514,
    "verdict": "tie",
-   "secs": 3.3
+   "secs": 3.6
   },
   {
    "k": 3,
@@ -109,7 +109,7 @@
     "Bathe": 0.1094
    },
    "verdict": "agree",
-   "secs": 3.9
+   "secs": 2.9
   },
   {
    "k": 5,
@@ -153,7 +153,7 @@
    "d": -0.0234,
    "se": 0.0206,
    "verdict": "tie",
-   "secs": 5.3
+   "secs": 3.3
   },
   {
    "k": 7,
@@ -177,7 +177,7 @@
     "smith DEFEND_IRONCLAD": 0.2422
    },
    "verdict": "agree",
-   "secs": 9.2
+   "secs": 9.1
   },
   {
    "k": 8,
@@ -217,7 +217,7 @@
    "d": -0.1875,
    "se": 0.0517,
    "verdict": "disagree",
-   "secs": 4.6
+   "secs": 7.3
   },
   {
    "k": 10,
@@ -258,7 +258,7 @@
    "d": -0.0625,
    "se": 0.0328,
    "verdict": "tie",
-   "secs": 6.3
+   "secs": 7.0
   },
   {
    "k": 12,
@@ -304,7 +304,7 @@
    "d": -0.0156,
    "se": 0.0156,
    "verdict": "tie",
-   "secs": 25.9
+   "secs": 27.4
   },
   {
    "k": 14,
@@ -331,7 +331,7 @@
    "d": -0.0391,
    "se": 0.0172,
    "verdict": "disagree",
-   "secs": 45.0
+   "secs": 44.0
   },
   {
    "k": 15,
@@ -377,7 +377,7 @@
     "smith SECOND_WIND": 0.0234
    },
    "verdict": "agree",
-   "secs": 33.0
+   "secs": 30.0
   },
   {
    "k": 17,
@@ -420,7 +420,7 @@
    "d": -0.0781,
    "se": 0.0263,
    "verdict": "disagree",
-   "secs": 4.7
+   "secs": 3.3
   },
   {
    "k": 19,
@@ -512,7 +512,7 @@
     "remove CRUELTY (50g)": 0.1562
    },
    "verdict": "agree",
-   "secs": 19.9
+   "secs": 16.3
   },
   {
    "k": 23,
@@ -534,7 +534,7 @@
    "d": -0.0469,
    "se": 0.0413,
    "verdict": "tie",
-   "secs": 2.5
+   "secs": 2.3
   },
   {
    "k": 24,
@@ -578,7 +578,7 @@
     "leave Orobic Acid": 0.0625
    },
    "verdict": "agree",
-   "secs": 2.5
+   "secs": 2.6
   },
   {
    "k": 26,
@@ -604,7 +604,7 @@
    "d": -0.1484,
    "se": 0.0315,
    "verdict": "disagree",
-   "secs": 12.4
+   "secs": 9.9
   },
   {
    "k": 27,
@@ -630,7 +630,7 @@
    "d": -0.1172,
    "se": 0.0326,
    "verdict": "disagree",
-   "secs": 15.8
+   "secs": 9.1
   },
   {
    "k": 28,
@@ -648,7 +648,7 @@
     "Search the Nearby Area": 0.0938
    },
    "verdict": "agree",
-   "secs": 3.7
+   "secs": 2.1
   },
   {
    "k": 29,
@@ -674,7 +674,7 @@
    "d": -0.0156,
    "se": 0.0221,
    "verdict": "tie",
-   "secs": 13.4
+   "secs": 11.0
   },
   {
    "k": 30,
@@ -742,7 +742,7 @@
    "d": -0.0469,
    "se": 0.033,
    "verdict": "tie",
-   "secs": 17.0
+   "secs": 13.4
   },
   {
    "k": 33,
@@ -789,7 +789,7 @@
    "d": -0.0078,
    "se": 0.0078,
    "verdict": "tie",
-   "secs": 2.3
+   "secs": 2.1
   },
   {
    "k": 35,
@@ -872,7 +872,7 @@
    "d": 0.0,
    "se": 0.0,
    "verdict": "tie",
-   "secs": 2.1
+   "secs": 1.5
   },
   {
    "k": 39,
@@ -986,7 +986,7 @@
     "smith DEFEND_IRONCLAD": 0.0312
    },
    "verdict": "agree",
-   "secs": 12.6
+   "secs": 9.4
   },
   {
    "k": 45,
@@ -1029,7 +1029,7 @@
     "Armaments (24g)": 0.0078
    },
    "verdict": "agree",
-   "secs": 30.0
+   "secs": 24.2
   },
   {
    "k": 47,
@@ -1161,7 +1161,7 @@
    "d": -0.0078,
    "se": 0.0078,
    "verdict": "tie",
-   "secs": 16.2
+   "secs": 13.2
   },
   {
    "k": 53,
@@ -1170,20 +1170,10 @@
    "played": null,
    "then": null,
    "n": 128,
-   "n_options": 4,
-   "priced_as": "skip",
-   "price_best": "Pyre",
-   "horizon": "act",
-   "means": {
-    "Pyre": 0.0625,
-    "skip": 0.0547,
-    "Stone Armor": 0.0469,
-    "Cruelty": 0.0469
-   },
-   "d": -0.0078,
-   "se": 0.0136,
-   "verdict": "tie",
-   "secs": 8.3
+   "n_options": 0,
+   "verdict": "unpriced",
+   "why": "between the final two bosses: not modelled by the run model",
+   "secs": 0.0
   }
  ]
 }
