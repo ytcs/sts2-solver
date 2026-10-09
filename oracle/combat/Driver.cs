@@ -46,6 +46,7 @@ public sealed class ChoiceSelector : ICardSelector
             picked = want.Select(id =>
             {
                 int k = Enumerable.Range(0, n).FirstOrDefault(i => !used.Contains(i) && opts[i].Id.Entry == id, -1);
+                if (k < 0) k = Enumerable.Range(0, n).FirstOrDefault(i => !used.Contains(i) && opts[i].Id.Entry.StartsWith(id + "_"), -1);
                 if (k < 0) throw new OracleException($"scripted choice {id} not among options: " + string.Join(", ", opts.Select(c => c.Id.Entry)));
                 used.Add(k); return k;
             }).ToArray();
@@ -115,7 +116,7 @@ public sealed class Driver
     private CombatState St => CombatManager.Instance.DebugOnlyGetState();
     private PlayerCombatState Pcs => _player.PlayerCombatState;
 
-    private string Stuck() =>
+    internal string Stuck() =>
         $"inProgress={CombatManager.Instance.IsInProgress} side={St?.CurrentSide} phase={Pcs?.Phase} turn={Pcs?.TurnNumber} " +
         $"execRunning={RunManager.Instance.ActionExecutor.IsRunning} execPaused={RunManager.Instance.ActionExecutor.IsPaused} " +
         $"curAction={RunManager.Instance.ActionExecutor.CurrentlyRunningAction}";

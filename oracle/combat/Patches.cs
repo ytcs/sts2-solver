@@ -80,6 +80,22 @@ public static class Patches
         }
     }
 
+    // run-replay: undo TestMode-only behaviour that changes run-level RNG or rewards
+    public static bool RealRunRng = false;
+
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Entities.Merchant.MerchantPotionEntry), nameof(MegaCrit.Sts2.Core.Entities.Merchant.MerchantPotionEntry.CalcCost))]
+    static class P_PotionCost
+    {
+        static void Postfix(MegaCrit.Sts2.Core.Entities.Merchant.MerchantPotionEntry __instance)
+        {
+            if (!RealRunRng) return;
+            var t = Traverse.Create(__instance);
+            var player = t.Field("_player").GetValue<MegaCrit.Sts2.Core.Entities.Players.Player>();
+            int cost = t.Field("_cost").GetValue<int>();
+            t.Field("_cost").SetValue((int)Godot.Mathf.Round((float)cost * player.PlayerRng.Shops.NextFloat(0.95f, 1.05f)));
+        }
+    }
+
     [HarmonyPatch(typeof(Godot.ResourceLoader), nameof(Godot.ResourceLoader.Exists))]
     static class P_ResExists { static bool Prefix(ref bool __result) { __result = false; return false; } }
 
