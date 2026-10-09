@@ -11,6 +11,7 @@ static class Cli
     static string Usage = @"usage:
   OracleCombat run <scenario.json> [--out trace.jsonl] [--random SEED] [--record scenario_with_script.json] [opts]
   OracleCombat run-replay <record.compact.jsonl> --out trace.jsonl
+  OracleCombat serve --port N [--seed S --character C] [--ascension 10] [--pck SlayTheSpire2.pck]
   OracleCombat fuzz --encounters ALL|ID,ID --character IRONCLAD --seeds A-B [--out-dir DIR] [--keep-all] [--extra-cards N] [--extra-relics N] [--extra-potions N] [--ascension N] [--starter-only] [opts]
 opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error)  --verbose";
 
@@ -29,6 +30,7 @@ opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error) 
         Fatal.Lenient = flags.Contains("lenient");
         var pump = Pump.Install();
         Boot.Init(flags.Contains("verbose"));
+        if (cmd == "serve") return Serve.Main(pump, kv);
         int maxSteps = kv.TryGetValue("max-steps", out var ms) ? int.Parse(ms) : 400;
         int maxRounds = kv.TryGetValue("max-rounds", out var mr) ? int.Parse(mr) : 60;
         if (cmd == "run")

@@ -3,6 +3,7 @@ Claude plays Slay the Spire 2 (v0.111.0, A10) in the real game: Rust combat simu
 
 ```
 game + mods/AgentBridge :15555  <-  agent daemon :15556 (python -m agent <cmd>)  <-  Claude
+oracle/combat `serve --port N` (headless game, same protocol)  <-  STS2_BRIDGE=127.0.0.1:N (daemon N+1)
 ```
 
 ## Setup

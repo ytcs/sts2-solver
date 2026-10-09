@@ -5,7 +5,7 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <NoWarn>CS8981;CS0168;CS0219;CS1998</NoWarn>
+    <NoWarn>CS8981;CS0168;CS0219;CS1998;CS8632</NoWarn>
     <GameDir Condition="'$(GameDir)' == '' And '$(OS)' == 'Windows_NT'">C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64</GameDir>
     <GameDir Condition="'$(GameDir)' == ''">$(HOME)/.local/share/Steam/steamapps/common/Slay the Spire 2/data_sts2_linuxbsd_x86_64</GameDir>
   </PropertyGroup>
@@ -15,5 +15,15 @@
     <Reference Include="0Harmony"><HintPath>$(GameDir)/0Harmony.dll</HintPath><Private>true</Private></Reference>
     <Reference Include="SmartFormat"><HintPath>$(GameDir)/SmartFormat.dll</HintPath><Private>true</Private></Reference>
     <Reference Include="Sentry"><HintPath>$(GameDir)/Sentry.dll</HintPath><Private>true</Private></Reference>
+    <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="all" />
+    <Publicize Include="sts2" IncludeCompilerGeneratedMembers="false" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute"><_Parameter1>GameDir</_Parameter1><_Parameter2>$(GameDir)</_Parameter2></AssemblyAttribute>
+  </ItemGroup>
+  <!-- `serve` shares the in-game bridge mod's text, fight-log and selector code (mods/AgentBridge/src) -->
+  <ItemGroup>
+    <Compile Include="../../mods/AgentBridge/src/Text.cs" Link="Bridge/Text.cs" />
+    <Compile Include="../../mods/AgentBridge/src/Snap.cs" Link="Bridge/Snap.cs" />
+    <Compile Include="../../mods/AgentBridge/src/AgentSelector.cs" Link="Bridge/AgentSelector.cs" />
+    <Compile Include="../../mods/AgentBridge/src/PromptPatch.cs" Link="Bridge/PromptPatch.cs" />
   </ItemGroup>
 </Project>
