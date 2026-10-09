@@ -152,6 +152,46 @@ public static class Patches
         }
     }
 
+    // The Trial's Accept reaches NEventRoom.Instance (portrait, vfx) behind IsMe: the same RNG draw, options and page without the nodes
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Events.Trial), "Accept")]
+    static class P_TrialAccept
+    {
+        static bool Prefix(MegaCrit.Sts2.Core.Models.Events.Trial __instance, ref Task __result)
+        {
+            var ev = __instance;
+            Func<Task> M(string name) => (Func<Task>)AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.Trial), name).CreateDelegate(typeof(Func<Task>), ev);
+            MegaCrit.Sts2.Core.Events.EventOption O(string m, string key, IEnumerable<MegaCrit.Sts2.Core.HoverTips.IHoverTip> tips) => new(ev, M(m), key, tips);
+            var none = Array.Empty<MegaCrit.Sts2.Core.HoverTips.IHoverTip>();
+            var tip = MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.FromCardWithCardHoverTips<MegaCrit.Sts2.Core.Models.Cards.Regret>;
+            string entry;
+            MegaCrit.Sts2.Core.Events.EventOption[] opts;
+            switch (ev.Rng.NextInt(3))
+            {
+                case 0:
+                    entry = "TRIAL.pages.MERCHANT.description";
+                    opts = new[] { O("MerchantGuilty", "TRIAL.pages.MERCHANT.options.GUILTY", tip()),
+                        O("MerchantInnocent", "TRIAL.pages.MERCHANT.options.INNOCENT", MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.FromCardWithCardHoverTips<MegaCrit.Sts2.Core.Models.Cards.Shame>()) };
+                    break;
+                case 1:
+                    entry = "TRIAL.pages.NOBLE.description";
+                    opts = new[] { O("NobleGuilty", "TRIAL.pages.NOBLE.options.GUILTY", none), O("NobleInnocent", "TRIAL.pages.NOBLE.options.INNOCENT", tip()) };
+                    break;
+                default:
+                    entry = "TRIAL.pages.NONDESCRIPT.description";
+                    var doubt = MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.FromCardWithCardHoverTips<MegaCrit.Sts2.Core.Models.Cards.Doubt>;
+                    opts = new[] { O("NondescriptGuilty", "TRIAL.pages.NONDESCRIPT.options.GUILTY", doubt()),
+                        O("NondescriptInnocent", "TRIAL.pages.NONDESCRIPT.options.INNOCENT",
+                            doubt().Concat(new[] { MegaCrit.Sts2.Core.HoverTips.HoverTipFactory.Static(MegaCrit.Sts2.Core.HoverTips.StaticHoverTip.Transform) })) };
+                    break;
+            }
+            var loc = ev.L10NLookup("TRIAL.trialFormat");
+            loc.Add(new MegaCrit.Sts2.Core.Localization.DynamicVars.StringVar("TrialStory", ev.L10NLookup(entry).GetRawText()));
+            ev.SetEventState(loc, opts);
+            __result = Task.CompletedTask;
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(Godot.ResourceLoader), nameof(Godot.ResourceLoader.Exists))]
     static class P_ResExists { static bool Prefix(ref bool __result) { __result = false; return false; } }
 

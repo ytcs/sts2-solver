@@ -26,6 +26,7 @@ Dashboard: `python tools/dashboard/extract_assets.py` (once per game update), th
 - Expert iteration: `tools/collect.sh <rl/exit.py collect args>` (`--ckpt --fights --out [--cover --K --futures]`), `rl/exit.py train --init --data --out` (policy + TD(0.8) value by default). Pools: `tools/gen_curriculum.py`, `signal_pool.py`, `gen_train.py`, `round_pool.py`. After a simulator change: `tools/prune_divergent.py`.
 - Pods: `scripts/pod_round.sh` (combat-loop round), `pod_train.sh` (PPO `rl/ppo.py`), `pod_job.sh` (uploaded `job.sh`), shared `pod_setup.sh`.
 - Benchmarks: `tools/bench.py build|build-plans|relabel|score|play|screen`, `tools/nearmiss_bench.py build|eval`, `tools/bench_search.py`, `tools/exact_turn_check.py`.
+- Headless baseline: `tools/baseline.py` (N `OracleCombat serve` games round-robin, one shared Engine, fixed search rounds, `runmodel.BasePolicy` macro, win = The Architect reached; `evals/baseline/<tag>.jsonl`).
 - Live networks: `models/current.json`. Expert re-enactment: `tools/expert.py`, skill `expert-reenact`.
 
 ## Accuracy gate

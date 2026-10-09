@@ -34,12 +34,12 @@ def _needs_run(reply):
 
 
 class Harness(Live):
-    def __init__(self):
+    def __init__(self, log=None):
         self.engine = None
         self._eng_lock = threading.Lock()
         self.rp = None
         self.fight_id = None
-        self.log = RunLog()
+        self.log = log or RunLog()
         self.last_state = ""
         self.priced = {}
         self.table_seed = 0

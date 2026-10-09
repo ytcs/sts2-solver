@@ -5,11 +5,12 @@ from agent.skillgate import BRIDGE_READ_ONLY
 
 PORT = int(os.environ.get("STS2_BRIDGE_PORT", 15555))
 READ_ONLY = tuple(sorted(BRIDGE_READ_ONLY))
+OVERRIDE = None  # host:port set by one process driving several headless servers (tools/baseline.py); wins over STS2_BRIDGE
 
 
 def endpoint():
-    """STS2_BRIDGE=host:port (a headless `OracleCombat serve`) or the real game's bridge (STS2_BRIDGE_PORT, default 15555)."""
-    ep = os.environ.get("STS2_BRIDGE", "").strip()
+    """OVERRIDE or STS2_BRIDGE=host:port (a headless `OracleCombat serve`), else the real game's bridge (STS2_BRIDGE_PORT, default 15555)."""
+    ep = (OVERRIDE or os.environ.get("STS2_BRIDGE", "")).strip()
     if not ep:
         return "127.0.0.1", PORT, False
     host, _, port = ep.rpartition(":")
