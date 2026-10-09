@@ -7,6 +7,7 @@ seedcheck|replay RECORD --dry-run   the action sequence the live harness command
 compare RECORD [--replay]     per decision: live player + references -> verdicts (divergences JSON)
 report RECORD                 notes skeleton + divergence table from a compare output
 compact RECORD                transcription record -> <id>.compact.jsonl (actions only; the replayable run)
+macro URL | macro-scan | macro-build | macro-replay | macro-compare   macro-only extraction (`tools/expert_macro.py`)
 Live seedcheck / replay are harness commands: `python -m agent seedcheck|replay RECORD`.
 """
 import argparse
@@ -175,7 +176,8 @@ def fetch(a):
             print(f"transcript: none ({err})")
         if a.transcript_only:
             return
-        with yt_dlp.YoutubeDL(dict(quiet=True, format="bv*", outtmpl=os.path.join(tmp, "video.%(ext)s"))) as y:
+        with yt_dlp.YoutubeDL(dict(quiet=True, format="bv*[height<=1080]/bv*", outtmpl=os.path.join(tmp, "video.%(ext)s"), retries=10, fragment_retries=10,
+                                   **({"js_runtimes": {"node": {}}} if shutil.which("node") else {}))) as y:
             y.download([url])
         video = next(os.path.join(tmp, f) for f in os.listdir(tmp) if f.startswith("video."))
         fdir = os.path.join(d, "frames", vid)
@@ -1351,7 +1353,11 @@ def main():
     p.add_argument("record")
     p.add_argument("--input")
     p.add_argument("--out")
+    import expert_macro as M
+    M.add_parsers(sub)
     a = ap.parse_args()
+    if a.cmd.startswith("macro"):
+        return M.run(a)
     if a.cmd == "fetch":
         return fetch(a)
     if a.cmd == "build":
