@@ -956,7 +956,7 @@ def verdict(refs, max_hp):
         if top["his"] and top["live"]:
             return "tie", "exact", f"both classes contain a line that wins this turn losing no HP ({cap:+.4f}, the maximum)"
         # a class that wins this turn losing no HP is optimal: a sampled reference ranking the other class above it over-values a leaf
-        drop = (lambda r: r is not None and r["d"] < 0) if top["his"] else (lambda r: r is not None and r["d"] > 0) if top["live"] else (lambda r: False)
+        drop = (lambda r: significant(r, hp_eq) and r["d"] < 0) if top["his"] else (lambda r: significant(r, hp_eq) and r["d"] > 0) if top["live"] else (lambda r: False)
         r3, r2, r1 = (None if drop(r) else r for r in (r3, r2, r1))
     if significant(r3, hp_eq):
         return side(r3["d"]), "r3", f"paired playouts {r3['d']:+.4f} ({r3['se']:.4f}), n {r3.get('n')}"
@@ -1074,7 +1074,8 @@ def compare(a):
 
 def settings(a):
     return dict(live_rounds=a.live_rounds, objective=a.objective, ref_k=a.ref_k, ref_seeds=a.ref_seeds, tc_k=a.tc_k, tc_dets=a.tc_dets,
-                tc_revalue=a.tc_revalue, tc_leaves=a.tc_leaves, playouts=a.playouts, playout_rounds=a.playout_rounds, device=os.environ.get("STS2_DEVICE"))
+                tc_revalue=a.tc_revalue, tc_leaves=a.tc_leaves, playouts=a.playouts, playout_rounds=a.playout_rounds, device=os.environ.get("STS2_DEVICE"),
+                model=json.load(open(os.path.join(ROOT, "models", "current.json"), encoding="utf-8")).get("policy"))
 
 
 def summary(data):

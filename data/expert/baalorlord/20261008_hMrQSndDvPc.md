@@ -1,309 +1,130 @@
-# Baalorlord "New Poison Deck!" (A10 Silent): Act 1 fight lines vs the solver
-- url: https://youtu.be/hMrQSndDvPc | uploaded 2026-10-08 | 47 min edited stream | Silent A10 (double-boss badge) | run won (final boss dead @46:30).
-- **build: `v0.111.0 (2026.08.14)` = our pinned build** (stamp top right of every gameplay frame) -> real-game re-enactment on the seed is permitted. Stamp also shows `MODDED (2)` (mods not identified; nothing visible changes gameplay, unverified) and `HASH [1568834832]`.
-- **run seed: `YMY1KELG18SC`** (read at 1080p; all characters are in the game's seed alphabet `0-9A-HJ-NP-Z`, so no I/O ambiguity; 8/B read clearly).
-- Act 1 = Underdocks (records use `act: 0`, the run's act index, as live records do; the simulator does not read `act`); boss Lagavulin Matriarch.
-- source: frames at 1080p60 + YouTube auto-transcript (yt-dlp subtitle fetch got HTTP 429; fetched with `youtube-transcript-api`). Git-ignored, local: `transcripts/20261008_hMrQSndDvPc.txt` (30 s paragraphs), `frames/hMrQSndDvPc/<mmss>.jpg` (122 stills, one per decision used). Video deleted.
-- caption fixes: "Tess/truss" = Silken Tress, "cal gamble" = Calculated Gamble, "penib/pen nib" = Pen Nib, "panagramraph/pentagramraph" = Pantograph, "Yumes Humes" = Noxious Fumes, "lag of / Lagulan" = Lagavulin Matriarch, "gardenals/gardener reels" = Phantasmal Gardeners, "coral thing" = Skulking Colony, "decks potion" = Dexterity Potion, "ship potion" = Cunning Potion (3 Shiv+), "terror" = Terror Eel.
-- fight records (committed): `fights/hMrQSndDvPc_F<floor>_<ENCOUNTER>.json`, harness schema (`id, encounter, hp_start, hp_end, scenario, fight{scenario, log, states, state}`) plus `source`, `times` (video time per logged action), `observed` (which fields each state took from frames), `replay_check`. `scenario` carries `run_seed`, `game_build`, `build_hash`, `modded`, `video`, `video_span` (the simulator accepts the extra keys).
+# Baalorlord "New Poison Deck!" (A10 Silent): full run vs the live player
+- url https://youtu.be/hMrQSndDvPc | uploaded 2026-10-08 | 47 min edited stream | build `v0.111.0 (2026.08.14)` (pinned), `MODDED (2)` (no gameplay effect seen) | seed `YMY1KELG18SC` | won: Queen (F49) dead, 23/77 HP.
+- Run record: `hMrQSndDvPc.compact.jsonl` (28 KB): 199 steps, 668 actions (195 macro, 473 combat in 25 fights), actions only. It replays the whole run in the real game (`python -m agent replay`, 2026-10-09: 661/661 logged actions, every fight opening matched, win at 23/77; the 8 F17 bridge actions were played by hand in that run). Fight states come from the game: `tools/expert.py build` writes `replay/<id>/*.json` (git-ignored) from the replay log; the simulator cannot redraw his hands.
+- Verdicts: `hMrQSndDvPc.divergences.json`, rows keyed by `k` (compact action index).
 
-## Method (what each number is)
-- **State reconstruction.** Per decision I read HP, block, energy, powers, hand (order and upgrades), shown piles, enemy HP/block/powers/intents, relic counters (Pen Nib), potions. A builder starts `sts2.Sim` on the scenario with a seed whose opening intents (and, for duplicate monsters, HPs) match the frame, applies his logged actions, and syncs each observed state (`Sim.sync`); end turns are re-rolled over determinizations until the next turn's shown intents match. The draw pile is the simulator's remainder (sorted contents synced where the video opened the pile). `agent.fight.Replayer` replays every record (`replay_check`).
-- **Live player** = `agent.engine.Engine()` (models/current.json at run time: policy `solver_gen2.pt`, adopted in 548826f; all R1-R3 searches and playouts use the same network; M=5 K=32, cover) `decide(budget 2 s, tol_hp 0.5, keep_potions=True)` on CPU. Differences from the harness: fixed 2 s instead of the danger-scaled budget, CPU, linear objective in all fights (the harness uses win-only for an act-1 boss; fight E was re-run with it, below). Potions are held by design (operator commits them), so his potion throws are "held" rows, not disagreements.
-- **R1: K=256 search** (`FastSearch`, cover, 16 seeds, common random numbers per seed): q per action class (identical cards merged). his-live = paired mean over seeds, se over seeds. Weakness found here: the rest of the current turn after the candidate is played by the rollout policy, so a line that needs exact sequencing can score as a loss (fight C T4).
-- **R2: turn-exhaustive check** (`tools/expert.py` `turn_check`): enumerates every distinct line to end of turn (choices included), values each end-of-turn state by terminal utility or by a K=8 search at the next decision (2 determinizations to select the best line per first action, 8 fresh determinizations to re-value it; paired se vs his line). Exact on current-turn sequencing; leaf values are a weak search.
-- **R3: paired full-fight playouts** (`tools/expert.py` `playouts`): his action vs the live player's, then the live player (0.3 s/decision for A, 0.15 s for D/E; potions free) finishes the fight; paired determinization seeds (n per row: 24 / 16 / 12, limited by CPU on a shared box).
-- units: q = win (+1 + 0.5 x end HP/max HP) or loss (-1). 1 HP at 70 max = 0.0071 q. **Verdict rule:** a disagreement is called only when the decisive reference shows |gap| > 2 se **and** >= 1 HP-eq (0.0071); Which reference decides: an exact (terminal) enumeration overrides everything; otherwise R3 when it was run with se below ~0.005 (resolves 1 HP-eq); otherwise R2; R1 never decides alone. "tie (order only)" = exactly equal q under common random numbers (commuting card orders reach the same end-of-turn state).
+## Transcription (2026-10-09)
+- Frames 1080p at 2 fps (5644, git-ignored; the yt-dlp `bv*` m3u8 download returned 403, format 299 worked). Act 1 F2-F8 by hand, the rest by five parallel transcribers; merged in game order while the live replay followed.
+- Fixed after the live replay: F45 card rewards were reversed (he took Well-Laid Plans before Anticipate+; the opening shuffle runs over deck order, so F48's hands diverged); F12 T3 and F15 T2 hands lacked a card.
+- F17 boss: the stream drops for 3 s (15:22-15:25, in-game timer 15:18 -> 17:09) across end of T4, enemy T4, T5, enemy T5. Turn-5 hand by pile accounting; lookahead found 7 orderings in 2 end-of-turn states that all reach the same turn-6 state; rank 1 recorded with `inferred`, verified twice in the game. No other gaps; no other lookahead inferences.
+- Random game effects recorded as he got them: F28 Study power (Infinite Blades), F48 Power Potion offer (Fan of Knives); the seed reproduced both.
 
-## Act 1 macro (transcribed; floors 0-7 below read one lower than the game counter: Neow is F1, the first fight F2, no floor is missing; the run record `hMrQSndDvPc.json` uses the counter; seedcheck verifies)
-| floor | room | state | options seen | his pick (@time, reason) |
-|---|---|---|---|---|
-| 0 | Neow | 56/70, 99 g | Lead Paperweight / Booming Conch / Silken Tress | Silken Tress (@0:31; lose all gold, first card reward Glam) |
-| 1 | Sludge Spinner (weak) | 56 -> 56 | reward: Dagger Spray / Calculated Gamble / Prepared (all Glam) | Dagger Spray (@1:24 "I suppose dagger spray will suffice") |
-| 2 | Toadpoles (weak) | 56 -> 52 | Sucker Punch / Dash / Acrobatics | Dash |
-| 3 | Seapunk | 52 -> 52 | Predator / Dodge and Roll / Hidden Daggers | Hidden Daggers ("good right now") |
-| 4 | ? event This or That | 52 | lose 6 HP +51 g / Clumsy + random relic | That: Clumsy + Centennial Puzzle |
-| 5 | Haunted Ship | 52 -> 35 | Expose / Blade Dance / Snakebite | Snakebite ("for our boss we kind of have to") |
-| 6 | treasure | 35 | Pen Nib | - |
-| 7 | rest | 35/70 | rest / smith | smith Dagger Spray -> + ("against my own better judgment") |
-| 9 | **elite Terror Eel** (fight A) | 35 -> 18 | 30 g, White Star; Strangle / Storm of Steel / Flick-Flack | Strangle |
-| 10 | treasure | 18 | Pantograph | - |
-| 11 | Gremlin Merc (fight B) | 18 -> 17 | 10 g + 20 g stolen back; Noxious Fumes / Deflect / Flick-Flack | Noxious Fumes |
-| 12 | **elite Skulking Colony** (fight C) | 17 -> 9 | 26 g, Lasting Candy; Abrasive / Outbreak / Burst; Tactician / Grand Finale / Deflect | Outbreak; Deflect |
-| 13 | rest | 9 -> 30 | rest / smith | rest (+21) |
-| 14 | ? Spiraling Whirlpool | 30 | Observe (Spiral on a Strike/Defend) / Drink (heal 23) | Observe -> Defend (Spiral) ("I have pantograph coming") |
-| 15 | **elite Phantasmal Gardeners** (fight D) | 30 -> 28 | 32 g, Energy Potion, Festive Popper; Corrosive Wave / Assassinate / Outbreak | Outbreak (2nd). A second card reward (he names Noxious Fumes / Echoing Slash) was skipped [unverified: options not on a readable frame] |
-| 16 | rest | 28/70 | rest / smith | smith Snakebite -> + (previewed Outbreak+) |
-| 17 | **boss Lagavulin Matriarch** (fight E) | 28 -> 53 (Pantograph +25) | - | won @15:21 (video cut inside turn 4) |
-Not transcribed: map node positions (floor sequence only), shop/potion choices outside fights, gold spent. Path after the boss (Acts 2-3) not in scope.
+## Simulator fidelity found (frame builds and game-state replays)
+- Happy Flower counter: taken from neither scenario nor sync (energy one off on its turn).
+- Kaiser Crab: Surrounded facing is lost on sync; Crab Rage on Crusher's death (Rocket +99 block, +6 Strength) is not simulated.
+- `Sim.sync` cannot set a monster's next move (a mid-fight start opens asleep).
+- `Sim.sync` with fewer real enemies than simulated detaches the wrong monster (F49: the Amalgam kept, the Queen detached). `agent.fight.Replayer` now re-rolls a play's random effects when the alive enemies differ; on game states all 25 fights replay ok with every end turn matched.
+- Afflictions (Chains of Binding: Bound) are in neither snapshot nor sync; the frame builder re-rolls end turns until the next turn's plays apply.
+- Random draws/targets/offers (Escape Plan draw, Serpent Form target, Power Potion offer, spawned minion HP) differ until synced.
 
-## Fights
-Card codes: S Strike, D Defend (D* = Spiral Defend), N Neutralize, SV Survivor, AB Ascender's Bane, DS+ Dagger Spray+ (Glam: replays once per combat), DA Dash, HD Hidden Daggers, CL Clumsy, SB Snakebite, ST Strangle, NF Noxious Fumes, OB Outbreak, DF Deflect, SH Shiv. Relics everywhere: Ring of the Snake, Silken Tress (used), Centennial Puzzle, Pen Nib (+ White Star, Pantograph from fight B; + Lasting Candy from D; + Festive Popper in E).
-
-### A. F9 elite Terror Eel (5:08-7:06) - his line wins at 18/70
-- state T1: 35/70, 3 E, hand N AB S D D DA D, draw 11; deck 19 (S5 D5 N SV AB DS+ DA HD CL SB); Pen Nib 0; potions Dexterity, Cunning. Terror Eel 150/150, Shriek 75 (first time HP <= 75: stunned), intent 18.
-- his line: T1 Dex potion, N, DA (12 block), S, end (35->34) | T2 SB, SV (discard S), end (->32) | T3 eel 124, poison 6, vigor 6, intent 24: DS+ (Glam replay, ->100), S (94), SV (discard S, 10 block), HD (hand empty), SH, SH (86), end (->18) | T4 N, DA, S (Pen Nib 10th, x2) (80->51), end | T5 SB, end (eel Debuff turn) | T6 Cunning potion (3 Shiv+), SH+ x3, S, S, HD, SH, SH: dead.
-- his words: "Take one on purpose." (T1, 5:10); "if you stun now, you get hit by the 36 damage. So, I don't want to do that now." (T3-T4, 6:00); "We only need to do 25. I get there with a potion." (T6, 6:36).
-- live player: same line on 27/32 decisions. Disagreements:
-
-| # | t | his | live | R1 his-live (se) | R2 (turn-exhaustive) | R3 playouts his-live (se) | verdict |
-|---|---|---|---|---|---|---|---|
-| 0 | 5:20 | Dex potion | N | 0 (order only) | - | - | held by design; tie (N and potion commute) |
-| 5 | 5:36 | SB | SV | -0.0145 (0.0077) | tie: SB-first = SV-first 1.0367 | - | tie |
-| 10 | 5:53 | S | SV | +0.0066 (0.0181) | - | - | within noise |
-| 11 | 5:57 | SV (8 block) | S | **-0.0979 (0.0027)** | +0.013 (0.023) for live, noise | -0.0110 (0.0053), n 24; both win 100%, end HP 15.3 vs 16.8 | **expert error, small**: R3 1.5 HP-eq at 2.1 se; R1 overstates it ~9x; R2 inconclusive. Low-moderate confidence |
-| 23 | 6:58 | Cunning potion | SV | +0.0045 (0.0045) | - | - | held by design |
-
-### B. F11 Gremlin Merc (7:29-8:19) - 18 -> 17/70
-- state T1: 18/70, hand D D S SB D D HD, draw 12; deck 20 (+ST); White Star, Pantograph; Pen Nib 8; no potions. Gremlin Merc 53/53 (Surprise 1, Thievery 20), intent 8x2.
-- his line: T1 D, D, D (15 block), HD (discard S, D), SH (49), end (->17) | T2 (Centennial Puzzle drew 3) ST (33), N (28), DS+ (the merc is replaced by Sneaky Gremlin 12/12 + Fat Gremlin 18/18, both hit by the replay), S>Fat Gremlin, end | T3 DA>Fat (12->2), S>Fat, end | T4 SH, S, S: win.
-- his words: "Only going to play one shiv. I don't want to pen nib this shiv. A nib strangle." (7:39) - he spent the Pen Nib 10th attack on Strangle by holding the 2nd Shiv.
-- live player: 10/16 agree (2 forced). Disagreements: #7 (T2 first card) ST vs DS+: R1 +0.0030 (0.0009) for his, R2 **+0.0170 (0.0036) for live** (best DS+-first line: SV discard S, DS+, N, D), R3 not run: on a fresh 2 s decision the live player chose ST, i.e. agreed with him -> **unresolved**: R1 and R2 disagree in sign, and the live player's own choice flips between runs; no call. #8, #9, #10, #13, #15 (merc already split, fight decided): |R1| <= 0.0009 q (< 0.15 HP) -> immaterial.
-
-### C. F12 elite Skulking Colony (8:39-10:03) - 17 -> 9/70, poison kills it on its turn
-- state T1: 17/70, hand ST S SV S S DA HD, draw 13; deck 21 (+NF); Pen Nib 9; no potions. Skulking Colony 80/80, Hardened Shell 20 (takes at most 20 per turn), intent 16.
-- his line: T1 DA (60, 10 block), HD (discard S, S), SV (discard S, 18 block), SH, SH (shell cap), end (17->17) | T2 N, S, S (45), D, end (->10) | T3 DS+ (25), D, D, end (->9) | T4 intent 12x2 at 9 HP: N (22), HD (discard D, S), SH (18), S (Pen Nib x2, 6), SH (5, cap reached), SB (7 poison), end: poison kills it at its turn start.
-- his words: "I think that draw kills me. Although, wait, I can do more damage, right?" (8:47); "the poison hits on its turn, not on my turn. So, we win thanks to snake bite." (9:50).
-- live player: 13/21 agree (4 forced), 4 more are order-only ties (#8-10: N S S D all get played either way; #21). Disagreements:
-
-| # | t | his | live | R1 his-live (se) | R2 (turn-exhaustive) | verdict |
-|---|---|---|---|---|---|---|
-| 1 | 8:50 | HD | SV | -0.0852 (0.0582) | tie: HD-first = SV-first 0.0519 | tie |
-| 2 | 8:53 | discard S | discard ST | -0.0414 (0.0414) | - | within noise |
-| 17 | 9:31 | N | SB | **-1.0321 (0.2665)** | exact: N-, S-, SB-first all have a forced win (1.0643); D-first / end turn lose | **tie; R1 artifact** (rollout misses the forced line after N) |
-| 18 | 9:48 | HD (after N) | **D** | 0 (all scored -1) | exact: every D-first line loses (-1.0); HD/S/SB-first win (1.0643) | **solver gap, decisive** (2.06 q): the live player plays a losing card in a forced-win position; R1 cannot rank it (all options -1) |
-
-### D. F15 elite Phantasmal Gardeners (11:07-13:41) - 30 -> 28/70
-- state T1: 30/70, hand HD SB OB D AB DF D (one Defend is Spiral: replay once), draw 15; deck 23 (+OB, DF, Spiral D); Pen Nib 1; Lasting Candy; no potions. 4 Phantasmal Gardeners 29/31/30/32, Skittish 7 each (block 7 when first hit each turn), intents 1x3 / 5 / 7 / Buff.
-- his line: T1 DF (4), D* (Spiral, 14 block), SB>Buff gardener, HD (discard OB, D), SH>e3, SH>e0, end (30->29) | T2 ST>e3, DA>e3 (8), N>e0, end (->29) | T3 D, D, S>e0, end (->28) | T4 S>e2, DS+ (Glam: two die, one at 2), end | T5 S: win.
-- his words: "Question is, do I just play Outbreak on turn one?" / "I think I'm going to play snake bite instead." (11:26); "we still have taken a lot less damage than we would have if I played outbreak. So I feel very much correct in not having played outbreak." (12:44-13:14).
-- live player: 12/17 agree (3 forced). Disagreements:
-
-| # | t | his | live | R1 his-live (se) | R2 (turn-exhaustive) | R3 playouts | verdict |
-|---|---|---|---|---|---|---|---|
-| 0 | 11:13 | DF | HD | +0.0017 (0.0025) | - | - | within noise |
-| 1 | 11:40 | D* (no Outbreak T1) | **OB** | -0.0183 (0.0064) | **his +0.0387 (0.0181)** over the best OB-first line (2651 lines, 1202 leaves) | **his +0.0620 (0.0048)**, n 16; both win, end HP 27.7 vs 19.0 | **solver gap**: R2 and R3 agree (R3 8.7 HP-eq, 13 se); R1 had the sign wrong. High confidence; matches his stated reason |
-| 8 | 12:26 | ST>e3 | N>e0 | -0.0105 (0.0156) | - | - | within noise |
-| 12 | 12:47 | D | NF | 0 (order only) | - | - | tie |
-| 16 | 13:32 | S>e2 | DS+ | -0.0082 (0.0008) | live +0.0035 (0.0013) (0.5 HP) | not run | immaterial (< 1 HP-eq by R2) |
-
-### E. F17 boss Lagavulin Matriarch, turns 1-3 (14:30-15:08; video cut in T4; won @15:21)
-- state T1: 53/70 (28 + Pantograph 25), hand S D N D NF S DS+, draw 16; deck 24 (+2nd OB, SB upgraded); Pen Nib 1; Festive Popper (fired at combat start), Energy Potion. Matriarch 233/233, block 3 (Plating 12), Asleep 3 (wakes when it loses HP or after 3 turns), intent Sleep.
-- his line: T1 NF, N, end | T2 SB+ (10 poison), S, end (poison wakes it at its turn: stunned) | T3 intent 21: OB (9 poison, triggers), HD (discard S, OB), SH, SH, end (53->32).
-- his words: "Would have liked to retain the snake bite" (14:46); "if I can't really play any block cards anyway, then I'm very happy to just play outbreak." (14:46-15:21).
-- live player (linear objective): 9/12 agree. Disagreements:
-
-| # | t | his | live | R1 his-live (se) | R2 (turn-exhaustive) | R3 playouts | verdict |
-|---|---|---|---|---|---|---|---|
-| 0 | 14:37 | NF | **DS+** | -0.0058 (0.0040) | **his +0.1607 (0.0506)** over the best DS+-first line (attacking wakes the boss early) | his +0.185 (0.178), n 12; win 92% vs 83%, end HP 19.3 vs 16.7 | **solver gap on R2 alone** (3.2 se) plus the win-only rerun (DS+ at #0, #1, #2); R3 under-powered (n 12, 1.0 se, same sign). Moderate confidence |
-| 1 | 14:38 | N | end turn | **+0.0482 (0.0115)** | his +0.0018 (0.0003) (0.25 HP) | not run | immaterial by R2 (0.25 HP-eq; R1's 6.7 HP-eq not confirmed) |
-| 3 | 14:49 | SB+ | S | -0.0003 (0.0002) | tie: SB+-first = S-first | - | tie (order only) |
-- live player with the harness boss objective (win only): `proposal.fight_objective` -> win only. The live player then plays **DS+ at #0, #1 and #2** (attacks the sleeping boss on turn 1 whatever he has already played) and S before SB+ at #3 (order only); 8/12 agree. Same finding as #0.
+## Compare (live player r6)
+- Live player `Engine()` = `models/current.json` `solver_r6.pt`, cover, exact turn search on; `decide(seed 1, rounds 8, keep_potions)`, harness objective. R1 K=256 x 8 seeds; R2 turn check (K=8 leaves, 2+8 determinizations, <= 1500 leaves); R3 12 paired playouts at 1 round/decision when nothing else resolves. CPU, F45/F48/F49 on the GPU. Decision states: the game's (replay log).
+- New verdict guard: a class with a line that wins this turn losing no HP is optimal; a reference ranking the other class above it by more than noise over-values a non-terminal leaf and is dropped (it flipped F19 #0 from "expert error" to tie).
+- 473 decisions, 24 forced; of 449: agree 271 (60.4%), tie 103, held (potions) 8 -> 85.1% no disagreement beyond noise; our gap 16, expert error 10, unresolved 41.
+- Macro (`price`, real screens; card rewards and rests only, n 32): 38 screens: agree 13, tie 21, price prefers another option 4 (F8 smith Dagger Spray vs rest, F15 Outbreak vs Assassinate, F16 smith Snakebite vs rest, F17 Burst vs Afterimage); per the rule this questions both, decides nothing.
+- Pilot gaps (r5-era pilot) under r6 + exact turn search: closed F11 #0, F11 #7, F12 #18 (forced lethal: now tie, exact), F15 #0, F17 #0 (sleeping boss: now agrees), F17 #2. Still open: F15 #1 (Outbreak turn 1 into four attackers: our gap, R3 +0.0524 (0.0066) n 12, 7.3 HP-eq). F09 #11 (pilot "expert error, small") and F17 #1 are unresolved.
+- Act 3 holds most verdicts beyond noise (F48 Test Subject: 5 expert errors, 14 unresolved, 2 gaps; F49 Queen 2/5/2): long, high-variance fights with Serpent Form random targets, where R3 at n 12 resolves little.
 
 ## Summary
-| fight | decisions (forced) | live = his | + ties / immaterial | beyond-noise disagreements -> verdict |
-|---|---|---|---|---|
-| A Terror Eel (elite) | 32 (0) | 27 (84%) | 29 | #11 expert error, small (1.5 HP-eq) |
-| B Gremlin Merc | 16 (2) | 10 (63%) | 15 | #7 unresolved |
-| C Skulking Colony (elite) | 21 (4) | 13 (62%) | 19 | #18 **solver gap, decisive** (misses a forced win); #17 tie (R1 artifact) |
-| D Phantasmal Gardeners (elite) | 17 (3) | 12 (71%) | 14 | #1 **solver gap** (8.7 HP-eq) |
-| E Lagavulin Matriarch T1-3 (boss) | 12 (0) | 9 (75%); win-only objective 8 | 11 | #0 **solver gap** (attacks the sleeping boss) |
-| total | 98 | 71 (72%) | 88 (90%) | solver gaps 3, expert errors 1 (small), unresolved 1 |
-
-- On material, resolved disagreements the decisive references side with him 3 times out of 4. The three solver gaps are turns where the live player commits to the wrong thing: a Defend that throws away forced lethal, Outbreak into four attackers on turn 1, an attack that wakes a sleeping boss. His one error is a block card instead of a Strike at 32 HP (1.5 HP-eq).
-- R1 (the K=256 search, which plays out the rest of the turn with its rollout policy) cannot adjudicate line comparisons. It scored his forced win at C#17 as -1.03 and ranked every option equal (-1) at C#18. It had the wrong sign at D#1 and overstated A#11 and E#1 by 7-30x. Sixteen seeds give it a small se, but the estimate is biased, and the bias comes from the current-turn rollout, which R2 removes.
-
-## Solver gaps for the near-miss / setup-turn work (E26)
-1. **C#18 (forced lethal under a damage cap).** 9 HP vs 12x2; Skulking Colony at 22 HP, Hardened Shell 20/turn, Pen Nib on the 10th attack, Snakebite in hand. Every line that plays S (Pen Nib x2), the shivs and SB wins, because the poison ticks on the enemy's turn after the cap is spent. Every D-first line loses. The live player (2 s) picks D. R1 cannot see the difference (every option scores -1). Exhaustive enumeration solves it in 1 s (141 lines). Candidate rule: when every searched option is near a loss, enumerate the turn exactly (hands this small are cheap). Bench state: `fights/hMrQSndDvPc_F12_SKULKING_COLONY_ELITE.json`, log index 18 (C#17 is the same turn one card earlier).
-2. **D#1 (setup turn vs four attackers).** Turn 1, 30 HP, four Phantasmal Gardeners (Skittish), hand HD SB OB D* AB DF D. The live player plays Outbreak (3 energy, all poison) first. His block-first line (DF, Spiral Defend, SB, HD shivs) ends the fight 8.7 HP higher in paired playouts. The live search overrates setup that costs the whole turn while the enemies attack. Bench: `fights/hMrQSndDvPc_F15_PHANTASMAL_GARDENERS_ELITE.json` index 1 (use a simulator seeded to the slot HPs, or fix duplicate-monster sync first; see Caveats).
-3. **E#0 (sleeping boss).** Lagavulin Matriarch is asleep (wakes on HP loss or after 3 turns, and is stunned when woken by damage). Under both objectives the live player opens with Dagger Spray instead of NF/N setup. R2 favors his line by +0.16 (0.05). Bench: `fights/hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS.json` index 0.
-4. Method: line comparisons need R2 (exact current turn) and R3 (full-fight playouts). A 2-turn-leaf search with rollout continuation mis-ranks sequencing-heavy turns (C#17, D#1).
-
-## Re-enactment notes (build matches, so re-enactment is permitted)
-- Seed `YMY1KELG18SC`, Silent, A10, v0.111.0. Neow pick: Silken Tress (3rd option). Every fight action is in each record's `log` (bridge action JSON; `times` maps each action to the video). Card rewards, events and rests: macro table above. Not readable: map node coordinates (floor order only), the floor-15 second card reward, and the boss actions from turn 4 on (stream cut).
-
-## Pipeline re-run (item 7: `tools/expert.py compare`, 2026-10-08)
-- Decision states from `agent.fight.Replayer` on the committed fight records (current simulator: Gardeners 4/4 end turns matched, no residuals). Live player = `Engine.decide(seed 1, rounds 8)`, harness objective (win only at the act-1 boss), CPU. R1 K=256 x 8 seeds; turn check over his and the live player's first-action classes (K=8 leaves, 2 selection + 8 revalue determinizations, <= 1500 leaves); R3 12 paired playouts at 1 round/decision, only when nothing else resolves. Machine-readable: `hMrQSndDvPc.divergences.json`.
-- Reproduced: C#17 tie and C#18 solver gap (exact enumeration), D#1 solver gap (R2 +0.062 (0.012); here D#0 Deflect-first reaches the same end state), E#0 solver gap (R2 +0.21 (0.06); with the win-only objective the live player also opens DS+ at #1, #2: same finding), A#5, C#1, D#16 ties.
-- Not reproduced: A#11 (pilot: expert error, R3 -0.011 (0.005) n 24 at 0.3 s): R3 +0.004 (0.011) n 12 and +0.008 (0.006) n 24 at 1 round: unresolved, i.e. within the playout policy's noise. B#7: the live player now agrees with him.
-- New: B#0 (T1 vs Gremlin Merc at 18 HP): the 8-round live player Strikes where he Defends; R2 his +0.032 (0.003), R1 same sign: solver gap on R2 (the pilot's 2 s live player agreed with him).
-
-### Summary
 | fight | decisions (forced) | agree | tie | held | our gap | expert error | unresolved |
 |---|---|---|---|---|---|---|---|
-| hMrQSndDvPc_F09_TERROR_EEL_ELITE | 32 (0) | 27 | 1 | 2 | 0 | 0 | 2 |
-| hMrQSndDvPc_F11_GREMLIN_MERC_NORMAL | 18 (2) | 8 | 7 | 0 | 1 | 0 | 0 |
-| hMrQSndDvPc_F12_SKULKING_COLONY_ELITE | 25 (4) | 13 | 7 | 0 | 1 | 0 | 0 |
-| hMrQSndDvPc_F15_PHANTASMAL_GARDENERS_ELITE | 20 (3) | 10 | 4 | 0 | 2 | 0 | 1 |
-| hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS | 12 (0) | 9 | 0 | 0 | 3 | 0 | 0 |
+| hMrQSndDvPc_F02_SLUDGE_SPINNER_WEAK | 25 (5) | 15 | 5 | 0 | 0 | 0 | 0 |
+| hMrQSndDvPc_F03_TOADPOLES_WEAK | 12 (0) | 10 | 2 | 0 | 0 | 0 | 0 |
+| hMrQSndDvPc_F04_SEAPUNK_WEAK | 13 (0) | 9 | 4 | 0 | 0 | 0 | 0 |
+| hMrQSndDvPc_F06_HAUNTED_SHIP_NORMAL | 27 (0) | 23 | 4 | 0 | 0 | 0 | 0 |
+| hMrQSndDvPc_F09_TERROR_EEL_ELITE | 32 (0) | 26 | 2 | 2 | 0 | 0 | 2 |
+| hMrQSndDvPc_F11_GREMLIN_MERC_NORMAL | 18 (2) | 8 | 8 | 0 | 0 | 0 | 0 |
+| hMrQSndDvPc_F12_SKULKING_COLONY_ELITE | 25 (4) | 12 | 7 | 0 | 0 | 0 | 2 |
+| hMrQSndDvPc_F15_PHANTASMAL_GARDENERS_ELITE | 20 (3) | 10 | 4 | 0 | 1 | 0 | 2 |
+| hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS | 29 (0) | 23 | 5 | 0 | 0 | 0 | 1 |
+| hMrQSndDvPc_F19_BOWLBUGS_WEAK | 2 (0) | 0 | 2 | 0 | 0 | 0 | 0 |
+| hMrQSndDvPc_F21_EXOSKELETONS_WEAK | 4 (0) | 1 | 3 | 0 | 0 | 0 | 0 |
+| hMrQSndDvPc_F22_HUNTER_KILLER_NORMAL | 13 (0) | 10 | 2 | 1 | 0 | 0 | 0 |
+| hMrQSndDvPc_F25_ENTOMANCER_ELITE | 17 (0) | 8 | 4 | 1 | 0 | 1 | 3 |
+| hMrQSndDvPc_F27_INFESTED_PRISMS_ELITE | 19 (3) | 11 | 2 | 1 | 1 | 0 | 1 |
+| hMrQSndDvPc_F30_DECIMILLIPEDE_ELITE | 10 (1) | 3 | 4 | 0 | 2 | 0 | 0 |
+| hMrQSndDvPc_F31_OVICOPTER_NORMAL | 11 (0) | 7 | 4 | 0 | 0 | 0 | 0 |
+| hMrQSndDvPc_F33_KAISER_CRAB_BOSS | 17 (0) | 9 | 6 | 0 | 0 | 0 | 2 |
+| hMrQSndDvPc_F35_DEVOTED_SCULPTOR_WEAK | 5 (0) | 1 | 2 | 0 | 2 | 0 | 0 |
+| hMrQSndDvPc_F36_TURRET_OPERATOR_WEAK | 7 (0) | 3 | 2 | 0 | 0 | 0 | 2 |
+| hMrQSndDvPc_F38_OWL_MAGISTRATE_NORMAL | 27 (1) | 12 | 3 | 2 | 4 | 1 | 4 |
+| hMrQSndDvPc_F39_CONSTRUCT_MENAGERIE_NORMAL | 10 (1) | 4 | 4 | 0 | 0 | 0 | 1 |
+| hMrQSndDvPc_F42_SOUL_NEXUS_ELITE | 24 (4) | 13 | 3 | 0 | 2 | 1 | 1 |
+| hMrQSndDvPc_F45_MECHA_KNIGHT_ELITE | 28 (0) | 18 | 9 | 0 | 0 | 0 | 1 |
+| hMrQSndDvPc_F48_TEST_SUBJECT_BOSS | 50 (0) | 21 | 7 | 1 | 2 | 5 | 14 |
+| hMrQSndDvPc_F49_QUEEN_BOSS | 28 (0) | 14 | 5 | 0 | 2 | 2 | 5 |
 
-### Divergences
-| fight | # | t | his | live | R1 his-live (se) | R2 | R3 | exact | verdict |
+
+## Beyond noise (our gap / expert error)
+| k | fight | # | t | his | live | R1 | R2 | R3 | verdict (by) |
 |---|---|---|---|---|---|---|---|---|---|
-| F09_TERROR_EEL_ELITE | 0 | 5:20 | potion 0 | NEUTRALIZE>e0 |  |  |  |  | **held** (-) |
-| F09_TERROR_EEL_ELITE | 5 | 5:36 | SNAKEBITE>e0 | SURVIVOR | -0.0115 (0.0086) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F09_TERROR_EEL_ELITE | 10 | 5:53 | STRIKE>e0 | SURVIVOR | +0.0309 (0.0309) | +0.0001 (0.0268) | -0.0048 (0.0033) n 12 |  | **unresolved** (-) |
-| F09_TERROR_EEL_ELITE | 11 | 5:57 | SURVIVOR | STRIKE>e0 | -0.0971 (0.0036) | -0.0001 (0.0268) | +0.0036 (0.0106) n 12 |  | **unresolved** (-) |
-| F09_TERROR_EEL_ELITE | 23 | 6:58 | potion 1 | SURVIVOR |  |  |  |  | **held** (-) |
-| F11_GREMLIN_MERC_NORMAL | 0 | 7:36 | DEFEND | STRIKE>e0 | +0.0193 (0.0113) | +0.0321 (0.0034) |  |  | **our gap** (r2) |
-| F11_GREMLIN_MERC_NORMAL | 2 | 7:38 | DEFEND | HIDDEN_DAGGERS | +0.0000 (0.0000) | -0.0001 (0.0023) |  |  | **tie** (r2) |
-| F11_GREMLIN_MERC_NORMAL | 8 | 7:51 | NEUTRALIZE>e0 | SURVIVOR | -0.0001 (0.0000) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F11_GREMLIN_MERC_NORMAL | 9 | 7:52 | DAGGER_SPRAY | SURVIVOR | -0.0002 (0.0000) | +0.0047 (0.0039) | +0.0000 (0.0000) n 12 |  | **tie** (r3) |
-| F11_GREMLIN_MERC_NORMAL | 10 | 8:07 | STRIKE>e1 | SURVIVOR | +0.0001 (0.0001) | -0.0000 (0.0006) |  |  | **tie** (r2) |
-| F11_GREMLIN_MERC_NORMAL | 13 | 8:13 | STRIKE>e1 | DEFEND | -0.0000 (0.0000) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F11_GREMLIN_MERC_NORMAL | 15 | 8:17 | SHIV>e0 | SURVIVOR | -0.0018 (0.0018) | +0.0000 (0.0000) |  | his [+1.1214, ?] live [+1.1214, ?] | **tie** (r2) |
-| F11_GREMLIN_MERC_NORMAL | 16 | 8:18 | STRIKE>e0 | SURVIVOR | +0.0018 (0.0018) | +0.0000 (0.0000) |  | his [+1.1214, ?] live [+1.1214, ?] | **tie** (r2) |
-| F12_SKULKING_COLONY_ELITE | 1 | 8:50 | HIDDEN_DAGGERS | SURVIVOR | -0.0997 (0.0997) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F12_SKULKING_COLONY_ELITE | 2 | 8:53 | pick 1 (STRIKE) | pick 0 (STRANGLE) | -0.0973 (0.0973) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F12_SKULKING_COLONY_ELITE | 8 | 9:03 | NEUTRALIZE>e0 | DEFEND | +0.0000 (0.0000) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F12_SKULKING_COLONY_ELITE | 9 | 9:05 | STRIKE>e0 | DEFEND | +0.0000 (0.0000) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F12_SKULKING_COLONY_ELITE | 10 | 9:06 | STRIKE>e0 | DEFEND | +0.0000 (0.0000) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F12_SKULKING_COLONY_ELITE | 17 | 9:31 | NEUTRALIZE>e0 | SNAKEBITE>e0 | -0.7741 (0.3777) | +0.0000 (0.0000) |  | his [+1.0643, +1.0643] live [+1.0643, +1.0643] | **tie** (exact) |
-| F12_SKULKING_COLONY_ELITE | 18 | 9:48 | HIDDEN_DAGGERS | DEFEND | +0.0000 (0.0000) | +2.0643 (0.0000) |  | his [+1.0643, +1.0643] live [-1.0000, -1.0000] | **our gap** (exact) |
-| F12_SKULKING_COLONY_ELITE | 21 | 9:53 | STRIKE>e0 | SHIV>e0 | +0.0000 (0.0000) | +0.0000 (0.0000) |  | his [+1.0643, +1.0643] live [+1.0643, +1.0643] | **tie** (exact) |
-| F15_PHANTASMAL_GARDENERS_ELITE | 0 | 11:13 | DEFLECT | OUTBREAK | -0.0012 (0.0012) | +0.0616 (0.0123) |  |  | **our gap** (r2) |
-| F15_PHANTASMAL_GARDENERS_ELITE | 1 | 11:40 | DEFEND | OUTBREAK | -0.0048 (0.0083) | +0.0616 (0.0123) |  |  | **our gap** (r2) |
-| F15_PHANTASMAL_GARDENERS_ELITE | 5 | 11:49 | SHIV>e3 | SHIV>e0 | +0.0084 (0.0060) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F15_PHANTASMAL_GARDENERS_ELITE | 8 | 12:26 | STRANGLE>e3 | NEUTRALIZE>e0 | -0.0230 (0.0194) | +0.0029 (0.0016) |  |  | **tie** (r2) |
-| F15_PHANTASMAL_GARDENERS_ELITE | 12 | 12:47 | DEFEND | NOXIOUS_FUMES | -0.0000 (0.0000) | +0.0036 (0.0045) | +0.0048 (0.0033) n 12 |  | **unresolved** (-) |
-| F15_PHANTASMAL_GARDENERS_ELITE | 16 | 13:32 | STRIKE>e2 | DAGGER_SPRAY | -0.0091 (0.0012) | -0.0038 (0.0014) |  |  | **tie** (r2) |
-| F15_PHANTASMAL_GARDENERS_ELITE | 18 | 13:37 | end turn | DEFLECT | +0.0000 (0.0000) | +0.0000 (0.0000) |  |  | **tie** (r2) |
-| F17_LAGAVULIN_MATRIARCH_BOSS | 0 | 14:37 | NOXIOUS_FUMES | DAGGER_SPRAY | -0.0138 (0.0093) | +0.2097 (0.0598) |  |  | **our gap** (r2) |
-| F17_LAGAVULIN_MATRIARCH_BOSS | 1 | 14:38 | NEUTRALIZE>e0 | DAGGER_SPRAY | +0.0000 (0.0000) | +0.2125 (0.0613) |  |  | **our gap** (r2) |
-| F17_LAGAVULIN_MATRIARCH_BOSS | 2 | 14:40 | end turn | DAGGER_SPRAY | -0.0393 (0.0233) | +0.2100 (0.0607) |  |  | **our gap** (r2) |
+| 204 | F15_PHANTASMAL_GARDENERS_ELITE | 1 | 11:43 | DEFEND | OUTBREAK | -0.0268 (0.0061) | +0.0423 (0.0178) | +0.0524 (0.0066) n 12 | **our gap** (r3) |
+| 322 | F25_ENTOMANCER_ELITE | 4 | 20:50 | DEFLECT | end turn | -0.0384 (0.0028) | -0.0186 (0.0272) | -0.0345 (0.0134) n 12 | **expert error** (r3) |
+| 353 | F27_INFESTED_PRISMS_ELITE | 9 | 23:33 | pick 2 (STRIKE) | pick 1 (DEFLECT) | +0.0132 (0.0089) | +0.0071 (0.0000) |  | **our gap** (r2) |
+| 378 | F30_DECIMILLIPEDE_ELITE | 3 | 24:52 | INFINITE_BLADES | STRIKE>e0 | -0.0085 (0.0080) | +0.0123 (0.0046) |  | **our gap** (r2) |
+| 379 | F30_DECIMILLIPEDE_ELITE | 4 | 24:53 | DEFEND | STRIKE>e0 | -0.0080 (0.0080) | +0.0123 (0.0046) |  | **our gap** (r2) |
+| 435 | F35_DEVOTED_SCULPTOR_WEAK | 0 | 29:12 | BULLET_TIME | OUTBREAK | -0.0430 (0.0015) | +0.0285 (0.0080) | -0.0124 (0.0084) n 12 | **our gap** (r2) |
+| 438 | F35_DEVOTED_SCULPTOR_WEAK | 3 | 29:17 | OUTBREAK | end turn | -0.0325 (0.0032) | -0.0419 (0.0052) | +0.0108 (0.0035) n 12 | **our gap** (r3) |
+| 459 | F38_OWL_MAGISTRATE_NORMAL | 1 | 30:48 | AFTERIMAGE | BURST | +0.0045 (0.0009) | +0.0219 (0.0032) |  | **our gap** (r2) |
+| 460 | F38_OWL_MAGISTRATE_NORMAL | 2 | 30:49 | DASH>e0 | BURST | +0.0055 (0.0023) | -0.0136 (0.0079) | +0.0189 (0.0067) n 12 | **our gap** (r3) |
+| 477 | F38_OWL_MAGISTRATE_NORMAL | 19 | 31:47 | ACCELERANT | SNAKEBITE>e0 | +0.0000 (0.0000) | +0.0120 (0.0121) | +0.0308 (0.0057) n 12 | **our gap** (r3) |
+| 478 | F38_OWL_MAGISTRATE_NORMAL | 20 | 31:47 | DEFEND | SNAKEBITE>e0 | +0.0000 (0.0000) | +0.0120 (0.0121) | -0.0065 (0.0000) n 12 | **expert error** (r3) |
+| 479 | F38_OWL_MAGISTRATE_NORMAL | 21 | 31:48 | SNAKEBITE>e0 | end turn | +0.1183 (0.0002) | -0.0120 (0.0121) | +0.0844 (0.0000) n 12 | **our gap** (r3) |
+| 509 | F42_SOUL_NEXUS_ELITE | 1 | 33:55 | BACKFLIP | OUTBREAK | -0.0563 (0.0289) | +0.2756 (0.0324) |  | **our gap** (r2) |
+| 513 | F42_SOUL_NEXUS_ELITE | 5 | 34:07 | ESCAPE_PLAN | ACCELERANT | -0.0872 (0.0043) | -0.0922 (0.0334) |  | **expert error** (r2) |
+| 517 | F42_SOUL_NEXUS_ELITE | 9 | 34:18 | DASH>e0 | SNAKEBITE>e0 | -0.0165 (0.0033) | -0.0014 (0.0167) | +0.0319 (0.0148) n 12 | **our gap** (r3) |
+| 590 | F48_TEST_SUBJECT_BOSS | 1 | 39:08 | OUTBREAK | ANTICIPATE | -0.0001 (0.0010) | -0.1361 (0.0537) |  | **expert error** (r2) |
+| 606 | F48_TEST_SUBJECT_BOSS | 17 | 40:09 | ESCAPE_PLAN | ESCAPE_PLAN | +0.0034 (0.0100) | -0.1380 (0.0353) |  | **expert error** (r2) |
+| 612 | F48_TEST_SUBJECT_BOSS | 23 | 42:53 | pick 2 (NOXIOUS_FUMES) | pick 0 (FAN_OF_KNIVES) | -0.0018 (0.0176) | -0.2291 (0.0618) |  | **expert error** (r2) |
+| 623 | F48_TEST_SUBJECT_BOSS | 34 | 44:16 | STRIKE>e0 | CALCULATED_GAMBLE | -0.0501 (0.0203) | +0.0819 (0.0189) | -0.0352 (0.0169) n 12 | **expert error** (r3) |
+| 625 | F48_TEST_SUBJECT_BOSS | 36 | 44:17 | pick 4 (CALCULATED_GAMBLE) | pick 2 (BULLET_TIME) | -0.1345 (0.0545) | +0.0751 (0.0326) | -0.0639 (0.0170) n 12 | **expert error** (r3) |
+| 626 | F48_TEST_SUBJECT_BOSS | 37 | 44:18 | SHIV | end turn | -0.0722 (0.0221) | +0.0102 (0.0018) | +0.0438 (0.0081) n 12 | **our gap** (r3) |
+| 627 | F48_TEST_SUBJECT_BOSS | 38 | 44:19 | SHIV | end turn | -0.0091 (0.0169) | +0.0047 (0.0019) | +0.0482 (0.0058) n 12 | **our gap** (r3) |
+| 640 | F49_QUEEN_BOSS | 0 | 44:58 | BACKFLIP | BULLET_TIME | -0.6210 (0.0137) |  | +0.0595 (0.0213) n 12 | **our gap** (r3) |
+| 657 | F49_QUEEN_BOSS | 17 | 45:58 | CALCULATED_GAMBLE | DEFLECT | -0.0164 (0.0043) | -0.1051 (0.0108) |  | **expert error** (r2) |
+| 659 | F49_QUEEN_BOSS | 19 | 46:02 | ESCAPE_PLAN | WELL_LAID_PLANS | -0.0295 (0.0065) | +0.0923 (0.0071) | +0.0276 (0.0108) n 12 | **our gap** (r3) |
+| 660 | F49_QUEEN_BOSS | 20 | 46:08 | STRANGLE>e0 | WELL_LAID_PLANS | -0.0303 (0.0022) | -0.0888 (0.0092) |  | **expert error** (r2) |
 
-### Macro vs `price` (synthetic screens from the record: deck = last fight's deck + picks, HP = last fight's end; n 32)
-| floor | screen | played | price best | horizon | d (se) | verdict |
-|---|---|---|---|---|---|---|
-| 9 | CARD_REWARD | Strangle | Flick-Flack | act | -0.0625 (0.0625) n 32 | tie |
-| 11 | CARD_REWARD | Noxious Fumes | Noxious Fumes | act |  | agree |
-| 12 | CARD_REWARD | Outbreak | Abrasive | act | -0.0938 (0.0690) n 32 | tie |
-| 12 | CARD_REWARD | Deflect | Tactician | act | -0.0625 (0.0435) n 32 | tie |
-| 13 | RESTSITE | rest | rest | act |  | agree |
-| 15 | CARD_REWARD | Outbreak | Assassinate | act | -0.1250 (0.0745) n 32 | tie |
-| 16 | RESTSITE | smith Snakebite | rest | act | -0.0312 (0.0708) n 32 | tie |
+Unresolved (no reference resolves 1 HP-eq, or R2 and R1 disagree in sign): k114 k115 k171 k172 k211 k215 k234 k321 k324 k325 k351 k417 k418 k446 k447 k458 k461 k473 k474 k491 k508 k553 k595 k600 k601 k607 k608 k610 k613 k614 k616 k617 k618 k621 k622 k624 k642 k650 k652 k653 k655.
 
-## Caveats
-- Hidden information: draw order (simulator remainder; sorted contents only where the pile was opened: A T3, B T2, D T3, E T2), Survivor/Hidden Daggers discard targets were read from the selection screen (all readable except where noted), enemy move RNG (end turns re-rolled to the shown intent).
-- Reconstruction fidelity: start states matched exactly (enemy ids, HP, intents) in all five fights; Pen Nib counter synced from the relic digit each turn. Sim-vs-frame diffs before sync (hand contents excluded, they differ by draw RNG and are synced): only B T2, where the simulator spawned Sneaky Gremlin at 15/15 vs 12/12 shown (synced to the frame), and D T3, draw-pile count 14 vs 15 shown. A, C, E: none beyond the relic counters set at the start.
-- Replayer finding (separate from the evaluation): `Sim.sync`/`sync_enemies` pairs same-id monsters by nearest HP, so on the 4x Phantasmal Gardener record the Replayer attaches moves to the wrong slots (4 unmatched end turns, ~200 intent residuals). `agent.hindsight` on that record would be wrong; my evaluation used the builder's simulator (seeded so ids, HPs and intents match slot by slot). Also `sync_hand` ignores enchantments (Spiral Defend residuals in D/E).
-- Fight E covers turns 1-3 only (stream cut inside turn 4, "stream got interrupted"; actions after the cut not transcribed).
-- MODDED (2): mods unidentified; if they changed rules, states would diverge in re-enactment (none of the reconstructed states needed an unexplained correction).
-- Live-player column is a 2 s CPU proxy for the harness player (see Method); R1-R3 are lower bounds on line values, not verdicts on plans (claims discipline).
-
-## Appendix: every decision (live player vs his action; R1 his-live where they differ; R1 best)
-Columns: log index | video time | his action (p play, c choose/discard, pot potion slot, e end turn; card codes as above) | live player | agree | R1 his-live (se) | R1 best class. "forced" = one legal action.
-```
-a_terror_eel: i | t | his | live | ag | K256 his-live (se) | K256 best
-0 | 5:20 | pot 0 | NEUTRALIZE>e0 | N | +0.0000 (0.0000) | DEFEND
-1 | 5:21 | p N | NEUTRALIZE>e0 | Y |  | DEFEND
-2 | 5:22 | p DA | DASH>e0 | Y |  | DEFEND
-3 | 5:24 | p S | STRIKE>e0 | Y |  | DEFEND
-4 | 5:25 | e  | end turn | Y |  | end turn
-5 | 5:36 | p SB | SURVIVOR | N | -0.0145 (0.0077) | STRIKE>e0
-6 | 5:37 | p SV | SURVIVOR | Y |  | SURVIVOR
-7 | 5:38 | c S | discard 2 (STRIKE) | Y |  | discard 2 (STRIKE)
-8 | 5:39 | e  | end turn | Y |  | end turn
-9 | 5:47 | p DS+ | DAGGER_SPRAY | Y |  | DAGGER_SPRAY
-10 | 5:53 | p S | SURVIVOR | N | +0.0066 (0.0181) | STRIKE>e0
-11 | 5:57 | p SV | STRIKE>e0 | N | -0.0979 (0.0027) | STRIKE>e0
-12 | 6:06 | c S | discard 1 (STRIKE) | Y |  | discard 1 (STRIKE)
-13 | 6:08 | p HD | HIDDEN_DAGGERS | Y |  | HIDDEN_DAGGERS
-14 | 6:14 | p SH | SHIV>e0 | Y |  | SHIV>e0
-15 | 6:15 | p SH | SHIV>e0 | Y |  | end turn
-16 | 6:17 | e  | end turn | Y |  | end turn
-17 | 6:25 | p N | NEUTRALIZE>e0 | Y |  | NEUTRALIZE>e0
-18 | 6:26 | p DA | DASH>e0 | Y |  | potion slot1
-19 | 6:27 | p S@2 | STRIKE>e0 | Y |  | potion slot1
-20 | 6:28 | e  | end turn | Y |  | potion slot1
-21 | 6:41 | p SB | SNAKEBITE>e0 | Y |  | potion slot1
-22 | 6:44 | e  | end turn | Y |  | potion slot1
-23 | 6:58 | pot 1 | SURVIVOR | N | +0.0045 (0.0045) | potion slot1
-24 | 6:59 | p SH+ | SHIV>e0 | Y |  | SHIV>e0
-25 | 7:00 | p SH+ | SHIV>e0 | Y |  | SHIV>e0
-26 | 7:01 | p SH+ | SHIV>e0 | Y |  | STRIKE>e0
-27 | 7:02 | p S | STRIKE>e0 | Y |  | STRIKE>e0
-28 | 7:03 | p S | STRIKE>e0 | Y |  | STRIKE>e0
-29 | 7:04 | p HD | HIDDEN_DAGGERS | Y |  | HIDDEN_DAGGERS
-30 | 7:05 | p SH | SHIV>e0 | Y |  | SHIV>e0
-31 | 7:06 | p SH | SHIV>e0 | Y |  | SHIV>e0
-b_gremlin_merc: i | t | his | live | ag | K256 his-live (se) | K256 best
-0 | 7:36 | p D@0 | DEFEND | Y |  | DEFEND
-1 | 7:37 | p D | DEFEND | Y |  | DEFEND
-2 | 7:38 | p D | DEFEND | Y |  | HIDDEN_DAGGERS
-3 | 7:39 | p HD | HIDDEN_DAGGERS | Y |  | HIDDEN_DAGGERS
-4 | 7:39 | c S | discard 0 (STRIKE) | Y |  | discard 0 (STRIKE)
-5 | 7:41 | p SH | SHIV>e0 | Y |  | SHIV>e0
-6 | 7:44 | e  | end turn | Y |  | end turn
-7 | 7:49 | p ST | DAGGER_SPRAY | N | +0.0030 (0.0009) | STRANGLE>e0
-8 | 7:51 | p N | DEFEND | N | -0.0002 (0.0000) | DEFEND
-9 | 7:52 | p DS+ | SURVIVOR | N | -0.0001 (0.0000) | DEFEND
-10 | 8:07 | p S | SURVIVOR | N | +0.0001 (0.0000) | STRIKE>e1
-11 | 8:08 | e  | forced
-12 | 8:11 | p DA | DASH>e1 | Y |  | DASH>e1
-13 | 8:13 | p S | DEFEND | N | -0.0000 (0.0000) | end turn
-14 | 8:14 | e  | forced
-15 | 8:17 | p SH | SURVIVOR | N | -0.0009 (0.0009) | SURVIVOR
-16 | 8:18 | p S | STRIKE>e0 | Y |  | STRIKE>e0
-17 | 8:18 | p S | STRIKE>e0 | Y |  | STRIKE>e0
-c_skulking_colony: i | t | his | live | ag | K256 his-live (se) | K256 best
-0 | 8:46 | p DA | DASH>e0 | Y |  | DASH>e0
-1 | 8:50 | p HD | SURVIVOR | N | -0.0852 (0.0582) | SURVIVOR
-2 | 8:53 | c S | discard 0 (STRANGLE) | N | -0.0414 (0.0414) | discard 0 (STRANGLE)
-3 | 8:57 | p SV | SURVIVOR | Y |  | SHIV>e0
-4 | 8:58 | c S | discard 1 (STRIKE) | Y |  | discard 1 (STRIKE)
-5 | 8:59 | p SH | SHIV>e0 | Y |  | SHIV>e0
-6 | 8:59 | p SH | SHIV>e0 | Y |  | SHIV>e0
-7 | 9:00 | e  | forced
-8 | 9:03 | p N | DEFEND | N | +0.0000 (0.0000) | DEFEND
-9 | 9:05 | p S | DEFEND | N | +0.0000 (0.0000) | DEFEND
-10 | 9:06 | p S | DEFEND | N | +0.0000 (0.0000) | DEFEND
-11 | 9:07 | p D | DEFEND | Y |  | DEFEND
-12 | 9:08 | e  | forced
-13 | 9:22 | p DS+ | DAGGER_SPRAY | Y |  | DAGGER_SPRAY
-14 | 9:24 | p D | DEFEND | Y |  | DEFEND
-15 | 9:25 | p D | DEFEND | Y |  | DEFEND
-16 | 9:26 | e  | forced
-17 | 9:31 | p N | SNAKEBITE>e0 | N | -1.0321 (0.2665) | SNAKEBITE>e0
-18 | 9:48 | p HD | DEFEND | N | +0.0000 (0.0000) | SNAKEBITE>e0
-19 | 9:50 | c D | discard 1 (DEFEND) | Y |  | discard 1 (DEFEND)
-20 | 9:52 | p SH | SHIV>e0 | Y |  | SHIV>e0
-21 | 9:53 | p S | SHIV>e0 | N | +0.0000 (0.0000) | SHIV>e0
-22 | 9:55 | p SH | SHIV>e0 | Y |  | SHIV>e0
-23 | 9:58 | p SB | SNAKEBITE>e0 | Y |  | SNAKEBITE>e0
-24 | 10:01 | e  | forced
-d_gardeners: i | t | his | live | ag | K256 his-live (se) | K256 best
-0 | 11:13 | p DF | HIDDEN_DAGGERS | N | +0.0017 (0.0025) | OUTBREAK
-1 | 11:40 | p D* | OUTBREAK | N | -0.0183 (0.0064) | HIDDEN_DAGGERS
-2 | 11:44 | p SB | SNAKEBITE>e3 | Y |  | SNAKEBITE>e3
-3 | 11:46 | p HD | HIDDEN_DAGGERS | Y |  | HIDDEN_DAGGERS
-4 | 11:47 | c OB | discard 0 (OUTBREAK) | Y |  | discard 0 (OUTBREAK)
-5 | 11:49 | p SH | SHIV>e3 | Y |  | SHIV>e3
-6 | 11:51 | p SH | SHIV>e0 | Y |  | SHIV>e0
-7 | 11:52 | e  | forced
-8 | 12:26 | p ST | NEUTRALIZE>e0 | N | -0.0105 (0.0156) | NEUTRALIZE>e0
-9 | 12:28 | p DA | DASH>e3 | Y |  | DASH>e3
-10 | 12:39 | p N | NEUTRALIZE>e0 | Y |  | NEUTRALIZE>e0
-11 | 12:41 | e  | forced
-12 | 12:47 | p D | NOXIOUS_FUMES | N | -0.0000 (0.0000) | NOXIOUS_FUMES
-13 | 12:49 | p D | DEFEND | Y |  | DEFEND
-14 | 13:01 | p S | STRIKE>e0 | Y |  | STRIKE>e0
-15 | 13:03 | e  | forced
-16 | 13:32 | p S | DAGGER_SPRAY | N | -0.0082 (0.0008) | DEFLECT
-17 | 13:33 | p DS+ | DAGGER_SPRAY | Y |  | DEFEND
-18 | 13:37 | e  | end turn | Y |  | DEFLECT
-19 | 13:40 | p S | STRIKE>e0 | Y |  | STRIKE>e0
-e_lagavulin: i | t | his | live | ag | K256 his-live (se) | K256 best
-0 | 14:37 | p NF | DAGGER_SPRAY | N | -0.0058 (0.0040) | DAGGER_SPRAY
-1 | 14:38 | p N | end turn | N | +0.0482 (0.0115) | DAGGER_SPRAY
-2 | 14:40 | e  | end turn | Y |  | DAGGER_SPRAY
-3 | 14:49 | p SB+ | STRIKE>e0 | N | -0.0003 (0.0002) | STRIKE>e0
-4 | 14:51 | p S | STRIKE>e0 | Y |  | STRIKE>e0
-5 | 14:52 | e  | end turn | Y |  | end turn
-6 | 15:00 | p OB | OUTBREAK | Y |  | STRIKE>e0
-7 | 15:02 | p HD | HIDDEN_DAGGERS | Y |  | potion slot0
-8 | 15:03 | c S | discard 1 (OUTBREAK) | Y |  | discard 1 (OUTBREAK)
-9 | 15:04 | p SH | SHIV>e0 | Y |  | end turn
-10 | 15:06 | p SH | SHIV>e0 | Y |  | end turn
-11 | 15:07 | e  | end turn | Y |  | end turn
-```
+## Macro vs `price`
+| k | floor | screen | played | price best | horizon | d (se) | verdict |
+|---|---|---|---|---|---|---|---|
+| 30 | 2 | CARD_REWARD | Dagger Spray | Prepared | act | -0.0625 (0.0435) n 32 | tie |
+| 46 | 3 | CARD_REWARD | Dash | Dash | act |  | agree |
+| 63 | 4 | CARD_REWARD | Hidden Daggers | Hidden Daggers | act |  | agree |
+| 97 | 6 | CARD_REWARD | Snakebite | Expose | act | -0.0938 (0.0524) n 32 | tie |
+| 101 | 8 | RESTSITE | Smith | rest | act | -0.2188 (0.0742) n 32 | price prefers another option |
+| 139 | 9 | CARD_REWARD | Strangle | Strangle | act |  | agree |
+| 164 | 11 | CARD_REWARD | Noxious Fumes | Flick-Flack | act | -0.0625 (0.0435) n 32 | tie |
+| 194 | 12 | CARD_REWARD | Outbreak | Outbreak | act |  | agree |
+| 196 | 12 | CARD_REWARD | Deflect | Deflect | act |  | agree |
+| 198 | 13 | RESTSITE | Rest | rest | act |  | agree |
+| 227 | 15 | CARD_REWARD | Outbreak | Assassinate | act | -0.1250 (0.0594) n 32 | price prefers another option |
+| 230 | 16 | RESTSITE | Smith | rest | act | -0.1250 (0.0594) n 32 | price prefers another option |
+| 265 | 17 | CARD_REWARD | Burst | Afterimage | ready | -0.0756 (0.0089) n 32 | price prefers another option |
+| 274 | 19 | CARD_REWARD | Anticipate+ | Expertise | act | -0.0625 (0.0770) n 32 | tie |
+| 289 | 21 | CARD_REWARD | Footwork | skip | act | -0.0312 (0.0312) n 32 | tie |
+| 309 | 22 | CARD_REWARD | Skip | skip | act |  | agree |
+| 315 | 24 | RESTSITE | Smith | smith OUTBREAK | act |  | agree |
+| 338 | 25 | CARD_REWARD | Bullet Time | skip | act | +0.0000 (0.0449) n 32 | tie |
+| 340 | 25 | CARD_REWARD | Backflip | Dagger Throw | act | -0.0938 (0.0524) n 32 | tie |
+| 366 | 27 | CARD_REWARD | Skip | Cloak and Dagger | act | -0.0312 (0.0312) n 32 | tie |
+| 368 | 27 | CARD_REWARD | Outbreak | skip | act | +0.0000 (0.0449) n 32 | tie |
+| 373 | 29 | RESTSITE | Rest | rest | act |  | agree |
+| 389 | 30 | CARD_REWARD | Accelerant | Expose+ | act | +0.0000 (0.0449) n 32 | tie |
+| 391 | 30 | CARD_REWARD | Skip | The Hunt+ | act | -0.0312 (0.0312) n 32 | tie |
+| 407 | 31 | CARD_REWARD | Skip | Skewer+ | act | -0.0312 (0.0312) n 32 | tie |
+| 410 | 32 | RESTSITE | Smith | smith OUTBREAK | win |  | agree |
+| 432 | 33 | CARD_REWARD | Afterimage | Afterimage | act |  | agree |
+| 443 | 35 | CARD_REWARD | Escape Plan+ | Anticipate | act | -0.0312 (0.0312) n 32 | tie |
+| 454 | 36 | CARD_REWARD | Skip | Dagger Throw+ | act | -0.0312 (0.0312) n 32 | tie |
+| 487 | 38 | CARD_REWARD | Skip | Dagger Throw+ | act | -0.0312 (0.0312) n 32 | tie |
+| 501 | 39 | CARD_REWARD | Dash+ | Snakebite+ | act | +0.0000 (0.0000) n 32 | tie |
+| 503 | 40 | RESTSITE | Smith | rest | act | +0.0000 (0.0000) n 32 | tie |
+| 535 | 42 | CARD_REWARD | Escape Plan | Predator+ | act | +0.0000 (0.0000) n 32 | tie |
+| 537 | 42 | CARD_REWARD | Serpent Form | Serpent Form | act |  | agree |
+| 543 | 44 | RESTSITE | Rest | rest | act |  | agree |
+| 577 | 45 | CARD_REWARD | Well-Laid Plans | Envenom | act | -0.0625 (0.0435) n 32 | tie |
+| 579 | 45 | CARD_REWARD | Anticipate+ | Deadly Poison | act | +0.0000 (0.0000) n 32 | tie |
+| 586 | 47 | RESTSITE | Smith | rest | act | -0.0312 (0.0312) n 32 | tie |
