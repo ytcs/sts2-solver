@@ -254,6 +254,10 @@ def macro_command(step, screen):
     pick = step.get("pick")
     if isinstance(pick, dict) and "discard_potion" in pick:
         return f"a dp {pick['discard_potion']}", None
+    if isinstance(pick, dict) and "potion" in pick:
+        name = base(pick.get("id", ""))
+        hit = _find(screen, lambda lb: lb.startswith("potion ") and base(lb[7:].split(":")[0]) == name)
+        return (f"a {hit[0]}", None) if hit else (None, f"no `potion {pick.get('id')}` option on {kind}")
     if kind == "MAP":
         if isinstance(pick, str):
             m = re.fullmatch(r"r(\d+)c(\d+)", pick)

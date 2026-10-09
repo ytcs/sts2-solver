@@ -21,7 +21,7 @@ Offline `tools/expert.py`; live `python -m agent seedcheck|replay` (`agent/reena
 
 ## Run record
 - Compact (committed): header line `video{}`, `seed`, `build`, `modded`, `character`, `ascension`, `boss`, `aliases`, `result`; then one step per line.
-- Step: `floor` (Neow F1), `act` (0-2), `screen`, `t`, optional `room`, plus one of `pick` (label; REWARDS list; CARD_REWARD name or null; MAP `{room?,col?,row?}` or `"r<row>c<col>"`; SELECT names; `{discard_potion: slot}`), `fight` `{id, encounter, turns}`, `gap` (working record only).
+- Step: `floor` (Neow F1), `act` (0-2), `screen`, `t`, optional `room`, plus one of `pick` (label; REWARDS list; CARD_REWARD name or null; MAP `{room?,col?,row?}` or `"r<row>c<col>"`; SELECT names; `{discard_potion: slot}`; `{potion: slot, id}` drinks an AnyTime potion on a room screen), `fight` `{id, encounter, turns}`, `gap` (working record only).
 - Turn: `acts`: `["p", tok, target?]`, `["c", tok...]`, `["pot", slot, target, potion_id]`, `["e"]`; optional `times`, `inferred`. Token = alias + `+` upgraded, `*` enchanted, `@k` hand index; target = the game's enemy index.
 - Working record adds per turn `obs` (hp, block, energy, hand, piles, relics, pp, potions, e[{hp, max_hp, block, powers, intent}]) and per fight `enemy_ids`, `scenario`.
 

@@ -84,6 +84,7 @@ public sealed class RunReplay
         {
             var st = _steps[i];
             string screen = (string)st["screen"];
+            if (st["pick"] is JsonObject pu && pu["potion"] != null) { DrinkPotion(st, (int)pu["potion"]); i++; continue; }
             switch (screen)
             {
                 case "EVENT": i = QueueSelects(i); DoEvent(st); break;
@@ -173,6 +174,16 @@ public sealed class RunReplay
         CheckSelectsUsed("rest " + want);
         Emit("rest", new JsonObject { ["floor"] = (int)st["floor"], ["offered"] = offered, ["pick"] = want, ["choices"] = _sel.Prompts.DeepClone(), ["state"] = State() });
         _sel.Prompts.Clear();
+    }
+
+    private void DrinkPotion(JsonObject st, int slot)
+    {
+        // an AnyTime potion used outside combat (the bridge lists `potion <name>: ...` on room screens)
+        var p = _player.PotionSlots[slot] ?? throw new OracleException($"no potion in slot {slot}");
+        p.EnqueueManualUse(null);
+        _pump.RunUntil(() => _player.PotionSlots[slot] != p, () => "potion use: " + Describe());
+        _pump.RunUntil(() => _player.Creature.CurrentHp > 0, () => "potion settle: " + Describe());
+        Emit("potion", new JsonObject { ["floor"] = (int)st["floor"], ["slot"] = slot, ["potion"] = p.Id.Entry, ["state"] = State() });
     }
 
     private void DoTreasure(JsonObject st)
