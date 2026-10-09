@@ -50,6 +50,7 @@ public static class Ui
     {
         public RewardsSet Set;
         public bool Terminal;
+        public int Seq;
         public readonly HashSet<Reward> Claimed = new();
         public readonly TaskCompletionSource Tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
@@ -73,7 +74,10 @@ public static class Ui
     static PendingChoice<RelicModel> _relic;
     static PendingChoice<IReadOnlyList<CardModel>> _bundle;
     static readonly List<PendingRewards> _rewards = new();
-    static bool _mapOpen, _chestOpened, _relicPicked, _restChosen, _gameOverShown, _abandonModal;
+    static int _seq, _mapSeq;
+    static bool _mapOpen_;
+    static bool _mapOpen { get => _mapOpen_; set { _mapOpen_ = value; if (value) _mapSeq = ++_seq; } }
+    static bool _chestOpened, _relicPicked, _restChosen, _gameOverShown, _abandonModal;
     static AbstractRoom _room;
     static RunState _suspended;
 
@@ -151,7 +155,7 @@ public static class Ui
             for (int i = 0; i < bp.Items.Count; i++) { int k = i; d.Add(string.Join(" + ", bp.Items[i].Select(c => Text.Card(c))), _ => { bp.Tcs.TrySetResult(k); return null; }); }
             return d;
         }
-        if (_rewards.Count > 0 && !_mapOpen)
+        if (_rewards.Count > 0 && (!_mapOpen || _rewards[^1].Seq > _mapSeq))
         {
             Rewards(d, _rewards[^1], me);
             return d;
@@ -372,7 +376,7 @@ public static class Ui
     public static async Task OnRewards(RewardsSet set)
     {
         set.ThrowInTestIfRewardsNotTaken = false;
-        var p = new PendingRewards { Set = set, Terminal = set.Room is CombatRoom };
+        var p = new PendingRewards { Set = set, Terminal = set.Room is CombatRoom, Seq = ++_seq };
         _rewards.Add(p);
         await p.Tcs.Task;
     }

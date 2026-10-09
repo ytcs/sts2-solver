@@ -175,6 +175,7 @@ public static class Serve
             case "draw": return "no map screen\n";
             case "t": return "overlay: " + Ui.Build().Kind + "\n";
             case "x":
+                if (!ConsoleOk.Contains(args.FirstOrDefault() ?? "help")) return "fail not allowed headless (model-only console commands: " + string.Join(" ", ConsoleOk.Order()) + ")\n";
                 try
                 {
                     var res = new MegaCrit.Sts2.Core.DevConsole.DevConsole(true).ProcessCommand(string.Join(' ', args));
@@ -188,6 +189,10 @@ public static class Serve
                 return "commands: s | a <i> [args] | a dp <slot> | d | p draw|discard|exhaust | m | x <console cmd>\n";
         }
     }
+
+    // dev console commands that only touch the model (no saves, cloud, logs, OS, platform)
+    static readonly HashSet<string> ConsoleOk = new() { "help", "act", "afflict", "ancient", "power", "block", "card", "damage", "die", "draw", "enchant", "energy", "event", "fight",
+        "godmode", "gold", "heal", "instant", "kill", "potion", "relic", "remove_card", "room", "stars", "travel", "upgrade", "win" };
 
     // Run the pump until the game waits for input: a prompt is pending, or nothing is queued and no action runs.
     public static void Settle()
