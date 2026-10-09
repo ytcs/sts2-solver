@@ -409,9 +409,27 @@ class Builder:
         self.states.append(st)
         self.observed.append(sorted(next_obs or {}))
 
+    def _plays_ok(self, s, obs, acts):
+        saved = (self.sim, self.log, self.states, self.observed, self.times, len(self.report), getattr(self, "next_choice", None))
+        self.sim, self.log, self.states, self.observed, self.next_choice = s.copy(), [], [], [], None
+        try:
+            st = self._patch(json.loads(self.sim.snapshot()), obs, "probe")
+            self.sim.sync(json.dumps(st))
+            for a in acts:
+                if a[0] == "e":
+                    break
+                self.act([x for x in a if not isinstance(x, dict)], None, "probe")
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+        finally:
+            self.sim, self.log, self.states, self.observed, self.times, n, self.next_choice = saved
+            del self.report[n:]
+
     def _end_turn(self, obs, where):
         want = [_want(e) for e in obs.get("e", [])] if obs else None
-        first = None
+        acts = getattr(self, "next_acts", None)
+        first = fallback = None
         for k in range(600):
             s = self.sim.copy()
             if k:
@@ -421,8 +439,14 @@ class Builder:
             if s.stage() == "over" or not want:
                 break
             if _intents_ok([_intents(e) for e in json.loads(s.snapshot())["enemies"] if e.get("alive", True)], want):
-                self.sim = s
-                return
+                if not acts or "hand" not in obs or self._plays_ok(s, obs, acts):
+                    self.sim = s
+                    return
+                fallback = fallback or s
+        if fallback is not None:
+            self.report.append(f"{where}: end turn: no determinization lets the next turn's plays apply (hidden per-draw state, e.g. Bound)")
+            self.sim = fallback
+            return
         if want:
             self.report.append(f"{where}: end turn: no determinization reproduces intents {want}")
         self.sim = first
@@ -435,6 +459,7 @@ class Builder:
                 where = f"T{ti + 1}.{ai + 1} {a[0]} {a[1] if len(a) > 1 and not isinstance(a[1], dict) else ''} @{when or ''}"
                 if a[0] == "e":
                     nxt = turns[ti + 1]["obs"] if ti + 1 < len(turns) else t.get("end_obs")
+                    self.next_acts = turns[ti + 1]["acts"] if ti + 1 < len(turns) else None
                 else:
                     nxt = a[-1] if isinstance(a[-1], dict) else None
                     a = a[:-1] if isinstance(a[-1], dict) else a

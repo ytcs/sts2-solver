@@ -3901,7 +3901,9 @@
   []
  ],
  "outcome": 1,
- "report": [],
+ "report": [
+  "T2.1 p ESCAPE_PLAN+ @32:31: sim vs frames before sync: .player.block: rust 10 vs oracle 5"
+ ],
  "replay_check": {
   "ok": true,
   "outcome": 1,
