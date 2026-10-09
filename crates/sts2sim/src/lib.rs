@@ -8,6 +8,7 @@ pub mod engine;
 pub mod hooks;
 pub mod observe;
 pub mod relic_mask;
+pub mod card_powers;
 pub mod ids;
 pub mod rng;
 pub mod scenario;

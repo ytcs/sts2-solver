@@ -634,6 +634,254 @@ def sens(a):
     json.dump(dict(rows=len(X), enemy_hp_mean=float(hp.mean()), p_win=res), open(a.out, "w"), indent=1)
 
 
+def sim_states(paths, n, end_only, seed=0):
+    """simulator states (copies) of single-enemy play rows without powers: trained rows, or with end_only every state where only end turn is legal"""
+    out = []
+    for path in paths:
+        z = np.load(path)
+        scen = json.loads(str(z["scenarios"]))
+        dfi, dst = z["d_fight"], z["d_step"]
+        for f in range(len(z["f_scen"])):
+            acts = z["acts"][z["f_off"][f]:z["f_off"][f + 1]].astype(int)
+            want = set(range(len(acts) + 1)) if end_only else set(dst[dfi == f].tolist())
+            if not want:
+                continue
+            sim = sts2.Sim(json.dumps(scen[z["f_scen"][f]]), int(z["f_seed"][f]))
+            ob, mk = np.zeros(sts2.OBS_SIZE, np.float32), np.zeros(sts2.ACTIONS, np.uint8)
+            for t in range(len(acts) + 1):
+                if t in want and sim.stage() == "play":
+                    sim.observe(ob, mk)
+                    d = decode(ob[None])
+                    eo = SEC["enemies"][0]
+                    en = ob[eo:eo + E * EF].reshape(E, EF)
+                    alive = (en[:, 0] > 0.5) & (en[:, 6] > 0.5)
+                    ok = alive.sum() == 1 and alive[0] and en[0, 3] <= 400 and not (d["eid"] >= 0).any() and not (d["pid"] >= 0).any()
+                    if ok and end_only:
+                        ok = mk[C["OFF_PLAY"]:C["OFF_DISCARD"]].sum() == 0
+                    if ok:
+                        out.append(sim.copy())
+                if t < len(acts) and not sim.step(int(acts[t])):
+                    break
+            if len(out) >= 2 * n:
+                break
+        if len(out) >= 2 * n:
+            break
+    r = np.random.default_rng(seed)
+    return [out[i] for i in sorted(r.choice(len(out), min(n, len(out)), replace=False))]
+
+
+GATE = [("player Intangible 1 raises p_win", "player intangible 1", ">", "baseline"),
+        ("enemy Intangible 1 lowers p_win", "enemy intangible 1", "<", "baseline"),
+        ("enemy poison 10: player Accelerant 0 -> 1 does not lower p_win", "enemy poison 10 + player accelerant 1", ">=", "enemy poison 10"),
+        ("enemy poison 10: player Accelerant 1 -> 2 does not lower p_win", "enemy poison 10 + player accelerant 2", ">=", "enemy poison 10 + player accelerant 1"),
+        ("enemy poison 10: player Accelerant 2 -> 4 does not lower p_win", "enemy poison 10 + player accelerant 4", ">=", "enemy poison 10 + player accelerant 2"),
+        ("player Wraith Form (card: Intangible 2 + Wraith Form 1) raises p_win", "player wraith form card", ">", "baseline"),
+        ("player Buffer 1 raises p_win", "player buffer 1", ">", "baseline"),
+        ("player Plating 5 raises p_win", "player plating 5", ">", "baseline")]
+
+
+def sens_state(a):
+    """value response to power edits made on the simulator state (the observation, v3 derived features included, is recomputed): the sign gate"""
+    import model as M
+    net = M.load(a.ckpt).cpu()
+    paths = sorted(glob.glob(a.parts))
+    res, rows = {}, {}
+
+    def run(states, name, edits):
+        obs = np.zeros((len(states), sts2.OBS_SIZE), np.float32)
+        mk = np.zeros(sts2.ACTIONS, np.uint8)
+        refused = 0
+        for i, s in enumerate(states):
+            s = s.copy()
+            for side, pw, amt in edits:
+                v = amt(s) if callable(amt) else amt
+                refused += not s.set_power(side, 0, pw, int(v))
+            s.observe(obs[i], mk)
+        pw_ = p_win(net, obs)
+        res[name] = dict(p_win=float(pw_.mean()), refused=refused)
+        rows[name] = pw_
+        return pw_
+
+    hp = lambda s: json.loads(s.snapshot())["enemies"][0]["hp"]  # noqa: E731
+    X = sim_states(paths, a.n, False)
+    run(X, "baseline", [])
+    run(X, "player intangible 1", [("player", "INTANGIBLE_POWER", 1)])
+    run(X, "enemy intangible 1", [("enemy", "INTANGIBLE_POWER", 1)])
+    run(X, "enemy poison 10", [("enemy", "POISON_POWER", 10)])
+    for v in (1, 2, 4):
+        run(X, f"enemy poison 10 + player accelerant {v}", [("enemy", "POISON_POWER", 10), ("player", "ACCELERANT_POWER", v)])
+    run(X, "player wraith form card", [("player", "INTANGIBLE_POWER", 2), ("player", "WRAITH_FORM_POWER", 1)])
+    run(X, "player wraith form power 1 alone", [("player", "WRAITH_FORM_POWER", 1)])
+    run(X, "player buffer 1", [("player", "BUFFER_POWER", 1)])
+    run(X, "player plating 5", [("player", "PLATING_POWER", 5)])
+    gate = []
+    for label, x, op, y in GATE:
+        dlt = rows[x] - rows[y]
+        mean, se = float(dlt.mean()), float(dlt.std() / np.sqrt(len(dlt)))
+        ok = mean > 0 if op == ">" else mean < 0 if op == "<" else mean >= 0
+        gate.append(dict(check=label, delta=round(mean, 4), se=round(se, 4), passed=bool(ok)))
+    Y = sim_states(paths, a.n, True, seed=1)
+    if Y:
+        run(Y, "end-turn-only: baseline", [])
+        d9 = run(Y, "end-turn-only: enemy doom hp-1", [("enemy", "DOOM_POWER", lambda s: max(1, hp(s) - 1))])
+        d0 = run(Y, "end-turn-only: enemy doom = hp", [("enemy", "DOOM_POWER", hp)])
+        dlt = d0 - d9
+        gate.append(dict(check="end-turn-only: doom = hp vs hp-1 separates (mean > 0.05, > half the rows > 0.05)", delta=round(float(dlt.mean()), 4),
+                         se=round(float(dlt.std() / np.sqrt(len(dlt))), 4), share_gt_005=round(float((dlt > 0.05).mean()), 3),
+                         passed=bool(dlt.mean() > 0.05 and (dlt > 0.05).mean() > 0.5)))
+    out = dict(ckpt=a.ckpt, obs_version=net.obs, rows=len(X), end_turn_rows=len(Y), p_win=res, gate=gate, gate_pass=all(g["passed"] for g in gate))
+    for g in gate:
+        print(f"{'PASS' if g['passed'] else 'FAIL'}  {g['check']:72s} {g['delta']:+.4f} +- {g['se']:.4f}")
+    print("SIGN GATE " + ("PASS" if out["gate_pass"] else "FAIL"))
+    json.dump(out, open(a.out, "w"), indent=1)
+
+
+class Audit:
+    """observation audit counters over simulator states (Sim.diag + the observation)"""
+
+    def __init__(self):
+        self.n = self.play = self.dec = 0
+        self.c = Counter()
+        self.src = Counter()
+        self.pow_max = Counter()
+        self.counter_cards = Counter()
+        self.relic_hidden = Counter()
+        self.relic_masked = Counter()
+
+    def add(self, sim, ob):
+        g = json.loads(sim.diag())
+        self.n += 1
+        if g["decision"]:
+            self.dec += 1
+            kind, i = g["decision"][:2]
+            nm = {1: NM["card"], 2: NM["potion"], 3: NM["relic"], 4: NM["monster"]}.get(kind)
+            self.src[f"{['', 'card', 'potion', 'relic', 'monster'][kind]}:{nm[i] if nm and 0 <= i < len(nm) else i}"] += 1
+        m = max(g["powers"])
+        self.pow_max[min(m, 16)] += 1
+        self.c["powers>=16"] += m >= 16
+        self.c["powers>=12"] += m >= 12
+        pile = [c for p in ("draw", "discard", "exhaust") for c in g[p]]
+        has = dict(counter=any(c[2] or c[3] for c in pile), enchant=any(c[4] for c in pile), affliction=any(c[6] for c in pile), upgrade2=any(c[1] > 1 for c in pile))
+        for k, v in has.items():
+            self.c["pile_" + k] += v
+        self.c["pile_any_extra"] += any(has.values())
+        for c in pile:
+            if c[2] or c[3]:
+                self.counter_cards[CNAME[c[0]]] += 1
+        for rid, observed, disp, props in g["relics"]:
+            used = [p for p in props if p[1]]
+            if observed and disp is None and props:
+                self.relic_hidden[NM["relic"][rid]] += 1
+                if used:
+                    self.c["relic_state_nonzero_hidden"] += 1
+            if not observed and props and used:
+                self.relic_masked[NM["relic"][rid]] += 1
+        if not g["decision"] and sts2.OBS_VERSION == 3:
+            self.play += 1
+            hs, ho = SEC["hand_tgt"][0], SEC["hand"][0]
+            tg = ob[hs:hs + 10 * E].reshape(10, E)
+            pre = ob[ho:ho + 10 * CF].reshape(10, CF)[:, 6]
+            eo = SEC["enemies"][0]
+            en = ob[eo:eo + E * EF].reshape(E, EF)
+            alive = (en[:, 0] > 0.5) & (en[:, 6] > 0.5)
+            dmg = (pre != 0)[:, None] & alive[None]
+            if dmg.any():
+                self.c["play_rows_with_damage_card"] += 1
+                self.c["target_changes_damage"] += bool((tg != pre[:, None])[dmg].any())
+                if alive.sum() >= 2:
+                    self.c["multi_enemy_damage_rows"] += 1
+                    t2 = np.where(dmg, tg, np.nan)
+                    self.c["targets_differ"] += bool((np.nanmax(t2, 1) != np.nanmin(t2, 1))[dmg.any(1)].any())
+
+    def summary(self):
+        n = max(self.n, 1)
+        dec = max(self.dec, 1)
+        rare = {k: v for k, v in self.src.items() if v / dec < 0.001}
+        out = dict(rows=self.n, decision_rows=self.dec, decision_share=self.dec / n, decision_sources=len(self.src),
+                   top_sources=[(k, round(v / dec, 4)) for k, v in self.src.most_common(12)],
+                   rare_sources_share_of_decisions=sum(rare.values()) / dec, rare_sources=sorted(rare),
+                   powers_max_hist={k: v / n for k, v in sorted(self.pow_max.items())},
+                   counter_cards=self.counter_cards.most_common(10), relic_state_hidden=self.relic_hidden.most_common(15),
+                   relic_masked_with_state=self.relic_masked.most_common(10))
+        out.update({k: v / n for k, v in self.c.items() if not k.startswith(("play_", "target", "multi", "targets"))})
+        p = max(self.c["play_rows_with_damage_card"], 1)
+        out.update(play_rows=self.play, play_rows_with_damage_card=self.c["play_rows_with_damage_card"],
+                   target_changes_damage_share=self.c["target_changes_damage"] / p,
+                   multi_enemy_damage_rows=self.c["multi_enemy_damage_rows"],
+                   targets_differ_share_of_multi=self.c["targets_differ"] / max(self.c["multi_enemy_damage_rows"], 1))
+        return out
+
+
+def audit(a):
+    res = {}
+    acc = Audit()
+    ob, mk = np.zeros(sts2.OBS_SIZE, np.float32), np.zeros(sts2.ACTIONS, np.uint8)
+    paths = sorted(glob.glob(a.parts))[::a.every]
+    for path in paths:
+        z = np.load(path)
+        scen = json.loads(str(z["scenarios"]))
+        dfi, dst = z["d_fight"], z["d_step"]
+        for f in range(0, len(z["f_scen"]), a.fight_every):
+            want = set(dst[dfi == f].tolist())
+            if not want:
+                continue
+            acts = z["acts"][z["f_off"][f]:z["f_off"][f + 1]].astype(int)
+            sim = sts2.Sim(json.dumps(scen[z["f_scen"][f]]), int(z["f_seed"][f]))
+            for t in range(len(acts) + 1):
+                if t in want:
+                    sim.observe(ob, mk)
+                    acc.add(sim, ob)
+                if t < len(acts) and not sim.step(int(acts[t])):
+                    break
+        print(f"{os.path.basename(path)}: {acc.n} rows", file=sys.stderr, flush=True)
+    res["trained"] = acc.summary()
+    if a.plans:
+        import torch
+        import model as M
+        net = M.load(a.ckpt).cpu()
+        data = [x["scenario"] for x in json.load(open(a.plans)) if x["scenario"].get("meta", {}).get("source") == "plan"
+                and x["scenario"]["meta"].get("base") is None and x["scenario"]["meta"].get("enabler") is None]
+        data = [data[i] for i in sorted(np.random.default_rng(0).choice(len(data), min(a.plans_n, len(data)), replace=False))]
+        acc = Audit()
+        sims = [sts2.Sim(json.dumps(sc), 1000 + i) for i, sc in enumerate(data)]
+        for _ in range(400):
+            live = [s for s in sims if s.stage() != "over"]
+            if not live:
+                break
+            O = np.zeros((len(live), sts2.OBS_SIZE), np.float32)
+            K = np.zeros((len(live), sts2.ACTIONS), np.uint8)
+            for i, s in enumerate(live):
+                s.observe(O[i], K[i])
+                acc.add(s, O[i])
+            with torch.no_grad():
+                act = net(torch.from_numpy(O), torch.from_numpy(K.astype(np.int64)), value=False)[0].argmax(1).numpy()
+            for s, x in zip(live, act):
+                s.step(int(x))
+        res["plans_greedy"] = acc.summary()
+    if a.expert:
+        n = over = enchant = aff = 0
+        mx = Counter()
+        hidden = Counter()
+        for path in sorted(glob.glob(os.path.join(a.expert, "*.json"))):
+            for s in json.load(open(path))["fight"].get("states", []):
+                if not s.get("enemies"):
+                    continue
+                n += 1
+                m = max([len(s["player"].get("powers", []))] + [len(e.get("powers", [])) for e in s["enemies"]])
+                mx[min(m, 17)] += 1
+                over += m > 16
+                pile = [c for p in ("draw", "discard", "exhaust") for c in s.get(p, [])]
+                enchant += any("enchantment" in c for c in pile)
+                aff += any("affliction" in c for c in pile)
+                for r in s.get("relics", []):
+                    if r.get("props") and "counter" not in r:
+                        hidden[r["id"]] += 1
+        res["expert"] = dict(states=n, powers_max_hist={k: v / max(n, 1) for k, v in sorted(mx.items())}, creature_over_16=over / max(n, 1),
+                             pile_enchant=enchant / max(n, 1), pile_affliction=aff / max(n, 1), relic_props_without_counter=hidden.most_common(15))
+    print(json.dumps(res, indent=1, default=str))
+    json.dump(res, open(a.out, "w"), indent=1, default=str)
+
+
 def main():
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
@@ -673,9 +921,27 @@ def main():
     t.add_argument("--prior", required=True, help="network the TD targets bootstrap from (exit.py train --init)")
     t.add_argument("--lam", type=float, default=0.8)
     t.add_argument("--out", required=True)
+    g = sp.add_parser("gate", help="value-response sign gate on simulator-state edits (promotion acceptance for observation-v3 checkpoints)")
+    g.add_argument("--parts", required=True)
+    g.add_argument("--ckpt", required=True)
+    g.add_argument("--n", type=int, default=2000)
+    g.add_argument("--out", required=True)
+    u = sp.add_parser("audit", help="observation audit: decision sources, power-slot use, pile-card extras, relic state, per-target damage")
+    u.add_argument("--parts", required=True)
+    u.add_argument("--every", type=int, default=15, help="every k-th part")
+    u.add_argument("--fight-every", type=int, default=4)
+    u.add_argument("--plans", help="bench scenario file: full plan decks played greedily by --ckpt")
+    u.add_argument("--plans-n", type=int, default=200)
+    u.add_argument("--ckpt")
+    u.add_argument("--expert", help="dir of expert replay-log fight JSONs")
+    u.add_argument("--out", required=True)
     a = ap.parse_args()
     if a.cmd == "tdcal":
         return tdcal(a)
+    if a.cmd == "gate":
+        return sens_state(a)
+    if a.cmd == "audit":
+        return audit(a)
     if a.cmd == "calib":
         return calib(a)
     if a.cmd == "sens":
