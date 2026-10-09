@@ -33,9 +33,10 @@ Dashboard (read-only, follows `runs/CURRENT`): `python tools/dashboard/extract_a
 ## Training and evaluation
 - Expert iteration: `tools/collect.sh <rl/exit.py collect args>` (`--ckpt --fights --out [--M --K | --cover --K --futures]`), `rl/exit.py train --init --data --out [--value-target td --lam 0.8]`. Pools: `tools/gen_curriculum.py`, `tools/signal_pool.py`, `tools/gen_train.py`, `tools/round_pool.py` (a combat-loop round: signal + plan decks + enabler pairs + big late decks -> `target/round/pool.json`). After a simulator change: `tools/prune_divergent.py`.
 - Combat-loop round on a pod: `scripts/pod_round.sh` (builds, waits for `/root/inputs/READY`, collects with cover search, trains TD(0.8); env vars at its top).
-- PPO: `rl/ppo.py`. GPU pod: `scripts/pod_train.sh` (local GPU by default).
+- PPO: `rl/ppo.py`. GPU pod: `scripts/pod_train.sh`. Any GPU job on a pod: `scripts/pod_job.sh` (runs the uploaded `/root/inputs/job.sh` after `READY`); shared build `scripts/pod_setup.sh`.
 - Benchmarks: `tools/bench.py build|build-plans|score|play|screen`, `tools/nearmiss_bench.py build|eval|turns` (near-miss flips; optimality bracket), `tools/bench_search.py`.
 - Current networks: `models/current.json`.
+- Expert re-enactment: `tools/expert.py fetch|build|validate|compare|report`, live `python -m agent seedcheck|replay <record>`; skill `expert-reenact`.
 
 ## Accuracy gate
 `bash tools/gate.sh` must pass unchanged for any simulator/search/env change: search + env checksums (obs v1, v2), oracle regression traces, RNG goldens, information contract, sync, look-ahead cache exactness, obs v1 identity. A deliberate behaviour change updates its checksum in the same commit. Harness tests: `python tests/agent/run.py`.

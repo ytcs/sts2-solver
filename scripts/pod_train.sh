@@ -11,15 +11,7 @@ ENERGY=${ENERGY:-0.15}
 THREADS=${THREADS:-$(nproc)}
 PPO_EXTRA=${PPO_EXTRA:-}
 
-if ! command -v cargo >/dev/null; then
-  curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-  . "$HOME/.cargo/env"
-fi
-python -m venv .venv --system-site-packages
-. .venv/bin/activate
-pip install -q maturin numpy
-maturin develop --release -m crates/sts2py/Cargo.toml
-python -c "import sts2, torch; print('sts2 ok; torch', torch.__version__, 'cuda', torch.cuda.is_available())"
+. scripts/pod_setup.sh
 
 mkdir -p target/train target/runs
 [ -f target/train/train.json ] || python tools/gen_train.py --n "$N_TRAIN" --seed 1 --energy-prob "$ENERGY" --out target/train/train.json

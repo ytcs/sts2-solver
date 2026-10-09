@@ -5,17 +5,18 @@ winning first move (exact value > 1 = a win); Phantasmal Gardeners #1 and Lagavu
 
 usage: python tools/exact_turn_check.py [--seeds 4]
 """
-import argparse, os, sys, time
+import argparse, json, os, sys, time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, ROOT)
-sys.path.insert(0, os.path.join(ROOT, "tools", "expert_pilot"))
+sys.path.insert(0, os.path.join(ROOT, "tools"))
 import torch  # noqa: E402
 import sts2  # noqa: E402
-from evaluate import decision_states, load_spec  # noqa: E402
+from expert import decision_states  # noqa: E402
 
-STATES = (("c_skulking_colony.py", 18, "T4.2 p HD @9:48", True), ("d_gardeners.py", 1, "T1.2 p D* @11:40", False),
-          ("e_lagavulin.py", 0, "T1.1 p NF @14:37", False))
+FIGHTS = os.path.join(ROOT, "data", "expert", "baalorlord", "fights")
+STATES = (("hMrQSndDvPc_F12_SKULKING_COLONY_ELITE.json", 18, True), ("hMrQSndDvPc_F15_PHANTASMAL_GARDENERS_ELITE.json", 1, False),
+          ("hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS.json", 0, False))
 
 
 def main():
@@ -28,12 +29,12 @@ def main():
     eng = Engine(exact_turn=True)
     fs, cfg = eng.fs, eng.fs.exact
     ok = True
-    for spec, i, where, must_win in STATES:
-        sc, dec = decision_states(load_spec(os.path.join(ROOT, "tools", "expert_pilot", "specs", spec)))
-        d = dec[i]
-        assert d["where"] == where, (spec, i, d["where"])
+    for name, i, must_win in STATES:
+        fight = json.load(open(os.path.join(FIGHTS, name)))["fight"]
+        sc = fight["scenario"]
+        d = dict(sim=next(sim for k, sim, _j in decision_states(fight) if k == i))
         text = dict(d["sim"].legal())
-        print(f"\n{spec} #{i} {where}")
+        print(f"\n{name} #{i}")
         for s in range(a.seeds):
             for on in (False, True):
                 fs.exact = cfg if on else None

@@ -381,6 +381,13 @@ class Harness(Live):
         return text
 
 
+    def reenact(self, cmd, rest):
+        from agent.reenact import Reenactor
+        a = Args(rest, valued=("--steps", "--until"), flags=("--custom",))
+        if not a.pos:
+            return f"usage: {cmd} <record.json> [--steps N] [--until FLOOR] [--custom]\n"
+        return Reenactor(self, os.path.abspath(a.pos[0]), custom=a.has("--custom")).run(a.get("--steps", None, int), a.get("--until", None, int), seedcheck=cmd == "seedcheck")
+
     def status(self):
         st = dict(self.rp.stats) if self.rp else {}
         bad = {k: v for k, v in st.items() if k.startswith(REPLAY_BAD)}
@@ -450,6 +457,8 @@ class Harness(Live):
                 return "REFUSED: `hold` is retired: potions are proposed every turn and committed one at a time; `potion aside <name>` keeps one for the boss.\n"
             if cmd == "a":
                 return self.act(rest)
+            if cmd in ("replay", "seedcheck"):
+                return self.reenact(cmd, rest)
             if cmd in PRICING:
                 here = scr.floor_key(call("peek"))
                 m = re.search(r"(?:^|\s)--seed\s+(\d+)", rest)

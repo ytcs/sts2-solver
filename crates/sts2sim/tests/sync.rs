@@ -48,7 +48,7 @@ fn sync_hand_takes_the_observed_hand_in_order_and_conserves_cards() {
         let mut cx = combat(seed);
         let before = total(&cx);
         let mut other = combat(seed + 1000);
-        let real: Vec<ObsCard> = names(&other, &other.player.hand.clone()).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, cost: None }).collect();
+        let real: Vec<ObsCard> = names(&other, &other.player.hand.clone()).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, ..Default::default() }).collect();
         let rep = cx.sync_hand(&real);
         assert_eq!(names(&cx, &cx.player.hand), real.iter().map(|o| (o.id, o.upgrade)).collect::<Vec<_>>(), "seed {seed}: hand differs");
         assert_eq!(total(&cx), before, "seed {seed}: cards were created or lost");
@@ -61,8 +61,8 @@ fn sync_hand_takes_the_observed_hand_in_order_and_conserves_cards() {
 fn sync_hand_creates_only_cards_that_exist_nowhere() {
     let mut cx = combat(3);
     let before = total(&cx);
-    let mut real: Vec<ObsCard> = names(&cx, &cx.player.hand.clone()).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, cost: None }).collect();
-    real.push(ObsCard { id: ids::card::ANGER, upgrade: 0, cost: None });
+    let mut real: Vec<ObsCard> = names(&cx, &cx.player.hand.clone()).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, ..Default::default() }).collect();
+    real.push(ObsCard { id: ids::card::ANGER, upgrade: 0, ..Default::default() });
     let rep = cx.sync_hand(&real);
     assert_eq!(rep.created, 1);
     assert_eq!(total(&cx), before + 1);
@@ -70,10 +70,32 @@ fn sync_hand_creates_only_cards_that_exist_nowhere() {
 }
 
 #[test]
+fn sync_hand_pairs_cards_by_enchantment() {
+    for seed in 0..10u64 {
+        let mut cx = combat(seed);
+        let defend = |cx: &Combat, p: &Pile| p.iter().copied().find(|&c| cx.cards[c as usize].id == ids::card::DEFEND_IRONCLAD);
+        let spiral = defend(&cx, &cx.player.hand).or_else(|| defend(&cx, &cx.player.draw)).unwrap();
+        cx.enchant_unchecked(spiral, ids::enchantment::SPIRAL, 1);
+        let before = total(&cx);
+        let plain = ObsCard { id: ids::card::DEFEND_IRONCLAD, upgrade: 0, ..Default::default() };
+        let rep = cx.sync_hand(&[plain, ObsCard { enchant: ids::enchantment::SPIRAL as u8 + 1, enchant_amount: 1, ..plain }]);
+        let hand = cx.player.hand.as_slice().to_vec();
+        assert_eq!(hand.len(), 2);
+        assert_eq!(cx.cards[hand[0] as usize].enchant, 0, "seed {seed}: the plain Defend took the enchanted one");
+        assert_eq!(hand[1], spiral, "seed {seed}");
+        assert_eq!((rep.created, total(&cx)), (0, before), "seed {seed}");
+        let strike = ObsCard { id: ids::card::STRIKE_IRONCLAD, upgrade: 0, enchant: ids::enchantment::SPIRAL as u8 + 1, enchant_amount: 1, ..Default::default() };
+        let rep = cx.sync_hand(&[strike]);
+        let c = cx.player.hand.as_slice()[0] as usize;
+        assert_eq!((rep.created, total(&cx), cx.cards[c].id, cx.cards[c].enchant), (0, before, strike.id, strike.enchant), "seed {seed}: an enchantment the simulator lacks goes on an existing copy");
+    }
+}
+
+#[test]
 fn sync_pile_follows_the_observed_discard() {
     let mut cx = combat(5);
     let before = total(&cx);
-    let obs = vec![ObsCard { id: ids::card::STRIKE_IRONCLAD, upgrade: 0, cost: None }; 2];
+    let obs = vec![ObsCard { id: ids::card::STRIKE_IRONCLAD, upgrade: 0, ..Default::default() }; 2];
     let have = names(&cx, &cx.player.draw.clone()).iter().filter(|(id, _)| *id == ids::card::STRIKE_IRONCLAD).count();
     let want = obs.len().min(have);
     let rep = cx.sync_pile(PileType::Discard, &obs[..want]);
@@ -92,11 +114,11 @@ fn sync_draw_drops_a_generated_card_the_real_game_does_not_have() {
     cx.player.hand.push(g);
     cx.cards[g as usize].pile = PileType::Hand as u8;
     let deck_total = total(&cx) - 1;
-    let mut real: Vec<ObsCard> = names(&cx, &cx.player.hand.clone()).into_iter().filter(|(id, _)| *id != ids::card::WHIRLWIND).map(|(id, upgrade)| ObsCard { id, upgrade, cost: None }).collect();
-    real.push(ObsCard { id: ids::card::ANGER, upgrade: 0, cost: None });
+    let mut real: Vec<ObsCard> = names(&cx, &cx.player.hand.clone()).into_iter().filter(|(id, _)| *id != ids::card::WHIRLWIND).map(|(id, upgrade)| ObsCard { id, upgrade, ..Default::default() }).collect();
+    real.push(ObsCard { id: ids::card::ANGER, upgrade: 0, ..Default::default() });
     let rep = cx.sync_hand(&real);
     assert_eq!((rep.created, rep.returned), (1, 1));
-    let want: Vec<ObsCard> = names(&cx, &cx.player.draw.clone()).into_iter().filter(|(id, _)| *id != ids::card::WHIRLWIND).map(|(id, upgrade)| ObsCard { id, upgrade, cost: None }).collect();
+    let want: Vec<ObsCard> = names(&cx, &cx.player.draw.clone()).into_iter().filter(|(id, _)| *id != ids::card::WHIRLWIND).map(|(id, upgrade)| ObsCard { id, upgrade, ..Default::default() }).collect();
     cx.sync_draw(&want);
     assert_eq!(total(&cx), deck_total + 1, "the phantom Whirlwind must leave the combat");
     assert!(names(&cx, &cx.player.draw.clone()).iter().all(|(id, _)| *id != ids::card::WHIRLWIND));
@@ -108,7 +130,7 @@ fn full_sync_sequence_conserves_cards_against_a_different_shuffle() {
         let mut cx = combat(seed);
         let before = total(&cx);
         let other = combat(seed + 1000);
-        let obs = |cx: &Combat, p: &Pile| -> Vec<ObsCard> { names(cx, p).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, cost: None }).collect() };
+        let obs = |cx: &Combat, p: &Pile| -> Vec<ObsCard> { names(cx, p).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, ..Default::default() }).collect() };
         let hand = obs(&other, &other.player.hand);
         let draw = obs(&other, &other.player.draw);
         cx.sync_hand(&hand);
@@ -214,6 +236,43 @@ fn sync_enemies_pairs_by_identity_and_follows_the_game_order() {
         let rep = cx.sync_enemies(&real);
         assert_eq!(cx.enemies.iter().copied().collect::<Vec<_>>(), after, "seed {seed}");
         assert!(!cx.cr(gone).in_combat && cx.cr(gone).hp == 0 && rep.revived == 0, "seed {seed}");
+    }
+}
+
+#[test]
+fn sync_enemies_keeps_identical_monsters_in_their_slots() {
+    for seed in 0..20u64 {
+        let deck: Vec<DeckCard> = (0..10).map(|_| DeckCard { id: ids::card::STRIKE_IRONCLAD, upgrade: 0 }).collect();
+        let mut cx = Combat::new(&Scenario {
+            run_seed: 0,
+            total_floor: 15,
+            character: 0,
+            ascension: 10,
+            encounter: ids::encounter::PHANTASMAL_GARDENERS_ELITE,
+            max_hp: 80,
+            hp: 80,
+            max_energy: 3,
+            orb_slots: 0,
+            potion_slots: 3,
+            deck,
+            relics: vec![],
+            potions: vec![],
+            rng: RngSet::from_run_seed(seed),
+        });
+        let before: Vec<Cid> = cx.enemies.iter().copied().collect();
+        assert_eq!(before.iter().map(|&c| cx.cr(c).slot).collect::<Vec<_>>(), vec![0, 1, 2, 3]);
+        let mut real: Vec<ObsEnemy> = before.iter().map(|&c| obs_of(&cx, c)).collect();
+        let rolled: Vec<i32> = real.iter().rev().map(|o| o.hp).collect();
+        for (o, hp) in real.iter_mut().zip(rolled) {
+            (o.hp, o.max_hp) = (hp, hp);
+        }
+        for _ in 0..2 {
+            let rep = cx.sync_enemies(&real);
+            assert_eq!(rep.pairs, before.iter().map(|&c| Some(c)).collect::<Vec<_>>(), "seed {seed}: the game's HP roll moved a slot");
+            for (k, &c) in cx.enemies.iter().enumerate() {
+                assert_eq!((cx.cr(c).slot as usize, cx.cr(c).hp), (k, real[k].hp), "seed {seed}");
+            }
+        }
     }
 }
 

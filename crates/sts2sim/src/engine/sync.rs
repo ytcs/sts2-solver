@@ -3,11 +3,13 @@ use crate::dec::Dec;
 use crate::util::ArrayVec;
 use crate::types::*;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ObsCard {
     pub id: u16,
     pub upgrade: u8,
     pub cost: Option<i32>,
+    pub enchant: u8,
+    pub enchant_amount: i16,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -27,8 +29,12 @@ impl Combat {
         let mut used = vec![false; old.len()];
         let mut slots: Vec<Option<CardIdx>> = vec![None; obs.len()];
         let mut missing: Vec<usize> = vec![];
+        let same = |cx: &Combat, c: CardIdx, o: &ObsCard| {
+            let k = &cx.cards[c as usize];
+            (k.id, k.upgrade, k.enchant) == (o.id, o.upgrade, o.enchant)
+        };
         for (i, o) in obs.iter().enumerate() {
-            let hit = old.iter().enumerate().position(|(j, &c)| !used[j] && self.cards[c as usize].id == o.id && self.cards[c as usize].upgrade == o.upgrade);
+            let hit = old.iter().enumerate().position(|(j, &c)| !used[j] && same(self, c, o));
             match hit {
                 Some(j) => {
                     used[j] = true;
@@ -50,22 +56,30 @@ impl Combat {
         for i in missing {
             let o = obs[i];
             let mut found: Option<CardIdx> = None;
-            for (pile, counter) in [(PileType::Draw, 0u8), (PileType::Discard, 1), (PileType::Exhaust, 2)] {
-                let p = self.pile(pile);
-                let cand = p.iter().copied().find(|&c| self.cards[c as usize].id == o.id && self.cards[c as usize].upgrade == o.upgrade);
-                if let Some(c) = cand {
-                    self.pile_mut(pile).remove_value(c);
-                    match counter {
-                        0 => rep.from_draw += 1,
-                        1 => rep.from_discard += 1,
-                        _ => rep.from_exhaust += 1,
+            'search: for exact in [true, false] {
+                for (pile, counter) in [(PileType::Draw, 0u8), (PileType::Discard, 1), (PileType::Exhaust, 2)] {
+                    let p = self.pile(pile);
+                    let cand = p.iter().copied().find(|&c| same(self, c, &o) || !exact && (self.cards[c as usize].id, self.cards[c as usize].upgrade) == (o.id, o.upgrade));
+                    if let Some(c) = cand {
+                        self.pile_mut(pile).remove_value(c);
+                        match counter {
+                            0 => rep.from_draw += 1,
+                            1 => rep.from_discard += 1,
+                            _ => rep.from_exhaust += 1,
+                        }
+                        if !exact {
+                            self.clear_enchantment(c);
+                            if o.enchant != 0 {
+                                self.enchant_unchecked(c, (o.enchant - 1) as u16, o.enchant_amount as i32);
+                            }
+                        }
+                        found = Some(c);
+                        break 'search;
                     }
-                    found = Some(c);
-                    break;
                 }
             }
             if found.is_none() {
-                found = self.new_card(o.id, o.upgrade);
+                found = self.new_card_ex(o.id, o.upgrade, o.enchant, o.enchant_amount);
                 if found.is_some() {
                     rep.created += 1;
                 }
@@ -256,12 +270,14 @@ impl Combat {
             }
         }
         let mut used = vec![false; pool.len()];
+        let alive_listed = |cx: &Combat, id: u16| cx.enemies.iter().filter(|&&c| cx.cr(c).monster.id == id && cx.cr(c).is_alive()).count();
         for o in obs {
             let listed = |c: Cid| self.enemies.contains(c);
+            let in_order = alive_listed(self, o.monster) == obs.iter().filter(|x| x.monster == o.monster && x.alive).count();
             let key = |j: usize| {
                 let c = pool[j];
                 let alive_now = listed(c) && self.cr(c).is_alive();
-                ((alive_now != o.alive) as u8, !listed(c) as u8, (self.cr(c).hp - o.hp).abs(), j)
+                ((alive_now != o.alive) as u8, !listed(c) as u8, if in_order { 0 } else { (self.cr(c).hp - o.hp).abs() }, j)
             };
             let pick = (0..pool.len()).filter(|&j| !used[j] && self.cr(pool[j]).monster.id == o.monster).min_by_key(|&j| key(j));
             if let Some(j) = pick {

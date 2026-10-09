@@ -52,6 +52,19 @@ fn card_ids(name: &str) -> Option<u16> {
     sts2sim::ids::card::NAMES.iter().position(|n| *n == name).map(|i| i as u16)
 }
 
+fn obs_card(c: &Value, with_cost: bool) -> Option<ObsCard> {
+    let id = card_ids(c["id"].as_str().unwrap_or(""))?;
+    let e = &c["enchantment"];
+    let enchant = e.as_str().or_else(|| e["id"].as_str()).and_then(|n| sts2sim::ids::enchantment::NAMES.iter().position(|x| *x == n)).map_or(0, |i| i as u8 + 1);
+    Some(ObsCard {
+        id,
+        upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8,
+        cost: if with_cost { c["cost"].as_i64().map(|x| x as i32) } else { None },
+        enchant,
+        enchant_amount: if enchant == 0 { 0 } else { e["amount"].as_i64().unwrap_or(1) as i16 },
+    })
+}
+
 impl Sim {
     fn pick_card_name(&self, display: usize) -> Option<&'static str> {
         let d = self.cx.decision.as_ref()?;
@@ -331,11 +344,7 @@ impl Sim {
             return Ok(self.cx.sync_options(&want));
         }
         let real: Value = serde_json::from_str(real_json).map_err(err)?;
-        let hand: Vec<ObsCard> = real["hand"].as_array().map_or(vec![], |h| {
-            h.iter()
-                .filter_map(|c| card_ids(c["id"].as_str().unwrap_or("")).map(|id| ObsCard { id, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8, cost: c["cost"].as_i64().map(|x| x as i32) }))
-                .collect()
-        });
+        let hand: Vec<ObsCard> = real["hand"].as_array().map_or(vec![], |h| h.iter().filter_map(|c| obs_card(c, true)).collect());
         let mut want = vec![];
         for (name, up) in &options {
             match card_ids(name) {
@@ -369,24 +378,15 @@ impl Sim {
         let mut obs: Vec<ObsCard> = vec![];
         if let Some(h) = real["hand"].as_array() {
             for c in h {
-                let name = c["id"].as_str().unwrap_or("");
-                let Some(id) = card_ids(name) else {
-                    notes.push(format!("unknown card {name}"));
-                    continue;
-                };
-                obs.push(ObsCard { id, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8, cost: c["cost"].as_i64().map(|x| x as i32) });
+                match obs_card(c, true) {
+                    Some(o) => obs.push(o),
+                    None => notes.push(format!("unknown card {}", c["id"].as_str().unwrap_or(""))),
+                }
             }
         }
         let rep = self.cx.sync_hand(&obs);
         for (key, pile) in [("exhaust", PileType::Exhaust), ("discard", PileType::Discard)] {
-            let mut cards: Vec<ObsCard> = vec![];
-            if let Some(a) = real[key].as_array() {
-                for c in a {
-                    if let Some(id) = card_ids(c["id"].as_str().unwrap_or("")) {
-                        cards.push(ObsCard { id, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8, cost: None });
-                    }
-                }
-            }
+            let cards: Vec<ObsCard> = real[key].as_array().map_or(vec![], |a| a.iter().filter_map(|c| obs_card(c, false)).collect());
             let r = self.cx.sync_pile(pile, &cards);
             if r.created > 0 {
                 notes.push(format!("{key}: {} cards created", r.created));
@@ -394,7 +394,7 @@ impl Sim {
         }
         let playing = real["play_pile"].as_array().map_or(false, |a| !a.is_empty());
         if let (Some(a), false) = (real["draw"].as_array(), playing) {
-            let cards: Vec<ObsCard> = a.iter().filter_map(|c| card_ids(c["id"].as_str().unwrap_or("")).map(|id| ObsCard { id, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8, cost: None })).collect();
+            let cards: Vec<ObsCard> = a.iter().filter_map(|c| obs_card(c, false)).collect();
             let r = self.cx.sync_draw(&cards);
             if r.created > 0 {
                 notes.push(format!("draw: {} cards created", r.created));

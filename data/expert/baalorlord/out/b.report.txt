@@ -1,2 +1,0 @@
-start: sim vs frames before sync: .relics[3].counter: rust 0 vs oracle 8 | .relics[3].props.AttacksPlayed: rust 0 vs oracle 8
-T2.4 p S @8:07: sim vs frames before sync: .enemies[0].hp: rust 15 vs oracle 12 | .enemies[0].max_hp: rust 15 vs oracle 12
