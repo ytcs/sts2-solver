@@ -1,0 +1,16 @@
+{
+ "fight": "hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS",
+ "window": "end of turn 4 through enemy turn 5 (video 15:22-15:25, stream drop); resume = turn 6 of hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS_b",
+ "method": "simulator from the transcribed turns 1-4; turn 4 end forced (0 energy); turn-5 hand fixed by pile accounting at the turn-6 frame (discard pile 12 = turn-4 cards + Defend, Defend, Neutralize, Survivor, Hidden Daggers); every turn-5 line enumerated and kept if after enemy turn 5: player 31 HP, boss 98 HP / 14 block / poison 24 (after Noxious Fumes), Pen Nib 9, discard and exhaust piles equal the turn-6 frame",
+ "result": "7 consistent orderings in 2 end-of-turn states; both reach the same turn-6 state (no draw or random effect in turn 5 besides the boss's fixed Slash2), so either bridges the replay. Neutralize's Weak cuts the 14 attack to 10, which both block",
+ "candidates": [
+  {"acts": [["e"], ["p", "N", 0], ["p", "SV"], ["c", "D"], ["p", "D"], ["p", "HD"], ["p", "SH", 0], ["p", "SH", 0], ["e"]],
+   "why": "rank 1: Neutralize first (Weak), Survivor discarding a Defend (13 block), Defend, Hidden Daggers with an empty discard choice, 2 Shivs; Survivor over the second Defend is the higher-block use of the same 2 energy"},
+  {"acts": [["e"], ["p", "N", 0], ["p", "D"], ["p", "D"], ["p", "HD"], ["p", "SH", 0], ["p", "SH", 0], ["e"]],
+   "why": "rank 2: Neutralize, Defend, Defend (10 block), Hidden Daggers discards Survivor (the only card left), 2 Shivs"},
+  {"acts": [["e"], ["p", "D"], ["p", "N", 0], ["p", "D"], ["p", "HD"], ["p", "SH", 0], ["p", "SH", 0], ["e"]],
+   "why": "rank 3: same end state as rank 2, Defend first"},
+  {"acts": [["e"], ["p", "SV"], ["c", "D"], ["p", "N", 0], ["p", "D"], ["p", "HD"], ["p", "SH", 0], ["p", "SH", 0], ["e"]],
+   "why": "rank 4: same end state as rank 1, Survivor first"}
+ ]
+}
