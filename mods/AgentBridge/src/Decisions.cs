@@ -265,6 +265,10 @@ public static class Decisions
                     if (b.Reward is PotionReward && me is { HasOpenPotionSlots: false }) label += " (potion slots full: a dp <slot> first)";
                     d.Click(label, b);
                 }
+                if (me != null)
+                    foreach (var p in me.PotionSlots)
+                        if (p is { Usage: PotionUsage.AnyTime })
+                            d.Add($"potion {Text.Loc(p.Title)}: {Text.Loc(p.DynamicDescription)}", a => UsePotion(p, me, null, a));
                 ProceedOpt(d, s, "proceed (skip the rest)");
                 return;
             case NCardRewardSelectionScreen s:
