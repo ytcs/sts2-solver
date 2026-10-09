@@ -328,7 +328,7 @@
    },
    {
     "play": {
-     "hand_pos": 5
+     "hand_pos": 3
     }
    },
    {
@@ -345,7 +345,7 @@
    {
     "choose": [
      0,
-     1
+     2
     ]
    },
    {
@@ -541,6 +541,10 @@
      },
      {
       "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -563,10 +567,6 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -809,6 +809,10 @@
      },
      {
       "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -825,10 +829,6 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -1074,12 +1074,6 @@
       "upgrade": 0
      },
      {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
       "cost": 0,
       "id": "ASCENDERS_BANE",
       "keywords": [
@@ -1087,6 +1081,12 @@
        "Ethereal",
        "Unplayable"
       ],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
       "upgrade": 0
      }
     ],
@@ -1331,12 +1331,6 @@
       "upgrade": 0
      },
      {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
       "cost": 0,
       "id": "ASCENDERS_BANE",
       "keywords": [
@@ -1344,6 +1338,12 @@
        "Ethereal",
        "Unplayable"
       ],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
       "upgrade": 0
      }
     ],
@@ -1582,12 +1582,6 @@
       "upgrade": 0
      },
      {
-      "cost": 1,
-      "id": "DEFEND_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
       "cost": 0,
       "id": "ASCENDERS_BANE",
       "keywords": [
@@ -1595,6 +1589,12 @@
        "Ethereal",
        "Unplayable"
       ],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
       "upgrade": 0
      }
     ],
@@ -4677,10 +4677,6 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -4925,10 +4921,6 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -5114,10 +5106,6 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -5663,35 +5651,20 @@
   []
  ],
  "outcome": 1,
+ "report": [
+  "start: sim vs frames before sync: .relics[3].counter: rust 0 vs oracle 1 | .relics[3].props.AttacksPlayed: rust 0 vs oracle 1",
+  "T3.4 e  @13:03: draw count (sim, before sync) 14 vs shown 15"
+ ],
  "replay_check": {
   "ok": true,
   "outcome": 1,
   "stats": {
    "start_tries": 1,
    "sync relics": 1,
-   "residual .enemies[1].intents": 38,
-   "residual .enemies[1].next_move": 17,
-   "residual .enemies[2].intents": 44,
-   "residual .enemies[2].next_move": 17,
-   "diff .enemies[1].intents": 36,
-   "diff .enemies[1].next_move": 16,
-   "diff .enemies[2].intents": 42,
-   "diff .enemies[2].next_move": 16,
-   "diff .player.block": 2,
-   "end_turn_unmatched": 4,
-   "intent unmatched": 4,
-   "random_pile_diffs": 41,
-   "diff .enemies[3].powers": 2,
-   "residual .hand[0].enchantment": 1,
-   "diff .enemies[1].powers": 1,
-   "diff .enemies[2].powers": 1,
-   "sync powers": 2,
-   "diff .enemies[0].intents": 6,
-   "diff .enemies[0].next_move": 2,
-   "residual .enemies[0].intents": 6,
-   "residual .enemies[0].next_move": 2,
-   "diff .enemies[0].powers": 1,
-   "diff .player.hp": 1
+   "end_turn_tries": 4,
+   "end_turn_matched": 4,
+   "random_pile_diffs": 29,
+   "diff .enemies[3].powers": 2
   }
  }
 }

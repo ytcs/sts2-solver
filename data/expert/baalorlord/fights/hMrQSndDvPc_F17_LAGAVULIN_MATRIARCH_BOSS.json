@@ -447,10 +447,6 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -463,6 +459,10 @@
      },
      {
       "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -658,10 +658,6 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -674,6 +670,10 @@
      },
      {
       "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -879,16 +879,16 @@
      },
      {
       "cost": 1,
-      "enchantment": {
-       "amount": 1,
-       "id": "SPIRAL"
-      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
      },
      {
       "cost": 1,
+      "enchantment": {
+       "amount": 1,
+       "id": "SPIRAL"
+      },
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
@@ -2936,12 +2936,6 @@
       "upgrade": 0
      },
      {
-      "cost": 2,
-      "id": "DASH",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
       "cost": 0,
       "id": "ASCENDERS_BANE",
       "keywords": [
@@ -2953,7 +2947,19 @@
      },
      {
       "cost": 1,
+      "id": "STRIKE_SILENT",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 1,
       "id": "STRANGLE",
+      "keywords": [],
+      "upgrade": 0
+     },
+     {
+      "cost": 2,
+      "id": "DASH",
       "keywords": [],
       "upgrade": 0
      },
@@ -2964,24 +2970,18 @@
       "upgrade": 0
      },
      {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
-      "cost": 1,
-      "id": "STRIKE_SILENT",
-      "keywords": [],
-      "upgrade": 0
-     },
-     {
       "cost": 2,
       "id": "SNAKEBITE",
       "keywords": [
        "Retain"
       ],
       "upgrade": 1
+     },
+     {
+      "cost": 3,
+      "id": "OUTBREAK",
+      "keywords": [],
+      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -3084,7 +3084,7 @@
       "upgrade": 0
      },
      {
-      "id": "OUTBREAK",
+      "id": "STRIKE_SILENT",
       "upgrade": 0
      },
      {
@@ -3158,12 +3158,6 @@
      "upgrade": 0
     },
     {
-     "cost": 2,
-     "id": "DASH",
-     "keywords": [],
-     "upgrade": 0
-    },
-    {
      "cost": 0,
      "id": "ASCENDERS_BANE",
      "keywords": [
@@ -3175,7 +3169,19 @@
     },
     {
      "cost": 1,
+     "id": "STRIKE_SILENT",
+     "keywords": [],
+     "upgrade": 0
+    },
+    {
+     "cost": 1,
      "id": "STRANGLE",
+     "keywords": [],
+     "upgrade": 0
+    },
+    {
+     "cost": 2,
+     "id": "DASH",
      "keywords": [],
      "upgrade": 0
     },
@@ -3186,24 +3192,18 @@
      "upgrade": 0
     },
     {
-     "cost": 1,
-     "id": "STRIKE_SILENT",
-     "keywords": [],
-     "upgrade": 0
-    },
-    {
-     "cost": 1,
-     "id": "STRIKE_SILENT",
-     "keywords": [],
-     "upgrade": 0
-    },
-    {
      "cost": 2,
      "id": "SNAKEBITE",
      "keywords": [
       "Retain"
      ],
      "upgrade": 1
+    },
+    {
+     "cost": 3,
+     "id": "OUTBREAK",
+     "keywords": [],
+     "upgrade": 0
     }
    ],
    "max_energy": 3,
@@ -3306,7 +3306,7 @@
      "upgrade": 0
     },
     {
-     "id": "OUTBREAK",
+     "id": "STRIKE_SILENT",
      "upgrade": 0
     },
     {
@@ -3384,6 +3384,9 @@
   ]
  ],
  "outcome": 0,
+ "report": [
+  "start: sim vs frames before sync: .relics[3].counter: rust 0 vs oracle 1 | .relics[3].props.AttacksPlayed: rust 0 vs oracle 1"
+ ],
  "replay_check": {
   "ok": true,
   "outcome": 0,
@@ -3392,12 +3395,7 @@
    "sync relics": 1,
    "end_turn_tries": 3,
    "end_turn_matched": 3,
-   "random_pile_diffs": 58,
-   "residual .hand[4].enchantment": 1,
-   "residual .hand[3].enchantment": 1,
-   "residual .hand[0].enchantment": 3
+   "random_pile_diffs": 53
   }
- },
- "truncated": true,
- "truncated_note": "video cut inside turn 4; fight won off-screen at 15:21; hp_end is the turn-4 start, not the fight result"
+ }
 }

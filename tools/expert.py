@@ -262,10 +262,20 @@ class Builder:
 
     def _hand_cards(self, toks, snap_hand):
         pool, out = list(snap_hand), []
+        deck = self.scenario.get("deck", [])
         for tok in toks:
-            cid, up = _card(tok, self.al)
-            j = next((j for j, c in enumerate(pool) if c["id"] == cid and c["upgrade"] == up), None)
-            out.append(pool.pop(j) if j is not None else {"id": cid, "upgrade": up, "cost": self.cost.get(cid, 0), "keywords": []})
+            cid, up, ench, _p = RE.token(tok, self.al)
+            same = [c for c in deck if c["id"] == cid and c.get("upgrade", 0) == up]
+            ench = ench or bool(same) and all(c.get("enchantment") for c in same)
+            j = next((j for j, c in enumerate(pool) if c["id"] == cid and c["upgrade"] == up and (not ench or c.get("enchantment"))), None)
+            if j is not None:
+                out.append(pool.pop(j))
+                continue
+            card = {"id": cid, "upgrade": up, "cost": self.cost.get(cid, 0), "keywords": []}
+            src = next((c for c in same if bool(c.get("enchantment")) == ench), None)
+            if src and src.get("enchantment"):
+                card["enchantment"] = dict(src["enchantment"])
+            out.append(card)
         return out
 
     def _patch(self, snap, obs, where):
