@@ -55,7 +55,10 @@ def memory():
     ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(ms))
     pmc = _PMC()
     pmc.cb = ctypes.sizeof(_PMC)
-    ctypes.windll.psapi.GetProcessMemoryInfo(ctypes.windll.kernel32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb)
+    k32, psapi = ctypes.windll.kernel32, ctypes.windll.psapi
+    k32.GetCurrentProcess.restype = ctypes.c_void_p
+    psapi.GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.POINTER(_PMC), ctypes.c_ulong]
+    psapi.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb)
     return float(max(pmc.WorkingSetSize, pmc.PagefileUsage)), float(ms.ullAvailPhys)
 
 
@@ -72,13 +75,6 @@ def watchdog():
                 os._exit(3)
             time.sleep(1.0)
     threading.Thread(target=loop, daemon=True).start()
-
-
-def ts(t):
-    if t is None:
-        return None
-    parts = [int(x) for x in str(t).split(":")]
-    return sum(p * 60 ** i for i, p in enumerate(reversed(parts)))
 
 
 def record_path(p):
@@ -598,29 +594,41 @@ def dry_run(a, seedcheck):
         sys.exit(f"REFUSED: build {rec.get('build')!r} is not the pinned {RE.PINNED_BUILD}")
     print(f"menu: a <new run> {rec['character'].lower()} {rec['ascension']} {rec['seed']}   (standard run; `--custom` uses `custom run`)")
     print(f"map check: boss {rec.get('boss')}; rooms by floor {RE.floor_rooms(rec)}")
-    states = {}
+    built = {}
     for i, x in enumerate(RE.flatten(rec)):
         cmd = ""
         if x["kind"] in ("play", "choose", "potion", "end"):
-            built = states.setdefault(x["fight"], RE.built_record(rec, x["fight"]))
-            st = built["fight"]["states"][x["i"]] if built else None
-            if x["kind"] == "play" and st:
-                j = RE._hand_index(x, st.get("hand") or [])
-                cmd = f"a {j}" + (f" e{x['target']}" if x.get("target") is not None else "") if j is not None else "?? card not in the recorded hand"
-            elif x["kind"] == "end":
-                cmd = "a <end turn>"
-            elif x["kind"] == "potion":
-                cmd = f"a <potion {x.get('potion')}>" + (f" e{x['target']}" if x.get("target") is not None else "")
+            b = built.setdefault(x["fight"], RE.built_record(rec, x["fight"]))
+            if b is None:
+                cmd = "(fight not built: `build` first)"
             else:
-                cmd = "a <SELECT indices of " + ", ".join(c for c, _ in x["cards"]) + ">"
+                st = b["fight"]["states"][x["i"]]
+                c, err = RE.combat_command(x, st, recorded_screen(x, st, b["scenario"]))
+                cmd = f"{c:10s} do {json.dumps(RE.to_bridge(x, c))}" if c else f"?? {err}"
         elif x["kind"] == "macro":
             p = x.get("pick")
             cmd = ("a <map node consistent with the record's rooms>" if x.get("screen") == "MAP" and not p else
                    f"a <option `{p}`>" if isinstance(p, str) else f"a <{json.dumps(p)}>")
         print(f"{i:4d} F{x.get('floor', '?'):<3} {str(x.get('t') or ''):>6} {RE.describe(x):46s} {cmd}")
-        if x["kind"] == "gap" or (seedcheck and x["kind"] in ("play", "gap")):
-            print("     (stops here: " + ("record gap" if x["kind"] == "gap" else "seedcheck compares the fight opening") + ")")
+        if seedcheck and (x.get("fight") or x["kind"] == "gap") and (x.get("i", 0) == 0):
+            print("     (seedcheck compares this fight's opening with the record, then stops)")
             break
+        if x["kind"] == "gap" and not a.all:
+            print("     (the replay stops here: record gap; --all lists the rest)")
+            break
+
+
+def recorded_screen(x, st, scenario):
+    def title(c):
+        return RE.base(c["id"]).replace("_", " ").title() + ("+" if c.get("upgrade") else "")
+    if x["kind"] == "choose":
+        return "\n".join([f"SELECT {len(x['cards'])}"] + [f"{i} {title(c)}(1) ." for i, c in enumerate(st.get("hand", []))]) + "\n"
+    es = st.get("enemies", [])
+    lines = ["COMBAT"] + [f"e{i} {e['id']} {e['hp']}/{e['max_hp']} b0 -> ?" for i, e in enumerate(es) if e.get("alive", True)]
+    tgt = " ->e" if x.get("target") is not None else ""
+    opts = [f"{title(c)}(1) ." + (tgt if x["kind"] == "play" and RE.base(c["id"]) == RE.base(x["card"]) else "") for c in st.get("hand", [])]
+    opts += [f"potion {p['id'].replace('_', ' ').title()}: ." + (tgt if x["kind"] == "potion" and p["id"] == x.get("potion") else "") for p in scenario.get("potions", [])]
+    return "\n".join(lines + [f"{i} {o}" for i, o in enumerate(opts + ["end turn"])]) + "\n"
 
 
 # ---------- references
@@ -672,8 +680,9 @@ def utility(sim, max_hp):
     return -1.0 if t is None else t
 
 
-def enumerate_turn(sim, potions=False, cap=CAP):
-    """every distinct line to the end of the current turn (python reference enumerator; roadmap item 8 replaces it)"""
+def enumerate_turn(sim, potions=False, cap=CAP, roots=None):
+    """every distinct line to the end of the current turn, optionally only those starting with an action in `roots`
+    (python reference enumerator; roadmap item 8 replaces it)"""
     n, seen, stack = 0, set(), [(sim, [])]
     enumerate_turn.capped = False
     while stack:
@@ -698,6 +707,8 @@ def enumerate_turn(sim, potions=False, cap=CAP):
         if n % 50 == 0 and memory()[1] < MIN_FREE:
             raise MemoryError("free RAM below the floor during turn enumeration")
         for idx, t in s.legal():
+            if not path and roots is not None and idx not in roots:
+                continue
             if t == "end turn":
                 n += 1
                 yield s, path, False
@@ -737,13 +748,14 @@ def paired(x, y):
     return float(d.mean()), (float(d.std(ddof=1) / math.sqrt(len(d))) if len(d) > 1 else 0.0)
 
 
-def turn_check(eng, sc, sim, his_k, live_k, dets=4, revalue=8, potions=False):
+def turn_check(eng, sc, sim, his_k, live_k, dets=2, revalue=8, potions=False, max_leaves=1500):
     max_hp = sc["max_hp"]
     cls = classes(sim)
     first_of = {t: cls[x] for x, t in sim.legal()}
     best, cache, info = {}, {}, {}
-    n = 0
-    for s_, path, over in enumerate_turn(sim.copy(), potions):
+    n, leaves_capped = 0, False
+    roots = {x for x, k in cls.items() if k in (his_k, live_k)}
+    for s_, path, over in enumerate_turn(sim.copy(), potions, roots=roots):
         n += 1
         k0 = ("end turn",) if not path else first_of[path[0]]
         if over:
@@ -751,6 +763,9 @@ def turn_check(eng, sc, sim, his_k, live_k, dets=4, revalue=8, potions=False):
         else:
             key = hash(s_.snapshot())
             if key not in cache:
+                if len(cache) >= max_leaves:
+                    leaves_capped = True
+                    break
                 cache[key] = leaf_value(eng.fs, sc, s_, dets, 4242, max_hp)
             vals, exact = cache[key]
         v = sum(vals) / len(vals)
@@ -761,7 +776,7 @@ def turn_check(eng, sc, sim, his_k, live_k, dets=4, revalue=8, potions=False):
             c["exact_max"] = v if c["exact_max"] is None else max(c["exact_max"], v)
         if k0 not in best or v > best[k0][0]:
             best[k0] = (v, path, s_, over, exact)
-    capped = getattr(enumerate_turn, "capped", False)
+    capped = leaves_capped or getattr(enumerate_turn, "capped", False)
     rv = {}
     for k in (his_k, live_k):
         if k in best:
@@ -850,7 +865,7 @@ def verdict(refs, max_hp):
         return side(r2["d"]), "r2", f"turn check {r2['d']:+.4f} ({r2['se']:.4f})"
     for name, r in (("r3", r3), ("r2", r2)):
         if r is not None and (bounded(r, hp_eq) or (r["d"] == 0 and r["se"] == 0)):
-            return "tie", name, f"{'order only' if r['d'] == 0 and r['se'] == 0 else 'immaterial'}: {r['d']:+.4f} ({r['se']:.4f}) < 1 HP-eq"
+            return "tie", name, f"{('order only' if name == 'r2' else 'identical outcomes') if r['d'] == 0 and r['se'] == 0 else 'immaterial'}: {r['d']:+.4f} ({r['se']:.4f}) < 1 HP-eq"
     return "unresolved", None, "no reference resolves 1 HP-eq"
 
 
@@ -933,13 +948,12 @@ def compare(a):
                     refs["r1"] = k_search(ref, sc, sim, his_k, live_k, a.ref_seeds)
                 if a.tc_dets:
                     try:
-                        tc = turn_check(tc_eng, sc, sim, his_k, live_k, a.tc_dets, a.tc_revalue)
+                        tc = turn_check(tc_eng, sc, sim, his_k, live_k, a.tc_dets, a.tc_revalue, max_leaves=a.tc_leaves)
                         refs.update({k: tc[k] for k in ("r2", "exact") if k in tc})
                         row.update(tc_lines=tc["lines"], tc_capped=tc["capped"], his_line=tc["his_line"], live_line=tc["live_line"])
                     except MemoryError as e:
                         row["tc_error"] = str(e)
-                v0 = verdict(refs, sc["max_hp"])
-                if a.playouts and v0[1] != "exact" and (v0[1] is None or v0[0] == "unresolved" or not significant(refs.get("r2"), HPB / sc["max_hp"])):
+                if a.playouts and verdict(refs, sc["max_hp"])[0] == "unresolved":
                     refs["r3"] = playouts(live, sc, sim, mine[0], d["action"], a.playouts, a.playout_rounds)
                 row["verdict"], row["by"], row["why"] = verdict(refs, sc["max_hp"])
                 row["refs"] = refs
@@ -960,7 +974,7 @@ def compare(a):
 
 def settings(a):
     return dict(live_rounds=a.live_rounds, objective=a.objective, ref_k=a.ref_k, ref_seeds=a.ref_seeds, tc_k=a.tc_k, tc_dets=a.tc_dets,
-                tc_revalue=a.tc_revalue, playouts=a.playouts, playout_rounds=a.playout_rounds, device=os.environ.get("STS2_DEVICE"))
+                tc_revalue=a.tc_revalue, tc_leaves=a.tc_leaves, playouts=a.playouts, playout_rounds=a.playout_rounds, device=os.environ.get("STS2_DEVICE"))
 
 
 def summary(data):
@@ -984,30 +998,31 @@ def compare_macro(rec, a):
     from solver import PREDICTOR_CKPT
     pred = Predictor(PREDICTOR_CKPT, batch=1024)
     if a.replay:
-        run = next((json.loads(x)["run"] for x in open(os.path.join(RE.creator_dir(rec), "replay", rec["video"]["id"] + ".jsonl"), encoding="utf-8")
-                    if '"start"' in x), None)
+        log = os.path.join(RE.creator_dir(rec), "replay", rec["video"]["id"] + ".jsonl")
+        run = next((json.loads(x)["run"] for x in open(log, encoding="utf-8") if '"start"' in x), None) if os.path.exists(log) else None
         screens = PR.recorded_screens(os.path.join(ROOT, "runs", run, "events.jsonl"), ("CARD_REWARD", "RESTSITE")) if run else []
+        screens = ((f, s, st, PR._played(s, c, PR.options(st, s)), c) for f, s, st, c, _old in screens)
     else:
         screens = synthetic_screens(rec)
     rows = []
-    for floor, state, st, choice, _old in screens:
+    for floor, state, st, played, shown in screens:
         opts = PR.options(st, state)
         if len(opts) < 2:
             continue
         res = PR.price(st, opts, pred, n=a.macro_n, seed=floor)
         best, horizon = PR.best(res)
-        played = PR._played(state, choice, opts)
-        fam = next((lb for lb, _ in opts if PR._family(lb) == PR._family(played) and (played != "smith" or lb == best or lb.startswith("smith"))), played)
-        if played == "smith":
-            fam = choice
-        row = dict(floor=floor, screen=state.split("\n")[0], played=fam, price_best=best, horizon=horizon)
-        if fam in res and fam != best:
-            d, se = paired(res[fam][horizon], res[best][horizon])
-            row.update(d=d, se=se, verdict="price prefers another option" if d < -2 * se else "tie")
+        fam = [lb for lb in res if PR._family(lb) == PR._family(played)]
+        mine = played if played in res else max(fam, key=lambda lb: res[lb][horizon].mean(), default=None)
+        row = dict(floor=floor, screen=state.split("\n")[0], played=shown, priced_as=mine, price_best=best, horizon=horizon, n=a.macro_n)
+        if mine is None:
+            row["verdict"] = "unpriced"
+        elif PR._family(mine) == PR._family(best) and (mine == best or not played.startswith("smith ")):
+            row["verdict"] = "agree"
         else:
-            row["verdict"] = "agree" if fam == best else "unpriced"
+            d, se = paired(res[mine][horizon], res[best][horizon])
+            row.update(d=d, se=se, verdict="price prefers another option" if d < -2 * se else "tie")
         rows.append(row)
-        print(f"F{floor:<3d} {row['screen']:11s} played {str(fam)[:24]:24s} price {best[:24]:24s} [{horizon}] {row['verdict']}"
+        print(f"F{floor:<3d} {row['screen']:11s} played {str(shown)[:26]:26s} price {best[:26]:26s} [{horizon}] {row['verdict']}"
               + (f" {row['d']:+.3f} ({row['se']:.3f})" if "d" in row else ""), flush=True)
     return rows
 
@@ -1016,40 +1031,45 @@ def synthetic_screens(rec):
     from agent import price as PR
     from agent import runmodel as R
     from agent import tracker
-    al, deck, sc, picks = rec.get("aliases", {}), None, None, []
-    for st in rec["steps"]:
+    steps = rec["steps"]
+    sc = deck = hp = None
+    for k, st in enumerate(steps):
         if st.get("fight"):
             sc = st["fight"]["scenario"]
-            deck, picks = [dict(c) for c in sc["deck"]], []
+            built = RE.built_record(rec, st["fight"]["id"])
+            deck = [dict(c) for c in sc["deck"]]
+            hp = built["hp_end"][0] if built and (built.get("outcome") == 1) else None
             continue
-        if sc is None or "gap" in st or st.get("screen") not in ("CARD_REWARD", "RESTSITE"):
-            if sc is not None and st.get("screen") == "SELECT" and isinstance(st.get("pick"), list) and picks and picks[-1] == "smith":
-                c = next((c for c in deck if RE.base(c["id"]) == RE.base(st["pick"][0]) and not c.get("upgrade")), None)
-                if c:
-                    c["upgrade"] = 1
-                picks[-1] = "smithed"
+        if st.get("screen") == "SELECT" and deck is not None and k and steps[k - 1].get("screen") == "RESTSITE" and isinstance(st.get("pick"), list):
+            c = next((c for c in deck if RE.base(c["id"]) == RE.base(st["pick"][0]) and not c.get("upgrade")), None)
+            if c:
+                c["upgrade"] = 1
+        if sc is None or hp is None or "gap" in st or st.get("screen") not in ("CARD_REWARD", "RESTSITE"):
             continue
-        hp = sc["hp"]
         header = f"A1 F{st['floor']} {rec['character']} A{rec['ascension']} HP {hp}/{sc['max_hp']} G{sc.get('gold', 0)} pots[-]"
         if st["screen"] == "CARD_REWARD":
             opts = [f"{i} {name}(1) ." for i, name in enumerate(st.get("seen") or [])] + [f"{len(st.get('seen') or [])} Skip"]
-            choice = next((o.split(" ", 1)[1] for o in opts if st.get("pick") and o.split(" ", 1)[1].startswith(st["pick"] + "(")), "Skip")
+            played = st["pick"] if st.get("pick") else "skip"
+            shown = played
         else:
             opts = ["0 Rest: Heal for 30% of your Max HP.", "1 Smith: Upgrade a card in your Deck."]
-            choice = opts[0][2:] if str(st.get("pick")).lower().startswith("rest") else opts[1][2:]
+            rest = str(st.get("pick")).lower().startswith("rest")
+            target = None if rest or k + 1 >= len(steps) else (steps[k + 1].get("pick") or [None])[0]
+            cid = PR._card_id(target)[0] if target else None
+            cid = cid or next((c["id"] for c in deck if target and RE.base(c["id"]) == RE.base(target)), None)
+            played = "rest" if rest else (f"smith {cid}" if cid else "smith")
+            shown = "rest" if rest else f"smith {target}"
         state = f"{st['screen']}\n{header}\n" + "\n".join(opts) + "\n"
-        relics = [r["id"] for r in sc.get("relics", [])]
-        seen = {}
-        rs = R.RunState(sc, 0, "Underdocks", hp, sc["max_hp"], sc.get("gold", 0), [dict(c) for c in deck], relics, [], sc.get("max_potion_slots", 2),
-                        (tracker.POTION_START, tracker.OFFSET_START, dict(tracker.UNKNOWN_BASE), 0), seen, [rec.get("boss")] if rec.get("boss") else [],
-                        None, None, 0)
-        yield st["floor"], state, rs, choice, None
+        rs = R.RunState(sc, 0, "Underdocks", hp, sc["max_hp"], sc.get("gold", 0), [dict(c) for c in deck], [r["id"] for r in sc.get("relics", [])], [],
+                        sc.get("max_potion_slots", 2), (tracker.POTION_START, tracker.OFFSET_START, dict(tracker.UNKNOWN_BASE), 0), {},
+                        [rec["boss"]] if rec.get("boss") else [], None, None, 0)
+        yield st["floor"], state, rs, played, shown
         if st["screen"] == "CARD_REWARD" and st.get("pick"):
             cid, up = PR._card_id(st["pick"])
             if cid:
                 deck.append({"id": cid, "upgrade": up})
-        elif st["screen"] == "RESTSITE":
-            picks.append("smith" if choice.startswith("Smith") else "rest")
+        elif played == "rest":
+            hp = min(sc["max_hp"], hp + int(R.HEAL_REST * sc["max_hp"]))
 
 
 # ---------- report
@@ -1079,7 +1099,8 @@ def report(a):
             continue
         refs = r.get("refs") or {}
         ex = refs.get("exact") or {}
-        ex_s = "" if not ex else f"his [{ex.get('his_lb')}, {ex.get('his_ub')}] live [{ex.get('live_lb')}, {ex.get('live_ub')}]"
+        f4 = lambda x: "?" if x is None else f"{x:+.4f}"  # noqa: E731
+        ex_s = "" if not any(v is not None for v in ex.values()) else f"his [{f4(ex.get('his_lb'))}, {f4(ex.get('his_ub'))}] live [{f4(ex.get('live_lb'))}, {f4(ex.get('live_ub'))}]"
         lines.append(f"| {r['fight'].split('_', 1)[-1]} | {r['i']} | {r.get('t') or ''} | {r['his']} | {r['live']} | {fmt(refs.get('r1'))} | {fmt(refs.get('r2'))} | "
                      f"{fmt(refs.get('r3'))} | {ex_s} | **{r['verdict']}** ({r.get('by') or '-'}) |")
     if data.get("macro"):
@@ -1115,6 +1136,7 @@ def main():
         p = sub.add_parser(name)
         p.add_argument("record")
         p.add_argument("--dry-run", action="store_true")
+        p.add_argument("--all", action="store_true", help="dry run: list past the first gap")
     p = sub.add_parser("compare")
     p.add_argument("record")
     p.add_argument("--replay", action="store_true", help="fight records from the live replay instead of the frame-built ones")
@@ -1125,11 +1147,12 @@ def main():
     p.add_argument("--objective", choices=("harness", "linear"), default="harness")
     p.add_argument("--ref-k", type=int, default=256)
     p.add_argument("--ref-seeds", type=int, default=8)
-    p.add_argument("--tc-k", type=int, default=16)
-    p.add_argument("--tc-dets", type=int, default=4)
+    p.add_argument("--tc-k", type=int, default=8)
+    p.add_argument("--tc-dets", type=int, default=2)
+    p.add_argument("--tc-leaves", type=int, default=1500)
     p.add_argument("--tc-revalue", type=int, default=8)
-    p.add_argument("--playouts", type=int, default=16)
-    p.add_argument("--playout-rounds", type=int, default=2)
+    p.add_argument("--playouts", type=int, default=12)
+    p.add_argument("--playout-rounds", type=int, default=1)
     p.add_argument("--macro", action="store_true", help="also price the card rewards and rests (run model, `agent/price.py`)")
     p.add_argument("--macro-n", type=int, default=32)
     p.add_argument("--out")

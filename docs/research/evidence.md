@@ -200,3 +200,4 @@ Slice `data/bench/plans.json` (`tools/bench.py build-plans`; `score` reports it)
 - **Expert error (1):** Terror Eel #11, Survivor vs Strike, ~1.5 HP (2.1 se).
 - **Reference finding:** K=256 search misranks order-dependent turns with small se (forced win scored -1.03, Gardeners sign wrong); line comparisons need exact enumeration plus playouts.
 - **Fidelity found:** sync pairs identical monsters by nearest HP (Replayer / hindsight mis-slot enemy moves on Gardeners); hand sync ignores enchantments.
+- **Pipeline re-run** (item 7, `tools/expert.py compare`, CPU; live 8 rounds, harness objective; R3 n 12-24 at 1 round): C#17 tie, C#18 and D#1 (R2 +0.062 (0.012)) and E#0 (R2 +0.21 (0.06)) solver gaps reproduce; A#11 does not (R3 +0.008 (0.006) n 24, opposite sign): unresolved, the pilot's 2.1 se call was playout noise; new B#0 solver gap (T1 Strike vs his Defend at 18 HP, R2 +0.032 (0.003)). Macro, 7 card-reward/rest screens vs `price` (n 32): 2 agree, 5 ties.

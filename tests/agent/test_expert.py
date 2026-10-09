@@ -190,6 +190,128 @@ def test_record_validates():
     assert any("alphabet" in e for e in errs) and any("map pick" in e for e in errs)
 
 
+MENU = "MENU\n0 new run  (a <i> <character> [ascension] [seed]; characters: ironclad silent defect regent necrobinder)\n1 custom run  (a <i> ...)\n"
+MAP_TEXT = "rows bottom->top; point = <type>c<col>><child cols>; * = visited\nr1: Mc1> ?c3> Ec5>\nboss: 16 LAGAVULIN_MATRIARCH_BOSS\n"
+FIGHT = dict(id=1, scenario=dict(encounter="SLUDGE_SPINNER_WEAK"), log=[], state=dict(enemies=[dict(id="SLUDGE_SPINNER", hp=40, max_hp=40, index=0)], hand=[]))
+COMBAT_SCREEN = "COMBAT\nA1 F2 SILENT A10 HP 56/70 G0 pots[-, -]\nT1 E3/3 draw10 disc0 exh0\nyou b0\ne0 Sludge Spinner 40/40 b0 -> atk 5\nplay: a <i> [e<target>]\n0 end turn\n"
+
+
+class FakeLog:
+    run_id = "test"
+
+    def event(self, *a, **kw):
+        pass
+
+
+class FakeHarness:
+    def __init__(self):
+        self.gate, self.log, self.sent = False, FakeLog(), []
+        self.screen = MENU
+
+    def _send(self, cmd):
+        self.sent.append(cmd)
+        if self.screen is MENU:
+            self.screen = NEOW.replace("SILENT A10 HP 56/70 G99", "SILENT A10 HP 56/70 G99")
+        elif self.screen.startswith("EVENT"):
+            self.screen = MAP.replace("2 Monster r1c5 -> Mc6", "2 Elite r1c5 -> Mc6")
+        elif self.screen.startswith("MAP"):
+            self.screen = COMBAT_SCREEN
+        return self.screen
+
+    def sync(self):
+        return FIGHT if self.screen.startswith("COMBAT") else None
+
+    def _new_run(self):
+        pass
+
+    def _skill_refusal(self, s):
+        return None
+
+
+def test_seedcheck_flow_then_replay_refuses_guessed_run(monkeypatch, tmp_path):
+    h = FakeHarness()
+    monkeypatch.setattr(RE, "creator_dir", lambda rec: str(tmp_path))
+    monkeypatch.setattr(RE, "call", lambda cmd: MAP_TEXT if cmd == "m" else ("null" if cmd in ("deck.json", "fight") else h.screen))
+    out = RE.Reenactor(h, REC).run(seedcheck=True)
+    assert h.sent[:2] == ["a 0 silent 10 YMY1KELG18SC", "a 2"], h.sent
+    assert h.sent[2] in ("a 0", "a 1"), h.sent
+    assert "boss LAGAVULIN_MATRIARCH_BOSS (record LAGAVULIN_MATRIARCH_BOSS: ok)" in out
+    assert "opening of SLUDGE_SPINNER_WEAK (floor 2): matches the record" in out
+    out = RE.Reenactor(h, REC).run()
+    assert out.startswith("REFUSED: seedcheck walked this run with a guessed map node")
+    rows = [json.loads(x) for x in open(tmp_path / "replay" / "hMrQSndDvPc.jsonl", encoding="utf-8")]
+    assert [r["event"] for r in rows if r["event"] in ("start", "guess", "opening")] == ["start", "guess", "opening"]
+
+
+def test_replay_stops_on_ambiguous_map_and_at_gaps(monkeypatch, tmp_path):
+    h = FakeHarness()
+    monkeypatch.setattr(RE, "creator_dir", lambda rec: str(tmp_path))
+    monkeypatch.setattr(RE, "call", lambda cmd: MAP_TEXT if cmd == "m" else ("null" if cmd in ("deck.json", "fight") else h.screen))
+    out = RE.Reenactor(h, REC).run()
+    assert "STOP at step 1" in out and "Monster r1c1" in out and "Unknown r1c3" in out and "read the map frame" in out
+    assert h.sent == ["a 0 silent 10 YMY1KELG18SC", "a 2"]
+    rec = RE.load(REC)
+    rec["steps"][1]["pick"] = "r1c3"
+    p = tmp_path / "rec.json"
+    p.write_text(json.dumps(rec), encoding="utf-8")
+    out = RE.Reenactor(h, str(p)).run()
+    assert h.sent[-1] == "a 1" and "STOP at step 2, floor 2: record gap" in out
+
+
+class FightGame(FakeHarness):
+    def __init__(self, built, acts, screen_of):
+        super().__init__()
+        self.built, self.acts, self.screen_of, self.i, self.ended = built, acts, screen_of, None, False
+
+    def _view(self):
+        st = self.built["fight"]["states"][self.i]
+        return self.screen_of(self.acts[self.i], st, self.built["scenario"]).replace("COMBAT\n", "COMBAT\nA1 F17 SILENT A10 HP 53/70 G0 pots[Energy Potion, -]\n", 1)
+
+    def _send(self, cmd):
+        self.sent.append(cmd)
+        self.i = 0 if self.i is None else self.i + 1
+        self.screen = self._view() if self.i < len(self.acts) else "REWARDS\nA1 F17 SILENT A10 HP 32/70 G0 pots[-, -]\n0 proceed (skip the rest)\n"
+        return self.screen
+
+    def sync(self):
+        if self.i is None or self.i >= len(self.acts):
+            return None
+        self._last_f = dict(id=7, scenario=self.built["scenario"], log=self.built["fight"]["log"][: self.i], state=self.built["fight"]["states"][self.i])
+        return self._last_f
+
+    def _fight_end(self, reply):
+        self.ended = True
+
+
+def test_replay_drives_a_recorded_fight(monkeypatch, tmp_path):
+    rec = RE.load(REC)
+    k = next(i for i, st in enumerate(rec["steps"]) if st.get("fight", {}).get("id", "").endswith("LAGAVULIN_MATRIARCH_BOSS"))
+    rec["steps"] = rec["steps"][k:k + 2]
+    p = tmp_path / "rec.json"
+    p.write_text(json.dumps(rec), encoding="utf-8")
+    built = RE.built_record(rec, rec["steps"][0]["fight"]["id"])
+    acts = [a for a in RE.flatten(rec) if a.get("fight")]
+    h = FightGame(built, acts, _expert().recorded_screen)
+    monkeypatch.setattr(RE, "creator_dir", lambda r: str(tmp_path))
+    monkeypatch.setattr(RE, "call", lambda cmd: "null" if cmd in ("deck.json", "fight", "m") else h.screen)
+    out = RE.Reenactor(h, str(p)).run()
+    assert "opening of hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS (floor 17): matches the record" in out, out
+    assert "record gap: boss turn 4" in out and h.ended
+    assert len(h.sent) == 1 + len(acts)
+    assert [RE.to_bridge(a, c)["play"]["hand_pos"] for a, c in zip(acts, h.sent[1:]) if a["kind"] == "play"][:2] == [4, 2]
+    saved = RE.load(str(tmp_path / "replay" / "hMrQSndDvPc" / (acts[0]["fight"] + ".json")))
+    assert saved["source"] == "replay" and saved["scenario"]["run_seed"] == "YMY1KELG18SC"
+
+
+def test_replay_refuses_other_builds(monkeypatch, tmp_path):
+    rec = RE.load(REC)
+    rec["build"] = "v0.112.0 (2026.09.01)"
+    p = tmp_path / "rec.json"
+    p.write_text(json.dumps(rec), encoding="utf-8")
+    monkeypatch.setattr(RE, "creator_dir", lambda rec: str(tmp_path))
+    assert RE.Reenactor(FakeHarness(), str(p)).run().startswith("REFUSED: record build")
+
+
 def test_verdict_rule_reproduces_pilot_calls():
     v = _expert().verdict
     m = 70

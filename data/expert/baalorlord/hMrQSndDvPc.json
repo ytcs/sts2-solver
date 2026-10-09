@@ -10,7 +10,7 @@
  "notes": "floor = the game's floor counter (Neow F1, first fight F2); the pilot notes' macro table numbers floors 1-8 one lower",
  "aliases": {"S": "STRIKE_SILENT", "D": "DEFEND_SILENT", "N": "NEUTRALIZE", "SV": "SURVIVOR", "AB": "ASCENDERS_BANE", "DS": "DAGGER_SPRAY", "DA": "DASH", "HD": "HIDDEN_DAGGERS", "CL": "CLUMSY", "SB": "SNAKEBITE", "SH": "SHIV", "ST": "STRANGLE", "NF": "NOXIOUS_FUMES", "OB": "OUTBREAK", "DF": "DEFLECT", "BT": "BULLET_TIME"},
  "steps": [
-  {"floor": 1, "t": "0:31", "screen": "EVENT", "seen": ["Lead Paperweight", "Booming Conch", "Silken Tress"], "pick": "Silken Tress"},
+  {"floor": 1, "t": "0:31", "screen": "EVENT", "room": "Ancient", "seen": ["Lead Paperweight", "Booming Conch", "Silken Tress"], "pick": "Silken Tress"},
   {"floor": 2, "screen": "MAP", "pick": {}},
   {"floor": 2, "screen": "COMBAT", "encounter": "SLUDGE_SPINNER_WEAK", "gap": "fight and rewards not transcribed (HP 56 -> 56)"},
   {"floor": 2, "t": "1:24", "screen": "CARD_REWARD", "seen": ["Dagger Spray", "Calculated Gamble", "Prepared"], "pick": "Dagger Spray"},

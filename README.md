@@ -36,6 +36,7 @@ Dashboard (read-only, follows `runs/CURRENT`): `python tools/dashboard/extract_a
 - PPO: `rl/ppo.py`. GPU pod: `scripts/pod_train.sh` (local GPU by default).
 - Benchmarks: `tools/bench.py build|build-plans|score|play|screen`, `tools/nearmiss_bench.py build|eval|turns` (near-miss flips; optimality bracket), `tools/bench_search.py`.
 - Current networks: `models/current.json`.
+- Expert re-enactment: `tools/expert.py fetch|build|validate|compare|report`, live `python -m agent seedcheck|replay <record>`; skill `expert-reenact`.
 
 ## Accuracy gate
 `bash tools/gate.sh` must pass unchanged for any simulator/search/env change: search + env checksums (obs v1, v2), oracle regression traces, RNG goldens, information contract, sync, look-ahead cache exactness, obs v1 identity. A deliberate behaviour change updates its checksum in the same commit. Harness tests: `python tests/agent/run.py`.

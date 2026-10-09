@@ -11,7 +11,7 @@ AUTO = ("continue dialogue", "proceed", "proceed (skip the rest)", "open chest",
 ROOM_OF_ENCOUNTER = (("_WEAK", "Monster"), ("_NORMAL", "Monster"), ("_ELITE", "Elite"), ("_BOSS", "Boss"))
 MAP_CODES = {"M": "Monster", "E": "Elite", "R": "RestSite", "$": "Shop", "T": "Treasure", "?": "Unknown", "B": "Boss", "A": "Ancient"}
 ROOM_ALLOWS = dict(Monster={"Monster", "Unknown"}, Elite={"Elite"}, Boss={"Boss"}, RestSite={"RestSite"}, Shop={"Shop", "Unknown"},
-                   Treasure={"Treasure", "Unknown"}, Event={"Unknown"})
+                   Treasure={"Treasure", "Unknown"}, Event={"Unknown"}, Ancient={"Ancient"})
 SCREEN_ROOM = dict(EVENT="Event", RESTSITE="RestSite", SHOP="Shop", TREASURE="Treasure")
 
 
@@ -474,7 +474,7 @@ class Reenactor:
             if err and kind == "MAP" and a["kind"] == "macro":
                 cmd, err = self._map_by_rooms(a, screen, err, seedcheck)
             row = dict(event="decision", k=k, step=a["step"], floor=a.get("floor"), action=describe(a), t=a.get("t"), screen=screen)
-            row.update(deck=self._json("deck.json")) if a["kind"] == "macro" else row.update(fight=f)
+            row.update(deck=self._json("deck.json")) if a["kind"] == "macro" else row.update(state=(f or {}).get("state"), log_len=len((f or {}).get("log", [])))
             if err:
                 self._log(**dict(row, event="stop", why=err))
                 out.append(f"STOP at step {k} ({describe(a)}, floor {a.get('floor')}, video {a.get('t')}): {err}")
@@ -506,7 +506,7 @@ class Reenactor:
         spec = next((st["fight"] for st in self.rec["steps"] if st.get("fight") and st["fight"]["id"] == a.get("fight")), None)
         spec = dict(spec, aliases=self.rec.get("aliases", {})) if spec else dict(encounter=a.get("encounter"))
         diff = opening_diff(spec, f)
-        self._log(event="opening", k=a.get("step"), encounter=(f.get("scenario") or {}).get("encounter"), diff=diff, fight=f)
+        self._log(event="opening", k=a.get("step"), encounter=(f.get("scenario") or {}).get("encounter"), diff=diff, scenario=f.get("scenario"), state=f.get("state"))
         return f"opening of {a.get('fight') or a.get('encounter')} (floor {a.get('floor')}): " + ("matches the record" if not diff else "DIFFERS: " + "; ".join(diff))
 
     def _map_check(self):
