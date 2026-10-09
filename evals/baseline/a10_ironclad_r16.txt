@@ -1,0 +1,27 @@
+seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
+BASE0001   loss      23 SPINY_TOAD_NORMAL                  14/-/-             159     14    8     2.2      5.0 
+BASE0002   loss      24 EXOSKELETONS_NORMAL                52/-/-             102     14    5     2.7      4.8 
+BASE0003   loss      17 VANTOM_BOSS                        0/-/-               88     10    3     1.8      3.0 
+BASE0004   loss      17 THE_KIN_BOSS                       0/-/-               71      9    3     1.4      3.2 
+BASE0005   loss      48 TEST_SUBJECT_BOSS                  22/12/0            229     21   10     9.2     13.2 
+BASE0006   loss      40 KNIGHTS_ELITE                      14/25/-            200     23   10     3.6     10.9 
+BASE0007   loss      25 ENTOMANCER_ELITE                   25/-/-             124     16    6     2.6      6.4 
+BASE0008   loss      17 WATERFALL_GIANT_BOSS               0/-/-               88      8    3     1.8      3.3 
+BASE0009   loss      43 KNIGHTS_ELITE                      34/29/-            257     24    9     5.7      9.3 
+BASE0010   loss      17 WATERFALL_GIANT_BOSS               0/-/-              114      8    1     1.3      2.8 
+BASE0011   loss      21 SLUMBERING_BEETLE_NORMAL           10/-/-             175     13    6     1.6      5.0 
+BASE0012   loss      33 KNOWLEDGE_DEMON_BOSS               14/0/-             197     17    7     6.0      9.7 
+BASE0013   loss       7 PHANTASMAL_GARDENERS_ELITE         -/-/-               64      3    1     0.7      1.3 
+BASE0014   loss      21 HUNTER_KILLER_NORMAL               25/-/-             156     12    6     2.2      6.2 
+BASE0015   loss      33 KNOWLEDGE_DEMON_BOSS               29/0/-             207     17   14     4.0      8.7 
+BASE0016   loss      27 DECIMILLIPEDE_ELITE                41/-/-             134     14    7     3.2      6.6 
+BASE0017   loss      24 INFESTED_PRISMS_ELITE              8/-/-              121     13    6     2.3      6.0 
+BASE0018   loss      21 unplayable fight: Hunter Killer    19/-/-              69     11    4     2.9      2.9 unplayable
+BASE0019   loss      17 CEREMONIAL_BEAST_BOSS              0/-/-               64      8    3     1.3      1.6 
+BASE0020   loss      17 WATERFALL_GIANT_BOSS               0/-/-              135      8    3     1.1      1.6 
+win rate 0.000 +- 0.000 (n 20); mean floor 24.6; own time per run 2.9 min; decide 0.423 s/decision
+GPU (main batch, 18 runs): utilisation mean 70% (2971 1-s samples), memory max 6734 MiB; 2 games round-robin, one process
+deaths by room: {'hallway': 4, 'boss': 9, 'elite': 6, 'other': 1}; act reached: {1: 7, 2: 10, 3: 3}
+bosses fought (won/fought): CEREMONIAL_BEAST_BOSS 4/5, KNOWLEDGE_DEMON_BOSS 3/5, LAGAVULIN_MATRIARCH_BOSS 1/1, SOUL_FYSH_BOSS 4/4, TEST_SUBJECT_BOSS 0/1, THE_KIN_BOSS 2/3, VANTOM_BOSS 0/1, WATERFALL_GIANT_BOSS 2/5
+elites fought (won/fought): BYGONE_EFFIGY_ELITE 4/4, BYRDONIS_ELITE 7/7, DECIMILLIPEDE_ELITE 2/3, ENTOMANCER_ELITE 4/5, INFESTED_PRISMS_ELITE 2/3, KNIGHTS_ELITE 0/2, PHANTASMAL_GARDENERS_ELITE 5/6, PHROG_PARASITE_ELITE 5/5, SKULKING_COLONY_ELITE 5/5, SOUL_NEXUS_ELITE 1/1, TERROR_EEL_ELITE 4/4
+anomalies: differs 17, desync 0, select_fallback 9, fallback_actions 52, errors 9; tags: BASE0018 unplayable

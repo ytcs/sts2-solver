@@ -8,7 +8,8 @@ Combat: the live player (`Harness.play`), a fixed number of search rounds per de
 proposal rule fires (`potion use` the proposed one, one per commit). No fight-start predictions, no DRIVE thresholds. A DIFFERS line does
 not stop play (counted; a potion-belt DIFFERS, e.g. Entropic Brew's random potions, turns proposals off for that fight); a DESYNC
 (or a search error, or combat_in_progress differing) rebuilds the replayer once per fight, then plays `fallback_action` (first playable
-card, else end turn; run tagged `fallback`); a combat selection the game rejects is answered by the macro SELECT rule.
+card, else end turn; run tagged `fallback`; also every fight the simulator cannot build, tagged `unplayable`); a combat selection the game
+rejects is answered by the macro SELECT rule.
 Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens (no price/reward/routes calls):
   map BasePolicy.node; card reward / card offers: predictor screen of each deck vs the act boss at max HP and a random elite at 70% (argmax
   of runmodel.worth, skip included); rest: rest below 50% HP else smith BasePolicy.smith order; shop: remove a card if affordable, then the
@@ -394,8 +395,19 @@ class Game:
         if scr.busy(s):
             time.sleep(0.02)
             return False
-        if kind == "COMBAT" or (kind == "SELECT" and h.sync() is not None):
-            return self.combat()
+        if kind == "COMBAT":
+            self.last_combat = (scr.floor_key(s), [m.group(1) for l in s.split("\n") for m in [re.match(r"^e\d+ (.+?) \d+/\d+ ", l)] if m])
+        if kind in ("COMBAT", "SELECT"):
+            try:
+                f = h.sync()
+            except Exception as e:  # noqa: BLE001  the simulator cannot build this fight (unmodelled content): fallback play
+                self.tags.add("unplayable")
+                h.stats["fallback_actions"] += 1
+                h.log.event("unplayable", error=f"{type(e).__name__}: {e}"[:300])
+                h.handle("a " + (fallback_action(s) if kind == "COMBAT" else self.macro.select(s, [(int(n), t) for n, t in scr.options(s)])))
+                return False
+            if kind == "COMBAT" or f is not None:
+                return self.combat()
         key = zlib.crc32(s.encode())
         self.stuck = self.stuck + 1 if key == self.last else 0
         self.last = key
@@ -478,8 +490,11 @@ class Game:
         died = None
         if not won:
             last = fights[-1] if fights else None
+            lc = getattr(self, "last_combat", None)
             if last and last["hp1"] <= 0:
                 died = last["enc"]
+            elif lc and lc[0] == scr.floor_key(hdr) and (not last or last["floor"] != lc[0]):
+                died = "unplayable fight: " + ",".join(lc[1])
             elif self.final is None:
                 died = "aborted: " + ",".join(sorted(self.tags))
             else:
