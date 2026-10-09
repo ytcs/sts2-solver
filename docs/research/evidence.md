@@ -208,3 +208,8 @@ Slice `data/bench/plans.json` (`tools/bench.py build-plans`; `score` reports it)
 - **Near-miss** (4 attempts, paired with r3): r5 + cover +0.072 +- 0.009 L->W, -0.037 +- 0.007 W->L; gen-2 + cover +0.059 / -0.032 in the same run.
 - **Predictor** (vs E33's gen-2): Brier eval 0.0241 / 0.0243, corpus 0.0241 / 0.0219, mix 0.0283 / 0.0292, tail 0.0479 / 0.0492, plans 0.0884 / 0.1042; plans bias -0.040 / -0.068, deck Spearman 0.768 / 0.747; deck-change pairs worth Spearman 0.486 / 0.513, add 0.38 / 0.50, remove 0.77 / 0.77. Bias still -0.035 mix, -0.056 tail (decile gate fails, as for gen-2). Enabler-removal pairs still blind (Spearman 0.10).
 - **Adopted:** `models/solver_r5.pt` as player and predictor.
+
+## E36. Exact turn search adopted in the live player (roadmap item 8)
+- **Near-miss, paired directly with gen-2 + cover** (8 attempts, 5090 pod): exact on +0.011 +- 0.004 L->W, -0.005 +- 0.003 W->L. Paired with r3 (4 attempts): +0.081 vs +0.066 L->W. Fires on ~31% of searched decisions (10% of those capped), changes ~6% of decisions; bench wall 2.3x.
+- **Pilot states:** Colony #18 solved (winning Strike); Gardeners #1 still Outbreak and Lagavulin #0 a tie: setup turns need a horizon past the turn end (open).
+- **Adopted:** `Engine(exact_turn=True)` by default. Worst case seen: one Lagavulin decision filled the 2 s budget.
