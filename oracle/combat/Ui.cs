@@ -80,6 +80,7 @@ public static class Ui
     static bool _chestOpened, _relicPicked, _restChosen, _gameOverShown, _abandonModal;
     static AbstractRoom _room;
     static RunState _suspended;
+    public static bool Suspended => _suspended != null;
 
     public static bool Prompted() => AgentSelector.Current != null || CardRew != null || _relic != null || _bundle != null;
 
@@ -107,20 +108,25 @@ public static class Ui
         var me = Me(rs);
         TrackRoom(rs);
         if (me != null) Header(d, rs, me);
-        if (AgentSelector.Current is { } sel)
-        {
-            d.Kind = sel.Min == sel.Max ? $"SELECT {sel.Min}" : $"SELECT {sel.Min}-{sel.Max}";
-            if (!string.IsNullOrEmpty(sel.Prompt)) d.Info.Append(sel.Prompt).Append('\n');
-            d.Info.Append(sel.Min == 0 ? "answer: a <i> [<j> ...]  (a - for none)\n" : "answer: a <i> [<j> ...]\n");
-            foreach (var c in sel.Options) d.Add(Text.Card(c), _ => "use: a <i> [<j> ...]");
-            return d;
-        }
         if (_abandonModal)
         {
             d.Kind = "MODAL NAbandonRunConfirmPopup";
             d.Info.Append("Are you sure?\n");
             d.Add("[PopupYesNoButton] No", _ => { _abandonModal = false; return null; });
             d.Add("[PopupYesNoButton] Yes", _ => { _abandonModal = false; var s = _suspended; _suspended = null; EndRun(); return null; });
+            return d;
+        }
+        if (_suspended != null)
+        {
+            MainMenu(d);
+            return d;
+        }
+        if (AgentSelector.Current is { } sel)
+        {
+            d.Kind = sel.Min == sel.Max ? $"SELECT {sel.Min}" : $"SELECT {sel.Min}-{sel.Max}";
+            if (!string.IsNullOrEmpty(sel.Prompt)) d.Info.Append(sel.Prompt).Append('\n');
+            d.Info.Append(sel.Min == 0 ? "answer: a <i> [<j> ...]  (a - for none)\n" : "answer: a <i> [<j> ...]\n");
+            foreach (var c in sel.Options) d.Add(Text.Card(c), _ => "use: a <i> [<j> ...]");
             return d;
         }
         if (rs != null && me != null && !CombatManager.Instance.IsInProgress && (me.Creature.IsDead || rs.IsGameOver))
@@ -758,6 +764,7 @@ public static class Ui
     {
         var rs = Rs;
         if (rs == null) return "no run\n";
+        if (Prompted()) return "ERR answer the open prompt first\n";
         _suspended = rs;
         return "run suspended; the menu offers continue / abandon\n";
     }

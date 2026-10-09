@@ -32,10 +32,12 @@ public static class Serve
     static readonly Stack<Func<bool>> _nested = new();
     static bool _quit;
     public static int DefaultAscension = 10;
+    public static bool Active;  // ServePatches (applied in every mode by Patches.Apply) act only in `serve`
 
     public static int Main(Pump pump, Dictionary<string, string> kv)
     {
         _pump = pump;
+        Active = true;
         int port = int.Parse(kv.GetValueOrDefault("port", "15600"));
         DefaultAscension = int.Parse(kv.GetValueOrDefault("ascension", "10"));
         if (kv.TryGetValue("state-dir", out var sd)) { Directory.CreateDirectory(sd); SaveIsolation.Dir = Path.GetFullPath(sd); }
@@ -65,8 +67,6 @@ public static class Serve
         var h = new Harmony("oracle.serve");
         h.CreateClassProcessor(typeof(Snap.SetUpPatch)).Patch();
         h.CreateClassProcessor(typeof(PromptPatch)).Patch();
-        foreach (var t in typeof(ServePatches).GetNestedTypes(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public))
-            h.CreateClassProcessor(t).Patch();
         CardSelectCmd.PushSelector(new ServeSelector());
         RewardsSet.testSelector = Ui.OnRewards;
         CombatManager.Instance.CombatWon += room => SynchronizationContext.Current.Post(_ => Fire(Ui.AfterCombatWon(room), "combat won"), null);
@@ -144,6 +144,15 @@ public static class Serve
                 if (_inflight != null) { var x = _inflight; _inflight = null; Snap.Observe(); Reply(x, Ui.Build().Render()); }
                 return;
             }
+            if (cmd == "x")
+            {
+                _inflight = r;
+                string res = Console_(args);
+                if (_inflight == r) { _inflight = null; Reply(r, res); }
+                return;
+            }
+            if (Ui.Suspended && cmd is "fight" or "snap" or "deck.json") { Reply(r, "null\n"); return; }
+            if (Ui.Suspended && cmd is "d" or "m" or "p") { Reply(r, cmd == "p" ? "not in combat\n" : cmd == "m" ? "no map\n" : "no run\n"); return; }
             Reply(r, ReadOnly(cmd, args));
         }
         catch (Exception e)
@@ -152,6 +161,18 @@ public static class Serve
             if (_inflight == r) _inflight = null;
             Reply(r, "ERR " + e.GetBaseException().Message);
         }
+    }
+
+    static string Console_(string[] args)
+    {
+        if (!ConsoleOk.Contains(args.FirstOrDefault() ?? "help")) return "fail not allowed headless (model-only console commands: " + string.Join(" ", ConsoleOk.Order()) + ")\n";
+        try
+        {
+            var res = new MegaCrit.Sts2.Core.DevConsole.DevConsole(true).ProcessCommand(string.Join(' ', args));
+            Settle();
+            return $"{(res.success ? "ok" : "fail")} {res.msg}\n";
+        }
+        catch (Exception e) { return "fail dev console: " + e.GetBaseException().Message + "\n"; }
     }
 
     static string ReadOnly(string cmd, string[] args)
@@ -174,15 +195,6 @@ public static class Serve
                 return $"fast mode: {MegaCrit.Sts2.Core.Saves.SaveManager.Instance.PrefsSave.FastMode}\n";
             case "draw": return "no map screen\n";
             case "t": return "overlay: " + Ui.Build().Kind + "\n";
-            case "x":
-                if (!ConsoleOk.Contains(args.FirstOrDefault() ?? "help")) return "fail not allowed headless (model-only console commands: " + string.Join(" ", ConsoleOk.Order()) + ")\n";
-                try
-                {
-                    var res = new MegaCrit.Sts2.Core.DevConsole.DevConsole(true).ProcessCommand(string.Join(' ', args));
-                    Settle();
-                    return $"{(res.success ? "ok" : "fail")} {res.msg}\n";
-                }
-                catch (Exception e) { return "fail dev console is not supported headless: " + e.GetBaseException().Message + "\n"; }
             case "menu": return Ui.Suspend();
             case "shutdown": _quit = true; return "bye\n";
             default:
@@ -231,24 +243,24 @@ public sealed class ServeSelector : ICardSelector
     }
 }
 
-// Screens that the game only shows through Godot nodes become prompts.
+// Screens that the game only shows through Godot nodes become prompts (serve only; other modes keep TestMode's behaviour).
 public static class ServePatches
 {
     [HarmonyPatch(typeof(RelicSelectCmd), nameof(RelicSelectCmd.FromChooseARelicScreen))]
     static class P_ChooseRelic
     {
-        static bool Prefix(Player player, IReadOnlyList<RelicModel> relics, ref Task<RelicModel> __result) { __result = Ui.ChooseRelic(player, relics); return false; }
+        static bool Prefix(Player player, IReadOnlyList<RelicModel> relics, ref Task<RelicModel> __result) { if (!Serve.Active) return true; __result = Ui.ChooseRelic(player, relics); return false; }
     }
 
     [HarmonyPatch(typeof(CardSelectCmd), nameof(CardSelectCmd.FromChooseABundleScreen))]
     static class P_ChooseBundle
     {
-        static bool Prefix(Player player, IReadOnlyList<IReadOnlyList<CardModel>> bundles, ref Task<IEnumerable<CardModel>> __result) { __result = Ui.ChooseBundle(player, bundles); return false; }
+        static bool Prefix(Player player, IReadOnlyList<IReadOnlyList<CardModel>> bundles, ref Task<IEnumerable<CardModel>> __result) { if (!Serve.Active) return true; __result = Ui.ChooseBundle(player, bundles); return false; }
     }
 
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Nodes.Events.Custom.CrystalSphere.NCrystalSphereScreen), nameof(MegaCrit.Sts2.Core.Nodes.Events.Custom.CrystalSphere.NCrystalSphereScreen.ShowScreen))]
     static class P_CrystalSphere
     {
-        static bool Prefix(MegaCrit.Sts2.Core.Events.Custom.CrystalSphereEvent.CrystalSphereMinigame grid) { Ui.Sphere = grid; grid.Finished += Ui.SphereFinished; return false; }
+        static bool Prefix(MegaCrit.Sts2.Core.Events.Custom.CrystalSphereEvent.CrystalSphereMinigame grid) { if (!Serve.Active) return true; Ui.Sphere = grid; grid.Finished += Ui.SphereFinished; return false; }
     }
 }
