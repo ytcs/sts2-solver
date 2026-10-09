@@ -340,7 +340,7 @@ class Builder:
             self.report.append(f"{where}: sync notes {rep['notes']}")
         snap = json.loads(self.sim.snapshot())
         for k in ("hand", "draw", "discard", "exhaust"):
-            st[k] = snap[k]
+            st[k] = snap.get(k, [])
         post = self.sim.diff(json.dumps(st))
         if post:
             self.report.append(f"{where}: residual after sync: " + " | ".join(ln[:160] for ln in post[:12]))
