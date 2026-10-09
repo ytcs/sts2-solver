@@ -22,6 +22,8 @@ public sealed class ChoiceSelector : ICardSelector
     public List<ActionSpec> RecordedChoices = new();
 
     public static bool ChooseACardMustPick;
+    public Queue<string[]> ScriptedIds = new();
+    public Queue<string> ScriptedCardReward = new();
 
     public Task<IEnumerable<CardModel>> GetSelectedCards(IEnumerable<CardModel> options, int minSelect, int maxSelect)
     {
@@ -36,6 +38,17 @@ public sealed class ChoiceSelector : ICardSelector
             picked = Scripted.Dequeue();
             if (picked.Length < lo || picked.Length > hi || picked.Distinct().Count() != picked.Length || picked.Any(i => i < 0 || i >= n))
                 throw new OracleException($"invalid scripted choice [{string.Join(",", picked)}] for prompt with {n} options, min {minSelect}, max {maxSelect}");
+        }
+        else if (ScriptedIds.Count > 0)
+        {
+            var want = ScriptedIds.Dequeue();
+            var used = new HashSet<int>();
+            picked = want.Select(id =>
+            {
+                int k = Enumerable.Range(0, n).FirstOrDefault(i => !used.Contains(i) && opts[i].Id.Entry == id, -1);
+                if (k < 0) throw new OracleException($"scripted choice {id} not among options: " + string.Join(", ", opts.Select(c => c.Id.Entry)));
+                used.Add(k); return k;
+            }).ToArray();
         }
         else if (RandomPolicy != null)
         {
@@ -59,7 +72,21 @@ public sealed class ChoiceSelector : ICardSelector
     }
 
     public CardRewardSelection GetSelectedCardReward(IReadOnlyList<CardCreationResult> options, IReadOnlyList<CardRewardAlternative> alternatives)
-        => throw new OracleException("card reward selection requested during combat (unsupported)");
+    {
+        if (ScriptedCardReward.Count == 0) throw new OracleException("card reward selection with no scripted pick");
+        string want = ScriptedCardReward.Dequeue();
+        Prompts.Add(new JsonObject
+        {
+            ["card_reward"] = new JsonArray(options.Select(o => (JsonNode)Dump.CardBrief(o.Card)).ToArray()),
+            ["alternatives"] = new JsonArray(alternatives.Select(a => (JsonNode)a.OptionId).ToArray()),
+            ["picked"] = want,
+        });
+        if (want == null) return new CardRewardSelection();
+        var alt = alternatives.FirstOrDefault(a => a.OptionId.Equals(want, StringComparison.OrdinalIgnoreCase));
+        if (alt != null) return new CardRewardSelection { alternative = alt };
+        var hit = options.FirstOrDefault(o => o.Card.Id.Entry == want) ?? throw new OracleException($"card reward pick {want} not among: " + string.Join(", ", options.Select(o => o.Card.Id.Entry)));
+        return new CardRewardSelection { card = hit.Card };
+    }
 }
 
 public sealed class Driver
@@ -69,7 +96,9 @@ public sealed class Driver
     private readonly Pump _pump;
     private Player _player;
     private RunState _run;
-    private readonly ChoiceSelector _sel = new();
+    private ChoiceSelector _sel = new();
+    internal ChoiceSelector Sel { get => _sel; set => _sel = value; }
+    internal string Tag;
     private int _step;
     private int _logIdx;
     public readonly List<ActionSpec> Recorded = new();
@@ -81,6 +110,7 @@ public sealed class Driver
     public string Result = "unfinished";
 
     public Driver(Scenario sc, TextWriter @out, Pump pump) { _sc = sc; _out = @out; _pump = pump; }
+    internal Driver(TextWriter @out, Pump pump, Player player, RunState run) { _out = @out; _pump = pump; _player = player; _run = run; }
 
     private CombatState St => CombatManager.Instance.DebugOnlyGetState();
     private PlayerCombatState Pcs => _player.PlayerCombatState;
@@ -103,7 +133,7 @@ public sealed class Driver
         if (Fatal.IsSet && !Fatal.Lenient) throw new OracleException(Fatal.Message);
     }
 
-    private void Settle(int? turnMustExceed = null)
+    internal void Settle(int? turnMustExceed = null)
     {
         _pump.RunUntil(() =>
         {
@@ -117,9 +147,10 @@ public sealed class Driver
         Check();
     }
 
-    private JsonObject Record(ActionSpec action)
+    internal JsonObject Record(ActionSpec action)
     {
         var rec = new JsonObject();
+        if (Tag != null) rec["event"] = Tag;
         rec["step"] = _step++;
         rec["action"] = action == null ? null : Scenario.ActionToJson(action);
         rec["choices"] = _sel.Prompts.DeepClone();
@@ -289,7 +320,7 @@ public sealed class Driver
         return null;
     }
 
-    private void Exec(ActionSpec a)
+    internal void Exec(ActionSpec a)
     {
         int turnBefore = Pcs.TurnNumber;
         _sel.RecordedChoices.Clear();
