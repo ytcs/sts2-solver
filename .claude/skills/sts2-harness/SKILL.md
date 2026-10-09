@@ -24,7 +24,7 @@ description: Use before the first action of a run and whenever unsure how to dri
 Act boss before an ancient heal (and the final boss): P(win) only, 1% end-HP tiebreak. Others: win +1 + 0.5 x HP fraction, loss -1.
 
 ## Display
-`eN plan: +1 .. +3` = moves for 3 turns after the intent, odds marginal per turn, damage at today's modifiers.
+`eN now:` = the shown intent's move with its exact effects (`[me: ...]`, `[self: ...]`); `eN plan: +1 .. +3` = moves for 3 turns after it, odds marginal per turn, damage at today's modifiers. `[code]`
 
 ## Decision guards (`agent/guards.py`)
 Card reward: `reward` + why fields `buckets:` `weakest:` `numbers:` `judgment:`. Map fork / Neow: `routes` this floor. Shop: a pricing call this floor; rest: `routes --hp <after>` + `routes` + upgrade `eval`. Elite/boss below 60% HP: `a <i> !`.
