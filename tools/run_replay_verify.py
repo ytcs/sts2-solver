@@ -89,6 +89,23 @@ def main(trace, live):
         same = live_items == mine
         print(f'F{f} rewards {"match" if same else "DIFFER"}: live={live_items}' + ('' if same else f' oracle={mine}'))
         ok += same; bad += not same
+    # deck (id, upgrade, enchantment), relics and potions at every fight start vs the live `opening` scenario
+    ops = [d for d in L if d['event'] == 'opening' and d.get('scenario')]
+    starts = [r for r in T if r.get('event') == 'combat' and r['step'] == 0]
+    for o, r in zip(ops, starts):
+        sc = o['scenario']
+        live_deck = sorted((c['id'], c.get('upgrade', 0), (c.get('enchantment') or {}).get('id') or '') for c in sc['deck'])
+        piles = r['hand'] + r['draw'] + r['discard'] + r['exhaust'] + r['play_pile']
+        mine_deck = sorted((c['id'], c['upgrade'], (c.get('enchantment') or {}).get('id') or '') for c in piles)
+        live_rel = [x['id'] for x in sc['relics']]; mine_rel = [x['id'] for x in r['relics']]
+        live_pot = sorted(p['id'] for p in sc.get('potions', [])); mine_pot = sorted(p['id'] for p in r['potions'])
+        same = live_deck == mine_deck and live_rel == mine_rel and live_pot == mine_pot
+        if not same:
+            print(f'{o["encounter"]} fight start DIFFER: deck {live_deck == mine_deck} relics {live_rel == mine_rel} potions {live_pot == mine_pot}')
+            if live_deck != mine_deck: print('  live-only', sorted(set(live_deck) - set(mine_deck)), 'oracle-only', sorted(set(mine_deck) - set(live_deck)))
+            if live_rel != mine_rel: print('  live', live_rel, '\n  mine', mine_rel)
+        ok += same; bad += not same
+    print(f'fight starts compared (deck/relics/potions): {min(len(ops), len(starts))}')
     # every act map
     lm = [d['text'] for d in lmap]
     for i, m in enumerate(maps):

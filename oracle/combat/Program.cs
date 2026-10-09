@@ -10,6 +10,7 @@ static class Cli
 {
     static string Usage = @"usage:
   OracleCombat run <scenario.json> [--out trace.jsonl] [--random SEED] [--record scenario_with_script.json] [opts]
+  OracleCombat run-replay <record.compact.jsonl> --out trace.jsonl
   OracleCombat fuzz --encounters ALL|ID,ID --character IRONCLAD --seeds A-B [--out-dir DIR] [--keep-all] [--extra-cards N] [--extra-relics N] [--extra-potions N] [--ascension N] [--starter-only] [opts]
 opts: --max-steps N  --max-rounds N  --lenient (do not abort on game Log.Error)  --verbose";
 
