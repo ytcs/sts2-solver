@@ -195,6 +195,9 @@ def combat_command(act, state, screen):
     elif k == "potion":
         name = base(act.get("potion") or "")
         hit = _find(screen, lambda lb: lb.startswith("potion ") and base(lb[7:].split(":")[0]) == name)
+        same = [p_["slot"] for p_ in sorted(state.get("potions") or [], key=lambda p_: p_["slot"]) if base(p_["id"]) == name]
+        if len(hit) > 1 and len(hit) == len(same) and act["slot"] in same:
+            hit = [hit[same.index(act["slot"])]]  # duplicates (two Potion-Shaped Rocks): options are listed in slot order
         if len(hit) != 1:
             return None, f"{describe(act)}: no single potion option for it"
         j, label = hit[0], _label(screen, hit[0])

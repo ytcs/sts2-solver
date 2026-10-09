@@ -1,7 +1,7 @@
 # NaveGreed "Most Underrated and Most Overrated" (A10 Ironclad): full run record
 - url https://www.youtube.com/watch?v=rxMGDepYyy8 | uploaded 2026-10-07 | 74 min edited stream | build `v0.111.0 (2026.08.14)`, `HASH [1568834832]`, `MODDED (3)` (no gameplay effect seen) | seed `3EC3BCK90DQX` (1440p read; 0 not O by alphabet, B not 8 confirmed by the headless replay) | won: Queen (F49) dead, 47/95 HP, 197 gold.
 - Run record: `rxMGDepYyy8.compact.jsonl`: 209 steps, 30 fights, 920 combat actions. Pilot extraction (3 fights, macro list): `../navegreed_2026-10-07.*`.
-- Headless check (oracle `run-replay`, game run code): the record replays from the seed to the end, 47/95 HP and 197 gold as in the video; `tools/expert.py check-trace`: every fight turn's frame hand, HP and enemy HP match the game's state except F48 T5 (frames list a Wither the game adds after the first decision). Live real-game replay: not run yet.
+- Headless check (oracle `run-replay`, game run code): the record replays from the seed to the end, 47/95 HP and 197 gold as in the video; `tools/expert.py check-trace`: every fight turn's frame hand, HP and enemy HP match the game's state (30 fights, 0 mismatching turns); all 64 in-card and SELECT picks match the game's options including `+`. Live real-game replay: not run yet.
 
 ## Transcription (2026-10-09)
 - Frames from the 1440p60 stream (av01, git-ignored), read at 1-2 fps with zooms; Act 1 by hand, Acts 2-3 by four parallel transcribers, merged in game order; each block checked by the simulator build, then the oracle.
@@ -14,6 +14,7 @@
 - Thieving Hopper's returned card: reward pick by card name (`Burning Pact`).
 - The Future of Potions: event pick `Lose <Potion>`; its card reward is scripted by the REWARDS/CARD_REWARD steps after the event.
 - SELECT and in-card picks honor `+` (upgraded vs plain copy) in the oracle, as the live harness does.
+- Two potions with the same name (Potion-Shaped Rocks, F31, F49): the live `combat_command` resolves them by slot rank (the bridge lists potions in slot order).
 
 ## Simulator fidelity found (frame builds)
 - Bound (Chains of Binding, F49): not in snapshot or sync; the seed-1 Replayer binds other cards (F49 replay check fails at Rage+).
