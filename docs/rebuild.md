@@ -25,7 +25,7 @@ f(state, allowed potions) -> joint distribution over outcome (loss = death or tu
 - Auxiliary outputs are diagnostics only. Never a clairvoyant target (a privileged model predicts the honest policy's outcome).
 
 ## 3. Metrics
-- Near-miss bench (`tools/nearmiss_bench.py`, `data/bench/nearmiss.json`): near-miss losses won / close wins lost, paired with the collecting player (E21). User's key metric.
+- Near-miss bench (`tools/nearmiss_bench.py`, `data/bench/nearmiss.json`): near-miss losses won / close wins lost, the candidate paired directly with the live player (first arm; v1 baselines like r3 no longer load) (E21). User's key metric.
 - Optimality bracket (E25): avoidable share of near-miss losses in [~0.02, ~0.19]; errors spread over setup turns (E26).
 - Predictor bench (`tools/bench.py`): calibration (reliability, Brier, decile bias), ranking vs large-budget references.
 - Promotion gate (new live model): `bench.py play` no set worse than the live player (paired with its labels); near-miss not worse; `bench.py score` Brier no worse on most sets; S3 decile bias < 0.02 (fails for r5, E35).
