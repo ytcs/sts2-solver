@@ -23,7 +23,7 @@ Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens
   pages and ancients; the rules above elsewhere. --seconds S: S s of search per combat decision instead of --rounds.
 Win = the EVENT "The Architect" is reached (the GAME_OVER page is never read for the result); its pages and GAME_OVER are logged.
 
-usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--price N] [--port 15820] [--tag NAME] [--character ironclad]
+usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--price N] [--min-free-gb G] [--port 15820] [--tag NAME] [--character ironclad]
 Seeds: BASE0001..BASE0020 by default. Per game: target/baseline/<tag>/<seed>/ (events.jsonl, server log); per run one JSON line in
 evals/baseline/<tag>.jsonl (re-running skips seeds already there); summary table at the end. Builds Harness() directly (no skill gate).
 """
@@ -661,6 +661,19 @@ class GpuSampler(threading.Thread):
             self.p.kill()
 
 
+def free_gb():
+    if os.name != "nt":
+        return float("inf")
+    import ctypes
+
+    class MS(ctypes.Structure):
+        _fields_ = [("len", ctypes.c_ulong), ("load", ctypes.c_ulong)] + [(k, ctypes.c_ulonglong) for k in ("tp", "ap", "tf", "af", "tv", "av", "ae")]
+    m = MS()
+    m.len = ctypes.sizeof(MS)
+    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+    return m.ap / 2 ** 30
+
+
 def summary(rows, gpu=None):
     import math
     out = [f"{'seed':10s} {'result':6s} {'floor':>5s} {'died at':34s} {'act HP':14s} {'HP lost':>7s} {'fights':>6s} {'pots':>4s} {'own min':>7s} {'wall min':>8s} tags"]
@@ -695,7 +708,7 @@ def main():
     a = sys.argv[1:]
     get = lambda k, d: a[a.index(k) + 1] if k in a else d  # noqa: E731
     n, games, rounds, base = int(get("--n", 20)), int(get("--games", 2)), int(get("--rounds", 16)), int(get("--port", 15820))
-    seconds, price_n = float(get("--seconds", 0)) or None, int(get("--price", 0))
+    seconds, price_n, min_free = float(get("--seconds", 0)) or None, int(get("--price", 0)), float(get("--min-free-gb", 0))
     character = get("--character", "ironclad")
     seeds = get("--seeds", ",".join(f"BASE{i:04d}" for i in range(1, n + 1))).split(",")
     tag = get("--tag", (f"s{seconds:g}" if seconds else f"r{rounds}") + (f"_price{price_n}" if price_n else ""))
@@ -716,6 +729,10 @@ def main():
           f"{f'{seconds:g} s' if seconds else f'{rounds} rounds'} per decision, macro {f'price n {price_n}' if price_n else 'base'}", flush=True)
     try:
         while pending or any(slots):
+            if free_gb() < min_free:
+                print(f"paused: {free_gb():.1f} GB free < {min_free:g}", flush=True)
+                while free_gb() < min_free:
+                    time.sleep(30)
             for i in range(games):
                 if slots[i] is None and pending:
                     bridge.OVERRIDE = f"127.0.0.1:{base + i}"
