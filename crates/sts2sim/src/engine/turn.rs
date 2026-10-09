@@ -722,6 +722,40 @@ impl Combat {
         self.stage = Stage::Over;
     }
 
+    /// Upper bound on the HP the player can still gain before a won fight ends, victory heals included; None when a source
+    /// (Feed, Not Yet, Book Repair Knife, Dragon Fruit) has no small bound. Cards and potions created later in the fight are not counted.
+    pub fn hp_gain_bound(&self) -> Option<i32> {
+        use crate::ids::{card, potion, power, relic};
+        let p = &self.player;
+        if p.relics.iter().any(|r| matches!(r.id, relic::BOOK_REPAIR_KNIFE | relic::DRAGON_FRUIT)) {
+            return None;
+        }
+        let in_play = [&p.hand, &p.draw, &p.discard, &p.play];
+        if in_play.iter().any(|pile| pile.iter().any(|&c| matches!(self.cards[c as usize].id, card::FEED | card::NOT_YET))) {
+            return None;
+        }
+        let max = self.cr(PLAYER).max_hp;
+        let mut regen = self.power_amount(PLAYER, power::REGEN_POWER);
+        let mut gain = 0;
+        for pot in p.potions.iter().flatten() {
+            match pot.id {
+                potion::BLOOD_POTION | potion::AMBERGRIS => gain += max * self.potion_named_var(pot.id, content::gen_cards::var_name::HEAL_PERCENT) / 100 + 1,
+                potion::FAIRY_IN_A_BOTTLE => gain += max * 3 / 10 + 1,
+                potion::FRUIT_JUICE => gain += self.potion_var(pot.id, crate::defs::VarKind::MaxHp),
+                potion::REGEN_POTION => regen += self.potion_power_var(pot.id, power::REGEN_POWER),
+                _ => {}
+            }
+        }
+        gain += regen * (regen + 1) / 2;
+        if p.relics.iter().any(|r| r.id == relic::LIZARD_TAIL && !r.flag(0)) {
+            gain += max / 2 + 1;
+        }
+        let mut won = self.clone();
+        won.cr_mut(PLAYER).set_hp(1);
+        crate::util::quiet(|| won.end_combat_victory());
+        Some(gain + won.cr(PLAYER).hp() - 1)
+    }
+
     pub fn step(&mut self, a: Action) -> bool {
         self.sync_overflow();
         self.budget_reset();

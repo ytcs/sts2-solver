@@ -18,9 +18,10 @@ cd oracle/combat && dotnet build -c Release    # .NET 9 SDK, x86-64; -p:GameDir=
 | `catalog --out F` | pools and encounters (input of `tools/gen_train.py`, `tools/fuzz_gen_mix.py`; copy in `data/catalog.json`) |
 | `dump-pools --out F` / `list-meta --out F` | pools, encounters (act, room), enchantment applicability |
 | `dump-rng SEED --out F` | the nine fresh streams for a seed string |
+| `run-replay R.compact.jsonl --out T.jsonl` | whole run from the record's seed through the game's run code (Neow, map, combats, rewards, treasure, rest, shop, events, acts); ~2 s; check vs a live replay log: `tools/run_replay_verify.py T.jsonl LIVE.jsonl` |
 | `check-shuffle S.json --trace T.jsonl` | opening hand + draw == `UnstableShuffle(deck)` |
 
 Options: `--max-steps` (default 400), `--max-rounds` (60), `--lenient` (do not abort on game `Log.Error`), `--verbose`. Exit 1 on oracle error (stderr).
 
 ## Files
-`Program.cs` CLI, `Boot.cs` init, `GodotStub.cs` + `Patches.cs` stubs, `Pump.cs` single-thread scheduler, `Scenario.cs` input, `Setup.cs` scenario -> run/combat, `Driver.cs` stepper + selector + legal actions, `Dump.cs` trace schema, `Fuzz.cs`, `Catalog.cs`, `Pools.cs`. Recorded regression traces: `oracle/regression/` (replayed by `cargo test -p sts2diff --test regression`).
+`Program.cs` CLI, `RunReplay.cs` whole-run replay, `Boot.cs` init, `GodotStub.cs` + `Patches.cs` stubs, `Pump.cs` single-thread scheduler, `Scenario.cs` input, `Setup.cs` scenario -> run/combat, `Driver.cs` stepper + selector + legal actions, `Dump.cs` trace schema, `Fuzz.cs`, `Catalog.cs`, `Pools.cs`. Recorded regression traces: `oracle/regression/` (replayed by `cargo test -p sts2diff --test regression`).

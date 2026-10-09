@@ -5,7 +5,7 @@ enumeration). States come from the replay log by compact index k (`tools/expert.
 the move, and whether it falls in the expert's action class (gap closed). FAIL only when a must-win state does not play a winning
 first move (exact value > 1).
 
-usage: python tools/exact_turn_check.py [--seeds 4] [--budget 2.0]
+usage: python tools/exact_turn_check.py [--seeds 4] [--budget 2.0] [--cap]
 """
 import argparse, os, re, sys
 
@@ -37,10 +37,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=4)
     ap.add_argument("--budget", type=float, default=2.0)
+    ap.add_argument("--cap", action="store_true", help="leaf values capped at the win-now value (FastSearch hp_cap)")
     a = ap.parse_args()
     torch.set_num_threads(4)
     from agent.engine import Engine
-    eng = Engine(exact_turn=True)
+    eng = Engine(exact_turn=True, hp_cap=a.cap)
     rec = RE.load(RECORD)
     ok, closed = True, 0
     for k, must in STATES:
