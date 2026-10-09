@@ -93,8 +93,16 @@ body.resizing { cursor: col-resize; user-select: none; }
 .pw.txt { font-size: 10px; background: var(--panel2); border-radius: 4px; padding: 1px 4px; }
 .intent { display: flex; align-items: center; gap: 3px; font-family: Kreon, serif; font-size: 16px; min-height: 30px; }
 .intent img { width: 34px; height: 34px; }
-.plan { font-size: 11px; color: var(--dim); margin-top: 3px; width: 100%; }
-.plan div { border-left: 2px solid var(--line2); padding-left: 6px; margin-top: 2px; }
+.plan { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 3px; margin-top: 4px; width: 100%; font-family: Kreon, serif; font-size: 12px; }
+.pturn { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line2); border-radius: 6px; padding: 1px 4px; }
+.pturn > .k { color: var(--dim); font-size: 10px; margin-right: 1px; }
+.parrow { color: var(--dim); font-size: 11px; }
+.popt { display: inline-flex; align-items: center; gap: 1px; cursor: help; }
+.popt + .popt { border-left: 1px dashed var(--line2); padding-left: 3px; margin-left: 1px; }
+.popt img { width: 22px; height: 22px; }
+.popt b { font-size: 11px; }
+.popt i { font-style: normal; font-size: 9px; color: var(--dim); }
+.popt.fx::after { content: "\2726"; font-size: 8px; color: var(--accent); margin-left: 1px; }
 #player { display: grid; grid-template-columns: auto 1fr; gap: 14px; margin-top: 12px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
 #player .me { display: flex; flex-direction: column; align-items: center; width: 170px; }
 #player .me .art img { max-height: 130px; max-width: 165px; }
@@ -569,6 +577,31 @@ function intentHTML(it) {
   const img = M.intents[key];
   return `<span class="intent" title="${esc(t)}">${img ? `<img src="${A(img)}" alt="${esc(t)}">` : `<span class="chip">${esc(t)}</span>`}${label ? `<b class="bad">${esc(label)}</b>` : ""}</span>`;
 }
+const PLAN_KINDS = { "status": "intent_status_card", "card debuff": "intent_card_debuff", "buff": "intent_buff", "debuff": "intent_debuff", "strong debuff": "intent_debuff",
+  "block": "intent_defend", "escape": "intent_escape", "heal": "intent_heal", "hidden": "intent_hidden", "summon": "intent_summon", "sleep": "intent_sleep",
+  "stun": "intent_stun", "stunned": "intent_stun", "death blow": "intent_death_blow" };
+function attackKey(tot) { return "intent_attack_" + (tot < 6 ? 1 : tot < 11 ? 2 : tot < 20 ? 3 : tot < 30 ? 4 : 5); }
+function parsePlanTurn(turn) {  // "+2 MOVE 9x2 + debuff [me: WEAK +1] (60%) | MOVE2 block (40%)"
+  const m = /^\+(\d+) (.*)$/.exec(turn.trim());
+  if (!m) return null;
+  return { k: +m[1], opts: m[2].split(" | ").map((o) => {
+    const pm = /^(.*) \((\d+)%\)$/.exec(o);
+    const body = pm ? pm[1] : o, p = pm ? +pm[2] : 100;
+    const sp = body.indexOf(" "), move = sp < 0 ? body : body.slice(0, sp), rest = sp < 0 ? "" : body.slice(sp + 1);
+    const fxm = /^(.*?) \[(.*)\]$/.exec(rest), main = fxm ? fxm[1] : rest;
+    const parts = main.replace(/ \(projected \d+\)/, "").replace(/ \(dies\)/, "").split(" + ").map((x) => {
+      const a = /^(\d+)(?:x(\d+))?$/.exec(x.trim());
+      if (a) { const d = +a[1], h = +(a[2] || 1); return { key: attackKey(d * h), label: h > 1 ? `${d}x${h}` : `${d}` }; }
+      return { key: PLAN_KINDS[x.trim()] || "intent_unknown", label: "" };
+    });
+    return { move: titleCase(move), p, parts, fx: !!fxm, text: rest };
+  }) };
+}
+function planHTML(turns) {
+  return turns.map(parsePlanTurn).filter(Boolean).map((t) => `<span class="pturn"><span class="k">+${t.k}</span>${t.opts.map((o) =>
+    `<span class="popt ${o.fx ? "fx" : ""}" title="${esc(`${o.move}${o.p < 100 ? ` (${o.p}%)` : ""}\n${o.text}`)}">${o.parts.map((x) =>
+      `${M.intents[x.key] ? `<img src="${A(M.intents[x.key])}" alt="">` : ""}${x.label ? `<b class="bad">${esc(x.label)}</b>` : ""}`).join("")}${o.p < 100 ? `<i>${o.p}%</i>` : ""}</span>`).join("")}</span>`).join(`<span class="parrow">›</span>`);
+}
 function planLines(text) {
   const plan = {};
   for (const l of text.split("\n")) { const m = /^e(\d+) plan: (.*)$/.exec(l); if (m) plan[+m[1]] = m[2].split(/\s{2,}(?=\+\d)/); }
@@ -590,7 +623,7 @@ function combatHTML(f, text, kind) {
       <div class="name">${esc(creatureTitle(e.id))} <span class="faint small">e${i}</span></div>
       ${hpLine(e.hp, e.max_hp, e.block)}
       ${powersHTML(e.powers)}
-      ${p ? `<div class="plan">${p.map((x) => `<div>${esc(x)}</div>`).join("")}</div>` : ""}</div>`;
+      ${p ? `<div class="plan">${planHTML(p)}</div>` : ""}</div>`;
   }).join("");
   const pl = st.player || {};
   const me = CHAR || (f.scenario && f.scenario.character) || "";
