@@ -22,8 +22,9 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 - Gate: a video replays end to end in the real game; verdicts reproducible.
 
 **2. Solver strength: setup turns.** Order-dependent setup turns are misranked (Gardeners #1, Lagavulin #0, E34; errors spread over setup turns, E26); exact turn search fixed only blind-turn lethal (E36).
-- Candidates: deeper leaf on close calls; exact turn search with a two-turn leaf; value targets from deeper search.
-- Gate: near-miss L->W up with W->L not worse, paired with live; the expert gap states solved; live decision time within budget.
+- Measured on real states (E39): 10 confirmed expert gaps, 6 of them setup/power across the turn boundary; `tools/exact_turn_check.py` is the fixed check.
+- Candidates: cap non-terminal leaf values at the win-now value (k438: end turn 1.453 > win-this-turn 1.435); deeper leaf on close calls; exact turn search with a two-turn leaf; value targets from deeper search.
+- Gate: near-miss L->W up with W->L not worse, paired with live; more of the expert gap states solved (none lost: k184 keeps its win); live decision time within budget.
 
 **3. Combat-loop round with a new lever.** Same-recipe rounds are flattening (r5 +0.013, r6 +0.006 L->W, E37).
 - Round: collect with the live player (cover search) on a pool from `tools/round_pool.py` (signal 90k by p(1-p) + 15% uniform, plan decks 30k, enabler pairs 16k, late decks 14k); train policy (anchored c=2, E10) + value (TD(0.8), HL-Gauss, E24) from the live model (`rl/exit.py train`); promotion gate. Value targets are realized/TD outcomes, never max of search Q. 5090 pod: ~2 h + ~10 min, ~$3. After a simulator change `tools/prune_divergent.py`.
