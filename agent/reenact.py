@@ -488,8 +488,11 @@ class Reenactor:
             if a["kind"] == "macro":
                 self.h.log.event("macro", screen=screen.split("\n")[0], state=screen[:1500], choice=cmd[2:],
                                  why=f"reenact {self.rec['video']['id']} step {a['step']}", result=reply.split("\n")[0])
-            elif scr.kind(reply) not in ("COMBAT", "SELECT"):
-                self._fight_over(a, reply)
+            else:
+                self.h.log.event("action", fight=getattr(self.h, "fight_id", None), text=describe(a), json=cmd,
+                                 why=f"reenact {self.rec['video']['id']} step {a['step']}")
+                if scr.kind(reply) not in ("COMBAT", "SELECT"):
+                    self._fight_over(a, reply)
             self._log(event="done", k=k)
             done, autos, k = done + 1, 0, k + 1
             screen = self._screen() if scr.busy(reply) else reply
