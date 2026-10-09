@@ -21,6 +21,7 @@ Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens
   Unknown events (not in data/events.json): the first option starting Leave/Exit/Decline/Ignore/Abstain/Give Up/Proceed/Continue/Skip, else 0.
 --price N: PriceMacro (`price`, N paired rollouts per option) on map forks, card rewards, rest sites, shops, catalogued events' first
   pages and ancients; the rules above elsewhere. --seconds S: S s of search per combat decision instead of --rounds.
+A screen unchanged after the same choice 3 times bans that option there (tag stuck_option; headless Punch Off's Nab throws in the game).
 Win = the EVENT "The Architect" is reached (the GAME_OVER page is never read for the result); its pages and GAME_OVER are logged.
 
 usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--price N] [--min-free-gb G] [--port 15820] [--tag NAME] [--character ironclad]
@@ -487,7 +488,7 @@ class Game:
         self.macro = PriceMacro(self.h, predictor, seed, price_n) if price_n else Macro(self.h, predictor, seed)
         self.setting = dict(macro=f"price n{price_n}" if price_n else "base", budget=f"{seconds}s" if seconds else f"{rounds} rounds")
         self.t0, self.own, self.steps, self.errors, self.stuck = time.time(), 0.0, 0, 0, 0
-        self.bad, self.last, self.final, self.tags = {}, None, None, set()
+        self.bad, self.last, self.final, self.tags, self.last_choice = {}, None, None, set(), None
         self.potions, self.desync_turn = 0, None
 
     def step(self):
@@ -537,10 +538,14 @@ class Game:
             h.log.event("stuck", screen=s[:1500])
             return True
         bad = self.bad.setdefault(key, set())
+        if self.stuck == 3 and self.last_choice:
+            bad.add(self.last_choice.split()[0])
+            self.tags.add("stuck_option")
+            h.log.event("stuck_option", screen=s[:800], choice=self.last_choice)
         opts = [(n, t) for n, t in scr.options(s) if n not in bad]
         if not opts:
             opts = scr.options(s)
-        choice = self.macro.decide(s, opts)
+        choice = self.last_choice = self.macro.decide(s, opts)
         r = h.handle("a " + choice)
         if r.startswith(("ERR", "REFUSED")):
             self.errors += 1
