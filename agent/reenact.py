@@ -381,17 +381,17 @@ class Reenactor:
             f.write(json.dumps(row) + "\n")
 
     def cursor(self):
-        n, guessed = 0, False
+        n, guessed, started = 0, False, False
         if os.path.exists(self.log_path):
             for line in open(self.log_path, encoding="utf-8"):
                 r = json.loads(line)
                 if r.get("event") == "start":
-                    n, guessed = 0, False
+                    n, guessed, started = 0, False, True
                 elif r.get("event") == "done":
                     n = r["k"] + 1
                 elif r.get("event") == "guess":
                     guessed = True
-        return n, guessed
+        return n, guessed, started
 
     def _screen(self):
         s = call("s")
@@ -424,7 +424,7 @@ class Reenactor:
     def run(self, max_steps=None, until=None, seedcheck=False):
         if not build_ok(self.rec):
             return f"REFUSED: record build {self.rec.get('build')!r} is not the pinned {PINNED_BUILD}: no re-enactment (frame-based notes only)\n"
-        k, guessed = self.cursor()
+        k, guessed, started = self.cursor()
         if guessed and not seedcheck:
             return "REFUSED: seedcheck walked this run with a guessed map node: abandon it and start a fresh run for the replay\n"
         screen, out = self._screen(), []
@@ -434,7 +434,7 @@ class Reenactor:
                 return "REFUSED: " + err + "\n"
             k, screen = 0, self._screen()
             out.append(f"started {self.rec['character']} A{self.rec['ascension']} seed {self.rec['seed']} ({'custom' if self.custom else 'standard'} run)")
-        elif k == 0:
+        elif k == 0 and not started:
             return f"REFUSED: the replay log has no progress and the game is on {scr.kind(screen)}, not the main menu\n"
         map_checked, opened, done, autos = False, set(), 0, 0
         while k < len(self.flat):
