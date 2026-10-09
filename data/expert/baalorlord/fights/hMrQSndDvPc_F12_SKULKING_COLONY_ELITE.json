@@ -2893,6 +2893,12 @@
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -2941,12 +2947,7 @@
     "turn": 3,
     "play_pile": [],
     "potion_slots": 2,
-    "draw": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     }
-    ]
+    "draw": []
    },
    {
     "combat_in_progress": true,
@@ -3085,6 +3086,12 @@
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -3133,12 +3140,7 @@
     "turn": 3,
     "play_pile": [],
     "potion_slots": 2,
-    "draw": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     }
-    ]
+    "draw": []
    },
    {
     "combat_in_progress": true,
@@ -3275,6 +3277,12 @@
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -3323,12 +3331,7 @@
     "turn": 3,
     "play_pile": [],
     "potion_slots": 2,
-    "draw": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     }
-    ]
+    "draw": []
    },
    {
     "combat_in_progress": true,
@@ -3463,6 +3466,12 @@
       "id": "DEFEND_SILENT",
       "keywords": [],
       "upgrade": 0
+     },
+     {
+      "cost": 1,
+      "id": "DEFEND_SILENT",
+      "keywords": [],
+      "upgrade": 0
      }
     ],
     "max_energy": 3,
@@ -3511,12 +3520,7 @@
     "turn": 3,
     "play_pile": [],
     "potion_slots": 2,
-    "draw": [
-     {
-      "id": "DEFEND_SILENT",
-      "upgrade": 0
-     }
-    ]
+    "draw": []
    },
    {
     "combat_in_progress": true,
@@ -5292,7 +5296,7 @@
    "sync relics": 1,
    "end_turn_tries": 3,
    "end_turn_matched": 3,
-   "random_pile_diffs": 35,
+   "random_pile_diffs": 50,
    "diff .enemies[0].powers": 1
   }
  }
