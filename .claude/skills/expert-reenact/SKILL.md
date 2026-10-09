@@ -33,5 +33,16 @@ Offline `tools/expert.py`; live `python -m agent seedcheck|replay` (`agent/reena
 - Enumerator: `enumerate_turn` in `tools/expert.py` (the live Engine's exact turn search is separate).
 - A verdict states reference, n, se. A solver gap becomes a bench state + E# line, never a strategy rule.
 
+## Macro corpus (no combat, no replay; `tools/expert_macro.py` via `tools/expert.py macro*`)
+1. `macro <url> --creator X`: frames (1 fps) + scan -> `work/<id>/index.txt` (non-combat segments, kNN on `data/expert/work/screen_exemplars.npz`; rebuild: `macro-scan hMrQSndDvPc --creator baalorlord --train <its compact>`) and `work/<id>/overview/NN.jpg` (16 segments per grid). Labels are noisy: read the frames, not the label.
+2. Read: overview grids for the flow; `macro-crop <id> --creator X --at m:ss,... [--region cards|center|map|top|full|x0,y0,x1,y1] [--top] [--scale .5]` for text. Top bar = HP, gold, potion belt, floor, deck count; the clock in it is in-game time, crop labels are video time. A hover tooltip can hide a card name: read another frame.
+3. Transcribe in game order into `data/expert/<creator>/work/<id>.macro.work.json` (git-ignored): header `video`, `build`, `modded`, `seed`, `character`, `ascension`, `result`, `base {max_energy, max_potion_slots, base_orb_slots}`, `start {obs, deck ["Strike x5", ...], relics}`, `acts {"0": {name, bosses, map?}}`, `steps`.
+   - Step keys (each with `f` floor, `t` video time at the decision): decisions `ancient`/`event` (+`opts` option heads, `pick`, `then`, `fx`), `card` [3 names, `+` upgraded] + `pick` (null = skip), `rest` smith|rest (+`then` [target]), `shop` {cards/relics/potions [[name, price]], remove price} + `buy` [names | "remove"] + `then` [removed card], `potion` offered + `drop` held name | null (left it), `map` "r<row>c<col>" + `opts` ["M r2c1", ...] (types M E R $ T ?; forced moves may be omitted). Non-decisions: `fight` M|E|B|ENCOUNTER_ID, `rewards` {gold, potion (dropped), relic}, `gain`/`fx` {cards+, cards-, up, ench [[card, id]], transform [[a, b]], relics+, relics-, potions+, potions-, gold, hp, max_hp, slots}, `obs`, `deckview` [names].
+   - `obs` "HP/MAX Ggold Ddeck Rrelics P[a,b]" on every decision (read at that screen, before the choice). Unknown -> leave it out and add `note`; never guess.
+   - Act map (optional, best value for map decisions): `acts[n].map` in `routes.parse_map` text (`r1: Mc1>0,2 ?c3>4`, columns 0-6); a partial map is padded with template rooms.
+4. `macro-build <work>`: tracks deck/relics/gold/potions; every `obs`/`deckview` mismatch is an error (fix the work file; `--allow` records them). Writes `<id>.macro.jsonl` (committed).
+5. `macro-compare <record> [--n 128] [--seed S]` -> `<id>.macro_verdicts.json`; a single seed block's verdict is noisy (hMrQ: 20 of 64 flip between blocks): claim only verdicts stable across >= 2 blocks. `macro-summary <verdicts...>` pools; `macro-replay <log> --compact <c>` makes the record from a live replay log (game truth); `macro-diff <frames record> <reference>` scores a transcription.
+6. Fetch politely: one download at a time; bursts of extractions trigger YouTube's bot check (cookies only with the user's consent).
+
 ## Resources
 `STS2_DEVICE=cpu` unless the GPU is free; < 6 GB resident, abort below 8 GB free RAM. Never `maturin develop` into a venv another job uses.

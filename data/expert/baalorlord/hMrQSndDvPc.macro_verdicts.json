@@ -1,0 +1,1415 @@
+{
+ "record": "data/expert/baalorlord/hMrQSndDvPc.macro.jsonl",
+ "video": "hMrQSndDvPc",
+ "character": "SILENT",
+ "settings": {
+  "n": 128,
+  "seed": "floor",
+  "predictor": "solver_r6.pt",
+  "device": "cuda",
+  "rule": "agree = price best is his option; else disagree if his - best < -2 paired se on price's ladder horizon, else tie"
+ },
+ "rows": [
+  {
+   "k": 0,
+   "floor": 1,
+   "type": "ancient",
+   "played": "Silken Tress",
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Silken Tress",
+   "price_best": "Lead Paperweight",
+   "horizon": "act",
+   "means": {
+    "Lead Paperweight": 0.5547,
+    "Booming Conch": 0.4766,
+    "Silken Tress": 0.4531
+   },
+   "d": -0.1016,
+   "se": 0.0585,
+   "verdict": "tie",
+   "secs": 4.7
+  },
+  {
+   "k": 1,
+   "floor": 2,
+   "type": "map",
+   "played": "r1c3",
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "M r1c3",
+   "price_best": "M r1c1",
+   "horizon": "act",
+   "means": {
+    "M r1c1": 0.5781,
+    "M r1c5": 0.4141,
+    "M r1c3": 0.3594
+   },
+   "d": -0.2188,
+   "se": 0.0597,
+   "verdict": "disagree",
+   "secs": 4.0
+  },
+  {
+   "k": 2,
+   "floor": 2,
+   "type": "card",
+   "played": "Dagger Spray",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Dagger Spray",
+   "price_best": "Prepared",
+   "horizon": "act",
+   "means": {
+    "Prepared": 0.4219,
+    "Calculated Gamble": 0.3828,
+    "Dagger Spray": 0.3672,
+    "skip": 0.3203
+   },
+   "d": -0.0547,
+   "se": 0.0279,
+   "verdict": "tie",
+   "secs": 4.6
+  },
+  {
+   "k": 3,
+   "floor": 3,
+   "type": "card",
+   "played": "Dash",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Dash",
+   "price_best": "Dash",
+   "horizon": "act",
+   "means": {
+    "Dash": 0.5391,
+    "Sucker Punch": 0.4453,
+    "Acrobatics": 0.3359,
+    "skip": 0.3047
+   },
+   "verdict": "agree",
+   "secs": 6.1
+  },
+  {
+   "k": 4,
+   "floor": 4,
+   "type": "card",
+   "played": "Hidden Daggers",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Hidden Daggers",
+   "price_best": "Hidden Daggers",
+   "horizon": "act",
+   "means": {
+    "Hidden Daggers": 0.4688,
+    "Predator": 0.4297,
+    "skip": 0.3906,
+    "Dodge and Roll": 0.3438
+   },
+   "verdict": "agree",
+   "secs": 5.9
+  },
+  {
+   "k": 5,
+   "floor": 5,
+   "type": "map",
+   "played": "r4c4",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "? r4c4",
+   "price_best": "M r4c3",
+   "horizon": "act",
+   "means": {
+    "M r4c3": 0.5312,
+    "? r4c4": 0.4844
+   },
+   "d": -0.0469,
+   "se": 0.0626,
+   "verdict": "tie",
+   "secs": 3.6
+  },
+  {
+   "k": 6,
+   "floor": 5,
+   "type": "event",
+   "played": "That",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "That",
+   "price_best": "This",
+   "horizon": "act",
+   "means": {
+    "This": 0.5,
+    "That": 0.4766
+   },
+   "d": -0.0234,
+   "se": 0.0622,
+   "verdict": "tie",
+   "secs": 3.7
+  },
+  {
+   "k": 7,
+   "floor": 6,
+   "type": "card",
+   "played": "Snakebite",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Snakebite",
+   "price_best": "Expose",
+   "horizon": "act",
+   "means": {
+    "Expose": 0.5234,
+    "Snakebite": 0.5078,
+    "Blade Dance": 0.5,
+    "skip": 0.4062
+   },
+   "d": -0.0156,
+   "se": 0.0248,
+   "verdict": "tie",
+   "secs": 4.8
+  },
+  {
+   "k": 8,
+   "floor": 8,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Dagger Spray"
+   ],
+   "n": 128,
+   "n_options": 10,
+   "priced_as": "smith DAGGER_SPRAY",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.625,
+    "smith NEUTRALIZE": 0.5,
+    "smith SURVIVOR": 0.4531,
+    "smith HIDDEN_DAGGERS": 0.4141,
+    "smith SNAKEBITE": 0.4141,
+    "smith DAGGER_SPRAY": 0.4062
+   },
+   "d": -0.2188,
+   "se": 0.0508,
+   "verdict": "disagree",
+   "secs": 7.6
+  },
+  {
+   "k": 9,
+   "floor": 9,
+   "type": "card",
+   "played": "Strangle",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Strangle",
+   "price_best": "Flick-Flack",
+   "horizon": "act",
+   "means": {
+    "Flick-Flack": 0.3359,
+    "Storm of Steel": 0.3203,
+    "Strangle": 0.3125,
+    "skip": 0.3047
+   },
+   "d": -0.0234,
+   "se": 0.0234,
+   "verdict": "tie",
+   "secs": 2.9
+  },
+  {
+   "k": 10,
+   "floor": 11,
+   "type": "card",
+   "played": "Noxious Fumes",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Noxious Fumes",
+   "price_best": "Noxious Fumes",
+   "horizon": "act",
+   "means": {
+    "Noxious Fumes": 0.5703,
+    "skip": 0.4922,
+    "Flick-Flack": 0.4922,
+    "Deflect": 0.4219
+   },
+   "verdict": "agree",
+   "secs": 3.6
+  },
+  {
+   "k": 11,
+   "floor": 12,
+   "type": "map",
+   "played": "r11c5",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "E r11c5",
+   "price_best": "M r11c6",
+   "horizon": "act",
+   "means": {
+    "M r11c6": 0.5391,
+    "E r11c5": 0.3047
+   },
+   "d": -0.2344,
+   "se": 0.0602,
+   "verdict": "disagree",
+   "secs": 2.4
+  },
+  {
+   "k": 12,
+   "floor": 12,
+   "type": "card",
+   "played": "Outbreak",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Outbreak",
+   "price_best": "Outbreak",
+   "horizon": "act",
+   "means": {
+    "Outbreak": 0.5938,
+    "Abrasive": 0.5781,
+    "skip": 0.5391,
+    "Burst": 0.4531
+   },
+   "verdict": "agree",
+   "secs": 2.9
+  },
+  {
+   "k": 13,
+   "floor": 12,
+   "type": "card",
+   "played": "Deflect",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Deflect",
+   "price_best": "skip",
+   "horizon": "act",
+   "means": {
+    "skip": 0.6016,
+    "Tactician": 0.5859,
+    "Grand Finale": 0.5625,
+    "Deflect": 0.5547
+   },
+   "d": -0.0469,
+   "se": 0.033,
+   "verdict": "tie",
+   "secs": 3.3
+  },
+  {
+   "k": 14,
+   "floor": 13,
+   "type": "rest",
+   "played": "Rest",
+   "then": null,
+   "n": 128,
+   "n_options": 13,
+   "priced_as": "rest",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.6094,
+    "smith DEFLECT": 0.2969,
+    "smith NEUTRALIZE": 0.2812,
+    "smith SNAKEBITE": 0.2734,
+    "smith OUTBREAK": 0.2578,
+    "smith STRANGLE": 0.25
+   },
+   "verdict": "agree",
+   "secs": 4.6
+  },
+  {
+   "k": 15,
+   "floor": 14,
+   "type": "event",
+   "played": "Observe",
+   "then": [
+    "Defend"
+   ],
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "Observe",
+   "price_best": "Drink",
+   "horizon": "act",
+   "means": {
+    "Drink": 0.7578,
+    "Observe": 0.6016
+   },
+   "d": -0.1562,
+   "se": 0.0358,
+   "verdict": "disagree",
+   "secs": 2.2
+  },
+  {
+   "k": 16,
+   "floor": 15,
+   "type": "card",
+   "played": "Outbreak",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Outbreak",
+   "price_best": "Outbreak",
+   "horizon": "act",
+   "means": {
+    "Outbreak": 0.7891,
+    "skip": 0.7422,
+    "Assassinate": 0.7422,
+    "Corrosive Wave": 0.6953
+   },
+   "verdict": "agree",
+   "secs": 3.9
+  },
+  {
+   "k": 17,
+   "floor": 16,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Snakebite"
+   ],
+   "n": 128,
+   "n_options": 13,
+   "priced_as": "smith SNAKEBITE",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.8594,
+    "smith NEUTRALIZE": 0.8438,
+    "smith SNAKEBITE": 0.8203,
+    "smith DEFLECT": 0.8125,
+    "smith HIDDEN_DAGGERS": 0.8047,
+    "smith OUTBREAK": 0.8047
+   },
+   "d": -0.0391,
+   "se": 0.0205,
+   "verdict": "tie",
+   "secs": 10.8
+  },
+  {
+   "k": 18,
+   "floor": 17,
+   "type": "card",
+   "played": "Burst",
+   "then": null,
+   "n": 128,
+   "n_options": 5,
+   "priced_as": "Burst",
+   "price_best": "Afterimage",
+   "horizon": "act",
+   "means": {
+    "Afterimage": 0.2734,
+    "Tools of the Trade": 0.2266,
+    "Abrasive": 0.2188,
+    "skip": 0.1719,
+    "Burst": 0.125
+   },
+   "d": -0.1484,
+   "se": 0.0352,
+   "verdict": "disagree",
+   "secs": 6.2
+  },
+  {
+   "k": 19,
+   "floor": 18,
+   "type": "ancient",
+   "played": "Electric Shrymp",
+   "then": [
+    "Outbreak"
+   ],
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Electric Shrymp",
+   "price_best": "Sand Castle",
+   "horizon": "act",
+   "means": {
+    "Sand Castle": 0.3906,
+    "Electric Shrymp": 0.2188,
+    "Touch of Orobas": 0.1562
+   },
+   "d": -0.1719,
+   "se": 0.0533,
+   "verdict": "disagree",
+   "secs": 5.0
+  },
+  {
+   "k": 20,
+   "floor": 19,
+   "type": "map",
+   "played": "r1c0",
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "M r1c0",
+   "price_best": "M r1c6",
+   "horizon": "act",
+   "means": {
+    "M r1c6": 0.7031,
+    "M r1c0": 0.6094,
+    "M r1c3": 0.5703
+   },
+   "d": -0.0938,
+   "se": 0.0581,
+   "verdict": "tie",
+   "secs": 5.7
+  },
+  {
+   "k": 21,
+   "floor": 19,
+   "type": "card",
+   "played": "Anticipate+",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Anticipate+",
+   "price_best": "Expertise",
+   "horizon": "act",
+   "means": {
+    "Expertise": 0.5859,
+    "skip": 0.5781,
+    "Deadly Poison": 0.5781,
+    "Anticipate+": 0.5625
+   },
+   "d": -0.0234,
+   "se": 0.0376,
+   "verdict": "tie",
+   "secs": 6.2
+  },
+  {
+   "k": 22,
+   "floor": 19,
+   "type": "potion",
+   "played": {
+    "take": "Power Potion",
+    "discard_slot": 1
+   },
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Power Potion for EXPLOSIVE_AMPOULE (a dp 1)",
+   "price_best": "Power Potion for ENERGY_POTION (a dp 0)",
+   "horizon": "act",
+   "means": {
+    "Power Potion for ENERGY_POTION (a dp 0)": 0.5859,
+    "leave Power Potion": 0.5781,
+    "Power Potion for EXPLOSIVE_AMPOULE (a dp 1)": 0.5469
+   },
+   "d": -0.0391,
+   "se": 0.0358,
+   "verdict": "tie",
+   "secs": 5.1
+  },
+  {
+   "k": 23,
+   "floor": 20,
+   "type": "shop",
+   "played": [
+    "Happy Flower",
+    "remove a card"
+   ],
+   "then": [
+    "Strike"
+   ],
+   "n": 128,
+   "n_options": 27,
+   "priced_as": "Happy Flower (185g) + remove STRIKE (100g)",
+   "price_best": "Bronze Scales (163g)",
+   "horizon": "act",
+   "means": {
+    "Bronze Scales (163g)": 0.7656,
+    "Happy Flower (185g)": 0.6484,
+    "Bolas (175g)": 0.625,
+    "Happy Flower (185g) + remove STRIKE (100g)": 0.625,
+    "Expose (73g)": 0.6172,
+    "remove BURST (100g)": 0.6172
+   },
+   "d": -0.1406,
+   "se": 0.048,
+   "verdict": "disagree",
+   "secs": 39.7
+  },
+  {
+   "k": 24,
+   "floor": 21,
+   "type": "card",
+   "played": "Footwork",
+   "then": null,
+   "n": 128,
+   "n_options": 5,
+   "priced_as": "Footwork",
+   "price_best": "Hidden Daggers",
+   "horizon": "act",
+   "means": {
+    "Hidden Daggers": 0.5938,
+    "skip": 0.5859,
+    "Slice": 0.5234,
+    "Footwork": 0.5234,
+    "Speedster": 0.4844
+   },
+   "d": -0.0703,
+   "se": 0.0317,
+   "verdict": "disagree",
+   "secs": 6.3
+  },
+  {
+   "k": 25,
+   "floor": 21,
+   "type": "potion",
+   "played": {
+    "take": "Block Potion",
+    "discard_slot": 1
+   },
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Block Potion for POWER_POTION (a dp 1)",
+   "price_best": "Block Potion for POWER_POTION (a dp 1)",
+   "horizon": "act",
+   "means": {
+    "Block Potion for POWER_POTION (a dp 1)": 0.5625,
+    "Block Potion for ENERGY_POTION (a dp 0)": 0.5312,
+    "leave Block Potion": 0.5078
+   },
+   "verdict": "agree",
+   "secs": 3.9
+  },
+  {
+   "k": 26,
+   "floor": 22,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "Noxious Fumes",
+   "horizon": "act",
+   "means": {
+    "Noxious Fumes": 0.6172,
+    "Prepared": 0.5859,
+    "Leading Strike": 0.5781,
+    "skip": 0.5625
+   },
+   "d": -0.0547,
+   "se": 0.0338,
+   "verdict": "tie",
+   "secs": 5.1
+  },
+  {
+   "k": 27,
+   "floor": 23,
+   "type": "map",
+   "played": "r5c0",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "? r5c0",
+   "price_best": "? r5c0",
+   "horizon": "act",
+   "means": {
+    "? r5c0": 0.5781,
+    "M r5c1": 0.5156
+   },
+   "verdict": "agree",
+   "secs": 4.1
+  },
+  {
+   "k": 28,
+   "floor": 23,
+   "type": "event",
+   "played": "Rejection",
+   "then": [
+    "Outbreak"
+   ],
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "Rejection",
+   "price_best": "Let It In",
+   "horizon": "act",
+   "means": {
+    "Let It In": 0.625,
+    "Rejection": 0.5469
+   },
+   "d": -0.0781,
+   "se": 0.0572,
+   "verdict": "tie",
+   "secs": 4.7
+  },
+  {
+   "k": 29,
+   "floor": 24,
+   "type": "map",
+   "played": "r6c0",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "R r6c0",
+   "price_best": "E r6c1",
+   "horizon": "act",
+   "means": {
+    "E r6c1": 0.7031,
+    "R r6c0": 0.6797
+   },
+   "d": -0.0234,
+   "se": 0.0376,
+   "verdict": "tie",
+   "secs": 3.7
+  },
+  {
+   "k": 30,
+   "floor": 24,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Outbreak"
+   ],
+   "n": 128,
+   "n_options": 14,
+   "priced_as": "smith OUTBREAK",
+   "price_best": "smith DEFLECT",
+   "horizon": "act",
+   "means": {
+    "smith DEFLECT": 0.7422,
+    "rest": 0.7344,
+    "smith BURST": 0.7031,
+    "smith NEUTRALIZE": 0.7031,
+    "smith SURVIVOR": 0.7031,
+    "smith DEFEND_SILENT": 0.6953
+   },
+   "d": -0.0547,
+   "se": 0.0338,
+   "verdict": "tie",
+   "secs": 20.4
+  },
+  {
+   "k": 31,
+   "floor": 25,
+   "type": "card",
+   "played": "Bullet Time",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Bullet Time",
+   "price_best": "skip",
+   "horizon": "act",
+   "means": {
+    "skip": 0.7266,
+    "Grand Finale": 0.7031,
+    "Envenom": 0.6953,
+    "Bullet Time": 0.6797
+   },
+   "d": -0.0469,
+   "se": 0.0218,
+   "verdict": "disagree",
+   "secs": 6.3
+  },
+  {
+   "k": 32,
+   "floor": 25,
+   "type": "card",
+   "played": "Backflip",
+   "then": null,
+   "n": 128,
+   "n_options": 5,
+   "priced_as": "Backflip",
+   "price_best": "skip",
+   "horizon": "act",
+   "means": {
+    "skip": 0.7031,
+    "Footwork": 0.6797,
+    "Up My Sleeve+": 0.6719,
+    "Backflip": 0.6641,
+    "Dagger Throw": 0.6641
+   },
+   "d": -0.0391,
+   "se": 0.0205,
+   "verdict": "tie",
+   "secs": 7.3
+  },
+  {
+   "k": 33,
+   "floor": 27,
+   "type": "map",
+   "played": "r9c2",
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "E r9c2",
+   "price_best": "R r9c0",
+   "horizon": "act",
+   "means": {
+    "R r9c0": 0.7891,
+    "E r9c2": 0.6953,
+    "M r9c1": 0.5391
+   },
+   "d": -0.0938,
+   "se": 0.0548,
+   "verdict": "tie",
+   "secs": 4.9
+  },
+  {
+   "k": 34,
+   "floor": 27,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "Noxious Fumes",
+   "horizon": "act",
+   "means": {
+    "Noxious Fumes": 0.8438,
+    "Cloak and Dagger": 0.8281,
+    "Dagger Throw+": 0.8047,
+    "skip": 0.7969
+   },
+   "d": -0.0469,
+   "se": 0.0218,
+   "verdict": "disagree",
+   "secs": 9.1
+  },
+  {
+   "k": 35,
+   "floor": 27,
+   "type": "card",
+   "played": "Outbreak",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Outbreak",
+   "price_best": "Afterimage",
+   "horizon": "act",
+   "means": {
+    "Afterimage": 0.8359,
+    "skip": 0.7969,
+    "Outbreak": 0.7969,
+    "Corrosive Wave": 0.7578
+   },
+   "d": -0.0391,
+   "se": 0.0172,
+   "verdict": "disagree",
+   "secs": 9.5
+  },
+  {
+   "k": 36,
+   "floor": 28,
+   "type": "map",
+   "played": "r10c3",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "? r10c3",
+   "price_best": "? r10c3",
+   "horizon": "act",
+   "means": {
+    "? r10c3": 0.8281,
+    "$ r10c1": 0.6875
+   },
+   "verdict": "agree",
+   "secs": 6.3
+  },
+  {
+   "k": 37,
+   "floor": 28,
+   "type": "event",
+   "played": "Study",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "Study",
+   "price_best": "Touch the Core",
+   "horizon": "act",
+   "means": {
+    "Touch the Core": 0.875,
+    "Study": 0.8594
+   },
+   "d": -0.0156,
+   "se": 0.0221,
+   "verdict": "tie",
+   "secs": 5.4
+  },
+  {
+   "k": 38,
+   "floor": 29,
+   "type": "rest",
+   "played": "Rest",
+   "then": null,
+   "n": 128,
+   "n_options": 17,
+   "priced_as": "rest",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.8047,
+    "smith DEFLECT": 0.7188,
+    "smith OUTBREAK": 0.7109,
+    "smith BACKFLIP": 0.7031,
+    "smith SURVIVOR": 0.7031,
+    "smith HIDDEN_DAGGERS": 0.6953
+   },
+   "verdict": "agree",
+   "secs": 20.8
+  },
+  {
+   "k": 39,
+   "floor": 30,
+   "type": "map",
+   "played": "r12c4",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "E r12c4",
+   "price_best": "? r12c3",
+   "horizon": "act",
+   "means": {
+    "? r12c3": 0.8516,
+    "E r12c4": 0.8281
+   },
+   "d": -0.0234,
+   "se": 0.0436,
+   "verdict": "tie",
+   "secs": 3.8
+  },
+  {
+   "k": 40,
+   "floor": 30,
+   "type": "card",
+   "played": "Accelerant",
+   "then": null,
+   "n": 128,
+   "n_options": 5,
+   "priced_as": "Accelerant",
+   "price_best": "Expose+",
+   "horizon": "act",
+   "means": {
+    "Expose+": 0.9375,
+    "skip": 0.9219,
+    "Bouncing Flask": 0.9219,
+    "Accelerant": 0.9062,
+    "Deflect": 0.8984
+   },
+   "d": -0.0312,
+   "se": 0.0154,
+   "verdict": "disagree",
+   "secs": 15.5
+  },
+  {
+   "k": 41,
+   "floor": 30,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "skip",
+   "horizon": "ready",
+   "means": {
+    "skip": 0.3787,
+    "Bullet Time": 0.373,
+    "The Hunt+": 0.3729,
+    "Tracking": 0.362
+   },
+   "verdict": "agree",
+   "secs": 13.5
+  },
+  {
+   "k": 42,
+   "floor": 31,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "Skewer+",
+   "horizon": "act",
+   "means": {
+    "skip": 0.8594,
+    "Blade Dance": 0.8594,
+    "Skewer+": 0.8594,
+    "Anticipate+": 0.8438
+   },
+   "d": 0.0,
+   "se": 0.0,
+   "verdict": "tie",
+   "secs": 7.3
+  },
+  {
+   "k": 43,
+   "floor": 32,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Accelerant"
+   ],
+   "n": 128,
+   "n_options": 18,
+   "priced_as": "smith ACCELERANT",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.8906,
+    "smith DEFEND_SILENT": 0.8594,
+    "smith NEUTRALIZE": 0.8594,
+    "smith SURVIVOR": 0.8594,
+    "smith BURST": 0.8516,
+    "smith DEFLECT": 0.8516
+   },
+   "d": -0.0781,
+   "se": 0.0238,
+   "verdict": "disagree",
+   "secs": 27.5
+  },
+  {
+   "k": 44,
+   "floor": 33,
+   "type": "card",
+   "played": "Afterimage",
+   "then": null,
+   "n": 128,
+   "n_options": 5,
+   "priced_as": "Afterimage",
+   "price_best": "Afterimage",
+   "horizon": "act",
+   "means": {
+    "Afterimage": 0.0312,
+    "Envenom": 0.0312,
+    "skip": 0.0234,
+    "Master Planner": 0.0234,
+    "Abrasive": 0.0156
+   },
+   "verdict": "agree",
+   "secs": 6.5
+  },
+  {
+   "k": 45,
+   "floor": 34,
+   "type": "ancient",
+   "played": "Glitter",
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Glitter",
+   "price_best": "Glitter",
+   "horizon": "act",
+   "means": {
+    "Glitter": 0.0156,
+    "Blessed Antler": 0.0078,
+    "Fur Coat": 0.0
+   },
+   "verdict": "agree",
+   "secs": 3.7
+  },
+  {
+   "k": 46,
+   "floor": 35,
+   "type": "map",
+   "played": "r1c6",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "M r1c6",
+   "price_best": "M r1c6",
+   "horizon": "act",
+   "means": {
+    "M r1c6": 0.0234,
+    "M r1c2": 0.0156
+   },
+   "verdict": "agree",
+   "secs": 2.5
+  },
+  {
+   "k": 47,
+   "floor": 35,
+   "type": "card",
+   "played": "Escape Plan+",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Escape Plan+",
+   "price_best": "skip",
+   "horizon": "win",
+   "means": {
+    "skip": 0.0547,
+    "Anticipate": 0.0547,
+    "Noxious Fumes": 0.0469,
+    "Escape Plan+": 0.0234
+   },
+   "d": -0.0312,
+   "se": 0.0154,
+   "verdict": "disagree",
+   "secs": 5.0
+  },
+  {
+   "k": 48,
+   "floor": 36,
+   "type": "map",
+   "played": "r2c6",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "M r2c6",
+   "price_best": "M r2c6",
+   "horizon": "win",
+   "means": {
+    "M r2c6": 0.0703,
+    "? r2c5": 0.0156
+   },
+   "verdict": "agree",
+   "secs": 2.7
+  },
+  {
+   "k": 49,
+   "floor": 36,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 5,
+   "priced_as": "skip",
+   "price_best": "Pinpoint+",
+   "horizon": "act",
+   "means": {
+    "Pinpoint+": 0.0469,
+    "Poisoned Stab+": 0.0391,
+    "Accuracy": 0.0312,
+    "skip": 0.0234,
+    "Dagger Throw+": 0.0156
+   },
+   "d": -0.0234,
+   "se": 0.0174,
+   "verdict": "tie",
+   "secs": 5.6
+  },
+  {
+   "k": 50,
+   "floor": 37,
+   "type": "event",
+   "played": "Overcome",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "Overcome",
+   "price_best": "Overcome",
+   "horizon": "act",
+   "means": {
+    "Overcome": 0.0078,
+    "Hold On": 0.0078
+   },
+   "verdict": "agree",
+   "secs": 2.8
+  },
+  {
+   "k": 51,
+   "floor": 38,
+   "type": "map",
+   "played": "r4c5",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "M r4c5",
+   "price_best": "? r4c6",
+   "horizon": "act",
+   "means": {
+    "M r4c5": 0.0234,
+    "? r4c6": 0.0234
+   },
+   "d": 0.0,
+   "se": 0.0192,
+   "verdict": "tie",
+   "secs": 3.8
+  },
+  {
+   "k": 52,
+   "floor": 38,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "Hidden Daggers+",
+   "horizon": "act",
+   "means": {
+    "Hidden Daggers+": 0.0547,
+    "skip": 0.0391,
+    "Dagger Throw+": 0.0312,
+    "Predator+": 0.0312
+   },
+   "d": -0.0156,
+   "se": 0.011,
+   "verdict": "tie",
+   "secs": 5.4
+  },
+  {
+   "k": 53,
+   "floor": 39,
+   "type": "card",
+   "played": "Dash+",
+   "then": null,
+   "n": 128,
+   "n_options": 5,
+   "priced_as": "Dash+",
+   "price_best": "Hidden Daggers",
+   "horizon": "win",
+   "means": {
+    "Hidden Daggers": 0.0547,
+    "Dash+": 0.0469,
+    "Snakebite+": 0.0312,
+    "Noxious Fumes": 0.0312,
+    "skip": 0.0156
+   },
+   "d": -0.0078,
+   "se": 0.0078,
+   "verdict": "tie",
+   "secs": 3.2
+  },
+  {
+   "k": 54,
+   "floor": 40,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Bullet Time"
+   ],
+   "n": 128,
+   "n_options": 17,
+   "priced_as": "smith BULLET_TIME",
+   "price_best": "smith BACKFLIP",
+   "horizon": "act",
+   "means": {
+    "smith BACKFLIP": 0.0625,
+    "smith AFTERIMAGE": 0.0547,
+    "smith DEFLECT": 0.0547,
+    "smith NEUTRALIZE": 0.0547,
+    "smith OUTBREAK": 0.0547,
+    "rest": 0.0469
+   },
+   "d": -0.0234,
+   "se": 0.0134,
+   "verdict": "tie",
+   "secs": 8.6
+  },
+  {
+   "k": 55,
+   "floor": 41,
+   "type": "map",
+   "played": "r7c4",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "T r7c4",
+   "price_best": "T r7c6",
+   "horizon": "act",
+   "means": {
+    "T r7c4": 0.0156,
+    "T r7c6": 0.0156
+   },
+   "d": 0.0,
+   "se": 0.0157,
+   "verdict": "tie",
+   "secs": 1.1
+  },
+  {
+   "k": 56,
+   "floor": 42,
+   "type": "card",
+   "played": "Escape Plan",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Escape Plan",
+   "price_best": "Escape Plan",
+   "horizon": "act",
+   "means": {
+    "Escape Plan": 0.0391,
+    "Expertise": 0.0391,
+    "skip": 0.0312,
+    "Predator+": 0.0312
+   },
+   "verdict": "agree",
+   "secs": 1.7
+  },
+  {
+   "k": 57,
+   "floor": 42,
+   "type": "card",
+   "played": "Serpent Form",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Serpent Form",
+   "price_best": "Serpent Form",
+   "horizon": "win",
+   "means": {
+    "Serpent Form": 0.0625,
+    "skip": 0.0469,
+    "Master Planner": 0.0234,
+    "Shadow Step": 0.0234
+   },
+   "verdict": "agree",
+   "secs": 1.8
+  },
+  {
+   "k": 58,
+   "floor": 43,
+   "type": "shop",
+   "played": [
+    "Lantern"
+   ],
+   "then": null,
+   "n": 128,
+   "n_options": 35,
+   "priced_as": "Lantern (193g)",
+   "price_best": "remove DEFEND (150g)",
+   "horizon": "win",
+   "means": {
+    "Mayhem (169g)": 0.1016,
+    "remove DEFEND (150g)": 0.1016,
+    "remove FOOTWORK (150g)": 0.1016,
+    "nothing": 0.0938,
+    "Pinpoint+ (75g)": 0.0938,
+    "Skewer+ (39g)": 0.0938
+   },
+   "d": -0.0234,
+   "se": 0.0134,
+   "verdict": "tie",
+   "secs": 5.9
+  },
+  {
+   "k": 59,
+   "floor": 44,
+   "type": "rest",
+   "played": "Rest",
+   "then": null,
+   "n": 128,
+   "n_options": 17,
+   "priced_as": "rest",
+   "price_best": "rest",
+   "horizon": "win",
+   "means": {
+    "rest": 0.0781,
+    "smith OUTBREAK": 0.0703,
+    "smith AFTERIMAGE": 0.0625,
+    "smith DEFLECT": 0.0625,
+    "smith DASH": 0.0547,
+    "smith FOOTWORK": 0.0547
+   },
+   "verdict": "agree",
+   "secs": 2.2
+  },
+  {
+   "k": 60,
+   "floor": 45,
+   "type": "card",
+   "played": "Well-Laid Plans",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Well-Laid Plans",
+   "price_best": "skip",
+   "horizon": "act",
+   "means": {
+    "skip": 0.1016,
+    "Envenom": 0.1016,
+    "Well-Laid Plans": 0.1016,
+    "Tracking": 0.0859
+   },
+   "d": 0.0,
+   "se": 0.0111,
+   "verdict": "tie",
+   "secs": 0.3
+  },
+  {
+   "k": 61,
+   "floor": 45,
+   "type": "card",
+   "played": "Anticipate+",
+   "then": null,
+   "n": 128,
+   "n_options": 5,
+   "priced_as": "Anticipate+",
+   "price_best": "skip",
+   "horizon": "act",
+   "means": {
+    "skip": 0.125,
+    "Prepared": 0.1172,
+    "Deadly Poison": 0.1016,
+    "Anticipate+": 0.0938,
+    "Infinite Blades": 0.0938
+   },
+   "d": -0.0312,
+   "se": 0.019,
+   "verdict": "tie",
+   "secs": 0.3
+  },
+  {
+   "k": 62,
+   "floor": 46,
+   "type": "shop",
+   "played": [
+    "Calculated Gamble",
+    {
+     "discard_potion": 1
+    },
+    "Lucky Tonic"
+   ],
+   "then": null,
+   "n": 128,
+   "n_options": 32,
+   "priced_as": "Calculated Gamble (72g) + Lucky Tonic for slot 1 (96g)",
+   "price_best": "Jackpot+ (164g)",
+   "horizon": "win",
+   "means": {
+    "Jackpot+ (164g)": 0.1562,
+    "remove ANTICIPATE (150g)": 0.1094,
+    "remove CLUMSY (150g)": 0.1094,
+    "remove DEFLECT (150g)": 0.1094,
+    "remove BURST (150g)": 0.1016,
+    "remove WELL_LAID_PLANS (150g)": 0.1016
+   },
+   "d": -0.0547,
+   "se": 0.0202,
+   "verdict": "disagree",
+   "secs": 0.7
+  },
+  {
+   "k": 63,
+   "floor": 47,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Serpent Form"
+   ],
+   "n": 128,
+   "n_options": 19,
+   "priced_as": "smith SERPENT_FORM",
+   "price_best": "smith AFTERIMAGE",
+   "horizon": "act",
+   "means": {
+    "smith AFTERIMAGE": 0.1094,
+    "smith OUTBREAK": 0.1094,
+    "smith SURVIVOR": 0.1094,
+    "rest": 0.1016,
+    "smith CALCULATED_GAMBLE": 0.1016,
+    "smith CLUMSY": 0.1016
+   },
+   "d": -0.0078,
+   "se": 0.0078,
+   "verdict": "tie",
+   "secs": 0.4
+  }
+ ]
+}
