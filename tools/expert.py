@@ -7,6 +7,7 @@ seedcheck|replay RECORD --dry-run   the action sequence the live harness command
 compare RECORD [--replay]     per decision: live player + references -> verdicts (divergences JSON)
 report RECORD                 notes skeleton + divergence table from a compare output
 compact RECORD                transcription record -> <id>.compact.jsonl (actions only; the replayable run)
+check-trace RECORD TRACE      frame obs vs an oracle run-replay trace (hand, hp, enemy hp per turn)
 Live seedcheck / replay are harness commands: `python -m agent seedcheck|replay RECORD`.
 """
 import argparse
@@ -1262,6 +1263,48 @@ def compact(a):
     print(f"-> {os.path.relpath(dst, ROOT)}: {len(steps)} steps, {n} combat actions, {os.path.getsize(dst) / 1024:.0f} KB")
 
 
+def check_trace(a):
+    """working record (frame obs) vs an oracle run-replay trace: per fight turn, hand / player hp / enemy hp at turn start"""
+    from collections import Counter
+    rec = RE.load(record_path(a.record))
+    al = rec.get("aliases", {})
+    groups = []
+    for line in open(a.trace, encoding="utf-8"):
+        r = json.loads(line)
+        if r.get("event") != "combat":
+            continue
+        if r.get("step") == 0 or not groups:
+            groups.append({})
+        groups[-1].setdefault(r["turn"], r)
+    bad, specs = 0, [spec for _floor, spec in fights(rec)]
+    for spec, starts in zip(specs, groups + [None] * (len(specs) - len(groups))):
+        if starts is None:
+            print(f"{spec['id']}: not in the trace")
+            bad += 1
+            continue
+        for ti, t in enumerate(spec["turns"]):
+            o, r, msgs = t.get("obs") or {}, starts.get(ti + 1), []
+            if r is None:
+                print(f"{spec['id']} T{ti + 1}: no trace turn")
+                bad += 1
+                break
+            if "hand" in o:
+                want = Counter(RE.base(RE.token(x, al)[0]) + "+" * RE.token(x, al)[1] for x in o["hand"])
+                got = Counter(RE.base(c["id"]) + "+" * int(c.get("upgrade", 0) > 0) for c in r["hand"])
+                if want != got:
+                    msgs.append(f"hand game-only {dict(got - want)} frames-only {dict(want - got)}")
+            if "hp" in o and r["player"]["hp"] != o["hp"]:
+                msgs.append(f"hp game {r['player']['hp']} frames {o['hp']}")
+            gh, wh = [e["hp"] for e in r["enemies"] if e.get("alive", True)], [e["hp"] for e in o.get("e", [])]
+            if "e" in o and gh != wh:
+                msgs.append(f"enemy hp game {gh} frames {wh}")
+            if msgs:
+                bad += 1
+                print(f"{spec['id']} T{ti + 1}: " + "; ".join(msgs))
+    print(f"{len(specs)} fights, {len(groups)} in the trace, {bad} mismatching turns")
+    sys.exit(1 if bad else 0)
+
+
 def report(a):
     rec = RE.load(record_path(a.record))
     p = a.input or os.path.join(RE.creator_dir(rec), f"{rec['video']['id']}.divergences.json")
@@ -1347,6 +1390,9 @@ def main():
     p = sub.add_parser("compact")
     p.add_argument("record")
     p.add_argument("--result", help="e.g. 'win, 23/77 HP after the floor-49 boss'")
+    p = sub.add_parser("check-trace")
+    p.add_argument("record")
+    p.add_argument("trace")
     p = sub.add_parser("report")
     p.add_argument("record")
     p.add_argument("--input")
@@ -1366,6 +1412,8 @@ def main():
         return compare(a)
     if a.cmd == "report":
         return report(a)
+    if a.cmd == "check-trace":
+        return check_trace(a)
     if a.cmd == "compact":
         return compact(a)
 
