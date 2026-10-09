@@ -4,26 +4,21 @@ description: Use at the start of any Slay the Spire 2 run or session: root of th
 ---
 
 # STS2 strategy book (root)
-Loading enforced by hooks + harness; screen->skill table: `CLAUDE.md`.
+Loading: hooks + harness; screen->skill table `CLAUDE.md`.
 
 ## Rules that never bend
-- No cheating in a scored run: no dev console/god mode, no hidden state (draw order, RNG streams, pre-rolled encounter/elite order, seed future), no restart/reload. Console only for harness tests.
-- Allowed info: the screen, public game knowledge (pools, card text, monster patterns, coded odds), what this run showed.
-- Goal: win the run; tiebreak: end HP.
-- Skill files = mutable rules/mechanics/tests with status tags. Never a journal: no runs, past fights/picks as examples, logs, TODOs. Edit/delete a rule when it changes. Evidence/history -> `runs/<run>/`, `evals/`. Test: line still a rule if every run were forgotten? Else not in a skill.
+- Scored run: no console/god mode, no hidden state (draw order, RNG, pre-rolled encounters, seed future), no restart/reload. Console only for harness tests.
+- Allowed: the screen, public game knowledge (pools, card text, patterns, coded odds), what this run showed.
+- Goal: win the run; tiebreak end HP.
+- Skills = mutable rules/mechanics/tests with tags. No runs, past fights/picks, logs, TODOs; evidence -> `runs/<run>/`, `evals/`. Test: still a rule if every run were forgotten?
 
 ## Hierarchy (lower levels only add/deviate)
-- 0 `sts2`: rules, hierarchy, tags, update protocol.
-- 1 `sts2-harness` commands/calculators/review loop; `sts2-strategy` decision loop + shared targets; `sts2-deckbuilding` pick protocol, buckets, macro, decision record (+`evidence.md`); `sts2-pathing` route + Neow/ancient; `sts2-acts` pools, bag (+`encounters.md`); `sts2-mechanics` verified mechanics; `sts2-crystal-sphere` that event.
-- 2 `sts2-<character>`: character deviations.
-- 3 `sts2-<character>-act<N>`: character x act deviations, each with test + number.
-- Below level 1 state only the deviation + evidence. A lesson valid for any character/act -> `sts2-strategy`. New characters get skills when first played.
+0 `sts2`. 1 `sts2-harness`, `sts2-strategy`, `sts2-deckbuilding`, `sts2-pathing`, `sts2-acts`, `sts2-mechanics`, `sts2-crystal-sphere`. 2 `sts2-<character>`. 3 `sts2-<character>-act<N>`. Any-character lesson -> `sts2-strategy`.
 
-## Evidence tags (every claim)
-- `[code]` decomp source (cite file). `[sim]` solver/simulator measurement (cite script, n, margin). `[expert]` recorded expert run (cite); a choice, not proof. `[hyp]` untested; state its test. `python -m agent.improve lessons` lists every `[hyp]`.
+## Tags (every claim)
+`[code]` decomp (cite). `[sim]` measurement (script, n, margin). `[expert]` recorded expert choice, not proof. `[hyp]` + its test (`python -m agent.improve lessons` lists them).
 
 ## Update protocol
-1. After each run / surprising decision: add or revise at the most specific level where it holds.
-2. Evidence = `[code]`/`[sim]`/`[expert]`; else `[hyp]` + test. A run outcome is not evidence. Leave `[hyp]` only when a test supports it; delete/rewrite a contradicted claim.
-3. Numbers (win rate, HP, n, margin) over adjectives.
-4. Long tables -> sibling file. Run records -> `runs/`.
+1. After a run: revise at the most specific level that holds.
+2. A run outcome is not evidence; contradicted -> rewrite/delete.
+3. Numbers over adjectives. Long tables -> sibling file.

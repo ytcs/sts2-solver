@@ -3,7 +3,7 @@ Claude plays Slay the Spire 2 via `python -m agent` (`README.md`). Only this fil
 
 ## Rule 0: no game action before the governing skills are loaded and read
 At session start and after any compaction/clear, invoke in order: 1 `sts2`, 2 `sts2-harness`, 3 `sts2-strategy`. Read them before acting.
-Enforced: hooks (`.claude/settings.json`) refuse game-acting harness commands (`a`, `turn`, `combat`, `x`, `draw`, `f`, direct bridge access) until all three are loaded this session; the daemon refuses by screen (table). Read-only always works: `s`, `brief`, `m`, `d`, `p`, `eval`, `reward`, `route`, `adv`, `relics`, `status`. Never bypass. `REFUSED: skills not loaded: X` -> invoke X, read, repeat.
+Enforced: hooks (`.claude/settings.json`) refuse game-acting harness commands (`a`, `turn`, `combat`, `x`, `draw`, `f`, direct bridge access) until all three are loaded this session; the daemon refuses by screen (table). Read-only always works: `s`, `brief`, `m`, `d`, `p`, `eval`, `reward`, `route`, `adv`, `relics`, `status`. Never bypass. `REFUSED: skills not loaded in this session: X` (daemon) or `REFUSED: no game action before the governing skills are loaded. Missing in this session: X` (hook) -> invoke X, read, repeat.
 
 ## Progressive loading (harness demands the skill when the screen needs it)
 | screen / moment | skill first |
