@@ -6,6 +6,7 @@ validate RECORD               schema, shapes, fight records replay in the simula
 seedcheck|replay RECORD --dry-run   the action sequence the live harness commands would send
 compare RECORD [--replay]     per decision: live player + references -> verdicts (divergences JSON)
 report RECORD                 notes skeleton + divergence table from a compare output
+compact RECORD                transcription record -> <id>.compact.jsonl (actions only; the replayable run)
 Live seedcheck / replay are harness commands: `python -m agent seedcheck|replay RECORD`.
 """
 import argparse
@@ -30,7 +31,7 @@ from agent import reenact as RE  # noqa: E402
 
 WIN, HPB = 1.0, 0.5
 SCREENS = {"EVENT", "MAP", "COMBAT", "SELECT", "REWARDS", "CARD_REWARD", "CHOOSE_CARD", "CHOOSE_RELIC", "CHOOSE_BUNDLE", "SHOP", "RESTSITE", "TREASURE"}
-ACTS = {"p": (2, 3), "c": (2, 9), "pot": (2, 3), "e": (1, 1)}
+ACTS = {"p": (2, 3), "c": (2, 9), "pot": (2, 4), "e": (1, 1)}
 CAP = 4000
 MAX_RSS, MIN_FREE = 6e9, 8e9
 
@@ -514,8 +515,47 @@ def fights(rec):
     return [(st["floor"], st["fight"]) for st in rec["steps"] if st.get("fight")]
 
 
+def build_from_replay(rec, only=None):
+    """compact record: fight records come from the game (replay-dir records, else the replay log's states); the simulator cannot redraw his hands"""
+    d = os.path.join(RE.creator_dir(rec), "replay", rec["video"]["id"])
+    log = d + ".jsonl"
+    if not os.path.exists(log):
+        sys.exit(f"no replay log {os.path.relpath(log, ROOT)}: replay the record in the game first (`python -m agent seedcheck|replay`)")
+    rows = [json.loads(x) for x in open(log, encoding="utf-8")]
+    openings = [r for r in rows if r["event"] == "opening"]
+    by_fight = {}
+    for x, row in align(RE.flatten(rec, built=None), log):
+        if x.get("fight"):
+            by_fight.setdefault(x["fight"], []).append((x, row))
+    os.makedirs(d, exist_ok=True)
+    have = {f: RE.load(os.path.join(d, f)) for f in os.listdir(d) if f.endswith(".json")}
+    for floor, spec in fights(rec):
+        if only and only not in spec["id"]:
+            continue
+        acts, p_ = by_fight[spec["id"]], os.path.join(d, spec["id"] + ".json")
+        src = have.get(spec["id"] + ".json") or next((r for r in have.values() if r.get("encounter") == spec["encounter"]
+                                                       and (r.get("scenario") or {}).get("total_floor") == floor and len(r["fight"]["log"]) == len(acts)), None)
+        how = "replay-dir record"
+        if src is None:
+            missing = [x["i"] for x, row in acts if row is None]
+            op = next((r for r in openings if r.get("encounter") == spec["encounter"]), None)
+            if missing or op is None:
+                print(f"{spec['id']}: cannot build: {'actions ' + str(missing) + ' are not in the replay log' if missing else 'no opening row'}")
+                continue
+            sc = dict(op["scenario"], run_seed=rec["seed"], game_build=rec["build"], video=rec["video"]["url"])
+            states = [row["state"] for _x, row in acts]
+            src = dict(id=spec["id"], encounter=spec["encounter"], hp_start=[sc.get("hp"), sc.get("max_hp")], scenario=sc,
+                       fight=dict(scenario=sc, log=[RE.to_bridge(x, row["cmd"]) for x, row in acts], states=states, state=states[-1]), source="replay log")
+            how = "replay log"
+        src = dict(src, id=spec["id"])
+        json.dump(src, open(p_, "w", encoding="utf-8"))
+        print(f"{spec['id']}: {len(src['fight']['log'])} actions from the {how} -> {os.path.relpath(p_, ROOT)}")
+
+
 def build(a):
     rec = RE.load(record_path(a.record))
+    if a.record.endswith(".jsonl"):
+        return build_from_replay(rec, a.fight)
     d = a.out or os.path.join(RE.creator_dir(rec), "fights")
     os.makedirs(d, exist_ok=True)
     for floor, spec in fights(rec):
@@ -582,7 +622,7 @@ def check_record(rec):
 
 def check_spec(spec, al):
     errs = []
-    for k in ("id", "encounter", "enemy_ids", "scenario", "turns"):
+    for k in ("id", "encounter", "turns") + (("enemy_ids", "scenario") if any("obs" in t for t in spec.get("turns", [])) else ()):
         if k not in spec:
             errs.append(f"fight transcription missing `{k}`")
     if errs:
@@ -591,13 +631,13 @@ def check_spec(spec, al):
     names = sts2.names()
     known = set(names.get("card", [])) | {"SHIV"}
     for ti, t in enumerate(spec["turns"]):
-        if "obs" not in t or "acts" not in t:
+        if "acts" not in t or ("scenario" in spec and "obs" not in t):
             errs.append(f"{spec['id']} T{ti + 1}: needs `obs` and `acts`")
             continue
         times = t.get("times")
         if times and len(times) != len(t["acts"]):
             errs.append(f"{spec['id']} T{ti + 1}: {len(times)} times for {len(t['acts'])} acts")
-        toks = list(t["obs"].get("hand", []))
+        toks = list(t.get("obs", {}).get("hand", []))
         for ai, a in enumerate(t["acts"]):
             body = [x for x in a if not isinstance(x, dict)]
             lo, hi = ACTS.get(body[0] if body else None, (0, -1))
@@ -969,6 +1009,9 @@ def compare(a):
             fid, _, idx = tok.partition(":")
             only.setdefault(fid, set()).update(int(x) for x in idx.split("+") if x)
     live = Engine()
+    flat_ = [x for x in RE.flatten(rec, built=None)]
+    kidx = {(x.get("fight"), x.get("i")): k for k, x in enumerate(flat_) if x.get("fight")}
+    tmap = {(x.get("fight"), x.get("i")): x.get("t") for x in flat_ if x.get("fight")}
     tc_eng = Engine(K=a.tc_k)
     ref = Engine(K=a.ref_k) if a.ref_k else None
     rows = []
@@ -979,14 +1022,13 @@ def compare(a):
             continue
         sc = fr["scenario"]
         worth = proposal.fight_objective(sc)[0] if a.objective == "harness" else None
-        times = fr.get("times") or []
         for i, sim, j in decision_states(fr["fight"]):
             key = next((k for k in only if k in fid), None)
             if only and (key is None or (only[key] and i not in only[key])):
                 continue
             legal = sim.legal()
             text = dict(legal)
-            row = dict(fight=fid, i=i, t=times[i] if i < len(times) else None, action=j, n_legal=len(legal))
+            row = dict(k=kidx.get((fid, i)), fight=fid, i=i, t=tmap.get((fid, i)), action=j, n_legal=len(legal))
             mine = match(sim, j)
             if len(legal) < 2 or not mine:
                 row["verdict"] = "forced" if len(legal) < 2 else "unmatched"
@@ -1061,7 +1103,8 @@ def compare_macro(rec, a):
         screens = ((f, s, st, PR._played(s, c, PR.options(st, s)), c) for f, s, st, c, _old in screens)
     else:
         screens = synthetic_screens(rec)
-    rows = []
+    rows, used = [], set()
+    flat = list(enumerate(RE.flatten(rec, built=None)))
     for floor, state, st, played, shown in screens:
         opts = PR.options(st, state)
         if len(opts) < 2:
@@ -1070,7 +1113,10 @@ def compare_macro(rec, a):
         best, horizon = PR.best(res)
         fam = [lb for lb in res if PR._family(lb) == PR._family(played)]
         mine = played if played in res else max(fam, key=lambda lb: res[lb][horizon].mean(), default=None)
-        row = dict(floor=floor, screen=state.split("\n")[0], played=shown, priced_as=mine, price_best=best, horizon=horizon, n=a.macro_n)
+        kind = state.split("\n")[0]
+        k = next((k for k, x in flat if k not in used and x.get("floor") == floor and x.get("screen") == kind), None)
+        used.add(k)
+        row = dict(k=k, floor=floor, screen=kind, played=shown, priced_as=mine, price_best=best, horizon=horizon, n=a.macro_n)
         if mine is None:
             row["verdict"] = "unpriced"
         elif PR._family(mine) == PR._family(best) and (mine == best or not played.startswith("smith ")):
@@ -1136,6 +1182,80 @@ def synthetic_screens(rec):
                 deck.append({"id": cid, "upgrade": up})
         elif played == "rest":
             hp = min(sc["max_hp"], hp + int(R.HEAL_REST * sc["max_hp"]))
+
+
+def align(flat, log):
+    """pairs each record action with its replay-log decision row (None for actions the log lacks, e.g. played by hand)"""
+    bare = lambda d: re.sub(r" -> e\d+", "", d)  # noqa: E731
+    rows = [json.loads(x) for x in open(log, encoding="utf-8")]
+    dec = [r for r in rows if r["event"] == "decision"]
+    j = 0
+    for x in flat:
+        row = dec[j] if j < len(dec) else None
+        if row is not None and bare(row["action"]) == bare(RE.describe(x)):
+            j += 1
+            yield x, row
+        else:
+            yield x, None
+
+
+def compact(a):
+    rec = RE.load(record_path(a.record))
+    head = {k: rec[k] for k in ("video", "seed", "build", "build_hash", "modded", "character", "ascension", "boss", "aliases") if k in rec}
+    if a.result:
+        head["result"] = a.result
+    head["format"] = ("one step per line after this header; COMBAT steps carry fight {id, encounter, turns [{acts, times}]}; act = "
+                      "['p', card, target?] | ['c', card...] | ['pot', slot, target, potion] | ['e']; target = the game's enemy index; "
+                      "fight states: replay log (`python -m agent replay`), then `tools/expert.py build`")
+    steps, merged = [], {}
+    for st in rec["steps"]:
+        if "gap" in st:
+            sys.exit(f"refused: the record still has a gap at floor {st.get('floor')}: {st['gap']}")
+        out = {k: st[k] for k in ("floor", "act", "screen", "t", "room", "pick") if k in st}
+        f = st.get("fight")
+        if f:
+            pots = {p.get("slot", i): p["id"] for i, p in enumerate(f["scenario"].get("potions", []))}
+            turns = []
+            for t in f["turns"]:
+                acts = []
+                for x in t["acts"]:
+                    x = [y for y in x if not isinstance(y, dict)]
+                    if x[0] == "pot":
+                        x = [x[0], x[1], x[2] if len(x) > 2 else None, pots[x[1]]]
+                    acts.append(x)
+                turn = dict(acts=acts)
+                if t.get("times") and any(t["times"]):
+                    turn["times"] = t["times"]
+                if str(t.get("note", "")).startswith("inferred"):
+                    turn["inferred"] = t["note"].split(". ")[0]
+                turns.append(turn)
+            base_id = re.sub(r"_b$", "", f["id"])
+            if base_id in merged:
+                merged[base_id]["fight"]["turns"] += turns
+                continue
+            out["fight"] = dict(id=base_id, encounter=f["encounter"], turns=turns)
+            merged[base_id] = out
+        steps.append(out)
+    log = os.path.join(RE.creator_dir(rec), "replay", rec["video"]["id"] + ".jsonl")
+    if os.path.exists(log):
+        acts = {(s_["fight"]["id"], i): x for s_ in steps if s_.get("fight") for i, x in enumerate(x for t in s_["fight"]["turns"] for x in t["acts"])}
+        bare = lambda d: re.sub(r" -> e\d+", "", d)  # noqa: E731
+        n_t = 0
+        for x, row in align(RE.flatten(dict(head, steps=steps), built=None), log):
+            if row is not None and x.get("fight") and x["kind"] in ("play", "potion"):
+                m = re.search(r" e(\d+)$", row["cmd"])
+                act = acts[(x["fight"], x["i"])]
+                tgt = int(m.group(1)) if m else None
+                if (act[2] if len(act) > 2 else None) != tgt:
+                    n_t += 1
+                (act.__setitem__(2, tgt) if len(act) > 2 else act.append(tgt)) if tgt is not None or len(act) > 2 else None
+        print(f"targets set to the game's enemy index from the replay log ({n_t} changed)")
+    dst = os.path.join(RE.creator_dir(rec), f"{rec['video']['id']}.compact.jsonl")
+    with open(dst, "w", encoding="utf-8", newline="\n") as fh:
+        for x in [head] + steps:
+            fh.write(json.dumps(x, ensure_ascii=False, separators=(",", ":")) + "\n")
+    n = sum(len(t["acts"]) for s_ in steps if s_.get("fight") for t in s_["fight"]["turns"])
+    print(f"-> {os.path.relpath(dst, ROOT)}: {len(steps)} steps, {n} combat actions, {os.path.getsize(dst) / 1024:.0f} KB")
 
 
 def report(a):
@@ -1219,6 +1339,9 @@ def main():
     p.add_argument("--macro", action="store_true", help="also price the card rewards and rests (run model, `agent/price.py`)")
     p.add_argument("--macro-n", type=int, default=32)
     p.add_argument("--out")
+    p = sub.add_parser("compact")
+    p.add_argument("record")
+    p.add_argument("--result", help="e.g. 'win, 23/77 HP after the floor-49 boss'")
     p = sub.add_parser("report")
     p.add_argument("record")
     p.add_argument("--input")
@@ -1238,6 +1361,8 @@ def main():
         return compare(a)
     if a.cmd == "report":
         return report(a)
+    if a.cmd == "compact":
+        return compact(a)
 
 
 if __name__ == "__main__":

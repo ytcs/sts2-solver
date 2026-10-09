@@ -1,0 +1,200 @@
+{"video":{"id":"hMrQSndDvPc","url":"https://youtu.be/hMrQSndDvPc","creator":"baalorlord","channel":"Baalorlord","title":"New Poison Deck!","uploaded":"2026-10-08"},"seed":"YMY1KELG18SC","build":"v0.111.0 (2026.08.14)","build_hash":"1568834832","modded":"MODDED (2)","character":"SILENT","ascension":10,"boss":"LAGAVULIN_MATRIARCH_BOSS","aliases":{"S":"STRIKE_SILENT","D":"DEFEND_SILENT","N":"NEUTRALIZE","SV":"SURVIVOR","AB":"ASCENDERS_BANE","DS":"DAGGER_SPRAY","DA":"DASH","HD":"HIDDEN_DAGGERS","CL":"CLUMSY","SB":"SNAKEBITE","SH":"SHIV","ST":"STRANGLE","NF":"NOXIOUS_FUMES","OB":"OUTBREAK","DF":"DEFLECT","BT":"BULLET_TIME"},"result":"win; 23/77 HP after the floor-49 Queen","format":"one step per line after this header; COMBAT steps carry fight {id, encounter, turns [{acts, times}]}; act = ['p', card, target?] | ['c', card...] | ['pot', slot, target, potion] | ['e']; target = the game's enemy index; fight states: replay log (`python -m agent replay`), then `tools/expert.py build`"}
+{"floor":1,"screen":"EVENT","t":"0:31","room":"Ancient","pick":"Silken Tress"}
+{"floor":2,"screen":"MAP","t":"0:36","pick":"r1c3"}
+{"floor":2,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F02_SLUDGE_SPINNER_WEAK","encounter":"SLUDGE_SPINNER_WEAK","turns":[{"acts":[["p","D",null],["p","D",null],["p","S",0],["e"]],"times":["0:42","0:43","0:44","0:45"]},{"acts":[["p","N",0],["p","S",0],["p","S",0],["p","D",null],["e"]],"times":["0:48","0:49","0:49","0:50","0:50"]},{"acts":[["p","S",0],["p","SV"],["c","S"],["p","D",null],["e"]],"times":["0:55","0:56","0:57","0:58","0:59"]},{"acts":[["p","S",0],["p","D",null],["p","D",null],["e"]],"times":["1:02","1:04","1:04","1:05"]},{"acts":[["p","N",0],["p","D",null],["p","D",null],["p","D",null],["e"]],"times":["1:09","1:11","1:12","1:14","1:15"]},{"acts":[["p","S",0],["p","S",0]],"times":["1:18","1:18"]}]}}
+{"floor":2,"screen":"REWARDS","t":"1:20","pick":["Gold","potion"]}
+{"floor":2,"screen":"REWARDS","t":"1:21","pick":"card"}
+{"floor":2,"screen":"CARD_REWARD","t":"1:24","pick":"Dagger Spray"}
+{"floor":3,"screen":"MAP","pick":"r2c4"}
+{"floor":3,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F03_TOADPOLES_WEAK","encounter":"TOADPOLES_WEAK","turns":[{"acts":[["p","S",0],["p","S",0],["p","SV"],["c","D"],["e"]],"times":["1:49","1:50","1:51","1:51","1:52"]},{"acts":[["p","S",0],["p","S",0],["p","DS",null],["p","N",0],["e"]],"times":["2:05","2:06","2:07","2:08","2:09"]},{"acts":[["p","D",null],["p","S",0]],"times":["2:13","2:14"]}]}}
+{"floor":3,"screen":"REWARDS","t":"2:15","pick":["Gold"]}
+{"floor":3,"screen":"REWARDS","t":"2:16","pick":"card"}
+{"floor":3,"screen":"CARD_REWARD","t":"2:24","pick":"Dash"}
+{"floor":4,"screen":"MAP","pick":"r3c4"}
+{"floor":4,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F04_SEAPUNK_WEAK","encounter":"SEAPUNK_WEAK","turns":[{"acts":[["p","D",null],["p","D",null],["p","D",null],["e"]],"times":["2:30","2:30","2:31","2:31"]},{"acts":[["p","N",0],["p","DA",0],["p","S",0],["e"]],"times":["2:35","2:36","2:37","2:37"]},{"acts":[["p","DS",null],["p","S",0],["e"]],"times":["2:48","2:49","2:51"]},{"acts":[["p","DA",0],["p","S",0]],"times":["3:00","3:01"]}]}}
+{"floor":4,"screen":"REWARDS","t":"3:02","pick":["Gold"]}
+{"floor":4,"screen":"REWARDS","t":"3:03","pick":"card"}
+{"floor":4,"screen":"CARD_REWARD","t":"3:24","pick":"Hidden Daggers"}
+{"floor":5,"screen":"MAP","pick":"r4c4"}
+{"floor":5,"screen":"EVENT","t":"3:36","room":"Event","pick":"That"}
+{"floor":6,"screen":"MAP","pick":"r5c5"}
+{"floor":6,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F06_HAUNTED_SHIP_NORMAL","encounter":"HAUNTED_SHIP_NORMAL","turns":[{"acts":[["p","S",0],["p","S",0],["p","S",0],["e"]],"times":["3:46","3:47","3:48","3:49"]},{"acts":[["p","N",0],["p","DS",null],["p","SV"],["c","AB"],["p","HD"],["p","SH",0],["p","SH",0],["e"]],"times":["3:52","3:54","3:56","3:57","3:57","3:58","3:59","3:59"]},{"acts":[["p","DA",0],["p","D",null],["e"]],"times":["4:07","4:12","4:13"]},{"acts":[["p","N",0],["p","S",0],["p","S",0],["p","D",null],["e"]],"times":["4:16","4:18","4:19","4:20","4:21"]},{"acts":[["p","D",null],["p","HD"],["c","DAZED","AB"],["p","SH",0],["p","SH",0],["e"]],"times":["4:27","4:28","4:29","4:30","4:30","4:31"]},{"acts":[["p","S",0]],"times":["4:34"]}]}}
+{"floor":6,"screen":"REWARDS","t":"4:36","pick":["Gold","potion"]}
+{"floor":6,"screen":"REWARDS","t":"4:37","pick":"card"}
+{"floor":6,"screen":"CARD_REWARD","t":"4:45","pick":"Snakebite"}
+{"floor":7,"screen":"MAP","pick":"r6c6"}
+{"floor":7,"screen":"TREASURE","t":"4:51","pick":"take"}
+{"floor":8,"screen":"MAP","t":"4:56","pick":"r7c6"}
+{"floor":8,"screen":"RESTSITE","t":"4:58","pick":"Smith"}
+{"floor":8,"screen":"SELECT","t":"5:01","pick":["Dagger Spray"]}
+{"floor":9,"screen":"MAP","t":"5:04","pick":"r8c6"}
+{"floor":9,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F09_TERROR_EEL_ELITE","encounter":"TERROR_EEL_ELITE","turns":[{"acts":[["pot",0,null,"DEXTERITY_POTION"],["p","N",0],["p","DA",0],["p","S",0],["e"]],"times":["5:20","5:21","5:22","5:24","5:25"]},{"acts":[["p","SB",0],["p","SV"],["c","S"],["e"]],"times":["5:36","5:37","5:38","5:39"]},{"acts":[["p","DS+",null],["p","S",0],["p","SV"],["c","S"],["p","HD"],["p","SH",0],["p","SH",0],["e"]],"times":["5:47","5:53","5:57","6:06","6:08","6:14","6:15","6:17"]},{"acts":[["p","N",0],["p","DA",0],["p","S@2",0],["e"]],"times":["6:25","6:26","6:27","6:28"]},{"acts":[["p","SB",0],["e"]],"times":["6:41","6:44"]},{"acts":[["pot",1,null,"CUNNING_POTION"],["p","SH+",0],["p","SH+",0],["p","SH+",0],["p","S",0],["p","S",0],["p","HD"],["p","SH",0],["p","SH",0]],"times":["6:58","6:59","7:00","7:01","7:02","7:03","7:04","7:05","7:06"]}]}}
+{"floor":9,"screen":"REWARDS","t":"7:07","pick":["Gold","relic"]}
+{"floor":9,"screen":"REWARDS","t":"7:08","pick":"card"}
+{"floor":9,"screen":"CARD_REWARD","t":"7:15","pick":"Strangle"}
+{"floor":10,"screen":"MAP","t":"7:17","pick":"r9c6"}
+{"floor":10,"screen":"TREASURE","t":"7:22","pick":"take"}
+{"floor":11,"screen":"MAP","t":"7:31","pick":"r10c5"}
+{"floor":11,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F11_GREMLIN_MERC_NORMAL","encounter":"GREMLIN_MERC_NORMAL","turns":[{"acts":[["p","D@0",null],["p","D",null],["p","D",null],["p","HD"],["c","S","D"],["p","SH",0],["e"]],"times":["7:39","7:40","7:41","7:42","7:42","7:44","7:47"]},{"acts":[["p","ST",0],["p","N",0],["p","DS+",null],["p","S",1],["e"]],"times":["7:52","7:54","7:55","8:10","8:11"]},{"acts":[["p","DA",1],["p","S",1],["e"]],"times":["8:14","8:16","8:17"]},{"acts":[["p","SH",0],["p","S",0],["p","S",0]],"times":["8:20","8:21","8:21"]}]}}
+{"floor":11,"screen":"REWARDS","t":"8:22","pick":["10 Gold","20 Gold","card"]}
+{"floor":11,"screen":"CARD_REWARD","t":"8:39","pick":"Noxious Fumes"}
+{"floor":12,"screen":"MAP","t":"8:41","pick":"r11c5"}
+{"floor":12,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F12_SKULKING_COLONY_ELITE","encounter":"SKULKING_COLONY_ELITE","turns":[{"acts":[["p","DA",0],["p","HD"],["c","S","S"],["p","SV"],["c","S"],["p","SH",0],["p","SH",0],["e"]],"times":["8:49","8:53","8:56","9:00","9:01","9:02","9:02","9:03"]},{"acts":[["p","N",0],["p","S",0],["p","S",0],["p","D",null],["e"]],"times":["9:06","9:08","9:09","9:10","9:11"]},{"acts":[["p","DS+",null],["p","D"],["p","D",null],["e"]],"times":["9:25","9:27","9:28","9:29"]},{"acts":[["p","N",0],["p","HD"],["c","D","S"],["p","SH",0],["p","S",0],["p","SH",0],["p","SB",0],["e"]],"times":["9:34","9:51","9:53","9:55","9:56","9:58","10:01","10:04"]}]}}
+{"floor":12,"screen":"REWARDS","t":"10:06","pick":["26 Gold","Lasting Candy"]}
+{"floor":12,"screen":"REWARDS","t":"10:18","pick":["Abrasive"]}
+{"floor":12,"screen":"CARD_REWARD","t":"10:31","pick":"Outbreak"}
+{"floor":12,"screen":"REWARDS","t":"10:32","pick":["card"]}
+{"floor":12,"screen":"CARD_REWARD","t":"10:36","pick":"Deflect"}
+{"floor":13,"screen":"MAP","t":"10:38","pick":"r12c5"}
+{"floor":13,"screen":"RESTSITE","t":"10:41","pick":"Rest"}
+{"floor":14,"screen":"MAP","t":"10:45","pick":"r13c4"}
+{"floor":14,"screen":"EVENT","t":"11:03","room":"Event","pick":"Observe"}
+{"floor":14,"screen":"SELECT","t":"11:05","pick":["Defend"]}
+{"floor":15,"screen":"MAP","t":"11:09","pick":"r14c4"}
+{"floor":15,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F15_PHANTASMAL_GARDENERS_ELITE","encounter":"PHANTASMAL_GARDENERS_ELITE","turns":[{"acts":[["p","DF",null],["p","D*",null],["p","SB",3],["p","HD"],["c","OB","D"],["p","SH",3],["p","SH",0],["e"]],"times":["11:16","11:43","11:47","11:49","11:50","11:52","11:54","11:55"]},{"acts":[["p","ST",3],["p","DA",3],["p","N",0],["e"]],"times":["12:29","12:31","12:42","12:44"]},{"acts":[["p","D",null],["p","D",null],["p","S",0],["e"]],"times":["12:50","12:52","13:04","13:06"]},{"acts":[["p","S",2],["p","DS+",null],["e"]],"times":["13:35","13:36","13:40"]},{"acts":[["p","S",0]],"times":["13:43"]}]}}
+{"floor":15,"screen":"REWARDS","t":"13:46","pick":["32 Gold","Energy Potion","Festive Popper"]}
+{"floor":15,"screen":"REWARDS","t":"13:57","pick":["Assassinate"]}
+{"floor":15,"screen":"CARD_REWARD","t":"14:04","pick":"Outbreak"}
+{"floor":15,"screen":"REWARDS","t":"14:05","pick":["proceed"]}
+{"floor":16,"screen":"MAP","t":"14:06","pick":"r15c4"}
+{"floor":16,"screen":"RESTSITE","t":"14:08","pick":"Smith"}
+{"floor":16,"screen":"SELECT","t":"14:29","pick":["Snakebite"]}
+{"floor":17,"screen":"MAP","t":"14:31","pick":{"room":"Boss"}}
+{"floor":17,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS","encounter":"LAGAVULIN_MATRIARCH_BOSS","turns":[{"acts":[["p","NF"],["p","N",0],["e"]],"times":["14:40","14:41","14:43"]},{"acts":[["p","SB+",0],["p","S",0],["e"]],"times":["14:52","14:54","14:55"]},{"acts":[["p","OB"],["p","HD"],["c","S","OB"],["p","SH",0],["p","SH",0],["e"]],"times":["15:03","15:05","15:06","15:07","15:09","15:10"]},{"acts":[["p","ST",0],["p","D*",null],["p","DF",null],["p","D",null],["e"]],"times":["15:18","15:19","15:20","15:21","15:22"]},{"acts":[["p","N",0],["p","SV"],["c","D"],["p","D"],["p","HD"],["p","SH",0],["p","SH",0],["e"]],"inferred":"inferred: rank 1 of 7 orderings, all reach the same turn-6 state; verified twice in the real game (31 HP; boss 98/14 block/poison 24)"},{"acts":[["p","OB",null],["e"]],"times":["15:39","15:40"]},{"acts":[["p","SB+",0],["e"]],"times":["15:45","15:48"]}]}}
+{"floor":17,"screen":"REWARDS","t":"15:52","pick":["75 Gold","Explosive Ampoule"]}
+{"floor":17,"screen":"REWARDS","t":"15:55","pick":["card"]}
+{"floor":17,"screen":"CARD_REWARD","t":"16:17","pick":"Burst"}
+{"floor":18,"act":1,"screen":"MAP","t":"16:22","pick":{"room":"Ancient"}}
+{"floor":18,"act":1,"screen":"EVENT","t":"16:38","room":"Ancient","pick":"Electric Shrymp"}
+{"floor":18,"act":1,"screen":"SELECT","t":"17:04","pick":["Outbreak"]}
+{"floor":19,"act":1,"screen":"MAP","t":"17:36","pick":{"room":"Monster"}}
+{"floor":19,"act":1,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F19_BOWLBUGS_WEAK","encounter":"BOWLBUGS_WEAK","turns":[{"acts":[["p","OB",null],["e"]],"times":["17:44","17:47"]}]}}
+{"floor":19,"act":1,"screen":"REWARDS","t":"17:49","pick":["Gold","card"]}
+{"floor":19,"act":1,"screen":"CARD_REWARD","t":"17:54","pick":"Anticipate+"}
+{"floor":19,"act":1,"screen":"REWARDS","t":"17:58","pick":{"discard_potion":1}}
+{"floor":19,"act":1,"screen":"REWARDS","t":"17:58","pick":["Power Potion"]}
+{"floor":20,"act":1,"screen":"MAP","t":"18:00","pick":{"room":"Shop"}}
+{"floor":20,"act":1,"screen":"SHOP","t":"18:28","pick":"Happy Flower"}
+{"floor":20,"act":1,"screen":"SHOP","t":"18:38","pick":"remove a card"}
+{"floor":20,"act":1,"screen":"SELECT","t":"18:40","pick":["Strike"]}
+{"floor":20,"act":1,"screen":"SHOP","t":"18:42","pick":"leave shop"}
+{"floor":21,"act":1,"screen":"MAP","t":"18:44","pick":{"room":"Monster"}}
+{"floor":21,"act":1,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F21_EXOSKELETONS_WEAK","encounter":"EXOSKELETONS_WEAK","turns":[{"acts":[["p","S",0],["p","S",0],["p","S",1],["e"]],"times":["18:49","18:50","18:51","18:52"]}]}}
+{"floor":21,"act":1,"screen":"REWARDS","t":"18:53","pick":["Gold","card"]}
+{"floor":21,"act":1,"screen":"CARD_REWARD","t":"18:57","pick":"Footwork"}
+{"floor":21,"act":1,"screen":"REWARDS","t":"19:10","pick":{"discard_potion":1}}
+{"floor":21,"act":1,"screen":"REWARDS","t":"19:10","pick":["Block Potion"]}
+{"floor":22,"act":1,"screen":"MAP","t":"19:12","pick":{"room":"Monster"}}
+{"floor":22,"act":1,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F22_HUNTER_KILLER_NORMAL","encounter":"HUNTER_KILLER_NORMAL","turns":[{"acts":[["p","OB",null],["p","HD"],["c","S","S"],["p","SH",0],["p","SH",0],["e"]],"times":["19:22","19:23","19:24","19:26","19:27","19:28"]},{"acts":[["p","DA",0],["p","SB+",0],["pot",1,null,"BLOCK_POTION"],["e"]],"times":["19:34","19:36","19:39","19:41"]},{"acts":[["p","DS+",null],["p","S",0],["e"]],"times":["19:44","19:46","19:48"]}]}}
+{"floor":22,"act":1,"screen":"REWARDS","t":"19:49","pick":["Gold","Liquid Bronze","card"]}
+{"floor":22,"act":1,"screen":"CARD_REWARD","t":"19:59","pick":null}
+{"floor":22,"act":1,"screen":"REWARDS","t":"20:00","pick":["proceed"]}
+{"floor":23,"act":1,"screen":"MAP","t":"20:12","pick":{"room":"Unknown"}}
+{"floor":23,"act":1,"screen":"EVENT","t":"20:16","room":"Event","pick":"Rejection"}
+{"floor":23,"act":1,"screen":"SELECT","t":"20:19","pick":["Outbreak"]}
+{"floor":24,"act":1,"screen":"MAP","t":"20:22","pick":{"room":"RestSite"}}
+{"floor":24,"act":1,"screen":"RESTSITE","t":"20:23","pick":"Smith"}
+{"floor":24,"act":1,"screen":"SELECT","t":"20:27","pick":["Outbreak"]}
+{"floor":25,"act":1,"screen":"MAP","t":"20:32","pick":{"room":"Elite"}}
+{"floor":25,"act":1,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F25_ENTOMANCER_ELITE","encounter":"ENTOMANCER_ELITE","turns":[{"acts":[["p","N",0],["p","DA",0],["pot",1,null,"LIQUID_BRONZE"],["p","D",null],["p","DF",null],["e"]],"times":["20:40","20:42","20:48","20:49","20:50","20:51"]},{"acts":[["p","FOOTWORK"],["p","ST",0],["p","S",0],["p","HD",null],["p","SH",0],["p","SH",0],["e"]],"times":["21:02","21:04","21:06","21:07","21:09","21:10","21:11"]},{"acts":[["p","SB+",0],["p","S",0],["e"]],"times":["21:16","21:18","21:19"]},{"acts":[["e"]],"times":["21:23"]}]}}
+{"floor":25,"act":1,"screen":"REWARDS","t":"21:24","pick":["Gold","Vajra"]}
+{"floor":25,"act":1,"screen":"REWARDS","t":"21:30","pick":["Bullet Time"]}
+{"floor":25,"act":1,"screen":"CARD_REWARD","t":"21:36","pick":"Bullet Time"}
+{"floor":25,"act":1,"screen":"REWARDS","t":"21:38","pick":["card"]}
+{"floor":25,"act":1,"screen":"CARD_REWARD","t":"21:39","pick":"Backflip"}
+{"floor":26,"act":1,"screen":"MAP","t":"21:46","pick":{"room":"Treasure"}}
+{"floor":26,"act":1,"screen":"TREASURE","t":"21:47","pick":"take"}
+{"floor":27,"act":1,"screen":"MAP","t":"22:02","pick":{"room":"Elite"}}
+{"floor":27,"act":1,"screen":"COMBAT","t":"22:05","fight":{"id":"hMrQSndDvPc_F27_INFESTED_PRISMS_ELITE","encounter":"INFESTED_PRISMS_ELITE","turns":[{"acts":[["p","OB+",null],["pot",0,null,"ENERGY_POTION"],["p","ANTICIPATE+"],["p","D",null],["p","D",null],["p","NF"],["e"]],"times":["22:16","22:35","22:36","22:37","22:38","22:38","22:40"]},{"acts":[["p","DA",0],["p","HD"],["c","S","D"],["p","SH",0],["p","SH",0],["p","DS+",null],["p","DF"],["e"]],"times":["23:28","23:30","23:33","23:35","23:35","23:36","23:40","23:41"]},{"acts":[["p","ST",0],["p","S",0],["p","S",0],["e"]],"times":["23:46","23:47","23:48","23:49"]}]}}
+{"floor":27,"act":1,"screen":"REWARDS","t":"23:51","pick":["Gold","relic"]}
+{"floor":27,"act":1,"screen":"REWARDS","t":"23:57","pick":["Cloak and Dagger"]}
+{"floor":27,"act":1,"screen":"CARD_REWARD","t":"23:58","pick":null}
+{"floor":27,"act":1,"screen":"REWARDS","t":"24:04","pick":["Corrosive Wave"]}
+{"floor":27,"act":1,"screen":"CARD_REWARD","t":"24:06","pick":"Outbreak"}
+{"floor":27,"act":1,"screen":"REWARDS","t":"24:22","pick":["proceed"]}
+{"floor":28,"act":1,"screen":"MAP","t":"24:23","pick":{"room":"Unknown","row":10}}
+{"floor":28,"act":1,"screen":"EVENT","t":"24:26","pick":"Study"}
+{"floor":29,"act":1,"screen":"MAP","t":"24:29","pick":{"room":"RestSite","row":11}}
+{"floor":29,"act":1,"screen":"RESTSITE","t":"24:32","pick":"Rest"}
+{"floor":30,"act":1,"screen":"MAP","t":"24:35","pick":{"room":"Elite","row":12}}
+{"floor":30,"act":1,"screen":"COMBAT","t":"24:38","fight":{"id":"hMrQSndDvPc_F30_DECIMILLIPEDE_ELITE","encounter":"DECIMILLIPEDE_ELITE","turns":[{"acts":[["p","ST",1],["p","BT",null],["p","FOOTWORK",null],["p","INFINITE_BLADES",null],["p","D",null],["p","SB+",0],["p","S",0],["e"]],"times":["24:49","24:50","24:51","24:52","24:53","24:55","24:56","24:57"]},{"acts":[["p","SH",2],["p","S",2]],"times":["25:03","25:04"]}]}}
+{"floor":30,"act":1,"screen":"REWARDS","t":"25:06","pick":["Gold","potion","relic"]}
+{"floor":30,"act":1,"screen":"REWARDS","t":"25:09","pick":["Bouncing Flask"]}
+{"floor":30,"act":1,"screen":"CARD_REWARD","t":"25:39","pick":"Accelerant"}
+{"floor":30,"act":1,"screen":"REWARDS","t":"25:48","pick":["Tracking"]}
+{"floor":30,"act":1,"screen":"CARD_REWARD","t":"25:50","pick":null}
+{"floor":30,"act":1,"screen":"REWARDS","t":"25:51","pick":["proceed"]}
+{"floor":31,"act":1,"screen":"MAP","t":"25:52","pick":{"room":"Unknown","row":13}}
+{"floor":31,"act":1,"screen":"COMBAT","t":"25:53","room":"Unknown","fight":{"id":"hMrQSndDvPc_F31_OVICOPTER_NORMAL","encounter":"OVICOPTER_NORMAL","turns":[{"acts":[["p","BT"],["p","ST",0],["p","S",0],["p","DS+",null],["p","N",0],["p","D",null],["p","SV",null],["e"]],"times":["26:01","26:02","26:03","26:04","26:05","26:06","26:06","26:08"]},{"acts":[["p","BACKFLIP",null],["p","S",3],["e"]],"times":["26:15","26:16","26:17"]}]}}
+{"floor":31,"act":1,"screen":"REWARDS","t":"26:19","pick":["Gold"]}
+{"floor":31,"act":1,"screen":"REWARDS","t":"26:20","pick":["card"]}
+{"floor":31,"act":1,"screen":"CARD_REWARD","t":"26:31","pick":null}
+{"floor":31,"act":1,"screen":"REWARDS","t":"26:32","pick":["proceed"]}
+{"floor":32,"act":1,"screen":"MAP","t":"26:33","pick":{"room":"RestSite","row":14}}
+{"floor":32,"act":1,"screen":"RESTSITE","t":"26:35","pick":"Smith"}
+{"floor":32,"act":1,"screen":"SELECT","t":"26:38","pick":["Accelerant"]}
+{"floor":33,"act":1,"screen":"MAP","t":"26:41","pick":{"room":"Boss"}}
+{"floor":33,"act":1,"screen":"COMBAT","t":"26:44","fight":{"id":"hMrQSndDvPc_F33_KAISER_CRAB_BOSS","encounter":"KAISER_CRAB_BOSS","turns":[{"acts":[["p","N",0],["p","OB+",null],["p","HD"],["c","INFINITE_BLADES","D"],["p","SH",0],["p","SH",0],["e"]],"times":["26:48","26:54","26:55","26:56","26:58","26:59","27:00"]},{"acts":[["p","ACCELERANT+"],["p","S",1],["p","D",null],["e"]],"times":["27:07","27:15","27:17","27:18"]},{"acts":[["p","SB+",0],["e"]],"times":["27:27","27:29"]},{"acts":[["p","S",0],["p","BACKFLIP",null],["p","S",0],["e"]],"times":["27:39","27:39","27:40","27:41"]}]}}
+{"floor":33,"act":1,"screen":"REWARDS","t":"27:47","pick":["Gold"]}
+{"floor":33,"act":1,"screen":"REWARDS","t":"27:49","pick":["card"]}
+{"floor":33,"act":1,"screen":"CARD_REWARD","t":"28:04","pick":"Afterimage"}
+{"floor":34,"act":2,"screen":"EVENT","t":"28:53","room":"Ancient","pick":"Glitter"}
+{"floor":35,"act":2,"screen":"MAP","t":"29:07","pick":{"room":"Monster","row":1}}
+{"floor":35,"act":2,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F35_DEVOTED_SCULPTOR_WEAK","encounter":"DEVOTED_SCULPTOR_WEAK","turns":[{"acts":[["p","BULLET_TIME"],["p","ACCELERANT+"],["p","BURST"],["p","OB",null],["e"]],"times":["29:12","29:14","29:16","29:17","29:20"]}]}}
+{"floor":35,"act":2,"screen":"REWARDS","t":"29:23","pick":["Gold","potion"]}
+{"floor":35,"act":2,"screen":"REWARDS","t":"29:24","pick":"card"}
+{"floor":35,"act":2,"screen":"CARD_REWARD","t":"29:39","pick":"Escape Plan+"}
+{"floor":36,"act":2,"screen":"MAP","t":"29:43","pick":{"room":"Monster"}}
+{"floor":36,"act":2,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F36_TURRET_OPERATOR_WEAK","encounter":"TURRET_OPERATOR_WEAK","turns":[{"acts":[["p","ESCAPE_PLAN+",null],["p","BACKFLIP",null],["p","DA",0],["p","N",0],["p","NF"],["e"]],"times":["29:48","29:50","29:53","29:56","29:57","29:58"]},{"acts":[["p","OB"]],"times":["30:04"]}]}}
+{"floor":36,"act":2,"screen":"REWARDS","t":"30:06","pick":["Gold"]}
+{"floor":36,"act":2,"screen":"REWARDS","t":"30:06","pick":"card"}
+{"floor":36,"act":2,"screen":"CARD_REWARD","t":"30:20","pick":null}
+{"floor":37,"act":2,"screen":"MAP","t":"30:22","pick":{"room":"Unknown"}}
+{"floor":37,"act":2,"screen":"EVENT","t":"30:30","room":"Event","pick":"Overcome"}
+{"floor":38,"act":2,"screen":"MAP","t":"30:36","pick":{"room":"Monster"}}
+{"floor":38,"act":2,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F38_OWL_MAGISTRATE_NORMAL","encounter":"OWL_MAGISTRATE_NORMAL","turns":[{"acts":[["p","ESCAPE_PLAN+",null],["p","AFTERIMAGE"],["p","DA",0],["p","HD"],["c","S","S"],["p","SH",0],["p","SH",0],["e"]],"times":["30:41","30:48","30:49","30:50","30:51","30:52","30:52","30:53"]},{"acts":[["p","ST",0],["p","N",0],["p","D",null],["p","DF",null],["p","D",null],["e"]],"times":["30:57","31:00","31:00","31:01","31:02","31:03"]},{"acts":[["pot",1,null,"SWIFT_POTION"],["p","OB",null],["e"]],"times":["31:23","31:35","31:37"]},{"acts":[["p","BULLET_TIME"],["p","D",null],["p","ACCELERANT+"],["p","D",null],["p","SB+",0],["pot",0,null,"BLOCK_POTION"],["e"]],"times":["31:43","31:44","31:47","31:47","31:48","31:50","31:51"]},{"acts":[["p","DS+",null],["p","N",0],["e"]],"times":["31:57","31:59","32:00"]}]}}
+{"floor":38,"act":2,"screen":"REWARDS","t":"32:02","pick":["Gold"]}
+{"floor":38,"act":2,"screen":"REWARDS","t":"32:02","pick":"card"}
+{"floor":38,"act":2,"screen":"CARD_REWARD","t":"32:08","pick":null}
+{"floor":39,"act":2,"screen":"MAP","t":"32:11","pick":{"room":"Monster"}}
+{"floor":39,"act":2,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F39_CONSTRUCT_MENAGERIE_NORMAL","encounter":"CONSTRUCT_MENAGERIE_NORMAL","turns":[{"acts":[["p","ANTICIPATE+"],["p","OB",null],["e"]],"times":["32:18","32:20","32:22"]},{"acts":[["p","ESCAPE_PLAN+",null],["p","BULLET_TIME"],["p","OB+",null],["p","D*",null],["p","BACKFLIP",null],["p","SV",null],["e"]],"times":["32:31","32:34","32:35","32:37","32:37","32:38","32:39"]}]}}
+{"floor":39,"act":2,"screen":"REWARDS","t":"32:45","pick":["Gold"]}
+{"floor":39,"act":2,"screen":"REWARDS","t":"32:45","pick":"card"}
+{"floor":39,"act":2,"screen":"CARD_REWARD","t":"33:03","pick":"Dash+"}
+{"floor":40,"act":2,"screen":"MAP","t":"33:05","pick":{"room":"RestSite"}}
+{"floor":40,"act":2,"screen":"RESTSITE","t":"33:12","pick":"Smith"}
+{"floor":40,"act":2,"screen":"SELECT","t":"33:16","pick":["Bullet Time"]}
+{"floor":41,"act":2,"screen":"MAP","t":"33:19","pick":{"room":"Treasure","row":7}}
+{"floor":41,"act":2,"screen":"TREASURE","t":"33:22","pick":"take"}
+{"floor":42,"act":2,"screen":"MAP","t":"33:25","pick":{"room":"Elite","row":8}}
+{"floor":42,"act":2,"screen":"COMBAT","fight":{"id":"hMrQSndDvPc_F42_SOUL_NEXUS_ELITE","encounter":"SOUL_NEXUS_ELITE","turns":[{"acts":[["p","BURST"],["p","BACKFLIP",null],["p","AFTERIMAGE"],["p","D*",null],["e"]],"times":["33:55","33:55","34:00","34:01","34:02"]},{"acts":[["p","ESCAPE_PLAN+",null],["p","N",0],["p","DF",null],["p","ACCELERANT+",null],["p","DA",0],["e"]],"times":["34:07","34:10","34:12","34:14","34:18","34:20"]},{"acts":[["p","ANTICIPATE+"],["p","DA+",0],["p","DS+",null],["e"]],"times":["34:17","34:24","34:27","34:30"]},{"acts":[["p","BULLET_TIME+"],["p","SB+",0],["p","FOOTWORK"],["p","S",0],["p","HD"],["p","SH",0],["p","SH",0],["e"]],"times":["34:39","34:40","34:41","34:42","34:43","34:44","34:45","34:46"]},{"acts":[["p","OB"]],"times":["34:51"]}]}}
+{"floor":42,"act":2,"screen":"REWARDS","t":"35:04","pick":["Gold","potion"]}
+{"floor":42,"act":2,"screen":"REWARDS","t":"35:05","pick":"Escape Plan"}
+{"floor":42,"act":2,"screen":"CARD_REWARD","t":"35:10","pick":"Escape Plan"}
+{"floor":42,"act":2,"screen":"REWARDS","t":"35:11","pick":"card"}
+{"floor":42,"act":2,"screen":"CARD_REWARD","t":"35:37","pick":"Serpent Form"}
+{"floor":42,"act":2,"screen":"REWARDS","t":"35:40","pick":["relic"]}
+{"floor":43,"act":2,"screen":"MAP","t":"35:43","pick":{"room":"Shop","row":9}}
+{"floor":43,"act":2,"screen":"SHOP","t":"35:52","pick":"Lantern"}
+{"floor":43,"act":2,"screen":"SHOP","t":"36:07","pick":"leave shop"}
+{"floor":44,"act":2,"screen":"MAP","t":"36:09","pick":{"room":"RestSite"}}
+{"floor":44,"act":2,"screen":"RESTSITE","t":"36:11","pick":"Rest"}
+{"floor":45,"act":2,"screen":"MAP","t":"36:14","pick":{"room":"Elite"}}
+{"floor":45,"act":2,"screen":"COMBAT","t":"36:15","fight":{"id":"hMrQSndDvPc_F45_MECHA_KNIGHT_ELITE","encounter":"MECHA_KNIGHT_ELITE","turns":[{"acts":[["p","AFTERIMAGE"],["p","ESCAPE_PLAN+",null],["p","BACKFLIP",null],["p","DF",null],["p","D",null],["p","NF",null],["e"]],"times":["36:19","36:20","36:23","36:25","36:27","36:28","36:30"]},{"acts":[["p","BT+",null],["p","SERPENT_FORM",null],["p","ST",0],["p","SB+",0],["p","DS+",null],["p","DA+",0],["p","S",0],["p","HD"],["p","SH",0],["p","SH",0],["e"]],"times":["36:38","36:40","36:43","36:44","36:46","36:48","36:50","36:51","36:52","36:53","36:54"]},{"acts":[["p","N+",0],["p","S",0],["p","S",0],["p","D",null],["e"]],"times":["37:02","37:16","37:18","37:19","37:21"]},{"acts":[["p","ANTICIPATE+"],["p","FOOTWORK"],["p","D*",null],["p","ACCELERANT+",null],["e"]],"times":["37:26","37:27","37:29","37:33","37:34"]}]}}
+{"floor":45,"act":2,"screen":"REWARDS","t":"37:36","pick":["Gold","potion","relic"]}
+{"floor":45,"act":2,"screen":"REWARDS","t":"37:44","pick":["Well-Laid Plans"]}
+{"floor":45,"act":2,"screen":"CARD_REWARD","t":"37:57","pick":"Well-Laid Plans"}
+{"floor":45,"act":2,"screen":"REWARDS","t":"37:58","pick":["card"]}
+{"floor":45,"act":2,"screen":"CARD_REWARD","t":"37:59","pick":"Anticipate+"}
+{"floor":46,"act":2,"screen":"MAP","t":"38:01","pick":{"room":"Shop"}}
+{"floor":46,"act":2,"screen":"SHOP","t":"38:12","pick":"Calculated Gamble"}
+{"floor":46,"act":2,"screen":"SHOP","t":"38:35","pick":{"discard_potion":1}}
+{"floor":46,"act":2,"screen":"SHOP","t":"38:36","pick":"Lucky Tonic"}
+{"floor":46,"act":2,"screen":"SHOP","t":"38:37","pick":"leave shop"}
+{"floor":47,"act":2,"screen":"MAP","t":"38:38","pick":{"room":"RestSite"}}
+{"floor":47,"act":2,"screen":"RESTSITE","t":"38:39","pick":"Smith"}
+{"floor":47,"act":2,"screen":"SELECT","t":"38:41","pick":["Serpent Form"]}
+{"floor":48,"act":2,"screen":"MAP","t":"38:45","pick":{"room":"Boss"}}
+{"floor":48,"act":2,"screen":"COMBAT","t":"38:46","fight":{"id":"hMrQSndDvPc_F48_TEST_SUBJECT_BOSS","encounter":"TEST_SUBJECT_BOSS","turns":[{"acts":[["p","BT+"],["p","OB+",null],["p","ANTICIPATE+"],["p","D",null],["p","D",null],["p","D",null],["p","S",0],["e"]],"times":["39:06","39:08","39:09","39:10","39:11","39:12","39:18","39:20"]},{"acts":[["p","AFTERIMAGE"],["p","FOOTWORK"],["p","ACCELERANT+"],["e"]],"times":["39:36","39:38","39:39","39:44"]},{"acts":[["p","N+",0],["p","DA",0],["p","D*",null],["e"]],"times":["39:52","39:53","39:57","40:00"]},{"acts":[["p","SERPENT_FORM+"],["p","ESCAPE_PLAN+",null],["p","ESCAPE_PLAN",null],["p","D",null],["e"]],"times":["40:05","40:09","40:12","40:20","40:27"]},{"acts":[["p","DF",null],["pot",0,null,"POWER_POTION"],["c","FAN_OF_KNIVES"],["p","FAN_OF_KNIVES",null],["p","SH",null],["p","SH",null],["p","SH",null],["p","SH",null],["p","BACKFLIP",null],["p","WELL_LAID_PLANS"],["e"]],"times":["40:38","42:43","42:53","42:54","42:56","42:56","42:57","42:57","42:59","43:01","43:03"]},{"acts":[["p","ESCAPE_PLAN+",null],["p","S",0],["p","S",0],["p","HD"],["c","CALCULATED_GAMBLE","ANTICIPATE+"],["p","SH",null],["p","SH",null],["e"]],"times":["43:11","44:13","44:16","44:16","44:17","44:18","44:19","44:21"]},{"acts":[["p","BT+",null],["p","NF"],["p","SB+",0],["p","OB+*"],["p","OB",null],["p","ANTICIPATE+*"],["p","D"],["p","D"],["p","D",null],["e"]],"times":["44:26","44:32","44:34","44:35","44:36","44:40","44:41","44:42","44:43","44:44"]}]}}
+{"floor":49,"act":2,"screen":"MAP","t":"44:49","pick":{"room":"Boss"}}
+{"floor":49,"act":2,"screen":"COMBAT","t":"44:51","fight":{"id":"hMrQSndDvPc_F49_QUEEN_BOSS","encounter":"QUEEN_BOSS","turns":[{"acts":[["p","BACKFLIP",null],["p","BT+"],["p","SERPENT_FORM+",null],["p","NF",null],["p","ANTICIPATE+",null],["p","D*",null],["p","N+",0],["p","SB+",1],["p","HD",null],["p","SH",1],["p","SH",1],["e"]],"times":["44:58","45:04","45:06","45:07","45:10","45:11","45:13","45:18","45:19","45:21","45:22","45:24"]},{"acts":[["p","FOOTWORK",null],["p","DA+",1],["e"]],"times":["45:40","45:42","45:46"]},{"acts":[["p","AFTERIMAGE",null],["p","ESCAPE_PLAN",null],["p","CALCULATED_GAMBLE",null],["p","ANTICIPATE+*",null],["p","ESCAPE_PLAN+",null],["p","ST",0],["p","WELL_LAID_PLANS",null],["e"]],"times":["45:53","45:55","45:58","46:00","46:02","46:08","46:10","46:16"]},{"acts":[["p","DA",0],["p","D",null],["e"]],"times":["46:24","46:27","46:29"]},{"acts":[["p","OB+*",null],["e"]],"times":["46:47","46:49"]}]}}

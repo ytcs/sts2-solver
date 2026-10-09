@@ -1,15 +1,17 @@
 import importlib.util
 import json
 import os
+import shutil
 
 from support import ROOT
 
 from agent import reenact as RE
 
-REC = os.path.join(ROOT, "data", "expert", "baalorlord", "hMrQSndDvPc.json")
+FIX = os.path.join(ROOT, "tests", "agent", "fixtures", "expert")
+REC = os.path.join(FIX, "hMrQSndDvPc.compact.jsonl")
 TARGETED = {"STRIKE_SILENT", "NEUTRALIZE", "DASH", "SNAKEBITE", "SHIV", "STRANGLE"}
 HEAD = "A1 F9 SILENT A10 HP 35/70 G79 pots[Dexterity Potion, Cunning Potion]"
-NACTS = 473
+NACTS = 37
 
 
 def _expert():
@@ -145,7 +147,18 @@ def test_map_paths():
     assert RE.consistent_from(nodes, {2: "Monster", 3: "Elite"}, 1, 0) and not RE.consistent_from(nodes, {2: "Monster", 3: "Elite"}, 1, 2)
 
 
-def test_pilot_record_translates_to_bridge_actions():
+def _fixture_dir(tmp_path):
+    shutil.copytree(os.path.join(FIX, "replay"), tmp_path / "replay")
+    return str(tmp_path)
+
+
+def _write(rec, path):
+    path.write_text("".join(json.dumps(x) + "\n" for x in [{k: v for k, v in rec.items() if k != "steps"}] + rec["steps"]), encoding="utf-8")
+    return str(path)
+
+
+def test_pilot_record_translates_to_bridge_actions(monkeypatch):
+    monkeypatch.setattr(RE, "creator_dir", lambda rec: FIX)
     rec = RE.load(REC)
     assert RE.build_ok(rec)
     flat = RE.flatten(rec)
@@ -158,14 +171,6 @@ def test_pilot_record_translates_to_bridge_actions():
         assert len(acts) == len(log), fid
         for a, want in zip(acts, log):
             st = states[a["i"]]
-            offer = a["kind"] == "choose" and a["i"] and log[a["i"] - 1].get("use_potion") and not any(
-                c["id"] == a["cards"][0][0] for c in st["hand"])
-            if offer:
-                opts = [{"id": "FOOTWORK", "upgrade": 0}, {"id": "AFTERIMAGE", "upgrade": 0}, {"id": a["cards"][0][0], "upgrade": a["cards"][0][1]}]
-                cmd, err = RE.combat_command(a, st, select_screen(opts, 1).replace("Choose a card to discard.", "Choose a card."))
-                assert err is None and RE.to_bridge(a, cmd) == {"choose": [2]}, (fid, a["i"], err, cmd)
-                n += 1
-                continue
             if a["kind"] == "choose":
                 scr = select_screen(st["hand"], len(a["cards"]))
             else:
@@ -195,7 +200,7 @@ def test_record_validates():
     rec["steps"].insert(3, {"floor": 2, "screen": "COMBAT", "gap": "test gap"})
     errs, warns = ex.check_record(rec)
     assert errs == [] and any("gap" in w and "step 3" in w for w in warns), warns
-    bad = json.loads(open(REC, encoding="utf-8").read())
+    bad = RE.load(REC)
     bad["seed"] = "YMY1KELG18SO"
     bad["steps"][1]["pick"] = "somewhere"
     errs, _ = ex.check_record(bad)
@@ -246,9 +251,7 @@ def _unread_map(tmp_path):
     rec = RE.load(REC)
     assert rec["steps"][1]["screen"] == "MAP" and rec["steps"][2]["fight"]["encounter"] == "SLUDGE_SPINNER_WEAK"
     rec["steps"][1]["pick"] = {}
-    p = tmp_path / "unread_map.json"
-    p.write_text(json.dumps(rec), encoding="utf-8")
-    return rec, str(p)
+    return rec, _write(rec, tmp_path / "unread_map.jsonl")
 
 
 def test_seedcheck_flow_then_replay_refuses_guessed_run(monkeypatch, tmp_path):
@@ -277,9 +280,7 @@ def test_replay_stops_on_ambiguous_map_and_at_gaps(monkeypatch, tmp_path):
     assert h.sent == ["a 0 silent 10 YMY1KELG18SC", "a 2"]
     rec["steps"][1]["pick"] = "r1c3"
     rec["steps"][2] = {"floor": 2, "screen": "COMBAT", "encounter": "SLUDGE_SPINNER_WEAK", "gap": "test gap"}
-    p = tmp_path / "rec.json"
-    p.write_text(json.dumps(rec), encoding="utf-8")
-    out = RE.Reenactor(h, str(p)).run()
+    out = RE.Reenactor(h, _write(rec, tmp_path / "rec.jsonl")).run()
     assert h.sent[-1] == "a 1" and "STOP at step 2, floor 2: record gap" in out
 
 
@@ -290,12 +291,12 @@ class FightGame(FakeHarness):
 
     def _view(self):
         st = self.built["fight"]["states"][self.i]
-        return self.screen_of(self.acts[self.i], st, self.built["scenario"]).replace("COMBAT\n", "COMBAT\nA1 F17 SILENT A10 HP 53/70 G0 pots[Energy Potion, -]\n", 1)
+        return self.screen_of(self.acts[self.i], st, self.built["scenario"]).replace("COMBAT\n", "COMBAT\nA1 F2 SILENT A10 HP 56/70 G0 pots[-, -]\n", 1)
 
     def _send(self, cmd):
         self.sent.append(cmd)
         self.i = 0 if self.i is None else self.i + 1
-        self.screen = self._view() if self.i < len(self.acts) else "REWARDS\nA1 F17 SILENT A10 HP 32/70 G0 pots[-, -]\n0 proceed (skip the rest)\n"
+        self.screen = self._view() if self.i < len(self.acts) else "REWARDS\nA1 F2 SILENT A10 HP 56/70 G0 pots[-, -]\n0 proceed (skip the rest)\n"
         return self.screen
 
     def sync(self):
@@ -309,22 +310,20 @@ class FightGame(FakeHarness):
 
 
 def test_replay_drives_a_recorded_fight(monkeypatch, tmp_path):
+    monkeypatch.setattr(RE, "creator_dir", lambda r: _fixture_dir(tmp_path) if not (tmp_path / "replay").exists() else str(tmp_path))
     rec = RE.load(REC)
-    k = next(i for i, st in enumerate(rec["steps"]) if st.get("fight", {}).get("id", "").endswith("LAGAVULIN_MATRIARCH_BOSS"))
-    assert rec["steps"][k + 1]["fight"]["id"].endswith("LAGAVULIN_MATRIARCH_BOSS_b")
+    k = next(i for i, st in enumerate(rec["steps"]) if st.get("fight", {}).get("id", "").endswith("F02_SLUDGE_SPINNER_WEAK"))
     rec["steps"] = rec["steps"][k:k + 1]
-    p = tmp_path / "rec.json"
-    p.write_text(json.dumps(rec), encoding="utf-8")
+    p = _write(rec, tmp_path / "rec.jsonl")
     built = RE.built_record(rec, rec["steps"][0]["fight"]["id"])
     acts = [a for a in RE.flatten(rec) if a.get("fight")]
     h = FightGame(built, acts, _expert().recorded_screen)
-    monkeypatch.setattr(RE, "creator_dir", lambda r: str(tmp_path))
     monkeypatch.setattr(RE, "call", lambda cmd: "null" if cmd in ("deck.json", "fight", "m") else h.screen)
-    out = RE.Reenactor(h, str(p)).run()
-    assert "opening of hMrQSndDvPc_F17_LAGAVULIN_MATRIARCH_BOSS (floor 17): matches the record" in out, out
+    out = RE.Reenactor(h, p).run()
+    assert "opening of hMrQSndDvPc_F02_SLUDGE_SPINNER_WEAK (floor 2): matches the record" in out, out
     assert "record replayed to its end" in out and h.ended, out
     assert len(h.sent) == 1 + len(acts)
-    assert [RE.to_bridge(a, c)["play"]["hand_pos"] for a, c in zip(acts, h.sent[1:]) if a["kind"] == "play"][:2] == [4, 2]
+    assert [RE.to_bridge(a, c)["play"]["hand_pos"] for a, c in zip(acts, h.sent[1:]) if a["kind"] == "play"][:3] == [1, 1, 0]
     saved = RE.load(str(tmp_path / "replay" / "hMrQSndDvPc" / (acts[0]["fight"] + ".json")))
     assert saved["source"] == "replay" and saved["scenario"]["run_seed"] == "YMY1KELG18SC"
 
@@ -332,10 +331,8 @@ def test_replay_drives_a_recorded_fight(monkeypatch, tmp_path):
 def test_replay_refuses_other_builds(monkeypatch, tmp_path):
     rec = RE.load(REC)
     rec["build"] = "v0.112.0 (2026.09.01)"
-    p = tmp_path / "rec.json"
-    p.write_text(json.dumps(rec), encoding="utf-8")
     monkeypatch.setattr(RE, "creator_dir", lambda rec: str(tmp_path))
-    assert RE.Reenactor(FakeHarness(), str(p)).run().startswith("REFUSED: record build")
+    assert RE.Reenactor(FakeHarness(), _write(rec, tmp_path / "rec.jsonl")).run().startswith("REFUSED: record build")
 
 
 def test_verdict_rule_reproduces_pilot_calls():

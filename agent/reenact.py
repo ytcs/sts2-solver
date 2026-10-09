@@ -17,7 +17,10 @@ SCREEN_ROOM = dict(EVENT="Event", RESTSITE="RestSite", SHOP="Shop", TREASURE="Tr
 
 def load(path):
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        if not path.endswith(".jsonl"):
+            return json.load(f)
+        lines = [json.loads(x) for x in f if x.strip()]
+    return dict(lines[0], steps=lines[1:])
 
 
 def build_ok(rec):
@@ -67,7 +70,7 @@ def room_of(step):
 
 
 def fight_actions(spec, aliases, built=None):
-    pots = {p.get("slot", i): p["id"] for i, p in enumerate(spec["scenario"].get("potions", []))}
+    pots = {p.get("slot", i): p["id"] for i, p in enumerate((spec.get("scenario") or {}).get("potions", []))}
     states = built["fight"].get("states") if built else None
     out, i = [], 0
     for ti, t in enumerate(spec["turns"]):
@@ -81,7 +84,7 @@ def fight_actions(spec, aliases, built=None):
             elif a[0] == "c":
                 act.update(kind="choose", cards=[list(token(x, aliases)[:2]) for x in a[1:]])
             elif a[0] == "pot":
-                act.update(kind="potion", slot=a[1], potion=pots.get(a[1]), target=a[2] if len(a) > 2 else None)
+                act.update(kind="potion", slot=a[1], potion=a[3] if len(a) > 3 else pots.get(a[1]), target=a[2] if len(a) > 2 else None)
             elif a[0] == "e":
                 act.update(kind="end")
             else:
@@ -96,8 +99,11 @@ def fight_actions(spec, aliases, built=None):
 
 
 def built_record(rec, spec_id):
-    p = os.path.join(creator_dir(rec), "fights", spec_id + ".json")
-    return load(p) if os.path.exists(p) else None
+    d = creator_dir(rec)
+    for p in (os.path.join(d, "replay", rec["video"]["id"], spec_id + ".json"), os.path.join(d, "fights", spec_id + ".json")):
+        if os.path.exists(p):
+            return load(p)
+    return None
 
 
 def flatten(rec, built=built_record):
@@ -343,7 +349,7 @@ def path_text(path, map_text):
 
 def opening_diff(spec, f):
     st, sc = f.get("state") or {}, f.get("scenario") or {}
-    obs = spec["turns"][0]["obs"] if spec.get("turns") else {}
+    obs = (spec["turns"][0].get("obs") or {}) if spec.get("turns") else {}
     out = []
     if spec.get("encounter") and sc.get("encounter") != spec["encounter"]:
         out.append(f"encounter {sc.get('encounter')} vs record {spec['encounter']}")

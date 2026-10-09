@@ -11,6 +11,10 @@ def _alive(enemies):
     return [e for e in enemies if e.get("alive", True)]
 
 
+def _foes(state):
+    return [(e["id"], e["hp"]) for e in _alive(state["enemies"])]
+
+
 def intents_of(state):
     out = []
     for e in _alive(state["enemies"]):
@@ -99,6 +103,20 @@ class Replayer:
         if self.sim.missing():
             self._note("missing content", self.sim.missing())
 
+
+    def _reroll(self, base, act, state):
+        # random targets/effects (Serpent Form, Juggernaut...): re-roll until the enemies match the game
+        for _k in range(64):
+            s = base.copy()
+            s.determinize(self.rng.randrange(1 << 62))
+            try:
+                s.apply(act)
+            except Exception:  # noqa: BLE001
+                continue
+            if _foes(json.loads(s.snapshot())) == _foes(state):
+                self.sim = s
+                self.stats["random_effect_rerolls"] += 1
+                return
 
     def _end_turn(self, state):
         act = '{"end_turn":true}'
@@ -229,11 +247,14 @@ class Replayer:
                     act = self._map_potion(act)
                     act = self._map_choose(act, states[i] if states else None)
                     self._played = self._card_at(act)
+                    base = self.sim.copy()
                     try:
                         self.sim.apply(act)
                     except Exception:  # noqa: BLE001
                         if not self._repair_target(act, state):
                             raise
+                    if state is not None and [i for i, _h in _foes(json.loads(self.sim.snapshot()))] != [i for i, _h in _foes(state)]:
+                        self._reroll(base, act, state)
             except Exception as e:  # noqa: BLE001
                 self.errors.append(f"{act}: {e}")
                 self._note("action failed", f"{act}: {e}")

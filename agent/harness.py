@@ -382,7 +382,7 @@ class Harness(Live):
         from agent.reenact import Reenactor
         a = Args(rest, valued=("--steps", "--until"), flags=("--custom",))
         if not a.pos:
-            return f"usage: {cmd} <record.json> [--steps N] [--until FLOOR] [--custom]\n"
+            return f"usage: {cmd} <record.compact.jsonl> [--steps N] [--until FLOOR] [--custom]\n"
         return Reenactor(self, os.path.abspath(a.pos[0]), custom=a.has("--custom")).run(a.get("--steps", None, int), a.get("--until", None, int), seedcheck=cmd == "seedcheck")
 
     def status(self):
