@@ -7,7 +7,8 @@ Never the real game: the bridge never falls back to it while OVERRIDE is set.
 Combat: the live player (`Harness.play`), a fixed number of search rounds per decision (--rounds, not seconds); potions only when the
 proposal rule fires (`potion use` the proposed one, one per commit). No fight-start predictions, no DRIVE thresholds. A DIFFERS line does
 not stop play (counted; a potion-belt DIFFERS, e.g. Entropic Brew's random potions, turns proposals off for that fight); a DESYNC
-re-syncs once, then ends the turn (run tagged `desync`); a combat selection the game rejects is answered by the macro SELECT rule.
+(or a search error, or combat_in_progress differing) rebuilds the replayer once per fight, then plays `fallback_action` (first playable
+card, else end turn; run tagged `fallback`); a combat selection the game rejects is answered by the macro SELECT rule.
 Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens (no price/reward/routes calls):
   map BasePolicy.node; card reward / card offers: predictor screen of each deck vs the act boss at max HP and a random elite at 70% (argmax
   of runmodel.worth, skip included); rest: rest below 50% HP else smith BasePolicy.smith order; shop: remove a card if affordable, then the
@@ -57,7 +58,7 @@ class BaselineHarness(Harness):
     def __init__(self, log, engine, rounds, seed):
         super().__init__(log=log)
         self.engine, self.rounds, self._seed = engine, rounds, zlib.crc32(seed.encode()) * 1000
-        self.stats = dict(decisions=0, decide_s=0.0, proposals_s=0.0, differs=0, desync=0, select_fallback=0)
+        self.stats = dict(decisions=0, decide_s=0.0, proposals_s=0.0, differs=0, desync=0, select_fallback=0, fallback_actions=0)
 
     def _decide(self, scenario, sim, budget, **kw):
         e = self.eng()
@@ -92,6 +93,8 @@ class BaselineHarness(Harness):
         if bad and "DIFFERS" in bad and not self.rp.errors:
             self.stats["differs"] += 1
             self.log.event("divergence", what=bad[:200])
+            if ".combat_in_progress" in bad:
+                return "SIMULATOR DESYNC (combat_in_progress): " + bad
             if ".potions" in bad:
                 self._belt_off = self.fight_id
             return None
@@ -106,6 +109,17 @@ def _tree(options):
             for sub in [e] + e.get("then", []) + e.get("else", []):
                 if "choice" in sub:
                     yield from _tree(sub["choice"])
+
+
+def fallback_action(s):
+    """when the simulator cannot follow the fight: the first playable card (first living enemy as target), else end turn"""
+    opts = scr.options(s)
+    foes = [m.group(1) for l in s.split("\n") for m in [re.match(r"^e(\d+) ", l)] if m and "[untargetable]" not in l]
+    end = next((n for n, t in opts if t == "end turn"), opts[-1][0] if opts else "0")
+    play = next(((n, t) for n, t in opts if not t.startswith(("(x)", "potion", "end turn", "discard"))), None)
+    if play is None:
+        return end
+    return play[0] + (f" e{foes[0]}" if play[1].rstrip().endswith("->e") and foes else "")
 
 
 def _name(label):
@@ -409,30 +423,30 @@ class Game:
             r = h.handle(f"potion use {m.group(1)}")
             self.potions += not r.startswith("ERR")
             return False
-        if "SIMULATOR DESYNC" in out or "SIMULATOR CHOICE DIFFERS" in out or "SIMULATOR DIFFERS" in out:
+        bad = "SIMULATOR DESYNC" in out or "SIMULATOR CHOICE DIFFERS" in out or "SIMULATOR DIFFERS" in out
+        if not (bad or out.startswith(("ERR", "REFUSED")) or "\nERR" in out):
+            return False
+        h.log.event("baseline_error", reply=out[-600:])
+        if bad:
             h.stats["desync"] += 1
             self.tags.add("desync")
-            s = bridge.call("s")
-            if scr.kind(s) == "SELECT":
-                h.handle("a " + self.macro.select(s, [(int(n), t) for n, t in scr.options(s)]))
-            elif self.desync_turn != h.fight_id or h.rp is None:
+        else:
+            self.errors += 1
+        s = bridge.call("s")
+        if scr.kind(s) == "SELECT":
+            h.stats["select_fallback"] += 1
+            h.handle("a " + self.macro.select(s, [(int(n), t) for n, t in scr.options(s)]))
+        elif scr.kind(s) == "COMBAT":
+            if self.desync_turn != h.fight_id:
                 self.desync_turn = h.fight_id
                 h.rp = None
             else:
-                end = next((n for n, t in scr.options(s) if t == "end turn"), None)
-                if end is not None:
-                    h.handle(f"a {end}")
-            return False
-        if out.startswith(("ERR", "REFUSED")) or "\nERR" in out:
-            self.errors += 1
-            h.log.event("baseline_error", reply=out[-600:])
-            s = bridge.call("s")
-            if scr.kind(s) == "SELECT":
-                h.stats["select_fallback"] += 1
-                h.handle("a " + self.macro.select(s, [(int(n), t) for n, t in scr.options(s)]))
-            if self.errors > 50:
-                self.tags.add("errors")
-                return True
+                h.stats["fallback_actions"] += 1
+                self.tags.add("fallback")
+                h.handle("a " + fallback_action(s))
+        if self.errors > 50:
+            self.tags.add("errors")
+            return True
         return False
 
     def result(self):
@@ -457,14 +471,20 @@ class Game:
             if f0["encounter"].endswith("_BOSS"):
                 act_end.append((f0.get("act"), f0["encounter"], hp1))
         won = self.macro.won is not None
-        hdr = scr.header_line(self.final or "", "") or ""
+        hdr = scr.header_line(self.final or self.h.last_state or "", "") or ""
         m = re.search(r"Floors Climbed: (\d+)", self.final or "")
-        floor = int(m.group(1)) if m else (int(re.search(r"F(\d+)", hdr).group(1)) if re.search(r"F(\d+)", hdr) else None)
+        fm = re.search(r"F(\d+)", hdr)
+        floor = int(m.group(1)) if m else (int(fm.group(1)) if fm else None)
         died = None
         if not won:
             last = fights[-1] if fights else None
-            died = last["enc"] if last and last["hp1"] <= 0 else next((e.get("screen", "").split("\n")[2][:40] for e in reversed(ev) if e["kind"] == "macro"
-                                                                         and e.get("screen", "").startswith("EVENT")), None)
+            if last and last["hp1"] <= 0:
+                died = last["enc"]
+            elif self.final is None:
+                died = "aborted: " + ",".join(sorted(self.tags))
+            else:
+                died = next(((e.get("state", "").split("\n") + ["", "", ""])[2][:40] for e in reversed(ev)
+                             if e["kind"] == "macro" and e.get("screen", "").startswith("EVENT")), None)
         acts = {}
         for a, enc, hp in act_end:
             acts[a] = hp
@@ -474,7 +494,8 @@ class Game:
                     hp_lost=sum(f["lost"] for f in fights), potions=self.potions, tags=sorted(self.tags), victory=self.macro.won,
                     final_screen=(self.final or "")[:400], wall_s=round(time.time() - self.t0, 1), own_s=round(self.own, 1), steps=self.steps,
                     decisions=st["decisions"], decide_s=round(st["decide_s"], 1), proposals_s=round(st["proposals_s"], 1), differs=st["differs"],
-                    desync=st["desync"], select_fallback=st["select_fallback"], errors=self.errors)
+                    desync=st["desync"], select_fallback=st["select_fallback"],
+                    fallback_actions=st["fallback_actions"], errors=self.errors)
 
 
 class GpuSampler(threading.Thread):
@@ -555,7 +576,12 @@ def main():
                     if end:
                         g.tags.add("errors")
                 if end:
-                    r = g.result()
+                    try:
+                        r = g.result()
+                    except Exception:  # noqa: BLE001
+                        r = dict(seed=g.seed, result="loss", floor=None, died_at="result error: " + traceback.format_exc()[-300:], act_end_hp={}, fights=[],
+                                 hp_lost=0, potions=g.potions, tags=sorted(g.tags | {"result_error"}), wall_s=round(time.time() - g.t0, 1),
+                                 own_s=round(g.own, 1), decisions=0, decide_s=0.0)
                     done[r["seed"]] = r
                     with open(res_path, "a", encoding="utf-8") as f:
                         f.write(json.dumps(r) + "\n")
