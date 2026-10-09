@@ -504,11 +504,21 @@ def sens(a):
     po = SEC["player"][0] + 8
     got, paths = [], sorted(glob.glob(a.parts))
     for path in paths:
-        o, _, dfi, scen, z = part_rows(path)
+        if a.end_only:  # every state of every fight: forced end-turn states are not trained rows
+            z = np.load(path)
+            scen = json.loads(str(z["scenarios"]))
+            om = [sts2.replay(scen[z["f_scen"][f]], int(z["f_seed"][f]), z["acts"][z["f_off"][f]:z["f_off"][f + 1]].astype(np.int32))
+                  for f in range(len(z["f_scen"]))]
+            o, mk = np.concatenate([x[0] for x in om]), np.concatenate([x[1] for x in om])
+            del om
+        else:
+            o, mk, dfi, scen, z = part_rows(path)
         d = decode(o)
         F = row_features(o, d)
         play = o[:, SEC["decision"][0]] < 0.5
         single = (F["n_alive"] == 1) & play & (o[:, eo] > 0.5) & (o[:, eo + 6] > 0.5) & (o[:, eo + 3] <= 400)
+        if a.end_only:  # nothing left to play: doom = hp vs hp - 1 is a kill vs no kill
+            single &= mk[:, C["OFF_PLAY"]:C["OFF_DISCARD"]].sum(1) == 0
         clean = ~(d["eid"][:, 0] >= 0).any(1) & ~(d["pid"] >= 0).any(1)
         got.append(o[np.flatnonzero(single & clean)].copy())
         del o
@@ -596,6 +606,7 @@ def main():
     c.add_argument("--out", required=True)
     v = sp.add_parser("sens")
     v.add_argument("--parts", required=True)
+    v.add_argument("--end-only", action="store_true", help="only states where end turn is the one remaining play (no card or potion use legal)")
     v.add_argument("--ckpt", required=True)
     v.add_argument("--n", type=int, default=4000)
     v.add_argument("--out", required=True)
