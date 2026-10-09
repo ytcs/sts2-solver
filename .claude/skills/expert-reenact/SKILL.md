@@ -39,7 +39,8 @@ Offline `tools/expert.py`; live `python -m agent seedcheck|replay` (`agent/reena
    - `obs` "HP/MAX Ggold Ddeck Rrelics P[a,b]" on every decision (read at that screen, before the choice). Unknown -> leave it out and add `note`; never guess.
    - Act map (optional, best value for map decisions): `acts[n].map` in `routes.parse_map` text (`r1: Mc1>0,2 ?c3>4`, columns 0-6); a partial map is padded with template rooms.
 4. `macro-build <work>`: tracks deck/relics/gold/potions; every `obs`/`deckview` mismatch is an error (fix the work file; `--allow` records them). Writes `<id>.macro.jsonl` (committed).
-5. `macro-compare <record> [--n 128]` -> `<id>.macro_verdicts.json`; `macro-replay <log> --compact <c>` makes the record from a live replay log (game truth).
+5. `macro-compare <record> [--n 128] [--seed S]` -> `<id>.macro_verdicts.json`; a single seed block's verdict is noisy (hMrQ: 20 of 64 flip between blocks): claim only verdicts stable across >= 2 blocks. `macro-summary <verdicts...>` pools; `macro-replay <log> --compact <c>` makes the record from a live replay log (game truth); `macro-diff <frames record> <reference>` scores a transcription.
+6. Fetch politely: one download at a time; bursts of extractions trigger YouTube's bot check (cookies only with the user's consent).
 
 ## Resources
 `STS2_DEVICE=cpu` unless the GPU is free; < 6 GB resident, abort below 8 GB free RAM. Never `maturin develop` into a venv another job uses.

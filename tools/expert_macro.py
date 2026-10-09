@@ -421,6 +421,7 @@ def options_for(head, d, st):
     low = {lb.lower(): lb for lb in labels}
     mine = None
     if typ == "card":
+        pick = str(pick).split("*")[0] if pick else pick
         mine = "skip" if not pick else low.get(str(pick).lower().strip()) or low.get(re.sub(r"\+$", "", str(pick)).lower().strip())
         if mine is None and pick:
             mine = next((lb for lb in labels if lb.lower().startswith(str(pick).lower().rstrip("+"))), None)
@@ -544,7 +545,7 @@ def compare(a):
             row["verdict"] = "unpriced"
             row["why"] = err or ("fewer than 2 priced options" if len(opts) < 2 else f"pick {d.get('pick')!r} matches no priced option")
         else:
-            res = PR.price(st, opts, pred, n=a.n, seed=d["floor"])
+            res = PR.price(st, opts, pred, n=a.n, seed=d["floor"] + 1000 * a.seed)
             best, horizon = PR.best(res)
             row.update(priced_as=mine, price_best=best, horizon=horizon,
                        means={lb: round(float(r[horizon].mean()), 4) for lb, r in sorted(res.items(), key=lambda kv: -kv[1][horizon].mean())[:6]})
@@ -567,7 +568,7 @@ def compare(a):
 def dump_verdicts(out, path, head, rows, a):
     model = json.load(open(os.path.join(ROOT, "models", "current.json"), encoding="utf-8")).get("predictor")
     json.dump(dict(record=os.path.relpath(path, ROOT).replace("\\", "/"), video=head["video"]["id"], character=head["character"],
-                   settings=dict(n=a.n, seed="floor", predictor=model, device=os.environ.get("STS2_DEVICE"), rule="agree = price best is his option; "
+                   settings=dict(n=a.n, seed=f"floor + 1000 * {a.seed}", predictor=model, device=os.environ.get("STS2_DEVICE"), rule="agree = price best is his option; "
                                  "else disagree if his - best < -2 paired se on price's ladder horizon, else tie"),
                    rows=rows), open(out, "w", encoding="utf-8"), indent=1)
 
@@ -625,6 +626,7 @@ def add_parsers(sub):
     p.add_argument("--device", default="auto", help="auto = cuda only while nvidia-smi shows < 50%% use")
     p.add_argument("--fresh", action="store_true", help="ignore rows already in the verdict file")
     p.add_argument("--redo", help="comma-separated k to recompute")
+    p.add_argument("--seed", type=int, default=0, help="rollout seed block (0 = the default; another value measures Monte Carlo verdict noise)")
     p.add_argument("--out")
 
 
@@ -648,7 +650,8 @@ def _opts(d):
     for _, lb in scr.options(d["screen"]):
         if lb.startswith(("Skip", "leave shop", "proceed", "full map")):
             continue
-        out.append(ident(re.split(r"[(:]| -> ", re.sub(r"^\d+g (card|relic|potion) ", "", lb))[0]).removesuffix("_IRONCLAD"))
+        lb = re.sub(r"\*\w+", "", re.sub(r"^\d+g (card|relic|potion) ", "", lb))
+        out.append(ident(re.split(r"[(:]| -> |\+", lb)[0]).removesuffix("_IRONCLAD"))
     return sorted(out)
 
 
@@ -662,9 +665,16 @@ def diff(a):
     for d in db:
         pool.setdefault(key(d), []).append(d)
     c, rows = Counter(), []
-    norm = lambda p: json.dumps(p, sort_keys=True).lower().replace("+", "")  # noqa: E731
+    def norm(p):
+        if isinstance(p, list):
+            p = [x for x in p if not isinstance(x, dict)]
+        t = re.sub(r"\*\w+", "", json.dumps(p, sort_keys=True).lower().replace("+", ""))
+        return t.replace('"remove a card"', '"remove"')
     for d in da:
-        ref = (pool.get(key(d)) or [None]).pop(0) if pool.get(key(d)) else None
+        cands = pool.get(key(d)) or []
+        ref = next((x for x in cands if norm(x.get("pick")) == norm(d.get("pick"))), cands[0] if cands else None)
+        if ref is not None:
+            cands.remove(ref)
         if ref is None:
             c["extra (not in reference)"] += 1
             rows.append((d["floor"], d["type"], "extra", d.get("pick"), None))
@@ -681,6 +691,21 @@ def diff(a):
         bad = [k for k, ok in checks.items() if not ok]
         if bad:
             rows.append((d["floor"], d["type"], ",".join(bad), d.get("pick"), ref.get("pick")))
+        if not checks["deck"] or not checks["relics"]:
+            ca = Counter((x["id"], x.get("upgrade", 0)) for x in sa["deck"])
+            cb = Counter((x["id"], x.get("upgrade", 0)) for x in sb["deck"])
+            ra = Counter(r.get("id") or r.get("name") for r in sa["relics"])
+            rb = Counter(r["id"] for r in sb["relics"])
+            rows.append((d["floor"], d["type"], "  detail", f"deck A-B {dict(ca - cb)} relics A-B {dict(ra - rb)}", f"deck B-A {dict(cb - ca)} relics B-A {dict(rb - ra)}"))
+    from agent import routes
+    ha, hb = load_record(record_path_(a.a))[0], load_record(record_path_(a.b))[0]
+    for k, tb in sorted((hb.get("maps") or {}).items()):
+        na, _ = routes.parse_map((ha.get("maps") or {}).get(k, ""))
+        nb, _ = routes.parse_map(tb)
+        ea = {(n, ch) for n, v in na.items() for ch in v["children"]}
+        eb = {(n, ch) for n, v in nb.items() for ch in v["children"]}
+        print(f"map act {k}: nodes {len(nb)}, A has {sum(n in na for n in nb)} at the right place, {sum(n in na and na[n]['type'] == nb[n]['type'] for n in nb)} "
+              f"with the right type, {len(set(na) - set(nb))} spurious; edges {len(eb)}, A has {len(ea & eb)}, {len(ea - eb)} spurious")
     missed = [d for v in pool.values() for d in v]
     c["missed (in reference only)"] = len(missed)
     print(f"A {len(da)} decisions, B {len(db)}: " + ", ".join(f"{k} {v}" for k, v in c.items()))
@@ -1141,7 +1166,7 @@ def decision(s, typ, tr, act, f, ch, asc, acts, w):
         lines = []
         for i, n in enumerate(names):
             c = card(n, ch)
-            lines.append(f"{i} {n}({cost_of(c['id'])}) .")
+            lines.append(f"{i} {str(n).split('*')[0]}({cost_of(c['id'])}) .")
         lines.append(f"{len(names)} Skip")
         screen = "CARD_REWARD"
     elif typ == "rest":

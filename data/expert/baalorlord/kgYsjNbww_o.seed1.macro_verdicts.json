@@ -1,0 +1,1185 @@
+{
+ "record": "data/expert/baalorlord/kgYsjNbww_o.macro.jsonl",
+ "video": "kgYsjNbww_o",
+ "character": "IRONCLAD",
+ "settings": {
+  "n": 128,
+  "seed": "floor + 1000 * 1",
+  "predictor": "solver_r6.pt",
+  "device": "cpu",
+  "rule": "agree = price best is his option; else disagree if his - best < -2 paired se on price's ladder horizon, else tie"
+ },
+ "rows": [
+  {
+   "k": 0,
+   "floor": 1,
+   "type": "ancient",
+   "played": "Lead Paperweight",
+   "then": [
+    "Thrumming Hatchet"
+   ],
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Lead Paperweight",
+   "price_best": "Lead Paperweight",
+   "horizon": "act",
+   "means": {
+    "Lead Paperweight": 0.4219,
+    "Phial Holster": 0.3047,
+    "Neow's Bones": 0.2969
+   },
+   "verdict": "agree",
+   "secs": 25.0
+  },
+  {
+   "k": 1,
+   "floor": 2,
+   "type": "card",
+   "played": "Cruelty",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Cruelty",
+   "price_best": "Howl from Beyond",
+   "horizon": "act",
+   "means": {
+    "Howl from Beyond": 0.4297,
+    "Evil Eye": 0.4219,
+    "skip": 0.3438,
+    "Cruelty": 0.2969
+   },
+   "d": -0.1328,
+   "se": 0.0321,
+   "verdict": "disagree",
+   "secs": 35.6
+  },
+  {
+   "k": 2,
+   "floor": 3,
+   "type": "event",
+   "played": "Slowly Find an Exit",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "Slowly Find an Exit",
+   "price_best": "Nab the Map",
+   "horizon": "act",
+   "means": {
+    "Nab the Map": 0.2812,
+    "Slowly Find an Exit": 0.2578
+   },
+   "d": -0.0234,
+   "se": 0.0514,
+   "verdict": "tie",
+   "secs": 18.5
+  },
+  {
+   "k": 3,
+   "floor": 4,
+   "type": "card",
+   "played": "Setup Strike",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Setup Strike",
+   "price_best": "Setup Strike",
+   "horizon": "act",
+   "means": {
+    "Setup Strike": 0.1953,
+    "Body Slam": 0.1641,
+    "Armaments": 0.1562,
+    "skip": 0.125
+   },
+   "verdict": "agree",
+   "secs": 26.9
+  },
+  {
+   "k": 4,
+   "floor": 5,
+   "type": "event",
+   "played": "Bottle",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "Bottle",
+   "price_best": "Bottle",
+   "horizon": "act",
+   "means": {
+    "Bottle": 0.1641,
+    "Bathe": 0.1016
+   },
+   "verdict": "agree",
+   "secs": 16.4
+  },
+  {
+   "k": 5,
+   "floor": 6,
+   "type": "card",
+   "played": "Bludgeon",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Bludgeon",
+   "price_best": "Bludgeon",
+   "horizon": "act",
+   "means": {
+    "Bludgeon": 0.1875,
+    "skip": 0.125,
+    "Blood Wall": 0.125,
+    "Burning Pact": 0.0859
+   },
+   "verdict": "agree",
+   "secs": 22.4
+  },
+  {
+   "k": 6,
+   "floor": 6,
+   "type": "potion",
+   "played": {
+    "take": "Fire Potion",
+    "discard_slot": 0
+   },
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Fire Potion for FLEX_POTION (a dp 0)",
+   "price_best": "Fire Potion for FLEX_POTION (a dp 0)",
+   "horizon": "act",
+   "means": {
+    "Fire Potion for FLEX_POTION (a dp 0)": 0.2344,
+    "leave Fire Potion": 0.1953,
+    "Fire Potion for LIQUID_MEMORIES (a dp 1)": 0.1641
+   },
+   "verdict": "agree",
+   "secs": 21.9
+  },
+  {
+   "k": 7,
+   "floor": 7,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Bludgeon"
+   ],
+   "n": 128,
+   "n_options": 8,
+   "priced_as": "smith BLUDGEON",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.3438,
+    "smith BLUDGEON": 0.3281,
+    "smith CRUELTY": 0.3203,
+    "smith BASH": 0.2891,
+    "smith STRIKE_IRONCLAD": 0.2812,
+    "smith THRUMMING_HATCHET": 0.2578
+   },
+   "d": -0.0156,
+   "se": 0.035,
+   "verdict": "tie",
+   "secs": 61.7
+  },
+  {
+   "k": 8,
+   "floor": 8,
+   "type": "card",
+   "played": "Second Wind",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Second Wind",
+   "price_best": "Second Wind",
+   "horizon": "act",
+   "means": {
+    "Second Wind": 0.7656,
+    "True Grit": 0.6641,
+    "Havoc": 0.6484,
+    "skip": 0.6406
+   },
+   "verdict": "agree",
+   "secs": 53.5
+  },
+  {
+   "k": 9,
+   "floor": 9,
+   "type": "event",
+   "played": "Loner",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "Loner",
+   "price_best": "Group",
+   "horizon": "act",
+   "means": {
+    "Group": 0.8359,
+    "Loner": 0.7578
+   },
+   "d": -0.0781,
+   "se": 0.0478,
+   "verdict": "tie",
+   "secs": 23.4
+  },
+  {
+   "k": 10,
+   "floor": 11,
+   "type": "card",
+   "played": "Cascade",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Cascade",
+   "price_best": "Cascade",
+   "horizon": "act",
+   "means": {
+    "Cascade": 0.7812,
+    "Breakthrough": 0.7422,
+    "Rage": 0.7344,
+    "skip": 0.7188
+   },
+   "verdict": "agree",
+   "secs": 43.6
+  },
+  {
+   "k": 11,
+   "floor": 11,
+   "type": "potion",
+   "played": "leave",
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "leave Strength Potion",
+   "price_best": "Strength Potion for ENERGY_POTION (a dp 1)",
+   "horizon": "act",
+   "means": {
+    "Strength Potion for ENERGY_POTION (a dp 1)": 0.7969,
+    "leave Strength Potion": 0.7656,
+    "Strength Potion for FIRE_POTION (a dp 0)": 0.7422
+   },
+   "d": -0.0312,
+   "se": 0.022,
+   "verdict": "tie",
+   "secs": 33.3
+  },
+  {
+   "k": 12,
+   "floor": 12,
+   "type": "card",
+   "played": "Sword Boomerang",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Sword Boomerang",
+   "price_best": "skip",
+   "horizon": "ready",
+   "means": {
+    "skip": 0.6772,
+    "Sword Boomerang": 0.665,
+    "Thunderclap": 0.6607,
+    "Drum of Battle": 0.6555
+   },
+   "d": -0.0122,
+   "se": 0.0083,
+   "verdict": "tie",
+   "secs": 52.7
+  },
+  {
+   "k": 13,
+   "floor": 13,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Thrumming Hatchet"
+   ],
+   "n": 128,
+   "n_options": 10,
+   "priced_as": "smith THRUMMING_HATCHET",
+   "price_best": "smith CASCADE",
+   "horizon": "ready",
+   "means": {
+    "smith CASCADE": 0.6742,
+    "smith DEFEND_IRONCLAD": 0.6457,
+    "smith CRUELTY": 0.6446,
+    "smith THRUMMING_HATCHET": 0.6368,
+    "smith SETUP_STRIKE": 0.6366,
+    "smith SWORD_BOOMERANG": 0.6289
+   },
+   "d": -0.0374,
+   "se": 0.01,
+   "verdict": "disagree",
+   "secs": 122.3
+  },
+  {
+   "k": 14,
+   "floor": 14,
+   "type": "shop",
+   "played": [
+    "Membership Card",
+    "Forgotten Ritual"
+   ],
+   "then": null,
+   "n": 128,
+   "n_options": 20,
+   "priced_as": "Membership Card (188g) + Forgotten Ritual (36g)",
+   "price_best": "Bolas (172g)",
+   "horizon": "act",
+   "means": {
+    "Bolas (172g)": 0.9375,
+    "Membership Card (188g) + Forgotten Ritual (36g)": 0.9297,
+    "remove CRUELTY (100g)": 0.9141,
+    "remove DEFEND (100g)": 0.8984,
+    "remove STRIKE (100g)": 0.8984,
+    "Ashen Strike (76g)": 0.8906
+   },
+   "d": -0.0078,
+   "se": 0.026,
+   "verdict": "tie",
+   "secs": 220.3
+  },
+  {
+   "k": 15,
+   "floor": 15,
+   "type": "card",
+   "played": "Taunt",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Taunt",
+   "price_best": "Taunt",
+   "horizon": "act",
+   "means": {
+    "Taunt": 0.9922,
+    "Fight Me!": 0.9844,
+    "Shrug It Off": 0.9844,
+    "skip": 0.9609
+   },
+   "verdict": "agree",
+   "secs": 50.9
+  },
+  {
+   "k": 16,
+   "floor": 16,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Cruelty"
+   ],
+   "n": 128,
+   "n_options": 11,
+   "priced_as": "smith CRUELTY",
+   "price_best": "smith CASCADE",
+   "horizon": "act",
+   "means": {
+    "smith CASCADE": 1.0,
+    "rest": 0.9922,
+    "smith DEFEND_IRONCLAD": 0.9844,
+    "smith SETUP_STRIKE": 0.9844,
+    "smith BASH": 0.9766,
+    "smith CRUELTY": 0.9766
+   },
+   "d": -0.0234,
+   "se": 0.0134,
+   "verdict": "tie",
+   "secs": 141.0
+  },
+  {
+   "k": 17,
+   "floor": 17,
+   "type": "card",
+   "played": "Pyre",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Pyre",
+   "price_best": "Crimson Mantle",
+   "horizon": "act",
+   "means": {
+    "Crimson Mantle": 0.2109,
+    "skip": 0.1797,
+    "Pyre": 0.1797,
+    "One-Two Punch": 0.1406
+   },
+   "d": -0.0312,
+   "se": 0.027,
+   "verdict": "tie",
+   "secs": 18.7
+  },
+  {
+   "k": 18,
+   "floor": 18,
+   "type": "ancient",
+   "played": "Runic Pyramid",
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Runic Pyramid",
+   "price_best": "Sozu",
+   "horizon": "act",
+   "means": {
+    "Velvet Choker": 0.2734,
+    "Sozu": 0.2734,
+    "Runic Pyramid": 0.2344
+   },
+   "d": -0.0391,
+   "se": 0.0258,
+   "verdict": "tie",
+   "secs": 16.3
+  },
+  {
+   "k": 19,
+   "floor": 19,
+   "type": "card",
+   "played": "Forgotten Ritual",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Forgotten Ritual",
+   "price_best": "Forgotten Ritual",
+   "horizon": "act",
+   "means": {
+    "Forgotten Ritual": 0.2812,
+    "Rupture": 0.2266,
+    "Havoc": 0.2188,
+    "skip": 0.2109
+   },
+   "verdict": "agree",
+   "secs": 20.0
+  },
+  {
+   "k": 20,
+   "floor": 20,
+   "type": "card",
+   "played": "Feel No Pain",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Feel No Pain",
+   "price_best": "Flame Barrier",
+   "horizon": "act",
+   "means": {
+    "Flame Barrier": 0.3047,
+    "Hemokinesis": 0.2266,
+    "skip": 0.2109,
+    "Feel No Pain": 0.1719
+   },
+   "d": -0.1328,
+   "se": 0.0321,
+   "verdict": "disagree",
+   "secs": 18.3
+  },
+  {
+   "k": 21,
+   "floor": 21,
+   "type": "card",
+   "played": "Battle Trance",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Battle Trance",
+   "price_best": "Molten Fist",
+   "horizon": "act",
+   "means": {
+    "Molten Fist": 0.2031,
+    "Shrug It Off": 0.1953,
+    "Battle Trance": 0.1797,
+    "skip": 0.1719
+   },
+   "d": -0.0234,
+   "se": 0.0206,
+   "verdict": "tie",
+   "secs": 14.5
+  },
+  {
+   "k": 22,
+   "floor": 22,
+   "type": "shop",
+   "played": [
+    "remove",
+    "Shrug It Off",
+    "Regal Pillow"
+   ],
+   "then": [
+    "Strike"
+   ],
+   "n": 128,
+   "n_options": 25,
+   "priced_as": "remove STRIKE (50g) + Shrug It Off (26g) + Regal Pillow (81g)",
+   "price_best": "remove DEFEND (50g)",
+   "horizon": "act",
+   "means": {
+    "remove DEFEND (50g)": 0.1562,
+    "Molten Fist (24g)": 0.1328,
+    "Shrug It Off (26g)": 0.1328,
+    "The Gambit (87g)": 0.1328,
+    "remove STRIKE (50g) + Shrug It Off (26g) + Regal Pillow (81g)": 0.1328,
+    "Iron Wave (25g)": 0.125
+   },
+   "d": -0.0234,
+   "se": 0.0376,
+   "verdict": "tie",
+   "secs": 87.9
+  },
+  {
+   "k": 23,
+   "floor": 23,
+   "type": "event",
+   "played": "Push",
+   "then": [
+    "Sword Boomerang"
+   ],
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "Push",
+   "price_best": "Drink and Lift",
+   "horizon": "act",
+   "means": {
+    "Drink and Lift": 0.1172,
+    "Push": 0.1016
+   },
+   "d": -0.0156,
+   "se": 0.0384,
+   "verdict": "tie",
+   "secs": 7.8
+  },
+  {
+   "k": 24,
+   "floor": 24,
+   "type": "card",
+   "played": "Juggernaut",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Juggernaut",
+   "price_best": "skip",
+   "horizon": "act",
+   "means": {
+    "skip": 0.1094,
+    "Rage+": 0.1016,
+    "Armaments": 0.1016,
+    "Juggernaut": 0.0938
+   },
+   "d": -0.0156,
+   "se": 0.0192,
+   "verdict": "tie",
+   "secs": 11.5
+  },
+  {
+   "k": 25,
+   "floor": 24,
+   "type": "potion",
+   "played": {
+    "take": "Orobic Acid",
+    "discard_slot": 0
+   },
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Orobic Acid for FYSH_OIL (a dp 0)",
+   "price_best": "Orobic Acid for FYSH_OIL (a dp 0)",
+   "horizon": "act",
+   "means": {
+    "Orobic Acid for FYSH_OIL (a dp 0)": 0.0781,
+    "leave Orobic Acid": 0.0703,
+    "Orobic Acid for ATTACK_POTION (a dp 1)": 0.0703
+   },
+   "verdict": "agree",
+   "secs": 8.0
+  },
+  {
+   "k": 26,
+   "floor": 25,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Pyre"
+   ],
+   "n": 128,
+   "n_options": 15,
+   "priced_as": "smith PYRE",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.2422,
+    "smith CASCADE": 0.1953,
+    "smith BATTLE_TRANCE": 0.1875,
+    "smith FEEL_NO_PAIN": 0.1719,
+    "smith JUGGERNAUT": 0.1562,
+    "smith DEFEND_IRONCLAD": 0.1484
+   },
+   "d": -0.1641,
+   "se": 0.0329,
+   "verdict": "disagree",
+   "secs": 48.8
+  },
+  {
+   "k": 27,
+   "floor": 27,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Juggernaut"
+   ],
+   "n": 128,
+   "n_options": 14,
+   "priced_as": "smith JUGGERNAUT",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.1484,
+    "smith CASCADE": 0.1328,
+    "smith STRIKE_IRONCLAD": 0.1016,
+    "smith TAUNT": 0.1016,
+    "smith BATTLE_TRANCE": 0.0938,
+    "smith JUGGERNAUT": 0.0938
+   },
+   "d": -0.0547,
+   "se": 0.03,
+   "verdict": "tie",
+   "secs": 40.8
+  },
+  {
+   "k": 28,
+   "floor": 28,
+   "type": "event",
+   "played": "Capture the Wisp",
+   "then": null,
+   "n": 128,
+   "n_options": 2,
+   "priced_as": "Capture the Wisp",
+   "price_best": "Search the Nearby Area",
+   "horizon": "act",
+   "means": {
+    "Search the Nearby Area": 0.0938,
+    "Capture the Wisp": 0.0547
+   },
+   "d": -0.0391,
+   "se": 0.0281,
+   "verdict": "tie",
+   "secs": 6.9
+  },
+  {
+   "k": 29,
+   "floor": 29,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Cascade"
+   ],
+   "n": 128,
+   "n_options": 14,
+   "priced_as": "smith CASCADE",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.2891,
+    "smith FEEL_NO_PAIN": 0.1641,
+    "smith TAUNT": 0.1641,
+    "smith CASCADE": 0.1562,
+    "smith BASH": 0.1484,
+    "smith BATTLE_TRANCE": 0.1484
+   },
+   "d": -0.1328,
+   "se": 0.0357,
+   "verdict": "disagree",
+   "secs": 48.2
+  },
+  {
+   "k": 30,
+   "floor": 30,
+   "type": "card",
+   "played": "Taunt",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Taunt",
+   "price_best": "Taunt",
+   "horizon": "act",
+   "means": {
+    "Taunt": 0.2812,
+    "Iron Wave": 0.2734,
+    "skip": 0.25,
+    "True Grit": 0.2422
+   },
+   "verdict": "agree",
+   "secs": 19.0
+  },
+  {
+   "k": 31,
+   "floor": 31,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "Inferno",
+   "horizon": "act",
+   "means": {
+    "Inferno": 0.3047,
+    "Infernal Blade": 0.2969,
+    "skip": 0.2656,
+    "True Grit": 0.2656
+   },
+   "d": -0.0391,
+   "se": 0.0233,
+   "verdict": "tie",
+   "secs": 18.1
+  },
+  {
+   "k": 32,
+   "floor": 32,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Feel No Pain"
+   ],
+   "n": 128,
+   "n_options": 13,
+   "priced_as": "smith FEEL_NO_PAIN",
+   "price_best": "rest",
+   "horizon": "act",
+   "means": {
+    "rest": 0.4297,
+    "smith FEEL_NO_PAIN": 0.3672,
+    "smith SHRUG_IT_OFF": 0.3672,
+    "smith TAUNT": 0.3672,
+    "smith SETUP_STRIKE": 0.3594,
+    "smith SWORD_BOOMERANG": 0.3594
+   },
+   "d": -0.0625,
+   "se": 0.0328,
+   "verdict": "tie",
+   "secs": 65.0
+  },
+  {
+   "k": 33,
+   "floor": 33,
+   "type": "card",
+   "played": "Stoke",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Stoke",
+   "price_best": "Not Yet",
+   "horizon": "act",
+   "means": {
+    "skip": 0.0,
+    "Stoke": 0.0,
+    "Aggression": 0.0,
+    "Not Yet": 0.0
+   },
+   "d": 0.0,
+   "se": 0.0,
+   "verdict": "tie",
+   "secs": 9.8
+  },
+  {
+   "k": 34,
+   "floor": 34,
+   "type": "ancient",
+   "played": "Tri-Boomerang",
+   "then": [
+    "Thrumming Hatchet+",
+    "Setup Strike",
+    "Bludgeon+"
+   ],
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Tri-Boomerang",
+   "price_best": "Spiked Gauntlets",
+   "horizon": "act",
+   "means": {
+    "Spiked Gauntlets": 0.0078,
+    "Tanx's Whistle": 0.0078,
+    "Tri-Boomerang": 0.0
+   },
+   "d": -0.0078,
+   "se": 0.0078,
+   "verdict": "tie",
+   "secs": 8.8
+  },
+  {
+   "k": 35,
+   "floor": 35,
+   "type": "card",
+   "played": "Shrug It Off",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Shrug It Off",
+   "price_best": "Bully+",
+   "horizon": "act",
+   "means": {
+    "skip": 0.0,
+    "Molten Fist": 0.0,
+    "Shrug It Off": 0.0,
+    "Bully+": 0.0
+   },
+   "d": 0.0,
+   "se": 0.0,
+   "verdict": "tie",
+   "secs": 9.9
+  },
+  {
+   "k": 36,
+   "floor": 36,
+   "type": "card",
+   "played": "Colossus+",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Colossus+",
+   "price_best": "Colossus+",
+   "horizon": "act",
+   "means": {
+    "skip": 0.0,
+    "Twin Strike+": 0.0,
+    "Rupture": 0.0,
+    "Colossus+": 0.0
+   },
+   "verdict": "agree",
+   "secs": 8.8
+  },
+  {
+   "k": 37,
+   "floor": 37,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "Bully+",
+   "horizon": "act",
+   "means": {
+    "skip": 0.0,
+    "Anger": 0.0,
+    "Bludgeon": 0.0,
+    "Bully+": 0.0
+   },
+   "d": 0.0,
+   "se": 0.0,
+   "verdict": "tie",
+   "secs": 9.1
+  },
+  {
+   "k": 38,
+   "floor": 38,
+   "type": "event",
+   "played": "Read the Entire Book",
+   "then": null,
+   "n": 128,
+   "n_options": 3,
+   "priced_as": "Read the Entire Book",
+   "price_best": "Read the Entire Book",
+   "horizon": "act",
+   "means": {
+    "Read the Entire Book": 0.0078,
+    "Read the Back": 0.0,
+    "Read a Random Passage": 0.0
+   },
+   "verdict": "agree",
+   "secs": 6.8
+  },
+  {
+   "k": 39,
+   "floor": 39,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "True Grit",
+   "horizon": "act",
+   "means": {
+    "skip": 0.0,
+    "Stomp": 0.0,
+    "Blood Wall": 0.0,
+    "True Grit": 0.0
+   },
+   "d": 0.0,
+   "se": 0.0,
+   "verdict": "tie",
+   "secs": 9.9
+  },
+  {
+   "k": 40,
+   "floor": 40,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "Taunt",
+   "horizon": "act",
+   "means": {
+    "skip": 0.0,
+    "Taunt": 0.0,
+    "Body Slam": 0.0,
+    "Pommel Strike": 0.0
+   },
+   "d": 0.0,
+   "se": 0.0,
+   "verdict": "tie",
+   "secs": 8.5
+  },
+  {
+   "k": 41,
+   "floor": 40,
+   "type": "potion",
+   "played": "leave",
+   "then": null,
+   "n": 128,
+   "n_options": 0,
+   "verdict": "unpriced",
+   "why": "fewer than 2 priced options",
+   "secs": 0.0
+  },
+  {
+   "k": 42,
+   "floor": 42,
+   "type": "card",
+   "played": "Feel No Pain",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Feel No Pain",
+   "price_best": "Feel No Pain",
+   "horizon": "act",
+   "means": {
+    "Feel No Pain": 0.0156,
+    "Blood Wall": 0.0156,
+    "skip": 0.0078,
+    "Pommel Strike": 0.0078
+   },
+   "verdict": "agree",
+   "secs": 16.3
+  },
+  {
+   "k": 43,
+   "floor": 42,
+   "type": "potion",
+   "played": "leave",
+   "then": null,
+   "n": 128,
+   "n_options": 0,
+   "verdict": "unpriced",
+   "why": "fewer than 2 priced options",
+   "secs": 0.0
+  },
+  {
+   "k": 44,
+   "floor": 43,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Stoke"
+   ],
+   "n": 128,
+   "n_options": 14,
+   "priced_as": "smith STOKE",
+   "price_best": "smith STOKE",
+   "horizon": "act",
+   "means": {
+    "smith STOKE": 0.0156,
+    "smith BASH": 0.0078,
+    "smith FORGOTTEN_RITUAL": 0.0078,
+    "smith SHRUG_IT_OFF": 0.0078,
+    "smith TAUNT": 0.0078,
+    "rest": 0.0
+   },
+   "verdict": "agree",
+   "secs": 48.6
+  },
+  {
+   "k": 45,
+   "floor": 44,
+   "type": "event",
+   "played": "Protector",
+   "then": [
+    "Wisdom"
+   ],
+   "n": 128,
+   "n_options": 0,
+   "verdict": "unpriced",
+   "why": "fewer than 2 priced options",
+   "secs": 0.0
+  },
+  {
+   "k": 46,
+   "floor": 45,
+   "type": "shop",
+   "played": [
+    "Orrery",
+    "remove",
+    "Strawberry",
+    "?blue potion"
+   ],
+   "then": [
+    "Decay"
+   ],
+   "n": 128,
+   "n_options": 32,
+   "priced_as": "Orrery (89g) + remove DECAY (75g) + Strawberry (85g)",
+   "price_best": "Calamity (87g)",
+   "horizon": "win",
+   "means": {
+    "Calamity (87g)": 0.0312,
+    "nothing": 0.0156,
+    "Armaments (24g)": 0.0156,
+    "Ultimate Defend (41g)": 0.0156,
+    "remove CASCADE (75g)": 0.0156,
+    "remove COLOSSUS (75g)": 0.0156
+   },
+   "d": -0.0156,
+   "se": 0.0192,
+   "verdict": "tie",
+   "secs": 99.2
+  },
+  {
+   "k": 47,
+   "floor": 45,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "Sword Boomerang+",
+   "horizon": "act",
+   "means": {
+    "Sword Boomerang+": 0.0312,
+    "skip": 0.0234,
+    "Pommel Strike": 0.0234,
+    "Fight Me!+": 0.0234
+   },
+   "d": -0.0078,
+   "se": 0.0078,
+   "verdict": "tie",
+   "secs": 14.8
+  },
+  {
+   "k": 48,
+   "floor": 45,
+   "type": "card",
+   "played": "Unrelenting+",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Unrelenting+",
+   "price_best": "Unrelenting+",
+   "horizon": "act",
+   "means": {
+    "Unrelenting+": 0.0391,
+    "skip": 0.0312,
+    "Inferno+": 0.0234,
+    "Juggling": 0.0156
+   },
+   "verdict": "agree",
+   "secs": 12.1
+  },
+  {
+   "k": 49,
+   "floor": 45,
+   "type": "card",
+   "played": "Shrug It Off+",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Shrug It Off+",
+   "price_best": "Shrug It Off+",
+   "horizon": "act",
+   "means": {
+    "skip": 0.0469,
+    "Shrug It Off+": 0.0469,
+    "Blood Wall": 0.0391,
+    "Anger+": 0.0312
+   },
+   "verdict": "agree",
+   "secs": 12.2
+  },
+  {
+   "k": 50,
+   "floor": 45,
+   "type": "card",
+   "played": "Evil Eye",
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "Evil Eye",
+   "price_best": "skip",
+   "horizon": "act",
+   "means": {
+    "skip": 0.0469,
+    "Tremble": 0.0391,
+    "Evil Eye": 0.0312,
+    "Iron Wave": 0.0234
+   },
+   "d": -0.0156,
+   "se": 0.011,
+   "verdict": "tie",
+   "secs": 13.0
+  },
+  {
+   "k": 51,
+   "floor": 46,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 4,
+   "priced_as": "skip",
+   "price_best": "Thunderclap",
+   "horizon": "act",
+   "means": {
+    "Thunderclap": 0.0547,
+    "skip": 0.0391,
+    "Armaments": 0.0391,
+    "Pillage": 0.0391
+   },
+   "d": -0.0156,
+   "se": 0.011,
+   "verdict": "tie",
+   "secs": 12.9
+  },
+  {
+   "k": 52,
+   "floor": 47,
+   "type": "rest",
+   "played": "Smith",
+   "then": [
+    "Mad Science"
+   ],
+   "n": 128,
+   "n_options": 14,
+   "priced_as": "smith MAD_SCIENCE",
+   "price_best": "smith TAUNT",
+   "horizon": "win",
+   "means": {
+    "smith TAUNT": 0.0703,
+    "smith FORGOTTEN_RITUAL": 0.0625,
+    "smith DEFEND_IRONCLAD": 0.0547,
+    "smith SETUP_STRIKE": 0.0547,
+    "smith SHRUG_IT_OFF": 0.0547,
+    "smith EVIL_EYE": 0.0469
+   },
+   "d": -0.0391,
+   "se": 0.0172,
+   "verdict": "disagree",
+   "secs": 43.3
+  },
+  {
+   "k": 53,
+   "floor": 48,
+   "type": "card",
+   "played": null,
+   "then": null,
+   "n": 128,
+   "n_options": 0,
+   "verdict": "unpriced",
+   "why": "between the final two bosses: not modelled by the run model",
+   "secs": 0.0
+  }
+ ]
+}
