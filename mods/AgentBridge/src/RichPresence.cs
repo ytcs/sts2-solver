@@ -4,13 +4,13 @@ using MegaCrit.Sts2.Core.Platform;
 namespace AgentBridge;
 
 [HarmonyPatch(typeof(PlatformUtil), nameof(PlatformUtil.SetRichPresenceValue))]
-public static class RichPresenceCharacter
+public static class RichPresenceLabel
 {
-    public const string Label = "AI Self-Play";
+    public const string Label = "I Self-Play";
 
     static void Prefix(string key, ref string? value)
     {
-        if (key == "Character") value = Label;
+        if (key == "Ascension") value = Label;
     }
 }
 
