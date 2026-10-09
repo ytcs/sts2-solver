@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import glob, json, os, re
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 snake = lambda n: re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", n).upper()  # noqa: E731
 mp = {snake(os.path.basename(f)[:-3]) for f in glob.glob(os.path.join(ROOT, "decomp", "MegaCrit.Sts2.Core.Models.Cards", "*.cs"))
       if "CardMultiplayerConstraint.MultiplayerOnly" in open(f, encoding="utf-8").read()}
