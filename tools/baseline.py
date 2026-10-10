@@ -6,7 +6,7 @@ Never the real game: the bridge never falls back to it while OVERRIDE is set.
 
 Combat: the live player (`Harness.play`), a fixed number of search rounds per decision (--rounds, not seconds); potions only when the
 proposal rule fires (`potion use` the proposed one, one per commit). No fight-start predictions, no DRIVE thresholds. A DIFFERS line does
-not stop play (counted; a potion-belt DIFFERS, e.g. Entropic Brew's random potions, turns proposals off for that fight); a DESYNC
+not stop play (counted; a potion-belt DIFFERS left after the belt sync turns proposals off for that fight); a DESYNC
 (or a search error, or combat_in_progress differing) rebuilds the replayer once per fight, then plays `fallback_action` (first playable
 card, else end turn; run tagged `fallback`; also every fight the simulator cannot build, tagged `unplayable`); a combat selection the game
 rejects is answered by the macro SELECT rule.
@@ -15,7 +15,7 @@ Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens
   of runmodel.worth, skip included); rest: rest below 50% HP else smith BasePolicy.smith order; shop: remove a card if affordable, then the
   best affordable card/relic by the same screen; catalogued events: BasePolicy.event on the first page, follow-up pages as rollouts resolve
   them (events.default_choose: the exit option, else the first modelled); Neow/ancients: the predictor screen of each option
-  applied (events.apply_ancient), fights at min(reference HP, HP after the option), SIM_UNMODELLED relics never taken; removals/transforms: curses, Strikes, Defends first;
+  applied (events.apply_ancient), fights at min(reference HP, HP after the option); removals/transforms: curses, Strikes, Defends first;
   upgrades BasePolicy.smith order; other selections the first k; rewards: gold, relics, cards, potions only into a free slot; treasure:
   open, take; bundle: the first; Crystal Sphere: tools/serve_harness_run heuristic. No potion use outside combat.
   Unknown events (not in data/events.json): the first option starting Leave/Exit/Decline/Ignore/Abstain/Give Up/Proceed/Continue/Skip, else 0.
@@ -47,7 +47,6 @@ LEAVE = ("leave", "exit", "decline", "ignore", "abstain", "give up", "proceed", 
 MAP_TYPE = {"Monster": "M", "Elite": "E", "Unknown": "?", "Rest": "R", "RestSite": "R", "Shop": "$", "Merchant": "$", "Treasure": "T"}
 CURSES = {c["id"] for c in R.CAT["cards"].get("CURSE", [])}
 SHUFFLES, PSEED = 4, 1000
-SIM_UNMODELLED = {"TOUCH_OF_OROBAS"}
 
 
 class GameLog(RunLog):
@@ -291,7 +290,7 @@ class Macro:
         anc = [(i, EV.ancient_option(t)[0]) for i, t in lab]
         if any(r for _, r in anc) and EV.get(title) is None:
             st = self.st(s)
-            ok = [(i, r) for i, r in anc if r and r not in SIM_UNMODELLED]
+            ok = [(i, r) for i, r in anc if r]
             variants, keep = [], []
             for i, r in ok:
                 def f(x, r=r):
@@ -454,8 +453,7 @@ class PriceMacro(Macro):
         self.title(s)
         if len(lab) == 1:
             return None
-        bad = {t.split(":", 1)[0][:34] for _, t in lab if EV.ancient_option(t)[0] in SIM_UNMODELLED}
-        best = self.price(s, [o for o in PR.options(self.st(s), s) if o[0] not in bad])
+        best = self.price(s, PR.options(self.st(s), s))
         return None if best is None else next((str(i) for i, t in lab if t.split(":", 1)[0][:34] == best), None)
 
 

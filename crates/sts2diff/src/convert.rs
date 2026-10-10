@@ -35,6 +35,10 @@ fn id_of(v: &Value) -> &str {
     v.as_str().or_else(|| v["id"].as_str()).unwrap_or("")
 }
 
+fn relic_model(s: &str) -> Option<i32> {
+    IDX_RELIC.get(s.strip_prefix("RELIC.")?).map(|&i| i as i32 + 1)
+}
+
 fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
     let l = sts2sim::content::relic_listener(id);
     let (counter, flags, aux) = l.meta_initial();
@@ -46,7 +50,14 @@ fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
             if !d.lit.is_empty() {
                 continue;
             }
-            let n = v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).ok_or_else(|| format!("relic prop {k}: expected int/bool"))?;
+            let n = if d.relic {
+                match v.as_str() {
+                    Some(s) => relic_model(s).ok_or_else(|| format!("relic prop {k}: unknown relic {s}"))? as i64,
+                    None => 0,
+                }
+            } else {
+                v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).ok_or_else(|| format!("relic prop {k}: expected int/bool"))?
+            };
             st.set_prop(defs, k, n as i32);
         }
     }
@@ -60,7 +71,11 @@ pub fn obs_relics(relics: &Value) -> Vec<sts2sim::engine::ObsRelic> {
             let id = find(&IDX_RELIC, id_of(r), "relic").ok()?;
             let props = r["props"]
                 .as_object()
-                .map(|o| o.iter().filter_map(|(k, v)| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).map(|n| (k.clone(), n as i32))).collect())
+                .map(|o| {
+                    o.iter()
+                        .filter_map(|(k, v)| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).or_else(|| v.as_str().and_then(relic_model).map(|n| n as i64)).map(|n| (k.clone(), n as i32)))
+                        .collect()
+                })
                 .unwrap_or_default();
             Some(sts2sim::engine::ObsRelic { id, props, counter: r["counter"].as_i64().map(|c| c as i32) })
         })

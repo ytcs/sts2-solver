@@ -19,3 +19,15 @@ fn oracle_regressions() {
     }
     assert!(bad.is_empty(), "regression mismatches: {bad:?}");
 }
+
+#[test]
+fn touch_of_orobas_saved_relic_ids_round_trip() {
+    let props = serde_json::json!({"StarterRelic": "RELIC.BURNING_BLOOD", "UpgradedRelic": "RELIC.BLACK_BLOOD"});
+    let sc = serde_json::json!({"encounter": "NIBBITS_WEAK", "character": "IRONCLAD", "hp": 80, "seed": "orobas", "deck": vec!["STRIKE_IRONCLAD"; 5],
+        "relics": ["BLACK_BLOOD", {"id": "TOUCH_OF_OROBAS", "props": props}], "potions": []});
+    let cx = sts2sim::Combat::new(&sts2diff::convert::scenario(&sc).expect("Touch of Orobas scenario builds"));
+    assert_eq!(sts2diff::snapshot::snapshot(&cx)["relics"][1]["props"], props);
+    let real = serde_json::json!([{"id": "BLACK_BLOOD"}, {"id": "TOUCH_OF_OROBAS", "props": props}]);
+    let mut synced = cx.clone();
+    assert_eq!(synced.sync_relics(&sts2diff::convert::obs_relics(&real)).changed, 0);
+}

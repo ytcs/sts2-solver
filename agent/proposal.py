@@ -95,7 +95,7 @@ def _paired(a, b):
 
 
 def price(engine, scenario, sim, worth=None, attempts=ATTEMPTS, seed=0, skip=()):
-    every_pot = potions.live_slots(scenario, sim)
+    every_pot = potions.live_slots(sim)
     pots = [(i, pid) for i, pid in every_pot if i not in skip]
     if not pots:
         return []

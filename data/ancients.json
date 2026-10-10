@@ -193,7 +193,7 @@
    "conditions": {
     "PRISMATIC_GEM": "slot1 third candidate is PRISMATIC_GEM with p=1/3, else SEA_GLASS (p=2/3); slot1 then picks uniformly among 3",
     "SEA_GLASS": "parameterised by a random OTHER unlocked character (CharacterId); one sim id",
-    "TOUCH_OF_OROBAS": "only if the player still has a Starter-rarity relic (SetupForPlayer). On pickup it REPLACES that starter with its upgrade (see starter_upgrades; any other starter -> CIRCLET). relic_classes.json marks it macro_only: a realistic scenario holds the upgraded starter instead of the original, not TOUCH_OF_OROBAS beside it",
+    "TOUCH_OF_OROBAS": "only if the player still has a Starter-rarity relic (SetupForPlayer). On pickup it REPLACES that starter with its upgrade (see starter_upgrades; any other starter -> CIRCLET). relic_classes.json marks it macro_only: the game keeps TOUCH_OF_OROBAS (inert, saved StarterRelic / UpgradedRelic ids) beside the upgraded starter",
     "ARCHAIC_TOOTH": "only if the deck has a transcendence starter card (SetupForPlayer)"
    },
    "starter_upgrades": {

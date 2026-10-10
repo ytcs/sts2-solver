@@ -780,17 +780,22 @@ pub struct PropDef {
     pub boolean: bool,
     pub skip_default: bool,
     pub lit: &'static str,
+    pub relic: bool,
 }
 
 impl PropDef {
     pub const fn int(name: &'static str, slot: Slot) -> PropDef {
-        PropDef { name, slot, boolean: false, skip_default: false, lit: "" }
+        PropDef { name, slot, boolean: false, skip_default: false, lit: "", relic: false }
     }
     pub const fn flag(name: &'static str, bit: u8) -> PropDef {
-        PropDef { name, slot: Slot::Flag(bit), boolean: true, skip_default: false, lit: "" }
+        PropDef { name, slot: Slot::Flag(bit), boolean: true, skip_default: false, lit: "", relic: false }
     }
     pub const fn constant(name: &'static str, lit: &'static str) -> PropDef {
-        PropDef { name, slot: Slot::Counter, boolean: false, skip_default: false, lit }
+        PropDef { name, slot: Slot::Counter, boolean: false, skip_default: false, lit, relic: false }
+    }
+    // A saved relic ModelId ("RELIC.<NAME>"); the slot holds relic id + 1, 0 = null.
+    pub const fn relic(name: &'static str, slot: Slot) -> PropDef {
+        PropDef { name, slot, boolean: false, skip_default: true, lit: "", relic: true }
     }
     pub const fn skip_default(mut self) -> PropDef {
         self.skip_default = true;

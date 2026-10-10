@@ -52,7 +52,7 @@ class Engine:
             u = np.asarray(worth["u"], np.float64)
             tol *= float(u.max() - u[0]) / 2.5
         n_rounds, acc, first, rounds = rounds, {}, None, 0
-        held = potions.held_indices(scenario, keep_potions)
+        held = potions.held_indices(sim, keep_potions)
         def _held(t):
             return t.startswith("potion") and (keep_potions is True or potions.text_index(t) in held)
         skip = {a for a, t in sim.legal() if t.startswith("discard potion") or _held(t)}

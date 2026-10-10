@@ -250,10 +250,7 @@ class Live:
 
 
     def _sim_potions(self):
-        return potions.live_slots(self.rp.scenario, self.rp.sim) if self.rp is not None else []
-
-    def _game_json(self, j):
-        return potions.to_game_action(self.rp.scenario, j)
+        return potions.live_slots(self.rp.sim) if self.rp is not None else []
 
     def _belt(self):
         return scr.belt(call("peek"))
@@ -343,7 +340,7 @@ class Live:
         self.potions_used += 1
         self.fight_actions += 1
         self.log.event("potion_commit", fight=self.fight_id, id=pid, text=legal[a], json=j, priced=row is not None, verdict=row["verdict"] if row is not None else None)
-        reply = self._send("do " + self._game_json(j))
+        reply = self._send("do " + j)
         if not reply.startswith("ERR"):
             self.last_state = reply
         return reply
@@ -462,7 +459,7 @@ class Live:
                 self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"], foes=self._foes(f))
                 out.append("  " + self._advice_text(d))
                 t0 = T()
-                reply = self._send("do " + self._game_json(d["json"]))
+                reply = self._send("do " + d["json"])
                 tm["do"] += T() - t0
                 tm["do_end"] = tm.get("do_end", 0.0) + (T() - t0 if '"end_turn"' in d["json"] else 0.0)
                 tm["n"] = tm.get("n", 0) + 1
