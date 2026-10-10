@@ -1,0 +1,23 @@
+seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
+BASE0001   loss      39 AXEBOTS_NORMAL                     34/15/-            263     20   18     9.4     40.7 
+BASE0002   loss      17 WATERFALL_GIANT_BOSS               0/-/-               76     10    5     4.1     23.4 
+BASE0003   loss       9 PHROG_PARASITE_ELITE               -/-/-               64      6    2     2.0     11.3 
+BASE0004   loss      17 THE_KIN_BOSS                       0/-/-               88      9    5     2.8     19.2 
+BASE0005   loss      43 SOUL_NEXUS_ELITE                   10/28/-            197     22   13    17.6     61.9 
+BASE0006   loss      33 KNOWLEDGE_DEMON_BOSS               52/0/-             123     18   10    12.2     51.2 
+BASE0007   loss      17 CEREMONIAL_BEAST_BOSS              0/-/-              118     11    4     2.7     19.5 
+BASE0008   loss      17 WATERFALL_GIANT_BOSS               0/-/-               88     11    6     3.3     27.2 
+BASE0009   loss      48 TEST_SUBJECT_BOSS                  26/50/0            205     26   12    13.4     80.9 
+BASE0010   loss      33 KNOWLEDGE_DEMON_BOSS               33/0/-             212     18    8     9.3     36.2 
+BASE0011   loss      22 LOUSE_PROGENITOR_NORMAL            50/-/-             151     14    7     6.0     33.4 
+BASE0012   loss      49 QUEEN_BOSS                         45/42/0            239     25   11    28.3     83.1 fallback
+BASE0013   loss       7 PHANTASMAL_GARDENERS_ELITE         -/-/-               58      2    2     0.9      5.9 
+BASE0014   loss      43 MECHA_KNIGHT_ELITE                 38/11/-            277     23   14    11.4     63.8 
+BASE0015   loss      33 KNOWLEDGE_DEMON_BOSS               12/0/-             231     15    9     6.5     46.1 
+BASE0016   loss      48 TEST_SUBJECT_BOSS                  21/41/0            290     24   14    11.1     43.3 
+BASE0017   loss      48 QUEEN_BOSS                         68/8/0             208     27   14    20.0     66.9 desync,fallback
+BASE0018   loss      48 QUEEN_BOSS                         39/33/0            244     25   11    20.8     77.8 fallback
+BASE0019   loss      33 KAISER_CRAB_BOSS                   28/0/-             180     14    6     7.3     34.7 desync
+BASE0020   loss      23 HUNTER_KILLER_NORMAL               30/-/-             166     13    8     4.8     34.4 
+win rate 0.000 +- 0.000 (n 20); mean floor 31.4; own time per run 9.7 min; decide 1.324 s/decision
+act-1 boss passed 0.700 +- 0.102; act reached 1/2/3: 6/6/8; mean death floor 31.4; deaths {'hallway': 3, 'boss': 13, 'elite': 4}; price 38.6 calls/run, 1.7 s/call
