@@ -15,6 +15,9 @@ pub fn compare(path: &str, rust: &Value, oracle: &Value, out: &mut Vec<String>) 
                     None => out.push(format!("{path}.{k}: missing in oracle (rust = {rv})")),
                 }
             }
+            if let (Some(ov), None) = (o.get("affliction"), r.get("affliction")) {
+                out.push(format!("{path}.affliction: missing in rust (oracle = {ov})"));
+            }
         }
         (Value::Array(r), Value::Array(o)) => {
             if r.len() != o.len() {

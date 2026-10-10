@@ -10,6 +10,8 @@ pub struct ObsCard {
     pub cost: Option<i32>,
     pub enchant: u8,
     pub enchant_amount: i16,
+    pub affliction: u8,
+    pub affliction_amount: i16,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -93,6 +95,7 @@ impl Combat {
         }
         let hand: Vec<CardIdx> = self.player.hand.iter().copied().collect();
         for (c, o) in hand.iter().zip(obs.iter()) {
+            self.sync_affliction(*c, o.affliction, o.affliction_amount);
             if let Some(want) = o.cost {
                 if want < 0 || self.card_def(*c).x_cost {
                     continue;
@@ -156,7 +159,30 @@ impl Combat {
                 }
             }
         }
+        self.sync_pile_afflictions(pile, obs);
         rep
+    }
+
+    fn sync_pile_afflictions(&mut self, pile: PileType, obs: &[ObsCard]) {
+        let cards: Vec<CardIdx> = self.pile(pile).iter().copied().collect();
+        let mut want: Vec<Option<(u8, i16)>> = vec![None; cards.len()];
+        let key = |cx: &Combat, c: CardIdx| (cx.cards[c as usize].id, cx.cards[c as usize].upgrade);
+        let mut rest = vec![];
+        for o in obs {
+            match (0..cards.len()).find(|&j| want[j].is_none() && key(self, cards[j]) == (o.id, o.upgrade) && self.cards[cards[j] as usize].affliction == o.affliction) {
+                Some(j) => want[j] = Some((o.affliction, o.affliction_amount)),
+                None => rest.push(o),
+            }
+        }
+        for o in rest {
+            if let Some(j) = (0..cards.len()).find(|&j| want[j].is_none() && key(self, cards[j]) == (o.id, o.upgrade)) {
+                want[j] = Some((o.affliction, o.affliction_amount));
+            }
+        }
+        for (c, w) in cards.into_iter().zip(want) {
+            let (a, n) = w.unwrap_or((0, 0));
+            self.sync_affliction(c, a, n);
+        }
     }
 
     // Call after the hand and the visible piles are synced: the draw pile is what is left.
@@ -199,6 +225,7 @@ impl Combat {
             self.cards[c as usize].flags |= cflag::REMOVED;
             rep.returned += 1;
         }
+        self.sync_pile_afflictions(PileType::Draw, obs);
         rep
     }
 

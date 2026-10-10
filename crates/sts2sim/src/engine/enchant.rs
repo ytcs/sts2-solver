@@ -107,4 +107,38 @@ impl Combat {
         c.affliction = 0;
         c.affliction_amount = 0;
     }
+
+    // A gained affliction takes over a this-turn CardAfflicted entry whose card lost it (Chains of Binding counts them).
+    pub fn sync_affliction(&mut self, card: CardIdx, aff: u8, amount: i16) {
+        let k = &mut self.cards[card as usize];
+        if k.affliction == aff {
+            k.affliction_amount = if aff == 0 { 0 } else { amount };
+            return;
+        }
+        k.affliction = 0;
+        k.affliction_amount = 0;
+        if aff == 0 {
+            return;
+        }
+        let id = (aff - 1) as u16;
+        self.listen |= content::affliction_mask(id);
+        self.listen_cards |= content::affliction_mask(id);
+        let k = &mut self.cards[card as usize];
+        k.affliction = aff;
+        k.affliction_amount = amount;
+        let cid = k.id;
+        let n = self.hist_log.n as usize;
+        let stale = (n - n.min(crate::engine::HIST_CAP)..n).rev().map(|i| i % crate::engine::HIST_CAP).find(|&i| {
+            let e = &self.hist_log.entries[i];
+            e.kind == HKind::CardAfflicted && e.val == id as i16 && self.hist_this_turn(e) && self.cards[e.card as usize].affliction != aff
+        });
+        match stale {
+            Some(i) => {
+                let e = &mut self.hist_log.entries[i];
+                e.card = card;
+                e.id = cid;
+            }
+            None => self.hist_push(HKind::CardAfflicted, PLAYER, NO, cid, card, id as i32, 0, 0, 0),
+        }
+    }
 }
