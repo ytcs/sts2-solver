@@ -485,6 +485,7 @@ class Game:
         else:
             raise RuntimeError(f"server on {port} did not start")
         self.h = BaselineHarness(GameLog(self.dir), engine, rounds, seed, seconds)
+        self.engine, self.bosses = engine, {}
         self.macro = PriceMacro(self.h, predictor, seed, price_n) if price_n else Macro(self.h, predictor, seed)
         self.setting = dict(macro=f"price n{price_n}" if price_n else "base", budget=f"{seconds}s" if seconds else f"{rounds} rounds")
         self.t0, self.own, self.steps, self.errors, self.stuck = time.time(), 0.0, 0, 0, 0
@@ -517,6 +518,8 @@ class Game:
         if scr.busy(s):
             time.sleep(0.02)
             return False
+        if kind == "MAP":
+            self.note_bosses(s)
         if kind == "COMBAT":
             self.last_combat = (scr.floor_key(s), [m.group(1) for l in s.split("\n") for m in [re.match(r"^e\d+ (.+?) \d+/\d+ ", l)] if m])
         if kind in ("COMBAT", "SELECT"):
@@ -552,6 +555,41 @@ class Game:
             bad.add(choice.split()[0])
             h.log.event("baseline_error", screen=s[:800], choice=choice, reply=r[:300])
         return False
+
+    def note_bosses(self, s):
+        m = re.search(r"A(\d+) F", scr.header_line(s, "") or "")
+        act = int(m.group(1)) if m else None
+        if act is None or act in self.bosses:
+            return
+        line = next((l for l in self.h.handle("m").splitlines() if l.startswith("boss:")), "")
+        self.bosses[act] = re.findall(r"[A-Z][A-Z0-9_]*_BOSS", line)
+
+    def deck_strength(self, ev):
+        """the macro metric: each deck that met a boss, and the final deck, vs that act's bosses at full HP, no potions (search, 64 attempts)"""
+        starts = [e for e in ev if e["kind"] == "fight_start" and e.get("scenario")]
+        jobs = []
+        seen = set()
+        for e in starts:
+            sc = e["scenario"]
+            act = (sc.get("act") or 0) + 1
+            if e["encounter"].endswith("_BOSS") and act not in seen:
+                seen.add(act)
+                jobs += [(f"A{act} boss deck", enc, sc) for enc in self.bosses.get(act) or [e["encounter"]]]
+        if starts:
+            sc = starts[-1]["scenario"]
+            act = (sc.get("act") or 0) + 1
+            jobs += [("final deck", enc, sc) for enc in self.bosses.get(act, [])]
+        if not jobs:
+            return {}
+        scen = [dict(sc, encounter=enc, hp=sc["max_hp"], potions=[]) for _, enc, sc in jobs]
+        try:
+            res = self.engine.solve(scen, attempts=64)
+        except Exception as e:  # noqa: BLE001
+            return {"error": f"{type(e).__name__}: {e}"[:200]}
+        out = {}
+        for (key, enc, _), r in zip(jobs, res):
+            out.setdefault(key, {})[enc] = round(float(r["win"]), 3)
+        return out
 
     def combat(self):
         h = self.h
@@ -639,7 +677,8 @@ class Game:
                     decisions=st["decisions"], decide_s=round(st["decide_s"], 1), proposals_s=round(st["proposals_s"], 1), differs=st["differs"],
                     desync=st["desync"], select_fallback=st["select_fallback"],
                     fallback_actions=st["fallback_actions"], errors=self.errors, act=act, price_calls=st["price_calls"], price_s=round(st["price_s"], 1),
-                    death_kind=kind, **self.setting)
+                    death_kind=kind, deck_strength=self.deck_strength(ev), deck_size=len(starts[max(starts)]["scenario"]["deck"]) if starts else None,
+                    **self.setting)
 
 
 class GpuSampler(threading.Thread):
@@ -704,6 +743,14 @@ def summary(rows, gpu=None):
         out.append(f"act-1 boss passed {a1:.3f} +- {math.sqrt(a1 * (1 - a1) / n):.3f}; act reached 1/2/3: {'/'.join(str(act.count(j)) for j in (1, 2, 3))}; "
                    f"mean death floor {sum(r['floor'] or 0 for r in dead) / max(1, len(dead)):.1f}; deaths {kinds}"
                    + (f"; price {pc / n:.1f} calls/run, {sum(r['price_s'] for r in rows) / max(1, pc):.1f} s/call" if pc else ""))
+    ds = {}
+    for r in rows:
+        for k, v in (r.get("deck_strength") or {}).items():
+            if isinstance(v, dict) and v:
+                ds.setdefault(k, []).append(sum(v.values()) / len(v))
+    if ds:
+        out.append("deck strength vs that act's bosses at full HP, no potions (mean, n): " + "; ".join(
+            f"{k} {sum(v) / len(v):.2f} (n {len(v)})" for k, v in sorted(ds.items())))
     if gpu and gpu.util:
         out.append(f"GPU utilisation mean {sum(gpu.util) / len(gpu.util):.0f}% (samples {len(gpu.util)}), memory max {max(gpu.mem):.0f} MiB")
     return "\n".join(out)
