@@ -18,7 +18,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 ## 3. Stages, in order
 
 **Next, in order** (from E50/E52/E55; target ~90%+ wins, user):
-1. Flip `hp_cap` on (E42; gate checksum a293f34d31e01ad3); first post-restart item.
+1. Done: `hp_cap` on in the live Engine (E42); gate checks the capped search checksum a293f34d31e01ad3.
 2. r7 (E54): player worse (near-miss -0.018 +- 0.005, play worse on all sets), not promoted; predictor much better (decile gate and deck Spearman pass, plans bias +0.070 overshoots). Next: A/B r7 as the `price`/macro predictor with r6 as player on the headless baseline (macro binds, E50); next round v3 at λ 0.95 (policy cost of λ 1.0, E49) or separate policy/value nets; sign gate still fails (Accelerant shrunk, doom worse).
 3. Separate potions from search at the fatal fights (post-mortem arms a' = 1024 futures no potions, b' = 512 with potions). If potions carry E55's +0.08: potions as search actions with a cost prior (the live search never throws potions; proposals rarely fire: E43 2 of 8, E55 none used in 8 of 13 fatal fights).
 4. HP drain (+6.2 HP per fight over the predictor, E55): compare collection's per-decision budget with the baseline's 16 rounds; recompute the drain on the 76-round logs (E52); if it does not shrink, it is model or fidelity (check Slumbering Beetle sim 8/8 vs live 0/16 via run-replay + check-trace).
@@ -36,7 +36,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 
 **2. Solver strength: setup turns and the loss tail.** E43: the gap that matters is the tail (death at 17 HP in an elite he won), weak-fight HP leaks and potions not thrown. Order-dependent setup turns are misranked (Gardeners #1, Lagavulin #0, E34; errors spread over setup turns, E26); exact turn search fixed only blind-turn lethal (E36).
 - Measured on real states (E39): 10 confirmed expert gaps, 6 of them setup/power across the turn boundary; `tools/exact_turn_check.py` is the fixed check.
-- HP cap (`hp_cap`, nearmiss suffix `@cap`, default off; E42): leaf win mass above the HP ceiling (leaf HP + `Combat::hp_gain_bound`) is valued at the ceiling, so no leaf beats winning now. Near-miss neutral (-0.002 +- 0.002 L->W), expert states 0 -> 9 of 44 seeds (k438, k479 closed), no cost: a correctness fix; flip on once the λ sweep and v3 benches (referenced to live r6) land, on E42's evidence alone: a baseline A/B cannot resolve it (0/20 wins, seeds not reproducible).
+- HP cap (`hp_cap`, nearmiss suffix `@cap`, live default (Engine); E42): leaf win mass above the HP ceiling (leaf HP + `Combat::hp_gain_bound`) is valued at the ceiling, so no leaf beats winning now. Near-miss neutral (-0.002 +- 0.002 L->W), expert states 0 -> 9 of 44 seeds (k438, k479 closed), no cost: a correctness fix.
 - Candidates: deeper leaf on close calls; exact turn search with a two-turn leaf; value targets from deeper search.
 - Scale: a generator of states of the expert-found classes (setup/power across the turn boundary, scheduled big hits, combos) labelled by the honest references, gated by cheap detectors (leaf above the win-now ceiling, fast-vs-deep disagreement, setup card at a close call); the same verdict miner over our own near-miss and costly fights.
 - Gate: near-miss L->W up with W->L not worse, paired with live; more of the expert gap states solved (none lost: k184 keeps its win); live decision time within budget.
