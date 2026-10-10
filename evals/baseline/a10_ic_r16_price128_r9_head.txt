@@ -1,0 +1,25 @@
+seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
+BASE0001   loss      46 FABRICATOR_NORMAL                  24/26/-            234     23    0     7.0     16.4 
+BASE0002   loss      14 PHANTASMAL_GARDENERS_ELITE         -/-/-               64     10    0     1.8      5.3 
+BASE0003   loss      49 AEONGLASS_BOSS                     42/84/0            208     25    0     5.0     17.3 
+BASE0004   loss      31 OVICOPTER_NORMAL                   29/-/-             119     16    0     2.9     11.6 
+BASE0005   loss      25 ENTOMANCER_ELITE                   27/-/-             146     14    0     2.7      7.8 
+BASE0006   loss      49 QUEEN_BOSS                         33/43/0            156     24    0     6.0     18.5 
+BASE0007   loss      48 QUEEN_BOSS                         35/19/0            259     24    0     6.6     18.5 desync
+BASE0008   loss      17 WATERFALL_GIANT_BOSS               0/-/-               78      8    0     2.5      7.8 
+BASE0009   loss      46 AXEBOTS_NORMAL                     54/39/-            219     24    0     8.1     21.1 
+BASE0010   loss      33 KNOWLEDGE_DEMON_BOSS               34/0/-             123     16    0     4.1     14.2 
+BASE0011   loss      25 INFESTED_PRISMS_ELITE              26/-/-             238     13    0     2.5     10.2 
+BASE0012   loss      25 SLUMBERING_BEETLE_NORMAL           21/-/-             176     16    0     4.0     13.3 
+BASE0013   loss      33 THE_INSATIABLE_BOSS                29/0/-             163     13    0     5.9     13.8 
+BASE0014   loss      33 THE_INSATIABLE_BOSS                26/0/-             193     16    0     3.2     12.4 
+BASE0015   loss      48 QUEEN_BOSS                         43/17/0            279     26    0     5.7     15.9 
+BASE0016   loss      33 KAISER_CRAB_BOSS                   24/0/-             200     17    0     2.9     12.2 
+BASE0017   loss      48 QUEEN_BOSS                         18/23/0            242     22    0     8.4     18.3 
+BASE0018   loss      44 KNIGHTS_ELITE                      62/27/-            214     20    0     4.6     13.6 desync
+BASE0019   loss      11 BYRDONIS_ELITE                     -/-/-               73      7    0     1.0      5.0 
+BASE0020   loss      28 ENTOMANCER_ELITE                   23/-/-             197     13    0     3.4      7.7 
+win rate 0.000 +- 0.000 (n 20); mean floor 34.3; own time per run 4.4 min; decide 0.114 s/decision
+act-1 boss passed 0.850 +- 0.080; act reached 1/2/3: 3/9/8; mean death floor 34.3; deaths {'hallway': 4, 'elite': 6, 'boss': 10}; price 43.0 calls/run, 4.8 s/call
+deck strength vs that act's bosses at full HP, no potions (mean, n): A1 boss deck 0.86 (n 18); A2 boss deck 0.68 (n 12); A3 boss deck 0.33 (n 5); final deck 0.25 (n 20)
+GPU utilisation mean 62% (samples 5323), memory max 11946 MiB
