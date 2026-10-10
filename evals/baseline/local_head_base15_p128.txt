@@ -1,0 +1,6 @@
+seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
+BASE0015   loss      33 KNOWLEDGE_DEMON_BOSS               29/0/-              98     20    0     3.6      3.6 
+win rate 0.000 +- 0.000 (n 1); mean floor 33.0; own time per run 3.6 min; decide 0.104 s/decision
+act-1 boss passed 1.000 +- 0.000; act reached 1/2/3: 0/1/0; mean death floor 33.0; deaths {'boss': 1}; price 43.0 calls/run, 3.9 s/call
+deck strength vs that act's bosses at full HP, no potions (mean, n): A1 boss deck 1.00 (n 1); A2 boss deck 0.78 (n 1); final deck 0.78 (n 1)
+GPU utilisation mean 51% (samples 215), memory max 11586 MiB
