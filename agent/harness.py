@@ -352,17 +352,18 @@ class Harness(Live):
 
     @_needs_run("no run in progress")
     def loot(self):
-        """the rewards that need no judgement, after the operator has decided the card reward (War Paint-like pickups act on the new card) and
-        the relics (a free relic can be anti-synergy, e.g. Tungsten Rod vs Rupture/Inferno; relics before gold for Bowler Hat-like ones):
-        a stolen card, gold, potions while a slot is free"""
+        """the rewards that need no judgement (gold, potions while a slot is free), after the operator has decided the card reward (War Paint-like
+        pickups act on the new card), relics (a free relic can be anti-synergy, e.g. Tungsten Rod vs Rupture/Inferno; relics before gold for
+        Bowler Hat-like ones) and a stolen card (maybe a card to drop anyway, or the card reward offers it upgraded)"""
         out = ""
-        order = (r"(?i)^take your stolen", r"(?i)^\d+ gold", r"(?i)^potion ")
+        order = (r"(?i)^\d+ gold", r"(?i)^potion ")
         for _ in range(10):
             state = call("peek")
             if scr.kind(state) != "REWARDS":
                 break
             opts = scr.options(state)
-            pending = [label.split(":")[0] for _, label in opts if label.lower().startswith(("card", "relic "))]
+            card_done = self.priced.get("reward") == scr.floor_key(state)
+            pending = [label.split(":")[0] for _, label in opts if label.lower().startswith(("relic ", "take your stolen")) or (label.lower().startswith("card") and not card_done)]
             if pending:
                 return ((out.rstrip("\n") + "\n" if out else "") + f"loot: decide {', '.join(pending)} first (the card reward before relics; a relic can be "
                         "anti-synergy; relics before gold), then `loot`\n" + state)
