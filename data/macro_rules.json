@@ -1,0 +1,7 @@
+{
+  "_doc": "Macro hypotheses as weighted scorer terms (plan item 3), read by runmodel.BasePolicy (the rollout policy behind price and the scripted baseline) and tools/baseline.py PriceMacro. Each term: value(s), tag, the skill rule it implements. Worth units: runmodel.worth per reference fight (loss -1, win 1 + 0.5 x end HP fraction). Set a weight to 0 to ablate.",
+  "density": {"target": 20, "per_card": 0.02, "tag": "[hyp]", "skill": "sts2-deckbuilding 2.7: past ~20 cards skip ties; E64/E67: act-3 deaths carry 33-38-card decks"},
+  "skip_margin": {"worth": 0.02, "price_se": 2.0, "tag": "[hyp]", "skill": "sts2-deckbuilding 1: < 2 se = tie, tie -> skip; E66: 15 of 20 operator card rewards skipped"},
+  "removal_first": {"min_deck": 12, "tag": "[hyp]", "skill": "sts2-deckbuilding 2.7c: removals before marginal cards; E66: removal +0.18 at the act-3 shop"},
+  "keep_gold_for_removal": {"min_deck": 18, "tag": "[hyp]", "skill": "sts2-deckbuilding 6: keep gold for later; E64: 45-415 gold unspent at act-3 deaths while decks bloated"}
+}

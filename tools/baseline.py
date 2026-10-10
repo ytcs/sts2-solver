@@ -237,8 +237,12 @@ class Macro:
             st = self.st(s)
             variants = ([None] if skip is not None else []) + [lambda x, c=c, u=u: x.deck.append({"id": c, "upgrade": u}) for _, c, u in cards]
             w = self.screen(st, variants, self.rng(s, "card"))
-            best = int(w.argmax())
-            choice = (skip if best == 0 else cards[best - 1][0]) if skip is not None else cards[best][0]
+            if skip is not None:
+                n = len(st.deck)
+                best = R.pick_with_terms(w, [n] + [n + 1] * len(cards))
+                choice = skip if best == 0 else cards[best - 1][0]
+            else:
+                choice = cards[int(w.argmax())][0]
         if choice == skip and self.opened:
             self.declined.add(self.opened)
         return str(choice)
@@ -366,6 +370,7 @@ class PriceMacro(Macro):
     def __init__(self, h, predictor, seed, n, hybrid=os.environ.get("BASELINE_HYBRID", "1") != "0"):
         super().__init__(h, predictor, seed)
         self.n, self.hybrid = n, hybrid
+        self.last_res = self.last_override = None
 
     def price(self, s, opts):
         if len(opts) < 2:
@@ -374,6 +379,7 @@ class PriceMacro(Macro):
         res = PR.price(st, opts, self.pred, n=self.n, seed=zlib.crc32(f"{self.seed}|{scr.floor_key(s)}".encode()) % 10_000)
         check = PR.search_check(st, opts, res, self.h.engine) if scr.kind(s) in ("CARD_REWARD", "SHOP", "EVENT") and self.hybrid else {}
         best, ranked, override = PR.hybrid_best(res, check)
+        self.last_res, self.last_override = res, override
         dt = time.perf_counter() - t0
         self.h.stats["price_calls"] += 1
         self.h.stats["price_s"] += dt
@@ -409,9 +415,17 @@ class PriceMacro(Macro):
         return str(hit) if hit is not None else super().map(s, lab)
 
     def p_card_reward(self, s, lab):
-        best = self.price(s, PR.options(self.st(s), s))
+        st = self.st(s)
+        best = self.price(s, PR.options(st, s))
         if best is None:
             return None
+        if best != "skip" and self.last_res and "skip" in self.last_res:
+            # tie -> skip; past the density target an addition must also clear the density cost (data/macro_rules.json)
+            main, _ = PR.ladder(self.last_res)
+            d = self.last_res[best][main] - self.last_res["skip"][main]
+            need = R.MACRO["skip_margin"]["price_se"] * PR._se(d) + R.density_cost(len(st.deck) + 1) / 2
+            if self.last_override is None and d.mean() <= need:
+                best = "skip"
         skip = next((i for i, t in lab if t.startswith("Skip")), None)
         choice = skip if best == "skip" else next((i for i, t in lab if "(" in t and _name(t) == best), None)
         if choice == skip and self.opened:

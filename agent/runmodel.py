@@ -8,6 +8,22 @@ import numpy as np
 from agent import tracker as T
 
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
+MACRO = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "macro_rules.json")))
+if os.environ.get("MACRO_RULES") == "off":
+    MACRO.update(density=dict(target=10 ** 6, per_card=0.0), skip_margin=dict(worth=-1e9, price_se=-1e9), removal_first=dict(min_deck=0),
+                 keep_gold_for_removal=dict(min_deck=10 ** 6))
+
+
+def density_cost(n_cards):
+    r = MACRO["density"]
+    return r["per_card"] * max(0, n_cards - r["target"])
+
+
+def pick_with_terms(w, sizes):
+    """index into the variants (0 = no addition): worth minus the density cost, an addition must beat no addition by the skip margin"""
+    adj = np.asarray(w, float) - np.array([density_cost(n) for n in sizes])
+    best = int(np.argmax(adj))
+    return best if best and adj[best] - adj[0] > MACRO["skip_margin"]["worth"] else 0
 RARITIES = ("Common", "Uncommon", "Rare")
 CARD_ODDS = {"hallway": (0.0149, 0.37), "elite": (0.05, 0.40), "shop": (0.045, 0.37), "boss": (1.0, 0.0)}
 UPGRADE_PER_ACT = 0.125
@@ -226,16 +242,17 @@ class BasePolicy:
         refs = reference_fights(st, rng)
         basic = next((c for c in deck if c["id"].startswith(BASICS[:2])), None)
         rm = next((it for it in items if it[0] == "remove"), None)
-        if basic is not None and rm is not None and gold >= rm[2]:
+        if basic is not None and rm is not None and gold >= rm[2] and len(deck) >= MACRO["removal_first"]["min_deck"]:
             buys.append(("remove", basic, rm[2]))
             gold -= rm[2]
             deck.remove(basic)
-        cands = [it for it in items if it[0] in ("card", "relic") and it[2] <= gold]
+        reserve = rm[2] if rm is not None and not buys and len(deck) >= MACRO["keep_gold_for_removal"]["min_deck"] else 0
+        cands = [it for it in items if it[0] == "relic" and it[2] <= gold or it[0] == "card" and it[2] <= gold - reserve]
         if not cands:
             return buys
         variants = [(deck, st.relics)] + [(deck + [{"id": i, "upgrade": 0}], st.relics) if k == "card" else (deck, st.relics + [i]) for k, i, _ in cands]
         P = yield [st.scenario(e, hp, deck=d, potions=[], relics=r) for d, r in variants for e, hp in refs]
-        best = int(np.argmax(worth(P, st.max_hp).reshape(len(variants), len(refs)).mean(1)))
+        best = pick_with_terms(worth(P, st.max_hp).reshape(len(variants), len(refs)).mean(1), [len(d) for d, _ in variants])
         return buys + ([cands[best - 1]] if best else [])
 
 
@@ -344,7 +361,7 @@ def play(st, rng, pol, first=None, stop_at_next=False):
         refs = reference_fights(st, rng)
         decks = [st.deck] + [st.deck + [{"id": c, "upgrade": u}] for c, u in cards]
         P = yield [st.scenario(e, hp, deck=d, potions=[]) for d in decks for e, hp in refs]
-        best = int(np.argmax(worth(P, st.max_hp).reshape(len(decks), len(refs)).mean(1)))
+        best = pick_with_terms(worth(P, st.max_hp).reshape(len(decks), len(refs)).mean(1), [len(d) for d in decks])
         if best:
             st.deck.append({"id": cards[best - 1][0], "upgrade": cards[best - 1][1]})
         if kind == "elite":
