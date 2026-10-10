@@ -1,0 +1,34 @@
+  solver_r8b.pt@cover@x@cap: attempt 1/8, 2730 fights
+    exact turn: 26804 of 91350 searched decisions, 2571 capped, 4719 changed
+  solver_r8b.pt@cover@x@cap: attempt 2/8, 2730 fights
+    exact turn: 26548 of 91329 searched decisions, 2645 capped, 4541 changed
+  solver_r8b.pt@cover@x@cap: attempt 3/8, 2730 fights
+    exact turn: 26601 of 90672 searched decisions, 2677 capped, 4508 changed
+  solver_r8b.pt@cover@x@cap: attempt 4/8, 2730 fights
+    exact turn: 26755 of 91286 searched decisions, 2636 capped, 4416 changed
+  solver_r8b.pt@cover@x@cap: attempt 5/8, 2730 fights
+    exact turn: 26320 of 90881 searched decisions, 2507 capped, 4458 changed
+  solver_r8b.pt@cover@x@cap: attempt 6/8, 2730 fights
+    exact turn: 26481 of 91051 searched decisions, 2645 capped, 4537 changed
+  solver_r8b.pt@cover@x@cap: attempt 7/8, 2730 fights
+    exact turn: 26604 of 90910 searched decisions, 2629 capped, 4507 changed
+  solver_r8b.pt@cover@x@cap: attempt 8/8, 2730 fights
+    exact turn: 26092 of 90855 searched decisions, 2564 capped, 4368 changed
+solver_r8b.pt@cover@x@cap (2648s) near-miss losses won 0.415 | close wins lost 0.206 | end HP 9.60 | potions kept 0.003
+  solver_r8b.pt@cover@x@cap@g0: attempt 1/8, 2730 fights
+    exact turn: 31835 of 91154 searched decisions, 3474 capped, 5957 changed
+  solver_r8b.pt@cover@x@cap@g0: attempt 2/8, 2730 fights
+    exact turn: 31260 of 90392 searched decisions, 3353 capped, 5557 changed
+  solver_r8b.pt@cover@x@cap@g0: attempt 3/8, 2730 fights
+    exact turn: 31593 of 90978 searched decisions, 3479 capped, 5585 changed
+  solver_r8b.pt@cover@x@cap@g0: attempt 4/8, 2730 fights
+    exact turn: 31345 of 90368 searched decisions, 3331 capped, 5753 changed
+  solver_r8b.pt@cover@x@cap@g0: attempt 5/8, 2730 fights
+    exact turn: 32121 of 91258 searched decisions, 3484 capped, 6070 changed
+  solver_r8b.pt@cover@x@cap@g0: attempt 6/8, 2730 fights
+    exact turn: 31813 of 90762 searched decisions, 3472 capped, 5695 changed
+  solver_r8b.pt@cover@x@cap@g0: attempt 7/8, 2730 fights
+    exact turn: 31888 of 90971 searched decisions, 3458 capped, 5788 changed
+  solver_r8b.pt@cover@x@cap@g0: attempt 8/8, 2730 fights
+    exact turn: 31494 of 90645 searched decisions, 3369 capped, 5758 changed
+solver_r8b.pt@cover@x@cap@g0 (2631s) near-miss losses won 0.417 (+0.002 +- 0.005) | close wins lost 0.211 (+0.004 +- 0.004) | end HP 9.67 (+0.08 +- 0.08) | potions kept 0.003 (+0.001 +- 0.000)
