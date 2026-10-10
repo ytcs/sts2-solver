@@ -319,6 +319,32 @@ impl Combat {
         rep
     }
 
+    // Belt index = the game's slot.
+    pub fn sync_potions(&mut self, slots: u8, belt: &[(usize, u16)]) -> u16 {
+        let mut want: [Option<u16>; MAX_POTIONS] = [None; MAX_POTIONS];
+        for &(s, id) in belt {
+            if s < MAX_POTIONS {
+                want[s] = Some(id);
+            }
+        }
+        let mut changed = (self.player.potion_slots != slots) as u16;
+        self.player.potion_slots = slots.min(MAX_POTIONS as u8);
+        for (s, w) in want.into_iter().enumerate() {
+            if self.player.potions[s].map(|p| p.id) == w {
+                continue;
+            }
+            changed += 1;
+            self.player.potions[s] = w.map(|id| Potion { id });
+            if let Some(id) = w {
+                self.listen |= crate::content::potion_mask(id);
+                if !crate::content::potion_implemented(id) {
+                    self.flag_missing(crate::hooks::Kind::Potion, id);
+                }
+            }
+        }
+        changed
+    }
+
     pub fn sync_options(&mut self, want: &[(u16, u8)]) -> bool {
         if !matches!(self.decision, Some(Decision { source: DecisionSource::Options, .. })) || self.replay.is_some() {
             return false;

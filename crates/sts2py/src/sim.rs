@@ -52,6 +52,18 @@ fn card_ids(name: &str) -> Option<u16> {
     sts2sim::ids::card::NAMES.iter().position(|n| *n == name).map(|i| i as u16)
 }
 
+fn obs_belt(v: &Value, notes: &mut Vec<String>) -> Option<Vec<(usize, u16)>> {
+    let mut belt = vec![];
+    for (i, p) in v.as_array()?.iter().enumerate() {
+        let name = p.as_str().or_else(|| p["id"].as_str()).unwrap_or("");
+        match sts2sim::ids::potion::NAMES.iter().position(|n| *n == name) {
+            Some(id) => belt.push((p["slot"].as_u64().map_or(i, |s| s as usize), id as u16)),
+            None => notes.push(format!("unknown potion {name}")),
+        }
+    }
+    Some(belt)
+}
+
 fn obs_card(c: &Value, with_cost: bool) -> Option<ObsCard> {
     let id = card_ids(c["id"].as_str().unwrap_or(""))?;
     let e = &c["enchantment"];
@@ -99,6 +111,10 @@ impl Sim {
         sc.validate().map_err(|e| PyValueError::new_err(format!("scenario uses unported content: {e:?}")))?;
         let mut cx = Combat::try_new_with(&sc, &ex).map_err(err)?;
         cx.reset_validated(&sc, &ex, seed, sts2sim::state::RngSet::from_run_seed_fast(seed)).map_err(err)?;
+        if let Some(belt) = obs_belt(&v["potions"], &mut vec![]) {
+            let slots = cx.player.potion_slots;
+            cx.sync_potions(slots, &belt);
+        }
         Ok(Sim { cx })
     }
 
@@ -114,6 +130,10 @@ impl Sim {
             }
         }
         s
+    }
+
+    fn belt(&self) -> Vec<(usize, &'static str)> {
+        self.cx.player.potions.iter().enumerate().filter_map(|(i, p)| p.map(|p| (i, sts2sim::ids::potion::NAMES[p.id as usize]))).collect()
     }
 
     fn determinize(&mut self, seed: u64) -> bool {
@@ -504,9 +524,15 @@ impl Sim {
                 notes.push(format!("relic {}: shown counter not reproducible", sts2sim::ids::relic::NAMES[id as usize]));
             }
         }
+        let mut potions_changed = 0u32;
+        if let Some(belt) = obs_belt(&real["potions"], &mut notes) {
+            let slots = real["potion_slots"].as_u64().map_or(self.cx.player.potion_slots, |n| n as u8);
+            potions_changed = self.cx.sync_potions(slots, &belt) as u32;
+        }
         Ok(json!({
             "from_draw": rep.from_draw, "from_discard": rep.from_discard, "from_exhaust": rep.from_exhaust,
-            "created": rep.created, "returned": rep.returned, "cost_fixes": rep.cost_fixes, "powers": powers_changed, "relics": relics_changed, "notes": notes,
+            "created": rep.created, "returned": rep.returned, "cost_fixes": rep.cost_fixes, "powers": powers_changed, "relics": relics_changed,
+            "potions": potions_changed, "notes": notes,
         })
         .to_string())
     }

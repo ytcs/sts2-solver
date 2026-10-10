@@ -2,7 +2,6 @@ import collections, json, random
 
 import sts2
 
-from agent import potions
 
 RANDOM_PREFIXES = (".hand", ".draw", ".discard", ".exhaust")
 
@@ -92,7 +91,7 @@ class Replayer:
 
     def _sync(self, state, action):
         rep = json.loads(self.sim.sync(json.dumps(state)))
-        for k in ("created", "from_discard", "from_exhaust", "powers", "relics"):
+        for k in ("created", "from_discard", "from_exhaust", "powers", "relics", "potions"):
             if rep.get(k):
                 self._note("sync " + k, f"{action or 'start'} [{getattr(self, '_played', '')}]: {rep}")
         for n in rep["notes"]:
@@ -162,9 +161,6 @@ class Replayer:
             return json.loads(self.sim.snapshot())["hand"][a["play"]["hand_pos"]]["id"]
         except Exception:  # noqa: BLE001
             return ""
-
-    def _map_potion(self, act):
-        return potions.to_sim_action(self.scenario, act)
 
     def _map_choose(self, act, before):
         import re
@@ -244,7 +240,6 @@ class Replayer:
                 if '"end_turn"' in act:
                     self._end_turn(state)
                 else:
-                    act = self._map_potion(act)
                     act = self._map_choose(act, states[i] if states else None)
                     self._played = self._card_at(act)
                     base = self.sim.copy()
