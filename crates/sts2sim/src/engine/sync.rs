@@ -319,7 +319,6 @@ impl Combat {
         rep
     }
 
-    // Belt index = the game's slot.
     pub fn sync_potions(&mut self, slots: u8, belt: &[(usize, u16)]) -> u16 {
         let mut want: [Option<u16>; MAX_POTIONS] = [None; MAX_POTIONS];
         for &(s, id) in belt {
