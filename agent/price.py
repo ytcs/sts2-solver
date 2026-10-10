@@ -35,7 +35,8 @@ def run_state(deck, ctx, events_path, state_text):
     relics = [r["id"] if isinstance(r, dict) else r for r in deck.get("relics", [])]
     pots = [p["id"] if isinstance(p, dict) else p for p in deck.get("potions", [])]
     st = R.RunState(deck, ctx.act, act_name, deck["hp"], deck["max_hp"], deck.get("gold", 0), deck["deck"], relics, pots,
-                    deck.get("max_potion_slots", 2), (t.potion, t.offset, dict(t.unknown), t.removals), seen, ctx.bosses, frontier, nodes or None,
+                    deck.get("max_potion_slots", 2), (t.potion, t.offset, dict(t.unknown), t.removals), seen,
+                    [b for b in ctx.bosses if b not in set(ctx.seen)] or list(ctx.bosses), frontier, nodes or None,
                     len(seen.get("weak", [])) + len(seen.get("regular", [])))
     st.bottleneck = bottleneck.term_vars(events_path, ctx.act)
     return st
