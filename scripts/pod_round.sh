@@ -15,7 +15,8 @@ FUTURES=${FUTURES:-0}
 ATTEMPTS=${ATTEMPTS:-1}
 SEED=${SEED:-105}
 EPOCHS=${EPOCHS:-3}
-LAM=${LAM:-0.8}
+LAM=${LAM:-0.95}
+POL=${POL:-3}
 TRAIN_CHUNK=${TRAIN_CHUNK:-2048}
 COLLECT_TRIES=${COLLECT_TRIES:-3}
 echo "== $(date -u +%FT%TZ) pod_round $RUN start"
@@ -72,7 +73,7 @@ echo "collection $status: $(grep -c '^chunk' target/round/collect.log || true) c
 [ "$have" -gt 0 ]
 
 python -u rl/exit.py train --init "$CKPT" --data target/round/"$RUN"_[0-9][0-9][0-9].npz $EXTRA --out "$OUT_CKPT" --epochs "$EPOCHS" \
-  --value-target td --lam "$LAM" --chunk "$TRAIN_CHUNK" >target/round/train.log 2>&1
+  --value-target td --lam "$LAM" --pol "$POL" --chunk "$TRAIN_CHUNK" >target/round/train.log 2>&1
 grep holdout target/round/train.log
 echo "collection $status; $OUT_CKPT; $(grep holdout target/round/train.log | tail -1)" >target/round/DONE
 echo "== $(date -u +%FT%TZ) pod_round $RUN done"
