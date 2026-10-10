@@ -1,0 +1,18 @@
+  solver_r8b.pt@cover@x@cap@p9: attempt 1/4, 2163 fights
+    exact turn: 38989 of 50571 searched decisions, 9556 capped, 16630 changed
+  solver_r8b.pt@cover@x@cap@p9: attempt 2/4, 2163 fights
+    exact turn: 38686 of 50350 searched decisions, 9602 capped, 16480 changed
+  solver_r8b.pt@cover@x@cap@p9: attempt 3/4, 2163 fights
+    exact turn: 38397 of 49535 searched decisions, 9514 capped, 16546 changed
+  solver_r8b.pt@cover@x@cap@p9: attempt 4/4, 2163 fights
+    exact turn: 39011 of 50275 searched decisions, 9697 capped, 16487 changed
+solver_r8b.pt@cover@x@cap@p9 (1563s) near-miss losses won 0.158 | close wins lost 0.690 | end HP 3.79 | potions kept 1.056
+  solver_r8b.pt@cover@x@cap@p0.3: attempt 1/4, 2163 fights
+    exact turn: 22326 of 68871 searched decisions, 3227 capped, 6123 changed
+  solver_r8b.pt@cover@x@cap@p0.3: attempt 2/4, 2163 fights
+    exact turn: 22637 of 68978 searched decisions, 3129 capped, 6201 changed
+  solver_r8b.pt@cover@x@cap@p0.3: attempt 3/4, 2163 fights
+    exact turn: 22623 of 69786 searched decisions, 3170 capped, 6261 changed
+  solver_r8b.pt@cover@x@cap@p0.3: attempt 4/4, 2163 fights
+    exact turn: 22210 of 68959 searched decisions, 3190 capped, 5969 changed
+solver_r8b.pt@cover@x@cap@p0.3 (1128s) near-miss losses won 0.367 (+0.209 +- 0.011) | close wins lost 0.264 (-0.426 +- 0.012) | end HP 8.57 (+4.78 +- 0.18) | potions kept 0.235 (-0.821 +- 0.015)

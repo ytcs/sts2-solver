@@ -1,0 +1,9 @@
+  solver_r8b.pt@cover@x@cap@p0.06: attempt 1/2, 502 fights
+    exact turn: 3952 of 13984 searched decisions, 725 capped, 905 changed
+  solver_r8b.pt@cover@x@cap@p0.06: attempt 2/2, 502 fights
+    exact turn: 3943 of 13866 searched decisions, 708 capped, 923 changed
+C:\Users\steve\sts2\sts2-solver\tools\nearmiss_bench.py:116: RuntimeWarning: Mean of empty slice
+  line.append(f"{name} {f.mean():.3f}")
+C:\Users\steve\sts2\sts2-solver\.venv\Lib\site-packages\numpy\_core\_methods.py:142: RuntimeWarning: invalid value encountered in scalar divide
+  ret = ret.dtype.type(ret / rcount)
+solver_r8b.pt@cover@x@cap@p0.06 (270s) near-miss losses won nan | close wins lost 0.222 | end HP 35.12 | potions kept 0.205

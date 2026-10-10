@@ -1,0 +1,47 @@
+  solver_r8b.pt@cover@x@cap@p0: attempt 1/2, 502 fights
+    exact turn: 4220 of 14136 searched decisions, 720 capped, 771 changed
+  solver_r8b.pt@cover@x@cap@p0: attempt 2/2, 502 fights
+    exact turn: 4250 of 14079 searched decisions, 758 capped, 800 changed
+C:\Users\steve\sts2\sts2-solver\tools\nearmiss_bench.py:116: RuntimeWarning: Mean of empty slice
+  line.append(f"{name} {f.mean():.3f}")
+C:\Users\steve\sts2\sts2-solver\.venv\Lib\site-packages\numpy\_core\_methods.py:142: RuntimeWarning: invalid value encountered in scalar divide
+  ret = ret.dtype.type(ret / rcount)
+solver_r8b.pt@cover@x@cap@p0 (307s) near-miss losses won nan | close wins lost 0.220 | end HP 35.91 | potions kept 0.018
+  solver_r8b.pt@cover@x@cap@p0.06: attempt 1/2, 502 fights
+[W1010 05:38:10.000000000 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 639631360 bytes (free: 0, total: 12877955072).
+[W1010 05:38:11.000000000 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 608174080 bytes (free: 0, total: 12877955072).
+[W1010 05:38:12.000000000 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 813694976 bytes (free: 0, total: 12877955072).
+[W1010 05:38:12.000000000 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 778043392 bytes (free: 0, total: 12877955072).
+[W1010 05:38:12.000000000 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 956301312 bytes (free: 0, total: 12877955072).
+[W1010 05:38:12.000000000 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 945815552 bytes (free: 0, total: 12877955072).
+[W1010 05:38:13.000000000 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 1063256064 bytes (free: 0, total: 12877955072).
+[W1010 05:38:13.000000000 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 1063256064 bytes (free: 0, total: 12877955072).
+Traceback (most recent call last):
+  File "C:\Users\steve\sts2\sts2-solver\tools\nearmiss_bench.py", line 158, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\steve\sts2\sts2-solver\tools\nearmiss_bench.py", line 154, in main
+    {"build": build, "eval": evaluate}[a.cmd](a)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\steve\sts2\sts2-solver\tools\nearmiss_bench.py", line 110, in evaluate
+    w, hp, kept = play(ck, rows, a.attempts, a.roots)
+                  ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\steve\sts2\sts2-solver\tools\nearmiss_bench.py", line 84, in play
+    res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims)
+  File "C:\Users\steve\sts2\sts2-solver\rl\fastsearch.py", line 468, in run
+    self._evaluate(G, G["n_pol"], G["n_val"])
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\steve\sts2\sts2-solver\.venv\Lib\site-packages\torch\utils\_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "C:\Users\steve\sts2\sts2-solver\rl\fastsearch.py", line 373, in _evaluate
+    return self._evaluate_graphs(G, n_pol, n_val)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\steve\sts2\sts2-solver\.venv\Lib\site-packages\torch\utils\_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "C:\Users\steve\sts2\sts2-solver\rl\fastsearch.py", line 356, in _evaluate_graphs
+    (obs, mask, u, vrows), rows = self._upload(G, n_pol, n_val, [c[2] for c in calls] + ([vplan] if n_val else []))
+                                  ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\steve\sts2\sts2-solver\rl\fastsearch.py", line 323, in _upload
+    up = [G[k_][:n_pol].to(DEV, non_blocking=True) for k_ in ("obs_t", "pol_mask_t", "pol_u_t")] if n_pol else [None] * 3
+          ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1014.00 MiB. GPU 0 has a total capacity of 11.99 GiB of which 0 bytes is free. Process 1952 has 17179869184.00 GiB memory in use. Process 10232 has 17179869184.00 GiB memory in use. Process 10516 has 17179869184.00 GiB memory in use. Process 9516 has 17179869184.00 GiB memory in use. Process 12632 has 17179869184.00 GiB memory in use. Process 12656 has 17179869184.00 GiB memory in use. Process 14740 has 17179869184.00 GiB memory in use. Process 17084 has 17179869184.00 GiB memory in use. Process 16656 has 17179869184.00 GiB memory in use. Process 11780 has 17179869184.00 GiB memory in use. Process 2372 has 17179869184.00 GiB memory in use. Process 17672 has 17179869184.00 GiB memory in use. Process 13512 has 17179869184.00 GiB memory in use. Including non-PyTorch memory, this process has 17179869184.00 GiB memory in use. Of the allocated memory 14.82 GiB is allocated by PyTorch, with 9.70 GiB allocated in private pools (e.g., CUDA Graphs), and 542.50 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)

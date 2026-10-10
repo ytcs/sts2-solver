@@ -1,0 +1,27 @@
+  solver_r8b.pt@cover@x@cap@p0: attempt 1/4, 2163 fights
+    exact turn: 21484 of 74639 searched decisions, 2132 capped, 3787 changed
+  solver_r8b.pt@cover@x@cap@p0: attempt 2/4, 2163 fights
+    exact turn: 21571 of 73812 searched decisions, 2128 capped, 3779 changed
+  solver_r8b.pt@cover@x@cap@p0: attempt 3/4, 2163 fights
+    exact turn: 21165 of 73819 searched decisions, 2099 capped, 3765 changed
+  solver_r8b.pt@cover@x@cap@p0: attempt 4/4, 2163 fights
+    exact turn: 21216 of 74283 searched decisions, 2171 capped, 3656 changed
+solver_r8b.pt@cover@x@cap@p0 (1467s) near-miss losses won 0.415 | close wins lost 0.217 | end HP 9.69 | potions kept 0.004
+  solver_r8b.pt@cover@x@cap@p0.03: attempt 1/4, 2163 fights
+    exact turn: 20764 of 72886 searched decisions, 2169 capped, 4058 changed
+  solver_r8b.pt@cover@x@cap@p0.03: attempt 2/4, 2163 fights
+    exact turn: 20976 of 72535 searched decisions, 2147 capped, 4021 changed
+  solver_r8b.pt@cover@x@cap@p0.03: attempt 3/4, 2163 fights
+    exact turn: 20457 of 72745 searched decisions, 2090 capped, 4006 changed
+  solver_r8b.pt@cover@x@cap@p0.03: attempt 4/4, 2163 fights
+    exact turn: 20524 of 72926 searched decisions, 2113 capped, 3794 changed
+solver_r8b.pt@cover@x@cap@p0.03 (1102s) near-miss losses won 0.414 (-0.001 +- 0.004) | close wins lost 0.216 (-0.001 +- 0.004) | end HP 9.70 (+0.00 +- 0.07) | potions kept 0.063 (+0.059 +- 0.006)
+  solver_r8b.pt@cover@x@cap@p0.1: attempt 1/4, 2163 fights
+    exact turn: 20781 of 71601 searched decisions, 2425 capped, 4688 changed
+  solver_r8b.pt@cover@x@cap@p0.1: attempt 2/4, 2163 fights
+    exact turn: 21225 of 71956 searched decisions, 2310 capped, 4614 changed
+  solver_r8b.pt@cover@x@cap@p0.1: attempt 3/4, 2163 fights
+    exact turn: 21065 of 71934 searched decisions, 2401 capped, 4746 changed
+  solver_r8b.pt@cover@x@cap@p0.1: attempt 4/4, 2163 fights
+    exact turn: 20770 of 71656 searched decisions, 2339 capped, 4505 changed
+solver_r8b.pt@cover@x@cap@p0.1 (1069s) near-miss losses won 0.402 (-0.013 +- 0.006) | close wins lost 0.224 (+0.007 +- 0.005) | end HP 9.36 (-0.33 +- 0.10) | potions kept 0.119 (+0.115 +- 0.009)
