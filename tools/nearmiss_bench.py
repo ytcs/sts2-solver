@@ -44,7 +44,7 @@ def arm(spec, roots):
     from model import load
     parts = spec.split("@")
     pr, _, roll = parts[0].partition("+")
-    M, K, cv, cover, futures, exact, cap = 5, 32, False, False, 0, None, False
+    M, K, cv, cover, futures, exact, cap, leaf = 5, 32, False, False, 0, None, False, None
     for t in parts[1:]:
         if t == "cv":
             cv = True
@@ -56,10 +56,12 @@ def arm(spec, roots):
             cap = True
         elif t.startswith("t"):
             futures = K = int(t[1:])
+        elif t.startswith("l"):
+            leaf = int(t[1:])
         else:
             M, K = (int(x) for x in t.split("x"))
     fs = FastSearch(load(pr), M=M, K=K, roots=roots, amp=True, roll_net=load(roll) if roll else None, clairvoyant=cv, cover=cover, futures=futures,
-                    exact_turn=exact, hp_cap=cap)
+                    exact_turn=exact, hp_cap=cap, leaf_turns=leaf)
     fs.warm()
     return fs
 
@@ -72,16 +74,18 @@ def play(ck, rows, attempts, roots):
     fs = arm(ck, roots)
     F = len(rows)
     out = np.zeros((F, attempts))
+    hp = np.zeros((F, attempts))
     for att in range(attempts):
         sims = [sts2.Sim(json.dumps(r["scenario"]), r["seed"]) for r in rows]
         print(f"  {spec_name(ck)}: attempt {att + 1}/{attempts}, {F} fights", flush=True)
         res = fs.run([r["scenario"] for r in rows], np.arange(F, dtype=np.uint32), np.uint64(att + 1) * np.uint64(7_919_993) + np.arange(F, dtype=np.uint64), starts=sims)
         out[:, att] = res[:, 1] == 1
+        hp[:, att] = np.where(res[:, 1] == 1, res[:, 6], 0)
         if fs.exact:
             st = fs.stats
             print(f"    exact turn: {st['ex_triggered']} of {st['searched']} searched decisions, {st['ex_capped']} capped, {st['ex_changed']} changed", flush=True)
     release(fs)
-    return out
+    return out, hp
 
 
 def release(fs):
@@ -96,10 +100,10 @@ def release(fs):
 def evaluate(a):
     rows = json.load(open(a.bench))
     kind = np.array([r["kind"] for r in rows])
-    base = None
+    base = base_hp = None
     for k, ck in enumerate(a.ckpts):
         t = time.time()
-        w = play(ck, rows, a.attempts, a.roots)
+        w, hp = play(ck, rows, a.attempts, a.roots)
         line = []
         for kd, name, flip in (("near_loss", "near-miss losses won", lambda x: x), ("close_win", "close wins lost", lambda x: 1 - x)):
             sel = kind == kd
@@ -109,8 +113,14 @@ def evaluate(a):
             else:
                 d = f - flip(base[sel]).mean(1)
                 line.append(f"{name} {f.mean():.3f} ({d.mean():+.3f} +- {d.std(ddof=1) / len(d) ** 0.5:.3f})")
+        h = hp.mean(1)
+        if base_hp is None:
+            line.append(f"end HP {h.mean():.2f}")
+        else:
+            d = h - base_hp.mean(1)
+            line.append(f"end HP {h.mean():.2f} ({d.mean():+.2f} +- {d.std(ddof=1) / len(d) ** 0.5:.2f})")
         if base is None:
-            base = w
+            base, base_hp = w, hp
         print(f"{os.path.basename(ck):24s} ({time.time() - t:.0f}s) " + " | ".join(line), flush=True)
 
 
@@ -123,7 +133,7 @@ def main():
                                                "PRIOR+ROLL plays PRIOR's search with ROLL's policy in the play-outs; suffixes @MxK, @cv (clairvoyant), "
                                                "@cover (every distinct legal action), @tN (N futures per decision split over the candidates), "
                                                "@x (exact turn search when the search is blind), "
-                                               "@cap (leaf values capped at the win-now value)")
+                                               "@cap (leaf values capped at the win-now value), @lN (N player turns before the value net)")
     e.add_argument("--bench", default=os.path.join(ROOT, "data", "bench", "nearmiss.json")); e.add_argument("--attempts", type=int, default=2)
     e.add_argument("--roots", type=int, default=1024)
     a = ap.parse_args()
