@@ -650,7 +650,8 @@ def main():
                 print(f"{run.seed} {part} {d['seconds']:.0f}s", flush=True)
         dead = [r for r in runs if r.dead and not confound(r)]
         if "fatal" in parts:
-            spec = dict(base=(a.k_base, False, False), strong=(a.k_strong, True, False), full=(a.k_strong, True, True))
+            spec = dict(base=(a.k_base, False, False), strong=(a.k_strong, True, False), full=(a.k_strong, True, True),
+                        deep=(a.k_strong, False, False), pots=(a.k_base, True, False))
             for arm in a.arms.split(","):
                 K, pots, full = spec[arm]
                 todo = [r for r in dead if arm not in c.get((r.seed, "fatal"), {})]
