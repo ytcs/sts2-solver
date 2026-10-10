@@ -713,8 +713,9 @@ def main():
     n, games, rounds, base = int(get("--n", 20)), int(get("--games", 2)), int(get("--rounds", 16)), int(get("--port", 15820))
     seconds, price_n, min_free = float(get("--seconds", 0)) or None, int(get("--price", 0)), float(get("--min-free-gb", 0))
     character = get("--character", "ironclad")
+    pot_cost = float(get("--pot-cost", 0))
     seeds = get("--seeds", ",".join(f"BASE{i:04d}" for i in range(1, n + 1))).split(",")
-    tag = get("--tag", (f"s{seconds:g}" if seconds else f"r{rounds}") + (f"_price{price_n}" if price_n else ""))
+    tag = get("--tag", (f"s{seconds:g}" if seconds else f"r{rounds}") + (f"_price{price_n}" if price_n else "") + (f"_pc{pot_cost:g}" if pot_cost else ""))
     out = os.path.join(ROOT, "target", "baseline", tag)
     res_path = os.path.join(ROOT, "evals", "baseline", f"{tag}.jsonl")
     os.makedirs(os.path.dirname(res_path), exist_ok=True)
@@ -723,7 +724,7 @@ def main():
     assert all(base + i not in (15555, 15556) for i in range(games))
     from agent.engine import Engine
     from predictor import Predictor
-    engine = Engine()
+    engine = Engine(pot_cost=pot_cost)
     from solver import DEFAULT_CKPT, PREDICTOR_CKPT
     predictor = Predictor(engine.solver.net if os.path.samefile(DEFAULT_CKPT, PREDICTOR_CKPT) else PREDICTOR_CKPT)
     gpu = GpuSampler()
@@ -731,7 +732,7 @@ def main():
     slots = [None] * games
     print(f"baseline {tag}: {len(pending)} runs pending of {len(seeds)}, {games} games round-robin, "
           f"{f'{seconds:g} s' if seconds else f'{rounds} rounds'} per decision, macro {f'price n {price_n}' if price_n else 'base'}, "
-          f"player {os.path.basename(DEFAULT_CKPT)}, predictor {os.path.basename(PREDICTOR_CKPT)}, hp_cap {engine.fs.hp_cap}", flush=True)
+          f"player {os.path.basename(DEFAULT_CKPT)}, predictor {os.path.basename(PREDICTOR_CKPT)}, hp_cap {engine.fs.hp_cap}, pot_cost {pot_cost:g}", flush=True)
     try:
         while pending or any(slots):
             if free_gb() < min_free:
@@ -762,6 +763,7 @@ def main():
                                  hp_lost=0, potions=g.potions, tags=sorted(g.tags | {"result_error"}), wall_s=round(time.time() - g.t0, 1),
                                  own_s=round(g.own, 1), decisions=0, decide_s=0.0)
                     r["predictor"] = os.path.basename(PREDICTOR_CKPT)
+                    r["player"], r["pot_cost"] = os.path.basename(DEFAULT_CKPT), pot_cost
                     done[r["seed"]] = r
                     with open(res_path, "a", encoding="utf-8") as f:
                         f.write(json.dumps(r) + "\n")
