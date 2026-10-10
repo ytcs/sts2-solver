@@ -14,6 +14,10 @@ def _foes(state):
     return [(e["id"], e["hp"]) for e in _alive(state["enemies"])]
 
 
+def _picked(state):
+    return sorted((c["id"], c.get("upgrade", 0)) for c in state.get("exhaust", [])), sorted(p["id"] for p in state["player"].get("powers", []))
+
+
 def intents_of(state):
     out = []
     for e in _alive(state["enemies"]):
@@ -103,8 +107,9 @@ class Replayer:
             self._note("missing content", self.sim.missing())
 
 
-    def _reroll(self, base, act, state):
-        # random targets/effects (Serpent Form, Juggernaut...): re-roll until the enemies match the game
+    def _reroll(self, base, act, state, foes_wrong):
+        # random targets/effects (Serpent Form, Juggernaut...) and hidden random picks (Thrash keeps its exhaust pick's damage, which sync cannot see; Havoc plays a power): re-roll until enemies, exhaust and player powers match the game
+        fallback = None
         for _k in range(64):
             s = base.copy()
             s.determinize(self.rng.randrange(1 << 62))
@@ -112,10 +117,18 @@ class Replayer:
                 s.apply(act)
             except Exception:  # noqa: BLE001
                 continue
-            if _foes(json.loads(s.snapshot())) == _foes(state):
+            snap = json.loads(s.snapshot())
+            if _foes(snap) != _foes(state):
+                continue
+            if _picked(snap) == _picked(state):
                 self.sim = s
                 self.stats["random_effect_rerolls"] += 1
                 return
+            if fallback is None:
+                fallback = s
+        if foes_wrong and fallback is not None:
+            self.sim = fallback
+            self.stats["random_effect_rerolls"] += 1
 
     def _end_turn(self, state):
         act = '{"end_turn":true}'
@@ -248,8 +261,11 @@ class Replayer:
                     except Exception:  # noqa: BLE001
                         if not self._repair_target(act, state):
                             raise
-                    if state is not None and [i for i, _h in _foes(json.loads(self.sim.snapshot()))] != [i for i, _h in _foes(state)]:
-                        self._reroll(base, act, state)
+                    if state is not None:
+                        snap = json.loads(self.sim.snapshot())
+                        foes_wrong = [i for i, _h in _foes(snap)] != [i for i, _h in _foes(state)]
+                        if foes_wrong or ("exhaust" in state and _picked(snap) != _picked(state)):
+                            self._reroll(base, act, state, foes_wrong)
             except Exception as e:  # noqa: BLE001
                 self.errors.append(f"{act}: {e}")
                 self._note("action failed", f"{act}: {e}")
