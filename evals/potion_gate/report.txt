@@ -1,0 +1,6 @@
+no gate  win 0.692  end HP 10.7  potions used 1.94  idle-turn throws 0.41  gated 0.00
+gate     win 0.700  end HP 11.8  potions used 1.74  idle-turn throws 0.28  gated 2.88
+V  0 HP: gate - no gate objective +0.0221 +- 0.0668
+V 10 HP: gate - no gate objective +0.0320 +- 0.0666
+V 20 HP: gate - no gate objective +0.0419 +- 0.0665
+win gate - no gate +0.008 +- 0.032

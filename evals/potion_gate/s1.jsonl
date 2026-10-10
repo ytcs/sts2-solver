@@ -1,0 +1,80 @@
+{"i": 1355, "arm": "no gate", "win": 1, "hp": 7, "max_hp": 112, "pots": 1, "used": 1, "idle": 1, "gated": 0}
+{"i": 1355, "arm": "gate", "win": 1, "hp": 7, "max_hp": 112, "pots": 1, "used": 1, "idle": 1, "gated": 2}
+{"i": 966, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 76, "pots": 1, "used": 2, "idle": 0, "gated": 0}
+{"i": 966, "arm": "gate", "win": 1, "hp": 1, "max_hp": 76, "pots": 1, "used": 2, "idle": 0, "gated": 3}
+{"i": 2137, "arm": "no gate", "win": 1, "hp": 7, "max_hp": 93, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 2137, "arm": "gate", "win": 1, "hp": 4, "max_hp": 93, "pots": 2, "used": 3, "idle": 0, "gated": 10}
+{"i": 1842, "arm": "no gate", "win": 1, "hp": 1, "max_hp": 91, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1842, "arm": "gate", "win": 1, "hp": 15, "max_hp": 91, "pots": 2, "used": 2, "idle": 0, "gated": 2}
+{"i": 808, "arm": "no gate", "win": 1, "hp": 16, "max_hp": 73, "pots": 1, "used": 1, "idle": 1, "gated": 0}
+{"i": 808, "arm": "gate", "win": 1, "hp": 1, "max_hp": 73, "pots": 1, "used": 1, "idle": 1, "gated": 1}
+{"i": 1326, "arm": "no gate", "win": 1, "hp": 36, "max_hp": 95, "pots": 2, "used": 1, "idle": 1, "gated": 0}
+{"i": 1326, "arm": "gate", "win": 1, "hp": 36, "max_hp": 95, "pots": 2, "used": 0, "idle": 0, "gated": 3}
+{"i": 383, "arm": "no gate", "win": 1, "hp": 12, "max_hp": 78, "pots": 1, "used": 1, "idle": 1, "gated": 0}
+{"i": 383, "arm": "gate", "win": 1, "hp": 11, "max_hp": 78, "pots": 1, "used": 1, "idle": 1, "gated": 2}
+{"i": 1252, "arm": "no gate", "win": 1, "hp": 3, "max_hp": 75, "pots": 1, "used": 1, "idle": 0, "gated": 0}
+{"i": 1252, "arm": "gate", "win": 1, "hp": 3, "max_hp": 75, "pots": 1, "used": 0, "idle": 0, "gated": 1}
+{"i": 1601, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 126, "pots": 2, "used": 4, "idle": 0, "gated": 0}
+{"i": 1601, "arm": "gate", "win": 1, "hp": 14, "max_hp": 126, "pots": 2, "used": 4, "idle": 0, "gated": 4}
+{"i": 1830, "arm": "no gate", "win": 1, "hp": 1, "max_hp": 79, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1830, "arm": "gate", "win": 1, "hp": 1, "max_hp": 79, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 534, "arm": "no gate", "win": 1, "hp": 11, "max_hp": 88, "pots": 2, "used": 4, "idle": 3, "gated": 0}
+{"i": 534, "arm": "gate", "win": 0, "hp": 0, "max_hp": 88, "pots": 2, "used": 4, "idle": 0, "gated": 7}
+{"i": 598, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 141, "pots": 1, "used": 1, "idle": 0, "gated": 0}
+{"i": 598, "arm": "gate", "win": 0, "hp": 0, "max_hp": 141, "pots": 1, "used": 1, "idle": 0, "gated": 3}
+{"i": 1757, "arm": "no gate", "win": 1, "hp": 7, "max_hp": 75, "pots": 2, "used": 2, "idle": 1, "gated": 0}
+{"i": 1757, "arm": "gate", "win": 1, "hp": 18, "max_hp": 75, "pots": 2, "used": 2, "idle": 0, "gated": 4}
+{"i": 1246, "arm": "no gate", "win": 1, "hp": 1, "max_hp": 131, "pots": 1, "used": 1, "idle": 0, "gated": 0}
+{"i": 1246, "arm": "gate", "win": 1, "hp": 6, "max_hp": 131, "pots": 1, "used": 1, "idle": 0, "gated": 1}
+{"i": 729, "arm": "no gate", "win": 1, "hp": 2, "max_hp": 109, "pots": 3, "used": 3, "idle": 0, "gated": 0}
+{"i": 729, "arm": "gate", "win": 0, "hp": 0, "max_hp": 109, "pots": 3, "used": 3, "idle": 0, "gated": 1}
+{"i": 828, "arm": "no gate", "win": 1, "hp": 8, "max_hp": 108, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 828, "arm": "gate", "win": 1, "hp": 17, "max_hp": 108, "pots": 2, "used": 2, "idle": 0, "gated": 2}
+{"i": 1327, "arm": "no gate", "win": 1, "hp": 6, "max_hp": 77, "pots": 1, "used": 1, "idle": 0, "gated": 0}
+{"i": 1327, "arm": "gate", "win": 1, "hp": 2, "max_hp": 77, "pots": 1, "used": 1, "idle": 1, "gated": 1}
+{"i": 88, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 72, "pots": 1, "used": 2, "idle": 0, "gated": 0}
+{"i": 88, "arm": "gate", "win": 0, "hp": 0, "max_hp": 72, "pots": 1, "used": 2, "idle": 1, "gated": 10}
+{"i": 189, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 88, "pots": 1, "used": 2, "idle": 0, "gated": 0}
+{"i": 189, "arm": "gate", "win": 1, "hp": 37, "max_hp": 88, "pots": 1, "used": 2, "idle": 0, "gated": 3}
+{"i": 439, "arm": "no gate", "win": 1, "hp": 8, "max_hp": 90, "pots": 1, "used": 1, "idle": 1, "gated": 0}
+{"i": 439, "arm": "gate", "win": 1, "hp": 16, "max_hp": 90, "pots": 1, "used": 1, "idle": 0, "gated": 3}
+{"i": 1458, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 90, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1458, "arm": "gate", "win": 0, "hp": 0, "max_hp": 90, "pots": 2, "used": 2, "idle": 0, "gated": 2}
+{"i": 1747, "arm": "no gate", "win": 1, "hp": 51, "max_hp": 104, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1747, "arm": "gate", "win": 1, "hp": 51, "max_hp": 104, "pots": 2, "used": 2, "idle": 0, "gated": 3}
+{"i": 1609, "arm": "no gate", "win": 1, "hp": 12, "max_hp": 100, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1609, "arm": "gate", "win": 1, "hp": 14, "max_hp": 100, "pots": 2, "used": 2, "idle": 0, "gated": 2}
+{"i": 1922, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 89, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1922, "arm": "gate", "win": 0, "hp": 0, "max_hp": 89, "pots": 2, "used": 2, "idle": 0, "gated": 1}
+{"i": 112, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 82, "pots": 2, "used": 2, "idle": 2, "gated": 0}
+{"i": 112, "arm": "gate", "win": 0, "hp": 0, "max_hp": 82, "pots": 2, "used": 2, "idle": 0, "gated": 6}
+{"i": 1785, "arm": "no gate", "win": 1, "hp": 17, "max_hp": 90, "pots": 1, "used": 1, "idle": 0, "gated": 0}
+{"i": 1785, "arm": "gate", "win": 1, "hp": 19, "max_hp": 90, "pots": 1, "used": 1, "idle": 0, "gated": 2}
+{"i": 475, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 106, "pots": 2, "used": 4, "idle": 1, "gated": 0}
+{"i": 475, "arm": "gate", "win": 0, "hp": 0, "max_hp": 106, "pots": 2, "used": 4, "idle": 0, "gated": 3}
+{"i": 2004, "arm": "no gate", "win": 1, "hp": 19, "max_hp": 78, "pots": 5, "used": 6, "idle": 5, "gated": 0}
+{"i": 2004, "arm": "gate", "win": 1, "hp": 19, "max_hp": 78, "pots": 5, "used": 6, "idle": 5, "gated": 8}
+{"i": 977, "arm": "no gate", "win": 1, "hp": 9, "max_hp": 132, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 977, "arm": "gate", "win": 1, "hp": 3, "max_hp": 132, "pots": 2, "used": 2, "idle": 0, "gated": 4}
+{"i": 843, "arm": "no gate", "win": 1, "hp": 18, "max_hp": 93, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 843, "arm": "gate", "win": 1, "hp": 18, "max_hp": 93, "pots": 2, "used": 2, "idle": 0, "gated": 6}
+{"i": 1542, "arm": "no gate", "win": 1, "hp": 14, "max_hp": 96, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1542, "arm": "gate", "win": 1, "hp": 29, "max_hp": 96, "pots": 2, "used": 2, "idle": 0, "gated": 2}
+{"i": 1426, "arm": "no gate", "win": 1, "hp": 2, "max_hp": 66, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1426, "arm": "gate", "win": 1, "hp": 4, "max_hp": 66, "pots": 2, "used": 2, "idle": 0, "gated": 2}
+{"i": 79, "arm": "no gate", "win": 1, "hp": 5, "max_hp": 92, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 79, "arm": "gate", "win": 1, "hp": 5, "max_hp": 92, "pots": 2, "used": 2, "idle": 0, "gated": 3}
+{"i": 872, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 88, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 872, "arm": "gate", "win": 0, "hp": 0, "max_hp": 88, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1714, "arm": "no gate", "win": 1, "hp": 10, "max_hp": 110, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 1714, "arm": "gate", "win": 1, "hp": 10, "max_hp": 110, "pots": 2, "used": 2, "idle": 0, "gated": 2}
+{"i": 273, "arm": "no gate", "win": 1, "hp": 19, "max_hp": 80, "pots": 1, "used": 1, "idle": 0, "gated": 0}
+{"i": 273, "arm": "gate", "win": 1, "hp": 24, "max_hp": 80, "pots": 1, "used": 1, "idle": 0, "gated": 1}
+{"i": 1840, "arm": "no gate", "win": 1, "hp": 26, "max_hp": 136, "pots": 1, "used": 1, "idle": 0, "gated": 0}
+{"i": 1840, "arm": "gate", "win": 1, "hp": 53, "max_hp": 136, "pots": 1, "used": 1, "idle": 0, "gated": 3}
+{"i": 2091, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 81, "pots": 2, "used": 2, "idle": 0, "gated": 0}
+{"i": 2091, "arm": "gate", "win": 1, "hp": 12, "max_hp": 81, "pots": 2, "used": 3, "idle": 0, "gated": 4}
+{"i": 643, "arm": "no gate", "win": 0, "hp": 0, "max_hp": 84, "pots": 1, "used": 0, "idle": 0, "gated": 0}
+{"i": 643, "arm": "gate", "win": 0, "hp": 0, "max_hp": 84, "pots": 1, "used": 0, "idle": 0, "gated": 0}
+{"i": 669, "arm": "no gate", "win": 1, "hp": 9, "max_hp": 93, "pots": 1, "used": 1, "idle": 1, "gated": 0}
+{"i": 669, "arm": "gate", "win": 1, "hp": 11, "max_hp": 93, "pots": 1, "used": 1, "idle": 0, "gated": 6}
