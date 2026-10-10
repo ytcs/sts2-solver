@@ -406,7 +406,7 @@ def event_adjust(st, state_text):
 
 def search_check(st, opts, res, engine, top=3, attempts=64, variants=4):
     """the predictor is near-blind to small deck edits (bench pairs Spearman ~0.15): re-score the run model's top options, skip / nothing and
-    the best removal by search vs the act's boss(es) at full HP, no potions. -> {label: (win, se)}"""
+    the best removal by search vs the act's boss(es) at full HP, with the belt the option leaves (potions bought / swapped count; E72: Heart of Iron +0.13 vs the final pair, invisible without potions). -> {label: (win, se)}"""
     import random
     bosses = list(st.bosses or [])
     if not bosses or engine is None:
@@ -425,7 +425,7 @@ def search_check(st, opts, res, engine, top=3, attempts=64, variants=4):
             s2 = st.copy()
             if first.get(lb) is not None:
                 first[lb](s2, R.Draws(random.Random(k), st.base["character"], st.act))
-            sc = [dict(s2.scenario(b, hp=s2.max_hp), potions=[]) for b in bosses]
+            sc = [s2.scenario(b, hp=s2.max_hp) for b in bosses]
             sig = json.dumps(sc, sort_keys=True)
             if sig in seen:
                 continue

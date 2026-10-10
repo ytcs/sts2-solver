@@ -348,7 +348,7 @@ class Harness(Live):
             if got:
                 pick, _ranked, override = PR.hybrid_best(res, got, adj)
                 rows = [f"  {lb[:44]:44s} {p:.3f} +- {se:.3f}" for lb, (p, se) in sorted(got.items(), key=lambda x: -x[1][0])]
-                check += ("search check (the predictor is near-blind to small deck edits): deck vs " + " + ".join(st.bosses) + " at full HP, no potions\n"
+                check += ("search check (the predictor is near-blind to small deck edits): deck vs " + " + ".join(st.bosses) + " at full HP, with the belt each option leaves\n"
                          + "\n".join(rows) + (f"\n  -> search overrides the run model: {pick} (+{override[0]} +- {override[1]})" if override else "") + "\n")
         return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates + check + self._synergy(state)
 
