@@ -1,0 +1,34 @@
+  solver_r8b.pt@cover@x@cap: attempt 1/8, 2730 fights
+    exact turn: 26770 of 91358 searched decisions, 2609 capped, 4656 changed
+  solver_r8b.pt@cover@x@cap: attempt 2/8, 2730 fights
+    exact turn: 26477 of 91553 searched decisions, 2563 capped, 4516 changed
+  solver_r8b.pt@cover@x@cap: attempt 3/8, 2730 fights
+    exact turn: 26651 of 90686 searched decisions, 2593 capped, 4455 changed
+  solver_r8b.pt@cover@x@cap: attempt 4/8, 2730 fights
+    exact turn: 26536 of 91283 searched decisions, 2605 capped, 4374 changed
+  solver_r8b.pt@cover@x@cap: attempt 5/8, 2730 fights
+    exact turn: 26520 of 91360 searched decisions, 2569 capped, 4462 changed
+  solver_r8b.pt@cover@x@cap: attempt 6/8, 2730 fights
+    exact turn: 26534 of 90735 searched decisions, 2627 capped, 4560 changed
+  solver_r8b.pt@cover@x@cap: attempt 7/8, 2730 fights
+    exact turn: 26512 of 90704 searched decisions, 2622 capped, 4463 changed
+  solver_r8b.pt@cover@x@cap: attempt 8/8, 2730 fights
+    exact turn: 26155 of 90779 searched decisions, 2547 capped, 4375 changed
+solver_r8b.pt@cover@x@cap (5989s) near-miss losses won 0.415 | close wins lost 0.203 | end HP 9.59
+  solver_r8b.pt@cover@x@cap@l3: attempt 1/8, 2730 fights
+    exact turn: 28616 of 90802 searched decisions, 2878 capped, 5572 changed
+  solver_r8b.pt@cover@x@cap@l3: attempt 2/8, 2730 fights
+    exact turn: 28401 of 91339 searched decisions, 2903 capped, 5482 changed
+  solver_r8b.pt@cover@x@cap@l3: attempt 3/8, 2730 fights
+    exact turn: 28438 of 91097 searched decisions, 2969 capped, 5467 changed
+  solver_r8b.pt@cover@x@cap@l3: attempt 4/8, 2730 fights
+    exact turn: 28699 of 91374 searched decisions, 3076 capped, 5689 changed
+  solver_r8b.pt@cover@x@cap@l3: attempt 5/8, 2730 fights
+    exact turn: 28443 of 90750 searched decisions, 2926 capped, 5630 changed
+  solver_r8b.pt@cover@x@cap@l3: attempt 6/8, 2730 fights
+    exact turn: 28260 of 90987 searched decisions, 2923 capped, 5462 changed
+  solver_r8b.pt@cover@x@cap@l3: attempt 7/8, 2730 fights
+    exact turn: 28633 of 90805 searched decisions, 3008 capped, 5622 changed
+  solver_r8b.pt@cover@x@cap@l3: attempt 8/8, 2730 fights
+    exact turn: 28356 of 90663 searched decisions, 2979 capped, 5458 changed
+solver_r8b.pt@cover@x@cap@l3 (7995s) near-miss losses won 0.407 (-0.007 +- 0.006) | close wins lost 0.230 (+0.027 +- 0.005) | end HP 9.18 (-0.40 +- 0.09)
