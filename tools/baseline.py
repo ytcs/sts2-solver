@@ -507,7 +507,8 @@ class Game:
         self.h = BaselineHarness(GameLog(self.dir), engine, rounds, seed, seconds)
         self.engine, self.bosses = engine, {}
         self.macro = PriceMacro(self.h, predictor, seed, price_n) if price_n else Macro(self.h, predictor, seed)
-        self.setting = dict(macro=f"price n{price_n}" if price_n else "base", budget=f"{seconds}s" if seconds else f"{rounds} rounds")
+        self.setting = dict(macro=f"price n{price_n}" if price_n else "base", budget=f"{seconds}s" if seconds else f"{rounds} rounds",
+                            terms=sorted(R.TM.TERMS), rules_crc=zlib.crc32(open(R.TM.PATH, "rb").read()), hybrid=getattr(self.macro, "hybrid", None))
         self.t0, self.own, self.steps, self.errors, self.stuck = time.time(), 0.0, 0, 0, 0
         self.bad, self.last, self.final, self.tags, self.last_choice = {}, None, None, set(), None
         self.potions, self.desync_turn = 0, None
