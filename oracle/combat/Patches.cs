@@ -125,7 +125,7 @@ public static class Patches
         }
     }
 
-    // event options that reach node singletons without a null check (audio, screen rumble): the same model steps without them
+    // event options that reach node singletons without a null check (audio, screen shake/rumble): the same model steps without them
     [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Events.JungleMazeAdventure), "SafetyInNumbers")]
     static class P_JungleMazeJoin
     {
@@ -190,6 +190,49 @@ public static class Patches
             __result = Task.CompletedTask;
             return false;
         }
+    }
+
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Events.PunchOff), "Nab")]
+    static class P_PunchOffNab
+    {
+        static bool Prefix(MegaCrit.Sts2.Core.Models.Events.PunchOff __instance, ref Task __result) { __result = Run(__instance); return false; }
+        static async Task Run(MegaCrit.Sts2.Core.Models.Events.PunchOff ev)
+        {
+            await MegaCrit.Sts2.Core.Commands.CardPileCmd.AddCurseToDeck<MegaCrit.Sts2.Core.Models.Cards.Injury>(ev.Owner);
+            await MegaCrit.Sts2.Core.Commands.Cmd.CustomScaledWait(0.25f, 0.5f);
+            await MegaCrit.Sts2.Core.Commands.RewardsCmd.OfferCustom(ev.Owner, new List<MegaCrit.Sts2.Core.Rewards.Reward> { new MegaCrit.Sts2.Core.Rewards.RelicReward(ev.Owner) });
+            ev.SetEventFinished(ev.L10NLookup("PUNCH_OFF.pages.NAB.description"));
+        }
+    }
+
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Events.Amalgamator), "CombineStrikes")]
+    static class P_AmalgamatorStrikes
+    {
+        static bool Prefix(MegaCrit.Sts2.Core.Models.Events.Amalgamator __instance, ref Task __result)
+        {
+            __result = Amalgamate<MegaCrit.Sts2.Core.Models.Cards.UltimateStrike>(__instance, MegaCrit.Sts2.Core.Entities.Cards.CardTag.Strike, "AMALGAMATOR.pages.COMBINE_STRIKES.description");
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Models.Events.Amalgamator), "CombineDefends")]
+    static class P_AmalgamatorDefends
+    {
+        static bool Prefix(MegaCrit.Sts2.Core.Models.Events.Amalgamator __instance, ref Task __result)
+        {
+            __result = Amalgamate<MegaCrit.Sts2.Core.Models.Cards.UltimateDefend>(__instance, MegaCrit.Sts2.Core.Entities.Cards.CardTag.Defend, "AMALGAMATOR.pages.COMBINE_DEFENDS.description");
+            return false;
+        }
+    }
+
+    static async Task Amalgamate<T>(MegaCrit.Sts2.Core.Models.Events.Amalgamator ev, MegaCrit.Sts2.Core.Entities.Cards.CardTag tag, string page) where T : MegaCrit.Sts2.Core.Models.CardModel
+    {
+        var valid = AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.Amalgamator), "IsValid");
+        var prefs = new MegaCrit.Sts2.Core.CardSelection.CardSelectorPrefs(MegaCrit.Sts2.Core.CardSelection.CardSelectorPrefs.RemoveSelectionPrompt, 2);
+        var cards = (await MegaCrit.Sts2.Core.Commands.CardSelectCmd.FromDeckForRemoval(ev.Owner, prefs, c => (bool)valid.Invoke(null, new object[] { tag, c }))).ToList();
+        await MegaCrit.Sts2.Core.Commands.CardPileCmd.RemoveFromDeck(cards);
+        await MegaCrit.Sts2.Core.Commands.CardPileCmd.Add(ev.Owner.RunState.CreateCard<T>(ev.Owner), MegaCrit.Sts2.Core.Entities.Cards.PileType.Deck);
+        ev.SetEventFinished(ev.L10NLookup(page));
     }
 
     [HarmonyPatch(typeof(Godot.ResourceLoader), nameof(Godot.ResourceLoader.Exists))]
