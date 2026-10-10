@@ -1,7 +1,7 @@
 """Macro terms DSL (data/macro_rules.json `terms`), shared by runmodel.BasePolicy (price rollouts, scripted screen) and tools/baseline.py.
 A term: type adjust (value added to a candidate's score) | margin (value an addition must beat skip by) | flag (named hook, value unused),
 on = screens (card_reward, shop, relic), when = condition, value = expression. Units: P(win)-points (rollout worth / 2).
-Expressions: numbers, variables (VARS), + - * / // %, comparisons, and/or/not, x if c else y, min max abs."""
+Expressions: numbers, strings, variables (VARS), + - * / // %, comparisons, in / not in, and/or/not, x if c else y, min max abs."""
 import ast
 import functools
 import json
@@ -19,10 +19,17 @@ VARS = {
     "core_owned": "other core pieces owned (copies counted) in the candidate's live synergy bundles where it is core (agent/synergy.py)",
     "anti": "owned items with an anti pair to the candidate",
     "se": "paired se of the priced difference (P units; 0 in rollouts)",
+    "provides": "the candidate's provided mechanics (data/synergy_candidates.json vocabulary), test with 'energy_gain' in provides",
+    "consumes": "the candidate's consumed mechanics",
+    "cost": "the candidate card's energy cost (-1 for relics / unknown)",
+    "bn_turns": "end-of-turn samples in this act's bottleneck tracker (agent/bottleneck.py)",
+    "energy_bound": "share of cards left in hand at end of turn with less energy than their cost, this act",
+    "ignored_share": "share of end-of-turn hand slots left unplayed with energy to spare, this act",
 }
 _FUNCS = {"min": min, "max": max, "abs": abs}
 _OK = (ast.Expression, ast.BoolOp, ast.BinOp, ast.UnaryOp, ast.Compare, ast.IfExp, ast.Call, ast.Name, ast.Constant, ast.Load, ast.And, ast.Or,
-       ast.Not, ast.USub, ast.UAdd, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Eq, ast.NotEq)
+       ast.Not, ast.USub, ast.UAdd, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Eq, ast.NotEq, ast.In,
+       ast.NotIn)
 
 
 @functools.lru_cache(maxsize=None)

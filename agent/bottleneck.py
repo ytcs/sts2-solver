@@ -36,7 +36,24 @@ def analyze(path, act=None):
         rows.append(dict(card=cid, played=p, left=lf, left_no_energy=left_poor[cid], left_with_energy=left_rich[cid], ignore_rate=round(lf / max(1, p + lf), 2)))
     rows.sort(key=lambda r: -r["ignore_rate"])
     energy_bound = sum(left_poor.values()) / max(1, sum(left.values()))
-    return dict(turns=turns, energy_bound_share=round(energy_bound, 2), cards=rows)
+    return dict(turns=turns, energy_bound_share=round(energy_bound, 2), ignored_share=round(sum(left_rich.values()) / max(1, sum(left.values())), 2), cards=rows)
+
+
+_CACHE = {}
+
+
+def term_vars(path, act):
+    """macro terms DSL variables (agent/terms.py) for this act, cached by file size"""
+    import os
+    try:
+        key = (path, os.path.getsize(path), act)
+    except OSError:
+        return None
+    if key not in _CACHE:
+        r = analyze(path, act)
+        _CACHE.clear()
+        _CACHE[key] = dict(bn_turns=r["turns"], energy_bound=r["energy_bound_share"], ignored_share=r["ignored_share"])
+    return _CACHE[key]
 
 
 def line(path, act=None, top=4):

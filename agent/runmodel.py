@@ -8,6 +8,9 @@ import numpy as np
 from agent import terms as TM, tracker as T
 
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
+NO_BOTTLENECK = dict(bn_turns=0, energy_bound=0.0, ignored_share=0.0)
+
+
 def term_ctx(st, kind=None, item=None, deck=None, relics=None, removal_cost=1e9, se=0.0):
     """variables of the macro terms DSL (agent/terms.py VARS) for adding item (kind card | relic | None = skip) to st's deck / relics"""
     from agent import synergy
@@ -15,10 +18,11 @@ def term_ctx(st, kind=None, item=None, deck=None, relics=None, removal_cost=1e9,
     relics = st.relics if relics is None else relics
     ctx = dict(deck_size=len(deck), size_after=len(deck) + (kind == "card"), act=st.act + 1, gold=st.gold, hp_frac=st.hp / max(1, st.max_hp),
                removal_cost=removal_cost, is_card=int(kind == "card"), is_relic=int(kind == "relic"), is_skip=int(kind is None), se=se,
-               core_owned=0, anti=0)
+               core_owned=0, anti=0, provides=frozenset(), consumes=frozenset(), cost=-1, **getattr(st, "bottleneck", None) or NO_BOTTLENECK)
     if item is not None:
         ids = [c["id"] for c in deck] + [r if isinstance(r, str) else r["id"] for r in relics]
-        ctx.update(core_owned=synergy.in_plan(item, ids), anti=len(synergy.anti(item, ids)))
+        pr, co, cost = synergy.item_tags(item)
+        ctx.update(core_owned=synergy.in_plan(item, ids), anti=len(synergy.anti(item, ids)), provides=pr, consumes=co, cost=cost)
     return ctx
 
 

@@ -13,6 +13,7 @@ _PATH = os.path.join(os.path.dirname(__file__), "..", "data", "synergy_candidate
 def _db():
     d = json.load(open(_PATH, encoding="utf-8"))
     tags = {k: (frozenset(v.get("provides", ())), frozenset(v.get("consumes", ()))) for k, v in d["tags"].items() if "mp_only" not in v.get("provides", ())}
+    cost = {k: v["cost"] for k, v in d["tags"].items() if isinstance(v.get("cost"), int)}
     anti = {}
     for p in d["pairs"]:
         if p["kind"] == "anti":
@@ -21,7 +22,7 @@ def _db():
     bundles = [(b["name"], frozenset(b["mechanics"])) for b in d["bundles"]]
     core = {b["name"]: frozenset(b["core"]) for b in d["bundles"]}
     support = {b["name"]: frozenset(b["support"]) for b in d["bundles"]}
-    return tags, anti, bundles, core, support
+    return tags, anti, bundles, core, support, cost
 
 
 def _base(i):
@@ -30,7 +31,7 @@ def _base(i):
 
 def live(ids):
     """{bundle name: (providers, consumers)} with both sides present"""
-    tags, _, bundles, _, _ = _db()
+    tags, _, bundles, _, _, _ = _db()
     ids = {_base(i) for i in ids}
     out = {}
     for name, mech in bundles:
@@ -43,7 +44,7 @@ def live(ids):
 
 def overlap(item, ids):
     """[(bundle, role of the item, other core pieces owned, support pieces owned, live)] for the bundles the item belongs to, most owned first"""
-    _, _, _, core, support = _db()
+    _, _, _, core, support, _ = _db()
     item = _base(item)
     own = collections.Counter(_base(i) for i in ids)
     own.pop(item, None)
@@ -70,6 +71,14 @@ def lines(items, ids):
 
 
 def anti(item, ids):
-    _, a, _, _, _ = _db()
+    _, a, _, _, _, _ = _db()
     item = _base(item)
     return sorted(a.get(item, set()) & {_base(i) for i in ids})
+
+
+def item_tags(item):
+    """(provides, consumes, energy cost or -1) of a card / relic id"""
+    tags, _, _, _, _, cost = _db()
+    item = _base(item)
+    p, c = tags.get(item, (frozenset(), frozenset()))
+    return p, c, cost.get(item, -1)
