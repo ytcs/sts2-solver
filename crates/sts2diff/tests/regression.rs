@@ -65,7 +65,7 @@ fn thrash_keeps_its_exhaust_bonus_through_dampen() {
     assert_eq!(cx.card_var(thrash, VarKind::Damage), 6 + 9);
     cx.apply_power(ids::power::DAMPEN_POWER, PLAYER, Dec::ONE, foes[2], NO);
     cx.apply_power(ids::power::STRENGTH_POWER, PLAYER, Dec::ONE, PLAYER, NO);
-    // Thrash.cs AfterDowngraded: canonical 4 + ExtraDamage (Strike 6 + Strength 3)
+    // Thrash.cs:77 AfterDowngraded: canonical 4 + ExtraDamage (Strike 6 + Strength 3)
     assert_eq!((cx.cards[thrash as usize].upgrade, cx.card_var(thrash, VarKind::Damage)), (0, 4 + 9));
     cx.sync_hand(&[ObsCard { id: ids::card::THRASH, ..Default::default() }, ObsCard { id: ids::card::BASH, ..Default::default() }]);
     assert_eq!(hit(&mut cx, foes[1]), 34);
