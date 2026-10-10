@@ -480,6 +480,25 @@ class FastSearch:
         self.stats = dict(tot)
         return out
 
+    def decide_many(self, scenario, sim, seeds, worth=None):
+        """one root decision searched once per seed, all in one batched run (the same results as len(seeds) decide() calls)"""
+        if self.clairvoyant:
+            raise RuntimeError("FastSearch(clairvoyant=True) sees hidden information: diagnostic only, never a live decision")
+        old = (self.max_steps, self.record)
+        self.max_steps, self.record = 1, True
+        n = len(seeds)
+        try:
+            self.run([scenario], np.zeros(n, np.uint32), np.asarray(seeds, np.uint64), starts=[sim], worth=None if worth is None else [worth])
+            out, W = [], self.M
+            for gi, (_idx, eng) in enumerate(self._runs):
+                for jj in range(len(_idx)):
+                    acts, searched, opts, p, q, legal, exact = eng.moves(jj)
+                    out.append((int(_idx[jj]), dict(action=int(acts[0]), searched=bool(searched[0]), opts=opts[0, :W].tolist(), p=p[0, :W].tolist(),
+                                                    q=q[0, :W].tolist(), legal=legal[0, :W].astype(bool).tolist(), exact=bool(exact[0]))))
+        finally:
+            self.max_steps, self.record = old
+        return [r for _, r in sorted(out, key=lambda x: x[0])]
+
     def decide(self, scenario, sim, seed=0, worth=None):
         if self.clairvoyant:
             raise RuntimeError("FastSearch(clairvoyant=True) sees hidden information: diagnostic only, never a live decision")

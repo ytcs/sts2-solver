@@ -16,6 +16,8 @@ from fastsearch import FastSearch  # noqa: E402
 from solver import Solver  # noqa: E402
 
 MAX_ROUNDS = 400
+ROUND_CHUNK = 4
+ROOTS = 16
 
 
 def _opportunity_loss(acc):
@@ -44,7 +46,7 @@ class Engine:
     def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0, exact_turn=True, hp_cap=True, pot_cost=POT_COST, pot_margin_se=POT_MARGIN_SE):
         self.solver = Solver() if ckpt is None else Solver(ckpt)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        self.fs = FastSearch(self.solver.net, M, K, roots=1, groups=1, amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn,
+        self.fs = FastSearch(self.solver.net, M, K, roots=ROOTS, groups=1, amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn,
                              hp_cap=hp_cap, pot_cost=pot_cost)
         self.pot_cost, self.pot_margin_se = pot_cost, pot_margin_se
         self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
@@ -75,25 +77,33 @@ class Engine:
         # held potions leave the searched copy, so no line of the search can throw them
         search = sim.without_potions(held) if held else sim
         n_rows = [0, 0]
-        while True:
-            self.seed += 1
-            r = self.fs.decide(scenario, search, (self.seed if seed is None else seed + rounds), worth=worth)
+        done = False
+        while not done:
+            # rounds run as jobs of one batched search: the whole fixed budget at once, else chunks between the early-stop checks
+            k = (n_rounds - rounds) if n_rounds is not None else (4 if rounds < 4 else ROUND_CHUNK)
+            k = max(1, min(k, MAX_ROUNDS - rounds))
+            seeds = [(self.seed + 1 + i) if seed is None else seed + rounds + i for i in range(k)]
+            self.seed += k
+            rs = self.fs.decide_many(scenario, search, seeds, worth=worth)
             st = getattr(self.fs, "stats", None) or {}
             n_rows[0] += int(st.get("policy_rows", 0))
             n_rows[1] += int(st.get("value_rows", 0))
-            rounds += 1
-            if first is None:
-                first = r
-            if not r["searched"]:
-                break
-            for a, q, ok in zip(r["opts"], r["q"], r["legal"]):
-                if ok and a not in skip and not np.isnan(q):
-                    acc.setdefault(a, []).append(float(q))
-            if n_rounds is not None:
-                if rounds >= n_rounds:
+            for r in rs:
+                rounds += 1
+                if first is None:
+                    first = r
+                if not r["searched"]:
+                    done = True
                     break
-            elif time.perf_counter() - t0 >= budget or rounds >= MAX_ROUNDS or (rounds >= 4 and _opportunity_loss(acc) < tol):
+                for a, q, ok in zip(r["opts"], r["q"], r["legal"]):
+                    if ok and a not in skip and not np.isnan(q):
+                        acc.setdefault(a, []).append(float(q))
+            if done:
                 break
+            if n_rounds is not None:
+                done = rounds >= n_rounds
+            else:
+                done = time.perf_counter() - t0 >= budget or rounds >= MAX_ROUNDS or (rounds >= 4 and _opportunity_loss(acc) < tol)
         text = dict(sim.legal())
         opts = []
         for a, p, ok in zip(first["opts"], first["p"], first["legal"]):
