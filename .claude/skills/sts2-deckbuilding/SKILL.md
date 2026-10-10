@@ -7,7 +7,7 @@ description: Use at every card reward, shop, rest site, relic, upgrade, removal 
 Smooth greedy (best smooth score; skip only if every option is worse) beat "best win now, skip on no gain" 0.70 vs 0.31, 0.18 vs 0.00 `[sim]` (`evidence.md`). Greedy, additive, combat-only: weigh sections 2-6.
 
 ## 1. Protocol (reward, shop, relic, upgrade, removal, transform)
-1. `brief`: buckets + gaps. Name the weakest upcoming fight (fights won >= 0.95 do not decide), what it asks (`sts2-acts/encounters.md`), the plan cards.
+1. `brief`: buckets + gaps + bottleneck line (cards left at end of turn: no energy -> energy/cost cuts; with energy -> removal, or a combo piece needing draw/retain; `[hyp]` test: flagged bottleneck vs later deaths in baseline rows). Name the weakest upcoming fight (fights won >= 0.95 do not decide), what it asks (`sts2-acts/encounters.md`), the plan cards.
 2. Numbers: `reward [--attempts N] [--hp full]` on card rewards, else `eval --smooth --boss|--elites|--next --v ...`. Read need-weighted gain + weakest-fight column.
 3. Judgment: section-3 bar, section 2.
 4. `a <i> -- buckets: ...; weakest: ...; numbers: <best, chosen gain, bar status>; judgment: ...` (harness refuses without `reward` or a field).
