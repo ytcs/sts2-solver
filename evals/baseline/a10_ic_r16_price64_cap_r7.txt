@@ -1,0 +1,23 @@
+seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
+BASE0001   loss      30 ENTOMANCER_ELITE                   38/-/-             162     15   10    10.0     55.6 desync,fallback
+BASE0002   loss      17 WATERFALL_GIANT_BOSS               0/-/-               78     10    4     6.0     39.6 
+BASE0003   loss      46 KNIGHTS_ELITE                      31/39/-            141     27   10    21.4     89.8 
+BASE0004   loss      17 THE_KIN_BOSS                       0/-/-              111      9    5     6.0     33.4 
+BASE0005   loss      33 KNOWLEDGE_DEMON_BOSS               57/0/-             143     19    7    14.8     62.3 
+BASE0006   loss      33 KNOWLEDGE_DEMON_BOSS               20/0/-             136     20    9    12.3     68.8 
+BASE0007   loss      40 AXEBOTS_NORMAL                     39/11/-            190     21    9    11.8     66.1 
+BASE0008   loss      33 unplayable fight: Crusher,Rocket   62/-/-              13      8    4     6.9     72.7 unplayable
+BASE0009   loss      43 KNIGHTS_ELITE                      31/33/-            265     24   12    11.9     85.1 
+BASE0010   loss      38 FABRICATOR_NORMAL                  23/51/-            219     20    5    15.6     67.8 
+BASE0011   loss      31 ENTOMANCER_ELITE                   18/-/-             196     17    9     7.8     58.4 
+BASE0012   loss      45 OWL_MAGISTRATE_NORMAL              20/12/-            319     24   13    18.0     85.6 
+BASE0013   loss       8 PHANTASMAL_GARDENERS_ELITE         -/-/-               64      4    1     3.1     16.3 
+BASE0014   loss      24 ENTOMANCER_ELITE                   23/-/-             109     12    6     7.3     50.7 
+BASE0015   loss      49 TEST_SUBJECT_BOSS                  37/76/0            202     23   16    15.3     88.2 
+BASE0016   loss      27 DECIMILLIPEDE_ELITE                13/-/-             138     14    9     7.3     49.7 
+BASE0017   loss      48 QUEEN_BOSS                         41/9/0             227     26   14    22.0     71.8 
+BASE0018   loss      31 ENTOMANCER_ELITE                   46/-/-             139     14    6    10.8     57.7 
+BASE0019   loss      49 AEONGLASS_BOSS                     48/71/0            118     26   13    20.9     73.8 desync
+BASE0020   loss      17 WATERFALL_GIANT_BOSS               0/-/-              106      9    5     8.0     35.4 
+win rate 0.000 +- 0.000 (n 20); mean floor 33.0; own time per run 11.9 min; decide 0.744 s/decision
+act-1 boss passed 0.800 +- 0.089; act reached 1/2/3: 4/8/8; mean death floor 33.0; deaths {'elite': 8, 'boss': 8, 'hallway': 3, 'unplayable': 1}; price 40.1 calls/run, 7.1 s/call
