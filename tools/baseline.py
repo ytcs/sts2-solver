@@ -21,9 +21,10 @@ Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens
   Unknown events (not in data/events.json): the first option starting Leave/Exit/Decline/Ignore/Abstain/Give Up/Proceed/Continue/Skip, else 0.
 --price N: PriceMacro (`price`, N paired rollouts per option) on map forks, card rewards, rest sites, shops, catalogued events' first
   pages and ancients; the rules above elsewhere. --seconds S: S s of search per combat decision instead of --rounds.
+A screen unchanged after the same choice 3 times bans that option there (tag stuck_option; headless Punch Off's Nab throws in the game).
 Win = the EVENT "The Architect" is reached (the GAME_OVER page is never read for the result); its pages and GAME_OVER are logged.
 
-usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--price N] [--port 15820] [--tag NAME] [--character ironclad]
+usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--price N] [--min-free-gb G] [--port 15820] [--tag NAME] [--character ironclad]
 Seeds: BASE0001..BASE0020 by default. Per game: target/baseline/<tag>/<seed>/ (events.jsonl, server log); per run one JSON line in
 evals/baseline/<tag>.jsonl (re-running skips seeds already there); summary table at the end. Builds Harness() directly (no skill gate).
 """
@@ -485,7 +486,7 @@ class Game:
         self.macro = PriceMacro(self.h, predictor, seed, price_n) if price_n else Macro(self.h, predictor, seed)
         self.setting = dict(macro=f"price n{price_n}" if price_n else "base", budget=f"{seconds}s" if seconds else f"{rounds} rounds")
         self.t0, self.own, self.steps, self.errors, self.stuck = time.time(), 0.0, 0, 0, 0
-        self.bad, self.last, self.final, self.tags = {}, None, None, set()
+        self.bad, self.last, self.final, self.tags, self.last_choice = {}, None, None, set(), None
         self.potions, self.desync_turn = 0, None
 
     def step(self):
@@ -535,10 +536,14 @@ class Game:
             h.log.event("stuck", screen=s[:1500])
             return True
         bad = self.bad.setdefault(key, set())
+        if self.stuck == 3 and self.last_choice:
+            bad.add(self.last_choice.split()[0])
+            self.tags.add("stuck_option")
+            h.log.event("stuck_option", screen=s[:800], choice=self.last_choice)
         opts = [(n, t) for n, t in scr.options(s) if n not in bad]
         if not opts:
             opts = scr.options(s)
-        choice = self.macro.decide(s, opts)
+        choice = self.last_choice = self.macro.decide(s, opts)
         r = h.handle("a " + choice)
         if r.startswith(("ERR", "REFUSED")):
             self.errors += 1
@@ -659,6 +664,19 @@ class GpuSampler(threading.Thread):
             self.p.kill()
 
 
+def free_gb():
+    if os.name != "nt":
+        return float("inf")
+    import ctypes
+
+    class MS(ctypes.Structure):
+        _fields_ = [("len", ctypes.c_ulong), ("load", ctypes.c_ulong)] + [(k, ctypes.c_ulonglong) for k in ("tp", "ap", "tf", "af", "tv", "av", "ae")]
+    m = MS()
+    m.len = ctypes.sizeof(MS)
+    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+    return m.ap / 2 ** 30
+
+
 def summary(rows, gpu=None):
     import math
     out = [f"{'seed':10s} {'result':6s} {'floor':>5s} {'died at':34s} {'act HP':14s} {'HP lost':>7s} {'fights':>6s} {'pots':>4s} {'own min':>7s} {'wall min':>8s} tags"]
@@ -693,7 +711,7 @@ def main():
     a = sys.argv[1:]
     get = lambda k, d: a[a.index(k) + 1] if k in a else d  # noqa: E731
     n, games, rounds, base = int(get("--n", 20)), int(get("--games", 2)), int(get("--rounds", 16)), int(get("--port", 15820))
-    seconds, price_n = float(get("--seconds", 0)) or None, int(get("--price", 0))
+    seconds, price_n, min_free = float(get("--seconds", 0)) or None, int(get("--price", 0)), float(get("--min-free-gb", 0))
     character = get("--character", "ironclad")
     seeds = get("--seeds", ",".join(f"BASE{i:04d}" for i in range(1, n + 1))).split(",")
     tag = get("--tag", (f"s{seconds:g}" if seconds else f"r{rounds}") + (f"_price{price_n}" if price_n else ""))
@@ -714,6 +732,10 @@ def main():
           f"{f'{seconds:g} s' if seconds else f'{rounds} rounds'} per decision, macro {f'price n {price_n}' if price_n else 'base'}", flush=True)
     try:
         while pending or any(slots):
+            if free_gb() < min_free:
+                print(f"paused: {free_gb():.1f} GB free < {min_free:g}", flush=True)
+                while free_gb() < min_free:
+                    time.sleep(30)
             for i in range(games):
                 if slots[i] is None and pending:
                     bridge.OVERRIDE = f"127.0.0.1:{base + i}"

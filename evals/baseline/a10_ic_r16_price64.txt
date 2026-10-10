@@ -1,0 +1,23 @@
+seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
+BASE0001   loss      33 KNOWLEDGE_DEMON_BOSS               29/0/-             152     17   12     5.3      9.9 
+BASE0002   loss      11 PUNCH_OFF_EVENT_ENCOUNTER          -/-/-               80      6    1     1.3      2.8 stuck_option
+BASE0003   loss      33 KNOWLEDGE_DEMON_BOSS               39/0/-             144     20    9     5.5     10.6 
+BASE0004   loss      23 BOWLBUGS_NORMAL                    53/-/-             112     13    8     3.3      7.4 
+BASE0005   loss      48 TEST_SUBJECT_BOSS                  32/55/0            226     24    9    11.6     18.0 
+BASE0006   loss      11 SKULKING_COLONY_ELITE              -/-/-               64      7    4     2.1      5.7 stuck_option
+BASE0007   loss      33 THE_INSATIABLE_BOSS                12/0/-             212     16    8     4.3     11.7 
+BASE0008   loss      17 WATERFALL_GIANT_BOSS               0/-/-               88     11    6     2.6      5.5 
+BASE0009   loss      48 TEST_SUBJECT_BOSS                  26/41/0            247     26   12     9.4     16.1 
+BASE0010   loss      31 SLUMBERING_BEETLE_NORMAL           7/-/-              233     16    3     4.1     10.5 
+BASE0011   loss      17 SOUL_FYSH_BOSS                     0/-/-              145      8    4     2.5      4.9 
+BASE0012   loss      24 INFESTED_PRISMS_ELITE              9/-/-              207     14    5     3.5      7.0 
+BASE0013   loss       7 PHANTASMAL_GARDENERS_ELITE         -/-/-               58      2    2     0.9      1.8 
+BASE0014   loss      44 AXEBOTS_NORMAL                     30/18/-            208     22   14     6.7     13.9 desync
+BASE0015   loss      23 SLUMBERING_BEETLE_NORMAL           41/-/-             136     12    8     3.9      6.9 
+BASE0016   loss      48 TEST_SUBJECT_BOSS                  28/8/0             323     24   16     6.2     14.9 
+BASE0017   loss      33 THE_INSATIABLE_BOSS                46/0/-             128     14   10     5.5      9.3 
+BASE0018   loss      48 QUEEN_BOSS                         80/46/0            161     24   12    10.0     16.8 fallback
+BASE0019   loss      48 QUEEN_BOSS                         17/30/0            298     20   13     7.2     17.1 fallback
+BASE0020   loss      17 WATERFALL_GIANT_BOSS               0/-/-              154      9    2     6.2      8.5 
+win rate 0.000 +- 0.000 (n 20); mean floor 29.9; own time per run 5.1 min; decide 0.421 s/decision
+act-1 boss passed 0.700 +- 0.102; act reached 1/2/3: 6/8/6; mean death floor 29.9; deaths {'boss': 12, 'hallway': 5, 'elite': 3}; price 37.5 calls/run, 2.3 s/call
