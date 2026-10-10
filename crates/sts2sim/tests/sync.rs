@@ -358,3 +358,61 @@ fn sync_potions_replaces_the_simulators_entropic_brew_roll() {
         assert!(cx.cr(cx.enemies.as_slice()[0]).hp < hp, "seed {seed}: slot 2 throws the synced Fire Potion");
     }
 }
+
+const BOUND: u8 = ids::affliction::BOUND as u8 + 1;
+
+fn bound_obs(cx: &Combat, bound: &[usize]) -> Vec<ObsCard> {
+    names(cx, &cx.player.hand.clone())
+        .into_iter()
+        .enumerate()
+        .map(|(i, (id, upgrade))| {
+            let b = bound.contains(&i);
+            ObsCard { id, upgrade, affliction: if b { BOUND } else { 0 }, affliction_amount: if b { 3 } else { 0 }, ..Default::default() }
+        })
+        .collect()
+}
+
+fn bound_count(cx: &Combat) -> usize {
+    cx.hist_count_this_turn(sts2sim::engine::HKind::CardAfflicted, |e| e.val == ids::affliction::BOUND as i16)
+}
+
+#[test]
+fn sync_takes_the_games_bound_cards_and_one_bound_play_blocks_the_rest() {
+    for seed in 0..10u64 {
+        let mut cx = combat(seed);
+        cx.apply_power(ids::power::CHAINS_OF_BINDING_POWER, PLAYER, sts2sim::dec::Dec::int(3), PLAYER, NO);
+        let wrong = cx.player.hand.as_slice()[1];
+        assert!(cx.afflict_card(wrong, ids::affliction::BOUND, 3));
+        cx.sync_hand(&bound_obs(&cx, &[0, 2]));
+        let hand = cx.player.hand.as_slice().to_vec();
+        let aff: Vec<u8> = hand.iter().map(|&c| cx.cards[c as usize].affliction).collect();
+        assert_eq!(aff, vec![BOUND, 0, BOUND, 0, 0], "seed {seed}");
+        assert_eq!(bound_count(&cx), 2, "seed {seed}: the simulator's own Bound entry moves, the missing one is recorded");
+        assert!(hand.iter().all(|&c| cx.can_play(c)), "seed {seed}: no Bound card played yet");
+        let target = if cx.card_target_type(hand[0]) == TargetType::AnyEnemy { cx.enemies.as_slice()[0] } else { NO };
+        assert!(cx.step(Action::PlayCard { hand_pos: 0, target }), "seed {seed}");
+        let hand = cx.player.hand.as_slice().to_vec();
+        let other = hand.iter().copied().find(|&c| cx.cards[c as usize].affliction == BOUND).unwrap();
+        assert!(!cx.can_play(other), "seed {seed}: a second Bound card is playable");
+        let mut buf = ActionBuf::new();
+        cx.legal_actions(&mut buf);
+        let pos = hand.iter().position(|&c| c == other).unwrap() as u8;
+        assert!(!buf.iter().any(|a| matches!(a, Action::PlayCard { hand_pos, .. } if *hand_pos == pos)), "seed {seed}");
+        assert!(hand.iter().filter(|&&c| cx.cards[c as usize].affliction == 0).any(|&c| cx.can_play(c)), "seed {seed}: an unbound card is blocked");
+        cx.sync_hand(&bound_obs(&cx, &[]));
+        assert!(cx.can_play(other), "seed {seed}: unbound by the sync");
+    }
+}
+
+#[test]
+fn sync_pile_takes_the_games_bound_marks() {
+    let mut cx = combat(7);
+    cx.apply_power(ids::power::CHAINS_OF_BINDING_POWER, PLAYER, sts2sim::dec::Dec::int(3), PLAYER, NO);
+    let strike = ObsCard { id: ids::card::STRIKE_IRONCLAD, upgrade: 0, ..Default::default() };
+    assert!(cx.player.draw.iter().filter(|&&c| cx.cards[c as usize].id == strike.id).count() >= 2);
+    cx.sync_pile(PileType::Discard, &[strike, ObsCard { affliction: BOUND, affliction_amount: 3, ..strike }]);
+    assert_eq!(cx.player.discard.iter().filter(|&&c| cx.cards[c as usize].affliction == BOUND).count(), 1);
+    assert_eq!(bound_count(&cx), 1);
+    cx.sync_pile(PileType::Discard, &[strike, strike]);
+    assert!(cx.player.discard.iter().all(|&c| cx.cards[c as usize].affliction == 0));
+}
