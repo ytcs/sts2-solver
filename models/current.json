@@ -1,1 +1,1 @@
-{"policy": "solver_r8b.pt", "predictor": "solver_r8c.pt"}
+{"policy": "solver_r9.pt", "predictor": "solver_r9.pt"}
