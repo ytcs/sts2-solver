@@ -461,7 +461,13 @@ class Live:
                 if str(d["text"]).startswith("potion"):
                     self.potions_used += 1
                 self.fight_actions += 1
-                self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"], foes=self._foes(f))
+                extra = {}
+                if str(d["text"]).startswith("end turn"):
+                    snap = json.loads(self.rp.sim.snapshot())
+                    extra = dict(hand_left=[c["id"] + "+" * int(c.get("upgrade") or 0) for c in snap.get("hand", [])], energy_left=snap.get("energy"),
+                                 turn=snap.get("round"))
+                self.log.event("action", fight=self.fight_id, text=d["text"], json=d["json"], searched=d["searched"], options=d["options"], foes=self._foes(f),
+                               potion_gated=d.get("potion_gated"), **extra)
                 out.append("  " + self._advice_text(d))
                 t0 = T()
                 reply = self._send("do " + d["json"])
