@@ -28,7 +28,7 @@ Act boss before an ancient heal (and the final boss): P(win) only, 1% end-HP tie
 `eN now:` = the shown intent's move with its exact effects (`[me: ...]`, `[self: ...]`); `eN plan: +1 .. +3` = moves for 3 turns after it, odds marginal per turn, damage at today's modifiers. `[code]`
 
 ## Decision guards (`agent/guards.py`)
-Card reward: `reward` + why fields `buckets:` `weakest:` `numbers:` `judgment:`. Map fork / Neow: `routes` this floor. Shop: a pricing call this floor (`price` counts); rest: `restcalc`, or `routes --hp <after>` + `routes` + upgrade `eval`; at >= 95% HP no pricing call (smith). Elite/boss below 60% HP: `a <i> !`.
+Card reward: `reward` + why fields `buckets:` `weakest:` `numbers:` `judgment:`; the why names the chosen card (pick by name: `a ~Card`). Map fork / Neow: `routes` this floor. Shop: a pricing call this floor (`price` counts); rest: `restcalc`, or `routes --hp <after>` + `routes` + upgrade `eval`; at >= 95% HP no pricing call (smith). Elite/boss below 60% HP: `a <i> !`.
 
 ## Batch, tables, quirks
 - A reply that stopped (ERR, REFUSED, DIFFERS, DESYNC) repeats the reason as its last line (`^ stopped: ...`).
