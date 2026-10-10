@@ -132,13 +132,25 @@ def shop_items(st, state_text, unpriced=None):
         m = re.match(r"^(\d+)g remove a card", label)
         if m:
             price = int(m.group(1))
-            for cid in sorted({c["id"] for c in st.deck if c["id"] != "ASCENDERS_BANE"}):
+            for cid in removal_candidates(st.deck):
                 def rm(s, _d, cid=cid, p=price):
                     s.deck.remove(next(c for c in s.deck if c["id"] == cid))
                     s.gold -= p
                     s.removals += 1
                 out.append((f"remove {_short(cid)}", "remove", price, rm))
     return out
+
+
+def card_type(cid):
+    return next((r.get("type") for rows in R.CAT["cards"].values() for r in rows if r["id"] == cid), None)
+
+
+def removal_candidates(deck):
+    """distinct removable ids, dominance first (user: a Strike goes before Headbutt): while an unupgraded basic of a card type is in the
+    deck, non-basic cards of that type are not candidates; search ranks the rest"""
+    ids = sorted({c["id"] for c in deck if c["id"] != "ASCENDERS_BANE"})
+    basic_types = {card_type(c["id"]) for c in deck if c["id"].startswith(R.BASICS[:2]) and not c.get("upgrade")}
+    return [i for i in ids if i.startswith(R.BASICS[:2]) or card_type(i) not in basic_types]
 
 
 def bundles(st, items, predictor, keep=6, removals=2, top=8, shuffles=4):
@@ -405,40 +417,91 @@ def event_adjust(st, state_text):
     return out
 
 
-def search_check(st, opts, res, engine, top=3, attempts=64, variants=4):
-    """the predictor is near-blind to small deck edits (bench pairs Spearman ~0.15): re-score the run model's top options, skip / nothing and
-    the best removal by search vs the act's boss(es) at full HP, with the belt the option leaves (potions bought / swapped count; E72: Heart of Iron +0.13 vs the final pair, invisible without potions). -> {label: (win, se)}"""
+SMOOTH = (1.0, 1.5, 2.0, 3.0)
+P_FLOOR = 0.05
+
+
+def _horizon_sets(st):
+    """[(act index, encounters, smooth)]: the current act's known boss(es) (smooth if the deck is far from beating them) and, before act 3,
+    the act-3 boss pool (smooth: raw wins floor at 0 early, E74)"""
+    from agent import pools
+    out = []
+    cur = list(st.bosses or [])
+    if cur:
+        out.append((st.act, cur, None))
+    if st.act < 2:
+        out.append((2, [e for n in pools.act_names(2) for e in pools.pool(n, "boss")], True))
+    return out
+
+
+def search_check(st, opts, res, engine, top=3, attempts=48, smooth_attempts=16, variants=4):
+    """stage-A estimator on the run model's top options + skip / nothing + the best removal: search wins vs every act still to clear
+    (current act's bosses; the act-3 boss pool from acts 1-2, smooth over HP multiples), combined as sum_i dP_i / P_i against the
+    reference option (skip / nothing), paired per attempt (common seeds). Belt the option leaves included.
+    -> {label: (score vs reference, paired se, {act: P})}"""
     import random
-    bosses = list(st.bosses or [])
-    if not bosses or engine is None:
+    import numpy as np
+    sets = _horizon_sets(st)
+    if not sets or engine is None:
         return {}
     main, _ = ladder(res)
     ranked = sorted(res, key=lambda lb: -float(res[lb][main].mean()))
-    pick = ranked[:top] + [lb for lb in ("skip", "nothing") if lb in res]
-    pick += [lb for lb in ranked if "remove" in lb.lower()][:1]
-    pick = list(dict.fromkeys(pick))
+    ref = next((lb for lb in ("skip", "nothing") if lb in res), ranked[0])
+    pick = list(dict.fromkeys([ref] + ranked[:top] + [lb for lb in ranked if "remove" in lb.lower()][:1]))
     first = dict(opts)
-    scen, owner = [], []
+    # slots: (act, encounter, HP multiple or None); every option plays every slot with the same group (common random numbers)
+    slots = []
+    for act, encs, smooth in sets:
+        for e in encs:
+            for m in (SMOOTH if smooth else (None,)):
+                slots.append((act, e, m))
+    scen, owner, att, grp = [], [], [], []
     for lb in pick:
         seen = set()
-        # random outcomes (random upgrades, transforms): the distinct concrete results of a few draws, equally weighted
         for k in range(variants if first.get(lb) is not None else 1):
             s2 = st.copy()
             if first.get(lb) is not None:
                 first[lb](s2, R.Draws(random.Random(k), st.base["character"], st.act))
-            sc = [s2.scenario(b, hp=s2.max_hp) for b in bosses]
+            sc = []
+            for act, e, m in slots:
+                x = s2.scenario(e, hp=s2.max_hp)
+                if m is not None:
+                    h = int(round(s2.max_hp * m))
+                    x = dict(x, hp=h, max_hp=max(s2.max_hp, h))
+                sc.append(x)
             sig = json.dumps(sc, sort_keys=True)
             if sig in seen:
                 continue
             seen.add(sig)
-            scen += sc
-            owner += [lb] * len(sc)
-    rows = engine.solve(scen, attempts=attempts)
+            for si, x in enumerate(sc):
+                scen.append(x)
+                owner.append((lb, si))
+                att.append(attempts if slots[si][2] is None else smooth_attempts)
+                grp.append(si)
+    rows = engine.solve(scen, attempts=att, groups=grp)
+    # wins[label][slot] = per-attempt wins averaged over the option's concrete variants
+    wins = {}
+    for (lb, si), r in zip(owner, rows):
+        w = np.array([np.nan if x is None else x for x in r["wins"]], float)
+        wins.setdefault(lb, {}).setdefault(si, []).append(w)
+    W = {lb: {si: np.nanmean(np.stack(v), 0) for si, v in d.items()} for lb, d in wins.items()}
+    acts = sorted({a for a, _, _ in slots})
+    per_act = {lb: {a: float(np.nanmean(np.concatenate([W[lb][si] for si, sl in enumerate(slots) if sl[0] == a]))) for a in acts} for lb in W}
     out = {}
     for lb in pick:
-        w = [float(r["win"]) for r, o in zip(rows, owner) if o == lb]
-        p = sum(w) / len(w)
-        out[lb] = (p, (p * (1 - p) / (attempts * len(w))) ** 0.5)
+        if lb not in W:
+            continue
+        contrib = []
+        for a in acts:
+            sis = [si for si, sl in enumerate(slots) if sl[0] == a]
+            n = min(len(W[lb][si]) for si in sis)
+            # per attempt index: the act's mean paired difference, scaled by 1 / P_ref
+            d = np.nanmean(np.stack([W[lb][si][:n] - W[ref][si][:n] for si in sis]), 0)
+            contrib.append(d / max(per_act[ref][a], P_FLOOR))
+        n = min(len(c) for c in contrib)
+        tot = np.sum(np.stack([c[:n] for c in contrib]), 0)
+        se = float(np.nanstd(tot, ddof=1) / np.sqrt(max(1, np.sum(~np.isnan(tot))))) if lb != ref else 0.0
+        out[lb] = (float(np.nanmean(tot)) if lb != ref else 0.0, se, per_act[lb])
     return out
 
 

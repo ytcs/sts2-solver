@@ -387,7 +387,7 @@ class PriceMacro(Macro):
         self.h.stats["price_s"] += dt
         self.h.log.event("price", screen=scr.kind(s), options=[o[0] for o in opts], ranked_by=ranked, best=best, seconds=round(dt, 2), n=self.n,
                          result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()},
-                         search={k: [round(v[0], 3), round(v[1], 3)] for k, v in check.items()}, override=override, terms=adj)
+                         search={k: [round(v[0], 3), round(v[1], 3), {str(a): round(x, 3) for a, x in v[2].items()}] for k, v in check.items()}, override=override, terms=adj)
         return best
 
     def decide(self, s, opts):
