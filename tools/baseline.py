@@ -379,10 +379,8 @@ class PriceMacro(Macro):
         if len(opts) < 2:
             return None
         st, t0 = self.st(s), time.perf_counter()
-        res = PR.price(st, opts, self.pred, n=self.n, seed=zlib.crc32(f"{self.seed}|{scr.floor_key(s)}".encode()) % 10_000)
-        check = PR.search_check(st, opts, res, self.h.engine) if scr.kind(s) in ("CARD_REWARD", "SHOP", "EVENT") and self.hybrid else {}
-        adj = PR.event_adjust(st, s)
-        best, ranked, override = PR.hybrid_best(res, check, adj)
+        r = PR.decide(st, s, self.pred, self.h.engine, opts, n=self.n, seed=PR.screen_seed(self.seed, s), hybrid=self.hybrid)
+        res, check, adj, best, ranked, override = r["res"], r["check"], r["adj"], r["best"], r["ranked_by"], r["override"]
         self.last_res, self.last_override = res, override
         dt = time.perf_counter() - t0
         self.h.stats["price_calls"] += 1
@@ -423,13 +421,6 @@ class PriceMacro(Macro):
         best = self.price(s, PR.options(st, s))
         if best is None:
             return None
-        if best != "skip" and self.last_res and "skip" in self.last_res:
-            # the macro terms (data/macro_rules.json) on the priced difference vs skip, unless search overrode the run model
-            main, _ = PR.ladder(self.last_res)
-            d = self.last_res[best][main] - self.last_res["skip"][main]
-            cid = PR._card_id(best)[0]
-            if self.last_override is None and cid and R.pick_with_terms("card_reward", st, [0.0, float(d.mean())], [(None, None), ("card", cid)], se=PR._se(d)) == 0:
-                best = "skip"
         skip = next((i for i, t in lab if t.startswith("Skip")), None)
         choice = skip if best == "skip" else next((i for i, t in lab if "(" in t and _name(t) == best), None)
         if choice == skip and self.opened:

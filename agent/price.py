@@ -516,3 +516,28 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def screen_seed(tag, state_text):
+    """stable per screen across processes (Python's str hash is salted per process)"""
+    import zlib
+    return zlib.crc32(f"{tag}|{scr.floor_key(state_text)}".encode()) % 10_000
+
+
+def decide(st, state_text, pred, engine, opts, n=128, seed=0, cont=None, hybrid=True, sat=ACT_SATURATED):
+    """the one pricing decision shared by the live `price` command and the scripted baseline: run-model rollouts, macro-term adjustments
+    (event terms; card-reward margin vs skip), search check of the top options + skip + best removal (CARD_REWARD / SHOP / EVENT), hybrid
+    override. -> dict(res, adj, check, best, ranked_by, override, terms_skip)"""
+    kind = scr.kind(state_text)
+    res = price(st, opts, pred, n=n, seed=seed, cont=cont)
+    adj = event_adjust(st, state_text)
+    check = search_check(st, opts, res, engine) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else {}
+    best_, ranked, override = hybrid_best(res, check, adj)
+    terms_skip = False
+    if kind == "CARD_REWARD" and best_ != "skip" and "skip" in res and override is None:
+        main, _ = ladder(res, sat)
+        d = res[best_][main] - res["skip"][main]
+        cid = _card_id(best_)[0]
+        if cid and R.pick_with_terms("card_reward", st, [0.0, float(d.mean())], [(None, None), ("card", cid)], se=_se(d)) == 0:
+            best_, terms_skip = "skip", True
+    return dict(res=res, adj=adj, check=check, best=best_, ranked_by=ranked, override=override, terms_skip=terms_skip)

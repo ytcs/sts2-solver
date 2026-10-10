@@ -330,26 +330,24 @@ class Harness(Live):
             unpriced = []
             opts, note = PR.bundles(st, PR.shop_items(st, state, unpriced), self._predictor)
             note = f"; {note}" + (f"; not priced (no simulator id): {', '.join(unpriced)}" if unpriced else "")
-        res = PR.price(st, opts, self._predictor, n=n, seed=abs(hash(scr.floor_key(state) or "")) % 10_000, cont=cont)
+        r = PR.decide(st, state, self._predictor, None if "--no-search" in args else self.eng(), opts, n=n, seed=PR.screen_seed("live", state),
+                      cont=cont, sat=sat)
+        res, adj, got, override = r["res"], r["adj"], r["check"], r["override"]
         gates = "" if cont is None else PR.gates_text(opts, PR.closed_gates(st, opts, self._predictor), cont) + "\n"
         ranked_by, _why = PR.ladder(res, sat)
-        self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by=ranked_by,
-                       result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})
+        self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by=ranked_by, best=r["best"],
+                       result={k: {m: float(v.mean()) for m, v in x.items()} for k, x in res.items()},
+                       search={k: [round(v[0], 3), round(v[1], 3)] for k, v in got.items()}, override=override, terms=adj)
         ready = ("; next act ready: P(win) after the ancient's heal vs the next act's bosses x0.5 and elites x0.5, 0 on a death in this act"
                  if "ready" in next(iter(res.values())) else "")
         check = ""
-        adj = PR.event_adjust(st, state)
         if adj:
-            b, _m = PR.best(res, sat, adj)
-            check += ("macro terms (data/macro_rules.json, P units on " + ranked_by + "): " + ", ".join(f"{k} {v:+.3f}" for k, v in adj.items())
-                      + f" -> best with terms: {b}\n")
-        if scr.kind(state) in ("CARD_REWARD", "SHOP", "EVENT") and "--no-search" not in args:
-            got = PR.search_check(st, opts, res, self.eng())
-            if got:
-                pick, _ranked, override = PR.hybrid_best(res, got, adj)
-                rows = [f"  {lb[:44]:44s} {p:.3f} +- {se:.3f}" for lb, (p, se) in sorted(got.items(), key=lambda x: -x[1][0])]
-                check += ("search check (the predictor is near-blind to small deck edits): deck vs " + " + ".join(st.bosses) + " at full HP, with the belt each option leaves\n"
-                         + "\n".join(rows) + (f"\n  -> search overrides the run model: {pick} (+{override[0]} +- {override[1]})" if override else "") + "\n")
+            check += "macro terms (data/macro_rules.json, P units on " + ranked_by + "): " + ", ".join(f"{k} {v:+.3f}" for k, v in adj.items()) + "\n"
+        if got:
+            rows = [f"  {lb[:44]:44s} {p:.3f} +- {se:.3f}" for lb, (p, se) in sorted(got.items(), key=lambda x: -x[1][0])]
+            check += ("search check (the predictor is near-blind to small deck edits): deck vs " + " + ".join(st.bosses) + " at full HP, with the belt each option leaves\n"
+                      + "\n".join(rows) + (f"\n  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})" if override else "") + "\n")
+        check += f"decision (shared with the scripted baseline): {r['best']}" + (" (card-reward terms: tie / density -> skip)" if r["terms_skip"] else "") + "\n"
         return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates + check + self._synergy(state)
 
     def _synergy(self, state, deck=None):
@@ -418,11 +416,9 @@ class Harness(Live):
             return "restcalc: not at a rest site with a Rest option\n"
         heal = int(m.group(1)) + (15 if "Regal Pillow:" in self.handle("d") else 0)
         after = min(hp[1], hp[0] + heal)
-        out = [f"rest heals {after - hp[0]} ({hp[0]} -> {after}/{hp[1]})"]
-        for h in (hp[0], after):
-            rows = [l for l in self.evaluate(f"--boss --hp {h} --attempts 128 {argline}").splitlines() if l.startswith("baseline")]
-            out.append(f"  at {h} HP: " + (rows[0].split(None, 1)[1] if rows else "?"))
-        return "\n".join(out) + "\n"
+        # one paired batch: the HP after resting is a variant of the HP now
+        text = self.evaluate(f"--boss --hp {hp[0]} --attempts 128 --v rest|hp={after} {argline}")
+        return f"rest heals {after - hp[0]} ({hp[0]} -> {after}/{hp[1]}); baseline = no rest\n" + text + "\n"
 
     def evaluate(self, argline):
         argline = argline.strip()
