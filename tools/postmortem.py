@@ -468,13 +468,11 @@ def _line(s, i=1):
 
 def replay_prefix(ev, stop):
     """re-send the run's game commands up to event index stop on the current bridge; -> (screen, header mismatches)"""
-    from agent import bridge, potions
-    sc, bad = None, []
+    from agent import bridge
+    bad = []
     for e in ev[:stop]:
         k = e["kind"]
-        if k == "fight_start":
-            sc = e["scenario"]
-        elif k == "macro":
+        if k == "macro":
             s = _ready()
             if s.split("\n")[:2] != e["state"].split("\n")[:2]:
                 bad.append((_line(e["state"])[:60], _line(s)[:60]))
@@ -483,10 +481,10 @@ def replay_prefix(ev, stop):
             bridge.call("a " + e["choice"])
         elif k == "action":
             _ready()
-            bridge.call("do " + (json.dumps({"choose": e["picks"]}) if e.get("kind_") == "choose" else potions.to_game_action(sc, e["json"])))
+            bridge.call("do " + (json.dumps({"choose": e["picks"]}) if e.get("kind_") == "choose" else e["json"]))
         elif k == "potion_commit":
             _ready()
-            bridge.call("do " + potions.to_game_action(sc, e["json"]))
+            bridge.call("do " + e["json"])
         elif k == "divergence" and "selection, the simulator does not" in str(e.get("what")):
             _ready()
             bridge.call("a 0")
