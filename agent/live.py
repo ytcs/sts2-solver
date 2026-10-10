@@ -235,7 +235,9 @@ class Live:
         return self._advice_text(d) + f"   ({d['rounds']} rounds, {d['seconds']}s)\n" + self._outlook() + (f"\n{stop}" if stop else "") + (f"\n{fresh}" if fresh else "")
 
     def _decide(self, scenario, sim, budget, **kw):
-        return self.eng().decide(scenario, sim, budget, keep_potions=True, worth=getattr(self, "fight_worth", None), **kw)
+        e = self.eng()
+        keep = e.keep(getattr(self, "aside", set()), self._is_boss())
+        return e.decide(scenario, sim, budget, keep_potions=keep, worth=getattr(self, "fight_worth", None), **kw)
 
     def _fight_objective(self, sc):
         if not getattr(self.eng(), "worth_ok", True):

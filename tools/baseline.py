@@ -4,8 +4,8 @@ One process drives N `OracleCombat serve` games (own port, --state-dir, APPDATA/
 (models/current.json, cover + exact turn search, hp_cap default); `agent.bridge.OVERRIDE` points every bridge call at the stepping game.
 Never the real game: the bridge never falls back to it while OVERRIDE is set.
 
-Combat: the live player (`Harness.play`), a fixed number of search rounds per decision (--rounds, not seconds); potions only when the
-proposal rule fires (`potion use` the proposed one, one per commit). No fight-start predictions, no DRIVE thresholds. A DIFFERS line does
+Combat: the live player (`Harness.play`), a fixed number of search rounds per decision (--rounds, not seconds); the search throws potions
+at a reserve cost (--pot-cost, default the live POT_COST; 0 = withheld), plus the proposal rule (`potion use` the proposed one, one per commit). No fight-start predictions, no DRIVE thresholds. A DIFFERS line does
 not stop play (counted; a potion-belt DIFFERS left after the belt sync turns proposals off for that fight); a DESYNC
 (or a search error, or combat_in_progress differing) rebuilds the replayer once per fight, then plays `fallback_action` (first playable
 card, else end turn; run tagged `fallback`; also every fight the simulator cannot build, tagged `unplayable`); a combat selection the game
@@ -70,7 +70,7 @@ class BaselineHarness(Harness):
     def _decide(self, scenario, sim, budget, **kw):
         e = self.eng()
         e.seed, t0 = self._seed, time.perf_counter()
-        d = e.decide(scenario, sim, budget, keep_potions=True, worth=getattr(self, "fight_worth", None), rounds=None if self.budget else self.rounds,
+        d = e.decide(scenario, sim, budget, keep_potions=e.keep(), worth=getattr(self, "fight_worth", None), rounds=None if self.budget else self.rounds,
                      tol_hp=kw.get("tol_hp", 1.0))
         self._seed = e.seed
         self.stats["decisions"] += 1
@@ -713,7 +713,8 @@ def main():
     n, games, rounds, base = int(get("--n", 20)), int(get("--games", 2)), int(get("--rounds", 16)), int(get("--port", 15820))
     seconds, price_n, min_free = float(get("--seconds", 0)) or None, int(get("--price", 0)), float(get("--min-free-gb", 0))
     character = get("--character", "ironclad")
-    pot_cost = float(get("--pot-cost", 0))
+    from agent.engine import POT_COST
+    pot_cost = float(get("--pot-cost", POT_COST))
     seeds = get("--seeds", ",".join(f"BASE{i:04d}" for i in range(1, n + 1))).split(",")
     tag = get("--tag", (f"s{seconds:g}" if seconds else f"r{rounds}") + (f"_price{price_n}" if price_n else "") + (f"_pc{pot_cost:g}" if pot_cost else ""))
     out = os.path.join(ROOT, "target", "baseline", tag)

@@ -15,7 +15,7 @@ description: Use before the first action of a run and whenever unsure how to dri
 - Solver: `adv [secs]`; `turn`/`combat` in AUTO fights (`combat !` overrides MANUAL); `budget <s>|auto`. Search = 2 player turns then value net; exact turn search when the values are blind. `SIMULATOR DESYNC`/`DIFFERS`: play by hand, `status`.
 
 ## Potions (`agent/proposal.py`)
-- Live search never throws potions. Each turn each potion: now / keep / save on 32 shared futures; `POTION PROPOSAL` stops `turn`/`combat` iff now beats keep and save by 2 paired se, or win at stake.
+- Live search throws potions itself at a reserve cost (`agent/engine.py` POT_COST 0.06 ~ 10 HP each, half under win-only worth, 0 at the final boss; E61); set-aside potions are withheld until a boss. Proposals still price each potion per turn: now / keep / save on 32 shared futures; `POTION PROPOSAL` stops `turn`/`combat` iff now beats keep and save by 2 paired se, or win at stake.
 - Commit one per proposal: `potion use <name>` or `a <i>`; `turn`/`combat` declines. Next turn re-prices.
 - `potion aside <name>[, name]|none` keeps for the boss (survives restart); bare `potion` lists set-aside potions; `potions` prints the table.
 - keep/save priced within this fight: weigh the boss yourself. `[hyp]` proposals order potions well; test: the potion regression states (`docs/plan.md`).

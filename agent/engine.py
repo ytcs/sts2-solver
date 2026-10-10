@@ -33,8 +33,12 @@ def _opportunity_loss(acc):
     return worst
 
 
+# reserve value of a held potion in objective units (E61: run model ~10 HP = 0.063; near-miss flat 0.03-0.06)
+POT_COST = 0.06
+
+
 class Engine:
-    def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0, exact_turn=True, hp_cap=True, pot_cost=0.0):
+    def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0, exact_turn=True, hp_cap=True, pot_cost=POT_COST):
         self.solver = Solver() if ckpt is None else Solver(ckpt)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         self.fs = FastSearch(self.solver.net, M, K, roots=1, groups=1, amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn,
@@ -46,6 +50,10 @@ class Engine:
         self.seed = 0
         self.table_seed = 0
 
+    def keep(self, aside=(), boss=False):
+        """potions the search must not throw: all of them without a reserve cost, else the ones set aside for a later boss"""
+        return True if self.pot_cost <= 0 else set() if boss else set(aside)
+
     def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, worth=None, rounds=None):
         t0 = time.perf_counter()
         tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)
@@ -55,8 +63,6 @@ class Engine:
         n_rounds, acc, first, rounds = rounds, {}, None, 0
         # potion reserve cost: none after the final boss; win-only worth spans 1 (loss 0, win 1) vs 2 for the linear objective
         self.fs.pot_cost = 0.0 if worth is not None and worth.get("final") else self.pot_cost / 2 if worth is not None else self.pot_cost
-        if keep_potions is True and self.pot_cost > 0:
-            keep_potions = False
         held = potions.held_indices(sim, keep_potions)
         def _held(t):
             return t.startswith("potion") and (keep_potions is True or potions.text_index(t) in held)
