@@ -392,11 +392,8 @@ class Builder:
         if kind == "e":
             self._end_turn(next_obs, where)
         else:
-            sj = copy.deepcopy(j)
-            if kind == "pot":
-                sj["use_potion"]["slot"] = next(i for i, p in enumerate(self.spec["scenario"]["potions"]) if p["slot"] == a[1])
             base = self.sim.copy()
-            self.sim.apply(json.dumps(sj))
+            self.sim.apply(json.dumps(j))
             want = getattr(self, "next_choice", None)
             if kind == "pot" and want and self.sim.stage() == "choice":
                 for k in range(600):
@@ -404,7 +401,7 @@ class Builder:
                         break
                     s = base.copy()
                     s.determinize(self.rng.randrange(1 << 62))
-                    s.apply(json.dumps(sj))
+                    s.apply(json.dumps(j))
                     self.sim = s
                 else:
                     self.report.append(f"{where}: no determinization offers {want} after the potion")
@@ -412,7 +409,7 @@ class Builder:
                 for k in range(300):
                     s = base.copy()
                     s.determinize(self.rng.randrange(1 << 62))
-                    s.apply(json.dumps(sj))
+                    s.apply(json.dumps(j))
                     if _enemies_ok(s, next_obs["e"]):
                         self.sim = s
                         break
@@ -981,13 +978,11 @@ def verdict(refs, max_hp):
 
 
 def decision_states(fight):
-    from agent import potions
     from agent.fight import Replayer
     rp = Replayer(fight, seed=1)
-    sc = fight["scenario"]
     for i, act in enumerate(fight["log"]):
         sim = rp.sim.copy()
-        j = json.loads(potions.to_sim_action(sc, act if isinstance(act, str) else json.dumps(act)))
+        j = json.loads(act if isinstance(act, str) else json.dumps(act))
         yield i, sim, j
         rp.advance(dict(fight, log=fight["log"][: i + 1]))
         if rp.errors:

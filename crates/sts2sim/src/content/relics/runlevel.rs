@@ -1,6 +1,6 @@
 use crate::dec::Dec;
 use crate::hooks::*;
-use crate::listener;
+use crate::{listener, relic_props};
 use crate::state::*;
 
 listener!(AlchemicalCoffer {});
@@ -103,7 +103,12 @@ listener!(Strawberry {});
 listener!(TanxsWhistle {});
 listener!(TheCourier {});
 listener!(TinyMailbox {});
-listener!(TouchOfOrobas {});
+// TouchOfOrobas.cs:53-99: saved StarterRelic / UpgradedRelic ModelIds, set once at pickup, inert in combat.
+listener!(TouchOfOrobas {
+    fn meta_props(&self) -> &'static [PropDef] {
+        relic_props![PropDef::relic("StarterRelic", Slot::Counter), PropDef::relic("UpgradedRelic", Slot::Aux)]
+    }
+});
 listener!(ToxicEgg {});
 listener!(TriBoomerang {});
 listener!(VakuuCardSelector {});

@@ -133,7 +133,16 @@ fn relic(cx: &Combat, r: &Relic) -> Value {
         if d.skip_default && v == 0 {
             continue;
         }
-        props.insert(d.name.into(), if d.boolean { json!(v != 0) } else { json!(v) });
+        props.insert(
+            d.name.into(),
+            if d.relic {
+                json!(format!("RELIC.{}", ids::relic::NAMES.get(v as usize - 1).copied().unwrap_or("NONE")))
+            } else if d.boolean {
+                json!(v != 0)
+            } else {
+                json!(v)
+            },
+        );
     }
     if !props.is_empty() {
         m.insert("props".into(), Value::Object(props));
@@ -195,7 +204,7 @@ pub fn snapshot(cx: &Combat) -> Value {
     o.insert("relics".into(), Value::Array(cx.player.relics.iter().map(|r| relic(cx, r)).collect()));
     o.insert(
         "potions".into(),
-        Value::Array(cx.player.potions.iter().flatten().map(|p| json!({"id": ids::potion::NAMES[p.id as usize]})).collect()),
+        Value::Array(cx.player.potions.iter().enumerate().filter_map(|(i, p)| p.map(|p| json!({"slot": i, "id": ids::potion::NAMES[p.id as usize]}))).collect()),
     );
     let r = &cx.rng;
     o.insert(

@@ -6,7 +6,7 @@ Never the real game: the bridge never falls back to it while OVERRIDE is set.
 
 Combat: the live player (`Harness.play`), a fixed number of search rounds per decision (--rounds, not seconds); potions only when the
 proposal rule fires (`potion use` the proposed one, one per commit). No fight-start predictions, no DRIVE thresholds. A DIFFERS line does
-not stop play (counted; a potion-belt DIFFERS, e.g. Entropic Brew's random potions, turns proposals off for that fight); a DESYNC
+not stop play (counted; a potion-belt DIFFERS left after the belt sync turns proposals off for that fight); a DESYNC
 (or a search error, or combat_in_progress differing) rebuilds the replayer once per fight, then plays `fallback_action` (first playable
 card, else end turn; run tagged `fallback`; also every fight the simulator cannot build, tagged `unplayable`); a combat selection the game
 rejects is answered by the macro SELECT rule.
@@ -15,15 +15,16 @@ Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens
   of runmodel.worth, skip included); rest: rest below 50% HP else smith BasePolicy.smith order; shop: remove a card if affordable, then the
   best affordable card/relic by the same screen; catalogued events: BasePolicy.event on the first page, follow-up pages as rollouts resolve
   them (events.default_choose: the exit option, else the first modelled); Neow/ancients: the predictor screen of each option
-  applied (events.apply_ancient), fights at min(reference HP, HP after the option), SIM_UNMODELLED relics never taken; removals/transforms: curses, Strikes, Defends first;
+  applied (events.apply_ancient), fights at min(reference HP, HP after the option); removals/transforms: curses, Strikes, Defends first;
   upgrades BasePolicy.smith order; other selections the first k; rewards: gold, relics, cards, potions only into a free slot; treasure:
   open, take; bundle: the first; Crystal Sphere: tools/serve_harness_run heuristic. No potion use outside combat.
   Unknown events (not in data/events.json): the first option starting Leave/Exit/Decline/Ignore/Abstain/Give Up/Proceed/Continue/Skip, else 0.
 --price N: PriceMacro (`price`, N paired rollouts per option) on map forks, card rewards, rest sites, shops, catalogued events' first
   pages and ancients; the rules above elsewhere. --seconds S: S s of search per combat decision instead of --rounds.
+A screen unchanged after the same choice 3 times bans that option there (tag stuck_option; headless Punch Off's Nab throws in the game).
 Win = the EVENT "The Architect" is reached (the GAME_OVER page is never read for the result); its pages and GAME_OVER are logged.
 
-usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--price N] [--port 15820] [--tag NAME] [--character ironclad]
+usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--price N] [--min-free-gb G] [--port 15820] [--tag NAME] [--character ironclad]
 Seeds: BASE0001..BASE0020 by default. Per game: target/baseline/<tag>/<seed>/ (events.jsonl, server log); per run one JSON line in
 evals/baseline/<tag>.jsonl (re-running skips seeds already there); summary table at the end. Builds Harness() directly (no skill gate).
 """
@@ -47,7 +48,6 @@ LEAVE = ("leave", "exit", "decline", "ignore", "abstain", "give up", "proceed", 
 MAP_TYPE = {"Monster": "M", "Elite": "E", "Unknown": "?", "Rest": "R", "RestSite": "R", "Shop": "$", "Merchant": "$", "Treasure": "T"}
 CURSES = {c["id"] for c in R.CAT["cards"].get("CURSE", [])}
 SHUFFLES, PSEED = 4, 1000
-SIM_UNMODELLED = {"TOUCH_OF_OROBAS"}
 
 
 class GameLog(RunLog):
@@ -291,7 +291,7 @@ class Macro:
         anc = [(i, EV.ancient_option(t)[0]) for i, t in lab]
         if any(r for _, r in anc) and EV.get(title) is None:
             st = self.st(s)
-            ok = [(i, r) for i, r in anc if r and r not in SIM_UNMODELLED]
+            ok = [(i, r) for i, r in anc if r]
             variants, keep = [], []
             for i, r in ok:
                 def f(x, r=r):
@@ -454,8 +454,7 @@ class PriceMacro(Macro):
         self.title(s)
         if len(lab) == 1:
             return None
-        bad = {t.split(":", 1)[0][:34] for _, t in lab if EV.ancient_option(t)[0] in SIM_UNMODELLED}
-        best = self.price(s, [o for o in PR.options(self.st(s), s) if o[0] not in bad])
+        best = self.price(s, PR.options(self.st(s), s))
         return None if best is None else next((str(i) for i, t in lab if t.split(":", 1)[0][:34] == best), None)
 
 
@@ -487,7 +486,7 @@ class Game:
         self.macro = PriceMacro(self.h, predictor, seed, price_n) if price_n else Macro(self.h, predictor, seed)
         self.setting = dict(macro=f"price n{price_n}" if price_n else "base", budget=f"{seconds}s" if seconds else f"{rounds} rounds")
         self.t0, self.own, self.steps, self.errors, self.stuck = time.time(), 0.0, 0, 0, 0
-        self.bad, self.last, self.final, self.tags = {}, None, None, set()
+        self.bad, self.last, self.final, self.tags, self.last_choice = {}, None, None, set(), None
         self.potions, self.desync_turn = 0, None
 
     def step(self):
@@ -537,10 +536,14 @@ class Game:
             h.log.event("stuck", screen=s[:1500])
             return True
         bad = self.bad.setdefault(key, set())
+        if self.stuck == 3 and self.last_choice:
+            bad.add(self.last_choice.split()[0])
+            self.tags.add("stuck_option")
+            h.log.event("stuck_option", screen=s[:800], choice=self.last_choice)
         opts = [(n, t) for n, t in scr.options(s) if n not in bad]
         if not opts:
             opts = scr.options(s)
-        choice = self.macro.decide(s, opts)
+        choice = self.last_choice = self.macro.decide(s, opts)
         r = h.handle("a " + choice)
         if r.startswith(("ERR", "REFUSED")):
             self.errors += 1
@@ -661,6 +664,19 @@ class GpuSampler(threading.Thread):
             self.p.kill()
 
 
+def free_gb():
+    if os.name != "nt":
+        return float("inf")
+    import ctypes
+
+    class MS(ctypes.Structure):
+        _fields_ = [("len", ctypes.c_ulong), ("load", ctypes.c_ulong)] + [(k, ctypes.c_ulonglong) for k in ("tp", "ap", "tf", "af", "tv", "av", "ae")]
+    m = MS()
+    m.len = ctypes.sizeof(MS)
+    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+    return m.ap / 2 ** 30
+
+
 def summary(rows, gpu=None):
     import math
     out = [f"{'seed':10s} {'result':6s} {'floor':>5s} {'died at':34s} {'act HP':14s} {'HP lost':>7s} {'fights':>6s} {'pots':>4s} {'own min':>7s} {'wall min':>8s} tags"]
@@ -695,7 +711,7 @@ def main():
     a = sys.argv[1:]
     get = lambda k, d: a[a.index(k) + 1] if k in a else d  # noqa: E731
     n, games, rounds, base = int(get("--n", 20)), int(get("--games", 2)), int(get("--rounds", 16)), int(get("--port", 15820))
-    seconds, price_n = float(get("--seconds", 0)) or None, int(get("--price", 0))
+    seconds, price_n, min_free = float(get("--seconds", 0)) or None, int(get("--price", 0)), float(get("--min-free-gb", 0))
     character = get("--character", "ironclad")
     seeds = get("--seeds", ",".join(f"BASE{i:04d}" for i in range(1, n + 1))).split(",")
     tag = get("--tag", (f"s{seconds:g}" if seconds else f"r{rounds}") + (f"_price{price_n}" if price_n else ""))
@@ -716,6 +732,10 @@ def main():
           f"{f'{seconds:g} s' if seconds else f'{rounds} rounds'} per decision, macro {f'price n {price_n}' if price_n else 'base'}", flush=True)
     try:
         while pending or any(slots):
+            if free_gb() < min_free:
+                print(f"paused: {free_gb():.1f} GB free < {min_free:g}", flush=True)
+                while free_gb() < min_free:
+                    time.sleep(30)
             for i in range(games):
                 if slots[i] is None and pending:
                     bridge.OVERRIDE = f"127.0.0.1:{base + i}"

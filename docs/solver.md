@@ -19,7 +19,7 @@ In: deck, relics, potions, HP, encounter (A10). Out: play maximising the fight o
 - Live `Engine.decide` = cover + exact turn; `Engine.solve` tables and `Solver` = top-M (`cover` optional).
 - State machine: each root has its copies; the engine runs to the next network request on rayon; Python batches rows; `groups=2` alternates CPU sim / GPU eval. Results reproducible per job, independent of pool size and threads.
 - Built-in: an option's in-turn play simulated once, futures branch at the first hidden-info step; futures share one rotated shuffle (disjoint next hands); the chosen line's prefix is reused next decision (rarely fires); a full selection auto-confirms.
-- Worth: `worth=` per scenario: None = linear, or dict(u=[NC class worths], price=[per belt slot]) combined in Rust with the outcome head (`Engine.worth_ok`). Win-only boss table: `agent.proposal.win_only_worth`.
+- Worth: `worth=` per scenario: None = linear, or dict(u=[NC class worths]) combined in Rust with the outcome head (`Engine.worth_ok`). Win-only boss table: `agent.proposal.win_only_worth`.
 - A panic aborts only that fight; overflow -> `OUTCOME_OVERFLOW`.
 - A bigger top-M budget wins no more (E8); cover adds the actions the prior ranks low (E27).
 
