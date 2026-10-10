@@ -1,0 +1,23 @@
+seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
+BASE0001   loss      48 AEONGLASS_BOSS                     39/42/0            294     23   12    11.4     34.7 desync
+BASE0002   loss      33 KAISER_CRAB_BOSS                   35/0/-             202     20    8     5.7     39.1 
+BASE0003   loss      17 VANTOM_BOSS                        0/-/-              104     10    2     2.9     16.2 
+BASE0004   loss      17 THE_KIN_BOSS                       0/-/-              128      8    3     2.4     18.7 
+BASE0005   loss      25 OVICOPTER_NORMAL                   50/-/-             103     15    5     5.5     33.2 desync,fallback
+BASE0006   loss      49 QUEEN_BOSS                         38/40/0            188     29    6     9.5     42.4 
+BASE0007   loss      24 ENTOMANCER_ELITE                   15/-/-             144     13    4     4.0     25.2 
+BASE0008   loss      48 AEONGLASS_BOSS                     32/22/0            203     27   11     7.6     44.6 
+BASE0009   loss      48 TEST_SUBJECT_BOSS                  13/25/0            276     24    6     8.0     40.6 
+BASE0010   loss      33 KNOWLEDGE_DEMON_BOSS               17/0/-             245     19    5     6.5     29.2 
+BASE0011   loss      22 LOUSE_PROGENITOR_NORMAL            53/-/-             176     14    2     3.2     28.7 
+BASE0012   loss      30 INFESTED_PRISMS_ELITE              17/-/-             198     17    3     4.7     27.7 
+BASE0013   loss      17 WATERFALL_GIANT_BOSS               0/-/-              112      8    3     3.1     18.3 
+BASE0014   loss      48 AEONGLASS_BOSS                     49/49/0            209     26    7     9.9     43.5 desync,fallback
+BASE0015   loss      48 QUEEN_BOSS                         30/42/0            240     23   14     7.4     41.1 
+BASE0016   loss      17 SOUL_FYSH_BOSS                     0/-/-              100      8    1     2.3     16.1 
+BASE0017   loss      33 THE_INSATIABLE_BOSS                40/0/-             162     18    3     7.3     37.6 
+BASE0018   loss      48 QUEEN_BOSS                         46/35/0            206     25    5     9.9     41.5 
+BASE0019   loss      28 SPINY_TOAD_NORMAL                  13/-/-             174     14    4     5.0     26.8 
+BASE0020   loss      33 THE_INSATIABLE_BOSS                30/0/-             162     16    7     5.4     36.6 
+win rate 0.000 +- 0.000 (n 20); mean floor 33.3; own time per run 6.1 min; decide 0.445 s/decision
+act-1 boss passed 0.800 +- 0.089; act reached 1/2/3: 4/9/7; mean death floor 33.3; deaths {'boss': 15, 'hallway': 3, 'elite': 2}; price 41.4 calls/run, 4.2 s/call

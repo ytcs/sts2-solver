@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Per-fight HP leak of recorded baseline runs: actual end HP of each won fight vs the predictor's E[end HP | win] at its start.
-Predictors given as checkpoint names (models/); the same fights for each, so differences are paired."""
+"""Per-fight HP leak of recorded baseline runs: actual end HP of each won fight vs the predictor's E[end HP | win] at its start, both with
+the scenario's potions (the expectation spends them freely) and with them removed (the play leak proper; E60). Predictors given as
+checkpoint names (models/); the same fights for each, so differences are paired."""
 import argparse, os, sys
 import numpy as np
 
@@ -28,6 +29,10 @@ def main():
         ex[name] = np.array([min(f["sc"]["max_hp"], e) - f["hp1"] for f, e in zip(fights, eh)])
         e = ex[name]
         print(f"{name}: excess HP lost per fight {e.mean():+.2f} +- {e.std(ddof=1) / np.sqrt(len(e)):.2f}; P(win) mean {np.mean(pw):.3f}")
+        _, eh0 = PM.expected_hp(Predictor(os.path.join(ROOT, "models", name), batch=1024), [dict(f, sc=dict(f["sc"], potions=[])) for f in fights])
+        e0 = np.array([min(f["sc"]["max_hp"], x) - f["hp1"] for f, x in zip(fights, eh0)])
+        print(f"   vs the expectation without potions (play leak): {e0.mean():+.2f} +- {e0.std(ddof=1) / np.sqrt(len(e0)):.2f}; "
+              f"potions used per fight {np.mean([len(f['used']) for f in fights]):.2f}")
         for kind in ("_WEAK", "_NORMAL", "_ELITE", "_BOSS"):
             m = np.array([f["enc"].endswith(kind) for f in fights])
             if m.any():
