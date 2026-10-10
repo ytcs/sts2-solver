@@ -2,14 +2,18 @@
 """Deck bottleneck tracker (plan item 4b): per card, plays vs turns it was left in hand at end of turn (from the run log's `action` events:
 `play X` texts and `end turn` events with hand_left / energy_left). Diagnosis, an input not a verdict:
 - left with energy_left < its cost (< 1 without a logged cost) -> energy bottleneck; unplayable (cost < 0) not counted;
+- stranded = non-starter cards of cost >= 2 left with energy_left < cost, per turn (control arm: r -0.61 with death floor in act 1, n 20);
 - left while energy remained -> the deck chose not to play it: removal candidate, or a combo piece waiting for its partner (draw / retain);
 Usage: python -m agent.bottleneck <events.jsonl> [--act N]"""
 import argparse, collections, json, re
 
+STARTER = {"STRIKE_IRONCLAD", "DEFEND_IRONCLAD", "BASH", "ASCENDERS_BANE"}
+
 
 def analyze(path, act=None):
+    from agent import synergy
     played, left, left_poor, left_rich = collections.Counter(), collections.Counter(), collections.Counter(), collections.Counter()
-    turns = 0
+    turns = stranded = 0
     cur_act = None
     for l in open(path, encoding="utf-8"):
         e = json.loads(l)
@@ -30,13 +34,16 @@ def analyze(path, act=None):
                 base = cid.rstrip("+")
                 left[base] += 1
                 (left_rich if en >= (1 if c is None else c) else left_poor)[base] += 1
+                k = synergy.item_tags(base)[2] if c is None else c
+                stranded += base not in STARTER and k >= 2 and en < k
     rows = []
     for cid in sorted(set(played) | set(left)):
         p, lf = played[cid], left[cid]
         rows.append(dict(card=cid, played=p, left=lf, left_no_energy=left_poor[cid], left_with_energy=left_rich[cid], ignore_rate=round(lf / max(1, p + lf), 2)))
     rows.sort(key=lambda r: -r["ignore_rate"])
     energy_bound = sum(left_poor.values()) / max(1, sum(left.values()))
-    return dict(turns=turns, energy_bound_share=round(energy_bound, 2), ignored_share=round(sum(left_rich.values()) / max(1, sum(left.values())), 2), cards=rows)
+    return dict(turns=turns, energy_bound_share=round(energy_bound, 2), ignored_share=round(sum(left_rich.values()) / max(1, sum(left.values())), 2),
+                stranded=round(stranded / max(1, turns), 2), cards=rows)
 
 
 _CACHE = {}
@@ -52,7 +59,7 @@ def term_vars(path, act):
     if key not in _CACHE:
         r = analyze(path, act)
         _CACHE.clear()
-        _CACHE[key] = dict(bn_turns=r["turns"], energy_bound=r["energy_bound_share"], ignored_share=r["ignored_share"])
+        _CACHE[key] = dict(bn_turns=r["turns"], energy_bound=r["energy_bound_share"], ignored_share=r["ignored_share"], stranded=r["stranded"])
     return _CACHE[key]
 
 

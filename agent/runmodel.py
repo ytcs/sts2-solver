@@ -8,7 +8,7 @@ import numpy as np
 from agent import terms as TM, tracker as T
 
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
-NO_BOTTLENECK = dict(bn_turns=0, energy_bound=0.0, ignored_share=0.0)
+NO_BOTTLENECK = dict(bn_turns=0, energy_bound=0.0, ignored_share=0.0, stranded=0.0)
 
 
 def term_ctx(st, kind=None, item=None, deck=None, relics=None, removal_cost=1e9, se=0.0):

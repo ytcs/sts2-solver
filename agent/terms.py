@@ -25,6 +25,7 @@ VARS = {
     "bn_turns": "end-of-turn samples in this act's bottleneck tracker (agent/bottleneck.py)",
     "energy_bound": "share of cards left in hand at end of turn with less energy than their cost, this act",
     "ignored_share": "share of end-of-turn hand slots left unplayed with energy to spare, this act",
+    "stranded": "non-starter cards of cost >= 2 left in hand at end of turn for lack of energy, per turn, this act",
 }
 _FUNCS = {"min": min, "max": max, "abs": abs}
 _OK = (ast.Expression, ast.BoolOp, ast.BinOp, ast.UnaryOp, ast.Compare, ast.IfExp, ast.Call, ast.Name, ast.Constant, ast.Load, ast.And, ast.Or,
