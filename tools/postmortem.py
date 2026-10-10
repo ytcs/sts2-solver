@@ -366,10 +366,13 @@ def labels_of(run, c):
         return ["unresolved (harness: " + why + ")"], []
     cands = verdict(run, c)
     labs = []
+    rf = cf_summary(c).get((run.seed, run.fatal["floor"], "refight"))
+    if rf and rf["p"] >= COMBAT_P:
+        labs.append("combat loss at the fatal fight")
     for x in cands:
         if x["kind"] == "combat HP leak" and x["cf"] and x["cf"]["ok"]:
             labs.append(f"combat HP leak at {x['what'].split(' (')[0]}")
-        elif x["kind"] == "combat loss at the fatal fight" and x.get("ok"):
+        elif x["kind"] == "combat loss at the fatal fight" and x.get("ok") and "combat loss at the fatal fight" not in labs:
             labs.append("combat loss at the fatal fight")
         elif x["kind"] == "macro decision" and x["d"] <= -MACRO_D:
             labs.append(f"macro decision {x['what']}")
@@ -408,8 +411,8 @@ def kind_of(lab):
 
 
 def fmt_table(runs, c):
-    out = [f"{'seed':9s} {'death':32s} {'HP':>7s} {'(a)':>5s} {'(b)':>5s} {'(b)full':>7s} {'check':>5s} | labels | suspects: drop in P(clear act); cf passed actual/edited (n)"]
-    counts, kinds = {}, {}
+    out = [f"{'seed':9s} {'death':32s} {'HP':>7s} {'live':>7s} {'(a)':>5s} {'(b)':>5s} {'(b)full':>7s} {'check':>5s} | labels | suspects: drop in P(clear act); cf passed actual/edited (n)"]
+    kinds, cfs = {}, cf_summary(c)
     for run in runs:
         if not run.dead:
             lab = "unresolved (no fatal fight: " + str(run.row.get("died_at"))[:24] + ")"
@@ -418,6 +421,8 @@ def fmt_table(runs, c):
             continue
         fa, ck = c.get((run.seed, "fatal"), {}), c.get((run.seed, "check"), {})
         g = lambda k: f"{fa[k]['p']:.2f}" if fa.get(k) else "-"  # noqa: E731
+        rf = cfs.get((run.seed, run.fatal["floor"], "refight"))
+        live = f"{rf['p']:.2f}/{rf['n']}" if rf else "-"
         labs, cands = labels_of(run, c)
         for k in {kind_of(x) for x in labs}:
             kinds[k] = kinds.get(k, 0) + 1
@@ -425,10 +430,10 @@ def fmt_table(runs, c):
         for x in cands[:3]:
             s = f"{x['d']:+.3f} {x['kind'].split()[-1] if x['kind'] != 'combat loss at the fatal fight' else 'fatal'} {x['what']}"
             if x.get("cf"):
-                s += f" [cf {x['cf']['actual']:.2f}/{x['cf']['edited']:.2f} n{x['cf']['n'][0]}]"
+                s += f" [cf pass {x['cf']['actual']:.2f}/{x['cf']['edited']:.2f} n{x['cf']['n'][0]}/{x['cf']['n'][1]}, floor {x['cf']['top'][1] - x['cf']['top'][0]:+.1f}+-{x['cf']['dtop_se'] or 0:.1f}]"
             sus.append(s)
         out.append(f"{run.seed:9s} {run.fatal['floor'] + ' ' + run.fatal['enc'][:24]:32s} {run.fatal['hp0']:3d}/{run.fatal['sc']['max_hp']:<3d} "
-                   f"{g('base'):>5s} {g('strong'):>5s} {g('full'):>7s} {(f'{ck['p']:.2f}' if ck.get('p') is not None else '-'):>5s} | "
+                   f"{live:>7s} {g('base'):>5s} {g('strong'):>5s} {g('full'):>7s} {(f'{ck['p']:.2f}' if ck.get('p') is not None else '-'):>5s} | "
                    f"{'; '.join(labs)} | {'; '.join(sus)} | {contrib(run, c)}")
     out.append("label kinds (a death can carry several): " + ", ".join(f"{k} {v}" for k, v in sorted(kinds.items(), key=lambda x: -x[1])))
     return "\n".join(out)
@@ -511,7 +516,7 @@ def counterfactual(a, runs, jobs):
                     j = jobs.pop(0)
                     run = by[j["seed"]]
                     f = next(x for x in run.fights if x["floor"] == j["floor"])
-                    stop = next(n for n, e in enumerate(run.ev) if e["kind"] == "fight_end" and e["id"] == f["id"]) + 1
+                    stop = f["i"] if j["arm"] == "refight" else next(n for n, e in enumerate(run.ev) if e["kind"] == "fight_end" and e["id"] == f["id"]) + 1
                     mac = run.row.get("macro", "")
                     price_n = int(re.search(r"price n(\d+)", mac).group(1)) if "price" in mac else 0
                     rounds = int(re.search(r"(\d+) rounds", run.row.get("budget", "16 rounds")).group(1))
@@ -567,11 +572,17 @@ def cf_summary(c):
             groups.setdefault((x["seed"], x["floor"]), {}).setdefault(x["arm"], []).append(x)
     out = {}
     for key, arms in groups.items():
+        if "refight" in arms:
+            r = [float(x["passed"]) for x in arms["refight"]]
+            out[key + ("refight",)] = dict(n=len(r), p=float(np.mean(r)), se=se(r))
         a, e = arms.get("actual", []), arms.get("edited", [])
+        if not a and not e:
+            continue
         pa, pe = [float(x["passed"]) for x in a], [float(x["passed"]) for x in e]
         out[key] = dict(n=(len(a), len(e)), actual=float(np.mean(pa)) if pa else None, edited=float(np.mean(pe)) if pe else None,
                         se=math.sqrt(np.var(pa) / max(1, len(pa) - 1) + np.var(pe) / max(1, len(pe) - 1)) if len(pa) > 1 and len(pe) > 1 else None,
-                        top=(float(np.mean([x["top"] for x in a])) if a else None, float(np.mean([x["top"] for x in e])) if e else None))
+                        top=(float(np.mean([x["top"] for x in a])) if a else None, float(np.mean([x["top"] for x in e])) if e else None),
+                        dtop_se=math.sqrt(np.var([x["top"] for x in a]) / max(1, len(a) - 1) + np.var([x["top"] for x in e]) / max(1, len(e) - 1)) if len(a) > 1 and len(e) > 1 else None)
     return out
 
 
@@ -592,6 +603,7 @@ def main():
     ap.add_argument("--table", action="store_true")
     ap.add_argument("--cf", action="store_true", help="counterfactual continuations for the suspects (needs traj in the cache)")
     ap.add_argument("--top", type=int, default=2)
+    ap.add_argument("--refight", action="store_true", help="with --cf: K replays of the fatal fight from its start by the run's own agent")
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--worker", type=int, default=0)
     ap.add_argument("--workers", type=int, default=1)
@@ -601,7 +613,7 @@ def main():
     runs = load_runs(a.tag, a.root, set(a.seeds.split(",")) if a.seeds else None)
     c = read_cache(a.tag)
     if a.cf:
-        jobs = cf_jobs(runs, c, a.top, a.k)
+        jobs = [dict(seed=r.seed, floor=r.fatal["floor"], target=0, arm="refight", k=kk) for kk in range(a.k) for r in runs if r.dead and not confound(r)]             if a.refight else cf_jobs(runs, c, a.top, a.k)
         done = {k for k in c if k[1].startswith("cfrow")}
         jobs = [x for x in jobs[a.worker::a.workers] if (x["seed"], f"cfrow|{x['floor']}|{x['arm']}{x['k']}") not in done]
         print(f"worker {a.worker}/{a.workers}: {len(jobs)} continuations", flush=True)
