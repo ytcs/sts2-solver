@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import sys
@@ -378,7 +379,7 @@ def best(res, saturated=ACT_SATURATED):
     return max(res, key=lambda lb: tuple(res[lb][k].mean() for k in order)), main
 
 
-def search_check(st, opts, res, engine, top=3, attempts=64):
+def search_check(st, opts, res, engine, top=3, attempts=64, variants=4):
     """the predictor is near-blind to small deck edits (bench pairs Spearman ~0.15): re-score the run model's top options, skip / nothing and
     the best removal by search vs the act's boss(es) at full HP, no potions. -> {label: (win, se)}"""
     import random
@@ -393,12 +394,19 @@ def search_check(st, opts, res, engine, top=3, attempts=64):
     first = dict(opts)
     scen, owner = [], []
     for lb in pick:
-        s2 = st.copy()
-        if first.get(lb) is not None:
-            first[lb](s2, R.Draws(random.Random(0), st.base["character"], st.act))
-        for b in bosses:
-            scen.append(dict(s2.scenario(b, hp=s2.max_hp), potions=[]))
-            owner.append(lb)
+        seen = set()
+        # random outcomes (random upgrades, transforms): the distinct concrete results of a few draws, equally weighted
+        for k in range(variants if first.get(lb) is not None else 1):
+            s2 = st.copy()
+            if first.get(lb) is not None:
+                first[lb](s2, R.Draws(random.Random(k), st.base["character"], st.act))
+            sc = [dict(s2.scenario(b, hp=s2.max_hp), potions=[]) for b in bosses]
+            sig = json.dumps(sc, sort_keys=True)
+            if sig in seen:
+                continue
+            seen.add(sig)
+            scen += sc
+            owner += [lb] * len(sc)
     rows = engine.solve(scen, attempts=attempts)
     out = {}
     for lb in pick:

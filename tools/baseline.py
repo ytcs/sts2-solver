@@ -185,6 +185,10 @@ class Macro:
             for i, t in sorted(lab, key=lambda o: rank(o[1])):
                 if t.startswith("proceed") or (t.startswith("potion") and "slots full" in t):
                     continue
+                if t.lower().startswith("relic "):
+                    rid = PR._ident(re.split(r"[:(]", t[6:])[0].strip())
+                    if rid and R.plan_term(rid, self.st(s)) < 0:
+                        continue
                 if t.startswith("card"):
                     if (fk, t) in self.declined:
                         continue
@@ -239,7 +243,7 @@ class Macro:
             w = self.screen(st, variants, self.rng(s, "card"))
             if skip is not None:
                 n = len(st.deck)
-                best = R.pick_with_terms(w, [n] + [n + 1] * len(cards))
+                best = R.pick_with_terms(w, [n] + [n + 1] * len(cards), [0.0] + [R.plan_term(c, st) for _, c, _ in cards])
                 choice = skip if best == 0 else cards[best - 1][0]
             else:
                 choice = cards[int(w.argmax())][0]
@@ -424,7 +428,8 @@ class PriceMacro(Macro):
             main, _ = PR.ladder(self.last_res)
             d = self.last_res[best][main] - self.last_res["skip"][main]
             need = R.MACRO["skip_margin"]["price_se"] * PR._se(d) + R.density_cost(len(st.deck) + 1) / 2
-            if self.last_override is None and d.mean() <= need:
+            cid = PR._card_id(best)[0]
+            if self.last_override is None and d.mean() + (R.plan_term(cid, st) if cid else 0.0) <= need:
                 best = "skip"
         skip = next((i for i, t in lab if t.startswith("Skip")), None)
         choice = skip if best == "skip" else next((i for i, t in lab if "(" in t and _name(t) == best), None)

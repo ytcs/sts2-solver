@@ -11,7 +11,7 @@ CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "cata
 MACRO = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "macro_rules.json")))
 if os.environ.get("MACRO_RULES") == "off":
     MACRO.update(density=dict(target=10 ** 6, per_card=0.0), skip_margin=dict(worth=-1e9, price_se=-1e9), removal_first=dict(min_deck=0),
-                 keep_gold_for_removal=dict(min_deck=10 ** 6))
+                 keep_gold_for_removal=dict(min_deck=10 ** 6), bundle_bonus=dict(worth=0.0), anti_veto=dict(worth=0.0))
 
 
 def density_cost(n_cards):
@@ -19,11 +19,19 @@ def density_cost(n_cards):
     return r["per_card"] * max(0, n_cards - r["target"])
 
 
-def pick_with_terms(w, sizes):
-    """index into the variants (0 = no addition): worth minus the density cost, an addition must beat no addition by the skip margin"""
-    adj = np.asarray(w, float) - np.array([density_cost(n) for n in sizes])
+def pick_with_terms(w, sizes, extra=None):
+    """index into the variants (0 = no addition): worth minus the density cost plus the plan terms, an addition must beat no addition by the
+    skip margin"""
+    adj = np.asarray(w, float) - np.array([density_cost(n) for n in sizes]) + (0.0 if extra is None else np.asarray(extra, float))
     best = int(np.argmax(adj))
     return best if best and adj[best] - adj[0] > MACRO["skip_margin"]["worth"] else 0
+
+
+def plan_term(item, st, deck=None, relics=None):
+    """synergy terms (data/synergy_candidates.json): bundle_bonus for a core piece of a live plan, anti_veto per anti partner owned"""
+    from agent import synergy
+    ids = [c["id"] for c in (st.deck if deck is None else deck)] + [r if isinstance(r, str) else r["id"] for r in (st.relics if relics is None else relics)]
+    return synergy.term(item, ids, MACRO)
 RARITIES = ("Common", "Uncommon", "Rare")
 CARD_ODDS = {"hallway": (0.0149, 0.37), "elite": (0.05, 0.40), "shop": (0.045, 0.37), "boss": (1.0, 0.0)}
 UPGRADE_PER_ACT = 0.125
@@ -252,7 +260,8 @@ class BasePolicy:
             return buys
         variants = [(deck, st.relics)] + [(deck + [{"id": i, "upgrade": 0}], st.relics) if k == "card" else (deck, st.relics + [i]) for k, i, _ in cands]
         P = yield [st.scenario(e, hp, deck=d, potions=[], relics=r) for d, r in variants for e, hp in refs]
-        best = pick_with_terms(worth(P, st.max_hp).reshape(len(variants), len(refs)).mean(1), [len(d) for d, _ in variants])
+        best = pick_with_terms(worth(P, st.max_hp).reshape(len(variants), len(refs)).mean(1), [len(d) for d, _ in variants],
+                               [0.0] + [plan_term(i, st, deck) for _, i, _ in cands])
         return buys + ([cands[best - 1]] if best else [])
 
 
@@ -361,12 +370,13 @@ def play(st, rng, pol, first=None, stop_at_next=False):
         refs = reference_fights(st, rng)
         decks = [st.deck] + [st.deck + [{"id": c, "upgrade": u}] for c, u in cards]
         P = yield [st.scenario(e, hp, deck=d, potions=[]) for d in decks for e, hp in refs]
-        best = pick_with_terms(worth(P, st.max_hp).reshape(len(decks), len(refs)).mean(1), [len(d) for d in decks])
+        best = pick_with_terms(worth(P, st.max_hp).reshape(len(decks), len(refs)).mean(1), [len(d) for d in decks],
+                               [0.0] + [plan_term(c, st) for c, _ in cards])
         if best:
             st.deck.append({"id": cards[best - 1][0], "upgrade": cards[best - 1][1]})
         if kind == "elite":
             r = dr.relic(st.relic_ids())
-            if r:
+            if r and plan_term(r, st) >= 0:
                 st.relics.append(r)
 
     def event_result(res):

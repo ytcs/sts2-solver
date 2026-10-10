@@ -301,7 +301,7 @@ class Harness(Live):
         text, res = macro.reward_report(self.eng(), deck, opts, hz, att, hp, "all")
         self.reward_screen = guards.reward_key(state)
         self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in macro.loggable(r).items()} for k, r in res.items()}, boss=hz["boss"])
-        return text + f"\nskip is option {skip}; pick with `a <i> -- why`\n"
+        return text + "\n" + self._synergy(state, deck) + f"skip is option {skip}; pick with `a <i> -- why`\n"
 
     @_needs_run("no run in progress")
     def price(self, argline):
@@ -345,7 +345,25 @@ class Harness(Live):
                 rows = [f"  {lb[:44]:44s} {p:.3f} +- {se:.3f}" for lb, (p, se) in sorted(got.items(), key=lambda x: -x[1][0])]
                 check = ("search check (the predictor is near-blind to small deck edits): deck vs " + " + ".join(st.bosses) + " at full HP, no potions\n"
                          + "\n".join(rows) + (f"\n  -> search overrides the run model: {pick} (+{override[0]} +- {override[1]})" if override else "") + "\n")
-        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates + check
+        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates + check + self._synergy(state)
+
+    def _synergy(self, state, deck=None):
+        """plan overlap of the items offered on this screen (counts, for the operator to judge; data/synergy_candidates.json)"""
+        from agent import price as PR, synergy
+        try:
+            deck = deck or self._run()
+        except runctx.NoRun:
+            return ""
+        ids = [c["id"] for c in deck["deck"]] + [r["id"] for r in deck["relics"]]
+        items = []
+        for _, label in scr.options(state):
+            m = re.match(r"^(?:\d+g )?(card|relic) (.+?)(?:\(|:|$)", label) or re.match(r"^()(.+?)\(", label)
+            if m:
+                name = m.group(2).strip()
+                cid = PR._card_id(name)[0] if m.group(1) != "relic" else None
+                items.append(cid or PR._ident(name))
+        rows = synergy.lines(dict.fromkeys(i for i in items if i), ids)
+        return ("synergy (bundle: role, pieces you own; candidates, not measurements):\n" + "\n".join(rows) + "\n") if rows else ""
 
     def brief(self):
         state = call("peek")
@@ -375,7 +393,7 @@ class Harness(Live):
             card_done = self.priced.get("reward") == scr.floor_key(state)
             pending = [label.split(":")[0] for _, label in opts if label.lower().startswith(("relic ", "take your stolen")) or (label.lower().startswith("card") and not card_done)]
             if pending:
-                return ((out.rstrip("\n") + "\n" if out else "") + f"loot: decide {', '.join(pending)} first (the card reward before relics; a relic can be "
+                return ((out.rstrip("\n") + "\n" if out else "") + self._synergy(state) + f"loot: decide {', '.join(pending)} first (the card reward before relics; a relic can be "
                         "anti-synergy; relics before gold), then `loot`\n" + state)
             free = "-" in scr.belt(state)
             pick = next((i for pat in order for i, label in opts if re.match(pat, label) and (free or "potion" not in pat)), None)

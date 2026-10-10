@@ -220,6 +220,8 @@ def main(argv):
         for a, b, note in anti:
             print(f"ANTI {a} x {b}: {note}")
         return
+    if not argv or argv[0].startswith("-") or argv[0].rstrip("+").upper() not in db["tags"]:
+        return print(__doc__)
     cid = argv[0].rstrip("+").upper()
     t = db["tags"][cid]
     print(cid, {k: v for k, v in t.items() if k != "src"})

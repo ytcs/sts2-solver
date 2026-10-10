@@ -3,5 +3,7 @@
   "density": {"target": 20, "per_card": 0.02, "tag": "[hyp]", "skill": "sts2-deckbuilding 2.7: past ~20 cards skip ties; E64/E67: act-3 deaths carry 33-38-card decks"},
   "skip_margin": {"worth": 0.02, "price_se": 2.0, "tag": "[hyp]", "skill": "sts2-deckbuilding 1: < 2 se = tie, tie -> skip; E66: 15 of 20 operator card rewards skipped"},
   "removal_first": {"min_deck": 12, "tag": "[hyp]", "skill": "sts2-deckbuilding 2.7c: removals before marginal cards; E66: removal +0.18 at the act-3 shop"},
-  "keep_gold_for_removal": {"min_deck": 18, "tag": "[hyp]", "skill": "sts2-deckbuilding 6: keep gold for later; E64: 45-415 gold unspent at act-3 deaths while decks bloated"}
+  "keep_gold_for_removal": {"min_deck": 18, "tag": "[hyp]", "skill": "sts2-deckbuilding 6: keep gold for later; E64: 45-415 gold unspent at act-3 deaths while decks bloated"},
+  "bundle_bonus": {"worth": 0.03, "tag": "[hyp]", "skill": "sts2-deckbuilding 2.1/2.3 + user: a core piece of a live plan (agent/synergy.py: >= 2 other core pieces owned) taken at a small negative; bet value priced by rollouts that prefer it"},
+  "anti_veto": {"worth": 0.1, "tag": "[hyp]", "skill": "user: a free relic or card can shut off a plan (Tungsten Rod vs Inferno/Rupture 1-HP triggers); data/synergy_candidates.json anti pairs with decomp cites"}
 }
