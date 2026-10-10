@@ -17,18 +17,23 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 
 ## 3. Stages, in order
 
-**Next, in order** (from E50/E52/E55; target ~90%+ wins, user):
-1. Done: `hp_cap` on in the live Engine (E42); gate checks the capped search checksum a293f34d31e01ad3.
-2. r7 (E54): player worse (near-miss -0.018 +- 0.005, play worse on all sets), not promoted; predictor much better (decile gate and deck Spearman pass, plans bias +0.070 overshoots). Next: A/B r7 as the `price`/macro predictor with r6 as player on the headless baseline (macro binds, E50); next round v3 at λ 0.95 (policy cost of λ 1.0, E49) or separate policy/value nets; sign gate still fails (Accelerant shrunk, doom worse).
-   - Running (2026-10-10): (a) headless A/B, r6 player + `price` 64 at 16 rounds, hp_cap on, predictor r6 vs r7 (`STS2_PREDICTOR`), tags `a10_ic_r16_price64_cap_{r6,r7}`, n 20 each, plus the E50 price arm's screens re-priced by each predictor (`PM_CACHE=..._macro_{r6,r7}.jsonl`, n 256, paired) for the disagreement rate; (b) r7's policy holdout loss rose in training (0.517 -> 0.529) while outcome fell: retrain on r7's 46 parts from the same v3 init, r8a λ 0.95, r8b λ 0.8 (v3 alone), r8c λ 0.95 `--pol 3`; each gated (score, near-miss `@cover@x@cap` vs r6, play paired, holdcal, sign).
-   - Local: `tools/budget_sens.py` (search-budget sensitivity, item 5's free label) on the tail bench.
-3. Potions (E57): potions carry the fatal-fight gain (+0.065 +- 0.017), search x2 does not (+0.010 +- 0.006). Next: potions as live search actions with a cost prior (the reserve value of a held potion for later fights: start with a per-potion constant fit on paired near-miss / bench, later the run model's Δ P(win run)); gate: near-miss and play paired vs live with proposals, plus potions spent per run and a check that easy fights do not burn them. Fatal-fight P(win) at arrival is only 0.31 even with free potions: run-level HP/macro (items 2, 4) still binds.
-4. HP drain (+6.2 HP per fight over the predictor, E55): compare collection's per-decision budget with the baseline's 16 rounds; recompute the drain on the 76-round logs (E52); if it does not shrink, it is model or fidelity (check Slumbering Beetle sim 8/8 vs live 0/16 via run-replay + check-trace).
-5. Search-budget (user; E56): small lever, concentrated: R16 -> R64 ~0.014 objective units per hard fight, 90% of it from a gap16 < 0.02 & contested-value rule at x2.3 compute. Next: that rule as a FastSearch option with a near-miss suffix, paired near-miss vs live; replace `live._auto_budget`'s stop only if it wins. No regret head.
-6. Act-3 decks: Test Subject 0/3 and Insatiable ~0 even at full HP with potions (E55): a deeper search check before blaming the deck.
-7. Later: carry-over state in the fight objective (user: stalling can pay for stateful relics). Win + end HP ignores Pen Nib / Nunchaku counters and permanent in-fight gains (Feed, Ritual Dagger); price them at the terminal by the run model (Δ P(win run)), like `price`. hp_cap unaffected (it only removes impossible HP).
-8. Toy Box (simulator fixed, 2e4e882; macro open): 5 wax relics, the earliest-taken unmelted one melts after every 3rd fight (ToyBox.cs:100-114); melting keeps pickup effects (no AfterRemoved on Strawberry / War Paint / Pear / Mango / Whetstone). Run model treats the wax relics as permanent: model the melt schedule in `price`; baseline macro must order the 5 picks: pickup-effect relics first (user rule of thumb), the most valuable lasting relic last.
-9. Turn horizon (user: planning 2-3 turns jointly matters more than naive depth). Live search optimizes only the root action; later moves are policy samples to `leaf_turns` 2, exact turn search covers the current turn only. E56/E57 (more rounds / K) say nothing about horizon. Tests on near-miss paired vs live: (a) `leaf_turns` 3; (b) next turn played greedy-by-value (or small exact) inside rollouts; (c) exact current turn x optimized next turn on near-lethal / high-damage states. Read per-fight HP loss alongside win rate (HP leak, item 4).
+**Live (2026-10-10):** player `solver_r8b.pt`, predictor `solver_r8c.pt` (E59), cover + exact turn + hp_cap; near-miss reference spec `solver_r8b.pt@cover@x@cap`; obs v3 everywhere (local build and pods). First headless A10 win (E58, BASE0001). Target ~90%+ (user).
+
+**Next, in order** (advisor review 2026-10-10 of E56-E59):
+1. Parallel pods now:
+   - r9 round: collect with the r8b player on a fresh `tools/round_pool.py` pool (the long pole, ~5 h); train λ 0.95 `--pol 3` (r8c recipe; r8a may revise λ); gate vs r8b.
+   - Turn horizon 9(a): `leaf_turns` 3 vs 2, same net (r8b) as reference and candidate; near-miss + play paired; report per-fight end HP with win.
+   - HP drain re-measure (item 4): postmortem `traj` on E50's logs with predictor r8c vs r6: is E55's +6.2 HP per fight play, predictor bias, or fidelity?
+2. Potions as search actions (E57: potions +0.065 at fatal fights, search x2 +0.010). Reserve cost in the Rust scorer: every potion consumed in a line (root or rollout) costs c in objective units; sweep 2-3 constants on near-miss; hp_cap on. Gate: near-miss and play paired vs live with proposals; potions spent per run; easy fights do not burn them.
+3. Turn horizon 9(b)/(c) by 9(a)'s result: next turn greedy-by-value inside rollouts; exact current turn x optimized next turn on near-lethal / high-damage states.
+4. HP drain follow-up from 1's measurement (play vs predictor vs fidelity: Slumbering Beetle sim 8/8 vs live 0/16).
+5. Search budget (E56): gap16 < 0.02 & contested-value stopping rule as a FastSearch option; near-miss vs live; small lever.
+6. Act-3 decks: Test Subject / Insatiable ~0 at full HP with potions (E55): deeper-search check before blaming the deck.
+7. Toy Box macro: melt schedule in `price`; pick order pickup-effect relics first, best lasting relic last (simulator fixed, 2e4e882).
+8. Carry-over state in the fight objective (user): Pen Nib / Nunchaku counters, permanent in-fight gains (Feed, Ritual Dagger) priced at the terminal by the run model; hp_cap unaffected.
+9. After 2 lands: a 40-run headless baseline as a win-rate trend reference (not an A/B: at ~5% no feasible n resolves arms); act-pass rates and paired per-decision benches stay the decision metrics.
+- Promotion sign criterion: no worse than live on each sign-gate item until some net passes outright (every net incl. r6 fails Accelerant and doom = hp vs hp-1).
+- Fatal-arm jobs: one process per GPU (two OOM'd on a 5090, compiled-graph pools persist across arms); kill pod jobs by PID, never `pkill -f` (matches the container's own command).
 - Worktrees of the baseline/post-mortem agents run via scratchpad launchers (gone after restart) and need their own extension rebuilt; the main `.venv` is current.
 
 **1. Expert learning** (skill `expert-reenact`; `tools/expert.py`, `agent/reenact.py`; E34, E38-E40). Goal (user): reach expert human level in minimum wall time; experts are probes for weakness classes, the simulator supplies volume. Preferred sources: Baalorlord (commentary explains choices), NaveGreed.
