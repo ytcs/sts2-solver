@@ -1,0 +1,24 @@
+seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
+BASE0001   loss      30 ENTOMANCER_ELITE                   9/-/-              214     15    0     4.3     20.6 
+BASE0002   loss      17 WATERFALL_GIANT_BOSS               0/-/-              112      9    0     1.7     10.4 
+BASE0003   loss      44 SOUL_NEXUS_ELITE                   7/43/-             229     23    0     6.2     34.7 
+BASE0004   loss      17 THE_KIN_BOSS                       0/-/-               95      9    0     1.4     12.4 
+BASE0005   loss      48 TEST_SUBJECT_BOSS                  29/13/0            242     21    0     6.1     31.0 
+BASE0006   loss      48 TEST_SUBJECT_BOSS                  43/10/0            212     26    0     8.9     38.1 
+BASE0007   loss      44 MECHA_KNIGHT_ELITE                 7/31/-             168     23    0     7.9     28.1 desync
+BASE0008   loss      42 SOUL_NEXUS_ELITE                   25/27/-            186     23    0     6.4     30.4 
+BASE0009   loss      49 QUEEN_BOSS                         9/45/0             298     27    0     6.8     37.8 
+BASE0010   loss      31 SLUMBERING_BEETLE_NORMAL           30/-/-             164     16    0     3.0     21.1 
+BASE0011   loss      48 QUEEN_BOSS                         46/39/0            373     26    0     5.8     31.6 
+BASE0012   loss      30 DECIMILLIPEDE_ELITE                13/-/-             189     18    0     4.2     24.0 
+BASE0013   loss      17 WATERFALL_GIANT_BOSS               0/-/-              103      8    0     2.1     10.8 
+BASE0014   loss      39 AXEBOTS_NORMAL                     54/11/-            253     21    0     3.4     27.8 
+BASE0015   loss      33 KNOWLEDGE_DEMON_BOSS               20/0/-             216     18    0     4.1     26.3 
+BASE0016   loss      30 INFESTED_PRISMS_ELITE              24/-/-             120     15    0     3.3     21.2 
+BASE0017   loss      45 SOUL_NEXUS_ELITE                   22/22/-            233     21    0     6.6     30.5 
+BASE0018   loss      48 QUEEN_BOSS                         9/47/0             230     25    0     8.7     38.8 desync
+BASE0019   loss      44 SOUL_NEXUS_ELITE                   9/15/-             365     22    0     5.9     27.4 desync,stuck_option
+BASE0020   loss      17 WATERFALL_GIANT_BOSS               0/-/-              130      9    0     1.5      9.7 
+win rate 0.000 +- 0.000 (n 20); mean floor 36.0; own time per run 4.9 min; decide 0.549 s/decision
+act-1 boss passed 0.800 +- 0.089; act reached 1/2/3: 4/5/11; mean death floor 36.0; deaths {'elite': 8, 'boss': 10, 'hallway': 2}; price 44.3 calls/run, 1.7 s/call
+deck strength vs that act's bosses at full HP, no potions (mean, n): A1 boss deck 0.72 (n 20); A2 boss deck 0.56 (n 12); A3 boss deck 0.14 (n 5); final deck 0.14 (n 20)
