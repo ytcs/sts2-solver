@@ -18,16 +18,17 @@ class Predictor:
 
     @torch.no_grad()
     def fight_start(self, scenarios, shuffles=8, seed=1000):
-        P = np.zeros((len(scenarios), H.NC))
         if not scenarios:
-            return P
+            return np.zeros((0, H.NC))
         starts = sts2.FightStarts(scenarios)
-        for s in range(shuffles):
-            o, _ = starts.observe(seed + s)
-            for b in range(0, len(scenarios), self.batch):
-                ol = self.net.heads_out(torch.from_numpy(o[b:b + self.batch].copy()).to(DEV))
-                P[b:b + self.batch] += torch.softmax(ol.float(), 1).cpu().numpy() / shuffles
-        return P
+        # all shuffles in one forward pass: one host sync per batch instead of one per shuffle
+        o = np.concatenate([starts.observe(seed + s)[0].copy() for s in range(shuffles)])
+        n = len(scenarios)
+        out = np.empty((len(o), H.NC))
+        for b in range(0, len(o), self.batch):
+            ol = self.net.heads_out(torch.from_numpy(o[b:b + self.batch]).to(DEV))
+            out[b:b + self.batch] = torch.softmax(ol.float(), 1).cpu().numpy()
+        return out.reshape(shuffles, n, H.NC).mean(0)
 
 
 def p_win(P):
