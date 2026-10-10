@@ -75,10 +75,9 @@ def options(st, state_text):
                     out.append((label.split(":", 1)[0][:34], lambda s, d, r=rid: EV.apply_ancient(s, r, d)))
         if entry:
             labels = [label for _, label in scr.options(state_text)]
-            for label, o in zip(labels, EV.match(title, labels)):
+            for label, o in zip(labels, EV.match_page(title, labels)):
                 if o is not None and not o["key"].endswith("_LOCKED"):
-                    idx = entry["options"].index(o)
-                    out.append((label.split(":", 1)[0][:34], lambda s, d, i=idx, eid=entry["id"]: EV.play_option(s, eid, i, d)))
+                    out.append((label.split(":", 1)[0][:34], lambda s, d, o=o, eid=entry["id"]: EV.play_option(s, eid, o, d)))
     elif kind == "SHOP":
         out.append(("nothing", None))
         out += [(f"{label} ({price}g)", first) for label, _what, price, first in shop_items(st, state_text)]

@@ -38,11 +38,19 @@ def _pattern(label):
     return re.compile(r"\s*" + r".+?".join(re.escape(p) for p in parts) + r"\s*$", re.I)
 
 
-def match(event, labels):
+def _pages(options):
+    yield options
+    for o in options:
+        for eff in o["effects"]:
+            if "choice" in eff:
+                yield from _pages(eff["choice"])
+
+
+def match(event, labels, options=None):
     e = get(event)
     if not e:
         return [None] * len(labels)
-    free, out = list(e["options"]), []
+    free, out = list(e["options"] if options is None else options), []
     for text in labels:
         head = text.split(":", 1)[0].strip()
         hits = [o for o in free if _pattern(o["label"]).match(head) or _pattern(o["label"]).match(text.strip())]
@@ -329,9 +337,19 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
             res["dead"] = True
 
 
+def match_page(event, labels):
+    """the catalogued page (first page or a follow-up `choice`) whose options match the most labels"""
+    e = get(event)
+    if not e:
+        return [None] * len(labels)
+    heads = [t.split(":", 1)[0].strip() for t in labels]
+    return max((match(event, labels, page) for page in _pages(e["options"])),
+               key=lambda m: (sum(o is not None for o in m), sum(o is not None and o["label"] == h for o, h in zip(m, heads))))
+
+
 def play_option(st, event, option, draws, choose=None, pick=None):
     e = get(event)
-    o = e["options"][option] if isinstance(option, int) else match(event, [option])[0]
+    o = option if isinstance(option, dict) else e["options"][option] if isinstance(option, int) else match(event, [option])[0]
     if o is None:
         raise ValueError(f"{e['id']}: no option matches {option!r}")
     res = apply(st, o["effects"], draws, choose, pick)

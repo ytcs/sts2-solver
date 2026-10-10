@@ -46,8 +46,8 @@ def decision_guard(state, step, why, priced, reward_screen):
         return ("REFUSED: rest or smith is priced over the rest of the act (sts2-deckbuilding section 6): `routes --hp <HP after the rest>` and `routes` at "
                 "the HP now, plus `eval --smooth --boss --next` upgrade variants, on this floor.\n" + state)
     if (kind == "SHOP" and not re.search(r"(?i)leave", line)) or (kind == "RESTSITE" and not re.search(r"(?i)proceed", line)):
-        if not ran("eval", "rmcalc", "routes", "pickplan"):
-            return f"REFUSED: price this {kind.lower()} decision first (`eval` variants, `rmcalc`, `routes`; sts2-deckbuilding section 1 / 6), on this floor.\n" + state
+        if not ran("eval", "rmcalc", "routes", "pickplan", "price"):
+            return f"REFUSED: price this {kind.lower()} decision first (`price`, `eval` variants, `rmcalc`, `routes`; sts2-deckbuilding section 1 / 6), on this floor.\n" + state
         miss = [k for k in ("numbers:", "judgment:") if k not in lw]
         if miss:
             return f"REFUSED: the `-- why` records the decision: numbers: <what the calculators said> ; judgment: <what decided it>. Missing: {', '.join(miss)}.\n"

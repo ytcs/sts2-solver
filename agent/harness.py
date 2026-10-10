@@ -467,7 +467,11 @@ class Harness(Live):
             if cmd == "brief":
                 return self.brief()
             if cmd == "price":
-                return self.price(rest)
+                here = scr.floor_key(call("peek"))
+                out = self.price(rest)
+                if here and not out.startswith(("ERR", "price: nothing to price")):
+                    self.priced["price"] = here
+                return out
             if cmd == "plans":
                 from agent import plans
                 ch = scr.character(call("peek"))
