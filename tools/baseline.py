@@ -580,7 +580,7 @@ class Game:
         if starts:
             sc = starts[-1]["scenario"]
             act = (sc.get("act") or 0) + 1
-            jobs += [("final deck", enc, sc) for enc in self.bosses.get(act, [])]
+            jobs += [("final deck", enc, sc) for enc in self.bosses.get(act) or self.bosses.get(act - 1) or []]
         if not jobs:
             return {}
         scen = [dict(sc, encounter=enc, hp=sc["max_hp"], potions=[]) for _, enc, sc in jobs]

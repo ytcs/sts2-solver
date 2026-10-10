@@ -318,7 +318,7 @@ def combine(g, rule="late", floor=FLOOR):
     return float(np.exp((w * np.log(np.maximum(p, lo))).sum()))
 
 
-def play(st, rng, pol, first=None):
+def play(st, rng, pol, first=None, stop_at_next=False):
     import predictor as PR
     from agent import events as EV, pools
     dr = Draws(rng, st.base["character"], st.act)
@@ -441,15 +441,17 @@ def play(st, rng, pol, first=None):
         dr.act = st.act
         if st.act == act0 + 1:
             st.ready, st.ready_worth = yield from readiness(st, pol)
+            if stop_at_next:
+                return None
 
 
 class Rollouts:
     def __init__(self, predictor, shuffles=4, seed=1000):
         self.pred, self.shuffles, self.seed = predictor, shuffles, seed
 
-    def run(self, states, seeds, pol=None, firsts=None):
+    def run(self, states, seeds, pol=None, firsts=None, stop_at_next=False):
         pol = pol or BasePolicy()
-        return self.drive([play(s, random.Random(sd), pol, f) for s, sd, f in zip(states, seeds, firsts or [None] * len(states))])
+        return self.drive([play(s, random.Random(sd), pol, f, stop_at_next) for s, sd, f in zip(states, seeds, firsts or [None] * len(states))])
 
     def drive(self, gens):
         out = [None] * len(gens)

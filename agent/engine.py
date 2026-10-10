@@ -36,6 +36,8 @@ def _opportunity_loss(acc):
 # reserve value of a held potion in objective units (E61: run model ~10 HP = 0.063; near-miss flat 0.03-0.06)
 POT_COST = 0.06
 POT_MARGIN_SE, POT_MARGIN_MIN = 2.0, 0.01
+# first of the final pair of bosses: a potion kept is worth ~0.1 win of the second (E67: Test Subject at 25 HP 0.24 -> 0.45 with two kept) = 0.2 objective
+POT_COST_FINAL_PAIR = 0.2
 
 
 class Engine:
@@ -63,7 +65,9 @@ class Engine:
             tol *= float(u.max() - u[0]) / 2.5
         n_rounds, acc, first, rounds = rounds, {}, None, 0
         # potion reserve cost: none after the final boss; win-only worth spans 1 (loss 0, win 1) vs 2 for the linear objective
-        self.fs.pot_cost = 0.0 if worth is not None and worth.get("final") else self.pot_cost / 2 if worth is not None else self.pot_cost
+        first_of_pair = worth is None and str(scenario.get("encounter", "")).endswith("_BOSS") and scenario.get("act") == proposal.LAST_ACT
+        self.fs.pot_cost = (0.0 if worth is not None and worth.get("final") else self.pot_cost / 2 if worth is not None
+                            else max(self.pot_cost, POT_COST_FINAL_PAIR) if first_of_pair and self.pot_cost > 0 else self.pot_cost)
         held = potions.held_indices(sim, keep_potions)
         def _held(t):
             return t.startswith("potion") and (keep_potions is True or potions.text_index(t) in held)

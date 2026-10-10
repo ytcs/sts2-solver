@@ -184,21 +184,27 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4, cont=None):
     ro = R.Rollouts(predictor, shuffles)
     pol = R.BasePolicy()
     pol.gates = cont is not None
-    states, seeds, firsts, owner = [], [], [], []
-    for oi, (_label, first) in enumerate(opts):
-        for j in range(n):
-            states.append(st.copy())
-            seeds.append(seed * 100_003 + j)
-            firsts.append(first)
-            owner.append(oi)
-    won = ro.run(states, seeds, pol=pol, firsts=firsts)
-    owner = np.array(owner)
+
+    def rollouts(stop):
+        states, seeds, firsts, owner = [], [], [], []
+        for oi, (_label, first) in enumerate(opts):
+            for j in range(n):
+                states.append(st.copy())
+                seeds.append(seed * 100_003 + j)
+                firsts.append(first)
+                owner.append(oi)
+        won = ro.run(states, seeds, pol=pol, firsts=firsts, stop_at_next=stop)
+        return states, np.array([0.0 if w is None else float(w) for w in won]), np.array(owner)
+
+    # P(win run) needs whole-run rollouts; before the last act they only pay once this act and the next act's readiness are saturated
+    staged = st.act < R.LAST_ACT
+    states, won, owner = rollouts(staged)
     res = {}
     for oi, (label, _f) in enumerate(opts):
         sel = owner == oi
         ss = [s for s, o in zip(states, owner) if o == oi]
         cleared = np.array([1.0 if (s.end is None or s.end[0] > st.act or s.end[1] == "won") else 0.0 for s in ss])
-        r = dict(win=won[sel], act=cleared)
+        r = dict(act=cleared) if staged else dict(win=won[sel], act=cleared)
         if st.act < 2:
             r["ready"] = np.array([0.0 if s.ready is None else s.ready for s in ss])
             r["ready_worth"] = np.array([-1.0 if s.ready_worth is None else s.ready_worth for s in ss])
@@ -206,6 +212,10 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4, cont=None):
         if cont is not None:
             r["cont"] = np.array([arrival(s.gates, cont) if getattr(s, "gates", None) else 0.0 for s in ss])
         res[label] = r
+    if staged and max(r["act"].mean() for r in res.values()) >= ACT_SATURATED and max(r["ready"].mean() for r in res.values()) >= READY_SATURATED:
+        _states, won, owner = rollouts(False)
+        for oi, (label, _f) in enumerate(opts):
+            res[label]["win"] = won[owner == oi]
     return res
 
 
@@ -247,6 +257,7 @@ def gates_text(opts, G, rule):
 
 HORIZONS = (("cont", "V gates"), ("win", "P(win run)"), ("act", "P(clear act)"), ("ready", "next act ready"), ("floors", "floors"))
 ACT_SATURATED = 0.9
+READY_SATURATED = 0.9
 
 
 def _se(x):
@@ -254,6 +265,8 @@ def _se(x):
 
 
 def separates(res, k, z=2.0):
+    if not all(k in r for r in res.values()):
+        return False
     labels = list(res)
     best = max(labels, key=lambda lb: res[lb][k].mean())
     for lb in labels:
@@ -365,14 +378,15 @@ def best(res, saturated=ACT_SATURATED):
     return max(res, key=lambda lb: tuple(res[lb][k].mean() for k in order)), main
 
 
-def search_check(st, opts, res, engine, top=4, attempts=96):
+def search_check(st, opts, res, engine, top=3, attempts=64):
     """the predictor is near-blind to small deck edits (bench pairs Spearman ~0.15): re-score the run model's top options, skip / nothing and
     the best removal by search vs the act's boss(es) at full HP, no potions. -> {label: (win, se)}"""
     import random
     bosses = list(st.bosses or [])
     if not bosses or engine is None:
         return {}
-    ranked = sorted(res, key=lambda lb: -float(res[lb]["act"].mean()))
+    main, _ = ladder(res)
+    ranked = sorted(res, key=lambda lb: -float(res[lb][main].mean()))
     pick = ranked[:top] + [lb for lb in ("skip", "nothing") if lb in res]
     pick += [lb for lb in ranked if "remove" in lb.lower()][:1]
     pick = list(dict.fromkeys(pick))
