@@ -39,6 +39,7 @@ class Engine:
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         self.fs = FastSearch(self.solver.net, M, K, roots=1, groups=1, amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn,
                              hp_cap=hp_cap, pot_cost=pot_cost)
+        self.pot_cost = pot_cost
         self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
         assert (proposal.HEAD_BIN, proposal.HEAD_NC) == (heads.BIN, heads.NC), "agent/proposal.py and rl/heads.py disagree on the outcome classes"
         self.fs.warm()
@@ -52,7 +53,9 @@ class Engine:
             u = np.asarray(worth["u"], np.float64)
             tol *= float(u.max() - u[0]) / 2.5
         n_rounds, acc, first, rounds = rounds, {}, None, 0
-        if keep_potions is True and self.fs.pot_cost > 0:
+        # potion reserve cost: none after the final boss; win-only worth spans 1 (loss 0, win 1) vs 2 for the linear objective
+        self.fs.pot_cost = 0.0 if worth is not None and worth.get("final") else self.pot_cost / 2 if worth is not None else self.pot_cost
+        if keep_potions is True and self.pot_cost > 0:
             keep_potions = False
         held = potions.held_indices(sim, keep_potions)
         def _held(t):

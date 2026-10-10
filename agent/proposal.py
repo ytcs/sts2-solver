@@ -38,7 +38,7 @@ def fight_objective(scenario, bosses=(), seen=()):
     else:
         final = True
     if final:
-        return win_only_worth(scenario.get("max_hp")), f"win only (the run's final boss; {tie})"
+        return dict(win_only_worth(scenario.get("max_hp")), final=True), f"win only (the run's final boss; {tie})"
     return None, "linear (the first of the two final bosses: HP carries to the second)"
 
 
