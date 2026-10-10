@@ -25,7 +25,7 @@ fn visible(mut v: Value) -> Value {
         for pile in ["draw", "discard", "exhaust"] {
             if let Some(Value::Array(cards)) = o.get_mut(pile) {
                 cards.sort_by(|a, b| {
-                    let k = |x: &Value| (x["id"].as_str().unwrap_or("").to_string(), x["upgrade"].as_i64().unwrap_or(0));
+                    let k = |x: &Value| (x["id"].as_str().unwrap_or("").to_string(), x["upgrade"].as_i64().unwrap_or(0), x["affliction"]["id"].as_str().unwrap_or("").to_string());
                     k(a).cmp(&k(b))
                 });
             }
@@ -68,12 +68,16 @@ fn obs_card(c: &Value, with_cost: bool) -> Option<ObsCard> {
     let id = card_ids(c["id"].as_str().unwrap_or(""))?;
     let e = &c["enchantment"];
     let enchant = e.as_str().or_else(|| e["id"].as_str()).and_then(|n| sts2sim::ids::enchantment::NAMES.iter().position(|x| *x == n)).map_or(0, |i| i as u8 + 1);
+    let a = &c["affliction"];
+    let affliction = a.as_str().or_else(|| a["id"].as_str()).and_then(|n| sts2sim::ids::affliction::NAMES.iter().position(|x| *x == n)).map_or(0, |i| i as u8 + 1);
     Some(ObsCard {
         id,
         upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8,
         cost: if with_cost { c["cost"].as_i64().map(|x| x as i32) } else { None },
         enchant,
         enchant_amount: if enchant == 0 { 0 } else { e["amount"].as_i64().unwrap_or(1) as i16 },
+        affliction,
+        affliction_amount: if affliction == 0 { 0 } else { a["amount"].as_i64().unwrap_or(1) as i16 },
     })
 }
 

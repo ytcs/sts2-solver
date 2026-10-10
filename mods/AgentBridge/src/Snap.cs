@@ -149,6 +149,7 @@ public static class Snap
         }
         try { o["keywords"] = new JsonArray(c.Keywords.Select(k => (JsonNode)k.ToString()).OrderBy(x => x.ToString(), StringComparer.Ordinal).ToArray()); } catch { }
         if (c.Enchantment != null) o["enchantment"] = new JsonObject { ["id"] = c.Enchantment.Id.Entry, ["amount"] = c.Enchantment.Amount };
+        if (c.Affliction != null) o["affliction"] = new JsonObject { ["id"] = c.Affliction.Id.Entry, ["amount"] = c.Affliction.Amount };
         if (!brief) { try { var pj = Props(SavedProperties.From(c)); if (pj != null) o["props"] = pj; } catch { } }
         return o;
     }

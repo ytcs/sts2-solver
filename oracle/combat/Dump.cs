@@ -26,6 +26,8 @@ public static class Dump
         try { o["keywords"] = new JsonArray(c.Keywords.Select(k => (JsonNode)k.ToString()).OrderBy(x => x.ToString(), StringComparer.Ordinal).ToArray()); } catch { }
         if (c.Enchantment != null)
             o["enchantment"] = new JsonObject { ["id"] = c.Enchantment.Id.Entry, ["amount"] = c.Enchantment.Amount };
+        if (c.Affliction != null)
+            o["affliction"] = new JsonObject { ["id"] = c.Affliction.Id.Entry, ["amount"] = c.Affliction.Amount };
         try { var p = SavedProperties.From(c); var pj = Props(p); if (pj != null) o["props"] = pj; } catch { }
         return o;
     }
@@ -36,6 +38,8 @@ public static class Dump
         try { o["keywords"] = new JsonArray(c.Keywords.Select(k => (JsonNode)k.ToString()).OrderBy(x => x.ToString(), StringComparer.Ordinal).ToArray()); } catch { }
         if (c.Enchantment != null)
             o["enchantment"] = new JsonObject { ["id"] = c.Enchantment.Id.Entry, ["amount"] = c.Enchantment.Amount };
+        if (c.Affliction != null)
+            o["affliction"] = new JsonObject { ["id"] = c.Affliction.Id.Entry, ["amount"] = c.Affliction.Amount };
         return o;
     }
 
