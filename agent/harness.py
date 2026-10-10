@@ -338,12 +338,17 @@ class Harness(Live):
         ready = ("; next act ready: P(win) after the ancient's heal vs the next act's bosses x0.5 and elites x0.5, 0 on a death in this act"
                  if "ready" in next(iter(res.values())) else "")
         check = ""
+        adj = PR.event_adjust(st, state)
+        if adj:
+            b, _m = PR.best(res, sat, adj)
+            check += ("macro terms (data/macro_rules.json, P units on " + ranked_by + "): " + ", ".join(f"{k} {v:+.3f}" for k, v in adj.items())
+                      + f" -> best with terms: {b}\n")
         if scr.kind(state) in ("CARD_REWARD", "SHOP", "EVENT") and "--no-search" not in args:
             got = PR.search_check(st, opts, res, self.eng())
             if got:
-                pick, _ranked, override = PR.hybrid_best(res, got)
+                pick, _ranked, override = PR.hybrid_best(res, got, adj)
                 rows = [f"  {lb[:44]:44s} {p:.3f} +- {se:.3f}" for lb, (p, se) in sorted(got.items(), key=lambda x: -x[1][0])]
-                check = ("search check (the predictor is near-blind to small deck edits): deck vs " + " + ".join(st.bosses) + " at full HP, no potions\n"
+                check += ("search check (the predictor is near-blind to small deck edits): deck vs " + " + ".join(st.bosses) + " at full HP, no potions\n"
                          + "\n".join(rows) + (f"\n  -> search overrides the run model: {pick} (+{override[0]} +- {override[1]})" if override else "") + "\n")
         return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates + check + self._synergy(state)
 

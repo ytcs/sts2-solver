@@ -381,14 +381,15 @@ class PriceMacro(Macro):
         st, t0 = self.st(s), time.perf_counter()
         res = PR.price(st, opts, self.pred, n=self.n, seed=zlib.crc32(f"{self.seed}|{scr.floor_key(s)}".encode()) % 10_000)
         check = PR.search_check(st, opts, res, self.h.engine) if scr.kind(s) in ("CARD_REWARD", "SHOP", "EVENT") and self.hybrid else {}
-        best, ranked, override = PR.hybrid_best(res, check)
+        adj = PR.event_adjust(st, s)
+        best, ranked, override = PR.hybrid_best(res, check, adj)
         self.last_res, self.last_override = res, override
         dt = time.perf_counter() - t0
         self.h.stats["price_calls"] += 1
         self.h.stats["price_s"] += dt
         self.h.log.event("price", screen=scr.kind(s), options=[o[0] for o in opts], ranked_by=ranked, best=best, seconds=round(dt, 2), n=self.n,
                          result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()},
-                         search={k: [round(v[0], 3), round(v[1], 3)] for k, v in check.items()}, override=override)
+                         search={k: [round(v[0], 3), round(v[1], 3)] for k, v in check.items()}, override=override, terms=adj)
         return best
 
     def decide(self, s, opts):

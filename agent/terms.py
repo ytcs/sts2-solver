@@ -1,6 +1,6 @@
 """Macro terms DSL (data/macro_rules.json `terms`), shared by runmodel.BasePolicy (price rollouts, scripted screen) and tools/baseline.py.
 A term: type adjust (value added to a candidate's score) | margin (value an addition must beat skip by) | flag (named hook, value unused),
-on = screens (card_reward, shop, relic), when = condition, value = expression. Units: P(win)-points (rollout worth / 2).
+on = screens (card_reward, shop, relic, event), when = condition, value = expression. Units: P(win)-points (rollout worth / 2).
 Expressions: numbers, strings, variables (VARS), + - * / // %, comparisons, in / not in, and/or/not, x if c else y, min max abs."""
 import ast
 import functools
@@ -14,6 +14,8 @@ VARS = {
     "act": "act, 1-based",
     "gold": "gold now",
     "hp_frac": "HP / max HP",
+    "max_hp": "max HP now",
+    "max_hp_delta": "max HP change of an event option's own page effects",
     "removal_cost": "shop removal price (1e9 without a removal offer)",
     "is_card": "1 if the candidate is a card", "is_relic": "1 if the candidate is a relic", "is_skip": "1 for the no-addition variant",
     "core_owned": "other core pieces owned (copies counted) in the candidate's live synergy bundles where it is core (agent/synergy.py)",

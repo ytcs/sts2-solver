@@ -375,10 +375,33 @@ def recorded_screens(events_path, kinds=("CARD_REWARD", "RESTSITE")):
                 old = None
 
 
-def best(res, saturated=ACT_SATURATED):
+def best(res, saturated=ACT_SATURATED, adj=None):
+    """ladder best; adj = {label: macro-terms adjustment in P units} added on the main horizon"""
     main, _ = ladder(res, saturated)
     order = [main] + [k for k, _ in HORIZONS if k != main and all(k in r for r in res.values())]
-    return max(res, key=lambda lb: tuple(res[lb][k].mean() for k in order)), main
+    adj = adj or {}
+    return max(res, key=lambda lb: (res[lb][main].mean() + adj.get(lb, 0.0),) + tuple(res[lb][k].mean() for k in order[1:])), main
+
+
+def event_adjust(st, state_text):
+    """macro terms on an event page's options ({label: adjustment}); only this page's own effects (max_hp_delta), not follow-up pages"""
+    from agent import events as EV, terms as TM
+    if scr.kind(state_text) != "EVENT":
+        return {}
+    lines = state_text.split("\n")
+    title = lines[2].split(":", 1)[0].strip() if len(lines) > 2 else ""
+    if EV.get(title) is None:
+        return {}
+    labels = [label for _, label in scr.options(state_text)]
+    out = {}
+    for label, o in zip(labels, EV.match_page(title, labels)):
+        if o is None:
+            continue
+        mhp = sum(next(iter(e.values())) for e in o["effects"] if isinstance(e, dict) and "max_hp" in e and isinstance(e["max_hp"], (int, float)))
+        a = TM.adjust("event", R.term_ctx(st, max_hp_delta=mhp))
+        if a:
+            out[label.split(":", 1)[0][:34]] = a
+    return out
 
 
 def search_check(st, opts, res, engine, top=3, attempts=64, variants=4):
@@ -418,9 +441,9 @@ def search_check(st, opts, res, engine, top=3, attempts=64, variants=4):
     return out
 
 
-def hybrid_best(res, check):
-    """the run model's ladder best, unless search finds an option better than it by > 2 se of the difference"""
-    b, main = best(res)
+def hybrid_best(res, check, adj=None):
+    """the run model's ladder best (with macro-term adjustments), unless search finds an option better than it by > 2 se of the difference"""
+    b, main = best(res, adj=adj)
     if b not in check:
         return b, main, None
     alt = max(check, key=lambda lb: check[lb][0])
