@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Paired full fights, Engine.decide with batched rounds (FastSearch.decide_many) vs one FastSearch.decide call per round, same game seeds:
 win rate and end HP per arm. Scenarios = fight_start scenarios from run logs (default: act-2 / act-3 bosses).
-usage: tools/engine_ab.py <events.jsonl glob> [--enc _BOSS] [--acts 1,2] [--seeds 4] [--rounds 16] [--shard i/n] [--out f.jsonl]"""
+usage: tools/engine_ab.py <events.jsonl glob> [--enc _BOSS] [--acts 1,2] [--seeds 4] [--rounds 16] [--shard i/n] [--out f.jsonl] [--arms batched,sequential]"""
 import argparse, glob, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,6 +44,7 @@ def main():
     ap.add_argument("--rounds", type=int, default=16)
     ap.add_argument("--shard", default="0/1")
     ap.add_argument("--out", default="target/engine_ab.jsonl")
+    ap.add_argument("--arms", default="batched,sequential")
     a = ap.parse_args()
     from agent.engine import Engine
     i, n = map(int, a.shard.split("/"))
@@ -51,7 +52,7 @@ def main():
     eng = Engine()
     with open(a.out, "a", encoding="utf-8") as f:
         for src, sc, s in jobs:
-            for arm, batched in (("batched", True), ("sequential", False)):
+            for arm, batched in [x for x in (("batched", True), ("sequential", False)) if x[0] in a.arms.split(",")]:
                 w, hp = play(eng, sc, 7000 + s, a.rounds, batched)
                 f.write(json.dumps(dict(src=src, enc=sc["encounter"], seed=s, arm=arm, win=w, hp=hp)) + "\n")
                 f.flush()
