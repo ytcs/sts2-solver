@@ -15,6 +15,7 @@ description: Use before fighting an unfamiliar enemy, at any event after floor 1
 - Pen Nib / Nunchaku counters carry across fights; the solver ignores that: in a safe AUTO fight steer to 9 before an elite/boss. `[hyp]` test: `relics` across fights, win with counter at 9.
 - Armaments+ upgrades the hand: play it first. `[hyp]`
 - Petrified Toad: a 15-damage rock each fight; price a potion filling the last slot as its use minus the rocks displaced (`eval --v "rock|potions=..."`).
+- Toy Box `[code]` (ToyBox.cs:100-114, RelicCmd.cs:89): the earliest-taken wax relic melts after every 3rd fight; pickup effects survive melting. Take pickup-effect relics first (Strawberry, War Paint, Pear, Mango, Whetstone), the best lasting relic last.
 - Orrery / multi-set rewards: open + skip loses nothing until Proceed; price bundles. `[expert]`
 
 ## Events
