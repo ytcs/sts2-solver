@@ -363,21 +363,23 @@ class PriceMacro(Macro):
     predictor screen), shops (PR.bundles), catalogued events' first pages and ancients; Macro wherever price has fewer than two options."""
     SMITHS = 3
 
-    def __init__(self, h, predictor, seed, n):
+    def __init__(self, h, predictor, seed, n, hybrid=os.environ.get("BASELINE_HYBRID", "1") != "0"):
         super().__init__(h, predictor, seed)
-        self.n = n
+        self.n, self.hybrid = n, hybrid
 
     def price(self, s, opts):
         if len(opts) < 2:
             return None
         st, t0 = self.st(s), time.perf_counter()
         res = PR.price(st, opts, self.pred, n=self.n, seed=zlib.crc32(f"{self.seed}|{scr.floor_key(s)}".encode()) % 10_000)
-        best, ranked = PR.best(res)
+        check = PR.search_check(st, opts, res, self.h.engine) if scr.kind(s) in ("CARD_REWARD", "SHOP", "EVENT") and self.hybrid else {}
+        best, ranked, override = PR.hybrid_best(res, check)
         dt = time.perf_counter() - t0
         self.h.stats["price_calls"] += 1
         self.h.stats["price_s"] += dt
         self.h.log.event("price", screen=scr.kind(s), options=[o[0] for o in opts], ranked_by=ranked, best=best, seconds=round(dt, 2), n=self.n,
-                         result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})
+                         result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()},
+                         search={k: [round(v[0], 3), round(v[1], 3)] for k, v in check.items()}, override=override)
         return best
 
     def decide(self, s, opts):

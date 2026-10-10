@@ -43,10 +43,16 @@ def main():
     ap.add_argument("--rounds", type=int, default=16)
     ap.add_argument("--seed", type=int, default=3)
     ap.add_argument("--out", default=os.path.join(ROOT, "target", "potion_gate.jsonl"))
+    ap.add_argument("--shard", default="0/1", help="i/k: this process plays every k-th sampled fight from i")
+    ap.add_argument("--report", nargs="*", help="only summarize these jsonl files")
     a = ap.parse_args()
+    if a.report:
+        return report([json.loads(l) for f in a.report for l in open(f)])
     from agent.engine import Engine
     rows = json.load(open(a.bench))
     idx = np.random.default_rng(a.seed).choice(len(rows), size=min(a.n, len(rows)), replace=False)
+    si, sk = (int(x) for x in a.shard.split("/"))
+    idx = idx[si::sk]
     arms = {"no gate": Engine(pot_margin_se=0.0), "gate": None}
     arms["gate"] = arms["no gate"]
     res = {k: [] for k in arms}
@@ -65,6 +71,13 @@ def main():
             f.flush()
         if (j + 1) % 10 == 0:
             print(f"{j + 1} fights", flush=True)
+    report([x for k in res for x in res[k]])
+
+
+def report(rows):
+    res = {k: sorted([x for x in rows if x["arm"] == k], key=lambda x: x["i"]) for k in ("no gate", "gate")}
+    keep = set(x["i"] for x in res["no gate"]) & set(x["i"] for x in res["gate"])
+    res = {k: [x for x in v if x["i"] in keep] for k, v in res.items()}
     se = lambda x: x.std(ddof=1) / np.sqrt(len(x))  # noqa: E731
     A, B = res["no gate"], res["gate"]
     for k in res:

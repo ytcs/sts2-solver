@@ -337,7 +337,15 @@ class Harness(Live):
                        result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()})
         ready = ("; next act ready: P(win) after the ancient's heal vs the next act's bosses x0.5 and elites x0.5, 0 on a death in this act"
                  if "ready" in next(iter(res.values())) else "")
-        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates
+        check = ""
+        if scr.kind(state) in ("CARD_REWARD", "SHOP", "EVENT") and "--no-search" not in args:
+            got = PR.search_check(st, opts, res, self.eng())
+            if got:
+                pick, _ranked, override = PR.hybrid_best(res, got)
+                rows = [f"  {lb[:44]:44s} {p:.3f} +- {se:.3f}" for lb, (p, se) in sorted(got.items(), key=lambda x: -x[1][0])]
+                check = ("search check (the predictor is near-blind to small deck edits): deck vs " + " + ".join(st.bosses) + " at full HP, no potions\n"
+                         + "\n".join(rows) + (f"\n  -> search overrides the run model: {pick} (+{override[0]} +- {override[1]})" if override else "") + "\n")
+        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates + check
 
     def brief(self):
         state = call("peek")

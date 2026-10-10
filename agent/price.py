@@ -365,6 +365,46 @@ def best(res, saturated=ACT_SATURATED):
     return max(res, key=lambda lb: tuple(res[lb][k].mean() for k in order)), main
 
 
+def search_check(st, opts, res, engine, top=4, attempts=96):
+    """the predictor is near-blind to small deck edits (bench pairs Spearman ~0.15): re-score the run model's top options, skip / nothing and
+    the best removal by search vs the act's boss(es) at full HP, no potions. -> {label: (win, se)}"""
+    import random
+    bosses = list(st.bosses or [])
+    if not bosses or engine is None:
+        return {}
+    ranked = sorted(res, key=lambda lb: -float(res[lb]["act"].mean()))
+    pick = ranked[:top] + [lb for lb in ("skip", "nothing") if lb in res]
+    pick += [lb for lb in ranked if "remove" in lb.lower()][:1]
+    pick = list(dict.fromkeys(pick))
+    first = dict(opts)
+    scen, owner = [], []
+    for lb in pick:
+        s2 = st.copy()
+        if first.get(lb) is not None:
+            first[lb](s2, R.Draws(random.Random(0), st.base["character"], st.act))
+        for b in bosses:
+            scen.append(dict(s2.scenario(b, hp=s2.max_hp), potions=[]))
+            owner.append(lb)
+    rows = engine.solve(scen, attempts=attempts)
+    out = {}
+    for lb in pick:
+        w = [float(r["win"]) for r, o in zip(rows, owner) if o == lb]
+        p = sum(w) / len(w)
+        out[lb] = (p, (p * (1 - p) / (attempts * len(w))) ** 0.5)
+    return out
+
+
+def hybrid_best(res, check):
+    """the run model's ladder best, unless search finds an option better than it by > 2 se of the difference"""
+    b, main = best(res)
+    if b not in check:
+        return b, main, None
+    alt = max(check, key=lambda lb: check[lb][0])
+    d = check[alt][0] - check[b][0]
+    se = (check[alt][1] ** 2 + check[b][1] ** 2) ** 0.5
+    return (alt, "search", (round(d, 3), round(se, 3))) if alt != b and d > 2 * se else (b, main, None)
+
+
 def _played(state, choice, opts):
     if scr.kind(state) == "RESTSITE":
         return "rest" if choice.lower().startswith("rest") else "smith"
