@@ -31,3 +31,16 @@ fn touch_of_orobas_saved_relic_ids_round_trip() {
     let mut synced = cx.clone();
     assert_eq!(synced.sync_relics(&sts2diff::convert::obs_relics(&real)).changed, 0);
 }
+
+#[test]
+fn toy_box_wax_relics_build_and_melted_drop() {
+    let sc = serde_json::json!({"encounter": "NIBBITS_WEAK", "character": "IRONCLAD", "hp": 80, "seed": "wax", "deck": vec!["STRIKE_IRONCLAD"; 5],
+        "relics": ["BURNING_BLOOD", {"id": "VAJRA", "props": {"IsWax": true}}, {"id": "ANCHOR", "props": {"IsWax": true, "IsMelted": true}}], "potions": []});
+    let cx = sts2sim::Combat::new(&sts2diff::convert::scenario(&sc).expect("wax relic scenario builds"));
+    let ids: Vec<String> = sts2diff::snapshot::snapshot(&cx)["relics"].as_array().unwrap().iter().map(|r| r["id"].as_str().unwrap_or("").to_string()).collect();
+    assert_eq!(ids.len(), 2, "melted Anchor dropped: {ids:?}");
+    let real = serde_json::json!([{"id": "BURNING_BLOOD"}, {"id": "VAJRA", "props": {"IsWax": true}}, {"id": "ANCHOR", "props": {"IsWax": true, "IsMelted": true}}]);
+    let mut synced = cx.clone();
+    let rep = synced.sync_relics(&sts2diff::convert::obs_relics(&real));
+    assert_eq!((rep.changed, rep.unpaired, rep.unknown_props.len()), (0, 0, 0));
+}

@@ -39,13 +39,20 @@ fn relic_model(s: &str) -> Option<i32> {
     IDX_RELIC.get(s.strip_prefix("RELIC.")?).map(|&i| i as i32 + 1)
 }
 
+// RelicModel.cs:257-271: IsWax only marks a Toy Box relic for melting; CombatState.cs:432 skips melted relics in every hook.
+const WAX_PROPS: [&str; 2] = ["IsWax", "IsMelted"];
+
+fn melted(r: &Value) -> bool {
+    r["props"]["IsMelted"].as_bool().unwrap_or(false)
+}
+
 fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
     let l = sts2sim::content::relic_listener(id);
     let (counter, flags, aux) = l.meta_initial();
     let mut st = sts2sim::state::Relic { id, counter, flags, aux };
     if let Some(obj) = props.as_object() {
         let defs = l.meta_props();
-        for (k, v) in obj {
+        for (k, v) in obj.iter().filter(|(k, _)| !WAX_PROPS.contains(&k.as_str())) {
             let d = defs.iter().find(|d| d.name == k).ok_or_else(|| format!("relic {} has no modelled saved property {k}", ids::relic::NAMES[id as usize]))?;
             if !d.lit.is_empty() {
                 continue;
@@ -67,12 +74,14 @@ fn relic_init(id: u16, props: &Value) -> Result<RelicInit, String> {
 pub fn obs_relics(relics: &Value) -> Vec<sts2sim::engine::ObsRelic> {
     let Some(a) = relics.as_array() else { return vec![] };
     a.iter()
+        .filter(|r| !melted(r))
         .filter_map(|r| {
             let id = find(&IDX_RELIC, id_of(r), "relic").ok()?;
             let props = r["props"]
                 .as_object()
                 .map(|o| {
                     o.iter()
+                        .filter(|(k, _)| !WAX_PROPS.contains(&k.as_str()))
                         .filter_map(|(k, v)| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64)).or_else(|| v.as_str().and_then(relic_model).map(|n| n as i64)).map(|n| (k.clone(), n as i32)))
                         .collect()
                 })
@@ -138,7 +147,7 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
         deck.push(DeckCard { id: find(&IDX_CARD, id_of(c), "card")?, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8 });
     }
     let mut relics = vec![];
-    for r in v["relics"].as_array().unwrap_or(&vec![]) {
+    for r in v["relics"].as_array().unwrap_or(&vec![]).iter().filter(|r| !melted(r)) {
         relics.push(relic_init(find(&IDX_RELIC, id_of(r), "relic")?, &r["props"])?);
     }
     let mut potions = vec![];
