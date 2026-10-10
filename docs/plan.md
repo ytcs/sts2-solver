@@ -23,10 +23,9 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 1. Parallel pods now:
    - r9 round: collect with the r8b player on a fresh `tools/round_pool.py` pool (the long pole, ~5 h); train λ 0.95 `--pol 3` (r8c recipe; r8a may revise λ); gate vs r8b.
    - Turn horizon 9(a): `leaf_turns` 3 vs 2, same net (r8b) as reference and candidate; near-miss + play paired; report per-fight end HP with win.
-   - HP drain re-measure (item 4): postmortem `traj` on E50's logs with predictor r8c vs r6: is E55's +6.2 HP per fight play, predictor bias, or fidelity?
 2. Potions as search actions (E57: potions +0.065 at fatal fights, search x2 +0.010). Reserve cost in the Rust scorer: every potion consumed in a line (root or rollout) costs c in objective units; sweep 2-3 constants on near-miss; hp_cap on. Gate: near-miss and play paired vs live with proposals; potions spent per run; easy fights do not burn them.
 3. Turn horizon 9(b)/(c) by 9(a)'s result: next turn greedy-by-value inside rollouts; exact current turn x optimized next turn on near-lethal / high-damage states.
-4. HP drain follow-up from 1's measurement (play vs predictor vs fidelity: Slumbering Beetle sim 8/8 vs live 0/16).
+4. HP drain (E60): mostly potions hoarded against a free-use expectation (5.6 HP of 6.2 in fights with potions); play leak proper ~1.4-2.6 HP per fight. Item 2 is the lever; re-measure the drain after it lands. Slumbering Beetle fidelity (sim 8/8 vs live 0/16) stays a hygiene item.
 5. Search budget (E56): gap16 < 0.02 & contested-value stopping rule as a FastSearch option; near-miss vs live; small lever.
 6. Act-3 decks: Test Subject / Insatiable ~0 at full HP with potions (E55): deeper-search check before blaming the deck.
 7. Toy Box macro: melt schedule in `price`; pick order pickup-effect relics first, best lasting relic last (simulator fixed, 2e4e882).
