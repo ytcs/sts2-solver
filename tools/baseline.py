@@ -187,7 +187,7 @@ class Macro:
                     continue
                 if t.lower().startswith("relic "):
                     rid = PR._ident(re.split(r"[:(]", t[6:])[0].strip())
-                    if rid and R.plan_term(rid, self.st(s)) < 0:
+                    if rid and not R.take_relic(self.st(s), rid):
                         continue
                 if t.startswith("card"):
                     if (fk, t) in self.declined:
@@ -242,8 +242,7 @@ class Macro:
             variants = ([None] if skip is not None else []) + [lambda x, c=c, u=u: x.deck.append({"id": c, "upgrade": u}) for _, c, u in cards]
             w = self.screen(st, variants, self.rng(s, "card"))
             if skip is not None:
-                n = len(st.deck)
-                best = R.pick_with_terms(w, [n] + [n + 1] * len(cards), [0.0] + [R.plan_term(c, st) for _, c, _ in cards])
+                best = R.pick_with_terms("card_reward", st, np.asarray(w) / 2, [(None, None)] + [("card", c) for _, c, _ in cards])
                 choice = skip if best == 0 else cards[best - 1][0]
             else:
                 choice = cards[int(w.argmax())][0]
@@ -424,13 +423,11 @@ class PriceMacro(Macro):
         if best is None:
             return None
         if best != "skip" and self.last_res and "skip" in self.last_res:
-            # past the density target: tie -> skip, and an addition must clear the density cost (data/macro_rules.json)
+            # the macro terms (data/macro_rules.json) on the priced difference vs skip, unless search overrode the run model
             main, _ = PR.ladder(self.last_res)
             d = self.last_res[best][main] - self.last_res["skip"][main]
-            past = len(st.deck) + 1 > R.MACRO["density"]["target"]
-            need = (R.MACRO["skip_margin"]["price_se"] * PR._se(d) if past else 0.0) + R.density_cost(len(st.deck) + 1) / 2
             cid = PR._card_id(best)[0]
-            if self.last_override is None and d.mean() + (R.plan_term(cid, st) if cid else 0.0) <= need:
+            if self.last_override is None and cid and R.pick_with_terms("card_reward", st, [0.0, float(d.mean())], [(None, None), ("card", cid)], se=PR._se(d)) == 0:
                 best = "skip"
         skip = next((i for i, t in lab if t.startswith("Skip")), None)
         choice = skip if best == "skip" else next((i for i, t in lab if "(" in t and _name(t) == best), None)

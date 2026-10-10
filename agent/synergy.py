@@ -73,10 +73,3 @@ def anti(item, ids):
     _, a, _, _, _ = _db()
     item = _base(item)
     return sorted(a.get(item, set()) & {_base(i) for i in ids})
-
-
-def term(item, ids, rules):
-    """worth adjustment of adding item to a deck/relic set holding ids: bundle_bonus x min(other core pieces owned, 2) / 2 for a core piece of a
-    live bundle, - anti_veto per anti partner owned"""
-    b, v = rules.get("bundle_bonus", {}).get("worth", 0.0), rules.get("anti_veto", {}).get("worth", 0.0)
-    return (b * min(in_plan(item, ids), 2) / 2 if b else 0.0) - (v * len(anti(item, ids)) if v else 0.0)

@@ -5,34 +5,36 @@ import random
 
 import numpy as np
 
-from agent import tracker as T
+from agent import terms as TM, tracker as T
 
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
-MACRO = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "macro_rules.json")))
-if os.environ.get("MACRO_RULES") == "off":
-    MACRO.update(density=dict(target=10 ** 6, per_card=0.0), skip_margin=dict(worth=-1e9, price_se=-1e9), removal_first=dict(min_deck=0),
-                 keep_gold_for_removal=dict(min_deck=10 ** 6), bundle_bonus=dict(worth=0.0), anti_veto=dict(worth=0.0))
-
-
-def density_cost(n_cards):
-    r = MACRO["density"]
-    return r["per_card"] * max(0, n_cards - r["target"])
-
-
-def pick_with_terms(w, sizes, extra=None):
-    """index into the variants (0 = no addition): worth minus the density cost plus the plan terms; past the density target an addition must
-    beat no addition by the skip margin"""
-    adj = np.asarray(w, float) - np.array([density_cost(n) for n in sizes]) + (0.0 if extra is None else np.asarray(extra, float))
-    best = int(np.argmax(adj))
-    margin = MACRO["skip_margin"]["worth"] if best and sizes[best] > MACRO["density"]["target"] else 0.0
-    return best if best and adj[best] - adj[0] > margin else 0
-
-
-def plan_term(item, st, deck=None, relics=None):
-    """synergy terms (data/synergy_candidates.json): bundle_bonus for a core piece of a live plan, anti_veto per anti partner owned"""
+def term_ctx(st, kind=None, item=None, deck=None, relics=None, removal_cost=1e9, se=0.0):
+    """variables of the macro terms DSL (agent/terms.py VARS) for adding item (kind card | relic | None = skip) to st's deck / relics"""
     from agent import synergy
-    ids = [c["id"] for c in (st.deck if deck is None else deck)] + [r if isinstance(r, str) else r["id"] for r in (st.relics if relics is None else relics)]
-    return synergy.term(item, ids, MACRO)
+    deck = st.deck if deck is None else deck
+    relics = st.relics if relics is None else relics
+    ctx = dict(deck_size=len(deck), size_after=len(deck) + (kind == "card"), act=st.act + 1, gold=st.gold, hp_frac=st.hp / max(1, st.max_hp),
+               removal_cost=removal_cost, is_card=int(kind == "card"), is_relic=int(kind == "relic"), is_skip=int(kind is None), se=se,
+               core_owned=0, anti=0)
+    if item is not None:
+        ids = [c["id"] for c in deck] + [r if isinstance(r, str) else r["id"] for r in relics]
+        ctx.update(core_owned=synergy.in_plan(item, ids), anti=len(synergy.anti(item, ids)))
+    return ctx
+
+
+def pick_with_terms(screen, st, p, cands, deck=None, se=0.0):
+    """index into cands [(kind, item)], cands[0] = (None, None) the no-addition variant: p (P units) + adjust terms; the best addition must
+    beat no addition by the margin terms"""
+    ctxs = [term_ctx(st, k, i, deck=deck, se=se) for k, i in cands]
+    adj = np.asarray(p, float) + np.array([TM.adjust(screen, c) for c in ctxs])
+    best = int(np.argmax(adj))
+    return best if best and adj[best] - adj[0] > TM.margin(screen, ctxs[best]) else 0
+
+
+def take_relic(st, relic):
+    return TM.adjust("relic", term_ctx(st, "relic", relic)) >= 0
+
+
 RARITIES = ("Common", "Uncommon", "Rare")
 CARD_ODDS = {"hallway": (0.0149, 0.37), "elite": (0.05, 0.40), "shop": (0.045, 0.37), "boss": (1.0, 0.0)}
 UPGRADE_PER_ACT = 0.125
@@ -251,18 +253,19 @@ class BasePolicy:
         refs = reference_fights(st, rng)
         basic = next((c for c in deck if c["id"].startswith(BASICS[:2])), None)
         rm = next((it for it in items if it[0] == "remove"), None)
-        if basic is not None and rm is not None and gold >= rm[2] and len(deck) >= MACRO["removal_first"]["min_deck"]:
+        rm_cost = rm[2] if rm is not None else 1e9
+        if basic is not None and TM.flag("removal_first", "shop", term_ctx(st, removal_cost=rm_cost)):
             buys.append(("remove", basic, rm[2]))
             gold -= rm[2]
             deck.remove(basic)
-        reserve = rm[2] if rm is not None and not buys and len(deck) >= MACRO["keep_gold_for_removal"]["min_deck"] else 0
+        reserve = rm_cost if rm is not None and not buys and TM.flag("keep_gold_for_removal", "shop", term_ctx(st, deck=deck, removal_cost=rm_cost)) else 0
         cands = [it for it in items if it[0] == "relic" and it[2] <= gold or it[0] == "card" and it[2] <= gold - reserve]
         if not cands:
             return buys
         variants = [(deck, st.relics)] + [(deck + [{"id": i, "upgrade": 0}], st.relics) if k == "card" else (deck, st.relics + [i]) for k, i, _ in cands]
         P = yield [st.scenario(e, hp, deck=d, potions=[], relics=r) for d, r in variants for e, hp in refs]
-        best = pick_with_terms(worth(P, st.max_hp).reshape(len(variants), len(refs)).mean(1), [len(d) for d, _ in variants],
-                               [0.0] + [plan_term(i, st, deck) for _, i, _ in cands])
+        best = pick_with_terms("shop", st, worth(P, st.max_hp).reshape(len(variants), len(refs)).mean(1) / 2, [(None, None)] + [(k, i) for k, i, _ in cands],
+                               deck=deck)
         return buys + ([cands[best - 1]] if best else [])
 
 
@@ -371,13 +374,13 @@ def play(st, rng, pol, first=None, stop_at_next=False):
         refs = reference_fights(st, rng)
         decks = [st.deck] + [st.deck + [{"id": c, "upgrade": u}] for c, u in cards]
         P = yield [st.scenario(e, hp, deck=d, potions=[]) for d in decks for e, hp in refs]
-        best = pick_with_terms(worth(P, st.max_hp).reshape(len(decks), len(refs)).mean(1), [len(d) for d in decks],
-                               [0.0] + [plan_term(c, st) for c, _ in cards])
+        best = pick_with_terms("card_reward", st, worth(P, st.max_hp).reshape(len(decks), len(refs)).mean(1) / 2,
+                               [(None, None)] + [("card", c) for c, _ in cards])
         if best:
             st.deck.append({"id": cards[best - 1][0], "upgrade": cards[best - 1][1]})
         if kind == "elite":
             r = dr.relic(st.relic_ids())
-            if r and plan_term(r, st) >= 0:
+            if r and take_relic(st, r):
                 st.relics.append(r)
 
     def event_result(res):
