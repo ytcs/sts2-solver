@@ -623,7 +623,7 @@ impl Combat {
             for r in self.player.relics.as_slice().iter().filter(|r| crate::relic_mask::OBSERVED.get(r.id as usize).copied().unwrap_or(true)).take(OBS_RELICS) {
                 n_relics += 1;
                 let mut k = 0;
-                for d in content::relic_listener(r.id).meta_props().iter().filter(|d| d.lit.is_empty()).take(RELICX_F) {
+                for d in content::relic_listener(r.id).meta_props().iter().filter(|d| d.lit.is_empty() && !d.relic).take(RELICX_F) {
                     w.n(r.get(d.slot));
                     k += 1;
                 }

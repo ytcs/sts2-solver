@@ -1,41 +1,12 @@
-import json
 import re
 
-
-def game_slot(scenario, i):
-    pots = scenario.get("potions", [])
-    return pots[i].get("slot", i) if 0 <= i < len(pots) else i
+# A live Sim's belt index is the game's slot (Sim() places scenario potions by slot, sync follows the game).
 
 
-def sim_index(scenario, slot):
-    for i, p in enumerate(scenario.get("potions", [])):
-        if p.get("slot", i) == slot:
-            return i
-    return None
-
-
-def to_game_action(scenario, j):
-    a = json.loads(j)
-    if "use_potion" not in a:
-        return j
-    a["use_potion"]["slot"] = game_slot(scenario, a["use_potion"]["slot"])
-    return json.dumps(a)
-
-
-def to_sim_action(scenario, act):
-    a = json.loads(act)
-    if "use_potion" not in a:
-        return act
-    i = sim_index(scenario, a["use_potion"]["slot"])
-    if i is not None:
-        a["use_potion"]["slot"] = i
-    return json.dumps(a)
-
-
-def live_slots(scenario, sim):
-    pots = scenario.get("potions", [])
+def live_slots(sim):
+    ids = dict(sim.belt())
     slots = sorted({int(m.group(1)) for _, t in sim.legal() for m in [re.match(r"potion (\d+)", t)] if m})
-    return [(n, pots[n]["id"] if n < len(pots) else f"POTION_{n}") for n in slots]
+    return [(n, ids.get(n, f"POTION_{n}")) for n in slots]
 
 
 def text_index(text):
@@ -43,12 +14,11 @@ def text_index(text):
     return int(m.group(1)) if m else None
 
 
-def held_indices(scenario, keep):
-    pots = scenario.get("potions", [])
+def held_indices(sim, keep):
     if keep is True:
-        return list(range(len(pots)))
+        return [i for i, _ in sim.belt()]
     if isinstance(keep, (set, frozenset)):
-        return [i for i, p in enumerate(pots) if p["id"] in keep]
+        return [i for i, pid in sim.belt() if pid in keep]
     return []
 
 

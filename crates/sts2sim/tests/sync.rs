@@ -1,4 +1,4 @@
-use sts2sim::engine::{ObsCard, ObsEnemy};
+use sts2sim::engine::{ActionBuf, ObsCard, ObsEnemy};
 use sts2sim::ids;
 use sts2sim::state::*;
 use sts2sim::types::*;
@@ -313,4 +313,48 @@ fn sync_options_takes_the_games_offer_of_generated_cards() {
     assert_eq!(cx.player.hand.len(), hand + 1);
     let last = *cx.player.hand.iter().last().unwrap();
     assert_eq!((cx.cards[last as usize].id, cx.cards[last as usize].upgrade), (ids::card::DEMON_FORM, 1));
+}
+
+fn belt(cx: &Combat) -> Vec<(usize, u16)> {
+    cx.player.potions.iter().enumerate().filter_map(|(i, p)| p.map(|p| (i, p.id))).collect()
+}
+
+fn usable(cx: &Combat) -> Vec<u8> {
+    let mut buf = ActionBuf::new();
+    cx.legal_actions(&mut buf);
+    let mut out: Vec<u8> = buf.iter().filter_map(|a| if let Action::UsePotion { slot, .. } = a { Some(*slot) } else { None }).collect();
+    out.dedup();
+    out
+}
+
+#[test]
+fn sync_potions_takes_the_games_belt_by_slot() {
+    let mut cx = combat(1);
+    let game = [(0usize, ids::potion::BLOCK_POTION), (2, ids::potion::FIRE_POTION)];
+    assert_eq!(cx.sync_potions(3, &game), 2);
+    assert_eq!(belt(&cx), game.to_vec());
+    assert_eq!(usable(&cx), vec![0, 2]);
+    assert_eq!(cx.sync_potions(3, &game), 0);
+    assert!(cx.step(Action::UsePotion { slot: 0, target: NO }));
+    assert_eq!(belt(&cx), vec![game[1]], "using a potion leaves its slot empty");
+    assert_eq!(cx.sync_potions(4, &game[1..]), 1);
+    assert_eq!(cx.player.potion_slots, 4);
+    assert_eq!(cx.sync_potions(3, &[]), 2);
+    assert!(belt(&cx).is_empty() && usable(&cx).is_empty());
+}
+
+#[test]
+fn sync_potions_replaces_the_simulators_entropic_brew_roll() {
+    for seed in 0..10u64 {
+        let mut cx = combat(seed);
+        cx.sync_potions(3, &[(1, ids::potion::ENTROPIC_BREW)]);
+        assert!(cx.step(Action::UsePotion { slot: 1, target: NO }), "seed {seed}");
+        assert_eq!(belt(&cx).len(), 3, "seed {seed}: Entropic Brew fills every slot");
+        let game = [(0usize, ids::potion::FIRE_POTION), (1, ids::potion::BLOCK_POTION), (2, ids::potion::FIRE_POTION)];
+        cx.sync_potions(3, &game);
+        assert_eq!(belt(&cx), game.to_vec(), "seed {seed}");
+        let hp = cx.cr(cx.enemies.as_slice()[0]).hp;
+        assert!(cx.step(Action::UsePotion { slot: 2, target: cx.enemies.as_slice()[0] }), "seed {seed}");
+        assert!(cx.cr(cx.enemies.as_slice()[0]).hp < hp, "seed {seed}: slot 2 throws the synced Fire Potion");
+    }
 }
