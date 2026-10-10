@@ -424,10 +424,11 @@ class PriceMacro(Macro):
         if best is None:
             return None
         if best != "skip" and self.last_res and "skip" in self.last_res:
-            # tie -> skip; past the density target an addition must also clear the density cost (data/macro_rules.json)
+            # past the density target: tie -> skip, and an addition must clear the density cost (data/macro_rules.json)
             main, _ = PR.ladder(self.last_res)
             d = self.last_res[best][main] - self.last_res["skip"][main]
-            need = R.MACRO["skip_margin"]["price_se"] * PR._se(d) + R.density_cost(len(st.deck) + 1) / 2
+            past = len(st.deck) + 1 > R.MACRO["density"]["target"]
+            need = (R.MACRO["skip_margin"]["price_se"] * PR._se(d) if past else 0.0) + R.density_cost(len(st.deck) + 1) / 2
             cid = PR._card_id(best)[0]
             if self.last_override is None and d.mean() + (R.plan_term(cid, st) if cid else 0.0) <= need:
                 best = "skip"

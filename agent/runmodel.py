@@ -20,11 +20,12 @@ def density_cost(n_cards):
 
 
 def pick_with_terms(w, sizes, extra=None):
-    """index into the variants (0 = no addition): worth minus the density cost plus the plan terms, an addition must beat no addition by the
-    skip margin"""
+    """index into the variants (0 = no addition): worth minus the density cost plus the plan terms; past the density target an addition must
+    beat no addition by the skip margin"""
     adj = np.asarray(w, float) - np.array([density_cost(n) for n in sizes]) + (0.0 if extra is None else np.asarray(extra, float))
     best = int(np.argmax(adj))
-    return best if best and adj[best] - adj[0] > MACRO["skip_margin"]["worth"] else 0
+    margin = MACRO["skip_margin"]["worth"] if best and sizes[best] > MACRO["density"]["target"] else 0.0
+    return best if best and adj[best] - adj[0] > margin else 0
 
 
 def plan_term(item, st, deck=None, relics=None):
