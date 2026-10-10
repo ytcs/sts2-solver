@@ -55,7 +55,7 @@ def main():
     s, bad = replay_prefix(ev, stop)
     print(f"server pid {p.pid} on 127.0.0.1:{a.port}, replayed {stop} events, header mismatches {len(bad)}{': ' + str(bad[:2]) if bad else ''}")
     print(scr.header_line(s, "") or s.split("\n")[0])
-    print(f"drive: STS2_BRIDGE=127.0.0.1:{a.port} .venv/Scripts/python.exe -m agent s")
+    print(f"drive: STS2_BRIDGE=127.0.0.1:{a.port} .venv/Scripts/python.exe -m agent newrun   (own run log: a branch starts mid-run, the Neow detection never fires)")
 
 
 if __name__ == "__main__":

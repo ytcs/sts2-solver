@@ -73,4 +73,7 @@ def pick_guard(state, step, why, reward_screen):
     if missing:
         return ("REFUSED: the `-- why` of a card pick records each input of the decision (sts2-deckbuilding section 1): "
                 + "; ".join(f"{k} {PICK_RECORD[k]}" for k in PICK_RECORD) + f". Missing: {', '.join(missing)}.\n")
+    chosen = next((o[1] for o in macro.parse_card_options(state)[0] if str(o[0]) == _option(step)), None)
+    if chosen and chosen.lower().rstrip("+") not in (why or "").lower():
+        return f"REFUSED: option {_option(step)} is {chosen}, which the `-- why` does not name (index slip?). Pick by name: `a ~{chosen}`.\n" + state
     return None
