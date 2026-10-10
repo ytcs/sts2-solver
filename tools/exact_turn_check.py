@@ -37,11 +37,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=4)
     ap.add_argument("--budget", type=float, default=2.0)
-    ap.add_argument("--cap", action="store_true", help="leaf values capped at the win-now value (FastSearch hp_cap)")
+    ap.add_argument("--no-cap", action="store_true", help="leaf values not capped at the win-now value (FastSearch hp_cap off)")
     a = ap.parse_args()
     torch.set_num_threads(4)
     from agent.engine import Engine
-    eng = Engine(exact_turn=True, hp_cap=a.cap)
+    eng = Engine(exact_turn=True, hp_cap=not a.no_cap)
     rec = RE.load(RECORD)
     ok, closed = True, 0
     for k, must in STATES:

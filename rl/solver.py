@@ -12,7 +12,7 @@ import heads
 _M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
 _c = json.load(open(os.path.join(_M, "current.json")))
 DEFAULT_CKPT = os.path.join(_M, _c["policy"])
-PREDICTOR_CKPT = os.path.join(_M, _c["predictor"])
+PREDICTOR_CKPT = os.path.join(_M, os.environ.get("STS2_PREDICTOR") or _c["predictor"])
 
 
 class Solver:

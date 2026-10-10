@@ -724,12 +724,14 @@ def main():
     from agent.engine import Engine
     from predictor import Predictor
     engine = Engine()
-    predictor = Predictor(engine.solver.net)
+    from solver import DEFAULT_CKPT, PREDICTOR_CKPT
+    predictor = Predictor(engine.solver.net if os.path.samefile(DEFAULT_CKPT, PREDICTOR_CKPT) else PREDICTOR_CKPT)
     gpu = GpuSampler()
     gpu.start()
     slots = [None] * games
     print(f"baseline {tag}: {len(pending)} runs pending of {len(seeds)}, {games} games round-robin, "
-          f"{f'{seconds:g} s' if seconds else f'{rounds} rounds'} per decision, macro {f'price n {price_n}' if price_n else 'base'}", flush=True)
+          f"{f'{seconds:g} s' if seconds else f'{rounds} rounds'} per decision, macro {f'price n {price_n}' if price_n else 'base'}, "
+          f"player {os.path.basename(DEFAULT_CKPT)}, predictor {os.path.basename(PREDICTOR_CKPT)}, hp_cap {engine.fs.hp_cap}", flush=True)
     try:
         while pending or any(slots):
             if free_gb() < min_free:
@@ -759,6 +761,7 @@ def main():
                         r = dict(seed=g.seed, result="loss", floor=None, died_at="result error: " + traceback.format_exc()[-300:], act_end_hp={}, fights=[],
                                  hp_lost=0, potions=g.potions, tags=sorted(g.tags | {"result_error"}), wall_s=round(time.time() - g.t0, 1),
                                  own_s=round(g.own, 1), decisions=0, decide_s=0.0)
+                    r["predictor"] = os.path.basename(PREDICTOR_CKPT)
                     done[r["seed"]] = r
                     with open(res_path, "a", encoding="utf-8") as f:
                         f.write(json.dumps(r) + "\n")

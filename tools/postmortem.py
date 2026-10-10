@@ -308,7 +308,8 @@ def cache_path(tag):
 def read_cache(tag):
     import glob
     c = {}
-    for p in sorted(set(glob.glob(os.path.join(ROOT, "evals", "baseline", f"{tag}_postmortem*.jsonl")) + [cache_path(tag)])):
+    paths = [cache_path(tag)] if os.environ.get("PM_CACHE") else glob.glob(os.path.join(ROOT, "evals", "baseline", f"{tag}_postmortem*.jsonl"))
+    for p in sorted(set(paths)):
         if os.path.exists(p):
             for l in open(p, encoding="utf-8"):
                 x = json.loads(l)
