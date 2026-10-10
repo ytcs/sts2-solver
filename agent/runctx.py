@@ -55,8 +55,13 @@ class RunContext:
     def horizon(self):
         ctx = self.ctx
         boss = [e for n in self.names for e in macro.narrow(pools.pool(n, "boss"), "boss", ctx)]
-        elites = [e for n in self.names for e in macro.narrow(pools.pool(n, "elite"), "elite", ctx)]
-        nxt = [e for n in (pools.act_names(self.act + 1) if self.act < 2 else []) for k in ("elite", "boss") for e in pools.pool(n, k)]
+        act, names = self.act, self.names
+        if act < 2 and set(boss) & set(ctx.get("seen", [])):
+            # the act boss is beaten (boss reward, ancient): the screens ahead play the next act
+            act, names = act + 1, pools.act_names(act + 1)
+            boss = [e for n in names for e in pools.pool(n, "boss")]
+        elites = [e for n in names for e in (pools.pool(n, "elite") if act != self.act else macro.narrow(pools.pool(n, "elite"), "elite", ctx))]
+        nxt = [e for n in (pools.act_names(act + 1) if act < 2 else []) for k in ("elite", "boss") for e in pools.pool(n, k)]
         return dict(boss=boss, elites=elites, next=nxt, ctx=ctx)
 
     def future(self):
