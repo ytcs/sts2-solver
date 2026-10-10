@@ -1,18 +1,25 @@
-"""Death post-mortem for headless baseline runs (`tools/baseline.py` result rows + per-run events.jsonl).
+"""Death post-mortem for headless baseline runs (`tools/baseline.py` result rows + per-run events.jsonl under --root).
 
-usage: python tools/postmortem.py TAG [--root DIR] [--seeds S1,S2] [--parts traj,macro,fatal,check] [--n 128] [--attempts 100]
-       [--k-base 512] [--k-strong 2048] [--k-check 4096] [--roots 16] [--table]
-Value V of a run state = paired run-model rollouts (BasePolicy, n per state, same seeds across the states compared), reported as
-`cont` (price's gate surrogate, late rule: P(beat this act's boss at arrival) x later acts' gates) and `act` (P(clear the act)).
-Rollout rooms = the rooms the run visited after that point in the act, the act template past the death row; counters at defaults.
-- traj: per non-fatal fight, actual HP loss vs the predictor's expectation at its start (E[end HP | win]); value drop =
-  V(post-fight state, actual HP) - V(same state, expected HP). Boss fights: both states enter the next act after the ancient's heal.
+usage: python tools/postmortem.py TAG [--root DIR] [--seeds S1,S2] [--parts traj,macro,fatal,check] [--n 512] [--attempts 64]
+         [--arms strong,full,base] [--k-base 512] [--k-strong 1024] [--k-check 4096] [--roots 128]
+       python tools/postmortem.py TAG --cf [--refight] [--k 8] [--top 2] [--worker i --workers P] [--games 1] [--port 15900]
+       python tools/postmortem.py TAG --table
+Value V of a run state: paired run-model rollouts (BasePolicy, n per state, same seeds across compared states); `act` = P(clear the
+act the state is in) ranks, `cont` (price's gate surrogate, late rule) is kept. Rollout rooms = the rooms the run visited after that
+point in its act, the act template past the death row; counters at defaults.
+- traj: per non-fatal fight, actual end HP vs the predictor's E[end HP | win] at its start; drop = V(actual) - V(expected HP).
+  Boss fights: both states enter the next act after the ancient's heal.
 - macro: card-reward and rest-site screens re-priced with V (rest site: rest + the smiths price screened), chosen - best.
-- fatal: P(win) of the fatal fight's start state by batch search (cover + exact turn, K futures per decision, one search round):
-  base = K k-base with no potions (the baseline searches without potions; its proposals not modelled: a lower bound on it),
-  strong = K k-strong, potions in the search; strong at full HP; V(state after the fatal fight won at the predictor's expected HP).
-- check: strong at K k-check on deaths whose strong full-HP P(win) < 0.5 (does more search move it).
-Cached in evals/baseline/<TAG>_postmortem.jsonl (one row per seed and part); --table prints from the cache.
+- fatal: batch search P(win) at the fatal fight's start (cover + exact turn, K futures, one round per decision): base = k-base,
+  no potions (the baseline searches without potions; proposals not modelled); strong = k-strong, potions in the search; full =
+  strong at max HP. check: k-check on deaths with full < 0.5.
+- --cf: the run's own agent on the headless server (ORACLE_DLL, STS2_PCK), restored by re-sending the logged commands, continued
+  until it dies or passes the floor the run died on. Suspects = up to --top leak fights with a significant drop; K continuations
+  at the actual HP and K after `x heal` to the expectation (fresh agent seeds, same game seed). --refight: K replays of the
+  fatal fight from its start (same game RNG: P(win) on the realized draw, which the run lost).
+Labels: combat HP leak (cf edited - actual pass > 2 se), combat loss at the fatal fight (strong or refight P(win) >= 0.5), macro
+decision (priced drop >= 0.1), else unresolved (deck flag when full < 0.5). Cache: evals/baseline/<TAG>_postmortem*.jsonl
+(PM_CACHE = file to append to).
 """
 import argparse, json, math, os, re, sys, time, zlib
 
@@ -380,6 +387,9 @@ def labels_of(run, c):
         fa = c.get((run.seed, "fatal"), {})
         note = "; strong full-HP P(win) < 0.5 (deck)" if fa.get("full") and fa["full"]["p"] < COMBAT_P else ""
         labs = ["unresolved" + note]
+    stuck = [m.group(0) for e in run.ev if e["kind"] == "stuck_option" for m in [re.search(r"A\d+ F\d+", e.get("screen", ""))] if m]
+    if stuck:
+        labs[-1] += f" (harness caveat: option banned after a server error at {', '.join(stuck)})"
     return labs, cands
 
 
@@ -592,8 +602,8 @@ def main():
     ap.add_argument("--root", default=ROOT)
     ap.add_argument("--seeds")
     ap.add_argument("--parts", default="traj,macro,fatal,check")
-    ap.add_argument("--n", type=int, default=128)
-    ap.add_argument("--attempts", type=int, default=100)
+    ap.add_argument("--n", type=int, default=512)
+    ap.add_argument("--attempts", type=int, default=64)
     ap.add_argument("--k-base", type=int, default=512)
     ap.add_argument("--k-strong", type=int, default=1024)
     ap.add_argument("--k-check", type=int, default=4096)
