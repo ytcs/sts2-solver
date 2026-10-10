@@ -6,7 +6,7 @@ import threading
 import traceback
 import zlib
 
-from agent import guards, macro, runctx, skillgate, tracker
+from agent import bottleneck, guards, macro, runctx, skillgate, tracker
 from agent import screen as scr
 from agent.args import Args
 from agent.bridge import call
@@ -353,7 +353,9 @@ class Harness(Live):
             deck = self._run()
         except runctx.NoRun:
             return state
-        return macro.brief_text(state, deck, self._horizon()) + "\n"
+        ev = os.path.join(self.log.dir, "events.jsonl")
+        bn = bottleneck.line(ev) if os.path.exists(ev) else ""
+        return macro.brief_text(state, deck, self._horizon()) + "\n" + (bn + "\n" if bn else "")
 
     EVAL_VALUED = ("--enc", "--pool", "--attempts", "--hp", "--v")
     EVAL_FLAGS = ("--boss", "--elites", "--next", "--all", "--future", "--smooth")

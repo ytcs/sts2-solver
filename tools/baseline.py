@@ -641,6 +641,17 @@ class Game:
             return True
         return False
 
+    def bottleneck(self, ev):
+        from agent import bottleneck as B
+        path = os.path.join(self.dir, "events.jsonl")
+        acts = sorted({(e.get("scenario") or {}).get("act") for e in ev if e["kind"] == "fight_start"} - {None})
+        out = {}
+        for a in acts:
+            r = B.analyze(path, a)
+            out[str(a + 1)] = dict(turns=r["turns"], energy_bound=r["energy_bound_share"],
+                                   ignored=[[c["card"], c["left_no_energy"], c["left_with_energy"], c["played"]] for c in r["cards"] if c["left"] >= 3 and c["ignore_rate"] >= 0.5][:5])
+        return out
+
     def result(self):
         try:
             bridge.call("shutdown")
@@ -693,7 +704,7 @@ class Game:
                     decisions=st["decisions"], decide_s=round(st["decide_s"], 1), proposals_s=round(st["proposals_s"], 1), differs=st["differs"],
                     desync=st["desync"], select_fallback=st["select_fallback"],
                     fallback_actions=st["fallback_actions"], errors=self.errors, act=act, price_calls=st["price_calls"], price_s=round(st["price_s"], 1),
-                    death_kind=kind, deck_strength=self.deck_strength(ev), deck_size=len(starts[max(starts)]["scenario"]["deck"]) if starts else None,
+                    death_kind=kind, deck_strength=self.deck_strength(ev), bottleneck=self.bottleneck(ev), deck_size=len(starts[max(starts)]["scenario"]["deck"]) if starts else None,
                     **self.setting)
 
 

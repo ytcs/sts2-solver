@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
 """Deck bottleneck tracker (plan item 4b): per card, plays vs turns it was left in hand at end of turn (from the run log's `action` events:
 `play X` texts and `end turn` events with hand_left / energy_left). Diagnosis, an input not a verdict:
-- left with no energy to spare (energy_left < its cost) -> energy bottleneck;
+- left with energy_left < its cost (< 1 without a logged cost) -> energy bottleneck; unplayable (cost < 0) not counted;
 - left while energy remained -> the deck chose not to play it: removal candidate, or a combo piece waiting for its partner (draw / retain);
-Usage: tools/bottleneck.py <events.jsonl> [--act N]"""
+Usage: python -m agent.bottleneck <events.jsonl> [--act N]"""
 import argparse, collections, json, re
 
 
 def analyze(path, act=None):
-    played, left, left_poor, left_rich, cost = collections.Counter(), collections.Counter(), collections.Counter(), collections.Counter(), {}
+    played, left, left_poor, left_rich = collections.Counter(), collections.Counter(), collections.Counter(), collections.Counter()
     turns = 0
     cur_act = None
     for l in open(path, encoding="utf-8"):
         e = json.loads(l)
         if e["kind"] == "fight_start":
             cur_act = (e.get("scenario") or {}).get("act")
-            for c in (e.get("scenario") or {}).get("deck", []):
-                cost.setdefault(c["id"], None)
         if e["kind"] != "action" or (act is not None and cur_act != act):
             continue
         t = str(e.get("text", ""))
         m = re.match(r"play (\S+)", t)
         if m:
-            played[m.group(1).split("#")[0]] += 1
+            played[m.group(1).split("#")[0].rstrip("+")] += 1
         elif t.startswith("end turn") and "hand_left" in e:
             turns += 1
             en = e.get("energy_left") or 0
-            for cid in e["hand_left"]:
+            for cid, c in zip(e["hand_left"], e.get("hand_cost") or [None] * len(e["hand_left"])):
+                if c is not None and c < 0:
+                    continue
                 base = cid.rstrip("+")
                 left[base] += 1
-                (left_rich if en >= 1 else left_poor)[base] += 1
+                (left_rich if en >= (1 if c is None else c) else left_poor)[base] += 1
     rows = []
     for cid in sorted(set(played) | set(left)):
         p, lf = played[cid], left[cid]
@@ -37,6 +37,16 @@ def analyze(path, act=None):
     rows.sort(key=lambda r: -r["ignore_rate"])
     energy_bound = sum(left_poor.values()) / max(1, sum(left.values()))
     return dict(turns=turns, energy_bound_share=round(energy_bound, 2), cards=rows)
+
+
+def line(path, act=None, top=4):
+    """one line for `brief`: energy-bound share and the most ignored cards (left at end of turn, no energy / with energy / played)"""
+    r = analyze(path, act)
+    if not r["turns"]:
+        return ""
+    ign = [f"{c['card']} {c['left_no_energy']}/{c['left_with_energy']}/{c['played']}" for c in r["cards"] if c["left"] >= 3 and c["ignore_rate"] >= 0.5][:top]
+    return (f"bottleneck ({r['turns']} turns{'' if act is None else f', act {act + 1}'}): cards left with no energy {r['energy_bound_share']:.0%}"
+            + (f"; ignored (left@0E/left@>=1E/played): {', '.join(ign)}" if ign else ""))
 
 
 def main():
