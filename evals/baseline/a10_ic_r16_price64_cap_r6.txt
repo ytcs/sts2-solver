@@ -1,0 +1,23 @@
+seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
+BASE0001   win       49                                    34/34/27           236     25   27    12.7     34.0 desync
+BASE0002   loss      17 WATERFALL_GIANT_BOSS               0/-/-              125      9    4     2.0     12.8 
+BASE0003   loss      17 VANTOM_BOSS                        0/-/-               98      9    5     2.0     13.2 desync,fallback
+BASE0004   loss      17 THE_KIN_BOSS                       0/-/-              111      9    6     1.6     11.8 
+BASE0005   loss      48 TEST_SUBJECT_BOSS                  53/57/0            201     23    9     8.8     29.4 
+BASE0006   loss      48 TEST_SUBJECT_BOSS                  49/41/0            189     22   10     7.6     27.7 
+BASE0007   loss      17 CEREMONIAL_BEAST_BOSS              0/-/-              113     10    5     1.6     11.9 
+BASE0008   loss      22 unplayable fight: Hunter Killer    38/-/-              70     10    6     2.1     23.1 unplayable
+BASE0009   loss      33 KNOWLEDGE_DEMON_BOSS               69/0/-             149     18    7     4.9     24.9 
+BASE0010   loss      24 ENTOMANCER_ELITE                   33/-/-             155     13    7     2.7     15.8 
+BASE0011   loss      33 KAISER_CRAB_BOSS                   10/0/-             302     17   10     4.5     23.6 
+BASE0012   loss      33 KNOWLEDGE_DEMON_BOSS               24/0/-             126     17    7     4.2     25.4 
+BASE0013   loss       7 PHANTASMAL_GARDENERS_ELITE         -/-/-               58      2    2     0.8      4.5 
+BASE0014   loss      33 THE_INSATIABLE_BOSS                21/0/-             161     16   10     3.6     23.9 
+BASE0015   loss      33 KNOWLEDGE_DEMON_BOSS               20/0/-             146     17   13     4.0     25.3 
+BASE0016   loss      46 MECHA_KNIGHT_ELITE                 29/16/-            227     27   18     7.8     32.1 
+BASE0017   loss      42 MECHA_KNIGHT_ELITE                 33/41/-            198     23   12     5.7     27.9 
+BASE0018   loss      33 KNOWLEDGE_DEMON_BOSS               54/0/-             153     16    6     5.1     23.7 
+BASE0019   loss      45 FROG_KNIGHT_NORMAL                 49/25/-            209     20   11     6.6     29.0 
+BASE0020   loss      17 WATERFALL_GIANT_BOSS               0/-/-              150      9    7     2.6     13.2 
+win rate 0.050 +- 0.049 (n 20); mean floor 30.7; own time per run 4.5 min; decide 0.361 s/decision
+act-1 boss passed 0.700 +- 0.102; act reached 1/2/3: 6/8/6; mean death floor 29.7; deaths {'boss': 13, 'unplayable': 1, 'elite': 4, 'hallway': 1}; price 36.2 calls/run, 2.8 s/call
