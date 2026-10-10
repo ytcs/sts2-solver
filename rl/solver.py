@@ -48,7 +48,18 @@ class Solver:
             scenarios = [scenarios]
         S = len(scenarios)
         t0 = time.time()
-        if search:
+        per = None
+        if search and not np.isscalar(attempts):
+            # per-scenario attempts (several evaluations in one batch): each job keeps the seed it gets in a call of its own
+            A = np.asarray(attempts, dtype=np.int64)
+            js = np.concatenate([np.full(a, i, dtype=np.uint32) for i, a in enumerate(A)])
+            att = np.concatenate([np.arange(a, dtype=np.uint64) for a in A])
+            g = np.asarray(groups if groups is not None else np.arange(S), dtype=np.uint64)[js]
+            jd = np.uint64(seed) * np.uint64(1_000_003) + g * A[js].astype(np.uint64) + att
+            r = self.fs.run(scenarios, js, jd, worth=worth)
+            allrows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6]) for i in range(len(js))]
+            per = [[allrows[j] for j in np.flatnonzero(js == i)] for i in range(S)]
+        elif search:
             js = np.tile(np.arange(S, dtype=np.uint32), attempts)
             if groups is None:
                 jd = np.uint64(seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
@@ -61,10 +72,11 @@ class Solver:
         else:
             rows = self._greedy(scenarios, attempts, seed)
         if verbose:
-            print(f"{S * attempts} fights in {time.time() - t0:.0f}s ({S * attempts / (time.time() - t0):.1f} fights/s)", flush=True)
+            nf = int(np.sum(attempts)) if not np.isscalar(attempts) else S * attempts
+            print(f"{nf} fights in {time.time() - t0:.0f}s ({nf / (time.time() - t0):.1f} fights/s)", flush=True)
         res = []
         for i in range(S):
-            r = np.array(rows[i::S], dtype=np.float64)
+            r = np.array(rows[i::S] if per is None else per[i], dtype=np.float64)
             valid = (r[:, 0] == 1) | (r[:, 0] == -1) | (r[:, 0] == 2)
             win = (r[:, 0] == 1) & valid
             n = int(valid.sum())

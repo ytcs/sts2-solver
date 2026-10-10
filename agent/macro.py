@@ -116,14 +116,14 @@ def _diffs(rows, rows0):
     return out
 
 
-def evaluate_smooth(engine, deck_json, spec):
+def _smooth_parts(deck_json, spec):
     hp = spec.get("hp", "current")
     h0 = deck_json["max_hp"] if hp == "full" else (deck_json["hp"] if hp == "current" else hp)
-    sub = dict(spec, smooth=False)
-    parts = []
-    for m in SMOOTH_MULTS:
-        d = dict(deck_json, hp=int(round(h0 * m)), max_hp=max(deck_json["max_hp"], int(round(h0 * m))))
-        parts.append(evaluate(engine, d, dict(sub, hp="current")))
+    sub = dict(spec, smooth=False, hp="current")
+    return h0, [(dict(deck_json, hp=int(round(h0 * m)), max_hp=max(deck_json["max_hp"], int(round(h0 * m)))), sub) for m in SMOOTH_MULTS]
+
+
+def _smooth_summary(spec, h0, parts):
     variants = spec["variants"]
     summary, lines = {}, [f"smooth objective: win rate averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of {h0}  ({len(variants)} variants)"]
     for vi, v in enumerate(variants):
@@ -140,9 +140,7 @@ def evaluate_smooth(engine, deck_json, spec):
     return "\n".join(lines), summary
 
 
-def evaluate(engine, deck_json, spec):
-    if spec.get("smooth"):
-        return evaluate_smooth(engine, deck_json, spec)
+def _build(deck_json, spec):
     base = dict(deck_json)
     hp = spec.get("hp", "current")
     if hp == "full":
@@ -150,12 +148,11 @@ def evaluate(engine, deck_json, spec):
     elif isinstance(hp, int):
         base["hp"] = hp
     encs = resolve_encounters(spec)
-    variants = spec["variants"]
     hold = spec.get("hold", ())
     drop_all = hold == "all"
     hold = set() if drop_all else set(hold)
     scen, index = [], []
-    for vi, v in enumerate(variants):
+    for vi, v in enumerate(spec["variants"]):
         sv = apply_variant(base, v)
         for e in encs:
             sc = dict(sv, name=f"{v.get('name', vi)}@{e}", encounter=e, seed=f"macro{encs.index(e)}")
@@ -163,7 +160,11 @@ def evaluate(engine, deck_json, spec):
                 sc["potions"] = [] if drop_all else [p for p in sc.get("potions", []) if p["id"] not in hold]
             scen.append(sc)
             index.append((vi, e))
-    res = engine.solve(scen, attempts=spec.get("attempts", 64), groups=[encs.index(e) for _, e in index])
+    return base, encs, scen, index
+
+
+def _summary(spec, base, encs, index, res):
+    variants = spec["variants"]
     by = {}
     for (vi, e), r in zip(index, res):
         by.setdefault(vi, []).append((e, r))
@@ -184,6 +185,99 @@ def evaluate(engine, deck_json, spec):
         d, sd = _vs(summary, vi)
         lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: win {d:+.3f} (±{sd:.3f}{' paired' if summary[vi]['dse'] is not None else ''}), HP lost {100 * (summary[vi]['hp_lost'] - summary[0]['hp_lost']):+.1f} pts")
     return "\n".join(lines), summary
+
+
+def _merge(a, b):
+    """two solve() rows of the same scenario from different seed rounds -> one row"""
+    if a is None:
+        return dict(b)
+    wins = (a.get("wins") or []) + (b.get("wins") or [])
+    valid = [w for w in wins if w is not None]
+    n = len(valid)
+    p = sum(valid) / max(n, 1)
+    na, nb = a.get("attempts", 0), b.get("attempts", 0)
+    hl = [x for x, k in ((a.get("hp_lost"), na), (b.get("hp_lost"), nb)) if x is not None]
+    return dict(a, wins=wins, win=p, win_se=(p * (1 - p) / max(n, 1)) ** 0.5, attempts=na + nb, ends=(a.get("ends") or []) + (b.get("ends") or []),
+                hp_lost=(((a.get("hp_lost") or 0) * na + (b.get("hp_lost") or 0) * nb) / max(na + nb, 1)) if hl else None)
+
+
+TIE_SE, STEP, BAR = 0.015, 32, 0.05
+
+
+def _decided(summary, bar=None):
+    """every option is either beaten by the best by 2 paired se, or its difference to the best is resolved to TIE_SE; with a bar (the
+    section-3 bar vs option 0 = skip), an option whose upper bound d + 2 se stays below the bar is decided too (it cannot clear it)"""
+    live = set(summary)
+    if bar is not None and 0 in summary:
+        live = {0} | {vi for vi in summary if vi and _vs(summary, vi)[0] + 2 * _vs(summary, vi)[1] >= bar}
+    best = max(live, key=lambda vi: summary[vi]["win"])
+    for vi in live:
+        if vi == best:
+            continue
+        d = summary[best]["win"] - summary[vi]["win"]
+        se = _vs(summary, vi)[1] if best == 0 else _vs(summary, best)[1] if vi == 0 else (summary[best]["se"] ** 2 + summary[vi]["se"] ** 2) ** 0.5
+        if not (d > 2 * se or se <= TIE_SE):
+            return False
+    return True
+
+
+def evaluate_many(engine, items, adaptive=False, bar=None):
+    """[(deck_json, spec)] -> [(text, summary)], all in ONE batch search per round (smooth specs expand to their HP multiples); each scenario
+    keeps the attempts and the common-random-number group it has in a call of its own. adaptive: rounds of STEP attempts (fresh seed per
+    round, pairing kept within a round) until every comparison with the best option is decided (_decided) or the spec's attempts are spent"""
+    flat = []
+    for deck_json, spec in items:
+        if spec.get("smooth"):
+            h0, parts = _smooth_parts(deck_json, spec)
+            flat.append(("smooth", spec, h0, [_build(d, s) + (s,) for d, s in parts]))
+        else:
+            flat.append(("plain", spec, None, [_build(deck_json, spec) + (spec,)]))
+    scen, att, grp, spans = [], [], [], []
+    for _kind, _spec, _h0, builds in flat:
+        for base, encs, sc, index, s in builds:
+            spans.append((len(scen), len(sc)))
+            scen += sc
+            att += [s.get("attempts", 64)] * len(sc)
+            grp += [encs.index(e) for _, e in index]
+
+    def summarize(res):
+        out, k = [], 0
+        for kind, spec, h0, builds in flat:
+            parts = []
+            for base, encs, sc, index, s in builds:
+                a, n = spans[k]
+                k += 1
+                parts.append(_summary(s, base, encs, index, res[a:a + n]))
+            out.append(_smooth_summary(spec, h0, parts) if kind == "smooth" else parts[0])
+        return out
+    if not scen:
+        return summarize([])
+    if not adaptive:
+        return summarize(engine.solve(scen, attempts=att, groups=grp))
+    acc, done, rnd = [None] * len(scen), [0] * len(scen), 0
+    while True:
+        take = [min(STEP, t - d) for t, d in zip(att, done)]
+        if max(take) <= 0:
+            break
+        idx = [i for i, t in enumerate(take) if t > 0]
+        got = engine.solve([scen[i] for i in idx], attempts=[take[i] for i in idx], groups=[grp[i] for i in idx], seed=1000 + rnd)
+        for i, r in zip(idx, got):
+            acc[i] = _merge(acc[i], r)
+            done[i] += take[i]
+        rnd += 1
+        out = summarize(acc)
+        if all(_decided(summary, bar) for _, summary in out):
+            break
+    n_used = sum(done)
+    return [(t + f"\n(adaptive: {n_used} of {sum(att)} fights)", summary) for t, summary in out]
+
+
+def evaluate_smooth(engine, deck_json, spec):
+    return evaluate_many(engine, [(deck_json, dict(spec, smooth=True))])[0]
+
+
+def evaluate(engine, deck_json, spec):
+    return evaluate_many(engine, [(deck_json, spec)])[0]
 
 
 def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), attempts=48, ctx=None):
@@ -270,14 +364,12 @@ def need_view(res, nvar, names=None):
     return rows, tot <= 0.05
 
 
-def price_horizon(engine, deck_json, variants, hz, hp, hold, boss_attempts, other_attempts, next_attempts=None, smooth_boss=True):
+def price_horizon(engine, deck_json, variants, hz, hp, hold, boss_attempts, other_attempts, next_attempts=None, smooth_boss=True, bar=None):
     sets = (("boss", hz["boss"], smooth_boss, boss_attempts), ("elites", hz["elites"], False, other_attempts),
             ("next act", hz["next"], False, other_attempts if next_attempts is None else next_attempts))
-    res = {}
-    for key, encs, smooth, att in sets:
-        if encs:
-            _, res[key] = evaluate(engine, deck_json, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth, hold=hold))
-    return res
+    keys = [(key, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth, hold=hold)) for key, encs, smooth, att in sets if encs]
+    got = evaluate_many(engine, [(deck_json, spec) for _, spec in keys], adaptive=True, bar=bar)
+    return {key: summary for (key, _), (_, summary) in zip(keys, got)}
 
 
 HORIZON_HEAD = f"{'boss smooth':>16s} {'boss@full':>9s} {'elites win/HP':>14s} {'next act win/HP':>16s}"
@@ -295,7 +387,7 @@ def horizon_cells(res, vi):
 def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full", hold=()):
     from agent import card_tags
     variants = [dict(name="skip")] + [dict(name=n, add=[(cid + "+") if u else cid]) for _, n, cid, u in opts if cid]
-    res = price_horizon(engine, deck_json, variants, hz, hp, hold, attempts, max(48, attempts * 2 // 3))
+    res = price_horizon(engine, deck_json, variants, hz, hp, hold, attempts, max(48, attempts * 2 // 3), bar=BAR)
     lines = [f"card reward vs boss {','.join(hz['boss']) or '?'} (smooth = win averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of full HP), "
              f"{len(hz['elites'])} elites left, {len(hz['next'])} next-act elite/boss fights; {attempts} attempts"]
     lines.append(f"{'option':22s} {HORIZON_HEAD}  fills")
@@ -342,7 +434,7 @@ def _bar_verdict(variants, res, tags, gaps, nv):
         dw = (nv[vi][1] - w0) if nv and w0 is not None else 0.0
         if boss[vi].get("by_hp") and boss[0].get("by_hp"):
             dw = max(dw, boss[vi]["by_hp"][0] - boss[0]["by_hp"][0])
-        bar = max(3 * se, 0.05)
+        bar = max(3 * se, BAR)
         clear = d > bar or dw >= 0.10
         if opens:
             verdict = "fills open " + "/".join(opens) + (": take on numbers" if d > 0 else ": price vs the gap")
