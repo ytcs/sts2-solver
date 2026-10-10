@@ -44,6 +44,15 @@ fn pot_ids(cx: &Combat) -> [u16; POT] {
     o
 }
 
+// Reserve value of the root's potions: each one gone from its slot at a line's end costs cfg.pot_cost (objective units).
+fn spent_cost(cx: &Combat, root: &[u16; POT], cfg: &SearchCfg) -> f32 {
+    if cfg.pot_cost == 0.0 {
+        return 0.0;
+    }
+    let now = pot_ids(cx);
+    cfg.pot_cost * (0..POT).filter(|&k| root[k] != u16::MAX && now[k] != root[k]).count() as f32
+}
+
 fn end_score(cx: &Combat, oc: i8, r: f32, w: &Worth) -> f32 {
     if !w.table {
         return r;
@@ -103,6 +112,7 @@ pub struct SearchCfg {
     pub clairvoyant: bool,
     pub exact: ExactCfg,
     pub hp_cap: bool,
+    pub pot_cost: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -138,6 +148,7 @@ impl Default for SearchCfg {
             clairvoyant: false,
             exact: ExactCfg::default(),
             hp_cap: false,
+            pot_cost: 0.0,
         }
     }
 }
@@ -243,6 +254,7 @@ struct Sim {
     est: f32,
     steps: u32,
     rng: u64,
+    pots0: [u16; POT],
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -488,7 +500,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             return None;
         }
         if let Some((oc, r)) = terminal(&sim.cx, 0, u32::MAX, cfg) {
-            sim.est += end_score(&sim.cx, oc, r, w);
+            sim.est += end_score(&sim.cx, oc, r, w) - spent_cost(&sim.cx, &sim.pots0, cfg);
             sim.st = SimSt::Done;
             st.end_term += 1;
             st.end_loop += crate::looped(&sim.cx) as u64;
@@ -503,6 +515,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             write_row(&mut sim.cx, &buf, None, out.obs, None, out.val_obs_row(row));
             st.cy_obs += tsc() - t0;
             st.value_rows += 1;
+            sim.est -= spent_cost(&sim.cx, &sim.pots0, cfg);
             if at_leaf {
                 st.end_turn += 1;
             } else {
@@ -543,7 +556,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
 }
 
 fn idle_sim(cx: &Combat) -> Sim {
-    Sim { cx: cx.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0 }
+    Sim { cx: cx.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0, pots0: [u16::MAX; POT] }
 }
 
 #[inline]
@@ -829,8 +842,10 @@ impl Block {
     fn start_option(&mut self, j: usize, first: Action, lead: bool, cfg: &SearchCfg, w: &Worth, out: &Out, turn: i32) {
         let (base, c) = (j * self.kc, self.kc);
         let n_now = if lead { 1 } else { c };
+        let pots0 = pot_ids(&self.main);
         for kk in 0..c {
             let sim = &mut self.sims[base + kk];
+            sim.pots0 = pots0;
             if kk >= n_now {
                 sim.st = SimSt::Idle;
                 continue;
@@ -1096,6 +1111,7 @@ struct Exact {
     turn: i32,
     best: usize,
     gain: Option<i32>,
+    pots0: [u16; POT],
 }
 
 struct Fx(u64);
@@ -1129,10 +1145,12 @@ impl Exact {
     }
 
     fn score(&mut self, node: u32, cx: &mut Combat, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) {
+        let cost = spent_cost(cx, &self.pots0, cfg);
         if let Some((oc, r)) = terminal(cx, 0, u32::MAX, cfg) {
-            self.nodes[node as usize].v += end_score(cx, oc, r, w);
+            self.nodes[node as usize].v += end_score(cx, oc, r, w) - cost;
             return;
         }
+        self.nodes[node as usize].v -= cost;
         let row = val_row(out, cx);
         write_row(cx, &ActionBuf::new(), None, out.obs, None, out.val_obs_row(row));
         self.pending.push((row as u32, node, cx.cr(0).max_hp, hp_ceiling(cx, self.gain)));
@@ -1355,6 +1373,7 @@ impl Block {
         ex.turn = self.main.player.turn_number;
         ex.best = best;
         ex.gain = self.gain;
+        ex.pots0 = pot_ids(&self.main);
         let root = self.main.clone();
         let ok = ex.add(root, NONE, cfg, &sh.worth[self.scen as usize], out, &mut self.stats) == Some(0);
         self.stats.cy_exact += tsc() - t0;

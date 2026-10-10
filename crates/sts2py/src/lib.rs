@@ -130,7 +130,7 @@ struct SearchEnginePy {
 #[pymethods]
 impl SearchEnginePy {
     #[new]
-    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, starts=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, clairvoyant=false, cover=false, futures=0, exact=false, ex_loss=-0.9, ex_tie=0.0, ex_dets=8, ex_cap=5000, hp_cap=false))]
+    #[pyo3(signature = (scenarios_json, job_scen, job_seed, n_roots, m, k, roll_cap, max_steps, win, loss, hp_bonus, threads, record=false, starts=None, leaf_turns=1, turn_cap=0, val_w=1, worth=None, clairvoyant=false, cover=false, futures=0, exact=false, ex_loss=-0.9, ex_tie=0.0, ex_dets=8, ex_cap=5000, hp_cap=false, pot_cost=0.0))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -162,11 +162,12 @@ impl SearchEnginePy {
         ex_dets: usize,
         ex_cap: usize,
         hp_cap: bool,
+        pot_cost: f32,
     ) -> PyResult<Self> {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
-        let cfg = sts2env::search::SearchCfg { m, k, roll_cap, leaf_turns, max_steps, win, loss, hp_bonus, turn_cap, val_w, cover, futures, clairvoyant, exact: sts2env::search::ExactCfg { on: exact, loss: ex_loss, tie: ex_tie, dets: ex_dets, cap: ex_cap }, hp_cap };
+        let cfg = sts2env::search::SearchCfg { m, k, roll_cap, leaf_turns, max_steps, win, loss, hp_bonus, turn_cap, val_w, cover, futures, clairvoyant, exact: sts2env::search::ExactCfg { on: exact, loss: ex_loss, tie: ex_tie, dets: ex_dets, cap: ex_cap }, hp_cap, pot_cost };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let n_scen = scs.len();
         let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
