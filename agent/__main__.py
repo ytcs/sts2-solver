@@ -106,6 +106,15 @@ def _stops(out):
     return any(l.startswith(STOP_LINES) for l in out.splitlines())
 
 
+def with_stop_tail(out):
+    """repeat the first stop line at the end: a long reply otherwise hides why it stopped"""
+    lines = out.rstrip("\n").splitlines()
+    hit = next((l for l in lines if l.startswith(STOP_LINES)), None)
+    if hit is None or hit in lines[-3:]:
+        return out
+    return out.rstrip("\n") + "\n^ stopped: " + hit[:200] + "\n"
+
+
 def batch(lines, keep_going=False):
     if not up():
         start_daemon()
@@ -123,6 +132,7 @@ def batch(lines, keep_going=False):
         out = ask(line)
         if line.split()[0] not in READ_ONLY and not out.startswith(("ERR", "REFUSED")):
             acted = True
+        out = with_stop_tail(out)
         print(out, end="" if out.endswith(chr(10)) else chr(10))
         if not keep_going and (out.startswith(("ERR", "REFUSED")) or "[chain stopped" in out or _stops(out)):
             print(">>> batch stopped here")
@@ -141,7 +151,7 @@ def main():
             return
         start_daemon()
     try:
-        print(ask(line), end="")
+        print(with_stop_tail(ask(line)), end="")
     except (ConnectionError, OSError) as e:
         if line == "quit":
             print("bye")

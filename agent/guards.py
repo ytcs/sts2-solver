@@ -42,11 +42,13 @@ def decision_guard(state, step, why, priced, reward_screen):
         if not ran("routes", "route"):
             return f"REFUSED: run `routes` on this floor before a {'fork' if kind == 'MAP' else 'Neow / ancient'} choice (sts2-pathing procedure, sts2-harness: routes at every fork).\n" + state
         return None
-    if kind == "RESTSITE" and not re.search(r"(?i)proceed", line) and not (ran("routes") and ran("eval")):
-        return ("REFUSED: rest or smith is priced over the rest of the act (sts2-deckbuilding section 6): `routes --hp <HP after the rest>` and `routes` at "
-                "the HP now, plus `eval --smooth --boss --next` upgrade variants, on this floor.\n" + state)
+    hp = scr.hp(state)
+    near_full = bool(hp) and hp[0] >= 0.95 * hp[1]
+    if kind == "RESTSITE" and not re.search(r"(?i)proceed", line) and not near_full and not ran("restcalc") and not (ran("routes") and ran("eval")):
+        return ("REFUSED: rest or smith is priced over the rest of the act (sts2-deckbuilding section 6): `restcalc` (boss win at the HP now vs after the rest), "
+                "or `routes --hp <after>` + `routes` + `eval --smooth --boss --next` upgrade variants, on this floor.\n" + state)
     if (kind == "SHOP" and not re.search(r"(?i)leave", line)) or (kind == "RESTSITE" and not re.search(r"(?i)proceed", line)):
-        if not ran("eval", "rmcalc", "routes", "pickplan", "price"):
+        if not (kind == "RESTSITE" and near_full) and not ran("eval", "rmcalc", "routes", "pickplan", "price", "restcalc"):
             return f"REFUSED: price this {kind.lower()} decision first (`price`, `eval` variants, `rmcalc`, `routes`; sts2-deckbuilding section 1 / 6), on this floor.\n" + state
         miss = [k for k in ("numbers:", "judgment:") if k not in lw]
         if miss:

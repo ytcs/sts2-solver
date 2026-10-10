@@ -35,15 +35,16 @@ def _opportunity_loss(acc):
 
 # reserve value of a held potion in objective units (E61: run model ~10 HP = 0.063; near-miss flat 0.03-0.06)
 POT_COST = 0.06
+POT_MARGIN_SE, POT_MARGIN_MIN = 2.0, 0.01
 
 
 class Engine:
-    def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0, exact_turn=True, hp_cap=True, pot_cost=POT_COST):
+    def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0, exact_turn=True, hp_cap=True, pot_cost=POT_COST, pot_margin_se=POT_MARGIN_SE):
         self.solver = Solver() if ckpt is None else Solver(ckpt)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         self.fs = FastSearch(self.solver.net, M, K, roots=1, groups=1, amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn,
                              hp_cap=hp_cap, pot_cost=pot_cost)
-        self.pot_cost = pot_cost
+        self.pot_cost, self.pot_margin_se = pot_cost, pot_margin_se
         self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
         assert (proposal.HEAD_BIN, proposal.HEAD_NC) == (heads.BIN, heads.NC), "agent/proposal.py and rl/heads.py disagree on the outcome classes"
         self.fs.warm()
@@ -96,9 +97,20 @@ class Engine:
                 q = float(np.mean(acc[a])) if a in acc else None
                 opts.append(dict(action=a, text=text.get(a, f"#{a}"), p=round(float(p), 3), q=None if q is None else round(q, 3)))
         best = max((o for o in opts if o["q"] is not None), key=lambda o: o["q"], default=None)
+        gated = None
+        if best and best["text"].startswith("potion") and self.pot_margin_se > 0:
+            alt = max((o for o in opts if o["q"] is not None and not o["text"].startswith("potion")), key=lambda o: o["q"], default=None)
+            if alt:
+                x, y = acc[best["action"]], acc[alt["action"]]
+                n = min(len(x), len(y))
+                d = np.asarray(x[:n]) - np.asarray(y[:n])
+                se = float(d.std(ddof=1) / np.sqrt(n)) if n > 1 else float("inf")
+                # a throw must beat the best non-potion line by margin across rounds (eager, mistimed throws otherwise)
+                if float(d.mean()) <= max(self.pot_margin_se * se, POT_MARGIN_MIN):
+                    gated, best = best["text"], alt
         a = best["action"] if best else first["action"]
         return dict(action=a, json=sim.action_json(a), text=text.get(a, f"#{a}"), searched=first["searched"], rounds=rounds,
-                    seconds=round(time.perf_counter() - t0, 2), rows=tuple(n_rows), options=opts)
+                    seconds=round(time.perf_counter() - t0, 2), rows=tuple(n_rows), options=opts, potion_gated=gated)
 
     def solve(self, scenarios, attempts=64, seed=None, groups=None, worth=None):
         return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,

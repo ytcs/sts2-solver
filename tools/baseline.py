@@ -16,7 +16,7 @@ Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens
   best affordable card/relic by the same screen; catalogued events: BasePolicy.event on the first page, follow-up pages as rollouts resolve
   them (events.default_choose: the exit option, else the first modelled); Neow/ancients: the predictor screen of each option
   applied (events.apply_ancient), fights at min(reference HP, HP after the option); removals/transforms: curses, Strikes, Defends first;
-  upgrades BasePolicy.smith order; other selections the first k; rewards: gold, relics, cards, potions only into a free slot; treasure:
+  upgrades BasePolicy.smith order; other selections the first k; rewards: card, relics, stolen card, gold, potions only into a free slot; treasure:
   open, take; bundle: the first; Crystal Sphere: tools/serve_harness_run heuristic. No potion use outside combat.
   Unknown events (not in data/events.json): the first option starting Leave/Exit/Decline/Ignore/Abstain/Give Up/Proceed/Continue/Skip, else 0.
 --price N: PriceMacro (`price`, N paired rollouts per option) on map forks, card rewards, rest sites, shops, catalogued events' first
@@ -180,7 +180,9 @@ class Macro:
             return self.card_reward(s, lab)
         if kind == "REWARDS":
             fk = scr.floor_key(s)
-            for i, t in lab:
+            # card first (War Paint-like pickups act on it), relics before gold (Bowler Hat-like)
+            rank = lambda t: next((k for k, p in enumerate(("card", "relic", "take your stolen", "potion")) if t.lower().startswith(p)), 3)  # noqa: E731
+            for i, t in sorted(lab, key=lambda o: rank(o[1])):
                 if t.startswith("proceed") or (t.startswith("potion") and "slots full" in t):
                     continue
                 if t.startswith("card"):

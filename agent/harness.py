@@ -16,7 +16,7 @@ from agent.runlog import RunLog
 PICK_RECORD = guards.PICK_RECORD
 
 PRICING_FAILED = ("ERR", "REFUSED", "reward: not", "no run", "need --enc", "routes: no act map", "routes: boss unknown", "eval: ")
-PRICING = {"eval": "evaluate", "reward": "reward", "route": "route", "routes": "routes", "rmcalc": "rmcalc", "pickplan": "pickplan"}
+PRICING = {"eval": "evaluate", "reward": "reward", "route": "route", "routes": "routes", "rmcalc": "rmcalc", "pickplan": "pickplan", "restcalc": "restcalc"}
 
 _floor, _kind, _act_index, _hp = scr.floor_key, scr.kind, scr.act_index, scr.hp
 
@@ -93,6 +93,19 @@ class Harness(Live):
     def _send(self, line):
         self._rc = None
         return call(line)
+
+    def _detect_new_run(self, state):
+        if scr.kind(state) == "EVENT" and " A1 F1 " in f" {scr.header_line(state, '')} " and "\nNeow:" in state and self._log_has_fights():
+            self._new_run()
+
+    def _log_has_fights(self):
+        """a headless game starts at Neow without the main menu: a Neow screen after logged fights is a new run"""
+        p = os.path.join(self.log.dir, "events.jsonl")
+        try:
+            with open(p, encoding="utf-8") as f:
+                return any('"kind": "fight_start"' in l for l in f)
+        except OSError:
+            return False
 
     def _new_run(self):
         self.log.new_run()
@@ -171,6 +184,8 @@ class Harness(Live):
             kind = scr.kind(before)
             if kind == "MENU" and not i and step.split()[0] == "0" and len(step.split()) >= 2 and scr.option_line(before, "0").startswith("0 new run"):
                 self._new_run()
+            elif not i:
+                self._detect_new_run(before)
             if i and self.gate:
                 refusal = self._skill_refusal(before)
                 if refusal:
@@ -209,7 +224,7 @@ class Harness(Live):
         return self._public(reply, fight_start=scr.kind(reply) == "COMBAT" and last_kind not in ("COMBAT", "SELECT"))
 
     def _public(self, reply, fight_start=False):
-        if scr.kind(reply) in ("MAP", "REWARDS", "CARD_REWARD", "SHOP", "EVENT", "TREASURE", "RESTSITE") or fight_start:
+        if scr.kind(reply) in ("MAP", "SHOP"):
             try:
                 return reply.rstrip("\n") + "\n" + tracker.from_record(os.path.join(self.log.dir, "events.jsonl")).line() + "\n"
             except Exception as e:  # noqa: BLE001
@@ -336,6 +351,42 @@ class Harness(Live):
     EVAL_FLAGS = ("--boss", "--elites", "--next", "--all", "--future", "--smooth")
 
     @_needs_run("no run in progress")
+    def loot(self):
+        """free rewards in a safe order: the card reward is decided first (War Paint-like pickups act on the new card), then relics before gold
+        (Bowler Hat-like), a stolen card, gold, potions while a slot is free; cards and proceed stay the operator's"""
+        out = ""
+        order = (r"(?i)^relic ", r"(?i)^take your stolen", r"(?i)^\d+ gold", r"(?i)^potion ")
+        for _ in range(10):
+            state = call("peek")
+            if scr.kind(state) != "REWARDS":
+                break
+            opts = scr.options(state)
+            if any(label.lower().startswith("card") for _, label in opts):
+                return (out.rstrip("\n") + "\n" if out else "") + "loot: decide the card reward first (relics like War Paint act on the new card), then `loot`\n" + state
+            free = "-" in scr.belt(state)
+            pick = next((i for pat in order for i, label in opts if re.match(pat, label) and (free or "potion" not in pat)), None)
+            if pick is None:
+                break
+            out = self.act(f"{pick} -- loot: free reward")
+            if out.startswith(("ERR", "REFUSED")):
+                break
+        return out or call("peek")
+
+    def restcalc(self, argline):
+        """the rest decision's deciding number: the act boss(es) at the HP now vs after resting (Regal Pillow included)"""
+        state = call("peek")
+        hp = scr.hp(state)
+        m = re.search(r"Rest: Heal for \d+% of your Max HP \((\d+)\)", state)
+        if not hp or not m:
+            return "restcalc: not at a rest site with a Rest option\n"
+        heal = int(m.group(1)) + (15 if "Regal Pillow:" in self.handle("d") else 0)
+        after = min(hp[1], hp[0] + heal)
+        out = [f"rest heals {after - hp[0]} ({hp[0]} -> {after}/{hp[1]})"]
+        for h in (hp[0], after):
+            rows = [l for l in self.evaluate(f"--boss --hp {h} --attempts 128 {argline}").splitlines() if l.startswith("baseline")]
+            out.append(f"  at {h} HP: " + (rows[0].split(None, 1)[1] if rows else "?"))
+        return "\n".join(out) + "\n"
+
     def evaluate(self, argline):
         argline = argline.strip()
         if argline.startswith("{"):
@@ -452,10 +503,14 @@ class Harness(Live):
                 return self.potion_cmd(rest)
             if cmd == "a":
                 return self.act(rest)
+            if cmd == "loot":
+                return self.loot()
             if cmd in ("replay", "seedcheck"):
                 return self.reenact(cmd, rest)
             if cmd in PRICING:
-                here = scr.floor_key(call("peek"))
+                now = call("peek")
+                self._detect_new_run(now)
+                here = scr.floor_key(now)
                 m = re.search(r"(?:^|\s)--seed\s+(\d+)", rest)
                 if m:
                     rest = rest[:m.start()] + rest[m.end():]
@@ -467,7 +522,9 @@ class Harness(Live):
             if cmd == "brief":
                 return self.brief()
             if cmd == "price":
-                here = scr.floor_key(call("peek"))
+                now = call("peek")
+                self._detect_new_run(now)
+                here = scr.floor_key(now)
                 out = self.price(rest)
                 if here and not out.startswith(("ERR", "price: nothing to price")):
                     self.priced["price"] = here

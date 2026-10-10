@@ -14,7 +14,7 @@ description: Use at the start of a run and when a decision is not covered by pat
 ## Targets (rule; tag; test)
 1. Max smooth score vs the known boss while arriving above each fight's HP gate. `[sim]` 0.70 vs 0.31 (`sts2-deckbuilding/evidence.md`). `eval` omits slots, rewards, gold, route: price those by hand.
 2. Find the binding gate (HP or damage), re-test every few picks: `eval --boss --hp 34/45/60/80`. `[sim]`
-3. `DRIVE: MANUAL` (elites, bosses, `data/drive_manual.json`, win < 0.90 or q90 loss >= 40% HP): `adv` each decision, follow it unless you see what it misses, write that in the why. Add an encounter after a worst-10% fight showing a solver mistake; remove when review shows it plays well. `[hyp]` test: per-encounter PIT + HP lost, manual vs auto.
+3. `DRIVE: MANUAL` (elites/bosses predicted below 0.95 win or q90 loss >= 25% HP, `data/drive_manual.json`, any fight win < 0.90 or q90 loss >= 40% HP): `adv` each decision, follow it unless you see what it misses, write that in the why. Add an encounter after a worst-10% fight showing a solver mistake; remove when review shows it plays well. `[hyp]` test: per-encounter PIT + HP lost, manual vs auto.
 4. Manual fights: plan 2-3 turns from `eN plan` + `draw`; write the plan in the why. `[hyp]` test: `agent.hindsight` on plan-marked turns.
 5. Not playing a card can be best (stranded draw, Skill vs Enrage, wasted doubling). `[hyp]` test: hindsight on turns ending with an unplayed card the next turn wanted.
 6. Check lethal before `turn !`/`combat !` (Vulnerable x1.5). `[hyp]` test: missed-lethal count in `review`.

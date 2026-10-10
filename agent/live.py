@@ -16,6 +16,7 @@ REPLAY_BAD = ("diff", "residual", "action failed", "intent unmatched", "start un
 class Live:
     MANUAL_WIN = 0.90
     MANUAL_Q90 = 0.40
+    MANUAL_WIN_ELITE, MANUAL_Q90_ELITE = 0.95, 0.25
     COSTLY = 0.30
     TAIL = 0.90
 
@@ -113,11 +114,11 @@ class Live:
             listed = {}
         if enc in listed:
             return "manual", f"listed: {listed[enc]}"
-        if enc.endswith(("_ELITE", "_BOSS")):
-            return "manual", "an elite or boss"
+        q = pred.get("lost_q")
+        if enc.endswith(("_ELITE", "_BOSS")) and (pred.get("win", 0) < self.MANUAL_WIN_ELITE or not q or q[18] >= self.MANUAL_Q90_ELITE * hp):
+            return "manual", "an elite or boss with a predicted win below {:.2f} or q90 loss >= {:.0%}".format(self.MANUAL_WIN_ELITE, self.MANUAL_Q90_ELITE)
         if "win" in pred and pred["win"] < self.MANUAL_WIN:
             return "manual", f"predicted win {pred['win']:.2f} < {self.MANUAL_WIN}"
-        q = pred.get("lost_q")
         if q and q[18] >= self.MANUAL_Q90 * hp:
             return "manual", f"q90 predicted loss {q[18]:.0f} HP >= {self.MANUAL_Q90:.0%} of {hp}"
         return "auto", f"predicted win {pred.get('win', '?')}, q90 loss {q[18] if q else '?'} HP"
@@ -262,6 +263,8 @@ class Live:
 
     def _proposal_check(self, force=False):
         if self.rp is None or self.rp.sim.stage() != "play":
+            return None
+        if not force and self.eng().pot_cost > 0:
             return None
         if not self._sim_potions():
             return "no potion to price" if force else None
