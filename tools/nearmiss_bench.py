@@ -44,7 +44,7 @@ def arm(spec, roots):
     from model import load
     parts = spec.split("@")
     pr, _, roll = parts[0].partition("+")
-    M, K, cv, cover, futures, exact, cap, leaf, pc = 5, 32, False, False, 0, None, False, None, 0.0
+    M, K, cv, cover, futures, exact, cap, leaf, pc, gf = 5, 32, False, False, 0, None, False, None, 0.0, None
     for t in parts[1:]:
         if t == "cv":
             cv = True
@@ -60,10 +60,12 @@ def arm(spec, roots):
             leaf = int(t[1:])
         elif t.startswith("p"):
             pc = float(t[1:])
+        elif t.startswith("g"):
+            gf = int(t[1:])
         else:
             M, K = (int(x) for x in t.split("x"))
     fs = FastSearch(load(pr), M=M, K=K, roots=roots, amp=True, roll_net=load(roll) if roll else None, clairvoyant=cv, cover=cover, futures=futures,
-                    exact_turn=exact, hp_cap=cap, leaf_turns=leaf, pot_cost=pc)
+                    exact_turn=exact, hp_cap=cap, leaf_turns=leaf, pot_cost=pc, greedy_from=gf)
     fs.warm()
     return fs
 
@@ -146,7 +148,7 @@ def main():
                                                "@cover (every distinct legal action), @tN (N futures per decision split over the candidates), "
                                                "@x (exact turn search when the search is blind), "
                                                "@cap (leaf values capped at the win-now value), @lN (N player turns before the value net), "
-                                               "@pC (each root potion spent in a line costs C objective units)")
+                                               "@pC (each root potion spent in a line costs C objective units), @gT (play-outs take the most likely move from T turns after the root)")
     e.add_argument("--bench", default=os.path.join(ROOT, "data", "bench", "nearmiss.json")); e.add_argument("--attempts", type=int, default=2)
     e.add_argument("--roots", type=int, default=1024)
     e.add_argument("--save", help="per-arm arrays (win, end HP, potions kept per fight x attempt) to <save>_<arm>.npz")

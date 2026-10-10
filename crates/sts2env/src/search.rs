@@ -113,6 +113,8 @@ pub struct SearchCfg {
     pub exact: ExactCfg,
     pub hp_cap: bool,
     pub pot_cost: f32,
+    // play-out moves from this many player turns after the root on take the policy's most likely move instead of a draw
+    pub greedy_from: u32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -149,6 +151,7 @@ impl Default for SearchCfg {
             exact: ExactCfg::default(),
             hp_cap: false,
             pot_cost: 0.0,
+            greedy_from: u32::MAX,
         }
     }
 }
@@ -545,6 +548,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
         } else {
             let t0 = tsc();
             let u = unit(&mut sim.rng);
+            let u = if (sim.cx.player.turn_number - sim.start_turn) as i64 >= cfg.greedy_from as i64 { -1.0 } else { u };
             let row = pol_row(out, true, &sim.cx, u);
             write_row(&mut sim.cx, &buf, Some(playable), out.obs, Some(out.pol_mask), row);
             st.cy_obs += tsc() - t0;
