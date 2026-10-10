@@ -352,17 +352,20 @@ class Harness(Live):
 
     @_needs_run("no run in progress")
     def loot(self):
-        """free rewards in a safe order: the card reward is decided first (War Paint-like pickups act on the new card), then relics before gold
-        (Bowler Hat-like), a stolen card, gold, potions while a slot is free; cards and proceed stay the operator's"""
+        """the rewards that need no judgement, after the operator has decided the card reward (War Paint-like pickups act on the new card) and
+        the relics (a free relic can be anti-synergy, e.g. Tungsten Rod vs Rupture/Inferno; relics before gold for Bowler Hat-like ones):
+        a stolen card, gold, potions while a slot is free"""
         out = ""
-        order = (r"(?i)^relic ", r"(?i)^take your stolen", r"(?i)^\d+ gold", r"(?i)^potion ")
+        order = (r"(?i)^take your stolen", r"(?i)^\d+ gold", r"(?i)^potion ")
         for _ in range(10):
             state = call("peek")
             if scr.kind(state) != "REWARDS":
                 break
             opts = scr.options(state)
-            if any(label.lower().startswith("card") for _, label in opts):
-                return (out.rstrip("\n") + "\n" if out else "") + "loot: decide the card reward first (relics like War Paint act on the new card), then `loot`\n" + state
+            pending = [label.split(":")[0] for _, label in opts if label.lower().startswith(("card", "relic "))]
+            if pending:
+                return ((out.rstrip("\n") + "\n" if out else "") + f"loot: decide {', '.join(pending)} first (the card reward before relics; a relic can be "
+                        "anti-synergy; relics before gold), then `loot`\n" + state)
             free = "-" in scr.belt(state)
             pick = next((i for pat in order for i, label in opts if re.match(pat, label) and (free or "potion" not in pat)), None)
             if pick is None:
