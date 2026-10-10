@@ -21,6 +21,10 @@ VARS = {
     "core_owned": "other core pieces owned (copies counted) in the candidate's live synergy bundles where it is core (agent/synergy.py)",
     "anti": "owned items with an anti pair to the candidate",
     "se": "paired se of the priced difference (P units; 0 in rollouts)",
+    "gap_fill": "open buckets (FD/SD/FB/SB/ACC, agent/card_tags.py deficiencies) the candidate card fills",
+    "draw_owned": "cards owned that draw (synergy tag draw)",
+    "scaling_owned": "scaling engines owned (Strength-gain Powers, e.g. Demon Form)",
+    "cycle_after": "turns to draw through the deck after the pick: size_after / (5 + 0.5 x draw cards); density relative to draw",
     "provides": "the candidate's provided mechanics (data/synergy_candidates.json vocabulary), test with 'energy_gain' in provides",
     "consumes": "the candidate's consumed mechanics",
     "cost": "the candidate card's energy cost (-1 for relics / unknown)",
@@ -77,3 +81,8 @@ def margin(screen, ctx):
 def flag(name, screen, ctx):
     t = TERMS.get(name)
     return bool(t and t["type"] == "flag" and screen in t["on"] and _eval(t.get("when", "True"), ctx))
+
+
+def explain(screen, ctx):
+    """[(term, value)] of the adjust terms active for ctx: the operator reads them one by one"""
+    return [(name, float(_eval(t["value"], ctx))) for name, t in _active(screen, "adjust", ctx)]

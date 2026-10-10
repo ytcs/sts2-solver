@@ -301,7 +301,25 @@ class Harness(Live):
         text, res = macro.reward_report(self.eng(), deck, opts, hz, att, hp, "all")
         self.reward_screen = guards.reward_key(state)
         self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in macro.loggable(r).items()} for k, r in res.items()}, boss=hz["boss"])
-        return text + "\n" + self._synergy(state, deck) + f"skip is option {skip}; pick with `a <i> -- why`\n"
+        return text + "\n" + self._synergy(state, deck) + self._signals(state, deck, opts) + f"skip is option {skip}; pick with `a ~Card -- why`\n"
+
+    def _signals(self, state, deck, opts):
+        """the macro-term inputs per offered card, each on its own (data/macro_rules.json; the script sums them, the operator reads them)"""
+        from agent import price as PR, runmodel as R, terms as TM
+        try:
+            st = PR.run_state(deck, self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
+        except Exception:  # noqa: BLE001
+            return ""
+        rows = []
+        for _, name, cid, _up in opts:
+            if not cid:
+                continue
+            c = R.term_ctx(st, "card", cid)
+            adj = TM.explain("card_reward", c)
+            rows.append(f"  {name[:20]:20s} gaps filled {c['gap_fill']}  plan core owned {c['core_owned']}  anti {c['anti']}  cycle {c['cycle_after']:.1f} turns"
+                        f"  draw/energy {'yes' if ({'draw', 'energy_gain'} & set(c['provides'])) else 'no'} (engines owned {c['scaling_owned']})  cost {c['cost']}"
+                        + ("  | terms: " + ", ".join(f"{k} {v:+.3f}" for k, v in adj) if adj else ""))
+        return ("macro signals (inputs, not a verdict; terms in P units):\n" + "\n".join(rows) + "\n") if rows else ""
 
     @_needs_run("no run in progress")
     def price(self, argline):

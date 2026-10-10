@@ -9,6 +9,32 @@ from agent import terms as TM, tracker as T
 
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
 NO_BOTTLENECK = dict(bn_turns=0, energy_bound=0.0, ignored_share=0.0, stranded=0.0)
+HAND = 5
+
+
+@functools.lru_cache(maxsize=4096)
+def deck_signals(ids):
+    """per deck (sorted id tuple): open buckets (card_tags gaps), draw cards owned, scaling engines owned (Strength-gain Powers)"""
+    from agent import card_tags, synergy
+    tags = _bucket_tags()
+    gaps = card_tags.deficiencies(card_tags.deck_line(list(ids), tags)) if tags else {}
+    draw = sum("draw" in synergy.item_tags(i)[0] for i in ids)
+    scaling = sum({"strength_gain", "power_card"} <= set(synergy.item_tags(i)[0]) for i in ids)
+    return gaps, draw, scaling
+
+
+@functools.lru_cache(maxsize=1)
+def _bucket_tags():
+    from agent import card_tags
+    try:
+        return card_tags.load()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def cycle(n_cards, draw_cards):
+    """turns to draw through the deck: HAND cards a turn plus ~0.5 per draw card owned (density relative to draw, not raw size)"""
+    return n_cards / (HAND + 0.5 * draw_cards)
 
 
 def term_ctx(st, kind=None, item=None, deck=None, relics=None, removal_cost=1e9, se=0.0, max_hp_delta=0):
@@ -23,6 +49,11 @@ def term_ctx(st, kind=None, item=None, deck=None, relics=None, removal_cost=1e9,
         ids = [c["id"] for c in deck] + [r if isinstance(r, str) else r["id"] for r in relics]
         pr, co, cost = synergy.item_tags(item)
         ctx.update(core_owned=synergy.in_plan(item, ids), anti=len(synergy.anti(item, ids)), provides=pr, consumes=co, cost=cost)
+    gaps, draw, scaling = deck_signals(tuple(sorted(c["id"] for c in deck)))
+    cand_draw = int(item is not None and kind == "card" and "draw" in ctx["provides"])
+    buckets = _bucket_tags().get(str(item).rstrip("+"), {}).get("buckets", []) if item is not None and kind == "card" else []
+    ctx.update(gap_fill=sum(b in gaps for b in buckets), draw_owned=draw, scaling_owned=scaling,
+               cycle_after=cycle(ctx["size_after"], draw + cand_draw))
     return ctx
 
 
