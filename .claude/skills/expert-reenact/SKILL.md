@@ -8,7 +8,7 @@ Offline `tools/expert.py`; live `python -m agent seedcheck|replay` (`agent/reena
 
 ## Steps
 1. `tools/expert.py fetch <url> [--creator X] [--fps 1] [--transcript-only]` -> `data/expert/<creator>/frames/<id>/`, `transcripts/` (git-ignored). One download at a time (bursts trigger YouTube's bot check; cookies only with the user's consent).
-2. Read build stamp + seed from frames. Replay only on build `v0.111.0` (`MODDED` fine); else frame-built fights and notes only.
+2. Read build stamp + seed from frames. Replay only on build `v0.111.0` (`MODDED` fine); else frame-built fights and notes only. Run result from the audio of the last minutes (a post-boss screen reads like game over in frames).
 3. Transcribe every decision in game order into `data/expert/<creator>/<id>.json` (frame observations per turn), floor blocks complete (fight + rewards + map click). Unknown -> `gap` step; never guess.
 4. `build <record>` -> `fights/*.json` + sim-vs-frame diffs (each a transcription or fidelity question); `validate <record>` exits 0.
 5. Per floor block, headless first: `dotnet oracle/combat/bin/Release/net9.0/OracleCombat.dll run-replay <compact.jsonl> --out trace.jsonl` (`DOTNET_ROOT=$HOME/.dotnet`; E41) must pass; then `tools/expert.py check-trace <record> trace.jsonl` (frame hand, HP, enemy HP vs trace) catches silent divergences.
