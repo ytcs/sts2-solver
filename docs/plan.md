@@ -28,7 +28,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 - Pre-registered: guards act-1 pass >= 0.90 and act-2 boss pass >= E80; co-primary final-pair deck strength (E80 0.18; reachable composition share ~ +0.05 to +0.10, not the ceiling) and potions at the pair >= 2; secondary elites per act, deck size at the pair, wins. This arm is the control B and A must beat; it is not expected to approach 90%.
 
 **Self-improvement loop (wraps the next stage).** Three nested cycles, each scripted end to end.
-- Gap decomposition first. Goal: is the human gap macro, combat, or both? Status: open; every combat check so far was on weak decks. Gate: solver P(win) on expert act-3 boss states (kgYsjNbww_o, hMrQSndDvPc records) and on remove-down / operator decks; ~0.9 -> macro is the gap; well below -> the combat round (MAX_POTIONS 9) moves onto the critical path.
+- Gap decomposition first. Goal: is the human gap macro, combat, or both? Status: done (E87, E88): expert decks win the pair 0.8-1.0 under the solver vs the bot's 0.24-0.29, so macro is the gap; the combat side loses 5-6 final-boss wins of 24 to the pair potion reserve (E87), fixed by stage C's pair objective, not a rule. Gate: solver P(win) on expert act-3 boss states (kgYsjNbww_o, hMrQSndDvPc records) and on remove-down / operator decks; ~0.9 -> macro is the gap; well below -> the combat round (MAX_POTIONS 9) moves onto the critical path.
 - Inner (macro V). Goal: fitted value iteration on run-model rollouts -> one-step lookahead policy on V -> on-policy rollouts -> retrain. State encoder: the predictor's deck / relic / HP / potion encoding. State coverage seeded off-policy where the bot never goes (expert decks, oracle / remove-down decks, operator branches E72 / E74). Gate: E85 / E86 sign reproduction, then agreement with expert choices on the Baalorlord records.
 - Outer (combat). Goal: corpus on the decks the new macro produces -> net round through the promotion gate -> V retrained on the new fight outcomes; one round per 2-3 macro iterations.
 - Anchor (sim-to-real). Goal: the headless server is the real game. Per policy change: gate 1 (predicted vs realised act clear) re-run on that arm's logs; a 40-seed paired arm vs the previous iteration; each death classified (postmortem / hindsight / oracle) into a bench state or a V target. Read on deck strength per act and act reach (n 40 resolves win-rate changes of ~15 points only); wins become the metric above ~20%, then seeds scale.
@@ -44,7 +44,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 - Status: line-end costs built with interim constants (pot_cost, STOLEN_COST 0.1, GOLD_COST 0.0005/gold, MAXHP_COST 0.008/pt; checksums unchanged at default 0); `Combat.cards_escaped` keeps escaped cards in the cost (E79). Next: price them by the macro estimator.
 - Gate: near-miss not worse; Hopper / Merc / Scrolls / Pen Nib bench states resolved.
 
-**C. Final-pair budget.**
+**C. Final-pair budget.** Priority raised by E87: 14 of 21 final-boss deaths held unused potions.
 - Goal: boss 1 of the pair under a pair-aware objective (HP and potions carried into boss 2 valued by boss-2 P(win)); potion reserve before boss 1 (E67).
 - Status: pair worth built, applied only when the curve is informative (peak >= 0.3), else linear (E74's Queen start was floored).
 - Gate: pair P(win) on recorded pair starts (E72, E74) up, paired.
