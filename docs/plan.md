@@ -44,7 +44,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 - Status: line-end costs built with interim constants (pot_cost, STOLEN_COST 0.1, GOLD_COST 0.0005/gold, MAXHP_COST 0.008/pt; checksums unchanged at default 0); `Combat.cards_escaped` keeps escaped cards in the cost (E79). Next: price them by the macro estimator.
 - Gate: near-miss not worse; Hopper / Merc / Scrolls / Pen Nib bench states resolved.
 
-**C. Final-pair budget.** Next build (E87: withholding cost ~2.2 expected final-boss wins of 24). Design: the boss-1 worth prices potions through boss 2, u(win, hp, potions left) = P2(hp, potions left) measured on an (HP x potions) grid; no per-throw constant and no margin gate at the pair; a loss is worth 0 whatever is held.
+**C. Final-pair budget.** Built (340da92); E89: boss 1 won 10 of 20 vs 3 of 21, potions used 42 of 43; boss 2 is the new wall (9 of 10 deaths, Queen 6). Design: the boss-1 worth prices potions through boss 2, u(win, hp, potions left) = P2(hp, potions left) measured on an (HP x potions) grid; no per-throw constant and no margin gate at the pair; a loss is worth 0 whatever is held.
 - Goal: boss 1 of the pair under a pair-aware objective (HP and potions carried into boss 2 valued by boss-2 P(win)); potion reserve before boss 1 (E67).
 - Status: pair worth built, applied only when the curve is informative (peak >= 0.3), else linear (E74's Queen start was floored).
 - Gate: pair P(win) on recorded pair starts (E72, E74) up, paired.
