@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """re-price recorded card-reward screens of baseline runs through the current price.decide: old vs new pick per screen.
-usage: tools/recount.py <dir with */events.jsonl> [--floors A1] [--n 128] [--out file.jsonl]"""
+usage: tools/recount.py <dir with */events.jsonl> [--floors A1] [--n 128] [--bosses IDS] [--out file.jsonl]"""
 import argparse, glob, json, os, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -13,6 +13,7 @@ def main():
     ap.add_argument("--floors", default="")
     ap.add_argument("--n", type=int, default=128)
     ap.add_argument("--out")
+    ap.add_argument("--bosses", default="")
     a = ap.parse_args()
     from agent import price as PR
     from agent.engine import Engine
@@ -27,6 +28,8 @@ def main():
             if a.floors and not hdr.startswith(a.floors):
                 continue
             t0 = time.time()
+            if a.bosses:
+                st.bosses = a.bosses.split(",")
             opts = PR.options(st, state)
             r = PR.decide(st, state, pred, eng, opts, n=a.n, seed=PR.screen_seed("recount", state))
             ck = {k: [round(v[0], 3), round(v[1], 3), {str(x): round(y, 3) for x, y in v[4].items()}] for k, v in r["check"].items()}

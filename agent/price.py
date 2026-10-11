@@ -502,9 +502,11 @@ def binding_fights(st, engine, k=2, attempts=32):
 # mandatory future fights only: elites are optional (a weak deck routes around them), so they are no factor of P(win run)
 FAR_RUNGS = ((1, "boss"), (2, "boss"))
 INFORMATIVE = 0.1
-# a future fight is met by a stronger deck that lasts longer than today's: it is played at the smallest HP multiple where the skip deck
-# has signal (P >= INFORMATIVE), the operating point where a card's effect is measurable
+# a future act's boss is met by a stronger deck that lasts longer than today's: it is played at the smallest HP multiple where the skip
+# deck has signal (P >= INFORMATIVE); ACT_BOSS_1X (arm E81) plays this act's boss at 1x instead (arrival after the pre-boss rest; a
+# multiple distorts timer bosses: Waterfall Giant's explosion is survivable at 2x)
 MULTS = (1.0, 1.5, 2.0, 3.0)
+ACT_BOSS_1X = False
 
 
 def _at_hp(x, h):
@@ -512,16 +514,19 @@ def _at_hp(x, h):
 
 
 def operating_mults(st, engine, sets, attempts=24):
-    """{factor key: HP multiple} for the full-HP factors (future boss rungs, known bosses without a map)"""
+    """{factor key: HP multiple} for the full-HP factors: the first informative multiple (this act's bosses at 1 under ACT_BOSS_1X)"""
     import numpy as np
-    flat = [(key, e, m) for key, encs, hp in sets if hp == "full" for e in encs for m in MULTS]
+    out = {key: 1.0 for key, _encs, hp in sets if hp == "full" and not key.startswith("A")} if ACT_BOSS_1X else {}
+    flat = [(key, e, m) for key, encs, hp in sets if hp == "full" and key not in out for e in encs for m in MULTS]
     if not flat:
-        return {}
+        return out
     rows = engine.solve([_at_hp(st.scenario(e), st.max_hp * m) for _k, e, m in flat], attempts=attempts)
     p = {}
     for (key, _e, m), r in zip(flat, rows):
         p.setdefault(key, {}).setdefault(m, []).append(r["win"])
-    return {key: next((m for m in MULTS if np.mean(d[m]) >= INFORMATIVE), MULTS[-1]) for key, d in p.items()}
+    for key, d in p.items():
+        out[key] = next((m for m in MULTS if np.mean(d[m]) >= INFORMATIVE), MULTS[-1])
+    return out
 
 
 def _horizon_sets(st, engine=None):
