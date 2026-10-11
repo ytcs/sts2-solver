@@ -111,7 +111,11 @@ Pair-side numbers rescored on both final bosses (`target/review/shed_pair.txt`; 
 - The run model behind map / rest / smith decisions and the option shortlist is miscalibrated (Brier worse than a constant in acts 1-2) because its rollouts play `BasePolicy`; fixing the rollout policy is approach A's prerequisite and any further live use of the run model.
 - Next arm: approach C (expert-prior control) as specified in `docs/plan.md`; it is the baseline the principled methods (B, then A) must beat and is not expected to approach 90%.
 
-## 11. Candidate approaches (round 2 ranking)
+## 11. User hypotheses (2026-10-11), checked on 190 logged runs (E75a, E77, E78, E80, E81, arm C)
+- Farm elites early while the risk is tolerable: act-1 elites 0 / 1 / 2 -> act-1 cleared 0.86 / 0.83 / 0.82, act-2 cleared 0.35 / 0.49 / 0.54, deck strength at the act-2 boss 0.40 / 0.56 / 0.68 (n 51 / 65 / 28; one run with 3). Supported descriptively (strong runs take more elites, so confounded), and the act-1 cost is near zero (act-1 elite fights: 20% max HP lost, 0.8% deaths). The bot rarely takes 2+.
+- Hard-pool normals ~ elites in difficulty: not for this bot. Per fight, share of max HP lost / death rate: act 1 regular 0.05 / 0.000 vs elite 0.20 / 0.008; act 2 regular 0.14 (q90 0.35) / 0.029 vs elite 0.31 (q90 0.53) / 0.147; act 3 regular 0.14 / 0.048 vs elite 0.45 / 0.244 (elites partly self-selected: taken when strong). Specific regulars are elite-grade (Slumbering Beetle, Chompers; E77). The right comparison is hard-pool M vs ? nodes (10% fight base) per reward, which the logs do not isolate yet.
+
+## 12. Candidate approaches (round 2 ranking)
 - A. Macro expert iteration: learn V_run from run-model rollouts (+ real runs); search macro decisions against it. Pre-experiment: run-model fidelity (simulate the logged runs' decisions; compare act reach / deck strength distributions) and run-model runs per hour.
 - B. Resource DP: extend `routes`' act DP with a coarse deck-strength state and the known offer distribution, pricing picks, elites, shops, rests and potions with one value over (HP, gold, potions, strength bucket). Pre-experiment: re-price the E80 final-pair runs' act-3 routes.
 - C. Expert-prior policy as the new control: max-elite act 1 while `routes` P(boss) stays high, gold carried into act 2, smith default, potion banking for elites / the pair, function-aware skipping. Cheapest; the principled methods must beat it.
