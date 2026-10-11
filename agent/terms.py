@@ -83,7 +83,3 @@ def flag(name, screen, ctx):
     t = TERMS.get(name)
     return bool(t and t["type"] == "flag" and screen in t["on"] and _eval(t.get("when", "True"), ctx))
 
-
-def explain(screen, ctx):
-    """[(term, value)] of the adjust terms active for ctx: the operator reads them one by one"""
-    return [(name, float(_eval(t["value"], ctx))) for name, t in _active(screen, "adjust", ctx)]

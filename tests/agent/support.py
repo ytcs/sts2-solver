@@ -175,12 +175,11 @@ class FakeEngine:
 
 
 def isolate(mp, tmp):
-    from agent import improve, pickplan, routes, runlog, skillgate
+    from agent import improve, routes, runlog, skillgate
     mp.setattr(runlog, "ROOT", os.path.join(str(tmp), "runs"))
     mp.setattr(improve, "EVALS", os.path.join(str(tmp), "evals"))
     mp.setattr(skillgate, "STATE", os.path.join(str(tmp), "skill_state"))
     routes._CACHE.clear()
-    pickplan._GAINS.clear()
 
 
 def make_harness(mp, tmp, fake, events=(), run_id="testrun", engine=None):

@@ -3,9 +3,7 @@ import re
 from agent import macro
 from agent import screen as scr
 
-PICK_RECORD = {"buckets:": "<five-bucket line, which are open>", "weakest:": "<weakest fight and what it asks>",
-               "numbers:": "<table: best option and gain, the chosen card's section-3 bar status>",
-               "judgment:": "<plan fit, density, future problems, synergies: why this choice>"}
+PICK_RECORD = {"numbers:": "<`price`: best option and its margin over skip>", "judgment:": "<plan fit, density, future problems, synergies: why this choice>"}
 
 
 def _option(step):
@@ -22,7 +20,7 @@ def map_guard(state, step):
     hp = scr.hp(state)
     line = scr.option_line(state, num)
     if hp and hp[0] < 0.6 * hp[1] and re.match(rf"^{num} (Elite|Boss)", line):
-        return f"REFUSED: `{line}` at {hp[0]}/{hp[1]} HP. Heal first, or confirm with `a {num} !` if this is deliberate (check `route` first).\n" + state
+        return f"REFUSED: `{line}` at {hp[0]}/{hp[1]} HP. Heal first, or confirm with `a {num} !` if this is deliberate (check `routes` first).\n" + state
     return None
 
 
@@ -39,7 +37,7 @@ def decision_guard(state, step, why, priced, reward_screen):
     if kind == "CARD_REWARD":
         return pick_guard(state, step, why, reward_screen)
     if (kind == "MAP" and n_opts >= 2) or (kind == "EVENT" and here and here.endswith(" F1") and n_opts >= 2):
-        if not ran("routes", "route"):
+        if not ran("routes"):
             return f"REFUSED: run `routes` on this floor before a {'fork' if kind == 'MAP' else 'Neow / ancient'} choice (sts2-pathing procedure, sts2-harness: routes at every fork).\n" + state
         return None
     hp = scr.hp(state)
@@ -48,8 +46,8 @@ def decision_guard(state, step, why, priced, reward_screen):
         return ("REFUSED: rest or smith is priced over the rest of the act (sts2-deckbuilding section 6): `restcalc` (boss win at the HP now vs after the rest), "
                 "or `routes --hp <after>` + `routes` + `eval --smooth --boss --next` upgrade variants, on this floor.\n" + state)
     if (kind == "SHOP" and not re.search(r"(?i)leave", line)) or (kind == "RESTSITE" and not re.search(r"(?i)proceed", line)):
-        if not (kind == "RESTSITE" and near_full) and not ran("eval", "rmcalc", "routes", "pickplan", "price", "restcalc"):
-            return f"REFUSED: price this {kind.lower()} decision first (`price`, `eval` variants, `rmcalc`, `routes`; sts2-deckbuilding section 1 / 6), on this floor.\n" + state
+        if not (kind == "RESTSITE" and near_full) and not ran("eval", "routes", "price", "restcalc"):
+            return f"REFUSED: price this {kind.lower()} decision first (`price`, `eval` variants, `routes`; sts2-deckbuilding section 1 / 6), on this floor.\n" + state
         miss = [k for k in ("numbers:", "judgment:") if k not in lw]
         if miss:
             return f"REFUSED: the `-- why` records the decision: numbers: <what the calculators said> ; judgment: <what decided it>. Missing: {', '.join(miss)}.\n"
@@ -68,7 +66,7 @@ def pick_guard(state, step, why, reward_screen):
     if not key[1]:
         return None
     if reward_screen != key:
-        return "REFUSED: run `reward` on this card reward first (sts2-deckbuilding section 1, step 2), then pick with the section-3 bar in the `-- why`.\n" + state
+        return "REFUSED: run `price` on this card reward first (sts2-deckbuilding section 1, step 2), then pick with `numbers:` and `judgment:` in the `-- why`.\n" + state
     missing = [k for k in PICK_RECORD if k not in (why or "").lower()]
     if missing:
         return ("REFUSED: the `-- why` of a card pick records each input of the decision (sts2-deckbuilding section 1): "

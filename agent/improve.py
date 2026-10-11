@@ -7,6 +7,7 @@ import json
 import os
 
 from agent import runlog
+from agent import screen as scr
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 EVALS = os.path.join(ROOT, "evals")
@@ -21,11 +22,6 @@ def _append(path, obj):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(obj, default=str) + "\n")
-
-
-def _load(path):
-    with open(path) as f:
-        return json.load(f)
 
 
 def _dump(obj, path, **kw):
@@ -112,7 +108,7 @@ def review(run_id=None):
     if overrides:
         follow.append(f"{len(overrides)} recorded judgment(s): judge each against what happened (held / failed) and edit the rules in `sts2-deckbuilding` they relied on (tallied in evals/judgments.jsonl)")
     if unpriced:
-        follow.append(f"{unpriced} card pick(s) were not priced by `reward` / `eval` first: the rule is numbers first, then judgment")
+        follow.append(f"{unpriced} card pick(s) were not priced by `price` / `eval` first: the rule is numbers first, then judgment")
     if fid or div:
         follow.append("simulator fidelity first: reproduce the divergence (agent.fidelity_sweep) and fix the simulator before trusting any model comparison")
     if surprises:
@@ -143,7 +139,7 @@ def _macro_decisions(ev, run):
     lines, overrides = [], []
     pending, priced, followed, unpriced, off = None, 0, 0, 0, []
     for e in ev:
-        if e["kind"] == "reward_eval":
+        if e["kind"] == "price" and e.get("screen") == "CARD_REWARD":
             pending = e
         elif e["kind"] == "eval":
             pending = pending or e
@@ -158,39 +154,22 @@ def _macro_decisions(ev, run):
                 pick = (e.get("choice") or "").split()[0] if e.get("choice") else ""
                 if pending is None:
                     unpriced += 1
-                elif pending["kind"] == "reward_eval" and pick.isdigit():
-                    res = (pending.get("result") or {}).get("boss") or {}
-                    names = pending.get("options", [])
-                    cards = _variant_options(names)
-                    vi = _pick_variant(int(pick), names, cards)
-                    wins = {int(k): v["win"] for k, v in res.items()}
-                    if wins and vi is not None:
-                        best = max(wins, key=wins.get)
-                        priced += 1
-                        if wins.get(vi, 0) >= wins[best] - 0.02:
-                            followed += 1
-                        else:
-                            label = lambda i: "skip" if i == 0 else (names[cards[i - 1]] if i - 1 < len(cards) else str(i))  # noqa: E731
-                            off.append(f"  picked {label(vi)} ({wins.get(vi, 0):.3f}) over {label(best)} ({wins[best]:.3f}) vs boss, why: {why[:160]}")
+                elif pending["kind"] == "price" and pick.isdigit():
+                    line = scr.option_line(e.get("state", ""), pick).partition(" ")[2]
+                    name = "skip" if line.lower().startswith("skip") else line.split("(")[0].strip()
+                    priced += 1
+                    if name.lower() == str(pending.get("best")).lower():
+                        followed += 1
+                    else:
+                        off.append(f"  picked {name} over {pending.get('best')}, why: {why[:160]}")
                 pending = None
     if priced or unpriced:
-        lines.append(f"card picks: {priced} priced by `reward`, followed the best smooth boss score (within 0.02) in {followed}; {unpriced} not priced")
+        lines.append(f"card picks: {priced} priced by `price`, followed its decision in {followed}; {unpriced} not priced")
     lines += off
     for o in overrides:
         lines.append(f"  judgment [{o['screen']}] choice {o['choice']}: {o['judgment'][:200]}")
     _append_new(os.path.join(EVALS, "judgments.jsonl"), overrides, JUDGMENT_KEY)
     return lines, overrides, unpriced
-
-
-def _variant_options(names):
-    from agent.macro import card_from_name
-    return [i for i, n in enumerate(names) if card_from_name(n)[0]]
-
-
-def _pick_variant(pick, names, cards):
-    if pick >= len(names):
-        return 0
-    return cards.index(pick) + 1 if pick in cards else None
 
 
 GAP_KEY = ("kind", "run", "fight", "what")

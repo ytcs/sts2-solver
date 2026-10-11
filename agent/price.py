@@ -220,10 +220,9 @@ def bundles(st, items, predictor, keep=6, removals=2, top=8, shuffles=4):
     return opts, note
 
 
-def price(st, opts, predictor, n=128, seed=0, shuffles=4, cont=None):
-    ro = R.Rollouts(predictor, shuffles)
+def price(st, opts, predictor, n=128, seed=0):
+    ro = R.Rollouts(predictor, 4)
     pol = R.BasePolicy()
-    pol.gates = cont is not None
 
     def rollouts(stop):
         states, seeds, firsts, owner = [], [], [], []
@@ -249,8 +248,6 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4, cont=None):
             r["ready"] = np.array([0.0 if s.ready is None else s.ready for s in ss])
             r["ready_worth"] = np.array([-1.0 if s.ready_worth is None else s.ready_worth for s in ss])
         r["floors"] = np.array([s.floors for s in ss], float)
-        if cont is not None:
-            r["cont"] = np.array([arrival(s.gates, cont) if getattr(s, "gates", None) else 0.0 for s in ss])
         res[label] = r
     if staged and max(r["act"].mean() for r in res.values()) >= ACT_SATURATED and max(r["ready"].mean() for r in res.values()) >= READY_SATURATED:
         _states, won, owner = rollouts(False)
@@ -259,43 +256,7 @@ def price(st, opts, predictor, n=128, seed=0, shuffles=4, cont=None):
     return res
 
 
-def arrival(g, rule):
-    return R.combine([(g[0][0], 1.0, g[0][2])] + list(g[1:]), rule)
-
-
-def closed_gates(st, opts, predictor, seeds=range(1000, 1008)):
-    """per option: gates() of the state right after it, one per shuffle seed"""
-    import random
-    sts = []
-    for _label, first in opts:
-        s = st.copy()
-        if first is not None:
-            first(s, R.Draws(random.Random(0), st.base["character"], st.act))
-        sts.append(s)
-    pol = R.BasePolicy()
-    return [R.Rollouts(predictor, 1, sd).drive([R.gates(s, pol) for s in sts]) for sd in seeds]
-
-
-def gates_text(opts, G, rule):
-    labels = [lb for lb, _ in opts]
-    acts = [j for j, _, _ in G[0][0]]
-    E = np.array([[[x[1] for x in g] for g in Gs] for Gs in G])
-    B = np.array([[[x[2] for x in g] for g in Gs] for Gs in G])
-    V = np.array([[R.combine(g, rule) for g in Gs] for Gs in G])
-    best = int(V.mean(0).argmax())
-    W = min(40, max(16, *(len(lb) for lb in labels)))
-    head = "".join(f"{f'A{j + 1} elite':>9s}{f'A{j + 1} boss' + ('es' if j == R.LAST_ACT else ''):>11s}" for j in acts)
-    lines = [f"gates on each option's deck right after it (closed form, no rollout, {len(G)} shuffle seeds; scores the current deck: "
-             f"enablers that pay off after later picks are undervalued); V = {rule} combination",
-             f"{'option':{W}s}{head}{'V':>10s}   vs best (paired over seeds)"]
-    for i in np.argsort(-V.mean(0)):
-        cells = "".join(f"{E[:, i, k].mean():9.3f}{B[:, i, k].mean():11.4f}" for k in range(len(acts)))
-        d = V[:, i] - V[:, best]
-        lines.append(f"{labels[i][:W]:{W}s}{cells}{V[:, i].mean():10.5f}" + ("" if i == best else f"   {d.mean():+.5f} ±{_se(d):.5f}"))
-    return "\n".join(lines)
-
-
-HORIZONS = (("cont", "V gates"), ("win", "P(win run)"), ("act", "P(clear act)"), ("ready", "next act ready"), ("floors", "floors"))
+HORIZONS = (("win", "P(win run)"), ("act", "P(clear act)"), ("ready", "next act ready"), ("floors", "floors"))
 ACT_SATURATED = 0.9
 READY_SATURATED = 0.9
 
@@ -316,26 +277,24 @@ def separates(res, k, z=2.0):
     return False
 
 
-def ladder(res, saturated=ACT_SATURATED):
-    if all("cont" in r for r in res.values()) and separates(res, "cont"):
-        return "cont", "gate surrogate separates the options: rollouts to this act's boss, then its boss gate x every later act's gates on the deck at arrival"
+def ladder(res):
     if separates(res, "win"):
         return "win", "P(win run) separates the options (> 2 paired se)"
     best = max(r["act"].mean() for r in res.values())
-    if best < saturated:
-        return "act", f"P(win run) flat; P(clear act) not saturated (best {best:.3f} < {saturated:g})"
+    if best < ACT_SATURATED:
+        return "act", f"P(win run) flat; P(clear act) not saturated (best {best:.3f} < {ACT_SATURATED:g})"
     if separates(res, "act"):
         return "act", f"P(win run) flat; P(clear act) separates the options (> 2 paired se) at best {best:.3f}"
-    why = f"P(win run) flat; P(clear act) saturated (best {best:.3f} >= {saturated:g}, within 2 paired se)"
+    why = f"P(win run) flat; P(clear act) saturated (best {best:.3f} >= {ACT_SATURATED:g}, within 2 paired se)"
     if all("ready" in r for r in res.values()):
         return "ready", why
     return "floors", why + "; next-act readiness not estimable in the last act"
 
 
-def table(res, saturated=ACT_SATURATED):
+def table(res):
     labels = list(res)
     keys = [(k, t) for k, t in HORIZONS if all(k in r for r in res.values())]
-    main, why = ladder(res, saturated)
+    main, why = ladder(res)
     order = [main] + [k for k, _ in keys if k != main]
     best = max(labels, key=lambda lb: tuple(res[lb][k].mean() for k in order))
     W = min(64, max(34, *(len(lb) for lb in labels)))
@@ -345,14 +304,14 @@ def table(res, saturated=ACT_SATURATED):
         cells = []
         for k, _ in keys:
             x = res[lb][k]
-            nd = {"floors": 1, "cont": 5}.get(k, 3)
+            nd = 1 if k == "floors" else 3
             cells.append(f"{x.mean():.{nd}f} ±{_se(x):.{nd}f}".rjust(16))
         vs = ""
         if lb != best:
             parts = []
             for k, _ in keys:
                 d = res[lb][k] - res[best][k]
-                nd = {"floors": 1, "cont": 5}.get(k, 3)
+                nd = 1 if k == "floors" else 3
                 parts.append(f"{'*' if k == main else ''}{k} {d.mean():+.{nd}f} ±{_se(d):.{nd}f}")
             vs = "   " + ", ".join(parts)
         lines.append(f"{lb[:W]:{W}s} " + "  ".join(cells) + vs)
@@ -363,9 +322,8 @@ HEADER = re.compile(r"A(\d+) F(\d+) \w+ A\d+ HP (\d+)/(\d+) G(\d+)")
 
 
 def recorded_screens(events_path, kinds=("CARD_REWARD", "RESTSITE")):
-    """(floor, state text, RunState, recorded choice label, old calculator's best label or None) per decision screen"""
-    import json
-    sc, picks, seen, bosses, old, act = None, [], [], [], None, None
+    """(floor, state text, RunState, recorded choice label) per decision screen"""
+    sc, picks, seen, bosses, act = None, [], [], [], None
     for raw in open(events_path, encoding="utf-8"):
         e = json.loads(raw)
         k = e.get("kind")
@@ -375,7 +333,6 @@ def recorded_screens(events_path, kinds=("CARD_REWARD", "RESTSITE")):
                 act, seen, bosses = sc.get("act"), [], []
             seen.append(e["encounter"])
         elif k == "reward_eval":
-            old = e
             bosses = [b for b in (e.get("result", {}).get("boss", {}).get("0", {}).get("per") or {}) if b.endswith("_BOSS")] or bosses
         elif k == "macro" and e.get("screen") in kinds and sc is not None:
             state = e["state"]
@@ -397,24 +354,17 @@ def recorded_screens(events_path, kinds=("CARD_REWARD", "RESTSITE")):
                             sc.get("max_potion_slots", 2), (tracker.POTION_START, tracker.OFFSET_START, dict(tracker.UNKNOWN_BASE), 0), seen_kind,
                             bosses, None, None, len(seen_kind.get("weak", [])) + len(seen_kind.get("regular", [])))
             choice = labels.get(e.get("choice", "").split(" ")[0], "")
-            best_old = None
-            if e["screen"] == "CARD_REWARD" and old is not None:
-                boss = old["result"].get("boss", {})
-                if boss:
-                    i = max(boss, key=lambda vi: boss[vi]["win"])
-                    best_old = "skip" if i == "0" else old["options"][int(i) - 1]
-            yield int(m.group(2)), state, st, choice, best_old
+            yield int(m.group(2)), state, st, choice
             if e["screen"] == "CARD_REWARD":
                 cm = re.match(r"^(.+?)\(", choice)
                 cid, up = _card_id(cm.group(1)) if cm else (None, 0)
                 if cid:
                     picks.append({"id": cid, "upgrade": up})
-                old = None
 
 
-def best(res, saturated=ACT_SATURATED, adj=None):
+def best(res, adj=None):
     """ladder best; adj = {label: macro-terms adjustment in P units} added on the main horizon"""
-    main, _ = ladder(res, saturated)
+    main, _ = ladder(res)
     order = [main] + [k for k, _ in HORIZONS if k != main and all(k in r for r in res.values())]
     adj = adj or {}
     return max(res, key=lambda lb: (res[lb][main].mean() + adj.get(lb, 0.0),) + tuple(res[lb][k].mean() for k in order[1:])), main
@@ -647,73 +597,18 @@ def _family(label):
     return "smith" if label.startswith("smith") else label
 
 
-def replay(run, n=128, cont="late", kinds=("CARD_REWARD", "RESTSITE")):
-    from predictor import Predictor
-    from solver import PREDICTOR_CKPT
-    pred = Predictor(PREDICTOR_CKPT, batch=1024)
-    path = run if os.path.isfile(run) else os.path.join(ROOT, "runs", run, "events.jsonl")
-    rows = []
-    for floor, state, st, choice, old in recorded_screens(path, kinds):
-        opts = options(st, state)
-        if len(opts) < 2:
-            continue
-        res = price(st, opts, pred, n=n, seed=floor, cont=cont)
-        now, ranked = best({lb: {k: v for k, v in r.items() if k != "cont"} for lb, r in res.items()})
-        surr, _ = best(res)
-        V = np.array([[R.combine(g, cont) for g in Gs] for Gs in closed_gates(st, opts, pred)])
-        closed = opts[int(V.mean(0).argmax())][0]
-        row = dict(floor=floor, screen=scr.kind(state), played=_played(state, choice, opts), old=old, now=now, ranked=ranked, surrogate=surr,
-                   sep=separates(res, "cont"), closed=closed, closed_sep=separates({lb: {"v": V[:, i]} for i, (lb, _) in enumerate(opts)}, "v"))
-        for who in ("surrogate", "closed"):
-            d = res[row[who]][ranked] - res[now][ranked]
-            row[f"{who}_cost"] = (float(d.mean()), _se(d))
-        rows.append(row)
-        print(f"F{floor:<3d} {row['screen']:11s} {st.hp:3d}/{st.max_hp} | played {row['played'][:16]:16s} | old {str(old)[:16]:16s} | "
-              f"price[{ranked}] {now[:16]:16s} | surrogate {surr[:16]:16s}{'' if row['sep'] else ' (flat)':7s} | "
-              f"closed {closed[:16]:16s}{'' if row['closed_sep'] else ' (flat)':7s} | "
-              f"on {ranked}: surrogate {row['surrogate_cost'][0]:+.3f}, closed {row['closed_cost'][0]:+.3f}", flush=True)
-    return rows
-
-
-def main():
-    import argparse
-    ap = argparse.ArgumentParser(description="replay a recorded run's decision screens: current price ladder vs the gate surrogate")
-    ap.add_argument("run", help="runs/<run> name or an events.jsonl path")
-    ap.add_argument("--n", type=int, default=128)
-    ap.add_argument("--cont", default="late", choices=R.RULES)
-    ap.add_argument("--screens", default="CARD_REWARD,RESTSITE")
-    a = ap.parse_args()
-    rows = replay(a.run, a.n, a.cont, tuple(a.screens.split(",")))
-    if not rows:
-        return print("no decision screens with two or more priced options")
-
-    def rate(x, y):
-        pairs = [(_family(r[x]), _family(r[y])) for r in rows if r[x] is not None and r[y] is not None]
-        return f"{np.mean([p == q for p, q in pairs]):.2f} of {len(pairs)}" if pairs else "n/a"
-    print(f"{len(rows)} screens; surrogate vs price {rate('surrogate', 'now')}, vs closed {rate('surrogate', 'closed')}, "
-          f"vs played {rate('surrogate', 'played')}, vs old calc {rate('surrogate', 'old')}; price vs played {rate('now', 'played')}, "
-          f"vs old calc {rate('now', 'old')}; closed vs played {rate('closed', 'played')}; separated by > 2 paired se: surrogate "
-          f"{np.mean([r['sep'] for r in rows]):.2f}, closed {np.mean([r['closed_sep'] for r in rows]):.2f}; worse than price's choice by > 2 paired se on "
-          f"price's own horizon: surrogate {sum(r['surrogate_cost'][0] < -2 * r['surrogate_cost'][1] for r in rows)}, "
-          f"closed {sum(r['closed_cost'][0] < -2 * r['closed_cost'][1] for r in rows)} of {len(rows)}")
-
-
-if __name__ == "__main__":
-    main()
-
-
 def screen_seed(tag, state_text):
     """stable per screen across processes (Python's str hash is salted per process)"""
     import zlib
     return zlib.crc32(f"{tag}|{scr.floor_key(state_text)}".encode()) % 10_000
 
 
-def decide(st, state_text, pred, engine, opts, n=128, seed=0, cont=None, hybrid=True, sat=ACT_SATURATED):
+def decide(st, state_text, pred, engine, opts, n=128, seed=0, hybrid=True):
     """the one pricing decision shared by the live `price` command and the scripted baseline: run-model rollouts, macro-term adjustments
     (event terms; card-reward margin vs skip), search check of the top options + skip + best removal (CARD_REWARD / SHOP / EVENT), hybrid
     override. -> dict(res, adj, check, best, ranked_by, override, terms_skip, radius)"""
     kind = scr.kind(state_text)
-    res = price(st, opts, pred, n=n, seed=seed, cont=cont)
+    res = price(st, opts, pred, n=n, seed=seed)
     adj = event_adjust(st, state_text)
     check, radius = search_check(st, opts, res, engine) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else ({}, None)
     best_, ranked, override = hybrid_best(res, check, adj)
@@ -728,7 +623,7 @@ def decide(st, state_text, pred, engine, opts, n=128, seed=0, cont=None, hybrid=
         else:
             best_, terms_skip = "skip", True
     elif kind == "CARD_REWARD" and best_ != "skip" and "skip" in res and override is None:
-        main, _ = ladder(res, sat)
+        main, _ = ladder(res)
         d = res[best_][main] - res["skip"][main]
         cid = _card_id(best_)[0]
         if cid and R.pick_with_terms("card_reward", st, [0.0, float(d.mean())], [(None, None), ("card", cid)], se=_se(d)) == 0:

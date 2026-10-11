@@ -187,44 +187,9 @@ def _summary(spec, base, encs, index, res):
     return "\n".join(lines), summary
 
 
-def _merge(a, b):
-    """two solve() rows of the same scenario from different seed rounds -> one row"""
-    if a is None:
-        return dict(b)
-    wins = (a.get("wins") or []) + (b.get("wins") or [])
-    valid = [w for w in wins if w is not None]
-    n = len(valid)
-    p = sum(valid) / max(n, 1)
-    na, nb = a.get("attempts", 0), b.get("attempts", 0)
-    hl = [x for x, k in ((a.get("hp_lost"), na), (b.get("hp_lost"), nb)) if x is not None]
-    return dict(a, wins=wins, win=p, win_se=(p * (1 - p) / max(n, 1)) ** 0.5, attempts=na + nb, ends=(a.get("ends") or []) + (b.get("ends") or []),
-                hp_lost=(((a.get("hp_lost") or 0) * na + (b.get("hp_lost") or 0) * nb) / max(na + nb, 1)) if hl else None)
-
-
-TIE_SE, STEP, BAR = 0.015, 32, 0.05
-
-
-def _decided(summary, bar=None):
-    """every option is either beaten by the best by 2 paired se, or its difference to the best is resolved to TIE_SE; with a bar (the
-    section-3 bar vs option 0 = skip), an option whose upper bound d + 2 se stays below the bar is decided too (it cannot clear it)"""
-    live = set(summary)
-    if bar is not None and 0 in summary:
-        live = {0} | {vi for vi in summary if vi and _vs(summary, vi)[0] + 2 * _vs(summary, vi)[1] >= bar}
-    best = max(live, key=lambda vi: summary[vi]["win"])
-    for vi in live:
-        if vi == best:
-            continue
-        d = summary[best]["win"] - summary[vi]["win"]
-        se = _vs(summary, vi)[1] if best == 0 else _vs(summary, best)[1] if vi == 0 else (summary[best]["se"] ** 2 + summary[vi]["se"] ** 2) ** 0.5
-        if not (d > 2 * se or se <= TIE_SE):
-            return False
-    return True
-
-
-def evaluate_many(engine, items, adaptive=False, bar=None):
-    """[(deck_json, spec)] -> [(text, summary)], all in ONE batch search per round (smooth specs expand to their HP multiples); each scenario
-    keeps the attempts and the common-random-number group it has in a call of its own. adaptive: rounds of STEP attempts (fresh seed per
-    round, pairing kept within a round) until every comparison with the best option is decided (_decided) or the spec's attempts are spent"""
+def evaluate_many(engine, items):
+    """[(deck_json, spec)] -> [(text, summary)], all in ONE batch search (smooth specs expand to their HP multiples); each scenario keeps the
+    attempts and the common-random-number group it has in a call of its own"""
     flat = []
     for deck_json, spec in items:
         if spec.get("smooth"):
@@ -252,63 +217,11 @@ def evaluate_many(engine, items, adaptive=False, bar=None):
         return out
     if not scen:
         return summarize([])
-    if not adaptive:
-        return summarize(engine.solve(scen, attempts=att, groups=grp))
-    acc, done, rnd = [None] * len(scen), [0] * len(scen), 0
-    while True:
-        take = [min(STEP, t - d) for t, d in zip(att, done)]
-        if max(take) <= 0:
-            break
-        idx = [i for i, t in enumerate(take) if t > 0]
-        got = engine.solve([scen[i] for i in idx], attempts=[take[i] for i in idx], groups=[grp[i] for i in idx], seed=1000 + rnd)
-        for i, r in zip(idx, got):
-            acc[i] = _merge(acc[i], r)
-            done[i] += take[i]
-        rnd += 1
-        out = summarize(acc)
-        if all(_decided(summary, bar) for _, summary in out):
-            break
-    n_used = sum(done)
-    return [(t + f"\n(adaptive: {n_used} of {sum(att)} fights)", summary) for t, summary in out]
-
-
-def evaluate_smooth(engine, deck_json, spec):
-    return evaluate_many(engine, [(deck_json, dict(spec, smooth=True))])[0]
+    return summarize(engine.solve(scen, attempts=att, groups=grp))
 
 
 def evaluate(engine, deck_json, spec):
     return evaluate_many(engine, [(deck_json, spec)])[0]
-
-
-def route_budget(engine, deck_json, nodes, hp, act="Overgrowth", exclude=(), attempts=48, ctx=None):
-    base = dict(deck_json)
-    maxhp = base["max_hp"]
-    kind = dict(M="regular", W="weak", E="elite", B="boss")
-    lines = [f"route from {hp}/{maxhp} HP, act {act}, {attempts} attempts per encounter"]
-    p_route = 1.0
-    cur = float(hp)
-    for i, tok in enumerate(nodes):
-        t = tok.upper()
-        if t in ("R",):
-            cur = min(maxhp, cur + 0.3 * maxhp)
-            lines.append(f"{i + 1:2d} R  rest: HP {cur:5.1f}")
-            continue
-        if t in ("S", "?", "$", "T"):
-            lines.append(f"{i + 1:2d} {t}  (no fight assumed)  HP {cur:5.1f}")
-            continue
-        encs = narrow([e for e in pools.pool(act, kind[t]) if e not in set(exclude)], kind[t], ctx)
-        pots = base.get("potions", []) if t == "B" else []
-        scen = [dict(base, hp=max(1, int(round(cur))), potions=pots, name=f"{t}@{e}", encounter=e, seed=f"route{i}") for e in encs]
-        res = engine.solve(scen, attempts=attempts)
-        w = sum(r["win"] for r in res) / len(res)
-        left = sum(r["win"] * r["hp_left_on_win"] for r in res) / max(sum(r["win"] for r in res), 1e-9)
-        worst = min(res, key=lambda r: r["win"])
-        wname = encs[res.index(worst)]
-        p_route *= w
-        lines.append(f"{i + 1:2d} {t}  win {w:.3f} (worst {wname.split('_')[0]} {worst['win']:.2f})  HP in {cur:5.1f} -> after win {left:5.1f}   route win so far {p_route:.3f}")
-        cur = max(1.0, left)
-    lines.append(f"route win probability (product of node win rates): {p_route:.3f}")
-    return "\n".join(lines)
 
 
 _CARD_IDS = None
@@ -344,147 +257,6 @@ def parse_card_options(state):
         elif label.startswith("Skip"):
             skip = int(num)
     return opts, skip
-
-
-def need_view(res, nvar, names=None):
-    fights = []
-    for key in ("boss", "elites", "next act"):
-        for e in res.get(key, {}).get(0, {}).get("per", {}):
-            fights.append((key, e))
-    if not fights:
-        return {}, True
-    w = {f: max(0.0, 1.0 - res[f[0]][0]["per"][f[1]]) for f in fights}
-    tot = sum(w.values())
-    rows = {}
-    for vi in range(nvar):
-        cur = [(e, res[k][vi]["per"][e]) for k, e in fights if k in ("boss", "elites")] or [(e, res[k][vi]["per"][e]) for k, e in fights]
-        worst = min(cur, key=lambda t: t[1])
-        gain = sum(w[f] * (res[f[0]][vi]["per"][f[1]] - res[f[0]][0]["per"][f[1]]) for f in fights) / tot if tot > 0.05 else None
-        rows[vi] = (worst[0], worst[1], gain)
-    return rows, tot <= 0.05
-
-
-def price_horizon(engine, deck_json, variants, hz, hp, hold, boss_attempts, other_attempts, next_attempts=None, smooth_boss=True, bar=None):
-    sets = (("boss", hz["boss"], smooth_boss, boss_attempts), ("elites", hz["elites"], False, other_attempts),
-            ("next act", hz["next"], False, other_attempts if next_attempts is None else next_attempts))
-    keys = [(key, dict(encounters=encs, variants=variants, attempts=att, hp=hp, smooth=smooth, hold=hold)) for key, encs, smooth, att in sets if encs]
-    got = evaluate_many(engine, [(deck_json, spec) for _, spec in keys], adaptive=True, bar=bar)
-    return {key: summary for (key, _), (_, summary) in zip(keys, got)}
-
-
-HORIZON_HEAD = f"{'boss smooth':>16s} {'boss@full':>9s} {'elites win/HP':>14s} {'next act win/HP':>16s}"
-
-
-def horizon_cells(res, vi):
-    base, b = res.get("boss", {}).get(0), res.get("boss", {}).get(vi)
-    cells = [(f"{b['win']:.3f}" + (f" ({b['win'] - base['win']:+.3f})" if vi and base else "")) if b else "-", f"{b['by_hp'][0]:.2f}" if b else "-"]
-    for key in ("elites", "next act"):
-        r = res.get(key, {}).get(vi)
-        cells.append(f"{r['win']:.2f}/{100 * r['hp_lost']:.0f}%" if r else "-")
-    return f"{cells[0]:>16s} {cells[1]:>9s} {cells[2]:>14s} {cells[3]:>16s}"
-
-
-def reward_report(engine, deck_json, opts, hz, attempts=96, hp="full", hold=()):
-    from agent import card_tags
-    variants = [dict(name="skip")] + [dict(name=n, add=[(cid + "+") if u else cid]) for _, n, cid, u in opts if cid]
-    res = price_horizon(engine, deck_json, variants, hz, hp, hold, attempts, max(48, attempts * 2 // 3), bar=BAR)
-    lines = [f"card reward vs boss {','.join(hz['boss']) or '?'} (smooth = win averaged over start HP x{'/'.join(str(m) for m in SMOOTH_MULTS)} of full HP), "
-             f"{len(hz['elites'])} elites left, {len(hz['next'])} next-act elite/boss fights; {attempts} attempts"]
-    lines.append(f"{'option':22s} {HORIZON_HEAD}  fills")
-    try:
-        tags = card_tags.load()
-    except Exception:  # noqa: BLE001
-        tags = {}
-    for vi, v in enumerate(variants):
-        cid = v.get("add", [None])[0]
-        fills = "/".join(tags.get(cid.rstrip("+"), {}).get("buckets", [])) if cid else ""
-        lines.append(f"{v['name']:22s} {horizon_cells(res, vi)}  {fills}")
-    nv, solved = need_view(res, len(variants))
-    if nv:
-        lines.append("weakest link (the lowest win over the boss and the elites to come) and need-weighted gain (each fight weighted by 1 - its skip win: a solved fight counts ~0)" + ("; every fight is solved by the baseline, so the gain is n/a" if solved else ""))
-        for vi, v in enumerate(variants):
-            e, wv, g = nv[vi]
-            lines.append(f"  {v['name']:22s} weakest {e.split('_')[0][:14]:14s} {wv:.2f}   need-weighted gain " + (f"{g:+.3f}" if g is not None else "n/a"))
-    unmapped = [n for _, n, cid, _ in opts if not cid]
-    if unmapped:
-        lines.append("not evaluated (no simulator id for the display name): " + ", ".join(unmapped))
-    try:
-        line = card_tags.deck_line(deck_json["deck"], tags)
-        gaps = card_tags.deficiencies(line)
-        lines.append("deck buckets " + " ".join(f"{k} {n}" for k, n in line.items()) + "  gaps " + str(gaps))
-        lines += _bar_verdict(variants, res, tags, gaps, nv)
-    except Exception:  # noqa: BLE001
-        pass
-    return "\n".join(lines), res
-
-
-def _bar_verdict(variants, res, tags, gaps, nv):
-    boss = res.get("boss", {})
-    if 0 not in boss:
-        return []
-    out = ["section-3 bar (a card into solved buckets must clearly beat skip: boss smooth > max(3 se, 0.05) or +0.10 on the weakest fight):"]
-    w0 = nv.get(0, (None, None, None))[1] if nv else None
-    for vi, v in enumerate(variants):
-        if not vi or vi not in boss:
-            continue
-        cid = v["add"][0].rstrip("+")
-        bk = tags.get(cid, {}).get("buckets", [])
-        opens = [b for b in bk if b in gaps]
-        d, se = _vs(boss, vi)
-        dw = (nv[vi][1] - w0) if nv and w0 is not None else 0.0
-        if boss[vi].get("by_hp") and boss[0].get("by_hp"):
-            dw = max(dw, boss[vi]["by_hp"][0] - boss[0]["by_hp"][0])
-        bar = max(3 * se, BAR)
-        clear = d > bar or dw >= 0.10
-        if opens:
-            verdict = "fills open " + "/".join(opens) + (": take on numbers" if d > 0 else ": price vs the gap")
-        elif clear:
-            verdict = "solved buckets, clears the bar"
-        else:
-            verdict = "below the bar (solved buckets): default skip unless the judgment names a future problem / synergy it solves"
-        out.append(f"  {v['name']:22s} boss {d:+.3f} (bar {bar:.3f}) weakest {dw:+.2f}  -> {verdict}")
-    return out
-
-
-ETERNAL = {"ASCENDERS_BANE", "GREED"}
-
-
-def removal_report(engine, deck_json, hz, attempts=64, hp="full", hold=()):
-    seen, variants = set(), [dict(name="keep all")]
-    for d in deck_json["deck"]:
-        key = (d["id"], d.get("upgrade", 0))
-        if key in seen or d["id"] in ETERNAL:
-            continue
-        seen.add(key)
-        variants.append(dict(name="-" + d["id"] + ("+" if key[1] else ""), remove=[dict(id=key[0], upgrade=key[1])]))
-    n = sum(1 for d in deck_json["deck"] if d["id"] not in ETERNAL)
-    res = price_horizon(engine, deck_json, variants, hz, hp, hold, attempts, max(32, attempts * 2 // 3))
-    base = res.get("boss", {}).get(0)
-    rows = []
-    for vi, v in enumerate(variants):
-        b = res.get("boss", {}).get(vi)
-        e = res.get("elites", {}).get(vi)
-        x = res.get("next act", {}).get(vi)
-        rows.append((vi, v["name"], b, e, x))
-    order = [rows[0]] + sorted(rows[1:], key=lambda r: (-round((r[2]["win"] if r[2] else 0) / 0.02), -(r[4]["win"] if r[4] else 0), (r[3]["hp_lost"] if r[3] else 1)))
-    lines = [f"card removal vs boss {','.join(hz['boss']) or '?'} (smooth), {len(hz['elites'])} elites left, {len(hz['next'])} next-act fights; deck {n} removable cards; {attempts} attempts"]
-    lines.append(f"{'remove':24s} {HORIZON_HEAD}")
-    for vi, name, *_ in order:
-        lines.append(f"{name:24s} {horizon_cells(res, vi)}")
-    if base:
-        best = order[1][2]
-
-        def se_vs_best(b):
-            if b is best:
-                return 0.0
-            if b.get("diffs") is not None and best.get("diffs") is not None:
-                s = _paired_se({e: np.asarray(b["diffs"][e]) - np.asarray(best["diffs"][e]) for e in b["diffs"]})
-                if s is not None:
-                    return s
-            return (b["se"] ** 2 + best["se"] ** 2) ** 0.5
-        top = [r for r in order[1:] if r[2] and r[2]["win"] >= best["win"] - 2 * se_vs_best(r[2])]
-        lines.append(f"sorted by boss smooth (0.02 ties), then next-act win, then elite HP; best: {order[1][1]} ({order[1][2]['win'] - base['win']:+.3f}); boss within 2 se of it: {', '.join(r[1] for r in top)}")
-    return "\n".join(lines), res
 
 
 def brief_text(state, deck_json, hz):

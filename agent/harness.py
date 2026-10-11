@@ -13,12 +13,8 @@ from agent.bridge import call
 from agent.live import REPLAY_BAD, Live
 from agent.runlog import RunLog
 
-PICK_RECORD = guards.PICK_RECORD
-
-PRICING_FAILED = ("ERR", "REFUSED", "reward: not", "no run", "need --enc", "routes: no act map", "routes: boss unknown", "eval: ")
-PRICING = {"eval": "evaluate", "reward": "reward", "route": "route", "routes": "routes", "rmcalc": "rmcalc", "pickplan": "pickplan", "restcalc": "restcalc"}
-
-_floor, _kind, _act_index, _hp = scr.floor_key, scr.kind, scr.act_index, scr.hp
+PRICING_FAILED = ("ERR", "REFUSED", "no run", "need --enc", "routes: no act map", "routes: boss unknown", "restcalc: not")
+PRICING = {"eval": "evaluate", "routes": "routes", "restcalc": "restcalc"}
 
 
 def _needs_run(reply):
@@ -256,16 +252,6 @@ class Harness(Live):
 
 
     @_needs_run("no run in progress")
-    def route(self, argline):
-        a = Args(argline, valued=("--hp", "--act", "--exclude", "--attempts"))
-        hp = a.get("--hp", None, int)
-        excl = a.get("--exclude").split(",") if a.has("--exclude") else []
-        deck = self._run()
-        text = macro.route_budget(self.eng(), deck, a.pos, hp if hp is not None else deck["hp"], a.get("--act", "Overgrowth"), excl, a.get("--attempts", 48, int), ctx=self._ctx())
-        self.log.event("route", nodes=a.pos, hp=hp, text=text)
-        return text
-
-    @_needs_run("no run in progress")
     def routes(self, argline):
         from agent import routes
         a = Args(argline, valued=("--attempts", "--pf", "--w", "--hp"))
@@ -278,79 +264,19 @@ class Harness(Live):
         self.log.event("routes", text=text)
         return text
 
-    @_needs_run("no run in progress\n")
-    def rmcalc(self, argline):
-        a = Args(argline, valued=("--attempts", "--hp"))
-        att, hp = a.get("--attempts", 64, int), a.hp()
-        deck = self._run()
-        text, res = macro.removal_report(self.eng(), deck, self._horizon(), att, hp, "all")
-        self.log.event("rmcalc", text=text)
-        return text + "\n"
-
-    @_needs_run("no run in progress\n")
-    def pickplan(self, argline):
-        from agent import pickplan
-        a = Args(argline, valued=("--screens", "--elites", "--shops", "--slots", "--rho", "--attempts"))
-        deck = self._run()
-        hz = self._horizon()
-        state = call("peek")
-        offer = None
-        if scr.kind(state) == "CARD_REWARD":
-            opts, _skip = macro.parse_card_options(state)
-            offer = {n: cid for _, n, cid, _ in opts if cid}
-        text, res = pickplan.analyse(self.eng(), deck, hz, offer, a.get("--screens", 3, int), a.get("--elites", 0, int), a.get("--shops", 0, int), a.get("--slots", 6, int),
-                                     a.get("--rho", 0.85, float), attempts=a.get("--attempts", 32, int), hold="all")
-        self.log.event("pickplan", text=text)
-        return text + "\n"
-
-    @_needs_run("no run in progress\n")
-    def reward(self, argline):
-        state = call("peek")
-        if scr.kind(state) != "CARD_REWARD":
-            return f"reward: not a card reward screen ({scr.kind(state)}); use eval\n"
-        a = Args(argline, valued=("--attempts", "--hp"))
-        att, hp = a.get("--attempts", 96, int), a.hp()
-        deck = self._run()
-        opts, skip = macro.parse_card_options(state)
-        hz = self._horizon()
-        text, res = macro.reward_report(self.eng(), deck, opts, hz, att, hp, "all")
-        self.reward_screen = guards.reward_key(state)
-        self.log.event("reward_eval", options=[o[1] for o in opts], result={k: {str(i): v for i, v in macro.loggable(r).items()} for k, r in res.items()}, boss=hz["boss"])
-        return text + "\n" + self._synergy(state, deck) + self._signals(state, deck, opts) + f"skip is option {skip}; pick with `a ~Card -- why`\n"
-
-    def _signals(self, state, deck, opts):
-        """the macro-term inputs per offered card, each on its own (data/macro_rules.json; the script sums them, the operator reads them)"""
-        from agent import price as PR, runmodel as R, terms as TM
-        try:
-            st = PR.run_state(deck, self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
-        except Exception:  # noqa: BLE001
-            return ""
-        rows = []
-        for _, name, cid, _up in opts:
-            if not cid:
-                continue
-            c = R.term_ctx(st, "card", cid)
-            adj = TM.explain("card_reward", c)
-            rows.append(f"  {name[:20]:20s} gaps filled {c['gap_fill']}  plan core owned {c['core_owned']}  anti {c['anti']}  cycle {c['cycle_after']:.1f} turns"
-                        f"  draw/energy {'yes' if ({'draw', 'energy_gain'} & set(c['provides'])) else 'no'} (engines owned {c['scaling_owned']})  cost {c['cost']}"
-                        + ("  | terms: " + ", ".join(f"{k} {v:+.3f}" for k, v in adj) if adj else ""))
-        return ("macro signals (inputs, not a verdict; terms in P units):\n" + "\n".join(rows) + "\n") if rows else ""
-
     @_needs_run("no run in progress")
     def price(self, argline):
         from agent import price as PR
         state = call("peek")
         args = argline.split()
         n = int(args[0]) if args and args[0].isdigit() else 128
-        sat = float(args[args.index("--sat") + 1]) if "--sat" in args[:-1] else PR.ACT_SATURATED
-        cont = args[args.index("--cont") + 1] if "--cont" in args[:-1] else os.environ.get("STS2_PRICE_CONT") or None
-        if cont is not None and cont not in PR.R.RULES:
-            return f"price: --cont takes one of {', '.join(PR.R.RULES)}\n"
         st = PR.run_state(self._run(), self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
         opts = PR.options(st, state)
         if not opts:
             why = " (this event is not catalogued: decide by judgment and note the gap)" if scr.kind(state) == "EVENT" else ""
             return f"price: nothing to price on a {scr.kind(state)} screen{why}\n"
+        if scr.kind(state) == "CARD_REWARD":
+            self.reward_screen = guards.reward_key(state)
         if len(opts) == 1:
             self.log.event("price", screen=scr.kind(state), options=[opts[0][0]], result=None)
             return f"price: one option on this screen ({opts[0][0]}): nothing to compare\n"
@@ -363,11 +289,9 @@ class Harness(Live):
             unpriced = []
             opts, note = PR.bundles(st, PR.shop_items(st, state, unpriced), self._predictor)
             note = f"; {note}" + (f"; not priced (no simulator id): {', '.join(unpriced)}" if unpriced else "")
-        r = PR.decide(st, state, self._predictor, None if "--no-search" in args else self.eng(), opts, n=n, seed=PR.screen_seed("live", state),
-                      cont=cont, sat=sat)
+        r = PR.decide(st, state, self._predictor, None if "--no-search" in args else self.eng(), opts, n=n, seed=PR.screen_seed("live", state))
         res, adj, got, override = r["res"], r["adj"], r["check"], r["override"]
-        gates = "" if cont is None else PR.gates_text(opts, PR.closed_gates(st, opts, self._predictor), cont) + "\n"
-        ranked_by, _why = PR.ladder(res, sat)
+        ranked_by, _why = PR.ladder(res)
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by=ranked_by, best=r["best"],
                        result={k: {m: float(v.mean()) for m, v in x.items()} for k, x in res.items()},
                        search={k: [round(v[0], 3), round(v[1], 3), {str(a): round(x, 3) for a, x in v[2].items()}, {str(a): round(x, 3) for a, x in v[4].items()}] for k, v in got.items()}, override=override, terms=adj, radius=r["radius"])
@@ -382,8 +306,8 @@ class Harness(Live):
             check += ("search check: log ratio vs skip summed over the factors of P(win run) (near binding fights at current HP, binding radius "
                       f"{r['radius']}; future boss rungs at full HP), the belt each option leaves; per factor P(win), or progress where skip floors\n"
                       + "\n".join(rows) + (f"\n  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})" if override else "") + "\n")
-        check += f"decision (shared with the scripted baseline): {r['best']}" + (" (card-reward terms: tie / density -> skip)" if r["terms_skip"] else "") + "\n"
-        return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates + check + self._synergy(state)
+        check += f"decision (shared with the scripted baseline): {r['best']}" + (" (card-reward deadline rule -> skip)" if r["terms_skip"] else "") + "\n"
+        return PR.table(res) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + check + self._synergy(state)
 
     def _synergy(self, state, deck=None):
         """plan overlap of the items offered on this screen (counts, for the operator to judge; data/synergy_candidates.json)"""
@@ -428,7 +352,7 @@ class Harness(Live):
             if scr.kind(state) != "REWARDS":
                 break
             opts = scr.options(state)
-            card_done = self.priced.get("reward") == scr.floor_key(state)
+            card_done = self.reward_screen is not None and self.reward_screen[0] == scr.floor_key(state)
             pending = [label.split(":")[0] for _, label in opts if label.lower().startswith(("relic ", "take your stolen")) or (label.lower().startswith("card") and not card_done)]
             if pending:
                 return ((out.rstrip("\n") + "\n" if out else "") + self._synergy(state) + f"loot: decide {', '.join(pending)} first (the card reward before relics; a relic can be "
@@ -442,6 +366,7 @@ class Harness(Live):
                 break
         return out or call("peek")
 
+    @_needs_run("no run in progress\n")
     def restcalc(self, argline):
         """the rest decision's deciding number: the act boss(es) at the HP now vs after resting (Regal Pillow included)"""
         state = call("peek")
@@ -449,12 +374,13 @@ class Harness(Live):
         m = re.search(r"Rest: Heal for \d+% of your Max HP \((\d+)\)", state)
         if not hp or not m:
             return "restcalc: not at a rest site with a Rest option\n"
-        heal = int(m.group(1)) + (15 if "Regal Pillow:" in self.handle("d") else 0)
+        heal = int(m.group(1)) + (15 if any(r["id"] == "REGAL_PILLOW" for r in self._run()["relics"]) else 0)
         after = min(hp[1], hp[0] + heal)
         # one paired batch: the HP after resting is a variant of the HP now
         text = self.evaluate(f"--boss --hp {hp[0]} --attempts 128 --v rest|hp={after} {argline}")
         return f"rest heals {after - hp[0]} ({hp[0]} -> {after}/{hp[1]}); baseline = no rest\n" + text + "\n"
 
+    @_needs_run("no run in progress")
     def evaluate(self, argline):
         argline = argline.strip()
         if argline.startswith("{"):
@@ -597,10 +523,6 @@ class Harness(Live):
                 if here and not out.startswith(("ERR", "price: nothing to price")):
                     self.priced["price"] = here
                 return out
-            if cmd == "plans":
-                from agent import plans
-                ch = scr.character(call("peek"))
-                return "\n\n".join(plans.text(p) for p in plans.load() if not ch or p["character"] == ch) + "\n"
             if cmd == "relics":
                 raw = call("snap").strip()
                 if raw == "null":

@@ -22,7 +22,7 @@ def main():
     passed = 0
     for it in spec["items"]:
         hit = None
-        for floor, state, st, choice, _old in PR.recorded_screens(os.path.join(ROOT, it["run"]), (it["kind"],)):
+        for floor, state, st, choice in PR.recorded_screens(os.path.join(ROOT, it["run"]), (it["kind"],)):
             if it["floor"] in state.split("\n")[1] and (not it.get("page") or it["page"] in state):
                 hit = (state, st)
                 break

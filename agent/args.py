@@ -24,13 +24,7 @@ class Args:
         vals = [v for k, v in self.items if k == name]
         return cast(vals[-1]) if vals else default
 
-    def hp(self, name="--hp", default="full"):
-        return hp_value(self.get(name, default))
-
     def weights(self, name="--w"):
         v = self.get(name)
         return {kv.split("=")[0]: float(kv.split("=")[1]) for kv in v.split(",")} if v else {}
 
-
-def hp_value(v):
-    return v if v in ("full", "current") else int(v)

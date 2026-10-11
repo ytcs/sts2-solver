@@ -23,7 +23,7 @@ def main():
     out = open(a.out, "w", encoding="utf-8") if a.out else None
     for f in sorted(glob.glob(os.path.join(a.root, "**", "events.jsonl"), recursive=True)):
         seed = os.path.basename(os.path.dirname(f))
-        for floor, state, st, choice, _old in PR.recorded_screens(f, ("CARD_REWARD",)):
+        for floor, state, st, choice in PR.recorded_screens(f, ("CARD_REWARD",)):
             hdr = state.split("\n")[1]
             if a.floors and not hdr.startswith(a.floors):
                 continue

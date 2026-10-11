@@ -136,6 +136,10 @@ class Run:
         return st
 
 
+def arrival(g, rule):
+    return R.combine([(g[0][0], 1.0, g[0][2])] + list(g[1:]), rule)
+
+
 def rollout_values(pred, jobs, n, seed=0):
     """jobs: list of (RunState, first-fn or None, pair key); same key -> same rollout seeds. -> per job dict of arrays"""
     ro = R.Rollouts(pred, 4)
@@ -153,7 +157,7 @@ def rollout_values(pred, jobs, n, seed=0):
     out = []
     for ji, (st, _f, _k) in enumerate(jobs):
         ss = [s for s, o in zip(states, owner) if o == ji]
-        out.append(dict(cont=np.array([PR.arrival(s.gates, "late") if getattr(s, "gates", None) else 0.0 for s in ss]),
+        out.append(dict(cont=np.array([arrival(s.gates, "late") if getattr(s, "gates", None) else 0.0 for s in ss]),
                         act=np.array([1.0 if (s.end is None or s.end[0] > st.act or s.end[1] == "won") else 0.0 for s in ss]),
                         floors=np.array([s.floors for s in ss], float)))
     return out

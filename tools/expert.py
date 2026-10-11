@@ -1105,7 +1105,7 @@ def compare_macro(rec, a):
         log = os.path.join(RE.creator_dir(rec), "replay", rec["video"]["id"] + ".jsonl")
         run = next((json.loads(x)["run"] for x in open(log, encoding="utf-8") if '"start"' in x), None) if os.path.exists(log) else None
         screens = PR.recorded_screens(os.path.join(ROOT, "runs", run, "events.jsonl"), ("CARD_REWARD", "RESTSITE")) if run else []
-        screens = ((f, s, st, PR._played(s, c, PR.options(st, s)), c) for f, s, st, c, _old in screens)
+        screens = ((f, s, st, PR._played(s, c, PR.options(st, s)), c) for f, s, st, c in screens)
     else:
         screens = synthetic_screens(rec)
     rows, used = [], set()
