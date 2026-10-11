@@ -7,7 +7,7 @@ description: Use when planning routes or fights: act structure, encounter pools 
 
 ## Encounter assignment `[code]` (ActModel.GenerateRooms, RoomSet.cs)
 - Act start pre-rolls hidden lists (monsters: weak first, then regular; elites; boss; ancient). The Nth monster/elite room entered gets list[N]. Never read the lists.
-- Bag per kind, refilled with the whole pool, avoiding the previous entry's tags. After n met of pool P the next is in the pool minus the last n mod P met. `eval`/`route` apply it.
+- Bag per kind, refilled with the whole pool, avoiding the previous entry's tags. After n met of pool P the next is in the pool minus the last n mod P met. `eval`/`routes`/`price` apply it.
 - Three elites per pool. Rooms (excl. boss, ancient): Overgrowth 15, Underdocks 15, Hive 14, Glory 13; weak fights 3/3/2/2. A10: second boss.
 
 ## Pools `[code]` (ids `_WEAK`, `_NORMAL`, `_ELITE`, `_BOSS`)

@@ -5,5 +5,6 @@ Read to question a rule; add the result before changing it. `[sim]` unless marke
 - Self-damage Strength engine (Inferno, Rupture, Demon Form, Fight Me, Spite, Stone Armor, Crimson Mantle) 0.61 vs Aeonglass; exhaust decks 0.00-0.21. Corruption is Ancient rarity.
 - High energy (500 scenarios per set): search gain not wider at 4-7 energy than at 3: no energy discount.
 - Se of a 96-attempt win ~0.03-0.05; smooth needs ~4x the fights.
+- Removals at the Queen (64 paired seeds, `docs/research/evidence.md` E74): three weakest picks +0.188 +- 0.073 win, three random cards +0.06-0.08.
 - Rejected: demand-vs-capacity radar (Spearman -0.55 vs solver, 88 fights).
 - Buckets per Ironclad card: `data/card_buckets_ironclad.json` (`python -m agent.card_tags`); tags propose, `eval` decides.

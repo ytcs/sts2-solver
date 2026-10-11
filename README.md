@@ -24,7 +24,7 @@ Dashboard: `python tools/dashboard/extract_assets.py` (once per game update), th
 
 ## Training and evaluation
 - Expert iteration: `tools/collect.sh <rl/exit.py collect args>` (`--ckpt --fights --out [--cover --K --futures]`), `rl/exit.py train --init --data --out` (policy + TD(0.8) value by default). Pools: `tools/gen_curriculum.py`, `signal_pool.py`, `gen_train.py`, `round_pool.py`. After a simulator change: `tools/prune_divergent.py`.
-- Pods: `scripts/pod_round.sh` (combat-loop round), `pod_train.sh` (PPO `rl/ppo.py`), `pod_job.sh` (uploaded `job.sh`), shared `pod_setup.sh`.
+- Pods: `scripts/pod_round.sh` (combat-loop round), `pod_job.sh` (uploaded `job.sh`), shared `pod_setup.sh`.
 - Benchmarks: `tools/bench.py build|build-plans|relabel|score|play|screen`, `tools/nearmiss_bench.py build|eval`, `tools/bench_search.py`, `tools/exact_turn_check.py`.
 - Headless baseline: `tools/baseline.py` (N `OracleCombat serve` games round-robin, one shared Engine, fixed search rounds, `runmodel.BasePolicy` macro, win = The Architect reached; `evals/baseline/<tag>.jsonl`).
 - Live networks: `models/current.json`. Expert re-enactment: `tools/expert.py`, skill `expert-reenact`.
@@ -35,15 +35,15 @@ Dashboard: `python tools/dashboard/extract_assets.py` (once per game update), th
 ## Layout
 | path | what |
 |---|---|
-| `agent/` | harness, bridge client, fight rebuild, engine, run model (`runmodel`, `price`, `plans`, `tracker`), calculators, guards, skill gate, outer loop |
+| `agent/` | harness, bridge client, fight rebuild, engine, run model (`runmodel`, `price`, `tracker`), `eval` / `routes` / `restcalc` calculators, decision guards, skill gate, outer loop |
 | `mods/AgentBridge/` | game mod (C#) |
 | `.claude/skills/` | strategy book |
-| `rl/` | network + outcome head, `fastsearch`, `solver`, `exit`, `ppo`, `predictor` |
+| `rl/` | network + outcome head, `fastsearch`, `solver`, `exit`, `predictor` |
 | `crates/` | `sts2sim` simulator, `sts2env` batch env + search, `sts2py` bindings, `sts2diff` differential tester |
 | `oracle/` | the game's combat code headless, regression traces, RNG goldens |
-| `tools/` | gate, benches, pool generators, dashboard, expert pipeline |
+| `tools/` | gate, benches, pool generators, baseline arms + analysis, dashboard, expert pipeline |
 | `scripts/` | pod scripts, `skill_gate.py` (hook), `porting/` (rerun after a game update: `gen_defs.py`, `gen_ids.py`, `gen_relics.py`, `flag_multiplayer_cards.py`) |
-| `tests/` | `agent/test_expert.py`, `agent/test_dashboard.py`, harness tests (`python tests/agent/run.py`) |
+| `tests/` | harness and dashboard tests (`python tests/agent/run.py`) |
 | `docs/` | `plan.md`, `simulator.md`, `solver.md`, `game-bugs.md`, `research/` (`evidence.md`, `game_code.md`) |
-| `data/`, `models/` | catalogs, pools, plans, bench/train sets, expert records; networks |
+| `data/`, `models/` | catalogs, pools, bench/train sets, expert records; networks |
 | `runs/`, `evals/` | run records; gaps, judgments |

@@ -8,7 +8,7 @@ Neow/ancient option and path are one decision. Binding limits: HP, gold, deck sl
 
 ## Procedure (every act, at the ancient)
 1. `m`; keep 3-5 paths that differ in kind (safe, elite-heavy, shop-first, rest-late).
-2. `routes` and/or `route <tokens> --hp <HP> --act <Act>` per path (fights + rests; price rewards, gold, unknowns by hand).
+2. `routes` (and `routes --hp <HP>` per option's HP) prices fights + rests; `price` prices the Neow/ancient options; rewards, gold, unknowns by hand.
 3. Option-by-route table: ranking never flips -> best option then route; flips -> choose the pair. Combat options via `eval`.
 4. `draw` the route before the first click; re-plan each node (bag: `sts2-acts`).
 5. Before every click: gold vs shop, HP vs elite (`!` below 60%), next rest. `routes` at every fork.
