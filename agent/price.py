@@ -165,7 +165,7 @@ def shop_items(st, state_text, unpriced=None):
 
 
 def card_type(cid):
-    return next((r.get("type") for rows in R.CAT["cards"].values() for r in rows if r["id"] == cid), None)
+    return R.CARD_ROWS.get(cid, {}).get("type")
 
 
 def removal_candidates(deck):

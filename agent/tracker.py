@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 import re
@@ -11,6 +12,7 @@ REMOVAL_BASE, REMOVAL_STEP = 100, 50
 _ROOM = {"COMBAT": "monster", "TREASURE": "treasure", "SHOP": "shop"}
 
 
+@functools.cache
 def _rarity():
     from agent import macro
     cat = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))["cards"]
@@ -74,6 +76,8 @@ def from_record(events_path):
         return t
     with open(events_path, encoding="utf-8") as f:
         for raw in f:
+            if '"fight_start"' not in raw and '"macro"' not in raw:
+                continue
             e = json.loads(raw)
             if e.get("kind") == "fight_start":
                 t.fight_start(e.get("encounter", ""))

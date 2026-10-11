@@ -58,11 +58,7 @@ def match(event, labels, options=None):
 
 def _card(cid):
     from agent import runmodel as RM
-    for rows in RM.CAT["cards"].values():
-        for r in rows:
-            if r["id"] == cid:
-                return r
-    return {}
+    return RM.CARD_ROWS.get(cid, {})
 
 
 def _basic(c):

@@ -144,8 +144,9 @@ class Harness(Live):
             act = scr.act_index(s)
             if act is not None:
                 return act
-            if s.startswith("ERR"):
-                errs.append(s.split("\n")[0])
+            if not s.startswith("ERR"):
+                break
+            errs.append(s.split("\n")[0])
         if errs:
             self._bookkeeping_error("context: act", RuntimeError(errs[-1]))
         return 0
@@ -171,14 +172,14 @@ class Harness(Live):
         return self._rc
 
 
-    def act(self, argline):
+    def act(self, argline, first=None):
         why = None
         if " -- " in argline:
             argline, why = argline.split(" -- ", 1)
         steps = [t.strip() for t in argline.split(";") if t.strip()]
         reply, last_kind = "", None
         for i, step in enumerate(steps):
-            before = self.last_state if i else call("peek")
+            before = self.last_state if i else first or call("peek")
             if not i and (before.startswith("ERR") or scr.busy(before)):
                 before = self.state()
             kind = scr.kind(before)
@@ -237,12 +238,11 @@ class Harness(Live):
 
 
     @_needs_run("no run in progress")
-    def routes(self, argline):
+    def routes(self, argline, state):
         from agent import routes
         a = Args(argline, valued=("--attempts", "--pf", "--w", "--hp"))
         deck = self._run()
         rc = self._context()
-        state = call("peek")
         if a.has("--hp"):
             state = re.sub(r"HP \d+/", f"HP {a.get('--hp', cast=int)}/", state, count=1)
         text = routes.analyse(self.eng(), deck, rc.map_text, state, rc.ctx, rc.names[0], a.get("--attempts", 24, int), a.get("--pf", 0.15, float), weights=a.weights())
@@ -250,12 +250,12 @@ class Harness(Live):
         return text
 
     @_needs_run("no run in progress")
-    def price(self, argline):
+    def price(self, argline, state):
         from agent import price as PR
-        state = call("peek")
         args = argline.split()
         n = int(args[0]) if args and args[0].isdigit() else 128
-        st = PR.run_state(self._run(), self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
+        deck = self._run()
+        st = PR.run_state(deck, self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
         opts = PR.options(st, state)
         if not opts:
             why = " (this event is not catalogued: decide by judgment and note the gap)" if scr.kind(state) == "EVENT" else ""
@@ -292,7 +292,7 @@ class Harness(Live):
                       f"{r['radius']}; future boss rungs at full HP), the belt each option leaves; per factor P(win), or progress where skip floors\n"
                       + "\n".join(rows) + (f"\n  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})" if override else "") + "\n")
         check += f"decision (shared with the scripted baseline): {r['best']}" + (" (card-reward deadline rule -> skip)" if r["terms_skip"] else "") + "\n"
-        return PR.table(res) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + check + self._synergy(state)
+        return PR.table(res) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + check + self._synergy(state, deck)
 
     def _synergy(self, state, deck=None):
         """plan overlap of the items offered on this screen (counts, for the operator to judge; data/synergy_candidates.json)"""
@@ -352,9 +352,8 @@ class Harness(Live):
         return out or call("peek")
 
     @_needs_run("no run in progress\n")
-    def restcalc(self, argline):
+    def restcalc(self, argline, state):
         """the rest decision's deciding number: the act boss(es) at the HP now vs after resting (Regal Pillow included)"""
-        state = call("peek")
         hp = scr.hp(state)
         m = re.search(r"Rest: Heal for \d+% of your Max HP \((\d+)\)", state)
         if not hp or not m:
@@ -450,8 +449,10 @@ class Harness(Live):
     def _handle(self, line):
         line = line.strip()
         cmd, _, rest = line.partition(" ")
+        peeked = None
         if self.gate and cmd not in skillgate.READ_ONLY:
-            why = self._skill_refusal(call("peek"))
+            peeked = call("peek")
+            why = self._skill_refusal(peeked)
             if why:
                 return "REFUSED: " + why + "\n"
         try:
@@ -481,7 +482,7 @@ class Harness(Live):
             if cmd == "potion":
                 return self.potion_cmd(rest)
             if cmd == "a":
-                return self.act(rest)
+                return self.act(rest, peeked)
             if cmd == "loot":
                 return self.loot()
             if cmd in ("replay", "seedcheck"):
@@ -494,7 +495,7 @@ class Harness(Live):
                 if m:
                     rest = rest[:m.start()] + rest[m.end():]
                 self.table_seed = zlib.crc32((here or "").encode()) % 100_000 * 100 + (int(m.group(1)) if m else 0)
-                out = getattr(self, PRICING[cmd])(rest)
+                out = self.evaluate(rest) if cmd == "eval" else getattr(self, PRICING[cmd])(rest, now)
                 if here and not out.startswith(PRICING_FAILED):
                     self.priced[cmd] = here
                 return out
@@ -504,8 +505,8 @@ class Harness(Live):
                 now = call("peek")
                 self._detect_new_run(now)
                 here = scr.floor_key(now)
-                out = self.price(rest)
-                if here and not out.startswith(("ERR", "price: nothing to price")):
+                out = self.price(rest, now)
+                if here and not out.startswith(PRICING_FAILED + ("price: nothing to price",)):
                     self.priced["price"] = here
                 return out
             if cmd == "relics":

@@ -8,6 +8,7 @@ import numpy as np
 from agent import terms as TM, tracker as T
 
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
+CARD_ROWS = {r["id"]: r for rows in reversed(list(CAT["cards"].values())) for r in reversed(rows)}
 SAFE_WIN = 0.9
 NO_BOTTLENECK = dict(bn_turns=0, energy_bound=0.0, ignored_share=0.0, stranded=0.0)
 
