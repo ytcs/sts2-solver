@@ -3,7 +3,7 @@ Single plan, current state, forward only. Evidence `docs/research/evidence.md` (
 
 ## 1. Goal and principles
 - Goal: win A10 runs with all five characters (Ironclad first); ~90%+ target (user); end HP breaks ties.
-- Information contract: only the exact random state is hidden; public and tracked: move patterns + odds, potion-drop chance, rarity offset, unknown-room odds, encounter-bag narrowing, shop prices, removal cost.
+- Information contract: only the exact random state is hidden; public and tracked: move patterns + odds, potion-drop chance, rarity offset, unknown-room odds, encounter-bag narrowing, shop prices, removal cost. Hidden until the game reveals it: later acts' maps and act variants (seeded from the run seed); the run model samples them from a library generated with independent seeds, live and offline alike, never from a run's own seed. Forks and replays of a seed are training labels and offline diagnosis only; V's inputs are observable state.
 - Claims: solver results are lower bounds under the stated solver; < 2 se is a tie; expert choices are evidence, never rules; no blanket bans.
 - Validation (user): estimator and macro changes are judged by paired arms on the same seeds (act reach, deck strength per act, wins); the frozen decision gate (`tools/decision_gate.py`, single-run items) only flags large regressions.
 - Venue: the headless server (`OracleCombat serve`) counts (mechanically indistinguishable from the game, E44); Steam copy only for live-parity work.
