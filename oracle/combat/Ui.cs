@@ -766,6 +766,10 @@ public static class Ui
         return "run suspended; the menu offers continue / abandon\n";
     }
 
+    public static void EndRunForFork() { if (Rs != null) EndRun(); _suspended = null; }
+
+    public static void WatchRelics() => RunManager.Instance.TreasureRoomRelicSynchronizer.RelicsAwarded += OnRelicsAwarded;
+
     static void EndRun()
     {
         try { RunManager.Instance.CleanUp(graceful: true); } catch (Exception e) { Console.Error.WriteLine("serve: cleanup: " + e.GetBaseException().Message); }

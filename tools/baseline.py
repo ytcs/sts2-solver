@@ -633,7 +633,7 @@ class Game:
         for k in ("APPDATA", "LOCALAPPDATA", "TEMP"):
             os.makedirs(env[k], exist_ok=True)
         self.slog = open(os.path.join(sd, "server.log"), "w")
-        self.proc = subprocess.Popen([DOTNET, os.path.abspath(DLL), "serve", "--port", str(port), "--state-dir", os.path.join(sd, "saves"), "--seed", seed,
+        self.proc = subprocess.Popen([DOTNET, os.path.abspath(DLL), "serve", "--port", str(port), "--state-dir", os.path.join(sd, "saves"), "--history", "1", "--seed", seed,
                                       "--character", character, "--ascension", "10"], stdout=self.slog, stderr=self.slog, cwd=sd, env=env)
         for _ in range(600):
             try:

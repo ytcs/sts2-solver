@@ -40,6 +40,7 @@ public static class Serve
         int port = int.Parse(kv.GetValueOrDefault("port", "15600"));
         DefaultAscension = int.Parse(kv.GetValueOrDefault("ascension", "10"));
         if (kv.TryGetValue("state-dir", out var sd)) { Directory.CreateDirectory(sd); SaveIsolation.Dir = Path.GetFullPath(sd); }
+        if (kv.ContainsKey("history") && SaveIsolation.Dir != null) { Fork.HistoryDir = Path.Combine(SaveIsolation.Dir, "history"); Directory.CreateDirectory(Fork.HistoryDir); }
         Install(kv.GetValueOrDefault("pck") ?? Loc.DefaultPck());
         var listener = new TcpListener(IPAddress.Loopback, port);
         listener.Start();
@@ -140,9 +141,20 @@ public static class Serve
                 }
                 if (_nested.Count > 0 && _nested.Peek()()) return;
                 Settle();
-                if (_inflight != null) { var x = _inflight; _inflight = null; Snap.Observe(); Reply(x, Ui.Build().Render()); }
+                if (_inflight != null) { var x = _inflight; _inflight = null; Snap.Observe(); var text = Ui.Build().Render(); Fork.Screen(text); Reply(x, text); }
                 return;
             }
+            if (cmd is "load" or "mapgen")
+            {
+                var t = cmd == "load" ? Fork.Load(string.Join(' ', args)) : Fork.MapGen(args[0], int.Parse(args[1]), args[2]);
+                _pump.RunUntil(() => t.IsCompleted, () => cmd, 3_600_000);
+                if (t.IsFaulted) throw t.Exception.GetBaseException();
+                Settle();
+                Snap.Observe();
+                Reply(r, cmd == "load" ? Ui.Build().Render() : "mapgen done " + args[2] + "\n");
+                return;
+            }
+            if (cmd == "snapshot") { Reply(r, Fork.Snapshot(args.FirstOrDefault())); return; }
             if (cmd == "x")
             {
                 _inflight = r;
