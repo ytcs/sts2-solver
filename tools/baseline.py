@@ -365,6 +365,11 @@ class Macro:
         return "-" if lo == 0 and not names else " ".join(str(i) for i, _ in lab[:k])
 
 
+# map forks / rests: routes' P(win the act boss) decides when it beats price's choice by this much (fork check: price undervalued act-2
+# rests at 5 of 6 disagreeing forks); 0 disables
+ROUTE_OVERRIDE = float(os.environ.get("ROUTE_OVERRIDE", "0.05"))
+
+
 class PriceMacro(Macro):
     """`price` (paired run-model rollouts, PR.best ladder) on map forks, card rewards, rest sites (rest + the SMITHS best smiths by the
     predictor screen), shops (PR.bundles), catalogued events' first pages and ancients; Macro wherever price has fewer than two options."""
@@ -413,8 +418,27 @@ class PriceMacro(Macro):
             self.h.log.event("price_error", screen=s[:800], tb=traceback.format_exc()[-1500:])
             best = None
         m = re.search(r"r(\d+)c(\d+)", best or "")
-        hit = next((i for i, t in lab if m and re.search(rf"\br{m.group(1)}c{m.group(2)}\b", t)), None)
+        key = (int(m.group(1)), int(m.group(2))) if m else None
+        if ROUTE_OVERRIDE > 0:
+            vals = {k: next(iter(v.values())) for k, v in self.route_values(s).items()}
+            if vals:
+                rbest = max(vals, key=vals.get)
+                if rbest != key and vals[rbest] - vals.get(key, 0.0) > ROUTE_OVERRIDE:
+                    self.h.log.event("route_override", screen="MAP", price=best, chosen=f"r{rbest[0]}c{rbest[1]}",
+                                     routes={f"r{a}c{b}": round(x, 3) for (a, b), x in vals.items()})
+                    key = rbest
+        hit = next((i for i, t in lab if key and re.search(rf"\br{key[0]}c{key[1]}\b", t)), None)
         return str(hit) if hit is not None else super().map(s, lab)
+
+    def route_values(self, s, hps=None):
+        """routes.option_values on this screen (P(win the act boss) per offered node); {} on any failure"""
+        from agent import routes
+        try:
+            ctx = self.h._context()
+            return routes.option_values(self.h.eng(), self.h._run(), ctx.map_text, s, self.h._ctx(), ctx.names[0], hps=hps)
+        except Exception:  # noqa: BLE001
+            self.h.log.event("route_error", tb=traceback.format_exc()[-1500:])
+            return {}
 
     def p_card_reward(self, s, lab):
         st = self.st(s)
@@ -439,6 +463,16 @@ class PriceMacro(Macro):
         best = self.price(s, [o for o in opts if o[0] == "rest" and any(t.lower().startswith("rest") for _, t in lab)] + smiths)
         if best is None:
             return None
+        hm = re.search(r"Rest: Heal for \d+% of your Max HP \((\d+)\)", s)
+        hp = scr.hp(s)
+        if ROUTE_OVERRIDE > 0 and best != "rest" and hm and hp:
+            after = min(hp[1], hp[0] + int(hm.group(1)) + (15 if "REGAL_PILLOW" in str(st.relics) else 0))
+            vals = self.route_values(s, hps=[after])
+            if vals:
+                p_now, p_rest = max(v[hp[0]] for v in vals.values()), max(v[after] for v in vals.values())
+                if p_rest - p_now > ROUTE_OVERRIDE:
+                    self.h.log.event("route_override", screen="RESTSITE", price=best, p_now=round(p_now, 3), p_rest=round(p_rest, 3))
+                    best = "rest"
         want = "rest" if best == "rest" else "smith"
         i = next((i for i, t in lab if t.lower().startswith(want)), None)
         if i is not None and want == "smith":

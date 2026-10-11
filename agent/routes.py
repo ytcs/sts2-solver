@@ -434,3 +434,25 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
     lines.append("")
     lines.append("F = adaptive optimum for that requirement (can exceed the fixed path's win); reach = alive on arrival at the boss; HP@boss / q10 = mean / 10th percentile HP then.")
     return "\n".join(lines)
+
+
+def option_values(engine, deck_json, map_text, state_text, ctx, act, hps=None, attempts=24, pf=0.15):
+    """P(win the act boss) of each node on offer (k >= 0 elites, best continuation), at the HP now and at each extra HP in hps:
+    {node key: {hp: P}}; {} without an act map or a known boss"""
+    nodes, boss_row = parse_map(map_text)
+    if not nodes or boss_row is None:
+        return {}
+    tabs = build_tables(engine, deck_json, act, ctx, attempts)
+    if ("boss", NONE) not in tabs:
+        return {}
+    calc = Calc(nodes, boss_row, tabs, deck_json["max_hp"], pools.ACTS[act]["weak_fights"], pf)
+    starts = [k for k in offered(state_text) if k in nodes]
+    if not starts:
+        vis = [k for k, v in nodes.items() if v["visited"]]
+        cur = max(vis, default=None)
+        starts = [c for c in nodes[cur]["children"] if c in nodes] if cur else []
+    not_monster = set(pools.pool(act, "elite")) | set(pools.pool(act, "boss"))
+    w0 = min(sum(1 for e in ctx.get("seen", []) if e not in not_monster), calc.weak_fights)
+    hp_now = (screen.hp(state_text) or (deck_json["hp"],))[0]
+    mx = deck_json["max_hp"]
+    return {s: {h: float(calc.F(s, w0, 0)[min(max(int(h), 0), mx)]) for h in [hp_now] + list(hps or [])} for s in starts}

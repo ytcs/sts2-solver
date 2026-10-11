@@ -1,0 +1,38 @@
+BASE0007 A2 F24: mismatches 0; price best R r9c2 ranked by ready: R r9c2 0.399, M r9c3 0.375 | routes P(win boss): R7c1 0.653, ?7c2 0.652
+BASE0007 A2 F26: mismatches 0; price best ? r10c3 ranked by ready: M r10c1 0.388, ? r10c3 0.403 | routes P(win boss): R9c2 0.702, M9c3 0.583
+BASE0005 A2 F23: mismatches 0; price best ? r7c2 ranked by act: E r7c1 0.281, ? r7c2 0.375 | routes P(win boss): R6c0 0.093, ?6c1 0.080
+BASE0005 A2 F26: mismatches 0; price best R r11c1 ranked by act: R r11c1 0.312, E r11c2 0.016, ? r11c3 0.141 | routes P(win boss): E9c1 0.020, M9c2 0.091, R9c3 0.163
+BASE0005 A2 F28: mismatches 0; price best ? r12c1 ranked by act: ? r12c1 0.484, E r12c2 0.156 | routes P(win boss): R11c1 0.078, E11c2 0.000, ?11c3 0.001
+BASE0011 A2 F27: mismatches 0; price best $ r12c6 ranked by act: M r12c4 0.062, E r12c5 0.000, $ r12c6 0.125 | routes P(win boss): E10c5 0.002, R10c6 0.377
+BASE0006 A2 F23: mismatches 0; price best ? r9c4 ranked by act: ? r9c4 0.734, R r9c5 0.625 | routes P(win boss): ?6c4 0.875, R6c6 0.875
+BASE0006 A2 F26: mismatches 0; price best R r10c4 ranked by act: R r10c4 0.812, E r10c5 0.672 | routes P(win boss): ?9c4 0.957, R9c5 0.891
+BASE0006 A2 F27: mismatches 0; price best $ r13c4 ranked by act: $ r13c4 0.938, ? r13c5 0.875, E r13c6 0.734 | routes P(win boss): R10c4 0.932, E10c5 0.861
+BASE0015 A2 F28: mismatches 0; price best None ranked by None: - | routes P(win boss): R11c5 0.144, M11c6 0.027
+BASE0004 A2 F24: mismatches 0; price best ? r9c4 ranked by act: E r9c2 0.281, ? r9c4 0.500 | routes P(win boss): E7c1 0.000, R7c3 0.253
+BASE0010 A2 F27: mismatches 0; price best M r1c5 ranked by act: M r1c1 0.000, M r1c3 0.000, M r1c5 0.000 | routes P(win boss): R10c0 0.020, E10c1 0.001, $10c2 0.074
+BASE0002 A2 F26: mismatches 0; price best R r11c4 ranked by act: R r11c4 0.422, ? r11c5 0.328 | routes P(win boss): ?9c2 0.996, E9c3 0.879, R9c4 0.999
+BASE0002 A2 F28: mismatches 0; price best ? r13c2 ranked by act: ? r13c2 0.781, M r13c3 0.766 | routes P(win boss): R11c4 0.998, ?11c5 0.998
+BASE0006 A2 F23: mismatches 0; price best R r7c4 ranked by act: R r7c4 0.812, E r7c5 0.625 | routes P(win boss): ?6c4 0.716, R6c6 0.701
+BASE0006 A2 F24: mismatches 0; price best ? r9c4 ranked by act: ? r9c4 0.781, R r9c5 0.516 | routes P(win boss): R7c4 1.000, E7c5 0.973
+BASE0006 A2 F26: mismatches 0; price best R r10c4 ranked by act: R r10c4 0.719, E r10c5 0.547 | routes P(win boss): ?9c4 0.990, R9c5 0.982
+BASE0006 A2 F27: mismatches 0; price best $ r13c4 ranked by act: $ r13c4 0.797, ? r13c5 0.703, E r13c6 0.594 | routes P(win boss): R10c4 1.000, E10c5 0.919
+BASE0015 A2 F28: mismatches 0; price best ? r12c4 ranked by act: ? r12c4 0.484, E r12c6 0.422 | routes P(win boss): R11c5 0.686, M11c6 0.283
+BASE0019 A2 F26: mismatches 0; price best R r11c2 ranked by act: E r11c1 0.656, R r11c2 0.828 | routes P(win boss): R9c3 0.582, E9c4 0.005
+BASE0019 A2 F28: mismatches 0; price best M r1c0 ranked by act: M r1c0 0.125, M r1c2 0.062, M r1c4 0.109 | routes P(win boss): E11c1 0.102, R11c2 0.598
+BASE0008 A2 F28: mismatches 0; price best M r1c3 ranked by act: M r1c0 0.266, M r1c1 0.328, M r1c3 0.359, M r1c4 0.266 | routes P(win boss): R11c2 0.054, $11c4 0.052
+BASE0014 A2 F27: mismatches 0; price best M r12c2 ranked by act: M r12c1 0.562, M r12c2 0.734 | routes P(win boss): R10c1 0.240, M10c2 0.018
+BASE0009 A2 F23: mismatches 0; price best R r10c2 ranked by act: R r10c2 0.812, E r10c4 0.766 | routes P(win boss): ?6c3 0.668, R6c5 0.932
+BASE0009 A2 F27: mismatches 0; price best M r12c1 ranked by act: E r12c0 0.781, M r12c1 0.844 | routes P(win boss): R10c2 0.622, E10c4 0.084
+BASE0001 A2 F26: mismatches 0; price best ? r13c0 ranked by act: ? r13c0 0.750, M r13c1 0.703 | routes P(win boss): R9c3 0.647, ?9c4 0.674
+BASE0007 A2 F24: mismatches 0; price best R r9c2 ranked by act: R r9c2 0.672, M r9c3 0.266 | routes P(win boss): R7c1 0.396, ?7c2 0.291
+BASE0007 A2 F26: mismatches 0; price best M r10c1 ranked by act: M r10c1 0.625, ? r10c3 0.594 | routes P(win boss): R9c2 0.492, M9c3 0.026
+BASE0016 A2 F23: mismatches 0; price best ? r10c3 ranked by act: R r10c2 0.094, ? r10c3 0.141 | routes P(win boss): R6c0 0.001, ?6c1 0.081
+BASE0016 A2 F27: mismatches 0; price best R r11c2 ranked by act: R r11c2 0.156, $ r11c3 0.016, E r11c4 0.031 | routes P(win boss): R10c2 0.121, ?10c3 0.106
+BASE0016 A2 F28: mismatches 0; price best None ranked by None: - | routes P(win boss): R11c2 0.222, $11c3 0.009, E11c4 0.008
+BASE0005 A2 F23: mismatches 0; price best ? r7c2 ranked by act: E r7c1 0.141, ? r7c2 0.438 | routes P(win boss): ?6c1 0.884, R6c3 0.917
+BASE0005 A2 F26: mismatches 0; price best R r11c1 ranked by act: R r11c1 0.281, E r11c2 0.031, ? r11c3 0.062 | routes P(win boss): E9c1 0.001, M9c2 0.031, R9c3 0.086
+BASE0005 A2 F28: mismatches 0; price best ? r12c1 ranked by act: ? r12c1 0.234, E r12c2 0.172 | routes P(win boss): R11c1 0.990, E11c2 0.000, ?11c3 0.014
+BASE0009 A2 F23: mismatches 0; price best $ r7c5 ranked by act: M r7c4 0.250, $ r7c5 0.453, E r7c6 0.266 | routes P(win boss): R6c5 0.180, ?6c6 0.001
+BASE0009 A2 F27: mismatches 0; price best M r11c4 ranked by act: M r11c4 0.719, ? r11c5 0.719 | routes P(win boss): E10c4 0.002, R10c5 0.347
+BASE0018 A2 F26: mismatches 0; price best E r11c1 ranked by act: R r11c0 0.500, E r11c1 0.688 | routes P(win boss): M9c0 0.982, R9c1 0.997
+BASE0018 A2 F28: mismatches 0; price best ? r13c1 ranked by act: M r13c0 0.578, ? r13c1 0.594 | routes P(win boss): R11c0 0.929, E11c1 0.780
