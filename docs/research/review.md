@@ -20,10 +20,20 @@ Goal: decide where to go after 120+ scored runs gave 1 win (E77 BASE0003). Gate 
 | reached final pair | 31 | 1.06 / 0.65 / 0.74 | 12.9 | 3.5 | 2.45 / 0.71 / 2.71 / 0.61 | 25.5 | 27.2 | 100 |
 | won (E77 BASE0003) | 1 | 1 / 0 / 2 | 13 | 6 | 4 / 0 / 5 / 0 | 39 | 24 | 152 |
 - The bot fights ~1 act-1 elite and ~2 elites per run. Experts (Spire Clinic 6T4bZkpdxbA) take the max-elite act-1 path (3 on that map) while keeping lanes that can dodge them; Spire Cast: "Ironclad farms every act-1 elite".
+- Act-1 elites per run by arm: E75a 1.30, E77 0.95, then E78 0.75, E80 0.68, E81 0.75 after the route override (E78), which maximises P(win this act's boss) where elites are pure HP risk and their rewards are unmodelled: the act-2 fix cut access.
 - Within our narrow range, final deck strength of act-3 runs is uncorrelated with elites per act, relics, deck size, shops, potions bought, gold (|Spearman| <= 0.22, n 44): no within-sample signal; our runs barely vary in access.
 
-## 4. Oracle stress (`tools/oracle_stress.py`, `target/review/oracle_stress.txt`)
-Pending: remove-down to 18 and 15 cards (greedy, holdout-scored); best pair of adds among the top-10 single adds from the run's own offers.
+## 4. Oracle stress (`tools/oracle_stress.py`, `tools/oracle_removed.py`; E80 final-pair decks, mean P(win) over the pair, full HP, no potions, holdout seeds 128 attempts)
+| run | deck | drafted | remove to 18 | remove to 15 | best pair of offered adds |
+|---|---|---|---|---|---|
+| BASE0001 | 22 | 0.457 | +0.031 +- 0.041 | +0.141 +- 0.039 | +0.016 |
+| BASE0006 | 28 | 0.121 | +0.645 +- 0.035 | +0.758 +- 0.029 | +0.277 (Unmovable + Nostalgia) |
+| BASE0015 | 27 | 0.359 | +0.316 +- 0.040 | +0.328 +- 0.039 | +0.121 |
+| BASE0021 | 34 | 0.023 | +0.105 +- 0.023 | +0.191 +- 0.028 | +0.066 |
+| BASE0033 | 31 | 0.078 | +0.160 +- 0.030 | +0.289 +- 0.034 | +0.023 |
+- The single-change oracle (E83) missed it: dilution compounds over several cards. Remove-down to 15 gains +0.14 to +0.76 (mean +0.34); adding the best offered cards gains +0.02 to +0.28.
+- What comes out (greedy order): starters (Strike, Defend, Bash) first, then act-1 damage picks (Rage, Molten Fist, Anger x2, Setup Strike, Breakthrough, Vicious, Perfected Strike, Infernal Blade x2, Hemokinesis x2, Headbutt, Tremble), a few act-2/3 picks (Sword Boomerang F46, Flame Barrier F37, Thunderclap F37, Pommel Strike F19, Molten Fist+ F28) and curses (Clumsy, Debt). BASE0006: 0.12 at 28 cards -> ~0.94 at 16.
+- Caveat: scored only vs the final pair at full HP; the removed act-1 picks were taken to survive act 1, and starters leave only through paid removals (shop price escalates), events, transforms or exhaust.
 
 ## 5. Expert corpus (Japanese Export; `data/expert/japaneseexport/README.md` ranks 9 recurring claims over 11 videos)
 Both Spire Clinic reviews read in full (6T4bZkpdxbA Ironclad A10, l6leE93iqPE Silent A10). The reviewer's diagnosis of each lost run is macro, not micro, and is the same both times: early decisions snowball; convert early surplus into end-game power.
