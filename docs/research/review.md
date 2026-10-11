@@ -55,7 +55,22 @@ Mapping to our levers: elites (access), gold into relics, potion banking for the
 - Imitation of 77M human StS card picks: 53.5% pick accuracy; a bigger model played worse in-game (dev.to series, unverified details). https://dev.to/doronsinger/part-3-good-models-finish-last-2n6a
 - No published agent reports A20 / A10 win rates near ours; a 90% A10 bot would exceed every published result. The binding gap in the one learned-macro result was pathing.
 
-## 7. Candidate approaches (round 2 to rank)
+## 7. Lever ranking (round 2)
+1. Deck composition at the pair: shedding bad cards (starters, early act-1 picks, curses), not a size cap (across runs deck size vs final strength Spearman +0.04; the size rules of E70 new_v1 and E75 starved act 1). Ceiling +0.14 to +0.76 (section 4).
+2. Resources arriving at the pair: potions held +0.13 to +0.27, arrival HP -0.24 per 14 HP (E83); act-3 attrition outruns rests.
+3. Access: unmeasured within sample; the route override cut act-1 elites 1.30 -> 0.68; the one published learned-macro result names pathing as its binding gap.
+4. Choice among offers: +0.02 to +0.28 for the best single / pair add, mostly < +0.1. Every arm since E70 tuned this.
+Checks pending before the arm (round 3): reachable thinning by economy (gold spent / unspent vs the escalating removal price); smiths spent on basics; best affordable shop relic vs k removals at equal gold (adjudicates the experts' gold -> relics claim); E78's +0.30 decomposed (elites avoided vs rests); far-factor values on the screens where the discarded act-1 picks were taken; run-model fidelity (approach A pre-experiment).
+
+## 8. Round-2 checks
+- Reachable thinning by economy: A10 removal costs 100, +50 each (`game_code.md` C3). Gold spent on cards / potions plus gold at death would have bought 1-3 more removals in each of the 5 runs (E80 per run: shop spend card 135, potion 131, removal 56, relic 58 gold; 0.55 removals; 110 gold at the end). Removal cannot reach 15 cards; the composition lever must come from not taking cards (and exhaust / transform).
+- Gold into relics vs removals (`tools/oracle_relic.py`, `target/review/oracle_relic.txt`, holdout 128): best relic the run was offered and did not buy vs one removal at the pair: BASE0001 Gorget +0.109 vs -0.031; BASE0006 Cloak Clasp +0.082 vs +0.055; BASE0015 Happy Flower +0.086 vs +0.000; BASE0021 Pen Nib +0.031 vs +0.000; BASE0033 Chemical X +0.062 vs +0.016. Relics >= removal per gold even before counting out-of-combat relics (Potion Belt, Pantograph, Regal Pillow score 0 here): the experts' gold -> relics claim holds; both are small next to remove-down.
+- Smiths: 25% of priced smiths (69 / 278) went to Strike / Defend / Bash.
+- Route overrides (E78, E80, E81): 47 rest instead of smith; 32 moved off an elite node, 48 off a monster node: the override trades access for act survival.
+- Mechanism on the discarded act-1 picks (E80 BASE0021, A1 F2-F17): `A3 boss` 0.0 and `A2 boss` 0.0 on every screen through F12 (floored even at 3x max HP, so scored by progress on today's deck); the far term rewards front damage on a 12-card deck (Twin Strike +1.26, Perfected Strike +0.82, Infernal Blade +0.77, Hemokinesis +0.59) and cannot see the dilution of the future deck.
+- Run-model fidelity (approach A pre-experiment): 4,584 logged price screens, the chosen option's predicted P(clear this act) vs realised: act 1 0.60 vs 0.81 (Brier 0.187, constant 0.156); act 2 0.33 vs 0.59 (0.284 vs 0.242); act 3 0.02 vs 0.02. Pessimistic and worse than a constant in acts 1-2 (rollouts play `BasePolicy`, weaker than the real policy): the run model cannot serve as the simulator for a learned run value without being fixed, and its rollouts rank options near noise at the act level.
+
+## 9. Candidate approaches (round 2 ranking)
 - A. Macro expert iteration: learn V_run from run-model rollouts (+ real runs); search macro decisions against it. Pre-experiment: run-model fidelity (simulate the logged runs' decisions; compare act reach / deck strength distributions) and run-model runs per hour.
 - B. Resource DP: extend `routes`' act DP with a coarse deck-strength state and the known offer distribution, pricing picks, elites, shops, rests and potions with one value over (HP, gold, potions, strength bucket). Pre-experiment: re-price the E80 final-pair runs' act-3 routes.
 - C. Expert-prior policy as the new control: max-elite act 1 while `routes` P(boss) stays high, gold carried into act 2, smith default, potion banking for elites / the pair, function-aware skipping. Cheapest; the principled methods must beat it.
