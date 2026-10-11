@@ -1,7 +1,7 @@
 """Headless baseline: the agent's A10 win rate on N `OracleCombat serve` games driven round-robin with one shared search Engine.
 `agent.bridge.OVERRIDE` points every bridge call at the stepping game; the bridge never falls back to the real game while it is set.
 Combat: `Harness.play` at --rounds search rounds per decision (or --seconds), potions at a --pot-cost reserve (0 = withheld). Macro: Macro
-(runmodel.BasePolicy on the game's screens), PriceMacro with --price N. Win = the EVENT "The Architect" is reached.
+(runmodel.BasePolicy on the game's screens), PriceMacro with --price N. POLICY_C=1: arm C (docs/plan.md section 3; PriceMacro.c_*, price.late_take). Win = the EVENT "The Architect" is reached.
 
 usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--pot-cost C] [--price N] [--min-free-gb G] [--port 15820] [--tag NAME] [--character ironclad]
 Per game: target/baseline/<tag>/<seed>/; per run one JSON line in evals/baseline/<tag>.jsonl (re-running skips seeds already there).
@@ -49,7 +49,8 @@ class BaselineHarness(Harness):
     def _decide(self, scenario, sim, budget, **kw):
         e = self.eng()
         e.seed, t0 = self._seed, time.perf_counter()
-        d = e.decide(scenario, sim, budget, keep_potions=e.keep(), worth=getattr(self, "fight_worth", None), rounds=None if self.budget else self.rounds,
+        d = e.decide(scenario, sim, budget, keep_potions=True if getattr(self, "keep_all", False) else e.keep(), worth=getattr(self, "fight_worth", None),
+                     rounds=None if self.budget else self.rounds,
                      tol_hp=kw.get("tol_hp", 1.0))
         self._seed = e.seed
         self.stats["decisions"] += 1
@@ -71,6 +72,11 @@ class BaselineHarness(Harness):
         self.fight_worth, self.fight_objective = self._fight_objective(sc)
         self.fight_hp0, self.last_enc = (sc["hp"], sc["max_hp"]), sc.get("encounter")
         self.drive = ("auto", "baseline: no fight-start prediction")
+        self.keep_all = False
+        if PR.POLICY_C and sc["potions"] and len(sc["potions"]) <= 2 and not str(sc.get("encounter", "")).endswith("_BOSS"):
+            win = float(self.eng().solve([dict(sc, name="start", potions=[])], attempts=PR.BOSS_ATTEMPTS)[0]["win"])
+            self.keep_all = win >= PR.ROUTE_SAFE
+            self.log.event("policy", component="potion_reserve", detail=dict(encounter=sc.get("encounter"), win=round(win, 3), potions=len(sc["potions"]), keep=self.keep_all))
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], act=sc.get("act"),
                        floor=scr.floor_key(bridge.call("peek")), deck=len(sc["deck"]), relics=[r["id"] for r in sc["relics"]],
                        potions=[p["id"] for p in sc["potions"]], objective=self.fight_objective, scenario=sc)
@@ -126,7 +132,11 @@ class Macro:
 
     def st(self, s):
         h = self.h
-        return PR.run_state(h._run(), h._context(), os.path.join(h.log.dir, "events.jsonl"), s)
+        path = os.path.join(h.log.dir, "events.jsonl")
+        st = PR.run_state(h._run(), h._context(), path, s)
+        if PR.POLICY_C:
+            st.act1_picks = PR.act1_picks(path)
+        return st
 
     def screen(self, st, variants, rng, hp_min=False):
         sts = []
@@ -321,6 +331,12 @@ class Macro:
             hit = next((i for i, n in names if PR._ident(n.rstrip("+")) == PR._short(want[1]) and (want[0] == "remove" or not n.endswith("+"))), None)
             if hit is not None:
                 return str(hit)
+        if PR.POLICY_C and "remove" in prompt:
+            order = PR.removal_order(self.st(s), self.h.engine, PR.screen_seed(self.seed, s))
+            take = list(dict.fromkeys(i for c in order for i, n in names if PR._ident(n.rstrip("+")) == PR._short(c)))[:k]
+            if len(take) == k or (lo == 0 and take):
+                self.h.log.event("policy", component="removal", detail=dict(prompt=prompt[:80], order=order[:6], chosen=[_name(t) for i, t in lab if i in take]))
+                return " ".join(map(str, take))
         if "remove" in prompt or "transform" in prompt:
             rank = lambda n: 0 if PR._ident(n) in CURSES else 1 if n == "Strike" else 2 if n == "Defend" else 9  # noqa: E731
             order = sorted(names, key=lambda x: rank(x[1]))
@@ -349,6 +365,7 @@ ROUTE_OVERRIDE = float(os.environ.get("ROUTE_OVERRIDE", "0.05"))
 PR.TAKE_SE = float(os.environ.get("TAKE_SE", PR.TAKE_SE))
 PR.DEADLINE_RADIUS = int(os.environ.get("DEADLINE_RADIUS", PR.DEADLINE_RADIUS))
 PR.R.SAFE_WIN = float(os.environ.get("SAFE_WIN", PR.R.SAFE_WIN))
+PR.POLICY_C = os.environ.get("POLICY_C") == "1"
 
 
 class PriceMacro(Macro):
@@ -361,10 +378,10 @@ class PriceMacro(Macro):
         self.n, self.hybrid = n, hybrid
         self.last_res = self.last_override = None
 
-    def price(self, s, opts):
+    def price(self, s, opts, st=None):
         if len(opts) < 2:
             return None
-        st, t0 = self.st(s), time.perf_counter()
+        st, t0 = st or self.st(s), time.perf_counter()
         r = PR.decide(st, s, self.pred, self.h.engine, opts, n=self.n, seed=PR.screen_seed(self.seed, s), hybrid=self.hybrid)
         res, check, adj, best, ranked, override = r["res"], r["check"], r["adj"], r["best"], r["ranked_by"], r["override"]
         self.last_res, self.last_override = res, override
@@ -375,6 +392,8 @@ class PriceMacro(Macro):
                          result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()},
                          search={k: [round(v[0], 3), round(v[1], 3), {str(a): round(x, 3) for a, x in v[2].items()}, {str(a): round(x, 3) for a, x in v[4].items()}] for k, v in check.items()}, override=override, terms=adj, radius=r["radius"],
                          bosses=list(st.bosses or []), map=self._map_text() if scr.kind(s) == "CARD_REWARD" else None)
+        if r.get("policy"):
+            self.h.log.event("policy", component=r["policy"]["component"], detail=r["policy"])
         return best
 
     def decide(self, s, opts):
@@ -394,6 +413,10 @@ class PriceMacro(Macro):
     def map(self, s, lab):
         if len(lab) < 2:
             return super().map(s, lab)
+        if PR.POLICY_C:
+            got = self.c_map(s, lab)
+            if got is not None:
+                return got
         try:
             best = self.price(s, PR.options(self.st(s), s))
         except Exception:  # noqa: BLE001
@@ -412,6 +435,28 @@ class PriceMacro(Macro):
                     key = rbest
         hit = next((i for i, t in lab if key and re.search(rf"\br{key[0]}c{key[1]}\b", t)), None)
         return str(hit) if hit is not None else super().map(s, lab)
+
+    def c_map(self, s, lab):
+        """routes: the max-reward node among those with P(win boss) >= ROUTE_SAFE when the best reaches it, else the max-P node (P(reach) when wins floor)"""
+        vals = {k: next(iter(v.values())) for k, v in self.node_values(s).items()}
+        if not vals:
+            return None
+        top = max(p for p, _r, _g in vals.values())
+        key = max((k for k, (p, _r, _g) in vals.items() if p >= PR.ROUTE_SAFE), key=lambda k: vals[k][1]) if top >= PR.ROUTE_SAFE else max(vals, key=lambda k: vals[k][0])
+        hit = next((i for i, t in lab if re.search(rf"\br{key[0]}c{key[1]}\b", t)), None)
+        self.h.log.event("policy", component="map", detail=dict(chosen=f"r{key[0]}c{key[1]}", rule="reward" if top >= PR.ROUTE_SAFE else "p_max", goal=next(iter(vals.values()))[2],
+                                                                 nodes={f"r{a}c{b}": [round(p, 3), round(r, 2)] for (a, b), (p, r, _g) in vals.items()}))
+        return None if hit is None else str(hit)
+
+    def node_values(self, s, hps=None):
+        """routes.node_values on this screen; {} on any failure"""
+        from agent import routes
+        try:
+            ctx = self.h._context()
+            return routes.node_values(self.h.eng(), self.h._run(), ctx.map_text, s, ctx.ctx, ctx.names[0], hps=hps)
+        except Exception:  # noqa: BLE001
+            self.h.log.event("route_error", tb=traceback.format_exc()[-1500:])
+            return {}
 
     def _map_text(self):
         try:
@@ -445,6 +490,10 @@ class PriceMacro(Macro):
             return None
         st = self.st(s)
         opts = PR.options(st, s)
+        if PR.POLICY_C:
+            got = self.c_restsite(s, lab, st, opts)
+            if got is not None:
+                return got
         smiths = [o for o in opts if o[0].startswith("smith ")]
         if len(smiths) > self.SMITHS:
             w = self.screen(st, [lambda x, f=f: f(x, None) for _, f in smiths], self.rng(s, "smith"))
@@ -469,8 +518,75 @@ class PriceMacro(Macro):
             self.pending = ("upgrade", best.split(" ", 1)[1])
         return None if i is None else str(i)
 
+    def c_restsite(self, s, lab, st, opts):
+        """rest when routes' P(win boss) after resting beats smithing by > REST_MARGIN (or nothing is worth smithing), else smith_target"""
+        hm, hp = re.search(r"Rest: Heal for \d+% of your Max HP \((\d+)\)", s), scr.hp(s)
+        can_rest = any(t.lower().startswith("rest") for _, t in lab)
+        if not hm or not hp:
+            return None
+        after = min(hp[1], hp[0] + int(hm.group(1)) + (15 if "REGAL_PILLOW" in str(st.relics) else 0))
+        vals = self.node_values(s, hps=[after])
+        if not vals:
+            return None
+        p_now, p_rest = max(v[hp[0]][0] for v in vals.values()), max(v[after][0] for v in vals.values())
+        target, g = PR.smith_target(st, opts, self.h.engine, PR.screen_seed(self.seed, s))
+        rest = can_rest and (p_rest - p_now > PR.REST_MARGIN or target is None)
+        self.h.log.event("policy", component="rest" if rest else "smith", detail=dict(hp=hp[0], after=after, p_now=round(p_now, 3), p_rest=round(p_rest, 3), target=target,
+                                                                                   goal=next(iter(vals.values()))[hp[0]][2],
+                                                                                   gains={str(k): round(v, 3) for k, v in g.items()}))
+        if not rest and target is None:
+            return None
+        i = next((i for i, t in lab if t.lower().startswith("rest" if rest else "smith")), None)
+        if i is not None and not rest:
+            self.pending = ("upgrade", target.split(" ", 1)[1])
+        return None if i is None else str(i)
+
+    def c_shop(self, s):
+        """removal (removal_order's first) only with <= 2 off-plan cards left, then the relic with the best positive gain on this act's boss, then
+        price over potions and the cards allowed (an unsafe fight within DEADLINE_RADIUS, or a Power from act 2); in act 1 all but potions leave GOLD_RESERVE"""
+        st, seed, eng = self.st(s), PR.screen_seed(self.seed, s), self.h.engine
+        order = PR.removal_order(st, eng, seed)
+        items = PR.shop_items(st, s, removals=order[:1])
+        offp = PR.off_plan(st)
+        budget = st.gold - (PR.GOLD_RESERVE if st.act == 0 else 0)
+        _near, radius, _p = PR.binding_fights(st, eng, seed)
+        urgent = radius is not None and radius <= PR.DEADLINE_RADIUS
+        x, plan = st.copy(), []
+        detail = dict(act=st.act + 1, gold=st.gold, budget=budget, off_plan=len(offp), urgent=urgent, removal=None, relic=None)
+        rem = next((it for it in items if it[1] == "remove"), None)
+        if rem and len(offp) <= 2 and rem[2] <= budget:
+            rem[3](x, None)
+            budget -= rem[2]
+            plan.append(("remove", order[0]))
+            detail["removal"] = order[0]
+        relics = [it for it in items if it[1] == "relic" and it[2] <= budget]
+        if relics:
+            g = PR.boss_gain(x, [(it[0], lambda y, it=it: it[3](y, None)) for it in relics], eng, seed=seed)
+            best = max(relics, key=lambda it: g[it[0]])
+            detail["relic_gain"] = {it[0]: round(g[it[0]] - g[None], 3) for it in relics}
+            if g[best[0]] - g[None] > 0:
+                best[3](x, None)
+                budget -= best[2]
+                plan.append(("relic", PR._ident(best[0])))
+                detail["relic"] = best[0]
+        cards = [it for it in items if it[1] == "card" and it[2] <= budget and (urgent or (st.act >= 1 and PR.card_type(PR._card_id(it[0])[0]) == "Power"))]
+        rest = [it for it in items if it[1] == "potion" and it[2] <= x.gold] + cards
+        if rest:
+            named = {it[0]: it for it in rest}
+            parts = lambda lb: re.sub(r" \(\d+g\)$", "", lb).split(" + ")  # noqa: E731
+            opts, _note = PR.bundles(x, rest, self.pred)
+            opts = [o for o in opts if o[0] == "nothing" or sum(named[n][2] for n in parts(o[0]) if named[n][1] == "card") <= budget]
+            best = self.price(s, opts, st=x) or "nothing"
+            detail["bundle"] = best
+            for name in ([] if best == "nothing" else parts(best)):
+                plan.append((named[name][1], PR._card_id(name)[0] if named[name][1] == "card" else PR._ident(name)))
+        self.h.log.event("policy", component="shop", detail=detail)
+        return plan
+
     def p_shop(self, s, lab):
         fk = scr.floor_key(s)
+        if PR.POLICY_C and fk not in self.shop_plan:
+            self.shop_plan[fk] = self.c_shop(s)
         if fk not in self.shop_plan:
             st = self.st(s)
             items = PR.shop_items(st, s)

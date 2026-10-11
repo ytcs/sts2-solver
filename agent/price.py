@@ -134,7 +134,7 @@ def _short(cid):
     return re.sub(r"_(IRONCLAD|SILENT|DEFECT|REGENT|NECROBINDER)$", "", cid)
 
 
-def shop_items(st, state_text, unpriced=None):
+def shop_items(st, state_text, unpriced=None, removals=None):
     out = []
     for _, label in scr.options(state_text):
         if "can't afford" in label:
@@ -155,7 +155,7 @@ def shop_items(st, state_text, unpriced=None):
         m = re.match(r"^(\d+)g remove a card", label)
         if m:
             price = int(m.group(1))
-            for cid in removal_candidates(st.deck):
+            for cid in removal_candidates(st.deck) if removals is None else removals:
                 def rm(s, _d, cid=cid, p=price):
                     s.deck.remove(next(c for c in s.deck if c["id"] == cid))
                     s.gold -= p
@@ -485,7 +485,7 @@ def _horizon_sets(st, engine, seed):
 
 def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=48, variants=4):
     """score = log ratio vs the reference summed over the factors of P(win run) ahead (progress instead of wins where P < INFORMATIVE), common seeds, paired se.
-    -> ({label: (score, se, {factor: measure}, per-attempt scores, {factor: P(win)})}, binding radius)"""
+    -> ({label: (score, se, {factor: measure}, per-attempt scores, {factor: P(win)}, {factor: per-attempt contribution})}, binding radius)"""
     import random
     if engine is None:
         return {}, None
@@ -545,7 +545,7 @@ def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=
         tot = np.sum(np.stack([c[:n] for c in contrib]), 0)
         se = float(np.nanstd(tot, ddof=1) / np.sqrt(max(1, np.sum(~np.isnan(tot))))) if lb != ref else 0.0
         point = sum(np.log(max(meas[lb][a], P_FLOOR) / max(meas[ref][a], P_FLOOR)) for a in keys)
-        out[lb] = (float(point) if lb != ref else 0.0, se, meas[lb], tot if lb != ref else np.zeros_like(tot), pwin[lb])
+        out[lb] = (float(point) if lb != ref else 0.0, se, meas[lb], tot if lb != ref else np.zeros_like(tot), pwin[lb], dict(zip(keys, contrib)))
     return out, radius
 
 
@@ -585,10 +585,14 @@ def decide(st, state_text, pred, engine, opts, n=128, seed=0, hybrid=True):
     kind = scr.kind(state_text)
     res = price(st, opts, pred, n=n, seed=seed)
     adj = event_adjust(st, state_text)
-    check, radius = search_check(st, opts, res, engine, seed) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else ({}, None)
+    top = len(opts) if POLICY_C and kind == "CARD_REWARD" else 3
+    check, radius = search_check(st, opts, res, engine, seed, top=top) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else ({}, None)
     best_, ranked, override = hybrid_best(res, check, adj)
-    terms_skip = False
-    if kind == "CARD_REWARD" and "skip" in check:
+    terms_skip, policy = False, None
+    if POLICY_C and kind == "CARD_REWARD" and "skip" in check and st.act >= 1:
+        best_, ranked, override, policy = late_take(st, check, radius)
+        terms_skip = best_ == "skip"
+    elif kind == "CARD_REWARD" and "skip" in check:
         cand = max((lb for lb in check if lb != "skip"), key=lambda lb: check[lb][0], default=None)
         urgent = radius is not None and radius <= DEADLINE_RADIUS
         if cand is not None and (check[cand][0] > TAKE_SE * check[cand][1] or (urgent and check[cand][0] > 0)):
@@ -601,4 +605,118 @@ def decide(st, state_text, pred, engine, opts, n=128, seed=0, hybrid=True):
         cid = _card_id(best_)[0]
         if cid and R.pick_with_terms("card_reward", st, [0.0, float(d.mean())], [(None, None), ("card", cid)], se=_se(d)) == 0:
             best_, terms_skip = "skip", True
-    return dict(res=res, adj=adj, check=check, best=best_, ranked_by=ranked, override=override, terms_skip=terms_skip, radius=radius)
+    return dict(res=res, adj=adj, check=check, best=best_, ranked_by=ranked, override=override, terms_skip=terms_skip, radius=radius, policy=policy)
+
+
+# arm C (docs/plan.md section 3), on only under POLICY_C
+POLICY_C = False
+GOLD_RESERVE, ROUTE_SAFE, REST_MARGIN, BOSS_ATTEMPTS = 300, 0.9, 0.02, 48
+NO_SMITH = ("STRIKE_", "DEFEND_", "BASH")
+
+
+def boss_factor_gain(st, entry):
+    """(gain, paired se) of a search_check entry on this act's boss factor(s): 'boss X' keys and 'near X' keys naming a boss"""
+    bosses = set(st.bosses or [])
+    arrs = [v for k, v in entry[5].items() if k.startswith("boss ") or (k.startswith("near ") and (k[5:] in bosses or k.endswith("_BOSS")))]
+    if not arrs:
+        return 0.0, float("inf")
+    n = min(len(a) for a in arrs)
+    tot = np.sum(np.stack([a[:n] for a in arrs]), 0)
+    tot = tot[~np.isnan(tot)]
+    return float(tot.mean()) if len(tot) else 0.0, float(tot.std(ddof=1) / np.sqrt(len(tot))) if len(tot) > 1 else float("inf")
+
+
+def on_plan(st, label, entry):
+    """a Power, or a gain on this act's boss factor > TAKE_SE paired se -> (bool, power, gain, se)"""
+    cid = _card_id(label)[0]
+    power = card_type(cid) == "Power"
+    g, se = boss_factor_gain(st, entry)
+    return power or g > TAKE_SE * se, power, g, se
+
+
+def late_take(st, check, radius):
+    """act 2 on: skip unless search's best card has score > 0 with an unsafe fight within DEADLINE_RADIUS, or is on-plan"""
+    cand = max((lb for lb in check if lb != "skip"), key=lambda lb: check[lb][0], default=None)
+    urgent = radius is not None and radius <= DEADLINE_RADIUS
+    pol = dict(component="card_reward", act=st.act + 1, cand=cand, urgent=urgent, radius=radius)
+    if cand is None:
+        return "skip", "policy", None, dict(pol, took=None)
+    plan, power, g, se = on_plan(st, cand, check[cand])
+    pol.update(score=round(check[cand][0], 3), se=round(check[cand][1], 3), power=power, boss_gain=round(g, 3), boss_se=round(se, 3))
+    why = "urgent" if urgent and check[cand][0] > 0 else "power" if power else "boss factor" if plan else None
+    if why is None:
+        return "skip", "policy", None, dict(pol, took=None, why="off-plan")
+    return cand, "policy", (round(check[cand][0], 3), round(check[cand][1], 3)), dict(pol, took=cand, why=why)
+
+
+def act1_picks(events_path):
+    """card ids chosen on act-1 CARD_REWARD / SHOP screens (macro events), with multiplicity"""
+    out = []
+    if not events_path or not os.path.exists(events_path):
+        return out
+    for raw in open(events_path, encoding="utf-8"):
+        e = json.loads(raw)
+        if e.get("kind") != "macro" or e.get("screen") not in ("CARD_REWARD", "SHOP"):
+            continue
+        m = HEADER.search(e.get("state", ""))
+        if not m or m.group(1) != "1":
+            continue
+        label = dict(scr.options(e["state"])).get(str(e.get("choice", "")).split(" ")[0], "")
+        cm = re.match(r"^\d+g card (.+?)(?:\(|:)", label) if e["screen"] == "SHOP" else re.match(r"^(.+?)\(", label)
+        cid = _card_id(cm.group(1).strip())[0] if cm else None
+        if cid:
+            out.append(cid)
+    return out
+
+
+def off_plan(st):
+    """act-1 picks still in the deck that are not Powers (by id, multiplicity capped by the deck's count)"""
+    picks = getattr(st, "act1_picks", None) or []
+    ids = [c["id"] for c in st.deck]
+    return [cid for cid in dict.fromkeys(picks) if card_type(cid) != "Power" for _ in range(min(picks.count(cid), ids.count(cid)))]
+
+
+def act_bosses(st):
+    return list(st.bosses or []) or pools.pool(st.act_name, "boss")
+
+
+def boss_gain(st, variants, engine, attempts=BOSS_ATTEMPTS, seed=0):
+    """{label: mean P(win) vs this act's boss(es) at full HP, no potions} for [(label, mutate)] plus None = the deck as is, one batched solve"""
+    bosses = act_bosses(st)
+    rows = [(None, None)] + list(variants)
+    sts = []
+    for _lb, f in rows:
+        x = st.copy()
+        if f is not None:
+            f(x)
+        sts.append(x)
+    res = engine.solve([_at_hp(x.scenario(b, potions=[]), x.max_hp) for x in sts for b in bosses], attempts=attempts, seed=seed)
+    win = np.array([float(r["win"]) for r in res]).reshape(len(rows), len(bosses)).mean(1)
+    if win[0] < INFORMATIVE:
+        prog = [np.nanmean(np.array([np.nan if v is None else v for v in (r.get("progress") or r["wins"])], float)) for r in res]
+        win = np.array(prog).reshape(len(rows), len(bosses)).mean(1)
+    return {lb: float(w) for (lb, _f), w in zip(rows, win)}
+
+
+def removal_order(st, engine=None, seed=0):
+    """curses, then the dominance rule's basics (Strike before Defend), then act-1 picks still in the deck that are not Powers, then the rest by P(this act's boss) after the removal"""
+    deck = [c["id"] for c in st.deck if c["id"] != "ASCENDERS_BANE"]
+    cands = removal_candidates(st.deck)
+    first = sorted({c for c in deck if c in R.CURSES}) + [c for c in cands if c.startswith("STRIKE_")] + [c for c in cands if c.startswith("DEFEND_")]
+    early = [c for c in dict.fromkeys(off_plan(st)) if c not in first]
+    if first or early or engine is None:
+        return first + early
+    rest = sorted(set(deck))
+    if len(rest) < 2:
+        return rest
+    g = boss_gain(st, [(c, lambda x, c=c: x.deck.remove(next(d for d in x.deck if d["id"] == c))) for c in rest], engine, seed=seed)
+    return sorted(rest, key=lambda c: -g[c])
+
+
+def smith_target(st, opts, engine, seed=0):
+    """the 'smith X' option with the best P(this act's boss) at full HP among non-basics -> (label or None, {label: P})"""
+    sm = [(lb, f) for lb, f in opts if lb.startswith("smith ") and not lb[6:].startswith(NO_SMITH) and lb[6:] not in R.CURSES]
+    if not sm:
+        return None, {}
+    g = boss_gain(st, [(lb, lambda x, f=f: f(x, None)) for lb, f in sm], engine, seed=seed)
+    return max((lb for lb, _ in sm), key=lambda lb: g[lb]), g

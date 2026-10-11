@@ -435,23 +435,46 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
     return "\n".join(lines)
 
 
-def option_values(engine, deck_json, map_text, state_text, ctx, act, hps=None, attempts=24, pf=0.15):
-    """P(win the act boss) of each node on offer (k >= 0 elites, best continuation), at the HP now and at each extra HP in hps:
-    {node key: {hp: P}}; {} without an act map or a known boss"""
+def _offer(engine, deck_json, map_text, state_text, ctx, act, attempts, pf):
     nodes, boss_row = parse_map(map_text)
     if not nodes or boss_row is None:
-        return {}
+        return None
     tabs = build_tables(engine, deck_json, act, ctx, attempts)
     if ("boss", NONE) not in tabs:
-        return {}
+        return None
     calc = Calc(nodes, boss_row, tabs, deck_json["max_hp"], pools.ACTS[act]["weak_fights"], pf)
     starts = [k for k in offered(state_text) if k in nodes]
+    vis = [k for k, v in nodes.items() if v["visited"]]
+    cur = max(vis, default=None)
     if not starts:
-        vis = [k for k, v in nodes.items() if v["visited"]]
-        cur = max(vis, default=None)
         starts = [c for c in nodes[cur]["children"] if c in nodes] if cur else []
     not_monster = set(pools.pool(act, "elite")) | set(pools.pool(act, "boss"))
     w0 = min(sum(1 for e in ctx.get("seen", []) if e not in not_monster), calc.weak_fights)
-    hp_now = (screen.hp(state_text) or (deck_json["hp"],))[0]
+    return calc, starts, w0, (screen.hp(state_text) or (deck_json["hp"],))[0], cur
+
+
+def option_values(engine, deck_json, map_text, state_text, ctx, act, hps=None, attempts=24, pf=0.15):
+    """P(win the act boss) of each node on offer (k >= 0 elites, best continuation), at the HP now and at each extra HP in hps:
+    {node key: {hp: P}}; {} without an act map or a known boss"""
+    got = _offer(engine, deck_json, map_text, state_text, ctx, act, attempts, pf)
+    if got is None:
+        return {}
+    calc, starts, w0, hp_now, _cur = got
     mx = deck_json["max_hp"]
     return {s: {h: float(calc.F(s, w0, 0)[min(max(int(h), 0), mx)]) for h in [hp_now] + list(hps or [])} for s in starts}
+
+
+def node_values(engine, deck_json, map_text, state_text, ctx, act, hps=None, attempts=24, pf=0.15):
+    """{node key: {hp: (P, reward-weighted value, goal)}} per node on offer at the HP now and each extra HP in hps; P = P(win the act boss), or
+    P(reach it alive) when every node's win < 0.05 at the HP now (as `analyse`); {"BOSS": ...} when the boss is next; {} without an act map or a known boss"""
+    got = _offer(engine, deck_json, map_text, state_text, ctx, act, attempts, pf)
+    if got is None:
+        return {}
+    calc, starts, w0, hp_now, cur = got
+    if not starts and cur is not None and cur[0] + 1 >= calc.boss_row:
+        starts = ["BOSS"]
+    if starts and max(calc.F(s, w0, 0)[hp_now] for s in starts) < 0.05:
+        calc = Calc(calc.nodes, calc.boss_row, calc.tabs, calc.H, calc.weak_fights, pf, goal="reach")
+    gold, mx = screen.gold(state_text) or 0, deck_json["max_hp"]
+    return {s: {h: (float(calc.F(s, w0, 0)[min(max(int(h), 0), mx)]), float(calc.Rw(s, w0, gold)[min(max(int(h), 0), mx)]), calc.goal)
+                for h in [hp_now] + list(hps or [])} for s in starts}
