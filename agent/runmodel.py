@@ -294,6 +294,27 @@ class BasePolicy:
         return buys + ([cands[best - 1]] if best else [])
 
 
+class ClonedPolicy(BasePolicy):
+    """route and rest cloned from the live policy (tools/bc_fit.py, models/bc_policy.json), the live potion reserve; else BasePolicy"""
+    reserve = True
+
+    def __init__(self, path=None):
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
+        from bc_fit import map_features, rest_features
+        self._mf, self._rf = map_features, rest_features
+        p = json.load(open(path or os.path.join(os.path.dirname(__file__), "..", "models", "bc_policy.json")))
+        self.wm, self.wr = np.array(p["map"]), np.array(p["rest"])
+
+    def node(self, st, options, elite_p=None):
+        f = st.hp / st.max_hp
+        kids = lambda k: [st.nodes[c]["type"] for c in st.nodes.get(k, {}).get("children", []) if c in st.nodes] if st.nodes else []  # noqa: E731
+        return max(options, key=lambda o: float(np.asarray(self._mf(o[1], f, st.act, kids(o[0]))) @ self.wm))[0]
+
+    def rest(self, st):
+        return "rest" if float(np.asarray(self._rf(st.hp / st.max_hp, st.act)) @ self.wr) > 0 else "smith"
+
+
 def reference_fights(st, rng):
     from agent import pools
     boss = st.bosses[0] if st.bosses else rng.choice(pools.pool(st.act_name, "boss"))
@@ -382,7 +403,13 @@ def play(st, rng, pol, first=None, stop_at_next=False):
 
     def fight(kind, encounter):
         allowed = pol.potions(st, kind)
-        P = yield [st.scenario(encounter, potions=allowed)]
+        if getattr(pol, "reserve", False) and st.potions:
+            # the live reserve: keep the belt when the fight is won >= SAFE_WIN without it, else throw it
+            both = yield [st.scenario(encounter, potions=[]), st.scenario(encounter, potions=list(st.potions))]
+            keep = float(PR.p_win(both[:1])[0]) >= SAFE_WIN
+            allowed, P = ([], both[:1]) if keep else (list(st.potions), both[1:])
+        else:
+            P = yield [st.scenario(encounter, potions=allowed)]
         end = float(PR.sample_end(P, np.random.default_rng(rng.randrange(1 << 30)))[0])
         st.hp = int(min(end, st.max_hp))
         st.potions = [p for p in st.potions if p not in allowed]

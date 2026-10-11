@@ -26,12 +26,15 @@ def main():
     ap.add_argument("--n", type=int, default=32)
     ap.add_argument("--calib", default=os.path.join(ROOT, "models", "predictor_calib.json"))
     ap.add_argument("--out", default="target/review/runmodel_calib.jsonl")
+    ap.add_argument("--policy", choices=("base", "cloned"), default="base")
     a = ap.parse_args()
     import numpy as np
     from agent import price as PR
     from predictor import Predictor
     from solver import PREDICTOR_CKPT
     preds = {"raw": Predictor(PREDICTOR_CKPT, batch=1024), "calibrated": Predictor(PREDICTOR_CKPT, batch=1024, calib=a.calib)}
+    from agent import runmodel as RM
+    pol = RM.ClonedPolicy() if a.policy == "cloned" else RM.BasePolicy()
     rows = []
     with open(a.out, "w") as fh:
         for d in a.dirs:
@@ -46,7 +49,7 @@ def main():
                     real = float(top > st.act or (won and st.act == 2))
                     r = dict(arm=os.path.basename(d.rstrip("/")), seed=seed, act=st.act, real=real)
                     for k, p in preds.items():
-                        res = PR.price(st, [("nothing", None)], p, n=a.n, seed=1)
+                        res = PR.price(st, [("nothing", None)], p, n=a.n, seed=1, pol=pol)
                         r[k] = float(res["nothing"]["act"].mean())
                     rows.append(r)
                     fh.write(json.dumps(r) + "\n")

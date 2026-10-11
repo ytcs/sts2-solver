@@ -218,9 +218,9 @@ def bundles(st, items, predictor, keep=6, removals=2, top=8, shuffles=4):
     return opts, note
 
 
-def price(st, opts, predictor, n=128, seed=0):
+def price(st, opts, predictor, n=128, seed=0, pol=None):
     ro = R.Rollouts(predictor, 4)
-    pol = R.BasePolicy()
+    pol = pol or R.BasePolicy()
 
     def rollouts(stop):
         states, seeds, firsts, owner = [], [], [], []
