@@ -49,6 +49,7 @@ public static class Serve
         if (kv.TryGetValue("seed", out var seed) || kv.ContainsKey("character"))
             Fire(Ui.StartRun(kv.GetValueOrDefault("character", "ironclad"), DefaultAscension, seed, null), "start run");
         Settle();
+        Fork.Screen(Ui.Build().Render());
         while (!_quit)
         {
             if (_cmds.TryTake(out var r, 2)) Process(r);

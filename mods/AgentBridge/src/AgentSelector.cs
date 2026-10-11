@@ -19,6 +19,12 @@ public sealed class AgentSelector : MegaCrit.Sts2.Core.TestSupport.ICardSelector
 
     public static Pending? Current { get; private set; }
 
+    public static void Reset()
+    {
+        Current?.Tcs.TrySetCanceled();
+        Current = null;
+    }
+
     public Task<IEnumerable<CardModel>> GetSelectedCards(IEnumerable<CardModel> options, int minSelect, int maxSelect)
     {
         var list = options.ToList();

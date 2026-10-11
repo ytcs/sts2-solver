@@ -143,6 +143,34 @@ class Draws:
 
 
 ACT_NAMES = {0: ("Overgrowth", "Underdocks"), 1: ("Hive",), 2: ("Glory",)}
+
+
+@functools.lru_cache(maxsize=1)
+def map_library():
+    """{(act, act name): [(nodes, bosses)]} from data/maplib.jsonl.gz (OracleCombat `mapgen`, library seeds only)"""
+    import gzip
+    import re
+    from agent import routes
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "maplib.jsonl.gz")
+    out = {}
+    if os.path.exists(path):
+        for line in gzip.open(path, "rt", encoding="utf-8"):
+            r = json.loads(line)
+            nodes, _ = routes.parse_map(r["map"])
+            m = re.search(r"^boss: \d+ (\S+)(?: \+ (\S+))?", r["map"], re.M)
+            out.setdefault((r["act"], r["act_id"].lower()), []).append((nodes, [b for b in (m.groups() if m else ()) if b]))
+    return out
+
+
+def sample_map(act, act_name, rng):
+    """a future act's map and bosses drawn from the library: the prior over what the game has not revealed (never the run's own seed)"""
+    lib = map_library().get((act, str(act_name).lower()))
+    if not lib:
+        return None, None, []
+    nodes, bosses = rng.choice(lib)
+    nodes = {k: dict(v, children=list(v["children"]), visited=False) for k, v in nodes.items()}
+    first = min(k[0] for k in nodes)
+    return nodes, [k for k in nodes if k[0] == first], list(bosses)
 TEMPLATE = {1: "M M ? M ? E R ? T M E ? $ R", 2: "M M ? M ? E R ? T M ? $ R"}
 BASICS = ("STRIKE_", "DEFEND_", "ASCENDERS_BANE")
 CURSES = {c["id"] for c in CAT["cards"].get("CURSE", [])}
@@ -444,6 +472,9 @@ def play(st, rng, pol, first=None, stop_at_next=False):
     if isinstance(pre, dict) and not (yield from event_result(pre)):
         return 0
     while True:
+        if st.nodes is None:
+            st.nodes, st.frontier, lib_bosses = sample_map(st.act, st.act_name, rng)
+            st.bosses = st.bosses or lib_bosses
         if st.nodes is not None and st.frontier is not None:
             while st.frontier:
                 key = pol.node(st, [(k, st.nodes[k]["type"]) for k in st.frontier])

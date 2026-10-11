@@ -766,7 +766,13 @@ public static class Ui
         return "run suspended; the menu offers continue / abandon\n";
     }
 
-    public static void EndRunForFork() { if (Rs != null) EndRun(); _suspended = null; }
+    public static void EndRunForFork()
+    {
+        if (CardRew != null) throw new OracleException("a card reward prompt is open: load into a fresh server");
+        AgentSelector.Reset();
+        if (Rs != null) EndRun();
+        _suspended = null;
+    }
 
     public static void WatchRelics() => RunManager.Instance.TreasureRoomRelicSynchronizer.RelicsAwarded += OnRelicsAwarded;
 

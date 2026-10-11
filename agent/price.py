@@ -321,14 +321,16 @@ HEADER = re.compile(r"A(\d+) F(\d+) \w+ A\d+ HP (\d+)/(\d+) G(\d+)")
 
 def recorded_screens(events_path, kinds=("CARD_REWARD", "RESTSITE")):
     """(floor, state text, RunState, recorded choice label) per decision screen"""
-    sc, picks, seen, bosses, act = None, [], [], [], None
+    sc, picks, seen, bosses, act, map_text = None, [], [], [], None, None
     for raw in open(events_path, encoding="utf-8"):
         e = json.loads(raw)
         k = e.get("kind")
+        if k == "price" and e.get("map"):
+            map_text = e["map"]
         if k == "fight_start":
             sc, picks = e.get("scenario") or sc, []
             if sc and sc.get("act") != act:
-                act, seen, bosses = sc.get("act"), [], []
+                act, seen, bosses, map_text = sc.get("act"), [], [], None
             seen.append(e["encounter"])
         elif k == "reward_eval":
             bosses = [b for b in (e.get("result", {}).get("boss", {}).get("0", {}).get("per") or {}) if b.endswith("_BOSS")] or bosses
@@ -348,9 +350,13 @@ def recorded_screens(events_path, kinds=("CARD_REWARD", "RESTSITE")):
             belt = [_ident(b) for b in scr.belt(state) if b != "-"]
             deck = [dict(c) for c in sc["deck"]] + picks
             relics = [r["id"] if isinstance(r, dict) else r for r in sc.get("relics", [])]
+            nodes, frontier = (routes.parse_map(map_text)[0] or None) if map_text else None, None
+            if nodes:
+                here = max((kk for kk, n in nodes.items() if n["visited"]), default=None)
+                frontier = [kk for kk in nodes[here]["children"] if kk in nodes] if here else [kk for kk in nodes if kk[0] == min(n[0] for n in nodes)]
             st = R.RunState(sc, act, name, int(m.group(3)), int(m.group(4)), int(m.group(5)), deck, relics, [p for p in belt if p in _ids("potions")],
                             sc.get("max_potion_slots", 2), (tracker.POTION_START, tracker.OFFSET_START, dict(tracker.UNKNOWN_BASE), 0), seen_kind,
-                            bosses, None, None, len(seen_kind.get("weak", [])) + len(seen_kind.get("regular", [])))
+                            bosses, frontier, nodes, len(seen_kind.get("weak", [])) + len(seen_kind.get("regular", [])))
             choice = labels.get(e.get("choice", "").split(" ")[0], "")
             yield int(m.group(2)), state, st, choice
             if e["screen"] == "CARD_REWARD":

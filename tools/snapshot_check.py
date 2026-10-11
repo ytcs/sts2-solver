@@ -44,9 +44,8 @@ def main():
                 time.sleep(0.5)
         if a.history:
             fs = sorted(f for f in glob.glob(os.path.join(a.history, "*.json")) if os.path.exists(f + ".screen.txt"))
-            bad = [f for f in fs if call(a.port, "load " + f).strip() != open(f + ".screen.txt", encoding="utf-8").read().strip()]
-            print(f"screens {len(fs) - len(bad)}/{len(fs)}" + "".join(f"
-  DIFFERS {os.path.basename(f)}" for f in bad))
+            bad = [f for f in fs if call(a.port, "load " + os.path.abspath(f)).strip() != open(f + ".screen.txt", encoding="utf-8").read().strip()]
+            print(f"screens {len(fs) - len(bad)}/{len(fs)}" + "".join(f"\n  DIFFERS {os.path.basename(f)}" for f in bad))
             return
         rng = random.Random(1)
         log = [("a 0 ironclad 10 " + a.seed, call(a.port, "a 0 ironclad 10 " + a.seed))]
