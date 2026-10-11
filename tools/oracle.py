@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Final-pair oracle (plan stage A read-out): for a baseline run that died at the final pair, the drafted deck vs the pair at full HP and at
+"""Final-pair oracle: for a baseline run that died at the final pair, the drafted deck vs the pair at full HP and at
 arrival (held potions), the best removals, and a hill-climb over the cards the run was offered (card rewards, shop cards): how much the
 same route's offers could have bought. P = mean over the two bosses, search wins, common seeds.
 usage: tools/oracle.py <arm rows .jsonl> <dir with */<seed>/events.jsonl> [--seeds BASE0001,..] [--attempts 32] [--steps 8]"""
@@ -80,7 +80,6 @@ def main():
             se = np.nanstd(g, 1) / np.sqrt(np.sum(~np.isnan(g), 1))
             k = int(np.argmax(np.nanmean(g, 1)))
             return int(order[k]), float(np.nanmean(g[k])), float(se[k]), float(np.nanmean(v[1 + k]))
-        # removal oracle: greedy, up to 3
         cur = deck
         for k in range(3):
             idx = [i for i in range(len(cur)) if not cur[i]["id"].startswith("ASCENDERS_BANE")]
@@ -89,7 +88,6 @@ def main():
             if g <= 2 * se:
                 break
             cur = cur[:idx[j]] + cur[idx[j] + 1:]
-        # choice oracle: add / remove over the offered cards, accept > 2 paired se
         pool = offers(f)
         cur, left = [dict(c) for c in deck], list(pool)
         for step in range(a.steps):

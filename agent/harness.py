@@ -327,9 +327,7 @@ class Harness(Live):
 
     @_needs_run("no run in progress")
     def loot(self):
-        """the rewards that need no judgement (gold, potions while a slot is free), after the operator has decided the card reward (War Paint-like
-        pickups act on the new card), relics (a free relic can be anti-synergy, e.g. Tungsten Rod vs Rupture/Inferno; relics before gold for
-        Bowler Hat-like ones) and a stolen card (maybe a card to drop anyway, or the card reward offers it upgraded)"""
+        """gold and potions (while a slot is free), only once the operator has decided the card reward, relics and any stolen card"""
         out = ""
         order = (r"(?i)^\d+ gold", r"(?i)^potion ")
         for _ in range(10):

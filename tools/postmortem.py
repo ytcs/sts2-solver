@@ -4,22 +4,8 @@ usage: python tools/postmortem.py TAG [--root DIR] [--seeds S1,S2] [--parts traj
          [--arms strong,full,base] [--k-base 512] [--k-strong 1024] [--k-check 4096] [--roots 128]
        python tools/postmortem.py TAG --cf [--refight] [--k 8] [--top 2] [--worker i --workers P] [--games 1] [--port 15900]
        python tools/postmortem.py TAG --table
-Value V of a run state: paired run-model rollouts (BasePolicy, n per state, same seeds across compared states); `act` = P(clear the
-act the state is in) ranks, `cont` (price's gate surrogate, late rule) is kept. Rollout rooms = the rooms the run visited after that
-point in its act, the act template past the death row; counters at defaults.
-- traj: per non-fatal fight, actual end HP vs the predictor's E[end HP | win] at its start; drop = V(actual) - V(expected HP).
-  Boss fights: both states enter the next act after the ancient's heal.
-- macro: card-reward and rest-site screens re-priced with V (rest site: rest + the smiths price screened), chosen - best.
-- fatal: batch search P(win) at the fatal fight's start (cover + exact turn, K futures, one round per decision): base = k-base,
-  no potions (the baseline searches without potions; proposals not modelled); strong = k-strong, potions in the search; full =
-  strong at max HP. check: k-check on deaths with full < 0.5.
-- --cf: the run's own agent on the headless server (ORACLE_DLL, STS2_PCK), restored by re-sending the logged commands, continued
-  until it dies or passes the floor the run died on. Suspects = up to --top leak fights with a significant drop; K continuations
-  at the actual HP and K after `x heal` to the expectation (fresh agent seeds, same game seed). --refight: K replays of the
-  fatal fight from its start (same game RNG: P(win) on the realized draw, which the run lost).
-Labels: combat HP leak (cf edited - actual pass > 2 se), combat loss at the fatal fight (strong or refight P(win) >= 0.5), macro
-decision (priced drop >= 0.1), else unresolved (deck flag when full < 0.5). Cache: evals/baseline/<TAG>_postmortem*.jsonl
-(PM_CACHE = file to append to).
+V of a run state = paired run-model rollouts (same seeds across compared states); `act` = P(clear the act the state is in).
+--cf needs ORACLE_DLL, STS2_PCK. Cache: evals/baseline/<TAG>_postmortem*.jsonl (PM_CACHE = file to append to).
 """
 import argparse, json, math, os, re, sys, time, zlib
 

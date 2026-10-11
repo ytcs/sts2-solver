@@ -722,8 +722,7 @@ impl Combat {
         self.stage = Stage::Over;
     }
 
-    /// Upper bound on the HP the player can still gain before a won fight ends, victory heals included; None when a source
-    /// (Feed, Not Yet, Book Repair Knife, Dragon Fruit) has no small bound. Cards and potions created later in the fight are not counted.
+    /// Upper bound on HP still gainable before a won fight ends, victory heals included, cards/potions created later excluded; None when unbounded.
     pub fn hp_gain_bound(&self) -> Option<i32> {
         use crate::ids::{card, potion, power, relic};
         let p = &self.player;

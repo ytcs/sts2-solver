@@ -1,4 +1,4 @@
-"""Loose synergy candidates (plan item 4, first pass): tags, pairs, bundles in data/synergy_candidates.json.
+"""Loose synergy candidates: tags, pairs, bundles in data/synergy_candidates.json.
 
     synergy.py ID                  partners by kind
     synergy.py --deck ID,ID,...    bundle commitment, missing core, anti-synergy present (cards and relics, '+' ignored)

@@ -16,8 +16,7 @@ using MegaCrit.Sts2.Core.Unlocks;
 
 namespace OracleCombat;
 
-// Headless game server speaking the in-game bridge's line protocol (mods/AgentBridge: Server.cs, Commands.cs).
-// One game per process; the game thread runs the pump and executes every command.
+// The in-game bridge's line protocol (mods/AgentBridge Server.cs, Commands.cs); one game per process, the game thread runs the pump and every command.
 public static class Serve
 {
     sealed class Req

@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-"""Fixed expert-gap check: the live player (Engine: models/current.json, cover, exact turn search on; Engine.decide at the live 2 s
-budget) on the game states where the expert's move beat it (hMrQSndDvPc divergences, confirmed by paired playouts or an exact
-enumeration). States come from the replay log by compact index k (`tools/expert.py build <compact>` writes them). Per state and seed:
-the move, and whether it falls in the expert's action class (gap closed). FAIL only when a must-win state does not play a winning
-first move (exact value > 1).
+"""Fixed expert-gap check: the live player (Engine.decide, live 2 s budget) on replay-log states where the expert's move beat it, per state
+and seed: the move and whether it falls in the expert's action class. FAIL only when a must-win state does not play a winning first move.
 
 usage: python tools/exact_turn_check.py [--seeds 4] [--budget 2.0] [--cap]
 """

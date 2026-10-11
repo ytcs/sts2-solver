@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Value-response sign gate on simulator-state power edits (promotion acceptance for observation-v3 checkpoints; E46). CPU.
+"""Value-response sign gate on simulator-state power edits (promotion acceptance for observation-v3 checkpoints). CPU.
 usage: tools/power_coverage.py gate --parts GLOB --ckpt CKPT [--n 2000] --out FILE"""
 import argparse, glob, json, os, sys
 

@@ -1,4 +1,4 @@
-"""Plan-aware pick terms from data/synergy_candidates.json (plan item 4). A bundle is live when the deck + relics hold >= 1 provider and
+"""Plan-aware pick terms from data/synergy_candidates.json. A bundle is live when the deck + relics hold >= 1 provider and
 >= 1 consumer of its mechanics; an addition's plan weight is the count of other core pieces owned (copies counted) in its live bundles;
 anti = an anti pair between the addition and an owned item."""
 import collections
