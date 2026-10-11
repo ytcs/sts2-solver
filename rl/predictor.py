@@ -43,7 +43,7 @@ def calib_features(scenario, p):
 
 def calibrate(P, scenarios, params):
     """recorded-fight calibration (tools/calib_fit.py): win mass rescaled to a logistic map of logit P(win), win classes shifted by the
-    group's end-HP bias; P keeps the outcome-head class layout"""
+    group's end-HP bias, linear in the starting HP fraction; P keeps the outcome-head class layout"""
     P = np.array(P, np.float64)
     w = np.asarray(params["w"], np.float64)
     for i, sc in enumerate(scenarios):
@@ -52,7 +52,8 @@ def calibrate(P, scenarios, params):
         win = P[i, 1:]
         s = win.sum()
         if s > 0:
-            k = int(round(params["hp_shift"].get(g, 0.0) / H.BIN))
+            a, b = params["hp_shift"].get(g, (0.0, 0.0))
+            k = int(round((a + b * sc.get("hp", 0) / max(sc.get("max_hp", 1), 1)) / H.BIN))
             win = np.roll(win, k)
             if k > 0:
                 win[-1] += win[:k].sum(); win[:k] = 0

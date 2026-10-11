@@ -35,8 +35,14 @@ def main():
         shift = collections.defaultdict(list)
         for r, g_, mm in zip(R, G, m):
             if mm and r["won"]:
-                shift[g_].append(r["end"] - r["p_end"])
-        return w, {k: float(np.mean(v)) for k, v in shift.items() if len(v) >= 10}
+                shift[g_].append((r["hp"] / r["mx"], r["end"] - r["p_end"]))
+        out = {}
+        for k, v in shift.items():
+            if len(v) >= 10:
+                h, d = np.array(v).T
+                b = float(np.cov(h, d, bias=True)[0, 1] / max(np.var(h), 1e-6)) if np.var(h) > 1e-3 and len(v) >= 80 else 0.0
+                out[k] = (float(d.mean() - b * h.mean()), b)
+        return w, out
 
     print("held out (2 folds by run): per group n, realised, raw predicted -> calibrated; Brier raw -> calibrated")
     pc = np.zeros(len(R))
@@ -49,9 +55,9 @@ def main():
         print(f"  {g:8s} n {m.sum():4d} | realised {y[m].mean():.3f} | {raw[m].mean():.3f} -> {pc[m].mean():.3f} | Brier {np.mean((raw[m] - y[m]) ** 2):.4f} -> {np.mean((pc[m] - y[m]) ** 2):.4f}")
     print(f"  all      Brier {np.mean((raw - y) ** 2):.4f} -> {np.mean((pc - y) ** 2):.4f} (constant {np.mean((y - y.mean()) ** 2):.4f})")
     w, shift = fit(np.ones(len(R), bool))
-    json.dump(dict(predictor=os.path.basename(PREDICTOR_CKPT), n=len(R), w=[round(float(v), 5) for v in w], hp_shift={k: round(v, 2) for k, v in shift.items()},
+    json.dump(dict(predictor=os.path.basename(PREDICTOR_CKPT), n=len(R), w=[round(float(v), 5) for v in w], hp_shift={k: [round(v[0], 2), round(v[1], 2)] for k, v in shift.items()},
                    features=["logit p", "1", "elite", "boss", "act 2", "act 3", "logit p x elite", "logit p x boss"]), open(a.out, "w"), indent=1)
-    print("fit on all ->", a.out, "w", np.round(w, 3), "hp shift", {k: round(v, 1) for k, v in shift.items()})
+    print("fit on all ->", a.out, "w", np.round(w, 3), "hp shift a + b x hp fraction", {k: (round(v[0], 1), round(v[1], 1)) for k, v in shift.items()})
 
 
 if __name__ == "__main__":

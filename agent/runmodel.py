@@ -411,6 +411,7 @@ def play(st, rng, pol, first=None, stop_at_next=False):
         else:
             P = yield [st.scenario(encounter, potions=allowed)]
         end = float(PR.sample_end(P, np.random.default_rng(rng.randrange(1 << 30)))[0])
+        st.__dict__.setdefault("trace", []).append((st.act, kind, st.hp, int(min(max(end, 0), st.max_hp)), st.max_hp))
         st.hp = int(min(end, st.max_hp))
         st.potions = [p for p in st.potions if p not in allowed]
         if end <= 0:
