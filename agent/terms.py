@@ -21,6 +21,7 @@ VARS = {
     "core_owned": "other core pieces owned (copies counted) in the candidate's live synergy bundles where it is core (agent/synergy.py)",
     "anti": "owned items with an anti pair to the candidate",
     "se": "paired se of the priced difference (P units; 0 in rollouts)",
+    "safe_now": "1 when the no-addition deck already wins its reference fights (act boss, an elite) at >= 0.9: nothing ahead needs a card now",
     "gap_fill": "open buckets (FD/SD/FB/SB/ACC, agent/card_tags.py deficiencies) the candidate card fills",
     "draw_owned": "cards owned that draw (synergy tag draw)",
     "scaling_owned": "scaling engines owned (Strength-gain Powers, e.g. Demon Form)",

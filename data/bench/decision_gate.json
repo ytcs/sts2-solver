@@ -1,0 +1,120 @@
+{
+ "_doc": "Measured macro decisions (operator branches E72/E74, scripted probes) the stage-A pricing must reproduce (docs/plan.md stage A gate). want: acceptable best labels (exact option labels as price.options prints them); avoid: labels that fail the item. tools/decision_gate.py replays each recorded screen through price.decide. Items with `bosses` set the act boss the log lacks. Frozen 2026-10-10: the first 8 items shaped the estimator (calibration); the act-1 items guard against act-1 starvation (E70 new v1); the arm is the independent test.",
+ "items": [
+  {
+   "run": "runs/20261010-161443/events.jsonl",
+   "floor": "A2 F21",
+   "kind": "CARD_REWARD",
+   "avoid": [
+    "Vicious"
+   ],
+   "why": "E74 removal test: Vicious is one of the three cards costing +0.19 win vs the Queen"
+  },
+  {
+   "run": "runs/20261010-161443/events.jsonl",
+   "floor": "A2 F23",
+   "kind": "CARD_REWARD",
+   "avoid": [
+    "Drum of Battle"
+   ],
+   "why": "Drum of Battle clearly negative (-0.27..-0.61 by search); Inflame+ vs skip unresolved (+0.013 reward, +0.2 +- 0.16 search)"
+  },
+  {
+   "run": "runs/20261010-161443/events.jsonl",
+   "floor": "A2 F33",
+   "kind": "CARD_REWARD",
+   "want": [
+    "Demon Form"
+   ],
+   "why": "E74: smooth vs the act-3 pool +0.069 +- 0.014"
+  },
+  {
+   "run": "runs/20261010-161443/events.jsonl",
+   "floor": "A3 F38",
+   "kind": "CARD_REWARD",
+   "want": [
+    "Battle Trance",
+    "skip"
+   ],
+   "avoid": [
+    "Tremble"
+   ],
+   "why": "512 attempts: Battle Trance +0.09 +- 0.056 (weak), Tremble -0.107 +- 0.057; leave-one-out neutral / slightly positive"
+  },
+  {
+   "run": "runs/20261010-161443/events.jsonl",
+   "floor": "A3 F35",
+   "kind": "CARD_REWARD",
+   "avoid": [
+    "Perfected Strike",
+    "Whirlwind"
+   ],
+   "why": "E74: both below skip vs the pair"
+  },
+  {
+   "run": "runs/20261010-branch-BASE0015-A3/events.jsonl",
+   "floor": "A3 F38",
+   "kind": "CARD_REWARD",
+   "avoid": [
+    "Inferno"
+   ],
+   "why": "E72: Inferno -0.07 vs the pair (no self-damage fuel)"
+  },
+  {
+   "run": "runs/20261010-branch-BASE0015-A3/events.jsonl",
+   "floor": "A3 F39",
+   "kind": "CARD_REWARD",
+   "want": [
+    "skip",
+    "Molten Fist"
+   ],
+   "why": "E72: all within 0.007 of skip"
+  },
+  {
+   "run": "target/baseline/local_head_base15_p128/BASE0015/events.jsonl",
+   "floor": "A1 F9",
+   "kind": "EVENT",
+   "page": "KEEP DECIPHERING",
+   "want": [
+    "Give Up"
+   ],
+   "why": "E74 setup: the third Tablet page costs 12 max HP for 1 random upgrade"
+  },
+  {
+   "run": "evals/gate_logs/BASE0004/events.jsonl",
+   "floor": "A1 F2",
+   "kind": "CARD_REWARD",
+   "bosses": [
+    "THE_KIN_BOSS"
+   ],
+   "avoid": [
+    "skip"
+   ],
+   "why": "act-1 starvation guard: starter deck at P(boss) 0, Breakthrough clearly helps (search +4.8 log units)"
+  },
+  {
+   "run": "evals/gate_logs/BASE0007/events.jsonl",
+   "floor": "A1 F2",
+   "kind": "CARD_REWARD",
+   "bosses": [
+    "CEREMONIAL_BEAST_BOSS"
+   ],
+   "avoid": [
+    "skip"
+   ],
+   "why": "act-1 starvation guard: Taunt +0.34 +- 0.07"
+  },
+  {
+   "run": "evals/gate_logs/BASE0004/events.jsonl",
+   "floor": "A1 F6",
+   "kind": "CARD_REWARD",
+   "bosses": [
+    "THE_KIN_BOSS"
+   ],
+   "want": [
+    "skip"
+   ],
+   "why": "all three within noise of skip (-0.02..-0.09)"
+  }
+ ]
+}

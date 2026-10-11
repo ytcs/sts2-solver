@@ -355,15 +355,17 @@ class Harness(Live):
         ranked_by, _why = PR.ladder(res, sat)
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by=ranked_by, best=r["best"],
                        result={k: {m: float(v.mean()) for m, v in x.items()} for k, x in res.items()},
-                       search={k: [round(v[0], 3), round(v[1], 3)] for k, v in got.items()}, override=override, terms=adj)
+                       search={k: [round(v[0], 3), round(v[1], 3), {str(a): round(x, 3) for a, x in v[2].items()}] for k, v in got.items()}, override=override, terms=adj)
         ready = ("; next act ready: P(win) after the ancient's heal vs the next act's bosses x0.5 and elites x0.5, 0 on a death in this act"
                  if "ready" in next(iter(res.values())) else "")
         check = ""
         if adj:
             check += "macro terms (data/macro_rules.json, P units on " + ranked_by + "): " + ", ".join(f"{k} {v:+.3f}" for k, v in adj.items()) + "\n"
         if got:
-            rows = [f"  {lb[:44]:44s} {p:.3f} +- {se:.3f}" for lb, (p, se) in sorted(got.items(), key=lambda x: -x[1][0])]
-            check += ("search check (the predictor is near-blind to small deck edits): deck vs " + " + ".join(st.bosses) + " at full HP, with the belt each option leaves\n"
+            rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(f"{('A' + str(a + 1)) if isinstance(a, int) else a} {v:.2f}" for a, v in sorted(pa.items(), key=lambda x: str(x[0])))
+                    for lb, (p, se, pa, *_) in sorted(got.items(), key=lambda x: -x[1][0])]
+            check += ("search check: sum over the acts still to clear of dP/P vs skip (current act's bosses; the act-3 boss pool smooth over HP x1-3 "
+                      "before act 3), full HP, the belt each option leaves; P per act on the right\n"
                       + "\n".join(rows) + (f"\n  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})" if override else "") + "\n")
         check += f"decision (shared with the scripted baseline): {r['best']}" + (" (card-reward terms: tie / density -> skip)" if r["terms_skip"] else "") + "\n"
         return PR.table(res, sat) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + gates + check + self._synergy(state)

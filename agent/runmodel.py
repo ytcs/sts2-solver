@@ -8,6 +8,7 @@ import numpy as np
 from agent import terms as TM, tracker as T
 
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
+SAFE_WIN = 0.9
 NO_BOTTLENECK = dict(bn_turns=0, energy_bound=0.0, ignored_share=0.0, stranded=0.0)
 HAND = 5
 
@@ -57,10 +58,10 @@ def term_ctx(st, kind=None, item=None, deck=None, relics=None, removal_cost=1e9,
     return ctx
 
 
-def pick_with_terms(screen, st, p, cands, deck=None, se=0.0):
+def pick_with_terms(screen, st, p, cands, deck=None, se=0.0, safe_now=0):
     """index into cands [(kind, item)], cands[0] = (None, None) the no-addition variant: p (P units) + adjust terms; the best addition must
-    beat no addition by the margin terms"""
-    ctxs = [term_ctx(st, k, i, deck=deck, se=se) for k, i in cands]
+    beat no addition by the margin terms. safe_now: the no-addition deck already wins its reference fights (nothing ahead needs a card now)"""
+    ctxs = [dict(term_ctx(st, k, i, deck=deck, se=se), safe_now=int(safe_now)) for k, i in cands]
     adj = np.asarray(p, float) + np.array([TM.adjust(screen, c) for c in ctxs])
     best = int(np.argmax(adj))
     return best if best and adj[best] - adj[0] > TM.margin(screen, ctxs[best]) else 0
@@ -409,8 +410,10 @@ def play(st, rng, pol, first=None, stop_at_next=False):
         refs = reference_fights(st, rng)
         decks = [st.deck] + [st.deck + [{"id": c, "upgrade": u}] for c, u in cards]
         P = yield [st.scenario(e, hp, deck=d, potions=[]) for d in decks for e, hp in refs]
+        import predictor as PRD
+        safe = bool(np.all(PRD.p_win(P[:len(refs)]) >= SAFE_WIN))
         best = pick_with_terms("card_reward", st, worth(P, st.max_hp).reshape(len(decks), len(refs)).mean(1) / 2,
-                               [(None, None)] + [("card", c) for c, _ in cards])
+                               [(None, None)] + [("card", c) for c, _ in cards], safe_now=safe)
         if best:
             st.deck.append({"id": cards[best - 1][0], "upgrade": cards[best - 1][1]})
         if kind == "elite":

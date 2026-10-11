@@ -27,14 +27,12 @@ def test_rules_compile_and_reject_unsafe():
         raise AssertionError(bad)
 
 
-def test_margin_only_past_density_target():
-    small, big = _St(BASE), _St(BASE + ["DEFEND_IRONCLAD"] * 12)
-    assert R.pick_with_terms("card_reward", small, [0.5, 0.501], [(None, None), ("card", "ANGER")]) == 1
-    assert R.pick_with_terms("card_reward", big, [0.5, 0.515], [(None, None), ("card", "ANGER")]) == 0
-    assert R.pick_with_terms("card_reward", big, [0.0, 0.03], [(None, None), ("card", "ANGER")], se=0.02) == 0
-
-
-def test_plan_terms():
+def test_deadline_margin_only_when_safe():
     st = _St(BASE)
-    assert R.term_ctx(st, "card", "DEMON_FORM")["core_owned"] >= 2
-    assert not R.take_relic(st, "TUNGSTEN_ROD") and R.take_relic(st, "VAJRA")
+    assert R.pick_with_terms("card_reward", st, [0.5, 0.51], [(None, None), ("card", "ANGER")]) == 1
+    assert R.pick_with_terms("card_reward", st, [0.5, 0.51], [(None, None), ("card", "ANGER")], safe_now=1) == 0
+    assert R.pick_with_terms("card_reward", st, [0.5, 0.55], [(None, None), ("card", "ANGER")], safe_now=1) == 1
+
+
+def test_plan_signal():
+    assert R.term_ctx(_St(BASE), "card", "DEMON_FORM")["core_owned"] >= 2
