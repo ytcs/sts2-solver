@@ -105,10 +105,7 @@ def build(character="ironclad"):
     ids = re.findall(r"ids::card::([A-Z0-9_]+)", open(os.path.join(ROOT, "crates", "sts2sim", "src", "content", "gen_pools.rs"), encoding="utf-8").read().split("pub static IRONCLAD")[1].split("];")[0])
     out = {}
     for cid in ids:
-        if cid in ("STRIKE_IRONCLAD", "DEFEND_IRONCLAD", "ASCENDERS_BANE"):
-            m = measure(cid)
-        else:
-            m = measure(cid)
+        m = measure(cid)
         t = tags_from(m, cid)
         out[cid] = dict(buckets=t, **({k: m[k] for k in ("cost", "damage", "block", "energy", "draw", "strength", "dexterity", "exhaust")} if m else {}))
     return out
@@ -130,12 +127,6 @@ def deck_line(deck, tags):
 def deficiencies(line, targets=None):
     targets = targets or dict(FD=5, SD=2, FB=4, SB=1, ACC=3)
     return {b: targets[b] - line[b] for b in targets if line[b] < targets[b]}
-
-
-def candidates(tags, bucket, exclude=()):
-    cs = [(cid, v) for cid, v in tags.items() if bucket in v["buckets"] and cid not in exclude]
-    key = {"FD": lambda v: -(v.get("damage", 0) / max(1, v.get("cost", 1))), "FB": lambda v: -(v.get("block", 0) / max(1, v.get("cost", 1)))}.get(bucket, lambda v: v.get("cost", 1))
-    return [cid for cid, v in sorted(cs, key=lambda x: key(x[1]))]
 
 
 if __name__ == "__main__":

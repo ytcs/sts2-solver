@@ -389,7 +389,7 @@ class FastSearch:
                 return pol
             res = self._run(pol_fn(self.roll_net), G["obs"][:n_pol], obs, mask, u)
             if self.roll_net is not self.net:
-                ir = np.flatnonzero(G["pol_kind"][:n_pol] == 0)
+                ir = np.flatnonzero((G["pol_kind"][:n_pol] & 1) == 0)
                 if len(ir):
                     ir_t = torch.from_numpy(ir).to(DEV)
                     res[ir_t] = self._run(pol_fn(self.net), G["obs"][ir], obs[ir_t], mask[ir_t], u[ir_t])

@@ -1,13 +1,10 @@
-#!/usr/bin/env python3
-import argparse, json, os, sys, time
+import json, os, sys
 import numpy as np
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import sts2
-from model import load, net_policy
+from model import load
 from fastsearch import FastSearch
-import heads
 
 _M = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
 _c = json.load(open(os.path.join(_M, "current.json")))
@@ -16,40 +13,20 @@ PREDICTOR_CKPT = os.path.join(_M, os.environ.get("STS2_PREDICTOR") or _c["predic
 
 
 class Solver:
-    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, max_steps=300, roots=None, groups=2, roll_ckpt=None, amp=None, threads=None, cover=False):
+    def __init__(self, ckpt=DEFAULT_CKPT, M=3, K=8, roots=None, groups=2, threads=None, cover=False):
         if threads:
             torch.set_num_threads(threads)
         self.net = load(ckpt)
-        self.max_steps = max_steps
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        self.fs = FastSearch(self.net, M, K, max_steps=max_steps, roots=roots or (2048 if cuda else 256), groups=groups,
-                             roll_net=load(roll_ckpt) if roll_ckpt else None, amp=cuda if amp is None else amp, cover=cover)
+        self.fs = FastSearch(self.net, M, K, max_steps=300, roots=roots or (2048 if cuda else 256), groups=groups, amp=cuda, cover=cover)
         self.fs.warm()
 
-    def _greedy(self, scenarios, attempts, seed):
-        flat = [scenarios[i] for _ in range(attempts) for i in range(len(scenarios))]
-        env = sts2.VecEnv(len(flat), flat, seed=seed, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, round_robin=True, turn_cap=heads.TURN_CAP)
-        pol = net_policy(self.net)
-        obs, mask = env.reset()
-        got = np.zeros(len(flat), bool)
-        out = [None] * len(flat)
-        while not got.all():
-            obs, mask, r, d, info = env.step(pol(obs, mask))
-            new = (d > 0) & ~got
-            if new.any():
-                ei = env.episode_info()
-                for i in np.nonzero(new)[0]:
-                    out[i] = (int(info["outcome"][i]), float(ei["hp_lost"][i]), int(ei["length"][i]), float(ei["hp_end"][i]))
-                got |= new
-        return out
-
-    def solve(self, scenarios, attempts=32, search=True, seed=0, verbose=False, groups=None, worth=None):
+    def solve(self, scenarios, attempts=32, seed=0, groups=None, worth=None):
         if isinstance(scenarios, dict):
             scenarios = [scenarios]
         S = len(scenarios)
-        t0 = time.time()
         per = None
-        if search and not np.isscalar(attempts):
+        if not np.isscalar(attempts):
             # per-scenario attempts (several evaluations in one batch): each job keeps the seed it gets in a call of its own
             A = np.asarray(attempts, dtype=np.int64)
             js = np.concatenate([np.full(a, i, dtype=np.uint32) for i, a in enumerate(A)])
@@ -59,7 +36,7 @@ class Solver:
             r = self.fs.run(scenarios, js, jd, worth=worth)
             allrows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6], r[i, 8]) for i in range(len(js))]
             per = [[allrows[j] for j in np.flatnonzero(js == i)] for i in range(S)]
-        elif search:
+        else:
             js = np.tile(np.arange(S, dtype=np.uint32), attempts)
             if groups is None:
                 jd = np.uint64(seed) * np.uint64(1_000_003) + np.arange(len(js), dtype=np.uint64)
@@ -69,11 +46,6 @@ class Solver:
                 jd = np.uint64(seed) * np.uint64(1_000_003) + g * np.uint64(attempts) + att
             r = self.fs.run(scenarios, js, jd, worth=worth)
             rows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6], r[i, 8]) for i in range(len(js))]
-        else:
-            rows = self._greedy(scenarios, attempts, seed)
-        if verbose:
-            nf = int(np.sum(attempts)) if not np.isscalar(attempts) else S * attempts
-            print(f"{nf} fights in {time.time() - t0:.0f}s ({nf / (time.time() - t0):.1f} fights/s)", flush=True)
         res = []
         for i in range(S):
             r = np.array(rows[i::S] if per is None else per[i], dtype=np.float64)
@@ -90,28 +62,3 @@ class Solver:
                             progress=[float(x) if ok else None for x, ok in zip(r[:, 5], valid)] if r.shape[1] > 5 else None))
         return res
 
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--scenarios", required=True, help="JSON file: one scenario or a list of scenarios (oracle format)")
-    ap.add_argument("--attempts", type=int, default=32)
-    ap.add_argument("--ckpt", default=DEFAULT_CKPT)
-    ap.add_argument("--M", type=int, default=3); ap.add_argument("--K", type=int, default=8)
-    ap.add_argument("--no-search", action="store_true", help="the network alone (greedy)")
-    ap.add_argument("--roots", type=int, default=None); ap.add_argument("--groups", type=int, default=2)
-    ap.add_argument("--roll-ckpt")
-    ap.add_argument("--out"); ap.add_argument("--seed", type=int, default=0)
-    a = ap.parse_args()
-    scen = json.load(open(a.scenarios))
-    if isinstance(scen, dict):
-        scen = [scen]
-    S = Solver(a.ckpt, a.M, a.K, roots=a.roots, groups=a.groups, roll_ckpt=a.roll_ckpt)
-    res = S.solve(scen, a.attempts, search=not a.no_search, seed=a.seed, verbose=True)
-    for sc, r in zip(scen, res):
-        print(f"{sc.get('name', '?'):28s} win {r['win']:.3f} ±{r['win_se']:.3f}  HP lost {100 * (r['hp_lost'] or 0):.0f}%  HP left on win {r['hp_left_on_win']:.0f}")
-    if a.out:
-        json.dump(res, open(a.out, "w"), indent=1)
-
-
-if __name__ == "__main__":
-    main()

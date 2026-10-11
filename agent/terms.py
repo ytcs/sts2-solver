@@ -18,17 +18,8 @@ VARS = {
     "max_hp_delta": "max HP change of an event option's own page effects",
     "removal_cost": "shop removal price (1e9 without a removal offer)",
     "is_card": "1 if the candidate is a card", "is_relic": "1 if the candidate is a relic", "is_skip": "1 for the no-addition variant",
-    "core_owned": "other core pieces owned (copies counted) in the candidate's live synergy bundles where it is core (agent/synergy.py)",
-    "anti": "owned items with an anti pair to the candidate",
     "se": "paired se of the priced difference (P units; 0 in rollouts)",
     "safe_now": "1 when the no-addition deck already wins its reference fights (act boss, an elite) at >= 0.9: nothing ahead needs a card now",
-    "gap_fill": "open buckets (FD/SD/FB/SB/ACC, agent/card_tags.py deficiencies) the candidate card fills",
-    "draw_owned": "cards owned that draw (synergy tag draw)",
-    "scaling_owned": "scaling engines owned (Strength-gain Powers, e.g. Demon Form)",
-    "cycle_after": "turns to draw through the deck after the pick: size_after / (5 + 0.5 x draw cards); density relative to draw",
-    "provides": "the candidate's provided mechanics (data/synergy_candidates.json vocabulary), test with 'energy_gain' in provides",
-    "consumes": "the candidate's consumed mechanics",
-    "cost": "the candidate card's energy cost (-1 for relics / unknown)",
     "bn_turns": "end-of-turn samples in this act's bottleneck tracker (agent/bottleneck.py)",
     "energy_bound": "share of cards left in hand at end of turn with less energy than their cost, this act",
     "ignored_share": "share of end-of-turn hand slots left unplayed with energy to spare, this act",
@@ -63,6 +54,8 @@ def load(path=PATH):
 
 
 TERMS = {} if os.environ.get("MACRO_RULES") == "off" else load()
+USED = frozenset(n.id for t in TERMS.values() for k in ("when", "value") for n in ast.walk(ast.parse(str(t.get(k, "0")), mode="eval"))
+                 if isinstance(n, ast.Name))
 
 
 def _active(screen, typ, ctx):

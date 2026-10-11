@@ -170,15 +170,6 @@ class Harness(Live):
         self._rc = runctx.RunContext(act, bosses, seen, map_text)
         return self._rc
 
-    def _ctx(self):
-        return self._context().ctx
-
-    def _horizon(self):
-        return self._context().horizon()
-
-    def _future_encounters(self):
-        return self._context().future()
-
 
     def act(self, argline):
         why = None
@@ -208,7 +199,7 @@ class Harness(Live):
             step = self._resolve(before, step)
             if step.startswith("ERR"):
                 return step + "\n" + before
-            guard = self._map_guard(before, step) or (self._decision_guard(before, step, why) if self.gate and os.environ.get("STS2_DECISION_GUARDS", "").lower() != "off" else None)
+            guard = guards.map_guard(before, step) or (guards.decision_guard(before, step, why, self.priced, self.reward_screen) if self.gate and os.environ.get("STS2_DECISION_GUARDS", "").lower() != "off" else None)
             if guard:
                 return guard
             last_kind = kind
@@ -243,12 +234,6 @@ class Harness(Live):
         return reply
 
     _resolve = staticmethod(scr.resolve)
-
-    def _map_guard(self, state, argline):
-        return guards.map_guard(state, argline)
-
-    def _decision_guard(self, state, step, why):
-        return guards.decision_guard(state, step, why, self.priced, self.reward_screen)
 
 
     @_needs_run("no run in progress")
@@ -335,7 +320,7 @@ class Harness(Live):
             return state
         ev = os.path.join(self.log.dir, "events.jsonl")
         bn = bottleneck.line(ev) if os.path.exists(ev) else ""
-        return macro.brief_text(state, deck, self._horizon()) + "\n" + (bn + "\n" if bn else "")
+        return macro.brief_text(state, deck, self._context().horizon()) + "\n" + (bn + "\n" if bn else "")
 
     EVAL_VALUED = ("--enc", "--pool", "--attempts", "--hp", "--v")
     EVAL_FLAGS = ("--boss", "--elites", "--next", "--all", "--future", "--smooth")
@@ -394,11 +379,11 @@ class Harness(Live):
                     a, kind, *n = val.split(":")
                     spec["encounters"] = dict(act=a, kind=kind, n=int(n[0]) if n else 0)
                 elif t in ("--boss", "--elites", "--next"):
-                    spec["encounters"] = self._horizon()[t[2:]]
+                    spec["encounters"] = self._context().horizon()[t[2:]]
                 elif t == "--all":
                     spec["all"] = True
                 elif t == "--future":
-                    spec["encounters"] = self._future_encounters()
+                    spec["encounters"] = self._context().future()
                 elif t == "--smooth":
                     spec["smooth"] = True
                 elif t == "--attempts":
@@ -416,7 +401,7 @@ class Harness(Live):
             return "need --enc IDS or --pool Act:kind[:n]"
         spec.setdefault("hold", "all")
         if not spec.pop("all", False):
-            spec["_ctx"] = self._ctx()
+            spec["_ctx"] = self._context().ctx
         deck = self._run()
         text, summary = macro.evaluate(self.eng(), deck, spec)
         self.log.event("eval", spec=spec, result=macro.loggable(summary))

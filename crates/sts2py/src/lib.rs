@@ -63,8 +63,6 @@ impl BatchEnvPy {
         mut outcome: PyReadwriteArray1<i8>,
         mut illegal: PyReadwriteArray1<u8>,
     ) -> PyResult<()> {
-        let e = |x: numpy::BorrowError| PyValueError::new_err(x.to_string());
-        let _ = e;
         let a = actions.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let o = obs.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let m = mask.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -74,11 +72,6 @@ impl BatchEnvPy {
         let il = illegal.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let env = &mut self.env;
         py.detach(|| env.step(a, StepOut { obs: o, mask: m, reward: r, done: d, outcome: oc, illegal: il })).map_err(|e| PyValueError::new_err(format!("{e:?}")))
-    }
-
-    fn set_weights(&mut self, w: PyReadonlyArray1<f32>) -> PyResult<()> {
-        let w = w.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?;
-        if self.env.set_weights(w) { Ok(()) } else { Err(PyValueError::new_err("weights need a pool source with one weight per scenario")) }
     }
 
     fn episode_info(&self, mut out: PyReadwriteArray2<f32>) -> PyResult<()> {

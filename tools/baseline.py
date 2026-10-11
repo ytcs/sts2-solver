@@ -371,7 +371,6 @@ ROUTE_OVERRIDE = float(os.environ.get("ROUTE_OVERRIDE", "0.05"))
 PR.TAKE_SE = float(os.environ.get("TAKE_SE", PR.TAKE_SE))
 PR.DEADLINE_RADIUS = int(os.environ.get("DEADLINE_RADIUS", PR.DEADLINE_RADIUS))
 PR.R.SAFE_WIN = float(os.environ.get("SAFE_WIN", PR.R.SAFE_WIN))
-PR.ACT_BOSS_1X = os.environ.get("ACT_BOSS_1X", "0") == "1"
 
 
 class PriceMacro(Macro):
@@ -447,7 +446,7 @@ class PriceMacro(Macro):
         from agent import routes
         try:
             ctx = self.h._context()
-            return routes.option_values(self.h.eng(), self.h._run(), ctx.map_text, s, self.h._ctx(), ctx.names[0], hps=hps)
+            return routes.option_values(self.h.eng(), self.h._run(), ctx.map_text, s, ctx.ctx, ctx.names[0], hps=hps)
         except Exception:  # noqa: BLE001
             self.h.log.event("route_error", tb=traceback.format_exc()[-1500:])
             return {}

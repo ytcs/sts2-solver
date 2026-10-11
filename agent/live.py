@@ -269,9 +269,6 @@ class Live:
     def _sim_potions(self):
         return potions.live_slots(self.rp.sim) if self.rp is not None else []
 
-    def _belt(self):
-        return scr.belt(call("peek"))
-
     def _is_boss(self):
         return self.rp is not None and str(self.rp.scenario.get("encounter", "")).endswith("_BOSS")
 

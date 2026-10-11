@@ -3,7 +3,7 @@ import re
 from agent import macro
 from agent import screen as scr
 
-PICK_RECORD = {"numbers:": "<`price`: best option and its margin over skip>", "judgment:": "<plan fit, density, future problems, synergies: why this choice>"}
+PICK_RECORD = {"numbers:": "<`price`: best option and its margin over skip>", "judgment:": "<plan fit, future problems, synergies: why this choice>"}
 
 
 def _option(step):

@@ -29,10 +29,6 @@ pub trait ScenarioSource: Send + Sync {
     fn validate(&self) -> Result<(), ScenarioError> {
         Ok(())
     }
-
-    fn set_weights(&mut self, _w: &[f32]) -> bool {
-        false
-    }
 }
 
 pub struct FixedScenario(pub Scenario);
@@ -51,22 +47,16 @@ impl ScenarioSource for FixedScenario {
     }
 }
 
-pub struct PoolScenario(Vec<Scenario>, Vec<ScenarioExtras>, Option<Vec<f64>>);
+pub struct PoolScenario(Vec<Scenario>, Vec<ScenarioExtras>);
 impl PoolScenario {
     pub fn with_extras(v: Vec<(Scenario, ScenarioExtras)>) -> PoolScenario {
         assert!(!v.is_empty());
         let (s, e) = v.into_iter().unzip();
-        PoolScenario(s, e, None)
+        PoolScenario(s, e)
     }
 
     fn idx(&self, episode_seed: u64) -> usize {
-        match &self.2 {
-            None => (episode_seed >> 17) as usize % self.0.len(),
-            Some(cdf) => {
-                let u = (episode_seed >> 11) as f64 / (1u64 << 53) as f64 * cdf[cdf.len() - 1];
-                cdf.partition_point(|&c| c <= u).min(self.0.len() - 1)
-            }
-        }
+        (episode_seed >> 17) as usize % self.0.len()
     }
 }
 impl ScenarioSource for PoolScenario {
@@ -87,18 +77,6 @@ impl ScenarioSource for PoolScenario {
     }
     fn validate(&self) -> Result<(), ScenarioError> {
         self.0.iter().try_for_each(|s| s.validate())
-    }
-    fn set_weights(&mut self, w: &[f32]) -> bool {
-        if w.len() != self.0.len() {
-            return false;
-        }
-        let mut acc = 0.0f64;
-        let cdf: Vec<f64> = w.iter().map(|&x| {
-            acc += x.max(0.0) as f64;
-            acc
-        }).collect();
-        self.2 = if acc > 0.0 { Some(cdf) } else { None };
-        true
     }
 }
 
@@ -326,10 +304,6 @@ impl BatchEnv {
 
     pub fn is_empty(&self) -> bool {
         self.slots.is_empty()
-    }
-
-    pub fn set_weights(&mut self, w: &[f32]) -> bool {
-        self.source.set_weights(w)
     }
 
     pub fn episode_info(&self, out: &mut [EpisodeInfo]) {

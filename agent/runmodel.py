@@ -10,65 +10,27 @@ from agent import terms as TM, tracker as T
 CAT = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "catalog.json")))
 SAFE_WIN = 0.9
 NO_BOTTLENECK = dict(bn_turns=0, energy_bound=0.0, ignored_share=0.0, stranded=0.0)
-HAND = 5
 
 
-@functools.lru_cache(maxsize=4096)
-def deck_signals(ids):
-    """per deck (sorted id tuple): open buckets (card_tags gaps), draw cards owned, scaling engines owned (Strength-gain Powers)"""
-    from agent import card_tags, synergy
-    tags = _bucket_tags()
-    gaps = card_tags.deficiencies(card_tags.deck_line(list(ids), tags)) if tags else {}
-    draw = sum("draw" in synergy.item_tags(i)[0] for i in ids)
-    scaling = sum({"strength_gain", "power_card"} <= set(synergy.item_tags(i)[0]) for i in ids)
-    return gaps, draw, scaling
-
-
-@functools.lru_cache(maxsize=1)
-def _bucket_tags():
-    from agent import card_tags
-    try:
-        return card_tags.load()
-    except Exception:  # noqa: BLE001
-        return {}
-
-
-def cycle(n_cards, draw_cards):
-    """turns to draw through the deck: HAND cards a turn plus ~0.5 per draw card owned (density relative to draw, not raw size)"""
-    return n_cards / (HAND + 0.5 * draw_cards)
-
-
-def term_ctx(st, kind=None, item=None, deck=None, relics=None, removal_cost=1e9, se=0.0, max_hp_delta=0):
-    """variables of the macro terms DSL (agent/terms.py VARS) for adding item (kind card | relic | None = skip) to st's deck / relics"""
-    from agent import synergy
+def term_ctx(st, kind=None, deck=None, removal_cost=1e9, se=0.0, max_hp_delta=0):
+    """variables of the macro terms DSL (agent/terms.py VARS) for adding a candidate of kind (card | relic | None = skip) to st"""
     deck = st.deck if deck is None else deck
-    relics = st.relics if relics is None else relics
-    ctx = dict(deck_size=len(deck), size_after=len(deck) + (kind == "card"), act=st.act + 1, gold=st.gold, hp_frac=st.hp / max(1, st.max_hp),
-               max_hp=st.max_hp, max_hp_delta=max_hp_delta, removal_cost=removal_cost, is_card=int(kind == "card"), is_relic=int(kind == "relic"), is_skip=int(kind is None), se=se,
-               core_owned=0, anti=0, provides=frozenset(), consumes=frozenset(), cost=-1, **getattr(st, "bottleneck", None) or NO_BOTTLENECK)
-    if item is not None:
-        ids = [c["id"] for c in deck] + [r if isinstance(r, str) else r["id"] for r in relics]
-        pr, co, cost = synergy.item_tags(item)
-        ctx.update(core_owned=synergy.in_plan(item, ids), anti=len(synergy.anti(item, ids)), provides=pr, consumes=co, cost=cost)
-    gaps, draw, scaling = deck_signals(tuple(sorted(c["id"] for c in deck)))
-    cand_draw = int(item is not None and kind == "card" and "draw" in ctx["provides"])
-    buckets = _bucket_tags().get(str(item).rstrip("+"), {}).get("buckets", []) if item is not None and kind == "card" else []
-    ctx.update(gap_fill=sum(b in gaps for b in buckets), draw_owned=draw, scaling_owned=scaling,
-               cycle_after=cycle(ctx["size_after"], draw + cand_draw))
-    return ctx
+    return dict(deck_size=len(deck), size_after=len(deck) + (kind == "card"), act=st.act + 1, gold=st.gold, hp_frac=st.hp / max(1, st.max_hp),
+                max_hp=st.max_hp, max_hp_delta=max_hp_delta, removal_cost=removal_cost, is_card=int(kind == "card"), is_relic=int(kind == "relic"),
+                is_skip=int(kind is None), se=se, **getattr(st, "bottleneck", None) or NO_BOTTLENECK)
 
 
 def pick_with_terms(screen, st, p, cands, deck=None, se=0.0, safe_now=0):
     """index into cands [(kind, item)], cands[0] = (None, None) the no-addition variant: p (P units) + adjust terms; the best addition must
     beat no addition by the margin terms. safe_now: the no-addition deck already wins its reference fights (nothing ahead needs a card now)"""
-    ctxs = [dict(term_ctx(st, k, i, deck=deck, se=se), safe_now=int(safe_now)) for k, i in cands]
+    ctxs = [dict(term_ctx(st, k, deck=deck, se=se), safe_now=int(safe_now)) for k, _i in cands]
     adj = np.asarray(p, float) + np.array([TM.adjust(screen, c) for c in ctxs])
     best = int(np.argmax(adj))
     return best if best and adj[best] - adj[0] > TM.margin(screen, ctxs[best]) else 0
 
 
 def take_relic(st, relic):
-    return TM.adjust("relic", term_ctx(st, "relic", relic)) >= 0
+    return TM.adjust("relic", term_ctx(st, "relic")) >= 0
 
 
 RARITIES = ("Common", "Uncommon", "Rare")
@@ -212,7 +174,7 @@ class RunState:
     def scenario(self, encounter, hp=None, deck=None, potions=None, relics=None, act=None):
         pots = self.potions if potions is None else potions
         return dict(self.base, name=f"rm_{encounter}", encounter=encounter, act=self.act if act is None else act, hp=int(hp or self.hp), max_hp=self.max_hp, gold=self.gold,
-                    deck=deck or self.deck, relics=[r if isinstance(r, dict) else {"id": r} for r in (self.relics if relics is None else relics)],
+                    deck=self.deck if deck is None else deck, relics=[r if isinstance(r, dict) else {"id": r} for r in (self.relics if relics is None else relics)],
                     potions=[{"id": p, "slot": i} for i, p in enumerate(pots)], max_potion_slots=self.slots)
 
     def draw_encounter(self, kind, rng):

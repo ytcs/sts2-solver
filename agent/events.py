@@ -28,11 +28,6 @@ def get(event):
     return next((e for e in cat.values() if e["key"].lower() == low or e["title"].lower() == low), None)
 
 
-def options(event):
-    e = get(event)
-    return [o["label"] for o in e["options"]] if e else []
-
-
 def _pattern(label):
     parts = re.split(r"\{\w+\}", label)
     return re.compile(r"\s*" + r".+?".join(re.escape(p) for p in parts) + r"\s*$", re.I)

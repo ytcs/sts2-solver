@@ -1,6 +1,5 @@
 import math
 import os
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -461,45 +460,11 @@ class Net(nn.Module):
         return H.value(self.outcome_logits(gctx), sl(obs, "player", self.SEC)[:, 1])
 
 
-class HostShape:
-    @staticmethod
-    def rows_info(obs):
-        o, s = SEC["enemies"]
-        occ = obs[:, o:o + s].reshape(len(obs), C["OBS_MAX_ENEMIES"], C["ENEMY_F"])[..., 0] > 0.5
-        e = np.where(occ.any(1), C["OBS_MAX_ENEMIES"] - np.argmax(occ[:, ::-1], 1), 0).astype(np.int16)
-        piles = np.stack([(obs[:, SEC[nm][0]:SEC[nm][0] + SEC[nm][1]:2] > 0).sum(1) for nm in ("draw", "discard", "exhaust")], 1).astype(np.int16)
-        dec = obs[:, SEC["decision"][0]] > 0.5
-        return e, piles, dec
-
-    @staticmethod
-    def of(e, piles, dec, device):
-        return dict(E=max(1, int(e.max())), L=tuple(max(1, int(x)) for x in piles.max(0)),
-                    rows=torch.from_numpy(np.flatnonzero(dec)).to(device, non_blocking=True))
-
-
-def n_params(m):
-    return sum(p.numel() for p in m.parameters())
-
-
 def load(path):
     ck = torch.load(path, map_location="cpu")
     args = ck.get("args", {})
     net = Net(d=args.get("d", 64), rounds=args.get("rounds", 2), heads=bool(args.get("heads", False)), obs=int(args.get("obs_version", 2)))
-    load_weights(net, ck["net"] if "net" in ck else ck)
+    missing, unexpected = net.load_state_dict(ck["net"] if "net" in ck else ck, strict=False)
+    if missing or unexpected:
+        raise RuntimeError(f"checkpoint does not match the network: {(list(missing) + list(unexpected))[:6]}")
     return net.to(DEV).eval()
-
-
-def net_policy(net, greedy=True):
-    @torch.no_grad()
-    def act(obs, mask):
-        lg, _ = net(torch.from_numpy(obs.copy()).to(DEV), torch.from_numpy(mask.astype(np.int64)).to(DEV))
-        a = lg.argmax(1) if greedy else torch.distributions.Categorical(logits=lg).sample()
-        return a.cpu().numpy().astype(np.int32)
-    return act
-
-
-def load_weights(net, sd, allow_missing=()):
-    missing, unexpected = net.load_state_dict(sd, strict=False)
-    bad = [k for k in missing if not k.startswith(tuple(allow_missing))] + list(unexpected)
-    if bad:
-        raise RuntimeError(f"checkpoint does not match the network: {bad[:6]}")

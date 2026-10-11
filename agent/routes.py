@@ -81,15 +81,15 @@ UNIT = 4
 _CACHE = {}
 
 
-def _signature(deck_json, act, ctx, attempts):
+def _signature(deck_json, act, ctx, attempts, seed):
     deck = tuple(sorted((c["id"], c.get("upgrade", 0), json.dumps(c.get("enchantment"), sort_keys=True)) for c in deck_json["deck"]))
     relics = tuple((r["id"], json.dumps(r.get("props"), sort_keys=True), r.get("counter")) for r in deck_json.get("relics", []))
     pots = tuple(p["id"] for p in deck_json.get("potions", []))
-    return (deck, relics, pots, deck_json["max_hp"], act, tuple(ctx.get("seen", [])), tuple(ctx.get("bosses", [])), attempts)
+    return (deck, relics, pots, deck_json["max_hp"], act, tuple(ctx.get("seen", [])), tuple(ctx.get("bosses", [])), attempts, seed)
 
 
 def build_tables(engine, deck_json, act, ctx, attempts):
-    key = _signature(deck_json, act, ctx, attempts)
+    key = _signature(deck_json, act, ctx, attempts, engine.table_seed)
     if key in _CACHE:
         return _CACHE[key]
     maxhp = deck_json["max_hp"]
@@ -362,14 +362,13 @@ def _fmt_plan(calc, plan):
     return "; ".join(parts) or "no potion thrown"
 
 
-def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, tabs=None, weights=None):
+def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0.15, weights=None):
     nodes, boss_row = parse_map(map_text)
     if not nodes or boss_row is None:
         return "routes: no act map"
     hp_now = (screen.hp(state_text) or (deck_json["hp"],))[0]
     maxhp = deck_json["max_hp"]
-    if tabs is None:
-        tabs = build_tables(engine, deck_json, act, ctx, attempts)
+    tabs = build_tables(engine, deck_json, act, ctx, attempts)
     if ("boss", NONE) not in tabs:
         return "routes: boss unknown"
     calc = Calc(nodes, boss_row, tabs, maxhp, pools.ACTS[act]["weak_fights"], pf)

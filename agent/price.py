@@ -5,7 +5,7 @@ import sys
 
 import numpy as np
 
-from agent import bottleneck, pools, routes, runmodel as R, screen as scr, tracker
+from agent import bottleneck, macro, pools, routes, runmodel as R, screen as scr, terms as TM, tracker
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, os.path.join(ROOT, "rl"))
@@ -38,12 +38,11 @@ def run_state(deck, ctx, events_path, state_text):
                     deck.get("max_potion_slots", 2), (t.potion, t.offset, dict(t.unknown), t.removals), seen,
                     [b for b in ctx.bosses if b not in set(ctx.seen)] or list(ctx.bosses), frontier, nodes or None,
                     len(seen.get("weak", [])) + len(seen.get("regular", [])))
-    st.bottleneck = bottleneck.term_vars(events_path, ctx.act)
+    st.bottleneck = bottleneck.term_vars(events_path, ctx.act) if TM.USED & set(R.NO_BOTTLENECK) else None
     return st
 
 
 def _card_id(name):
-    from agent import macro
     return macro.card_from_name(name)
 
 
@@ -415,7 +414,6 @@ def _reachable(st, radius):
 
 
 def _rung_encounters(st, types, boss_in_range):
-    from agent import macro, pools
     ctx = dict(seen=[e for v in st.seen.values() for e in v], bosses=list(st.bosses or []))
     out = []
     if any(t in ("M", "?") for t in types):
@@ -428,7 +426,7 @@ def _rung_encounters(st, types, boss_in_range):
     return list(dict.fromkeys(out))
 
 
-def binding_fights(st, engine, k=2, attempts=32):
+def binding_fights(st, engine, seed, k=2, attempts=32):
     """user: the most dangerous encounter within n floors is the myopic sub-objective, n scaled outwards: for radius 3, 6, 10, then the
     act's end, the skip deck plays every encounter the reachable nodes can hold (known pools, bag narrowing) at its current HP; the first
     rung with a fight under SAFE_WIN gives its k most dangerous encounters. -> (encounters, radius, {encounter: P}) or ([], None, {})"""
@@ -439,7 +437,7 @@ def binding_fights(st, engine, k=2, attempts=32):
         encs = _rung_encounters(st, types, end)
         if not encs:
             continue
-        rows = engine.solve([st.scenario(e) for e in encs], attempts=attempts)
+        rows = engine.solve([st.scenario(e) for e in encs], attempts=attempts, seed=seed)
         p = {e: float(r["win"]) for e, r in zip(encs, rows)}
         worst = sorted(encs, key=lambda e: p[e])[:k]
         if p[worst[0]] < R.SAFE_WIN:
@@ -453,39 +451,34 @@ def binding_fights(st, engine, k=2, attempts=32):
 FAR_RUNGS = ((1, "boss"), (2, "boss"))
 INFORMATIVE = 0.1
 # a future act's boss is met by a stronger deck that lasts longer than today's: it is played at the smallest HP multiple where the skip
-# deck has signal (P >= INFORMATIVE); ACT_BOSS_1X (arm E81) plays this act's boss at 1x instead (arrival after the pre-boss rest; a
-# multiple distorts timer bosses: Waterfall Giant's explosion is survivable at 2x)
-MULTS = (1.0, 1.5, 2.0, 3.0)
-ACT_BOSS_1X = False
+# deck has signal (P >= INFORMATIVE)
 
 
 def _at_hp(x, h):
     return dict(x, hp=int(h), max_hp=max(x["max_hp"], int(h)))
 
 
-def operating_mults(st, engine, sets, attempts=24):
-    """{factor key: HP multiple} for the full-HP factors: the first informative multiple (this act's bosses at 1 under ACT_BOSS_1X)"""
-    import numpy as np
-    out = {key: 1.0 for key, _encs, hp in sets if hp == "full" and not key.startswith("A")} if ACT_BOSS_1X else {}
-    flat = [(key, e, m) for key, encs, hp in sets if hp == "full" and key not in out for e in encs for m in MULTS]
+def operating_mults(st, engine, sets, seed, attempts=24):
+    """{factor key: HP multiple} for the full-HP factors: the first informative multiple"""
+    out = {}
+    flat = [(key, e, m) for key, encs, hp in sets if hp == "full" for e in encs for m in macro.SMOOTH_MULTS]
     if not flat:
         return out
-    rows = engine.solve([_at_hp(st.scenario(e), st.max_hp * m) for _k, e, m in flat], attempts=attempts)
+    rows = engine.solve([_at_hp(st.scenario(e), st.max_hp * m) for _k, e, m in flat], attempts=attempts, seed=seed)
     p = {}
     for (key, _e, m), r in zip(flat, rows):
         p.setdefault(key, {}).setdefault(m, []).append(r["win"])
     for key, d in p.items():
-        out[key] = next((m for m in MULTS if np.mean(d[m]) >= INFORMATIVE), MULTS[-1])
+        out[key] = next((m for m in macro.SMOOTH_MULTS if np.mean(d[m]) >= INFORMATIVE), macro.SMOOTH_MULTS[-1])
     return out
 
 
-def _horizon_sets(st, engine=None):
+def _horizon_sets(st, engine, seed):
     """[(factor key, encounters, hp)]: one factor per near binding fight (radius ladder, current HP), one per known boss of this act not
     among them (mandatory: arrival after the pre-boss rest, full HP) and one per future boss rung still ahead (user: rungs of future
     difficulty retired as the acts pass; full HP)"""
-    from agent import pools
     out = []
-    near, radius, _p = binding_fights(st, engine) if engine is not None else ([], None, {})
+    near, radius, _p = binding_fights(st, engine, seed)
     for e in near:
         out.append((f"near {e}", [e], "current"))
     for e in st.bosses or []:
@@ -497,7 +490,7 @@ def _horizon_sets(st, engine=None):
     return out, radius
 
 
-def search_check(st, opts, res, engine, top=3, attempts=128, far_attempts=48, variants=4):
+def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=48, variants=4):
     """stage-A estimator on the run model's top options + skip / nothing + the best removal. Each factor of P(win run) still ahead (near binding
     fights at current HP, future boss rungs at their operating HP multiple) is played by every option with common seeds and the belt it leaves;
     a factor the reference deck still floors on (P < INFORMATIVE) is measured by progress (share of the enemies' HP pool removed) instead of
@@ -505,10 +498,9 @@ def search_check(st, opts, res, engine, top=3, attempts=128, far_attempts=48, va
     log ratio vs the reference summed over factors (Bellman: V is their product), se = paired first-order.
     -> ({label: (score, se, {factor: measure}, per-attempt scores, {factor: P(win)})}, binding radius)"""
     import random
-    import numpy as np
     if engine is None:
         return {}, None
-    sets, radius = _horizon_sets(st, engine)
+    sets, radius = _horizon_sets(st, engine, seed)
     if not sets:
         return {}, radius
     main, _ = ladder(res)
@@ -520,7 +512,7 @@ def search_check(st, opts, res, engine, top=3, attempts=128, far_attempts=48, va
     probe = st.copy()
     if first.get(ref) is not None:
         first[ref](probe, R.Draws(random.Random(0), st.base["character"], st.act))
-    mult = operating_mults(probe, engine, sets)
+    mult = operating_mults(probe, engine, sets, seed)
     slots = [(key, e, hp) for key, encs, hp in sets for e in encs]
     scen, owner, att, grp = [], [], [], []
     for lb in pick:
@@ -539,7 +531,7 @@ def search_check(st, opts, res, engine, top=3, attempts=128, far_attempts=48, va
                 owner.append((lb, si))
                 att.append(attempts if slots[si][0].startswith("near") else far_attempts)
                 grp.append(si)
-    rows = engine.solve(scen, attempts=att, groups=grp)
+    rows = engine.solve(scen, attempts=att, groups=grp, seed=seed)
     wins, prog = {}, {}
     for (lb, si), r in zip(owner, rows):
         wins.setdefault(lb, {}).setdefault(si, []).append(np.array([np.nan if x is None else x for x in r["wins"]], float))
@@ -573,16 +565,12 @@ def hybrid_best(res, check, adj=None):
     b, main = best(res, adj=adj)
     if b not in check:
         return b, main, None
-    import numpy as np
     alt = max(check, key=lambda lb: check[lb][0])
     d = check[alt][0] - check[b][0]
-    if len(check[alt]) > 3:
-        x, y = check[alt][3], check[b][3]
-        n = min(len(x), len(y))
-        diff = (x[:n] - y[:n])[~np.isnan(x[:n] - y[:n])]
-        se = float(diff.std(ddof=1) / np.sqrt(len(diff))) if len(diff) > 1 else float("inf")
-    else:
-        se = (check[alt][1] ** 2 + check[b][1] ** 2) ** 0.5
+    x, y = check[alt][3], check[b][3]
+    n = min(len(x), len(y))
+    diff = (x[:n] - y[:n])[~np.isnan(x[:n] - y[:n])]
+    se = float(diff.std(ddof=1) / np.sqrt(len(diff))) if len(diff) > 1 else float("inf")
     return (alt, "search", (round(d, 3), round(se, 3))) if alt != b and d > 2 * se else (b, main, None)
 
 
@@ -610,7 +598,7 @@ def decide(st, state_text, pred, engine, opts, n=128, seed=0, hybrid=True):
     kind = scr.kind(state_text)
     res = price(st, opts, pred, n=n, seed=seed)
     adj = event_adjust(st, state_text)
-    check, radius = search_check(st, opts, res, engine) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else ({}, None)
+    check, radius = search_check(st, opts, res, engine, seed) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else ({}, None)
     best_, ranked, override = hybrid_best(res, check, adj)
     terms_skip = False
     if kind == "CARD_REWARD" and "skip" in check:

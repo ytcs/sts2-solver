@@ -29,15 +29,13 @@ def _once(line, addr, timeout):
     return b"".join(chunks).decode()
 
 
-def call(line, port=None, timeout=120):
+def call(line):
     host, p, explicit = endpoint()
-    if port is not None and not explicit:
-        p = port
     read_only = (line.split() or ["s"])[0] in READ_ONLY
     deadline = time.time() + 20
     while True:
         try:
-            return _once(line, (host, p), timeout)
+            return _once(line, (host, p), 120)
         except ConnectionRefusedError:
             if explicit and time.time() > deadline:
                 return f"ERR bridge down: STS2_BRIDGE={host}:{p} is not reachable (headless server not running); never falling back to the real game\n"

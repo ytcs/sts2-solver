@@ -54,10 +54,6 @@ listener!(Wither {
     }
 });
 
-pub fn wither_fake_upgrade(cx: &mut Combat, card: CardIdx) {
-    cx.cards[card as usize].counter[0] += 1;
-}
-
 listener!(Slimed {
     fn on_play(&self, cx: &mut Combat, p: &CardPlay, _phase: u8) -> Flow {
         let n = cx.card_var(p.card, VarKind::Cards);

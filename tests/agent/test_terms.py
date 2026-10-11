@@ -33,6 +33,3 @@ def test_deadline_margin_only_when_safe():
     assert R.pick_with_terms("card_reward", st, [0.5, 0.51], [(None, None), ("card", "ANGER")], safe_now=1) == 0
     assert R.pick_with_terms("card_reward", st, [0.5, 0.55], [(None, None), ("card", "ANGER")], safe_now=1) == 1
 
-
-def test_plan_signal():
-    assert R.term_ctx(_St(BASE), "card", "DEMON_FORM")["core_owned"] >= 2

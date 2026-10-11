@@ -254,7 +254,7 @@ mod win {
         let proc_ = unsafe { GetCurrentProcess() };
         unsafe {
             SymSetOptions(0x2 | 0x10);
-            let dir = std::env::current_exe().unwrap().parent().unwrap().to_string_lossy().into_owned() + " ";
+            let dir = std::env::current_exe().unwrap().parent().unwrap().to_string_lossy().into_owned() + "\0";
             SymInitialize(proc_, dir.as_ptr(), 1);
         }
         let mut by_fn: HashMap<String, u64> = HashMap::new();

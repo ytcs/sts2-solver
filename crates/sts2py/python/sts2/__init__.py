@@ -37,9 +37,6 @@ class VecEnv:
         self._env.step(a, self.obs, self.mask, self.reward, self.done, self.outcome, self.illegal)
         return self.obs, self.mask, self.reward, self.done, {"outcome": self.outcome, "illegal": self.illegal}
 
-    def set_weights(self, w):
-        self._env.set_weights(np.ascontiguousarray(w, np.float32))
-
     def episode_info(self):
         self._env.episode_info(self._ep)
         e = self._ep
