@@ -38,8 +38,6 @@ def _opportunity_loss(acc):
 # reserve value of a held potion, objective units
 POT_COST = 0.06
 POT_MARGIN_SE, POT_MARGIN_MIN = 2.0, 0.01
-# first of the final pair of bosses: a kept potion is worth ~0.1 win of the second = 0.2 objective
-POT_COST_FINAL_PAIR = 0.2
 # objective units: a card a Thieving Hopper escapes with (~16 HP), per gold stolen (100 gold ~8 HP), per max HP lost (= max_hp_value)
 STOLEN_COST, GOLD_COST, MAXHP_COST = 0.1, 0.0005, 0.008
 
@@ -61,19 +59,18 @@ class Engine:
         """potions the search must not throw: all of them without a reserve cost, else the ones set aside for a later boss"""
         return True if self.pot_cost <= 0 else set() if boss else set(aside)
 
-    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, worth=None, rounds=None):
+    def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, worth=None, rounds=None, pot_cost=None):
         t0 = time.perf_counter()
         tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)
         if worth is not None:
             u = np.asarray(worth["u"], np.float64)
             tol *= float(u.max() - u[0]) / 2.5
         n_rounds, acc, first, rounds = rounds, {}, None, 0
-        # potion reserve cost: none after the final boss; win-only worth spans 1 (loss 0, win 1) vs 2 for the linear objective
-        first_of_pair = worth is None and str(scenario.get("encounter", "")).endswith("_BOSS") and scenario.get("act") == proposal.LAST_ACT
-        pair = worth is not None and worth.get("kind") == "pair"
-        self.fs.pot_cost = (0.0 if worth is not None and worth.get("final") else max(self.pot_cost, POT_COST_FINAL_PAIR) / 2 if pair and self.pot_cost > 0
-                            else self.pot_cost / 2 if worth is not None
-                            else max(self.pot_cost, POT_COST_FINAL_PAIR) if first_of_pair and self.pot_cost > 0 else self.pot_cost)
+        # potion reserve: none at the final pair (the second boss prices kept potions inside the first's worth, or by pot_cost when its
+        # curve is floored; the run ends after the last); win-only worth spans 1 (loss 0, win 1) vs 2 for the linear objective
+        at_pair = worth is not None and (worth.get("final") or worth.get("kind") == "pair")
+        self.fs.pot_cost = (0.0 if self.pot_cost <= 0 or at_pair else pot_cost if pot_cost is not None
+                            else self.pot_cost / 2 if worth is not None else self.pot_cost)
         held = potions.held_indices(sim, keep_potions)
         def _held(t):
             return t.startswith("potion") and (keep_potions is True or potions.text_index(t) in held)
@@ -115,7 +112,7 @@ class Engine:
                 opts.append(dict(action=a, text=text.get(a, f"#{a}"), p=round(float(p), 3), q=None if q is None else round(q, 3)))
         best = max((o for o in opts if o["q"] is not None), key=lambda o: o["q"], default=None)
         gated = None
-        if best and best["text"].startswith("potion") and self.pot_margin_se > 0:
+        if best and best["text"].startswith("potion") and self.pot_margin_se > 0 and not at_pair and pot_cost is None:
             alt = max((o for o in opts if o["q"] is not None and not o["text"].startswith("potion")), key=lambda o: o["q"], default=None)
             if alt:
                 x, y = acc[best["action"]], acc[alt["action"]]

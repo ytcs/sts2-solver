@@ -169,18 +169,22 @@ impl SearchEnginePy {
         let n_scen = scs.len();
         let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
         if let Some(wa) = worth {
-            use sts2env::search::{Worth, HEAD_NC};
+            use sts2env::search::{Worth, HEAD_NC, POT};
             let w = wa.as_slice().map_err(e)?;
-            let width = 1 + HEAD_NC;
+            let width = 1 + HEAD_NC * (1 + POT);
             if w.len() != n_scen * width {
-                return Err(PyValueError::new_err(format!("worth must be [n_scenarios, {width}] (flag, {HEAD_NC} class worths)")));
+                return Err(PyValueError::new_err(format!("worth must be [n_scenarios, {width}] (flag, {HEAD_NC} class worths, {POT} x {HEAD_NC} per-potion win bonuses)")));
             }
             let ws = (0..n_scen)
                 .map(|i| {
                     let r = &w[i * width..(i + 1) * width];
                     let mut x = Worth::linear();
                     x.table = r[0] != 0.0;
-                    x.u.copy_from_slice(&r[1..]);
+                    x.u.copy_from_slice(&r[1..1 + HEAD_NC]);
+                    for k in 0..POT {
+                        x.pot[k].copy_from_slice(&r[1 + HEAD_NC * (1 + k)..1 + HEAD_NC * (2 + k)]);
+                    }
+                    x.has_pot = x.pot.iter().flatten().any(|&v| v != 0.0);
                     x
                 })
                 .collect();
@@ -393,6 +397,7 @@ fn names(py: Python<'_>) -> PyResult<Bound<'_, pyo3::types::PyDict>> {
     use sts2sim::ids;
     let d = pyo3::types::PyDict::new(py);
     d.set_item("head_nc", sts2env::search::HEAD_NC)?;
+    d.set_item("worth_pot", sts2env::search::POT)?;
     d.set_item("head_bin", sts2env::search::HEAD_BIN)?;
     d.set_item("max_m", sts2env::search::MAX_M)?;
     d.set_item("card", ids::card::NAMES.to_vec())?;

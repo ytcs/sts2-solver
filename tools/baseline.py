@@ -49,7 +49,7 @@ class BaselineHarness(Harness):
     def _decide(self, scenario, sim, budget, **kw):
         e = self.eng()
         e.seed, t0 = self._seed, time.perf_counter()
-        d = e.decide(scenario, sim, budget, keep_potions=True if getattr(self, "keep_all", False) else e.keep(), worth=getattr(self, "fight_worth", None),
+        d = e.decide(scenario, sim, budget, keep_potions=True if getattr(self, "keep_all", False) else e.keep(), worth=getattr(self, "fight_worth", None), pot_cost=getattr(self, "pair_pot_cost", None),
                      rounds=None if self.budget else self.rounds,
                      tol_hp=kw.get("tol_hp", 1.0))
         self._seed = e.seed

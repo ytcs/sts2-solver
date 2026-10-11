@@ -25,15 +25,21 @@ PAIR_INFORMATIVE = 0.3
 
 
 def pair_worth(scenario, second, solve, attempts=48):
-    """Bellman for the final pair: the first boss's terminal value is P(win the second boss | the HP it leaves), measured by search on
-    an HP grid (no potions: the reserve cost prices kept potions); loss = 0"""
+    """Bellman for the final pair: the first boss's terminal value is P(win the second boss | the HP and potions it leaves), measured by
+    search on an HP grid without potions plus, per held potion, its gain when carried alone (additive); loss = 0 whatever is held"""
     mx = max(int(scenario.get("max_hp") or 1), 1)
     hps = [max(1, int(round(f * mx))) for f in PAIR_GRID]
-    rows = solve([dict(scenario, encounter=second, hp=h, potions=[], name=f"pair@{h}") for h in hps], attempts=attempts)
-    p = np.maximum.accumulate(np.array([float(r["win"]) for r in rows]))
+    pots = list(scenario.get("potions") or [])
+    sets = [[]] + [[p] for p in pots]
+    rows = solve([dict(scenario, encounter=second, hp=h, potions=ps, name=f"pair@{h}") for ps in sets for h in hps], attempts=attempts)
+    P = np.maximum.accumulate(np.array([float(r["win"]) for r in rows]).reshape(len(sets), len(hps)), axis=1)
+    p = P[0]
     centers = [min(b * HEAD_BIN - (HEAD_BIN - 1) / 2.0, mx) for b in range(1, HEAD_NB + 1)]
     u = [0.0] + [float(np.interp(c, hps, p)) + WIN_ONLY_TIE * min(c / mx, 1.0) for c in centers]
-    return dict(u=u, price_u=u, kind="pair", second=second, curve=[round(x, 3) for x in p])
+    gain = [np.maximum(P[i + 1] - p, 0.0) for i in range(len(pots))]
+    pot = {int(q["slot"]): [0.0] + [float(np.interp(c, hps, g)) for c in centers] for q, g in zip(pots, gain)}
+    return dict(u=u, price_u=u, kind="pair", second=second, curve=[round(x, 3) for x in p], pot=pot,
+                pot_gain={q["id"]: round(float(g.mean()), 3) for q, g in zip(pots, gain)})
 
 
 def fight_objective(scenario, bosses=(), seen=()):

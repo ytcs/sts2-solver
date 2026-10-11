@@ -11,7 +11,8 @@ from model import C, DEV, SEC
 OBS, ACT = sts2.OBS_SIZE, sts2.ACTIONS
 NC = sts2.names()["head_nc"]
 assert NC == heads.NC and sts2.names()["head_bin"] == heads.BIN, "rl/heads.py and the Rust search disagree on the outcome classes"
-WORTH_W = 1 + NC
+WORTH_POT = sts2.names()["worth_pot"]
+WORTH_W = 1 + NC * (1 + WORTH_POT)
 BUCKETS = (256, 512, 1024, 2048, 4096, 8192, 16384)
 GRAPH_E = 8
 
@@ -23,7 +24,9 @@ def worth_row(w):
     u = np.asarray(w["u"], np.float32)
     assert u.shape == (NC,), u.shape
     r[0] = 1.0
-    r[1:] = u
+    r[1:1 + NC] = u
+    for slot, row in (w.get("pot") or {}).items():
+        r[1 + NC * (1 + int(slot)):1 + NC * (2 + int(slot))] = np.asarray(row, np.float32)
     return r
 
 LEAF_TURNS = 2

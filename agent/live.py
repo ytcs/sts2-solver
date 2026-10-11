@@ -238,7 +238,7 @@ class Live:
     def _decide(self, scenario, sim, budget, **kw):
         e = self.eng()
         keep = e.keep(getattr(self, "aside", set()), self._is_boss())
-        return e.decide(scenario, sim, budget, keep_potions=keep, worth=getattr(self, "fight_worth", None), **kw)
+        return e.decide(scenario, sim, budget, keep_potions=keep, worth=getattr(self, "fight_worth", None), pot_cost=getattr(self, "pair_pot_cost", None), **kw)
 
     def _fight_objective(self, sc):
         if not getattr(self.eng(), "worth_ok", True):
@@ -250,6 +250,7 @@ class Live:
         except Exception as e:  # noqa: BLE001
             self._bookkeeping_error("fight objective", e)
         worth, text = proposal.fight_objective(sc, bosses, seen)
+        self.pair_pot_cost = None
         enc = str(sc.get("encounter", ""))
         second = [b for b in bosses if b and b != enc]
         if worth is None and enc.endswith("_BOSS") and sc.get("act") == proposal.LAST_ACT and second:
@@ -258,9 +259,11 @@ class Live:
                 # a floored curve cannot steer the first fight (both lines hopeless: the search stops caring about winning it)
                 if max(pw["curve"]) >= proposal.PAIR_INFORMATIVE:
                     worth = pw
-                    text = f"pair (the first final boss: end HP valued by P(win {second[0]} | HP), curve {pw['curve']})"
+                    text = f"pair (the first final boss: a win valued by P(win {second[0]} | HP, potions left), curve {pw['curve']}, potions {pw['pot_gain']})"
                 else:
-                    text += f"; pair curve floored {pw['curve']}"
+                    # linear objective (win +1 ... loss -1): a potion kept for the second boss is worth 2 x its gain there
+                    self.pair_pot_cost = 2.0 * max(pw["pot_gain"].values(), default=0.0)
+                    text += f"; pair curve floored {pw['curve']}; potion cost {self.pair_pot_cost:.3f} (gains {pw['pot_gain']})"
             except Exception as e:  # noqa: BLE001
                 self._bookkeeping_error("pair worth", e)
         return worth, text

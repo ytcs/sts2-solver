@@ -22,12 +22,28 @@ pub const POT: usize = sts2sim::state::MAX_POTIONS;
 pub struct Worth {
     pub table: bool,
     pub u: [f32; HEAD_NC],
+    // added to u on a win per root potion still in its slot (potions priced by a later fight)
+    pub pot: [[f32; HEAD_NC]; POT],
+    pub has_pot: bool,
 }
 
 impl Worth {
     pub fn linear() -> Worth {
-        Worth { table: false, u: [0.0; HEAD_NC] }
+        Worth { table: false, u: [0.0; HEAD_NC], pot: [[0.0; HEAD_NC]; POT], has_pot: false }
     }
+}
+
+fn held(cx: &Combat, root: &Root) -> [bool; POT] {
+    let now = pot_ids(cx);
+    let mut o = [false; POT];
+    for k in 0..POT {
+        o[k] = root.pots[k] != u16::MAX && now[k] == root.pots[k];
+    }
+    o
+}
+
+fn pot_bonus(w: &Worth, held: &[bool; POT], class: usize) -> f32 {
+    (0..POT).filter(|&k| held[k]).map(|k| w.pot[k][class]).sum()
 }
 
 fn end_class(hp: i32) -> usize {
@@ -83,12 +99,15 @@ fn spent_cost(cx: &Combat, root: &Root, cfg: &SearchCfg) -> f32 {
     c
 }
 
-fn end_score(cx: &Combat, oc: i8, r: f32, w: &Worth) -> f32 {
+fn end_score(cx: &Combat, oc: i8, r: f32, w: &Worth, root: &Root) -> f32 {
     if !w.table {
         return r;
     }
     match oc {
-        OUTCOME_WIN => w.u[end_class(cx.cr(0).hp)],
+        OUTCOME_WIN => {
+            let c = end_class(cx.cr(0).hp);
+            w.u[c] + if w.has_pot { pot_bonus(w, &held(cx, root), c) } else { 0.0 }
+        }
         OUTCOME_LOSS => w.u[0],
         _ => 0.0,
     }
@@ -99,7 +118,7 @@ fn hp_ceiling(cx: &Combat, gain: Option<i32>) -> i32 {
     gain.map_or(i32::MAX, |g| cx.cr(0).hp.saturating_add(g))
 }
 
-fn leaf_value(r: &[f32], max_hp: i32, ceiling: i32, cfg: &SearchCfg, w: &Worth) -> f32 {
+fn leaf_value(r: &[f32], max_hp: i32, ceiling: i32, cfg: &SearchCfg, w: &Worth, held: &[bool; POT]) -> f32 {
     if r.len() == 1 {
         return r[0];
     }
@@ -109,6 +128,11 @@ fn leaf_value(r: &[f32], max_hp: i32, ceiling: i32, cfg: &SearchCfg, w: &Worth) 
         let mut v = 0.0f32;
         for b in 0..HEAD_NC {
             v += p[b] * w.u[b.min(top)];
+        }
+        if w.has_pot {
+            for b in 1..HEAD_NC {
+                v += p[b] * pot_bonus(w, held, b.min(top));
+            }
         }
         v
     } else {
@@ -546,7 +570,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             return None;
         }
         if let Some((oc, r)) = terminal(&sim.cx, 0, u32::MAX, cfg) {
-            sim.est += end_score(&sim.cx, oc, r, w) - spent_cost(&sim.cx, &sim.pots0, cfg);
+            sim.est += end_score(&sim.cx, oc, r, w, &sim.pots0) - spent_cost(&sim.cx, &sim.pots0, cfg);
             sim.st = SimSt::Done;
             st.end_term += 1;
             st.end_loop += crate::looped(&sim.cx) as u64;
@@ -1125,7 +1149,7 @@ impl Block {
                         SimSt::Val(row) => {
                             let sim = &mut self.sims[idx];
                             let r = row as usize * vw;
-                            sim.est += leaf_value(&inp.val[r..r + vw], sim.cx.cr(0).max_hp, hp_ceiling(&sim.cx, gain), &cfg, w);
+                            sim.est += leaf_value(&inp.val[r..r + vw], sim.cx.cr(0).max_hp, hp_ceiling(&sim.cx, gain), &cfg, w, &held(&sim.cx, &sim.pots0));
                             sim.st = SimSt::Done;
                             let j = idx / k;
                             if self.lead[j] && idx == j * k {
@@ -1175,7 +1199,7 @@ struct Exact {
     nodes: Vec<XNode>,
     index: HashMap<u64, u32>,
     stack: Vec<XFrame>,
-    pending: Vec<(u32, u32, i32, i32)>,
+    pending: Vec<(u32, u32, i32, i32, [bool; POT])>,
     root: Vec<(Action, u32)>,
     ks: Vec<u64>,
     obs: Vec<f32>,
@@ -1218,13 +1242,13 @@ impl Exact {
     fn score(&mut self, node: u32, cx: &mut Combat, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) {
         let cost = spent_cost(cx, &self.pots0, cfg);
         if let Some((oc, r)) = terminal(cx, 0, u32::MAX, cfg) {
-            self.nodes[node as usize].v += end_score(cx, oc, r, w) - cost;
+            self.nodes[node as usize].v += end_score(cx, oc, r, w, &self.pots0) - cost;
             return;
         }
         self.nodes[node as usize].v -= cost;
         let row = val_row(out, cx);
         write_row(cx, &ActionBuf::new(), None, out.obs, None, out.val_obs_row(row));
-        self.pending.push((row as u32, node, cx.cr(0).max_hp, hp_ceiling(cx, self.gain)));
+        self.pending.push((row as u32, node, cx.cr(0).max_hp, hp_ceiling(cx, self.gain), held(cx, &self.pots0)));
         st.value_rows += 1;
         st.ex_rows += 1;
     }
@@ -1461,9 +1485,9 @@ impl Block {
     fn ex_answer(&mut self, inp: &Inputs, sh: &Shared) {
         let Some(ex) = self.ex.as_mut() else { return };
         let (vw, w) = (sh.cfg.val_w, &sh.worth[self.scen as usize]);
-        for &(row, node, max_hp, ceiling) in ex.pending.iter() {
+        for &(row, node, max_hp, ceiling, ref hd) in ex.pending.iter() {
             let r = row as usize * vw;
-            ex.nodes[node as usize].v += leaf_value(&inp.val[r..r + vw], max_hp, ceiling, &sh.cfg, w);
+            ex.nodes[node as usize].v += leaf_value(&inp.val[r..r + vw], max_hp, ceiling, &sh.cfg, w, hd);
         }
         ex.pending.clear();
     }
