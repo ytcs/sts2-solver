@@ -13,7 +13,7 @@ runs/
 data/corpus/
 
 # regenerable experiment output (summaries *.json / *.jsonl stay)
-evals/*.log
+evals/**/*.log
 evals/*.out
 evals/_*
 evals/fidelity_fights/

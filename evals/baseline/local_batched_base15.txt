@@ -1,6 +1,0 @@
-seed       result floor died at                            act HP         HP lost fights pots own min wall min tags
-BASE0015   loss      48 QUEEN_BOSS                         26/46/0            216     26    0    17.8     17.8 
-win rate 0.000 +- 0.000 (n 1); mean floor 48.0; own time per run 17.8 min; decide 1.952 s/decision
-act-1 boss passed 1.000 +- 0.000; act reached 1/2/3: 0/0/1; mean death floor 48.0; deaths {'boss': 1}; price 61.0 calls/run, 5.4 s/call
-deck strength vs that act's bosses at full HP, no potions (mean, n): A1 boss deck 1.00 (n 1); A2 boss deck 0.72 (n 1); A3 boss deck 0.26 (n 1); final deck 0.26 (n 1)
-GPU utilisation mean 88% (samples 1065), memory max 11887 MiB
