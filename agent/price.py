@@ -525,15 +525,16 @@ def operating_mults(st, engine, sets, attempts=24):
 
 
 def _horizon_sets(st, engine=None):
-    """[(factor key, encounters, hp)]: one factor per near binding fight (radius ladder, current HP; the act's known bosses at full HP when
-    no map is held) and one per future boss rung still ahead (user: rungs of future difficulty retired as the acts pass; full HP)"""
+    """[(factor key, encounters, hp)]: one factor per near binding fight (radius ladder, current HP), one per known boss of this act not
+    among them (mandatory: arrival after the pre-boss rest, full HP) and one per future boss rung still ahead (user: rungs of future
+    difficulty retired as the acts pass; full HP)"""
     from agent import pools
     out = []
     near, radius, _p = binding_fights(st, engine) if engine is not None else ([], None, {})
     for e in near:
         out.append((f"near {e}", [e], "current"))
-    if not near and not (st.nodes and st.frontier):
-        for e in st.bosses or []:
+    for e in st.bosses or []:
+        if e not in near:
             out.append((f"boss {e}", [e], "full"))
     for a, k in FAR_RUNGS:
         if a > st.act:
