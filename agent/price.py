@@ -48,9 +48,9 @@ def _card_id(name):
 
 
 def _stated(o, label):
-    """the page's own numbers over the catalog's: an escalating HP cost ("Lose 13 HP") and a named removal ("Defend is removed")"""
+    """the page's own numbers over the catalog's: an escalating HP cost ("Lose 13 HP", "Take 7 damage") and a named removal ("Defend is removed")"""
     import copy
-    hp = re.search(r"Lose (\d+) HP", label)
+    hp = re.search(r"(?:Lose|Take) (\d+) (?:HP|damage)", label)
     rm = re.search(r":\s*(.+?) is removed from your Deck", label)
     if not hp and not rm:
         return o
@@ -561,7 +561,10 @@ def search_check(st, opts, res, engine, top=3, attempts=128, far_attempts=48, va
     others = [lb for lb in ranked if lb != ref]
     pick = list(dict.fromkeys([ref] + others[:top] + [lb for lb in others if "remove" in lb.lower()][:1]))
     first = dict(opts)
-    mult = operating_mults(st, engine, sets)
+    probe = st.copy()
+    if first.get(ref) is not None:
+        first[ref](probe, R.Draws(random.Random(0), st.base["character"], st.act))
+    mult = operating_mults(probe, engine, sets)
     slots = [(key, e, hp) for key, encs, hp in sets for e in encs]
     scen, owner, att, grp = [], [], [], []
     for lb in pick:
