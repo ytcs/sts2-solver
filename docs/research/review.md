@@ -1,4 +1,4 @@
-# First-principles review (2026-10-11, in progress)
+# First-principles review (2026-10-11, concluded after 4 rounds)
 Goal: decide where to go after 120+ scored runs gave 1 win (E77 BASE0003). Gate (plan "Next"): a written lever ranking that the next arm tests. Rounds with the advisor; new numbers between rounds.
 
 ## 1. Problem statement (from our own numbers)
@@ -87,7 +87,31 @@ Checks pending before the arm (round 3): reachable thinning by economy (gold spe
 - Drafted-only shed (starters kept; `target/review/shed_drafted.txt`; first final boss at full HP, no potions, 128 attempts): drafted -> without the shed drafted cards / curses -> + 1 / 2 / 3 starter removals: BASE0001 0.69 -> 0.45 -> 0.41 / 0.51 / 0.53; BASE0006 0.15 -> 0.45 -> 0.44 / 0.63 / 0.70; BASE0015 0.34 -> 0.59 -> 0.67 / 0.74 / 0.79; BASE0021 0.05 -> 0.02 -> 0.02 / 0.06 / 0.03; BASE0033 0.13 -> 0.32 -> 0.48 / 0.48 / 0.49. Mean gain from never taking the shed drafted cards +0.10 (-0.24 to +0.30); the same cards at the act-1 boss: 1.00 -> 0.98, 1.00 -> 1.00, 1.00 -> 0.02, 0.97 -> 0.16, 1.00 -> 0.48 (load-bearing in 3 of 5). Most of the remove-down ceiling came from starters, which leave only by paid removals (1-3 affordable), transforms or exhaust.
 - Reading: the act-1 picks that carry act 1 become pure cost by act 2. The composition lever is time-varying: take for act 1 what act 1 needs, then stop adding off-plan cards and shed act-1 picks from act 2 on (skips, removals, transforms, exhaust); a static per-card value cannot express it.
 
-## 10. Candidate approaches (round 2 ranking)
+## 10. Conclusions
+Pair-side numbers rescored on both final bosses (`target/review/shed_pair.txt`; full HP, no potions, holdout 128 attempts):
+
+| run | drafted | never taking the shed drafted cards | + 1 / 2 / 3 starter removals | 3 removals from the drafted deck |
+|---|---|---|---|---|
+| BASE0001 | 0.500 | 0.383 | 0.402 / 0.398 / 0.426 | 0.473 |
+| BASE0006 | 0.102 | 0.422 | 0.414 / 0.594 / 0.688 | 0.227 |
+| BASE0015 | 0.340 | 0.574 | 0.637 / 0.707 / 0.719 | 0.426 |
+| BASE0021 | 0.031 | 0.016 | 0.027 / 0.043 / 0.031 | 0.012 |
+| BASE0033 | 0.074 | 0.336 | 0.355 / 0.367 / 0.367 | 0.082 |
+
+| lever | ceiling | reachable |
+|---|---|---|
+| composition | remove-down to 15: +0.14 to +0.76 | never taking the shed drafted cards: mean +0.13 (-0.12 to +0.32), and those cards were load-bearing at the act-1 boss in 3 of 5; a skip-from-act-2 rule reaches only the act-2/3 share |
+| removals | (part of the ceiling) | conditional: on the drafted deck 3 removals give -0.03 to +0.13 (about one relic); after curation +0.03 to +0.27: removals pay once off-plan cards are gone, otherwise gold -> relics (the Spire Clinic claim) |
+| potions at the pair | +0.13 to +0.27 in 3 of 5 (E83) | one rule (reserve, carry to the pair) |
+| arrival HP | -0.24 per 14 HP (E83) | act-3 routing and rests |
+| access | unmeasured | act-1 elites 1.30 -> 0.68 after the route override |
+| choice among offers | +0.02 to +0.28 | what every arm since E70 tuned |
+
+- The theory error: the macro estimator scores a card on today's deck; its value at the pair is a function of (future deck, act) and includes a dilution cross-term that is zero by construction on today's deck. A static per-card value does not capture it either (D(c) failed validation). This is approach B's first requirement.
+- The run model behind map / rest / smith decisions and the option shortlist is miscalibrated (Brier worse than a constant in acts 1-2) because its rollouts play `BasePolicy`; fixing the rollout policy is approach A's prerequisite and any further live use of the run model.
+- Next arm: approach C (expert-prior control) as specified in `docs/plan.md`; it is the baseline the principled methods (B, then A) must beat and is not expected to approach 90%.
+
+## 11. Candidate approaches (round 2 ranking)
 - A. Macro expert iteration: learn V_run from run-model rollouts (+ real runs); search macro decisions against it. Pre-experiment: run-model fidelity (simulate the logged runs' decisions; compare act reach / deck strength distributions) and run-model runs per hour.
 - B. Resource DP: extend `routes`' act DP with a coarse deck-strength state and the known offer distribution, pricing picks, elites, shops, rests and potions with one value over (HP, gold, potions, strength bucket). Pre-experiment: re-price the E80 final-pair runs' act-3 routes.
 - C. Expert-prior policy as the new control: max-elite act 1 while `routes` P(boss) stays high, gold carried into act 2, smith default, potion banking for elites / the pair, function-aware skipping. Cheapest; the principled methods must beat it.

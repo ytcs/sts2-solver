@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--seeds", required=True)
     ap.add_argument("--drafted-only", action="store_true")
     ap.add_argument("--pair", action="store_true")
+    ap.add_argument("--rows", help="arm rows .jsonl: the pair = deck_strength['final deck'] keys (as the other review tools)")
     a = ap.parse_args()
     import numpy as np
     from agent.engine import Engine
@@ -53,15 +54,17 @@ def main():
             w = win([sc, dict(sc, deck=d)])
             line += f" | A{e['act'] + 1} {e['encounter']} deck {len(sc['deck'])}: {w[0]:.2f} -> {w[1]:.2f} (-{len(sc['deck']) - len(d)})"
         if a.pair:
-            bosses = [e for e in starts if e["encounter"].endswith("_BOSS") and e.get("act") == 2]
-            pair = list(dict.fromkeys(e["encounter"] for e in bosses))[:2]
-            if pair:
+            rows = {json.loads(l)["seed"]: json.loads(l) for l in open(a.rows)} if a.rows else {}
+            pair = list(rows[seed]["deck_strength"]["final deck"].keys()) if seed in rows else []
+            bosses = [e for e in starts if e["encounter"] in pair]
+            if pair and bosses:
                 sc = bosses[0]["scenario"]
                 base = dict(sc, hp=sc["max_hp"], potions=[])
-                variants = [sc["deck"], strip(sc["deck"], shed)] + [strip(sc["deck"], shed + starters[:k]) for k in (1, 2, 3)]
+                variants = [sc["deck"], strip(sc["deck"], shed)] + [strip(sc["deck"], shed + starters[:k]) for k in (1, 2, 3)] + [strip(sc["deck"], full[:k]) for k in (1, 2, 3)]
                 ws = np.array(win([dict(base, encounter=b, deck=d) for d in variants for b in pair])).reshape(len(variants), len(pair)).mean(1)
                 line += f" | pair {pair} deck {len(variants[0])}: drafted {ws[0]:.3f}, without shed {ws[1]:.3f} ({len(variants[1])} cards)" + "".join(
-                    f", +{k} starter removal{'s' if k > 1 else ''} {ws[1 + k]:.3f}" for k in (1, 2, 3))
+                    f", +{k} starter removal{'s' if k > 1 else ''} {ws[1 + k]:.3f}" for k in (1, 2, 3)) + " | remove-down prefix " + ", ".join(
+                    f"{k}: {ws[4 + k]:.3f}" for k in (1, 2, 3))
         print(line, flush=True)
 
 
