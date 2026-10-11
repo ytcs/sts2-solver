@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Review section 11 (user): is a card worth more early? Each recorded fight of each run is solved with its recorded deck and with one
 reference card added (paired seeds); binding fights (elite / boss) also at -10 HP for the HP-equivalent slope. Rows -> --out .jsonl.
-usage: tools/card_timing.py <events dir> --out target/review/card_timing.jsonl [--seeds ...] [--attempts 64] [--cards ...]"""
+usage: tools/card_timing.py <events dir> --out target/review/card_timing.jsonl [--seeds ...] [--attempts 64] [--cards ID[+],...] [--min-act N]"""
 import argparse, glob, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -16,6 +16,7 @@ def main():
     ap.add_argument("--seeds")
     ap.add_argument("--attempts", type=int, default=64)
     ap.add_argument("--cards", default=CARDS)
+    ap.add_argument("--min-act", type=int, default=0)
     a = ap.parse_args()
     from agent.engine import Engine
     eng = Engine()
@@ -32,11 +33,11 @@ def main():
                 continue
             starts = [json.loads(l) for l in open(f, encoding="utf-8") if '"fight_start"' in l]
             for i, e in enumerate(starts):
-                if (seed, i) in done:
+                if (seed, i) in done or (e.get("act") or 0) < a.min_act:
                     continue
                 sc = e["scenario"]
                 binding = "ELITE" in e["encounter"] or e["encounter"].endswith("_BOSS")
-                scs = [sc] + [dict(sc, deck=sc["deck"] + [{"id": c, "upgrade": 0}]) for c in cards]
+                scs = [sc] + [dict(sc, deck=sc["deck"] + [{"id": c.rstrip("+"), "upgrade": int(c.endswith("+"))}]) for c in cards]
                 if binding:
                     scs.append(dict(sc, hp=max(1, sc["hp"] - 10)))
                 res = eng.solve(scs, attempts=a.attempts, seed=104729, groups=[0] * len(scs))
