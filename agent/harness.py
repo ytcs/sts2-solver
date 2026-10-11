@@ -362,8 +362,8 @@ class Harness(Live):
         if adj:
             check += "macro terms (data/macro_rules.json, P units on " + ranked_by + "): " + ", ".join(f"{k} {v:+.3f}" for k, v in adj.items()) + "\n"
         if got:
-            rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(f"A{a + 1} {v:.2f}" for a, v in sorted(pa.items()))
-                    for lb, (p, se, pa) in sorted(got.items(), key=lambda x: -x[1][0])]
+            rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(f"{('A' + str(a + 1)) if isinstance(a, int) else a} {v:.2f}" for a, v in sorted(pa.items(), key=lambda x: str(x[0])))
+                    for lb, (p, se, pa, *_) in sorted(got.items(), key=lambda x: -x[1][0])]
             check += ("search check: sum over the acts still to clear of dP/P vs skip (current act's bosses; the act-3 boss pool smooth over HP x1-3 "
                       "before act 3), full HP, the belt each option leaves; P per act on the right\n"
                       + "\n".join(rows) + (f"\n  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})" if override else "") + "\n")

@@ -30,6 +30,8 @@ def main():
             print(f"MISSING {it['floor']} {it['kind']} in {it['run']}")
             continue
         state, st = hit
+        if it.get("bosses"):
+            st.bosses = list(it["bosses"])
         opts = PR.options(st, state)
         r = PR.decide(st, state, pred, eng, opts, n=a.n, seed=PR.screen_seed("gate", state))
         best = r["best"]

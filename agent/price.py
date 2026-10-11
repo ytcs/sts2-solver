@@ -498,7 +498,7 @@ def far_rungs(st, engine, attempts=32):
         return []
     encs = {(a, k): [e for n in pools.act_names(a) for e in pools.pool(n, k)] for a, k in rungs}
     flat = [(r, e) for r in rungs for e in encs[r]]
-    rows = engine.solve([dict(st.scenario(e, hp=st.max_hp), potions=[]) for _, e in flat], attempts=attempts)
+    rows = engine.solve([st.scenario(e, hp=st.max_hp) for _, e in flat], attempts=attempts)
     p = {r: float(np.mean([x["win"] for (rr, _), x in zip(flat, rows) if rr == r])) for r in rungs}
     return [(f"A{r[0] + 1} {r[1]}", encs[r], None if p[r] >= INFORMATIVE[0] else FLOOR_HP) for r in rungs]
 
