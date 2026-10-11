@@ -74,7 +74,11 @@ class BaselineHarness(Harness):
         self.drive = ("auto", "baseline: no fight-start prediction")
         self.keep_all = False
         if PR.POLICY_C and sc["potions"] and len(sc["potions"]) <= 2 and not str(sc.get("encounter", "")).endswith("_BOSS"):
-            win = float(self.eng().solve([dict(sc, name="start", potions=[])], attempts=PR.BOSS_ATTEMPTS)[0]["win"])
+            try:
+                win = float(self.eng().solve([dict(sc, name="start", potions=[])], attempts=PR.BOSS_ATTEMPTS)[0]["win"])
+            except Exception:  # noqa: BLE001
+                self.log.event("price_error", screen="fight start", tb=traceback.format_exc()[-1500:])
+                win = 0.0
             self.keep_all = win >= PR.ROUTE_SAFE
             self.log.event("policy", component="potion_reserve", detail=dict(encounter=sc.get("encounter"), win=round(win, 3), potions=len(sc["potions"]), keep=self.keep_all))
         self.log.event("fight_start", id=f["id"], encounter=sc["encounter"], hp=sc["hp"], max_hp=sc["max_hp"], act=sc.get("act"),
@@ -332,7 +336,11 @@ class Macro:
             if hit is not None:
                 return str(hit)
         if PR.POLICY_C and "remove" in prompt:
-            order = PR.removal_order(self.st(s), self.h.engine, PR.screen_seed(self.seed, s))
+            try:
+                order = PR.removal_order(self.st(s), self.h.engine, PR.screen_seed(self.seed, s))
+            except Exception:  # noqa: BLE001
+                self.h.log.event("price_error", screen=s[:800], tb=traceback.format_exc()[-1500:])
+                order = []
             take = list(dict.fromkeys(i for c in order for i, n in names if PR._ident(n.rstrip("+")) == PR._short(c)))[:k]
             if len(take) == k or (lo == 0 and take):
                 self.h.log.event("policy", component="removal", detail=dict(prompt=prompt[:80], order=order[:6], chosen=[_name(t) for i, t in lab if i in take]))
