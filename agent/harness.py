@@ -112,6 +112,19 @@ class Harness(Live):
         self.aside = set()
         self.priced = {}
         self.reward_screen = None
+        self.relics_seen = None
+
+    def _relic_watch(self, state):
+        """log the relic bar when it changes (pickups at Neow, events, rewards, chests, shops), not only at the next fight start"""
+        try:
+            now = [r["id"] for r in json.loads(self._deck_raw())["relics"]]
+        except Exception:  # noqa: BLE001
+            return
+        before = getattr(self, "relics_seen", None)
+        if before != now:
+            self.log.event("relics", header=scr.header_line(state, ""), gained=[r for r in now if r not in (before or [])],
+                           lost=[r for r in (before or []) if r not in now], relics=now)
+            self.relics_seen = now
 
 
     def _deck_raw(self):
@@ -205,6 +218,8 @@ class Harness(Live):
             last_kind = kind
             reply = self._send("a " + step)
             self.log.event("macro", screen=before.split("\n")[0], state=before[:1500], choice=step, why=why, result=reply.split("\n")[0])
+            if kind != "COMBAT":
+                self._relic_watch(reply)
             self.last_state = reply
             if reply.startswith("ERR"):
                 return reply
