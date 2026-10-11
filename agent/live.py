@@ -249,7 +249,21 @@ class Live:
             bosses, seen = rc.bosses, rc.seen
         except Exception as e:  # noqa: BLE001
             self._bookkeeping_error("fight objective", e)
-        return proposal.fight_objective(sc, bosses, seen)
+        worth, text = proposal.fight_objective(sc, bosses, seen)
+        enc = str(sc.get("encounter", ""))
+        second = [b for b in bosses if b and b != enc]
+        if worth is None and enc.endswith("_BOSS") and sc.get("act") == proposal.LAST_ACT and second:
+            try:
+                pw = proposal.pair_worth(sc, second[0], lambda scen, attempts: self.eng().solve(scen, attempts=attempts))
+                # a floored curve cannot steer the first fight (both lines hopeless: the search stops caring about winning it)
+                if max(pw["curve"]) >= proposal.PAIR_INFORMATIVE:
+                    worth = pw
+                    text = f"pair (the first final boss: end HP valued by P(win {second[0]} | HP), curve {pw['curve']})"
+                else:
+                    text += f"; pair curve floored {pw['curve']}"
+            except Exception as e:  # noqa: BLE001
+                self._bookkeeping_error("pair worth", e)
+        return worth, text
 
 
     def _sim_potions(self):

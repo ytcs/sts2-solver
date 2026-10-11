@@ -215,10 +215,11 @@ class HostBuffers:
 
 class FastSearch:
     def __init__(self, net, M=3, K=8, max_steps=300, roots=512, groups=2, threads=None, roll_net=None, amp=False, record=False,
-                 leaf_turns=None, clairvoyant=False, cover=False, futures=0, exact_turn=None, hp_cap=False, pot_cost=0.0, greedy_from=None):
+                 leaf_turns=None, clairvoyant=False, cover=False, futures=0, exact_turn=None, hp_cap=False, pot_cost=0.0, greedy_from=None, stolen_cost=0.0, gold_cost=0.0, maxhp_cost=0.0):
         self.net = net
         self.roll_net = roll_net if roll_net is not None else net
         self.cover, self.futures, self.hp_cap, self.pot_cost = bool(cover), int(futures), bool(hp_cap), float(pot_cost)
+        self.stolen_cost, self.gold_cost, self.maxhp_cost = float(stolen_cost), float(gold_cost), float(maxhp_cost)
         self.greedy_from = 1 << 30 if greedy_from is None else int(greedy_from)
         self.exact = None if not exact_turn else {**EXACT_TURN, **(exact_turn if isinstance(exact_turn, dict) else {})}
         self.M, self.K = (sts2.names()["max_m"] if self.cover else M), K
@@ -441,7 +442,8 @@ class FastSearch:
                                      roll_cap=self.roll_cap, max_steps=self.max_steps, win=1.0, loss=-1.0, hp_bonus=0.5, threads=min(self.threads, nb),
                                      record=self.record, starts=starts, leaf_turns=self.leaf_turns,
                                      turn_cap=heads.TURN_CAP, val_w=self.val_w, worth=wt, clairvoyant=self.clairvoyant,
-                                     cover=self.cover, futures=self.futures, hp_cap=self.hp_cap, pot_cost=self.pot_cost, greedy_from=self.greedy_from,
+                                     cover=self.cover, futures=self.futures, hp_cap=self.hp_cap, pot_cost=self.pot_cost, greedy_from=self.greedy_from, stolen_cost=self.stolen_cost, gold_cost=self.gold_cost,
+                                     maxhp_cost=self.maxhp_cost,
                                      **({} if self.exact is None else {"exact": True, **{"ex_" + k: v for k, v in self.exact.items()}}))
             shared = eng.shared_rows()
             while len(self._bufs) <= gi:

@@ -44,13 +44,44 @@ fn pot_ids(cx: &Combat) -> [u16; POT] {
     o
 }
 
-// Reserve value of the root's potions: each one gone from its slot at a line's end costs cfg.pot_cost (objective units).
-fn spent_cost(cx: &Combat, root: &[u16; POT], cfg: &SearchCfg) -> f32 {
-    if cfg.pot_cost == 0.0 {
-        return 0.0;
+// The root's run state the line-end costs compare against (unknown fields cost nothing).
+#[derive(Clone, Copy, Debug)]
+struct Root {
+    pots: [u16; POT],
+    gold: i32,
+    mhp: i32,
+}
+
+impl Default for Root {
+    fn default() -> Self {
+        Root { pots: [u16::MAX; POT], gold: i32::MIN, mhp: i32::MIN }
     }
-    let now = pot_ids(cx);
-    cfg.pot_cost * (0..POT).filter(|&k| root[k] != u16::MAX && now[k] != root[k]).count() as f32
+}
+
+fn root_of(cx: &Combat) -> Root {
+    Root { pots: pot_ids(cx), gold: cx.gold, mhp: cx.cr(sts2sim::state::PLAYER).max_hp }
+}
+
+// Run-state costs at a line's end (objective units; plan stage B): each root potion gone from its slot costs cfg.pot_cost; each card a
+// monster still alive or escaped holds (Thieving Hopper's Swipe: returned only if it dies) cfg.stolen_cost; gold lost (Gremlin Merc's
+// steal) cfg.gold_cost per gold; max HP lost (Scrolls of Biting) cfg.maxhp_cost per point.
+fn spent_cost(cx: &Combat, root: &Root, cfg: &SearchCfg) -> f32 {
+    let mut c = 0.0;
+    if cfg.pot_cost != 0.0 {
+        let now = pot_ids(cx);
+        c += cfg.pot_cost * (0..POT).filter(|&k| root.pots[k] != u16::MAX && now[k] != root.pots[k]).count() as f32;
+    }
+    if cfg.stolen_cost != 0.0 {
+        let held: i32 = cx.creatures.iter().skip(1).filter(|m| !m.is_dead()).map(|m| m.power_amount(sts2sim::ids::power::SWIPE_POWER)).sum();
+        c += cfg.stolen_cost * held as f32;
+    }
+    if cfg.gold_cost != 0.0 && root.gold != i32::MIN {
+        c += cfg.gold_cost * (root.gold - cx.gold).max(0) as f32;
+    }
+    if cfg.maxhp_cost != 0.0 && root.mhp != i32::MIN {
+        c += cfg.maxhp_cost * (root.mhp - cx.cr(sts2sim::state::PLAYER).max_hp).max(0) as f32;
+    }
+    c
 }
 
 fn end_score(cx: &Combat, oc: i8, r: f32, w: &Worth) -> f32 {
@@ -113,6 +144,9 @@ pub struct SearchCfg {
     pub exact: ExactCfg,
     pub hp_cap: bool,
     pub pot_cost: f32,
+    pub stolen_cost: f32,
+    pub gold_cost: f32,
+    pub maxhp_cost: f32,
     // play-out moves from this many player turns after the root on take the policy's most likely move instead of a draw
     pub greedy_from: u32,
 }
@@ -151,6 +185,9 @@ impl Default for SearchCfg {
             exact: ExactCfg::default(),
             hp_cap: false,
             pot_cost: 0.0,
+            stolen_cost: 0.0,
+            gold_cost: 0.0,
+            maxhp_cost: 0.0,
             greedy_from: u32::MAX,
         }
     }
@@ -257,7 +294,7 @@ struct Sim {
     est: f32,
     steps: u32,
     rng: u64,
-    pots0: [u16; POT],
+    pots0: Root,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -560,7 +597,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
 }
 
 fn idle_sim(cx: &Combat) -> Sim {
-    Sim { cx: cx.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0, pots0: [u16::MAX; POT] }
+    Sim { cx: cx.clone(), st: SimSt::Idle, start_turn: 0, est: 0.0, steps: 0, rng: 0, pots0: Root::default() }
 }
 
 #[inline]
@@ -846,7 +883,7 @@ impl Block {
     fn start_option(&mut self, j: usize, first: Action, lead: bool, cfg: &SearchCfg, w: &Worth, out: &Out, turn: i32) {
         let (base, c) = (j * self.kc, self.kc);
         let n_now = if lead { 1 } else { c };
-        let pots0 = pot_ids(&self.main);
+        let pots0 = root_of(&self.main);
         for kk in 0..c {
             let sim = &mut self.sims[base + kk];
             sim.pots0 = pots0;
@@ -1115,7 +1152,7 @@ struct Exact {
     turn: i32,
     best: usize,
     gain: Option<i32>,
-    pots0: [u16; POT],
+    pots0: Root,
 }
 
 struct Fx(u64);
@@ -1377,7 +1414,7 @@ impl Block {
         ex.turn = self.main.player.turn_number;
         ex.best = best;
         ex.gain = self.gain;
-        ex.pots0 = pot_ids(&self.main);
+        ex.pots0 = root_of(&self.main);
         let root = self.main.clone();
         let ok = ex.add(root, NONE, cfg, &sh.worth[self.scen as usize], out, &mut self.stats) == Some(0);
         self.stats.cy_exact += tsc() - t0;

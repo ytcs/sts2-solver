@@ -40,6 +40,9 @@ POT_COST = 0.06
 POT_MARGIN_SE, POT_MARGIN_MIN = 2.0, 0.01
 # first of the final pair of bosses: a potion kept is worth ~0.1 win of the second (E67: Test Subject at 25 HP 0.24 -> 0.45 with two kept) = 0.2 objective
 POT_COST_FINAL_PAIR = 0.2
+# run-state losses a fight can cause (plan stage B; constants until the macro estimator prices them), objective units: a card a
+# Thieving Hopper escapes with (~16 HP), gold stolen (Gremlin Merc: 100 gold ~8 HP), max HP lost (Scrolls of Biting; = max_hp_value)
+STOLEN_COST, GOLD_COST, MAXHP_COST = 0.1, 0.0005, 0.008
 
 
 class Engine:
@@ -47,7 +50,7 @@ class Engine:
         self.solver = Solver() if ckpt is None else Solver(ckpt)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
         self.fs = FastSearch(self.solver.net, M, K, roots=ROOTS, groups=1, amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn,
-                             hp_cap=hp_cap, pot_cost=pot_cost)
+                             hp_cap=hp_cap, pot_cost=pot_cost, stolen_cost=STOLEN_COST, gold_cost=GOLD_COST, maxhp_cost=MAXHP_COST)
         self.pot_cost, self.pot_margin_se = pot_cost, pot_margin_se
         self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
         assert (proposal.HEAD_BIN, proposal.HEAD_NC) == (heads.BIN, heads.NC), "agent/proposal.py and rl/heads.py disagree on the outcome classes"
@@ -68,7 +71,9 @@ class Engine:
         n_rounds, acc, first, rounds = rounds, {}, None, 0
         # potion reserve cost: none after the final boss; win-only worth spans 1 (loss 0, win 1) vs 2 for the linear objective
         first_of_pair = worth is None and str(scenario.get("encounter", "")).endswith("_BOSS") and scenario.get("act") == proposal.LAST_ACT
-        self.fs.pot_cost = (0.0 if worth is not None and worth.get("final") else self.pot_cost / 2 if worth is not None
+        pair = worth is not None and worth.get("kind") == "pair"
+        self.fs.pot_cost = (0.0 if worth is not None and worth.get("final") else max(self.pot_cost, POT_COST_FINAL_PAIR) / 2 if pair and self.pot_cost > 0
+                            else self.pot_cost / 2 if worth is not None
                             else max(self.pot_cost, POT_COST_FINAL_PAIR) if first_of_pair and self.pot_cost > 0 else self.pot_cost)
         held = potions.held_indices(sim, keep_potions)
         def _held(t):

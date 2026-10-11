@@ -20,6 +20,22 @@ def win_only_worth(max_hp, tie=WIN_ONLY_TIE):
     return dict(u=u, price_u=[0.0] + [1.0] * HEAD_NB, kind="win only")
 
 
+PAIR_GRID = (0.1, 0.2, 0.3, 0.4, 0.55, 0.7, 0.85, 1.0)
+PAIR_INFORMATIVE = 0.3
+
+
+def pair_worth(scenario, second, solve, attempts=48):
+    """Bellman for the final pair: the first boss's terminal value is P(win the second boss | the HP it leaves), measured by search on
+    an HP grid (no potions: the reserve cost prices kept potions); loss = 0"""
+    mx = max(int(scenario.get("max_hp") or 1), 1)
+    hps = [max(1, int(round(f * mx))) for f in PAIR_GRID]
+    rows = solve([dict(scenario, encounter=second, hp=h, potions=[], name=f"pair@{h}") for h in hps], attempts=attempts)
+    p = np.maximum.accumulate(np.array([float(r["win"]) for r in rows]))
+    centers = [min(b * HEAD_BIN - (HEAD_BIN - 1) / 2.0, mx) for b in range(1, HEAD_NB + 1)]
+    u = [0.0] + [float(np.interp(c, hps, p)) + WIN_ONLY_TIE * min(c / mx, 1.0) for c in centers]
+    return dict(u=u, price_u=u, kind="pair", second=second, curve=[round(x, 3) for x in p])
+
+
 def fight_objective(scenario, bosses=(), seen=()):
     enc = str(scenario.get("encounter", ""))
     if not enc.endswith("_BOSS"):
