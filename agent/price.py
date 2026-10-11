@@ -169,8 +169,7 @@ def card_type(cid):
 
 
 def removal_candidates(deck):
-    """distinct removable ids, dominance first (user: a Strike goes before Headbutt): while an unupgraded basic of a card type is in the
-    deck, non-basic cards of that type are not candidates; search ranks the rest"""
+    """distinct removable ids: while an unupgraded basic of a card type is in the deck, non-basic cards of that type are not candidates"""
     ids = sorted({c["id"] for c in deck if c["id"] != "ASCENDERS_BANE"})
     basic_types = {card_type(c["id"]) for c in deck if c["id"].startswith(R.BASICS[:2]) and not c.get("upgrade")}
     return [i for i in ids if i.startswith(R.BASICS[:2]) or card_type(i) not in basic_types]
@@ -391,8 +390,7 @@ def event_adjust(st, state_text):
 
 
 RUNGS = (3, 6, 10, 99)
-# take/skip margins: a card beats skip by TAKE_SE paired se, or merely helps when a fight the skip deck is unsafe in (P < R.SAFE_WIN) lies
-# within DEADLINE_RADIUS floors
+# a card is taken when it beats skip by TAKE_SE paired se, or by > 0 when a fight unsafe for the skip deck (P < R.SAFE_WIN) lies within DEADLINE_RADIUS floors
 TAKE_SE, DEADLINE_RADIUS = 2.0, 3
 P_FLOOR = 0.05
 
@@ -427,9 +425,8 @@ def _rung_encounters(st, types, boss_in_range):
 
 
 def binding_fights(st, engine, seed, k=2, attempts=32):
-    """user: the most dangerous encounter within n floors is the myopic sub-objective, n scaled outwards: for radius 3, 6, 10, then the
-    act's end, the skip deck plays every encounter the reachable nodes can hold (known pools, bag narrowing) at its current HP; the first
-    rung with a fight under SAFE_WIN gives its k most dangerous encounters. -> (encounters, radius, {encounter: P}) or ([], None, {})"""
+    """first RUNGS radius where the skip deck at its current HP has a reachable encounter under SAFE_WIN: its k most dangerous.
+    -> (encounters, radius, {encounter: P}) or ([], None, {})"""
     for radius in RUNGS:
         types, end = _reachable(st, radius)
         if types is None:
@@ -450,8 +447,6 @@ def binding_fights(st, engine, seed, k=2, attempts=32):
 # mandatory future fights only: elites are optional (a weak deck routes around them), so they are no factor of P(win run)
 FAR_RUNGS = ((1, "boss"), (2, "boss"))
 INFORMATIVE = 0.1
-# a future act's boss is met by a stronger deck that lasts longer than today's: it is played at the smallest HP multiple where the skip
-# deck has signal (P >= INFORMATIVE)
 
 
 def _at_hp(x, h):
@@ -474,9 +469,7 @@ def operating_mults(st, engine, sets, seed, attempts=24):
 
 
 def _horizon_sets(st, engine, seed):
-    """[(factor key, encounters, hp)]: one factor per near binding fight (radius ladder, current HP), one per known boss of this act not
-    among them (mandatory: arrival after the pre-boss rest, full HP) and one per future boss rung still ahead (user: rungs of future
-    difficulty retired as the acts pass; full HP)"""
+    """[(factor key, encounters, hp)]: near binding fights at current HP, this act's known bosses not among them and future boss rungs at full HP"""
     out = []
     near, radius, _p = binding_fights(st, engine, seed)
     for e in near:
@@ -491,11 +484,7 @@ def _horizon_sets(st, engine, seed):
 
 
 def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=48, variants=4):
-    """stage-A estimator on the run model's top options + skip / nothing + the best removal. Each factor of P(win run) still ahead (near binding
-    fights at current HP, future boss rungs at their operating HP multiple) is played by every option with common seeds and the belt it leaves;
-    a factor the reference deck still floors on (P < INFORMATIVE) is measured by progress (share of the enemies' HP pool removed) instead of
-    wins, so it keeps a gradient. Score = exact
-    log ratio vs the reference summed over factors (Bellman: V is their product), se = paired first-order.
+    """score = log ratio vs the reference summed over the factors of P(win run) ahead (progress instead of wins where P < INFORMATIVE), common seeds, paired se.
     -> ({label: (score, se, {factor: measure}, per-attempt scores, {factor: P(win)})}, binding radius)"""
     import random
     if engine is None:
@@ -592,9 +581,7 @@ def screen_seed(tag, state_text):
 
 
 def decide(st, state_text, pred, engine, opts, n=128, seed=0, hybrid=True):
-    """the one pricing decision shared by the live `price` command and the scripted baseline: run-model rollouts, macro-term adjustments
-    (event terms; card-reward margin vs skip), search check of the top options + skip + best removal (CARD_REWARD / SHOP / EVENT), hybrid
-    override. -> dict(res, adj, check, best, ranked_by, override, terms_skip, radius)"""
+    """shared by the live `price` command and the scripted baseline. -> dict(res, adj, check, best, ranked_by, override, terms_skip, radius)"""
     kind = scr.kind(state_text)
     res = price(st, opts, pred, n=n, seed=seed)
     adj = event_adjust(st, state_text)
@@ -602,8 +589,6 @@ def decide(st, state_text, pred, engine, opts, n=128, seed=0, hybrid=True):
     best_, ranked, override = hybrid_best(res, check, adj)
     terms_skip = False
     if kind == "CARD_REWARD" and "skip" in check:
-        # deadline rule (user: a later floor knows more): search's best card is taken when it beats skip by TAKE_SE paired se, or when a
-        # fight the skip deck is unsafe in lies within DEADLINE_RADIUS floors and the card helps at all
         cand = max((lb for lb in check if lb != "skip"), key=lambda lb: check[lb][0], default=None)
         urgent = radius is not None and radius <= DEADLINE_RADIUS
         if cand is not None and (check[cand][0] > TAKE_SE * check[cand][1] or (urgent and check[cand][0] > 0)):

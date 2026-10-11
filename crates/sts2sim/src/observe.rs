@@ -31,9 +31,7 @@ pub const ENEMY_MOVES_F: usize = OBS_MAX_ENEMIES * MOVE_STATE_F;
 pub const DEC_SOURCE_F: usize = 2;
 pub const PLAYED_F: usize = CARD_F + 2;
 
-// v3 (feature `obs_v3`) = the v2 bytes unchanged + a tail: per creature (player, enemies, Osty) the powers' hidden second numbers, a stored-card
-// reference and derived threats (doom, poison projection, visible-intent lethal); per card (hand, candidates, played) type, rarity and the powers
-// playing it applies (`card_powers.rs`).
+// v3 (feature `obs_v3`) = the v2 bytes unchanged + a tail.
 pub const CX_DERIVED: usize = 10;
 
 /// Visible incoming attack hits on the player this enemy turn, one entry per hit (the last entry absorbs any overflow).

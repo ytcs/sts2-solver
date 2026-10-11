@@ -35,13 +35,12 @@ def _opportunity_loss(acc):
     return worst
 
 
-# reserve value of a held potion in objective units (E61: run model ~10 HP = 0.063; near-miss flat 0.03-0.06)
+# reserve value of a held potion, objective units
 POT_COST = 0.06
 POT_MARGIN_SE, POT_MARGIN_MIN = 2.0, 0.01
-# first of the final pair of bosses: a potion kept is worth ~0.1 win of the second (E67: Test Subject at 25 HP 0.24 -> 0.45 with two kept) = 0.2 objective
+# first of the final pair of bosses: a kept potion is worth ~0.1 win of the second = 0.2 objective
 POT_COST_FINAL_PAIR = 0.2
-# run-state losses a fight can cause (plan stage B; constants until the macro estimator prices them), objective units: a card a
-# Thieving Hopper escapes with (~16 HP), gold stolen (Gremlin Merc: 100 gold ~8 HP), max HP lost (Scrolls of Biting; = max_hp_value)
+# objective units: a card a Thieving Hopper escapes with (~16 HP), per gold stolen (100 gold ~8 HP), per max HP lost (= max_hp_value)
 STOLEN_COST, GOLD_COST, MAXHP_COST = 0.1, 0.0005, 0.008
 
 
@@ -84,7 +83,6 @@ class Engine:
         n_rows = [0, 0]
         done = False
         while not done:
-            # rounds run as jobs of one batched search: the whole fixed budget at once, else chunks between the early-stop checks
             k = (n_rounds - rounds) if n_rounds is not None else (4 if rounds < 4 else ROUND_CHUNK)
             k = max(1, min(k, MAX_ROUNDS - rounds))
             seeds = [(self.seed + 1 + i) if seed is None else seed + rounds + i for i in range(k)]
@@ -124,7 +122,6 @@ class Engine:
                 n = min(len(x), len(y))
                 d = np.asarray(x[:n]) - np.asarray(y[:n])
                 se = float(d.std(ddof=1) / np.sqrt(n)) if n > 1 else float("inf")
-                # a throw must beat the best non-potion line by margin across rounds (eager, mistimed throws otherwise)
                 if float(d.mean()) <= max(self.pot_margin_se * se, POT_MARGIN_MIN):
                     gated, best = best["text"], alt
         a = best["action"] if best else first["action"]

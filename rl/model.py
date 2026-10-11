@@ -149,7 +149,7 @@ class Net(nn.Module):
         if obs == 2:
             self.pp = PowerPool(C["N_POWERS"], e)
         else:
-            # one table per side: the same power id means different things on the player, an enemy, Osty (E46: player Intangible read as harmful)
+            # one table per side: the same power id means different things on the player, an enemy, Osty
             self.pp_player, self.pp_enemy, self.pp_osty = (PowerPool(C["N_POWERS"], e) for _ in range(3))
             # v3 tail: the powers again with the hidden second number and an unsaturated amount, per side; derived threats; a stored card
             self.px_player, self.px_enemy, self.px_osty = (Bag(C["N_POWERS"], X_POW, 4) for _ in range(3))

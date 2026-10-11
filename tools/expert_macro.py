@@ -29,7 +29,6 @@ TYPES = ("ancient", "event", "map", "card", "rest", "shop", "potion")
 CHARS = ("IRONCLAD", "SILENT", "DEFECT", "NECROBINDER", "REGENT")
 
 
-# ---------------------------------------------------------------- names -> ids
 
 def _cat():
     from agent import runmodel as R
@@ -131,7 +130,6 @@ def kind_of(act_name, enc):
     return None
 
 
-# ---------------------------------------------------------------- counters (mirrors agent/tracker.py)
 
 class Counters:
     def __init__(self):
@@ -156,7 +154,6 @@ def fight_kind(enc):
     return "elite" if enc.endswith("_ELITE") else "boss" if enc.endswith("_BOSS") else "hallway"
 
 
-# ---------------------------------------------------------------- record I/O
 
 def write_record(path, head, decisions):
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
@@ -177,7 +174,6 @@ def header_line(act, floor, character, asc, hp, max_hp, gold, belt):
     return f"A{act + 1} F{floor} {character} A{asc} HP {hp}/{max_hp} G{gold} pots[{', '.join(b or '-' for b in belt) or '-'}]"
 
 
-# ---------------------------------------------------------------- from a live replay log (game truth)
 
 def _pick_of(action):
     m = re.match(r"^\S+ pick (.*)$", action)
@@ -355,7 +351,6 @@ def _follow(rows, i, kinds, stop):
     return out
 
 
-# ---------------------------------------------------------------- price on a decision
 
 def run_state(head, d):
     from agent import routes
@@ -587,7 +582,6 @@ def summarize(rows):
             print(f"  k{r['k']} F{r['floor']} {r['type']}: his {r['priced_as']} | price {r['price_best']} [{r['horizon']}] {r['d']:+.4f} ({r['se']:.4f})")
 
 
-# ---------------------------------------------------------------- CLI (dispatched from tools/expert.py)
 
 def add_parsers(sub):
     p = sub.add_parser("macro", help="fetch + scan a video for macro extraction")
@@ -775,7 +769,6 @@ def argparse_ns(**kw):
     return argparse.Namespace(**kw)
 
 
-# ---------------------------------------------------------------- frame scan: screen class per frame -> decision segments
 
 DECISION = ("MAP", "CARD_REWARD", "REWARDS", "SHOP", "RESTSITE", "EVENT", "TREASURE", "DECK")
 TH = (32, 18)
@@ -961,7 +954,6 @@ def sheets(creator, vid, segs):
         sheet.save(os.path.join(out, f"{i:03d}_{g['cls']}_{mmss(g['start']).replace(':', '')}.jpg"), quality=85)
 
 
-# ---------------------------------------------------------------- build: agent transcription -> record
 
 ROOM = {"M": "Monster", "E": "Elite", "R": "RestSite", "$": "Shop", "T": "Treasure", "?": "Unknown"}
 ACT_START = (1, 18, 34)
@@ -1223,7 +1215,6 @@ def decision(s, typ, tr, act, f, ch, asc, acts, w):
     d["state"] = state
     if checks:
         d["checks"] = checks
-    # effects of the decision on the tracked state
     if typ == "card" and pick:
         tr.deck.append(card(pick, ch))
     elif typ == "rest" and pick == "Rest":

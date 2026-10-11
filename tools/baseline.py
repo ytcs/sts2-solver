@@ -1,32 +1,11 @@
-"""Headless baseline: our agent's A10 win rate on the game's own code (plan stage 1, macro side).
+"""Headless baseline: the agent's A10 win rate on N `OracleCombat serve` games driven round-robin with one shared search Engine.
+`agent.bridge.OVERRIDE` points every bridge call at the stepping game; the bridge never falls back to the real game while it is set.
+Combat: `Harness.play` at --rounds search rounds per decision (or --seconds), potions at a --pot-cost reserve (0 = withheld). Macro: Macro
+(runmodel.BasePolicy on the game's screens), PriceMacro with --price N. Win = the EVENT "The Architect" is reached.
 
-One process drives N `OracleCombat serve` games (own port, --state-dir, APPDATA/TEMP each) round-robin with ONE shared search Engine
-(models/current.json, cover + exact turn search, hp_cap default); `agent.bridge.OVERRIDE` points every bridge call at the stepping game.
-Never the real game: the bridge never falls back to it while OVERRIDE is set.
-
-Combat: the live player (`Harness.play`), a fixed number of search rounds per decision (--rounds, not seconds); the search throws potions
-at a reserve cost (--pot-cost, default the live POT_COST; 0 = withheld), plus the proposal rule (`potion use` the proposed one, one per commit). No fight-start predictions, no DRIVE thresholds. A DIFFERS line does
-not stop play (counted; a potion-belt DIFFERS left after the belt sync turns proposals off for that fight); a DESYNC
-(or a search error, or combat_in_progress differing) rebuilds the replayer once per fight, then plays `fallback_action` (first playable
-card, else end turn; run tagged `fallback`; also every fight the simulator cannot build, tagged `unplayable`); a combat selection the game
-rejects is answered by the macro SELECT rule.
-Macro = runmodel.BasePolicy, the rules `price` rollouts play, applied to screens (no price/reward/routes calls):
-  map BasePolicy.node; card reward / card offers: predictor screen of each deck vs the act boss at max HP and a random elite at 70% (argmax
-  of runmodel.worth, skip included); rest: rest below 50% HP else smith BasePolicy.smith order; shop: remove a card if affordable, then the
-  best affordable card/relic by the same screen; catalogued events: BasePolicy.event on the first page, follow-up pages as rollouts resolve
-  them (events.default_choose: the exit option, else the first modelled); Neow/ancients: the predictor screen of each option
-  applied (events.apply_ancient), fights at min(reference HP, HP after the option); removals/transforms: curses, Strikes, Defends first;
-  upgrades BasePolicy.smith order; other selections the first k; rewards: card, relics, stolen card, gold, potions only into a free slot; treasure:
-  open, take; bundle: the first; Crystal Sphere: tools/serve_harness_run heuristic. No potion use outside combat.
-  Unknown events (not in data/events.json): the first option starting Leave/Exit/Decline/Ignore/Abstain/Give Up/Proceed/Continue/Skip, else 0.
---price N: PriceMacro (`price`, N paired rollouts per option) on map forks, card rewards, rest sites, shops, catalogued events' first
-  pages and ancients; the rules above elsewhere. --seconds S: S s of search per combat decision instead of --rounds.
-A screen unchanged after the same choice 3 times bans that option there (tag stuck_option; headless Punch Off's Nab throws in the game).
-Win = the EVENT "The Architect" is reached (the GAME_OVER page is never read for the result); its pages and GAME_OVER are logged.
-
-usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--price N] [--min-free-gb G] [--port 15820] [--tag NAME] [--character ironclad]
-Seeds: BASE0001..BASE0020 by default. Per game: target/baseline/<tag>/<seed>/ (events.jsonl, server log); per run one JSON line in
-evals/baseline/<tag>.jsonl (re-running skips seeds already there); summary table at the end. Builds Harness() directly (no skill gate).
+usage: python tools/baseline.py [--n 20] [--seeds S1,S2] [--games 2] [--rounds 16 | --seconds S] [--pot-cost C] [--price N] [--min-free-gb G] [--port 15820] [--tag NAME] [--character ironclad]
+Per game: target/baseline/<tag>/<seed>/; per run one JSON line in evals/baseline/<tag>.jsonl (re-running skips seeds already there).
+Builds Harness() directly (no skill gate).
 """
 import json, os, random, re, socket, subprocess, sys, threading, time, traceback, zlib
 
@@ -365,8 +344,7 @@ class Macro:
         return "-" if lo == 0 and not names else " ".join(str(i) for i, _ in lab[:k])
 
 
-# map forks / rests: routes' P(win the act boss) decides when it beats price's choice by this much (fork check: price undervalued act-2
-# rests at 5 of 6 disagreeing forks); 0 disables
+# map forks / rests: routes' P(win the act boss) decides when it beats price's choice by this much; 0 disables
 ROUTE_OVERRIDE = float(os.environ.get("ROUTE_OVERRIDE", "0.05"))
 PR.TAKE_SE = float(os.environ.get("TAKE_SE", PR.TAKE_SE))
 PR.DEADLINE_RADIUS = int(os.environ.get("DEADLINE_RADIUS", PR.DEADLINE_RADIUS))

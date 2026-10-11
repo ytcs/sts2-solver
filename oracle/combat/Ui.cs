@@ -42,8 +42,7 @@ public sealed class Decision
     }
 }
 
-// Model-side port of mods/AgentBridge/src/Decisions.cs + Commands.cs: the same screens and option labels, derived from the
-// game model where the mod reads Godot nodes; the UI state the nodes hold (map open, reward screens, ...) lives here.
+// Model-side port of mods/AgentBridge/src/Decisions.cs + Commands.cs (same screens and labels); holds the UI state the mod reads from Godot nodes.
 public static class Ui
 {
     public sealed class PendingRewards
@@ -100,7 +99,6 @@ public static class Ui
         _mapOpen = _chestOpened = _relicPicked = _restChosen = false;
     }
 
-    // ---------------------------------------------------------------- build
     public static Decision Build()
     {
         var d = new Decision();
@@ -378,7 +376,7 @@ public static class Ui
         return d.Opts[n].Run(args.Skip(1).ToArray());
     }
 
-    // ---------------------------------------------------------------- rewards (NRewardsScreen, NCardRewardSelectionScreen)
+    // NRewardsScreen, NCardRewardSelectionScreen
     public static async Task OnRewards(RewardsSet set)
     {
         set.ThrowInTestIfRewardsNotTaken = false;
@@ -485,7 +483,7 @@ public static class Ui
         return bundles[k];
     }
 
-    // ---------------------------------------------------------------- crystal sphere (NCrystalSphereScreen)
+    // NCrystalSphereScreen
     static void CrystalSphere(Decision d, CrystalSphereMinigame g)
     {
         d.Kind = "CRYSTAL_SPHERE";
@@ -529,7 +527,7 @@ public static class Ui
 
     public static void SphereFinished() => _sphereDone = true;
 
-    // ---------------------------------------------------------------- map (NMapScreen.RecalculateTravelability)
+    // NMapScreen.RecalculateTravelability
     static List<MapPoint> Travelable(RunState rs)
     {
         var map = rs.Map;
@@ -583,7 +581,6 @@ public static class Ui
         return sb.ToString();
     }
 
-    // ---------------------------------------------------------------- rooms
     static void Room(Decision d, RunState rs, Player me)
     {
         var room = rs.CurrentRoom;
@@ -737,7 +734,6 @@ public static class Ui
                 Serve.Fire(RelicCmd.Obtain(r.relic.ToMutable(), r.player), "obtain relic");
     }
 
-    // ---------------------------------------------------------------- menu and run lifecycle
     static void MainMenu(Decision d)
     {
         d.Kind = "MENU";
@@ -803,7 +799,6 @@ public static class Ui
         await RunManager.Instance.EnterAct(0, doTransition: false);
     }
 
-    // ---------------------------------------------------------------- read-only text (Commands.cs)
     public static string Deck()
     {
         var me = Me(Rs);

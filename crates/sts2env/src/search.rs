@@ -62,9 +62,7 @@ fn root_of(cx: &Combat) -> Root {
     Root { pots: pot_ids(cx), gold: cx.gold, mhp: cx.cr(sts2sim::state::PLAYER).max_hp }
 }
 
-// Run-state costs at a line's end (objective units; plan stage B): each root potion gone from its slot costs cfg.pot_cost; each card a
-// monster still alive or escaped holds (Thieving Hopper's Swipe: returned only if it dies) cfg.stolen_cost; gold lost (Gremlin Merc's
-// steal) cfg.gold_cost per gold; max HP lost (Scrolls of Biting) cfg.maxhp_cost per point.
+// Objective units: per root potion gone from its slot, per card a monster alive or escaped holds (returned only if it dies), per gold lost, per max HP lost.
 fn spent_cost(cx: &Combat, root: &Root, cfg: &SearchCfg) -> f32 {
     let mut c = 0.0;
     if cfg.pot_cost != 0.0 {

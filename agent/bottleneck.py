@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Deck bottleneck tracker (plan item 4b): per card, plays vs turns it was left in hand at end of turn (from the run log's `action` events:
-`play X` texts and `end turn` events with hand_left / energy_left). Diagnosis, an input not a verdict:
-- left with energy_left < its cost (< 1 without a logged cost) -> energy bottleneck; unplayable (cost < 0) not counted;
-- stranded = non-starter cards of cost >= 2 left with energy_left < cost, per turn (control arm: r -0.61 with death floor in act 1, n 20);
-- left while energy remained -> the deck chose not to play it: removal candidate, or a combo piece waiting for its partner (draw / retain);
+"""Deck bottleneck tracker: per card, plays vs turns left in hand at end of turn (run log `action` events), split by energy left vs its cost.
 Usage: python -m agent.bottleneck <events.jsonl> [--act N]"""
 import argparse, collections, json, re
 
