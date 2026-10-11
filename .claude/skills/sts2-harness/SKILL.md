@@ -12,7 +12,7 @@ description: Use before the first action of a run and whenever unsure how to dri
 3. Act: `a <i> [target] [-- why]`, always a why. Chain `a ~gold; ~card; ~proceed -- why` (`~text` case-insensitive; stops on error/combat; map click last; `a ~smith; ~Bash` passes the selection).
 4. `loot` after the card reward (`price` on it), relics and a stolen card are decided: takes gold, then potions into free slots. `[expert]` card reward before relics (War Paint-like pickups act on it), relics before gold (Bowler Hat-like); a free relic can be anti-synergy (Tungsten Rod vs Rupture/Inferno).
 5. Route: `draw r1c6 ...`; `routes [--attempts N] [--hp N] [--pf 0.15] [--w E=4,M=1] [--seed N]`: act DP on solver outcomes (reward weights `[hyp]`; unknown room = 15% fight, approximates `[code]` game_code.md C5); potion plan + elite arrival HP. **`routes` at every fork.**
-6. `restcalc`: act boss(es) at the HP now vs after resting (Regal Pillow included).
+6. `restcalc [eval flags]`: act boss(es) at the HP now vs after resting (Regal Pillow included).
 7. `eval --pool <Act>:<regular|elite|boss>[:n] | --boss | --elites | --next | --enc IDS | --future [--all] [--smooth] [--hp full|current|N] [--attempts N] [--seed N] --v "name|add=ID|remove=ID|upgrade=ID|relics_add=ID|potions=IDS|enchant=ID:ENCH"`, or a JSON spec.
 8. Solver: `adv [secs]`; `turn`/`combat [secs]` in AUTO fights (`!` overrides MANUAL); `budget <s>|auto`. Search = 2 player turns then value net; exact turn search when values are blind. `SIMULATOR DESYNC`/`DIFFERS`: play by hand, `status`.
 9. `note <text>`, `newrun` (force new-run detection). A changed relic bar is logged (`relics` event).
@@ -32,7 +32,7 @@ Act boss before an ancient heal and the final boss: P(win) only, 1% end-HP tiebr
 ## Decision guards (`agent/guards.py`)
 1. Card reward: `price` on this screen; why holds `numbers:` and `judgment:` and names the chosen card (`a ~Card`).
 2. Map fork / Neow: `routes` this floor.
-3. Shop / rest: `price`, `eval`, `routes` or `restcalc` this floor, why with `numbers:` and `judgment:`. Rest below 95% HP: `restcalc`, or `routes` + `eval`.
+3. Shop / rest: `price`, `eval`, `routes` or `restcalc` this floor, why with `numbers:` and `judgment:`. Rest below 95% HP: `restcalc`, or `routes` + `eval`; at >= 95% no pricing call, the why fields still.
 4. Elite/boss below 60% HP: `a <i> !`.
 
 ## Batch, quirks
