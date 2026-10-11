@@ -220,6 +220,7 @@ class RunState:
 
 class BasePolicy:
     gates = False
+    trace = False
 
     def node(self, st, options, elite_p=None):
         """elites only when the predicted P(win) against this act's elite pool at the current HP clears SAFE_WIN (the bar live routes uses)"""
@@ -327,6 +328,7 @@ class ClonedPolicy(BasePolicy):
 class ForcedPolicy(ClonedPolicy):
     """teacher forcing for the dynamics check: a logged run's route, rest / smith choices and per-fight decks, in order; the run model
     samples only fight outcomes, unknown rooms, events and heals"""
+    trace = True
 
     def __init__(self, path, rests, decks, boss_deck=None):
         super().__init__()
@@ -455,7 +457,8 @@ def play(st, rng, pol, first=None, stop_at_next=False, pot_use=None):
         else:
             P = yield [st.scenario(encounter, potions=allowed)]
         end = float(PR.sample_end(P, np.random.default_rng(rng.randrange(1 << 30)))[0])
-        st.__dict__.setdefault("trace", []).append((st.act, kind, st.hp, int(min(max(end, 0), st.max_hp)), st.max_hp, float(PR.p_win(P)[0]), len(allowed), encounter))
+        if getattr(pol, "trace", False):
+            st.__dict__.setdefault("trace", []).append((st.act, kind, st.hp, int(min(max(end, 0), st.max_hp)), st.max_hp, float(PR.p_win(P)[0]), len(allowed), encounter))
         st.hp = int(min(end, st.max_hp))
         use = (pot_use or {}).get(PR.pot_key(encounter, float(PR.p_win(P)[0]))) if allowed else None
         used = [p for p in allowed if use is None or rng.random() < use]
