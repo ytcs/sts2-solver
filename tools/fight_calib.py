@@ -32,10 +32,11 @@ def fights(dirs):
                     sc = e["scenario"]
                     kept = bool(prev and prev.get("kind") == "policy" and prev.get("component") == "potion_reserve" and (prev.get("detail") or {}).get("keep"))
                     cur = dict(arm=os.path.basename(d.rstrip("/")), seed=seed, i=i, enc=e["encounter"], act=e.get("act"), hp=int(e["hp"]), mx=int(e["max_hp"]),
-                               kept=kept, sc=dict(sc, potions=[] if kept else sc.get("potions", [])), end=None)
+                               kept=kept, sc=dict(sc, potions=[] if kept else sc.get("potions", [])), end=None, held=0 if kept else len(sc.get("potions", [])), used=0)
                 elif e["kind"] == "fight_end" and cur:
                     hp = e.get("hp"); hp = json.loads(hp) if isinstance(hp, str) else hp
                     cur["end"] = int(hp[0]) if hp else 0
+                    cur["used"] = int(e.get("potions_used") or 0)
                     F.append(cur); cur = None
                 elif e["kind"] == "divergence" and cur:
                     div[cur["enc"]] += 1

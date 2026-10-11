@@ -1,3 +1,4 @@
+import collections
 import functools
 import json
 import os
@@ -306,13 +307,53 @@ class ClonedPolicy(BasePolicy):
         p = json.load(open(path or os.path.join(os.path.dirname(__file__), "..", "models", "bc_policy.json")))
         self.wm, self.wr = np.array(p["map"]), np.array(p["rest"])
 
+    elites = None
+
     def node(self, st, options, elite_p=None):
+        k = self._node(st, options)
+        if self.elites is not None and dict(options)[k] == "E":
+            self.elites["forced" if all(t == "E" for _, t in options) else "chosen"] += 1
+        return k
+
+    def _node(self, st, options):
         f = st.hp / st.max_hp
         kids = lambda k: [st.nodes[c]["type"] for c in st.nodes.get(k, {}).get("children", []) if c in st.nodes] if st.nodes else []  # noqa: E731
         return max(options, key=lambda o: float(np.asarray(self._mf(o[1], f, st.act, kids(o[0]))) @ self.wm))[0]
 
     def rest(self, st):
         return "rest" if float(np.asarray(self._rf(st.hp / st.max_hp, st.act)) @ self.wr) > 0 else "smith"
+
+
+class ForcedPolicy(ClonedPolicy):
+    """teacher forcing for the dynamics check: a logged run's route, rest / smith choices and per-fight decks, in order; the run model
+    samples only fight outcomes, unknown rooms, events and heals"""
+
+    def __init__(self, path, rests, decks, boss_deck=None):
+        super().__init__()
+        self.path, self.rests, self.decks, self.boss_deck = list(path), list(rests), list(decks), boss_deck
+
+    def node(self, st, options, elite_p=None):
+        keys = [k for k, _ in options]
+        while self.path and self.path[0] not in keys and self.path[0][0] <= min(k[0] for k in keys):
+            self.path.pop(0)
+        hit = bool(self.path and self.path[0] in keys)
+        self.hits = getattr(self, "hits", collections.Counter())
+        self.hits["path" if hit else "fallback"] += 1
+        return self.path.pop(0) if hit else super().node(st, options, elite_p)
+
+    def rest(self, st):
+        return self.rests.pop(0) if self.rests else super().rest(st)
+
+    def deck(self, st, kind):
+        """a recorded fight's deck; a recorded scenario (dict) also sets relics and max HP"""
+        src = self.boss_deck if kind == "boss" and self.boss_deck is not None else self.decks.pop(0) if self.decks else None
+        if isinstance(src, dict):
+            st.relics = [r["id"] if isinstance(r, dict) else r for r in src.get("relics", [])]
+            st.max_hp = int(src.get("max_hp", st.max_hp))
+            if getattr(self, "force_potions", False):
+                st.potions = [p["id"] if isinstance(p, dict) else p for p in src.get("potions", [])]
+            src = src["deck"]
+        return [dict(c) for c in src] if src is not None else st.deck
 
 
 def reference_fights(st, rng):
@@ -394,7 +435,8 @@ def combine(g, rule="late", floor=FLOOR):
     return float(np.exp((w * np.log(np.maximum(p, lo))).sum()))
 
 
-def play(st, rng, pol, first=None, stop_at_next=False):
+def play(st, rng, pol, first=None, stop_at_next=False, pot_use=None):
+    """pot_use: share of throwable potions a fight uses by kind x P(win) band (`models/predictor_calib.json`); None = all of them"""
     import predictor as PR
     from agent import events as EV, pools
     dr = Draws(rng, st.base["character"], st.act)
@@ -402,6 +444,8 @@ def play(st, rng, pol, first=None, stop_at_next=False):
     pre = first(st, dr) if first else None
 
     def fight(kind, encounter):
+        if hasattr(pol, "decks"):
+            st.deck = pol.deck(st, kind)
         allowed = pol.potions(st, kind)
         if getattr(pol, "reserve", False) and st.potions:
             # the live reserve: keep the belt when the fight is won >= SAFE_WIN without it, else throw it
@@ -411,9 +455,11 @@ def play(st, rng, pol, first=None, stop_at_next=False):
         else:
             P = yield [st.scenario(encounter, potions=allowed)]
         end = float(PR.sample_end(P, np.random.default_rng(rng.randrange(1 << 30)))[0])
-        st.__dict__.setdefault("trace", []).append((st.act, kind, st.hp, int(min(max(end, 0), st.max_hp)), st.max_hp))
+        st.__dict__.setdefault("trace", []).append((st.act, kind, st.hp, int(min(max(end, 0), st.max_hp)), st.max_hp, float(PR.p_win(P)[0]), len(allowed), encounter))
         st.hp = int(min(end, st.max_hp))
-        st.potions = [p for p in st.potions if p not in allowed]
+        use = (pot_use or {}).get(PR.pot_key(encounter, float(PR.p_win(P)[0]))) if allowed else None
+        used = [p for p in allowed if use is None or rng.random() < use]
+        st.potions = [p for p in st.potions if p not in used]
         if end <= 0:
             st.end = (st.act, kind, encounter)
         return end > 0
@@ -547,7 +593,8 @@ class Rollouts:
 
     def run(self, states, seeds, pol=None, firsts=None, stop_at_next=False):
         pol = pol or BasePolicy()
-        return self.drive([play(s, random.Random(sd), pol, f, stop_at_next) for s, sd, f in zip(states, seeds, firsts or [None] * len(states))])
+        pot_use = (getattr(self.pred, "calib", None) or {}).get("pot_use")
+        return self.drive([play(s, random.Random(sd), pol, f, stop_at_next, pot_use) for s, sd, f in zip(states, seeds, firsts or [None] * len(states))])
 
     def drive(self, gens):
         out = [None] * len(gens)
