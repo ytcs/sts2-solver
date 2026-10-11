@@ -623,15 +623,16 @@ public static class Ui
         }
         catch { }
         d.Info.Append('\n');
+        if (ev is MegaCrit.Sts2.Core.Models.Events.FakeMerchant fm && fm.Inventory != null && !fm.StartedFight)
+        {
+            d.Kind = "SHOP";
+            Shop(d, me, fm.Inventory, "leave the merchant");
+            return;
+        }
         if (ev.IsFinished)
         {
             var proceed = new EventOption(ev, null, "PROCEED", false, true);
             d.Add(OptionLabel(ev, proceed), _ => { _mapOpen = true; return null; });
-            return;
-        }
-        if (ev is MegaCrit.Sts2.Core.Models.Events.FakeMerchant fm && ev.CurrentOptions.Count == 0 && fm.Inventory != null)
-        {
-            Shop(d, me, fm.Inventory, "leave the merchant");
             return;
         }
         var opts = ev.CurrentOptions;

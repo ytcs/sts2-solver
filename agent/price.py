@@ -143,7 +143,7 @@ def shop_items(st, state_text, unpriced=None):
         m = re.match(r"^(\d+)g (card|relic|potion) (.+?)(?:\(|:)", label)
         if m:
             price, what, name = int(m.group(1)), m.group(2), m.group(3).strip()
-            cid, up = _card_id(name) if what == "card" else (_ident(name), 0)
+            cid, up = _card_id(name) if what == "card" else (("FAKE_" if name.endswith("???") else "") + _ident(name), 0)
             if what == "card" and cid:
                 out.append((name, what, price, lambda s, _d, c=cid, u=up, p=price: (s.deck.append({"id": c, "upgrade": u}), setattr(s, "gold", s.gold - p))))
             elif what == "relic" and cid in _ids("relics"):
