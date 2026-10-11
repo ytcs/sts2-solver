@@ -1,0 +1,17 @@
+# Baalorlord commentary, two A10 wins (transcripts only, Whisper small.en; no reconstruction)
+- ifhY1E7xTVM "One Billion Damage!" (2026-10-10): Ironclad A10 win; Lead Paperweight -> Finesse; Sword of Stone; Dark Embrace + exhaust engine (Evil Eye, Pact's End, Burning Pact, Mittens) -> infinite.
+- dbzcIBttOhg "Worst Deck Ever?!" (2026-10-09): Silent A10 win under a challenge: forced to take the lowest-ranked card offered, buy only the lowest-ranked shop card; relics, removals, transforms free.
+Timestamps `[h:mm:ss]` in the git-ignored transcripts (`transcripts/`).
+
+## Claims stated as reasoning (paraphrase, timestamp)
+1. Path is read first as elite count ("three elites in Underdocks ... there is a four-elite path", 0:00); early act 1 "just want to take more fights" (0:02).
+2. A fight's value is its rewards net of its cost to the deck. Forced bad cards make hallways negative: "more valuable is fighting less fights, because fights give me cards that are bad ... fight avoidance" (dbz 0:24); declines a third elite for the same reason (dbz 0:47). With skips allowed, the reward is >= 0 and the cost side decides.
+3. Elites become free once the deck crushes them: "Might as well fight a bunch of elites on the way. I really don't have a reason not to ... They're kind of free" (0:35). A relic that pays per elite (Sword of Stone: 5 elites) makes elite count an act objective: "priority this act: upgrade Dark Embrace; fight two elites" (0:17).
+4. Draft in two phases. Before the win condition: take high-ceiling engine pieces speculatively ("Evil Eye ... take it even though we don't have exhaust yet", 0:06; Dark Embrace "the ultimate payoff", 0:16) but prefer the card that works now when the payoff is far (Uppercut over Pact's End, 0:08). After it: "we can be very discriminatory now" (0:19), "I want less cards, not more" (0:31), "skip everything" (0:36); removals = "one less card ... one step closer to victory" (0:41).
+5. Upgrade what the next binding fight asks: "not upgrade Stone Armor ... more important that we do damage quickly" (boss, 0:14); upgrade the engine piece (Dark Embrace, Pact's End once it is the win condition, 0:17, 0:31).
+6. HP is priced against the next heal: "we only take 29, which is within resting parameters" (dbz 0:53); his self-diagnosed error was the reverse: smithing ("greedy, I feel strong") where he needed the rest before the act-2 boss (dbz 0:20-0:22).
+7. Potions buy tempo on the turn that decides an elite: "how important is it that we kill it on turn four? Is that worth a potion? yes and yes" (dbz 0:15); weak potion on the multi-attacker "for full value" (0:05). He reached the final boss without potions and called it scary (dbz 0:58).
+8. When cards cannot carry, relics do: "one of the ways we can win is just buying relics" (dbz 0:08); Membership Card, Centennial Puzzle, Rainbow Ring bought; HP-sustain relic over a damage relic for an act with few rests (Meal Ticket "will heal me twice this act", dbz 0:43).
+9. Removal target: Strikes before bad drafted cards ("I have much worse cards, namely Strikes", dbz 0:45).
+10. Act-3 bosses are a damage race: "all I have to do to beat the bosses is do enough damage quickly enough" (dbz 0:41); checks the deck against the known final bosses before act 3 ("this will beat act 3 bosses ... even Aeon Glass", 0:32).
+11. Shop gold: spend on the immediate power spike when rich (600 gold: Splash + Battle Trance), keep the rest for the next shop when short (0:04); "we don't have much money, so the shops aren't that valuable" -> path ignores shops (0:17).
