@@ -194,6 +194,9 @@ impl Default for SearchCfg {
     }
 }
 
+// the game's "infinite" HP (Waterfall Giant about to blow: SetMaxAndCurrentHp 999999999) is no HP to remove
+const INFINITE_HP: i32 = 1_000_000;
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct JobResult {
     pub scen: u32,
@@ -721,6 +724,9 @@ impl Block {
                 continue;
             }
             let hp = self.main.creatures[i].hp.max(0);
+            if hp >= INFINITE_HP {
+                continue;
+            }
             self.dealt += (self.foe_hp[i] - hp).max(0) as i64;
             self.foe0 += (hp - self.foe_hp[i]).max(0) as i64;
             self.foe_hp[i] = hp;
