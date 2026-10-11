@@ -220,15 +220,17 @@ class RunState:
 class BasePolicy:
     gates = False
 
-    def node(self, st, options):
+    def node(self, st, options, elite_p=None):
+        """elites only when the predicted P(win) against this act's elite pool at the current HP clears SAFE_WIN (the bar live routes uses)"""
         f = st.hp / st.max_hp
+        elite_ok = elite_p is not None and elite_p >= SAFE_WIN
         if f < 0.45:
             rank = {"R": 0, "?": 1, "T": 1, "$": 2, "M": 3, "E": 9}
-        elif f > 0.75:
+        elif elite_ok:
             rank = {"E": 0, "T": 1, "?": 2, "M": 3, "$": 4, "R": 5}
         else:
-            rank = {"T": 0, "?": 1, "M": 2, "R": 3, "$": 4, "E": 6}
-        fights = {"M", "E"} if f > 0.75 else {"M"} if f >= 0.45 else set()
+            rank = {"T": 0, "?": 1, "M": 2, "R": 3, "$": 4, "E": 9}
+        fights = ({"M", "E"} if elite_ok else {"M"}) if f >= 0.45 else set()
         row = min(k[0] for k, _ in options) if all(isinstance(k, tuple) for k, _ in options) else 0
         due = sum(t in "ME" for t in TEMPLATE.get(st.act, TEMPLATE[1]).split()[:row])
         behind = st.monsters + len(st.seen.get("elite", [])) < due
@@ -477,7 +479,14 @@ def play(st, rng, pol, first=None, stop_at_next=False):
             st.bosses = st.bosses or lib_bosses
         if st.nodes is not None and st.frontier is not None:
             while st.frontier:
-                key = pol.node(st, [(k, st.nodes[k]["type"]) for k in st.frontier])
+                opts = [(k, st.nodes[k]["type"]) for k in st.frontier]
+                elite_p = None
+                if any(t == "E" for _, t in opts):
+                    import predictor as PRD
+                    from agent import pools
+                    P = yield [st.scenario(e, potions=pol.potions(st, "elite")) for e in pools.pool(st.act_name, "elite")]
+                    elite_p = float(PRD.p_win(P).mean())
+                key = pol.node(st, opts, elite_p)
                 if not (yield from room(st.nodes[key]["type"])):
                     return 0
                 st.frontier = [k for k in st.nodes[key]["children"] if k in st.nodes]
