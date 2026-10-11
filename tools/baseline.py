@@ -368,6 +368,9 @@ class Macro:
 # map forks / rests: routes' P(win the act boss) decides when it beats price's choice by this much (fork check: price undervalued act-2
 # rests at 5 of 6 disagreeing forks); 0 disables
 ROUTE_OVERRIDE = float(os.environ.get("ROUTE_OVERRIDE", "0.05"))
+PR.TAKE_SE = float(os.environ.get("TAKE_SE", PR.TAKE_SE))
+PR.DEADLINE_RADIUS = int(os.environ.get("DEADLINE_RADIUS", PR.DEADLINE_RADIUS))
+PR.R.SAFE_WIN = float(os.environ.get("SAFE_WIN", PR.R.SAFE_WIN))
 
 
 class PriceMacro(Macro):
@@ -392,7 +395,8 @@ class PriceMacro(Macro):
         self.h.stats["price_s"] += dt
         self.h.log.event("price", screen=scr.kind(s), options=[o[0] for o in opts], ranked_by=ranked, best=best, seconds=round(dt, 2), n=self.n,
                          result={k: {m: float(v.mean()) for m, v in r.items()} for k, r in res.items()},
-                         search={k: [round(v[0], 3), round(v[1], 3), {str(a): round(x, 3) for a, x in v[2].items()}] for k, v in check.items()}, override=override, terms=adj)
+                         search={k: [round(v[0], 3), round(v[1], 3), {str(a): round(x, 3) for a, x in v[2].items()}, {str(a): round(x, 3) for a, x in v[4].items()}] for k, v in check.items()}, override=override, terms=adj, radius=r["radius"],
+                         bosses=list(st.bosses or []), map=self._map_text() if scr.kind(s) == "CARD_REWARD" else None)
         return best
 
     def decide(self, s, opts):
@@ -421,6 +425,7 @@ class PriceMacro(Macro):
         key = (int(m.group(1)), int(m.group(2))) if m else None
         if ROUTE_OVERRIDE > 0:
             vals = {k: next(iter(v.values())) for k, v in self.route_values(s).items()}
+            self.h.log.event("routes", screen="MAP", price=best, routes={f"r{a}c{b}": round(x, 3) for (a, b), x in vals.items()})
             if vals:
                 rbest = max(vals, key=vals.get)
                 if rbest != key and vals[rbest] - vals.get(key, 0.0) > ROUTE_OVERRIDE:
@@ -429,6 +434,12 @@ class PriceMacro(Macro):
                     key = rbest
         hit = next((i for i, t in lab if key and re.search(rf"\br{key[0]}c{key[1]}\b", t)), None)
         return str(hit) if hit is not None else super().map(s, lab)
+
+    def _map_text(self):
+        try:
+            return self.h._context().map_text
+        except Exception:  # noqa: BLE001
+            return None
 
     def route_values(self, s, hps=None):
         """routes.option_values on this screen (P(win the act boss) per offered node); {} on any failure"""
@@ -468,6 +479,7 @@ class PriceMacro(Macro):
         if ROUTE_OVERRIDE > 0 and best != "rest" and hm and hp:
             after = min(hp[1], hp[0] + int(hm.group(1)) + (15 if "REGAL_PILLOW" in str(st.relics) else 0))
             vals = self.route_values(s, hps=[after])
+            self.h.log.event("routes", screen="RESTSITE", price=best, hp=hp[0], after=after, routes={f"r{k[0]}c{k[1]}": {h: round(x, 3) for h, x in v.items()} for k, v in vals.items()})
             if vals:
                 p_now, p_rest = max(v[hp[0]] for v in vals.values()), max(v[after] for v in vals.values())
                 if p_rest - p_now > ROUTE_OVERRIDE:

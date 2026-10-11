@@ -417,14 +417,11 @@ def event_adjust(st, state_text):
     return out
 
 
-SMOOTH = (1.0, 1.5, 2.0, 3.0)
-FAR_ATTEMPTS = 48
-# the act boss's floor (A10 Ironclad maps): the deadline rule takes a merely-positive card only this close to an unsafe boss
-BOSS_FLOOR, DEADLINE_FLOORS = {0: 17, 1: 33, 2: 48}, 4
-P_FLOOR = 0.05
-
-
 RUNGS = (3, 6, 10, 99)
+# take/skip margins: a card beats skip by TAKE_SE paired se, or merely helps when a fight the skip deck is unsafe in (P < R.SAFE_WIN) lies
+# within DEADLINE_RADIUS floors
+TAKE_SE, DEADLINE_RADIUS = 2.0, 3
+P_FLOOR = 0.05
 
 
 def _reachable(st, radius):
@@ -480,69 +477,68 @@ def binding_fights(st, engine, k=2, attempts=32):
 
 # mandatory future fights only: elites are optional (a weak deck routes around them), so they are no factor of P(win run)
 FAR_RUNGS = ((1, "boss"), (2, "boss"))
-INFORMATIVE = (0.1, 0.9)
+INFORMATIVE = 0.1
+# a future fight is met by a stronger deck that lasts longer than today's: it is played at the smallest HP multiple where the skip deck
+# has signal (P >= INFORMATIVE), the operating point where a card's effect is measurable
+MULTS = (1.0, 1.5, 2.0, 3.0)
 
 
-FLOOR_HP = 2.0
+def _at_hp(x, h):
+    return dict(x, hp=int(h), max_hp=max(x["max_hp"], int(h)))
 
 
-def far_rungs(st, engine, attempts=32):
-    """future factors of P(win run) (user: rungs of future difficulty, retired once their act is reached; Bellman: only mandatory fights
-    multiply, so the act-2 and act-3 bosses, not the optional elites): the skip deck probes each at full HP; a rung it floors on (P < 0.1,
-    e.g. act-3 bosses for an act-2 deck) plays at FLOOR_HP x max HP so boss cards keep their signal (Demon Form: -0.34 vs act-3 elites,
-    +0.069 smooth vs the act-3 bosses). -> [(key, encounters, HP multiple or None)]"""
+def operating_mults(st, engine, sets, attempts=24):
+    """{factor key: HP multiple} for the full-HP factors (future boss rungs, known bosses without a map)"""
     import numpy as np
-    from agent import pools
-    rungs = [(a, k) for a, k in FAR_RUNGS if a > st.act]
-    if not rungs:
-        return []
-    encs = {(a, k): [e for n in pools.act_names(a) for e in pools.pool(n, k)] for a, k in rungs}
-    flat = [(r, e) for r in rungs for e in encs[r]]
-    rows = engine.solve([st.scenario(e, hp=st.max_hp) for _, e in flat], attempts=attempts)
-    p = {r: float(np.mean([x["win"] for (rr, _), x in zip(flat, rows) if rr == r])) for r in rungs}
-    return [(f"A{r[0] + 1} {r[1]}", encs[r], None if p[r] >= INFORMATIVE[0] else FLOOR_HP) for r in rungs]
+    flat = [(key, e, m) for key, encs, hp in sets if hp == "full" for e in encs for m in MULTS]
+    if not flat:
+        return {}
+    rows = engine.solve([_at_hp(st.scenario(e), st.max_hp * m) for _k, e, m in flat], attempts=attempts)
+    p = {}
+    for (key, _e, m), r in zip(flat, rows):
+        p.setdefault(key, {}).setdefault(m, []).append(r["win"])
+    return {key: next((m for m in MULTS if np.mean(d[m]) >= INFORMATIVE), MULTS[-1]) for key, d in p.items()}
 
 
 def _horizon_sets(st, engine=None):
-    """[(key, encounters, smooth, hp)]: the near term (binding fights of the radius ladder at current HP; the act's known bosses, smooth at
-    full HP, when no map is held) and the far term (far_rung: the informative rung of future difficulty, raw at full HP)"""
+    """[(factor key, encounters, hp)]: one factor per near binding fight (radius ladder, current HP; the act's known bosses at full HP when
+    no map is held) and one per future boss rung still ahead (user: rungs of future difficulty retired as the acts pass; full HP)"""
     from agent import pools
     out = []
     near, radius, _p = binding_fights(st, engine) if engine is not None else ([], None, {})
-    if near:
-        out.append(("near", near, False, "current"))
-    elif not (st.nodes and st.frontier) and st.bosses:
-        out.append((st.act, list(st.bosses), True, "full"))
-    for key, encs, mult in (far_rungs(st, engine) if engine is not None else []):
-        out.append((key, encs, ("mult", mult) if mult else False, "full"))
+    for e in near:
+        out.append((f"near {e}", [e], "current"))
+    if not near and not (st.nodes and st.frontier):
+        for e in st.bosses or []:
+            out.append((f"boss {e}", [e], "full"))
+    for a, k in FAR_RUNGS:
+        if a > st.act:
+            out.append((f"A{a + 1} {k}", [e for n in pools.act_names(a) for e in pools.pool(n, k)], "full"))
     return out, radius
 
 
-def search_check(st, opts, res, engine, top=3, attempts=128, smooth_attempts=48, variants=4):
-    """stage-A estimator on the run model's top options + skip / nothing + the best removal: search wins vs the factors of P(win run) still ahead
-    (current act's bosses; the act-3 boss pool from acts 1-2, smooth over HP multiples), combined as sum_i dP_i / P_i against the
-    reference option (skip / nothing), paired per attempt (common seeds). Belt the option leaves included.
-    -> {label: (score vs reference, paired se, {act: P}, per-attempt scores for paired comparisons)}"""
+def search_check(st, opts, res, engine, top=3, attempts=128, far_attempts=48, variants=4):
+    """stage-A estimator on the run model's top options + skip / nothing + the best removal. Each factor of P(win run) still ahead (near binding
+    fights at current HP, future boss rungs at their operating HP multiple) is played by every option with common seeds and the belt it leaves;
+    a factor the reference deck still floors on (P < INFORMATIVE) is measured by progress (share of the enemies' HP pool removed) instead of
+    wins, so it keeps a gradient. Score = exact
+    log ratio vs the reference summed over factors (Bellman: V is their product), se = paired first-order.
+    -> ({label: (score, se, {factor: measure}, per-attempt scores, {factor: P(win)})}, binding radius)"""
     import random
     import numpy as np
     if engine is None:
-        return {}
+        return {}, None
     sets, radius = _horizon_sets(st, engine)
     if not sets:
-        return {}
+        return {}, radius
     main, _ = ladder(res)
     ranked = sorted(res, key=lambda lb: -float(res[lb][main].mean()))
     ref = next((lb for lb in ("skip", "nothing") if lb in res), ranked[0])
     others = [lb for lb in ranked if lb != ref]
     pick = list(dict.fromkeys([ref] + others[:top] + [lb for lb in others if "remove" in lb.lower()][:1]))
     first = dict(opts)
-    # slots: (act, encounter, HP multiple or None); every option plays every slot with the same group (common random numbers)
-    slots = []
-    for act, encs, smooth, hp in sets:
-        for e in encs:
-            ms = (smooth[1],) if isinstance(smooth, tuple) else SMOOTH if smooth else (None,)
-            for m in ms:
-                slots.append((act, e, m, hp, smooth))
+    mult = operating_mults(st, engine, sets)
+    slots = [(key, e, hp) for key, encs, hp in sets for e in encs]
     scen, owner, att, grp = [], [], [], []
     for lb in pick:
         seen = set()
@@ -550,13 +546,7 @@ def search_check(st, opts, res, engine, top=3, attempts=128, smooth_attempts=48,
             s2 = st.copy()
             if first.get(lb) is not None:
                 first[lb](s2, R.Draws(random.Random(k), st.base["character"], st.act))
-            sc = []
-            for act, e, m, hp, _sm in slots:
-                x = s2.scenario(e, hp=s2.max_hp if hp == "full" else s2.hp)
-                if m is not None:
-                    h = int(round(s2.max_hp * m))
-                    x = dict(x, hp=h, max_hp=max(s2.max_hp, h))
-                sc.append(x)
+            sc = [_at_hp(s2.scenario(e), s2.max_hp * mult[key]) if hp == "full" else s2.scenario(e, hp=s2.hp) for key, e, hp in slots]
             sig = json.dumps(sc, sort_keys=True)
             if sig in seen:
                 continue
@@ -564,36 +554,35 @@ def search_check(st, opts, res, engine, top=3, attempts=128, smooth_attempts=48,
             for si, x in enumerate(sc):
                 scen.append(x)
                 owner.append((lb, si))
-                att.append(attempts if slots[si][2] is None and slots[si][0] != "far" else FAR_ATTEMPTS if isinstance(slots[si][0], str) and slots[si][0].startswith("A") else smooth_attempts)
+                att.append(attempts if slots[si][0].startswith("near") else far_attempts)
                 grp.append(si)
     rows = engine.solve(scen, attempts=att, groups=grp)
-    # wins[label][slot] = per-attempt wins averaged over the option's concrete variants
-    wins = {}
+    wins, prog = {}, {}
     for (lb, si), r in zip(owner, rows):
-        w = np.array([np.nan if x is None else x for x in r["wins"]], float)
-        wins.setdefault(lb, {}).setdefault(si, []).append(w)
+        wins.setdefault(lb, {}).setdefault(si, []).append(np.array([np.nan if x is None else x for x in r["wins"]], float))
+        prog.setdefault(lb, {}).setdefault(si, []).append(np.array([np.nan if x is None else x for x in (r.get("progress") or r["wins"])], float))
     W = {lb: {si: np.nanmean(np.stack(v), 0) for si, v in d.items()} for lb, d in wins.items()}
-    acts = sorted({sl[0] for sl in slots}, key=str)
-    per_act = {lb: {a: float(np.nanmean(np.concatenate([W[lb][si] for si, sl in enumerate(slots) if sl[0] == a]))) for a in acts} for lb in W}
+    G = {lb: {si: np.nanmean(np.stack(v), 0) for si, v in d.items()} for lb, d in prog.items()}
+    keys = list(dict.fromkeys(sl[0] for sl in slots))
+    sis_of = {a: [si for si, sl in enumerate(slots) if sl[0] == a] for a in keys}
+    pwin = {lb: {a: float(np.nanmean(np.concatenate([W[lb][si] for si in sis_of[a]]))) for a in keys} for lb in W}
+    M = {a: (W if pwin[ref][a] >= INFORMATIVE else G) for a in keys}
+    meas = {lb: {a: float(np.nanmean(np.concatenate([M[a][lb][si] for si in sis_of[a]]))) for a in keys} for lb in W}
     out = {}
     for lb in pick:
         if lb not in W:
             continue
         contrib = []
-        for a in acts:
-            sis = [si for si, sl in enumerate(slots) if sl[0] == a]
-            n = min(len(W[lb][si]) for si in sis)
-            # per attempt index: the act's mean paired difference, scaled by 1 / P_ref
-            d = np.nanmean(np.stack([W[lb][si][:n] - W[ref][si][:n] for si in sis]), 0)
-            contrib.append(d / max(per_act[ref][a], P_FLOOR))
+        for a in keys:
+            n = min(len(M[a][lb][si]) for si in sis_of[a])
+            d = np.nanmean(np.stack([M[a][lb][si][:n] - M[a][ref][si][:n] for si in sis_of[a]]), 0)
+            contrib.append(d / max(meas[ref][a], P_FLOOR))
         n = min(len(c) for c in contrib)
         tot = np.sum(np.stack([c[:n] for c in contrib]), 0)
         se = float(np.nanstd(tot, ddof=1) / np.sqrt(max(1, np.sum(~np.isnan(tot))))) if lb != ref else 0.0
-        # Bellman: V = product of the factors; the score is the exact log ratio vs the reference (a near-term drop that threatens the run
-        # costs its full log), the se the paired first-order one
-        point = sum(np.log(max(per_act[lb][a], P_FLOOR) / max(per_act[ref][a], P_FLOOR)) for a in acts)
-        out[lb] = (float(point) if lb != ref else 0.0, se, per_act[lb], tot if lb != ref else np.zeros_like(tot))
-    return out
+        point = sum(np.log(max(meas[lb][a], P_FLOOR) / max(meas[ref][a], P_FLOOR)) for a in keys)
+        out[lb] = (float(point) if lb != ref else 0.0, se, meas[lb], tot if lb != ref else np.zeros_like(tot), pwin[lb])
+    return out, radius
 
 
 def hybrid_best(res, check, adj=None):
@@ -689,27 +678,26 @@ def screen_seed(tag, state_text):
 def decide(st, state_text, pred, engine, opts, n=128, seed=0, cont=None, hybrid=True, sat=ACT_SATURATED):
     """the one pricing decision shared by the live `price` command and the scripted baseline: run-model rollouts, macro-term adjustments
     (event terms; card-reward margin vs skip), search check of the top options + skip + best removal (CARD_REWARD / SHOP / EVENT), hybrid
-    override. -> dict(res, adj, check, best, ranked_by, override, terms_skip)"""
+    override. -> dict(res, adj, check, best, ranked_by, override, terms_skip, radius)"""
     kind = scr.kind(state_text)
     res = price(st, opts, pred, n=n, seed=seed, cont=cont)
     adj = event_adjust(st, state_text)
-    check = search_check(st, opts, res, engine) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else {}
+    check, radius = search_check(st, opts, res, engine) if hybrid and engine is not None and kind in ("CARD_REWARD", "SHOP", "EVENT") else ({}, None)
     best_, ranked, override = hybrid_best(res, check, adj)
     terms_skip = False
-    if kind == "CARD_REWARD" and best_ != "skip" and "skip" in res:
-        if best_ in check and "skip" in check:
-            # deadline rule on the search horizon score: a card is taken when it beats skip by 2 paired se, or close to an act boss the skip
-            # deck is not safe against (P < SAFE) when it helps at all; otherwise waiting keeps the slot for a better-informed pick
-            score, se = check[best_][0], check[best_][1]
-            safe = check["skip"][2].get(st.act, 1.0) >= R.SAFE_WIN
-            m = HEADER.search(state_text)
-            near = m is not None and BOSS_FLOOR.get(st.act, 99) - int(m.group(2)) <= DEADLINE_FLOORS
-            if not (score > 2 * se or (not safe and near and score > 0)):
-                best_, terms_skip = "skip", True
-        elif override is None:
-            main, _ = ladder(res, sat)
-            d = res[best_][main] - res["skip"][main]
-            cid = _card_id(best_)[0]
-            if cid and R.pick_with_terms("card_reward", st, [0.0, float(d.mean())], [(None, None), ("card", cid)], se=_se(d)) == 0:
-                best_, terms_skip = "skip", True
-    return dict(res=res, adj=adj, check=check, best=best_, ranked_by=ranked, override=override, terms_skip=terms_skip)
+    if kind == "CARD_REWARD" and "skip" in check:
+        # deadline rule (user: a later floor knows more): search's best card is taken when it beats skip by TAKE_SE paired se, or when a
+        # fight the skip deck is unsafe in lies within DEADLINE_RADIUS floors and the card helps at all
+        cand = max((lb for lb in check if lb != "skip"), key=lambda lb: check[lb][0], default=None)
+        urgent = radius is not None and radius <= DEADLINE_RADIUS
+        if cand is not None and (check[cand][0] > TAKE_SE * check[cand][1] or (urgent and check[cand][0] > 0)):
+            best_, ranked, override = cand, "search", (round(check[cand][0], 3), round(check[cand][1], 3))
+        else:
+            best_, terms_skip = "skip", True
+    elif kind == "CARD_REWARD" and best_ != "skip" and "skip" in res and override is None:
+        main, _ = ladder(res, sat)
+        d = res[best_][main] - res["skip"][main]
+        cid = _card_id(best_)[0]
+        if cid and R.pick_with_terms("card_reward", st, [0.0, float(d.mean())], [(None, None), ("card", cid)], se=_se(d)) == 0:
+            best_, terms_skip = "skip", True
+    return dict(res=res, adj=adj, check=check, best=best_, ranked_by=ranked, override=override, terms_skip=terms_skip, radius=radius)

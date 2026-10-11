@@ -203,6 +203,7 @@ pub struct JobResult {
     pub done: bool,
     pub hp_end_abs: i32,
     pub pot_kept: u8,
+    pub dealt: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -315,6 +316,9 @@ struct Block {
     scen: u32,
     rng: u64,
     pot_start: [u16; POT],
+    foe_hp: [i32; sts2sim::state::MAX_CREATURES],
+    dealt: i64,
+    foe0: i64,
     opts: [i32; MAX_M],
     ok: [bool; MAX_M],
     probs: [f32; MAX_M],
@@ -623,6 +627,9 @@ impl Block {
             scen: 0,
             rng: 0,
             pot_start: [u16::MAX; POT],
+            foe_hp: [0; sts2sim::state::MAX_CREATURES],
+            dealt: 0,
+            foe0: 0,
             opts: [0; MAX_M],
             ok: [false; MAX_M],
             probs: [0.0; MAX_M],
@@ -663,6 +670,14 @@ impl Block {
         let me = self.main.cr(0);
         self.hp0 = me.hp as f32 / me.max_hp.max(1) as f32;
         self.pot_start = pot_ids(&self.main);
+        self.dealt = 0;
+        self.foe0 = 0;
+        for i in 0..self.foe_hp.len() {
+            let foe = !self.main.allies.iter().any(|&a| a as usize == i);
+            let m = &self.main.creatures[i];
+            self.foe_hp[i] = if foe { m.hp.max(0) } else { 0 };
+            self.foe0 += self.foe_hp[i] as i64;
+        }
         self.rng = seed ^ 0xA5A5_5A5A_1234_8765;
         true
     }
@@ -673,7 +688,8 @@ impl Block {
         let hp_end_abs = if outcome == OUTCOME_WIN { me.hp } else { 0 };
         let now = pot_ids(&self.main);
         let pot_kept = (0..POT).filter(|&k| self.pot_start[k] != u16::MAX && now[k] == self.pot_start[k]).fold(0u8, |b, k| b | 1 << k);
-        let r = JobResult { scen: self.scen, outcome, hp_lost: self.hp0 - end_frac, hp_end: end_frac, len: self.steps, done: true, hp_end_abs, pot_kept };
+        let dealt = self.dealt as f32 / self.foe0.max(1) as f32;
+        let r = JobResult { scen: self.scen, outcome, hp_lost: self.hp0 - end_frac, hp_end: end_frac, len: self.steps, done: true, hp_end_abs, pot_kept, dealt };
         // SAFETY: every job index is taken by exactly one block (atomic counter), so this entry is written once and by this task only.
         unsafe { *sh.results.0.add(self.job as usize) = r };
         if sh.record {
@@ -699,6 +715,15 @@ impl Block {
         let t0 = tsc();
         let ok = self.main.step(act);
         self.stats.cy_main += tsc() - t0;
+        for i in 0..self.foe_hp.len() {
+            if self.main.allies.iter().any(|&a| a as usize == i) {
+                continue;
+            }
+            let hp = self.main.creatures[i].hp.max(0);
+            self.dealt += (self.foe_hp[i] - hp).max(0) as i64;
+            self.foe0 += (hp - self.foe_hp[i]).max(0) as i64;
+            self.foe_hp[i] = hp;
+        }
         self.steps += 1;
         let mut end = terminal(&self.main, self.steps, sh.cfg.max_steps, &sh.cfg).map(|t| t.0);
         if !ok {

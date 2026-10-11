@@ -471,9 +471,9 @@ class FastSearch:
                     continue
                 self._evaluate(G, G["n_pol"], G["n_val"])
         self._runs = [(G["idx"], G["eng"]) for G in groups]
-        out = np.zeros((nj, 8), np.float32)
+        out = np.zeros((nj, 9), np.float32)
         for G in groups:
-            r = np.zeros((len(G["idx"]), 8), np.float32)
+            r = np.zeros((len(G["idx"]), 9), np.float32)
             G["eng"].results(r)
             out[G["idx"]] = r
         tot = collections.Counter()

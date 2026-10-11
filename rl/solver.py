@@ -57,7 +57,7 @@ class Solver:
             g = np.asarray(groups if groups is not None else np.arange(S), dtype=np.uint64)[js]
             jd = np.uint64(seed) * np.uint64(1_000_003) + g * A[js].astype(np.uint64) + att
             r = self.fs.run(scenarios, js, jd, worth=worth)
-            allrows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6]) for i in range(len(js))]
+            allrows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6], r[i, 8]) for i in range(len(js))]
             per = [[allrows[j] for j in np.flatnonzero(js == i)] for i in range(S)]
         elif search:
             js = np.tile(np.arange(S, dtype=np.uint32), attempts)
@@ -68,7 +68,7 @@ class Solver:
                 att = (np.arange(len(js)) // S).astype(np.uint64)
                 jd = np.uint64(seed) * np.uint64(1_000_003) + g * np.uint64(attempts) + att
             r = self.fs.run(scenarios, js, jd, worth=worth)
-            rows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6]) for i in range(len(js))]
+            rows = [(r[i, 1], r[i, 2], r[i, 4], r[i, 3], r[i, 6], r[i, 8]) for i in range(len(js))]
         else:
             rows = self._greedy(scenarios, attempts, seed)
         if verbose:
@@ -86,7 +86,8 @@ class Solver:
                             hp_left_on_win=float(r[win, 3].mean() * scenarios[i]["max_hp"]) if win.any() else 0.0, attempts=n, aborted=int((~valid).sum()),
                             ends=np.where(win, r[:, 3] * scenarios[i]["max_hp"], 0.0)[valid].tolist(),
                             ends_abs=[float(x) if ok else None for x, ok in zip(r[:, 4], valid)] if r.shape[1] > 4 else None,
-                            wins=[float(w) if ok else None for w, ok in zip(win, valid)]))
+                            wins=[float(w) if ok else None for w, ok in zip(win, valid)],
+                            progress=[float(x) if ok else None for x, ok in zip(r[:, 5], valid)] if r.shape[1] > 5 else None))
         return res
 
 

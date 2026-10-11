@@ -239,11 +239,11 @@ impl SearchEnginePy {
         let w = out.as_array().ncols();
         let o = out.as_slice_mut().map_err(|e| PyValueError::new_err(e.to_string()))?;
         let r = self.eng.results();
-        if !(6..=8).contains(&w) || o.len() < r.len() * w {
-            return Err(PyValueError::new_err("buffer must be [n_jobs, 6..8]"));
+        if !(6..=9).contains(&w) || o.len() < r.len() * w {
+            return Err(PyValueError::new_err("buffer must be [n_jobs, 6..9]"));
         }
         for (k, j) in r.iter().enumerate() {
-            let row = [j.scen as f32, j.outcome as f32, j.hp_lost, j.hp_end, j.len as f32, j.done as u8 as f32, j.hp_end_abs as f32, j.pot_kept as f32];
+            let row = [j.scen as f32, j.outcome as f32, j.hp_lost, j.hp_end, j.len as f32, j.done as u8 as f32, j.hp_end_abs as f32, j.pot_kept as f32, j.dealt];
             o[k * w..k * w + w].copy_from_slice(&row[..w]);
         }
         Ok(())
