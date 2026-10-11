@@ -51,7 +51,7 @@ def main():
         miss = sg.missing_core(session)
         if miss:
             print("REFUSED: no game action before the governing skills are loaded. Missing in this session: " + ", ".join(miss) +
-                  ". Invoke them with the Skill tool (`sts2` first), read them, then repeat. Read-only commands (s, brief, eval, reward, route, adv, m, d, p, status) are allowed meanwhile.",
+                  ". Invoke them with the Skill tool (`sts2` first), read them, then repeat. Read-only commands (s, brief, price, eval, routes, restcalc, adv, m, d, p, status) are allowed meanwhile.",
                   file=sys.stderr)
             return 2
     return 0

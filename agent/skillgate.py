@@ -7,8 +7,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 STATE = os.path.join(ROOT, "target", "skill_state")
 SKILLS = os.path.join(ROOT, ".claude", "skills")
 CORE = ("sts2", "sts2-harness", "sts2-strategy")
-READ_ONLY = {"price", "plans", "s", "peek", "status", "brief", "m", "d", "p", "eval", "reward", "route", "routes", "rmcalc", "pickplan", "potions", "adv", "relics", "note", "budget", "quit", "mods", "snap", "fight", "deck.json", "newrun", ""}
-BRIDGE_READ_ONLY = {"s", "peek", "d", "p", "m", "fight", "snap", "deck.json", "mods", "f"}
+READ_ONLY = {"price", "s", "peek", "status", "brief", "m", "d", "p", "eval", "routes", "restcalc", "potions", "adv", "relics", "note", "budget", "quit", "mods", "snap", "fight", "deck.json", "newrun", "f", "t", ""}
+BRIDGE_READ_ONLY = {"s", "peek", "d", "p", "m", "fight", "snap", "deck.json", "mods", "f", "t"}
 DECK_SCREENS = {"CARD_REWARD", "REWARDS", "CHOOSE_CARD", "CHOOSE_RELIC", "CHOOSE_BUNDLE", "SHOP", "RESTSITE", "TREASURE"}
 COMBAT_LINE = re.compile(r"^T\d+ E\d+/\d+", re.M)
 
