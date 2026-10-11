@@ -66,6 +66,8 @@ Baalorlord, two A10 wins (2026-10-09/10, transcripts only; `data/expert/baalorlo
 - Imitation of 77M human StS card picks: 53.5% pick accuracy; a bigger model played worse in-game (dev.to series, unverified details). https://dev.to/doronsinger/part-3-good-models-finish-last-2n6a
 - No published agent reports A20 / A10 win rates near ours; a 90% A10 bot would exceed every published result. The binding gap in the one learned-macro result was pathing.
 
+- Shawn Xu, "Solving STS2 Ascension 0" (2026-10-07, https://shawnxu0913.github.io/2026/10/07/solving-sts2-ascension-0.html): Ironclad A0 ~87% (4,251 / 4,960 fresh seeds), with save scumming (deterministic sim that knows draws), so the combat result does not transfer. Transferable: card picks from a RankNet ranker trained on forks of the run played to the end per option (22 -> 34%); events by forked causal effect, single step only (36 -> 53%); relics over cards in shops (42 -> 47%); potion / racing fallbacks the largest jump (57 -> 74%); gains came from what is optimized, not search depth; half the residual losses at the final boss, +10 HP arrival flips a third; arms of 1,000 paired seeds with McNemar.
+
 ## 7. Lever ranking (round 2)
 1. Deck composition at the pair: shedding bad cards (starters, early act-1 picks, curses), not a size cap (across runs deck size vs final strength Spearman +0.04; the size rules of E70 new_v1 and E75 starved act 1). Ceiling +0.14 to +0.76 (section 4).
 2. Resources arriving at the pair: potions held +0.13 to +0.27, arrival HP -0.24 per 14 HP (E83); act-3 attrition outruns rests.
