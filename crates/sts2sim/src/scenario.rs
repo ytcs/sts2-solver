@@ -205,6 +205,8 @@ impl Combat {
             step_turns,
             player_hooks_active,
             escaped,
+            ran_out_of_time,
+            cards_escaped,
             extra_turn,
             dmg_card,
             dmg_result,
@@ -273,6 +275,8 @@ impl Combat {
         *step_turns = 0;
         *player_hooks_active = true;
         *escaped = 0;
+        *ran_out_of_time = false;
+        *cards_escaped = 0;
         *extra_turn = false;
         *dmg_card = NO;
         *dmg_result = Default::default();
@@ -470,6 +474,8 @@ impl Combat {
             step_turns: 0,
             player_hooks_active: true,
             escaped: 0,
+            ran_out_of_time: false,
+            cards_escaped: 0,
             extra_turn: false,
             dmg_card: NO,
             dmg_result: Default::default(),

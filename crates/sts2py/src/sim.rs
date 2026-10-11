@@ -152,6 +152,10 @@ impl Sim {
         }
     }
 
+    fn cards_escaped(&self) -> u8 {
+        self.cx.cards_escaped
+    }
+
     fn outcome(&self) -> i32 {
         match self.cx.outcome {
             Outcome::Victory => 1,

@@ -262,7 +262,7 @@ fn step_one(
         let c = &slot.cx;
         let me = c.cr(0);
         match c.outcome {
-            Outcome::Victory => end = Some((OUTCOME_WIN, cfg.win + cfg.hp_bonus * me.hp as f32 / me.max_hp.max(1) as f32)),
+            Outcome::Victory if !c.ran_out_of_time => end = Some((OUTCOME_WIN, cfg.win + cfg.hp_bonus * me.hp as f32 / me.max_hp.max(1) as f32)),
             _ => end = Some((OUTCOME_LOSS, cfg.loss)),
         }
     } else if cfg.turn_cap > 0 && slot.cx.player.turn_number > cfg.turn_cap as i32 {

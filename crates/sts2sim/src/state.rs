@@ -530,6 +530,8 @@ pub struct Combat {
 
     pub player_hooks_active: bool,
     pub escaped: u8,
+    pub ran_out_of_time: bool,
+    pub cards_escaped: u8,
     pub extra_turn: bool,
     pub dmg_card: CardIdx,
     pub dmg_result: crate::engine::DamageResult,
@@ -658,6 +660,8 @@ impl Clone for Combat {
             step_turns,
             player_hooks_active,
             escaped,
+            ran_out_of_time,
+            cards_escaped,
             extra_turn,
             dmg_card,
             dmg_result,
@@ -742,6 +746,8 @@ impl Clone for Combat {
         *step_turns = src.step_turns;
         *player_hooks_active = src.player_hooks_active;
         *escaped = src.escaped;
+        *ran_out_of_time = src.ran_out_of_time;
+        *cards_escaped = src.cards_escaped;
         *extra_turn = src.extra_turn;
         *dmg_card = src.dmg_card;
         *dmg_result = src.dmg_result;

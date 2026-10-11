@@ -47,6 +47,29 @@ def _card_id(name):
     return macro.card_from_name(name)
 
 
+def _stated(o, label):
+    """the page's own numbers over the catalog's: an escalating HP cost ("Lose 13 HP") and a named removal ("Defend is removed")"""
+    import copy
+    hp = re.search(r"Lose (\d+) HP", label)
+    rm = re.search(r":\s*(.+?) is removed from your Deck", label)
+    if not hp and not rm:
+        return o
+    o = copy.deepcopy(o)
+    eff = o["effects"]
+    if hp:
+        i = next((i for i, e in enumerate(eff) if "hp" in e), None)
+        if i is None:
+            eff.insert(0, {"hp": -int(hp.group(1))})
+        else:
+            eff[i] = {"hp": -int(hp.group(1))}
+    cid = (_card_id(rm.group(1))[0] or _ident(rm.group(1).rstrip("+"))) if rm else None
+    if cid:
+        i = next((i for i, e in enumerate(eff) if "card_remove" in e), None)
+        if i is not None:
+            eff[i] = {"card_remove": {"n": 1, "match": cid}}
+    return o
+
+
 def options(st, state_text):
     kind = scr.kind(state_text)
     out = []
@@ -81,6 +104,7 @@ def options(st, state_text):
             labels = [label for _, label in scr.options(state_text)]
             for label, o in zip(labels, EV.match_page(title, labels)):
                 if o is not None and not o["key"].endswith("_LOCKED"):
+                    o = _stated(o, label)
                     out.append((label.split(":", 1)[0][:34], lambda s, d, o=o, eid=entry["id"]: EV.play_option(s, eid, o, d)))
     elif kind == "SHOP":
         out.append(("nothing", None))

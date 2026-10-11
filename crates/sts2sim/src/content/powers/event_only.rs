@@ -12,6 +12,7 @@ listener!(BattlewornDummyTimeLimitPower {
             cx.decrement_power(me.owner, me.idx);
             return;
         }
+        cx.ran_out_of_time = true;
         cx.escape(me.owner);
     }
 });

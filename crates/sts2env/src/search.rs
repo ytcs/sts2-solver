@@ -72,7 +72,8 @@ fn spent_cost(cx: &Combat, root: &Root, cfg: &SearchCfg) -> f32 {
         c += cfg.pot_cost * (0..POT).filter(|&k| root.pots[k] != u16::MAX && now[k] != root.pots[k]).count() as f32;
     }
     if cfg.stolen_cost != 0.0 {
-        let held: i32 = cx.creatures.iter().skip(1).filter(|m| !m.is_dead()).map(|m| m.power_amount(sts2sim::ids::power::SWIPE_POWER)).sum();
+        let held: i32 = cx.creatures.iter().skip(1).filter(|m| !m.is_dead()).map(|m| m.power_amount(sts2sim::ids::power::SWIPE_POWER)).sum::<i32>()
+            + cx.cards_escaped as i32;
         c += cfg.stolen_cost * held as f32;
     }
     if cfg.gold_cost != 0.0 && root.gold != i32::MIN {
@@ -415,7 +416,7 @@ fn terminal(cx: &Combat, steps: u32, max_steps: u32, cfg: &SearchCfg) -> Option<
     } else if cx.stage == Stage::Over {
         let me = cx.cr(0);
         match cx.outcome {
-            Outcome::Victory => {
+            Outcome::Victory if !cx.ran_out_of_time => {
                 let frac = me.hp as f32 / me.max_hp.max(1) as f32;
                 Some((OUTCOME_WIN, cfg.win + cfg.hp_bonus * frac))
             }
