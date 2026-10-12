@@ -1,11 +1,13 @@
-"""Loose synergy candidates: tags, pairs, bundles in data/synergy_candidates.json.
+"""Loose synergy candidates per character: tags, pairs, bundles in data/synergy_candidates_<char>.json.
 
-    synergy.py ID                  partners by kind
-    synergy.py --deck ID,ID,...    bundle commitment, missing core, anti-synergy present (cards and relics, '+' ignored)
-    synergy.py --build             re-derive auto tags, src, pairs, bundles from tags + rules (needs decomp/)
-    synergy.py codex SRC [CHAR]    measured pick-given-offer synergy from community runs (tools/codex.py table), cross-referenced with the table
+    synergy.py ID [CHAR]               partners by kind
+    synergy.py --deck ID,ID,... [CHAR] bundle commitment, missing core, anti-synergy present (cards and relics, '+' ignored)
+    synergy.py --build [CHAR]          re-derive auto tags, src, pairs, bundles from tags + rules (needs decomp/); all characters by default
+    synergy.py codex SRC [CHAR] [--tag] measured pick-given-offer synergy from community runs (tools/codex.py table), cross-referenced with the table;
+                                       --tag writes the pooled bundle results into rules.bundles (tag community: dmg or turns q < 0.1 with the CI below 0)
 """
 import collections
+import itertools
 import json
 import math
 import os
@@ -15,7 +17,7 @@ import sys
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PATH = os.path.join(ROOT, "data", "synergy_candidates.json")
+CHARS = ("ironclad", "silent", "defect", "necrobinder", "regent")
 PAT = {
     "strength_gain": r"Apply<StrengthPower>|PowerVar<StrengthPower> || StrengthPower", "dexterity_gain": r"Apply<DexterityPower> || DexterityPower",
     "multi_hit": r"WithHitCount|HitCount", "vulnerable_apply": r"Apply<VulnerablePower> || VulnerablePower", "weak_apply": r"Apply<WeakPower> || WeakPower",
@@ -27,7 +29,7 @@ PAT = {
     "attack_volume": r"base\(0, CardType\.Attack|CardType\.Attack || Attack", "skill_volume": r"TryModifyEnergyCost|CardType\.Skill",
     "card_volume": r"AutoPlay|CardCmd\.Play|AddGeneratedCard|CreateCard || AfterCardPlayed", "autoplay": r"CardCmd\.AutoPlay|AutoPlayFromDrawPile|ModifyCardPlayCount|Replay || AutoPlay",
     "card_generation": r"CreateCard|AddGeneratedCard|CardFactory|Transform", "upgrade_gain": r"CardCmd\.Upgrade|ForUpgrade|Upgrade\(|Upgraded|Apotheosis",
-    "strike": r"CardTag\.Strike || Strike", "defend": r"CardTag\.Defend || Defend", "retain": r"ShouldFlush|Retain",
+    "strike": r"CardTag\.Strike || Strike", "sly": r"CardKeyword\.Sly", "osty_attack": r"CardTag\.OstyAttack", "defend": r"CardTag\.Defend || Defend", "retain": r"ShouldFlush|Retain",
     "potion_gain": r"PotionCmd|Procure|PotionSlot || Potion", "gold_gain": r"GainGold|Gold", "enchant": r"Enchant",
 }
 CPAT = {
@@ -43,8 +45,12 @@ SKIP = re.compile(r"^\s*(using |namespace |public sealed class|protected overrid
 SUB = {"Cards": "MegaCrit.Sts2.Core.Models.Cards", "Relics": "MegaCrit.Sts2.Core.Models.Relics", "Powers": "MegaCrit.Sts2.Core.Models.Powers"}
 
 
-def load(path=PATH):
-    return json.load(open(path, encoding="utf-8"))
+def path(char="ironclad"):
+    return os.path.join(ROOT, "data", f"synergy_candidates_{char}.json")
+
+
+def load(char="ironclad"):
+    return json.load(open(path(char), encoding="utf-8"))
 
 
 def _decomp():
@@ -81,33 +87,38 @@ def _find(dec, files, pat):
 
 def _sel(tags, s):
     if isinstance(s, list):
-        return set(s)
+        return set(s) & set(tags)
     if ":" not in s:
-        return {s} if s != "cost0" else {i for i, t in tags.items() if t.get("cost") == 0 and "x_cost" not in t["provides"]}
+        return {s} & set(tags) if s != "cost0" else {i for i, t in tags.items() if t.get("cost") == 0 and "x_cost" not in t["provides"]}
     field, m = s.split(":")
     if field == "converts_to":
         return {i for i, t in tags.items() if any(c.endswith(">" + m) for c in t.get("converts", []))}
     return {i for i, t in tags.items() if m in t[field]}
 
 
-def build():
-    dec, db = _decomp(), load()
+def build(char="ironclad"):
+    dec, db, C = _decomp(), load(char), char.upper()
     cat = json.load(open(os.path.join(ROOT, "data", "catalog.json"), encoding="utf-8"))
-    scope = [(c, "card") for p in ("IRONCLAD", "COLORLESS") for c in cat["cards"][p]] + [(r, "relic") for p in ("IRONCLAD", "SHARED", "EVENT") for r in cat["relics"][p]]
+    scope = [(c, "card") for p in (C, "COLORLESS") for c in cat["cards"][p]] + [(r, "relic") for p in (C, "SHARED", "EVENT") for r in cat["relics"][p]]
+    vp = db["rules"].get("pat", {})
+    pat, cpat = {**PAT, **{m: v["p"] for m, v in vp.items()}}, {**CPAT, **{m: v["c"] for m, v in vp.items() if v.get("c")}}
+    rel = re.search(r"StartingRelics.*?Relic<(\w+)>", open(os.path.join(dec, "MegaCrit.Sts2.Core.Models.Characters", C.title() + ".cs"), encoding="utf-8").read())
+    basic = {c["id"] for c in cat["cards"][C] if c["rarity"] == "Basic"} | {re.sub(r"(?<!^)(?=[A-Z])", "_", rel.group(1)).upper()}
     tags = {}
     for c, kind in scope:
         cid = c["id"]
         t = db["tags"].get(cid, {})
-        t = dict(kind=kind, provides=list(t.get("provides", [])), consumes=list(t.get("consumes", [])), **{k: t[k] for k in ("converts",) if t.get(k)})
+        t = dict(kind=kind, provides=list(t.get("provides", [])), consumes=list(t.get("consumes", [])), **{k: t[k] for k in ("converts", "cite", "sim") if t.get(k)})
         files, src = _files(dec, kind, cid), {}
         text = _read(dec, files[0])
         if kind == "card":
             t["cost"] = c["cost"]
             kw = re.search(r"CanonicalKeywords =>(.*?);", text, re.S)
             tg = re.search(r"CanonicalTags =>(.*?);", text, re.S)
-            auto = {"exhaust_self": kw and "Exhaust" in kw.group(1), "ethereal": kw and "Ethereal" in kw.group(1), "retain": kw and "Retain" in kw.group(1),
-                    "strike": tg and "Strike" in tg.group(1), "defend": tg and "Defend" in tg.group(1), "x_cost": c["x"], "power_card": c["type"] == "Power",
-                    "high_cost": not c["x"] and c["cost"] >= 2}
+            kw, tg = kw.group(1) if kw else "", tg.group(1) if tg else ""
+            auto = {"exhaust_self": "Exhaust" in kw, "ethereal": "Ethereal" in kw, "retain": "Retain" in kw, "sly": "Sly" in kw, "strike": "Strike" in tg,
+                    "defend": "Defend" in tg, "osty_attack": "OstyAttack" in tg, "x_cost": c["x"], "power_card": c["type"] == "Power",
+                    "high_cost": not c["x"] and c["cost"] >= 2, "zero_cost": not c["x"] and c["cost"] == 0}
             t["provides"] += [m for m, on in auto.items() if on and m not in t["provides"]]
             if c["x"] and "energy_gain" not in t["consumes"]:
                 t["consumes"].append("energy_gain")
@@ -115,8 +126,8 @@ def build():
                 t["mp_only"] = True
                 src["mp_only"] = _find(dec, files[:1], "MultiplayerOnly")
         for m in dict.fromkeys(t["provides"] + t["consumes"]):
-            pat = PAT.get(m, re.escape(m)) if m in t["provides"] else CPAT.get(m, PAT.get(m, re.escape(m)))
-            src[m] = "catalog" if m in ("power_card", "high_cost") else _find(dec, files, pat)
+            q = pat.get(m, re.escape(m)) if m in t["provides"] else cpat.get(m, pat.get(m, re.escape(m)))
+            src[m] = t.get("cite", {}).get(m) or ("catalog" if m in ("power_card", "high_cost", "zero_cost") else _find(dec, files, q))
         t["src"] = src
         tags[cid] = t
     live = {i: t for i, t in tags.items() if not t.get("mp_only")}
@@ -136,7 +147,8 @@ def build():
         for a in _sel(live, r["a"]):
             for b in _sel(live, r["b"]):
                 if frozenset((a, b)) not in anti:
-                    add(a, b, r["via"], r["kind"], note=r["note"], src=_find(dec, _files(dec, live[a]["kind"], a), r["pat"]))
+                    kw = dict(role=r.get("role", "bridge"), needs=sorted(_sel(live, r["needs"]) - {a, b})) if "needs" in r else {}
+                    add(a, b, r["via"], r["kind"], **kw, note=r["note"], src=_find(dec, _files(dec, live[a]["kind"], a), r["pat"]))
     prov, cons = collections.defaultdict(set), collections.defaultdict(set)
     for i, t in live.items():
         for m in t["provides"]:
@@ -157,7 +169,10 @@ def build():
                     if frozenset((a, b)) not in anti:
                         ind[(a, b, conv)].add(c)
     for (a, b, conv), needs in sorted(ind.items()):
-        add(a, b, conv, "indirect", needs=sorted(needs))
+        add(a, b, conv, "indirect", role="bridge", needs=sorted(needs))
+    _hard(db["rules"].get("hard", []), live, prov, cons, basic, anti, add)
+    for x in (x for x in CHARS if x != char and os.path.exists(path(x))):
+        pairs += _cross(dec, db, live, basic, x, {c["id"] for c in cat["cards"][x.upper()]}, tags, char)
     plans = {p["id"]: p for p in json.load(open(os.path.join(ROOT, "data", "plans.json"), encoding="utf-8"))}
     bundles = []
     for spec in db["rules"]["bundles"]:
@@ -169,15 +184,85 @@ def build():
         core = core if len(core) >= 3 else key
         p = plans.get(spec.get("plan"), {})
         core |= {i for k in ("core", "enablers", "payoffs") for i in p.get(k, []) if i in live}
-        rel = ms | {c.split(">")[1] for i in core for c in live[i].get("converts", []) if c.split(">")[0] in ms}
-        bad = {q["a"] for q in pairs if q["kind"] == "anti" and q["b"] in core and q["via"] in rel} - core
-        bundles.append(dict(name=spec["name"], plan=spec.get("plan"), mechanics=spec["mechanics"], core=sorted(core), support=sorted(members - core - bad), anti=sorted(bad)))
+        rm = ms | {c.split(">")[1] for i in core for c in live[i].get("converts", []) if c.split(">")[0] in ms}
+        bad = {q["a"] for q in pairs if q["kind"] == "anti" and q["b"] in core and q["via"] in rm} - core
+        bundles.append(dict(name=spec["name"], plan=spec.get("plan"), mechanics=spec["mechanics"], core=sorted(core), support=sorted(members - core - bad), anti=sorted(bad),
+                            **{k: spec[k] for k in ("tag", "community") if k in spec}))
     db.update(tags=tags, pairs=pairs, bundles=bundles)
-    with open(PATH, "w", encoding="utf-8") as f:
+    with open(path(char), "w", encoding="utf-8") as f:
         f.write(dumps(db))
-    k = collections.Counter(p["kind"] for p in pairs)
+    k = collections.Counter(p["kind"] + ("/" + p["role"] if p.get("role") else "") for p in pairs)
     unv = sorted(f"{i}:{m}" for i, t in tags.items() for m, s in t["src"].items() if s == "text")
-    print(f"tags {len(tags)} (cards {sum(t['kind'] == 'card' for t in tags.values())}), pairs {dict(k)}, bundles {len(bundles)}, unverified {len(unv)}: {' '.join(unv)}")
+    print(f"{char}: tags {len(tags)} (cards {sum(t['kind'] == 'card' for t in tags.values())}), pairs {dict(sorted(k.items()))}, bundles {len(bundles)}, unverified {len(unv)}: {' '.join(unv)}")
+
+
+def _hard(rules, items, prov, cons, basic, anti, add):
+    """rules.hard families: source = two consumers of m (>= 1 in pure) providing neither m nor with, needs its providers; payoff = two providers, needs consumers;
+    skipped when a starter card / relic supplies the need"""
+    for h in rules:
+        m, pure = h["m"], _sel(items, h["pure"]) if "pure" in h else set(items)
+        for role, side, other in (("source", cons, prov), ("payoff", prov, cons)):
+            need = set().union(other[m], *(other[w] for w in h.get("with", [])))
+            if role in h["roles"] and need and not need & basic:
+                for a, b in itertools.combinations(sorted(side[m] - need), 2):
+                    if frozenset((a, b)) not in anti and {a, b} & pure:
+                        add(a, b, m, "indirect", role=role, needs=sorted(need), note=h["note"])
+
+
+GENERIC = {"block_gain", "draw", "energy_gain", "attack_volume", "skill_volume", "card_volume", "high_cost", "zero_cost", "power_card", "defend", "upgrade_gain",
+           "gold_gain", "potion_gain", "exhaust_self", "retain", "card_generation", "x_cost"}
+# resources a consumer does nothing without; orb_slot always counts off-Defect: a 0-slot character gets 1 slot on its first channel (Commands/OrbCmd.cs:74)
+FUEL = {"shiv", "poison", "discard", "orb_channel", "orb_slot", "evoke", "star_gain", "forge", "summon", "osty_death", "doom", "soul", "status_combat", "turn_draw",
+        "exhaust_enabler", "hp_loss_self"}
+
+
+def _cross(dec, db, live, basic, x, pool, tags, char):
+    """pairs between the host scope and character x's own cards (pair field cross = X; mechanics outside GENERIC, which any host card supplies alike);
+    x's cards join tags with pool = X and unfueled = {m: x providers} for consumed mechanics no host item and not the card itself provides"""
+    xd = load(x)
+    fx = {k: {**{f: v[f] for f in ("kind", "provides", "consumes", "converts", "cost", "src") if f in v}, "pool": x.upper()}
+          for k, v in xd["tags"].items() if k in pool and not v.get("mp_only") and v.get("kind") == "card"}
+    U = {**live, **fx}
+    prov, cons = collections.defaultdict(set), collections.defaultdict(set)
+    for i, t in U.items():
+        for m in t["provides"]:
+            prov[m].add(i)
+        for m in t["consumes"]:
+            cons[m].add(i)
+    out, seen, X = [], set(), x.upper()
+
+    def add(a, b, via, kind, **kw):
+        if a != b and (a in fx) + (b in fx) == 1 and (a, b, via, kind) not in seen and (kind == "anti" or not GENERIC & set(via.split(">"))):
+            seen.add((a, b, via, kind))
+            out.append(dict(a=a, b=b, via=via, kind=kind, cross=X, **kw))
+    for r in db["rules"]["anti"] + xd["rules"]["anti"]:
+        for a in _sel(U, r["a"]):
+            for b in _sel(U, r["b"]) - set(r.get("except", [])):
+                if r.get("only") is None or U[b]["kind"] == r["only"]:
+                    add(a, b, r["via"], "anti", note=r["note"], src=_find(dec, _files(dec, U[a]["kind"], a), r["pat"]))
+    anti = {frozenset((p["a"], p["b"])) for p in out}
+    for m in sorted(prov):
+        for a in sorted(prov[m]):
+            for b in sorted(cons[m]):
+                if frozenset((a, b)) not in anti:
+                    add(a, b, m, "direct")
+    ind = collections.defaultdict(set)
+    for c, t in U.items():
+        for conv in t.get("converts", []):
+            m1, m2 = conv.split(">")
+            for a in prov[m1] - {c}:
+                for b in cons[m2] - {c, a}:
+                    if (a in fx) + (b in fx) == 1 and frozenset((a, b)) not in anti:
+                        ind[(a, b, conv)].add(c)
+    for (a, b, conv), needs in sorted(ind.items()):
+        add(a, b, conv, "indirect", role="bridge", needs=sorted(needs))
+    _hard(db["rules"].get("hard", []) + xd["rules"].get("hard", []), U, prov, cons, basic, anti, add)
+    hp = {m for i, t in live.items() for m in t["provides"]} - ({"orb_slot"} if char != "defect" else set())
+    fuel = FUEL | {h["m"] for h in xd["rules"].get("hard", []) if "source" in h["roles"]}
+    for k, t in fx.items():
+        un = {m: sorted(prov[m] & set(fx)) for m in t["consumes"] if m in fuel and m not in hp and m not in t["provides"]}
+        tags[k] = dict(t, **({"unfueled": un} if un else {}))
+    return out
 
 
 def dumps(db):
@@ -213,9 +298,6 @@ def deck_report(db, ids):
 
 
 COMBAT = {"monster", "elite", "boss", "unknown"}
-GROUPS = {"silent": {"shiv": ("BLADE_DANCE BLADE_OF_INK BLADE_SYMPHONY CLOAK_AND_DAGGER FAN_OF_KNIVES HIDDEN_DAGGERS LEADING_STRIKE STORM_OF_STEEL UP_MY_SLEEVE INFINITE_BLADES", "ACCURACY PHANTOM_BLADES KNIFE_TRAP"),
-                     "poison": ("BOUNCING_FLASK BUBBLE_BUBBLE DEADLY_POISON HAZE OUTBREAK POISONED_STAB SNAKEBITE NOXIOUS_FUMES ENVENOM CORROSIVE_WAVE CONCOCT", "ACCELERANT BUBBLE_BUBBLE OUTBREAK"),
-                     "sly": ("ACROBATICS CALCULATED_GAMBLE DAGGER_THROW HIDDEN_DAGGERS PREPARED SHADOW_STEP STORM_OF_STEEL SURVIVOR", "ABRASIVE FLICK_FLACK HAND_TRICK MASTER_PLANNER REFLEX RICOCHET SNEAKY TACTICIAN UNTOUCHABLE")}}
 CONTROLS = {"ironclad": [("BARRICADE", "BODY_SLAM"), ("CORRUPTION", "FEEL_NO_PAIN"), ("CORRUPTION", "DARK_EMBRACE"), ("FEED", "FEEL_NO_PAIN"), ("INFLAME", "TWIN_STRIKE"), ("r:TUNGSTEN_ROD", "RUPTURE")],
             "silent": [("ACCURACY", "BLADE_DANCE"), ("ACCURACY", "CLOAK_AND_DAGGER"), ("NOXIOUS_FUMES", "ACCELERANT"), ("DEADLY_POISON", "ACCELERANT"), ("PREPARED", "TACTICIAN"), ("PREPARED", "REFLEX")]}
 OUTS = (("win", 1), ("dmg", -1), ("turns", -1))
@@ -340,13 +422,14 @@ def pair_fits(rows, min_n=30, min_wl=5):
 
 
 def pooled(rows, partners):
-    """one model over offers of every B in partners: B and picked x B fixed effects + controls + owns any partner (owned in < 90% of rows) + picked x owns; None when < 30 picks while owning"""
+    """one model over offers of every B in partners ({B: {A: None or needs}}): B and picked x B fixed effects + controls + owns a partner A (owned in < 90% of rows;
+    with needs: and one of them) + picked x owns; None when < 30 picks while owning"""
     R = [r for r in rows if r[6] in partners]
     common = {a for a, n in collections.Counter(a for r in R for a in r[8]).items() if n > 0.9 * len(R)}
-    partners = {b: v - common for b, v in partners.items()}
+    partners = {b: {a: nd for a, nd in (v if isinstance(v, dict) else dict.fromkeys(v)).items() if a not in common} for b, v in partners.items()}
     bi = {b: i for i, b in enumerate(sorted({r[6] for r in R}))}
     p = np.array([r[7] for r in R], float)
-    h = np.array([bool(partners[r[6]] & r[8]) for r in R], float)
+    h = np.array([any(a in r[8] and (nd is None or bool(nd & r[8])) for a, nd in partners[r[6]].items()) for r in R], float)
     if not R or min(h @ p, h.sum() - h @ p) < 30:
         return None, int(h @ p) if R else 0
     FE = np.zeros((len(R), 2 * len(bi)))
@@ -382,20 +465,24 @@ def deck_pairs(src, char, kind):
 
 
 def _kinds(char):
-    if char != "ironclad":
-        return {}, {}
-    db = load()
+    db = load(char)
     rel = {k for k, v in db["tags"].items() if v["kind"] != "card"}
     nm = lambda x: "r:" + x if x in rel else x
     kind = {frozenset((nm(p["a"]), nm(p["b"]))): p["kind"] for p in db["pairs"]}
     groups = [(f"bundle {b['name']}", {nm(i): {nm(c) for c in b["core"]} - {nm(i)} for i in b["core"] + b["support"]}) for b in db["bundles"]]
-    for kd in ("direct", "indirect", "anti"):
-        pt = collections.defaultdict(set)
+    for cr, kd, role in itertools.product((False, True), ("direct", "indirect", "anti"), (None, "bridge", "source", "payoff")):
+        if (kd == "indirect") != (role is not None):
+            continue
+        pt, pn = collections.defaultdict(dict), collections.defaultdict(dict)
         for p in db["pairs"]:
-            if p["kind"] == kd:
-                pt[nm(p["a"])].add(nm(p["b"])), pt[nm(p["b"])].add(nm(p["a"]))
-        groups.append((f"table {kd} pairs", pt))
-    tags = {nm(k): v for k, v in db["tags"].items()}
+            if p["kind"] == kd and p.get("role") == role and bool(p.get("cross")) == cr:
+                for x, y in ((p["a"], p["b"]), (p["b"], p["a"])):
+                    pt[nm(x)][nm(y)] = None
+                    if p.get("needs"):
+                        pn[nm(x)][nm(y)] = pn[nm(x)].get(nm(y), frozenset()) | {nm(c) for c in p["needs"]}
+        lab = f"{'cross' if cr else 'table'} {kd}{'/' + role if role else ''}"
+        groups += [(lab + " pairs", pt)] + ([(lab + " + need owned", pn)] if pn else [])
+    tags = {nm(k): v for k, v in db["tags"].items() if not v.get("pool")}
     for m in sorted({m for v in tags.values() for m in v.get("consumes", ())}):
         pro = {k for k, v in tags.items() if m in v.get("provides", ())}
         groups.append((f"mechanic {m}", {k: pro - {k} for k, v in tags.items() if m in v.get("consumes", ())}))
@@ -411,7 +498,33 @@ def _row(x, n, q=None):
     return f"{x['a']} -> {x['b']}: {_cell(x['fit'], n)} n(pick,own) {x['n11']} n(own) {x['nown']}" + (f" q {q:.3f}" if q is not None else "")
 
 
-def codex_report(src, char):
+def cross_runs(src, char):
+    """runs whose final deck holds other-pool cards, by (pool, mechanism group = the card's non-generic native mechanics; unfueled = a FUEL mechanic no host
+    item provides): runs, win rate, and logit(win | reached the first final boss) ~ deck size + holds the group at that point"""
+    import codex
+    tags = {k: v for k, v in load(char)["tags"].items() if v.get("pool")}
+
+    def grp(c):
+        t = tags[c]
+        return {f"{t['pool']} {m}" for m in set(t["provides"]) | set(t["consumes"]) if m not in GENERIC} | {f"{t['pool']} any", "unfueled" if t.get("unfueled") else "fueled"}
+    R = list(codex.rows(src, char))
+    G = [set().union(*(grp(c[0]) for c in r["deck"] if c[0] in tags)) for r in R]
+    D = [(r["win"], len(d), set().union(*(grp(c[0]) for c in d if c[0] in tags))) for r in R for d in [codex.deck_at_pair(r)[0]] if d is not None]
+    y, ds = np.array([x[0] for x in D], float), np.array([x[1] for x in D], float)
+    print(f"other-pool cards ({char}): {len(R)} runs, win {np.mean([r['win'] for r in R]):.3f}; final deck holds any other-pool card in {sum(bool(g) for g in G)} runs; "
+          f"{len(D)} runs reached the first final boss")
+    for g, n in sorted(collections.Counter(x for g in G for x in g).items(), key=lambda t: -t[1]):
+        w = np.mean([r["win"] for r, gg in zip(R, G) if g in gg])
+        h = np.array([g in x[2] for x in D], float)
+        if h.sum() >= 30 and min(y[h == 1].sum(), (1 - y[h == 1]).sum()) >= 5:
+            e, se = _logit(np.column_stack([np.ones(len(y)), (ds - ds.mean()) / ds.std(), h]), y)
+            fit = f"logit at the final pair {e:+.2f} [{e - 1.96 * se:+.2f},{e + 1.96 * se:+.2f}] (n {int(h.sum())})"
+        else:
+            fit = f"n at the final pair {int(h.sum())}: too few"
+        print(f"  {g:<28} runs {n:5d} win {w:.3f}  {fit}")
+
+
+def codex_report(src, char, tag=False):
     """measured synergy from community runs (pick-given-offer interaction), cross-referenced with the candidate table"""
     rows, (kind, groups), sg = offer_rows(src, char), _kinds(char), dict(OUTS)
     res = pair_fits(rows)
@@ -456,12 +569,25 @@ def codex_report(src, char):
     print(f"{'untabled' if kind else 'all'} pairs, all-pairs BH q<.1 replicated: {len(miss)} (synergy sign {sum(sg[n] * x['fit'][n][0] > 0 for x, n in miss)})")
     for x, n in miss:
         print(f"  {'syn ' if sg[n] * x['fit'][n][0] > 0 else 'anti'} {_row(x, n, x['q'][n])}")
-    print("pooled (B and picked x B fixed effects; owns any partner): " + ("bundles: offered core/support piece, partner = other core piece; table pairs: partner = any table partner" if kind else "code groups: offered consumer, partner = provider"))
-    pl = [(lab,) + pooled(rows, parts) for lab, parts in groups or [(f"group {g}", {c: set(pro.split()) - {c} for c in con.split()}) for g, (pro, con) in GROUPS.get(char, {}).items()]]
+    print("pooled (B and picked x B fixed effects; owns any partner): bundles: offered core/support piece, partner = other core piece; table pairs: partner = any table partner "
+          "(+ need owned: and one of the pair's needs); mechanic m: offered consumer, partner = provider")
+    pl = [(lab,) + pooled(rows, parts) for lab, parts in groups]
     q = iter(_bh(np.array([_p(*f[nn][:2]) for _, f, _ in pl if f for nn, _ in OUTS])))
-    print(f"  BH q over the {3 * sum(1 for x in pl if x[1])} pooled tests in ()")
+    qs = {lab: {nn: next(q) for nn, _ in OUTS} for lab, f, _ in pl if f}
+    print(f"  BH q over the {3 * len(qs)} pooled tests in ()")
     for lab, f, n in pl:
-        print(f"  {lab:<32} n(pick,own) {n:6d}  " + ("  ".join(f"{_cell(f, nn)} ({next(q):.3f})" for nn, _ in OUTS) if f else "too few"))
+        print(f"  {lab:<40} n(pick,own) {n:6d}  " + ("  ".join(f"{_cell(f, nn)} ({qs[lab][nn]:.3f})" for nn, _ in OUTS) if f else "too few"))
+    if tag:
+        db, res = load(char), {lab: (f, n) for lab, f, n in pl if f}
+        for b in db["rules"]["bundles"]:
+            f, n = res.get(f"bundle {b['name']}", (None, 0))
+            b.pop("community", None)
+            if f:
+                b["community"] = dict(n=n, **{nn: [round(f[nn][0], 3), round(f[nn][0] - 1.96 * f[nn][1], 3), round(f[nn][0] + 1.96 * f[nn][1], 3), round(qs[f"bundle {b['name']}"][nn], 4)] for nn, _ in OUTS})
+            b["tag"] = "community" if f and any(qs[f"bundle {b['name']}"][nn] < 0.1 and f[nn][0] + 1.96 * f[nn][1] < 0 for nn in ("dmg", "turns")) else "code"
+        open(path(char), "w", encoding="utf-8").write(dumps(db))
+        build(char)
+    cross_runs(src, char)
     n, t, p05, bh, ks = deck_pairs(src, char, kind)
     print(f"naive deck design (deck entering the first final boss, {n} runs, win | reached): {t} pairs, p<.05 {p05} (null {0.05 * t:.0f}), BH q<.1 {bh}" + (
         "; mean interaction " + ", ".join(f"{k or 'untabled'} {np.mean(v):+.3f} (n {len(v)})" for k, v in ks.items()) if kind else ""))
@@ -469,11 +595,14 @@ def codex_report(src, char):
 
 def main(argv):
     if argv[:1] == ["--build"]:
-        return build()
+        for c in argv[1:] or [c for c in CHARS if os.path.exists(path(c))]:
+            build(c)
+        return
     if argv[:1] == ["codex"]:
-        return codex_report(argv[1], argv[2] if len(argv) > 2 else "ironclad")
-    db = load()
-    if argv[:1] == ["--deck"]:
+        return codex_report(argv[1], argv[2] if len(argv) > 2 else "ironclad", "--tag" in argv)
+    deck = argv[:1] == ["--deck"]
+    db = load(argv[1 + deck] if len(argv) > 1 + deck else "ironclad")
+    if deck:
         rows, anti = deck_report(db, argv[1].split(","))
         for r in rows:
             if r["core"] or r["support"]:
@@ -485,7 +614,7 @@ def main(argv):
         return print(__doc__)
     cid = argv[0].rstrip("+").upper()
     t = db["tags"][cid]
-    print(cid, {k: v for k, v in t.items() if k != "src"})
+    print(cid, {k: v for k, v in t.items() if k != "src"}, "\n  src", t["src"])
     for kind, rows in sorted(partners(db, cid).items()):
         print(f"{kind} ({len(rows)}):")
         for o, via, extra in sorted(rows, key=lambda r: (r[1], r[0])):

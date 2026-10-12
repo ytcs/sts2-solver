@@ -356,7 +356,7 @@ class Harness(Live):
         return PR.table(res) + f"\n({n} rollouts per option, paired; run model{ready}{note})\n" + check + self._synergy(state, deck)
 
     def _synergy(self, state, deck=None):
-        """plan overlap of the items offered on this screen (counts, for the operator to judge; data/synergy_candidates.json)"""
+        """plan overlap of the items offered on this screen (counts, for the operator to judge; data/synergy_candidates_<char>.json)"""
         from agent import price as PR, synergy
         try:
             deck = deck or self._run()
@@ -371,7 +371,7 @@ class Harness(Live):
                 cid = PR._card_id(name)[0] if m.group(1) != "relic" else None
                 items.append(cid or PR._ident(name))
         rows = synergy.lines(dict.fromkeys(i for i in items if i), ids)
-        return ("synergy (bundle: role, pieces you own; candidates, not measurements):\n" + "\n".join(rows) + "\n") if rows else ""
+        return ("synergy (bundle: role, pieces you own; completes / needs: A + B pay off only with C; candidates, not measurements):\n" + "\n".join(rows) + "\n") if rows else ""
 
     def brief(self):
         state = call("peek")
