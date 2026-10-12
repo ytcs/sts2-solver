@@ -527,9 +527,13 @@ def _pre_play(v):
     return v["t"] in ("power", "power_lost") and v.get("id") in REPLAY_POWERS and (v.get("n") or 0) < 0 and "tgt_cid" not in v
 
 
+AUTO_POTIONS = {"FAIRY_IN_A_BOTTLE"}
+
+
 def human_actions(evs):
-    return [i for i, e in enumerate(evs) if (e["t"] == "play" and not e.get("auto") and not e.get("play_index")) or e["t"] == "potion_start"
-            or (e["t"] == "end_turn" and e.get("side") == "player")]
+    """indices of the human's actions: plays (not auto, first of a replayed play), potions (not the ones the game throws itself), player end turns"""
+    return [i for i, e in enumerate(evs) if (e["t"] == "play" and not e.get("auto") and not e.get("play_index"))
+            or e["t"] == "potion_start" and e.get("id") not in AUTO_POTIONS or (e["t"] == "end_turn" and e.get("side") == "player")]
 
 
 def replay_fight(sc, start, evs, end, keep_ops=False):
@@ -565,32 +569,38 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
             ops.append(("step", j))
 
     def resolve(pks):
-        """the window's logged picks on the sim's pending selections, then any selection the log did not show (confirm / first option)"""
+        """the window's logged picks on the sim's pending selections (each option once), then any selection the log did not show (confirm, else
+        an option not yet taken)"""
         for pk in pks:
             if sim.stage() != "choice":
                 row["fields"]["choice.unasked"] += 1
                 break
+            used = set()
             for c in pk.get("cards") or []:
-                opts = [j for j, t in sim.legal() if t.startswith("pick ") and t.endswith(f"({c['id']})")]
+                opts = [j for j, t in sim.legal() if t.startswith("pick ") and t.endswith(f"({c['id']})") and j not in used]
                 if not opts:
                     row["fields"]["choice.option_missing"] += 1
                     row["fallback"] = True
                     continue
+                used.add(opts[0])
                 step(opts[0])
                 if sim.stage() != "choice":
                     break
             conf = [j for j, t in sim.legal() if t == "confirm"] if sim.stage() == "choice" else []
             if conf:
                 step(conf[0])
-        for _ in range(8):
+        used = set()
+        for _ in range(12):
             if sim.stage() != "choice":
                 break
             row["fields"]["choice.unlogged"] += 1
             row["fallback"] = True
-            leg = sim.legal()
+            leg = [(j, t) for j, t in sim.legal() if j not in used]
             if not leg:
                 break
-            step(next((j for j, t in leg if t == "confirm"), leg[0][0]))
+            j = next((j for j, t in leg if t == "confirm"), leg[0][0])
+            used.add(j)
+            step(j)
     resolve(picks[-1])
     for i, e in enumerate(evs):
         if e["t"] == "turn" and e.get("side") == "player":
@@ -789,10 +799,18 @@ CLASSES = (
     (lambda f, a, e: f == "combat.unported", "sim gap (unported content)", "Sim.missing() names it"),
     (lambda f, a, e: f == "potions" and a == "start", "reconstruction gap", "potion belt between fights (potion_got carries no slot)"),
     (lambda f, a, e: f == "player.hp" and a == "start", "reconstruction gap", "HP carried between fights from hits / heals"),
-    (lambda f, a, e: f == "hand" and a == "start", "sim-bug candidate", "start-of-combat relic order / RNG (relic lift table)"),
+    (lambda f, a, e: f == "hand" and a == "start", "sim-bug candidate", "start-of-combat relics: Jeweled Mask, Toolbox, Vexing Puzzlebox, Tea of Discourtesy, Bone Tea, "
+                                                                       "Pollinous Core (lift 5-9; counts match, contents differ)"),
     (lambda f, a, e: f == "enemy.hp" and e == "OVICOPTER_NORMAL", "sim-bug candidate", "Tough Egg spawn HP roll (log spawn hp != sim)"),
-    (lambda f, a, e: f == "player.block" and a.startswith("DEFEND"), "sim-bug candidate", "replayed play (play_count 2: Spiral enchantment) not replayed"),
-    (lambda f, a, e: f == "energy" and a == "start", "sim-bug candidate", "turn-1 energy at elites / bosses (spend event shows more)"),
+    (lambda f, a, e: f == "enemy.hp" and a == "start", "reconstruction gap?", "Fur Coat (lift 150: marked-node HP cut needs its saved map state), Sword of Jade, Kifuda"),
+    (lambda f, a, e: f == "player.block" and a.startswith("DEFEND"), "sim-bug candidate", "replayed play (play_count 2: Spiral enchantment) not replayed; "
+                                                                                          "Tuning Fork SkillsPlayed (not logged)"),
+    (lambda f, a, e: f == "player.block" and a not in ("start", "end_turn"), "sim-bug candidate", "Tuning Fork (lift 7, SkillsPlayed not logged), Secret Weapon, "
+                                                                                                   "Genetic Algorithm, Child of the Stars"),
+    (lambda f, a, e: f == "energy" and a == "start", "sim-bug candidate", "turn-1 energy (spend event shows more): Sozu, Bread, Blessed Antler, Alchemical Coffer, fake relics"),
+    (lambda f, a, e: f == "energy" and a == "end_turn", "sim-bug candidate", "Distinguished Cape / Apparition, Punch Dagger, Kunai, Sand Castle"),
+    (lambda f, a, e: f == "player.hp" and a == "end_turn", "sim-bug candidate", "Whispering Earring, Fencing Manual; Calamity / Resonance / Void Form decks"),
+    (lambda f, a, e: f == "combat.over_early", "sim-bug candidate", "sim kills the player a turn early (Oddly Smooth Stone fights) or ends the fight"),
     (lambda f, a, e: f == "hand" and e == "PHROG_PARASITE_ELITE", "sim-bug candidate", "top encounter Phrog: Infection goes to discard (PhrogParasite.cs:77, Wriggler.cs:99)"),
 )
 
