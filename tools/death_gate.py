@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Death bench gate (promotion): the value head at states whose value hides HP behind an enemy's death (Test Subject revives, Waterfall Giant's
 blast; data/bench/leaf_values.json, states and play-out targets from tools/leaf_bench.py build) against the play-out win rate.
-Pass: the candidate within 2 se of the target at every state (se floored at 1/n) and its mean |error| below the reference's. Exit 1 on fail.
-usage: python tools/death_gate.py --ckpt CAND [--ref models/solver_r9.pt] [--bench data/bench/leaf_values.json] --out FILE"""
+Pass: the candidate within 2 se of the target at every state (se floored at 1/n) and its mean |error| below the reference's, and within 2 se
+at >= --holdout-share of the held-out contrast states that have targets (data/bench/contrast_holdout.json, tools/contrast.py). Exit 1 on fail.
+usage: python tools/death_gate.py --ckpt CAND [--ref models/solver_r9.pt] [--bench data/bench/leaf_values.json] [--holdout FILE] --out FILE"""
 import argparse, json, os, sys
 
 import numpy as np
@@ -29,6 +30,8 @@ def main():
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--ref", default=os.path.join(ROOT, "models", "solver_r9.pt"))
     ap.add_argument("--bench", default=os.path.join(ROOT, "data", "bench", "leaf_values.json"))
+    ap.add_argument("--holdout", default=os.path.join(ROOT, "data", "bench", "contrast_holdout.json"))
+    ap.add_argument("--holdout-share", type=float, default=0.8)
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     items = json.load(open(a.bench))["items"]
