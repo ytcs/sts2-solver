@@ -1,4 +1,4 @@
-import collections, json, random
+import collections, itertools, json, random
 
 import sts2
 
@@ -10,12 +10,22 @@ def _alive(enemies):
     return [e for e in enemies if e.get("alive", True)]
 
 
-def _foes(state):
-    return [(e["id"], e["hp"]) for e in _alive(state["enemies"])]
+def _cards(state, pile):
+    return collections.Counter((c["id"], c.get("upgrade", 0)) for c in state.get(pile) or [])
 
 
-def _picked(state):
-    return sorted((c["id"], c.get("upgrade", 0)) for c in state.get("exhaust", [])), sorted(p["id"] for p in state["player"].get("powers", []))
+def _left_draw(before, after):
+    # the cards that left the draw pile between two observed states (drawn or auto-played: Mayhem, Cascade); None when a reshuffle hides it
+    if not before or "draw" not in before or "draw" not in after:
+        return None
+    b, a = _cards(before, "draw"), _cards(after, "draw")
+    return None if a - b else list((b - a).elements())
+
+
+def _wants_choice(state, nxt):
+    if nxt is not None:
+        return '"choose"' in nxt
+    return bool(state.get("play_pile")) or state.get("phase") == "AutoPrePlay"
 
 
 def intents_of(state):
@@ -107,64 +117,89 @@ class Replayer:
             self._note("missing content", self.sim.missing())
 
 
-    def _reroll(self, base, act, state, foes_wrong):
-        # random targets/effects (Serpent Form, Juggernaut...) and hidden random picks (Thrash keeps its exhaust pick's damage, which sync cannot see; Havoc plays a power): re-roll until enemies, exhaust and player powers match the game
-        fallback = None
-        for _k in range(64):
+    def _mismatch(self, s, state, real, want_choice):
+        # distance of a candidate from the observed state: visible fields, pile contents, a pending selection, a fight the game has not ended
+        if s.stage() == "over":
+            return 0 if not state.get("combat_in_progress", True) else 1000
+        n = sum(1 for line in s.diff(real) if not line.startswith(RANDOM_PREFIXES) and "props.Skin" not in line)
+        snap = json.loads(s.snapshot())
+        for pile in ("hand", "discard", "exhaust"):
+            if pile in state:
+                a, b = _cards(snap, pile), _cards(state, pile)
+                n += sum(((a - b) + (b - a)).values())
+        if want_choice is not None and (s.stage() == "choice") != want_choice:
+            n += 5
+        return n
+
+    def _candidates(self, base, act, left, tries):
+        # hidden-state re-rolls (random targets / effects, pile order); the cards that left the draw pile go on top in a sampled order, so draw-order effects (Mayhem, Cascade) can match
+        for k in range(tries):
             s = base.copy()
             s.determinize(self.rng.randrange(1 << 62))
+            if left:
+                order = list(left)
+                self.rng.shuffle(order)
+                s.stack_draw(order)
             try:
                 s.apply(act)
             except Exception:  # noqa: BLE001
                 continue
-            snap = json.loads(s.snapshot())
-            if _foes(snap) != _foes(state):
-                continue
-            if _picked(snap) == _picked(state):
-                self.sim = s
-                self.stats["random_effect_rerolls"] += 1
-                return
-            if fallback is None:
-                fallback = s
-        if foes_wrong and fallback is not None:
-            self.sim = fallback
-            self.stats["random_effect_rerolls"] += 1
+            yield k, s
 
-    def _end_turn(self, state):
+    def _rematch(self, base, act, state, before, want_choice, tries=96):
+        real = json.dumps(state)
+        best = start = self._mismatch(self.sim, state, real, want_choice)
+        if best == 0:
+            return
+        for _k, s in self._candidates(base, act, _left_draw(before, state), tries):
+            n = self._mismatch(s, state, real, want_choice)
+            if n < best:
+                self.sim, best = s, n
+                if n == 0:
+                    break
+        if best < start:
+            self.stats["random_effect_rerolls"] += 1
+        if self.sim.stage() == "over" and state.get("combat_in_progress", True):
+            # no world found keeps the fight going (hidden per-turn state, e.g. Hardened Shell's damage taken): take the game's state over the action
+            self.sim = base
+            self.resolve_phantom_choice()
+            self._note("simulator-only kill", f"{act} [{getattr(self, '_played', '')}]")
+
+    def _end_turn(self, state, before=None, want_choice=None):
         act = '{"end_turn":true}'
         if state is None:
             self.sim.apply(act)
             return
-        want = intents_of(state)
-        first = None
-        for k in range(self.tries):
-            s = self.sim.copy()
-            if k:
-                s.determinize(self.rng.randrange(1 << 62))
-            try:
-                s.apply(act)
-            except Exception as e:  # noqa: BLE001
-                self.errors.append(f"end_turn: {e}")
-                continue
-            if s.stage() == "over":
-                if not state.get("combat_in_progress", True):
-                    self.sim = s
-                    return
+        want, real = intents_of(state), json.dumps(state)
+        best = best_key = matched = err = None
+        first = self.sim.copy()
+        try:
+            first.apply(act)
+            cands = [(0, first)]
+        except Exception as e:  # noqa: BLE001
+            cands, err = [], f"end_turn: {e}"
+        for k, s in itertools.chain(cands, ((k + 1, s) for k, s in self._candidates(self.sim, act, _left_draw(before, state), self.tries - 1))):
+            if s.stage() == "over" and state.get("combat_in_progress", True):
                 self.stats["end_turn_over_rejected"] += 1
                 continue
-            snap = json.loads(s.snapshot())
-            got = intents_of(snap)
-            if first is None:
-                first = s
-            if got == want:
-                self.sim = s
-                self.stats["end_turn_tries"] += k + 1
-                self.stats["end_turn_matched"] += 1
-                return
-        self.stats["end_turn_unmatched"] += 1
-        self._note("intent unmatched", f"want {want} got {intents_of(json.loads(first.snapshot())) if first else '?'}")
-        if first is not None:
-            self.sim = first
+            hit = s.stage() == "over" or intents_of(json.loads(s.snapshot())) == want
+            key = (not hit, self._mismatch(s, state, real, want_choice))
+            if best_key is None or key < best_key:
+                best, best_key = s, key
+            if hit and matched is None:
+                matched = k
+            if key == (False, 0) or (matched is not None and k - matched >= 64):
+                break
+        if best is None:
+            self.errors.append(err or "end_turn: no simulated end of turn keeps the fight going")
+            return
+        self.sim = best
+        if best_key[0]:
+            self.stats["end_turn_unmatched"] += 1
+            self._note("intent unmatched", f"want {want} got {intents_of(json.loads(best.snapshot()))}")
+        else:
+            self.stats["end_turn_tries"] += matched + 1
+            self.stats["end_turn_matched"] += 1
 
     def _card_at(self, act):
         a = json.loads(act)
@@ -176,23 +211,26 @@ class Replayer:
             return ""
 
     def _map_choose(self, act, before):
+        # the game's index is into its own list: the source pile in pile order (hand, discard, exhaust), the draw pile sorted (rarity, id) like the
+        # simulator's view; the simulator's pick is into its candidates in its own pile order, which can differ: map by card
         import re
         a = json.loads(act)
-        if "choose" not in a or len(a["choose"]) != 1 or not before or self.sim.stage() != "choice":
+        if "choose" not in a or not before or self.sim.stage() != "choice":
             return act
-        opts = [(i, m.group(2)) for _, t in self.sim.legal() for m in [re.match(r"pick (\d+) \((\w+)\)", t)] if m for i in [int(m.group(1))]]
-        hand = [c["id"] for c in before.get("hand", [])]
-        snap_hand = sorted(c["id"] for c in json.loads(self.sim.snapshot())["hand"])
-        k = a["choose"][0]
-        if sorted(o for _, o in opts) != snap_hand or k >= len(hand):
-            return act
-        if opts[k][1] == hand[k]:
-            return act
-        same = [i for i, o in opts if o == hand[k]]
-        if not same:
-            return act
-        self.stats["choose_remapped"] += 1
-        a["choose"] = [same[0]]
+        opts = sorted((self.sim.pick_game_index(int(m.group(1))), int(m.group(1)), m.group(2)) for _, t in self.sim.legal() for m in [re.match(r"pick (\d+) \((\w+)\)", t)] if m)
+        names = collections.Counter(n for _, _, n in opts)
+        game = next((seq for pile in ("hand", "discard", "exhaust") for seq in [[c["id"] for c in before.get(pile) or [] if c["id"] in names]] if collections.Counter(seq) == names), None)
+        if game is None:
+            game = [n for _, _, n in sorted(opts, key=lambda o: o[1])]
+        picks = []
+        for k in a["choose"]:
+            g = next((g for g, _, n in opts if k < len(game) and n == game[k] and g not in picks), None)
+            if g is None:
+                return act
+            picks.append(g)
+        if picks != a["choose"]:
+            self.stats["choose_remapped"] += 1
+            a["choose"] = picks
         return json.dumps(a)
 
     def _repair_target(self, act, state):
@@ -241,8 +279,11 @@ class Replayer:
             act = log[i] if isinstance(log[i], str) else json.dumps(log[i])
             last = i == len(log) - 1
             state = states[i + 1] if states and states[i + 1] is not None else (fight["state"] if last else None)
+            before = states[i] if states else None
+            nxt = None if last else log[i + 1] if isinstance(log[i + 1], str) else json.dumps(log[i + 1])
+            want_choice = None if state is None else _wants_choice(state, nxt)
             if '"choose"' not in act and self.sim.stage() == "choice":
-                self.resolve_phantom_choice(states[i] if states else None, "phantom choice before a logged action")
+                self.resolve_phantom_choice(before, "phantom choice before a logged action")
             if '"choose"' in act and self.sim.stage() != "choice":
                 self._note("game-only selection", f"{act} [{getattr(self, '_played', '')}]")
                 self.applied += 1
@@ -251,9 +292,9 @@ class Replayer:
                 continue
             try:
                 if '"end_turn"' in act:
-                    self._end_turn(state)
+                    self._end_turn(state, before, want_choice)
                 else:
-                    act = self._map_choose(act, states[i] if states else None)
+                    act = self._map_choose(act, before)
                     self._played = self._card_at(act)
                     base = self.sim.copy()
                     try:
@@ -262,10 +303,7 @@ class Replayer:
                         if not self._repair_target(act, state):
                             raise
                     if state is not None:
-                        snap = json.loads(self.sim.snapshot())
-                        foes_wrong = [i for i, _h in _foes(snap)] != [i for i, _h in _foes(state)]
-                        if foes_wrong or ("exhaust" in state and _picked(snap) != _picked(state)):
-                            self._reroll(base, act, state, foes_wrong)
+                        self._rematch(base, act, state, before, want_choice)
             except Exception as e:  # noqa: BLE001
                 self.errors.append(f"{act}: {e}")
                 self._note("action failed", f"{act}: {e}")

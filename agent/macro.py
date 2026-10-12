@@ -253,7 +253,8 @@ def card_id_set():
 def card_from_name(name):
     import re
     up = 1 if name.strip().endswith("+") else 0
-    cid = re.sub(r"[^A-Z0-9]+", "_", name.strip().rstrip("+").upper().replace("'", "")).strip("_")
+    # "Wither+1": a status's level in its title, not an upgrade
+    cid = re.sub(r"[^A-Z0-9]+", "_", re.sub(r"\+\d*$", "", name.strip()).upper().replace("'", "")).strip("_")
     return (cid if cid in card_id_set() else None), up
 
 
