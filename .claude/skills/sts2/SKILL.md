@@ -7,7 +7,7 @@ description: Root of the STS2 operator book. Load first every session: rules tha
 The player is the harness plus you, the operator: the search plays fights; you own the macro (plan, draft, route, budgets). Loading: hooks + harness; screen -> skill table in `CLAUDE.md`.
 
 ## Rules that never bend
-- Scored run: no console / god mode, no hidden state (draw order, RNG, pre-rolled encounters, the seed's future, unrevealed maps or act variants), no restart / reload. Never read forks, snapshots (`Fork.cs`, `--history`), logged runs of this seed, or models evaluated on their own training seeds (BASE0001-0040 are training-only).
+- Scored run: no console / god mode, no hidden state (draw order, RNG, pre-rolled encounters, the seed's future, unrevealed maps or act variants), no restart / reload. Never read forks, snapshots (`Fork.cs`, `--history`), logged runs of this seed, community data about this seed (spire-codex indexes runs by seed), or models evaluated on their own training seeds (BASE0001-0040 are training-only).
 - Allowed: the screen, public game knowledge (pools, card text, move patterns, coded odds), what this run showed, the harness tools.
 - Goal: win the run; end HP breaks ties. Every death is an avoidable error until the review says otherwise.
 - Skills are the current rules, nothing else: no runs, fights, logs, TODOs. Evidence -> `docs/research/evidence.md` (E#), per-rule stats -> `evals/rules/ledger.jsonl`, history -> git.
@@ -20,7 +20,7 @@ The player is the harness plus you, the operator: the search plays fights; you o
 
 ## Rule format
 `ID [tag] rule. Test: <kind>: <check>.` IDs by skill: P plan, D deckbuilding, R pathing, F fights / acts, M mechanics, IC Ironclad, A1- / A2- / A3- Ironclad acts, I improve. IDs are never reused.
-- Tags: `[code]` decomp (cite file:line); `[sim]` measurement (E#, n, margin); `[expert]` recorded expert reasoning; `[hyp]` claim under test.
+- Tags: `[code]` decomp (cite file:line); `[sim]` measurement (E#, n, margin); `[expert]` recorded expert reasoning; `[community]` community run statistics (spire-codex, by player tier): a correlational prior (player and deck confounded), never evidence for promotion; `[hyp]` claim under test.
 - Test kinds: instrument (a named tool and threshold, scored in every review), outcome (needs n runs; the ledger counts), expert-attested (none yet; stays `[expert]` until another kind applies).
 
 ## Hierarchy (lower levels only add or deviate)

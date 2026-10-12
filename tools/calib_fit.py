@@ -96,7 +96,10 @@ def main():
             m = np.array([x == g for x in G])
             print(f"  {g:8s} n {m.sum():4d} | realised {y[m].mean():.3f} | {sraw[m].mean():.3f} -> {ps[m].mean():.3f} | Brier {np.mean((sraw[m] - y[m]) ** 2):.4f} -> {np.mean((ps[m] - y[m]) ** 2):.4f}")
         print(f"  all      Brier {np.mean((sraw - y) ** 2):.4f} -> {np.mean((ps - y) ** 2):.4f}")
-        w_search = [round(float(v), 5) for v in logistic(Xs, y, np.ones(len(R), bool), a.l2)]
+        if np.mean((ps - y) ** 2) < np.mean((sraw - y) ** 2):
+            w_search = [round(float(v), 5) for v in logistic(Xs, y, np.ones(len(R), bool), a.l2)]
+        else:
+            print("  search calibration does not beat raw held out: not stored")
     from predictor import POT_BANDS, pot_key
     use = collections.defaultdict(lambda: [0, 0])
     for r in R:
