@@ -8,7 +8,7 @@ fidelity: the first attempt of each combat (combat_id without "#n"; attempt_id i
 Not compared (unlogged or not reconstructible): energy except at a spend, intent damage after the turn's first action or a power change since the
 turn-start display, a generated card's upgrade until it is played, cards whose pile is unknown (unlogged returns, unplaced generated cards), orbs,
 relic displays, powers' turn-start amounts. A logged pick the sim resolved itself (forced) is not a divergence (`diverged`).
-Needs the sts2 extension built from this branch (`Sim.exact`, `rng_counters`; a scratch venv until the shared reinstall).
+Needs the sts2 extension built from this branch (`Sim.exact`, `rng_counters`, `setup_counters`, `pick_upgrade`; a scratch venv until the shared reinstall).
 usage: python tools/codex_replay.py fidelity target/codex/replays --out target/review/replay_fidelity [--character ironclad] [--workers 4]
        python tools/codex_replay.py corpus target/codex/replays --out target/review/replay_corpus.json
        python tools/codex_replay.py repro target/review/replay_fidelity_repro/<field>.json"""
