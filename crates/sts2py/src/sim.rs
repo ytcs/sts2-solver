@@ -127,10 +127,6 @@ impl Sim {
         sc.validate().map_err(|e| PyValueError::new_err(format!("scenario uses unported content: {e:?}")))?;
         let mut cx = Combat::try_new_with(&sc, &ex).map_err(err)?;
         cx.reset_validated(&sc, &ex, seed, sts2sim::state::RngSet::from_run_seed_fast(seed)).map_err(err)?;
-        if let Some(belt) = obs_belt(&v["potions"], &mut vec![]) {
-            let slots = cx.player.potion_slots;
-            cx.sync_potions(slots, &belt);
-        }
         Ok(Sim { cx })
     }
 

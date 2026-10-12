@@ -128,8 +128,8 @@ fn main() {
         t_eng * threads as f64 / st.policy_rows.max(1) as f64 * 1e6
     );
     if exact.on {
-        println!("  exact: searched {}, triggered {}, done {}, capped {}, changed {}, states {}, rows {}, cycles {:.1}% of the engine's",
-            st.searched, st.ex_triggered, st.ex_done, st.ex_capped, st.ex_changed, st.ex_states, st.ex_rows, 100.0 * st.cy_exact as f64 / tot);
+        println!("  exact: searched {}, triggered {}, done {}, capped {}, changed {}, states {}, rows {}, play-outs {}, cycles {:.1}% of the engine's",
+            st.searched, st.ex_triggered, st.ex_done, st.ex_capped, st.ex_changed, st.ex_states, st.ex_rows, st.ex_rolls, 100.0 * st.cy_exact as f64 / tot);
     }
     if hp_cap {
         println!("  hp cap: searched {}, capped roots {}, skipped (unbounded healing) {}", st.searched, st.cap_roots, st.cap_skipped);

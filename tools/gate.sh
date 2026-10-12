@@ -8,6 +8,7 @@ sum() { grep -o "checksum [0-9a-f]*" | head -1 | cut -d' ' -f2; }
 
 check "search" "$(cargo run --release -q -p sts2env --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" effb395521d20429
 check "search cap" "$(STS2_HP_CAP=1 cargo run --release -q -p sts2env --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" a293f34d31e01ad3
+check "search exact" "$(STS2_EXACT=0 cargo run --release -q -p sts2env --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" 46874544525c4533
 check "env" "$(cargo run --release -q -p sts2env --example envprof -- data/train/eval.json 256 100 600 2>/dev/null | sum)" 91b0af594e5fe3b5
 # observation v3 (feature obs_v3: the v2 bytes + a tail; the stub policy hashes the whole row)
 check "search v3" "$(cargo run --release -q -p sts2env --features obs_v3 --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" 098a65da24ad9b75

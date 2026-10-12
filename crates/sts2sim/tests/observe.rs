@@ -30,7 +30,7 @@ fn scenario(seed: u64) -> Scenario {
         potion_slots: 3,
         deck,
         relics: vec![RelicInit { id: ids::relic::BURNING_BLOOD, ..Default::default() }],
-        potions: vec![ids::potion::BLOCK_POTION],
+        potions: vec![(0, ids::potion::BLOCK_POTION)],
         rng: RngSet::from_run_seed(seed),
     }
 }

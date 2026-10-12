@@ -32,7 +32,8 @@ pub struct Scenario {
     pub potion_slots: u8,
     pub deck: Vec<DeckCard>,
     pub relics: Vec<RelicInit>,
-    pub potions: Vec<u16>,
+    /// (slot, potion)
+    pub potions: Vec<(u8, u16)>,
     pub rng: RngSet,
 }
 
@@ -75,9 +76,9 @@ impl Scenario {
                 return Err(ScenarioError::UnimplementedRelic(crate::ids::relic::NAMES[r.id as usize]));
             }
         }
-        for p in &self.potions {
-            if !content::potion_implemented(*p) {
-                return Err(ScenarioError::UnimplementedPotion(crate::ids::potion::NAMES[*p as usize]));
+        for &(_, p) in &self.potions {
+            if !content::potion_implemented(p) {
+                return Err(ScenarioError::UnimplementedPotion(crate::ids::potion::NAMES[p as usize]));
             }
         }
         if !content::encounter_implemented(self.encounter) {
@@ -89,7 +90,7 @@ impl Scenario {
         if self.relics.len() > MAX_RELICS {
             return Err(ScenarioError::TooManyRelics);
         }
-        if self.potions.len() > MAX_POTIONS {
+        if self.potions.len() > MAX_POTIONS || self.potions.iter().any(|&(s, _)| s as usize >= MAX_POTIONS) {
             return Err(ScenarioError::TooManyPotions);
         }
         if self.orb_slots as usize > MAX_ORBS || self.potion_slots as usize > MAX_POTIONS || self.max_hp <= 0 {
@@ -358,12 +359,15 @@ impl Combat {
             cx.player.relics.push(Relic { id: r.id, counter: r.counter, flags: r.flags, aux: r.aux });
             cx.listen |= content::relic_mask(r.id);
         }
-        if sc.potions.len() > MAX_POTIONS {
+        if sc.potions.len() > MAX_POTIONS || sc.potions.iter().any(|&(s, _)| s as usize >= MAX_POTIONS) {
             cx.overflow |= ov::SCENARIO;
         }
-        for (i, p) in sc.potions.iter().enumerate().take(MAX_POTIONS) {
-            cx.player.potions[i] = Some(Potion { id: *p });
-            cx.listen |= content::potion_mask(*p);
+        // placed by slot before combat start, so start-of-combat potion relics (Delicate Frond) fill only the open slots
+        for &(slot, p) in &sc.potions {
+            if let Some(s) = cx.player.potions.get_mut(slot as usize) {
+                *s = Some(Potion { id: p });
+                cx.listen |= content::potion_mask(p);
+            }
         }
         let mut erng = crate::rng::Rng::new(((run_seed as i64).wrapping_add(sc.total_floor as i64) as u64).wrapping_add(encounter_hash(sc.encounter)));
         let Some(spawns) = content::encounter_spawns(sc.encounter, &mut erng, sc.ascension) else {

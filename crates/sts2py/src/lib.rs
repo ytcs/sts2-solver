@@ -314,6 +314,7 @@ impl SearchEnginePy {
         d.set_item("ex_changed", s.ex_changed)?;
         d.set_item("ex_states", s.ex_states)?;
         d.set_item("ex_rows", s.ex_rows)?;
+        d.set_item("ex_rolls", s.ex_rolls)?;
         d.set_item("cy_exact", s.cy_exact)?;
         d.set_item("cap_roots", s.cap_roots)?;
         d.set_item("cap_skipped", s.cap_skipped)?;

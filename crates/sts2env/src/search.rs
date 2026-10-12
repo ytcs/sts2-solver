@@ -288,6 +288,7 @@ pub struct SearchStats {
     pub ex_changed: u64,
     pub ex_states: u64,
     pub ex_rows: u64,
+    pub ex_rolls: u64,
     pub cy_exact: u64,
     pub cap_roots: u64,
     pub cap_skipped: u64,
@@ -599,31 +600,43 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             st.end_cap += 1;
             return None;
         }
-        let mut buf = ActionBuf::new();
-        let mut playable = 0u16;
-        let t0 = tsc();
-        sim.cx.legal_actions_ex(&mut buf, &mut playable);
-        st.cy_legal += tsc() - t0;
-        if buf.is_empty() {
-            sim.st = SimSt::Done;
-            st.end_stuck += 1;
-            return None;
-        }
-        if let Some(a) = forced_action(&sim.cx, &buf) {
-            act = a;
-            st.forced_sim += 1;
-        } else {
-            let t0 = tsc();
-            let u = unit(&mut sim.rng);
-            let u = if (sim.cx.player.turn_number - sim.start_turn) as i64 >= cfg.greedy_from as i64 { -1.0 } else { u };
-            let row = pol_row(out, true, &sim.cx, u);
-            write_row(&mut sim.cx, &buf, Some(playable), out.obs, Some(out.pol_mask), row);
-            st.cy_obs += tsc() - t0;
-            st.policy_rows += 1;
-            sim.st = SimSt::Pol(row as u32);
-            return None;
+        match sim_next(sim, cfg, out, st) {
+            Some(a) => act = a,
+            None => return None,
         }
     }
+}
+
+// An exact leaf's play-out takes the policy's most likely moves: one sample per world, so a max over lines does not select play-out luck.
+fn roll_cfg(cfg: &SearchCfg) -> SearchCfg {
+    SearchCfg { greedy_from: 0, ..*cfg }
+}
+
+// The play-out's next move: a forced one, else a policy row is requested (None, also when stuck).
+fn sim_next(sim: &mut Sim, cfg: &SearchCfg, out: &Out, st: &mut SearchStats) -> Option<Action> {
+    let mut buf = ActionBuf::new();
+    let mut playable = 0u16;
+    let t0 = tsc();
+    sim.cx.legal_actions_ex(&mut buf, &mut playable);
+    st.cy_legal += tsc() - t0;
+    if buf.is_empty() {
+        sim.st = SimSt::Done;
+        st.end_stuck += 1;
+        return None;
+    }
+    if let Some(a) = forced_action(&sim.cx, &buf) {
+        st.forced_sim += 1;
+        return Some(a);
+    }
+    let t0 = tsc();
+    let u = unit(&mut sim.rng);
+    let u = if (sim.cx.player.turn_number - sim.start_turn) as i64 >= cfg.greedy_from as i64 { -1.0 } else { u };
+    let row = pol_row(out, true, &sim.cx, u);
+    write_row(&mut sim.cx, &buf, Some(playable), out.obs, Some(out.pol_mask), row);
+    st.cy_obs += tsc() - t0;
+    st.policy_rows += 1;
+    sim.st = SimSt::Pol(row as u32);
+    None
 }
 
 fn idle_sim(cx: &Combat) -> Sim {
@@ -1164,7 +1177,7 @@ impl Block {
             }
             RootSt::Exact => {
                 if let Some(inp) = inp {
-                    self.ex_answer(inp, sh);
+                    self.ex_answer(inp, sh, out);
                     self.ex_continue(sh, out);
                 }
             }
@@ -1207,6 +1220,9 @@ struct Exact {
     best: usize,
     gain: Option<i32>,
     pots0: Root,
+    // leaves played on to the sampled search's horizon: (leaf node, play-out waiting on a row)
+    rolls: Vec<(u32, Sim)>,
+    n_rolls: u64,
 }
 
 struct Fx(u64);
@@ -1232,6 +1248,8 @@ impl Exact {
         self.pending.clear();
         self.root.clear();
         self.ks.clear();
+        self.rolls.clear();
+        self.n_rolls = 0;
     }
 
     fn leaf(&mut self, v: f32, n: u32) -> u32 {
@@ -1245,12 +1263,58 @@ impl Exact {
             self.nodes[node as usize].v += end_score(cx, oc, r, w, &self.pots0) - cost;
             return;
         }
+        // The value net does not see the HP an enemy's death brings back (Test Subject's revives, Stock, Infested, Surprise):
+        // one turn on from here, a leaf before a phase change outvalues the kill. Such a leaf is played on to the sampled horizon.
+        if cfg.leaf_turns > 1 && cx.should_stop_combat_from_ending() {
+            let mut s = self.ks[0] ^ ROLL_SALT ^ EXACT_SALT ^ self.n_rolls.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+            self.n_rolls += 1;
+            let mut sim = Sim { cx: cx.clone(), st: SimSt::Idle, start_turn: self.turn, est: 0.0, steps: 0, rng: splitmix(&mut s), pots0: self.pots0 };
+            st.ex_rolls += 1;
+            if let Some(a) = sim_next(&mut sim, &roll_cfg(cfg), out, st) {
+                sim_run(&mut sim, a, &roll_cfg(cfg), w, out, st, None, None);
+            }
+            self.roll_wait(node, sim);
+            return;
+        }
         self.nodes[node as usize].v -= cost;
         let row = val_row(out, cx);
         write_row(cx, &ActionBuf::new(), None, out.obs, None, out.val_obs_row(row));
         self.pending.push((row as u32, node, cx.cr(0).max_hp, hp_ceiling(cx, self.gain), held(cx, &self.pots0)));
         st.value_rows += 1;
         st.ex_rows += 1;
+    }
+
+    fn roll_wait(&mut self, node: u32, sim: Sim) {
+        if matches!(sim.st, SimSt::Pol(_) | SimSt::Val(_)) {
+            self.rolls.push((node, sim));
+        } else {
+            self.nodes[node as usize].v += sim.est;
+        }
+    }
+
+    // Answers the play-outs' rows; each still running requests its next row.
+    fn roll_answer(&mut self, inp: &Inputs, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) {
+        let stride = 2 * cfg.m + 1;
+        for (node, mut sim) in std::mem::take(&mut self.rolls) {
+            match sim.st {
+                SimSt::Pol(row) => match Action::from_index(inp.pol[row as usize * stride + 2 * cfg.m] as usize) {
+                    Some(a) => {
+                        sim_run(&mut sim, a, &roll_cfg(cfg), w, out, st, None, None);
+                    }
+                    None => {
+                        st.illegal += 1;
+                        sim.st = SimSt::Done;
+                    }
+                },
+                SimSt::Val(row) => {
+                    let r = row as usize * cfg.val_w;
+                    sim.est += leaf_value(&inp.val[r..r + cfg.val_w], sim.cx.cr(0).max_hp, hp_ceiling(&sim.cx, self.gain), cfg, w, &held(&sim.cx, &sim.pots0));
+                    sim.st = SimSt::Done;
+                }
+                _ => {}
+            }
+            self.roll_wait(node, sim);
+        }
     }
 
     fn end_turn(&mut self, node: u32, mut cx: Combat, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats) {
@@ -1363,7 +1427,7 @@ impl Exact {
                 self.stack.pop();
                 continue;
             }
-            if self.pending.len() + dets > budget {
+            if self.pending.len() + self.rolls.len() + dets > budget {
                 return Some(false);
             }
             let (node, world, i) = (f.node, f.world, f.next);
@@ -1482,7 +1546,7 @@ impl Block {
         self.ex_continue(sh, out);
     }
 
-    fn ex_answer(&mut self, inp: &Inputs, sh: &Shared) {
+    fn ex_answer(&mut self, inp: &Inputs, sh: &Shared, out: &Out) {
         let Some(ex) = self.ex.as_mut() else { return };
         let (vw, w) = (sh.cfg.val_w, &sh.worth[self.scen as usize]);
         for &(row, node, max_hp, ceiling, ref hd) in ex.pending.iter() {
@@ -1490,6 +1554,9 @@ impl Block {
             ex.nodes[node as usize].v += leaf_value(&inp.val[r..r + vw], max_hp, ceiling, &sh.cfg, w, hd);
         }
         ex.pending.clear();
+        let t0 = tsc();
+        ex.roll_answer(inp, &sh.cfg, w, out, &mut self.stats);
+        self.stats.cy_exact += tsc() - t0;
     }
 
     fn ex_continue(&mut self, sh: &Shared, out: &Out) {
@@ -1497,7 +1564,7 @@ impl Block {
         let cfg = &sh.cfg;
         let mut ex = self.ex.take().expect("exact search state");
         let r = ex.run(cfg, &sh.worth[self.scen as usize], out, &mut self.stats, slots(cfg));
-        if r == Some(false) || (r == Some(true) && !ex.pending.is_empty()) {
+        if r == Some(false) || (r == Some(true) && !(ex.pending.is_empty() && ex.rolls.is_empty())) {
             self.stats.cy_exact += tsc() - t0;
             self.ex = Some(ex);
             return;
@@ -1505,6 +1572,7 @@ impl Block {
         let best = ex.best;
         let pick = if r.is_some() { self.ex_pick(&mut ex, best, cfg.m) } else { None };
         ex.pending.clear();
+        ex.rolls.clear();
         self.stats.cy_exact += tsc() - t0;
         self.ex = Some(ex);
         let Some((a, v, rank)) = pick else {
@@ -1660,6 +1728,7 @@ impl SearchEngine {
             t.ex_changed += s.ex_changed;
             t.ex_states += s.ex_states;
             t.ex_rows += s.ex_rows;
+            t.ex_rolls += s.ex_rolls;
             t.cy_exact += s.cy_exact;
             t.cap_roots += s.cap_roots;
             t.cap_skipped += s.cap_skipped;

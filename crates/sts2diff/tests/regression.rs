@@ -72,3 +72,17 @@ fn thrash_keeps_its_exhaust_bonus_through_dampen() {
     cx.sync_hand(&[ObsCard { id: ids::card::THRASH, ..Default::default() }]);
     assert_eq!(hit(&mut cx, foes[2]), 58);
 }
+
+#[test]
+fn scenario_potions_sit_in_their_slot_and_delicate_frond_fills_the_rest() {
+    let belt = |relics: serde_json::Value| {
+        let sc = serde_json::json!({"encounter": "NIBBITS_WEAK", "character": "IRONCLAD", "hp": 80, "seed": "frond", "deck": vec!["STRIKE_IRONCLAD"; 5],
+            "relics": relics, "max_potion_slots": 3, "potions": [{"id": "WEAK_POTION", "slot": 1}]});
+        let cx = sts2sim::Combat::new(&sts2diff::convert::scenario(&sc).expect("scenario builds"));
+        cx.player.potions.iter().take(3).map(|p| p.map(|p| sts2sim::ids::potion::NAMES[p.id as usize])).collect::<Vec<_>>()
+    };
+    assert_eq!(belt(serde_json::json!(["BURNING_BLOOD"])), vec![None, Some("WEAK_POTION"), None]);
+    let f = belt(serde_json::json!(["BURNING_BLOOD", "DELICATE_FROND"]));
+    assert_eq!(f[1], Some("WEAK_POTION"));
+    assert!(f[0].is_some() && f[2].is_some(), "Delicate Frond fills every open slot at combat start: {f:?}");
+}

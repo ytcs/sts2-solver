@@ -151,9 +151,12 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
         relics.push(relic_init(find(&IDX_RELIC, id_of(r), "relic")?, &r["props"])?);
     }
     let mut potions = vec![];
-    // the game has no slot cap; the simulator holds MAX_POTIONS (the observation layout is sized by it)
-    for p in v["potions"].as_array().unwrap_or(&vec![]).iter().take(sts2sim::state::MAX_POTIONS) {
-        potions.push(find(&IDX_POTION, id_of(p), "potion")?);
+    // by the game's slot (list index without one); the game has no slot cap, the simulator holds MAX_POTIONS (the observation layout is sized by it)
+    for (i, p) in v["potions"].as_array().unwrap_or(&vec![]).iter().enumerate() {
+        let slot = p["slot"].as_u64().map_or(i, |s| s as usize);
+        if slot < sts2sim::state::MAX_POTIONS {
+            potions.push((slot as u8, find(&IDX_POTION, id_of(p), "potion")?));
+        }
     }
     let hp = v["hp"].as_i64().unwrap_or(80) as i32;
     Ok((Scenario {
