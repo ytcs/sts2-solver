@@ -738,13 +738,9 @@ function mapSVG(m, o = {}) {  // bottom = act start, top = the boss (the A10 pai
   const bx = ids.map((_, i) => cx + (i - (ids.length - 1) / 2) * gap);
   const planSet = new Set(m.route);
   let edges = "", plan = "", nodes = "";
-  for (const n of Object.values(P.nodes)) {
-    const [x1, y1] = pos(n.r, n.c);
-    for (const k of n.kids) {
-      const ch = P.nodes[`r${n.r + 1}c${k}`], [x2, y2] = pos(n.r + 1, k);
-      edges += `<line class="edge ${n.visited && ch && ch.visited ? "done" : ""}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
-    }
-    if (n.r === maxR) edges += `<line class="edge ${n.visited && m.fought.includes(ids[0]) ? "done" : ""}" x1="${x1}" y1="${y1}" x2="${bx[0]}" y2="${by}"/>`;
+  for (const [a, b] of DM.mapLinks(P)) {
+    const n = P.nodes[a], ch = P.nodes[b], [x1, y1] = pos(n.r, n.c), [x2, y2] = ch ? pos(ch.r, ch.c) : [bx[0], by];
+    edges += `<line class="edge ${n.visited && (ch ? ch.visited : m.fought.includes(ids[0])) ? "done" : ""}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
   }
   for (let i = 1; i < ids.length; i++) {
     const a = bx[i - 1] + br + 2, b = bx[i] - br - 2;
@@ -763,7 +759,7 @@ function mapSVG(m, o = {}) {  // bottom = act start, top = the boss (the A10 pai
     const tip = `${coord} ${MAPTYPE[n.type] || n.type}${off ? `, option ${off.n}` : ""}${tag ? `, ${RANKED[rk] || rk} ${tag}` : ""}`;
     nodes += `<g class="node ${n.visited ? "visited" : ""} ${off ? "offer" : ""} ${planSet.has(coord) ? "plan" : ""} ${m.here === n ? "here" : ""}"><title>${esc(tip)}</title>
       <circle class="bg" cx="${x}" cy="${y}" r="${nr}"/>
-      ${icon ? `<image href="${A(icon)}" x="${x - ic / 2}" y="${y - ic / 2}" width="${ic}" height="${ic}"/>` : `<text class="glyph" x="${x}" y="${y + 5}">${esc(n.type)}</text>`}
+      ${icon ? `<image href="${A(icon)}" x="${x - ic / 2}" y="${y - ic / 2}" width="${ic}" height="${ic}" data-alt="${esc(n.type)}"/>` : `<text class="glyph" x="${x}" y="${y + 5}">${esc(n.type)}</text>`}
       ${off ? `<text class="onum" x="${x - nr - 3}" y="${y - nr + 4}">${off.n}</text>` : ""}
       ${tag ? `<text class="ptag" x="${x + nr + 4}" y="${y + 4}">${tag}</text>` : ""}</g>`;
   }
@@ -772,7 +768,7 @@ function mapSVG(m, o = {}) {  // bottom = act start, top = the boss (the A10 pai
     const initials = names[i].split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
     return `<g class="node boss ${b && m.fought.includes(b) ? "visited" : ""}"><title>${esc(names[i] + (ids.length > 1 ? (i ? " (second boss)" : " (first boss)") : ""))}</title>
       <circle class="bg" cx="${x}" cy="${by}" r="${br}"/>
-      ${icon ? `<image href="${A(icon)}" x="${x - br + 4}" y="${by - br + 4}" width="${2 * br - 8}" height="${2 * br - 8}"/>` : `<text class="glyph" x="${x}" y="${by + br * 0.3}" style="font-size:${Math.round(br * 0.8)}px">${esc(initials)}</text>`}
+      ${icon ? `<image href="${A(icon)}" x="${x - br + 4}" y="${by - br + 4}" width="${2 * br - 8}" height="${2 * br - 8}" data-alt="${esc(initials)}" data-fs="${Math.round(br * 0.8)}"/>` : `<text class="glyph" x="${x}" y="${by + br * 0.3}" style="font-size:${Math.round(br * 0.8)}px">${esc(initials)}</text>`}
       <text class="bname" x="${x}" y="${fs + 2}" style="font-size:${fs}px">${esc(names[i])}</text></g>`;
   }).join("");
   const s = o.size === "big" ? Math.min(1.5, (innerHeight - 110) / H, (innerWidth - 90) / W) : 1;
@@ -1096,6 +1092,12 @@ document.addEventListener("click", (ev) => {  // a card opens its full view; any
 document.addEventListener("error", (ev) => {  // an art file the cache lacks: its name as text, never a broken image
   const t = ev.target;
   if (t && t.tagName === "IMG") { const s = document.createElement("span"); s.className = "chip"; s.textContent = t.alt || t.title || ""; s.title = t.title || ""; t.replaceWith(s); }
+  if (t instanceof SVGImageElement) {  // a map icon: its letter in the node, centred where the icon was
+    const s = document.createElementNS("http://www.w3.org/2000/svg", "text"), fs = +(t.dataset.fs || 13);
+    s.setAttribute("class", "glyph"); s.setAttribute("style", `font-size:${fs}px`); s.textContent = t.dataset.alt || "";
+    s.setAttribute("x", +t.getAttribute("x") + t.getAttribute("width") / 2); s.setAttribute("y", +t.getAttribute("y") + t.getAttribute("height") / 2 + fs * 0.35);
+    t.replaceWith(s);
+  }
 }, true);
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closeCardPop(); closeMapPop(); } });
 // the decision feed's width: drag its left edge (remembered in this browser; double-click resets)

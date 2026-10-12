@@ -84,6 +84,15 @@
     }
     return { rows, nodes, boss };
   }
+  // map edges [from, to]: to = a node key, or "boss" from the last row (its child columns name the boss point, which is no row node)
+  function mapLinks(P) {
+    const maxR = Math.max(...Object.keys(P.rows).map(Number), 1), out = [];
+    for (const [k, n] of Object.entries(P.nodes)) {
+      if (n.r === maxR) out.push([k, "boss"]);
+      else for (const c of n.kids) if (P.nodes[`r${n.r + 1}c${c}`]) out.push([k, `r${n.r + 1}c${c}`]);
+    }
+    return out;
+  }
   function lastOf(events, kind, pred) { for (let i = events.length - 1; i >= 0; i--) { const e = events[i]; if (e.kind === kind && (!pred || pred(e))) return e; } return null; }
   function latestPrice(events, kind) {  // the price of the screen on view: none once a decision was made since
     for (let i = events.length - 1; i >= 0; i--) {
@@ -129,6 +138,6 @@
       price: latestPrice(events, kind),
     };
   }
-  const API = { header, kindOf, options, chosenLabel, splitReply, parseWhy, priceRows, rankKey, bestOption, parseMap, lastOf, latestPrice, model, HDR };
+  const API = { header, kindOf, options, chosenLabel, splitReply, parseWhy, priceRows, rankKey, bestOption, parseMap, mapLinks, lastOf, latestPrice, model, HDR };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.DM = API;
 })(typeof window !== "undefined" ? window : globalThis);
