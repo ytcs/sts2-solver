@@ -262,7 +262,8 @@ def _p(e, s):
 
 
 def offer_rows(src, char, K=6):
-    """pick-given-offer rows (half, room, act, depth, deck size, hp frac, offered, picked, owned, [win, dmg z, turns z over the next K fights]): combat card rewards; shop and act-2/3 ancient relics"""
+    """pick-given-offer rows (half, room, act, depth, deck size, hp frac, offered, picked, owned, [win, dmg z, turns z over the next K fights]): combat card rewards; shop and act-2/3 ancient relics.
+    owned: deck simulated through gained / removed, united with final-deck cards added before the floor (ancient cards are missing from gained)"""
     import codex
     st = collections.defaultdict(list)
     for r in codex.rows(src, char):
@@ -278,9 +279,10 @@ def offer_rows(src, char, K=6):
         for ai, act in enumerate(r["floors"]):
             for i, f in enumerate(act):
                 g += 1
-                own = frozenset({c for c, n in deck.items() if n > 0} | {"r:" + x for x, fx in r["relics"] if (fx or 0) < g})
+                now = +deck | collections.Counter(c[0] for c in r["deck"] if (c[3] or 0) < g)
+                own = frozenset(set(now) | {"r:" + x for x, fx in r["relics"] if (fx or 0) < g})
                 nz = [v for v in z[g:] if v is not None][:K]
-                base = (half, f["t"], ai, i / len(act), sum(deck.values()), (f["hp"] or 0) / (f["mx"] or 1))
+                base = (half, f["t"], ai, i / len(act), sum(now.values()), (f["hp"] or 0) / (f["mx"] or 1))
                 y = (float(r["win"]),) + (tuple(np.mean(nz, 0)) if nz else (np.nan, np.nan))
                 offered = collections.defaultdict(int)
                 if f["enc"] and f["t"] in COMBAT and 3 <= len(f["offer"]) <= 5:
@@ -308,7 +310,7 @@ def _controls(R, p):
 
 
 def pair_fits(rows, min_n=30, min_wl=5):
-    """per (owned A, offered B): logit(win) / OLS(z) ~ 1 + picked + controls (+ x picked) + owns A + picked x owns A; gate: n(picked, owns A), n(not picked, owns A) >= min_n, >= min_wl wins and losses in all 4 picked x owns cells"""
+    """per (owned A, offered B): logit(win) / OLS(z) ~ 1 + picked + controls (+ x picked) + owns A + picked x owns A; gate: A owned in <= 90% of B's rows, n(picked, owns A), n(not picked, owns A) >= min_n, >= min_wl wins and losses in all 4 picked x owns cells"""
     byB = collections.defaultdict(list)
     for r in rows:
         byB[r[6]].append(r)
@@ -325,7 +327,7 @@ def pair_fits(rows, min_n=30, min_wl=5):
         M = np.zeros((len(R), len(items)), bool)
         for j, r in enumerate(R):
             M[j, [ix[a] for a in r[8] if a in ix]] = True
-        ok = (M[p == 1].sum(0) >= min_n) & (M[p == 0].sum(0) >= min_n)
+        ok = (M[p == 1].sum(0) >= min_n) & (M[p == 0].sum(0) >= min_n) & (M.mean(0) <= 0.9)
         for pv in (0, 1):
             for yv in (0, 1):
                 s = (p == pv) & (Y[:, 0] == yv)
@@ -455,9 +457,11 @@ def codex_report(src, char):
     for x, n in miss:
         print(f"  {'syn ' if sg[n] * x['fit'][n][0] > 0 else 'anti'} {_row(x, n, x['q'][n])}")
     print("pooled (B and picked x B fixed effects; owns any partner): " + ("bundles: offered core/support piece, partner = other core piece; table pairs: partner = any table partner" if kind else "code groups: offered consumer, partner = provider"))
-    for lab, parts in groups or [(f"group {g}", {c: set(pro.split()) - {c} for c in con.split()}) for g, (pro, con) in GROUPS.get(char, {}).items()]:
-        f, n = pooled(rows, parts)
-        print(f"  {lab:<32} n(pick,own) {n:6d}  " + ("  ".join(_cell(f, nn) for nn, _ in OUTS) if f else "too few"))
+    pl = [(lab,) + pooled(rows, parts) for lab, parts in groups or [(f"group {g}", {c: set(pro.split()) - {c} for c in con.split()}) for g, (pro, con) in GROUPS.get(char, {}).items()]]
+    q = iter(_bh(np.array([_p(*f[nn][:2]) for _, f, _ in pl if f for nn, _ in OUTS])))
+    print(f"  BH q over the {3 * sum(1 for x in pl if x[1])} pooled tests in ()")
+    for lab, f, n in pl:
+        print(f"  {lab:<32} n(pick,own) {n:6d}  " + ("  ".join(f"{_cell(f, nn)} ({next(q):.3f})" for nn, _ in OUTS) if f else "too few"))
     n, t, p05, bh, ks = deck_pairs(src, char, kind)
     print(f"naive deck design (deck entering the first final boss, {n} runs, win | reached): {t} pairs, p<.05 {p05} (null {0.05 * t:.0f}), BH q<.1 {bh}" + (
         "; mean interaction " + ", ".join(f"{k or 'untabled'} {np.mean(v):+.3f} (n {len(v)})" for k, v in ks.items()) if kind else ""))
