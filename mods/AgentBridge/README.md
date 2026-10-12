@@ -10,7 +10,7 @@ In-process mod for STS2 v0.111.0. Serves the current decision as compact text wi
 | `a <i> [<j> ...]` / `a -` | answer a `SELECT` prompt (pick indices / none) |
 | `a dp <slot>` | discard a potion |
 | `do <json>` | one action in oracle script vocabulary (`{"play":{...}}`, `{"end_turn":true}`) |
-| `fight` | JSON `{scenario, log, state}` of the combat (visible information only) |
+| `fight` | JSON `{scenario, log, state}` of the combat (visible information only); a card with local cost modifiers carries `cost_mods` `[[amount, relative, reduce_only, expiry flags]]` in every pile (state marker `cost_mods: 1`) |
 | `snap`, `deck.json` | JSON snapshots |
 | `d` / `p draw\|discard\|exhaust` / `m` | deck+relics+potions / a pile as unordered multiset / act map (`<type>c<col>><children>`, `*` visited) |
 | `draw r1c6 ...` / `draw clear` | draw a route on the map |

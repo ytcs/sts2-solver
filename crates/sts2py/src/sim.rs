@@ -3,7 +3,7 @@ use numpy::PyReadwriteArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::{json, Value};
-use sts2sim::engine::{ActionBuf, ObsCard, ObsEnemy, ACTION_SPACE};
+use sts2sim::engine::{ActionBuf, ObsCard, ObsCostMods, ObsEnemy, ACTION_SPACE};
 use sts2sim::observe::OBS_SIZE;
 use sts2sim::state::*;
 use sts2sim::types::*;
@@ -64,7 +64,18 @@ fn obs_belt(v: &Value, notes: &mut Vec<String>) -> Option<Vec<(usize, u16)>> {
     Some(belt)
 }
 
-fn obs_card(c: &Value, with_cost: bool) -> Option<ObsCard> {
+// `known`: the state carries the game's local cost modifiers (top-level "cost_mods" marker), so a card without "cost_mods" has none.
+fn obs_cost_mods(c: &Value, known: bool) -> Option<ObsCostMods> {
+    let Some(a) = c["cost_mods"].as_array() else { return known.then(ObsCostMods::default) };
+    let mut out = ObsCostMods::default();
+    for m in a {
+        let f = |i: usize| m[i].as_i64().unwrap_or(0);
+        out.push(CostMod::new(f(0).clamp(-100, 100) as i8, f(1) != 0, f(2) != 0, f(3) as u8 & (EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED)));
+    }
+    Some(out)
+}
+
+fn obs_card(c: &Value, with_cost: bool, known: bool) -> Option<ObsCard> {
     let id = card_ids(c["id"].as_str().unwrap_or(""))?;
     let e = &c["enchantment"];
     let enchant = e.as_str().or_else(|| e["id"].as_str()).and_then(|n| sts2sim::ids::enchantment::NAMES.iter().position(|x| *x == n)).map_or(0, |i| i as u8 + 1);
@@ -78,6 +89,7 @@ fn obs_card(c: &Value, with_cost: bool) -> Option<ObsCard> {
         enchant_amount: if enchant == 0 { 0 } else { e["amount"].as_i64().unwrap_or(1) as i16 },
         affliction,
         affliction_amount: if affliction == 0 { 0 } else { a["amount"].as_i64().unwrap_or(1) as i16 },
+        cost_mods: obs_cost_mods(c, known),
     })
 }
 
@@ -423,7 +435,8 @@ impl Sim {
             return Ok(self.cx.sync_options(&want));
         }
         let real: Value = serde_json::from_str(real_json).map_err(err)?;
-        let hand: Vec<ObsCard> = real["hand"].as_array().map_or(vec![], |h| h.iter().filter_map(|c| obs_card(c, true)).collect());
+        let known = real["cost_mods"].is_number();
+        let hand: Vec<ObsCard> = real["hand"].as_array().map_or(vec![], |h| h.iter().filter_map(|c| obs_card(c, true, known)).collect());
         let mut want = vec![];
         for (name, up) in &options {
             match card_ids(name) {
@@ -454,10 +467,11 @@ impl Sim {
     fn sync(&mut self, real_json: &str) -> PyResult<String> {
         let real: Value = serde_json::from_str(real_json).map_err(err)?;
         let mut notes: Vec<String> = vec![];
+        let known = real["cost_mods"].is_number();
         let mut obs: Vec<ObsCard> = vec![];
         if let Some(h) = real["hand"].as_array() {
             for c in h {
-                match obs_card(c, true) {
+                match obs_card(c, true, known) {
                     Some(o) => obs.push(o),
                     None => notes.push(format!("unknown card {}", c["id"].as_str().unwrap_or(""))),
                 }
@@ -465,7 +479,7 @@ impl Sim {
         }
         let rep = self.cx.sync_hand(&obs);
         for (key, pile) in [("exhaust", PileType::Exhaust), ("discard", PileType::Discard)] {
-            let cards: Vec<ObsCard> = real[key].as_array().map_or(vec![], |a| a.iter().filter_map(|c| obs_card(c, false)).collect());
+            let cards: Vec<ObsCard> = real[key].as_array().map_or(vec![], |a| a.iter().filter_map(|c| obs_card(c, false, known)).collect());
             let r = self.cx.sync_pile(pile, &cards);
             if r.created > 0 {
                 notes.push(format!("{key}: {} cards created", r.created));
@@ -473,7 +487,7 @@ impl Sim {
         }
         let playing = real["play_pile"].as_array().map_or(false, |a| !a.is_empty());
         if let (Some(a), false) = (real["draw"].as_array(), playing) {
-            let cards: Vec<ObsCard> = a.iter().filter_map(|c| obs_card(c, false)).collect();
+            let cards: Vec<ObsCard> = a.iter().filter_map(|c| obs_card(c, false, known)).collect();
             let r = self.cx.sync_draw(&cards);
             if r.created > 0 {
                 notes.push(format!("draw: {} cards created", r.created));

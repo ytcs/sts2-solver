@@ -12,6 +12,32 @@ pub struct ObsCard {
     pub enchant_amount: i16,
     pub affliction: u8,
     pub affliction_amount: i16,
+    /// The game's local cost modifiers (CardEnergyCost._localModifiers) in order; None = not observed (legacy bridge).
+    pub cost_mods: Option<ObsCostMods>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ObsCostMods {
+    pub n: u8,
+    pub m: [CostMod; 4],
+}
+
+impl ObsCostMods {
+    /// The game keeps every modifier; an absolute non-reduce-only one that never expires overrides all before it for good (as push_cost_mod).
+    pub fn push(&mut self, m: CostMod) {
+        if !m.relative() && !m.reduce_only() && m.expire() == 0 {
+            self.n = 0;
+        }
+        if self.n as usize == self.m.len() {
+            self.m.copy_within(1.., 0);
+            self.n -= 1;
+        }
+        self.m[self.n as usize] = m;
+        self.n += 1;
+    }
+    pub fn as_slice(&self) -> &[CostMod] {
+        &self.m[..self.n as usize]
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -96,6 +122,12 @@ impl Combat {
         let hand: Vec<CardIdx> = self.player.hand.iter().copied().collect();
         for (c, o) in hand.iter().zip(obs.iter()) {
             self.sync_affliction(*c, o.affliction, o.affliction_amount);
+            // the game's modifiers first (they carry the expiry); a resolved cost that still differs (a global modifier the simulator lacks) is fixed for the combat as before
+            if let Some(m) = o.cost_mods {
+                if self.set_cost_mods(*c, &m) {
+                    rep.cost_fixes += 1;
+                }
+            }
             if let Some(want) = o.cost {
                 if want < 0 || self.card_def(*c).x_cost {
                     continue;
@@ -160,7 +192,47 @@ impl Combat {
             }
         }
         self.sync_pile_afflictions(pile, obs);
+        self.sync_pile_costs(pile, obs);
         rep
+    }
+
+    /// Replaces the card's local cost modifiers with the game's; true if they changed.
+    pub fn set_cost_mods(&mut self, c: CardIdx, want: &ObsCostMods) -> bool {
+        let card = &mut self.cards[c as usize];
+        if card.mods.as_slice() == want.as_slice() {
+            return false;
+        }
+        card.mods.clear();
+        for &m in want.as_slice() {
+            card.mods.push(m);
+        }
+        true
+    }
+
+    // Piles are matched by (id, upgrade) only: a card whose modifiers already match keeps them, the rest are assigned in order.
+    fn sync_pile_costs(&mut self, pile: PileType, obs: &[ObsCard]) {
+        if obs.iter().all(|o| o.cost_mods.is_none()) {
+            return;
+        }
+        let cards: Vec<CardIdx> = self.pile(pile).iter().copied().collect();
+        let key = |cx: &Combat, c: CardIdx| (cx.cards[c as usize].id, cx.cards[c as usize].upgrade);
+        let mut want: Vec<Option<ObsCostMods>> = vec![None; cards.len()];
+        let mut rest = vec![];
+        for o in obs {
+            let m = o.cost_mods.unwrap_or_default();
+            match (0..cards.len()).find(|&j| want[j].is_none() && key(self, cards[j]) == (o.id, o.upgrade) && self.cards[cards[j] as usize].mods.as_slice() == m.as_slice()) {
+                Some(j) => want[j] = Some(m),
+                None => rest.push((o.id, o.upgrade, m)),
+            }
+        }
+        for (id, up, m) in rest {
+            if let Some(j) = (0..cards.len()).find(|&j| want[j].is_none() && key(self, cards[j]) == (id, up)) {
+                want[j] = Some(m);
+            }
+        }
+        for (c, w) in cards.into_iter().zip(want) {
+            self.set_cost_mods(c, &w.unwrap_or_default());
+        }
     }
 
     fn sync_pile_afflictions(&mut self, pile: PileType, obs: &[ObsCard]) {
@@ -226,6 +298,7 @@ impl Combat {
             rep.returned += 1;
         }
         self.sync_pile_afflictions(PileType::Draw, obs);
+        self.sync_pile_costs(PileType::Draw, obs);
         rep
     }
 

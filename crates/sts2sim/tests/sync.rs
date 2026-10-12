@@ -416,3 +416,121 @@ fn sync_pile_takes_the_games_bound_marks() {
     cx.sync_pile(PileType::Discard, &[strike, strike]);
     assert!(cx.player.discard.iter().all(|&c| cx.cards[c as usize].affliction == 0));
 }
+
+fn obs_mods(mods: &[CostMod]) -> Option<sts2sim::engine::ObsCostMods> {
+    let mut m = sts2sim::engine::ObsCostMods::default();
+    for &x in mods {
+        m.push(x);
+    }
+    Some(m)
+}
+
+fn hand_with(cx: &Combat, extra: ObsCard) -> Vec<ObsCard> {
+    let mut real: Vec<ObsCard> = names(cx, &cx.player.hand.clone()).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, ..Default::default() }).collect();
+    real.push(extra);
+    real
+}
+
+fn plays(cx: &Combat, pos: usize) -> bool {
+    let mut buf = ActionBuf::new();
+    cx.legal_actions(&mut buf);
+    buf.iter().any(|a| matches!(a, Action::PlayCard { hand_pos, .. } if *hand_pos as usize == pos))
+}
+
+const FREE_THIS_COMBAT: CostMod = CostMod::new(0, false, false, 0);
+const FREE_THIS_TURN: CostMod = CostMod::new(0, false, false, EXPIRE_END_OF_TURN | EXPIRE_WHEN_PLAYED);
+
+// Metamorphosis / Discovery-like: a generated card the game made free reaches the hand; the search must see it at 0
+#[test]
+fn sync_hand_keeps_a_free_generated_card_playable_at_zero_energy() {
+    for known in [false, true] {
+        let mut cx = combat(11);
+        let mangle = ObsCard { id: ids::card::MANGLE, cost: Some(0), cost_mods: if known { obs_mods(&[FREE_THIS_COMBAT]) } else { None }, ..Default::default() };
+        let real = hand_with(&cx, mangle);
+        let rep = cx.sync_hand(&real);
+        assert_eq!(rep.created, 1);
+        cx.sync_energy(0, 0);
+        let pos = real.len() - 1;
+        let c = cx.player.hand.as_slice()[pos];
+        assert_eq!(cx.card_cost(c, true), 0, "known {known}");
+        assert!(plays(&cx, pos), "known {known}: a free Mangle must be playable at 0 energy");
+        let e = cx.enemies.as_slice()[0];
+        let hp = cx.cr(e).hp;
+        assert!(cx.step(Action::PlayCard { hand_pos: pos as u8, target: e }));
+        assert!(cx.cr(e).hp < hp, "known {known}");
+        assert_eq!(cx.player.energy, 0);
+        assert_eq!(cx.card_cost(c, false), 0, "known {known}: free this combat stays free after the play");
+    }
+}
+
+// Bullet Time / Infernal Blade / Attack Potion-like: a this-turn override must expire at the end of the turn, not become this-combat
+#[test]
+fn sync_hand_keeps_the_expiry_of_a_this_turn_cost_override() {
+    let mut cx = combat(12);
+    let mangle = ObsCard { id: ids::card::MANGLE, cost: Some(0), cost_mods: obs_mods(&[FREE_THIS_TURN]), ..Default::default() };
+    let both = ObsCard { cost_mods: obs_mods(&[FREE_THIS_COMBAT, CostMod::new(1, true, false, EXPIRE_END_OF_TURN), FREE_THIS_TURN]), ..mangle };
+    let mut real = hand_with(&cx, mangle);
+    real.push(both);
+    cx.sync_hand(&real);
+    let n = real.len();
+    let (c, d) = (cx.player.hand.as_slice()[n - 2], cx.player.hand.as_slice()[n - 1]);
+    assert_eq!((cx.card_cost(c, true), cx.card_cost(d, true)), (0, 0));
+    assert!(cx.step(Action::EndTurn));
+    assert_eq!(cx.card_cost(c, false), 3, "a this-turn override outlived the turn");
+    assert_eq!(cx.card_cost(d, false), 0, "a this-combat override under a this-turn one was lost");
+}
+
+// piles: the game's cost modifiers on draw / discard cards (generated free cards before they are drawn) replace the simulator's
+#[test]
+fn sync_piles_take_the_games_cost_modifiers() {
+    let mut cx = combat(13);
+    let real: Vec<ObsCard> = names(&cx, &cx.player.hand.clone()).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, cost_mods: obs_mods(&[]), ..Default::default() }).collect();
+    cx.sync_hand(&real);
+    let strike = cx.player.draw.iter().copied().find(|&c| cx.cards[c as usize].id == ids::card::STRIKE_IRONCLAD).unwrap();
+    cx.set_cost_this_combat(strike, 0, false);
+    let mut draw: Vec<ObsCard> = names(&cx, &cx.player.draw.clone()).into_iter().map(|(id, upgrade)| ObsCard { id, upgrade, cost_mods: obs_mods(&[]), ..Default::default() }).collect();
+    draw.push(ObsCard { id: ids::card::MANGLE, cost_mods: obs_mods(&[FREE_THIS_COMBAT]), ..Default::default() });
+    let legacy: Vec<ObsCard> = draw.iter().map(|o| ObsCard { cost_mods: None, ..*o }).collect();
+    let mut old = cx.clone();
+    old.sync_draw(&legacy);
+    assert_eq!(old.card_cost(strike, false), 0, "legacy (no modifiers observed) leaves the simulator's modifiers alone");
+    let rep = cx.sync_draw(&draw);
+    assert_eq!(rep.created, 1);
+    let mangle = cx.player.draw.iter().copied().find(|&c| cx.cards[c as usize].id == ids::card::MANGLE).unwrap();
+    assert_eq!(cx.card_cost(mangle, false), 0, "the generated card is free");
+    assert_eq!(cx.card_cost(strike, false), 1, "the game's Strike has no modifier");
+    let mut disc = draw.clone();
+    disc.truncate(0);
+    disc.push(ObsCard { id: ids::card::MANGLE, cost_mods: obs_mods(&[FREE_THIS_COMBAT]), ..Default::default() });
+    cx.sync_pile(PileType::Discard, &disc);
+    let d = cx.player.discard.as_slice()[0];
+    assert_eq!((cx.cards[d as usize].id, cx.card_cost(d, false)), (ids::card::MANGLE, 0), "the free card moved to the discard keeps its cost");
+}
+
+// enemy effects on the player's cards: Tangled (Entangled affliction, attacks cost +Amount) survives the sync without baking the +1 into the card
+#[test]
+fn sync_hand_keeps_an_enemy_cost_increase_as_affliction_plus_power() {
+    const ENTANGLED: u8 = ids::affliction::ENTANGLED as u8 + 1;
+    let mut cx = combat(14);
+    cx.apply_power(ids::power::TANGLED_POWER, PLAYER, sts2sim::dec::Dec::int(1), PLAYER, NO);
+    let real: Vec<ObsCard> = cx
+        .player
+        .hand
+        .clone()
+        .iter()
+        .map(|&c| {
+            let k = &cx.cards[c as usize];
+            let attack = cx.card_def(c).ctype == CardType::Attack;
+            let base = cx.card_def(c).cost as i32;
+            ObsCard { id: k.id, upgrade: k.upgrade, cost: Some(base + attack as i32), affliction: if attack { ENTANGLED } else { 0 }, affliction_amount: attack as i16, cost_mods: obs_mods(&[]), ..Default::default() }
+        })
+        .collect();
+    for &c in cx.player.hand.clone().iter() {
+        cx.clear_affliction(c);
+    }
+    cx.sync_hand(&real);
+    for (&c, o) in cx.player.hand.clone().iter().zip(real.iter()) {
+        assert_eq!(cx.card_cost(c, true), o.cost.unwrap(), "{}", ids::card::NAMES[o.id as usize]);
+        assert_eq!(cx.card_cost(c, false), cx.card_def(c).cost as i32, "the +1 is the power's, not a local modifier");
+    }
+}

@@ -39,7 +39,7 @@ pub use monster::{STUN_INTENTS, STUN_NODE};
 pub use monster::{look_dep, with_look_cache, LookCache, LookDigests, LookRow, LOOK_CACHE_ENTRIES, LOOK_H, LOOK_NODES, LOOK_VERIFIED, LOOK_VERIFY};
 pub use turn::BASE_HAND_DRAW;
 pub use cost::CostMods;
-pub use sync::{EnemySync, HandSync, ObsCard, ObsEnemy, ObsRelic, RelicSync};
+pub use sync::{EnemySync, HandSync, ObsCard, ObsCostMods, ObsEnemy, ObsRelic, RelicSync};
 pub use play::RunResult;
 pub use history::{HKind, HistEntry, HistLog, HIST_CAP};
 pub use orbs::VALID_ORBS;
