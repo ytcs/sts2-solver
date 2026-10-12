@@ -33,6 +33,8 @@ def _floor(pt):
 
 def table(src, out):
     n, kept, why = 0, 0, collections.Counter()
+    from agent.macro import card_id_set
+    known = card_id_set()
     with gzip.open(src, "rt", encoding="utf-8") as f, gzip.open(out, "wt", encoding="utf-8") as g:
         for line in f:
             n += 1
@@ -42,7 +44,8 @@ def table(src, out):
                 why["bad json"] += 1
                 continue
             ps = d.get("players") or []
-            for test, k in ((len(ps) == 1, "multiplayer"), (d.get("game_mode") == "standard", "mode"), (not d.get("modifiers"), "modifiers"),
+            cards = {_id(c.get("id")) for c in (ps[0].get("deck") or [])} if ps else set()
+            for test, k in ((len(ps) == 1, "multiplayer"), (cards <= known, "modded cards"), (d.get("game_mode") == "standard", "mode"), (not d.get("modifiers"), "modifiers"),
                             (d.get("ascension") == 10, "ascension"), (not d.get("was_abandoned"), "abandoned")):
                 if not test:
                     why[k] += 1
