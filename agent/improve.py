@@ -139,6 +139,7 @@ def _run_outcome(ev):
 RULE_ID = re.compile(r"\b(?:A[1-3]-\d+|IC\d+|[PDRFMI]\d+)\b")
 LEDGER = os.path.join(EVALS, "rules", "ledger.jsonl")
 LEDGER_KEY = ("run", "i")
+SAFE_WIN = 0.9
 
 
 def _field(why, name):
@@ -164,9 +165,11 @@ def _score(inst, e):
         hit = next((k for k in res if chosen and (k.lower().startswith(chosen) or chosen.startswith(k.lower()))), None)
         if chosen.startswith("skip"):
             hit = next((k for k in res if k.lower().startswith("skip")), hit)
+        if hit is None:
+            return None
         best = x.get("best")
-        margin = res[best][by] - res[hit][by] if hit and best in res and by in res[best] else None
-        return "price", best, hit or chosen, hit is not None and hit.lower() == str(best).lower(), margin
+        margin = res[best][by] - res[hit][by] if best in res and by in res[best] else None
+        return "price", best, hit, hit.lower() == str(best).lower(), margin
     if kind == "routes":
         rows = {}
         for l in x.get("text", "").split(NL):
@@ -176,14 +179,16 @@ def _score(inst, e):
         m = re.search(r"r(\d+)c(\d+)", scr.option_line(state, (choice or " ").split()[0]))
         if not rows or not m or m.groups() not in rows:
             return None
-        best = max(rows, key=rows.get)
-        return "routes", f"r{best[0]}c{best[1]}", f"r{m.group(1)}c{m.group(2)}", rows[best] - rows[m.groups()] < 1e-9, rows[best] - rows[m.groups()]
+        best, got = max(rows, key=rows.get), rows[m.groups()]
+        return "routes", f"r{best[0]}c{best[1]}", f"r{m.group(1)}c{m.group(2)}", got >= min(rows[best], SAFE_WIN) - 1e-9, rows[best] - got
     if kind == "rest":
+        label = _label(state, choice).lower()
+        if not label.startswith(("rest", "smith")):
+            return None
         r0, r1 = x["result"].get("0") or x["result"].get(0), x["result"].get("1") or x["result"].get(1)
         gain, dse = r1["win"] - r0["win"], r1.get("dse") or r1.get("se") or 0
-        rest = gain > 2 * dse
-        chose_rest = "rest" in _label(state, choice).lower()
-        return "restcalc", "rest" if rest else "smith", "rest" if chose_rest else _label(state, choice), rest == chose_rest, 0.0 if rest == chose_rest else (gain if rest else -gain)
+        rest, chose_rest = gain > 2 * dse, label.startswith("rest")
+        return "restcalc", "rest" if rest else "smith", "rest" if chose_rest else "smith", rest == chose_rest, 0.0 if rest == chose_rest else (gain if rest else -gain)
     return None
 
 
@@ -205,11 +210,12 @@ def _macro_decisions(ev, run):
             why = e.get("why") or ""
             cited = _field(why, "rules")
             sc = _score(inst, e) if inst else None
-            rows.append(dict(run=run, i=len(rows), screen=(e.get("screen") or "").split(" ")[0], header=e.get("screen"), choice=e.get("choice"),
+            if sc or "rules:" in why.lower():
+                rows.append(dict(run=run, i=len(rows), screen=(e.get("screen") or "").split(" ")[0], header=e.get("screen"), choice=e.get("choice"),
                              rules=RULE_ID.findall(cited), new=cited.partition("new:")[2].strip() or None, judgment=_field(why, "judgment")[:300],
                              instrument=sc[0] if sc else None, best=sc[1] if sc else None, chosen=sc[2] if sc else None,
                              agree=sc[3] if sc else None, margin=round(sc[4], 4) if sc and sc[4] is not None else None, outcome=outcome))
-            if (e.get("screen") or "").startswith("MAP"):
+            if sc or (e.get("screen") or "").startswith("MAP"):
                 inst = None
     scored = [r for r in rows if r["agree"] is not None]
     lines = [f"macro decisions: {len(rows)}, citing a rule {sum(1 for r in rows if r['rules'])}, new: {sum(1 for r in rows if r['new'])}, "
