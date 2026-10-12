@@ -172,8 +172,6 @@ pub struct SearchCfg {
     pub maxhp_cost: f32,
     // play-out moves from this many player turns after the root on take the policy's most likely move instead of a draw
     pub greedy_from: u32,
-    // play-outs run one player turn past `leaf_turns` when an enemy's death is pending there (`Combat::death_pending`)
-    pub settle_deaths: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -214,7 +212,6 @@ impl Default for SearchCfg {
             gold_cost: 0.0,
             maxhp_cost: 0.0,
             greedy_from: u32::MAX,
-            settle_deaths: false,
         }
     }
 }
@@ -582,7 +579,8 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
         }
         let capped = sim.steps >= cfg.roll_cap;
         let turns = (sim.cx.player.turn_number - sim.start_turn) as i64;
-        let at_leaf = turns >= cfg.leaf_turns as i64 && !(cfg.settle_deaths && turns == cfg.leaf_turns as i64 && sim.cx.death_pending());
+        // With exact on, a play-out runs up to SETTLE_TURNS past the horizon while a death is pending: the value head does not see the HP behind it.
+        let at_leaf = turns >= cfg.leaf_turns as i64 && !(cfg.exact.on && turns < (cfg.leaf_turns + SETTLE_TURNS) as i64 && sim.cx.death_pending());
         if at_leaf || (capped && w.table) {
             let t0 = tsc();
             let row = val_row(out, &sim.cx);
@@ -611,9 +609,11 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
     }
 }
 
+const SETTLE_TURNS: u32 = 2;
+
 // An exact leaf's play-out takes the policy's most likely moves: one sample per world, so a max over lines does not select play-out luck.
 fn roll_cfg(cfg: &SearchCfg) -> SearchCfg {
-    SearchCfg { greedy_from: 0, settle_deaths: true, ..*cfg }
+    SearchCfg { greedy_from: 0, ..*cfg }
 }
 
 // The play-out's next move: a forced one, else a policy row is requested (None, also when stuck).
