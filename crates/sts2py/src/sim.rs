@@ -130,6 +130,22 @@ impl Sim {
         Ok(Sim { cx })
     }
 
+    /// Offline fidelity only (logged human fights): keeps the scenario's RNG streams instead of sampling them; the screen never shows stream
+    /// counters, so live play cannot feed it.
+    #[staticmethod]
+    fn exact(scenario_json: &str) -> PyResult<Self> {
+        let v: Value = serde_json::from_str(scenario_json).map_err(err)?;
+        let (sc, ex) = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
+        Ok(Sim { cx: Combat::try_new_with(&sc, &ex).map_err(err)? })
+    }
+
+    fn rng_counters(&self) -> Vec<(&'static str, i32)> {
+        let r = &self.cx.rng;
+        vec![("shuffle", r.shuffle.counter), ("combat_card_generation", r.combat_card_generation.counter), ("combat_potion_generation", r.combat_potion_generation.counter),
+             ("combat_card_selection", r.combat_card_selection.counter), ("combat_energy_costs", r.combat_energy_costs.counter), ("combat_targets", r.combat_targets.counter),
+             ("monster_ai", r.monster_ai.counter), ("niche", r.niche.counter), ("combat_orbs", r.combat_orbs.counter)]
+    }
+
     fn copy(&self) -> Sim {
         self.clone()
     }
