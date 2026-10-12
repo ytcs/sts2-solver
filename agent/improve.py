@@ -169,7 +169,7 @@ def _score(inst, e):
             return None
         best = x.get("best")
         margin = res[best][by] - res[hit][by] if best in res and by in res[best] else None
-        return "price", best, hit, hit.lower() == str(best).lower(), margin
+        return f"price:{by}", best, hit, hit.lower() == str(best).lower(), margin
     if kind == "routes":
         rows = {}
         for l in x.get("text", "").split(NL):
