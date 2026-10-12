@@ -210,6 +210,7 @@ process.stdout.write(JSON.stringify({
   model: m.model(live, events), noLive: m.model(null, events), running: m.model(Object.assign({}, live, { running: "price", t_running: 1, potion: null }), events),
   why: m.parseWhy(events.find((e) => e.kind === "macro" && e.screen === "CARD_REWARD").why), freeWhy: m.parseWhy("rules: P6,F4 ; adv's best non-potion action"),
   card: m.priceRows(card), cardBest: m.bestOption(card), map: m.priceRows(map), one: m.priceRows({ options: ["x"], result: null }),
+  pair: m.parseMap("rows bottom->top; point = <type>c<col>><child cols>; * = visited\nr1: *Mc3>3 Ec5>3\nboss: 2 QUEEN_BOSS + AEONGLASS_BOSS\n"),
 }));
 """
 
@@ -248,3 +249,5 @@ def test_model_reads_the_fixture_into_panels():
     assert (a2["win"], a2["scored"], a2["mult"], a2["floored"]) == (0, 0.22, 3, True) and (kin["win"], kin["floored"]) == (0.55, False)
     assert [(r["option"], r["act"], r["floors"], r["check"]) for r in j["map"]] == [("M r1c0", 0.65, 19.7, 0.0), ("M r1c2", 0.84, 20.8, 0.12)]
     assert j["one"] == []
+    pair = j["pair"]  # the A10 pair in fight order: the map draws them left to right
+    assert pair["boss"] == dict(r=2, ids=["QUEEN_BOSS", "AEONGLASS_BOSS"]) and pair["nodes"]["r1c3"]["visited"] and not pair["nodes"]["r1c5"]["visited"]

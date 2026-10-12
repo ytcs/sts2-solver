@@ -63,6 +63,27 @@
     const k = rankKey(e), rows = priceRows(e).filter((r) => r[k] != null);
     return rows.length ? rows.reduce((a, b) => (b[k] > a[k] ? b : a)).option : null;
   }
+  // `map` text: rows bottom->top, `boss: R ID [+ ID]` with the A10 pair in fight order
+  function parseMap(txt) {
+    const rows = {}, nodes = {};
+    let boss = null;
+    for (const l of (txt || "").split("\n")) {
+      let m = /^r(\d+): (.*)$/.exec(l);
+      if (m) {
+        const r = +m[1];
+        rows[r] = [];
+        for (const t of m[2].trim().split(/\s+/)) {
+          const n = /^(\*?)(.)c(\d+)>([\d,]*)$/.exec(t);
+          if (!n) continue;
+          const node = { r, c: +n[3], type: n[2], visited: !!n[1], kids: n[4] ? n[4].split(",").map(Number) : [] };
+          rows[r].push(node); nodes[`r${r}c${node.c}`] = node;
+        }
+      }
+      m = /^boss: (\d+) (.*)$/.exec(l);
+      if (m) boss = { r: +m[1], ids: m[2].split(/[\s,+]+/).filter(Boolean) };
+    }
+    return { rows, nodes, boss };
+  }
   function lastOf(events, kind, pred) { for (let i = events.length - 1; i >= 0; i--) { const e = events[i]; if (e.kind === kind && (!pred || pred(e))) return e; } return null; }
   function latestPrice(events, kind) {  // the price of the screen on view: none once a decision was made since
     for (let i = events.length - 1; i >= 0; i--) {
@@ -108,6 +129,6 @@
       price: latestPrice(events, kind),
     };
   }
-  const API = { header, kindOf, options, chosenLabel, splitReply, parseWhy, priceRows, rankKey, bestOption, lastOf, latestPrice, model, HDR };
+  const API = { header, kindOf, options, chosenLabel, splitReply, parseWhy, priceRows, rankKey, bestOption, parseMap, lastOf, latestPrice, model, HDR };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.DM = API;
 })(typeof window !== "undefined" ? window : globalThis);

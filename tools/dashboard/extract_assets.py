@@ -247,11 +247,13 @@ class Extractor:
             creatures[cid] = dict(c or {}, title=mon_loc.get(f"{cid}.name") or cid.replace("_", " ").title())
         man["creatures"] = creatures
         boss_icons = {}
-        for n in self.P.files:
-            m = re.match(r"images/atlases/ui_atlas\.sprites/.*?/(\w+)_boss_icon\.tres$", n) or re.match(r"images/map/placeholder/(\w+)_boss_icon\.png\.import$", n)
-            if m and f"{m.group(1).upper()}_BOSS" not in boss_icons:
-                key = f"{m.group(1).upper()}_BOSS"
-                boss_icons[key] = self.sprite(n, f"ui/boss_{key}.png") if n.endswith(".tres") else self.save(n[:-len(".import")], f"ui/boss_{key}.png", max_side=128)
+        for pat in (r"images/atlases/ui_atlas\.sprites/.*?/(\w+)_boss_icon\.tres$", r"images/map/placeholder/(\w+)_boss_icon\.png\.import$",
+                    r"images/ui/run_history/(\w+)_boss\.png\.import$"):  # map icon first; the run-history icon for bosses without one
+            for n in sorted(self.P.files):
+                m = re.match(pat, n)
+                key = m and f"{m.group(1).upper()}_BOSS"
+                if key and not boss_icons.get(key):
+                    boss_icons[key] = self.sprite(n, f"ui/boss_{key}.png") if n.endswith(".tres") else self.save(n[:-len(".import")], f"ui/boss_{key}.png", max_side=128)
         for part, boss in PARTS.items():  # parts of a boss rig drawn as one: show the boss's map icon
             if part in creatures and not creatures[part].get("dir") and not creatures[part].get("img") and boss_icons.get(boss):
                 creatures[part]["img"] = boss_icons[boss]
