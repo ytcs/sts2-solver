@@ -63,7 +63,6 @@ def replay(scenario, seed, actions):
 
 
 def replay_rows(scenarios, scen, seeds, actions, off, steps, soff, starts=None):
-    """starts: per scenario None or the recorded state its fights begin at (Sim.from_state)"""
-    st = None if starts is None else [None if s is None else json.dumps(s) for s in starts]
+    """starts: per scenario None or the Sim its fights begin at (rl/exit.py `root`)"""
     return _replay_rows([json.dumps(s) for s in scenarios], [int(x) for x in scen], [int(x) for x in seeds], np.ascontiguousarray(actions, np.int32),
-                        [int(x) for x in off], [int(x) for x in steps], [int(x) for x in soff], st)
+                        [int(x) for x in off], [int(x) for x in steps], [int(x) for x in soff], starts)

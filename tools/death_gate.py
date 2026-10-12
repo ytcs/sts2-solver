@@ -12,10 +12,13 @@ sys.path[:0] = [ROOT, os.path.join(ROOT, "rl"), os.path.join(ROOT, "tools")]
 
 
 def errors(ckpt, items):
-    from leaf_bench import build_state, net_values
+    from leaf_bench import build_state, describe, net_values
     from model import load
     net = load(ckpt)
-    pw = np.array([net_values(net, [build_state(it)], [it["scenario"]["max_hp"]])[0][0] for it in items])
+    sims = [build_state(it) for it in items]
+    for it, s in zip(items, sims):
+        assert describe(s) == it["state"], (it["name"], describe(s), it["state"])
+    pw = np.array([net_values(net, [s], [it["scenario"]["max_hp"]])[0][0] for it, s in zip(items, sims)])
     t = np.array([it["target"]["win"] for it in items])
     se = np.array([max(it["target"]["win_se"], 1.0 / it["target"]["n"]) for it in items])
     return pw, t, se

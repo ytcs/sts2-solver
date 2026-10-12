@@ -12,6 +12,10 @@ D_KEYS = ("d_fight", "d_step", "d_opts", "d_q", "d_n", "d_pi", "d_adv", "d_v")
 def divergent(z, scen):
     A, O, FS, SD = z["acts"], z["f_off"], z["f_scen"], z["f_seed"]
     st = json.loads(str(z["starts"])) if "starts" in z else None
+    if st is not None:
+        from exit import root
+        seed = dict(zip(FS.tolist(), SD.tolist()))
+        st = [None if s is None or i not in seed else root(scen[i], seed[i], s) for i, s in enumerate(st)]
 
     def ok(g):
         acts = [A[O[f]:O[f + 1]] for f in g]

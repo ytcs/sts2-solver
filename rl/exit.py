@@ -14,6 +14,19 @@ DEATH_ENCOUNTERS = frozenset({"TEST_SUBJECT_BOSS", "WATERFALL_GIANT_BOSS", "AXEB
                               "KAISER_CRAB_BOSS", "FOGMOG_NORMAL", "THE_OBSCURA_NORMAL"})
 
 
+def root(sc, seed, start):
+    """a fight root at a recorded state, rebuilt the same way at collection and at every replay: a replay recipe (tools/codex_replay.py `run_ops`:
+    logged RNG, the human's actions before the `stop`-th) or a sync state (`Sim.from_state`); then the hidden piles and RNG are resampled from the
+    fight's seed (the human's draw order and RNG future stay hidden)"""
+    if "ops" in start:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
+        from codex_replay import run_ops
+        s = run_ops(start["scenario"], start["ops"], stop=start["stop"])
+        assert s.determinize(int(seed)), "a root mid-card cannot be resampled"
+        return s
+    return sts2.Sim.from_state(json.dumps(sc), int(seed), json.dumps(start))
+
+
 def _save(path, scen, F_, D, cover=False, starts=None):
     extra = {"cover": np.array(1)} if cover else {}
     if starts is not None and any(s is not None for s in starts):
@@ -72,7 +85,7 @@ def collect(a):
         jd = np.array([np.uint64(a.seed) * np.uint64(1_000_003) + np.uint64(att * len(scen) + i) for i, att in part], dtype=np.uint64)
         state.update(start=time.time(), chunk=k, scen=cs)
         # one scenario per job: a recorded-state root is rebuilt from its job's seed (replay_rows rebuilds it the same way)
-        roots = [None if st is None else sts2.Sim.from_state(json.dumps(sc), int(sd), json.dumps(st)) for sc, st, sd in zip(cs, ss, jd)]
+        roots = [None if st is None else root(sc, sd, st) for sc, st, sd in zip(cs, ss, jd)]
         res = fs.run(cs, js, jd, starts=roots if any(r is not None for r in roots) else None)
         dt = time.time() - state["start"]
         state["start"] = None
@@ -111,6 +124,7 @@ class Data:
     def __init__(self, paths):
         self.parts = []
         self.bad = set()
+        self.roots = {}
         for p in paths:
             z = np.load(p)
             scen = json.loads(str(z["scenarios"]))
@@ -147,9 +161,19 @@ class Data:
             acts.append(p["acts"][p["f_off"][f]:p["f_off"][f + 1]]); off.append(off[-1] + len(acts[-1]))
             lo, hi = p["d_lo"][f], p["d_lo"][f + 1]
             steps.append(p["d_step"][lo:hi]); soff.append(soff[-1] + hi - lo); sel.append(np.arange(lo, hi))
-        st = None if p["starts"] is None else [p["starts"][u] for u in uniq]
+        st = None
+        if p["starts"] is not None:
+            # one fight per scenario in a part with roots (collect: one scenario entry per job)
+            seed = dict(zip(p["f_scen"][fs].tolist(), p["f_seed"][fs].tolist()))
+            st = [None if p["starts"][u] is None else self.root(p, int(u), seed[int(u)]) for u in uniq]
         o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff, st)
         return o, m, np.concatenate(sel), soff
+
+    def root(self, p, u, seed):
+        k = (id(p), u)
+        if k not in self.roots:
+            self.roots[k] = root(p["scen"][u], seed, p["starts"][u])
+        return self.roots[k]
 
     def _replayable(self, pi, p, fs):
         good, stack = [], [list(fs)]
@@ -327,8 +351,8 @@ def main():
     c.add_argument("--chunk-timeout", type=float, default=5.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
     c.add_argument("--skip-stuck", action="store_true", help="skip chunks the watchdog has already ended once (their _stuck_ file exists)")
     c.add_argument("--first-timeout", type=float, default=30.0, help="watchdog limit in minutes for the first two chunks")
-    c.add_argument("--starts", help="JSON list, one entry per scenario of --fights (concatenated): null, or a recorded state (Sim.sync format) the "
-                   "fight starts from; the part stores them and training rebuilds each root from its fight's seed")
+    c.add_argument("--starts", help="JSON list, one entry per scenario of --fights (concatenated): null, or the recorded start the fight begins at "
+                   "(`root`: a codex replay recipe or a sync state); the part stores them and training rebuilds each root from its fight's seed")
     t = sub.add_parser("train")
     t.add_argument("--init", required=True); t.add_argument("--data", nargs="+", required=True); t.add_argument("--out", required=True)
     t.add_argument("--epochs", type=int, default=4); t.add_argument("--chunk", type=int, default=2048); t.add_argument("--mb", type=int, default=2048)

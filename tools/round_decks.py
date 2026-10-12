@@ -131,9 +131,12 @@ def strong(a):
                 print(f"{' '.join(src):11s} act {act} n {len(jx):6d} strength mean {strength[jx].mean():.3f} | " + " ".join(f"[{lo:.1f},{hi:.1f}) {x:.2f}" for lo, hi, x in zip(bands, bands[1:], h)))
     keep = [k for k in range(len(decks)) if strength[k] >= a.min_p]
     print(f"{len(keep)} of {len(decks)} decks at strength >= {a.min_p} ({'raw' if a.raw else 'calibrated'} predictor {os.path.basename(a.ckpt)})")
+    by_act = {act: [k for k in keep if decks[k]["act"] == act] for act in (0, 1, 2)}
+    share = np.array([s if by_act[act] else 0.0 for act, s in enumerate(a.act_share)])
+    want = np.floor(a.n * share / max(share.sum(), 1e-9)).astype(int)
+    print(f"kept decks per act {[len(by_act[x]) for x in (0, 1, 2)]}, fights per act {want.tolist()}")
     out = []
-    for i in range(a.n if keep else 0):
-        k = keep[i % len(keep)]
+    for i, k in enumerate(by_act[act][j % len(by_act[act])] for act in (0, 1, 2) for j in range(want[act])):
         d = decks[k]
         name = d["meta"]["act_name"]
         enc = rng.choice(pools.pool(name, "regular") + pools.pool(name, "elite"))
@@ -158,6 +161,7 @@ def main():
     s.add_argument("--out", required=True)
     s.add_argument("--n", type=int, required=True, help="fights in total, cycling over the kept decks")
     s.add_argument("--min-p", type=float, default=0.8)
+    s.add_argument("--act-share", type=float, nargs=3, default=[1 / 3] * 3, help="fight shares per act (strong act-3 decks are rare: about 3%% of boss entries)")
     s.add_argument("--max-decks", type=int, default=0, help="score a random sample of this many decks (0 = all)")
     s.add_argument("--ckpt", default=os.path.join(ROOT, "models", json.load(open(os.path.join(ROOT, "models", "current.json")))["predictor"]))
     s.add_argument("--raw", action="store_true", help="the raw predictor (default: with models/predictor_calib.json)")
