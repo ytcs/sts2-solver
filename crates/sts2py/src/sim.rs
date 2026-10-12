@@ -289,6 +289,14 @@ impl Sim {
             .collect()
     }
 
+    /// upgrade level of the card behind a pick action (legal() index), None if not a card pick
+    fn pick_upgrade(&self, idx: usize) -> Option<u8> {
+        let Some(Action::Pick { idx: display }) = Action::from_index(idx) else { return None };
+        let d = self.cx.decision.as_ref()?;
+        let g = self.cx.decision_view(d).get(display as usize)? as usize;
+        Some(self.cx.cards[d.cands.get(g)? as usize].upgrade)
+    }
+
     fn action_json(&self, idx: usize) -> PyResult<String> {
         let a = Action::from_index(idx).ok_or_else(|| PyValueError::new_err("bad action index"))?;
         let enemy_idx = |t: Cid| self.cx.enemies.iter().position(|&e| e == t);
