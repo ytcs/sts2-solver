@@ -943,22 +943,15 @@ TIER = (("combat.over_early", 3), ("combat.unported", 3), ("player.hp", 3), ("en
 # cluster -> class, read off the log and the decompile for the clusters named; everything else stays a sim-bug candidate
 CLASSES = (
     (lambda f, a, e: f == "combat.unported", "sim gap (unported content)", "Sim.missing() names it"),
-    (lambda f, a, e: f == "potions" and a == "start", "reconstruction gap", "potion belt between fights (potion_got carries no slot)"),
+    (lambda f, a, e: f == "potions" and a == "start", "reconstruction gap", "potion belt between fights (potion_got carries no slot; potions made in a fight)"),
     (lambda f, a, e: f == "player.hp" and a == "start", "reconstruction gap", "HP carried between fights from hits / heals"),
-    (lambda f, a, e: f == "hand" and a == "start", "sim-bug candidate", "start-of-combat card generation: Toolbox / Choices Paradox offer other cards (option missing "
-                                                                       "in ~all their fights), Vexing Puzzlebox, Crossbow, Blessed Antler; Jeweled Mask is a format gap "
-                                                                       "(its draw-to-hand move is not logged)"),
-    (lambda f, a, e: f == "enemy.hp" and e == "OVICOPTER_NORMAL", "sim-bug candidate", "Tough Egg spawn HP off by one roll (check the skin pick ToughEgg.cs:118 and the HP roll stream)"),
-    (lambda f, a, e: f == "enemy.hp" and a == "start", "reconstruction gap?", "Fur Coat (lift 150: marked-node HP cut needs its saved map state), Sword of Jade, Kifuda"),
-    (lambda f, a, e: f == "player.block" and a.startswith("DEFEND"), "sim-bug candidate", "replayed play (play_count 2: Spiral enchantment) not replayed"),
-    (lambda f, a, e: f == "player.block" and a not in ("start", "end_turn"), "sim-bug candidate", "Genetic Algorithm, Seeker Strike, Child of the Stars; Pael's Claw, "
-                                                                                                   "Meat Cleaver (lift 5-17)"),
-    (lambda f, a, e: f == "energy" and a == "start", "sim-bug candidate", "turn-1 energy (spend event shows more): Hand Drill, Blessed Antler, Alchemical Coffer, (Fake) Venerable Tea Set, Fake Happy Flower"),
-    (lambda f, a, e: f == "energy" and a == "end_turn", "sim-bug candidate", "Distinguished Cape / Apparition, Punch Dagger, Kunai, Sand Castle"),
-    (lambda f, a, e: f == "player.hp" and a == "end_turn", "sim-bug candidate", "Whispering Earring, Fencing Manual; Calamity / Resonance / Void Form decks"),
-    (lambda f, a, e: f == "combat.over_early", "sim-bug candidate", "sim kills the player a turn early (Oddly Smooth Stone fights) or ends the fight"),
-    (lambda f, a, e: f == "hand" and a == "end_turn", "replay-format gap (mostly)", "turn-start returns to hand are not logged (Aggression, Bolas, Thrumming "
-                                                                                        "Hatchet: lift 7-15); visible only when the card is played later"),
+    (lambda f, a, e: f == "hand" and a == "start", "mixed", "opening shuffle differs from the logged order in a few runs (deck order); Power Cell / "
+                                                           "Jeweled Mask cards neither played nor flushed on turn 1 (unlogged move)"),
+    (lambda f, a, e: f == "enemy.hp" and a == "start", "reconstruction gap?", "Fur Coat (marked-node HP cut needs its saved map state), Sword of Jade, Kifuda"),
+    (lambda f, a, e: f == "energy" and a == "end_turn", "sim-bug candidate", "Distinguished Cape, Punch Dagger, Throwing Axe (lift 26-43)"),
+    (lambda f, a, e: f == "player.power.SERPENT_FORM_POWER", "replay-format gap", "the power event is missing in two runs' logs"),
+    (lambda f, a, e: f in ("hand", "discard") and a == "end_turn", "replay-format gap (mostly)", "unlogged moves to hand neither played nor flushed later "
+                                                                                                   "(Aggression, Sovereign Blade forge, All for One)"),
 )
 
 
@@ -1010,6 +1003,7 @@ def report(rows, meta, out):
         e = by_enc[r["enc"]]
         e["fights"] += 1
         e["exact"] += r in exact
+        e["ended"] += bool((r["end"] or {}).get("log"))
         if r["divs"]:
             e[f"first:{field_kind(r['divs'][0]['field'])}@{r['divs'][0]['after'] if r['divs'][0]['after'] in ('start', 'end_turn') else 'card'}"] += 1
         if r["failed"] and not any(d["field"] == "combat.over_early" for d in r["divs"]):
@@ -1039,8 +1033,8 @@ def report(rows, meta, out):
                   f"{os.path.basename(clus_ex[f, a][0])[:16]} {clus_ex[f, a][1]}: {clus_ex[f, a][2]['step']} t{clus_ex[f, a][2]['turn']}: "
                   f"{json.dumps(clus_ex[f, a][2]['sim'])[:50]} vs {json.dumps(clus_ex[f, a][2]['log'])[:50]}") for (f, a), n in ranked[:60]]),
          "\n## Blocking encounters (Test Subject, Waterfall Giant, act-3 bosses: gate the next model round)\n",
-         _table(["encounter", "fights", "exact", "top first divergences"],
-                [(k, by_enc[k]["fights"], by_enc[k]["exact"], ", ".join(f"{f[6:]} {n}" for f, n in sorted(((f, n) for f, n in by_enc[k].items() if f.startswith("first:")), key=lambda x: -x[1])[:5]))
+         _table(["encounter", "fights", "ended", "exact", "exact / ended", "top first divergences"],
+                [(k, by_enc[k]["fights"], by_enc[k]["ended"], by_enc[k]["exact"], f"{by_enc[k]['exact'] / max(1, by_enc[k]['ended']):.3f}", ", ".join(f"{f[6:]} {n}" for f, n in sorted(((f, n) for f, n in by_enc[k].items() if f.startswith("first:")), key=lambda x: -x[1])[:5]))
                  for k in BLOCKING]),
          "\n## Collection roots: human decision states (actions taken in the sim) and those before the fight's first divergence (exact-prefix roots)\n",
          _table(["encounter", "fights", "strong-player fights", "decision states", "exact-prefix states"],
