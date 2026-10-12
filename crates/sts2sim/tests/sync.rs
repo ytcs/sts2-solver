@@ -292,7 +292,7 @@ fn sync_options_takes_the_games_offer_of_generated_cards() {
         potion_slots: 2,
         deck,
         relics: vec![],
-        potions: vec![ids::potion::POWER_POTION],
+        potions: vec![(0, ids::potion::POWER_POTION)],
         rng: RngSet::from_run_seed(7),
     });
     assert!(!cx.sync_options(&[(ids::card::INFLAME, 0)]), "no prompt pending");
