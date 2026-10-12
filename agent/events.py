@@ -119,6 +119,20 @@ def default_choose(st, opts):
     return next((i for i, o in enumerate(opts) if not unmodelled(o["effects"])), 0)
 
 
+def unmodelled_notes(effects):
+    out = []
+    for e in effects:
+        if "unmodelled" in e:
+            out.append(str(e["unmodelled"]))
+        for o in e.get("choice", []):
+            out += unmodelled_notes(o["effects"])
+        if "chance" in e:
+            out += unmodelled_notes(e["then"]) + unmodelled_notes(e["else"])
+        if "fight" in e:
+            out += unmodelled_notes(e["extra"])
+    return list(dict.fromkeys(out))
+
+
 def unmodelled(effects):
     for e in effects:
         if "unmodelled" in e:
@@ -463,6 +477,8 @@ def ancient_option(label):
     if rid is None:
         hits = [r for r, e in anc.items() if _norm(e["title"]) in head]
         rid = max(hits, key=lambda r: len(anc[r]["title"])) if hits else None
+    if rid is None and head.endswith("glass") and "SEA_GLASS" in anc:
+        rid = "SEA_GLASS"
     return (rid, anc[rid]["effects"]) if rid else (None, None)
 
 

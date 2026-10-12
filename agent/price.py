@@ -69,6 +69,27 @@ def _stated(o, label):
     return o
 
 
+def unmodelled_lines(state_text):
+    """event / ancient options whose effects the pricing cannot represent: printed so the operator weighs them by hand"""
+    from agent import events as EV
+    if scr.kind(state_text) != "EVENT":
+        return []
+    lines = state_text.split("\n")
+    title = lines[2].split(":", 1)[0].strip() if len(lines) > 2 else ""
+    entry, labels = EV.get(title), [label for _, label in scr.options(state_text)]
+    out = []
+    if entry:
+        for label, o in zip(labels, EV.match_page(title, labels)):
+            if o is not None:
+                out += [f"  {label.split(':', 1)[0][:34]}: {n}" for n in EV.unmodelled_notes(o["effects"])]
+    else:
+        for label in labels:
+            rid, _eff = EV.ancient_option(label)
+            if rid:
+                out += [f"  {label.split(':', 1)[0][:34]}: {n}" for n in EV.unmodelled_notes(EV.ancient_relics()[rid]["effects"])]
+    return (["not modelled (the numbers above omit it; weigh by hand):"] + out) if out else []
+
+
 def options(st, state_text):
     kind = scr.kind(state_text)
     out = []
