@@ -8,7 +8,7 @@ use crate::types::*;
 pub const BASE_HAND_DRAW: i32 = 5;
 
 impl Combat {
-    pub(crate) fn start_combat(&mut self) {
+    pub(crate) fn enter_combat(&mut self) {
         self.dispatch_u(hookbit::after_room_entered, |cx, me, l| l.after_room_entered(cx, me));
         let order: crate::util::ArrayVec<Cid, MAX_CREATURES> = {
             let mut o = crate::util::ArrayVec::new();
@@ -30,6 +30,9 @@ impl Combat {
         }
         self.in_progress = true;
         self.is_starting = false;
+    }
+
+    pub(crate) fn start_combat(&mut self) {
         self.dispatch_u(hookbit::before_combat_start, |cx, me, l| l.before_combat_start(cx, me));
         self.dispatch_u(hookbit::before_combat_start_late, |cx, me, l| l.before_combat_start_late(cx, me));
         self.start_player_turn();

@@ -390,7 +390,8 @@ UNPORTED = re.compile(r"unknown (card|relic|potion|encounter|enchantment) id ([A
 
 
 def exact_sim(sc):
-    """Sim on the logged RNG: combat_start counters are post-init (opening shuffle, HP rolls), so the streams start at counter - the sim's own init draws.
+    """Sim on the logged RNG: combat_start counters are logged after the combat setup (enemy HP rolls, opening shuffle, first moves) and before any
+    combat-start hook (Toolbox, Choices Paradox...), so the streams start at counter - the sim's own setup draws (`Sim.setup_counters`).
     -> (sim, scenario as built, streams whose post-init counter misses the log) or raises ValueError"""
     import sts2
     sc = dict(sc, relics=[dict(r) for r in sc["relics"]])
@@ -415,10 +416,10 @@ def exact_sim(sc):
             sim, sc = sts2.Sim.exact(json.dumps(dict(sc, relics=fixed))), dict(sc, relics=fixed)
         except ValueError:
             pass
-    got = dict(sim.rng_counters())
+    got = dict(sts2.Sim.setup_counters(json.dumps(sc)))
     pre = dict(sc, rng={k: max(0, v - (got[k] - v)) for k, v in sc["rng"].items()})
     sim = sts2.Sim.exact(json.dumps(pre))
-    return sim, pre, sorted(k for k, v in sim.rng_counters() if k in sc["rng"] and v != sc["rng"][k])
+    return sim, pre, sorted(k for k, v in sts2.Sim.setup_counters(json.dumps(pre)) if k in sc["rng"] and v != sc["rng"][k])
 
 
 def _ms(cards):
