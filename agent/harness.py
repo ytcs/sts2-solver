@@ -307,7 +307,7 @@ class Harness(Live):
         self.log.event("price", screen=scr.kind(state), options=[o[0] for o in opts], ranked_by="check", best=best,
                        result={k: {"check": round(v[0], 4)} for k, v in got.items()},
                        search=_search_log(got), radius=radius)
-        notes = PR.unmodelled_lines(state)
+        notes = PR.unmodelled_lines(state, got)
         return _check_lines(got, radius) + ("\n".join(notes) + "\n" if notes else "") + VALIDATION + self._synergy(state, self._run())
 
     @_needs_run("no run in progress")

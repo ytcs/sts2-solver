@@ -13,7 +13,7 @@ Neow / ancient option and path are one decision. Binding limits: HP, gold, deck 
 4. `a <i> -- rules: R1,P5 ; numbers: <routes P(boss) per option> ; judgment: ...`.
 
 ## Rules
-- R1 [hyp] Take an elite when its lane costs <= 0.02 of `routes` boss win, or while the boss stays >= 0.9 after it: `routes` omits the elite's relic and rare odds (P5), so its cost is an upper bound. Test: outcome: elites taken vs act clear and pair strength, ledger.
+- R1 [hyp] Take an elite when its lane costs <= 0.02 of `routes` boss win, or while the boss stays >= 0.9 after it: the DP omits the elite's relic and rare odds (P5), so its cost is an upper bound; the `routes` "with elite rewards" block counts them (estimate). Test: instrument: the elite lane is the `routes` "with elite rewards" best k, or within 0.02 of it; outcome: elites taken vs act clear and pair strength, ledger.
 - R2 [sim] Avoid lanes that force an elite the deck cannot win: forced elites drove the simulator's act-2 deaths (E93, E94). Test: instrument: `routes` elite arrival HP and P(win) on the forced elite.
 - R3 [sim] Rest when HP binds the next binding fight; else smith (HP saved early is mostly refunded by later heals, E85). Test: instrument: `restcalc` boss win now vs after rest.
 - R4 [hyp] Never two elites without a rest between (the second arrival below ~50% HP means a missing rest). Test: instrument: `routes` q10 arrival HP.

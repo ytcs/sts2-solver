@@ -1035,7 +1035,7 @@
    "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PaelsWing.cs:73-90",
    "effects": [
     {
-     "unmodelled": "a card reward can be sacrificed instead; every 2nd sacrifice gives a relic"
+     "unmodelled": "a card reward can be sacrificed instead; every 2nd sacrifice gives a relic (estimated on the next line: relics = card rewards left x skip share / 2 at the measured relic value vs the act-3 bosses, E103; the search check scores Wing as no effect)"
     }
    ]
   },

@@ -345,7 +345,7 @@ def _p(e, s):
 
 def offer_rows(src, char, K=6):
     """pick-given-offer rows (half, room, act, depth, deck size, hp frac, offered, picked, owned, [win, dmg z, turns z over the next K fights]): combat card rewards; shop and act-2/3 ancient relics.
-    owned: deck simulated through gained / removed, united with final-deck cards added before the floor (ancient cards are missing from gained)"""
+    owned: `codex.walk`"""
     import codex
     st = collections.defaultdict(list)
     for r in codex.rows(src, char):
@@ -356,29 +356,21 @@ def offer_rows(src, char, K=6):
     for r in codex.rows(src, char):
         seq = [f for a in r["floors"] for f in a]
         z = [(np.array([f.get("dmg") or 0, f["turns"]]) - es[f["enc"][0]][0]) / es[f["enc"][0]][1] if f["enc"] and f.get("turns") and f["enc"][0] in es else None for f in seq]
-        deck = collections.Counter(c[0] for c in r["deck"] if (c[3] or 0) <= 1) + collections.Counter(c for f in seq for c in f["removed"] if c in codex.STARTERS or c == "BASH")
-        half, g = int(r["hash"] or "0", 16) & 1, 0
-        for ai, act in enumerate(r["floors"]):
-            for i, f in enumerate(act):
-                g += 1
-                now = +deck | collections.Counter(c[0] for c in r["deck"] if (c[3] or 0) < g)
-                own = frozenset(set(now) | {"r:" + x for x, fx in r["relics"] if (fx or 0) < g})
-                nz = [v for v in z[g:] if v is not None][:K]
-                base = (half, f["t"], ai, i / len(act), sum(now.values()), (f["hp"] or 0) / (f["mx"] or 1))
-                y = (float(r["win"]),) + (tuple(np.mean(nz, 0)) if nz else (np.nan, np.nan))
-                offered = collections.defaultdict(int)
-                if f["enc"] and f["t"] in COMBAT and 3 <= len(f["offer"]) <= 5:
-                    for c, _, pk in f["offer"]:
-                        offered[c] |= pk
-                if g > 1 and f["t"] in ("shop", "ancient"):
-                    for x, pk in f["relics"] if f["t"] == "shop" else f["ancient"]:
-                        if x:
-                            offered["r:" + x] |= pk
-                rows += [base + (b, pk, own, y) for b, pk in offered.items()]
-                for c in f["gained"] if g > 1 else []:
-                    deck[c] += 1
-                for c in f["removed"]:
-                    deck[c] -= 1
+        half = int(r["hash"] or "0", 16) & 1
+        for ai, i, g, f, now, rel, _up in codex.walk(r):
+            own = frozenset(set(now) | {"r:" + x for x in rel})
+            nz = [v for v in z[g:] if v is not None][:K]
+            base = (half, f["t"], ai, i / len(r["floors"][ai]), sum(now.values()), (f["hp"] or 0) / (f["mx"] or 1))
+            y = (float(r["win"]),) + (tuple(np.mean(nz, 0)) if nz else (np.nan, np.nan))
+            offered = collections.defaultdict(int)
+            if f["enc"] and f["t"] in COMBAT and 3 <= len(f["offer"]) <= 5:
+                for c, _, pk in f["offer"]:
+                    offered[c] |= pk
+            if g > 1 and f["t"] in ("shop", "ancient"):
+                for x, pk in f["relics"] if f["t"] == "shop" else f["ancient"]:
+                    if x:
+                        offered["r:" + x] |= pk
+            rows += [base + (b, pk, own, y) for b, pk in offered.items()]
     return rows
 
 

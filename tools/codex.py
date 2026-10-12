@@ -71,6 +71,25 @@ def rows(path, character=None):
                 yield r
 
 
+def walk(r):
+    """per floor: (act index, index in act, floor g from 1, floor record, card ids entering it, relic ids owned entering it, upgrade counts by id);
+    cards: the deck simulated through gained / removed, united with final-deck cards added before the floor (ancient cards are missing from gained);
+    upgrades: rest / event upgrades plus upgraded picks"""
+    seq = [f for a in r["floors"] for f in a]
+    deck = collections.Counter(c[0] for c in r["deck"] if (c[3] or 0) <= 1) + collections.Counter(c for f in seq for c in f["removed"] if c in STARTERS or c == "BASH")
+    up, g = collections.Counter(), 0
+    for ai, act in enumerate(r["floors"]):
+        for i, f in enumerate(act):
+            g += 1
+            yield ai, i, g, f, +deck | collections.Counter(c[0] for c in r["deck"] if (c[3] or 0) < g), {x for x, fx in r["relics"] if (fx or 0) < g}, +up
+            for c in f["gained"] if g > 1 else []:
+                deck[c] += 1
+            for c in f["removed"]:
+                deck[c] -= 1
+            up.update(f["upgraded"])
+            up.update(c for c, u, pk in f["offer"] if u and pk)
+
+
 def deck_at_pair(r):
     """the deck entering the first final boss: final deck minus cards added from that floor on (removals after it are not undone)"""
     act3 = r["floors"][2] if len(r["floors"]) >= 3 else []

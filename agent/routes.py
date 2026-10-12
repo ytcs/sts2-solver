@@ -404,6 +404,7 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
     lines.append(head)
     for s in starts:
         lines.append(f"{nodes[s]['type'] + str(s[0]) + 'c' + str(s[1]):10s}" + "".join(f"{calc.F(s, w0, k)[hp_now]:8.3f}" for k in range(max_e + 1)))
+    lines += reward_lines(calc, starts, w0, hp_now, act, max_e)
     lines.append("")
     lines.append("representative route per elite requirement (fixed path from the best option; stats of that path)")
     lines.append(f"{'k':>2s} {'F':>6s} {'reach':>6s} {'HP@boss':>8s} {'q10':>4s} {'win':>6s}  fights elites rests shops unk treas  path")
@@ -433,6 +434,34 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
     lines.append("")
     lines.append("F = adaptive optimum for that requirement (can exceed the fixed path's win); reach = alive on arrival at the boss; HP@boss / q10 = mean / 10th percentile HP then.")
     return "\n".join(lines)
+
+
+def reward_lines(calc, starts, w0, hp_now, act, max_e):
+    """an estimate beside the DP, never inside it: each k>= cell scaled by the deck-strength gain of the elites on that requirement's representative path
+    (measured relic + elite-vs-hallway card value at this act, data/reward_values.json, from the decks whose full-HP boss win is nearest this deck's);
+    rows indented so the review's routes parse never reads them"""
+    rv = pools.reward_values()
+    a = rv.get("acts", {}).get(str(pools.ACTS[act]["act"] + 1), {}).get("act", {})
+    if calc.goal != "win" or "elite" not in a:
+        return []
+    base = float(calc._terminal(NONE)[calc.H])
+    b = max(base, 0.05)
+    _hi, v, se, n = next((x for x in a.get("elite_by_base", []) if base <= x[0]), None) or ([1.0] + a["elite"])
+    far = rv["acts"].get("3", {}).get("act", {}).get("relic", [0.0])[0]
+    out = ["", f"with elite rewards (estimate, {rv['E']}, not the DP): cell x min(1, b + e x {v:+.3f}) / b [e], e = elites on that column's representative path, "
+           f"b = this deck's boss win at full HP {base:.2f}: the boss win scales with deck strength; {v:+.3f} +- {se:.3f} per elite = relic + elite-vs-hallway card reward, "
+           f"gain in boss win at full HP on the {n} community decks whose full-HP boss win is nearest b (all decks {a['elite'][0]:+.3f}); "
+           f"its relic kept to the final pair: {far:+.3f} vs the act-3 bosses on act-3 decks"]
+    for s in starts:
+        cells = []
+        for k in range(max_e + 1):
+            p = calc.F(s, w0, k)[hp_now]
+            e = sum(calc.nodes[x]["type"] == "E" for x in calc.policy_path(s, w0, k, hp_now)[0]) if p > 0 else 0
+            cells.append((p * min(1.0, b + e * v) / b, e) if p > 0 else None)
+        kb = max((k for k, c in enumerate(cells) if c), key=lambda k: cells[k][0], default=0)
+        out.append(f"  {calc.nodes[s]['type'] + str(s[0]) + 'c' + str(s[1]):8s}" + "".join(f"{c[0]:6.3f}[{c[1]}]" if c else f"{'-':>9s}" for c in cells)
+                   + f"   best k>={kb}: {cells[kb][0] if cells[kb] else 0:.3f} (DP k>=0 {calc.F(s, w0, 0)[hp_now]:.3f})")
+    return out
 
 
 def _offer(engine, deck_json, map_text, state_text, ctx, act, attempts, pf):

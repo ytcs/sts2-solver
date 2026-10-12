@@ -1,3 +1,6 @@
+import functools
+import json
+import os
 import re
 
 import sts2
@@ -51,3 +54,10 @@ def pool(act_name, kind):
 
 def act_names(act_index):
     return [n for n, d in ACTS.items() if d["act"] == act_index]
+
+
+@functools.cache
+def reward_values():
+    """measured reward values in P(win) points (data/reward_values.json from tools/reward_values.py); {} when absent"""
+    p = os.path.join(os.path.dirname(__file__), "..", "data", "reward_values.json")
+    return json.load(open(p)) if os.path.exists(p) else {}

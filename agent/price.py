@@ -69,7 +69,36 @@ def _stated(o, label):
     return o
 
 
-def unmodelled_lines(state_text):
+def paels_wing_line(state_text, got=None):
+    """Pael's Wing as an explicit estimate (not in the search check): relics = card rewards left x skip share / 2, each at the measured relic value
+    vs the act-3 bosses (data/reward_values.json); a sacrifice replaces a skip, so the skipped rewards forgo nothing"""
+    rv = pools.reward_values()
+    m = re.search(r"^A(\d) F", state_text, re.M)
+    if not rv or not m:
+        return []
+    act = int(m.group(1))
+    rel, card = rv["acts"]["3"]["act"]["relic"], rv["acts"]["3"]["act"]["card_monster"]
+    per = rv["card_rewards_per_act"][act - 1:]
+    left = sum(per)
+    k, n = rv["skip"]["operator"]
+    op = k / max(n, 1)
+    cx = sum(p * rv["skip"]["community"].get(f"{act - 1 + i}:monster", 0) for i, p in enumerate(per)) / max(left, 1e-9)
+    relics = left * op / 2
+    val = relics * rel[0]
+    out = [f"  Pael's Wing estimate ({rv['E']}, not in the numbers above): {left:.1f} card rewards left (community mean per completed act) x skip share {op:.2f} "
+           f"(operator runs; community {cx:.2f}) / 2 = {relics:.1f} relics x {rel[0]:+.3f} +- {rel[1]:.3f} (one relic on act-3 elite decks vs the act-3 bosses, full HP; out-of-combat relics score 0) "
+           f"= {val:+.3f} P(win) vs the act-3 bosses; forgone card value 0 (only rewards you would skip); at the community skip share {left * cx / 2 * rel[0]:+.3f}; "
+           f"sacrificing every reward {left / 2 * rel[0] - left * card[0]:+.3f} ({left / 2:.1f} relics - {left:.1f} hallway card rewards x {card[0]:+.3f} on act-3 decks: blind to earlier picks that build the act-3 deck)"]
+    w = next((v for lb, v in (got or {}).items() if lb.lower().startswith("pael's wing")), None)
+    if w:
+        f3 = next(((f, x) for f, x in w[4].items() if (f == 2 or "A3" in str(f)) and w[6].get(f, 1) == 1), None)
+        if f3 and f3[1] >= 0.05:
+            p1 = min(1.0, f3[1] + val)
+            out.append(f"    in the check's units: Pael's Wing act-3 factor {f3[1]:.3f} -> {p1:.3f} = {np.log(p1 / f3[1]):+.3f} log ratio to add to its row (relic gains assumed additive)")
+    return out
+
+
+def unmodelled_lines(state_text, got=None):
     """event / ancient options whose effects the pricing cannot represent: printed so the operator weighs them by hand"""
     from agent import events as EV
     if scr.kind(state_text) != "EVENT":
@@ -87,6 +116,7 @@ def unmodelled_lines(state_text):
             rid, _eff = EV.ancient_option(label)
             if rid:
                 out += [f"  {label.split(':', 1)[0][:34]}: {n}" for n in EV.unmodelled_notes(EV.ancient_relics()[rid]["effects"])]
+                out += paels_wing_line(state_text, got) if rid == "PAELS_WING" else []
     return (["not modelled (the numbers above omit it; weigh by hand):"] + out) if out else []
 
 
