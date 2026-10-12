@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Synthetic contrast states at death effects for a combat round. Test Subject: phase 1 / 1d / 2 / 2d / 3 ("d": killed, revive pending) x
 player HP x Test Subject HP on community act-3 boss-entry decks. Waterfall Giant: pre-kill / killed / explode-pending x blast (Steam Eruption
-stacks) vs player HP, margin HP - blast straddling zero, on community Underdocks boss-entry decks. A state is a tools/leaf_bench.py recipe
-(deck scenario, build seed, ops). `roots`: collection roots for `rl/exit.py collect --starts` ({"build", "seed"}; hidden piles and RNG
-resampled per job). `holdout`: the held-out bench (leaf_values format, solver play-out targets, saved after each state) from decks of runs
-in the held-out bucket only, which `roots` and `round_decks.py boss --exclude-runs` never use; build seeds disjoint; no state equals a
-data/bench/leaf_values.json state.
+stacks) vs player HP, HP - blast in -36..+10 so that HP + the block of the turns left straddles the blast (at -10 the solver still wins
+0.80), on community Underdocks boss-entry decks. A state is a tools/leaf_bench.py recipe (deck scenario, build seed, ops). `roots`:
+collection roots for `rl/exit.py collect --starts` ({"build", "seed"}; hidden piles and RNG resampled per job). `holdout`: the held-out
+bench (leaf_values format, solver play-out targets, saved after each state) from decks of runs in the held-out bucket only, which `roots`
+and `round_decks.py boss --exclude-runs` never use; build seeds disjoint; no state equals a data/bench/leaf_values.json state.
 usage: python tools/contrast.py roots --n 20000 --out-fights target/r11/contrast_fights.json --out-starts target/r11/contrast_starts.json
        python tools/contrast.py holdout [--n 60] [--playouts 256] [--states-only] [--only giant] [--out data/bench/contrast_holdout.json]"""
 import argparse, collections, json, os, random, sys
@@ -22,7 +22,7 @@ PLAYER_HP = (0.08, 0.15, 0.25, 0.35, 0.5, 0.7, 0.9)
 TS_HP = (0.05, 0.15, 0.3, 0.5, 0.75, 1.0)
 GIANT_STATES = ("pre", "killed", "explode")
 GIANT_HP = (3, 8, 15, 25, 40)
-MARGINS = (-24, -16, -10, -6, -3, -1, 1, 3, 6, 10, 16, 24)
+MARGINS = (-36, -30, -24, -20, -16, -12, -8, -4, 0, 4, 10)
 HOLDOUT_SEED = 1_000_000
 SETTLE = ["settle"]
 
