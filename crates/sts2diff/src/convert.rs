@@ -109,10 +109,20 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
     let mut rng = RngSet::from_run_seed(run_seed);
     if let Some(obj) = v["rng"].as_object() {
         for (name, st) in obj {
-            let r = Rng::from_state(
-                st["counter"].as_i64().unwrap_or(0) as i32,
-                [st["s0"].as_u64().unwrap_or(0), st["s1"].as_u64().unwrap_or(0), st["s2"].as_u64().unwrap_or(0), st["s3"].as_u64().unwrap_or(0)],
-            );
+            // a bare counter (replay logs) is the run-seeded stream advanced that many draws: every next_* call is one generator step
+            let r = match st.as_i64() {
+                Some(n) => {
+                    let mut r = Rng::named(run_seed, name);
+                    (0..n).for_each(|_| {
+                        r.next_u64();
+                    });
+                    r
+                }
+                None => Rng::from_state(
+                    st["counter"].as_i64().unwrap_or(0) as i32,
+                    [st["s0"].as_u64().unwrap_or(0), st["s1"].as_u64().unwrap_or(0), st["s2"].as_u64().unwrap_or(0), st["s3"].as_u64().unwrap_or(0)],
+                ),
+            };
             match name.as_str() {
                 "shuffle" => rng.shuffle = r,
                 "combat_card_generation" => rng.combat_card_generation = r,
