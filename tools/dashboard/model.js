@@ -91,7 +91,7 @@
     const note = lastOf(events, "note"), target = lastOf(events, "target");
     let potion = null;
     if (live.potion) potion = { kind: "confirm", text: live.potion, line: body.split("\n").find((l) => l.startsWith("POTION: ")) || null };
-    else if (!live.running && /^(turn|combat|potions)\b/.test(live.cmd || "")) {
+    else if (!live.running && /^(turn|combat|potions|adv)\b/.test(live.cmd || "")) {
       const l = body.split("\n").find((x) => x.startsWith("POTION PROPOSAL"));
       if (l) potion = { kind: "proposal", text: null, line: l };
     }

@@ -71,6 +71,8 @@ class RunLog:
             pass
 
     def new_run(self):
+        if self._live.get("running"):
+            self.live(running=None)
         if self._f:
             self._f.close()
         self._f = None
