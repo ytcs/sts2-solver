@@ -4,7 +4,9 @@ arms:   fight_start scenarios of the scripted-arm logs (target/*pull/*/BASE00xx/
 codex:  community runs (target/codex/a10.jsonl.gz, `codex.walk`): deck, relics and HP entering each act's first floor after its ancient (acts 2
         and 3, meta.at "start") and entering each act's boss (meta.at "boss"), potions sampled as gen_curriculum does; encounter = one of that
         act's bosses.
-strong: decks scored by the predictor against their act's bosses at full HP without potions; decks at or above --min-p paired with that act's
+boss:   community decks entering an act boss (codex meta.at "boss"), their logged HP and potions, split evenly over the bosses (act-3 bosses: humans
+        win ~0.79, the search ~0.58, the predictor ~0.37).
+strong: decks scored by the predictor against their act's bosses at full HP without potions; each act's strongest --top share paired with that act's
         hallway and elite fights at shaped HP.
 usage: tools/round_decks.py arms --out target/r10/decks/arms.json
        tools/round_decks.py codex --out target/r10/decks/codex.json
@@ -129,8 +131,14 @@ def strong(a):
             if jx:
                 h = np.histogram(strength[jx], bands)[0] / len(jx)
                 print(f"{' '.join(src):11s} act {act} n {len(jx):6d} strength mean {strength[jx].mean():.3f} | " + " ".join(f"[{lo:.1f},{hi:.1f}) {x:.2f}" for lo, hi, x in zip(bands, bands[1:], h)))
-    keep = [k for k in range(len(decks)) if strength[k] >= a.min_p]
-    print(f"{len(keep)} of {len(decks)} decks at strength >= {a.min_p} ({'raw' if a.raw else 'calibrated'} predictor {os.path.basename(a.ckpt)})")
+    keep = []
+    for act in (0, 1, 2):
+        jx = [k for k in range(len(decks)) if decks[k]["act"] == act]
+        if jx:
+            cut = np.quantile(strength[jx], 1 - a.top)
+            keep += [k for k in jx if strength[k] >= cut]
+            print(f"act {act}: top {a.top:.0%} at strength >= {cut:.3f}, kept median {np.median([strength[k] for k in jx if strength[k] >= cut]):.3f}")
+    print(f"{len(keep)} of {len(decks)} decks kept ({'raw' if a.raw else 'calibrated'} predictor {os.path.basename(a.ckpt)})")
     by_act = {act: [k for k in keep if decks[k]["act"] == act] for act in (0, 1, 2)}
     share = np.array([s if by_act[act] else 0.0 for act, s in enumerate(a.act_share)])
     want = np.floor(a.n * share / max(share.sum(), 1e-9)).astype(int)
@@ -142,6 +150,19 @@ def strong(a):
         enc = rng.choice(pools.pool(name, "regular") + pools.pool(name, "elite"))
         out.append(dict(d, name=f"strong_{i}_{d['name']}", encounter=enc, hp=max(1, round(d["max_hp"] * rng.uniform(*SHAPED_HP))),
                         meta=dict(d["meta"], source="strong", deck_source=d["meta"]["source"], strength=round(float(strength[k]), 4))))
+    _dump(out, a.out, collections.Counter())
+
+
+def boss(a):
+    rng = random.Random(a.seed)
+    decks = [sc for fn in a.decks for sc in json.load(open(fn)) if sc["meta"].get("at") == "boss" and sc["act"] in a.acts]
+    by = collections.defaultdict(list)
+    for d in decks:
+        by[d["encounter"]].append(d)
+    per = a.n // max(len(by), 1)
+    out = [dict(d, name=f"boss_{enc}_{i}_{d['name']}", meta=dict(d["meta"], source="boss", deck_source=d["meta"]["source"]))
+           for enc, ds in sorted(by.items()) for i, d in enumerate(rng.sample(ds, min(per, len(ds))))]
+    print({enc: min(per, len(ds)) for enc, ds in sorted(by.items())})
     _dump(out, a.out, collections.Counter())
 
 
@@ -160,15 +181,21 @@ def main():
     s.add_argument("--decks", nargs="+", required=True)
     s.add_argument("--out", required=True)
     s.add_argument("--n", type=int, required=True, help="fights in total, cycling over the kept decks")
-    s.add_argument("--min-p", type=float, default=0.8)
-    s.add_argument("--act-share", type=float, nargs=3, default=[1 / 3] * 3, help="fight shares per act (strong act-3 decks are rare: about 3%% of boss entries)")
+    s.add_argument("--top", type=float, default=0.3, help="share of each act's decks kept, strongest first")
+    s.add_argument("--act-share", type=float, nargs=3, default=[1 / 3] * 3, help="fight shares per act")
     s.add_argument("--max-decks", type=int, default=0, help="score a random sample of this many decks (0 = all)")
     s.add_argument("--ckpt", default=os.path.join(ROOT, "models", json.load(open(os.path.join(ROOT, "models", "current.json")))["predictor"]))
     s.add_argument("--raw", action="store_true", help="the raw predictor (default: with models/predictor_calib.json)")
     s.add_argument("--shuffles", type=int, default=4)
     s.add_argument("--seed", type=int, default=0)
+    s = sp.add_parser("boss")
+    s.add_argument("--decks", nargs="+", required=True)
+    s.add_argument("--out", required=True)
+    s.add_argument("--n", type=int, required=True, help="fights in total, split evenly over the bosses")
+    s.add_argument("--acts", type=int, nargs="+", default=[2])
+    s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
-    dict(arms=arms, codex=codex_decks, strong=strong)[a.cmd](a)
+    dict(arms=arms, codex=codex_decks, strong=strong, boss=boss)[a.cmd](a)
 
 
 if __name__ == "__main__":
