@@ -318,10 +318,11 @@ class Harness(Live):
         if adj:
             check += "macro terms (data/macro_rules.json, P units on " + ranked_by + "): " + ", ".join(f"{k} {v:+.3f}" for k, v in adj.items()) + "\n"
         if got:
-            def cell(a, m, w):
-                return f"{('A' + str(a + 1)) if isinstance(a, int) else a} win {w:.2f}" + ("" if abs(m - w) < 1e-9 else f" (scored on progress {m:.2f}: win floored)")
-            rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(cell(a, m, pw[a]) for a, m in sorted(pa.items(), key=lambda x: str(x[0])))
-                    for lb, (p, se, pa, _t, pw, *_) in sorted(got.items(), key=lambda x: -x[1][0])]
+            def cell(a, m, w, mult):
+                hp = f" at {mult[a]:g}x full HP" if mult.get(a, 1) != 1 else ""
+                return f"{('A' + str(a + 1)) if isinstance(a, int) else a} win {w:.2f}{hp}" + ("" if abs(m - w) < 1e-9 else f" (scored on progress {m:.2f}: win floored)")
+            rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(cell(a, m, pw[a], mu) for a, m in sorted(pa.items(), key=lambda x: str(x[0])))
+                    for lb, (p, se, pa, _t, pw, _c, mu) in sorted(got.items(), key=lambda x: -x[1][0])]
             check += ("search check: log ratio vs skip summed over the factors of P(win run) (near binding fights at current HP, binding radius "
                       f"{r['radius']}; future boss rungs at full HP), the belt each option leaves; per factor its win rate, and where skip's win rate is floored the progress score that ranked it\n"
                       + "\n".join(rows) + (f"\n  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})" if override else "") + "\n")

@@ -491,7 +491,7 @@ def _horizon_sets(st, engine, seed):
 
 def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=48, variants=4):
     """score = log ratio vs the reference summed over the factors of P(win run) ahead (progress instead of wins where P < INFORMATIVE), common seeds, paired se.
-    -> ({label: (score, se, {factor: measure}, per-attempt scores, {factor: P(win)}, {factor: per-attempt contribution})}, binding radius)"""
+    -> ({label: (score, se, {factor: measure}, per-attempt scores, {factor: P(win)}, {factor: per-attempt contribution}, {factor: HP multiple})}, binding radius)"""
     import random
     if engine is None:
         return {}, None
@@ -551,7 +551,7 @@ def search_check(st, opts, res, engine, seed, top=3, attempts=128, far_attempts=
         tot = np.sum(np.stack([c[:n] for c in contrib]), 0)
         se = float(np.nanstd(tot, ddof=1) / np.sqrt(max(1, np.sum(~np.isnan(tot))))) if lb != ref else 0.0
         point = sum(np.log(max(meas[lb][a], P_FLOOR) / max(meas[ref][a], P_FLOOR)) for a in keys)
-        out[lb] = (float(point) if lb != ref else 0.0, se, meas[lb], tot if lb != ref else np.zeros_like(tot), pwin[lb], dict(zip(keys, contrib)))
+        out[lb] = (float(point) if lb != ref else 0.0, se, meas[lb], tot if lb != ref else np.zeros_like(tot), pwin[lb], dict(zip(keys, contrib)), mult)
     return out, radius
 
 
