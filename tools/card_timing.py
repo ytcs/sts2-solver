@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Review section 11 (user): is a card worth more early? Each recorded fight of each run is solved with its recorded deck and with one
 reference card added (paired seeds); binding fights (elite / boss) also at -10 HP for the HP-equivalent slope. Rows -> --out .jsonl.
-usage: tools/card_timing.py <events dir> --out target/review/card_timing.jsonl [--seeds ...] [--attempts 64] [--cards ID[+],...] [--min-act N]"""
+usage: tools/card_timing.py <events dir> --out target/review/card_timing.jsonl [--seeds ...] [--attempts 64] [--cards ID[+],...] [--min-act N] [--boss-only]"""
 import argparse, glob, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,6 +17,7 @@ def main():
     ap.add_argument("--attempts", type=int, default=64)
     ap.add_argument("--cards", default=CARDS)
     ap.add_argument("--min-act", type=int, default=0)
+    ap.add_argument("--boss-only", action="store_true")
     a = ap.parse_args()
     from agent.engine import Engine
     eng = Engine()
@@ -33,7 +34,7 @@ def main():
                 continue
             starts = [json.loads(l) for l in open(f, encoding="utf-8") if '"fight_start"' in l]
             for i, e in enumerate(starts):
-                if (seed, i) in done or (e.get("act") or 0) < a.min_act:
+                if (seed, i) in done or (e.get("act") or 0) < a.min_act or (a.boss_only and not e["encounter"].endswith("_BOSS")):
                     continue
                 sc = e["scenario"]
                 binding = "ELITE" in e["encounter"] or e["encounter"].endswith("_BOSS")
