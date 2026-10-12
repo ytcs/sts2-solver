@@ -67,9 +67,8 @@ main > div:first-child { padding: 16px 24px 32px 0; min-width: 0; }
 #feedgrip:hover, #feedgrip.drag { background: linear-gradient(90deg, transparent 3px, var(--line2) 3px, var(--line2) 5px, transparent 5px); }
 body.resizing { cursor: col-resize; user-select: none; }
 #mappop { position: fixed; inset: 0; z-index: 50; background: #000c; display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
-#mappop .inner { width: min(1500px, 100%); max-height: 100%; overflow: auto; background: var(--bg); border-radius: 10px; padding: 16px 20px; box-shadow: 0 10px 40px #000a; }
+#mappop .inner { max-width: 100%; max-height: 100%; overflow: auto; background: var(--bg); border-radius: 10px; padding: 16px 20px; box-shadow: 0 10px 40px #000a; }
 #mappop h2 { font: 600 10.5px "Segoe UI", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .09em; color: var(--dim); margin-bottom: 10px; display: flex; gap: 10px; align-items: baseline; }
-#mappop svg { max-width: none !important; }
 #feedwrap { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 20px 24px 22px; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
 #feedwrap > h2 { position: sticky; top: -16px; background: var(--bg); padding: 2px 0 8px; margin: 0; z-index: 1; }
 @media (max-width: 1000px) { #feedgrip { display: none; } main { padding: 0 16px; grid-template-columns: 1fr !important; } main > div:first-child { padding-right: 0; } #side { position: static; height: auto; border-left: none; border-top: 1px solid var(--line); } #feedwrap { padding: 16px 0; } }
@@ -166,24 +165,21 @@ body.resizing { cursor: col-resize; user-select: none; }
 .cardopt.best .price { color: var(--good); font-weight: 700; }
 
 /* map */
-#map svg { width: 100%; height: auto; display: block; }
-#map .edge { stroke: #4a4f5c; stroke-width: 2; stroke-dasharray: 4 4; }
-#map .edge.done { stroke: var(--gold); stroke-width: 3.5; stroke-dasharray: none; }
-#map .node circle.bg { fill: #2a2e38; stroke: #4a4f5c; }
-#map .node.visited circle.bg { fill: #4a3f20; stroke: var(--gold); stroke-width: 2.5; }
-#map .node.offer circle.bg { stroke: var(--good); stroke-width: 3; }
-#map .node.here circle.bg { stroke: #fff; stroke-width: 3.5; }
-#map .node text { fill: var(--text); font: 700 13px Kreon, serif; text-anchor: middle; }
-#map .ptag { font: 600 11px var(--mono); fill: var(--good); }
-.mapview svg { width: 100%; height: auto; display: block; }
+.mapview svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
 .mapview .edge { stroke: #4a4f5c; stroke-width: 2; stroke-dasharray: 4 4; }
 .mapview .edge.done { stroke: var(--gold); stroke-width: 3.5; stroke-dasharray: none; }
-.mapview .edge.plan, #map .edge.plan { stroke: var(--accent); stroke-width: 3; stroke-dasharray: none; opacity: .85; }
+.mapview .edge.plan { stroke: var(--accent); stroke-width: 3; stroke-dasharray: none; opacity: .85; }
 .mapview .node circle.bg { fill: #2a2e38; stroke: #4a4f5c; }
-.mapview .node.visited circle.bg { fill: #4a3f20; stroke: var(--gold); stroke-width: 2; }
-.mapview .node.plan circle.bg, #map .node.plan circle.bg { stroke: var(--accent); stroke-width: 2.5; }
-.mapview .node.here circle.bg { stroke: #fff; stroke-width: 3; }
-.mapview .node text { fill: var(--text); font: 700 13px Kreon, serif; text-anchor: middle; }
+.mapview .node.boss circle.bg { fill: #3a1f1f; stroke: var(--bad); stroke-width: 2; }
+.mapview .node.visited circle.bg { fill: #4a3f20; stroke: var(--gold); stroke-width: 2.5; }
+.mapview .node.plan circle.bg { stroke: var(--accent); stroke-width: 2.5; }
+.mapview .node.offer circle.bg { stroke: var(--good); stroke-width: 3; }
+.mapview .node.here circle.bg { stroke: #fff; stroke-width: 3.5; }
+.mapview text { fill: var(--text); font: 700 13px Kreon, serif; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
+.mapview text.glyph { text-anchor: middle; stroke: none; }
+.mapview text.bname { text-anchor: middle; }
+.mapview text.onum { text-anchor: end; fill: var(--gold); font-size: 12px; }
+.mapview text.ptag { text-anchor: start; font: 600 11px var(--mono); fill: var(--good); }
 
 /* feed */
 .ev { padding: 12px 0 13px; border-bottom: 1px solid var(--line); }
@@ -709,30 +705,11 @@ function optionsHTML(text, kind) {
 
 // ------------------------------------------------------------------ map
 const MAPICON = { M: "map_monster", E: "map_elite", R: "map_rest", $: "map_shop", "?": "map_unknown", T: "map_chest" };
-function parseMap(txt) {
-  const rows = {}, nodes = {};
-  let boss = null;
-  for (const l of (txt || "").split("\n")) {
-    let m = /^r(\d+): (.*)$/.exec(l);
-    if (m) {
-      const r = +m[1];
-      rows[r] = [];
-      for (const t of m[2].trim().split(/\s+/)) {
-        const n = /^(\*?)(.)c(\d+)>([\d,]*)$/.exec(t);
-        if (!n) continue;
-        const node = { r, c: +n[3], type: n[2], visited: !!n[1], kids: n[4] ? n[4].split(",").map(Number) : [] };
-        rows[r].push(node); nodes[`r${r}c${node.c}`] = node;
-      }
-    }
-    m = /^boss: (\d+) (.*)$/.exec(l);
-    if (m) boss = { r: +m[1], ids: m[2].split(/[\s,+]+/).filter(Boolean) };  // "boss: 14 QUEEN_BOSS + AEONGLASS_BOSS"
-  }
-  return { rows, nodes, boss };
-}
+const MAPTYPE = { M: "Monster", E: "Elite", R: "Rest site", $: "Shop", "?": "Unknown", T: "Treasure" };
 function mapModel() {  // the act map with the path taken, the current node and the planned route (`draw`), or null
   const mt = mapText();
   if (!mt) return null;
-  const P = parseMap(mt);
+  const P = DM.parseMap(mt);
   // the path: nodes marked visited in the map text plus every map choice since
   const mapT = (lastOf("map") || {}).t || 0;
   for (const e of S.events) if (e.kind === "macro" && e.screen === "MAP" && e.t >= mapT) { const c = mapOptionCoord(chosenLabel(e.state, e.choice)); if (c && P.nodes[c]) P.nodes[c].visited = true; }
@@ -740,22 +717,25 @@ function mapModel() {  // the act map with the path taken, the current node and 
   const here = visited[0] || null;
   const rp = lastOf("route_plan");  // harness `draw r1c6 ...`; only the part still ahead of us
   const route = rp ? (rp.nodes || []).filter((c) => P.nodes[c] && (!here || P.nodes[c].r > here.r)) : [];
-  return { P, here, route, key: mt + "|" + visited.map((n) => `r${n.r}c${n.c}`).join(",") + "|" + route.join(",") };
+  const fought = (P.boss ? P.boss.ids : []).filter((b) => S.events.some((e) => e.kind === "fight_start" && e.encounter === b && e.t >= mapT));
+  return { P, here, route, fought, key: mt + "|" + visited.map((n) => `r${n.r}c${n.c}`).join(",") + "|" + route.join(",") + "|" + fought.join(",") };
 }
-function mapSVG(m, o = {}) {  // o.compact: floors left to right (the map panel; o.big: its overlay); else bottom to top (the MAP screen) with offers and prices
-  const P = m.P, offers = o.offers || [], price = o.price, cmp = !!o.compact, rk = DM.rankKey(price);
-  const rs = Object.keys(P.rows).map(Number), maxR = Math.max(...rs, 1), cols = 7;
-  let W, H, pos, boss, nr, ic, br;
-  if (cmp) {
-    if (o.big) { W = 1480; H = 430; nr = 17; ic = 28; br = 38; } else { W = 900; H = 250; nr = 12.5; ic = 21; br = 28; }
-    pos = (r, c) => [nr + 6 + (r * (W - 2 * br - 3 * nr - 20)) / maxR, nr + 4 + (c * (H - 2 * nr - 8)) / (cols - 1)];
-    boss = [W - br - 4, H / 2];
-  } else {
-    const top = 70, dy = 40;
-    W = 520; H = top + maxR * dy + 30; nr = 15; ic = 26; br = 30;
-    pos = (r, c) => [40 + (c * (W - 80)) / (cols - 1), top + (maxR - r) * dy + 10];
-    boss = [W / 2, top - 34];
-  }
+const MAPSIZE = {  // node radius, icon, boss radius, column and row spacing, boss-name font: one layout at three sizes
+  screen: { nr: 15, ic: 26, br: 28, cs: 82, dy: 40, fs: 13 },
+  panel: { nr: 10, ic: 17, br: 20, cs: 40, dy: 25, fs: 11.5 },
+  big: { nr: 16, ic: 27, br: 32, cs: 64, dy: 42, fs: 14 },
+};
+function mapSVG(m, o = {}) {  // bottom = act start, top = the boss (the A10 pair side by side, fought left to right, names above: edges come in from below); labels sit outside the icons
+  const P = m.P, offers = o.offers || [], price = o.price, rk = DM.rankKey(price), { nr, ic, br, cs, dy, fs } = MAPSIZE[o.size || "screen"];
+  const maxR = Math.max(...Object.keys(P.rows).map(Number), 1);
+  const ids = P.boss && P.boss.ids.length ? P.boss.ids : [null];
+  const names = ids.map((b) => (b ? encTitle(b) : "Boss")), nameW = names.map((t) => t.length * fs * 0.56);
+  const gap = ids.length > 1 ? Math.max(2 * br + 28, (nameW[0] + nameW[ids.length - 1]) / 2 + 18) : 0;
+  const side = offers.length ? nr + 50 : nr + 12;  // the outer columns' offer number (left) and price tag (right)
+  const cx = Math.max(3 * cs + side, gap / 2 + Math.max(br, ...nameW.map((w) => w / 2)) + 6), W = 2 * cx;
+  const by = fs + 8 + br, top = by + br + 8 + nr + Math.round(dy * 0.6), H = top + (maxR - 1) * dy + nr + 6;
+  const pos = (r, c) => [cx + (c - 3) * cs, top + (maxR - r) * dy];
+  const bx = ids.map((_, i) => cx + (i - (ids.length - 1) / 2) * gap);
   const planSet = new Set(m.route);
   let edges = "", plan = "", nodes = "";
   for (const n of Object.values(P.nodes)) {
@@ -764,7 +744,11 @@ function mapSVG(m, o = {}) {  // o.compact: floors left to right (the map panel;
       const ch = P.nodes[`r${n.r + 1}c${k}`], [x2, y2] = pos(n.r + 1, k);
       edges += `<line class="edge ${n.visited && ch && ch.visited ? "done" : ""}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
     }
-    if (n.r === maxR) edges += `<line class="edge" x1="${x1}" y1="${y1}" x2="${boss[0]}" y2="${boss[1]}"/>`;
+    if (n.r === maxR) edges += `<line class="edge ${n.visited && m.fought.includes(ids[0]) ? "done" : ""}" x1="${x1}" y1="${y1}" x2="${bx[0]}" y2="${by}"/>`;
+  }
+  for (let i = 1; i < ids.length; i++) {
+    const a = bx[i - 1] + br + 2, b = bx[i] - br - 2;
+    edges += `<line class="edge" x1="${a}" y1="${by}" x2="${b - 6}" y2="${by}"/><polygon points="${b},${by} ${b - 8},${by - 5} ${b - 8},${by + 5}" fill="#6a6f7c"/>`;
   }
   const chain = (m.here ? [`r${m.here.r}c${m.here.c}`] : []).concat(m.route);
   for (let i = 1; i < chain.length; i++) {
@@ -775,24 +759,30 @@ function mapSVG(m, o = {}) {  // o.compact: floors left to right (the map panel;
     const coord = `r${n.r}c${n.c}`, off = offers.find((x) => x.coord === coord), [x, y] = pos(n.r, n.c);
     const icon = M.ui[MAPICON[n.type]];
     const r = price && off ? priceFor(price, off.label) : null;
-    nodes += `<g class="node ${n.visited ? "visited" : ""} ${off ? "offer" : ""} ${planSet.has(coord) ? "plan" : ""} ${m.here === n ? "here" : ""}"><title>${esc(coord + " " + n.type)}</title>
+    const tag = r && r[rk] != null ? (rk === "check" ? sgn(r.check) : rk === "floors" ? num(r.floors) : pct(r[rk])) : null;
+    const tip = `${coord} ${MAPTYPE[n.type] || n.type}${off ? `, option ${off.n}` : ""}${tag ? `, ${RANKED[rk] || rk} ${tag}` : ""}`;
+    nodes += `<g class="node ${n.visited ? "visited" : ""} ${off ? "offer" : ""} ${planSet.has(coord) ? "plan" : ""} ${m.here === n ? "here" : ""}"><title>${esc(tip)}</title>
       <circle class="bg" cx="${x}" cy="${y}" r="${nr}"/>
-      ${icon ? `<image href="${A(icon)}" x="${x - ic / 2}" y="${y - ic / 2}" width="${ic}" height="${ic}"/>` : `<text x="${x}" y="${y + 5}">${esc(n.type)}</text>`}
-      ${off ? `<text x="${x - nr - 6}" y="${y - nr + 6}" style="fill:var(--gold);font-size:12px">${off.n}</text>` : ""}
-      ${r && r[rk] != null ? `<text class="ptag" x="${x + nr + 3}" y="${y + 4}" text-anchor="start">${rk === "check" ? sgn(r.check) : rk === "floors" ? num(r.floors) : pct(r[rk])}</text>` : ""}</g>`;
+      ${icon ? `<image href="${A(icon)}" x="${x - ic / 2}" y="${y - ic / 2}" width="${ic}" height="${ic}"/>` : `<text class="glyph" x="${x}" y="${y + 5}">${esc(n.type)}</text>`}
+      ${off ? `<text class="onum" x="${x - nr - 3}" y="${y - nr + 4}">${off.n}</text>` : ""}
+      ${tag ? `<text class="ptag" x="${x + nr + 4}" y="${y + 4}">${tag}</text>` : ""}</g>`;
   }
-  const bossIds = P.boss ? P.boss.ids : [];
-  const bicon = bossIds.map((b) => M.encounters[b] && M.encounters[b].icon).find(Boolean);
-  const bossSvg = `<g class="node"><title>${esc(bossIds.map(encTitle).join(" + ") || "boss")}</title><circle class="bg" cx="${boss[0]}" cy="${boss[1]}" r="${br}" style="fill:#3a1f1f;stroke:var(--bad)"/>
-    ${bicon ? `<image href="${A(bicon)}" x="${boss[0] - br + 2}" y="${boss[1] - br + 2}" width="${2 * br - 4}" height="${2 * br - 4}"/>` : `<text x="${boss[0]}" y="${boss[1] + 4}" style="font-size:12px">BOSS</text>`}
-    ${cmp ? "" : `<text x="${boss[0] + 40}" y="${boss[1] + 4}" text-anchor="start" style="font-size:13px">${esc(bossIds.map(encTitle).join(" + "))}</text>`}</g>`;
-  return `<svg viewBox="0 0 ${W} ${H}" style="max-width:${W}px;margin:auto">${edges}${plan}${bossSvg}${nodes}</svg>`;
+  const bosses = ids.map((b, i) => {
+    const icon = b && M.encounters[b] && M.encounters[b].icon, x = bx[i];
+    const initials = names[i].split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+    return `<g class="node boss ${b && m.fought.includes(b) ? "visited" : ""}"><title>${esc(names[i] + (ids.length > 1 ? (i ? " (second boss)" : " (first boss)") : ""))}</title>
+      <circle class="bg" cx="${x}" cy="${by}" r="${br}"/>
+      ${icon ? `<image href="${A(icon)}" x="${x - br + 4}" y="${by - br + 4}" width="${2 * br - 8}" height="${2 * br - 8}"/>` : `<text class="glyph" x="${x}" y="${by + br * 0.3}" style="font-size:${Math.round(br * 0.8)}px">${esc(initials)}</text>`}
+      <text class="bname" x="${x}" y="${fs + 2}" style="font-size:${fs}px">${esc(names[i])}</text></g>`;
+  }).join("");
+  const s = o.size === "big" ? Math.min(1.5, (innerHeight - 110) / H, (innerWidth - 90) / W) : 1;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${Math.round(W * s)}" height="${Math.round(H * s)}">${edges}${plan}${bosses}${nodes}</svg>`;
 }
 function mapHTML(text) {
   const m = mapModel();
   if (!m) return `<div class="dim small">no map yet</div>` + optionsHTML(text, "MAP");
   const offers = options(text).map((o) => ({ n: o.n, coord: mapOptionCoord(o.label), label: o.label }));
-  return `<div id="map">${mapSVG(m, { offers, price: DM.latestPrice(S.events, "MAP") })}</div>${optionsHTML(text, "MAP")}`;
+  return `<div id="map" class="mapview">${mapSVG(m, { offers, price: DM.latestPrice(S.events, "MAP") })}</div>${optionsHTML(text, "MAP")}`;
 }
 function renderMiniMap() {  // the map panel: redrawn only when the map, the path or the planned route changed
   const m = mapModel(), key = m ? m.key : "";
@@ -800,14 +790,14 @@ function renderMiniMap() {  // the map panel: redrawn only when the map, the pat
   S.mapKey = key;
   if (!m) { $("minimap").innerHTML = `<div class="dim small">no map yet</div>`; $("mapsub").textContent = ""; if (!$("mappop").classList.contains("hidden")) renderBigMap(); return; }
   const bossIds = m.P.boss ? m.P.boss.ids : [];
-  $("mapsub").textContent = [m.here ? `at r${m.here.r}c${m.here.c}` : "act start", m.route.length ? `planned ${m.route.join(" ")}` : "", bossIds.length ? "boss " + bossIds.map(encTitle).join(" + ") : ""].filter(Boolean).join(" · ");
-  $("minimap").innerHTML = mapSVG(m, { compact: true });
+  $("mapsub").textContent = [m.here ? `at r${m.here.r}c${m.here.c}` : "act start", m.route.length ? `planned ${m.route.join(" ")}` : "", bossIds.length ? "boss " + bossIds.map(encTitle).join(", then ") : ""].filter(Boolean).join(" · ");
+  $("minimap").innerHTML = mapSVG(m, { size: "panel" });
   if (!$("mappop").classList.contains("hidden")) renderBigMap();
 }
 function renderBigMap() {  // the overlay: drawn when opened, and again only when the panel's map changes while it is open
   const m = mapModel();
   $("mappopsub").textContent = $("mapsub").textContent;
-  $("bigmap").innerHTML = m ? mapSVG(m, { compact: true, big: true }) : `<div class="dim small">no map yet</div>`;
+  $("bigmap").innerHTML = m ? mapSVG(m, { size: "big" }) : `<div class="dim small">no map yet</div>`;
 }
 function closeMapPop() { const p = $("mappop"); p.classList.add("hidden"); $("bigmap").innerHTML = ""; }
 
@@ -846,9 +836,9 @@ function whyHTML(why) {  // macro `why` (model.js parseWhy): rule IDs, numbers, 
   if (!w.rules.length && w.numbers == null && w.judgment == null) return `<div class="why">${esc(w.text)}</div>`;
   return `<div class="why">${w.rules.map((r) => `<span class="rule">${esc(r)}</span>`).join("")}${w.numbers ? `<div><span class="faint small">numbers</span> ${esc(w.numbers)}</div>` : ""}${w.judgment ? `<div><span class="faint small">judgment</span> ${esc(w.judgment)}</div>` : ""}${w.rest ? `<div>${esc(w.rest)}</div>` : ""}</div>`;
 }
-function det(k, summary, body, dflt) {
+function det(k, summary, body, dflt) {  // S.open: only the reader's departures from the default (data-d)
   const open = k in S.open ? S.open[k] : dflt;
-  return `<details data-k="${esc(k)}" ${open ? "open" : ""}><summary>${summary}</summary>${body}</details>`;
+  return `<details data-k="${esc(k)}" data-d="${dflt ? 1 : 0}" ${open ? "open" : ""}><summary>${summary}</summary>${body}</details>`;
 }
 function evHead(kind, cls, label, t, extra = "") { return `<div class="hd"><span class="k">${esc(String(kind).replace(/_/g, " "))}</span>${label}${extra}<span class="t">${clock(t)}</span></div>`; }
 function feedItems() {
@@ -877,7 +867,7 @@ function feedItems() {
   return items;
 }
 const FEED_FLOOR = { last: null };  // renderFeed: the floor tag of the event above
-function macroHTML(it) {
+function macroHTML(it, newest) {
   const e = it.e, h = header(e.state), label = chosenLabel(e.state, e.choice);
   const opts = options(e.state);
   const optsBody = `<div class="opts" style="margin-top:4px">${opts.map((o) => `<div class="opt small ${label === o.label ? "best" : ""}" style="${label === o.label ? "background:var(--chosen)" : ""}"><span class="n">${o.n}</span><span>${esc(o.label)}</span></div>`).join("")}</div>`;
@@ -889,9 +879,9 @@ function macroHTML(it) {
     <div class="chose" ${e.result ? `title="${esc("then " + e.result)}"` : ""}>${card ? cardHTML(card.id, { upgrade: card.upgrade, cost: card.cost, star: card.star, mini: true }) : ""}<div><span class="choice">${esc(card ? (card.price != null ? card.price + "g " : "") + cardTitle(card.id) + (card.upgrade ? "+" : "") : label)}</span></div></div>
     ${e.why && !(opts.length <= 1 && /^only option/i.test(e.why)) ? whyHTML(e.why) : ""}
     ${it.price ? priceTable(it.price, label) : ""}
-    ${opts.length > 1 ? det("mo" + e.t, `<span class="dim small">${opts.length} options</span>`, optsBody, false) : ""}</div>`;
+    ${opts.length > 1 ? det("mo" + e.t, `<span class="dim small">${opts.length} options</span>`, optsBody, newest) : ""}</div>`;
 }
-function actionHTML(e, i, n) {
+function actionHTML(e, i, n, newest) {
   if (e.kind === "macro") return `<div class="act small"><span class="k">by hand</span> ${esc(chosenLabel(e.state, e.choice))}${whyHTML(e.why)}</div>`;
   if (e.kind === "potion_proposal") {
     const rows = e.rows || [];
@@ -905,7 +895,7 @@ function actionHTML(e, i, n) {
   const best = opts.reduce((a, o) => (o.q != null && (a == null || o.q > a.q) ? o : a), null);
   const tag = e.kind === "advice" ? `<span class="k">advice</span> ` : e.kind_ === "choose" ? `<span class="k">choose</span> ` : "";
   const overrode = best && best.text !== e.text && e.kind === "action" ? ` <span class="faint">(best q: ${prettyAction(best.text)})</span>` : "";
-  return det("a" + e.t + i, `${tag}${prettyAction(e.text)}${overrode} ${e.searched === false ? `<span class="faint">(forced)</span>` : ""}`, `<div style="margin:2px 0 4px 10px">${qRows(opts.slice(0, 8), e.text)}</div>`, i >= n - 1);
+  return det("a" + e.t + i, `${tag}${prettyAction(e.text)}${overrode} ${e.searched === false ? `<span class="faint">(forced)</span>` : ""}`, `<div style="margin:2px 0 4px 10px">${qRows(opts.slice(0, 8), e.text)}</div>`, newest && i >= n - 1);
 }
 const HIST_BIN = 5;  // HP per bar of the simulated-results histogram
 function lossHist(q, hp0, lost) {
@@ -976,7 +966,7 @@ function wantFoes(s) {
     renderFeed();
   }).catch(() => { /* no saved export: targets stay eN */ });
 }
-function actsByTurn(all, keep = 150, fightId = null) {  // turn numbers over the whole fight, the latest `keep` actions shown
+function actsByTurn(all, keep = 150, fightId = null, newest = false) {  // turn numbers over the whole fight, the latest `keep` actions shown
   let turn = 1, shown = null, n = 0, out = all.length > keep ? `<div class="faint small">(earlier actions not shown)</div>` : "";
   const from = Math.max(0, all.length - keep);
   all.forEach((a, i) => {
@@ -984,14 +974,14 @@ function actsByTurn(all, keep = 150, fightId = null) {  // turn numbers over the
     if (i >= from) {
       if (turn !== shown) { out += `<div class="turnhd">turn ${turn}</div>`; shown = turn; }
       ACT_CTX.foes = foeNames(foesAt(fightId, a, n));
-      out += actionHTML(a, i - from, all.length - from);
+      out += actionHTML(a, i - from, all.length - from, newest);
     }
     if (a.kind === "action" || a.kind === "macro") n++;
     if (a.kind === "action" && /^end\b/.test(a.text || "")) turn++;
   });
   return out;
 }
-function fightHTML(it, latest) {
+function fightHTML(it, latest, newest) {
   const s = it.start, e = it.end, p = (s && s.predicted) || {};
   ACT_CTX.pots = {};
   if (s && !it.acts.some((a) => a.foes)) wantFoes(s);
@@ -1009,14 +999,14 @@ function fightHTML(it, latest) {
       ${s && s.drive ? `<span class="faint" title="${esc(s.drive[0] + ": " + s.drive[1] + (s.budget != null ? `; search budget ${s.budget}s` : ""))}">${esc(s.drive[0])}</span>` : ""}</div>${quant}
     ${e && e.errors && e.errors.length ? `<div class="bad small">replay: ${esc(e.errors.join("; "))}</div>` : ""}
     ${det("fa" + (s ? s.t : e.t), `<span class="dim small">${acts.filter((a) => a.kind === "action").length} actions, ${acts.filter((a) => a.kind === "potion_proposal").length} potion proposals</span>`,
-      `<div style="margin-left:6px">${actsByTurn(acts, 150, s ? s.id : e ? e.id : null)}</div>`, latest && !e)}`;
+      `<div style="margin-left:6px">${actsByTurn(acts, 150, s ? s.id : e ? e.id : null, newest)}</div>`, newest)}`;
   return `<div class="ev fight">${evHead("fight", "", head, (s || e).t)}${body}</div>`;
 }
-function looseHTML(e) {
+function looseHTML(e, newest) {
   const k = e.kind;
   if (k === "price") return `<div class="ev calc">${evHead("price", "", `<span class="dim small">${esc(e.screen)} (no decision yet)</span>`, e.t)}${priceTable(e, null)}</div>`;
-  if (k === "action" || k === "advice" || k.startsWith("potion")) return `<div class="ev potion">${evHead(k, "", "", e.t)}${actionHTML(e, 0, 1)}</div>`;
-  if (k === "routes") return `<div class="ev calc">${evHead(k, "", "", e.t)}${det("c" + e.t, `<span class="dim small">table</span>`, `<pre>${esc(e.text)}</pre>`, false)}</div>`;
+  if (k === "action" || k === "advice" || k.startsWith("potion")) return `<div class="ev potion">${evHead(k, "", "", e.t)}${actionHTML(e, 0, 1, newest)}</div>`;
+  if (k === "routes") return `<div class="ev calc">${evHead(k, "", "", e.t)}${det("c" + e.t, `<span class="dim small">table</span>`, `<pre>${esc(e.text)}</pre>`, newest)}</div>`;
   if (k === "eval") {
     const res = e.result || {}, vs = (e.spec && e.spec.variants) || [], encs = e.spec && e.spec.encounters;
     const vtxt = (v) => ["add", "remove", "upgrade", "relics_add"].filter((f) => (v[f] || []).length).map((f) => `${f.replace("_", " ")} ${v[f].map((x) => idTitle(x) || titleCase(x)).join(", ")}`).concat(v.hp != null ? [`HP ${v.hp}`] : []).join("; ");
@@ -1036,7 +1026,7 @@ function renderFeed() {
   const lastFight = [...items].reverse().find((i) => i.kind === "fight");
   const shown = items.slice(-250).reverse();
   FEED_FLOOR.last = null;
-  $("feed").innerHTML = shown.map((it) => it.kind === "macro" ? macroHTML(it) : it.kind === "fight" ? fightHTML(it, it === lastFight) : looseHTML(it.e)).join("") || `<div class="empty">no decisions recorded yet</div>`;
+  $("feed").innerHTML = shown.map((it, i) => it.kind === "macro" ? macroHTML(it, !i) : it.kind === "fight" ? fightHTML(it, it === lastFight, !i) : looseHTML(it.e, !i)).join("") || `<div class="empty">no decisions recorded yet</div>`;
   $("feedsub").textContent = items.length > 250 ? "latest 250" : "";
 }
 
@@ -1093,7 +1083,8 @@ async function tick() {
 }
 document.addEventListener("toggle", (ev) => {
   const d = ev.target; if (!(d instanceof HTMLDetailsElement)) return;
-  if (d.dataset.k) S.open[d.dataset.k] = d.open;
+  if (!d.dataset.k) return;
+  if (d.open === (d.dataset.d === "1")) delete S.open[d.dataset.k]; else S.open[d.dataset.k] = d.open;  // the newest entry opens by default, older ones close
 }, true);
 document.addEventListener("click", (ev) => {  // a card opens its full view; any click (or Esc) closes it
   if (!$("cardpop").classList.contains("hidden")) { closeCardPop(); return; }
