@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Community runs (spire-codex.com bulk export, /api/exports/runs) as a jump-start prior, never a target: mixed skill, correlational.
-table: one streaming pass over a version dump -> compact single-player standard A10 runs (no SteamIDs; player_token kept for tiers).
+table: one streaming pass over a version dump -> compact single-player standard A10 runs (no SteamIDs: players group by a salted id hash for tiers).
 tiers: submitters by A10 runs / win rate. decks: deck at the first final boss for winners vs losers by tier.
 usage: tools/codex.py table target/codex/runs-v0.111.0.jsonl.gz --out target/codex/a10.jsonl.gz
        tools/codex.py tiers|decks target/codex/a10.jsonl.gz [--character ironclad] [--min-runs 10]"""
-import argparse, collections, gzip, json, re
+import argparse, collections, gzip, hashlib, json, os, re, secrets
 
 STARTERS = {"STRIKE_IRONCLAD", "DEFEND_IRONCLAD", "STRIKE_SILENT", "DEFEND_SILENT", "STRIKE_DEFECT", "DEFEND_DEFECT", "STRIKE_NECROBINDER",
             "DEFEND_NECROBINDER", "STRIKE_REGENT", "DEFEND_REGENT"}
@@ -31,8 +31,16 @@ def _floor(pt):
                 pot_used=[_id(p) for p in ps.get("potion_used") or []], bought=[_id(c) for c in (ps.get("bought_colorless") or []) + (ps.get("bought_potions") or [])])
 
 
+def _salt(out):
+    """local secret: the export's player_token is null, so players group by a salted hash of their id; ids never leave this pass"""
+    p = os.path.join(os.path.dirname(out), "salt")
+    if not os.path.exists(p):
+        open(p, "w").write(secrets.token_hex(16))
+    return open(p).read().strip()
+
+
 def table(src, out):
-    n, kept, why = 0, 0, collections.Counter()
+    n, kept, why, salt = 0, 0, collections.Counter(), _salt(out)
     with gzip.open(src, "rt", encoding="utf-8") as f, gzip.open(out, "wt", encoding="utf-8") as g:
         for line in f:
             n += 1
@@ -50,7 +58,8 @@ def table(src, out):
             else:
                 p = ps[0]
                 floors = [[_floor(pt) for pt in act] for act in d.get("map_point_history") or []]
-                g.write(json.dumps(dict(hash=d.get("run_hash"), token=d.get("player_token"), char=_id(p.get("character")).lower(), win=bool(d.get("win")),
+                token = d.get("player_token") or (hashlib.sha256(f"{salt}:{p.get('id')}".encode()).hexdigest()[:16] if p.get("id") else None)
+                g.write(json.dumps(dict(hash=d.get("run_hash"), token=token, char=_id(p.get("character")).lower(), win=bool(d.get("win")),
                                         seed=d.get("seed"), beta=bool(d.get("is_beta")), acts=[_id(a) for a in d.get("acts") or []],
                                         killed_by=_id(d.get("killed_by_encounter")), run_time=d.get("run_time"), deck=[_card(c) + [c.get("floor_added_to_deck")] for c in p.get("deck") or []],
                                         relics=[[_id(r["id"]), r.get("floor_added_to_deck")] for r in p.get("relics") or []], floors=floors)) + "\n")

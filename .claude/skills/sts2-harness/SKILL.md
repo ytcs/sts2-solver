@@ -26,7 +26,7 @@ description: Use before the first action of a run and whenever unsure how to dri
 Act boss before an ancient heal and the final boss: P(win) only, 1% end-HP tiebreak. Others: win +1 + 0.5 x HP fraction, loss -1.
 
 ## Display
-`eN now:` = shown intent's move with exact effects (`[me: ...]`, `[self: ...]`); `eN plan: +1 .. +3` = next 3 turns, odds marginal per turn, damage at today's modifiers.
+`eN now:` = shown intent's move with exact effects (`[me: ...]`, `[self: ...]`); `eN plan: +1 .. +3` = next 3 turns, odds marginal per turn, damage at today's modifiers. `price` search check: each factor prints `win x` (P(win), playouts); `(scored on progress y)` marks a factor whose skip win rate is floored, ranked by enemy HP dealt instead. A reply headed `WARNING: harness code changed` came from a stale daemon: `quit` and repeat.
 
 ## Decision guards (`agent/guards.py`)
 Macro `-- why` = `rules: <IDs or new: claim> ; numbers: <tool and margin> ; judgment: <what decided it>` (`sts2` decision loop). Card reward: `price` this screen first; the why names the chosen card (`a ~Card`). Map fork / Neow: `routes` this floor. Shop: a pricing call this floor. Rest: `restcalc`, or `routes --hp <after>` + `routes` + upgrade `eval`; at >= 95% HP no pricing call (smith). Elite/boss below 60% HP: `a <i> !`. New run: refused until the previous run is reviewed (`sts2-improve`).

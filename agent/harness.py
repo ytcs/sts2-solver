@@ -14,6 +14,11 @@ from agent.live import REPLAY_BAD, Live
 from agent.runlog import RunLog
 
 PRICING_FAILED = ("ERR", "REFUSED", "no run", "need --enc", "routes: no act map", "routes: boss unknown", "restcalc: not")
+def _code_stamp():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return max(os.path.getmtime(os.path.join(root, d, f)) for d in ("agent", "rl") for f in os.listdir(os.path.join(root, d)) if f.endswith(".py"))
+
+
 PRICING = {"eval": "evaluate", "routes": "routes", "restcalc": "restcalc"}
 VALIDATION = ("validation (operator play: components, no verdict): the search check = near binding fights at current HP, the validated instrument "
               "(deck strength vs live boss wins, Spearman 0.73, E70); run-model rungs (P(win run), act clear, readiness) are weak: act-2 clear 0.36 vs 0.71 "
@@ -44,6 +49,7 @@ class Harness(Live):
         self.table_seed = 0
         self.reward_screen = None
         self.gate = False
+        self.code_stamp = _code_stamp()
         self.fight_hp0 = None
         self.fight_actions = 0
         self._ended = set()
@@ -312,10 +318,12 @@ class Harness(Live):
         if adj:
             check += "macro terms (data/macro_rules.json, P units on " + ranked_by + "): " + ", ".join(f"{k} {v:+.3f}" for k, v in adj.items()) + "\n"
         if got:
-            rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(f"{('A' + str(a + 1)) if isinstance(a, int) else a} {v:.2f}" for a, v in sorted(pa.items(), key=lambda x: str(x[0])))
-                    for lb, (p, se, pa, *_) in sorted(got.items(), key=lambda x: -x[1][0])]
+            def cell(a, m, w):
+                return f"{('A' + str(a + 1)) if isinstance(a, int) else a} win {w:.2f}" + ("" if abs(m - w) < 1e-9 else f" (scored on progress {m:.2f}: win floored)")
+            rows = [f"  {lb[:40]:40s} {p:+.3f} +- {se:.3f}   " + "  ".join(cell(a, m, pw[a]) for a, m in sorted(pa.items(), key=lambda x: str(x[0])))
+                    for lb, (p, se, pa, _t, pw, *_) in sorted(got.items(), key=lambda x: -x[1][0])]
             check += ("search check: log ratio vs skip summed over the factors of P(win run) (near binding fights at current HP, binding radius "
-                      f"{r['radius']}; future boss rungs at full HP), the belt each option leaves; per factor P(win), or progress where skip floors\n"
+                      f"{r['radius']}; future boss rungs at full HP), the belt each option leaves; per factor its win rate, and where skip's win rate is floored the progress score that ranked it\n"
                       + "\n".join(rows) + (f"\n  -> search overrides the run model: {r['best']} (+{override[0]} +- {override[1]})" if override else "") + "\n")
         if self.gate:
             check += VALIDATION
@@ -465,6 +473,8 @@ class Harness(Live):
     def handle(self, line):
         self._rc = None
         out = self._handle(line)
+        if _code_stamp() != self.code_stamp:
+            out = "WARNING: harness code changed since this daemon started; `quit` reloads it (the reply below came from the old code)\n" + out
         self._watch_run_end(out)
         self.log.live(cmd=line, reply=out, screen=self.last_state, fight=getattr(self, "_last_f", None) if self.rp is not None else None)
         return out
