@@ -10,7 +10,7 @@ oracle/combat `serve --port N` (headless game, same protocol)  <-  STS2_BRIDGE=1
 ```bash
 cargo test --workspace
 uv venv .venv && uv pip install maturin numpy torch --python .venv/Scripts/python.exe
-VIRTUAL_ENV=$PWD/.venv .venv/Scripts/maturin develop --release -m crates/sts2py/Cargo.toml --features obs_v3   # the solver_r9 net reads observation v3 (obs_v4: round r10 nets, 9 potions)
+VIRTUAL_ENV=$PWD/.venv .venv/Scripts/maturin develop --release -m crates/sts2py/Cargo.toml --features obs_v4   # live net solver_r9_v4 (r9 on observation v4: 9 potions, death block; obs_v3 + solver_r9.pt to roll back)
 export STS2_DEVICE=cuda
 bash mods/AgentBridge/dev.sh       # .NET 9, Steam 2868840: build + install mod, relaunch (GUI=1 window)
 ```
