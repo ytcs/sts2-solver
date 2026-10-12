@@ -11,7 +11,7 @@ For the plan's target deck (`sts2-plan`) and the buckets (`sts2-deckbuilding`). 
 - Kaiser Crab (219 + 209 HP) `[code]`: the crab behind you deals x1.5; one dies -> other +6 Str, 99 block; Laser 35. Asks area SD, kill both close together.
 - Aeonglass (535 HP) `[code]`: Artifact 3, Wither card every 6 cards played, Ebb 26 + 33 block.
 - Queen (419 HP) `[code]`: kill Torch Head Amalgam first.
-- Test Subject: forms 111 -> 212 -> 313 HP `[hyp]`; test: decomp.
+- Test Subject (111 -> 212 -> 313 HP) `[code]` (content/monsters/glory_b.rs ts_respawn): a death revives it on its next turn, which deals no damage; the revive strips its Strength / Enrage and the debuffs on it. Phase 2: Painful Stabs (your unblocked hits on it add Wounds), Multi Claw 11 x (3, 4, 5 ...) one more hit per turn. Phase 3: Nemesis (Intangible every other turn), Big Pounce 45, Burning Growl (+5 Burns, +3 Str). Asks ~636 damage over three phases plus block that scales with Multi Claw (run 3: 80 -> 8 HP on a 0.61 deck).
 - Act 3 `[sim]` E84-E88: bot decks 0.24-0.33 vs the pair at full HP, expert decks 0.8-1.0; Demon Form +6 win points at act-3 bosses, front-damage commons -2 (E95 256-attempt re-measure).
 
 ## Elites and hallways

@@ -96,3 +96,26 @@
 {"kind": "fidelity", "run": "20261005-201805", "what": "residual .hand[4].cost", "count": 1}
 {"kind": "fidelity", "run": "20261005-201805", "what": "diff .energy", "count": 1}
 {"kind": "fidelity", "run": "20261005-201805", "what": "action failed", "count": 1}
+{"kind": "surprise", "run": "20261011-211805", "fight": 409103022, "encounter": "QUEEN_BOSS", "predicted_win": 0.131, "won": true, "hp_lost": -0.188}
+{"kind": "fidelity", "run": "20261011-211805", "what": "diff .enemies[0].hp", "count": 19}
+{"kind": "fidelity", "run": "20261011-211805", "what": "diff .enemies[1].hp", "count": 16}
+{"kind": "fidelity", "run": "20261011-211805", "what": "diff .enemies[2].hp", "count": 6}
+{"kind": "fidelity", "run": "20261011-211805", "what": "diff .enemies[0].max_hp", "count": 3}
+{"kind": "fidelity", "run": "20261011-211805", "what": "diff .enemies[1].max_hp", "count": 2}
+{"kind": "fidelity", "run": "20261011-211805", "what": "diff .enemies[2].max_hp", "count": 1}
+{"kind": "fidelity", "run": "20261011-211805", "what": "diff .enemies[3].hp", "count": 1}
+{"kind": "fidelity", "run": "20261011-211805", "what": "diff .enemies[4].hp", "count": 1}
+{"kind": "fidelity", "run": "20261011-231853", "what": "diff .enemies[0].hp", "count": 3}
+{"kind": "fidelity", "run": "20261011-231853", "what": "diff .enemies[0].max_hp", "count": 2}
+{"kind": "fidelity", "run": "20261011-231853", "what": "diff .enemies[1].hp", "count": 2}
+{"kind": "fidelity", "run": "20261011-231853", "what": "diff .enemies[1].max_hp", "count": 2}
+{"kind": "fidelity", "run": "20261011-231853", "what": "diff .enemies[2].hp", "count": 1}
+{"kind": "fidelity", "run": "20261011-231853", "what": "diff .enemies[2].max_hp", "count": 1}
+{"kind": "fidelity", "run": "20261011-231853", "what": "diff .enemies[1].block", "count": 1}
+{"kind": "surprise", "run": "20261012-082627", "fight": 409769021, "encounter": "TEST_SUBJECT_BOSS", "predicted_win": 0.369, "won": true, "hp_lost": 0.9}
+{"kind": "fidelity", "run": "20261012-082627", "what": "diff .enemies[1].hp", "count": 4}
+{"kind": "fidelity", "run": "20261012-082627", "what": "diff .enemies[2].hp", "count": 2}
+{"kind": "fidelity", "run": "20261012-082627", "what": "diff .enemies[0].hp", "count": 3}
+{"kind": "fidelity", "run": "20261012-082627", "what": "diff .enemies[0].max_hp", "count": 1}
+{"kind": "fidelity", "run": "20261012-082627", "what": "diff .enemies[1].max_hp", "count": 1}
+{"kind": "fidelity", "run": "20261012-082627", "what": "diff .enemies[2].max_hp", "count": 1}

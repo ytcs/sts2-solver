@@ -11,6 +11,7 @@ description: Use in every fight and when planning fights: operator fight rules F
 - F3 [hyp] Check lethal before `turn !` / `combat !` (Vulnerable x1.5); read power text and relic counters before big hits. Test: outcome: missed-lethal count in the review.
 - F4 [code] Potions: the search throws them at a reserve cost (`sts2-harness` Potions); at the first final boss it spends what the second does not need, at the last boss everything (E89). `potion aside` only to keep a potion for a later fight the search cannot see. Test: outcome: potions held at a death, ledger (should be 0).
 - F5 [hyp] Not playing a card can be best (stranded draw, Skill vs Enrage, a wasted doubling). Test: outcome: hindsight on turns ending with an unplayed card the next turn wanted.
+- F6 [hyp] Multi-phase bosses (a death that revives, `encounters.md`): end a phase on the turn its next attack would be lethal or heavy, since the revive turn deals no damage; hold debuff potions for the new phase (the revive strips debuffs). Test: outcome: HP lost on phase-change turns, `agent.hindsight` on the boss fight.
 
 ## Encounter assignment [code] (ActModel.GenerateRooms, RoomSet.cs)
 - Act start pre-rolls hidden lists (monsters: weak first, then regular; elites; boss; ancient). The Nth monster / elite room entered gets list[N]. Never read the lists.
