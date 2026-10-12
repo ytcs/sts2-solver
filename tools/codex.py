@@ -148,8 +148,8 @@ CHARACTERS = {"ironclad", "silent", "defect", "necrobinder", "regent"}
 
 
 def replay_flags(path):
-    """per replay: reloads / resumes (kept as flags), console, gameplay mods, multiplayer, final end; replay_version and the fight fields it carries"""
-    x = dict(reloads=0, resumes=0, console=0, full_console=False, mods=set(), players=1, seed=None, character=None, end=None, floors=0, combats=0, events=0,
+    """per replay: reloads / resumes / in-fight retries (combat_id "#n") (kept as flags), console, gameplay mods, multiplayer, final end; replay_version and the fight fields it carries"""
+    x = dict(reloads=0, resumes=0, retries=0, console=0, full_console=False, mods=set(), players=1, seed=None, character=None, end=None, floors=0, combats=0, events=0,
              version=set(), fields=collections.Counter())
     for e in replay_events(path):
         x["events"] += 1
@@ -167,6 +167,7 @@ def replay_flags(path):
             x["console"] += 1
         elif t == "combat_start":
             x["combats"] += 1
+            x["retries"] += "#" in str(e.get("combat_id"))
             x["fields"]["rng_state"] += "rng_state" in e
         elif t in ("draw_order", "intent", "move") or t == "shuffle" and "order_c" in e:
             x["fields"][t] += 1
@@ -254,7 +255,7 @@ def replays(out_dir, build, ascension, skip_list=False, index_only=False, limit=
     json.dump(dict(pooled_win_rate=p0, strong_runs=STRONG_RUNS, shrink=SHRINK, strong_bar=bar, players=ps), open(os.path.join(out_dir, "players.json"), "w", encoding="utf-8"), indent=0)
     n = len(index)
     by = collections.Counter(x.get("character") for x in index)
-    fl = collections.Counter(k for x in index for k in ("reloads", "resumes", "console", "full_console", "mods", "abandoned", "base_seed") if x.get(k))
+    fl = collections.Counter(k for x in index for k in ("reloads", "resumes", "retries", "console", "full_console", "mods", "abandoned", "base_seed") if x.get(k))
     fl.update(k for x in index for k, bad in (("multiplayer", x.get("players", 1) > 1), ("incomplete", not x.get("complete")), ("modded character", x.get("character") not in CHARACTERS)) if bad)
     clean = [x for x in index if x["clean"]]
     print(f"{n} replays, {size / 1e6:.0f} MB gz; by character {dict(by)}; flagged {dict(fl)}")

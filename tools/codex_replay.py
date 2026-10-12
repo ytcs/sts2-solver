@@ -97,13 +97,14 @@ class Run:
 
 
 def fights(path):
-    """(scenario, start event, combat events, combat_end or None) per combat_start in log order; a retry after a reload repeats the combat_id.
+    """(scenario, start event, combat events, combat_end or None) per combat_start in log order; a retry repeats the combat_id (after a reload) or
+    adds "#n" (in-game retry, no resume logged; the run's HP is then off until the next absolute HP event).
     Card events logged between room entry and combat_start (room-entry relics on combat cards: Stone Cracker) follow draw_order in the events."""
     run, cur, entry = Run(), None, []
     for e in events(path):
         t = e["t"]
         if cur is not None:
-            if t in ("combat_end", "end", "header"):
+            if t in ("combat_end", "end", "header", "combat_start"):
                 yield cur[0], cur[1], cur[2], e if t == "combat_end" else None
                 cur = None
             else:
@@ -149,11 +150,38 @@ def _next_piles(evs):
     return out, up
 
 
+def _names(e):
+    return {e.get("c"), e.get("from_c"), e.get("to_c")} | set(e.get("flushed_c") or []) | set(e.get("retained_c") or []) | (set(e.get("order_c") or []) if e["t"] == "shuffle" else set())
+
+
+def _returns(evs):
+    """unlogged returns to hand (Bolas, Thrumming Hatchet, Sovereign Blade, All for One...): a card played from hand whose previous logged move left
+    it elsewhere -> ({index of that move: [card]}, {index just before the play's cut: [card]}); in between the board holds it in limbo
+    (location unknown: tolerated where the sim has it)"""
+    leave, back, last = collections.defaultdict(list), collections.defaultdict(list), {}
+    for i, e in enumerate(evs):
+        if e["t"] == "play" and not e.get("play_index") and e.get("c") in last:
+            j, how = last[e["c"]]
+            if how != "hand":
+                k = i
+                while k > 0 and _pre_play(evs[k - 1]):
+                    k -= 1
+                leave[j].append(e["c"])
+                back[max(j, k - 1)].append(e["c"])
+        if e["t"] not in ("draw", "play", "discard", "exhaust", "flush", "shuffle", "generate", "transform"):
+            continue
+        for c in _names(e) - {None}:
+            stays = c in (e.get("retained_c") or []) or e["t"] in ("draw", "generate", "transform") or e["t"] == "play" and e.get("result_pile") == "hand"
+            last[c] = (i, "hand" if stays else "away")
+    return leave, back
+
+
 class Board:
     """the logged combat state, folded event by event; snapshot() is the sts2diff schema (piles top-last as the game lists them)"""
 
     def __init__(self, sc, start, evs=()):
         self.next_pile, self.gen_up, self.i, self.spent, self.unknown_cards = *_next_piles(evs), -1, False, []
+        (self.leave, self.back), self.limbo = _returns(evs), []
         self.p = dict(hp=sc["hp"], max_hp=sc["max_hp"], block=0, powers={})
         self.en = {}
         for x in sorted(start.get("enemies") or [], key=lambda x: x.get("i", 0)):
@@ -184,6 +212,16 @@ class Board:
         return self.p if name in (None, "player") or name == self.char or cid is None and name not in [x["id"] for x in self.en.values()] else None
 
     def apply(self, e):
+        self._apply(e)
+        for c in self.leave.get(self.i, ()):
+            self._move(c, None)
+            self.limbo.append(c)
+        for c in self.back.get(self.i, ()):
+            if c in self.limbo:
+                self.limbo.remove(c)
+            self._move(c, self.hand)
+
+    def _apply(self, e):
         t = e["t"]
         self.i += 1
         if t == "draw_order":
@@ -316,7 +354,7 @@ class Board:
               for x in self.en.values()]
         return dict(energy=self.energy, stars=self.stars, player=dict(hp=self.p["hp"], max_hp=self.p["max_hp"], block=self.p["block"], powers=pw(self.p["powers"])),
                     enemies=en, hand=cards(self.hand), draw=cards(self.draw), discard=cards(self.disc), exhaust=cards(self.exh),
-                    potions=[dict(slot=s, id=p) for s, p in sorted(self.potions.items())], unknown=[self.cards[c] for c in self.unknown_cards])
+                    potions=[dict(slot=s, id=p) for s, p in sorted(self.potions.items())], unknown=[self.cards[c] for c in self.unknown_cards + self.limbo if c in self.cards])
 
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
@@ -460,9 +498,17 @@ def field_kind(f):
 
 
 def _sync(sim, sn, log, fields):
+    """the sim takes the log's value of each differing group; a pile keeps the sim's cards the log holds in limbo / unknown pile"""
     real = dict(sn)
     for f in fields:
-        real[GROUP[f.split(".")[0]]] = log[GROUP[f.split(".")[0]]]
+        g = GROUP[f.split(".")[0]]
+        real[g] = log[g]
+        if g in ("hand", "draw", "discard", "exhaust"):
+            loose = collections.Counter(c["id"] for c in log.get("unknown") or [])
+            for c in sn.get(g) or []:
+                if loose[c["id"]] > 0 and not any(x["id"] == c["id"] for x in log[g]):
+                    loose[c["id"]] -= 1
+                    real[g] = real[g] + [c]
     real.pop("relics", None)
     sim.sync(json.dumps(real))
 
@@ -528,6 +574,7 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
                 opts = [j for j, t in sim.legal() if t.startswith("pick ") and t.endswith(f"({c['id']})")]
                 if not opts:
                     row["fields"]["choice.option_missing"] += 1
+                    row["fallback"] = True
                     continue
                 step(opts[0])
                 if sim.stage() != "choice":
@@ -539,6 +586,7 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
             if sim.stage() != "choice":
                 break
             row["fields"]["choice.unlogged"] += 1
+            row["fallback"] = True
             leg = sim.legal()
             if not leg:
                 break
@@ -553,8 +601,14 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
             ae = evs[starts[i]]
             if ae["t"] != "end_turn":
                 if sim.stage() != "play":
+                    if sim.stage() == "over":
+                        f = "combat.unported" if sim.missing() else "combat.over_early"
+                        row["fields"][f] += 1
+                        row["divs"].append(dict(field=f, sim=sim.missing() or sim.outcome(), log="ongoing", step=row["actions"], turn=turn, after=last,
+                                                moves=moves[-4:], cascade=cascade))
                     row["failed"] = dict(step=row["actions"], turn=turn, why=f"sim stage {sim.stage()} before {_label(ae)}", after=last)
                     break
+                cascade = cascade or row.pop("fallback", False)
                 sn = json.loads(sim.snapshot())
                 b.seed_powers(sn)
                 spend = [v for v in evs[i:starts[i]] if v["t"] in ("energy", "stars") and "src" not in v]
@@ -588,7 +642,10 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
     if not row["failed"]:
         row["end"] = dict(log=(end or {}).get("result"), sim={1: "victory", -1: "loss"}.get(sim.outcome(), "ongoing"))
         row["rng_end"] = dict(sim.rng_counters())
+        import sts2
+        row["relic_props"] = {sts2.names()["relic"][rid]: dict(props) for rid, _, _, props in json.loads(sim.diag())["relics"] if props}
     row["fields"] = dict(row["fields"])
+    row.pop("fallback", None)
     return row, ((pre, ops) if keep_ops else None)
 
 
@@ -637,26 +694,39 @@ def _act(sim, e, b):
 def _first_attempts(path):
     seen = set()
     for sc, st, evs, end in fights(path):
-        if st.get("combat_id") not in seen:
-            seen.add(st.get("combat_id"))
+        cid = str(st.get("combat_id")).split("#")[0]
+        if cid not in seen:
+            seen.add(cid)
             yield sc, st, evs, end
 
 
-def fidelity_replay(path):
-    rows = []
+def chain(path, keep=None):
+    """replay_fight over a replay's first attempts in order; relic saved state the log never shows (no relic_counter event, no resume state: Tuning
+    Fork's SkillsPlayed...) is carried from the sim's previous fight -> (rows, (scenario, ops) of fight `keep`)"""
+    rows, carry, kept = [], {}, None
     for k, (sc, st, evs, end) in enumerate(_first_attempts(path)):
-        if sc["character"] not in CHARS:
+        if sc["character"] not in CHARS or (keep is not None and k > keep):
             break
+        sc = dict(sc, relics=[dict(r, props=r["props"] or carry.get(r["id"], {})) if "counter" not in r else r for r in sc["relics"]])
         if "rng_state" not in st or not any(e["t"] == "draw_order" for e in evs):
             row = dict(enc=st["encounter"], char=sc["character"], error="replay format: no rng_state / draw_order", fields={}, divs=[], relics=[])
         else:
             try:
-                row, _ = replay_fight(sc, st, evs, end)
+                row, ops = replay_fight(sc, st, evs, end, keep_ops=k == keep)
+                kept = ops if k == keep else kept
             except (KeyError, TypeError, IndexError, ValueError) as ex:
                 row = dict(enc=st["encounter"], char=sc["character"], error=f"reconstruction crash: {ex!r}"[:160], fields={}, divs=[], relics=[])
+        carry = row.pop("relic_props", carry)
         row.update(run=os.path.basename(path)[:-9], k=k, plays=dict(collections.Counter(e["id"] for e in evs if e["t"] == "play" and not e.get("auto"))))
+        if row.get("divs"):
+            d = row["divs"][0]
+            row["class"] = classify(field_kind(d["field"]), d["after"], row["enc"])[0]
         rows.append(row)
-    return rows
+    return rows, kept
+
+
+def fidelity_replay(path):
+    return chain(path)[0]
 
 
 def _clean(src, character):
@@ -667,11 +737,10 @@ def _clean(src, character):
 
 def repro(path, k, field):
     """the ops of fight k of a replay up to the first difference in `field` (scenario + actions / syncs / expected states)"""
-    sc, st, evs, end = list(_first_attempts(path))[k]
-    _, (pre, ops) = replay_fight(sc, st, evs, end, keep_ops=True)
+    _, (pre, ops) = chain(path, keep=k)
     for n, op in enumerate(ops):
         if op[0] == "expect" and field in op[2]:
-            return dict(run=os.path.basename(path)[:-9], k=k, encounter=st["encounter"], field=field, scenario=pre, ops=ops[:n + 1])
+            return dict(run=os.path.basename(path)[:-9], k=k, field=field, encounter=list(_first_attempts(path))[k][1]["encounter"], scenario=pre, ops=ops[:n + 1])
     return None
 
 
@@ -700,8 +769,7 @@ def run_ops(scenario, ops, stop=None, show=False):
 def sim_at(path, k, step):
     """fight k (first attempts) of a replay as a Sim right before the human's action number `step`: logged RNG, the human's actions, the log's
     state synced in wherever the sim differed (a mid-fight search / collection root; draw order and RNG are hidden in-game)"""
-    sc, st, evs, end = list(_first_attempts(path))[k]
-    _, (pre, ops) = replay_fight(sc, st, evs, end, keep_ops=True)
+    _, (pre, ops) = chain(path, keep=k)
     return run_ops(pre, ops, stop=step)
 
 
@@ -712,6 +780,29 @@ def run_repro(file):
 
 
 BLOCKING = ("TEST_SUBJECT_BOSS", "WATERFALL_GIANT_BOSS", "QUEEN_BOSS", "AEONGLASS_BOSS")
+ROOTS = BLOCKING + ("PHROG_PARASITE_ELITE", "GREMLIN_MERC_NORMAL", "AXEBOTS_NORMAL", "KAISER_CRAB_BOSS", "THE_INSATIABLE_BOSS", "KNOWLEDGE_DEMON_BOSS")
+TIER = (("combat.over_early", 3), ("combat.unported", 3), ("player.hp", 3), ("enemy.alive", 3), ("enemy.missing", 3), ("enemy.extra", 3), ("enemy.hp", 2), ("player.block", 2),
+        ("enemy.block", 2), ("energy", 2), ("stars", 2), ("enemy.move", 2), ("enemy.intent", 2), ("player.power", 2), ("enemy.power", 2), ("choice", 1),
+        ("hand", 1), ("draw", 1), ("discard", 1), ("exhaust", 1), ("potions", 1))
+# cluster -> class, read off the log and the decompile for the clusters named; everything else stays a sim-bug candidate
+CLASSES = (
+    (lambda f, a, e: f == "combat.unported", "sim gap (unported content)", "Sim.missing() names it"),
+    (lambda f, a, e: f == "potions" and a == "start", "reconstruction gap", "potion belt between fights (potion_got carries no slot)"),
+    (lambda f, a, e: f == "player.hp" and a == "start", "reconstruction gap", "HP carried between fights from hits / heals"),
+    (lambda f, a, e: f == "hand" and a == "start", "sim-bug candidate", "start-of-combat relic order / RNG (relic lift table)"),
+    (lambda f, a, e: f == "enemy.hp" and e == "OVICOPTER_NORMAL", "sim-bug candidate", "Tough Egg spawn HP roll (log spawn hp != sim)"),
+    (lambda f, a, e: f == "player.block" and a.startswith("DEFEND"), "sim-bug candidate", "replayed play (play_count 2: Spiral enchantment) not replayed"),
+    (lambda f, a, e: f == "energy" and a == "start", "sim-bug candidate", "turn-1 energy at elites / bosses (spend event shows more)"),
+    (lambda f, a, e: f == "hand" and e == "PHROG_PARASITE_ELITE", "sim-bug candidate", "top encounter Phrog: Infection goes to discard (PhrogParasite.cs:77, Wriggler.cs:99)"),
+)
+
+
+def classify(f, a, e):
+    return next(((c, n) for t, c, n in CLASSES if t(f, a, e)), ("sim-bug candidate", ""))
+
+
+def tier(f):
+    return next((t for p, t in TIER if f.startswith(p)), 1)
 
 
 def _table(head, rows):
@@ -719,71 +810,85 @@ def _table(head, rows):
 
 
 def report(rows, meta, out):
-    """replay_fidelity.md: coverage, first divergence per fight, per field / encounter / card / power / relic, RNG consumption between fights; repros"""
+    """replay_fidelity.md: coverage, opening state, ranked first-divergence clusters (fights x impact tier) with class, blocking encounters,
+    per encounter / card / relic, RNG consumption between fights; a repro per field kind"""
     C = collections.Counter
     built = [r for r in rows if "error" not in r]
-    exact = [r for r in built if not r["fields"] and not r["failed"] and (r["end"] or {}).get("log") in (None, (r["end"] or {}).get("sim"))]
-    first, steps, after_card, plays, by_enc, by_rel, fails = C(), C(), C(), C(), collections.defaultdict(C), collections.defaultdict(C), C()
-    ex_first, clus, clus_enc = {}, C(), collections.defaultdict(C)
+    ended = [r for r in built if (r["end"] or {}).get("log")]
+    exact = [r for r in ended if not r["fields"] and not r["failed"] and r["end"]["log"] == r["end"]["sim"]]
+    quit_clean = sum(1 for r in built if not (r["end"] or {}).get("log") and not r["fields"] and not r["failed"])
+    clus, clus_enc, clus_ex, clus_flip = C(), collections.defaultdict(C), {}, C()
+    after_card, plays, by_enc, by_rel, fails, steps = C(), C(), collections.defaultdict(C), collections.defaultdict(C), C(), C()
+    n_start = max(1, sum(any(d["after"] == "start" for d in r["divs"]) for r in built))
     for r in built:
         plays.update(r.get("plays") or {})
-        divs = [d for d in r["divs"] if not d["cascade"]]
+        a = None
         if r["divs"]:
-            f = field_kind(r["divs"][0]["field"])
-            first[f] += 1
-            clus[f, r["divs"][0]["after"]] += 1
-            clus_enc[f, r["divs"][0]["after"]][r["enc"]] += 1
-            ex_first.setdefault(f, (meta[r["run"]][0], r["k"], r["divs"][0]))
-        for d in divs:
-            steps[field_kind(d["field"])] += 1
-            if d["after"] not in ("start", "end_turn"):
-                after_card[d["after"]] += 1
+            d = r["divs"][0]
+            a = "card" if d["after"] not in ("start", "end_turn") else d["after"]
+            key = (field_kind(d["field"]), d["after"] if a == "card" else a)
+            clus[key] += 1
+            clus_enc[key][r["enc"]] += 1
+            clus_ex.setdefault(key, (meta[r["run"]][0], r["k"], d))
+            clus_flip[key] += bool(r["end"] and r["end"]["log"] and r["end"]["log"] != r["end"]["sim"])
+        for d in r["divs"]:
+            if not d["cascade"]:
+                steps[field_kind(d["field"])] += 1
+                if d["after"] not in ("start", "end_turn"):
+                    after_card[d["after"]] += 1
         e = by_enc[r["enc"]]
         e["fights"] += 1
         e["exact"] += r in exact
-        e["fail"] += bool(r["failed"])
         if r["divs"]:
-            e["first:" + field_kind(r["divs"][0]["field"])] += 1
-        if r["failed"]:
+            e[f"first:{field_kind(r['divs'][0]['field'])}@{r['divs'][0]['after'] if r['divs'][0]['after'] in ('start', 'end_turn') else 'card'}"] += 1
+        if r["failed"] and not any(d["field"] == "combat.over_early" for d in r["divs"]):
             fails[re.sub(r"[A-Z][A-Z0-9_]{3,}", "X", r["failed"]["why"])[:60]] += 1
         for rel in set(r["relics"]):
             by_rel[rel]["fights"] += 1
-            by_rel[rel]["div"] += bool(r["fields"])
             by_rel[rel]["start"] += any(d["after"] == "start" for d in r["divs"])
+    errs = C(("replay-format gap" if "replay format" in r["error"] else "reconstruction gap" if "crash" in r["error"] else "sim gap (unported / unmodelled)",
+              (r.get("unported") or r["error"])[:70]) for r in rows if "error" in r)
+    ranked = sorted(clus.items(), key=lambda kv: -kv[1] * tier(kv[0][0]))
     chars = C(r["char"] for r in built)
-    n_start = max(1, sum(any(d["after"] == "start" for d in r["divs"]) for r in built))
-    L = [f"# Replay fidelity (spire-codex A10 v0.111.0 replays, Sim.exact on logged RNG)\n",
-         f"clean replays {len(meta)}; first-attempt fights {len(rows)}; built {len(built)}; unported / errors {len(rows) - len(built)}; "
-         f"action not takeable {sum(bool(r['failed']) for r in built)}; exact (no divergence, same outcome) {len(exact)} ({len(exact) / max(1, len(built)):.3f})\n",
-         _table(["character", "fights", "exact", "share"], [(c, n, sum(r['char'] == c for r in exact), f"{sum(r['char'] == c for r in exact) / n:.3f}") for c, n in chars.most_common()]),
+    L = [f"# Replay fidelity (spire-codex A10 v0.111.0 replays, Sim.exact on the logged RNG counters)\n",
+         f"clean replays {len(meta)} (with reloads {sum(bool(x.get('reloads')) for _, x in meta.values())}; first attempt of each combat_id only: attempt_id is the "
+         f"session reload count, not a per-combat retry); first-attempt fights {len(rows)}; built {len(built)}; logged combat_end {len(ended)}; "
+         f"exact (combat_end logged, no divergence, same outcome) {len(exact)} ({len(exact) / max(1, len(ended)):.3f} of ended); quit before the end with no "
+         f"divergence {quit_clean}; action not takeable or sim ended early {sum(bool(r['failed']) for r in built)}\n",
+         _table(["character", "fights", "ended", "exact", "exact / ended"],
+                [(c, n, sum(r['char'] == c for r in ended), sum(r['char'] == c for r in exact), f"{sum(r['char'] == c for r in exact) / max(1, sum(r['char'] == c for r in ended)):.3f}")
+                 for c, n in chars.most_common()]),
          "\n## Opening state (logged counters minus the sim's own init draws)\n",
-         f"post-init counter misses the log: {dict(C(k for r in built for k in r.get('init_rng_miss') or []))}; opening hand differs: "
-         f"{sum(any(d['field'] == 'hand' and d['after'] == 'start' for d in r['divs']) for r in built)} of {len(built)}\n",
-         "\n## Unported content (scenario refused)\n", _table(["id", "fights"], C(r.get("unported") or r.get("error", "")[:60] for r in rows if "error" in r).most_common(25)),
-         "\n## Action not takeable (sim refused the human's action)\n", _table(["reason", "fights"], fails.most_common(15)),
-         "\n## First divergence per fight\n", _table(["field", "fights", "example (run k: step turn after: sim vs log)"],
-                                                       [(f, n, f"{os.path.basename(ex_first[f][0])[:16]} {ex_first[f][1]}: {ex_first[f][2]['step']} t{ex_first[f][2]['turn']} {ex_first[f][2]['after']}: {json.dumps(ex_first[f][2]['sim'])[:60]} vs {json.dumps(ex_first[f][2]['log'])[:60]}")
-                                                        for f, n in first.most_common(40)]),
-         "\n## First divergence clusters (field x what preceded it: card / potion played, end_turn = enemy turn + turn start, start = combat start)\n",
-         _table(["field", "after", "fights", "encounters"], [(f, a, n, ", ".join(f"{e} {m}" for e, m in clus_enc[f, a].most_common(3))) for (f, a), n in clus.most_common(50)]),
-         "\n## Divergent steps by field (cascades after a draw / move divergence excluded)\n", _table(["field", "steps"], steps.most_common(60)),
-         "\n## Per encounter (blocking: Test Subject, Waterfall Giant, act-3 bosses)\n",
-         _table(["encounter", "fights", "exact", "fail", "top first divergence", "blocking"],
-                [(k, v["fights"], v["exact"], v["fail"], max(((f[6:], n) for f, n in v.items() if f.startswith("first:")), key=lambda x: x[1], default=("", 0)), "BLOCKING" if k in BLOCKING else "")
-                 for k, v in sorted(by_enc.items(), key=lambda kv: -(kv[1]["fights"] - kv[1]["exact"]))]),
-         "\n## Per card: divergences right after a play / plays\n",
+         f"post-init counter differs from the log (the sim's init draws differ from the game's) by stream: {dict(C(k for r in built for k in r.get('init_rng_miss') or []))}; "
+         f"opening hand differs: {sum(any(d['field'] == 'hand' and d['after'] == 'start' for d in r['divs']) for r in built)} of {len(built)}\n",
+         "\n## Fights not built\n", _table(["class", "reason", "fights"], [(c, k, n) for (c, k), n in errs.most_common(20)]),
+         "\n## Ranked first-divergence clusters (fights x impact tier: 3 death / HP / enemy presence, 2 damage / block / energy / moves / powers, 1 piles / choices)\n",
+         _table(["field", "after", "fights", "tier", "outcome differs", "class", "note", "top encounters", "example (run fight: step turn: sim vs log)"],
+                [(f, a, n, tier(f), clus_flip[f, a], *classify(f, a, clus_enc[f, a].most_common(1)[0][0]), ", ".join(f"{e} {m}" for e, m in clus_enc[f, a].most_common(3)),
+                  f"{os.path.basename(clus_ex[f, a][0])[:16]} {clus_ex[f, a][1]}: {clus_ex[f, a][2]['step']} t{clus_ex[f, a][2]['turn']}: "
+                  f"{json.dumps(clus_ex[f, a][2]['sim'])[:50]} vs {json.dumps(clus_ex[f, a][2]['log'])[:50]}") for (f, a), n in ranked[:60]]),
+         "\n## Blocking encounters (Test Subject, Waterfall Giant, act-3 bosses: gate the next model round)\n",
+         _table(["encounter", "fights", "exact", "top first divergences"],
+                [(k, by_enc[k]["fights"], by_enc[k]["exact"], ", ".join(f"{f[6:]} {n}" for f, n in sorted(((f, n) for f, n in by_enc[k].items() if f.startswith("first:")), key=lambda x: -x[1])[:5]))
+                 for k in BLOCKING]),
+         "\n## Collection roots: human decision states (actions taken in the sim) and those before the fight's first divergence (exact-prefix roots)\n",
+         _table(["encounter", "fights", "strong-player fights", "decision states", "exact-prefix states"],
+                [(k, len(v), sum(meta[r["run"]][1].get("strong", False) for r in v), sum(r["actions"] for r in v),
+                  sum(r["divs"][0]["step"] if r["divs"] else r["actions"] for r in v))
+                 for k in ROOTS for v in [[r for r in built if r["enc"] == k]]]),
+         "\n## Action not takeable (sim refused the human's action; the fight stops there)\n", _table(["reason", "fights"], fails.most_common(15)),
+         "\n## Divergent steps by field (cascades after a draw / move divergence or a fallback selection excluded)\n", _table(["field", "steps"], steps.most_common(50)),
+         "\n## Per encounter\n", _table(["encounter", "fights", "exact", "top first divergence"],
+                                        [(k, v["fights"], v["exact"], max(((f[6:], n) for f, n in v.items() if f.startswith("first:")), key=lambda x: x[1], default=("", 0)))
+                                         for k, v in sorted(by_enc.items(), key=lambda kv: -(kv[1]["fights"] - kv[1]["exact"]))[:60]]),
+         "\n## Per card: divergences right after its play / its plays\n",
          _table(["card", "div", "plays", "rate"], [(c, n, plays[c], f"{n / max(1, plays[c]):.3f}") for c, n in sorted(after_card.items(), key=lambda kv: -kv[1])[:40]]),
-         "\n## Relic lift on combat-start divergences (share of start-divergent fights holding the relic / share of all fights; >= 15 start-divergent fights)\n",
+         "\n## Relic lift on combat-start divergences (share among start-divergent fights / share among all fights; >= 15 start-divergent fights)\n",
          _table(["relic", "lift", "start-divergent fights", "fights"], [(k, f"{(v['start'] / n_start) / (v['fights'] / len(built)):.2f}", v["start"], v["fights"])
-                                                                    for k, v in sorted(by_rel.items(), key=lambda kv: -(kv[1]["start"] / kv[1]["fights"])) if v["start"] >= 15][:30]),
-         "\n## Per relic: fights with any divergence / with a start divergence (baseline all fights)\n",
-         _table(["relic", "fights", "div share", "start div share"],
-                [("ALL", len(built), f"{sum(bool(r['fields']) for r in built) / max(1, len(built)):.3f}", f"{sum(any(d['after'] == 'start' for d in r['divs']) for r in built) / max(1, len(built)):.3f}")] +
-                [(k, v["fights"], f"{v['div'] / v['fights']:.3f}", f"{v['start'] / v['fights']:.3f}") for k, v in sorted(by_rel.items(), key=lambda kv: -kv[1]["start"]) if v["fights"] >= 10][:40])]
-    by_run = collections.defaultdict(list)
+                                                                        for k, v in sorted(by_rel.items(), key=lambda kv: -(kv[1]["start"] / kv[1]["fights"])) if v["start"] >= 15][:30])]
+    by_run, cons = collections.defaultdict(list), collections.defaultdict(C)
     for r in built:
         by_run[r["run"]].append(r)
-    cons = collections.defaultdict(C)
     for rs in by_run.values():
         rs.sort(key=lambda r: r["k"])
         for x, y in zip(rs, rs[1:]):
@@ -791,11 +896,16 @@ def report(rows, meta, out):
                 for k, v in x["rng_end"].items():
                     cons[k]["pairs"] += 1
                     cons[k]["match"] += y["rng_pre"].get(k) == v
-    L += ["\n## RNG consumption over exact fights (sim counter at the end == the next fight's start; non-combat draws between fights also count as misses)\n",
+    L += ["\n## RNG consumption over exact fights (sim counter at the fight's end == the next fight's start; draws between fights count as misses)\n",
           _table(["stream", "pairs", "match"], [(k, v["pairs"], v["match"]) for k, v in cons.items()])]
     rdir = out + "_repro"
     os.makedirs(rdir, exist_ok=True)
-    for f, (path, k, d) in ex_first.items():
+    done = set()
+    for (f, a), _ in ranked:
+        if f in done:
+            continue
+        done.add(f)
+        path, k, d = clus_ex[f, a]
         r = repro(path, k, d["field"])
         if r:
             json.dump(r, open(os.path.join(rdir, re.sub(r"[^A-Za-z0-9_.]", "_", f) + ".json"), "w", encoding="utf-8"))
