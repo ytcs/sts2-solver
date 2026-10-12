@@ -35,7 +35,7 @@ collect)
 train)
   OUT=target/round/gen2_$RUN.pt
   python -u rl/exit.py train --init "$INIT" --data "$INPUTS"/base/*.npz "$INPUTS"/new/*.npz --out "$OUT" --epochs "${EPOCHS:-3}" --value-target td \
-    --lam 0.95 --lam-death "${LAM_DEATH:-1.0}" --pol 3 --c 2 --lr 1e-4 --lr-floor 0.1 --chunk 2048 --mb 2048 >target/round/train.log 2>&1
+    --lam 0.95 --lam-death "${LAM_DEATH:-1.0}" --pol 3 --c 2 --lr 1e-4 --lr-new "${LR_NEW:-1}" --lr-floor 0.1 --chunk 2048 --mb 2048 >target/round/train.log 2>&1
   grep holdout target/round/train.log
   G=target/round/gate
   mkdir -p "$G"

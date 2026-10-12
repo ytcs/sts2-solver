@@ -264,7 +264,10 @@ def train(a):
         P = np.concatenate([torch.softmax(prior.heads_out(torch.from_numpy(o[b:b + 4096]).to(DEV)).float(), 1).cpu().numpy() for b in range(0, len(o), 4096)])
         T = hl_gauss(torch.from_numpy(cl.astype(np.int64)), a.sigma).numpy()
         return td_backup(T, P, last, np.where(death, a.lam_death, a.lam))
-    opt = torch.optim.AdamW([q for q in net.parameters() if q.requires_grad], lr=a.lr, weight_decay=1e-4)
+    ps = [q for q in net.parameters() if q.requires_grad]
+    zero = [q for q in ps if not q.detach().any()]
+    groups = [dict(params=[q for q in ps if all(q is not z for z in zero)], mult=1.0)] + ([dict(params=zero, mult=a.lr_new)] if zero else [])
+    opt = torch.optim.AdamW(groups, lr=a.lr, weight_decay=1e-4)
     print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target anchored (c={a.c:g}, minmax)", flush=True)
 
     def batch_loss(o, m, op, cl, qn, last, vt=None):
@@ -314,7 +317,7 @@ def train(a):
             sh = rng.permutation(len(r[0]))
             lr = a.lr * max(a.lr_floor, 1 - it / n_chunks)
             for g in opt.param_groups:
-                g["lr"] = lr
+                g["lr"] = lr * g["mult"]
             st = np.zeros(2)
             nb = 0
             for b in range(0, len(r[0]), a.mb):
@@ -357,6 +360,7 @@ def main():
     t.add_argument("--init", required=True); t.add_argument("--data", nargs="+", required=True); t.add_argument("--out", required=True)
     t.add_argument("--epochs", type=int, default=4); t.add_argument("--chunk", type=int, default=2048); t.add_argument("--mb", type=int, default=2048)
     t.add_argument("--lr", type=float, default=1e-4); t.add_argument("--lr-floor", type=float, default=0.1)
+    t.add_argument("--lr-new", type=float, default=1.0, help="lr multiplier for parameters that are all zero at init (new observation inputs)")
     t.add_argument("--sigma", type=float, default=0.75, help="HL-Gauss width of the win classes, in bins")
     t.add_argument("--pol", type=float, default=1.0, help="weight of the policy loss")
     t.add_argument("--c", type=float, default=2.0, help="policy target: weight of the min-max normalised search estimate (logits)")
