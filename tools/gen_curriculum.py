@@ -90,12 +90,14 @@ class Curriculum:
         pool = [p for p in self.g.potions[ch] + self.g.potions["SHARED"] if p["usage"] in ("CombatOnly", "AnyTime")]
         return [{"id": r.choice(pool)["id"], "slot": i} for i in range(n)], slots
 
-    def scenario(self, i, seed, stage, pmax, character=None, act=None, rooms=None, n_add=None, force_cards=(), force_potions=()):
+    def scenario(self, i, seed, stage, pmax, character=None, act=None, rooms=None, n_add=None, force_cards=(), force_potions=(), encounters=None):
         r = random.Random(f"m3/{seed}/{i}")
         easy = stage == "easy"
         ch = character or r.choices(list(CHAR_W), list(CHAR_W.values()))[0]
+        if encounters is not None and act is None:
+            act = r.choice(sorted(k for k, v in self.encs.items() if any(e["id"] in encounters for e in v)))
         act = (0 if easy else r.choice([0, 1, 2])) if act is None else act
-        encs = self.encs[act]
+        encs = self.encs[act] if encounters is None else [e for e in self.encs[act] if e["id"] in encounters]
         if easy:
             encs = [e for e in encs if e["room"] not in ("Elite", "Boss")]
         if rooms:

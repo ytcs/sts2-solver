@@ -9,9 +9,28 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sts2  # noqa: E402
 import heads as H  # noqa: E402
 
+# an enemy's death here does not end it (revive, death blow, spawns, partner rage): TD targets bootstrap from a prior blind to that before v4
+DEATH_ENCOUNTERS = frozenset({"TEST_SUBJECT_BOSS", "WATERFALL_GIANT_BOSS", "AXEBOTS_NORMAL", "PHROG_PARASITE_ELITE", "GREMLIN_MERC_NORMAL", "DECIMILLIPEDE_ELITE",
+                              "KAISER_CRAB_BOSS", "FOGMOG_NORMAL", "THE_OBSCURA_NORMAL"})
 
-def _save(path, scen, F_, D, cover=False):
+
+def root(sc, seed, start):
+    """a fight root at a recorded state, rebuilt the same way at collection and at every replay: a replay recipe (tools/codex_replay.py `run_ops`:
+    logged RNG, the human's actions before the `stop`-th) or a sync state (`Sim.from_state`); then the hidden piles and RNG are resampled from the
+    fight's seed (the human's draw order and RNG future stay hidden)"""
+    if "ops" in start:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
+        from codex_replay import run_ops
+        s = run_ops(start["scenario"], start["ops"], stop=start["stop"])
+        assert s.determinize(int(seed)), "a root mid-card cannot be resampled"
+        return s
+    return sts2.Sim.from_state(json.dumps(sc), int(seed), json.dumps(start))
+
+
+def _save(path, scen, F_, D, cover=False, starts=None):
     extra = {"cover": np.array(1)} if cover else {}
+    if starts is not None and any(s is not None for s in starts):
+        extra["starts"] = np.array(json.dumps(starts))
     np.savez_compressed(path, scenarios=np.array(json.dumps(scen)), f_scen=np.array(F_["scen"], np.int32), f_seed=np.array(F_["seed"], np.uint64),
                         f_cls=np.array(F_["cls"], np.int16), f_off=np.array(F_["off"], np.int64), acts=np.array(F_["acts"], np.int16),
                         d_fight=np.array(D["fight"], np.int32), d_step=np.array(D["step"], np.int32), d_opts=np.array(D["opts"], np.int16), d_q=np.array(D["q"], np.float32),
@@ -23,6 +42,8 @@ def collect(a):
     from fastsearch import FastSearch
     from model import load
     scen = [s for f in a.fights for s in json.load(open(f))]
+    starts = json.load(open(a.starts)) if a.starts else [None] * len(scen)
+    assert len(starts) == len(scen), f"--starts lists {len(starts)} states for {len(scen)} scenarios"
     fs = FastSearch(load(a.ckpt), M=a.M, K=a.K, record=True, roots=a.roots, amp=True, cover=a.cover, futures=a.futures)
     W = fs.M
     fs.warm()
@@ -59,10 +80,13 @@ def collect(a):
             break
         part = jobs[k * a.chunk:(k + 1) * a.chunk]
         cs = [scen[i] for i, _ in part]
+        ss = [starts[i] for i, _ in part]
         js = np.arange(len(cs), dtype=np.uint32)
         jd = np.array([np.uint64(a.seed) * np.uint64(1_000_003) + np.uint64(att * len(scen) + i) for i, att in part], dtype=np.uint64)
         state.update(start=time.time(), chunk=k, scen=cs)
-        res = fs.run(cs, js, jd)
+        # one scenario per job: a recorded-state root is rebuilt from its job's seed (replay_rows rebuilds it the same way)
+        roots = [None if st is None else root(sc, sd, st) for sc, st, sd in zip(cs, ss, jd)]
+        res = fs.run(cs, js, jd, starts=roots if any(r is not None for r in roots) else None)
         dt = time.time() - state["start"]
         state["start"] = None
         times.append(dt)
@@ -85,7 +109,7 @@ def collect(a):
                     D["opts"].append(np.where(ok, opts[t, :W], -1).astype(np.int16)); D["q"].append(np.where(ok, q[t, :W], np.nan).astype(np.float32))
         eng = None
         fs._runs = []
-        _save(f"{stem}_{k:03d}.npz", cs, F_, D, cover=a.cover)
+        _save(f"{stem}_{k:03d}.npz", cs, F_, D, cover=a.cover, starts=ss)
         lens = res[:, 4]
         top = np.argsort(-lens)[:3]
         rate = len(cs) / dt
@@ -100,6 +124,7 @@ class Data:
     def __init__(self, paths):
         self.parts = []
         self.bad = set()
+        self.roots = {}
         for p in paths:
             z = np.load(p)
             scen = json.loads(str(z["scenarios"]))
@@ -109,7 +134,9 @@ class Data:
             qn = np.where(ok, (q - lo) / np.maximum(hi - lo, 1e-6), np.nan)
             qn = np.where(ok, qn - np.nanmean(qn, 1, keepdims=True), 0.0).astype(np.float32)
             order = np.argsort(z["d_fight"], kind="stable")
-            self.parts.append(dict(scen=scen, f_scen=z["f_scen"], f_seed=z["f_seed"], f_cls=z["f_cls"], f_off=z["f_off"], acts=z["acts"].astype(np.int32),
+            starts = json.loads(str(z["starts"])) if "starts" in z.files else None
+            death = np.array([sc["encounter"] in DEATH_ENCOUNTERS for sc in scen], bool)
+            self.parts.append(dict(scen=scen, starts=starts, death=death, f_scen=z["f_scen"], f_seed=z["f_seed"], f_cls=z["f_cls"], f_off=z["f_off"], acts=z["acts"].astype(np.int32),
                                    d_fight=z["d_fight"][order], d_step=z["d_step"][order], d_opts=z["d_opts"][order], qn=qn[order]))
             self.parts[-1]["d_lo"] = np.searchsorted(self.parts[-1]["d_fight"], np.arange(len(z["f_cls"]) + 1))
         m = max(p["d_opts"].shape[1] for p in self.parts)
@@ -134,8 +161,19 @@ class Data:
             acts.append(p["acts"][p["f_off"][f]:p["f_off"][f + 1]]); off.append(off[-1] + len(acts[-1]))
             lo, hi = p["d_lo"][f], p["d_lo"][f + 1]
             steps.append(p["d_step"][lo:hi]); soff.append(soff[-1] + hi - lo); sel.append(np.arange(lo, hi))
-        o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff)
+        st = None
+        if p["starts"] is not None:
+            # one fight per scenario in a part with roots (collect: one scenario entry per job)
+            seed = dict(zip(p["f_scen"][fs].tolist(), p["f_seed"][fs].tolist()))
+            st = [None if p["starts"][u] is None else self.root(p, int(u), seed[int(u)]) for u in uniq]
+        o, m = sts2.replay_rows([p["scen"][u] for u in uniq], inv, p["f_seed"][fs], np.concatenate(acts), off, np.concatenate(steps), soff, st)
         return o, m, np.concatenate(sel), soff
+
+    def root(self, p, u, seed):
+        k = (id(p), u)
+        if k not in self.roots:
+            self.roots[k] = root(p["scen"][u], seed, p["starts"][u])
+        return self.roots[k]
 
     def _replayable(self, pi, p, fs):
         good, stack = [], [list(fs)]
@@ -154,7 +192,8 @@ class Data:
         return sorted(good)
 
     def rows(self, fights):
-        out = [[], [], [], [], [], []]
+        """[obs, mask, options, end class, normalised q, last row of its fight, death-effect fight]"""
+        out = [[], [], [], [], [], [], []]
         by = {}
         for pi, f in fights:
             by.setdefault(pi, []).append(f)
@@ -176,6 +215,7 @@ class Data:
             last = np.zeros(len(sel), bool)
             last[np.asarray(soff[1:]) - 1] = True
             out[5].append(last)
+            out[6].append(np.repeat(p["death"][p["f_scen"][fs]], np.diff(soff)))
         return [np.concatenate(x) for x in out]
 
 
@@ -191,15 +231,17 @@ def hl_gauss(cls, sigma):
 
 
 def td_backup(T, P, last, lam):
-    """T[i] = (1 - lam) P[i+1] + lam T[i+1] backwards within each fight (rows contiguous, `last` closes a fight), one row-distance at a time."""
+    """T[i] = (1 - lam) P[i+1] + lam T[i+1] backwards within each fight (rows contiguous, `last` closes a fight), one row-distance at a time;
+    lam a scalar or one per row."""
     n = len(T)
+    lam = np.broadcast_to(np.asarray(lam, np.float64), (n,))[:, None]
     ends = np.flatnonzero(np.r_[last[:-1], True]) if n else np.zeros(0, np.int64)
     d = ends[np.searchsorted(ends, np.arange(n))] - np.arange(n)
     order = np.argsort(d, kind="stable")
     cut = np.searchsorted(d[order], np.arange(1, int(d.max(initial=0)) + 2))
     for k in range(len(cut) - 1):
         i = order[cut[k]:cut[k + 1]]
-        T[i] = (1 - lam) * P[i + 1] + lam * T[i + 1]
+        T[i] = (1 - lam[i]) * P[i + 1] + lam[i] * T[i + 1]
     return T.astype(np.float32)
 
 
@@ -217,11 +259,11 @@ def train(a):
     prior = load(a.init).eval()
 
     @torch.no_grad()
-    def td_targets(r):
+    def td_targets(r, death):
         o, cl, last = r[0], r[3], r[5]
         P = np.concatenate([torch.softmax(prior.heads_out(torch.from_numpy(o[b:b + 4096]).to(DEV)).float(), 1).cpu().numpy() for b in range(0, len(o), 4096)])
         T = hl_gauss(torch.from_numpy(cl.astype(np.int64)), a.sigma).numpy()
-        return td_backup(T, P, last, a.lam)
+        return td_backup(T, P, last, np.where(death, a.lam_death, a.lam))
     opt = torch.optim.AdamW([q for q in net.parameters() if q.requires_grad], lr=a.lr, weight_decay=1e-4)
     print(f"{len(data)} fights ({len(tr)} train, {len(hold)} holdout), init {a.init}, policy target anchored (c={a.c:g}, minmax)", flush=True)
 
@@ -245,7 +287,7 @@ def train(a):
         net.eval()
         tot = np.zeros(3)
         for c in range(0, len(hold), a.chunk):
-            r = data.rows(hold[c:c + a.chunk])
+            r = data.rows(hold[c:c + a.chunk])[:6]
             for b in range(0, len(r[0]), a.mb):
                 pl, vl = batch_loss(*(x[b:b + a.mb] for x in r))
                 n = len(r[0][b:b + a.mb])
@@ -263,11 +305,12 @@ def train(a):
         for ci in range(len(starts)):
             t0 = time.time()
             r = nxt.result()
+            death = r.pop()
             if ci + 1 < len(starts):
                 nxt = pool.submit(data.rows, [tr[i] for i in order[starts[ci + 1]:starts[ci + 1] + a.chunk]])
             # before the shuffle: td_targets needs each fight's rows contiguous and in step order
             if a.value_target == "td":
-                r.append(td_targets(r))
+                r.append(td_targets(r, death))
             sh = rng.permutation(len(r[0]))
             lr = a.lr * max(a.lr_floor, 1 - it / n_chunks)
             for g in opt.param_groups:
@@ -308,6 +351,8 @@ def main():
     c.add_argument("--chunk-timeout", type=float, default=5.0, help="watchdog: a chunk longer than this x the median chunk ends the process")
     c.add_argument("--skip-stuck", action="store_true", help="skip chunks the watchdog has already ended once (their _stuck_ file exists)")
     c.add_argument("--first-timeout", type=float, default=30.0, help="watchdog limit in minutes for the first two chunks")
+    c.add_argument("--starts", help="JSON list, one entry per scenario of --fights (concatenated): null, or the recorded start the fight begins at "
+                   "(`root`: a codex replay recipe or a sync state); the part stores them and training rebuilds each root from its fight's seed")
     t = sub.add_parser("train")
     t.add_argument("--init", required=True); t.add_argument("--data", nargs="+", required=True); t.add_argument("--out", required=True)
     t.add_argument("--epochs", type=int, default=4); t.add_argument("--chunk", type=int, default=2048); t.add_argument("--mb", type=int, default=2048)
@@ -318,8 +363,11 @@ def main():
     t.add_argument("--value-target", choices=["realized", "td"], default="td", help="outcome target: the fight's realized ending, or "
                    "TD(lambda) over the fight's searched decisions with the init network's predictions (lower variance; holdout still scores realized)")
     t.add_argument("--lam", type=float, default=0.8, help="--value-target td: lambda (1 = realized ending)")
+    t.add_argument("--lam-death", type=float, default=None, help="--value-target td: lambda in DEATH_ENCOUNTERS fights (default --lam)")
     t.add_argument("--holdout", type=float, default=0.05); t.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
+    if a.cmd == "train" and a.lam_death is None:
+        a.lam_death = a.lam
     collect(a) if a.cmd == "collect" else train(a)
 
 

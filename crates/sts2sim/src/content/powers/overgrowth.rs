@@ -146,7 +146,7 @@ listener!(InfestedPower {
         if creature != me.owner || was_removal_prevented {
             return;
         }
-        for i in 0..4u8 {
+        for i in 0..crate::content::monsters::phrog::WRIGGLERS {
             cx.summon_enemy(ids::monster::WRIGGLER, crate::content::monsters::phrog::wriggler_slot(i), [1, 0]);
         }
     }

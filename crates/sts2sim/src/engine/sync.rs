@@ -145,9 +145,9 @@ impl Combat {
     }
 
     pub fn sync_pile(&mut self, pile: PileType, obs: &[ObsCard]) -> HandSync {
-        use std::collections::HashMap;
+        use std::collections::BTreeMap;
         let mut rep = HandSync::default();
-        let mut want: HashMap<(u16, u8), i32> = HashMap::new();
+        let mut want: BTreeMap<(u16, u8), i32> = BTreeMap::new();
         for o in obs {
             *want.entry((o.id, o.upgrade)).or_insert(0) += 1;
         }
@@ -259,9 +259,9 @@ impl Combat {
 
     // Call after the hand and the visible piles are synced: the draw pile is what is left.
     pub fn sync_draw(&mut self, obs: &[ObsCard]) -> HandSync {
-        use std::collections::HashMap;
+        use std::collections::BTreeMap;
         let mut rep = HandSync::default();
-        let mut want: HashMap<(u16, u8), i32> = HashMap::new();
+        let mut want: BTreeMap<(u16, u8), i32> = BTreeMap::new();
         for o in obs {
             *want.entry((o.id, o.upgrade)).or_insert(0) += 1;
         }

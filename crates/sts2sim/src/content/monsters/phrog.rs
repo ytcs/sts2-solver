@@ -3,6 +3,10 @@ use crate::defs::*;
 use crate::ids;
 
 pub const SLOT_PHROG: u8 = 0;
+pub const WRIGGLERS: u8 = 4;
+pub fn wriggler_bite(cx: &crate::state::Combat) -> i32 {
+    a9(cx, 7, 6)
+}
 pub fn wriggler_slot(i: u8) -> u8 {
     1 + i
 }
@@ -35,10 +39,10 @@ pub static WRIGGLER_DEF: MonsterDef = MonsterDef {
         mv(
             "NASTY_BITE_MOVE",
             |cx, me| {
-                let d = a9(cx, 7, 6);
+                let d = wriggler_bite(cx);
                 atk(cx, me, d)
             },
-            &[attack(|cx, _| a9(cx, 7, 6))],
+            &[attack(|cx, _| wriggler_bite(cx))],
             2,
         ),
         mv("SPAWNED_MOVE", nothing, &[Intent::Stun], 3),

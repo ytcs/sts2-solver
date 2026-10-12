@@ -8,6 +8,7 @@ license.workspace = true
 [features]
 obs_prof = []
 obs_v3 = []
+obs_v4 = ["obs_v3"]
 
 [dependencies]
 

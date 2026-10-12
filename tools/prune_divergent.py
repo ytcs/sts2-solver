@@ -11,12 +11,17 @@ D_KEYS = ("d_fight", "d_step", "d_opts", "d_q", "d_n", "d_pi", "d_adv", "d_v")
 
 def divergent(z, scen):
     A, O, FS, SD = z["acts"], z["f_off"], z["f_scen"], z["f_seed"]
+    st = json.loads(str(z["starts"])) if "starts" in z else None
+    if st is not None:
+        from exit import root
+        seed = dict(zip(FS.tolist(), SD.tolist()))
+        st = [None if s is None or i not in seed else root(scen[i], seed[i], s) for i, s in enumerate(st)]
 
     def ok(g):
         acts = [A[O[f]:O[f + 1]] for f in g]
         off = np.concatenate([[0], np.cumsum([len(a) for a in acts])])
         try:
-            sts2.replay_rows(scen, FS[g], SD[g], np.concatenate(acts), off, [max(len(a) - 1, 0) for a in acts], np.arange(len(g) + 1))
+            sts2.replay_rows(scen, FS[g], SD[g], np.concatenate(acts), off, [max(len(a) - 1, 0) for a in acts], np.arange(len(g) + 1), st)
             return True
         except ValueError:
             return False
@@ -33,7 +38,7 @@ def divergent(z, scen):
 
 
 def pruned(z, drop):
-    out = {k: z[k] for k in z.files}
+    out = dict(z) if isinstance(z, dict) else {k: z[k] for k in z.files}
     n = len(out["f_cls"])
     keep = np.setdiff1d(np.arange(n), drop)
     new_idx = np.full(n, -1, np.int64)

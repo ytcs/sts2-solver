@@ -59,11 +59,23 @@ pub const PILEX_F: usize = 9;
 pub const RELICX_F: usize = 2;
 pub const V3_TAIL: usize =
     OBS_CREATURES * CX_F + (MAX_HAND + OBS_MAX_CANDS + 1) * CARDX_F + HAND_TGT_F + 3 * PILEX_N * PILEX_F + OBS_RELICS * RELICX_F;
-#[cfg(feature = "obs_v3")]
+// v4 (feature `obs_v4`, implies `obs_v3`, MAX_POTIONS 9) = the v3 row + what each enemy's death does (`death_x`).
+pub const DEATH_F: usize = 10;
+pub const V4_TAIL: usize = OBS_MAX_ENEMIES * DEATH_F;
+#[cfg(feature = "obs_v4")]
+pub const OBS_VERSION: usize = 4;
+#[cfg(all(feature = "obs_v3", not(feature = "obs_v4")))]
 pub const OBS_VERSION: usize = 3;
 #[cfg(not(feature = "obs_v3"))]
 pub const OBS_VERSION: usize = 2;
-pub const OBS_SIZE: usize = OBS_SIZE_V2 + if OBS_VERSION == 3 { V3_TAIL } else { 0 };
+pub const OBS_SIZE: usize = OBS_SIZE_V2 + if OBS_VERSION >= 3 { V3_TAIL } else { 0 } + if OBS_VERSION >= 4 { V4_TAIL } else { 0 };
+
+pub mod death_kind {
+    pub const REVIVE: f32 = 1.0;
+    pub const DEATH_BLOW: f32 = 2.0;
+    pub const SPAWN: f32 = 3.0;
+    pub const PARTNER_BUFF: f32 = 4.0;
+}
 
 pub const OBS_SIZE_V2: usize = GLOBAL_F
     + PLAYER_F
@@ -322,7 +334,7 @@ impl Combat {
     }
 
     pub fn observe_ex(&self, out: &mut [f32], hand_playable: Option<u16>) -> usize {
-        self.observe_impl(out, hand_playable, OBS_VERSION == 3)
+        self.observe_impl(out, hand_playable, OBS_VERSION >= 3)
     }
 
     /// The v2 bytes only (search keys: the same under both builds).
@@ -628,6 +640,17 @@ impl Combat {
                 w.zeros(RELICX_F - k);
             }
             w.zeros((OBS_RELICS - n_relics) * RELICX_F);
+            #[cfg(feature = "obs_v4")]
+            for k in 0..OBS_MAX_ENEMIES {
+                match self.enemies.get(k) {
+                    Some(e) => {
+                        for v in self.death_x(e) {
+                            w.f(v);
+                        }
+                    }
+                    None => w.zeros(DEATH_F),
+                }
+            }
         }
         debug_assert_eq!(w.i, size);
         size
@@ -785,6 +808,64 @@ impl Combat {
         w.zeros((PILEX_N - n) * PILEX_F);
     }
 
+    /// What enemy `e`'s death does, from public knowledge only (the power on screen, the move shown, the game's constants; a spawn's HP is its
+    /// def range midpoint plus the stock bonus, never the value `rng.niche` will roll): [kind (`death_kind`), HP back at the next revive / spawn
+    /// wave, HP behind in total, revives / spawns left, pending damage (blast, or the spawns' first attack), enemy turns until it lands, dying
+    /// (dead or about to blow, still present), Str gain, block gain, gold carried off (Heist)]. Alive or dying, it reads as if it died now.
+    pub fn death_x(&self, e: Cid) -> [f32; DEATH_F] {
+        use crate::content::monsters::{glory_a, glory_b, phrog, underdocks_a, underdocks_b};
+        use crate::ids::{monster as m, power as pw};
+        let cr = self.cr(e);
+        let ms = &cr.monster;
+        let mut x = [0f32; DEATH_F];
+        let mid = |id: u16, vars: [i32; 2]| {
+            let (lo, hi) = (content::monster_def(id).hp)(self.ascension);
+            (lo + hi) as f32 / 2.0 + content::monster_hp_bonus(id, vars) as f32
+        };
+        let dying = !cr.is_alive();
+        let node = |name: &str| content::node_by_name(ms.id, name).unwrap_or(NO);
+        if let Some(p) = cr.power(pw::ADAPTABLE_POWER).filter(|_| ms.id == m::TEST_SUBJECT) {
+            let done = ms.vars[0];
+            let behind: i32 = (done + 1..=2).map(|k| glory_b::ts_revive_hp(self, k)).sum();
+            x[..7].copy_from_slice(&[death_kind::REVIVE, glory_b::ts_revive_hp(self, done + 1) as f32, behind as f32, (2 - done).max(0) as f32, 0.0, 1.0,
+                                     (dying || p.aux != 0) as i32 as f32]);
+        } else if ms.id == m::WATERFALL_GIANT && (cr.power(pw::STEAM_ERUPTION_POWER).is_some() || ms.next_move == node("EXPLODE_MOVE")) {
+            let blowing = ms.next_move == underdocks_b::giant::ABOUT_TO_BLOW;
+            let exploding = ms.next_move == node("EXPLODE_MOVE");
+            let blast = if exploding { ms.vars[1] } else { cr.power_amount(pw::STEAM_ERUPTION_POWER) };
+            x[0] = death_kind::DEATH_BLOW;
+            x[4] = blast as f32;
+            x[5] = if exploding { 1.0 } else { 2.0 };
+            x[6] = (blowing || exploding || dying) as i32 as f32;
+        } else if let Some(stock) = cr.power(pw::STOCK_POWER).map(|p| p.amount).filter(|&s| s > 0) {
+            let next = mid(m::AXEBOT, [stock, 0]);
+            let behind: f32 = (1..=stock).map(|k| mid(m::AXEBOT, [k, 0])).sum();
+            x = [death_kind::SPAWN, next, behind, stock as f32, glory_a::axebot_uppercut(self) as f32, 2.0, dying as i32 as f32,
+                 glory_a::axebot_boot_str(self, 3 - stock) as f32, glory_a::axebot_boot_block(self) as f32, 0.0];
+        } else if cr.power(pw::INFESTED_POWER).is_some() {
+            let n = phrog::WRIGGLERS as f32;
+            let hp = n * mid(m::WRIGGLER, [1, 0]);
+            let biters = (0..phrog::WRIGGLERS).filter(|&i| i % 2 == 0).count() as i32;
+            x[..7].copy_from_slice(&[death_kind::SPAWN, hp, hp, n, (biters * phrog::wriggler_bite(self)) as f32, 2.0, dying as i32 as f32]);
+        } else if cr.power(pw::SURPRISE_POWER).is_some() {
+            let hp = mid(m::FAT_GREMLIN, [0, 0]) + mid(m::SNEAKY_GREMLIN, [0, 0]);
+            let gold: i32 = cr.powers.iter().filter(|p| p.id == pw::THIEVERY_POWER).map(|p| p.aux).sum();
+            x = [death_kind::SPAWN, hp, hp, 2.0, underdocks_a::sneaky_gremlin::tackle(self) as f32, 2.0, dying as i32 as f32, 0.0, 0.0, gold as f32];
+        } else if let Some(p) = cr.power(pw::REATTACH_POWER) {
+            let others = self.enemies.iter().any(|&o| o != e && self.has_power(o, pw::REATTACH_POWER) && self.cr(o).is_alive());
+            if others {
+                let turns = if dying && ms.next_move == node("REATTACH_MOVE") { 1.0 } else { 2.0 };
+                x[..7].copy_from_slice(&[death_kind::REVIVE, p.amount as f32, p.amount as f32, 1.0, 0.0, turns, dying as i32 as f32]);
+            }
+        } else if cr.power(pw::ILLUSION_POWER).is_some() {
+            x[..7].copy_from_slice(&[death_kind::REVIVE, cr.max_hp as f32, cr.max_hp as f32, 1.0, 0.0, 1.0, dying as i32 as f32]);
+        } else if self.enemies.iter().any(|&o| o != e && self.cr(o).is_alive() && self.has_power(o, pw::CRAB_RAGE_POWER)) {
+            use crate::content::powers::hive_b::{CRAB_RAGE_BLOCK, CRAB_RAGE_STR};
+            x = [death_kind::PARTNER_BUFF, 0.0, 0.0, 0.0, 0.0, 0.0, dying as i32 as f32, CRAB_RAGE_STR as f32, CRAB_RAGE_BLOCK as f32, 0.0];
+        }
+        x
+    }
+
     #[cfg(feature = "obs_v3")]
     fn write_card_x(&self, w: &mut W, c: CardIdx) {
         let card = &self.cards[c as usize];
@@ -839,6 +920,7 @@ pub fn layout() -> Vec<(&'static str, usize, usize)> {
         ("discard_x", PILEX_N * PILEX_F),
         ("exhaust_x", PILEX_N * PILEX_F),
         ("relic_x", OBS_RELICS * RELICX_F),
+        ("enemy_death_x", OBS_MAX_ENEMIES * DEATH_F),
     ];
     let mut out = vec![];
     let mut off = 0;
@@ -861,6 +943,7 @@ pub fn layout_consts() -> Vec<(&'static str, usize)> {
         ("OBS_VERSION", OBS_VERSION),
         ("CX_F", CX_F),
         ("CX_DERIVED", CX_DERIVED),
+        ("DEATH_F", DEATH_F),
         ("CARDX_F", CARDX_F),
         ("OBS_CREATURES", OBS_CREATURES),
         ("ACTION_SPACE", ACTION_SPACE),

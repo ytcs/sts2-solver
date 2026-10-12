@@ -20,3 +20,4 @@ rayon = "1"
 
 [features]
 obs_v3 = ["sts2sim/obs_v3", "sts2env/obs_v3"]
+obs_v4 = ["obs_v3", "sts2sim/obs_v4", "sts2env/obs_v4"]

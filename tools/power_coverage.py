@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Value-response sign gate on simulator-state power edits (promotion acceptance for observation-v3 checkpoints). CPU.
+"""Value-response sign gate on simulator-state edits (promotion acceptance for observation-v3/v4 checkpoints): powers, and what an enemy's death
+does (Test Subject phase, a dying Waterfall Giant's blast, Axebot Stock). CPU; --parts must replay on this build (remapped parts on a v4 build).
 usage: tools/power_coverage.py gate --parts GLOB --ckpt CKPT [--n 2000] --out FILE"""
 import argparse, glob, json, os, sys
 
@@ -79,6 +80,77 @@ def sim_states(paths, n, end_only, seed=0):
     return [out[i] for i in sorted(r.choice(len(out), min(n, len(out)), replace=False))]
 
 
+def enc_states(paths, enc, monster, n, seed=0):
+    """simulator states (copies) at searched play rows of `enc` fights while a `monster` lives"""
+    out = []
+    for path in paths:
+        z = np.load(path)
+        scen = json.loads(str(z["scenarios"]))
+        if "starts" in z:
+            continue
+        dfi, dst = z["d_fight"], z["d_step"]
+        for f in range(len(z["f_scen"])):
+            if scen[z["f_scen"][f]]["encounter"] != enc:
+                continue
+            acts = z["acts"][z["f_off"][f]:z["f_off"][f + 1]].astype(int)
+            want = set(dst[dfi == f].tolist())
+            sim = sts2.Sim(json.dumps(scen[z["f_scen"][f]]), int(z["f_seed"][f]))
+            for t in range(len(acts) + 1):
+                if t in want and sim.stage() == "play" and enemy_idx(sim, monster):
+                    out.append(sim.copy())
+                if t < len(acts) and not sim.step(int(acts[t])):
+                    break
+            if len(out) >= 4 * n:
+                break
+        if len(out) >= 4 * n:
+            break
+    r = np.random.default_rng(seed)
+    return [out[i] for i in sorted(r.choice(len(out), min(n, len(out)), replace=False))]
+
+
+def enemy_idx(s, monster):
+    return [i for i, e in enumerate(json.loads(s.snapshot())["enemies"]) if e["id"] == monster and e["alive"]]
+
+
+def ts_phase(phase):
+    """Test Subject at its HP in `phase` (1: two revives ahead, 3: none): revive count, Adaptable, the later phases' powers cleared"""
+    def edit(s):
+        i = enemy_idx(s, "TEST_SUBJECT")[0]
+        for pw in ("PAINFUL_STABS_POWER", "NEMESIS_POWER"):
+            s.set_power("enemy", i, pw, 0)
+        s.set_power("enemy", i, "ADAPTABLE_POWER", 1 if phase < 3 else 0)
+        s.set_var(i, 0, phase - 1)
+    return edit
+
+
+def giant_dying(blast):
+    """Waterfall Giant killed now with `blast(s)` Steam Eruption stacks (about to blow)"""
+    def edit(s):
+        i = enemy_idx(s, "WATERFALL_GIANT")[0]
+        s.set_power("enemy", i, "STEAM_ERUPTION_POWER", int(blast(s)))
+        s.kill(i)
+    return edit
+
+
+def axebot_stock(stock):
+    def edit(s):
+        for i in enemy_idx(s, "AXEBOT"):
+            s.set_power("enemy", i, "STOCK_POWER", stock)
+            s.set_var(i, 0, stock + 1)
+    return edit
+
+
+def lethal_blast(s):
+    p = json.loads(s.snapshot())["player"]
+    return p["hp"] + p["block"] + 10
+
+
+DEATH_ROWS = [("TEST_SUBJECT_BOSS", "TEST_SUBJECT", "Test Subject at equal HP: phase 1 (two revives ahead) reads lower than phase 3", ts_phase(1), ts_phase(3)),
+              ("WATERFALL_GIANT_BOSS", "WATERFALL_GIANT", "dying Waterfall Giant: blast >= player HP + block + 10 reads lower than blast 1",
+               giant_dying(lethal_blast), giant_dying(lambda s: 1)),
+              ("AXEBOTS_NORMAL", "AXEBOT", "Axebots with Stock 2 read lower than Stock 0", axebot_stock(2), axebot_stock(0))]
+
+
 GATE = [("player Intangible 1 raises p_win", "player intangible 1", ">", "baseline"),
         ("enemy Intangible 1 lowers p_win", "enemy intangible 1", "<", "baseline"),
         ("enemy poison 10: player Accelerant 0 -> 1 does not lower p_win", "enemy poison 10 + player accelerant 1", ">=", "enemy poison 10"),
@@ -124,6 +196,24 @@ def sens_state(a):
     run(X, "player buffer 1", [("player", "BUFFER_POWER", 1)])
     run(X, "player plating 5", [("player", "PLATING_POWER", 5)])
     gate = []
+    for enc, monster, label, lo, hi in DEATH_ROWS:
+        S = enc_states(paths, enc, monster, a.n_death)
+        if not S:
+            gate.append(dict(check=label, delta=None, se=None, passed=False, rows=0))
+            continue
+        pw = []
+        for edit in (lo, hi):
+            obs = np.zeros((len(S), sts2.OBS_SIZE), np.float32)
+            mk = np.zeros(sts2.ACTIONS, np.uint8)
+            for i, s in enumerate(S):
+                s = s.copy()
+                edit(s)
+                s.observe(obs[i], mk)
+            pw.append(p_win(net, obs))
+        dlt = pw[0] - pw[1]
+        res[label] = dict(lo=float(pw[0].mean()), hi=float(pw[1].mean()), rows=len(S))
+        gate.append(dict(check=label, delta=round(float(dlt.mean()), 4), se=round(float(dlt.std() / np.sqrt(len(dlt))), 4), passed=bool(dlt.mean() < 0),
+                         rows=len(S)))
     for label, x, op, y in GATE:
         dlt = rows[x] - rows[y]
         mean, se = float(dlt.mean()), float(dlt.std() / np.sqrt(len(dlt)))
@@ -140,7 +230,7 @@ def sens_state(a):
                          passed=bool(dlt.mean() > 0.05 and (dlt > 0.05).mean() > 0.5)))
     out = dict(ckpt=a.ckpt, obs_version=net.obs, rows=len(X), end_turn_rows=len(Y), p_win=res, gate=gate, gate_pass=all(g["passed"] for g in gate))
     for g in gate:
-        print(f"{'PASS' if g['passed'] else 'FAIL'}  {g['check']:72s} {g['delta']:+.4f} +- {g['se']:.4f}")
+        print(f"{'PASS' if g['passed'] else 'FAIL'}  {g['check']:72s} " + (f"{g['delta']:+.4f} +- {g['se']:.4f}" if g["delta"] is not None else "no states"))
     print("SIGN GATE " + ("PASS" if out["gate_pass"] else "FAIL"))
     json.dump(out, open(a.out, "w"), indent=1)
 
@@ -152,6 +242,7 @@ def main():
     g.add_argument("--parts", required=True)
     g.add_argument("--ckpt", required=True)
     g.add_argument("--n", type=int, default=2000)
+    g.add_argument("--n-death", type=int, default=300, help="states per death-effect row")
     g.add_argument("--out", required=True)
     sens_state(ap.parse_args())
 

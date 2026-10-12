@@ -164,7 +164,7 @@ impl SearchEnginePy {
         let scs = parse_scenarios(py, &scenarios_json, true)?;
         let e = |x: numpy::NotContiguousError| PyValueError::new_err(x.to_string());
         let jobs: Vec<(u32, u64)> = job_scen.as_slice().map_err(e)?.iter().copied().zip(job_seed.as_slice().map_err(e)?.iter().copied()).collect();
-        let cfg = sts2env::search::SearchCfg { m, k, roll_cap, leaf_turns, max_steps, win, loss, hp_bonus, turn_cap, val_w, cover, futures, clairvoyant, exact: sts2env::search::ExactCfg { on: exact, loss: ex_loss, tie: ex_tie, dets: ex_dets, cap: ex_cap }, hp_cap, pot_cost, stolen_cost, gold_cost, maxhp_cost, greedy_from, settle_deaths: false };
+        let cfg = sts2env::search::SearchCfg { m, k, roll_cap, leaf_turns, max_steps, win, loss, hp_bonus, turn_cap, val_w, cover, futures, clairvoyant, exact: sts2env::search::ExactCfg { on: exact, loss: ex_loss, tie: ex_tie, dets: ex_dets, cap: ex_cap }, hp_cap, pot_cost, stolen_cost, gold_cost, maxhp_cost, greedy_from };
         let starts: Vec<Option<sts2sim::Combat>> = starts.unwrap_or_default().into_iter().map(|o| o.map(|s| s.cx.clone())).collect();
         let n_scen = scs.len();
         let mut eng = sts2env::search::SearchEngine::new_with_starts(scs, starts, jobs, n_roots, cfg, threads, record).map_err(|e| PyValueError::new_err(format!("cannot create the search engine: {e:?}")))?;
@@ -336,14 +336,21 @@ fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReado
     Ok((PyArray1::from_vec(py, obs).reshape([n, osz])?, PyArray1::from_vec(py, mask).reshape([n, sts2env::ACTIONS])?))
 }
 
+/// `starts[s]`: scenario s's fights begin at this root (a copy), not at the fight start (rl/exit.py `root`).
 #[pyfunction]
+#[pyo3(signature = (scenarios, scen, seeds, actions, off, steps, soff, starts=None))]
 #[allow(clippy::too_many_arguments)]
 fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, seeds: Vec<u64>, actions: PyReadonlyArray1<i32>, off: Vec<usize>,
-                    steps: Vec<u32>, soff: Vec<usize>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
+                    steps: Vec<u32>, soff: Vec<usize>, starts: Option<Vec<Option<PyRef<'_, sim::Sim>>>>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
     use numpy::PyArrayMethods;
     use rayon::prelude::*;
     let o = sts2env::OBS;
     let parsed = parse_scenarios(py, &scenarios, false)?;
+    let starts: Vec<Option<Box<sts2sim::Combat>>> = match starts {
+        Some(v) if v.len() != parsed.len() => return Err(PyValueError::new_err("replay_rows: starts must list one entry per scenario")),
+        Some(v) => v.into_iter().map(|s| s.map(|s| Box::new(s.cx.clone()))).collect(),
+        None => (0..parsed.len()).map(|_| None).collect(),
+    };
     let acts: Vec<u16> = actions.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?.iter().map(|&a| a as u16).collect();
     let a = sts2env::ACTIONS;
     let n = seeds.len();
@@ -368,7 +375,12 @@ fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, see
         let res: Result<(), String> = py.detach(|| {
             parts.into_par_iter().try_for_each(|(i, ho, hm)| {
                 let fa = acts.get(off[i]..off[i + 1]).ok_or_else(|| format!("fight {i}: bad action offsets"))?;
-                sts2env::search::replay_steps(&parsed[scen[i] as usize], seeds[i], fa, &steps[soff[i]..soff[i + 1]], ho, hm).map_err(|e| format!("fight {i}: {e:?}"))
+                let (sc, st) = (&parsed[scen[i] as usize], &starts[scen[i] as usize]);
+                let r = match st {
+                    Some(root) => sts2env::search::replay_steps_from(&mut root.clone(), fa, &steps[soff[i]..soff[i + 1]], ho, hm),
+                    None => sts2env::search::replay_steps(sc, seeds[i], fa, &steps[soff[i]..soff[i + 1]], ho, hm),
+                };
+                r.map_err(|e| format!("fight {i}: {e:?}"))
             })
         });
         res.map_err(PyValueError::new_err)?;

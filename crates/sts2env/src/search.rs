@@ -172,8 +172,6 @@ pub struct SearchCfg {
     pub maxhp_cost: f32,
     // play-out moves from this many player turns after the root on take the policy's most likely move instead of a draw
     pub greedy_from: u32,
-    // play-outs run one player turn past `leaf_turns` when an enemy's death is pending there (`Combat::death_pending`)
-    pub settle_deaths: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -214,7 +212,6 @@ impl Default for SearchCfg {
             gold_cost: 0.0,
             maxhp_cost: 0.0,
             greedy_from: u32::MAX,
-            settle_deaths: false,
         }
     }
 }
@@ -231,7 +228,7 @@ pub struct JobResult {
     pub len: u32,
     pub done: bool,
     pub hp_end_abs: i32,
-    pub pot_kept: u8,
+    pub pot_kept: u16,
     pub dealt: f32,
 }
 
@@ -582,7 +579,8 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
         }
         let capped = sim.steps >= cfg.roll_cap;
         let turns = (sim.cx.player.turn_number - sim.start_turn) as i64;
-        let at_leaf = turns >= cfg.leaf_turns as i64 && !(cfg.settle_deaths && turns == cfg.leaf_turns as i64 && sim.cx.death_pending());
+        // With exact on, a play-out runs up to SETTLE_TURNS past the horizon while a death is pending: the value head does not see the HP behind it.
+        let at_leaf = turns >= cfg.leaf_turns as i64 && !(cfg.exact.on && turns < (cfg.leaf_turns + SETTLE_TURNS) as i64 && sim.cx.death_pending());
         if at_leaf || (capped && w.table) {
             let t0 = tsc();
             let row = val_row(out, &sim.cx);
@@ -611,9 +609,11 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
     }
 }
 
+const SETTLE_TURNS: u32 = 2;
+
 // An exact leaf's play-out takes the policy's most likely moves: one sample per world, so a max over lines does not select play-out luck.
 fn roll_cfg(cfg: &SearchCfg) -> SearchCfg {
-    SearchCfg { greedy_from: 0, settle_deaths: true, ..*cfg }
+    SearchCfg { greedy_from: 0, ..*cfg }
 }
 
 // The play-out's next move: a forced one, else a policy row is requested (None, also when stuck).
@@ -730,7 +730,7 @@ impl Block {
         let end_frac = if outcome == OUTCOME_WIN { me.hp as f32 / me.max_hp.max(1) as f32 } else { 0.0 };
         let hp_end_abs = if outcome == OUTCOME_WIN { me.hp } else { 0 };
         let now = pot_ids(&self.main);
-        let pot_kept = (0..POT).filter(|&k| self.pot_start[k] != u16::MAX && now[k] == self.pot_start[k]).fold(0u8, |b, k| b | 1 << k);
+        let pot_kept = (0..POT).filter(|&k| self.pot_start[k] != u16::MAX && now[k] == self.pot_start[k]).fold(0u16, |b, k| b | 1 << k);
         let dealt = self.dealt as f32 / self.foe0.max(1) as f32;
         let r = JobResult { scen: self.scen, outcome, hp_lost: self.hp0 - end_frac, hp_end: end_frac, len: self.steps, done: true, hp_end_abs, pot_kept, dealt };
         // SAFETY: every job index is taken by exactly one block (atomic counter), so this entry is written once and by this task only.
@@ -1843,6 +1843,13 @@ pub fn replay(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], obs
 }
 
 pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
+    scen.0.validate()?;
+    let mut cx = Combat::try_new_with(&scen.0, &scen.1)?;
+    cx.reset_validated(&scen.0, &scen.1, seed, RngSet::from_run_seed_fast(seed)).map_err(EnvError::Scenario)?;
+    replay_steps_from(&mut cx, actions, steps, obs, mask)
+}
+
+pub fn replay_steps_from(cx: &mut Combat, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
     let osz = OBS_SIZE;
     if obs.len() < steps.len() * osz || mask.len() < steps.len() * ACTION_SPACE {
         return Err(EnvError::Buffer("replay buffers too small"));
@@ -1850,16 +1857,13 @@ pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16
     if steps.iter().any(|&t| t as usize > actions.len()) {
         return Err(EnvError::Buffer("a requested step is past the fight's end"));
     }
-    scen.0.validate()?;
-    let mut cx = Combat::try_new_with(&scen.0, &scen.1)?;
-    cx.reset_validated(&scen.0, &scen.1, seed, RngSet::from_run_seed_fast(seed)).map_err(EnvError::Scenario)?;
     let mut order: Vec<usize> = (0..steps.len()).collect();
     order.sort_by_key(|&k| steps[k]);
     let mut next = 0;
     for i in 0..=actions.len() {
         while next < order.len() && steps[order[next]] as usize == i {
             let k = order[next];
-            crate::write_obs_mask(&mut cx, &mut obs[k * osz..(k + 1) * osz], &mut mask[k * ACTION_SPACE..(k + 1) * ACTION_SPACE]);
+            crate::write_obs_mask(cx, &mut obs[k * osz..(k + 1) * osz], &mut mask[k * ACTION_SPACE..(k + 1) * ACTION_SPACE]);
             next += 1;
         }
         if i < actions.len() {
