@@ -523,7 +523,7 @@ function renderOperator() {
     ACT_CTX.foes = foeNames((m.fight.state.enemies || []).filter((x) => x.alive !== false).sort((x, y) => (x.index ?? 0) - (y.index ?? 0)).map((x) => x.id));
   }
   if (m.potion) b.push(`<div class="banner potion"><b>${m.potion.kind === "confirm" ? "POTION: awaiting `potion yes` / `potion no`" : "POTION PROPOSAL"}</b> ${prettyAction((m.potion.line || m.potion.text).replace(/^POTION:\s*/, ""))}</div>`);
-  if (m.running) b.push(`<div class="banner run">running <b>${esc(m.running.cmd)}</b> for ${ago(m.running.since).replace(" ago", "")}; the reply below is from <b>${esc(m.cmd || "")}</b></div>`);
+  if (m.running) b.push(`<div class="banner run">running <b>${esc(m.running.cmd)}</b> for ${ago(m.running.since).replace(" ago", "")}</div>`);
   if (m.warning) b.push(`<div class="banner warn">${esc(m.warning)}</div>`);
   $("banners").innerHTML = b.join("");
   const rows = [], d = m.decision;
