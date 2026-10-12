@@ -163,9 +163,7 @@ def _returns(evs):
         if e["t"] == "play" and not e.get("play_index") and e.get("c") in last:
             j, how = last[e["c"]]
             if how != "hand":
-                k = i
-                while k > 0 and _pre_play(evs[k - 1]):
-                    k -= 1
+                k = play_start(evs, i)
                 leave[j].append(e["c"])
                 back[max(j, k - 1)].append(e["c"])
         if e["t"] not in ("draw", "play", "discard", "exhaust", "flush", "shuffle", "generate", "transform"):
@@ -520,11 +518,18 @@ def _label(e):
 REPLAY_POWERS = {"BURST_POWER", "DUPLICATION_POWER", "ECHO_FORM_POWER"}
 
 
-def _pre_play(v):
-    """logged just before the play event but part of it: the energy / star spend (absolute), a play-doubling power used up (Burst, Duplication)"""
-    if v["t"] in ("energy", "stars"):
-        return "src" not in v and (v.get("d") or 0) < 0
-    return v["t"] in ("power", "power_lost") and v.get("id") in REPLAY_POWERS and (v.get("n") or 0) < 0 and "tgt_cid" not in v
+def play_start(evs, i):
+    """index where play i begins: the energy / star spend (absolute, logged just before the play, summing to its cost) and a play-doubling power
+    used up (Burst, Duplication) belong to it; other energy losses there (Bread on turn 1) do not"""
+    j, cost = i, dict(energy=evs[i].get("cost_paid") or 0, stars=evs[i].get("stars_paid") or 0)
+    while j > 0:
+        v = evs[j - 1]
+        if v["t"] in cost and "src" not in v and 0 < -(v.get("d") or 0) <= cost[v["t"]]:
+            cost[v["t"]] += v["d"]
+        elif not (v["t"] in ("power", "power_lost") and v.get("id") in REPLAY_POWERS and (v.get("n") or 0) < 0 and "tgt_cid" not in v):
+            break
+        j -= 1
+    return j
 
 
 AUTO_POTIONS = {"FAIRY_IN_A_BOTTLE"}
@@ -557,10 +562,7 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
         picks[i] = [e for e in evs[i + 1:nxt] if e["t"] == "pick" and e.get("selector", "human") == "human" and not e.get("decision_type")]
     starts = {}
     for i in human:
-        j = i
-        while j > 0 and evs[i]["t"] == "play" and _pre_play(evs[j - 1]):
-            j -= 1
-        starts[j] = i
+        starts[play_start(evs, i) if evs[i]["t"] == "play" else i] = i
     turn, last, moves, cascade = 0, "start", [], False
 
     def step(j):
@@ -799,15 +801,15 @@ CLASSES = (
     (lambda f, a, e: f == "combat.unported", "sim gap (unported content)", "Sim.missing() names it"),
     (lambda f, a, e: f == "potions" and a == "start", "reconstruction gap", "potion belt between fights (potion_got carries no slot)"),
     (lambda f, a, e: f == "player.hp" and a == "start", "reconstruction gap", "HP carried between fights from hits / heals"),
-    (lambda f, a, e: f == "hand" and a == "start", "sim-bug candidate", "start-of-combat relics: Jeweled Mask, Toolbox, Vexing Puzzlebox, Tea of Discourtesy, Bone Tea, "
-                                                                       "Pollinous Core (lift 5-9; counts match, contents differ)"),
+    (lambda f, a, e: f == "hand" and a == "start", "sim-bug candidate", "start-of-combat relics: Jeweled Mask, Toolbox, Vexing Puzzlebox, Choices Paradox, Blessed Antler, "
+                                                                       "Crossbow (lift 9-12; counts match, contents differ)"),
     (lambda f, a, e: f == "enemy.hp" and e == "OVICOPTER_NORMAL", "sim-bug candidate", "Tough Egg spawn HP roll (log spawn hp != sim)"),
     (lambda f, a, e: f == "enemy.hp" and a == "start", "reconstruction gap?", "Fur Coat (lift 150: marked-node HP cut needs its saved map state), Sword of Jade, Kifuda"),
     (lambda f, a, e: f == "player.block" and a.startswith("DEFEND"), "sim-bug candidate", "replayed play (play_count 2: Spiral enchantment) not replayed; "
                                                                                           "Tuning Fork SkillsPlayed (not logged)"),
     (lambda f, a, e: f == "player.block" and a not in ("start", "end_turn"), "sim-bug candidate", "Tuning Fork (lift 7, SkillsPlayed not logged), Secret Weapon, "
                                                                                                    "Genetic Algorithm, Child of the Stars"),
-    (lambda f, a, e: f == "energy" and a == "start", "sim-bug candidate", "turn-1 energy (spend event shows more): Sozu, Bread, Blessed Antler, Alchemical Coffer, fake relics"),
+    (lambda f, a, e: f == "energy" and a == "start", "sim-bug candidate", "turn-1 energy (spend event shows more): Hand Drill, Blessed Antler, Alchemical Coffer, (Fake) Venerable Tea Set, Fake Happy Flower"),
     (lambda f, a, e: f == "energy" and a == "end_turn", "sim-bug candidate", "Distinguished Cape / Apparition, Punch Dagger, Kunai, Sand Castle"),
     (lambda f, a, e: f == "player.hp" and a == "end_turn", "sim-bug candidate", "Whispering Earring, Fencing Manual; Calamity / Resonance / Void Form decks"),
     (lambda f, a, e: f == "combat.over_early", "sim-bug candidate", "sim kills the player a turn early (Oddly Smooth Stone fights) or ends the fight"),
