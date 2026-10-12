@@ -156,8 +156,9 @@ def holdout(a):
         doc = json.load(open(a.out))
         if a.retarget:
             for it in doc["items"]:
-                it.pop("target", None)
-                it.pop("net_at_build", None)
+                if a.only in it["name"]:
+                    it.pop("target", None)
+                    it.pop("net_at_build", None)
             doc.update(_doc=DOC[a.source] + DOC_TARGET, model=model)
             json.dump(doc, open(a.out, "w"))
     else:
@@ -211,7 +212,7 @@ def main():
     s.add_argument("--playouts", type=int, default=256)
     s.add_argument("--threads", type=int, default=6)
     s.add_argument("--states-only", action="store_true")
-    s.add_argument("--retarget", action="store_true", help="drop the stored targets (states and build seeds kept) and play them out again")
+    s.add_argument("--retarget", action="store_true", help="drop the stored targets of the --only states (states and build seeds kept) and play them out again")
     s.add_argument("--only", default="", help="play out the states whose name contains this (e.g. giant)")
     s.add_argument("--out", default=None)
     a = ap.parse_args()

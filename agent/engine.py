@@ -142,11 +142,11 @@ class Engine:
         return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,
                                  worth=None if worth is None else [worth] * len(scenarios))
 
-    def play_on(self, scenario, starts, seeds, worth=None, record=False, live=False):
+    def play_on(self, scenario, starts, seeds, worth=None, record=False, live=False, pot_cost=None):
         """play-outs from starts: the solver's search (M=3 K=8), or with live=True the live search with decide's potion reserve for worth"""
         fs = self.live_fs() if live else self.solver.fs
         if live:
-            fs.pot_cost = self.reserve(worth)
+            fs.pot_cost = self.reserve(worth, pot_cost)
         old = fs.record
         fs.record = record
         try:
