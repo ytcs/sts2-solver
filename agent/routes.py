@@ -88,19 +88,45 @@ def _signature(deck_json, act, ctx, attempts, seed):
     return (deck, relics, pots, deck_json["max_hp"], act, tuple(ctx.get("seen", [])), tuple(ctx.get("bosses", [])), attempts, seed)
 
 
-def build_tables(engine, deck_json, act, ctx, attempts):
-    key = _signature(deck_json, act, ctx, attempts, engine.table_seed)
-    if key in _CACHE:
-        return _CACHE[key]
+def kinds(act, ctx):
+    return {k: encs for k in KINDS for encs in [macro.narrow(pools.pool(act, k), k, ctx)] if encs}
+
+
+def need(nodes, boss_row, starts, w0, weak_fights, n_belt):
+    """the (kind, potion set) tables the DP from `starts` can read, whatever the solver outcomes (potions are thrown only at elites)"""
+    kids = lambda key: ["BOSS"] if key[0] + 1 >= boss_row else [c for c in nodes[key]["children"] if c in nodes]
+    most = {"BOSS": 0}
+
+    def elites(key):
+        if key not in most:
+            most[key] = (nodes[key]["type"] == "E") + max((elites(c) for c in kids(key)), default=0)
+        return most[key]
+
+    types, todo, done = set(), [s for s in starts if s != "BOSS"], set()
+    while todo:
+        key = todo.pop()
+        if key not in done:
+            done.add(key)
+            types.add(nodes[key]["type"])
+            todo += [c for c in kids(key) if c != "BOSS"]
+    out = set()
+    if types & {"M", "?"}:
+        out |= {("regular", NONE)} | ({("weak", NONE)} if w0 < weak_fights else set())
+    if "E" in types:
+        out |= {("elite", NONE)} | {("elite", frozenset({i})) for i in range(n_belt)}
+    e = max((elites(s) for s in starts), default=0)
+    if starts:
+        out |= {("boss", S) for S in subsets(n_belt) if n_belt - len(S) <= e}
+    return out
+
+
+def _batch(deck_json, act, ctx, attempts):
     maxhp = deck_json["max_hp"]
     belt = list(deck_json.get("potions", []))[:MAX_BELT]
     per = dict(weak=max(8, attempts), regular=max(4, attempts // 3), elite=max(16, attempts * 2), boss=max(32, attempts * 4))
     grid = sorted({max(6, int(round(x))) for x in np.linspace(6, maxhp, GRID)})
-    scen, owners, tables = [], [], []
-    for k in KINDS:
-        encs = macro.narrow(pools.pool(act, k), k, ctx)
-        if not encs:
-            continue
+    scen, owners = [], []
+    for k, encs in kinds(act, ctx).items():
         if k == "boss":
             sets = subsets(len(belt))
         elif k == "elite":
@@ -109,24 +135,40 @@ def build_tables(engine, deck_json, act, ctx, attempts):
             sets = [NONE]
         reps = max(1, per[k] // UNIT)
         for S in sets:
-            tables.append((k, S))
             pots = [belt[i] for i in sorted(S)]
             for gi, g in enumerate(grid):
                 for e in encs:
                     for r in range(reps):
                         scen.append(dict(deck_json, hp=g, potions=pots, name=f"{k}@{e}@{g}#{r}", encounter=e, seed=f"routes{k}{g}"))
                         owners.append((k, S, gi))
-    res = engine.solve(scen, attempts=UNIT)
+    return dict(scen=scen, owners=owners, grid=grid, belt=belt, mats={})
+
+
+def build_tables(engine, deck_json, act, ctx, attempts, want):
+    """the outcome matrices in `want` (`need`), solved once per signature. Job i of the whole batch (attempt i // S of scenario i % S) has
+    solver seed table_seed * 1_000_003 + i whichever subset is solved, so every table equals the one a solve of the whole batch gives."""
+    key = _signature(deck_json, act, ctx, attempts, engine.table_seed)
+    b = _CACHE.get(key)
+    if b is None:
+        b = _batch(deck_json, act, ctx, attempts)
+        if len(_CACHE) >= 3:
+            _CACHE.pop(next(iter(_CACHE)))
+        _CACHE[key] = b
+    scen, owners, n = b["scen"], b["owners"], len(b["scen"])
+    sel = [s for s in range(n) if owners[s][:2] in want and owners[s][:2] not in b["mats"]]
+    if sel and len(sel) == n:
+        res = [r["ends"] for r in engine.solve(scen, attempts=UNIT)]
+    elif sel:
+        jobs = [a * n + s for a in range(UNIT) for s in sel]
+        got = engine.solve([scen[s] for s in sel] * UNIT, attempts=[1] * len(jobs), groups=jobs)
+        res = [[x for a in range(UNIT) for x in got[a * len(sel) + j]["ends"]] for j in range(len(sel))]
     ends = {}
-    for r, (k, S, gi) in zip(res, owners):
-        ends.setdefault((k, S, gi), []).extend(r["ends"])
-    tabs = {"_belt": [p["id"] for p in belt]}
-    for k, S in tables:
-        tabs[(k, S)] = _matrix([_hist(ends[(k, S, gi)], maxhp) for gi in range(len(grid))], grid, maxhp)
-    if len(_CACHE) >= 3:
-        _CACHE.pop(next(iter(_CACHE)))
-    _CACHE[key] = tabs
-    return tabs
+    for s, e in zip(sel, res if sel else ()):
+        ends.setdefault(owners[s], []).extend(e)
+    maxhp, grid = deck_json["max_hp"], b["grid"]
+    for k, S in {o[:2] for o in ends}:
+        b["mats"][(k, S)] = _matrix([_hist(ends[(k, S, gi)], maxhp) for gi in range(len(grid))], grid, maxhp)
+    return {"_belt": [p["id"] for p in b["belt"]], "_kinds": set(kinds(act, ctx)), **b["mats"]}
 
 
 class Calc:
@@ -140,7 +182,7 @@ class Calc:
         self.cache = {}
 
     def has(self, kind):
-        return (kind, NONE) in self.tabs
+        return kind in self.tabs["_kinds"]
 
     def T(self, kind, S=NONE):
         return self.tabs[(kind, S)]
@@ -171,9 +213,8 @@ class Calc:
 
     def _options(self, fk, S):
         opts = [(None, S)]
-        for i in sorted(S):
-            if (fk, frozenset({i})) in self.tabs:
-                opts.append((i, S - {i}))
+        if fk == "elite" and self.has("elite"):
+            opts += [(i, S - {i}) for i in sorted(S)]
         return opts
 
     def F(self, key, w, k, S=None):
@@ -368,12 +409,8 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
         return "routes: no act map"
     hp_now = (screen.hp(state_text) or (deck_json["hp"],))[0]
     maxhp = deck_json["max_hp"]
-    tabs = build_tables(engine, deck_json, act, ctx, attempts)
-    if ("boss", NONE) not in tabs:
+    if "boss" not in kinds(act, ctx):
         return "routes: boss unknown"
-    calc = Calc(nodes, boss_row, tabs, maxhp, pools.ACTS[act]["weak_fights"], pf)
-    calc.weights.update(weights or {})
-    note = ""
     starts = [k for k in offered(state_text) if k in nodes]
     if not starts:
         vis = [k for k, v in nodes.items() if v["visited"]]
@@ -381,8 +418,13 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
         starts = [c for c in (nodes[cur]["children"] if cur else []) if c in nodes] if cur else [k for k in nodes if k[0] == min(r for r, _ in nodes)]
     if not starts:
         return "routes: no node left before the boss: the next fight is the boss, price rest vs smith with `eval --boss` at both HPs"
+    wf = pools.ACTS[act]["weak_fights"]
     not_monster = set(pools.pool(act, "elite")) | set(pools.pool(act, "boss"))
-    w0 = min(sum(1 for e in ctx.get("seen", []) if e not in not_monster), calc.weak_fights)
+    w0 = min(sum(1 for e in ctx.get("seen", []) if e not in not_monster), wf)
+    tabs = build_tables(engine, deck_json, act, ctx, attempts, need(nodes, boss_row, starts, w0, wf, len(deck_json.get("potions", [])[:MAX_BELT])))
+    calc = Calc(nodes, boss_row, tabs, maxhp, wf, pf)
+    calc.weights.update(weights or {})
+    note = ""
     if max(calc.F(s, w0, 0)[hp_now] for s in starts) < 0.05:
         calc = Calc(nodes, boss_row, tabs, maxhp, pools.ACTS[act]["weak_fights"], pf, goal="reach")
         calc.weights.update(weights or {})
@@ -435,22 +477,23 @@ def analyse(engine, deck_json, map_text, state_text, ctx, act, attempts=24, pf=0
     return "\n".join(lines)
 
 
-def _offer(engine, deck_json, map_text, state_text, ctx, act, attempts, pf):
+def _offer(engine, deck_json, map_text, state_text, ctx, act, attempts, pf, boss_next=False):
     nodes, boss_row = parse_map(map_text)
-    if not nodes or boss_row is None:
+    if not nodes or boss_row is None or "boss" not in kinds(act, ctx):
         return None
-    tabs = build_tables(engine, deck_json, act, ctx, attempts)
-    if ("boss", NONE) not in tabs:
-        return None
-    calc = Calc(nodes, boss_row, tabs, deck_json["max_hp"], pools.ACTS[act]["weak_fights"], pf)
     starts = [k for k in offered(state_text) if k in nodes]
     vis = [k for k, v in nodes.items() if v["visited"]]
     cur = max(vis, default=None)
     if not starts:
         starts = [c for c in nodes[cur]["children"] if c in nodes] if cur else []
+    if boss_next and not starts and cur is not None and cur[0] + 1 >= boss_row:
+        starts = ["BOSS"]
+    wf = pools.ACTS[act]["weak_fights"]
     not_monster = set(pools.pool(act, "elite")) | set(pools.pool(act, "boss"))
-    w0 = min(sum(1 for e in ctx.get("seen", []) if e not in not_monster), calc.weak_fights)
-    return calc, starts, w0, (screen.hp(state_text) or (deck_json["hp"],))[0], cur
+    w0 = min(sum(1 for e in ctx.get("seen", []) if e not in not_monster), wf)
+    tabs = build_tables(engine, deck_json, act, ctx, attempts, need(nodes, boss_row, starts, w0, wf, len(deck_json.get("potions", [])[:MAX_BELT])))
+    calc = Calc(nodes, boss_row, tabs, deck_json["max_hp"], wf, pf)
+    return calc, starts, w0, (screen.hp(state_text) or (deck_json["hp"],))[0]
 
 
 def option_values(engine, deck_json, map_text, state_text, ctx, act, hps=None, attempts=24, pf=0.15):
@@ -459,7 +502,7 @@ def option_values(engine, deck_json, map_text, state_text, ctx, act, hps=None, a
     got = _offer(engine, deck_json, map_text, state_text, ctx, act, attempts, pf)
     if got is None:
         return {}
-    calc, starts, w0, hp_now, _cur = got
+    calc, starts, w0, hp_now = got
     mx = deck_json["max_hp"]
     return {s: {h: float(calc.F(s, w0, 0)[min(max(int(h), 0), mx)]) for h in [hp_now] + list(hps or [])} for s in starts}
 
@@ -467,12 +510,10 @@ def option_values(engine, deck_json, map_text, state_text, ctx, act, hps=None, a
 def node_values(engine, deck_json, map_text, state_text, ctx, act, hps=None, attempts=24, pf=0.15):
     """{node key: {hp: (P, reward-weighted value, goal)}} per node on offer at the HP now and each extra HP in hps; P = P(win the act boss), or
     P(reach it alive) when every node's win < 0.05 at the HP now (as `analyse`); {"BOSS": ...} when the boss is next; {} without an act map or a known boss"""
-    got = _offer(engine, deck_json, map_text, state_text, ctx, act, attempts, pf)
+    got = _offer(engine, deck_json, map_text, state_text, ctx, act, attempts, pf, boss_next=True)
     if got is None:
         return {}
-    calc, starts, w0, hp_now, cur = got
-    if not starts and cur is not None and cur[0] + 1 >= calc.boss_row:
-        starts = ["BOSS"]
+    calc, starts, w0, hp_now = got
     if starts and max(calc.F(s, w0, 0)[hp_now] for s in starts) < 0.05:
         calc = Calc(calc.nodes, calc.boss_row, calc.tabs, calc.H, calc.weak_fights, pf, goal="reach")
     gold, mx = screen.gold(state_text) or 0, deck_json["max_hp"]
