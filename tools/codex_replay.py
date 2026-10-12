@@ -78,8 +78,8 @@ class Run:
         elif (t == "play" or t == "turn" and e.get("side") == "player") and any(r["id"] in COUNTERS for r in self.relics):
             kind = "turn" if t == "turn" else card_type(e.get("id"))
             for r in self.relics:
-                prop, want, period = COUNTERS.get(r["id"], (None, None, 0))
-                if want == kind:
+                prop, want, period = COUNTERS.get(r["id"], (None, "", 0))
+                if want == kind and period:
                     r["props"][prop] = (r["props"].get(prop, 0) + 1) % period
                     r.pop("counter", None)
         elif t == "relic_lost":
@@ -779,7 +779,8 @@ def repro(path, k, field):
     for n, op in enumerate(ops):
         if op[0] == "expect" and field in op[2]:
             return dict(run=os.path.basename(path)[:-9], k=k, field=field, encounter=list(_first_attempts(path))[k][1]["encounter"], scenario=pre, ops=ops[:n + 1])
-    return None
+    return dict(run=os.path.basename(path)[:-9], k=k, field=field, encounter=list(_first_attempts(path))[k][1]["encounter"], scenario=pre, ops=ops,
+                note="the divergence ends the replay (sim over / action refused) after the last op")
 
 
 def run_ops(scenario, ops, stop=None, show=False):
@@ -813,8 +814,9 @@ def sim_at(path, k, step):
 
 def run_repro(file):
     r = json.load(open(file, encoding="utf-8"))
-    print(f"{r['run']} fight {r['k']} {r['encounter']}: first {r['field']}")
-    run_ops(r["scenario"], r["ops"], show=True)
+    print(f"{r['run']} fight {r['k']} {r['encounter']}: first {r['field']} {r.get('note', '')}")
+    sim = run_ops(r["scenario"], r["ops"], show=True)
+    print(f"sim stage {sim.stage()} outcome {sim.outcome()} missing {sim.missing()}")
 
 
 BLOCKING = ("TEST_SUBJECT_BOSS", "WATERFALL_GIANT_BOSS", "QUEEN_BOSS", "AEONGLASS_BOSS")
@@ -827,9 +829,10 @@ CLASSES = (
     (lambda f, a, e: f == "combat.unported", "sim gap (unported content)", "Sim.missing() names it"),
     (lambda f, a, e: f == "potions" and a == "start", "reconstruction gap", "potion belt between fights (potion_got carries no slot)"),
     (lambda f, a, e: f == "player.hp" and a == "start", "reconstruction gap", "HP carried between fights from hits / heals"),
-    (lambda f, a, e: f == "hand" and a == "start", "sim-bug candidate", "start-of-combat relics: Jeweled Mask, Toolbox, Vexing Puzzlebox, Choices Paradox, Blessed Antler, "
-                                                                       "Crossbow (lift 9-12; counts match, contents differ)"),
-    (lambda f, a, e: f == "enemy.hp" and e == "OVICOPTER_NORMAL", "sim-bug candidate", "Tough Egg spawn HP roll (log spawn hp != sim)"),
+    (lambda f, a, e: f == "hand" and a == "start", "sim-bug candidate", "start-of-combat card generation: Toolbox / Choices Paradox offer other cards (option missing "
+                                                                       "in ~all their fights), Vexing Puzzlebox, Crossbow, Blessed Antler; Jeweled Mask is a format gap "
+                                                                       "(its draw-to-hand move is not logged)"),
+    (lambda f, a, e: f == "enemy.hp" and e == "OVICOPTER_NORMAL", "sim-bug candidate", "Tough Egg spawn HP off by one roll (check the skin pick ToughEgg.cs:118 and the HP roll stream)"),
     (lambda f, a, e: f == "enemy.hp" and a == "start", "reconstruction gap?", "Fur Coat (lift 150: marked-node HP cut needs its saved map state), Sword of Jade, Kifuda"),
     (lambda f, a, e: f == "player.block" and a.startswith("DEFEND"), "sim-bug candidate", "replayed play (play_count 2: Spiral enchantment) not replayed"),
     (lambda f, a, e: f == "player.block" and a not in ("start", "end_turn"), "sim-bug candidate", "Genetic Algorithm, Seeker Strike, Child of the Stars; Pael's Claw, "
