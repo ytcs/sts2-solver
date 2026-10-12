@@ -163,27 +163,6 @@ def _build(deck_json, spec):
     return base, encs, scen, index
 
 
-_CAL = {}
-
-
-def calibrated_win(p, enc):
-    """search-playout P(win) mapped to the live realised rate (`tools/calib_fit.py` w_search, recorded fights, seed-folded); None without a fit"""
-    if "w" not in _CAL:
-        import json
-        import os
-        try:
-            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "predictor_calib.json")) as f:
-                _CAL["w"] = json.load(f).get("w_search")
-        except OSError:
-            _CAL["w"] = None
-        _CAL["act"] = {e: d["act"] for name, d in pools.ACTS.items() for k in ("weak", "regular", "elite", "boss") for e in pools.POOLS[name][k]}
-    if not _CAL["w"]:
-        return None
-    from predictor import calib_features
-    x, _ = calib_features(dict(encounter=enc, act=_CAL["act"].get(enc, 0)), p)
-    return float(1 / (1 + np.exp(-(x @ np.asarray(_CAL["w"])))))
-
-
 def _summary(spec, base, encs, index, res):
     variants = spec["variants"]
     by = {}
@@ -199,11 +178,9 @@ def _summary(spec, base, encs, index, res):
         lost = np.concatenate([base["hp"] - np.array(r["ends"]) for _, r in rows if r.get("ends")]) if any(r.get("ends") for _, r in rows) else np.zeros(1)
         lq = [float(x) for x in np.percentile(lost, [10, 50, 90, 97.5])]
         diffs = _diffs(rows, by[0])
-        cals = [calibrated_win(r["win"], e) for e, r in rows]
-        cal = None if None in cals else sum(cals) / len(cals)
-        summary[vi] = dict(win=win, se=se, cal=cal, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows},
+        summary[vi] = dict(win=win, se=se, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows},
                            diffs=diffs, dse=_paired_se(diffs) if vi and diffs is not None else None)
-        lines.append(f"{v.get('name', vi):24s} win {win:.3f} ±{se:.3f}" + (f" (live {cal:.3f})" if cal is not None else "") + "  HP lost {100 * hpl:4.1f}% (q10/50/90/97.5: {lq[0]:.0f}/{lq[1]:.0f}/{lq[2]:.0f}/{lq[3]:.0f} HP)  | " + " ".join(f"{e.split('_')[0][:8]}:{r['win']:.2f}" for e, r in rows))
+        lines.append(f"{v.get('name', vi):24s} win {win:.3f} ±{se:.3f}  HP lost {100 * hpl:4.1f}% (q10/50/90/97.5: {lq[0]:.0f}/{lq[1]:.0f}/{lq[2]:.0f}/{lq[3]:.0f} HP)  | " + " ".join(f"{e.split('_')[0][:8]}:{r['win']:.2f}" for e, r in rows))
     for vi in range(1, len(variants)):
         d, sd = _vs(summary, vi)
         lines.append(f"  {variants[vi].get('name', vi)} vs {variants[0].get('name', 0)}: win {d:+.3f} (±{sd:.3f}{' paired' if summary[vi]['dse'] is not None else ''}), HP lost {100 * (summary[vi]['hp_lost'] - summary[0]['hp_lost']):+.1f} pts")
