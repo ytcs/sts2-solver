@@ -97,7 +97,7 @@ def main():
         rx, ry = np.argsort(np.argsort(x)), np.argsort(np.argsort(y))
         return float(np.corrcoef(rx, ry)[0, 1]) if len(x) > 2 else np.nan
 
-    fold = np.array([zlib.crc32(r.encode()) % 5 for r in runs])
+    fold = np.array([zlib.crc32(m["seed"].encode()) % 5 for m in meta])
     arm = np.array([m["arm"] for m in meta])
     print("head      n_screens n_runs | held out by run: Brier (constant) Spearman | held-out arm: Brier (constant) Spearman")
     model = {}
