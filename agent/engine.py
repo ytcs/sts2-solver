@@ -46,8 +46,10 @@ class Engine:
     def __init__(self, M=5, K=32, ckpt=None, cover=True, futures=0, exact_turn=True, hp_cap=True, pot_cost=POT_COST, pot_margin_se=POT_MARGIN_SE):
         self.solver = Solver() if ckpt is None else Solver(ckpt)
         cuda = torch.cuda.is_available() and os.environ.get("STS2_DEVICE", "cpu").startswith("cuda")
-        self.fs = FastSearch(self.solver.net, M, K, roots=ROOTS, groups=1, amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn,
-                             hp_cap=hp_cap, pot_cost=pot_cost, stolen_cost=STOLEN_COST, gold_cost=GOLD_COST, maxhp_cost=MAXHP_COST)
+        self._fs_kw = dict(amp=cuda, cover=cover, futures=futures, exact_turn=exact_turn, hp_cap=hp_cap, pot_cost=pot_cost, stolen_cost=STOLEN_COST,
+                           gold_cost=GOLD_COST, maxhp_cost=MAXHP_COST)
+        self.fs = FastSearch(self.solver.net, M, K, roots=ROOTS, groups=1, **self._fs_kw)
+        self._live = None
         self.pot_cost, self.pot_margin_se = pot_cost, pot_margin_se
         self.worth_ok = bool(self.fs.dist and self.solver.fs.dist)
         assert (proposal.HEAD_BIN, proposal.HEAD_NC) == (heads.BIN, heads.NC), "agent/proposal.py and rl/heads.py disagree on the outcome classes"
@@ -59,6 +61,18 @@ class Engine:
         """potions the search must not throw: all of them without a reserve cost, else the ones set aside for a later boss"""
         return True if self.pot_cost <= 0 else set() if boss else set(aside)
 
+    def reserve(self, worth=None, pot_cost=None):
+        at_pair = worth is not None and (worth.get("final") or worth.get("kind") == "pair")
+        return (0.0 if self.pot_cost <= 0 or at_pair else pot_cost if pot_cost is not None
+                else self.pot_cost / 2 if worth is not None else self.pot_cost)
+
+    def live_fs(self):
+        """the live search (self.fs's configuration) at play-out width: self.fs runs ROOTS jobs at a time"""
+        if self._live is None:
+            self._live = FastSearch(self.solver.net, self.fs.M, self.fs.K, roots=512 if self._fs_kw["amp"] else 256, **self._fs_kw)
+            self._live.warm()
+        return self._live
+
     def decide(self, scenario, sim, budget=1.0, seed=None, tol_hp=1.0, keep_potions=False, worth=None, rounds=None, pot_cost=None):
         t0 = time.perf_counter()
         tol = tol_hp * 0.5 / max(scenario.get("max_hp", 80), 1)
@@ -69,8 +83,7 @@ class Engine:
         # potion reserve: none at the final pair (the second boss prices kept potions inside the first's worth, or by pot_cost when its
         # curve is floored; the run ends after the last); win-only worth spans 1 (loss 0, win 1) vs 2 for the linear objective
         at_pair = worth is not None and (worth.get("final") or worth.get("kind") == "pair")
-        self.fs.pot_cost = (0.0 if self.pot_cost <= 0 or at_pair else pot_cost if pot_cost is not None
-                            else self.pot_cost / 2 if worth is not None else self.pot_cost)
+        self.fs.pot_cost = self.reserve(worth, pot_cost)
         held = potions.held_indices(sim, keep_potions)
         def _held(t):
             return t.startswith("potion") and (keep_potions is True or potions.text_index(t) in held)
@@ -129,8 +142,11 @@ class Engine:
         return self.solver.solve(scenarios, attempts=attempts, seed=self.table_seed if seed is None else seed, groups=groups,
                                  worth=None if worth is None else [worth] * len(scenarios))
 
-    def play_on(self, scenario, starts, seeds, worth=None, record=False):
-        fs = self.solver.fs
+    def play_on(self, scenario, starts, seeds, worth=None, record=False, live=False):
+        """play-outs from starts: the solver's search (M=3 K=8), or with live=True the live search with decide's potion reserve for worth"""
+        fs = self.live_fs() if live else self.solver.fs
+        if live:
+            fs.pot_cost = self.reserve(worth)
         old = fs.record
         fs.record = record
         try:
