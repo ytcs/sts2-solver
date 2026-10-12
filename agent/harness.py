@@ -513,10 +513,12 @@ class Harness(Live):
 
     def _watch_run_end(self, out):
         try:
-            kind = scr.kind(out)
+            last = getattr(self, "last_state", "") or ""
+            kind = "GAME_OVER" if "GAME_OVER" in (scr.kind(out), scr.kind(last)) or "\nGAME_OVER\n" in f"\n{out}\n" else scr.kind(out)
             first = out.splitlines()[0].lower() if out else ""
             if not (kind == "GAME_OVER" or "victory" in first):
                 return
+            out = last if scr.kind(last) == "GAME_OVER" else out[out.find("GAME_OVER"):] if "GAME_OVER" in out else out
             if getattr(self, "_run_end_logged", None) == self.log.run_id:
                 return
             self._run_end_logged = self.log.run_id
