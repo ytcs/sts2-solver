@@ -172,7 +172,7 @@ def build(char="ironclad"):
         add(a, b, conv, "indirect", role="bridge", needs=sorted(needs))
     _hard(db["rules"].get("hard", []), live, prov, cons, basic, anti, add)
     for x in (x for x in CHARS if x != char and os.path.exists(path(x))):
-        pairs += _cross(dec, db, live, basic, x, {c["id"] for c in cat["cards"][x.upper()]}, tags, char)
+        pairs += _cross(dec, db, live, basic, x, {c["id"] for c in cat["cards"][x.upper()] if c["rarity"] in ("Common", "Uncommon", "Rare")}, tags, char)
     plans = {p["id"]: p for p in json.load(open(os.path.join(ROOT, "data", "plans.json"), encoding="utf-8"))}
     bundles = []
     for spec in db["rules"]["bundles"]:
