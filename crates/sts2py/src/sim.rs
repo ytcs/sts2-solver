@@ -139,11 +139,17 @@ impl Sim {
         Ok(Sim { cx: Combat::try_new_with(&sc, &ex).map_err(err)? })
     }
 
+    /// the scenario's stream counters after the pre-combat setup (enemy HP rolls, opening shuffle), before any combat-start hook: where a
+    /// replay's combat_start rng_state is logged
+    #[staticmethod]
+    fn setup_counters(scenario_json: &str) -> PyResult<Vec<(&'static str, i32)>> {
+        let v: Value = serde_json::from_str(scenario_json).map_err(err)?;
+        let (sc, ex) = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
+        Ok(counters(&Combat::try_setup_with(&sc, &ex).map_err(err)?.rng))
+    }
+
     fn rng_counters(&self) -> Vec<(&'static str, i32)> {
-        let r = &self.cx.rng;
-        vec![("shuffle", r.shuffle.counter), ("combat_card_generation", r.combat_card_generation.counter), ("combat_potion_generation", r.combat_potion_generation.counter),
-             ("combat_card_selection", r.combat_card_selection.counter), ("combat_energy_costs", r.combat_energy_costs.counter), ("combat_targets", r.combat_targets.counter),
-             ("monster_ai", r.monster_ai.counter), ("niche", r.niche.counter), ("combat_orbs", r.combat_orbs.counter)]
+        counters(&self.cx.rng)
     }
 
     fn copy(&self) -> Sim {
@@ -281,6 +287,14 @@ impl Sim {
                 (a.index(), text)
             })
             .collect()
+    }
+
+    /// upgrade level of the card behind a pick action (legal() index), None if not a card pick
+    fn pick_upgrade(&self, idx: usize) -> Option<u8> {
+        let Some(Action::Pick { idx: display }) = Action::from_index(idx) else { return None };
+        let d = self.cx.decision.as_ref()?;
+        let g = self.cx.decision_view(d).get(display as usize)? as usize;
+        Some(self.cx.cards[d.cands.get(g)? as usize].upgrade)
     }
 
     fn action_json(&self, idx: usize) -> PyResult<String> {
@@ -505,6 +519,12 @@ impl Sim {
         let state: Value = serde_json::from_str(state_json).map_err(err)?;
         Ok(Sim { cx: *start_combat(&sc, &ex, seed, &state).map_err(PyValueError::new_err)? })
     }
+}
+
+fn counters(r: &RngSet) -> Vec<(&'static str, i32)> {
+    vec![("shuffle", r.shuffle.counter), ("combat_card_generation", r.combat_card_generation.counter), ("combat_potion_generation", r.combat_potion_generation.counter),
+         ("combat_card_selection", r.combat_card_selection.counter), ("combat_energy_costs", r.combat_energy_costs.counter), ("combat_targets", r.combat_targets.counter),
+         ("monster_ai", r.monster_ai.counter), ("niche", r.niche.counter), ("combat_orbs", r.combat_orbs.counter)]
 }
 
 pub(crate) fn start_combat(sc: &sts2sim::Scenario, ex: &sts2sim::ScenarioExtras, seed: u64, state: &Value) -> Result<Box<Combat>, String> {

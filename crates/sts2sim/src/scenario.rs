@@ -164,6 +164,24 @@ impl Combat {
     }
 
     pub fn reset_validated(&mut self, sc: &Scenario, ex: &ScenarioExtras, run_seed: u64, rng: RngSet) -> Result<(), ScenarioError> {
+        self.reset_setup(sc, ex, run_seed, rng)?;
+        self.start_combat();
+        self.sync_overflow();
+        if self.overflow & ov::LOOP != 0 {
+            self.stage = Stage::Over;
+        }
+        Ok(())
+    }
+
+    /// the game's combat setup (enemy HP rolls, opening shuffle, first moves) without any combat-start hook
+    pub fn try_setup_with(sc: &Scenario, ex: &ScenarioExtras) -> Result<Combat, ScenarioError> {
+        sc.validate()?;
+        let mut cx = Self::blank();
+        cx.reset_setup(sc, ex, sc.run_seed, sc.rng)?;
+        Ok(cx)
+    }
+
+    fn reset_setup(&mut self, sc: &Scenario, ex: &ScenarioExtras, run_seed: u64, rng: RngSet) -> Result<(), ScenarioError> {
         crate::util::take_overflow();
         let Combat {
             character,
@@ -405,11 +423,7 @@ impl Combat {
             cx.player.draw.push(c);
         }
         cx.initial_shuffle();
-        cx.start_combat();
-        cx.sync_overflow();
-        if cx.overflow & ov::LOOP != 0 {
-            cx.stage = Stage::Over;
-        }
+        cx.enter_combat();
         Ok(())
     }
 
