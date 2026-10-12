@@ -174,7 +174,7 @@ def cmd_build(a):
     doc = ("Value-head bench at states where an enemy's death hides HP (tools/leaf_bench.py, E102). target: solver play-outs (models/solver_r9.pt, "
            "Solver M=3 K=8, hidden info re-sampled per attempt; lower bounds). check: the value head's P(win) within 2 se of target win (se floored at 1/n).")
     model = json.load(open(os.path.join(ROOT, "models", "current.json")))["policy"]
-    json.dump(dict(_doc=doc, model=model, items=list(old.values())), open(a.out, "w"), indent=1)
+    json.dump(dict(_doc=doc, model=model, items=list(old.values())), open(a.out, "w"))
 
 
 def cmd_check(a):
@@ -184,6 +184,7 @@ def cmd_check(a):
     bad = 0
     for it in items:
         sim = build_state(it)
+        assert describe(sim) == it["state"], (it["name"], describe(sim), it["state"])
         pw, v = net_values(net, [sim], [it["scenario"]["max_hp"]])
         t = it["target"]
         s = max(t["win_se"], 1.0 / t["n"])

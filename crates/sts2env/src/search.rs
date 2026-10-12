@@ -172,7 +172,7 @@ pub struct SearchCfg {
     pub maxhp_cost: f32,
     // play-out moves from this many player turns after the root on take the policy's most likely move instead of a draw
     pub greedy_from: u32,
-    // play-outs run past `leaf_turns` while an enemy's death is pending (`Combat::death_pending`)
+    // play-outs run one player turn past `leaf_turns` when an enemy's death is pending there (`Combat::death_pending`)
     pub settle_deaths: bool,
 }
 
@@ -581,7 +581,8 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             return None;
         }
         let capped = sim.steps >= cfg.roll_cap;
-        let at_leaf = (sim.cx.player.turn_number - sim.start_turn) as i64 >= cfg.leaf_turns as i64 && !(cfg.settle_deaths && sim.cx.death_pending());
+        let turns = (sim.cx.player.turn_number - sim.start_turn) as i64;
+        let at_leaf = turns >= cfg.leaf_turns as i64 && !(cfg.settle_deaths && turns == cfg.leaf_turns as i64 && sim.cx.death_pending());
         if at_leaf || (capped && w.table) {
             let t0 = tsc();
             let row = val_row(out, &sim.cx);
