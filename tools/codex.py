@@ -4,8 +4,9 @@ carries no player identity (single-player id is 1), so the comparison is won vs 
 table: one streaming pass over a version dump -> compact single-player standard A10 runs. decks: deck entering the first final boss, won vs lost.
 usage: tools/codex.py table target/codex/runs-v0.111.0.jsonl.gz --out target/codex/a10.jsonl.gz
        tools/codex.py decks target/codex/a10.jsonl.gz [--character ironclad]
-       tools/codex.py replays --out target/codex/replays   (public API: listing + replay logs, <= 1 request/s, resumable; index.jsonl, players.json)"""
-import argparse, collections, gzip, json, os, re, time
+       tools/codex.py replays --out target/codex/replays   (public API: listing + replay logs, <= 1 request/s, resumable; index.jsonl, players.json)
+       tools/codex.py fidelity | corpus | repro ...         (tools/codex_replay.py: the replay reconstruction)"""
+import argparse, collections, gzip, json, os, re, sys, time
 
 STARTERS = {"STRIKE_IRONCLAD", "DEFEND_IRONCLAD", "STRIKE_SILENT", "DEFEND_SILENT", "STRIKE_DEFECT", "DEFEND_DEFECT", "STRIKE_NECROBINDER",
             "DEFEND_NECROBINDER", "STRIKE_REGENT", "DEFEND_REGENT"}
@@ -267,6 +268,10 @@ def replays(out_dir, build, ascension, skip_list=False, index_only=False, limit=
           f"{sum(v['runs'] for v in strong)} runs, {sum(v['wins'] for v in strong)} wins; strong clean replays {sum(x['strong'] for x in clean)}")
 
 def main():
+    if sys.argv[1:2] and sys.argv[1] in ("fidelity", "corpus", "repro"):
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import codex_replay
+        return codex_replay.main()
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["table", "decks", "replays"])
     ap.add_argument("src", nargs="?")

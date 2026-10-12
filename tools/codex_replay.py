@@ -1,12 +1,16 @@
-"""Replay logs (spire-codex /api/runs/{hash}/replay, replay_version 7) -> combats. The one reconstruction for every consumer (fidelity, search-gap
-mining, collection roots, macro extraction): `fights(path)` yields each combat's start scenario (deck by card instance, relics + saved state,
-potions by slot, HP, gold, the logged per-stream RNG counters), its events and the human actions; `Board` folds a fight's events into the logged
-state (snapshot schema of sts2diff, as `Sim.sync` / `Sim.diff` read it) at any cut. Per-combat RNG counters and draw order are hidden in-game:
-offline fidelity / roots only, never an input to a scored decision.
-fidelity: each attempt-0 combat of clean replays in `Sim.exact` (logged counters), the human's actions applied, the sim diffed against the log
-before every human play / potion and re-synced on a difference (one divergence per step); first divergence per combat + per-field counts.
+"""Replay logs (spire-codex /api/runs/{hash}/replay; fights need replay_version 7: rng_state + draw_order) -> combats. The one reconstruction for
+every consumer (fidelity, search-gap mining, collection roots, macro extraction): `fights(path)` yields each combat's start scenario (deck by card
+instance, relics + saved state, potions by slot, HP, gold, the logged per-stream RNG counters), its events and the human actions; `Board` folds a
+fight's events into the logged state (sts2diff snapshot schema, as `Sim.sync` / `Sim.diff` read it) at any cut; `chain` / `sim_at` give the sim at
+any human decision. Per-combat RNG counters and draw order are hidden in-game: offline fidelity / roots only, never an input to a scored decision.
+fidelity: the first attempt of each combat (combat_id without "#n"; attempt_id is the session reload count) of clean replays in `Sim.exact`
+(logged counters), the human's actions applied, the sim diffed against the log before every human play / potion and re-synced on a difference.
+Not compared (unlogged or not reconstructible): energy except at a spend, intent damage after the turn's first action, a generated card's upgrade
+until it is played, cards whose pile is unknown (unlogged returns, unplaced generated cards), orbs, relic displays, powers' turn-start amounts.
+Needs the sts2 extension built from this branch (`Sim.exact`, `rng_counters`; a scratch venv until the shared reinstall).
 usage: python tools/codex_replay.py fidelity target/codex/replays --out target/review/replay_fidelity [--character ironclad] [--workers 4]
-       python tools/codex_replay.py corpus target/codex/replays --out target/review/replay_corpus.json"""
+       python tools/codex_replay.py corpus target/codex/replays --out target/review/replay_corpus.json
+       python tools/codex_replay.py repro target/review/replay_fidelity_repro/<field>.json"""
 import collections, glob, gzip, json, os, re, sys
 
 CHARS = {"IRONCLAD", "SILENT", "DEFECT", "NECROBINDER", "REGENT"}
@@ -902,7 +906,7 @@ def report(rows, meta, out):
     L = [f"# Replay fidelity (spire-codex A10 v0.111.0 replays, Sim.exact on the logged RNG counters)\n",
          f"clean replays {len(meta)} (with reloads {sum(bool(x.get('reloads')) for _, x in meta.values())}; first attempt of each combat_id only: attempt_id is the "
          f"session reload count, not a per-combat retry); first-attempt fights {len(rows)}; built {len(built)}; logged combat_end {len(ended)}; "
-         f"exact (combat_end logged, no divergence, same outcome) {len(exact)} ({len(exact) / max(1, len(ended)):.3f} of ended); quit before the end with no "
+         f"exact (combat_end logged, no detected divergence in the compared fields, same outcome) {len(exact)} ({len(exact) / max(1, len(ended)):.3f} of ended); quit before the end with no "
          f"divergence {quit_clean}; action not takeable or sim ended early {sum(bool(r['failed']) for r in built)}\n",
          _table(["character", "fights", "ended", "exact", "exact / ended"],
                 [(c, n, sum(r['char'] == c for r in ended), sum(r['char'] == c for r in exact), f"{sum(r['char'] == c for r in exact) / max(1, sum(r['char'] == c for r in ended)):.3f}")
