@@ -3,7 +3,7 @@ import os
 import re
 import time
 
-from agent import potions, proposal
+from agent import macro, potions, proposal
 from agent import screen as scr
 from agent.bridge import call
 from agent.fight import Replayer
@@ -82,19 +82,20 @@ class Live:
         self._proposal_rows = []
         self.potions_used = 0
         self.fight_worth, self.fight_objective = self._fight_objective(sc)
+        h0 = macro.start_hp(sc)
         try:
             r = self.eng().solve([dict(sc, name="start", potions=[])], attempts=PRED_ATTEMPTS, worth=self.fight_worth)[0]
-            q = self._dist(r, sc["hp"])
+            q = self._dist(r, h0)
             pred = dict(win=round(r["win"], 3), win_se=round(r["win_se"], 3), hp_lost=round(r["hp_lost"] or 0, 3), hp_lost_se=round(r.get("hp_lost_se") or 0, 3), n=r["attempts"], lost_q=q,
                         potions="none")
             self._pred_q = q
         except Exception as e:  # noqa: BLE001
             pred = dict(error=str(e)[:80])
             self._pred_q = None
-        self.fight_hp0 = (sc["hp"], sc["max_hp"])
+        self.fight_hp0 = (h0, sc["max_hp"])
         self.last_enc = sc.get("encounter")
-        self.fight_budget, self.fight_tol = self._auto_budget(pred, sc["hp"], sc["max_hp"])
-        self.drive = self._drive_mode(sc.get("encounter", ""), pred, sc["hp"])
+        self.fight_budget, self.fight_tol = self._auto_budget(pred, h0, sc["max_hp"])
+        self.drive = self._drive_mode(sc.get("encounter", ""), pred, h0)
         try:
             mt = self._context().map_text
             if mt and mt != getattr(self, "_logged_map", None):

@@ -7,7 +7,12 @@ ANCIENT_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ancient_re
 CHARACTERS = ("IRONCLAD", "SILENT", "DEFECT", "NECROBINDER", "REGENT")
 CARD_RARITIES = ("Common", "Uncommon", "Rare")
 POTION_TO_CARD = {"Common": "Common", "Token": "Common", "Uncommon": "Uncommon", "Rare": "Rare", "Event": "Rare"}
-UNREMOVABLE = ("ASCENDERS_BANE",)
+# Eternal (CardModel.IsRemovable), from gen_cards.rs kw::ETERNAL
+UNREMOVABLE = ("ASCENDERS_BANE", "BAD_LUCK", "CURSE_OF_THE_BELL", "ENTHRALLED", "FOLLY", "FORBIDDEN_GRIMOIRE", "GREED")
+# RelicModel.IsTradable exclusions beyond Starter / Event / Ancient rarity: HasUponPickupEffect, SpawnsPets
+UNTRADABLE = ("CAULDRON", "DOLLYS_MIRROR", "GNARLED_HAMMER", "KIFUDA", "LEES_WAFFLE", "MANGO", "OLD_COIN", "ORRERY", "PEAR", "POTION_BELT",
+              "PUNCH_DAGGER", "ROYAL_STAMP", "STRAWBERRY", "WAR_PAINT", "WHETSTONE", "BOUND_PHYLACTERY", "BYRDPIP", "PHYLACTERY_UNBOUND")
+PET_RELICS = ("BYRDPIP", "PAELS_LEGION")
 _CAT = None
 _ANC = None
 
@@ -65,22 +70,40 @@ def _basic(c):
     return _card(c["id"]).get("rarity") == "Basic"
 
 
+def _removable(c):
+    return c["id"] not in UNREMOVABLE and (c.get("enchantment") or {}).get("id") != "TEZCATARAS_EMBER"
+
+
+_RELIC_RARITY = None
+
+
+def _tradable(st):
+    """indices of st.relics with RelicModel.IsTradable"""
+    global _RELIC_RARITY
+    if _RELIC_RARITY is None:
+        from agent import runmodel as RM
+        _RELIC_RARITY = {r["id"]: r["rarity"] for rows in RM.CAT["relics"].values() for r in rows}
+    ids = [r if isinstance(r, str) else r["id"] for r in st.relics]
+    return [i for i, r in enumerate(ids) if r not in UNTRADABLE and _RELIC_RARITY.get(r) not in ("Starter", "Event", "Ancient")]
+
+
 def allowed(event, st):
     e = get(event)
     if not e or not e.get("allowed", True):
         return False
     c, deck = e["condition"], st.deck
-    tradable = len(st.relics) - 1
+    tradable = len(_tradable(st))
     checks = {
         "min_act": lambda v: st.act >= v, "max_act": lambda v: st.act <= v, "act": lambda v: st.act == v,
         "min_gold": lambda v: st.gold >= v, "min_hp": lambda v: st.hp >= v, "max_hp_frac": lambda v: st.hp <= v * st.max_hp,
         "min_floor": lambda v: getattr(st, "floor", v) >= v, "min_potions": lambda v: len(st.potions) >= v, "min_tradable_relics": lambda v: tradable >= v,
-        "min_removable": lambda v: sum(x["id"] not in UNREMOVABLE for x in deck) >= v,
-        "min_transformable": lambda v: sum(x["id"] not in UNREMOVABLE for x in deck) >= v,
+        "min_removable": lambda v: sum(map(_removable, deck)) >= v,
+        "min_transformable": lambda v: sum(map(_removable, deck)) >= v,
         "min_basic_strikes": lambda v: sum(x["id"].startswith("STRIKE_") for x in deck) >= v,
         "min_basic_defends": lambda v: sum(x["id"].startswith("DEFEND_") for x in deck) >= v,
         "has_basic": lambda v: any(_basic(x) for x in deck) == v,
-        "no_event_pet": lambda v: (not any(x["id"] == "BYRDONIS_EGG" for x in deck)) == v,
+        "no_event_pet": lambda v: (not any(x["id"] == "BYRDONIS_EGG" for x in deck) and not set(PET_RELICS) & set(st.relic_ids())) == v,
+        "deck_enchantable": lambda v: any(_enchantable(x, v) for x in deck),
     }
     return all(checks[k](v) for k, v in c.items() if k in checks)
 
@@ -109,6 +132,58 @@ def unmodelled(effects):
     return False
 
 
+_KW = None
+
+
+def _kw(c):
+    """keywords of a deck card at its upgrade, from crates/sts2sim gen_cards.rs"""
+    global _KW
+    if _KW is None:
+        src = open(os.path.join(os.path.dirname(__file__), "..", "crates", "sts2sim", "src", "content", "gen_cards.rs"), encoding="utf-8").read()
+        _KW = {}
+        for m in re.finditer(r"CardDef::new\(ids::card::(\w+),[^\n]*", src):
+            line = m.group(0)
+            base = set(re.findall(r"kw::(\w+)", "".join(re.findall(r"\.kw\(([^)]*)\)", line))))
+            _KW[m.group(1)] = (base, set(re.findall(r"up_add_kw\(kw::(\w+)\)", line)), set(re.findall(r"up_remove_kw\(kw::(\w+)\)", line)),
+                               "VarKind::Block" in line)
+    base, add, rem, block = _KW.get(c["id"], (set(), set(), set(), False))
+    return ((base | add) - rem if c.get("upgrade") else base), block
+
+
+ENCHANT_TYPES = {"SHARP": "Attack", "VIGOROUS": "Attack", "CORRUPTED": "Attack", "INSTINCT": "Attack", "MOMENTUM": "Attack", "IMBUED": "Skill"}
+
+
+def _enchantable(c, ench):
+    """EnchantmentModel.CanEnchant and the overrides in Models.Enchantments (GainsBlock approximated by a Block var)"""
+    row = _card(c["id"])
+    kws, block = _kw(c)
+    if c.get("enchantment") or row.get("type") in ("Status", "Curse", "Quest") or row.get("rarity") in ("Curse", "Status") or "UNPLAYABLE" in kws:
+        return False
+    if ench in ENCHANT_TYPES:
+        return row.get("type") == ENCHANT_TYPES[ench]
+    if ench == "ROYALLY_APPROVED":
+        return row.get("type") in ("Attack", "Skill")
+    if ench == "SOULS_POWER":
+        return "EXHAUST" in kws
+    if ench == "SPIRAL":
+        return _basic(c) and c["id"].startswith(("STRIKE_", "DEFEND_"))
+    if ench == "GOOPY":
+        return c["id"].startswith("DEFEND_") or c["id"] == "ULTIMATE_DEFEND"
+    if ench == "NIMBLE":
+        return block
+    if ench == "SLITHER":
+        return not row.get("x")
+    return True
+
+
+_RARITY_RANK = {"Rare": 0, "Uncommon": 1, "Common": 2}
+
+
+def _enchant_targets(st, v):
+    ok = [c for c in st.deck if _enchantable(c, v["id"]) and (v.get("type") is None or _card(c["id"]).get("type") == v["type"]) and _matches(c, v)]
+    return sorted(ok, key=lambda c: (_basic(c), _RARITY_RANK.get(_card(c["id"]).get("rarity"), 3)))
+
+
 def _upgradable(c):
     return c.get("upgrade", 0) < _card(c["id"]).get("max_upgrade", 1)
 
@@ -123,7 +198,7 @@ def _pool_cards(pool, rarity=None, type=None, cost0=False, exclude=()):
 def _remove_targets(st, spec, rng):
     if isinstance(spec, int):
         spec = {"n": spec}
-    deck = [c for c in st.deck if c["id"] not in UNREMOVABLE]
+    deck = [c for c in st.deck if _removable(c)]
     if "match" in spec:
         deck = [c for c in deck if c["id"].startswith(spec["match"]) and (not spec.get("basic") or _basic(c))]
         return deck[:spec["n"]]
@@ -148,20 +223,20 @@ def _count(st, n):
 
 def _transform_targets(st, n):
     rank = lambda c: (0 if c["id"].startswith("STRIKE_") else 1 if c["id"].startswith("DEFEND_") else 2 if _basic(c) else 3)
-    deck = [c for c in st.deck if c["id"] not in UNREMOVABLE and _card(c["id"]).get("rarity") not in ("Curse", "Status")]
+    deck = [c for c in st.deck if _removable(c) and _card(c["id"]).get("rarity") not in ("Curse", "Status")]
     return sorted(deck, key=rank)[:n]
 
 
 def _offer(st, draws, spec, pool):
     out = []
+    typ = spec.get("type")
+    if typ == "random":
+        typ = draws.rng.choice(("Attack", "Skill") if spec.get("rarity") == "Common" else ("Attack", "Skill", "Power"))
     for i in range(spec["of"]):
         p = pool[i % len(pool)] if isinstance(pool, list) else pool
         rarity = spec.get("rarity")
         if rarity is None and spec.get("odds") != "uniform" and p != "COLORLESS":
             rarity, _ = draws.card_rarity("hallway", st.offset)
-        typ = spec.get("type")
-        if typ == "random":
-            typ = draws.rng.choice(("Attack", "Skill") if rarity == "Common" else ("Attack", "Skill", "Power"))
         taken = [c for c, _ in out] + list(spec.get("exclude", ()))
         cands = _pool_cards(p, rarity, typ, spec.get("cost0", False), taken) or _pool_cards(p, None, typ, spec.get("cost0", False), taken)
         if cands:
@@ -243,7 +318,7 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
         elif k == "card_downgrade_random":
             cands = [c for c in st.deck if c.get("upgrade")]
             for c in rng.sample(cands, min(v, len(cands))):
-                c["upgrade"] = 0
+                c["upgrade"] -= 1
         elif k == "card_transform":
             spec = v if isinstance(v, dict) else {"n": v}
             if "map" in spec:
@@ -261,9 +336,7 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
                 to = spec.get("to") or rng.choice(_pool_cards(draws.character, exclude=(c["id"],)))
                 st.deck[st.deck.index(c)] = {"id": to, "upgrade": int(bool(spec.get("upgraded")))}
         elif k == "card_enchant":
-            ok = lambda c: not c.get("enchantment") and _card(c["id"]).get("rarity") not in ("Curse", "Status") and \
-                (v.get("type") is None or _card(c["id"]).get("type") == v["type"]) and _matches(c, v)
-            cands = [c for c in st.deck if ok(c) and not _basic(c)] + [c for c in st.deck if ok(c) and _basic(c)]
+            cands = _enchant_targets(st, v)
             n = _count(st, v["n"])
             if v.get("random"):
                 cands = rng.sample(cands, min(n, len(cands)))
@@ -293,8 +366,9 @@ def _apply(st, effects, draws, choose, pick, res, ctx):
                     st.relics[i] = v[r if isinstance(r, str) else r["id"]]
                     break
         elif k == "relic_remove":
-            if len(st.relics) > 1:
-                st.relics.pop(rng.randrange(1, len(st.relics)))
+            idx = _tradable(st)
+            if idx:
+                st.relics.pop(rng.choice(idx))
         elif k == "potion":
             if len(st.potions) < st.slots:
                 st.potions.append(v)

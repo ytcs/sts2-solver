@@ -8,4 +8,4 @@ description: Use when entering or planning Act 1 (Overgrowth or Underdocks) as t
 - A1-2 [sim] Act-1 elites cost ~4 win points of act-1 boss HP each (13 HP x ~0.4 carried x slope 0.008) and pay through relic and rare odds (E85, P5): take them while `routes` keeps the boss >= 0.9. Test: outcome: act-1 elites vs act-2 reach, ledger.
 - A1-3 [hyp] Build toward the weakest boss of the pool from the first reward; once the boss is shown, price picks against it alone. Test: instrument: boss-alone `eval` per boss.
 - A1-4 [hyp] Primal Force (Hefty Tablet) makes act-1 elites near-safe (earlier model: 22 -> 99%). Test: instrument: `eval --elites --v`.
-- A1-5 [hyp] Before a forced lane count the rests after its last elite; Pantograph (+25 HP at bosses) makes arrival HP cheap. Test: instrument: `eval --boss --hp <arrival>` with / without +25.
+- A1-5 [hyp] Before a forced lane count the rests after its last elite; Pantograph (+25 HP at bosses) makes arrival HP cheap. Test: instrument: `eval --boss --hp <arrival>` (pre-heal; the sim heals) vs the same with `relics_add=PANTOGRAPH`.

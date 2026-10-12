@@ -46,6 +46,17 @@ def apply_variant(base, v):
     return s
 
 
+PANTOGRAPH_HEAL = 25
+
+
+def start_hp(sc):
+    """HP the fight starts at after start-of-combat relic heals: the sim applies them itself, so this is for reporting losses, never a scenario's hp"""
+    hp = int(sc["hp"])
+    if str(sc.get("encounter", "")).endswith("_BOSS") and hp > 0 and any((r if isinstance(r, str) else r["id"]) == "PANTOGRAPH" for r in sc.get("relics", [])):
+        hp = min(int(sc["max_hp"]), hp + PANTOGRAPH_HEAL)
+    return hp
+
+
 def narrow(ids, kind, ctx):
     if not ctx:
         return ids
@@ -175,7 +186,8 @@ def _summary(spec, base, encs, index, res):
         win = sum(r["win"] for _, r in rows) / len(rows)
         se = _pooled_se(r["win_se"] for _, r in rows)
         hpl = sum((r["hp_lost"] or 0) for _, r in rows) / len(rows)
-        lost = np.concatenate([base["hp"] - np.array(r["ends"]) for _, r in rows if r.get("ends")]) if any(r.get("ends") for _, r in rows) else np.zeros(1)
+        sv = apply_variant(base, v)
+        lost = np.concatenate([start_hp(dict(sv, encounter=e)) - np.array(r["ends"]) for e, r in rows if r.get("ends")]) if any(r.get("ends") for _, r in rows) else np.zeros(1)
         lq = [float(x) for x in np.percentile(lost, [10, 50, 90, 97.5])]
         diffs = _diffs(rows, by[0])
         summary[vi] = dict(win=win, se=se, hp_lost=hpl, lost_q=lq, per={e: r["win"] for e, r in rows},

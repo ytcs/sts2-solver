@@ -211,11 +211,22 @@
     {
      "card_transform": {
       "n": 6,
-      "to": "MAUL"
+      "map": {
+       "STRIKE_IRONCLAD": "MAUL",
+       "STRIKE_SILENT": "MAUL",
+       "STRIKE_DEFECT": "MAUL",
+       "STRIKE_NECROBINDER": "MAUL",
+       "STRIKE_REGENT": "MAUL",
+       "DEFEND_IRONCLAD": "MAUL",
+       "DEFEND_SILENT": "MAUL",
+       "DEFEND_DEFECT": "MAUL",
+       "DEFEND_NECROBINDER": "MAUL",
+       "DEFEND_REGENT": "MAUL"
+      }
      }
     }
    ],
-   "note": "up to 6 chosen cards (0-6) become Maul, keeping upgrade and enchantment; modelled as 6 by the default order (Strikes, then Defends), unupgraded"
+   "note": "up to 6 chosen cards (0-6) become Maul, keeping upgrade and enchantment; modelled as 6 basic Strikes / Defends in deck order"
   },
   "CROSSBOW": {
    "title": "Crossbow",
@@ -302,6 +313,9 @@
    "effects": [
     {
      "card_add": "DOWSING"
+    },
+    {
+     "unmodelled": "Dowsing becomes Abundance after entering 5 unknown rooms (Cards/Dowsing.cs:49-63)"
     }
    ]
   },
@@ -632,11 +646,12 @@
      "card_add_random": {
       "pool": "colorless",
       "pick": 1,
-      "of": 2
+      "of": 2,
+      "rarity": "Uncommon"
      }
     }
    ],
-   "note": "choose 1 of 2 colorless cards (may skip)"
+   "note": "choose 1 of 2 colorless cards (may skip); rarity rolls regular-encounter odds with Common bumped to Uncommon (CardFactory.cs:262-279): Uncommon ~98.5% at A10"
   },
   "LEAFY_POULTICE": {
    "title": "Leafy Poultice",
@@ -814,6 +829,9 @@
     },
     {
      "card_add": "GUILTY"
+    },
+    {
+     "unmodelled": "Guilty removes itself from the deck after 5 combats (Cards/Guilty.cs)"
     }
    ]
   },
@@ -916,12 +934,11 @@
      "card_enchant": {
       "id": "GOOPY",
       "n": "all",
-      "amount": 1,
-      "match": "DEFEND_"
+      "amount": 1
      }
     }
    ],
-   "note": "Goopy on every Defend-tagged card (Goopy.cs:16-23), not just 3"
+   "note": "Goopy on every Defend-tagged card (basic Defends and Ultimate Defend; Goopy.cs:16-23), not just 3"
   },
   "PAELS_EYE": {
    "title": "Pael's Eye",
@@ -1142,7 +1159,7 @@
    "src": "decomp/MegaCrit.Sts2.Core.Models.Relics/PumpkinCandle.cs:52-90",
    "effects": [
     {
-     "unmodelled": "its +1 energy lasts 5 combats; rest sites gain a Kindle option that adds 5 more"
+     "unmodelled": "its +1 energy lasts 5 combats; rest sites gain a Kindle option that adds 5 more; the run model passes no KindleCount (5 at pickup, PumpkinCandle.cs:52-56), so the sim gives 0 energy in rollouts"
     }
    ]
   },

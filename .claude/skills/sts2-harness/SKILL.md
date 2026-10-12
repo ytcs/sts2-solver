@@ -36,7 +36,7 @@ Macro `-- why` = `rules: <IDs or new: claim> ; numbers: <tool and margin> ; judg
 1. `python -m agent - <<'EOF'` one command per line; stops at `ERR`/`REFUSED` unless `- --keep-going`. A stopped reply repeats the reason last (`^ stopped: ...`).
 2. Variants share fights (`paired` = se of the difference); seeded per screen, `--seed N` fresh. Decide on q90 + death tail.
 3. Option numbers shift after each action: a bare `a <i>` after a chain step is refused; never chain map clicks.
-4. Crystal Sphere: `a 0 <x> <y>` (`sts2-crystal-sphere`). Pantograph heals after the fight-start prediction: `eval --hp <entry HP>`.
+4. Crystal Sphere: `a 0 <x> <y>` (`sts2-crystal-sphere`). The sim applies Pantograph's +25 at boss start: give `eval --hp` the pre-heal HP, never add 25.
 5. Never `quit` the daemon unless code changed (+20 s cold).
 
 ## Speed `[hyp]` (test: durations in `review`)

@@ -5,7 +5,7 @@ import sys
 
 import numpy as np
 
-from agent import bottleneck, macro, pools, routes, runmodel as R, screen as scr, terms as TM, tracker
+from agent import bottleneck, events as EV, macro, pools, routes, runmodel as R, screen as scr, terms as TM, tracker
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, os.path.join(ROOT, "rl"))
@@ -170,7 +170,7 @@ def card_type(cid):
 
 def removal_candidates(deck):
     """distinct removable ids: while an unupgraded basic of a card type is in the deck, non-basic cards of that type are not candidates"""
-    ids = sorted({c["id"] for c in deck if c["id"] != "ASCENDERS_BANE"})
+    ids = sorted({c["id"] for c in deck if c["id"] not in EV.UNREMOVABLE})
     basic_types = {card_type(c["id"]) for c in deck if c["id"].startswith(R.BASICS[:2]) and not c.get("upgrade")}
     return [i for i in ids if i.startswith(R.BASICS[:2]) or card_type(i) not in basic_types]
 
@@ -706,7 +706,7 @@ def boss_gain(st, variants, engine, attempts=BOSS_ATTEMPTS, seed=0):
 
 def removal_order(st, engine=None, seed=0):
     """curses, then the dominance rule's basics (Strike before Defend), then act-1 picks still in the deck that are not Powers, then the rest by P(this act's boss) after the removal"""
-    deck = [c["id"] for c in st.deck if c["id"] != "ASCENDERS_BANE"]
+    deck = [c["id"] for c in st.deck if c["id"] not in EV.UNREMOVABLE]
     cands = removal_candidates(st.deck)
     first = sorted({c for c in deck if c in R.CURSES}) + [c for c in cands if c.startswith("STRIKE_")] + [c for c in cands if c.startswith("DEFEND_")]
     early = [c for c in dict.fromkeys(off_plan(st)) if c not in first]
