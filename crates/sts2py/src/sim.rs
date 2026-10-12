@@ -130,7 +130,8 @@ impl Sim {
         Ok(Sim { cx })
     }
 
-    /// Offline fidelity only (logged human fights): keeps the scenario's RNG streams instead of sampling them.
+    /// Offline fidelity only (logged human fights): keeps the scenario's RNG streams instead of sampling them; the screen never shows stream
+    /// counters, so live play cannot feed it.
     #[staticmethod]
     fn exact(scenario_json: &str) -> PyResult<Self> {
         let v: Value = serde_json::from_str(scenario_json).map_err(err)?;

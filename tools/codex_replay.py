@@ -33,6 +33,20 @@ def _card(d):
     return out
 
 
+# relic counters the log does not carry (relic_counter is rare for these): (saved property, card type played or "turn" = player turn start, period)
+COUNTERS = {"TUNING_FORK": ("SkillsPlayed", "Skill", 10), "NUNCHAKU": ("AttacksPlayed", "Attack", 10), "PEN_NIB": ("AttacksPlayed", "Attack", 10),
+            "HAPPY_FLOWER": ("TurnsSeen", "turn", 3), "FAKE_HAPPY_FLOWER": ("TurnsSeen", "turn", 5), "PENDULUM": ("TurnsSeen", "turn", 3),
+            "POLLINOUS_CORE": ("TurnsSeen", "turn", 4)}
+_TYPES = {}
+
+
+def card_type(cid):
+    if not _TYPES:
+        cat = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "catalog.json"), encoding="utf-8"))["cards"]
+        _TYPES.update({c["id"]: c.get("type") for v in (cat.values() if isinstance(cat, dict) else [cat]) for c in v})
+    return _TYPES.get(cid)
+
+
 class Run:
     """run state between combats, from the event stream (headers after a resume are authoritative)"""
 
@@ -60,7 +74,14 @@ class Run:
         elif t == "deck":
             self.deck = list(e["cards"])
         elif t == "relic":
-            self.relics.append(dict(id=e["id"], props={}))
+            self.relics.append(dict(id=e["id"], props={COUNTERS[e["id"]][0]: 0} if e["id"] in COUNTERS else {}))
+        elif (t == "play" or t == "turn" and e.get("side") == "player") and any(r["id"] in COUNTERS for r in self.relics):
+            kind = "turn" if t == "turn" else card_type(e.get("id"))
+            for r in self.relics:
+                prop, want, period = COUNTERS.get(r["id"], (None, None, 0))
+                if want == kind:
+                    r["props"][prop] = (r["props"].get(prop, 0) + 1) % period
+                    r.pop("counter", None)
         elif t == "relic_lost":
             i = next((i for i, r in enumerate(self.relics) if r["id"] == e["id"]), None)
             if i is not None:
@@ -805,10 +826,9 @@ CLASSES = (
                                                                        "Crossbow (lift 9-12; counts match, contents differ)"),
     (lambda f, a, e: f == "enemy.hp" and e == "OVICOPTER_NORMAL", "sim-bug candidate", "Tough Egg spawn HP roll (log spawn hp != sim)"),
     (lambda f, a, e: f == "enemy.hp" and a == "start", "reconstruction gap?", "Fur Coat (lift 150: marked-node HP cut needs its saved map state), Sword of Jade, Kifuda"),
-    (lambda f, a, e: f == "player.block" and a.startswith("DEFEND"), "sim-bug candidate", "replayed play (play_count 2: Spiral enchantment) not replayed; "
-                                                                                          "Tuning Fork SkillsPlayed (not logged)"),
-    (lambda f, a, e: f == "player.block" and a not in ("start", "end_turn"), "sim-bug candidate", "Tuning Fork (lift 7, SkillsPlayed not logged), Secret Weapon, "
-                                                                                                   "Genetic Algorithm, Child of the Stars"),
+    (lambda f, a, e: f == "player.block" and a.startswith("DEFEND"), "sim-bug candidate", "replayed play (play_count 2: Spiral enchantment) not replayed"),
+    (lambda f, a, e: f == "player.block" and a not in ("start", "end_turn"), "sim-bug candidate", "Genetic Algorithm, Seeker Strike, Child of the Stars; Pael's Claw, "
+                                                                                                   "Meat Cleaver (lift 5-17)"),
     (lambda f, a, e: f == "energy" and a == "start", "sim-bug candidate", "turn-1 energy (spend event shows more): Hand Drill, Blessed Antler, Alchemical Coffer, (Fake) Venerable Tea Set, Fake Happy Flower"),
     (lambda f, a, e: f == "energy" and a == "end_turn", "sim-bug candidate", "Distinguished Cape / Apparition, Punch Dagger, Kunai, Sand Castle"),
     (lambda f, a, e: f == "player.hp" and a == "end_turn", "sim-bug candidate", "Whispering Earring, Fencing Manual; Calamity / Resonance / Void Form decks"),
