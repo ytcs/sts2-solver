@@ -179,6 +179,23 @@ def _enchantable(c, ench):
 _RARITY_RANK = {"Rare": 0, "Uncommon": 1, "Common": 2}
 
 
+def chosen_enchant_targets(st, option):
+    """legal card ids for a player-chosen single enchant in an event option (priced one variant per target), [] if none"""
+    effs = [e for e in option.get("effects", []) if "card_enchant" in e]
+    if len(effs) != 1 or effs[0]["card_enchant"].get("random") or _count(st, effs[0]["card_enchant"].get("n", 1)) != 1:
+        return []
+    return list(dict.fromkeys(c["id"] for c in _enchant_targets(st, effs[0]["card_enchant"])))
+
+
+def with_enchant_target(option, cid):
+    import copy
+    o = copy.deepcopy(option)
+    for e in o["effects"]:
+        if "card_enchant" in e:
+            e["card_enchant"]["target"] = cid
+    return o
+
+
 def _enchant_targets(st, v):
     ok = [c for c in st.deck if _enchantable(c, v["id"]) and (v.get("type") is None or _card(c["id"]).get("type") == v["type"]) and _matches(c, v)]
     return sorted(ok, key=lambda c: (_basic(c), _RARITY_RANK.get(_card(c["id"]).get("rarity"), 3)))
@@ -211,6 +228,8 @@ def _remove_targets(st, spec, rng):
 
 
 def _matches(c, spec):
+    if spec.get("target") is not None and c["id"] != spec["target"]:
+        return False
     m = spec.get("match")
     if m is not None and not c["id"].startswith(tuple(m) if isinstance(m, list) else m):
         return False

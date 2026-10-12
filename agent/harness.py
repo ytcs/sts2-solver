@@ -313,9 +313,12 @@ class Harness(Live):
     def price(self, argline, state):
         from agent import price as PR
         args = argline.split()
-        n = int(args[0]) if args and args[0].isdigit() else 128
+        hp_i = args.index("--hp") + 1 if "--hp" in args else None
+        n = next((int(x) for i, x in enumerate(args) if x.isdigit() and i != hp_i), 128)
         deck = self._run()
         st = PR.run_state(deck, self._context(), os.path.join(self.log.dir, "events.jsonl"), state)
+        if hp_i is not None and hp_i < len(args) and args[hp_i].isdigit():
+            st.hp = min(st.max_hp, int(args[hp_i]))
         opts = PR.options(st, state)
         if not opts:
             why = " (this event is not catalogued: decide by judgment and note the gap)" if scr.kind(state) == "EVENT" else ""
@@ -384,7 +387,7 @@ class Harness(Live):
         return macro.brief_text(state, deck, self._context().horizon()) + "\n" + (bn + "\n" if bn else "")
 
     EVAL_VALUED = ("--enc", "--pool", "--attempts", "--hp", "--v")
-    EVAL_FLAGS = ("--boss", "--elites", "--next", "--all", "--future", "--smooth", "--target")
+    EVAL_FLAGS = ("--boss", "--elites", "--next", "--all", "--future", "--smooth", "--target", "--potions")
 
     @_needs_run("no run in progress")
     def loot(self):
@@ -450,6 +453,8 @@ class Harness(Live):
                     spec["hp"] = val if val in ("full", "current") else int(val)
                 elif t == "--v":
                     spec["variants"].append(self._variant(val))
+                elif t == "--potions":
+                    spec["hold"] = []
                 elif t == "--target":
                     spec["target"] = self._target()
                     if not spec["target"]:

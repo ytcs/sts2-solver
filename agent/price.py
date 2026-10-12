@@ -104,7 +104,11 @@ def options(st, state_text):
             for label, o in zip(labels, EV.match_page(title, labels)):
                 if o is not None and not o["key"].endswith("_LOCKED"):
                     o = _stated(o, label)
-                    out.append((label.split(":", 1)[0][:34], lambda s, d, o=o, eid=entry["id"]: EV.play_option(s, eid, o, d)))
+                    targets = EV.chosen_enchant_targets(st, o)
+                    if len(targets) > 1:
+                        out += [(f"{label.split(':', 1)[0][:24]} -> {cid}", lambda s, d, o=EV.with_enchant_target(o, cid), eid=entry["id"]: EV.play_option(s, eid, o, d)) for cid in targets]
+                    else:
+                        out.append((label.split(":", 1)[0][:34], lambda s, d, o=o, eid=entry["id"]: EV.play_option(s, eid, o, d)))
     elif kind == "SHOP":
         out.append(("nothing", None))
         out += [(f"{label} ({price}g)", first) for label, _what, price, first in shop_items(st, state_text)]
