@@ -172,6 +172,8 @@ pub struct SearchCfg {
     pub maxhp_cost: f32,
     // play-out moves from this many player turns after the root on take the policy's most likely move instead of a draw
     pub greedy_from: u32,
+    // play-outs run past `leaf_turns` while an enemy's death is pending (`Combat::death_pending`)
+    pub settle_deaths: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -212,6 +214,7 @@ impl Default for SearchCfg {
             gold_cost: 0.0,
             maxhp_cost: 0.0,
             greedy_from: u32::MAX,
+            settle_deaths: false,
         }
     }
 }
@@ -578,7 +581,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
             return None;
         }
         let capped = sim.steps >= cfg.roll_cap;
-        let at_leaf = (sim.cx.player.turn_number - sim.start_turn) as i64 >= cfg.leaf_turns as i64;
+        let at_leaf = (sim.cx.player.turn_number - sim.start_turn) as i64 >= cfg.leaf_turns as i64 && !(cfg.settle_deaths && sim.cx.death_pending());
         if at_leaf || (capped && w.table) {
             let t0 = tsc();
             let row = val_row(out, &sim.cx);
@@ -609,7 +612,7 @@ fn sim_run(sim: &mut Sim, mut act: Action, cfg: &SearchCfg, w: &Worth, out: &Out
 
 // An exact leaf's play-out takes the policy's most likely moves: one sample per world, so a max over lines does not select play-out luck.
 fn roll_cfg(cfg: &SearchCfg) -> SearchCfg {
-    SearchCfg { greedy_from: 0, ..*cfg }
+    SearchCfg { greedy_from: 0, settle_deaths: true, ..*cfg }
 }
 
 // The play-out's next move: a forced one, else a policy row is requested (None, also when stuck).
@@ -1223,6 +1226,9 @@ struct Exact {
     // leaves played on to the sampled search's horizon: (leaf node, play-out waiting on a row)
     rolls: Vec<(u32, Sim)>,
     n_rolls: u64,
+    roll: bool,
+    redo: bool,
+    deaths0: u16,
 }
 
 struct Fx(u64);
@@ -1250,6 +1256,14 @@ impl Exact {
         self.ks.clear();
         self.rolls.clear();
         self.n_rolls = 0;
+        self.roll = false;
+        self.redo = false;
+    }
+
+    fn rolled(&mut self) {
+        let (ks, turn, best, gain, pots0, deaths0) = (std::mem::take(&mut self.ks), self.turn, self.best, self.gain, self.pots0, self.deaths0);
+        self.reset();
+        (self.ks, self.turn, self.best, self.gain, self.pots0, self.deaths0, self.roll) = (ks, turn, best, gain, pots0, deaths0, true);
     }
 
     fn leaf(&mut self, v: f32, n: u32) -> u32 {
@@ -1263,9 +1277,13 @@ impl Exact {
             self.nodes[node as usize].v += end_score(cx, oc, r, w, &self.pots0) - cost;
             return;
         }
-        // The value net does not see the HP an enemy's death brings back (Test Subject's revives, Stock, Infested, Surprise):
-        // one turn on from here, a leaf before a phase change outvalues the kill. Such a leaf is played on to the sampled horizon.
-        if cfg.leaf_turns > 1 && cx.should_stop_combat_from_ending() {
+        // The value net does not see the HP behind an enemy's death (Test Subject's revives, Waterfall Giant's explosion): a leaf
+        // before the death outvalues one after it. When a line crosses or leaves such a death pending, every leaf is played on.
+        if cfg.leaf_turns > 1 && !self.roll && (cx.held_deaths != self.deaths0 || cx.death_pending()) {
+            self.redo = true;
+            return;
+        }
+        if self.roll {
             let mut s = self.ks[0] ^ ROLL_SALT ^ EXACT_SALT ^ self.n_rolls.wrapping_mul(0x9E37_79B9_7F4A_7C15);
             self.n_rolls += 1;
             let mut sim = Sim { cx: cx.clone(), st: SimSt::Idle, start_turn: self.turn, est: 0.0, steps: 0, rng: splitmix(&mut s), pots0: self.pots0 };
@@ -1421,6 +1439,9 @@ impl Exact {
     fn run(&mut self, cfg: &SearchCfg, w: &Worth, out: &Out, st: &mut SearchStats, budget: usize) -> Option<bool> {
         let dets = self.ks.len();
         loop {
+            if self.redo {
+                return Some(self.pending.is_empty());
+            }
             let Some(f) = self.stack.last_mut() else { return Some(true) };
             let chance = self.nodes[f.node as usize].kind == X_CHANCE;
             if f.next == if chance { dets } else { f.acts.len() } {
@@ -1533,6 +1554,7 @@ impl Block {
         ex.best = best;
         ex.gain = self.gain;
         ex.pots0 = root_of(&self.main);
+        ex.deaths0 = self.main.held_deaths;
         let root = self.main.clone();
         let ok = ex.add(root, NONE, cfg, &sh.worth[self.scen as usize], out, &mut self.stats) == Some(0);
         self.stats.cy_exact += tsc() - t0;
@@ -1563,7 +1585,15 @@ impl Block {
         let t0 = tsc();
         let cfg = &sh.cfg;
         let mut ex = self.ex.take().expect("exact search state");
-        let r = ex.run(cfg, &sh.worth[self.scen as usize], out, &mut self.stats, slots(cfg));
+        let w = &sh.worth[self.scen as usize];
+        let mut r = ex.run(cfg, w, out, &mut self.stats, slots(cfg));
+        if ex.redo && r == Some(true) {
+            ex.rolled();
+            r = match ex.add(self.main.clone(), NONE, cfg, w, out, &mut self.stats) {
+                Some(0) => ex.run(cfg, w, out, &mut self.stats, slots(cfg)),
+                _ => None,
+            };
+        }
         if r == Some(false) || (r == Some(true) && !(ex.pending.is_empty() && ex.rolls.is_empty())) {
             self.stats.cy_exact += tsc() - t0;
             self.ex = Some(ex);
