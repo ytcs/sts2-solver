@@ -148,13 +148,21 @@ pub fn scenario_ex(v: &Value) -> Result<(Scenario, ScenarioExtras), String> {
             x.enchant = find(&IDX_ENCHANTMENT, eid, "enchantment")? as u8 + 1;
             x.enchant_amount = e["amount"].as_i64().unwrap_or(1) as i16;
         }
+        let id = find(&IDX_CARD, id_of(c), "card")?;
         if let Some(p) = c["props"].as_object() {
-            for (i, v) in p.values().filter_map(|v| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64))).take(2).enumerate() {
+            // the card's counter holds the accumulated increase (CurrentX = base + IncreasedX); keys otherwise arrive sorted
+            let named: &[&str] = match id {
+                ids::card::GENETIC_ALGORITHM => &["IncreasedBlock"],
+                ids::card::THE_SCYTHE => &["IncreasedDamage"],
+                _ => &[],
+            };
+            let vals: Vec<&Value> = if named.is_empty() { p.values().collect() } else { named.iter().filter_map(|k| p.get(*k)).collect() };
+            for (i, v) in vals.into_iter().filter_map(|v| v.as_i64().or_else(|| v.as_bool().map(|b| b as i64))).take(2).enumerate() {
                 x.props[i] = v as i16;
             }
         }
         extras.deck.push(x);
-        deck.push(DeckCard { id: find(&IDX_CARD, id_of(c), "card")?, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8 });
+        deck.push(DeckCard { id, upgrade: c["upgrade"].as_u64().unwrap_or(0) as u8 });
     }
     let mut relics = vec![];
     for r in v["relics"].as_array().unwrap_or(&vec![]).iter().filter(|r| !melted(r)) {

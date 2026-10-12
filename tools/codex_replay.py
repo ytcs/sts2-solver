@@ -31,10 +31,17 @@ def _pascal(k):
     return "".join(p.capitalize() for p in k.split("_"))
 
 
+ENUMS = {"TinkerTimeType": ("None", "Attack", "Skill", "Power"),
+         "TinkerTimeRider": ("None", "Sapping", "Violence", "Choking", "Energized", "Wisdom", "Chaos", "Expertise", "Curious", "Improvement")}
+
+
 def _card(d):
+    """deck card; its saved state (Mad Science's Tinker Time type / rider, Genetic Algorithm's block, The Scythe's damage) as props"""
     out = dict(id=d["id"], upgrade=int(d.get("up") or 0), c=d.get("c"))
     if d.get("enchantment"):
         out["enchantment"] = dict(id=d["enchantment"], amount=int(d.get("amount") or 1))
+    if d.get("state"):
+        out["props"] = {k: ENUMS[k].index(v) if k in ENUMS and v in ENUMS[k] else v for k, v in ((_pascal(k), v) for k, v in d["state"].items())}
     return out
 
 
@@ -178,7 +185,7 @@ def _next_piles(evs):
                 if t == "shuffle" and c in (e.get("order_c") or []):
                     out[j, c] = "disc"
                 elif c in named:
-                    out[j, c] = "draw" if t == "draw" else "hand" if evs[j]["t"] == "generate" or t in ("play", "flush", "discard") else None
+                    out[j, c] = "draw" if t == "draw" else "hand" if t in ("play", "flush", "discard") else None
                 else:
                     continue
                 del pending[c]
@@ -233,8 +240,8 @@ def _names(e):
 
 
 def _returns(evs):
-    """unlogged returns to hand (Bolas, Thrumming Hatchet, Sovereign Blade, All for One...): a card played from hand whose previous logged move left
-    it elsewhere -> ({index of that move: [card]}, {index just before the play's cut: [card]}); in between the board holds it in limbo
+    """unlogged returns to hand (Bolas, Thrumming Hatchet, Sovereign Blade, All for One...): a card played or flushed from hand whose previous logged
+    move left it elsewhere -> ({index of that move: [card]}, {index just before the play's cut: [card]}); in between the board holds it in limbo
     (location unknown: tolerated where the sim has it)"""
     leave, back, last = collections.defaultdict(list), collections.defaultdict(list), {}
     for i, e in enumerate(evs):
@@ -244,6 +251,11 @@ def _returns(evs):
                 k = play_start(evs, i)
                 leave[j].append(e["c"])
                 back[max(j, k - 1)].append(e["c"])
+        if e["t"] == "flush":
+            for c in set(e.get("flushed_c") or []) | set(e.get("retained_c") or []):
+                if c in last and last[c][1] != "hand":
+                    leave[last[c][0]].append(c)
+                    back[max(last[c][0], i - 1)].append(c)
         if e["t"] not in ("draw", "play", "discard", "exhaust", "flush", "shuffle", "generate", "transform"):
             continue
         for c in _names(e) - {None}:
@@ -659,7 +671,7 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
     for k, i in enumerate(human):
         nxt = human[k + 1] if k + 1 < len(human) else len(evs)
         picks[i] = [e for e in evs[i + 1:nxt] if e["t"] == "pick" and e.get("selector", "human") == "human" and not e.get("decision_type")]
-    starts = {}
+    starts, then = {}, dict(zip(human, human[1:]))
     for i in human:
         starts[play_start(evs, i) if evs[i]["t"] == "play" else i] = i
     turn, last, moves, cascade = 0, "start", [], False
@@ -669,13 +681,19 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
         if keep_ops:
             ops.append(("step", j))
 
-    def resolve(pks):
+    held = []
+
+    def resolve(pks, hold=False):
         """the window's logged picks on the sim's pending selections (each option once), then any selection the log did not show (confirm, else
-        an option not yet taken)"""
-        for pk in pks:
+        an option not yet taken); before an end turn an unasked pick is held for the end turn's selection if that window logs none and it
+        offers the pick's cards (an end-of-turn auto-play picks before the logged end turn: Stampede's Headbutt)"""
+        pks = pks or [pk for pk in held if sim.stage() == "choice" and all(any(t.endswith(f"({c['id']})") for _, t in sim.legal()) for c in pk.get("cards") or [])]
+        held.clear()
+        for n, pk in enumerate(pks):
             if sim.stage() != "choice":
                 row["fields"]["choice.unasked"] += 1
                 row.setdefault("unasked", []).append(last)
+                held.extend(pks[n:] if hold else [])
                 break
             used = set()
             for c in pk.get("cards") or []:
@@ -751,7 +769,7 @@ def replay_fight(sc, start, evs, end, keep_ops=False):
                 ops.append(("apply", a))
             row["actions"] += 1
             last, moves = _label(ae), []
-            resolve(picks.get(starts[i], []))
+            resolve(picks.get(starts[i], []), hold=evs[then.get(starts[i], 0)]["t"] == "end_turn")
         b.apply(e)
     row["end"] = dict(log=(end or {}).get("result"), sim={1: "victory", -1: "loss"}.get(sim.outcome(), "ongoing"))
     if not row["failed"]:
