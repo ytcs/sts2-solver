@@ -127,7 +127,7 @@ def net_values(net, sims, max_hp):
     for i, s in enumerate(sims):
         s.observe(o[i], m)
     with torch.no_grad():
-        p = torch.softmax(net.heads_out(torch.from_numpy(o)).float(), 1).numpy()
+        p = torch.softmax(net.heads_out(torch.from_numpy(o).to(next(net.parameters()).device)).float(), 1).cpu().numpy()
     u = heads.utility(torch.tensor(max_hp)).numpy()
     return p[:, 1:].sum(1), (p * u).sum(1)
 
