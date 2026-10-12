@@ -340,6 +340,9 @@
      "effects": [
       {
        "card_add": "BYRDONIS_EGG"
+      },
+      {
+       "unmodelled": "Byrdonis Egg: a Hatch rest-site option gives the Byrdpip pet relic and removes the egg (Cards/ByrdonisEgg.cs, HatchRestSiteOption.cs:25-29)"
       }
      ]
     }
@@ -656,7 +659,7 @@
        "card_add": "DEBT"
       },
       {
-       "unmodelled": "Crystal Sphere minigame with 6 tools"
+       "unmodelled": "Crystal Sphere minigame with 6 tools; Debt loses min(10, gold) each turn it ends in hand (Cards/Debt.cs; the sim tracks no gold)"
       }
      ]
     }
@@ -731,10 +734,22 @@
      "label": "Pick at Random",
      "effects": [
       {
-       "relic_one_of": [
-        "DAUGHTER_OF_THE_WIND",
-        "MR_STRUGGLES",
-        "BING_BONG"
+       "chance": 0.3333333333333333,
+       "then": [
+        {
+         "relic": "BING_BONG"
+        },
+        {
+         "unmodelled": "Bing Bong: every card added to the deck later is cloned (BingBong.cs AfterCardChangedPiles)"
+        }
+       ],
+       "else": [
+        {
+         "relic_one_of": [
+          "DAUGHTER_OF_THE_WIND",
+          "MR_STRUGGLES"
+         ]
+        }
        ]
       }
      ]
@@ -772,6 +787,9 @@
          "effects": [
           {
            "relic": "BING_BONG"
+          },
+          {
+           "unmodelled": "Bing Bong: every card added to the deck later is cloned (BingBong.cs AfterCardChangedPiles)"
           }
          ]
         }
@@ -813,6 +831,9 @@
          "effects": [
           {
            "relic": "BING_BONG"
+          },
+          {
+           "unmodelled": "Bing Bong: every card added to the deck later is cloned (BingBong.cs AfterCardChangedPiles)"
           }
          ]
         }
@@ -888,6 +909,9 @@
       },
       {
        "relic": "FRESNEL_LENS"
+      },
+      {
+       "unmodelled": "Fresnel Lens: later card rewards, shop cards and cards added to the deck get Nimble 2 when they can take it (FresnelLens.cs)"
       }
      ]
     }
@@ -2064,7 +2088,7 @@
    },
    "condition_src": "SlipperyBridge.cs:82-89: if (runState.TotalFloor > 6) return runState.Players.All((Player p) => p.Deck.Cards.Any((CardModel c) => c.IsRemovable)); return false;",
    "src": "decomp/MegaCrit.Sts2.Core.Models.Events/SlipperyBridge.cs:19-162",
-   "note": "the first card offered is a random removable non-basic card; each hold-on rerolls it to a card of another type",
+   "note": "the first card offered is a random removable non-basic card; each hold-on rerolls it to a random removable card of another id (basics included), skipped cards excluded",
    "options": [
     {
      "key": "OVERCOME",
@@ -2280,6 +2304,9 @@
      "effects": [
       {
        "relic": "SWORD_OF_STONE"
+      },
+      {
+       "unmodelled": "Sword of Stone becomes Sword of Jade after 5 elite wins (SwordOfStone.cs)"
       }
      ]
     },
@@ -2698,6 +2725,9 @@
        "extra": [
         {
          "card_add": "LANTERN_KEY"
+        },
+        {
+         "unmodelled": "Lantern Key: in act index 2 every ? room is an Event and the next event is War Historian Repy (Cards/LanternKey.cs:11-26)"
         }
        ]
       }
@@ -2729,6 +2759,9 @@
      "effects": [
       {
        "card_add": "SPOILS_MAP"
+      },
+      {
+       "unmodelled": "Spoils Map: the act-2 map becomes SpoilsActMap (every path through one treasure) paying +600 gold, then the card leaves the deck (Cards/SpoilsMap.cs:49-124)"
       }
      ]
     },
@@ -2849,6 +2882,9 @@
         "MAW_BANK",
         "THE_BOOT"
        ]
+      },
+      {
+       "unmodelled": "Darkstone Periapt (+6 max HP per later curse), Dream Catcher (card reward on rest), Maw Bank (+12 gold per room until a purchase): ongoing effects not modelled"
       }
      ]
     },
@@ -3380,6 +3416,9 @@
       },
       {
        "relic": "WONGOS_MYSTERY_TICKET"
+      },
+      {
+       "unmodelled": "Wongo's Mystery Ticket: 3 relic rewards after the 5th combat (WongosMysteryTicket.cs:50-81)"
       }
      ]
     },
@@ -3433,6 +3472,9 @@
       },
       {
        "card_add": "GUILTY"
+      },
+      {
+       "unmodelled": "Guilty removes itself from the deck after 5 combats (Cards/Guilty.cs:28-39)"
       }
      ]
     }
