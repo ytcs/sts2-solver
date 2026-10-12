@@ -7,7 +7,7 @@ description: Use on every card reward, rewards, shop, rest / smith, upgrade, rem
 Numbers are one input; the plan (`sts2-plan`) and these rules weigh what they cannot see.
 
 ## Protocol (every deck screen)
-1. `brief`: buckets, gaps, bottleneck line (cards left at end of turn: no energy -> energy / cost cuts; with energy -> removal or a combo piece). Name the weakest upcoming binding fight and the final pair's ask.
+1. `brief`: buckets, gaps, the open answers from the plan (`sts2-plan` Answers: which gimmick of which fight ahead the deck cannot answer yet), bottleneck line (cards left at end of turn: no energy -> energy / cost cuts; with energy -> removal or a combo piece). Name the weakest upcoming binding fight and the final pair's ask.
 2. Numbers: `price` on card rewards / shops / events; `eval --boss --v ...` for the act boss; the final pair (or the act-3 boss pool) for act-2/3 picks (P2).
 3. `a ~Card -- rules: D1,P2 ; numbers: <best, chosen margin> ; judgment: <plan fit>` (guards refuse a pick without these fields).
 

@@ -1,5 +1,5 @@
 # Boss and elite gimmicks (questions, not answers)
-What makes each fight hard. The answer (cards, order, potions) is the operator's to reason out and measure (`eval --enc ID --v`, `eval --pool <Act>:boss|elite`).
+What makes each fight hard. The operator reasons out whether the deck answers each gimmick and what is missing (`sts2-plan` Answers), then measures (`eval --enc ID --v`, `eval --pool <Act>:boss|elite`).
 
 ## Bosses
 - Vantom (183 HP) `[code]`: Slippery 9 (each unblocked hit deals 1 and removes a stack); Ink Blot 8 -> Inky Lance 7x2 -> Dismember 30 + 3 Wounds -> +2 Str, repeating.

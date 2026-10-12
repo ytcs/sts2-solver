@@ -7,6 +7,7 @@ description: Core run planning for the operator, loaded every session: the win c
 
 ## The plan (write it with `note` and the deck with `target` at each act start and after each boss)
 - Win condition: the known final pair (A10: two act-3 bosses, shown on the act-3 map; before that the act-3 boss pool). Target deck: the engine and payoffs that beat both, reasoned from each boss's gimmicks (`sts2-acts/encounters.md` lists questions, not answers) and measured with `eval`; `target` records it as adds / removes / upgrades vs the current deck.
+- Answers [expert: user]: for each fight ahead (act boss, elites left, the pair or the act-3 pool) take its gimmicks from `sts2-acts/encounters.md` and say, per gimmick, whether the deck has an answer (which cards / relics / potions) or none; the missing answers are the gaps. Qualitative, beside the numbers: a gap the numbers miss (floored wins, noisy prices) still steers picks, shops and routes; a disagreement between the two is checked with `eval --enc ID --v`.
 - Gaps: what the deck still lacks against the act boss now and the final pair; the numbers: `eval --boss` (this act, current deck) and `eval --pool Glory:boss --hp full --target` (the pair pool, or the pair once known, on the target deck); an option's effect on the run = its variant on the target deck.
 - Budgets: HP into the next binding fight (elite / boss), potions for the pair, gold for relics / removals, elites left worth taking.
 - Phase: build (the win condition is not in the deck) or complete (it is: skip by default, remove, upgrade the engine).
