@@ -68,7 +68,7 @@ def review(run_id=None):
         if pw is not None and abs(pw - (0 if lost else 1)) >= 0.6:
             surprises.append(dict(kind="surprise", run=os.path.basename(run_dir), fight=fid_, encounter=s["encounter"], predicted_win=pw, won=not lost, hp_lost=round(hp_lost, 3)))
         for k, v in (en.get("replay") or {}).items():
-            if k.startswith(("diff", "residual", "action failed", "intent unmatched", "start unmatched", "missing")):
+            if k.startswith(("diff", "residual", "action failed", "intent unmatched", "start unmatched", "missing", "simulator-only kill")):
                 fid[k] += v
         for a in f["acts"]:
             if a.get("searched") and a.get("options"):

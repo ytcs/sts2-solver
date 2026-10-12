@@ -10,7 +10,7 @@ from agent.fight import Replayer
 
 PRED_ATTEMPTS = 320
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REPLAY_BAD = ("diff", "residual", "action failed", "intent unmatched", "start unmatched", "missing")
+REPLAY_BAD = ("diff", "residual", "action failed", "intent unmatched", "start unmatched", "missing", "simulator-only kill")
 
 
 class Live:
