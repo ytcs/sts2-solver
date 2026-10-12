@@ -182,6 +182,7 @@ public static class Snap
         {
             var o = new JsonObject { ["id"] = p.Id.Entry, ["amount"] = p.Amount };
             if (p.AmountOnTurnStart != p.Amount) o["amount_on_turn_start"] = p.AmountOnTurnStart;
+            if (p.DisplayAmount != p.Amount) o["display"] = p.DisplayAmount;
             a.Add(o);
         }
         return a;

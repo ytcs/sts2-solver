@@ -534,3 +534,43 @@ fn sync_hand_keeps_an_enemy_cost_increase_as_affliction_plus_power() {
         assert_eq!(cx.card_cost(c, false), cx.card_def(c).cost as i32, "the +1 is the power's, not a local modifier");
     }
 }
+
+// run 4 Aeonglass: the simulator's Mayhem auto-played Unrelenting (Free Attack), the game's did not; fixing resolved costs before the powers sync (the old sync_hand-first order) baked the discount in and doubled every attack's cost once the power was dropped
+#[test]
+fn sync_hand_costs_after_the_powers_sync_keep_attack_costs() {
+    let mut cx = combat(15);
+    cx.apply_power(ids::power::FREE_ATTACK_POWER, PLAYER, sts2sim::dec::Dec::int(1), PLAYER, NO);
+    let real: Vec<ObsCard> = cx
+        .player
+        .hand
+        .clone()
+        .iter()
+        .map(|&c| ObsCard { id: cx.cards[c as usize].id, upgrade: 0, cost: Some(cx.card_def(c).cost as i32), cost_mods: obs_mods(&[]), ..Default::default() })
+        .collect();
+    assert!(cx.player.hand.iter().any(|&c| cx.card_def(c).ctype == CardType::Attack && cx.card_cost(c, true) == 0), "Free Attack must discount an attack in hand");
+    cx.sync_hand_cards(&real);
+    cx.sync_powers(PLAYER, &[]);
+    cx.sync_hand_costs(&real);
+    for (&c, o) in cx.player.hand.clone().iter().zip(real.iter()) {
+        assert_eq!(cx.card_cost(c, true), o.cost.unwrap(), "{}", ids::card::NAMES[o.id as usize]);
+    }
+}
+
+// run 4 Skulking Colony: Hardened Shell's damage taken this turn is hidden unless the bridge sends the shown amount; synced from it, a capped enemy takes no more damage
+#[test]
+fn sync_power_display_sets_hardened_shells_damage_taken() {
+    let has_strike = |cx: &Combat| cx.player.hand.iter().any(|&c| cx.cards[c as usize].id == ids::card::STRIKE_IRONCLAD);
+    let mut cx = (16..64).map(combat).find(|cx| has_strike(cx)).expect("a seed with a Strike in the opening hand");
+    let e = cx.enemies[0];
+    cx.apply_power(ids::power::HARDENED_SHELL_POWER, e, sts2sim::dec::Dec::int(20), e, NO);
+    let shown = |cx: &Combat| cx.cr(e).powers.iter().find(|p| p.id == ids::power::HARDENED_SHELL_POWER).map(|p| cx.power_display(p)).unwrap();
+    assert_eq!(shown(&cx), 20);
+    cx.sync_power_display(e, &[(ids::power::HARDENED_SHELL_POWER, 0)]);
+    assert_eq!(shown(&cx), 0);
+    let hp = cx.cr(e).hp;
+    let strike = (0..cx.player.hand.len()).find(|&i| cx.cards[cx.player.hand.as_slice()[i] as usize].id == ids::card::STRIKE_IRONCLAD).expect("a Strike in the opening hand");
+    assert!(cx.step(Action::PlayCard { hand_pos: strike as u8, target: e }));
+    assert_eq!(cx.cr(e).hp, hp, "the shell's cap is spent this turn");
+    cx.sync_power_display(e, &[(ids::power::HARDENED_SHELL_POWER, 12)]);
+    assert_eq!(shown(&cx), 12);
+}

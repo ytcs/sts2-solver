@@ -48,6 +48,10 @@ fn obs_powers_turn_start(v: &Value) -> Option<Vec<(u16, i32)>> {
     Some(a.iter().filter_map(|p| power_ids(p["id"].as_str()?).map(|id| (id, p["amount_on_turn_start"].as_i64().or_else(|| p["amount"].as_i64()).unwrap_or(0) as i32))).collect())
 }
 
+fn obs_powers_display(v: &Value) -> Vec<(u16, i32)> {
+    v["powers"].as_array().map_or(vec![], |a| a.iter().filter_map(|p| Some((power_ids(p["id"].as_str()?)?, p["display"].as_i64()? as i32))).collect())
+}
+
 fn card_ids(name: &str) -> Option<u16> {
     sts2sim::ids::card::NAMES.iter().position(|n| *n == name).map(|i| i as u16)
 }
@@ -172,6 +176,20 @@ impl Sim {
 
     fn determinize(&mut self, seed: u64) -> bool {
         self.cx.determinize(seed)
+    }
+
+    /// Moves draw-pile cards (id, upgrade) to the top in the given order (first = top); returns how many were found.
+    fn stack_draw(&mut self, cards: Vec<(String, u8)>) -> usize {
+        let mut top = 0;
+        for (name, up) in cards {
+            let Some(id) = card_ids(&name) else { continue };
+            let d = self.cx.player.draw.as_mut_slice();
+            if let Some(j) = (top..d.len()).find(|&j| self.cx.cards[d[j] as usize].id == id && self.cx.cards[d[j] as usize].upgrade == up) {
+                d[top..=j].rotate_right(1);
+                top += 1;
+            }
+        }
+        top
     }
 
     fn stage(&self) -> &'static str {
@@ -548,7 +566,7 @@ fn sync_state(cx: &mut Combat, real: &Value) -> Value {
             }
         }
     }
-    let rep = cx.sync_hand(&obs);
+    let mut rep = cx.sync_hand_cards(&obs);
     for (key, pile) in [("exhaust", PileType::Exhaust), ("discard", PileType::Discard)] {
         let cards: Vec<ObsCard> = real[key].as_array().map_or(vec![], |a| a.iter().filter_map(|c| obs_card(c, false, known)).collect());
         let r = cx.sync_pile(pile, &cards);
@@ -573,6 +591,7 @@ fn sync_state(cx: &mut Combat, real: &Value) -> Value {
         if let Some(ts) = obs_powers_turn_start(p) {
             cx.sync_turn_start(PLAYER, &ts);
         }
+        cx.sync_power_display(PLAYER, &obs_powers_display(p));
     }
     if let Some(es) = real["enemies"].as_array() {
         let monster = |name: &str| sts2sim::ids::monster::NAMES.iter().position(|n| *n == name).map_or(u16::MAX, |i| i as u16);
@@ -600,6 +619,7 @@ fn sync_state(cx: &mut Combat, real: &Value) -> Value {
                 if let Some(ts) = obs_powers_turn_start(e) {
                     cx.sync_turn_start(cid, &ts);
                 }
+                cx.sync_power_display(cid, &obs_powers_display(e));
             }
         }
     }
@@ -622,6 +642,7 @@ fn sync_state(cx: &mut Combat, real: &Value) -> Value {
         let slots = real["potion_slots"].as_u64().map_or(cx.player.potion_slots, |n| n as u8);
         potions_changed = cx.sync_potions(slots, &belt) as u32;
     }
+    rep.cost_fixes += cx.sync_hand_costs(&obs);
     json!({
         "from_draw": rep.from_draw, "from_discard": rep.from_discard, "from_exhaust": rep.from_exhaust,
         "created": rep.created, "returned": rep.returned, "cost_fixes": rep.cost_fixes, "powers": powers_changed, "relics": relics_changed,

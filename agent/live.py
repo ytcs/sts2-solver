@@ -10,7 +10,7 @@ from agent.fight import Replayer
 
 PRED_ATTEMPTS = 320
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REPLAY_BAD = ("diff", "residual", "action failed", "intent unmatched", "start unmatched", "missing")
+REPLAY_BAD = ("diff", "residual", "action failed", "intent unmatched", "start unmatched", "missing", "simulator-only kill")
 
 
 class Live:
@@ -389,7 +389,7 @@ class Live:
 
     @staticmethod
     def _base(name):
-        cid = re.sub(r"[^A-Z0-9]+", "_", name.strip().rstrip("+").upper().replace("'", "")).strip("_")
+        cid = re.sub(r"[^A-Z0-9]+", "_", re.sub(r"\+\d*$", "", name.strip()).upper().replace("'", "")).strip("_")
         return re.sub(r"_(IRONCLAD|SILENT|DEFECT|REGENT|NECROBINDER)$", "", cid)
 
     def _choice_mismatch(self, screen):
@@ -430,7 +430,7 @@ class Live:
             return "ERR " + bad
         m = re.match(r"SELECT (\d+)(?:-(\d+))?", screen)
         hi = int(m.group(2) or m.group(1)) if m else 99
-        s2, picks = sim.copy(), []
+        s2, picks, names = sim.copy(), [], []
         cands = lambda: [t for _, t in s2.legal() if t.startswith("pick")]  # noqa: E731
         prompt = cands()
         def gi(a):
@@ -443,11 +443,22 @@ class Live:
             if a is None or gi(a) is None:
                 break
             picks.append(gi(a))
+            names.append(next((m.group(1) for i, t in s2.legal() if i == a for m in [re.match(r"pick \d+ \((\w+)\)", t)] if m), None))
             s2.step(a)
             if s2.stage() != "choice" or len(picks) >= hi or cands() != prompt:
                 break
+        picks = self._game_picks(picks, names, screen)
         self.log.event("action", kind_="choose", picks=picks, text=f"choose {picks}")
         return self._send("do " + json.dumps({"choose": picks}))
+
+    def _game_picks(self, picks, names, screen):
+        # the simulator's index is into its own pile order; the game lists discard / exhaust in its pile order and the draw pile sorted: send the game's index of the same card
+        opts = [(int(n), self._base(m.group(1))) for n, label in scr.options(screen) for m in [re.match(r"(.+?)\(", label)] if m]
+        out = []
+        for p, name in zip(picks, names):
+            j = next((n for n, b in opts if name and b == self._base(name) and n not in out), None)
+            out.append(p if j is None else j)
+        return out
 
     def play(self, whole_fight=False, budget=None, max_actions=120):
         budget = self._budget(budget)
