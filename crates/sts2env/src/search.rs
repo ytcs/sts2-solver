@@ -1846,10 +1846,10 @@ pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16
     scen.0.validate()?;
     let mut cx = Combat::try_new_with(&scen.0, &scen.1)?;
     cx.reset_validated(&scen.0, &scen.1, seed, RngSet::from_run_seed_fast(seed)).map_err(EnvError::Scenario)?;
-    replay_steps_from(cx, actions, steps, obs, mask)
+    replay_steps_from(&mut cx, actions, steps, obs, mask)
 }
 
-pub fn replay_steps_from(mut cx: Combat, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
+pub fn replay_steps_from(cx: &mut Combat, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
     let osz = OBS_SIZE;
     if obs.len() < steps.len() * osz || mask.len() < steps.len() * ACTION_SPACE {
         return Err(EnvError::Buffer("replay buffers too small"));
@@ -1863,7 +1863,7 @@ pub fn replay_steps_from(mut cx: Combat, actions: &[u16], steps: &[u32], obs: &m
     for i in 0..=actions.len() {
         while next < order.len() && steps[order[next]] as usize == i {
             let k = order[next];
-            crate::write_obs_mask(&mut cx, &mut obs[k * osz..(k + 1) * osz], &mut mask[k * ACTION_SPACE..(k + 1) * ACTION_SPACE]);
+            crate::write_obs_mask(cx, &mut obs[k * osz..(k + 1) * osz], &mut mask[k * ACTION_SPACE..(k + 1) * ACTION_SPACE]);
             next += 1;
         }
         if i < actions.len() {

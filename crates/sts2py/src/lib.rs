@@ -377,7 +377,7 @@ fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, see
                 let fa = acts.get(off[i]..off[i + 1]).ok_or_else(|| format!("fight {i}: bad action offsets"))?;
                 let (sc, st) = (&parsed[scen[i] as usize], &starts[scen[i] as usize]);
                 let r = match st {
-                    Some(state) => sts2env::search::replay_steps_from(sim::start_combat(&sc.0, &sc.1, seeds[i], state).map_err(|e| format!("fight {i}: {e}"))?, fa,
+                    Some(state) => sts2env::search::replay_steps_from(&mut *sim::start_combat(&sc.0, &sc.1, seeds[i], state).map_err(|e| format!("fight {i}: {e}"))?, fa,
                                                                       &steps[soff[i]..soff[i + 1]], ho, hm),
                     None => sts2env::search::replay_steps(sc, seeds[i], fa, &steps[soff[i]..soff[i + 1]], ho, hm),
                 };

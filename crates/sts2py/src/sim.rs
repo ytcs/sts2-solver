@@ -487,13 +487,13 @@ impl Sim {
         let v: Value = serde_json::from_str(scenario_json).map_err(err)?;
         let (sc, ex) = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
         let state: Value = serde_json::from_str(state_json).map_err(err)?;
-        Ok(Sim { cx: start_combat(&sc, &ex, seed, &state).map_err(PyValueError::new_err)? })
+        Ok(Sim { cx: *start_combat(&sc, &ex, seed, &state).map_err(PyValueError::new_err)? })
     }
 }
 
-pub(crate) fn start_combat(sc: &sts2sim::Scenario, ex: &sts2sim::ScenarioExtras, seed: u64, state: &Value) -> Result<Combat, String> {
+pub(crate) fn start_combat(sc: &sts2sim::Scenario, ex: &sts2sim::ScenarioExtras, seed: u64, state: &Value) -> Result<Box<Combat>, String> {
     sc.validate().map_err(|e| format!("scenario uses unported content: {e:?}"))?;
-    let mut cx = Combat::try_new_with(sc, ex).map_err(|e| format!("{e:?}"))?;
+    let mut cx = Box::new(Combat::try_new_with(sc, ex).map_err(|e| format!("{e:?}"))?);
     cx.reset_validated(sc, ex, seed, sts2sim::state::RngSet::from_run_seed_fast(seed)).map_err(|e| format!("{e:?}"))?;
     sync_state(&mut cx, state);
     cx.determinize(seed);
