@@ -8,7 +8,7 @@ pub const MAX_CREATURES: usize = 12;
 pub const MAX_POWERS: usize = 16;
 pub const MAX_RELICS: usize = 40;
 pub const OBS_RELICS: usize = 24;
-pub const MAX_POTIONS: usize = 8;
+pub const MAX_POTIONS: usize = if cfg!(feature = "obs_v4") { 9 } else { 8 };
 pub const MAX_HAND: usize = 10;
 pub const MAX_ORBS: usize = 10;
 pub const MAX_DECK: usize = 80;

@@ -14,6 +14,10 @@ check "env" "$(cargo run --release -q -p sts2env --example envprof -- data/train
 check "search v3" "$(cargo run --release -q -p sts2env --features obs_v3 --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" 098a65da24ad9b75
 check "env v3" "$(cargo run --release -q -p sts2env --features obs_v3 --example envprof -- data/train/eval.json 256 100 600 2>/dev/null | sum)" ffd0893c5b1f3774
 if cargo test --release -q -p sts2sim --features obs_v3 --test observe >/dev/null 2>&1; then echo "ok   cargo sts2sim/observe v3"; else echo "FAIL cargo sts2sim/observe v3"; fail=1; fi
+# observation v4 (feature obs_v4: the v3 row + the enemy death block; MAX_POTIONS 9, action space 322)
+check "search v4" "$(cargo run --release -q -p sts2env --features obs_v4 --example searchprof -- data/bench/mix.json 128 8 64 5 32 2>/dev/null | sum)" a40879d0e51b34d1
+check "env v4" "$(cargo run --release -q -p sts2env --features obs_v4 --example envprof -- data/train/eval.json 256 100 600 2>/dev/null | sum)" dd6a1544e8891138
+if cargo test --release -q -p sts2sim --features obs_v4 --test observe >/dev/null 2>&1; then echo "ok   cargo sts2sim/observe v4"; else echo "FAIL cargo sts2sim/observe v4"; fail=1; fi
 
 for t in "sts2diff regression" "sts2sim observe" "sts2sim rng_golden" "sts2sim sync" "sts2env lookahead_cache"; do
   set -- $t

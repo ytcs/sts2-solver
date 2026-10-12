@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""One combat-loop round's fight list: a signal pool, plan-shaped decks, enabler pairs, big late-act decks at bosses, and forced-source slices
-(player Intangible sources, expert/plan core cards, long Silent poison fights)."""
+"""One combat-loop round's fight list: a signal pool, plan-shaped decks, enabler pairs, big late-act decks at bosses, forced-source slices
+(player Intangible sources, expert/plan core cards, long Silent poison fights), and death-effect encounters (`DEATH_MIX`)."""
 import argparse, json, os, random, sys, time
 from collections import Counter
 
@@ -18,6 +18,8 @@ OFFERED = ("Common", "Uncommon", "Rare")
 SHAPED_HP = (0.45, 1.0)
 CORE = {"NOXIOUS_FUMES": "SILENT", "PYRE": "IRONCLAD", "CRUELTY": "IRONCLAD", "SERPENT_FORM": "SILENT", "BURST": "SILENT", "BULLET_TIME": "SILENT",
         "CALCIFY": "NECROBINDER", "FURNACE": "REGENT", "DEFRAGMENT": "DEFECT"}
+DEATH_MIX = {"TEST_SUBJECT_BOSS": 9, "WATERFALL_GIANT_BOSS": 6, "AXEBOTS_NORMAL": 4, "PHROG_PARASITE_ELITE": 3, "GREMLIN_MERC_NORMAL": 3,
+             "DECIMILLIPEDE_ELITE": 3, "KAISER_CRAB_BOSS": 2}
 POISON = ["DEADLY_POISON", "POISONED_STAB", "BOUNCING_FLASK", "SNAKEBITE", "HAZE", "OUTBREAK", "BUBBLE_BUBBLE", "MIRAGE", "ACCELERANT"]
 
 
@@ -31,6 +33,7 @@ class Builder:
         self.offered = {ch: [c for c in self.C.g.cards[ch] if c["rarity"] in OFFERED] for ch in gc.CHAR_W}
         self.plans = [p for p in plans.load() if sp.multiplayer_free([{"deck": p["core"] + p.get("support", [])}])]
         self.targets = {p["id"]: list(bench.plan_targets(p).items()) for p in self.plans}
+        self.enc_act = {e["id"]: act for act, es in self.C.encs.items() for e in es}
 
     def generated(self, **kw):
         self.n += 1
@@ -103,6 +106,19 @@ class Builder:
         deck = self.fill(deck, ch, size - len(deck))
         return [dict(sc, name=f"round{self.seed}:late:{i}", deck=deck, meta=dict(source="late", size=size, focus=sc["meta"]["focus"]))]
 
+    def death(self, i, decks, logged_share):
+        """a death-effect encounter (DEATH_MIX weights), its act's deck: a logged one (`decks` by act, encounter swapped) or a generated one, shaped HP"""
+        r = self.r
+        enc = r.choices(list(DEATH_MIX), list(DEATH_MIX.values()))[0]
+        act = self.enc_act[enc]
+        name = f"round{self.seed}:death:{i}"
+        if decks.get(act) and r.random() < logged_share:
+            d = r.choice(decks[act])
+            meta = dict(source="death", deck=d.get("meta", {}).get("source", "logged"))
+            return [dict(d, name=name, encounter=enc, hp=max(1, round(d["max_hp"] * r.uniform(*SHAPED_HP))), meta=meta)]
+        sc = self.loadout(encounters={enc})
+        return [dict(sc, name=name, meta=dict(source="death", deck="generated", focus=sc["meta"]["focus"]))]
+
     def forced(self, kind, i):
         r = self.r
         if kind == "intangible":
@@ -155,6 +171,10 @@ def main():
     ap.add_argument("--intangible", type=int, default=9000, help="decks carrying a player Intangible source (Wraith Form, Apparition, Ghost in a Jar)")
     ap.add_argument("--core", type=int, default=18000, help="normal decks of the card's character plus 1-2 copies of an expert/plan core card (CORE)")
     ap.add_argument("--poison", type=int, default=8000, help="Silent decks with 3-7 poison cards at act 2-3 elites and bosses, shaped HP")
+    ap.add_argument("--death", type=int, default=0, help="death-effect encounters (DEATH_MIX), shaped HP; use --potions-max 9 on a v4 build")
+    ap.add_argument("--death-decks", nargs="*", default=[], help="logged decks for the death slice (tools/round_decks.py arms / codex): same act, encounter swapped")
+    ap.add_argument("--death-logged", type=float, default=0.5, help="share of the death slice on --death-decks decks")
+    ap.add_argument("--fixed", nargs="*", default=[], help="fight files taken whole (e.g. tools/round_decks.py strong)")
     ap.add_argument("--anchor", type=float, default=0.15)
     ap.add_argument("--shuffles", type=int, default=4)
     ap.add_argument("--potions-max", type=int, default=8)
@@ -166,17 +186,23 @@ def main():
     why = Counter()
     n_cand = int(a.signal * a.cand_mult)
     cands = build(lambda i: [dict(B.generated(), name=f"round{a.seed}:cand:{i}")], n_cand, why)
-    for fn in a.cands:
+    for fn in a.cands if a.signal else []:
         cands += [sc for sc in sp.multiplayer_free(json.load(open(fn))) if constructs(sc, why)]
+    decks = {}
+    for fn in a.death_decks:
+        for sc in sp.multiplayer_free(json.load(open(fn))):
+            decks.setdefault(sc["act"], []).append(sc)
     slices = dict(plans=build(B.plan_variant, a.plans, why), pairs=build(B.pair, 2 * a.pairs, why),
                   late=build(lambda i: B.late(i, *a.late_size), a.late, why),
-                  **{k: build(lambda i, k=k: B.forced(k, i), getattr(a, k), why) for k in ("intangible", "core", "poison")})
+                  **{k: build(lambda i, k=k: B.forced(k, i), getattr(a, k), why) for k in ("intangible", "core", "poison")},
+                  death=build(lambda i: B.death(i, decks, a.death_logged), a.death, why),
+                  fixed=[sc for fn in a.fixed for sc in sp.multiplayer_free(json.load(open(fn))) if constructs(sc, why)])
     print(f"{len(cands)} candidates, {sum(map(len, slices.values()))} shaped fights built in {time.time() - t0:.0f}s; scoring with {os.path.basename(a.ckpt)}", flush=True)
     rest = [sc for s in slices.values() for sc in s]
     p = sp.score(a.ckpt, cands + rest, a.shuffles)
     pc, pr = p[:len(cands)], p[len(cands):]
     rng = np.random.default_rng(a.seed)
-    sel = sp.pick(pc, min(a.signal, len(cands)), a.anchor, rng)
+    sel = sp.pick(pc, min(a.signal, len(cands)), a.anchor, rng) if len(cands) else []
     pool = [dict(cands[i], meta=dict(cands[i].get("meta", {}), source="signal", p0=round(float(pc[i]), 4))) for i in sel]
     pool += [dict(sc, meta=dict(sc["meta"], p0=round(float(x), 4))) for sc, x in zip(rest, pr)]
     rng.shuffle(pool)

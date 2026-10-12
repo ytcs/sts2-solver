@@ -506,7 +506,7 @@ pub static FAT_GREMLIN_DEF: MonsterDef = MonsterDef {
     nodes: &[mv!("SPAWNED_MOVE", |_, _| {}, [Intent::Stun], 1), mv!("FLEE_MOVE", |cx, me| cx.escape(me), [Intent::Escape], 1)],
 };
 
-mod sneaky_gremlin {
+pub mod sneaky_gremlin {
     use super::*;
     pub fn tackle(cx: &Combat) -> i32 {
         deadly(cx, 10, 9)

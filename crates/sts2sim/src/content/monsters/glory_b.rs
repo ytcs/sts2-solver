@@ -319,6 +319,14 @@ crate::listener!(Queen {
     }
 });
 
+pub fn ts_revive_hp(cx: &Combat, respawn: i32) -> i32 {
+    match respawn {
+        1 => a8(cx, 212, 200),
+        2 => a8(cx, 313, 300),
+        _ => 0,
+    }
+}
+
 fn ts_respawn(cx: &mut Combat, me: Cid) {
     cx.creatures[me as usize].monster.vars[0] += 1;
     let respawns = cx.cr(me).monster.vars[0];
@@ -334,12 +342,12 @@ fn ts_respawn(cx: &mut Combat, me: Cid) {
     };
     match respawns {
         1 => {
-            let h = a8(cx, 212, 200);
+            let h = ts_revive_hp(cx, 1);
             revive(cx, h);
             power_self(cx, me, ids::power::PAINFUL_STABS_POWER, 1);
         }
         2 => {
-            let h = a8(cx, 313, 300);
+            let h = ts_revive_hp(cx, 2);
             revive(cx, h);
             power_self(cx, me, ids::power::NEMESIS_POWER, 1);
             for pid in [ids::power::ADAPTABLE_POWER, ids::power::PAINFUL_STABS_POWER] {

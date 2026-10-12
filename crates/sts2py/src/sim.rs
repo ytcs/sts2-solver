@@ -368,6 +368,21 @@ impl Sim {
         Ok(self.cx.cr(cid).power_amount(id) == amount)
     }
 
+    /// Probe edit (sign gate): enemy `index`'s monster var `k` (Test Subject revives done, Waterfall Giant stored blast, Axebot stock + 1).
+    fn set_var(&mut self, index: usize, k: usize, value: i32) -> PyResult<()> {
+        let cid = self.enemy_cid(index)?;
+        let v = self.cx.creatures[cid as usize].monster.vars.get_mut(k).ok_or_else(|| PyValueError::new_err(format!("no monster var {k}")))?;
+        *v = value;
+        Ok(())
+    }
+
+    /// Probe edit (sign gate): enemy `index` dies now (its death hooks run: revive, blast, spawns).
+    fn kill(&mut self, index: usize) -> PyResult<()> {
+        let cid = self.enemy_cid(index)?;
+        self.cx.kill(&[cid]);
+        Ok(())
+    }
+
     /// Diagnostics (observation audits): pile cards with their counters / enchant / affliction, power counts, decision source, relic display.
     fn diag(&self) -> String {
         let cx = &self.cx;
@@ -462,96 +477,118 @@ impl Sim {
 
     fn sync(&mut self, real_json: &str) -> PyResult<String> {
         let real: Value = serde_json::from_str(real_json).map_err(err)?;
-        let mut notes: Vec<String> = vec![];
-        let known = real["cost_mods"].is_number();
-        let mut obs: Vec<ObsCard> = vec![];
-        if let Some(h) = real["hand"].as_array() {
-            for c in h {
-                match obs_card(c, true, known) {
-                    Some(o) => obs.push(o),
-                    None => notes.push(format!("unknown card {}", c["id"].as_str().unwrap_or(""))),
-                }
-            }
-        }
-        let rep = self.cx.sync_hand(&obs);
-        for (key, pile) in [("exhaust", PileType::Exhaust), ("discard", PileType::Discard)] {
-            let cards: Vec<ObsCard> = real[key].as_array().map_or(vec![], |a| a.iter().filter_map(|c| obs_card(c, false, known)).collect());
-            let r = self.cx.sync_pile(pile, &cards);
-            if r.created > 0 {
-                notes.push(format!("{key}: {} cards created", r.created));
-            }
-        }
-        let playing = real["play_pile"].as_array().map_or(false, |a| !a.is_empty());
-        if let (Some(a), false) = (real["draw"].as_array(), playing) {
-            let cards: Vec<ObsCard> = a.iter().filter_map(|c| obs_card(c, false, known)).collect();
-            let r = self.cx.sync_draw(&cards);
-            if r.created > 0 {
-                notes.push(format!("draw: {} cards created", r.created));
-            }
-        }
-        self.cx.sync_energy(real["energy"].as_i64().unwrap_or(0) as i32, real["stars"].as_i64().unwrap_or(0) as i32);
-        let p = &real["player"];
-        self.cx.sync_creature(PLAYER, p["hp"].as_i64().unwrap_or(1) as i32, p["max_hp"].as_i64().unwrap_or(1) as i32, p["block"].as_i64().unwrap_or(0) as i32);
-        let mut powers_changed = 0u32;
-        if let Some(ob) = obs_powers(p) {
-            powers_changed += self.cx.sync_powers(PLAYER, &ob) as u32;
-            if let Some(ts) = obs_powers_turn_start(p) {
-                self.cx.sync_turn_start(PLAYER, &ts);
-            }
-        }
-        if let Some(es) = real["enemies"].as_array() {
-            let monster = |name: &str| sts2sim::ids::monster::NAMES.iter().position(|n| *n == name).map_or(u16::MAX, |i| i as u16);
-            let obs: Vec<ObsEnemy> = es
-                .iter()
-                .map(|e| ObsEnemy {
-                    monster: monster(e["id"].as_str().unwrap_or("")),
-                    hp: e["hp"].as_i64().unwrap_or(0) as i32,
-                    max_hp: e["max_hp"].as_i64().unwrap_or(1) as i32,
-                    block: e["block"].as_i64().unwrap_or(0) as i32,
-                    alive: e["alive"].as_bool().unwrap_or(true),
-                })
-                .collect();
-            let n_sim = self.cx.enemies.len();
-            let er = self.cx.sync_enemies(&obs);
-            if es.len() != n_sim {
-                notes.push(format!("enemy count: simulator {} vs real {}", n_sim, es.len()));
-            }
-            if er.revived + er.removed + er.missing > 0 {
-                notes.push(format!("enemies: {} re-attached, {} detached, {} with no simulated monster of that id", er.revived, er.removed, er.missing));
-            }
-            for (e, cid) in es.iter().zip(er.pairs.iter()).filter_map(|(e, c)| c.map(|c| (e, c))) {
-                if let Some(ob) = obs_powers(e) {
-                    powers_changed += self.cx.sync_powers(cid, &ob) as u32;
-                    if let Some(ts) = obs_powers_turn_start(e) {
-                        self.cx.sync_turn_start(cid, &ts);
-                    }
-                }
-            }
-        }
-        let mut relics_changed = 0u32;
-        if real.get("relics").is_some() {
-            let rr = self.cx.sync_relics(&sts2diff::convert::obs_relics(&real["relics"]));
-            relics_changed = rr.changed as u32;
-            if rr.unpaired > 0 {
-                notes.push(format!("relics: {} with no simulated relic of that id", rr.unpaired));
-            }
-            if !rr.unknown_props.is_empty() {
-                notes.push(format!("relic props not modelled: {}", rr.unknown_props.join(", ")));
-            }
-            for id in rr.counter_mismatch {
-                notes.push(format!("relic {}: shown counter not reproducible", sts2sim::ids::relic::NAMES[id as usize]));
-            }
-        }
-        let mut potions_changed = 0u32;
-        if let Some(belt) = obs_belt(&real["potions"], &mut notes) {
-            let slots = real["potion_slots"].as_u64().map_or(self.cx.player.potion_slots, |n| n as u8);
-            potions_changed = self.cx.sync_potions(slots, &belt) as u32;
-        }
-        Ok(json!({
-            "from_draw": rep.from_draw, "from_discard": rep.from_discard, "from_exhaust": rep.from_exhaust,
-            "created": rep.created, "returned": rep.returned, "cost_fixes": rep.cost_fixes, "powers": powers_changed, "relics": relics_changed,
-            "potions": potions_changed, "notes": notes,
-        })
-        .to_string())
+        Ok(sync_state(&mut self.cx, &real).to_string())
     }
+
+    /// A fight root at a recorded state: `Sim(scenario, seed)`, synced to `state`, hidden piles and RNG resampled from `seed`
+    /// (`start_combat`, the same path `replay_rows` rebuilds the root on).
+    #[staticmethod]
+    fn from_state(scenario_json: &str, seed: u64, state_json: &str) -> PyResult<Sim> {
+        let v: Value = serde_json::from_str(scenario_json).map_err(err)?;
+        let (sc, ex) = sts2diff::convert::scenario_ex(&v).map_err(PyValueError::new_err)?;
+        let state: Value = serde_json::from_str(state_json).map_err(err)?;
+        Ok(Sim { cx: start_combat(&sc, &ex, seed, &state).map_err(PyValueError::new_err)? })
+    }
+}
+
+pub(crate) fn start_combat(sc: &sts2sim::Scenario, ex: &sts2sim::ScenarioExtras, seed: u64, state: &Value) -> Result<Combat, String> {
+    sc.validate().map_err(|e| format!("scenario uses unported content: {e:?}"))?;
+    let mut cx = Combat::try_new_with(sc, ex).map_err(|e| format!("{e:?}"))?;
+    cx.reset_validated(sc, ex, seed, sts2sim::state::RngSet::from_run_seed_fast(seed)).map_err(|e| format!("{e:?}"))?;
+    sync_state(&mut cx, state);
+    cx.determinize(seed);
+    Ok(cx)
+}
+
+fn sync_state(cx: &mut Combat, real: &Value) -> Value {
+    let mut notes: Vec<String> = vec![];
+    let known = real["cost_mods"].is_number();
+    let mut obs: Vec<ObsCard> = vec![];
+    if let Some(h) = real["hand"].as_array() {
+        for c in h {
+            match obs_card(c, true, known) {
+                Some(o) => obs.push(o),
+                None => notes.push(format!("unknown card {}", c["id"].as_str().unwrap_or(""))),
+            }
+        }
+    }
+    let rep = cx.sync_hand(&obs);
+    for (key, pile) in [("exhaust", PileType::Exhaust), ("discard", PileType::Discard)] {
+        let cards: Vec<ObsCard> = real[key].as_array().map_or(vec![], |a| a.iter().filter_map(|c| obs_card(c, false, known)).collect());
+        let r = cx.sync_pile(pile, &cards);
+        if r.created > 0 {
+            notes.push(format!("{key}: {} cards created", r.created));
+        }
+    }
+    let playing = real["play_pile"].as_array().map_or(false, |a| !a.is_empty());
+    if let (Some(a), false) = (real["draw"].as_array(), playing) {
+        let cards: Vec<ObsCard> = a.iter().filter_map(|c| obs_card(c, false, known)).collect();
+        let r = cx.sync_draw(&cards);
+        if r.created > 0 {
+            notes.push(format!("draw: {} cards created", r.created));
+        }
+    }
+    cx.sync_energy(real["energy"].as_i64().unwrap_or(0) as i32, real["stars"].as_i64().unwrap_or(0) as i32);
+    let p = &real["player"];
+    cx.sync_creature(PLAYER, p["hp"].as_i64().unwrap_or(1) as i32, p["max_hp"].as_i64().unwrap_or(1) as i32, p["block"].as_i64().unwrap_or(0) as i32);
+    let mut powers_changed = 0u32;
+    if let Some(ob) = obs_powers(p) {
+        powers_changed += cx.sync_powers(PLAYER, &ob) as u32;
+        if let Some(ts) = obs_powers_turn_start(p) {
+            cx.sync_turn_start(PLAYER, &ts);
+        }
+    }
+    if let Some(es) = real["enemies"].as_array() {
+        let monster = |name: &str| sts2sim::ids::monster::NAMES.iter().position(|n| *n == name).map_or(u16::MAX, |i| i as u16);
+        let obs: Vec<ObsEnemy> = es
+            .iter()
+            .map(|e| ObsEnemy {
+                monster: monster(e["id"].as_str().unwrap_or("")),
+                hp: e["hp"].as_i64().unwrap_or(0) as i32,
+                max_hp: e["max_hp"].as_i64().unwrap_or(1) as i32,
+                block: e["block"].as_i64().unwrap_or(0) as i32,
+                alive: e["alive"].as_bool().unwrap_or(true),
+            })
+            .collect();
+        let n_sim = cx.enemies.len();
+        let er = cx.sync_enemies(&obs);
+        if es.len() != n_sim {
+            notes.push(format!("enemy count: simulator {} vs real {}", n_sim, es.len()));
+        }
+        if er.revived + er.removed + er.missing > 0 {
+            notes.push(format!("enemies: {} re-attached, {} detached, {} with no simulated monster of that id", er.revived, er.removed, er.missing));
+        }
+        for (e, cid) in es.iter().zip(er.pairs.iter()).filter_map(|(e, c)| c.map(|c| (e, c))) {
+            if let Some(ob) = obs_powers(e) {
+                powers_changed += cx.sync_powers(cid, &ob) as u32;
+                if let Some(ts) = obs_powers_turn_start(e) {
+                    cx.sync_turn_start(cid, &ts);
+                }
+            }
+        }
+    }
+    let mut relics_changed = 0u32;
+    if real.get("relics").is_some() {
+        let rr = cx.sync_relics(&sts2diff::convert::obs_relics(&real["relics"]));
+        relics_changed = rr.changed as u32;
+        if rr.unpaired > 0 {
+            notes.push(format!("relics: {} with no simulated relic of that id", rr.unpaired));
+        }
+        if !rr.unknown_props.is_empty() {
+            notes.push(format!("relic props not modelled: {}", rr.unknown_props.join(", ")));
+        }
+        for id in rr.counter_mismatch {
+            notes.push(format!("relic {}: shown counter not reproducible", sts2sim::ids::relic::NAMES[id as usize]));
+        }
+    }
+    let mut potions_changed = 0u32;
+    if let Some(belt) = obs_belt(&real["potions"], &mut notes) {
+        let slots = real["potion_slots"].as_u64().map_or(cx.player.potion_slots, |n| n as u8);
+        potions_changed = cx.sync_potions(slots, &belt) as u32;
+    }
+    json!({
+        "from_draw": rep.from_draw, "from_discard": rep.from_discard, "from_exhaust": rep.from_exhaust,
+        "created": rep.created, "returned": rep.returned, "cost_fixes": rep.cost_fixes, "powers": powers_changed, "relics": relics_changed,
+        "potions": potions_changed, "notes": notes,
+    })
 }

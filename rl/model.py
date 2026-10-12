@@ -53,6 +53,8 @@ DERIVED_NUM = [0, 2, 3, 6, 7, 8]
 X_POW, X_PILE = 24, 40  # v3 extra widths of the power bags (24 -> 48) and the pile bag (24 -> 64)
 X_PILEX, X_REL = 32, 16  # pile cards with counters / enchantments / afflictions; relic state
 N_CTYPE, N_RARITY = 7, 11
+DEATH_KINDS = 5
+DEATH_NUM = [1, 2, 4, 7, 8, 9]  # HP back next, HP behind, pending damage, Str, block, gold: log-scaled; lives, turns, dying raw
 
 
 class CtxMLP(nn.Module):
@@ -144,8 +146,8 @@ class Net(nn.Module):
         self.heads = heads
         self.rounds = rounds
         self.obs = obs
-        if obs == 3 and C["OBS_VERSION"] != 3:
-            raise RuntimeError("an observation-v3 network needs the sts2 module built with --features obs_v3")
+        if obs > C["OBS_VERSION"]:
+            raise RuntimeError(f"an observation-v{obs} network needs the sts2 module built with --features obs_v{obs}")
         if obs == 2:
             self.pp = PowerPool(C["N_POWERS"], e)
         else:
@@ -161,6 +163,9 @@ class Net(nn.Module):
             self.pile_x = Bag(C["N_CARDS"], X_PILE, 2)
             self.pilex = nn.Linear(e + 8 + 8 + 6, X_PILEX)
             self.x_pile = nn.ModuleList([zlin(X_PILE + X_PILEX, d) for _ in range(3)])
+        if obs >= 4:
+            self.death_kind = nn.Embedding(DEATH_KINDS, 4)
+            self.x_death = zlin(4 + len(DEATH_NUM) + 3 + 2, d)
         self.card = CardEnc(d, e, nx=0 if obs == 2 else N_CTYPE + N_RARITY + 2 * (e + 3 + 2) + 2)
         self.mon = nn.Embedding(C["N_MONSTERS"] + 1, e, padding_idx=0)
         self.kind = nn.Embedding(16, 8)
@@ -273,12 +278,18 @@ class Net(nn.Module):
         lk = torch.cat([look[..., :-1], slook[..., -1:] / 3.0], -1).flatten(2)
         me = self.node(moves.long().clamp(0, C["LOOK_NODES"] + 7)).flatten(2)
         enemy_in = torch.cat([mon, epow, esc, torch.cat([ie, inum], -1).flatten(2), pe, lk, me], -1)
-        enemy = self.enemy(enemy_in) if self.obs == 2 else mlp_x(self.enemy, enemy_in, self.x_enemy(xs["enemy"]))
+        if self.obs == 2:
+            enemy = self.enemy(enemy_in)
+        else:
+            side = self.x_enemy(xs["enemy"])
+            if self.obs >= 4:
+                side = side + self.x_death(self.v4_death(obs, pl, E))
+            enemy = mlp_x(self.enemy, enemy_in, side)
         cid = enemies[..., 1].long().clamp(0, C["MAX_CREATURES"] - 1)
         hp_ = hand[..., 0] > 0
         sregent = sl(So, "regent")
         tgt = None
-        if self.obs == 3:
+        if self.obs >= 3:
             alive = ep & (enemies[..., 6] > 0.5)
             tgt = sl(obs, "hand_tgt").view(B, H, C["OBS_MAX_ENEMIES"])[..., :E]
             big = torch.where(alive.unsqueeze(1), tgt, torch.full_like(tgt, -1e9)).amax(-1).clamp(min=0)
@@ -347,6 +358,13 @@ class Net(nn.Module):
         cr = self.card.card(cx[..., P].long().clamp(0, self.C["N_CARDS"]))
         per = torch.cat([torch.cat([xp, xe, xo], 1), dv, cr, cx[..., P + 1:P + 2]], -1)
         return dict(player=torch.cat([per[:, 0], per[:, -1]], -1), enemy=per[:, 1:1 + E])
+
+    def v4_death(self, obs, pl, E):
+        """v4 tail per enemy: what its death does (kind, HP that comes back, pending blast, turns), plus the blast against the player's HP + block"""
+        x = sl(obs, "enemy_death_x", self.SEC).view(obs.shape[0], self.C["OBS_MAX_ENEMIES"], self.C["DEATH_F"])[:, :E]
+        margin = (x[..., 4] - (pl[:, 0] + pl[:, 2]).unsqueeze(1)) * (x[..., 4] > 0).to(x.dtype)
+        return torch.cat([self.death_kind(x[..., 0].long().clamp(0, DEATH_KINDS - 1)), S(x[..., DEATH_NUM]) / 3.0, x[..., [3, 5, 6]],
+                          (S(margin) / 3.0).unsqueeze(-1), (margin.clamp(-20, 20) / 20.0).unsqueeze(-1)], -1)
 
     def v3_pile_extras(self, px):
         """pile cards with counters / enchantment / affliction / damage bonus: a summed per-card encoding"""

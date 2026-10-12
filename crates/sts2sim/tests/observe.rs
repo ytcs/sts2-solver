@@ -413,3 +413,103 @@ mod v3 {
         assert!(effs.contains(&(ids::power::INTANGIBLE_POWER as i32 + 1, 2, 1)) && effs.contains(&(ids::power::WRAITH_FORM_POWER as i32 + 1, 1, 1)), "{effs:?}");
     }
 }
+
+#[cfg(feature = "obs_v4")]
+mod v4 {
+    use super::*;
+    use sts2sim::dec::Dec;
+    use sts2sim::observe::{death_kind, DEATH_F, OBS_MAX_ENEMIES};
+
+    const DEATH: [u16; 9] = [
+        ids::encounter::TEST_SUBJECT_BOSS,
+        ids::encounter::WATERFALL_GIANT_BOSS,
+        ids::encounter::AXEBOTS_NORMAL,
+        ids::encounter::PHROG_PARASITE_ELITE,
+        ids::encounter::GREMLIN_MERC_NORMAL,
+        ids::encounter::DECIMILLIPEDE_ELITE,
+        ids::encounter::KAISER_CRAB_BOSS,
+        ids::encounter::FOGMOG_NORMAL,
+        ids::encounter::THE_OBSCURA_NORMAL,
+    ];
+
+    fn fight(enc: u16, seed: u64) -> Combat {
+        let mut sc = scenario(seed);
+        sc.encounter = enc;
+        sc.ascension = 10;
+        Combat::new(&sc)
+    }
+
+    fn block(cx: &Combat) -> Vec<f32> {
+        let o = observe::layout().iter().find(|s| s.0 == "enemy_death_x").unwrap().1;
+        obs(cx)[o..o + OBS_MAX_ENEMIES * DEATH_F].to_vec()
+    }
+
+    fn of(cx: &Combat, monster: u16) -> Cid {
+        cx.enemies.iter().copied().find(|&e| cx.cr(e).monster.id == monster).expect("monster in the fight")
+    }
+
+    /// Information contract: rolled HP (the fight's own enemies, and the spawns rolled at death) never reaches the block.
+    #[test]
+    fn death_block_carries_no_rolled_value() {
+        for enc in DEATH {
+            let base = block(&fight(enc, 0));
+            // the Giant's Steam Eruption and Fogmog / Obscura's illusions arrive after the fight starts
+            let later = [ids::encounter::WATERFALL_GIANT_BOSS, ids::encounter::FOGMOG_NORMAL, ids::encounter::THE_OBSCURA_NORMAL];
+            assert!(base.iter().any(|&v| v != 0.0) || later.contains(&enc), "encounter {enc}: empty block");
+            for seed in 1..24 {
+                let cx = fight(enc, seed);
+                assert!(block(&cx) == base, "encounter {enc}: the block moved with the seed ({seed})");
+                let mut b = cx.clone();
+                b.rng = RngSet::from_run_seed(seed.wrapping_add(991));
+                assert!(block(&b) == base, "encounter {enc}: RNG state leaked ({seed})");
+            }
+        }
+    }
+
+    #[test]
+    fn test_subject_phases() {
+        let mut cx = fight(ids::encounter::TEST_SUBJECT_BOSS, 3);
+        let e = of(&cx, ids::monster::TEST_SUBJECT);
+        let x = cx.death_x(e);
+        assert_eq!(&x[..7], &[death_kind::REVIVE, 212.0, 525.0, 2.0, 0.0, 1.0, 0.0], "{x:?}");
+        cx.kill(&[e]);
+        let x = cx.death_x(e);
+        assert_eq!((x[1], x[6]), (212.0, 1.0), "dying in phase 1: {x:?}");
+        cx.creatures[e as usize].monster.vars[0] = 1;
+        let x = cx.death_x(e);
+        assert_eq!(&x[1..4], &[313.0, 313.0, 1.0], "phase 2: {x:?}");
+    }
+
+    #[test]
+    fn giant_blast_and_dying_flag() {
+        let mut cx = fight(ids::encounter::WATERFALL_GIANT_BOSS, 5);
+        let e = of(&cx, ids::monster::WATERFALL_GIANT);
+        cx.apply_power(ids::power::STEAM_ERUPTION_POWER, e, Dec::int(26), e, NO);
+        assert_eq!(cx.death_x(e)[..7], [death_kind::DEATH_BLOW, 0.0, 0.0, 0.0, 26.0, 2.0, 0.0]);
+        cx.kill(&[e]);
+        assert_eq!(cx.cr(e).hp, 999_999_999, "the game's sentinel stays in the v2 bytes");
+        assert_eq!(cx.death_x(e)[4..7], [26.0, 2.0, 1.0]);
+    }
+
+    #[test]
+    fn spawn_hp_is_the_range_midpoint() {
+        let cx = fight(ids::encounter::AXEBOTS_NORMAL, 1);
+        let x = cx.death_x(cx.enemies[0]);
+        assert_eq!(&x[..4], &[death_kind::SPAWN, 81.0 + 10.0, 81.0 + 10.0 + 81.0 + 20.0, 2.0], "{x:?}");
+        let cx = fight(ids::encounter::PHROG_PARASITE_ELITE, 1);
+        let x = cx.death_x(of(&cx, ids::monster::PHROG_PARASITE));
+        assert_eq!(&x[..5], &[death_kind::SPAWN, 80.0, 80.0, 4.0, 14.0], "{x:?}");
+        let cx = fight(ids::encounter::GREMLIN_MERC_NORMAL, 1);
+        let x = cx.death_x(of(&cx, ids::monster::GREMLIN_MERC));
+        assert_eq!(&x[..4], &[death_kind::SPAWN, 16.0 + 13.0, 16.0 + 13.0, 2.0], "{x:?}");
+    }
+
+    #[test]
+    fn crab_partner_buff() {
+        let cx = fight(ids::encounter::KAISER_CRAB_BOSS, 1);
+        for &e in cx.enemies.iter() {
+            let x = cx.death_x(e);
+            assert_eq!((x[0], x[7], x[8]), (death_kind::PARTNER_BUFF, 6.0, 99.0), "{x:?}");
+        }
+    }
+}

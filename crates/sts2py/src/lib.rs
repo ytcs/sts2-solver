@@ -336,14 +336,21 @@ fn replay<'py>(py: Python<'py>, scenario_json: &str, seed: u64, actions: PyReado
     Ok((PyArray1::from_vec(py, obs).reshape([n, osz])?, PyArray1::from_vec(py, mask).reshape([n, sts2env::ACTIONS])?))
 }
 
+/// `starts[s]`: scenario s's fights begin at a recorded state (`sim::start_combat` from the fight's seed), not at the fight start.
 #[pyfunction]
+#[pyo3(signature = (scenarios, scen, seeds, actions, off, steps, soff, starts=None))]
 #[allow(clippy::too_many_arguments)]
 fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, seeds: Vec<u64>, actions: PyReadonlyArray1<i32>, off: Vec<usize>,
-                    steps: Vec<u32>, soff: Vec<usize>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
+                    steps: Vec<u32>, soff: Vec<usize>, starts: Option<Vec<Option<String>>>) -> PyResult<(Bound<'py, numpy::PyArray2<f32>>, Bound<'py, numpy::PyArray2<u8>>)> {
     use numpy::PyArrayMethods;
     use rayon::prelude::*;
     let o = sts2env::OBS;
     let parsed = parse_scenarios(py, &scenarios, false)?;
+    let starts: Vec<Option<serde_json::Value>> = match starts {
+        Some(v) if v.len() != parsed.len() => return Err(PyValueError::new_err("replay_rows: starts must list one entry per scenario")),
+        Some(v) => v.iter().map(|s| s.as_deref().map(serde_json::from_str).transpose()).collect::<Result<_, _>>().map_err(|e| PyValueError::new_err(e.to_string()))?,
+        None => vec![None; parsed.len()],
+    };
     let acts: Vec<u16> = actions.as_slice().map_err(|e| PyValueError::new_err(e.to_string()))?.iter().map(|&a| a as u16).collect();
     let a = sts2env::ACTIONS;
     let n = seeds.len();
@@ -368,7 +375,13 @@ fn replay_rows<'py>(py: Python<'py>, scenarios: Vec<String>, scen: Vec<u32>, see
         let res: Result<(), String> = py.detach(|| {
             parts.into_par_iter().try_for_each(|(i, ho, hm)| {
                 let fa = acts.get(off[i]..off[i + 1]).ok_or_else(|| format!("fight {i}: bad action offsets"))?;
-                sts2env::search::replay_steps(&parsed[scen[i] as usize], seeds[i], fa, &steps[soff[i]..soff[i + 1]], ho, hm).map_err(|e| format!("fight {i}: {e:?}"))
+                let (sc, st) = (&parsed[scen[i] as usize], &starts[scen[i] as usize]);
+                let r = match st {
+                    Some(state) => sts2env::search::replay_steps_from(sim::start_combat(&sc.0, &sc.1, seeds[i], state).map_err(|e| format!("fight {i}: {e}"))?, fa,
+                                                                      &steps[soff[i]..soff[i + 1]], ho, hm),
+                    None => sts2env::search::replay_steps(sc, seeds[i], fa, &steps[soff[i]..soff[i + 1]], ho, hm),
+                };
+                r.map_err(|e| format!("fight {i}: {e:?}"))
             })
         });
         res.map_err(PyValueError::new_err)?;

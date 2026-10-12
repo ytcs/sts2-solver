@@ -228,7 +228,7 @@ pub struct JobResult {
     pub len: u32,
     pub done: bool,
     pub hp_end_abs: i32,
-    pub pot_kept: u8,
+    pub pot_kept: u16,
     pub dealt: f32,
 }
 
@@ -726,7 +726,7 @@ impl Block {
         let end_frac = if outcome == OUTCOME_WIN { me.hp as f32 / me.max_hp.max(1) as f32 } else { 0.0 };
         let hp_end_abs = if outcome == OUTCOME_WIN { me.hp } else { 0 };
         let now = pot_ids(&self.main);
-        let pot_kept = (0..POT).filter(|&k| self.pot_start[k] != u16::MAX && now[k] == self.pot_start[k]).fold(0u8, |b, k| b | 1 << k);
+        let pot_kept = (0..POT).filter(|&k| self.pot_start[k] != u16::MAX && now[k] == self.pot_start[k]).fold(0u16, |b, k| b | 1 << k);
         let dealt = self.dealt as f32 / self.foe0.max(1) as f32;
         let r = JobResult { scen: self.scen, outcome, hp_lost: self.hp0 - end_frac, hp_end: end_frac, len: self.steps, done: true, hp_end_abs, pot_kept, dealt };
         // SAFETY: every job index is taken by exactly one block (atomic counter), so this entry is written once and by this task only.
@@ -1812,6 +1812,13 @@ pub fn replay(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], obs
 }
 
 pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
+    scen.0.validate()?;
+    let mut cx = Combat::try_new_with(&scen.0, &scen.1)?;
+    cx.reset_validated(&scen.0, &scen.1, seed, RngSet::from_run_seed_fast(seed)).map_err(EnvError::Scenario)?;
+    replay_steps_from(cx, actions, steps, obs, mask)
+}
+
+pub fn replay_steps_from(mut cx: Combat, actions: &[u16], steps: &[u32], obs: &mut [f32], mask: &mut [u8]) -> Result<(), EnvError> {
     let osz = OBS_SIZE;
     if obs.len() < steps.len() * osz || mask.len() < steps.len() * ACTION_SPACE {
         return Err(EnvError::Buffer("replay buffers too small"));
@@ -1819,9 +1826,6 @@ pub fn replay_steps(scen: &(Scenario, ScenarioExtras), seed: u64, actions: &[u16
     if steps.iter().any(|&t| t as usize > actions.len()) {
         return Err(EnvError::Buffer("a requested step is past the fight's end"));
     }
-    scen.0.validate()?;
-    let mut cx = Combat::try_new_with(&scen.0, &scen.1)?;
-    cx.reset_validated(&scen.0, &scen.1, seed, RngSet::from_run_seed_fast(seed)).map_err(EnvError::Scenario)?;
     let mut order: Vec<usize> = (0..steps.len()).collect();
     order.sort_by_key(|&k| steps[k]);
     let mut next = 0;

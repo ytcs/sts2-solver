@@ -16,6 +16,16 @@ pub fn axebot_hp_bonus(vars: [i32; 2]) -> i32 {
     if vars[0] == 0 { 0 } else { 10 * (2 - (vars[0] - 1)) }
 }
 
+pub fn axebot_boot_block(cx: &Combat) -> i32 {
+    a9(cx, 15, 10)
+}
+pub fn axebot_boot_str(cx: &Combat, respawns: i32) -> i32 {
+    a9(cx, 4, 3) * respawns
+}
+pub fn axebot_uppercut(cx: &Combat) -> i32 {
+    a9(cx, 18, 14)
+}
+
 pub static AXEBOT_DEF: MonsterDef = MonsterDef {
     id: ids::monster::AXEBOT,
     hp: |a| hp(a, (76, 86), (70, 78)),
@@ -30,9 +40,9 @@ pub static AXEBOT_DEF: MonsterDef = MonsterDef {
         mv(
             "BOOT_UP_MOVE",
             |cx, me| {
-                let b = a9(cx, 15, 10);
+                let b = axebot_boot_block(cx);
                 block(cx, me, b);
-                let s = a9(cx, 4, 3) * axebot_respawns(cx, me);
+                let s = axebot_boot_str(cx, axebot_respawns(cx, me));
                 power_self(cx, me, ids::power::STRENGTH_POWER, s);
             },
             &[Intent::Defend, Intent::Buff],
@@ -50,12 +60,12 @@ pub static AXEBOT_DEF: MonsterDef = MonsterDef {
         mv(
             "HAMMER_UPPERCUT_MOVE",
             |cx, me| {
-                let d = a9(cx, 18, 14);
+                let d = axebot_uppercut(cx);
                 atk(cx, me, d);
                 power_player(cx, me, ids::power::WEAK_POWER, 2);
                 power_player(cx, me, ids::power::FRAIL_POWER, 2);
             },
-            &[attack(|cx, _| a9(cx, 18, 14)), Intent::Debuff],
+            &[attack(|cx, _| axebot_uppercut(cx)), Intent::Debuff],
             1,
         ),
         cond("START", &[(0, |cx, c| cx.cr(c).monster.vars[0] != 0), (2, |cx, c| cx.cr(c).monster.vars[0] == 0)]),

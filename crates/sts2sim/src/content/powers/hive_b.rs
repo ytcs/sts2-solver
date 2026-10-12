@@ -129,11 +129,14 @@ listener!(TaintedPower {
 listener!(BackAttackLeftPower {});
 listener!(BackAttackRightPower {});
 
+pub const CRAB_RAGE_STR: i32 = 6;
+pub const CRAB_RAGE_BLOCK: i32 = 99;
+
 listener!(CrabRagePower {
     fn after_death(&self, cx: &mut Combat, me: Me, creature: Cid, _was_removal_prevented: bool) {
         if creature != me.owner && cx.cr(creature).side == cx.cr(me.owner).side {
-            cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(6), me.owner, NO);
-            cx.gain_block(me.owner, Dec::int(99), ValueProp::UNPOWERED, NO);
+            cx.apply_power(ids::power::STRENGTH_POWER, me.owner, Dec::int(CRAB_RAGE_STR as i64), me.owner, NO);
+            cx.gain_block(me.owner, Dec::int(CRAB_RAGE_BLOCK as i64), ValueProp::UNPOWERED, NO);
             cx.remove_power(me.owner, me.idx);
         }
     }
